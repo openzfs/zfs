@@ -327,6 +327,8 @@ _LIBZFS_H int zpool_vdev_clear(zpool_handle_t *, uint64_t);
 
 _LIBZFS_H nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
     boolean_t *, boolean_t *);
+_LIBZFS_H nvlist_t *zpool_find_parent_vdev(zpool_handle_t *, const char *,
+    boolean_t *, boolean_t *, boolean_t *);
 _LIBZFS_H nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
     boolean_t *, boolean_t *, boolean_t *);
 _LIBZFS_H int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *,

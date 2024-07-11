@@ -2863,10 +2863,13 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
  * the nvpair name to determine how we should look for the device.
  * 'avail_spare' is set to TRUE if the provided guid refers to an AVAIL
  * spare; but FALSE if its an INUSE spare.
+ *
+ * If 'return_parent' is set, then return the *parent* of the vdev you're
+ * searching for rather than the vdev itself.
  */
 static nvlist_t *
 vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
-    boolean_t *l2cache, boolean_t *log)
+    boolean_t *l2cache, boolean_t *log, boolean_t return_parent)
 {
 	uint_t c, children;
 	nvlist_t **child;
@@ -2874,6 +2877,8 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	uint64_t is_log;
 	const char *srchkey;
 	nvpair_t *pair = nvlist_next_nvpair(search, NULL);
+	const char *tmp = NULL;
+	boolean_t is_root;
 
 	/* Nothing to look for */
 	if (search == NULL || pair == NULL)
@@ -2881,6 +2886,12 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 
 	/* Obtain the key we will use to search */
 	srchkey = nvpair_name(pair);
+
+	nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &tmp);
+	if (strcmp(tmp, "root") == 0)
+		is_root = B_TRUE;
+	else
+		is_root = B_FALSE;
 
 	switch (nvpair_type(pair)) {
 	case DATA_TYPE_UINT64:
@@ -3012,7 +3023,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 
 	for (c = 0; c < children; c++) {
 		if ((ret = vdev_to_nvlist_iter(child[c], search,
-		    avail_spare, l2cache, NULL)) != NULL) {
+		    avail_spare, l2cache, NULL, return_parent)) != NULL) {
 			/*
 			 * The 'is_log' value is only set for the toplevel
 			 * vdev, not the leaf vdevs.  So we always lookup the
@@ -3025,7 +3036,7 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 			    is_log) {
 				*log = B_TRUE;
 			}
-			return (ret);
+			return (ret && return_parent && !is_root ? nv : ret);
 		}
 	}
 
@@ -3033,9 +3044,11 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++) {
 			if ((ret = vdev_to_nvlist_iter(child[c], search,
-			    avail_spare, l2cache, NULL)) != NULL) {
+			    avail_spare, l2cache, NULL, return_parent))
+			    != NULL) {
 				*avail_spare = B_TRUE;
-				return (ret);
+				return (ret && return_parent &&
+				    !is_root ? nv : ret);
 			}
 		}
 	}
@@ -3044,9 +3057,11 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++) {
 			if ((ret = vdev_to_nvlist_iter(child[c], search,
-			    avail_spare, l2cache, NULL)) != NULL) {
+			    avail_spare, l2cache, NULL, return_parent))
+			    != NULL) {
 				*l2cache = B_TRUE;
-				return (ret);
+				return (ret && return_parent &&
+				    !is_root ? nv : ret);
 			}
 		}
 	}
@@ -3081,7 +3096,8 @@ zpool_find_vdev_by_physpath(zpool_handle_t *zhp, const char *ppath,
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
-	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
+	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log,
+	    B_FALSE);
 	fnvlist_free(search);
 
 	return (ret);
@@ -3109,11 +3125,12 @@ zpool_vdev_is_interior(const char *name)
 }
 
 /*
- * Lookup the nvlist for a given vdev.
+ * Lookup the nvlist for a given vdev or vdev's parent (depending on
+ * if 'return_parent' is set).
  */
-nvlist_t *
-zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
-    boolean_t *l2cache, boolean_t *log)
+static nvlist_t *
+__zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
+    boolean_t *l2cache, boolean_t *log, boolean_t return_parent)
 {
 	char *end;
 	nvlist_t *nvroot, *search, *ret;
@@ -3150,10 +3167,28 @@ zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
 	*l2cache = B_FALSE;
 	if (log != NULL)
 		*log = B_FALSE;
-	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log);
+	ret = vdev_to_nvlist_iter(nvroot, search, avail_spare, l2cache, log,
+	    return_parent);
 	fnvlist_free(search);
 
 	return (ret);
+}
+
+nvlist_t *
+zpool_find_vdev(zpool_handle_t *zhp, const char *path, boolean_t *avail_spare,
+    boolean_t *l2cache, boolean_t *log)
+{
+	return (__zpool_find_vdev(zhp, path, avail_spare, l2cache, log,
+	    B_FALSE));
+}
+
+/* Given a vdev path, return its parent's nvlist */
+nvlist_t *
+zpool_find_parent_vdev(zpool_handle_t *zhp, const char *path,
+    boolean_t *avail_spare, boolean_t *l2cache, boolean_t *log)
+{
+	return (__zpool_find_vdev(zhp, path, avail_spare, l2cache, log,
+	    B_TRUE));
 }
 
 /*

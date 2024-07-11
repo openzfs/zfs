@@ -486,6 +486,7 @@
     <elf-symbol name='zpool_feature_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_config' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_find_parent_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_vdev_by_physpath' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_free_handles' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_all_vdev_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6533,6 +6534,14 @@
       <return type-id='5ce45b60'/>
     </function-decl>
     <function-decl name='zpool_find_vdev' mangled-name='zpool_find_vdev' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_vdev'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='37e3bd22' name='avail_spare'/>
+      <parameter type-id='37e3bd22' name='l2cache'/>
+      <parameter type-id='37e3bd22' name='log'/>
+      <return type-id='5ce45b60'/>
+    </function-decl>
+    <function-decl name='zpool_find_parent_vdev' mangled-name='zpool_find_parent_vdev' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_parent_vdev'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='80f4b756' name='path'/>
       <parameter type-id='37e3bd22' name='avail_spare'/>
