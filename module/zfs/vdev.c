@@ -6221,6 +6221,16 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				    vd->vdev_stat.vs_initialize_errors,
 				    ZPROP_SRC_NONE);
 				continue;
+			case VDEV_PROP_TRIM_ERRORS:
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    vd->vdev_stat.vs_trim_errors,
+				    ZPROP_SRC_NONE);
+				continue;
+			case VDEV_PROP_SLOW_IOS:
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    vd->vdev_stat.vs_slow_ios,
+				    ZPROP_SRC_NONE);
+				continue;
 			case VDEV_PROP_OPS_NULL:
 				vdev_prop_add_list(outnvl, propname, NULL,
 				    vd->vdev_stat.vs_ops[ZIO_TYPE_NULL],
@@ -6302,6 +6312,14 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				if (vd->vdev_ops == &vdev_raidz_ops) {
 					vdev_prop_add_list(outnvl, propname,
 					    NULL, vd->vdev_rz_expanding,
+					    ZPROP_SRC_NONE);
+				}
+				continue;
+			case VDEV_PROP_TRIM_SUPPORT:
+				/* only valid for leaf vdevs */
+				if (vd->vdev_ops->vdev_op_leaf) {
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, vd->vdev_has_trim,
 					    ZPROP_SRC_NONE);
 				}
 				continue;
