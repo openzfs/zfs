@@ -62,11 +62,39 @@ function compare_version_gte
 }
 
 # Helper function used by linux_version() and freebsd_version()
+# $1, if provided, should be a MAJOR, MAJOR.MINOR or MAJOR.MINOR.PATCH
+# version number
 function kernel_version
 {
 	typeset ver="$1"
 
-	[ -z "$ver" ] && ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
+	[ -z "$ver" ] && case "$UNAME" in
+	Linux)
+		# Linux version numbers are X.Y.Z followed by optional
+		# vendor/distro specific stuff
+		#   RHEL7:       3.10.0-1160.108.1.el7.x86_64
+		#   Fedora 37:   6.5.12-100.fc37.x86_64
+		#   Debian 12.6: 6.1.0-22-amd64
+		ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
+		;;
+	FreeBSD)
+		# FreeBSD version numbers are X.Y-BRANCH-pZ. Depending on
+		# branch, -pZ may not be present, but this is typically only
+		# on pre-release or true .0 releases, so can be assumed 0
+		# if not present.
+		# eg:
+		#   13.2-RELEASE-p4
+		#   14.1-RELEASE
+		#   15.0-CURRENT
+		ver=$(uname -r | \
+		    grep -Eo "[0-9]+\.[0-9]+(-[A-Z0-9]+-p[0-9]+)?" | \
+		    sed -E "s/-[^-]+-p/./")
+		;;
+	*)
+		# Unknown system
+		log_fail "Don't know how to get kernel version for '$UNAME'"
+		;;
+	esac
 
 	typeset version major minor _
 	IFS='.' read -r version major minor _ <<<"$ver"
