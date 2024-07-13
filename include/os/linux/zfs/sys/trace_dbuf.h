@@ -80,7 +80,7 @@
 		snprintf(__get_str(msg), TRACE_DBUF_MSG_MAX,		\
 		    DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS);		\
 	} else {							\
-		__assign_str(os_spa, "NULL")				\
+		__assign_str(os_spa, "NULL");				\
 		__entry->ds_object = 0;					\
 		__entry->db_object = 0;					\
 		__entry->db_level  = 0;					\
