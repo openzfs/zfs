@@ -558,6 +558,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 			VENDOR=alpine ;
 		elif test -f /etc/arch-release ; then
 			VENDOR=arch ;
+		elif test -f /etc/artix-release ; then
+			VENDOR=artix ;
 		elif test -f /etc/fedora-release ; then
 			VENDOR=fedora ;
 		elif test -f /bin/freebsd-version ; then
@@ -593,7 +595,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
-		alpine|arch|gentoo|lunar|slackware)
+		alpine|arch|artix|gentoo|lunar|slackware)
 			DEFAULT_PACKAGE=tgz  ;;
 		debian|ubuntu)
 			DEFAULT_PACKAGE=deb  ;;
@@ -618,6 +620,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	case "$VENDOR" in
 		alpine|gentoo)	DEFAULT_INIT_SHELL=/sbin/openrc-run
 				IS_SYSV_RC=false	;;
+		artix)		DEFAULT_INIT_SHELL=/usr/bin/openrc-run
+				IS_SYSV_RC=false	;;
 		*)		DEFAULT_INIT_SHELL=/bin/sh
 				IS_SYSV_RC=true		;;
 	esac
@@ -636,7 +640,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
-		alpine|gentoo)
+		alpine|artix|gentoo)
 			initconfdir=/etc/conf.d
 			;;
 		fedora|openeuler|redhat|sles|toss)
@@ -665,7 +669,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default bash completion directory])
 	case "$VENDOR" in
-		debian|gentoo|ubuntu)
+		artix|debian|gentoo|ubuntu)
 			bashcompletiondir=/usr/share/bash-completion/completions
 			;;
 		freebsd)
