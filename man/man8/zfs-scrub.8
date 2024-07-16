@@ -1,0 +1,53 @@
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright 2024 Klara, Inc.
+.\" Copyright 2024 Mariusz Zaborski <oshogbo@FreeBSD.org>
+.\"
+.Dd February 21, 2024
+.Dt ZFS-SCRUB 8
+.Os
+.
+.Sh NAME
+.Nm zfs-scrub
+.Nd run scrub of file in ZFS storage pools
+.Sh SYNOPSIS
+.Nm zfs
+.Cm scrub
+.Ar filename Ns
+.
+.Sh DESCRIPTION
+Runs a scrub for a single file.
+The scrub examines all data associated with a given file.
+For replicated
+.Pq mirror, raidz, or draid
+devices, ZFS automatically repairs any damage discovered during the scrub.
+The
+.Nm zpool Cm status
+command reports the progress of the scrub and summarizes the results of the
+scrub upon completion.
+For more details about scrubing, refer
+.Xr zpool 8 .
+.
+.Pp
+ZFS allows only on scrub process at a time (pool scrub or file scrub).
+.Sh SEE ALSO
+.Xr zpool-scrub 8 ,
+.Xr zpool-status 8
