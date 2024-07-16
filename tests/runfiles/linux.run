@@ -189,7 +189,8 @@ tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_002_pos',
     'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
     'projectspace_004_pos', 'projectspace_005_pos',
-    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg']
+    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg',
+    'projecttree_hierarchy_001_pos']
 tags = ['functional', 'projectquota']
 
 [tests/functional/dos_attributes:Linux]

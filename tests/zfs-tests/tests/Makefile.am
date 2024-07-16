@@ -1783,6 +1783,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/projectquota/projecttree_001_pos.ksh \
 	functional/projectquota/projecttree_002_pos.ksh \
 	functional/projectquota/projecttree_003_neg.ksh \
+	functional/projectquota/projecttree_hierarchy_001_pos.ksh \
 	functional/projectquota/setup.ksh \
 	functional/quota/cleanup.ksh \
 	functional/quota/quota_001_pos.ksh \

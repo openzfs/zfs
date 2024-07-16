@@ -66,6 +66,7 @@ extern int zfs_getattr_fast(zidmap_t *, struct inode *ip, struct kstat *sp);
 #endif
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr,
     zidmap_t *mnt_ns);
+extern int zfs_setattr_xattr_dir(znode_t *zp);
 extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
     char *tnm, cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
     zidmap_t *mnt_ns);

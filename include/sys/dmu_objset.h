@@ -200,6 +200,12 @@ struct objset {
 	dmu_objset_upgrade_cb_t os_upgrade_cb;
 	boolean_t os_upgrade_exit;
 	int os_upgrade_status;
+
+	kmutex_t os_projecthierarchyused_lock;
+	kmutex_t os_projecthierarchyop_lock;
+
+	avl_tree_t os_project_deltas[TXG_SIZE];
+	uint64_t os_projecthierarchy_obj;
 };
 
 #define	DMU_META_OBJSET		0
@@ -268,6 +274,8 @@ int dmu_fsname(const char *snapname, char *buf);
 
 void dmu_objset_evict_done(objset_t *os);
 void dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx);
+void do_projectusage_update(objset_t *os, uint64_t projid, int64_t used,
+    dmu_tx_t *tx);
 
 void dmu_objset_init(void);
 void dmu_objset_fini(void);

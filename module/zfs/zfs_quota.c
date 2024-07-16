@@ -37,6 +37,7 @@
 #include <sys/zfs_project.h>
 #include <sys/zfs_quota.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops_os.h>
 
 int
 zpl_get_file_info(dmu_object_type_t bonustype, const void *data,
@@ -305,6 +306,930 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	return (err);
 }
 
+/*
+ * This function returns true, if "expected_parent_projid" is hierarchical
+ * parent project of "projid", otherwise returns false.
+ * zfsvfs->z_projecthierarchy_obj 0 means, no hierarchical projects.
+ */
+int
+zfs_projects_are_hierarchical(zfsvfs_t *zfsvfs, uint64_t projid,
+    uint64_t expected_parent_projid, boolean_t *hierarchical_p) {
+
+	boolean_t hierarchical = B_FALSE;
+	int err = 0;
+
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0) {
+		return (err);
+	}
+
+	if (!zfsvfs->z_projecthierarchy_obj) {
+		goto out;
+	}
+
+	while (projid != ZFS_DEFAULT_PROJID) {
+		char buf[20 + DMU_OBJACCT_PREFIX_LEN];
+
+		(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)projid);
+
+		uint64_t parentproj_ino[2] = {0, 0};
+		uint64_t projhierarchyobj;
+		uint64_t parent_projid;
+
+		projhierarchyobj = zfsvfs->z_projecthierarchy_obj;
+		err = zap_lookup(zfsvfs->z_os, projhierarchyobj, buf, 8, 2,
+		    &parentproj_ino);
+		if (err == ENOENT) {
+			err = 0;
+			break;
+		}
+		if (err) {
+			char dsname[ZFS_MAX_DATASET_NAME_LEN];
+			dsl_dataset_name(zfsvfs->z_os->os_dsl_dataset, dsname);
+			cmn_err(CE_NOTE, "%s:%d ds=%s hobj=%lld project=%lld "
+			    "error=%d on zap_lookup", __func__, __LINE__,
+			    dsname, zfsvfs->z_projecthierarchy_obj, projid,
+			    err);
+			break;
+		}
+
+		parent_projid = parentproj_ino[0];
+		if (parent_projid == expected_parent_projid) {
+			hierarchical = B_TRUE;
+			break;
+		}
+		projid = parent_projid;
+	}
+
+out:
+	zfs_exit(zfsvfs, FTAG);
+	*hierarchical_p = hierarchical;
+	return (err);
+}
+
+/*
+ * This function gets the usage of given projid.
+ */
+static int
+zfs_project_get_usage(zfsvfs_t *zfsvfs, uint64_t projid, uint64_t *usedp)
+{
+	int err;
+
+	/*
+	 * get project usage of projid.
+	 */
+	char buf[20 + DMU_OBJACCT_PREFIX_LEN];
+	uint64_t used;
+
+	(void) snprintf(buf, sizeof (buf), "%llx",
+	    (longlong_t)projid);
+	used = 0;
+	err = zap_lookup(zfsvfs->z_os, DMU_PROJECTUSED_OBJECT, buf, 8,
+	    1, &used);
+	if (err == ENOENT)
+		err = 0;
+	if (err != 0) {
+		cmn_err(CE_NOTE, "%s:%d error=%d on zap_lookup. projid=%lld",
+		    __func__, __LINE__, err, projid);
+		*usedp = 0;
+		return (err);
+	}
+
+	*usedp = used;
+	return (0);
+}
+
+/*
+ * This function finds total usages of child projects of given parent project.
+ */
+static int
+zfs_project_hierarchy_get_childrens_usage(zfsvfs_t *zfsvfs, uint64_t *objp,
+    uint64_t parent_projid, uint64_t *childrens_usedp)
+{
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t parentproj_ino[2];
+	uint64_t h_projid, h_parent_projid, h_ino;
+	int error = 0;
+
+	zfs_dbgmsg(" Get usage of all child project of projid=%lld",
+	    parent_projid);
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, zfsvfs->z_os, *objp);
+	    zap_cursor_retrieve(&zc, za) == 0; zap_cursor_advance(&zc)) {
+		if (za->za_num_integers != 2)
+			continue;
+		error = zap_lookup(zfsvfs->z_os, *objp,
+		    za->za_name, 8, 2, parentproj_ino);
+		if (error == ENOENT) {
+			error = 0;
+			continue;
+		}
+		if (error) {
+			cmn_err(CE_NOTE, "%s:%d error %d on zap lookup. projid="
+			    "%s", __func__, __LINE__, error, za->za_name);
+			break;
+		}
+		h_parent_projid = parentproj_ino[0];
+		h_ino = parentproj_ino[1];
+		h_projid = zfs_strtonum(za->za_name, NULL);
+		if (h_parent_projid == parent_projid) {
+			uint64_t child_used = 0;
+			error = zfs_project_get_usage(zfsvfs, h_projid,
+			    &child_used);
+			if (error) {
+				cmn_err(CE_NOTE, "%s:%d error %d on projid=%s "
+				    "get usage", __func__, __LINE__, error,
+				    za->za_name);
+				break;
+			}
+			*childrens_usedp += child_used;
+		}
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+
+	return (error);
+}
+
+/*
+ * This function finds project id associated to given ino.
+ */
+static int
+zfs_project_hierarchy_ino_to_project(zfsvfs_t *zfsvfs, uint64_t *objp,
+    uint64_t ino, uint64_t *projidp)
+{
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t parentproj_ino[2];
+	uint64_t h_projid, h_parent_projid, h_ino;
+	uint64_t projid;
+	int error = 0;
+
+	projid = 0;
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, zfsvfs->z_os, *objp);
+	    zap_cursor_retrieve(&zc, za) == 0; zap_cursor_advance(&zc)) {
+		if (za->za_num_integers != 2)
+			continue;
+		error = zap_lookup(zfsvfs->z_os, *objp,
+		    za->za_name, 8, 2, parentproj_ino);
+		if (error == ENOENT) {
+			error = 0;
+			continue;
+		}
+		if (error) {
+			cmn_err(CE_NOTE, "%s:%d error %d on zap lookup. projid="
+			    "%s", __func__, __LINE__, error, za->za_name);
+			break;
+		}
+		h_parent_projid = parentproj_ino[0];
+		h_ino = parentproj_ino[1];
+		h_projid = zfs_strtonum(za->za_name, NULL);
+		zfs_dbgmsg("zap entry projid=%lld parent_projid=%llx ino=%lld",
+		    h_projid, h_parent_projid, h_ino);
+		if (h_ino == ino) {
+			projid = h_projid;
+			break;
+		}
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+	zfs_dbgmsg("projid=%lld for ino=%lld. error=%d", projid, ino, error);
+	*projidp = projid;
+
+	return (error);
+}
+
+/*
+ * This functin sets the projid on znode.
+ */
+static int
+zfs_projectino_set_projid(znode_t *zp, uint64_t projid, dmu_tx_t *tx)
+{
+	boolean_t projid_done = B_FALSE;
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	int error = 0;
+
+	if (!(zp->z_pflags & ZFS_PROJID)) {
+		/*
+		 * zp was created before project quota feature upgrade.
+		 * It needs sa relayout to set projid.
+		 */
+		error = sa_add_projid(zp->z_sa_hdl, tx, projid);
+		if (unlikely(error == EEXIST)) {
+			error = 0;
+		} else if (error != 0) {
+			goto out;
+		} else {
+			projid_done = B_TRUE;
+		}
+	}
+
+	if (!projid_done) {
+		zp->z_projid = projid;
+		error = sa_update(zp->z_sa_hdl, SA_ZPL_PROJID(zfsvfs),
+		    (void *)&zp->z_projid, sizeof (uint64_t), tx);
+		if (error)
+			goto out;
+	}
+	zp->z_pflags |= ZFS_PROJINHERIT;
+	error = sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
+	    (void *)&zp->z_pflags, sizeof (uint64_t), tx);
+
+out:
+	zfs_dbgmsg("ino=%lld projid=%lld error=%d", zp->z_id, projid, error);
+	if (error) {
+		cmn_err(CE_NOTE, "%s:%d error %d projid=%lld, ino=%lld",
+		    __func__, __LINE__, error, projid, zp->z_id);
+	}
+	return (error);
+}
+
+/*
+ * This function adds the given usage to all parent projects in hierarchy up.
+ */
+static int
+zfs_project_hierarchy_parent_usage_update_all(zfsvfs_t *zfsvfs,
+    uint64_t parent_projid, dmu_tx_t *tx, uint64_t *objp, int64_t used)
+{
+	int err = 0;
+
+	while (parent_projid != ZFS_DEFAULT_PROJID) {
+		mutex_enter(&zfsvfs->z_os->os_projecthierarchyused_lock);
+		do_projectusage_update(zfsvfs->z_os,
+		    parent_projid, used, tx);
+		mutex_exit(&zfsvfs->z_os->os_projecthierarchyused_lock);
+
+		char pprojbuf[32];
+		(void) snprintf(pprojbuf, sizeof (pprojbuf), "%llx",
+		    (longlong_t)parent_projid);
+
+		uint64_t p_parentproj_ino[2];
+		err = zap_lookup(zfsvfs->z_os, *objp,
+		    pprojbuf, 8, 2,
+		    &p_parentproj_ino);
+		if (err == 0) {
+			parent_projid =
+			    p_parentproj_ino[0];
+		} else {
+			cmn_err(CE_NOTE, "%s:%d error %d on zap lookup. projid="
+			    "%lld", __func__, __LINE__, err, parent_projid);
+			break;
+		}
+	}
+
+	return (err);
+}
+
+/*
+ * This function gets the usage of projid and add it to parent_projid.
+ */
+static int
+zfs_project_hierarchy_parent_usage_update(zfsvfs_t *zfsvfs, uint64_t projid,
+    uint64_t parent_projid, dmu_tx_t *tx, boolean_t subtract)
+{
+	int err;
+
+	if (projid != parent_projid && parent_projid != ZFS_DEFAULT_PROJID) {
+
+		/*
+		 * get project usage of projid.
+		 * Update usage on parent_projid.
+		 */
+		char buf[20 + DMU_OBJACCT_PREFIX_LEN];
+		uint64_t used;
+		int64_t delta;
+
+		(void) snprintf(buf, sizeof (buf), "%llx",
+		    (longlong_t)projid);
+		used = 0;
+		err = zap_lookup(zfsvfs->z_os, DMU_PROJECTUSED_OBJECT, buf, 8,
+		    1, &used);
+		if (err == ENOENT)
+			err = 0;
+		if (err != 0) {
+			cmn_err(CE_NOTE, "%s:%d projid=%lld "
+			    "parent_projid=%lld delta=%lld err=%d", __func__,
+			    __LINE__, projid, parent_projid, delta, err);
+			return (err);
+		}
+		delta = used;
+
+		if (subtract) {
+			delta = -delta;
+		}
+
+		mutex_enter(&zfsvfs->z_os->os_projecthierarchyused_lock);
+		do_projectusage_update(zfsvfs->z_os,
+		    parent_projid, delta, tx);
+		mutex_exit(&zfsvfs->z_os->os_projecthierarchyused_lock);
+	}
+
+	return (0);
+}
+
+/*
+ * This function updates zap entry in ZFS_PROJECT_HIERARCHY zap object.
+ * Zap entry is formed with name=<projid> and value=<parent_projid, ino>.
+ * projid and ino are function arguments. parent_projid
+ * is project id on parent inode of "ino" in hierarchy upword, which has
+ * entry in ZFS_PROJECT_HIERARCHY, means hierarchical parent project.
+ */
+static int
+zfs_project_hierarchy_zap_update(zfsvfs_t *zfsvfs, uint64_t *objp,
+    uint64_t projid, uint64_t ino, char *buf, dmu_tx_t *tx,
+    boolean_t parent_usage_update)
+{
+	uint64_t parent = 0;
+	uint64_t parentproj_ino[2];
+	uint64_t cur_parentproj_ino[2];
+	uint64_t cur_parent_projid = ZFS_DEFAULT_PROJID;
+	znode_t *zp = NULL;
+	int err = 0;
+
+	zfs_dbgmsg("Update parent_projid for projid=%llx", projid);
+	ASSERT(ino != 0);
+
+	/*
+	 * Get current parent_projid for existing project.
+	 * No entry means that its new project being added, so consider "0" as
+	 * current parent project id.
+	 */
+	err = zap_lookup(zfsvfs->z_os, *objp, buf, 8, 2,
+	    &cur_parentproj_ino);
+	if (err == 0) {
+		cur_parent_projid = cur_parentproj_ino[0];
+	} else if (err == ENOENT) {
+		cur_parent_projid = 0;
+		err = 0;
+	} else {
+		cmn_err(CE_NOTE, "%s:%d error %d on zap lookup. projid=%lld",
+		    __func__, __LINE__, err, projid);
+		goto out;
+	}
+
+	char pbuf[32];
+	uint64_t p_parentproj_ino[2] = {0, 0};
+	uint64_t parent_projid = ZFS_DEFAULT_PROJID;
+
+	uint64_t zid = ino;
+	err = zfs_zget(zfsvfs, zid, &zp);
+	if (err == ENOENT) {
+		zfs_dbgmsg("ENOENT on ino=%lld associated to projid=%llx. "
+		    "Remove from hierarchy", ino, projid);
+		err = 0;
+		goto update;
+	}
+	if (err)
+		goto out;
+	if (zp->z_projid != projid) {
+		zfs_dbgmsg("different projid=%lld on ino=%lld, its associated "
+		    "to projid=%llx. Remove from hierarchy", zp->z_projid, ino,
+		    projid);
+		zrele(zp);
+		zp = NULL;
+		goto update;
+	}
+
+	/*
+	 * Get parent inode of ino passed. if project id on parent inode is 0 or
+	 * non-zero project id with no entry in zap, then check the next parent
+	 * following till the root inode.
+	 * When updating child project to associate with newly added parent
+	 * project, immediate parent inode of inode corresponding to child
+	 * project could have projid "0", if its not an inode corresponding to
+	 * parent project. so follow up to find parent inode with non-zero
+	 * projid and entry in zap. Inode corresponding to parent project has
+	 * projid set.
+	 */
+	while (zid != zfsvfs->z_root) {
+		err = sa_lookup(zp->z_sa_hdl,
+		    SA_ZPL_PARENT(zfsvfs), &parent, sizeof (parent));
+		zrele(zp);
+		zp = NULL;
+		if (err) {
+			cmn_err(CE_NOTE, "%s:%d error %d on sa_lookup. ino="
+			    "%lld", __func__, __LINE__, err, zp->z_id);
+			break;
+		}
+
+		err = zfs_zget(zfsvfs, parent, &zp);
+		if (err) {
+			cmn_err(CE_NOTE, "%s:%d error %d on zget. ino=%lld",
+			    __func__, __LINE__, err, parent);
+			break;
+		}
+		parent_projid = zp->z_projid;
+		if (parent_projid != 0) {
+			(void) snprintf(pbuf, sizeof (pbuf), "%llx",
+			    (longlong_t)parent_projid);
+			err = zap_lookup(zfsvfs->z_os, *objp, pbuf, 8, 2,
+			    &p_parentproj_ino);
+			if (err == 0)
+				break;
+		}
+		zid = parent;
+	}
+	if (zp) {
+		zrele(zp);
+		zp = NULL;
+	}
+
+	if (err)
+		goto out;
+
+update:
+	parentproj_ino[0] = parent_projid;
+	parentproj_ino[1] = ino;
+
+	err = zap_update(zfsvfs->z_os, *objp, buf, 8, 2, &parentproj_ino, tx);
+	if (parent_usage_update && parent_projid != ZFS_DEFAULT_PROJID &&
+	    parent_projid != cur_parent_projid)
+		zfs_project_hierarchy_parent_usage_update(zfsvfs, projid,
+		    parent_projid, tx, B_FALSE);
+
+out:
+	zfs_dbgmsg("updated parent_projid for projid=%llx, cur_parent_projid="
+	    "%llx. parent projid=%llx, ino=%lld err=%d", projid,
+	    cur_parent_projid, parent_projid, ino, err);
+	return (err);
+}
+
+/*
+ * This function updates each zap entry in PROJECT_HIERARCHY zap object, for the
+ * change in parent project due to project add or remove.
+ */
+static int
+zfs_project_hierarchy_zap_update_all(zfsvfs_t *zfsvfs, uint64_t *objp,
+    uint64_t updated_projid, dmu_tx_t *tx, boolean_t project_removed)
+{
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t parentproj_ino[2];
+	uint64_t projid, parent_projid, ino;
+	int error = 0;
+
+	zfs_dbgmsg("Update all projects. newly %s projid=%llx",
+	    (project_removed ? "removed" : "added"), updated_projid);
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, zfsvfs->z_os, *objp);
+	    zap_cursor_retrieve(&zc, za) == 0; zap_cursor_advance(&zc)) {
+		if (za->za_num_integers != 2)
+			continue;
+		error = zap_lookup(zfsvfs->z_os, *objp,
+		    za->za_name, 8, 2, parentproj_ino);
+		if (error == ENOENT) {
+			error = 0;
+			continue;
+		}
+		if (error) {
+			cmn_err(CE_NOTE, "%s:%d error %d on zap lookup projid="
+			    "%s", __func__, __LINE__, error, za->za_name);
+			break;
+		}
+		parent_projid = parentproj_ino[0];
+		ino = parentproj_ino[1];
+		zfs_dbgmsg("zap entry projid=%s parent_projid=%llx ino=%lld",
+		    za->za_name, parent_projid, ino);
+		if (project_removed && parent_projid != updated_projid)
+			continue;
+		if (!project_removed && parent_projid == updated_projid)
+			continue;
+		projid = zfs_strtonum(za->za_name, NULL);
+
+		boolean_t parent_usage_update = B_TRUE;
+		if (project_removed) {
+			ASSERT(parent_projid == updated_projid);
+			/*
+			 * "parent_projid" removed, so its association with
+			 * "projid" would be removed. projid would be
+			 * associated to new parent project in hierarchy up via
+			 * zfs_project_hierarchy_zap_update. substract projid
+			 * usage from current "parent_projid".
+			 */
+			error = zfs_project_hierarchy_parent_usage_update(
+			    zfsvfs, projid, parent_projid, tx, B_TRUE);
+			if (error) {
+				cmn_err(CE_NOTE, "%s:%d error %d on parent "
+				    "usage update. projid=%lld parent_projid="
+				    "%lld", __func__, __LINE__, error, projid,
+				    parent_projid);
+				break;
+			}
+			/*
+			 * all parent project in hierarchy up already accounts
+			 * projid usage, so no update needed to new parent
+			 * project via zfs_project_hierarchy_zap_update.
+			 */
+			parent_usage_update = B_FALSE;
+		}
+
+		/*
+		 * parent_usage_update would be true, when new project added and
+		 * associating child project to it.
+		 * zfs_project_hierarchy_zap_update would add "projid" usage to
+		 * its new "parent_projid".
+		 */
+		error = zfs_project_hierarchy_zap_update(zfsvfs, objp, projid,
+		    ino, za->za_name, tx, parent_usage_update);
+		if (error) {
+			cmn_err(CE_NOTE, "%s:%d error %d on hierarchy zap "
+			    "update. projid=%lld ino=%lld", __func__, __LINE__,
+			    error, projid, ino);
+			break;
+		}
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+	zfs_dbgmsg("Done Updating all projects. newly %s projid=%llx.error=%d",
+	    (project_removed ? "removed" : "added"), updated_projid, error);
+
+	return (error);
+}
+
+/*
+ * This function removes a zap entry from project hierarchy zap.
+ * Its used to remove project entry when associated directory inode is deleted.
+ */
+static int
+zfs_project_hierarchy_remove_entry(zfsvfs_t *zfsvfs, uint64_t projid)
+{
+	dmu_tx_t *tx;
+	int error;
+	uint64_t phobj = zfsvfs->z_projecthierarchy_obj;
+	if (phobj != 0 && projid != ZFS_DEFAULT_PROJID) {
+		uint64_t parentproj_ino[2] = {0, 0};
+		char projbuf[32];
+		(void) snprintf(projbuf, sizeof (projbuf), "%llx",
+		    (longlong_t)projid);
+		error = zap_lookup(zfsvfs->z_os, phobj, projbuf, 8, 2,
+		    &parentproj_ino);
+		if (error == 0) {
+			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+
+			mutex_enter(&zfsvfs->z_os->os_projecthierarchyop_lock);
+			tx = dmu_tx_create(zfsvfs->z_os);
+			dmu_tx_hold_zap(tx, phobj, B_TRUE, NULL);
+			error = dmu_tx_assign(tx, DMU_TX_WAIT);
+			if (error) {
+				dmu_tx_abort(tx);
+			} else {
+				error = zap_remove(zfsvfs->z_os, phobj, projbuf,
+				    tx);
+				dmu_tx_commit(tx);
+			}
+			mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+		}
+		zfs_dbgmsg("removed entry projid=%lld. error=%d", projid,
+		    error);
+	}
+
+	return (0);
+}
+
+/*
+ * This function removes association of given project id and ino.
+ */
+int
+zfs_project_hierarchy_remove(zfsvfs_t *zfsvfs, uint64_t projid, uint64_t ino,
+    boolean_t toponly)
+{
+	uint64_t *objp;
+	dmu_tx_t *tx;
+	int err;
+
+	zfs_dbgmsg("remove projid=%lld from ino=%lld", projid, ino);
+	objp = &zfsvfs->z_projecthierarchy_obj;
+	if (objp == 0)
+		return (0);
+
+	uint64_t h_parentproj = 0, h_ino = 0;
+	char projbuf[32];
+
+	(void) snprintf(projbuf, sizeof (projbuf), "%llx", (longlong_t)projid);
+
+	uint64_t parentproj_ino[2];
+	err = zap_lookup(zfsvfs->z_os, *objp, projbuf, 8, 2,
+	    &parentproj_ino);
+	if (err == 0) {
+		h_parentproj = parentproj_ino[0];
+		h_ino = parentproj_ino[1];
+		if (ino != h_ino) {
+			cmn_err(CE_NOTE, "%s:%d project %lld associated to ino="
+			    "%lld and not to %lld", __func__, __LINE__, projid,
+			    h_ino, ino);
+			return (EINVAL);
+		}
+		if (toponly && h_parentproj != 0) {
+			cmn_err(CE_NOTE, "%s:%d project %lld assocated to ino="
+			    "%lld, is not top of hierarchy", __func__, __LINE__,
+			    projid, ino);
+			return (EINVAL);
+		}
+	} else if (err != ENOENT) {
+		cmn_err(CE_NOTE, "%s:%d error %d on zap_lookup. projid=%lld "
+		    "ino=%lld", __func__, __LINE__, err, projid, ino);
+		return (err);
+	} else {
+		cmn_err(CE_NOTE, "%s:%d projid=%lld not associated to ino=%lld"
+		    " and not to any other ino", __func__, __LINE__, projid,
+		    ino);
+		return (EINVAL);
+	}
+
+	mutex_enter(&zfsvfs->z_os->os_projecthierarchyop_lock);
+	/*
+	 * Get projid own usage to later reduce it from all its parents once its
+	 * removed from hierarchy.
+	 */
+	uint64_t project_used = 0;
+	err = zfs_project_get_usage(zfsvfs, projid, &project_used);
+	if (err) {
+		mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+		return (err);
+	}
+	uint64_t childrens_used = 0;
+	err = zfs_project_hierarchy_get_childrens_usage(zfsvfs, objp, projid,
+	    &childrens_used);
+	if (err) {
+		mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+		return (err);
+	}
+
+	uint64_t project_own_used;
+	if (project_used > childrens_used)
+		project_own_used = project_used - childrens_used;
+	else
+		project_own_used = 0;
+
+	tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_zap(tx, *objp, B_TRUE, NULL);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err) {
+		dmu_tx_abort(tx);
+		mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+		return (err);
+	}
+
+	err = zap_remove(zfsvfs->z_os, *objp, projbuf, tx);
+	if (err == ENOENT)
+		err = 0;
+	ASSERT0(err);
+
+	/*
+	 * projid removed from hierarchy. Update childrens assocation in
+	 * hierarchy.
+	 */
+	err = zfs_project_hierarchy_zap_update_all(zfsvfs, objp, projid, tx,
+	    B_TRUE);
+	ASSERT0(err);
+
+	/*
+	 * Reduce projid own usage from its parents in hierarchy.
+	 */
+	err = zfs_project_hierarchy_parent_usage_update_all(zfsvfs,
+	    h_parentproj, tx, objp, -project_own_used);
+	ASSERT0(err);
+
+	dmu_tx_commit(tx);
+	mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+	zfs_dbgmsg("removed projid=%lld from ino=%lld", projid, ino);
+
+	return (err);
+}
+
+/*
+ * This function creats association of given projid with its parent project.
+ * Parent project is discovered by walking up in hierarchy from the given
+ * directory ino. It also updates the existing projects parent. Parent project
+ * change for existing projects is possible, when a new project is added in
+ * middle of the hierarchy of existing projects.
+ */
+int
+zfs_project_hierarchy_add(zfsvfs_t *zfsvfs, uint64_t projid, uint64_t ino)
+{
+	uint64_t *objp;
+	dmu_tx_t *tx;
+	char buf[32];
+	int err = 0;
+
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (err);
+
+	zfs_dbgmsg("add projid=%lld ino=%lld", projid, ino);
+	objp = &zfsvfs->z_projecthierarchy_obj;
+
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)projid);
+
+	if (*objp != 0) {
+		uint64_t parentproj_ino[2];
+		err = zap_lookup(zfsvfs->z_os, *objp, buf, 8, 2,
+		    &parentproj_ino);
+		if (err == 0) {
+			uint64_t projino;
+			projino = parentproj_ino[1];
+			if (ino == projino) {
+				cmn_err(CE_NOTE, "%s:%d projid=%lld already "
+				    "added in given ino=%lld hierarchy",
+				    __func__, __LINE__, projid, ino);
+				goto out_exit;
+			} else {
+				cmn_err(CE_NOTE, "%s:%d projid=%lld already "
+				    "added in ino=%lld hierarchy. can't add for"
+				    " another ino=%lld", __func__, __LINE__,
+				    projid, projino, ino);
+				err = (SET_ERROR(EINVAL));
+				goto out_exit;
+			}
+		} else if (err != ENOENT) {
+			cmn_err(CE_NOTE, "%s:%d error %d on zap_lookup. projid="
+			    "%lld ino=%lld", __func__, __LINE__, err, projid,
+			    ino);
+			goto out_exit;
+		}
+
+		/*
+		 * If different project associated to given inode in hierarchy,
+		 * then it needs to be removed first from hierarchy.
+		 * Can't associate a new project to ino, if another project
+		 * is associated and it has quota set.
+		 */
+		uint64_t h_projid = 0;
+		err = zfs_project_hierarchy_ino_to_project(zfsvfs, objp, ino,
+		    &h_projid);
+		if (err) {
+			cmn_err(CE_NOTE, "%s:%d error %d on ino to project. "
+			    "projid=%lld ino=%lld", __func__, __LINE__, err,
+			    projid, ino);
+			goto out_exit;
+		}
+		if (h_projid != 0) {
+			uint64_t *quotaobjp;
+			uint64_t quota;
+			char hbuf[32];
+			quotaobjp = &zfsvfs->z_projectquota_obj;
+			(void) snprintf(hbuf, sizeof (hbuf), "%llx",
+			    (longlong_t)h_projid);
+			err = zap_lookup(zfsvfs->z_os, *quotaobjp, hbuf, 8, 1,
+			    &quota);
+			if (err == 0) {
+				cmn_err(CE_NOTE, "%s:%d ino=%lld already "
+				    "associated to projid=%lld with quota set. "
+				    "can't associate to another projid=%lld",
+				    __func__, __LINE__, ino, h_projid, projid);
+				err = (SET_ERROR(EINVAL));
+				goto out_exit;
+			} else if (err != ENOENT) {
+				cmn_err(CE_NOTE, "%s:%d error %d on quota "
+				    "zap_lookup. projid=%lld ino=%lld hprojid="
+				    "%lld", __func__, __LINE__, err, projid,
+				    ino, h_projid);
+				goto out_exit;
+			}
+			err = zfs_project_hierarchy_remove(zfsvfs, h_projid,
+			    ino, B_FALSE);
+			if (err) {
+				cmn_err(CE_NOTE, "%s:%d error %d on hierarchy "
+				    "remove. projid=%lld ino=%lld hprojid=%lld",
+				    __func__, __LINE__, err, projid, ino,
+				    h_projid);
+				goto out_exit;
+			}
+		}
+	}
+
+	znode_t *qzp = NULL;
+
+	err = zfs_zget(zfsvfs, ino, &qzp);
+	if (err) {
+		cmn_err(CE_NOTE, "%s:%d error %d on zget. projid=%lld "
+		    "ino=%lld", __func__, __LINE__, err, projid, ino);
+		goto out_exit;
+	}
+
+	mutex_enter(&zfsvfs->z_os->os_projecthierarchyop_lock);
+
+	tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_sa(tx, qzp->z_sa_hdl, B_TRUE);
+	dmu_tx_hold_zap(tx, *objp ? *objp : DMU_NEW_OBJECT, B_TRUE, NULL);
+	if (*objp == 0) {
+		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, B_TRUE,
+		    ZFS_PROJECT_HIERARCHY);
+	}
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err) {
+		dmu_tx_abort(tx);
+		goto out_exit_rele_unlock;
+	}
+
+	mutex_enter(&zfsvfs->z_lock);
+	if (*objp == 0) {
+		*objp = zap_create(zfsvfs->z_os, DMU_OT_USERGROUP_QUOTA,
+		    DMU_OT_NONE, 0, tx);
+		VERIFY(0 == zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
+		    ZFS_PROJECT_HIERARCHY, 8,
+		    1, objp, tx));
+		zfsvfs->z_os->os_projecthierarchy_obj =
+		    zfsvfs->z_projecthierarchy_obj;
+	}
+	mutex_exit(&zfsvfs->z_lock);
+
+	/*
+	 * Set the projid on corresponding inode, so that child project can see
+	 * and associate with it.
+	 */
+	err = zfs_projectino_set_projid(qzp, projid, tx);
+	ASSERT0(err);
+
+	err = zfs_project_hierarchy_zap_update(zfsvfs, objp, projid, ino, buf,
+	    tx, B_FALSE);
+	ASSERT0(err);
+	err = zfs_project_hierarchy_zap_update_all(zfsvfs, objp, projid, tx,
+	    B_FALSE);
+	ASSERT0(err);
+
+	dmu_tx_commit(tx);
+	/*
+	 * As we set the projid on inode, so also set projid on its xattr's.
+	 */
+	zfs_setattr_xattr_dir(qzp);
+
+out_exit_rele_unlock:
+	mutex_exit(&zfsvfs->z_os->os_projecthierarchyop_lock);
+	zrele(qzp);
+out_exit:
+	zfs_exit(zfsvfs, FTAG);
+	zfs_dbgmsg("Done add projid=%lld ino=%lld err:%d", projid, ino, err);
+	return (err);
+}
+
+/*
+ * This function removes projects from hierarchy, which doesn't
+ * have quota and parent project id 0. Project without quota and
+ * no parent project doesn't need hierarchical accounting.
+ * It also cleanup the entries corresponding to deleted directory
+ * inode.
+ */
+static int
+zfs_project_hierarchy_cleanup(zfsvfs_t *zfsvfs)
+{
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t parentproj_ino[2];
+	uint64_t h_projid, h_parent_projid, h_ino;
+	uint64_t *hobjp, *quotaobjp;
+
+	quotaobjp = &zfsvfs->z_projectquota_obj;
+	hobjp = &zfsvfs->z_projecthierarchy_obj;
+	if (hobjp == NULL)
+		return (0);
+
+more:
+	boolean_t remove_more = B_FALSE;
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, zfsvfs->z_os, *hobjp);
+	    zap_cursor_retrieve(&zc, za) == 0; zap_cursor_advance(&zc)) {
+		if (za->za_num_integers != 2)
+			continue;
+		if (zap_lookup(zfsvfs->z_os, *hobjp, za->za_name, 8, 2,
+		    parentproj_ino))
+			continue;
+		h_parent_projid = parentproj_ino[0];
+		h_ino = parentproj_ino[1];
+		h_projid = zfs_strtonum(za->za_name, NULL);
+		zfs_dbgmsg("zap entry projid=%lld parent_projid=%llx ino=%lld",
+		    h_projid, h_parent_projid, h_ino);
+
+		znode_t *zp = NULL;
+		uint64_t z_projid = 0;
+		int err;
+		err = zfs_zget(zfsvfs, h_ino, &zp);
+		if (err == 0) {
+			z_projid = zp->z_projid;
+			zrele(zp);
+		}
+		if (err != 0 || z_projid != h_projid) {
+			zfs_project_hierarchy_remove_entry(zfsvfs, h_projid);
+			continue;
+		}
+		if (h_parent_projid != 0)
+			continue;
+		uint64_t quota;
+		if (!quotaobjp || (zap_lookup(zfsvfs->z_os, *quotaobjp,
+		    za->za_name, 8, 1, &quota) == ENOENT)) {
+			if (zfs_project_hierarchy_remove(zfsvfs, h_projid,
+			    h_ino, B_FALSE) == 0)
+				remove_more = B_TRUE;
+		}
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+	if (remove_more)
+		goto more;
+	zfs_dbgmsg("Removed all projects with none quota and parent project 0");
+	return (0);
+}
+
 int
 zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     const char *domain, uint64_t rid, uint64_t quota)
@@ -379,8 +1304,11 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	}
 	mutex_exit(&zfsvfs->z_lock);
 
+	boolean_t cleanup_hierarchy = B_FALSE;
 	if (quota == 0) {
 		err = zap_remove(zfsvfs->z_os, *objp, buf, tx);
+		if (!err)
+			cleanup_hierarchy = B_TRUE;
 		if (err == ENOENT)
 			err = 0;
 	} else {
@@ -390,6 +1318,8 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 	dmu_tx_commit(tx);
+	if (cleanup_hierarchy)
+		zfs_project_hierarchy_cleanup(zfsvfs);
 	return (err);
 }
 
@@ -461,6 +1391,9 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	char buf[20];
 	uint64_t used, quota, quotaobj, default_quota = 0;
 	int err;
+	uint64_t projecthierarchyobj = 0;
+	uint64_t parentproj_ino[2] = {0, 0};
+	uint64_t parent_projid = ZFS_DEFAULT_PROJID;
 
 	if (usedobj == DMU_PROJECTUSED_OBJECT) {
 		if (!dmu_objset_projectquota_present(zfsvfs->z_os)) {
@@ -475,6 +1408,7 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 		}
 		quotaobj = zfsvfs->z_projectquota_obj;
 		default_quota = zfsvfs->z_defaultprojectquota;
+		projecthierarchyobj = zfsvfs->z_projecthierarchy_obj;
 	} else if (usedobj == DMU_USERUSED_OBJECT) {
 		quotaobj = zfsvfs->z_userquota_obj;
 		default_quota = zfsvfs->z_defaultuserquota;
@@ -487,6 +1421,7 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	if (zfsvfs->z_replay)
 		return (B_FALSE);
 
+checkquota:
 	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	if (quotaobj == 0) {
 		if (default_quota == 0)
@@ -501,7 +1436,21 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	err = zap_lookup(zfsvfs->z_os, usedobj, buf, 8, 1, &used);
 	if (err != 0)
 		return (B_FALSE);
-	return (used >= quota);
+
+	if (used  >= quota)
+		return (B_TRUE);
+
+	if (projecthierarchyobj) {
+		err = zap_lookup(zfsvfs->z_os, projecthierarchyobj, buf, 8, 2,
+		    &parentproj_ino);
+		parent_projid = parentproj_ino[0];
+		if (parent_projid != ZFS_DEFAULT_PROJID) {
+			id = parent_projid;
+			goto checkquota;
+		}
+	}
+
+	return (B_FALSE);
 }
 
 boolean_t
@@ -515,6 +1464,8 @@ EXPORT_SYMBOL(zpl_get_file_info);
 EXPORT_SYMBOL(zfs_userspace_one);
 EXPORT_SYMBOL(zfs_userspace_many);
 EXPORT_SYMBOL(zfs_set_userquota);
+EXPORT_SYMBOL(zfs_project_hierarchy_add);
+EXPORT_SYMBOL(zfs_project_hierarchy_remove);
 EXPORT_SYMBOL(zfs_id_overblockquota);
 EXPORT_SYMBOL(zfs_id_overobjquota);
 EXPORT_SYMBOL(zfs_id_overquota);

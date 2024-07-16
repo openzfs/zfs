@@ -130,6 +130,7 @@ struct zfsvfs {
 	uint64_t	z_userobjquota_obj;
 	uint64_t	z_groupobjquota_obj;
 	uint64_t	z_projectquota_obj;
+	uint64_t	z_projecthierarchy_obj;
 	uint64_t	z_projectobjquota_obj;
 	uint64_t	z_defaultuserquota;
 	uint64_t	z_defaultgroupquota;

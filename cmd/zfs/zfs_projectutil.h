@@ -43,6 +43,7 @@ typedef struct zfs_project_control {
 	boolean_t		zpc_newline;
 	boolean_t		zpc_recursive;
 	boolean_t		zpc_set_flag;
+	boolean_t		zpc_add_hierarchy;
 } zfs_project_control_t;
 
 int zfs_project_handle(const char *name, zfs_project_control_t *zpc);

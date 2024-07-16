@@ -8863,13 +8863,14 @@ zfs_do_project(int argc, char **argv)
 		.zpc_newline = B_TRUE,
 		.zpc_recursive = B_FALSE,
 		.zpc_set_flag = B_FALSE,
+		.zpc_add_hierarchy = B_FALSE,
 	};
 	int ret = 0, c;
 
 	if (argc < 2)
 		usage(B_FALSE);
 
-	while ((c = getopt(argc, argv, "0Ccdkp:rs")) != -1) {
+	while ((c = getopt(argc, argv, "0Ccdkp:rsY")) != -1) {
 		switch (c) {
 		case '0':
 			zpc.zpc_newline = B_FALSE;
@@ -8933,6 +8934,12 @@ zfs_do_project(int argc, char **argv)
 			zpc.zpc_set_flag = B_TRUE;
 			zpc.zpc_op = ZFS_PROJECT_OP_SET;
 			break;
+		case 'Y':
+			zpc.zpc_add_hierarchy = B_TRUE;
+			zpc.zpc_set_flag = B_TRUE;
+			zpc.zpc_recursive = B_TRUE;
+			zpc.zpc_dironly = B_FALSE;
+			break;
 		default:
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -8959,11 +8966,23 @@ zfs_do_project(int argc, char **argv)
 			    gettext("'-0' is only valid together with '-c'\n"));
 			usage(B_FALSE);
 		}
+		if (zpc.zpc_add_hierarchy) {
+			(void) fprintf(stderr,
+			    gettext("'-Y' is only valid with set project "
+			    "id\n"));
+			usage(B_FALSE);
+		}
 		break;
 	case ZFS_PROJECT_OP_CHECK:
 		if (zpc.zpc_keep_projid) {
 			(void) fprintf(stderr,
 			    gettext("'-k' is only valid together with '-C'\n"));
+			usage(B_FALSE);
+		}
+		if (zpc.zpc_add_hierarchy) {
+			(void) fprintf(stderr,
+			    gettext("'-Y' is only valid with set project "
+			    "id\n"));
 			usage(B_FALSE);
 		}
 		break;
@@ -8983,6 +9002,12 @@ zfs_do_project(int argc, char **argv)
 			    gettext("'-p' is useless together with '-C'\n"));
 			usage(B_FALSE);
 		}
+		if (zpc.zpc_add_hierarchy) {
+			(void) fprintf(stderr,
+			    gettext("'-Y' is only valid with set project "
+			    "id\n"));
+			usage(B_FALSE);
+		}
 		break;
 	case ZFS_PROJECT_OP_SET:
 		if (zpc.zpc_dironly) {
@@ -8999,6 +9024,13 @@ zfs_do_project(int argc, char **argv)
 		if (!zpc.zpc_newline) {
 			(void) fprintf(stderr,
 			    gettext("'-0' is only valid together with '-c'\n"));
+			usage(B_FALSE);
+		}
+		if (zpc.zpc_add_hierarchy && zpc.zpc_expected_projid ==
+		    ZFS_INVALID_PROJID) {
+			(void) fprintf(stderr,
+			    gettext("'-p' is needed for add hierarchy "
+			    "option '-Y'\n"));
 			usage(B_FALSE);
 		}
 		break;

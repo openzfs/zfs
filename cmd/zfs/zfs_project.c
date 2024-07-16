@@ -88,6 +88,11 @@ zfs_project_sanity_check(const char *name, zfs_project_control_t *zpc,
 			    "'-r' option on non-dir target %s\n"), name);
 			return (-1);
 		}
+		if (zpc->zpc_add_hierarchy) {
+			(void) fprintf(stderr, gettext(
+			    "'-Y' option on non-dir target %s\n"), name);
+			return (-1);
+		}
 	}
 
 	return (0);
@@ -113,6 +118,30 @@ zfs_project_load_projid(const char *name, zfs_project_control_t *zpc)
 		    name, strerror(errno));
 	else
 		zpc->zpc_expected_projid = fsx.fsx_projid;
+
+	close(fd);
+	return (ret);
+}
+
+static int
+zfs_project_add_hierarchy(const char *name, zfs_project_control_t *zpc)
+{
+	project_hierarchy_arg_t pharg;
+	int ret, fd;
+
+	fd = open(name, O_RDONLY | O_NOCTTY);
+	if (fd < 0) {
+		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
+		    name, strerror(errno));
+		return (fd);
+	}
+	pharg.pha_projid = zpc->zpc_expected_projid;
+
+	ret = ioctl(fd, FS_IOC_ADD_PROJECT_HIERARCHY, &pharg);
+	if (ret)
+		(void) fprintf(stderr,
+		    gettext("failed to add project hierarchy for %s: %s\n"),
+		    name, strerror(errno));
 
 	close(fd);
 	return (ret);
@@ -194,10 +223,12 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 	}
 
 	ret = ioctl(fd, ZFS_IOC_FSSETXATTR, &fsx);
-	if (ret)
+	if (ret && errno != EXDEV) {
 		(void) fprintf(stderr,
 		    gettext("failed to set xattr for %s: %s\n"),
 		    name, strerror(errno));
+	}
+
 
 out:
 	close(fd);
@@ -247,11 +278,13 @@ zfs_project_handle_dir(const char *name, zfs_project_control_t *zpc,
 		ret = zfs_project_handle_one(fullname, zpc);
 		if (!ret && zpc->zpc_recursive && ent->d_type == DT_DIR)
 			zfs_project_item_alloc(head, fullname);
+		if (ret && errno == EXDEV)
+			ret = 0;
 
 		free(fullname);
 	}
 
-	if (errno && !ret) {
+	if (errno && !ret && errno != EXDEV) {
 		ret = -errno;
 		(void) fprintf(stderr, gettext("failed to readdir %s: %s\n"),
 		    name, strerror(errno));
@@ -273,6 +306,11 @@ zfs_project_handle(const char *name, zfs_project_control_t *zpc)
 	if (ret)
 		return (ret);
 
+	if (zpc->zpc_op == ZFS_PROJECT_OP_SET && zpc->zpc_add_hierarchy) {
+		ret = zfs_project_add_hierarchy(name, zpc);
+		if (ret)
+			return (ret);
+	}
 	if ((zpc->zpc_op == ZFS_PROJECT_OP_SET ||
 	    zpc->zpc_op == ZFS_PROJECT_OP_CHECK) &&
 	    zpc->zpc_expected_projid == ZFS_INVALID_PROJID) {
@@ -286,8 +324,11 @@ zfs_project_handle(const char *name, zfs_project_control_t *zpc)
 	if (ret || !S_ISDIR(st.st_mode) || zpc->zpc_dironly ||
 	    (!zpc->zpc_recursive &&
 	    zpc->zpc_op != ZFS_PROJECT_OP_LIST &&
-	    zpc->zpc_op != ZFS_PROJECT_OP_CHECK))
+	    zpc->zpc_op != ZFS_PROJECT_OP_CHECK)) {
+		if (ret && errno == EXDEV)
+			ret = 0;
 		return (ret);
+	}
 
 	list_create(&head, sizeof (zfs_project_item_t),
 	    offsetof(zfs_project_item_t, zpi_list));
@@ -295,6 +336,8 @@ zfs_project_handle(const char *name, zfs_project_control_t *zpc)
 	while ((zpi = list_remove_head(&head)) != NULL) {
 		if (!ret)
 			ret = zfs_project_handle_dir(zpi->zpi_name, zpc, &head);
+		if (ret && errno == EXDEV)
+			ret = 0;
 		free(zpi);
 	}
 

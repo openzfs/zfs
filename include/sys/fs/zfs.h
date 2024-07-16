@@ -1993,6 +1993,11 @@ enum zio_encrypt {
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_TRUSTED, name) || \
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_USER, name))
 
+typedef struct project_hierarchy_arg {
+	uint64_t pha_projid;
+} project_hierarchy_arg_t;
+#define	FS_IOC_ADD_PROJECT_HIERARCHY	_IOW('t', 9, project_hierarchy_arg_t)
+
 #ifdef	__cplusplus
 }
 #endif

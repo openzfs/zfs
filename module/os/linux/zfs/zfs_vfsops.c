@@ -762,6 +762,14 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	else if (error != 0)
 		return (error);
 
+	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_PROJECT_HIERARCHY,
+	    8, 1, &zfsvfs->z_projecthierarchy_obj);
+	if (error == ENOENT)
+		zfsvfs->z_projecthierarchy_obj = 0;
+	else if (error != 0)
+		return (error);
+	zfsvfs->z_os->os_projecthierarchy_obj = zfsvfs->z_projecthierarchy_obj;
+
 	error = zap_lookup(os, MASTER_NODE_OBJ,
 	    zfs_userquota_prop_prefixes[ZFS_PROP_USEROBJQUOTA],
 	    8, 1, &zfsvfs->z_userobjquota_obj);
