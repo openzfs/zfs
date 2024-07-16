@@ -1878,7 +1878,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	lwb->lwb_nused = lwb->lwb_nfilled;
 	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_nmax);
 
-	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
+	lwb->lwb_root_zio = zio_root_done(spa, zil_lwb_flush_vdevs_done, lwb,
 	    ZIO_FLAG_CANFAIL);
 
 	/*
