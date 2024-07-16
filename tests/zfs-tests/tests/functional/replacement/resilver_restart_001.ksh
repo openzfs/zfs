@@ -96,6 +96,8 @@ set -A RESTARTS -- '1' '2' '2' '2'
 set -A VDEVS -- '' '' '' ''
 set -A DEFER_RESTARTS -- '1' '1' '1' '2'
 set -A DEFER_VDEVS -- '-' '2' '2' '-'
+set -A EARLY_RESTART_DEFER_RESTARTS -- '1' '2' '2' '2'
+set -A EARLY_RESTART_DEFER_VDEVS -- '' '' '' ''
 
 VDEV_REPLACE="${VDEV_FILES[1]} $SPARE_VDEV_FILE"
 
@@ -125,7 +127,7 @@ done
 wait
 
 # test without and with deferred resilve feature enabled
-for test in "without" "with"
+for test in "without" "with" "with_early_restart"
 do
 	log_note "Testing $test deferred resilvers"
 
@@ -135,6 +137,13 @@ do
 		RESTARTS=( "${DEFER_RESTARTS[@]}" )
 		VDEVS=( "${DEFER_VDEVS[@]}" )
 		VDEV_REPLACE="$SPARE_VDEV_FILE ${VDEV_FILES[1]}"
+		log_must set_tunable32 RESILVER_DEFER_PERCENT 0
+	elif [[ $test == "with_early_restart" ]]
+	then
+		RESTARTS=( "${EARLY_RESTART_DEFER_RESTARTS[@]}" )
+		VDEVS=( "${EARLY_RESTART_DEFER_VDEVS[@]}" )
+		VDEV_REPLACE="${VDEV_FILES[1]} $SPARE_VDEV_FILE"
+		log_must set_tunable32 RESILVER_DEFER_PERCENT 100
 	fi
 
 	# clear the events
