@@ -698,6 +698,10 @@ dsl_prop_set_iuv(objset_t *mos, uint64_t zapobj, const char *propname,
 		    *(uint64_t *)value == ZFS_REDUNDANT_METADATA_NONE)
 			iuv = B_TRUE;
 		break;
+	case ZFS_PROP_SNAPDIR:
+		if (*(uint64_t *)value == ZFS_SNAPDIR_DISABLED)
+			iuv = B_TRUE;
+		break;
 	default:
 		break;
 	}

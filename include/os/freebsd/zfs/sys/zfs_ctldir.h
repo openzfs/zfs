@@ -40,7 +40,7 @@ extern "C" {
 	((zdp)->z_zfsvfs->z_ctldir != NULL))
 #define	zfs_show_ctldir(zdp)	\
 	(zfs_has_ctldir(zdp) && \
-	((zdp)->z_zfsvfs->z_show_ctldir))
+	((zdp)->z_zfsvfs->z_show_ctldir == ZFS_SNAPDIR_VISIBLE))
 
 void zfsctl_create(zfsvfs_t *);
 void zfsctl_destroy(zfsvfs_t *);

@@ -111,6 +111,7 @@ static krwlock_t zfs_snapshot_lock;
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
 static int zfs_admin_snapshot = 0;
+static int zfs_snapshot_no_setuid = 0;
 
 typedef struct {
 	char		*se_name;	/* full snapshot name */
@@ -810,7 +811,9 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-	if (strcmp(name, "..") == 0) {
+	if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+		error = SET_ERROR(ENOENT);
+	} else if (strcmp(name, "..") == 0) {
 		*ipp = dip->i_sb->s_root->d_inode;
 	} else if (strcmp(name, ZFS_SNAPDIR_NAME) == 0) {
 		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIR,
@@ -1100,9 +1103,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfsvfs_t *zfsvfs;
 	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
-	char *full_name, *full_path;
-	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", NULL, NULL,
-	    NULL };
+	char *full_name, *full_path, *options;
+	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", "-o", NULL,
+	    NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 	struct path spath;
@@ -1116,6 +1119,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
+	options = kmem_zalloc(7, KM_SLEEP);
 
 	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
 	    ZFS_MAX_DATASET_NAME_LEN, full_name);
@@ -1130,6 +1134,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
 	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
 	    dname(dentry));
+
+	snprintf(options, 7, "%s",
+	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
@@ -1153,8 +1160,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
 	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[5] = full_name;
-	argv[6] = full_path;
+	argv[6] = options;
+	argv[7] = full_name;
+	argv[8] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
@@ -1315,3 +1323,7 @@ MODULE_PARM_DESC(zfs_admin_snapshot, "Enable mkdir/rmdir/mv in .zfs/snapshot");
 
 module_param(zfs_expire_snapshot, int, 0644);
 MODULE_PARM_DESC(zfs_expire_snapshot, "Seconds to expire .zfs/snapshot");
+
+module_param(zfs_snapshot_no_setuid, int, 0644);
+MODULE_PARM_DESC(zfs_snapshot_no_setuid,
+	"Disable setuid/setgid for automounts in .zfs/snapshot");
