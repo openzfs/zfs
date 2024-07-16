@@ -193,6 +193,7 @@ typedef enum {
 	ZFS_PROP_SNAPSHOTS_CHANGED,
 	ZFS_PROP_PREFETCH,
 	ZFS_PROP_VOLTHREADING,
+	ZFS_PROP_PASSPHRASE_KDF,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -541,6 +542,52 @@ typedef enum zfs_keyformat {
 	ZFS_KEYFORMAT_FORMATS
 } zfs_keyformat_t;
 
+typedef enum zfs_passphrase_kdf {
+	ZFS_PASSPHRASE_KDF_PBKDF2 = 0,
+	ZFS_PASSPHRASE_KDF_ARGON2ID,
+	ZFS_PASSPHRASE_KDF_KDFS
+} zfs_passphrase_kdf_t;
+
+typedef struct zfs_passphrase_kdf_argon2id_params {
+	uint32_t t_cost;
+	uint32_t m_cost;
+	uint32_t parallelism;
+} zfs_passphrase_kdf_argon2id_params_t;
+
+static zfs_passphrase_kdf_argon2id_params_t
+zfs_passphrase_kdf_argon2id_params(uint64_t iters)
+{
+	struct zfs_passphrase_kdf_argon2id_params ret = {
+	    .t_cost = (iters >> (16 * 2)) & 0xFFFF,
+	    .m_cost = (iters >> (16 * 1)) & 0xFFFF,
+	    .parallelism = (iters >> (16 * 0)) & 0xFFFF,
+	};
+	return (ret);
+}
+
+static boolean_t
+zfs_passphrase_kdf_pbkdf2_min_validate(uint64_t iters)
+{
+	return (iters >= 100000);
+}
+static boolean_t
+zfs_passphrase_kdf_argon2id_min_validate(uint64_t iters)
+{
+	zfs_passphrase_kdf_argon2id_params_t p =
+	    zfs_passphrase_kdf_argon2id_params(iters);
+	return (!(iters & 0xFFFF000000000000ull) &&
+	    p.t_cost >= 1 && p.m_cost >= 12 && p.parallelism >= 1);
+}
+
+static const uint64_t zfs_passphrase_kdf_default_parameters[
+    ZFS_PASSPHRASE_KDF_KDFS] = {350000, 0x000100110001ull /* m=17 */};
+static boolean_t(*const zfs_passphrase_kdf_min_parameters[
+    ZFS_PASSPHRASE_KDF_KDFS])(uint64_t) = {
+	zfs_passphrase_kdf_pbkdf2_min_validate,
+	zfs_passphrase_kdf_argon2id_min_validate};
+static const char * const zfs_passphrase_kdf_min_parameters_str[
+	ZFS_PASSPHRASE_KDF_KDFS] = {"100000", "0x0001000C0001"};
+
 typedef enum zfs_key_location {
 	ZFS_KEYLOCATION_NONE = 0,
 	ZFS_KEYLOCATION_PROMPT,
@@ -553,9 +600,6 @@ typedef enum {
 	ZFS_PREFETCH_METADATA = 1,
 	ZFS_PREFETCH_ALL = 2
 } zfs_prefetch_type_t;
-
-#define	DEFAULT_PBKDF2_ITERATIONS 350000
-#define	MIN_PBKDF2_ITERATIONS 100000
 
 /*
  * On-disk version number.

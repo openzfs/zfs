@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd August 8, 2023
+.Dd February 8, 2024
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1110,7 +1110,7 @@ A raw key can be generated with the following command:
 .Dl # Nm dd Sy if=/dev/urandom bs=32 count=1 Sy of= Ns Pa /path/to/output/key
 .Pp
 Passphrases must be between 8 and 512 bytes long and will be processed through
-PBKDF2 before being used (see the
+a KDF before being used (see the
 .Sy pbkdf2iters
 property).
 Even though the encryption suite cannot be changed after dataset creation,
@@ -1163,14 +1163,27 @@ and
 .Sy SSL_CLIENT_KEY_FILE
 environment variables can be set to configure the path
 to the client certificate and its key.
-.It Sy pbkdf2iters Ns = Ns Ar iterations
-Controls the number of PBKDF2 iterations that a
+.It Sy passphrasekdf Ns = Ns Sy pbkdf2 Ns | Ns Sy argon2id
+If keyformat is
+.Sy passphrase ,
+this variable governs which key derivation function will be used (see below).
+The default value is
+.Sy pbkdf2
+(PBKDF2).
+Datasets using
+.Sy argon2id
+(Argon2id version 13)
+cannot be unlocked with OpenZFS <2.2.3.
+This property may be changed with
+.Nm zfs Cm change-key .
+.It Sy pbkdf2iters Ns = Ns Ar parameters Pq Sy kdfparams Ns = Ns Ar parameters
+Controls KDF parameters that a
 .Sy passphrase
 encryption key should be run through when processing it into an encryption key.
 This property is only defined when encryption is enabled and a keyformat of
 .Sy passphrase
 is selected.
-The goal of PBKDF2 is to significantly increase the
+The goal of a KDF is to significantly increase the
 computational difficulty needed to brute force a user's passphrase.
 This is accomplished by forcing the attacker to run each passphrase through a
 computationally expensive hashing function many times before they arrive at the
@@ -1178,12 +1191,24 @@ resulting key.
 A user who actually knows the passphrase will only have to pay this cost once.
 As CPUs become better at processing, this number should be
 raised to ensure that a brute force attack is still not possible.
-The current default is
-.Sy 350000
-and the minimum is
-.Sy 100000 .
 This property may be changed with
 .Nm zfs Cm change-key .
+.Pp
+For PBKDF2, the only parameter is the iteration count (default
+.Sy 350000 ,
+minimum
+.Sy 10000 ) .
+.br
+For Argon2id, this parameter is a bitfield of three 16-bit integers:
+the most significant is the iteration count,
+then the memory cost (log2 kilobytes),
+and the least significant is the parallelism.
+The default is
+.Sy 0x000100110001
+.Pq Va t Ns = Ns Sy 1 , Va m Ns = Ns Sy 17 Po 128M Pc , Va p Ns = Ns Sy 1 ,
+the minimum \(en
+.Sy 0x0001000C0001
+.Pq Va t Ns = Ns Sy 1 , Va m Ns = Ns Sy 12 Po 4M Pc , Va p Ns = Ns Sy 1 .
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is
@@ -1267,10 +1292,10 @@ location.
 When the
 .Sy mountpoint
 property is set with
-.Nm zfs Cm set Fl u
-, the
+.Nm zfs Cm set Fl u ,
+the
 .Sy mountpoint
-property is updated but dataset is not mounted or unmounted and remains
+property is updated but the dataset is neither mounted nor unmounted and remains
 as it was before.
 .It Sy nbmand Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the file system should be mounted with
