@@ -107,8 +107,12 @@ dmu_write_direct_done(zio_t *zio)
 			ASSERT3U(zio->io_error, ==, EAGAIN);
 
 		/*
-		 * In the event of an I/O error the metaslab cleanup is taken
-		 * care of in zio_done().
+		 * In the event of an I/O error this block has been freed in
+		 * zio_done() through zio_dva_unallocate(). Calling
+		 * dmu_sync_done() above set dr_override_state to
+		 * DR_NOT_OVERRIDDEN. In this case when dbuf_undirty() calls
+		 * dbuf_unoverride(), it will skip doing zio_free() to free
+		 * this block as that was already taken care of.
 		 *
 		 * Since we are undirtying the record in open-context, we must
 		 * have a hold on the db, so it should never be evicted after
@@ -154,6 +158,7 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 
 	dr_head = list_head(&db->db_dirty_records);
 	ASSERT3U(dr_head->dr_txg, ==, txg);
+	dr_head->dt.dl.dr_diowrite = B_TRUE;
 	dr_head->dr_accounted = db->db.db_size;
 
 	blkptr_t *bp = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);

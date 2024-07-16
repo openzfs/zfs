@@ -176,6 +176,7 @@ typedef struct dbuf_dirty_record {
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
 			boolean_t dr_brtwrite;
+			boolean_t dr_diowrite;
 			boolean_t dr_has_raw_params;
 
 			/*
@@ -465,20 +466,6 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 	if (dr && dr->dr_txg == txg)
 		return (dr);
 	return (NULL);
-}
-
-static inline boolean_t
-dbuf_dirty_is_direct_write(dmu_buf_impl_t *db, dbuf_dirty_record_t *dr)
-{
-	boolean_t ret = B_FALSE;
-	ASSERT(MUTEX_HELD(&db->db_mtx));
-
-	if (dr != NULL && db->db_level == 0 && !dr->dt.dl.dr_brtwrite &&
-	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN &&
-	    dr->dt.dl.dr_data == NULL) {
-		ret = B_TRUE;
-	}
-	return (ret);
 }
 
 #define	DBUF_GET_BUFC_TYPE(_db)	\
