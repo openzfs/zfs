@@ -35,11 +35,10 @@
 #ifndef _SYS_SPA_H
 #define	_SYS_SPA_H
 
-#include <sys/avl.h>
 #include <sys/zfs_context.h>
+#include <sys/avl.h>
 #include <sys/kstat.h>
 #include <sys/nvpair.h>
-#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/fs/zfs.h>
 #include <sys/spa_checksum.h>
