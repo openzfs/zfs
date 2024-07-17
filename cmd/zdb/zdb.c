@@ -48,6 +48,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
 #include <sys/zap.h>
+#include <sys/zap_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_sa.h>
@@ -1126,16 +1127,33 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 	for (zap_cursor_init(&zc, os, object);
 	    zap_cursor_retrieve(&zc, &attr) == 0;
 	    zap_cursor_advance(&zc)) {
-		(void) printf("\t\t%s = ", attr.za_name);
+		boolean_t key64 =
+		    !!(zap_getflags(zc.zc_zap) & ZAP_FLAG_UINT64_KEY);
+
+		if (key64)
+			(void) printf("\t\t0x%010lx = ",
+			    *(uint64_t *)attr.za_name);
+		else
+			(void) printf("\t\t%s = ", attr.za_name);
+
 		if (attr.za_num_integers == 0) {
 			(void) printf("\n");
 			continue;
 		}
 		prop = umem_zalloc(attr.za_num_integers *
 		    attr.za_integer_length, UMEM_NOFAIL);
-		(void) zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length, attr.za_num_integers, prop);
-		if (attr.za_integer_length == 1) {
+
+		if (key64)
+			(void) zap_lookup_uint64(os, object,
+			    (const uint64_t *)attr.za_name, 1,
+			    attr.za_integer_length, attr.za_num_integers,
+			    prop);
+		else
+			(void) zap_lookup(os, object, attr.za_name,
+			    attr.za_integer_length, attr.za_num_integers,
+			    prop);
+
+		if (attr.za_integer_length == 1 && !key64) {
 			if (strcmp(attr.za_name,
 			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
 			    strcmp(attr.za_name,
@@ -1154,6 +1172,10 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		} else {
 			for (i = 0; i < attr.za_num_integers; i++) {
 				switch (attr.za_integer_length) {
+				case 1:
+					(void) printf("%u ",
+					    ((uint8_t *)prop)[i]);
+					break;
 				case 2:
 					(void) printf("%u ",
 					    ((uint16_t *)prop)[i]);
