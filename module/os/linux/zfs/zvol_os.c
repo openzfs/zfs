@@ -730,7 +730,7 @@ retry:
 #endif
 	if (zv == NULL) {
 		rw_exit(&zvol_state_lock);
-		return (SET_ERROR(-ENXIO));
+		return (-SET_ERROR(ENXIO));
 	}
 
 	mutex_enter(&zv->zv_state_lock);
@@ -794,10 +794,10 @@ retry:
 
 #ifdef HAVE_BLKDEV_GET_ERESTARTSYS
 				schedule();
-				return (SET_ERROR(-ERESTARTSYS));
+				return (-SET_ERROR(ERESTARTSYS));
 #else
 				if ((gethrtime() - start) > timeout)
-					return (SET_ERROR(-ERESTARTSYS));
+					return (-SET_ERROR(ERESTARTSYS));
 
 				schedule_timeout(MSEC_TO_TICK(10));
 				goto retry;
@@ -819,7 +819,7 @@ retry:
 			if (zv->zv_open_count == 0)
 				zvol_last_close(zv);
 
-			error = SET_ERROR(-EROFS);
+			error = -SET_ERROR(EROFS);
 		} else {
 			zv->zv_open_count++;
 		}
