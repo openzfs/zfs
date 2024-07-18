@@ -2208,8 +2208,13 @@ dump_brt(spa_t *spa)
 		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
 		    zap_cursor_retrieve(&zc, &za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t offset = *(uint64_t *)za.za_name;
-			uint64_t refcnt = za.za_first_integer;
+			uint64_t refcnt;
+			VERIFY0(zap_lookup_uint64(brt->brt_mos,
+			    brtvd->bv_mos_entries,
+			    (const uint64_t *)za.za_name, 1,
+			    za.za_integer_length, za.za_num_integers, &refcnt));
+
+			uint64_t offset = *(const uint64_t *)za.za_name;
 
 			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
 			    (u_longlong_t)offset);
