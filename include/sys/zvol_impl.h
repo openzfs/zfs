@@ -24,16 +24,9 @@
 
 #include <sys/zfs_context.h>
 
-#define	ZVOL_RDONLY	0x1
-/*
- * Whether the zvol has been written to (as opposed to ZVOL_RDONLY, which
- * specifies whether or not the zvol _can_ be written to)
- */
-#define	ZVOL_WRITTEN_TO	0x2
-
-#define	ZVOL_DUMPIFIED	0x4
-
-#define	ZVOL_EXCL	0x8
+#define	ZVOL_RDONLY	(1<<0)	/* zvol is readonly (writes rejected) */
+#define	ZVOL_WRITTEN_TO	(1<<1)	/* zvol has been written to (needs flush) */
+#define	ZVOL_EXCL	(1<<2)	/* zvol has O_EXCL client right now */
 
 /*
  * The in-core state of each volume.
