@@ -18,6 +18,9 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright (c) 2024, Klara, Inc.
+ */
 
 #ifndef	_SYS_ZVOL_IMPL_H
 #define	_SYS_ZVOL_IMPL_H
@@ -27,6 +30,7 @@
 #define	ZVOL_RDONLY	(1<<0)	/* zvol is readonly (writes rejected) */
 #define	ZVOL_WRITTEN_TO	(1<<1)	/* zvol has been written to (needs flush) */
 #define	ZVOL_EXCL	(1<<2)	/* zvol has O_EXCL client right now */
+#define	ZVOL_REMOVING	(1<<3)	/* zvol waiting to remove minor */
 
 /*
  * The in-core state of each volume.
@@ -50,6 +54,7 @@ typedef struct zvol_state {
 	kmutex_t		zv_state_lock;	/* protects zvol_state_t */
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
+	kcondvar_t		zv_removing_cv;	/* ready to remove minor */
 	struct zvol_state_os	*zv_zso;	/* private platform state */
 } zvol_state_t;
 

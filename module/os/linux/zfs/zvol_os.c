@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #include <sys/dataset_kstats.h>
@@ -527,6 +528,11 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	uint64_t size = io_size(bio, rq);
 	int rw = io_data_dir(bio, rq);
 
+	if (unlikely(zv->zv_flags & ZVOL_REMOVING)) {
+		END_IO(zv, bio, rq, -SET_ERROR(ENXIO));
+		goto out;
+	}
+
 	if (zvol_request_sync)
 		force_sync = 1;
 
@@ -735,6 +741,13 @@ retry:
 	}
 
 	mutex_enter(&zv->zv_state_lock);
+
+	if (unlikely(zv->zv_flags & ZVOL_REMOVING)) {
+		mutex_exit(&zv->zv_state_lock);
+		rw_exit(&zvol_state_lock);
+		return (-SET_ERROR(ENXIO));
+	}
+
 	/*
 	 * Make sure zvol is not suspended during first open
 	 * (hold zv_suspend_lock) and respect proper lock acquisition
@@ -1368,6 +1381,7 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volblocksize)
 
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
 
 #ifdef HAVE_BLK_MQ
 	zv->zv_zso->use_blk_mq = zvol_use_blk_mq;
@@ -1488,6 +1502,7 @@ zvol_os_free(zvol_state_t *zv)
 	ida_simple_remove(&zvol_ida,
 	    MINOR(zv->zv_zso->zvo_dev) >> ZVOL_MINOR_BITS);
 
+	cv_destroy(&zv->zv_removing_cv);
 	mutex_destroy(&zv->zv_state_lock);
 	dataset_kstats_destroy(&zv->zv_kstat);
 
