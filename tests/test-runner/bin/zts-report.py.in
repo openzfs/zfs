@@ -351,10 +351,6 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_fua': ['SKIP', 14872],
-        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
-        'zvol/zvol_misc/zvol_misc_trim': ['SKIP', 14872],
-        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
 # Not all Github actions runners have scsi_debug module, so we may skip
