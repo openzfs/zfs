@@ -41,22 +41,6 @@ void	zfs_vmobject_assert_wlocked(vm_object_t object);
 void	zfs_vmobject_wlock(vm_object_t object);
 void	zfs_vmobject_wunlock(vm_object_t object);
 
-#if __FreeBSD_version >= 1300081
-#define	zfs_vmobject_assert_wlocked_12(x)
-#define	zfs_vmobject_wlock_12(x)
-#define	zfs_vmobject_wunlock_12(x)
-#else
-#define	zfs_vmobject_assert_wlocked_12(x)		\
-	zfs_vmobject_assert_wlocked((x))
-#define	zfs_vmobject_wlock_12(x)				\
-	zfs_vmobject_wlock(x)
-#define	zfs_vmobject_wunlock_12(x)				\
-	zfs_vmobject_wunlock(x)
-#define	vm_page_grab_unlocked(obj, idx, flags)	\
-	vm_page_grab((obj), (idx), (flags))
-#define	vm_page_grab_valid_unlocked(m, obj, idx, flags)	\
-	vm_page_grab_valid((m), (obj), (idx), (flags))
-#endif
 static inline caddr_t
 zfs_map_page(vm_page_t pp, struct sf_buf **sfp)
 {
