@@ -111,7 +111,7 @@ class Result(object):
 class Output(object):
     """
     This class is a slightly modified version of the 'Stream' class found
-    here: http://goo.gl/aSGfv
+    here: https://stackoverflow.com/q/4984549/
     """
     def __init__(self, stream, debug=False):
         self.stream = stream
