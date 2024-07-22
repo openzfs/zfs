@@ -1020,6 +1020,19 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	int64_t refcount;
 	uint32_t dbufs;
 
+#ifndef USE_DNODE_HANDLE
+	/*
+	 * We can't move dnodes if dbufs reference them directly without
+	 * using handles and respecitve locking.  Unless USE_DNODE_HANDLE
+	 * is defined the code below is only to make sure it still builds,
+	 * but it should never be used, since it is unsafe.
+	 */
+#ifdef ZFS_DEBUG
+	PANIC("dnode_move() called without USE_DNODE_HANDLE");
+#endif
+	return (KMEM_CBRC_NO);
+#endif
+
 	/*
 	 * The dnode is on the objset's list of known dnodes if the objset
 	 * pointer is valid. We set the low bit of the objset pointer when
