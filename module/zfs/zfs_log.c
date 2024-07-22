@@ -665,13 +665,13 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 			DB_DNODE_ENTER(db);
 			err = dmu_read_by_dnode(DB_DNODE(db), off, len, lr + 1,
 			    DMU_READ_NO_PREFETCH);
+			DB_DNODE_EXIT(db);
 			if (err != 0) {
 				zil_itx_destroy(itx);
 				itx = zil_itx_create(txtype, sizeof (*lr));
 				lr = (lr_write_t *)&itx->itx_lr;
 				wr_state = WR_NEED_COPY;
 			}
-			DB_DNODE_EXIT(db);
 		}
 
 		itx->itx_wr_state = wr_state;

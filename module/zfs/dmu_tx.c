@@ -1520,11 +1520,8 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		ASSERT(tx->tx_txg == 0);
 		dmu_tx_hold_spill(tx, object);
 	} else {
-		dnode_t *dn;
-
 		DB_DNODE_ENTER(db);
-		dn = DB_DNODE(db);
-		if (dn->dn_have_spill) {
+		if (DB_DNODE(db)->dn_have_spill) {
 			ASSERT(tx->tx_txg == 0);
 			dmu_tx_hold_spill(tx, object);
 		}
