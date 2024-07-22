@@ -1757,7 +1757,7 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	 * handle.
 	 */
 #ifdef ZFS_DEBUG
-	ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
 #endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */

@@ -4390,7 +4390,7 @@ dbuf_lightweight_bp(dbuf_dirty_record_t *dr)
 		dmu_buf_impl_t *parent_db = dr->dr_parent->dr_dbuf;
 		int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 		VERIFY3U(parent_db->db_level, ==, 1);
-		VERIFY3P(parent_db->db_dnode_handle->dnh_dnode, ==, dn);
+		VERIFY3P(DB_DNODE(parent_db), ==, dn);
 		VERIFY3U(dr->dt.dll.dr_blkid >> epbs, ==, parent_db->db_blkid);
 		blkptr_t *bp = parent_db->db.db_data;
 		return (&bp[dr->dt.dll.dr_blkid & ((1 << epbs) - 1)]);
@@ -4813,14 +4813,13 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
 	(void) zio, (void) buf;
 	dmu_buf_impl_t *db = vdb;
-	dnode_t *dn;
 	blkptr_t *bp;
 	unsigned int epbs, i;
 
 	ASSERT3U(db->db_level, >, 0);
 	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
-	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+	epbs = DB_DNODE(db)->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+	DB_DNODE_EXIT(db);
 	ASSERT3U(epbs, <, 31);
 
 	/* Determine if all our children are holes */
@@ -4843,7 +4842,6 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		memset(db->db.db_data, 0, db->db.db_size);
 		rw_exit(&db->db_rwlock);
 	}
-	DB_DNODE_EXIT(db);
 }
 
 static void
@@ -5062,8 +5060,7 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 		}
 	} else if (db->db.db_object == DMU_META_DNODE_OBJECT) {
 		dnode_phys_t *dnp = db->db.db_data;
-		ASSERT3U(db->db_dnode_handle->dnh_dnode->dn_type, ==,
-		    DMU_OT_DNODE);
+		ASSERT3U(dn->dn_type, ==, DMU_OT_DNODE);
 		for (int i = 0; i < db->db.db_size >> DNODE_SHIFT;
 		    i += dnp[i].dn_extra_slots + 1) {
 			for (int j = 0; j < dnp[i].dn_nblkptr; j++) {
