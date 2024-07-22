@@ -177,7 +177,7 @@ typedef struct sa_hdr_phys {
 	 *
 	 */
 	uint16_t sa_layout_info;
-	uint16_t sa_lengths[1];	/* optional sizes for variable length attrs */
+	uint16_t sa_lengths[];	/* optional sizes for variable length attrs */
 	/* ... Data follows the lengths.  */
 } sa_hdr_phys_t;
 
