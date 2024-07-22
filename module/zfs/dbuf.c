@@ -3103,7 +3103,11 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		 */
 		mutex_enter(&dn->dn_mtx);
 		dnode_rele_and_unlock(dn, db, B_TRUE);
+#ifdef USE_DNODE_HANDLE
 		db->db_dnode_handle = NULL;
+#else
+		db->db_dnode = NULL;
+#endif
 
 		dbuf_hash_remove(db);
 	} else {
@@ -3252,7 +3256,11 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_level = level;
 	db->db_blkid = blkid;
 	db->db_dirtycnt = 0;
+#ifdef USE_DNODE_HANDLE
 	db->db_dnode_handle = dn->dn_handle;
+#else
+	db->db_dnode = dn;
+#endif
 	db->db_parent = parent;
 	db->db_blkptr = blkptr;
 	db->db_hash = hash;

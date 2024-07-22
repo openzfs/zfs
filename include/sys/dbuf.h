@@ -214,9 +214,15 @@ typedef struct dmu_buf_impl {
 	struct objset *db_objset;
 
 	/*
-	 * handle to safely access the dnode we belong to (NULL when evicted)
+	 * Handle to safely access the dnode we belong to (NULL when evicted)
+	 * if dnode_move() is used on the platform, or just dnode otherwise.
 	 */
+#if !defined(__linux__) && !defined(__FreeBSD__)
+#define	USE_DNODE_HANDLE	1
 	struct dnode_handle *db_dnode_handle;
+#else
+	struct dnode *db_dnode;
+#endif
 
 	/*
 	 * our parent buffer; if the dnode points to us directly,
@@ -417,11 +423,19 @@ void dbuf_stats_destroy(void);
 int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
     blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift);
 
+#ifdef USE_DNODE_HANDLE
 #define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)
 #define	DB_DNODE_LOCK(_db)	((_db)->db_dnode_handle->dnh_zrlock)
 #define	DB_DNODE_ENTER(_db)	(zrl_add(&DB_DNODE_LOCK(_db)))
 #define	DB_DNODE_EXIT(_db)	(zrl_remove(&DB_DNODE_LOCK(_db)))
 #define	DB_DNODE_HELD(_db)	(!zrl_is_zero(&DB_DNODE_LOCK(_db)))
+#else
+#define	DB_DNODE(_db)		((_db)->db_dnode)
+#define	DB_DNODE_LOCK(_db)
+#define	DB_DNODE_ENTER(_db)
+#define	DB_DNODE_EXIT(_db)
+#define	DB_DNODE_HELD(_db)	(B_TRUE)
+#endif
 
 void dbuf_init(void);
 void dbuf_fini(void);
