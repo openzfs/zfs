@@ -532,6 +532,7 @@ systemctl --system daemon-reload >/dev/null || true
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 
 %config(noreplace) %{_bashcompletiondir}/zfs
+%config(noreplace) %{_bashcompletiondir}/zpool
 
 %files -n libzpool5
 %{_libdir}/libzpool.so.*
