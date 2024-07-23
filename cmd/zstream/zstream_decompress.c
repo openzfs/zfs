@@ -275,7 +275,8 @@ zstream_do_decompress(int argc, char *argv[])
 
 			if (c == ZIO_COMPRESS_OFF) {
 				(void) sfread(buf, payload_size, stdin);
-				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
+				drrw->drr_compressiontype = 0;
+				drrw->drr_compressed_size = 0;
 				if (verbose)
 					fprintf(stderr,
 					    "Resetting compression type to "
@@ -285,18 +286,32 @@ zstream_do_decompress(int argc, char *argv[])
 				break;
 			}
 
+			uint64_t lsize = drrw->drr_logical_size;
+			ASSERT3U(payload_size, <=, lsize);
+
 			char *lzbuf = safe_calloc(payload_size);
 			(void) sfread(lzbuf, payload_size, stdin);
 
 			abd_t sabd, dabd;
 			abd_get_from_buf_struct(&sabd, lzbuf, payload_size);
-			abd_get_from_buf_struct(&dabd, buf, payload_size);
+			abd_get_from_buf_struct(&dabd, buf, lsize);
 			int err = zio_decompress_data(c, &sabd, &dabd,
-			    payload_size, payload_size, NULL);
+			    payload_size, lsize, NULL);
 			abd_free(&dabd);
 			abd_free(&sabd);
 
-			if (err != 0) {
+			if (err == 0) {
+				drrw->drr_compressiontype = 0;
+				drrw->drr_compressed_size = 0;
+				payload_size = lsize;
+				if (verbose) {
+					fprintf(stderr,
+					    "successfully decompressed "
+					    "ino %llu offset %llu\n",
+					    (u_longlong_t)drrw->drr_object,
+					    (u_longlong_t)drrw->drr_offset);
+				}
+			} else {
 				/*
 				 * The block must not be compressed, at least
 				 * not with this compression type, possibly
@@ -308,14 +323,6 @@ zstream_do_decompress(int argc, char *argv[])
 				    (u_longlong_t)drrw->drr_object,
 				    (u_longlong_t)drrw->drr_offset);
 				memcpy(buf, lzbuf, payload_size);
-			} else if (verbose) {
-				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
-				fprintf(stderr, "successfully decompressed "
-				    "ino %llu offset %llu\n",
-				    (u_longlong_t)drrw->drr_object,
-				    (u_longlong_t)drrw->drr_offset);
-			} else {
-				drrw->drr_compressiontype = ZIO_COMPRESS_OFF;
 			}
 
 			free(lzbuf);
