@@ -5225,6 +5225,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_WRITE_ERRORS:
 		case VDEV_PROP_CHECKSUM_ERRORS:
 		case VDEV_PROP_INITIALIZE_ERRORS:
+		case VDEV_PROP_TRIM_ERRORS:
+		case VDEV_PROP_SLOW_IOS:
 		case VDEV_PROP_OPS_NULL:
 		case VDEV_PROP_OPS_READ:
 		case VDEV_PROP_OPS_WRITE:
@@ -5304,6 +5306,11 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
 			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
 		} else {
+			/* 'trim_support' only valid for leaf vdevs */
+			if (prop == VDEV_PROP_TRIM_SUPPORT) {
+				(void) strlcpy(buf, "-", len);
+				break;
+			}
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
 			/* Only use if provided by the RAIDZ VDEV above */

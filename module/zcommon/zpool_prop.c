@@ -381,6 +381,12 @@ vdev_prop_init(void)
 	zprop_register_number(VDEV_PROP_INITIALIZE_ERRORS,
 	    "initialize_errors", 0, PROP_READONLY, ZFS_TYPE_VDEV, "<errors>",
 	    "INITERR", B_FALSE, sfeatures);
+	zprop_register_number(VDEV_PROP_TRIM_ERRORS, "trim_errors", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<errors>", "TRIMERR", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_SLOW_IOS, "slow_ios", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<slowios>", "SLOW", B_FALSE,
+	    sfeatures);
 	zprop_register_number(VDEV_PROP_OPS_NULL, "null_ops", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "<operations>", "NULLOP", B_FALSE,
 	    sfeatures);
@@ -447,6 +453,9 @@ vdev_prop_init(void)
 	    boolean_na_table, sfeatures);
 	zprop_register_index(VDEV_PROP_RAIDZ_EXPANDING, "raidz_expanding", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
+	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);
 
 	/* default index properties */
