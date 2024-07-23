@@ -6268,7 +6268,6 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	struct vnode *invp = ap->a_invp;
 	struct vnode *outvp = ap->a_outvp;
 	struct mount *mp;
-	struct uio io;
 	int error;
 	uint64_t len = *ap->a_lenp;
 
@@ -6315,12 +6314,6 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	if (error != 0)
 		goto out_locked;
 #endif
-
-	io.uio_offset = *ap->a_outoffp;
-	io.uio_resid = *ap->a_lenp;
-	error = vn_rlimit_fsize(outvp, &io, ap->a_fsizetd);
-	if (error != 0)
-		goto out_locked;
 
 	error = zfs_clone_range(VTOZ(invp), ap->a_inoffp, VTOZ(outvp),
 	    ap->a_outoffp, &len, ap->a_outcred);
