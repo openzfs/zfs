@@ -77,6 +77,17 @@ the array is dynamically sized based on total system memory.
 dnode slots allocated in a single operation as a power of 2.
 The default value minimizes lock contention for the bulk operation performed.
 .
+.It Sy dmu_ddt_copies Ns = Ns Sy 3 Pq uint
+Controls the number of copies stored for DeDup Table
+.Pq DDT
+objects.
+Reducing the number of copies to 1 from the previous default of 3
+can reduce the write inflation caused by deduplication.
+This assumes redundancy for this data is provided by the vdev layer.
+If the DDT is damaged, space may be leaked
+.Pq not freed
+when the DDT can not report the correct reference count.
+.
 .It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Limit the amount we can prefetch with one call to this amount in bytes.
 This helps to limit the amount of memory that can be used by prefetching.
