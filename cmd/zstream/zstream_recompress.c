@@ -287,24 +287,26 @@ zstream_do_recompress(int argc, char *argv[])
 				    dbuf, drrw->drr_logical_size);
 				abd_t *pabd =
 				    abd_get_from_buf_struct(&abd, buf, bufsz);
-				payload_size = P2ROUNDUP(zio_compress_data(
-				    ctype, &dabd, &pabd,
-				    drrw->drr_logical_size, level),
-				    SPA_MINBLOCKSIZE);
-				if (payload_size != drrw->drr_logical_size) {
-					drrw->drr_compressiontype = ctype;
-					drrw->drr_compressed_size =
-					    payload_size;
-				} else {
+				size_t csize = zio_compress_data(ctype, &dabd,
+				    &pabd, drrw->drr_logical_size, level);
+				size_t rounded =
+				    P2ROUNDUP(csize, SPA_MINBLOCKSIZE);
+				if (rounded >= drrw->drr_logical_size) {
 					memcpy(buf, dbuf, payload_size);
 					drrw->drr_compressiontype = 0;
 					drrw->drr_compressed_size = 0;
+				} else {
+					abd_zero_off(pabd, csize,
+					    rounded - csize);
+					drrw->drr_compressiontype = ctype;
+					drrw->drr_compressed_size =
+					    payload_size = rounded;
 				}
 				abd_free(&abd);
 				abd_free(&dabd);
 				free(dbuf);
 			} else {
-				drrw->drr_compressiontype = ctype;
+				drrw->drr_compressiontype = 0;
 				drrw->drr_compressed_size = 0;
 			}
 			break;
