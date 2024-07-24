@@ -491,6 +491,7 @@ UBSAN_SANITIZE_zap_leaf.o := n
 UBSAN_SANITIZE_zap_micro.o := n
 UBSAN_SANITIZE_sa.o := n
 UBSAN_SANITIZE_zfs/zap_micro.o := n
+UBSAN_SANITIZE_zfs/sa.o := n
 
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.
