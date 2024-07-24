@@ -26,7 +26,7 @@
  * Copyright (c) 2016, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
@@ -94,6 +94,12 @@ uint_t dmu_prefetch_max = 8 * 1024 * 1024;
 #else
 uint_t dmu_prefetch_max = 8 * SPA_MAXBLOCKSIZE;
 #endif
+
+/*
+ * Override copies= for dedup state objects. 0 means the traditional behaviour
+ * (ie the default for the containing objset ie 3 for the MOS).
+ */
+uint_t dmu_ddt_copies = 0;
 
 const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
@@ -701,7 +707,7 @@ dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, const void *tag)
  * Issue prefetch I/Os for the given blocks.  If level is greater than 0, the
  * indirect blocks prefetched will be those that point to the blocks containing
  * the data starting at offset, and continuing to offset + len.  If the range
- * it too long, prefetch the first dmu_prefetch_max bytes as requested, while
+ * is too long, prefetch the first dmu_prefetch_max bytes as requested, while
  * for the rest only a higher level, also fitting within dmu_prefetch_max.  It
  * should primarily help random reads, since for long sequential reads there is
  * a speculative prefetcher.
@@ -775,6 +781,105 @@ dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 	for (uint64_t i = start2; i < end2; i++)
 		dbuf_prefetch(dn, level2, i, pri, 0);
 	rw_exit(&dn->dn_struct_rwlock);
+}
+
+typedef struct {
+	kmutex_t	dpa_lock;
+	kcondvar_t	dpa_cv;
+	uint64_t	dpa_pending_io;
+} dmu_prefetch_arg_t;
+
+static void
+dmu_prefetch_done(void *arg, uint64_t level, uint64_t blkid, boolean_t issued)
+{
+	(void) level; (void) blkid; (void)issued;
+	dmu_prefetch_arg_t *dpa = arg;
+
+	ASSERT0(level);
+
+	mutex_enter(&dpa->dpa_lock);
+	ASSERT3U(dpa->dpa_pending_io, >, 0);
+	if (--dpa->dpa_pending_io == 0)
+		cv_broadcast(&dpa->dpa_cv);
+	mutex_exit(&dpa->dpa_lock);
+}
+
+static void
+dmu_prefetch_wait_by_dnode(dnode_t *dn, uint64_t offset, uint64_t len)
+{
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+
+	uint64_t start = dbuf_whichblock(dn, 0, offset);
+	uint64_t end = dbuf_whichblock(dn, 0, offset + len - 1) + 1;
+	dmu_prefetch_arg_t dpa;
+
+	mutex_init(&dpa.dpa_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&dpa.dpa_cv, NULL, CV_DEFAULT, NULL);
+	dpa.dpa_pending_io = end - start;
+
+	for (uint64_t blk = start; blk < end; blk++) {
+		(void) dbuf_prefetch_impl(dn, 0, blk, ZIO_PRIORITY_ASYNC_READ,
+		    0, dmu_prefetch_done, &dpa);
+	}
+
+	rw_exit(&dn->dn_struct_rwlock);
+
+	/* wait for prefetch L0 reads to finish */
+	mutex_enter(&dpa.dpa_lock);
+	while (dpa.dpa_pending_io > 0) {
+		cv_wait(&dpa.dpa_cv, &dpa.dpa_lock);
+
+	}
+	mutex_exit(&dpa.dpa_lock);
+
+	mutex_destroy(&dpa.dpa_lock);
+	cv_destroy(&dpa.dpa_cv);
+}
+
+/*
+ * Issue prefetch I/Os for the given L0 block range and wait for the I/O
+ * to complete. This does not enforce dmu_prefetch_max and will prefetch
+ * the entire range. The blocks are read from disk into the ARC but no
+ * decompression occurs (i.e., the dbuf cache is not required).
+ */
+int
+dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset, uint64_t size)
+{
+	dnode_t *dn;
+	int err = 0;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err != 0)
+		return (err);
+
+	/*
+	 * Chunk the requests (16 indirects worth) so that we can be interrupted
+	 */
+	uint64_t chunksize;
+	if (dn->dn_indblkshift) {
+		uint64_t nbps = bp_span_in_blocks(dn->dn_indblkshift, 1);
+		chunksize = (nbps * 16) << dn->dn_datablkshift;
+	} else {
+		chunksize = dn->dn_datablksz;
+	}
+
+	while (size > 0) {
+		uint64_t mylen = MIN(size, chunksize);
+
+		dmu_prefetch_wait_by_dnode(dn, offset, mylen);
+
+		offset += mylen;
+		size -= mylen;
+
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+	}
+
+	dnode_rele(dn, FTAG);
+
+	return (err);
 }
 
 /*
@@ -1451,6 +1556,114 @@ dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 }
 #endif /* _KERNEL */
 
+static void
+dmu_cached_bps(spa_t *spa, blkptr_t *bps, uint_t nbps,
+    uint64_t *l1sz, uint64_t *l2sz)
+{
+	int cached_flags;
+
+	if (bps == NULL)
+		return;
+
+	for (size_t blk_off = 0; blk_off < nbps; blk_off++) {
+		blkptr_t *bp = &bps[blk_off];
+
+		if (BP_IS_HOLE(bp))
+			continue;
+
+		cached_flags = arc_cached(spa, bp);
+		if (cached_flags == 0)
+			continue;
+
+		if ((cached_flags & (ARC_CACHED_IN_L1 | ARC_CACHED_IN_L2)) ==
+		    ARC_CACHED_IN_L2)
+			*l2sz += BP_GET_LSIZE(bp);
+		else
+			*l1sz += BP_GET_LSIZE(bp);
+	}
+}
+
+/*
+ * Estimate DMU object cached size.
+ */
+int
+dmu_object_cached_size(objset_t *os, uint64_t object,
+    uint64_t *l1sz, uint64_t *l2sz)
+{
+	dnode_t *dn;
+	dmu_object_info_t doi;
+	int err = 0;
+
+	*l1sz = *l2sz = 0;
+
+	if (dnode_hold(os, object, FTAG, &dn) != 0)
+		return (0);
+
+	if (dn->dn_nlevels < 2) {
+		dnode_rele(dn, FTAG);
+		return (0);
+	}
+
+	dmu_object_info_from_dnode(dn, &doi);
+
+	for (uint64_t off = 0; off < doi.doi_max_offset;
+	    off += dmu_prefetch_max) {
+		/* dbuf_read doesn't prefetch L1 blocks. */
+		dmu_prefetch_by_dnode(dn, 1, off,
+		    dmu_prefetch_max, ZIO_PRIORITY_SYNC_READ);
+	}
+
+	/*
+	 * Hold all valid L1 blocks, asking ARC the status of each BP
+	 * contained in each such L1 block.
+	 */
+	uint_t nbps = bp_span_in_blocks(dn->dn_indblkshift, 1);
+	uint64_t l1blks = 1 + (dn->dn_maxblkid / nbps);
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	for (uint64_t blk = 0; blk < l1blks; blk++) {
+		dmu_buf_impl_t *db = NULL;
+
+		if (issig()) {
+			/*
+			 * On interrupt, get out, and bubble up EINTR
+			 */
+			err = EINTR;
+			break;
+		}
+
+		/*
+		 * If we get an i/o error here, the L1 can't be read,
+		 * and nothing under it could be cached, so we just
+		 * continue. Ignoring the error from dbuf_hold_impl
+		 * or from dbuf_read is then a reasonable choice.
+		 */
+		err = dbuf_hold_impl(dn, 1, blk, B_TRUE, B_FALSE, FTAG, &db);
+		if (err != 0) {
+			/*
+			 * ignore error and continue
+			 */
+			err = 0;
+			continue;
+		}
+
+		err = dbuf_read(db, NULL, DB_RF_CANFAIL);
+		if (err == 0) {
+			dmu_cached_bps(dmu_objset_spa(os), db->db.db_data,
+			    nbps, l1sz, l2sz);
+		}
+		/*
+		 * error may be ignored, and we continue
+		 */
+		err = 0;
+		dbuf_rele(db, FTAG);
+	}
+	rw_exit(&dn->dn_struct_rwlock);
+
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
 /*
  * Allocate a loaned anonymous arc buffer.
  */
@@ -2071,6 +2284,28 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		case ZFS_REDUNDANT_METADATA_NONE:
 			break;
 		}
+
+		if (dmu_ddt_copies > 0) {
+			/*
+			 * If this tuneable is set, and this is a write for a
+			 * dedup entry store (zap or log), then we treat it
+			 * something like ZFS_REDUNDANT_METADATA_MOST on a
+			 * regular dataset: this many copies, and one more for
+			 * "higher" indirect blocks. This specific exception is
+			 * necessary because dedup objects are stored in the
+			 * MOS, which always has the highest possible copies.
+			 */
+			dmu_object_type_t stype =
+			    dn ? dn->dn_storage_type : DMU_OT_NONE;
+			if (stype == DMU_OT_NONE)
+				stype = type;
+			if (stype == DMU_OT_DDT_ZAP) {
+				copies = dmu_ddt_copies;
+				if (level >=
+				    zfs_redundant_metadata_most_ditto_level)
+					copies++;
+			}
+		}
 	} else if (wp & WP_NOFILL) {
 		ASSERT(level == 0);
 
@@ -2161,6 +2396,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	memset(zp->zp_mac, 0, ZIO_DATA_MAC_LEN);
 	zp->zp_zpl_smallblk = DMU_OT_IS_FILE(zp->zp_type) ?
 	    os->os_zpl_special_smallblock : 0;
+	zp->zp_storage_type = dn ? dn->dn_storage_type : DMU_OT_NONE;
 
 	ASSERT3U(zp->zp_compress, !=, ZIO_COMPRESS_INHERIT);
 }
@@ -2624,3 +2860,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, dmu_offset_next_sync, INT, ZMOD_RW,
 /* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_prefetch_max, UINT, ZMOD_RW,
 	"Limit one prefetch call to this size");
+
+/* CSTYLED */
+ZFS_MODULE_PARAM(zfs, , dmu_ddt_copies, UINT, ZMOD_RW,
+	"Override copies= for dedup objects");
