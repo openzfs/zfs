@@ -758,11 +758,13 @@ abd_advance_abd_iter(abd_t *abd, abd_t *cabd, struct abd_iter *aiter,
 }
 
 int
-abd_iterate_func(abd_t *abd, size_t off, size_t size,
-    abd_iter_func_t *func, void *private)
+abd_iterate_func_flags(abd_t *abd, size_t off, size_t size,
+    abd_iter_func_t *func, void *private, abd_iter_flags_t flags)
 {
 	struct abd_iter aiter;
 	int ret = 0;
+
+	ASSERT0(flags & ~ABD_ITER_FLAGS_MASK);
 
 	if (size == 0)
 		return (0);
@@ -932,12 +934,15 @@ abd_zero_off(abd_t *abd, size_t off, size_t size)
  * times during this iteration.
  */
 int
-abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
-    size_t size, abd_iter_func2_t *func, void *private)
+abd_iterate_func2_flags(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
+    size_t size, abd_iter_func2_t *func, void *private, abd_iter_flags_t flags)
 {
+	(void) flags;
 	int ret = 0;
 	struct abd_iter daiter, saiter;
 	abd_t *c_dabd, *c_sabd;
+
+	ASSERT0(flags & ~ABD_ITER_FLAGS_MASK);
 
 	if (size == 0)
 		return (0);

@@ -112,10 +112,22 @@ void abd_release_ownership_of_buf(abd_t *);
 /*
  * ABD operations
  */
+typedef enum {
+	ABD_ITER_NONE	= 0,
+} abd_iter_flags_t;
 
-int abd_iterate_func(abd_t *, size_t, size_t, abd_iter_func_t *, void *);
-int abd_iterate_func2(abd_t *, abd_t *, size_t, size_t, size_t,
-    abd_iter_func2_t *, void *);
+#define	ABD_ITER_FLAGS_MASK	0
+
+int abd_iterate_func_flags(abd_t *, size_t, size_t, abd_iter_func_t *, void *,
+    abd_iter_flags_t);
+#define abd_iterate_func(abd, off, len, fn, priv)	\
+	abd_iterate_func_flags(abd, off, len, fn, priv, 0)
+
+int abd_iterate_func2_flags(abd_t *, abd_t *, size_t, size_t, size_t,
+    abd_iter_func2_t *, void *, abd_iter_flags_t);
+#define abd_iterate_func2(sabd, dabd, soff, doff, len, fn, priv)	\
+	abd_iterate_func2_flags(sabd, dabd, soff, doff, len, fn, priv, 0)
+
 void abd_copy_off(abd_t *, abd_t *, size_t, size_t, size_t);
 void abd_copy_from_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);
