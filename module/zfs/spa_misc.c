@@ -1996,6 +1996,13 @@ spa_dedup_class(spa_t *spa)
 	return (spa->spa_dedup_class);
 }
 
+boolean_t
+spa_special_has_ddt(spa_t *spa)
+{
+	return (zfs_ddt_data_is_special &&
+	    spa->spa_special_class->mc_groups != 0);
+}
+
 /*
  * Locate an appropriate allocation class
  */

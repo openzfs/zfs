@@ -1415,6 +1415,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/deadman/deadman_ratelimit.ksh \
 	functional/deadman/deadman_sync.ksh \
 	functional/deadman/deadman_zio.ksh \
+	functional/dedup/cleanup.ksh \
+	functional/dedup/setup.ksh \
+	functional/dedup/dedup_quota.ksh \
 	functional/delegate/cleanup.ksh \
 	functional/delegate/setup.ksh \
 	functional/delegate/zfs_allow_001_pos.ksh \
