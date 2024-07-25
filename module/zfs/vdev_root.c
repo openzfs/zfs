@@ -32,6 +32,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
+#include <sys/zfeature.h>
 
 /*
  * Virtual device vector for the pool's root vdev.
@@ -46,6 +47,7 @@ vdev_root_core_tvds(vdev_t *vd)
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (!cvd->vdev_ishole && !cvd->vdev_islog &&
+		    !vdev_is_special_failsafe(vd) &&
 		    cvd->vdev_ops != &vdev_indirect_ops) {
 			tvds++;
 		}
@@ -87,6 +89,7 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	spa_t *spa = vd->vdev_spa;
 	int lasterror = 0;
 	int numerrors = 0;
+	int numerrors_recovered = 0;
 
 	if (vd->vdev_children == 0) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
@@ -97,18 +100,25 @@ vdev_root_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
-
 		if (cvd->vdev_open_error && !cvd->vdev_islog &&
 		    cvd->vdev_ops != &vdev_indirect_ops) {
 			lasterror = cvd->vdev_open_error;
 			numerrors++;
+			if (vdev_is_special_failsafe(cvd))
+				numerrors_recovered++;
 		}
 	}
 
-	if (spa_load_state(spa) != SPA_LOAD_NONE)
-		spa_set_missing_tvds(spa, numerrors);
+	if (spa_load_state(spa) != SPA_LOAD_NONE) {
+		spa_set_missing_tvds(spa, numerrors, numerrors_recovered);
+	}
 
-	if (too_many_errors(vd, numerrors)) {
+	if (numerrors != 0 && (numerrors == numerrors_recovered)) {
+		vdev_dbgmsg(vd, "there were %lu top-level errors, but they were"
+		    " all alloc class vdevs with special_failsafe.  Keep trying"
+		    "to import.",
+		    (long unsigned) numerrors);
+	} else if (too_many_errors(vd, numerrors)) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
 		return (lasterror);
 	}
