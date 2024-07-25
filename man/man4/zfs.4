@@ -831,6 +831,13 @@ even with a small average compressed block size of ~8 KiB.
 The parameter can be set to 0 (zero) to disable the limit,
 and only applies on Linux.
 .
+.It Sy zfs_arc_shrinker_seeks Ns = Ns Sy 2 Pq int
+Relative cost of ARC eviction on Linux, AKA number of seeks needed to
+restore evicted page.
+Bigger values make ARC more precious and evictions smaller, comparing to
+other kernel subsystems.
+Value of 4 means parity with page cache.
+.
 .It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq u64
 The target number of bytes the ARC should leave as free memory on the system.
 If zero, equivalent to the bigger of
