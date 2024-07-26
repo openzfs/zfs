@@ -176,6 +176,7 @@
     <elf-symbol name='lzc_load_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_pool_checkpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_pool_checkpoint_discard' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_pool_prefetch' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_promote' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_receive' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_receive_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1428,6 +1429,7 @@
       <enumerator name='ZFS_IOC_VDEV_GET_PROPS' value='23125'/>
       <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
       <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
+      <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -1462,6 +1464,12 @@
       <enumerator name='ZFS_WAIT_NUM_ACTIVITIES' value='1'/>
     </enum-decl>
     <typedef-decl name='zfs_wait_activity_t' type-id='527d5dc6' id='3024501a'/>
+    <enum-decl name='zpool_prefetch_type_t' naming-typedef-id='e55ff6bc' id='0299ab50'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZPOOL_PREFETCH_NONE' value='0'/>
+      <enumerator name='ZPOOL_PREFETCH_DDT' value='1'/>
+    </enum-decl>
+    <typedef-decl name='zpool_prefetch_type_t' type-id='0299ab50' id='e55ff6bc'/>
     <enum-decl name='data_type_t' naming-typedef-id='8d0687d2' id='aeeae136'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='DATA_TYPE_DONTCARE' value='-1'/>
@@ -2890,6 +2898,11 @@
     </function-decl>
     <function-decl name='lzc_pool_checkpoint_discard' mangled-name='lzc_pool_checkpoint_discard' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_checkpoint_discard'>
       <parameter type-id='80f4b756' name='pool'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_pool_prefetch' mangled-name='lzc_pool_prefetch' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_prefetch'>
+      <parameter type-id='80f4b756' name='pool'/>
+      <parameter type-id='e55ff6bc' name='type'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_channel_program_nosync' mangled-name='lzc_channel_program_nosync' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_channel_program_nosync'>

@@ -94,12 +94,15 @@ struct zfs_handle {
  * snapshots of volumes.
  */
 #define	ZFS_IS_VOLUME(zhp) ((zhp)->zfs_head_type == ZFS_TYPE_VOLUME)
+#define	ZHP_MAX_PROPNAMES 4
 
 struct zpool_handle {
 	libzfs_handle_t *zpool_hdl;
 	zpool_handle_t *zpool_next;
 	char zpool_name[ZFS_MAX_DATASET_NAME_LEN];
 	int zpool_state;
+	unsigned int zpool_n_propnames;
+	const char *zpool_propnames[ZHP_MAX_PROPNAMES];
 	size_t zpool_config_size;
 	nvlist_t *zpool_config;
 	nvlist_t *zpool_old_config;

@@ -458,6 +458,7 @@ _LIBZFS_H nvlist_t *zpool_get_config(zpool_handle_t *, nvlist_t **);
 _LIBZFS_H nvlist_t *zpool_get_features(zpool_handle_t *);
 _LIBZFS_H int zpool_refresh_stats(zpool_handle_t *, boolean_t *);
 _LIBZFS_H int zpool_get_errlog(zpool_handle_t *, nvlist_t **);
+_LIBZFS_H void zpool_add_propname(zpool_handle_t *, const char *);
 
 /*
  * Import and export functions
@@ -503,6 +504,8 @@ _LIBZFS_H void zpool_explain_recover(libzfs_handle_t *, const char *, int,
 _LIBZFS_H int zpool_checkpoint(zpool_handle_t *);
 _LIBZFS_H int zpool_discard_checkpoint(zpool_handle_t *);
 _LIBZFS_H boolean_t zpool_is_draid_spare(const char *);
+
+_LIBZFS_H int zpool_prefetch(zpool_handle_t *, zpool_prefetch_type_t);
 
 /*
  * Basic handle manipulations.  These functions do not create or destroy the
