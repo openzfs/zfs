@@ -60,18 +60,13 @@
 
 #define	DBUF_TP_FAST_ASSIGN						\
 	if (db != NULL) {						\
-		if (POINTER_IS_VALID(DB_DNODE(db)->dn_objset)) {	\
-			__assign_str(os_spa,				\
-			spa_name(DB_DNODE(db)->dn_objset->os_spa));	\
-		} else {						\
-			__assign_str(os_spa, "NULL");			\
-		}							\
-									\
+		__assign_str(os_spa);			\
+								\
 		__entry->ds_object = db->db_objset->os_dsl_dataset ?	\
 		db->db_objset->os_dsl_dataset->ds_object : 0;		\
 									\
 		__entry->db_object = db->db.db_object;			\
-		__entry->db_level  = db->db_level;			\
+		__entry->db_level  = db->db_level;
 		__entry->db_blkid  = db->db_blkid;			\
 		__entry->db_offset = db->db.db_offset;			\
 		__entry->db_size   = db->db.db_size;			\
@@ -80,7 +75,7 @@
 		snprintf(__get_str(msg), TRACE_DBUF_MSG_MAX,		\
 		    DBUF_TP_PRINTK_FMT, DBUF_TP_PRINTK_ARGS);		\
 	} else {							\
-		__assign_str(os_spa, "NULL");				\
+		__assign_str(os_spa);				\
 		__entry->ds_object = 0;					\
 		__entry->db_object = 0;					\
 		__entry->db_level  = 0;					\
