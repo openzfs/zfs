@@ -69,8 +69,8 @@ typedef struct {
 
 typedef struct zfs_uio {
 	union {
-		const struct iovec	*uio_iov;
-		const struct bio_vec	*uio_bvec;
+		struct iovec		*uio_iov;
+		struct bio_vec		*uio_bvec;
 		struct iov_iter		*uio_iter;
 	};
 	int		uio_iovcnt;	/* Number of iovecs */
@@ -123,7 +123,7 @@ zfs_uio_advance(zfs_uio_t *uio, ssize_t size)
 }
 
 static inline void
-zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
+zfs_uio_iovec_init(zfs_uio_t *uio, struct iovec *iov,
     unsigned long nr_segs, offset_t offset, zfs_uio_seg_t seg, ssize_t resid,
     size_t skip)
 {
