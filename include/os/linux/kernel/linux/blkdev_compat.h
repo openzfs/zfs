@@ -106,8 +106,10 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 {
 #if !defined(HAVE_BLK_QUEUE_UPDATE_READAHEAD) && \
 	!defined(HAVE_DISK_UPDATE_READAHEAD)
-#ifdef HAVE_BLK_QUEUE_BDI_DYNAMIC
+#if defined(HAVE_BLK_QUEUE_BDI_DYNAMIC)
 	q->backing_dev_info->ra_pages = ra_pages;
+#elif defined(HAVE_BLK_QUEUE_DISK_BDI)
+	q->disk->bdi->ra_pages = ra_pages;
 #else
 	q->backing_dev_info.ra_pages = ra_pages;
 #endif
