@@ -172,6 +172,10 @@ zio_init(void)
 		data_cflags = KMC_NODEBUG;
 		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
 		    KMC_NODEBUG : 0;
+		if (abd_size_alloc_linear(size)) {
+			cflags |= KMC_RECLAIMABLE;
+			data_cflags |= KMC_RECLAIMABLE;
+		}
 
 		while (!ISP2(p2))
 			p2 &= p2 - 1;

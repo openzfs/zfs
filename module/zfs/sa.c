@@ -235,7 +235,7 @@ sa_cache_init(void)
 {
 	sa_cache = kmem_cache_create("sa_cache",
 	    sizeof (sa_handle_t), 0, sa_cache_constructor,
-	    sa_cache_destructor, NULL, NULL, NULL, 0);
+	    sa_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 void
