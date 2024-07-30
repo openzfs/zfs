@@ -81,6 +81,7 @@ typedef struct importargs {
 	nvlist_t *policy;	/* load policy (max txg, rewind, etc.)	*/
 	boolean_t do_destroyed;
 	boolean_t do_all;
+	uint64_t shared_log_guid;
 } importargs_t;
 
 typedef struct libpc_handle {

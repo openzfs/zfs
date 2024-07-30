@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -658,6 +658,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 
 	if (ds == NULL || !ds->ds_is_snapshot)
 		os->os_zil_header = os->os_phys->os_zil_header;
+	if (spa_uses_shared_log(spa))
+		spa_zil_header_convert(spa, os, &os->os_zil_header.zh_log);
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
 
 	for (i = 0; i < TXG_SIZE; i++) {
@@ -1192,6 +1194,9 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 	const char *tail;
 	int error;
 
+	if (spa_is_shared_log(dp->dp_spa))
+		return (SET_ERROR(EINVAL));
+
 	if (strchr(doca->doca_name, '@') != NULL)
 		return (SET_ERROR(EINVAL));
 
@@ -1720,6 +1725,10 @@ sync_meta_dnode_task(void *arg)
 	 */
 	zil_sync(os->os_zil, tx);
 	os->os_phys->os_zil_header = os->os_zil_header;
+	if (os->os_spa->spa_uses_shared_log) {
+		spa_zil_header_mask(os->os_spa,
+		    &os->os_phys->os_zil_header.zh_log);
+	}
 	zio_nowait(soa->soa_zio);
 
 	mutex_destroy(&soa->soa_mutex);

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
@@ -169,6 +169,9 @@ uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 static int zfs_zil_clean_taskq_nthr_pct = 100;
 static int zfs_zil_clean_taskq_minalloc = 1024;
 static int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
+
+static unsigned int chain_map_zap_default_bs = 17;
+static unsigned int chain_map_zap_default_ibs = 15;
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
@@ -360,6 +363,14 @@ dsl_pool_open(dsl_pool_t *dp)
 	if (err)
 		goto out;
 
+	if (spa_is_shared_log(dp->dp_spa)) {
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_CHAIN_MAP_OBJ, sizeof (uint64_t), 1,
+		    &dp->dp_chain_map_obj);
+		if (err != 0)
+			goto out;
+	}
+
 	err = dsl_scan_init(dp, dp->dp_tx.tx_open_txg);
 
 out:
@@ -547,6 +558,17 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 	zfs_create_fs(os, kcred, zplprops, tx);
 #endif
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+
+	if (spa_is_shared_log(spa)) {
+		dp->dp_chain_map_obj = zap_create_flags(dp->dp_meta_objset, 0,
+		    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY |
+		    ZAP_FLAG_PRE_HASHED_KEY, DMU_OTN_ZAP_METADATA,
+		    chain_map_zap_default_bs, chain_map_zap_default_ibs,
+		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_CHAIN_MAP_OBJ, sizeof (uint64_t), 1,
+		    &dp->dp_chain_map_obj, tx));
+	}
 
 	dmu_tx_commit(tx);
 

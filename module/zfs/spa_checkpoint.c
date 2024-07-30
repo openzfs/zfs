@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2023 by Delphix. All rights reserved.
  */
 
 /*
@@ -544,6 +544,10 @@ spa_checkpoint(const char *pool)
 	error = spa_open(pool, &spa, FTAG);
 	if (error != 0)
 		return (error);
+	if (spa_uses_shared_log(spa) || spa_is_shared_log(spa)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
 
 	mutex_enter(&spa->spa_vdev_top_lock);
 

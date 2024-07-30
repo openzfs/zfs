@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2022 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
  * Copyright (c) 2014 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -1303,7 +1303,7 @@ top_of_function:
 	 * refreservation values. Also, if checkrefquota is set, test if
 	 * allocating this space would exceed the dataset's refquota.
 	 */
-	if (first && tx->tx_objset) {
+	if (first && tx->tx_objset && tx->tx_objset->os_dsl_dataset) {
 		int error;
 		dsl_dataset_t *ds = tx->tx_objset->os_dsl_dataset;
 

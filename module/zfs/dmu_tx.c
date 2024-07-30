@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2023 by Delphix. All rights reserved.
  */
 
 #include <sys/dmu.h>
@@ -72,6 +72,14 @@ dmu_tx_create_dd(dsl_dir_t *dd)
 	list_create(&tx->tx_callbacks, sizeof (dmu_tx_callback_t),
 	    offsetof(dmu_tx_callback_t, dcb_node));
 	tx->tx_start = gethrtime();
+	return (tx);
+}
+
+dmu_tx_t *
+dmu_tx_create_mos(dsl_pool_t *dp)
+{
+	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
+	tx->tx_objset = dp->dp_meta_objset;
 	return (tx);
 }
 

@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2018, 2023 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -791,6 +791,18 @@ test_set_bootenv(const char *pool)
 }
 
 static void
+test_pool_recycle(const char *pool)
+{
+	nvlist_t *required = fnvlist_alloc();
+
+	fnvlist_add_boolean_value(required, "dryrun", B_FALSE);
+
+	IOC_INPUT_TEST_WILD(ZFS_IOC_POOL_RECYCLE, pool, required, NULL, 0);
+
+	nvlist_free(required);
+}
+
+static void
 zfs_ioc_input_tests(const char *pool)
 {
 	char filepath[] = "/tmp/ioc_test_file_XXXXXX";
@@ -883,6 +895,8 @@ zfs_ioc_input_tests(const char *pool)
 	test_get_bootenv(pool);
 
 	test_scrub(pool);
+
+	test_pool_recycle(pool);
 
 	/*
 	 * cleanup
@@ -1039,6 +1053,7 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
 	CHECK(ZFS_IOC_BASE + 87 == ZFS_IOC_POOL_SCRUB);
+	CHECK(ZFS_IOC_BASE + 88 == ZFS_IOC_POOL_RECYCLE);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
