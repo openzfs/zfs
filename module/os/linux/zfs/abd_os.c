@@ -281,7 +281,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct sg_table table;
 	struct scatterlist *sg;
 	struct page *page, *tmp_page = NULL;
-	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
+	gfp_t gfp = __GFP_RECLAIMABLE | __GFP_NOWARN | GFP_NOIO;
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
 	unsigned int max_order = MIN(zfs_abd_scatter_max_order,
 	    ABD_MAX_ORDER - 1);
@@ -403,7 +403,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct scatterlist *sg = NULL;
 	struct sg_table table;
 	struct page *page;
-	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
+	gfp_t gfp = __GFP_RECLAIMABLE | __GFP_NOWARN | GFP_NOIO;
 	int nr_pages = abd_chunkcnt_for_bytes(size);
 	int i = 0;
 
@@ -762,7 +762,7 @@ abd_init(void)
 	int i;
 
 	abd_cache = kmem_cache_create("abd_t", sizeof (abd_t),
-	    0, NULL, NULL, NULL, NULL, NULL, 0);
+	    0, NULL, NULL, NULL, NULL, NULL, KMC_RECLAIMABLE);
 
 	wmsum_init(&abd_sums.abdstat_struct_size, 0);
 	wmsum_init(&abd_sums.abdstat_linear_cnt, 0);

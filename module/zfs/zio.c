@@ -194,6 +194,10 @@ zio_init(void)
 		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
 		    KMC_NODEBUG : 0;
 		data_cflags = KMC_NODEBUG;
+		if (abd_size_alloc_linear(size)) {
+			cflags |= KMC_RECLAIMABLE;
+			data_cflags |= KMC_RECLAIMABLE;
+		}
 		if (cflags == data_cflags) {
 			/*
 			 * Resulting kmem caches would be identical.

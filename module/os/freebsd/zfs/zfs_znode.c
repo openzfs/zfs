@@ -236,7 +236,7 @@ zfs_znode_init(void)
 	ASSERT3P(znode_cache, ==, NULL);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
-	    zfs_znode_cache_destructor, NULL, NULL, NULL, 0);
+	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 static znode_t *
