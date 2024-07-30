@@ -1159,6 +1159,9 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->max_segments = limits->zql_max_segments;
 	qlimits->max_segment_size = limits->zql_max_segment_size;
 	qlimits->io_opt = limits->zql_io_opt;
+#ifdef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	qlimits->features = BLK_FEAT_WRITE_CACHE | BLK_FEAT_FUA;
+#endif
 }
 #else
 static void
@@ -1169,6 +1172,9 @@ zvol_queue_limits_apply(zvol_queue_limits_t *limits,
 	blk_queue_max_segments(queue, limits->zql_max_segments);
 	blk_queue_max_segment_size(queue, limits->zql_max_segment_size);
 	blk_queue_io_opt(queue, limits->zql_io_opt);
+#ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	blk_queue_set_write_cache(queue, B_TRUE);
+#endif
 }
 #endif
 
@@ -1192,6 +1198,10 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 		zso->zvo_disk = NULL;
 		return (1);
 	}
+
+#ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE);
+#endif
 
 	zso->zvo_disk = disk;
 	zso->zvo_disk->minors = ZVOL_MINORS;
@@ -1343,8 +1353,6 @@ zvol_alloc(dev_t dev, const char *name)
 	}
 	if (ret != 0)
 		goto out_kmem;
-
-	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE, B_TRUE);
 
 	/* Limit read-ahead to a single page to prevent over-prefetching. */
 	blk_queue_set_read_ahead(zso->zvo_queue, 1);

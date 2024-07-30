@@ -58,6 +58,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 		disk = blk_alloc_disk(lim, NUMA_NO_NODE);
 	])
 
+	ZFS_LINUX_TEST_SRC([blkdev_queue_limits_features], [
+		#include <linux/blkdev.h>
+	],[
+		struct queue_limits *lim = NULL;
+		lim->features = 0;
+	])
+
 	ZFS_LINUX_TEST_SRC([blk_cleanup_disk], [
 		#include <linux/blkdev.h>
 	],[
@@ -113,6 +120,20 @@ AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
 		ZFS_LINUX_TEST_RESULT([blk_alloc_disk_2arg], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE([HAVE_BLK_ALLOC_DISK_2ARG], 1, [blk_alloc_disk() exists and takes 2 args])
+
+			dnl #
+			dnl # Linux 6.11 API change:
+			dnl # struct queue_limits gains a 'features' field,
+			dnl # used to set flushing options
+			dnl #
+			AC_MSG_CHECKING([whether struct queue_limits has a features field])
+			ZFS_LINUX_TEST_RESULT([blkdev_queue_limits_features], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE([HAVE_BLKDEV_QUEUE_LIMITS_FEATURES], 1,
+				    [struct queue_limits has a features field])
+			], [
+				AC_MSG_RESULT(no)
+			])
 
 			dnl #
 			dnl # 5.20 API change,
