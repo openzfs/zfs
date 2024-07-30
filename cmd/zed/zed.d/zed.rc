@@ -14,7 +14,7 @@
 # Email will only be sent if ZED_EMAIL_ADDR is defined.
 # Enabled by default; comment to disable.
 #
-ZED_EMAIL_ADDR="root"
+#ZED_EMAIL_ADDR="root"
 
 ##
 # Name or path of executable responsible for sending notifications via email;
