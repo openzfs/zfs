@@ -1123,6 +1123,9 @@ typedef struct zvol_queue_limits {
 	unsigned short	zql_max_segments;
 	unsigned int	zql_max_segment_size;
 	unsigned int	zql_io_opt;
+	unsigned int	zql_physical_block_size;
+	unsigned int	zql_max_discard_sectors;
+	unsigned int	zql_discard_granularity;
 } zvol_queue_limits_t;
 
 static void
@@ -1191,6 +1194,11 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 	}
 
 	limits->zql_io_opt = zv->zv_volblocksize;
+
+	limits->zql_physical_block_size = zv->zv_volblocksize;
+	limits->zql_max_discard_sectors =
+	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9;
+	limits->zql_discard_granularity = zv->zv_volblocksize;
 }
 
 #ifdef HAVE_BLK_ALLOC_DISK_2ARG
@@ -1203,6 +1211,9 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->max_segments = limits->zql_max_segments;
 	qlimits->max_segment_size = limits->zql_max_segment_size;
 	qlimits->io_opt = limits->zql_io_opt;
+	qlimits->physical_block_size = limits->zql_physical_block_size;
+	qlimits->max_discard_sectors = limits->zql_max_discard_sectors;
+	qlimits->discard_granularity = limits->zql_discard_granularity;
 #ifdef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
 	qlimits->features =
 	    BLK_FEAT_WRITE_CACHE | BLK_FEAT_FUA | BLK_FEAT_IO_STAT;
@@ -1219,6 +1230,10 @@ zvol_queue_limits_apply(zvol_queue_limits_t *limits,
 	blk_queue_max_segments(queue, limits->zql_max_segments);
 	blk_queue_max_segment_size(queue, limits->zql_max_segment_size);
 	blk_queue_io_opt(queue, limits->zql_io_opt);
+	blk_queue_physical_block_size(queue, limits->zql_physical_block_size);
+	blk_queue_max_discard_sectors(queue, limits->zql_max_discard_sectors);
+	blk_queue_discard_granularity(queue, limits->zql_discard_granularity);
+#endif
 #ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
 	blk_queue_set_write_cache(queue, B_TRUE);
 	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, queue);
@@ -1677,14 +1692,6 @@ zvol_os_create_minor(const char *name)
 
 	set_capacity(zv->zv_zso->zvo_disk, zv->zv_volsize >> 9);
 
-
-
-	blk_queue_physical_block_size(zv->zv_zso->zvo_queue,
-	    zv->zv_volblocksize);
-	blk_queue_max_discard_sectors(zv->zv_zso->zvo_queue,
-	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
-	blk_queue_discard_granularity(zv->zv_zso->zvo_queue,
-	    zv->zv_volblocksize);
 #ifdef QUEUE_FLAG_DISCARD
 	blk_queue_flag_set(QUEUE_FLAG_DISCARD, zv->zv_zso->zvo_queue);
 #endif
