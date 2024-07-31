@@ -27,6 +27,32 @@ AC_DEFUN([ZFS_AC_KERNEL_REGISTER_SYSCTL_TABLE], [
 ])
 
 dnl #
+dnl # Linux 6.11 register_sysctl() enforces that sysctl tables no longer
+dnl # supply a sentinel end-of-table element. 6.6 introduces
+dnl # register_sysctl_sz() to enable callers to choose, so we use it if
+dnl # available for backward compatibility.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_REGISTER_SYSCTL_SZ], [
+	ZFS_LINUX_TEST_SRC([has_register_sysctl_sz], [
+		#include <linux/sysctl.h>
+	],[
+		struct ctl_table test_table[] __attribute__((unused)) = {0};
+		register_sysctl_sz("", test_table, 0);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_REGISTER_SYSCTL_SZ], [
+	AC_MSG_CHECKING([whether register_sysctl_sz exists])
+	ZFS_LINUX_TEST_RESULT([has_register_sysctl_sz], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE(HAVE_REGISTER_SYSCTL_SZ, 1,
+			[register_sysctl_sz exists])
+	],[
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
 dnl # Linux 6.11 makes const the ctl_table arg of proc_handler
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_PROC_HANDLER_CTL_TABLE_CONST], [
