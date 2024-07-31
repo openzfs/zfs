@@ -43,6 +43,12 @@ typedef struct ctl_table __no_const spl_ctl_table;
 typedef struct ctl_table spl_ctl_table;
 #endif
 
+#ifdef HAVE_PROC_HANDLER_CTL_TABLE_CONST
+#define	CONST_CTL_TABLE		const struct ctl_table
+#else
+#define	CONST_CTL_TABLE		struct ctl_table
+#endif
+
 static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 
@@ -60,7 +66,7 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 
 #ifdef DEBUG_KMEM
 static int
-proc_domemused(struct ctl_table *table, int write,
+proc_domemused(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
@@ -88,7 +94,7 @@ proc_domemused(struct ctl_table *table, int write,
 #endif /* DEBUG_KMEM */
 
 static int
-proc_doslab(struct ctl_table *table, int write,
+proc_doslab(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
@@ -135,7 +141,7 @@ proc_doslab(struct ctl_table *table, int write,
 }
 
 static int
-proc_dohostid(struct ctl_table *table, int write,
+proc_dohostid(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	char *end, str[32];
