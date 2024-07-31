@@ -1204,7 +1204,8 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->max_segment_size = limits->zql_max_segment_size;
 	qlimits->io_opt = limits->zql_io_opt;
 #ifdef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
-	qlimits->features = BLK_FEAT_WRITE_CACHE | BLK_FEAT_FUA;
+	qlimits->features =
+	    BLK_FEAT_WRITE_CACHE | BLK_FEAT_FUA | BLK_FEAT_IO_STAT;
 #endif
 }
 #endif
@@ -1220,6 +1221,7 @@ zvol_queue_limits_apply(zvol_queue_limits_t *limits,
 	blk_queue_io_opt(queue, limits->zql_io_opt);
 #ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
 	blk_queue_set_write_cache(queue, B_TRUE);
+	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, queue);
 #endif
 }
 
@@ -1408,9 +1410,6 @@ zvol_alloc(dev_t dev, const char *name)
 		/* Disable write merging in favor of the ZIO pipeline. */
 		blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zso->zvo_queue);
 	}
-
-	/* Enable /proc/diskstats */
-	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, zso->zvo_queue);
 
 	zso->zvo_queue->queuedata = zv;
 	zso->zvo_dev = dev;
