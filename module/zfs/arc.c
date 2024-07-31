@@ -9130,11 +9130,16 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	 */
 	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
 		/*
-		 * If pass == 1 or 3, we cache MRU metadata and data
-		 * respectively.
+		 * pass == 0: MFU meta
+		 * pass == 1: MRU meta
+		 * pass == 2: MFU data
+		 * pass == 3: MRU data
 		 */
-		if (l2arc_mfuonly) {
+		if (l2arc_mfuonly == 1) {
 			if (pass == 1 || pass == 3)
+				continue;
+		} else if (l2arc_mfuonly > 1) {
+			if (pass == 3)
 				continue;
 		}
 
