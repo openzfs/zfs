@@ -4236,6 +4236,18 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 }
 
 /*
+ * Calculate (x * multiplier / divisor) without unnecesary overflows.
+ */
+static uint64_t
+arc_mf(uint64_t x, uint64_t multiplier, uint64_t divisor)
+{
+	uint64_t q = (x / divisor);
+	uint64_t r = (x % divisor);
+
+	return ((q * multiplier) + ((r * multiplier) / divisor));
+}
+
+/*
  * Evict buffers from the cache, such that arcstat_size is capped by arc_c.
  */
 static uint64_t
@@ -4287,17 +4299,20 @@ arc_evict(void)
 	 */
 	int64_t prune = 0;
 	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
+	int64_t nem = zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA])
+	    + zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA])
+	    - zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA])
+	    - zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
 	w = wt * (int64_t)(arc_meta >> 16) >> 16;
-	if (zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA]) +
-	    zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA]) -
-	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) -
-	    zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]) >
-	    w * 3 / 4) {
+	if (nem > w * 3 / 4) {
 		prune = dn / sizeof (dnode_t) *
 		    zfs_arc_dnode_reduce_percent / 100;
-	} else if (dn > arc_dnode_limit) {
-		prune = (dn - arc_dnode_limit) / sizeof (dnode_t) *
-		    zfs_arc_dnode_reduce_percent / 100;
+		if (nem < w && w > 4)
+			prune = arc_mf(prune, nem - w * 3 / 4, w / 4);
+	}
+	if (dn > arc_dnode_limit) {
+		prune = MAX(prune, (dn - arc_dnode_limit) / sizeof (dnode_t) *
+		    zfs_arc_dnode_reduce_percent / 100);
 	}
 	if (prune > 0)
 		arc_prune_async(prune);
