@@ -69,6 +69,7 @@
 #include <sys/zpl.h>
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
+#include <linux/mm_compat.h>
 
 /*
  * Programming rules.
