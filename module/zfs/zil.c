@@ -513,9 +513,26 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 
 		for (; lrp < end; lrp += reclen) {
 			lr_t *lr = (lr_t *)lrp;
+
+			/*
+			 * Are the remaining bytes large enough to hold an
+			 * log record?
+			 */
+			if ((char *)(lr + 1) > end) {
+				cmn_err(CE_WARN, "zil_parse: lr_t overrun");
+				error = SET_ERROR(ECKSUM);
+				arc_buf_destroy(abuf, &abuf);
+				goto done;
+			}
 			reclen = lr->lrc_reclen;
-			ASSERT3U(reclen, >=, sizeof (lr_t));
-			ASSERT3U(reclen, <=, end - lrp);
+			if (reclen < sizeof (lr_t) || reclen > end - lrp) {
+				cmn_err(CE_WARN,
+				    "zil_parse: lr_t has an invalid reclen");
+				error = SET_ERROR(ECKSUM);
+				arc_buf_destroy(abuf, &abuf);
+				goto done;
+			}
+
 			if (lr->lrc_seq > claim_lr_seq) {
 				arc_buf_destroy(abuf, &abuf);
 				goto done;
