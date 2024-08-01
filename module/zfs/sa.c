@@ -1501,6 +1501,42 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 	return (error);
 }
 
+/*
+ * Return size of an attribute
+ */
+
+static int
+sa_size_locked(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	sa_bulk_attr_t bulk;
+	int error;
+
+	bulk.sa_data = NULL;
+	bulk.sa_attr = attr;
+	bulk.sa_data_func = NULL;
+
+	ASSERT(hdl);
+	ASSERT(MUTEX_HELD(&hdl->sa_lock));
+	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
+		return (error);
+	}
+	*size = bulk.sa_size;
+
+	return (0);
+}
+
+int
+sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	int error;
+
+	mutex_enter(&hdl->sa_lock);
+	error = sa_size_locked(hdl, attr, size);
+	mutex_exit(&hdl->sa_lock);
+
+	return (error);
+}
+
 #ifdef _KERNEL
 int
 sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, zfs_uio_t *uio)
@@ -1623,6 +1659,19 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
+	char *dxattr_obj = NULL;
+	int dxattr_size = 0;
+	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
+	if (err != 0 && err != ENOENT)
+		goto out;
+	if (dxattr_size != 0) {
+		dxattr_obj = vmem_alloc(dxattr_size, KM_SLEEP);
+		err = sa_lookup_locked(hdl, SA_ZPL_DXATTR(zfsvfs), dxattr_obj,
+		    dxattr_size);
+		if (err != 0 && err != ENOENT)
+			goto out;
+	}
+
 	zp->z_projid = projid;
 	zp->z_pflags |= ZFS_PROJID;
 	links = ZTONLNK(zp);
@@ -1674,6 +1723,11 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
 
+	if (dxattr_obj) {
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DXATTR(zfsvfs),
+		    NULL, dxattr_obj, dxattr_size);
+	}
+
 	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
 	VERIFY(sa_replace_all_by_template_locked(hdl, attrs, count, tx) == 0);
 	if (znode_acl.z_acl_extern_obj) {
@@ -1688,6 +1742,8 @@ out:
 	mutex_exit(&hdl->sa_lock);
 	kmem_free(attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
+	if (dxattr_obj)
+		vmem_free(dxattr_obj, dxattr_size);
 	return (err);
 }
 #endif
@@ -2055,32 +2111,6 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	error = sa_bulk_update_impl(hdl, &bulk, 1, tx);
 	mutex_exit(&hdl->sa_lock);
 	return (error);
-}
-
-/*
- * Return size of an attribute
- */
-
-int
-sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
-{
-	sa_bulk_attr_t bulk;
-	int error;
-
-	bulk.sa_data = NULL;
-	bulk.sa_attr = attr;
-	bulk.sa_data_func = NULL;
-
-	ASSERT(hdl);
-	mutex_enter(&hdl->sa_lock);
-	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
-		mutex_exit(&hdl->sa_lock);
-		return (error);
-	}
-	*size = bulk.sa_size;
-
-	mutex_exit(&hdl->sa_lock);
-	return (0);
 }
 
 int
