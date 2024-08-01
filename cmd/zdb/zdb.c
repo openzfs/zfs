@@ -8363,7 +8363,7 @@ zdb_dump_block(char *label, void *buf, uint64_t size, int flags)
 
 	(void) printf("\n%s\n%6s   %s  0123456789abcdef\n", label, "", hdr);
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 	/* correct the endianness */
 	do_bswap = !do_bswap;
 #endif
