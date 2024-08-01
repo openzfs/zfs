@@ -166,8 +166,12 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
 	 * with ARC reclaim thread.
 	 */
-	if (curproc == pageproc)
+	if (curproc == pageproc) {
 		arc_wait_for_eviction(to_free, B_FALSE, B_FALSE);
+		ARCSTAT_BUMP(arcstat_memory_indirect_count);
+	} else {
+		ARCSTAT_BUMP(arcstat_memory_direct_count);
+	}
 }
 
 void
