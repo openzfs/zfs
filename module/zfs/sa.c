@@ -1578,6 +1578,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
 	zfs_acl_phys_t znode_acl = { 0 };
 	char scanstamp[AV_SCANSTAMP_SZ];
+	char *dxattr_obj = NULL;
+	int dxattr_size = 0;
 
 	if (zp->z_acl_cached == NULL) {
 		zfs_acl_t *aclp;
@@ -1659,8 +1661,6 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
-	char *dxattr_obj = NULL;
-	int dxattr_size = 0;
 	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
 	if (err != 0 && err != ENOENT)
 		goto out;
