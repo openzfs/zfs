@@ -2049,7 +2049,9 @@
       <enumerator name='ZFS_PROP_VOLTHREADING' value='97'/>
       <enumerator name='ZFS_PROP_DIRECT' value='98'/>
       <enumerator name='ZFS_PROP_LONGNAME' value='99'/>
-      <enumerator name='ZFS_NUM_PROPS' value='100'/>
+      <enumerator name='ZFS_PROP_DEFAULTUSERQUOTA' value='100'/>
+      <enumerator name='ZFS_PROP_DEFAULTGROUPQUOTA' value='101'/>
+      <enumerator name='ZFS_NUM_PROPS' value='102'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>
