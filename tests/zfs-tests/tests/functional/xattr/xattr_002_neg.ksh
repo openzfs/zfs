@@ -46,7 +46,7 @@ function cleanup {
 
 }
 
-set -A args "on" "sa"
+set -A args "dir" "sa"
 
 log_assert "A read of a non-existent xattr fails"
 log_onexit cleanup
