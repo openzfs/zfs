@@ -3748,8 +3748,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 			/*
 			 * Speed up any non-sync page writebacks since
 			 * they may take several seconds to complete.
-			 * Refer to the comment in zpl_fsync() (when
-			 * HAVE_FSYNC_RANGE is defined) for details.
+			 * Refer to the comment in zpl_fsync() for details.
 			 */
 			if (atomic_load_32(&zp->z_async_writes_cnt) > 0) {
 				zil_commit(zfsvfs->z_log, zp->z_id);
