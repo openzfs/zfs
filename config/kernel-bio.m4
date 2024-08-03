@@ -263,30 +263,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_BI_STATUS], [
 ])
 
 dnl #
-dnl # 3.14 API change,
-dnl # Immutable biovecs. A number of fields of struct bio are moved to
-dnl # struct bvec_iter.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_BVEC_ITER], [
-	ZFS_LINUX_TEST_SRC([bio_bvec_iter], [
-		#include <linux/bio.h>
-	],[
-		struct bio bio;
-		bio.bi_iter.bi_sector = 0;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_BVEC_ITER], [
-	AC_MSG_CHECKING([whether bio has bi_iter])
-	ZFS_LINUX_TEST_RESULT([bio_bvec_iter], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_BVEC_ITER, 1, [bio has bi_iter])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 4.8 API change
 dnl # The rw argument has been removed from submit_bio/submit_bio_wait.
 dnl # Callers are now expected to set bio->bi_rw instead of passing it in.
@@ -488,7 +464,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
 	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
-	ZFS_AC_KERNEL_SRC_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO
 	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
@@ -513,7 +488,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 
 	ZFS_AC_KERNEL_BIO_SET_DEV
 	ZFS_AC_KERNEL_BIO_BI_STATUS
-	ZFS_AC_KERNEL_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_BIO_SUBMIT_BIO
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
