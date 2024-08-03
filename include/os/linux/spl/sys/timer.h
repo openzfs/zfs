@@ -73,9 +73,7 @@ typedef unsigned long spl_timer_list_t;
 static inline void
 timer_setup(struct timer_list *timer, void (*func)(spl_timer_list_t), u32 fl)
 {
-#ifdef HAVE_KERNEL_TIMER_LIST_FLAGS
 	(timer)->flags = fl;
-#endif
 	init_timer(timer);
 	setup_timer(timer, func, (spl_timer_list_t)(timer));
 }
