@@ -190,43 +190,6 @@ zpl_posix_acl_release(struct posix_acl *acl)
 #endif
 }
 
-#ifdef HAVE_SET_CACHED_ACL_USABLE
-#define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)
-#define	zpl_forget_cached_acl(ip, ty)		forget_cached_acl(ip, ty)
-#else
-static inline void
-zpl_set_cached_acl(struct inode *ip, int type, struct posix_acl *newer)
-{
-	struct posix_acl *older = NULL;
-
-	spin_lock(&ip->i_lock);
-
-	if ((newer != ACL_NOT_CACHED) && (newer != NULL))
-		posix_acl_dup(newer);
-
-	switch (type) {
-	case ACL_TYPE_ACCESS:
-		older = ip->i_acl;
-		rcu_assign_pointer(ip->i_acl, newer);
-		break;
-	case ACL_TYPE_DEFAULT:
-		older = ip->i_default_acl;
-		rcu_assign_pointer(ip->i_default_acl, newer);
-		break;
-	}
-
-	spin_unlock(&ip->i_lock);
-
-	zpl_posix_acl_release(older);
-}
-
-static inline void
-zpl_forget_cached_acl(struct inode *ip, int type)
-{
-	zpl_set_cached_acl(ip, type, (struct posix_acl *)ACL_NOT_CACHED);
-}
-#endif /* HAVE_SET_CACHED_ACL_USABLE */
-
 /*
  * 4.8 API change,
  * posix_acl_valid() now must be passed a namespace, the namespace from
