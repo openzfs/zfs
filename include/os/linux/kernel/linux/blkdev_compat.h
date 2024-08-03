@@ -267,12 +267,6 @@ errno_to_bi_status(int error)
 }
 #endif /* HAVE_BIO_BI_STATUS */
 
-/*
- * 4.3 API change
- * The bio_endio() prototype changed slightly.  These are helper
- * macro's to ensure the prototype and invocation are handled.
- */
-#ifdef HAVE_1ARG_BIO_END_IO_T
 #ifdef HAVE_BIO_BI_STATUS
 #define	BIO_END_IO_ERROR(bio)		bi_status_to_errno(bio->bi_status)
 #define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
@@ -296,11 +290,6 @@ bio_set_bi_error(struct bio *bio, int error)
 	bio_endio(bio);
 }
 #endif /* HAVE_BIO_BI_STATUS */
-
-#else
-#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x, int z)
-#define	BIO_END_IO(bio, error)		bio_endio(bio, error);
-#endif /* HAVE_1ARG_BIO_END_IO_T */
 
 /*
  * 5.15 MACRO,

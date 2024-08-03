@@ -221,32 +221,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 ])
 
 dnl #
-dnl # 4.3 API change
-dnl # Error argument dropped from bio_endio in favor of newly introduced
-dnl # bio->bi_error. This also replaces bio->bi_flags value BIO_UPTODATE.
-dnl # Introduced by torvalds/linux@4246a0b63bd8f56a1469b12eafeb875b1041a451
-dnl # ("block: add a bi_error field to struct bio").
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_END_IO_T_ARGS], [
-	ZFS_LINUX_TEST_SRC([bio_end_io_t_args], [
-		#include <linux/bio.h>
-		static void wanted_end_io(struct bio *bio) { return; }
-		bio_end_io_t *end_io __attribute__ ((unused)) = wanted_end_io;
-	], [])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_END_IO_T_ARGS], [
-	AC_MSG_CHECKING([whether bio_end_io_t wants 1 arg])
-	ZFS_LINUX_TEST_RESULT([bio_end_io_t_args], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_1ARG_BIO_END_IO_T, 1,
-		    [bio_end_io_t wants 1 arg])
-	], [
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 4.13 API change
 dnl # The bio->bi_error field was replaced with bio->bi_status which is an
 dnl # enum which describes all possible error types.
@@ -475,7 +449,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_REQ
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
-	ZFS_AC_KERNEL_SRC_BIO_END_IO_T_ARGS
 	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
 	ZFS_AC_KERNEL_SRC_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO
@@ -499,7 +472,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_SET_OP_ATTRS
 
 	ZFS_AC_KERNEL_BIO_SET_DEV
-	ZFS_AC_KERNEL_BIO_END_IO_T_ARGS
 	ZFS_AC_KERNEL_BIO_BI_STATUS
 	ZFS_AC_KERNEL_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_BIO_SUBMIT_BIO
