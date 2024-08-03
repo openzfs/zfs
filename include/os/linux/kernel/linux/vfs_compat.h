@@ -260,18 +260,6 @@ zpl_forget_cached_acl(struct inode *ip, int type)
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
-/*
- * 3.19 API change
- * struct access f->f_dentry->d_inode was replaced by accessor function
- * file_inode(f)
- */
-#ifndef HAVE_FILE_INODE
-static inline struct inode *file_inode(const struct file *f)
-{
-	return (f->f_dentry->d_inode);
-}
-#endif /* HAVE_FILE_INODE */
-
 static inline uid_t zfs_uid_read_impl(struct inode *ip)
 {
 	return (from_kuid(kcred->user_ns, ip->i_uid));
