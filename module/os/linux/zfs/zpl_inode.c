@@ -807,9 +807,7 @@ const struct inode_operations zpl_inode_operations = {
 #endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else
@@ -853,9 +851,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 #endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else
@@ -900,9 +896,7 @@ const struct inode_operations zpl_special_inode_operations = {
 #endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else

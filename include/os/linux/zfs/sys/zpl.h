@@ -69,8 +69,9 @@ extern struct file_system_type zpl_fs_type;
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
+
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
+
 #if defined(HAVE_SET_ACL_IDMAP_DENTRY)
 extern int zpl_set_acl(struct mnt_idmap *idmap, struct dentry *dentry,
     struct posix_acl *acl, int type);
@@ -83,7 +84,7 @@ extern int zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
 #else
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
 #endif /* HAVE_SET_ACL_USERNS */
-#endif /* HAVE_SET_ACL */
+
 #if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type, bool rcu);
 #elif defined(HAVE_GET_ACL)
