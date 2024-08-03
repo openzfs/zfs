@@ -8,7 +8,6 @@ kernel_linux_HEADERS = \
 	%D%/kernel/linux/mm_compat.h \
 	%D%/kernel/linux/mod_compat.h \
 	%D%/kernel/linux/page_compat.h \
-	%D%/kernel/linux/percpu_compat.h \
 	%D%/kernel/linux/simd.h \
 	%D%/kernel/linux/simd_aarch64.h \
 	%D%/kernel/linux/simd_arm.h \
