@@ -362,31 +362,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID], [
 ])
 
 dnl #
-dnl # Linux 5.16 API
-dnl #
-dnl # The Linux 5.16 API moved struct blkcg_gq into linux/blk-cgroup.h, which
-dnl # has been around since 2015. This test looks for the presence of that
-dnl # header, so that it can be conditionally included where it exists, but
-dnl # still be backward compatible with kernels that pre-date its introduction.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER], [
-	ZFS_LINUX_TEST_SRC([blk_cgroup_header], [
-		#include <linux/blk-cgroup.h>
-	], [])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_CGROUP_HEADER], [
-	AC_MSG_CHECKING([whether linux/blk-cgroup.h exists])
-	ZFS_LINUX_TEST_RESULT([blk_cgroup_header],[
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_LINUX_BLK_CGROUP_HEADER, 1,
-			[linux/blk-cgroup.h exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # Linux 5.18 API
 dnl #
 dnl # In 07888c665b405b1cd3577ddebfeb74f4717a84c4 ("block: pass a block_device and opf to bio_alloc")
@@ -431,7 +406,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO
-	ZFS_AC_KERNEL_SRC_BLK_CGROUP_HEADER
 	ZFS_AC_KERNEL_SRC_BIO_ALLOC_4ARG
 ])
 
@@ -452,6 +426,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
-	ZFS_AC_KERNEL_BLK_CGROUP_HEADER
 	ZFS_AC_KERNEL_BIO_ALLOC_4ARG
 ])
