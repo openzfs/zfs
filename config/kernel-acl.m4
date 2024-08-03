@@ -148,9 +148,6 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL], [
 ])
 
 dnl #
-dnl # 3.14 API change,
-dnl # Check if inode_operations contains the function set_acl
-dnl #
 dnl # 5.12 API change,
 dnl # set_acl() added a user_namespace* parameter first
 dnl #
@@ -211,30 +208,22 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
-	AC_MSG_CHECKING([whether iops->set_acl() exists])
+	AC_MSG_CHECKING([whether iops->set_acl() with 4 args exists])
 	ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_userns], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
 		AC_DEFINE(HAVE_SET_ACL_USERNS, 1, [iops->set_acl() takes 4 args])
 	],[
 		ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_mnt_idmap_dentry], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
 			AC_DEFINE(HAVE_SET_ACL_IDMAP_DENTRY, 1,
 			    [iops->set_acl() takes 4 args, arg1 is struct mnt_idmap *])
 		],[
 			ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_userns_dentry], [
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
 				AC_DEFINE(HAVE_SET_ACL_USERNS_DENTRY_ARG2, 1,
 				    [iops->set_acl() takes 4 args, arg2 is struct dentry *])
 			],[
-				ZFS_LINUX_TEST_RESULT([inode_operations_set_acl], [
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists, takes 3 args])
-				],[
-					ZFS_LINUX_REQUIRE_API([i_op->set_acl()], [3.14])
-				])
+				AC_MSG_RESULT(no)
 			])
 		])
 	])
