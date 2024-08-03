@@ -110,8 +110,17 @@ zfs_kobj_fini(zfs_mod_kobj_t *zkobj)
 	}
 
 	/* kobject_put() will call zfs_kobj_release() to release memory */
-	kobject_del(&zkobj->zko_kobj);
-	kobject_put(&zkobj->zko_kobj);
+	/*
+	 * Special case note:
+	 *
+	 * We have to check for 'zkobj->zko_kobj.name != NULL' as
+	 * a workaround for #16249 which was added to zfs-2.2.4
+	 * and fixed (with this change) in zfs-2.2.5.
+	 */
+	if (zkobj->zko_kobj.name != NULL) {
+		kobject_del(&zkobj->zko_kobj);
+		kobject_put(&zkobj->zko_kobj);
+	}
 }
 
 static void
