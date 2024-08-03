@@ -1290,14 +1290,11 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	*objects = (*shrinker->scan_objects)(shrinker, &sc);
 #elif defined(HAVE_SINGLE_SHRINKER_CALLBACK)
 	*objects = (*shrinker->shrink)(shrinker, &sc);
-#elif defined(HAVE_D_PRUNE_ALIASES)
 #define	D_PRUNE_ALIASES_IS_DEFAULT
 	*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
-#else
-#error "No available dentry and inode cache pruning mechanism."
 #endif
 
-#if defined(HAVE_D_PRUNE_ALIASES) && !defined(D_PRUNE_ALIASES_IS_DEFAULT)
+#ifndef D_PRUNE_ALIASES_IS_DEFAULT
 #undef	D_PRUNE_ALIASES_IS_DEFAULT
 	/*
 	 * Fall back to zfs_prune_aliases if the kernel's per-superblock
