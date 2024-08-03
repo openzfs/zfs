@@ -1,29 +1,4 @@
 dnl #
-dnl # 2.6.12 API change
-dnl # d_prune_aliases() helper function available.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_D_PRUNE_ALIASES], [
-	ZFS_LINUX_TEST_SRC([d_prune_aliases], [
-		#include <linux/dcache.h>
-	], [
-		struct inode *ip = NULL;
-		d_prune_aliases(ip);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_D_PRUNE_ALIASES], [
-	AC_MSG_CHECKING([whether d_prune_aliases() is available])
-	ZFS_LINUX_TEST_RESULT_SYMBOL([d_prune_aliases],
-	    [d_prune_aliases], [fs/dcache.c], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_D_PRUNE_ALIASES, 1,
-		    [d_prune_aliases() is available])
-	], [
-		ZFS_LINUX_TEST_ERROR([d_prune_aliases()])
-	])
-])
-
-dnl #
 dnl # 3.6 API change
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA], [
@@ -53,11 +28,9 @@ AC_DEFUN([ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
-        ZFS_AC_KERNEL_SRC_D_PRUNE_ALIASES
         ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
-        ZFS_AC_KERNEL_D_PRUNE_ALIASES
         ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
 ])
