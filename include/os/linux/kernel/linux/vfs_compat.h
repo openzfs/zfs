@@ -272,18 +272,6 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif /* HAVE_FILE_INODE */
 
-/*
- * 4.1 API change
- * struct access file->f_path.dentry was replaced by accessor function
- * file_dentry(f)
- */
-#ifndef HAVE_FILE_DENTRY
-static inline struct dentry *file_dentry(const struct file *f)
-{
-	return (f->f_path.dentry);
-}
-#endif /* HAVE_FILE_DENTRY */
-
 static inline uid_t zfs_uid_read_impl(struct inode *ip)
 {
 	return (from_kuid(kcred->user_ns, ip->i_uid));
