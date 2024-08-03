@@ -232,22 +232,6 @@ zpl_forget_cached_acl(struct inode *ip, int type)
 #endif /* HAVE_SET_CACHED_ACL_USABLE */
 
 /*
- * 3.1 API change,
- * posix_acl_chmod() was added as the preferred interface.
- *
- * 3.14 API change,
- * posix_acl_chmod() was changed to __posix_acl_chmod()
- */
-#ifndef HAVE___POSIX_ACL_CHMOD
-#ifdef HAVE_POSIX_ACL_CHMOD
-#define	__posix_acl_chmod(acl, gfp, mode)	posix_acl_chmod(acl, gfp, mode)
-#define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
-#else
-#error "Unsupported kernel"
-#endif /* HAVE_POSIX_ACL_CHMOD */
-#endif /* HAVE___POSIX_ACL_CHMOD */
-
-/*
  * 4.8 API change,
  * posix_acl_valid() now must be passed a namespace, the namespace from
  * from super block associated with the given inode is used for this purpose.
