@@ -120,34 +120,6 @@ AC_DEFUN([ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA], [
 ])
 
 dnl #
-dnl # 2.6.30 API change
-dnl # The 'struct dentry_operations' was constified in the dentry structure.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_CONST_DENTRY_OPERATIONS], [
-	ZFS_LINUX_TEST_SRC([dentry_operations_const], [
-		#include <linux/dcache.h>
-
-		const struct dentry_operations test_d_op = {
-			.d_revalidate = NULL,
-		};
-	],[
-		struct dentry d __attribute__ ((unused));
-		d.d_op = &test_d_op;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS], [
-	AC_MSG_CHECKING([whether dentry uses const struct dentry_operations])
-	ZFS_LINUX_TEST_RESULT([dentry_operations_const], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_CONST_DENTRY_OPERATIONS, 1,
-		    [dentry uses const struct dentry_operations])
-	],[
-		ZFS_LINUX_TEST_ERROR([const dentry_operations])
-	])
-])
-
-dnl #
 dnl # 2.6.38 API change
 dnl # Added sb->s_d_op default dentry_operations member
 dnl #
@@ -175,7 +147,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
         ZFS_AC_KERNEL_SRC_D_PRUNE_ALIASES
         ZFS_AC_KERNEL_SRC_D_SET_D_OP
         ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA
-        ZFS_AC_KERNEL_SRC_CONST_DENTRY_OPERATIONS
         ZFS_AC_KERNEL_SRC_S_D_OP
 ])
 
@@ -185,6 +156,5 @@ AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
         ZFS_AC_KERNEL_D_PRUNE_ALIASES
         ZFS_AC_KERNEL_D_SET_D_OP
         ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
-        ZFS_AC_KERNEL_CONST_DENTRY_OPERATIONS
         ZFS_AC_KERNEL_S_D_OP
 ])
