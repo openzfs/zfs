@@ -54,27 +54,3 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_RW_ITERATE], [
 		AC_MSG_RESULT(no)
 	])
 ])
-
-dnl #
-dnl # Linux 4.1.x API
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_GENERIC_WRITE_CHECKS], [
-	ZFS_LINUX_TEST_SRC([generic_write_checks], [
-		#include <linux/fs.h>
-	],[
-		struct kiocb *iocb = NULL;
-		struct iov_iter *iov = NULL;
-		generic_write_checks(iocb, iov);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_VFS_GENERIC_WRITE_CHECKS], [
-	AC_MSG_CHECKING([whether generic_write_checks() takes kiocb])
-	ZFS_LINUX_TEST_RESULT([generic_write_checks], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_GENERIC_WRITE_CHECKS_KIOCB, 1,
-		    [generic_write_checks() takes kiocb])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])

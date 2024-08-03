@@ -298,23 +298,11 @@ static inline ssize_t
 zpl_generic_write_checks(struct kiocb *kiocb, struct iov_iter *from,
     size_t *countp)
 {
-#ifdef HAVE_GENERIC_WRITE_CHECKS_KIOCB
 	ssize_t ret = generic_write_checks(kiocb, from);
 	if (ret <= 0)
 		return (ret);
 
 	*countp = ret;
-#else
-	struct file *file = kiocb->ki_filp;
-	struct address_space *mapping = file->f_mapping;
-	struct inode *ip = mapping->host;
-	int isblk = S_ISBLK(ip->i_mode);
-
-	*countp = iov_iter_count(from);
-	ssize_t ret = generic_write_checks(file, &kiocb->ki_pos, countp, isblk);
-	if (ret)
-		return (ret);
-#endif
 
 	return (0);
 }
