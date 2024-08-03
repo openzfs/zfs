@@ -134,7 +134,6 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #endif
 }
 
-#ifdef HAVE_BIO_BVEC_ITER
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
@@ -142,15 +141,6 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bv), (b), (i))
 typedef struct bvec_iter bvec_iterator_t;
-#else
-#define	BIO_BI_SECTOR(bio)	(bio)->bi_sector
-#define	BIO_BI_SIZE(bio)	(bio)->bi_size
-#define	BIO_BI_IDX(bio)		(bio)->bi_idx
-#define	BIO_BI_SKIP(bio)	(0)
-#define	bio_for_each_segment4(bv, bvp, b, i)	\
-	bio_for_each_segment((bvp), (b), (i))
-typedef int bvec_iterator_t;
-#endif
 
 static inline void
 bio_set_flags_failfast(struct block_device *bdev, int *flags, bool dev,
