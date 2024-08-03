@@ -810,15 +810,7 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	ASSERT(zio);
 
 	/* Capture and log any errors */
-#ifdef HAVE_1ARG_BIO_END_IO_T
 	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = 0;
-	if (error)
-		zio->io_error = -(error);
-	else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-		zio->io_error = EIO;
-#endif
 	ASSERT3U(zio->io_error, >=, 0);
 
 	if (zio->io_error)
@@ -1078,14 +1070,7 @@ BIO_END_IO_PROTO(vdev_classic_physio_completion, bio, error)
 	dio_request_t *dr = bio->bi_private;
 
 	if (dr->dr_error == 0) {
-#ifdef HAVE_1ARG_BIO_END_IO_T
 		dr->dr_error = BIO_END_IO_ERROR(bio);
-#else
-		if (error)
-			dr->dr_error = -(error);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			dr->dr_error = EIO;
-#endif
 	}
 
 	/* Drop reference acquired by vdev_classic_physio */
@@ -1227,11 +1212,7 @@ retry:
 BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
 {
 	zio_t *zio = bio->bi_private;
-#ifdef HAVE_1ARG_BIO_END_IO_T
 	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = -error;
-#endif
 
 	if (zio->io_error && (zio->io_error == EOPNOTSUPP))
 		zio->io_vd->vdev_nowritecache = B_TRUE;
@@ -1269,11 +1250,8 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 BIO_END_IO_PROTO(vdev_disk_discard_end_io, bio, error)
 {
 	zio_t *zio = bio->bi_private;
-#ifdef HAVE_1ARG_BIO_END_IO_T
 	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = -error;
-#endif
+
 	bio_put(bio);
 	if (zio->io_error)
 		vdev_disk_error(zio);
