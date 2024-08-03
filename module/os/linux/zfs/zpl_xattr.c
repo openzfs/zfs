@@ -1049,9 +1049,9 @@ zpl_set_acl_impl(struct inode *ip, struct posix_acl *acl, int type)
 
 	if (!error) {
 		if (acl)
-			zpl_set_cached_acl(ip, type, acl);
+			set_cached_acl(ip, type, acl);
 		else
-			zpl_forget_cached_acl(ip, type);
+			forget_cached_acl(ip, type);
 	}
 
 	return (error);
@@ -1129,7 +1129,7 @@ zpl_get_acl_impl(struct inode *ip, int type)
 	/* As of Linux 4.7, the kernel get_acl will set this for us */
 #ifndef HAVE_KERNEL_GET_ACL_HANDLE_CACHE
 	if (!IS_ERR(acl))
-		zpl_set_cached_acl(ip, type, acl);
+		set_cached_acl(ip, type, acl);
 #endif
 
 	return (acl);
