@@ -36,12 +36,7 @@ typedef struct percpu_counter	wmsum_t;
 static inline void
 wmsum_init(wmsum_t *ws, uint64_t value)
 {
-
-#ifdef HAVE_PERCPU_COUNTER_INIT_WITH_GFP
 	percpu_counter_init(ws, value, GFP_KERNEL);
-#else
-	percpu_counter_init(ws, value);
-#endif
 }
 
 static inline void
