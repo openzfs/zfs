@@ -124,47 +124,6 @@ zpl_readdir(struct file *filp, void *dirent, filldir_t filldir)
 }
 #endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
-#if defined(HAVE_FSYNC_WITHOUT_DENTRY)
-/*
- * Linux 2.6.35 - 3.0 API,
- * As of 2.6.35 the dentry argument to the fops->fsync() hook was deemed
- * redundant.  The dentry is still accessible via filp->f_path.dentry,
- * and we are guaranteed that filp will never be NULL.
- */
-static int
-zpl_fsync(struct file *filp, int datasync)
-{
-	struct inode *inode = filp->f_mapping->host;
-	cred_t *cr = CRED();
-	int error;
-	fstrans_cookie_t cookie;
-
-	crhold(cr);
-	cookie = spl_fstrans_mark();
-	error = -zfs_fsync(ITOZ(inode), datasync, cr);
-	spl_fstrans_unmark(cookie);
-	crfree(cr);
-	ASSERT3S(error, <=, 0);
-
-	return (error);
-}
-
-#ifdef HAVE_FILE_AIO_FSYNC
-static int
-zpl_aio_fsync(struct kiocb *kiocb, int datasync)
-{
-	return (zpl_fsync(kiocb->ki_filp, datasync));
-}
-#endif
-
-#elif defined(HAVE_FSYNC_RANGE)
-/*
- * Linux 3.1 API,
- * As of 3.1 the responsibility to call filemap_write_and_wait_range() has
- * been pushed down in to the .fsync() vfs hook.  Additionally, the i_mutex
- * lock is no longer held by the caller, for zfs we don't require the lock
- * to be held so we don't acquire it.
- */
 static int
 zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 {
@@ -235,10 +194,6 @@ zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 {
 	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos, -1, datasync));
 }
-#endif
-
-#else
-#error "Unsupported fops->fsync() implementation"
 #endif
 
 static inline int
