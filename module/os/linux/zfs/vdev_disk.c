@@ -38,9 +38,7 @@
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
-#ifdef HAVE_LINUX_BLK_CGROUP_HEADER
 #include <linux/blk-cgroup.h>
-#endif
 
 /*
  * Linux 6.8.x uses a bdev_handle as an instance/refcount for an underlying
