@@ -31,10 +31,6 @@
 #define	dname(dentry)	((char *)((dentry)->d_name.name))
 #define	dlen(dentry)	((int)((dentry)->d_name.len))
 
-#ifndef HAVE_D_MAKE_ROOT
-#define	d_make_root(inode)	d_alloc_root(inode)
-#endif /* HAVE_D_MAKE_ROOT */
-
 #define	d_alias			d_u.d_alias
 
 /*
