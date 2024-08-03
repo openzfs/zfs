@@ -476,7 +476,6 @@ zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 	 * Linux and Solaris have different sets of file attributes, so we
 	 * restrict this conversion to the intersection of the two.
 	 */
-#ifdef HAVE_INODE_SET_FLAGS
 	unsigned int flags = 0;
 	if (zp->z_pflags & ZFS_IMMUTABLE)
 		flags |= S_IMMUTABLE;
@@ -484,17 +483,6 @@ zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 		flags |= S_APPEND;
 
 	inode_set_flags(ip, flags, S_IMMUTABLE|S_APPEND);
-#else
-	if (zp->z_pflags & ZFS_IMMUTABLE)
-		ip->i_flags |= S_IMMUTABLE;
-	else
-		ip->i_flags &= ~S_IMMUTABLE;
-
-	if (zp->z_pflags & ZFS_APPENDONLY)
-		ip->i_flags |= S_APPEND;
-	else
-		ip->i_flags &= ~S_APPEND;
-#endif
 }
 
 /*
