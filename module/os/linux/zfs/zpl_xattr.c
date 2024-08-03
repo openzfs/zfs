@@ -1057,7 +1057,6 @@ zpl_set_acl_impl(struct inode *ip, struct posix_acl *acl, int type)
 	return (error);
 }
 
-#ifdef HAVE_SET_ACL
 int
 #ifdef HAVE_SET_ACL_USERNS
 zpl_set_acl(struct user_namespace *userns, struct inode *ip,
@@ -1080,7 +1079,6 @@ zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
 	return (zpl_set_acl_impl(ip, acl, type));
 #endif /* HAVE_SET_ACL_USERNS_DENTRY_ARG2 */
 }
-#endif /* HAVE_SET_ACL */
 
 static struct posix_acl *
 zpl_get_acl_impl(struct inode *ip, int type)
