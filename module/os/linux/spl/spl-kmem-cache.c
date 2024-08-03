@@ -23,7 +23,6 @@
 
 #define	SPL_KMEM_CACHE_IMPLEMENTING
 
-#include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/taskq.h>
@@ -728,8 +727,7 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
 
-	rc = percpu_counter_init_common(&skc->skc_linux_alloc, 0,
-	    GFP_KERNEL);
+	rc = percpu_counter_init(&skc->skc_linux_alloc, 0, GFP_KERNEL);
 	if (rc != 0) {
 		kfree(skc);
 		return (NULL);
