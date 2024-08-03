@@ -25,10 +25,7 @@
 
 #include <linux/string.h>
 
-/* Fallbacks for kernel missing strlcpy */
 #ifndef HAVE_KERNEL_STRLCPY
-
-#if defined(HAVE_KERNEL_STRSCPY)
 /*
  * strscpy is strlcpy, but returns an error on truncation. strlcpy is defined
  * to return strlen(src), so detect error and override it.
@@ -41,10 +38,6 @@ strlcpy(char *dest, const char *src, size_t size)
 		return ((size_t)ret);
 	return (strlen(src));
 }
-#else
-#error "no strlcpy fallback available"
-#endif
-
 #endif /* HAVE_KERNEL_STRLCPY */
 
 #endif /* _SPL_STRING_H */
