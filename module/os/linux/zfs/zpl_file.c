@@ -833,10 +833,7 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 	fstrans_cookie_t cookie;
 	int error = 0;
 
-	int test_mode = FALLOC_FL_PUNCH_HOLE;
-#ifdef HAVE_FALLOC_FL_ZERO_RANGE
-	test_mode |= FALLOC_FL_ZERO_RANGE;
-#endif
+	int test_mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_ZERO_RANGE;
 
 	if ((mode & ~(FALLOC_FL_KEEP_SIZE | test_mode)) != 0)
 		return (-EOPNOTSUPP);
