@@ -1,34 +1,4 @@
 dnl #
-dnl # 3.14 API change,
-dnl # set_cached_acl() and forget_cached_acl() changed from inline to
-dnl # EXPORT_SYMBOL. In the former case, they may not be usable because of
-dnl # posix_acl_release. In the latter case, we can always use them.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE], [
-	ZFS_LINUX_TEST_SRC([set_cached_acl], [
-		#include <linux/cred.h>
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	], [
-		struct inode *ip = NULL;
-		struct posix_acl *acl = posix_acl_alloc(1, 0);
-		set_cached_acl(ip, ACL_TYPE_ACCESS, acl);
-		forget_cached_acl(ip, ACL_TYPE_ACCESS);
-	], [], [ZFS_META_LICENSE])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE], [
-	AC_MSG_CHECKING([whether set_cached_acl() is usable])
-	ZFS_LINUX_TEST_RESULT([set_cached_acl_license], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SET_CACHED_ACL_USABLE, 1,
-		    [set_cached_acl() is usable])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.1 API change,
 dnl # posix_acl_equiv_mode now wants an umode_t instead of a mode_t
 dnl #
@@ -281,7 +251,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL_HAS_REFCOUNT], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
-	ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
@@ -291,7 +260,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
-	ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
