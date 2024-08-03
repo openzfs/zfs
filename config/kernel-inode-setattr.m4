@@ -37,19 +37,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_SETATTR], [
 			.setattr = test_setattr,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([inode_operations_setattr], [
-		#include <linux/fs.h>
-
-		static int test_setattr(
-		    struct dentry *de, struct iattr *ia)
-		    { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.setattr = test_setattr,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_SETATTR], [
@@ -73,15 +60,6 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_SETATTR], [
 			    [iops->setattr() takes struct user_namespace*])
 		],[
 			AC_MSG_RESULT(no)
-
-			AC_MSG_CHECKING([whether iops->setattr() exists])
-			ZFS_LINUX_TEST_RESULT([inode_operations_setattr], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_IOPS_SETATTR, 1,
-					[iops->setattr() exists])
-			],[
-				AC_MSG_RESULT(no)
-			])
 		])
 	])
 ])

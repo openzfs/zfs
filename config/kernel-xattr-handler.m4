@@ -403,32 +403,6 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
 ])
 
 dnl #
-dnl # 3.7 API change,
-dnl # The posix_acl_{from,to}_xattr functions gained a new
-dnl # parameter: user_ns
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_FROM_XATTR_USERNS], [
-	ZFS_LINUX_TEST_SRC([posix_acl_from_xattr_userns], [
-		#include <linux/cred.h>
-		#include <linux/fs.h>
-		#include <linux/posix_acl_xattr.h>
-	],[
-		posix_acl_from_xattr(&init_user_ns, NULL, 0);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS], [
-	AC_MSG_CHECKING([whether posix_acl_from_xattr() needs user_ns])
-	ZFS_LINUX_TEST_RESULT([posix_acl_from_xattr_userns], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_FROM_XATTR_USERNS, 1,
-		    [posix_acl_from_xattr() needs user_ns])
-	],[
-		ZFS_LINUX_TEST_ERROR([posix_acl_from_xattr()])
-	])
-])
-
-dnl #
 dnl # 4.9 API change,
 dnl # iops->{set,get,remove}xattr and generic_{set,get,remove}xattr are
 dnl # removed. xattr operations will directly go through sb->s_xattr.
@@ -462,7 +436,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR], [
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_LIST
-	ZFS_AC_KERNEL_SRC_POSIX_ACL_FROM_XATTR_USERNS
 	ZFS_AC_KERNEL_SRC_GENERIC_SETXATTR
 ])
 
@@ -472,6 +445,5 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR], [
 	ZFS_AC_KERNEL_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET
 	ZFS_AC_KERNEL_XATTR_HANDLER_LIST
-	ZFS_AC_KERNEL_POSIX_ACL_FROM_XATTR_USERNS
 	ZFS_AC_KERNEL_GENERIC_SETXATTR
 ])
