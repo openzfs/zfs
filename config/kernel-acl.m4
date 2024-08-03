@@ -66,49 +66,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE], [
 
 dnl #
 dnl # 3.1 API change,
-dnl # posix_acl_chmod() was added as the preferred interface.
-dnl #
-dnl # 3.14 API change,
-dnl # posix_acl_chmod() was changed to __posix_acl_chmod()
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD], [
-	ZFS_LINUX_TEST_SRC([posix_acl_chmod], [
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	],[
-		posix_acl_chmod(NULL, 0, 0)
-	])
-
-	ZFS_LINUX_TEST_SRC([__posix_acl_chmod], [
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	],[
-		__posix_acl_chmod(NULL, 0, 0)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
-	AC_MSG_CHECKING([whether __posix_acl_chmod exists])
-	ZFS_LINUX_TEST_RESULT([__posix_acl_chmod], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE___POSIX_ACL_CHMOD, 1,
-		    [__posix_acl_chmod() exists])
-	],[
-		AC_MSG_RESULT(no)
-
-		AC_MSG_CHECKING([whether posix_acl_chmod exists])
-		ZFS_LINUX_TEST_RESULT([posix_acl_chmod], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_POSIX_ACL_CHMOD, 1,
-			    [posix_acl_chmod() exists])
-		],[
-			ZFS_LINUX_TEST_ERROR([posix_acl_chmod()])
-		])
-	])
-])
-
-dnl #
-dnl # 3.1 API change,
 dnl # posix_acl_equiv_mode now wants an umode_t instead of a mode_t
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
@@ -373,7 +330,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL_HAS_REFCOUNT], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE
-	ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
@@ -385,7 +341,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE
-	ZFS_AC_KERNEL_POSIX_ACL_CHMOD
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
