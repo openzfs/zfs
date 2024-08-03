@@ -174,9 +174,6 @@ lseek_execute(
 
 #include <linux/posix_acl.h>
 
-#if defined(HAVE_POSIX_ACL_RELEASE) && !defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY)
-#define	zpl_posix_acl_release(arg)		posix_acl_release(arg)
-#else
 void zpl_posix_acl_release_impl(struct posix_acl *);
 
 static inline void
@@ -192,7 +189,6 @@ zpl_posix_acl_release(struct posix_acl *acl)
 		zpl_posix_acl_release_impl(acl);
 #endif
 }
-#endif /* HAVE_POSIX_ACL_RELEASE */
 
 #ifdef HAVE_SET_CACHED_ACL_USABLE
 #define	zpl_set_cached_acl(ip, ty, n)		set_cached_acl(ip, ty, n)

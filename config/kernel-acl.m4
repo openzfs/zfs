@@ -1,40 +1,4 @@
 dnl #
-dnl # Check if posix_acl_release can be used from a ZFS_META_LICENSED
-dnl # module.  The is_owner_or_cap macro was replaced by
-dnl # inode_owner_or_capable
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_RELEASE], [
-	ZFS_LINUX_TEST_SRC([posix_acl_release], [
-		#include <linux/cred.h>
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	], [
-		struct posix_acl *tmp = posix_acl_alloc(1, 0);
-		posix_acl_release(tmp);
-	], [], [ZFS_META_LICENSE])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_RELEASE], [
-	AC_MSG_CHECKING([whether posix_acl_release() is available])
-	ZFS_LINUX_TEST_RESULT([posix_acl_release], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_RELEASE, 1,
-		    [posix_acl_release() is available])
-
-		AC_MSG_CHECKING([whether posix_acl_release() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([posix_acl_release_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_POSIX_ACL_RELEASE_GPL_ONLY, 1,
-			    [posix_acl_release() is GPL-only])
-		])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.14 API change,
 dnl # set_cached_acl() and forget_cached_acl() changed from inline to
 dnl # EXPORT_SYMBOL. In the former case, they may not be usable because of
@@ -305,7 +269,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL_HAS_REFCOUNT], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
-	ZFS_AC_KERNEL_SRC_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
@@ -315,7 +278,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
-	ZFS_AC_KERNEL_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL

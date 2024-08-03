@@ -1532,9 +1532,8 @@ zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
 	return (perm);
 }
 
-#if defined(CONFIG_FS_POSIX_ACL) && \
-	(!defined(HAVE_POSIX_ACL_RELEASE) || \
-		defined(HAVE_POSIX_ACL_RELEASE_GPL_ONLY))
+#ifdef CONFIG_FS_POSIX_ACL
+
 struct acl_rel_struct {
 	struct acl_rel_struct *next;
 	struct posix_acl *acl;
