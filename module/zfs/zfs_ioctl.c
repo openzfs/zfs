@@ -1794,17 +1794,45 @@ zfs_ioc_pool_get_history(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * inputs:
+ * zc_nvlist_src	nvlist optionally containing ZPOOL_REGUID_GUID
+ * zc_nvlist_src_size	size of the nvlist
+ */
 static int
 zfs_ioc_pool_reguid(zfs_cmd_t *zc)
 {
+	uint64_t *guidp = NULL;
+	nvlist_t *props = NULL;
 	spa_t *spa;
+	uint64_t guid;
 	int error;
+
+	if (zc->zc_nvlist_src_size != 0) {
+		error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+		    zc->zc_iflags, &props);
+		if (error != 0)
+			return (error);
+
+		error = nvlist_lookup_uint64(props, ZPOOL_REGUID_GUID, &guid);
+		if (error == 0)
+			guidp = &guid;
+		else if (error == ENOENT)
+			guidp = NULL;
+		else
+			goto out;
+	}
 
 	error = spa_open(zc->zc_name, &spa, FTAG);
 	if (error == 0) {
-		error = spa_change_guid(spa);
+		error = spa_change_guid(spa, guidp);
 		spa_close(spa, FTAG);
 	}
+
+out:
+	if (props != NULL)
+		nvlist_free(props);
+
 	return (error);
 }
 
