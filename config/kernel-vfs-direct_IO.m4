@@ -37,19 +37,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 		    .direct_IO = test_direct_IO,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([direct_io_iovec], [
-		#include <linux/fs.h>
-
-		static ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
-		    const struct iovec *iov, loff_t offset,
-		    unsigned long nr_segs) { return 0; }
-
-		static const struct address_space_operations
-		    aops __attribute__ ((unused)) = {
-		    .direct_IO = test_direct_IO,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_DIRECT_IO], [
@@ -89,20 +76,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_DIRECT_IO], [
 				    [rw and offset])
 			],[
 				AC_MSG_RESULT([no])
-
-				dnl #
-				dnl # Ancient Linux API (predates git)
-				dnl #
-				AC_MSG_CHECKING(
-				    [whether aops->direct_IO() uses iovec])
-				ZFS_LINUX_TEST_RESULT([direct_io_iovec], [
-					AC_MSG_RESULT([yes])
-					AC_DEFINE(HAVE_VFS_DIRECT_IO_IOVEC, 1,
-					    [aops->direct_IO() uses iovec])
-				],[
-					ZFS_LINUX_TEST_ERROR([Direct I/O])
-					AC_MSG_RESULT([no])
-				])
+				ZFS_LINUX_TEST_ERROR([Direct I/O])
 			])
 		])
 	])
