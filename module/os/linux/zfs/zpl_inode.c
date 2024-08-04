@@ -748,21 +748,6 @@ zpl_follow_link(struct dentry *dentry, void **cookie)
 
 	return (*cookie = link);
 }
-#elif defined(HAVE_FOLLOW_LINK_NAMEIDATA)
-static void *
-zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
-{
-	char *link = NULL;
-	int error;
-
-	error = zpl_get_link_common(dentry, dentry->d_inode, &link);
-	if (error)
-		nd_set_link(nd, ERR_PTR(error));
-	else
-		nd_set_link(nd, link);
-
-	return (NULL);
-}
 #endif
 
 static int
@@ -870,7 +855,7 @@ const struct inode_operations zpl_symlink_inode_operations = {
 #endif
 #if defined(HAVE_GET_LINK_DELAYED) || defined(HAVE_GET_LINK_COOKIE)
 	.get_link	= zpl_get_link,
-#elif defined(HAVE_FOLLOW_LINK_COOKIE) || defined(HAVE_FOLLOW_LINK_NAMEIDATA)
+#elif defined(HAVE_FOLLOW_LINK_COOKIE)
 	.follow_link	= zpl_follow_link,
 #endif
 #if defined(HAVE_PUT_LINK_COOKIE) || defined(HAVE_PUT_LINK_NAMEIDATA)

@@ -32,16 +32,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 			.follow_link = follow_link,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([inode_operations_follow_link_nameidata], [
-		#include <linux/fs.h>
-		static void *follow_link(struct dentry *de, struct
-		    nameidata *nd) { return (void *)NULL; }
-		static struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.follow_link = follow_link,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_GET_LINK], [
@@ -84,20 +74,7 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_LINK], [
 				    [iops->follow_link() cookie])
 			],[
 				AC_MSG_RESULT(no)
-
-				dnl #
-				dnl # 2.6.32 API
-				dnl #
-				AC_MSG_CHECKING(
-				[whether iops->follow_link() passes nameidata])
-				ZFS_LINUX_TEST_RESULT(
-				    [inode_operations_follow_link_nameidata],[
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_FOLLOW_LINK_NAMEIDATA, 1,
-					    [iops->follow_link() nameidata])
-				],[
-					ZFS_LINUX_TEST_ERROR([get_link])
-				])
+				ZFS_LINUX_TEST_ERROR([get_link])
 			])
 		])
 	])
