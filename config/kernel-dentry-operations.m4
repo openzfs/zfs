@@ -43,35 +43,6 @@ AC_DEFUN([ZFS_AC_KERNEL_D_SET_D_OP], [
 ])
 
 dnl #
-dnl # 3.6 API change
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA], [
-	ZFS_LINUX_TEST_SRC([dentry_operations_revalidate], [
-		#include <linux/dcache.h>
-		#include <linux/sched.h>
-
-		static int revalidate (struct dentry *dentry,
-		    struct nameidata *nidata) { return 0; }
-
-		static const struct dentry_operations
-		    dops __attribute__ ((unused)) = {
-			.d_revalidate	= revalidate,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA], [
-	AC_MSG_CHECKING([whether dops->d_revalidate() takes struct nameidata])
-	ZFS_LINUX_TEST_RESULT([dentry_operations_revalidate], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_D_REVALIDATE_NAMEIDATA, 1,
-		    [dops->d_revalidate() operation takes nameidata])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.38 API change
 dnl # Added sb->s_d_op default dentry_operations member
 dnl #
@@ -96,13 +67,11 @@ AC_DEFUN([ZFS_AC_KERNEL_S_D_OP], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
         ZFS_AC_KERNEL_SRC_D_OBTAIN_ALIAS
         ZFS_AC_KERNEL_SRC_D_SET_D_OP
-        ZFS_AC_KERNEL_SRC_D_REVALIDATE_NAMEIDATA
         ZFS_AC_KERNEL_SRC_S_D_OP
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
         ZFS_AC_KERNEL_D_OBTAIN_ALIAS
         ZFS_AC_KERNEL_D_SET_D_OP
-        ZFS_AC_KERNEL_D_REVALIDATE_NAMEIDATA
         ZFS_AC_KERNEL_S_D_OP
 ])

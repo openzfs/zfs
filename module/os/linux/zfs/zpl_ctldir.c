@@ -207,11 +207,7 @@ zpl_snapdir_automount(struct path *path)
  * the snapshot being immediately unmounted.
  */
 static int
-#ifdef HAVE_D_REVALIDATE_NAMEIDATA
-zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
-#else
 zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
-#endif
 {
 	return (!!dentry->d_inode);
 }
