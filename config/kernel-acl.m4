@@ -107,30 +107,6 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_CHMOD], [
 	])
 ])
 
-dnl #
-dnl # 3.1 API change,
-dnl # posix_acl_equiv_mode now wants an umode_t instead of a mode_t
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
-	ZFS_LINUX_TEST_SRC([posix_acl_equiv_mode], [
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	],[
-		umode_t tmp;
-		posix_acl_equiv_mode(NULL, &tmp);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
-	AC_MSG_CHECKING([whether posix_acl_equiv_mode() wants umode_t])
-	ZFS_LINUX_TEST_RESULT([posix_acl_equiv_mode], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([posix_acl_equiv_mode()])
-	])
-])
-
-dnl #
 dnl # 4.8 API change,
 dnl # The function posix_acl_valid now must be passed a namespace.
 dnl #
@@ -374,7 +350,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_CHMOD
-	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
@@ -386,7 +361,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_RELEASE
 	ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE
 	ZFS_AC_KERNEL_POSIX_ACL_CHMOD
-	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL

@@ -1,28 +1,4 @@
 dnl #
-dnl # 2.6.39 API change,
-dnl # blk_start_plug() and blk_finish_plug()
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_PLUG], [
-	ZFS_LINUX_TEST_SRC([blk_plug], [
-		#include <linux/blkdev.h>
-	],[
-		struct blk_plug plug __attribute__ ((unused));
-
-		blk_start_plug(&plug);
-		blk_finish_plug(&plug);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_PLUG], [
-	AC_MSG_CHECKING([whether struct blk_plug is available])
-	ZFS_LINUX_TEST_RESULT([blk_plug], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([blk_plug])
-	])
-])
-
-dnl #
 dnl # 2.6.32 - 4.11: statically allocated bdi in request_queue
 dnl # 4.12: dynamically allocated bdi in request_queue
 dnl #
@@ -405,7 +381,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
-	ZFS_AC_KERNEL_SRC_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD
@@ -419,7 +394,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
-	ZFS_AC_KERNEL_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_BLK_QUEUE_BDI
 	ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD

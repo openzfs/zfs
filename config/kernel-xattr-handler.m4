@@ -1,39 +1,4 @@
 dnl #
-dnl # 2.6.35 API change,
-dnl # The 'struct xattr_handler' was constified in the generic
-dnl # super_block structure.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_CONST_XATTR_HANDLER], [
-	ZFS_LINUX_TEST_SRC([const_xattr_handler], [
-		#include <linux/fs.h>
-		#include <linux/xattr.h>
-
-		const struct xattr_handler xattr_test_handler = {
-			.prefix	= "test",
-			.get	= NULL,
-			.set	= NULL,
-		};
-
-		const struct xattr_handler *xattr_handlers[] = {
-			&xattr_test_handler,
-		};
-
-		const struct super_block sb __attribute__ ((unused)) = {
-			.s_xattr = xattr_handlers,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER], [
-	AC_MSG_CHECKING([whether super_block uses const struct xattr_handler])
-	ZFS_LINUX_TEST_RESULT([const_xattr_handler], [
-		AC_MSG_RESULT([yes])
-	],[
-		ZFS_LINUX_TEST_ERROR([const xattr_handler])
-	])
-])
-
-dnl #
 dnl # 4.5 API change,
 dnl # struct xattr_handler added new member "name".
 dnl # xattr_handler which matches to whole name rather than prefix should use
@@ -431,7 +396,6 @@ AC_DEFUN([ZFS_AC_KERNEL_GENERIC_SETXATTR], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR], [
-	ZFS_AC_KERNEL_SRC_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_NAME
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET
@@ -440,7 +404,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR], [
-	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_XATTR_HANDLER_NAME
 	ZFS_AC_KERNEL_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET

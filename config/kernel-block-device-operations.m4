@@ -1,33 +1,4 @@
 dnl #
-dnl # 2.6.38 API change
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS], [
-	ZFS_LINUX_TEST_SRC([block_device_operations_check_events], [
-		#include <linux/blkdev.h>
-
-		static unsigned int blk_check_events(struct gendisk *disk,
-		    unsigned int clearing) {
-			(void) disk, (void) clearing;
-			return (0);
-		}
-
-		static const struct block_device_operations
-		    bops __attribute__ ((unused)) = {
-			.check_events	= blk_check_events,
-		};
-	], [], [])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS], [
-	AC_MSG_CHECKING([whether bops->check_events() exists])
-	ZFS_LINUX_TEST_RESULT([block_device_operations_check_events], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([bops->check_events()])
-	])
-])
-
-dnl #
 dnl # 3.10.x API change
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID], [
@@ -120,14 +91,12 @@ AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS], [
-	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS], [
-	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 ])

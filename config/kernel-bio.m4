@@ -1,6 +1,5 @@
 dnl #
 dnl # 2.6.36 API change,
-dnl # REQ_FAILFAST_{DEV|TRANSPORT|DRIVER}
 dnl # REQ_DISCARD
 dnl # REQ_FLUSH
 dnl #
@@ -8,13 +7,6 @@ dnl # 4.8 - 4.9 API,
 dnl # REQ_FLUSH was renamed to REQ_PREFLUSH
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_REQ], [
-	ZFS_LINUX_TEST_SRC([req_failfast_mask], [
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = REQ_FAILFAST_MASK;
-	])
-
 	ZFS_LINUX_TEST_SRC([req_discard], [
 		#include <linux/bio.h>
 	],[
@@ -34,15 +26,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_REQ], [
 	],[
 		int flags __attribute__ ((unused));
 		flags = REQ_PREFLUSH;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_FAILFAST_MASK], [
-	AC_MSG_CHECKING([whether REQ_FAILFAST_MASK is defined])
-	ZFS_LINUX_TEST_RESULT([req_failfast_mask], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([REQ_FAILFAST_MASK])
 	])
 ])
 
@@ -337,27 +320,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_SUBMIT_BIO], [
 ])
 
 dnl #
-dnl # 2.6.34 API change
-dnl # current->bio_list
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST], [
-	ZFS_LINUX_TEST_SRC([current_bio_list], [
-		#include <linux/sched.h>
-	], [
-		current->bio_list = (struct bio_list *) NULL;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST], [
-	AC_MSG_CHECKING([whether current->bio_list exists])
-	ZFS_LINUX_TEST_RESULT([current_bio_list], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([bio_list])
-	])
-])
-
-dnl #
 dnl # Linux 5.5 API,
 dnl #
 dnl # The Linux 5.5 kernel updated percpu_ref_tryget() which is inlined by
@@ -517,7 +479,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
 	ZFS_AC_KERNEL_SRC_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO
-	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
@@ -527,7 +488,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
-	ZFS_AC_KERNEL_BIO_REQ_FAILFAST_MASK
 	ZFS_AC_KERNEL_BIO_REQ_DISCARD
 	ZFS_AC_KERNEL_BIO_REQ_FLUSH
 	ZFS_AC_KERNEL_BIO_REQ_PREFLUSH
@@ -543,7 +503,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_BI_STATUS
 	ZFS_AC_KERNEL_BIO_BVEC_ITER
 	ZFS_AC_KERNEL_BIO_SUBMIT_BIO
-	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
