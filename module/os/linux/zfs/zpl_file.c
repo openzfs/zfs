@@ -361,13 +361,6 @@ zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 	ASSERT3S(pos, ==, kiocb->ki_pos);
 	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
 }
-#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
-static ssize_t
-zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
-{
-	ASSERT3S(pos, ==, kiocb->ki_pos);
-	return (zpl_direct_IO_impl(rw, kiocb, iter));
-}
 #else
 #error "Unknown direct IO interface"
 #endif
