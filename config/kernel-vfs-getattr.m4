@@ -48,39 +48,12 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_GETATTR_2ARGS], [
 	])
 ])
 
-dnl #
-dnl # <3.9 API
-dnl # vfs_getattr(struct vfsmount *v, struct dentry *d, struct kstat *k)
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_GETATTR_3ARGS], [
-	ZFS_LINUX_TEST_SRC([vfs_getattr_3args], [
-		#include <linux/fs.h>
-	],[
-		vfs_getattr((struct vfsmount *)NULL,
-			(struct dentry *)NULL,
-			(struct kstat *)NULL);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_VFS_GETATTR_3ARGS], [
-	AC_MSG_CHECKING([whether vfs_getattr() wants 3 args])
-	ZFS_LINUX_TEST_RESULT([vfs_getattr_3args], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_3ARGS_VFS_GETATTR, 1,
-		    [vfs_getattr wants 3 args])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
 AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_GETATTR], [
 	ZFS_AC_KERNEL_SRC_VFS_GETATTR_4ARGS
 	ZFS_AC_KERNEL_SRC_VFS_GETATTR_2ARGS
-	ZFS_AC_KERNEL_SRC_VFS_GETATTR_3ARGS
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_GETATTR], [
 	ZFS_AC_KERNEL_VFS_GETATTR_4ARGS
 	ZFS_AC_KERNEL_VFS_GETATTR_2ARGS
-	ZFS_AC_KERNEL_VFS_GETATTR_3ARGS
 ])
