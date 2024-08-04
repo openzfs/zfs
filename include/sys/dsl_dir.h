@@ -42,6 +42,7 @@ extern "C" {
 #endif
 
 struct dsl_dataset;
+struct vfs_ratelimit;
 struct zthr;
 /*
  * DD_FIELD_* are strings that are used in the "extensified" dsl_dir zap object.
@@ -127,6 +128,10 @@ struct dsl_dir {
 	boolean_t dd_activity_cancelled;
 	uint64_t dd_activity_waiters;
 
+	/* protected by spa_ratelimit_lock */
+	struct vfs_ratelimit *dd_ratelimit;
+	dsl_dir_t *dd_ratelimit_root;
+
 	/* protected by dd_lock; keep at end of struct for better locality */
 	char dd_myname[ZFS_MAX_DATASET_NAME_LEN];
 };
@@ -182,6 +187,7 @@ int dsl_dir_set_quota(const char *ddname, zprop_source_t source,
     uint64_t quota);
 int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
     uint64_t reservation);
+int dsl_dir_set_ratelimit(const char *dsname, zfs_prop_t prop, uint64_t value);
 int dsl_dir_activate_fs_ss_limit(const char *);
 int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
     cred_t *, proc_t *);

@@ -37,6 +37,7 @@
 #include <sys/zio.h>
 #include <sys/spa.h>
 #include <sys/u8_textprep.h>
+#include <sys/vfs_ratelimit.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
@@ -694,6 +695,24 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_SNAPSHOT_LIMIT, "snapshot_limit",
 	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<count> | none", "SSLIMIT", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_BW_READ, "limit_bw_read",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<bytes/sec> | none", "RTBWRD", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_BW_WRITE, "limit_bw_write",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<bytes/sec> | none", "RTBWWR", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_BW_TOTAL, "limit_bw_total",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<bytes/sec> | none", "RTBWTL", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_OP_READ, "limit_op_read",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<ops/sec> | none", "RTOPRD", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_OP_WRITE, "limit_op_write",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<ops/sec> | none", "RTOPWR", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_RATELIMIT_OP_TOTAL, "limit_op_total",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "<ops/sec> | none", "RTOPTL", B_FALSE, sfeatures);
 
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",
@@ -996,7 +1015,6 @@ zfs_prop_valid_keylocation(const char *str, boolean_t encrypted)
 
 	return (B_FALSE);
 }
-
 
 #ifndef _KERNEL
 #include <libzfs.h>
