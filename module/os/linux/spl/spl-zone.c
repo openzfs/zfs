@@ -54,7 +54,7 @@ typedef struct zone_dataset {
 	char zd_dsname[];		/* name of the member dataset */
 } zone_dataset_t;
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
+#ifdef CONFIG_USER_NS
 /*
  * Returns:
  * - 0 on success
@@ -95,18 +95,14 @@ done:
 
 	return (error);
 }
-#endif /* defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM) */
+#endif /* CONFIG_USER_NS */
 
 static unsigned int
 user_ns_zoneid(struct user_namespace *user_ns)
 {
 	unsigned int r;
 
-#if defined(HAVE_USER_NS_COMMON_INUM)
 	r = user_ns->ns.inum;
-#else
-	r = user_ns->proc_inum;
-#endif
 
 	return (r);
 }
@@ -123,7 +119,7 @@ zone_datasets_lookup(unsigned int nsinum)
 	return (NULL);
 }
 
-#if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
+#ifdef CONFIG_USER_NS
 static struct zone_dataset *
 zone_dataset_lookup(zone_datasets_t *zds, const char *dataset, size_t dsnamelen)
 {
@@ -148,7 +144,7 @@ zone_dataset_cred_check(cred_t *cred)
 
 	return (0);
 }
-#endif /* defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM) */
+#endif /* CONFIG_USER_NS */
 
 static int
 zone_dataset_name_check(const char *dataset, size_t *dsnamelen)
@@ -168,7 +164,7 @@ zone_dataset_name_check(const char *dataset, size_t *dsnamelen)
 int
 zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
 {
-#if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
+#ifdef CONFIG_USER_NS
 	struct user_namespace *userns;
 	zone_datasets_t *zds;
 	zone_dataset_t *zd;
@@ -213,14 +209,14 @@ zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
 	return (0);
 #else
 	return (ENXIO);
-#endif /* defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM) */
+#endif /* CONFIG_USER_NS */
 }
 EXPORT_SYMBOL(zone_dataset_attach);
 
 int
 zone_dataset_detach(cred_t *cred, const char *dataset, int userns_fd)
 {
-#if defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM)
+#ifdef CONFIG_USER_NS
 	struct user_namespace *userns;
 	zone_datasets_t *zds;
 	zone_dataset_t *zd;
@@ -262,7 +258,7 @@ zone_dataset_detach(cred_t *cred, const char *dataset, int userns_fd)
 	return (0);
 #else
 	return (ENXIO);
-#endif /* defined(CONFIG_USER_NS) && defined(HAVE_USER_NS_COMMON_INUM) */
+#endif /* CONFIG_USER_NS */
 }
 EXPORT_SYMBOL(zone_dataset_detach);
 
