@@ -35,6 +35,16 @@
 #include <linux/fs.h>
 #endif
 
+/* some older uClibc's lack the defines, so we'll manually define them */
+#ifdef	__UCLIBC__
+#ifndef	SEEK_DATA
+#define	SEEK_DATA 3
+#endif
+#ifndef	SEEK_HOLE
+#define	SEEK_HOLE 4
+#endif
+#endif
+
 static void
 seek_data(int fd, off_t offset, off_t expected)
 {
