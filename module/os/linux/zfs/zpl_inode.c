@@ -653,15 +653,6 @@ zpl_put_link(struct inode *unused, void *cookie)
 {
 	kmem_free(cookie, MAXPATHLEN);
 }
-#elif defined(HAVE_PUT_LINK_NAMEIDATA)
-static void
-zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
-{
-	const char *link = nd_get_link(nd);
-
-	if (!IS_ERR(link))
-		kmem_free(link, MAXPATHLEN);
-}
 #elif defined(HAVE_PUT_LINK_DELAYED)
 static void
 zpl_put_link(void *ptr)
@@ -858,7 +849,7 @@ const struct inode_operations zpl_symlink_inode_operations = {
 #elif defined(HAVE_FOLLOW_LINK_COOKIE)
 	.follow_link	= zpl_follow_link,
 #endif
-#if defined(HAVE_PUT_LINK_COOKIE) || defined(HAVE_PUT_LINK_NAMEIDATA)
+#if defined(HAVE_PUT_LINK_COOKIE)
 	.put_link	= zpl_put_link,
 #endif
 	.setattr	= zpl_setattr,
