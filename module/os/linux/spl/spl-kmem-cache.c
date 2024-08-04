@@ -1022,7 +1022,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 * then return so the local magazine can be rechecked for new objects.
 	 */
 	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
-		rc = spl_wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
+		rc = wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
 		    TASK_UNINTERRUPTIBLE);
 		return (rc ? rc : -EAGAIN);
 	}
