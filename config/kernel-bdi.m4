@@ -23,16 +23,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BDI], [
 		int error __attribute__((unused)) =
 		    bdi_setup_and_register(&bdi, name);
 	])
-
-	ZFS_LINUX_TEST_SRC([bdi_setup_and_register_3args], [
-		#include <linux/backing-dev.h>
-		struct backing_dev_info bdi;
-	], [
-		char *name = "bdi";
-		unsigned int cap = BDI_CAP_MAP_COPY;
-		int error __attribute__((unused)) =
-		    bdi_setup_and_register(&bdi, name, cap);
-	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BDI], [
@@ -60,22 +50,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BDI], [
 			    [bdi_setup_and_register() wants 2 args])
 		], [
 			AC_MSG_RESULT(no)
-
-			dnl #
-			dnl # 2.6.34 - 3.19, bdi_setup_and_register()
-			dnl # takes 3 arguments.
-			dnl #
-			AC_MSG_CHECKING(
-			    [whether bdi_setup_and_register() wants 3 args])
-			ZFS_LINUX_TEST_RESULT_SYMBOL(
-			    [bdi_setup_and_register_3args],
-			    [bdi_setup_and_register], [mm/backing-dev.c], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_3ARGS_BDI_SETUP_AND_REGISTER, 1,
-				    [bdi_setup_and_register() wants 3 args])
-			], [
-				ZFS_LINUX_TEST_ERROR([bdi_setup])
-			])
+			ZFS_LINUX_TEST_ERROR([bdi_setup])
 		])
 	])
 ])
