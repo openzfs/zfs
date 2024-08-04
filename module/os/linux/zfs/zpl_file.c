@@ -240,8 +240,6 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
-#if defined(HAVE_VFS_RW_ITERATE)
-
 /*
  * When HAVE_VFS_IOV_ITER is defined the iov_iter structure supports
  * iovecs, kvevs, bvecs and pipes, plus all the required interfaces to
@@ -277,14 +275,14 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
-	int error = -zfs_read(ITOZ(filp->f_mapping->host), &uio,
+	ssize_t ret = -zfs_read(ITOZ(filp->f_mapping->host), &uio,
 	    filp->f_flags | zfs_io_flags(kiocb), cr);
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	if (error < 0)
-		return (error);
+	if (ret < 0)
+		return (ret);
 
 	ssize_t read = count - uio.uio_resid;
 	kiocb->ki_pos += read;
@@ -327,14 +325,14 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
-	int error = -zfs_write(ITOZ(ip), &uio,
+	ret = -zfs_write(ITOZ(ip), &uio,
 	    filp->f_flags | zfs_io_flags(kiocb), cr);
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	if (error < 0)
-		return (error);
+	if (ret < 0)
+		return (ret);
 
 	ssize_t wrote = count - uio.uio_resid;
 	kiocb->ki_pos += wrote;
@@ -342,153 +340,40 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	return (wrote);
 }
 
-#else /* !HAVE_VFS_RW_ITERATE */
-
 static ssize_t
-zpl_aio_read(struct kiocb *kiocb, const struct iovec *iov,
-    unsigned long nr_segs, loff_t pos)
+zpl_direct_IO_impl(void)
 {
-	cred_t *cr = CRED();
-	fstrans_cookie_t cookie;
-	struct file *filp = kiocb->ki_filp;
-	size_t count;
-	ssize_t ret;
-
-	ret = generic_segment_checks(iov, &nr_segs, &count, VERIFY_WRITE);
-	if (ret)
-		return (ret);
-
-	zfs_uio_t uio;
-	zfs_uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
-	    count, 0);
-
-	crhold(cr);
-	cookie = spl_fstrans_mark();
-
-	int error = -zfs_read(ITOZ(filp->f_mapping->host), &uio,
-	    filp->f_flags | zfs_io_flags(kiocb), cr);
-
-	spl_fstrans_unmark(cookie);
-	crfree(cr);
-
-	if (error < 0)
-		return (error);
-
-	ssize_t read = count - uio.uio_resid;
-	kiocb->ki_pos += read;
-
-	zpl_file_accessed(filp);
-
-	return (read);
+	/*
+	 * All O_DIRECT requests should be handled by
+	 * zpl_{iter/aio}_{write/read}(). There is no way kernel generic code
+	 * should call the direct_IO address_space_operations function. We set
+	 * this code path to be fatal if it is executed.
+	 */
+	PANIC(0);
+	return (0);
 }
 
-static ssize_t
-zpl_aio_write(struct kiocb *kiocb, const struct iovec *iov,
-    unsigned long nr_segs, loff_t pos)
-{
-	cred_t *cr = CRED();
-	fstrans_cookie_t cookie;
-	struct file *filp = kiocb->ki_filp;
-	struct inode *ip = filp->f_mapping->host;
-	size_t count;
-	ssize_t ret;
-
-	ret = generic_segment_checks(iov, &nr_segs, &count, VERIFY_READ);
-	if (ret)
-		return (ret);
-
-	ret = generic_write_checks(filp, &pos, &count, S_ISBLK(ip->i_mode));
-	if (ret)
-		return (ret);
-
-	kiocb->ki_pos = pos;
-
-	zfs_uio_t uio;
-	zfs_uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
-	    count, 0);
-
-	crhold(cr);
-	cookie = spl_fstrans_mark();
-
-	int error = -zfs_write(ITOZ(ip), &uio,
-	    filp->f_flags | zfs_io_flags(kiocb), cr);
-
-	spl_fstrans_unmark(cookie);
-	crfree(cr);
-
-	if (error < 0)
-		return (error);
-
-	ssize_t wrote = count - uio.uio_resid;
-	kiocb->ki_pos += wrote;
-
-	return (wrote);
-}
-#endif /* HAVE_VFS_RW_ITERATE */
-
-#if defined(HAVE_VFS_RW_ITERATE)
-static ssize_t
-zpl_direct_IO_impl(int rw, struct kiocb *kiocb, struct iov_iter *iter)
-{
-	if (rw == WRITE)
-		return (zpl_iter_write(kiocb, iter));
-	else
-		return (zpl_iter_read(kiocb, iter));
-}
 #if defined(HAVE_VFS_DIRECT_IO_ITER)
 static ssize_t
 zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter)
 {
-	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+	return (zpl_direct_IO_impl());
 }
 #elif defined(HAVE_VFS_DIRECT_IO_ITER_OFFSET)
 static ssize_t
 zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 {
-	ASSERT3S(pos, ==, kiocb->ki_pos);
-	return (zpl_direct_IO_impl(iov_iter_rw(iter), kiocb, iter));
+	return (zpl_direct_IO_impl());
 }
 #elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
 static ssize_t
 zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 {
-	ASSERT3S(pos, ==, kiocb->ki_pos);
-	return (zpl_direct_IO_impl(rw, kiocb, iter));
+	return (zpl_direct_IO_impl());
 }
 #else
-#error "Unknown direct IO interface"
+#error "Unknown Direct I/O interface"
 #endif
-
-#else /* HAVE_VFS_RW_ITERATE */
-
-#if defined(HAVE_VFS_DIRECT_IO_IOVEC)
-static ssize_t
-zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iov,
-    loff_t pos, unsigned long nr_segs)
-{
-	if (rw == WRITE)
-		return (zpl_aio_write(kiocb, iov, nr_segs, pos));
-	else
-		return (zpl_aio_read(kiocb, iov, nr_segs, pos));
-}
-#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
-static ssize_t
-zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
-{
-	const struct iovec *iovp = iov_iter_iovec(iter);
-	unsigned long nr_segs = iter->nr_segs;
-
-	ASSERT3S(pos, ==, kiocb->ki_pos);
-	if (rw == WRITE)
-		return (zpl_aio_write(kiocb, iovp, nr_segs, pos));
-	else
-		return (zpl_aio_read(kiocb, iovp, nr_segs, pos));
-}
-#else
-#error "Unknown direct IO interface"
-#endif
-
-#endif /* HAVE_VFS_RW_ITERATE */
 
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
@@ -570,6 +455,7 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	error = -zfs_map(ip, vma->vm_pgoff, (caddr_t *)vma->vm_start,
 	    (size_t)(vma->vm_end - vma->vm_start), vma->vm_flags);
 	spl_fstrans_unmark(cookie);
+
 	if (error)
 		return (error);
 
@@ -1255,7 +1141,6 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-#ifdef HAVE_VFS_RW_ITERATE
 #ifdef HAVE_NEW_SYNC_READ
 	.read		= new_sync_read,
 	.write		= new_sync_write,
@@ -1269,12 +1154,6 @@ const struct file_operations zpl_file_operations = {
 	.splice_read	= generic_file_splice_read,
 #endif
 	.splice_write	= iter_file_splice_write,
-#endif
-#else
-	.read		= do_sync_read,
-	.write		= do_sync_write,
-	.aio_read	= zpl_aio_read,
-	.aio_write	= zpl_aio_write,
 #endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
