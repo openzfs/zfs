@@ -11,16 +11,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PUT_LINK], [
 			.put_link = put_link,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([put_link_nameidata], [
-		#include <linux/fs.h>
-		static void put_link(struct dentry *de, struct
-		    nameidata *nd, void *ptr) { return; }
-		static struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.put_link = put_link,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_PUT_LINK], [
@@ -43,19 +33,7 @@ AC_DEFUN([ZFS_AC_KERNEL_PUT_LINK], [
 			    [iops->put_link() cookie])
 		],[
 			AC_MSG_RESULT(no)
-
-			dnl #
-			dnl # 2.6.32 API
-			dnl #
-			AC_MSG_CHECKING(
-			    [whether iops->put_link() passes nameidata])
-			ZFS_LINUX_TEST_RESULT([put_link_nameidata], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_PUT_LINK_NAMEIDATA, 1,
-				    [iops->put_link() nameidata])
-			],[
-				ZFS_LINUX_TEST_ERROR([put_link])
-			])
+			ZFS_LINUX_TEST_ERROR([put_link])
 		])
 	])
 ])
