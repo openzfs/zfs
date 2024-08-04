@@ -365,12 +365,6 @@ zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 {
 	return (zpl_direct_IO_impl());
 }
-#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
-static ssize_t
-zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
-{
-	return (zpl_direct_IO_impl());
-}
 #else
 #error "Unknown Direct I/O interface"
 #endif

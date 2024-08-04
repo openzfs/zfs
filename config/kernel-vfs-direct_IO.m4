@@ -25,18 +25,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 			.direct_IO = test_direct_IO,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([direct_io_iter_rw_offset], [
-		#include <linux/fs.h>
-
-		static ssize_t test_direct_IO(int rw, struct kiocb *kiocb,
-		    struct iov_iter *iter, loff_t offset) { return 0; }
-
-		static const struct address_space_operations
-		    aops __attribute__ ((unused)) = {
-		    .direct_IO = test_direct_IO,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_DIRECT_IO], [
@@ -63,21 +51,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_DIRECT_IO], [
 
 		],[
 			AC_MSG_RESULT([no])
-
-			dnl #
-			dnl # Linux 3.16.x API change
-			dnl #
-			AC_MSG_CHECKING(
-			    [whether aops->direct_IO() uses rw and offset])
-			ZFS_LINUX_TEST_RESULT([direct_io_iter_rw_offset], [
-				AC_MSG_RESULT([yes])
-				AC_DEFINE(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET, 1,
-				    [aops->direct_IO() uses iov_iter with ]
-				    [rw and offset])
-			],[
-				AC_MSG_RESULT([no])
-				ZFS_LINUX_TEST_ERROR([Direct I/O])
-			])
+			ZFS_LINUX_TEST_ERROR([Direct I/O])
 		])
 	])
 ])
