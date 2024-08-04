@@ -22,35 +22,6 @@ AC_DEFUN([ZFS_AC_KERNEL_WAIT_QUEUE_ENTRY_T], [
 ])
 
 dnl #
-dnl # 3.17 API change,
-dnl # wait_on_bit() no longer requires an action argument. The former
-dnl # "wait_on_bit" interface required an 'action' function to be provided
-dnl # which does the actual waiting. There were over 20 such functions in the
-dnl # kernel, many of them identical, though most cases can be satisfied by one
-dnl # of just two functions: one which uses io_schedule() and one which just
-dnl # uses schedule().  This API change was made to consolidate all of those
-dnl # redundant wait functions.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_WAIT_ON_BIT], [
-	ZFS_LINUX_TEST_SRC([wait_on_bit], [
-		#include <linux/wait.h>
-	],[
-		int (*action)(void *) = NULL;
-		wait_on_bit(NULL, 0, action, 0);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_WAIT_ON_BIT], [
-	AC_MSG_CHECKING([whether wait_on_bit() takes an action])
-	ZFS_LINUX_TEST_RESULT([wait_on_bit], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_WAIT_ON_BIT_ACTION, 1, [yes])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 4.13 API change
 dnl # Renamed wait_queue_head::task_list -> wait_queue_head::head
 dnl # Renamed wait_queue_entry::task_list -> wait_queue_entry::entry
@@ -89,11 +60,9 @@ AC_DEFUN([ZFS_AC_KERNEL_WAIT_QUEUE_HEAD_ENTRY], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_WAIT], [
-	ZFS_AC_KERNEL_SRC_WAIT_ON_BIT
 	ZFS_AC_KERNEL_SRC_WAIT_QUEUE_HEAD_ENTRY
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_WAIT], [
-	ZFS_AC_KERNEL_WAIT_ON_BIT
 	ZFS_AC_KERNEL_WAIT_QUEUE_HEAD_ENTRY
 ])
