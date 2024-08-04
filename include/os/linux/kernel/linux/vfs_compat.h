@@ -108,7 +108,7 @@ zpl_bdi_destroy(struct super_block *sb)
 #define	SB_NOATIME	MS_NOATIME
 #endif
 
-#if defined(SEEK_HOLE) && defined(SEEK_DATA) && !defined(HAVE_LSEEK_EXECUTE)
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
 static inline loff_t
 lseek_execute(
 	struct file *filp,
@@ -131,7 +131,7 @@ lseek_execute(
 
 	return (offset);
 }
-#endif /* SEEK_HOLE && SEEK_DATA && !HAVE_LSEEK_EXECUTE */
+#endif /* SEEK_HOLE && SEEK_DATA */
 
 #if defined(CONFIG_FS_POSIX_ACL)
 /*
