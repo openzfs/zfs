@@ -58,32 +58,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SUPER_BLOCK_S_SHRINK], [
 ])
 
 dnl #
-dnl # 3.12 API change
-dnl # The nid member was added to struct shrink_control to support
-dnl # NUMA-aware shrinkers.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_HAS_NID], [
-	ZFS_LINUX_TEST_SRC([shrink_control_nid], [
-		#include <linux/fs.h>
-	],[
-		struct shrink_control sc __attribute__ ((unused));
-		unsigned long scnidsize __attribute__ ((unused)) =
-		    sizeof(sc.nid);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID], [
-	AC_MSG_CHECKING([whether shrink_control has nid])
-	ZFS_LINUX_TEST_RESULT([shrink_control_nid], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(SHRINK_CONTROL_HAS_NID, 1,
-		    [struct shrink_control has nid])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 6.0 API change
 dnl # register_shrinker() becomes a var-arg function that takes
 dnl # a printf-style format string as args > 0
@@ -145,14 +119,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_REGISTER], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER], [
 	ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK
 	ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK_PTR
-	ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_HAS_NID
 	ZFS_AC_KERNEL_SRC_REGISTER_SHRINKER_VARARG
 	ZFS_AC_KERNEL_SRC_SHRINKER_REGISTER
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER], [
 	ZFS_AC_KERNEL_SUPER_BLOCK_S_SHRINK
-	ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID
 	ZFS_AC_KERNEL_REGISTER_SHRINKER_VARARG
 	ZFS_AC_KERNEL_SHRINKER_REGISTER
 ])
