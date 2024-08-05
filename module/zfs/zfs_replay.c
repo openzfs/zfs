@@ -438,7 +438,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 bail:
 	if (error == 0 && zp != NULL) {
 #ifdef __FreeBSD__
-		VOP_UNLOCK1(ZTOV(zp));
+		VOP_UNLOCK(ZTOV(zp));
 #endif
 		zrele(zp);
 	}
@@ -594,7 +594,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 out:
 	if (error == 0 && zp != NULL) {
 #ifdef __FreeBSD__
-		VOP_UNLOCK1(ZTOV(zp));
+		VOP_UNLOCK(ZTOV(zp));
 #endif
 		zrele(zp);
 	}
