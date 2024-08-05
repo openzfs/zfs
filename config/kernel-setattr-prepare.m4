@@ -51,6 +51,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SETATTR_PREPARE], [
 		AC_DEFINE(HAVE_SETATTR_PREPARE_IDMAP, 1,
 		    [setattr_prepare() accepts mnt_idmap])
 	], [
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether setattr_prepare() is available and accepts struct user_namespace*])
 		ZFS_LINUX_TEST_RESULT_SYMBOL([setattr_prepare_userns],
 		    [setattr_prepare], [fs/attr.c], [
