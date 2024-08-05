@@ -270,7 +270,7 @@ zfs_vop_fsync(vnode_t *vp)
 		goto drop;
 	vn_lock(vp, LK_EXCLUSIVE | LK_RETRY);
 	error = VOP_FSYNC(vp, MNT_WAIT, curthread);
-	VOP_UNLOCK1(vp);
+	VOP_UNLOCK(vp);
 	vn_finished_write(mp);
 drop:
 	return (SET_ERROR(error));
@@ -330,14 +330,6 @@ zfs_file_unlink(const char *fnamep)
 	zfs_uio_seg_t seg = UIO_SYSSPACE;
 	int rc;
 
-#if __FreeBSD_version >= 1300018
 	rc = kern_funlinkat(curthread, AT_FDCWD, fnamep, FD_NONE, seg, 0, 0);
-#elif __FreeBSD_version >= 1202504 || defined(AT_BENEATH)
-	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
-	    seg, 0, 0);
-#else
-	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
-	    seg, 0);
-#endif
 	return (SET_ERROR(rc));
 }

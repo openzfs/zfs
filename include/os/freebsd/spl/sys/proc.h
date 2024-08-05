@@ -88,9 +88,6 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 		thread_lock(td);
 		sched_prio(td, pri);
 		sched_add(td, SRQ_BORING);
-#if __FreeBSD_version < 1300068
-		thread_unlock(td);
-#endif
 	}
 	return (td);
 }

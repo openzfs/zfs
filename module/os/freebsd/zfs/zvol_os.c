@@ -1312,11 +1312,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 		args.mda_si_drv2 = zv;
 		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, newname)
 		    == 0) {
-#if __FreeBSD_version > 1300130
 			dev->si_iosize_max = maxphys;
-#else
-			dev->si_iosize_max = MAXPHYS;
-#endif
 			zsd->zsd_cdev = dev;
 		}
 	}
@@ -1456,11 +1452,7 @@ zvol_os_create_minor(const char *name)
 		args.mda_si_drv2 = zv;
 		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name)
 		    == 0) {
-#if __FreeBSD_version > 1300130
 			dev->si_iosize_max = maxphys;
-#else
-			dev->si_iosize_max = MAXPHYS;
-#endif
 			zsd->zsd_cdev = dev;
 			knlist_init_sx(&zsd->zsd_selinfo.si_note,
 			    &zv->zv_state_lock);
