@@ -47,21 +47,6 @@ fn(struct dentry *dentry)						\
 {									\
 	return (!!__ ## fn(dentry->d_inode, NULL, 0, NULL, 0));		\
 }
-/*
- * 4.4 API change,
- */
-#elif defined(HAVE_XATTR_LIST_DENTRY)
-#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
-static size_t								\
-fn(struct dentry *dentry, char *list, size_t list_size,			\
-    const char *name, size_t name_len, int type)			\
-{									\
-	return (__ ## fn(dentry->d_inode,				\
-	    list, list_size, name, name_len));				\
-}
-/*
- * 2.6.33 API change,
- */
 #elif defined(HAVE_XATTR_LIST_HANDLER)
 #define	ZPL_XATTR_LIST_WRAPPER(fn)					\
 static size_t								\
@@ -99,19 +84,6 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     const char *name, void *buffer, size_t size)			\
-{									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
-}
-/*
- * 2.6.33 API change,
- * The xattr_handler->get() callback was changed to take a dentry
- * instead of an inode, and a handler_flags argument was added.
- */
-#elif defined(HAVE_XATTR_GET_DENTRY)
-#define	ZPL_XATTR_GET_WRAPPER(fn)					\
-static int								\
-fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
-    int unused_handler_flags)						\
 {									\
 	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
 }
@@ -188,20 +160,6 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     const char *name, const void *buffer, size_t size, int flags)	\
-{									\
-	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
-	    buffer, size, flags));					\
-}
-/*
- * 2.6.33 API change,
- * The xattr_handler->set() callback was changed to take a dentry
- * instead of an inode, and a handler_flags argument was added.
- */
-#elif defined(HAVE_XATTR_SET_DENTRY)
-#define	ZPL_XATTR_SET_WRAPPER(fn)					\
-static int								\
-fn(struct dentry *dentry, const char *name, const void *buffer,		\
-    size_t size, int flags, int unused_handler_flags)			\
 {									\
 	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
 	    buffer, size, flags));					\
