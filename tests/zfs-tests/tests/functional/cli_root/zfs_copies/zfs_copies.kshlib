@@ -153,5 +153,7 @@ function do_vol_test
 		log_must umount $mntp
 	fi
 
+	# Ubuntu 20.04 wants a sync here
+	log_must sync
 	log_must zfs destroy $vol
 }
