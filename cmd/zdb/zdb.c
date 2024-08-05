@@ -8022,15 +8022,14 @@ dump_mos_leaks(spa_t *spa)
 
 	mos_leak_vdev(spa->spa_root_vdev);
 
-	for (uint64_t class = 0; class < DDT_CLASSES; class++) {
-		for (uint64_t type = 0; type < DDT_TYPES; type++) {
-			for (uint64_t cksum = 0;
-			    cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
-				ddt_t *ddt = spa->spa_ddt[cksum];
-				if (!ddt)
-					continue;
+	for (uint64_t cksum = 0; cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
+		ddt_t *ddt = spa->spa_ddt[cksum];
+		if (!ddt)
+			continue;
+		mos_obj_refd(ddt->ddt_dir_object);
+		for (uint64_t class = 0; class < DDT_CLASSES; class++) {
+			for (uint64_t type = 0; type < DDT_TYPES; type++)
 				mos_obj_refd(ddt->ddt_object[type][class]);
-			}
 		}
 	}
 
