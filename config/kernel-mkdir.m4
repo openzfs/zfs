@@ -68,6 +68,8 @@ AC_DEFUN([ZFS_AC_KERNEL_MKDIR], [
 		AC_DEFINE(HAVE_IOPS_MKDIR_IDMAP, 1,
 		    [iops->mkdir() takes struct mnt_idmap*])
 	],[
+		AC_MSG_RESULT(no)
+
 		dnl #
 		dnl # 5.12 API change
 		dnl # The struct user_namespace arg was added as the first argument to
