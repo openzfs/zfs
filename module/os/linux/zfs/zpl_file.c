@@ -1135,10 +1135,6 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-#ifdef HAVE_NEW_SYNC_READ
-	.read		= new_sync_read,
-	.write		= new_sync_write,
-#endif
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_VFS_IOV_ITER
