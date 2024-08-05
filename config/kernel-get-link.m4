@@ -13,16 +13,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GET_LINK], [
 		};
 	],[])
 
-	ZFS_LINUX_TEST_SRC([inode_operations_get_link_cookie], [
-		#include <linux/fs.h>
-		static const char *get_link(struct dentry *de, struct
-		    inode *ip, void **cookie) { return "symlink"; }
-		static struct inode_operations
-		     iops __attribute__ ((unused)) = {
-			.get_link = get_link,
-		};
-	],[])
-
 	ZFS_LINUX_TEST_SRC([inode_operations_follow_link], [
 		#include <linux/fs.h>
 		static const char *follow_link(struct dentry *de,
@@ -48,34 +38,18 @@ AC_DEFUN([ZFS_AC_KERNEL_GET_LINK], [
 		AC_MSG_RESULT(no)
 
 		dnl #
-		dnl # 4.5 API change
-		dnl # The follow_link() interface has been replaced by
-		dnl # get_link() which behaves the same as before except:
-		dnl # - An inode is passed as a separate argument
-		dnl # - When called in RCU mode a NULL dentry is passed.
+		dnl # 4.2 API change
+		dnl # This kernel retired the nameidata structure.
 		dnl #
-		AC_MSG_CHECKING([whether iops->get_link() passes cookie])
-		ZFS_LINUX_TEST_RESULT([inode_operations_get_link_cookie], [
+		AC_MSG_CHECKING(
+		    [whether iops->follow_link() passes cookie])
+		ZFS_LINUX_TEST_RESULT([inode_operations_follow_link], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_GET_LINK_COOKIE, 1,
-			    [iops->get_link() cookie])
+			AC_DEFINE(HAVE_FOLLOW_LINK_COOKIE, 1,
+			    [iops->follow_link() cookie])
 		],[
 			AC_MSG_RESULT(no)
-
-			dnl #
-			dnl # 4.2 API change
-			dnl # This kernel retired the nameidata structure.
-			dnl #
-			AC_MSG_CHECKING(
-			    [whether iops->follow_link() passes cookie])
-			ZFS_LINUX_TEST_RESULT([inode_operations_follow_link], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_FOLLOW_LINK_COOKIE, 1,
-				    [iops->follow_link() cookie])
-			],[
-				AC_MSG_RESULT(no)
-				ZFS_LINUX_TEST_ERROR([get_link])
-			])
+			ZFS_LINUX_TEST_ERROR([get_link])
 		])
 	])
 ])
