@@ -8061,6 +8061,12 @@ dump_mos_leaks(spa_t *spa)
 			for (uint64_t type = 0; type < DDT_TYPES; type++)
 				mos_obj_refd(ddt->ddt_object[type][class]);
 		}
+		for (int n = 0; n < 2; n++) {
+			ddt_log_t *ddl = &ddt->ddt_log[n];
+			if (!ddl)
+				continue;
+			mos_obj_refd(ddl->ddl_object);
+		}
 	}
 
 	if (spa->spa_brt != NULL) {
