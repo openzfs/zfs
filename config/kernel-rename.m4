@@ -77,6 +77,8 @@ AC_DEFUN([ZFS_AC_KERNEL_RENAME], [
 		AC_DEFINE(HAVE_IOPS_RENAME_IDMAP, 1,
 		    [iops->rename() takes struct mnt_idmap*])
 	],[
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether iops->rename() takes struct user_namespace*])
 		ZFS_LINUX_TEST_RESULT([inode_operations_rename_userns], [
 			AC_MSG_RESULT(yes)
