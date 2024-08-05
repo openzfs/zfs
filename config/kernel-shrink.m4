@@ -108,6 +108,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER_REGISTER], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_REGISTER], [
+	AC_MSG_CHECKING([whether shrinker_register() exists])
 	ZFS_LINUX_TEST_RESULT([shrinker_register], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SHRINKER_REGISTER, 1, [shrinker_register exists])

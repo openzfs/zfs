@@ -130,6 +130,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 		AC_DEFINE(HAVE_XATTR_SET_IDMAP, 1,
 		    [xattr_handler->set() takes mnt_idmap])
 	], [
+		AC_MSG_RESULT(no)
 		AC_MSG_CHECKING([whether xattr_handler->set() wants dentry, inode, and user_namespace])
 		ZFS_LINUX_TEST_RESULT([xattr_handler_set_userns], [
 			AC_MSG_RESULT(yes)
