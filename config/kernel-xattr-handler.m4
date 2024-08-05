@@ -89,18 +89,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET], [
 		};
 	],[])
 
-	ZFS_LINUX_TEST_SRC([xattr_handler_get_dentry], [
-		#include <linux/xattr.h>
-
-		static int get(struct dentry *dentry, const char *name,
-		    void *buffer, size_t size, int handler_flags)
-		    { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.get = get,
-		};
-	],[])
-
 	ZFS_LINUX_TEST_SRC([xattr_handler_get_dentry_inode_flags], [
 		#include <linux/xattr.h>
 
@@ -142,34 +130,19 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
 			    [xattr_handler->get() wants xattr_handler])
 		],[
 			dnl #
-			dnl # 2.6.33 API change,
-			dnl # The xattr_handler->get() callback was changed
-			dnl # to take a dentry instead of an inode, and a
-			dnl # handler_flags argument was added.
+			dnl # Android API change,
+			dnl # The xattr_handler->get() callback was
+			dnl # changed to take dentry, inode and flags.
 			dnl #
 			AC_MSG_RESULT(no)
 			AC_MSG_CHECKING(
-			    [whether xattr_handler->get() wants dentry])
-			ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry], [
+			    [whether xattr_handler->get() wants dentry and inode and flags])
+			ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_XATTR_GET_DENTRY, 1,
-				    [xattr_handler->get() wants dentry])
+				AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE_FLAGS, 1,
+				    [xattr_handler->get() wants dentry and inode and flags])
 			],[
-				dnl #
-				dnl # Android API change,
-				dnl # The xattr_handler->get() callback was
-				dnl # changed to take dentry, inode and flags.
-				dnl #
-				AC_MSG_RESULT(no)
-				AC_MSG_CHECKING(
-				    [whether xattr_handler->get() wants dentry and inode and flags])
-				ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [
-					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE_FLAGS, 1,
-					    [xattr_handler->get() wants dentry and inode and flags])
-				],[
-					ZFS_LINUX_TEST_ERROR([xattr get()])
-				])
+				ZFS_LINUX_TEST_ERROR([xattr get()])
 			])
 		])
 	])
@@ -235,18 +208,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET], [
 			.set = set,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([xattr_handler_set_dentry], [
-		#include <linux/xattr.h>
-
-		static int set(struct dentry *dentry, const char *name,
-		    const void *buffer, size_t size, int flags,
-		    int handler_flags) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.set = set,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
@@ -296,22 +257,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 					AC_DEFINE(HAVE_XATTR_SET_HANDLER, 1,
 					    [xattr_handler->set() wants xattr_handler])
 				],[
-					dnl #
-					dnl # 2.6.33 API change,
-					dnl # The xattr_handler->set() callback was changed
-					dnl # to take a dentry instead of an inode, and a
-					dnl # handler_flags argument was added.
-					dnl #
-					AC_MSG_RESULT(no)
-					AC_MSG_CHECKING(
-					    [whether xattr_handler->set() wants dentry])
-					ZFS_LINUX_TEST_RESULT([xattr_handler_set_dentry], [
-						AC_MSG_RESULT(yes)
-						AC_DEFINE(HAVE_XATTR_SET_DENTRY, 1,
-						    [xattr_handler->set() wants dentry])
-					],[
-						ZFS_LINUX_TEST_ERROR([xattr set()])
-					])
+					ZFS_LINUX_TEST_ERROR([xattr set()])
 				])
 			])
 		])
@@ -343,19 +289,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_LIST], [
 			.list = list,
 		};
 	],[])
-
-	ZFS_LINUX_TEST_SRC([xattr_handler_list_dentry], [
-		#include <linux/xattr.h>
-
-		static size_t list(struct dentry *dentry,
-		    char *list, size_t list_size,
-		    const char *name, size_t name_len,
-		    int handler_flags) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.list = list,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
@@ -382,22 +315,7 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
 			AC_DEFINE(HAVE_XATTR_LIST_HANDLER, 1,
 			    [xattr_handler->list() wants xattr_handler])
 		],[
-			dnl #
-			dnl # 2.6.33 API change,
-			dnl # The xattr_handler->list() callback was changed
-			dnl # to take a dentry instead of an inode, and a
-			dnl # handler_flags argument was added.
-			dnl #
-			AC_MSG_RESULT(no)
-			AC_MSG_CHECKING(
-			    [whether xattr_handler->list() wants dentry])
-			ZFS_LINUX_TEST_RESULT([xattr_handler_list_dentry], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_XATTR_LIST_DENTRY, 1,
-				    [xattr_handler->list() wants dentry])
-			],[
-				ZFS_LINUX_TEST_ERROR([xattr list()])
-			])
+			ZFS_LINUX_TEST_ERROR([xattr list()])
 		])
 	])
 ])
