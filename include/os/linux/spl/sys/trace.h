@@ -22,6 +22,8 @@
 #if defined(_KERNEL)
 
 /*
+ * XXX REWRITE ME (and all the other trace comments) -- robn, 2024-08-05
+ *
  * Calls to DTRACE_PROBE* are mapped to standard Linux kernel trace points
  * when they are available(when HAVE_DECLARE_EVENT_CLASS is defined).  The
  * tracepoint event class definitions are found in the general tracing
@@ -46,46 +48,6 @@
  * class definition and a DEFINE_DTRACE_PROBE definition are needed to
  * avoid undefined function errors.
  */
-
-#if defined(HAVE_DECLARE_EVENT_CLASS)
-
-#undef TRACE_SYSTEM
-#define	TRACE_SYSTEM zfs
-
-#if !defined(_TRACE_ZFS_H) || defined(TRACE_HEADER_MULTI_READ)
-#define	_TRACE_ZFS_H
-
-#include <linux/tracepoint.h>
-#include <sys/types.h>
-
-/*
- * DTRACE_PROBE with 0 arguments is not currently available with
- *  tracepoint events
- */
-#define	DTRACE_PROBE(name) \
-	((void)0)
-
-#define	DTRACE_PROBE1(name, t1, arg1) \
-	trace_zfs_##name((arg1))
-
-#define	DTRACE_PROBE2(name, t1, arg1, t2, arg2) \
-	trace_zfs_##name((arg1), (arg2))
-
-#define	DTRACE_PROBE3(name, t1, arg1, t2, arg2, t3, arg3) \
-	trace_zfs_##name((arg1), (arg2), (arg3))
-
-#define	DTRACE_PROBE4(name, t1, arg1, t2, arg2, t3, arg3, t4, arg4) \
-	trace_zfs_##name((arg1), (arg2), (arg3), (arg4))
-
-#endif /* _TRACE_ZFS_H */
-
-#undef TRACE_INCLUDE_PATH
-#undef TRACE_INCLUDE_FILE
-#define	TRACE_INCLUDE_PATH sys
-#define	TRACE_INCLUDE_FILE trace
-#include <trace/define_trace.h>
-
-#else /* HAVE_DECLARE_EVENT_CLASS */
 
 #define	DTRACE_PROBE(name) \
 	trace_zfs_##name()
@@ -171,5 +133,4 @@ EXPORT_SYMBOL(trace_zfs_##name)
 #define	DEFINE_DTRACE_PROBE4(name)	PROTO_DTRACE_PROBE4(name)
 
 #endif /* CREATE_TRACE_POINTS */
-#endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
