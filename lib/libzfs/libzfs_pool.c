@@ -529,9 +529,10 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 	zpool_prop_t prop;
 	const char *strval;
 	uint64_t intval;
-	const char *slash, *check;
+	const char *check;
 	struct stat64 statbuf;
 	zpool_handle_t *zhp;
+	char *parent, *slash;
 	char report[1024];
 
 	if (nvlist_alloc(&retprops, NV_UNIQUE_NAME, 0) != 0) {
@@ -785,30 +786,36 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 				goto error;
 			}
 
-			slash = strrchr(strval, '/');
+			parent = strdup(strval);
+			if (parent == NULL) {
+				(void) zfs_error(hdl, EZFS_NOMEM, errbuf);
+				goto error;
+			}
+			slash = strrchr(parent, '/');
 
 			if (slash[1] == '\0' || strcmp(slash, "/.") == 0 ||
 			    strcmp(slash, "/..") == 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "'%s' is not a valid file"), strval);
+				    "'%s' is not a valid file"), parent);
 				(void) zfs_error(hdl, EZFS_BADPATH, errbuf);
+				free(parent);
 				goto error;
 			}
 
-			*(char *)slash = '\0';
+			*slash = '\0';
 
-			if (strval[0] != '\0' &&
-			    (stat64(strval, &statbuf) != 0 ||
+			if (parent[0] != '\0' &&
+			    (stat64(parent, &statbuf) != 0 ||
 			    !S_ISDIR(statbuf.st_mode))) {
-				*(char *)slash = '/';
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "'%s' is not a valid directory"),
-				    strval);
+				    parent);
 				(void) zfs_error(hdl, EZFS_BADPATH, errbuf);
+				free(parent);
 				goto error;
 			}
+			free(parent);
 
-			*(char *)slash = '/';
 			break;
 
 		case ZPOOL_PROP_COMPATIBILITY:
