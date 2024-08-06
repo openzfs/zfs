@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2023-2024, Klara Inc.
+ * Copyright (c) 2023-2025, Klara, Inc.
  */
 
 /*
@@ -404,26 +404,29 @@ print_data_handler(int id, const char *pool, zinject_record_t *record,
 
 	if (*count == 0) {
 		(void) printf("%3s  %-15s  %-6s  %-6s  %-8s  %3s  %-4s  "
-		    "%-15s\n", "ID", "POOL", "OBJSET", "OBJECT", "TYPE",
-		    "LVL", "DVAs", "RANGE");
+		    "%-15s  %-6s  %-15s\n", "ID", "POOL", "OBJSET", "OBJECT",
+		    "TYPE", "LVL", "DVAs", "RANGE", "MATCH", "INJECT");
 		(void) printf("---  ---------------  ------  "
-		    "------  --------  ---  ----  ---------------\n");
+		    "------  --------  ---  ----  ---------------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
 
-	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  ",
-	    id, pool, (u_longlong_t)record->zi_objset,
-	    (u_longlong_t)record->zi_object, type_to_name(record->zi_type),
-	    record->zi_level, record->zi_dvas);
-
-
-	if (record->zi_start == 0 &&
-	    record->zi_end == -1ULL)
-		(void) printf("all\n");
+	char rangebuf[32];
+	if (record->zi_start == 0 && record->zi_end == -1ULL)
+		snprintf(rangebuf, sizeof (rangebuf), "all");
 	else
-		(void) printf("[%llu, %llu]\n", (u_longlong_t)record->zi_start,
+		snprintf(rangebuf, sizeof (rangebuf), "[%llu, %llu]",
+		    (u_longlong_t)record->zi_start,
 		    (u_longlong_t)record->zi_end);
+
+
+	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  %-15s  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_objset,
+	    (u_longlong_t)record->zi_object, type_to_name(record->zi_type),
+	    record->zi_level, record->zi_dvas, rangebuf,
+	    record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
@@ -445,11 +448,14 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s\n",
-		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ");
+		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s  "
+		    "%-6s  %-6s\n",
+		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ",
+		    "MATCH", "INJECT");
 		(void) printf(
 		    "---  ---------------  ----------------  "
-		    "-----  ----------  ---------\n");
+		    "-----  ----------  ---------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
@@ -457,9 +463,10 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 	double freq = record->zi_freq == 0 ? 100.0f :
 	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
 
-	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%\n", id, pool,
-	    (u_longlong_t)record->zi_guid, iotypestr[record->zi_iotype],
-	    err_to_str(record->zi_error), freq);
+	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
+	    iotypestr[record->zi_iotype], err_to_str(record->zi_error),
+	    freq, record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
@@ -477,18 +484,25 @@ print_delay_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-15s  %-15s  %s\n",
-		    "ID", "POOL", "DELAY (ms)", "LANES", "GUID");
-		(void) printf("---  ---------------  ---------------  "
-		    "---------------  ----------------\n");
+		(void) printf("%3s  %-15s  %-16s  %-10s  %-5s  %-9s  "
+		    "%-6s  %-6s\n",
+		    "ID", "POOL", "GUID", "DELAY (ms)", "LANES", "FREQ",
+		    "MATCH", "INJECT");
+		(void) printf("---  ---------------  ----------------  "
+		    "----------  -----  ---------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
 
-	(void) printf("%3d  %-15s  %-15llu  %-15llu  %llx\n", id, pool,
+	double freq = record->zi_freq == 0 ? 100.0f :
+	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
+
+	(void) printf("%3d  %-15s  %llx  %10llu  %5llu  %8.4f%%  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
 	    (u_longlong_t)NSEC2MSEC(record->zi_timer),
 	    (u_longlong_t)record->zi_nlanes,
-	    (u_longlong_t)record->zi_guid);
+	    freq, record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
