@@ -105,6 +105,7 @@ for disk in ${disks[$(($nparity+2))..$devs]}; do
 		log_fail "pool $pool not expanded"
 	fi
 
+	is_pool_scrubbing $pool && wait_scrubbed $pool
 	verify_pool $pool
 
 	pool_size=$expand_size
