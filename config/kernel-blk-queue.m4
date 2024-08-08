@@ -25,6 +25,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_PLUG], [
 dnl #
 dnl # 2.6.32 - 4.11: statically allocated bdi in request_queue
 dnl # 4.12: dynamically allocated bdi in request_queue
+dnl # 6.11: bdi no longer available through request_queue, so get it from
+dnl #       the gendisk attached to the queue
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI], [
 	ZFS_LINUX_TEST_SRC([blk_queue_bdi], [
@@ -42,6 +44,30 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_BDI], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BLK_QUEUE_BDI_DYNAMIC, 1,
 		    [blk queue backing_dev_info is dynamic])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISK_BDI], [
+	ZFS_LINUX_TEST_SRC([blk_queue_disk_bdi], [
+		#include <linux/blkdev.h>
+		#include <linux/backing-dev.h>
+	], [
+		struct request_queue q;
+		struct gendisk disk;
+		struct backing_dev_info bdi __attribute__ ((unused));
+		q.disk = &disk;
+		q.disk->bdi = &bdi;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_DISK_BDI], [
+	AC_MSG_CHECKING([whether backing_dev_info is available through queue gendisk])
+	ZFS_LINUX_TEST_RESULT([blk_queue_disk_bdi], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_QUEUE_DISK_BDI, 1,
+		    [backing_dev_info is available through queue gendisk])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -407,6 +433,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_BDI
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISK_BDI
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
@@ -421,6 +448,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_PLUG
 	ZFS_AC_KERNEL_BLK_QUEUE_BDI
+	ZFS_AC_KERNEL_BLK_QUEUE_DISK_BDI
 	ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE

@@ -22,6 +22,9 @@
  *
  *  Solaris Porting Layer (SPL) Proc Implementation.
  */
+/*
+ * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
+ */
 
 #include <sys/systeminfo.h>
 #include <sys/kstat.h>
@@ -43,6 +46,12 @@ typedef struct ctl_table __no_const spl_ctl_table;
 typedef struct ctl_table spl_ctl_table;
 #endif
 
+#ifdef HAVE_PROC_HANDLER_CTL_TABLE_CONST
+#define	CONST_CTL_TABLE		const struct ctl_table
+#else
+#define	CONST_CTL_TABLE		struct ctl_table
+#endif
+
 static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 
@@ -60,7 +69,7 @@ struct proc_dir_entry *proc_spl_kstat = NULL;
 
 #ifdef DEBUG_KMEM
 static int
-proc_domemused(struct ctl_table *table, int write,
+proc_domemused(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
@@ -88,7 +97,7 @@ proc_domemused(struct ctl_table *table, int write,
 #endif /* DEBUG_KMEM */
 
 static int
-proc_doslab(struct ctl_table *table, int write,
+proc_doslab(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
@@ -135,7 +144,7 @@ proc_doslab(struct ctl_table *table, int write,
 }
 
 static int
-proc_dohostid(struct ctl_table *table, int write,
+proc_dohostid(CONST_CTL_TABLE *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	char *end, str[32];
@@ -688,6 +697,37 @@ static void spl_proc_cleanup(void)
 	}
 }
 
+#ifndef HAVE_REGISTER_SYSCTL_TABLE
+
+/*
+ * Traditionally, struct ctl_table arrays have been terminated by an "empty"
+ * sentinel element (specifically, one with .procname == NULL).
+ *
+ * Linux 6.6 began migrating away from this, adding register_sysctl_sz() so
+ * that callers could provide the size directly, and redefining
+ * register_sysctl() to just call register_sysctl_sz() with the array size. It
+ * retained support for the terminating element so that existing callers would
+ * continue to work.
+ *
+ * Linux 6.11 removed support for the terminating element, instead interpreting
+ * it as a real malformed element, and rejecting it.
+ *
+ * In order to continue support older kernels, we retain the terminating
+ * sentinel element for our sysctl tables, but instead detect availability of
+ * register_sysctl_sz(). If it exists, we pass it the array size -1, stopping
+ * the kernel from trying to process the terminator. For pre-6.6 kernels that
+ * don't have register_sysctl_sz(), we just use register_sysctl(), which can
+ * handle the terminating element as it always has.
+ */
+#ifdef HAVE_REGISTER_SYSCTL_SZ
+#define	spl_proc_register_sysctl(p, t)	\
+	register_sysctl_sz(p, t, ARRAY_SIZE(t)-1)
+#else
+#define	spl_proc_register_sysctl(p, t)	\
+	register_sysctl(p, t)
+#endif
+#endif
+
 int
 spl_proc_init(void)
 {
@@ -698,16 +738,17 @@ spl_proc_init(void)
 	if (spl_header == NULL)
 		return (-EUNATCH);
 #else
-	spl_header = register_sysctl("kernel/spl", spl_table);
+	spl_header = spl_proc_register_sysctl("kernel/spl", spl_table);
 	if (spl_header == NULL)
 		return (-EUNATCH);
 
-	spl_kmem = register_sysctl("kernel/spl/kmem", spl_kmem_table);
+	spl_kmem = spl_proc_register_sysctl("kernel/spl/kmem", spl_kmem_table);
 	if (spl_kmem == NULL) {
 		rc = -EUNATCH;
 		goto out;
 	}
-	spl_kstat = register_sysctl("kernel/spl/kstat", spl_kstat_table);
+	spl_kstat = spl_proc_register_sysctl("kernel/spl/kstat",
+	    spl_kstat_table);
 	if (spl_kstat == NULL) {
 		rc = -EUNATCH;
 		goto out;

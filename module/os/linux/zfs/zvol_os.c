@@ -20,6 +20,7 @@
  */
 /*
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2024, Klara, Inc.
  */
 
@@ -1089,11 +1090,42 @@ static const struct block_device_operations zvol_ops = {
 #endif
 };
 
+/*
+ * Since 6.9, Linux has been removing queue limit setters in favour of an
+ * initial queue_limits struct applied when the device is open. Since 6.11,
+ * queue_limits is being extended to allow more things to be applied when the
+ * device is open. Setters are also being removed for this.
+ *
+ * For OpenZFS, this means that depending on kernel version, some options may
+ * be set up before the device is open, and some applied to an open device
+ * (queue) after the fact.
+ *
+ * We manage this complexity by having our own limits struct,
+ * zvol_queue_limits_t, in which we carry any queue config that we're
+ * interested in setting. This structure is the same on all kernels.
+ *
+ * These limits are then applied to the queue at device open time by the most
+ * appropriate method for the kernel.
+ *
+ * zvol_queue_limits_convert() is used on 6.9+ (where the two-arg form of
+ * blk_alloc_disk() exists). This converts our limits struct to a proper Linux
+ * struct queue_limits, and passes it in. Any fields added in later kernels are
+ * (obviously) not set up here.
+ *
+ * zvol_queue_limits_apply() is called on all kernel versions after the queue
+ * is created, and applies any remaining config. Before 6.9 that will be
+ * everything, via setter methods. After 6.9 that will be whatever couldn't be
+ * put into struct queue_limits. (This implies that zvol_queue_limits_apply()
+ * will always be a no-op on the latest kernel we support).
+ */
 typedef struct zvol_queue_limits {
 	unsigned int	zql_max_hw_sectors;
 	unsigned short	zql_max_segments;
 	unsigned int	zql_max_segment_size;
 	unsigned int	zql_io_opt;
+	unsigned int	zql_physical_block_size;
+	unsigned int	zql_max_discard_sectors;
+	unsigned int	zql_discard_granularity;
 } zvol_queue_limits_t;
 
 static void
@@ -1162,6 +1194,11 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 	}
 
 	limits->zql_io_opt = zv->zv_volblocksize;
+
+	limits->zql_physical_block_size = zv->zv_volblocksize;
+	limits->zql_max_discard_sectors =
+	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9;
+	limits->zql_discard_granularity = zv->zv_volblocksize;
 }
 
 #ifdef HAVE_BLK_ALLOC_DISK_2ARG
@@ -1174,18 +1211,34 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->max_segments = limits->zql_max_segments;
 	qlimits->max_segment_size = limits->zql_max_segment_size;
 	qlimits->io_opt = limits->zql_io_opt;
+	qlimits->physical_block_size = limits->zql_physical_block_size;
+	qlimits->max_discard_sectors = limits->zql_max_discard_sectors;
+	qlimits->discard_granularity = limits->zql_discard_granularity;
+#ifdef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	qlimits->features =
+	    BLK_FEAT_WRITE_CACHE | BLK_FEAT_FUA | BLK_FEAT_IO_STAT;
+#endif
 }
-#else
+#endif
+
 static void
 zvol_queue_limits_apply(zvol_queue_limits_t *limits,
     struct request_queue *queue)
 {
+#ifndef HAVE_BLK_ALLOC_DISK_2ARG
 	blk_queue_max_hw_sectors(queue, limits->zql_max_hw_sectors);
 	blk_queue_max_segments(queue, limits->zql_max_segments);
 	blk_queue_max_segment_size(queue, limits->zql_max_segment_size);
 	blk_queue_io_opt(queue, limits->zql_io_opt);
-}
+	blk_queue_physical_block_size(queue, limits->zql_physical_block_size);
+	blk_queue_max_discard_sectors(queue, limits->zql_max_discard_sectors);
+	blk_queue_discard_granularity(queue, limits->zql_discard_granularity);
 #endif
+#ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	blk_queue_set_write_cache(queue, B_TRUE);
+	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, queue);
+#endif
+}
 
 static int
 zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
@@ -1208,6 +1261,10 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 		return (1);
 	}
 
+#ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
+	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE);
+#endif
+
 	zso->zvo_disk = disk;
 	zso->zvo_disk->minors = ZVOL_MINORS;
 	zso->zvo_queue = zso->zvo_disk->queue;
@@ -1223,7 +1280,6 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 	}
 
 	zso->zvo_disk->queue = zso->zvo_queue;
-	zvol_queue_limits_apply(limits, zso->zvo_queue);
 #endif /* HAVE_BLK_ALLOC_DISK */
 #else
 	zso->zvo_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
@@ -1237,8 +1293,10 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 	}
 
 	zso->zvo_disk->queue = zso->zvo_queue;
-	zvol_queue_limits_apply(limits, zso->zvo_queue);
 #endif /* HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS */
+
+	zvol_queue_limits_apply(limits, zso->zvo_queue);
+
 	return (0);
 
 }
@@ -1260,7 +1318,6 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
 		return (1);
 	}
 	zso->zvo_queue = zso->zvo_disk->queue;
-	zvol_queue_limits_apply(limits, zso->zvo_queue);
 	zso->zvo_disk->minors = ZVOL_MINORS;
 #elif defined(HAVE_BLK_ALLOC_DISK_2ARG)
 	struct queue_limits qlimits;
@@ -1291,10 +1348,11 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
 
 	/* Our queue is now created, assign it to our disk */
 	zso->zvo_disk->queue = zso->zvo_queue;
-	zvol_queue_limits_apply(limits, zso->zvo_queue);
+#endif
 
+	zvol_queue_limits_apply(limits, zso->zvo_queue);
 #endif
-#endif
+
 	return (0);
 }
 
@@ -1360,8 +1418,6 @@ zvol_alloc(dev_t dev, const char *name)
 	if (ret != 0)
 		goto out_kmem;
 
-	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE, B_TRUE);
-
 	/* Limit read-ahead to a single page to prevent over-prefetching. */
 	blk_queue_set_read_ahead(zso->zvo_queue, 1);
 
@@ -1369,9 +1425,6 @@ zvol_alloc(dev_t dev, const char *name)
 		/* Disable write merging in favor of the ZIO pipeline. */
 		blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zso->zvo_queue);
 	}
-
-	/* Enable /proc/diskstats */
-	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, zso->zvo_queue);
 
 	zso->zvo_queue->queuedata = zv;
 	zso->zvo_dev = dev;
@@ -1639,14 +1692,6 @@ zvol_os_create_minor(const char *name)
 
 	set_capacity(zv->zv_zso->zvo_disk, zv->zv_volsize >> 9);
 
-
-
-	blk_queue_physical_block_size(zv->zv_zso->zvo_queue,
-	    zv->zv_volblocksize);
-	blk_queue_max_discard_sectors(zv->zv_zso->zvo_queue,
-	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9);
-	blk_queue_discard_granularity(zv->zv_zso->zvo_queue,
-	    zv->zv_volblocksize);
 #ifdef QUEUE_FLAG_DISCARD
 	blk_queue_flag_set(QUEUE_FLAG_DISCARD, zv->zv_zso->zvo_queue);
 #endif
