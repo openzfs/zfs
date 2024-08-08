@@ -46,6 +46,9 @@ extern int mappedread(znode_t *, int, zfs_uio_t *);
 extern int mappedread_sf(znode_t *, int, zfs_uio_t *);
 extern void update_pages(znode_t *, int64_t, int, objset_t *);
 
+extern int zfs_check_direct_enabled(znode_t *, int, boolean_t *);
+extern int zfs_setup_direct(znode_t *, zfs_uio_t *, zfs_uio_rw_t, int *);
+
 /*
  * Platform code that asynchronously drops zp's inode / vnode_t.
  *

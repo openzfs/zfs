@@ -184,12 +184,6 @@ extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
 extern void	zfs_inode_destroy(struct inode *);
 extern void	zfs_mark_inode_dirty(struct inode *);
 extern boolean_t zfs_relatime_need_update(const struct inode *);
-
-#if defined(HAVE_UIO_RW)
-extern caddr_t zfs_map_page(page_t *, enum seg_rw);
-extern void zfs_unmap_page(page_t *, caddr_t);
-#endif /* HAVE_UIO_RW */
-
 extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
 
 #ifdef	__cplusplus

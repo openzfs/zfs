@@ -61,17 +61,17 @@ extern "C" {
 /*
  * The simplified state transition diagram for dbufs looks like:
  *
- *                  +--> READ --+
- *                  |           |
- *                  |           V
- *  (alloc)-->UNCACHED       CACHED-->EVICTING-->(free)
- *             ^    |           ^        ^
- *             |    |           |        |
- *             |    +--> FILL --+        |
- *             |    |                    |
- *             |    |                    |
- *             |    +------> NOFILL -----+
- *             |               |
+ *                  +-------> READ ------+
+ *                  |                    |
+ *                  |                    V
+ *  (alloc)-->UNCACHED                  CACHED-->EVICTING-->(free)
+ *             ^    |                    ^          ^
+ *             |    |                    |          |
+ *             |    +-------> FILL ------+          |
+ *             |    |                    |          |
+ *             |    |                    |          |
+ *             |    +------> NOFILL -----+-----> UNCACHED
+ *             |               |               (Direct I/O)
  *             +---------------+
  *
  * DB_SEARCH is an invalid state for a dbuf. It is used by dbuf_free_range
@@ -176,6 +176,7 @@ typedef struct dbuf_dirty_record {
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
 			boolean_t dr_brtwrite;
+			boolean_t dr_diowrite;
 			boolean_t dr_has_raw_params;
 
 			/*
@@ -384,7 +385,7 @@ dmu_buf_impl_t *dbuf_find(struct objset *os, uint64_t object, uint8_t level,
     uint64_t blkid, uint64_t *hash_out);
 
 int dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags);
-void dmu_buf_will_clone(dmu_buf_t *db, dmu_tx_t *tx);
+void dmu_buf_will_clone_or_dio(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_will_not_fill(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_will_fill(dmu_buf_t *db, dmu_tx_t *tx, boolean_t canfail);
 boolean_t dmu_buf_fill_done(dmu_buf_t *db, dmu_tx_t *tx, boolean_t failed);
@@ -393,6 +394,8 @@ dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
     dmu_tx_t *tx);
 boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
+int dmu_buf_get_bp_from_dbuf(dmu_buf_impl_t *db, blkptr_t **bp);
+int dmu_buf_untransform_direct(dmu_buf_impl_t *db, spa_t *spa);
 arc_buf_t *dbuf_loan_arcbuf(dmu_buf_impl_t *db);
 void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
@@ -473,7 +476,7 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 	(dbuf_is_metadata(_db) &&					\
 	((_db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA)))
 
-boolean_t dbuf_is_l2cacheable(dmu_buf_impl_t *db);
+boolean_t dbuf_is_l2cacheable(dmu_buf_impl_t *db, blkptr_t *db_bp);
 
 #ifdef ZFS_DEBUG
 

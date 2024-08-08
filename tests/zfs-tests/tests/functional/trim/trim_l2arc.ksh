@@ -77,7 +77,7 @@ export PERF_COMPCHUNK=0
 export RUNTIME=30
 export BLOCKSIZE=128K
 export SYNC_TYPE=0
-export DIRECT=1
+export DIRECT=0
 
 # Write to the pool.
 log_must fio $FIO_SCRIPTS/mkfiles.fio

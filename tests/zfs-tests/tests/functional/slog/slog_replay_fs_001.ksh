@@ -78,6 +78,14 @@ log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
     conv=fdatasync,fsync bs=1 count=1
 
 #
+# Create a small file for the O_DIRECT test before freezing the pool. This
+# allows us to overwrite it after the pool is frozen and avoid the case
+# where O_DIRECT is disabled because the first block must be grown.
+#
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
+    oflag=sync,direct bs=4k count=1
+
+#
 # 2. Freeze TESTFS
 #
 log_must zpool freeze $TESTPOOL
@@ -139,6 +147,10 @@ log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 # TX_WRITE (large file)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
     oflag=sync bs=128k count=64
+
+# TX_WRITE (O_DIRECT)
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
+    oflag=sync,direct bs=4k count=1
 
 # Write zeros, which compress to holes, in the middle of a file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 \
