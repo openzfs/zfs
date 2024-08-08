@@ -56,15 +56,6 @@ typedef struct redup_table {
 	int		numhashbits;
 } redup_table_t;
 
-int
-highbit64(uint64_t i)
-{
-	if (i == 0)
-		return (0);
-
-	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
-}
-
 void *
 safe_calloc(size_t n)
 {
