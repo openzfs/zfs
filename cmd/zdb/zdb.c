@@ -4592,7 +4592,6 @@ dump_l2arc_log_blocks(int fd, const l2arc_dev_hdr_phys_t *l2dhdr,
 	l2arc_log_blk_phys_t this_lb;
 	uint64_t asize;
 	l2arc_log_blkptr_t lbps[2];
-	abd_t *abd;
 	zio_cksum_t cksum;
 	int failed = 0;
 	l2arc_dev_t dev;
@@ -4646,19 +4645,24 @@ dump_l2arc_log_blocks(int fd, const l2arc_dev_hdr_phys_t *l2dhdr,
 		switch (L2BLK_GET_COMPRESS((&lbps[0])->lbp_prop)) {
 		case ZIO_COMPRESS_OFF:
 			break;
-		default:
-			abd = abd_alloc_for_io(asize, B_TRUE);
+		default: {
+			abd_t *abd = abd_alloc_linear(asize, B_TRUE);
 			abd_copy_from_buf_off(abd, &this_lb, 0, asize);
-			if (zio_decompress_data(L2BLK_GET_COMPRESS(
-			    (&lbps[0])->lbp_prop), abd, &this_lb,
-			    asize, sizeof (this_lb), NULL) != 0) {
+			abd_t dabd;
+			abd_get_from_buf_struct(&dabd, &this_lb,
+			    sizeof (this_lb));
+			int err = zio_decompress_data(L2BLK_GET_COMPRESS(
+			    (&lbps[0])->lbp_prop), abd, &dabd,
+			    asize, sizeof (this_lb), NULL);
+			abd_free(&dabd);
+			abd_free(abd);
+			if (err != 0) {
 				(void) printf("L2ARC block decompression "
 				    "failed\n");
-				abd_free(abd);
 				goto out;
 			}
-			abd_free(abd);
 			break;
+		}
 		}
 
 		if (this_lb.lb_magic == BSWAP_64(L2ARC_LOG_BLK_MAGIC))
@@ -8499,13 +8503,22 @@ try_decompress_block(abd_t *pabd, uint64_t lsize, uint64_t psize,
 	memset(lbuf, 0x00, lsize);
 	memset(lbuf2, 0xff, lsize);
 
+	abd_t labd, labd2;
+	abd_get_from_buf_struct(&labd, lbuf, lsize);
+	abd_get_from_buf_struct(&labd2, lbuf2, lsize);
+
+	boolean_t ret = B_FALSE;
 	if (zio_decompress_data(cfunc, pabd,
-	    lbuf, psize, lsize, NULL) == 0 &&
+	    &labd, psize, lsize, NULL) == 0 &&
 	    zio_decompress_data(cfunc, pabd,
-	    lbuf2, psize, lsize, NULL) == 0 &&
+	    &labd2, psize, lsize, NULL) == 0 &&
 	    memcmp(lbuf, lbuf2, lsize) == 0)
-		return (B_TRUE);
-	return (B_FALSE);
+		ret = B_TRUE;
+
+	abd_free(&labd2);
+	abd_free(&labd);
+
+	return (ret);
 }
 
 static uint64_t

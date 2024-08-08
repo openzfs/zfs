@@ -29,7 +29,7 @@
 
 /*
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -50,24 +50,36 @@ static unsigned long zio_decompress_fail_fraction = 0;
  * Compression vectors.
  */
 zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",	0,	NULL,		NULL, NULL},
-	{"on",		0,	NULL,		NULL, NULL},
-	{"uncompressed", 0,	NULL,		NULL, NULL},
-	{"lzjb",	0,	lzjb_compress,	lzjb_decompress, NULL},
-	{"empty",	0,	NULL,		NULL, NULL},
-	{"gzip-1",	1,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-2",	2,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-3",	3,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-4",	4,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-5",	5,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-6",	6,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-7",	7,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-8",	8,	gzip_compress,	gzip_decompress, NULL},
-	{"gzip-9",	9,	gzip_compress,	gzip_decompress, NULL},
-	{"zle",		64,	zle_compress,	zle_decompress, NULL},
-	{"lz4",		0,	lz4_compress_zfs, lz4_decompress_zfs, NULL},
-	{"zstd",	ZIO_ZSTD_LEVEL_DEFAULT,	zfs_zstd_compress_wrap,
-	    zfs_zstd_decompress, zfs_zstd_decompress_level},
+	{"inherit",	0,	NULL,	NULL, NULL},
+	{"on",		0,	NULL,	NULL, NULL},
+	{"uncompressed", 0,	NULL,	NULL, NULL},
+	{"lzjb",	0,
+	    zfs_lzjb_compress,	zfs_lzjb_decompress, NULL},
+	{"empty",	0,	NULL,	NULL, NULL},
+	{"gzip-1",	1,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-2",	2,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-3",	3,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-4",	4,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-5",	5,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-6",	6,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-7",	7,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-8",	8,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"gzip-9",	9,
+	    zfs_gzip_compress,	zfs_gzip_decompress, NULL},
+	{"zle",		64,
+	    zfs_zle_compress,	zfs_zle_decompress, NULL},
+	{"lz4",		0,
+	    zfs_lz4_compress,	zfs_lz4_decompress, NULL},
+	{"zstd",	ZIO_ZSTD_LEVEL_DEFAULT,
+	    zfs_zstd_compress,	zfs_zstd_decompress, zfs_zstd_decompress_level},
 };
 
 uint8_t
@@ -125,7 +137,7 @@ zio_compress_zeroed_cb(void *data, size_t len, void *private)
 }
 
 size_t
-zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
+zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
     uint8_t level)
 {
 	size_t c_len, d_len;
@@ -145,9 +157,6 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	if (c == ZIO_COMPRESS_EMPTY)
 		return (s_len);
 
-	/* Compress at least 12.5% */
-	d_len = s_len - (s_len >> 3);
-
 	complevel = ci->ci_level;
 
 	if (c == ZIO_COMPRESS_ZSTD) {
@@ -164,12 +173,12 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	}
 
 	if (*dst == NULL)
-		*dst = zio_buf_alloc(s_len);
+		*dst = abd_alloc_sametype(src, s_len);
 
-	/* No compression algorithms can read from ABDs directly */
-	void *tmp = abd_borrow_buf_copy(src, s_len);
-	c_len = ci->ci_compress(tmp, *dst, s_len, d_len, complevel);
-	abd_return_buf(src, tmp, s_len);
+	/* Compress at least 12.5%, but limit to the size of the dest abd. */
+	d_len = MIN(s_len - (s_len >> 3), abd_get_size(*dst));
+
+	c_len = ci->ci_compress(src, *dst, s_len, d_len, complevel);
 
 	if (c_len > d_len)
 		return (s_len);
@@ -179,26 +188,18 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 }
 
 int
-zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
+zio_decompress_data(enum zio_compress c, abd_t *src, abd_t *dst,
     size_t s_len, size_t d_len, uint8_t *level)
 {
 	zio_compress_info_t *ci = &zio_compress_table[c];
 	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || ci->ci_decompress == NULL)
 		return (SET_ERROR(EINVAL));
 
+	int err;
 	if (ci->ci_decompress_level != NULL && level != NULL)
-		return (ci->ci_decompress_level(src, dst, s_len, d_len, level));
-
-	return (ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level));
-}
-
-int
-zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
-    size_t s_len, size_t d_len, uint8_t *level)
-{
-	void *tmp = abd_borrow_buf_copy(src, s_len);
-	int ret = zio_decompress_data_buf(c, tmp, dst, s_len, d_len, level);
-	abd_return_buf(src, tmp, s_len);
+		err = ci->ci_decompress_level(src, dst, s_len, d_len, level);
+	else
+		err = ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
 
 	/*
 	 * Decompression shouldn't fail, because we've already verified
@@ -207,9 +208,9 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	 */
 	if (zio_decompress_fail_fraction != 0 &&
 	    random_in_range(zio_decompress_fail_fraction) == 0)
-		ret = SET_ERROR(EINVAL);
+		err = SET_ERROR(EINVAL);
 
-	return (ret);
+	return (err);
 }
 
 int
