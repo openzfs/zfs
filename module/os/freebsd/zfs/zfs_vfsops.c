@@ -1636,9 +1636,18 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	zfs_unregister_callbacks(zfsvfs);
 
 	/*
-	 * Evict cached data
+	 * Evict cached data. We must write out any dirty data before
+	 * disowning the dataset.
 	 */
-	if (!zfs_is_readonly(zfsvfs))
+	objset_t *os = zfsvfs->z_os;
+	boolean_t os_dirty = B_FALSE;
+	for (int t = 0; t < TXG_SIZE; t++) {
+		if (dmu_objset_is_dirty(os, t)) {
+			os_dirty = B_TRUE;
+			break;
+		}
+	}
+	if (!zfs_is_readonly(zfsvfs) && os_dirty)
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 	dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
