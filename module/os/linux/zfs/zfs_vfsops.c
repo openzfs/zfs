@@ -1264,14 +1264,22 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	defined(SHRINK_CONTROL_HAS_NID) && \
 	defined(SHRINKER_NUMA_AWARE)
 	if (shrinker->flags & SHRINKER_NUMA_AWARE) {
+		long tc = 1;
+		for_each_online_node(sc.nid) {
+			long c = shrinker->count_objects(shrinker, &sc);
+			if (c  == 0 || c == SHRINK_EMPTY)
+				continue;
+			tc += c;
+		}
 		*objects = 0;
 		for_each_online_node(sc.nid) {
+			long c = shrinker->count_objects(shrinker, &sc);
+			if (c  == 0 || c == SHRINK_EMPTY)
+				continue;
+			if (c > tc)
+				tc = c;
+			sc.nr_to_scan = mult_frac(nr_to_scan, c, tc) + 1;
 			*objects += (*shrinker->scan_objects)(shrinker, &sc);
-			/*
-			 * reset sc.nr_to_scan, modified by
-			 * scan_objects == super_cache_scan
-			 */
-			sc.nr_to_scan = nr_to_scan;
 		}
 	} else {
 			*objects = (*shrinker->scan_objects)(shrinker, &sc);
