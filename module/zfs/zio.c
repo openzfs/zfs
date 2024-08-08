@@ -26,6 +26,7 @@
  * Copyright (c) 2019, 2023, 2024, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
+ * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
  */
 
 #include <sys/sysmacros.h>
@@ -1679,6 +1680,26 @@ zio_roundup_alloc_size(spa_t *spa, uint64_t size)
 	return (spa->spa_min_alloc);
 }
 
+size_t
+zio_get_compression_max_size(enum zio_compress compress, uint64_t gcd_alloc,
+    uint64_t min_alloc, size_t s_len)
+{
+	size_t d_len;
+
+	/* minimum 12.5% must be saved (legacy value, may be changed later) */
+	d_len = s_len - (s_len >> 3);
+
+	/* ZLE can't use exactly d_len bytes, it needs more, so ignore it */
+	if (compress == ZIO_COMPRESS_ZLE)
+		return (d_len);
+
+	d_len = d_len - d_len % gcd_alloc;
+
+	if (d_len < min_alloc)
+		return (BPE_PAYLOAD_SIZE);
+	return (d_len);
+}
+
 /*
  * ==========================================================================
  * Prepare to read and write logical blocks
@@ -1855,7 +1876,8 @@ zio_write_compress(zio_t *zio)
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = NULL;
 		psize = zio_compress_data(compress, zio->io_abd, &cbuf, lsize,
-		    zp->zp_complevel);
+		    zio_get_compression_max_size(compress, spa->spa_gcd_alloc,
+		    spa->spa_min_alloc, lsize), zp->zp_complevel);
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
 		} else if (psize >= lsize) {
@@ -1920,7 +1942,7 @@ zio_write_compress(zio_t *zio)
 		 * to a hole.
 		 */
 		psize = zio_compress_data(ZIO_COMPRESS_EMPTY,
-		    zio->io_abd, NULL, lsize, zp->zp_complevel);
+		    zio->io_abd, NULL, lsize, lsize, zp->zp_complevel);
 		if (psize == 0 || psize >= lsize)
 			compress = ZIO_COMPRESS_OFF;
 	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS &&
