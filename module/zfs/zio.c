@@ -1633,10 +1633,10 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
  * the flushes complete.
  */
 void
-zio_flush(zio_t *pio, vdev_t *vd)
+zio_flush(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY |
+	    (propagate ? 0 : ZIO_FLAG_DONT_PROPAGATE);
 
 	if (vd->vdev_nowritecache)
 		return;
@@ -1647,7 +1647,7 @@ zio_flush(zio_t *pio, vdev_t *vd)
 		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
-			zio_flush(pio, vd->vdev_child[c]);
+			zio_flush(pio, vd->vdev_child[c], propagate);
 	}
 }
 
@@ -4279,11 +4279,14 @@ zio_vdev_io_assess(zio_t *zio)
 	/*
 	 * If a cache flush returns ENOTSUP or ENOTTY, we know that no future
 	 * attempts will ever succeed. In this case we set a persistent
-	 * boolean flag so that we don't bother with it in the future.
+	 * boolean flag so that we don't bother with it in the future, and
+	 * then we act like the flush succeeded.
 	 */
 	if ((zio->io_error == ENOTSUP || zio->io_error == ENOTTY) &&
-	    zio->io_type == ZIO_TYPE_FLUSH && vd != NULL)
+	    zio->io_type == ZIO_TYPE_FLUSH && vd != NULL) {
 		vd->vdev_nowritecache = B_TRUE;
+		zio->io_error = 0;
+	}
 
 	if (zio->io_error)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
