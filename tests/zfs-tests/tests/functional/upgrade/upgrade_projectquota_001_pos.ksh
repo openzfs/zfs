@@ -63,6 +63,7 @@ log_must mkfiles $TESTDIR/fs2/tf $((RANDOM % 100 + 1))
 log_must zfs create $TESTPOOL/fs3
 log_must mkdir $TESTDIR/fs3/dir
 log_must mkfiles $TESTDIR/fs3/tf $((RANDOM % 100 + 1))
+log_must set_xattr_stdin passwd $TESTDIR/fs3/dir < /etc/passwd
 
 # Make sure project quota is disabled
 zfs projectspace -o used $TESTPOOL | grep -q "USED" &&
@@ -109,9 +110,23 @@ log_must chattr -p 100 $TESTDIR/fs3/dir
 log_must sleep 5 # upgrade done in the background so let's wait for a while
 zfs projectspace -o used $TESTPOOL/fs3 | grep -q "USED" ||
 	log_fail "project quota should be enabled for $TESTPOOL/fs3"
+dirino=$(stat -c '%i' $TESTDIR/fs3/dir)
+log_must zdb -ddddd $TESTPOOL/fs3 $dirino
+xattrdirino=$(zdb -ddddd $TESTPOOL/fs3 $dirino |grep -w "xattr" |awk '{print $2}')
+echo "xattrdirino: $xattrdirino"
+expectedcnt=1
+echo "expectedcnt: $expectedcnt"
+if [ "$xattrdirino" != "" ]; then
+	expectedcnt=$(($expectedcnt + 1))
+	echo "expectedcnt: $expectedcnt"
+	log_must zdb -ddddd $TESTPOOL/fs3 $xattrdirino
+	xattrinocnt=$(zdb -ddddd $TESTPOOL/fs3 $xattrdirino |grep -w "(type:" |wc -l)
+	echo "xattrinocnt: $xattrinocnt"
+	expectedcnt=$(($expectedcnt + $xattrinocnt))
+	echo "expectedcnt: $expectedcnt"
+fi
 cnt=$(get_prop projectobjused@100 $TESTPOOL/fs3)
-# if 'xattr=on', then 'cnt = 2'
-[[ $cnt -ne 1 ]] && [[ $cnt -ne 2 ]] &&
+[[ $cnt -ne $expectedcnt ]] &&
 	log_fail "projectquota accounting failed $cnt"
 
 # All in all, after having been through this, the dataset for testpool
