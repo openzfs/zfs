@@ -1051,6 +1051,31 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
 }
 
 /*
+ * Check if ABD content is all-zeroes.
+ */
+static int
+abd_cmp_zero_off_cb(void *data, size_t len, void *private)
+{
+	(void) private;
+
+	/* This function can only check whole uint64s. Enforce that. */
+	ASSERT0(P2PHASE(len, 8));
+
+	uint64_t *end = (uint64_t *)((char *)data + len);
+	for (uint64_t *word = (uint64_t *)data; word < end; word++)
+		if (*word != 0)
+			return (1);
+
+	return (0);
+}
+
+int
+abd_cmp_zero_off(abd_t *abd, size_t off, size_t size)
+{
+	return (abd_iterate_func(abd, off, size, abd_cmp_zero_off_cb, NULL));
+}
+
+/*
  * Iterate over code ABDs and a data ABD and call @func_raidz_gen.
  *
  * @cabds          parity ABDs, must have equal size
