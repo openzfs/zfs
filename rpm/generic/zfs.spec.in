@@ -68,6 +68,7 @@
 %bcond_with    systemd
 %bcond_with    pam
 %bcond_without pyzfs
+%bcond_with    zia
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -390,6 +391,12 @@ support for unlocking datasets on user login.
     %define pam --disable-pam
 %endif
 
+%if %{with zia}
+    %define zia --with-zia="%{DPUSM_ROOT}"
+%else
+    %define zia --without-zia
+%endif
+
 %setup -q
 
 %build
@@ -409,7 +416,8 @@ support for unlocking datasets on user login.
     %{ubsan} \
     %{systemd} \
     %{pam} \
-    %{pyzfs}
+    %{pyzfs} \
+    %{zia}
 make %{?_smp_mflags}
 
 %install
