@@ -39,6 +39,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/dsl_scan.h>
 #include <sys/abd.h>
+#include <sys/zfeature.h>
 
 /*
  * # DDT: Deduplication tables
@@ -74,12 +75,19 @@
  * fill the BP with the DVAs from the entry, increment the refcount and cause
  * the write IO to return immediately.
  *
- * Each ddt_phys_t slot in the entry represents a separate dedup block for the
- * same content/checksum. The slot is selected based on the zp_copies parameter
- * the block is written with, that is, the number of DVAs in the block. The
- * "ditto" slot (DDT_PHYS_DITTO) used to be used for now-removed "dedupditto"
- * feature. These are no longer written, and will be freed if encountered on
- * old pools.
+ * Traditionally, each ddt_phys_t slot in the entry represents a separate dedup
+ * block for the same content/checksum. The slot is selected based on the
+ * zp_copies parameter the block is written with, that is, the number of DVAs
+ * in the block. The "ditto" slot (DDT_PHYS_DITTO) used to be used for
+ * now-removed "dedupditto" feature. These are no longer written, and will be
+ * freed if encountered on old pools.
+ *
+ * If the "fast_dedup" feature is enabled, new dedup tables will be created
+ * with the "flat phys" option. In this mode, there is only one ddt_phys_t
+ * slot. If a write is issued for an entry that exists, but has fewer DVAs,
+ * then only as many new DVAs are allocated and written to make up the
+ * shortfall. The existing entry is then extended (ddt_phys_extend()) with the
+ * new DVAs.
  *
  * ## Lifetime of an entry
  *
@@ -129,6 +137,16 @@
  * from the alternate block. If the block is actually damaged, this will invoke
  * the pool's "self-healing" mechanism, and repair the block.
  *
+ * If the "fast_dedup" feature is enabled, the "flat phys" option will be in
+ * use, so there is only ever one ddt_phys_t slot. The repair process will
+ * still happen in this case, though it is unlikely to succeed as there will
+ * usually be no other equivalent blocks to fall back on (though there might
+ * be, if this was an early version of a dedup'd block that has since been
+ * extended).
+ *
+ * Note that this repair mechanism is in addition to and separate from the
+ * regular OpenZFS scrub and self-healing mechanisms.
+ *
  * ## Scanning (scrub/resilver)
  *
  * If dedup is active, the scrub machinery will walk the dedup table first, and
@@ -161,7 +179,15 @@
 	c == ZIO_CHECKSUM_BLAKE3)
 
 static kmem_cache_t *ddt_cache;
-static kmem_cache_t *ddt_entry_cache;
+
+static kmem_cache_t *ddt_entry_flat_cache;
+static kmem_cache_t *ddt_entry_trad_cache;
+
+#define	DDT_ENTRY_FLAT_SIZE	(sizeof (ddt_entry_t) + DDT_FLAT_PHYS_SIZE)
+#define	DDT_ENTRY_TRAD_SIZE	(sizeof (ddt_entry_t) + DDT_TRAD_PHYS_SIZE)
+
+#define	DDT_ENTRY_SIZE(ddt)	\
+	_DDT_PHYS_SWITCH(ddt, DDT_ENTRY_FLAT_SIZE, DDT_ENTRY_TRAD_SIZE)
 
 /*
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
@@ -185,6 +211,18 @@ static const char *const ddt_class_name[DDT_CLASSES] = {
 	"unique",
 };
 
+/*
+ * DDT feature flags automatically enabled for each on-disk version. Note that
+ * versions >0 cannot exist on disk without SPA_FEATURE_FAST_DEDUP enabled.
+ */
+static const uint64_t ddt_version_flags[] = {
+	[DDT_VERSION_LEGACY] = 0,
+	[DDT_VERSION_FDT] = DDT_FLAG_FLAT,
+};
+
+/* Dummy version to signal that configure is still necessary */
+#define	DDT_VERSION_UNCONFIGURED	(UINT64_MAX)
+
 static void
 ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
@@ -196,14 +234,18 @@ ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	    ZCHECKSUM_FLAG_DEDUP;
 	char name[DDT_NAMELEN];
 
+	ASSERT3U(ddt->ddt_dir_object, >, 0);
+
 	ddt_object_name(ddt, type, class, name);
 
 	ASSERT3U(*objectp, ==, 0);
 	VERIFY0(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash));
 	ASSERT3U(*objectp, !=, 0);
 
-	VERIFY0(zap_add(os, DMU_POOL_DIRECTORY_OBJECT, name,
-	    sizeof (uint64_t), 1, objectp, tx));
+	ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
+
+	VERIFY0(zap_add(os, ddt->ddt_dir_object, name, sizeof (uint64_t), 1,
+	    objectp, tx));
 
 	VERIFY0(zap_add(os, spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
@@ -220,13 +262,15 @@ ddt_object_destroy(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	uint64_t count;
 	char name[DDT_NAMELEN];
 
+	ASSERT3U(ddt->ddt_dir_object, >, 0);
+
 	ddt_object_name(ddt, type, class, name);
 
 	ASSERT3U(*objectp, !=, 0);
 	ASSERT(ddt_histogram_empty(&ddt->ddt_histogram[type][class]));
 	VERIFY0(ddt_object_count(ddt, type, class, &count));
 	VERIFY0(count);
-	VERIFY0(zap_remove(os, DMU_POOL_DIRECTORY_OBJECT, name, tx));
+	VERIFY0(zap_remove(os, ddt->ddt_dir_object, name, tx));
 	VERIFY0(zap_remove(os, spa->spa_ddt_stat_object, name, tx));
 	VERIFY0(ddt_ops[type]->ddt_op_destroy(os, *objectp, tx));
 	memset(&ddt->ddt_object_stats[type][class], 0, sizeof (ddt_object_t));
@@ -243,9 +287,18 @@ ddt_object_load(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 	char name[DDT_NAMELEN];
 	int error;
 
+	if (ddt->ddt_dir_object == 0) {
+		/*
+		 * If we're configured but the containing dir doesn't exist
+		 * yet, then this object can't possibly exist either.
+		 */
+		ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
+		return (SET_ERROR(ENOENT));
+	}
+
 	ddt_object_name(ddt, type, class, name);
 
-	error = zap_lookup(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name,
+	error = zap_lookup(ddt->ddt_os, ddt->ddt_dir_object, name,
 	    sizeof (uint64_t), 1, &ddt->ddt_object[type][class]);
 	if (error != 0)
 		return (error);
@@ -315,7 +368,7 @@ ddt_object_lookup(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	return (ddt_ops[type]->ddt_op_lookup(ddt->ddt_os,
 	    ddt->ddt_object[type][class], &dde->dde_key,
-	    dde->dde_phys, sizeof (dde->dde_phys)));
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt)));
 }
 
 static int
@@ -357,8 +410,8 @@ ddt_object_update(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_object_exists(ddt, type, class));
 
 	return (ddt_ops[type]->ddt_op_update(ddt->ddt_os,
-	    ddt->ddt_object[type][class], &dde->dde_key, dde->dde_phys,
-	    sizeof (dde->dde_phys), tx));
+	    ddt->ddt_object[type][class], &dde->dde_key,
+	    dde->dde_phys, DDT_PHYS_SIZE(ddt), tx));
 }
 
 static int
@@ -373,13 +426,19 @@ ddt_object_remove(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 int
 ddt_object_walk(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
-    uint64_t *walk, ddt_entry_t *dde)
+    uint64_t *walk, ddt_lightweight_entry_t *ddlwe)
 {
 	ASSERT(ddt_object_exists(ddt, type, class));
 
-	return (ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
-	    ddt->ddt_object[type][class], walk, &dde->dde_key,
-	    dde->dde_phys, sizeof (dde->dde_phys)));
+	int error = ddt_ops[type]->ddt_op_walk(ddt->ddt_os,
+	    ddt->ddt_object[type][class], walk, &ddlwe->ddlwe_key,
+	    &ddlwe->ddlwe_phys, DDT_PHYS_SIZE(ddt));
+	if (error == 0) {
+		ddlwe->ddlwe_type = type;
+		ddlwe->ddlwe_class = class;
+		return (0);
+	}
+	return (error);
 }
 
 int
@@ -413,13 +472,25 @@ ddt_object_name(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 }
 
 void
-ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
+ddt_bp_fill(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    blkptr_t *bp, uint64_t txg)
 {
 	ASSERT3U(txg, !=, 0);
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+	uint64_t phys_birth;
+	const dva_t *dvap;
+
+	if (v == DDT_PHYS_FLAT) {
+		phys_birth = ddp->ddp_flat.ddp_phys_birth;
+		dvap = ddp->ddp_flat.ddp_dva;
+	} else {
+		phys_birth = ddp->ddp_trad[v].ddp_phys_birth;
+		dvap = ddp->ddp_trad[v].ddp_dva;
+	}
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
-		bp->blk_dva[d] = ddp->ddp_dva[d];
-	BP_SET_BIRTH(bp, txg, ddp->ddp_phys_birth);
+		bp->blk_dva[d] = dvap[d];
+	BP_SET_BIRTH(bp, txg, phys_birth);
 }
 
 /*
@@ -427,13 +498,13 @@ ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp, uint64_t txg)
  * will be missing the salt / IV required to do a full decrypting read.
  */
 void
-ddt_bp_create(enum zio_checksum checksum,
-    const ddt_key_t *ddk, const ddt_phys_t *ddp, blkptr_t *bp)
+ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
+    const ddt_univ_phys_t *ddp, ddt_phys_variant_t v, blkptr_t *bp)
 {
 	BP_ZERO(bp);
 
 	if (ddp != NULL)
-		ddt_bp_fill(ddp, bp, ddp->ddp_phys_birth);
+		ddt_bp_fill(ddp, v, bp, ddt_phys_birth(ddp, v));
 
 	bp->blk_cksum = ddk->ddk_cksum;
 
@@ -464,42 +535,101 @@ ddt_key_fill(ddt_key_t *ddk, const blkptr_t *bp)
 }
 
 void
-ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp)
+ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 {
-	ASSERT0(ddp->ddp_phys_birth);
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+	int bp_ndvas = BP_GET_NDVAS(bp);
+	int ddp_max_dvas = BP_IS_ENCRYPTED(bp) ?
+	    SPA_DVAS_PER_BP - 1 : SPA_DVAS_PER_BP;
+	dva_t *dvas = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
 
-	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
-		ddp->ddp_dva[d] = bp->blk_dva[d];
-	ddp->ddp_phys_birth = BP_GET_BIRTH(bp);
-}
+	int s = 0, d = 0;
+	while (s < bp_ndvas && d < ddp_max_dvas) {
+		if (DVA_IS_VALID(&dvas[d])) {
+			d++;
+			continue;
+		}
+		dvas[d] = bp->blk_dva[s];
+		s++; d++;
+	}
 
-void
-ddt_phys_clear(ddt_phys_t *ddp)
-{
-	memset(ddp, 0, sizeof (*ddp));
-}
+	/*
+	 * If the caller offered us more DVAs than we can fit, something has
+	 * gone wrong in their accounting. zio_ddt_write() should never ask for
+	 * more than we need.
+	 */
+	ASSERT3U(s, ==, bp_ndvas);
 
-void
-ddt_phys_addref(ddt_phys_t *ddp)
-{
-	ddp->ddp_refcnt++;
-}
+	if (BP_IS_ENCRYPTED(bp))
+		dvas[2] = bp->blk_dva[2];
 
-void
-ddt_phys_decref(ddt_phys_t *ddp)
-{
-	if (ddp) {
-		ASSERT3U(ddp->ddp_refcnt, >, 0);
-		ddp->ddp_refcnt--;
+	if (ddt_phys_birth(ddp, v) == 0) {
+		if (v == DDT_PHYS_FLAT)
+			ddp->ddp_flat.ddp_phys_birth = BP_GET_BIRTH(bp);
+		else
+			ddp->ddp_trad[v].ddp_phys_birth = BP_GET_BIRTH(bp);
 	}
 }
 
+void
+ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
+    ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		dst->ddp_flat = src->ddp_flat;
+	else
+		dst->ddp_trad[v] = src->ddp_trad[v];
+}
+
+void
+ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		memset(&ddp->ddp_flat, 0, DDT_FLAT_PHYS_SIZE);
+	else
+		memset(&ddp->ddp_trad[v], 0, DDT_TRAD_PHYS_SIZE / DDT_PHYS_MAX);
+}
+
+void
+ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		ddp->ddp_flat.ddp_refcnt++;
+	else
+		ddp->ddp_trad[v].ddp_refcnt++;
+}
+
+uint64_t
+ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	uint64_t *refcntp;
+
+	if (v == DDT_PHYS_FLAT)
+		refcntp = &ddp->ddp_flat.ddp_refcnt;
+	else
+		refcntp = &ddp->ddp_trad[v].ddp_refcnt;
+
+	ASSERT3U(*refcntp, >, 0);
+	(*refcntp)--;
+	return (*refcntp);
+}
+
 static void
-ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
+ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v, uint64_t txg)
 {
 	blkptr_t blk;
 
-	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+	ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 
 	/*
 	 * We clear the dedup bit so that zio_free() will actually free the
@@ -507,30 +637,80 @@ ddt_phys_free(ddt_t *ddt, ddt_key_t *ddk, ddt_phys_t *ddp, uint64_t txg)
 	 */
 	BP_SET_DEDUP(&blk, 0);
 
-	ddt_phys_clear(ddp);
+	ddt_phys_clear(ddp, v);
 	zio_free(ddt->ddt_spa, txg, &blk);
 }
 
-ddt_phys_t *
-ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp)
+uint64_t
+ddt_phys_birth(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 {
-	ddt_phys_t *ddp = (ddt_phys_t *)dde->dde_phys;
+	ASSERT3U(v, <, DDT_PHYS_NONE);
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_dva[0]) &&
-		    BP_GET_BIRTH(bp) == ddp->ddp_phys_birth)
-			return (ddp);
+	if (v == DDT_PHYS_FLAT)
+		return (ddp->ddp_flat.ddp_phys_birth);
+	else
+		return (ddp->ddp_trad[v].ddp_phys_birth);
+}
+
+int
+ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    boolean_t encrypted)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	const dva_t *dvas = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
+
+	return (DVA_IS_VALID(&dvas[0]) +
+	    DVA_IS_VALID(&dvas[1]) +
+	    DVA_IS_VALID(&dvas[2]) * !encrypted);
+}
+
+ddt_phys_variant_t
+ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
+{
+	const ddt_univ_phys_t *ddp = dde->dde_phys;
+
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_flat.ddp_dva[0]) &&
+		    BP_GET_BIRTH(bp) == ddp->ddp_flat.ddp_phys_birth) {
+			return (DDT_PHYS_FLAT);
+		}
+	} else /* traditional phys */ {
+		for (int p = 0; p < DDT_PHYS_MAX; p++) {
+			if (DVA_EQUAL(BP_IDENTITY(bp),
+			    &ddp->ddp_trad[p].ddp_dva[0]) &&
+			    BP_GET_BIRTH(bp) ==
+			    ddp->ddp_trad[p].ddp_phys_birth) {
+				return (p);
+			}
+		}
 	}
-	return (NULL);
+	return (DDT_PHYS_NONE);
 }
 
 uint64_t
-ddt_phys_total_refcnt(const ddt_entry_t *dde)
+ddt_phys_refcnt(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	if (v == DDT_PHYS_FLAT)
+		return (ddp->ddp_flat.ddp_refcnt);
+	else
+		return (ddp->ddp_trad[v].ddp_refcnt);
+}
+
+uint64_t
+ddt_phys_total_refcnt(const ddt_t *ddt, const ddt_entry_t *dde)
 {
 	uint64_t refcnt = 0;
 
-	for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++)
-		refcnt += dde->dde_phys[p].ddp_refcnt;
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		refcnt = dde->dde_phys->ddp_flat.ddp_refcnt;
+	} else {
+		for (int p = DDT_PHYS_SINGLE; p <= DDT_PHYS_TRIPLE; p++)
+			refcnt += dde->dde_phys->ddp_trad[p].ddp_refcnt;
+	}
 
 	return (refcnt);
 }
@@ -559,24 +739,33 @@ ddt_init(void)
 {
 	ddt_cache = kmem_cache_create("ddt_cache",
 	    sizeof (ddt_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
-	ddt_entry_cache = kmem_cache_create("ddt_entry_cache",
-	    sizeof (ddt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_flat_cache = kmem_cache_create("ddt_entry_flat_cache",
+	    DDT_ENTRY_FLAT_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
+	ddt_entry_trad_cache = kmem_cache_create("ddt_entry_trad_cache",
+	    DDT_ENTRY_TRAD_SIZE, 0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
 ddt_fini(void)
 {
-	kmem_cache_destroy(ddt_entry_cache);
+	kmem_cache_destroy(ddt_entry_trad_cache);
+	kmem_cache_destroy(ddt_entry_flat_cache);
 	kmem_cache_destroy(ddt_cache);
 }
 
 static ddt_entry_t *
-ddt_alloc(const ddt_key_t *ddk)
+ddt_alloc(const ddt_t *ddt, const ddt_key_t *ddk)
 {
 	ddt_entry_t *dde;
 
-	dde = kmem_cache_alloc(ddt_entry_cache, KM_SLEEP);
-	memset(dde, 0, sizeof (ddt_entry_t));
+	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+		dde = kmem_cache_alloc(ddt_entry_flat_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_FLAT_SIZE);
+	} else {
+		dde = kmem_cache_alloc(ddt_entry_trad_cache, KM_SLEEP);
+		memset(dde, 0, DDT_ENTRY_TRAD_SIZE);
+	}
+
 	cv_init(&dde->dde_cv, NULL, CV_DEFAULT, NULL);
 
 	dde->dde_key = *ddk;
@@ -584,17 +773,31 @@ ddt_alloc(const ddt_key_t *ddk)
 	return (dde);
 }
 
-static void
-ddt_free(ddt_entry_t *dde)
+void
+ddt_alloc_entry_io(ddt_entry_t *dde)
 {
-	for (int p = 0; p < DDT_PHYS_TYPES; p++)
-		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
+	if (dde->dde_io != NULL)
+		return;
 
-	if (dde->dde_repair_abd != NULL)
-		abd_free(dde->dde_repair_abd);
+	dde->dde_io = kmem_zalloc(sizeof (ddt_entry_io_t), KM_SLEEP);
+}
+
+static void
+ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
+{
+	if (dde->dde_io != NULL) {
+		for (int p = 0; p < DDT_NPHYS(ddt); p++)
+			ASSERT3P(dde->dde_io->dde_lead_zio[p], ==, NULL);
+
+		if (dde->dde_io->dde_repair_abd != NULL)
+			abd_free(dde->dde_io->dde_repair_abd);
+
+		kmem_free(dde->dde_io, sizeof (ddt_entry_io_t));
+	}
 
 	cv_destroy(&dde->dde_cv);
-	kmem_cache_free(ddt_entry_cache, dde);
+	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
+	    ddt_entry_flat_cache : ddt_entry_trad_cache, dde);
 }
 
 void
@@ -603,7 +806,7 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
 	avl_remove(&ddt->ddt_tree, dde);
-	ddt_free(dde);
+	ddt_free(ddt, dde);
 }
 
 static boolean_t
@@ -684,6 +887,8 @@ ddt_prefetch_all(spa_t *spa)
 	}
 }
 
+static int ddt_configure(ddt_t *ddt, boolean_t new);
+
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
@@ -696,6 +901,15 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	int error;
 
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
+
+	if (ddt->ddt_version == DDT_VERSION_UNCONFIGURED) {
+		/*
+		 * This is the first use of this DDT since the pool was
+		 * created; finish getting it ready for use.
+		 */
+		VERIFY0(ddt_configure(ddt, B_TRUE));
+		ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
+	}
 
 	ddt_key_fill(&search, bp);
 
@@ -720,7 +934,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 		if (dde->dde_flags & DDE_FLAG_OVERQUOTA) {
 			if (dde->dde_waiters == 0) {
 				avl_remove(&ddt->ddt_tree, dde);
-				ddt_free(dde);
+				ddt_free(ddt, dde);
 			}
 			return (NULL);
 		}
@@ -733,7 +947,12 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 		return (NULL);
 
 	/* Time to make a new entry. */
-	dde = ddt_alloc(&search);
+	dde = ddt_alloc(ddt, &search);
+
+	/* Record the time this class was created (used by ddt prune) */
+	if (ddt->ddt_flags & DDT_FLAG_FLAT)
+		dde->dde_phys->ddp_flat.ddp_class_start = gethrestime_sec();
+
 	avl_insert(&ddt->ddt_tree, dde, where);
 
 	/*
@@ -770,7 +989,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 		/* Over quota. If no one is waiting, clean up right now. */
 		if (dde->dde_waiters == 0) {
 			avl_remove(&ddt->ddt_tree, dde);
-			ddt_free(dde);
+			ddt_free(ddt, dde);
 			return (NULL);
 		}
 
@@ -837,6 +1056,181 @@ ddt_key_compare(const void *x1, const void *x2)
 	return (TREE_ISIGN(cmp));
 }
 
+/* Create the containing dir for this DDT and bump the feature count */
+static void
+ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)
+{
+	ASSERT3U(ddt->ddt_dir_object, ==, 0);
+	ASSERT3U(ddt->ddt_version, ==, DDT_VERSION_FDT);
+
+	char name[DDT_NAMELEN];
+	snprintf(name, DDT_NAMELEN, DMU_POOL_DDT_DIR,
+	    zio_checksum_table[ddt->ddt_checksum].ci_name);
+
+	ddt->ddt_dir_object = zap_create_link(ddt->ddt_os,
+	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT, name, tx);
+
+	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_VERSION,
+	    sizeof (uint64_t), 1, &ddt->ddt_version, tx));
+	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS,
+	    sizeof (uint64_t), 1, &ddt->ddt_flags, tx));
+
+	spa_feature_incr(ddt->ddt_spa, SPA_FEATURE_FAST_DEDUP, tx);
+}
+
+/* Destroy the containing dir and deactivate the feature */
+static void
+ddt_destroy_dir(ddt_t *ddt, dmu_tx_t *tx)
+{
+	ASSERT3U(ddt->ddt_dir_object, !=, 0);
+	ASSERT3U(ddt->ddt_dir_object, !=, DMU_POOL_DIRECTORY_OBJECT);
+	ASSERT3U(ddt->ddt_version, ==, DDT_VERSION_FDT);
+
+	char name[DDT_NAMELEN];
+	snprintf(name, DDT_NAMELEN, DMU_POOL_DDT_DIR,
+	    zio_checksum_table[ddt->ddt_checksum].ci_name);
+
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
+			ASSERT(!ddt_object_exists(ddt, type, class));
+		}
+	}
+
+	uint64_t count;
+	ASSERT0(zap_count(ddt->ddt_os, ddt->ddt_dir_object, &count));
+	ASSERT0(zap_contains(ddt->ddt_os, ddt->ddt_dir_object,
+	    DDT_DIR_VERSION));
+	ASSERT0(zap_contains(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS));
+	ASSERT3U(count, ==, 2);
+
+	VERIFY0(zap_remove(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name, tx));
+	VERIFY0(zap_destroy(ddt->ddt_os, ddt->ddt_dir_object, tx));
+
+	ddt->ddt_dir_object = 0;
+
+	spa_feature_decr(ddt->ddt_spa, SPA_FEATURE_FAST_DEDUP, tx);
+}
+
+/*
+ * Determine, flags and on-disk layout from what's already stored. If there's
+ * nothing stored, then if new is false, returns ENOENT, and if true, selects
+ * based on pool config.
+ */
+static int
+ddt_configure(ddt_t *ddt, boolean_t new)
+{
+	spa_t *spa = ddt->ddt_spa;
+	char name[DDT_NAMELEN];
+	int error;
+
+	ASSERT3U(spa_load_state(spa), !=, SPA_LOAD_CREATE);
+
+	boolean_t fdt_enabled =
+	    spa_feature_is_enabled(spa, SPA_FEATURE_FAST_DEDUP);
+	boolean_t fdt_active =
+	    spa_feature_is_active(spa, SPA_FEATURE_FAST_DEDUP);
+
+	/*
+	 * First, look for the global DDT stats object. If its not there, then
+	 * there's never been a DDT written before ever, and we know we're
+	 * starting from scratch.
+	 */
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_DDT_STATS, sizeof (uint64_t), 1,
+	    &spa->spa_ddt_stat_object);
+	if (error != 0) {
+		if (error != ENOENT)
+			return (error);
+		goto not_found;
+	}
+
+	if (fdt_active) {
+		/*
+		 * Now look for a DDT directory. If it exists, then it has
+		 * everything we need.
+		 */
+		snprintf(name, DDT_NAMELEN, DMU_POOL_DDT_DIR,
+		    zio_checksum_table[ddt->ddt_checksum].ci_name);
+
+		error = zap_lookup(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, name, sizeof (uint64_t), 1,
+		    &ddt->ddt_dir_object);
+		if (error == 0) {
+			ASSERT3U(spa->spa_meta_objset, ==, ddt->ddt_os);
+
+			error = zap_lookup(ddt->ddt_os, ddt->ddt_dir_object,
+			    DDT_DIR_VERSION, sizeof (uint64_t), 1,
+			    &ddt->ddt_version);
+			if (error != 0)
+				return (error);
+
+			error = zap_lookup(ddt->ddt_os, ddt->ddt_dir_object,
+			    DDT_DIR_FLAGS, sizeof (uint64_t), 1,
+			    &ddt->ddt_flags);
+			if (error != 0)
+				return (error);
+
+			if (ddt->ddt_version != DDT_VERSION_FDT) {
+				zfs_dbgmsg("ddt_configure: spa=%s ddt_dir=%s "
+				    "unknown version %llu", spa_name(spa),
+				    name, (u_longlong_t)ddt->ddt_version);
+				return (SET_ERROR(EINVAL));
+			}
+
+			if ((ddt->ddt_flags & ~DDT_FLAG_MASK) != 0) {
+				zfs_dbgmsg("ddt_configure: spa=%s ddt_dir=%s "
+				    "version=%llu unknown flags %llx",
+				    spa_name(spa), name,
+				    (u_longlong_t)ddt->ddt_flags,
+				    (u_longlong_t)ddt->ddt_version);
+				return (SET_ERROR(EINVAL));
+			}
+
+			return (0);
+		}
+		if (error != ENOENT)
+			return (error);
+	}
+
+	/* Any object in the root indicates a traditional setup. */
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
+			ddt_object_name(ddt, type, class, name);
+			uint64_t obj;
+			error = zap_lookup(spa->spa_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT, name, sizeof (uint64_t),
+			    1, &obj);
+			if (error == ENOENT)
+				continue;
+			if (error != 0)
+				return (error);
+
+			ddt->ddt_version = DDT_VERSION_LEGACY;
+			ddt->ddt_flags = ddt_version_flags[ddt->ddt_version];
+			ddt->ddt_dir_object = DMU_POOL_DIRECTORY_OBJECT;
+
+			return (0);
+		}
+	}
+
+not_found:
+	if (!new)
+		return (SET_ERROR(ENOENT));
+
+	/* Nothing on disk, so set up for the best version we can */
+	if (fdt_enabled) {
+		ddt->ddt_version = DDT_VERSION_FDT;
+		ddt->ddt_flags = ddt_version_flags[ddt->ddt_version];
+		ddt->ddt_dir_object = 0; /* create on first use */
+	} else {
+		ddt->ddt_version = DDT_VERSION_LEGACY;
+		ddt->ddt_flags = ddt_version_flags[ddt->ddt_version];
+		ddt->ddt_dir_object = DMU_POOL_DIRECTORY_OBJECT;
+	}
+
+	return (0);
+}
+
 static ddt_t *
 ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 {
@@ -853,6 +1247,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	ddt->ddt_checksum = c;
 	ddt->ddt_spa = spa;
 	ddt->ddt_os = spa->spa_meta_objset;
+	ddt->ddt_version = DDT_VERSION_UNCONFIGURED;
 
 	return (ddt);
 }
@@ -889,7 +1284,6 @@ ddt_load(spa_t *spa)
 	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_DDT_STATS, sizeof (uint64_t), 1,
 	    &spa->spa_ddt_stat_object);
-
 	if (error)
 		return (error == ENOENT ? 0 : error);
 
@@ -898,6 +1292,12 @@ ddt_load(spa_t *spa)
 			continue;
 
 		ddt_t *ddt = spa->spa_ddt[c];
+		error = ddt_configure(ddt, B_FALSE);
+		if (error == ENOENT)
+			continue;
+		if (error != 0)
+			return (error);
+
 		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 			for (ddt_class_t class = 0; class < DDT_CLASSES;
 			    class++) {
@@ -912,9 +1312,10 @@ ddt_load(spa_t *spa)
 		 */
 		memcpy(&ddt->ddt_histogram_cache, ddt->ddt_histogram,
 		    sizeof (ddt->ddt_histogram));
-		spa->spa_dedup_dspace = ~0ULL;
-		spa->spa_dedup_dsize = ~0ULL;
 	}
+
+	spa->spa_dedup_dspace = ~0ULL;
+	spa->spa_dedup_dsize = ~0ULL;
 
 	return (0);
 }
@@ -964,7 +1365,8 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 
 	ddt_key_fill(&ddk, bp);
 
-	dde = ddt_alloc(&ddk);
+	dde = ddt_alloc(ddt, &ddk);
+	ddt_alloc_entry_io(dde);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
@@ -979,7 +1381,7 @@ ddt_repair_start(ddt_t *ddt, const blkptr_t *bp)
 		}
 	}
 
-	memset(dde->dde_phys, 0, sizeof (dde->dde_phys));
+	memset(dde->dde_phys, 0, DDT_PHYS_SIZE(ddt));
 
 	return (dde);
 }
@@ -991,11 +1393,12 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 
 	ddt_enter(ddt);
 
-	if (dde->dde_repair_abd != NULL && spa_writeable(ddt->ddt_spa) &&
+	if (dde->dde_io->dde_repair_abd != NULL &&
+	    spa_writeable(ddt->ddt_spa) &&
 	    avl_find(&ddt->ddt_repair_tree, dde, &where) == NULL)
 		avl_insert(&ddt->ddt_repair_tree, dde, where);
 	else
-		ddt_free(dde);
+		ddt_free(ddt, dde);
 
 	ddt_exit(ddt);
 }
@@ -1003,16 +1406,15 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 static void
 ddt_repair_entry_done(zio_t *zio)
 {
+	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *rdde = zio->io_private;
 
-	ddt_free(rdde);
+	ddt_free(ddt, rdde);
 }
 
 static void
 ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 {
-	ddt_phys_t *ddp = dde->dde_phys;
-	ddt_phys_t *rddp = rdde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_key_t *rddk = &rdde->dde_key;
 	zio_t *zio;
@@ -1021,15 +1423,31 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 	zio = zio_null(rio, rio->io_spa, NULL,
 	    ddt_repair_entry_done, rdde, rio->io_flags);
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++, rddp++) {
-		if (ddp->ddp_phys_birth == 0 ||
-		    ddp->ddp_phys_birth != rddp->ddp_phys_birth ||
-		    memcmp(ddp->ddp_dva, rddp->ddp_dva, sizeof (ddp->ddp_dva)))
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ddt_univ_phys_t *ddp = dde->dde_phys;
+		ddt_univ_phys_t *rddp = rdde->dde_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+		uint64_t phys_birth = ddt_phys_birth(ddp, v);
+		const dva_t *dvas, *rdvas;
+
+		if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+			dvas = ddp->ddp_flat.ddp_dva;
+			rdvas = rddp->ddp_flat.ddp_dva;
+		} else {
+			dvas = ddp->ddp_trad[p].ddp_dva;
+			rdvas = rddp->ddp_trad[p].ddp_dva;
+		}
+
+		if (phys_birth == 0 ||
+		    phys_birth != ddt_phys_birth(rddp, v) ||
+		    memcmp(dvas, rdvas, sizeof (dva_t) * SPA_DVAS_PER_BP))
 			continue;
-		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+
+		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 		zio_nowait(zio_rewrite(zio, zio->io_spa, 0, &blk,
-		    rdde->dde_repair_abd, DDK_GET_PSIZE(rddk), NULL, NULL,
-		    ZIO_PRIORITY_SYNC_WRITE, ZIO_DDT_CHILD_FLAGS(zio), NULL));
+		    rdde->dde_io->dde_repair_abd, DDK_GET_PSIZE(rddk),
+		    NULL, NULL, ZIO_PRIORITY_SYNC_WRITE,
+		    ZIO_DDT_CHILD_FLAGS(zio), NULL));
 	}
 
 	zio_nowait(zio);
@@ -1051,7 +1469,8 @@ ddt_repair_table(ddt_t *ddt, zio_t *rio)
 		rdde_next = AVL_NEXT(t, rdde);
 		avl_remove(&ddt->ddt_repair_tree, rdde);
 		ddt_exit(ddt);
-		ddt_bp_create(ddt->ddt_checksum, &rdde->dde_key, NULL, &blk);
+		ddt_bp_create(ddt->ddt_checksum, &rdde->dde_key, NULL,
+		    DDT_PHYS_NONE, &blk);
 		dde = ddt_repair_start(ddt, &blk);
 		ddt_repair_entry(ddt, dde, rdde, rio);
 		ddt_repair_done(ddt, dde);
@@ -1064,7 +1483,6 @@ static void
 ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 {
 	dsl_pool_t *dp = ddt->ddt_spa->spa_dsl_pool;
-	ddt_phys_t *ddp = dde->dde_phys;
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_type_t otype = dde->dde_type;
 	ddt_type_t ntype = DDT_TYPE_DEFAULT;
@@ -1074,27 +1492,30 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 
 	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 
-	for (int p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
-		if (ddp->ddp_phys_birth == 0) {
-			ASSERT0(ddp->ddp_refcnt);
+	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+		ASSERT(dde->dde_io == NULL ||
+		    dde->dde_io->dde_lead_zio[p] == NULL);
+		ddt_univ_phys_t *ddp = dde->dde_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+		uint64_t phys_refcnt = ddt_phys_refcnt(ddp, v);
+
+		if (ddt_phys_birth(ddp, v) == 0) {
+			ASSERT0(phys_refcnt);
 			continue;
 		}
-		if (p == DDT_PHYS_DITTO) {
+		if (DDT_PHYS_IS_DITTO(ddt, p)) {
 			/*
 			 * Note, we no longer create DDT-DITTO blocks, but we
 			 * don't want to leak any written by older software.
 			 */
-			ddt_phys_free(ddt, ddk, ddp, txg);
+			ddt_phys_free(ddt, ddk, ddp, v, txg);
 			continue;
 		}
-		if (ddp->ddp_refcnt == 0)
-			ddt_phys_free(ddt, ddk, ddp, txg);
-		total_refcnt += ddp->ddp_refcnt;
+		if (phys_refcnt == 0)
+			ddt_phys_free(ddt, ddk, ddp, v, txg);
+		total_refcnt += phys_refcnt;
 	}
 
-	/* We do not create new DDT-DITTO blocks. */
-	ASSERT0(dde->dde_phys[DDT_PHYS_DITTO].ddp_phys_birth);
 	if (total_refcnt > 1)
 		nclass = DDT_CLASS_DUPLICATE;
 	else
@@ -1123,8 +1544,10 @@ ddt_sync_entry(ddt_t *ddt, ddt_entry_t *dde, dmu_tx_t *tx, uint64_t txg)
 		 * traversing.)
 		 */
 		if (nclass < oclass) {
+			ddt_lightweight_entry_t ddlwe;
+			DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
 			dsl_scan_ddt_entry(dp->dp_scan,
-			    ddt->ddt_checksum, dde, tx);
+			    ddt->ddt_checksum, ddt, &ddlwe, tx);
 		}
 	}
 }
@@ -1147,25 +1570,44 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 		    DMU_POOL_DDT_STATS, tx);
 	}
 
+	if (ddt->ddt_version == DDT_VERSION_FDT && ddt->ddt_dir_object == 0)
+		ddt_create_dir(ddt, tx);
+
 	while ((dde = avl_destroy_nodes(&ddt->ddt_tree, &cookie)) != NULL) {
 		ddt_sync_entry(ddt, dde, tx, txg);
-		ddt_free(dde);
+		ddt_free(ddt, dde);
 	}
 
+	uint64_t count = 0;
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
-		uint64_t add, count = 0;
+		uint64_t add, tcount = 0;
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			if (ddt_object_exists(ddt, type, class)) {
 				ddt_object_sync(ddt, type, class, tx);
 				VERIFY0(ddt_object_count(ddt, type, class,
 				    &add));
-				count += add;
+				tcount += add;
 			}
 		}
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
-			if (count == 0 && ddt_object_exists(ddt, type, class))
+			if (tcount == 0 && ddt_object_exists(ddt, type, class))
 				ddt_object_destroy(ddt, type, class, tx);
 		}
+		count += tcount;
+	}
+
+	if (count == 0) {
+		/*
+		 * No entries left on the DDT, so reset the version for next
+		 * time. This allows us to handle the feature being changed
+		 * since the DDT was originally created. New entries should get
+		 * whatever the feature currently demands.
+		 */
+		if (ddt->ddt_version == DDT_VERSION_FDT)
+			ddt_destroy_dir(ddt, tx);
+
+		ddt->ddt_version = DDT_VERSION_UNCONFIGURED;
+		ddt->ddt_flags = 0;
 	}
 
 	memcpy(&ddt->ddt_histogram_cache, ddt->ddt_histogram,
@@ -1212,7 +1654,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 }
 
 int
-ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
+ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 {
 	do {
 		do {
@@ -1225,10 +1667,8 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde)
 				    ddb->ddb_class)) {
 					error = ddt_object_walk(ddt,
 					    ddb->ddb_type, ddb->ddb_class,
-					    &ddb->ddb_cursor, dde);
+					    &ddb->ddb_cursor, ddlwe);
 				}
-				dde->dde_type = ddb->ddb_type;
-				dde->dde_class = ddb->ddb_class;
 				if (error == 0)
 					return (0);
 				if (error != ENOENT)
@@ -1272,11 +1712,10 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	}
 
 	if (dde->dde_type < DDT_TYPES) {
-		ddt_phys_t *ddp;
-
 		ASSERT3S(dde->dde_class, <, DDT_CLASSES);
 
-		ddp = &dde->dde_phys[BP_GET_NDVAS(bp)];
+		int p = DDT_PHYS_FOR_COPIES(ddt, BP_GET_NDVAS(bp));
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
 		/*
 		 * This entry already existed (dde_type is real), so it must
@@ -1288,9 +1727,9 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		 * likely further action is required to fill out the DDT entry,
 		 * and this is a place that is likely to be missed in testing.
 		 */
-		ASSERT3U(ddp->ddp_refcnt, >, 0);
+		ASSERT3U(ddt_phys_refcnt(dde->dde_phys, v), >, 0);
 
-		ddt_phys_addref(ddp);
+		ddt_phys_addref(dde->dde_phys, v);
 		result = B_TRUE;
 	} else {
 		/*

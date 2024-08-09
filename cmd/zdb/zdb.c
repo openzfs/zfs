@@ -1914,23 +1914,25 @@ dump_log_spacemaps(spa_t *spa)
 }
 
 static void
-dump_dde(const ddt_t *ddt, const ddt_entry_t *dde, uint64_t index)
+dump_ddt_entry(const ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
+    uint64_t index)
 {
-	const ddt_phys_t *ddp = dde->dde_phys;
-	const ddt_key_t *ddk = &dde->dde_key;
-	const char *types[4] = { "ditto", "single", "double", "triple" };
+	const ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	char blkbuf[BP_SPRINTF_LEN];
 	blkptr_t blk;
 	int p;
 
-	for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-		if (ddp->ddp_phys_birth == 0)
+	for (p = 0; p < DDT_NPHYS(ddt); p++) {
+		const ddt_univ_phys_t *ddp = &ddlwe->ddlwe_phys;
+		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+		if (ddt_phys_birth(ddp, v) == 0)
 			continue;
-		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, &blk);
+		ddt_bp_create(ddt->ddt_checksum, ddk, ddp, v, &blk);
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
-		(void) printf("index %llx refcnt %llu %s %s\n",
-		    (u_longlong_t)index, (u_longlong_t)ddp->ddp_refcnt,
-		    types[p], blkbuf);
+		(void) printf("index %llx refcnt %llu phys %d %s\n",
+		    (u_longlong_t)index, (u_longlong_t)ddt_phys_refcnt(ddp, v),
+		    p, blkbuf);
 	}
 }
 
@@ -1960,7 +1962,7 @@ static void
 dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	uint64_t walk = 0;
 	dmu_object_info_t doi;
 	uint64_t count, dspace, mspace;
@@ -2001,8 +2003,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	(void) printf("%s contents:\n\n", name);
 
-	while ((error = ddt_object_walk(ddt, type, class, &walk, &dde)) == 0)
-		dump_dde(ddt, &dde, walk);
+	while ((error = ddt_object_walk(ddt, type, class, &walk, &ddlwe)) == 0)
+		dump_ddt_entry(ddt, &ddlwe, walk);
 
 	ASSERT3U(error, ==, ENOENT);
 
@@ -5798,10 +5800,9 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		if (dde == NULL) {
 			refcnt = 0;
 		} else {
-			ddt_phys_t *ddp = ddt_phys_select(dde, bp);
-			ddt_phys_decref(ddp);
-			refcnt = ddp->ddp_refcnt;
-			if (ddt_phys_total_refcnt(dde) == 0)
+			ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
+			refcnt = ddt_phys_decref(dde->dde_phys, v);
+			if (ddt_phys_total_refcnt(ddt, dde) == 0)
 				ddt_remove(ddt, dde);
 		}
 		ddt_exit(ddt);
@@ -6124,36 +6125,40 @@ static void
 zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 {
 	ddt_bookmark_t ddb = {0};
-	ddt_entry_t dde;
+	ddt_lightweight_entry_t ddlwe;
 	int error;
-	int p;
 
 	ASSERT(!dump_opt['L']);
 
-	while ((error = ddt_walk(spa, &ddb, &dde)) == 0) {
+	while ((error = ddt_walk(spa, &ddb, &ddlwe)) == 0) {
 		blkptr_t blk;
-		ddt_phys_t *ddp = dde.dde_phys;
 
 		if (ddb.ddb_class == DDT_CLASS_UNIQUE)
 			return;
 
-		ASSERT(ddt_phys_total_refcnt(&dde) > 1);
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		VERIFY(ddt);
 
-		for (p = 0; p < DDT_PHYS_TYPES; p++, ddp++) {
-			if (ddp->ddp_phys_birth == 0)
+		uint64_t refcnt = 0;
+		for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+			ddt_univ_phys_t *ddp = &ddlwe.ddlwe_phys;
+			ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+			if (ddt_phys_birth(ddp, v) == 0)
 				continue;
+			refcnt += ddt_phys_refcnt(ddp, v);
+
 			ddt_bp_create(ddb.ddb_checksum,
-			    &dde.dde_key, ddp, &blk);
-			if (p == DDT_PHYS_DITTO) {
+			    &ddlwe.ddlwe_key, ddp, v, &blk);
+			if (DDT_PHYS_IS_DITTO(ddt, p)) {
 				zdb_count_block(zcb, NULL, &blk, ZDB_OT_DITTO);
 			} else {
-				zcb->zcb_dedup_asize +=
-				    BP_GET_ASIZE(&blk) * (ddp->ddp_refcnt - 1);
+				zcb->zcb_dedup_asize += BP_GET_ASIZE(&blk) *
+				    (ddt_phys_refcnt(ddp, v) - 1);
 				zcb->zcb_dedup_blocks++;
 			}
 		}
+		ASSERT3U(refcnt, >, 1);
 
 		ddt_enter(ddt);
 		VERIFY(ddt_lookup(ddt, &blk, B_TRUE) != NULL);
@@ -8022,15 +8027,14 @@ dump_mos_leaks(spa_t *spa)
 
 	mos_leak_vdev(spa->spa_root_vdev);
 
-	for (uint64_t class = 0; class < DDT_CLASSES; class++) {
-		for (uint64_t type = 0; type < DDT_TYPES; type++) {
-			for (uint64_t cksum = 0;
-			    cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
-				ddt_t *ddt = spa->spa_ddt[cksum];
-				if (!ddt)
-					continue;
+	for (uint64_t cksum = 0; cksum < ZIO_CHECKSUM_FUNCTIONS; cksum++) {
+		ddt_t *ddt = spa->spa_ddt[cksum];
+		if (!ddt)
+			continue;
+		mos_obj_refd(ddt->ddt_dir_object);
+		for (uint64_t class = 0; class < DDT_CLASSES; class++) {
+			for (uint64_t type = 0; type < DDT_TYPES; type++)
 				mos_obj_refd(ddt->ddt_object[type][class]);
-			}
 		}
 	}
 
