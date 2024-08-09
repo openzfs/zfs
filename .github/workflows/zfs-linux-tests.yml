@@ -37,7 +37,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: Zpool-logs-${{ inputs.os }}
+        name: Zloop-logs-${{ inputs.os }}
         path: |
           /var/tmp/zloop/*/
           !/var/tmp/zloop/*/vdev/
@@ -46,7 +46,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
-        name: Zpool-files-${{ inputs.os }}
+        name: Zloop-files-${{ inputs.os }}
         path: |
           /var/tmp/zloop/*/vdev/
         retention-days: 14
