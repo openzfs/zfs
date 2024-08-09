@@ -57,7 +57,7 @@ AM_LDFLAGS += $(ASAN_LDFLAGS)
 AM_LDFLAGS += $(UBSAN_LDFLAGS)
 
 if BUILD_FREEBSD
-AM_LDFLAGS += -fstack-protector-strong -shared
+AM_LDFLAGS += -fstack-protector-strong
 AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
 AM_LDFLAGS += -lm
 endif
