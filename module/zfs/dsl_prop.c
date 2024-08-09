@@ -662,7 +662,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	}
 	mutex_exit(&dd->dd_lock);
 
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos,
 	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
@@ -670,7 +670,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 		dsl_prop_changed_notify(dp, za->za_first_integer,
 		    propname, value, FALSE);
 	}
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	zap_cursor_fini(&zc);
 	dsl_dir_rele(dd, FTAG);
 }
@@ -1061,11 +1061,11 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
     const char *setpoint, dsl_prop_getflags_t flags, nvlist_t *nv)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	int err = 0;
 
 	for (zap_cursor_init(&zc, mos, propobj);
-	    (err = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		nvlist_t *propval;
 		zfs_prop_t prop;
@@ -1075,7 +1075,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 		const char *propname;
 		const char *source;
 
-		suffix = strchr(za.za_name, '$');
+		suffix = strchr(za->za_name, '$');
 
 		if (suffix == NULL) {
 			/*
@@ -1085,7 +1085,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			if (flags & DSL_PROP_GET_RECEIVED)
 				continue;
 
-			propname = za.za_name;
+			propname = za->za_name;
 			source = setpoint;
 
 			/* Skip if iuv entries are preset. */
@@ -1102,8 +1102,8 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			if (flags & DSL_PROP_GET_LOCAL)
 				continue;
 
-			(void) strlcpy(buf, za.za_name,
-			    MIN(sizeof (buf), suffix - za.za_name + 1));
+			(void) strlcpy(buf, za->za_name,
+			    MIN(sizeof (buf), suffix - za->za_name + 1));
 			propname = buf;
 
 			if (!(flags & DSL_PROP_GET_RECEIVED)) {
@@ -1128,14 +1128,14 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			source = ((flags & DSL_PROP_GET_INHERITING) ?
 			    setpoint : ZPROP_SOURCE_VAL_RECVD);
 		} else if (strcmp(suffix, ZPROP_IUV_SUFFIX) == 0) {
-			(void) strlcpy(buf, za.za_name,
-			    MIN(sizeof (buf), suffix - za.za_name + 1));
+			(void) strlcpy(buf, za->za_name,
+			    MIN(sizeof (buf), suffix - za->za_name + 1));
 			propname = buf;
 			source = setpoint;
 			prop = zfs_name_to_prop(propname);
 
 			if (dsl_prop_known_index(prop,
-			    za.za_first_integer) != 1)
+			    za->za_first_integer) != 1)
 				continue;
 		} else {
 			/*
@@ -1162,28 +1162,28 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			continue;
 
 		VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-		if (za.za_integer_length == 1) {
+		if (za->za_integer_length == 1) {
 			/*
 			 * String property
 			 */
-			char *tmp = kmem_alloc(za.za_num_integers,
+			char *tmp = kmem_alloc(za->za_num_integers,
 			    KM_SLEEP);
 			err = zap_lookup(mos, propobj,
-			    za.za_name, 1, za.za_num_integers, tmp);
+			    za->za_name, 1, za->za_num_integers, tmp);
 			if (err != 0) {
-				kmem_free(tmp, za.za_num_integers);
+				kmem_free(tmp, za->za_num_integers);
 				break;
 			}
 			VERIFY(nvlist_add_string(propval, ZPROP_VALUE,
 			    tmp) == 0);
-			kmem_free(tmp, za.za_num_integers);
+			kmem_free(tmp, za->za_num_integers);
 		} else {
 			/*
 			 * Integer property
 			 */
-			ASSERT(za.za_integer_length == 8);
+			ASSERT(za->za_integer_length == 8);
 			(void) nvlist_add_uint64(propval, ZPROP_VALUE,
-			    za.za_first_integer);
+			    za->za_first_integer);
 		}
 
 		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, source) == 0);
@@ -1191,6 +1191,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 		nvlist_free(propval);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	if (err == ENOENT)
 		err = 0;
 	return (err);

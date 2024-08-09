@@ -1967,7 +1967,7 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 			(void) sprintf(component + 1, "<xattrdir>");
 		} else {
 			error = zap_value_search(osp, pobj, obj,
-			    ZFS_DIRENT_OBJ(-1ULL), component + 1);
+			    ZFS_DIRENT_OBJ(-1ULL), component + 1, MAXNAMELEN);
 			if (error != 0)
 				break;
 		}
@@ -2180,7 +2180,7 @@ zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
 		return (SET_ERROR(EINVAL));
 
 	err = zap_value_search(zfsvfs->z_os, parent, zp->z_id,
-	    ZFS_DIRENT_OBJ(-1ULL), buf);
+	    ZFS_DIRENT_OBJ(-1ULL), buf, MAXNAMELEN);
 	if (err != 0)
 		return (err);
 	err = zfs_zget(zfsvfs, parent, dzpp);

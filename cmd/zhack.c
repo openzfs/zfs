@@ -203,26 +203,27 @@ static void
 dump_obj(objset_t *os, uint64_t obj, const char *name)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_long_alloc();
 
 	(void) printf("%s_obj:\n", name);
 
 	for (zap_cursor_init(&zc, os, obj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
-		if (za.za_integer_length == 8) {
-			ASSERT(za.za_num_integers == 1);
+		if (za->za_integer_length == 8) {
+			ASSERT(za->za_num_integers == 1);
 			(void) printf("\t%s = %llu\n",
-			    za.za_name, (u_longlong_t)za.za_first_integer);
+			    za->za_name, (u_longlong_t)za->za_first_integer);
 		} else {
-			ASSERT(za.za_integer_length == 1);
+			ASSERT(za->za_integer_length == 1);
 			char val[1024];
-			VERIFY(zap_lookup(os, obj, za.za_name,
+			VERIFY(zap_lookup(os, obj, za->za_name,
 			    1, sizeof (val), val) == 0);
-			(void) printf("\t%s = %s\n", za.za_name, val);
+			(void) printf("\t%s = %s\n", za->za_name, val);
 		}
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 }
 
 static void

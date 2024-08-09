@@ -1034,7 +1034,7 @@ zvol_add_clones(const char *dsname, list_t *minors_list)
 		goto out;
 
 	zap_cursor_t *zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	zap_attribute_t *za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 
 	for (zap_cursor_init(zc, mos, dsl_dir_phys(dd)->dd_clones);
@@ -1060,7 +1060,7 @@ zvol_add_clones(const char *dsname, list_t *minors_list)
 		}
 	}
 	zap_cursor_fini(zc);
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
 
 out:
