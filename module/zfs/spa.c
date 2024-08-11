@@ -34,7 +34,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
- * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2023, 2024, Klara Inc.
  */
 
 /*
@@ -337,6 +337,55 @@ spa_prop_add_list(nvlist_t *nvl, zpool_prop_t prop, const char *strval,
 	nvlist_free(propval);
 }
 
+static int
+spa_prop_add(spa_t *spa, const char *propname, nvlist_t *outnvl)
+{
+	zpool_prop_t prop = zpool_name_to_prop(propname);
+	zprop_source_t src = ZPROP_SRC_NONE;
+	uint64_t intval;
+	int err;
+
+	/*
+	 * NB: Not all properties lookups via this API require
+	 * the spa props lock, so they must explicitly grab it here.
+	 */
+	switch (prop) {
+	case ZPOOL_PROP_DEDUPCACHED:
+		err = ddt_get_pool_dedup_cached(spa, &intval);
+		if (err != 0)
+			return (SET_ERROR(err));
+		break;
+	default:
+		return (SET_ERROR(EINVAL));
+	}
+
+	spa_prop_add_list(outnvl, prop, NULL, intval, src);
+
+	return (0);
+}
+
+int
+spa_prop_get_nvlist(spa_t *spa, char **props, unsigned int n_props,
+    nvlist_t **outnvl)
+{
+	int err = 0;
+
+	if (props == NULL)
+		return (0);
+
+	if (*outnvl == NULL) {
+		err = nvlist_alloc(outnvl, NV_UNIQUE_NAME, KM_SLEEP);
+		if (err)
+			return (err);
+	}
+
+	for (unsigned int i = 0; i < n_props && err == 0; i++) {
+		err = spa_prop_add(spa, props[i], *outnvl);
+	}
+
+	return (err);
+}
+
 /*
  * Add a user property (source=src, propname=propval) to an nvlist.
  */
@@ -405,6 +454,9 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		    brt_get_saved(spa), src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_BCLONERATIO, NULL,
 		    brt_get_ratio(spa), src);
+
+		spa_prop_add_list(*nvp, ZPOOL_PROP_DEDUP_TABLE_SIZE, NULL,
+		    ddt_get_ddt_dsize(spa), src);
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_HEALTH, NULL,
 		    rvd->vdev_state, src);
@@ -500,9 +552,11 @@ spa_prop_get(spa_t *spa, nvlist_t **nvp)
 	dsl_pool_t *dp;
 	int err;
 
-	err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP);
-	if (err)
-		return (err);
+	if (*nvp == NULL) {
+		err = nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP);
+		if (err)
+			return (err);
+	}
 
 	dp = spa_get_dsl(spa);
 	dsl_pool_config_enter(dp, FTAG);
@@ -670,6 +724,10 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			    intval > SPA_VERSION_BEFORE_FEATURES ||
 			    has_feature))
 				error = SET_ERROR(EINVAL);
+			break;
+
+		case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
+			error = nvpair_value_uint64(elem, &intval);
 			break;
 
 		case ZPOOL_PROP_DELEGATION:
@@ -4732,6 +4790,8 @@ spa_ld_get_props(spa_t *spa)
 		spa_prop_find(spa, ZPOOL_PROP_DELEGATION, &spa->spa_delegation);
 		spa_prop_find(spa, ZPOOL_PROP_FAILUREMODE, &spa->spa_failmode);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOEXPAND, &spa->spa_autoexpand);
+		spa_prop_find(spa, ZPOOL_PROP_DEDUP_TABLE_QUOTA,
+		    &spa->spa_dedup_table_quota);
 		spa_prop_find(spa, ZPOOL_PROP_MULTIHOST, &spa->spa_multihost);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_autotrim);
 		spa->spa_autoreplace = (autoreplace != 0);
@@ -6588,6 +6648,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_autoexpand = zpool_prop_default_numeric(ZPOOL_PROP_AUTOEXPAND);
 	spa->spa_multihost = zpool_prop_default_numeric(ZPOOL_PROP_MULTIHOST);
 	spa->spa_autotrim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
+	spa->spa_dedup_table_quota =
+	    zpool_prop_default_numeric(ZPOOL_PROP_DEDUP_TABLE_QUOTA);
 
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
@@ -6755,6 +6817,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_load_spares(spa);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa->spa_spares.sav_sync = B_TRUE;
+		spa->spa_spares.sav_label_sync = B_TRUE;
 	}
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_L2CACHE,
 	    &l2cache, &nl2cache) == 0) {
@@ -6770,6 +6833,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_load_l2cache(spa);
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa->spa_l2cache.sav_sync = B_TRUE;
+		spa->spa_l2cache.sav_label_sync = B_TRUE;
 	}
 
 	/*
@@ -9630,6 +9694,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					break;
 				case ZPOOL_PROP_MULTIHOST:
 					spa->spa_multihost = intval;
+					break;
+				case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
+					spa->spa_dedup_table_quota = intval;
 					break;
 				default:
 					break;

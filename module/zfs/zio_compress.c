@@ -111,19 +111,6 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 	return (result);
 }
 
-static int
-zio_compress_zeroed_cb(void *data, size_t len, void *private)
-{
-	(void) private;
-
-	uint64_t *end = (uint64_t *)((char *)data + len);
-	for (uint64_t *word = (uint64_t *)data; word < end; word++)
-		if (*word != 0)
-			return (1);
-
-	return (0);
-}
-
 size_t
 zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
     uint8_t level)
@@ -132,18 +119,9 @@ zio_compress_data(enum zio_compress c, abd_t *src, void **dst, size_t s_len,
 	uint8_t complevel;
 	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT((uint_t)c < ZIO_COMPRESS_FUNCTIONS);
-	ASSERT((uint_t)c == ZIO_COMPRESS_EMPTY || ci->ci_compress != NULL);
-
-	/*
-	 * If the data is all zeroes, we don't even need to allocate
-	 * a block for it.  We indicate this by returning zero size.
-	 */
-	if (abd_iterate_func(src, 0, s_len, zio_compress_zeroed_cb, NULL) == 0)
-		return (0);
-
-	if (c == ZIO_COMPRESS_EMPTY)
-		return (s_len);
+	ASSERT3U(c, <, ZIO_COMPRESS_FUNCTIONS);
+	ASSERT3U(ci->ci_compress, !=, NULL);
+	ASSERT3U(s_len, >, 0);
 
 	/* Compress at least 12.5% */
 	d_len = s_len - (s_len >> 3);

@@ -37,6 +37,7 @@
 .Nm zpool
 .Cm list
 .Op Fl HgLpPv
+.Op Fl j Op Ar --json-int, --json-pool-key-guid
 .Op Fl o Ar property Ns Oo , Ns Ar property Oc Ns …
 .Op Fl T Sy u Ns | Ns Sy d
 .Oo Ar pool Oc Ns …
@@ -58,6 +59,14 @@ is specified, the command exits after
 .Ar count
 reports are printed.
 .Bl -tag -width Ds
+.It Fl j Op Ar --json-int, --json-pool-key-guid
+Display the list of pools in JSON format.
+Specify
+.Sy --json-int
+to display the numbers in integer format instead of strings.
+Specify
+.Sy --json-pool-key-guid
+to set pool GUID as key for pool objects instead of pool names.
 .It Fl g
 Display vdev GUIDs instead of the normal device names.
 These GUIDs can be used in place of device names for the zpool
@@ -139,6 +148,104 @@ data        23.9G  14.6G  9.30G         -    48%    61%  1.00x  ONLINE  -
     sda         -      -      -         -      -
     sdb         -      -      -       10G      -
     sdc         -      -      -         -      -
+.Ed
+.
+.Ss Example 3 : No Displaying expanded space on a device
+The following command lists all available pools on the system in JSON
+format.
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm list Fl j | Nm jq
+{
+  "output_version": {
+    "command": "zpool list",
+    "vers_major": 0,
+    "vers_minor": 1
+  },
+  "pools": {
+    "tank": {
+      "name": "tank",
+      "type": "POOL",
+      "state": "ONLINE",
+      "guid": "15220353080205405147",
+      "txg": "2671",
+      "spa_version": "5000",
+      "zpl_version": "5",
+      "properties": {
+        "size": {
+          "value": "111G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "allocated": {
+          "value": "30.8G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "free": {
+          "value": "80.2G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "checkpoint": {
+          "value": "-",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "expandsize": {
+          "value": "-",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "fragmentation": {
+          "value": "0%",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "capacity": {
+          "value": "27%",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "dedupratio": {
+          "value": "1.00x",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "health": {
+          "value": "ONLINE",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "altroot": {
+          "value": "-",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    }
+  }
+}
+
 .Ed
 .
 .Sh SEE ALSO

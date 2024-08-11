@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 16, 2022
+.Dd February 14, 2024
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -41,6 +41,7 @@
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 .Oo Ar pool Oc Ns …
 .Op Ar interval Op Ar count
+.Op Fl j Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
 .
 .Sh DESCRIPTION
 Displays the detailed health status for the given pools.
@@ -69,12 +70,25 @@ See the
 option of
 .Nm zpool Cm iostat
 for complete details.
+.It Fl j Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
+Display the status for ZFS pools in JSON format.
+Specify
+.Sy --json-int
+to display numbers in integer format instead of strings.
+Specify
+.Sy --json-flat-vdevs
+to display vdevs in flat hierarchy instead of nested vdev objects.
+Specify
+.Sy --json-pool-key-guid
+to set pool GUID as key for pool objects instead of pool names.
 .It Fl D
 Display a histogram of deduplication statistics, showing the allocated
 .Pq physically present on disk
 and referenced
 .Pq logically referenced in the pool
 block counts and sizes by reference count.
+If repeated, (-DD), also shows statistics on how much of the DDT is resident
+in the ARC.
 .It Fl e
 Only show unhealthy vdevs (not-ONLINE or with errors).
 .It Fl g
@@ -157,6 +171,175 @@ pool        alloc   free   read  write   read  write  size
 rpool       14.6G  54.9G      4     55   250K  2.69M
   sda1      14.6G  54.9G      4     55   250K  2.69M   70G
 ----------  -----  -----  -----  -----  -----  -----  ----
+.Ed
+.
+.Ss Example 2 : No Display the status output in JSON format
+.Nm zpool Cm status No can output in JSON format if
+.Fl j
+is specified.
+.Fl c
+can be used to run a script on each VDEV.
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm status Fl j Fl c Pa vendor , Ns Pa model , Ns Pa size | Nm jq
+{
+  "output_version": {
+    "command": "zpool status",
+    "vers_major": 0,
+    "vers_minor": 1
+  },
+  "pools": {
+    "tank": {
+      "name": "tank",
+      "state": "ONLINE",
+      "guid": "3920273586464696295",
+      "txg": "16597",
+      "spa_version": "5000",
+      "zpl_version": "5",
+      "status": "OK",
+      "vdevs": {
+        "tank": {
+          "name": "tank",
+          "alloc_space": "62.6G",
+          "total_space": "15.0T",
+          "def_space": "11.3T",
+          "read_errors": "0",
+          "write_errors": "0",
+          "checksum_errors": "0",
+          "vdevs": {
+            "raidz1-0": {
+              "name": "raidz1-0",
+              "vdev_type": "raidz",
+              "guid": "763132626387621737",
+              "state": "HEALTHY",
+              "alloc_space": "62.5G",
+              "total_space": "10.9T",
+              "def_space": "7.26T",
+              "rep_dev_size": "10.9T",
+              "read_errors": "0",
+              "write_errors": "0",
+              "checksum_errors": "0",
+              "vdevs": {
+                "ca1eb824-c371-491d-ac13-37637e35c683": {
+                  "name": "ca1eb824-c371-491d-ac13-37637e35c683",
+                  "vdev_type": "disk",
+                  "guid": "12841765308123764671",
+                  "path": "/dev/disk/by-partuuid/ca1eb824-c371-491d-ac13-37637e35c683",
+                  "state": "HEALTHY",
+                  "rep_dev_size": "3.64T",
+                  "phys_space": "3.64T",
+                  "read_errors": "0",
+                  "write_errors": "0",
+                  "checksum_errors": "0",
+                  "vendor": "ATA",
+                  "model": "WDC WD40EFZX-68AWUN0",
+                  "size": "3.6T"
+                },
+                "97cd98fb-8fb8-4ac4-bc84-bd8950a7ace7": {
+                  "name": "97cd98fb-8fb8-4ac4-bc84-bd8950a7ace7",
+                  "vdev_type": "disk",
+                  "guid": "1527839927278881561",
+                  "path": "/dev/disk/by-partuuid/97cd98fb-8fb8-4ac4-bc84-bd8950a7ace7",
+                  "state": "HEALTHY",
+                  "rep_dev_size": "3.64T",
+                  "phys_space": "3.64T",
+                  "read_errors": "0",
+                  "write_errors": "0",
+                  "checksum_errors": "0",
+                  "vendor": "ATA",
+                  "model": "WDC WD40EFZX-68AWUN0",
+                  "size": "3.6T"
+                },
+                "e9ddba5f-f948-4734-a472-cb8aa5f0ff65": {
+                  "name": "e9ddba5f-f948-4734-a472-cb8aa5f0ff65",
+                  "vdev_type": "disk",
+                  "guid": "6982750226085199860",
+                  "path": "/dev/disk/by-partuuid/e9ddba5f-f948-4734-a472-cb8aa5f0ff65",
+                  "state": "HEALTHY",
+                  "rep_dev_size": "3.64T",
+                  "phys_space": "3.64T",
+                  "read_errors": "0",
+                  "write_errors": "0",
+                  "checksum_errors": "0",
+                  "vendor": "ATA",
+                  "model": "WDC WD40EFZX-68AWUN0",
+                  "size": "3.6T"
+                }
+              }
+            }
+          }
+        }
+      },
+      "dedup": {
+        "mirror-2": {
+          "name": "mirror-2",
+          "vdev_type": "mirror",
+          "guid": "2227766268377771003",
+          "state": "HEALTHY",
+          "alloc_space": "89.1M",
+          "total_space": "3.62T",
+          "def_space": "3.62T",
+          "rep_dev_size": "3.62T",
+          "read_errors": "0",
+          "write_errors": "0",
+          "checksum_errors": "0",
+          "vdevs": {
+            "db017360-d8e9-4163-961b-144ca75293a3": {
+              "name": "db017360-d8e9-4163-961b-144ca75293a3",
+              "vdev_type": "disk",
+              "guid": "17880913061695450307",
+              "path": "/dev/disk/by-partuuid/db017360-d8e9-4163-961b-144ca75293a3",
+              "state": "HEALTHY",
+              "rep_dev_size": "3.63T",
+              "phys_space": "3.64T",
+              "read_errors": "0",
+              "write_errors": "0",
+              "checksum_errors": "0",
+              "vendor": "ATA",
+              "model": "WDC WD40EFZX-68AWUN0",
+              "size": "3.6T"
+            },
+            "952c3baf-b08a-4a8c-b7fa-33a07af5fe6f": {
+              "name": "952c3baf-b08a-4a8c-b7fa-33a07af5fe6f",
+              "vdev_type": "disk",
+              "guid": "10276374011610020557",
+              "path": "/dev/disk/by-partuuid/952c3baf-b08a-4a8c-b7fa-33a07af5fe6f",
+              "state": "HEALTHY",
+              "rep_dev_size": "3.63T",
+              "phys_space": "3.64T",
+              "read_errors": "0",
+              "write_errors": "0",
+              "checksum_errors": "0",
+              "vendor": "ATA",
+              "model": "WDC WD40EFZX-68AWUN0",
+              "size": "3.6T"
+            }
+          }
+        }
+      },
+      "special": {
+        "25d418f8-92bd-4327-b59f-7ef5d5f50d81": {
+          "name": "25d418f8-92bd-4327-b59f-7ef5d5f50d81",
+          "vdev_type": "disk",
+          "guid": "3935742873387713123",
+          "path": "/dev/disk/by-partuuid/25d418f8-92bd-4327-b59f-7ef5d5f50d81",
+          "state": "HEALTHY",
+          "alloc_space": "37.4M",
+          "total_space": "444G",
+          "def_space": "444G",
+          "rep_dev_size": "444G",
+          "phys_space": "447G",
+          "read_errors": "0",
+          "write_errors": "0",
+          "checksum_errors": "0",
+          "vendor": "ATA",
+          "model": "Micron_5300_MTFDDAK480TDS",
+          "size": "447.1G"
+        }
+      },
+      "error_count": "0"
+    }
+  }
+}
 .Ed
 .
 .Sh SEE ALSO

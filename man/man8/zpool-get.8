@@ -37,6 +37,7 @@
 .Nm zpool
 .Cm get
 .Op Fl Hp
+.Op Fl j Op Ar --json-int, --json-pool-key-guid
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
 .Oo Ar pool Oc Ns …
@@ -44,6 +45,7 @@
 .Nm zpool
 .Cm get
 .Op Fl Hp
+.Op Fl j Op Ar --json-int
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
 .Ar pool
@@ -67,6 +69,7 @@
 .Nm zpool
 .Cm get
 .Op Fl Hp
+.Op Fl j Op Ar --json-int, --json-pool-key-guid
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
 .Oo Ar pool Oc Ns …
@@ -95,6 +98,14 @@ See the
 .Xr zpoolprops 7
 manual page for more information on the available pool properties.
 .Bl -tag -compact -offset Ds -width "-o field"
+.It Fl j Op Ar --json-int, --json-pool-key-guid
+Display the list of properties in JSON format.
+Specify
+.Sy --json-int
+to display the numbers in integer format instead of strings in JSON output.
+Specify
+.Sy --json-pool-key-guid
+to set pool GUID as key for pool objects instead of pool name.
 .It Fl H
 Scripted mode.
 Do not display headers, and separate fields by a single tab instead of arbitrary
@@ -108,6 +119,7 @@ Display numbers in parsable (exact) values.
 .It Xo
 .Nm zpool
 .Cm get
+.Op Fl j Op Ar --json-int
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
@@ -145,6 +157,11 @@ See the
 .Xr vdevprops 7
 manual page for more information on the available pool properties.
 .Bl -tag -compact -offset Ds -width "-o field"
+.It Fl j Op Ar --json-int
+Display the list of properties in JSON format.
+Specify
+.Sy --json-int
+to display the numbers in integer format instead of strings in JSON output.
 .It Fl H
 Scripted mode.
 Do not display headers, and separate fields by a single tab instead of arbitrary

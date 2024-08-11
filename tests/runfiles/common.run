@@ -81,7 +81,8 @@ tests = ['block_cloning_clone_mmap_cached',
     'block_cloning_cross_enc_dataset',
     'block_cloning_copyfilerange_fallback_same_txg',
     'block_cloning_replay', 'block_cloning_replay_encrypted',
-    'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write']
+    'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write',
+    'block_cloning_rlimit_fsize']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/bootfs]
@@ -153,6 +154,10 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
     'clean_mirror_003_pos', 'clean_mirror_004_pos']
 tags = ['functional', 'clean_mirror']
 
+[tests/functional/cli_root/json]
+tests = ['json_sanity']
+tags = ['functional', 'cli_root', 'json']
+
 [tests/functional/cli_root/zinject]
 tests = ['zinject_args']
 pre =
@@ -207,6 +212,10 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_crypt_combos', 'zfs_create_dryrun', 'zfs_create_nomount',
     'zfs_create_verbose']
 tags = ['functional', 'cli_root', 'zfs_create']
+
+[tests/functional/cli_root/zpool_prefetch]
+tests = ['zpool_prefetch_001_pos']
+tags = ['functional', 'cli_root', 'zpool_prefetch']
 
 [tests/functional/cli_root/zfs_destroy]
 tests = ['zfs_clone_livelist_condense_and_disable',
@@ -661,6 +670,12 @@ tests = ['deadman_ratelimit', 'deadman_sync', 'deadman_zio']
 pre =
 post =
 tags = ['functional', 'deadman']
+
+[tests/functional/dedup]
+tests = ['dedup_quota']
+pre =
+post =
+tags = ['functional', 'dedup']
 
 [tests/functional/delegate]
 tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',

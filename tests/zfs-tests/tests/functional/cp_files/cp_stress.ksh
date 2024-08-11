@@ -57,13 +57,8 @@ MYPWD="$PWD"
 cd /$TESTPOOL/cp_stress
 CPUS=$(get_num_cpus)
 
-if is_freebsd ; then
-	# 'seekflood' takes longer on FreeBSD and can timeout the test
-	RUNS=3
-else
-	RUNS=10
-fi
-
+# should run in ~2 minutes on Linux and FreeBSD
+RUNS=3
 for i in $(seq 1 $RUNS) ; do
 	# Each run takes around 12 seconds.
 	log_must $STF_SUITE/tests/functional/cp_files/seekflood 2000 $CPUS

@@ -146,6 +146,7 @@ struct spa_aux_vdev {
 	vdev_t		**sav_vdevs;		/* devices */
 	int		sav_count;		/* number devices */
 	boolean_t	sav_sync;		/* sync the device list */
+	boolean_t	sav_label_sync;		/* sync aux labels */
 	nvlist_t	**sav_pending;		/* pending device additions */
 	uint_t		sav_npending;		/* # pending devices */
 };
@@ -465,6 +466,9 @@ struct spa {
 	boolean_t	spa_waiters_cancel;	/* waiters should return */
 
 	char		*spa_compatibility;	/* compatibility file(s) */
+	uint64_t	spa_dedup_table_quota;	/* property DDT maximum size */
+	uint64_t	spa_dedup_dsize;	/* cached on-disk size of DDT */
+	uint64_t	spa_dedup_class_full_txg; /* txg dedup class was full */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements

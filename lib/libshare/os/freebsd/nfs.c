@@ -44,8 +44,6 @@
 #include "nfs.h"
 
 #define	_PATH_MOUNTDPID	"/var/run/mountd.pid"
-#define	OPTSSIZE	1024
-#define	MAXLINESIZE	(PATH_MAX + OPTSSIZE)
 #define	ZFS_EXPORTS_FILE	"/etc/zfs/exports"
 #define	ZFS_EXPORTS_LOCK	ZFS_EXPORTS_FILE".lock"
 
@@ -69,17 +67,30 @@
  *	index, quiet
  */
 static int
-translate_opts(const char *shareopts, FILE *out)
+translate_opts(char *oldopts, FILE *out)
 {
 	static const char *const known_opts[] = { "ro", "maproot", "mapall",
 	    "mask", "network", "sec", "alldirs", "public", "webnfs", "index",
 	    "quiet" };
-	char oldopts[OPTSSIZE], newopts[OPTSSIZE];
-	char *o, *s = NULL;
+	char *newopts, *o, *s = NULL;
 	unsigned int i;
-	size_t len;
+	size_t len, newopts_len;
+	int ret;
 
-	strlcpy(oldopts, shareopts, sizeof (oldopts));
+	/*
+	 * Calculate the length needed for the worst case of a single
+	 * character option:
+	 * - Add one to strlen(oldopts) so that the trailing nul is counted
+	 *   as a separator.
+	 * - Multiply by 3/2 since the single character option plus separator
+	 *   is expanded to 3 characters.
+	 * - Add one for the trailing nul.  Needed for a single repetition of
+	 *   the single character option and certain other cases.
+	 */
+	newopts_len = (strlen(oldopts) + 1) * 3 / 2 + 1;
+	newopts = malloc(newopts_len);
+	if (newopts == NULL)
+		return (EOF);
 	newopts[0] = '\0';
 	s = oldopts;
 	while ((o = strsep(&s, "-, ")) != NULL) {
@@ -89,14 +100,16 @@ translate_opts(const char *shareopts, FILE *out)
 			len = strlen(known_opts[i]);
 			if (strncmp(known_opts[i], o, len) == 0 &&
 			    (o[len] == '\0' || o[len] == '=')) {
-				strlcat(newopts, "-", sizeof (newopts));
+				strlcat(newopts, "-", newopts_len);
 				break;
 			}
 		}
-		strlcat(newopts, o, sizeof (newopts));
-		strlcat(newopts, " ", sizeof (newopts));
+		strlcat(newopts, o, newopts_len);
+		strlcat(newopts, " ", newopts_len);
 	}
-	return (fputs(newopts, out));
+	ret = fputs(newopts, out);
+	free(newopts);
+	return (ret);
 }
 
 static int
@@ -106,20 +119,38 @@ nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
-	boolean_t need_free;
-	char *mp;
+	boolean_t need_free, fnd_semi;
+	char *mp, *lineopts, *exportopts, *s;
+	size_t whitelen;
 	int rc  = nfs_escape_mountpoint(impl_share->sa_mountpoint, &mp,
 	    &need_free);
 	if (rc != SA_OK)
 		return (rc);
 
-	if (fputs(mp, tmpfile) == EOF ||
-	    fputc('\t', tmpfile) == EOF ||
-	    translate_opts(shareopts, tmpfile) == EOF ||
-	    fputc('\n', tmpfile) == EOF) {
-		fprintf(stderr, "failed to write to temporary file\n");
-		rc = SA_SYSTEM_ERR;
+	lineopts = strdup(shareopts);
+	if (lineopts == NULL)
+		return (SA_SYSTEM_ERR);
+	s = lineopts;
+	fnd_semi = B_FALSE;
+	while ((exportopts = strsep(&s, ";")) != NULL) {
+		if (s != NULL)
+			fnd_semi = B_TRUE;
+		/* Ignore only whitespace between ';' separated option sets. */
+		if (fnd_semi) {
+			whitelen = strspn(exportopts, "\t ");
+			if (exportopts[whitelen] == '\0')
+				continue;
+		}
+		if (fputs(mp, tmpfile) == EOF ||
+		    fputc('\t', tmpfile) == EOF ||
+		    translate_opts(exportopts, tmpfile) == EOF ||
+		    fputc('\n', tmpfile) == EOF) {
+			fprintf(stderr, "failed to write to temporary file\n");
+			rc = SA_SYSTEM_ERR;
+			break;
+		}
 	}
+	free(lineopts);
 
 	if (need_free)
 		free(mp);

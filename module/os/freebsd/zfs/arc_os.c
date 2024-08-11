@@ -149,26 +149,29 @@ static eventhandler_tag arc_event_lowmem = NULL;
 static void
 arc_lowmem(void *arg __unused, int howto __unused)
 {
-	int64_t free_memory, to_free;
+	int64_t can_free, free_memory, to_free;
 
 	arc_no_grow = B_TRUE;
 	arc_warm = B_TRUE;
 	arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
+
 	free_memory = arc_available_memory();
-	int64_t can_free = arc_c - arc_c_min;
-	if (can_free <= 0)
-		return;
-	to_free = (can_free >> arc_shrink_shift) - MIN(free_memory, 0);
+	can_free = arc_c - arc_c_min;
+	to_free = (MAX(can_free, 0) >> arc_shrink_shift) - MIN(free_memory, 0);
 	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
-	arc_reduce_target_size(to_free);
+	to_free = arc_reduce_target_size(to_free);
 
 	/*
 	 * It is unsafe to block here in arbitrary threads, because we can come
 	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
 	 * with ARC reclaim thread.
 	 */
-	if (curproc == pageproc)
-		arc_wait_for_eviction(to_free, B_FALSE);
+	if (curproc == pageproc) {
+		arc_wait_for_eviction(to_free, B_FALSE, B_FALSE);
+		ARCSTAT_BUMP(arcstat_memory_indirect_count);
+	} else {
+		ARCSTAT_BUMP(arcstat_memory_direct_count);
+	}
 }
 
 void

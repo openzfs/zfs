@@ -92,7 +92,7 @@ SYSCTL_INT(_debug_sizeof, OID_AUTO, znode, CTLFLAG_RD,
  * (such as VFS logic) that will not compile easily in userland.
  */
 #ifdef _KERNEL
-#if !defined(KMEM_DEBUG) && __FreeBSD_version >= 1300102
+#if !defined(KMEM_DEBUG)
 #define	_ZFS_USE_SMR
 static uma_zone_t znode_uma_zone;
 #else
@@ -236,7 +236,7 @@ zfs_znode_init(void)
 	ASSERT3P(znode_cache, ==, NULL);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
-	    zfs_znode_cache_destructor, NULL, NULL, NULL, 0);
+	    zfs_znode_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 static znode_t *
@@ -434,13 +434,8 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	    ("%s: fast path lookup enabled without smr", __func__));
 #endif
 
-#if __FreeBSD_version >= 1300076
 	KASSERT(curthread->td_vp_reserved != NULL,
 	    ("zfs_znode_alloc: getnewvnode without any vnodes reserved"));
-#else
-	KASSERT(curthread->td_vp_reserv > 0,
-	    ("zfs_znode_alloc: getnewvnode without any vnodes reserved"));
-#endif
 	error = getnewvnode("zfs", zfsvfs->z_parent->z_vfs, &zfs_vnodeops, &vp);
 	if (error != 0) {
 		zfs_znode_free_kmem(zp);
@@ -468,9 +463,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_sync_cnt = 0;
 	zp->z_sync_writes_cnt = 0;
 	zp->z_async_writes_cnt = 0;
-#if __FreeBSD_version >= 1300139
 	atomic_store_ptr(&zp->z_cached_symlink, NULL);
-#endif
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
@@ -942,7 +935,7 @@ zfs_zget(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp)
 	int locked;
 	int err;
 
-	getnewvnode_reserve_();
+	getnewvnode_reserve();
 again:
 	*zpp = NULL;
 	ZFS_OBJ_HOLD_ENTER(zfsvfs, obj_num);
@@ -1055,7 +1048,7 @@ again:
 		err = insmntque(vp, zfsvfs->z_vfs);
 		if (err == 0) {
 			vp->v_hash = obj_num;
-			VOP_UNLOCK1(vp);
+			VOP_UNLOCK(vp);
 		} else {
 			zp->z_vnode = NULL;
 			zfs_znode_dmu_fini(zp);
@@ -1275,9 +1268,7 @@ void
 zfs_znode_free(znode_t *zp)
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-#if __FreeBSD_version >= 1300139
 	char *symlink;
-#endif
 
 	ASSERT3P(zp->z_sa_hdl, ==, NULL);
 	zp->z_vnode = NULL;
@@ -1286,14 +1277,12 @@ zfs_znode_free(znode_t *zp)
 	list_remove(&zfsvfs->z_all_znodes, zp);
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-#if __FreeBSD_version >= 1300139
 	symlink = atomic_load_ptr(&zp->z_cached_symlink);
 	if (symlink != NULL) {
 		atomic_store_rel_ptr((uintptr_t *)&zp->z_cached_symlink,
 		    (uintptr_t)NULL);
 		cache_symlink_free(symlink, strlen(symlink) + 1);
 	}
-#endif
 
 	if (zp->z_acl_cached) {
 		zfs_acl_free(zp->z_acl_cached);

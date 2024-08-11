@@ -46,6 +46,7 @@
 .Cm get
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
+.Op Fl j Op Ar --json-int
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns … Oc
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
@@ -91,6 +92,7 @@ dataset.
 .Cm get
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
+.Op Fl j Op Ar --json-int
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar source Ns Oo , Ns Ar source Oc Ns … Oc
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
@@ -128,6 +130,11 @@ The value
 can be used to display all properties that apply to the given dataset's type
 .Pq Sy filesystem , volume , snapshot , No or Sy bookmark .
 .Bl -tag -width "-s source"
+.It Fl j Op Ar --json-int
+Display the output in JSON format.
+Specify
+.Sy --json-int
+to display numbers in integer format instead of strings for JSON output.
 .It Fl H
 Display output in a form more easily parsed by scripts.
 Any headers are omitted, and fields are explicitly separated by a single tab
@@ -281,6 +288,50 @@ The following command gets a single property value:
 .Bd -literal -compact -offset Ds
 .No # Nm zfs Cm get Fl H o Sy value compression Ar pool/home/bob
 on
+.Ed
+.Pp
+The following command gets a single property value recursively in JSON format:
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm get Fl j Fl r Sy mountpoint Ar pool/home | Nm jq
+{
+  "output_version": {
+    "command": "zfs get",
+    "vers_major": 0,
+    "vers_minor": 1
+  },
+  "datasets": {
+    "pool/home": {
+      "name": "pool/home",
+      "type": "FILESYSTEM",
+      "pool": "pool",
+      "createtxg": "10",
+      "properties": {
+        "mountpoint": {
+          "value": "/pool/home",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    },
+    "pool/home/bob": {
+      "name": "pool/home/bob",
+      "type": "FILESYSTEM",
+      "pool": "pool",
+      "createtxg": "1176",
+      "properties": {
+        "mountpoint": {
+          "value": "/pool/home/bob",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    }
+  }
+}
 .Ed
 .Pp
 The following command lists all properties with local settings for

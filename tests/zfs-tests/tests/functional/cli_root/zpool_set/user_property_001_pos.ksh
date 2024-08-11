@@ -56,16 +56,10 @@ typeset -a values=()
 # for the null byte)
 names+=("$(awk 'BEGIN { printf "x:"; while (c++ < (256 - 2 - 1)) printf "a" }')")
 values+=("long-property-name")
-# Longest property value (the limits are 1024 on FreeBSD and 4096 on Linux, so
-# pick the right one; the longest value can use limit minus 1 bytes for the
-# null byte)
-if is_linux; then
-	typeset ZFS_MAXPROPLEN=4096
-else
-	typeset ZFS_MAXPROPLEN=1024
-fi
+# Longest property value (8191 bytes, which is the 8192-byte limit minus 1 byte
+# for the null byte).
 names+=("long:property:value")
-values+=("$(awk -v max="$ZFS_MAXPROPLEN" 'BEGIN { while (c++ < (max - 1)) printf "A" }')")
+values+=("$(awk 'BEGIN { while (c++ < (8192 - 1)) printf "A" }')")
 # Valid property names
 for i in {1..10}; do
 	typeset -i len
@@ -80,8 +74,8 @@ while ((i < ${#names[@]})); do
 	typeset name="${names[$i]}"
 	typeset value="${values[$i]}"
 
-	log_must eval "zpool set $name='$value' $TESTPOOL"
-	log_must eval "check_user_prop $TESTPOOL $name '$value'"
+	log_must zpool set "$name=$value" "$TESTPOOL"
+	log_must check_user_prop "$TESTPOOL" "$name" "$value"
 
 	((i += 1))
 done

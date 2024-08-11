@@ -48,6 +48,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
 #include <sys/zap.h>
+#include <sys/zap_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_sa.h>
@@ -1126,16 +1127,33 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 	for (zap_cursor_init(&zc, os, object);
 	    zap_cursor_retrieve(&zc, &attr) == 0;
 	    zap_cursor_advance(&zc)) {
-		(void) printf("\t\t%s = ", attr.za_name);
+		boolean_t key64 =
+		    !!(zap_getflags(zc.zc_zap) & ZAP_FLAG_UINT64_KEY);
+
+		if (key64)
+			(void) printf("\t\t0x%010lx = ",
+			    *(uint64_t *)attr.za_name);
+		else
+			(void) printf("\t\t%s = ", attr.za_name);
+
 		if (attr.za_num_integers == 0) {
 			(void) printf("\n");
 			continue;
 		}
 		prop = umem_zalloc(attr.za_num_integers *
 		    attr.za_integer_length, UMEM_NOFAIL);
-		(void) zap_lookup(os, object, attr.za_name,
-		    attr.za_integer_length, attr.za_num_integers, prop);
-		if (attr.za_integer_length == 1) {
+
+		if (key64)
+			(void) zap_lookup_uint64(os, object,
+			    (const uint64_t *)attr.za_name, 1,
+			    attr.za_integer_length, attr.za_num_integers,
+			    prop);
+		else
+			(void) zap_lookup(os, object, attr.za_name,
+			    attr.za_integer_length, attr.za_num_integers,
+			    prop);
+
+		if (attr.za_integer_length == 1 && !key64) {
 			if (strcmp(attr.za_name,
 			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
 			    strcmp(attr.za_name,
@@ -1154,6 +1172,10 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		} else {
 			for (i = 0; i < attr.za_num_integers; i++) {
 				switch (attr.za_integer_length) {
+				case 1:
+					(void) printf("%u ",
+					    ((uint8_t *)prop)[i]);
+					break;
 				case 2:
 					(void) printf("%u ",
 					    ((uint16_t *)prop)[i]);
@@ -1963,8 +1985,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 	(void) printf("%s: %llu entries, size %llu on disk, %llu in core\n",
 	    name,
 	    (u_longlong_t)count,
-	    (u_longlong_t)(dspace / count),
-	    (u_longlong_t)(mspace / count));
+	    (u_longlong_t)dspace,
+	    (u_longlong_t)mspace);
 
 	if (dump_opt['D'] < 3)
 		return;
@@ -2082,8 +2104,13 @@ dump_brt(spa_t *spa)
 		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
 		    zap_cursor_retrieve(&zc, &za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t offset = *(uint64_t *)za.za_name;
-			uint64_t refcnt = za.za_first_integer;
+			uint64_t refcnt;
+			VERIFY0(zap_lookup_uint64(brt->brt_mos,
+			    brtvd->bv_mos_entries,
+			    (const uint64_t *)za.za_name, 1,
+			    za.za_integer_length, za.za_num_integers, &refcnt));
+
+			uint64_t offset = *(const uint64_t *)za.za_name;
 
 			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
 			    (u_longlong_t)offset);
@@ -8336,7 +8363,7 @@ zdb_dump_block(char *label, void *buf, uint64_t size, int flags)
 
 	(void) printf("\n%s\n%6s   %s  0123456789abcdef\n", label, "", hdr);
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 	/* correct the endianness */
 	do_bswap = !do_bswap;
 #endif
@@ -8905,6 +8932,19 @@ zdb_numeric(char *str)
 	return (B_TRUE);
 }
 
+static int
+dummy_get_file_info(dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zoi)
+{
+	(void) data, (void) zoi;
+
+	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
+		return (ENOENT);
+
+	(void) fprintf(stderr, "dummy_get_file_info: not implemented");
+	abort();
+}
+
 int
 main(int argc, char **argv)
 {
@@ -9186,7 +9226,7 @@ main(int argc, char **argv)
 		char *pname = strdup(target);
 		const char *value;
 		nvlist_t *pnvl = NULL;
-		nvlist_t *vnvl;
+		nvlist_t *vnvl = NULL;
 
 		if (strpbrk(pname, "/@") != NULL)
 			*strpbrk(pname, "/@") = '\0';
@@ -9220,6 +9260,7 @@ main(int argc, char **argv)
 		libzfs_core_fini();
 	}
 
+	dmu_objset_register_type(DMU_OST_ZFS, dummy_get_file_info);
 	kernel_init(SPA_MODE_READ);
 	kernel_init_done = B_TRUE;
 

@@ -126,25 +126,16 @@ static int zfs_root(vfs_t *vfsp, int flags, vnode_t **vpp);
 static int zfs_statfs(vfs_t *vfsp, struct statfs *statp);
 static int zfs_vget(vfs_t *vfsp, ino_t ino, int flags, vnode_t **vpp);
 static int zfs_sync(vfs_t *vfsp, int waitfor);
-#if __FreeBSD_version >= 1300098
 static int zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, uint64_t *extflagsp,
     struct ucred **credanonp, int *numsecflavors, int *secflavors);
-#else
-static int zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, int *extflagsp,
-    struct ucred **credanonp, int *numsecflavors, int **secflavors);
-#endif
 static int zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp);
 static void zfs_freevfs(vfs_t *vfsp);
 
 struct vfsops zfs_vfsops = {
 	.vfs_mount =		zfs_mount,
 	.vfs_unmount =		zfs_umount,
-#if __FreeBSD_version >= 1300049
 	.vfs_root =		vfs_cache_root,
-	.vfs_cachedroot = zfs_root,
-#else
-	.vfs_root =		zfs_root,
-#endif
+	.vfs_cachedroot =	zfs_root,
 	.vfs_statfs =		zfs_statfs,
 	.vfs_vget =		zfs_vget,
 	.vfs_sync =		zfs_sync,
@@ -1357,16 +1348,16 @@ zfs_mount(vfs_t *vfsp)
 
 			vn_lock(mvp, LK_SHARED | LK_RETRY);
 			if (VOP_GETATTR(mvp, &vattr, cr)) {
-				VOP_UNLOCK1(mvp);
+				VOP_UNLOCK(mvp);
 				goto out;
 			}
 
 			if (secpolicy_vnode_owner(mvp, cr, vattr.va_uid) != 0 &&
 			    VOP_ACCESS(mvp, VWRITE, cr, td) != 0) {
-				VOP_UNLOCK1(mvp);
+				VOP_UNLOCK(mvp);
 				goto out;
 			}
-			VOP_UNLOCK1(mvp);
+			VOP_UNLOCK(mvp);
 		}
 
 		secpolicy_fs_mount_clearopts(cr, vfsp);
@@ -1578,11 +1569,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 * 'z_parent' is self referential for non-snapshots.
 		 */
 #ifdef FREEBSD_NAMECACHE
-#if __FreeBSD_version >= 1300117
 		cache_purgevfs(zfsvfs->z_parent->z_vfs);
-#else
-		cache_purgevfs(zfsvfs->z_parent->z_vfs, true);
-#endif
 #endif
 	}
 
@@ -1649,9 +1636,18 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	zfs_unregister_callbacks(zfsvfs);
 
 	/*
-	 * Evict cached data
+	 * Evict cached data. We must write out any dirty data before
+	 * disowning the dataset.
 	 */
-	if (!zfs_is_readonly(zfsvfs))
+	objset_t *os = zfsvfs->z_os;
+	boolean_t os_dirty = B_FALSE;
+	for (int t = 0; t < TXG_SIZE; t++) {
+		if (dmu_objset_is_dirty(os, t)) {
+			os_dirty = B_TRUE;
+			break;
+		}
+	}
+	if (!zfs_is_readonly(zfsvfs) && os_dirty)
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 	dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
@@ -1775,13 +1771,8 @@ zfs_vget(vfs_t *vfsp, ino_t ino, int flags, vnode_t **vpp)
 }
 
 static int
-#if __FreeBSD_version >= 1300098
 zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, uint64_t *extflagsp,
     struct ucred **credanonp, int *numsecflavors, int *secflavors)
-#else
-zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, int *extflagsp,
-    struct ucred **credanonp, int *numsecflavors, int **secflavors)
-#endif
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 
@@ -2070,10 +2061,8 @@ zfs_vnodes_adjust_back(void)
 #endif
 }
 
-#if __FreeBSD_version >= 1300139
 static struct sx zfs_vnlru_lock;
 static struct vnode *zfs_vnlru_marker;
-#endif
 static arc_prune_t *zfs_prune;
 
 static void
@@ -2081,13 +2070,9 @@ zfs_prune_task(uint64_t nr_to_scan, void *arg __unused)
 {
 	if (nr_to_scan > INT_MAX)
 		nr_to_scan = INT_MAX;
-#if __FreeBSD_version >= 1300139
 	sx_xlock(&zfs_vnlru_lock);
 	vnlru_free_vfsops(nr_to_scan, &zfs_vfsops, zfs_vnlru_marker);
 	sx_xunlock(&zfs_vnlru_lock);
-#else
-	vnlru_free(nr_to_scan, &zfs_vfsops);
-#endif
 }
 
 void
@@ -2117,10 +2102,8 @@ zfs_init(void)
 
 	zfsvfs_taskq = taskq_create("zfsvfs", 1, minclsyspri, 0, 0, 0);
 
-#if __FreeBSD_version >= 1300139
 	zfs_vnlru_marker = vnlru_alloc_marker();
 	sx_init(&zfs_vnlru_lock, "zfs vnlru lock");
-#endif
 	zfs_prune = arc_add_prune_callback(zfs_prune_task, NULL);
 }
 
@@ -2128,10 +2111,8 @@ void
 zfs_fini(void)
 {
 	arc_remove_prune_callback(zfs_prune);
-#if __FreeBSD_version >= 1300139
 	vnlru_free_marker(zfs_vnlru_marker);
 	sx_destroy(&zfs_vnlru_lock);
-#endif
 
 	taskq_destroy(zfsvfs_taskq);
 	zfsctl_fini();
