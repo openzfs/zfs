@@ -306,7 +306,7 @@ dnode_init(void)
 {
 	ASSERT(dnode_cache == NULL);
 	dnode_cache = kmem_cache_create("dnode_t", sizeof (dnode_t),
-	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, 0);
+	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, KMC_RECLAIMABLE);
 	kmem_cache_set_move(dnode_cache, dnode_move);
 
 	wmsum_init(&dnode_sums.dnode_hold_dbuf_hold, 0);
@@ -544,6 +544,17 @@ dnode_setbonus_type(dnode_t *dn, dmu_object_type_t newtype, dmu_tx_t *tx)
 }
 
 void
+dnode_set_storage_type(dnode_t *dn, dmu_object_type_t newtype)
+{
+	/*
+	 * This is not in the dnode_phys, but it should be, and perhaps one day
+	 * will. For now we require it be set after taking a hold.
+	 */
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
+	dn->dn_storage_type = newtype;
+}
+
+void
 dnode_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 {
 	ASSERT3U(zfs_refcount_count(&dn->dn_holds), >=, 1);
@@ -603,6 +614,8 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_maxblkid = dnp->dn_maxblkid;
 	dn->dn_have_spill = ((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) != 0);
 	dn->dn_id_flags = 0;
+
+	dn->dn_storage_type = DMU_OT_NONE;
 
 	dmu_zfetch_init(&dn->dn_zfetch, dn);
 
@@ -686,6 +699,8 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_newgid = 0;
 	dn->dn_newprojid = ZFS_DEFAULT_PROJID;
 	dn->dn_id_flags = 0;
+
+	dn->dn_storage_type = DMU_OT_NONE;
 
 	dmu_zfetch_fini(&dn->dn_zfetch);
 	kmem_cache_free(dnode_cache, dn);
@@ -946,6 +961,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_newgid = odn->dn_newgid;
 	ndn->dn_newprojid = odn->dn_newprojid;
 	ndn->dn_id_flags = odn->dn_id_flags;
+	ndn->dn_storage_type = odn->dn_storage_type;
 	dmu_zfetch_init(&ndn->dn_zfetch, ndn);
 
 	/*
@@ -1004,6 +1020,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_newgid = 0;
 	odn->dn_newprojid = ZFS_DEFAULT_PROJID;
 	odn->dn_id_flags = 0;
+	odn->dn_storage_type = DMU_OT_NONE;
 
 	/*
 	 * Mark the dnode.
@@ -1019,6 +1036,19 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	objset_t *os;
 	int64_t refcount;
 	uint32_t dbufs;
+
+#ifndef USE_DNODE_HANDLE
+	/*
+	 * We can't move dnodes if dbufs reference them directly without
+	 * using handles and respecitve locking.  Unless USE_DNODE_HANDLE
+	 * is defined the code below is only to make sure it still builds,
+	 * but it should never be used, since it is unsafe.
+	 */
+#ifdef ZFS_DEBUG
+	PANIC("dnode_move() called without USE_DNODE_HANDLE");
+#endif
+	return (KMEM_CBRC_NO);
+#endif
 
 	/*
 	 * The dnode is on the objset's list of known dnodes if the objset
@@ -1757,7 +1787,7 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	 * handle.
 	 */
 #ifdef ZFS_DEBUG
-	ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
 #endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */

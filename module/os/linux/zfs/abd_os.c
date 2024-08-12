@@ -281,7 +281,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct sg_table table;
 	struct scatterlist *sg;
 	struct page *page, *tmp_page = NULL;
-	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
+	gfp_t gfp = __GFP_RECLAIMABLE | __GFP_NOWARN | GFP_NOIO;
 	gfp_t gfp_comp = (gfp | __GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
 	unsigned int max_order = MIN(zfs_abd_scatter_max_order,
 	    ABD_MAX_ORDER - 1);
@@ -403,7 +403,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct scatterlist *sg = NULL;
 	struct sg_table table;
 	struct page *page;
-	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
+	gfp_t gfp = __GFP_RECLAIMABLE | __GFP_NOWARN | GFP_NOIO;
 	int nr_pages = abd_chunkcnt_for_bytes(size);
 	int i = 0;
 
@@ -526,8 +526,8 @@ abd_alloc_zero_scatter(void)
 #define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
 #endif
 
-#define	zfs_kmap_atomic(chunk)		((void *)chunk)
-#define	zfs_kunmap_atomic(addr)		do { (void)(addr); } while (0)
+#define	zfs_kmap_local(chunk)		((void *)chunk)
+#define	zfs_kunmap_local(addr)		do { (void)(addr); } while (0)
 #define	local_irq_save(flags)		do { (void)(flags); } while (0)
 #define	local_irq_restore(flags)	do { (void)(flags); } while (0)
 #define	nth_page(pg, i) \
@@ -762,7 +762,7 @@ abd_init(void)
 	int i;
 
 	abd_cache = kmem_cache_create("abd_t", sizeof (abd_t),
-	    0, NULL, NULL, NULL, NULL, NULL, 0);
+	    0, NULL, NULL, NULL, NULL, NULL, KMC_RECLAIMABLE);
 
 	wmsum_init(&abd_sums.abdstat_struct_size, 0);
 	wmsum_init(&abd_sums.abdstat_linear_cnt, 0);
@@ -980,7 +980,7 @@ abd_iter_map(struct abd_iter *aiter)
 		aiter->iter_mapsize = MIN(aiter->iter_sg->length - offset,
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
 
-		paddr = zfs_kmap_atomic(sg_page(aiter->iter_sg));
+		paddr = zfs_kmap_local(sg_page(aiter->iter_sg));
 	}
 
 	aiter->iter_mapaddr = (char *)paddr + offset;
@@ -999,7 +999,7 @@ abd_iter_unmap(struct abd_iter *aiter)
 
 	if (!abd_is_linear(aiter->iter_abd)) {
 		/* LINTED E_FUNC_SET_NOT_USED */
-		zfs_kunmap_atomic(aiter->iter_mapaddr - aiter->iter_offset);
+		zfs_kunmap_local(aiter->iter_mapaddr - aiter->iter_offset);
 	}
 
 	ASSERT3P(aiter->iter_mapaddr, !=, NULL);

@@ -26,7 +26,7 @@
  * Copyright (c) 2017, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2020, George Amanakis. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020, The FreeBSD Foundation [1]
  *
@@ -1258,7 +1258,7 @@ retry:
 	}
 
 	hdr_full_cache = kmem_cache_create("arc_buf_hdr_t_full", HDR_FULL_SIZE,
-	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, 0);
+	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, KMC_RECLAIMABLE);
 	hdr_l2only_cache = kmem_cache_create("arc_buf_hdr_t_l2only",
 	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, NULL,
 	    NULL, NULL, 0);
@@ -4236,6 +4236,18 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 }
 
 /*
+ * Calculate (x * multiplier / divisor) without unnecesary overflows.
+ */
+static uint64_t
+arc_mf(uint64_t x, uint64_t multiplier, uint64_t divisor)
+{
+	uint64_t q = (x / divisor);
+	uint64_t r = (x % divisor);
+
+	return ((q * multiplier) + ((r * multiplier) / divisor));
+}
+
+/*
  * Evict buffers from the cache, such that arcstat_size is capped by arc_c.
  */
 static uint64_t
@@ -4287,17 +4299,20 @@ arc_evict(void)
 	 */
 	int64_t prune = 0;
 	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
+	int64_t nem = zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA])
+	    + zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA])
+	    - zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA])
+	    - zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
 	w = wt * (int64_t)(arc_meta >> 16) >> 16;
-	if (zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA]) +
-	    zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA]) -
-	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) -
-	    zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]) >
-	    w * 3 / 4) {
+	if (nem > w * 3 / 4) {
 		prune = dn / sizeof (dnode_t) *
 		    zfs_arc_dnode_reduce_percent / 100;
-	} else if (dn > arc_dnode_limit) {
-		prune = (dn - arc_dnode_limit) / sizeof (dnode_t) *
-		    zfs_arc_dnode_reduce_percent / 100;
+		if (nem < w && w > 4)
+			prune = arc_mf(prune, nem - w * 3 / 4, w / 4);
+	}
+	if (dn > arc_dnode_limit) {
+		prune = MAX(prune, (dn - arc_dnode_limit) / sizeof (dnode_t) *
+		    zfs_arc_dnode_reduce_percent / 100);
 	}
 	if (prune > 0)
 		arc_prune_async(prune);
@@ -4398,13 +4413,14 @@ arc_flush(spa_t *spa, boolean_t retry)
 	(void) arc_flush_state(arc_uncached, guid, ARC_BUFC_METADATA, retry);
 }
 
-void
-arc_reduce_target_size(int64_t to_free)
+uint64_t
+arc_reduce_target_size(uint64_t to_free)
 {
-	uint64_t c = arc_c;
-
-	if (c <= arc_c_min)
-		return;
+	/*
+	 * Get the actual arc size.  Even if we don't need it, this updates
+	 * the aggsum lower bound estimate for arc_is_overflowing().
+	 */
+	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
 
 	/*
 	 * All callers want the ARC to actually evict (at least) this much
@@ -4414,16 +4430,28 @@ arc_reduce_target_size(int64_t to_free)
 	 * immediately have arc_c < arc_size and therefore the arc_evict_zthr
 	 * will evict.
 	 */
-	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
-	if (asize < c)
-		to_free += c - asize;
-	arc_c = MAX((int64_t)c - to_free, (int64_t)arc_c_min);
+	uint64_t c = arc_c;
+	if (c > arc_c_min) {
+		c = MIN(c, MAX(asize, arc_c_min));
+		to_free = MIN(to_free, c - arc_c_min);
+		arc_c = c - to_free;
+	} else {
+		to_free = 0;
+	}
 
-	/* See comment in arc_evict_cb_check() on why lock+flag */
-	mutex_enter(&arc_evict_lock);
-	arc_evict_needed = B_TRUE;
-	mutex_exit(&arc_evict_lock);
-	zthr_wakeup(arc_evict_zthr);
+	/*
+	 * Whether or not we reduced the target size, request eviction if the
+	 * current size is over it now, since caller obviously wants some RAM.
+	 */
+	if (asize > arc_c) {
+		/* See comment in arc_evict_cb_check() on why lock+flag */
+		mutex_enter(&arc_evict_lock);
+		arc_evict_needed = B_TRUE;
+		mutex_exit(&arc_evict_lock);
+		zthr_wakeup(arc_evict_zthr);
+	}
+
+	return (to_free);
 }
 
 /*
@@ -4630,9 +4658,9 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 static void
 arc_reap_cb(void *arg, zthr_t *zthr)
 {
-	(void) arg, (void) zthr;
+	int64_t can_free, free_memory, to_free;
 
-	int64_t free_memory;
+	(void) arg, (void) zthr;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 
 	/*
@@ -4660,13 +4688,10 @@ arc_reap_cb(void *arg, zthr_t *zthr)
 	 * amount, reduce by what is needed to hit the fractional amount.
 	 */
 	free_memory = arc_available_memory();
-
-	int64_t can_free = arc_c - arc_c_min;
-	if (can_free > 0) {
-		int64_t to_free = (can_free >> arc_shrink_shift) - free_memory;
-		if (to_free > 0)
-			arc_reduce_target_size(to_free);
-	}
+	can_free = arc_c - arc_c_min;
+	to_free = (MAX(can_free, 0) >> arc_shrink_shift) - free_memory;
+	if (to_free > 0)
+		arc_reduce_target_size(to_free);
 	spl_fstrans_unmark(cookie);
 }
 
@@ -4754,16 +4779,11 @@ arc_adapt(uint64_t bytes)
 }
 
 /*
- * Check if arc_size has grown past our upper threshold, determined by
- * zfs_arc_overflow_shift.
+ * Check if ARC current size has grown past our upper thresholds.
  */
 static arc_ovf_level_t
-arc_is_overflowing(boolean_t use_reserve)
+arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 {
-	/* Always allow at least one block of overflow */
-	int64_t overflow = MAX(SPA_MAXBLOCKSIZE,
-	    arc_c >> zfs_arc_overflow_shift);
-
 	/*
 	 * We just compare the lower bound here for performance reasons. Our
 	 * primary goals are to make sure that the arc never grows without
@@ -4773,12 +4793,22 @@ arc_is_overflowing(boolean_t use_reserve)
 	 * in the ARC. In practice, that's in the tens of MB, which is low
 	 * enough to be safe.
 	 */
-	int64_t over = aggsum_lower_bound(&arc_sums.arcstat_size) -
-	    arc_c - overflow / 2;
-	if (!use_reserve)
-		overflow /= 2;
-	return (over < 0 ? ARC_OVF_NONE :
-	    over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
+	int64_t over = aggsum_lower_bound(&arc_sums.arcstat_size) - arc_c -
+	    zfs_max_recordsize;
+
+	/* Always allow at least one block of overflow. */
+	if (over < 0)
+		return (ARC_OVF_NONE);
+
+	/* If we are under memory pressure, report severe overflow. */
+	if (!lax)
+		return (ARC_OVF_SEVERE);
+
+	/* We are not under pressure, so be more or less relaxed. */
+	int64_t overflow = (arc_c >> zfs_arc_overflow_shift) / 2;
+	if (use_reserve)
+		overflow *= 3;
+	return (over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
 }
 
 static abd_t *
@@ -4810,15 +4840,17 @@ arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, const void *tag)
 
 /*
  * Wait for the specified amount of data (in bytes) to be evicted from the
- * ARC, and for there to be sufficient free memory in the system.  Waiting for
- * eviction ensures that the memory used by the ARC decreases.  Waiting for
- * free memory ensures that the system won't run out of free pages, regardless
- * of ARC behavior and settings.  See arc_lowmem_init().
+ * ARC, and for there to be sufficient free memory in the system.
+ * The lax argument specifies that caller does not have a specific reason
+ * to wait, not aware of any memory pressure.  Low memory handlers though
+ * should set it to B_FALSE to wait for all required evictions to complete.
+ * The use_reserve argument allows some callers to wait less than others
+ * to not block critical code paths, possibly blocking other resources.
  */
 void
-arc_wait_for_eviction(uint64_t amount, boolean_t use_reserve)
+arc_wait_for_eviction(uint64_t amount, boolean_t lax, boolean_t use_reserve)
 {
-	switch (arc_is_overflowing(use_reserve)) {
+	switch (arc_is_overflowing(lax, use_reserve)) {
 	case ARC_OVF_NONE:
 		return;
 	case ARC_OVF_SOME:
@@ -4913,7 +4945,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag,
 	 * under arc_c.  See the comment above zfs_arc_eviction_pct.
 	 */
 	arc_wait_for_eviction(size * zfs_arc_eviction_pct / 100,
-	    alloc_flags & ARC_HDR_USE_RESERVE);
+	    B_TRUE, alloc_flags & ARC_HDR_USE_RESERVE);
 
 	arc_buf_contents_t type = arc_buf_type(hdr);
 	if (type == ARC_BUFC_METADATA) {
@@ -5455,6 +5487,57 @@ arc_read_done(zio_t *zio)
 }
 
 /*
+ * Lookup the block at the specified DVA (in bp), and return the manner in
+ * which the block is cached. A zero return indicates not cached.
+ */
+int
+arc_cached(spa_t *spa, const blkptr_t *bp)
+{
+	arc_buf_hdr_t *hdr = NULL;
+	kmutex_t *hash_lock = NULL;
+	uint64_t guid = spa_load_guid(spa);
+	int flags = 0;
+
+	if (BP_IS_EMBEDDED(bp))
+		return (ARC_CACHED_EMBEDDED);
+
+	hdr = buf_hash_find(guid, bp, &hash_lock);
+	if (hdr == NULL)
+		return (0);
+
+	if (HDR_HAS_L1HDR(hdr)) {
+		arc_state_t *state = hdr->b_l1hdr.b_state;
+		/*
+		 * We switch to ensure that any future arc_state_type_t
+		 * changes are handled. This is just a shift to promote
+		 * more compile-time checking.
+		 */
+		switch (state->arcs_state) {
+		case ARC_STATE_ANON:
+			break;
+		case ARC_STATE_MRU:
+			flags |= ARC_CACHED_IN_MRU | ARC_CACHED_IN_L1;
+			break;
+		case ARC_STATE_MFU:
+			flags |= ARC_CACHED_IN_MFU | ARC_CACHED_IN_L1;
+			break;
+		case ARC_STATE_UNCACHED:
+			/* The header is still in L1, probably not for long */
+			flags |= ARC_CACHED_IN_L1;
+			break;
+		default:
+			break;
+		}
+	}
+	if (HDR_HAS_L2HDR(hdr))
+		flags |= ARC_CACHED_IN_L2;
+
+	mutex_exit(hash_lock);
+
+	return (flags);
+}
+
+/*
  * "Read" the block at the specified DVA (in bp) via the
  * cache.  If the block is found in the cache, invoke the provided
  * callback immediately and return.  Note that the `zio' parameter
@@ -5508,19 +5591,6 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	 */
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 top:
-	/*
-	 * Verify the block pointer contents are reasonable.  This should
-	 * always be the case since the blkptr is protected by a checksum.
-	 * However, if there is damage it's desirable to detect this early
-	 * and treat it as a checksum error.  This allows an alternate blkptr
-	 * to be tried when one is available (e.g. ditto blocks).
-	 */
-	if (!zfs_blkptr_verify(spa, bp, (zio_flags & ZIO_FLAG_CONFIG_WRITER) ?
-	    BLK_CONFIG_HELD : BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
-		rc = SET_ERROR(ECKSUM);
-		goto done;
-	}
-
 	if (!embedded_bp) {
 		/*
 		 * Embedded BP's have no DVA and require no I/O to "read".
@@ -5539,6 +5609,18 @@ top:
 	if (hdr != NULL && HDR_HAS_L1HDR(hdr) && (HDR_HAS_RABD(hdr) ||
 	    (hdr->b_l1hdr.b_pabd != NULL && !encrypted_read))) {
 		boolean_t is_data = !HDR_ISTYPE_METADATA(hdr);
+
+		/*
+		 * Verify the block pointer contents are reasonable.  This
+		 * should always be the case since the blkptr is protected by
+		 * a checksum.
+		 */
+		if (!zfs_blkptr_verify(spa, bp, BLK_CONFIG_SKIP,
+		    BLK_VERIFY_LOG)) {
+			mutex_exit(hash_lock);
+			rc = SET_ERROR(ECKSUM);
+			goto done;
+		}
 
 		if (HDR_IO_IN_PROGRESS(hdr)) {
 			if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
@@ -5690,6 +5772,20 @@ top:
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
 			rc = SET_ERROR(ENOENT);
+			goto done;
+		}
+
+		/*
+		 * Verify the block pointer contents are reasonable.  This
+		 * should always be the case since the blkptr is protected by
+		 * a checksum.
+		 */
+		if (!zfs_blkptr_verify(spa, bp,
+		    (zio_flags & ZIO_FLAG_CONFIG_WRITER) ?
+		    BLK_CONFIG_HELD : BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
+			if (hash_lock != NULL)
+				mutex_exit(hash_lock);
+			rc = SET_ERROR(ECKSUM);
 			goto done;
 		}
 

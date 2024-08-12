@@ -210,19 +210,15 @@ log_must local_cleanup
 log_note "verify clone list truncated correctly"
 fs=$TESTPOOL/$TESTFS1
 xs=""; for i in {1..200}; do xs+="x"; done
-if is_linux; then
-	ZFS_MAXPROPLEN=4096
-else
-	ZFS_MAXPROPLEN=1024
-fi
+maxproplen=8192
 log_must zfs create $fs
 log_must zfs snapshot $fs@snap
-for (( i = 1; i <= (ZFS_MAXPROPLEN / 200 + 1); i++ )); do
+for (( i = 1; i <= (maxproplen / 200 + 1); i++ )); do
 	log_must zfs clone ${fs}@snap ${fs}/${TESTCLONE}${xs}.${i}
 done
 clone_list=$(zfs list -o clones $fs@snap)
 char_count=$(echo "$clone_list" | tail -1 | wc -c)
-[[ $char_count -eq $ZFS_MAXPROPLEN ]] || \
+[[ $char_count -eq $maxproplen ]] || \
     log_fail "Clone list not truncated correctly. Unexpected character count" \
         "$char_count"
 

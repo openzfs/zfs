@@ -41,6 +41,7 @@
 .Cm list
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
+.Op Fl j Op Ar --json-int
 .Oo Fl o Ar property Ns Oo , Ns Ar property Oc Ns … Oc
 .Oo Fl s Ar property Oc Ns …
 .Oo Fl S Ar property Oc Ns …
@@ -70,6 +71,11 @@ The following fields are displayed:
 Used for scripting mode.
 Do not print headers and separate fields by a single tab instead of arbitrary
 white space.
+.It Fl j Op Ar --json-int
+Print the output in JSON format.
+Specify
+.Sy --json-int
+to print the numbers in integer format instead of strings in JSON output.
 .It Fl d Ar depth
 Recursively display any children of the dataset, limiting the recursion to
 .Ar depth .
@@ -185,6 +191,161 @@ pool                      450K   457G    18K  /pool
 pool/home                 315K   457G    21K  /export/home
 pool/home/anne             18K   457G    18K  /export/home/anne
 pool/home/bob             276K   457G   276K  /export/home/bob
+.Ed
+.Ss Example 2 : No Listing ZFS filesystems and snapshots in JSON format
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm list Fl j Fl t Ar filesystem,snapshot | Cm jq
+{
+  "output_version": {
+    "command": "zfs list",
+    "vers_major": 0,
+    "vers_minor": 1
+  },
+  "datasets": {
+    "pool": {
+      "name": "pool",
+      "type": "FILESYSTEM",
+      "pool": "pool",
+      "properties": {
+        "used": {
+          "value": "290K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "available": {
+          "value": "30.5G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "referenced": {
+          "value": "24K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "/pool",
+          "source": {
+            "type": "DEFAULT",
+            "data": "-"
+          }
+        }
+      }
+    },
+    "pool/home": {
+      "name": "pool/home",
+      "type": "FILESYSTEM",
+      "pool": "pool",
+      "properties": {
+        "used": {
+          "value": "48K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "available": {
+          "value": "30.5G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "referenced": {
+          "value": "24K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "/mnt/home",
+          "source": {
+            "type": "LOCAL",
+            "data": "-"
+          }
+        }
+      }
+    },
+    "pool/home/bob": {
+      "name": "pool/home/bob",
+      "type": "FILESYSTEM",
+      "pool": "pool",
+      "properties": {
+        "used": {
+          "value": "24K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "available": {
+          "value": "30.5G",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "referenced": {
+          "value": "24K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "/mnt/home/bob",
+          "source": {
+            "type": "INHERITED",
+            "data": "pool/home"
+          }
+        }
+      }
+    },
+    "pool/home/bob@v1": {
+      "name": "pool/home/bob@v1",
+      "type": "SNAPSHOT",
+      "pool": "pool",
+      "dataset": "pool/home/bob",
+      "snapshot_name": "v1",
+      "properties": {
+        "used": {
+          "value": "0B",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "available": {
+          "value": "-",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "referenced": {
+          "value": "24K",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        },
+        "mountpoint": {
+          "value": "-",
+          "source": {
+            "type": "NONE",
+            "data": "-"
+          }
+        }
+      }
+    }
+  }
+}
 .Ed
 .
 .Sh SEE ALSO

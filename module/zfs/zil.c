@@ -99,6 +99,9 @@ static uint_t zfs_commit_timeout_pct = 10;
 static zil_kstat_values_t zil_stats = {
 	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
 	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_error_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_stall_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_suspend_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
@@ -360,6 +363,9 @@ zil_sums_init(zil_sums_t *zs)
 {
 	wmsum_init(&zs->zil_commit_count, 0);
 	wmsum_init(&zs->zil_commit_writer_count, 0);
+	wmsum_init(&zs->zil_commit_error_count, 0);
+	wmsum_init(&zs->zil_commit_stall_count, 0);
+	wmsum_init(&zs->zil_commit_suspend_count, 0);
 	wmsum_init(&zs->zil_itx_count, 0);
 	wmsum_init(&zs->zil_itx_indirect_count, 0);
 	wmsum_init(&zs->zil_itx_indirect_bytes, 0);
@@ -382,6 +388,9 @@ zil_sums_fini(zil_sums_t *zs)
 {
 	wmsum_fini(&zs->zil_commit_count);
 	wmsum_fini(&zs->zil_commit_writer_count);
+	wmsum_fini(&zs->zil_commit_error_count);
+	wmsum_fini(&zs->zil_commit_stall_count);
+	wmsum_fini(&zs->zil_commit_suspend_count);
 	wmsum_fini(&zs->zil_itx_count);
 	wmsum_fini(&zs->zil_itx_indirect_count);
 	wmsum_fini(&zs->zil_itx_indirect_bytes);
@@ -406,6 +415,12 @@ zil_kstat_values_update(zil_kstat_values_t *zs, zil_sums_t *zil_sums)
 	    wmsum_value(&zil_sums->zil_commit_count);
 	zs->zil_commit_writer_count.value.ui64 =
 	    wmsum_value(&zil_sums->zil_commit_writer_count);
+	zs->zil_commit_error_count.value.ui64 =
+	    wmsum_value(&zil_sums->zil_commit_error_count);
+	zs->zil_commit_stall_count.value.ui64 =
+	    wmsum_value(&zil_sums->zil_commit_stall_count);
+	zs->zil_commit_suspend_count.value.ui64 =
+	    wmsum_value(&zil_sums->zil_commit_suspend_count);
 	zs->zil_itx_count.value.ui64 =
 	    wmsum_value(&zil_sums->zil_itx_count);
 	zs->zil_itx_indirect_count.value.ui64 =
@@ -512,9 +527,26 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 
 		for (; lrp < end; lrp += reclen) {
 			lr_t *lr = (lr_t *)lrp;
+
+			/*
+			 * Are the remaining bytes large enough to hold an
+			 * log record?
+			 */
+			if ((char *)(lr + 1) > end) {
+				cmn_err(CE_WARN, "zil_parse: lr_t overrun");
+				error = SET_ERROR(ECKSUM);
+				arc_buf_destroy(abuf, &abuf);
+				goto done;
+			}
 			reclen = lr->lrc_reclen;
-			ASSERT3U(reclen, >=, sizeof (lr_t));
-			ASSERT3U(reclen, <=, end - lrp);
+			if (reclen < sizeof (lr_t) || reclen > end - lrp) {
+				cmn_err(CE_WARN,
+				    "zil_parse: lr_t has an invalid reclen");
+				error = SET_ERROR(ECKSUM);
+				arc_buf_destroy(abuf, &abuf);
+				goto done;
+			}
+
 			if (lr->lrc_seq > claim_lr_seq) {
 				arc_buf_destroy(abuf, &abuf);
 				goto done;
@@ -2823,6 +2855,7 @@ zil_commit_writer_stall(zilog_t *zilog)
 	 * (which is achieved via the txg_wait_synced() call).
 	 */
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
+	ZIL_STAT_BUMP(zilog, zil_commit_stall_count);
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 }
@@ -3592,6 +3625,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	 * semantics, and avoid calling those functions altogether.
 	 */
 	if (zilog->zl_suspend > 0) {
+		ZIL_STAT_BUMP(zilog, zil_commit_suspend_count);
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 		return;
 	}
@@ -3645,10 +3679,12 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 		 * implications, but the expectation is for this to be
 		 * an exceptional case, and shouldn't occur often.
 		 */
+		ZIL_STAT_BUMP(zilog, zil_commit_error_count);
 		DTRACE_PROBE2(zil__commit__io__error,
 		    zilog_t *, zilog, zil_commit_waiter_t *, zcw);
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 	} else if (wtxg != 0) {
+		ZIL_STAT_BUMP(zilog, zil_commit_suspend_count);
 		txg_wait_synced(zilog->zl_dmu_pool, wtxg);
 	}
 

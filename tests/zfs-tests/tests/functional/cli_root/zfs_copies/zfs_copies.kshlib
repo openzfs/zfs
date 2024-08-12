@@ -84,7 +84,8 @@ function do_vol_test
 	vol=$TESTPOOL/$TESTVOL1
 	vol_b_path=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL1
 
-	log_must zfs create -V $VOLSIZE -o copies=$copies $vol
+	log_must zfs create -V $VOLSIZE -o compression=off -o copies=$copies \
+	    $vol
 	log_must zfs set refreservation=none $vol
 	block_device_wait $vol_b_path
 
@@ -116,31 +117,30 @@ function do_vol_test
 		else
 			log_must zpool create $TESTPOOL1 $vol_b_path
 		fi
-		log_must zfs create $TESTPOOL1/$TESTFS1
+		log_must zfs create -o compression=off $TESTPOOL1/$TESTFS1
+		sync_pool $TESTPOOL1
 		;;
 	*)
 		log_unsupported "$type test not implemented"
 		;;
 	esac
 
-	((nfilesize = copies * ${FILESIZE%m}))
+	sync_pool $TESTPOOL
 	pre_used=$(get_prop used $vol)
-	((target_size = pre_used + nfilesize))
 
 	if [[ $type == "zfs" ]]; then
 		log_must mkfile $FILESIZE /$TESTPOOL1/$TESTFS1/$FILE
+		sync_pool $TESTPOOL1
 	else
 		log_must mkfile $FILESIZE $mntp/$FILE
+		log_must sync
 	fi
 
+	sync_pool $TESTPOOL
 	post_used=$(get_prop used $vol)
-	((retries = 0))
-	while ((post_used < target_size && retries++ < 42)); do
-		sleep 1
-		post_used=$(get_prop used $vol)
-	done
 
 	((used = post_used - pre_used))
+	((nfilesize = copies * ${FILESIZE%m}))
 	if ((used < nfilesize)); then
 		log_fail "The space is not charged correctly while setting" \
 		    "copies as $copies ($used < $nfilesize)" \
@@ -153,5 +153,7 @@ function do_vol_test
 		log_must umount $mntp
 	fi
 
+	# Ubuntu 20.04 wants a sync here
+	log_must sync
 	log_must zfs destroy $vol
 }

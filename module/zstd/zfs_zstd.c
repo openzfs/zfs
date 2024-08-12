@@ -844,6 +844,13 @@ zstd_mempool_deinit(void)
 void
 zfs_zstd_cache_reap_now(void)
 {
+
+	/*
+	 * Short-circuit if there are no buffers to begin with.
+	 */
+	if (ZSTDSTAT(zstd_stat_buffers) == 0)
+		return;
+
 	/*
 	 * calling alloc with zero size seeks
 	 * and releases old unused objects

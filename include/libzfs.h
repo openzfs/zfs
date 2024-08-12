@@ -51,8 +51,8 @@ extern "C" {
 /*
  * Miscellaneous ZFS constants
  */
-#define	ZFS_MAXPROPLEN		MAXPATHLEN
-#define	ZPOOL_MAXPROPLEN	MAXPATHLEN
+#define	ZFS_MAXPROPLEN		ZAP_MAXVALUELEN
+#define	ZPOOL_MAXPROPLEN	ZAP_MAXVALUELEN
 
 /*
  * libzfs errors
@@ -327,6 +327,8 @@ _LIBZFS_H int zpool_vdev_clear(zpool_handle_t *, uint64_t);
 
 _LIBZFS_H nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
     boolean_t *, boolean_t *);
+_LIBZFS_H nvlist_t *zpool_find_parent_vdev(zpool_handle_t *, const char *,
+    boolean_t *, boolean_t *, boolean_t *);
 _LIBZFS_H nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
     boolean_t *, boolean_t *, boolean_t *);
 _LIBZFS_H int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *,
@@ -458,6 +460,7 @@ _LIBZFS_H nvlist_t *zpool_get_config(zpool_handle_t *, nvlist_t **);
 _LIBZFS_H nvlist_t *zpool_get_features(zpool_handle_t *);
 _LIBZFS_H int zpool_refresh_stats(zpool_handle_t *, boolean_t *);
 _LIBZFS_H int zpool_get_errlog(zpool_handle_t *, nvlist_t **);
+_LIBZFS_H void zpool_add_propname(zpool_handle_t *, const char *);
 
 /*
  * Import and export functions
@@ -468,7 +471,8 @@ _LIBZFS_H int zpool_import(libzfs_handle_t *, nvlist_t *, const char *,
     char *altroot);
 _LIBZFS_H int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
     nvlist_t *, int);
-_LIBZFS_H void zpool_print_unsup_feat(nvlist_t *config);
+_LIBZFS_H void zpool_collect_unsup_feat(nvlist_t *config, char *buf,
+    size_t size);
 
 /*
  * Miscellaneous pool functions
@@ -499,10 +503,12 @@ _LIBZFS_H void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t);
 _LIBZFS_H int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);
 _LIBZFS_H void zpool_explain_recover(libzfs_handle_t *, const char *, int,
-    nvlist_t *);
+    nvlist_t *, char *, size_t);
 _LIBZFS_H int zpool_checkpoint(zpool_handle_t *);
 _LIBZFS_H int zpool_discard_checkpoint(zpool_handle_t *);
 _LIBZFS_H boolean_t zpool_is_draid_spare(const char *);
+
+_LIBZFS_H int zpool_prefetch(zpool_handle_t *, zpool_prefetch_type_t);
 
 /*
  * Basic handle manipulations.  These functions do not create or destroy the
@@ -628,6 +634,8 @@ _LIBZFS_H int zprop_get_list(libzfs_handle_t *, char *, zprop_list_t **,
     zfs_type_t);
 _LIBZFS_H void zprop_free_list(zprop_list_t *);
 
+_LIBZFS_H void zcmd_print_json(nvlist_t *);
+
 #define	ZFS_GET_NCOLS	5
 
 typedef enum {
@@ -655,9 +663,13 @@ typedef struct zprop_get_cbdata {
 	boolean_t cb_scripted;
 	boolean_t cb_literal;
 	boolean_t cb_first;
+	boolean_t cb_json;
 	zprop_list_t *cb_proplist;
 	zfs_type_t cb_type;
 	vdev_cbdata_t cb_vdevs;
+	nvlist_t *cb_jsobj;
+	boolean_t cb_json_as_int;
+	boolean_t cb_json_pool_key_guid;
 } zprop_get_cbdata_t;
 
 #define	ZFS_SET_NOMOUNT		1
@@ -670,6 +682,13 @@ typedef struct zprop_set_cbdata {
 _LIBZFS_H void zprop_print_one_property(const char *, zprop_get_cbdata_t *,
     const char *, const char *, zprop_source_t, const char *,
     const char *);
+
+_LIBZFS_H int zprop_nvlist_one_property(const char *, const char *,
+    zprop_source_t, const char *, const char *, nvlist_t *, boolean_t);
+
+_LIBZFS_H int zprop_collect_property(const char *, zprop_get_cbdata_t *,
+    const char *, const char *, zprop_source_t, const char *,
+    const char *, nvlist_t *);
 
 /*
  * Iterator functions.
@@ -976,6 +995,7 @@ _LIBZFS_H boolean_t libzfs_envvar_is_set(const char *);
 _LIBZFS_H const char *zfs_version_userland(void);
 _LIBZFS_H char *zfs_version_kernel(void);
 _LIBZFS_H int zfs_version_print(void);
+_LIBZFS_H nvlist_t *zfs_version_nvlist(void);
 
 /*
  * Given a device or file, determine if it is part of a pool.

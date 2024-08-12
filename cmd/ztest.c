@@ -26,6 +26,7 @@
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2023, Klara, Inc.
  */
 
 /*
@@ -444,6 +445,7 @@ ztest_func_t ztest_blake3;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
+ztest_func_t ztest_pool_prefetch_ddt;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -499,6 +501,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_pool_prefetch_ddt, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -6993,6 +6996,21 @@ ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
 	}
 }
 
+void
+ztest_pool_prefetch_ddt(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_t *spa;
+
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+
+	ddt_prefetch_all(spa);
+
+	spa_close(spa, FTAG);
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+}
+
 static int
 ztest_set_global_vars(void)
 {
@@ -8495,17 +8513,24 @@ print_time(hrtime_t t, char *timebuf)
 }
 
 static nvlist_t *
-make_random_props(void)
+make_random_pool_props(void)
 {
 	nvlist_t *props;
 
 	props = fnvlist_alloc();
 
-	if (ztest_random(2) == 0)
-		return (props);
+	/* Twenty percent of the time enable ZPOOL_PROP_DEDUP_TABLE_QUOTA */
+	if (ztest_random(5) == 0) {
+		fnvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_DEDUP_TABLE_QUOTA),
+		    2 * 1024 * 1024);
+	}
 
-	fnvlist_add_uint64(props,
-	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1);
+	/* Fifty percent of the time enable ZPOOL_PROP_AUTOREPLACE */
+	if (ztest_random(2) == 0) {
+		fnvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1);
+	}
 
 	return (props);
 }
@@ -8537,7 +8562,7 @@ ztest_init(ztest_shared_t *zs)
 	zs->zs_mirrors = ztest_opts.zo_mirrors;
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
-	props = make_random_props();
+	props = make_random_pool_props();
 
 	/*
 	 * We don't expect the pool to suspend unless maxfaults == 0,

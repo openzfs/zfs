@@ -300,7 +300,7 @@ void
 abd_init(void)
 {
 	abd_chunk_cache = kmem_cache_create("abd_chunk", PAGE_SIZE, 0,
-	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG);
+	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG | KMC_RECLAIMABLE);
 
 	wmsum_init(&abd_sums.abdstat_struct_size, 0);
 	wmsum_init(&abd_sums.abdstat_scatter_cnt, 0);

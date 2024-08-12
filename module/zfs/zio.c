@@ -194,6 +194,10 @@ zio_init(void)
 		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
 		    KMC_NODEBUG : 0;
 		data_cflags = KMC_NODEBUG;
+		if (abd_size_alloc_linear(size)) {
+			cflags |= KMC_RECLAIMABLE;
+			data_cflags |= KMC_RECLAIMABLE;
+		}
 		if (cflags == data_cflags) {
 			/*
 			 * Resulting kmem caches would be identical.
@@ -1101,45 +1105,50 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 {
 	int errors = 0;
 
-	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
+	if (unlikely(!DMU_OT_IS_VALID(BP_GET_TYPE(bp)))) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %px has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
 	}
-	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS) {
-		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %px has invalid CHECKSUM %llu",
-		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
-	}
-	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS) {
+	if (unlikely(BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS)) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %px has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
 	}
-	if (BP_GET_LSIZE(bp) > SPA_MAXBLOCKSIZE) {
+	if (unlikely(BP_GET_LSIZE(bp) > SPA_MAXBLOCKSIZE)) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %px has invalid LSIZE %llu",
 		    bp, (longlong_t)BP_GET_LSIZE(bp));
 	}
-	if (BP_GET_PSIZE(bp) > SPA_MAXBLOCKSIZE) {
-		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
-		    "blkptr at %px has invalid PSIZE %llu",
-		    bp, (longlong_t)BP_GET_PSIZE(bp));
-	}
-
 	if (BP_IS_EMBEDDED(bp)) {
-		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
+		if (unlikely(BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}
+		if (unlikely(BPE_GET_PSIZE(bp) > BPE_PAYLOAD_SIZE)) {
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %px has invalid PSIZE %llu",
+			    bp, (longlong_t)BPE_GET_PSIZE(bp));
+		}
+		return (errors == 0);
+	}
+	if (unlikely(BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS)) {
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %px has invalid CHECKSUM %llu",
+		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
+	}
+	if (unlikely(BP_GET_PSIZE(bp) > SPA_MAXBLOCKSIZE)) {
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %px has invalid PSIZE %llu",
+		    bp, (longlong_t)BP_GET_PSIZE(bp));
 	}
 
 	/*
 	 * Do not verify individual DVAs if the config is not trusted. This
 	 * will be done once the zio is executed in vdev_mirror_map_alloc.
 	 */
-	if (!spa->spa_trust_config)
+	if (unlikely(!spa->spa_trust_config))
 		return (errors == 0);
 
 	switch (blk_config) {
@@ -1168,20 +1177,20 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 		const dva_t *dva = &bp->blk_dva[i];
 		uint64_t vdevid = DVA_GET_VDEV(dva);
 
-		if (vdevid >= spa->spa_root_vdev->vdev_children) {
+		if (unlikely(vdevid >= spa->spa_root_vdev->vdev_children)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
-		if (vd == NULL) {
+		if (unlikely(vd == NULL)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
-		if (vd->vdev_ops == &vdev_hole_ops) {
+		if (unlikely(vd->vdev_ops == &vdev_hole_ops)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px DVA %u has hole VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
@@ -1199,7 +1208,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 		uint64_t asize = DVA_GET_ASIZE(dva);
 		if (DVA_GET_GANG(dva))
 			asize = vdev_gang_header_asize(vd);
-		if (offset + asize > vd->vdev_asize) {
+		if (unlikely(offset + asize > vd->vdev_asize)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px DVA %u has invalid OFFSET %llu",
 			    bp, i, (longlong_t)offset);
@@ -1850,8 +1859,13 @@ zio_write_compress(zio_t *zio)
 	if (compress != ZIO_COMPRESS_OFF &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_COMPRESS)) {
 		void *cbuf = NULL;
-		psize = zio_compress_data(compress, zio->io_abd, &cbuf, lsize,
-		    zp->zp_complevel);
+		if (abd_cmp_zero(zio->io_abd, lsize) == 0)
+			psize = 0;
+		else if (compress == ZIO_COMPRESS_EMPTY)
+			psize = lsize;
+		else
+			psize = zio_compress_data(compress, zio->io_abd, &cbuf,
+			    lsize, zp->zp_complevel);
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
 		} else if (psize >= lsize) {
@@ -1915,10 +1929,12 @@ zio_write_compress(zio_t *zio)
 		 * receive, we must check whether the block can be compressed
 		 * to a hole.
 		 */
-		psize = zio_compress_data(ZIO_COMPRESS_EMPTY,
-		    zio->io_abd, NULL, lsize, zp->zp_complevel);
-		if (psize == 0 || psize >= lsize)
+		if (abd_cmp_zero(zio->io_abd, lsize) == 0) {
+			psize = 0;
 			compress = ZIO_COMPRESS_OFF;
+		} else {
+			psize = lsize;
+		}
 	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS &&
 	    !(zio->io_flags & ZIO_FLAG_RAW_ENCRYPT)) {
 		/*
@@ -3069,7 +3085,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
 		zp.zp_complevel = gio->io_prop.zp_complevel;
-		zp.zp_type = DMU_OT_NONE;
+		zp.zp_type = zp.zp_storage_type = DMU_OT_NONE;
 		zp.zp_level = 0;
 		zp.zp_copies = gio->io_prop.zp_copies;
 		zp.zp_dedup = B_FALSE;
@@ -3503,6 +3519,15 @@ zio_ddt_write(zio_t *zio)
 
 	ddt_enter(ddt);
 	dde = ddt_lookup(ddt, bp, B_TRUE);
+	if (dde == NULL) {
+		/* DDT size is over its quota so no new entries */
+		zp->zp_dedup = B_FALSE;
+		BP_SET_DEDUP(bp, B_FALSE);
+		if (zio->io_bp_override == NULL)
+			zio->io_pipeline = ZIO_WRITE_PIPELINE;
+		ddt_exit(ddt);
+		return (zio);
+	}
 	ddp = &dde->dde_phys[p];
 
 	if (zp->zp_dedup_verify && zio_ddt_collision(zio, ddt, dde)) {
@@ -3628,8 +3653,7 @@ zio_dva_throttle(zio_t *zio)
 	metaslab_class_t *mc;
 
 	/* locate an appropriate allocation class */
-	mc = spa_preferred_class(spa, zio->io_size, zio->io_prop.zp_type,
-	    zio->io_prop.zp_level, zio->io_prop.zp_zpl_smallblk);
+	mc = spa_preferred_class(spa, zio);
 
 	if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE ||
 	    !mc->mc_alloc_throttle_enabled ||
@@ -3701,9 +3725,7 @@ zio_dva_allocate(zio_t *zio)
 	 */
 	mc = zio->io_metaslab_class;
 	if (mc == NULL) {
-		mc = spa_preferred_class(spa, zio->io_size,
-		    zio->io_prop.zp_type, zio->io_prop.zp_level,
-		    zio->io_prop.zp_zpl_smallblk);
+		mc = spa_preferred_class(spa, zio);
 		zio->io_metaslab_class = mc;
 	}
 
@@ -3727,6 +3749,26 @@ zio_dva_allocate(zio_t *zio)
 	 * Fallback to normal class when an alloc class is full
 	 */
 	if (error == ENOSPC && mc != spa_normal_class(spa)) {
+		/*
+		 * When the dedup or special class is spilling into the  normal
+		 * class, there can still be significant space available due
+		 * to deferred frees that are in-flight.  We track the txg when
+		 * this occurred and back off adding new DDT entries for a few
+		 * txgs to allow the free blocks to be processed.
+		 */
+		if ((mc == spa_dedup_class(spa) || (spa_special_has_ddt(spa) &&
+		    mc == spa_special_class(spa))) &&
+		    spa->spa_dedup_class_full_txg != zio->io_txg) {
+			spa->spa_dedup_class_full_txg = zio->io_txg;
+			zfs_dbgmsg("%s[%d]: %s class spilling, req size %d, "
+			    "%llu allocated of %llu",
+			    spa_name(spa), (int)zio->io_txg,
+			    mc == spa_dedup_class(spa) ? "dedup" : "special",
+			    (int)zio->io_size,
+			    (u_longlong_t)metaslab_class_get_alloc(mc),
+			    (u_longlong_t)metaslab_class_get_space(mc));
+		}
+
 		/*
 		 * If throttling, transfer reservation over to normal class.
 		 * The io_allocator slot can remain the same even though we

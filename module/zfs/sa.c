@@ -236,7 +236,7 @@ sa_cache_init(void)
 {
 	sa_cache = kmem_cache_create("sa_cache",
 	    sizeof (sa_handle_t), 0, sa_cache_constructor,
-	    sa_cache_destructor, NULL, NULL, NULL, 0);
+	    sa_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 void
@@ -1501,6 +1501,42 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 	return (error);
 }
 
+/*
+ * Return size of an attribute
+ */
+
+static int
+sa_size_locked(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	sa_bulk_attr_t bulk;
+	int error;
+
+	bulk.sa_data = NULL;
+	bulk.sa_attr = attr;
+	bulk.sa_data_func = NULL;
+
+	ASSERT(hdl);
+	ASSERT(MUTEX_HELD(&hdl->sa_lock));
+	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
+		return (error);
+	}
+	*size = bulk.sa_size;
+
+	return (0);
+}
+
+int
+sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	int error;
+
+	mutex_enter(&hdl->sa_lock);
+	error = sa_size_locked(hdl, attr, size);
+	mutex_exit(&hdl->sa_lock);
+
+	return (error);
+}
+
 #ifdef _KERNEL
 int
 sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, zfs_uio_t *uio)
@@ -1542,6 +1578,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
 	zfs_acl_phys_t znode_acl = { 0 };
 	char scanstamp[AV_SCANSTAMP_SZ];
+	char *dxattr_obj = NULL;
+	int dxattr_size = 0;
 
 	if (zp->z_acl_cached == NULL) {
 		zfs_acl_t *aclp;
@@ -1623,6 +1661,17 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
+	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
+	if (err != 0 && err != ENOENT)
+		goto out;
+	if (dxattr_size != 0) {
+		dxattr_obj = vmem_alloc(dxattr_size, KM_SLEEP);
+		err = sa_lookup_locked(hdl, SA_ZPL_DXATTR(zfsvfs), dxattr_obj,
+		    dxattr_size);
+		if (err != 0 && err != ENOENT)
+			goto out;
+	}
+
 	zp->z_projid = projid;
 	zp->z_pflags |= ZFS_PROJID;
 	links = ZTONLNK(zp);
@@ -1674,6 +1723,11 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
 
+	if (dxattr_obj) {
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DXATTR(zfsvfs),
+		    NULL, dxattr_obj, dxattr_size);
+	}
+
 	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
 	VERIFY(sa_replace_all_by_template_locked(hdl, attrs, count, tx) == 0);
 	if (znode_acl.z_acl_extern_obj) {
@@ -1688,6 +1742,8 @@ out:
 	mutex_exit(&hdl->sa_lock);
 	kmem_free(attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
+	if (dxattr_obj)
+		vmem_free(dxattr_obj, dxattr_size);
 	return (err);
 }
 #endif
@@ -1852,7 +1908,6 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 {
 	sa_os_t *sa = hdl->sa_os->os_sa;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
-	dnode_t *dn;
 	sa_bulk_attr_t *attr_desc;
 	void *old_data[2];
 	int bonus_attr_count = 0;
@@ -1872,8 +1927,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	/* First make of copy of the old data */
 
 	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
-	if (dn->dn_bonuslen != 0) {
+	if (DB_DNODE(db)->dn_bonuslen != 0) {
 		bonus_data_size = hdl->sa_bonus->db_size;
 		old_data[0] = kmem_alloc(bonus_data_size, KM_SLEEP);
 		memcpy(old_data[0], hdl->sa_bonus->db_data,
@@ -2057,32 +2111,6 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	error = sa_bulk_update_impl(hdl, &bulk, 1, tx);
 	mutex_exit(&hdl->sa_lock);
 	return (error);
-}
-
-/*
- * Return size of an attribute
- */
-
-int
-sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
-{
-	sa_bulk_attr_t bulk;
-	int error;
-
-	bulk.sa_data = NULL;
-	bulk.sa_attr = attr;
-	bulk.sa_data_func = NULL;
-
-	ASSERT(hdl);
-	mutex_enter(&hdl->sa_lock);
-	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
-		mutex_exit(&hdl->sa_lock);
-		return (error);
-	}
-	*size = bulk.sa_size;
-
-	mutex_exit(&hdl->sa_lock);
-	return (0);
 }
 
 int

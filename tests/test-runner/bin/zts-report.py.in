@@ -254,6 +254,7 @@ maybe = {
     'tmpfile/setup': ['SKIP', tmpfile_reason],
     'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
+    'upgrade/upgrade_projectquota_002_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', known_reason],
@@ -330,6 +331,8 @@ elif sys.platform.startswith('linux'):
             ['SKIP', cfr_reason],
         'block_cloning/block_cloning_replay_encrypted':
             ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_rlimit_fsize':
+            ['SKIP', cfr_reason],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'cp_files/cp_files_002_pos': ['SKIP', cfr_reason],
@@ -350,10 +353,6 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_fua': ['SKIP', 14872],
-        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', 12621],
-        'zvol/zvol_misc/zvol_misc_trim': ['SKIP', 14872],
-        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
 # Not all Github actions runners have scsi_debug module, so we may skip
@@ -379,6 +378,7 @@ if os.environ.get('CI') == 'true':
         'fault/auto_replace_002_pos': ['SKIP', ci_reason],
         'fault/auto_spare_ashift': ['SKIP', ci_reason],
         'fault/auto_spare_shared': ['SKIP', ci_reason],
+        'fault/suspend_resume_single': ['SKIP', ci_reason],
         'procfs/pool_state': ['SKIP', ci_reason],
     })
 

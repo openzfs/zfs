@@ -30,6 +30,7 @@
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 /* Portions Copyright 2011 Martin Matuska <mm@FreeBSD.org> */
@@ -250,7 +251,7 @@ retry:
 	}
 
 	mutex_enter(&zv->zv_state_lock);
-	if (zv->zv_zso->zso_dying) {
+	if (zv->zv_zso->zso_dying || zv->zv_flags & ZVOL_REMOVING) {
 		rw_exit(&zvol_state_lock);
 		err = SET_ERROR(ENXIO);
 		goto out_zv_locked;
@@ -292,6 +293,7 @@ retry:
 			if (!mutex_tryenter(&spa_namespace_lock)) {
 				mutex_exit(&zv->zv_state_lock);
 				rw_exit(&zv->zv_suspend_lock);
+				drop_suspend = B_FALSE;
 				kern_yield(PRI_USER);
 				goto retry;
 			} else {
@@ -682,6 +684,11 @@ zvol_geom_bio_strategy(struct bio *bp)
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 
+	if (zv->zv_flags & ZVOL_REMOVING) {
+		error = SET_ERROR(ENXIO);
+		goto resume;
+	}
+
 	switch (bp->bio_cmd) {
 	case BIO_READ:
 		doread = B_TRUE;
@@ -983,6 +990,7 @@ retry:
 			if (!mutex_tryenter(&spa_namespace_lock)) {
 				mutex_exit(&zv->zv_state_lock);
 				rw_exit(&zv->zv_suspend_lock);
+				drop_suspend = B_FALSE;
 				kern_yield(PRI_USER);
 				goto retry;
 			} else {
@@ -1310,11 +1318,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 		args.mda_si_drv2 = zv;
 		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, newname)
 		    == 0) {
-#if __FreeBSD_version > 1300130
 			dev->si_iosize_max = maxphys;
-#else
-			dev->si_iosize_max = MAXPHYS;
-#endif
 			zsd->zsd_cdev = dev;
 		}
 	}
@@ -1360,6 +1364,7 @@ zvol_os_free(zvol_state_t *zv)
 	}
 
 	mutex_destroy(&zv->zv_state_lock);
+	cv_destroy(&zv->zv_removing_cv);
 	dataset_kstats_destroy(&zv->zv_kstat);
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
@@ -1417,6 +1422,7 @@ zvol_os_create_minor(const char *name)
 	zv = kmem_zalloc(sizeof (*zv), KM_SLEEP);
 	zv->zv_hash = hash;
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
 	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_volmode = volmode;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
@@ -1454,11 +1460,7 @@ zvol_os_create_minor(const char *name)
 		args.mda_si_drv2 = zv;
 		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name)
 		    == 0) {
-#if __FreeBSD_version > 1300130
 			dev->si_iosize_max = maxphys;
-#else
-			dev->si_iosize_max = MAXPHYS;
-#endif
 			zsd->zsd_cdev = dev;
 			knlist_init_sx(&zsd->zsd_selinfo.si_note,
 			    &zv->zv_state_lock);

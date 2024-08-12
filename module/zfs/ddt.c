@@ -23,7 +23,7 @@
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
  * Copyright (c) 2022 by Pawel Jakub Dawidek
- * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2019, 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -101,6 +101,22 @@
  * object and (if necessary), removed from an old one. ddt_tree is cleared and
  * the next txg can start.
  *
+ * ## Dedup quota
+ *
+ * A maximum size for all DDTs on the pool can be set with the
+ * dedup_table_quota property. This is determined in ddt_over_quota() and
+ * enforced during ddt_lookup(). If the pool is at or over its quota limit,
+ * ddt_lookup() will only return entries for existing blocks, as updates are
+ * still possible. New entries will not be created; instead, ddt_lookup() will
+ * return NULL. In response, the DDT write stage (zio_ddt_write()) will remove
+ * the D bit on the block and reissue the IO as a regular write. The block will
+ * not be deduplicated.
+ *
+ * Note that this is based on the on-disk size of the dedup store. Reclaiming
+ * this space after deleting entries relies on the ZAP "shrinking" behaviour,
+ * without which, no space would be recovered and the DDT would continue to be
+ * considered "over quota". See zap_shrink_enabled.
+ *
  * ## Repair IO
  *
  * If a read on a dedup block fails, but there are other copies of the block in
@@ -151,6 +167,13 @@ static kmem_cache_t *ddt_entry_cache;
  * Enable/disable prefetching of dedup-ed blocks which are going to be freed.
  */
 int zfs_dedup_prefetch = 0;
+
+/*
+ * If the dedup class cannot satisfy a DDT allocation, treat as over quota
+ * for this many TXGs.
+ */
+uint_t dedup_class_wait_txgs = 5;
+
 
 static const ddt_ops_t *const ddt_ops[DDT_TYPES] = {
 	&ddt_zap_ops,
@@ -315,6 +338,16 @@ ddt_object_prefetch(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	ddt_ops[type]->ddt_op_prefetch(ddt->ddt_os,
 	    ddt->ddt_object[type][class], ddk);
+}
+
+static void
+ddt_object_prefetch_all(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
+{
+	if (!ddt_object_exists(ddt, type, class))
+		return;
+
+	ddt_ops[type]->ddt_op_prefetch_all(ddt->ddt_os,
+	    ddt->ddt_object[type][class]);
 }
 
 static int
@@ -554,8 +587,6 @@ ddt_alloc(const ddt_key_t *ddk)
 static void
 ddt_free(ddt_entry_t *dde)
 {
-	ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
-
 	for (int p = 0; p < DDT_PHYS_TYPES; p++)
 		ASSERT3P(dde->dde_lead_zio[p], ==, NULL);
 
@@ -575,9 +606,88 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 	ddt_free(dde);
 }
 
+static boolean_t
+ddt_special_over_quota(spa_t *spa, metaslab_class_t *mc)
+{
+	if (mc != NULL && metaslab_class_get_space(mc) > 0) {
+		/* Over quota if allocating outside of this special class */
+		if (spa_syncing_txg(spa) <= spa->spa_dedup_class_full_txg +
+		    dedup_class_wait_txgs) {
+			/* Waiting for some deferred frees to be processed */
+			return (B_TRUE);
+		}
+
+		/*
+		 * We're considered over quota when we hit 85% full, or for
+		 * larger drives, when there is less than 8GB free.
+		 */
+		uint64_t allocated = metaslab_class_get_alloc(mc);
+		uint64_t capacity = metaslab_class_get_space(mc);
+		uint64_t limit = MAX(capacity * 85 / 100,
+		    (capacity > (1LL<<33)) ? capacity - (1LL<<33) : 0);
+
+		return (allocated >= limit);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Check if the DDT is over its quota.  This can be due to a few conditions:
+ *   1. 'dedup_table_quota' property is not 0 (none) and the dedup dsize
+ *       exceeds this limit
+ *
+ *   2. 'dedup_table_quota' property is set to automatic and
+ *      a. the dedup or special allocation class could not satisfy a DDT
+ *         allocation in a recent transaction
+ *      b. the dedup or special allocation class has exceeded its 85% limit
+ */
+static boolean_t
+ddt_over_quota(spa_t *spa)
+{
+	if (spa->spa_dedup_table_quota == 0)
+		return (B_FALSE);
+
+	if (spa->spa_dedup_table_quota != UINT64_MAX)
+		return (ddt_get_ddt_dsize(spa) > spa->spa_dedup_table_quota);
+
+	/*
+	 * For automatic quota, table size is limited by dedup or special class
+	 */
+	if (ddt_special_over_quota(spa, spa_dedup_class(spa)))
+		return (B_TRUE);
+	else if (spa_special_has_ddt(spa) &&
+	    ddt_special_over_quota(spa, spa_special_class(spa)))
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+void
+ddt_prefetch_all(spa_t *spa)
+{
+	/*
+	 * Load all DDT entries for each type/class combination. This is
+	 * indended to perform a prefetch on all such blocks. For the same
+	 * reason that ddt_prefetch isn't locked, this is also not locked.
+	 */
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (!ddt)
+			continue;
+
+		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
+			for (ddt_class_t class = 0; class < DDT_CLASSES;
+			    class++) {
+				ddt_object_prefetch_all(ddt, type, class);
+			}
+		}
+	}
+}
+
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
+	spa_t *spa = ddt->ddt_spa;
 	ddt_key_t search;
 	ddt_entry_t *dde;
 	ddt_type_t type;
@@ -592,13 +702,28 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	/* Find an existing live entry */
 	dde = avl_find(&ddt->ddt_tree, &search, &where);
 	if (dde != NULL) {
-		/* Found it. If it's already loaded, we can just return it. */
+		/* If we went over quota, act like we didn't find it */
+		if (dde->dde_flags & DDE_FLAG_OVERQUOTA)
+			return (NULL);
+
+		/* If it's already loaded, we can just return it. */
 		if (dde->dde_flags & DDE_FLAG_LOADED)
 			return (dde);
 
 		/* Someone else is loading it, wait for it. */
+		dde->dde_waiters++;
 		while (!(dde->dde_flags & DDE_FLAG_LOADED))
 			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
+		dde->dde_waiters--;
+
+		/* Loaded but over quota, forget we were ever here */
+		if (dde->dde_flags & DDE_FLAG_OVERQUOTA) {
+			if (dde->dde_waiters == 0) {
+				avl_remove(&ddt->ddt_tree, dde);
+				ddt_free(dde);
+			}
+			return (NULL);
+		}
 
 		return (dde);
 	}
@@ -639,14 +764,27 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
 	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
 
-	if (error == 0)
+	if (dde->dde_type == DDT_TYPES &&
+	    dde->dde_class == DDT_CLASSES &&
+	    ddt_over_quota(spa)) {
+		/* Over quota. If no one is waiting, clean up right now. */
+		if (dde->dde_waiters == 0) {
+			avl_remove(&ddt->ddt_tree, dde);
+			ddt_free(dde);
+			return (NULL);
+		}
+
+		/* Flag cleanup required */
+		dde->dde_flags |= DDE_FLAG_OVERQUOTA;
+	} else if (error == 0) {
 		ddt_stat_update(ddt, dde, -1ULL);
+	}
 
 	/* Entry loaded, everyone can proceed now */
 	dde->dde_flags |= DDE_FLAG_LOADED;
 	cv_broadcast(&dde->dde_cv);
 
-	return (dde);
+	return (dde->dde_flags & DDE_FLAG_OVERQUOTA ? NULL : dde);
 }
 
 void
@@ -775,6 +913,7 @@ ddt_load(spa_t *spa)
 		memcpy(&ddt->ddt_histogram_cache, ddt->ddt_histogram,
 		    sizeof (ddt->ddt_histogram));
 		spa->spa_dedup_dspace = ~0ULL;
+		spa->spa_dedup_dsize = ~0ULL;
 	}
 
 	return (0);
@@ -1032,6 +1171,7 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx, uint64_t txg)
 	memcpy(&ddt->ddt_histogram_cache, ddt->ddt_histogram,
 	    sizeof (ddt->ddt_histogram));
 	spa->spa_dedup_dspace = ~0ULL;
+	spa->spa_dedup_dsize = ~0ULL;
 }
 
 void
@@ -1123,7 +1263,13 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	ddt_enter(ddt);
 
 	dde = ddt_lookup(ddt, bp, B_TRUE);
-	ASSERT3P(dde, !=, NULL);
+
+	/* Can be NULL if the entry for this block was pruned. */
+	if (dde == NULL) {
+		ddt_exit(ddt);
+		spa_config_exit(spa, SCL_ZIO, FTAG);
+		return (B_FALSE);
+	}
 
 	if (dde->dde_type < DDT_TYPES) {
 		ddt_phys_t *ddp;

@@ -260,33 +260,34 @@ def draw_graph(kstats_dict):
     arc_stats = isolate_section('arcstats', kstats_dict)
 
     GRAPH_INDENT = ' '*4
-    GRAPH_WIDTH = 60
+    GRAPH_WIDTH = 70
+    arc_max = int(arc_stats['c_max'])
     arc_size = f_bytes(arc_stats['size'])
-    arc_perc = f_perc(arc_stats['size'], arc_stats['c_max'])
-    mfu_size = f_bytes(arc_stats['mfu_size'])
-    mru_size = f_bytes(arc_stats['mru_size'])
-    meta_size = f_bytes(arc_stats['arc_meta_used'])
-    dnode_limit = f_bytes(arc_stats['arc_dnode_limit'])
+    arc_perc = f_perc(arc_stats['size'], arc_max)
+    data_size = f_bytes(arc_stats['data_size'])
+    meta_size = f_bytes(arc_stats['metadata_size'])
     dnode_size = f_bytes(arc_stats['dnode_size'])
 
-    info_form = ('ARC: {0} ({1})  MFU: {2}  MRU: {3}  META: {4} '
-                 'DNODE {5} ({6})')
-    info_line = info_form.format(arc_size, arc_perc, mfu_size, mru_size,
-                                 meta_size, dnode_size, dnode_limit)
+    info_form = ('ARC: {0} ({1}) Data: {2} Meta: {3} Dnode: {4}')
+    info_line = info_form.format(arc_size, arc_perc, data_size, meta_size,
+                                 dnode_size)
     info_spc = ' '*int((GRAPH_WIDTH-len(info_line))/2)
     info_line = GRAPH_INDENT+info_spc+info_line
 
     graph_line = GRAPH_INDENT+'+'+('-'*(GRAPH_WIDTH-2))+'+'
 
-    mfu_perc = float(int(arc_stats['mfu_size'])/int(arc_stats['c_max']))
-    mru_perc = float(int(arc_stats['mru_size'])/int(arc_stats['c_max']))
-    arc_perc = float(int(arc_stats['size'])/int(arc_stats['c_max']))
+    arc_perc = float(int(arc_stats['size'])/arc_max)
+    data_perc = float(int(arc_stats['data_size'])/arc_max)
+    meta_perc = float(int(arc_stats['metadata_size'])/arc_max)
+    dnode_perc = float(int(arc_stats['dnode_size'])/arc_max)
     total_ticks = float(arc_perc)*GRAPH_WIDTH
-    mfu_ticks = mfu_perc*GRAPH_WIDTH
-    mru_ticks = mru_perc*GRAPH_WIDTH
-    other_ticks = total_ticks-(mfu_ticks+mru_ticks)
+    data_ticks = data_perc*GRAPH_WIDTH
+    meta_ticks = meta_perc*GRAPH_WIDTH
+    dnode_ticks = dnode_perc*GRAPH_WIDTH
+    other_ticks = total_ticks-(data_ticks+meta_ticks+dnode_ticks)
 
-    core_form = 'F'*int(mfu_ticks)+'R'*int(mru_ticks)+'O'*int(other_ticks)
+    core_form = 'D'*int(data_ticks)+'M'*int(meta_ticks)+'N'*int(dnode_ticks)+\
+        'O'*int(other_ticks)
     core_spc = ' '*(GRAPH_WIDTH-(2+len(core_form)))
     core_line = GRAPH_INDENT+'|'+core_form+core_spc+'|'
 
@@ -536,56 +537,87 @@ def section_arc(kstats_dict):
 
     arc_stats = isolate_section('arcstats', kstats_dict)
 
-    throttle = arc_stats['memory_throttle_count']
-
-    if throttle == '0':
-        health = 'HEALTHY'
-    else:
-        health = 'THROTTLED'
-
-    prt_1('ARC status:', health)
-    prt_i1('Memory throttle count:', throttle)
-    print()
-
+    memory_all = arc_stats['memory_all_bytes']
+    memory_free = arc_stats['memory_free_bytes']
+    memory_avail = arc_stats['memory_available_bytes']
     arc_size = arc_stats['size']
     arc_target_size = arc_stats['c']
     arc_max = arc_stats['c_max']
     arc_min = arc_stats['c_min']
+    dnode_limit = arc_stats['arc_dnode_limit']
+
+    print('ARC status:')
+    prt_i1('Total memory size:', f_bytes(memory_all))
+    prt_i2('Min target size:', f_perc(arc_min, memory_all), f_bytes(arc_min))
+    prt_i2('Max target size:', f_perc(arc_max, memory_all), f_bytes(arc_max))
+    prt_i2('Target size (adaptive):',
+           f_perc(arc_size, arc_max), f_bytes(arc_target_size))
+    prt_i2('Current size:', f_perc(arc_size, arc_max), f_bytes(arc_size))
+    prt_i1('Free memory size:', f_bytes(memory_free))
+    prt_i1('Available memory size:', f_bytes(memory_avail))
+    print()
+
+    compressed_size = arc_stats['compressed_size']
+    overhead_size = arc_stats['overhead_size']
+    bonus_size = arc_stats['bonus_size']
+    dnode_size = arc_stats['dnode_size']
+    dbuf_size = arc_stats['dbuf_size']
+    hdr_size = arc_stats['hdr_size']
+    l2_hdr_size = arc_stats['l2_hdr_size']
+    abd_chunk_waste_size = arc_stats['abd_chunk_waste_size']
+
+    prt_1('ARC structal breakdown (current size):', f_bytes(arc_size))
+    prt_i2('Compressed size:',
+           f_perc(compressed_size, arc_size), f_bytes(compressed_size))
+    prt_i2('Overhead size:',
+           f_perc(overhead_size, arc_size), f_bytes(overhead_size))
+    prt_i2('Bonus size:',
+           f_perc(bonus_size, arc_size), f_bytes(bonus_size))
+    prt_i2('Dnode size:',
+           f_perc(dnode_size, arc_size), f_bytes(dnode_size))
+    prt_i2('Dbuf size:',
+           f_perc(dbuf_size, arc_size), f_bytes(dbuf_size))
+    prt_i2('Header size:',
+           f_perc(hdr_size, arc_size), f_bytes(hdr_size))
+    prt_i2('L2 header size:',
+           f_perc(l2_hdr_size, arc_size), f_bytes(l2_hdr_size))
+    prt_i2('ABD chunk waste size:',
+           f_perc(abd_chunk_waste_size, arc_size), f_bytes(abd_chunk_waste_size))
+    print()
+
     meta = arc_stats['meta']
     pd = arc_stats['pd']
     pm = arc_stats['pm']
+    data_size = arc_stats['data_size']
+    metadata_size = arc_stats['metadata_size']
     anon_data = arc_stats['anon_data']
     anon_metadata = arc_stats['anon_metadata']
     mfu_data = arc_stats['mfu_data']
     mfu_metadata = arc_stats['mfu_metadata']
+    mfu_edata = arc_stats['mfu_evictable_data']
+    mfu_emetadata = arc_stats['mfu_evictable_metadata']
     mru_data = arc_stats['mru_data']
     mru_metadata = arc_stats['mru_metadata']
+    mru_edata = arc_stats['mru_evictable_data']
+    mru_emetadata = arc_stats['mru_evictable_metadata']
     mfug_data = arc_stats['mfu_ghost_data']
     mfug_metadata = arc_stats['mfu_ghost_metadata']
     mrug_data = arc_stats['mru_ghost_data']
     mrug_metadata = arc_stats['mru_ghost_metadata']
     unc_data = arc_stats['uncached_data']
     unc_metadata = arc_stats['uncached_metadata']
-    bonus_size = arc_stats['bonus_size']
-    dnode_limit = arc_stats['arc_dnode_limit']
-    dnode_size = arc_stats['dnode_size']
-    dbuf_size = arc_stats['dbuf_size']
-    hdr_size = arc_stats['hdr_size']
-    l2_hdr_size = arc_stats['l2_hdr_size']
-    abd_chunk_waste_size = arc_stats['abd_chunk_waste_size']
-    target_size_ratio = '{0}:1'.format(int(arc_max) // int(arc_min))
-
-    prt_2('ARC size (current):',
-          f_perc(arc_size, arc_max), f_bytes(arc_size))
-    prt_i2('Target size (adaptive):',
-           f_perc(arc_target_size, arc_max), f_bytes(arc_target_size))
-    prt_i2('Min size (hard limit):',
-           f_perc(arc_min, arc_max), f_bytes(arc_min))
-    prt_i2('Max size (high water):',
-           target_size_ratio, f_bytes(arc_max))
     caches_size = int(anon_data)+int(anon_metadata)+\
         int(mfu_data)+int(mfu_metadata)+int(mru_data)+int(mru_metadata)+\
         int(unc_data)+int(unc_metadata)
+
+    prt_1('ARC types breakdown (compressed + overhead):', f_bytes(caches_size))
+    prt_i2('Data size:',
+           f_perc(data_size, caches_size), f_bytes(data_size))
+    prt_i2('Metadata size:',
+           f_perc(metadata_size, caches_size), f_bytes(metadata_size))
+    print()
+
+    prt_1('ARC states breakdown (compressed + overhead):', f_bytes(caches_size))
     prt_i2('Anonymous data size:',
            f_perc(anon_data, caches_size), f_bytes(anon_data))
     prt_i2('Anonymous metadata size:',
@@ -596,43 +628,37 @@ def section_arc(kstats_dict):
         f_bytes(v / 65536 * caches_size / 65536))
     prt_i2('MFU data size:',
            f_perc(mfu_data, caches_size), f_bytes(mfu_data))
+    prt_i2('MFU evictable data size:',
+           f_perc(mfu_edata, caches_size), f_bytes(mfu_edata))
     prt_i1('MFU ghost data size:', f_bytes(mfug_data))
     v = (s-int(pm))*int(meta)/s
     prt_i2('MFU metadata target:', f_perc(v, s),
         f_bytes(v / 65536 * caches_size / 65536))
     prt_i2('MFU metadata size:',
            f_perc(mfu_metadata, caches_size), f_bytes(mfu_metadata))
+    prt_i2('MFU evictable metadata size:',
+           f_perc(mfu_emetadata, caches_size), f_bytes(mfu_emetadata))
     prt_i1('MFU ghost metadata size:', f_bytes(mfug_metadata))
     v = int(pd)*(s-int(meta))/s
     prt_i2('MRU data target:', f_perc(v, s),
         f_bytes(v / 65536 * caches_size / 65536))
     prt_i2('MRU data size:',
            f_perc(mru_data, caches_size), f_bytes(mru_data))
+    prt_i2('MRU evictable data size:',
+           f_perc(mru_edata, caches_size), f_bytes(mru_edata))
     prt_i1('MRU ghost data size:', f_bytes(mrug_data))
     v = int(pm)*int(meta)/s
     prt_i2('MRU metadata target:', f_perc(v, s),
         f_bytes(v / 65536 * caches_size / 65536))
     prt_i2('MRU metadata size:',
            f_perc(mru_metadata, caches_size), f_bytes(mru_metadata))
+    prt_i2('MRU evictable metadata size:',
+           f_perc(mru_emetadata, caches_size), f_bytes(mru_emetadata))
     prt_i1('MRU ghost metadata size:', f_bytes(mrug_metadata))
     prt_i2('Uncached data size:',
            f_perc(unc_data, caches_size), f_bytes(unc_data))
     prt_i2('Uncached metadata size:',
            f_perc(unc_metadata, caches_size), f_bytes(unc_metadata))
-    prt_i2('Bonus size:',
-           f_perc(bonus_size, arc_size), f_bytes(bonus_size))
-    prt_i2('Dnode cache target:',
-           f_perc(dnode_limit, arc_max), f_bytes(dnode_limit))
-    prt_i2('Dnode cache size:',
-           f_perc(dnode_size, dnode_limit), f_bytes(dnode_size))
-    prt_i2('Dbuf size:',
-           f_perc(dbuf_size, arc_size), f_bytes(dbuf_size))
-    prt_i2('Header size:',
-           f_perc(hdr_size, arc_size), f_bytes(hdr_size))
-    prt_i2('L2 header size:',
-           f_perc(l2_hdr_size, arc_size), f_bytes(l2_hdr_size))
-    prt_i2('ABD chunk waste size:',
-           f_perc(abd_chunk_waste_size, arc_size), f_bytes(abd_chunk_waste_size))
     print()
 
     print('ARC hash breakdown:')
@@ -647,6 +673,9 @@ def section_arc(kstats_dict):
     print()
 
     print('ARC misc:')
+    prt_i1('Memory throttles:', arc_stats['memory_throttle_count'])
+    prt_i1('Memory direct reclaims:', arc_stats['memory_direct_count'])
+    prt_i1('Memory indirect reclaims:', arc_stats['memory_indirect_count'])
     prt_i1('Deleted:', f_hits(arc_stats['deleted']))
     prt_i1('Mutex misses:', f_hits(arc_stats['mutex_miss']))
     prt_i1('Eviction skips:', f_hits(arc_stats['evict_skip']))

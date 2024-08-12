@@ -23,7 +23,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
- * Copyright (c) 2021, Klara Inc.
+ * Copyright (c) 2021, 2023, Klara Inc.
  */
 
 #include <sys/zio.h>
@@ -125,6 +125,9 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_BCLONERATIO, "bcloneratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if cloned>",
 	    "BCLONE_RATIO", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_SIZE, "dedup_table_size",
+	    0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", "DDTSIZE", B_FALSE,
+	    sfeatures);
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,
@@ -133,6 +136,9 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_ASHIFT, "ashift", 0, PROP_DEFAULT,
 	    ZFS_TYPE_POOL, "<ashift, 9-16, or 0=default>", "ASHIFT", B_FALSE,
 	    sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUP_TABLE_QUOTA, "dedup_table_quota",
+	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_POOL, "<size>", "DDTQUOTA",
+	    B_FALSE, sfeatures);
 
 	/* default index (boolean) properties */
 	zprop_register_index(ZPOOL_PROP_DELEGATION, "delegation", 1,
@@ -177,6 +183,9 @@ zpool_prop_init(void)
 	zprop_register_hidden(ZPOOL_PROP_DEDUPDITTO, "dedupditto",
 	    PROP_TYPE_NUMBER, PROP_DEFAULT, ZFS_TYPE_POOL, "DEDUPDITTO",
 	    B_FALSE, sfeatures);
+	zprop_register_hidden(ZPOOL_PROP_DEDUPCACHED,
+	    ZPOOL_DEDUPCACHED_PROP_NAME, PROP_TYPE_NUMBER, PROP_READONLY,
+	    ZFS_TYPE_POOL, "DEDUPCACHED", B_FALSE, sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }
@@ -381,6 +390,12 @@ vdev_prop_init(void)
 	zprop_register_number(VDEV_PROP_INITIALIZE_ERRORS,
 	    "initialize_errors", 0, PROP_READONLY, ZFS_TYPE_VDEV, "<errors>",
 	    "INITERR", B_FALSE, sfeatures);
+	zprop_register_number(VDEV_PROP_TRIM_ERRORS, "trim_errors", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<errors>", "TRIMERR", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_SLOW_IOS, "slow_ios", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<slowios>", "SLOW", B_FALSE,
+	    sfeatures);
 	zprop_register_number(VDEV_PROP_OPS_NULL, "null_ops", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "<operations>", "NULLOP", B_FALSE,
 	    sfeatures);
@@ -447,6 +462,9 @@ vdev_prop_init(void)
 	    boolean_na_table, sfeatures);
 	zprop_register_index(VDEV_PROP_RAIDZ_EXPANDING, "raidz_expanding", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
+	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);
 
 	/* default index properties */
