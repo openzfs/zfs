@@ -42,7 +42,7 @@ log_onexit cleanup
 log_assert "ensure single-disk pool resumes properly after suspend and clear"
 
 # create a file, and take a checksum, so we can compare later
-log_must dd if=/dev/random of=$DATAFILE bs=128K count=1
+log_must dd if=/dev/urandom of=$DATAFILE bs=128K count=1
 typeset sum1=$(cat $DATAFILE | md5sum)
 
 # make a debug device that we can "unplug"
