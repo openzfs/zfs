@@ -2442,8 +2442,11 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 			break;
 		case OWNING_GROUP:
 			who = gowner;
-			zfs_fallthrough;
+			checkit = zfs_groupmember(zfsvfs, who, cr);
+			break;
 		case ACE_IDENTIFIER_GROUP:
+			who = zfs_gid_to_vfsgid(mnt_ns, zfs_i_user_ns(ZTOI(zp)),
+			    who);
 			checkit = zfs_groupmember(zfsvfs, who, cr);
 			break;
 		case ACE_EVERYONE:
@@ -2454,6 +2457,8 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 		default:
 			if (entry_type == 0) {
 				uid_t newid;
+				who = zfs_uid_to_vfsuid(mnt_ns,
+				    zfs_i_user_ns(ZTOI(zp)), who);
 
 				newid = zfs_fuid_map_id(zfsvfs, who, cr,
 				    ZFS_ACE_USER);

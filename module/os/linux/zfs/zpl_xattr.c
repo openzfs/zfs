@@ -1507,6 +1507,7 @@ zpl_permission(struct inode *ip, int mask)
 {
 	int to_check = 0, i, ret;
 	cred_t *cr = NULL;
+	zfsvfs_t *zfsvfs = NULL;
 
 	/*
 	 * If NFSv4 ACLs are not being used, go back to
@@ -1516,9 +1517,10 @@ zpl_permission(struct inode *ip, int mask)
 	 */
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
 	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL && GENERIC_MASK(mask)))) {
-#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
-	defined(HAVE_IOPS_PERMISSION_IDMAP))
-		return (generic_permission(zfs_init_idmap, ip, mask));
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
@@ -1535,9 +1537,10 @@ zpl_permission(struct inode *ip, int mask)
 	 * NFSv4 ACE. Pass back to default kernel permissions check.
 	 */
 	if (to_check == 0) {
-#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
-	defined(HAVE_IOPS_PERMISSION_IDMAP))
-		return (generic_permission(zfs_init_idmap, ip, mask));
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
 #else
 		return (generic_permission(ip, mask));
 #endif
@@ -1614,7 +1617,24 @@ zpl_permission(struct inode *ip, int mask)
 		return (-ECHILD);
 	}
 
-	ret = -zfs_access(ITOZ(ip), to_check, V_ACE_MASK, cr);
+	zfsvfs = ZTOZSB(ITOZ(ip));
+
+	if ((ret = -zfs_enter_verify_zp(zfsvfs, ITOZ(ip), FTAG)) != 0)
+		return (ret);
+
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    userns);
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    idmap);
+#else
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    zfs_init_idmap);
+#endif
+
+	zfs_exit(zfsvfs, FTAG);
+
 	crfree(cr);
 	return (ret);
 }
