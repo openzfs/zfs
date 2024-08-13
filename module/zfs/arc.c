@@ -944,6 +944,9 @@ static uint64_t l2arc_trim_ahead = 0;
 static int l2arc_rebuild_enabled = B_TRUE;
 static uint64_t l2arc_rebuild_blocks_min_l2size = 1024 * 1024 * 1024;
 
+/* zfs_arc_stats_reset : reset ARC statistics */
+static int zfs_arc_stats_reset = 0;
+
 /* L2ARC persistence rebuild control routines. */
 void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
 static __attribute__((noreturn)) void l2arc_dev_rebuild_thread(void *arg);
@@ -6919,6 +6922,13 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	if (rw == KSTAT_WRITE)
 		return (SET_ERROR(EACCES));
 
+        /* reset ARC statistics */
+	if (zfs_arc_stats_reset) {
+		ARCSTAT_INCR(arcstat_l2_cksum_bad, -(as->arcstat_l2_cksum_bad.value.ui64));
+		ARCSTAT_INCR(arcstat_l2_io_error, -(as->arcstat_l2_io_error.value.ui64));
+		zfs_arc_stats_reset = 0;
+	}
+
 	as->arcstat_hits.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_hits);
 	as->arcstat_iohits.value.ui64 =
@@ -10817,3 +10827,6 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_task_threads, INT, ZMOD_RW,
 	"Number of arc_prune threads");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, stats_reset, INT, ZMOD_RW,
+	"Reset ARC statistics");
