@@ -6125,7 +6125,9 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	    error == EOPNOTSUPP)
 		goto bad_locked_fallback;
 	*ap->a_lenp = (size_t)len;
+#ifdef MAC
 out_locked:
+#endif
 	if (invp != outvp)
 		VOP_UNLOCK(invp);
 	VOP_UNLOCK(outvp);
