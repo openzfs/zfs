@@ -150,7 +150,13 @@ struct vdev_queue {
 	uint32_t	vq_active;	/* Number of active I/Os. */
 	uint32_t	vq_ia_active;	/* Active interactive I/Os. */
 	uint32_t	vq_nia_credit;	/* Non-interactive I/Os credit. */
+	uint32_t	vq_factive;	/* Active I/Os requiring flush. */
 	list_t		vq_active_list;	/* List of active I/Os. */
+	list_t		vq_flush_list;	/* Completed I/Os waiting for flush. */
+	list_t		vq_flush_active_list;	/* I/Os being flushed now. */
+	uint32_t	vq_flush_numnodes;
+	uint32_t	vq_flush_active_numnodes;
+	hrtime_t	vq_flush_next_ts; /* time of next scheduled flush */
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */

@@ -599,6 +599,8 @@ extern zio_t *zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
 extern zio_t *zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg,
     const blkptr_t *bp, zio_flag_t flags);
 
+extern zio_t *zio_vdev_flush(vdev_t *vd, zio_done_func_t *done, void *priv);
+
 extern int zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg,
     blkptr_t *new_bp, uint64_t size, boolean_t *slog);
 extern void zio_flush(zio_t *zio, vdev_t *vd);

@@ -548,7 +548,7 @@ zio_handle_ignored_writes(zio_t *zio)
 		/* Have a "problem" writing 60% of the time */
 		if (random_in_range(100) < 60) {
 			handler->zi_record.zi_inject_count++;
-			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
+			zio->io_pipeline &= ~ZIO_VDEV_IO_WRITE_STAGES;
 		}
 		break;
 	}
