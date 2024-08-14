@@ -55,7 +55,7 @@ function display_status
 	((ret |= $?))
 
 	typeset mntpnt=$(get_prop mountpoint $pool)
-	dd if=/dev/random of=$mntpnt/testfile.$$ &
+	dd if=/dev/urandom of=$mntpnt/testfile.$$ &
 	typeset pid=$!
 
 	zpool iostat -v 1 3 > /dev/null
