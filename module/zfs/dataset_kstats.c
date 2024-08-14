@@ -40,6 +40,9 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{
 	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
 	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_error_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_stall_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_suspend_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
