@@ -204,6 +204,9 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 void
 dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
 {
+	if (dk->dk_kstats == NULL)
+		return;
+
 	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
 	char *ds_name;
 
