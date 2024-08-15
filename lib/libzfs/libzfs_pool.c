@@ -3733,6 +3733,13 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 			(void) zpool_standard_error(hdl, errno, errbuf);
 		}
 		break;
+
+	case ZFS_ERR_ASHIFT_MISMATCH:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "The new device cannot have a higher alignment requirement "
+		    "than the top-level vdev."));
+		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
+		break;
 	default:
 		(void) zpool_standard_error(hdl, errno, errbuf);
 	}
