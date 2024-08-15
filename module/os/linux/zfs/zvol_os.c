@@ -1261,13 +1261,14 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 		return (1);
 	}
 
+	zso->zvo_disk = disk;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+	zso->zvo_queue = zso->zvo_disk->queue;
+
 #ifndef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
 	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE);
 #endif
 
-	zso->zvo_disk = disk;
-	zso->zvo_disk->minors = ZVOL_MINORS;
-	zso->zvo_queue = zso->zvo_disk->queue;
 #else
 	zso->zvo_queue = blk_alloc_queue(NUMA_NO_NODE);
 	if (zso->zvo_queue == NULL)
