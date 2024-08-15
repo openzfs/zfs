@@ -175,7 +175,6 @@ COMMON_H = \
 
 
 KERNEL_H = \
-	sys/jprint.h \
 	sys/spa_json_stats.h \
 	sys/zfs_ioctl.h \
 	sys/zfs_ioctl_impl.h \

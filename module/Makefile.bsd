@@ -282,7 +282,6 @@ SRCS+=	abd.c \
 	edonr_zfs.c \
 	fm.c \
 	gzip.c \
-	jprint.c \
 	lz4.c \
 	lz4_zfs.c \
 	lzjb.c \

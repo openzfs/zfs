@@ -353,7 +353,6 @@ ZFS_OBJS := \
 	fm.o \
 	gzip.o \
 	hkdf.o \
-	jprint.o \
 	lz4.o \
 	lz4_zfs.o \
 	lzjb.o \

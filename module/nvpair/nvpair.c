@@ -994,6 +994,369 @@ nvlist_remove_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	return (0);
 }
 
+#define	JPRINTF(start, end, ...)				\
+do {						\
+	if (start < end) {	\
+		int ret = snprintf(start, end - start, __VA_ARGS__);	\
+		if (ret < 0)	\
+			return (ENOMEM);	\
+		start += ret;	\
+	} else	\
+		return (ENOMEM);	\
+} while (0)
+
+static int
+nvlist_json_string(const char *s, char **buf, size_t size)
+{
+	char *p = *buf;
+	char *end = *buf + size;
+	static const char *hex = "0123456789ABCDEF";
+	int c;
+
+	if (s == NULL) {
+		JPRINTF(p, end, "null");
+		*buf = p;
+		return (0);
+	}
+
+	JPRINTF(p, end, "\"");
+	while (*s) {
+		c = (int)*s++;
+		/* formfeed, newline, return, tab, backspace */
+		if (c == 12)
+			JPRINTF(p, end, "\\f");
+		else if (c == 10)
+			JPRINTF(p, end, "\\n");
+		else if (c == 13)
+			JPRINTF(p, end, "\\r");
+		else if (c == 9)
+			JPRINTF(p, end, "\\t");
+		else if (c == 8)
+			JPRINTF(p, end, "\\b");
+		/*
+		 * all characters from 0x00 to 0x1f, and 0x7f are
+		 * escaped as: \u00xx
+		 */
+		else if (((0 <= c) && (c <= 0x1f)) || (c == 0x7f)) {
+			JPRINTF(p, end, "\\u00%c%c",
+			    hex[(c >> 4) & 0x0f], hex[c & 0x0f]);
+		} else if (c == '"')
+			JPRINTF(p, end, "\\\"");
+		else if (c == '\\')
+			JPRINTF(p, end, "\\\\");
+		else if (c == '/')
+			JPRINTF(p, end, "\\/");
+		/*
+		 * all other printable characters ' ' to '~', and
+		 * any utf-8 sequences (high bit set):
+		 * 1xxxxxxx 10xxxxxx ...
+		 * is a utf-8 sequence (10xxxxxx may occur 1 to 3 times).
+		 * Note that this is simply distinguished here as high
+		 * bit set.
+		 */
+		else
+			JPRINTF(p, end, "%c", c);
+	}
+	JPRINTF(p, end, "\"");
+	*buf = p;
+	return (0);
+}
+
+int
+nvlist_to_json(nvlist_t *nvl, char **buf, size_t size)
+{
+	boolean_t first = B_TRUE;
+	char *p = *buf;
+	char *end = *buf + size;
+	nvpair_t *curr = nvlist_next_nvpair(nvl, NULL);
+
+	JPRINTF(p, end, "{");
+
+	while (curr) {
+		if (!first)
+			JPRINTF(p, end, ",");
+		else
+			first = B_FALSE;
+
+		if (nvlist_json_string(nvpair_name(curr), &p, end - p) != 0)
+			return (ENOMEM);
+		JPRINTF(p, end, ":");
+
+		switch (nvpair_type(curr)) {
+		case DATA_TYPE_STRING: {
+			if (nvlist_json_string(fnvpair_value_string(curr), &p,
+			    end - p) != 0)
+				return (ENOMEM);
+			break;
+		}
+
+		case DATA_TYPE_BOOLEAN: {
+			JPRINTF(p, end, "true");
+			break;
+		}
+
+		case DATA_TYPE_BOOLEAN_VALUE: {
+			JPRINTF(p, end, "%s",
+			    fnvpair_value_boolean_value(curr) == B_TRUE ?
+			    "true" : "false");
+			break;
+		}
+
+		case DATA_TYPE_BYTE: {
+			JPRINTF(p, end, "%hhu", fnvpair_value_byte(curr));
+			break;
+		}
+
+		case DATA_TYPE_INT8: {
+			JPRINTF(p, end, "%hhd", fnvpair_value_int8(curr));
+			break;
+		}
+
+		case DATA_TYPE_UINT8: {
+			JPRINTF(p, end, "%hhu", fnvpair_value_uint8(curr));
+			break;
+		}
+
+		case DATA_TYPE_INT16: {
+			JPRINTF(p, end, "%hd", fnvpair_value_int16(curr));
+			break;
+		}
+
+		case DATA_TYPE_UINT16: {
+			JPRINTF(p, end, "%hu", fnvpair_value_uint16(curr));
+			break;
+		}
+
+		case DATA_TYPE_INT32: {
+			JPRINTF(p, end, "%d", fnvpair_value_int32(curr));
+			break;
+		}
+
+		case DATA_TYPE_UINT32: {
+			JPRINTF(p, end, "%u", fnvpair_value_uint32(curr));
+			break;
+		}
+
+		case DATA_TYPE_INT64: {
+			JPRINTF(p, end, "%lld",
+			    (long long)fnvpair_value_int64(curr));
+			break;
+		}
+
+		case DATA_TYPE_UINT64: {
+			JPRINTF(p, end, "%llu",
+			    (unsigned long long)fnvpair_value_uint64(curr));
+			break;
+		}
+
+		case DATA_TYPE_HRTIME: {
+			hrtime_t val;
+			VERIFY0(nvpair_value_hrtime(curr, &val));
+			JPRINTF(p, end, "%llu", (unsigned long long)val);
+			break;
+		}
+
+#if !defined(_KERNEL)
+		case DATA_TYPE_DOUBLE: {
+			double val;
+			VERIFY0(nvpair_value_double(curr, &val));
+			JPRINTF(p, end, "%f", val);
+			break;
+		}
+#endif
+
+		case DATA_TYPE_NVLIST: {
+			if (nvlist_to_json(fnvpair_value_nvlist(curr), &p,
+			    end - p) != 0)
+				return (ENOMEM);
+			break;
+		}
+
+		case DATA_TYPE_STRING_ARRAY: {
+			const char **val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_string_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				if (nvlist_json_string(val[i], &p,
+				    end - p) != 0)
+					return (ENOMEM);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_NVLIST_ARRAY: {
+			nvlist_t **val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_nvlist_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				if (nvlist_to_json(val[i], &p, end - p) != 0)
+					return (ENOMEM);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_BOOLEAN_ARRAY: {
+			boolean_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_boolean_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, val[i] == B_TRUE ?
+				    "true" : "false");
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_BYTE_ARRAY: {
+			uchar_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_byte_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%hhu", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_UINT8_ARRAY: {
+			uint8_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_uint8_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%hhu", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_INT8_ARRAY: {
+			int8_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_int8_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%hhd", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_UINT16_ARRAY: {
+			uint16_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_uint16_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%hu", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_INT16_ARRAY: {
+			int16_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_int16_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0) {
+					JPRINTF(p, end, ",");
+				}
+				JPRINTF(p, end, "%hd", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_UINT32_ARRAY: {
+			uint32_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_uint32_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%u", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_INT32_ARRAY: {
+			int32_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_int32_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%d", val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_UINT64_ARRAY: {
+			uint64_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_uint64_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%llu",
+				    (unsigned long long)val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_INT64_ARRAY: {
+			int64_t *val;
+			uint_t valsz, i;
+			VERIFY0(nvpair_value_int64_array(curr, &val, &valsz));
+			JPRINTF(p, end, "[");
+			for (i = 0; i < valsz; i++) {
+				if (i > 0)
+					JPRINTF(p, end, ",");
+				JPRINTF(p, end, "%lld", (long long)val[i]);
+			}
+			JPRINTF(p, end, "]");
+			break;
+		}
+
+		case DATA_TYPE_UNKNOWN:
+		case DATA_TYPE_DONTCARE:
+			return (-1);
+		}
+		curr = nvlist_next_nvpair(nvl, curr);
+	}
+	JPRINTF(p, end, "}");
+	*buf = p;
+	return (0);
+}
+
 /*
  * This function calculates the size of an nvpair value.
  *

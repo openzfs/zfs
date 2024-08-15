@@ -112,7 +112,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/fm.c \
 	module/zfs/gzip.c \
 	module/zfs/hkdf.c \
-	module/zfs/jprint.c \
 	module/zfs/lz4.c \
 	module/zfs/lz4_zfs.c \
 	module/zfs/lzjb.c \
