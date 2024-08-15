@@ -145,6 +145,24 @@ for kernel_version in %{?kernel_versions}; do
         %{?kernel_cc} \
         %{?kernel_ld} \
         %{?kernel_llvm}
+
+    # Pre-6.10 kernel builds didn't need to copy over the source files to the
+    # build directory.  However we do need to do it though post-6.10 due to
+    # these commits:
+    #
+    # b1992c3772e6 kbuild: use $(src) instead of $(srctree)/$(src) for source
+    #                      directory
+    #
+    # 9a0ebe5011f4 kbuild: use $(obj)/ instead of $(src)/ for common pattern
+    #                      rules
+    #
+    # Note that kmodtool actually copies over the source into the build
+    # directory, so what we're doing here is normal.  For efficiency reasons
+    # though we just use hardlinks instead of copying.
+    #
+    # See https://github.com/openzfs/zfs/issues/16439 for more info.
+    cp -lR ../%{module}-%{version}/module/* module/
+
     make %{?_smp_mflags}
     cd ..
 done
