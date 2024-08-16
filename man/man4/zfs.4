@@ -132,19 +132,25 @@ Controls whether buffers present on special vdevs are eligible for caching
 into L2ARC.
 If set to 1, exclude dbufs on special vdevs from being cached to L2ARC.
 .
-.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Pq  int
+.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Ns | Ns 2 Pq int
 Controls whether only MFU metadata and data are cached from ARC into L2ARC.
 This may be desired to avoid wasting space on L2ARC when reading/writing large
 amounts of data that are not expected to be accessed more than once.
 .Pp
-The default is off,
+The default is 0,
 meaning both MRU and MFU data and metadata are cached.
-When turning off this feature, some MRU buffers will still be present
-in ARC and eventually cached on L2ARC.
+When turning off this feature (setting it to 0), some MRU buffers will
+still be present in ARC and eventually cached on L2ARC.
 .No If Sy l2arc_noprefetch Ns = Ns Sy 0 ,
 some prefetched buffers will be cached to L2ARC, and those might later
 transition to MRU, in which case the
 .Sy l2arc_mru_asize No arcstat will not be Sy 0 .
+.Pp
+Setting it to 1 means to L2 cache only MFU data and metadata.
+.Pp
+Setting it to 2 means to L2 cache all metadata (MRU+MFU) but
+only MFU data (ie: MRU data are not cached). This can be the right setting
+to cache as much metadata as possible even when having high data turnover.
 .Pp
 Regardless of
 .Sy l2arc_noprefetch ,
