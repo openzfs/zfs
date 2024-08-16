@@ -1,82 +1,4 @@
 dnl #
-dnl # 2.6.36 API change,
-dnl # REQ_FAILFAST_{DEV|TRANSPORT|DRIVER}
-dnl # REQ_DISCARD
-dnl # REQ_FLUSH
-dnl #
-dnl # 4.8 - 4.9 API,
-dnl # REQ_FLUSH was renamed to REQ_PREFLUSH
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_REQ], [
-	ZFS_LINUX_TEST_SRC([req_failfast_mask], [
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = REQ_FAILFAST_MASK;
-	])
-
-	ZFS_LINUX_TEST_SRC([req_discard], [
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = REQ_DISCARD;
-	])
-
-	ZFS_LINUX_TEST_SRC([req_flush], [
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = REQ_FLUSH;
-	])
-
-	ZFS_LINUX_TEST_SRC([req_preflush], [
-		#include <linux/bio.h>
-	],[
-		int flags __attribute__ ((unused));
-		flags = REQ_PREFLUSH;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_FAILFAST_MASK], [
-	AC_MSG_CHECKING([whether REQ_FAILFAST_MASK is defined])
-	ZFS_LINUX_TEST_RESULT([req_failfast_mask], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([REQ_FAILFAST_MASK])
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_DISCARD], [
-	AC_MSG_CHECKING([whether REQ_DISCARD is defined])
-	ZFS_LINUX_TEST_RESULT([req_discard], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_DISCARD, 1, [REQ_DISCARD is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_FLUSH], [
-	AC_MSG_CHECKING([whether REQ_FLUSH is defined])
-	ZFS_LINUX_TEST_RESULT([req_flush], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_FLUSH, 1, [REQ_FLUSH is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_PREFLUSH], [
-	AC_MSG_CHECKING([whether REQ_PREFLUSH is defined])
-	ZFS_LINUX_TEST_RESULT([req_preflush], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_PREFLUSH, 1, [REQ_PREFLUSH is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # Linux 4.8 API,
 dnl #
 dnl # The bio_op() helper was introduced as a replacement for explicitly
@@ -84,60 +6,11 @@ dnl # checking the bio->bi_rw flags.  The following checks are used to
 dnl # detect if a specific operation is supported.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_OPS], [
-	ZFS_LINUX_TEST_SRC([req_op_discard], [
-		#include <linux/blk_types.h>
-	],[
-		int op __attribute__ ((unused)) = REQ_OP_DISCARD;
-	])
-
-	ZFS_LINUX_TEST_SRC([req_op_secure_erase], [
-		#include <linux/blk_types.h>
-	],[
-		int op __attribute__ ((unused)) = REQ_OP_SECURE_ERASE;
-	])
-
-	ZFS_LINUX_TEST_SRC([req_op_flush], [
-		#include <linux/blk_types.h>
-	],[
-		int op __attribute__ ((unused)) = REQ_OP_FLUSH;
-	])
-
 	ZFS_LINUX_TEST_SRC([bio_set_op_attrs], [
 		#include <linux/bio.h>
 	],[
 		struct bio *bio __attribute__ ((unused)) = NULL;
 		bio_set_op_attrs(bio, 0, 0);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_OP_DISCARD], [
-	AC_MSG_CHECKING([whether REQ_OP_DISCARD is defined])
-	ZFS_LINUX_TEST_RESULT([req_op_discard], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_OP_DISCARD, 1, [REQ_OP_DISCARD is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_OP_SECURE_ERASE], [
-	AC_MSG_CHECKING([whether REQ_OP_SECURE_ERASE is defined])
-	ZFS_LINUX_TEST_RESULT([req_op_secure_erase], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_OP_SECURE_ERASE, 1,
-		    [REQ_OP_SECURE_ERASE is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_OP_FLUSH], [
-	AC_MSG_CHECKING([whether REQ_OP_FLUSH is defined])
-	ZFS_LINUX_TEST_RESULT([req_op_flush], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_REQ_OP_FLUSH, 1, [REQ_OP_FLUSH is defined])
-	],[
-		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -394,7 +267,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_ALLOC_4ARG], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
-	ZFS_AC_KERNEL_SRC_REQ
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
 	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
@@ -407,16 +279,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
-	ZFS_AC_KERNEL_BIO_REQ_FAILFAST_MASK
-	ZFS_AC_KERNEL_BIO_REQ_DISCARD
-	ZFS_AC_KERNEL_BIO_REQ_FLUSH
-	ZFS_AC_KERNEL_BIO_REQ_PREFLUSH
-
-	ZFS_AC_KERNEL_BIO_REQ_OP_DISCARD
-	ZFS_AC_KERNEL_BIO_REQ_OP_SECURE_ERASE
-	ZFS_AC_KERNEL_BIO_REQ_OP_FLUSH
 	ZFS_AC_KERNEL_BIO_SET_OP_ATTRS
-
 	ZFS_AC_KERNEL_BIO_SET_DEV
 	ZFS_AC_KERNEL_BIO_BI_STATUS
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
