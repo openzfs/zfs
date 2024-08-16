@@ -426,11 +426,7 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 static inline void
 bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
 {
-#if defined(HAVE_BIO_BI_OPF)
 	bio->bi_opf = rw | flags;
-#else
-	bio->bi_rw |= rw | flags;
-#endif /* HAVE_BIO_BI_OPF */
 }
 #endif
 
@@ -473,9 +469,6 @@ bio_set_flush(struct bio *bio)
  * 4.8-rc0 - 4.8-rc1,
  *   REQ_PREFLUSH
  *
- * 2.6.36 - 4.7 API,
- *   REQ_FLUSH
- *
  * in all cases but may have a performance impact for some kernels.  It
  * has the advantage of minimizing kernel specific changes in the zvol code.
  *
@@ -483,14 +476,10 @@ bio_set_flush(struct bio *bio)
 static inline boolean_t
 bio_is_flush(struct bio *bio)
 {
-#if defined(HAVE_REQ_OP_FLUSH) && defined(HAVE_BIO_BI_OPF)
+#if defined(HAVE_REQ_OP_FLUSH)
 	return ((bio_op(bio) == REQ_OP_FLUSH) || (bio->bi_opf & REQ_PREFLUSH));
-#elif defined(HAVE_REQ_PREFLUSH) && defined(HAVE_BIO_BI_OPF)
+#elif defined(HAVE_REQ_PREFLUSH)
 	return (bio->bi_opf & REQ_PREFLUSH);
-#elif defined(HAVE_REQ_PREFLUSH) && !defined(HAVE_BIO_BI_OPF)
-	return (bio->bi_rw & REQ_PREFLUSH);
-#elif defined(HAVE_REQ_FLUSH)
-	return (bio->bi_rw & REQ_FLUSH);
 #else
 #error	"Unsupported kernel"
 #endif
@@ -499,20 +488,11 @@ bio_is_flush(struct bio *bio)
 /*
  * 4.8 API,
  *   REQ_FUA flag moved to bio->bi_opf
- *
- * 2.6.x - 4.7 API,
- *   REQ_FUA
  */
 static inline boolean_t
 bio_is_fua(struct bio *bio)
 {
-#if defined(HAVE_BIO_BI_OPF)
 	return (bio->bi_opf & REQ_FUA);
-#elif defined(REQ_FUA)
-	return (bio->bi_rw & REQ_FUA);
-#else
-#error	"Allowing the build will cause fua requests to be ignored."
-#endif
 }
 
 /*
