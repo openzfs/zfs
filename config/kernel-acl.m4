@@ -22,34 +22,6 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 ])
 
 dnl #
-dnl # 4.8 API change,
-dnl # The function posix_acl_valid now must be passed a namespace.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS], [
-	ZFS_LINUX_TEST_SRC([posix_acl_valid_with_ns], [
-		#include <linux/fs.h>
-		#include <linux/posix_acl.h>
-	],[
-		struct user_namespace *user_ns = NULL;
-		const struct posix_acl *acl = NULL;
-		int error;
-
-		error = posix_acl_valid(user_ns, acl);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS], [
-	AC_MSG_CHECKING([whether posix_acl_valid() wants user namespace])
-	ZFS_LINUX_TEST_RESULT([posix_acl_valid_with_ns], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_POSIX_ACL_VALID_WITH_NS, 1,
-		    [posix_acl_valid() wants user namespace])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 3.1 API change,
 dnl # Check if inode_operations contains the function get_acl
 dnl #
@@ -226,7 +198,6 @@ AC_DEFUN([ZFS_AC_KERNEL_ACL_HAS_REFCOUNT], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
-	ZFS_AC_KERNEL_SRC_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
 	ZFS_AC_KERNEL_SRC_ACL_HAS_REFCOUNT
@@ -234,7 +205,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
-	ZFS_AC_KERNEL_POSIX_ACL_VALID_WITH_NS
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
 	ZFS_AC_KERNEL_ACL_HAS_REFCOUNT

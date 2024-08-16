@@ -1329,7 +1329,7 @@ __zpl_xattr_acl_set_access(zidmap_t *mnt_ns,
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		else if (acl) {
-			error = zpl_posix_acl_valid(ip, acl);
+			error = posix_acl_valid(ip->i_sb->s_user_ns, acl);
 			if (error) {
 				zpl_posix_acl_release(acl);
 				return (error);
@@ -1375,7 +1375,7 @@ __zpl_xattr_acl_set_default(zidmap_t *mnt_ns,
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		else if (acl) {
-			error = zpl_posix_acl_valid(ip, acl);
+			error = posix_acl_valid(ip->i_sb->s_user_ns, acl);
 			if (error) {
 				zpl_posix_acl_release(acl);
 				return (error);
