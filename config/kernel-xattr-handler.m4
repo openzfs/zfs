@@ -34,21 +34,11 @@ AC_DEFUN([ZFS_AC_KERNEL_CONST_XATTR_HANDLER], [
 ])
 
 dnl #
-dnl # Supported xattr handler get() interfaces checked newest to oldest.
+dnl # Android API change,
+dnl # The xattr_handler->get() callback was
+dnl # changed to take dentry, inode and flags.
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET], [
-	ZFS_LINUX_TEST_SRC([xattr_handler_get_dentry_inode], [
-		#include <linux/xattr.h>
-
-		static int get(const struct xattr_handler *handler,
-		    struct dentry *dentry, struct inode *inode,
-		    const char *name, void *buffer, size_t size) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.get = get,
-		};
-	],[])
-
+AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS], [
 	ZFS_LINUX_TEST_SRC([xattr_handler_get_dentry_inode_flags], [
 		#include <linux/xattr.h>
 
@@ -63,33 +53,16 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET], [
 	],[])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET], [
-	dnl #
-	dnl # 4.7 API change,
-	dnl # The xattr_handler->get() callback was changed to take both
-	dnl # dentry and inode.
-	dnl #
-	AC_MSG_CHECKING([whether xattr_handler->get() wants dentry and inode])
-	ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode], [
+AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS], [
+	AC_MSG_RESULT(no)
+	AC_MSG_CHECKING(
+	    [whether xattr_handler->get() wants dentry and inode and flags])
+	ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE, 1,
-		    [xattr_handler->get() wants both dentry and inode])
+		AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE_FLAGS, 1,
+		    [xattr_handler->get() wants dentry and inode and flags])
 	],[
-		dnl #
-		dnl # Android API change,
-		dnl # The xattr_handler->get() callback was
-		dnl # changed to take dentry, inode and flags.
-		dnl #
 		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING(
-		    [whether xattr_handler->get() wants dentry and inode and flags])
-		ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_XATTR_GET_DENTRY_INODE_FLAGS, 1,
-			    [xattr_handler->get() wants dentry and inode and flags])
-		],[
-			ZFS_LINUX_TEST_ERROR([xattr get()])
-		])
 	])
 ])
 
@@ -211,14 +184,14 @@ AC_DEFUN([ZFS_AC_KERNEL_GENERIC_SETXATTR], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR], [
 	ZFS_AC_KERNEL_SRC_CONST_XATTR_HANDLER
-	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET
+	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET
 	ZFS_AC_KERNEL_SRC_GENERIC_SETXATTR
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR], [
 	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
-	ZFS_AC_KERNEL_XATTR_HANDLER_GET
+	ZFS_AC_KERNEL_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET
 	ZFS_AC_KERNEL_GENERIC_SETXATTR
 ])
