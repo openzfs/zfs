@@ -36,7 +36,7 @@
 #define	nr_inactive_file_pages() global_zone_page_state(NR_INACTIVE_FILE)
 #endif
 
-#elif	defined(ZFS_GLOBAL_NODE_PAGE_STATE)
+#else
 
 /* global_node_page_state() introduced */
 #if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_FILE_PAGES)
@@ -54,13 +54,6 @@
 #else
 #define	nr_inactive_file_pages() global_page_state(NR_INACTIVE_FILE)
 #endif
-
-#else
-
-/* global_page_state() only */
-#define	nr_file_pages()			global_page_state(NR_FILE_PAGES)
-#define	nr_inactive_anon_pages()	global_page_state(NR_INACTIVE_ANON)
-#define	nr_inactive_file_pages()	global_page_state(NR_INACTIVE_FILE)
 
 #endif /* ZFS_GLOBAL_ZONE_PAGE_STATE */
 
