@@ -1363,8 +1363,7 @@ static xattr_handler_t zpl_xattr_acl_access_handler = {
 	.list	= zpl_xattr_acl_list_access,
 	.get	= zpl_xattr_acl_get_access,
 	.set	= zpl_xattr_acl_set_access,
-#if defined(HAVE_XATTR_LIST_SIMPLE) || \
-    defined(HAVE_XATTR_LIST_HANDLER)
+#if defined(HAVE_XATTR_LIST_SIMPLE)
 	.flags	= ACL_TYPE_ACCESS,
 #endif
 };
@@ -1380,8 +1379,7 @@ static xattr_handler_t zpl_xattr_acl_default_handler = {
 	.list	= zpl_xattr_acl_list_default,
 	.get	= zpl_xattr_acl_get_default,
 	.set	= zpl_xattr_acl_set_default,
-#if defined(HAVE_XATTR_LIST_SIMPLE) || \
-    defined(HAVE_XATTR_LIST_HANDLER)
+#if defined(HAVE_XATTR_LIST_SIMPLE)
 	.flags	= ACL_TYPE_DEFAULT,
 #endif
 };
@@ -1450,9 +1448,6 @@ zpl_xattr_permission(xattr_filldir_t *xf, const char *name, int name_len)
 	if (handler->list) {
 #if defined(HAVE_XATTR_LIST_SIMPLE)
 		if (!handler->list(d))
-			return (XAPERM_DENY);
-#elif defined(HAVE_XATTR_LIST_HANDLER)
-		if (!handler->list(handler, d, NULL, 0, name, name_len))
 			return (XAPERM_DENY);
 #endif
 	}
