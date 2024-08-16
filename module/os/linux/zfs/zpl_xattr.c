@@ -1087,17 +1087,6 @@ zpl_get_acl_impl(struct inode *ip, int type)
 	void *value = NULL;
 	char *name;
 
-	/*
-	 * As of Linux 3.14, the kernel get_acl will check this for us.
-	 * Also as of Linux 4.7, comparing against ACL_NOT_CACHED is wrong
-	 * as the kernel get_acl will set it to temporary sentinel value.
-	 */
-#ifndef HAVE_KERNEL_GET_ACL_HANDLE_CACHE
-	acl = get_cached_acl(ip, type);
-	if (acl != ACL_NOT_CACHED)
-		return (acl);
-#endif
-
 	switch (type) {
 	case ACL_TYPE_ACCESS:
 		name = XATTR_NAME_POSIX_ACL_ACCESS;
@@ -1125,12 +1114,6 @@ zpl_get_acl_impl(struct inode *ip, int type)
 
 	if (size > 0)
 		kmem_free(value, size);
-
-	/* As of Linux 4.7, the kernel get_acl will set this for us */
-#ifndef HAVE_KERNEL_GET_ACL_HANDLE_CACHE
-	if (!IS_ERR(acl))
-		set_cached_acl(ip, type, acl);
-#endif
 
 	return (acl);
 }
