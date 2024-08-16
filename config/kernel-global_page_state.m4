@@ -1,30 +1,4 @@
 dnl #
-dnl # 4.8 API change
-dnl #
-dnl # 75ef71840539 mm, vmstat: add infrastructure for per-node vmstats
-dnl # 599d0c954f91 mm, vmscan: move LRU lists to node
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_NODE_PAGE_STATE], [
-	ZFS_LINUX_TEST_SRC([global_node_page_state], [
-		#include <linux/mm.h>
-		#include <linux/vmstat.h>
-	],[
-		(void) global_node_page_state(0);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_NODE_PAGE_STATE], [
-	AC_MSG_CHECKING([whether global_node_page_state() exists])
-	ZFS_LINUX_TEST_RESULT([global_node_page_state], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(ZFS_GLOBAL_NODE_PAGE_STATE, 1,
-		    [global_node_page_state() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 4.14 API change
 dnl #
 dnl # c41f012ade0b mm: rename global_page_state to global_zone_page_state
@@ -99,7 +73,6 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE], [
-	ZFS_AC_KERNEL_SRC_GLOBAL_NODE_PAGE_STATE
 	ZFS_AC_KERNEL_SRC_GLOBAL_ZONE_PAGE_STATE
 ])
 
@@ -107,7 +80,6 @@ dnl #
 dnl # enum members in which we're interested
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE], [
-	ZFS_AC_KERNEL_GLOBAL_NODE_PAGE_STATE
 	ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE
 
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],
