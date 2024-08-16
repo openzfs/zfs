@@ -1507,7 +1507,7 @@ out:
  * we use the offset 2 for the '.zfs' directory.
  */
 int
-zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
+zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 {
 	(void) cr;
 	znode_t		*zp = ITOZ(ip);
@@ -1613,7 +1613,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		done = !zpl_dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
 		    objnum, type);
 		if (done)
 			break;
