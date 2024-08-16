@@ -40,16 +40,12 @@ typedef const struct xattr_handler	xattr_handler_t;
 /*
  * 4.5 API change,
  */
-#if defined(HAVE_XATTR_LIST_SIMPLE)
 #define	ZPL_XATTR_LIST_WRAPPER(fn)					\
 static bool								\
 fn(struct dentry *dentry)						\
 {									\
 	return (!!__ ## fn(dentry->d_inode, NULL, 0, NULL, 0));		\
 }
-#else
-#error "Unsupported kernel"
-#endif
 
 /*
  * 4.7 API change,
