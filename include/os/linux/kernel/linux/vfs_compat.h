@@ -312,11 +312,7 @@ static inline int
 zpl_is_32bit_api(void)
 {
 #ifdef CONFIG_COMPAT
-#ifdef HAVE_IN_COMPAT_SYSCALL
 	return (in_compat_syscall());
-#else
-	return (is_compat_task());
-#endif
 #else
 	return (BITS_PER_LONG == 32);
 #endif
