@@ -102,13 +102,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_OPS], [
 		int op __attribute__ ((unused)) = REQ_OP_FLUSH;
 	])
 
-	ZFS_LINUX_TEST_SRC([bio_bi_opf], [
-		#include <linux/bio.h>
-	],[
-		struct bio bio __attribute__ ((unused));
-		bio.bi_opf = 0;
-	])
-
 	ZFS_LINUX_TEST_SRC([bio_set_op_attrs], [
 		#include <linux/bio.h>
 	],[
@@ -143,16 +136,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_REQ_OP_FLUSH], [
 	ZFS_LINUX_TEST_RESULT([req_op_flush], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_REQ_OP_FLUSH, 1, [REQ_OP_FLUSH is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_BI_OPF], [
-	AC_MSG_CHECKING([whether bio->bi_opf is defined])
-	ZFS_LINUX_TEST_RESULT([bio_bi_opf], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_BI_OPF, 1, [bio->bi_opf is defined])
 	],[
 		AC_MSG_RESULT(no)
 	])
@@ -432,7 +415,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_REQ_OP_DISCARD
 	ZFS_AC_KERNEL_BIO_REQ_OP_SECURE_ERASE
 	ZFS_AC_KERNEL_BIO_REQ_OP_FLUSH
-	ZFS_AC_KERNEL_BIO_BI_OPF
 	ZFS_AC_KERNEL_BIO_SET_OP_ATTRS
 
 	ZFS_AC_KERNEL_BIO_SET_DEV
