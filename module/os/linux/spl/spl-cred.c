@@ -74,26 +74,13 @@ crgetngroups(const cred_t *cr)
 
 	gi = cr->group_info;
 	rc = gi->ngroups;
-#ifndef HAVE_GROUP_INFO_GID
-	/*
-	 * For Linux <= 4.8,
-	 * crgetgroups will only returns gi->blocks[0], which contains only
-	 * the first NGROUPS_PER_BLOCK groups.
-	 */
-	if (rc > NGROUPS_PER_BLOCK) {
-		WARN_ON_ONCE(1);
-		rc = NGROUPS_PER_BLOCK;
-	}
-#endif
+
 	return (rc);
 }
 
 /*
  * Return an array of supplemental gids.  The returned address is safe
  * to use as long as the caller has taken a reference with crhold().
- *
- * Linux 4.9 API change, group_info changed from 2d array via ->blocks to 1d
- * array via ->gid.
  */
 gid_t *
 crgetgroups(const cred_t *cr)
@@ -102,12 +89,8 @@ crgetgroups(const cred_t *cr)
 	gid_t *gids = NULL;
 
 	gi = cr->group_info;
-#ifdef HAVE_GROUP_INFO_GID
 	gids = KGIDP_TO_SGIDP(gi->gid);
-#else
-	if (gi->nblocks > 0)
-		gids = KGIDP_TO_SGIDP(gi->blocks[0]);
-#endif
+
 	return (gids);
 }
 
