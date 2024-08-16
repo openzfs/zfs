@@ -263,30 +263,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_BI_STATUS], [
 ])
 
 dnl #
-dnl # 4.8 API change
-dnl # The rw argument has been removed from submit_bio/submit_bio_wait.
-dnl # Callers are now expected to set bio->bi_rw instead of passing it in.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO], [
-	ZFS_LINUX_TEST_SRC([submit_bio], [
-		#include <linux/bio.h>
-	],[
-		struct bio *bio = NULL;
-		(void) submit_bio(bio);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_SUBMIT_BIO], [
-	AC_MSG_CHECKING([whether submit_bio() wants 1 arg])
-	ZFS_LINUX_TEST_RESULT([submit_bio], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_1ARG_SUBMIT_BIO, 1, [submit_bio() wants 1 arg])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.34 API change
 dnl # current->bio_list
 dnl #
@@ -439,7 +415,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
 	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
-	ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO
 	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
@@ -462,7 +437,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 
 	ZFS_AC_KERNEL_BIO_SET_DEV
 	ZFS_AC_KERNEL_BIO_BI_STATUS
-	ZFS_AC_KERNEL_BIO_SUBMIT_BIO
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
