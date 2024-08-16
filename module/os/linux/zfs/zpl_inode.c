@@ -647,19 +647,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	return (error);
 }
 
-#if defined(HAVE_PUT_LINK_COOKIE)
-static void
-zpl_put_link(struct inode *unused, void *cookie)
-{
-	kmem_free(cookie, MAXPATHLEN);
-}
-#elif defined(HAVE_PUT_LINK_DELAYED)
 static void
 zpl_put_link(void *ptr)
 {
 	kmem_free(ptr, MAXPATHLEN);
 }
-#endif
 
 static int
 zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
@@ -691,7 +683,6 @@ zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
 	return (error);
 }
 
-#if defined(HAVE_GET_LINK_DELAYED)
 static const char *
 zpl_get_link(struct dentry *dentry, struct inode *inode,
     struct delayed_call *done)
@@ -710,36 +701,6 @@ zpl_get_link(struct dentry *dentry, struct inode *inode,
 
 	return (link);
 }
-#elif defined(HAVE_GET_LINK_COOKIE)
-static const char *
-zpl_get_link(struct dentry *dentry, struct inode *inode, void **cookie)
-{
-	char *link = NULL;
-	int error;
-
-	if (!dentry)
-		return (ERR_PTR(-ECHILD));
-
-	error = zpl_get_link_common(dentry, inode, &link);
-	if (error)
-		return (ERR_PTR(error));
-
-	return (*cookie = link);
-}
-#elif defined(HAVE_FOLLOW_LINK_COOKIE)
-static const char *
-zpl_follow_link(struct dentry *dentry, void **cookie)
-{
-	char *link = NULL;
-	int error;
-
-	error = zpl_get_link_common(dentry, dentry->d_inode, &link);
-	if (error)
-		return (ERR_PTR(error));
-
-	return (*cookie = link);
-}
-#endif
 
 static int
 zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
@@ -835,14 +796,7 @@ const struct inode_operations zpl_symlink_inode_operations = {
 #ifdef HAVE_GENERIC_READLINK
 	.readlink	= generic_readlink,
 #endif
-#if defined(HAVE_GET_LINK_DELAYED) || defined(HAVE_GET_LINK_COOKIE)
 	.get_link	= zpl_get_link,
-#elif defined(HAVE_FOLLOW_LINK_COOKIE)
-	.follow_link	= zpl_follow_link,
-#endif
-#if defined(HAVE_PUT_LINK_COOKIE)
-	.put_link	= zpl_put_link,
-#endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 #ifdef HAVE_GENERIC_SETXATTR
