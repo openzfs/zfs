@@ -479,16 +479,6 @@ vdev_disk_close(vdev_t *v)
 	v->vdev_tsd = NULL;
 }
 
-static inline void
-vdev_submit_bio_impl(struct bio *bio)
-{
-#ifdef HAVE_1ARG_SUBMIT_BIO
-	(void) submit_bio(bio);
-#else
-	(void) submit_bio(bio_data_dir(bio), bio);
-#endif
-}
-
 /*
  * preempt_schedule_notrace is GPL-only which breaks the ZFS build, so
  * replace it with preempt_schedule under the following condition:
@@ -609,7 +599,7 @@ vdev_submit_bio(struct bio *bio)
 {
 	struct bio_list *bio_list = current->bio_list;
 	current->bio_list = NULL;
-	vdev_submit_bio_impl(bio);
+	(void) submit_bio(bio);
 	current->bio_list = bio_list;
 }
 
