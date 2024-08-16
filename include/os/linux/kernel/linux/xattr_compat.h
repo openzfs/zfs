@@ -47,15 +47,6 @@ fn(struct dentry *dentry)						\
 {									\
 	return (!!__ ## fn(dentry->d_inode, NULL, 0, NULL, 0));		\
 }
-#elif defined(HAVE_XATTR_LIST_HANDLER)
-#define	ZPL_XATTR_LIST_WRAPPER(fn)					\
-static size_t								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    char *list, size_t list_size, const char *name, size_t name_len)	\
-{									\
-	return (__ ## fn(dentry->d_inode,				\
-	    list, list_size, name, name_len));				\
-}
 #else
 #error "Unsupported kernel"
 #endif
@@ -72,20 +63,6 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     struct inode *inode, const char *name, void *buffer, size_t size)	\
 {									\
 	return (__ ## fn(inode, name, buffer, size));			\
-}
-/*
- * 4.4 API change,
- * The xattr_handler->get() callback was changed to take a xattr_handler,
- * and handler_flags argument was removed and should be accessed by
- * handler->flags.
- */
-#elif defined(HAVE_XATTR_GET_HANDLER)
-#define	ZPL_XATTR_GET_WRAPPER(fn)					\
-static int								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    const char *name, void *buffer, size_t size)			\
-{									\
-	return (__ ## fn(dentry->d_inode, name, buffer, size));		\
 }
 /*
  * Android API change,
@@ -148,21 +125,6 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
     size_t size, int flags)						\
 {									\
 	return (__ ## fn(kcred->user_ns, inode, name, buffer, size, flags));\
-}
-/*
- * 4.4 API change,
- * The xattr_handler->set() callback was changed to take a xattr_handler,
- * and handler_flags argument was removed and should be accessed by
- * handler->flags.
- */
-#elif defined(HAVE_XATTR_SET_HANDLER)
-#define	ZPL_XATTR_SET_WRAPPER(fn)					\
-static int								\
-fn(const struct xattr_handler *handler, struct dentry *dentry,		\
-    const char *name, const void *buffer, size_t size, int flags)	\
-{									\
-	return (__ ## fn(kcred->user_ns, dentry->d_inode, name,	\
-	    buffer, size, flags));					\
 }
 #else
 #error "Unsupported kernel"
