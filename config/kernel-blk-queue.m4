@@ -270,77 +270,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLAG_CLEAR], [
 ])
 
 dnl #
-dnl # 2.6.36 API change,
-dnl # Added blk_queue_flush() interface, while the previous interface
-dnl # was available to all the new one is GPL-only.  Thus in addition to
-dnl # detecting if this function is available we determine if it is
-dnl # GPL-only.  If the GPL-only interface is there we implement our own
-dnl # compatibility function, otherwise we use the function.  The hope
-dnl # is that long term this function will be opened up.
-dnl #
-dnl # 4.7 API change,
-dnl # Replace blk_queue_flush with blk_queue_write_cache
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH], [
-	ZFS_LINUX_TEST_SRC([blk_queue_flush], [
-		#include <linux/blkdev.h>
-	], [
-		struct request_queue *q __attribute__ ((unused)) = NULL;
-		(void) blk_queue_flush(q, REQ_FLUSH);
-	], [], [ZFS_META_LICENSE])
-
-	ZFS_LINUX_TEST_SRC([blk_queue_write_cache], [
-		#include <linux/kernel.h>
-		#include <linux/blkdev.h>
-	], [
-		struct request_queue *q __attribute__ ((unused)) = NULL;
-		blk_queue_write_cache(q, true, true);
-	], [], [ZFS_META_LICENSE])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLUSH], [
-	AC_MSG_CHECKING([whether blk_queue_flush() is available])
-	ZFS_LINUX_TEST_RESULT([blk_queue_flush], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_FLUSH, 1,
-		    [blk_queue_flush() is available])
-
-		AC_MSG_CHECKING([whether blk_queue_flush() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([blk_queue_flush_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY, 1,
-			    [blk_queue_flush() is GPL-only])
-		])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	dnl #
-	dnl # 4.7 API change
-	dnl # Replace blk_queue_flush with blk_queue_write_cache
-	dnl #
-	AC_MSG_CHECKING([whether blk_queue_write_cache() exists])
-	ZFS_LINUX_TEST_RESULT([blk_queue_write_cache], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_WRITE_CACHE, 1,
-		    [blk_queue_write_cache() exists])
-
-		AC_MSG_CHECKING([whether blk_queue_write_cache() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([blk_queue_write_cache_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY, 1,
-			    [blk_queue_write_cache() is GPL-only])
-		])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.34 API change
 dnl # blk_queue_max_hw_sectors() replaces blk_queue_max_sectors().
 dnl #
@@ -439,7 +368,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_SET
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_CLEAR
-	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_SEGMENTS
 	ZFS_AC_KERNEL_SRC_BLK_MQ
@@ -454,7 +382,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_SET
 	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_CLEAR
-	ZFS_AC_KERNEL_BLK_QUEUE_FLUSH
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS
 	ZFS_AC_KERNEL_BLK_MQ

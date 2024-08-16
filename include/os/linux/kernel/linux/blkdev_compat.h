@@ -61,24 +61,12 @@ blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
  * Setting the flush flags directly is no longer possible; flush flags are set
  * on the queue_limits structure and passed to blk_disk_alloc(). In this case
  * we remove this function entirely.
- *
- * 4.7 API,
- * The blk_queue_write_cache() interface has replaced blk_queue_flush()
- * interface.  However, the new interface is GPL-only thus we implement
- * our own trivial wrapper when the GPL-only version is detected.
- *
- * 2.6.36 - 4.6 API,
- * The blk_queue_flush() interface has replaced blk_queue_ordered()
- * interface.  However, while the old interface was available to all the
- * new one is GPL-only.   Thus if the GPL-only version is detected we
- * implement our own trivial helper.
  */
 #if !defined(HAVE_BLK_ALLOC_DISK_2ARG) || \
 	!defined(HAVE_BLKDEV_QUEUE_LIMITS_FEATURES)
 static inline void
 blk_queue_set_write_cache(struct request_queue *q, bool on)
 {
-#if defined(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY)
 	if (on) {
 		blk_queue_flag_set(QUEUE_FLAG_WC, q);
 		blk_queue_flag_set(QUEUE_FLAG_FUA, q);
@@ -86,18 +74,6 @@ blk_queue_set_write_cache(struct request_queue *q, bool on)
 		blk_queue_flag_clear(QUEUE_FLAG_WC, q);
 		blk_queue_flag_clear(QUEUE_FLAG_FUA, q);
 	}
-#elif defined(HAVE_BLK_QUEUE_WRITE_CACHE)
-	blk_queue_write_cache(q, on, on);
-#elif defined(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY)
-	if (on)
-		q->flush_flags |= REQ_FLUSH | REQ_FUA;
-	else
-		q->flush_flags &= ~(REQ_FLUSH | REQ_FUA);
-#elif defined(HAVE_BLK_QUEUE_FLUSH)
-	blk_queue_flush(q, on ? (REQ_FLUSH | REQ_FUA) : 0);
-#else
-#error "Unsupported kernel"
-#endif
 }
 #endif /* !HAVE_BLK_ALLOC_DISK_2ARG || !HAVE_BLKDEV_QUEUE_LIMITS_FEATURES */
 
