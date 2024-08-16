@@ -173,14 +173,6 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	return (error);
 }
 
-#ifdef HAVE_FILE_AIO_FSYNC
-static int
-zpl_aio_fsync(struct kiocb *kiocb, int datasync)
-{
-	return (zpl_fsync(kiocb->ki_filp, kiocb->ki_pos, -1, datasync));
-}
-#endif
-
 static inline int
 zfs_io_flags(struct kiocb *kiocb)
 {
@@ -1127,9 +1119,6 @@ const struct file_operations zpl_file_operations = {
 #endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
-#ifdef HAVE_FILE_AIO_FSYNC
-	.aio_fsync	= zpl_aio_fsync,
-#endif
 	.fallocate	= zpl_fallocate,
 	.copy_file_range	= zpl_copy_file_range,
 #ifdef HAVE_VFS_CLONE_FILE_RANGE
