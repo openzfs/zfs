@@ -83,7 +83,6 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 	return ((ssize_t)len_o);
 }
 
-#if defined(HAVE_VFS_COPY_FILE_RANGE)
 /*
  * Entry point for copy_file_range(). Copy len bytes from src_off in src_file
  * to dst_off in dst_file. We are permitted to do this however we like, so we
@@ -133,7 +132,6 @@ zpl_copy_file_range(struct file *src_file, loff_t src_off,
 
 	return (ret);
 }
-#endif /* HAVE_VFS_COPY_FILE_RANGE */
 
 #ifdef HAVE_VFS_REMAP_FILE_RANGE
 /*

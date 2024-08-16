@@ -1146,9 +1146,7 @@ const struct file_operations zpl_file_operations = {
 	.aio_fsync	= zpl_aio_fsync,
 #endif
 	.fallocate	= zpl_fallocate,
-#ifdef HAVE_VFS_COPY_FILE_RANGE
 	.copy_file_range	= zpl_copy_file_range,
-#endif
 #ifdef HAVE_VFS_CLONE_FILE_RANGE
 	.clone_file_range	= zpl_clone_file_range,
 #endif
