@@ -737,11 +737,6 @@ out:
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
 	.set_acl	= zpl_set_acl,
@@ -776,11 +771,6 @@ const struct inode_operations zpl_dir_inode_operations = {
 #endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
 	.set_acl	= zpl_set_acl,
@@ -799,22 +789,12 @@ const struct inode_operations zpl_symlink_inode_operations = {
 	.get_link	= zpl_get_link,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
 	.set_acl	= zpl_set_acl,
