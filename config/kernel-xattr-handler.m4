@@ -182,35 +182,6 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 ])
 
 dnl #
-dnl # Supported xattr handler list() interfaces checked newest to oldest.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_LIST], [
-	ZFS_LINUX_TEST_SRC([xattr_handler_list_simple], [
-		#include <linux/xattr.h>
-
-		static bool list(struct dentry *dentry) { return 0; }
-		static const struct xattr_handler
-		    xops __attribute__ ((unused)) = {
-			.list = list,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_LIST], [
-	dnl # 4.5 API change,
-	dnl # The xattr_handler->list() callback was changed to take only a
-	dnl # dentry and it only needs to return if it's accessible.
-	AC_MSG_CHECKING([whether xattr_handler->list() wants simple])
-	ZFS_LINUX_TEST_RESULT([xattr_handler_list_simple], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_XATTR_LIST_SIMPLE, 1,
-		    [xattr_handler->list() wants simple])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 4.9 API change,
 dnl # iops->{set,get,remove}xattr and generic_{set,get,remove}xattr are
 dnl # removed. xattr operations will directly go through sb->s_xattr.
@@ -242,7 +213,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR], [
 	ZFS_AC_KERNEL_SRC_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET
-	ZFS_AC_KERNEL_SRC_XATTR_HANDLER_LIST
 	ZFS_AC_KERNEL_SRC_GENERIC_SETXATTR
 ])
 
@@ -250,6 +220,5 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR], [
 	ZFS_AC_KERNEL_CONST_XATTR_HANDLER
 	ZFS_AC_KERNEL_XATTR_HANDLER_GET
 	ZFS_AC_KERNEL_XATTR_HANDLER_SET
-	ZFS_AC_KERNEL_XATTR_HANDLER_LIST
 	ZFS_AC_KERNEL_GENERIC_SETXATTR
 ])
