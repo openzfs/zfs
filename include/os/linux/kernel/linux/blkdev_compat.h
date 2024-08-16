@@ -382,41 +382,16 @@ bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
 /*
  * bio_set_flush - Set the appropriate flags in a bio to guarantee
  * data are on non-volatile media on completion.
- *
- * 2.6.37 - 4.8 API,
- *   Introduce WRITE_FLUSH, WRITE_FUA, and WRITE_FLUSH_FUA flags as a
- *   replacement for WRITE_BARRIER to allow expressing richer semantics
- *   to the block layer.  It's up to the block layer to implement the
- *   semantics correctly. Use the WRITE_FLUSH_FUA flag combination.
- *
- * 4.8 - 4.9 API,
- *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
- *   OpenZFS releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
- *
- * 4.10 API,
- *   The read/write flags and their modifiers, including WRITE_FLUSH,
- *   WRITE_FUA and WRITE_FLUSH_FUA were removed from fs.h in
- *   torvalds/linux@70fd7614 and replaced by direct flag modification
- *   of the REQ_ flags in bio->bi_opf.  Use REQ_PREFLUSH.
  */
 static inline void
 bio_set_flush(struct bio *bio)
 {
-#if defined(HAVE_REQ_PREFLUSH)	/* >= 4.10 */
 	bio_set_op_attrs(bio, 0, REQ_PREFLUSH | REQ_OP_WRITE);
-#elif defined(WRITE_FLUSH_FUA)	/* >= 2.6.37 and <= 4.9 */
-	bio_set_op_attrs(bio, 0, WRITE_FLUSH_FUA);
-#else
-#error	"Allowing the build will cause bio_set_flush requests to be ignored."
-#endif
 }
 
 /*
  * 4.8 API,
  *   REQ_OP_FLUSH
- *
- * 4.8-rc0 - 4.8-rc1,
- *   REQ_PREFLUSH
  *
  * in all cases but may have a performance impact for some kernels.  It
  * has the advantage of minimizing kernel specific changes in the zvol code.
@@ -425,13 +400,7 @@ bio_set_flush(struct bio *bio)
 static inline boolean_t
 bio_is_flush(struct bio *bio)
 {
-#if defined(HAVE_REQ_OP_FLUSH)
-	return ((bio_op(bio) == REQ_OP_FLUSH) || (bio->bi_opf & REQ_PREFLUSH));
-#elif defined(HAVE_REQ_PREFLUSH)
-	return (bio->bi_opf & REQ_PREFLUSH);
-#else
-#error	"Unsupported kernel"
-#endif
+	return (bio_op(bio) == REQ_OP_FLUSH);
 }
 
 /*
@@ -448,41 +417,23 @@ bio_is_fua(struct bio *bio)
  * 4.8 API,
  *   REQ_OP_DISCARD
  *
- * 2.6.36 - 4.7 API,
- *   REQ_DISCARD
- *
  * In all cases the normal I/O path is used for discards.  The only
  * difference is how the kernel tags individual I/Os as discards.
  */
 static inline boolean_t
 bio_is_discard(struct bio *bio)
 {
-#if defined(HAVE_REQ_OP_DISCARD)
 	return (bio_op(bio) == REQ_OP_DISCARD);
-#elif defined(HAVE_REQ_DISCARD)
-	return (bio->bi_rw & REQ_DISCARD);
-#else
-#error "Unsupported kernel"
-#endif
 }
 
 /*
  * 4.8 API,
  *   REQ_OP_SECURE_ERASE
- *
- * 2.6.36 - 4.7 API,
- *   REQ_SECURE
  */
 static inline boolean_t
 bio_is_secure_erase(struct bio *bio)
 {
-#if defined(HAVE_REQ_OP_SECURE_ERASE)
 	return (bio_op(bio) == REQ_OP_SECURE_ERASE);
-#elif defined(REQ_SECURE)
-	return (bio->bi_rw & REQ_SECURE);
-#else
-	return (0);
-#endif
 }
 
 /*
