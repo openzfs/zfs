@@ -591,7 +591,6 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 
 #if !defined(HAVE_IOPS_RENAME_USERNS) && \
 	!defined(HAVE_RENAME_WANTS_FLAGS) && \
-	!defined(HAVE_RENAME2) && \
 	!defined(HAVE_IOPS_RENAME_IDMAP)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
@@ -757,9 +756,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#ifdef HAVE_RENAME2
-	.rename2	= zpl_rename2,
-#elif defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
+#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_rename2,
 #elif defined(HAVE_IOPS_RENAME_IDMAP)
 	.rename		= zpl_rename2,
