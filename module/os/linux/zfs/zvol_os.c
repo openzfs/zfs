@@ -1169,6 +1169,7 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->io_opt = limits->zql_io_opt;
 	qlimits->physical_block_size = limits->zql_physical_block_size;
 	qlimits->max_discard_sectors = limits->zql_max_discard_sectors;
+	qlimits->max_hw_discard_sectors = limits->zql_max_discard_sectors;
 	qlimits->discard_granularity = limits->zql_discard_granularity;
 #ifdef HAVE_BLKDEV_QUEUE_LIMITS_FEATURES
 	qlimits->features =
