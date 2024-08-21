@@ -186,6 +186,13 @@ issig(void)
 
 		schedule();
 #endif
+		/*
+		 * Dequeued SIGSTOP/SIGTSTP.
+		 * Check if process has other singal pending.
+		 */
+		if (signal_pending(current))
+			return (1);
+
 		return (0);
 	}
 
