@@ -2035,7 +2035,8 @@ do_userquota_update(objset_t *os, userquota_cache_t *cache, uint64_t used,
 		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
 
-		if (dmu_objset_projectquota_enabled(os)) {
+		if (dmu_objset_projectquota_enabled(os) &&
+		    project != ZFS_DEFAULT_PROJID) {
 			(void) snprintf(name, sizeof (name), "%llx",
 			    (longlong_t)project);
 			userquota_update_cache(&cache->uqc_project_deltas,
@@ -2060,7 +2061,8 @@ do_userobjquota_update(objset_t *os, userquota_cache_t *cache, uint64_t flags,
 		    (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
 
-		if (dmu_objset_projectquota_enabled(os)) {
+		if (dmu_objset_projectquota_enabled(os) &&
+		    project != ZFS_DEFAULT_PROJID) {
 			(void) snprintf(name, sizeof (name),
 			    DMU_OBJACCT_PREFIX "%llx", (longlong_t)project);
 			userquota_update_cache(&cache->uqc_project_deltas,
@@ -2514,7 +2516,14 @@ dmu_objset_id_quota_upgrade_cb(objset_t *os)
 		dmu_objset_ds(os)->ds_feature_activation[
 		    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
 
-	err = dmu_objset_space_upgrade(os);
+	/*
+	 * By marking each inode dirty in dmu_objset_space_upgrade() for
+	 * projectquota doesn't get usage accounted, as projid is not changed.
+	 * Object usage gets accounted, when projid is set on it. So, space
+	 * upgrade for the project quota is un-necessary.
+	 */
+	if (!dmu_objset_userobjspace_present(os))
+		err = dmu_objset_space_upgrade(os);
 	if (err)
 		return (err);
 
