@@ -398,6 +398,23 @@ zfs_prop_init(void)
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_DATASET_PROPERTIES);
 
+	/* __APPLE__ */
+	static zprop_index_t devdisk_table[] = {
+		{ "poolonly",	ZFS_DEVDISK_POOLONLY },
+		{ "off",		ZFS_DEVDISK_OFF },
+		{ "on",			ZFS_DEVDISK_ON },
+		{ NULL }
+	};
+
+	static zprop_index_t mimic_table[] = {
+		{ "off",		ZFS_MIMIC_OFF },
+		{ "hfs",		ZFS_MIMIC_HFS },
+		{ "apfs",		ZFS_MIMIC_APFS },
+		{ "ntfs",		ZFS_MIMIC_NTFS },
+		{ NULL }
+	};
+	/* __APPLE__ */
+
 	/* inherit index properties */
 	zprop_register_index(ZFS_PROP_REDUNDANT_METADATA, "redundant_metadata",
 	    ZFS_REDUNDANT_METADATA_ALL,
@@ -608,6 +625,26 @@ zfs_prop_init(void)
 	    "redact_snaps", NULL, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
 	    "RSNAPS", sfeatures);
+
+	/*
+	 * These props are needed for compatability with pools created
+	 * using openzfsonosx
+	 */
+	zprop_register_index(ZFS_PROP_BROWSE, "browse", 1,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off",
+	    "COM.APPLE.BROWSE", boolean_table, sfeatures);
+	zprop_register_index(ZFS_PROP_IGNOREOWNER, "ignoreowner", 0,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off",
+	    "COM.APPLE.IGNOREOWNER", boolean_table, sfeatures);
+	zprop_register_hidden(ZFS_PROP_LASTUNMOUNT, "COM.APPLE.LASTUNMOUNT",
+	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_DATASET, "LASTUNMOUNT",
+	    B_FALSE, sfeatures);
+	zprop_register_index(ZFS_PROP_MIMIC, "mimic", 0,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | hfs | apfs | ntfs",
+	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeatures);
+	zprop_register_index(ZFS_PROP_DEVDISK, "devdisk", 0,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "poolonly | on | off",
+	    "COM.APPLE.DEVDISK", devdisk_table, sfeatures);
 
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,

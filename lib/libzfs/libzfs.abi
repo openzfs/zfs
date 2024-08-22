@@ -1871,7 +1871,12 @@
       <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED' value='95'/>
       <enumerator name='ZFS_PROP_PREFETCH' value='96'/>
       <enumerator name='ZFS_PROP_VOLTHREADING' value='97'/>
-      <enumerator name='ZFS_NUM_PROPS' value='98'/>
+      <enumerator name='ZFS_PROP_BROWSE' value='98'/>
+      <enumerator name='ZFS_PROP_IGNOREOWNER' value='99'/>
+      <enumerator name='ZFS_PROP_LASTUNMOUNT' value='100'/>
+      <enumerator name='ZFS_PROP_MIMIC' value='101'/>
+      <enumerator name='ZFS_PROP_DEVDISK' value='102'/>
+      <enumerator name='ZFS_NUM_PROPS' value='103'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>
@@ -5939,7 +5944,9 @@
       <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
       <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
       <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
-      <enumerator name='ZFS_IOC_LAST' value='23177'/>
+      <enumerator name='ZFS_IOC_PROXY_DATASET' value='23177'/>
+      <enumerator name='ZFS_IOC_PROXY_REMOVE' value='23178'/>
+      <enumerator name='ZFS_IOC_LAST' value='23179'/>
     </enum-decl>
     <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>

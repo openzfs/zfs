@@ -21,6 +21,7 @@ dist_man_MANS = \
 	%D%/man7/zpool-features.7 \
 	%D%/man7/zpoolconcepts.7 \
 	%D%/man7/zpoolprops.7 \
+	%D%/man7/zfsprops-macos.7 \
 	\
 	%D%/man8/fsck.zfs.8 \
 	%D%/man8/mount.zfs.8 \

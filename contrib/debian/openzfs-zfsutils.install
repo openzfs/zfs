@@ -91,6 +91,7 @@ usr/share/man/man8/zfs_ids_to_path.8
 usr/share/man/man8/zfs_prepare_disk.8
 usr/share/man/man7/zfsconcepts.7
 usr/share/man/man7/zfsprops.7
+usr/share/man/man7/zfsprops-macos.7
 usr/share/man/man8/zgenhostid.8
 usr/share/man/man8/zinject.8
 usr/share/man/man8/zpool-add.8
