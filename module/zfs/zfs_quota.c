@@ -47,7 +47,7 @@ zpl_get_file_info(dmu_object_type_t bonustype, const void *data,
 	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
 		return (SET_ERROR(ENOENT));
 
-	zoi->zfi_project = ZFS_DEFAULT_PROJID;
+	zoi->zfi_project = ZFS_INVALID_PROJID;
 
 	/*
 	 * If we have a NULL data pointer
