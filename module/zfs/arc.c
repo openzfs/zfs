@@ -464,6 +464,20 @@ static uint_t zfs_arc_lotsfree_percent = 10;
  */
 static int zfs_arc_prune_task_threads = 1;
 
+/*
+ * Number of arc_evict threads
+ */
+static uint_t zfs_arc_evict_threads = 0;
+
+/*
+ * The minimum number of bytes we can evict at once is a block size.
+ * So, SPA_MAXBLOCKSIZE is a reasonable minimal value per an eviction task.
+ * We use this value to compute a scaling factor for the eviction tasks.
+ */
+#define	MIN_EVICT_PERTASK_SHIFT	(SPA_MAXBLOCKSHIFT)
+
+static uint_t zfs_arc_evict_parallel = 0;
+
 /* The 7 states: */
 arc_state_t ARC_anon;
 arc_state_t ARC_mru;
@@ -3885,7 +3899,6 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 		 * specifically implemented to ensure this is the case
 		 * (only 'marker' will be removed and re-inserted).
 		 */
-		multilist_sublist_move_forward(mls, marker);
 
 		/*
 		 * The only case where the b_spa field should ever be
@@ -3895,11 +3908,14 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 		 * dsl_pool_close() and zio_inject_fault()), so we must
 		 * skip any markers we see from these other threads.
 		 */
-		if (hdr->b_spa == 0)
+		if (hdr->b_spa == 0) {
+			multilist_sublist_move_forward(mls, marker);
 			continue;
+		}
 
 		/* we're only interested in evicting buffers of a certain spa */
 		if (spa != 0 && hdr->b_spa != spa) {
+			multilist_sublist_move_forward(mls, marker);
 			ARCSTAT_BUMP(arcstat_evict_skip);
 			continue;
 		}
@@ -3934,6 +3950,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 				evict_count--;
 
 		} else {
+			multilist_sublist_move_forward(mls, marker);
 			ARCSTAT_BUMP(arcstat_mutex_miss);
 		}
 	}
@@ -4021,6 +4038,35 @@ arc_state_free_markers(arc_buf_hdr_t **markers, int count)
 	kmem_free(markers, sizeof (*markers) * count);
 }
 
+taskq_t *arc_evict_taskq;
+
+typedef struct evict_arg {
+	taskq_ent_t	tqe;
+	multilist_t	*ml;
+	int		idx;
+	arc_buf_hdr_t	*marker;
+	uint64_t	spa;
+	uint64_t	bytes;
+	volatile uint64_t *evicted_ptr;
+} evict_arg_t;
+
+static void
+arc_evict_task(void *arg)
+{
+	evict_arg_t *eva = arg;
+	volatile uint64_t *evictedp = eva->evicted_ptr;
+	multilist_t *ml = eva->ml;
+	arc_buf_hdr_t *marker = eva->marker;
+	int idx = eva->idx;
+	uint64_t spa = eva->spa;
+	uint64_t evict = eva->bytes;
+	uint64_t bytes_evicted;
+
+	bytes_evicted = arc_evict_state_impl(ml, idx, marker, spa, evict);
+
+	atomic_add_64(evictedp, bytes_evicted);
+}
+
 /*
  * Evict buffers from the given arc state, until we've removed the
  * specified number of bytes. Move the removed buffers to the
@@ -4040,10 +4086,11 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 {
 	uint64_t total_evicted = 0;
 	multilist_t *ml = &state->arcs_list[type];
-	int num_sublists;
 	arc_buf_hdr_t **markers;
+	unsigned num_sublists = multilist_get_num_sublists(ml);
 
-	num_sublists = multilist_get_num_sublists(ml);
+	if (bytes == 0)
+		return (total_evicted);
 
 	/*
 	 * If we've tried to evict from each sublist, made some
@@ -4066,13 +4113,72 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 		multilist_sublist_unlock(mls);
 	}
 
+	evict_arg_t *evarg = kmem_alloc(sizeof (*evarg) * num_sublists,
+	    KM_SLEEP);
 	/*
 	 * While we haven't hit our target number of bytes to evict, or
 	 * we're evicting all available buffers.
 	 */
 	while (total_evicted < bytes) {
 		int sublist_idx = multilist_get_random_index(ml);
+		boolean_t usetskq = zfs_arc_evict_parallel;
 		uint64_t scan_evicted = 0;
+
+		uint64_t left = (bytes == ARC_EVICT_ALL ? bytes :
+		    bytes - total_evicted);
+
+		/*
+		 *  How we scale
+		 *
+		 *  Example 1, # of chunks less than # of tasks.
+		 *  We have:
+		 *  - 4 tasks
+		 *  - 3 chunks
+		 *  - 3 full col
+		 *  - 0 low cols.
+		 *
+		 *  The first low col index is 3.
+		 *  The tasks #0-#2 evict 1 chunk each.
+		 *
+		 *    0 | 1 | 2 | 3 |
+		 *  +===+===+===+===+
+		 *  | x | x | x |   |
+		 *  +---+---+---+---+
+		 *
+		 *  Example 2, # of chunks more than # of tasks.
+		 *  We have:
+		 *  - 4 tasks
+		 *  - 9 chunks
+		 *  - 1 full col
+		 *  - 3 low cols
+		 *
+		 *  The first low col index is 1.
+		 *  The task #0 evicts 3 chunks, the others evict 2 chunks each.
+		 *
+		 *    0 | 1 | 2 | 3 |
+		 *  +===+===+===+===+
+		 *  | x | x | x | x |
+		 *  +---+---+---+---+
+		 *  | x | x | x | x |
+		 *  +---+---+---+---+
+		 *  | x |   |   |   |
+		 *  +---+---+---+---+
+		 */
+
+		/*
+		 * Compute number of tasks to run (n), low col index (k)
+		 * and normal and low bytes per task.
+		 */
+		uint64_t nchunks = ((left - 1) >> MIN_EVICT_PERTASK_SHIFT) + 1;
+		unsigned n = nchunks < num_sublists ? nchunks : num_sublists;
+		uint64_t fullrows = nchunks / n;
+		unsigned lastrowcols = nchunks % n;
+		unsigned k = (lastrowcols ? lastrowcols : n);
+
+		uint64_t bytes_pertask_low =
+		    fullrows << MIN_EVICT_PERTASK_SHIFT;
+		uint64_t bytes_pertask = bytes_pertask_low + (lastrowcols ?
+		    (1 << MIN_EVICT_PERTASK_SHIFT) : 0);
 
 		/*
 		 * Start eviction using a randomly selected sublist,
@@ -4081,9 +4187,33 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 		 * (e.g. index 0) would cause evictions to favor certain
 		 * sublists over others.
 		 */
-		for (int i = 0; i < num_sublists; i++) {
+		for (unsigned i = 0; i < n; i++, sublist_idx++) {
 			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
+
+			/* we've reached the end, wrap to the beginning */
+			if (sublist_idx >= num_sublists)
+				sublist_idx = 0;
+
+			if (usetskq) {
+				uint64_t evict = i < k ? bytes_pertask :
+				    bytes_pertask_low;
+
+				ASSERT3S(n, <=, num_sublists);
+
+				memset(&evarg[i].tqe, 0, sizeof (evarg[i].tqe));
+				evarg[i].ml = ml;
+				evarg[i].marker = markers[sublist_idx];
+				evarg[i].spa = spa;
+				evarg[i].evicted_ptr = &scan_evicted;
+				evarg[i].idx = sublist_idx;
+				evarg[i].bytes = evict;
+
+				taskq_dispatch_ent(arc_evict_taskq,
+				    arc_evict_task,
+				    &evarg[i], 0, &evarg[i].tqe);
+				continue;
+			}
 
 			if (total_evicted < bytes)
 				bytes_remaining = bytes - total_evicted;
@@ -4095,10 +4225,11 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 
 			scan_evicted += bytes_evicted;
 			total_evicted += bytes_evicted;
+		}
 
-			/* we've reached the end, wrap to the beginning */
-			if (++sublist_idx >= num_sublists)
-				sublist_idx = 0;
+		if (usetskq) {
+			taskq_wait(arc_evict_taskq);
+			total_evicted += scan_evicted;
 		}
 
 		/*
@@ -4125,11 +4256,14 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 		}
 	}
 
+	kmem_free(evarg, sizeof (*evarg) * num_sublists);
+
 	for (int i = 0; i < num_sublists; i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock_idx(ml, i);
 		multilist_sublist_remove(mls, markers[i]);
 		multilist_sublist_unlock(mls);
 	}
+
 	if (markers != arc_state_evict_markers)
 		arc_state_free_markers(markers, num_sublists);
 
@@ -7737,12 +7871,19 @@ arc_init(void)
 
 	buf_init();
 
+	if (zfs_arc_evict_threads == 0)
+		zfs_arc_evict_threads = MAX(2, MIN(16, max_ncpus >> 3));
+
 	list_create(&arc_prune_list, sizeof (arc_prune_t),
 	    offsetof(arc_prune_t, p_node));
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	arc_prune_taskq = taskq_create("arc_prune", zfs_arc_prune_task_threads,
 	    defclsyspri, 100, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	arc_evict_taskq = taskq_create("arc_evict",
+	    MIN(zfs_arc_evict_threads, max_ncpus), defclsyspri,
+	    MIN(zfs_arc_evict_threads, max_ncpus), max_ncpus,
+	    TASKQ_PREPOPULATE);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -7816,6 +7957,9 @@ arc_fini(void)
 		kstat_delete(arc_ksp);
 		arc_ksp = NULL;
 	}
+
+	taskq_wait(arc_evict_taskq);
+	taskq_destroy(arc_evict_taskq);
 
 	taskq_wait(arc_prune_taskq);
 	taskq_destroy(arc_prune_taskq);
@@ -10840,3 +10984,9 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_task_threads, INT, ZMOD_RW,
 	"Number of arc_prune threads");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_parallel, UINT, ZMOD_RW,
+	"Evict from the ARC in parallel using a taskq");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_threads, UINT, ZMOD_RW,
+	"Maximum number of arc_evict threads");
