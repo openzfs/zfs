@@ -620,6 +620,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 	if (t && t != ERR_PTR(-EBUSY)) {
 		list_del_init(&t->tqent_list);
 		TQSTAT_DEC_LIST(tq, t);
+		TQSTAT_DEC(tq, tasks_total);
 
 		t->tqent_flags |= TQENT_FLAG_CANCEL;
 		TQSTAT_INC(tq, tasks_cancelled);
@@ -760,6 +761,7 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 	list_add_tail(&t->tqent_list, &tq->tq_delay_list);
 	TQENT_SET_LIST(t, TQENT_LIST_DELAY);
 	TQSTAT_INC_LIST(tq, t);
+	TQSTAT_INC(tq, tasks_total);
 
 	t->tqent_id = rc = tq->tq_next_id;
 	tq->tq_next_id++;
