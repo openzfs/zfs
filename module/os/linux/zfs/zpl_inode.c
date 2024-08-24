@@ -776,9 +776,6 @@ const struct inode_operations zpl_dir_inode_operations = {
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
-#ifdef HAVE_GENERIC_READLINK
-	.readlink	= generic_readlink,
-#endif
 	.get_link	= zpl_get_link,
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
