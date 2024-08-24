@@ -57,11 +57,7 @@ static inline void
 wmsum_add(wmsum_t *ws, int64_t delta)
 {
 
-#ifdef HAVE_PERCPU_COUNTER_ADD_BATCH
 	percpu_counter_add_batch(ws, delta, INT_MAX / 2);
-#else
-	__percpu_counter_add(ws, delta, INT_MAX / 2);
-#endif
 }
 
 #ifdef	__cplusplus
