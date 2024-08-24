@@ -171,41 +171,14 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 	])
 ])
 
-dnl #
-dnl # 4.16 kernel: check if struct posix_acl acl.a_refcount is a refcount_t.
-dnl # It's an atomic_t on older kernels.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL_HAS_REFCOUNT], [
-	ZFS_LINUX_TEST_SRC([acl_refcount], [
-		#include <linux/backing-dev.h>
-		#include <linux/refcount.h>
-		#include <linux/posix_acl.h>
-	],[
-		struct posix_acl acl;
-		refcount_t *r __attribute__ ((unused)) = &acl.a_refcount;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_ACL_HAS_REFCOUNT], [
-	AC_MSG_CHECKING([whether posix_acl has refcount_t])
-	ZFS_LINUX_TEST_RESULT([acl_refcount], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ACL_REFCOUNT, 1, [posix_acl has refcount_t])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
-	ZFS_AC_KERNEL_SRC_ACL_HAS_REFCOUNT
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
-	ZFS_AC_KERNEL_ACL_HAS_REFCOUNT
 ])
