@@ -175,17 +175,9 @@ issig(void)
 #else
 	if (dequeue_signal(task, &set, &__info) != 0) {
 #endif
-#ifdef HAVE_SIGNAL_STOP
 		spin_unlock_irq(&task->sighand->siglock);
 		kernel_signal_stop();
-#else
-		if (current->jobctl & JOBCTL_STOP_DEQUEUED)
-			set_special_state(TASK_STOPPED);
 
-		spin_unlock_irq(&current->sighand->siglock);
-
-		schedule();
-#endif
 		/*
 		 * Dequeued SIGSTOP/SIGTSTP.
 		 * Check if process has other singal pending.
