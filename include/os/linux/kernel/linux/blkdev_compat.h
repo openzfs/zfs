@@ -40,21 +40,6 @@
 #include <linux/blk-mq.h>
 #endif
 
-#ifndef HAVE_BLK_QUEUE_FLAG_SET
-static inline void
-blk_queue_flag_set(unsigned int flag, struct request_queue *q)
-{
-	queue_flag_set(flag, q);
-}
-#endif
-
-#ifndef HAVE_BLK_QUEUE_FLAG_CLEAR
-static inline void
-blk_queue_flag_clear(unsigned int flag, struct request_queue *q)
-{
-	queue_flag_clear(flag, q);
-}
-#endif
 
 /*
  * 6.11 API
