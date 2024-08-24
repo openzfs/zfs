@@ -66,28 +66,20 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
-	AC_MSG_CHECKING([whether bio_set_dev() is available])
-	ZFS_LINUX_TEST_RESULT([bio_set_dev], [
+	AC_MSG_CHECKING([whether bio_set_dev() is GPL-only])
+	ZFS_LINUX_TEST_RESULT([bio_set_dev_license], [
+		AC_MSG_RESULT(no)
+	],[
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_SET_DEV, 1, [bio_set_dev() is available])
+		AC_DEFINE(HAVE_BIO_SET_DEV_GPL_ONLY, 1,
+		    [bio_set_dev() GPL-only])
+	])
 
-		AC_MSG_CHECKING([whether bio_set_dev() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([bio_set_dev_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BIO_SET_DEV_GPL_ONLY, 1,
-			    [bio_set_dev() GPL-only])
-		])
-
-		AC_MSG_CHECKING([whether bio_set_dev() is a macro])
-		ZFS_LINUX_TEST_RESULT([bio_set_dev_macro], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BIO_SET_DEV_MACRO, 1,
-			    [bio_set_dev() is a macro])
-		],[
-			AC_MSG_RESULT(no)
-		])
+	AC_MSG_CHECKING([whether bio_set_dev() is a macro])
+	ZFS_LINUX_TEST_RESULT([bio_set_dev_macro], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BIO_SET_DEV_MACRO, 1,
+		    [bio_set_dev() is a macro])
 	],[
 		AC_MSG_RESULT(no)
 	])
