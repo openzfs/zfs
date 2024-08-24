@@ -44,10 +44,7 @@
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/workqueue.h>
-
-#ifdef HAVE_BLK_MQ
 #include <linux/blk-mq.h>
-#endif
 
 static void zvol_request_impl(zvol_state_t *zv, struct bio *bio,
     struct request *rq, boolean_t force_sync);
@@ -68,7 +65,6 @@ static unsigned int zvol_open_timeout_ms = 1000;
 #endif
 
 static unsigned int zvol_threads = 0;
-#ifdef HAVE_BLK_MQ
 static unsigned int zvol_blk_mq_threads = 0;
 static unsigned int zvol_blk_mq_actual_threads;
 static boolean_t zvol_use_blk_mq = B_FALSE;
@@ -84,7 +80,6 @@ static boolean_t zvol_use_blk_mq = B_FALSE;
  * read and write tests to a zvol in an NVMe pool (with 16 CPUs).
  */
 static unsigned int zvol_blk_mq_blocks_per_thread = 8;
-#endif
 
 static unsigned int zvol_num_taskqs = 0;
 
@@ -96,7 +91,6 @@ static unsigned int zvol_num_taskqs = 0;
 /*
  * Finalize our BIO or request.
  */
-#ifdef	HAVE_BLK_MQ
 #define	END_IO(zv, bio, rq, error)  do { \
 	if (bio) { \
 		bio->bi_status = errno_to_bi_status(-error); \
@@ -105,26 +99,16 @@ static unsigned int zvol_num_taskqs = 0;
 		blk_mq_end_request(rq, errno_to_bi_status(error)); \
 	} \
 } while (0)
-#else
-#define	END_IO(zv, bio, rq, error)  do { \
-	bio->bi_status = errno_to_bi_status(-error); \
-	bio_endio(bio); \
-} while (0)
-#endif
 
-#ifdef HAVE_BLK_MQ
 static unsigned int zvol_blk_mq_queue_depth = BLKDEV_DEFAULT_RQ;
 static unsigned int zvol_actual_blk_mq_queue_depth;
-#endif
 
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
 	struct request_queue	*zvo_queue;	/* request queue */
 	dev_t			zvo_dev;	/* device id */
 
-#ifdef HAVE_BLK_MQ
 	struct blk_mq_tag_set tag_set;
-#endif
 
 	/* Set from the global 'zvol_use_blk_mq' at zvol load */
 	boolean_t use_blk_mq;
@@ -168,8 +152,6 @@ zv_request_task_free(zv_request_task_t *task)
 {
 	kmem_free(task, sizeof (*task));
 }
-
-#ifdef HAVE_BLK_MQ
 
 /*
  * This is called when a new block multiqueue request comes in.  A request
@@ -223,7 +205,6 @@ static int zvol_blk_mq_alloc_tag_set(zvol_state_t *zv)
 
 	return (blk_mq_alloc_tag_set(&zso->tag_set));
 }
-#endif /* HAVE_BLK_MQ */
 
 /*
  * Given a path, return TRUE if path is a ZVOL.
@@ -561,14 +542,12 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	uint_t blk_mq_hw_queue = 0;
 	uint_t tq_idx;
 	uint_t taskq_hash;
-#ifdef HAVE_BLK_MQ
 	if (rq)
 #ifdef HAVE_BLK_MQ_RQ_HCTX
 		blk_mq_hw_queue = rq->mq_hctx->queue_num;
 #else
 		blk_mq_hw_queue =
 		    rq->q->queue_hw_ctx[rq->q->mq_map[rq->cpu]]->queue_num;
-#endif
 #endif
 	taskq_hash = cityhash4((uintptr_t)zv, offset >> ZVOL_TASKQ_OFFSET_SHIFT,
 	    blk_mq_hw_queue, 0);
@@ -1174,7 +1153,6 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 		 * the correct number of segments for the volblocksize and
 		 * number of chunks you want.
 		 */
-#ifdef HAVE_BLK_MQ
 		if (zvol_blk_mq_blocks_per_thread != 0) {
 			unsigned int chunks;
 			chunks = MIN(zvol_blk_mq_blocks_per_thread, UINT16_MAX);
@@ -1191,7 +1169,6 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 			limits->zql_max_segment_size = UINT_MAX;
 		}
 	} else {
-#endif
 		limits->zql_max_segments = UINT16_MAX;
 		limits->zql_max_segment_size = UINT_MAX;
 	}
@@ -1304,7 +1281,6 @@ zvol_alloc_non_blk_mq(struct zvol_state_os *zso, zvol_queue_limits_t *limits)
 static int
 zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
 {
-#ifdef HAVE_BLK_MQ
 	struct zvol_state_os *zso = zv->zv_zso;
 
 	/* Allocate our blk-mq tag_set */
@@ -1351,7 +1327,6 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
 #endif
 
 	zvol_queue_limits_apply(limits, zso->zvo_queue);
-#endif
 
 	return (0);
 }
@@ -1387,9 +1362,7 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volblocksize)
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
 
-#ifdef HAVE_BLK_MQ
 	zv->zv_zso->use_blk_mq = zvol_use_blk_mq;
-#endif
 
 	zvol_queue_limits_t limits;
 	zvol_queue_limits_init(&limits, zv, zv->zv_zso->use_blk_mq);
@@ -1498,10 +1471,8 @@ zvol_os_free(zvol_state_t *zv)
 	put_disk(zv->zv_zso->zvo_disk);
 #endif
 
-#ifdef HAVE_BLK_MQ
 	if (zv->zv_zso->use_blk_mq)
 		blk_mq_free_tag_set(&zv->zv_zso->tag_set);
-#endif
 
 	ida_simple_remove(&zvol_ida,
 	    MINOR(zv->zv_zso->zvo_dev) >> ZVOL_MINOR_BITS);
@@ -1859,7 +1830,6 @@ zvol_init(void)
 		return (error);
 	}
 
-#ifdef HAVE_BLK_MQ
 	if (zvol_blk_mq_queue_depth == 0) {
 		zvol_actual_blk_mq_queue_depth = BLKDEV_DEFAULT_RQ;
 	} else {
@@ -1873,7 +1843,7 @@ zvol_init(void)
 		zvol_blk_mq_actual_threads = MIN(MAX(zvol_blk_mq_threads, 1),
 		    1024);
 	}
-#endif
+
 	for (uint_t i = 0; i < num_tqs; i++) {
 		char name[32];
 		(void) snprintf(name, sizeof (name), "%s_tq-%u",
@@ -1945,7 +1915,6 @@ MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
 module_param(zvol_volmode, uint, 0644);
 MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
 
-#ifdef HAVE_BLK_MQ
 module_param(zvol_blk_mq_queue_depth, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_queue_depth, "Default blk-mq queue depth");
 
@@ -1955,7 +1924,6 @@ MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
 module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
     "Process volblocksize blocks per thread");
-#endif
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 module_param(zvol_open_timeout_ms, uint, 0644);
