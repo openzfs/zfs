@@ -1363,12 +1363,6 @@ zfs_zinactive(znode_t *zp)
 	zfs_znode_hold_exit(zfsvfs, zh);
 }
 
-#if defined(HAVE_INODE_TIMESPEC64_TIMES)
-#define	zfs_compare_timespec timespec64_compare
-#else
-#define	zfs_compare_timespec timespec_compare
-#endif
-
 /*
  * Determine whether the znode's atime must be updated.  The logic mostly
  * duplicates the Linux kernel's relatime_need_update() functionality.
@@ -1388,11 +1382,11 @@ zfs_relatime_need_update(const struct inode *ip)
 	 * has passed since the last update of atime.
 	 */
 	tmp_ts = zpl_inode_get_mtime(ip);
-	if (zfs_compare_timespec(&tmp_ts, &tmp_atime) >= 0)
+	if (timespec64_compare(&tmp_ts, &tmp_atime) >= 0)
 		return (B_TRUE);
 
 	tmp_ts = zpl_inode_get_ctime(ip);
-	if (zfs_compare_timespec(&tmp_ts, &tmp_atime) >= 0)
+	if (timespec64_compare(&tmp_ts, &tmp_atime) >= 0)
 		return (B_TRUE);
 
 	if ((hrtime_t)now.tv_sec - (hrtime_t)tmp_atime.tv_sec >= 24*60*60)
