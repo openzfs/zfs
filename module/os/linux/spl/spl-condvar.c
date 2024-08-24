@@ -31,10 +31,7 @@
 #include <linux/mod_compat.h>
 
 #include <linux/sched.h>
-
-#ifdef HAVE_SCHED_SIGNAL_HEADER
 #include <linux/sched/signal.h>
-#endif
 
 #define	MAX_HRTIMEOUT_SLACK_US	1000
 static unsigned int spl_schedule_hrtimeout_slack_us = 0;
