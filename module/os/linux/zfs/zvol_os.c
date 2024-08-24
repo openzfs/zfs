@@ -91,14 +91,16 @@ static unsigned int zvol_num_taskqs = 0;
 /*
  * Finalize our BIO or request.
  */
-#define	END_IO(zv, bio, rq, error)  do { \
-	if (bio) { \
-		bio->bi_status = errno_to_bi_status(-error); \
-		bio_endio(bio); \
-	} else { \
-		blk_mq_end_request(rq, errno_to_bi_status(error)); \
-	} \
-} while (0)
+static inline void
+zvol_end_io(struct bio *bio, struct request *rq, int error)
+{
+	if (bio) {
+		bio->bi_status = errno_to_bi_status(-error);
+		bio_endio(bio);
+	} else {
+		blk_mq_end_request(rq, errno_to_bi_status(error));
+	}
+}
 
 static unsigned int zvol_blk_mq_queue_depth = BLKDEV_DEFAULT_RQ;
 static unsigned int zvol_actual_blk_mq_queue_depth;
@@ -250,7 +252,7 @@ zvol_write(zv_request_t *zvr)
 	/* Some requests are just for flush and nothing else. */
 	if (io_size(bio, rq) == 0) {
 		rw_exit(&zv->zv_suspend_lock);
-		END_IO(zv, bio, rq, 0);
+		zvol_end_io(bio, rq, 0);
 		return;
 	}
 
@@ -317,7 +319,7 @@ zvol_write(zv_request_t *zvr)
 		blk_generic_end_io_acct(q, disk, WRITE, bio, start_time);
 	}
 
-	END_IO(zv, bio, rq, -error);
+	zvol_end_io(bio, rq, -error);
 }
 
 static void
@@ -406,7 +408,7 @@ unlock:
 		    start_time);
 	}
 
-	END_IO(zv, bio, rq, -error);
+	zvol_end_io(bio, rq, -error);
 }
 
 static void
@@ -483,7 +485,7 @@ zvol_read(zv_request_t *zvr)
 		blk_generic_end_io_acct(q, disk, READ, bio, start_time);
 	}
 
-	END_IO(zv, bio, rq, -error);
+	zvol_end_io(bio, rq, -error);
 }
 
 static void
@@ -514,7 +516,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	int rw = io_data_dir(bio, rq);
 
 	if (unlikely(zv->zv_flags & ZVOL_REMOVING)) {
-		END_IO(zv, bio, rq, -SET_ERROR(ENXIO));
+		zvol_end_io(bio, rq, -SET_ERROR(ENXIO));
 		goto out;
 	}
 
@@ -533,7 +535,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		    (long long unsigned)offset,
 		    (long unsigned)size);
 
-		END_IO(zv, bio, rq, -SET_ERROR(EIO));
+		zvol_end_io(bio, rq, -SET_ERROR(EIO));
 		goto out;
 	}
 
@@ -555,7 +557,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 
 	if (rw == WRITE) {
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
-			END_IO(zv, bio, rq, -SET_ERROR(EROFS));
+			zvol_end_io(bio, rq, -SET_ERROR(EROFS));
 			goto out;
 		}
 
@@ -640,7 +642,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		 * data and require no additional handling.
 		 */
 		if (size == 0) {
-			END_IO(zv, bio, rq, 0);
+			zvol_end_io(bio, rq, 0);
 			goto out;
 		}
 
