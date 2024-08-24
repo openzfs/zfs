@@ -275,20 +275,6 @@ func(struct mnt_idmap *user_ns, const struct path *path,	\
 #endif
 
 /*
- * 4.16 API change
- * Added iversion interface for managing inode version field.
- */
-#ifdef HAVE_INODE_SET_IVERSION
-#include <linux/iversion.h>
-#else
-static inline void
-inode_set_iversion(struct inode *ip, u64 val)
-{
-	ip->i_version = val;
-}
-#endif
-
-/*
  * Returns true when called in the context of a 32-bit system call.
  */
 static inline int
