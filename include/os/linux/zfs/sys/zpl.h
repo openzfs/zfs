@@ -160,12 +160,9 @@ extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
 
 #if defined(HAVE_INODE_TIMESTAMP_TRUNCATE)
 #define	zpl_inode_timestamp_truncate(ts, ip)	timestamp_truncate(ts, ip)
-#elif defined(HAVE_INODE_TIMESPEC64_TIMES)
-#define	zpl_inode_timestamp_truncate(ts, ip)	\
-	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
 #else
 #define	zpl_inode_timestamp_truncate(ts, ip)	\
-	timespec_trunc(ts, (ip)->i_sb->s_time_gran)
+	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
 #endif
 
 #if defined(HAVE_INODE_OWNER_OR_CAPABLE)

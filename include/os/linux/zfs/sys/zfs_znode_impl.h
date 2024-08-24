@@ -141,27 +141,14 @@ do {						\
 	(stmp)[1] = (uint64_t)(tp)->tv_nsec;	\
 } while (0)
 
-#if defined(HAVE_INODE_TIMESPEC64_TIMES)
 /*
  * Decode ZFS stored time values to a struct timespec64
- * 4.18 and newer kernels.
  */
 #define	ZFS_TIME_DECODE(tp, stmp)		\
 do {						\
 	(tp)->tv_sec = (time64_t)(stmp)[0];	\
 	(tp)->tv_nsec = (long)(stmp)[1];	\
 } while (0)
-#else
-/*
- * Decode ZFS stored time values to a struct timespec
- * 4.17 and older kernels.
- */
-#define	ZFS_TIME_DECODE(tp, stmp)		\
-do {						\
-	(tp)->tv_sec = (time_t)(stmp)[0];	\
-	(tp)->tv_nsec = (long)(stmp)[1];	\
-} while (0)
-#endif /* HAVE_INODE_TIMESPEC64_TIMES */
 
 #define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp)
 
