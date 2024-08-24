@@ -28,14 +28,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_TIMER_SETUP], [
 		struct my_task_timer task_timer;
 		timer_setup(&task_timer.timer, task_expire, 0);
 	])
-
-	ZFS_LINUX_TEST_SRC([timer_list_function], [
-		#include <linux/timer.h>
-		static void task_expire(struct timer_list *tl) {}
-	],[
-		struct timer_list tl;
-		tl.function = task_expire;
-	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_TIMER_SETUP], [
@@ -44,15 +36,6 @@ AC_DEFUN([ZFS_AC_KERNEL_TIMER_SETUP], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_KERNEL_TIMER_SETUP, 1,
 		    [timer_setup() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	AC_MSG_CHECKING([whether timer function expects timer_list])
-	ZFS_LINUX_TEST_RESULT([timer_list_function], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST, 1,
-		    [timer_list.function gets a timer_list])
 	],[
 		AC_MSG_RESULT(no)
 	])
