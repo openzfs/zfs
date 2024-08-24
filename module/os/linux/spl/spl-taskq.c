@@ -262,7 +262,7 @@ task_expire_impl(taskq_ent_t *t)
 }
 
 static void
-task_expire(spl_timer_list_t tl)
+task_expire(struct timer_list *tl)
 {
 	struct timer_list *tmr = (struct timer_list *)tl;
 	taskq_ent_t *t = from_timer(t, tmr, tqent_timer);
