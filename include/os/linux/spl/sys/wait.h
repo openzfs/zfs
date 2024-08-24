@@ -27,12 +27,4 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 
-#ifdef HAVE_WAIT_QUEUE_ENTRY_T
-typedef wait_queue_head_t	spl_wait_queue_head_t;
-typedef wait_queue_entry_t	spl_wait_queue_entry_t;
-#else
-typedef wait_queue_head_t	spl_wait_queue_head_t;
-typedef wait_queue_t		spl_wait_queue_entry_t;
-#endif
-
 #endif /* SPL_WAIT_H */
