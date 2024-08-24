@@ -187,16 +187,7 @@ setattr_prepare(struct dentry *dentry, struct iattr *ia)
  * 4.11 takes struct path *, < 4.11 takes vfsmount *
  */
 
-#ifdef HAVE_VFSMOUNT_IOPS_GETATTR
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(struct vfsmount *mnt, struct dentry *dentry, struct kstat *stat)	\
-{									\
-	struct path path = { .mnt = mnt, .dentry = dentry };		\
-	return func##_impl(&path, stat, STATX_BASIC_STATS,		\
-	    AT_STATX_SYNC_AS_STAT);					\
-}
-#elif defined(HAVE_PATH_IOPS_GETATTR)
+#if defined(HAVE_PATH_IOPS_GETATTR)
 #define	ZPL_GETATTR_WRAPPER(func)					\
 static int								\
 func(const struct path *path, struct kstat *stat, u32 request_mask,	\
