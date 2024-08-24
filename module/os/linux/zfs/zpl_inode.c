@@ -238,7 +238,6 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	return (error);
 }
 
-#ifdef HAVE_TMPFILE
 static int
 #ifdef HAVE_TMPFILE_IDMAP
 zpl_tmpfile(struct mnt_idmap *userns, struct inode *dir,
@@ -307,7 +306,6 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 	return (error);
 }
-#endif
 
 static int
 zpl_unlink(struct inode *dir, struct dentry *dentry)
@@ -763,9 +761,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 #else
 	.rename		= zpl_rename,
 #endif
-#ifdef HAVE_TMPFILE
 	.tmpfile	= zpl_tmpfile,
-#endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
 	.listxattr	= zpl_xattr_list,
