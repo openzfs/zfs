@@ -1,29 +1,4 @@
 dnl #
-dnl # 4.14 API change
-dnl #
-dnl # c41f012ade0b mm: rename global_page_state to global_zone_page_state
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_ZONE_PAGE_STATE], [
-	ZFS_LINUX_TEST_SRC([global_zone_page_state], [
-		#include <linux/mm.h>
-		#include <linux/vmstat.h>
-	],[
-		(void) global_zone_page_state(0);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE], [
-	AC_MSG_CHECKING([whether global_zone_page_state() exists])
-	ZFS_LINUX_TEST_RESULT([global_zone_page_state], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(ZFS_GLOBAL_ZONE_PAGE_STATE, 1,
-		    [global_zone_page_state() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # Create a define and autoconf variable for an enum member
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_ENUM_MEMBER], [
@@ -72,16 +47,10 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY], [
 	AC_MSG_RESULT(yes)
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_SRC_GLOBAL_PAGE_STATE], [
-	ZFS_AC_KERNEL_SRC_GLOBAL_ZONE_PAGE_STATE
-])
-
 dnl #
 dnl # enum members in which we're interested
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE], [
-	ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE
-
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],
 	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],

@@ -17,9 +17,7 @@
 /*
  * Create our own accessor functions to follow the Linux API changes
  */
-#if	defined(ZFS_GLOBAL_ZONE_PAGE_STATE)
 
-/* global_zone_page_state() introduced */
 #if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_FILE_PAGES)
 #define	nr_file_pages() global_node_page_state(NR_FILE_PAGES)
 #else
@@ -35,26 +33,5 @@
 #else
 #define	nr_inactive_file_pages() global_zone_page_state(NR_INACTIVE_FILE)
 #endif
-
-#else
-
-/* global_node_page_state() introduced */
-#if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_FILE_PAGES)
-#define	nr_file_pages() global_node_page_state(NR_FILE_PAGES)
-#else
-#define	nr_file_pages() global_page_state(NR_FILE_PAGES)
-#endif
-#if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_INACTIVE_ANON)
-#define	nr_inactive_anon_pages() global_node_page_state(NR_INACTIVE_ANON)
-#else
-#define	nr_inactive_anon_pages() global_page_state(NR_INACTIVE_ANON)
-#endif
-#if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_INACTIVE_FILE)
-#define	nr_inactive_file_pages() global_node_page_state(NR_INACTIVE_FILE)
-#else
-#define	nr_inactive_file_pages() global_page_state(NR_INACTIVE_FILE)
-#endif
-
-#endif /* ZFS_GLOBAL_ZONE_PAGE_STATE */
 
 #endif /* _ZFS_PAGE_COMPAT_H */
