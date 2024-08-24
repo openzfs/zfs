@@ -623,26 +623,6 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 }
 EXPORT_SYMBOL(ddi_copyout);
 
-static ssize_t
-spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
-{
-#if defined(HAVE_KERNEL_READ_PPOS)
-	return (kernel_read(file, buf, count, pos));
-#else
-	mm_segment_t saved_fs;
-	ssize_t ret;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	ret = vfs_read(file, (void __user *)buf, count, pos);
-
-	set_fs(saved_fs);
-
-	return (ret);
-#endif
-}
-
 static int
 spl_getattr(struct file *filp, struct kstat *stat)
 {
@@ -730,7 +710,7 @@ hostid_read(uint32_t *hostid)
 	 * Read directly into the variable like eglibc does.
 	 * Short reads are okay; native behavior is preserved.
 	 */
-	error = spl_kernel_read(filp, &value, sizeof (value), &off);
+	error = kernel_read(filp, &value, sizeof (value), &off);
 	if (error < 0) {
 		filp_close(filp, 0);
 		return (EIO);
