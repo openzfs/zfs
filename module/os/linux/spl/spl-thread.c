@@ -180,7 +180,7 @@ issig(void)
 		kernel_signal_stop();
 #else
 		if (current->jobctl & JOBCTL_STOP_DEQUEUED)
-			spl_set_special_state(TASK_STOPPED);
+			set_special_state(TASK_STOPPED);
 
 		spin_unlock_irq(&current->sighand->siglock);
 
