@@ -33,54 +33,6 @@
 #include <linux/compat.h>
 
 /*
- * 4.0 - 4.11, bdi_setup_and_register() takes 2 arguments.
- * 4.12 - x.y, super_setup_bdi_name() new interface.
- */
-#if defined(HAVE_SUPER_SETUP_BDI_NAME)
-extern atomic_long_t zfs_bdi_seq;
-
-static inline int
-zpl_bdi_setup(struct super_block *sb, char *name)
-{
-	return super_setup_bdi_name(sb, "%.28s-%ld", name,
-	    atomic_long_inc_return(&zfs_bdi_seq));
-}
-static inline void
-zpl_bdi_destroy(struct super_block *sb)
-{
-}
-#elif defined(HAVE_2ARGS_BDI_SETUP_AND_REGISTER)
-static inline int
-zpl_bdi_setup(struct super_block *sb, char *name)
-{
-	struct backing_dev_info *bdi;
-	int error;
-
-	bdi = kmem_zalloc(sizeof (struct backing_dev_info), KM_SLEEP);
-	error = bdi_setup_and_register(bdi, name);
-	if (error) {
-		kmem_free(bdi, sizeof (struct backing_dev_info));
-		return (error);
-	}
-
-	sb->s_bdi = bdi;
-
-	return (0);
-}
-static inline void
-zpl_bdi_destroy(struct super_block *sb)
-{
-	struct backing_dev_info *bdi = sb->s_bdi;
-
-	bdi_destroy(bdi);
-	kmem_free(bdi, sizeof (struct backing_dev_info));
-	sb->s_bdi = NULL;
-}
-#else
-#error "Unsupported kernel"
-#endif
-
-/*
  * 4.14 adds SB_* flag definitions, define them to MS_* equivalents
  * if not set.
  */
