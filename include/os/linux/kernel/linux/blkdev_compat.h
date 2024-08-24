@@ -493,10 +493,6 @@ blk_generic_start_io_acct(struct request_queue *q __attribute__((unused)),
 	return (disk_start_io_acct(disk, bio_sectors(bio), bio_op(bio)));
 #elif defined(HAVE_BIO_IO_ACCT)
 	return (bio_start_io_acct(bio));
-#elif defined(HAVE_GENERIC_IO_ACCT_3ARG)
-	unsigned long start_time = jiffies;
-	generic_start_io_acct(rw, bio_sectors(bio), &disk->part0);
-	return (start_time);
 #elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
 	unsigned long start_time = jiffies;
 	generic_start_io_acct(q, rw, bio_sectors(bio), &disk->part0);
@@ -521,8 +517,6 @@ blk_generic_end_io_acct(struct request_queue *q __attribute__((unused)),
 	disk_end_io_acct(disk, bio_op(bio), start_time);
 #elif defined(HAVE_BIO_IO_ACCT)
 	bio_end_io_acct(bio, start_time);
-#elif defined(HAVE_GENERIC_IO_ACCT_3ARG)
-	generic_end_io_acct(rw, &disk->part0, start_time);
 #elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
 	generic_end_io_acct(q, rw, &disk->part0, start_time);
 #endif
