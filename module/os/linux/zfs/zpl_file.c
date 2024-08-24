@@ -38,9 +38,7 @@
     defined(HAVE_VFS_FILEMAP_DIRTY_FOLIO)
 #include <linux/pagemap.h>
 #endif
-#ifdef HAVE_FILE_FADVISE
 #include <linux/fadvise.h>
-#endif
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 #include <linux/writeback.h>
 #endif
@@ -717,7 +715,6 @@ zpl_ioctl_getversion(struct file *filp, void __user *arg)
 	return (copy_to_user(arg, &generation, sizeof (generation)));
 }
 
-#ifdef HAVE_FILE_FADVISE
 static int
 zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 {
@@ -770,7 +767,6 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 
 	return (error);
 }
-#endif /* HAVE_FILE_FADVISE */
 
 #define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL)
 #define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL)
@@ -1130,9 +1126,7 @@ const struct file_operations zpl_file_operations = {
 #ifdef HAVE_VFS_DEDUPE_FILE_RANGE
 	.dedupe_file_range	= zpl_dedupe_file_range,
 #endif
-#ifdef HAVE_FILE_FADVISE
 	.fadvise	= zpl_fadvise,
-#endif
 	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpl_compat_ioctl,
