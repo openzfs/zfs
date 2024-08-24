@@ -248,24 +248,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS], [
 	])
 ])
 
-dnl #
-dnl # See if kernel supports block multi-queue and blk_status_t.
-dnl # blk_status_t represents the new status codes introduced in the 4.13
-dnl # kernel patch:
-dnl #
-dnl #  block: introduce new block status code type
-dnl #
-dnl # We do not currently support the "old" block multi-queue interfaces from
-dnl # prior kernels.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ], [
-	ZFS_LINUX_TEST_SRC([blk_mq], [
-		#include <linux/blk-mq.h>
-	], [
-		struct blk_mq_tag_set tag_set __attribute__ ((unused)) = {0};
-		(void) blk_mq_alloc_tag_set(&tag_set);
-		return BLK_STS_OK;
-	], [])
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ_RQ_HCTX], [
 	ZFS_LINUX_TEST_SRC([blk_mq_rq_hctx], [
 		#include <linux/blk-mq.h>
 		#include <linux/blkdev.h>
@@ -276,18 +259,11 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ], [
 	], [])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
-	AC_MSG_CHECKING([whether block multiqueue with blk_status_t is available])
-	ZFS_LINUX_TEST_RESULT([blk_mq], [
+AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ_RQ_HCTX], [
+	AC_MSG_CHECKING([whether block multiqueue hardware context is cached in struct request])
+	ZFS_LINUX_TEST_RESULT([blk_mq_rq_hctx], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_MQ, 1, [block multiqueue is available])
-		AC_MSG_CHECKING([whether block multiqueue hardware context is cached in struct request])
-		ZFS_LINUX_TEST_RESULT([blk_mq_rq_hctx], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_MQ_RQ_HCTX, 1, [block multiqueue hardware context is cached in struct request])
-		], [
-			AC_MSG_RESULT(no)
-		])
+		AC_DEFINE(HAVE_BLK_MQ_RQ_HCTX, 1, [block multiqueue hardware context is cached in struct request])
 	], [
 		AC_MSG_RESULT(no)
 	])
@@ -302,7 +278,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_SEGMENTS
-	ZFS_AC_KERNEL_SRC_BLK_MQ
+	ZFS_AC_KERNEL_SRC_BLK_MQ_RQ_HCTX
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
@@ -314,5 +290,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS
-	ZFS_AC_KERNEL_BLK_MQ
+	ZFS_AC_KERNEL_BLK_MQ_RQ_HCTX
 ])

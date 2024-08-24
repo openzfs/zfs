@@ -168,7 +168,6 @@ zfs_uiomove_bvec_impl(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	return (0);
 }
 
-#ifdef HAVE_BLK_MQ
 static void
 zfs_copy_bvec(void *p, size_t skip, size_t cnt, zfs_uio_rw_t rw,
     struct bio_vec *bv)
@@ -260,17 +259,12 @@ zfs_uiomove_bvec_rq(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	}
 	return (0);
 }
-#endif
 
 static int
 zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
-#ifdef HAVE_BLK_MQ
 	if (uio->rq != NULL)
 		return (zfs_uiomove_bvec_rq(p, n, rw, uio));
-#else
-	ASSERT3P(uio->rq, ==, NULL);
-#endif
 	return (zfs_uiomove_bvec_impl(p, n, rw, uio));
 }
 
