@@ -29,6 +29,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <linux/iversion.h>
 
 
 static struct inode *
