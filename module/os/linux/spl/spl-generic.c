@@ -651,14 +651,8 @@ spl_getattr(struct file *filp, struct kstat *stat)
 	ASSERT(filp);
 	ASSERT(stat);
 
-#if defined(HAVE_4ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, stat, STATX_BASIC_STATS,
 	    AT_STATX_SYNC_AS_STAT);
-#elif defined(HAVE_2ARGS_VFS_GETATTR)
-	rc = vfs_getattr(&filp->f_path, stat);
-#else
-#error "No available vfs_getattr()"
-#endif
 	if (rc)
 		return (-rc);
 
