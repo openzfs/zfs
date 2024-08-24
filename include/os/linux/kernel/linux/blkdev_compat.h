@@ -221,6 +221,19 @@ zfs_check_disk_status(struct block_device *bdev)
 }
 
 /*
+ * 5.17 API change
+ *
+ * GENHD_FL_EXT_DEVT flag removed
+ * GENHD_FL_NO_PART_SCAN renamed GENHD_FL_NO_PART
+ */
+#ifndef HAVE_GENHD_FL_EXT_DEVT
+#define	GENHD_FL_EXT_DEVT	(0)
+#endif
+#ifndef HAVE_GENHD_FL_NO_PART
+#define	GENHD_FL_NO_PART	(GENHD_FL_NO_PART_SCAN)
+#endif
+
+/*
  * 4.1 API,
  * 3.10.0 CentOS 7.x API,
  *   blkdev_reread_part()
