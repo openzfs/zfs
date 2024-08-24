@@ -99,13 +99,17 @@ static unsigned int zvol_num_taskqs = 0;
 #ifdef	HAVE_BLK_MQ
 #define	END_IO(zv, bio, rq, error)  do { \
 	if (bio) { \
-		BIO_END_IO(bio, error); \
+		bio->bi_status = errno_to_bi_status(-error); \
+		bio_endio(bio); \
 	} else { \
 		blk_mq_end_request(rq, errno_to_bi_status(error)); \
 	} \
 } while (0)
 #else
-#define	END_IO(zv, bio, rq, error)	BIO_END_IO(bio, error)
+#define	END_IO(zv, bio, rq, error)  do { \
+	bio->bi_status = errno_to_bi_status(-error); \
+	bio_endio(bio); \
+} while (0)
 #endif
 
 #ifdef HAVE_BLK_MQ

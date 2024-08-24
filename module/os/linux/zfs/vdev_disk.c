@@ -694,7 +694,7 @@ vbio_alloc(zio_t *zio, struct block_device *bdev, int flags)
 	return (vbio);
 }
 
-BIO_END_IO_PROTO(vbio_completion, bio, error);
+static void vbio_completion(struct bio *bio);
 
 static int
 vbio_add_page(vbio_t *vbio, struct page *page, uint_t size, uint_t offset)
@@ -790,7 +790,8 @@ vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 }
 
 /* IO completion callback */
-BIO_END_IO_PROTO(vbio_completion, bio, error)
+static void
+vbio_completion(struct bio *bio)
 {
 	vbio_t *vbio = bio->bi_private;
 	zio_t *zio = vbio->vbio_zio;
@@ -798,7 +799,7 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	ASSERT(zio);
 
 	/* Capture and log any errors */
-	zio->io_error = BIO_END_IO_ERROR(bio);
+	zio->io_error = bi_status_to_errno(bio->bi_status);
 	ASSERT3U(zio->io_error, >=, 0);
 
 	if (zio->io_error)
@@ -1053,12 +1054,13 @@ vdev_classic_dio_put(dio_request_t *dr)
 	}
 }
 
-BIO_END_IO_PROTO(vdev_classic_physio_completion, bio, error)
+static void
+vdev_classic_physio_completion(struct bio *bio)
 {
 	dio_request_t *dr = bio->bi_private;
 
 	if (dr->dr_error == 0) {
-		dr->dr_error = BIO_END_IO_ERROR(bio);
+		dr->dr_error = bi_status_to_errno(bio->bi_status);
 	}
 
 	/* Drop reference acquired by vdev_classic_physio */
@@ -1197,10 +1199,11 @@ retry:
 
 /* ========== */
 
-BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
+static void
+vdev_disk_io_flush_completion(struct bio *bio)
 {
 	zio_t *zio = bio->bi_private;
-	zio->io_error = BIO_END_IO_ERROR(bio);
+	zio->io_error = bi_status_to_errno(bio->bi_status);
 
 	if (zio->io_error && (zio->io_error == EOPNOTSUPP))
 		zio->io_vd->vdev_nowritecache = B_TRUE;
@@ -1235,10 +1238,11 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	return (0);
 }
 
-BIO_END_IO_PROTO(vdev_disk_discard_end_io, bio, error)
+static void
+vdev_disk_discard_end_io(struct bio *bio)
 {
 	zio_t *zio = bio->bi_private;
-	zio->io_error = BIO_END_IO_ERROR(bio);
+	zio->io_error = bi_status_to_errno(bio->bi_status);
 
 	bio_put(bio);
 	if (zio->io_error)
