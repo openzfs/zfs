@@ -166,7 +166,6 @@ bio_set_flags_failfast(struct block_device *bdev, int *flags, bool dev,
 #define	DISK_NAME_LEN	32
 #endif /* DISK_NAME_LEN */
 
-#ifdef HAVE_BIO_BI_STATUS
 static inline int
 bi_status_to_errno(blk_status_t status)
 {
@@ -240,31 +239,6 @@ errno_to_bi_status(int error)
 		return (BLK_STS_IOERR);
 	}
 }
-#endif /* HAVE_BIO_BI_STATUS */
-
-#ifdef HAVE_BIO_BI_STATUS
-#define	BIO_END_IO_ERROR(bio)		bi_status_to_errno(bio->bi_status)
-#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
-#define	BIO_END_IO(bio, error)		bio_set_bi_status(bio, error)
-static inline void
-bio_set_bi_status(struct bio *bio, int error)
-{
-	ASSERT3S(error, <=, 0);
-	bio->bi_status = errno_to_bi_status(-error);
-	bio_endio(bio);
-}
-#else
-#define	BIO_END_IO_ERROR(bio)		(-(bio->bi_error))
-#define	BIO_END_IO_PROTO(fn, x, z)	static void fn(struct bio *x)
-#define	BIO_END_IO(bio, error)		bio_set_bi_error(bio, error)
-static inline void
-bio_set_bi_error(struct bio *bio, int error)
-{
-	ASSERT3S(error, <=, 0);
-	bio->bi_error = error;
-	bio_endio(bio);
-}
-#endif /* HAVE_BIO_BI_STATUS */
 
 /*
  * 5.15 MACRO,

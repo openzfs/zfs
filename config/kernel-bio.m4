@@ -94,31 +94,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
 ])
 
 dnl #
-dnl # 4.13 API change
-dnl # The bio->bi_error field was replaced with bio->bi_status which is an
-dnl # enum which describes all possible error types.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_BI_STATUS], [
-	ZFS_LINUX_TEST_SRC([bio_bi_status], [
-		#include <linux/bio.h>
-	], [
-		struct bio bio __attribute__ ((unused));
-		blk_status_t status __attribute__ ((unused)) = BLK_STS_OK;
-		bio.bi_status = status;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BIO_BI_STATUS], [
-	AC_MSG_CHECKING([whether bio->bi_status exists])
-	ZFS_LINUX_TEST_RESULT([bio_bi_status], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BIO_BI_STATUS, 1, [bio->bi_status exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 2.6.34 API change
 dnl # current->bio_list
 dnl #
@@ -269,7 +244,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_ALLOC_4ARG], [
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
-	ZFS_AC_KERNEL_SRC_BIO_BI_STATUS
 	ZFS_AC_KERNEL_SRC_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_SRC_BLKG_TRYGET
 	ZFS_AC_KERNEL_SRC_BIO_BDEV_DISK
@@ -281,7 +255,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_SET_OP_ATTRS
 	ZFS_AC_KERNEL_BIO_SET_DEV
-	ZFS_AC_KERNEL_BIO_BI_STATUS
 	ZFS_AC_KERNEL_BIO_CURRENT_BIO_LIST
 	ZFS_AC_KERNEL_BLKG_TRYGET
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
