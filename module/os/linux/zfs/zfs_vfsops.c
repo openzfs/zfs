@@ -1385,9 +1385,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-#if defined(HAVE_SUPER_SETUP_BDI_NAME)
-atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
-#endif
+static atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 
 int
 zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
@@ -1448,7 +1446,8 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
 
-	error = -zpl_bdi_setup(sb, "zfs");
+	error = -super_setup_bdi_name(sb, "%.28s-%ld", "zfs",
+	    atomic_long_inc_return(&zfs_bdi_seq));
 	if (error)
 		goto out;
 
@@ -1576,7 +1575,6 @@ zfs_umount(struct super_block *sb)
 		arc_remove_prune_callback(zfsvfs->z_arc_prune);
 	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
 	os = zfsvfs->z_os;
-	zpl_bdi_destroy(sb);
 
 	/*
 	 * z_os will be NULL if there was an error in
