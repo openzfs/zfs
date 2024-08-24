@@ -69,26 +69,6 @@ zfs_file_close(zfs_file_t *fp)
 	filp_close(fp, 0);
 }
 
-static ssize_t
-zfs_file_write_impl(zfs_file_t *fp, const void *buf, size_t count, loff_t *off)
-{
-#if defined(HAVE_KERNEL_WRITE_PPOS)
-	return (kernel_write(fp, buf, count, off));
-#else
-	mm_segment_t saved_fs;
-	ssize_t rc;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	rc = vfs_write(fp, (__force const char __user __user *)buf, count, off);
-
-	set_fs(saved_fs);
-
-	return (rc);
-#endif
-}
-
 /*
  * Stateful write - use os internal file pointer to determine where to
  * write and update on successful completion.
@@ -106,7 +86,7 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
-	rc = zfs_file_write_impl(fp, buf, count, &off);
+	rc = kernel_write(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -138,7 +118,7 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
 {
 	ssize_t rc;
 
-	rc  = zfs_file_write_impl(fp, buf, count, &off);
+	rc  = kernel_write(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -149,25 +129,6 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
 	}
 
 	return (0);
-}
-
-static ssize_t
-zfs_file_read_impl(zfs_file_t *fp, void *buf, size_t count, loff_t *off)
-{
-#if defined(HAVE_KERNEL_READ_PPOS)
-	return (kernel_read(fp, buf, count, off));
-#else
-	mm_segment_t saved_fs;
-	ssize_t rc;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	rc = vfs_read(fp, (void __user *)buf, count, off);
-	set_fs(saved_fs);
-
-	return (rc);
-#endif
 }
 
 /*
@@ -187,7 +148,7 @@ zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
-	rc = zfs_file_read_impl(fp, buf, count, &off);
+	rc = kernel_read(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -219,7 +180,7 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 {
 	ssize_t rc;
 
-	rc = zfs_file_read_impl(fp, buf, count, &off);
+	rc = kernel_read(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
