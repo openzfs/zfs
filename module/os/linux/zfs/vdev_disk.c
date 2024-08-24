@@ -493,7 +493,6 @@ vdev_disk_close(vdev_t *v)
  */
 #if !defined(HAVE_BIO_ALLOC_4ARG)
 
-#ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
  * The Linux 5.5 kernel updated percpu_ref_tryget() which is inlined by
@@ -579,16 +578,6 @@ vdev_bio_set_dev(struct bio *bio, struct block_device *bdev)
 #define	bio_set_dev		vdev_bio_set_dev
 #endif
 #endif
-#else
-/*
- * Provide a bio_set_dev() helper macro for pre-Linux 4.14 kernels.
- */
-static inline void
-bio_set_dev(struct bio *bio, struct block_device *bdev)
-{
-	bio->bi_bdev = bdev;
-}
-#endif /* HAVE_BIO_SET_DEV */
 #endif /* !HAVE_BIO_ALLOC_4ARG */
 
 static inline void
