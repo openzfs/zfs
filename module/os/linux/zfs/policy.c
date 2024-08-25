@@ -252,22 +252,13 @@ secpolicy_zfs(const cred_t *cr)
  * Equivalent to secpolicy_zfs(), but works even if the cred_t is not that of
  * the current process.  Takes both cred_t and proc_t so that this can work
  * easily on all platforms.
- *
- * The has_capability() function was first exported in the 4.10 Linux kernel
- * then backported to some LTS kernels.  Prior to this change there was no
- * mechanism to perform this check therefore EACCES is returned when the
- * functionality is not present in the kernel.
  */
 int
 secpolicy_zfs_proc(const cred_t *cr, proc_t *proc)
 {
-#if defined(HAVE_HAS_CAPABILITY)
 	if (!has_capability(proc, CAP_SYS_ADMIN))
 		return (EACCES);
 	return (0);
-#else
-	return (EACCES);
-#endif
 }
 
 void
