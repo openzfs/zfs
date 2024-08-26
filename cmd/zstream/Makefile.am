@@ -1,3 +1,5 @@
+zstream_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
+
 sbin_PROGRAMS   += zstream
 CPPCHECKTARGETS += zstream
 
