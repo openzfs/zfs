@@ -322,9 +322,6 @@ zfs_check_media_change(struct block_device *bdev)
  * The function was exported for use, prior to this it existed but the
  * symbol was not exported.
  *
- * 4.4.0-6.21 API change for Ubuntu
- * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
- *
  * 5.11 API change
  * Changed to take a dev_t argument which is set on success and return a
  * non-zero error code on failure.
@@ -336,15 +333,6 @@ vdev_lookup_bdev(const char *path, dev_t *dev)
 	return (lookup_bdev(path, dev));
 #elif defined(HAVE_1ARG_LOOKUP_BDEV)
 	struct block_device *bdev = lookup_bdev(path);
-	if (IS_ERR(bdev))
-		return (PTR_ERR(bdev));
-
-	*dev = bdev->bd_dev;
-	bdput(bdev);
-
-	return (0);
-#elif defined(HAVE_MODE_LOOKUP_BDEV)
-	struct block_device *bdev = lookup_bdev(path, FMODE_READ);
 	if (IS_ERR(bdev))
 		return (PTR_ERR(bdev));
 
