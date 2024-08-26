@@ -1092,7 +1092,7 @@ extern void spa_strfree(char *);
 extern uint64_t spa_generate_guid(spa_t *spa);
 extern void snprintf_blkptr(char *buf, size_t buflen, const blkptr_t *bp);
 extern void spa_freeze(spa_t *spa);
-extern int spa_change_guid(spa_t *spa);
+extern int spa_change_guid(spa_t *spa, const uint64_t *guidp);
 extern void spa_upgrade(spa_t *spa, uint64_t version);
 extern void spa_evict_all(void);
 extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid,
