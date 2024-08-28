@@ -424,6 +424,7 @@ ZFS_OBJS := \
 	zfs_rlock.o \
 	zfs_sa.o \
 	zfs_vnops.o \
+	zfs_znode.o \
 	zil.o \
 	zio.o \
 	zio_checksum.o \
@@ -458,7 +459,7 @@ ZFS_OBJS_OS := \
 	zfs_uio.o \
 	zfs_vfsops.o \
 	zfs_vnops_os.o \
-	zfs_znode.o \
+	zfs_znode_os.o \
 	zio_crypt.o \
 	zpl_ctldir.o \
 	zpl_export.o \
