@@ -15,7 +15,8 @@ dist_libzpool_la_SOURCES = \
 	%D%/arc_os.c \
 	%D%/kernel.c \
 	%D%/taskq.c \
-	%D%/util.c
+	%D%/util.c \
+	%D%/vdev_label_os.c
 
 nodist_libzpool_la_SOURCES = \
 	module/lua/lapi.c \
