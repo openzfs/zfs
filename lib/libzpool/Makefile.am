@@ -17,7 +17,8 @@ dist_libzpool_la_SOURCES = \
 	%D%/taskq.c \
 	%D%/util.c \
 	%D%/vdev_label_os.c \
-	%D%/zfs_racct.c
+	%D%/zfs_racct.c \
+	%D%/zfs_debug.c
 
 nodist_libzpool_la_SOURCES = \
 	module/lua/lapi.c \
@@ -46,7 +47,6 @@ nodist_libzpool_la_SOURCES = \
 	module/lua/lzio.c \
 	\
 	module/os/linux/zfs/vdev_file.c \
-	module/os/linux/zfs/zfs_debug.c \
 	module/os/linux/zfs/zio_crypt.c \
 	\
 	module/zcommon/cityhash.c \

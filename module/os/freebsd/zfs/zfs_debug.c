@@ -140,15 +140,11 @@ zfs_dbgmsg_fini(void)
 {
 	if (zfs_dbgmsg_kstat)
 		kstat_delete(zfs_dbgmsg_kstat);
-	/*
-	 * TODO - decide how to make this permanent
-	 */
-#ifdef _KERNEL
+
 	mutex_enter(&zfs_dbgmsgs_lock);
 	zfs_dbgmsg_purge(0);
 	mutex_exit(&zfs_dbgmsgs_lock);
 	mutex_destroy(&zfs_dbgmsgs_lock);
-#endif
 }
 
 void
@@ -184,7 +180,6 @@ __set_error(const char *file, const char *func, int line, int err)
 		__dprintf(B_FALSE, file, func, line, "error %lu", (ulong_t)err);
 }
 
-#ifdef _KERNEL
 void
 __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...)
@@ -235,37 +230,6 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 
 	kmem_free(buf, size);
 }
-
-#else
-
-void
-zfs_dbgmsg_print(int fd, const char *tag)
-{
-	ssize_t ret __attribute__((unused));
-
-	/*
-	 * We use write() in this function instead of printf()
-	 * so it is safe to call from a signal handler.
-	 */
-	ret = write(fd, "ZFS_DBGMSG(", 11);
-	ret = write(fd, tag, strlen(tag));
-	ret = write(fd, ") START:\n", 9);
-
-	mutex_enter(&zfs_dbgmsgs_lock);
-
-	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs); zdm != NULL;
-	    zdm = list_next(&zfs_dbgmsgs, zdm))
-		ret = write(fd, zdm->zdm_msg, strlen(zdm->zdm_msg));
-		ret = write(fd, "\n", 1);
-	}
-
-	ret = write(fd, "ZFS_DBGMSG(", 11);
-	ret = write(fd, tag, strlen(tag));
-	ret = write(fd, ") END\n", 6);
-
-	mutex_exit(&zfs_dbgmsgs_lock);
-}
-#endif /* _KERNEL */
 
 ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_enable, INT, ZMOD_RW,
 	"Enable ZFS debug message log");
