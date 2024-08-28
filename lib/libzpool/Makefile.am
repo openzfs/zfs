@@ -44,7 +44,6 @@ nodist_libzpool_la_SOURCES = \
 	module/lua/lvm.c \
 	module/lua/lzio.c \
 	\
-	module/os/linux/zfs/trace.c \
 	module/os/linux/zfs/vdev_file.c \
 	module/os/linux/zfs/zfs_debug.c \
 	module/os/linux/zfs/zfs_racct.c \
