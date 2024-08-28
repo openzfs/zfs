@@ -42,7 +42,6 @@
 #include <sys/abd.h>
 #include <sys/zil.h>
 #include <sys/fm/fs/zfs.h>
-#ifdef _KERNEL
 #include <sys/shrinker.h>
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
@@ -50,7 +49,6 @@
 #include <linux/notifier.h>
 #include <linux/memory.h>
 #include <linux/version.h>
-#endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
 #include <sys/zthr.h>
@@ -59,7 +57,6 @@
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
 
-#ifdef _KERNEL
 /*
  * This is a limit on how many pages the ARC shrinker makes available for
  * eviction in response to one page allocation attempt.  Note that in
@@ -87,7 +84,6 @@ static int zfs_arc_shrinker_seeks = DEFAULT_SEEKS;
 #ifdef CONFIG_MEMORY_HOTPLUG
 static struct notifier_block arc_hotplug_callback_mem_nb;
 #endif
-#endif
 
 /*
  * Return a default max arc size based on the amount of physical memory.
@@ -105,7 +101,6 @@ arc_default_max(uint64_t min, uint64_t allmem)
 	return (MAX(allmem * 5 / 8, size));
 }
 
-#ifdef _KERNEL
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
  * to half of all memory in user space which is primarily used for testing.
@@ -459,48 +454,6 @@ arc_unregister_hotplug(void)
 	unregister_memory_notifier(&arc_hotplug_callback_mem_nb);
 #endif
 }
-#else /* _KERNEL */
-int64_t
-arc_available_memory(void)
-{
-	int64_t lowest = INT64_MAX;
-
-	/* Every 100 calls, free a small amount */
-	if (random_in_range(100) == 0)
-		lowest = -1024;
-
-	return (lowest);
-}
-
-int
-arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
-{
-	(void) spa, (void) reserve, (void) txg;
-	return (0);
-}
-
-uint64_t
-arc_all_memory(void)
-{
-	return (ptob(physmem) / 2);
-}
-
-uint64_t
-arc_free_memory(void)
-{
-	return (random_in_range(arc_all_memory() * 20 / 100));
-}
-
-void
-arc_register_hotplug(void)
-{
-}
-
-void
-arc_unregister_hotplug(void)
-{
-}
-#endif /* _KERNEL */
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
 	"Limit on number of pages that ARC shrinker can reclaim at once");
