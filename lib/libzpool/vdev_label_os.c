@@ -30,10 +30,16 @@
 #include <sys/vdev_impl.h>
 
 /*
- * Check if the reserved boot area is in-use.
+ * Check if the reserved boot area is in-use. This is called from
+ * spa_vdev_attach() when adding a device to a raidz vdev, to ensure that the
+ * reserved area is available as scratch space for raidz expansion.
  *
- * This function always returns 0, as there are no known external uses
- * of the reserved area on Linux.
+ * This function currently always returns 0. On Linux, there are no known
+ * external uses of the reserved area. On FreeBSD, the reserved boot area is
+ * used when booting to a ZFS root from an MBR partition.
+ *
+ * Currently nothing using libzpool can add a disk to a pool, so this does
+ * nothing.
  */
 int
 vdev_check_boot_reserve(spa_t *spa, vdev_t *childvd)
