@@ -44,6 +44,7 @@ struct dsl_pool;
 struct dmu_tx;
 
 extern int zfs_scan_suspend_progress;
+extern uint_t zfs_scrub_recent_txgs;
 
 /*
  * All members of this structure must be uint64_t, for byteswap

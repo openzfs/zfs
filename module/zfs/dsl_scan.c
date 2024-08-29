@@ -239,6 +239,9 @@ static int zfs_free_bpobj_enabled = 1;
 /* Error blocks to be scrubbed in one txg. */
 static uint_t zfs_scrub_error_blocks_per_txg = 1 << 12;
 
+/* The number of TXGs should be scrubbed while scrubbing recent data. */
+uint_t zfs_scrub_recent_txgs = 256;
+
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
@@ -5323,4 +5326,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
+
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_recent_txgs, UINT, ZMOD_RW,
+	"The number of TXGs should be scrubbed while scrubbing recent data");
 /* END CSTYLED */

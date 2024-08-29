@@ -40,6 +40,7 @@
 .Op Fl w
 .Op Fl e
 .Op Fl C
+.Op Fl R
 .Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -119,6 +120,10 @@ resilvering, nor can it be run when a regular scrub is paused.
 Continue scrub from last saved txg (see zpool
 .Sy last_scrubbed_txg
 property).
+.It Fl R
+Scrub only recent data (this can be controlled by the
+.Sy zfs_scrub_recent_txgs
+parameter).
 .El
 .Sh EXAMPLES
 .Ss Example 1
