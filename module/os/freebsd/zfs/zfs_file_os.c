@@ -295,8 +295,20 @@ zfs_file_fsync(zfs_file_t *fp, int flags)
 int
 zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
 {
+	int rc;
+#if __FreeBSD_version >= 1400029
+	struct thread *td;
+
+	td = curthread;
+	rc = fo_fspacectl(fp, SPACECTL_DEALLOC, &offset, &len, 0,
+	    td->td_ucred, td);
+#else
 	(void) fp, (void) offset, (void) len;
-	return (SET_ERROR(EOPNOTSUPP));
+	rc = EOPNOTSUPP;
+#endif
+	if (rc)
+		return (SET_ERROR(rc));
+	return (0);
 }
 
 zfs_file_t *
