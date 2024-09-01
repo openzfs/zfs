@@ -1364,24 +1364,26 @@ zfs_file_fsync(zfs_file_t *fp, int flags)
 }
 
 /*
- * fallocate - allocate or free space on disk
+ * deallocate - zero and/or deallocate file storage
  *
  * fp - file pointer
- * mode (non-standard options for hole punching etc)
- * offset - offset to start allocating or freeing from
- * len - length to free / allocate
- *
- * OPTIONAL
+ * offset - offset to start zeroing or deallocating
+ * len - length to zero or deallocate
  */
 int
-zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
+zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
 {
-#ifdef __linux__
-	return (fallocate(fp->f_fd, mode, offset, len));
+	int rc;
+#if defined(__linux__)
+	rc = fallocate(fp->f_fd,
+	    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset, len);
 #else
-	(void) fp, (void) mode, (void) offset, (void) len;
-	return (EOPNOTSUPP);
+	(void) fp, (void) offset, (void) len;
+	rc = EOPNOTSUPP;
 #endif
+	if (rc)
+		return (SET_ERROR(rc));
+	return (0);
 }
 
 /*
