@@ -41,6 +41,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
 #include <sys/dsl_crypt.h>
+#include <sys/simd.h>
 
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -1063,6 +1064,9 @@ EXPORT_SYMBOL(zfs_kfpu_fpregs);
 extern int __init zcommon_init(void);
 extern void zcommon_fini(void);
 
+extern void simd_stat_init(void);
+extern void simd_stat_fini(void);
+
 int __init
 zcommon_init(void)
 {
@@ -1071,6 +1075,7 @@ zcommon_init(void)
 		return (error);
 
 	fletcher_4_init();
+	simd_stat_init();
 
 	return (0);
 }
@@ -1078,6 +1083,7 @@ zcommon_init(void)
 void
 zcommon_fini(void)
 {
+	simd_stat_fini();
 	fletcher_4_fini();
 	kfpu_fini();
 }
