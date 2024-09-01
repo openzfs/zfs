@@ -285,6 +285,20 @@ zfs_file_fsync(zfs_file_t *fp, int flags)
 	return (zfs_vop_fsync(fp->f_vnode));
 }
 
+/*
+ * deallocate - zero and/or deallocate file storage
+ *
+ * fp - file pointer
+ * offset - offset to start zeroing or deallocating
+ * len - length to zero or deallocate
+ */
+int
+zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
+{
+	(void) fp, (void) offset, (void) len;
+	return (SET_ERROR(EOPNOTSUPP));
+}
+
 zfs_file_t *
 zfs_file_get(int fd)
 {
