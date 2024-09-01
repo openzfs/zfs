@@ -281,17 +281,14 @@ zfs_file_fsync(zfs_file_t *filp, int flags)
 }
 
 /*
- * fallocate - allocate or free space on disk
+ * deallocate - zero and/or deallocate file storage
  *
  * fp - file pointer
- * mode (non-standard options for hole punching etc)
- * offset - offset to start allocating or freeing from
- * len - length to free / allocate
- *
- * OPTIONAL
+ * offset - offset to start zeroing or deallocating
+ * len - length to zero or deallocate
  */
 int
-zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
+zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
 {
 	/*
 	 * May enter XFS which generates a warning when PF_FSTRANS is set.
@@ -307,12 +304,16 @@ zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
 	 */
 	int error = EOPNOTSUPP;
 	if (fp->f_op->fallocate)
-		error = fp->f_op->fallocate(fp, mode, offset, len);
+		error = -fp->f_op->fallocate(fp,
+		    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset, len);
 
 	if (fstrans)
 		current->flags |= __SPL_PF_FSTRANS;
 
-	return (error);
+	if (error)
+		return (SET_ERROR(error));
+
+	return (0);
 }
 
 /*

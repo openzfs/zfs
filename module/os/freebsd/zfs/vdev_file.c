@@ -260,16 +260,9 @@ vdev_file_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-#ifdef notyet
-		int mode = 0;
-
 		ASSERT3U(zio->io_size, !=, 0);
-
-		/* XXX FreeBSD has no fallocate routine in file ops */
-		zio->io_error = zfs_file_fallocate(vf->vf_file,
-		    mode, zio->io_offset, zio->io_size);
-#endif
-		zio->io_error = SET_ERROR(ENOTSUP);
+		zio->io_error = zfs_file_deallocate(vf->vf_file,
+		    zio->io_offset, zio->io_size);
 		zio_execute(zio);
 		return;
 	}
