@@ -40,6 +40,9 @@ static dataset_kstat_values_t empty_dataset_kstats = {
 	{
 	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
 	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_error_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_stall_count",		KSTAT_DATA_UINT64 },
+	{ "zil_commit_suspend_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
 	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
@@ -201,6 +204,9 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 void
 dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
 {
+	if (dk->dk_kstats == NULL)
+		return;
+
 	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
 	char *ds_name;
 

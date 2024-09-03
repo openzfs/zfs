@@ -113,7 +113,7 @@ abd_verify(abd_t *abd)
 	ASSERT3U(abd->abd_flags, ==, abd->abd_flags & (ABD_FLAG_LINEAR |
 	    ABD_FLAG_OWNER | ABD_FLAG_META | ABD_FLAG_MULTI_ZONE |
 	    ABD_FLAG_MULTI_CHUNK | ABD_FLAG_LINEAR_PAGE | ABD_FLAG_GANG |
-	    ABD_FLAG_GANG_FREE | ABD_FLAG_ZEROS | ABD_FLAG_ALLOCD));
+	    ABD_FLAG_GANG_FREE | ABD_FLAG_ALLOCD));
 	IMPLY(abd->abd_parent != NULL, !(abd->abd_flags & ABD_FLAG_OWNER));
 	IMPLY(abd->abd_flags & ABD_FLAG_META, abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd)) {
@@ -603,13 +603,11 @@ abd_get_zeros(size_t size)
 }
 
 /*
- * Allocate a linear ABD structure for buf.
+ * Create a linear ABD for an existing buf.
  */
-abd_t *
-abd_get_from_buf(void *buf, size_t size)
+static abd_t *
+abd_get_from_buf_impl(abd_t *abd, void *buf, size_t size)
 {
-	abd_t *abd = abd_alloc_struct(0);
-
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	/*
@@ -623,6 +621,20 @@ abd_get_from_buf(void *buf, size_t size)
 	ABD_LINEAR_BUF(abd) = buf;
 
 	return (abd);
+}
+
+abd_t *
+abd_get_from_buf(void *buf, size_t size)
+{
+	abd_t *abd = abd_alloc_struct(0);
+	return (abd_get_from_buf_impl(abd, buf, size));
+}
+
+abd_t *
+abd_get_from_buf_struct(abd_t *abd, void *buf, size_t size)
+{
+	abd_init_struct(abd);
+	return (abd_get_from_buf_impl(abd, buf, size));
 }
 
 /*

@@ -17,8 +17,9 @@
 .\" Copyright (c) 2019, Klara Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd June 23, 2022
+.Dd February 14, 2024
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -549,6 +550,20 @@ This feature becomes
 when an encrypted dataset is created and will be returned to the
 .Sy enabled
 state when all datasets that use this feature are destroyed.
+.
+.feature com.klarasystems fast_dedup yes
+This feature allows more advanced deduplication features to be enabled on new
+dedup tables.
+.Pp
+This feature will be
+.Sy active
+when the first deduplicated block is written after a new dedup table is created
+(ie after a new pool creation, or new checksum used on a dataset with
+.Sy dedup
+enabled).
+It will be returned to the
+.Sy enabled
+state when all deduplicated blocks using it are freed.
 .
 .feature com.delphix extensible_dataset no
 This feature allows more flexible use of internal ZFS data structures,

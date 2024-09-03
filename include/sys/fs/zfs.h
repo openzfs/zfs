@@ -1711,6 +1711,11 @@ typedef enum {
 #define	ZPOOL_INITIALIZE_VDEVS		"initialize_vdevs"
 
 /*
+ * The following are names used when invoking ZFS_IOC_POOL_REGUID.
+ */
+#define	ZPOOL_REGUID_GUID	"guid"
+
+/*
  * The following are names used when invoking ZFS_IOC_POOL_TRIM.
  */
 #define	ZPOOL_TRIM_COMMAND		"trim_command"

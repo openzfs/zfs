@@ -1767,12 +1767,12 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	uint64_t csize;
 	uint64_t lsize = HDR_GET_LSIZE(hdr);
 	uint64_t psize = HDR_GET_PSIZE(hdr);
-	void *tmpbuf = NULL;
 	abd_t *abd = hdr->b_l1hdr.b_pabd;
+	boolean_t free_abd = B_FALSE;
 
 	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT(HDR_AUTHENTICATED(hdr));
-	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
+	ASSERT3P(abd, !=, NULL);
 
 	/*
 	 * The MAC is calculated on the compressed data that is stored on disk.
@@ -1784,14 +1784,13 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	 */
 	if (HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
 	    !HDR_COMPRESSION_ENABLED(hdr)) {
-
+		abd = NULL;
 		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, &tmpbuf, lsize, hdr->b_complevel);
-		ASSERT3P(tmpbuf, !=, NULL);
+		    hdr->b_l1hdr.b_pabd, &abd, lsize, hdr->b_complevel);
+		ASSERT3P(abd, !=, NULL);
 		ASSERT3U(csize, <=, psize);
-		abd = abd_get_from_buf(tmpbuf, lsize);
-		abd_take_ownership_of_buf(abd, B_TRUE);
 		abd_zero_off(abd, csize, psize - csize);
+		free_abd = B_TRUE;
 	}
 
 	/*
@@ -1810,16 +1809,10 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 
 	if (ret == 0)
 		arc_hdr_clear_flags(hdr, ARC_FLAG_NOAUTH);
-	else if (ret != ENOENT)
-		goto error;
+	else if (ret == ENOENT)
+		ret = 0;
 
-	if (tmpbuf != NULL)
-		abd_free(abd);
-
-	return (0);
-
-error:
-	if (tmpbuf != NULL)
+	if (free_abd)
 		abd_free(abd);
 
 	return (ret);
@@ -1836,7 +1829,6 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb)
 {
 	int ret;
 	abd_t *cabd = NULL;
-	void *tmp = NULL;
 	boolean_t no_crypt = B_FALSE;
 	boolean_t bswap = (hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
 
@@ -1871,17 +1863,14 @@ arc_hdr_decrypt(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb)
 		 * linear buffer and wrapping it in an abd later.
 		 */
 		cabd = arc_get_data_abd(hdr, arc_hdr_size(hdr), hdr, 0);
-		tmp = abd_borrow_buf(cabd, arc_hdr_size(hdr));
 
 		ret = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, tmp, HDR_GET_PSIZE(hdr),
+		    hdr->b_l1hdr.b_pabd, cabd, HDR_GET_PSIZE(hdr),
 		    HDR_GET_LSIZE(hdr), &hdr->b_complevel);
 		if (ret != 0) {
-			abd_return_buf(cabd, tmp, arc_hdr_size(hdr));
 			goto error;
 		}
 
-		abd_return_buf_copy(cabd, tmp, arc_hdr_size(hdr));
 		arc_free_data_abd(hdr, hdr->b_l1hdr.b_pabd,
 		    arc_hdr_size(hdr), hdr);
 		hdr->b_l1hdr.b_pabd = cabd;
@@ -2123,10 +2112,14 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			/* Skip byteswapping and checksumming (already done) */
 			return (0);
 		} else {
+			abd_t dabd;
+			abd_get_from_buf_struct(&dabd, buf->b_data,
+			    HDR_GET_LSIZE(hdr));
 			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-			    hdr->b_l1hdr.b_pabd, buf->b_data,
+			    hdr->b_l1hdr.b_pabd, &dabd,
 			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr),
 			    &hdr->b_complevel);
+			abd_free(&dabd);
 
 			/*
 			 * Absent hardware errors or software bugs, this should
@@ -8531,18 +8524,15 @@ l2arc_untransform(zio_t *zio, l2arc_read_callback_t *cb)
 	    !HDR_COMPRESSION_ENABLED(hdr)) {
 		abd_t *cabd = arc_get_data_abd(hdr, arc_hdr_size(hdr), hdr,
 		    ARC_HDR_USE_RESERVE);
-		void *tmp = abd_borrow_buf(cabd, arc_hdr_size(hdr));
 
 		ret = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, tmp, HDR_GET_PSIZE(hdr),
+		    hdr->b_l1hdr.b_pabd, cabd, HDR_GET_PSIZE(hdr),
 		    HDR_GET_LSIZE(hdr), &hdr->b_complevel);
 		if (ret != 0) {
-			abd_return_buf_copy(cabd, tmp, arc_hdr_size(hdr));
 			arc_free_data_abd(hdr, cabd, arc_hdr_size(hdr), hdr);
 			goto error;
 		}
 
-		abd_return_buf_copy(cabd, tmp, arc_hdr_size(hdr));
 		arc_free_data_abd(hdr, hdr->b_l1hdr.b_pabd,
 		    arc_hdr_size(hdr), hdr);
 		hdr->b_l1hdr.b_pabd = cabd;
@@ -9037,9 +9027,8 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 	}
 
 	if (compress != ZIO_COMPRESS_OFF && !HDR_COMPRESSION_ENABLED(hdr)) {
-		size_t bufsize = MAX(size, asize);
-		void *buf = zio_buf_alloc(bufsize);
-		uint64_t csize = zio_compress_data(compress, to_write, &buf,
+		cabd = abd_alloc_for_io(MAX(size, asize), ismd);
+		uint64_t csize = zio_compress_data(compress, to_write, &cabd,
 		    size, hdr->b_complevel);
 		if (csize > psize) {
 			/*
@@ -9047,13 +9036,12 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 			 * psize.  Even if it fits into asize, it does not
 			 * matter, since checksum will never match on read.
 			 */
-			zio_buf_free(buf, bufsize);
+			abd_free(cabd);
 			return (SET_ERROR(EIO));
 		}
 		if (asize > csize)
-			memset((char *)buf + csize, 0, asize - csize);
-		to_write = cabd = abd_get_from_buf(buf, bufsize);
-		abd_take_ownership_of_buf(cabd, B_TRUE);
+			abd_zero_off(cabd, csize, asize - csize);
+		to_write = cabd;
 	}
 
 	if (HDR_ENCRYPTED(hdr)) {
@@ -9158,11 +9146,16 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	 */
 	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
 		/*
-		 * If pass == 1 or 3, we cache MRU metadata and data
-		 * respectively.
+		 * pass == 0: MFU meta
+		 * pass == 1: MRU meta
+		 * pass == 2: MFU data
+		 * pass == 3: MRU data
 		 */
-		if (l2arc_mfuonly) {
+		if (l2arc_mfuonly == 1) {
 			if (pass == 1 || pass == 3)
+				continue;
+		} else if (l2arc_mfuonly > 1) {
+			if (pass == 3)
 				continue;
 		}
 
@@ -10179,7 +10172,6 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 {
 	int		err = 0;
 	zio_cksum_t	cksum;
-	abd_t		*abd = NULL;
 	uint64_t	asize;
 
 	ASSERT(this_lbp != NULL && next_lbp != NULL);
@@ -10241,16 +10233,22 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	switch (L2BLK_GET_COMPRESS((this_lbp)->lbp_prop)) {
 	case ZIO_COMPRESS_OFF:
 		break;
-	case ZIO_COMPRESS_LZ4:
-		abd = abd_alloc_for_io(asize, B_TRUE);
+	case ZIO_COMPRESS_LZ4: {
+		abd_t *abd = abd_alloc_linear(asize, B_TRUE);
 		abd_copy_from_buf_off(abd, this_lb, 0, asize);
-		if ((err = zio_decompress_data(
+		abd_t dabd;
+		abd_get_from_buf_struct(&dabd, this_lb, sizeof (*this_lb));
+		err = zio_decompress_data(
 		    L2BLK_GET_COMPRESS((this_lbp)->lbp_prop),
-		    abd, this_lb, asize, sizeof (*this_lb), NULL)) != 0) {
+		    abd, &dabd, asize, sizeof (*this_lb), NULL);
+		abd_free(&dabd);
+		abd_free(abd);
+		if (err != 0) {
 			err = SET_ERROR(EINVAL);
 			goto cleanup;
 		}
 		break;
+	}
 	default:
 		err = SET_ERROR(EINVAL);
 		goto cleanup;
@@ -10267,8 +10265,6 @@ cleanup:
 		l2arc_log_blk_fetch_abort(*next_io);
 		*next_io = NULL;
 	}
-	if (abd != NULL)
-		abd_free(abd);
 	return (err);
 }
 
@@ -10504,7 +10500,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	uint64_t		psize, asize;
 	zio_t			*wzio;
 	l2arc_lb_abd_buf_t	*abd_buf;
-	uint8_t			*tmpbuf = NULL;
+	abd_t			*abd = NULL;
 	l2arc_lb_ptr_buf_t	*lb_ptr_buf;
 
 	VERIFY3S(dev->l2ad_log_ent_idx, ==, dev->l2ad_log_entries);
@@ -10527,7 +10523,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 
 	/* try to compress the buffer */
 	psize = zio_compress_data(ZIO_COMPRESS_LZ4,
-	    abd_buf->abd, (void **) &tmpbuf, sizeof (*lb), 0);
+	    abd_buf->abd, &abd, sizeof (*lb), 0);
 
 	/* a log block is never entirely zero */
 	ASSERT(psize != 0);
@@ -10553,27 +10549,26 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	    ZIO_CHECKSUM_FLETCHER_4);
 	if (asize < sizeof (*lb)) {
 		/* compression succeeded */
-		memset(tmpbuf + psize, 0, asize - psize);
+		abd_zero_off(abd, psize, asize - psize);
 		L2BLK_SET_COMPRESS(
 		    (&l2dhdr->dh_start_lbps[0])->lbp_prop,
 		    ZIO_COMPRESS_LZ4);
 	} else {
 		/* compression failed */
-		memcpy(tmpbuf, lb, sizeof (*lb));
+		abd_copy_from_buf_off(abd, lb, 0, sizeof (*lb));
 		L2BLK_SET_COMPRESS(
 		    (&l2dhdr->dh_start_lbps[0])->lbp_prop,
 		    ZIO_COMPRESS_OFF);
 	}
 
 	/* checksum what we're about to write */
-	fletcher_4_native(tmpbuf, asize, NULL,
+	abd_fletcher_4_native(abd, asize, NULL,
 	    &l2dhdr->dh_start_lbps[0].lbp_cksum);
 
 	abd_free(abd_buf->abd);
 
 	/* perform the write itself */
-	abd_buf->abd = abd_get_from_buf(tmpbuf, sizeof (*lb));
-	abd_take_ownership_of_buf(abd_buf->abd, B_TRUE);
+	abd_buf->abd = abd;
 	wzio = zio_write_phys(pio, dev->l2ad_vdev, dev->l2ad_hand,
 	    asize, abd_buf->abd, ZIO_CHECKSUM_OFF, NULL, NULL,
 	    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE);

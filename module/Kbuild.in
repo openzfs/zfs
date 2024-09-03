@@ -16,8 +16,8 @@ src = @abs_srcdir@
 obj = @abs_builddir@
 else
 zfs_include = $(srctree)/include/zfs
-icp_include = $(srctree)/$(src)/icp/include
-zstd_include = $(srctree)/$(src)/zstd/include
+icp_include = $(src)/icp/include
+zstd_include = $(src)/zstd/include
 ZFS_MODULE_CFLAGS += -include $(zfs_include)/zfs_config.h
 endif
 
@@ -323,6 +323,7 @@ ZFS_OBJS := \
 	dbuf.o \
 	dbuf_stats.o \
 	ddt.o \
+	ddt_log.o \
 	ddt_stats.o \
 	ddt_zap.o \
 	dmu.o \

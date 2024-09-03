@@ -40,6 +40,13 @@ extern "C" {
 struct abd;
 
 /*
+ * DDT-wide feature flags. These are set in ddt_flags by ddt_configure().
+ */
+#define	DDT_FLAG_FLAT	(1 << 0)	/* single extensible phys */
+#define	DDT_FLAG_LOG	(1 << 1)	/* dedup log (journal) */
+#define	DDT_FLAG_MASK	(DDT_FLAG_FLAT|DDT_FLAG_LOG)
+
+/*
  * DDT on-disk storage object types. Each one corresponds to specific
  * implementation, see ddt_ops_t. The value itself is not stored on disk.
  *
@@ -120,30 +127,80 @@ typedef struct {
  * characteristics of the stored block, such as its location on disk (DVAs),
  * birth txg and ref count.
  *
- * Note that an entry has an array of four ddt_phys_t, one for each number of
- * DVAs (copies= property) and another for additional "ditto" copies. Most
- * users of ddt_phys_t will handle indexing into or counting the phys they
- * want.
+ * The "traditional" entry has an array of four, one for each number of DVAs
+ * (copies= property) and another for additional "ditto" copies. Users of the
+ * traditional struct will specify the variant (index) of the one they want.
+ *
+ * The newer "flat" entry has only a single form that is specified using the
+ * DDT_PHYS_FLAT variant.
+ *
+ * Since the value size varies, use one of the size macros when interfacing
+ * with the ddt zap.
  */
-typedef struct {
-	dva_t		ddp_dva[SPA_DVAS_PER_BP];
-	uint64_t	ddp_refcnt;
-	uint64_t	ddp_phys_birth;
-} ddt_phys_t;
+
+#define	DDT_PHYS_MAX	(4)
 
 /*
- * Named indexes into the ddt_phys_t array in each entry.
+ * Note - this can be used in a flexible array and allocated for
+ * a specific size (ddp_trad or ddp_flat). So be careful not to
+ * copy using "=" assignment but instead use ddt_phys_copy().
+ */
+typedef union {
+	/*
+	 * Traditional physical payload value for DDT zap (256 bytes)
+	 */
+	struct {
+		dva_t		ddp_dva[SPA_DVAS_PER_BP];
+		uint64_t	ddp_refcnt;
+		uint64_t	ddp_phys_birth;
+	} ddp_trad[DDT_PHYS_MAX];
+
+	/*
+	 * Flat physical payload value for DDT zap (72 bytes)
+	 */
+	struct {
+		dva_t		ddp_dva[SPA_DVAS_PER_BP];
+		uint64_t	ddp_refcnt;
+		uint64_t	ddp_phys_birth; /* txg based from BP */
+		uint64_t	ddp_class_start; /* in realtime seconds */
+	} ddp_flat;
+} ddt_univ_phys_t;
+
+/*
+ * This enum denotes which variant of a ddt_univ_phys_t to target. For
+ * a traditional DDT entry, it represents the indexes into the ddp_trad
+ * array. Any consumer of a ddt_univ_phys_t needs to know which variant
+ * is being targeted.
  *
  * Note, we no longer generate new DDT_PHYS_DITTO-type blocks.  However,
  * we maintain the ability to free existing dedup-ditto blocks.
  */
-enum ddt_phys_type {
+
+typedef enum {
 	DDT_PHYS_DITTO = 0,
 	DDT_PHYS_SINGLE = 1,
 	DDT_PHYS_DOUBLE = 2,
 	DDT_PHYS_TRIPLE = 3,
-	DDT_PHYS_TYPES
-};
+	DDT_PHYS_FLAT = 4,
+	DDT_PHYS_NONE = 5
+} ddt_phys_variant_t;
+
+#define	DDT_PHYS_VARIANT(ddt, p)	\
+	(ASSERT((p) < DDT_PHYS_NONE),	\
+	((ddt)->ddt_flags & DDT_FLAG_FLAT ? DDT_PHYS_FLAT : (p)))
+
+#define	DDT_TRAD_PHYS_SIZE	sizeof (((ddt_univ_phys_t *)0)->ddp_trad)
+#define	DDT_FLAT_PHYS_SIZE	sizeof (((ddt_univ_phys_t *)0)->ddp_flat)
+
+#define	_DDT_PHYS_SWITCH(ddt, flat, trad)	\
+	(((ddt)->ddt_flags & DDT_FLAG_FLAT) ? (flat) : (trad))
+
+#define	DDT_PHYS_SIZE(ddt)		_DDT_PHYS_SWITCH(ddt,	\
+	DDT_FLAT_PHYS_SIZE, DDT_TRAD_PHYS_SIZE)
+
+#define	DDT_NPHYS(ddt)			_DDT_PHYS_SWITCH(ddt, 1, DDT_PHYS_MAX)
+#define	DDT_PHYS_FOR_COPIES(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, p)
+#define	DDT_PHYS_IS_DITTO(ddt, p)	_DDT_PHYS_SWITCH(ddt, 0, (p == 0))
 
 /*
  * A "live" entry, holding changes to an entry made this txg, and other data to
@@ -153,17 +210,27 @@ enum ddt_phys_type {
 /* State flags for dde_flags */
 #define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
+#define	DDE_FLAG_LOGGED		(1 << 2)	/* loaded from log */
+
+/*
+ * Additional data to support entry update or repair. This is fixed size
+ * because its relatively rarely used.
+ */
+typedef struct {
+	/* copy of data after a repair read, to be rewritten */
+	abd_t		*dde_repair_abd;
+
+	/* original phys contents before update, for error handling */
+	ddt_univ_phys_t	dde_orig_phys;
+
+	/* in-flight update IOs */
+	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
+} ddt_entry_io_t;
 
 typedef struct {
 	/* key must be first for ddt_key_compare */
-	ddt_key_t	dde_key;			/* ddt_tree key */
-	ddt_phys_t	dde_phys[DDT_PHYS_TYPES];	/* on-disk data */
-
-	/* in-flight update IOs */
-	zio_t		*dde_lead_zio[DDT_PHYS_TYPES];
-
-	/* copy of data after a repair read, to be rewritten */
-	struct abd	*dde_repair_abd;
+	ddt_key_t	dde_key;	/* ddt_tree key */
+	avl_node_t	dde_node;	/* ddt_tree_node */
 
 	/* storage type and class the entry was loaded from */
 	ddt_type_t	dde_type;
@@ -173,8 +240,34 @@ typedef struct {
 	kcondvar_t	dde_cv;		/* signaled when load completes */
 	uint64_t	dde_waiters;	/* count of waiters on dde_cv */
 
-	avl_node_t	dde_node;	/* ddt_tree node */
+	ddt_entry_io_t	*dde_io;	/* IO support, when required */
+
+	ddt_univ_phys_t	dde_phys[];	/* flexible -- allocated size varies */
 } ddt_entry_t;
+
+/*
+ * A lightweight entry is for short-lived or transient uses, like iterating or
+ * inspecting, when you don't care where it came from.
+ */
+typedef struct {
+	ddt_key_t	ddlwe_key;
+	ddt_type_t	ddlwe_type;
+	ddt_class_t	ddlwe_class;
+	ddt_univ_phys_t	ddlwe_phys;
+} ddt_lightweight_entry_t;
+
+/*
+ * In-core DDT log. A separate struct to make it easier to switch between the
+ * appending and flushing logs.
+ */
+typedef struct {
+	avl_tree_t	ddl_tree;	/* logged entries */
+	uint32_t	ddl_flags;	/* flags for this log */
+	uint64_t	ddl_object;	/* log object id */
+	uint64_t	ddl_length;	/* on-disk log size */
+	uint64_t	ddl_first_txg;	/* txg log became active */
+	ddt_key_t	ddl_checkpoint;	/* last checkpoint */
+} ddt_log_t;
 
 /*
  * In-core DDT object. This covers all entries and stats for a the whole pool
@@ -184,23 +277,49 @@ typedef struct {
 	kmutex_t	ddt_lock;	/* protects changes to all fields */
 
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
+	avl_tree_t	ddt_log_tree;	/* logged entries */
 
 	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
 
-	enum zio_checksum ddt_checksum;		/* checksum algorithm in use */
-	spa_t		*ddt_spa;		/* pool this ddt is on */
-	objset_t	*ddt_os;		/* ddt objset (always MOS) */
+	ddt_log_t	ddt_log[2];		/* active/flushing logs */
+	ddt_log_t	*ddt_log_active;	/* pointers into ddt_log */
+	ddt_log_t	*ddt_log_flushing;	/* swapped when flush starts */
+
+	hrtime_t	ddt_flush_start;	/* log flush start this txg */
+	uint32_t	ddt_flush_pass;		/* log flush pass this txg */
+
+	int32_t		ddt_flush_count;	/* entries flushed this txg */
+	int32_t		ddt_flush_min;		/* min rem entries to flush */
+	int32_t		ddt_log_ingest_rate;	/* rolling log ingest rate */
+	int32_t		ddt_log_flush_rate;	/* rolling log flush rate */
+	int32_t		ddt_log_flush_time_rate; /* avg time spent flushing */
+
+	uint64_t	ddt_flush_force_txg;	/* flush hard before this txg */
+
+	kstat_t		*ddt_ksp;	/* kstats context */
+
+	enum zio_checksum ddt_checksum;	/* checksum algorithm in use */
+	spa_t		*ddt_spa;	/* pool this ddt is on */
+	objset_t	*ddt_os;	/* ddt objset (always MOS) */
+
+	uint64_t	ddt_dir_object;	/* MOS dir holding ddt objects */
+	uint64_t	ddt_version;	/* DDT version */
+	uint64_t	ddt_flags;	/* FDT option flags */
 
 	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
 
-	/* object ids for whole-ddt and per-type/per-class stats */
+	/* object ids for stored, logged and per-type/per-class stats */
 	uint64_t	ddt_stat_object;
+	ddt_object_t	ddt_log_stats;
 	ddt_object_t	ddt_object_stats[DDT_TYPES][DDT_CLASSES];
 
 	/* type/class stats by power-2-sized referenced blocks */
 	ddt_histogram_t	ddt_histogram[DDT_TYPES][DDT_CLASSES];
 	ddt_histogram_t	ddt_histogram_cache[DDT_TYPES][DDT_CLASSES];
+
+	/* log stats power-2-sized referenced blocks */
+	ddt_histogram_t	ddt_log_histogram;
 } ddt_t;
 
 /*
@@ -215,20 +334,36 @@ typedef struct {
 	uint64_t	ddb_cursor;
 } ddt_bookmark_t;
 
-extern void ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp,
-    uint64_t txg);
+extern void ddt_bp_fill(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    blkptr_t *bp, uint64_t txg);
 extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
-    const ddt_phys_t *ddp, blkptr_t *bp);
+    const ddt_univ_phys_t *ddp, ddt_phys_variant_t v, blkptr_t *bp);
 
-extern void ddt_phys_fill(ddt_phys_t *ddp, const blkptr_t *bp);
-extern void ddt_phys_clear(ddt_phys_t *ddp);
-extern void ddt_phys_addref(ddt_phys_t *ddp);
-extern void ddt_phys_decref(ddt_phys_t *ddp);
-extern ddt_phys_t *ddt_phys_select(const ddt_entry_t *dde, const blkptr_t *bp);
+extern void ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    const blkptr_t *bp);
+extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
+    ddt_phys_variant_t v);
+extern void ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern void ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern uint64_t ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern uint64_t ddt_phys_refcnt(const ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v);
+extern ddt_phys_variant_t ddt_phys_select(const ddt_t *ddt,
+    const ddt_entry_t *dde, const blkptr_t *bp);
+extern uint64_t ddt_phys_birth(const ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v);
+extern int ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    boolean_t encrypted);
+
+extern void ddt_histogram_add_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe);
+extern void ddt_histogram_sub_entry(ddt_t *ddt, ddt_histogram_t *ddh,
+    const ddt_lightweight_entry_t *ddlwe);
 
 extern void ddt_histogram_add(ddt_histogram_t *dst, const ddt_histogram_t *src);
-extern void ddt_histogram_stat(ddt_stat_t *dds, const ddt_histogram_t *ddh);
+extern void ddt_histogram_total(ddt_stat_t *dds, const ddt_histogram_t *ddh);
 extern boolean_t ddt_histogram_empty(const ddt_histogram_t *ddh);
+
 extern void ddt_get_dedup_object_stats(spa_t *spa, ddt_object_t *ddo);
 extern uint64_t ddt_get_ddt_dsize(spa_t *spa);
 extern void ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh);
@@ -243,13 +378,15 @@ extern void ddt_enter(ddt_t *ddt);
 extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
-extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add);
+extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_prefetch_all(spa_t *spa);
 
 extern boolean_t ddt_class_contains(spa_t *spa, ddt_class_t max_class,
     const blkptr_t *bp);
+
+extern void ddt_alloc_entry_io(ddt_entry_t *dde);
 
 extern ddt_entry_t *ddt_repair_start(ddt_t *ddt, const blkptr_t *bp);
 extern void ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde);
@@ -260,7 +397,11 @@ extern void ddt_create(spa_t *spa);
 extern int ddt_load(spa_t *spa);
 extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);
-extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde);
+
+extern void ddt_walk_init(spa_t *spa, uint64_t txg);
+extern boolean_t ddt_walk_ready(spa_t *spa);
+extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb,
+    ddt_lightweight_entry_t *ddlwe);
 
 extern boolean_t ddt_addref(spa_t *spa, const blkptr_t *bp);
 

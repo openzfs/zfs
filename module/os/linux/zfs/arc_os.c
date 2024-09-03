@@ -201,9 +201,9 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	 * See also the comment above zfs_arc_shrinker_limit.
 	 */
 	int64_t can_free = btop(arc_evictable_memory());
-	int64_t limit = zfs_arc_shrinker_limit != 0 ?
-	    zfs_arc_shrinker_limit : INT64_MAX;
-	return (MIN(can_free, limit));
+	if (current_is_kswapd() && zfs_arc_shrinker_limit)
+		can_free = MIN(can_free, zfs_arc_shrinker_limit);
+	return (can_free);
 }
 
 static unsigned long
