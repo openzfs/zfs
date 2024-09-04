@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -51,8 +52,13 @@ ddt_zap_compress(const void *src, uchar_t *dst, size_t s_len, size_t d_len)
 
 	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
 
-	c_len = ci->ci_compress((void *)src, dst, s_len, d_len - 1,
-	    ci->ci_level);
+	/* Call compress function directly to avoid hole detection. */
+	abd_t sabd, dabd;
+	abd_get_from_buf_struct(&sabd, (void *)src, s_len);
+	abd_get_from_buf_struct(&dabd, dst, d_len);
+	c_len = ci->ci_compress(&sabd, &dabd, s_len, d_len - 1, ci->ci_level);
+	abd_free(&dabd);
+	abd_free(&sabd);
 
 	if (c_len == s_len) {
 		cpfunc = ZIO_COMPRESS_OFF;
@@ -71,12 +77,18 @@ ddt_zap_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 {
 	uchar_t version = *src++;
 	int cpfunc = version & DDT_ZAP_COMPRESS_FUNCTION_MASK;
-	zio_compress_info_t *ci = &zio_compress_table[cpfunc];
 
-	if (ci->ci_decompress != NULL)
-		(void) ci->ci_decompress(src, dst, s_len, d_len, ci->ci_level);
-	else
+	if (zio_compress_table[cpfunc].ci_decompress == NULL) {
 		memcpy(dst, src, d_len);
+		return;
+	}
+
+	abd_t sabd, dabd;
+	abd_get_from_buf_struct(&sabd, src, s_len);
+	abd_get_from_buf_struct(&dabd, dst, d_len);
+	VERIFY0(zio_decompress_data(cpfunc, &sabd, &dabd, s_len, d_len, NULL));
+	abd_free(&dabd);
+	abd_free(&sabd);
 
 	if (((version & DDT_ZAP_COMPRESS_BYTEORDER_MASK) != 0) !=
 	    (ZFS_HOST_BYTEORDER != 0))
@@ -108,7 +120,7 @@ ddt_zap_destroy(objset_t *os, uint64_t object, dmu_tx_t *tx)
 
 static int
 ddt_zap_lookup(objset_t *os, uint64_t object,
-    const ddt_key_t *ddk, ddt_phys_t *phys, size_t psize)
+    const ddt_key_t *ddk, void *phys, size_t psize)
 {
 	uchar_t *cbuf;
 	uint64_t one, csize;
@@ -155,7 +167,7 @@ ddt_zap_prefetch_all(objset_t *os, uint64_t object)
 
 static int
 ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
-    const ddt_phys_t *phys, size_t psize, dmu_tx_t *tx)
+    const void *phys, size_t psize, dmu_tx_t *tx)
 {
 	const size_t cbuf_size = psize + 1;
 
@@ -181,7 +193,7 @@ ddt_zap_remove(objset_t *os, uint64_t object, const ddt_key_t *ddk,
 
 static int
 ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
-    ddt_phys_t *phys, size_t psize)
+    void *phys, size_t psize)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;

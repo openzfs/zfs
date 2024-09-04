@@ -51,6 +51,12 @@ POOL="dedup_pool"
 
 save_tunable TXG_TIMEOUT
 
+# we set the dedup log txg interval to 1, to get a log flush every txg,
+# effectively disabling the log. without this it's hard to predict when and
+# where things appear on-disk
+log_must save_tunable DEDUP_LOG_TXG_MAX
+log_must set_tunable32 DEDUP_LOG_TXG_MAX 1
+
 function cleanup
 {
 	if poolexists $POOL ; then
@@ -58,6 +64,7 @@ function cleanup
 	fi
 	log_must rm -fd $VDEV_GENERAL $VDEV_DEDUP $MOUNTDIR
 	log_must restore_tunable TXG_TIMEOUT
+	log_must restore_tunable DEDUP_LOG_TXG_MAX
 }
 
 
@@ -206,10 +213,15 @@ function ddt_dedup_vdev_limit
 
 	#
 	# With no DDT quota in place, the above workload will produce over
-	# 800,000 entries by using space in the normal class. With a quota,
-	# it will be well below 500,000 entries.
+	# 800,000 entries by using space in the normal class. With a quota, it
+	# should be well under 500,000. However, logged entries are hard to
+	# account for because they can appear on both logs, and can also
+	# represent an eventual removal. This isn't easily visible from
+	# outside, and even internally can result in going slightly over quota.
+	# For here, we just set the entry count a little higher than what we
+	# expect to allow for some instability.
 	#
-	log_must test $(ddt_entries) -le 500000
+	log_must test $(ddt_entries) -le 600000
 
 	do_clean
 }

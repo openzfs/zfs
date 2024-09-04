@@ -1,7 +1,9 @@
+include $(srcdir)/%D%/include/Makefile.am
+
 libzpool_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libzpool_la_CFLAGS += $(ZLIB_CFLAGS)
 
-libzpool_la_CPPFLAGS  = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
+libzpool_la_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 libzpool_la_CPPFLAGS += -I$(srcdir)/include/os/@ac_system_l@/zfs
 libzpool_la_CPPFLAGS += -DLIB_ZPOOL_BUILD
 
@@ -9,6 +11,7 @@ lib_LTLIBRARIES += libzpool.la
 CPPCHECKTARGETS += libzpool.la
 
 dist_libzpool_la_SOURCES = \
+	%D%/abd_os.c \
 	%D%/kernel.c \
 	%D%/taskq.c \
 	%D%/util.c
@@ -39,7 +42,6 @@ nodist_libzpool_la_SOURCES = \
 	module/lua/lvm.c \
 	module/lua/lzio.c \
 	\
-	module/os/linux/zfs/abd_os.c \
 	module/os/linux/zfs/arc_os.c \
 	module/os/linux/zfs/trace.c \
 	module/os/linux/zfs/vdev_file.c \
@@ -79,6 +81,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/dbuf.c \
 	module/zfs/dbuf_stats.c \
 	module/zfs/ddt.c \
+	module/zfs/ddt_log.c \
 	module/zfs/ddt_stats.c \
 	module/zfs/ddt_zap.c \
 	module/zfs/dmu.c \

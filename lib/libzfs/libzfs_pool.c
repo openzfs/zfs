@@ -3735,6 +3735,13 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 			(void) zpool_standard_error(hdl, errno, errbuf);
 		}
 		break;
+
+	case ZFS_ERR_ASHIFT_MISMATCH:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "The new device cannot have a higher alignment requirement "
+		    "than the top-level vdev."));
+		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
+		break;
 	default:
 		(void) zpool_standard_error(hdl, errno, errbuf);
 	}
@@ -4305,22 +4312,55 @@ zpool_vdev_clear(zpool_handle_t *zhp, uint64_t guid)
 
 /*
  * Change the GUID for a pool.
+ *
+ * Similar to zpool_reguid(), but may take a GUID.
+ *
+ * If the guid argument is NULL, then no GUID is passed in the nvlist to the
+ * ioctl().
  */
 int
-zpool_reguid(zpool_handle_t *zhp)
+zpool_set_guid(zpool_handle_t *zhp, const uint64_t *guid)
 {
 	char errbuf[ERRBUFLEN];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	nvlist_t *nvl = NULL;
 	zfs_cmd_t zc = {"\0"};
+	int error = -1;
+
+	if (guid != NULL) {
+		if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
+			return (no_memory(hdl));
+
+		if (nvlist_add_uint64(nvl, ZPOOL_REGUID_GUID, *guid) != 0) {
+			nvlist_free(nvl);
+			return (no_memory(hdl));
+		}
+
+		zcmd_write_src_nvlist(hdl, &zc, nvl);
+	}
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot reguid '%s'"), zhp->zpool_name);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	if (zfs_ioctl(hdl, ZFS_IOC_POOL_REGUID, &zc) == 0)
-		return (0);
+	error = zfs_ioctl(hdl, ZFS_IOC_POOL_REGUID, &zc);
+	if (error) {
+		return (zpool_standard_error(hdl, errno, errbuf));
+	}
+	if (guid != NULL) {
+		zcmd_free_nvlists(&zc);
+		nvlist_free(nvl);
+	}
+	return (0);
+}
 
-	return (zpool_standard_error(hdl, errno, errbuf));
+/*
+ * Change the GUID for a pool.
+ */
+int
+zpool_reguid(zpool_handle_t *zhp)
+{
+	return (zpool_set_guid(zhp, NULL));
 }
 
 /*

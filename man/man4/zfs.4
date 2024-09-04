@@ -77,6 +77,17 @@ the array is dynamically sized based on total system memory.
 dnode slots allocated in a single operation as a power of 2.
 The default value minimizes lock contention for the bulk operation performed.
 .
+.It Sy dmu_ddt_copies Ns = Ns Sy 3 Pq uint
+Controls the number of copies stored for DeDup Table
+.Pq DDT
+objects.
+Reducing the number of copies to 1 from the previous default of 3
+can reduce the write inflation caused by deduplication.
+This assumes redundancy for this data is provided by the vdev layer.
+If the DDT is damaged, space may be leaked
+.Pq not freed
+when the DDT can not report the correct reference count.
+.
 .It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Limit the amount we can prefetch with one call to this amount in bytes.
 This helps to limit the amount of memory that can be used by prefetching.
@@ -121,19 +132,25 @@ Controls whether buffers present on special vdevs are eligible for caching
 into L2ARC.
 If set to 1, exclude dbufs on special vdevs from being cached to L2ARC.
 .
-.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Pq  int
+.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Ns | Ns 2 Pq int
 Controls whether only MFU metadata and data are cached from ARC into L2ARC.
 This may be desired to avoid wasting space on L2ARC when reading/writing large
 amounts of data that are not expected to be accessed more than once.
 .Pp
-The default is off,
+The default is 0,
 meaning both MRU and MFU data and metadata are cached.
-When turning off this feature, some MRU buffers will still be present
-in ARC and eventually cached on L2ARC.
+When turning off this feature (setting it to 0), some MRU buffers will
+still be present in ARC and eventually cached on L2ARC.
 .No If Sy l2arc_noprefetch Ns = Ns Sy 0 ,
 some prefetched buffers will be cached to L2ARC, and those might later
 transition to MRU, in which case the
 .Sy l2arc_mru_asize No arcstat will not be Sy 0 .
+.Pp
+Setting it to 1 means to L2 cache only MFU data and metadata.
+.Pp
+Setting it to 2 means to L2 cache all metadata (MRU+MFU) but
+only MFU data (ie: MRU data are not cached). This can be the right setting
+to cache as much metadata as possible even when having high data turnover.
 .Pp
 Regardless of
 .Sy l2arc_noprefetch ,
@@ -821,6 +838,7 @@ This is a limit on how many pages the ARC shrinker makes available for
 eviction in response to one page allocation attempt.
 Note that in practice, the kernel's shrinker can ask us to evict
 up to about four times this for one allocation attempt.
+To reduce OOM risk, this limit is applied for kswapd reclaims only.
 .Pp
 The default limit of
 .Sy 10000 Pq in practice, Em 160 MiB No per allocation attempt with 4 KiB pages
@@ -973,6 +991,88 @@ milliseconds until the operation completes.
 .
 .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enable prefetching dedup-ed blocks which are going to be freed.
+.
+.It Sy zfs_dedup_log_flush_passes_max Ns = Ns Sy 8 Ns Pq uint
+Maximum number of dedup log flush passes (iterations) each transaction.
+.Pp
+At the start of each transaction, OpenZFS will estimate how many entries it
+needs to flush out to keep up with the change rate, taking the amount and time
+taken to flush on previous txgs into account (see
+.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
+It will spread this amount into a number of passes.
+At each pass, it will use the amount already flushed and the total time taken
+by flushing and by other IO to recompute how much it should do for the remainder
+of the txg.
+.Pp
+Reducing the max number of passes will make flushing more aggressive, flushing
+out more entries on each pass.
+This can be faster, but also more likely to compete with other IO.
+Increasing the max number of passes will put fewer entries onto each pass,
+keeping the overhead of dedup changes to a minimum but possibly causing a large
+number of changes to be dumped on the last pass, which can blow out the txg
+sync time beyond
+.Sy zfs_txg_timeout .
+.
+.It Sy zfs_dedup_log_flush_min_time_ms Ns = Ns Sy 1000 Ns Pq uint
+Minimum time to spend on dedup log flush each transaction.
+.Pp
+At least this long will be spent flushing dedup log entries each transaction,
+up to
+.Sy zfs_txg_timeout .
+This occurs even if doing so would delay the transaction, that is, other IO
+completes under this time.
+.
+.It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 1000 Ns Pq uint
+Flush at least this many entries each transaction.
+.Pp
+OpenZFS will estimate how many entries it needs to flush each transaction to
+keep up with the ingest rate (see
+.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
+This sets the minimum for that estimate.
+Raising it can force OpenZFS to flush more aggressively, keeping the log small
+and so reducing pool import times, but can make it less able to back off if
+log flushing would compete with other IO too much.
+.
+.It Sy zfs_dedup_log_flush_flow_rate_txgs Ns = Ns Sy 10 Ns Pq uint
+Number of transactions to use to compute the flow rate.
+.Pp
+OpenZFS will estimate how many entries it needs to flush each transaction by
+monitoring the number of entries changed (ingest rate), number of entries
+flushed (flush rate) and time spent flushing (flush time rate) and combining
+these into an overall "flow rate".
+It will use an exponential weighted moving average over some number of recent
+transactions to compute these rates.
+This sets the number of transactions to compute these averages over.
+Setting it higher can help to smooth out the flow rate in the face of spiky
+workloads, but will take longer for the flow rate to adjust to a sustained
+change in the ingress rate.
+.
+.It Sy zfs_dedup_log_txg_max Ns = Ns Sy 8 Ns Pq uint
+Max transactions to before starting to flush dedup logs.
+.Pp
+OpenZFS maintains two dedup logs, one receiving new changes, one flushing.
+If there is nothing to flush, it will accumulate changes for no more than this
+many transactions before switching the logs and starting to flush entries out.
+.
+.It Sy zfs_dedup_log_mem_max Ns = Ns Sy 0 Ns Pq u64
+Max memory to use for dedup logs.
+.Pp
+OpenZFS will spend no more than this much memory on maintaining the in-memory
+dedup log.
+Flushing will begin when around half this amount is being spent on logs.
+The default value of
+.Sy 0
+will cause it to be set by
+.Sy zfs_dedup_log_mem_max_percent
+instead.
+.
+.It Sy zfs_dedup_log_mem_max_percent Ns = Ns Sy 1 Ns % Pq uint
+Max memory to use for dedup logs, as a percentage of total memory.
+.Pp
+If
+.Sy zfs_dedup_log_mem_max
+is not set, it will be initialised as a percentage of the total memory in the
+system.
 .
 .It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
 Start to delay each transaction once there is this amount of dirty data,

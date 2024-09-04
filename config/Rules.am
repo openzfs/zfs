@@ -10,7 +10,8 @@ AM_CPPFLAGS = \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/module/icp/include \
 	-I$(top_srcdir)/lib/libspl/include \
-	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@
+	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@ \
+	-I$(top_srcdir)/lib/libzpool/include
 
 AM_LIBTOOLFLAGS = --silent
 
@@ -85,4 +86,7 @@ KERNEL_CFLAGS       = $(FRAME_LARGER_THAN)
 LIBRARY_CFLAGS      = -no-suppress
 
 # Forcibly enable asserts/debugging for libzpool &al.
-FORCEDEBUG_CPPFLAGS = -DDEBUG -UNDEBUG -DZFS_DEBUG
+# Since ZFS_DEBUG can change shared data structures, all libzpool users must
+# be compiled with the same flags.
+# See https://github.com/openzfs/zfs/issues/16476
+LIBZPOOL_CPPFLAGS = -DDEBUG -UNDEBUG -DZFS_DEBUG

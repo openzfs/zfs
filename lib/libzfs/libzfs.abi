@@ -556,6 +556,7 @@
     <elf-symbol name='zpool_scan' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_search_import' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_set_guid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_skip_pool' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -616,7 +617,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2296' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2352' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6006,7 +6007,8 @@
       <enumerator name='SPA_FEATURE_AVZ_V2' value='38'/>
       <enumerator name='SPA_FEATURE_REDACTION_LIST_SPILL' value='39'/>
       <enumerator name='SPA_FEATURE_RAIDZ_EXPANSION' value='40'/>
-      <enumerator name='SPA_FEATURES' value='41'/>
+      <enumerator name='SPA_FEATURE_FAST_DEDUP' value='41'/>
+      <enumerator name='SPA_FEATURES' value='42'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
@@ -6636,6 +6638,11 @@
     <function-decl name='zpool_vdev_clear' mangled-name='zpool_vdev_clear' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_vdev_clear'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='9c313c2d' name='guid'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_set_guid' mangled-name='zpool_set_guid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_set_guid'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='713a56f5' name='guid'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_reguid' mangled-name='zpool_reguid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_reguid'>
@@ -9131,8 +9138,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='18368' id='b93e4d14'>
-      <subrange length='41' type-id='7359adad' id='cb834f44'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='18816' id='b937914f'>
+      <subrange length='42' type-id='7359adad' id='cb7c937f'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -9209,7 +9216,7 @@
     <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='b93e4d14' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='b937914f' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>

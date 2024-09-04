@@ -22,7 +22,7 @@
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
  * Copyright (c) 2019, Allan Jude
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Use is subject to license terms.
  * Copyright (c) 2015, 2016 by Delphix. All rights reserved.
  */
@@ -122,25 +122,15 @@ enum zio_zstd_levels {
 struct zio_prop;
 
 /* Common signature for all zio compress functions. */
-typedef size_t zio_compress_func_t(void *src, void *dst,
+typedef size_t zio_compress_func_t(abd_t *src, abd_t *dst,
     size_t s_len, size_t d_len, int);
 /* Common signature for all zio decompress functions. */
-typedef int zio_decompress_func_t(void *src, void *dst,
+typedef int zio_decompress_func_t(abd_t *src, abd_t *dst,
     size_t s_len, size_t d_len, int);
 /* Common signature for all zio decompress and get level functions. */
-typedef int zio_decompresslevel_func_t(void *src, void *dst,
+typedef int zio_decompresslevel_func_t(abd_t *src, abd_t *dst,
     size_t s_len, size_t d_len, uint8_t *level);
-/* Common signature for all zio get-compression-level functions. */
-typedef int zio_getlevel_func_t(void *src, size_t s_len, uint8_t *level);
 
-
-/*
- * Common signature for all zio decompress functions using an ABD as input.
- * This is helpful if you have both compressed ARC and scatter ABDs enabled,
- * but is not a requirement for all compression algorithms.
- */
-typedef int zio_decompress_abd_func_t(abd_t *src, void *dst,
-    size_t s_len, size_t d_len, int);
 /*
  * Information about each compression function.
  */
@@ -163,33 +153,65 @@ extern void lz4_fini(void);
 /*
  * Compression routines.
  */
-extern size_t lzjb_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int lzjb_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t gzip_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int gzip_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t zle_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int zle_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern size_t lz4_compress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
+extern size_t zfs_lzjb_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_lzjb_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_gzip_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_gzip_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_zle_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_zle_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern size_t zfs_lz4_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_lz4_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
 
 /*
  * Compress and decompress data if necessary.
  */
-extern size_t zio_compress_data(enum zio_compress c, abd_t *src, void **dst,
+extern size_t zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst,
     size_t s_len, uint8_t level);
-extern int zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
-    size_t s_len, size_t d_len, uint8_t *level);
-extern int zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
+extern int zio_decompress_data(enum zio_compress c, abd_t *src, abd_t *abd,
     size_t s_len, size_t d_len, uint8_t *level);
 extern int zio_compress_to_feature(enum zio_compress comp);
+
+#define	ZFS_COMPRESS_WRAP_DECL(name)					\
+size_t									\
+name(abd_t *src, abd_t *dst, size_t s_len, size_t d_len, int n)		\
+{									\
+	void *s_buf = abd_borrow_buf_copy(src, s_len);			\
+	void *d_buf = abd_borrow_buf(dst, d_len);			\
+	size_t c_len = name##_buf(s_buf, d_buf, s_len, d_len, n);	\
+	abd_return_buf(src, s_buf, s_len);				\
+	abd_return_buf_copy(dst, d_buf, d_len);				\
+	return (c_len);							\
+}
+#define	ZFS_DECOMPRESS_WRAP_DECL(name)					\
+int									\
+name(abd_t *src, abd_t *dst, size_t s_len, size_t d_len, int n)		\
+{									\
+	void *s_buf = abd_borrow_buf_copy(src, s_len);			\
+	void *d_buf = abd_borrow_buf(dst, d_len);			\
+	int err = name##_buf(s_buf, d_buf, s_len, d_len, n);		\
+	abd_return_buf(src, s_buf, s_len);				\
+	abd_return_buf_copy(dst, d_buf, d_len);				\
+	return (err);							\
+}
+#define	ZFS_DECOMPRESS_LEVEL_WRAP_DECL(name)				\
+int									\
+name(abd_t *src, abd_t *dst, size_t s_len, size_t d_len, uint8_t *n)	\
+{									\
+	void *s_buf = abd_borrow_buf_copy(src, s_len);			\
+	void *d_buf = abd_borrow_buf(dst, d_len);			\
+	int err = name##_buf(s_buf, d_buf, s_len, d_len, n);		\
+	abd_return_buf(src, s_buf, s_len);				\
+	abd_return_buf_copy(dst, d_buf, d_len);				\
+	return (err);							\
+}
 
 #ifdef	__cplusplus
 }

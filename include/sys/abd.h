@@ -30,6 +30,7 @@
 #include <sys/debug.h>
 #include <sys/zfs_refcount.h>
 #include <sys/uio.h>
+#include <sys/abd_os.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,8 +45,7 @@ typedef enum abd_flags {
 	ABD_FLAG_LINEAR_PAGE 	= 1 << 5, /* linear but allocd from page */
 	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
 	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
-	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
-	ABD_FLAG_ALLOCD		= 1 << 9, /* we allocated the abd_t */
+	ABD_FLAG_ALLOCD		= 1 << 8, /* we allocated the abd_t */
 } abd_flags_t;
 
 typedef struct abd {
@@ -58,19 +58,8 @@ typedef struct abd {
 #endif
 	kmutex_t	abd_mtx;
 	union {
-		struct abd_scatter {
-			uint_t		abd_offset;
-#if defined(__FreeBSD__) && defined(_KERNEL)
-			void    *abd_chunks[1]; /* actually variable-length */
-#else
-			uint_t		abd_nents;
-			struct scatterlist *abd_sgl;
-#endif
-		} abd_scatter;
-		struct abd_linear {
-			void		*abd_buf;
-			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
-		} abd_linear;
+		struct abd_scatter	abd_scatter;
+		struct abd_linear	abd_linear;
 		struct abd_gang {
 			list_t abd_gang_chain;
 		} abd_gang;
@@ -79,9 +68,6 @@ typedef struct abd {
 
 typedef int abd_iter_func_t(void *buf, size_t len, void *priv);
 typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *priv);
-#if defined(__linux__) && defined(_KERNEL)
-typedef int abd_iter_page_func_t(struct page *, size_t, size_t, void *);
-#endif
 
 extern int zfs_abd_scatter_enabled;
 
@@ -107,6 +93,7 @@ abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
 abd_t *abd_get_offset_struct(abd_t *, abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
+abd_t *abd_get_from_buf_struct(abd_t *, void *, size_t);
 void abd_cache_reap_now(void);
 
 /*
@@ -128,10 +115,6 @@ void abd_release_ownership_of_buf(abd_t *);
 int abd_iterate_func(abd_t *, size_t, size_t, abd_iter_func_t *, void *);
 int abd_iterate_func2(abd_t *, abd_t *, size_t, size_t, size_t,
     abd_iter_func2_t *, void *);
-#if defined(__linux__) && defined(_KERNEL)
-int abd_iterate_page_func(abd_t *, size_t, size_t, abd_iter_page_func_t *,
-    void *);
-#endif
 void abd_copy_off(abd_t *, abd_t *, size_t, size_t, size_t);
 void abd_copy_from_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_copy_to_buf_off(void *, abd_t *, size_t, size_t);
@@ -224,16 +207,6 @@ abd_get_size(abd_t *abd)
 
 void abd_init(void);
 void abd_fini(void);
-
-/*
- * Linux ABD bio functions
- * Note: these are only needed to support vdev_classic. See comment in
- * vdev_disk.c.
- */
-#if defined(__linux__) && defined(_KERNEL)
-unsigned int abd_bio_map_off(struct bio *, abd_t *, unsigned int, size_t);
-unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
-#endif
 
 #ifdef __cplusplus
 }

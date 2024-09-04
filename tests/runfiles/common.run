@@ -514,6 +514,10 @@ tags = ['functional', 'cli_root', 'zpool_offline']
 tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
 tags = ['functional', 'cli_root', 'zpool_online']
 
+[tests/functional/cli_root/zpool_reguid]
+tests = ['zpool_reguid_001_pos', 'zpool_reguid_002_neg']
+tags = ['functional', 'cli_root', 'zpool_reguid']
+
 [tests/functional/cli_root/zpool_remove]
 tests = ['zpool_remove_001_neg', 'zpool_remove_002_pos',
     'zpool_remove_003_pos']
@@ -672,7 +676,9 @@ post =
 tags = ['functional', 'deadman']
 
 [tests/functional/dedup]
-tests = ['dedup_quota']
+tests = ['dedup_legacy_create', 'dedup_fdt_create', 'dedup_fdt_import',
+    'dedup_legacy_create', 'dedup_legacy_import', 'dedup_legacy_fdt_upgrade',
+    'dedup_legacy_fdt_mixed', 'dedup_quota']
 pre =
 post =
 tags = ['functional', 'dedup']

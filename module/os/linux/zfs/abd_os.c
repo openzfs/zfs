@@ -58,21 +58,15 @@
 #include <sys/arc.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
-#ifdef _KERNEL
 #include <linux/kmap_compat.h>
 #include <linux/mm_compat.h>
 #include <linux/scatterlist.h>
 #include <linux/version.h>
-#endif
 
-#ifdef _KERNEL
 #if defined(MAX_ORDER)
 #define	ABD_MAX_ORDER	(MAX_ORDER)
 #elif defined(MAX_PAGE_ORDER)
 #define	ABD_MAX_ORDER	(MAX_PAGE_ORDER)
-#endif
-#else
-#define	ABD_MAX_ORDER	(1)
 #endif
 
 typedef struct abd_stats {
@@ -193,11 +187,9 @@ abd_t *abd_zero_scatter = NULL;
 
 struct page;
 /*
- * _KERNEL   - Will point to ZERO_PAGE if it is available or it will be
- *             an allocated zero'd PAGESIZE buffer.
- * Userspace - Will be an allocated zero'ed PAGESIZE buffer.
- *
- * abd_zero_page is assigned to each of the pages of abd_zero_scatter.
+ * abd_zero_page is assigned to each of the pages of abd_zero_scatter. It will
+ * point to ZERO_PAGE if it is available or it will be an allocated zero'd
+ * PAGESIZE buffer.
  */
 static struct page *abd_zero_page = NULL;
 
@@ -232,7 +224,6 @@ abd_free_struct_impl(abd_t *abd)
 	ABDSTAT_INCR(abdstat_struct_size, -(int)sizeof (abd_t));
 }
 
-#ifdef _KERNEL
 static unsigned zfs_abd_scatter_max_order = ABD_MAX_ORDER - 1;
 
 /*
@@ -509,7 +500,7 @@ abd_alloc_zero_scatter(void)
 	ABD_SCATTER(abd_zero_scatter).abd_sgl = table.sgl;
 	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK;
 
 	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
 		sg_set_page(sg, abd_zero_page, PAGESIZE, 0);
@@ -519,134 +510,6 @@ abd_alloc_zero_scatter(void)
 	ABDSTAT_INCR(abdstat_scatter_data_size, PAGESIZE);
 	ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
 }
-
-#else /* _KERNEL */
-
-#ifndef PAGE_SHIFT
-#define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
-#endif
-
-#define	zfs_kmap_local(chunk)		((void *)chunk)
-#define	zfs_kunmap_local(addr)		do { (void)(addr); } while (0)
-#define	local_irq_save(flags)		do { (void)(flags); } while (0)
-#define	local_irq_restore(flags)	do { (void)(flags); } while (0)
-#define	nth_page(pg, i) \
-	((struct page *)((void *)(pg) + (i) * PAGESIZE))
-
-struct scatterlist {
-	struct page *page;
-	int length;
-	int end;
-};
-
-static void
-sg_init_table(struct scatterlist *sg, int nr)
-{
-	memset(sg, 0, nr * sizeof (struct scatterlist));
-	sg[nr - 1].end = 1;
-}
-
-/*
- * This must be called if any of the sg_table allocation functions
- * are called.
- */
-static void
-abd_free_sg_table(abd_t *abd)
-{
-	int nents = ABD_SCATTER(abd).abd_nents;
-	vmem_free(ABD_SCATTER(abd).abd_sgl,
-	    nents * sizeof (struct scatterlist));
-}
-
-#define	for_each_sg(sgl, sg, nr, i)	\
-	for ((i) = 0, (sg) = (sgl); (i) < (nr); (i)++, (sg) = sg_next(sg))
-
-static inline void
-sg_set_page(struct scatterlist *sg, struct page *page, unsigned int len,
-    unsigned int offset)
-{
-	/* currently we don't use offset */
-	ASSERT(offset == 0);
-	sg->page = page;
-	sg->length = len;
-}
-
-static inline struct page *
-sg_page(struct scatterlist *sg)
-{
-	return (sg->page);
-}
-
-static inline struct scatterlist *
-sg_next(struct scatterlist *sg)
-{
-	if (sg->end)
-		return (NULL);
-
-	return (sg + 1);
-}
-
-void
-abd_alloc_chunks(abd_t *abd, size_t size)
-{
-	unsigned nr_pages = abd_chunkcnt_for_bytes(size);
-	struct scatterlist *sg;
-	int i;
-
-	ABD_SCATTER(abd).abd_sgl = vmem_alloc(nr_pages *
-	    sizeof (struct scatterlist), KM_SLEEP);
-	sg_init_table(ABD_SCATTER(abd).abd_sgl, nr_pages);
-
-	abd_for_each_sg(abd, sg, nr_pages, i) {
-		struct page *p = umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP);
-		sg_set_page(sg, p, PAGESIZE, 0);
-	}
-	ABD_SCATTER(abd).abd_nents = nr_pages;
-}
-
-void
-abd_free_chunks(abd_t *abd)
-{
-	int i, n = ABD_SCATTER(abd).abd_nents;
-	struct scatterlist *sg;
-
-	abd_for_each_sg(abd, sg, n, i) {
-		struct page *p = nth_page(sg_page(sg), 0);
-		umem_free_aligned(p, PAGESIZE);
-	}
-	abd_free_sg_table(abd);
-}
-
-static void
-abd_alloc_zero_scatter(void)
-{
-	unsigned nr_pages = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
-	struct scatterlist *sg;
-	int i;
-
-	abd_zero_page = umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP);
-	memset(abd_zero_page, 0, PAGESIZE);
-	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
-	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER;
-	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
-	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
-	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
-	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	ABD_SCATTER(abd_zero_scatter).abd_sgl = vmem_alloc(nr_pages *
-	    sizeof (struct scatterlist), KM_SLEEP);
-
-	sg_init_table(ABD_SCATTER(abd_zero_scatter).abd_sgl, nr_pages);
-
-	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
-		sg_set_page(sg, abd_zero_page, PAGESIZE, 0);
-	}
-
-	ABDSTAT_BUMP(abdstat_scatter_cnt);
-	ABDSTAT_INCR(abdstat_scatter_data_size, PAGESIZE);
-	ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
-}
-
-#endif /* _KERNEL */
 
 boolean_t
 abd_size_alloc_linear(size_t size)
@@ -712,14 +575,10 @@ abd_free_zero_scatter(void)
 	abd_free_struct(abd_zero_scatter);
 	abd_zero_scatter = NULL;
 	ASSERT3P(abd_zero_page, !=, NULL);
-#if defined(_KERNEL)
 #if defined(HAVE_ZERO_PAGE_GPL_ONLY)
 	abd_unmark_zfs_page(abd_zero_page);
 	__free_page(abd_zero_page);
 #endif /* HAVE_ZERO_PAGE_GPL_ONLY */
-#else
-	umem_free_aligned(abd_zero_page, PAGESIZE);
-#endif /* _KERNEL */
 }
 
 static int
@@ -1014,8 +873,6 @@ abd_cache_reap_now(void)
 {
 }
 
-#if defined(_KERNEL)
-
 /*
  * This is abd_iter_page(), the function underneath abd_iterate_page_func().
  * It yields the next page struct and data offset and size within it, without
@@ -1297,5 +1154,3 @@ MODULE_PARM_DESC(zfs_abd_scatter_min_size,
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");
-
-#endif /* _KERNEL */

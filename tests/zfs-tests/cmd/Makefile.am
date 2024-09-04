@@ -24,7 +24,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/badsend
 
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
-%C%_btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(FORCEDEBUG_CPPFLAGS)
+%C%_btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 %C%_btree_test_LDADD = \
 	libzpool.la \
 	libzfs_core.la
