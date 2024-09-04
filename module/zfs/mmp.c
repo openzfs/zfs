@@ -728,7 +728,7 @@ mmp_signal_all_threads(void)
 {
 	spa_t *spa = NULL;
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	while ((spa = spa_next(spa))) {
 		if (spa->spa_state == POOL_STATE_ACTIVE)
 			mmp_signal_thread(spa);

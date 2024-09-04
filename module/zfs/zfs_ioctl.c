@@ -3012,7 +3012,7 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	if (pair != NULL && strcmp(nvpair_name(pair),
 	    zpool_prop_to_name(ZPOOL_PROP_CACHEFILE)) == 0 &&
 	    nvlist_next_nvpair(props, pair) == NULL) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		if ((spa = spa_lookup(zc->zc_name)) != NULL) {
 			spa_configfile_set(spa, props, B_FALSE);
 			spa_write_cachefile(spa, B_FALSE, B_TRUE, B_FALSE);
@@ -3060,27 +3060,14 @@ zfs_ioc_pool_get_props(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 		props = NULL;
 	}
 
-	if ((error = spa_open(pool, &spa, FTAG)) != 0) {
-		/*
-		 * If the pool is faulted, there may be properties we can still
-		 * get (such as altroot and cachefile), so attempt to get them
-		 * anyway.
-		 */
-		mutex_enter(&spa_namespace_lock);
-		if ((spa = spa_lookup(pool)) != NULL) {
-			error = spa_prop_get(spa, outnvl);
-			if (error == 0 && props != NULL)
-				error = spa_prop_get_nvlist(spa, props, n_props,
-				    outnvl);
-		}
-		mutex_exit(&spa_namespace_lock);
-	} else {
+	rw_enter(&spa_namespace_lite_lock, RW_READER);
+	if ((spa = spa_lookup_lite(pool)) != NULL) {
 		error = spa_prop_get(spa, outnvl);
 		if (error == 0 && props != NULL)
 			error = spa_prop_get_nvlist(spa, props, n_props,
 			    outnvl);
-		spa_close(spa, FTAG);
 	}
+	rw_exit(&spa_namespace_lite_lock);
 
 	return (error);
 }
@@ -5956,7 +5943,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	/*
 	 * On zpool clear we also fix up missing slogs
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa = spa_lookup(zc->zc_name);
 	if (spa == NULL) {
 		mutex_exit(&spa_namespace_lock);

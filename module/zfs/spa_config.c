@@ -134,7 +134,7 @@ spa_config_load(void)
 	 * Iterate over all elements in the nvlist, creating a new spa_t for
 	 * each one with the specified configuration.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	nvpair = NULL;
 	while ((nvpair = nvlist_next_nvpair(nvlist, nvpair)) != NULL) {
 		if (nvpair_type(nvpair) != DATA_TYPE_NVLIST)
@@ -375,12 +375,9 @@ spa_all_configs(uint64_t *generation, nvlist_t **pools)
 	if (*generation == spa_config_generation)
 		return (SET_ERROR(EEXIST));
 
-	int error = mutex_enter_interruptible(&spa_namespace_lock);
-	if (error)
-		return (SET_ERROR(EINTR));
-
+	rw_enter(&spa_namespace_lite_lock, RW_READER);
 	*pools = fnvlist_alloc();
-	while ((spa = spa_next(spa)) != NULL) {
+	while ((spa = spa_next_lite(spa)) != NULL) {
 		if (INGLOBALZONE(curproc) ||
 		    zone_dataset_visible(spa_name(spa), NULL)) {
 			mutex_enter(&spa->spa_props_lock);
@@ -390,7 +387,7 @@ spa_all_configs(uint64_t *generation, nvlist_t **pools)
 		}
 	}
 	*generation = spa_config_generation;
-	mutex_exit(&spa_namespace_lock);
+	rw_exit(&spa_namespace_lite_lock);
 
 	return (0);
 }

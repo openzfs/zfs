@@ -484,6 +484,7 @@ struct spa {
 extern char *spa_config_path;
 extern const char *zfs_deadman_failmode;
 extern uint_t spa_slop_shift;
+extern uint_t spa_namespace_delay_ms;
 extern void spa_taskq_dispatch(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, zio_t *zio, boolean_t cutinline);
 extern void spa_load_spares(spa_t *spa);

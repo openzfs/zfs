@@ -907,7 +907,7 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 			if (zio_pool_handler_exists(name, record->zi_cmd))
 				return (SET_ERROR(EEXIST));
 
-			mutex_enter(&spa_namespace_lock);
+			mutex_enter_ns(&spa_namespace_lock);
 			boolean_t has_spa = spa_lookup(name) != NULL;
 			mutex_exit(&spa_namespace_lock);
 
@@ -994,7 +994,7 @@ zio_inject_list_next(int *id, char *name, size_t buflen,
 	inject_handler_t *handler;
 	int ret;
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	rw_enter(&inject_lock, RW_READER);
 
 	for (handler = list_head(&inject_handlers); handler != NULL;

@@ -769,6 +769,8 @@ void ksiddomain_rele(ksiddomain_t *);
 		(void) nanosleep(&ts, NULL);				\
 	} while (0)
 
+#define	zfs_msleep(ms) zfs_sleep_until(gethrtime() + (MSEC2NSEC(ms)))
+
 typedef int fstrans_cookie_t;
 
 extern fstrans_cookie_t spl_fstrans_mark(void);

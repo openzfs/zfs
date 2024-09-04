@@ -238,6 +238,30 @@
 
 avl_tree_t spa_namespace_avl;
 kmutex_t spa_namespace_lock;
+
+/*
+ * The spa_namespace_lock was originally meant to protect the spa_namespace_avl
+ * AVL tree.  The spa_namespace_avl tree held the mappings from pool names to
+ * spa_t's.  So if you wanted to lookup the spa_t for the "tank" pool, you would
+ * do an AVL search for "tank" while holding spa_namespace_lock.
+ *
+ * Over time though the spa_namespace_lock was re-purposed to protect other
+ * critical codepaths in the spa subsystem as well.  In many cases we don't know
+ * what the original authors meant to protect with it, or if they needed it for
+ * read-only or read-write protection.  It is simply "too big and risky to fix
+ * properly".
+ *
+ * The workaround is to add a new lightweight version of the spa_namespace_lock
+ * called spa_namespace_lite_lock.  spa_namespace_lite_lock only protects the
+ * AVL tree, and nothing else.  It can be used for read-only access to the AVL
+ * tree without requiring the spa_namespace_lock.  Calls to spa_lookup_lite()
+ * and spa_next_lite() only need to acquire a reader lock on
+ * spa_namespace_lite_lock; they do not need to also acquire the old
+ * spa_namespace_lock.  This allows us to still run zpool status even if the zfs
+ * module has spa_namespace_lock held. Note that these AVL tree locks only
+ * protect the tree, not the actual spa_t contents.
+ */
+krwlock_t spa_namespace_lite_lock;
 kcondvar_t spa_namespace_cv;
 static const int spa_max_replication_override = SPA_DVAS_PER_BP;
 
@@ -401,6 +425,12 @@ static int spa_cpus_per_allocator = 4;
  * Valid values are zfs_active_allocator=<dynamic|cursor|new-dynamic>.
  */
 const char *zfs_active_allocator = "dynamic";
+
+/*
+ * Add a delay of 'spa_namespace_delay_ms' milliseconds after taking the
+ * spa_namespace lock.  This is only used for ZTS testing.
+ */
+uint_t spa_namespace_delay_ms = 0;
 
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
@@ -607,6 +637,30 @@ spa_config_held(spa_t *spa, int locks, krw_t rw)
  * ==========================================================================
  */
 
+spa_t *
+spa_lookup_lite(const char *name)
+{
+	static spa_t search;	/* spa_t is large; don't allocate on stack */
+	spa_t *spa;
+	avl_index_t where;
+	char *cp;
+
+	ASSERT(RW_LOCK_HELD(&spa_namespace_lite_lock));
+
+	(void) strlcpy(search.spa_name, name, sizeof (search.spa_name));
+
+	/*
+	 * If it's a full dataset name, figure out the pool name and
+	 * just use that.
+	 */
+	cp = strpbrk(search.spa_name, "/@#");
+	if (cp != NULL)
+		*cp = '\0';
+
+	spa = avl_find(&spa_namespace_avl, &search, &where);
+	return (spa);
+}
+
 /*
  * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held.
  * Returns NULL if no matching spa_t is found.
@@ -632,7 +686,9 @@ retry:
 	if (cp != NULL)
 		*cp = '\0';
 
+	rw_enter(&spa_namespace_lite_lock, RW_READER);
 	spa = avl_find(&spa_namespace_avl, &search, &where);
+	rw_exit(&spa_namespace_lite_lock);
 	if (spa == NULL)
 		return (NULL);
 
@@ -746,7 +802,9 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa_stats_init(spa);
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	rw_enter(&spa_namespace_lite_lock, RW_WRITER);
 	avl_add(&spa_namespace_avl, spa);
+	rw_exit(&spa_namespace_lite_lock);
 
 	/*
 	 * Set the alternate root, if there is one.
@@ -850,7 +908,9 @@ spa_remove(spa_t *spa)
 
 	nvlist_free(spa->spa_config_splitting);
 
+	rw_enter(&spa_namespace_lite_lock, RW_WRITER);
 	avl_remove(&spa_namespace_avl, spa);
+	rw_exit(&spa_namespace_lite_lock);
 
 	if (spa->spa_root)
 		spa_strfree(spa->spa_root);
@@ -929,6 +989,20 @@ spa_next(spa_t *prev)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+	if (prev)
+		return (AVL_NEXT(&spa_namespace_avl, prev));
+	else
+		return (avl_first(&spa_namespace_avl));
+}
+
+/*
+ * Given a pool, return the next pool in the namespace, or NULL if there is
+ * none.  If 'prev' is NULL, return the first pool.
+ */
+spa_t *
+spa_next_lite(spa_t *prev)
+{
+	ASSERT(RW_LOCK_HELD(&spa_namespace_lite_lock));
 	if (prev)
 		return (AVL_NEXT(&spa_namespace_avl, prev));
 	else
@@ -1238,7 +1312,7 @@ uint64_t
 spa_vdev_enter(spa_t *spa)
 {
 	mutex_enter(&spa->spa_vdev_top_lock);
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 
 	ASSERT0(spa->spa_export_thread);
 
@@ -1257,7 +1331,7 @@ uint64_t
 spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
 {
 	mutex_enter(&spa->spa_vdev_top_lock);
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 
 	ASSERT0(spa->spa_export_thread);
 
@@ -1462,7 +1536,7 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 	 * If the config changed, update the config cache.
 	 */
 	if (config_changed) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_write_cachefile(spa, B_FALSE, B_TRUE, B_FALSE);
 		mutex_exit(&spa_namespace_lock);
 	}
@@ -2164,7 +2238,7 @@ spa_set_deadman_ziotime(hrtime_t ns)
 	spa_t *spa = NULL;
 
 	if (spa_mode_global != SPA_MODE_UNINIT) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa->spa_deadman_ziotime = ns;
 		mutex_exit(&spa_namespace_lock);
@@ -2177,7 +2251,7 @@ spa_set_deadman_synctime(hrtime_t ns)
 	spa_t *spa = NULL;
 
 	if (spa_mode_global != SPA_MODE_UNINIT) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa->spa_deadman_synctime = ns;
 		mutex_exit(&spa_namespace_lock);
@@ -2536,6 +2610,7 @@ spa_init(spa_mode_t mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&spa_spare_lock, NULL, MUTEX_DEFAULT, NULL);
+	rw_init(&spa_namespace_lite_lock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&spa_l2cache_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&spa_namespace_cv, NULL, CV_DEFAULT, NULL);
 
@@ -2999,7 +3074,7 @@ param_set_deadman_failmode_common(const char *val)
 		return (SET_ERROR(EINVAL));
 
 	if (spa_mode_global != SPA_MODE_UNINIT) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		while ((spa = spa_next(spa)) != NULL)
 			spa_set_deadman_failmode(spa, val);
 		mutex_exit(&spa_namespace_lock);
@@ -3011,9 +3086,11 @@ param_set_deadman_failmode_common(const char *val)
 
 /* Namespace manipulation */
 EXPORT_SYMBOL(spa_lookup);
+EXPORT_SYMBOL(spa_lookup_lite);
 EXPORT_SYMBOL(spa_add);
 EXPORT_SYMBOL(spa_remove);
 EXPORT_SYMBOL(spa_next);
+EXPORT_SYMBOL(spa_next_lite);
 
 /* Refcount functions */
 EXPORT_SYMBOL(spa_open_ref);
@@ -3119,6 +3196,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
 	"Place user data indirect blocks into the special class");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, namespace_delay_ms, UINT, ZMOD_RW,
+	"millisecond sleep after taking spa_namespace_lock (for testing only)");
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, failmode,

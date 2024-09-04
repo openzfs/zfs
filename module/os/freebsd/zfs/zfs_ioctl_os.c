@@ -107,7 +107,7 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	    "command", &command) != 0)
 		return (EINVAL);
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa = spa_by_guid(pool_guid, vdev_guid);
 	if (spa != NULL)
 		strcpy(name, spa_name(spa));

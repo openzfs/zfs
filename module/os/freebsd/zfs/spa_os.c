@@ -192,7 +192,7 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	 */
 	config = spa_generate_rootconf(name);
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if (config != NULL) {
 		pname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
 		VERIFY0(strcmp(name, pname));

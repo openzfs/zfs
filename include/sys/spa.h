@@ -842,6 +842,22 @@ extern kmutex_t spa_namespace_lock;
 extern avl_tree_t spa_namespace_avl;
 extern kcondvar_t spa_namespace_cv;
 
+extern krwlock_t spa_namespace_lite_lock;
+
+extern uint_t spa_namespace_delay_ms;
+/*
+ * Special version of mutex_enter() used for testing the spa_namespace_lock.
+ * It inserts an artificial delay after acquiring the lock to simulate a failure
+ * while holding the lock.  The delay is controlled by the
+ * spa_namespace_lock_delay module param and is only to be used by ZTS.
+ */
+#define	mutex_enter_ns(lock) do { \
+	ASSERT(lock == &spa_namespace_lock); \
+	mutex_enter(lock); \
+	if (unlikely(spa_namespace_delay_ms != 0)) \
+		zfs_msleep(spa_namespace_delay_ms); \
+	} while (0);
+
 /*
  * SPA configuration functions in spa_config.c
  */
@@ -866,9 +882,11 @@ extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
 
 /* Namespace manipulation */
 extern spa_t *spa_lookup(const char *name);
+extern spa_t *spa_lookup_lite(const char *name);
 extern spa_t *spa_add(const char *name, nvlist_t *config, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
+extern spa_t *spa_next_lite(spa_t *prev);
 
 /* Refcount functions */
 extern void spa_open_ref(spa_t *spa, const void *tag);

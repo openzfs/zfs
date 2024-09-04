@@ -1038,7 +1038,7 @@ spa_change_guid(spa_t *spa, const uint64_t *guidp)
 	int error;
 
 	mutex_enter(&spa->spa_vdev_top_lock);
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 
 	if (guidp != NULL) {
 		guid = *guidp;
@@ -5635,7 +5635,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 
 	spa_load_note(spa, "LOADED");
 fail:
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa->spa_load_thread = NULL;
 	cv_broadcast(&spa_namespace_cv);
 
@@ -5800,7 +5800,7 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 	 * avoid dsl_dir_open() calling this in the first place.
 	 */
 	if (MUTEX_NOT_HELD(&spa_namespace_lock)) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		locked = B_TRUE;
 	}
 
@@ -5898,6 +5898,46 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 	return (0);
 }
 
+/*
+ * This is a lightweight version of spa_open_common() used only for getting
+ * stats. It does not use the spa_namespace_lock.
+ *
+ * Returns:
+ *
+ * 0		Success
+ * ENOENT	No pool with that name
+ * EAGAIN	Try doing a spa_open_common() instead
+ *
+ * On failure, *spapp will be set to NULL;
+ */
+static int
+spa_read_config_lite(const char *pool, spa_t **spapp, nvlist_t **config)
+{
+	spa_t *spa;
+	ASSERT(RW_LOCK_HELD(&spa_namespace_lite_lock));
+
+	if ((spa = spa_lookup_lite(pool)) == NULL) {
+		*spapp = NULL;
+		return (SET_ERROR(ENOENT));
+	}
+
+	/*
+	 * Special case: If the pool isn't initialized yet, then tell the caller
+	 * to call spa_open_common() instead.  That will do the full,
+	 * heavyweight load of spa_t.
+	 */
+	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
+		*spapp = NULL;
+		return (EAGAIN);
+	}
+
+	if (config != NULL)
+		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+
+	*spapp = spa;
+	return (0);
+}
+
 int
 spa_open_rewind(const char *name, spa_t **spapp, const void *tag,
     nvlist_t *policy, nvlist_t **config)
@@ -5920,7 +5960,7 @@ spa_inject_addref(char *name)
 {
 	spa_t *spa;
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if ((spa = spa_lookup(name)) == NULL) {
 		mutex_exit(&spa_namespace_lock);
 		return (NULL);
@@ -5934,7 +5974,7 @@ spa_inject_addref(char *name)
 void
 spa_inject_delref(spa_t *spa)
 {
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa->spa_inject_ref--;
 	mutex_exit(&spa_namespace_lock);
 }
@@ -6134,9 +6174,26 @@ spa_get_stats(const char *name, nvlist_t **config,
 {
 	int error;
 	spa_t *spa;
+	boolean_t is_lite = B_TRUE;
 
 	*config = NULL;
-	error = spa_open_common(name, &spa, FTAG, NULL, config);
+
+	rw_enter(&spa_namespace_lite_lock, RW_READER);
+	/*
+	 * First, try a lightweight "read the config".  This will avoid the
+	 * spa_namespace_lock and will work if the pool is already imported.
+	 */
+	error = spa_read_config_lite(name, &spa, config);
+
+	/*
+	 * The pool is in a state where it needs the full, heavyweight,
+	 * spa_open_common().
+	 */
+	if (error == EAGAIN) {
+		rw_exit(&spa_namespace_lite_lock);
+		error = spa_open_common(name, &spa, FTAG, NULL, config);
+		is_lite = B_FALSE;
+	}
 
 	if (spa != NULL) {
 		/*
@@ -6179,14 +6236,21 @@ spa_get_stats(const char *name, nvlist_t **config,
 	 */
 	if (altroot) {
 		if (spa == NULL) {
-			mutex_enter(&spa_namespace_lock);
-			spa = spa_lookup(name);
+			if (!is_lite) {
+				mutex_enter(&spa_namespace_lock);
+				spa = spa_lookup(name);
+			} else {
+				spa = spa_lookup_lite(name);
+			}
+
 			if (spa)
 				spa_altroot(spa, altroot, buflen);
 			else
 				altroot[0] = '\0';
 			spa = NULL;
-			mutex_exit(&spa_namespace_lock);
+
+			if (!is_lite)
+				mutex_exit(&spa_namespace_lock);
 		} else {
 			spa_altroot(spa, altroot, buflen);
 		}
@@ -6194,9 +6258,12 @@ spa_get_stats(const char *name, nvlist_t **config,
 
 	if (spa != NULL) {
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_close(spa, FTAG);
+		if (!is_lite)
+			spa_close(spa, FTAG);
 	}
 
+	if (is_lite)
+		rw_exit(&spa_namespace_lite_lock);
 	return (error);
 }
 
@@ -6406,7 +6473,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	/*
 	 * If this pool already exists, return failure.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if (spa_lookup(poolname) != NULL) {
 		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EEXIST));
@@ -6710,7 +6777,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	/*
 	 * If a pool with this name exists, return failure.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if (spa_lookup(pool) != NULL) {
 		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(EEXIST));
@@ -6898,7 +6965,7 @@ spa_tryimport(nvlist_t *tryconfig)
 	(void) snprintf(name, MAXPATHLEN, "%s-%llx-%s",
 	    TRYIMPORT_NAME, (u_longlong_t)(uintptr_t)curthread, poolname);
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa = spa_add(name, tryconfig, NULL);
 	spa_activate(spa, SPA_MODE_READ);
 	kmem_free(name, MAXPATHLEN);
@@ -7024,7 +7091,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	if (!(spa_mode_global & SPA_MODE_WRITE))
 		return (SET_ERROR(EROFS));
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if ((spa = spa_lookup(pool)) == NULL) {
 		mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(ENOENT));
@@ -7048,7 +7115,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		zvol_remove_minors(spa, spa_name(spa), B_TRUE);
 		taskq_wait(spa->spa_zvol_taskq);
 	}
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa->spa_export_thread = curthread;
 	spa_close(spa, FTAG);
 
@@ -7096,7 +7163,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
 			error = SET_ERROR(EXDEV);
-			mutex_enter(&spa_namespace_lock);
+			mutex_enter_ns(&spa_namespace_lock);
 			goto fail;
 		}
 
@@ -7167,7 +7234,7 @@ export_spa:
 	/*
 	 * Take the namespace lock for the actual spa_t removal
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	if (new_state != POOL_STATE_UNINITIALIZED) {
 		if (!hardforce)
 			spa_write_cachefile(spa, B_TRUE, B_TRUE, B_FALSE);
@@ -7201,6 +7268,7 @@ fail:
 	mutex_exit(&spa_namespace_lock);
 	return (error);
 }
+
 
 /*
  * Destroy a storage pool.
@@ -7408,7 +7476,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 	 */
 	(void) spa_vdev_exit(spa, vd, txg, 0);
 
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
 	mutex_exit(&spa_namespace_lock);
@@ -8034,7 +8102,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	if (unspare) {
 		spa_t *altspa = NULL;
 
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		while ((altspa = spa_next(altspa)) != NULL) {
 			if (altspa->spa_state != POOL_STATE_ACTIVE ||
 			    altspa == spa)
@@ -8043,7 +8111,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 			spa_open_ref(altspa, FTAG);
 			mutex_exit(&spa_namespace_lock);
 			(void) spa_vdev_remove(altspa, unspare_guid, B_TRUE);
-			mutex_enter(&spa_namespace_lock);
+			mutex_enter_ns(&spa_namespace_lock);
 			spa_close(altspa, FTAG);
 		}
 		mutex_exit(&spa_namespace_lock);
@@ -8053,7 +8121,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	}
 
 	/* all done with the spa; OK to release */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	spa_close(spa, FTAG);
 	mutex_exit(&spa_namespace_lock);
 
@@ -8148,7 +8216,7 @@ spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
 	 * we can properly assess the vdev state before we commit to
 	 * the initializing operation.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 
 	for (nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(nv, pair)) {
@@ -8269,7 +8337,7 @@ spa_vdev_trim(spa_t *spa, nvlist_t *nv, uint64_t cmd_type, uint64_t rate,
 	 * we can properly assess the vdev state before we commit to
 	 * the TRIM operation.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 
 	for (nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(nv, pair)) {
@@ -8974,7 +9042,7 @@ spa_async_thread(void *arg)
 	if (tasks & SPA_ASYNC_CONFIG_UPDATE) {
 		uint64_t old_space, new_space;
 
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		old_space = metaslab_class_get_space(spa_normal_class(spa));
 		old_space += metaslab_class_get_space(spa_special_class(spa));
 		old_space += metaslab_class_get_space(spa_dedup_class(spa));
@@ -9049,7 +9117,7 @@ spa_async_thread(void *arg)
 		dsl_scan_restart_resilver(dp, 0);
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_initialize_restart(spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -9057,7 +9125,7 @@ spa_async_thread(void *arg)
 	}
 
 	if (tasks & SPA_ASYNC_TRIM_RESTART) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_trim_restart(spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -9065,7 +9133,7 @@ spa_async_thread(void *arg)
 	}
 
 	if (tasks & SPA_ASYNC_AUTOTRIM_RESTART) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_autotrim_restart(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -9076,7 +9144,7 @@ spa_async_thread(void *arg)
 	 * Kick off L2 cache whole device TRIM.
 	 */
 	if (tasks & SPA_ASYNC_L2CACHE_TRIM) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_trim_l2arc(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -9087,7 +9155,7 @@ spa_async_thread(void *arg)
 	 * Kick off L2 cache rebuilding.
 	 */
 	if (tasks & SPA_ASYNC_L2CACHE_REBUILD) {
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_L2ARC, FTAG, RW_READER);
 		l2arc_spa_rebuild_start(spa);
 		spa_config_exit(spa, SCL_L2ARC, FTAG);
@@ -10292,7 +10360,7 @@ void
 spa_sync_allpools(void)
 {
 	spa_t *spa = NULL;
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	while ((spa = spa_next(spa)) != NULL) {
 		if (spa_state(spa) != POOL_STATE_ACTIVE ||
 		    !spa_writeable(spa) || spa_suspended(spa))
@@ -10300,7 +10368,7 @@ spa_sync_allpools(void)
 		spa_open_ref(spa, FTAG);
 		mutex_exit(&spa_namespace_lock);
 		txg_wait_synced(spa_get_dsl(spa), 0);
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_close(spa, FTAG);
 	}
 	mutex_exit(&spa_namespace_lock);
@@ -10450,7 +10518,7 @@ spa_evict_all(void)
 	 * Remove all cached state.  All pools should be closed now,
 	 * so every spa in the AVL tree should be unreferenced.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	while ((spa = spa_next(NULL)) != NULL) {
 		/*
 		 * Stop async tasks.  The async thread may need to detach
@@ -10460,7 +10528,7 @@ spa_evict_all(void)
 		spa_open_ref(spa, FTAG);
 		mutex_exit(&spa_namespace_lock);
 		spa_async_suspend(spa);
-		mutex_enter(&spa_namespace_lock);
+		mutex_enter_ns(&spa_namespace_lock);
 		spa_close(spa, FTAG);
 
 		if (spa->spa_state != POOL_STATE_UNINITIALIZED) {

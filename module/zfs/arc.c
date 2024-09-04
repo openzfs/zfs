@@ -8205,7 +8205,7 @@ l2arc_dev_get_next(void)
 	 * of cache devices (l2arc_dev_mtx).  Once a device has been selected,
 	 * both locks will be dropped and a spa config lock held instead.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	mutex_enter_ns(&spa_namespace_lock);
 	mutex_enter(&l2arc_dev_mtx);
 
 	/* if there are no vdevs, there is nothing to do */

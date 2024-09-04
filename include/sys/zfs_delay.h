@@ -37,5 +37,6 @@
 			usleep_range(delta_us, delta_us + 100);		\
 		}							\
 	} while (0)
+#define	zfs_msleep(ms) zfs_sleep_until(gethrtime() + (MSEC2NSEC(ms)))
 
 #endif	/* _SYS_FS_ZFS_DELAY_H */

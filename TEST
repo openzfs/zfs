@@ -35,7 +35,7 @@
 #TEST_ZFSTESTS_ITERS="1"
 #TEST_ZFSTESTS_OPTIONS="-vx"
 #TEST_ZFSTESTS_RUNFILE="linux.run"
-#TEST_ZFSTESTS_TAGS="functional"
+TEST_ZFSTESTS_TAGS="zpool_import,zpool_export,zpool_status,zpool_add"
 
 ### zfsstress
 #TEST_ZFSSTRESS_SKIP="yes"
