@@ -6211,13 +6211,14 @@ void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
-	nvlist_t *props = NULL;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
 	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
 
-	VERIFY0(spa_prop_get(ztest_spa, &props));
+	nvlist_t *props = fnvlist_alloc();
+
+	VERIFY0(spa_prop_get(ztest_spa, props));
 
 	if (ztest_opts.zo_verbose >= 6)
 		dump_nvlist(props, 4);

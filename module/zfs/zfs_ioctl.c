@@ -3050,7 +3050,6 @@ static const zfs_ioc_key_t zfs_keys_get_props[] = {
 static int
 zfs_ioc_pool_get_props(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	nvlist_t *nvp = outnvl;
 	spa_t *spa;
 	char **props = NULL;
 	unsigned int n_props = 0;
@@ -3069,16 +3068,17 @@ zfs_ioc_pool_get_props(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 		 */
 		mutex_enter(&spa_namespace_lock);
 		if ((spa = spa_lookup(pool)) != NULL) {
-			error = spa_prop_get(spa, &nvp);
+			error = spa_prop_get(spa, outnvl);
 			if (error == 0 && props != NULL)
 				error = spa_prop_get_nvlist(spa, props, n_props,
-				    &nvp);
+				    outnvl);
 		}
 		mutex_exit(&spa_namespace_lock);
 	} else {
-		error = spa_prop_get(spa, &nvp);
+		error = spa_prop_get(spa, outnvl);
 		if (error == 0 && props != NULL)
-			error = spa_prop_get_nvlist(spa, props, n_props, &nvp);
+			error = spa_prop_get_nvlist(spa, props, n_props,
+			    outnvl);
 		spa_close(spa, FTAG);
 	}
 
