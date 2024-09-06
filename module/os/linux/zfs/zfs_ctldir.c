@@ -1101,8 +1101,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
 	char *full_name, *full_path;
-	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", NULL, NULL,
-	    NULL };
+	char *argv[] = { "/usr/bin/env", "mount", "-i", "-t", "zfs", "-n",
+	    NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 	struct path spath;
@@ -1153,8 +1153,8 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
 	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[5] = full_name;
-	argv[6] = full_path;
+	argv[6] = full_name;
+	argv[7] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
