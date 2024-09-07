@@ -154,6 +154,9 @@
     <elf-symbol name='avl_update_lt' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='avl_walk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='bookmark_namecheck' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='cityhash1' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='cityhash2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='cityhash3' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='cityhash4' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='color_end' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='color_start' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -9241,6 +9244,21 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/cityhash.c' language='LANG_C99'>
+    <function-decl name='cityhash1' mangled-name='cityhash1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='cityhash1'>
+      <parameter type-id='9c313c2d' name='w'/>
+      <return type-id='9c313c2d'/>
+    </function-decl>
+    <function-decl name='cityhash2' mangled-name='cityhash2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='cityhash2'>
+      <parameter type-id='9c313c2d' name='w1'/>
+      <parameter type-id='9c313c2d' name='w2'/>
+      <return type-id='9c313c2d'/>
+    </function-decl>
+    <function-decl name='cityhash3' mangled-name='cityhash3' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='cityhash3'>
+      <parameter type-id='9c313c2d' name='w1'/>
+      <parameter type-id='9c313c2d' name='w2'/>
+      <parameter type-id='9c313c2d' name='w3'/>
+      <return type-id='9c313c2d'/>
+    </function-decl>
     <function-decl name='cityhash4' mangled-name='cityhash4' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='cityhash4'>
       <parameter type-id='9c313c2d' name='w1'/>
       <parameter type-id='9c313c2d' name='w2'/>

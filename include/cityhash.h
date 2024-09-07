@@ -32,6 +32,13 @@
 extern "C" {
 #endif
 
+/*
+ * Define 1/2/3-argument specialized versions of cityhash4, which can reduce
+ * instruction count (especially multiplication) on some 32-bit arches.
+ */
+_SYS_CITYHASH_H uint64_t cityhash1(uint64_t);
+_SYS_CITYHASH_H uint64_t cityhash2(uint64_t, uint64_t);
+_SYS_CITYHASH_H uint64_t cityhash3(uint64_t, uint64_t, uint64_t);
 _SYS_CITYHASH_H uint64_t cityhash4(uint64_t, uint64_t, uint64_t, uint64_t);
 
 #ifdef	__cplusplus
