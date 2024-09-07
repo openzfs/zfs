@@ -551,8 +551,8 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		blk_mq_hw_queue =
 		    rq->q->queue_hw_ctx[rq->q->mq_map[rq->cpu]]->queue_num;
 #endif
-	taskq_hash = cityhash4((uintptr_t)zv, offset >> ZVOL_TASKQ_OFFSET_SHIFT,
-	    blk_mq_hw_queue, 0);
+	taskq_hash = cityhash3((uintptr_t)zv, offset >> ZVOL_TASKQ_OFFSET_SHIFT,
+	    blk_mq_hw_queue);
 	tq_idx = taskq_hash % ztqs->tqs_cnt;
 
 	if (rw == WRITE) {

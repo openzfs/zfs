@@ -405,13 +405,13 @@ dmu_objset_byteswap(void *buf, size_t size)
 }
 
 /*
- * Runs cityhash4 on the objset_t pointer and the object number.
+ * Runs cityhash on the objset_t pointer and the object number.
  */
 static uint64_t
 dnode_hash(const objset_t *os, uint64_t obj)
 {
 	uintptr_t osv = (uintptr_t)os;
-	return (cityhash4((uint64_t)osv, obj, 0, 0));
+	return (cityhash2((uint64_t)osv, obj));
 }
 
 static unsigned int

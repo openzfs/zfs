@@ -4182,8 +4182,8 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	 * some parallelism.
 	 */
 	int flags = METASLAB_ZIL;
-	int allocator = (uint_t)cityhash4(0, 0, 0,
-	    os->os_dsl_dataset->ds_object) % spa->spa_alloc_count;
+	int allocator = (uint_t)cityhash1(os->os_dsl_dataset->ds_object)
+	    % spa->spa_alloc_count;
 	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
 	    txg, NULL, flags, &io_alloc_list, NULL, allocator);
 	*slog = (error == 0);
