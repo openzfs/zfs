@@ -49,8 +49,8 @@ cityhash_helper(uint64_t u, uint64_t v, uint64_t mul)
 	return (b);
 }
 
-uint64_t
-cityhash4(uint64_t w1, uint64_t w2, uint64_t w3, uint64_t w4)
+static inline uint64_t
+cityhash_impl(uint64_t w1, uint64_t w2, uint64_t w3, uint64_t w4)
 {
 	uint64_t mul = HASH_K2 + 64;
 	uint64_t a = w1 * HASH_K1;
@@ -59,9 +59,38 @@ cityhash4(uint64_t w1, uint64_t w2, uint64_t w3, uint64_t w4)
 	uint64_t d = w3 * HASH_K2;
 	return (cityhash_helper(rotate(a + b, 43) + rotate(c, 30) + d,
 	    a + rotate(b + HASH_K2, 18) + c, mul));
+}
 
+/*
+ * Passing w as the 2nd argument could save one 64-bit multiplication.
+ */
+uint64_t
+cityhash1(uint64_t w)
+{
+	return (cityhash_impl(0, w, 0, 0));
+}
+
+uint64_t
+cityhash2(uint64_t w1, uint64_t w2)
+{
+	return (cityhash_impl(w1, w2, 0, 0));
+}
+
+uint64_t
+cityhash3(uint64_t w1, uint64_t w2, uint64_t w3)
+{
+	return (cityhash_impl(w1, w2, w3, 0));
+}
+
+uint64_t
+cityhash4(uint64_t w1, uint64_t w2, uint64_t w3, uint64_t w4)
+{
+	return (cityhash_impl(w1, w2, w3, w4));
 }
 
 #if defined(_KERNEL)
+EXPORT_SYMBOL(cityhash1);
+EXPORT_SYMBOL(cityhash2);
+EXPORT_SYMBOL(cityhash3);
 EXPORT_SYMBOL(cityhash4);
 #endif
