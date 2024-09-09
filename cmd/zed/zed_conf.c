@@ -183,7 +183,7 @@ _zed_conf_display_license(void)
 static void
 _zed_conf_display_version(void)
 {
-	printf("%s-%s-%s\n",
+	printf("%s-%s-%s-skip-faults\n",
 	    ZFS_META_NAME, ZFS_META_VERSION, ZFS_META_RELEASE);
 
 	exit(EXIT_SUCCESS);
