@@ -2609,7 +2609,7 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 	};
 	ddt_lightweight_entry_t ddlwe = {0};
 	int error;
-	int total = 0, valid = 0;
+	int valid = 0;
 	int candidates = 0;
 	uint64_t now = gethrestime_sec();
 	ddt_prune_info_t dpi;
@@ -2633,7 +2633,6 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 
 		if (spa_shutting_down(spa) || issig())
 			break;
-		total++;
 
 		ASSERT(ddt->ddt_flags & DDT_FLAG_FLAT);
 		ASSERT3U(ddlwe.ddlwe_phys.ddp_flat.ddp_refcnt, <=, 1);
