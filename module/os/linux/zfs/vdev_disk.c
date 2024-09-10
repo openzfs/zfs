@@ -1232,9 +1232,6 @@ BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
 	zio->io_error = -error;
 #endif
 
-	if (zio->io_error && (zio->io_error == EOPNOTSUPP))
-		zio->io_vd->vdev_nowritecache = B_TRUE;
-
 	bio_put(bio);
 	ASSERT3S(zio->io_error, >=, 0);
 	if (zio->io_error)
