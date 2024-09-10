@@ -183,8 +183,8 @@
     <elf-symbol name='fsleep' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='get_dataset_depth' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='get_system_hostid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='getexecname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='get_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='getexecname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getextmntent' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getmntany' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getprop_uint64' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -454,6 +454,13 @@
     <elf-symbol name='zfs_userns' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_userspace' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_valid_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag_bits' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag_pairs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_priority' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage_bits' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage_pairs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_kernel' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_nvlist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_print' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -466,7 +473,9 @@
     <elf-symbol name='zpool_clear' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_clear_label' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_close' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_collect_unsup_feat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_ddt_prune' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_default_search_paths' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_disable_datasets' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -485,8 +494,8 @@
     <elf-symbol name='zpool_export_force' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_feature_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_config' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zpool_find_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_parent_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_find_vdev' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_find_vdev_by_physpath' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_free_handles' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_get_all_vdev_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -529,7 +538,6 @@
     <elf-symbol name='zpool_prefetch' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prepare_and_label_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prepare_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zpool_collect_unsup_feat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prop_align_right' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prop_column_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_prop_default_numeric' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -5929,6 +5937,7 @@
       <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
       <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
+      <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -5963,6 +5972,13 @@
       <enumerator name='ZPOOL_PREFETCH_DDT' value='1'/>
     </enum-decl>
     <typedef-decl name='zpool_prefetch_type_t' type-id='0299ab50' id='e55ff6bc'/>
+    <enum-decl name='zpool_ddt_prune_unit_t' naming-typedef-id='02e25ab0' id='509ae11c'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_NONE' value='0'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_AGE' value='1'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_PERCENTAGE' value='2'/>
+    </enum-decl>
+    <typedef-decl name='zpool_ddt_prune_unit_t' type-id='509ae11c' id='02e25ab0'/>
     <enum-decl name='spa_feature' id='33ecb627'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='SPA_FEATURE_NONE' value='-1'/>
@@ -6137,6 +6153,12 @@
       <parameter type-id='80f4b756'/>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='857bb57e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_ddt_prune' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='02e25ab0'/>
+      <parameter type-id='9c313c2d'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_resolve_shortname' mangled-name='zfs_resolve_shortname' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_resolve_shortname'>
@@ -6796,6 +6818,12 @@
       <parameter type-id='80f4b756' name='vdevname'/>
       <parameter type-id='80f4b756' name='propname'/>
       <parameter type-id='80f4b756' name='propval'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_ddt_prune' mangled-name='zpool_ddt_prune' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_ddt_prune'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='02e25ab0' name='unit'/>
+      <parameter type-id='9c313c2d' name='amount'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
@@ -7837,7 +7865,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='vdev_cbdata_t' type-id='b8006be8' id='a9679c94'/>
-    <class-decl name='zprop_get_cbdata' size-in-bits='832' is-struct='yes' visibility='default' id='f3d3c319'>
+    <class-decl name='zprop_get_cbdata' size-in-bits='960' is-struct='yes' visibility='default' id='f3d3c319'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='cb_sources' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -7856,6 +7884,9 @@
       <data-member access='public' layout-offset-in-bits='448'>
         <var-decl name='cb_first' type-id='c19b74c3' visibility='default'/>
       </data-member>
+      <data-member access='public' layout-offset-in-bits='480'>
+        <var-decl name='cb_json' type-id='c19b74c3' visibility='default'/>
+      </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
         <var-decl name='cb_proplist' type-id='3a9b2288' visibility='default'/>
       </data-member>
@@ -7864,6 +7895,15 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='640'>
         <var-decl name='cb_vdevs' type-id='a9679c94' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='832'>
+        <var-decl name='cb_jsobj' type-id='5ce45b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='896'>
+        <var-decl name='cb_json_as_int' type-id='c19b74c3' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='928'>
+        <var-decl name='cb_json_pool_key_guid' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='zprop_get_cbdata_t' type-id='f3d3c319' id='f3d87113'/>
@@ -7968,6 +8008,11 @@
     <qualified-type-def type-id='d33f11cb' restrict='yes' id='5c53ba29'/>
     <pointer-type-def type-id='ffa52b96' size-in-bits='64' id='76c8174b'/>
     <pointer-type-def type-id='f3d87113' size-in-bits='64' id='0d2a0670'/>
+    <function-decl name='nvlist_print_json' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='822cd80b'/>
+      <parameter type-id='5ce45b60'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='zpool_label_disk' mangled-name='zpool_label_disk' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_label_disk'>
       <parameter type-id='b0382bb3'/>
       <parameter type-id='4c81de99'/>
@@ -8075,6 +8120,11 @@
       <parameter type-id='d33f11cb'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='putc' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='822cd80b'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='puts' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <return type-id='95e97e5e'/>
@@ -8092,6 +8142,11 @@
     <function-decl name='exit' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='95e97e5e'/>
       <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='strspn' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='b59d7dce'/>
     </function-decl>
     <function-decl name='strnlen' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
@@ -8292,11 +8347,11 @@
     <function-decl name='zfs_version_print' mangled-name='zfs_version_print' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_print'>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='use_color' mangled-name='use_color' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='use_color'>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='zfs_version_nvlist' mangled-name='zfs_version_nvlist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_nvlist'>
       <return type-id='5ce45b60'/>
+    </function-decl>
+    <function-decl name='use_color' mangled-name='use_color' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='use_color'>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='printf_color' mangled-name='printf_color' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='printf_color'>
       <parameter type-id='80f4b756' name='color'/>
@@ -8801,11 +8856,6 @@
     <function-decl name='zpool_default_search_paths' mangled-name='zpool_default_search_paths' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_default_search_paths'>
       <parameter type-id='78c01427'/>
       <return type-id='13956559'/>
-    </function-decl>
-    <function-decl name='strspn' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='b59d7dce'/>
     </function-decl>
     <function-decl name='zfs_dirnamelen' mangled-name='zfs_dirnamelen' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_dirnamelen'>
       <parameter type-id='80f4b756' name='path'/>
@@ -9786,6 +9836,50 @@
     <function-decl name='zfs_prop_align_right' mangled-name='zfs_prop_align_right' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_align_right'>
       <parameter type-id='58603c44' name='prop'/>
       <return type-id='c19b74c3'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr address-size='64' path='module/zcommon/zfs_valstr.c' language='LANG_C99'>
+    <function-decl name='zfs_valstr_zio_flag' mangled-name='zfs_valstr_zio_flag' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_flag_bits' mangled-name='zfs_valstr_zio_flag_bits' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag_bits'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_flag_pairs' mangled-name='zfs_valstr_zio_flag_pairs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag_pairs'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage' mangled-name='zfs_valstr_zio_stage' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage_bits' mangled-name='zfs_valstr_zio_stage_bits' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage_bits'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage_pairs' mangled-name='zfs_valstr_zio_stage_pairs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage_pairs'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_priority' mangled-name='zfs_valstr_zio_priority' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_priority'>
+      <parameter type-id='95e97e5e' name='v'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zpool_prop.c' language='LANG_C99'>

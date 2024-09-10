@@ -276,6 +276,8 @@ extern unsigned long zio_decompress_fail_fraction;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 extern uint64_t raidz_expand_max_reflow_bytes;
 extern uint_t raidz_expand_pause_point;
+extern boolean_t ddt_prune_artificial_age;
+extern boolean_t ddt_dump_prune_histogram;
 
 
 static ztest_shared_opts_t *ztest_shared_opts;
@@ -446,6 +448,7 @@ ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
 ztest_func_t ztest_pool_prefetch_ddt;
+ztest_func_t ztest_ddt_prune;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -502,6 +505,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_pool_prefetch_ddt, 1, &zopt_rarely),
+	ZTI_INIT(ztest_ddt_prune, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -6211,13 +6215,14 @@ void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
-	nvlist_t *props = NULL;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
 	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
 
-	VERIFY0(spa_prop_get(ztest_spa, &props));
+	nvlist_t *props = fnvlist_alloc();
+
+	VERIFY0(spa_prop_get(ztest_spa, props));
 
 	if (ztest_opts.zo_verbose >= 6)
 		dump_nvlist(props, 4);
@@ -7288,6 +7293,17 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 	mutex_exit(&ztest_vdev_lock);
 }
 
+void
+ztest_ddt_prune(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+
+	spa_t *spa = ztest_spa;
+	uint64_t pct = ztest_random(15) + 1;
+
+	(void) ddt_prune_unique_entries(spa, ZPOOL_DDT_PRUNE_PERCENTAGE, pct);
+}
+
 /*
  * Verify pool integrity by running zdb.
  */
@@ -7468,6 +7484,13 @@ static __attribute__((noreturn)) void
 ztest_resume_thread(void *arg)
 {
 	spa_t *spa = arg;
+
+	/*
+	 * Synthesize aged DDT entries for ddt prune testing
+	 */
+	ddt_prune_artificial_age = B_TRUE;
+	if (ztest_opts.zo_verbose >= 3)
+		ddt_dump_prune_histogram = B_TRUE;
 
 	while (!ztest_exiting) {
 		if (spa_suspended(spa))
@@ -8585,6 +8608,12 @@ ztest_init(ztest_shared_t *zs)
 		 * feature and the ones that don't.
 		 */
 		if (i == SPA_FEATURE_LOG_SPACEMAP && ztest_random(4) == 0)
+			continue;
+
+		/*
+		 * split 50/50 between legacy and fast dedup
+		 */
+		if (i == SPA_FEATURE_FAST_DEDUP && ztest_random(2) != 0)
 			continue;
 
 		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",

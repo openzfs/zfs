@@ -75,6 +75,7 @@
 #include "zpool_util.h"
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
+#include "zfs_valstr.h"
 
 #include "statcommon.h"
 
@@ -130,6 +131,8 @@ static int zpool_do_version(int, char **);
 
 static int zpool_do_wait(int, char **);
 
+static int zpool_do_ddt_prune(int, char **);
+
 static int zpool_do_help(int argc, char **argv);
 
 static zpool_compat_status_t zpool_do_load_compat(
@@ -170,6 +173,7 @@ typedef enum {
 	HELP_CLEAR,
 	HELP_CREATE,
 	HELP_CHECKPOINT,
+	HELP_DDT_PRUNE,
 	HELP_DESTROY,
 	HELP_DETACH,
 	HELP_EXPORT,
@@ -426,6 +430,8 @@ static zpool_command_t command_table[] = {
 	{ "sync",	zpool_do_sync,		HELP_SYNC		},
 	{ NULL },
 	{ "wait",	zpool_do_wait,		HELP_WAIT		},
+	{ NULL },
+	{ "ddtprune",	zpool_do_ddt_prune,	HELP_DDT_PRUNE		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -545,6 +551,8 @@ get_usage(zpool_help_t idx)
 	case HELP_WAIT:
 		return (gettext("\twait [-Hp] [-T d|u] [-t <activity>[,...]] "
 		    "<pool> [interval]\n"));
+	case HELP_DDT_PRUNE:
+		return (gettext("\tddtprune -d|-p <amount> <pool>\n"));
 	default:
 		__builtin_unreachable();
 	}
@@ -11929,6 +11937,7 @@ static void
 zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 {
 	nvpair_t *nvp;
+	static char flagstr[256];
 
 	for (nvp = nvlist_next_nvpair(nvl, NULL);
 	    nvp != NULL; nvp = nvlist_next_nvpair(nvl, nvp)) {
@@ -11988,7 +11997,21 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 
 		case DATA_TYPE_UINT32:
 			(void) nvpair_value_uint32(nvp, &i32);
-			printf(gettext("0x%x"), i32);
+			if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_STAGE) == 0 ||
+			    strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE) == 0) {
+				zfs_valstr_zio_stage(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY) == 0) {
+				zfs_valstr_zio_priority(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else {
+				printf(gettext("0x%x"), i32);
+			}
 			break;
 
 		case DATA_TYPE_INT64:
@@ -12009,6 +12032,12 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 				printf(gettext("\"%s\" (0x%llx)"),
 				    zpool_state_to_name(i64, VDEV_AUX_NONE),
 				    (u_longlong_t)i64);
+			} else if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS) == 0) {
+				zfs_valstr_zio_flag(i64, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%llx [%s]"),
+				    (u_longlong_t)i64, flagstr);
 			} else {
 				printf(gettext("0x%llx"), (u_longlong_t)i64);
 			}
@@ -13339,6 +13368,88 @@ found:;
 
 	pthread_mutex_destroy(&wd.wd_mutex);
 	pthread_cond_destroy(&wd.wd_cv);
+	return (error);
+}
+
+/*
+ * zpool ddtprune -d|-p <amount> <pool>
+ *
+ *       -d <days>	Prune entries <days> old and older
+ *       -p <percent>	Prune <percent> amount of entries
+ *
+ * Prune single reference entries from DDT to satisfy the amount specified.
+ */
+int
+zpool_do_ddt_prune(int argc, char **argv)
+{
+	zpool_ddt_prune_unit_t unit = ZPOOL_DDT_PRUNE_NONE;
+	uint64_t amount = 0;
+	zpool_handle_t *zhp;
+	char *endptr;
+	int c;
+
+	while ((c = getopt(argc, argv, "d:p:")) != -1) {
+		switch (c) {
+		case 'd':
+			if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
+				(void) fprintf(stderr, gettext("-d cannot be "
+				    "combined with -p option\n"));
+				usage(B_FALSE);
+			}
+			errno = 0;
+			amount = strtoull(optarg, &endptr, 0);
+			if (errno != 0 || *endptr != '\0' || amount == 0) {
+				(void) fprintf(stderr,
+				    gettext("invalid days value\n"));
+				usage(B_FALSE);
+			}
+			amount *= 86400;	/* convert days to seconds */
+			unit = ZPOOL_DDT_PRUNE_AGE;
+			break;
+		case 'p':
+			if (unit == ZPOOL_DDT_PRUNE_AGE) {
+				(void) fprintf(stderr, gettext("-p cannot be "
+				    "combined with -d option\n"));
+				usage(B_FALSE);
+			}
+			errno = 0;
+			amount = strtoull(optarg, &endptr, 0);
+			if (errno != 0 || *endptr != '\0' ||
+			    amount == 0 || amount > 100) {
+				(void) fprintf(stderr,
+				    gettext("invalid percentage value\n"));
+				usage(B_FALSE);
+			}
+			unit = ZPOOL_DDT_PRUNE_PERCENTAGE;
+			break;
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (unit == ZPOOL_DDT_PRUNE_NONE) {
+		(void) fprintf(stderr,
+		    gettext("missing amount option (-d|-p <value>)\n"));
+		usage(B_FALSE);
+	} else if (argc < 1) {
+		(void) fprintf(stderr, gettext("missing pool argument\n"));
+		usage(B_FALSE);
+	} else if (argc > 1) {
+		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+	zhp = zpool_open(g_zfs, argv[0]);
+	if (zhp == NULL)
+		return (-1);
+
+	int error = zpool_ddt_prune(zhp, unit, amount);
+
+	zpool_close(zhp);
+
 	return (error);
 }
 

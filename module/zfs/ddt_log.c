@@ -353,21 +353,35 @@ ddt_log_take_first(ddt_t *ddt, ddt_log_t *ddl, ddt_lightweight_entry_t *ddlwe)
 }
 
 boolean_t
-ddt_log_take_key(ddt_t *ddt, ddt_log_t *ddl, const ddt_key_t *ddk,
-    ddt_lightweight_entry_t *ddlwe)
+ddt_log_remove_key(ddt_t *ddt, ddt_log_t *ddl, const ddt_key_t *ddk)
 {
 	ddt_log_entry_t *ddle = avl_find(&ddl->ddl_tree, ddk, NULL);
 	if (ddle == NULL)
 		return (B_FALSE);
 
-	DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle, ddlwe);
-
-	ddt_histogram_sub_entry(ddt, &ddt->ddt_log_histogram, ddlwe);
+	ddt_lightweight_entry_t ddlwe;
+	DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle, &ddlwe);
+	ddt_histogram_sub_entry(ddt, &ddt->ddt_log_histogram, &ddlwe);
 
 	avl_remove(&ddl->ddl_tree, ddle);
 	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
 	    ddt_log_entry_flat_cache : ddt_log_entry_trad_cache, ddle);
 
+	return (B_TRUE);
+}
+
+boolean_t
+ddt_log_find_key(ddt_t *ddt, const ddt_key_t *ddk,
+    ddt_lightweight_entry_t *ddlwe)
+{
+	ddt_log_entry_t *ddle =
+	    avl_find(&ddt->ddt_log_active->ddl_tree, ddk, NULL);
+	if (!ddle)
+		ddle = avl_find(&ddt->ddt_log_flushing->ddl_tree, ddk, NULL);
+	if (!ddle)
+		return (B_FALSE);
+	if (ddlwe)
+		DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle, ddlwe);
 	return (B_TRUE);
 }
 

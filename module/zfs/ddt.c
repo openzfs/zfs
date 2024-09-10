@@ -125,6 +125,13 @@
  * without which, no space would be recovered and the DDT would continue to be
  * considered "over quota". See zap_shrink_enabled.
  *
+ * ## Dedup table pruning
+ *
+ * As a complement to the dedup quota feature, ddtprune allows removal of older
+ * non-duplicate entries to make room for newer duplicate entries. The amount
+ * to prune can be based on a target percentage of the unique entries or based
+ * on the age (i.e., prune unique entry older than N days).
+ *
  * ## Dedup log
  *
  * Historically, all entries modified on a txg were written back to dedup
@@ -228,6 +235,19 @@ int zfs_dedup_prefetch = 0;
  */
 uint_t dedup_class_wait_txgs = 5;
 
+/*
+ * How many DDT prune entries to add to the DDT sync AVL tree.
+ * Note these addtional entries have a memory footprint of a
+ * ddt_entry_t (216 bytes).
+ */
+static uint32_t zfs_ddt_prunes_per_txg = 50000;
+
+/*
+ * For testing, synthesize aged DDT entries
+ * (in global scope for ztest)
+ */
+boolean_t ddt_prune_artificial_age = B_FALSE;
+boolean_t ddt_dump_prune_histogram = B_FALSE;
 
 /*
  * Don't do more than this many incremental flush passes per txg.
@@ -268,10 +288,6 @@ static const uint64_t ddt_version_flags[] = {
 	[DDT_VERSION_FDT] = DDT_FLAG_FLAT | DDT_FLAG_LOG,
 };
 
-/* Dummy version to signal that configure is still necessary */
-#define	DDT_VERSION_UNCONFIGURED	(UINT64_MAX)
-
-#ifdef _KERNEL
 /* per-DDT kstats */
 typedef struct {
 	/* total lookups and whether they returned new or existing entries */
@@ -324,6 +340,7 @@ static const ddt_kstats_t ddt_kstats_template = {
 	{ "log_flush_time_rate",	KSTAT_DATA_UINT32 },
 };
 
+#ifdef _KERNEL
 #define	_DDT_KSTAT_STAT(ddt, stat) \
 	&((ddt_kstats_t *)(ddt)->ddt_ksp->ks_data)->stat.value.ui64
 #define	DDT_KSTAT_BUMP(ddt, stat) \
@@ -342,6 +359,7 @@ static const ddt_kstats_t ddt_kstats_template = {
 #define	DDT_KSTAT_SET(ddt, stat, val) do {} while (0)
 #define	DDT_KSTAT_ZERO(ddt, stat) do {} while (0)
 #endif /* _KERNEL */
+
 
 static void
 ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
@@ -715,6 +733,30 @@ ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 		memset(&ddp->ddp_trad[v], 0, DDT_TRAD_PHYS_SIZE / DDT_PHYS_MAX);
 }
 
+static uint64_t
+ddt_class_start(void)
+{
+	uint64_t start = gethrestime_sec();
+
+	if (ddt_prune_artificial_age) {
+		/*
+		 * debug aide -- simulate a wider distribution
+		 * so we don't have to wait for an aged DDT
+		 * to test prune.
+		 */
+		int range = 1 << 21;
+		int percent = random_in_range(100);
+		if (percent < 50) {
+			range = range >> 4;
+		} else if (percent > 75) {
+			range /= 2;
+		}
+		start -= random_in_range(range);
+	}
+
+	return (start);
+}
+
 void
 ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 {
@@ -789,6 +831,9 @@ ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
 ddt_phys_variant_t
 ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 {
+	if (dde == NULL)
+		return (DDT_PHYS_NONE);
+
 	const ddt_univ_phys_t *ddp = dde->dde_phys;
 
 	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
@@ -1019,6 +1064,47 @@ ddt_prefetch_all(spa_t *spa)
 
 static int ddt_configure(ddt_t *ddt, boolean_t new);
 
+/*
+ * If the BP passed to ddt_lookup has valid DVAs, then we need to compare them
+ * to the ones in the entry. If they're different, then the passed-in BP is
+ * from a previous generation of this entry (ie was previously pruned) and we
+ * have to act like the entry doesn't exist at all.
+ *
+ * This should only happen during a lookup to free the block (zio_ddt_free()).
+ *
+ * XXX this is similar in spirit to ddt_phys_select(), maybe can combine
+ *       -- robn, 2024-02-09
+ */
+static boolean_t
+ddt_entry_lookup_is_valid(ddt_t *ddt, const blkptr_t *bp, ddt_entry_t *dde)
+{
+	/* If the BP has no DVAs, then this entry is good */
+	uint_t ndvas = BP_GET_NDVAS(bp);
+	if (ndvas == 0)
+		return (B_TRUE);
+
+	/*
+	 * Only checking the phys for the copies. For flat, there's only one;
+	 * for trad it'll be the one that has the matching set of DVAs.
+	 */
+	const dva_t *dvas = (ddt->ddt_flags & DDT_FLAG_FLAT) ?
+	    dde->dde_phys->ddp_flat.ddp_dva :
+	    dde->dde_phys->ddp_trad[ndvas].ddp_dva;
+
+	/*
+	 * Compare entry DVAs with the BP. They should all be there, but
+	 * there's not really anything we can do if its only partial anyway,
+	 * that's an error somewhere else, maybe long ago.
+	 */
+	uint_t d;
+	for (d = 0; d < ndvas; d++)
+		if (!DVA_EQUAL(&dvas[d], &bp->blk_dva[d]))
+			return (B_FALSE);
+	ASSERT3U(d, ==, ndvas);
+
+	return (B_TRUE);
+}
+
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 {
@@ -1054,8 +1140,11 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 
 		/* If it's already loaded, we can just return it. */
 		DDT_KSTAT_BUMP(ddt, dds_lookup_live_hit);
-		if (dde->dde_flags & DDE_FLAG_LOADED)
-			return (dde);
+		if (dde->dde_flags & DDE_FLAG_LOADED) {
+			if (ddt_entry_lookup_is_valid(ddt, bp, dde))
+				return (dde);
+			return (NULL);
+		}
 
 		/* Someone else is loading it, wait for it. */
 		dde->dde_waiters++;
@@ -1074,7 +1163,11 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		}
 
 		DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
-		return (dde);
+
+		/* Make sure the loaded entry matches the BP */
+		if (ddt_entry_lookup_is_valid(ddt, bp, dde))
+			return (dde);
+		return (NULL);
 	} else
 		DDT_KSTAT_BUMP(ddt, dds_lookup_live_miss);
 
@@ -1083,32 +1176,42 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 
 	/* Record the time this class was created (used by ddt prune) */
 	if (ddt->ddt_flags & DDT_FLAG_FLAT)
-		dde->dde_phys->ddp_flat.ddp_class_start = gethrestime_sec();
+		dde->dde_phys->ddp_flat.ddp_class_start = ddt_class_start();
 
 	avl_insert(&ddt->ddt_tree, dde, where);
 
 	/* If its in the log tree, we can "load" it from there */
 	if (ddt->ddt_flags & DDT_FLAG_LOG) {
 		ddt_lightweight_entry_t ddlwe;
-		boolean_t found = B_FALSE;
 
-		if (ddt_log_take_key(ddt, ddt->ddt_log_active,
-		    &search, &ddlwe)) {
-			DDT_KSTAT_BUMP(ddt, dds_lookup_log_active_hit);
-			found = B_TRUE;
-		} else if (ddt_log_take_key(ddt, ddt->ddt_log_flushing,
-		    &search, &ddlwe)) {
-			DDT_KSTAT_BUMP(ddt, dds_lookup_log_flushing_hit);
-			found = B_TRUE;
-		}
-
-		if (found) {
-			dde->dde_flags = DDE_FLAG_LOADED | DDE_FLAG_LOGGED;
-
+		if (ddt_log_find_key(ddt, &search, &ddlwe)) {
+			/*
+			 * See if we have the key first, and if so, set up
+			 * the entry.
+			 */
 			dde->dde_type = ddlwe.ddlwe_type;
 			dde->dde_class = ddlwe.ddlwe_class;
 			memcpy(dde->dde_phys, &ddlwe.ddlwe_phys,
 			    DDT_PHYS_SIZE(ddt));
+			/* Whatever we found isn't valid for this BP, eject */
+			if (!ddt_entry_lookup_is_valid(ddt, bp, dde)) {
+				avl_remove(&ddt->ddt_tree, dde);
+				ddt_free(ddt, dde);
+				return (NULL);
+			}
+
+			/* Remove it and count it */
+			if (ddt_log_remove_key(ddt,
+			    ddt->ddt_log_active, &search)) {
+				DDT_KSTAT_BUMP(ddt, dds_lookup_log_active_hit);
+			} else {
+				VERIFY(ddt_log_remove_key(ddt,
+				    ddt->ddt_log_flushing, &search));
+				DDT_KSTAT_BUMP(ddt,
+				    dds_lookup_log_flushing_hit);
+			}
+
+			dde->dde_flags = DDE_FLAG_LOADED | DDE_FLAG_LOGGED;
 
 			DDT_KSTAT_BUMP(ddt, dds_lookup_log_hit);
 			DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
@@ -1147,6 +1250,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 	dde->dde_type = type;	/* will be DDT_TYPES if no entry found */
 	dde->dde_class = class;	/* will be DDT_CLASSES if no entry found */
 
+	boolean_t valid = B_TRUE;
+
 	if (dde->dde_type == DDT_TYPES &&
 	    dde->dde_class == DDT_CLASSES &&
 	    ddt_over_quota(spa)) {
@@ -1160,6 +1265,24 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		/* Flag cleanup required */
 		dde->dde_flags |= DDE_FLAG_OVERQUOTA;
 	} else if (error == 0) {
+		/*
+		 * If what we loaded is no good for this BP and there's no one
+		 * waiting for it, we can just remove it and get out. If its no
+		 * good but there are waiters, we have to leave it, because we
+		 * don't know what they want. If its not needed we'll end up
+		 * taking an entry log/sync, but it can only happen if more
+		 * than one previous version of this block is being deleted at
+		 * the same time. This is extremely unlikely to happen and not
+		 * worth the effort to deal with without taking an entry
+		 * update.
+		 */
+		valid = ddt_entry_lookup_is_valid(ddt, bp, dde);
+		if (!valid && dde->dde_waiters == 0) {
+			avl_remove(&ddt->ddt_tree, dde);
+			ddt_free(ddt, dde);
+			return (NULL);
+		}
+
 		DDT_KSTAT_BUMP(ddt, dds_lookup_stored_hit);
 		DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
 
@@ -1188,7 +1311,10 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 	dde->dde_flags |= DDE_FLAG_LOADED;
 	cv_broadcast(&dde->dde_cv);
 
-	return (dde->dde_flags & DDE_FLAG_OVERQUOTA ? NULL : dde);
+	if ((dde->dde_flags & DDE_FLAG_OVERQUOTA) || !valid)
+		return (NULL);
+
+	return (dde);
 }
 
 void
@@ -1417,7 +1543,6 @@ not_found:
 static void
 ddt_table_alloc_kstats(ddt_t *ddt)
 {
-#ifdef _KERNEL
 	char *mod = kmem_asprintf("zfs/%s", spa_name(ddt->ddt_spa));
 	char *name = kmem_asprintf("ddt_stats_%s",
 	    zio_checksum_table[ddt->ddt_checksum].ci_name);
@@ -1433,9 +1558,6 @@ ddt_table_alloc_kstats(ddt_t *ddt)
 
 	kmem_strfree(name);
 	kmem_strfree(mod);
-#else
-	(void) ddt;
-#endif /* _KERNEL */
 }
 
 static ddt_t *
@@ -1465,13 +1587,11 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 static void
 ddt_table_free(ddt_t *ddt)
 {
-#ifdef _KERNEL
 	if (ddt->ddt_ksp != NULL) {
 		kmem_free(ddt->ddt_ksp->ks_data, sizeof (ddt_kstats_t));
 		ddt->ddt_ksp->ks_data = NULL;
 		kstat_delete(ddt->ddt_ksp);
 	}
-#endif /* _KERNEL */
 
 	ddt_log_free(ddt);
 	ASSERT0(avl_numnodes(&ddt->ddt_tree));
@@ -1811,7 +1931,7 @@ ddt_sync_flush_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
 		uint64_t phys_refcnt = ddt_phys_refcnt(ddp, v);
 
 		if (ddt_phys_birth(ddp, v) == 0) {
-			ASSERT3U(phys_refcnt, ==, 0);
+			ASSERT0(phys_refcnt);
 			continue;
 		}
 		if (DDT_PHYS_IS_DITTO(ddt, p)) {
@@ -2285,8 +2405,9 @@ ddt_walk_ready(spa_t *spa)
 	return (B_TRUE);
 }
 
-int
-ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
+static int
+ddt_walk_impl(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe,
+    uint64_t flags, boolean_t wait)
 {
 	do {
 		do {
@@ -2295,7 +2416,11 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 				if (ddt == NULL)
 					continue;
 
-				if (ddt->ddt_flush_force_txg > 0)
+				if (flags != 0 &&
+				    (ddt->ddt_flags & flags) != flags)
+					continue;
+
+				if (wait && ddt->ddt_flush_force_txg > 0)
 					return (EAGAIN);
 
 				int error = ENOENT;
@@ -2319,13 +2444,19 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
 	return (SET_ERROR(ENOENT));
 }
 
+int
+ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
+{
+	return (ddt_walk_impl(spa, ddb, ddlwe, 0, B_TRUE));
+}
+
 /*
  * This function is used by Block Cloning (brt.c) to increase reference
  * counter for the DDT entry if the block is already in DDT.
  *
  * Return false if the block, despite having the D bit set, is not present
- * in the DDT. Currently this is not possible but might be in the future.
- * See the comment below.
+ * in the DDT. This is possible when the DDT has been pruned by an admin
+ * or by the DDT quota mechanism.
  */
 boolean_t
 ddt_addref(spa_t *spa, const blkptr_t *bp)
@@ -2356,28 +2487,13 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		int p = DDT_PHYS_FOR_COPIES(ddt, BP_GET_NDVAS(bp));
 		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
-		/*
-		 * This entry already existed (dde_type is real), so it must
-		 * have refcnt >0 at the start of this txg. We are called from
-		 * brt_pending_apply(), before frees are issued, so the refcnt
-		 * can't be lowered yet. Therefore, it must be >0. We assert
-		 * this because if the order of BRT and DDT interactions were
-		 * ever to change and the refcnt was ever zero here, then
-		 * likely further action is required to fill out the DDT entry,
-		 * and this is a place that is likely to be missed in testing.
-		 */
-		ASSERT3U(ddt_phys_refcnt(dde->dde_phys, v), >, 0);
-
 		ddt_phys_addref(dde->dde_phys, v);
 		result = B_TRUE;
 	} else {
 		/*
-		 * At the time of implementating this if the block has the
-		 * DEDUP flag set it must exist in the DEDUP table, but
-		 * there are many advocates that want ability to remove
-		 * entries from DDT with refcnt=1. If this will happen,
-		 * we may have a block with the DEDUP set, but which doesn't
-		 * have a corresponding entry in the DDT. Be ready.
+		 * If the block has the DEDUP flag set it still might not
+		 * exist in the DEDUP table due to DDT pruning of entries
+		 * where refcnt=1.
 		 */
 		ddt_remove(ddt, dde);
 		result = B_FALSE;
@@ -2387,6 +2503,261 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_ZIO, FTAG);
 
 	return (result);
+}
+
+typedef struct ddt_prune_entry {
+	ddt_t		*dpe_ddt;
+	ddt_key_t	dpe_key;
+	list_node_t	dpe_node;
+	ddt_univ_phys_t	dpe_phys[];
+} ddt_prune_entry_t;
+
+typedef struct ddt_prune_info {
+	spa_t		*dpi_spa;
+	uint64_t	dpi_txg_syncs;
+	uint64_t	dpi_pruned;
+	list_t		dpi_candidates;
+} ddt_prune_info_t;
+
+/*
+ * Add prune candidates for ddt_sync during spa_sync
+ */
+static void
+prune_candidates_sync(void *arg, dmu_tx_t *tx)
+{
+	(void) tx;
+	ddt_prune_info_t *dpi = arg;
+	ddt_prune_entry_t *dpe;
+
+	spa_config_enter(dpi->dpi_spa, SCL_ZIO, FTAG, RW_READER);
+
+	/* Process the prune candidates collected so far */
+	while ((dpe = list_remove_head(&dpi->dpi_candidates)) != NULL) {
+		blkptr_t blk;
+		ddt_t *ddt = dpe->dpe_ddt;
+
+		ddt_enter(ddt);
+
+		/*
+		 * If it's on the live list, then it was loaded for update
+		 * this txg and is no longer stale; skip it.
+		 */
+		if (avl_find(&ddt->ddt_tree, &dpe->dpe_key, NULL)) {
+			ddt_exit(ddt);
+			kmem_free(dpe, sizeof (*dpe));
+			continue;
+		}
+
+		ddt_bp_create(ddt->ddt_checksum, &dpe->dpe_key,
+		    dpe->dpe_phys, DDT_PHYS_FLAT, &blk);
+
+		ddt_entry_t *dde = ddt_lookup(ddt, &blk);
+		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED)) {
+			ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
+			/*
+			 * Zero the physical, so we don't try to free DVAs
+			 * at flush nor try to reuse this entry.
+			 */
+			ddt_phys_clear(dde->dde_phys, DDT_PHYS_FLAT);
+
+			dpi->dpi_pruned++;
+		}
+
+		ddt_exit(ddt);
+		kmem_free(dpe, sizeof (*dpe));
+	}
+
+	spa_config_exit(dpi->dpi_spa, SCL_ZIO, FTAG);
+	dpi->dpi_txg_syncs++;
+}
+
+/*
+ * Prune candidates are collected in open context and processed
+ * in sync context as part of ddt_sync_table().
+ */
+static void
+ddt_prune_entry(list_t *list, ddt_t *ddt, const ddt_key_t *ddk,
+    const ddt_univ_phys_t *ddp)
+{
+	ASSERT(ddt->ddt_flags & DDT_FLAG_FLAT);
+
+	size_t dpe_size = sizeof (ddt_prune_entry_t) + DDT_FLAT_PHYS_SIZE;
+	ddt_prune_entry_t *dpe = kmem_alloc(dpe_size, KM_SLEEP);
+
+	dpe->dpe_ddt = ddt;
+	dpe->dpe_key = *ddk;
+	memcpy(dpe->dpe_phys, ddp, DDT_FLAT_PHYS_SIZE);
+	list_insert_head(list, dpe);
+}
+
+/*
+ * Interate over all the entries in the DDT unique class.
+ * The walk will perform one of the following operations:
+ *  (a) build a histogram than can be used when pruning
+ *  (b) prune entries older than the cutoff
+ *
+ *  Also called by zdb(8) to dump the age histogram
+ */
+void
+ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
+{
+	ddt_bookmark_t ddb = {
+		.ddb_class = DDT_CLASS_UNIQUE,
+		.ddb_type = 0,
+		.ddb_checksum = 0,
+		.ddb_cursor = 0
+	};
+	ddt_lightweight_entry_t ddlwe = {0};
+	int error;
+	int total = 0, valid = 0;
+	int candidates = 0;
+	uint64_t now = gethrestime_sec();
+	ddt_prune_info_t dpi;
+	boolean_t pruning = (cutoff != 0);
+
+	if (pruning) {
+		dpi.dpi_txg_syncs = 0;
+		dpi.dpi_pruned = 0;
+		dpi.dpi_spa = spa;
+		list_create(&dpi.dpi_candidates, sizeof (ddt_prune_entry_t),
+		    offsetof(ddt_prune_entry_t, dpe_node));
+	}
+
+	if (histogram != NULL)
+		memset(histogram, 0, sizeof (ddt_age_histo_t));
+
+	while ((error =
+	    ddt_walk_impl(spa, &ddb, &ddlwe, DDT_FLAG_FLAT, B_FALSE)) == 0) {
+		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
+		VERIFY(ddt);
+
+		if (spa_shutting_down(spa) || issig())
+			break;
+		total++;
+
+		ASSERT(ddt->ddt_flags & DDT_FLAG_FLAT);
+		ASSERT3U(ddlwe.ddlwe_phys.ddp_flat.ddp_refcnt, <=, 1);
+
+		uint64_t class_start =
+		    ddlwe.ddlwe_phys.ddp_flat.ddp_class_start;
+
+		/*
+		 * If this entry is on the log, then the stored entry is stale
+		 * and we should skip it.
+		 */
+		if (ddt_log_find_key(ddt, &ddlwe.ddlwe_key, NULL))
+			continue;
+
+		/* prune older entries */
+		if (pruning && class_start < cutoff) {
+			if (candidates++ >= zfs_ddt_prunes_per_txg) {
+				/* sync prune candidates in batches */
+				VERIFY0(dsl_sync_task(spa_name(spa),
+				    NULL, prune_candidates_sync,
+				    &dpi, 0, ZFS_SPACE_CHECK_NONE));
+				candidates = 1;
+			}
+			ddt_prune_entry(&dpi.dpi_candidates, ddt,
+			    &ddlwe.ddlwe_key, &ddlwe.ddlwe_phys);
+		}
+
+		/* build a histogram */
+		if (histogram != NULL) {
+			uint64_t age = MAX(1, (now - class_start) / 3600);
+			int bin = MIN(highbit64(age) - 1, HIST_BINS - 1);
+			histogram->dah_entries++;
+			histogram->dah_age_histo[bin]++;
+		}
+
+		valid++;
+	}
+
+	if (pruning && valid > 0) {
+		if (!list_is_empty(&dpi.dpi_candidates)) {
+			/* sync out final batch of prune candidates */
+			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+			    prune_candidates_sync, &dpi, 0,
+			    ZFS_SPACE_CHECK_NONE));
+		}
+		list_destroy(&dpi.dpi_candidates);
+
+		zfs_dbgmsg("pruned %llu entries (%d%%) across %llu txg syncs",
+		    (u_longlong_t)dpi.dpi_pruned,
+		    (int)((dpi.dpi_pruned * 100) / valid),
+		    (u_longlong_t)dpi.dpi_txg_syncs);
+	}
+}
+
+static uint64_t
+ddt_total_entries(spa_t *spa)
+{
+	ddt_object_t ddo;
+	ddt_get_dedup_object_stats(spa, &ddo);
+
+	return (ddo.ddo_count);
+}
+
+int
+ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
+    uint64_t amount)
+{
+	uint64_t cutoff;
+	uint64_t start_time = gethrtime();
+
+	if (spa->spa_active_ddt_prune)
+		return (SET_ERROR(EALREADY));
+	if (ddt_total_entries(spa) == 0)
+		return (0);
+
+	spa->spa_active_ddt_prune = B_TRUE;
+
+	zfs_dbgmsg("prune %llu %s", (u_longlong_t)amount,
+	    unit == ZPOOL_DDT_PRUNE_PERCENTAGE ? "%" : "seconds old or older");
+
+	if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
+		ddt_age_histo_t histogram;
+		uint64_t oldest = 0;
+
+		/* Make a pass over DDT to build a histogram */
+		ddt_prune_walk(spa, 0, &histogram);
+
+		int target = (histogram.dah_entries * amount) / 100;
+
+		/*
+		 * Figure out our cutoff date
+		 * (i.e., which bins to prune from)
+		 */
+		for (int i = HIST_BINS - 1; i >= 0 && target > 0; i--) {
+			if (histogram.dah_age_histo[i] != 0) {
+				/* less than this bucket remaining */
+				if (target < histogram.dah_age_histo[i]) {
+					oldest = MAX(1, (1<<i) * 3600);
+					target = 0;
+				} else {
+					target -= histogram.dah_age_histo[i];
+				}
+			}
+		}
+		cutoff = gethrestime_sec() - oldest;
+
+		if (ddt_dump_prune_histogram)
+			ddt_dump_age_histogram(&histogram, cutoff);
+	} else if (unit == ZPOOL_DDT_PRUNE_AGE) {
+		cutoff = gethrestime_sec() - amount;
+	} else {
+		return (EINVAL);
+	}
+
+	if (cutoff > 0 && !spa_shutting_down(spa) && !issig()) {
+		/* Traverse DDT to prune entries older that our cuttoff */
+		ddt_prune_walk(spa, cutoff, NULL);
+	}
+
+	zfs_dbgmsg("%s: prune completed in %llu ms",
+	    spa_name(spa), (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
+
+	spa->spa_active_ddt_prune = B_FALSE;
+	return (0);
 }
 
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, prefetch, INT, ZMOD_RW,

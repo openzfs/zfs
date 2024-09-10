@@ -2553,7 +2553,7 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 
 	if (reason != ZIO_SUSPEND_MMP) {
 		cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable "
-		    "I/O failure and has been suspended.\n", spa_name(spa));
+		    "I/O failure and has been suspended.", spa_name(spa));
 	}
 
 	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
@@ -2589,6 +2589,10 @@ zio_resume(spa_t *spa)
 	 * Reexecute all previously suspended i/o.
 	 */
 	mutex_enter(&spa->spa_suspend_lock);
+	if (spa->spa_suspended != ZIO_SUSPEND_NONE)
+		cmn_err(CE_WARN, "Pool '%s' was suspended and is being "
+		    "resumed. Failed I/O will be retried.",
+		    spa_name(spa));
 	spa->spa_suspended = ZIO_SUSPEND_NONE;
 	cv_broadcast(&spa->spa_suspend_cv);
 	pio = spa->spa_suspend_zio_root;
@@ -3858,6 +3862,16 @@ zio_ddt_free(zio_t *zio)
 			ddt_phys_decref(dde->dde_phys, v);
 	}
 	ddt_exit(ddt);
+
+	/*
+	 * When no entry was found, it must have been pruned,
+	 * so we can free it now instead of decrementing the
+	 * refcount in the DDT.
+	 */
+	if (!dde) {
+		BP_SET_DEDUP(bp, 0);
+		zio->io_pipeline |= ZIO_STAGE_DVA_FREE;
+	}
 
 	return (zio);
 }

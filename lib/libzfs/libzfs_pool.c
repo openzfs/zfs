@@ -5652,3 +5652,31 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 
 	return (ret);
 }
+
+/*
+ * Prune older entries from the DDT to reclaim space under the quota
+ */
+int
+zpool_ddt_prune(zpool_handle_t *zhp, zpool_ddt_prune_unit_t unit,
+    uint64_t amount)
+{
+	int error = lzc_ddt_prune(zhp->zpool_name, unit, amount);
+	if (error != 0) {
+		libzfs_handle_t *hdl = zhp->zpool_hdl;
+		char errbuf[ERRBUFLEN];
+
+		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+		    "cannot prune dedup table on '%s'"), zhp->zpool_name);
+
+		if (error == EALREADY) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "a prune operation is already in progress"));
+			(void) zfs_error(hdl, EZFS_BUSY, errbuf);
+		} else {
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+		return (-1);
+	}
+
+	return (0);
+}

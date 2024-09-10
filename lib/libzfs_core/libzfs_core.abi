@@ -162,6 +162,7 @@
     <elf-symbol name='lzc_channel_program_nosync' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_clone' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_ddt_prune' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy_bookmarks' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy_snaps' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1444,6 +1445,7 @@
       <enumerator name='ZFS_IOC_VDEV_SET_PROPS' value='23126'/>
       <enumerator name='ZFS_IOC_POOL_SCRUB' value='23127'/>
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
+      <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -1484,6 +1486,13 @@
       <enumerator name='ZPOOL_PREFETCH_DDT' value='1'/>
     </enum-decl>
     <typedef-decl name='zpool_prefetch_type_t' type-id='0299ab50' id='e55ff6bc'/>
+    <enum-decl name='zpool_ddt_prune_unit_t' naming-typedef-id='02e25ab0' id='509ae11c'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_NONE' value='0'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_AGE' value='1'/>
+      <enumerator name='ZPOOL_DDT_PRUNE_PERCENTAGE' value='2'/>
+    </enum-decl>
+    <typedef-decl name='zpool_ddt_prune_unit_t' type-id='509ae11c' id='02e25ab0'/>
     <enum-decl name='data_type_t' naming-typedef-id='8d0687d2' id='aeeae136'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='DATA_TYPE_DONTCARE' value='-1'/>
@@ -3013,6 +3022,12 @@
     <function-decl name='lzc_get_bootenv' mangled-name='lzc_get_bootenv' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bootenv'>
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='857bb57e' name='outnvl'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_ddt_prune' mangled-name='lzc_ddt_prune' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_ddt_prune'>
+      <parameter type-id='80f4b756' name='pool'/>
+      <parameter type-id='02e25ab0' name='unit'/>
+      <parameter type-id='9c313c2d' name='amount'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-type size-in-bits='64' id='c70fa2e8'>
