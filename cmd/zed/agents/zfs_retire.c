@@ -493,7 +493,14 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 * Actively fault the device if needed.
 		 */
 		if (fault_device)
+#if 1
+			/*
+			 * Klara -- don't issue faults
+			 */
+			(void) zpool_vdev_degrade(zhp, vdev_guid, aux);
+#else
 			(void) zpool_vdev_fault(zhp, vdev_guid, aux);
+#endif
 		if (degrade_device)
 			(void) zpool_vdev_degrade(zhp, vdev_guid, aux);
 
