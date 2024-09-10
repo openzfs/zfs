@@ -388,7 +388,7 @@ if os.environ.get('CI') == 'true':
 
 def process_results(pathname):
     try:
-        f = open(pathname)
+        f = open(pathname, errors='replace')
     except IOError as e:
         print('Error opening file:', e)
         sys.exit(1)
