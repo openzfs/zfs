@@ -1468,6 +1468,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/events/setup.ksh \
 	functional/events/zed_cksum_config.ksh \
 	functional/events/zed_cksum_reported.ksh \
+	functional/events/zed_diagnose_multiple.ksh \
 	functional/events/zed_fd_spill.ksh \
 	functional/events/zed_io_config.ksh \
 	functional/events/zed_rc_filter.ksh \

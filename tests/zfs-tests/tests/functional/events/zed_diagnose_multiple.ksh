@@ -21,31 +21,29 @@
 #
 
 #
-# Copyright (c) 2023, Klara Inc.
+# Copyright (c) 2024, Klara Inc.
 #
 
 # DESCRIPTION:
-#	Verify that delay events from multiple vdevs doesn't degrade
+#	Verify that simultaneous io error events from multiple vdevs
+#	doesn't generate a fault
 #
 # STRATEGY:
 #	1. Create a pool with a 4 disk raidz vdev
-#	2. Inject slow io errors
-#	3. Verify that ZED detects slow I/Os but doesn't degrade any vdevs
+#	2. Inject io errors
+#	3. Verify that ZED detects the errors but doesn't fault any vdevs
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-TESTDIR="$TEST_BASE_DIR/zed_slow_io"
+TESTDIR="$TEST_BASE_DIR/zed_error_multiple"
 VDEV1="$TEST_BASE_DIR/vdevfile1.$$"
 VDEV2="$TEST_BASE_DIR/vdevfile2.$$"
 VDEV3="$TEST_BASE_DIR/vdevfile3.$$"
 VDEV4="$TEST_BASE_DIR/vdevfile4.$$"
 VDEVS="$VDEV1 $VDEV2 $VDEV3 $VDEV4"
-TESTPOOL="slow_io_pool"
-FILEPATH="$TESTDIR/slow_io.testfile"
-
-OLD_SLOW_IO=$(get_tunable ZIO_SLOW_IO_MS)
-OLD_SLOW_IO_EVENTS=$(get_tunable SLOW_IO_EVENTS_PER_SECOND)
+TESTPOOL="zed_test_pool"
+FILEPATH="$TESTDIR/zed.testfile"
 
 verify_runnable "both"
 
@@ -63,35 +61,22 @@ function cleanup
 	log_must zed_stop
 
 	log_must rm -f $VDEVS
-	log_must set_tunable64 ZIO_SLOW_IO_MS $OLD_SLOW_IO
-	log_must set_tunable64 SLOW_IO_EVENTS_PER_SECOND $OLD_SLOW_IO_EVENTS
 }
 
-function start_slow_io
+function start_io_errors
 {
 	for vdev in $VDEVS
 	do
-		log_must zpool set slow_io_n=4 $TESTPOOL $vdev
-		log_must zpool set slow_io_t=60 $TESTPOOL $vdev
+		log_must zpool set io_n=4 $TESTPOOL $vdev
+		log_must zpool set io_t=60 $TESTPOOL $vdev
 	done
 	zpool sync
-
-	log_must set_tunable64 ZIO_SLOW_IO_MS 10
-	log_must set_tunable64 SLOW_IO_EVENTS_PER_SECOND 1000
 
 	for vdev in $VDEVS
 	do
-		log_must zinject -d $vdev -D10:1 $TESTPOOL
+		log_must zinject -d $vdev -e io $TESTPOOL
 	done
 	zpool sync
-}
-
-function stop_slow_io
-{
-	log_must set_tunable64 ZIO_SLOW_IO_MS $OLD_SLOW_IO
-	log_must set_tunable64 SLOW_IO_EVENTS_PER_SECOND $OLD_SLOW_IO_EVENTS
-
-	log_must zinject -c all
 }
 
 function multiple_slow_vdevs_test
@@ -104,39 +89,45 @@ function multiple_slow_vdevs_test
 	log_must zfs set primarycache=none $TESTPOOL
 	log_must zfs set recordsize=4K $TESTPOOL
 
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=20
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=4
 	zpool sync
 
 	#
-	# Read the file with slow io injected on the disks
+	# Read the file with io errors injected on the disks
 	# This will cause multiple errors on each disk to trip ZED SERD
 	#
-	#   pool: slow_io_pool
+	#   pool: zed_test_pool
 	#  state: ONLINE
+	# status: One or more devices has experienced an unrecoverable error.  An
+	#         attempt was made to correct the error.  Applications are unaffected.
+	# action: Determine if the device needs to be replaced, and clear the errors
+	#         using 'zpool clear' or replace the device with 'zpool replace'.
+	#    see: https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-9P
 	# config:
 	#
-	#         NAME                           STATE  READ WRITE CKSUM  SLOW
-	#         slow_io_pool                   ONLINE    0     0     0     -
-	#           raidz1-0                     ONLINE    0     0     0     -
-	#             /var/tmp/vdevfile1.499278  ONLINE    0     0     0   113
-	#             /var/tmp/vdevfile2.499278  ONLINE    0     0     0   109
-	#             /var/tmp/vdevfile3.499278  ONLINE    0     0     0    96
-	#             /var/tmp/vdevfile4.499278  ONLINE    0     0     0   109
+	#         NAME                            STATE     READ WRITE CKSUM
+	#         zed_test_pool                   ONLINE       0     0     0
+	#           raidz1-0                      ONLINE       0     0     0
+	#             /var/tmp/vdevfile1.1547063  ONLINE     532   561     0
+	#             /var/tmp/vdevfile2.1547063  ONLINE     547   594     0
+	#             /var/tmp/vdevfile3.1547063  ONLINE   1.05K 1.10K     0
+	#             /var/tmp/vdevfile4.1547063  ONLINE   1.05K 1.00K     0
 	#
-	start_slow_io
-	dd if=$FILEPATH of=/dev/null bs=1M count=20 2>/dev/null
-	stop_slow_io
 
-	# count events available for processing
+	start_io_errors
+	dd if=$FILEPATH of=/dev/null bs=1M count=4 2>/dev/null
+	log_must zinject -c all
+
+	# count io error events available for processing
 	typeset -i i=0
 	typeset -i events=0
 	while [[ $i -lt 60 ]]; do
-		events=$(zpool events | grep "ereport\.fs\.zfs.delay" | wc -l)
+		events=$(zpool events | grep "ereport\.fs\.zfs.io" | wc -l)
 		[[ $events -ge "50" ]] && break
 		i=$((i+1))
 		sleep 1
 	done
-	log_note "$events delay events found"
+	log_note "$events io error events found"
 	if [[ $events -lt "50" ]]; then
 		log_note "bailing: not enough events to complete the test"
 		destroy_pool $TESTPOOL
@@ -144,7 +135,7 @@ function multiple_slow_vdevs_test
 	fi
 
 	#
-	# give slow ZED a chance to process the delay events
+	# give slow ZED a chance to process the checkum events
 	#
 	typeset -i i=0
 	typeset -i skips=0
@@ -156,22 +147,22 @@ function multiple_slow_vdevs_test
 		sleep 1
 	done
 
-	log_note $skips degrade skips in ZED log after $i seconds
+	log_note $skips fault skips in ZED log after $i seconds
 	[ $skips -gt "0" ] || log_fail "expecting to see skips"
 
-	degrades=$(grep "zpool_vdev_degrade" $ZEDLET_DIR/zed.log | wc -l)
-	log_note $degrades vdev degrades in ZED log
-	[ $degrades -eq "0" ] || \
-		log_fail "expecting no degrade events, found $degrades"
+	fault=$(grep "zpool_vdev_fault" $ZEDLET_DIR/zed.log | wc -l)
+	log_note $fault vdev fault in ZED log
+	[ $fault -eq "0" ] || \
+		log_fail "expecting no fault events, found $fault"
 
 	destroy_pool $TESTPOOL
 }
 
-log_assert "Test ZED slow io across multiple vdevs"
+log_assert "Test ZED io errors across multiple vdevs"
 log_onexit cleanup
 
 log_must zed_events_drain
 log_must zed_start
 multiple_slow_vdevs_test
 
-log_pass "Test ZED slow io across multiple vdevs"
+log_pass "Test ZED io errors across multiple vdevs"
