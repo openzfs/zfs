@@ -98,7 +98,10 @@ This can be an indicator of problems with the underlying storage device.
 The number of delay events is ratelimited by the
 .Sy zfs_slow_io_events_per_second
 module parameter.
-.It Sy dio_verify
+.It Sy dio_verify_rd
+Issued when there was a checksum verify error after a Direct I/O read has been
+issued.
+.It Sy dio_verify_wr
 Issued when there was a checksum verify error after a Direct I/O write has been
 issued.
 This event can only take place if the module parameter
