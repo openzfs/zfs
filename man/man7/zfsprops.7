@@ -1039,6 +1039,48 @@ See the
 section of
 .Xr zfsconcepts 7 .
 .It Xo
+.Sy direct Ns = Ns Sy disabled Ns | Ns Sy standard Ns | Ns Sy always
+.Xc
+Controls the behavior of Direct I/O requests
+.Pq e.g. Dv O_DIRECT .
+The
+.Sy standard
+behavior for Direct I/O requests is to bypass the ARC when possible.
+These requests will not be cached and performance will be limited by the
+raw speed of the underlying disks
+.Pq Dv this is the default .
+.Sy always
+causes every properly aligned read or write to be treated as a direct request.
+.Sy disabled
+causes the O_DIRECT flag to be silently ignored and all direct requests will
+be handled by the ARC.
+This is the default behavior for OpenZFS 2.2 and prior releases.
+.Pp
+Bypassing the ARC requires that a direct request be correctly aligned.
+For write requests the starting offset and size of the request must be
+.Sy recordsize Ns
+-aligned, if not then the unaligned portion of the request will be silently
+redirected through the ARC.
+For read requests there is no
+.Sy recordsize
+alignment restriction on either the starting offset or size.
+All direct requests must use a page-aligned memory buffer and the request
+size must be a multiple of the page size or an error is returned.
+.Pp
+Concurrently mixing buffered and direct requests to overlapping regions of
+a file can decrease performance.
+However, the resulting file will always be coherent.
+For example, a direct read after a buffered write will return the data
+from the buffered write.
+Furthermore, if an application uses
+.Xr mmap 2
+based file access then in order to maintain coherency all direct requests
+are converted to buffered requests while the file is mapped.
+Currently Direct I/O is not supported with zvols.
+If dedup is enabled on a dataset, Direct I/O writes will not check for
+deduplication.
+Deduplication and Direct I/O writes are currently incompatible.
+.It Xo
 .Sy dnodesize Ns = Ns Sy legacy Ns | Ns Sy auto Ns | Ns Sy 1k Ns | Ns
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k
 .Xc

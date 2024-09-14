@@ -46,6 +46,7 @@ typedef enum abd_flags {
 	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
 	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
 	ABD_FLAG_ALLOCD		= 1 << 8, /* we allocated the abd_t */
+	ABD_FLAG_FROM_PAGES	= 1 << 9, /* does not own pages */
 } abd_flags_t;
 
 typedef struct abd {
@@ -198,6 +199,12 @@ static inline uint_t
 abd_get_size(abd_t *abd)
 {
 	return (abd->abd_size);
+}
+
+static inline boolean_t
+abd_is_from_pages(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_FROM_PAGES) ? B_TRUE : B_FALSE);
 }
 
 /*

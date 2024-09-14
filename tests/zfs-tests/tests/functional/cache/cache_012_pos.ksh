@@ -75,7 +75,7 @@ export PERF_COMPPERCENT=66
 export PERF_COMPCHUNK=0
 export BLOCKSIZE=128K
 export SYNC_TYPE=0
-export DIRECT=1
+export DIRECT=0
 export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))
 
 log_must set_tunable32 L2ARC_WRITE_MAX $(( $VCACHE_SZ * 2 ))

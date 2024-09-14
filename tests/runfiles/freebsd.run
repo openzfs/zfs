@@ -30,3 +30,7 @@ tags = ['functional', 'cli_root', 'zfs_jail']
 tests = ['pam_basic', 'pam_change_unmounted', 'pam_nounmount', 'pam_recursive',
     'pam_short_password']
 tags = ['functional', 'pam']
+
+[tests/functional/direct:FreeBSD]
+tests = ['dio_write_stable_pages']
+tags = ['functional', 'direct']

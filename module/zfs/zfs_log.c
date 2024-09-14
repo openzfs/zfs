@@ -607,7 +607,7 @@ static int64_t zfs_immediate_write_sz = 32768;
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t resid, boolean_t commit,
-    zil_callback_t callback, void *callback_data)
+    boolean_t o_direct, zil_callback_t callback, void *callback_data)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
@@ -622,7 +622,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		return;
 	}
 
-	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
+	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT || o_direct)
 		write_state = WR_INDIRECT;
 	else if (!spa_has_slogs(zilog->zl_spa) &&
 	    resid >= zfs_immediate_write_sz)

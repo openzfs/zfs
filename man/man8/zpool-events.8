@@ -98,6 +98,17 @@ This can be an indicator of problems with the underlying storage device.
 The number of delay events is ratelimited by the
 .Sy zfs_slow_io_events_per_second
 module parameter.
+.It Sy dio_verify
+Issued when there was a checksum verify error after a Direct I/O write has been
+issued.
+This event can only take place if the module parameter
+.Sy zfs_vdev_direct_write_verify
+is not set to zero.
+See
+.Xr zfs 4
+for more details on the
+.Sy zfs_vdev_direct_write_verify
+module paramter.
 .It Sy config
 Issued every time a vdev change have been done to the pool.
 .It Sy zpool
@@ -408,8 +419,9 @@ ZIO_STAGE_VDEV_IO_DONE:0x00400000:RW--XT
 ZIO_STAGE_VDEV_IO_ASSESS:0x00800000:RW--XT
 
 ZIO_STAGE_CHECKSUM_VERIFY:0x01000000:R-----
+ZIO_STAGE_DIO_CHECKSUM_VERIFY:0x02000000:-W----
 
-ZIO_STAGE_DONE:0x02000000:RWFCXT
+ZIO_STAGE_DONE:0x04000000:RWFCXT
 .TE
 .
 .Sh I/O FLAGS

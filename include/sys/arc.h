@@ -120,7 +120,7 @@ typedef enum arc_flags
 
 	/*
 	 * Private ARC flags.  These flags are private ARC only flags that
-	 * will show up in b_flags in the arc_hdr_buf_t. These flags should
+	 * will show up in b_flags in the arc_buf_hdr_t. These flags should
 	 * only be set by ARC code.
 	 */
 	ARC_FLAG_IN_HASH_TABLE		= 1 << 7,	/* buffer is hashed */
@@ -179,7 +179,6 @@ typedef enum arc_flags
 	ARC_FLAG_COMPRESS_4		= 1 << 28,
 	ARC_FLAG_COMPRESS_5		= 1 << 29,
 	ARC_FLAG_COMPRESS_6		= 1 << 30
-
 } arc_flags_t;
 
 typedef enum arc_buf_flags {

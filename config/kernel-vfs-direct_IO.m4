@@ -1,5 +1,5 @@
 dnl #
-dnl # Check for direct IO interfaces.
+dnl # Check for Direct I/O interfaces.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO], [
 	ZFS_LINUX_TEST_SRC([direct_io_iter], [
@@ -100,7 +100,7 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_DIRECT_IO], [
 					AC_DEFINE(HAVE_VFS_DIRECT_IO_IOVEC, 1,
 					    [aops->direct_IO() uses iovec])
 				],[
-					ZFS_LINUX_TEST_ERROR([direct IO])
+					ZFS_LINUX_TEST_ERROR([Direct I/O])
 					AC_MSG_RESULT([no])
 				])
 			])

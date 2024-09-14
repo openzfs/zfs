@@ -217,8 +217,7 @@ dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
 }
 
 void
-dataset_kstats_update_write_kstats(dataset_kstats_t *dk,
-    int64_t nwritten)
+dataset_kstats_update_write_kstats(dataset_kstats_t *dk, int64_t nwritten)
 {
 	ASSERT3S(nwritten, >=, 0);
 
@@ -230,8 +229,7 @@ dataset_kstats_update_write_kstats(dataset_kstats_t *dk,
 }
 
 void
-dataset_kstats_update_read_kstats(dataset_kstats_t *dk,
-    int64_t nread)
+dataset_kstats_update_read_kstats(dataset_kstats_t *dk, int64_t nread)
 {
 	ASSERT3S(nread, >=, 0);
 

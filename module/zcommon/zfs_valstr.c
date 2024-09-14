@@ -218,6 +218,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "NP", "NOPWRITE" },
 	{ '.', "EX", "REEXECUTED" },
 	{ '.', "DG", "DELEGATED" },
+	{ '.', "DC", "DIO_CHKSUM_ERR" },
 )
 /* END CSTYLED */
 
@@ -252,6 +253,7 @@ _VALSTR_BITFIELD_IMPL(zio_stage,
 	{ 'V', "VD", "VDEV_IO_DONE" },
 	{ 'V', "VA", "VDEV_IO_ASSESS" },
 	{ 'C', "CV", "CHECKSUM_VERIFY" },
+	{ 'C', "DC", "DIO_CHECKSUM_VERIFY" },
 	{ 'X', "X ", "DONE" },
 )
 /* END CSTYLED */

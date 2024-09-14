@@ -4131,7 +4131,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		 * but that would make the locking messier
 		 */
 		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off,
-		    len, commit, NULL, NULL);
+		    len, commit, B_FALSE, NULL, NULL);
 
 		zfs_vmobject_wlock(object);
 		for (i = 0; i < ncount; i++) {
@@ -4266,6 +4266,8 @@ ioflags(int ioflags)
 		flags |= O_APPEND;
 	if (ioflags & IO_NDELAY)
 		flags |= O_NONBLOCK;
+	if (ioflags & IO_DIRECT)
+		flags |= O_DIRECT;
 	if (ioflags & IO_SYNC)
 		flags |= O_SYNC;
 
@@ -4285,9 +4287,36 @@ static int
 zfs_freebsd_read(struct vop_read_args *ap)
 {
 	zfs_uio_t uio;
+	int error = 0;
 	zfs_uio_init(&uio, ap->a_uio);
-	return (zfs_read(VTOZ(ap->a_vp), &uio, ioflags(ap->a_ioflag),
-	    ap->a_cred));
+	error = zfs_read(VTOZ(ap->a_vp), &uio, ioflags(ap->a_ioflag),
+	    ap->a_cred);
+	/*
+	 * XXX We occasionally get an EFAULT for Direct I/O reads on
+	 * FreeBSD 13. This still needs to be resolved. The EFAULT comes
+	 * from:
+	 * zfs_uio_get__dio_pages_alloc() ->
+	 * zfs_uio_get_dio_pages_impl() ->
+	 * zfs_uio_iov_step() ->
+	 * zfs_uio_get_user_pages().
+	 * We return EFAULT from zfs_uio_iov_step(). When a Direct I/O
+	 * read fails to map in the user pages (returning EFAULT) the
+	 * Direct I/O request is broken up into two separate IO requests
+	 * and issued separately using Direct I/O.
+	 */
+#ifdef ZFS_DEBUG
+	if (error == EFAULT && uio.uio_extflg & UIO_DIRECT) {
+#if 0
+		printf("%s(%d): Direct I/O read returning EFAULT "
+		    "uio = %p, zfs_uio_offset(uio) = %lu "
+		    "zfs_uio_resid(uio) = %lu\n",
+		    __FUNCTION__, __LINE__, &uio, zfs_uio_offset(&uio),
+		    zfs_uio_resid(&uio));
+#endif
+	}
+
+#endif
+	return (error);
 }
 
 #ifndef _SYS_SYSPROTO_H_
