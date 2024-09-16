@@ -21,8 +21,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MM_PAGE_MAPPING], [
 	ZFS_LINUX_TEST_SRC([page_mapping], [
 		#include <linux/pagemap.h>
 	],[
-		struct page *p = NULL;
-		struct address_space *m = page_mapping(NULL);
+		struct address_space *m;
+		m = page_mapping(NULL);
 	])
 ])
 AC_DEFUN([ZFS_AC_KERNEL_MM_PAGE_MAPPING], [
