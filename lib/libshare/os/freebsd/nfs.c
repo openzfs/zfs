@@ -85,7 +85,9 @@ translate_opts(const char *shareopts, FILE *out)
 	strlcpy(oldopts, shareopts, sizeof (oldopts));
 	newopts[0] = '\0';
 	s = oldopts;
-	while ((o = strsep(&s, "-, ")) != NULL) {
+	while ((o = strsep(&s, ", ")) != NULL) {
+		if (o[0] == '-')
+			o++;
 		if (o[0] == '\0')
 			continue;
 		for (i = 0; i < ARRAY_SIZE(known_opts); ++i) {
