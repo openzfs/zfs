@@ -32,6 +32,7 @@
 #define	_TRACE_DBGMSG_H
 
 #include <linux/tracepoint.h>
+#include <sys/types.h>
 
 /*
  * This file defines tracepoint events for use by the dbgmsg(),
@@ -59,7 +60,7 @@ DECLARE_EVENT_CLASS(zfs_dprintf_class,
 	    __string(msg, msg)
 	),
 	TP_fast_assign(
-	    __assign_str(msg, msg);
+	    __assign_str_impl(msg, msg);
 	),
 	TP_printk("%s", __get_str(msg))
 );
