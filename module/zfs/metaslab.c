@@ -1679,7 +1679,7 @@ spa_set_allocator(spa_t *spa, const char *allocator)
 	int a = spa_find_allocator_byname(allocator);
 	if (a < 0) a = 0;
 	spa->spa_active_allocator = a;
-	zfs_dbgmsg("spa allocator: %s\n", metaslab_allocators[a].msop_name);
+	zfs_dbgmsg("spa allocator: %s", metaslab_allocators[a].msop_name);
 }
 
 int
