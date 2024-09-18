@@ -566,7 +566,7 @@ def section_arc(kstats_dict):
     l2_hdr_size = arc_stats['l2_hdr_size']
     abd_chunk_waste_size = arc_stats['abd_chunk_waste_size']
 
-    prt_1('ARC structal breakdown (current size):', f_bytes(arc_size))
+    prt_1('ARC structural breakdown (current size):', f_bytes(arc_size))
     prt_i2('Compressed size:',
            f_perc(compressed_size, arc_size), f_bytes(compressed_size))
     prt_i2('Overhead size:',

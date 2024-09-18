@@ -199,10 +199,176 @@ Size of the L2ARC
 mutex_miss per second
 .It Sy l2bytes
 Bytes read per second from the L2ARC
+.It Sy l2wbytes
+Bytes written per second to the L2ARC
 .It Sy l2miss%
 L2ARC access miss percentage
 .It Sy l2asize
 Actual (compressed) size of the L2ARC
+.It Sy cmpsz
+Compressed size
+.It Sy cmpsz%
+Compressed size percentage
+.It Sy ovhsz
+Overhead size
+.It Sy ovhsz%
+Overhead size percentage
+.It Sy bonsz
+Bonus size
+.It Sy bonsz%
+Bonus size percentage
+.It Sy dnosz
+Dnode size
+.It Sy dnosz%
+Dnode size percentage
+.It Sy dbusz
+Dbuf size
+.It Sy dbusz%
+Dbuf size percentage
+.It Sy hdrsz
+Header size
+.It Sy hdrsz%
+Header size percentage
+.It Sy l2hsz
+L2 header size
+.It Sy l2hsz%
+L2 header size percentage
+.It Sy abdsz
+ABD chunk waste size
+.It Sy abdsz%
+ABD chunk waste size percentage
+.It Sy datatg
+ARC data target
+.It Sy datatg%
+ARC data target percentage
+.It Sy datasz
+ARC data size
+.It Sy datasz%
+ARC data size percentage
+.It Sy metatg
+ARC metadata target
+.It Sy metatg%
+ARC metadata target percentage
+.It Sy metasz
+ARC metadata size
+.It Sy metasz%
+ARC metadata size percentage
+.It Sy anosz
+Anonymous size
+.It Sy anosz%
+Anonymous size percentage
+.It Sy anoda
+Anonymous data size
+.It Sy anoda%
+Anonymous data size percentage
+.It Sy anome
+Anonymous metadata size
+.It Sy anome%
+Anonymous metadata size percentage
+.It Sy anoed
+Anonymous evictable data size
+.It Sy anoed%
+Anonymous evictable data size percentage
+.It Sy anoem
+Anonymous evictable metadata size
+.It Sy anoem%
+Anonymous evictable metadata size percentage
+.It Sy mfutg
+MFU target
+.It Sy mfutg%
+MFU target percentage
+.It Sy mfudt
+MFU data target
+.It Sy mfudt%
+MFU data target percentage
+.It Sy mfumt
+MFU metadata target
+.It Sy mfumt%
+MFU metadata target percentage
+.It Sy mfusz
+MFU size
+.It Sy mfusz%
+MFU size percentage
+.It Sy mfuda
+MFU data size
+.It Sy mfuda%
+MFU data size percentage
+.It Sy mfume
+MFU metadata size
+.It Sy mfume%
+MFU metadata size percentage
+.It Sy mfued
+MFU evictable data size
+.It Sy mfued%
+MFU evictable data size percentage
+.It Sy mfuem
+MFU evictable metadata size
+.It Sy mfuem%
+MFU evictable metadata size percentage
+.It Sy mfugsz
+MFU ghost size
+.It Sy mfugd
+MFU ghost data size
+.It Sy mfugm
+MFU ghost metadata size
+.It Sy mrutg
+MRU target
+.It Sy mrutg%
+MRU target percentage
+.It Sy mrudt
+MRU data target
+.It Sy mrudt%
+MRU data target percentage
+.It Sy mrumt
+MRU metadata target
+.It Sy mrumt%
+MRU metadata target percentage
+.It Sy mrusz
+MRU size
+.It Sy mrusz%
+MRU size percentage
+.It Sy mruda
+MRU data size
+.It Sy mruda%
+MRU data size percentage
+.It Sy mrume
+MRU metadata size
+.It Sy mrume%
+MRU metadata size percentage
+.It Sy mrued
+MRU evictable data size
+.It Sy mrued%
+MRU evictable data size percentage
+.It Sy mruem
+MRU evictable metadata size
+.It Sy mruem%
+MRU evictable metadata size percentage
+.It Sy mrugsz
+MRU ghost size
+.It Sy mrugd
+MRU ghost data size
+.It Sy mrugm
+MRU ghost metadata size
+.It Sy uncsz
+Uncached size
+.It Sy uncsz%
+Uncached size percentage
+.It Sy uncda
+Uncached data size
+.It Sy uncda%
+Uncached data size percentage
+.It Sy uncme
+Uncached metadata size
+.It Sy uncme%
+Uncached metadata size percentage
+.It Sy unced
+Uncached evictable data size
+.It Sy unced%
+Uncached evictable data size percentage
+.It Sy uncem
+Uncached evictable metadata size
+.It Sy uncem%
+Uncached evictable metadata size percentage
 .It Sy grow
 ARC grow disabled
 .It Sy need

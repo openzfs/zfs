@@ -152,6 +152,7 @@ cols = {
     "l2asize":    [7, 1024, "Actual (compressed) size of the L2ARC"],
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "Bytes read per second from the L2ARC"],
+    "l2wbytes":   [8, 1024, "Bytes written per second to the L2ARC"],
     "grow":       [4, 1000, "ARC grow disabled"],
     "need":       [5, 1024, "ARC reclaim need"],
     "free":       [5, 1024, "ARC free memory"],
@@ -168,6 +169,83 @@ cols = {
     "zissued":    [7, 1000, "zfetch prefetches issued per second"],
     "zactive":    [7, 1000, "zfetch prefetches active per second"],
 }
+
+# ARC structural breakdown from arc_summary
+structfields = {
+    "cmp":      ["compressed", "Compressed"],
+    "ovh":      ["overhead", "Overhead"],
+    "bon":      ["bonus", "Bonus"],
+    "dno":      ["dnode", "Dnode"],
+    "dbu":      ["dbuf", "Dbuf"],
+    "hdr":      ["hdr", "Header"],
+    "l2h":      ["l2_hdr", "L2 header"],
+    "abd":      ["abd_chunk_waste", "ABD chunk waste"],
+}
+structstats = {                             # size stats
+    "percent":  "size",                     # percentage of this value
+    "sz":       ["_size", "size"],
+}
+
+# ARC types breakdown from arc_summary
+typefields = {
+    "data":     ["data", "ARC data"],
+    "meta":     ["metadata", "ARC metadata"],
+}
+typestats = {                               # size stats
+    "percent":  "cachessz",                 # percentage of this value
+    "tg":       ["_target", "target"],
+    "sz":       ["_size", "size"],
+}
+
+# ARC states breakdown from arc_summary
+statefields = {
+    "ano":      ["anon", "Anonymous"],
+    "mfu":      ["mfu", "MFU"],
+    "mru":      ["mru", "MRU"],
+    "unc":      ["uncached", "Uncached"],
+}
+targetstats = {
+    "percent":  "cachessz",                 # percentage of this value
+    "fields":   ["mfu", "mru"],             # only applicable to these fields
+    "tg":       ["_target", "target"],
+    "dt":       ["_data_target", "data target"],
+    "mt":       ["_metadata_target", "metadata target"],
+}
+statestats = {                              # size stats
+    "percent":  "cachessz",                 # percentage of this value
+    "sz":       ["_size", "size"],
+    "da":       ["_data", "data size"],
+    "me":       ["_metadata", "metadata size"],
+    "ed":       ["_evictable_data", "evictable data size"],
+    "em":       ["_evictable_metadata", "evictable metadata size"],
+}
+ghoststats = {
+    "fields":   ["mfu", "mru"],             # only applicable to these fields
+    "gsz":      ["_ghost_size", "ghost size"],
+    "gd":       ["_ghost_data", "ghost data size"],
+    "gm":       ["_ghost_metadata", "ghost metadata size"],
+}
+
+# fields and stats
+fieldstats = [
+    [structfields, structstats],
+    [typefields, typestats],
+    [statefields, targetstats, statestats, ghoststats],
+]
+for fs in fieldstats:
+    fields, stats = fs[0], fs[1:]
+    for field, fieldval in fields.items():
+        for group in stats:
+            for stat, statval in group.items():
+                if stat in ["fields", "percent"] or \
+                    ("fields" in group and field not in group["fields"]):
+                    continue
+                colname = field + stat
+                coldesc = fieldval[1] + " " + statval[1]
+                cols[colname] = [len(colname), 1024, coldesc]
+                if "percent" in group:
+                    cols[colname + "%"] = [len(colname) + 1, 100, \
+                        coldesc + " percentage"]
 
 v = {}
 hdr = ["time", "read", "ddread", "ddh%", "dmread", "dmh%", "pread", "ph%",
@@ -286,6 +364,29 @@ def snap_stats():
     kstat_update()
 
     cur = kstat
+
+    # fill in additional values from arc_summary
+    cur["caches_size"] = caches_size = cur["anon_data"]+cur["anon_metadata"]+\
+        cur["mfu_data"]+cur["mfu_metadata"]+cur["mru_data"]+cur["mru_metadata"]+\
+        cur["uncached_data"]+cur["uncached_metadata"]
+    s = 4294967296
+    pd = cur["pd"]
+    pm = cur["pm"]
+    meta = cur["meta"]
+    v = (s-int(pd))*(s-int(meta))/s
+    cur["mfu_data_target"] = v / 65536 * caches_size / 65536
+    v = (s-int(pm))*int(meta)/s
+    cur["mfu_metadata_target"] = v / 65536 * caches_size / 65536
+    v = int(pd)*(s-int(meta))/s
+    cur["mru_data_target"] = v / 65536 * caches_size / 65536
+    v = int(pm)*int(meta)/s
+    cur["mru_metadata_target"] = v / 65536 * caches_size / 65536
+
+    cur["data_target"] = cur["mfu_data_target"] + cur["mru_data_target"]
+    cur["metadata_target"] = cur["mfu_metadata_target"] + cur["mru_metadata_target"]
+    cur["mfu_target"] = cur["mfu_data_target"] + cur["mfu_metadata_target"]
+    cur["mru_target"] = cur["mru_data_target"] + cur["mru_metadata_target"]
+
     for key in cur:
         if re.match(key, "class"):
             continue
@@ -295,31 +396,34 @@ def snap_stats():
             d[key] = cur[key]
 
 
+def isint(num):
+    if isinstance(num, float):
+        return num.is_integer()
+    if isinstance(num, int):
+        return True
+    return False
+
+
 def prettynum(sz, scale, num=0):
-    suffix = [' ', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']
+    suffix = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']
     index = 0
-    save = 0
 
     # Special case for date field
     if scale == -1:
         return "%s" % num
 
-    # Rounding error, return 0
-    elif 0 < num < 1:
-        num = 0
+    if scale != 100:
+        while abs(num) > scale and index < 5:
+            num = num / scale
+            index += 1
 
-    while abs(num) > scale and index < 5:
-        save = num
-        num = num / scale
-        index += 1
-
-    if index == 0:
-        return "%*d" % (sz, num)
-
-    if abs(save / scale) < 10:
-        return "%*.1f%s" % (sz - 1, num, suffix[index])
+    width = sz - (0 if index == 0 else 1)
+    intlen = len("%.0f" % num)              # %.0f rounds to nearest int
+    if sint == 1 and isint(num) or width < intlen + 2:
+        decimal = 0
     else:
-        return "%*d%s" % (sz - 1, num, suffix[index])
+        decimal = 1
+    return "%*.*f%s" % (width, decimal, num, suffix[index])
 
 
 def print_values():
@@ -509,131 +613,148 @@ def calculate():
 
     v = dict()
     v["time"] = time.strftime("%H:%M:%S", time.localtime())
-    v["hits"] = d["hits"] // sint
-    v["iohs"] = d["iohits"] // sint
-    v["miss"] = d["misses"] // sint
+    v["hits"] = d["hits"] / sint
+    v["iohs"] = d["iohits"] / sint
+    v["miss"] = d["misses"] / sint
     v["read"] = v["hits"] + v["iohs"] + v["miss"]
-    v["hit%"] = 100 * v["hits"] // v["read"] if v["read"] > 0 else 0
-    v["ioh%"] = 100 * v["iohs"] // v["read"] if v["read"] > 0 else 0
+    v["hit%"] = 100 * v["hits"] / v["read"] if v["read"] > 0 else 0
+    v["ioh%"] = 100 * v["iohs"] / v["read"] if v["read"] > 0 else 0
     v["miss%"] = 100 - v["hit%"] - v["ioh%"] if v["read"] > 0 else 0
 
-    v["dhit"] = (d["demand_data_hits"] + d["demand_metadata_hits"]) // sint
-    v["dioh"] = (d["demand_data_iohits"] + d["demand_metadata_iohits"]) // sint
-    v["dmis"] = (d["demand_data_misses"] + d["demand_metadata_misses"]) // sint
+    v["dhit"] = (d["demand_data_hits"] + d["demand_metadata_hits"]) / sint
+    v["dioh"] = (d["demand_data_iohits"] + d["demand_metadata_iohits"]) / sint
+    v["dmis"] = (d["demand_data_misses"] + d["demand_metadata_misses"]) / sint
 
     v["dread"] = v["dhit"] + v["dioh"] + v["dmis"]
-    v["dh%"] = 100 * v["dhit"] // v["dread"] if v["dread"] > 0 else 0
-    v["di%"] = 100 * v["dioh"] // v["dread"] if v["dread"] > 0 else 0
+    v["dh%"] = 100 * v["dhit"] / v["dread"] if v["dread"] > 0 else 0
+    v["di%"] = 100 * v["dioh"] / v["dread"] if v["dread"] > 0 else 0
     v["dm%"] = 100 - v["dh%"] - v["di%"] if v["dread"] > 0 else 0
 
-    v["ddhit"] = d["demand_data_hits"] // sint
-    v["ddioh"] = d["demand_data_iohits"] // sint
-    v["ddmis"] = d["demand_data_misses"] // sint
+    v["ddhit"] = d["demand_data_hits"] / sint
+    v["ddioh"] = d["demand_data_iohits"] / sint
+    v["ddmis"] = d["demand_data_misses"] / sint
 
     v["ddread"] = v["ddhit"] + v["ddioh"] + v["ddmis"]
-    v["ddh%"] = 100 * v["ddhit"] // v["ddread"] if v["ddread"] > 0 else 0
-    v["ddi%"] = 100 * v["ddioh"] // v["ddread"] if v["ddread"] > 0 else 0
+    v["ddh%"] = 100 * v["ddhit"] / v["ddread"] if v["ddread"] > 0 else 0
+    v["ddi%"] = 100 * v["ddioh"] / v["ddread"] if v["ddread"] > 0 else 0
     v["ddm%"] = 100 - v["ddh%"] - v["ddi%"] if v["ddread"] > 0 else 0
 
-    v["dmhit"] = d["demand_metadata_hits"] // sint
-    v["dmioh"] = d["demand_metadata_iohits"] // sint
-    v["dmmis"] = d["demand_metadata_misses"] // sint
+    v["dmhit"] = d["demand_metadata_hits"] / sint
+    v["dmioh"] = d["demand_metadata_iohits"] / sint
+    v["dmmis"] = d["demand_metadata_misses"] / sint
 
     v["dmread"] = v["dmhit"] + v["dmioh"] + v["dmmis"]
-    v["dmh%"] = 100 * v["dmhit"] // v["dmread"] if v["dmread"] > 0 else 0
-    v["dmi%"] = 100 * v["dmioh"] // v["dmread"] if v["dmread"] > 0 else 0
+    v["dmh%"] = 100 * v["dmhit"] / v["dmread"] if v["dmread"] > 0 else 0
+    v["dmi%"] = 100 * v["dmioh"] / v["dmread"] if v["dmread"] > 0 else 0
     v["dmm%"] = 100 - v["dmh%"] - v["dmi%"] if v["dmread"] > 0 else 0
 
-    v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) // sint
+    v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) / sint
     v["pioh"] = (d["prefetch_data_iohits"] +
-                 d["prefetch_metadata_iohits"]) // sint
+                 d["prefetch_metadata_iohits"]) / sint
     v["pmis"] = (d["prefetch_data_misses"] +
-                 d["prefetch_metadata_misses"]) // sint
+                 d["prefetch_metadata_misses"]) / sint
 
     v["pread"] = v["phit"] + v["pioh"] + v["pmis"]
-    v["ph%"] = 100 * v["phit"] // v["pread"] if v["pread"] > 0 else 0
-    v["pi%"] = 100 * v["pioh"] // v["pread"] if v["pread"] > 0 else 0
+    v["ph%"] = 100 * v["phit"] / v["pread"] if v["pread"] > 0 else 0
+    v["pi%"] = 100 * v["pioh"] / v["pread"] if v["pread"] > 0 else 0
     v["pm%"] = 100 - v["ph%"] - v["pi%"] if v["pread"] > 0 else 0
 
-    v["pdhit"] = d["prefetch_data_hits"] // sint
-    v["pdioh"] = d["prefetch_data_iohits"] // sint
-    v["pdmis"] = d["prefetch_data_misses"] // sint
+    v["pdhit"] = d["prefetch_data_hits"] / sint
+    v["pdioh"] = d["prefetch_data_iohits"] / sint
+    v["pdmis"] = d["prefetch_data_misses"] / sint
 
     v["pdread"] = v["pdhit"] + v["pdioh"] + v["pdmis"]
-    v["pdh%"] = 100 * v["pdhit"] // v["pdread"] if v["pdread"] > 0 else 0
-    v["pdi%"] = 100 * v["pdioh"] // v["pdread"] if v["pdread"] > 0 else 0
+    v["pdh%"] = 100 * v["pdhit"] / v["pdread"] if v["pdread"] > 0 else 0
+    v["pdi%"] = 100 * v["pdioh"] / v["pdread"] if v["pdread"] > 0 else 0
     v["pdm%"] = 100 - v["pdh%"] - v["pdi%"] if v["pdread"] > 0 else 0
 
-    v["pmhit"] = d["prefetch_metadata_hits"] // sint
-    v["pmioh"] = d["prefetch_metadata_iohits"] // sint
-    v["pmmis"] = d["prefetch_metadata_misses"] // sint
+    v["pmhit"] = d["prefetch_metadata_hits"] / sint
+    v["pmioh"] = d["prefetch_metadata_iohits"] / sint
+    v["pmmis"] = d["prefetch_metadata_misses"] / sint
 
     v["pmread"] = v["pmhit"] + v["pmioh"] + v["pmmis"]
-    v["pmh%"] = 100 * v["pmhit"] // v["pmread"] if v["pmread"] > 0 else 0
-    v["pmi%"] = 100 * v["pmioh"] // v["pmread"] if v["pmread"] > 0 else 0
+    v["pmh%"] = 100 * v["pmhit"] / v["pmread"] if v["pmread"] > 0 else 0
+    v["pmi%"] = 100 * v["pmioh"] / v["pmread"] if v["pmread"] > 0 else 0
     v["pmm%"] = 100 - v["pmh%"] - v["pmi%"] if v["pmread"] > 0 else 0
 
     v["mhit"] = (d["prefetch_metadata_hits"] +
-                 d["demand_metadata_hits"]) // sint
+                 d["demand_metadata_hits"]) / sint
     v["mioh"] = (d["prefetch_metadata_iohits"] +
-                 d["demand_metadata_iohits"]) // sint
+                 d["demand_metadata_iohits"]) / sint
     v["mmis"] = (d["prefetch_metadata_misses"] +
-                 d["demand_metadata_misses"]) // sint
+                 d["demand_metadata_misses"]) / sint
 
     v["mread"] = v["mhit"] + v["mioh"] + v["mmis"]
-    v["mh%"] = 100 * v["mhit"] // v["mread"] if v["mread"] > 0 else 0
-    v["mi%"] = 100 * v["mioh"] // v["mread"] if v["mread"] > 0 else 0
+    v["mh%"] = 100 * v["mhit"] / v["mread"] if v["mread"] > 0 else 0
+    v["mi%"] = 100 * v["mioh"] / v["mread"] if v["mread"] > 0 else 0
     v["mm%"] = 100 - v["mh%"] - v["mi%"] if v["mread"] > 0 else 0
 
     v["arcsz"] = cur["size"]
     v["size"] = cur["size"]
     v["c"] = cur["c"]
-    v["mfu"] = d["mfu_hits"] // sint
-    v["mru"] = d["mru_hits"] // sint
-    v["mrug"] = d["mru_ghost_hits"] // sint
-    v["mfug"] = d["mfu_ghost_hits"] // sint
-    v["unc"] = d["uncached_hits"] // sint
-    v["eskip"] = d["evict_skip"] // sint
-    v["el2skip"] = d["evict_l2_skip"] // sint
-    v["el2cach"] = d["evict_l2_cached"] // sint
-    v["el2el"] = d["evict_l2_eligible"] // sint
-    v["el2mfu"] = d["evict_l2_eligible_mfu"] // sint
-    v["el2mru"] = d["evict_l2_eligible_mru"] // sint
-    v["el2inel"] = d["evict_l2_ineligible"] // sint
-    v["mtxmis"] = d["mutex_miss"] // sint
+    v["mfu"] = d["mfu_hits"] / sint
+    v["mru"] = d["mru_hits"] / sint
+    v["mrug"] = d["mru_ghost_hits"] / sint
+    v["mfug"] = d["mfu_ghost_hits"] / sint
+    v["unc"] = d["uncached_hits"] / sint
+    v["eskip"] = d["evict_skip"] / sint
+    v["el2skip"] = d["evict_l2_skip"] / sint
+    v["el2cach"] = d["evict_l2_cached"] / sint
+    v["el2el"] = d["evict_l2_eligible"] / sint
+    v["el2mfu"] = d["evict_l2_eligible_mfu"] / sint
+    v["el2mru"] = d["evict_l2_eligible_mru"] / sint
+    v["el2inel"] = d["evict_l2_ineligible"] / sint
+    v["mtxmis"] = d["mutex_miss"] / sint
     v["ztotal"] = (d["zfetch_hits"] + d["zfetch_future"] + d["zfetch_stride"] +
-                   d["zfetch_past"] + d["zfetch_misses"]) // sint
-    v["zhits"] = d["zfetch_hits"] // sint
-    v["zahead"] = (d["zfetch_future"] + d["zfetch_stride"]) // sint
-    v["zpast"] = d["zfetch_past"] // sint
-    v["zmisses"] = d["zfetch_misses"] // sint
-    v["zmax"] = d["zfetch_max_streams"] // sint
-    v["zfuture"] = d["zfetch_future"] // sint
-    v["zstride"] = d["zfetch_stride"] // sint
-    v["zissued"] = d["zfetch_io_issued"] // sint
-    v["zactive"] = d["zfetch_io_active"] // sint
+                   d["zfetch_past"] + d["zfetch_misses"]) / sint
+    v["zhits"] = d["zfetch_hits"] / sint
+    v["zahead"] = (d["zfetch_future"] + d["zfetch_stride"]) / sint
+    v["zpast"] = d["zfetch_past"] / sint
+    v["zmisses"] = d["zfetch_misses"] / sint
+    v["zmax"] = d["zfetch_max_streams"] / sint
+    v["zfuture"] = d["zfetch_future"] / sint
+    v["zstride"] = d["zfetch_stride"] / sint
+    v["zissued"] = d["zfetch_io_issued"] / sint
+    v["zactive"] = d["zfetch_io_active"] / sint
+
+    # ARC structural breakdown, ARC types breakdown, ARC states breakdown
+    v["cachessz"] = cur["caches_size"]
+    for fs in fieldstats:
+        fields, stats = fs[0], fs[1:]
+        for field, fieldval in fields.items():
+            for group in stats:
+                for stat, statval in group.items():
+                    if stat in ["fields", "percent"] or \
+                        ("fields" in group and field not in group["fields"]):
+                        continue
+                    colname = field + stat
+                    v[colname] = cur[fieldval[0] + statval[0]]
+                    if "percent" in group:
+                        v[colname + "%"] = 100 * v[colname] / \
+                            v[group["percent"]] if v[group["percent"]] > 0 else 0
 
     if l2exist:
-        v["l2hits"] = d["l2_hits"] // sint
-        v["l2miss"] = d["l2_misses"] // sint
+        v["l2hits"] = d["l2_hits"] / sint
+        v["l2miss"] = d["l2_misses"] / sint
         v["l2read"] = v["l2hits"] + v["l2miss"]
-        v["l2hit%"] = 100 * v["l2hits"] // v["l2read"] if v["l2read"] > 0 else 0
+        v["l2hit%"] = 100 * v["l2hits"] / v["l2read"] if v["l2read"] > 0 else 0
 
         v["l2miss%"] = 100 - v["l2hit%"] if v["l2read"] > 0 else 0
         v["l2asize"] = cur["l2_asize"]
         v["l2size"] = cur["l2_size"]
-        v["l2bytes"] = d["l2_read_bytes"] // sint
+        v["l2bytes"] = d["l2_read_bytes"] / sint
+        v["l2wbytes"] = d["l2_write_bytes"] / sint
 
         v["l2pref"] = cur["l2_prefetch_asize"]
         v["l2mfu"] = cur["l2_mfu_asize"]
         v["l2mru"] = cur["l2_mru_asize"]
         v["l2data"] = cur["l2_bufc_data_asize"]
         v["l2meta"] = cur["l2_bufc_metadata_asize"]
-        v["l2pref%"] = 100 * v["l2pref"] // v["l2asize"]
-        v["l2mfu%"] = 100 * v["l2mfu"] // v["l2asize"]
-        v["l2mru%"] = 100 * v["l2mru"] // v["l2asize"]
-        v["l2data%"] = 100 * v["l2data"] // v["l2asize"]
-        v["l2meta%"] = 100 * v["l2meta"] // v["l2asize"]
+        v["l2pref%"] = 100 * v["l2pref"] / v["l2asize"]
+        v["l2mfu%"] = 100 * v["l2mfu"] / v["l2asize"]
+        v["l2mru%"] = 100 * v["l2mru"] / v["l2asize"]
+        v["l2data%"] = 100 * v["l2data"] / v["l2asize"]
+        v["l2meta%"] = 100 * v["l2meta"] / v["l2asize"]
 
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]
