@@ -141,6 +141,10 @@ case "$1" in
     ;;
 esac
 
+# This script is used for checkstyle + zloop deps also.
+# Install only the needed packages and exit - when used this way.
+test -z "${ONLY_DEPS:-}" || exit 0
+
 # Start services
 echo "##[group]Enable services"
 case "$1" in
