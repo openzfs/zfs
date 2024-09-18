@@ -14,11 +14,7 @@ jobs:
         # all:
         # os:  [almalinux8, almalinux9, archlinux, centos-stream9, fedora39, fedora40, debian11, debian12, freebsd13, freebsd13r, freebsd14, freebsd14r, freebsd15, ubuntu20, ubuntu22, ubuntu24]
         # openzfs:
-        os: [almalinux8, almalinux9, centos-stream9, debian11, debian12, fedora39, fedora40, freebsd13, freebsd13r, freebsd14, freebsd14r]
-        # freebsd:
-        # os: [freebsd13, freebsd14]
-        # small test:
-        # os: [archlinux]
+        os: [almalinux8, almalinux9, centos-stream9, debian11, debian12, fedora39, fedora40, freebsd13, freebsd13r, freebsd14, freebsd14r, ubuntu20, ubuntu22, ubuntu24]
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
