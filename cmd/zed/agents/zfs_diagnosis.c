@@ -71,6 +71,7 @@ typedef struct zfs_case_data {
 	uint64_t	zc_ena;
 	uint64_t	zc_pool_guid;
 	uint64_t	zc_vdev_guid;
+	uint64_t	zc_parent_guid;
 	int		zc_pool_state;
 	char		zc_serd_checksum[MAX_SERDLEN];
 	char		zc_serd_io[MAX_SERDLEN];
@@ -181,10 +182,10 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
 }
 
 /*
- * count other unique slow-io cases in a pool
+ * Return count of other unique SERD cases under same vdev parent
  */
 static uint_t
-zfs_other_slow_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
+zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
 {
 	zfs_case_t *zcp;
 	uint_t cases = 0;
@@ -206,10 +207,32 @@ zfs_other_slow_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
 
 	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
 	    zcp = uu_list_next(zfs_cases, zcp)) {
-		if (zcp->zc_data.zc_pool_guid == zfs_case->zc_pool_guid &&
-		    zcp->zc_data.zc_vdev_guid != zfs_case->zc_vdev_guid &&
-		    zcp->zc_data.zc_serd_slow_io[0] != '\0' &&
-		    fmd_serd_active(hdl, zcp->zc_data.zc_serd_slow_io)) {
+		zfs_case_data_t *zcd = &zcp->zc_data;
+
+		/*
+		 * must be same pool and parent vdev but different leaf vdev
+		 */
+		if (zcd->zc_pool_guid != zfs_case->zc_pool_guid ||
+		    zcd->zc_parent_guid != zfs_case->zc_parent_guid ||
+		    zcd->zc_vdev_guid == zfs_case->zc_vdev_guid) {
+			continue;
+		}
+
+		/*
+		 * Check if there is another active serd case besides zfs_case
+		 *
+		 * Only one serd engine will be assigned to the case
+		 */
+		if (zcd->zc_serd_checksum[0] == zfs_case->zc_serd_checksum[0] &&
+		    fmd_serd_active(hdl, zcd->zc_serd_checksum)) {
+			cases++;
+		}
+		if (zcd->zc_serd_io[0] == zfs_case->zc_serd_io[0] &&
+		    fmd_serd_active(hdl, zcd->zc_serd_io)) {
+			cases++;
+		}
+		if (zcd->zc_serd_slow_io[0] == zfs_case->zc_serd_slow_io[0] &&
+		    fmd_serd_active(hdl, zcd->zc_serd_slow_io)) {
 			cases++;
 		}
 	}
@@ -503,6 +526,34 @@ zfs_ereport_when(fmd_hdl_t *hdl, nvlist_t *nvl, er_timeval_t *when)
 }
 
 /*
+ * Record the specified event in the SERD engine and return a
+ * boolean value indicating whether or not the engine fired as
+ * the result of inserting this event.
+ *
+ * When the pool has similar active cases on other vdevs, then
+ * the fired state is disregarded and the case is retired.
+ */
+static int
+zfs_fm_serd_record(fmd_hdl_t *hdl, const char *name, fmd_event_t *ep,
+    zfs_case_t *zcp, const char *err_type)
+{
+	int fired = fmd_serd_record(hdl, name, ep);
+	int peers = 0;
+
+	if (fired && (peers = zfs_other_serd_cases(hdl, &zcp->zc_data)) > 0) {
+		fmd_hdl_debug(hdl, "pool %llu is tracking %d other %s cases "
+		    "-- skip faulting the vdev %llu",
+		    (u_longlong_t)zcp->zc_data.zc_pool_guid,
+		    peers, err_type,
+		    (u_longlong_t)zcp->zc_data.zc_vdev_guid);
+		zfs_case_retire(hdl, zcp);
+		fired = 0;
+	}
+
+	return (fired);
+}
+
+/*
  * Main fmd entry point.
  */
 static void
@@ -510,7 +561,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 {
 	zfs_case_t *zcp, *dcp;
 	int32_t pool_state;
-	uint64_t ena, pool_guid, vdev_guid;
+	uint64_t ena, pool_guid, vdev_guid, parent_guid;
 	uint64_t checksum_n, checksum_t;
 	uint64_t io_n, io_t;
 	er_timeval_t pool_load;
@@ -600,6 +651,9 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	if (nvlist_lookup_uint64(nvl,
 	    FM_EREPORT_PAYLOAD_ZFS_VDEV_GUID, &vdev_guid) != 0)
 		vdev_guid = 0;
+	if (nvlist_lookup_uint64(nvl,
+	    FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID, &parent_guid) != 0)
+		parent_guid = 0;
 	if (nvlist_lookup_uint64(nvl, FM_EREPORT_ENA, &ena) != 0)
 		ena = 0;
 
@@ -710,6 +764,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		data.zc_ena = ena;
 		data.zc_pool_guid = pool_guid;
 		data.zc_vdev_guid = vdev_guid;
+		data.zc_parent_guid = parent_guid;
 		data.zc_pool_state = (int)pool_state;
 
 		fmd_buf_write(hdl, cs, CASE_DATA, &data, sizeof (data));
@@ -872,8 +927,10 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 				    SEC2NSEC(io_t));
 				zfs_case_serialize(zcp);
 			}
-			if (fmd_serd_record(hdl, zcp->zc_data.zc_serd_io, ep))
+			if (zfs_fm_serd_record(hdl, zcp->zc_data.zc_serd_io,
+			    ep, zcp, "io error")) {
 				checkremove = B_TRUE;
+			}
 		} else if (fmd_nvl_class_match(hdl, nvl,
 		    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_DELAY))) {
 			uint64_t slow_io_n, slow_io_t;
@@ -899,25 +956,10 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 			}
 			/* Pass event to SERD engine and see if this triggers */
 			if (zcp->zc_data.zc_serd_slow_io[0] != '\0' &&
-			    fmd_serd_record(hdl, zcp->zc_data.zc_serd_slow_io,
-			    ep)) {
-				/*
-				 * Ignore a slow io diagnosis when other
-				 * VDEVs in the pool show signs of being slow.
-				 */
-				if (zfs_other_slow_cases(hdl, &zcp->zc_data)) {
-					zfs_case_retire(hdl, zcp);
-					fmd_hdl_debug(hdl, "pool %llu has "
-					    "multiple slow io cases -- skip "
-					    "degrading vdev %llu",
-					    (u_longlong_t)
-					    zcp->zc_data.zc_pool_guid,
-					    (u_longlong_t)
-					    zcp->zc_data.zc_vdev_guid);
-				} else {
-					zfs_case_solve(hdl, zcp,
-					    "fault.fs.zfs.vdev.slow_io");
-				}
+			    zfs_fm_serd_record(hdl,
+			    zcp->zc_data.zc_serd_slow_io, ep, zcp, "slow io")) {
+				zfs_case_solve(hdl, zcp,
+				    "fault.fs.zfs.vdev.slow_io");
 			}
 		} else if (fmd_nvl_class_match(hdl, nvl,
 		    ZFS_MAKE_EREPORT(FM_EREPORT_ZFS_CHECKSUM))) {
@@ -968,8 +1010,9 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 				    SEC2NSEC(checksum_t));
 				zfs_case_serialize(zcp);
 			}
-			if (fmd_serd_record(hdl,
-			    zcp->zc_data.zc_serd_checksum, ep)) {
+			if (zfs_fm_serd_record(hdl,
+			    zcp->zc_data.zc_serd_checksum, ep, zcp,
+			    "checksum")) {
 				zfs_case_solve(hdl, zcp,
 				    "fault.fs.zfs.vdev.checksum");
 			}
