@@ -35,15 +35,12 @@ EOF
 cat /tmp/summary.txt
 echo ""
 
-if [ -e /tmp/have_failed_tests ]; then
-  RV=1
+if [ -f /tmp/have_failed_tests -a -s /tmp/failed.txt ]; then
   echo "Debuginfo of failed tests:"
   cat /tmp/failed.txt
   echo ""
   cat /tmp/summary.txt | grep -v '^/'
   echo ""
-else
-  RV=0
 fi
 
 echo -e "\nFull logs for download:\n    $1\n"
@@ -70,4 +67,5 @@ for i in $(seq 1 $VMs); do
   test -s "$file" && showfile "$file" "$vm: failure logfile"
 done
 
-exit $RV
+test -f /tmp/have_failed_tests && exit 1
+exit 0
