@@ -46,7 +46,11 @@ for i in $(seq 1 $VMs); do
   test -s $file && mv -f $file uname.txt
 
   file="vm$i/tests-exitcode.txt"
-  test -s $file || echo 1 > $file
+  if [ ! -s $file ]; then
+    # XXX - add some tests for kernel panic's here
+    # tail -n 80 vm$i/console.txt | grep XYZ
+    echo 1 > $file
+  fi
   rv=$(cat vm$i/tests-exitcode.txt)
   test $rv != 0 && touch /tmp/have_failed_tests
 
@@ -89,7 +93,6 @@ fi
 cat summary.txt \
   | awk '/\(expected PASS\)/{ if ($1!="SKIP") print $2; next; } show' \
   | while read t; do
-  echo "check: $t"
   cat summary-failure-logs.txt \
     | awk '$0~/Test[: ]/{ show=0; } $0~v{ show=1; } show' v="$t" \
     > /tmp/fail.txt
