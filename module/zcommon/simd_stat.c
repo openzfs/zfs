@@ -1,3 +1,26 @@
+/*
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or https://opensource.org/licenses/CDDL-1.0.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+/*
+ * Copyright 2024 Google, Inc.  All rights reserved.
+ */
 #include <sys/zfs_context.h>
 #include <sys/kstat.h>
 #include <sys/simd.h>
@@ -11,9 +34,8 @@ kstat_t *simd_stat_kstat;
 #endif /* _KERNEL */
 
 #ifdef _KERNEL
-/* shut up making this more lines helps nobody */
-/* CSTYLED */
-#define SIMD_STAT_PRINT(s, feat, val)	kmem_scnprintf(s + off, 4095 - off, "%-16s\t%1d\n", feat, (val))
+#define	SIMD_STAT_PRINT(s, feat, val) \
+	kmem_scnprintf(s + off, MAX(4095-off, 0), "%-16s\t%1d\n", feat, (val))
 
 static int
 simd_stat_kstat_data(char *buf, size_t size, void *data)
@@ -112,10 +134,10 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		    "sha512", zfs_sha512_available());
 #endif /* __aarch64__ */
 #endif /* __arm__ */
+		/* We want to short-circuit this on unsupported platforms. */
+		off += 1;
 	}
 
-	// we need one more for the trailing newline, or this prints grossly.
-	off += 1;
 	kmem_scnprintf(buf, MIN(off, size), "%s", simd_stat_kstat_payload);
 #endif /* __linux__ */
 	return (0);
