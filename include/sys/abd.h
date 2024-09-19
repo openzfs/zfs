@@ -65,6 +65,7 @@ typedef struct abd {
 			list_t abd_gang_chain;
 		} abd_gang;
 	} abd_u;
+	void *abd_zia_handle;
 } abd_t;
 
 typedef int abd_iter_func_t(void *buf, size_t len, void *priv);

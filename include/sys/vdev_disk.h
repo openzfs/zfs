@@ -42,5 +42,13 @@
 
 #ifdef _KERNEL
 #include <sys/vdev.h>
+
+#ifdef __linux__
+int __vdev_classic_physio(struct block_device *bdev, zio_t *zio,
+    size_t io_size, uint64_t io_offset, int rw, int flags);
+int vdev_disk_io_flush(struct block_device *bdev, zio_t *zio);
+void vdev_disk_error(zio_t *zio);
+#endif /* __linux__ */
+
 #endif /* _KERNEL */
 #endif /* _SYS_VDEV_DISK_H */
