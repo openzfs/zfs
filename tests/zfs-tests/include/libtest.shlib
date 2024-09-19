@@ -3460,18 +3460,7 @@ function tunable_exists
 #
 function md5digest
 {
-	typeset file=$1
-
-	case "$UNAME" in
-	FreeBSD)
-		md5 -q $file
-		;;
-	*)
-		typeset sum _
-		read -r sum _ < <(md5sum -b $file)
-		echo $sum
-		;;
-	esac
+	openssl md5 -r $1 | awk '{print $1}'
 }
 
 #
@@ -3480,18 +3469,7 @@ function md5digest
 #
 function sha256digest
 {
-	typeset file=$1
-
-	case "$UNAME" in
-	FreeBSD)
-		sha256 -q $file
-		;;
-	*)
-		typeset sum _
-		read -r sum _ < <(sha256sum -b $file)
-		echo $sum
-		;;
-	esac
+	openssl sha256 -r $1 | awk '{print $1}'
 }
 
 function new_fs #<args>
