@@ -56,16 +56,10 @@
 #include <asm/switch_to.h>
 #include <sys/types.h>
 #include <linux/version.h>
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
 #include <asm/cpufeature.h>
-#else
-#include <asm/cputable.h>
-#endif
 
 #define	kfpu_allowed()			1
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
 #ifdef	CONFIG_ALTIVEC
 #define	ENABLE_KERNEL_ALTIVEC	enable_kernel_altivec();
 #define	DISABLE_KERNEL_ALTIVEC	disable_kernel_altivec();
@@ -101,11 +95,6 @@
 		DISABLE_KERNEL_ALTIVEC		\
 		preempt_enable();		\
 	}
-#else
-/* seems that before 4.5 no-one bothered */
-#define	kfpu_begin()
-#define	kfpu_end()		preempt_enable()
-#endif	/* Linux version >= 4.5 */
 
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
