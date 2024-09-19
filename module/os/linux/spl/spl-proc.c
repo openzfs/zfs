@@ -39,7 +39,7 @@
 #include <linux/version.h>
 #include "zfs_gitrev.h"
 
-#if defined(CONSTIFY_PLUGIN) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if defined(CONSTIFY_PLUGIN)
 typedef struct ctl_table __no_const spl_ctl_table;
 #else
 typedef struct ctl_table spl_ctl_table;
