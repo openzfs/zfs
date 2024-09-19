@@ -1081,23 +1081,30 @@ abd_return_buf_copy(abd_t *abd, void *buf, size_t n)
  * Before kernel 4.5 however, compound page heads were refcounted separately
  * from tail pages, such that moving back to the head page would require us to
  * take a reference to it and releasing it once we're completely finished with
- * it. In practice, that means when our caller is done with the ABD, which we
+ * it. In practice, that meant when our caller is done with the ABD, which we
  * have no insight into from here. Rather than contort this API to track head
- * page references on such ancient kernels, we disable this special compound
- * page handling on 4.5, instead just using treating each page within it as a
- * regular PAGESIZE page (which it is). This is slightly less efficient, but
- * makes everything far simpler.
+ * page references on such ancient kernels, we disabled this special compound
+ * page handling on kernels before 4.5, instead just using treating each page
+ * within it as a regular PAGESIZE page (which it is). This is slightly less
+ * efficient, but makes everything far simpler.
  *
- * The below test sets/clears ABD_ITER_COMPOUND_PAGES to enable/disable the
- * special handling, and also defines the ABD_ITER_PAGE_SIZE(page) macro to
- * understand compound pages, or not, as required.
+ * We no longer support kernels before 4.5, so in theory none of this is
+ * necessary. However, this code is still relatively new in the grand scheme of
+ * things, so I'm leaving the ability to compile this out for the moment.
+ *
+ * Setting/clearing ABD_ITER_COMPOUND_PAGES below enables/disables the special
+ * handling, by defining the ABD_ITER_PAGE_SIZE(page) macro to understand
+ * compound pages, or not, and compiling in/out the support to detect compound
+ * tail pages and move back to the start.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
-#define	ABD_ITER_COMPOUND_PAGES		1
+
+/* On by default */
+#define	ABD_ITER_COMPOUND_PAGES
+
+#ifdef ABD_ITER_COMPOUND_PAGES
 #define	ABD_ITER_PAGE_SIZE(page)	\
 	(PageCompound(page) ? page_size(page) : PAGESIZE)
 #else
-#undef ABD_ITER_COMPOUND_PAGES
 #define	ABD_ITER_PAGE_SIZE(page)	(PAGESIZE)
 #endif
 
