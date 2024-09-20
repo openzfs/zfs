@@ -50,6 +50,7 @@ nodist_libzpool_la_SOURCES = \
 	module/os/linux/zfs/zio_crypt.c \
 	\
 	module/zcommon/cityhash.c \
+	module/zcommon/simd_stat.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
 	module/zcommon/zfs_deleg.c \
