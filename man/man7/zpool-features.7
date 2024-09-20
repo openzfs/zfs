@@ -218,7 +218,7 @@ to the end of the line is ignored.
 .Sy Example :
 .Bd -literal -compact -offset 4n
 .No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2
-# Features which are supported by GRUB2
+# Features which are supported by GRUB2 versions from v2.12 onwards.
 allocation_classes
 async_destroy
 block_cloning
@@ -240,6 +240,31 @@ spacemap_histogram
 spacemap_v2
 userobj_accounting
 zilsaxattr
+zpool_checkpoint
+
+.No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2-2.06
+# Features which are supported by GRUB2 versions prior to v2.12.
+#
+# GRUB is not able to detect ZFS pool if snaphsot of top level boot pool
+# is created. This issue is observed with GRUB versions before v2.12 if
+# extensible_dataset feature is enabled on ZFS boot pool.
+#
+# This file lists all read-only comaptible features except
+# extensible_dataset and any other feature that depends on it.
+#
+allocation_classes
+async_destroy
+block_cloning
+device_rebuild
+embedded_data
+empty_bpobj
+enabled_txg
+hole_birth
+log_spacemap
+lz4_compress
+resilver_defer
+spacemap_histogram
+spacemap_v2
 zpool_checkpoint
 
 .No example# Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar grub2 Ar bootpool Ar vdev
@@ -666,7 +691,7 @@ are destroyed.
 Large dnodes allow more data to be stored in the bonus buffer,
 thus potentially improving performance by avoiding the use of spill blocks.
 .
-.feature com.delphix livelist yes
+.feature com.delphix livelist yes extensible_dataset
 This feature allows clones to be deleted faster than the traditional method
 when a large number of random/sparse writes have been made to the clone.
 All blocks allocated and freed after a clone is created are tracked by the
