@@ -236,6 +236,7 @@ zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
 
 ZCOMMON_OBJS := \
 	cityhash.o \
+	simd_stat.o \
 	zfeature_common.o \
 	zfs_comutil.o \
 	zfs_deleg.o \
