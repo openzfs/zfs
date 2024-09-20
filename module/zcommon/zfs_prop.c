@@ -1062,9 +1062,6 @@ EXPORT_SYMBOL(zfs_kfpu_fpregs);
 extern int __init zcommon_init(void);
 extern void zcommon_fini(void);
 
-extern void simd_stat_init(void);
-extern void simd_stat_fini(void);
-
 int __init
 zcommon_init(void)
 {
