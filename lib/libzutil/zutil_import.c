@@ -1071,6 +1071,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 					 * Try the slow method.
 					 */
 					zfs_fallthrough;
+				case EAGAIN:
 				case EOPNOTSUPP:
 				case ENOSYS:
 					do_slow = B_TRUE;
@@ -1464,7 +1465,21 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 	 * validating labels, a large number of threads can be used due to
 	 * minimal contention.
 	 */
-	t = tpool_create(1, 2 * sysconf(_SC_NPROCESSORS_ONLN), 0, NULL);
+	long threads = 2 * sysconf(_SC_NPROCESSORS_ONLN);
+#ifdef HAVE_AIO_H
+	long am;
+#ifdef _SC_AIO_LISTIO_MAX
+	am = sysconf(_SC_AIO_LISTIO_MAX);
+	if (am >= VDEV_LABELS)
+		threads = MIN(threads, am / VDEV_LABELS);
+#endif
+#ifdef _SC_AIO_MAX
+	am = sysconf(_SC_AIO_MAX);
+	if (am >= VDEV_LABELS)
+		threads = MIN(threads, am / VDEV_LABELS);
+#endif
+#endif
+	t = tpool_create(1, threads, 0, NULL);
 	for (slice = avl_first(cache); slice;
 	    (slice = avl_walk(cache, slice, AVL_AFTER)))
 		(void) tpool_dispatch(t, zpool_open_func, slice);
