@@ -1779,6 +1779,18 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 }
 
+void
+zfs_znode_update_vfs(znode_t *zp)
+{
+	vm_object_t object;
+
+	if ((object = ZTOV(zp)->v_object) == NULL ||
+	    zp->z_size == object->un_pager.vnp.vnp_size)
+		return;
+
+	vnode_pager_setsize(ZTOV(zp), zp->z_size);
+}
+
 int
 zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
 {
