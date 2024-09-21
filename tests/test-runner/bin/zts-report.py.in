@@ -125,11 +125,6 @@ fspacectl_reason = 'fspacectl(2) and truncate -d support required'
 na_reason = "Not applicable"
 
 #
-# Some test cases doesn't have all requirements to run on Github actions CI.
-#
-ci_reason = 'CI runner doesn\'t have all requirements'
-
-#
 # Idmapped mount is only supported in kernel version >= 5.12
 #
 idmap_reason = 'Idmapped mount needs kernel 5.12+'
@@ -352,37 +347,6 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
-    })
-
-# Not all Github actions runners have scsi_debug module, so we may skip
-#   some tests which use it.
-if os.environ.get('CI') == 'true':
-    known.update({
-        'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', ci_reason],
-        'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/setup': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_001_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_002_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_004_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_005_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP', ci_reason],
-        'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP', ci_reason],
-        'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', ci_reason],
-        'fault/auto_offline_001_pos': ['SKIP', ci_reason],
-        'fault/auto_online_001_pos': ['SKIP', ci_reason],
-        'fault/auto_online_002_pos': ['SKIP', ci_reason],
-        'fault/auto_replace_001_pos': ['SKIP', ci_reason],
-        'fault/auto_replace_002_pos': ['SKIP', ci_reason],
-        'fault/auto_spare_ashift': ['SKIP', ci_reason],
-        'fault/auto_spare_shared': ['SKIP', ci_reason],
-        'fault/suspend_resume_single': ['SKIP', ci_reason],
-        'procfs/pool_state': ['SKIP', ci_reason],
-    })
-
-    maybe.update({
-        'events/events_002_pos': ['FAIL', 11546],
     })
 
 
