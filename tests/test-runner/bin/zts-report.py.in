@@ -67,12 +67,6 @@ exec_reason = 'Test user execute permissions required for utilities'
 renameat2_reason = 'Kernel renameat2 support required'
 
 #
-# Some tests require the O_TMPFILE flag which was first introduced in the
-# 3.11 kernel.
-#
-tmpfile_reason = 'Kernel O_TMPFILE support required'
-
-#
 # Some tests require the statx(2) system call on Linux which was first
 # introduced in the 4.11 kernel.
 #
@@ -246,7 +240,6 @@ maybe = {
     'snapshot/snapshot_009_pos': ['FAIL', 7961],
     'snapshot/snapshot_010_pos': ['FAIL', 7961],
     'snapused/snapused_004_pos': ['FAIL', 5513],
-    'tmpfile/setup': ['SKIP', tmpfile_reason],
     'trim/setup': ['SKIP', trim_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'upgrade/upgrade_projectquota_002_pos': ['SKIP', project_id_reason],
