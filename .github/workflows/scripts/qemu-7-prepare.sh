@@ -18,6 +18,7 @@ if [ -z ${VMs:-} ]; then
   cd $RESPATH
   echo ":exclamation: ZFS module didn't build successfully :exclamation:" \
     | tee summary.txt | tee /tmp/summary.txt
+  cp /var/tmp/*.txt .
   tar cf /tmp/qemu-$OS.tar -C $RESPATH -h . || true
   exit 0
 fi
