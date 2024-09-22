@@ -34,6 +34,14 @@ kstat_t *simd_stat_kstat;
 #endif /* _KERNEL */
 
 #ifdef _KERNEL
+/* Sometimes, we don't define these at all. */
+#ifndef HAVE_KERNEL_FPU
+#define	HAVE_KERNEL_FPU (0)
+#endif
+#ifndef HAVE_UNDERSCORE_KERNEL_FPU
+#define	HAVE_UNDERSCORE_KERNEL_FPU (0)
+#endif
+
 #define	SIMD_STAT_PRINT(s, feat, val) \
 	kmem_scnprintf(s + off, MAX(4095-off, 0), "%-16s\t%1d\n", feat, (val))
 
@@ -48,7 +56,7 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 	if (off == 0) {
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kfpu_allowed", kfpu_allowed());
-#ifdef __x86__
+#if defined(__x86_64__) || defined(__i386__)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kfpu", HAVE_KERNEL_FPU);
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
