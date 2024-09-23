@@ -164,7 +164,7 @@ zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
 		vfsp->vfs_do_xattr = B_TRUE;
 		break;
 	case TOKEN_XATTR:
-		vfsp->vfs_xattr = ZFS_XATTR_DIR;
+		vfsp->vfs_xattr = ZFS_XATTR_SA;
 		vfsp->vfs_do_xattr = B_TRUE;
 		break;
 	case TOKEN_NOXATTR:
