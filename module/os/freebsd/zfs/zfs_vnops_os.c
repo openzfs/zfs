@@ -892,6 +892,14 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 	return (error);
 }
 
+static inline bool
+is_nametoolong(zfsvfs_t *zfsvfs, const char *name)
+{
+	size_t dlen = strlen(name);
+	return ((!zfsvfs->z_longname && dlen >= ZAP_MAXNAMELEN) ||
+	    dlen >= ZAP_MAXNAMELEN_NEW);
+}
+
 /*
  * Attempt to create a new entry in a directory.  If the entry
  * already exists, truncate the file if permissible, else return
@@ -936,6 +944,9 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 #ifdef DEBUG_VFS_LOCKS
 	vnode_t	*dvp = ZTOV(dzp);
 #endif
+
+	if (is_nametoolong(zfsvfs, name))
+		return (SET_ERROR(ENAMETOOLONG));
 
 	/*
 	 * If we have an ephemeral id, ACL, or XVATTR then
@@ -1301,6 +1312,9 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 
 	ASSERT3U(vap->va_type, ==, VDIR);
 
+	if (is_nametoolong(zfsvfs, dirname))
+		return (SET_ERROR(ENAMETOOLONG));
+
 	/*
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
@@ -1616,7 +1630,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	os = zfsvfs->z_os;
 	offset = zfs_uio_offset(uio);
 	prefetch = zp->z_zn_prefetch;
-	zap = zap_attribute_alloc();
+	zap = zap_attribute_long_alloc();
 
 	/*
 	 * Initialize the iterator cursor.
@@ -3294,6 +3308,9 @@ zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
 	int error;
 	svp = tvp = NULL;
 
+	if (is_nametoolong(tdzp->z_zfsvfs, tname))
+		return (SET_ERROR(ENAMETOOLONG));
+
 	if (rflags != 0 || wo_vap != NULL)
 		return (SET_ERROR(EINVAL));
 
@@ -3357,6 +3374,9 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	uint64_t	txtype = TX_SYMLINK;
 
 	ASSERT3S(vap->va_type, ==, VLNK);
+
+	if (is_nametoolong(zfsvfs, name))
+		return (SET_ERROR(ENAMETOOLONG));
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, dzp, FTAG)) != 0)
 		return (error);
@@ -3539,6 +3559,9 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	uid_t		owner;
 
 	ASSERT3S(ZTOV(tdzp)->v_type, ==, VDIR);
+
+	if (is_nametoolong(zfsvfs, name))
+		return (SET_ERROR(ENAMETOOLONG));
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, tdzp, FTAG)) != 0)
 		return (error);

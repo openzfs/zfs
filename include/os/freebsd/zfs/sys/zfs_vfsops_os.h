@@ -83,6 +83,7 @@ struct zfsvfs {
 	boolean_t	z_use_sa;	/* version allow system attributes */
 	boolean_t	z_xattr_sa;	/* allow xattrs to be stores as SA */
 	boolean_t	z_use_namecache; /* make use of FreeBSD name cache */
+	boolean_t	z_longname;	/* Dataset supports long names */
 	uint8_t		z_xattr;	/* xattr type in use */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */

@@ -627,6 +627,15 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		return (error);
 	}
 
+	/*
+	 * If we added a longname activate the SPA_FEATURE_LONGNAME.
+	 */
+	if (strlen(name) >= ZAP_MAXNAMELEN) {
+		dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
+		ds->ds_feature_activation[SPA_FEATURE_LONGNAME] =
+		    (void *)B_TRUE;
+	}
+
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,
 	    &dzp->z_id, sizeof (dzp->z_id));
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
