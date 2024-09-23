@@ -38,6 +38,12 @@ kstat_t *simd_stat_kstat;
 #ifndef HAVE_KERNEL_FPU
 #define	HAVE_KERNEL_FPU (0)
 #endif
+#ifndef HAVE_KERNEL_NEON
+#define	HAVE_KERNEL_NEON (0)
+#endif
+#ifndef HAVE_KERNEL_FPU_INTERNAL
+#define	HAVE_KERNEL_FPU_INTERNAL (0)
+#endif
 #ifndef HAVE_UNDERSCORE_KERNEL_FPU
 #define	HAVE_UNDERSCORE_KERNEL_FPU (0)
 #endif
