@@ -4,8 +4,11 @@ on:
   push:
   pull_request:
 
-jobs:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
 
+jobs:
   qemu-vm:
     name: qemu-x86
     strategy:
