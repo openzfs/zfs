@@ -81,7 +81,9 @@ lseek_execute(
 	if (offset != filp->f_pos) {
 		spin_lock(&filp->f_lock);
 		filp->f_pos = offset;
+#ifdef HAVE_FILE_F_VERSION
 		filp->f_version = 0;
+#endif
 		spin_unlock(&filp->f_lock);
 	}
 
