@@ -145,22 +145,15 @@ Once everything is in good shape and the details have been worked out you can re
 Any required reviews can then be finalized and the pull request merged.
 
 #### Tests and Benchmarks
-* Every pull request will by tested by the buildbot on multiple platforms by running the [zfs-tests.sh and zloop.sh](
+* Every pull request is tested using a GitHub Actions workflow on multiple platforms by running the [zfs-tests.sh and zloop.sh](
 https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html#running-zloop-sh-and-zfs-tests-sh) test suites.
 * To verify your changes conform to the [style guidelines](
 https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#style-guides
 ), please run `make checkstyle` and resolve any warnings.
-* Static code analysis of each pull request is performed by the buildbot; run `make lint` to check your changes.
-* Test cases should be provided when appropriate.
-This includes making sure new features have adequate code coverage.
+* Code analysis is performed by [CodeQL](https://codeql.github.com/) for each pull request.
+* Test cases should be provided when appropriate.  This includes making sure new features have adequate code coverage.
 * If your pull request improves performance, please include some benchmarks.
-* The pull request must pass all required [ZFS
-Buildbot](http://build.zfsonlinux.org/) builders before
-being accepted. If you are experiencing intermittent TEST
-builder failures, you may be experiencing a [test suite
-issue](https://github.com/openzfs/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Type%3A+Test+Suite%22).
-There are also various [buildbot options](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html)
-to control how changes are tested.
+* The pull request must pass all CI checks before being accepted.
 
 ### Testing
 All help is appreciated! If you're in a position to run the latest code
