@@ -200,6 +200,7 @@ extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 
 /* Avoid conflicts with kernel names that might be implemented as macros. */
 #undef	kmem_cache_alloc
+#undef	kmem_cache_create
 
 #define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)
