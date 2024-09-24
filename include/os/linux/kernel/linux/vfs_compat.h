@@ -68,7 +68,11 @@ lseek_execute(
 	loff_t offset,
 	loff_t maxsize)
 {
+#ifdef FMODE_UNSIGNED_OFFSET
 	if (offset < 0 && !(filp->f_mode & FMODE_UNSIGNED_OFFSET))
+#else
+	if (offset < 0 && !(filp->f_op->fop_flags & FOP_UNSIGNED_OFFSET))
+#endif
 		return (-EINVAL);
 
 	if (offset > maxsize)
