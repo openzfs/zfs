@@ -58,6 +58,7 @@
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
+#include <linux/mm_compat.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
