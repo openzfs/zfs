@@ -9,15 +9,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-config:
+    name: Setup
+    runs-on: ubuntu-24.04
+    outputs:
+      test_os: ${{ steps.os.outputs.os }}
+      ci_type: ${{ steps.os.outputs.ci_type }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate OS config and CI type
+        id: os
+        run: |
+          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora39", "fedora40", "freebsd13", "freebsd13r", "freebsd14", "freebsd14r", "ubuntu20", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora40", "freebsd13", "freebsd14", "ubuntu24"]'
+          # determine CI type when running on PR
+          ci_type="full"
+          if ${{ github.event_name == 'pull_request' }}; then
+            head=${{ github.event.pull_request.head.sha }}
+            base=${{ github.event.pull_request.base.sha }}
+            ci_type=$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)
+          fi
+          if [ "$ci_type" == "quick" ]; then
+            os_selection="$QUICK_OS"
+          else
+            os_selection="$FULL_OS"
+          fi
+          os_json=$(echo ${os_selection} | jq -c)
+          echo "os=$os_json" >> $GITHUB_OUTPUT
+          echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
+
   qemu-vm:
     name: qemu-x86
+    needs: [ test-config ]
     strategy:
       fail-fast: false
       matrix:
         # all:
         # os:  [almalinux8, almalinux9, archlinux, centos-stream9, fedora39, fedora40, debian11, debian12, freebsd13, freebsd13r, freebsd14, freebsd14r, freebsd15, ubuntu20, ubuntu22, ubuntu24]
         # openzfs:
-        os: [almalinux8, almalinux9, centos-stream9, debian11, debian12, fedora39, fedora40, freebsd13, freebsd13r, freebsd14, freebsd14r, ubuntu20, ubuntu22, ubuntu24]
+        # os: [almalinux8, almalinux9, centos-stream9, debian11, debian12, fedora39, fedora40, freebsd13, freebsd13r, freebsd14, freebsd14r, ubuntu20, ubuntu22, ubuntu24]
+        os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
@@ -67,6 +100,8 @@ jobs:
     - name: Run tests
       timeout-minutes: 270
       run: .github/workflows/scripts/qemu-6-tests.sh
+      env:
+        CI_TYPE: ${{ needs.test-config.outputs.ci_type }}
 
     - name: Prepare artifacts
       if: always()

@@ -147,6 +147,9 @@ Any required reviews can then be finalized and the pull request merged.
 #### Tests and Benchmarks
 * Every pull request is tested using a GitHub Actions workflow on multiple platforms by running the [zfs-tests.sh and zloop.sh](
 https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html#running-zloop-sh-and-zfs-tests-sh) test suites.
+`.github/workflows/scripts/generate-ci-type.py` is used to determine whether the pull request is nonbehavior, i.e., not introducing behavior changes of any code, configuration or tests. If so, the CI will run on fewer platforms and only essential sanity tests will run. You can always override this by adding `ZFS-CI-Type` line to your commit message:
+  * If your last commit (or `HEAD` in git terms) contains a line `ZFS-CI-Type: quick`, quick mode is forced regardless of what files are changed.
+  * Otherwise, if any commit in a PR contains a line `ZFS-CI-Type: full`, full mode is forced.
 * To verify your changes conform to the [style guidelines](
 https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#style-guides
 ), please run `make checkstyle` and resolve any warnings.
