@@ -717,7 +717,7 @@ spa_keystore_dsl_key_hold_dd(spa_t *spa, dsl_dir_t *dd, const void *tag,
 		avl_insert(&spa->spa_keystore.sk_dsl_keys, dck_io, where);
 		*dck_out = dck_io;
 	} else {
-		dsl_crypto_key_free(dck_io);
+		dsl_crypto_key_rele(dck_io, tag);
 		*dck_out = dck_ks;
 	}
 
