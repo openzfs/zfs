@@ -48,7 +48,7 @@ if [ -z ${1:-} ]; then
   for i in $(seq 1 $VMs); do
     IP="192.168.122.1$i"
     daemonize -c /var/tmp -p vm${i}.pid -o vm${i}log.txt -- \
-      $SSH zfs@$IP $TESTS $OS $i $VMs
+      $SSH zfs@$IP $TESTS $OS $i $VMs $CI_TYPE
     # handly line by line and add info prefix
     stdbuf -oL tail -fq vm${i}log.txt \
       | while read -r line; do prefix "$i" "$line"; done &
@@ -91,6 +91,9 @@ esac
 # run functional testings and save exitcode
 cd /var/tmp
 TAGS=$2/$3
+if [ "$4" == "quick" ]; then
+  export RUNFILES="sanity.run"
+fi
 sudo dmesg -c > dmesg-prerun.txt
 mount > mount.txt
 df -h > df-prerun.txt
