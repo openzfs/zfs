@@ -46,7 +46,7 @@ check_guid() {
 
 log_assert "Verify 'zpool reguid' does not accept invalid GUIDs"
 
-for ig in "$(bc -e '2^64')" 0xA 0xa; do
+for ig in "$(echo '2^64' | bc)" 0xA 0xa 0; do
 	check_guid "$ig"
 done
 

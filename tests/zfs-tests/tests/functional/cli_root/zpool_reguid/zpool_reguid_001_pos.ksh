@@ -62,12 +62,12 @@ if [[ "$initial_guid" == "$new_guid" ]]; then
 	log_fail "GUID change failed; GUID has not changed: $initial_guid"
 fi
 
-for g in "$(bc -e '2^64 - 1')" 0; do
+for g in "$(echo '2^64 - 1' | bc)" "314"; do
 	set_guid "$g"
 done
 # zpool-reguid(8) will strip the leading 0.
 set_guid 0123 "123"
 # GUID "-1" is effectively 2^64 - 1 in value.
-set_guid -1 "$(bc -e '2^64 - 1')"
+set_guid -1 "$(echo '2^64 - 1' | bc)"
 
 log_pass "'zpool reguid' changes GUID as expected."
