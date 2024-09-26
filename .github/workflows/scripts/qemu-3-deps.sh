@@ -32,9 +32,9 @@ function debian() {
   sudo apt-get install -y \
     acl alien attr autoconf bc cpio curl dbench dh-python dkms fakeroot \
     fio gdb gdebi git ksh lcov isc-dhcp-client jq libacl1-dev libaio-dev \
-    libattr1-dev libblkid-dev libcurl4-openssl-dev libdevmapper-dev \
-    libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev \
-    libssl-dev libtool libtool-bin libudev-dev linux-headers-$(uname -r) \
+    libattr1-dev libblkid-dev libcurl4-openssl-dev libdevmapper-dev libelf-dev \
+    libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev libtool \
+    libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
     python3-cffi python3-dev python3-distlib python3-packaging \
     python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \

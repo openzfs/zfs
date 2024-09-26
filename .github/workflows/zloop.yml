@@ -43,11 +43,23 @@ jobs:
         sudo mkdir -p $TEST_DIR
         # run for 10 minutes or at most 6 iterations for a maximum runner
         # time of 60 minutes.
-        sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m1 -- -T 120 -P 60
+        sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -- -T 120 -P 60
     - name: Prepare artifacts
       if: failure()
       run: |
         sudo chmod +r -R $TEST_DIR/
+    - name: Ztest log
+      if: failure()
+      run: |
+        grep -B10 -A1000 'ASSERT' $TEST_DIR/*/ztest.out || tail -n 1000 $TEST_DIR/*/ztest.out
+    - name: Gdb log
+      if: failure()
+      run: |
+        sed -n '/Backtraces (full)/q;p' $TEST_DIR/*/ztest.gdb
+    - name: Zdb log
+      if: failure()
+      run: |
+        cat $TEST_DIR/*/ztest.zdb
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
