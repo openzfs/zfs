@@ -260,6 +260,15 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 			} else {
 				ClearPageError(pp);
 				SetPageUptodate(pp);
+				if (!PagePrivate(pp)) {
+					/*
+					 * Set private bit so page migration
+					 * will wait for us to finish writeback
+					 * before calling migrate_folio().
+					 */
+					SetPagePrivate(pp);
+					get_page(pp);
+				}
 
 				if (mapping_writably_mapped(mp))
 					flush_dcache_page(pp);
@@ -4037,6 +4046,14 @@ zfs_fillpage(struct inode *ip, struct page *pp)
 	} else {
 		ClearPageError(pp);
 		SetPageUptodate(pp);
+		if (!PagePrivate(pp)) {
+			/*
+			 * Set private bit so page migration will wait for us to
+			 * finish writeback before calling migrate_folio().
+			 */
+			SetPagePrivate(pp);
+			get_page(pp);
+		}
 	}
 
 	return (error);
