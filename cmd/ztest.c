@@ -1861,7 +1861,7 @@ ztest_verify_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
 static void
 ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 {
-	char *name = (void *)(lr + 1);		/* name follows lr */
+	char *name = (char *)&lr->lr_data[0];		/* name follows lr */
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
@@ -1869,7 +1869,7 @@ ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 		return;
 
 	itx = zil_itx_create(TX_CREATE, sizeof (*lr) + namesize);
-	memcpy(&itx->itx_lr + 1, &lr->lr_common + 1,
+	memcpy(&itx->itx_lr + 1, &lr->lr_create.lr_common + 1,
 	    sizeof (*lr) + namesize - sizeof (lr_t));
 
 	zil_itx_assign(zd->zd_zilog, itx, tx);
@@ -1878,7 +1878,7 @@ ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 static void
 ztest_log_remove(ztest_ds_t *zd, dmu_tx_t *tx, lr_remove_t *lr, uint64_t object)
 {
-	char *name = (void *)(lr + 1);		/* name follows lr */
+	char *name = (char *)&lr->lr_data[0];		/* name follows lr */
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
@@ -1964,8 +1964,9 @@ static int
 ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 {
 	ztest_ds_t *zd = arg1;
-	lr_create_t *lr = arg2;
-	char *name = (void *)(lr + 1);		/* name follows lr */
+	lr_create_t *lrc = arg2;
+	_lr_create_t *lr = &lrc->lr_create;
+	char *name = (char *)&lrc->lr_data[0];		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	ztest_block_tag_t *bbt;
 	dmu_buf_t *db;
@@ -2043,7 +2044,7 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	VERIFY0(zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
 	    &lr->lr_foid, tx));
 
-	(void) ztest_log_create(zd, tx, lr);
+	(void) ztest_log_create(zd, tx, lrc);
 
 	dmu_tx_commit(tx);
 
@@ -2055,7 +2056,7 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 {
 	ztest_ds_t *zd = arg1;
 	lr_remove_t *lr = arg2;
-	char *name = (void *)(lr + 1);		/* name follows lr */
+	char *name = (char *)&lr->lr_data[0];		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
@@ -2109,9 +2110,9 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	ztest_ds_t *zd = arg1;
 	lr_write_t *lr = arg2;
 	objset_t *os = zd->zd_os;
-	void *data = lr + 1;			/* data follows lr */
+	uint8_t *data = &lr->lr_data[0];		/* data follows lr */
 	uint64_t offset, length;
-	ztest_block_tag_t *bt = data;
+	ztest_block_tag_t *bt = (ztest_block_tag_t *)data;
 	ztest_block_tag_t *bbt;
 	uint64_t gen, txg, lrtxg, crtxg;
 	dmu_object_info_t doi;
@@ -2563,7 +2564,8 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 			continue;
 		}
 
-		lr_create_t *lr = ztest_lr_alloc(sizeof (*lr), od->od_name);
+		lr_create_t *lrc = ztest_lr_alloc(sizeof (*lrc), od->od_name);
+		_lr_create_t *lr = &lrc->lr_create;
 
 		lr->lr_doid = od->od_dir;
 		lr->lr_foid = 0;	/* 0 to allocate, > 0 to claim */
@@ -2647,7 +2649,7 @@ ztest_write(ztest_ds_t *zd, uint64_t object, uint64_t offset, uint64_t size,
 	lr->lr_blkoff = 0;
 	BP_ZERO(&lr->lr_blkptr);
 
-	memcpy(lr + 1, data, size);
+	memcpy(&lr->lr_data[0], data, size);
 
 	error = ztest_replay_write(zd, lr, B_FALSE);
 

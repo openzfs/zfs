@@ -300,14 +300,13 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     zfs_fuid_info_t *fuidp, vattr_t *vap)
 {
 	itx_t *itx;
-	lr_create_t *lr;
-	lr_acl_create_t *lracl;
+	_lr_create_t *lr;
+	lr_acl_create_t *lracl = NULL;
+	uint8_t *lrdata;
 	size_t aclsize = 0;
 	size_t xvatsize = 0;
 	size_t txsize;
 	xvattr_t *xvap = (xvattr_t *)vap;
-	void *end;
-	size_t lrsize;
 	size_t namesize = strlen(name) + 1;
 	size_t fuidsz = 0;
 
@@ -329,18 +328,21 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	if ((int)txtype == TX_CREATE_ATTR || (int)txtype == TX_MKDIR_ATTR ||
 	    (int)txtype == TX_CREATE || (int)txtype == TX_MKDIR ||
 	    (int)txtype == TX_MKXATTR) {
-		txsize = sizeof (*lr) + namesize + fuidsz + xvatsize;
-		lrsize = sizeof (*lr);
+		txsize = sizeof (lr_create_t) + namesize + fuidsz + xvatsize;
+		itx = zil_itx_create(txtype, txsize);
+		lr_create_t *lrc = (lr_create_t *)&itx->itx_lr;
+		lrdata = &lrc->lr_data[0];
 	} else {
 		txsize =
 		    sizeof (lr_acl_create_t) + namesize + fuidsz +
 		    ZIL_ACE_LENGTH(aclsize) + xvatsize;
-		lrsize = sizeof (lr_acl_create_t);
+		itx = zil_itx_create(txtype, txsize);
+		lracl = (lr_acl_create_t *)&itx->itx_lr;
+		lrdata = &lracl->lr_data[0];
 	}
 
-	itx = zil_itx_create(txtype, txsize);
 
-	lr = (lr_create_t *)&itx->itx_lr;
+	lr = (_lr_create_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_foid = zp->z_id;
 	/* Store dnode slot count in 8 bits above object id. */
@@ -369,16 +371,14 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	 * Fill in xvattr info if any
 	 */
 	if (vap->va_mask & ATTR_XVATTR) {
-		zfs_log_xvattr((lr_attr_t *)((caddr_t)lr + lrsize), xvap);
-		end = (caddr_t)lr + lrsize + xvatsize;
-	} else {
-		end = (caddr_t)lr + lrsize;
+		zfs_log_xvattr((lr_attr_t *)lrdata, xvap);
+		lrdata = &lrdata[xvatsize];
 	}
 
 	/* Now fill in any ACL info */
 
 	if (vsecp) {
-		lracl = (lr_acl_create_t *)&itx->itx_lr;
+		ASSERT3P(lracl, !=, NULL);
 		lracl->lr_aclcnt = vsecp->vsa_aclcnt;
 		lracl->lr_acl_bytes = aclsize;
 		lracl->lr_domcnt = fuidp ? fuidp->z_domain_cnt : 0;
@@ -388,19 +388,19 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 		else
 			lracl->lr_acl_flags = 0;
 
-		memcpy(end, vsecp->vsa_aclentp, aclsize);
-		end = (caddr_t)end + ZIL_ACE_LENGTH(aclsize);
+		memcpy(lrdata, vsecp->vsa_aclentp, aclsize);
+		lrdata = &lrdata[ZIL_ACE_LENGTH(aclsize)];
 	}
 
 	/* drop in FUID info */
 	if (fuidp) {
-		end = zfs_log_fuid_ids(fuidp, end);
-		end = zfs_log_fuid_domains(fuidp, end);
+		lrdata = zfs_log_fuid_ids(fuidp, lrdata);
+		lrdata = zfs_log_fuid_domains(fuidp, lrdata);
 	}
 	/*
 	 * Now place file name in log record
 	 */
-	memcpy(end, name, namesize);
+	memcpy(lrdata, name, namesize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -422,7 +422,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	itx = zil_itx_create(txtype, sizeof (*lr) + namesize);
 	lr = (lr_remove_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
-	memcpy(lr + 1, name, namesize);
+	memcpy(&lr->lr_data[0], name, namesize);
 
 	itx->itx_oid = foid;
 
@@ -458,7 +458,7 @@ zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	lr = (lr_link_t *)&itx->itx_lr;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_link_obj = zp->z_id;
-	memcpy(lr + 1, name, namesize);
+	memcpy(&lr->lr_data[0], name, namesize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -471,15 +471,17 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *dzp, znode_t *zp, const char *name, const char *link)
 {
 	itx_t *itx;
-	lr_create_t *lr;
+	_lr_create_t *lr;
+	lr_create_t *lrc;
 	size_t namesize = strlen(name) + 1;
 	size_t linksize = strlen(link) + 1;
 
 	if (zil_replaying(zilog, tx))
 		return;
 
-	itx = zil_itx_create(txtype, sizeof (*lr) + namesize + linksize);
-	lr = (lr_create_t *)&itx->itx_lr;
+	itx = zil_itx_create(txtype, sizeof (*lrc) + namesize + linksize);
+	lrc = (lr_create_t *)&itx->itx_lr;
+	lr = &lrc->lr_create;
 	lr->lr_doid = dzp->z_id;
 	lr->lr_foid = zp->z_id;
 	lr->lr_uid = KUID_TO_SUID(ZTOUID(zp));
@@ -489,8 +491,8 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	    sizeof (uint64_t));
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_CRTIME(ZTOZSB(zp)),
 	    lr->lr_crtime, sizeof (uint64_t) * 2);
-	memcpy((char *)(lr + 1), name, namesize);
-	memcpy((char *)(lr + 1) + namesize, link, linksize);
+	memcpy(&lrc->lr_data[0], name, namesize);
+	memcpy(&lrc->lr_data[namesize], link, linksize);
 
 	zil_itx_assign(zilog, itx, tx);
 }
@@ -500,7 +502,8 @@ do_zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
     const char *sname, znode_t *tdzp, const char *dname, znode_t *szp)
 {
 	itx_t *itx;
-	lr_rename_t *lr;
+	_lr_rename_t *lr;
+	lr_rename_t *lrr;
 	size_t snamesize = strlen(sname) + 1;
 	size_t dnamesize = strlen(dname) + 1;
 
@@ -508,11 +511,12 @@ do_zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
 		return;
 
 	itx = zil_itx_create(txtype, sizeof (*lr) + snamesize + dnamesize);
-	lr = (lr_rename_t *)&itx->itx_lr;
+	lrr = (lr_rename_t *)&itx->itx_lr;
+	lr = &lrr->lr_rename;
 	lr->lr_sdoid = sdzp->z_id;
 	lr->lr_tdoid = tdzp->z_id;
-	memcpy((char *)(lr + 1), sname, snamesize);
-	memcpy((char *)(lr + 1) + snamesize, dname, dnamesize);
+	memcpy(&lrr->lr_data[0], sname, snamesize);
+	memcpy(&lrr->lr_data[snamesize], dname, dnamesize);
 	itx->itx_oid = szp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
@@ -590,8 +594,8 @@ zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	(void) sa_lookup(wzp->z_sa_hdl, SA_ZPL_RDEV(ZTOZSB(wzp)), &lr->lr_wrdev,
 	    sizeof (lr->lr_wrdev));
 
-	memcpy((char *)(lr + 1), sname, snamesize);
-	memcpy((char *)(lr + 1) + snamesize, dname, dnamesize);
+	memcpy(&lr->lr_data[0], sname, snamesize);
+	memcpy(&lr->lr_data[snamesize], dname, dnamesize);
 	itx->itx_oid = szp->z_id;
 
 	zil_itx_assign(zilog, itx, tx);
@@ -668,8 +672,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		if (wr_state == WR_COPIED) {
 			int err;
 			DB_DNODE_ENTER(db);
-			err = dmu_read_by_dnode(DB_DNODE(db), off, len, lr + 1,
-			    DMU_READ_NO_PREFETCH);
+			err = dmu_read_by_dnode(DB_DNODE(db), off, len,
+			    &lr->lr_data[0], DMU_READ_NO_PREFETCH);
 			DB_DNODE_EXIT(db);
 			if (err != 0) {
 				zil_itx_destroy(itx);
@@ -741,7 +745,7 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	lr_setattr_t	*lr;
 	xvattr_t	*xvap = (xvattr_t *)vap;
 	size_t		recsize = sizeof (lr_setattr_t);
-	void		*start;
+	uint8_t		*start;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked)
 		return;
@@ -775,10 +779,10 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	lr->lr_size = (uint64_t)vap->va_size;
 	ZFS_TIME_ENCODE(&vap->va_atime, lr->lr_atime);
 	ZFS_TIME_ENCODE(&vap->va_mtime, lr->lr_mtime);
-	start = (lr_setattr_t *)(lr + 1);
+	start = &lr->lr_data[0];
 	if (vap->va_mask & ATTR_XVATTR) {
 		zfs_log_xvattr((lr_attr_t *)start, xvap);
-		start = (caddr_t)start + ZIL_XVAT_SIZE(xvap->xva_mapsize);
+		start = &lr->lr_data[ZIL_XVAT_SIZE(xvap->xva_mapsize)];
 	}
 
 	/*
@@ -802,7 +806,6 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	itx_t		*itx;
 	lr_setsaxattr_t	*lr;
 	size_t		recsize = sizeof (lr_setsaxattr_t);
-	void		*xattrstart;
 	int		namelen;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked)
@@ -813,10 +816,9 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	itx = zil_itx_create(txtype, recsize);
 	lr = (lr_setsaxattr_t *)&itx->itx_lr;
 	lr->lr_foid = zp->z_id;
-	xattrstart = (char *)(lr + 1);
-	memcpy(xattrstart, name, namelen);
+	memcpy(&lr->lr_data[0], name, namelen);
 	if (value != NULL) {
-		memcpy((char *)xattrstart + namelen, value, size);
+		memcpy(&lr->lr_data[namelen], value, size);
 		lr->lr_size = size;
 	} else {
 		lr->lr_size = 0;
@@ -874,13 +876,13 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 
 	if (txtype == TX_ACL_V0) {
 		lrv0 = (lr_acl_v0_t *)lr;
-		memcpy(lrv0 + 1, vsecp->vsa_aclentp, aclbytes);
+		memcpy(&lrv0->lr_data[0], vsecp->vsa_aclentp, aclbytes);
 	} else {
-		void *start = (ace_t *)(lr + 1);
+		uint8_t *start = &lr->lr_data[0];
 
 		memcpy(start, vsecp->vsa_aclentp, aclbytes);
 
-		start = (caddr_t)start + ZIL_ACE_LENGTH(aclbytes);
+		start = &lr->lr_data[ZIL_ACE_LENGTH(aclbytes)];
 
 		if (fuidp) {
 			start = zfs_log_fuid_ids(fuidp, start);
