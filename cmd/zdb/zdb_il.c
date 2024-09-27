@@ -67,19 +67,19 @@ zil_prt_rec_create(zilog_t *zilog, int txtype, const void *arg)
 	const lr_create_t *lrc = arg;
 	const _lr_create_t *lr = &lrc->lr_create;
 	time_t crtime = lr->lr_crtime[0];
-	char *name, *link;
+	const char *name, *link;
 	lr_attr_t *lrattr;
 
-	name = (char *)(lr + 1);
+	name = (const char *)&lrc->lr_data[0];
 
 	if (lr->lr_common.lrc_txtype == TX_CREATE_ATTR ||
 	    lr->lr_common.lrc_txtype == TX_MKDIR_ATTR) {
-		lrattr = (lr_attr_t *)(lr + 1);
+		lrattr = (lr_attr_t *)&lrc->lr_data[0];
 		name += ZIL_XVAT_SIZE(lrattr->lr_attr_masksize);
 	}
 
 	if (txtype == TX_SYMLINK) {
-		link = name + strlen(name) + 1;
+		link = (const char *)&lrc->lr_data[strlen(name) + 1];
 		(void) printf("%s%s -> %s\n", tab_prefix, name, link);
 	} else if (txtype != TX_MKXATTR) {
 		(void) printf("%s%s\n", tab_prefix, name);
@@ -104,7 +104,7 @@ zil_prt_rec_remove(zilog_t *zilog, int txtype, const void *arg)
 	const lr_remove_t *lr = arg;
 
 	(void) printf("%sdoid %llu, name %s\n", tab_prefix,
-	    (u_longlong_t)lr->lr_doid, (char *)(lr + 1));
+	    (u_longlong_t)lr->lr_doid, (const char *)&lr->lr_data[0]);
 }
 
 static void
@@ -115,7 +115,7 @@ zil_prt_rec_link(zilog_t *zilog, int txtype, const void *arg)
 
 	(void) printf("%sdoid %llu, link_obj %llu, name %s\n", tab_prefix,
 	    (u_longlong_t)lr->lr_doid, (u_longlong_t)lr->lr_link_obj,
-	    (char *)(lr + 1));
+	    (const char *)&lr->lr_data[0]);
 }
 
 static void
@@ -124,8 +124,8 @@ zil_prt_rec_rename(zilog_t *zilog, int txtype, const void *arg)
 	(void) zilog, (void) txtype;
 	const lr_rename_t *lrr = arg;
 	const _lr_rename_t *lr = &lrr->lr_rename;
-	char *snm = (char *)(lr + 1);
-	char *tnm = snm + strlen(snm) + 1;
+	const char *snm = (const char *)&lrr->lr_data[0];
+	const char *tnm = (const char *)&lrr->lr_data[strlen(snm) + 1];
 
 	(void) printf("%ssdoid %llu, tdoid %llu\n", tab_prefix,
 	    (u_longlong_t)lr->lr_sdoid, (u_longlong_t)lr->lr_tdoid);
@@ -211,7 +211,7 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 
 		/* data is stored after the end of the lr_write record */
 		data = abd_alloc(lr->lr_length, B_FALSE);
-		abd_copy_from_buf(data, lr + 1, lr->lr_length);
+		abd_copy_from_buf(data, &lr->lr_data[0], lr->lr_length);
 	}
 
 	(void) printf("%s", tab_prefix);
@@ -309,7 +309,7 @@ zil_prt_rec_setsaxattr(zilog_t *zilog, int txtype, const void *arg)
 	(void) zilog, (void) txtype;
 	const lr_setsaxattr_t *lr = arg;
 
-	char *name = (char *)(lr + 1);
+	const char *name = (const char *)&lr->lr_data[0];
 	(void) printf("%sfoid %llu\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid);
 
@@ -318,7 +318,7 @@ zil_prt_rec_setsaxattr(zilog_t *zilog, int txtype, const void *arg)
 		(void) printf("%sXAT_VALUE  NULL\n", tab_prefix);
 	} else {
 		(void) printf("%sXAT_VALUE  ", tab_prefix);
-		char *val = name + (strlen(name) + 1);
+		const char *val = (const char *)&lr->lr_data[strlen(name) + 1];
 		for (int i = 0; i < lr->lr_size; i++) {
 			(void) printf("%c", *val);
 			val++;
