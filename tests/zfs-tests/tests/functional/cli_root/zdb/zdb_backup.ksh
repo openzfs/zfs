@@ -47,8 +47,8 @@ sync_pool $TESTPOOL
 log_must eval "zfs send -ecL $snap > $tmpfile.1"
 log_must eval "zdb -B $TESTPOOL/$objsetid ecL > $tmpfile.2"
 
-typeset sum1=$(md5digest $tmpfile.1)
-typeset sum2=$(md5digest $tmpfile.2)
+typeset sum1=$(xxh128digest $tmpfile.1)
+typeset sum2=$(xxh128digest $tmpfile.2)
 
 log_must test "$sum1" = "$sum2"
 

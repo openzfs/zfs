@@ -110,9 +110,9 @@ log_note "Cloning entire file with copy_file_range across different enc" \
 clone_and_check "file" "clone" $DS1 $DS2 "" true
 log_note "check if the file is still readable and the same after" \
     "unmount and key unload, shouldn't fail"
-typeset hash1=$(md5digest "/$DS1/file")
+typeset hash1=$(xxh128digest "/$DS1/file")
 log_must zfs umount $DS1 && zfs unload-key $DS1
-typeset hash2=$(md5digest "/$DS2/clone")
+typeset hash2=$(xxh128digest "/$DS2/clone")
 log_must [ "$hash1" = "$hash2" ]
 
 cleanup_enc
@@ -144,12 +144,12 @@ log_must sync_pool $TESTPOOL
 log_must rm -f "/$DS1/file" "/$DS2/file"
 log_must sync_pool $TESTPOOL
 clone_and_check "file" "clone" "$DS2" "$DS1" "" true "s1"
-typeset hash1=$(md5digest "/$DS1/.zfs/snapshot/s1/file")
+typeset hash1=$(xxh128digest "/$DS1/.zfs/snapshot/s1/file")
 log_note "destroy the snapshot and check if the file is still readable and" \
     "has the same content"
 log_must zfs destroy -r $DS2@s1
 log_must sync_pool $TESTPOOL
-typeset hash2=$(md5digest "/$DS1/file")
+typeset hash2=$(xxh128digest "/$DS1/file")
 log_must [ "$hash1" = "$hash2" ]
 
 cleanup_enc

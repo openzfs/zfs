@@ -23,7 +23,7 @@
 #
 # STRATEGY:
 #	1. Create a pool.
-#	2. Generate files and remember their md5sum.
+#	2. Generate files and remember their hashsum.
 #	3. Note last synced txg.
 #	4. Take a snapshot to make sure old blocks are not overwritten.
 #	5. Perform zpool add/attach/detach/remove operation.
@@ -134,7 +134,7 @@ function test_common
 	log_must zpool export $TESTPOOL1
 
 	if zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1; then
-		verify_data_md5sums $MD5FILE && retval=0
+		verify_data_hashsums $MD5FILE && retval=0
 
 		log_must check_pool_config $TESTPOOL1 "$poolcheck"
 		log_must zpool destroy $TESTPOOL1
