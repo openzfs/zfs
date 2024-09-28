@@ -27,8 +27,8 @@
 #	1. Set a hostid.
 #	2. Create a pool.
 #	3. Simulate the pool being torn down without export:
-#	3.1. Copy the underlying device state.
-#	3.2. Export the pool.
+#	3.1. Sync then freeze the pool.
+#	3.2. Export the pool (uncleanly).
 #	3.3. Restore the device state from the copy.
 #	4. Change the hostid.
 #	5. Verify that importing the pool fails.
@@ -52,10 +52,9 @@ log_must zgenhostid -f $HOSTID1
 log_must zpool create $TESTPOOL1 $VDEV0
 
 # 3. Simulate the pool being torn down without export.
-log_must cp $VDEV0 $VDEV0.bak
+sync_pool $TESTPOOL1
+log_must zpool freeze $TESTPOOL1
 log_must zpool export $TESTPOOL1
-log_must cp -f $VDEV0.bak $VDEV0
-log_must rm -f $VDEV0.bak
 
 # 4. Change the hostid.
 log_must zgenhostid -f $HOSTID2
