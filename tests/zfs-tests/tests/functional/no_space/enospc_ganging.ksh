@@ -41,7 +41,7 @@ bs=1024k
 count=512
 
 log_must dd if=/dev/urandom of=$TESTDIR/data bs=$bs count=$count
-data_checksum=$(sha256digest $TESTDIR/data)
+data_checksum=$(xxh128digest $TESTDIR/data)
 
 # Test common large block configuration.
 log_must zfs create -o recordsize=1m -o primarycache=metadata $TESTPOOL/gang
@@ -50,7 +50,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL/gang)
 log_must dd if=$TESTDIR/data of=$mntpnt/file bs=$bs count=$count
 sync_pool $TESTPOOL
 log_must dd if=$mntpnt/file of=$TESTDIR/out bs=$bs count=$count
-out_checksum=$(sha256digest $TESTDIR/out)
+out_checksum=$(xxh128digest $TESTDIR/out)
 
 if [[ "$data_checksum" != "$out_checksum" ]]; then
     log_fail "checksum mismatch ($data_checksum != $out_checksum)"
@@ -74,7 +74,7 @@ mntpnt=$(get_prop mountpoint $TESTPOOL/gang)
 log_must dd if=$TESTDIR/data of=$mntpnt/file bs=$bs count=$count
 sync_pool $TESTPOOL
 log_must dd if=$mntpnt/file of=$TESTDIR/out bs=$bs count=$count
-out_checksum=$(sha256digest $TESTDIR/out)
+out_checksum=$(xxh128digest $TESTDIR/out)
 
 if [[ "$data_checksum" != "$out_checksum" ]]; then
     log_fail "checksum mismatch ($data_checksum != $out_checksum)"

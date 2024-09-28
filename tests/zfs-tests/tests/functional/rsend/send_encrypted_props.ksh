@@ -76,7 +76,7 @@ log_must zfs create -o keyformat=passphrase -o keylocation=file://$keyfile \
 
 log_must mkfile 1M /$TESTPOOL/ds/$TESTFILE0
 log_must cp /$TESTPOOL/ds/$TESTFILE0 /$TESTPOOL/crypt/$TESTFILE0
-typeset cksum=$(md5digest /$TESTPOOL/ds/$TESTFILE0)
+typeset cksum=$(xxh128digest /$TESTPOOL/ds/$TESTFILE0)
 
 log_must zfs snap -r $snap
 log_must zfs snap -r $snap2
@@ -129,7 +129,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
@@ -153,7 +153,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
@@ -171,7 +171,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$ds"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'keylocation' $ds)" == "file://$keyfile"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
@@ -185,7 +185,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
 log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
@@ -199,7 +199,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
 log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 
@@ -213,7 +213,7 @@ log_must test "$(get_prop 'encryptionroot' $ds)" == "$TESTPOOL/crypt"
 log_must test "$(get_prop 'encryption' $ds)" == "aes-256-gcm"
 log_must test "$(get_prop 'keyformat' $ds)" == "passphrase"
 log_must test "$(get_prop 'mounted' $ds)" == "yes"
-recv_cksum=$(md5digest /$ds/$TESTFILE0)
+recv_cksum=$(xxh128digest /$ds/$TESTFILE0)
 log_must test "$recv_cksum" == "$cksum"
 log_must zfs destroy -r $ds
 

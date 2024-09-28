@@ -73,7 +73,7 @@ function test_corrective_recv
 	log_must zpool status -v $TESTPOOL
 	log_mustnot eval "zpool status -v $TESTPOOL | \
 	    grep \"Permanent errors have been detected\""
-	typeset cksum=$(md5digest $file)
+	typeset cksum=$(xxh128digest $file)
 	[[ "$cksum" == "$checksum" ]] || \
 		log_fail "Checksums differ ($cksum != $checksum)"
 }
@@ -96,7 +96,7 @@ log_must zfs create -o recordsize=1m -o primarycache=none \
 
 log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
 log_must eval "echo 'aaaaaaaa' >> "$file
-typeset checksum=$(md5digest $file)
+typeset checksum=$(xxh128digest $file)
 
 log_must zfs snapshot $TESTPOOL/$TESTFS1@snap1
 

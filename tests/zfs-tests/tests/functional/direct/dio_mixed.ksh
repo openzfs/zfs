@@ -83,7 +83,7 @@ for ibs in "512" "$page_size" "131072"; do
 		    -c $oblocks
 		log_must stride_dd -i $new_file -o $tmp_file -b $ibs \
 		    -c $iblocks $iflags
-		log_must cmp_md5s $new_file $tmp_file
+		log_must cmp_xxh128 $new_file $tmp_file
 		log_must rm -f $new_file $tmp_file
 
 		# Verify direct write followed by a buffered read.
@@ -91,7 +91,7 @@ for ibs in "512" "$page_size" "131072"; do
 		    -c $oblocks $oflags
 		log_must stride_dd -i $new_file -o $tmp_file -b $ibs \
 		    -c $iblocks
-		log_must cmp_md5s $new_file $tmp_file
+		log_must cmp_xxh128 $new_file $tmp_file
 		log_must rm -f $new_file $tmp_file
 
 		# Verify direct write followed by a direct read.
@@ -99,7 +99,7 @@ for ibs in "512" "$page_size" "131072"; do
 		    -c $oblocks $oflags
 		log_must stride_dd -i $new_file -o $tmp_file -b $ibs \
 		    -c $iblocks $iflags
-		log_must cmp_md5s $new_file $tmp_file
+		log_must cmp_xxh128 $new_file $tmp_file
 		log_must rm -f $new_file $tmp_file
 	done
 done

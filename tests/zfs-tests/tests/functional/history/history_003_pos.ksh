@@ -64,7 +64,7 @@ log_must zpool create $spool $VDEV0
 log_must zfs create $spool/$sfs
 
 typeset -i orig_count=$(zpool history $spool | wc -l)
-typeset orig_md5=$(zpool history $spool | head -2 | md5digest)
+typeset orig_hash=$(zpool history $spool | head -2 | xxh128digest)
 typeset -i i=0
 while ((i < 300)); do
 	zfs set compression=off $spool/$sfs
@@ -79,7 +79,7 @@ done
 TMPFILE=$TEST_BASE_DIR/spool.$$
 zpool history $spool >$TMPFILE
 typeset -i entry_count=$(wc -l < $TMPFILE)
-typeset final_md5=$(head -2 $TMPFILE | md5digest)
+typeset final_hash=$(head -2 $TMPFILE | xxh128digest)
 
 grep -q 'zpool create' $TMPFILE ||
     log_fail "'zpool create' was not found in pool history"
@@ -91,7 +91,7 @@ grep -q 'zfs set compress' $TMPFILE ||
     log_fail "'zfs set compress' was found in pool history"
 
 # Verify that the creation of the pool was preserved in the history.
-if [[ $orig_md5 != $final_md5 ]]; then
+if [[ $orig_hash != $final_hash ]]; then
 	log_fail "zpool creation history was not preserved."
 fi
 
