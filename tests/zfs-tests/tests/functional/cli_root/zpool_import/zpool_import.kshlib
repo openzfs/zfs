@@ -79,29 +79,29 @@ function write_some_data
 # Checksum all the files and store digests in a file.
 #
 # newdata: overwrite existing files if false.
-# md5file: file where to store md5 digests
+# hashfile: file where to store xxh128 digests
 # datasetname: base name for datasets
 #
 function _generate_data_common
 {
 	typeset pool=$1
 	typeset newdata=$2
-	typeset md5file=$3
+	typeset hashfile=$3
 	typeset datasetname=$4
 
 	typeset -i datasets=3
 	typeset -i files=5
 	typeset -i blocks=10
 
-	[[ -n $md5file ]] && rm -f $md5file
+	[[ -n $hashfile ]] && rm -f $hashfile
 	for i in {1..$datasets}; do
 		( $newdata ) && log_must zfs create "$pool/$datasetname$i"
 		for j in {1..$files}; do
 			typeset file="/$pool/$datasetname$i/file$j"
 			dd if=/dev/urandom of=$file bs=128k count=$blocks > /dev/null
-			if [[ -n $md5file ]]; then
-				typeset cksum=$(md5digest $file)
-				echo $cksum $file >> $md5file
+			if [[ -n $hashfile ]]; then
+				typeset cksum=$(xxh128digest $file)
+				echo $cksum $file >> $hashfile
 			fi
 		done
 		( $newdata ) && sync_pool "$pool"
@@ -113,39 +113,39 @@ function _generate_data_common
 function generate_data
 {
 	typeset pool=$1
-	typeset md5file="$2"
+	typeset hashfile="$2"
 	typeset datasetname=${3:-ds}
 
-	_generate_data_common $pool true "$md5file" $datasetname
+	_generate_data_common $pool true "$hashfile" $datasetname
 }
 
 function overwrite_data
 {
 	typeset pool=$1
-	typeset md5file="$2"
+	typeset hashfile="$2"
 	typeset datasetname=${3:-ds}
 
-	_generate_data_common $1 false "$md5file" $datasetname
+	_generate_data_common $1 false "$hashfile" $datasetname
 }
 
 #
-# Verify md5sums of every file in md5sum file $1.
+# Verify hashsums of every file in hashsum file $1.
 #
-function verify_data_md5sums
+function verify_data_hashsums
 {
-	typeset md5file=$1
+	typeset hashfile=$1
 
-	if [[ ! -f $md5file ]]; then
-		log_note "md5 sums file '$md5file' doesn't exist"
+	if [[ ! -f $hashfile ]]; then
+		log_note "md5 sums file '$hashfile' doesn't exist"
 		return 1
 	fi
 
 	while read -r digest file; do
-		typeset digest1=$(md5digest $file)
+		typeset digest1=$(xxh128digest $file)
 		if [[ "$digest1" != "$digest" ]]; then
 			return 1
 		fi
-	done < $md5file
+	done < $hashfile
 
 	return 0
 }

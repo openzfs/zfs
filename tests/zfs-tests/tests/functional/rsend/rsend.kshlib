@@ -808,15 +808,15 @@ function recursive_cksum
 {
 	case "$(uname)" in
 	FreeBSD)
-		find $1 -type f -exec sh -c 'sha256 -q {}; lsextattr -q \
-		    system {} | sha256 -q; lsextattr -q user {} | sha256 -q' \
-		    \; | sort | sha256 -q
+		find $1 -type f -exec sh -c 'xxh128sum {}; \
+		    lsextattr -q system {} | xxh128sum; \
+		    lsextattr -q user {} | xxh128sum' \; \
+		    | sort -k 2 | awk '{ print $1 }' | xxh128digest
 		;;
 	*)
-		find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
-		    --absolute-names --only-values -d {} | sha256sum' \; | \
-		    sort -k 2 | awk '{ print $1 }' | sha256sum | \
-		    awk '{ print $1 }'
+		find $1 -type f -exec sh -c 'xxh128sum {}; getfattr \
+		    --absolute-names --only-values -d {} | xxh128sum' \
+		    \; | sort -k 2 | awk '{ print $1 }' | xxh128digest
 		;;
 	esac
 }

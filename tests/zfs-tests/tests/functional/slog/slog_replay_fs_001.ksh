@@ -110,7 +110,7 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload \
     oflag=sync bs=1k count=8
-typeset checksum=$(sha256digest /$TESTPOOL/$TESTFS/payload)
+typeset checksum=$(xxh128digest /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
@@ -239,7 +239,7 @@ log_note "Verify working set diff:"
 log_must replay_directory_diff $TESTDIR/copy /$TESTPOOL/$TESTFS
 
 log_note "Verify file checksum:"
-typeset checksum1=$(sha256digest /$TESTPOOL/$TESTFS/payload)
+typeset checksum1=$(xxh128digest /$TESTPOOL/$TESTFS/payload)
 [[ "$checksum1" == "$checksum" ]] || \
     log_fail "checksum mismatch ($checksum1 != $checksum)"
 

@@ -60,7 +60,7 @@ log_must zfs create -o compress=zstd-$random_level $TESTPOOL/$TESTFS1
 # Make a 5kb compressible file
 log_must eval cat $src_data $src_data $src_data $src_data $src_data \
     "> /$TESTPOOL/$TESTFS1/$TESTFILE0"
-typeset checksum=$(md5digest /$TESTPOOL/$TESTFS1/$TESTFILE0)
+typeset checksum=$(xxh128digest /$TESTPOOL/$TESTFS1/$TESTFILE0)
 
 log_must zfs snapshot $snap
 
@@ -79,7 +79,7 @@ log_note "ZSTD src: size=$zstd_size1 version=$zstd_version1 level=$zstd_level1"
 log_note "Verify ZFS can receive the ZSTD compressed stream"
 log_must eval "zfs send -ec $snap | zfs receive $TESTPOOL/$TESTFS2"
 
-typeset cksum1=$(md5digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
+typeset cksum1=$(xxh128digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
 [[ "$cksum1" == "$checksum" ]] || \
 	log_fail "Checksums differ ($cksum1 != $checksum)"
 

@@ -65,7 +65,7 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "unavail"
 TESTFILE=/$TESTPOOL/data
 log_must generate_random_file /$TESTPOOL/data $LARGE_FILE_SIZE
 sync_pool $TESTPOOL
-TESTFILE_MD5=$(md5digest $TESTFILE)
+TESTFILE_MD5=$(xxh128digest $TESTFILE)
 
 # 4. Execute scrub.
 # add delay to I/O requests for remaining disk in pool
@@ -89,7 +89,7 @@ log_must is_scan_restarted $TESTPOOL
 
 # 8. Put another device offline and check if the test file checksum is correct.
 log_must zpool offline $TESTPOOL $DISK2
-CHECK_MD5=$(md5digest $TESTFILE)
+CHECK_MD5=$(xxh128digest $TESTFILE)
 [[ $CHECK_MD5 == $TESTFILE_MD5 ]] || \
     log_fail "Checksums differ ($CHECK_MD5 != $TESTFILE_MD5)"
 log_must zpool online $TESTPOOL $DISK2

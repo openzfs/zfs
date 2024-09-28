@@ -23,7 +23,7 @@
 #
 # STRATEGY:
 #	1. Create a pool.
-#	2. Generate files and remember their md5sum.
+#	2. Generate files and remember their hashsum.
 #	3. Sync a few times and note last synced txg.
 #	4. Take a snapshot to make sure old blocks are not overwritten.
 #	5. Initiate device replacement and export the pool. Special care must
@@ -117,7 +117,7 @@ function test_replace_vdev
 	log_must zpool import -d $DEVICE_DIR -o readonly=on -T $txg $TESTPOOL1
 	log_must check_pool_config $TESTPOOL1 "$poolcreate"
 
-	log_must verify_data_md5sums $MD5FILE
+	log_must verify_data_hashsums $MD5FILE
 
 	log_must zpool export $TESTPOOL1
 
@@ -137,7 +137,7 @@ function test_replace_vdev
 	log_must zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1
 	log_must check_pool_config $TESTPOOL1 "$poolcreate"
 
-	log_must verify_data_md5sums $MD5FILE
+	log_must verify_data_hashsums $MD5FILE
 
 	# Cleanup
 	log_must zpool destroy $TESTPOOL1

@@ -77,7 +77,7 @@ function test_file_integrity
     typeset -r clone=$2
     typeset -r filesize=$3
 
-    typeset -r clone_checksum=$(sha256digest $clone)
+    typeset -r clone_checksum=$(xxh128digest $clone)
 
     if [[ $original_checksum != $clone_checksum ]]; then
         log_fail "Clone $clone is corrupted with file size $filesize"
@@ -171,7 +171,7 @@ function bclone_test
         dsize=0
     fi
 
-    typeset -r original_checksum=$(sha256digest $original)
+    typeset -r original_checksum=$(xxh128digest $original)
 
     sync_pool $TESTPOOL
 
