@@ -561,6 +561,12 @@ If
 .Sy ZPOOL_SCRIPTS_ENABLED
 is not set, it is assumed that the user is allowed to run
 .Nm zpool Cm status Ns / Ns Cm iostat Fl c .
+.\" Shared with zdb.8 and zfs.8
+.It Sy ZFS_OUTPUT_BYTES_SI
+Make K/M/G/T/P/E prefixes in
+.Nm zpool
+output to represent powers of 1000 bytes, i.e. KB, MB, GB, TB, PB, EB.
+.
 .\" Shared with zfs.8
 .It Sy ZFS_MODULE_TIMEOUT
 Time, in seconds, to wait for

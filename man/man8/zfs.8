@@ -763,6 +763,12 @@ to set the maximum pipe size for sends/recieves.
 Disabled by default on Linux
 due to an unfixed deadlock in Linux's pipe size handling code.
 .
+.\" Shared with zdb.8 and zpool.8
+.It Sy ZFS_OUTPUT_BYTES_SI
+Make K/M/G/T/P/E prefixes in
+.Nm zfs
+output to represent powers of 1000 bytes, i.e. KB, MB, GB, TB, PB, EB.
+.
 .\" Shared with zpool.8
 .It Sy ZFS_MODULE_TIMEOUT
 Time, in seconds, to wait for
