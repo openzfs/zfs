@@ -77,6 +77,7 @@ main(int argc, const char *const *argv)
 	len = strlen(zvol_name);
 	if (dev_part != NULL) {
 		sprintf(zvol_name + len, "-part%s", dev_part + 1);
+		len = strlen(zvol_name);
 	}
 
 	for (i = 0; i < len; ++i)
