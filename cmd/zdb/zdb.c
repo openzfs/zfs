@@ -8816,7 +8816,8 @@ zdb_read_block(char *thing, spa_t *spa)
 	for (s = strtok_r(flagstr, ":", &tmp);
 	    s != NULL;
 	    s = strtok_r(NULL, ":", &tmp)) {
-		for (i = 0, len = strlen(flagstr); i < len; i++) {
+		len = strlen(flagstr);
+		for (i = 0; i < len; i++) {
 			int bit = flagbits[(uchar_t)flagstr[i]];
 
 			if (bit == 0) {
