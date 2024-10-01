@@ -71,9 +71,35 @@ extern "C" {
 #define	ZFS_ACLTYPE_NFSV4		2
 
 /*
+ * The drr_versioninfo field of the dmu_replay_record has the
+ * following layout:
+ *
+ *	64	56	48	40	32	24	16	8	0
+ *	+-------+-------+-------+-------+-------+-------+-------+-------+
+ *	|reserve|		  feature-flags			    |C|S|
+ *	+-------+-------+-------+-------+-------+-------+-------+-------+
+ *
+ * The low order two bits indicate the header type: SUBSTREAM (0x1)
+ * or COMPOUNDSTREAM (0x2).  Using two bits for this is historical:
+ * this field used to be a version number, where the two version types
+ * were 1 and 2.  Using two bits for this allows earlier versions of
+ * the code to be able to recognize send streams that don't use any
+ * of the features indicated by feature flags.
+ *
+ * The top 8 bits are reserved for future expansion. At time of writing there
+ * are no plans for these. If you want to use them, please reach out to the
+ * OpenZFS community, e.g., on GitHub or Slack.
+ */
+
+/*
  * Field manipulation macros for the drr_versioninfo field of the
  * send stream header.
  */
+#define	DMU_GET_STREAM_HDRTYPE(vi)	BF64_GET((vi), 0, 2)
+#define	DMU_SET_STREAM_HDRTYPE(vi, x)	BF64_SET((vi), 0, 2, x)
+
+#define	DMU_GET_FEATUREFLAGS(vi)	BF64_GET((vi), 2, 56)
+#define	DMU_SET_FEATUREFLAGS(vi, x)	BF64_SET((vi), 2, 56, x)
 
 /*
  * Header types for zfs send streams.
@@ -83,16 +109,9 @@ typedef enum drr_headertype {
 	DMU_COMPOUNDSTREAM = 0x2
 } drr_headertype_t;
 
-#define	DMU_GET_STREAM_HDRTYPE(vi)	BF64_GET((vi), 0, 2)
-#define	DMU_SET_STREAM_HDRTYPE(vi, x)	BF64_SET((vi), 0, 2, x)
-
-#define	DMU_GET_FEATUREFLAGS(vi)	BF64_GET((vi), 2, 30)
-#define	DMU_SET_FEATUREFLAGS(vi, x)	BF64_SET((vi), 2, 30, x)
-
 /*
  * Feature flags for zfs send streams (flags in drr_versioninfo)
  */
-
 #define	DMU_BACKUP_FEATURE_DEDUP		(1 << 0)
 #define	DMU_BACKUP_FEATURE_DEDUPPROPS		(1 << 1)
 #define	DMU_BACKUP_FEATURE_SA_SPILL		(1 << 2)
@@ -125,12 +144,6 @@ typedef enum drr_headertype {
  */
 #define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 /* flag #28 is reserved for a Nutanix feature */
-/*
- * flag #29 is the last unused bit. It is reserved to indicate a to-be-designed
- * extension to the stream format which will accomodate more feature flags.
- * If you need to add another feature flag, please reach out to the OpenZFS
- * community, e.g., on GitHub or Slack.
- */
 
 /*
  * Mask of all supported backup features
@@ -149,23 +162,6 @@ typedef enum drr_headertype {
 typedef enum dmu_send_resume_token_version {
 	ZFS_SEND_RESUME_TOKEN_VERSION = 1
 } dmu_send_resume_token_version_t;
-
-/*
- * The drr_versioninfo field of the dmu_replay_record has the
- * following layout:
- *
- *	64	56	48	40	32	24	16	8	0
- *	+-------+-------+-------+-------+-------+-------+-------+-------+
- *	|		reserved	|        feature-flags	    |C|S|
- *	+-------+-------+-------+-------+-------+-------+-------+-------+
- *
- * The low order two bits indicate the header type: SUBSTREAM (0x1)
- * or COMPOUNDSTREAM (0x2).  Using two bits for this is historical:
- * this field used to be a version number, where the two version types
- * were 1 and 2.  Using two bits for this allows earlier versions of
- * the code to be able to recognize send streams that don't use any
- * of the features indicated by feature flags.
- */
 
 #define	DMU_BACKUP_MAGIC 0x2F5bacbacULL
 
@@ -229,10 +225,6 @@ typedef enum dmu_send_resume_token_version {
 #define	DRR_OBJECT_PAYLOAD_SIZE(drro) \
 	((drro)->drr_raw_bonuslen != 0 ? \
 	(drro)->drr_raw_bonuslen : P2ROUNDUP((drro)->drr_bonuslen, 8))
-
-/*
- * zfs ioctl command structure
- */
 
 /* Header is used in C++ so can't forward declare untagged struct */
 struct drr_begin {
@@ -476,6 +468,10 @@ typedef enum zfs_case {
 	ZFS_CASE_INSENSITIVE,
 	ZFS_CASE_MIXED
 } zfs_case_t;
+
+/*
+ * zfs ioctl command structure
+ */
 
 /*
  * Note: this struct must have the same layout in 32-bit and 64-bit, so
