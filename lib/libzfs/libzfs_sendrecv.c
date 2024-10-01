@@ -30,6 +30,7 @@
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #include <assert.h>
@@ -2828,7 +2829,12 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		case EROFS:
 			zfs_error_aux(hdl, "%s", zfs_strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
-
+		case ZFS_ERR_STREAM_LARGE_MICROZAP:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "source snapshot contains large microzaps, "
+			    "need -L (--large-block) or -w (--raw) to "
+			    "generate stream"));
+			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 		default:
 			return (zfs_standard_error(hdl, errno, errbuf));
 		}

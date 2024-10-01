@@ -25,7 +25,7 @@
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -770,6 +770,19 @@ zpool_feature_init(void)
 		    "support filename up to 1024 bytes",
 		    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
 		    longname_deps, sfeatures);
+	}
+
+	{
+		static const spa_feature_t large_microzap_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_LARGE_BLOCKS,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_LARGE_MICROZAP,
+		    "com.klarasystems:large_microzap", "large_microzap",
+		    "Support for microzaps larger than 128KB.",
+		    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+		    ZFEATURE_TYPE_BOOLEAN, large_microzap_deps, sfeatures);
 	}
 
 	zfs_mod_list_supported_free(sfeatures);

@@ -24,6 +24,7 @@
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #include <sys/zio.h>
@@ -36,12 +37,37 @@
 #include <sys/btree.h>
 #include <sys/arc.h>
 #include <sys/dmu_objset.h>
+#include <sys/spa_impl.h>
 
 #ifdef _KERNEL
 #include <sys/sunddi.h>
 #endif
 
-int zap_micro_max_size = MZAP_MAX_BLKSZ;
+/*
+ * The maximum size (in bytes) of a microzap before it is converted to a
+ * fatzap. It will be rounded up to next multiple of 512 (SPA_MINBLOCKSIZE).
+ *
+ * By definition, a microzap must fit into a single block, so this has
+ * traditionally been SPA_OLD_MAXBLOCKSIZE, and is set to that by default.
+ * Setting this higher requires both the large_blocks feature (to even create
+ * blocks that large) and the large_microzap feature (to enable the stream
+ * machinery to understand not to try to split a microzap block).
+ *
+ * If large_microzap is enabled, this value will be clamped to
+ * spa_maxblocksize(). If not, it will be clamped to SPA_OLD_MAXBLOCKSIZE.
+ */
+static int zap_micro_max_size = SPA_OLD_MAXBLOCKSIZE;
+
+uint64_t
+zap_get_micro_max_size(spa_t *spa)
+{
+	uint64_t maxsz = P2ROUNDUP(zap_micro_max_size, SPA_MINBLOCKSIZE);
+	if (maxsz <= SPA_OLD_MAXBLOCKSIZE)
+		return (maxsz);
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_MICROZAP))
+		return (MIN(maxsz, spa_maxblocksize(spa)));
+	return (SPA_OLD_MAXBLOCKSIZE);
+}
 
 static int mzap_upgrade(zap_t **zapp,
     const void *tag, dmu_tx_t *tx, zap_flags_t flags);
@@ -638,7 +664,7 @@ zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	if (zap->zap_ismicro && tx && adding &&
 	    zap->zap_m.zap_num_entries == zap->zap_m.zap_num_chunks) {
 		uint64_t newsz = db->db_size + SPA_MINBLOCKSIZE;
-		if (newsz > zap_micro_max_size) {
+		if (newsz > zap_get_micro_max_size(dmu_objset_spa(os))) {
 			dprintf("upgrading obj %llu: num_entries=%u\n",
 			    (u_longlong_t)obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
@@ -650,6 +676,31 @@ zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 		VERIFY0(dmu_object_set_blocksize(os, obj, newsz, 0, tx));
 		zap->zap_m.zap_num_chunks =
 		    db->db_size / MZAP_ENT_LEN - 1;
+
+		if (newsz > SPA_OLD_MAXBLOCKSIZE) {
+			dsl_dataset_t *ds = dmu_objset_ds(os);
+			if (!dsl_dataset_feature_is_active(ds,
+			    SPA_FEATURE_LARGE_MICROZAP)) {
+				/*
+				 * A microzap just grew beyond the old limit
+				 * for the first time, so we have to ensure the
+				 * feature flag is activated.
+				 * zap_get_micro_max_size() won't let us get
+				 * here if the feature is not enabled, so we
+				 * don't need any other checks beforehand.
+				 *
+				 * Since we're in open context, we can't
+				 * activate the feature directly, so we instead
+				 * flag it on the dataset for next sync.
+				 */
+				dsl_dataset_dirty(ds, tx);
+				mutex_enter(&ds->ds_lock);
+				ds->ds_feature_activation
+				    [SPA_FEATURE_LARGE_MICROZAP] =
+				    (void *)B_TRUE;
+				mutex_exit(&ds->ds_lock);
+			}
+		}
 	}
 
 	*zapp = zap;

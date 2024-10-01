@@ -28,8 +28,9 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd July 27, 2023
+.Dd October 2, 2024
 .Dt ZFS-SEND 8
 .Os
 .
@@ -111,6 +112,9 @@ property of this filesystem has never been set above 128 KiB.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.
+This flag is required if the
+.Sy large_microzap
+pool feature is active.
 See
 .Xr zpool-features 7
 for details on ZFS feature flags and the
