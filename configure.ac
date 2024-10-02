@@ -32,7 +32,6 @@
 
 AC_INIT(m4_esyscmd(awk '/^Name:/ {printf $2}' META),
 	m4_esyscmd(awk '/^Version:/ {printf $2}' META))
-CFGOPTS="$*"
 AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
@@ -66,8 +65,6 @@ ZFS_AC_DEBUG_KMEM_TRACKING
 ZFS_AC_DEBUG_INVARIANTS
 
 AC_CONFIG_FILES([
-	contrib/debian/rules
-	contrib/debian/changelog
 	Makefile
 	include/Makefile
 	lib/libzfs/libzfs.pc

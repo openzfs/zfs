@@ -1,3 +1,0 @@
-lib/@DEB_HOST_MULTIARCH@/*.a usr/lib/@DEB_HOST_MULTIARCH@
-usr/include
-usr/lib/@DEB_HOST_MULTIARCH@

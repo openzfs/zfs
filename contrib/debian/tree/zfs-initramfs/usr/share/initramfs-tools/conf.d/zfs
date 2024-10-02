@@ -1,8 +1,0 @@
-for x in $(cat /proc/cmdline)
-do
-	case $x in
-		root=ZFS=*)
-			BOOT=zfs
-			;;
-	esac
-done

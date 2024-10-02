@@ -102,7 +102,7 @@ echo "##[group]Autogen.sh"
   echo "##[endgroup]"
 
   echo "##[group]Build"
-  run make native-deb-kmod native-deb-utils
+  run make pkg-utils pkg-kmod
   echo "##[endgroup]"
 
   echo "##[group]Install"

@@ -1,8 +1,0 @@
-#!/bin/sh
-set -e
-
-if ! $(ldd "/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/security/pam_zfs_key.so" | grep -q "libasan") ; then
-	pam-auth-update --package
-fi
-
-#DEBHELPER#
