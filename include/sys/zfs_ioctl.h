@@ -57,6 +57,7 @@ extern "C" {
  */
 #define	ZFS_SNAPDIR_HIDDEN		0
 #define	ZFS_SNAPDIR_VISIBLE		1
+#define	ZFS_SNAPDIR_DISABLED		2
 
 /*
  * Property values for snapdev

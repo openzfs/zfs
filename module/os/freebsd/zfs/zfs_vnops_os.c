@@ -774,6 +774,8 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 	}
 	if (zfs_has_ctldir(zdp) && strcmp(nm, ZFS_CTLDIR_NAME) == 0) {
 		zfs_exit(zfsvfs, FTAG);
+		if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED)
+			return (SET_ERROR(ENOENT));
 		if ((cnp->cn_flags & ISLASTCN) != 0 && nameiop != LOOKUP)
 			return (SET_ERROR(ENOTSUP));
 		error = zfsctl_root(zfsvfs, cnp->cn_lkflags, vpp);

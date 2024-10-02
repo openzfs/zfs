@@ -110,7 +110,7 @@ struct zfsvfs {
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
-	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
+	uint_t		z_show_ctldir;	/* how to expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_use_fuids;	/* version allows fuids */
 	boolean_t	z_replay;	/* set during ZIL replay */

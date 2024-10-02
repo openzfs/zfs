@@ -1570,6 +1570,15 @@ which have the
 .Em no_root_squash
 option set.
 .
+.It Sy zfs_snapshot_no_setuid Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Whether to disable
+.Em setuid/setgid
+support for snapshot mounts triggered by access to the
+.Sy .zfs/snapshot
+directory by setting the
+.Em nosuid
+mount option.
+.
 .It Sy zfs_flags Ns = Ns Sy 0 Pq int
 Set additional debugging flags.
 The following flags may be bitwise-ored together:
