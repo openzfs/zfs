@@ -78,7 +78,7 @@ static int zfs_bclone_wait_dirty = 0;
  * directed through the ARC acting as though the dataset property direct was
  * set to disabled.
  */
-static int zfs_dio_enabled = 1;
+static int zfs_dio_enabled = 0;
 
 
 /*
