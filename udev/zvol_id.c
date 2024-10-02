@@ -56,6 +56,7 @@ main(int argc, const char *const *argv)
 		return (1);
 	}
 	const char *dev_name = argv[1];
+	size_t i, len;
 
 	int fd;
 	struct stat sb;
@@ -73,11 +74,13 @@ main(int argc, const char *const *argv)
 	}
 
 	const char *dev_part = strrchr(dev_name, 'p');
+	len = strlen(zvol_name);
 	if (dev_part != NULL) {
-		sprintf(zvol_name + strlen(zvol_name), "-part%s", dev_part + 1);
+		sprintf(zvol_name + len, "-part%s", dev_part + 1);
+		len = strlen(zvol_name);
 	}
 
-	for (size_t i = 0; i < strlen(zvol_name); ++i)
+	for (i = 0; i < len; ++i)
 		if (isblank(zvol_name[i]))
 			zvol_name[i] = '+';
 
