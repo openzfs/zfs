@@ -16,7 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd June 27, 2024
+.Dd August 28, 2024
 .Dt ZFS 4
 .Os
 .
@@ -72,6 +72,17 @@ Set the size of the mutex array for the dbuf cache.
 When set to
 .Sy 0
 the array is dynamically sized based on total system memory.
+.
+.It Sy dbuf_evict_parallel Ns = Ns Sy 0 Pq uint
+When set to 1, ZFS will use up to
+.Sy dbuf_evict_threads
+threads to evict dbuf data in parallel, improving the responsiveness
+of ZFS to memory pressure.
+.
+.It Sy dbuf_evict_threads Ns = Ns Sy 0 Pq uint
+Sets the maximum number of dbuf eviction threads to be used.
+When set to 0, ZFS uses one-eighth of the available CPUs,
+with a minimum of 2 and a maximum of 16.
 .
 .It Sy dmu_object_alloc_chunk_shift Ns = Ns Sy 7 Po 128 Pc Pq uint
 dnode slots allocated in a single operation as a power of 2.
