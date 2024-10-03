@@ -11,10 +11,12 @@ function output() {
 }
 
 function outfile() {
+  test -s "$1" || return
   cat "$1" >> "out-$logfile.md"
 }
 
 function outfile_plain() {
+  test -s "$1" || return
   output "<pre>"
   cat "$1" >> "out-$logfile.md"
   output "</pre>"
