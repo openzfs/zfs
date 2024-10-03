@@ -56,6 +56,12 @@ override_dh_auto_configure:
 		sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' "$$i" > "$${i%%.in}" ; \
 	done
 
+	ln -s '$(CURDIR)/etc/init.d/zfs-import' '$(CURDIR)/debian/openzfs-zfsutils.zfs-import.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-load-key' '$(CURDIR)/debian/openzfs-zfsutils.zfs-load-key.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-mount' '$(CURDIR)/debian/openzfs-zfsutils.zfs-mount.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-share' '$(CURDIR)/debian/openzfs-zfsutils.zfs-share.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-zed' '$(CURDIR)/debian/openzfs-zfs-zed.zfs-zed.init'
+
 override_dh_gencontrol:
 	dh_gencontrol -- -Vlinux:Recommends="linux-libc-dev (<< $(LINUX_NEXT)~), linux-libc-dev (>= $(LINUX_MIN)~),"
 
