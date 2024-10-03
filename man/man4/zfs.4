@@ -2012,6 +2012,13 @@ Ignore the
 feature, causing an operation that would start a resilver to
 immediately restart the one in progress.
 .
+.It Sy zfs_resilver_defer_percent Ns = Ns Sy 10 Ns % Pq uint
+If the ongoing resilver progress is below this threshold, a new resilver will
+restart from scratch instead of being deferred after the current one finishes,
+even if the
+.Sy resilver_defer
+feature is enabled.
+.
 .It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq uint
 Resilvers are processed by the sync thread.
 While resilvering, it will spend at least this much time
