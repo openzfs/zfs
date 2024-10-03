@@ -101,3 +101,5 @@ native-deb-kmod: native-deb-local debian
 	fakeroot debian/rules override_dh_binary-modules;
 
 native-deb: native-deb-utils native-deb-kmod
+
+.NOTPARALLEL: native-deb native-deb-utils native-deb-kmod
