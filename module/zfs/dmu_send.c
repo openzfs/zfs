@@ -26,7 +26,7 @@
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -2015,6 +2015,17 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LONGNAME)) {
 		*featureflags |= DMU_BACKUP_FEATURE_LONGNAME;
 	}
+
+	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_MICROZAP)) {
+		/*
+		 * We must never split a large microzap block, so we can only
+		 * send large microzaps if LARGE_BLOCKS is already enabled.
+		 */
+		if (!(*featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
+			return (SET_ERROR(ZFS_ERR_STREAM_LARGE_MICROZAP));
+		*featureflags |= DMU_BACKUP_FEATURE_LARGE_MICROZAP;
+	}
+
 	return (0);
 }
 

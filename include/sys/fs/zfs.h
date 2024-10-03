@@ -30,6 +30,7 @@
  * Portions Copyright 2010 Robert Milkowski
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef	_SYS_FS_ZFS_H
@@ -1631,6 +1632,7 @@ typedef enum {
 	ZFS_ERR_CRYPTO_NOTSUP,
 	ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
 	ZFS_ERR_ASHIFT_MISMATCH,
+	ZFS_ERR_STREAM_LARGE_MICROZAP,
 } zfs_errno_t;
 
 /*

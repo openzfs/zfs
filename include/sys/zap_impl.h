@@ -24,6 +24,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -45,7 +46,6 @@ extern int fzap_default_block_shift;
 
 #define	MZAP_ENT_LEN		64
 #define	MZAP_NAME_LEN		(MZAP_ENT_LEN - 8 - 4 - 2)
-#define	MZAP_MAX_BLKSZ		SPA_OLD_MAXBLOCKSIZE
 
 #define	ZAP_NEED_CD		(-1U)
 
@@ -209,6 +209,8 @@ void zap_name_free(zap_name_t *zn);
 int zap_hashbits(zap_t *zap);
 uint32_t zap_maxcd(zap_t *zap);
 uint64_t zap_getflags(zap_t *zap);
+
+uint64_t zap_get_micro_max_size(spa_t *spa);
 
 #define	ZAP_HASH_IDX(hash, n) (((n) == 0) ? 0 : ((hash) >> (64 - (n))))
 

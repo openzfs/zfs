@@ -25,7 +25,7 @@
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2022 Axcient.
@@ -593,6 +593,9 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_DNODE))
 		return (SET_ERROR(ENOTSUP));
+	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_MICROZAP) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_MICROZAP))
+		return (SET_ERROR(ENOTSUP));
 
 	/*
 	 * Receiving redacted streams requires that redacted datasets are
@@ -992,6 +995,24 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		    BEGINNV_REDACT_SNAPS, &redact_snaps, &numredactsnaps));
 		dsl_dataset_activate_redaction(newds, redact_snaps,
 		    numredactsnaps, tx);
+	}
+
+	if (featureflags & DMU_BACKUP_FEATURE_LARGE_MICROZAP) {
+		/*
+		 * The source has seen a large microzap at least once in its
+		 * life, so we activate the feature here to match. It's not
+		 * strictly necessary since a large microzap is usable without
+		 * the feature active, but if that object is sent on from here,
+		 * we need this info to know to add the stream feature.
+		 *
+		 * There may be no large microzap in the incoming stream, or
+		 * ever again, but this is a very niche feature and its very
+		 * difficult to spot a large microzap in the stream, so its
+		 * not worth the effort of trying harder to activate the
+		 * feature at first use.
+		 */
+		dsl_dataset_activate_feature(dsobj, SPA_FEATURE_LARGE_MICROZAP,
+		    (void *)B_TRUE, tx);
 	}
 
 	dmu_buf_will_dirty(newds->ds_dbuf, tx);

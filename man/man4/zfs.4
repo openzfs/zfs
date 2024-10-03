@@ -16,7 +16,9 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd June 27, 2024
+.\" Copyright (c) 2024, Klara, Inc.
+.\"
+.Dd October 2, 2024
 .Dt ZFS 4
 .Os
 .
@@ -614,7 +616,11 @@ However, this is limited by
 .
 .It Sy zap_micro_max_size Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
 Maximum micro ZAP size.
-A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
+A "micro" ZAP is upgraded to a "fat" ZAP once it grows beyond the specified
+size.
+Sizes higher than 128KiB will be clamped to 128KiB unless the
+.Sy large_microzap
+feature is enabled.
 .
 .It Sy zap_shrink_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 If set, adjacent empty ZAP blocks will be collapsed, reducing disk space.

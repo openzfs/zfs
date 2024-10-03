@@ -14,12 +14,11 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.\" Copyright (c) 2019, Klara Inc.
+.\" Copyright (c) 2019, 2023, 2024, Klara, Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
-.\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd February 14, 2024
+.Dd October 2, 2024
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -705,6 +704,24 @@ once all filesystems that have ever contained a dnode larger than 512 B
 are destroyed.
 Large dnodes allow more data to be stored in the bonus buffer,
 thus potentially improving performance by avoiding the use of spill blocks.
+.
+.feature com.klarasystems large_microzap yes extensible_dataset large_blocks
+This feature allows "micro" ZAPs to grow larger than 128 KiB without being
+upgraded to "fat" ZAPs.
+.Pp
+This feature becomes
+.Sy active
+the first time a micro ZAP grows larger than 128KiB.
+It will only be returned to the
+.Sy enabled
+state when all datasets that ever had a large micro ZAP are destroyed.
+.Pp
+Note that even when this feature is enabled, micro ZAPs cannot grow larger
+than 128 KiB without also changing the
+.Sy zap_micro_max_size
+module parameter.
+See
+.Xr zfs 4 .
 .
 .feature com.delphix livelist yes extensible_dataset
 This feature allows clones to be deleted faster than the traditional method
