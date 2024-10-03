@@ -139,6 +139,10 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "sha256", zfs_sha256_available());
 #if defined(__aarch64__)
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "aes", zfs_aes_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "pmull", zfs_pmull_available());
 		/*
 		 * This technically can exist on 32b ARM but we don't
 		 * define hooks to check for it and I didn't want to

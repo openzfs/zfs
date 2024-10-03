@@ -28,6 +28,11 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
 			;;
+
+		arm64 | aarch64)
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_ARM_AES
+			;;
+
 	esac
 ])
 
@@ -381,6 +386,26 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_AES], 1, [Define if host toolchain supports AES])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_ARM_AES
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_ARM_AES], [
+	AC_MSG_CHECKING([whether host toolchain supports ARM AES Crypto Extensions])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+			__asm__ __volatile__("aese	v0.16b, v1.16b");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_ARM_AES], 1, [Define if host toolchain supports ARM AES Crypto Extensions])
 	], [
 		AC_MSG_RESULT([no])
 	])

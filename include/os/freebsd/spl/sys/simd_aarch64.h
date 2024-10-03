@@ -38,6 +38,8 @@
  *   zfs_neon_available()
  *   zfs_sha256_available()
  *   zfs_sha512_available()
+ *   zfs_aes_available()
+ *   zfs_pmull_available()
  */
 
 #ifndef _FREEBSD_SIMD_AARCH64_H
@@ -89,6 +91,24 @@ static inline boolean_t
 zfs_sha512_available(void)
 {
 	return (elf_hwcap & HWCAP_SHA512);
+}
+
+/*
+ * Check if AES is available
+ */
+static inline boolean_t
+zfs_aes_available(void)
+{
+	return (elf_hwcap & HWCAP_AES);
+}
+
+/*
+ * Check if PMULL is available
+ */
+static inline boolean_t
+zfs_pmull_available(void)
+{
+	return (elf_hwcap & HWCAP_PMULL);
 }
 
 #endif /* _FREEBSD_SIMD_AARCH64_H */

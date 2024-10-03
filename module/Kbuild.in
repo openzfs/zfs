@@ -151,7 +151,11 @@ ICP_OBJS_ARM64 := \
 	asm-aarch64/blake3/b3_aarch64_sse2.o \
 	asm-aarch64/blake3/b3_aarch64_sse41.o \
 	asm-aarch64/sha2/sha256-armv8.o \
-	asm-aarch64/sha2/sha512-armv8.o
+	asm-aarch64/sha2/sha512-armv8.o \
+	asm-aarch64/aes/aes-armv8-crypto.o \
+	asm-aarch64/modes/ghashv8-armx.o \
+	asm-aarch64/modes/aes-gcm-armv8_64.o \
+	algs/aes/aes_impl_armv8_crypto.o
 
 ICP_OBJS_PPC_PPC64 := \
 	asm-ppc64/blake3/b3_ppc64le_sse2.o \
