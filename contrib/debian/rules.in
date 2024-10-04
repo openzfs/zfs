@@ -88,6 +88,7 @@ override_dh_auto_install:
 
 	@# Zed has dependencies outside of the system root.
 	mv '$(CURDIR)/debian/tmp/sbin/zed' '$(CURDIR)/debian/tmp/usr/sbin/zed'
+	sed -i 's|ExecStart=/sbin/|ExecStart=/usr/sbin/|g' '$(CURDIR)/debian/tmp/lib/systemd/system/zfs-zed.service'
 
 	@# Install the DKMS source.
 	@# We only want the files needed to build the modules
