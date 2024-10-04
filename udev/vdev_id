@@ -124,6 +124,7 @@ TOPOLOGY=
 BAY=
 ENCL_ID=""
 UNIQ_ENCL_ID=""
+ZPAD=1
 
 usage() {
 	cat << EOF
@@ -154,7 +155,7 @@ map_slot() {
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
-	printf "%d" "${MAPPED_SLOT}"
+	printf "%0${ZPAD}d" "${MAPPED_SLOT}"
 }
 
 map_channel() {
@@ -430,6 +431,15 @@ sas_handler() {
 		d=$(eval echo '$'{$i})
 		SLOT=$(echo "$d" | sed -e 's/^.*://')
 		;;
+	"bay_lun")
+		# Like 'bay' but with the LUN number appened. Added for SAS 
+		# multi-actuator HDDs, where one physical drive has multiple
+		# LUNs, thus multiple logical drives share the same bay number
+		i=$((i + 2))
+		d=$(eval echo '$'{$i})
+		LUN="-lun$(echo "$d" | sed -e 's/^.*://')"
+		SLOT=$(cat "$end_device_dir/bay_identifier" 2>/dev/null)
+		;;
 	"ses")
 		# look for this SAS path in all SCSI Enclosure Services
 		# (SES) enclosures
@@ -460,7 +470,7 @@ sas_handler() {
 		if [ -z "$CHAN" ] ; then
 			return
 		fi
-		echo "${CHAN}"-"${JBOD}"-"${SLOT}${PART}"
+		echo "${CHAN}"-"${JBOD}"-"${SLOT}${LUN}${PART}"
 	else
 		CHAN=$(map_channel "$PCI_ID" "$PORT")
 		SLOT=$(map_slot "$SLOT" "$CHAN")
@@ -468,7 +478,7 @@ sas_handler() {
 		if [ -z "$CHAN" ] ; then
 			return
 		fi
-		echo "${CHAN}${SLOT}${PART}"
+		echo "${CHAN}${SLOT}${LUN}${PART}"
 	fi
 }
 
@@ -747,6 +757,8 @@ fi
 if [ -z "$BAY" ] ; then
 	BAY=$(awk '($1 == "slot") {print $2; exit}' "$CONFIG")
 fi
+
+ZPAD=$(awk '($1 == "zpad_slot") {print $2; exit}' "$CONFIG")
 
 TOPOLOGY=${TOPOLOGY:-sas_direct}
 

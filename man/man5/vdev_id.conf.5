@@ -92,6 +92,11 @@ before a generic mapping for the same slot.
 In this way a custom mapping may be applied to a particular channel
 and a default mapping applied to the others.
 .
+.It Sy zpad_slot Ar digits
+Pad slot numbers with zeros to make them
+.Ar digits
+long, which can help to make disk names a consistent length and easier to sort.
+.
 .It Sy multipath Sy yes Ns | Ns Sy no
 Specifies whether
 .Xr vdev_id 8
@@ -122,7 +127,7 @@ device is connected to.
 The default is
 .Sy 4 .
 .
-.It Sy slot Sy bay Ns | Ns Sy phy Ns | Ns Sy port Ns | Ns Sy id Ns | Ns Sy lun Ns | Ns Sy ses
+.It Sy slot Sy bay Ns | Ns Sy phy Ns | Ns Sy port Ns | Ns Sy id Ns | Ns Sy lun Ns | Ns Sy bay_lun Ns | Ns Sy ses
 Specifies from which element of a SAS identifier the slot number is
 taken.
 The default is
@@ -138,6 +143,9 @@ use the SAS port as the slot number.
 use the scsi id as the slot number.
 .It Sy lun
 use the scsi lun as the slot number.
+.It Sy bay_lun
+read the slot number from the bay identifier and append the lun number.
+Useful for multi-lun multi-actuator hard drives.
 .It Sy ses
 use the SCSI Enclosure Services (SES) enclosure device slot number,
 as reported by
