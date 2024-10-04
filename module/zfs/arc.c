@@ -4240,7 +4240,7 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 static uint64_t
 arc_evict(void)
 {
-	uint64_t asize, bytes, total_evicted = 0;
+	uint64_t bytes, total_evicted = 0;
 	int64_t e, mrud, mrum, mfud, mfum, w;
 	static uint64_t ogrd, ogrm, ogfd, ogfm;
 	static uint64_t gsrd, gsrm, gsfd, gsfm;
@@ -4277,8 +4277,9 @@ arc_evict(void)
 	arc_pd = arc_evict_adj(arc_pd, gsrd + gsfd, grd, gfd, 100);
 	arc_pm = arc_evict_adj(arc_pm, gsrm + gsfm, grm, gfm, 100);
 
-	asize = aggsum_value(&arc_sums.arcstat_size);
-	int64_t wt = t - (asize - arc_c);
+	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
+	uint64_t ac = arc_c;
+	int64_t wt = t - (asize - ac);
 
 	/*
 	 * Try to reduce pinned dnodes if more than 3/4 of wanted metadata
@@ -4303,7 +4304,7 @@ arc_evict(void)
 
 	/* Evict MRU metadata. */
 	w = wt * (int64_t)(arc_meta * arc_pm >> 48) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(mrum - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(mrum - w));
 	bytes = arc_evict_impl(arc_mru, ARC_BUFC_METADATA, e);
 	total_evicted += bytes;
 	mrum -= bytes;
@@ -4311,7 +4312,7 @@ arc_evict(void)
 
 	/* Evict MFU metadata. */
 	w = wt * (int64_t)(arc_meta >> 16) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(m - bytes - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(m - bytes - w));
 	bytes = arc_evict_impl(arc_mfu, ARC_BUFC_METADATA, e);
 	total_evicted += bytes;
 	mfum -= bytes;
@@ -4320,14 +4321,14 @@ arc_evict(void)
 	/* Evict MRU data. */
 	wt -= m - total_evicted;
 	w = wt * (int64_t)(arc_pd >> 16) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(mrud - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(mrud - w));
 	bytes = arc_evict_impl(arc_mru, ARC_BUFC_DATA, e);
 	total_evicted += bytes;
 	mrud -= bytes;
 	asize -= bytes;
 
 	/* Evict MFU data. */
-	e = asize - arc_c;
+	e = asize - ac;
 	bytes = arc_evict_impl(arc_mfu, ARC_BUFC_DATA, e);
 	mfud -= bytes;
 	total_evicted += bytes;
