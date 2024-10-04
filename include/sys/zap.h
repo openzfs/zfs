@@ -377,6 +377,7 @@ typedef struct {
 	uint64_t za_num_integers;
 	uint64_t za_first_integer;	/* no sign extension for <8byte ints */
 	uint32_t za_name_len;
+	uint32_t za_pad;	/* We want za_name aligned to uint64_t. */
 	char za_name[];
 } zap_attribute_t;
 
