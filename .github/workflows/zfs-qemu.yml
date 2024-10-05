@@ -22,8 +22,8 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora39", "fedora40", "freebsd13", "freebsd13r", "freebsd14", "freebsd14r", "ubuntu20", "ubuntu22", "ubuntu24"]'
-          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora40", "freebsd13", "freebsd14", "ubuntu24"]'
+          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora39", "fedora40", "freebsd13-4r", "freebsd14-0r", "freebsd14-1s", "ubuntu20", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora40", "freebsd13-3r", "freebsd14-1r", "ubuntu24"]'
           # determine CI type when running on PR
           ci_type="full"
           if ${{ github.event_name == 'pull_request' }}; then
@@ -46,10 +46,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # all:
-        # os:  [almalinux8, almalinux9, archlinux, centos-stream9, fedora39, fedora40, debian11, debian12, freebsd13, freebsd13r, freebsd14, freebsd14r, freebsd15, ubuntu20, ubuntu22, ubuntu24]
-        # openzfs:
-        # os: [almalinux8, almalinux9, centos-stream9, debian11, debian12, fedora39, fedora40, freebsd13, freebsd13r, freebsd14, freebsd14r, ubuntu20, ubuntu22, ubuntu24]
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora39, fedora40
+        # debian:  debian11, debian12, ubuntu20, ubuntu22, ubuntu24
+        # misc:    archlinux, tumbleweed
+        # FreeBSD Release: freebsd13-3r, freebsd13-4r, freebsd14-0r, freebsd14-1r
+        # FreeBSD Stable:  freebsd13-4s, freebsd14-1s
+        # FreeBSD Current: freebsd15-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:
