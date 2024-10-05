@@ -1,4 +1,4 @@
-<abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfs.so.4'>
+<abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfs.so.6'>
   <elf-needed>
     <dependency name='libzfs_core.so.3'/>
     <dependency name='libnvpair.so.3'/>
