@@ -6,6 +6,6 @@ contrib/pyzfs/libzfs_core/bindings/__pycache__/
 contrib/pyzfs/pyzfs.egg-info/
 debian/openzfs-libnvpair3.install
 debian/openzfs-libuutil3.install
-debian/openzfs-libzfs4.install
+debian/openzfs-libzfs6.install
 debian/openzfs-libzfs-dev.install
-debian/openzfs-libzpool5.install
+debian/openzfs-libzpool6.install
