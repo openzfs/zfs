@@ -98,6 +98,7 @@ usr/share/man/man8/zpool-attach.8
 usr/share/man/man8/zpool-checkpoint.8
 usr/share/man/man8/zpool-clear.8
 usr/share/man/man8/zpool-create.8
+usr/share/man/man8/zpool-ddtprune.8
 usr/share/man/man8/zpool-destroy.8
 usr/share/man/man8/zpool-detach.8
 usr/share/man/man8/zpool-ddtprune.8
@@ -112,6 +113,7 @@ usr/share/man/man8/zpool-labelclear.8
 usr/share/man/man8/zpool-list.8
 usr/share/man/man8/zpool-offline.8
 usr/share/man/man8/zpool-online.8
+usr/share/man/man8/zpool-prefetch.8
 usr/share/man/man8/zpool-prefetch.8
 usr/share/man/man8/zpool-reguid.8
 usr/share/man/man8/zpool-remove.8
