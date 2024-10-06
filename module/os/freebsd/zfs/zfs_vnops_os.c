@@ -1234,7 +1234,6 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	uint64_t	obj = 0;
 	dmu_tx_t	*tx;
 	boolean_t	unlinked;
-	uint64_t	txtype;
 	int		error;
 
 
@@ -1325,8 +1324,7 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		vp->v_vflag |= VV_NOSYNC;
 	}
 	/* XXX check changes to linux vnops */
-	txtype = TX_REMOVE;
-	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	zfs_log_remove(zilog, tx, TX_REMOVE, dzp, name, obj, unlinked);
 
 	dmu_tx_commit(tx);
 out:
@@ -1646,8 +1644,7 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 
 	error = zfs_link_destroy(dzp, name, zp, tx, ZEXISTS, NULL);
 	if (error == 0) {
-		uint64_t txtype = TX_RMDIR;
-		zfs_log_remove(zilog, tx, txtype, dzp, name,
+		zfs_log_remove(zilog, tx, TX_RMDIR, dzp, name,
 		    ZFS_NO_OBJECT, B_FALSE);
 	}
 
@@ -3680,7 +3677,6 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	int		error;
 	zfs_acl_ids_t	acl_ids;
 	boolean_t	fuid_dirtied;
-	uint64_t	txtype = TX_SYMLINK;
 
 	ASSERT3S(vap->va_type, ==, VLNK);
 
@@ -3787,7 +3783,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		VOP_UNLOCK(ZTOV(zp));
 		zrele(zp);
 	} else {
-		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		zfs_log_symlink(zilog, tx, TX_SYMLINK, dzp, zp, name, link);
 	}
 
 	zfs_acl_ids_free(&acl_ids);
