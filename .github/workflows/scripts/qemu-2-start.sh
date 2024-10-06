@@ -14,7 +14,7 @@ OSv=$OS
 
 # compressed with .zst extension
 REPO="https://github.com/mcmilk/openzfs-freebsd-images"
-FREEBSD="$REPO/releases/download/v2024-09-16"
+FREEBSD="$REPO/releases/download/v2024-10-05"
 URLzs=""
 
 # Ubuntu mirrors
@@ -62,33 +62,45 @@ case "$OS" in
     OSv="fedora39"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
     ;;
-  freebsd13r)
+  freebsd13-3r)
+    OSNAME="FreeBSD 13.3-RELEASE"
+    OSv="freebsd13.0"
+    URLzs="$FREEBSD/amd64-freebsd-13.3-RELEASE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    NIC="rtl8139"
+    ;;
+  freebsd13-4r)
     OSNAME="FreeBSD 13.4-RELEASE"
     OSv="freebsd13.0"
     URLzs="$FREEBSD/amd64-freebsd-13.4-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
     ;;
-  freebsd13)
-    OSNAME="FreeBSD 13.4-STABLE"
-    OSv="freebsd13.0"
-    URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
+  freebsd14-0r)
+    OSNAME="FreeBSD 14.0-RELEASE"
+    OSv="freebsd14.0"
+    URLzs="$FREEBSD/amd64-freebsd-14.0-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
-    NIC="rtl8139"
     ;;
-  freebsd14r)
+  freebsd14-1r)
     OSNAME="FreeBSD 14.1-RELEASE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.1-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
-  freebsd14)
+  freebsd13-4s)
+    OSNAME="FreeBSD 13.4-STABLE"
+    OSv="freebsd13.0"
+    URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    ;;
+  freebsd14-1s)
     OSNAME="FreeBSD 14.1-STABLE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.1-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
-  freebsd15)
+  freebsd15-0c)
     OSNAME="FreeBSD 15.0-CURRENT"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-15.0-CURRENT.qcow2.zst"
