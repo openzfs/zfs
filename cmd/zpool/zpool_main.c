@@ -13613,7 +13613,7 @@ main(int argc, char **argv)
 	 * Special case '-V|--version'
 	 */
 	if ((strcmp(cmdname, "-V") == 0) || (strcmp(cmdname, "--version") == 0))
-		return (zpool_do_version(argc, argv));
+		return (zfs_version_print() != 0);
 
 	/*
 	 * Special case 'help'
