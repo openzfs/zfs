@@ -1330,6 +1330,9 @@ sa_idx_tab_rele(objset_t *os, void *arg)
 	if (idx_tab == NULL)
 		return;
 
+	if (zfs_refcount_remove_not_last(&idx_tab->sa_refcount, NULL))
+		return;
+
 	mutex_enter(&sa->sa_lock);
 	if (zfs_refcount_remove(&idx_tab->sa_refcount, NULL) == 0) {
 		list_remove(&idx_tab->sa_layout->lot_idx_tab, idx_tab);
