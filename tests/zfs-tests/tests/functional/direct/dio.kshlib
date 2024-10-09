@@ -84,8 +84,9 @@ function get_zpool_status_chksum_verify_failures # pool_name vdev_type
 function get_zed_dio_verify_events # pool
 {
 	typeset pool=$1
+	typeset op=$2
 
-	val=$(zpool events $pool | grep -c dio_verify)
+	val=$(zpool events $pool | grep -c "dio_verify_${op}")
 
 	echo "$val"
 }
@@ -96,11 +97,12 @@ function get_zed_dio_verify_events # pool
 # zpool events
 # After getting that counts will clear the out the ZPool errors and events
 #
-function check_dio_write_chksum_verify_failures # pool vdev_type expect_errors
+function check_dio_chksum_verify_failures # pool vdev_type op expect_errors
 {
 	typeset pool=$1
 	typeset vdev_type=$2
 	typeset expect_errors=$3
+	typeset op=$4
 	typeset note_str="expecting none"
 
 	if [[ $expect_errors -ne 0 ]]; then
@@ -108,10 +110,10 @@ function check_dio_write_chksum_verify_failures # pool vdev_type expect_errors
 	fi
 
 	log_note "Checking for Direct I/O write checksum verify errors \
-	    $note_str on ZPool: $pool"
+	    $note_str on ZPool: $pool with $vdev_type"
 
 	status_failures=$(get_zpool_status_chksum_verify_failures $pool $vdev_type)
-	zed_dio_verify_events=$(get_zed_dio_verify_events $pool)
+	zed_dio_verify_events=$(get_zed_dio_verify_events $pool $op)
 
 	if [[ $expect_errors -ne 0 ]]; then
 		if [[ $status_failures -eq 0 ||

@@ -804,11 +804,11 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 	pio->io_reexecute |= zio->io_reexecute;
 	ASSERT3U(*countp, >, 0);
 
-	if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR) {
-		ASSERT3U(*errorp, ==, EIO);
-		ASSERT3U(pio->io_child_type, ==, ZIO_CHILD_LOGICAL);
+	/*
+	 * Propogate the Direct I/O checksum verify failure to the parent.
+	 */
+	if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
 		pio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
-	}
 
 	(*countp)--;
 
@@ -1573,6 +1573,14 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		 */
 		pipeline |= ZIO_STAGE_CHECKSUM_VERIFY;
 		pio->io_pipeline &= ~ZIO_STAGE_CHECKSUM_VERIFY;
+		/*
+		 * We never allow the mirror VDEV to attempt reading from any
+		 * additional data copies after the first Direct I/O checksum
+		 * verify failure. This is to avoid bad data being written out
+		 * through the mirror during self healing. See comment in
+		 * vdev_mirror_io_done() for more details.
+		 */
+		ASSERT0(pio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
 	} else if (type == ZIO_TYPE_WRITE &&
 	    pio->io_prop.zp_direct_write == B_TRUE) {
 		/*
@@ -4555,17 +4563,17 @@ zio_vdev_io_assess(zio_t *zio)
 	}
 
 	/*
-	 * If a Direct I/O write checksum verify error has occurred then this
-	 * I/O should not attempt to be issued again. Instead the EIO will
-	 * be returned.
+	 * If a Direct I/O operation has a checksum verify error then this I/O
+	 * should not attempt to be issued again.
 	 */
 	if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR) {
-		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_LOGICAL);
-		ASSERT3U(zio->io_error, ==, EIO);
+		if (zio->io_type == ZIO_TYPE_WRITE) {
+			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_LOGICAL);
+			ASSERT3U(zio->io_error, ==, EIO);
+		}
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 		return (zio);
 	}
-
 
 	if (zio_injection_enabled && zio->io_error == 0)
 		zio->io_error = zio_handle_fault_injection(zio, EIO);
@@ -4864,16 +4872,40 @@ zio_checksum_verify(zio_t *zio)
 		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
 	}
 
+	ASSERT0(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
+	IMPLY(zio->io_flags & ZIO_FLAG_DIO_READ,
+	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE));
+
 	if ((error = zio_checksum_error(zio, &info)) != 0) {
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
-			mutex_enter(&zio->io_vd->vdev_stat_lock);
-			zio->io_vd->vdev_stat.vs_checksum_errors++;
-			mutex_exit(&zio->io_vd->vdev_stat_lock);
-			(void) zfs_ereport_start_checksum(zio->io_spa,
-			    zio->io_vd, &zio->io_bookmark, zio,
-			    zio->io_offset, zio->io_size, &info);
+			if (zio->io_flags & ZIO_FLAG_DIO_READ) {
+				zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
+				zio_t *pio = zio_unique_parent(zio);
+				/*
+				 * Any Direct I/O read that has a checksum
+				 * error must be treated as suspicous as the
+				 * contents of the buffer could be getting
+				 * manipulated while the I/O is taking place.
+				 *
+				 * The checksum verify error will only be
+				 * reported here for disk and file VDEV's and
+				 * will be reported on those that the failure
+				 * occurred on. Other types of VDEV's report the
+				 * verify failure in their own code paths.
+				 */
+				if (pio->io_child_type == ZIO_CHILD_LOGICAL) {
+					zio_dio_chksum_verify_error_report(zio);
+				}
+			} else {
+				mutex_enter(&zio->io_vd->vdev_stat_lock);
+				zio->io_vd->vdev_stat.vs_checksum_errors++;
+				mutex_exit(&zio->io_vd->vdev_stat_lock);
+				(void) zfs_ereport_start_checksum(zio->io_spa,
+				    zio->io_vd, &zio->io_bookmark, zio,
+				    zio->io_offset, zio->io_size, &info);
+			}
 		}
 	}
 
@@ -4899,22 +4931,8 @@ zio_dio_checksum_verify(zio_t *zio)
 	if ((error = zio_checksum_error(zio, NULL)) != 0) {
 		zio->io_error = error;
 		if (error == ECKSUM) {
-			mutex_enter(&zio->io_vd->vdev_stat_lock);
-			zio->io_vd->vdev_stat.vs_dio_verify_errors++;
-			mutex_exit(&zio->io_vd->vdev_stat_lock);
-			zio->io_error = SET_ERROR(EIO);
 			zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
-
-			/*
-			 * The EIO error must be propagated up to the logical
-			 * parent ZIO in zio_notify_parent() so it can be
-			 * returned to dmu_write_abd().
-			 */
-			zio->io_flags &= ~ZIO_FLAG_DONT_PROPAGATE;
-
-			(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY,
-			    zio->io_spa, zio->io_vd, &zio->io_bookmark,
-			    zio, 0);
+			zio_dio_chksum_verify_error_report(zio);
 		}
 	}
 
@@ -4930,6 +4948,39 @@ void
 zio_checksum_verified(zio_t *zio)
 {
 	zio->io_pipeline &= ~ZIO_STAGE_CHECKSUM_VERIFY;
+}
+
+/*
+ * Report Direct I/O checksum verify error and create ZED event.
+ */
+void
+zio_dio_chksum_verify_error_report(zio_t *zio)
+{
+	ASSERT(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
+
+	if (zio->io_child_type == ZIO_CHILD_LOGICAL)
+		return;
+
+	mutex_enter(&zio->io_vd->vdev_stat_lock);
+	zio->io_vd->vdev_stat.vs_dio_verify_errors++;
+	mutex_exit(&zio->io_vd->vdev_stat_lock);
+	if (zio->io_type == ZIO_TYPE_WRITE) {
+		/*
+		 * Convert checksum error for writes into EIO.
+		 */
+		zio->io_error = SET_ERROR(EIO);
+		/*
+		 * Report dio_verify_wr ZED event.
+		 */
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_WR,
+		    zio->io_spa,  zio->io_vd, &zio->io_bookmark, zio, 0);
+	} else {
+		/*
+		 * Report dio_verify_rd ZED event.
+		 */
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_RD,
+		    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
+	}
 }
 
 /*
@@ -5343,10 +5394,9 @@ zio_done(zio_t *zio)
 
 	if (zio->io_reexecute) {
 		/*
-		 * A Direct I/O write that has a checksum verify error should
-		 * not attempt to reexecute. Instead, EAGAIN should just be
-		 * propagated back up so the write can be attempt to be issued
-		 * through the ARC.
+		 * A Direct I/O operation that has a checksum verify error
+		 * should not attempt to reexecute. Instead, the error should
+		 * just be propagated back.
 		 */
 		ASSERT(!(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR));
 

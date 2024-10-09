@@ -48,6 +48,8 @@ function cleanup
 	log_must set_tunable32 RESILVER_MIN_TIME_MS $ORIG_RESILVER_MIN_TIME
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS \
 	    $ORIG_SCAN_SUSPEND_PROGRESS
+	log_must set_tunable32 RESILVER_DEFER_PERCENT \
+	    $ORIG_RESILVER_DEFER_PERCENT
 	log_must set_tunable32 ZEVENT_LEN_MAX $ORIG_ZFS_ZEVENT_LEN_MAX
 	log_must zinject -c all
 	destroy_pool $TESTPOOL1
@@ -90,6 +92,7 @@ log_assert "Check for unnecessary resilver restarts"
 
 ORIG_RESILVER_MIN_TIME=$(get_tunable RESILVER_MIN_TIME_MS)
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
+ORIG_RESILVER_DEFER_PERCENT=$(get_tunable RESILVER_DEFER_PERCENT)
 ORIG_ZFS_ZEVENT_LEN_MAX=$(get_tunable ZEVENT_LEN_MAX)
 
 set -A RESTARTS -- '1' '2' '2' '2'

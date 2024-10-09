@@ -697,8 +697,8 @@ tags = ['functional', 'delegate']
 tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
     'dio_compression', 'dio_dedup', 'dio_encryption', 'dio_grow_block',
     'dio_max_recordsize', 'dio_mixed', 'dio_mmap', 'dio_overwrites',
-    'dio_property', 'dio_random', 'dio_recordsize', 'dio_unaligned_block',
-    'dio_unaligned_filesize']
+    'dio_property', 'dio_random', 'dio_read_verify', 'dio_recordsize',
+    'dio_unaligned_block', 'dio_unaligned_filesize']
 tags = ['functional', 'direct']
 
 [tests/functional/exec]

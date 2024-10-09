@@ -9224,6 +9224,12 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 		}
 	}
 
+	if (cb->cb_print_dio_verify) {
+		nice_num_str_nvlist(vds, "dio_verify_errors",
+		    vs->vs_dio_verify_errors, cb->cb_literal,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+	}
+
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
 	    &notpresent) == 0) {
 		nice_num_str_nvlist(vds, ZPOOL_CONFIG_NOT_PRESENT,
@@ -13613,7 +13619,7 @@ main(int argc, char **argv)
 	 * Special case '-V|--version'
 	 */
 	if ((strcmp(cmdname, "-V") == 0) || (strcmp(cmdname, "--version") == 0))
-		return (zpool_do_version(argc, argv));
+		return (zfs_version_print() != 0);
 
 	/*
 	 * Special case 'help'

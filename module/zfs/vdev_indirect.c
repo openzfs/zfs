@@ -34,6 +34,7 @@
 #include <sys/zap.h>
 #include <sys/abd.h>
 #include <sys/zthr.h>
+#include <sys/fm/fs/zfs.h>
 
 /*
  * An indirect vdev corresponds to a vdev that has been removed.  Since
@@ -1832,6 +1833,19 @@ vdev_indirect_io_done(zio_t *zio)
 
 	zio_bad_cksum_t zbc;
 	int ret = zio_checksum_error(zio, &zbc);
+	/*
+	 * Any Direct I/O read that has a checksum error must be treated as
+	 * suspicious as the contents of the buffer could be getting
+	 * manipulated while the I/O is taking place. The checksum verify error
+	 * will be reported to the top-level VDEV.
+	 */
+	if (zio->io_flags & ZIO_FLAG_DIO_READ && ret == ECKSUM) {
+		zio->io_error = ret;
+		zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
+		zio_dio_chksum_verify_error_report(zio);
+		ret = 0;
+	}
+
 	if (ret == 0) {
 		zio_checksum_verified(zio);
 		return;

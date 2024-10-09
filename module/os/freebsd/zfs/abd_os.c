@@ -620,9 +620,16 @@ abd_borrow_buf_copy(abd_t *abd, size_t n)
 
 /*
  * Return a borrowed raw buffer to an ABD. If the ABD is scattered, this will
- * no change the contents of the ABD and will ASSERT that you didn't modify
- * the buffer since it was borrowed. If you want any changes you made to buf to
- * be copied back to abd, use abd_return_buf_copy() instead.
+ * not change the contents of the ABD. If you want any changes you made to
+ * buf to be copied back to abd, use abd_return_buf_copy() instead. If the
+ * ABD is not constructed from user pages from Direct I/O then an ASSERT
+ * checks to make sure the contents of the buffer have not changed since it was
+ * borrowed. We can not ASSERT the contents of the buffer have not changed if
+ * it is composed of user pages. While Direct I/O write pages are placed under
+ * write protection and can not be changed, this is not the case for Direct I/O
+ * reads. The pages of a Direct I/O read could be manipulated at any time.
+ * Checksum verifications in the ZIO pipeline check for this issue and handle
+ * it by returning an error on checksum verification failure.
  */
 void
 abd_return_buf(abd_t *abd, void *buf, size_t n)
@@ -632,8 +639,34 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 #ifdef ZFS_DEBUG
 	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
 #endif
-	if (abd_is_linear(abd)) {
+	if (abd_is_from_pages(abd)) {
+		if (!abd_is_linear_page(abd))
+			zio_buf_free(buf, n);
+	} else if (abd_is_linear(abd)) {
 		ASSERT3P(buf, ==, abd_to_buf(abd));
+	} else if (abd_is_gang(abd)) {
+#ifdef ZFS_DEBUG
+		/*
+		 * We have to be careful with gang ABD's that we do not ASSERT
+		 * for any ABD's that contain user pages from Direct I/O. See
+		 * the comment above about Direct I/O read buffers possibly
+		 * being manipulated. In order to handle this, we jsut iterate
+		 * through the gang ABD and only verify ABD's that are not from
+		 * user pages.
+		 */
+		void *cmp_buf = buf;
+
+		for (abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
+		    cabd != NULL;
+		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
+			if (!abd_is_from_pages(cabd)) {
+				ASSERT0(abd_cmp_buf(cabd, cmp_buf,
+				    cabd->abd_size));
+			}
+			cmp_buf = (char *)cmp_buf + cabd->abd_size;
+		}
+#endif
+		zio_buf_free(buf, n);
 	} else {
 		ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);

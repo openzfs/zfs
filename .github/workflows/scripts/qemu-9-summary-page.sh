@@ -11,12 +11,10 @@ function output() {
 }
 
 function outfile() {
-  test -s "$1" || return
   cat "$1" >> "out-$logfile.md"
 }
 
 function outfile_plain() {
-  test -s "$1" || return
   output "<pre>"
   cat "$1" >> "out-$logfile.md"
   output "</pre>"
@@ -45,6 +43,8 @@ if [ ! -f out-1.md ]; then
     tar xf "$tarfile"
     test -s env.txt || continue
     source env.txt
+    # when uname.txt is there, the other files are also ok
+    test -s uname.txt || continue
     output "\n## Functional Tests: $OSNAME\n"
     outfile_plain uname.txt
     outfile_plain summary.txt

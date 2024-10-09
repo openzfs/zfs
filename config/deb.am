@@ -58,9 +58,9 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
 	pkg3=libuutil3-$${version}.$${arch}.rpm; \
-	pkg4=libzfs5-$${version}.$${arch}.rpm; \
-	pkg5=libzpool5-$${version}.$${arch}.rpm; \
-	pkg6=libzfs5-devel-$${version}.$${arch}.rpm; \
+	pkg4=libzfs6-$${version}.$${arch}.rpm; \
+	pkg5=libzpool6-$${version}.$${arch}.rpm; \
+	pkg6=libzfs6-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
@@ -72,7 +72,7 @@ deb-utils: deb-local rpm-utils-initramfs
 	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#!$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs5linux -xlibzpool5linux" \
+	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs6linux -xlibzpool6linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,
@@ -93,13 +93,17 @@ debian:
 	cp -r contrib/debian debian; chmod +x debian/rules;
 
 native-deb-utils: native-deb-local debian
+	while [ -f debian/deb-build.lock ]; do sleep 1; done; \
+	echo "native-deb-utils" > debian/deb-build.lock; \
 	cp contrib/debian/control debian/control; \
-	$(DPKGBUILD) -b -rfakeroot -us -uc;
+	$(DPKGBUILD) -b -rfakeroot -us -uc; \
+	$(RM) -f debian/deb-build.lock
 
 native-deb-kmod: native-deb-local debian
+	while [ -f debian/deb-build.lock ]; do sleep 1; done; \
+	echo "native-deb-kmod" > debian/deb-build.lock; \
 	sh scripts/make_gitrev.sh; \
-	fakeroot debian/rules override_dh_binary-modules;
+	fakeroot debian/rules override_dh_binary-modules; \
+	$(RM) -f debian/deb-build.lock
 
 native-deb: native-deb-utils native-deb-kmod
-
-.NOTPARALLEL: native-deb native-deb-utils native-deb-kmod

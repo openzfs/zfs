@@ -6717,6 +6717,17 @@ out:
  *
  * Only after a full scrub has been completed is it safe to start injecting
  * data corruption.  See the comment in zfs_fault_inject().
+ *
+ * EBUSY may be returned for the following six cases.  It's the callers
+ * responsibility to handle them accordingly.
+ *
+ * Current state                Requested
+ * 1. Normal Scrub Running      Normal Scrub or Error Scrub
+ * 2. Normal Scrub Paused       Error Scrub
+ * 3. Normal Scrub Paused       Pause Normal Scrub
+ * 4. Error Scrub Running       Normal Scrub or Error Scrub
+ * 5. Error Scrub Paused        Pause Error Scrub
+ * 6. Resilvering               Anything else
  */
 static int
 ztest_scrub_impl(spa_t *spa)
@@ -8082,8 +8093,14 @@ ztest_raidz_expand_check(spa_t *spa)
 		(void) printf("verifying an interrupted raidz "
 		    "expansion using a pool scrub ...\n");
 	}
+
 	/* Will fail here if there is non-recoverable corruption detected */
-	VERIFY0(ztest_scrub_impl(spa));
+	int error = ztest_scrub_impl(spa);
+	if (error == EBUSY)
+		error = 0;
+
+	VERIFY0(error);
+
 	if (ztest_opts.zo_verbose >= 1) {
 		(void) printf("raidz expansion scrub check complete\n");
 	}

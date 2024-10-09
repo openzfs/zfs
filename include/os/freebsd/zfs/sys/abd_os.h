@@ -26,8 +26,10 @@
 #ifndef _ABD_OS_H
 #define	_ABD_OS_H
 
+#ifdef _KERNEL
 #include <sys/vm.h>
 #include <vm/vm_page.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,8 +49,10 @@ struct abd_linear {
 #endif
 };
 
+#ifdef _KERNEL
 __attribute__((malloc))
 struct abd *abd_alloc_from_pages(vm_page_t *, unsigned long, uint64_t);
+#endif
 
 #ifdef __cplusplus
 }

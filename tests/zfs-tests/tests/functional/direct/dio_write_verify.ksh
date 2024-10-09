@@ -91,8 +91,8 @@ log_must set_tunable32 VDEV_DIRECT_WR_VERIFY 0
 log_note "Verifying no panics for Direct I/O writes with compression"
 log_must zfs set compression=on $TESTPOOL/$TESTFS
 prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
-log_must manipulate_user_buffer -o "$mntpnt/direct-write.iso" -n $NUMBLOCKS \
-    -b $BS
+log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" -n $NUMBLOCKS \
+    -b $BS -w
 curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
 total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
@@ -116,8 +116,8 @@ for i in $(seq 1 $ITERATIONS); do
 	    $i of $ITERATIONS with zfs_vdev_direct_write_verify=0"
 
 	prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
-	log_must manipulate_user_buffer -o "$mntpnt/direct-write.iso" \
-	    -n $NUMBLOCKS -b $BS
+	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
+	    -n $NUMBLOCKS -b $BS -w
 
 	# Reading file back to verify checksum errors
 	filesize=$(get_file_size "$mntpnt/direct-write.iso")
@@ -144,7 +144,7 @@ for i in $(seq 1 $ITERATIONS); do
 	fi
 	log_note "Making sure we have no Direct I/O write checksum verifies \
 	    with ZPool"
-	check_dio_write_chksum_verify_failures $TESTPOOL "raidz" 0
+	check_dio_chksum_verify_failures $TESTPOOL "raidz" 0 "wr"
 
 	log_must rm -f "$mntpnt/direct-write.iso"
 done
@@ -166,8 +166,8 @@ for i in $(seq 1 $ITERATIONS); do
 	    $ITERATIONS with zfs_vdev_direct_write_verify=1"
 
 	prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
-	log_must manipulate_user_buffer -o "$mntpnt/direct-write.iso" \
-	    -n $NUMBLOCKS -b $BS -e
+	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
+	    -n $NUMBLOCKS -b $BS -e -w
 
 	# Reading file back to verify there no are checksum errors
 	filesize=$(get_file_size "$mntpnt/direct-write.iso")
@@ -175,7 +175,7 @@ for i in $(seq 1 $ITERATIONS); do
 	log_must stride_dd -i "$mntpnt/direct-write.iso" -o /dev/null -b $BS \
 	    -c $num_blocks
 
-	# Getting new Direct I/O and ARC Write counts.
+	# Getting new Direct I/O write counts.
 	curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
 	total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
@@ -188,7 +188,7 @@ for i in $(seq 1 $ITERATIONS); do
 	fi
 
 	log_note "Making sure we have Direct I/O write checksum verifies with ZPool"
-	check_dio_write_chksum_verify_failures "$TESTPOOL" "raidz" 1
+	check_dio_chksum_verify_failures "$TESTPOOL" "raidz" 1 "wr"
 done
 
 log_must rm -f "$mntpnt/direct-write.iso"
