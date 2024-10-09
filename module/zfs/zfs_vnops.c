@@ -303,6 +303,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	(void) cr;
 	int error = 0;
 	boolean_t frsync = B_FALSE;
+	boolean_t dio_checksum_failure = B_FALSE;
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
@@ -424,8 +425,26 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 		if (error) {
 			/* convert checksum errors into IO errors */
-			if (error == ECKSUM)
-				error = SET_ERROR(EIO);
+			if (error == ECKSUM) {
+				/*
+				 * If a Direct I/O read returned a checksum
+				 * verify error, then it must be treated as
+				 * suspicious. The contents of the buffer could
+				 * have beeen manipulated while the I/O was in
+				 * flight. In this case, the remainder of I/O
+				 * request will just be reissued through the
+				 * ARC.
+				 */
+				if (uio->uio_extflg & UIO_DIRECT) {
+					dio_checksum_failure = B_TRUE;
+					uio->uio_extflg &= ~UIO_DIRECT;
+					n += dio_remaining_resid;
+					dio_remaining_resid = 0;
+					continue;
+				} else {
+					error = SET_ERROR(EIO);
+				}
+			}
 
 #if defined(__linux__)
 			/*
@@ -471,6 +490,9 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 out:
 	zfs_rangelock_exit(lr);
+
+	if (dio_checksum_failure == B_TRUE)
+		uio->uio_extflg |= UIO_DIRECT;
 
 	/*
 	 * Cleanup for Direct I/O if requested.

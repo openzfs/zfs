@@ -1008,7 +1008,9 @@ abd_borrow_buf_copy(abd_t *abd, size_t n)
  * borrowed. We can not ASSERT that the contents of the buffer have not changed
  * if it is composed of user pages because the pages can not be placed under
  * write protection and the user could have possibly changed the contents in
- * the pages at any time.
+ * the pages at any time. This is also an issue for Direct I/O reads. Checksum
+ * verifications in the ZIO pipeline check for this issue and handle it by
+ * returning an error on checksum verification failure.
  */
 void
 abd_return_buf(abd_t *abd, void *buf, size_t n)
