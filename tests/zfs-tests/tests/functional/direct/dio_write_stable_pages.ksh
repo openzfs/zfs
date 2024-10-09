@@ -46,7 +46,7 @@ verify_runnable "global"
 function cleanup
 {
 	log_must rm -f "$mntpnt/direct-write.iso"
-	check_dio_write_chksum_verify_failures $TESTPOOL "raidz" 0
+	check_dio_chksum_verify_failures $TESTPOOL "raidz" 0 "wr"
 }
 
 log_assert "Verify stable pages work for Direct I/O writes."
@@ -76,8 +76,8 @@ do
 
 		# Manipulate the user's buffer while running O_DIRECT write
 		# workload with the buffer.
-		log_must manipulate_user_buffer -o "$mntpnt/direct-write.iso" \
-		    -n $NUMBLOCKS -b $BS 
+		log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
+		    -n $NUMBLOCKS -b $BS -w 
 
 		# Reading back the contents of the file
 		log_must stride_dd -i $mntpnt/direct-write.iso -o /dev/null \

@@ -1477,6 +1477,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_overwrites.ksh \
 	functional/direct/dio_property.ksh \
 	functional/direct/dio_random.ksh \
+	functional/direct/dio_read_verify.ksh \
 	functional/direct/dio_recordsize.ksh \
 	functional/direct/dio_unaligned_block.ksh \
 	functional/direct/dio_unaligned_filesize.ksh \
