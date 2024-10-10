@@ -466,6 +466,9 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_QUEUE_IO, "queue_io", 1,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "QUEUE_IO",
+	    boolean_table, sfeatures);
 
 	/* default index properties */
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,

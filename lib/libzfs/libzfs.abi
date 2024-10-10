@@ -5916,7 +5916,8 @@
       <enumerator name='VDEV_PROP_TRIM_SUPPORT' value='49'/>
       <enumerator name='VDEV_PROP_TRIM_ERRORS' value='50'/>
       <enumerator name='VDEV_PROP_SLOW_IOS' value='51'/>
-      <enumerator name='VDEV_NUM_PROPS' value='52'/>
+      <enumerator name='VDEV_PROP_QUEUE_IO' value='52'/>
+      <enumerator name='VDEV_NUM_PROPS' value='53'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
