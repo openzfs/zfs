@@ -24,6 +24,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/spa.h>
 #include <zfs_comutil.h>
+#include <sys/spa_json_stats.h>
 
 /*
  * Keeps stats on last N reads per spa_t, disabled by default.
@@ -1034,6 +1035,52 @@ spa_iostats_destroy(spa_t *spa)
 	mutex_destroy(&shk->lock);
 }
 
+static void *
+spa_json_addr(kstat_t *ksp, loff_t n)
+{
+	if (n == 0)
+		return (ksp->ks_private);
+	return (NULL);
+}
+
+static int
+spa_json_data(char *buf, size_t size, void *data)
+{
+	spa_t *spa = (spa_t *)data;
+
+	return (spa_generate_json_stats(spa, buf, size));
+}
+
+static void
+spa_json_stats_init(spa_t *spa)
+{
+	char *name;
+	kstat_t *ksp;
+
+	mutex_init(&spa->spa_json_stats.lock, NULL, MUTEX_DEFAULT, NULL);
+	name = kmem_asprintf("zfs/%s", spa_name(spa));
+	ksp = kstat_create(name, 0, "status.json", "misc", KSTAT_TYPE_RAW, 0,
+	    KSTAT_FLAG_VIRTUAL | KSTAT_FLAG_RESTRICTED | KSTAT_FLAG_NO_HEADERS);
+	spa->spa_json_stats.kstat = ksp;
+	if (ksp) {
+		ksp->ks_lock = &spa->spa_json_stats.lock;
+		ksp->ks_data = NULL;
+		ksp->ks_private = spa;
+		kstat_set_raw_ops(ksp, NULL, spa_json_data, spa_json_addr);
+		kstat_install(ksp);
+	}
+
+	kmem_strfree(name);
+}
+
+static void
+spa_json_stats_destroy(spa_t *spa)
+{
+	if (spa->spa_json_stats.kstat)
+		kstat_delete(spa->spa_json_stats.kstat);
+	mutex_destroy(&spa->spa_json_stats.lock);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
@@ -1044,11 +1091,13 @@ spa_stats_init(spa_t *spa)
 	spa_state_init(spa);
 	spa_guid_init(spa);
 	spa_iostats_init(spa);
+	spa_json_stats_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_json_stats_destroy(spa);
 	spa_iostats_destroy(spa);
 	spa_health_destroy(spa);
 	spa_tx_assign_destroy(spa);

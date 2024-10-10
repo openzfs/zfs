@@ -132,6 +132,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/spa_config.c \
 	module/zfs/spa_errlog.c \
 	module/zfs/spa_history.c \
+	module/zfs/spa_json_stats.c \
 	module/zfs/spa_log_spacemap.c \
 	module/zfs/spa_misc.c \
 	module/zfs/spa_stats.c \

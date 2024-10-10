@@ -771,6 +771,9 @@ extern void spa_scan_stat_init(spa_t *spa);
 extern int spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps);
 extern int bpobj_enqueue_alloc_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
+extern void spa_add_spares(spa_t *spa, nvlist_t *config);
+extern void spa_add_l2cache(spa_t *spa, nvlist_t *config);
+extern void spa_add_feature_stats(spa_t *spa, nvlist_t *config);
 
 #define	SPA_ASYNC_CONFIG_UPDATE			0x01
 #define	SPA_ASYNC_REMOVE			0x02

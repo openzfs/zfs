@@ -176,6 +176,7 @@ COMMON_H = \
 
 
 KERNEL_H = \
+	sys/spa_json_stats.h \
 	sys/zfs_ioctl.h \
 	sys/zfs_ioctl_impl.h \
 	sys/zfs_onexit.h \

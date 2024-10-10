@@ -213,6 +213,8 @@ _SYS_NVPAIR_H int nvlist_remove(nvlist_t *, const char *, data_type_t);
 _SYS_NVPAIR_H int nvlist_remove_all(nvlist_t *, const char *);
 _SYS_NVPAIR_H int nvlist_remove_nvpair(nvlist_t *, nvpair_t *);
 
+_SYS_NVPAIR_H int nvlist_to_json(nvlist_t *, char **, size_t);
+
 _SYS_NVPAIR_H int nvlist_lookup_boolean(const nvlist_t *, const char *);
 _SYS_NVPAIR_H int nvlist_lookup_boolean_value(const nvlist_t *, const char *,
     boolean_t *);

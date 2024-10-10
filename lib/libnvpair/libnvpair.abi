@@ -118,6 +118,7 @@
     <elf-symbol name='nvlist_empty' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_exists' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_free' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nvlist_to_json' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_lookup_boolean' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_lookup_boolean_array' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_lookup_boolean_value' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2949,6 +2950,12 @@
     <function-decl name='nvlist_remove_nvpair' mangled-name='nvlist_remove_nvpair' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_remove_nvpair'>
       <parameter type-id='5ce45b60' name='nvl'/>
       <parameter type-id='3fa542f0' name='nvp'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='nvlist_to_json' mangled-name='nvlist_to_json' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_to_json'>
+      <parameter type-id='5ce45b60' name='nvl'/>
+      <parameter type-id='9b23c9ad' name='buf'/>
+      <parameter type-id='b59d7dce' name='size'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nvlist_add_boolean' mangled-name='nvlist_add_boolean' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_add_boolean'>

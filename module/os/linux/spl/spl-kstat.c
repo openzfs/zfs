@@ -654,7 +654,7 @@ __kstat_install(kstat_t *ksp)
 	ASSERT(ksp);
 	mode_t mode;
 	/* Specify permission modes for different kstats */
-	if (strncmp(ksp->ks_proc.kpe_name, "dbufs", KSTAT_STRLEN) == 0) {
+	if (ksp->ks_flags & KSTAT_FLAG_RESTRICTED) {
 		mode = 0600;
 	} else {
 		mode = 0644;
