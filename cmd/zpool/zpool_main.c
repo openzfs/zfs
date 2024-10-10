@@ -7340,6 +7340,7 @@ zpool_do_list(int argc, char **argv)
 	current_prop_type = ZFS_TYPE_POOL;
 
 	struct option long_options[] = {
+		{"json", no_argument, NULL, 'j'},
 		{"json-int", no_argument, NULL, ZPOOL_OPTION_JSON_NUMS_AS_INT},
 		{"json-pool-key-guid", no_argument, NULL,
 		    ZPOOL_OPTION_POOL_KEY_GUID},
@@ -10981,6 +10982,7 @@ zpool_do_status(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
+		{"json", no_argument, NULL, 'j'},
 		{"json-int", no_argument, NULL, ZPOOL_OPTION_JSON_NUMS_AS_INT},
 		{"json-flat-vdevs", no_argument, NULL,
 		    ZPOOL_OPTION_JSON_FLAT_VDEVS},
@@ -12589,6 +12591,7 @@ zpool_do_get(int argc, char **argv)
 	current_prop_type = cb.cb_type;
 
 	struct option long_options[] = {
+		{"json", no_argument, NULL, 'j'},
 		{"json-int", no_argument, NULL, ZPOOL_OPTION_JSON_NUMS_AS_INT},
 		{"json-pool-key-guid", no_argument, NULL,
 		    ZPOOL_OPTION_POOL_KEY_GUID},
@@ -13503,7 +13506,12 @@ zpool_do_version(int argc, char **argv)
 	int c;
 	nvlist_t *jsobj = NULL, *zfs_ver = NULL;
 	boolean_t json = B_FALSE;
-	while ((c = getopt(argc, argv, "j")) != -1) {
+
+	struct option long_options[] = {
+		{"json", no_argument, NULL, 'j'},
+	};
+
+	while ((c = getopt_long(argc, argv, "j", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'j':
 			json = B_TRUE;
