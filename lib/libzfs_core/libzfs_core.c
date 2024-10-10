@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
@@ -1948,4 +1948,40 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 	fnvlist_free(result);
 
 	return (error);
+}
+
+int
+lzc_recycle(const char *pool, nvlist_t *clients, boolean_t dryrun,
+    nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_boolean_value(args, ZPOOL_RECYCLE_DRYRUN, dryrun);
+	if (clients != NULL)
+		fnvlist_add_nvlist(args, ZPOOL_RECYCLE_CLIENTS, clients);
+	int err = lzc_ioctl(ZFS_IOC_POOL_RECYCLE, pool, args, outnvl);
+	fnvlist_free(args);
+	return (err);
+}
+
+int
+lzc_pool_destroy(const char *pool, const char *log_str, nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, ZPOOL_HIST_CMD, log_str);
+	int err = lzc_ioctl(ZFS_IOC_POOL_DESTROY_NEW, pool, args, outnvl);
+	fnvlist_free(args);
+	return (err);
+}
+
+int
+lzc_pool_export(const char *pool, const char *log_str, boolean_t force,
+    boolean_t hardforce, nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, ZPOOL_HIST_CMD, log_str);
+	fnvlist_add_boolean_value(args, ZPOOL_EXPORT_FORCE, force);
+	fnvlist_add_boolean_value(args, ZPOOL_EXPORT_HARDFORCE, hardforce);
+	int err = lzc_ioctl(ZFS_IOC_POOL_EXPORT_NEW, pool, args, outnvl);
+	fnvlist_free(args);
+	return (err);
 }

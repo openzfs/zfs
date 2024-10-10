@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2016, 2017 Intel Corporation.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>.
  */
@@ -1488,7 +1488,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
  * because the program is just going to exit anyway.
  */
 static nvlist_t *
-construct_spec(nvlist_t *props, int argc, char **argv)
+construct_spec(nvlist_t *props, boolean_t have_shlog, int argc, char **argv)
 {
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
@@ -1735,6 +1735,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 		goto spec_out;
 	}
 
+	if (seen_logs && have_shlog) {
+		(void) fprintf(stderr, gettext("invalid vdev specification: "
+		    "cannot mix shared log and log devices"));
+		goto spec_out;
+	}
+
 	if (seen_logs && nlogs == 0) {
 		(void) fprintf(stderr, gettext("invalid vdev specification: "
 		    "log requires at least 1 device\n"));
@@ -1779,7 +1785,8 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 	uint_t c, children;
 
 	if (argc > 0) {
-		if ((newroot = construct_spec(props, argc, argv)) == NULL) {
+		if ((newroot = construct_spec(props, B_FALSE, argc, argv)) ==
+		    NULL) {
 			(void) fprintf(stderr, gettext("Unable to build a "
 			    "pool from the specified devices\n"));
 			return (NULL);
@@ -1853,7 +1860,8 @@ num_normal_vdevs(nvlist_t *nvroot)
  */
 nvlist_t *
 make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
+    boolean_t replacing, boolean_t dryrun, boolean_t have_shlog, int argc,
+    char **argv)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -1864,7 +1872,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * that we have a valid specification, and that all devices can be
 	 * opened.
 	 */
-	if ((newroot = construct_spec(props, argc, argv)) == NULL)
+	if ((newroot = construct_spec(props, have_shlog, argc, argv)) == NULL)
 		return (NULL);
 
 	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL)) {
