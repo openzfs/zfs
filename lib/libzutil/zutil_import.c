@@ -1939,7 +1939,7 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 
 /* Return if a vdev is a leaf vdev.  Note: draid spares are leaf vdevs. */
 static boolean_t
-vdev_is_leaf(nvlist_t *nv)
+vdev_is_leaf_nv(nvlist_t *nv)
 {
 	uint_t children = 0;
 	nvlist_t **child;
@@ -1952,10 +1952,10 @@ vdev_is_leaf(nvlist_t *nv)
 
 /* Return if a vdev is a leaf vdev and a real device (disk or file) */
 static boolean_t
-vdev_is_real_leaf(nvlist_t *nv)
+vdev_is_real_leaf_nv(nvlist_t *nv)
 {
 	const char *type = NULL;
-	if (!vdev_is_leaf(nv))
+	if (!vdev_is_leaf_nv(nv))
 		return (B_FALSE);
 
 	(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type);
@@ -1988,7 +1988,7 @@ __for_each_vdev_macro_helper_func(void *state, nvlist_t *nv, void *last_nv,
 
 	/* The very first entry in the NV list is a special case */
 	if (*((nvlist_t **)state) == (nvlist_t *)FIRST_NV) {
-		if (real_leaves_only && !vdev_is_real_leaf(nv))
+		if (real_leaves_only && !vdev_is_real_leaf_nv(nv))
 			return (0);
 
 		*((nvlist_t **)last_nv) = nv;
@@ -2011,7 +2011,7 @@ __for_each_vdev_macro_helper_func(void *state, nvlist_t *nv, void *last_nv,
 	 * we want.
 	 */
 	if (*(nvlist_t **)state == (nvlist_t *)NEXT_IS_MATCH) {
-		if (real_leaves_only && !vdev_is_real_leaf(nv))
+		if (real_leaves_only && !vdev_is_real_leaf_nv(nv))
 			return (0);
 
 		*((nvlist_t **)last_nv) = nv;

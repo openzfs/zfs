@@ -33,31 +33,34 @@ log_onexit cleanup
 # Create a non-raidz pool so we can remove top-level vdevs
 #
 log_must disk_setup
-log_must zpool create $TESTPOOL $ZPOOL_DISKS dedup $CLASS_DISK0
-log_must display_status "$TESTPOOL"
 
-#
-# Generate some dedup data in the dedup class before removal
-#
+for arg in '-o special_failsafe=on' '' ; do
+	log_must zpool create $arg $TESTPOOL $ZPOOL_DISKS dedup $CLASS_DISK0
+	log_must display_status "$TESTPOOL"
 
-log_must zfs create -o dedup=on -V 2G $TESTPOOL/$TESTVOL
-block_device_wait "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL"
-log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL >/dev/null"
+	#
+	# Generate some dedup data in the dedup class before removal
+	#
 
-sync_pool
-log_must zpool list -v $TESTPOOL
+	log_must zfs create -o dedup=on -V 2G $TESTPOOL/$TESTVOL
+	block_device_wait "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL"
+	log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTVOL >/dev/null"
 
-#
-# remove a dedup allocation vdev
-#
-log_must zpool remove $TESTPOOL $CLASS_DISK0
+	sync_pool
+	log_must zpool list -v $TESTPOOL
 
-sleep 5
-sync_pool $TESTPOOL
-sleep 1
+	#
+	# remove a dedup allocation vdev
+	#
+	log_must zpool remove $TESTPOOL $CLASS_DISK0
 
-log_must zdb -bbcc $TESTPOOL
+	sleep 5
+	sync_pool $TESTPOOL
+	sleep 1
 
-log_must zpool destroy -f "$TESTPOOL"
+	log_must zdb -bbcc $TESTPOOL
+
+	log_must zpool destroy -f "$TESTPOOL"
+done
 
 log_pass $claim

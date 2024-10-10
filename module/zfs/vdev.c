@@ -746,6 +746,60 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	return (vd);
 }
 
+boolean_t
+vdev_is_leaf(vdev_t *vd)
+{
+	return (vd->vdev_children == 0);
+}
+
+/* Return true if vdev or TLD vdev is special alloc class */
+boolean_t
+vdev_is_special(vdev_t *vd)
+{
+	if (vd->vdev_alloc_bias == VDEV_BIAS_SPECIAL)
+		return (B_TRUE);
+
+	/*
+	 * If the vdev is a leaf vdev, and is part of a mirror, its parent
+	 * 'mirror' TLD will have vdev_alloc_bias == VDEV_BIAS_SPECIAL, but the
+	 * leaf vdev itself will not.  So we also need to check the parent
+	 * in those cases.
+	 */
+	if (vdev_is_leaf(vd) &&
+	    (vd->vdev_parent != NULL && vdev_is_special(vd->vdev_parent))) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/* Return true if vdev or TLD vdev is dedup alloc class */
+boolean_t
+vdev_is_dedup(vdev_t *vd)
+{
+	if (vd->vdev_alloc_bias == VDEV_BIAS_DEDUP)
+		return (B_TRUE);
+
+	/*
+	 * If the vdev is a leaf vdev, and is part of a mirror, it's parent
+	 * 'mirror' TLD will have vdev_alloc_bias == VDEV_BIAS_DEDUP, but the
+	 * leaf vdev itself will not.  So we also need to check the parent
+	 * in those cases.
+	 */
+	if (vdev_is_leaf(vd) &&
+	    (vd->vdev_parent != NULL && vdev_is_dedup(vd->vdev_parent))) {
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+vdev_is_alloc_class(vdev_t *vd)
+{
+	return (vdev_is_special(vd) || vdev_is_dedup(vd));
+}
+
 /*
  * Allocate a new vdev.  The 'alloctype' is used to control whether we are
  * creating a new vdev or loading an existing one - the behavior is slightly
@@ -764,6 +818,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	int rc;
 	vdev_alloc_bias_t alloc_bias = VDEV_BIAS_NONE;
 	boolean_t top_level = (parent && !parent->vdev_parent);
+	const char *bias = NULL;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -815,8 +870,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		return (SET_ERROR(ENOTSUP));
 
 	if (top_level && alloctype == VDEV_ALLOC_ADD) {
-		const char *bias;
-
 		/*
 		 * If creating a top-level vdev, check for allocation
 		 * classes input.
@@ -857,6 +910,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vd->vdev_tsd = tsd;
 	vd->vdev_islog = islog;
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+	    &bias) == 0) {
+		alloc_bias = vdev_derive_alloc_bias(bias);
+	}
 
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
@@ -3733,8 +3791,9 @@ vdev_load(vdev_t *vd)
 		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias_str),
 		    bias_str);
 		if (error == 0) {
-			ASSERT(vd->vdev_alloc_bias == VDEV_BIAS_NONE);
-			vd->vdev_alloc_bias = vdev_derive_alloc_bias(bias_str);
+			if (vd->vdev_alloc_bias == VDEV_BIAS_NONE)
+				vd->vdev_alloc_bias =
+				    vdev_derive_alloc_bias(bias_str);
 		} else if (error != ENOENT) {
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_CORRUPT_DATA);
@@ -4193,7 +4252,8 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 	 * If this device has the only valid copy of the data, then
 	 * back off and simply mark the vdev as degraded instead.
 	 */
-	if (!tvd->vdev_islog && vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
+	if (!tvd->vdev_islog && !vdev_is_special_failsafe(vd) &&
+	    vd->vdev_aux == NULL && vdev_dtl_required(vd)) {
 		vd->vdev_degraded = 1ULL;
 		vd->vdev_faulted = 0ULL;
 
@@ -4409,8 +4469,8 @@ top:
 		 * don't allow it to be offlined. Log devices are always
 		 * expendable.
 		 */
-		if (!tvd->vdev_islog && vd->vdev_aux == NULL &&
-		    vdev_dtl_required(vd))
+		if (!tvd->vdev_islog && !vdev_is_special_failsafe(vd) &&
+		    vd->vdev_aux == NULL && vdev_dtl_required(vd))
 			return (spa_vdev_state_exit(spa, NULL,
 			    SET_ERROR(EBUSY)));
 
@@ -4466,7 +4526,8 @@ top:
 		vd->vdev_offline = B_TRUE;
 		vdev_reopen(tvd);
 
-		if (!tvd->vdev_islog && vd->vdev_aux == NULL &&
+		if (!tvd->vdev_islog && !vdev_is_special_failsafe(vd) &&
+		    vd->vdev_aux == NULL &&
 		    vdev_is_dead(tvd)) {
 			vd->vdev_offline = B_FALSE;
 			vdev_reopen(tvd);
@@ -5313,10 +5374,14 @@ vdev_propagate_state(vdev_t *vd)
 				 * device, treat the root vdev as if it were
 				 * degraded.
 				 */
-				if (child->vdev_islog && vd == rvd)
+				if ((child->vdev_islog ||
+				    vdev_is_special_failsafe(child)) &&
+				    (vd == rvd)) {
 					degraded++;
-				else
+				} else {
 					faulted++;
+				}
+
 			} else if (child->vdev_state <= VDEV_STATE_DEGRADED) {
 				degraded++;
 			}
@@ -5492,8 +5557,9 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 			zfs_post_state_change(spa, vd, save_state);
 	}
 
-	if (!isopen && vd->vdev_parent)
+	if (!isopen && vd->vdev_parent) {
 		vdev_propagate_state(vd->vdev_parent);
+	}
 }
 
 boolean_t
@@ -5557,6 +5623,24 @@ vdev_log_state_valid(vdev_t *vd)
 	for (int c = 0; c < vd->vdev_children; c++)
 		if (vdev_log_state_valid(vd->vdev_child[c]))
 			return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+/*
+ * Is the vdev an alloc class vdev that is part of a pool that has
+ * special_failsafe on, and thus has all it's data backed up to the main pool?
+ *
+ * This function works for both top-level vdevs and leaf vdevs.
+ */
+boolean_t
+vdev_is_special_failsafe(vdev_t *vd)
+{
+	if (vdev_is_alloc_class(vd))
+		return (vd->vdev_spa->spa_special_failsafe);
+
+	if (vdev_is_leaf(vd) && vd->vdev_parent != NULL)
+		return (vdev_is_special_failsafe(vd->vdev_parent));
 
 	return (B_FALSE);
 }

@@ -34,38 +34,44 @@ log_must disk_setup
 
 typeset ac_value
 
-for type in "" "mirror" "raidz"
-do
-	if [ "$type" = "mirror" ]; then
-		log_must zpool create $TESTPOOL $type $ZPOOL_DISK0 $ZPOOL_DISK1
-	else
-		log_must zpool create $TESTPOOL $type $ZPOOL_DISKS
-	fi
-	ac_value="$(zpool get -H -o property,value all | \
-	    awk '/allocation_classes/ {print $2}')"
-	if [ "$ac_value" = "enabled" ]; then
-		log_note "feature@allocation_classes is enabled"
-	else
-		log_fail "feature@allocation_classes not enabled, \
-		    status = $ac_value"
-	fi
+for arg in '-o special_failsafe=on' '' ; do
+	for type in "" "mirror" "raidz"
+	do
+		if [ "$type" = "mirror" ]; then
+			log_must zpool create $arg $TESTPOOL $type $ZPOOL_DISK0 \
+			    $ZPOOL_DISK1
+		else
+			log_must zpool create $arg $TESTPOOL $type $ZPOOL_DISKS
+		fi
+		ac_value="$(zpool get -H -o property,value \
+		    feature@allocation_classes | \
+		    awk '/allocation_classes/ {print $2}')"
+		if [ "$ac_value" = "enabled" ]; then
+			log_note "feature@allocation_classes is enabled"
+		else
+			log_fail "feature@allocation_classes not enabled, \
+			    status = $ac_value"
+		fi
 
-	if [ "$type" = "" ]; then
-		log_must zpool add $TESTPOOL special $CLASS_DISK0
-	else
-		log_must zpool add $TESTPOOL special mirror \
-		    $CLASS_DISK0 $CLASS_DISK1
-	fi
-	ac_value="$(zpool get -H -o property,value all | \
-	    awk '/allocation_classes/ {print $2}')"
-	if [ "$ac_value" = "active" ]; then
-		log_note "feature@allocation_classes is active"
-	else
-		log_fail "feature@allocation_classes not active, \
-		    status = $ac_value"
-	fi
+		if [ "$type" = "" ]; then
+			log_must zpool add $TESTPOOL special $CLASS_DISK0
+		else
+			log_must zpool add $TESTPOOL special mirror \
+			    $CLASS_DISK0 $CLASS_DISK1
+		fi
+		ac_value="$(zpool get -H -o property,value \
+		    feature@allocation_classes | \
+		    awk '/allocation_classes/ {print $2}')"
 
-	log_must zpool destroy -f $TESTPOOL
+		if [ "$ac_value" = "active" ]; then
+			log_note "feature@allocation_classes is active"
+		else
+			log_fail "feature@allocation_classes not active, \
+			    status = $ac_value"
+		fi
+
+		log_must zpool destroy -f $TESTPOOL
+	done
 done
 
 log_pass "Values of allocation_classes feature flag correct."
