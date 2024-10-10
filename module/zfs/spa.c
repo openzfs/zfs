@@ -4861,16 +4861,16 @@ spa_load_chain_map(spa_t *spa)
 	ASSERT3U(chain_map_zap, !=, 0);
 
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attr = zap_attribute_alloc();
 	objset_t *os = spa->spa_dsl_pool->dp_meta_objset;
 	spa_zil_chain_map_value_t *szcmv = kmem_alloc(sizeof (*szcmv),
 	    KM_SLEEP);
 	for (zap_cursor_init(&zc, os, chain_map_zap);
-	    zap_cursor_retrieve(&zc, &attr) == 0; zap_cursor_advance(&zc)) {
-		uint64_t pool_guid = ((uint64_t *)attr.za_name)[0];
-		uint64_t os_guid = ((uint64_t *)attr.za_name)[1];
+	    zap_cursor_retrieve(&zc, attr) == 0; zap_cursor_advance(&zc)) {
+		uint64_t pool_guid = ((uint64_t *)&attr->za_name)[0];
+		uint64_t os_guid = ((uint64_t *)&attr->za_name)[1];
 		error = zap_lookup_uint64(os, chain_map_zap,
-		    (uint64_t *)attr.za_name, 2, sizeof (uint64_t),
+		    (uint64_t *)&attr->za_name, 2, sizeof (uint64_t),
 		    sizeof (*szcmv) / sizeof (uint64_t),
 		    szcmv);
 		if (error != 0) {
@@ -4916,6 +4916,8 @@ spa_load_chain_map(spa_t *spa)
 		    load_chain_map_cb, arg, TQ_SLEEP);
 	}
 	kmem_free(szcmv, sizeof (*szcmv));
+	zap_attribute_free(attr);
+	attr = NULL;
 
 	if (error != 0) {
 		void *cookie = NULL;
