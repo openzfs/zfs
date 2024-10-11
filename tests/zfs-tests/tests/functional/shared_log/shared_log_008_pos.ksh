@@ -48,9 +48,9 @@ log_onexit cleanup
 
 typeset FS="$TESTPOOL/fs"
 
-log_must create_pool $LOGPOOL -L "$DISK0"
-log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK1"
-log_must create_pool ${TESTPOOL}2 -l $LOGPOOL "$DISK2"
+log_must zpool create -f -L $LOGPOOL "$DISK0"
+log_must zpool create -f -l $LOGPOOL $TESTPOOL "$DISK1"
+log_must zpool create -f -l $LOGPOOL ${TESTPOOL}2 "$DISK2"
 log_must zfs create -o sync=always ${TESTPOOL}/fs
 log_must zfs create -o sync=always ${TESTPOOL}2/fs
 log_must dd if=/dev/urandom of=/${TESTPOOL}/fs/f1 bs=128k count=128

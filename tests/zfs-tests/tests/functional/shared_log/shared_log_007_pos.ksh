@@ -43,8 +43,8 @@ log_onexit cleanup
 
 typeset FS="$TESTPOOL/fs"
 
-log_must create_pool $LOGPOOL -L "$DISK0"
-log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK1"
+log_must zpool create -f -L $LOGPOOL "$DISK0"
+log_must zpool create -f -l $LOGPOOL $TESTPOOL "$DISK1"
 log_must zinject -d "$DISK0" -A degrade $LOGPOOL
 log_must eval "zpool status -e $TESTPOOL | grep DEGRADED"
 

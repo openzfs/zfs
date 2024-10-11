@@ -45,8 +45,8 @@ log_onexit cleanup
 
 typeset FS="$TESTPOOL/fs"
 
-log_must create_pool $LOGPOOL -L "$DISK0"
-log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK1"
+log_must zpool create -f -L $LOGPOOL "$DISK0"
+log_must zpool create -f -l $LOGPOOL $TESTPOOL "$DISK1"
 log_must verify_shared_log $TESTPOOL $LOGPOOL
 log_must zfs create -o sync=always -o recordsize=8k $FS
 

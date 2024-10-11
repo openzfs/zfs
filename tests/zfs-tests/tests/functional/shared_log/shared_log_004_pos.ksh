@@ -46,9 +46,9 @@ log_onexit cleanup
 
 typeset FS="$TESTPOOL/fs"
 
-log_must create_pool $LOGPOOL -L "$DISK0"
-log_must create_pool ${LOGPOOL}2 -L "$DISK1"
-log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK2"
+log_must zpool create -f -L $LOGPOOL "$DISK0"
+log_must zpool create -f -L ${LOGPOOL}2 "$DISK1"
+log_must zpool create -f -l $LOGPOOL $TESTPOOL "$DISK2"
 log_must verify_shared_log $TESTPOOL $LOGPOOL
 log_must zfs create -o sync=always -o recordsize=8k $FS
 mntpnt=$(get_prop mountpoint $FS)

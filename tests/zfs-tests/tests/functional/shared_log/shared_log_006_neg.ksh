@@ -46,26 +46,26 @@ verify_runnable "global"
 log_assert "Negative shared log testing."
 log_onexit cleanup
 
-log_mustnot create_pool $TESTPOOL -l $LOGPOOL "$DISK0"
+log_mustnot zpool create -f -l $LOGPOOL $TESTPOOL "$DISK0"
 
-log_must create_pool $TESTPOOL2 "$DISK2"
-log_mustnot create_pool $TESTPOOL -l $TESTPOOL2 "$DISK0"
+log_must zpool create -f $TESTPOOL2 "$DISK2"
+log_mustnot zpool create -l $TESTPOOL2 -f $TESTPOOL "$DISK0"
 log_must zpool destroy $TESTPOOL2
 
-log_must create_pool $LOGPOOL -L "$DISK0"
-log_mustnot create_pool $TESTPOOL -l "${LOGPOOL}2" "$DISK1" 
-log_mustnot create_pool $TESTPOOL -l $LOGPOOL "$DISK1" log "$DISK2"
+log_must zpool create -f -L $LOGPOOL "$DISK0"
+log_mustnot zpool create -f -l "${LOGPOOL}2" $TESTPOOL "$DISK1" 
+log_mustnot zpool create -f -l $LOGPOOL $TESTPOOL "$DISK1" log "$DISK2"
 
-log_must create_pool ${LOGPOOL}2 -L "$DISK1"
+log_must zpool create -f -L ${LOGPOOL}2 "$DISK1"
 log_must zpool destroy ${LOGPOOL}2
 
 typeset FS="$LOGPOOL/fs"
 log_mustnot zfs create -o sync=always -o recordsize=8k $FS
 
-log_mustnot create_pool $TESTPOOL -l $LOGPOOL -o feature@shared_log=disabled "$DISK1"
-log_mustnot create_pool ${LOGPOOL}2 -L -o feature@shared_log=disabled "$DISK1"
+log_mustnot zpool create -f -l $LOGPOOL -o feature@shared_log=disabled $TESTPOOL "$DISK1"
+log_mustnot zpool create -f -L -o feature@shared_log=disabled ${LOGPOOL}2 "$DISK1"
 
-log_must create_pool $TESTPOOL -l $LOGPOOL "$DISK1"
+log_must zpool create -f -l $LOGPOOL $TESTPOOL "$DISK1"
 log_mustnot zpool export $LOGPOOL
 log_mustnot zpool destroy $LOGPOOL
 
