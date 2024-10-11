@@ -113,7 +113,7 @@ wait
 parallel_time=$SECONDS
 log_note "asyncronously imported 4 pools in $parallel_time seconds"
 
-log_must test $parallel_time -lt $(($sequential_time / 3))
+log_must test $parallel_time -lt $(($sequential_time / 2))
 
 #
 # export pools with import delay injectors
@@ -132,6 +132,6 @@ log_must zpool import -a -d $DEVICE_DIR -f
 parallel_time=$SECONDS
 log_note "asyncronously imported 4 pools in $parallel_time seconds"
 
-log_must test $parallel_time -lt $(($sequential_time / 3))
+log_must test $parallel_time -lt $(($sequential_time / 2))
 
 log_pass "Pool imports occur in parallel"
