@@ -30,28 +30,39 @@
 # STRATEGY:
 # 1. Run different zfs/zpool -j commands and check for valid JSON
 
+#
+# -j and --json mean the same thing. Each command will be run twice, replacing
+# JSONFLAG with the flag under test.
 list=(
-    "zpool status -j -g --json-int --json-flat-vdevs --json-pool-key-guid"
-    "zpool status -p -j -g --json-int --json-flat-vdevs --json-pool-key-guid"
-    "zpool status -j -c upath"
-    "zpool status -j"
-    "zpool status -j testpool1"
-    "zpool list -j"
-    "zpool list -j -g"
-    "zpool list -j -o fragmentation"
-    "zpool get -j size"
-    "zpool get -j all"
-    "zpool version -j"
-    "zfs list -j"
-    "zfs list -j testpool1"
-    "zfs get -j all"
-    "zfs get -j available"
-    "zfs mount -j"
-    "zfs version -j"
+    "zpool status JSONFLAG -g --json-int --json-flat-vdevs --json-pool-key-guid"
+    "zpool status -p JSONFLAG -g --json-int --json-flat-vdevs --json-pool-key-guid"
+    "zpool status JSONFLAG -c upath"
+    "zpool status JSONFLAG"
+    "zpool status JSONFLAG testpool1"
+    "zpool list JSONFLAG"
+    "zpool list JSONFLAG -g"
+    "zpool list JSONFLAG -o fragmentation"
+    "zpool get JSONFLAG size"
+    "zpool get JSONFLAG all"
+    "zpool version JSONFLAG"
+    "zfs list JSONFLAG"
+    "zfs list JSONFLAG testpool1"
+    "zfs get JSONFLAG all"
+    "zfs get JSONFLAG available"
+    "zfs mount JSONFLAG"
+    "zfs version JSONFLAG"
 )
 
-for cmd in "${list[@]}" ; do
-    log_must eval "$cmd | jq > /dev/null" 
-done
+function run_json_tests
+{
+	typeset flag=$1
+	for cmd in "${list[@]}" ; do
+	    cmd=${cmd//JSONFLAG/$flag}
+	    log_must eval "$cmd | jq > /dev/null"
+	done
+}
+
+log_must run_json_tests -j
+log_must run_json_tests --json
 
 log_pass "zpool and zfs commands outputted valid JSON"
