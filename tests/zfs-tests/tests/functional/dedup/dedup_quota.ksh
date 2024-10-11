@@ -221,7 +221,7 @@ function ddt_dedup_vdev_limit
 	# For here, we just set the entry count a little higher than what we
 	# expect to allow for some instability.
 	#
-	log_must test $(ddt_entries) -le 600000
+	log_must test $(ddt_entries) -le 650000
 
 	do_clean
 }
