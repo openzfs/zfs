@@ -1131,7 +1131,7 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		    !!(zap_getflags(zc.zc_zap) & ZAP_FLAG_UINT64_KEY);
 
 		if (key64)
-			(void) printf("\t\t0x%010lx = ",
+			(void) printf("\t\t0x%010" PRIu64 "x = ",
 			    *(uint64_t *)attrp->za_name);
 		else
 			(void) printf("\t\t%s = ", attrp->za_name);
