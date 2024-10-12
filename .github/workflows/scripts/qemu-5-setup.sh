@@ -14,17 +14,19 @@ PID=$(pidof /usr/bin/qemu-system-x86_64)
 tail --pid=$PID -f /dev/null
 sudo virsh undefine openzfs
 
+# default values per test vm:
+VMs=2
+CPU=2
+
 # definitions of per operating system
 case "$OS" in
+  # FreeBSD can't be optimized via ksmtuned
   freebsd*)
-    VMs=2
-    CPU=3
     RAM=6
     ;;
   *)
-    VMs=2
-    CPU=3
-    RAM=7
+    # Linux can be optimized via ksmtuned
+    RAM=8
     ;;
 esac
 
