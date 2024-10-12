@@ -18,10 +18,12 @@ sudo virsh undefine openzfs
 VMs=2
 CPU=2
 
-# definitions of per operating system
+# cpu pinning
+CPUSET=("0,1" "2,3")
+
 case "$OS" in
-  # FreeBSD can't be optimized via ksmtuned
   freebsd*)
+    # FreeBSD can't be optimized via ksmtuned
     RAM=6
     ;;
   *)
@@ -75,6 +77,7 @@ EOF
     --cpu host-passthrough \
     --virt-type=kvm --hvm \
     --vcpus=$CPU,sockets=1 \
+    --cpuset=${CPUSET[$((i-1))]} \
     --memory $((1024*RAM)) \
     --memballoon model=virtio \
     --graphics none \
