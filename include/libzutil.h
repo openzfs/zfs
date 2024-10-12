@@ -276,7 +276,11 @@ _LIBZUTIL_H void update_vdev_config_dev_sysfs_path(nvlist_t *nv,
  * Thread-safe strerror() for use in ZFS libraries
  */
 static inline char *zfs_strerror(int errnum) {
+#ifdef HAVE_STRERROR_L
 	return (strerror_l(errnum, uselocale(0)));
+#else
+	return (strerror(errnum));
+#endif
 }
 
 #ifdef	__cplusplus
