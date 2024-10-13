@@ -3930,6 +3930,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	if (zfs_enter_verify_zp(zfsvfs, zp, FTAG) != 0)
 		return (zfs_vm_pagerret_error);
 
+	object = ma[0]->object;
 	start = IDX_TO_OFF(ma[0]->pindex);
 	end = IDX_TO_OFF(ma[count - 1]->pindex + 1);
 
@@ -3938,33 +3939,43 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 * Note that we need to handle the case of the block size growing.
 	 */
 	for (;;) {
+		uint64_t len;
+
 		blksz = zp->z_blksz;
+		len = roundup(end, blksz) - rounddown(start, blksz);
+
 		lr = zfs_rangelock_tryenter(&zp->z_rangelock,
-		    rounddown(start, blksz),
-		    roundup(end, blksz) - rounddown(start, blksz), RL_READER);
+		    rounddown(start, blksz), len, RL_READER);
 		if (lr == NULL) {
-			if (rahead != NULL) {
-				*rahead = 0;
-				rahead = NULL;
-			}
-			if (rbehind != NULL) {
-				*rbehind = 0;
-				rbehind = NULL;
-			}
-			break;
+			/*
+			 * Avoid a deadlock with update_pages().  We need to
+			 * hold the range lock when copying from the DMU, so
+			 * give up the busy lock to allow update_pages() to
+			 * proceed.  We might need to allocate a new page, which
+			 * isn't quite right since this allocation isn't subject
+			 * to the page fault handler's OOM logic, but this is
+			 * the best we can do for now.
+			 */
+			vm_page_xunbusy(ma[0]);
+
+			lr = zfs_rangelock_enter(&zp->z_rangelock,
+			    rounddown(start, blksz), len, RL_READER);
+
+			zfs_vmobject_wlock(object);
+			ma[0] = vm_page_grab(object, OFF_TO_IDX(start),
+			    VM_ALLOC_NORMAL | VM_ALLOC_WAITOK | VM_ALLOC_ZERO);
+			zfs_vmobject_wunlock(object);
 		}
 		if (blksz == zp->z_blksz)
 			break;
 		zfs_rangelock_exit(lr);
 	}
 
-	object = ma[0]->object;
 	zfs_vmobject_wlock(object);
 	obj_size = object->un_pager.vnp.vnp_size;
 	zfs_vmobject_wunlock(object);
 	if (IDX_TO_OFF(ma[count - 1]->pindex) >= obj_size) {
-		if (lr != NULL)
-			zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (zfs_vm_pagerret_bad);
 	}
@@ -3992,8 +4003,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	error = dmu_read_pages(zfsvfs->z_os, zp->z_id, ma, count, &pgsin_b,
 	    &pgsin_a, MIN(end, obj_size) - (end - PAGE_SIZE));
 
-	if (lr != NULL)
-		zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(lr);
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, count*PAGE_SIZE);
