@@ -452,8 +452,10 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 				if (!vm_page_wired(pp) && pp->valid == 0 &&
 				    vm_page_busy_tryupgrade(pp))
 					vm_page_free(pp);
-				else
+				else {
+					vm_page_deactivate_noreuse(pp);
 					vm_page_sunbusy(pp);
+				}
 				zfs_vmobject_wunlock(obj);
 			}
 		} else {
