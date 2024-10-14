@@ -70,15 +70,6 @@ hlist_del(struct hlist_node *n)
 		n->next->pprev = n->pprev;
 }
 	/* BEGIN CSTYLED */
-#define	READ_ONCE(x) ({			\
-	__typeof(x) __var = ({		\
-		barrier();		\
-		ACCESS_ONCE(x);		\
-	});				\
-	barrier();			\
-	__var;				\
-})
-
 #define	HLIST_HEAD_INIT { }
 #define	HLIST_HEAD(name) struct hlist_head name = HLIST_HEAD_INIT
 #define	INIT_HLIST_HEAD(head) (head)->first = NULL
