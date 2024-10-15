@@ -8758,7 +8758,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	umem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
 	if (*cfuncp == ZIO_COMPRESS_ZLE) {
-		printf("\nZLE decompression was selected. If you "
+		printf("\nZLE decompression was selected.  If you "
 		    "suspect the results are wrong,\ntry avoiding ZLE "
 		    "by setting and exporting ZDB_NO_ZLE=\"true\"\n");
 	}

@@ -114,7 +114,7 @@ after_zpool_upgrade(zpool_handle_t *zhp)
 	    strcmp(bootfs, "-") != 0) {
 		(void) printf(gettext("Pool '%s' has the bootfs "
 		    "property set, you might need to update\nthe boot "
-		    "code. See gptzfsboot(8) and loader.efi(8) for "
+		    "code.  See gptzfsboot(8) and loader.efi(8) for "
 		    "details.\n"), zpool_get_name(zhp));
 	}
 }

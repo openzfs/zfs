@@ -646,7 +646,7 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	if (zfsvfs->z_version >
 	    zfs_zpl_version_map(spa_version(dmu_objset_spa(os)))) {
 		(void) printk("Can't mount a version %lld file system "
-		    "on a version %lld pool\n. Pool must be upgraded to mount "
+		    "on a version %lld pool\n.  Pool must be upgraded to mount "
 		    "this file system.\n", (u_longlong_t)zfsvfs->z_version,
 		    (u_longlong_t)spa_version(dmu_objset_spa(os)));
 		return (SET_ERROR(ENOTSUP));

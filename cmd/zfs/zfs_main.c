@@ -1003,7 +1003,7 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 			(void) fprintf(stderr, gettext("Warning: "
 			    "volblocksize (%llu) is much less than the "
 			    "minimum allocation\nunit (%llu), which wastes "
-			    "at least %llu%% of space. To reduce wasted "
+			    "at least %llu%% of space.  To reduce wasted "
 			    "space,\nuse a larger volblocksize (%llu is "
 			    "recommended), fewer dRAID data disks\n"
 			    "per group, or smaller sector size (ashift).\n"),
@@ -4988,7 +4988,7 @@ zfs_do_send(int argc, char **argv)
 			 * warning, and assume snapshot.
 			 */
 			(void) fprintf(stderr, "Warning: incremental source "
-			    "didn't specify type, assuming snapshot. Use '@' "
+			    "didn't specify type, assuming snapshot.  Use '@' "
 			    "or '#' prefix to avoid ambiguity.\n");
 			(void) snprintf(frombuf, sizeof (frombuf), "@%s",
 			    fromname);
@@ -5880,7 +5880,7 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_DIFF:
 		str = gettext("Allows lookup of paths within a dataset;"
-		    "\n\t\t\t\tgiven an object number. Ordinary users need this"
+		    "\n\t\t\t\tgiven an object number.  Ordinary users need this"
 		    "\n\t\t\t\tin order to use zfs diff");
 		break;
 	case ZFS_DELEG_NOTE_HOLD:
@@ -8540,7 +8540,7 @@ zfs_do_channel_program(int argc, char **argv)
 				errstring = "Timed out.";
 				break;
 			case EPERM:
-				errstring = "Permission denied. Channel "
+				errstring = "Permission denied.  Channel "
 				    "programs must be run as root.";
 				break;
 			default:
