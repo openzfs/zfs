@@ -95,10 +95,6 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 #ifndef expect
 #define	expect(expr, value) (__builtin_expect((expr), (value)))
 #endif
-#ifndef __linux__
-#define	likely(expr)   expect((expr) != 0, 1)
-#define	unlikely(expr) expect((expr) != 0, 0)
-#endif
 
 #define	PANIC(fmt, a...)						\
 	spl_panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
