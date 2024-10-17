@@ -44,6 +44,7 @@ struct dsl_pool;
 struct dmu_tx;
 
 extern int zfs_scan_suspend_progress;
+extern uint_t zfs_scrub_recent_txgs;
 
 /*
  * All members of this structure must be uint64_t, for byteswap
@@ -189,7 +190,8 @@ void dsl_scan_setup_sync(void *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
-int dsl_scan(struct dsl_pool *, pool_scan_func_t);
+int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
+    uint64_t txgend);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
