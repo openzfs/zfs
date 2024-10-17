@@ -159,6 +159,10 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_MULTIHOST, "multihost", 0,
 	    PROP_DEFAULT, ZFS_TYPE_POOL, "on | off", "MULTIHOST",
 	    boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_SPECIAL_FAILSAFE,
+	    "special_failsafe", 0, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "on | off", "SPECIAL_FAILSAFE", boolean_table,
+	    sfeatures);
 
 	/* default index properties */
 	zprop_register_index(ZPOOL_PROP_FAILUREMODE, "failmode",

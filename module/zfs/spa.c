@@ -523,6 +523,22 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 		    DNODE_MIN_SIZE, ZPROP_SRC_NONE);
 	}
 
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPECIAL_FAILSAFE)) {
+		zprop_source_t src;
+		if ((uint64_t)spa->spa_special_failsafe ==
+		    zpool_prop_default_numeric(ZPOOL_PROP_SPECIAL_FAILSAFE))
+			src = ZPROP_SRC_DEFAULT;
+		else
+			src = ZPROP_SRC_LOCAL;
+
+		spa_prop_add_list(nv, ZPOOL_PROP_SPECIAL_FAILSAFE,
+		    NULL, spa->spa_special_failsafe, src);
+	} else {
+		/* special_failsafe not used */
+		spa_prop_add_list(nv, ZPOOL_PROP_SPECIAL_FAILSAFE,
+		    NULL, B_FALSE, ZPROP_SRC_NONE);
+	}
+
 	if ((dp = list_head(&spa->spa_config_list)) != NULL) {
 		if (dp->scd_path == NULL) {
 			spa_prop_add_list(nv, ZPOOL_PROP_CACHEFILE,
@@ -652,6 +668,27 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 	int error = 0, reset_bootfs = 0;
 	uint64_t objnum = 0;
 	boolean_t has_feature = B_FALSE;
+	boolean_t special_failsafe_prop = B_FALSE;
+
+	/*
+	 * The way the feature flags work here are a little interesting.
+	 *
+	 * At zpool creation time, this feature will not be initialized yet when
+	 * spa_prop_validate() gets called.  This works out though, as the
+	 * feature flag will be passed in the nvlist if the feature is enabled.
+	 *
+	 * After the pool is created, calls to this function (like zpool set)
+	 * will not include the feature flag in the props nvlist, but the
+	 * feature table will be initialized, so we can use
+	 * spa_feature_is_active().
+	 */
+	boolean_t special_failsafe_feature_disabled;
+	special_failsafe_feature_disabled = !(spa_feature_is_enabled(spa,
+	    SPA_FEATURE_SPECIAL_FAILSAFE) || spa_feature_is_active(spa,
+	    SPA_FEATURE_SPECIAL_FAILSAFE));
+
+	/* Did they explicitly pass feature@special_failsafe=enabled ? */
+	boolean_t special_failsafe_feature_passed = B_FALSE;
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
@@ -659,6 +696,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		const char *strval, *slash, *check, *fname;
 		const char *propname = nvpair_name(elem);
 		zpool_prop_t prop = zpool_name_to_prop(propname);
+		spa_feature_t fid = 0;
 
 		switch (prop) {
 		case ZPOOL_PROP_INVAL:
@@ -693,11 +731,30 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				}
 
 				fname = strchr(propname, '@') + 1;
-				if (zfeature_lookup_name(fname, NULL) != 0) {
+				if (zfeature_lookup_name(fname, &fid) != 0) {
 					error = SET_ERROR(EINVAL);
 					break;
 				}
-
+				/*
+				 * Special case - If both:
+				 *
+				 * SPA_FEATURE_SPECIAL_FAILSAFE = disabled
+				 *
+				 * ... and ...
+				 *
+				 * ZPOOL_PROP_SPECIAL_FAILSAFE = on
+				 *
+				 * then we need to fail.  Note that the presence
+				 * of SPA_FEATURE_SPECIAL_FAILSAFE in the
+				 * nvlist means it is enabled (although its
+				 * intval will be 0).  If it's disabled, then
+				 * SPA_FEATURE_SPECIAL_FAILSAFE will not
+				 * be in the nvlist at all.
+				 */
+				if (fid == SPA_FEATURE_SPECIAL_FAILSAFE) {
+					special_failsafe_feature_passed =
+					    B_TRUE;
+				}
 				has_feature = B_TRUE;
 			} else {
 				error = SET_ERROR(EINVAL);
@@ -845,6 +902,13 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			if (strlen(strval) > ZPROP_MAX_COMMENT)
 				error = SET_ERROR(E2BIG);
 			break;
+		case ZPOOL_PROP_SPECIAL_FAILSAFE:
+			error = nvpair_value_uint64(elem, &intval);
+			if (!error && intval > 1)
+				error = SET_ERROR(EINVAL);
+			if (intval == 1)
+				special_failsafe_prop = B_TRUE;
+			break;
 
 		default:
 			break;
@@ -856,6 +920,26 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 	(void) nvlist_remove_all(props,
 	    zpool_prop_to_name(ZPOOL_PROP_DEDUPDITTO));
+
+	if (special_failsafe_prop && special_failsafe_feature_disabled &&
+	    !special_failsafe_feature_passed) {
+		/*
+		 * We can't enable SPECIAL_FAILSAFE pool prop if the
+		 * feature flag SPA_FEATURE_SPECIAL_FAILSAFE is
+		 * disabled.
+		 */
+		error = SET_ERROR(ZFS_ERR_SPECIAL_FAILSAFE_NOT_POSSIBLE);
+	}
+
+	/*
+	 * If the user wants to turn on the special_failsafe prop, but it
+	 * was turned off (while the feature was active), then it can't be
+	 * turned on again.
+	 */
+	if (spa_feature_is_active(spa, SPA_FEATURE_SPECIAL_FAILSAFE) &&
+	    !spa->spa_special_failsafe && special_failsafe_prop) {
+		error = SET_ERROR(ZFS_ERR_SPECIAL_FAILSAFE_NOT_POSSIBLE);
+	}
 
 	if (!error && reset_bootfs) {
 		error = nvlist_remove(props,
@@ -2540,6 +2624,53 @@ spa_check_removed(vdev_t *vd)
 	}
 }
 
+/*
+ * Decide what to do if we have missing/corrupted alloc class devices.
+ *
+ * If we have missing top-level vdevs and they are all alloc class devices with
+ * special_failsafe set, then we may still be able to import the pool.
+ */
+static int
+spa_check_for_bad_alloc_class_devices(spa_t *spa)
+{
+	if (spa->spa_missing_recovered_tvds == 0)
+		return (0);
+
+	/*
+	 * Are there missing alloc class devices but
+	 * SPA_FEATURE_SPECIAL_FAILSAFE is not enabled?  If so,
+	 * then we can't import.
+	 */
+	if (!spa_feature_is_active(spa, SPA_FEATURE_SPECIAL_FAILSAFE)) {
+		spa_load_note(spa, "some alloc class devices are missing, "
+		    "cannot import.");
+		return (SET_ERROR(ENXIO));
+	}
+
+	/*
+	 * If all the missing top-level devices are alloc class devices, and
+	 * if they have all their data backed up to the pool, then we can still
+	 * import the pool.
+	 */
+	if (spa->spa_missing_tvds > 0 &&
+	    spa->spa_missing_tvds == spa->spa_missing_recovered_tvds) {
+		spa_load_note(spa, "only alloc class devices are missing, and "
+		    "the normal pool has copies of the alloc class data, so "
+		    "it's still possible to import.");
+		return (0);
+	}
+
+	/*
+	 * If we're here, then it means that not all the missing top-level vdevs
+	 * were alloc class devices.  This should have been caught earlier.
+	 */
+	spa_load_note(spa, "some alloc class devices that do not have a "
+	    " special_failsafe backup copy are amongst those that are missing,"
+	    " cannot import");
+
+	return (SET_ERROR(ENXIO));
+}
+
 static int
 spa_check_for_missing_logs(spa_t *spa)
 {
@@ -4032,7 +4163,24 @@ spa_ld_open_vdevs(spa_t *spa)
 	error = vdev_open(spa->spa_root_vdev);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	if (spa->spa_missing_tvds != 0) {
+	if (spa->spa_missing_tvds != 0 &&
+	    spa->spa_missing_tvds == spa->spa_missing_recovered_tvds &&
+	    (error == 0 || error == ENOENT)) {
+		/*
+		 * Special case: If all the missing top-level vdevs are special
+		 * devices, we may or may not be able to import the pool,
+		 * depending on if the relevant special_failsafe feature and
+		 * property are set.  At this early stage of import we do not
+		 * have the feature flags loaded yet, so for now proceed
+		 * with the import.  We will do the backup checks later after
+		 * the feature flags are loaded.
+		 */
+		spa_load_note(spa, "vdev tree has %lld missing special "
+		    "top-level vdevs.  Keep importing for now until we "
+		    "can check the feature flags.",
+		    (u_longlong_t)spa->spa_missing_tvds);
+		error = 0;
+	} else if (spa->spa_missing_tvds != 0) {
 		spa_load_note(spa, "vdev tree has %lld missing top-level "
 		    "vdevs.", (u_longlong_t)spa->spa_missing_tvds);
 		if (spa->spa_trust_config && (spa->spa_mode & SPA_MODE_WRITE)) {
@@ -4805,6 +4953,14 @@ spa_ld_get_props(spa_t *spa)
 		spa->spa_autoreplace = (autoreplace != 0);
 	}
 
+	uint64_t special_failsafe = 0;
+	spa_prop_find(spa, ZPOOL_PROP_SPECIAL_FAILSAFE,
+	    &special_failsafe);
+	if (special_failsafe)
+		spa->spa_special_failsafe = B_TRUE;
+	else
+		spa->spa_special_failsafe = B_FALSE;
+
 	/*
 	 * If we are importing a pool with missing top-level vdevs,
 	 * we enforce that the pool doesn't panic or get suspended on
@@ -5465,6 +5621,13 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	error = spa_ld_load_vdev_metadata(spa);
 	if (error != 0)
 		goto fail;
+
+	spa_import_progress_set_notes(spa, "Checking for bad alloc class "
+	    "devices");
+	spa_check_for_bad_alloc_class_devices(spa);
+	if (error != 0)
+		return (error);
+
 
 	spa_import_progress_set_notes(spa, "Loading dedup tables");
 	error = spa_ld_load_dedup_tables(spa);
@@ -6659,6 +6822,13 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_autotrim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
 	spa->spa_dedup_table_quota =
 	    zpool_prop_default_numeric(ZPOOL_PROP_DEDUP_TABLE_QUOTA);
+
+	/*
+	 * Set initial special_failsafe settings.  These may change after the
+	 * nvlist properties are processed a little later in spa_sync_props().
+	 */
+	spa->spa_special_failsafe = (boolean_t)
+	    zpool_prop_default_numeric(ZPOOL_PROP_SPECIAL_FAILSAFE);
 
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
@@ -9564,6 +9734,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 		const char *elemname = nvpair_name(elem);
 		zprop_type_t proptype;
 		spa_feature_t fid;
+//		boolean_t boolval;
 
 		switch (prop = zpool_name_to_prop(elemname)) {
 		case ZPOOL_PROP_VERSION:
@@ -9626,7 +9797,6 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
 			break;
-
 		case ZPOOL_PROP_INVAL:
 			if (zpool_prop_feature(elemname)) {
 				fname = strchr(elemname, '@') + 1;
@@ -9710,6 +9880,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					break;
 				case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
 					spa->spa_dedup_table_quota = intval;
+					break;
+				case ZPOOL_PROP_SPECIAL_FAILSAFE:
+					spa->spa_special_failsafe =
+					    (boolean_t)intval;
 					break;
 				default:
 					break;
