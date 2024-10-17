@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  */
 
@@ -618,7 +618,7 @@ range_tree_verify_not_present(range_tree_t *rt, uint64_t off, uint64_t size)
 {
 	range_seg_t *rs = range_tree_find(rt, off, size);
 	if (rs != NULL)
-		panic("segment already in tree; rs=%p", (void *)rs);
+		panic("segment already in tree; rt=%px rs=%px", rt, (void *)rs);
 }
 
 boolean_t

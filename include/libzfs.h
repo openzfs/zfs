@@ -159,6 +159,8 @@ typedef enum zfs_error {
 	EZFS_SHAREFAILED,	/* filesystem share failed */
 	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
 	EZFS_ASHIFT_MISMATCH,   /* can't add vdevs with different ashifts */
+	/* Operation cannot be performed on a shared log pool */
+	EZFS_SHAREDLOG,
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -350,6 +352,7 @@ _LIBZFS_H uint64_t zpool_vdev_path_to_guid(zpool_handle_t *zhp,
     const char *path);
 
 _LIBZFS_H const char *zpool_get_state_str(zpool_handle_t *);
+_LIBZFS_H zpool_handle_t *zpool_get_shared_log(zpool_handle_t *);
 
 /*
  * Functions to manage pool properties
