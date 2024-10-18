@@ -44,8 +44,13 @@
 #define	UNW_LOCAL_ONLY
 #include <libunwind.h>
 
+/*
+ * Convert `v` to ASCII hex characters. The bottom `n` nybbles (4-bits ie one
+ * hex digit) will be written, up to `buflen`. The buffer will not be
+ * null-terminated. Returns the number of digits written.
+ */
 static size_t
-libspl_u64_to_hex_str(uint64_t v, size_t digits, char *buf, size_t buflen)
+spl_bt_u64_to_hex_str(uint64_t v, size_t n, char *buf, size_t buflen)
 {
 	static const char hexdigits[] = {
 	    '0', '1', '2', '3', '4', '5', '6', '7',
@@ -53,10 +58,10 @@ libspl_u64_to_hex_str(uint64_t v, size_t digits, char *buf, size_t buflen)
 	};
 
 	size_t pos = 0;
-	boolean_t want = (digits == 0);
+	boolean_t want = (n == 0);
 	for (int i = 15; i >= 0; i--) {
 		const uint64_t d = v >> (i * 4) & 0xf;
-		if (!want && (d != 0 || digits > i))
+		if (!want && (d != 0 || n > i))
 			want = B_TRUE;
 		if (want) {
 			buf[pos++] = hexdigits[d];
@@ -88,14 +93,14 @@ libspl_backtrace(int fd)
 		for (n = 0; name[n] != '\0' && name[n] != '?'; n++) {}
 		if (n == 0) {
 			buf[0] = '?';
-			n = libspl_u64_to_hex_str(regnum, 2,
+			n = spl_bt_u64_to_hex_str(regnum, 2,
 			    &buf[1], sizeof (buf)-1) + 1;
 			name = buf;
 		}
 		spl_bt_write_n(fd, "      ", 5-MIN(n, 3));
 		spl_bt_write_n(fd, name, n);
 		spl_bt_write(fd, ": 0x");
-		n = libspl_u64_to_hex_str(v, 18, buf, sizeof (buf));
+		n = spl_bt_u64_to_hex_str(v, 18, buf, sizeof (buf));
 		spl_bt_write_n(fd, buf, n);
 		if (!(++c % 3))
 			spl_bt_write(fd, "\n");
@@ -108,14 +113,14 @@ libspl_backtrace(int fd)
 	while (unw_step(&cp) > 0) {
 		unw_get_reg(&cp, UNW_REG_IP, &v);
 		spl_bt_write(fd, "  [0x");
-		n = libspl_u64_to_hex_str(v, 18, buf, sizeof (buf));
+		n = spl_bt_u64_to_hex_str(v, 18, buf, sizeof (buf));
 		spl_bt_write_n(fd, buf, n);
 		spl_bt_write(fd, "] ");
 		unw_get_proc_name(&cp, buf, sizeof (buf), &v);
 		for (n = 0; n < sizeof (buf) && buf[n] != '\0'; n++) {}
 		spl_bt_write_n(fd, buf, n);
 		spl_bt_write(fd, "+0x");
-		n = libspl_u64_to_hex_str(v, 2, buf, sizeof (buf));
+		n = spl_bt_u64_to_hex_str(v, 2, buf, sizeof (buf));
 		spl_bt_write_n(fd, buf, n);
 #ifdef HAVE_LIBUNWIND_ELF
 		spl_bt_write(fd, " (in ");
@@ -123,7 +128,7 @@ libspl_backtrace(int fd)
 		for (n = 0; n < sizeof (buf) && buf[n] != '\0'; n++) {}
 		spl_bt_write_n(fd, buf, n);
 		spl_bt_write(fd, " +0x");
-		n = libspl_u64_to_hex_str(v, 2, buf, sizeof (buf));
+		n = spl_bt_u64_to_hex_str(v, 2, buf, sizeof (buf));
 		spl_bt_write_n(fd, buf, n);
 		spl_bt_write(fd, ")");
 #endif
