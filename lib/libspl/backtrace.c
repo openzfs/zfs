@@ -25,12 +25,20 @@
 
 #include <sys/backtrace.h>
 #include <sys/types.h>
+#include <sys/debug.h>
 #include <unistd.h>
 
 /*
- * libspl_backtrace() must be safe to call from inside a signal hander. This
- * mostly means it must not allocate, and so we can't use things like printf.
+ * Output helpers. libspl_backtrace() must not block, must be thread-safe and
+ * must be safe to call from a signal handler. At least, that means not having
+ * printf, so we end up having to call write() directly on the fd. That's
+ * awkward, as we always have to pass through a length, and some systems will
+ * complain if we don't consume the return. So we have some macros to make
+ * things a little more palatable.
  */
+#define	spl_bt_write_n(fd, s, n) \
+	do { ssize_t r __maybe_unused = write(fd, s, n); } while (0)
+#define	spl_bt_write(fd, s)		spl_bt_write_n(fd, s, sizeof (s))
 
 #if defined(HAVE_LIBUNWIND)
 #define	UNW_LOCAL_ONLY
@@ -62,7 +70,6 @@ libspl_u64_to_hex_str(uint64_t v, size_t digits, char *buf, size_t buflen)
 void
 libspl_backtrace(int fd)
 {
-	ssize_t ret __attribute__((unused));
 	unw_context_t uc;
 	unw_cursor_t cp;
 	unw_word_t v;
@@ -72,7 +79,7 @@ libspl_backtrace(int fd)
 	unw_getcontext(&uc);
 
 	unw_init_local(&cp, &uc);
-	ret = write(fd, "Registers:\n", 11);
+	spl_bt_write(fd, "Registers:\n");
 	c = 0;
 	for (uint_t regnum = 0; regnum <= UNW_TDEP_LAST_REG; regnum++) {
 		if (unw_get_reg(&cp, regnum, &v) < 0)
@@ -85,42 +92,42 @@ libspl_backtrace(int fd)
 			    &buf[1], sizeof (buf)-1) + 1;
 			name = buf;
 		}
-		ret = write(fd, "      ", 5-MIN(n, 3));
-		ret = write(fd, name, n);
-		ret = write(fd, ": 0x", 4);
+		spl_bt_write_n(fd, "      ", 5-MIN(n, 3));
+		spl_bt_write_n(fd, name, n);
+		spl_bt_write(fd, ": 0x");
 		n = libspl_u64_to_hex_str(v, 18, buf, sizeof (buf));
-		ret = write(fd, buf, n);
+		spl_bt_write_n(fd, buf, n);
 		if (!(++c % 3))
-			ret = write(fd, "\n", 1);
+			spl_bt_write(fd, "\n");
 	}
 	if (c % 3)
-		ret = write(fd, "\n", 1);
+		spl_bt_write(fd, "\n");
 
 	unw_init_local(&cp, &uc);
-	ret = write(fd, "Call trace:\n", 12);
+	spl_bt_write(fd, "Call trace:\n");
 	while (unw_step(&cp) > 0) {
 		unw_get_reg(&cp, UNW_REG_IP, &v);
-		ret = write(fd, "  [0x", 5);
+		spl_bt_write(fd, "  [0x");
 		n = libspl_u64_to_hex_str(v, 18, buf, sizeof (buf));
-		ret = write(fd, buf, n);
-		ret = write(fd, "] ", 2);
+		spl_bt_write_n(fd, buf, n);
+		spl_bt_write(fd, "] ");
 		unw_get_proc_name(&cp, buf, sizeof (buf), &v);
 		for (n = 0; n < sizeof (buf) && buf[n] != '\0'; n++) {}
-		ret = write(fd, buf, n);
-		ret = write(fd, "+0x", 3);
+		spl_bt_write_n(fd, buf, n);
+		spl_bt_write(fd, "+0x");
 		n = libspl_u64_to_hex_str(v, 2, buf, sizeof (buf));
-		ret = write(fd, buf, n);
+		spl_bt_write_n(fd, buf, n);
 #ifdef HAVE_LIBUNWIND_ELF
-		ret = write(fd, " (in ", 5);
+		spl_bt_write(fd, " (in ");
 		unw_get_elf_filename(&cp, buf, sizeof (buf), &v);
 		for (n = 0; n < sizeof (buf) && buf[n] != '\0'; n++) {}
-		ret = write(fd, buf, n);
-		ret = write(fd, " +0x", 4);
+		spl_bt_write_n(fd, buf, n);
+		spl_bt_write(fd, " +0x");
 		n = libspl_u64_to_hex_str(v, 2, buf, sizeof (buf));
-		ret = write(fd, buf, n);
-		ret = write(fd, ")", 1);
+		spl_bt_write_n(fd, buf, n);
+		spl_bt_write(fd, ")");
 #endif
-		ret = write(fd, "\n", 1);
+		spl_bt_write(fd, "\n");
 	}
 }
 #elif defined(HAVE_BACKTRACE)
@@ -129,15 +136,12 @@ libspl_backtrace(int fd)
 void
 libspl_backtrace(int fd)
 {
-	ssize_t ret __attribute__((unused));
 	void *btptrs[64];
 	size_t nptrs = backtrace(btptrs, 64);
-	ret = write(fd, "Call trace:\n", 12);
+	spl_bt_write(fd, "Call trace:\n");
 	backtrace_symbols_fd(btptrs, nptrs, fd);
 }
 #else
-#include <sys/debug.h>
-
 void
 libspl_backtrace(int fd __maybe_unused)
 {
