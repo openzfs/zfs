@@ -171,7 +171,8 @@ issig(void)
 #if defined(HAVE_DEQUEUE_SIGNAL_4ARG)
 	enum pid_type __type;
 	if (dequeue_signal(current, &set, &__info, &__type) != 0) {
-#elif defined(HAVE_DEQUEUE_SIGNAL_3ARG_TASK)
+#elif defined(HAVE_DEQUEUE_SIGNAL_3ARG_TASK) || \
+	defined(HAVE_DEQUEUE_SIGNAL_3ARG_SIGINFO)
 	if (dequeue_signal(current, &set, &__info) != 0) {
 #else
 	enum pid_type __type;
