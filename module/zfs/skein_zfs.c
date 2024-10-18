@@ -18,22 +18,22 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2013 Saso Kiselkov.  All rights reserved.
+ * Copyright (c) 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2016 by Delphix. All rights reserved.
  */
+
 #include <sys/zfs_context.h>
-#include <sys/zio.h>
 #include <sys/zio_checksum.h>
 #include <sys/skein.h>
-
 #include <sys/abd.h>
 
 static int
 skein_incremental(void *buf, size_t size, void *arg)
 {
-	Skein_512_Ctxt_t *ctx = arg;
-	(void) Skein_512_Update(ctx, buf, size);
+	SKEIN_CTX *ctx = arg;
+	Skein_512_Update(ctx, buf, size);
 	return (0);
 }
 /*
@@ -45,12 +45,12 @@ void
 abd_checksum_skein_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
-	Skein_512_Ctxt_t ctx;
+	SKEIN_CTX ctx;
 
 	ASSERT(ctx_template != NULL);
 	memcpy(&ctx, ctx_template, sizeof (ctx));
 	(void) abd_iterate_func(abd, 0, size, skein_incremental, &ctx);
-	(void) Skein_512_Final(&ctx, (uint8_t *)zcp);
+	Skein_512_Final(&ctx, (uint8_t *)zcp);
 	memset(&ctx, 0, sizeof (ctx));
 }
 
@@ -79,9 +79,9 @@ abd_checksum_skein_byteswap(abd_t *abd, uint64_t size,
 void *
 abd_checksum_skein_tmpl_init(const zio_cksum_salt_t *salt)
 {
-	Skein_512_Ctxt_t *ctx = kmem_zalloc(sizeof (*ctx), KM_SLEEP);
+	SKEIN_CTX *ctx = kmem_zalloc(sizeof (*ctx), KM_SLEEP);
 
-	(void) Skein_512_InitExt(ctx, sizeof (zio_cksum_t) * 8, 0,
+	Skein_512_InitExt(ctx, sizeof (zio_cksum_t) * 8, 0,
 	    salt->zcs_bytes, sizeof (salt->zcs_bytes));
 	return (ctx);
 }
@@ -93,7 +93,7 @@ abd_checksum_skein_tmpl_init(const zio_cksum_salt_t *salt)
 void
 abd_checksum_skein_tmpl_free(void *ctx_template)
 {
-	Skein_512_Ctxt_t *ctx = ctx_template;
+	SKEIN_CTX *ctx = ctx_template;
 
 	memset(ctx, 0, sizeof (*ctx));
 	kmem_free(ctx, sizeof (*ctx));
