@@ -239,23 +239,12 @@ typedef struct kstat {
  *		The ks_snapshot routine (see below) does not need to check for
  *		this; permission checking is handled in the kstat driver.
  *
- *	KSTAT_FLAG_PERSISTENT:
+ *	KSTAT_FLAG_RESTRICTED:
  *
- *		Indicates that this kstat is to be persistent over time.
- *		For persistent kstats, kstat_delete() simply marks the
- *		kstat as dormant; a subsequent kstat_create() reactivates
- *		the kstat.  This feature is provided so that statistics
- *		are not lost across driver close/open (e.g., raw disk I/O
- *		on a disk with no mounted partitions.)
- *		NOTE: Persistent kstats cannot be virtual, since ks_data
- *		points to garbage as soon as the driver goes away.
+ *		Indicates that this kstat has restricted access and is
+ *		not world readable.
  *
  * The following flags are maintained by the kstat framework:
- *
- *	KSTAT_FLAG_DORMANT:
- *
- *		For persistent kstats, indicates that the kstat is in the
- *		dormant state (e.g., the corresponding device is closed).
  *
  *	KSTAT_FLAG_INVALID:
  *
@@ -268,8 +257,8 @@ typedef struct kstat {
 #define	KSTAT_FLAG_VIRTUAL		0x01
 #define	KSTAT_FLAG_VAR_SIZE		0x02
 #define	KSTAT_FLAG_WRITABLE		0x04
-#define	KSTAT_FLAG_PERSISTENT		0x08
-#define	KSTAT_FLAG_DORMANT		0x10
+#define	KSTAT_FLAG_RESTRICTED		0x08
+#define	KSTAT_FLAG_UNUSED		0x10
 #define	KSTAT_FLAG_INVALID		0x20
 #define	KSTAT_FLAG_LONGSTRINGS		0x40
 #define	KSTAT_FLAG_NO_HEADERS		0x80
@@ -722,33 +711,8 @@ extern void	kstat_init(void);	/* initialize kstat framework */
  * you must NOT be holding that kstat's ks_lock.  Otherwise, you may
  * deadlock with a kstat reader.
  *
- * Persistent kstats
- *
- * From the provider's point of view, persistence is transparent.  The only
- * difference between ephemeral (normal) kstats and persistent kstats
- * is that you pass KSTAT_FLAG_PERSISTENT to kstat_create().  Magically,
- * this has the effect of making your data visible even when you're
- * not home.  Persistence is important to tools like iostat, which want
- * to get a meaningful picture of disk activity.  Without persistence,
- * raw disk i/o statistics could never accumulate: they would come and
- * go with each open/close of the raw device.
- *
- * The magic of persistence works by slightly altering the behavior of
- * kstat_create() and kstat_delete().  The first call to kstat_create()
- * creates a new kstat, as usual.  However, kstat_delete() does not
- * actually delete the kstat: it performs one final update of the data
- * (i.e., calls the ks_update routine), marks the kstat as dormant, and
- * sets the ks_lock, ks_update, ks_private, and ks_snapshot fields back
- * to their default values (since they might otherwise point to garbage,
- * e.g. if the provider is going away).  kstat clients can still access
- * the dormant kstat just like a live kstat; they just continue to see
- * the final data values as long as the kstat remains dormant.
- * All subsequent kstat_create() calls simply find the already-existing,
- * dormant kstat and return a pointer to it, without altering any fields.
- * The provider then performs its usual initialization sequence, and
- * calls kstat_install().  kstat_install() uses the old data values to
- * initialize the native data (i.e., ks_update is called with KSTAT_WRITE),
- * thus making it seem like you were never gone.
+ * Persistent kstats are not implemented since there is no persistent
+ * namespace for them to reside.
  */
 
 extern kstat_t *kstat_create(const char *, int, const char *, const char *,
