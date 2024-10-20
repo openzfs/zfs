@@ -38,8 +38,7 @@
 #include <sys/rwlock.h>
 #include <sys/wait.h>
 #include <sys/wmsum.h>
-
-typedef struct kstat_s kstat_t;
+#include <sys/kstat.h>
 
 #define	TASKQ_NAMELEN		31
 
