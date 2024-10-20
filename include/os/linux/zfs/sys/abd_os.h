@@ -30,6 +30,8 @@
 extern "C" {
 #endif
 
+struct abd;
+
 struct abd_scatter {
 	uint_t		abd_offset;
 	uint_t		abd_nents;
@@ -41,10 +43,8 @@ struct abd_linear {
 	struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
 };
 
-typedef struct abd abd_t;
-
 typedef int abd_iter_page_func_t(struct page *, size_t, size_t, void *);
-int abd_iterate_page_func(abd_t *, size_t, size_t, abd_iter_page_func_t *,
+int abd_iterate_page_func(struct abd *, size_t, size_t, abd_iter_page_func_t *,
     void *);
 
 /*
@@ -52,11 +52,11 @@ int abd_iterate_page_func(abd_t *, size_t, size_t, abd_iter_page_func_t *,
  * Note: these are only needed to support vdev_classic. See comment in
  * vdev_disk.c.
  */
-unsigned int abd_bio_map_off(struct bio *, abd_t *, unsigned int, size_t);
-unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
+unsigned int abd_bio_map_off(struct bio *, struct abd *, unsigned int, size_t);
+unsigned long abd_nr_pages_off(struct abd *, unsigned int, size_t);
 
 __attribute__((malloc))
-abd_t *abd_alloc_from_pages(struct page **, unsigned long, uint64_t);
+struct abd *abd_alloc_from_pages(struct page **, unsigned long, uint64_t);
 
 #ifdef __cplusplus
 }
