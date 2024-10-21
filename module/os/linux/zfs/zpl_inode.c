@@ -317,19 +317,19 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
 #ifndef HAVE_TMPFILE_DENTRY
-		d_tmpfile(file, ip);
-
 		error = zpl_xattr_security_init(ip, dir,
 		    &file->f_path.dentry->d_name);
-#else
-		d_tmpfile(dentry, ip);
-
-		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
-#endif
 		if (error == 0)
 			error = zpl_init_acl(ip, dir);
-#ifndef HAVE_TMPFILE_DENTRY
+		if (error == 0)
+			d_tmpfile(file, ip);
 		error = finish_open_simple(file, error);
+#else
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error == 0)
+			error = zpl_init_acl(ip, dir);
+		if (error == 0)
+			d_tmpfile(dentry, ip);
 #endif
 		/*
 		 * don't need to handle error here, file is already in
