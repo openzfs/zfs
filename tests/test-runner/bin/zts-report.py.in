@@ -213,6 +213,7 @@ maybe = {
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', 6145],
+    'cli_root/zpool_import/import_devices_missing': ['FAIL', 16669],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', 6839],
     'cli_root/zpool_initialize/zpool_initialize_import_export':
         ['FAIL', 11948],
@@ -274,7 +275,8 @@ if sys.platform.startswith('freebsd'):
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
-        'snapshot/snapshot_002_pos': ['FAIL', '14831'],
+        'snapshot/snapshot_002_pos': ['FAIL', 14831],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', 16668],
         'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
         'bclone/bclone_crossfs_corner_cases_limited':
             ['SKIP', cfr_cross_reason],
