@@ -2853,7 +2853,7 @@ spa_load_verify(spa_t *spa)
 	if (spa_load_verify_metadata) {
 		if (spa->spa_extreme_rewind) {
 			spa_load_note(spa, "performing a complete scan of the "
-			    "pool since extreme rewind is on. This may take "
+			    "pool since extreme rewind is on.  This may take "
 			    "a very long time.\n  (spa_load_verify_data=%u, "
 			    "spa_load_verify_metadata=%u)",
 			    spa_load_verify_data, spa_load_verify_metadata);
@@ -4469,7 +4469,7 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 			vdev_dbgmsg_print_tree(rvd, 2);
 			if (reloading) {
 				spa_load_failed(spa, "config was already "
-				    "provided from MOS. Aborting.");
+				    "provided from MOS.  Aborting.");
 				return (spa_vdev_err(rvd,
 				    VDEV_AUX_CORRUPT_DATA, EIO));
 			}

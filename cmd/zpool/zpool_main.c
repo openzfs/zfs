@@ -1901,7 +1901,7 @@ zpool_do_labelclear(int argc, char **argv)
 
 		if (force) {
 			(void) fprintf(stderr, gettext(
-			    ". Offline the disk first to clear its label."));
+			    ".  Offline the disk first to clear its label."));
 		}
 		printf("\n");
 		ret = 1;
@@ -3503,7 +3503,7 @@ show_import(nvlist_t *config, boolean_t report_error)
 
 	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
 		printf_color(ANSI_YELLOW, gettext("The pool can only be "
-		    "accessed in read-only mode on this system. It\n"
+		    "accessed in read-only mode on this system.  It\n"
 		    "\t%scannot be accessed in read-write mode because it uses "
 		    "the following\n"
 		    "\t%sfeature(s) not supported on this system:\n"),
@@ -3617,7 +3617,7 @@ show_import(nvlist_t *config, boolean_t report_error)
 				(void) printf(gettext("Existing encrypted "
 				    "datasets contain an on-disk "
 				    "incompatibility, which\n"
-				    "\t%sneeds to be corrected. Backup these "
+				    "\t%sneeds to be corrected.  Backup these "
 				    "datasets to new encrypted datasets\n"
 				    "\t%sand destroy the old ones.\n"),
 				    indent, indent);
@@ -3627,16 +3627,16 @@ show_import(nvlist_t *config, boolean_t report_error)
 				(void) printf(gettext("Existing encrypted "
 				    "snapshots and bookmarks contain an "
 				    "on-disk\n"
-				    "\t%sincompatibility. This may cause "
+				    "\t%sincompatibility.  This may cause "
 				    "on-disk corruption if they are used\n"
-				    "\t%swith 'zfs recv'. To correct the "
+				    "\t%swith 'zfs recv'.  To correct the "
 				    "issue, enable the bookmark_v2 feature.\n"
 				    "\t%sNo additional action is needed if "
 				    "there are no encrypted snapshots or\n"
-				    "\t%sbookmarks. If preserving the "
+				    "\t%sbookmarks.  If preserving the "
 				    "encrypted snapshots and bookmarks is\n"
 				    "\t%srequired, use a non-raw send to "
-				    "backup and restore them. Alternately,\n"
+				    "backup and restore them.  Alternately,\n"
 				    "\t%sthey may be removed to resolve the "
 				    "incompatibility.\n"), indent, indent,
 				    indent, indent, indent, indent);
@@ -3672,7 +3672,7 @@ show_import(nvlist_t *config, boolean_t report_error)
 			break;
 		case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
 			(void) printf(gettext("The pool cannot be imported in "
-			    "read-write mode. Import the pool with\n"
+			    "read-write mode.  Import the pool with\n"
 			    "\t%s'-o readonly=on', access the pool on a system "
 			    "that supports the\n"
 			    "\t%srequired feature(s), or recreate the pool "
@@ -3848,7 +3848,7 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 		} else if (mmp_state == MMP_STATE_NO_HOSTID) {
 			(void) fprintf(stderr, gettext("Cannot import '%s': "
 			    "pool has the multihost property on and the\n"
-			    "system's hostid is not set. Set a unique hostid "
+			    "system's hostid is not set.  Set a unique hostid "
 			    "with the zgenhostid(8) command.\n"), name);
 		} else {
 			const char *hostname = "<unknown>";
@@ -4182,7 +4182,7 @@ zpool_do_checkpoint(int argc, char **argv)
 		/* As a special case, check for use of '/' in the name */
 		if (strchr(pool, '/') != NULL)
 			(void) fprintf(stderr, gettext("'zpool checkpoint' "
-			    "doesn't work on datasets. To save the state "
+			    "doesn't work on datasets.  To save the state "
 			    "of a dataset from a specific point in time "
 			    "please use 'zfs snapshot'\n"));
 		return (1);
@@ -10464,15 +10464,15 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		    "The pool can still be used, but some features are "
 		    "unavailable.\n"));
 		snprintf(action, AC_SIZE, gettext("Enable all features using "
-		    "'zpool upgrade'. Once this is done,\n\tthe pool may no "
+		    "'zpool upgrade'.  Once this is done,\n\tthe pool may no "
 		    "longer be accessible by software that does not support\n\t"
-		    "the features. See zpool-features(7) for details.\n"));
+		    "the features.  See zpool-features(7) for details.\n"));
 		break;
 
 	case ZPOOL_STATUS_COMPATIBILITY_ERR:
 		snprintf(status, ST_SIZE, gettext("This pool has a "
 		    "compatibility list specified, but it could not be\n\t"
-		    "read/parsed at this time. The pool can still be used, "
+		    "read/parsed at this time.  The pool can still be used, "
 		    "but this\n\tshould be investigated.\n"));
 		snprintf(action, AC_SIZE, gettext("Check the value of the "
 		    "'compatibility' property against the\n\t"
@@ -10503,13 +10503,13 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 
 	case ZPOOL_STATUS_UNSUP_FEAT_WRITE:
 		snprintf(status, ST_SIZE, gettext("The pool can only be "
-		    "accessed in read-only mode on this system. It\n\tcannot be"
+		    "accessed in read-only mode on this system.  It\n\tcannot be"
 		    " accessed in read-write mode because it uses the "
 		    "following\n\tfeature(s) not supported on this system:\n"));
 		zpool_collect_unsup_feat(zpool_get_config(zhp, NULL), status,
 		    1024);
 		snprintf(action, AC_SIZE, gettext("The pool cannot be accessed "
-		    "in read-write mode. Import the pool with\n"
+		    "in read-write mode.  Import the pool with\n"
 		    "\t\"-o readonly=on\", access the pool from a system that "
 		    "supports the\n\trequired feature(s), or restore the "
 		    "pool from backup.\n"));
@@ -10609,11 +10609,11 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		case ZPOOL_ERRATA_ZOL_8308_ENCRYPTION:
 			(void) strlcat(status, gettext("\tExisting encrypted "
 			    "snapshots and bookmarks contain an on-disk\n\t"
-			    "incompatibility. This may cause on-disk "
+			    "incompatibility.  This may cause on-disk "
 			    "corruption if they are used\n\twith "
 			    "'zfs recv'.\n"), ST_SIZE);
 			snprintf(action, AC_SIZE, gettext("To correct the"
-			    "issue, enable the bookmark_v2 feature. No "
+			    "issue, enable the bookmark_v2 feature.  No "
 			    "additional\n\taction is needed if there are no "
 			    "encrypted snapshots or bookmarks.\n\tIf preserving"
 			    "the encrypted snapshots and bookmarks is required,"
@@ -11442,7 +11442,7 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 					    "Once a\nfeature is enabled the "
 					    "pool may become incompatible with "
 					    "software\nthat does not support "
-					    "the feature. See "
+					    "the feature.  See "
 					    "zpool-features(7) for "
 					    "details.\n\n"
 					    "Note that the pool "
