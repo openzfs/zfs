@@ -1053,7 +1053,6 @@ zfs_zget(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp)
 
 	*zpp = NULL;
 
-again:
 	zh = zfs_znode_hold_enter(zfsvfs, obj_num);
 
 	err = sa_buf_hold(zfsvfs->z_os, obj_num, NULL, &db);
@@ -1076,55 +1075,24 @@ again:
 	if (hdl != NULL) {
 		zp = sa_get_userdata(hdl);
 
-
 		/*
 		 * Since "SA" does immediate eviction we
 		 * should never find a sa handle that doesn't
 		 * know about the znode.
 		 */
-
 		ASSERT3P(zp, !=, NULL);
 
-		mutex_enter(&zp->z_lock);
-		ASSERT3U(zp->z_id, ==, obj_num);
-		/*
-		 * If zp->z_unlinked is set, the znode is already marked
-		 * for deletion and should not be discovered. Check this
-		 * after checking igrab() due to fsetxattr() & O_TMPFILE.
-		 *
-		 * If igrab() returns NULL the VFS has independently
-		 * determined the inode should be evicted and has
-		 * called iput_final() to start the eviction process.
-		 * The SA handle is still valid but because the VFS
-		 * requires that the eviction succeed we must drop
-		 * our locks and references to allow the eviction to
-		 * complete.  The zfs_zget() may then be retried.
-		 *
-		 * This unlikely case could be optimized by registering
-		 * a sops->drop_inode() callback.  The callback would
-		 * need to detect the active SA hold thereby informing
-		 * the VFS that this inode should not be evicted.
-		 */
-		if (igrab(ZTOI(zp)) == NULL) {
-			if (zp->z_unlinked)
-				err = SET_ERROR(ENOENT);
-			else
-				err = SET_ERROR(EAGAIN);
-		} else {
-			*zpp = zp;
-			err = 0;
+		if (zp->z_unlinked) {
+			sa_buf_rele(db, NULL);
+			zfs_znode_hold_exit(zfsvfs, zh);
+			return (SET_ERROR(ENOENT));
 		}
+		VERIFY3P(igrab(ZTOI(zp)), !=, NULL);
+		*zpp = zp;
 
-		mutex_exit(&zp->z_lock);
 		sa_buf_rele(db, NULL);
 		zfs_znode_hold_exit(zfsvfs, zh);
-
-		if (err == EAGAIN) {
-			/* inode might need this to finish evict */
-			cond_resched();
-			goto again;
-		}
-		return (err);
+		return (0);
 	}
 
 	/*

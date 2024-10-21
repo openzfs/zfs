@@ -560,6 +560,12 @@ spa_history_log_internal(spa_t *spa, const char *operation,
 		}
 	}
 
+	if (htx->tx_txg > spa_final_dirty_txg(spa)) {
+		if (tx == NULL)
+			dmu_tx_abort(htx);
+		return;
+	}
+
 	va_start(adx, fmt);
 	log_internal(fnvlist_alloc(), operation, spa, htx, fmt, adx);
 	va_end(adx);

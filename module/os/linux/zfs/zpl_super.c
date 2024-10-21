@@ -92,6 +92,26 @@ zpl_evict_inode(struct inode *ip)
 	spl_fstrans_unmark(cookie);
 }
 
+static int
+zpl_drop_inode(struct inode *ip)
+{
+	znode_t *zp = ITOZ(ip);
+	dmu_buf_t *db;
+	int error;
+
+	/*
+	 * Don't allow the kernel to proceed to zpl_evict_inode if there's an
+	 * active SA hold so that igrab() in zfs_zget doesn't race against
+	 * eviction
+	 */
+	if ((zp->z_sa_hdl && (db = sa_get_db(zp->z_sa_hdl)) &&
+	    dmu_buf_refcount(db)))
+		return (0);
+
+	error = generic_drop_inode(ip);
+	return (error);
+}
+
 static void
 zpl_put_super(struct super_block *sb)
 {
@@ -384,6 +404,7 @@ const struct super_operations zpl_super_operations = {
 	.dirty_inode		= zpl_dirty_inode,
 	.write_inode		= NULL,
 	.evict_inode		= zpl_evict_inode,
+	.drop_inode		= zpl_drop_inode,
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
