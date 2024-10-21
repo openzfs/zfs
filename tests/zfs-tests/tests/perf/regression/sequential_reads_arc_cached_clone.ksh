@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2023 by Delphix. All rights reserved.
 #
 
 #
@@ -41,78 +41,79 @@ function cleanup
 	# kill fio and iostat
 	pkill fio
 	pkill iostat
-	recreate_perf_pool
 }
 
 trap "log_fail \"Measure IO stats during random read load\"" SIGTERM
 log_onexit cleanup
 
-recreate_perf_pool
-populate_perf_filesystems
+for logtype in $PERF_LOG_TYPES; do
+	recreate_perf_pool $logtype
+	populate_perf_filesystems
 
-# Make sure the working set can be cached in the arc. Aim for 1/2 of arc.
-export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+	# Make sure the working set can be cached in the arc. Aim for 1/2 of arc.
+	export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
+	
+	# Variables specific to this test for use by fio.
+	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
+	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+	export PERF_IOSIZES=${PERF_IOSIZES:-'128k'}
+	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
+	
+	# Layout the files to be used by the read tests. Create as many files as the
+	# largest number of threads. An fio run with fewer threads will use a subset
+	# of the available files.
+	export NUMJOBS=$(get_max $PERF_NTHREADS)
+	export FILE_SIZE=$((TOTAL_SIZE / NUMJOBS))
+	export DIRECTORY=$(get_directory)
+	log_must fio $FIO_SCRIPTS/mkfiles.fio
+	
+	#
+	# Only a single filesystem is used by this test. To be defensive, we
+	# double check that TESTFS only contains a single filesystem. We
+	# wouldn't want to assume this was the case, and have it actually
+	# contain multiple filesystem (causing cascading failures later).
+	#
+	log_must test $(get_nfilesystems) -eq 1
+	
+	log_note "Creating snapshot, $TESTSNAP, of $TESTFS"
+	create_snapshot $TESTFS $TESTSNAP
+	log_note "Creating clone, $PERFPOOL/$TESTCLONE, from $TESTFS@$TESTSNAP"
+	create_clone $TESTFS@$TESTSNAP $PERFPOOL/$TESTCLONE
+	
+	#
+	# We want to run FIO against the clone we created above, and not the
+	# clone's originating filesystem. Thus, we override the default behavior
+	# and explicitly set TESTFS to the clone.
+	#
+	export TESTFS=$PERFPOOL/$TESTCLONE
+	
+	# Set up the scripts and output files that will log performance data.
+	lun_list=$(pool_to_lun_list $PERFPOOL)
+	log_note "Collecting backend IO stats with lun list $lun_list"
+		if is_linux; then
+		typeset perf_record_cmd="perf record -F 99 -a -g -q \
+		    -o /dev/stdout -- sleep ${PERF_RUNTIME}"
 
-# Variables specific to this test for use by fio.
-export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
-export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-export PERF_IOSIZES=${PERF_IOSIZES:-'128k'}
-export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-
-# Layout the files to be used by the read tests. Create as many files as the
-# largest number of threads. An fio run with fewer threads will use a subset
-# of the available files.
-export NUMJOBS=$(get_max $PERF_NTHREADS)
-export FILE_SIZE=$((TOTAL_SIZE / NUMJOBS))
-export DIRECTORY=$(get_directory)
-log_must fio $FIO_SCRIPTS/mkfiles.fio
-
-#
-# Only a single filesystem is used by this test. To be defensive, we
-# double check that TESTFS only contains a single filesystem. We
-# wouldn't want to assume this was the case, and have it actually
-# contain multiple filesystem (causing cascading failures later).
-#
-log_must test $(get_nfilesystems) -eq 1
-
-log_note "Creating snapshot, $TESTSNAP, of $TESTFS"
-create_snapshot $TESTFS $TESTSNAP
-log_note "Creating clone, $PERFPOOL/$TESTCLONE, from $TESTFS@$TESTSNAP"
-create_clone $TESTFS@$TESTSNAP $PERFPOOL/$TESTCLONE
-
-#
-# We want to run FIO against the clone we created above, and not the
-# clone's originating filesystem. Thus, we override the default behavior
-# and explicitly set TESTFS to the clone.
-#
-export TESTFS=$PERFPOOL/$TESTCLONE
-
-# Set up the scripts and output files that will log performance data.
-lun_list=$(pool_to_lun_list $PERFPOOL)
-log_note "Collecting backend IO stats with lun list $lun_list"
-if is_linux; then
-	typeset perf_record_cmd="perf record -F 99 -a -g -q \
-	    -o /dev/stdout -- sleep ${PERF_RUNTIME}"
-
-	export collect_scripts=(
-	    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
-	    "$PERF_SCRIPTS/prefetch_io.sh $PERFPOOL 1" "prefetch"
-	    "vmstat -t 1" "vmstat"
-	    "mpstat -P ALL 1" "mpstat"
-	    "iostat -tdxyz 1" "iostat"
-	    "$perf_record_cmd" "perf"
-	)
-else
-	export collect_scripts=(
-	    "$PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
-	    "$PERF_SCRIPTS/prefetch_io.d $PERFPOOL 1" "prefetch"
-	    "vmstat -T d 1" "vmstat"
-	    "mpstat -T d 1" "mpstat"
-	    "iostat -T d -xcnz 1" "iostat"
-	)
-fi
-
-log_note "Sequential cached reads from $DIRECTORY with " \
-    "ettings: $(print_perf_settings)"
-do_fio_run sequential_reads.fio false false
+		export collect_scripts=(
+		    "zpool iostat -lpvyL $PERFPOOL 1" "zpool.iostat"
+		    "$PERF_SCRIPTS/prefetch_io.sh $PERFPOOL 1" "prefetch"
+		    "vmstat -t 1" "vmstat"
+		    "mpstat -P ALL 1" "mpstat"
+		    "iostat -tdxyz 1" "iostat"
+		    "$perf_record_cmd" "perf"
+				)
+	else
+		export collect_scripts=(
+		    "$PERF_SCRIPTS/io.d $PERFPOOL $lun_list 1" "io"
+		    "$PERF_SCRIPTS/prefetch_io.d $PERFPOOL 1" "prefetch"
+		    "vmstat -T d 1" "vmstat"
+		    "mpstat -T d 1" "mpstat"
+		    "iostat -T d -xcnz 1" "iostat"
+		)
+	fi
+	
+	log_note "Sequential cached reads from $DIRECTORY with " \
+		 "settings: $(print_perf_settings)"
+	do_fio_run sequential_reads.fio false false $logtype
+done
 log_pass "Measure IO stats during sequential cached read load"
