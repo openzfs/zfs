@@ -42,7 +42,7 @@
 #define	TS_ZOMB				EXIT_ZOMBIE
 #define	TS_STOPPED			TASK_STOPPED
 
-typedef void (*thread_func_t)(void *);
+typedef void (*thread_func_t)(void *) __attribute__((noreturn));
 
 #define	thread_create_named(name, stk, stksize, func, arg, len,	\
     pp, state, pri)	\

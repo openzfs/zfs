@@ -115,7 +115,7 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 	if (vfsp != NULL) {
 		if (vfsp->vfs_mntpoint != NULL)
 			kmem_strfree(vfsp->vfs_mntpoint);
-
+		mutex_destroy(&vfsp->vfs_mntpt_lock);
 		kmem_free(vfsp, sizeof (vfs_t));
 	}
 }
@@ -197,10 +197,11 @@ zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
 		vfsp->vfs_do_nbmand = B_TRUE;
 		break;
 	case TOKEN_MNTPOINT:
+		if (vfsp->vfs_mntpoint != NULL)
+			kmem_strfree(vfsp->vfs_mntpoint);
 		vfsp->vfs_mntpoint = match_strdup(&args[0]);
 		if (vfsp->vfs_mntpoint == NULL)
 			return (SET_ERROR(ENOMEM));
-
 		break;
 	default:
 		break;
@@ -219,6 +220,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 	int error;
 
 	tmp_vfsp = kmem_zalloc(sizeof (vfs_t), KM_SLEEP);
+	mutex_init(&tmp_vfsp->vfs_mntpt_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	if (mntopts != NULL) {
 		substring_t args[MAX_OPT_ARGS];

@@ -35,8 +35,24 @@ typedef struct zfs_dbgmsg {
 
 static list_t zfs_dbgmsgs;
 static kmutex_t zfs_dbgmsgs_lock;
+static uint_t zfs_dbgmsg_size = 0;
+static uint_t zfs_dbgmsg_maxsize = 4<<20; /* 4MB */
 
 int zfs_dbgmsg_enable = B_TRUE;
+
+static void
+zfs_dbgmsg_purge(uint_t max_size)
+{
+	while (zfs_dbgmsg_size > max_size) {
+		zfs_dbgmsg_t *zdm = list_remove_head(&zfs_dbgmsgs);
+		if (zdm == NULL)
+			return;
+
+		uint_t size = zdm->zdm_size;
+		kmem_free(zdm, size);
+		zfs_dbgmsg_size -= size;
+	}
+}
 
 void
 zfs_dbgmsg_init(void)
@@ -74,6 +90,8 @@ __zfs_dbgmsg(char *buf)
 
 	mutex_enter(&zfs_dbgmsgs_lock);
 	list_insert_tail(&zfs_dbgmsgs, zdm);
+	zfs_dbgmsg_size += size;
+	zfs_dbgmsg_purge(zfs_dbgmsg_maxsize);
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 
