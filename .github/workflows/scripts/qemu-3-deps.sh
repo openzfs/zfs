@@ -13,10 +13,10 @@ function archlinux() {
   echo "##[endgroup]"
 
   echo "##[group]Install Development Tools"
-  sudo pacman -Sy --noconfirm base-devel bc cpio dhclient dkms fakeroot \
-    fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils parted \
-    pax perf python-packaging python-setuptools qemu-guest-agent ksh samba \
-    sysstat rng-tools rsync wget xxhash
+  sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
+    fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
+    parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
+    samba sysstat rng-tools rsync wget xxhash
   echo "##[endgroup]"
 }
 
@@ -68,14 +68,15 @@ function rhel() {
   echo "##[group]Install Development Tools"
   sudo dnf group install -y "Development Tools"
   sudo dnf install -y \
-    acl attr bc bzip2 curl dbench dkms elfutils-libelf-devel fio gdb git \
-    jq kernel-rpm-macros ksh libacl-devel libaio-devel libargon2-devel \
-    libattr-devel libblkid-devel libcurl-devel libffi-devel ncompress \
-    libselinux-devel libtirpc-devel libtool libudev-devel libuuid-devel \
-    lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester parted perf \
-    python3 python3-cffi python3-devel python3-packaging kernel-devel \
-    python3-setuptools qemu-guest-agent rng-tools rpcgen rpm-build rsync \
-    samba sysstat systemd watchdog wget xfsprogs-devel xxhash zlib-devel
+    acl attr bc bzip2 cryptsetup curl dbench dkms elfutils-libelf-devel fio \
+    gdb git jq kernel-rpm-macros ksh libacl-devel libaio-devel \
+    libargon2-devel libattr-devel libblkid-devel libcurl-devel libffi-devel \
+    ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
+    libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
+    parted perf python3 python3-cffi python3-devel python3-packaging \
+    kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
+    rpm-build rsync samba sysstat systemd watchdog wget xfsprogs-devel xxhash \
+    zlib-devel
   echo "##[endgroup]"
 }
 
