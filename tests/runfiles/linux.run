@@ -147,6 +147,12 @@ tags = ['functional', 'largest_pool']
 tests = ['longname_001_pos', 'longname_002_pos', 'longname_003_pos']
 tags = ['functional', 'longname']
 
+[tests/functional/luks:Linux]
+pre =
+post =
+tests = ['luks_sanity']
+tags = ['functional', 'luks']
+
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
