@@ -1917,7 +1917,7 @@ ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, max_obsolete_bytes, U64,
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_commit_entry_delay_ms,
 	UINT, ZMOD_RW,
 	"Used by tests to ensure certain actions happen in the middle of a "
-	"condense. A maximum value of 1 should be sufficient.");
+	"condense.  A maximum value of 1 should be sufficient.");
 
 ZFS_MODULE_PARAM(zfs_reconstruct, zfs_reconstruct_, indirect_combinations_max,
 	UINT, ZMOD_RW,

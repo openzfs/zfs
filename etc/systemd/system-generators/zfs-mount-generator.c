@@ -592,7 +592,7 @@ line_worker(char *line, const char *cachefile)
 			/* Don't log for canmount=noauto */
 			if (strcmp(p_canmount, "on") == 0)
 				fprintf(stderr, PROGNAME "[%d]: %s: "
-				    "%s already exists. Skipping.\n",
+				    "%s already exists.  Skipping.\n",
 				    getpid(), dataset, mountfile);
 		}
 

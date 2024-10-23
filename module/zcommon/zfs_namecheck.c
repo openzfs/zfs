@@ -464,4 +464,4 @@ EXPORT_SYMBOL(get_dataset_depth);
 EXPORT_SYMBOL(zfs_max_dataset_nesting);
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_dataset_nesting, INT, ZMOD_RW,
-	"Limit to the amount of nesting a path can have. Defaults to 50.");
+	"Limit to the amount of nesting a path can have.  Defaults to 50.");

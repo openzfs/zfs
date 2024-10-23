@@ -3833,7 +3833,7 @@ vdev_load(vdev_t *vd)
 		if (vd->vdev_ashift == 0 || vd->vdev_asize == 0) {
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_CORRUPT_DATA);
-			vdev_dbgmsg(vd, "vdev_load: invalid size. ashift=%llu, "
+			vdev_dbgmsg(vd, "vdev_load: invalid size.  ashift=%llu, "
 			    "asize=%llu", (u_longlong_t)vd->vdev_ashift,
 			    (u_longlong_t)vd->vdev_asize);
 			return (SET_ERROR(ENXIO));

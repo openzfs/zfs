@@ -5245,7 +5245,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case ZFS_ERR_FROM_IVSET_GUID_MISSING:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "IV set guid missing. See errata %u at "
+			    "IV set guid missing.  See errata %u at "
 			    "https://openzfs.github.io/openzfs-docs/msg/"
 			    "ZFS-8000-ER."),
 			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION);
@@ -5253,7 +5253,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case ZFS_ERR_FROM_IVSET_GUID_MISMATCH:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "IV set guid mismatch. See the 'zfs receive' "
+			    "IV set guid mismatch.  See the 'zfs receive' "
 			    "man page section\n discussing the limitations "
 			    "of raw encrypted send streams."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
@@ -5281,7 +5281,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		case E2BIG:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "zfs receive required kernel memory allocation "
-			    "larger than the system can support. Please file "
+			    "larger than the system can support.  Please file "
 			    "an issue at the OpenZFS issue tracker:\n"
 			    "https://github.com/openzfs/zfs/issues/new"));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
