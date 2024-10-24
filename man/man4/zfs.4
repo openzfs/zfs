@@ -724,6 +724,24 @@ Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
 .
+.It Sy zfs_arc_evict_threads Ns = Ns Sy 0 Pq uint
+Sets the maximum number of ARC eviction threads to be used.
+.Pp
+When set to 0,
+ZFS uses the number of threads depending on the number of CPU cores.
+The minimum number of threads is 1 and applies to systems from 1 to 5 CPU cores.
+Systems with 6 CPU cores get 2 eviction threads.
+ZFS on systems larger than that uses log2 of the CPU count
+plus the CPU count shifted 6 bits.
+This way the number of eviction threads scales up more on high CPU counts.
+Currently, ZFS will not scale automatically beyond 16 threads.
+.Pp
+More threads may improve the responsiveness of ZFS to memory pressure.
+This can be important for performance when eviction from the ARC becomes
+a bottleneck for reads and writes.
+.Pp
+Note that the thread count cannot be changed during runtime.
+.
 .It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
 If set to a non zero value, it will replace the
 .Sy arc_grow_retry
