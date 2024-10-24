@@ -111,6 +111,7 @@ case "$1" in
     archlinux
     ;;
   debian*)
+    echo 'debconf debconf/frontend select Noninteractive' | sudo debconf-set-selections
     debian
     echo "##[group]Install Debian specific"
     sudo apt-get install -yq linux-perf dh-sequence-dkms
