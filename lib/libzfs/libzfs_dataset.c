@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2019 Joyent, Inc.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2023 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
@@ -3869,6 +3869,10 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid property value(s) specified"));
 			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
+		case EINVAL:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot create filesystem in shared log pool"));
+			return (zfs_error(hdl, EZFS_SHAREDLOG, errbuf));
 #ifdef _ILP32
 		case EOVERFLOW:
 			/*

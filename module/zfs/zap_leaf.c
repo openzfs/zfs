@@ -332,7 +332,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 	if (zap_getflags(zn->zn_zap) & ZAP_FLAG_UINT64_KEY) {
 		uint64_t *thiskey =
 		    kmem_alloc(array_numints * sizeof (*thiskey), KM_SLEEP);
-		ASSERT(zn->zn_key_intlen == sizeof (*thiskey));
+		ASSERT3S(zn->zn_key_intlen, ==, sizeof (*thiskey));
 
 		zap_leaf_array_read(l, chunk, sizeof (*thiskey), array_numints,
 		    sizeof (*thiskey), array_numints, thiskey);
@@ -342,7 +342,7 @@ zap_leaf_array_match(zap_leaf_t *l, zap_name_t *zn,
 		return (match);
 	}
 
-	ASSERT(zn->zn_key_intlen == 1);
+	ASSERT3S(zn->zn_key_intlen, ==, 1);
 	if (zn->zn_matchtype & MT_NORMALIZE) {
 		char *thisname = kmem_alloc(array_numints, KM_SLEEP);
 
