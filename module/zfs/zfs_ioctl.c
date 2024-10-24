@@ -1718,6 +1718,19 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		error = spa_scrub_pause_resume(spa, POOL_SCRUB_PAUSE);
 	} else if (scan_type == POOL_SCAN_NONE) {
 		error = spa_scan_stop(spa);
+	} else if (scan_cmd == POOL_SCRUB_FROM_LAST_TXG) {
+		error = spa_scan_range(spa, scan_type,
+		    spa_get_last_scrubbed_txg(spa), 0);
+	} else if (scan_cmd == POOL_SCRUB_RECENT_TXGS) {
+		uint64_t start;
+
+		start = 0;
+		if (spa_last_synced_txg(spa) > zfs_scrub_recent_txgs) {
+			start = spa_last_synced_txg(spa) -
+			    zfs_scrub_recent_txgs;
+		}
+
+		error = spa_scan_range(spa, scan_type, start, 0);
 	} else {
 		error = spa_scan(spa, scan_type);
 	}
