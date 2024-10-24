@@ -187,20 +187,6 @@ zio_init(void)
 			continue;
 #endif
 
-#if defined(__linux__) && defined(_KERNEL)
-		/*
-		 * Workaround issue of Linux vdev_disk.c, in some cases not
-		 * linearizing buffers with disk sector crossing a page
-		 * boundary. It is fine for hardware, but somehow required by
-		 * LUKS. It is not typical for ZFS to produce such buffers, but
-		 * it may happen if 6KB block is compressed to 4KB, while still
-		 * having 2KB alignment. Banning the 6KB buffers helps vdevs
-		 * with ashifh=12.
-		 */
-		if (size > PAGESIZE && !IS_P2ALIGNED(size, PAGESIZE))
-			continue;
-#endif
-
 		if (IS_P2ALIGNED(size, PAGESIZE))
 			align = PAGESIZE;
 		else
