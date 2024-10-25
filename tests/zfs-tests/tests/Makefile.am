@@ -80,7 +80,8 @@ if BUILD_LINUX
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/simd/simd_supported.ksh \
 	functional/tmpfile/cleanup.ksh \
-	functional/tmpfile/setup.ksh
+	functional/tmpfile/setup.ksh \
+	functional/luks/luks_sanity.ksh
 endif
 
 nobase_dist_datadir_zfs_tests_tests_DATA += \

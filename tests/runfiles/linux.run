@@ -138,6 +138,12 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/luks:Linux]
+pre =
+post =
+tests = ['luks_sanity']
+tags = ['functional', 'luks']
+
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
