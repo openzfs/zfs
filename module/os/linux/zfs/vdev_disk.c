@@ -828,21 +828,13 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	bio_put(bio);
 
 	/*
-	 * If we copied the ABD before issuing it, clean up and return the copy
-	 * to the ADB, with changes if appropriate.
+	 * We're likely in an interrupt context so we can't do ABD/memory work
+	 * here; instead we stash vbio on the zio and take care of it in the
+	 * done callback.
 	 */
-	if (vbio->vbio_abd != NULL) {
-		if (zio->io_type == ZIO_TYPE_READ)
-			abd_copy(zio->io_abd, vbio->vbio_abd, zio->io_size);
+	ASSERT3P(zio->io_bio, ==, NULL);
+	zio->io_bio = vbio;
 
-		abd_free(vbio->vbio_abd);
-		vbio->vbio_abd = NULL;
-	}
-
-	/* Final cleanup */
-	kmem_free(vbio, sizeof (vbio_t));
-
-	/* All done, submit for processing */
 	zio_delay_interrupt(zio);
 }
 
@@ -1496,6 +1488,28 @@ vdev_disk_io_start(zio_t *zio)
 static void
 vdev_disk_io_done(zio_t *zio)
 {
+	/* If this was a read or write, we need to clean up the vbio */
+	if (zio->io_bio != NULL) {
+		vbio_t *vbio = zio->io_bio;
+		zio->io_bio = NULL;
+
+		/*
+		 * If we copied the ABD before issuing it, clean up and return
+		 * the copy to the ADB, with changes if appropriate.
+		 */
+		if (vbio->vbio_abd != NULL) {
+			if (zio->io_type == ZIO_TYPE_READ)
+				abd_copy(zio->io_abd, vbio->vbio_abd,
+				    zio->io_size);
+
+			abd_free(vbio->vbio_abd);
+			vbio->vbio_abd = NULL;
+		}
+
+		/* Final cleanup */
+		kmem_free(vbio, sizeof (vbio_t));
+	}
+
 	/*
 	 * If the device returned EIO, we revalidate the media.  If it is
 	 * determined the media has changed this triggers the asynchronous
