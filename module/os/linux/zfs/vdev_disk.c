@@ -832,14 +832,11 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	 * to the ADB, with changes if appropriate.
 	 */
 	if (vbio->vbio_abd != NULL) {
-		void *buf = abd_to_buf(vbio->vbio_abd);
+		if (zio->io_type == ZIO_TYPE_READ)
+			abd_copy(zio->io_abd, vbio->vbio_abd, zio->io_size);
+
 		abd_free(vbio->vbio_abd);
 		vbio->vbio_abd = NULL;
-
-		if (zio->io_type == ZIO_TYPE_READ)
-			abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
-		else
-			abd_return_buf(zio->io_abd, buf, zio->io_size);
 	}
 
 	/* Final cleanup */
@@ -859,34 +856,59 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
  * split the BIO, the two halves will still be properly aligned.
  */
 typedef struct {
-	uint_t  bmask;
-	uint_t  npages;
-	uint_t  end;
-} vdev_disk_check_pages_t;
+	size_t	blocksize;
+	int	seen_first;
+	int	seen_last;
+} vdev_disk_check_alignment_t;
 
 static int
-vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
+vdev_disk_check_alignment_cb(struct page *page, size_t off, size_t len,
+    void *priv)
 {
-	vdev_disk_check_pages_t *s = priv;
+	(void) page;
+	vdev_disk_check_alignment_t *s = priv;
 
 	/*
-	 * If we didn't finish on a block size boundary last time, then there
-	 * would be a gap if we tried to use this ABD as-is, so abort.
+	 * The cardinal rule: a single on-disk block must never cross an
+	 * physical (order-0) page boundary, as the kernel expects to be able
+	 * to split at both LBS and page boundaries.
+	 *
+	 * This implies various alignment rules for the blocks in this
+	 * (possibly compound) page, which we can check for.
 	 */
-	if (s->end != 0)
+
+	/*
+	 * If the previous page did not end on a page boundary, then we
+	 * can't proceed without creating a hole.
+	 */
+	if (s->seen_last)
+		return (1);
+
+	/* This page must contain only whole LBS-sized blocks. */
+	if (!IS_P2ALIGNED(len, s->blocksize))
 		return (1);
 
 	/*
-	 * Note if we're taking less than a full block, so we can check it
-	 * above on the next call.
+	 * If this is not the first page in the ABD, then the data must start
+	 * on a page-aligned boundary (so the kernel can split on page
+	 * boundaries without having to deal with a hole). If it is, then
+	 * it can start on LBS-alignment.
 	 */
-	s->end = (off+len) & s->bmask;
+	if (s->seen_first) {
+		if (!IS_P2ALIGNED(off, PAGESIZE))
+			return (1);
+	} else {
+		if (!IS_P2ALIGNED(off, s->blocksize))
+			return (1);
+		s->seen_first = 1;
+	}
 
-	/* All blocks after the first must start on a block size boundary. */
-	if (s->npages != 0 && (off & s->bmask) != 0)
-		return (1);
+	/*
+	 * If this data does not end on a page-aligned boundary, then this
+	 * must be the last page in the ABD, for the same reason.
+	 */
+	s->seen_last = !IS_P2ALIGNED(off+len, PAGESIZE);
 
-	s->npages++;
 	return (0);
 }
 
@@ -895,15 +917,14 @@ vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
  * the number of pages, or 0 if it can't be submitted like this.
  */
 static boolean_t
-vdev_disk_check_pages(abd_t *abd, uint64_t size, struct block_device *bdev)
+vdev_disk_check_alignment(abd_t *abd, uint64_t size, struct block_device *bdev)
 {
-	vdev_disk_check_pages_t s = {
-	    .bmask = bdev_logical_block_size(bdev)-1,
-	    .npages = 0,
-	    .end = 0,
+	vdev_disk_check_alignment_t s = {
+	    .blocksize = bdev_logical_block_size(bdev),
 	};
 
-	if (abd_iterate_page_func(abd, 0, size, vdev_disk_check_pages_cb, &s))
+	if (abd_iterate_page_func(abd, 0, size,
+	    vdev_disk_check_alignment_cb, &s))
 		return (B_FALSE);
 
 	return (B_TRUE);
@@ -937,37 +958,32 @@ vdev_disk_io_rw(zio_t *zio)
 
 	/*
 	 * Check alignment of the incoming ABD. If any part of it would require
-	 * submitting a page that is not aligned to the logical block size,
-	 * then we take a copy into a linear buffer and submit that instead.
-	 * This should be impossible on a 512b LBS, and fairly rare on 4K,
-	 * usually requiring abnormally-small data blocks (eg gang blocks)
-	 * mixed into the same ABD as larger ones (eg aggregated).
+	 * submitting a page that is not aligned to both the logical block size
+	 * and the page size, then we take a copy into a new memory region with
+	 * correct alignment.  This should be impossible on a 512b LBS. On
+	 * larger blocks, this can happen at least when a small number of
+	 * blocks (usually 1) are allocated from a shared slab, or when
+	 * abnormally-small data regions (eg gang headers) are mixed into the
+	 * same ABD as larger allocations (eg aggregations).
 	 */
 	abd_t *abd = zio->io_abd;
-	if (!vdev_disk_check_pages(abd, zio->io_size, bdev)) {
-		void *buf;
-		if (zio->io_type == ZIO_TYPE_READ)
-			buf = abd_borrow_buf(zio->io_abd, zio->io_size);
-		else
-			buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+	if (!vdev_disk_check_alignment(abd, zio->io_size, bdev)) {
+		/* Allocate a new memory region with guaranteed alignment */
+		abd = abd_alloc_for_io(zio->io_size,
+		    zio->io_abd->abd_flags & ABD_FLAG_META);
+
+		/* If we're writing copy our data into it */
+		if (zio->io_type == ZIO_TYPE_WRITE)
+			abd_copy(abd, zio->io_abd, zio->io_size);
 
 		/*
-		 * Wrap the copy in an abd_t, so we can use the same iterators
-		 * to count and fill the vbio later.
-		 */
-		abd = abd_get_from_buf(buf, zio->io_size);
-
-		/*
-		 * False here would mean the borrowed copy has an invalid
-		 * alignment too, which would mean we've somehow been passed a
-		 * linear ABD with an interior page that has a non-zero offset
-		 * or a size not a multiple of PAGE_SIZE. This is not possible.
-		 * It would mean either zio_buf_alloc() or its underlying
-		 * allocators have done something extremely strange, or our
-		 * math in vdev_disk_check_pages() is wrong. In either case,
+		 * False here would mean the new allocation has an invalid
+		 * alignment too, which would mean that abd_alloc() is not
+		 * guaranteeing this, or our logic in
+		 * vdev_disk_check_alignment() is wrong. In either case,
 		 * something in seriously wrong and its not safe to continue.
 		 */
-		VERIFY(vdev_disk_check_pages(abd, zio->io_size, bdev));
+		VERIFY(vdev_disk_check_alignment(abd, zio->io_size, bdev));
 	}
 
 	/* Allocate vbio, with a pointer to the borrowed ABD if necessary */
