@@ -2205,10 +2205,11 @@ vdev_open(vdev_t *vd)
 		vd->vdev_max_asize = max_asize;
 
 		/*
-		 * If the vdev_ashift was not overridden at creation time,
+		 * If the vdev_ashift was not overridden at creation time
+		 * (0) or the override value is impossible for the device,
 		 * then set it the logical ashift and optimize the ashift.
 		 */
-		if (vd->vdev_ashift == 0) {
+		if (vd->vdev_ashift < vd->vdev_logical_ashift) {
 			vd->vdev_ashift = vd->vdev_logical_ashift;
 
 			if (vd->vdev_logical_ashift > ASHIFT_MAX) {
