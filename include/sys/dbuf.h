@@ -171,7 +171,6 @@ typedef struct dbuf_dirty_record {
 			 * gets COW'd in a subsequent transaction group.
 			 */
 			arc_buf_t *dr_data;
-			blkptr_t dr_overridden_by;
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
 			boolean_t dr_nopwrite;
@@ -179,14 +178,21 @@ typedef struct dbuf_dirty_record {
 			boolean_t dr_diowrite;
 			boolean_t dr_has_raw_params;
 
-			/*
-			 * If dr_has_raw_params is set, the following crypt
-			 * params will be set on the BP that's written.
-			 */
-			boolean_t dr_byteorder;
-			uint8_t	dr_salt[ZIO_DATA_SALT_LEN];
-			uint8_t	dr_iv[ZIO_DATA_IV_LEN];
-			uint8_t	dr_mac[ZIO_DATA_MAC_LEN];
+			/* Override and raw params are mutually exclusive. */
+			union {
+				blkptr_t dr_overridden_by;
+				struct {
+					/*
+					 * If dr_has_raw_params is set, the
+					 * following crypt params will be set
+					 * on the BP that's written.
+					 */
+					boolean_t dr_byteorder;
+					uint8_t	dr_salt[ZIO_DATA_SALT_LEN];
+					uint8_t	dr_iv[ZIO_DATA_IV_LEN];
+					uint8_t	dr_mac[ZIO_DATA_MAC_LEN];
+				};
+			};
 		} dl;
 		struct dirty_lightweight_leaf {
 			/*
@@ -345,6 +351,8 @@ typedef struct dbuf_hash_table {
 } dbuf_hash_table_t;
 
 typedef void (*dbuf_prefetch_fn)(void *, uint64_t, uint64_t, boolean_t);
+
+extern kmem_cache_t *dbuf_dirty_kmem_cache;
 
 uint64_t dbuf_whichblock(const struct dnode *di, const int64_t level,
     const uint64_t offset);

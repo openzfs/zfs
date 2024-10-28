@@ -1895,6 +1895,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	mutex_enter(&db->db_mtx);
 	ASSERT(dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC);
 	if (zio->io_error == 0) {
+		ASSERT0(dr->dt.dl.dr_has_raw_params);
 		dr->dt.dl.dr_nopwrite = !!(zio->io_flags & ZIO_FLAG_NOPWRITE);
 		if (dr->dt.dl.dr_nopwrite) {
 			blkptr_t *bp = zio->io_bp;
@@ -2190,6 +2191,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		return (SET_ERROR(EALREADY));
 	}
 
+	ASSERT0(dr->dt.dl.dr_has_raw_params);
 	ASSERT(dr->dt.dl.dr_override_state == DR_NOT_OVERRIDDEN);
 	dr->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
 	mutex_exit(&db->db_mtx);
@@ -2657,6 +2659,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		db = (dmu_buf_impl_t *)dbuf;
 		bp = &bps[i];
 
+		ASSERT3U(db->db.db_object, !=, DMU_META_DNODE_OBJECT);
 		ASSERT0(db->db_level);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 		ASSERT(db->db_blkid != DMU_SPILL_BLKID);
@@ -2672,11 +2675,6 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		db = (dmu_buf_impl_t *)dbuf;
 		bp = &bps[i];
 
-		ASSERT0(db->db_level);
-		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-		ASSERT(db->db_blkid != DMU_SPILL_BLKID);
-		ASSERT(BP_IS_HOLE(bp) || dbuf->db_size == BP_GET_LSIZE(bp));
-
 		dmu_buf_will_clone_or_dio(dbuf, tx);
 
 		mutex_enter(&db->db_mtx);
@@ -2685,6 +2683,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		VERIFY(dr != NULL);
 		ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
 		dl = &dr->dt.dl;
+		ASSERT0(dl->dr_has_raw_params);
 		dl->dr_overridden_by = *bp;
 		if (!BP_IS_HOLE(bp) || BP_GET_LOGICAL_BIRTH(bp) != 0) {
 			if (!BP_IS_EMBEDDED(bp)) {

@@ -566,7 +566,7 @@ dnode_undirty_dbufs(list_t *list)
 			mutex_destroy(&dr->dt.di.dr_mtx);
 			list_destroy(&dr->dt.di.dr_children);
 		}
-		kmem_free(dr, sizeof (dbuf_dirty_record_t));
+		kmem_cache_free(dbuf_dirty_kmem_cache, dr);
 		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 	}
 }
