@@ -52,15 +52,15 @@ case "$OS" in
     OSNAME="Debian 12"
     URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"
     ;;
-  fedora39)
-    OSNAME="Fedora 39"
-    OSv="fedora39"
-    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/39/Cloud/x86_64/images/Fedora-Cloud-Base-39-1.5.x86_64.qcow2"
-    ;;
   fedora40)
     OSNAME="Fedora 40"
-    OSv="fedora39"
+    OSv="fedora-unknown"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
+    ;;
+  fedora41)
+    OSNAME="Fedora 41"
+    OSv="fedora-unknown"
+    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
     ;;
   freebsd13-3r)
     OSNAME="FreeBSD 13.3-RELEASE"
