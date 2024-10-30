@@ -27638,6 +27638,7 @@ static const uchar_t u8_case_common_b2_tbl[U8_UNICODE_LATEST + 1][2][256] = {
 
 };
 
+#ifdef U8_STRCMP_CI_LOWER
 static const u8_displacement_t u8_tolower_b3_tbl[
     U8_UNICODE_LATEST + 1][5][256] =
 {
@@ -31422,6 +31423,7 @@ static const uchar_t u8_tolower_final_tbl[U8_UNICODE_LATEST + 1][2299] = {
 		0x90, 0x91, 0x8F,
 	},
 };
+#endif
 
 static const u8_displacement_t u8_toupper_b3_tbl[
     U8_UNICODE_LATEST + 1][5][256] =
