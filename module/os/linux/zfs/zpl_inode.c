@@ -700,10 +700,19 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	return (error);
 }
 
+struct zpl_link_info {
+	znode_t *zp;
+	char *name;
+};
+
 static void
 zpl_put_link(void *ptr)
 {
-	kmem_free(ptr, MAXPATHLEN);
+	struct zpl_link_info *zpl_li = ptr;
+
+	zrele(zpl_li->zp);
+	kmem_free(zpl_li->name, MAXPATHLEN);
+	kmem_free(zpl_li, sizeof (struct zpl_link_info));
 }
 
 static int
@@ -740,7 +749,8 @@ static const char *
 zpl_get_link(struct dentry *dentry, struct inode *inode,
     struct delayed_call *done)
 {
-	char *link = NULL;
+	char *link;
+	struct zpl_link_info *zpl_li;
 	int error;
 
 	if (!dentry)
@@ -750,7 +760,11 @@ zpl_get_link(struct dentry *dentry, struct inode *inode,
 	if (error)
 		return (ERR_PTR(error));
 
-	set_delayed_call(done, zpl_put_link, link);
+	zpl_li = kmem_zalloc(sizeof (struct zpl_link_info), KM_SLEEP);
+	zpl_li->zp = ITOZ(inode);
+	zhold(zpl_li->zp);
+	zpl_li->name = link;
+	set_delayed_call(done, zpl_put_link, zpl_li);
 
 	return (link);
 }
