@@ -1733,6 +1733,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	VERIFY(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx) == 0);
 
 	dmu_tx_commit(tx);
+	truncate_setsize(ZTOI(zp), end);
 	zfs_rangelock_exit(lr);
 
 	return (0);
@@ -1807,13 +1808,6 @@ log:
 	error = 0;
 
 out:
-	/*
-	 * Truncate the page cache - for file truncate operations, use
-	 * the purpose-built API for truncations.  For punching operations,
-	 * the truncation is handled under a range lock in zfs_free_range.
-	 */
-	if (len == 0)
-		truncate_setsize(ZTOI(zp), off);
 	return (error);
 }
 
