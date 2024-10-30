@@ -48,6 +48,7 @@ extern "C" {
 #endif
 
 #define	ZNODE_OS_FIELDS			\
+	boolean_t	z_is_tmpfile;	/* file is a tmpfile */ \
 	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
 	struct inode	z_inode;
 

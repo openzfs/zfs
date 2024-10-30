@@ -654,8 +654,6 @@ zfs_rmnode(znode_t *zp)
 	objset_t	*os = zfsvfs->z_os;
 	znode_t		*xzp = NULL;
 	dmu_tx_t	*tx;
-	znode_hold_t	*zh;
-	uint64_t	z_id = zp->z_id;
 	uint64_t	acl_obj;
 	uint64_t	xattr_obj;
 	uint64_t	links;
@@ -673,9 +671,7 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space to delete some xattrs.
 			 * Leave it in the unlinked set.
 			 */
-			zh = zfs_znode_hold_enter(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
-			zfs_znode_hold_exit(zfsvfs, zh);
 			return;
 		}
 	}
@@ -694,9 +690,7 @@ zfs_rmnode(znode_t *zp)
 			 * Not enough space or we were interrupted by unmount.
 			 * Leave the file in the unlinked set.
 			 */
-			zh = zfs_znode_hold_enter(zfsvfs, z_id);
 			zfs_znode_dmu_fini(zp);
-			zfs_znode_hold_exit(zfsvfs, zh);
 			return;
 		}
 	}
@@ -736,9 +730,7 @@ zfs_rmnode(znode_t *zp)
 		 * which point we'll call zfs_unlinked_drain() to process it).
 		 */
 		dmu_tx_abort(tx);
-		zh = zfs_znode_hold_enter(zfsvfs, z_id);
 		zfs_znode_dmu_fini(zp);
-		zfs_znode_hold_exit(zfsvfs, zh);
 		goto out;
 	}
 
@@ -775,7 +767,7 @@ zfs_rmnode(znode_t *zp)
 
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
-	zfs_znode_delete(zp, tx);
+	zfs_znode_delete_held(zp, tx);
 
 	dmu_tx_commit(tx);
 out:
@@ -816,7 +808,8 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	mutex_enter(&zp->z_lock);
 
 	if (!(flag & ZRENAMING)) {
-		if (zp->z_unlinked) {	/* no new links to unlinked zp */
+		if (zp->z_unlinked && !zp->z_is_tmpfile) {
+			/* no new links to unlinked zp */
 			ASSERT(!(flag & (ZNEW | ZEXISTS)));
 			mutex_exit(&zp->z_lock);
 			return (SET_ERROR(ENOENT));

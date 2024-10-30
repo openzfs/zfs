@@ -379,6 +379,7 @@ zfs_inode_destroy(struct inode *ip)
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 
+	VERIFY0(atomic_read(&ip->i_count));
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	if (list_link_active(&zp->z_link_node)) {
 		list_remove(&zfsvfs->z_all_znodes, zp);
@@ -525,9 +526,9 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
+	zp->z_is_tmpfile = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
-	zp->z_suspended = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_mapcnt = 0;
 	zp->z_id = db->db_object;
@@ -569,6 +570,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_mode = ip->i_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
+	atomic_set(&ip->i_count, 1);
 	set_nlink(ip, (uint32_t)links);
 	zfs_uid_write(ip, z_uid);
 	zfs_gid_write(ip, z_gid);
@@ -590,28 +592,10 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zfs_znode_update_vfs(zp);
 	zfs_inode_set_ops(zfsvfs, ip);
 
-	/*
-	 * The only way insert_inode_locked() can fail is if the ip->i_ino
-	 * number is already hashed for this super block.  This can never
-	 * happen because the inode numbers map 1:1 with the object numbers.
-	 *
-	 * Exceptions include rolling back a mounted file system, either
-	 * from the zfs rollback or zfs recv command.
-	 *
-	 * Active inodes are unhashed during the rollback, but since zrele
-	 * can happen asynchronously, we can't guarantee they've been
-	 * unhashed.  This can cause hash collisions in unlinked drain
-	 * processing so do not hash unlinked znodes.
-	 */
-	if (links > 0)
-		VERIFY3S(insert_inode_locked(ip), ==, 0);
-
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	if (links > 0)
-		unlock_new_inode(ip);
 	return (zp);
 
 error:
@@ -924,6 +908,12 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	(*zpp)->z_mode = ZTOI(*zpp)->i_mode = mode;
 	(*zpp)->z_dnodesize = dnodesize;
 	(*zpp)->z_projid = projid;
+	if (flag & IS_TMPFILE) {
+		(*zpp)->z_is_tmpfile = B_TRUE;
+		/* Add to unlinked set */
+		(*zpp)->z_unlinked = B_TRUE;
+		zfs_unlinked_add((*zpp), tx);
+	}
 
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
@@ -1106,7 +1096,7 @@ again:
 		 * the VFS that this inode should not be evicted.
 		 */
 		if (igrab(ZTOI(zp)) == NULL) {
-			if (zp->z_unlinked)
+			if (!zp->z_is_tmpfile && zp->z_unlinked)
 				err = SET_ERROR(ENOENT);
 			else
 				err = SET_ERROR(EAGAIN);
@@ -1143,6 +1133,8 @@ again:
 		err = SET_ERROR(ENOENT);
 	} else {
 		*zpp = zp;
+		VERIFY0(insert_inode_locked(ZTOI(zp)));
+		unlock_new_inode(ZTOI(zp));
 	}
 	zfs_znode_hold_exit(zfsvfs, zh);
 	return (err);
@@ -1195,10 +1187,8 @@ zfs_rezget(znode_t *zp)
 
 	ASSERT(zp->z_sa_hdl == NULL);
 	err = sa_buf_hold(zfsvfs->z_os, obj_num, NULL, &db);
-	if (err) {
-		zfs_znode_hold_exit(zfsvfs, zh);
-		return (err);
-	}
+	if (err)
+		goto error;
 
 	dmu_object_info_from_db(db, &doi);
 	if (doi.doi_bonus_type != DMU_OT_SA &&
@@ -1206,8 +1196,8 @@ zfs_rezget(znode_t *zp)
 	    (doi.doi_bonus_type == DMU_OT_ZNODE &&
 	    doi.doi_bonus_size < sizeof (znode_phys_t)))) {
 		sa_buf_rele(db, NULL);
-		zfs_znode_hold_exit(zfsvfs, zh);
-		return (SET_ERROR(EINVAL));
+		err = SET_ERROR(EINVAL);
+		goto error;
 	}
 
 	zfs_znode_sa_init(zfsvfs, zp, db, doi.doi_bonus_type, NULL);
@@ -1237,8 +1227,8 @@ zfs_rezget(znode_t *zp)
 
 	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count)) {
 		zfs_znode_dmu_fini(zp);
-		zfs_znode_hold_exit(zfsvfs, zh);
-		return (SET_ERROR(EIO));
+		err = SET_ERROR(EIO);
+		goto error;
 	}
 
 	if (dmu_objset_projectquota_enabled(zfsvfs->z_os)) {
@@ -1246,8 +1236,8 @@ zfs_rezget(znode_t *zp)
 		    &projid, 8);
 		if (err != 0 && err != ENOENT) {
 			zfs_znode_dmu_fini(zp);
-			zfs_znode_hold_exit(zfsvfs, zh);
-			return (SET_ERROR(err));
+			err = SET_ERROR(err);
+			goto error;
 		}
 	}
 
@@ -1266,8 +1256,8 @@ zfs_rezget(znode_t *zp)
 
 	if ((uint32_t)gen != ZTOI(zp)->i_generation) {
 		zfs_znode_dmu_fini(zp);
-		zfs_znode_hold_exit(zfsvfs, zh);
-		return (SET_ERROR(EIO));
+		err = SET_ERROR(EIO);
+		goto error;
 	}
 
 	set_nlink(ZTOI(zp), (uint32_t)links);
@@ -1293,24 +1283,39 @@ zfs_rezget(znode_t *zp)
 	zfs_znode_hold_exit(zfsvfs, zh);
 
 	return (0);
+
+error:
+	zpl_d_drop_aliases(ZTOI(zp));
+	truncate_setsize(ZTOI(zp), 0);
+	clear_inode(ZTOI(zp));
+	remove_inode_hash(ZTOI(zp));
+	zfs_znode_hold_exit(zfsvfs, zh);
+	return (err);
 }
 
 void
-zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
+zfs_znode_delete_held(znode_t *zp, dmu_tx_t *tx)
 {
-	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	objset_t *os = zfsvfs->z_os;
+	objset_t *os = ZTOZSB(zp)->z_os;
 	uint64_t obj = zp->z_id;
 	uint64_t acl_obj = zfs_external_acl(zp);
-	znode_hold_t *zh;
 
-	zh = zfs_znode_hold_enter(zfsvfs, obj);
 	if (acl_obj) {
 		VERIFY(!zp->z_is_sa);
 		VERIFY(0 == dmu_object_free(os, acl_obj, tx));
 	}
 	VERIFY(0 == dmu_object_free(os, obj, tx));
 	zfs_znode_dmu_fini(zp);
+}
+
+void
+zfs_znode_delete(znode_t *zp, dmu_tx_t *tx)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	znode_hold_t *zh;
+
+	zh = zfs_znode_hold_enter(zfsvfs, zp->z_id);
+	zfs_znode_delete_held(zp, tx);
 	zfs_znode_hold_exit(zfsvfs, zh);
 }
 
@@ -1329,7 +1334,6 @@ zfs_zinactive(znode_t *zp)
 	zh = zfs_znode_hold_enter(zfsvfs, z_id);
 
 	mutex_enter(&zp->z_lock);
-
 	/*
 	 * If this was the last reference to a file with no links, remove
 	 * the file from the file system unless the file system is mounted
@@ -1342,15 +1346,14 @@ zfs_zinactive(znode_t *zp)
 		ASSERT(!zfsvfs->z_issnap);
 		if (!zfs_is_readonly(zfsvfs) && !zfs_unlink_suspend_progress) {
 			mutex_exit(&zp->z_lock);
-			zfs_znode_hold_exit(zfsvfs, zh);
 			zfs_rmnode(zp);
+			zfs_znode_hold_exit(zfsvfs, zh);
 			return;
 		}
 	}
 
 	mutex_exit(&zp->z_lock);
 	zfs_znode_dmu_fini(zp);
-
 	zfs_znode_hold_exit(zfsvfs, zh);
 }
 

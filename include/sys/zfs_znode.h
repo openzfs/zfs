@@ -192,7 +192,6 @@ typedef struct znode {
 	boolean_t	z_zn_prefetch;	/* Prefetch znodes? */
 	boolean_t	z_is_sa;	/* are we native sa? */
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
-	boolean_t	z_suspended;	/* extra ref from a suspend? */
 	uint_t		z_blksz;	/* block size in bytes */
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
@@ -280,6 +279,7 @@ extern int	zfs_zget(zfsvfs_t *, uint64_t, znode_t **);
 extern int	zfs_rezget(znode_t *);
 extern void	zfs_zinactive(znode_t *);
 extern void	zfs_znode_delete(znode_t *, dmu_tx_t *);
+extern void	zfs_znode_delete_held(znode_t *, dmu_tx_t *);
 extern void	zfs_remove_op_tables(void);
 extern int	zfs_create_op_tables(void);
 extern dev_t	zfs_cmpldev(uint64_t);

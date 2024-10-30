@@ -768,7 +768,6 @@ top:
 			 * delete the newly created dnode.
 			 */
 			zfs_znode_delete(zp, tx);
-			remove_inode_hash(ZTOI(zp));
 			zfs_acl_ids_free(&acl_ids);
 			dmu_tx_commit(tx);
 			goto out;
@@ -954,9 +953,6 @@ top:
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	/* Add to unlinked set */
-	zp->z_unlinked = B_TRUE;
-	zfs_unlinked_add(zp, tx);
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 out:
@@ -1372,7 +1368,6 @@ top:
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
 		zfs_znode_delete(zp, tx);
-		remove_inode_hash(ZTOI(zp));
 		goto out;
 	}
 
@@ -3177,10 +3172,12 @@ top:
 		zfs_mknode(sdzp, wo_vap, tx, cr, 0, &wzp, &acl_ids);
 		error = zfs_link_create(sdl, wzp, tx, ZNEW);
 		if (error) {
+			unlock_new_inode(ZTOI(wzp));
 			zfs_znode_delete(wzp, tx);
-			remove_inode_hash(ZTOI(wzp));
 			goto commit_unlink_td_szp;
 		}
+		VERIFY0(insert_inode_locked(ZTOI(wzp)));
+		unlock_new_inode(ZTOI(wzp));
 		break;
 	}
 
@@ -3415,7 +3412,6 @@ top:
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
 		zfs_znode_delete(zp, tx);
-		remove_inode_hash(ZTOI(zp));
 	} else {
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
@@ -3512,10 +3508,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	uint64_t	parent;
 	uid_t		owner;
 	boolean_t	waited = B_FALSE;
-	boolean_t	is_tmpfile = 0;
 	uint64_t	txg;
-
-	is_tmpfile = (sip->i_nlink == 0 && (sip->i_state & I_LINKABLE));
 
 	ASSERT(S_ISDIR(ZTOI(tdzp)->i_mode));
 
@@ -3619,7 +3612,7 @@ top:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
-	if (is_tmpfile)
+	if (szp->z_is_tmpfile && szp->z_unlinked)
 		dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 
 	zfs_sa_upgrade_txholds(tx, szp);
@@ -3637,41 +3630,43 @@ top:
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
-	/* unmark z_unlinked so zfs_link_create will not reject */
-	if (is_tmpfile)
-		szp->z_unlinked = B_FALSE;
 	error = zfs_link_create(dl, szp, tx, 0);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
 		/*
-		 * tmpfile is created to be in z_unlinkedobj, so remove it.
-		 * Also, we don't log in ZIL, because all previous file
+		 * We don't log tmpfile in ZIL, because all previous file
 		 * operation on the tmpfile are ignored by ZIL. Instead we
 		 * always wait for txg to sync to make sure all previous
 		 * operation are sync safe.
 		 */
-		if (is_tmpfile) {
-			VERIFY(zap_remove_int(zfsvfs->z_os,
-			    zfsvfs->z_unlinkedobj, szp->z_id, tx) == 0);
-		} else {
+		if (!szp->z_is_tmpfile || !szp->z_unlinked) {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
 		}
-	} else if (is_tmpfile) {
-		/* restore z_unlinked since when linking failed */
-		szp->z_unlinked = B_TRUE;
+		if (szp->z_is_tmpfile) {
+			mutex_enter(&szp->z_lock);
+			if (szp->z_unlinked) {
+				szp->z_unlinked = B_FALSE;
+				VERIFY0(zap_remove_int(zfsvfs->z_os,
+				    zfsvfs->z_unlinkedobj,
+				    szp->z_id, tx));
+			}
+			mutex_exit(&szp->z_lock);
+		}
 	}
 	txg = dmu_tx_get_txg(tx);
 	dmu_tx_commit(tx);
 
 	zfs_dirent_unlock(dl);
 
-	if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if ((!szp->z_is_tmpfile || !szp->z_unlinked) &&
+	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED)
+	if (szp->z_is_tmpfile && szp->z_unlinked &&
+	    (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), txg);
 
 	zfs_znode_update_vfs(tdzp);
@@ -4024,6 +4019,10 @@ zfs_inactive(struct inode *ip)
 		need_unlock = 1;
 		rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
 	}
+
+	truncate_setsize(ip, 0);
+	clear_inode(ip);
+
 	if (zp->z_sa_hdl == NULL) {
 		if (need_unlock)
 			rw_exit(&zfsvfs->z_teardown_inactive_lock);

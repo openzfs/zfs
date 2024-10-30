@@ -199,10 +199,10 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
 		} else {
+			VERIFY0(insert_inode_locked(ZTOI(zp)));
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -261,10 +261,10 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
 		} else {
+			VERIFY0(insert_inode_locked(ZTOI(zp)));
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -314,22 +314,28 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
 	if (error == 0) {
-		/* d_tmpfile will do drop_nlink, so we should set it first */
-		set_nlink(ip, 1);
 #ifndef HAVE_TMPFILE_DENTRY
-		d_tmpfile(file, ip);
-
 		error = zpl_xattr_security_init(ip, dir,
 		    &file->f_path.dentry->d_name);
-#else
-		d_tmpfile(dentry, ip);
-
-		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
-#endif
 		if (error == 0)
 			error = zpl_init_acl(ip, dir);
-#ifndef HAVE_TMPFILE_DENTRY
+		if (error == 0) {
+			VERIFY0(insert_inode_locked(ip));
+			d_mark_tmpfile(file, ip);
+			d_instantiate(file->f_path.dentry, ip);
+			unlock_new_inode(ip);
+		}
 		error = finish_open_simple(file, error);
+#else
+		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
+		if (error == 0)
+			error = zpl_init_acl(ip, dir);
+		if (error == 0) {
+			VERIFY0(insert_inode_locked(ip));
+			d_mark_tmpfile(dentry, ip);
+			d_instantiate(dentry, ip);
+			unlock_new_inode(ip);
+		}
 #endif
 		/*
 		 * don't need to handle error here, file is already in
@@ -409,10 +415,10 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 		if (error) {
 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
 		} else {
+			VERIFY0(insert_inode_locked(ZTOI(zp)));
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -679,10 +685,10 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
 		} else {
+			VERIFY0(insert_inode_locked(ZTOI(zp)));
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -753,7 +759,7 @@ static int
 zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 {
 	cred_t *cr = CRED();
-	struct inode *ip = old_dentry->d_inode;
+	znode_t *zp = ITOZ(old_dentry->d_inode);
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -761,22 +767,22 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 		return (-ENAMETOOLONG);
 	}
 
-	if (ip->i_nlink >= ZFS_LINK_MAX)
+	if (ZTOI(zp)->i_nlink >= ZFS_LINK_MAX)
 		return (-EMLINK);
 
 	crhold(cr);
-	zpl_inode_set_ctime_to_ts(ip, current_time(ip));
+	zpl_inode_set_ctime_to_ts(ZTOI(zp), current_time(ZTOI(zp)));
 	/* Must have an existing ref, so igrab() cannot return NULL */
-	VERIFY3P(igrab(ip), !=, NULL);
+	zhold(zp);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_link(ITOZ(dir), ITOZ(ip), dname(dentry), cr, 0);
+	error = -zfs_link(ITOZ(dir), zp, dname(dentry), cr, 0);
 	if (error) {
-		iput(ip);
+		zrele(zp);
 		goto out;
 	}
 
-	d_instantiate(dentry, ip);
+	d_instantiate(dentry, ZTOI(zp));
 out:
 	spl_fstrans_unmark(cookie);
 	crfree(cr);

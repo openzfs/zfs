@@ -1326,29 +1326,19 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	}
 
 	/*
-	 * At this point there are no VFS ops active, and any new VFS ops
-	 * will fail with EIO since we have z_teardown_lock for writer (only
+	 * At this point there are no vops active, and any new vops will
+	 * fail with EIO since we have z_teardown_lock for writer (only
 	 * relevant for forced unmount).
 	 *
-	 * Release all holds on dbufs. We also grab an extra reference to all
-	 * the remaining inodes so that the kernel does not attempt to free
-	 * any inodes of a suspended fs. This can cause deadlocks since the
-	 * zfs_resume_fs() process may involve starting threads, which might
-	 * attempt to free unreferenced inodes to free up memory for the new
-	 * thread.
+	 * Release all holds on dbufs.
 	 */
-	if (!unmounting) {
-		mutex_enter(&zfsvfs->z_znodes_lock);
-		for (zp = list_head(&zfsvfs->z_all_znodes); zp != NULL;
-		    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
-			if (zp->z_sa_hdl)
-				zfs_znode_dmu_fini(zp);
-			if (igrab(ZTOI(zp)) != NULL)
-				zp->z_suspended = B_TRUE;
-
-		}
-		mutex_exit(&zfsvfs->z_znodes_lock);
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	for (zp = list_head(&zfsvfs->z_all_znodes); zp != NULL;
+		zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+		if (zp->z_sa_hdl)
+			zfs_znode_dmu_fini(zp);
 	}
+	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	/*
 	 * If we are unmounting, set the unmounted flag and let new VFS ops
@@ -1717,7 +1707,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 			 * Must have an existing ref, so igrab()
 			 * cannot return NULL
 			 */
-			VERIFY3P(igrab(*ipp), !=, NULL);
+			zhold(ITOZ(*ipp));
 		}
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
@@ -1790,7 +1780,7 @@ zfs_suspend_fs(zfsvfs_t *zfsvfs)
 int
 zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 {
-	int err, err2;
+	int err;
 	znode_t *zp;
 
 	ASSERT(ZFS_TEARDOWN_WRITE_HELD(zfsvfs));
@@ -1827,20 +1817,11 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	 * VFS prunes the dentry holding the remaining references
 	 * on the stale inode.
 	 */
+	pr_info("Resuming file system: rezget\n");
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	for (zp = list_head(&zfsvfs->z_all_znodes); zp;
 	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
-		err2 = zfs_rezget(zp);
-		if (err2) {
-			zpl_d_drop_aliases(ZTOI(zp));
-			remove_inode_hash(ZTOI(zp));
-		}
-
-		/* see comment in zfs_suspend_fs() */
-		if (zp->z_suspended) {
-			zfs_zrele_async(zp);
-			zp->z_suspended = B_FALSE;
-		}
+		(void) zfs_rezget(zp);
 	}
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
