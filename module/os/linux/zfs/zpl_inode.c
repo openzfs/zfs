@@ -321,8 +321,8 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 			error = zpl_init_acl(ip, dir);
 		if (error == 0) {
 			VERIFY0(insert_inode_locked(ip));
-			d_mark_tmpfile(file, ip);
-			d_instantiate(file->f_path.dentry, ip);
+			inc_nlink(ip);
+			d_tmpfile(file, ip);
 			unlock_new_inode(ip);
 		}
 		error = finish_open_simple(file, error);
@@ -332,8 +332,8 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 			error = zpl_init_acl(ip, dir);
 		if (error == 0) {
 			VERIFY0(insert_inode_locked(ip));
-			d_mark_tmpfile(dentry, ip);
-			d_instantiate(dentry, ip);
+			inc_nlink(ip);
+			d_tmpfile(dentry, ip);
 			unlock_new_inode(ip);
 		}
 #endif
