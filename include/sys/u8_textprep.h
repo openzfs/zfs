@@ -68,8 +68,12 @@ extern "C" {
 #define	U8_TEXTPREP_IGNORE_INVALID	(0x00020000)
 #define	U8_TEXTPREP_NOWAIT		(0x00040000)
 
+#if 0
 #define	U8_UNICODE_320			(0)
 #define	U8_UNICODE_500			(1)
+#else
+#define	U8_UNICODE_500			(0)
+#endif
 #define	U8_UNICODE_LATEST		(U8_UNICODE_500)
 
 #define	U8_VALIDATE_ENTIRE		(0x00100000)
