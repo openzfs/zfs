@@ -900,6 +900,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		 * passed in is the znode for the root.
 		 */
 		*zpp = dzp;
+		zhold(*zpp);
 
 		(*zpp)->z_sa_hdl = sa_hdl;
 	}
