@@ -527,6 +527,7 @@ do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
 		for (i = 0; start_id < end_id; start_id++)
 			u8s[i++] = u8_toupper_final_tbl[uv][b3_base + start_id];
 	} else {
+#ifdef U8_STRCMP_CI_LOWER
 		b3_tbl = u8_tolower_b3_tbl[uv][b2][b3].tbl_id;
 		if (b3_tbl == U8_TBL_ELEMENT_NOT_DEF)
 			return ((size_t)sz);
@@ -541,6 +542,9 @@ do_case_conv(int uv, uchar_t *u8s, uchar_t *s, int sz, boolean_t is_it_toupper)
 
 		for (i = 0; start_id < end_id; start_id++)
 			u8s[i++] = u8_tolower_final_tbl[uv][b3_base + start_id];
+#else
+		__builtin_unreachable();
+#endif
 	}
 
 	/*
@@ -1753,7 +1757,11 @@ do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
 	s2last = s2 + n2;
 
 	is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
+#ifdef U8_STRCMP_CI_LOWER
 	is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
+#else
+	is_it_tolower = 0;
+#endif
 	canonical_decomposition = flag & U8_CANON_DECOMP;
 	compatibility_decomposition = flag & U8_COMPAT_DECOMP;
 	canonical_composition = flag & U8_CANON_COMP;
@@ -1870,12 +1878,22 @@ u8_strcmp(const char *s1, const char *s2, size_t n, int flag, size_t uv,
 	if (flag == 0) {
 		flag = U8_STRCMP_CS;
 	} else {
-		f = flag & (U8_STRCMP_CS | U8_STRCMP_CI_UPPER |
-		    U8_STRCMP_CI_LOWER);
+#ifdef U8_STRCMP_CI_LOWER
+		f = flag & (U8_STRCMP_CS | U8_STRCMP_CI_UPPER
+		    | U8_STRCMP_CI_LOWER);
+#else
+		f = flag & (U8_STRCMP_CS | U8_STRCMP_CI_UPPER);
+#endif
 		if (f == 0) {
 			flag |= U8_STRCMP_CS;
-		} else if (f != U8_STRCMP_CS && f != U8_STRCMP_CI_UPPER &&
-		    f != U8_STRCMP_CI_LOWER) {
+		}
+#ifdef U8_STRCMP_CI_LOWER
+		else if (f != U8_STRCMP_CS && f != U8_STRCMP_CI_UPPER &&
+		    f != U8_STRCMP_CI_LOWER)
+#else
+		else if (f != U8_STRCMP_CS && f != U8_STRCMP_CI_UPPER)
+#endif
+		{
 			*errnum = EBADF;
 			flag = U8_STRCMP_CS;
 		}
@@ -1908,10 +1926,13 @@ u8_strcmp(const char *s1, const char *s2, size_t n, int flag, size_t uv,
 	if (flag == U8_STRCMP_CI_UPPER) {
 		return (do_case_compare(uv, (uchar_t *)s1, (uchar_t *)s2,
 		    n1, n2, B_TRUE, errnum));
-	} else if (flag == U8_STRCMP_CI_LOWER) {
+	}
+#ifdef U8_STRCMP_CI_LOWER
+	else if (flag == U8_STRCMP_CI_LOWER) {
 		return (do_case_compare(uv, (uchar_t *)s1, (uchar_t *)s2,
 		    n1, n2, B_FALSE, errnum));
 	}
+#endif
 
 	return (do_norm_compare(uv, (uchar_t *)s1, (uchar_t *)s2, n1, n2,
 	    flag, errnum));
@@ -1945,11 +1966,13 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 		return ((size_t)-1);
 	}
 
+#ifdef U8_TEXTPREP_TOLOWER
 	f = flag & (U8_TEXTPREP_TOUPPER | U8_TEXTPREP_TOLOWER);
 	if (f == (U8_TEXTPREP_TOUPPER | U8_TEXTPREP_TOLOWER)) {
 		*errnum = EBADF;
 		return ((size_t)-1);
 	}
+#endif
 
 	f = flag & (U8_CANON_DECOMP | U8_COMPAT_DECOMP | U8_CANON_COMP);
 	if (f && f != U8_TEXTPREP_NFD && f != U8_TEXTPREP_NFC &&
@@ -1974,7 +1997,11 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 	do_not_ignore_null = !(flag & U8_TEXTPREP_IGNORE_NULL);
 	do_not_ignore_invalid = !(flag & U8_TEXTPREP_IGNORE_INVALID);
 	is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
+#ifdef U8_TEXTPREP_TOLOWER
 	is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
+#else
+	is_it_tolower = 0;
+#endif
 
 	ret_val = 0;
 

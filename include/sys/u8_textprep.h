@@ -67,7 +67,9 @@ extern int uconv_u8tou32(const uchar_t *, size_t *, uint32_t *, size_t *, int);
  */
 #define	U8_STRCMP_CS			(0x00000001)
 #define	U8_STRCMP_CI_UPPER		(0x00000002)
+#if 0
 #define	U8_STRCMP_CI_LOWER		(0x00000004)
+#endif
 
 #define	U8_CANON_DECOMP			(0x00000010)
 #define	U8_COMPAT_DECOMP		(0x00000020)
@@ -79,7 +81,9 @@ extern int uconv_u8tou32(const uchar_t *, size_t *, uint32_t *, size_t *, int);
 #define	U8_STRCMP_NFKC			(U8_COMPAT_DECOMP | U8_CANON_COMP)
 
 #define	U8_TEXTPREP_TOUPPER		(U8_STRCMP_CI_UPPER)
+#ifdef U8_STRCMP_CI_LOWER
 #define	U8_TEXTPREP_TOLOWER		(U8_STRCMP_CI_LOWER)
+#endif
 
 #define	U8_TEXTPREP_NFD			(U8_STRCMP_NFD)
 #define	U8_TEXTPREP_NFC			(U8_STRCMP_NFC)
