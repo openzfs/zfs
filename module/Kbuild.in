@@ -412,6 +412,7 @@ ZFS_OBJS := \
 	zfeature.o \
 	zfs_byteswap.o \
 	zfs_chksum.o \
+	zfs_crrd.o \
 	zfs_fm.o \
 	zfs_fuid.o \
 	zfs_impl.o \

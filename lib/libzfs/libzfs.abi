@@ -629,7 +629,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2464' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2520' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1170,6 +1170,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='stack_t' type-id='380f9954' id='ac5e685f'/>
+    <typedef-decl name='unw_regnum_t' type-id='95e97e5e' id='c53620f0'/>
     <class-decl name='unw_cursor' size-in-bits='8128' is-struct='yes' visibility='default' id='384a1f22'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='opaque' type-id='dc70ec0b' visibility='default'/>
@@ -1275,6 +1276,10 @@
     <pointer-type-def type-id='1203d35c' size-in-bits='64' id='3946e4d1'/>
     <pointer-type-def type-id='190d09ef' size-in-bits='64' id='3e0601f0'/>
     <pointer-type-def type-id='73d941c6' size-in-bits='64' id='42f5faab'/>
+    <function-decl name='_Ux86_64_regname' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='c53620f0'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
     <function-decl name='_ULx86_64_init_local' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='3946e4d1'/>
       <parameter type-id='2e408b96'/>
@@ -6197,7 +6202,8 @@
       <enumerator name='SPA_FEATURE_FAST_DEDUP' value='41'/>
       <enumerator name='SPA_FEATURE_LONGNAME' value='42'/>
       <enumerator name='SPA_FEATURE_LARGE_MICROZAP' value='43'/>
-      <enumerator name='SPA_FEATURES' value='44'/>
+      <enumerator name='SPA_FEATURE_TXG_TIMELOG' value='44'/>
+      <enumerator name='SPA_FEATURES' value='45'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
@@ -6720,6 +6726,8 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7313fbe2' name='func'/>
       <parameter type-id='b51cf3c2' name='cmd'/>
+      <parameter type-id='c9d12d66' name='date_start'/>
+      <parameter type-id='c9d12d66' name='date_end'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_find_vdev_by_physpath' mangled-name='zpool_find_vdev_by_physpath' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_vdev_by_physpath'>
@@ -8368,6 +8376,11 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='setpgid' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='3629bad8'/>
+      <parameter type-id='3629bad8'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='fork' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='3629bad8'/>
     </function-decl>
@@ -9376,8 +9389,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='19712' id='fd4573e5'>
-      <subrange length='44' type-id='7359adad' id='cf8ba455'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='20160' id='b948da70'>
+      <subrange length='45' type-id='7359adad' id='cb8ddca0'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -9454,7 +9467,7 @@
     <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='fd4573e5' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='b948da70' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
