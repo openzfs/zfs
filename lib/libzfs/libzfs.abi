@@ -6734,6 +6734,8 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7313fbe2' name='func'/>
       <parameter type-id='b51cf3c2' name='cmd'/>
+      <parameter type-id='c9d12d66' name='date_start'/>
+      <parameter type-id='c9d12d66' name='date_end'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_find_vdev_by_physpath' mangled-name='zpool_find_vdev_by_physpath' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_vdev_by_physpath'>
