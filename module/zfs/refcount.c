@@ -221,6 +221,47 @@ zfs_refcount_remove_few(zfs_refcount_t *rc, uint64_t number, const void *holder)
 		(void) zfs_refcount_remove(rc, holder);
 }
 
+int
+zfs_refcount_remove_not_last(zfs_refcount_t *rc, const void *holder)
+{
+	reference_t *ref, s;
+
+	if (likely(!rc->rc_tracked)) {
+		return (atomic_dec_not_last_64(&(rc)->rc_count));
+	}
+
+	s.ref_holder = holder;
+	s.ref_number = 1;
+	s.ref_search = B_TRUE;
+	mutex_enter(&rc->rc_mtx);
+	ASSERT3U(rc->rc_count, >=, 1);
+	ref = avl_find(&rc->rc_tree, &s, NULL);
+	if (unlikely(ref == NULL)) {
+		panic("No such hold %p on refcount %llx", holder,
+		    (u_longlong_t)(uintptr_t)rc);
+		return (0);
+	}
+	if (rc->rc_count == 1) {
+		mutex_exit(&rc->rc_mtx);
+		return (0);
+	}
+	avl_remove(&rc->rc_tree, ref);
+	if (reference_history > 0) {
+		list_insert_head(&rc->rc_removed, ref);
+		if (rc->rc_removed_count >= reference_history) {
+			ref = list_remove_tail(&rc->rc_removed);
+			kmem_cache_free(reference_cache, ref);
+		} else {
+			rc->rc_removed_count++;
+		}
+	} else {
+		kmem_cache_free(reference_cache, ref);
+	}
+	rc->rc_count -= 1;
+	mutex_exit(&rc->rc_mtx);
+	return (1);
+}
+
 void
 zfs_refcount_transfer(zfs_refcount_t *dst, zfs_refcount_t *src)
 {

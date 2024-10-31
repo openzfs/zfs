@@ -155,6 +155,7 @@ extern uint_t atomic_dec_uint_nv(volatile uint_t *);
 extern ulong_t atomic_dec_ulong_nv(volatile ulong_t *);
 #if defined(_INT64_TYPE)
 extern uint64_t atomic_dec_64_nv(volatile uint64_t *);
+extern int atomic_dec_not_last_64(volatile uint64_t *);
 #endif
 
 /*
