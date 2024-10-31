@@ -1377,6 +1377,13 @@ dmu_tx_pool(dmu_tx_t *tx)
 	return (tx->tx_pool);
 }
 
+/*
+ * Register a callback to be executed at the end of a TXG.
+ *
+ * Note: This currently exists for outside consumers, specifically the ZFS OSD
+ * for Lustre. Please do not remove before checking that project. For examples
+ * on how to use this see `ztest_commit_callback`.
+ */
 void
 dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)
 {
