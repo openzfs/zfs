@@ -18,7 +18,7 @@
 .\"
 .\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd October 2, 2024
+.Dd November 1, 2024
 .Dt ZFS 4
 .Os
 .
@@ -1333,9 +1333,10 @@ results in vector instructions
 from the respective CPU instruction set being used.
 .
 .It Sy zfs_bclone_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable the experimental block cloning feature.
+Enables access to the block cloning feature.
 If this setting is 0, then even if feature@block_cloning is enabled,
-attempts to clone blocks will act as though the feature is disabled.
+using functions and system calls that attempt to clone blocks will act as
+though the feature is disabled.
 .
 .It Sy zfs_bclone_wait_dirty Ns = Ns Sy 0 Ns | Ns 1 Pq int
 When set to 1 the FICLONE and FICLONERANGE ioctls wait for dirty data to be
