@@ -22,8 +22,8 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora39", "fedora40", "freebsd13-4r", "freebsd14-0r", "freebsd14-1s", "ubuntu20", "ubuntu22", "ubuntu24"]'
-          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora40", "freebsd13-3r", "freebsd14-1r", "ubuntu24"]'
+          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora40", "fedora41", "freebsd13-4r", "freebsd14-0r", "freebsd14-1s", "ubuntu20", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora41", "freebsd13-3r", "freebsd14-1r", "ubuntu24"]'
           # determine CI type when running on PR
           ci_type="full"
           if ${{ github.event_name == 'pull_request' }}; then
@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rhl:     almalinux8, almalinux9, centos-stream9, fedora39, fedora40
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora40, fedora41
         # debian:  debian11, debian12, ubuntu20, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
         # FreeBSD Release: freebsd13-3r, freebsd13-4r, freebsd14-0r, freebsd14-1r

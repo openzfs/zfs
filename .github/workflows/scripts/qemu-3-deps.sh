@@ -66,7 +66,13 @@ function rhel() {
   echo "##[endgroup]"
 
   echo "##[group]Install Development Tools"
-  sudo dnf group install -y "Development Tools"
+
+  # Alma wants "Development Tools", Fedora 41 wants "development-tools"
+  if ! sudo dnf group install -y "Development Tools" ; then
+    echo "Trying 'development-tools' instead of 'Development Tools'"
+    sudo dnf group install -y development-tools
+  fi
+
   sudo dnf install -y \
     acl attr bc bzip2 cryptsetup curl dbench dkms elfutils-libelf-devel fio \
     gdb git jq kernel-rpm-macros ksh libacl-devel libaio-devel \

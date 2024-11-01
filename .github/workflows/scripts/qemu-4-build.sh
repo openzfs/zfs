@@ -83,7 +83,7 @@ function rpm_build_and_install() {
   echo "##[endgroup]"
 
   echo "##[group]Install"
-  run sudo dnf -y --skip-broken localinstall $(ls *.rpm | grep -v src.rpm)
+  run sudo dnf -y --nobest install $(ls *.rpm | grep -v src.rpm)
   echo "##[endgroup]"
 
 }
