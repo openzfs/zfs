@@ -7966,8 +7966,11 @@ zpool_do_online(int argc, char **argv)
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
+		(void) fprintf(stderr, gettext("failed to open pool "
+		    "\"%s\""), poolname);
 		return (1);
+	}
 
 	for (i = 1; i < argc; i++) {
 		vdev_state_t oldstate;
@@ -7988,12 +7991,15 @@ zpool_do_online(int argc, char **argv)
 		    &l2cache, NULL);
 		if (tgt == NULL) {
 			ret = 1;
+			(void) fprintf(stderr, gettext("couldn't find device "
+			"\"%s\" in pool \"%s\"\n"), argv[i], poolname);
 			continue;
 		}
 		uint_t vsc;
 		oldstate = ((vdev_stat_t *)fnvlist_lookup_uint64_array(tgt,
 		    ZPOOL_CONFIG_VDEV_STATS, &vsc))->vs_state;
-		if (zpool_vdev_online(zhp, argv[i], flags, &newstate) == 0) {
+		if ((rc = zpool_vdev_online(zhp, argv[i], flags,
+		    &newstate)) == 0) {
 			if (newstate != VDEV_STATE_HEALTHY) {
 				(void) printf(gettext("warning: device '%s' "
 				    "onlined, but remains in faulted state\n"),
@@ -8019,6 +8025,9 @@ zpool_do_online(int argc, char **argv)
 				}
 			}
 		} else {
+			(void) fprintf(stderr, gettext("Failed to online "
+			    "\"%s\" in pool \"%s\": %d\n"),
+			    argv[i], poolname, rc);
 			ret = 1;
 		}
 	}
@@ -8103,8 +8112,11 @@ zpool_do_offline(int argc, char **argv)
 
 	poolname = argv[0];
 
-	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
+	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
+		(void) fprintf(stderr, gettext("failed to open pool "
+		    "\"%s\""), poolname);
 		return (1);
+	}
 
 	for (i = 1; i < argc; i++) {
 		uint64_t guid = zpool_vdev_path_to_guid(zhp, argv[i]);
