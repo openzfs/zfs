@@ -1577,14 +1577,6 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 		mark_page_accessed(pp);
 		SetPageUptodate(pp);
 		ClearPageError(pp);
-		if (!PagePrivate(pp)) {
-			/*
-			 * Set private bit so page migration will wait for us to
-			 * finish writeback before calling migrate_folio().
-			 */
-			SetPagePrivate(pp);
-			get_page(pp);
-		}
 		unlock_page(pp);
 		put_page(pp);
 	}
