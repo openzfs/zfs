@@ -607,42 +607,6 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 	return (zpl_putpage(pp, wbc, &for_sync));
 }
 
-static int
-zpl_releasepage(struct page *pp, gfp_t gfp)
-{
-	if (PagePrivate(pp)) {
-		ClearPagePrivate(pp);
-		put_page(pp);
-	}
-	return (1);
-}
-
-#ifdef HAVE_VFS_RELEASE_FOLIO
-static bool
-zpl_release_folio(struct folio *folio, gfp_t gfp)
-{
-	return (zpl_releasepage(&folio->page, gfp));
-}
-#endif
-
-#ifdef HAVE_VFS_INVALIDATE_FOLIO
-static void
-zpl_invalidate_folio(struct folio *folio, size_t offset, size_t len)
-{
-	if ((offset == 0) && (len == PAGE_SIZE)) {
-		zpl_releasepage(&folio->page, 0);
-	}
-}
-#else
-static void
-zpl_invalidatepage(struct page *pp, unsigned int offset, unsigned int len)
-{
-	if ((offset == 0) && (len == PAGE_SIZE)) {
-		zpl_releasepage(pp, 0);
-	}
-}
-#endif
-
 /*
  * The flag combination which matches the behavior of zfs_space() is
  * FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE.  The FALLOC_FL_PUNCH_HOLE
@@ -1125,16 +1089,6 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 	.dirty_folio	= filemap_dirty_folio,
-#endif
-#ifdef HAVE_VFS_RELEASE_FOLIO
-	.release_folio	= zpl_release_folio,
-#else
-	.releasepage	= zpl_releasepage,
-#endif
-#ifdef HAVE_VFS_INVALIDATE_FOLIO
-	.invalidate_folio = zpl_invalidate_folio,
-#else
-	.invalidatepage = zpl_invalidatepage,
 #endif
 };
 
