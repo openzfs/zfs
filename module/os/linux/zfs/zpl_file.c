@@ -28,6 +28,7 @@
 #include <linux/compat.h>
 #endif
 #include <linux/fs.h>
+#include <linux/migrate.h>
 #include <sys/file.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_znode.h>
@@ -1089,6 +1090,11 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 	.dirty_folio	= filemap_dirty_folio,
+#endif
+#ifdef HAVE_VFS_MIGRATE_FOLIO
+	.migrate_folio	= migrate_folio,
+#else
+	.migratepage	= migrate_page,
 #endif
 };
 
