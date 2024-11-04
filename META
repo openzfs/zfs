@@ -1,7 +1,7 @@
 Meta:          1
 Name:          zfs
 Branch:        1.0
-Version:       2.2.6
+Version:       2.2.7
 Release:       1
 Release-Tags:  relext
 License:       CDDL
