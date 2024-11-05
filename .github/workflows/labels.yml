@@ -1,0 +1,49 @@
+name: labels
+
+on:
+  pull_request_target:
+    types: [ opened, synchronize, reopened, converted_to_draft, ready_for_review ]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'opened' && github.event.pull_request.draft }}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit $ISSUE --add-label "Status: Work in Progress"
+
+  push:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'synchronize' || github.event.action == 'reopened' }}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Inactive,Status: Revision Needed,Status: Stale"
+
+  draft:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'converted_to_draft' }}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Code Review Needed,Status: Inactive,Status: Revision Needed,Status: Stale" --add-label "Status: Work in Progress"
+
+  rfr:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.action == 'ready_for_review' }}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Inactive,Status: Revision Needed,Status: Stale,Status: Work in Progress" --add-label "Status: Code Review Needed"
