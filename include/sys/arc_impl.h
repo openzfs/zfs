@@ -547,6 +547,10 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_mfu_ghost_hits;
 	kstat_named_t arcstat_uncached_hits;
 	kstat_named_t arcstat_deleted;
+	/* Number of bytes that were satisfied without I/O. */
+	kstat_named_t arcstat_hit_bytes;
+	/* Number of bytes for which I/O has to be issued. */
+	kstat_named_t arcstat_miss_bytes;
 	/*
 	 * Number of buffers that could not be evicted because the hash lock
 	 * was held by another thread.  The lock may not necessarily be held
@@ -793,6 +797,8 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_bufc_metadata_asize;
 	kstat_named_t arcstat_l2_feeds;
 	kstat_named_t arcstat_l2_rw_clash;
+	kstat_named_t arcstat_l2_hit_bytes;
+	kstat_named_t arcstat_l2_miss_bytes;
 	kstat_named_t arcstat_l2_read_bytes;
 	kstat_named_t arcstat_l2_write_bytes;
 	kstat_named_t arcstat_l2_writes_sent;
@@ -932,6 +938,8 @@ typedef struct arc_sums {
 	wmsum_t arcstat_mfu_ghost_hits;
 	wmsum_t arcstat_uncached_hits;
 	wmsum_t arcstat_deleted;
+	wmsum_t arcstat_hit_bytes;
+	wmsum_t arcstat_miss_bytes;
 	wmsum_t arcstat_mutex_miss;
 	wmsum_t arcstat_access_skip;
 	wmsum_t arcstat_evict_skip;
@@ -963,6 +971,8 @@ typedef struct arc_sums {
 	wmsum_t arcstat_l2_bufc_metadata_asize;
 	wmsum_t arcstat_l2_feeds;
 	wmsum_t arcstat_l2_rw_clash;
+	wmsum_t arcstat_l2_hit_bytes;
+	wmsum_t arcstat_l2_miss_bytes;
 	wmsum_t arcstat_l2_read_bytes;
 	wmsum_t arcstat_l2_write_bytes;
 	wmsum_t arcstat_l2_writes_sent;

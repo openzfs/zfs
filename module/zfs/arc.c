@@ -496,6 +496,8 @@ arc_stats_t arc_stats = {
 	{ "mfu_ghost_hits",		KSTAT_DATA_UINT64 },
 	{ "uncached_hits",		KSTAT_DATA_UINT64 },
 	{ "deleted",			KSTAT_DATA_UINT64 },
+	{ "hit_bytes",			KSTAT_DATA_UINT64 },
+	{ "miss_bytes",			KSTAT_DATA_UINT64 },
 	{ "mutex_miss",			KSTAT_DATA_UINT64 },
 	{ "access_skip",		KSTAT_DATA_UINT64 },
 	{ "evict_skip",			KSTAT_DATA_UINT64 },
@@ -569,6 +571,8 @@ arc_stats_t arc_stats = {
 	{ "l2_bufc_metadata_asize",	KSTAT_DATA_UINT64 },
 	{ "l2_feeds",			KSTAT_DATA_UINT64 },
 	{ "l2_rw_clash",		KSTAT_DATA_UINT64 },
+	{ "l2_hit_bytes",		KSTAT_DATA_UINT64 },
+	{ "l2_miss_bytes",		KSTAT_DATA_UINT64 },
 	{ "l2_read_bytes",		KSTAT_DATA_UINT64 },
 	{ "l2_write_bytes",		KSTAT_DATA_UINT64 },
 	{ "l2_writes_sent",		KSTAT_DATA_UINT64 },
@@ -5218,6 +5222,7 @@ arc_buf_access(arc_buf_t *buf)
 	    hdr->b_l1hdr.b_state == arc_uncached);
 
 	DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
+	ARCSTAT_INCR(arcstat_hit_bytes, HDR_GET_PSIZE(hdr));
 	arc_access(hdr, 0, B_TRUE);
 	mutex_exit(hash_lock);
 
@@ -5716,6 +5721,7 @@ top:
 		    hdr->b_l1hdr.b_state == arc_uncached);
 
 		DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
+		ARCSTAT_INCR(arcstat_hit_bytes, HDR_GET_PSIZE(hdr));
 		arc_access(hdr, *arc_flags, B_TRUE);
 
 		if (done && !no_buf) {
@@ -5964,6 +5970,7 @@ top:
 			    blkptr_t *, bp, uint64_t, lsize,
 			    zbookmark_phys_t *, zb);
 			ARCSTAT_BUMP(arcstat_misses);
+			ARCSTAT_INCR(arcstat_miss_bytes, HDR_GET_PSIZE(hdr));
 			ARCSTAT_CONDSTAT(!(*arc_flags & ARC_FLAG_PREFETCH),
 			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
 			    metadata, misses);
@@ -6046,6 +6053,8 @@ top:
 
 				DTRACE_PROBE2(l2arc__read, vdev_t *, vd,
 				    zio_t *, rzio);
+				ARCSTAT_INCR(arcstat_l2_hit_bytes,
+				    HDR_GET_PSIZE(hdr));
 				ARCSTAT_INCR(arcstat_l2_read_bytes,
 				    HDR_GET_PSIZE(hdr));
 
@@ -6065,6 +6074,8 @@ top:
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
+				ARCSTAT_INCR(arcstat_l2_miss_bytes,
+				    HDR_GET_PSIZE(hdr));
 				if (HDR_L2_WRITING(hdr))
 					ARCSTAT_BUMP(arcstat_l2_rw_clash);
 				spa_config_exit(spa, SCL_L2ARC, vd);
@@ -6089,6 +6100,8 @@ top:
 					DTRACE_PROBE1(l2arc__miss,
 					    arc_buf_hdr_t *, hdr);
 					ARCSTAT_BUMP(arcstat_l2_misses);
+					ARCSTAT_INCR(arcstat_l2_miss_bytes,
+					    HDR_GET_PSIZE(hdr));
 				}
 			}
 		}
@@ -6988,6 +7001,10 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&arc_sums.arcstat_uncached_hits);
 	as->arcstat_deleted.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_deleted);
+	as->arcstat_hit_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hit_bytes);
+	as->arcstat_miss_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_miss_bytes);
 	as->arcstat_mutex_miss.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_mutex_miss);
 	as->arcstat_access_skip.value.ui64 =
@@ -7094,6 +7111,10 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&arc_sums.arcstat_l2_feeds);
 	as->arcstat_l2_rw_clash.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_rw_clash);
+	as->arcstat_l2_hit_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_hit_bytes);
+	as->arcstat_l2_miss_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_miss_bytes);
 	as->arcstat_l2_read_bytes.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_read_bytes);
 	as->arcstat_l2_write_bytes.value.ui64 =
@@ -7422,6 +7443,8 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_mfu_ghost_hits, 0);
 	wmsum_init(&arc_sums.arcstat_uncached_hits, 0);
 	wmsum_init(&arc_sums.arcstat_deleted, 0);
+	wmsum_init(&arc_sums.arcstat_hit_bytes, 0);
+	wmsum_init(&arc_sums.arcstat_miss_bytes, 0);
 	wmsum_init(&arc_sums.arcstat_mutex_miss, 0);
 	wmsum_init(&arc_sums.arcstat_access_skip, 0);
 	wmsum_init(&arc_sums.arcstat_evict_skip, 0);
@@ -7453,6 +7476,8 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_l2_bufc_metadata_asize, 0);
 	wmsum_init(&arc_sums.arcstat_l2_feeds, 0);
 	wmsum_init(&arc_sums.arcstat_l2_rw_clash, 0);
+	wmsum_init(&arc_sums.arcstat_l2_hit_bytes, 0);
+	wmsum_init(&arc_sums.arcstat_l2_miss_bytes, 0);
 	wmsum_init(&arc_sums.arcstat_l2_read_bytes, 0);
 	wmsum_init(&arc_sums.arcstat_l2_write_bytes, 0);
 	wmsum_init(&arc_sums.arcstat_l2_writes_sent, 0);
@@ -7580,6 +7605,8 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_mfu_ghost_hits);
 	wmsum_fini(&arc_sums.arcstat_uncached_hits);
 	wmsum_fini(&arc_sums.arcstat_deleted);
+	wmsum_fini(&arc_sums.arcstat_hit_bytes);
+	wmsum_fini(&arc_sums.arcstat_miss_bytes);
 	wmsum_fini(&arc_sums.arcstat_mutex_miss);
 	wmsum_fini(&arc_sums.arcstat_access_skip);
 	wmsum_fini(&arc_sums.arcstat_evict_skip);
@@ -7611,6 +7638,8 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_l2_bufc_metadata_asize);
 	wmsum_fini(&arc_sums.arcstat_l2_feeds);
 	wmsum_fini(&arc_sums.arcstat_l2_rw_clash);
+	wmsum_fini(&arc_sums.arcstat_l2_hit_bytes);
+	wmsum_fini(&arc_sums.arcstat_l2_miss_bytes);
 	wmsum_fini(&arc_sums.arcstat_l2_read_bytes);
 	wmsum_fini(&arc_sums.arcstat_l2_write_bytes);
 	wmsum_fini(&arc_sums.arcstat_l2_writes_sent);
