@@ -701,6 +701,8 @@ abd_free_linear_page(abd_t *abd)
 	/* When backed by user page unmap it */
 	if (abd_is_from_pages(abd))
 		zfs_kunmap(sg_page(sg));
+	else
+		abd_update_scatter_stats(abd, ABDSTAT_DECR);
 
 	abd->abd_flags &= ~ABD_FLAG_LINEAR;
 	abd->abd_flags &= ~ABD_FLAG_LINEAR_PAGE;
