@@ -19,9 +19,9 @@
  */
 
 #include <sys/ioctl.h>
-#include <sys/fcntl.h>
 #include <linux/fs.h>
 #include <err.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

@@ -33,11 +33,13 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/abd.h>
-#include <sys/fcntl.h>
 #include <sys/vnode.h>
 #include <sys/zfs_file.h>
 #ifdef _KERNEL
 #include <linux/falloc.h>
+#include <sys/fcntl.h>
+#else
+#include <fcntl.h>
 #endif
 /*
  * Virtual device vector for files.
