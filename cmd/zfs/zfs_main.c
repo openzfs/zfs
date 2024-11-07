@@ -3761,8 +3761,13 @@ collect_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 		if (cb->cb_json) {
 			if (pl->pl_prop == ZFS_PROP_NAME)
 				continue;
+			const char *prop_name;
+			if (pl->pl_prop != ZPROP_USERPROP)
+				prop_name = zfs_prop_to_name(pl->pl_prop);
+			else
+				prop_name = pl->pl_user_prop;
 			if (zprop_nvlist_one_property(
-			    zfs_prop_to_name(pl->pl_prop), propstr,
+			    prop_name, propstr,
 			    sourcetype, source, NULL, props,
 			    cb->cb_json_as_int) != 0)
 				nomem();
