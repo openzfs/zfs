@@ -6882,8 +6882,13 @@ collect_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 		if (cb->cb_json) {
 			if (pl->pl_prop == ZPOOL_PROP_NAME)
 				continue;
+			const char *prop_name;
+			if (pl->pl_prop != ZPROP_USERPROP)
+				prop_name = zpool_prop_to_name(pl->pl_prop);
+			else
+				prop_name = pl->pl_user_prop;
 			(void) zprop_nvlist_one_property(
-			    zpool_prop_to_name(pl->pl_prop), propstr,
+			    prop_name, propstr,
 			    sourcetype, NULL, NULL, props, cb->cb_json_as_int);
 		} else {
 			/*
