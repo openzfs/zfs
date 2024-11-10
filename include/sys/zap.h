@@ -223,10 +223,14 @@ int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
     boolean_t *normalization_conflictp);
 int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
+int zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 int zap_prefetch_object(objset_t *os, uint64_t zapobj);
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
+    int key_numints);
+int zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints);
 
 int zap_lookup_by_dnode(dnode_t *dn, const char *name,
@@ -235,9 +239,6 @@ int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *ncp);
-
-int zap_count_write_by_dnode(dnode_t *dn, const char *name,
-    int add, zfs_refcount_t *towrite, zfs_refcount_t *tooverwrite);
 
 /*
  * Create an attribute with the given name and value.
