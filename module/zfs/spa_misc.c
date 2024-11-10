@@ -1870,13 +1870,7 @@ spa_get_slop_space(spa_t *spa)
 	if (spa->spa_dedup_dspace == ~0ULL)
 		spa_update_dspace(spa);
 
-	/*
-	 * spa_get_dspace() includes the space only logically "used" by
-	 * deduplicated data, so since it's not useful to reserve more
-	 * space with more deduplicated data, we subtract that out here.
-	 */
-	space =
-	    spa_get_dspace(spa) - spa->spa_dedup_dspace - brt_get_dspace(spa);
+	space = spa->spa_rdspace;
 	slop = MIN(space >> spa_slop_shift, spa_max_slop);
 
 	/*
@@ -1912,8 +1906,7 @@ spa_get_checkpoint_space(spa_t *spa)
 void
 spa_update_dspace(spa_t *spa)
 {
-	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
-	    ddt_get_dedup_dspace(spa) + brt_get_dspace(spa);
+	spa->spa_rdspace = metaslab_class_get_dspace(spa_normal_class(spa));
 	if (spa->spa_nonallocating_dspace > 0) {
 		/*
 		 * Subtract the space provided by all non-allocating vdevs that
@@ -1933,9 +1926,11 @@ spa_update_dspace(spa_t *spa)
 		 * doesn't matter that the data we are moving may be
 		 * allocated twice (on the old device and the new device).
 		 */
-		ASSERT3U(spa->spa_dspace, >=, spa->spa_nonallocating_dspace);
-		spa->spa_dspace -= spa->spa_nonallocating_dspace;
+		ASSERT3U(spa->spa_rdspace, >=, spa->spa_nonallocating_dspace);
+		spa->spa_rdspace -= spa->spa_nonallocating_dspace;
 	}
+	spa->spa_dspace = spa->spa_rdspace + ddt_get_dedup_dspace(spa) +
+	    brt_get_dspace(spa);
 }
 
 /*
