@@ -53,6 +53,7 @@ extern "C" {
 /*
  * Forward references that lots of things need.
  */
+typedef struct brt_vdev brt_vdev_t;
 typedef struct spa spa_t;
 typedef struct vdev vdev_t;
 typedef struct metaslab metaslab_t;
