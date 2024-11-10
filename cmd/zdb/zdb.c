@@ -2119,9 +2119,6 @@ dump_brt(spa_t *spa)
 		return;
 	}
 
-	brt_t *brt = spa->spa_brt;
-	VERIFY(brt);
-
 	char count[32], used[32], saved[32];
 	zdb_nicebytes(brt_get_used(spa), used, sizeof (used));
 	zdb_nicebytes(brt_get_saved(spa), saved, sizeof (saved));
@@ -2132,11 +2129,8 @@ dump_brt(spa_t *spa)
 	if (dump_opt['T'] < 2)
 		return;
 
-	for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-		brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
-		if (brtvd == NULL)
-			continue;
-
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
 		if (!brtvd->bv_initiated) {
 			printf("BRT: vdev %" PRIu64 ": empty\n", vdevid);
 			continue;
@@ -2160,20 +2154,21 @@ dump_brt(spa_t *spa)
 	if (!do_histo)
 		printf("\n%-16s %-10s\n", "DVA", "REFCNT");
 
-	for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-		brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
-		if (brtvd == NULL || !brtvd->bv_initiated)
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		if (!brtvd->bv_initiated)
 			continue;
 
 		uint64_t counts[64] = {};
 
 		zap_cursor_t zc;
 		zap_attribute_t *za = zap_attribute_alloc();
-		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
+		for (zap_cursor_init(&zc, spa->spa_meta_objset,
+		    brtvd->bv_mos_entries);
 		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
 			uint64_t refcnt;
-			VERIFY0(zap_lookup_uint64(brt->brt_mos,
+			VERIFY0(zap_lookup_uint64(spa->spa_meta_objset,
 			    brtvd->bv_mos_entries,
 			    (const uint64_t *)za->za_name, 1,
 			    za->za_integer_length, za->za_num_integers,
@@ -8227,14 +8222,11 @@ dump_mos_leaks(spa_t *spa)
 		}
 	}
 
-	if (spa->spa_brt != NULL) {
-		brt_t *brt = spa->spa_brt;
-		for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-			brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
-			if (brtvd != NULL && brtvd->bv_initiated) {
-				mos_obj_refd(brtvd->bv_mos_brtvdev);
-				mos_obj_refd(brtvd->bv_mos_entries);
-			}
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		if (brtvd->bv_initiated) {
+			mos_obj_refd(brtvd->bv_mos_brtvdev);
+			mos_obj_refd(brtvd->bv_mos_entries);
 		}
 	}
 
