@@ -2543,8 +2543,11 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		 * We are freeing a block that we cloned in the same
 		 * transaction group.
 		 */
-		brt_pending_remove(dmu_objset_spa(db->db_objset),
-		    &dr->dt.dl.dr_overridden_by, tx);
+		blkptr_t *bp = &dr->dt.dl.dr_overridden_by;
+		if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+			brt_pending_remove(dmu_objset_spa(db->db_objset),
+			    bp, tx);
+		}
 	}
 
 	dnode_t *dn = dr->dr_dnode;
