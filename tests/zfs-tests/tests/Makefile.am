@@ -1686,6 +1686,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/longname/longname_002_pos.ksh \
 	functional/longname/longname_003_pos.ksh \
 	functional/longname/setup.ksh \
+	functional/log_spacemap/log_spacemap_flushall.ksh \
 	functional/log_spacemap/log_spacemap_import_logs.ksh \
 	functional/migration/cleanup.ksh \
 	functional/migration/migration_001_pos.ksh \
