@@ -222,7 +222,9 @@ that has an encrypted parent.
 .Ss Encryption
 Enabling the
 .Sy encryption
-feature allows for the creation of encrypted filesystems and volumes.
+feature allows for the creation of encrypted filesystems and volumes,
+but not yet snapshots
+.Pq see Sx BUGS .
 ZFS will encrypt file and volume data, file attributes, ACLs, permission bits,
 directory listings, FUID mappings, and
 .Sy userused Ns / Ns Sy groupused
@@ -302,3 +304,7 @@ written.
 .Xr zfsprops 7 ,
 .Xr zfs-create 8 ,
 .Xr zfs-set 8
+.Sh BUGS
+There is a known issue causing occasional runtime data corruption
+when creating snapshots of ZFS encrypted volumes via
+.Xr zfs-receive 8 .
