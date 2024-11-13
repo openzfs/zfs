@@ -68,6 +68,7 @@
 #include <sys/zio_compress.h>
 #include <zfs_fletcher.h>
 #include <sys/zio_checksum.h>
+#include <sys/brt.h>
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks
@@ -289,8 +290,26 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	if (BP_GET_LOGICAL_BIRTH(bp) > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
 		int64_t delta;
 
-		dprintf_bp(bp, "freeing ds=%llu", (u_longlong_t)ds->ds_object);
-		dsl_free(tx->tx_pool, tx->tx_txg, bp);
+		/*
+		 * Put blocks that would create IO on the pool's deadlist for
+		 * dsl_process_async_destroys() to find. This is to prevent
+		 * zio_free() from creating a ZIO_TYPE_FREE IO for them, which
+		 * are very heavy and can lead to out-of-memory conditions if
+		 * something tries to free millions of blocks on the same txg.
+		 */
+		boolean_t defer = spa_version(spa) >= SPA_VERSION_DEADLISTS &&
+		    (BP_IS_GANG(bp) || BP_GET_DEDUP(bp) ||
+		    brt_maybe_exists(spa, bp));
+
+		if (defer) {
+			dprintf_bp(bp, "putting on free list: %s", "");
+			bpobj_enqueue(&ds->ds_dir->dd_pool->dp_free_bpobj,
+			    bp, B_FALSE, tx);
+		} else {
+			dprintf_bp(bp, "freeing ds=%llu",
+			    (u_longlong_t)ds->ds_object);
+			dsl_free(tx->tx_pool, tx->tx_txg, bp);
+		}
 
 		mutex_enter(&ds->ds_lock);
 		ASSERT(dsl_dataset_phys(ds)->ds_unique_bytes >= used ||
@@ -298,9 +317,14 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		delta = parent_delta(ds, -used);
 		dsl_dataset_phys(ds)->ds_unique_bytes -= used;
 		mutex_exit(&ds->ds_lock);
+
 		dsl_dir_diduse_transfer_space(ds->ds_dir,
 		    delta, -compressed, -uncompressed, -used,
 		    DD_USED_REFRSRV, DD_USED_HEAD, tx);
+
+		if (defer)
+			dsl_dir_diduse_space(tx->tx_pool->dp_free_dir,
+			    DD_USED_HEAD, used, compressed, uncompressed, tx);
 	} else {
 		dprintf_bp(bp, "putting on dead list: %s", "");
 		if (async) {
