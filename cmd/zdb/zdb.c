@@ -1967,17 +1967,53 @@ dump_dedup_ratio(const ddt_stat_t *dds)
 static void
 dump_ddt_log(ddt_t *ddt)
 {
+	if (ddt->ddt_version != DDT_VERSION_FDT ||
+	    !(ddt->ddt_flags & DDT_FLAG_LOG))
+		return;
+
 	for (int n = 0; n < 2; n++) {
 		ddt_log_t *ddl = &ddt->ddt_log[n];
 
+		char flagstr[64] = {0};
+		if (ddl->ddl_flags > 0) {
+			flagstr[0] = ' ';
+			int c = 1;
+			if (ddl->ddl_flags & DDL_FLAG_FLUSHING)
+				c += strlcpy(&flagstr[c], " FLUSHING",
+				    sizeof (flagstr) - c);
+			if (ddl->ddl_flags & DDL_FLAG_CHECKPOINT)
+				c += strlcpy(&flagstr[c], " CHECKPOINT",
+				    sizeof (flagstr) - c);
+			if (ddl->ddl_flags &
+			    ~(DDL_FLAG_FLUSHING|DDL_FLAG_CHECKPOINT))
+				c += strlcpy(&flagstr[c], " UNKNOWN",
+				    sizeof (flagstr) - c);
+			flagstr[1] = '[';
+			flagstr[c++] = ']';
+		}
+
 		uint64_t count = avl_numnodes(&ddl->ddl_tree);
-		if (count == 0)
-			continue;
 
-		printf(DMU_POOL_DDT_LOG ": %lu log entries\n",
-		    zio_checksum_table[ddt->ddt_checksum].ci_name, n, count);
+		printf(DMU_POOL_DDT_LOG ": flags=0x%02x%s; obj=%llu; "
+		    "len=%llu; txg=%llu; entries=%llu\n",
+		    zio_checksum_table[ddt->ddt_checksum].ci_name, n,
+		    ddl->ddl_flags, flagstr,
+		    (u_longlong_t)ddl->ddl_object,
+		    (u_longlong_t)ddl->ddl_length,
+		    (u_longlong_t)ddl->ddl_first_txg, (u_longlong_t)count);
 
-		if (dump_opt['D'] < 4)
+		if (ddl->ddl_flags & DDL_FLAG_CHECKPOINT) {
+			const ddt_key_t *ddk = &ddl->ddl_checkpoint;
+			printf("    checkpoint: "
+			    "%016llx:%016llx:%016llx:%016llx:%016llx\n",
+			    (u_longlong_t)ddk->ddk_cksum.zc_word[0],
+			    (u_longlong_t)ddk->ddk_cksum.zc_word[1],
+			    (u_longlong_t)ddk->ddk_cksum.zc_word[2],
+			    (u_longlong_t)ddk->ddk_cksum.zc_word[3],
+			    (u_longlong_t)ddk->ddk_prop);
+		}
+
+		if (count == 0 || dump_opt['D'] < 4)
 			continue;
 
 		ddt_lightweight_entry_t ddlwe;
@@ -1991,7 +2027,7 @@ dump_ddt_log(ddt_t *ddt)
 }
 
 static void
-dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
+dump_ddt_object(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 {
 	char name[DDT_NAMELEN];
 	ddt_lightweight_entry_t ddlwe;
@@ -2016,11 +2052,8 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	ddt_object_name(ddt, type, class, name);
 
-	(void) printf("%s: %llu entries, size %llu on disk, %llu in core\n",
-	    name,
-	    (u_longlong_t)count,
-	    (u_longlong_t)dspace,
-	    (u_longlong_t)mspace);
+	(void) printf("%s: dspace=%llu; mspace=%llu; entries=%llu\n", name,
+	    (u_longlong_t)dspace, (u_longlong_t)mspace, (u_longlong_t)count);
 
 	if (dump_opt['D'] < 3)
 		return;
@@ -2044,23 +2077,51 @@ dump_ddt(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 }
 
 static void
+dump_ddt(ddt_t *ddt)
+{
+	if (!ddt || ddt->ddt_version == DDT_VERSION_UNCONFIGURED)
+		return;
+
+	char flagstr[64] = {0};
+	if (ddt->ddt_flags > 0) {
+		flagstr[0] = ' ';
+		int c = 1;
+		if (ddt->ddt_flags & DDT_FLAG_FLAT)
+			c += strlcpy(&flagstr[c], " FLAT",
+			    sizeof (flagstr) - c);
+		if (ddt->ddt_flags & DDT_FLAG_LOG)
+			c += strlcpy(&flagstr[c], " LOG",
+			    sizeof (flagstr) - c);
+		if (ddt->ddt_flags & ~DDT_FLAG_MASK)
+			c += strlcpy(&flagstr[c], " UNKNOWN",
+			    sizeof (flagstr) - c);
+		flagstr[1] = '[';
+		flagstr[c] = ']';
+	}
+
+	printf("DDT-%s: version=%llu [%s]; flags=0x%02llx%s; rootobj=%llu\n",
+	    zio_checksum_table[ddt->ddt_checksum].ci_name,
+	    (u_longlong_t)ddt->ddt_version,
+	    (ddt->ddt_version == 0) ? "LEGACY" :
+	    (ddt->ddt_version == 1) ? "FDT" : "UNKNOWN",
+	    (u_longlong_t)ddt->ddt_flags, flagstr,
+	    (u_longlong_t)ddt->ddt_dir_object);
+
+	for (ddt_type_t type = 0; type < DDT_TYPES; type++)
+		for (ddt_class_t class = 0; class < DDT_CLASSES; class++)
+			dump_ddt_object(ddt, type, class);
+
+	dump_ddt_log(ddt);
+}
+
+static void
 dump_all_ddts(spa_t *spa)
 {
 	ddt_histogram_t ddh_total = {{{0}}};
 	ddt_stat_t dds_total = {0};
 
-	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
-		ddt_t *ddt = spa->spa_ddt[c];
-		if (!ddt || ddt->ddt_version == DDT_VERSION_UNCONFIGURED)
-			continue;
-		for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
-			for (ddt_class_t class = 0; class < DDT_CLASSES;
-			    class++) {
-				dump_ddt(ddt, type, class);
-			}
-		}
-		dump_ddt_log(ddt);
-	}
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++)
+		dump_ddt(spa->spa_ddt[c]);
 
 	ddt_get_dedup_stats(spa, &dds_total);
 

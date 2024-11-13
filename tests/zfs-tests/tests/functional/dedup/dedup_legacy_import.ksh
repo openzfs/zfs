@@ -63,7 +63,7 @@ log_must zpool sync
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
 
 # should be four entries in the unique table
-log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique: 4 entries'"
+log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique:.*entries=4'"
 
 # should be just one DDT ZAP in the MOS
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 1
@@ -96,7 +96,7 @@ log_must zpool sync
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "disabled"
 
 # should be four entries in the unique table
-log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique: 4 entries'"
+log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique:.*entries=4'"
 
 # should be just one DDT ZAP in the MOS
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 1
