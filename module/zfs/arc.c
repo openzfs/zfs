@@ -9287,6 +9287,14 @@ skip:
 			hdr->b_l2hdr.b_hits = 0;
 			hdr->b_l2hdr.b_arcs_state =
 			    hdr->b_l1hdr.b_state->arcs_state;
+			arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
+			    ARC_FLAG_L2_WRITING);
+
+			(void) zfs_refcount_add_many(&dev->l2ad_alloc,
+			    arc_hdr_size(hdr), hdr);
+			l2arc_hdr_arcstats_increment(hdr);
+			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
+
 			mutex_enter(&dev->l2ad_mtx);
 			if (pio == NULL) {
 				/*
@@ -9298,12 +9306,6 @@ skip:
 			}
 			list_insert_head(&dev->l2ad_buflist, hdr);
 			mutex_exit(&dev->l2ad_mtx);
-			arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
-			    ARC_FLAG_L2_WRITING);
-
-			(void) zfs_refcount_add_many(&dev->l2ad_alloc,
-			    arc_hdr_size(hdr), hdr);
-			l2arc_hdr_arcstats_increment(hdr);
 
 			boolean_t commit = l2arc_log_blk_insert(dev, hdr);
 			mutex_exit(hash_lock);
@@ -9333,7 +9335,6 @@ skip:
 			write_psize += psize;
 			write_asize += asize;
 			dev->l2ad_hand += asize;
-			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
 
 			if (commit) {
 				/* l2ad_hand will be adjusted inside. */
@@ -10585,6 +10586,8 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	(void) zio_nowait(wzio);
 
 	dev->l2ad_hand += asize;
+	vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
+
 	/*
 	 * Include the committed log block's pointer  in the list of pointers
 	 * to log blocks present in the L2ARC device.
@@ -10598,7 +10601,6 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	zfs_refcount_add_many(&dev->l2ad_lb_asize, asize, lb_ptr_buf);
 	zfs_refcount_add(&dev->l2ad_lb_count, lb_ptr_buf);
 	mutex_exit(&dev->l2ad_mtx);
-	vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
 
 	/* bump the kstats */
 	ARCSTAT_INCR(arcstat_l2_write_bytes, asize);
