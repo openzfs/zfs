@@ -1176,7 +1176,7 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 		limits->zql_max_segment_size = UINT_MAX;
 	}
 
-	limits->zql_io_opt = zv->zv_volblocksize;
+	limits->zql_io_opt = DMU_MAX_ACCESS / 2;
 
 	limits->zql_physical_block_size = zv->zv_volblocksize;
 	limits->zql_max_discard_sectors =
