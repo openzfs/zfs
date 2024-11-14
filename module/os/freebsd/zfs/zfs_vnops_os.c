@@ -4005,7 +4005,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 * allocated block.
 	 */
 	for (int i = 0; i < count; i++) {
-		int count1, j, last_size;
+		int dummypgsin, count1, j, last_size;
 
 		if (vm_page_any_valid(ma[i])) {
 			ASSERT(vm_page_all_valid(ma[i]));
@@ -4018,13 +4018,16 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 			}
 		}
 		count1 = j - i;
+		dummypgsin = 0;
 		last_size = j == count ?
 		    MIN(end, obj_size) - (end - PAGE_SIZE) : PAGE_SIZE;
 		error = dmu_read_pages(zfsvfs->z_os, zp->z_id, &ma[i], count1,
-		    i == 0 ? &pgsin_b : NULL, j == count ? &pgsin_a : NULL,
+		    i == 0 ? &pgsin_b : &dummypgsin,
+		    j == count ? &pgsin_a : &dummypgsin,
 		    last_size);
 		if (error != 0)
 			break;
+		i += count1 - 1;
 	}
 
 	zfs_rangelock_exit(lr);
