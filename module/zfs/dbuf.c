@@ -89,7 +89,6 @@ typedef struct dbuf_stats {
 	kstat_named_t hash_misses;
 	kstat_named_t hash_collisions;
 	kstat_named_t hash_elements;
-	kstat_named_t hash_elements_max;
 	/*
 	 * Number of sublists containing more than one dbuf in the dbuf
 	 * hash table. Keep track of the longest hash chain.
@@ -134,7 +133,6 @@ dbuf_stats_t dbuf_stats = {
 	{ "hash_misses",			KSTAT_DATA_UINT64 },
 	{ "hash_collisions",			KSTAT_DATA_UINT64 },
 	{ "hash_elements",			KSTAT_DATA_UINT64 },
-	{ "hash_elements_max",			KSTAT_DATA_UINT64 },
 	{ "hash_chains",			KSTAT_DATA_UINT64 },
 	{ "hash_chain_max",			KSTAT_DATA_UINT64 },
 	{ "hash_insert_race",			KSTAT_DATA_UINT64 },
@@ -154,6 +152,7 @@ struct {
 	wmsum_t hash_hits;
 	wmsum_t hash_misses;
 	wmsum_t hash_collisions;
+	wmsum_t hash_elements;
 	wmsum_t hash_chains;
 	wmsum_t hash_insert_race;
 	wmsum_t metadata_cache_count;
@@ -432,8 +431,7 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	db->db_hash_next = h->hash_table[idx];
 	h->hash_table[idx] = db;
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	uint64_t he = atomic_inc_64_nv(&dbuf_stats.hash_elements.value.ui64);
-	DBUF_STAT_MAX(hash_elements_max, he);
+	DBUF_STAT_BUMP(hash_elements);
 
 	return (NULL);
 }
@@ -506,7 +504,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	    h->hash_table[idx]->db_hash_next == NULL)
 		DBUF_STAT_BUMPDOWN(hash_chains);
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	atomic_dec_64(&dbuf_stats.hash_elements.value.ui64);
+	DBUF_STAT_BUMPDOWN(hash_elements);
 }
 
 typedef enum {
@@ -903,6 +901,8 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&dbuf_sums.hash_misses);
 	ds->hash_collisions.value.ui64 =
 	    wmsum_value(&dbuf_sums.hash_collisions);
+	ds->hash_elements.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_elements);
 	ds->hash_chains.value.ui64 =
 	    wmsum_value(&dbuf_sums.hash_chains);
 	ds->hash_insert_race.value.ui64 =
@@ -1004,6 +1004,7 @@ dbuf_init(void)
 	wmsum_init(&dbuf_sums.hash_hits, 0);
 	wmsum_init(&dbuf_sums.hash_misses, 0);
 	wmsum_init(&dbuf_sums.hash_collisions, 0);
+	wmsum_init(&dbuf_sums.hash_elements, 0);
 	wmsum_init(&dbuf_sums.hash_chains, 0);
 	wmsum_init(&dbuf_sums.hash_insert_race, 0);
 	wmsum_init(&dbuf_sums.metadata_cache_count, 0);
@@ -1077,6 +1078,7 @@ dbuf_fini(void)
 	wmsum_fini(&dbuf_sums.hash_hits);
 	wmsum_fini(&dbuf_sums.hash_misses);
 	wmsum_fini(&dbuf_sums.hash_collisions);
+	wmsum_fini(&dbuf_sums.hash_elements);
 	wmsum_fini(&dbuf_sums.hash_chains);
 	wmsum_fini(&dbuf_sums.hash_insert_race);
 	wmsum_fini(&dbuf_sums.metadata_cache_count);
