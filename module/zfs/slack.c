@@ -60,6 +60,7 @@ zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len, size_t d_len,
 	(void) dst;
 	(void) d_len;
 
+	ASSERT0P(dst);
 	ASSERT3U(s_len, >, 0);
 	ASSERT0(P2PHASE(s_len, sizeof (uint64_t)));
 
@@ -70,10 +71,6 @@ zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len, size_t d_len,
 
 	if (c_len > d_len)
 		return (s_len);
-
-	abd_copy(dst, src, c_len);
-	if (abd_get_size(dst) > c_len)
-		abd_zero_off(dst, c_len, abd_get_size(dst)-c_len);
 
 	return (c_len);
 }

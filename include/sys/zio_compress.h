@@ -121,7 +121,7 @@ enum zio_zstd_levels {
 };
 
 /* True if compressor will reuse the source buffer */
-#define	ZIO_COMPRESS_INPLACE(c)		(0)
+#define	ZIO_COMPRESS_INPLACE(c)		(c == ZIO_COMPRESS_SLACK)
 
 /* Forward Declaration to avoid visibility problems */
 struct zio_prop;
