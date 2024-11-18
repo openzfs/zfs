@@ -31,44 +31,61 @@
  * and sets the position as the size of the "compressed" data.
  */
 
-static size_t
-zfs_slack_compress_buf(void *src, void *dst, size_t s_len, size_t d_len,
-    int level)
+static int
+zfs_slack_compress_cb(void *data, size_t len, void *priv)
 {
-	(void) level;
+	size_t *state = (size_t *) priv;
+	uint64_t *buf = (uint64_t *) data;
 
-	ASSERT3U(s_len, >, 0);
-	ASSERT0(P2PHASE(s_len, sizeof (uint64_t)));
+	ASSERT0(P2PHASE(len, sizeof (uint64_t)));
 
-	uint64_t *buf = (uint64_t *)src;
-
-	int p = (s_len / sizeof (uint64_t)) - 1;
+	int p = (len / sizeof (uint64_t)) - 1;
 	for (; p >= 0; p--)
 		if (buf[p] != 0)
 			break;
 
-	if (p < 0)
-		return (s_len);
+	if (p >= 0)
+		state[1] = state[0] + ((p + 1) * sizeof (uint64_t));
 
-	size_t c_len = (p + 1) * sizeof (uint64_t);
+	state[0] += len;
+
+	return (0);
+}
+
+size_t
+zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len, size_t d_len,
+    int level)
+{
+	(void) level;
+	(void) dst;
+	(void) d_len;
+
+	ASSERT3U(s_len, >, 0);
+	ASSERT0(P2PHASE(s_len, sizeof (uint64_t)));
+
+	size_t state[2] = {0};	/* [abs pos, pos last non-zero] */
+	abd_iterate_func(src, 0, s_len, zfs_slack_compress_cb, &state);
+
+	const size_t c_len = state[1];
+
 	if (c_len > d_len)
 		return (s_len);
 
-	memcpy(dst, src, c_len);
+	abd_copy(dst, src, c_len);
+	if (abd_get_size(dst) > c_len)
+		abd_zero_off(dst, c_len, abd_get_size(dst)-c_len);
+
 	return (c_len);
 }
 
-static int
-zfs_slack_decompress_buf(void *src, void *dst, size_t s_len, size_t d_len,
+int
+zfs_slack_decompress(abd_t *src, abd_t *dst, size_t s_len, size_t d_len,
     int level)
 {
 	(void) level;
 	ASSERT3U(d_len, >=, s_len);
-	memcpy(dst, src, s_len);
+	abd_copy(dst, src, s_len);
 	if (d_len > s_len)
-		memset(dst+s_len, 0, d_len-s_len);
+		abd_zero_off(dst, s_len, d_len-s_len);
 	return (0);
 }
-
-ZFS_COMPRESS_WRAP_DECL(zfs_slack_compress)
-ZFS_DECOMPRESS_WRAP_DECL(zfs_slack_decompress)
