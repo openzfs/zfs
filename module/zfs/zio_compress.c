@@ -190,7 +190,7 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
  *     use_compressed_data(sabd, s_len);
  */
 size_t
-zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
+zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dstp, size_t s_len,
     size_t d_len, uint8_t level)
 {
 	size_t c_len;
@@ -215,13 +215,20 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
 		ASSERT3U(complevel, !=, ZIO_COMPLEVEL_INHERIT);
 	}
 
-	if (*dst == NULL)
-		*dst = abd_alloc_sametype(src, s_len);
+	abd_t *dst = *dstp;
+	if (dst == NULL)
+		dst = abd_alloc_sametype(src, s_len);
 
-	c_len = ci->ci_compress(src, *dst, s_len, d_len, complevel);
+	c_len = ci->ci_compress(src, dst, s_len, d_len, complevel);
 
-	if (c_len > d_len)
+	if (c_len > d_len) {
+		if (*dstp == NULL)
+			abd_free(dst);
 		return (s_len);
+	}
+
+	if (*dstp == NULL)
+		*dstp = dst;
 
 	return (c_len);
 }
