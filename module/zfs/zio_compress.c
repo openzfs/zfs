@@ -123,6 +123,72 @@ zio_compress_select(spa_t *spa, enum zio_compress child,
 	return (result);
 }
 
+/*
+ * Compress `s_len` bytes of `src` using compression method `c`. Returns the
+ * length of the compressed data.
+ *
+ * If the returned value == `s_len`, then compression was not possible.  If the
+ * returned value is < `s_len`, compression succeeded, and `*dst` must be
+ * inspected to get the result.  Note that a return value of 0 is valid,
+ * indicating that the data can be compressed to a "hole".
+ *
+ * If `*dst` not NULL, it must point to an ABD large enough to hold the
+ * compressed data. An ABD of size `s_len` is guaranteed to always be large
+ * enough. Note that even if compression is not possible (return == `s_len`),
+ * the ABD in `*dst` may have been modified; don't rely on its contents after
+ * a call to zio_compress_data().
+ *
+ * If `*dst` is NULL, and the compression method requires a destination buffer,
+ * then an ABD of size `s_len` will be allocated and the compressed data
+ * placed there. It is the caller's responsibility to free this ABD.
+ *
+ * If `*dst` is NULL and the compression method does not require a destination
+ * buffer (ZIO_COMPRESS_INPLACE(c) is true), then on successful return *dst
+ * will be NULL and the result will be in `sabd`. The original data is lost.
+ *
+ * Note that ABD supplied in `*dst` will _always_ be used for output, and will
+ * leave `sabd` untouched.
+ *
+ * Typical use (dest ABD created on demand):
+ *
+ *     abd_t *sabd;
+ *     size_t s_len = get_uncompressed_data(&sabd, ...);
+ *
+ *     abd_t *dabd = NULL;
+ *     size_t c_len = zio_compress_data(c, sabd, &dabd, s_len, ..., ...);
+ *     if (c_len == s_len) {
+ *         // Data uncompressable
+ *     } else if (dabd != NULL) {
+ *         // Compressed, ABD was allocated for us, discard the original.
+ *         sabd = dabd;
+ *         s_len = c_len;
+ *         abd_free(sabd);
+ *     } else {
+ *         // Compressed in place, use original ABD with new size.
+ *         s_len = c_len;
+ *     }
+ *
+ *     use_compressed_data(sabd, s_len);
+ *
+ * Typical use (dest ABD supplied by caller):
+ *
+ *     abd_t *sabd;
+ *     size_t s_len = get_uncompressed_data(&sabd, ...);
+ *
+ *     abd_t *dabd = abd_alloc_sametype(sabd, s_len);
+ *     size_t c_len = zio_compress_data(c, sabd, &dabd, s_len, ..., ...);
+ *     if (c_len == s_len) {
+ *        // Data uncompressable
+ *        abd_free(dabd, s_len);
+ *     } else {
+ *        // Compressed data available, discard the original.
+ *        sabd = dabd;
+ *        s_len = c_len;
+ *        abd_free(sabd);
+ *     }
+ *
+ *     use_compressed_data(sabd, s_len);
+ */
 size_t
 zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
     size_t d_len, uint8_t level)
