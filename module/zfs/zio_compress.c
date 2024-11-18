@@ -217,19 +217,35 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dstp, size_t s_len,
 		ASSERT3U(complevel, !=, ZIO_COMPLEVEL_INHERIT);
 	}
 
+	/*
+	 * If caller didn't provide a dest buffer and the compression method
+	 * requires one, we need to create one. On the other hand, if the
+	 * caller did provide one but the method only operates in-place, copy
+	 * the source to the dest now for the method to work on.
+	 */
 	abd_t *dst = *dstp;
-	if (dst == NULL)
+	if (dst == NULL && !ZIO_COMPRESS_INPLACE(c))
 		dst = abd_alloc_sametype(src, s_len);
+	else if (dst != NULL && ZIO_COMPRESS_INPLACE(c)) {
+		abd_copy(dst, src, s_len);
+		src = dst;
+		dst = NULL;
+	}
 
+	/*
+	 * XXX for now, NULL dst means "modify in place". but I think we
+	 *     may have reached sufficient complexity that these should
+	 *     be separate info funcs -- robn, 2024-11-18
+	 */
 	c_len = ci->ci_compress(src, dst, s_len, d_len, complevel);
 
 	if (c_len > d_len) {
-		if (*dstp == NULL)
+		if (dst != *dstp && dst != NULL)
 			abd_free(dst);
 		return (s_len);
 	}
 
-	if (*dstp == NULL)
+	if (*dstp == NULL && dst != NULL)
 		*dstp = dst;
 
 	return (c_len);
