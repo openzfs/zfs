@@ -113,10 +113,10 @@ void abd_release_ownership_of_buf(abd_t *);
  * ABD operations
  */
 typedef enum {
-	ABD_ITER_NONE	= 0,
+	ABD_ITER_REVERSE	= (1 << 0)
 } abd_iter_flags_t;
 
-#define	ABD_ITER_FLAGS_MASK	0
+#define	ABD_ITER_FLAGS_MASK	(ABD_ITER_REVERSE)
 
 int abd_iterate_func_flags(abd_t *, size_t, size_t, abd_iter_func_t *, void *,
     abd_iter_flags_t);
