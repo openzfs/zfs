@@ -31,23 +31,31 @@
  * and sets the position as the size of the "compressed" data.
  */
 
+typedef struct {
+	size_t chunk_off;	/* rolling offset to start of current chunk */
+	size_t nzero_off;	/* offset+1 of last non-zero byte */
+} slack_cb_args_t;
+
 static int
 zfs_slack_compress_cb(void *data, size_t len, void *priv)
 {
-	size_t *state = (size_t *) priv;
+	slack_cb_args_t *args = (slack_cb_args_t *) priv;
 	uint64_t *buf = (uint64_t *) data;
 
 	ASSERT0(P2PHASE(len, sizeof (uint64_t)));
+
+	args->chunk_off -= len;
 
 	int p = (len / sizeof (uint64_t)) - 1;
 	for (; p >= 0; p--)
 		if (buf[p] != 0)
 			break;
 
-	if (p >= 0)
-		state[1] = state[0] + ((p + 1) * sizeof (uint64_t));
-
-	state[0] += len;
+	if (p >= 0) {
+		args->nzero_off = args->chunk_off +
+		    ((p + 1) * sizeof (uint64_t));
+		return (1);
+	}
 
 	return (0);
 }
@@ -64,15 +72,18 @@ zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len, size_t d_len,
 	ASSERT3U(s_len, >, 0);
 	ASSERT0(P2PHASE(s_len, sizeof (uint64_t)));
 
-	size_t state[2] = {0};	/* [abs pos, pos last non-zero] */
-	abd_iterate_func(src, 0, s_len, zfs_slack_compress_cb, &state);
+	/* [chunk start offset, last !0 offset ] */
+	slack_cb_args_t args = {
+		.chunk_off = s_len,
+		.nzero_off = 0,
+	};
+	abd_iterate_func_flags(src, 0, s_len, zfs_slack_compress_cb, &args,
+	    ABD_ITER_REVERSE);
 
-	const size_t c_len = state[1];
-
-	if (c_len > d_len)
+	if (args.nzero_off > d_len)
 		return (s_len);
 
-	return (c_len);
+	return (args.nzero_off);
 }
 
 int
