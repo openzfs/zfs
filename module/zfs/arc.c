@@ -9845,6 +9845,37 @@ l2arc_spa_rebuild_start(spa_t *spa)
 	}
 }
 
+void
+l2arc_spa_rebuild_stop(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa_namespace_lock) ||
+	    spa->spa_export_thread == curthread);
+
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		l2arc_dev_t *dev =
+		    l2arc_vdev_get(spa->spa_l2cache.sav_vdevs[i]);
+		if (dev == NULL)
+			continue;
+		mutex_enter(&l2arc_rebuild_thr_lock);
+		dev->l2ad_rebuild_cancel = B_TRUE;
+		mutex_exit(&l2arc_rebuild_thr_lock);
+	}
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		l2arc_dev_t *dev =
+		    l2arc_vdev_get(spa->spa_l2cache.sav_vdevs[i]);
+		if (dev == NULL)
+			continue;
+		mutex_enter(&l2arc_rebuild_thr_lock);
+		if (dev->l2ad_rebuild_began == B_TRUE) {
+			while (dev->l2ad_rebuild == B_TRUE) {
+				cv_wait(&l2arc_rebuild_thr_cv,
+				    &l2arc_rebuild_thr_lock);
+			}
+		}
+		mutex_exit(&l2arc_rebuild_thr_lock);
+	}
+}
+
 /*
  * Main entry point for L2ARC rebuilding.
  */
@@ -9853,12 +9884,12 @@ l2arc_dev_rebuild_thread(void *arg)
 {
 	l2arc_dev_t *dev = arg;
 
-	VERIFY(!dev->l2ad_rebuild_cancel);
 	VERIFY(dev->l2ad_rebuild);
 	(void) l2arc_rebuild(dev);
 	mutex_enter(&l2arc_rebuild_thr_lock);
 	dev->l2ad_rebuild_began = B_FALSE;
 	dev->l2ad_rebuild = B_FALSE;
+	cv_signal(&l2arc_rebuild_thr_cv);
 	mutex_exit(&l2arc_rebuild_thr_lock);
 
 	thread_exit();
@@ -10009,8 +10040,6 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		for (;;) {
 			mutex_enter(&l2arc_rebuild_thr_lock);
 			if (dev->l2ad_rebuild_cancel) {
-				dev->l2ad_rebuild = B_FALSE;
-				cv_signal(&l2arc_rebuild_thr_cv);
 				mutex_exit(&l2arc_rebuild_thr_lock);
 				err = SET_ERROR(ECANCELED);
 				goto out;
