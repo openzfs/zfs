@@ -160,6 +160,12 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
 	abd_fletcher_4_impl(abd, size, &acd);
 }
 
+/*
+ * Checksum vectors.
+ *
+ * Note: you cannot change the name string for these functions, as they are
+ * embedded in on-disk data in some places (eg dedup table names).
+ */
 zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	{{NULL, NULL}, NULL, NULL, 0, "inherit"},
 	{{NULL, NULL}, NULL, NULL, 0, "on"},
