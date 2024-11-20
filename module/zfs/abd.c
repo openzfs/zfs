@@ -824,43 +824,20 @@ abd_iterate_page_func(abd_t *abd, size_t off, size_t size,
 }
 #endif
 
-struct buf_arg {
-	void *arg_buf;
-};
-
-static int
-abd_copy_to_buf_off_cb(void *buf, size_t size, void *private)
-{
-	struct buf_arg *ba_ptr = private;
-
-	(void) memcpy(ba_ptr->arg_buf, buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
-
-	return (0);
-}
-
 /*
  * Copy abd to buf. (off is the offset in abd.)
  */
 void
 abd_copy_to_buf_off(void *buf, abd_t *abd, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { buf };
-
-	(void) abd_iterate_func(abd, off, size, abd_copy_to_buf_off_cb,
-	    &ba_ptr);
-}
-
-static int
-abd_cmp_buf_off_cb(void *buf, size_t size, void *private)
-{
-	int ret;
-	struct buf_arg *ba_ptr = private;
-
-	ret = memcmp(buf, ba_ptr->arg_buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
-
-	return (ret);
+	char *c = buf;
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		void *addr = abd_chunk_map(&ch);
+		memcpy(c, addr, abd_chunk_size(&ch));
+		c += abd_chunk_size(&ch);
+		abd_chunk_unmap(&ch);
+	}
 }
 
 /*
@@ -869,18 +846,19 @@ abd_cmp_buf_off_cb(void *buf, size_t size, void *private)
 int
 abd_cmp_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { (void *) buf };
-
-	return (abd_iterate_func(abd, off, size, abd_cmp_buf_off_cb, &ba_ptr));
-}
-
-static int
-abd_copy_from_buf_off_cb(void *buf, size_t size, void *private)
-{
-	struct buf_arg *ba_ptr = private;
-
-	(void) memcpy(buf, ba_ptr->arg_buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
+	int ret;
+	const char *c = buf;
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		void *addr = abd_chunk_map(&ch);
+		ret = memcmp(c, addr, abd_chunk_size(&ch));
+		if (ret != 0) {
+			abd_chunk_unmap(&ch);
+			return (ret);
+		}
+		c += abd_chunk_size(&ch);
+		abd_chunk_unmap(&ch);
+	}
 
 	return (0);
 }
@@ -891,18 +869,14 @@ abd_copy_from_buf_off_cb(void *buf, size_t size, void *private)
 void
 abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { (void *) buf };
-
-	(void) abd_iterate_func(abd, off, size, abd_copy_from_buf_off_cb,
-	    &ba_ptr);
-}
-
-static int
-abd_zero_off_cb(void *buf, size_t size, void *private)
-{
-	(void) private;
-	(void) memset(buf, 0, size);
-	return (0);
+	const char *c = buf;
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		void *addr = abd_chunk_map(&ch);
+		memcpy(addr, c, abd_chunk_size(&ch));
+		c += abd_chunk_size(&ch);
+		abd_chunk_unmap(&ch);
+	}
 }
 
 /*
@@ -911,7 +885,12 @@ abd_zero_off_cb(void *buf, size_t size, void *private)
 void
 abd_zero_off(abd_t *abd, size_t off, size_t size)
 {
-	(void) abd_iterate_func(abd, off, size, abd_zero_off_cb, NULL);
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		void *addr = abd_chunk_map(&ch);
+		memset(addr, 0, abd_chunk_size(&ch));
+		abd_chunk_unmap(&ch);
+	}
 }
 
 /*
@@ -1009,26 +988,26 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
 /*
  * Check if ABD content is all-zeroes.
  */
-static int
-abd_cmp_zero_off_cb(void *data, size_t len, void *private)
-{
-	(void) private;
-
-	/* This function can only check whole uint64s. Enforce that. */
-	ASSERT0(P2PHASE(len, 8));
-
-	uint64_t *end = (uint64_t *)((char *)data + len);
-	for (uint64_t *word = (uint64_t *)data; word < end; word++)
-		if (*word != 0)
-			return (1);
-
-	return (0);
-}
-
 int
 abd_cmp_zero_off(abd_t *abd, size_t off, size_t size)
 {
-	return (abd_iterate_func(abd, off, size, abd_cmp_zero_off_cb, NULL));
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		/* This function can only check whole uint64s. Enforce that. */
+		ASSERT0(P2PHASE(abd_chunk_size(&ch), 8));
+
+		uint64_t *data = abd_chunk_map(&ch);
+		uint64_t *end =
+		    (uint64_t *)((char *)data + abd_chunk_size(&ch));
+		for (uint64_t *word = data; word < end; word++) {
+			if (*word != 0) {
+				abd_chunk_unmap(&ch);
+				return (1);
+			}
+		}
+		abd_chunk_unmap(&ch);
+	}
+	return (0);
 }
 
 /*
