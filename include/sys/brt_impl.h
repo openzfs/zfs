@@ -168,24 +168,21 @@ struct brt_vdev {
 	avl_tree_t	bv_tree;
 };
 
-/* Size of bre_offset / sizeof (uint64_t). */
+/* Size of offset / sizeof (uint64_t). */
 #define	BRT_KEY_WORDS	(1)
+
+#define	BRE_OFFSET(bre)	(DVA_GET_OFFSET(&(bre)->bre_bp.blk_dva[0]))
 
 /*
  * In-core brt entry.
- * On-disk we use bre_offset as the key and bre_refcount as the value.
+ * On-disk we use ZAP with offset as the key and count as the value.
  */
 typedef struct brt_entry {
-	uint64_t	bre_offset;
-	uint64_t	bre_refcount;
 	avl_node_t	bre_node;
+	blkptr_t	bre_bp;
+	uint64_t	bre_count;
+	uint64_t	bre_pcount;
 } brt_entry_t;
-
-typedef struct brt_pending_entry {
-	blkptr_t	bpe_bp;
-	uint64_t	bpe_count;
-	avl_node_t	bpe_node;
-} brt_pending_entry_t;
 
 #ifdef	__cplusplus
 }
