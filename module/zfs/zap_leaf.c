@@ -248,20 +248,63 @@ zap_leaf_array_create(zap_leaf_t *l, const char *buf,
 	return (chunk_head);
 }
 
-static void
-zap_leaf_array_free(zap_leaf_t *l, uint16_t *chunkp)
+/*
+ * Non-destructively copy array between leaves.
+ */
+static uint16_t
+zap_leaf_array_copy(zap_leaf_t *l, uint16_t chunk, zap_leaf_t *nl)
 {
-	uint16_t chunk = *chunkp;
-
-	*chunkp = CHAIN_END;
+	uint16_t new_chunk;
+	uint16_t *nchunkp = &new_chunk;
 
 	while (chunk != CHAIN_END) {
-		uint_t nextchunk = ZAP_LEAF_CHUNK(l, chunk).l_array.la_next;
-		ASSERT3U(ZAP_LEAF_CHUNK(l, chunk).l_array.la_type, ==,
-		    ZAP_CHUNK_ARRAY);
-		zap_leaf_chunk_free(l, chunk);
-		chunk = nextchunk;
+		ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
+		uint16_t nchunk = zap_leaf_chunk_alloc(nl);
+
+		struct zap_leaf_array *la =
+		    &ZAP_LEAF_CHUNK(l, chunk).l_array;
+		struct zap_leaf_array *nla =
+		    &ZAP_LEAF_CHUNK(nl, nchunk).l_array;
+		ASSERT3U(la->la_type, ==, ZAP_CHUNK_ARRAY);
+
+		*nla = *la; /* structure assignment */
+
+		chunk = la->la_next;
+		*nchunkp = nchunk;
+		nchunkp = &nla->la_next;
 	}
+	*nchunkp = CHAIN_END;
+	return (new_chunk);
+}
+
+/*
+ * Free array.  Unlike trivial loop of zap_leaf_chunk_free() this does
+ * not reverse order of chunks in the free list, reducing fragmentation.
+ */
+static void
+zap_leaf_array_free(zap_leaf_t *l, uint16_t chunk)
+{
+	struct zap_leaf_header *hdr = &zap_leaf_phys(l)->l_hdr;
+	uint16_t *tailp = &hdr->lh_freelist;
+	uint16_t oldfree = *tailp;
+
+	while (chunk != CHAIN_END) {
+		ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
+		zap_leaf_chunk_t *c = &ZAP_LEAF_CHUNK(l, chunk);
+		ASSERT3U(c->l_array.la_type, ==, ZAP_CHUNK_ARRAY);
+
+		*tailp = chunk;
+		chunk = c->l_array.la_next;
+
+		c->l_free.lf_type = ZAP_CHUNK_FREE;
+		memset(c->l_free.lf_pad, 0, sizeof (c->l_free.lf_pad));
+		tailp = &c->l_free.lf_next;
+
+		ASSERT3U(hdr->lh_nfree, <, ZAP_LEAF_NUMCHUNKS(l));
+		hdr->lh_nfree++;
+	}
+
+	*tailp = oldfree;
 }
 
 /* array_len and buf_len are in integers, not bytes */
@@ -515,7 +558,7 @@ zap_entry_update(zap_entry_handle_t *zeh,
 	if ((int)zap_leaf_phys(l)->l_hdr.lh_nfree < delta_chunks)
 		return (SET_ERROR(EAGAIN));
 
-	zap_leaf_array_free(l, &le->le_value_chunk);
+	zap_leaf_array_free(l, le->le_value_chunk);
 	le->le_value_chunk =
 	    zap_leaf_array_create(l, buf, integer_size, num_integers);
 	le->le_value_numints = num_integers;
@@ -534,10 +577,11 @@ zap_entry_remove(zap_entry_handle_t *zeh)
 	struct zap_leaf_entry *le = ZAP_LEAF_ENTRY(l, entry_chunk);
 	ASSERT3U(le->le_type, ==, ZAP_CHUNK_ENTRY);
 
-	zap_leaf_array_free(l, &le->le_name_chunk);
-	zap_leaf_array_free(l, &le->le_value_chunk);
-
 	*zeh->zeh_chunkp = le->le_next;
+
+	/* Free in opposite order to reduce fragmentation. */
+	zap_leaf_array_free(l, le->le_value_chunk);
+	zap_leaf_array_free(l, le->le_name_chunk);
 	zap_leaf_chunk_free(l, entry_chunk);
 
 	zap_leaf_phys(l)->l_hdr.lh_nentries--;
@@ -701,34 +745,6 @@ zap_leaf_rehash_entry(zap_leaf_t *l, struct zap_leaf_entry *le, uint16_t entry)
 	return (chunkp);
 }
 
-static uint16_t
-zap_leaf_transfer_array(zap_leaf_t *l, uint16_t chunk, zap_leaf_t *nl)
-{
-	uint16_t new_chunk;
-	uint16_t *nchunkp = &new_chunk;
-
-	while (chunk != CHAIN_END) {
-		uint16_t nchunk = zap_leaf_chunk_alloc(nl);
-		struct zap_leaf_array *nla =
-		    &ZAP_LEAF_CHUNK(nl, nchunk).l_array;
-		struct zap_leaf_array *la =
-		    &ZAP_LEAF_CHUNK(l, chunk).l_array;
-		uint_t nextchunk = la->la_next;
-
-		ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
-		ASSERT3U(nchunk, <, ZAP_LEAF_NUMCHUNKS(l));
-
-		*nla = *la; /* structure assignment */
-
-		zap_leaf_chunk_free(l, chunk);
-		chunk = nextchunk;
-		*nchunkp = nchunk;
-		nchunkp = &nla->la_next;
-	}
-	*nchunkp = CHAIN_END;
-	return (new_chunk);
-}
-
 static void
 zap_leaf_transfer_entry(zap_leaf_t *l, uint_t entry, zap_leaf_t *nl)
 {
@@ -741,10 +757,12 @@ zap_leaf_transfer_entry(zap_leaf_t *l, uint_t entry, zap_leaf_t *nl)
 
 	(void) zap_leaf_rehash_entry(nl, nle, chunk);
 
-	nle->le_name_chunk = zap_leaf_transfer_array(l, le->le_name_chunk, nl);
-	nle->le_value_chunk =
-	    zap_leaf_transfer_array(l, le->le_value_chunk, nl);
+	nle->le_name_chunk = zap_leaf_array_copy(l, le->le_name_chunk, nl);
+	nle->le_value_chunk = zap_leaf_array_copy(l, le->le_value_chunk, nl);
 
+	/* Free in opposite order to reduce fragmentation. */
+	zap_leaf_array_free(l, le->le_value_chunk);
+	zap_leaf_array_free(l, le->le_name_chunk);
 	zap_leaf_chunk_free(l, entry);
 
 	zap_leaf_phys(l)->l_hdr.lh_nentries--;
