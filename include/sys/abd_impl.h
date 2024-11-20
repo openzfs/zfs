@@ -104,6 +104,7 @@ void abd_free_linear_page(abd_t *);
 void abd_iter_init(struct abd_iter  *, abd_t *);
 boolean_t abd_iter_at_end(struct abd_iter *);
 void abd_iter_advance(struct abd_iter *, size_t);
+size_t abd_iter_size(struct abd_iter *aiter);
 void abd_iter_map(struct abd_iter *);
 void abd_iter_unmap(struct abd_iter *);
 void abd_iter_page(struct abd_iter *);
