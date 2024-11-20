@@ -903,48 +903,89 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
     size_t size, abd_iter_func2_t *func, void *private)
 {
 	int ret = 0;
-	struct abd_iter daiter, saiter;
-	abd_t *c_dabd, *c_sabd;
 
 	if (size == 0)
 		return (0);
 
-	abd_verify(dabd);
-	abd_verify(sabd);
+	abd_chunk_t sch = abd_chunk_start(sabd, soff, size);
+	abd_chunk_t dch = abd_chunk_start(dabd, doff, size);
 
-	ASSERT3U(doff + size, <=, dabd->abd_size);
-	ASSERT3U(soff + size, <=, sabd->abd_size);
+	/*
+	 * Current chunk is always mapped inside the loop, and remapped after
+	 * advance, so we can leave a larger chunk mapped across iterations.
+	 */
+	void *saddr = abd_chunk_map(&sch);
+	size_t ssize = abd_chunk_size(&sch);
 
-	c_dabd = abd_init_abd_iter(dabd, &daiter, doff);
-	c_sabd = abd_init_abd_iter(sabd, &saiter, soff);
+	void *daddr = abd_chunk_map(&dch);
+	size_t dsize = abd_chunk_size(&dch);
+
+	/*
+	 * Offset to data in current mapping. If we only take less than the
+	 * full chunk then we need to offset the next iteration.
+	 */
+	soff = doff = 0;
 
 	while (size > 0) {
-		IMPLY(abd_is_gang(dabd), c_dabd != NULL);
-		IMPLY(abd_is_gang(sabd), c_sabd != NULL);
+		ASSERT3U(ssize, >, 0);
+		ASSERT3U(dsize, >, 0);
 
-		abd_iter_map(&daiter);
-		abd_iter_map(&saiter);
+		/*
+		 * This iteration we take the largest amount without going
+		 * past the end of the chunk.
+		 */
+		size_t isize = MIN(size, MIN(ssize, dsize));
 
-		size_t dlen = MIN(daiter.iter_mapsize, size);
-		size_t slen = MIN(saiter.iter_mapsize, size);
-		size_t len = MIN(dlen, slen);
-		ASSERT(dlen > 0 || slen > 0);
-
-		ret = func(daiter.iter_mapaddr, saiter.iter_mapaddr, len,
-		    private);
-
-		abd_iter_unmap(&saiter);
-		abd_iter_unmap(&daiter);
+		ret = func(daddr + doff, saddr + soff, isize, private);
 
 		if (ret != 0)
 			break;
 
-		size -= len;
-		c_dabd =
-		    abd_advance_abd_iter(dabd, c_dabd, &daiter, len);
-		c_sabd =
-		    abd_advance_abd_iter(sabd, c_sabd, &saiter, len);
+		/*
+		 * If we've got all the data we want, eject now, rather than
+		 * advance and remap below. This makes the while() condition
+		 * above redundant.
+		 */
+		size -= isize;
+		if (size == 0)
+			break;
+
+		/*
+		 * If we consumed all of the source chunk, advance and remap.
+		 * Otherwise, record the offset for the next iteration.
+		 *
+		 * Note the assertion on abd_chunk_done(). Because of the size
+		 * check and break above, we need advance out of the last
+		 * chunk, so the iterator will never be completed.
+		 */
+		ssize -= isize;
+		if (ssize == 0) {
+			abd_chunk_unmap(&sch);
+			abd_chunk_advance(&sch);
+			ASSERT(!abd_chunk_done(&sch));
+			saddr = abd_chunk_map(&sch);
+			ssize = abd_chunk_size(&sch);
+			soff = 0;
+		} else
+			soff += isize;
+
+		/*
+		 * Same for the dest chunk.
+		 */
+		dsize -= isize;
+		if (dsize == 0) {
+			abd_chunk_unmap(&dch);
+			abd_chunk_advance(&dch);
+			ASSERT(!abd_chunk_done(&dch));
+			daddr = abd_chunk_map(&dch);
+			dsize = abd_chunk_size(&dch);
+			doff = 0;
+		} else
+			doff += isize;
 	}
+
+	abd_chunk_unmap(&sch);
+	abd_chunk_unmap(&dch);
 
 	return (ret);
 }
