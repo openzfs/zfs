@@ -761,7 +761,6 @@ int
 abd_iterate_func(abd_t *abd, size_t off, size_t size,
     abd_iter_func_t *func, void *private)
 {
-	struct abd_iter aiter;
 	int ret = 0;
 
 	if (size == 0)
@@ -770,25 +769,14 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
-	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
-
-	while (size > 0) {
-		IMPLY(abd_is_gang(abd), c_abd != NULL);
-
-		abd_iter_map(&aiter);
-
-		size_t len = MIN(aiter.iter_mapsize, size);
-		ASSERT3U(len, >, 0);
-
-		ret = func(aiter.iter_mapaddr, len, private);
-
-		abd_iter_unmap(&aiter);
+	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
+	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
+		void *addr = abd_chunk_map(&ch);
+		ret = func(addr, abd_chunk_size(&ch), private);
+		abd_chunk_unmap(&ch);
 
 		if (ret != 0)
 			break;
-
-		size -= len;
-		c_abd = abd_advance_abd_iter(abd, c_abd, &aiter, len);
 	}
 
 	return (ret);
