@@ -718,7 +718,7 @@ abd_take_ownership_of_buf(abd_t *abd, boolean_t is_metadata)
  * Initializes an abd_iter based on whether the abd is a gang ABD
  * or just a single ABD.
  */
-static inline abd_t *
+abd_t *
 abd_init_abd_iter(abd_t *abd, struct abd_iter *aiter, size_t off)
 {
 	abd_t *cabd = NULL;
@@ -741,7 +741,7 @@ abd_init_abd_iter(abd_t *abd, struct abd_iter *aiter, size_t off)
  * advancing could mean that we are at the end of a particular ABD and
  * must grab the ABD in the gang ABD's list.
  */
-static inline abd_t *
+abd_t *
 abd_advance_abd_iter(abd_t *abd, abd_t *cabd, struct abd_iter *aiter,
     size_t len)
 {
