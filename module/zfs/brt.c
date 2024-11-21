@@ -642,6 +642,7 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	BRT_DEBUG("MOS BRT VDEV destroyed, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_brtvdev);
 	brtvd->bv_mos_brtvdev = 0;
+	brtvd->bv_entcount_dirty = FALSE;
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
