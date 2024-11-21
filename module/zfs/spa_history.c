@@ -390,6 +390,9 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 		return (err);
 	}
 
+	ASSERT3UF(tx->tx_txg, <=, spa_final_dirty_txg(spa),
+	    "Logged %s after final txg was set!", "nvlist");
+
 	VERIFY0(nvlist_dup(nvl, &nvarg, KM_SLEEP));
 	if (spa_history_zone() != NULL) {
 		fnvlist_add_string(nvarg, ZPOOL_HIST_ZONE,
@@ -526,6 +529,9 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 		fnvlist_free(nvl);
 		return;
 	}
+
+	ASSERT3UF(tx->tx_txg, <=, spa_final_dirty_txg(spa),
+	    "Logged after final txg was set: %s %s", operation, fmt);
 
 	msg = kmem_vasprintf(fmt, adx);
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_STR, msg);
