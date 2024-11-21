@@ -831,12 +831,12 @@ void
 abd_copy_to_buf_off(void *buf, abd_t *abd, size_t off, size_t size)
 {
 	char *c = buf;
-	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
-	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
-		void *addr = abd_chunk_map(&ch);
-		memcpy(c, addr, abd_chunk_size(&ch));
-		c += abd_chunk_size(&ch);
-		abd_chunk_unmap(&ch);
+	void *data;
+	size_t dsize;
+
+	abd_for_each_chunk(abd, off, size, data, dsize) {
+		memcpy(c, data, dsize);
+		c += dsize;
 	}
 }
 
@@ -870,12 +870,12 @@ void
 abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 {
 	const char *c = buf;
-	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
-	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
-		void *addr = abd_chunk_map(&ch);
-		memcpy(addr, c, abd_chunk_size(&ch));
-		c += abd_chunk_size(&ch);
-		abd_chunk_unmap(&ch);
+	void *data;
+	size_t dsize;
+
+	abd_for_each_chunk(abd, off, size, data, dsize) {
+		memcpy(data, c, dsize);
+		c += dsize;
 	}
 }
 
@@ -885,12 +885,11 @@ abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 void
 abd_zero_off(abd_t *abd, size_t off, size_t size)
 {
-	for (abd_chunk_t ch = abd_chunk_start(abd, off, size);
-	    !abd_chunk_done(&ch); abd_chunk_advance(&ch)) {
-		void *addr = abd_chunk_map(&ch);
-		memset(addr, 0, abd_chunk_size(&ch));
-		abd_chunk_unmap(&ch);
-	}
+	void *data;
+	size_t dsize;
+
+	abd_for_each_chunk(abd, off, size, data, dsize)
+		memset(data, 0, dsize);
 }
 
 /*

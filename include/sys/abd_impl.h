@@ -277,6 +277,28 @@ abd_chunk_unmap(abd_chunk_t *ch) {
 	abd_iter_unmap(&ch->ch_iter);
 }
 
+/*
+ * Macro to iterate over an ABD in the most common case, where you want to
+ * do some operation on the actual data.
+ *
+ *     void *data;
+ *     size_t dsize;
+ *     abd_for_each_chunk(abd, off, size, data, dsize) {
+ *         // do work on data an dsize
+ *     }
+ *
+ * XXX Can't be used if we need to break out of the loop early, because it
+ *     would leave the chunk mapped. Also sucks that we have declare data and
+ *     dsize every time, and outside the scope -- robn, 2024-11-21
+ */
+#define abd_for_each_chunk(abd, off, size, __data, __dsize)		\
+	for (abd_chunk_t __ai = abd_chunk_start(abd, off, size);	\
+	    !abd_chunk_done(&__ai) &&					\
+	    (__data = abd_chunk_map(&__ai)) &&				\
+	    (__dsize = abd_chunk_size(&__ai));				\
+	    abd_chunk_unmap(&__ai), abd_chunk_advance(&__ai))
+
+
 #ifdef __cplusplus
 }
 #endif
