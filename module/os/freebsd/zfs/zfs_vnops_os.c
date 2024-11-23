@@ -6202,7 +6202,7 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	} else {
 #if (__FreeBSD_version >= 1302506 && __FreeBSD_version < 1400000) || \
 	__FreeBSD_version >= 1400086
-		vn_lock_pair(invp, false, LK_EXCLUSIVE, outvp, false,
+		vn_lock_pair(invp, false, LK_SHARED, outvp, false,
 		    LK_EXCLUSIVE);
 #else
 		vn_lock_pair(invp, false, outvp, false);
