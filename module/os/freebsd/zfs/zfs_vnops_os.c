@@ -291,8 +291,12 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	case F_SEEK_HOLE:
 	{
 		off = *(offset_t *)data;
+		error = vn_lock(vp, LK_SHARED);
+		if (error)
+			return (error);
 		/* offset parameter is in/out */
 		error = zfs_holey(VTOZ(vp), com, &off);
+		VOP_UNLOCK(vp);
 		if (error)
 			return (error);
 		*(offset_t *)data = off;
