@@ -56,7 +56,8 @@ function linux() {
     --prefix=/usr \
     --enable-pyzfs \
     --enable-debug \
-    --enable-debuginfo
+    --enable-debuginfo \
+    --sysconfdir=/etc
   echo "##[endgroup]"
 
   echo "##[group]Build"
