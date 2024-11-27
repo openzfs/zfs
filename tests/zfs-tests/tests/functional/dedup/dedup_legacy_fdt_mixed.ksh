@@ -71,7 +71,7 @@ log_must dd if=/dev/urandom of=/$TESTPOOL/ds1/file1 bs=128k count=4
 log_must zpool sync
 
 # should be four entries in the skein unique table
-log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-skein-zap-unique: 4 entries'"
+log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-skein-zap-unique:.*entries=4'"
 
 # should be just one DDT ZAP in the MOS
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-.*-zap- | wc -l) -eq 1
@@ -90,7 +90,7 @@ log_must zpool sync
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "active"
 
 # now also four entries in the blake3 unique table
-log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-blake3-zap-unique: 4 entries'"
+log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-blake3-zap-unique:.*entries=4'"
 
 # two entries in the MOS: the legacy skein DDT ZAP, and the containing dir for
 # the blake3 FDT table
