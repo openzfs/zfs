@@ -10034,9 +10034,8 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 		(void) printf(gettext("Removal of %s canceled on %s"),
 		    vdev_name, ctime(&end));
 	} else {
-		uint64_t copied, total, elapsed, mins_left, hours_left;
+		uint64_t copied, total, elapsed, rate, mins_left, hours_left;
 		double fraction_done;
-		uint_t rate;
 
 		assert(prs->prs_state == DSS_SCANNING);
 
@@ -10132,9 +10131,8 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		    copied_buf, time_buf, ctime((time_t *)&end));
 	} else {
 		char examined_buf[7], total_buf[7], rate_buf[7];
-		uint64_t copied, total, elapsed, secs_left;
+		uint64_t copied, total, elapsed, rate, secs_left;
 		double fraction_done;
-		uint_t rate;
 
 		assert(pres->pres_state == DSS_SCANNING);
 
