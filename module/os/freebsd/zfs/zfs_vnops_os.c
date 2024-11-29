@@ -4750,6 +4750,8 @@ zfs_freebsd_getattr(struct vop_getattr_args *ap)
 	    xvap.xva_xoptattrs.xoa_archive);
 	FLAG_CHECK(UF_NODUMP, XAT_NODUMP,
 	    xvap.xva_xoptattrs.xoa_nodump);
+	FLAG_CHECK(UF_NOUNLINK, XAT_NOUNLINK,
+	    xvap.xva_xoptattrs.xoa_nounlink);
 	FLAG_CHECK(UF_READONLY, XAT_READONLY,
 	    xvap.xva_xoptattrs.xoa_readonly);
 	FLAG_CHECK(UF_SYSTEM, XAT_SYSTEM,
@@ -4812,7 +4814,7 @@ zfs_freebsd_setattr(struct vop_setattr_args *ap)
 		 */
 		if ((fflags & ~(SF_IMMUTABLE|SF_APPEND|SF_NOUNLINK|UF_ARCHIVE|
 		    UF_NODUMP|UF_SYSTEM|UF_HIDDEN|UF_READONLY|UF_REPARSE|
-		    UF_OFFLINE|UF_SPARSE)) != 0)
+		    UF_OFFLINE|UF_SPARSE|UF_NOUNLINK)) != 0)
 			return (EOPNOTSUPP);
 		/*
 		 * Unprivileged processes are not permitted to unset system
@@ -4869,6 +4871,8 @@ zfs_freebsd_setattr(struct vop_setattr_args *ap)
 		    xvap.xva_xoptattrs.xoa_archive);
 		FLAG_CHANGE(UF_NODUMP, ZFS_NODUMP, XAT_NODUMP,
 		    xvap.xva_xoptattrs.xoa_nodump);
+		FLAG_CHANGE(UF_NOUNLINK, ZFS_NOUNLINK, XAT_NOUNLINK,
+		    xvap.xva_xoptattrs.xoa_nounlink);
 		FLAG_CHANGE(UF_READONLY, ZFS_READONLY, XAT_READONLY,
 		    xvap.xva_xoptattrs.xoa_readonly);
 		FLAG_CHANGE(UF_SYSTEM, ZFS_SYSTEM, XAT_SYSTEM,
