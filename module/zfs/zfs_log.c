@@ -607,7 +607,7 @@ zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  * called as soon as the write is on stable storage (be it via a DMU sync or a
  * ZIL commit).
  */
-static int64_t zfs_immediate_write_sz = 32768;
+static uint_t zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
@@ -935,5 +935,5 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 	}
 }
 
-ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, S64, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
 	"Largest data block to write to zil");
