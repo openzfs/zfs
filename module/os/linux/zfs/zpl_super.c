@@ -109,11 +109,23 @@ zpl_sync_fs(struct super_block *sb, int wait)
 {
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
+	znode_t *zp;
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	int error;
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_sync(sb, wait, cr);
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	for (zp = list_head(&zfsvfs->z_all_znodes); zp;
+	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+		if (zp->z_sa_hdl)
+			error = filemap_write_and_wait(ZTOI(zp)->i_mapping);
+		if (error != 0)
+			break;
+	}
+	mutex_exit(&zfsvfs->z_znodes_lock);
+	if (error == 0)
+		error = -zfs_sync(sb, wait, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
