@@ -1958,6 +1958,27 @@ Historical statistics for this many latest reads will be available in
 .It Sy zfs_read_history_hits Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Include cache hits in read history
 .
+.It Sy zfs_readdir_dnode_prefetch_limit Ns = Ns Sy 0 Pq u64
+Disable prefetches in readdir for large directories.
+When readdir searches a directory, it normally prefetches metadata for
+all objects in the directory it checks, even if it's just
+looking for a single object.
+Setting this to a non-zero value disables that prefetching for directories
+with a greater size than that value.
+Disabling prefetch for large directories can greatly lower CPU usage on NFS servers
+where directories have a very large number of subdirectories. 
+Consider setting this parameter if your primary access is via NFS, you have
+unusually high CPU used by nfsd processes, and arcstat shows very high metadata
+read rates compared with other activity.
+Directory size in this case is the size returned from calling
+.Sy stat
+on the directory (stat.st_size).
+On ZFS, this directory size value is approximately the number of files
+and subdirectories in the directory.
+A reasonable value would be 20000.
+A zero value (the default) means no limit on directory metadata prefetching.
+This parameter only applies on Linux.
+.
 .It Sy zfs_rebuild_max_segment Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Maximum read segment size to issue when sequentially resilvering a
 top-level vdev.
