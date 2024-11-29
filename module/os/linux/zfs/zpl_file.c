@@ -546,7 +546,7 @@ zpl_write_cache_pages(struct address_space *mapping,
 	return (result);
 }
 
-static int
+int
 zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	znode_t		*zp = ITOZ(mapping->host);

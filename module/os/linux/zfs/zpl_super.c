@@ -111,6 +111,12 @@ zpl_sync_fs(struct super_block *sb, int wait)
 	cred_t *cr = CRED();
 	znode_t *zp;
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	struct writeback_control wbc = {
+		.sync_mode = wait ? WB_SYNC_ALL : WB_SYNC_NONE,
+		.nr_to_write = LONG_MAX,
+		.range_start = 0,
+		.range_end = LLONG_MAX,
+	};
 	int error;
 
 	crhold(cr);
@@ -119,7 +125,7 @@ zpl_sync_fs(struct super_block *sb, int wait)
 	for (zp = list_head(&zfsvfs->z_all_znodes); zp;
 	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
 		if (zp->z_sa_hdl)
-			error = filemap_write_and_wait(ZTOI(zp)->i_mapping);
+			error = zpl_writepages(ZTOI(zp)->i_mapping, &wbc);
 		if (error != 0)
 			break;
 	}

@@ -49,6 +49,8 @@ extern const struct inode_operations zpl_special_inode_operations;
 extern const struct address_space_operations zpl_address_space_operations;
 extern const struct file_operations zpl_file_operations;
 extern const struct file_operations zpl_dir_file_operations;
+extern int zpl_writepages(struct address_space *mapping,
+    struct writeback_control *wbc);
 
 /* zpl_super.c */
 extern void zpl_prune_sb(uint64_t nr_to_scan, void *arg);
