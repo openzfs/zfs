@@ -36,7 +36,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_REGISTER_SYSCTL_SZ], [
 	ZFS_LINUX_TEST_SRC([has_register_sysctl_sz], [
 		#include <linux/sysctl.h>
 	],[
-		struct ctl_table test_table[] __attribute__((unused)) = {0};
+		struct ctl_table test_table[] __attribute__((unused)) = {{}};
 		register_sysctl_sz("", test_table, 0);
 	])
 ])
