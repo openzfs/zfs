@@ -159,6 +159,17 @@ extern "C" {
 #endif
 #define	_SUNOS_VTOC_16
 
+#elif defined(__loongarch__) && defined(__loongarch_lp64)
+/*
+ * LoongArch arch specific defines
+ * only LoongArch64 is supported yet
+ * Define the appropriate "implementation choices"
+ */
+#if !defined(_LP64)
+#define	_LP64
+#endif
+#define	_SUNOS_VTOC_16
+
 #elif defined(__arm__)
 
 /*
