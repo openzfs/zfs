@@ -31,6 +31,22 @@ jobs:
         ./configure --enable-debug --enable-debuginfo
     - name: Make
       run: |
+        # Hack for zfs-2.1.16+
+        #
+        # When Alien converts the RPMs to DEB packages, it calls this line:
+        #
+        # $this->do("rpm2cpio '".$this->filename."' | (cd $workdir; $decomp cpio
+        #     --extract --make-directories --no-absolute-filenames
+        #     --preserve-modification-time) 2>&1")
+        #
+        # This seems to fail with zfs-2.1.16 with:
+        #
+        #    cpio: ./usr/src/spl-2.1.16/6.5.0-1025-azure: Cannot open: No such file or directory
+        #
+        # The workaround is just to always return true from the 'cpio' command.
+        # This does not seem to affect anything.
+        sudo sed -i 's/preserve-modification-time/preserve-modification-time | true/g' /usr/share/perl5/Alien/Package/Rpm.pm
+
         make --no-print-directory -s pkg-utils pkg-kmod
     - name: Install
       run: |
