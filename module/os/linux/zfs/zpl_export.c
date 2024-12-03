@@ -24,6 +24,7 @@
  */
 
 
+#include <sys/file.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
@@ -109,6 +110,36 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	return (d_obtain_alias(ip));
 }
 
+/*
+ * In case the filesystem contains name longer than 255, we need to override
+ * the default get_name so we don't get buffer overflow. Unfortunately, since
+ * the buffer size is hardcoded in Linux, we will get ESTALE error in this
+ * case.
+ */
+static int
+zpl_get_name(struct dentry *parent, char *name, struct dentry *child)
+{
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	struct inode *dir = parent->d_inode;
+	struct inode *ip = child->d_inode;
+	int error;
+
+	if (!dir || !S_ISDIR(dir->i_mode))
+		return (-ENOTDIR);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+	spl_inode_lock_shared(dir);
+	error = -zfs_get_name(ITOZ(dir), name, ITOZ(ip));
+	spl_inode_unlock_shared(dir);
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	return (error);
+}
+
+
 static struct dentry *
 zpl_get_parent(struct dentry *child)
 {
@@ -153,6 +184,7 @@ zpl_commit_metadata(struct inode *inode)
 const struct export_operations zpl_export_operations = {
 	.encode_fh		= zpl_encode_fh,
 	.fh_to_dentry		= zpl_fh_to_dentry,
+	.get_name		= zpl_get_name,
 	.get_parent		= zpl_get_parent,
 	.commit_metadata	= zpl_commit_metadata,
 };

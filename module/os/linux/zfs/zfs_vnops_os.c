@@ -527,6 +527,48 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 }
 
 /*
+ * Perform a linear search in directory for the name of specific inode.
+ * Note we don't pass in the buffer size of name because it's hardcoded to
+ * NAME_MAX+1(256) in Linux.
+ *
+ *	IN:	dzp	- znode of directory to search.
+ *		zp	- znode of the target
+ *
+ *	OUT:	name	- dentry name of the target
+ *
+ *	RETURN:	0 on success, error code on failure.
+ */
+int
+zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	int error = 0;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, dzp, FTAG)) != 0)
+		return (error);
+
+	if ((error = zfs_verify_zp(zp)) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	/* ctldir should have got their name in zfs_vget */
+	if (dzp->z_is_ctldir || zp->z_is_ctldir) {
+		zfs_exit(zfsvfs, FTAG);
+		return (ENOENT);
+	}
+
+	/* buffer len is hardcoded to 256 in Linux kernel */
+	error = zap_value_search(zfsvfs->z_os, dzp->z_id, zp->z_id,
+	    ZFS_DIRENT_OBJ(-1ULL), name);
+
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+
+
+/*
  * Attempt to create a new entry in a directory.  If the entry
  * already exists, truncate the file if permissible, else return
  * an error.  Return the ip of the created or trunc'd file.
