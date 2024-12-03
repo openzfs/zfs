@@ -546,8 +546,9 @@ zfs_uio_dio_check_for_zero_page(zfs_uio_t *uio)
 			unlock_page(p);
 			put_page(p);
 
-			p = __page_cache_alloc(gfp_zero_page);
-			zfs_mark_page(p);
+			uio->uio_dio.pages[i] =
+			    __page_cache_alloc(gfp_zero_page);
+			zfs_mark_page(uio->uio_dio.pages[i]);
 		} else {
 			unlock_page(p);
 		}

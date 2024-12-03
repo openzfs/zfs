@@ -105,7 +105,7 @@ spl_assert(const char *buf, const char *file, const char *func, int line)
 	    __FILE__, __FUNCTION__, __LINE__))
 
 #define	VERIFYF(cond, str, ...)		do {				\
-		if (unlikely(!cond))					\
+		if (unlikely(!(cond)))					\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY(" #cond ") failed " str "\n", __VA_ARGS__);\
 	} while (0)
