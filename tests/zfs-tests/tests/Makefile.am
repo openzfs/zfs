@@ -91,6 +91,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/alloc_class/alloc_class.kshlib \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
+	functional/special_failsafe/special_failsafe.cfg \
+	functional/special_failsafe/special_failsafe.kshlib \
 	functional/bclone/bclone.cfg \
 	functional/bclone/bclone_common.kshlib \
 	functional/bclone/bclone_corner_cases.kshlib \
@@ -444,6 +446,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/atime/root_atime_on.ksh \
 	functional/atime/root_relatime_on.ksh \
 	functional/atime/setup.ksh \
+	functional/special_failsafe/special_failsafe_add.ksh \
+	functional/special_failsafe/special_failsafe_create.ksh \
+	functional/special_failsafe/special_failsafe_files.ksh \
+	functional/special_failsafe/special_failsafe_import.ksh \
+	functional/special_failsafe/special_failsafe_prop.ksh \
+	functional/special_failsafe/special_failsafe_offline.ksh \
+	functional/special_failsafe/special_failsafe_scrub.ksh \
+	functional/special_failsafe/special_failsafe_split.ksh \
+	functional/special_failsafe/cleanup.ksh \
+	functional/special_failsafe/setup.ksh \
 	functional/bclone/bclone_crossfs_corner_cases.ksh \
 	functional/bclone/bclone_crossfs_corner_cases_limited.ksh \
 	functional/bclone/bclone_crossfs_data.ksh \
