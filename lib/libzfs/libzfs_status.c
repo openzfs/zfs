@@ -510,6 +510,10 @@ zpool_get_status(zpool_handle_t *zhp, const char **msgid,
 
 	zpool_status_t ret = check_status(zhp->zpool_config, B_FALSE, errata,
 	    compatibility);
+	if (ret == ZPOOL_STATUS_OK && zpool_get_shared_log(zhp)) {
+		ret = check_status(zpool_get_shared_log(zhp)->zpool_config,
+		    B_FALSE, errata, compatibility);
+	}
 
 	if (msgid != NULL) {
 		if (ret >= NMSGID)
