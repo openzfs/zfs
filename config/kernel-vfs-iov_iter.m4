@@ -15,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 
 	ZFS_LINUX_TEST_SRC([iov_iter_get_pages2], [
 		#include <linux/uio.h>
-	], [
+	],[
 		struct iov_iter iter = { 0 };
 		struct page **pages = NULL;
 		size_t maxsize = 4096;
@@ -24,20 +24,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 		size_t ret __attribute__ ((unused));
 
 		ret = iov_iter_get_pages2(&iter, pages, maxsize, maxpages,
-		    &start);
-	])
-
-	ZFS_LINUX_TEST_SRC([iov_iter_get_pages], [
-		#include <linux/uio.h>
-	], [
-		struct iov_iter iter = { 0 };
-		struct page **pages = NULL;
-		size_t maxsize = 4096;
-		unsigned maxpages = 1;
-		size_t start;
-		size_t ret __attribute__ ((unused));
-
-		ret = iov_iter_get_pages(&iter, pages, maxsize, maxpages,
 		    &start);
 	])
 
@@ -59,7 +45,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
-	enable_vfs_iov_iter="yes"
 
 	AC_MSG_CHECKING([whether fault_in_iov_iter_readable() is available])
 	ZFS_LINUX_TEST_RESULT([fault_in_iov_iter_readable], [
@@ -78,17 +63,8 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_IOV_ITER_GET_PAGES2, 1,
 		    [iov_iter_get_pages2() is available])
-	], [
+	],[
 		AC_MSG_RESULT(no)
-		AC_MSG_CHECKING([whether iov_iter_get_pages() is available])
-			ZFS_LINUX_TEST_RESULT([iov_iter_get_pages], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_IOV_ITER_GET_PAGES, 1,
-			    [iov_iter_get_pages() is available])
-		], [
-			AC_MSG_RESULT(no)
-			enable_vfs_iov_iter="no"
-		])
 	])
 
 	dnl #
@@ -103,17 +79,6 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 		    [iov_iter_type() is available])
 	],[
 		AC_MSG_RESULT(no)
-	])
-
-	dnl #
-	dnl # As of the 4.9 kernel support is provided for iovecs, kvecs,
-	dnl # bvecs and pipes in the iov_iter structure.  As long as the
-	dnl # other support interfaces are all available the iov_iter can
-	dnl # be correctly used in the uio structure.
-	dnl #
-	AS_IF([test "x$enable_vfs_iov_iter" = "xyes"], [
-		AC_DEFINE(HAVE_VFS_IOV_ITER, 1,
-		    [All required iov_iter interfaces are available])
 	])
 
 	dnl #
