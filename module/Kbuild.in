@@ -27,6 +27,7 @@ ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/zfs
 ZFS_MODULE_CFLAGS += -I$(zfs_include)
 ZFS_MODULE_CPPFLAGS += -D_KERNEL
 ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
+ZFS_MODULE_CPPFLAGS += @KERNEL_ZIA_CPPFLAGS@
 
 # KASAN enables -Werror=frame-larger-than=1024, which
 # breaks oh so many parts of our build.
@@ -426,6 +427,8 @@ ZFS_OBJS := \
 	zfs_vnops.o \
 	zfs_znode.o \
 	zil.o \
+	zia.o \
+	zia_cddl.o \
 	zio.o \
 	zio_checksum.o \
 	zio_compress.o \
@@ -504,4 +507,20 @@ OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
 ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec
+endif
+
+ifneq ("@DPUSM_SYMBOLS@","")
+obj-$(CONFIG_ZFS) += zia-software-provider.o
+
+ZIA_SOFTWARE_PROVIDER_OBJS := \
+	provider.o \
+	kernel_offloader.o
+
+zia-software-provider-objs += $(addprefix zia-software-provider/,$(ZIA_SOFTWARE_PROVIDER_OBJS))
+# zfs_file_os does not have any dependencies, so just link to it directly
+zia-software-provider-objs += os/linux/zfs/zfs_file_os.o
+
+$(addprefix $(obj)/zia-software-provider/,$(ZIA_SOFTWARE_PROVIDER_OBJS)) : ccflags-y += -I@abs_top_builddir@ $(ZFS_MODULE_CFLAGS) -I@abs_srcdir@/zia-software-provider/ -I@DPUSM_ROOT@/include
+
+@ZIA_ENABLED_TRUE@KBUILD_EXTRA_SYMBOLS += @DPUSM_SYMBOLS@
 endif

@@ -169,6 +169,11 @@ extern int vdev_raidz_load(vdev_t *);
 #define	RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_1 6
 #define	RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2 7
 
+void vdev_raidz_generate_parity_p(struct raidz_row *);
+void vdev_raidz_generate_parity_pq(struct raidz_row *);
+void vdev_raidz_generate_parity_pqr(struct raidz_row *);
+void vdev_raidz_reconstruct_general(struct raidz_row *, int *, int);
+
 #ifdef	__cplusplus
 }
 #endif

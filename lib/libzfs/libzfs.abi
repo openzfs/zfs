@@ -3132,7 +3132,20 @@
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_SIZE' value='36'/>
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_QUOTA' value='37'/>
       <enumerator name='ZPOOL_PROP_DEDUPCACHED' value='38'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='39'/>
+      <enumerator name='ZPOOL_PROP_ZIA_AVAILABLE' value='39'/>
+      <enumerator name='ZPOOL_PROP_ZIA_PROVIDER' value='40'/>
+      <enumerator name='ZPOOL_PROP_ZIA_COMPRESS' value='41'/>
+      <enumerator name='ZPOOL_PROP_ZIA_DECOMPRESS' value='42'/>
+      <enumerator name='ZPOOL_PROP_ZIA_CHECKSUM' value='43'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ1_GEN' value='44'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ2_GEN' value='45'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ3_GEN' value='46'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ1_REC' value='47'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ2_REC' value='48'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ3_REC' value='49'/>
+      <enumerator name='ZPOOL_PROP_ZIA_FILE_WRITE' value='50'/>
+      <enumerator name='ZPOOL_PROP_ZIA_DISK_WRITE' value='51'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='52'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>

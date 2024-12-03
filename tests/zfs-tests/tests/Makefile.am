@@ -390,7 +390,9 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/zvol/zvol_misc/zvol_misc_common.kshlib \
 	functional/zvol/zvol_swap/zvol_swap.cfg \
 	functional/idmap_mount/idmap_mount.cfg \
-	functional/idmap_mount/idmap_mount_common.kshlib
+	functional/idmap_mount/idmap_mount_common.kshlib \
+	functional/zia/zia.cfg \
+	functional/zia/zia.kshlib
 
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/off/cleanup.ksh \
@@ -2177,4 +2179,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_002.ksh \
 	functional/idmap_mount/idmap_mount_003.ksh \
 	functional/idmap_mount/idmap_mount_004.ksh \
-	functional/idmap_mount/idmap_mount_005.ksh
+	functional/idmap_mount/idmap_mount_005.ksh \
+	functional/zia/cleanup.ksh \
+	functional/zia/setup.ksh \
+	functional/zia/zia_props.ksh \
+	functional/zia/zia_raidz_resilver.ksh \
+	functional/zia/zia_write_pipeline.ksh
