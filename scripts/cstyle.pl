@@ -211,6 +211,7 @@ my $next_in_cpp = 0;
 my $in_comment = 0;
 my $comment_done = 0;
 my $in_warlock_comment = 0;
+my $in_macro_call = 0;
 my $in_function = 0;
 my $in_function_header = 0;
 my $function_header_full_indent = 0;
@@ -395,12 +396,18 @@ line: while (<$filehandle>) {
 		}
 	}
 
+	# If this looks like a top-level macro invocation, remember it so we
+	# don't mistake it for a function declaration below.
+	if (/^[A-Za-z_][A-Za-z_0-9]*\(/) {
+		$in_macro_call = 1;
+	}
+
 	#
 	# If this matches something of form "foo(", it's probably a function
 	# definition, unless it ends with ") bar;", in which case it's a declaration
 	# that uses a macro to generate the type.
 	#
-	if (/^\w+\(/ && !/\) \w+;/) {
+	if (!$in_macro_call && /^\w+\(/ && !/\) \w+;/) {
 		$in_function_header = 1;
 		if (/\($/) {
 			$function_header_full_indent = 1;
@@ -700,6 +707,14 @@ line: while (<$filehandle>) {
 			    "else and right brace should be on same line");
 		}
 	}
+
+	# Macro invocations end with a closing paren, and possibly a semicolon.
+	# We do this check down here to make sure all the regular checks are
+	# applied to calls that appear entirely on a single line.
+	if ($in_macro_call && /\);?$/) {
+		$in_macro_call = 0;
+	}
+
 	$prev = $line;
 }
 
