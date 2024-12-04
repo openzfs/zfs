@@ -572,7 +572,9 @@ line: while (<$filehandle>) {
 		err("comma or semicolon followed by non-blank");
 	}
 	# allow "for" statements to have empty "while" clauses
-	if (/\s[,;]/ && !/^[\t]+;$/ && !/^\s*for \([^;]*; ;[^;]*\)/) {
+	# allow macro invocations to have empty parameters
+	if (/\s[,;]/ && !/^[\t]+;$/ &&
+	    !($in_macro_call || /^\s*for \([^;]*; ;[^;]*\)/)) {
 		err("comma or semicolon preceded by blank");
 	}
 	if (/^\s*(&&|\|\|)/) {
