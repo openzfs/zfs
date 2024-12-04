@@ -26,7 +26,7 @@
  * Copyright (c) 2017, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2020, George Amanakis. All rights reserved.
- * Copyright (c) 2019, 2023, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020, The FreeBSD Foundation [1]
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
@@ -465,6 +465,9 @@ static uint_t zfs_arc_lotsfree_percent = 10;
  */
 static int zfs_arc_prune_task_threads = 1;
 
+/* Used by spa_export/spa_destroy to flush the arc asynchronously */
+static taskq_t *arc_flush_taskq;
+
 /* The 7 states: */
 arc_state_t ARC_anon;
 arc_state_t ARC_mru;
@@ -772,6 +775,23 @@ static buf_hash_table_t buf_hash_table;
 	(BUF_HASH_LOCK(BUF_HASH_INDEX(hdr->b_spa, &hdr->b_dva, hdr->b_birth)))
 
 uint64_t zfs_crc64_table[256];
+
+/*
+ * Asynchronous ARC flush
+ *
+ * We track these in a list for arc_async_flush_guid_inuse().
+ * Used for both L1 and L2 async teardown.
+ */
+static list_t arc_async_flush_list;
+static kmutex_t	arc_async_flush_lock;
+
+typedef struct arc_async_flush {
+	uint64_t	af_spa_guid;
+	taskq_ent_t	af_tqent;
+	uint_t		af_cache_level;	/* 1 or 2 to differentiate node */
+	list_node_t	af_node;
+} arc_async_flush_t;
+
 
 /*
  * Level 2 ARC
@@ -1708,13 +1728,15 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
  */
 static arc_buf_hdr_t *
 arc_buf_alloc_l2only(size_t size, arc_buf_contents_t type, l2arc_dev_t *dev,
-    dva_t dva, uint64_t daddr, int32_t psize, uint64_t birth,
+    dva_t dva, uint64_t daddr, int32_t psize, uint64_t asize, uint64_t birth,
     enum zio_compress compress, uint8_t complevel, boolean_t protected,
     boolean_t prefetch, arc_state_type_t arcs_state)
 {
 	arc_buf_hdr_t	*hdr;
 
 	ASSERT(size != 0);
+	ASSERT(dev->l2ad_vdev != NULL);
+
 	hdr = kmem_cache_alloc(hdr_l2only_cache, KM_SLEEP);
 	hdr->b_birth = birth;
 	hdr->b_type = type;
@@ -1722,6 +1744,7 @@ arc_buf_alloc_l2only(size_t size, arc_buf_contents_t type, l2arc_dev_t *dev,
 	arc_hdr_set_flags(hdr, arc_bufc_to_flags(type) | ARC_FLAG_HAS_L2HDR);
 	HDR_SET_LSIZE(hdr, size);
 	HDR_SET_PSIZE(hdr, psize);
+	HDR_SET_L2SIZE(hdr, asize);
 	arc_hdr_set_compress(hdr, compress);
 	hdr->b_complevel = complevel;
 	if (protected)
@@ -3509,15 +3532,16 @@ static void
 l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
     boolean_t state_only)
 {
-	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
-	l2arc_dev_t *dev = l2hdr->b_dev;
 	uint64_t lsize = HDR_GET_LSIZE(hdr);
 	uint64_t psize = HDR_GET_PSIZE(hdr);
-	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
+	uint64_t asize = HDR_GET_L2SIZE(hdr);
 	arc_buf_contents_t type = hdr->b_type;
 	int64_t lsize_s;
 	int64_t psize_s;
 	int64_t asize_s;
+
+	/* For L2 we expect the header's b_l2size to be valid */
+	ASSERT3U(asize, >=, psize);
 
 	if (incr) {
 		lsize_s = lsize;
@@ -3580,8 +3604,6 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 {
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
-	uint64_t psize = HDR_GET_PSIZE(hdr);
-	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
 
 	ASSERT(MUTEX_HELD(&dev->l2ad_mtx));
 	ASSERT(HDR_HAS_L2HDR(hdr));
@@ -3589,7 +3611,10 @@ arc_hdr_l2hdr_destroy(arc_buf_hdr_t *hdr)
 	list_remove(&dev->l2ad_buflist, hdr);
 
 	l2arc_hdr_arcstats_decrement(hdr);
-	vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
+	if (dev->l2ad_vdev != NULL) {
+		uint64_t asize = HDR_GET_L2SIZE(hdr);
+		vdev_space_update(dev->l2ad_vdev, -asize, 0, 0);
+	}
 
 	(void) zfs_refcount_remove_many(&dev->l2ad_alloc, arc_hdr_size(hdr),
 	    hdr);
@@ -4377,20 +4402,10 @@ arc_evict(void)
 	return (total_evicted);
 }
 
-void
-arc_flush(spa_t *spa, boolean_t retry)
+static void
+arc_flush_impl(uint64_t guid, boolean_t retry)
 {
-	uint64_t guid = 0;
-
-	/*
-	 * If retry is B_TRUE, a spa must not be specified since we have
-	 * no good way to determine if all of a spa's buffers have been
-	 * evicted from an arc state.
-	 */
-	ASSERT(!retry || spa == NULL);
-
-	if (spa != NULL)
-		guid = spa_load_guid(spa);
+	ASSERT(!retry || guid == 0);
 
 	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_DATA, retry);
 	(void) arc_flush_state(arc_mru, guid, ARC_BUFC_METADATA, retry);
@@ -4406,6 +4421,106 @@ arc_flush(spa_t *spa, boolean_t retry)
 
 	(void) arc_flush_state(arc_uncached, guid, ARC_BUFC_DATA, retry);
 	(void) arc_flush_state(arc_uncached, guid, ARC_BUFC_METADATA, retry);
+}
+
+void
+arc_flush(spa_t *spa, boolean_t retry)
+{
+	/*
+	 * If retry is B_TRUE, a spa must not be specified since we have
+	 * no good way to determine if all of a spa's buffers have been
+	 * evicted from an arc state.
+	 */
+	ASSERT(!retry || spa == NULL);
+
+	arc_flush_impl(spa != NULL ? spa_load_guid(spa) : 0, retry);
+}
+
+static arc_async_flush_t *
+arc_async_flush_add(uint64_t spa_guid, uint_t level)
+{
+	arc_async_flush_t *af = kmem_alloc(sizeof (*af), KM_SLEEP);
+	af->af_spa_guid = spa_guid;
+	af->af_cache_level = level;
+	taskq_init_ent(&af->af_tqent);
+	list_link_init(&af->af_node);
+
+	mutex_enter(&arc_async_flush_lock);
+	list_insert_tail(&arc_async_flush_list, af);
+	mutex_exit(&arc_async_flush_lock);
+
+	return (af);
+}
+
+static void
+arc_async_flush_remove(uint64_t spa_guid, uint_t level)
+{
+	mutex_enter(&arc_async_flush_lock);
+	for (arc_async_flush_t *af = list_head(&arc_async_flush_list);
+	    af != NULL; af = list_next(&arc_async_flush_list, af)) {
+		if (af->af_spa_guid == spa_guid &&
+		    af->af_cache_level == level) {
+			list_remove(&arc_async_flush_list, af);
+			kmem_free(af, sizeof (*af));
+			break;
+		}
+	}
+	mutex_exit(&arc_async_flush_lock);
+}
+
+static void
+arc_flush_task(void *arg)
+{
+	arc_async_flush_t *af = arg;
+	hrtime_t start_time = gethrtime();
+	uint64_t spa_guid = af->af_spa_guid;
+
+	arc_flush_impl(spa_guid, B_FALSE);
+	arc_async_flush_remove(spa_guid, af->af_cache_level);
+
+	uint64_t elaspsed = NSEC2MSEC(gethrtime() - start_time);
+	if (elaspsed > 0) {
+		zfs_dbgmsg("spa %llu arc flushed in %llu ms",
+		    (u_longlong_t)spa_guid, (u_longlong_t)elaspsed);
+	}
+}
+
+/*
+ * ARC buffers use the spa's load guid and can continue to exist after
+ * the spa_t is gone (exported). The blocks are orphaned since each
+ * spa import has a different load guid.
+ *
+ * It's OK if the spa is re-imported while this asynchronous flush is
+ * still in progress. The new spa_load_guid will be different.
+ *
+ * Also, arc_fini will wait for any arc_flush_task to finish.
+ */
+void
+arc_flush_async(spa_t *spa)
+{
+	uint64_t spa_guid = spa_load_guid(spa);
+	arc_async_flush_t *af = arc_async_flush_add(spa_guid, 1);
+
+	taskq_dispatch_ent(arc_flush_taskq, arc_flush_task,
+	    af, TQ_SLEEP, &af->af_tqent);
+}
+
+/*
+ * Check if a guid is still in-use as part of an async teardown task
+ */
+boolean_t
+arc_async_flush_guid_inuse(uint64_t spa_guid)
+{
+	mutex_enter(&arc_async_flush_lock);
+	for (arc_async_flush_t *af = list_head(&arc_async_flush_list);
+	    af != NULL; af = list_next(&arc_async_flush_list, af)) {
+		if (af->af_spa_guid == spa_guid) {
+			mutex_exit(&arc_async_flush_lock);
+			return (B_TRUE);
+		}
+	}
+	mutex_exit(&arc_async_flush_lock);
+	return (B_FALSE);
 }
 
 uint64_t
@@ -7751,6 +7866,12 @@ arc_init(void)
 	arc_prune_taskq = taskq_create("arc_prune", zfs_arc_prune_task_threads,
 	    defclsyspri, 100, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
+	list_create(&arc_async_flush_list, sizeof (arc_async_flush_t),
+	    offsetof(arc_async_flush_t, af_node));
+	mutex_init(&arc_async_flush_lock, NULL, MUTEX_DEFAULT, NULL);
+	arc_flush_taskq = taskq_create("arc_flush", MIN(boot_ncpus, 4),
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 
@@ -7816,6 +7937,10 @@ arc_fini(void)
 	arc_lowmem_fini();
 #endif /* _KERNEL */
 
+	/* Wait for any background flushes */
+	taskq_wait(arc_flush_taskq);
+	taskq_destroy(arc_flush_taskq);
+
 	/* Use B_TRUE to ensure *all* buffers are evicted */
 	arc_flush(NULL, B_TRUE);
 
@@ -7826,6 +7951,9 @@ arc_fini(void)
 
 	taskq_wait(arc_prune_taskq);
 	taskq_destroy(arc_prune_taskq);
+
+	list_destroy(&arc_async_flush_list);
+	mutex_destroy(&arc_async_flush_lock);
 
 	mutex_enter(&arc_prune_mtx);
 	while ((p = list_remove_head(&arc_prune_list)) != NULL) {
@@ -8198,6 +8326,18 @@ l2arc_write_interval(clock_t began, uint64_t wanted, uint64_t wrote)
 	return (next);
 }
 
+static boolean_t
+l2arc_dev_invalid(const l2arc_dev_t *dev)
+{
+	/*
+	 * We want to skip devices that are being rebuilt, trimmed,
+	 * removed, or belong to a spa that is being exported.
+	 */
+	return (dev->l2ad_vdev == NULL || vdev_is_dead(dev->l2ad_vdev) ||
+	    dev->l2ad_rebuild || dev->l2ad_trim_all ||
+	    dev->l2ad_spa == NULL || dev->l2ad_spa->spa_is_exporting);
+}
+
 /*
  * Cycle through L2ARC devices.  This is how L2ARC load balances.
  * If a device is returned, this also returns holding the spa config lock.
@@ -8238,12 +8378,10 @@ l2arc_dev_get_next(void)
 			break;
 
 		ASSERT3P(next, !=, NULL);
-	} while (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
-	    next->l2ad_trim_all || next->l2ad_spa->spa_is_exporting);
+	} while (l2arc_dev_invalid(next));
 
 	/* if we were unable to find any usable vdevs, return NULL */
-	if (vdev_is_dead(next->l2ad_vdev) || next->l2ad_rebuild ||
-	    next->l2ad_trim_all || next->l2ad_spa->spa_is_exporting)
+	if (l2arc_dev_invalid(next))
 		next = NULL;
 
 	l2arc_dev_last = next;
@@ -8372,6 +8510,8 @@ top:
 
 			uint64_t psize = HDR_GET_PSIZE(hdr);
 			l2arc_hdr_arcstats_decrement(hdr);
+
+			ASSERT(dev->l2ad_vdev != NULL);
 
 			bytes_dropped +=
 			    vdev_psize_to_asize(dev->l2ad_vdev, psize);
@@ -8754,6 +8894,8 @@ l2arc_log_blk_overhead(uint64_t write_sz, l2arc_dev_t *dev)
 	if (dev->l2ad_log_entries == 0) {
 		return (0);
 	} else {
+		ASSERT(dev->l2ad_vdev != NULL);
+
 		uint64_t log_entries = write_sz >> SPA_MINBLOCKSHIFT;
 
 		uint64_t log_blocks = (log_entries +
@@ -8781,6 +8923,9 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	l2arc_lb_ptr_buf_t *lb_ptr_buf, *lb_ptr_buf_prev;
 	vdev_t *vd = dev->l2ad_vdev;
 	boolean_t rerun;
+
+	ASSERT(vd != NULL || all);
+	ASSERT(dev->l2ad_spa != NULL || all);
 
 	buflist = &dev->l2ad_buflist;
 
@@ -8874,7 +9019,8 @@ retry:
 		if (!all && l2arc_log_blkptr_valid(dev, lb_ptr_buf->lb_ptr)) {
 			break;
 		} else {
-			vdev_space_update(vd, -asize, 0, 0);
+			if (vd != NULL)
+				vdev_space_update(vd, -asize, 0, 0);
 			ARCSTAT_INCR(arcstat_l2_log_blk_asize, -asize);
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
@@ -9288,6 +9434,8 @@ skip:
 			hdr->b_l2hdr.b_hits = 0;
 			hdr->b_l2hdr.b_arcs_state =
 			    hdr->b_l1hdr.b_state->arcs_state;
+			/* l2arc_hdr_arcstats_update() expects a valid asize */
+			HDR_SET_L2SIZE(hdr, asize);
 			arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
 			    ARC_FLAG_L2_WRITING);
 
@@ -9541,6 +9689,12 @@ l2arc_rebuild_dev(l2arc_dev_t *dev, boolean_t reopen)
 	spa_t *spa = dev->l2ad_spa;
 
 	/*
+	 * After a l2arc_remove_vdev(), the spa_t will no longer be valid
+	 */
+	if (spa == NULL)
+		return;
+
+	/*
 	 * The L2ARC has to hold at least the payload of one log block for
 	 * them to be restored (persistent L2ARC). The payload of a log block
 	 * depends on the amount of its log entries. We always write log blocks
@@ -9707,39 +9861,20 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 	l2arc_rebuild_dev(dev, reopen);
 }
 
-/*
- * Remove a vdev from the L2ARC.
- */
-void
-l2arc_remove_vdev(vdev_t *vd)
+typedef struct {
+	l2arc_dev_t	*rva_l2arc_dev;
+	uint64_t	rva_spa_gid;
+	uint64_t	rva_vdev_gid;
+	boolean_t	rva_async;
+
+} remove_vdev_args_t;
+
+static void
+l2arc_device_teardown(void *arg)
 {
-	l2arc_dev_t *remdev = NULL;
-
-	/*
-	 * Find the device by vdev
-	 */
-	remdev = l2arc_vdev_get(vd);
-	ASSERT3P(remdev, !=, NULL);
-
-	/*
-	 * Cancel any ongoing or scheduled rebuild.
-	 */
-	mutex_enter(&l2arc_rebuild_thr_lock);
-	if (remdev->l2ad_rebuild_began == B_TRUE) {
-		remdev->l2ad_rebuild_cancel = B_TRUE;
-		while (remdev->l2ad_rebuild == B_TRUE)
-			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
-	}
-	mutex_exit(&l2arc_rebuild_thr_lock);
-
-	/*
-	 * Remove device from global list
-	 */
-	mutex_enter(&l2arc_dev_mtx);
-	list_remove(l2arc_dev_list, remdev);
-	l2arc_dev_last = NULL;		/* may have been invalidated */
-	atomic_dec_64(&l2arc_ndev);
-	mutex_exit(&l2arc_dev_mtx);
+	remove_vdev_args_t *rva = arg;
+	l2arc_dev_t *remdev = rva->rva_l2arc_dev;
+	hrtime_t start_time = gethrtime();
 
 	/*
 	 * Clear all buflists and ARC references.  L2ARC device flush.
@@ -9754,6 +9889,82 @@ l2arc_remove_vdev(vdev_t *vd)
 	zfs_refcount_destroy(&remdev->l2ad_lb_count);
 	kmem_free(remdev->l2ad_dev_hdr, remdev->l2ad_dev_hdr_asize);
 	vmem_free(remdev, sizeof (l2arc_dev_t));
+
+	uint64_t elaspsed = NSEC2MSEC(gethrtime() - start_time);
+	if (elaspsed > 0) {
+		zfs_dbgmsg("spa %llu, vdev %llu removed in %llu ms",
+		    (u_longlong_t)rva->rva_spa_gid,
+		    (u_longlong_t)rva->rva_vdev_gid,
+		    (u_longlong_t)elaspsed);
+	}
+
+	if (rva->rva_async)
+		arc_async_flush_remove(rva->rva_spa_gid, 2);
+	kmem_free(rva, sizeof (remove_vdev_args_t));
+}
+
+/*
+ * Remove a vdev from the L2ARC.
+ */
+void
+l2arc_remove_vdev(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	boolean_t asynchronous = spa->spa_state == POOL_STATE_EXPORTED ||
+	    spa->spa_state == POOL_STATE_DESTROYED;
+
+	/*
+	 * Find the device by vdev
+	 */
+	l2arc_dev_t *remdev = l2arc_vdev_get(vd);
+	ASSERT3P(remdev, !=, NULL);
+
+	/*
+	 * Save info for final teardown
+	 */
+	remove_vdev_args_t *rva = kmem_alloc(sizeof (remove_vdev_args_t),
+	    KM_SLEEP);
+	rva->rva_l2arc_dev = remdev;
+	rva->rva_spa_gid = spa_load_guid(spa);
+	rva->rva_vdev_gid = remdev->l2ad_vdev->vdev_guid;
+
+	/*
+	 * Cancel any ongoing or scheduled rebuild.
+	 */
+	mutex_enter(&l2arc_rebuild_thr_lock);
+	remdev->l2ad_rebuild_cancel = B_TRUE;
+	if (remdev->l2ad_rebuild_began == B_TRUE) {
+		while (remdev->l2ad_rebuild == B_TRUE)
+			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
+	}
+	mutex_exit(&l2arc_rebuild_thr_lock);
+	rva->rva_async = asynchronous;
+
+	/*
+	 * Remove device from global list
+	 */
+	ASSERT(spa_config_held(spa, SCL_L2ARC, RW_WRITER) & SCL_L2ARC);
+	mutex_enter(&l2arc_dev_mtx);
+	list_remove(l2arc_dev_list, remdev);
+	l2arc_dev_last = NULL;		/* may have been invalidated */
+	atomic_dec_64(&l2arc_ndev);
+
+	/* During a pool export spa & vdev will no longer be valid */
+	if (asynchronous) {
+		remdev->l2ad_spa = NULL;
+		remdev->l2ad_vdev = NULL;
+	}
+	mutex_exit(&l2arc_dev_mtx);
+
+	if (!asynchronous) {
+		l2arc_device_teardown(rva);
+		return;
+	}
+
+	arc_async_flush_t *af = arc_async_flush_add(rva->rva_spa_gid, 2);
+
+	taskq_dispatch_ent(arc_flush_taskq, l2arc_device_teardown, rva,
+	    TQ_SLEEP, &af->af_tqent);
 }
 
 void
@@ -10079,7 +10290,15 @@ out:
 	vmem_free(this_lb, sizeof (*this_lb));
 	vmem_free(next_lb, sizeof (*next_lb));
 
-	if (!l2arc_rebuild_enabled) {
+	if (err == ECANCELED) {
+		/*
+		 * In case the rebuild was canceled do not log to spa history
+		 * log as the pool may be in the process of being removed.
+		 */
+		zfs_dbgmsg("L2ARC rebuild aborted, restored %llu blocks",
+		    (u_longlong_t)zfs_refcount_count(&dev->l2ad_lb_count));
+		return (err);
+	} else if (!l2arc_rebuild_enabled) {
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "disabled");
 	} else if (err == 0 && zfs_refcount_count(&dev->l2ad_lb_count) > 0) {
@@ -10097,13 +10316,6 @@ out:
 		    "no valid log blocks");
 		memset(l2dhdr, 0, dev->l2ad_dev_hdr_asize);
 		l2arc_dev_hdr_update(dev);
-	} else if (err == ECANCELED) {
-		/*
-		 * In case the rebuild was canceled do not log to spa history
-		 * log as the pool may be in the process of being removed.
-		 */
-		zfs_dbgmsg("L2ARC rebuild aborted, restored %llu blocks",
-		    (u_longlong_t)zfs_refcount_count(&dev->l2ad_lb_count));
 	} else if (err != 0) {
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "aborted, restored %llu blocks",
@@ -10375,7 +10587,8 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 	arc_buf_hdr_t		*hdr, *exists;
 	kmutex_t		*hash_lock;
 	arc_buf_contents_t	type = L2BLK_GET_TYPE((le)->le_prop);
-	uint64_t		asize;
+	uint64_t		asize = vdev_psize_to_asize(dev->l2ad_vdev,
+	    L2BLK_GET_PSIZE((le)->le_prop));
 
 	/*
 	 * Do all the allocation before grabbing any locks, this lets us
@@ -10384,13 +10597,11 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 	 */
 	hdr = arc_buf_alloc_l2only(L2BLK_GET_LSIZE((le)->le_prop), type,
 	    dev, le->le_dva, le->le_daddr,
-	    L2BLK_GET_PSIZE((le)->le_prop), le->le_birth,
+	    L2BLK_GET_PSIZE((le)->le_prop), asize, le->le_birth,
 	    L2BLK_GET_COMPRESS((le)->le_prop), le->le_complevel,
 	    L2BLK_GET_PROTECTED((le)->le_prop),
 	    L2BLK_GET_PREFETCH((le)->le_prop),
 	    L2BLK_GET_STATE((le)->le_prop));
-	asize = vdev_psize_to_asize(dev->l2ad_vdev,
-	    L2BLK_GET_PSIZE((le)->le_prop));
 
 	/*
 	 * vdev_space_update() has to be called before arc_hdr_destroy() to
@@ -10420,6 +10631,8 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 			exists->b_l2hdr.b_daddr = le->le_daddr;
 			exists->b_l2hdr.b_arcs_state =
 			    L2BLK_GET_STATE((le)->le_prop);
+			/* l2arc_hdr_arcstats_update() expects a valid asize */
+			HDR_SET_L2SIZE(exists, asize);
 			mutex_enter(&dev->l2ad_mtx);
 			list_insert_tail(&dev->l2ad_buflist, exists);
 			(void) zfs_refcount_add_many(&dev->l2ad_alloc,
