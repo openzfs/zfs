@@ -2030,7 +2030,6 @@ EXPORT_SYMBOL(zap_cursor_serialize);
 EXPORT_SYMBOL(zap_cursor_init_serialized);
 EXPORT_SYMBOL(zap_get_stats);
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zap_micro_max_size, INT, ZMOD_RW,
 	"Maximum micro ZAP size, before converting to a fat ZAP, in bytes");
 #endif

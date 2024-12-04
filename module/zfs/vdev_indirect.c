@@ -1897,7 +1897,6 @@ EXPORT_SYMBOL(vdev_indirect_sync_obsolete);
 EXPORT_SYMBOL(vdev_obsolete_counts_are_precise);
 EXPORT_SYMBOL(vdev_obsolete_sm_object);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT,
 	ZMOD_RW, "Whether to attempt condensing indirect vdev mappings");
 
@@ -1922,4 +1921,3 @@ ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_commit_entry_delay_ms,
 ZFS_MODULE_PARAM(zfs_reconstruct, zfs_reconstruct_, indirect_combinations_max,
 	UINT, ZMOD_RW,
 	"Maximum number of combinations when reconstructing split segments");
-/* END CSTYLED */

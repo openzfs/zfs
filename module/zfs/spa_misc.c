@@ -3123,7 +3123,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
 	"Place user data indirect blocks into the special class");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, failmode,
 	param_set_deadman_failmode, param_get_charp, ZMOD_RW,
 	"Failmode for deadman timer");
@@ -3139,7 +3138,6 @@ ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, ziotime_ms,
 ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, UINT, ZMOD_RW,
 	"Small file blocks in special vdevs depends on this much "
 	"free space available");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 	param_get_uint, ZMOD_RW, "Reserved free space in pool");

@@ -3843,4 +3843,3 @@ ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, write_batch_size, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, best_effort_corrective, INT, ZMOD_RW,
 	"Ignore errors during corrective receive");
-/* END CSTYLED */

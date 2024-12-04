@@ -5049,7 +5049,6 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
@@ -5059,4 +5058,3 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
-/* END CSTYLED */
