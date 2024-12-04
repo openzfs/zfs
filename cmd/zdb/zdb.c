@@ -6953,7 +6953,7 @@ iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg)
 	for (zap_cursor_init(&zc, mos, zap_obj);
 	    zap_cursor_retrieve(&zc, attrp) == 0;
 	    (void) zap_cursor_advance(&zc)) {
-		dsl_deadlist_open(&ll, mos, attrp->za_first_integer);
+		VERIFY0(dsl_deadlist_open(&ll, mos, attrp->za_first_integer));
 		func(&ll, arg);
 		dsl_deadlist_close(&ll);
 	}
