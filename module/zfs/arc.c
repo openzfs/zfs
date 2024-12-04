@@ -385,8 +385,8 @@ static int zfs_arc_overflow_shift = 8;
 /* log2(fraction of arc to reclaim) */
 uint_t arc_shrink_shift = 7;
 
-/* percent of pagecache to reclaim arc to */
 #ifdef _KERNEL
+/* percent of pagecache to reclaim arc to */
 uint_t zfs_arc_pc_percent = 0;
 #endif
 
@@ -11202,8 +11202,10 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, grow_retry, param_set_arc_int,
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, shrink_shift, param_set_arc_int,
 	param_get_uint, ZMOD_RW, "log2(fraction of ARC to reclaim)");
 
+#ifdef _KERNEL
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, pc_percent, UINT, ZMOD_RW,
 	"Percent of pagecache to reclaim ARC to");
+#endif
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, average_blocksize, UINT, ZMOD_RD,
 	"Target average block size");
