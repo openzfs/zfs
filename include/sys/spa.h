@@ -822,6 +822,8 @@ extern void spa_l2cache_drop(spa_t *spa);
 
 /* scanning */
 extern int spa_scan(spa_t *spa, pool_scan_func_t func);
+extern int spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
+    uint64_t txgend);
 extern int spa_scan_stop(spa_t *spa);
 extern int spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t flag);
 
@@ -1080,6 +1082,7 @@ extern uint64_t spa_get_deadman_failmode(spa_t *spa);
 extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);
 extern boolean_t spa_suspended(spa_t *spa);
 extern uint64_t spa_bootfs(spa_t *spa);
+extern uint64_t spa_get_last_scrubbed_txg(spa_t *spa);
 extern uint64_t spa_delegation(spa_t *spa);
 extern objset_t *spa_meta_objset(spa_t *spa);
 extern space_map_t *spa_syncing_log_sm(spa_t *spa);

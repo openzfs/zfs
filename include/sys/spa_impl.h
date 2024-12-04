@@ -318,6 +318,7 @@ struct spa {
 	uint64_t	spa_scan_pass_scrub_spent_paused; /* total paused */
 	uint64_t	spa_scan_pass_exam;	/* examined bytes per pass */
 	uint64_t	spa_scan_pass_issued;	/* issued bytes per pass */
+	uint64_t	spa_scrubbed_last_txg;	/* last txg scrubbed */
 
 	/* error scrub pause time in milliseconds */
 	uint64_t	spa_scan_pass_errorscrub_pause;
