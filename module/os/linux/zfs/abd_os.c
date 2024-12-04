@@ -1346,7 +1346,6 @@ MODULE_PARM_DESC(zfs_abd_scatter_enabled,
 module_param(zfs_abd_scatter_min_size, int, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_min_size,
 	"Minimum size of scatter allocations.");
-/* CSTYLED */
 module_param(zfs_abd_scatter_max_order, uint, 0644);
 MODULE_PARM_DESC(zfs_abd_scatter_max_order,
 	"Maximum order allocation used for a scatter ABD.");

@@ -519,7 +519,5 @@ EXPORT_SYMBOL(dmu_object_next);
 EXPORT_SYMBOL(dmu_object_zapify);
 EXPORT_SYMBOL(dmu_object_free_zapified);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_object_alloc_chunk_shift, UINT, ZMOD_RW,
 	"CPU-specific allocator grabs 2^N objects at once");
-/* END CSTYLED */

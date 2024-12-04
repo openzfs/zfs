@@ -1473,11 +1473,9 @@ brt_unload(spa_t *spa)
 	spa->spa_brt_rangesize = 0;
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_prefetch, INT, ZMOD_RW,
 	"Enable prefetching of BRT ZAP entries");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_bs, UINT, ZMOD_RW,
 	"BRT ZAP leaf blockshift");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_ibs, UINT, ZMOD_RW,
 	"BRT ZAP indirect blockshift");
-/* END CSTYLED */
