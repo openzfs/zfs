@@ -26,7 +26,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd June 22, 2023
+.Dd November 18, 2024
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -36,9 +36,8 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Fl s Ns | Ns Fl p
+.Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
 .Op Fl w
-.Op Fl e
 .Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -114,6 +113,10 @@ The pool must have been scrubbed at least once with the
 feature enabled to use this option.
 Error scrubbing cannot be run simultaneously with regular scrubbing or
 resilvering, nor can it be run when a regular scrub is paused.
+.It Fl C
+Continue scrub from last saved txg (see zpool
+.Sy last_scrubbed_txg
+property).
 .El
 .Sh EXAMPLES
 .Ss Example 1
