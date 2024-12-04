@@ -3960,10 +3960,8 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 			 * to the page fault handler's OOM logic, but this is
 			 * the best we can do for now.
 			 */
-			for (int i = 0; i < count; i++) {
-				ASSERT(vm_page_none_valid(ma[i]));
+			for (int i = 0; i < count; i++)
 				vm_page_xunbusy(ma[i]);
-			}
 
 			lr = zfs_rangelock_enter(&zp->z_rangelock,
 			    rounddown(start, blksz), len, RL_READER);
