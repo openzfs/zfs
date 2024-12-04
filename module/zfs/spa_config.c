@@ -635,5 +635,7 @@ ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
 	"SPA config file (/etc/zfs/zpool.cache)");
 #endif
 
+#ifdef _KERNEL
 ZFS_MODULE_PARAM(zfs, zfs_, autoimport_disable, INT, ZMOD_RW,
 	"Disable pool import at module load");
+#endif
