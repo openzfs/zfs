@@ -813,11 +813,5 @@ ZFS_MODULE_PARAM(zfs, zfs_, pd_bytes_max, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, traverse_indirect_prefetch_limit, UINT, ZMOD_RW,
 	"Traverse prefetch number of blocks pointed by indirect block");
 
-#if defined(_KERNEL)
-module_param_named(ignore_hole_birth, send_holes_without_birth_time, int, 0644);
-MODULE_PARM_DESC(ignore_hole_birth,
-	"Alias for send_holes_without_birth_time");
-#endif
-
 ZFS_MODULE_PARAM(zfs, , send_holes_without_birth_time, INT, ZMOD_RW,
 	"Ignore hole_birth txg for zfs send");
