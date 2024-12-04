@@ -17,7 +17,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd May 7, 2025
+.Dd May 24, 2025
 .Dt ZFS 4
 .Os
 .
@@ -92,10 +92,6 @@ when the DDT can not report the correct reference count.
 .It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Limit the amount we can prefetch with one call to this amount in bytes.
 This helps to limit the amount of memory that can be used by prefetching.
-.
-.It Sy ignore_hole_birth Pq int
-Alias for
-.Sy send_holes_without_birth_time .
 .
 .It Sy l2arc_feed_again Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Turbo L2ARC warm-up.
