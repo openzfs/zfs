@@ -1,0 +1,23 @@
+# Features which are supported by GRUB2 versions prior to v2.12.
+#
+# GRUB is not able to detect ZFS pool if snaphsot of top level boot pool
+# is created. This issue is observed with GRUB versions before v2.12 if
+# extensible_dataset feature is enabled on ZFS boot pool.
+#
+# This file lists all read-only comaptible features except
+# extensible_dataset and any other feature that depends on it.
+#
+allocation_classes
+async_destroy
+block_cloning
+device_rebuild
+embedded_data
+empty_bpobj
+enabled_txg
+hole_birth
+log_spacemap
+lz4_compress
+resilver_defer
+spacemap_histogram
+spacemap_v2
+zpool_checkpoint

@@ -212,7 +212,7 @@ libzfs_error_init(int error)
 		msglen -= len;
 	}
 
-	(void) snprintf(msg, msglen, "%s", strerror(error));
+	(void) snprintf(msg, msglen, "%s", zfs_strerror(error));
 
 	return (errbuf);
 }

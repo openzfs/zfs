@@ -50,8 +50,8 @@ typeset megs=8
 log_must zfs create -V 256m -o compress=lz4 $vol
 
 write_compressible $BACKDIR ${megs}m 2
-md5_1=$(md5digest $data1)
-md5_2=$(md5digest $data2)
+hash1=$(xxh128digest $data1)
+hash2=$(xxh128digest $data2)
 
 log_must dd if=$data1 of=$voldev bs=1024k
 log_must zfs snapshot $vol@snap
@@ -63,8 +63,8 @@ verify_stream_size $BACKDIR/full $vol
 verify_stream_size $BACKDIR/full $vol2
 block_device_wait $voldev2
 log_must dd if=$voldev2 of=$BACKDIR/copy bs=1024k count=$megs
-md5=$(md5digest $BACKDIR/copy)
-[[ $md5 = $md5_1 ]] || log_fail "md5 mismatch: $md5 != $md5_1"
+hash=$(xxh128digest $BACKDIR/copy)
+[[ $hash = $hash1 ]] || log_fail "hash mismatch: $hash != $hash1"
 
 # Repeat, for an incremental send
 log_must dd seek=$megs if=$data2 of=$voldev bs=1024k
@@ -77,7 +77,7 @@ verify_stream_size $BACKDIR/inc $vol 90 $vol@snap
 verify_stream_size $BACKDIR/inc $vol2 90 $vol2@snap
 block_device_wait $voldev2
 log_must dd skip=$megs if=$voldev2 of=$BACKDIR/copy bs=1024k count=$megs
-md5=$(md5digest $BACKDIR/copy)
-[[ $md5 = $md5_2 ]] || log_fail "md5 mismatch: $md5 != $md5_2"
+hash=$(xxh128digest $BACKDIR/copy)
+[[ $hash = $hash2 ]] || log_fail "hash mismatch: $hash != $hash2"
 
 log_pass "Verify compressed send works with volumes"

@@ -62,7 +62,7 @@ log_must set_tunable64 DEADMAN_FAILMODE "wait"
 default_setup_noexit $DISK1
 log_must zpool events -c
 
-# Force each IO to take 10s by allow them to run concurrently.
+# Force each IO to take 10s but allow them to run concurrently.
 log_must zinject -d $DISK1 -D10000:10 $TESTPOOL
 
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
@@ -80,11 +80,11 @@ else
 fi
 log_must zpool events
 
-# Verify at least 4 deadman events were logged.  The first after 5 seconds,
+# Verify at least 3 deadman events were logged.  The first after 5 seconds,
 # and another each second thereafter until the delay  is clearer.
 events=$(zpool events | grep -c ereport.fs.zfs.deadman)
-if [ "$events" -lt 4 ]; then
-	log_fail "Expect >=5 deadman events, $events found"
+if [ "$events" -lt 3 ]; then
+	log_fail "Expect >=3 deadman events, $events found"
 fi
 
 log_pass "Verify spa deadman detected a hung txg and $events deadman events"

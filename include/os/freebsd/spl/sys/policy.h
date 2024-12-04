@@ -70,10 +70,4 @@ int	secpolicy_xvattr(vnode_t *vp, xvattr_t *xvap, uid_t owner, cred_t *cr,
 	    vtype_t vtype);
 int	secpolicy_smb(cred_t *cr);
 
-
-#if __FreeBSD_version >= 1300005
-#define	spl_priv_check_cred(a, b) priv_check_cred((a), (b))
-#else
-#define	spl_priv_check_cred(a, b) priv_check_cred((a), (b), 0)
-#endif
 #endif	/* _OPENSOLARIS_SYS_POLICY_H_ */

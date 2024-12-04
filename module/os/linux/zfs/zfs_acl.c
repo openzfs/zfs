@@ -471,7 +471,7 @@ zfs_acl_node_alloc(size_t bytes)
 
 	aclnode = kmem_zalloc(sizeof (zfs_acl_node_t), KM_SLEEP);
 	if (bytes) {
-		aclnode->z_acldata = kmem_alloc(bytes, KM_SLEEP);
+		aclnode->z_acldata = kmem_zalloc(bytes, KM_SLEEP);
 		aclnode->z_allocdata = aclnode->z_acldata;
 		aclnode->z_allocsize = bytes;
 		aclnode->z_size = bytes;

@@ -514,7 +514,7 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_NOT_USER_NAMESPACE, fmt, ap);
 		break;
 	default:
-		zfs_error_aux(hdl, "%s", strerror(error));
+		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
 		break;
 	}
@@ -770,7 +770,7 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
 	default:
-		zfs_error_aux(hdl, "%s", strerror(error));
+		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
 	}
 
@@ -926,6 +926,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	pid = fork();
 	if (pid == 0) {
 		/* Child process */
+		setpgid(0, 0);
 		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
 
 		if (devnull_fd < 0)
@@ -1487,15 +1488,17 @@ static int
 str2shift(libzfs_handle_t *hdl, const char *buf)
 {
 	const char *ends = "BKMGTPEZ";
-	int i;
+	int i, len;
 
 	if (buf[0] == '\0')
 		return (0);
-	for (i = 0; i < strlen(ends); i++) {
+
+	len = strlen(ends);
+	for (i = 0; i < len; i++) {
 		if (toupper(buf[0]) == ends[i])
 			break;
 	}
-	if (i == strlen(ends)) {
+	if (i == len) {
 		if (hdl)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid numeric suffix '%s'"), buf);
@@ -1971,7 +1974,7 @@ zfs_version_print(void)
 	char *kver = zfs_version_kernel();
 	if (kver == NULL) {
 		fprintf(stderr, "zfs_version_kernel() failed: %s\n",
-		    strerror(errno));
+		    zfs_strerror(errno));
 		return (-1);
 	}
 

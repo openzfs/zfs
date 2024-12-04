@@ -44,6 +44,7 @@ extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
     loff_t pos, size_t *resid);
 extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp, int flags,
     cred_t *cr, int *direntflags, pathname_t *realpnp);
+extern int zfs_get_name(znode_t *dzp, char *name, znode_t *zp);
 extern int zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
     zidmap_t *mnt_ns);
@@ -55,7 +56,7 @@ extern int zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap,
     znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *mnt_ns);
 extern int zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd,
     cred_t *cr, int flags);
-extern int zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr);
+extern int zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr);
 #ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
 extern int zfs_getattr_fast(zidmap_t *, u32 request_mask, struct inode *ip,
     struct kstat *sp);

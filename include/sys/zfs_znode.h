@@ -158,6 +158,8 @@ extern "C" {
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
 extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+extern int zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl,
+    sa_attr_type_t *sa_table, uint64_t *pobjp, int *is_xattrdir);
 extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 
 #ifdef _KERNEL

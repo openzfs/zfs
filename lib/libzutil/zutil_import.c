@@ -1071,6 +1071,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 					 * Try the slow method.
 					 */
 					zfs_fallthrough;
+				case EAGAIN:
 				case EOPNOTSUPP:
 				case ENOSYS:
 					do_slow = B_TRUE;
@@ -1290,7 +1291,7 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		if (error == ENOENT)
 			return (0);
 
-		zutil_error_aux(hdl, "%s", strerror(error));
+		zutil_error_aux(hdl, "%s", zfs_strerror(error));
 		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
 		    "cannot resolve path '%s'"), dir);
 		return (error);
@@ -1299,7 +1300,7 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	dirp = opendir(path);
 	if (dirp == NULL) {
 		error = errno;
-		zutil_error_aux(hdl, "%s", strerror(error));
+		zutil_error_aux(hdl, "%s", zfs_strerror(error));
 		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
 		    "cannot open '%s'"), path);
 		return (error);
@@ -1361,7 +1362,7 @@ zpool_find_import_scan_path(libpc_handle_t *hdl, pthread_mutex_t *lock,
 			goto out;
 		}
 
-		zutil_error_aux(hdl, "%s", strerror(error));
+		zutil_error_aux(hdl, "%s", zfs_strerror(error));
 		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
 		    "cannot resolve path '%s'"), dir);
 		goto out;
@@ -1399,7 +1400,7 @@ zpool_find_import_scan(libpc_handle_t *hdl, pthread_mutex_t *lock,
 			if (error == ENOENT)
 				continue;
 
-			zutil_error_aux(hdl, "%s", strerror(error));
+			zutil_error_aux(hdl, "%s", zfs_strerror(error));
 			(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(
 			    TEXT_DOMAIN, "cannot resolve path '%s'"), dir[i]);
 			goto error;
@@ -1464,7 +1465,21 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 	 * validating labels, a large number of threads can be used due to
 	 * minimal contention.
 	 */
-	t = tpool_create(1, 2 * sysconf(_SC_NPROCESSORS_ONLN), 0, NULL);
+	long threads = 2 * sysconf(_SC_NPROCESSORS_ONLN);
+#ifdef HAVE_AIO_H
+	long am;
+#ifdef _SC_AIO_LISTIO_MAX
+	am = sysconf(_SC_AIO_LISTIO_MAX);
+	if (am >= VDEV_LABELS)
+		threads = MIN(threads, am / VDEV_LABELS);
+#endif
+#ifdef _SC_AIO_MAX
+	am = sysconf(_SC_AIO_MAX);
+	if (am >= VDEV_LABELS)
+		threads = MIN(threads, am / VDEV_LABELS);
+#endif
+#endif
+	t = tpool_create(1, threads, 0, NULL);
 	for (slice = avl_first(cache); slice;
 	    (slice = avl_walk(cache, slice, AVL_AFTER)))
 		(void) tpool_dispatch(t, zpool_open_func, slice);
@@ -1629,14 +1644,14 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 	verify(iarg->poolname == NULL || iarg->guid == 0);
 
 	if ((fd = open(iarg->cachefile, O_RDONLY | O_CLOEXEC)) < 0) {
-		zutil_error_aux(hdl, "%s", strerror(errno));
+		zutil_error_aux(hdl, "%s", zfs_strerror(errno));
 		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
 		    "failed to open cache file"));
 		return (NULL);
 	}
 
 	if (fstat64(fd, &statbuf) != 0) {
-		zutil_error_aux(hdl, "%s", strerror(errno));
+		zutil_error_aux(hdl, "%s", zfs_strerror(errno));
 		(void) close(fd);
 		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
 		    "failed to get size of cache file"));

@@ -66,8 +66,8 @@
 
 typedef struct {
 	int cv_magic;
-	spl_wait_queue_head_t cv_event;
-	spl_wait_queue_head_t cv_destroy;
+	wait_queue_head_t cv_event;
+	wait_queue_head_t cv_destroy;
 	atomic_t cv_refs;
 	atomic_t cv_waiters;
 	kmutex_t *cv_mutex;

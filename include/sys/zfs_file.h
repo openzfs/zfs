@@ -53,7 +53,7 @@ int zfs_file_pread(zfs_file_t *fp, void *buf, size_t len, loff_t off,
 int zfs_file_seek(zfs_file_t *fp, loff_t *offp, int whence);
 int zfs_file_getattr(zfs_file_t *fp, zfs_file_attr_t *zfattr);
 int zfs_file_fsync(zfs_file_t *fp, int flags);
-int zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len);
+int zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len);
 loff_t zfs_file_off(zfs_file_t *fp);
 int zfs_file_unlink(const char *);
 

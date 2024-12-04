@@ -623,26 +623,6 @@ ddi_copyout(const void *from, void *to, size_t len, int flags)
 }
 EXPORT_SYMBOL(ddi_copyout);
 
-static ssize_t
-spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
-{
-#if defined(HAVE_KERNEL_READ_PPOS)
-	return (kernel_read(file, buf, count, pos));
-#else
-	mm_segment_t saved_fs;
-	ssize_t ret;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	ret = vfs_read(file, (void __user *)buf, count, pos);
-
-	set_fs(saved_fs);
-
-	return (ret);
-#endif
-}
-
 static int
 spl_getattr(struct file *filp, struct kstat *stat)
 {
@@ -651,16 +631,8 @@ spl_getattr(struct file *filp, struct kstat *stat)
 	ASSERT(filp);
 	ASSERT(stat);
 
-#if defined(HAVE_4ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, stat, STATX_BASIC_STATS,
 	    AT_STATX_SYNC_AS_STAT);
-#elif defined(HAVE_2ARGS_VFS_GETATTR)
-	rc = vfs_getattr(&filp->f_path, stat);
-#elif defined(HAVE_3ARGS_VFS_GETATTR)
-	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, stat);
-#else
-#error "No available vfs_getattr()"
-#endif
 	if (rc)
 		return (-rc);
 
@@ -738,7 +710,7 @@ hostid_read(uint32_t *hostid)
 	 * Read directly into the variable like eglibc does.
 	 * Short reads are okay; native behavior is preserved.
 	 */
-	error = spl_kernel_read(filp, &value, sizeof (value), &off);
+	error = kernel_read(filp, &value, sizeof (value), &off);
 	if (error < 0) {
 		filp_close(filp, 0);
 		return (EIO);

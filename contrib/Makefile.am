@@ -1,4 +1,5 @@
 include $(srcdir)/%D%/bash_completion.d/Makefile.am
+include $(srcdir)/%D%/debian/Makefile.am
 include $(srcdir)/%D%/pyzfs/Makefile.am
 include $(srcdir)/%D%/zcp/Makefile.am
 

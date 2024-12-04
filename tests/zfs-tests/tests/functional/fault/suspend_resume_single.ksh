@@ -43,7 +43,7 @@ log_assert "ensure single-disk pool resumes properly after suspend and clear"
 
 # create a file, and take a checksum, so we can compare later
 log_must dd if=/dev/urandom of=$DATAFILE bs=128K count=1
-typeset sum1=$(cat $DATAFILE | md5sum)
+typeset sum1=$(xxh128digest $DATAFILE)
 
 # make a debug device that we can "unplug"
 load_scsi_debug 100 1 1 1 '512b'
@@ -94,7 +94,7 @@ log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 
 # sum the file we wrote earlier
-typeset sum2=$(cat /$TESTPOOL/file | md5sum)
+typeset sum2=$(xxh128digest /$TESTPOOL/file)
 
 # make sure the checksums match
 log_must test "$sum1" = "$sum2"

@@ -69,12 +69,12 @@ for raid_type in "draid2:3d:6c:1s" "raidz2"; do
 	log_mustnot eval "zpool status -e $TESTPOOL2 | grep ONLINE"
 
 	# Check no ONLINE slow vdevs are show.  Then mark IOs greater than
-	# 10ms slow, delay IOs 20ms to vdev6, check slow IOs.
+	# 160ms slow, delay IOs 320ms to vdev6, check slow IOs.
 	log_must check_vdev_state $TESTPOOL2 $TESTDIR/vdev6 "ONLINE"
 	log_mustnot eval "zpool status -es $TESTPOOL2 | grep ONLINE"
 
-	log_must set_tunable64 ZIO_SLOW_IO_MS 10
-	log_must zinject -d $TESTDIR/vdev6 -D20:100 $TESTPOOL2
+	log_must set_tunable64 ZIO_SLOW_IO_MS 160
+	log_must zinject -d $TESTDIR/vdev6 -D320:100 $TESTPOOL2
 	log_must mkfile 1048576 /$TESTPOOL2/testfile
 	sync_pool $TESTPOOL2
 	log_must set_tunable64 ZIO_SLOW_IO_MS $OLD_SLOW_IO

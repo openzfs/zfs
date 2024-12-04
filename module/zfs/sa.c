@@ -235,7 +235,7 @@ sa_cache_init(void)
 {
 	sa_cache = kmem_cache_create("sa_cache",
 	    sizeof (sa_handle_t), 0, sa_cache_constructor,
-	    sa_cache_destructor, NULL, NULL, NULL, 0);
+	    sa_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 void
@@ -1851,7 +1851,6 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 {
 	sa_os_t *sa = hdl->sa_os->os_sa;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
-	dnode_t *dn;
 	sa_bulk_attr_t *attr_desc;
 	void *old_data[2];
 	int bonus_attr_count = 0;
@@ -1871,8 +1870,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	/* First make of copy of the old data */
 
 	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
-	if (dn->dn_bonuslen != 0) {
+	if (DB_DNODE(db)->dn_bonuslen != 0) {
 		bonus_data_size = hdl->sa_bonus->db_size;
 		old_data[0] = kmem_alloc(bonus_data_size, KM_SLEEP);
 		memcpy(old_data[0], hdl->sa_bonus->db_data,

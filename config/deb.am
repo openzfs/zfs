@@ -93,11 +93,17 @@ debian:
 	cp -r contrib/debian debian; chmod +x debian/rules;
 
 native-deb-utils: native-deb-local debian
+	while [ -f debian/deb-build.lock ]; do sleep 1; done; \
+	echo "native-deb-utils" > debian/deb-build.lock; \
 	cp contrib/debian/control debian/control; \
-	$(DPKGBUILD) -b -rfakeroot -us -uc;
+	$(DPKGBUILD) -b -rfakeroot -us -uc; \
+	$(RM) -f debian/deb-build.lock
 
 native-deb-kmod: native-deb-local debian
+	while [ -f debian/deb-build.lock ]; do sleep 1; done; \
+	echo "native-deb-kmod" > debian/deb-build.lock; \
 	sh scripts/make_gitrev.sh; \
-	fakeroot debian/rules override_dh_binary-modules;
+	fakeroot debian/rules override_dh_binary-modules; \
+	$(RM) -f debian/deb-build.lock
 
 native-deb: native-deb-utils native-deb-kmod

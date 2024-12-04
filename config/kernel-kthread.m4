@@ -15,7 +15,7 @@ AC_DEFUN([ZFS_AC_KERNEL_KTHREAD_COMPLETE_AND_EXIT], [
 	])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_KTHREAD_DEQUEUE_SIGNAL_4ARG], [
+AC_DEFUN([ZFS_AC_KERNEL_KTHREAD_DEQUEUE_SIGNAL], [
 	dnl #
 	dnl # 5.17 API: enum pid_type * as new 4th dequeue_signal() argument,
 	dnl # 5768d8906bc23d512b1a736c1e198aa833a6daa4 ("signal: Requeue signals in the appropriate queue")
@@ -23,12 +23,24 @@ AC_DEFUN([ZFS_AC_KERNEL_KTHREAD_DEQUEUE_SIGNAL_4ARG], [
 	dnl # int dequeue_signal(struct task_struct *task, sigset_t *mask, kernel_siginfo_t *info);
 	dnl # int dequeue_signal(struct task_struct *task, sigset_t *mask, kernel_siginfo_t *info, enum pid_type *type);
 	dnl #
+	dnl # 6.12 API: first arg struct_task* removed
+	dnl # int dequeue_signal(sigset_t *mask, kernel_siginfo_t *info, enum pid_type *type);
+	dnl #
 	AC_MSG_CHECKING([whether dequeue_signal() takes 4 arguments])
-	ZFS_LINUX_TEST_RESULT([kthread_dequeue_signal], [
+	ZFS_LINUX_TEST_RESULT([kthread_dequeue_signal_4arg], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DEQUEUE_SIGNAL_4ARG, 1, [dequeue_signal() takes 4 arguments])
+		AC_DEFINE(HAVE_DEQUEUE_SIGNAL_4ARG, 1,
+		    [dequeue_signal() takes 4 arguments])
 	], [
 		AC_MSG_RESULT(no)
+		AC_MSG_CHECKING([whether dequeue_signal() a task argument])
+		ZFS_LINUX_TEST_RESULT([kthread_dequeue_signal_3arg_task], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_DEQUEUE_SIGNAL_3ARG_TASK, 1,
+			    [dequeue_signal() takes a task argument])
+		], [
+			AC_MSG_RESULT(no)
+		])
 	])
 ])
 
@@ -43,8 +55,19 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_KTHREAD_COMPLETE_AND_EXIT], [
 	])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_SRC_KTHREAD_DEQUEUE_SIGNAL_4ARG], [
-	ZFS_LINUX_TEST_SRC([kthread_dequeue_signal], [
+AC_DEFUN([ZFS_AC_KERNEL_SRC_KTHREAD_DEQUEUE_SIGNAL], [
+	ZFS_LINUX_TEST_SRC([kthread_dequeue_signal_3arg_task], [
+		#include <linux/sched/signal.h>
+	], [
+		struct task_struct *task = NULL;
+		sigset_t *mask = NULL;
+		kernel_siginfo_t *info = NULL;
+		int error __attribute__ ((unused));
+
+		error = dequeue_signal(task, mask, info);
+	])
+
+	ZFS_LINUX_TEST_SRC([kthread_dequeue_signal_4arg], [
 		#include <linux/sched/signal.h>
 	], [
 		struct task_struct *task = NULL;
@@ -59,10 +82,10 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_KTHREAD_DEQUEUE_SIGNAL_4ARG], [
 
 AC_DEFUN([ZFS_AC_KERNEL_KTHREAD], [
 	ZFS_AC_KERNEL_KTHREAD_COMPLETE_AND_EXIT
-	ZFS_AC_KERNEL_KTHREAD_DEQUEUE_SIGNAL_4ARG
+	ZFS_AC_KERNEL_KTHREAD_DEQUEUE_SIGNAL
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_KTHREAD], [
 	ZFS_AC_KERNEL_SRC_KTHREAD_COMPLETE_AND_EXIT
-	ZFS_AC_KERNEL_SRC_KTHREAD_DEQUEUE_SIGNAL_4ARG
+	ZFS_AC_KERNEL_SRC_KTHREAD_DEQUEUE_SIGNAL
 ])

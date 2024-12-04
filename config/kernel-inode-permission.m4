@@ -42,6 +42,8 @@ AC_DEFUN([ZFS_AC_KERNEL_PERMISSION], [
 		AC_DEFINE(HAVE_IOPS_PERMISSION_IDMAP, 1,
 		   [iops->permission() takes struct mnt_idmap*])
 	],[
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether iops->permission() takes struct user_namespace*])
 		ZFS_LINUX_TEST_RESULT([permission_userns], [
 			AC_MSG_RESULT(yes)

@@ -19,36 +19,6 @@ dnl #
 dnl # 6.8: generic_copy_file_range() removed, replaced by
 dnl #      splice_copy_file_range()
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_COPY_FILE_RANGE], [
-	ZFS_LINUX_TEST_SRC([vfs_copy_file_range], [
-		#include <linux/fs.h>
-
-		static ssize_t test_copy_file_range(struct file *src_file,
-		    loff_t src_off, struct file *dst_file, loff_t dst_off,
-		    size_t len, unsigned int flags) {
-			(void) src_file; (void) src_off;
-			(void) dst_file; (void) dst_off;
-			(void) len; (void) flags;
-			return (0);
-		}
-
-		static const struct file_operations
-		    fops __attribute__ ((unused)) = {
-			.copy_file_range	= test_copy_file_range,
-		};
-	],[])
-])
-AC_DEFUN([ZFS_AC_KERNEL_VFS_COPY_FILE_RANGE], [
-	AC_MSG_CHECKING([whether fops->copy_file_range() is available])
-	ZFS_LINUX_TEST_RESULT([vfs_copy_file_range], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_VFS_COPY_FILE_RANGE, 1,
-		    [fops->copy_file_range() is available])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
 AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_GENERIC_COPY_FILE_RANGE], [
 	ZFS_LINUX_TEST_SRC([generic_copy_file_range], [
 		#include <linux/fs.h>

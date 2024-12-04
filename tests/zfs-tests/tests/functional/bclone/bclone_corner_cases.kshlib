@@ -32,14 +32,14 @@ function first_half_checksum
 {
     typeset -r file=$1
 
-    dd if=$file bs=$HALFRECORDSIZE count=1 2>/dev/null | sha256digest
+    dd if=$file bs=$HALFRECORDSIZE count=1 2>/dev/null | xxh128digest
 }
 
 function second_half_checksum
 {
     typeset -r file=$1
 
-    dd if=$file bs=$HALFRECORDSIZE count=1 skip=1 2>/dev/null | sha256digest
+    dd if=$file bs=$HALFRECORDSIZE count=1 skip=1 2>/dev/null | xxh128digest
 }
 
 function bclone_corner_cases_init
@@ -66,7 +66,7 @@ function bclone_corner_cases_init
     export SECOND_HALF_ORIG0_CHECKSUM=$(second_half_checksum $ORIG0)
     export SECOND_HALF_ORIG1_CHECKSUM=$(second_half_checksum $ORIG1)
     export SECOND_HALF_ORIG2_CHECKSUM=$(second_half_checksum $ORIG2)
-    export ZEROS_CHECKSUM=$(dd if=/dev/zero bs=$HALFRECORDSIZE count=1 2>/dev/null | sha256digest)
+    export ZEROS_CHECKSUM=$(dd if=/dev/zero bs=$HALFRECORDSIZE count=1 2>/dev/null | xxh128digest)
     export FIRST_HALF_CHECKSUM=""
     export SECOND_HALF_CHECKSUM=""
 }

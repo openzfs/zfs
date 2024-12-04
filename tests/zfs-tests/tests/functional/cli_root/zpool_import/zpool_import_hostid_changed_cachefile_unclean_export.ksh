@@ -28,9 +28,8 @@
 #	2. Create a pool.
 #	3. Backup the cachefile.
 #	4. Simulate the pool being torn down without export:
-#	4.1. Copy the underlying device state.
-#	4.2. Export the pool.
-#	4.3. Restore the device state from the copy.
+#	4.1. Sync then freeze the pool.
+#	4.2. Export the pool (uncleanly).
 #	5. Change the hostid.
 #	6. Verify that importing the pool from the cachefile fails.
 #	7. Verify that importing the pool from the cachefile with force
@@ -57,10 +56,9 @@ log_must zpool create -o cachefile=$CPATH $TESTPOOL1 $VDEV0
 log_must cp $CPATH $CPATHBKP
 
 # 4. Simulate the pool being torn down without export.
-log_must cp $VDEV0 $VDEV0.bak
+sync_pool $TESTPOOL1
+log_must zpool freeze $TESTPOOL1
 log_must zpool export $TESTPOOL1
-log_must cp -f $VDEV0.bak $VDEV0
-log_must rm -f $VDEV0.bak
 
 # 5. Change the hostid.
 log_must zgenhostid -f $HOSTID2

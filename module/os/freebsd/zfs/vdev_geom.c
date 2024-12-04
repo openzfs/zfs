@@ -379,11 +379,7 @@ vdev_geom_io(struct g_consumer *cp, int *cmds, void **datas, off_t *offsets,
 	int i, n_bios, j;
 	size_t bios_size;
 
-#if __FreeBSD_version > 1300130
 	maxio = maxphys - (maxphys % cp->provider->sectorsize);
-#else
-	maxio = MAXPHYS - (MAXPHYS % cp->provider->sectorsize);
-#endif
 	n_bios = 0;
 
 	/* How many bios are required for all commands ? */

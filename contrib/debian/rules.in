@@ -56,6 +56,12 @@ override_dh_auto_configure:
 		sed 's/@DEB_HOST_MULTIARCH@/$(DEB_HOST_MULTIARCH)/g' "$$i" > "$${i%%.in}" ; \
 	done
 
+	ln -s '$(CURDIR)/etc/init.d/zfs-import' '$(CURDIR)/debian/openzfs-zfsutils.zfs-import.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-load-key' '$(CURDIR)/debian/openzfs-zfsutils.zfs-load-key.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-mount' '$(CURDIR)/debian/openzfs-zfsutils.zfs-mount.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-share' '$(CURDIR)/debian/openzfs-zfsutils.zfs-share.init'
+	ln -s '$(CURDIR)/etc/init.d/zfs-zed' '$(CURDIR)/debian/openzfs-zfs-zed.zfs-zed.init'
+
 override_dh_gencontrol:
 	dh_gencontrol -- -Vlinux:Recommends="linux-libc-dev (<< $(LINUX_NEXT)~), linux-libc-dev (>= $(LINUX_MIN)~),"
 
@@ -82,11 +88,11 @@ override_dh_auto_install:
 
 	@# Zed has dependencies outside of the system root.
 	mv '$(CURDIR)/debian/tmp/sbin/zed' '$(CURDIR)/debian/tmp/usr/sbin/zed'
+	sed -i 's|ExecStart=/sbin/|ExecStart=/usr/sbin/|g' '$(CURDIR)/debian/tmp/lib/systemd/system/zfs-zed.service'
 
 	@# Install the DKMS source.
 	@# We only want the files needed to build the modules
 	install -D -t '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/scripts' \
-		'$(CURDIR)/scripts/enum-extract.pl' \
 		'$(CURDIR)/scripts/dkms.postbuild'
 	$(foreach file,$(DKMSFILES),mv '$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)' || exit 1;)
 

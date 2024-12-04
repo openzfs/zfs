@@ -1463,10 +1463,21 @@ and less than or equal to
 If the
 .Sy large_blocks
 feature is enabled on the pool, the size may be up to
-.Ar 1 MiB .
+.Ar 16 MiB .
 See
 .Xr zpool-features 7
 for details on ZFS feature flags.
+.Pp
+However, blocks larger than
+.Ar 1 MiB
+can have an impact on i/o latency (e.g. tying up a spinning disk for
+~300ms), and also potentially on the memory allocator.
+.Pp
+Note that maximum size is still limited by default to
+.Ar 1 MiB
+on x86_32, see
+.Sy zfs_max_recordsize
+module parameter.
 .Pp
 Changing the file system's
 .Sy recordsize

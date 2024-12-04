@@ -50,7 +50,7 @@ function dev_checksum
 
 	log_note "Compute checksum of '$dev'"
 
-	md5digest $dev ||
+	xxh128digest $dev ||
 		log_fail "Failed to compute checksum of '$dev'"
 }
 

@@ -25,9 +25,6 @@
  *
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #include <sys/param.h>
 #include <sys/buf.h>
 #include <sys/cmn_err.h>
@@ -338,11 +335,7 @@ EVENTHANDLER_DEFINE(mountroot, spa_boot_init, NULL, 0);
 
 DECLARE_MODULE(zfsctrl, zfs_mod, SI_SUB_CLOCKS, SI_ORDER_ANY);
 MODULE_VERSION(zfsctrl, 1);
-#if __FreeBSD_version > 1300092
 MODULE_DEPEND(zfsctrl, xdr, 1, 1, 1);
-#else
-MODULE_DEPEND(zfsctrl, krpc, 1, 1, 1);
-#endif
 MODULE_DEPEND(zfsctrl, acl_nfs4, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, crypto, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, zlib, 1, 1, 1);

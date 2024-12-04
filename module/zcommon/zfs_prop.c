@@ -41,6 +41,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
 #include <sys/dsl_crypt.h>
+#include <sys/simd.h>
 
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -789,11 +790,12 @@ zfs_name_to_prop(const char *propname)
 boolean_t
 zfs_prop_user(const char *name)
 {
-	int i;
+	int i, len;
 	char c;
 	boolean_t foundsep = B_FALSE;
 
-	for (i = 0; i < strlen(name); i++) {
+	len = strlen(name);
+	for (i = 0; i < len; i++) {
 		c = name[i];
 		if (!zprop_valid_char(c))
 			return (B_FALSE);
@@ -1068,6 +1070,7 @@ zcommon_init(void)
 		return (error);
 
 	fletcher_4_init();
+	simd_stat_init();
 
 	return (0);
 }
@@ -1075,6 +1078,7 @@ zcommon_init(void)
 void
 zcommon_fini(void)
 {
+	simd_stat_fini();
 	fletcher_4_fini();
 	kfpu_fini();
 }

@@ -248,6 +248,7 @@ typedef struct {
 	uint32_t	lr_attr_masksize; /* number of elements in array */
 	uint32_t	lr_attr_bitmap; /* First entry of array */
 	/* remainder of array and additional lr_attr_end_t fields */
+	uint8_t		lr_attr_data[];
 } lr_attr_t;
 
 /*
@@ -264,9 +265,14 @@ typedef struct {
 	uint64_t	lr_gen;		/* generation (txg of creation) */
 	uint64_t	lr_crtime[2];	/* creation time */
 	uint64_t	lr_rdev;	/* rdev of object to create */
+} _lr_create_t;
+
+typedef struct {
+	_lr_create_t	lr_create;	/* common create portion */
 	/* name of object to create follows this */
 	/* for symlinks, link content follows name */
 	/* for creates with xvattr data, the name follows the xvattr info */
+	uint8_t		lr_data[];
 } lr_create_t;
 
 /*
@@ -293,18 +299,20 @@ typedef struct {
  * and group will be in lr_create.  Name follows ACL data.
  */
 typedef struct {
-	lr_create_t	lr_create;	/* common create portion */
+	_lr_create_t	lr_create;	/* common create portion */
 	uint64_t	lr_aclcnt;	/* number of ACEs in ACL */
 	uint64_t	lr_domcnt;	/* number of unique domains */
 	uint64_t	lr_fuidcnt;	/* number of real fuids */
 	uint64_t	lr_acl_bytes;	/* number of bytes in ACL */
 	uint64_t	lr_acl_flags;	/* ACL flags */
+	uint8_t		lr_data[];
 } lr_acl_create_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
 	uint64_t	lr_doid;	/* obj id of directory */
 	/* name of object to remove follows this */
+	uint8_t		lr_data[];
 } lr_remove_t;
 
 typedef struct {
@@ -312,18 +320,24 @@ typedef struct {
 	uint64_t	lr_doid;	/* obj id of directory */
 	uint64_t	lr_link_obj;	/* obj id of link */
 	/* name of object to link follows this */
+	uint8_t		lr_data[];
 } lr_link_t;
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
 	uint64_t	lr_sdoid;	/* obj id of source directory */
 	uint64_t	lr_tdoid;	/* obj id of target directory */
+} _lr_rename_t;
+
+typedef struct {
+	_lr_rename_t	lr_rename;	/* common rename portion */
 	/* 2 strings: names of source and destination follow this */
+	uint8_t		lr_data[];
 } lr_rename_t;
 
 typedef struct {
-	lr_rename_t	lr_rename;	/* common rename portion */
-	/* members related to the whiteout file (based on lr_create_t) */
+	_lr_rename_t	lr_rename;	/* common rename portion */
+	/* members related to the whiteout file (based on _lr_create_t) */
 	uint64_t	lr_wfoid;	/* obj id of the new whiteout file */
 	uint64_t	lr_wmode;	/* mode of object */
 	uint64_t	lr_wuid;	/* uid of whiteout */
@@ -332,6 +346,7 @@ typedef struct {
 	uint64_t	lr_wcrtime[2];	/* creation time */
 	uint64_t	lr_wrdev;	/* always makedev(0, 0) */
 	/* 2 strings: names of source and destination follow this */
+	uint8_t		lr_data[];
 } lr_rename_whiteout_t;
 
 typedef struct {
@@ -342,6 +357,7 @@ typedef struct {
 	uint64_t	lr_blkoff;	/* no longer used */
 	blkptr_t	lr_blkptr;	/* spa block pointer for replay */
 	/* write data will follow for small writes */
+	uint8_t		lr_data[];
 } lr_write_t;
 
 typedef struct {
@@ -362,6 +378,7 @@ typedef struct {
 	uint64_t	lr_atime[2];	/* access time */
 	uint64_t	lr_mtime[2];	/* modification time */
 	/* optional attribute lr_attr_t may be here */
+	uint8_t		lr_data[];
 } lr_setattr_t;
 
 typedef struct {
@@ -369,6 +386,7 @@ typedef struct {
 	uint64_t	lr_foid;	/* file object to change attributes */
 	uint64_t	lr_size;
 	/* xattr name and value follows */
+	uint8_t		lr_data[];
 } lr_setsaxattr_t;
 
 typedef struct {
@@ -376,6 +394,7 @@ typedef struct {
 	uint64_t	lr_foid;	/* obj id of file */
 	uint64_t	lr_aclcnt;	/* number of acl entries */
 	/* lr_aclcnt number of ace_t entries follow this */
+	uint8_t		lr_data[];
 } lr_acl_v0_t;
 
 typedef struct {
@@ -387,6 +406,7 @@ typedef struct {
 	uint64_t	lr_acl_bytes;	/* number of bytes in ACL */
 	uint64_t	lr_acl_flags;	/* ACL flags */
 	/* lr_acl_bytes number of variable sized ace's follows */
+	uint8_t		lr_data[];
 } lr_acl_t;
 
 typedef struct {
@@ -396,8 +416,8 @@ typedef struct {
 	uint64_t	lr_length;	/* length of the blocks to clone */
 	uint64_t	lr_blksz;	/* file's block size */
 	uint64_t	lr_nbps;	/* number of block pointers */
-	blkptr_t	lr_bps[];
 	/* block pointers of the blocks to clone follows */
+	blkptr_t	lr_bps[];
 } lr_clone_range_t;
 
 /*
@@ -448,7 +468,7 @@ typedef struct itx {
 	uint64_t	itx_oid;	/* object id */
 	uint64_t	itx_gen;	/* gen number for zfs_get_data */
 	lr_t		itx_lr;		/* common part of log record */
-	/* followed by type-specific part of lr_xx_t and its immediate data */
+	uint8_t		itx_lr_data[];	/* type-specific part of lr_xx_t */
 } itx_t;
 
 /*

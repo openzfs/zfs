@@ -167,6 +167,9 @@ typedef enum zio_suspend_reason {
  * This was originally an enum type. However, those are 32-bit and there is no
  * way to make a 64-bit enum type. Since we ran out of bits for flags, we were
  * forced to upgrade it to a uint64_t.
+ *
+ * NOTE: PLEASE UPDATE THE BITFIELD STRINGS IN zfs_valstr.c IF YOU ADD ANOTHER
+ * FLAG.
  */
 typedef uint64_t zio_flag_t;
 	/*

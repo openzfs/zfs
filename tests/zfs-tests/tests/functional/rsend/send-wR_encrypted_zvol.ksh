@@ -101,8 +101,8 @@ block_device_wait
 
 log_must mount $recvdev $recvmnt
 
-md5_1=$(cat $mntpnt/* | md5digest)
-md5_2=$(cat $recvmnt/* | md5digest)
-[[ "$md5_1" == "$md5_2" ]] || log_fail "md5 mismatch: $md5_1 != $md5_2"
+hash1=$(cat $mntpnt/* | xxh128digest)
+hash2=$(cat $recvmnt/* | xxh128digest)
+[[ "$hash1" == "$hash2" ]] || log_fail "hash mismatch: $hash1 != $hash2"
 
 log_pass "zfs can receive raw, recursive send streams"

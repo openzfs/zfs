@@ -113,7 +113,7 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 	if (vfsp != NULL) {
 		if (vfsp->vfs_mntpoint != NULL)
 			kmem_strfree(vfsp->vfs_mntpoint);
-
+		mutex_destroy(&vfsp->vfs_mntpt_lock);
 		kmem_free(vfsp, sizeof (vfs_t));
 	}
 }
@@ -195,10 +195,11 @@ zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
 		vfsp->vfs_do_nbmand = B_TRUE;
 		break;
 	case TOKEN_MNTPOINT:
+		if (vfsp->vfs_mntpoint != NULL)
+			kmem_strfree(vfsp->vfs_mntpoint);
 		vfsp->vfs_mntpoint = match_strdup(&args[0]);
 		if (vfsp->vfs_mntpoint == NULL)
 			return (SET_ERROR(ENOMEM));
-
 		break;
 	default:
 		break;
@@ -217,6 +218,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 	int error;
 
 	tmp_vfsp = kmem_zalloc(sizeof (vfs_t), KM_SLEEP);
+	mutex_init(&tmp_vfsp->vfs_mntpt_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	if (mntopts != NULL) {
 		substring_t args[MAX_OPT_ARGS];
@@ -1178,64 +1180,6 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 }
 
 /*
- * Linux kernels older than 3.1 do not support a per-filesystem shrinker.
- * To accommodate this we must improvise and manually walk the list of znodes
- * attempting to prune dentries in order to be able to drop the inodes.
- *
- * To avoid scanning the same znodes multiple times they are always rotated
- * to the end of the z_all_znodes list.  New znodes are inserted at the
- * end of the list so we're always scanning the oldest znodes first.
- */
-static int
-zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
-{
-	znode_t **zp_array, *zp;
-	int max_array = MIN(nr_to_scan, PAGE_SIZE * 8 / sizeof (znode_t *));
-	int objects = 0;
-	int i = 0, j = 0;
-
-	zp_array = vmem_zalloc(max_array * sizeof (znode_t *), KM_SLEEP);
-
-	mutex_enter(&zfsvfs->z_znodes_lock);
-	while ((zp = list_head(&zfsvfs->z_all_znodes)) != NULL) {
-
-		if ((i++ > nr_to_scan) || (j >= max_array))
-			break;
-
-		ASSERT(list_link_active(&zp->z_link_node));
-		list_remove(&zfsvfs->z_all_znodes, zp);
-		list_insert_tail(&zfsvfs->z_all_znodes, zp);
-
-		/* Skip active znodes and .zfs entries */
-		if (MUTEX_HELD(&zp->z_lock) || zp->z_is_ctldir)
-			continue;
-
-		if (igrab(ZTOI(zp)) == NULL)
-			continue;
-
-		zp_array[j] = zp;
-		j++;
-	}
-	mutex_exit(&zfsvfs->z_znodes_lock);
-
-	for (i = 0; i < j; i++) {
-		zp = zp_array[i];
-
-		ASSERT3P(zp, !=, NULL);
-		d_prune_aliases(ZTOI(zp));
-
-		if (atomic_read(&ZTOI(zp)->i_count) == 1)
-			objects++;
-
-		zrele(zp);
-	}
-
-	vmem_free(zp_array, max_array * sizeof (znode_t *));
-
-	return (objects);
-}
-
-/*
  * The ARC has requested that the filesystem drop entries from the dentry
  * and inode caches.  This can occur when the ARC needs to free meta data
  * blocks but can't because they are all pinned by entries in these caches.
@@ -1260,9 +1204,7 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-#if defined(HAVE_SPLIT_SHRINKER_CALLBACK) && \
-	defined(SHRINK_CONTROL_HAS_NID) && \
-	defined(SHRINKER_NUMA_AWARE)
+#ifdef SHRINKER_NUMA_AWARE
 	if (shrinker->flags & SHRINKER_NUMA_AWARE) {
 		*objects = 0;
 		for_each_online_node(sc.nid) {
@@ -1276,27 +1218,8 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 	} else {
 			*objects = (*shrinker->scan_objects)(shrinker, &sc);
 	}
-
-#elif defined(HAVE_SPLIT_SHRINKER_CALLBACK)
-	*objects = (*shrinker->scan_objects)(shrinker, &sc);
-#elif defined(HAVE_SINGLE_SHRINKER_CALLBACK)
-	*objects = (*shrinker->shrink)(shrinker, &sc);
-#elif defined(HAVE_D_PRUNE_ALIASES)
-#define	D_PRUNE_ALIASES_IS_DEFAULT
-	*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
 #else
-#error "No available dentry and inode cache pruning mechanism."
-#endif
-
-#if defined(HAVE_D_PRUNE_ALIASES) && !defined(D_PRUNE_ALIASES_IS_DEFAULT)
-#undef	D_PRUNE_ALIASES_IS_DEFAULT
-	/*
-	 * Fall back to zfs_prune_aliases if the kernel's per-superblock
-	 * shrinker couldn't free anything, possibly due to the inodes being
-	 * allocated in a different memcg.
-	 */
-	if (*objects == 0)
-		*objects = zfs_prune_aliases(zfsvfs, nr_to_scan);
+	*objects = (*shrinker->scan_objects)(shrinker, &sc);
 #endif
 
 	zfs_exit(zfsvfs, FTAG);
@@ -1455,9 +1378,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-#if defined(HAVE_SUPER_SETUP_BDI_NAME)
-atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
-#endif
+static atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 
 int
 zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
@@ -1518,7 +1439,8 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
 
-	error = -zpl_bdi_setup(sb, "zfs");
+	error = -super_setup_bdi_name(sb, "%.28s-%ld", "zfs",
+	    atomic_long_inc_return(&zfs_bdi_seq));
 	if (error)
 		goto out;
 
@@ -1646,7 +1568,6 @@ zfs_umount(struct super_block *sb)
 		arc_remove_prune_callback(zfsvfs->z_arc_prune);
 	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
 	os = zfsvfs->z_os;
-	zpl_bdi_destroy(sb);
 
 	/*
 	 * z_os will be NULL if there was an error in
@@ -2097,9 +2018,6 @@ zfs_init(void)
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zpl_get_file_info);
 	register_filesystem(&zpl_fs_type);
-#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
-	register_fo_extend(&zpl_file_operations);
-#endif
 }
 
 void
@@ -2110,9 +2028,6 @@ zfs_fini(void)
 	 */
 	taskq_wait(system_delay_taskq);
 	taskq_wait(system_taskq);
-#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
-	unregister_fo_extend(&zpl_file_operations);
-#endif
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
 	zfsctl_fini();

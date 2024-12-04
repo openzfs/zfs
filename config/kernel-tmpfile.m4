@@ -59,23 +59,19 @@ AC_DEFUN([ZFS_AC_KERNEL_TMPFILE], [
 	AC_MSG_CHECKING([whether i_op->tmpfile() exists])
 	ZFS_LINUX_TEST_RESULT([inode_operations_tmpfile_mnt_idmap], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_TMPFILE, 1, [i_op->tmpfile() exists])
 		AC_DEFINE(HAVE_TMPFILE_IDMAP, 1, [i_op->tmpfile() has mnt_idmap])
 	], [
 		ZFS_LINUX_TEST_RESULT([inode_operations_tmpfile], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_TMPFILE, 1, [i_op->tmpfile() exists])
 			AC_DEFINE(HAVE_TMPFILE_USERNS, 1, [i_op->tmpfile() has userns])
 		],[
 			ZFS_LINUX_TEST_RESULT([inode_operations_tmpfile_dentry_userns], [
 				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_TMPFILE, 1, [i_op->tmpfile() exists])
 				AC_DEFINE(HAVE_TMPFILE_USERNS, 1, [i_op->tmpfile() has userns])
 				AC_DEFINE(HAVE_TMPFILE_DENTRY, 1, [i_op->tmpfile() uses old dentry signature])
 			],[
 				ZFS_LINUX_TEST_RESULT([inode_operations_tmpfile_dentry], [
 					AC_MSG_RESULT(yes)
-					AC_DEFINE(HAVE_TMPFILE, 1, [i_op->tmpfile() exists])
 					AC_DEFINE(HAVE_TMPFILE_DENTRY, 1, [i_op->tmpfile() uses old dentry signature])
 				],[
 					ZFS_LINUX_REQUIRE_API([i_op->tmpfile()], [3.11])

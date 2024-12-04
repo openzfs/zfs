@@ -733,7 +733,7 @@ zfsctl_root_vptocnp(struct vop_vptocnp_args *ap)
 	if (error != 0)
 		return (SET_ERROR(error));
 
-	VOP_UNLOCK1(dvp);
+	VOP_UNLOCK(dvp);
 	*ap->a_vpp = dvp;
 	*ap->a_buflen -= sizeof (dotzfs_name);
 	memcpy(ap->a_buf + *ap->a_buflen, dotzfs_name, sizeof (dotzfs_name));
@@ -814,12 +814,8 @@ zfsctl_common_getacl(struct vop_getacl_args *ap)
 
 static struct vop_vector zfsctl_ops_root = {
 	.vop_default =	&default_vnodeops,
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_ioctl =	VOP_EINVAL,
@@ -1146,12 +1142,8 @@ zfsctl_snapdir_getattr(struct vop_getattr_args *ap)
 
 static struct vop_vector zfsctl_ops_snapdir = {
 	.vop_default =	&default_vnodeops,
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_getattr =	zfsctl_snapdir_getattr,
@@ -1226,27 +1218,19 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
 	 * before we can lock the vnode again.
 	 */
 	locked = VOP_ISLOCKED(vp);
-#if __FreeBSD_version >= 1300045
 	enum vgetstate vs = vget_prep(vp);
-#else
-	vhold(vp);
-#endif
 	vput(vp);
 
 	/* Look up .zfs/snapshot, our parent. */
 	error = zfsctl_snapdir_vnode(vp->v_mount, NULL, LK_SHARED, &dvp);
 	if (error == 0) {
-		VOP_UNLOCK1(dvp);
+		VOP_UNLOCK(dvp);
 		*ap->a_vpp = dvp;
 		*ap->a_buflen -= len;
 		memcpy(ap->a_buf + *ap->a_buflen, node->sn_name, len);
 	}
 	vfs_unbusy(mp);
-#if __FreeBSD_version >= 1300045
 	vget_finish(vp, locked | LK_RETRY, vs);
-#else
-	vget(vp, locked | LK_VNHELD | LK_RETRY, curthread);
-#endif
 	return (error);
 }
 
@@ -1256,18 +1240,12 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
  */
 static struct vop_vector zfsctl_ops_snapshot = {
 	.vop_default =		NULL, /* ensure very restricted access */
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec =	VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =		zfsctl_common_open,
 	.vop_close =		zfsctl_common_close,
 	.vop_inactive =		zfsctl_snapshot_inactive,
-#if __FreeBSD_version >= 1300045
-	.vop_need_inactive = vop_stdneed_inactive,
-#endif
+	.vop_need_inactive =	vop_stdneed_inactive,
 	.vop_reclaim =		zfsctl_snapshot_reclaim,
 	.vop_vptocnp =		zfsctl_snapshot_vptocnp,
 	.vop_lock1 =		vop_stdlock,

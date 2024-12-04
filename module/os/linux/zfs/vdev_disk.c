@@ -38,9 +38,7 @@
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
-#ifdef HAVE_LINUX_BLK_CGROUP_HEADER
 #include <linux/blk-cgroup.h>
-#endif
 
 /*
  * Linux 6.8.x uses a bdev_handle as an instance/refcount for an underlying
@@ -401,7 +399,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 			if (v->vdev_removed)
 				break;
 
-			schedule_timeout(MSEC_TO_TICK(10));
+			schedule_timeout_interruptible(MSEC_TO_TICK(10));
 		} else if (unlikely(BDH_PTR_ERR(bdh) == -ERESTARTSYS)) {
 			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
 			continue;
@@ -478,16 +476,6 @@ vdev_disk_close(vdev_t *v)
 	v->vdev_tsd = NULL;
 }
 
-static inline void
-vdev_submit_bio_impl(struct bio *bio)
-{
-#ifdef HAVE_1ARG_SUBMIT_BIO
-	(void) submit_bio(bio);
-#else
-	(void) submit_bio(bio_data_dir(bio), bio);
-#endif
-}
-
 /*
  * preempt_schedule_notrace is GPL-only which breaks the ZFS build, so
  * replace it with preempt_schedule under the following condition:
@@ -505,7 +493,6 @@ vdev_submit_bio_impl(struct bio *bio)
  */
 #if !defined(HAVE_BIO_ALLOC_4ARG)
 
-#ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
  * The Linux 5.5 kernel updated percpu_ref_tryget() which is inlined by
@@ -591,16 +578,6 @@ vdev_bio_set_dev(struct bio *bio, struct block_device *bdev)
 #define	bio_set_dev		vdev_bio_set_dev
 #endif
 #endif
-#else
-/*
- * Provide a bio_set_dev() helper macro for pre-Linux 4.14 kernels.
- */
-static inline void
-bio_set_dev(struct bio *bio, struct block_device *bdev)
-{
-	bio->bi_bdev = bdev;
-}
-#endif /* HAVE_BIO_SET_DEV */
 #endif /* !HAVE_BIO_ALLOC_4ARG */
 
 static inline void
@@ -608,7 +585,7 @@ vdev_submit_bio(struct bio *bio)
 {
 	struct bio_list *bio_list = current->bio_list;
 	current->bio_list = NULL;
-	vdev_submit_bio_impl(bio);
+	(void) submit_bio(bio);
 	current->bio_list = bio_list;
 }
 
@@ -706,7 +683,7 @@ vbio_alloc(zio_t *zio, struct block_device *bdev, int flags)
 	return (vbio);
 }
 
-BIO_END_IO_PROTO(vbio_completion, bio, error);
+static void vbio_completion(struct bio *bio);
 
 static int
 vbio_add_page(vbio_t *vbio, struct page *page, uint_t size, uint_t offset)
@@ -802,7 +779,8 @@ vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 }
 
 /* IO completion callback */
-BIO_END_IO_PROTO(vbio_completion, bio, error)
+static void
+vbio_completion(struct bio *bio)
 {
 	vbio_t *vbio = bio->bi_private;
 	zio_t *zio = vbio->vbio_zio;
@@ -810,15 +788,7 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	ASSERT(zio);
 
 	/* Capture and log any errors */
-#ifdef HAVE_1ARG_BIO_END_IO_T
-	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = 0;
-	if (error)
-		zio->io_error = -(error);
-	else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-		zio->io_error = EIO;
-#endif
+	zio->io_error = bi_status_to_errno(bio->bi_status);
 	ASSERT3U(zio->io_error, >=, 0);
 
 	if (zio->io_error)
@@ -828,24 +798,13 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
 	bio_put(bio);
 
 	/*
-	 * If we copied the ABD before issuing it, clean up and return the copy
-	 * to the ADB, with changes if appropriate.
+	 * We're likely in an interrupt context so we can't do ABD/memory work
+	 * here; instead we stash vbio on the zio and take care of it in the
+	 * done callback.
 	 */
-	if (vbio->vbio_abd != NULL) {
-		void *buf = abd_to_buf(vbio->vbio_abd);
-		abd_free(vbio->vbio_abd);
-		vbio->vbio_abd = NULL;
+	ASSERT3P(zio->io_bio, ==, NULL);
+	zio->io_bio = vbio;
 
-		if (zio->io_type == ZIO_TYPE_READ)
-			abd_return_buf_copy(zio->io_abd, buf, zio->io_size);
-		else
-			abd_return_buf(zio->io_abd, buf, zio->io_size);
-	}
-
-	/* Final cleanup */
-	kmem_free(vbio, sizeof (vbio_t));
-
-	/* All done, submit for processing */
 	zio_delay_interrupt(zio);
 }
 
@@ -859,34 +818,59 @@ BIO_END_IO_PROTO(vbio_completion, bio, error)
  * split the BIO, the two halves will still be properly aligned.
  */
 typedef struct {
-	uint_t  bmask;
-	uint_t  npages;
-	uint_t  end;
-} vdev_disk_check_pages_t;
+	size_t	blocksize;
+	int	seen_first;
+	int	seen_last;
+} vdev_disk_check_alignment_t;
 
 static int
-vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
+vdev_disk_check_alignment_cb(struct page *page, size_t off, size_t len,
+    void *priv)
 {
-	vdev_disk_check_pages_t *s = priv;
+	(void) page;
+	vdev_disk_check_alignment_t *s = priv;
 
 	/*
-	 * If we didn't finish on a block size boundary last time, then there
-	 * would be a gap if we tried to use this ABD as-is, so abort.
+	 * The cardinal rule: a single on-disk block must never cross an
+	 * physical (order-0) page boundary, as the kernel expects to be able
+	 * to split at both LBS and page boundaries.
+	 *
+	 * This implies various alignment rules for the blocks in this
+	 * (possibly compound) page, which we can check for.
 	 */
-	if (s->end != 0)
+
+	/*
+	 * If the previous page did not end on a page boundary, then we
+	 * can't proceed without creating a hole.
+	 */
+	if (s->seen_last)
+		return (1);
+
+	/* This page must contain only whole LBS-sized blocks. */
+	if (!IS_P2ALIGNED(len, s->blocksize))
 		return (1);
 
 	/*
-	 * Note if we're taking less than a full block, so we can check it
-	 * above on the next call.
+	 * If this is not the first page in the ABD, then the data must start
+	 * on a page-aligned boundary (so the kernel can split on page
+	 * boundaries without having to deal with a hole). If it is, then
+	 * it can start on LBS-alignment.
 	 */
-	s->end = (off+len) & s->bmask;
+	if (s->seen_first) {
+		if (!IS_P2ALIGNED(off, PAGESIZE))
+			return (1);
+	} else {
+		if (!IS_P2ALIGNED(off, s->blocksize))
+			return (1);
+		s->seen_first = 1;
+	}
 
-	/* All blocks after the first must start on a block size boundary. */
-	if (s->npages != 0 && (off & s->bmask) != 0)
-		return (1);
+	/*
+	 * If this data does not end on a page-aligned boundary, then this
+	 * must be the last page in the ABD, for the same reason.
+	 */
+	s->seen_last = !IS_P2ALIGNED(off+len, PAGESIZE);
 
-	s->npages++;
 	return (0);
 }
 
@@ -895,15 +879,14 @@ vdev_disk_check_pages_cb(struct page *page, size_t off, size_t len, void *priv)
  * the number of pages, or 0 if it can't be submitted like this.
  */
 static boolean_t
-vdev_disk_check_pages(abd_t *abd, uint64_t size, struct block_device *bdev)
+vdev_disk_check_alignment(abd_t *abd, uint64_t size, struct block_device *bdev)
 {
-	vdev_disk_check_pages_t s = {
-	    .bmask = bdev_logical_block_size(bdev)-1,
-	    .npages = 0,
-	    .end = 0,
+	vdev_disk_check_alignment_t s = {
+	    .blocksize = bdev_logical_block_size(bdev),
 	};
 
-	if (abd_iterate_page_func(abd, 0, size, vdev_disk_check_pages_cb, &s))
+	if (abd_iterate_page_func(abd, 0, size,
+	    vdev_disk_check_alignment_cb, &s))
 		return (B_FALSE);
 
 	return (B_TRUE);
@@ -937,37 +920,32 @@ vdev_disk_io_rw(zio_t *zio)
 
 	/*
 	 * Check alignment of the incoming ABD. If any part of it would require
-	 * submitting a page that is not aligned to the logical block size,
-	 * then we take a copy into a linear buffer and submit that instead.
-	 * This should be impossible on a 512b LBS, and fairly rare on 4K,
-	 * usually requiring abnormally-small data blocks (eg gang blocks)
-	 * mixed into the same ABD as larger ones (eg aggregated).
+	 * submitting a page that is not aligned to both the logical block size
+	 * and the page size, then we take a copy into a new memory region with
+	 * correct alignment.  This should be impossible on a 512b LBS. On
+	 * larger blocks, this can happen at least when a small number of
+	 * blocks (usually 1) are allocated from a shared slab, or when
+	 * abnormally-small data regions (eg gang headers) are mixed into the
+	 * same ABD as larger allocations (eg aggregations).
 	 */
 	abd_t *abd = zio->io_abd;
-	if (!vdev_disk_check_pages(abd, zio->io_size, bdev)) {
-		void *buf;
-		if (zio->io_type == ZIO_TYPE_READ)
-			buf = abd_borrow_buf(zio->io_abd, zio->io_size);
-		else
-			buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+	if (!vdev_disk_check_alignment(abd, zio->io_size, bdev)) {
+		/* Allocate a new memory region with guaranteed alignment */
+		abd = abd_alloc_for_io(zio->io_size,
+		    zio->io_abd->abd_flags & ABD_FLAG_META);
+
+		/* If we're writing copy our data into it */
+		if (zio->io_type == ZIO_TYPE_WRITE)
+			abd_copy(abd, zio->io_abd, zio->io_size);
 
 		/*
-		 * Wrap the copy in an abd_t, so we can use the same iterators
-		 * to count and fill the vbio later.
-		 */
-		abd = abd_get_from_buf(buf, zio->io_size);
-
-		/*
-		 * False here would mean the borrowed copy has an invalid
-		 * alignment too, which would mean we've somehow been passed a
-		 * linear ABD with an interior page that has a non-zero offset
-		 * or a size not a multiple of PAGE_SIZE. This is not possible.
-		 * It would mean either zio_buf_alloc() or its underlying
-		 * allocators have done something extremely strange, or our
-		 * math in vdev_disk_check_pages() is wrong. In either case,
+		 * False here would mean the new allocation has an invalid
+		 * alignment too, which would mean that abd_alloc() is not
+		 * guaranteeing this, or our logic in
+		 * vdev_disk_check_alignment() is wrong. In either case,
 		 * something in seriously wrong and its not safe to continue.
 		 */
-		VERIFY(vdev_disk_check_pages(abd, zio->io_size, bdev));
+		VERIFY(vdev_disk_check_alignment(abd, zio->io_size, bdev));
 	}
 
 	/* Allocate vbio, with a pointer to the borrowed ABD if necessary */
@@ -1065,19 +1043,13 @@ vdev_classic_dio_put(dio_request_t *dr)
 	}
 }
 
-BIO_END_IO_PROTO(vdev_classic_physio_completion, bio, error)
+static void
+vdev_classic_physio_completion(struct bio *bio)
 {
 	dio_request_t *dr = bio->bi_private;
 
 	if (dr->dr_error == 0) {
-#ifdef HAVE_1ARG_BIO_END_IO_T
-		dr->dr_error = BIO_END_IO_ERROR(bio);
-#else
-		if (error)
-			dr->dr_error = -(error);
-		else if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
-			dr->dr_error = EIO;
-#endif
+		dr->dr_error = bi_status_to_errno(bio->bi_status);
 	}
 
 	/* Drop reference acquired by vdev_classic_physio */
@@ -1216,14 +1188,11 @@ retry:
 
 /* ========== */
 
-BIO_END_IO_PROTO(vdev_disk_io_flush_completion, bio, error)
+static void
+vdev_disk_io_flush_completion(struct bio *bio)
 {
 	zio_t *zio = bio->bi_private;
-#ifdef HAVE_1ARG_BIO_END_IO_T
-	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = -error;
-#endif
+	zio->io_error = bi_status_to_errno(bio->bi_status);
 
 	if (zio->io_error && (zio->io_error == EOPNOTSUPP))
 		zio->io_vd->vdev_nowritecache = B_TRUE;
@@ -1258,14 +1227,12 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	return (0);
 }
 
-BIO_END_IO_PROTO(vdev_disk_discard_end_io, bio, error)
+static void
+vdev_disk_discard_end_io(struct bio *bio)
 {
 	zio_t *zio = bio->bi_private;
-#ifdef HAVE_1ARG_BIO_END_IO_T
-	zio->io_error = BIO_END_IO_ERROR(bio);
-#else
-	zio->io_error = -error;
-#endif
+	zio->io_error = bi_status_to_errno(bio->bi_status);
+
 	bio_put(bio);
 	if (zio->io_error)
 		vdev_disk_error(zio);
@@ -1480,6 +1447,28 @@ vdev_disk_io_start(zio_t *zio)
 static void
 vdev_disk_io_done(zio_t *zio)
 {
+	/* If this was a read or write, we need to clean up the vbio */
+	if (zio->io_bio != NULL) {
+		vbio_t *vbio = zio->io_bio;
+		zio->io_bio = NULL;
+
+		/*
+		 * If we copied the ABD before issuing it, clean up and return
+		 * the copy to the ADB, with changes if appropriate.
+		 */
+		if (vbio->vbio_abd != NULL) {
+			if (zio->io_type == ZIO_TYPE_READ)
+				abd_copy(zio->io_abd, vbio->vbio_abd,
+				    zio->io_size);
+
+			abd_free(vbio->vbio_abd);
+			vbio->vbio_abd = NULL;
+		}
+
+		/* Final cleanup */
+		kmem_free(vbio, sizeof (vbio_t));
+	}
+
 	/*
 	 * If the device returned EIO, we revalidate the media.  If it is
 	 * determined the media has changed this triggers the asynchronous

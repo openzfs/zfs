@@ -404,19 +404,22 @@ typedef TValue *StkId;  /* index to stack elements */
 /*
 ** Header for string value; string bytes follow the end of this structure
 */
-typedef union TString {
-  L_Umaxalign dummy;  /* ensures maximum alignment for strings */
-  struct {
-    CommonHeader;
-    lu_byte extra;  /* reserved words for short strings; "has hash" for longs */
-    unsigned int hash;
-    size_t len;  /* number of characters in string */
-  } tsv;
+typedef struct TString {
+  union {
+    L_Umaxalign dummy;  /* ensures maximum alignment for strings */
+    struct {
+      CommonHeader;
+      lu_byte extra;  /* reserved words for short strings; "has hash" for longs */
+      unsigned int hash;
+      size_t len;  /* number of characters in string */
+    } tsv;
+  };
+  char contents[];
 } TString;
 
 
 /* get the actual string (array of bytes) from a TString */
-#define getstr(ts)	cast(const char *, (ts) + 1)
+#define getstr(ts)	((ts)->contents)
 
 /* get the actual string (array of bytes) from a Lua value */
 #define svalue(o)       getstr(rawtsvalue(o))

@@ -161,7 +161,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_DISCARD], [
 dnl #
 dnl # 5.19: bdev_max_secure_erase_sectors() available
 dnl # 4.8: blk_queue_secure_erase() available
-dnl # 2.6.36: blk_queue_secdiscard() available
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE], [
 	ZFS_LINUX_TEST_SRC([bdev_max_secure_erase_sectors], [
@@ -182,16 +181,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE], [
 		memset(q, 0, sizeof(r));
 		value = blk_queue_secure_erase(q);
 	],[-Wframe-larger-than=8192])
-
-	ZFS_LINUX_TEST_SRC([blk_queue_secdiscard], [
-		#include <linux/blkdev.h>
-	],[
-		struct request_queue r;
-		struct request_queue *q = &r;
-		int value __attribute__ ((unused));
-		memset(q, 0, sizeof(r));
-		value = blk_queue_secdiscard(q);
-	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE], [
@@ -209,134 +198,8 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE], [
 			AC_DEFINE(HAVE_BLK_QUEUE_SECURE_ERASE, 1,
 			    [blk_queue_secure_erase() is available])
 		],[
-			AC_MSG_RESULT(no)
-
-			AC_MSG_CHECKING([whether blk_queue_secdiscard() is available])
-			ZFS_LINUX_TEST_RESULT([blk_queue_secdiscard], [
-				AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_QUEUE_SECDISCARD, 1,
-				    [blk_queue_secdiscard() is available])
-			],[
-				ZFS_LINUX_TEST_ERROR([blk_queue_secure_erase])
-			])
+			ZFS_LINUX_TEST_ERROR([blk_queue_secure_erase])
 		])
-	])
-])
-
-dnl #
-dnl # 4.16 API change,
-dnl # Introduction of blk_queue_flag_set and blk_queue_flag_clear
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_SET], [
-	ZFS_LINUX_TEST_SRC([blk_queue_flag_set], [
-		#include <linux/kernel.h>
-		#include <linux/blkdev.h>
-	],[
-		struct request_queue *q = NULL;
-		blk_queue_flag_set(0, q);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLAG_SET], [
-	AC_MSG_CHECKING([whether blk_queue_flag_set() exists])
-	ZFS_LINUX_TEST_RESULT([blk_queue_flag_set], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_FLAG_SET, 1,
-		    [blk_queue_flag_set() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_CLEAR], [
-	ZFS_LINUX_TEST_SRC([blk_queue_flag_clear], [
-		#include <linux/kernel.h>
-		#include <linux/blkdev.h>
-	],[
-		struct request_queue *q = NULL;
-		blk_queue_flag_clear(0, q);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLAG_CLEAR], [
-	AC_MSG_CHECKING([whether blk_queue_flag_clear() exists])
-	ZFS_LINUX_TEST_RESULT([blk_queue_flag_clear], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_FLAG_CLEAR, 1,
-		    [blk_queue_flag_clear() exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 2.6.36 API change,
-dnl # Added blk_queue_flush() interface, while the previous interface
-dnl # was available to all the new one is GPL-only.  Thus in addition to
-dnl # detecting if this function is available we determine if it is
-dnl # GPL-only.  If the GPL-only interface is there we implement our own
-dnl # compatibility function, otherwise we use the function.  The hope
-dnl # is that long term this function will be opened up.
-dnl #
-dnl # 4.7 API change,
-dnl # Replace blk_queue_flush with blk_queue_write_cache
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH], [
-	ZFS_LINUX_TEST_SRC([blk_queue_flush], [
-		#include <linux/blkdev.h>
-	], [
-		struct request_queue *q __attribute__ ((unused)) = NULL;
-		(void) blk_queue_flush(q, REQ_FLUSH);
-	], [], [ZFS_META_LICENSE])
-
-	ZFS_LINUX_TEST_SRC([blk_queue_write_cache], [
-		#include <linux/kernel.h>
-		#include <linux/blkdev.h>
-	], [
-		struct request_queue *q __attribute__ ((unused)) = NULL;
-		blk_queue_write_cache(q, true, true);
-	], [], [ZFS_META_LICENSE])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLUSH], [
-	AC_MSG_CHECKING([whether blk_queue_flush() is available])
-	ZFS_LINUX_TEST_RESULT([blk_queue_flush], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_FLUSH, 1,
-		    [blk_queue_flush() is available])
-
-		AC_MSG_CHECKING([whether blk_queue_flush() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([blk_queue_flush_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_QUEUE_FLUSH_GPL_ONLY, 1,
-			    [blk_queue_flush() is GPL-only])
-		])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	dnl #
-	dnl # 4.7 API change
-	dnl # Replace blk_queue_flush with blk_queue_write_cache
-	dnl #
-	AC_MSG_CHECKING([whether blk_queue_write_cache() exists])
-	ZFS_LINUX_TEST_RESULT([blk_queue_write_cache], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_QUEUE_WRITE_CACHE, 1,
-		    [blk_queue_write_cache() exists])
-
-		AC_MSG_CHECKING([whether blk_queue_write_cache() is GPL-only])
-		ZFS_LINUX_TEST_RESULT([blk_queue_write_cache_license], [
-			AC_MSG_RESULT(no)
-		],[
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_QUEUE_WRITE_CACHE_GPL_ONLY, 1,
-			    [blk_queue_write_cache() is GPL-only])
-		])
-	],[
-		AC_MSG_RESULT(no)
 	])
 ])
 
@@ -385,24 +248,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS], [
 	])
 ])
 
-dnl #
-dnl # See if kernel supports block multi-queue and blk_status_t.
-dnl # blk_status_t represents the new status codes introduced in the 4.13
-dnl # kernel patch:
-dnl #
-dnl #  block: introduce new block status code type
-dnl #
-dnl # We do not currently support the "old" block multi-queue interfaces from
-dnl # prior kernels.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ], [
-	ZFS_LINUX_TEST_SRC([blk_mq], [
-		#include <linux/blk-mq.h>
-	], [
-		struct blk_mq_tag_set tag_set __attribute__ ((unused)) = {0};
-		(void) blk_mq_alloc_tag_set(&tag_set);
-		return BLK_STS_OK;
-	], [])
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ_RQ_HCTX], [
 	ZFS_LINUX_TEST_SRC([blk_mq_rq_hctx], [
 		#include <linux/blk-mq.h>
 		#include <linux/blkdev.h>
@@ -413,18 +259,11 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_MQ], [
 	], [])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ], [
-	AC_MSG_CHECKING([whether block multiqueue with blk_status_t is available])
-	ZFS_LINUX_TEST_RESULT([blk_mq], [
+AC_DEFUN([ZFS_AC_KERNEL_BLK_MQ_RQ_HCTX], [
+	AC_MSG_CHECKING([whether block multiqueue hardware context is cached in struct request])
+	ZFS_LINUX_TEST_RESULT([blk_mq_rq_hctx], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_BLK_MQ, 1, [block multiqueue is available])
-		AC_MSG_CHECKING([whether block multiqueue hardware context is cached in struct request])
-		ZFS_LINUX_TEST_RESULT([blk_mq_rq_hctx], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_BLK_MQ_RQ_HCTX, 1, [block multiqueue hardware context is cached in struct request])
-		], [
-			AC_MSG_RESULT(no)
-		])
+		AC_DEFINE(HAVE_BLK_MQ_RQ_HCTX, 1, [block multiqueue hardware context is cached in struct request])
 	], [
 		AC_MSG_RESULT(no)
 	])
@@ -437,12 +276,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
-	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_SET
-	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLAG_CLEAR
-	ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_SEGMENTS
-	ZFS_AC_KERNEL_SRC_BLK_MQ
+	ZFS_AC_KERNEL_SRC_BLK_MQ_RQ_HCTX
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
@@ -452,10 +288,7 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_UPDATE_READAHEAD
 	ZFS_AC_KERNEL_BLK_QUEUE_DISCARD
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
-	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_SET
-	ZFS_AC_KERNEL_BLK_QUEUE_FLAG_CLEAR
-	ZFS_AC_KERNEL_BLK_QUEUE_FLUSH
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS
-	ZFS_AC_KERNEL_BLK_MQ
+	ZFS_AC_KERNEL_BLK_MQ_RQ_HCTX
 ])

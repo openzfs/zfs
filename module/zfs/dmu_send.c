@@ -2552,7 +2552,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	while (err == 0 && !range->eos_marker) {
 		err = do_dump(&dsc, range);
 		range = get_next_range(&srt_arg->q, range);
-		if (issig(JUSTLOOKING) && issig(FORREAL))
+		if (issig())
 			err = SET_ERROR(EINTR);
 	}
 

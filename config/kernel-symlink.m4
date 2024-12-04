@@ -41,6 +41,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SYMLINK], [
 		AC_DEFINE(HAVE_IOPS_SYMLINK_IDMAP, 1,
 		    [iops->symlink() takes struct mnt_idmap*])
 	],[
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether iops->symlink() takes struct user_namespace*])
 		ZFS_LINUX_TEST_RESULT([symlink_userns], [
 			AC_MSG_RESULT(yes)

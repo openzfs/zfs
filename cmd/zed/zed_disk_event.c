@@ -139,7 +139,8 @@ dev_event_nvlist(struct udev_device *dev)
 		 * is /dev/sda.
 		 */
 		struct udev_device *parent_dev = udev_device_get_parent(dev);
-		if ((value = udev_device_get_sysattr_value(parent_dev, "size"))
+		if (parent_dev != NULL &&
+		    (value = udev_device_get_sysattr_value(parent_dev, "size"))
 		    != NULL) {
 			uint64_t numval = DEV_BSIZE;
 

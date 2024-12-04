@@ -867,7 +867,8 @@ void
 lz4_init(void)
 {
 	lz4_cache = kmem_cache_create("lz4_cache",
-	    sizeof (struct refTables), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	    sizeof (struct refTables), 0, NULL, NULL, NULL, NULL, NULL,
+	    KMC_RECLAIMABLE);
 }
 
 void

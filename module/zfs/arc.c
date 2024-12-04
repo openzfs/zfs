@@ -776,8 +776,8 @@ uint64_t zfs_crc64_table[256];
  * Level 2 ARC
  */
 
-#define	L2ARC_WRITE_SIZE	(8 * 1024 * 1024)	/* initial write max */
-#define	L2ARC_HEADROOM		2			/* num of writes */
+#define	L2ARC_WRITE_SIZE	(32 * 1024 * 1024)	/* initial write max */
+#define	L2ARC_HEADROOM		8			/* num of writes */
 
 /*
  * If we discover during ARC scan any buffers to be compressed, we boost
@@ -1258,7 +1258,7 @@ retry:
 	}
 
 	hdr_full_cache = kmem_cache_create("arc_buf_hdr_t_full", HDR_FULL_SIZE,
-	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, 0);
+	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, KMC_RECLAIMABLE);
 	hdr_l2only_cache = kmem_cache_create("arc_buf_hdr_t_l2only",
 	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, NULL,
 	    NULL, NULL, 0);
@@ -1960,7 +1960,7 @@ arc_buf_untransform_in_place(arc_buf_t *buf)
 	ASSERT(HDR_ENCRYPTED(hdr));
 	ASSERT3U(hdr->b_crypt_hdr.b_ot, ==, DMU_OT_DNODE);
 	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
-	ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
+	ASSERT3PF(hdr->b_l1hdr.b_pabd, !=, NULL, "hdr %px buf %px", hdr, buf);
 
 	zio_crypt_copy_dnode_bonus(hdr->b_l1hdr.b_pabd, buf->b_data,
 	    arc_buf_size(buf));
@@ -2083,7 +2083,8 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		 * allocate a new data buffer for the buf.
 		 */
 		if (ARC_BUF_SHARED(buf)) {
-			ASSERT(ARC_BUF_COMPRESSED(buf));
+			ASSERTF(ARC_BUF_COMPRESSED(buf),
+			"buf %p was uncompressed", buf);
 
 			/* We need to give the buf its own b_data */
 			buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
@@ -4240,7 +4241,7 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 static uint64_t
 arc_evict(void)
 {
-	uint64_t asize, bytes, total_evicted = 0;
+	uint64_t bytes, total_evicted = 0;
 	int64_t e, mrud, mrum, mfud, mfum, w;
 	static uint64_t ogrd, ogrm, ogfd, ogfm;
 	static uint64_t gsrd, gsrm, gsfd, gsfm;
@@ -4277,8 +4278,9 @@ arc_evict(void)
 	arc_pd = arc_evict_adj(arc_pd, gsrd + gsfd, grd, gfd, 100);
 	arc_pm = arc_evict_adj(arc_pm, gsrm + gsfm, grm, gfm, 100);
 
-	asize = aggsum_value(&arc_sums.arcstat_size);
-	int64_t wt = t - (asize - arc_c);
+	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
+	uint64_t ac = arc_c;
+	int64_t wt = t - (asize - ac);
 
 	/*
 	 * Try to reduce pinned dnodes if more than 3/4 of wanted metadata
@@ -4303,7 +4305,7 @@ arc_evict(void)
 
 	/* Evict MRU metadata. */
 	w = wt * (int64_t)(arc_meta * arc_pm >> 48) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(mrum - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(mrum - w));
 	bytes = arc_evict_impl(arc_mru, ARC_BUFC_METADATA, e);
 	total_evicted += bytes;
 	mrum -= bytes;
@@ -4311,7 +4313,7 @@ arc_evict(void)
 
 	/* Evict MFU metadata. */
 	w = wt * (int64_t)(arc_meta >> 16) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(m - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(m - bytes - w));
 	bytes = arc_evict_impl(arc_mfu, ARC_BUFC_METADATA, e);
 	total_evicted += bytes;
 	mfum -= bytes;
@@ -4320,14 +4322,14 @@ arc_evict(void)
 	/* Evict MRU data. */
 	wt -= m - total_evicted;
 	w = wt * (int64_t)(arc_pd >> 16) >> 16;
-	e = MIN((int64_t)(asize - arc_c), (int64_t)(mrud - w));
+	e = MIN((int64_t)(asize - ac), (int64_t)(mrud - w));
 	bytes = arc_evict_impl(arc_mru, ARC_BUFC_DATA, e);
 	total_evicted += bytes;
 	mrud -= bytes;
 	asize -= bytes;
 
 	/* Evict MFU data. */
-	e = asize - arc_c;
+	e = asize - ac;
 	bytes = arc_evict_impl(arc_mfu, ARC_BUFC_DATA, e);
 	mfud -= bytes;
 	total_evicted += bytes;

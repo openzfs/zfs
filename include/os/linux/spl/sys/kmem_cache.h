@@ -45,6 +45,7 @@ typedef enum kmc_bit {
 	KMC_BIT_TOTAL		= 18,	/* Proc handler helper bit */
 	KMC_BIT_ALLOC		= 19,	/* Proc handler helper bit */
 	KMC_BIT_MAX		= 20,	/* Proc handler helper bit */
+	KMC_BIT_RECLAIMABLE	= 21,	/* Can be freed by shrinker */
 } kmc_bit_t;
 
 /* kmem move callback return values */
@@ -66,9 +67,7 @@ typedef enum kmem_cbrc {
 #define	KMC_TOTAL		(1 << KMC_BIT_TOTAL)
 #define	KMC_ALLOC		(1 << KMC_BIT_ALLOC)
 #define	KMC_MAX			(1 << KMC_BIT_MAX)
-
-#define	KMC_REAP_CHUNK		INT_MAX
-#define	KMC_DEFAULT_SEEKS	1
+#define	KMC_RECLAIMABLE		(1 << KMC_BIT_RECLAIMABLE)
 
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
@@ -161,7 +160,7 @@ typedef struct spl_kmem_cache {
 	struct list_head	skc_partial_list;  /* Partially alloc'ed */
 	struct rb_root		skc_emergency_tree; /* Min sized objects */
 	spinlock_t		skc_lock;	/* Cache lock */
-	spl_wait_queue_head_t	skc_waitq;	/* Allocation waiters */
+	wait_queue_head_t	skc_waitq;	/* Allocation waiters */
 	uint64_t		skc_slab_fail;	/* Slab alloc failures */
 	uint64_t		skc_slab_create;  /* Slab creates */
 	uint64_t		skc_slab_destroy; /* Slab destroys */
@@ -201,6 +200,7 @@ extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 
 /* Avoid conflicts with kernel names that might be implemented as macros. */
 #undef	kmem_cache_alloc
+#undef	kmem_cache_create
 
 #define	kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl) \
     spl_kmem_cache_create(name, size, align, ctor, dtor, rclm, priv, vmp, fl)

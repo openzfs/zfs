@@ -62,24 +62,4 @@
 	container_of(timer, typeof(*var), timer_field)
 #endif
 
-#ifdef HAVE_KERNEL_TIMER_FUNCTION_TIMER_LIST
-typedef struct timer_list *spl_timer_list_t;
-#else
-typedef unsigned long spl_timer_list_t;
-#endif
-
-#ifndef HAVE_KERNEL_TIMER_SETUP
-
-static inline void
-timer_setup(struct timer_list *timer, void (*func)(spl_timer_list_t), u32 fl)
-{
-#ifdef HAVE_KERNEL_TIMER_LIST_FLAGS
-	(timer)->flags = fl;
-#endif
-	init_timer(timer);
-	setup_timer(timer, func, (spl_timer_list_t)(timer));
-}
-
-#endif /* HAVE_KERNEL_TIMER_SETUP */
-
 #endif  /* _SPL_TIMER_H */

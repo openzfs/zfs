@@ -1,0 +1,177 @@
+name: zfs-qemu
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  test-config:
+    name: Setup
+    runs-on: ubuntu-24.04
+    outputs:
+      test_os: ${{ steps.os.outputs.os }}
+      ci_type: ${{ steps.os.outputs.ci_type }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate OS config and CI type
+        id: os
+        run: |
+          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora40", "fedora41", "freebsd13-4r", "freebsd14-0r", "freebsd14-1s", "ubuntu20", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora41", "freebsd13-3r", "freebsd14-1r", "ubuntu24"]'
+          # determine CI type when running on PR
+          ci_type="full"
+          if ${{ github.event_name == 'pull_request' }}; then
+            head=${{ github.event.pull_request.head.sha }}
+            base=${{ github.event.pull_request.base.sha }}
+            ci_type=$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)
+          fi
+          if [ "$ci_type" == "quick" ]; then
+            os_selection="$QUICK_OS"
+          else
+            os_selection="$FULL_OS"
+          fi
+          os_json=$(echo ${os_selection} | jq -c)
+          echo "os=$os_json" >> $GITHUB_OUTPUT
+          echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
+
+  qemu-vm:
+    name: qemu-x86
+    needs: [ test-config ]
+    strategy:
+      fail-fast: false
+      matrix:
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora40, fedora41
+        # debian:  debian11, debian12, ubuntu20, ubuntu22, ubuntu24
+        # misc:    archlinux, tumbleweed
+        # FreeBSD Release: freebsd13-3r, freebsd13-4r, freebsd14-0r, freebsd14-1r
+        # FreeBSD Stable:  freebsd13-4s, freebsd14-1s
+        # FreeBSD Current: freebsd15-0c
+        os: ${{ fromJson(needs.test-config.outputs.test_os) }}
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Setup QEMU
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+
+    - name: Install dependencies
+      timeout-minutes: 20
+      run: |
+        echo "Install dependencies in QEMU machine"
+        IP=192.168.122.10
+        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
+          ssh 2>/dev/null zfs@$IP "uname -a" && break
+        done
+        scp .github/workflows/scripts/qemu-3-deps.sh zfs@$IP:qemu-3-deps.sh
+        PID=`pidof /usr/bin/qemu-system-x86_64`
+        ssh zfs@$IP '$HOME/qemu-3-deps.sh' ${{ matrix.os }}
+        # wait for poweroff to succeed
+        tail --pid=$PID -f /dev/null
+        sleep 5 # avoid this: "error: Domain is already active"
+        rm -f $HOME/.ssh/known_hosts
+
+    - name: Build modules
+      timeout-minutes: 30
+      run: |
+        echo "Build modules in QEMU machine"
+        sudo virsh start openzfs
+        IP=192.168.122.10
+        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
+          ssh 2>/dev/null zfs@$IP "uname -a" && break
+        done
+        rsync -ar $HOME/work/zfs/zfs zfs@$IP:./
+        ssh zfs@$IP '$HOME/zfs/.github/workflows/scripts/qemu-4-build.sh' ${{ matrix.os }}
+
+    - name: Setup testing machines
+      timeout-minutes: 5
+      run: .github/workflows/scripts/qemu-5-setup.sh
+
+    - name: Run tests
+      timeout-minutes: 270
+      run: .github/workflows/scripts/qemu-6-tests.sh
+      env:
+        CI_TYPE: ${{ needs.test-config.outputs.ci_type }}
+
+    - name: Prepare artifacts
+      if: always()
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-7-prepare.sh
+
+    - uses: actions/upload-artifact@v4
+      id: artifact-upload
+      if: always()
+      with:
+        name: Logs-functional-${{ matrix.os }}
+        path: /tmp/qemu-${{ matrix.os }}.tar
+        if-no-files-found: ignore
+
+    - name: Test Summary
+      if: always()
+      run: .github/workflows/scripts/qemu-8-summary.sh '${{ steps.artifact-upload.outputs.artifact-url }}'
+
+  cleanup:
+    if: always()
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [ qemu-vm ]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - uses: actions/download-artifact@v4
+    - name: Generating summary
+      run: .github/workflows/scripts/qemu-9-summary-page.sh
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 2
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 3
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 4
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 5
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 6
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 7
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 8
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 9
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 10
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 11
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 12
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 13
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 14
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 15
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 16
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 17
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 18
+    - name: Generating summary...
+      run: .github/workflows/scripts/qemu-9-summary-page.sh 19
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Summary Files
+        path: out-*

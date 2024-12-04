@@ -48,12 +48,16 @@ AC_DEFUN([ZFS_AC_KERNEL_GENERIC_FILLATTR], [
 		AC_DEFINE(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK, 1,
 		    [generic_fillattr requires struct mnt_idmap* and u32 request_mask])
 	],[
+		AC_MSG_RESULT([no])
+
 		AC_MSG_CHECKING([whether generic_fillattr requires struct mnt_idmap*])
 		ZFS_LINUX_TEST_RESULT([generic_fillattr_mnt_idmap], [
 			AC_MSG_RESULT([yes])
 			AC_DEFINE(HAVE_GENERIC_FILLATTR_IDMAP, 1,
 				[generic_fillattr requires struct mnt_idmap*])
 		],[
+			AC_MSG_RESULT([no])
+
 			AC_MSG_CHECKING([whether generic_fillattr requires struct user_namespace*])
 			ZFS_LINUX_TEST_RESULT([generic_fillattr_userns], [
 				AC_MSG_RESULT([yes])

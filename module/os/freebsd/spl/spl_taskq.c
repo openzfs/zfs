@@ -26,9 +26,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/kmem.h>
@@ -44,11 +41,6 @@ __FBSDID("$FreeBSD$");
 #endif
 
 #include <vm/uma.h>
-
-#if __FreeBSD_version < 1201522
-#define	taskqueue_start_threads_in_proc(tqp, count, pri, proc, name, ...) \
-    taskqueue_start_threads(tqp, count, pri, name, __VA_ARGS__)
-#endif
 
 static uint_t taskq_tsd;
 static uma_zone_t taskq_zone;
@@ -283,7 +275,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t tid)
 	taskq_ent_t *ent;
 
 	if ((ent = taskq_lookup(tid)) == NULL)
-		return (0);
+		return (ENOENT);
 
 	if (ent->tqent_type == NORMAL_TASK) {
 		rc = taskqueue_cancel(tq->tq_queue, &ent->tqent_task, &pend);
@@ -306,7 +298,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t tid)
 	}
 	/* Free the extra reference we added with taskq_lookup. */
 	taskq_free(ent);
-	return (rc);
+	return (pend ? 0 : ENOENT);
 }
 
 static void

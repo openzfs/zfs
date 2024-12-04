@@ -36,6 +36,13 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+/* some older uClibc's lack the defines, so we'll manually define them */
+#ifdef	__UCLIBC__
+#ifndef	SEEK_DATA
+#define	SEEK_DATA 3
+#endif
+#endif
+
 #define	DATASIZE	(4096)
 char data[DATASIZE];
 

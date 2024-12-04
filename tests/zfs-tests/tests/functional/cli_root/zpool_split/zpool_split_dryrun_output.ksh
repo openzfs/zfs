@@ -133,9 +133,9 @@ done
 
 # Foreach test create pool, add -n devices and check output.
 for (( i=0; i < ${#tests[@]}; i+=1 )); do
-	typeset tree="${tests[$i].tree}"
-	typeset devs="${tests[$i].devs}"
-	typeset want="${tests[$i].want}"
+	tree="${tests[$i].tree}"
+	devs="${tests[$i].devs}"
+	want="${tests[$i].want}"
 
 	log_must eval zpool create "$TESTPOOL" $tree
 	log_must poolexists "$TESTPOOL"

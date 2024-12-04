@@ -527,6 +527,48 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 }
 
 /*
+ * Perform a linear search in directory for the name of specific inode.
+ * Note we don't pass in the buffer size of name because it's hardcoded to
+ * NAME_MAX+1(256) in Linux.
+ *
+ *	IN:	dzp	- znode of directory to search.
+ *		zp	- znode of the target
+ *
+ *	OUT:	name	- dentry name of the target
+ *
+ *	RETURN:	0 on success, error code on failure.
+ */
+int
+zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	int error = 0;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, dzp, FTAG)) != 0)
+		return (error);
+
+	if ((error = zfs_verify_zp(zp)) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	/* ctldir should have got their name in zfs_vget */
+	if (dzp->z_is_ctldir || zp->z_is_ctldir) {
+		zfs_exit(zfsvfs, FTAG);
+		return (ENOENT);
+	}
+
+	/* buffer len is hardcoded to 256 in Linux kernel */
+	error = zap_value_search(zfsvfs->z_os, dzp->z_id, zp->z_id,
+	    ZFS_DIRENT_OBJ(-1ULL), name);
+
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+
+
+/*
  * Attempt to create a new entry in a directory.  If the entry
  * already exists, truncate the file if permissible, else return
  * an error.  Return the ip of the created or trunc'd file.
@@ -1500,7 +1542,7 @@ out:
  * we use the offset 2 for the '.zfs' directory.
  */
 int
-zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
+zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 {
 	(void) cr;
 	znode_t		*zp = ITOZ(ip);
@@ -1606,7 +1648,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 		}
 
-		done = !zpl_dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		done = !dir_emit(ctx, zap.za_name, strlen(zap.za_name),
 		    objnum, type);
 		if (done)
 			break;
@@ -3442,9 +3484,9 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	boolean_t	waited = B_FALSE;
 	boolean_t	is_tmpfile = 0;
 	uint64_t	txg;
-#ifdef HAVE_TMPFILE
+
 	is_tmpfile = (sip->i_nlink == 0 && (sip->i_state & I_LINKABLE));
-#endif
+
 	ASSERT(S_ISDIR(ZTOI(tdzp)->i_mode));
 
 	if (name == NULL)
@@ -3748,8 +3790,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 			/*
 			 * Speed up any non-sync page writebacks since
 			 * they may take several seconds to complete.
-			 * Refer to the comment in zpl_fsync() (when
-			 * HAVE_FSYNC_RANGE is defined) for details.
+			 * Refer to the comment in zpl_fsync() for details.
 			 */
 			if (atomic_load_32(&zp->z_async_writes_cnt) > 0) {
 				zil_commit(zfsvfs->z_log, zp->z_id);

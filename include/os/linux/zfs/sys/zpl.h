@@ -42,21 +42,13 @@ extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
     umode_t mode, cred_t *cr, zidmap_t *mnt_ns);
 
 extern const struct inode_operations zpl_inode_operations;
-#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
-extern const struct inode_operations_wrapper zpl_dir_inode_operations;
-#else
 extern const struct inode_operations zpl_dir_inode_operations;
-#endif
 extern const struct inode_operations zpl_symlink_inode_operations;
 extern const struct inode_operations zpl_special_inode_operations;
 
 /* zpl_file.c */
 extern const struct address_space_operations zpl_address_space_operations;
-#ifdef HAVE_VFS_FILE_OPERATIONS_EXTEND
-extern const struct file_operations_extend zpl_file_operations;
-#else
 extern const struct file_operations zpl_file_operations;
-#endif
 extern const struct file_operations zpl_dir_file_operations;
 
 /* zpl_super.c */
@@ -70,8 +62,9 @@ extern struct file_system_type zpl_fs_type;
 extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
+
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
+
 #if defined(HAVE_SET_ACL_IDMAP_DENTRY)
 extern int zpl_set_acl(struct mnt_idmap *idmap, struct dentry *dentry,
     struct posix_acl *acl, int type);
@@ -84,7 +77,7 @@ extern int zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
 #else
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
 #endif /* HAVE_SET_ACL_USERNS */
-#endif /* HAVE_SET_ACL */
+
 #if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type, bool rcu);
 #elif defined(HAVE_GET_ACL)
@@ -117,73 +110,6 @@ extern const struct inode_operations zpl_ops_snapdir;
 
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
-
-#if defined(HAVE_VFS_ITERATE) || defined(HAVE_VFS_ITERATE_SHARED)
-
-#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
-	.actor = _actor,				\
-	.pos = _pos,					\
-}
-
-typedef struct dir_context zpl_dir_context_t;
-
-#define	zpl_dir_emit		dir_emit
-#define	zpl_dir_emit_dot	dir_emit_dot
-#define	zpl_dir_emit_dotdot	dir_emit_dotdot
-#define	zpl_dir_emit_dots	dir_emit_dots
-
-#else
-
-typedef struct zpl_dir_context {
-	void *dirent;
-	const filldir_t actor;
-	loff_t pos;
-} zpl_dir_context_t;
-
-#define	ZPL_DIR_CONTEXT_INIT(_dirent, _actor, _pos) {	\
-	.dirent = _dirent,				\
-	.actor = _actor,				\
-	.pos = _pos,					\
-}
-
-static inline bool
-zpl_dir_emit(zpl_dir_context_t *ctx, const char *name, int namelen,
-    uint64_t ino, unsigned type)
-{
-	return (!ctx->actor(ctx->dirent, name, namelen, ctx->pos, ino, type));
-}
-
-static inline bool
-zpl_dir_emit_dot(struct file *file, zpl_dir_context_t *ctx)
-{
-	return (ctx->actor(ctx->dirent, ".", 1, ctx->pos,
-	    file_inode(file)->i_ino, DT_DIR) == 0);
-}
-
-static inline bool
-zpl_dir_emit_dotdot(struct file *file, zpl_dir_context_t *ctx)
-{
-	return (ctx->actor(ctx->dirent, "..", 2, ctx->pos,
-	    parent_ino(file_dentry(file)), DT_DIR) == 0);
-}
-
-static inline bool
-zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
-{
-	if (ctx->pos == 0) {
-		if (!zpl_dir_emit_dot(file, ctx))
-			return (false);
-		ctx->pos = 1;
-	}
-	if (ctx->pos == 1) {
-		if (!zpl_dir_emit_dotdot(file, ctx))
-			return (false);
-		ctx->pos = 2;
-	}
-	return (true);
-}
-#endif /* HAVE_VFS_ITERATE */
-
 
 /* zpl_file_range.c */
 
@@ -235,12 +161,9 @@ extern long zpl_ioctl_fideduperange(struct file *filp, void *arg);
 
 #if defined(HAVE_INODE_TIMESTAMP_TRUNCATE)
 #define	zpl_inode_timestamp_truncate(ts, ip)	timestamp_truncate(ts, ip)
-#elif defined(HAVE_INODE_TIMESPEC64_TIMES)
-#define	zpl_inode_timestamp_truncate(ts, ip)	\
-	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
 #else
 #define	zpl_inode_timestamp_truncate(ts, ip)	\
-	timespec_trunc(ts, (ip)->i_sb->s_time_gran)
+	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
 #endif
 
 #if defined(HAVE_INODE_OWNER_OR_CAPABLE)

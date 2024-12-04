@@ -44,15 +44,6 @@
 verify_runnable "global"
 
 if is_linux ; then
-	if [[ $(linux_version) -gt $(linux_version "6.2") ]]; then
-		log_unsupported "Disabled while issue #14872 is being worked"
-	fi
-
-	# Disabled for the CentOS 9 kernel
-	if [[ $(linux_version) -eq $(linux_version "5.14") ]]; then
-		log_unsupported "Disabled while issue #14872 is being worked"
-	fi
-
 	# We need '--force' here since the prior tests may leave a filesystem
 	# on the zvol, and blkdiscard will see that filesystem and print a
 	# warning unless you force it.

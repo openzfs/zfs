@@ -295,6 +295,18 @@ User: %s
             except Exception:
                 pass
 
+        """
+        Log each test we run to /dev/ttyu0 (on FreeBSD), so if there's a kernel
+        warning we'll be able to match it up to a particular test.
+        """
+        if options.kmsg is True and exists("/dev/ttyu0"):
+            try:
+                kp = Popen([SUDO, "sh", "-c",
+                            f"echo ZTS run {self.pathname} > /dev/ttyu0"])
+                kp.wait()
+            except Exception:
+                pass
+
         self.result.starttime = monotonic_time()
 
         if kmemleak:

@@ -450,6 +450,13 @@
     <elf-symbol name='zfs_userns' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_userspace' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_valid_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag_bits' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_flag_pairs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_priority' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage_bits' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_valstr_zio_stage_pairs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_kernel' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_print' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_userland' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -9488,6 +9495,50 @@
     <function-decl name='zfs_prop_align_right' mangled-name='zfs_prop_align_right' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_align_right'>
       <parameter type-id='58603c44' name='prop'/>
       <return type-id='c19b74c3'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr address-size='64' path='module/zcommon/zfs_valstr.c' language='LANG_C99'>
+    <function-decl name='zfs_valstr_zio_flag' mangled-name='zfs_valstr_zio_flag' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_flag_bits' mangled-name='zfs_valstr_zio_flag_bits' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag_bits'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_flag_pairs' mangled-name='zfs_valstr_zio_flag_pairs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_flag_pairs'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage' mangled-name='zfs_valstr_zio_stage' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage_bits' mangled-name='zfs_valstr_zio_stage_bits' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage_bits'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_stage_pairs' mangled-name='zfs_valstr_zio_stage_pairs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_stage_pairs'>
+      <parameter type-id='9c313c2d' name='bits'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='zfs_valstr_zio_priority' mangled-name='zfs_valstr_zio_priority' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_valstr_zio_priority'>
+      <parameter type-id='95e97e5e' name='v'/>
+      <parameter type-id='26a90f95' name='out'/>
+      <parameter type-id='b59d7dce' name='outlen'/>
+      <return type-id='b59d7dce'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zpool_prop.c' language='LANG_C99'>

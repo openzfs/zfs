@@ -238,7 +238,6 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	return (error);
 }
 
-#ifdef HAVE_TMPFILE
 static int
 #ifdef HAVE_TMPFILE_IDMAP
 zpl_tmpfile(struct mnt_idmap *userns, struct inode *dir,
@@ -307,7 +306,6 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 	return (error);
 }
-#endif
 
 static int
 zpl_unlink(struct inode *dir, struct dentry *dentry)
@@ -591,7 +589,6 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 
 #if !defined(HAVE_IOPS_RENAME_USERNS) && \
 	!defined(HAVE_RENAME_WANTS_FLAGS) && \
-	!defined(HAVE_RENAME2) && \
 	!defined(HAVE_IOPS_RENAME_IDMAP)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
@@ -647,28 +644,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	return (error);
 }
 
-#if defined(HAVE_PUT_LINK_COOKIE)
-static void
-zpl_put_link(struct inode *unused, void *cookie)
-{
-	kmem_free(cookie, MAXPATHLEN);
-}
-#elif defined(HAVE_PUT_LINK_NAMEIDATA)
-static void
-zpl_put_link(struct dentry *dentry, struct nameidata *nd, void *ptr)
-{
-	const char *link = nd_get_link(nd);
-
-	if (!IS_ERR(link))
-		kmem_free(link, MAXPATHLEN);
-}
-#elif defined(HAVE_PUT_LINK_DELAYED)
 static void
 zpl_put_link(void *ptr)
 {
 	kmem_free(ptr, MAXPATHLEN);
 }
-#endif
 
 static int
 zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
@@ -700,7 +680,6 @@ zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
 	return (error);
 }
 
-#if defined(HAVE_GET_LINK_DELAYED)
 static const char *
 zpl_get_link(struct dentry *dentry, struct inode *inode,
     struct delayed_call *done)
@@ -719,51 +698,6 @@ zpl_get_link(struct dentry *dentry, struct inode *inode,
 
 	return (link);
 }
-#elif defined(HAVE_GET_LINK_COOKIE)
-static const char *
-zpl_get_link(struct dentry *dentry, struct inode *inode, void **cookie)
-{
-	char *link = NULL;
-	int error;
-
-	if (!dentry)
-		return (ERR_PTR(-ECHILD));
-
-	error = zpl_get_link_common(dentry, inode, &link);
-	if (error)
-		return (ERR_PTR(error));
-
-	return (*cookie = link);
-}
-#elif defined(HAVE_FOLLOW_LINK_COOKIE)
-static const char *
-zpl_follow_link(struct dentry *dentry, void **cookie)
-{
-	char *link = NULL;
-	int error;
-
-	error = zpl_get_link_common(dentry, dentry->d_inode, &link);
-	if (error)
-		return (ERR_PTR(error));
-
-	return (*cookie = link);
-}
-#elif defined(HAVE_FOLLOW_LINK_NAMEIDATA)
-static void *
-zpl_follow_link(struct dentry *dentry, struct nameidata *nd)
-{
-	char *link = NULL;
-	int error;
-
-	error = zpl_get_link_common(dentry, dentry->d_inode, &link);
-	if (error)
-		nd_set_link(nd, ERR_PTR(error));
-	else
-		nd_set_link(nd, link);
-
-	return (NULL);
-}
-#endif
 
 static int
 zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
@@ -800,16 +734,9 @@ out:
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else
@@ -818,12 +745,7 @@ const struct inode_operations zpl_inode_operations = {
 #endif /* CONFIG_FS_POSIX_ACL */
 };
 
-#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
-const struct inode_operations_wrapper zpl_dir_inode_operations = {
-	.ops = {
-#else
 const struct inode_operations zpl_dir_inode_operations = {
-#endif
 	.create		= zpl_create,
 	.lookup		= zpl_lookup,
 	.link		= zpl_link,
@@ -832,77 +754,40 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#ifdef HAVE_RENAME2
-	.rename2	= zpl_rename2,
-#elif defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
+#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_rename2,
 #elif defined(HAVE_IOPS_RENAME_IDMAP)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,
 #endif
-#ifdef HAVE_TMPFILE
 	.tmpfile	= zpl_tmpfile,
-#endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
-#ifdef HAVE_RENAME2_OPERATIONS_WRAPPER
-	},
-	.rename2	= zpl_rename2,
-#endif
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
-#ifdef HAVE_GENERIC_READLINK
-	.readlink	= generic_readlink,
-#endif
-#if defined(HAVE_GET_LINK_DELAYED) || defined(HAVE_GET_LINK_COOKIE)
 	.get_link	= zpl_get_link,
-#elif defined(HAVE_FOLLOW_LINK_COOKIE) || defined(HAVE_FOLLOW_LINK_NAMEIDATA)
-	.follow_link	= zpl_follow_link,
-#endif
-#if defined(HAVE_PUT_LINK_COOKIE) || defined(HAVE_PUT_LINK_NAMEIDATA)
-	.put_link	= zpl_put_link,
-#endif
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 };
 
 const struct inode_operations zpl_special_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
-#ifdef HAVE_GENERIC_SETXATTR
-	.setxattr	= generic_setxattr,
-	.getxattr	= generic_getxattr,
-	.removexattr	= generic_removexattr,
-#endif
 	.listxattr	= zpl_xattr_list,
 #if defined(CONFIG_FS_POSIX_ACL)
-#if defined(HAVE_SET_ACL)
 	.set_acl	= zpl_set_acl,
-#endif /* HAVE_SET_ACL */
 #if defined(HAVE_GET_INODE_ACL)
 	.get_inode_acl	= zpl_get_acl,
 #else

@@ -938,8 +938,8 @@ dump_debug_buffer(void)
 	 * We use write() instead of printf() so that this function
 	 * is safe to call from a signal handler.
 	 */
-	ret = write(STDOUT_FILENO, "\n", 1);
-	zfs_dbgmsg_print("zdb");
+	ret = write(STDERR_FILENO, "\n", 1);
+	zfs_dbgmsg_print(STDERR_FILENO, "zdb");
 }
 
 #define	BACKTRACE_SZ	100
@@ -2195,27 +2195,51 @@ dump_brt(spa_t *spa)
 	if (dump_opt['T'] < 3)
 		return;
 
+	/* -TTT shows a per-vdev histograms; -TTTT shows all entries */
+	boolean_t do_histo = dump_opt['T'] == 3;
+
 	char dva[64];
-	printf("\n%-16s %-10s\n", "DVA", "REFCNT");
+
+	if (!do_histo)
+		printf("\n%-16s %-10s\n", "DVA", "REFCNT");
 
 	for (uint64_t vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
 		brt_vdev_t *brtvd = &brt->brt_vdevs[vdevid];
 		if (brtvd == NULL || !brtvd->bv_initiated)
 			continue;
 
+		uint64_t counts[64] = {};
+
 		zap_cursor_t zc;
 		zap_attribute_t za;
 		for (zap_cursor_init(&zc, brt->brt_mos, brtvd->bv_mos_entries);
 		    zap_cursor_retrieve(&zc, &za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t offset = *(uint64_t *)za.za_name;
-			uint64_t refcnt = za.za_first_integer;
+			uint64_t refcnt;
+			VERIFY0(zap_lookup_uint64(brt->brt_mos,
+			    brtvd->bv_mos_entries,
+			    (const uint64_t *)za.za_name, 1,
+			    za.za_integer_length, za.za_num_integers, &refcnt));
 
-			snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx", vdevid,
-			    (u_longlong_t)offset);
-			printf("%-16s %-10llu\n", dva, (u_longlong_t)refcnt);
+			if (do_histo)
+				counts[highbit64(refcnt)]++;
+			else {
+				uint64_t offset =
+				    *(const uint64_t *)za.za_name;
+
+				snprintf(dva, sizeof (dva), "%" PRIu64 ":%llx",
+				    vdevid, (u_longlong_t)offset);
+				printf("%-16s %-10llu\n", dva,
+				    (u_longlong_t)refcnt);
+			}
 		}
 		zap_cursor_fini(&zc);
+
+		if (do_histo) {
+			printf("\nBRT: vdev %" PRIu64
+			    ": DVAs with 2^n refcnts:\n", vdevid);
+			dump_histogram(counts, 64, 0);
+		}
 	}
 }
 
@@ -4246,6 +4270,10 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 	(void) printf("\tguid_sum = %llu\n", (u_longlong_t)ub->ub_guid_sum);
 	(void) printf("\ttimestamp = %llu UTC = %s",
 	    (u_longlong_t)ub->ub_timestamp, ctime(&timestamp));
+
+	char blkbuf[BP_SPRINTF_LEN];
+	snprintf_blkptr(blkbuf, sizeof (blkbuf), &ub->ub_rootbp);
+	(void) printf("\tbp = %s\n", blkbuf);
 
 	(void) printf("\tmmp_magic = %016llx\n",
 	    (u_longlong_t)ub->ub_mmp_magic);
@@ -8656,7 +8684,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	void *lbuf, *buf;
 	char *s, *p, *dup, *flagstr, *sizes, *tmp = NULL;
 	const char *vdev, *errmsg = NULL;
-	int i, error;
+	int i, len, error;
 	boolean_t borrowed = B_FALSE, found = B_FALSE;
 
 	dup = strdup(thing);
@@ -8684,7 +8712,8 @@ zdb_read_block(char *thing, spa_t *spa)
 	for (s = strtok_r(flagstr, ":", &tmp);
 	    s != NULL;
 	    s = strtok_r(NULL, ":", &tmp)) {
-		for (i = 0; i < strlen(flagstr); i++) {
+		len = strlen(flagstr);
+		for (i = 0; i < len; i++) {
 			int bit = flagbits[(uchar_t)flagstr[i]];
 
 			if (bit == 0) {
@@ -8955,13 +8984,14 @@ zdb_embedded_block(char *thing)
 static boolean_t
 zdb_numeric(char *str)
 {
-	int i = 0;
+	int i = 0, len;
 
-	if (strlen(str) == 0)
+	len = strlen(str);
+	if (len == 0)
 		return (B_FALSE);
 	if (strncmp(str, "0x", 2) == 0 || strncmp(str, "0X", 2) == 0)
 		i = 2;
-	for (; i < strlen(str); i++) {
+	for (; i < len; i++) {
 		if (!isxdigit(str[i]))
 			return (B_FALSE);
 	}

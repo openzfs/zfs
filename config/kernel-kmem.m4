@@ -58,31 +58,6 @@ AC_DEFUN([SPL_AC_DEBUG_KMEM_TRACKING], [
 ])
 
 dnl #
-dnl # 4.12 API,
-dnl # Added kvmalloc allocation strategy
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_KVMALLOC], [
-	ZFS_LINUX_TEST_SRC([kvmalloc], [
-		#include <linux/mm.h>
-		#include <linux/slab.h>
-	],[
-		void *p __attribute__ ((unused));
-
-		p = kvmalloc(0, GFP_KERNEL);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_KVMALLOC], [
-	AC_MSG_CHECKING([whether kvmalloc(ptr, flags) is available])
-	ZFS_LINUX_TEST_RESULT([kvmalloc], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_KVMALLOC, 1, [kvmalloc exists])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 5.8 API,
 dnl # __vmalloc PAGE_KERNEL removal
 dnl #

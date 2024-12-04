@@ -111,12 +111,7 @@ zfs_dbgmsg_fini(void)
 	procfs_list_uninstall(&zfs_dbgmsgs);
 	zfs_dbgmsg_purge(0);
 
-	/*
-	 * TODO - decide how to make this permanent
-	 */
-#ifdef _KERNEL
 	procfs_list_destroy(&zfs_dbgmsgs);
-#endif
 }
 
 void
@@ -147,8 +142,6 @@ __zfs_dbgmsg(char *buf)
 	zfs_dbgmsg_purge(zfs_dbgmsg_maxsize);
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
 }
-
-#ifdef _KERNEL
 
 void
 __dprintf(boolean_t dprint, const char *file, const char *func,
@@ -217,38 +210,6 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 	kmem_free(buf, size);
 }
 
-#else
-
-void
-zfs_dbgmsg_print(const char *tag)
-{
-	ssize_t ret __attribute__((unused));
-
-	/*
-	 * We use write() in this function instead of printf()
-	 * so it is safe to call from a signal handler.
-	 */
-	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
-	ret = write(STDOUT_FILENO, tag, strlen(tag));
-	ret = write(STDOUT_FILENO, ") START:\n", 9);
-
-	mutex_enter(&zfs_dbgmsgs.pl_lock);
-	for (zfs_dbgmsg_t *zdm = list_head(&zfs_dbgmsgs.pl_list); zdm != NULL;
-	    zdm = list_next(&zfs_dbgmsgs.pl_list, zdm)) {
-		ret = write(STDOUT_FILENO, zdm->zdm_msg,
-		    strlen(zdm->zdm_msg));
-		ret = write(STDOUT_FILENO, "\n", 1);
-	}
-
-	ret = write(STDOUT_FILENO, "ZFS_DBGMSG(", 11);
-	ret = write(STDOUT_FILENO, tag, strlen(tag));
-	ret = write(STDOUT_FILENO, ") END\n", 6);
-
-	mutex_exit(&zfs_dbgmsgs.pl_lock);
-}
-#endif /* _KERNEL */
-
-#ifdef _KERNEL
 module_param(zfs_dbgmsg_enable, int, 0644);
 MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
 
@@ -256,4 +217,3 @@ MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
 module_param(zfs_dbgmsg_maxsize, uint, 0644);
 /* END CSTYLED */
 MODULE_PARM_DESC(zfs_dbgmsg_maxsize, "Maximum ZFS debug log size");
-#endif

@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   checkstyle:
     runs-on: ubuntu-22.04
@@ -13,15 +17,11 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
       run: |
-        # https://github.com/orgs/community/discussions/47863
-        sudo apt-mark hold grub-efi-amd64-signed
-        sudo apt-get update --fix-missing
-        sudo apt-get upgrade
-        sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/build-dependencies.txt apt-get install -qq
-        sudo xargs --arg-file=${{ github.workspace }}/.github/workflows/checkstyle-dependencies.txt apt-get install -qq
-        sudo python3 -m pip install --quiet flake8
-        sudo apt-get clean
-
+        # for x in lxd core20 snapd; do sudo snap remove $x; done
+        sudo apt-get purge -y snapd google-chrome-stable firefox
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps.sh ubuntu22
+        sudo apt-get install -y cppcheck devscripts mandoc pax-utils shellcheck
+        sudo python -m pipx install --quiet flake8
         # confirm that the tools are installed
         # the build system doesn't fail when they are not
         checkbashisms --version
@@ -31,8 +31,13 @@ jobs:
         shellcheck --version
     - name: Prepare
       run: |
+        sed -i '/DEBUG_CFLAGS="-Werror"/s/^/#/' config/zfs-build.m4
         ./autogen.sh
+    - name: Configure
+      run: |
         ./configure
+    - name: Make
+      run: |
         make -j$(nproc) --no-print-directory --silent
     - name: Checkstyle
       run: |

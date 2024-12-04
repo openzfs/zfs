@@ -95,14 +95,12 @@ struct {
  */
 static size_t zfs_abd_scatter_min_size = PAGE_SIZE + 1;
 
-#if defined(_KERNEL)
 SYSCTL_DECL(_vfs_zfs);
 
 SYSCTL_INT(_vfs_zfs, OID_AUTO, abd_scatter_enabled, CTLFLAG_RWTUN,
 	&zfs_abd_scatter_enabled, 0, "Enable scattered ARC data buffers");
 SYSCTL_ULONG(_vfs_zfs, OID_AUTO, abd_scatter_min_size, CTLFLAG_RWTUN,
 	&zfs_abd_scatter_min_size, 0, "Minimum size of scatter allocations.");
-#endif
 
 kmem_cache_t *abd_chunk_cache;
 static kstat_t *abd_ksp;
@@ -300,7 +298,7 @@ void
 abd_init(void)
 {
 	abd_chunk_cache = kmem_cache_create("abd_chunk", PAGE_SIZE, 0,
-	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG);
+	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG | KMC_RECLAIMABLE);
 
 	wmsum_init(&abd_sums.abdstat_struct_size, 0);
 	wmsum_init(&abd_sums.abdstat_scatter_cnt, 0);

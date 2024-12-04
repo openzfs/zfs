@@ -79,11 +79,11 @@ function test_devices_missing
 	log_must set_spa_load_verify_data 0
 	log_must zpool import -o readonly=on -d $DEVICE_DIR $TESTPOOL1
 
-	log_must verify_data_md5sums $MD5FILE
+	log_must verify_data_hashsums $MD5FILE
 
 	log_note "Try reading second batch of data, make sure pool doesn't" \
 	    "get suspended."
-	verify_data_md5sums $MD5FILE >/dev/null 2>&1
+	verify_data_hashsums $MD5FILE >/dev/null 2>&1
 
 	log_must_busy zpool export $TESTPOOL1
 
@@ -95,8 +95,8 @@ function test_devices_missing
 	log_must set_zfs_max_missing_tvds 0
 	log_must zpool import -d $DEVICE_DIR $TESTPOOL1
 
-	log_must verify_data_md5sums $MD5FILE
-	log_must verify_data_md5sums $MD5FILE2
+	log_must verify_data_hashsums $MD5FILE
+	log_must verify_data_hashsums $MD5FILE2
 
 	# Cleanup
 	log_must zpool destroy $TESTPOOL1

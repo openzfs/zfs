@@ -59,7 +59,7 @@ log_must eval "echo $passphrase | zfs create -o encryption=on" \
 	"-o keyformat=passphrase $TESTPOOL/$TESTFS2"
 
 log_must mkfile 1M /$TESTPOOL/$TESTFS2/$TESTFILE0
-typeset checksum=$(md5digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
+typeset checksum=$(xxh128digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
 
 log_must zfs snapshot $snap
 
@@ -69,14 +69,14 @@ log_must eval "zfs send $snap | zfs receive $TESTPOOL/$TESTFS1/c1"
 crypt=$(get_prop encryption $TESTPOOL/$TESTFS1/c1)
 [[ "$crypt" == "off" ]] || log_fail "Received unencrypted stream as encrypted"
 
-typeset cksum1=$(md5digest /$TESTPOOL/$TESTFS1/c1/$TESTFILE0)
+typeset cksum1=$(xxh128digest /$TESTPOOL/$TESTFS1/c1/$TESTFILE0)
 [[ "$cksum1" == "$checksum" ]] || \
 	log_fail "Checksums differ ($cksum1 != $checksum)"
 
 log_note "Verify ZFS can receive into an encrypted child"
 log_must eval "zfs send $snap | zfs receive $TESTPOOL/$TESTFS2/c1"
 
-typeset cksum2=$(md5digest /$TESTPOOL/$TESTFS2/c1/$TESTFILE0)
+typeset cksum2=$(xxh128digest /$TESTPOOL/$TESTFS2/c1/$TESTFILE0)
 [[ "$cksum2" == "$checksum" ]] || \
 	log_fail "Checksums differ ($cksum2 != $checksum)"
 

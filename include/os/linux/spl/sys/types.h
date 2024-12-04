@@ -83,4 +83,10 @@ typedef struct user_namespace	zidmap_t;
 
 extern zidmap_t *zfs_init_idmap;
 
+#ifdef HAVE_1ARG_ASSIGN_STR
+#define	__assign_str_impl(a, b)		__assign_str(a)
+#else
+#define	__assign_str_impl(a, b)		__assign_str(a, b)
+#endif
+
 #endif	/* _SPL_TYPES_H */

@@ -21,7 +21,6 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <linux/percpu_compat.h>
 #include <sys/debug.h>
 #include <sys/vmem.h>
 #include <sys/kmem_cache.h>
