@@ -1899,7 +1899,6 @@ zvol_fini(void)
 	ida_destroy(&zvol_ida);
 }
 
-/* BEGIN CSTYLED */
 module_param(zvol_inhibit_dev, uint, 0644);
 MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 
@@ -1908,7 +1907,7 @@ MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_threads, uint, 0444);
 MODULE_PARM_DESC(zvol_threads, "Number of threads to handle I/O requests. Set"
-    "to 0 to use all active CPUs");
+	"to 0 to use all active CPUs");
 
 module_param(zvol_request_sync, uint, 0644);
 MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
@@ -1933,11 +1932,9 @@ MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
 
 module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
-    "Process volblocksize blocks per thread");
+	"Process volblocksize blocks per thread");
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 module_param(zvol_open_timeout_ms, uint, 0644);
 MODULE_PARM_DESC(zvol_open_timeout_ms, "Timeout for ZVOL open retries");
 #endif
-
-/* END CSTYLED */

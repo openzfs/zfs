@@ -2494,6 +2494,5 @@ EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
 #endif
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zvol_enforce_quotas, INT, ZMOD_RW,
 	"Enable strict ZVOL quota enforcment");

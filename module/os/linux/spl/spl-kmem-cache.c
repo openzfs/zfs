@@ -48,7 +48,6 @@
 #define	smp_mb__after_atomic(x) smp_mb__after_clear_bit(x)
 #endif
 
-/* BEGIN CSTYLED */
 /*
  * Cache magazines are an optimization designed to minimize the cost of
  * allocating memory.  They do this by keeping a per-cpu cache of recently
@@ -97,7 +96,6 @@ static unsigned int spl_kmem_cache_kmem_threads = 4;
 module_param(spl_kmem_cache_kmem_threads, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 	"Number of spl_kmem_cache threads");
-/* END CSTYLED */
 
 /*
  * Slab allocation interfaces

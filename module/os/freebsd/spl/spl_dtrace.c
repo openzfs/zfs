@@ -31,5 +31,4 @@
 #include <sys/queue.h>
 #include <sys/sdt.h>
 
-/* CSTYLED */
 SDT_PROBE_DEFINE1(sdt, , , set__error, "int");

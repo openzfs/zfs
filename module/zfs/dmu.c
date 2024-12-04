@@ -2942,10 +2942,8 @@ ZFS_MODULE_PARAM(zfs, zfs_, per_txg_dirty_frees_percent, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, dmu_offset_next_sync, INT, ZMOD_RW,
 	"Enable forcing txg sync to find holes");
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_prefetch_max, UINT, ZMOD_RW,
 	"Limit one prefetch call to this size");
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , dmu_ddt_copies, UINT, ZMOD_RW,
 	"Override copies= for dedup objects");

@@ -26,7 +26,6 @@
 #include <sys/kmem.h>
 #include <sys/vmem.h>
 
-/* BEGIN CSTYLED */
 /*
  * As a general rule kmem_alloc() allocations should be small, preferably
  * just a few pages since they must by physically contiguous.  Therefore, a
@@ -62,7 +61,6 @@ module_param(spl_kmem_alloc_max, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_alloc_max,
 	"Maximum size in bytes for a kmem_alloc()");
 EXPORT_SYMBOL(spl_kmem_alloc_max);
-/* END CSTYLED */
 
 int
 kmem_debugging(void)

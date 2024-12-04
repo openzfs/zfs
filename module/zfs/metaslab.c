@@ -6226,7 +6226,6 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, unload_delay_ms, UINT, ZMOD_RW,
 	"Delay in milliseconds after metaslab was last used before unloading");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, noalloc_threshold, UINT, ZMOD_RW,
 	"Percentage of metaslab group size that should be free to make it "
 	"eligible for allocation");
@@ -6239,7 +6238,6 @@ ZFS_MODULE_PARAM(zfs_mg, zfs_mg_, fragmentation_threshold, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, fragmentation_factor_enabled, INT,
 	ZMOD_RW,
 	"Use the fragmentation metric to prefer less fragmented metaslabs");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, fragmentation_threshold, UINT,
 	ZMOD_RW, "Fragmentation for metaslab to allow allocation");
@@ -6280,8 +6278,6 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, try_hard_before_gang, INT,
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, UINT, ZMOD_RW,
 	"Normally only consider this many of the best metaslabs in each vdev");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_allocator,
 	param_set_active_allocator, param_get_charp, ZMOD_RW,
 	"SPA active allocator");
-/* END CSTYLED */

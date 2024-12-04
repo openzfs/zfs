@@ -31,9 +31,9 @@
 
 #include_next <sys/sdt.h>
 #ifdef KDTRACE_HOOKS
-/* BEGIN CSTYLED */
 SDT_PROBE_DECLARE(sdt, , , set__error);
 
+/* BEGIN CSTYLED */
 #define	SET_ERROR(err)	({ 					\
 	SDT_PROBE1(sdt, , , set__error, (uintptr_t)err);	\
 	err;							\

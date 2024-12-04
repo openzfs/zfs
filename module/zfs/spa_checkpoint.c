@@ -633,8 +633,6 @@ EXPORT_SYMBOL(spa_checkpoint_get_stats);
 EXPORT_SYMBOL(spa_checkpoint_discard_thread);
 EXPORT_SYMBOL(spa_checkpoint_discard_thread_check);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_spa, zfs_spa_, discard_memory_limit, U64, ZMOD_RW,
 	"Limit for memory used in prefetching the checkpoint space map done "
 	"on each vdev while discarding the checkpoint");
-/* END CSTYLED */

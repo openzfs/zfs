@@ -1706,10 +1706,8 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 	return (err);
 }
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zap_iterate_prefetch, INT, ZMOD_RW,
 	"When iterating ZAP object, prefetch it");
 
-/* CSTYLED */
 ZFS_MODULE_PARAM(zfs, , zap_shrink_enabled, INT, ZMOD_RW,
 	"Enable ZAP shrinking");

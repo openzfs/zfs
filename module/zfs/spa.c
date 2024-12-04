@@ -11011,11 +11011,9 @@ EXPORT_SYMBOL(spa_event_notify);
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_pct, UINT, ZMOD_RW,
 	"Percentage of CPUs to run a metaslab preload taskq");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_shift, UINT, ZMOD_RW,
 	"log2 fraction of arc that can be used by inflight I/Os when "
 	"verifying pool during import");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_metadata, INT, ZMOD_RW,
 	"Set to traverse metadata on pool import");
@@ -11032,11 +11030,9 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RW,
 	"Number of threads per IO worker taskqueue");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, U64, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
 	"vdevs (in read-only mode)");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 	ZMOD_RW, "Set the livelist condense zthr to pause");
@@ -11044,7 +11040,6 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, sync_pause, INT,
 	ZMOD_RW, "Set the livelist condense synctask to pause");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, sync_cancel,
 	INT, ZMOD_RW,
 	"Whether livelist condensing was canceled in the synctask");
@@ -11066,7 +11061,6 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
 	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RW,
 	"Configure IO queues for write IO");
 #endif
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
 	"Number of CPUs per write issue taskq");
