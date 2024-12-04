@@ -1368,7 +1368,8 @@ fm_fini(void)
 		fm_ksp = NULL;
 	}
 }
-#endif /* _KERNEL */
 
 ZFS_MODULE_PARAM(zfs_zevent, zfs_zevent_, len_max, UINT, ZMOD_RW,
 	"Max event queue length");
+
+#endif /* _KERNEL */
