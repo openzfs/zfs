@@ -701,13 +701,17 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
 			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION;
 		}
 
-		dsl_deadlist_open(&ds->ds_deadlist,
-		    mos, dsl_dataset_phys(ds)->ds_deadlist_obj);
-		uint64_t remap_deadlist_obj =
-		    dsl_dataset_get_remap_deadlist_object(ds);
-		if (remap_deadlist_obj != 0) {
-			dsl_deadlist_open(&ds->ds_remap_deadlist, mos,
-			    remap_deadlist_obj);
+		if (err == 0) {
+			err = dsl_deadlist_open(&ds->ds_deadlist,
+			    mos, dsl_dataset_phys(ds)->ds_deadlist_obj);
+		}
+		if (err == 0) {
+			uint64_t remap_deadlist_obj =
+			    dsl_dataset_get_remap_deadlist_object(ds);
+			if (remap_deadlist_obj != 0) {
+				err = dsl_deadlist_open(&ds->ds_remap_deadlist,
+				    mos, remap_deadlist_obj);
+			}
 		}
 
 		dmu_buf_init_user(&ds->ds_dbu, dsl_dataset_evict_sync,
@@ -716,7 +720,8 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
 			winner = dmu_buf_set_user_ie(dbuf, &ds->ds_dbu);
 
 		if (err != 0 || winner != NULL) {
-			dsl_deadlist_close(&ds->ds_deadlist);
+			if (dsl_deadlist_is_open(&ds->ds_deadlist))
+				dsl_deadlist_close(&ds->ds_deadlist);
 			if (dsl_deadlist_is_open(&ds->ds_remap_deadlist))
 				dsl_deadlist_close(&ds->ds_remap_deadlist);
 			dsl_bookmark_fini_ds(ds);
@@ -1823,8 +1828,8 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    dsl_deadlist_clone(&ds->ds_deadlist, UINT64_MAX,
 	    dsl_dataset_phys(ds)->ds_prev_snap_obj, tx);
 	dsl_deadlist_close(&ds->ds_deadlist);
-	dsl_deadlist_open(&ds->ds_deadlist, mos,
-	    dsl_dataset_phys(ds)->ds_deadlist_obj);
+	VERIFY0(dsl_deadlist_open(&ds->ds_deadlist, mos,
+	    dsl_dataset_phys(ds)->ds_deadlist_obj));
 	dsl_deadlist_add_key(&ds->ds_deadlist,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
 	dsl_bookmark_snapshotted(ds, tx);
@@ -4044,14 +4049,14 @@ dsl_dataset_swap_remap_deadlists(dsl_dataset_t *clone,
 	if (clone_remap_dl_obj != 0) {
 		dsl_dataset_set_remap_deadlist_object(origin,
 		    clone_remap_dl_obj, tx);
-		dsl_deadlist_open(&origin->ds_remap_deadlist,
-		    dp->dp_meta_objset, clone_remap_dl_obj);
+		VERIFY0(dsl_deadlist_open(&origin->ds_remap_deadlist,
+		    dp->dp_meta_objset, clone_remap_dl_obj));
 	}
 	if (origin_remap_dl_obj != 0) {
 		dsl_dataset_set_remap_deadlist_object(clone,
 		    origin_remap_dl_obj, tx);
-		dsl_deadlist_open(&clone->ds_remap_deadlist,
-		    dp->dp_meta_objset, origin_remap_dl_obj);
+		VERIFY0(dsl_deadlist_open(&clone->ds_remap_deadlist,
+		    dp->dp_meta_objset, origin_remap_dl_obj));
 	}
 }
 
@@ -4222,10 +4227,10 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	dsl_deadlist_close(&origin_head->ds_deadlist);
 	SWITCH64(dsl_dataset_phys(origin_head)->ds_deadlist_obj,
 	    dsl_dataset_phys(clone)->ds_deadlist_obj);
-	dsl_deadlist_open(&clone->ds_deadlist, dp->dp_meta_objset,
-	    dsl_dataset_phys(clone)->ds_deadlist_obj);
-	dsl_deadlist_open(&origin_head->ds_deadlist, dp->dp_meta_objset,
-	    dsl_dataset_phys(origin_head)->ds_deadlist_obj);
+	VERIFY0(dsl_deadlist_open(&clone->ds_deadlist, dp->dp_meta_objset,
+	    dsl_dataset_phys(clone)->ds_deadlist_obj));
+	VERIFY0(dsl_deadlist_open(&origin_head->ds_deadlist, dp->dp_meta_objset,
+	    dsl_dataset_phys(origin_head)->ds_deadlist_obj));
 	dsl_dataset_swap_remap_deadlists(clone, origin_head, tx);
 
 	/*
@@ -4959,8 +4964,8 @@ dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    dsl_dataset_phys(ds)->ds_prev_snap_obj, tx);
 	dsl_dataset_set_remap_deadlist_object(ds,
 	    remap_deadlist_obj, tx);
-	dsl_deadlist_open(&ds->ds_remap_deadlist, spa_meta_objset(spa),
-	    remap_deadlist_obj);
+	VERIFY0(dsl_deadlist_open(&ds->ds_remap_deadlist, spa_meta_objset(spa),
+	    remap_deadlist_obj));
 	spa_feature_incr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 }
 

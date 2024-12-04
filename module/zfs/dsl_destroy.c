@@ -182,10 +182,10 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	dsl_dataset_phys(ds)->ds_deadlist_obj =
 	    dsl_dataset_phys(ds_next)->ds_deadlist_obj;
 	dsl_dataset_phys(ds_next)->ds_deadlist_obj = deadlist_obj;
-	dsl_deadlist_open(&ds->ds_deadlist, mos,
-	    dsl_dataset_phys(ds)->ds_deadlist_obj);
-	dsl_deadlist_open(&ds_next->ds_deadlist, mos,
-	    dsl_dataset_phys(ds_next)->ds_deadlist_obj);
+	VERIFY0(dsl_deadlist_open(&ds->ds_deadlist, mos,
+	    dsl_dataset_phys(ds)->ds_deadlist_obj));
+	VERIFY0(dsl_deadlist_open(&ds_next->ds_deadlist, mos,
+	    dsl_dataset_phys(ds_next)->ds_deadlist_obj));
 }
 
 typedef struct remaining_clones_key {
