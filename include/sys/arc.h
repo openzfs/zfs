@@ -64,8 +64,15 @@ extern "C" {
 	(hdr)->b_psize = ((x) >> SPA_MINBLOCKSHIFT); \
 } while (0)
 
+/* The l2size in the header is only used by L2 cache */
+#define	HDR_SET_L2SIZE(hdr, x) do { \
+	ASSERT(IS_P2ALIGNED((x), 1U << SPA_MINBLOCKSHIFT)); \
+	(hdr)->b_l2size = ((x) >> SPA_MINBLOCKSHIFT); \
+} while (0)
+
 #define	HDR_GET_LSIZE(hdr)	((hdr)->b_lsize << SPA_MINBLOCKSHIFT)
 #define	HDR_GET_PSIZE(hdr)	((hdr)->b_psize << SPA_MINBLOCKSHIFT)
+#define	HDR_GET_L2SIZE(hdr)	((hdr)->b_l2size << SPA_MINBLOCKSHIFT)
 
 typedef struct arc_buf_hdr arc_buf_hdr_t;
 typedef struct arc_buf arc_buf_t;
@@ -323,8 +330,10 @@ void arc_freed(spa_t *spa, const blkptr_t *bp);
 int arc_cached(spa_t *spa, const blkptr_t *bp);
 
 void arc_flush(spa_t *spa, boolean_t retry);
+void arc_flush_async(spa_t *spa);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
+boolean_t arc_async_flush_guid_inuse(uint64_t load_guid);
 
 uint64_t arc_all_memory(void);
 uint64_t arc_default_max(uint64_t min, uint64_t allmem);
