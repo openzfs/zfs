@@ -1907,7 +1907,7 @@ module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_threads, uint, 0444);
-MODULE_PARM_DESC(zvol_threads, "Number of threads to handle I/O requests. Set"
+MODULE_PARM_DESC(zvol_threads, "Number of threads to handle I/O requests.  Set"
     "to 0 to use all active CPUs");
 
 module_param(zvol_request_sync, uint, 0644);
