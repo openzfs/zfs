@@ -800,6 +800,14 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 			case THT_CLONE:
 				if (blkid >= beginblk && blkid <= endblk)
 					match_offset = TRUE;
+				/*
+				 * They might have to increase nlevels,
+				 * thus dirtying the new TLIBs.  Or the
+				 * might have to change the block size,
+				 * thus dirying the new lvl=0 blk=0.
+				 */
+				if (blkid == 0)
+					match_offset = TRUE;
 				break;
 			default:
 				cmn_err(CE_PANIC, "bad txh_type %d",
