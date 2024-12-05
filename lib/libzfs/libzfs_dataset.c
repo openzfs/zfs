@@ -5287,12 +5287,12 @@ zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 	assert(zhp->zfs_type == ZFS_TYPE_VOLUME ||
 	    zhp->zfs_type == ZFS_TYPE_FILESYSTEM);
 
-	err = nvlist_size(nvl, &nvsz, NV_ENCODE_NATIVE);
+	err = nvlist_size(nvl, &nvsz, NV_ENCODE_XDR);
 	assert(err == 0);
 
 	nvbuf = malloc(nvsz);
 
-	err = nvlist_pack(nvl, &nvbuf, &nvsz, NV_ENCODE_NATIVE, 0);
+	err = nvlist_pack(nvl, &nvbuf, &nvsz, NV_ENCODE_XDR, 0);
 	assert(err == 0);
 
 	zc.zc_nvlist_src_size = nvsz;
