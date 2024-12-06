@@ -466,7 +466,7 @@ static uint_t zfs_arc_lotsfree_percent = 10;
 static int zfs_arc_prune_task_threads = 1;
 
 /*
- * Controls the number of ARC eviction threads returned by num_evict_threads()
+ * Controls the number of ARC eviction threads.
  * Possible values:
  * 0  (disabled) parallel eviction threads are not used.
  * 1  (auto) compute the number of threads using a logarithmic formula.
@@ -482,17 +482,6 @@ static uint_t zfs_arc_evict_threads = 1;
  * function is used to compute this value. Otherwise, it is set to max_ncpus.
  */
 static uint_t zfs_arc_evict_threads_max;
-
-/*
- * Compute the number of ARC eviction threads to use.
- */
-static inline uint_t
-num_evict_threads(void)
-{
-	if (zfs_arc_evict_threads == 1)
-		return (zfs_arc_evict_threads_max);
-	return (MIN(zfs_arc_evict_threads, zfs_arc_evict_threads_max));
-}
 
 /* The 7 states: */
 arc_state_t ARC_anon;
@@ -4110,11 +4099,11 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 	arc_buf_hdr_t **markers;
 	unsigned num_sublists = multilist_get_num_sublists(ml);
 	evict_arg_t *evarg = NULL;
-	uint_t nthreads = num_evict_threads();
+	uint_t nthreads = zfs_arc_evict_threads == 1 ?
+	    zfs_arc_evict_threads_max :
+	    MIN(zfs_arc_evict_threads, zfs_arc_evict_threads_max);
 	boolean_t use_evcttq = nthreads > 1;
 
-	if (bytes == 0)
-		return (total_evicted);
 
 	/*
 	 * If we've tried to evict from each sublist, made some
@@ -4157,7 +4146,7 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 		uint64_t left = (bytes == ARC_EVICT_ALL ? bytes :
 		    bytes - total_evicted);
 		uint64_t evict;
-		int ntasks;
+		uint_t ntasks;
 
 		if (left > nthreads * MIN_EVICT_SIZE) {
 			evict = DIV_ROUND_UP(left, nthreads);

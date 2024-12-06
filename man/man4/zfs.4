@@ -737,7 +737,7 @@ plus one for each 64 CPUs.
 This way the number of eviction threads scales up more on high CPU counts.
 Currently, ZFS will not scale automatically beyond 16 threads.
 .Pp
-When set to a value greater then 1, the value will be used as an exact number
+When set to a value greater than 1, the value will be used as an exact number
 of eviction threads, but no more than the number of allocated eviction threads.
 The number of allocated eviction threads is set in arc_init() and depends
 on the zfs_arc_evict_threads value.
