@@ -19,9 +19,13 @@
  */
 
 #include <sys/ioctl.h>
+#ifdef _KERNEL
+#include <sys/fcntl.h>
+#else
+#include <fcntl.h>
+#endif
 #include <linux/fs.h>
 #include <err.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

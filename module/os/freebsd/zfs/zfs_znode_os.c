@@ -370,8 +370,6 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 	 */
 	if (zp->z_id == zfsvfs->z_root && zfsvfs->z_parent == zfsvfs)
 		ZTOV(zp)->v_flag |= VROOT;
-
-	vn_exists(ZTOV(zp));
 }
 
 void

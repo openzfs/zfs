@@ -357,7 +357,11 @@ uint_t raidz_expand_pause_point = 0;
 /*
  * Maximum amount of copy io's outstanding at once.
  */
+#ifdef _ILP32
+static unsigned long raidz_expand_max_copy_bytes = SPA_MAXBLOCKSIZE;
+#else
 static unsigned long raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
+#endif
 
 /*
  * Apply raidz map abds aggregation if the number of rows in the map is equal
@@ -3811,22 +3815,33 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	 * setup a scrub. All the data has been sucessfully copied
 	 * but we have not validated any checksums.
 	 */
-	pool_scan_func_t func = POOL_SCAN_SCRUB;
-	if (zfs_scrub_after_expand && dsl_scan_setup_check(&func, tx) == 0)
-		dsl_scan_setup_sync(&func, tx);
+	setup_sync_arg_t setup_sync_arg = {
+		.func = POOL_SCAN_SCRUB,
+		.txgstart = 0,
+		.txgend = 0,
+	};
+	if (zfs_scrub_after_expand &&
+	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
+		dsl_scan_setup_sync(&setup_sync_arg, tx);
+	}
 }
 
 /*
- * Struct for one copy zio.
+ * State of one copy batch.
  */
 typedef struct raidz_reflow_arg {
-	vdev_raidz_expand_t *rra_vre;
-	zfs_locked_range_t *rra_lr;
-	uint64_t rra_txg;
+	vdev_raidz_expand_t *rra_vre;	/* Global expantion state. */
+	zfs_locked_range_t *rra_lr;	/* Range lock of this batch. */
+	uint64_t rra_txg;	/* TXG of this batch. */
+	uint_t rra_ashift;	/* Ashift of the vdev. */
+	uint32_t rra_tbd;	/* Number of in-flight ZIOs. */
+	uint32_t rra_writes;	/* Number of write ZIOs. */
+	zio_t *rra_zio[];	/* Write ZIO pointers. */
 } raidz_reflow_arg_t;
 
 /*
- * The write of the new location is done.
+ * Write of the new location on one child is done.  Once all of them are done
+ * we can unlock and free everything.
  */
 static void
 raidz_reflow_write_done(zio_t *zio)
@@ -3850,23 +3865,29 @@ raidz_reflow_write_done(zio_t *zio)
 		    zio->io_size;
 	}
 	cv_signal(&vre->vre_cv);
+	boolean_t done = (--rra->rra_tbd == 0);
 	mutex_exit(&vre->vre_lock);
 
-	zfs_rangelock_exit(rra->rra_lr);
-
-	kmem_free(rra, sizeof (*rra));
+	if (!done)
+		return;
 	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
+	zfs_rangelock_exit(rra->rra_lr);
+	kmem_free(rra, sizeof (*rra) + sizeof (zio_t *) * rra->rra_writes);
 }
 
 /*
- * The read of the old location is done.  The parent zio is the write to
- * the new location.  Allow it to start.
+ * Read of the old location on one child is done.  Once all of them are done
+ * writes should have all the data and we can issue them.
  */
 static void
 raidz_reflow_read_done(zio_t *zio)
 {
 	raidz_reflow_arg_t *rra = zio->io_private;
 	vdev_raidz_expand_t *vre = rra->rra_vre;
+
+	/* Reads of only one block use write ABDs.  For bigger free gangs. */
+	if (zio->io_size > (1 << rra->rra_ashift))
+		abd_free(zio->io_abd);
 
 	/*
 	 * If the read failed, or if it was done on a vdev that is not fully
@@ -3891,7 +3912,11 @@ raidz_reflow_read_done(zio_t *zio)
 		mutex_exit(&vre->vre_lock);
 	}
 
-	zio_nowait(zio_unique_parent(zio));
+	if (atomic_dec_32_nv(&rra->rra_tbd) > 0)
+		return;
+	rra->rra_tbd = rra->rra_writes;
+	for (uint64_t i = 0; i < rra->rra_writes; i++)
+		zio_nowait(rra->rra_zio[i]);
 }
 
 static void
@@ -3932,21 +3957,19 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
     dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
-	int ashift = vd->vdev_top->vdev_ashift;
-	uint64_t offset, size;
+	uint_t ashift = vd->vdev_top->vdev_ashift;
 
-	if (!range_tree_find_in(rt, 0, vd->vdev_top->vdev_asize,
-	    &offset, &size)) {
+	range_seg_t *rs = range_tree_first(rt);
+	if (rt == NULL)
 		return (B_FALSE);
-	}
+	uint64_t offset = rs_get_start(rs, rt);
 	ASSERT(IS_P2ALIGNED(offset, 1 << ashift));
+	uint64_t size = rs_get_end(rs, rt) - offset;
 	ASSERT3U(size, >=, 1 << ashift);
-	uint64_t length = 1 << ashift;
-	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	ASSERT(IS_P2ALIGNED(size, 1 << ashift));
 
 	uint64_t blkid = offset >> ashift;
-
-	int old_children = vd->vdev_children - 1;
+	uint_t old_children = vd->vdev_children - 1;
 
 	/*
 	 * We can only progress to the point that writes will not overlap
@@ -3965,26 +3988,34 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	uint64_t next_overwrite_blkid = ubsync_blkid +
 	    ubsync_blkid / old_children - old_children;
 	VERIFY3U(next_overwrite_blkid, >, ubsync_blkid);
-
 	if (blkid >= next_overwrite_blkid) {
 		raidz_reflow_record_progress(vre,
 		    next_overwrite_blkid << ashift, tx);
 		return (B_TRUE);
 	}
 
-	range_tree_remove(rt, offset, length);
+	size = MIN(size, raidz_expand_max_copy_bytes);
+	size = MIN(size, (uint64_t)old_children *
+	    MIN(zfs_max_recordsize, SPA_MAXBLOCKSIZE));
+	size = MAX(size, 1 << ashift);
+	uint_t blocks = MIN(size >> ashift, next_overwrite_blkid - blkid);
+	size = (uint64_t)blocks << ashift;
 
-	raidz_reflow_arg_t *rra = kmem_zalloc(sizeof (*rra), KM_SLEEP);
+	range_tree_remove(rt, offset, size);
+
+	uint_t reads = MIN(blocks, old_children);
+	uint_t writes = MIN(blocks, vd->vdev_children);
+	raidz_reflow_arg_t *rra = kmem_zalloc(sizeof (*rra) +
+	    sizeof (zio_t *) * writes, KM_SLEEP);
 	rra->rra_vre = vre;
 	rra->rra_lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    offset, length, RL_WRITER);
+	    offset, size, RL_WRITER);
 	rra->rra_txg = dmu_tx_get_txg(tx);
+	rra->rra_ashift = ashift;
+	rra->rra_tbd = reads;
+	rra->rra_writes = writes;
 
-	raidz_reflow_record_progress(vre, offset + length, tx);
-
-	mutex_enter(&vre->vre_lock);
-	vre->vre_outstanding_bytes += length;
-	mutex_exit(&vre->vre_lock);
+	raidz_reflow_record_progress(vre, offset + size, tx);
 
 	/*
 	 * SCL_STATE will be released when the read and write are done,
@@ -4006,29 +4037,61 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 		mutex_exit(&vre->vre_lock);
 
 		/* drop everything we acquired */
-		zfs_rangelock_exit(rra->rra_lr);
-		kmem_free(rra, sizeof (*rra));
 		spa_config_exit(spa, SCL_STATE, spa);
+		zfs_rangelock_exit(rra->rra_lr);
+		kmem_free(rra, sizeof (*rra) + sizeof (zio_t *) * writes);
 		return (B_TRUE);
 	}
 
-	zio_t *pio = spa->spa_txg_zio[txgoff];
-	abd_t *abd = abd_alloc_for_io(length, B_FALSE);
-	zio_t *write_zio = zio_vdev_child_io(pio, NULL,
-	    vd->vdev_child[blkid % vd->vdev_children],
-	    (blkid / vd->vdev_children) << ashift,
-	    abd, length,
-	    ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
-	    ZIO_FLAG_CANFAIL,
-	    raidz_reflow_write_done, rra);
+	mutex_enter(&vre->vre_lock);
+	vre->vre_outstanding_bytes += size;
+	mutex_exit(&vre->vre_lock);
 
-	zio_nowait(zio_vdev_child_io(write_zio, NULL,
-	    vd->vdev_child[blkid % old_children],
-	    (blkid / old_children) << ashift,
-	    abd, length,
-	    ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
-	    ZIO_FLAG_CANFAIL,
-	    raidz_reflow_read_done, rra));
+	/* Allocate ABD and ZIO for each child we write. */
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	zio_t *pio = spa->spa_txg_zio[txgoff];
+	uint_t b = blocks / vd->vdev_children;
+	uint_t bb = blocks % vd->vdev_children;
+	for (uint_t i = 0; i < writes; i++) {
+		uint_t n = b + (i < bb);
+		abd_t *abd = abd_alloc_for_io(n << ashift, B_FALSE);
+		rra->rra_zio[i] = zio_vdev_child_io(pio, NULL,
+		    vd->vdev_child[(blkid + i) % vd->vdev_children],
+		    ((blkid + i) / vd->vdev_children) << ashift,
+		    abd, n << ashift, ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
+		    ZIO_FLAG_CANFAIL, raidz_reflow_write_done, rra);
+	}
+
+	/*
+	 * Allocate and issue ZIO for each child we read.  For reads of only
+	 * one block we can use respective writer ABDs, since they will also
+	 * have only one block.  For bigger reads create gang ABDs and fill
+	 * them with respective blocks from writer ABDs.
+	 */
+	b = blocks / old_children;
+	bb = blocks % old_children;
+	for (uint_t i = 0; i < reads; i++) {
+		uint_t n = b + (i < bb);
+		abd_t *abd;
+		if (n > 1) {
+			abd = abd_alloc_gang();
+			for (uint_t j = 0; j < n; j++) {
+				uint_t b = j * old_children + i;
+				abd_t *cabd = abd_get_offset_size(
+				    rra->rra_zio[b % vd->vdev_children]->io_abd,
+				    (b / vd->vdev_children) << ashift,
+				    1 << ashift);
+				abd_gang_add(abd, cabd, B_TRUE);
+			}
+		} else {
+			abd = rra->rra_zio[i]->io_abd;
+		}
+		zio_nowait(zio_vdev_child_io(pio, NULL,
+		    vd->vdev_child[(blkid + i) % old_children],
+		    ((blkid + i) / old_children) << ashift, abd,
+		    n << ashift, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
+		    ZIO_FLAG_CANFAIL, raidz_reflow_read_done, rra));
+	}
 
 	return (B_FALSE);
 }
@@ -4122,7 +4185,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 			zio_nowait(zio_vdev_child_io(pio, NULL,
 			    raidvd->vdev_child[i],
 			    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
-			    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_ASYNC_READ,
+			    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
 			    ZIO_FLAG_CANFAIL, raidz_scratch_child_done, pio));
 		}
 		error = zio_wait(pio);
@@ -4142,7 +4205,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 		ASSERT0(vdev_is_dead(raidvd->vdev_child[i]));
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    0, abds[i], read_size, ZIO_TYPE_READ,
-		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL,
+		    ZIO_PRIORITY_REMOVAL, ZIO_FLAG_CANFAIL,
 		    raidz_scratch_child_done, pio));
 	}
 	error = zio_wait(pio);
@@ -4197,7 +4260,7 @@ io_error_exit:
 		 */
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
-		    write_size, ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
+		    write_size, ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
 		    ZIO_FLAG_CANFAIL, raidz_scratch_child_done, pio));
 	}
 	error = zio_wait(pio);
@@ -4246,7 +4309,7 @@ overwrite:
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    0, abds[i], write_size, ZIO_TYPE_WRITE,
-		    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL,
+		    ZIO_PRIORITY_REMOVAL, ZIO_FLAG_CANFAIL,
 		    raidz_scratch_child_done, pio));
 	}
 	error = zio_wait(pio);
@@ -4355,8 +4418,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
-		    write_size, ZIO_TYPE_READ,
-		    ZIO_PRIORITY_ASYNC_READ, 0,
+		    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL, 0,
 		    raidz_scratch_child_done, pio));
 	}
 	zio_wait(pio);
@@ -4368,7 +4430,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    0, abds[i], write_size, ZIO_TYPE_WRITE,
-		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    ZIO_PRIORITY_REMOVAL, 0,
 		    raidz_scratch_child_done, pio));
 	}
 	zio_wait(pio);
@@ -4490,8 +4552,11 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		 * space.  Note that there may be a little bit more free
 		 * space (e.g. in ms_defer), and it's fine to copy that too.
 		 */
-		range_tree_t *rt = range_tree_create(NULL, RANGE_SEG64,
-		    NULL, 0, 0);
+		uint64_t shift, start;
+		range_seg_type_t type = metaslab_calculate_range_tree_type(
+		    raidvd, msp, &start, &shift);
+		range_tree_t *rt = range_tree_create(NULL, type, NULL,
+		    start, shift);
 		range_tree_add(rt, msp->ms_start, msp->ms_size);
 		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
 		mutex_exit(&msp->ms_lock);
@@ -4516,7 +4581,10 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		 * when importing a pool with a expansion in progress),
 		 * discard any state that we have already processed.
 		 */
-		range_tree_clear(rt, 0, vre->vre_offset);
+		if (vre->vre_offset > msp->ms_start) {
+			range_tree_clear(rt, msp->ms_start,
+			    vre->vre_offset - msp->ms_start);
+		}
 
 		while (!zthr_iscancelled(zthr) &&
 		    !range_tree_is_empty(rt) &&
@@ -5043,7 +5111,6 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
@@ -5053,4 +5120,3 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
-/* END CSTYLED */

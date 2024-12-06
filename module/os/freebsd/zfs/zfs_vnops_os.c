@@ -291,8 +291,12 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	case F_SEEK_HOLE:
 	{
 		off = *(offset_t *)data;
+		error = vn_lock(vp, LK_SHARED);
+		if (error)
+			return (error);
 		/* offset parameter is in/out */
 		error = zfs_holey(VTOZ(vp), com, &off);
+		VOP_UNLOCK(vp);
 		if (error)
 			return (error);
 		*(offset_t *)data = off;
@@ -452,8 +456,10 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 				if (!vm_page_wired(pp) && pp->valid == 0 &&
 				    vm_page_busy_tryupgrade(pp))
 					vm_page_free(pp);
-				else
+				else {
+					vm_page_deactivate_noreuse(pp);
 					vm_page_sunbusy(pp);
+				}
 				zfs_vmobject_wunlock(obj);
 			}
 		} else {
@@ -3928,6 +3934,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	if (zfs_enter_verify_zp(zfsvfs, zp, FTAG) != 0)
 		return (zfs_vm_pagerret_error);
 
+	object = ma[0]->object;
 	start = IDX_TO_OFF(ma[0]->pindex);
 	end = IDX_TO_OFF(ma[count - 1]->pindex + 1);
 
@@ -3936,33 +3943,45 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 * Note that we need to handle the case of the block size growing.
 	 */
 	for (;;) {
+		uint64_t len;
+
 		blksz = zp->z_blksz;
+		len = roundup(end, blksz) - rounddown(start, blksz);
+
 		lr = zfs_rangelock_tryenter(&zp->z_rangelock,
-		    rounddown(start, blksz),
-		    roundup(end, blksz) - rounddown(start, blksz), RL_READER);
+		    rounddown(start, blksz), len, RL_READER);
 		if (lr == NULL) {
-			if (rahead != NULL) {
-				*rahead = 0;
-				rahead = NULL;
-			}
-			if (rbehind != NULL) {
-				*rbehind = 0;
-				rbehind = NULL;
-			}
-			break;
+			/*
+			 * Avoid a deadlock with update_pages().  We need to
+			 * hold the range lock when copying from the DMU, so
+			 * give up the busy lock to allow update_pages() to
+			 * proceed.  We might need to allocate new pages, which
+			 * isn't quite right since this allocation isn't subject
+			 * to the page fault handler's OOM logic, but this is
+			 * the best we can do for now.
+			 */
+			for (int i = 0; i < count; i++)
+				vm_page_xunbusy(ma[i]);
+
+			lr = zfs_rangelock_enter(&zp->z_rangelock,
+			    rounddown(start, blksz), len, RL_READER);
+
+			zfs_vmobject_wlock(object);
+			(void) vm_page_grab_pages(object, OFF_TO_IDX(start),
+			    VM_ALLOC_NORMAL | VM_ALLOC_WAITOK | VM_ALLOC_ZERO,
+			    ma, count);
+			zfs_vmobject_wunlock(object);
 		}
 		if (blksz == zp->z_blksz)
 			break;
 		zfs_rangelock_exit(lr);
 	}
 
-	object = ma[0]->object;
 	zfs_vmobject_wlock(object);
 	obj_size = object->un_pager.vnp.vnp_size;
 	zfs_vmobject_wunlock(object);
 	if (IDX_TO_OFF(ma[count - 1]->pindex) >= obj_size) {
-		if (lr != NULL)
-			zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (zfs_vm_pagerret_bad);
 	}
@@ -3987,11 +4006,33 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 * ZFS will panic if we request DMU to read beyond the end of the last
 	 * allocated block.
 	 */
-	error = dmu_read_pages(zfsvfs->z_os, zp->z_id, ma, count, &pgsin_b,
-	    &pgsin_a, MIN(end, obj_size) - (end - PAGE_SIZE));
+	for (int i = 0; i < count; i++) {
+		int dummypgsin, count1, j, last_size;
 
-	if (lr != NULL)
-		zfs_rangelock_exit(lr);
+		if (vm_page_any_valid(ma[i])) {
+			ASSERT(vm_page_all_valid(ma[i]));
+			continue;
+		}
+		for (j = i + 1; j < count; j++) {
+			if (vm_page_any_valid(ma[j])) {
+				ASSERT(vm_page_all_valid(ma[j]));
+				break;
+			}
+		}
+		count1 = j - i;
+		dummypgsin = 0;
+		last_size = j == count ?
+		    MIN(end, obj_size) - (end - PAGE_SIZE) : PAGE_SIZE;
+		error = dmu_read_pages(zfsvfs->z_os, zp->z_id, &ma[i], count1,
+		    i == 0 ? &pgsin_b : &dummypgsin,
+		    j == count ? &pgsin_a : &dummypgsin,
+		    last_size);
+		if (error != 0)
+			break;
+		i += count1 - 1;
+	}
+
+	zfs_rangelock_exit(lr);
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, count*PAGE_SIZE);
@@ -6159,7 +6200,7 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	} else {
 #if (__FreeBSD_version >= 1302506 && __FreeBSD_version < 1400000) || \
 	__FreeBSD_version >= 1400086
-		vn_lock_pair(invp, false, LK_EXCLUSIVE, outvp, false,
+		vn_lock_pair(invp, false, LK_SHARED, outvp, false,
 		    LK_EXCLUSIVE);
 #else
 		vn_lock_pair(invp, false, outvp, false);

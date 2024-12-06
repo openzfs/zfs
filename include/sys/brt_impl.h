@@ -86,28 +86,38 @@ typedef struct brt_vdev_phys {
 	uint64_t	bvp_savedspace;
 } brt_vdev_phys_t;
 
-typedef struct brt_vdev {
+struct brt_vdev {
+	/*
+	 * Pending changes from open contexts.
+	 */
+	kmutex_t	bv_pending_lock;
+	avl_tree_t	bv_pending_tree[TXG_SIZE];
+	/*
+	 * Protects bv_mos_*.
+	 */
+	krwlock_t	bv_mos_entries_lock ____cacheline_aligned;
+	/*
+	 * Protects all the fields starting from bv_initiated.
+	 */
+	krwlock_t	bv_lock ____cacheline_aligned;
 	/*
 	 * VDEV id.
 	 */
-	uint64_t	bv_vdevid;
-	/*
-	 * Is the structure initiated?
-	 * (bv_entcount and bv_bitmap are allocated?)
-	 */
-	boolean_t	bv_initiated;
+	uint64_t	bv_vdevid ____cacheline_aligned;
 	/*
 	 * Object number in the MOS for the entcount array and brt_vdev_phys.
 	 */
 	uint64_t	bv_mos_brtvdev;
 	/*
-	 * Object number in the MOS for the entries table.
+	 * Object number in the MOS and dnode for the entries table.
 	 */
 	uint64_t	bv_mos_entries;
+	dnode_t		*bv_mos_entries_dnode;
 	/*
-	 * Entries to sync.
+	 * Is the structure initiated?
+	 * (bv_entcount and bv_bitmap are allocated?)
 	 */
-	avl_tree_t	bv_tree;
+	boolean_t	bv_initiated;
 	/*
 	 * Does the bv_entcount[] array needs byte swapping?
 	 */
@@ -121,6 +131,26 @@ typedef struct brt_vdev {
 	 */
 	uint16_t	*bv_entcount;
 	/*
+	 * bv_entcount[] potentially can be a bit too big to sychronize it all
+	 * when we just changed few entcounts. The fields below allow us to
+	 * track updates to bv_entcount[] array since the last sync.
+	 * A single bit in the bv_bitmap represents as many entcounts as can
+	 * fit into a single BRT_BLOCKSIZE.
+	 * For example we have 65536 entcounts in the bv_entcount array
+	 * (so the whole array is 128kB). We updated bv_entcount[2] and
+	 * bv_entcount[5]. In that case only first bit in the bv_bitmap will
+	 * be set and we will write only first BRT_BLOCKSIZE out of 128kB.
+	 */
+	ulong_t		*bv_bitmap;
+	/*
+	 * bv_entcount[] needs updating on disk.
+	 */
+	boolean_t	bv_entcount_dirty;
+	/*
+	 * brt_vdev_phys needs updating on disk.
+	 */
+	boolean_t	bv_meta_dirty;
+	/*
 	 * Sum of all bv_entcount[]s.
 	 */
 	uint64_t	bv_totalcount;
@@ -133,64 +163,26 @@ typedef struct brt_vdev {
 	 */
 	uint64_t	bv_savedspace;
 	/*
-	 * brt_vdev_phys needs updating on disk.
+	 * Entries to sync.
 	 */
-	boolean_t	bv_meta_dirty;
-	/*
-	 * bv_entcount[] needs updating on disk.
-	 */
-	boolean_t	bv_entcount_dirty;
-	/*
-	 * bv_entcount[] potentially can be a bit too big to sychronize it all
-	 * when we just changed few entcounts. The fields below allow us to
-	 * track updates to bv_entcount[] array since the last sync.
-	 * A single bit in the bv_bitmap represents as many entcounts as can
-	 * fit into a single BRT_BLOCKSIZE.
-	 * For example we have 65536 entcounts in the bv_entcount array
-	 * (so the whole array is 128kB). We updated bv_entcount[2] and
-	 * bv_entcount[5]. In that case only first bit in the bv_bitmap will
-	 * be set and we will write only first BRT_BLOCKSIZE out of 128kB.
-	 */
-	ulong_t		*bv_bitmap;
-	uint64_t	bv_nblocks;
-} brt_vdev_t;
+	avl_tree_t	bv_tree;
+};
 
-/*
- * In-core brt
- */
-typedef struct brt {
-	krwlock_t	brt_lock;
-	spa_t		*brt_spa;
-#define	brt_mos		brt_spa->spa_meta_objset
-	uint64_t	brt_rangesize;
-	uint64_t	brt_usedspace;
-	uint64_t	brt_savedspace;
-	avl_tree_t	brt_pending_tree[TXG_SIZE];
-	kmutex_t	brt_pending_lock[TXG_SIZE];
-	/* Sum of all entries across all bv_trees. */
-	uint64_t	brt_nentries;
-	brt_vdev_t	*brt_vdevs;
-	uint64_t	brt_nvdevs;
-} brt_t;
-
-/* Size of bre_offset / sizeof (uint64_t). */
+/* Size of offset / sizeof (uint64_t). */
 #define	BRT_KEY_WORDS	(1)
+
+#define	BRE_OFFSET(bre)	(DVA_GET_OFFSET(&(bre)->bre_bp.blk_dva[0]))
 
 /*
  * In-core brt entry.
- * On-disk we use bre_offset as the key and bre_refcount as the value.
+ * On-disk we use ZAP with offset as the key and count as the value.
  */
 typedef struct brt_entry {
-	uint64_t	bre_offset;
-	uint64_t	bre_refcount;
 	avl_node_t	bre_node;
+	blkptr_t	bre_bp;
+	uint64_t	bre_count;
+	uint64_t	bre_pcount;
 } brt_entry_t;
-
-typedef struct brt_pending_entry {
-	blkptr_t	bpe_bp;
-	int		bpe_count;
-	avl_node_t	bpe_node;
-} brt_pending_entry_t;
 
 #ifdef	__cplusplus
 }

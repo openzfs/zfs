@@ -1143,7 +1143,6 @@ const struct file_operations zpl_dir_file_operations = {
 #endif
 };
 
-/* CSTYLED */
 module_param(zfs_fallocate_reserve_percent, uint, 0644);
 MODULE_PARM_DESC(zfs_fallocate_reserve_percent,
 	"Percentage of length to use for the available capacity check");

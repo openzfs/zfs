@@ -512,7 +512,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tinitialize [-c | -s | -u] [-w] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-s | -p] [-w] [-e] <pool> ...\n"));
+		return (gettext("\tscrub [-e | -s | -p | -C] [-w] "
+		    "<pool> ...\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
@@ -6882,8 +6883,13 @@ collect_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 		if (cb->cb_json) {
 			if (pl->pl_prop == ZPOOL_PROP_NAME)
 				continue;
+			const char *prop_name;
+			if (pl->pl_prop != ZPROP_USERPROP)
+				prop_name = zpool_prop_to_name(pl->pl_prop);
+			else
+				prop_name = pl->pl_user_prop;
 			(void) zprop_nvlist_one_property(
-			    zpool_prop_to_name(pl->pl_prop), propstr,
+			    prop_name, propstr,
 			    sourcetype, NULL, NULL, props, cb->cb_json_as_int);
 		} else {
 			/*
@@ -8424,12 +8430,13 @@ wait_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool scrub [-s | -p] [-w] [-e] <pool> ...
+ * zpool scrub [-e | -s | -p | -C] [-w] <pool> ...
  *
  *	-e	Only scrub blocks in the error log.
  *	-s	Stop.  Stops any in-progress scrub.
  *	-p	Pause. Pause in-progress scrub.
  *	-w	Wait.  Blocks until scrub has completed.
+ *	-C	Scrub from last saved txg.
  */
 int
 zpool_do_scrub(int argc, char **argv)
@@ -8445,9 +8452,10 @@ zpool_do_scrub(int argc, char **argv)
 	boolean_t is_error_scrub = B_FALSE;
 	boolean_t is_pause = B_FALSE;
 	boolean_t is_stop = B_FALSE;
+	boolean_t is_txg_continue = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "spwe")) != -1) {
+	while ((c = getopt(argc, argv, "spweC")) != -1) {
 		switch (c) {
 		case 'e':
 			is_error_scrub = B_TRUE;
@@ -8461,6 +8469,9 @@ zpool_do_scrub(int argc, char **argv)
 		case 'w':
 			wait = B_TRUE;
 			break;
+		case 'C':
+			is_txg_continue = B_TRUE;
+			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
 			    optopt);
@@ -8472,6 +8483,18 @@ zpool_do_scrub(int argc, char **argv)
 		(void) fprintf(stderr, gettext("invalid option "
 		    "combination :-s and -p are mutually exclusive\n"));
 		usage(B_FALSE);
+	} else if (is_pause && is_txg_continue) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination :-p and -C are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_stop && is_txg_continue) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination :-s and -C are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_error_scrub && is_txg_continue) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination :-e and -C are mutually exclusive\n"));
+		usage(B_FALSE);
 	} else {
 		if (is_error_scrub)
 			cb.cb_type = POOL_SCAN_ERRORSCRUB;
@@ -8480,6 +8503,8 @@ zpool_do_scrub(int argc, char **argv)
 			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
 		} else if (is_stop) {
 			cb.cb_type = POOL_SCAN_NONE;
+		} else if (is_txg_continue) {
+			cb.cb_scrub_cmd = POOL_SCRUB_FROM_LAST_TXG;
 		} else {
 			cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 		}
@@ -10029,9 +10054,8 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 		(void) printf(gettext("Removal of %s canceled on %s"),
 		    vdev_name, ctime(&end));
 	} else {
-		uint64_t copied, total, elapsed, mins_left, hours_left;
+		uint64_t copied, total, elapsed, rate, mins_left, hours_left;
 		double fraction_done;
-		uint_t rate;
 
 		assert(prs->prs_state == DSS_SCANNING);
 
@@ -10127,9 +10151,8 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		    copied_buf, time_buf, ctime((time_t *)&end));
 	} else {
 		char examined_buf[7], total_buf[7], rate_buf[7];
-		uint64_t copied, total, elapsed, secs_left;
+		uint64_t copied, total, elapsed, rate, secs_left;
 		double fraction_done;
-		uint_t rate;
 
 		assert(pres->pres_state == DSS_SCANNING);
 

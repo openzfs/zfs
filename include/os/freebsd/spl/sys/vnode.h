@@ -68,47 +68,30 @@ enum symfollow { NO_FOLLOW = NOFOLLOW };
 #include <vm/vm_object.h>
 
 typedef	struct vop_vector	vnodeops_t;
-#define	VOP_FID		VOP_VPTOFH
 #define	vop_fid		vop_vptofh
 #define	vop_fid_args	vop_vptofh_args
 #define	a_fid		a_fhp
 
-#define	rootvfs		(rootvnode == NULL ? NULL : rootvnode->v_mount)
-
-#ifndef IN_BASE
-static __inline int
-vn_is_readonly(vnode_t *vp)
-{
-	return (vp->v_mount->mnt_flag & MNT_RDONLY);
-}
-#endif
 #define	vn_vfswlock(vp)		(0)
 #define	vn_vfsunlock(vp)	do { } while (0)
-#define	vn_ismntpt(vp)	   \
-	((vp)->v_type == VDIR && (vp)->v_mountedhere != NULL)
-#define	vn_mountedvfs(vp)	((vp)->v_mountedhere)
+
+#ifndef IN_BASE
 #define	vn_has_cached_data(vp)	\
 	((vp)->v_object != NULL && \
 	(vp)->v_object->resident_page_count > 0)
 
-#ifndef IN_BASE
 static __inline void
 vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 {
 	if (vm_object_mightbedirty(vp->v_object)) {
 		int flags = sync ? OBJPC_SYNC : 0;
-		vn_lock(vp, LK_SHARED | LK_RETRY);
 		zfs_vmobject_wlock(vp->v_object);
 		vm_object_page_clean(vp->v_object, 0, 0, flags);
 		zfs_vmobject_wunlock(vp->v_object);
-		VOP_UNLOCK(vp);
 	}
 }
 #endif
 
-#define	vn_exists(vp)		do { } while (0)
-#define	vn_invalid(vp)		do { } while (0)
-#define	vn_free(vp)		do { } while (0)
 #define	vn_matchops(vp, vops)	((vp)->v_op == &(vops))
 
 #define	VN_HOLD(v)	vref(v)
@@ -122,9 +105,6 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 #define	vnevent_rename_src(vp, dvp, name, ct)	do { } while (0)
 #define	vnevent_rename_dest(vp, dvp, name, ct)	do { } while (0)
 #define	vnevent_rename_dest_dir(vp, ct)		do { } while (0)
-
-#define	specvp(vp, rdev, type, cr)	(VN_HOLD(vp), (vp))
-#define	MANDLOCK(vp, mode)	(0)
 
 /*
  * We will use va_spare is place of Solaris' va_mask.

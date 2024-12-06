@@ -375,7 +375,18 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 	struct super_block *sb = (struct super_block *)arg;
 	int objects = 0;
 
-	(void) -zfs_prune(sb, nr_to_scan, &objects);
+	/*
+	 * deactivate_locked_super calls shrinker_free and only then
+	 * sops->kill_sb cb, resulting in UAF on umount when trying to reach
+	 * for the shrinker functions in zpl_prune_sb of in-umount dataset.
+	 * Increment if s_active is not zero, but don't prune if it is -
+	 * umount could be underway.
+	 */
+	if (atomic_inc_not_zero(&sb->s_active)) {
+		(void) -zfs_prune(sb, nr_to_scan, &objects);
+		atomic_dec(&sb->s_active);
+	}
+
 }
 
 const struct super_operations zpl_super_operations = {

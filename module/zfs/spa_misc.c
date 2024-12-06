@@ -1870,13 +1870,7 @@ spa_get_slop_space(spa_t *spa)
 	if (spa->spa_dedup_dspace == ~0ULL)
 		spa_update_dspace(spa);
 
-	/*
-	 * spa_get_dspace() includes the space only logically "used" by
-	 * deduplicated data, so since it's not useful to reserve more
-	 * space with more deduplicated data, we subtract that out here.
-	 */
-	space =
-	    spa_get_dspace(spa) - spa->spa_dedup_dspace - brt_get_dspace(spa);
+	space = spa->spa_rdspace;
 	slop = MIN(space >> spa_slop_shift, spa_max_slop);
 
 	/*
@@ -1912,8 +1906,7 @@ spa_get_checkpoint_space(spa_t *spa)
 void
 spa_update_dspace(spa_t *spa)
 {
-	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
-	    ddt_get_dedup_dspace(spa) + brt_get_dspace(spa);
+	spa->spa_rdspace = metaslab_class_get_dspace(spa_normal_class(spa));
 	if (spa->spa_nonallocating_dspace > 0) {
 		/*
 		 * Subtract the space provided by all non-allocating vdevs that
@@ -1933,9 +1926,11 @@ spa_update_dspace(spa_t *spa)
 		 * doesn't matter that the data we are moving may be
 		 * allocated twice (on the old device and the new device).
 		 */
-		ASSERT3U(spa->spa_dspace, >=, spa->spa_nonallocating_dspace);
-		spa->spa_dspace -= spa->spa_nonallocating_dspace;
+		ASSERT3U(spa->spa_rdspace, >=, spa->spa_nonallocating_dspace);
+		spa->spa_rdspace -= spa->spa_nonallocating_dspace;
 	}
+	spa->spa_dspace = spa->spa_rdspace + ddt_get_dedup_dspace(spa) +
+	    brt_get_dspace(spa);
 }
 
 /*
@@ -2682,6 +2677,12 @@ spa_mode(spa_t *spa)
 }
 
 uint64_t
+spa_get_last_scrubbed_txg(spa_t *spa)
+{
+	return (spa->spa_scrubbed_last_txg);
+}
+
+uint64_t
 spa_bootfs(spa_t *spa)
 {
 	return (spa->spa_bootfs);
@@ -3122,7 +3123,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
 	"Place user data indirect blocks into the special class");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, failmode,
 	param_set_deadman_failmode, param_get_charp, ZMOD_RW,
 	"Failmode for deadman timer");
@@ -3138,7 +3138,6 @@ ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, ziotime_ms,
 ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, UINT, ZMOD_RW,
 	"Small file blocks in special vdevs depends on this much "
 	"free space available");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 	param_get_uint, ZMOD_RW, "Reserved free space in pool");

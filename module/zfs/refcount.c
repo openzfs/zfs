@@ -349,11 +349,9 @@ EXPORT_SYMBOL(zfs_refcount_add);
 EXPORT_SYMBOL(zfs_refcount_remove);
 EXPORT_SYMBOL(zfs_refcount_held);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, , reference_tracking_enable, INT, ZMOD_RW,
 	"Track reference holders to refcount_t objects");
 
 ZFS_MODULE_PARAM(zfs, , reference_history, UINT, ZMOD_RW,
 	"Maximum reference holders being tracked");
-/* END CSTYLED */
 #endif	/* ZFS_DEBUG */

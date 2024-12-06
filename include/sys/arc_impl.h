@@ -942,6 +942,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_evict_l2_eligible_mru;
 	wmsum_t arcstat_evict_l2_ineligible;
 	wmsum_t arcstat_evict_l2_skip;
+	wmsum_t arcstat_hash_elements;
 	wmsum_t arcstat_hash_collisions;
 	wmsum_t arcstat_hash_chains;
 	aggsum_t arcstat_size;

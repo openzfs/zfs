@@ -109,7 +109,7 @@ Stops and cancels an in-progress removal of a top-level vdev.
 .El
 .
 .Sh EXAMPLES
-.\" These are, respectively, examples 14 from zpool.8
+.\" These are, respectively, examples 15 from zpool.8
 .\" Make sure to update them bidirectionally
 .Ss Example 1 : No Removing a Mirrored top-level (Log or Data) Device
 The following commands remove the mirrored log device
@@ -142,9 +142,43 @@ The command to remove the mirrored log
 .Ar mirror-2 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-2
 .Pp
+At this point, the log device no longer exists
+(both sides of the mirror have been removed):
+.Bd -literal -compact -offset Ds
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
+
+        NAME        STATE     READ WRITE CKSUM
+        tank        ONLINE       0     0     0
+          mirror-0  ONLINE       0     0     0
+            sda     ONLINE       0     0     0
+            sdb     ONLINE       0     0     0
+          mirror-1  ONLINE       0     0     0
+            sdc     ONLINE       0     0     0
+            sdd     ONLINE       0     0     0
+.Ed
+.Pp
 The command to remove the mirrored data
 .Ar mirror-1 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-1
+.Pp
+After
+.Ar mirror-1 No has been evacuated, the pool remains redundant, but
+the total amount of space is reduced:
+.Bd -literal -compact -offset Ds
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
+
+        NAME        STATE     READ WRITE CKSUM
+        tank        ONLINE       0     0     0
+          mirror-0  ONLINE       0     0     0
+            sda     ONLINE       0     0     0
+            sdb     ONLINE       0     0     0
+.Ed
 .
 .Sh SEE ALSO
 .Xr zpool-add 8 ,

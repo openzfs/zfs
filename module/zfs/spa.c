@@ -451,9 +451,10 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 
 		spa_prop_add_list(nv, ZPOOL_PROP_DEDUP_TABLE_SIZE, NULL,
 		    ddt_get_ddt_dsize(spa), src);
-
 		spa_prop_add_list(nv, ZPOOL_PROP_HEALTH, NULL,
 		    rvd->vdev_state, src);
+		spa_prop_add_list(nv, ZPOOL_PROP_LAST_SCRUBBED_TXG, NULL,
+		    spa_get_last_scrubbed_txg(spa), src);
 
 		version = spa_version(spa);
 		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION)) {
@@ -2081,6 +2082,7 @@ spa_unload(spa_t *spa)
 			vdev_trim_stop_all(root_vdev, VDEV_TRIM_ACTIVE);
 			vdev_autotrim_stop_all(spa);
 			vdev_rebuild_stop_all(spa);
+			l2arc_spa_rebuild_stop(spa);
 		}
 	}
 
@@ -3064,7 +3066,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		dsl_deadlist_entry_t *dle;
 		bplist_t to_free;
 		ll = kmem_zalloc(sizeof (dsl_deadlist_t), KM_SLEEP);
-		dsl_deadlist_open(ll, mos, ll_obj);
+		VERIFY0(dsl_deadlist_open(ll, mos, ll_obj));
 		dle = dsl_deadlist_first(ll);
 		ASSERT3P(dle, !=, NULL);
 		bplist_create(&to_free);
@@ -4723,6 +4725,12 @@ spa_ld_get_props(spa_t *spa)
 
 	error = spa_dir_prop(spa, DMU_POOL_ERRLOG_SCRUB,
 	    &spa->spa_errlog_scrub, B_FALSE);
+	if (error != 0 && error != ENOENT)
+		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+
+	/* Load the last scrubbed txg. */
+	error = spa_dir_prop(spa, DMU_POOL_LAST_SCRUBBED_TXG,
+	    &spa->spa_scrubbed_last_txg, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
@@ -7115,6 +7123,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		vdev_trim_stop_all(rvd, VDEV_TRIM_ACTIVE);
 		vdev_autotrim_stop_all(spa);
 		vdev_rebuild_stop_all(spa);
+		l2arc_spa_rebuild_stop(spa);
 
 		/*
 		 * We want this to be reflected on every label,
@@ -8868,6 +8877,13 @@ spa_scan_stop(spa_t *spa)
 int
 spa_scan(spa_t *spa, pool_scan_func_t func)
 {
+	return (spa_scan_range(spa, func, 0, 0));
+}
+
+int
+spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
+    uint64_t txgend)
+{
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 
 	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
@@ -8875,6 +8891,9 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 
 	if (func == POOL_SCAN_RESILVER &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
+		return (SET_ERROR(ENOTSUP));
+
+	if (func != POOL_SCAN_SCRUB && (txgstart != 0 || txgend != 0))
 		return (SET_ERROR(ENOTSUP));
 
 	/*
@@ -8891,7 +8910,7 @@ spa_scan(spa_t *spa, pool_scan_func_t func)
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG))
 		return (SET_ERROR(ENOTSUP));
 
-	return (dsl_scan(spa->spa_dsl_pool, func));
+	return (dsl_scan(spa->spa_dsl_pool, func, txgstart, txgend));
 }
 
 /*
@@ -10974,6 +10993,7 @@ EXPORT_SYMBOL(spa_l2cache_drop);
 
 /* scanning */
 EXPORT_SYMBOL(spa_scan);
+EXPORT_SYMBOL(spa_scan_range);
 EXPORT_SYMBOL(spa_scan_stop);
 
 /* spa syncing */
@@ -10991,11 +11011,9 @@ EXPORT_SYMBOL(spa_event_notify);
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, preload_pct, UINT, ZMOD_RW,
 	"Percentage of CPUs to run a metaslab preload taskq");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_shift, UINT, ZMOD_RW,
 	"log2 fraction of arc that can be used by inflight I/Os when "
 	"verifying pool during import");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_metadata, INT, ZMOD_RW,
 	"Set to traverse metadata on pool import");
@@ -11012,11 +11030,9 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RW,
 	"Number of threads per IO worker taskqueue");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, U64, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
 	"vdevs (in read-only mode)");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 	ZMOD_RW, "Set the livelist condense zthr to pause");
@@ -11024,7 +11040,6 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, sync_pause, INT,
 	ZMOD_RW, "Set the livelist condense synctask to pause");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, sync_cancel,
 	INT, ZMOD_RW,
 	"Whether livelist condensing was canceled in the synctask");
@@ -11046,7 +11061,6 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
 	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RW,
 	"Configure IO queues for write IO");
 #endif
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
 	"Number of CPUs per write issue taskq");

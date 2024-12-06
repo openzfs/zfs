@@ -28,7 +28,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd July 29, 2024
+.Dd November 18, 2024
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -135,6 +135,19 @@ A unique identifier for the pool.
 The current health of the pool.
 Health can be one of
 .Sy ONLINE , DEGRADED , FAULTED , OFFLINE, REMOVED , UNAVAIL .
+.It Sy last_scrubbed_txg
+Indicates the transaction group (TXG) up to which the most recent scrub
+operation has checked and repaired the dataset.
+This provides insight into the data integrity status of their pool at
+a specific point in time.
+.Xr zpool-scrub 8
+can utilize this property to scan only data that has changed since the last
+scrub completed, when given the
+.Fl C
+flag.
+This property is not updated when performing an error scrub with the
+.Fl e
+flag.
 .It Sy leaked
 Space not released while
 .Sy freeing

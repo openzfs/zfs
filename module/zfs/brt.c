@@ -243,7 +243,6 @@
  */
 
 static kmem_cache_t *brt_entry_cache;
-static kmem_cache_t *brt_pending_entry_cache;
 
 /*
  * Enable/disable prefetching of BRT entries that we are going to modify.
@@ -266,14 +265,11 @@ static int brt_zap_default_ibs = 12;
 static kstat_t	*brt_ksp;
 
 typedef struct brt_stats {
-	kstat_named_t brt_addref_entry_in_memory;
 	kstat_named_t brt_addref_entry_not_on_disk;
 	kstat_named_t brt_addref_entry_on_disk;
-	kstat_named_t brt_addref_entry_read_lost_race;
 	kstat_named_t brt_decref_entry_in_memory;
 	kstat_named_t brt_decref_entry_loaded_from_disk;
 	kstat_named_t brt_decref_entry_not_in_memory;
-	kstat_named_t brt_decref_entry_not_on_disk;
 	kstat_named_t brt_decref_entry_read_lost_race;
 	kstat_named_t brt_decref_entry_still_referenced;
 	kstat_named_t brt_decref_free_data_later;
@@ -282,14 +278,11 @@ typedef struct brt_stats {
 } brt_stats_t;
 
 static brt_stats_t brt_stats = {
-	{ "addref_entry_in_memory",		KSTAT_DATA_UINT64 },
 	{ "addref_entry_not_on_disk",		KSTAT_DATA_UINT64 },
 	{ "addref_entry_on_disk",		KSTAT_DATA_UINT64 },
-	{ "addref_entry_read_lost_race",	KSTAT_DATA_UINT64 },
 	{ "decref_entry_in_memory",		KSTAT_DATA_UINT64 },
 	{ "decref_entry_loaded_from_disk",	KSTAT_DATA_UINT64 },
 	{ "decref_entry_not_in_memory",		KSTAT_DATA_UINT64 },
-	{ "decref_entry_not_on_disk",		KSTAT_DATA_UINT64 },
 	{ "decref_entry_read_lost_race",	KSTAT_DATA_UINT64 },
 	{ "decref_entry_still_referenced",	KSTAT_DATA_UINT64 },
 	{ "decref_free_data_later",		KSTAT_DATA_UINT64 },
@@ -298,14 +291,11 @@ static brt_stats_t brt_stats = {
 };
 
 struct {
-	wmsum_t brt_addref_entry_in_memory;
 	wmsum_t brt_addref_entry_not_on_disk;
 	wmsum_t brt_addref_entry_on_disk;
-	wmsum_t brt_addref_entry_read_lost_race;
 	wmsum_t brt_decref_entry_in_memory;
 	wmsum_t brt_decref_entry_loaded_from_disk;
 	wmsum_t brt_decref_entry_not_in_memory;
-	wmsum_t brt_decref_entry_not_on_disk;
 	wmsum_t brt_decref_entry_read_lost_race;
 	wmsum_t brt_decref_entry_still_referenced;
 	wmsum_t brt_decref_free_data_later;
@@ -316,24 +306,24 @@ struct {
 #define	BRTSTAT_BUMP(stat)	wmsum_add(&brt_sums.stat, 1)
 
 static int brt_entry_compare(const void *x1, const void *x2);
-static int brt_pending_entry_compare(const void *x1, const void *x2);
+static void brt_vdevs_expand(spa_t *spa, uint64_t nvdevs);
 
 static void
-brt_rlock(brt_t *brt)
+brt_rlock(spa_t *spa)
 {
-	rw_enter(&brt->brt_lock, RW_READER);
+	rw_enter(&spa->spa_brt_lock, RW_READER);
 }
 
 static void
-brt_wlock(brt_t *brt)
+brt_wlock(spa_t *spa)
 {
-	rw_enter(&brt->brt_lock, RW_WRITER);
+	rw_enter(&spa->spa_brt_lock, RW_WRITER);
 }
 
 static void
-brt_unlock(brt_t *brt)
+brt_unlock(spa_t *spa)
 {
-	rw_exit(&brt->brt_lock);
+	rw_exit(&spa->spa_brt_lock);
 }
 
 static uint16_t
@@ -394,14 +384,15 @@ brt_vdev_dump(brt_vdev_t *brtvd)
 {
 	uint64_t idx;
 
+	uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
 	zfs_dbgmsg("  BRT vdevid=%llu meta_dirty=%d entcount_dirty=%d "
-	    "size=%llu totalcount=%llu nblocks=%llu bitmapsize=%zu\n",
+	    "size=%llu totalcount=%llu nblocks=%llu bitmapsize=%zu",
 	    (u_longlong_t)brtvd->bv_vdevid,
 	    brtvd->bv_meta_dirty, brtvd->bv_entcount_dirty,
 	    (u_longlong_t)brtvd->bv_size,
 	    (u_longlong_t)brtvd->bv_totalcount,
-	    (u_longlong_t)brtvd->bv_nblocks,
-	    (size_t)BT_SIZEOFMAP(brtvd->bv_nblocks));
+	    (u_longlong_t)nblocks,
+	    (size_t)BT_SIZEOFMAP(nblocks));
 	if (brtvd->bv_totalcount > 0) {
 		zfs_dbgmsg("    entcounts:");
 		for (idx = 0; idx < brtvd->bv_size; idx++) {
@@ -415,51 +406,56 @@ brt_vdev_dump(brt_vdev_t *brtvd)
 	if (brtvd->bv_entcount_dirty) {
 		char *bitmap;
 
-		bitmap = kmem_alloc(brtvd->bv_nblocks + 1, KM_SLEEP);
-		for (idx = 0; idx < brtvd->bv_nblocks; idx++) {
+		bitmap = kmem_alloc(nblocks + 1, KM_SLEEP);
+		for (idx = 0; idx < nblocks; idx++) {
 			bitmap[idx] =
 			    BT_TEST(brtvd->bv_bitmap, idx) ? 'x' : '.';
 		}
 		bitmap[idx] = '\0';
 		zfs_dbgmsg("    dirty: %s", bitmap);
-		kmem_free(bitmap, brtvd->bv_nblocks + 1);
+		kmem_free(bitmap, nblocks + 1);
 	}
 }
 #endif
 
 static brt_vdev_t *
-brt_vdev(brt_t *brt, uint64_t vdevid)
+brt_vdev(spa_t *spa, uint64_t vdevid, boolean_t alloc)
 {
-	brt_vdev_t *brtvd;
+	brt_vdev_t *brtvd = NULL;
 
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-
-	if (vdevid < brt->brt_nvdevs) {
-		brtvd = &brt->brt_vdevs[vdevid];
-	} else {
-		brtvd = NULL;
+	brt_rlock(spa);
+	if (vdevid < spa->spa_brt_nvdevs) {
+		brtvd = spa->spa_brt_vdevs[vdevid];
+	} else if (alloc) {
+		/* New VDEV was added. */
+		brt_unlock(spa);
+		brt_wlock(spa);
+		if (vdevid >= spa->spa_brt_nvdevs)
+			brt_vdevs_expand(spa, vdevid + 1);
+		brtvd = spa->spa_brt_vdevs[vdevid];
 	}
-
+	brt_unlock(spa);
 	return (brtvd);
 }
 
 static void
-brt_vdev_create(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
+brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
 	char name[64];
 
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
+	ASSERT(brtvd->bv_initiated);
 	ASSERT0(brtvd->bv_mos_brtvdev);
 	ASSERT0(brtvd->bv_mos_entries);
-	ASSERT(brtvd->bv_entcount != NULL);
-	ASSERT(brtvd->bv_size > 0);
-	ASSERT(brtvd->bv_bitmap != NULL);
-	ASSERT(brtvd->bv_nblocks > 0);
 
-	brtvd->bv_mos_entries = zap_create_flags(brt->brt_mos, 0,
+	uint64_t mos_entries = zap_create_flags(spa->spa_meta_objset, 0,
 	    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY, DMU_OTN_ZAP_METADATA,
 	    brt_zap_default_bs, brt_zap_default_ibs, DMU_OT_NONE, 0, tx);
-	VERIFY(brtvd->bv_mos_entries != 0);
+	VERIFY(mos_entries != 0);
+	VERIFY0(dnode_hold(spa->spa_meta_objset, mos_entries, brtvd,
+	    &brtvd->bv_mos_entries_dnode));
+	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
+	brtvd->bv_mos_entries = mos_entries;
+	rw_exit(&brtvd->bv_mos_entries_lock);
 	BRT_DEBUG("MOS entries created, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_entries);
 
@@ -468,7 +464,7 @@ brt_vdev_create(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	 * We will keep array size (bv_size) and cummulative count for all
 	 * bv_entcount[]s (bv_totalcount) in the bonus buffer.
 	 */
-	brtvd->bv_mos_brtvdev = dmu_object_alloc(brt->brt_mos,
+	brtvd->bv_mos_brtvdev = dmu_object_alloc(spa->spa_meta_objset,
 	    DMU_OTN_UINT64_METADATA, BRT_BLOCKSIZE,
 	    DMU_OTN_UINT64_METADATA, sizeof (brt_vdev_phys_t), tx);
 	VERIFY(brtvd->bv_mos_brtvdev != 0);
@@ -477,27 +473,27 @@ brt_vdev_create(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
-	VERIFY0(zap_add(brt->brt_mos, DMU_POOL_DIRECTORY_OBJECT, name,
+	VERIFY0(zap_add(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT, name,
 	    sizeof (uint64_t), 1, &brtvd->bv_mos_brtvdev, tx));
 	BRT_DEBUG("Pool directory object created, object=%s", name);
 
-	spa_feature_incr(brt->brt_spa, SPA_FEATURE_BLOCK_CLONING, tx);
+	spa_feature_incr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
 }
 
 static void
-brt_vdev_realloc(brt_t *brt, brt_vdev_t *brtvd)
+brt_vdev_realloc(spa_t *spa, brt_vdev_t *brtvd)
 {
 	vdev_t *vd;
 	uint16_t *entcount;
 	ulong_t *bitmap;
-	uint64_t nblocks, size;
+	uint64_t nblocks, onblocks, size;
 
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
+	ASSERT(RW_WRITE_HELD(&brtvd->bv_lock));
 
-	spa_config_enter(brt->brt_spa, SCL_VDEV, FTAG, RW_READER);
-	vd = vdev_lookup_top(brt->brt_spa, brtvd->bv_vdevid);
-	size = (vdev_get_min_asize(vd) - 1) / brt->brt_rangesize + 1;
-	spa_config_exit(brt->brt_spa, SCL_VDEV, FTAG);
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	vd = vdev_lookup_top(spa, brtvd->bv_vdevid);
+	size = (vdev_get_min_asize(vd) - 1) / spa->spa_brt_rangesize + 1;
+	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	entcount = vmem_zalloc(sizeof (entcount[0]) * size, KM_SLEEP);
 	nblocks = BRT_RANGESIZE_TO_NBLOCKS(size);
@@ -505,38 +501,33 @@ brt_vdev_realloc(brt_t *brt, brt_vdev_t *brtvd)
 
 	if (!brtvd->bv_initiated) {
 		ASSERT0(brtvd->bv_size);
-		ASSERT(brtvd->bv_entcount == NULL);
-		ASSERT(brtvd->bv_bitmap == NULL);
-		ASSERT0(brtvd->bv_nblocks);
-
-		avl_create(&brtvd->bv_tree, brt_entry_compare,
-		    sizeof (brt_entry_t), offsetof(brt_entry_t, bre_node));
+		ASSERT0P(brtvd->bv_entcount);
+		ASSERT0P(brtvd->bv_bitmap);
 	} else {
 		ASSERT(brtvd->bv_size > 0);
 		ASSERT(brtvd->bv_entcount != NULL);
 		ASSERT(brtvd->bv_bitmap != NULL);
-		ASSERT(brtvd->bv_nblocks > 0);
 		/*
 		 * TODO: Allow vdev shrinking. We only need to implement
 		 * shrinking the on-disk BRT VDEV object.
-		 * dmu_free_range(brt->brt_mos, brtvd->bv_mos_brtvdev, offset,
-		 *     size, tx);
+		 * dmu_free_range(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+		 *     offset, size, tx);
 		 */
 		ASSERT3U(brtvd->bv_size, <=, size);
 
 		memcpy(entcount, brtvd->bv_entcount,
 		    sizeof (entcount[0]) * MIN(size, brtvd->bv_size));
-		memcpy(bitmap, brtvd->bv_bitmap, MIN(BT_SIZEOFMAP(nblocks),
-		    BT_SIZEOFMAP(brtvd->bv_nblocks)));
 		vmem_free(brtvd->bv_entcount,
 		    sizeof (entcount[0]) * brtvd->bv_size);
-		kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(brtvd->bv_nblocks));
+		onblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		memcpy(bitmap, brtvd->bv_bitmap, MIN(BT_SIZEOFMAP(nblocks),
+		    BT_SIZEOFMAP(onblocks)));
+		kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(onblocks));
 	}
 
 	brtvd->bv_size = size;
 	brtvd->bv_entcount = entcount;
 	brtvd->bv_bitmap = bitmap;
-	brtvd->bv_nblocks = nblocks;
 	if (!brtvd->bv_initiated) {
 		brtvd->bv_need_byteswap = FALSE;
 		brtvd->bv_initiated = TRUE;
@@ -545,36 +536,29 @@ brt_vdev_realloc(brt_t *brt, brt_vdev_t *brtvd)
 	}
 }
 
-static void
-brt_vdev_load(brt_t *brt, brt_vdev_t *brtvd)
+static int
+brt_vdev_load(spa_t *spa, brt_vdev_t *brtvd)
 {
-	char name[64];
 	dmu_buf_t *db;
 	brt_vdev_phys_t *bvphys;
 	int error;
 
-	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
-	    (u_longlong_t)brtvd->bv_vdevid);
-	error = zap_lookup(brt->brt_mos, DMU_POOL_DIRECTORY_OBJECT, name,
-	    sizeof (uint64_t), 1, &brtvd->bv_mos_brtvdev);
-	if (error != 0)
-		return;
+	ASSERT(!brtvd->bv_initiated);
 	ASSERT(brtvd->bv_mos_brtvdev != 0);
 
-	error = dmu_bonus_hold(brt->brt_mos, brtvd->bv_mos_brtvdev, FTAG, &db);
-	ASSERT0(error);
+	error = dmu_bonus_hold(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+	    FTAG, &db);
 	if (error != 0)
-		return;
+		return (error);
 
 	bvphys = db->db_data;
-	if (brt->brt_rangesize == 0) {
-		brt->brt_rangesize = bvphys->bvp_rangesize;
+	if (spa->spa_brt_rangesize == 0) {
+		spa->spa_brt_rangesize = bvphys->bvp_rangesize;
 	} else {
-		ASSERT3U(brt->brt_rangesize, ==, bvphys->bvp_rangesize);
+		ASSERT3U(spa->spa_brt_rangesize, ==, bvphys->bvp_rangesize);
 	}
 
-	ASSERT(!brtvd->bv_initiated);
-	brt_vdev_realloc(brt, brtvd);
+	brt_vdev_realloc(spa, brtvd);
 
 	/* TODO: We don't support VDEV shrinking. */
 	ASSERT3U(bvphys->bvp_size, <=, brtvd->bv_size);
@@ -582,163 +566,176 @@ brt_vdev_load(brt_t *brt, brt_vdev_t *brtvd)
 	/*
 	 * If VDEV grew, we will leave new bv_entcount[] entries zeroed out.
 	 */
-	error = dmu_read(brt->brt_mos, brtvd->bv_mos_brtvdev, 0,
+	error = dmu_read(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 	    MIN(brtvd->bv_size, bvphys->bvp_size) * sizeof (uint16_t),
 	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH);
-	ASSERT0(error);
+	if (error != 0)
+		return (error);
 
+	ASSERT(bvphys->bvp_mos_entries != 0);
+	VERIFY0(dnode_hold(spa->spa_meta_objset, bvphys->bvp_mos_entries, brtvd,
+	    &brtvd->bv_mos_entries_dnode));
+	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = bvphys->bvp_mos_entries;
-	ASSERT(brtvd->bv_mos_entries != 0);
+	rw_exit(&brtvd->bv_mos_entries_lock);
 	brtvd->bv_need_byteswap =
 	    (bvphys->bvp_byteorder != BRT_NATIVE_BYTEORDER);
 	brtvd->bv_totalcount = bvphys->bvp_totalcount;
 	brtvd->bv_usedspace = bvphys->bvp_usedspace;
 	brtvd->bv_savedspace = bvphys->bvp_savedspace;
-	brt->brt_usedspace += brtvd->bv_usedspace;
-	brt->brt_savedspace += brtvd->bv_savedspace;
 
 	dmu_buf_rele(db, FTAG);
 
-	BRT_DEBUG("MOS BRT VDEV %s loaded: mos_brtvdev=%llu, mos_entries=%llu",
-	    name, (u_longlong_t)brtvd->bv_mos_brtvdev,
+	BRT_DEBUG("BRT VDEV %llu loaded: mos_brtvdev=%llu, mos_entries=%llu",
+	    (u_longlong_t)brtvd->bv_vdevid,
+	    (u_longlong_t)brtvd->bv_mos_brtvdev,
 	    (u_longlong_t)brtvd->bv_mos_entries);
+	return (0);
 }
 
 static void
-brt_vdev_dealloc(brt_t *brt, brt_vdev_t *brtvd)
+brt_vdev_dealloc(brt_vdev_t *brtvd)
 {
-
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
+	ASSERT(RW_WRITE_HELD(&brtvd->bv_lock));
 	ASSERT(brtvd->bv_initiated);
+	ASSERT0(avl_numnodes(&brtvd->bv_tree));
 
 	vmem_free(brtvd->bv_entcount, sizeof (uint16_t) * brtvd->bv_size);
 	brtvd->bv_entcount = NULL;
-	kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(brtvd->bv_nblocks));
+	uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+	kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(nblocks));
 	brtvd->bv_bitmap = NULL;
-	ASSERT0(avl_numnodes(&brtvd->bv_tree));
-	avl_destroy(&brtvd->bv_tree);
 
 	brtvd->bv_size = 0;
-	brtvd->bv_nblocks = 0;
 
 	brtvd->bv_initiated = FALSE;
 	BRT_DEBUG("BRT VDEV %llu deallocated.", (u_longlong_t)brtvd->bv_vdevid);
 }
 
 static void
-brt_vdev_destroy(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
+brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
 	char name[64];
 	uint64_t count;
-	dmu_buf_t *db;
-	brt_vdev_phys_t *bvphys;
 
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
+	ASSERT(brtvd->bv_initiated);
 	ASSERT(brtvd->bv_mos_brtvdev != 0);
 	ASSERT(brtvd->bv_mos_entries != 0);
+	ASSERT0(brtvd->bv_totalcount);
+	ASSERT0(brtvd->bv_usedspace);
+	ASSERT0(brtvd->bv_savedspace);
 
-	VERIFY0(zap_count(brt->brt_mos, brtvd->bv_mos_entries, &count));
-	VERIFY0(count);
-	VERIFY0(zap_destroy(brt->brt_mos, brtvd->bv_mos_entries, tx));
-	BRT_DEBUG("MOS entries destroyed, object=%llu",
-	    (u_longlong_t)brtvd->bv_mos_entries);
+	uint64_t mos_entries = brtvd->bv_mos_entries;
+	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = 0;
+	rw_exit(&brtvd->bv_mos_entries_lock);
+	dnode_rele(brtvd->bv_mos_entries_dnode, brtvd);
+	brtvd->bv_mos_entries_dnode = NULL;
+	ASSERT0(zap_count(spa->spa_meta_objset, mos_entries, &count));
+	ASSERT0(count);
+	VERIFY0(zap_destroy(spa->spa_meta_objset, mos_entries, tx));
+	BRT_DEBUG("MOS entries destroyed, object=%llu",
+	    (u_longlong_t)mos_entries);
 
-	VERIFY0(dmu_bonus_hold(brt->brt_mos, brtvd->bv_mos_brtvdev, FTAG, &db));
-	bvphys = db->db_data;
-	ASSERT0(bvphys->bvp_totalcount);
-	ASSERT0(bvphys->bvp_usedspace);
-	ASSERT0(bvphys->bvp_savedspace);
-	dmu_buf_rele(db, FTAG);
-
-	VERIFY0(dmu_object_free(brt->brt_mos, brtvd->bv_mos_brtvdev, tx));
+	VERIFY0(dmu_object_free(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+	    tx));
 	BRT_DEBUG("MOS BRT VDEV destroyed, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_brtvdev);
 	brtvd->bv_mos_brtvdev = 0;
+	brtvd->bv_entcount_dirty = FALSE;
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
-	VERIFY0(zap_remove(brt->brt_mos, DMU_POOL_DIRECTORY_OBJECT, name, tx));
+	VERIFY0(zap_remove(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    name, tx));
 	BRT_DEBUG("Pool directory object removed, object=%s", name);
 
-	brt_vdev_dealloc(brt, brtvd);
+	brtvd->bv_meta_dirty = FALSE;
 
-	spa_feature_decr(brt->brt_spa, SPA_FEATURE_BLOCK_CLONING, tx);
+	rw_enter(&brtvd->bv_lock, RW_WRITER);
+	brt_vdev_dealloc(brtvd);
+	rw_exit(&brtvd->bv_lock);
+
+	spa_feature_decr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
 }
 
 static void
-brt_vdevs_expand(brt_t *brt, uint64_t nvdevs)
+brt_vdevs_expand(spa_t *spa, uint64_t nvdevs)
 {
-	brt_vdev_t *brtvd, *vdevs;
-	uint64_t vdevid;
+	brt_vdev_t **vdevs;
 
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
-	ASSERT3U(nvdevs, >, brt->brt_nvdevs);
+	ASSERT(RW_WRITE_HELD(&spa->spa_brt_lock));
+	ASSERT3U(nvdevs, >=, spa->spa_brt_nvdevs);
 
-	vdevs = kmem_zalloc(sizeof (vdevs[0]) * nvdevs, KM_SLEEP);
-	if (brt->brt_nvdevs > 0) {
-		ASSERT(brt->brt_vdevs != NULL);
+	if (nvdevs == spa->spa_brt_nvdevs)
+		return;
 
-		memcpy(vdevs, brt->brt_vdevs,
-		    sizeof (brt_vdev_t) * brt->brt_nvdevs);
-		kmem_free(brt->brt_vdevs,
-		    sizeof (brt_vdev_t) * brt->brt_nvdevs);
+	vdevs = kmem_zalloc(sizeof (*spa->spa_brt_vdevs) * nvdevs, KM_SLEEP);
+	if (spa->spa_brt_nvdevs > 0) {
+		ASSERT(spa->spa_brt_vdevs != NULL);
+
+		memcpy(vdevs, spa->spa_brt_vdevs,
+		    sizeof (*spa->spa_brt_vdevs) * spa->spa_brt_nvdevs);
+		kmem_free(spa->spa_brt_vdevs,
+		    sizeof (*spa->spa_brt_vdevs) * spa->spa_brt_nvdevs);
 	}
-	for (vdevid = brt->brt_nvdevs; vdevid < nvdevs; vdevid++) {
-		brtvd = &vdevs[vdevid];
+	spa->spa_brt_vdevs = vdevs;
 
+	for (uint64_t vdevid = spa->spa_brt_nvdevs; vdevid < nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = kmem_zalloc(sizeof (*brtvd), KM_SLEEP);
+		rw_init(&brtvd->bv_lock, NULL, RW_DEFAULT, NULL);
 		brtvd->bv_vdevid = vdevid;
 		brtvd->bv_initiated = FALSE;
+		rw_init(&brtvd->bv_mos_entries_lock, NULL, RW_DEFAULT, NULL);
+		avl_create(&brtvd->bv_tree, brt_entry_compare,
+		    sizeof (brt_entry_t), offsetof(brt_entry_t, bre_node));
+		for (int i = 0; i < TXG_SIZE; i++) {
+			avl_create(&brtvd->bv_pending_tree[i],
+			    brt_entry_compare, sizeof (brt_entry_t),
+			    offsetof(brt_entry_t, bre_node));
+		}
+		mutex_init(&brtvd->bv_pending_lock, NULL, MUTEX_DEFAULT, NULL);
+		spa->spa_brt_vdevs[vdevid] = brtvd;
 	}
 
 	BRT_DEBUG("BRT VDEVs expanded from %llu to %llu.",
-	    (u_longlong_t)brt->brt_nvdevs, (u_longlong_t)nvdevs);
-
-	brt->brt_vdevs = vdevs;
-	brt->brt_nvdevs = nvdevs;
+	    (u_longlong_t)spa->spa_brt_nvdevs, (u_longlong_t)nvdevs);
+	spa->spa_brt_nvdevs = nvdevs;
 }
 
 static boolean_t
-brt_vdev_lookup(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre)
+brt_vdev_lookup(spa_t *spa, brt_vdev_t *brtvd, uint64_t offset)
 {
-	uint64_t idx;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-
-	idx = bre->bre_offset / brt->brt_rangesize;
-	if (brtvd->bv_entcount != NULL && idx < brtvd->bv_size) {
+	uint64_t idx = offset / spa->spa_brt_rangesize;
+	if (idx < brtvd->bv_size) {
 		/* VDEV wasn't expanded. */
 		return (brt_vdev_entcount_get(brtvd, idx) > 0);
 	}
-
 	return (FALSE);
 }
 
 static void
-brt_vdev_addref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
-    uint64_t dsize)
+brt_vdev_addref(spa_t *spa, brt_vdev_t *brtvd, const brt_entry_t *bre,
+    uint64_t dsize, uint64_t count)
 {
 	uint64_t idx;
 
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-	ASSERT(brtvd != NULL);
-	ASSERT(brtvd->bv_entcount != NULL);
+	ASSERT(brtvd->bv_initiated);
 
-	brt->brt_savedspace += dsize;
-	brtvd->bv_savedspace += dsize;
+	brtvd->bv_savedspace += dsize * count;
 	brtvd->bv_meta_dirty = TRUE;
 
-	if (bre->bre_refcount > 1) {
+	if (bre->bre_count > 0)
 		return;
-	}
 
-	brt->brt_usedspace += dsize;
 	brtvd->bv_usedspace += dsize;
 
-	idx = bre->bre_offset / brt->brt_rangesize;
+	idx = BRE_OFFSET(bre) / spa->spa_brt_rangesize;
 	if (idx >= brtvd->bv_size) {
 		/* VDEV has been expanded. */
-		brt_vdev_realloc(brt, brtvd);
+		rw_enter(&brtvd->bv_lock, RW_WRITER);
+		brt_vdev_realloc(spa, brtvd);
+		rw_exit(&brtvd->bv_lock);
 	}
 
 	ASSERT3U(idx, <, brtvd->bv_size);
@@ -748,35 +745,26 @@ brt_vdev_addref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	brtvd->bv_entcount_dirty = TRUE;
 	idx = idx / BRT_BLOCKSIZE / 8;
 	BT_SET(brtvd->bv_bitmap, idx);
-
-#ifdef ZFS_DEBUG
-	if (zfs_flags & ZFS_DEBUG_BRT)
-		brt_vdev_dump(brtvd);
-#endif
 }
 
 static void
-brt_vdev_decref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
+brt_vdev_decref(spa_t *spa, brt_vdev_t *brtvd, const brt_entry_t *bre,
     uint64_t dsize)
 {
 	uint64_t idx;
 
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
-	ASSERT(brtvd != NULL);
-	ASSERT(brtvd->bv_entcount != NULL);
+	ASSERT(RW_WRITE_HELD(&brtvd->bv_lock));
+	ASSERT(brtvd->bv_initiated);
 
-	brt->brt_savedspace -= dsize;
 	brtvd->bv_savedspace -= dsize;
 	brtvd->bv_meta_dirty = TRUE;
 
-	if (bre->bre_refcount > 0) {
+	if (bre->bre_count > 0)
 		return;
-	}
 
-	brt->brt_usedspace -= dsize;
 	brtvd->bv_usedspace -= dsize;
 
-	idx = bre->bre_offset / brt->brt_rangesize;
+	idx = BRE_OFFSET(bre) / spa->spa_brt_rangesize;
 	ASSERT3U(idx, <, brtvd->bv_size);
 
 	ASSERT(brtvd->bv_totalcount > 0);
@@ -785,15 +773,10 @@ brt_vdev_decref(brt_t *brt, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	brtvd->bv_entcount_dirty = TRUE;
 	idx = idx / BRT_BLOCKSIZE / 8;
 	BT_SET(brtvd->bv_bitmap, idx);
-
-#ifdef ZFS_DEBUG
-	if (zfs_flags & ZFS_DEBUG_BRT)
-		brt_vdev_dump(brtvd);
-#endif
 }
 
 static void
-brt_vdev_sync(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
+brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
 	brt_vdev_phys_t *bvphys;
@@ -802,16 +785,18 @@ brt_vdev_sync(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	ASSERT(brtvd->bv_mos_brtvdev != 0);
 	ASSERT(dmu_tx_is_syncing(tx));
 
-	VERIFY0(dmu_bonus_hold(brt->brt_mos, brtvd->bv_mos_brtvdev, FTAG, &db));
+	VERIFY0(dmu_bonus_hold(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+	    FTAG, &db));
 
 	if (brtvd->bv_entcount_dirty) {
 		/*
 		 * TODO: Walk brtvd->bv_bitmap and write only the dirty blocks.
 		 */
-		dmu_write(brt->brt_mos, brtvd->bv_mos_brtvdev, 0,
+		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 		    brtvd->bv_size * sizeof (brtvd->bv_entcount[0]),
 		    brtvd->bv_entcount, tx);
-		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(brtvd->bv_nblocks));
+		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;
 	}
 
@@ -825,7 +810,7 @@ brt_vdev_sync(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 		bvphys->bvp_byteorder = BRT_NATIVE_BYTEORDER;
 	}
 	bvphys->bvp_totalcount = brtvd->bv_totalcount;
-	bvphys->bvp_rangesize = brt->brt_rangesize;
+	bvphys->bvp_rangesize = spa->spa_brt_rangesize;
 	bvphys->bvp_usedspace = brtvd->bv_usedspace;
 	bvphys->bvp_savedspace = brtvd->bv_savedspace;
 	dmu_buf_rele(db, FTAG);
@@ -834,114 +819,48 @@ brt_vdev_sync(brt_t *brt, brt_vdev_t *brtvd, dmu_tx_t *tx)
 }
 
 static void
-brt_vdevs_alloc(brt_t *brt, boolean_t load)
+brt_vdevs_free(spa_t *spa)
 {
-	brt_vdev_t *brtvd;
-	uint64_t vdevid;
-
-	brt_wlock(brt);
-
-	brt_vdevs_expand(brt, brt->brt_spa->spa_root_vdev->vdev_children);
-
-	if (load) {
-		for (vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-			brtvd = &brt->brt_vdevs[vdevid];
-			ASSERT(brtvd->bv_entcount == NULL);
-
-			brt_vdev_load(brt, brtvd);
-		}
-	}
-
-	if (brt->brt_rangesize == 0) {
-		brt->brt_rangesize = BRT_RANGESIZE;
-	}
-
-	brt_unlock(brt);
-}
-
-static void
-brt_vdevs_free(brt_t *brt)
-{
-	brt_vdev_t *brtvd;
-	uint64_t vdevid;
-
-	brt_wlock(brt);
-
-	for (vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-		brtvd = &brt->brt_vdevs[vdevid];
+	if (spa->spa_brt_vdevs == 0)
+		return;
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		rw_enter(&brtvd->bv_lock, RW_WRITER);
 		if (brtvd->bv_initiated)
-			brt_vdev_dealloc(brt, brtvd);
+			brt_vdev_dealloc(brtvd);
+		rw_exit(&brtvd->bv_lock);
+		rw_destroy(&brtvd->bv_lock);
+		if (brtvd->bv_mos_entries != 0)
+			dnode_rele(brtvd->bv_mos_entries_dnode, brtvd);
+		rw_destroy(&brtvd->bv_mos_entries_lock);
+		avl_destroy(&brtvd->bv_tree);
+		for (int i = 0; i < TXG_SIZE; i++)
+			avl_destroy(&brtvd->bv_pending_tree[i]);
+		mutex_destroy(&brtvd->bv_pending_lock);
+		kmem_free(brtvd, sizeof (*brtvd));
 	}
-	kmem_free(brt->brt_vdevs, sizeof (brt_vdev_t) * brt->brt_nvdevs);
-
-	brt_unlock(brt);
+	kmem_free(spa->spa_brt_vdevs, sizeof (*spa->spa_brt_vdevs) *
+	    spa->spa_brt_nvdevs);
 }
 
 static void
 brt_entry_fill(const blkptr_t *bp, brt_entry_t *bre, uint64_t *vdevidp)
 {
 
-	bre->bre_offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
-	bre->bre_refcount = 0;
+	bre->bre_bp = *bp;
+	bre->bre_count = 0;
+	bre->bre_pcount = 0;
 
 	*vdevidp = DVA_GET_VDEV(&bp->blk_dva[0]);
 }
 
 static int
-brt_entry_compare(const void *x1, const void *x2)
+brt_entry_lookup(brt_vdev_t *brtvd, brt_entry_t *bre)
 {
-	const brt_entry_t *bre1 = x1;
-	const brt_entry_t *bre2 = x2;
+	uint64_t off = BRE_OFFSET(bre);
 
-	return (TREE_CMP(bre1->bre_offset, bre2->bre_offset));
-}
-
-static int
-brt_entry_lookup(brt_t *brt, brt_vdev_t *brtvd, brt_entry_t *bre)
-{
-	uint64_t mos_entries;
-	int error;
-
-	ASSERT(RW_LOCK_HELD(&brt->brt_lock));
-
-	if (!brt_vdev_lookup(brt, brtvd, bre))
-		return (SET_ERROR(ENOENT));
-
-	/*
-	 * Remember mos_entries object number. After we reacquire the BRT lock,
-	 * the brtvd pointer may be invalid.
-	 */
-	mos_entries = brtvd->bv_mos_entries;
-	if (mos_entries == 0)
-		return (SET_ERROR(ENOENT));
-
-	brt_unlock(brt);
-
-	error = zap_lookup_uint64(brt->brt_mos, mos_entries, &bre->bre_offset,
-	    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount), &bre->bre_refcount);
-
-	brt_wlock(brt);
-
-	return (error);
-}
-
-static void
-brt_entry_prefetch(brt_t *brt, uint64_t vdevid, brt_entry_t *bre)
-{
-	brt_vdev_t *brtvd;
-	uint64_t mos_entries = 0;
-
-	brt_rlock(brt);
-	brtvd = brt_vdev(brt, vdevid);
-	if (brtvd != NULL)
-		mos_entries = brtvd->bv_mos_entries;
-	brt_unlock(brt);
-
-	if (mos_entries == 0)
-		return;
-
-	(void) zap_prefetch_uint64(brt->brt_mos, mos_entries,
-	    (uint64_t *)&bre->bre_offset, BRT_KEY_WORDS);
+	return (zap_lookup_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
+	    &off, BRT_KEY_WORDS, 1, sizeof (bre->bre_count), &bre->bre_count));
 }
 
 /*
@@ -952,72 +871,66 @@ brt_entry_prefetch(brt_t *brt, uint64_t vdevid, brt_entry_t *bre)
 boolean_t
 brt_maybe_exists(spa_t *spa, const blkptr_t *bp)
 {
-	brt_t *brt = spa->spa_brt;
-	brt_vdev_t *brtvd;
-	brt_entry_t bre_search;
-	boolean_t mayexists = FALSE;
-	uint64_t vdevid;
 
-	brt_entry_fill(bp, &bre_search, &vdevid);
+	if (spa->spa_brt_nvdevs == 0)
+		return (B_FALSE);
 
-	brt_rlock(brt);
+	uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[0]);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
+	if (brtvd == NULL || !brtvd->bv_initiated)
+		return (FALSE);
 
-	brtvd = brt_vdev(brt, vdevid);
-	if (brtvd != NULL && brtvd->bv_initiated) {
-		if (!avl_is_empty(&brtvd->bv_tree) ||
-		    brt_vdev_lookup(brt, brtvd, &bre_search)) {
-			mayexists = TRUE;
-		}
-	}
-
-	brt_unlock(brt);
-
-	return (mayexists);
+	/*
+	 * We don't need locks here, since bv_entcount pointer must be
+	 * stable at this point, and we don't care about false positive
+	 * races here, while false negative should be impossible, since
+	 * all brt_vdev_addref() have already completed by this point.
+	 */
+	uint64_t off = DVA_GET_OFFSET(&bp->blk_dva[0]);
+	return (brt_vdev_lookup(spa, brtvd, off));
 }
 
 uint64_t
 brt_get_dspace(spa_t *spa)
 {
-	brt_t *brt = spa->spa_brt;
-
-	if (brt == NULL)
+	if (spa->spa_brt_nvdevs == 0)
 		return (0);
 
-	return (brt->brt_savedspace);
+	brt_rlock(spa);
+	uint64_t s = 0;
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++)
+		s += spa->spa_brt_vdevs[vdevid]->bv_savedspace;
+	brt_unlock(spa);
+	return (s);
 }
 
 uint64_t
 brt_get_used(spa_t *spa)
 {
-	brt_t *brt = spa->spa_brt;
-
-	if (brt == NULL)
+	if (spa->spa_brt_nvdevs == 0)
 		return (0);
 
-	return (brt->brt_usedspace);
+	brt_rlock(spa);
+	uint64_t s = 0;
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++)
+		s += spa->spa_brt_vdevs[vdevid]->bv_usedspace;
+	brt_unlock(spa);
+	return (s);
 }
 
 uint64_t
 brt_get_saved(spa_t *spa)
 {
-	brt_t *brt = spa->spa_brt;
-
-	if (brt == NULL)
-		return (0);
-
-	return (brt->brt_savedspace);
+	return (brt_get_dspace(spa));
 }
 
 uint64_t
 brt_get_ratio(spa_t *spa)
 {
-	brt_t *brt = spa->spa_brt;
-
-	if (brt->brt_usedspace == 0)
+	uint64_t used = brt_get_used(spa);
+	if (used == 0)
 		return (100);
-
-	return ((brt->brt_usedspace + brt->brt_savedspace) * 100 /
-	    brt->brt_usedspace);
+	return ((used + brt_get_saved(spa)) * 100 / used);
 }
 
 static int
@@ -1028,22 +941,16 @@ brt_kstats_update(kstat_t *ksp, int rw)
 	if (rw == KSTAT_WRITE)
 		return (EACCES);
 
-	bs->brt_addref_entry_in_memory.value.ui64 =
-	    wmsum_value(&brt_sums.brt_addref_entry_in_memory);
 	bs->brt_addref_entry_not_on_disk.value.ui64 =
 	    wmsum_value(&brt_sums.brt_addref_entry_not_on_disk);
 	bs->brt_addref_entry_on_disk.value.ui64 =
 	    wmsum_value(&brt_sums.brt_addref_entry_on_disk);
-	bs->brt_addref_entry_read_lost_race.value.ui64 =
-	    wmsum_value(&brt_sums.brt_addref_entry_read_lost_race);
 	bs->brt_decref_entry_in_memory.value.ui64 =
 	    wmsum_value(&brt_sums.brt_decref_entry_in_memory);
 	bs->brt_decref_entry_loaded_from_disk.value.ui64 =
 	    wmsum_value(&brt_sums.brt_decref_entry_loaded_from_disk);
 	bs->brt_decref_entry_not_in_memory.value.ui64 =
 	    wmsum_value(&brt_sums.brt_decref_entry_not_in_memory);
-	bs->brt_decref_entry_not_on_disk.value.ui64 =
-	    wmsum_value(&brt_sums.brt_decref_entry_not_on_disk);
 	bs->brt_decref_entry_read_lost_race.value.ui64 =
 	    wmsum_value(&brt_sums.brt_decref_entry_read_lost_race);
 	bs->brt_decref_entry_still_referenced.value.ui64 =
@@ -1062,14 +969,11 @@ static void
 brt_stat_init(void)
 {
 
-	wmsum_init(&brt_sums.brt_addref_entry_in_memory, 0);
 	wmsum_init(&brt_sums.brt_addref_entry_not_on_disk, 0);
 	wmsum_init(&brt_sums.brt_addref_entry_on_disk, 0);
-	wmsum_init(&brt_sums.brt_addref_entry_read_lost_race, 0);
 	wmsum_init(&brt_sums.brt_decref_entry_in_memory, 0);
 	wmsum_init(&brt_sums.brt_decref_entry_loaded_from_disk, 0);
 	wmsum_init(&brt_sums.brt_decref_entry_not_in_memory, 0);
-	wmsum_init(&brt_sums.brt_decref_entry_not_on_disk, 0);
 	wmsum_init(&brt_sums.brt_decref_entry_read_lost_race, 0);
 	wmsum_init(&brt_sums.brt_decref_entry_still_referenced, 0);
 	wmsum_init(&brt_sums.brt_decref_free_data_later, 0);
@@ -1093,14 +997,11 @@ brt_stat_fini(void)
 		brt_ksp = NULL;
 	}
 
-	wmsum_fini(&brt_sums.brt_addref_entry_in_memory);
 	wmsum_fini(&brt_sums.brt_addref_entry_not_on_disk);
 	wmsum_fini(&brt_sums.brt_addref_entry_on_disk);
-	wmsum_fini(&brt_sums.brt_addref_entry_read_lost_race);
 	wmsum_fini(&brt_sums.brt_decref_entry_in_memory);
 	wmsum_fini(&brt_sums.brt_decref_entry_loaded_from_disk);
 	wmsum_fini(&brt_sums.brt_decref_entry_not_in_memory);
-	wmsum_fini(&brt_sums.brt_decref_entry_not_on_disk);
 	wmsum_fini(&brt_sums.brt_decref_entry_read_lost_race);
 	wmsum_fini(&brt_sums.brt_decref_entry_still_referenced);
 	wmsum_fini(&brt_sums.brt_decref_free_data_later);
@@ -1113,8 +1014,6 @@ brt_init(void)
 {
 	brt_entry_cache = kmem_cache_create("brt_entry_cache",
 	    sizeof (brt_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
-	brt_pending_entry_cache = kmem_cache_create("brt_pending_entry_cache",
-	    sizeof (brt_pending_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	brt_stat_init();
 }
@@ -1125,105 +1024,12 @@ brt_fini(void)
 	brt_stat_fini();
 
 	kmem_cache_destroy(brt_entry_cache);
-	kmem_cache_destroy(brt_pending_entry_cache);
-}
-
-static brt_entry_t *
-brt_entry_alloc(const brt_entry_t *bre_init)
-{
-	brt_entry_t *bre;
-
-	bre = kmem_cache_alloc(brt_entry_cache, KM_SLEEP);
-	bre->bre_offset = bre_init->bre_offset;
-	bre->bre_refcount = bre_init->bre_refcount;
-
-	return (bre);
-}
-
-static void
-brt_entry_free(brt_entry_t *bre)
-{
-
-	kmem_cache_free(brt_entry_cache, bre);
-}
-
-static void
-brt_entry_addref(brt_t *brt, const blkptr_t *bp)
-{
-	brt_vdev_t *brtvd;
-	brt_entry_t *bre, *racebre;
-	brt_entry_t bre_search;
-	avl_index_t where;
-	uint64_t vdevid;
-	int error;
-
-	ASSERT(!RW_WRITE_HELD(&brt->brt_lock));
-
-	brt_entry_fill(bp, &bre_search, &vdevid);
-
-	brt_wlock(brt);
-
-	brtvd = brt_vdev(brt, vdevid);
-	if (brtvd == NULL) {
-		ASSERT3U(vdevid, >=, brt->brt_nvdevs);
-
-		/* New VDEV was added. */
-		brt_vdevs_expand(brt, vdevid + 1);
-		brtvd = brt_vdev(brt, vdevid);
-	}
-	ASSERT(brtvd != NULL);
-	if (!brtvd->bv_initiated)
-		brt_vdev_realloc(brt, brtvd);
-
-	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
-	if (bre != NULL) {
-		BRTSTAT_BUMP(brt_addref_entry_in_memory);
-	} else {
-		/*
-		 * brt_entry_lookup() may drop the BRT (read) lock and
-		 * reacquire it (write).
-		 */
-		error = brt_entry_lookup(brt, brtvd, &bre_search);
-		/* bre_search now contains correct bre_refcount */
-		ASSERT(error == 0 || error == ENOENT);
-		if (error == 0)
-			BRTSTAT_BUMP(brt_addref_entry_on_disk);
-		else
-			BRTSTAT_BUMP(brt_addref_entry_not_on_disk);
-		/*
-		 * When the BRT lock was dropped, brt_vdevs[] may have been
-		 * expanded and reallocated, we need to update brtvd's pointer.
-		 */
-		brtvd = brt_vdev(brt, vdevid);
-		ASSERT(brtvd != NULL);
-
-		racebre = avl_find(&brtvd->bv_tree, &bre_search, &where);
-		if (racebre == NULL) {
-			bre = brt_entry_alloc(&bre_search);
-			ASSERT(RW_WRITE_HELD(&brt->brt_lock));
-			avl_insert(&brtvd->bv_tree, bre, where);
-			brt->brt_nentries++;
-		} else {
-			/*
-			 * The entry was added when the BRT lock was dropped in
-			 * brt_entry_lookup().
-			 */
-			BRTSTAT_BUMP(brt_addref_entry_read_lost_race);
-			bre = racebre;
-		}
-	}
-	bre->bre_refcount++;
-	brt_vdev_addref(brt, brtvd, bre, bp_get_dsize(brt->brt_spa, bp));
-
-	brt_unlock(brt);
 }
 
 /* Return TRUE if block should be freed immediately. */
 boolean_t
 brt_entry_decref(spa_t *spa, const blkptr_t *bp)
 {
-	brt_t *brt = spa->spa_brt;
-	brt_vdev_t *brtvd;
 	brt_entry_t *bre, *racebre;
 	brt_entry_t bre_search;
 	avl_index_t where;
@@ -1232,11 +1038,11 @@ brt_entry_decref(spa_t *spa, const blkptr_t *bp)
 
 	brt_entry_fill(bp, &bre_search, &vdevid);
 
-	brt_wlock(brt);
-
-	brtvd = brt_vdev(brt, vdevid);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
 	ASSERT(brtvd != NULL);
 
+	rw_enter(&brtvd->bv_lock, RW_WRITER);
+	ASSERT(brtvd->bv_initiated);
 	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
 	if (bre != NULL) {
 		BRTSTAT_BUMP(brt_decref_entry_in_memory);
@@ -1244,67 +1050,49 @@ brt_entry_decref(spa_t *spa, const blkptr_t *bp)
 	} else {
 		BRTSTAT_BUMP(brt_decref_entry_not_in_memory);
 	}
+	rw_exit(&brtvd->bv_lock);
 
-	/*
-	 * brt_entry_lookup() may drop the BRT lock and reacquire it.
-	 */
-	error = brt_entry_lookup(brt, brtvd, &bre_search);
-	/* bre_search now contains correct bre_refcount */
-	ASSERT(error == 0 || error == ENOENT);
-	/*
-	 * When the BRT lock was dropped, brt_vdevs[] may have been expanded
-	 * and reallocated, we need to update brtvd's pointer.
-	 */
-	brtvd = brt_vdev(brt, vdevid);
-	ASSERT(brtvd != NULL);
-
+	error = brt_entry_lookup(brtvd, &bre_search);
+	/* bre_search now contains correct bre_count */
 	if (error == ENOENT) {
-		BRTSTAT_BUMP(brt_decref_entry_not_on_disk);
-		bre = NULL;
-		goto out;
+		BRTSTAT_BUMP(brt_decref_no_entry);
+		return (B_TRUE);
 	}
+	ASSERT0(error);
 
+	rw_enter(&brtvd->bv_lock, RW_WRITER);
 	racebre = avl_find(&brtvd->bv_tree, &bre_search, &where);
 	if (racebre != NULL) {
-		/*
-		 * The entry was added when the BRT lock was dropped in
-		 * brt_entry_lookup().
-		 */
+		/* The entry was added when the lock was dropped. */
 		BRTSTAT_BUMP(brt_decref_entry_read_lost_race);
 		bre = racebre;
 		goto out;
 	}
 
 	BRTSTAT_BUMP(brt_decref_entry_loaded_from_disk);
-	bre = brt_entry_alloc(&bre_search);
-	ASSERT(RW_WRITE_HELD(&brt->brt_lock));
+	bre = kmem_cache_alloc(brt_entry_cache, KM_SLEEP);
+	bre->bre_bp = bre_search.bre_bp;
+	bre->bre_count = bre_search.bre_count;
+	bre->bre_pcount = 0;
 	avl_insert(&brtvd->bv_tree, bre, where);
-	brt->brt_nentries++;
 
 out:
-	if (bre == NULL) {
-		/*
-		 * This is a free of a regular (not cloned) block.
-		 */
-		brt_unlock(brt);
-		BRTSTAT_BUMP(brt_decref_no_entry);
-		return (B_TRUE);
-	}
-	if (bre->bre_refcount == 0) {
-		brt_unlock(brt);
+	if (bre->bre_count == 0) {
+		rw_exit(&brtvd->bv_lock);
 		BRTSTAT_BUMP(brt_decref_free_data_now);
 		return (B_TRUE);
 	}
 
-	ASSERT(bre->bre_refcount > 0);
-	bre->bre_refcount--;
-	if (bre->bre_refcount == 0)
+	bre->bre_pcount--;
+	ASSERT(bre->bre_count > 0);
+	bre->bre_count--;
+	if (bre->bre_count == 0)
 		BRTSTAT_BUMP(brt_decref_free_data_later);
 	else
 		BRTSTAT_BUMP(brt_decref_entry_still_referenced);
-	brt_vdev_decref(brt, brtvd, bre, bp_get_dsize(brt->brt_spa, bp));
+	brt_vdev_decref(spa, brtvd, bre, bp_get_dsize_sync(spa, bp));
 
-	brt_unlock(brt);
+	rw_exit(&brtvd->bv_lock);
 
 	return (B_FALSE);
 }
@@ -1312,222 +1100,259 @@ out:
 uint64_t
 brt_entry_get_refcount(spa_t *spa, const blkptr_t *bp)
 {
-	brt_t *brt = spa->spa_brt;
-	brt_vdev_t *brtvd;
 	brt_entry_t bre_search, *bre;
 	uint64_t vdevid, refcnt;
 	int error;
 
 	brt_entry_fill(bp, &bre_search, &vdevid);
 
-	brt_rlock(brt);
-
-	brtvd = brt_vdev(brt, vdevid);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
 	ASSERT(brtvd != NULL);
 
+	rw_enter(&brtvd->bv_lock, RW_READER);
+	ASSERT(brtvd->bv_initiated);
 	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
 	if (bre == NULL) {
-		error = brt_entry_lookup(brt, brtvd, &bre_search);
-		ASSERT(error == 0 || error == ENOENT);
-		if (error == ENOENT)
+		rw_exit(&brtvd->bv_lock);
+		error = brt_entry_lookup(brtvd, &bre_search);
+		if (error == ENOENT) {
 			refcnt = 0;
-		else
-			refcnt = bre_search.bre_refcount;
-	} else
-		refcnt = bre->bre_refcount;
+		} else {
+			ASSERT0(error);
+			refcnt = bre_search.bre_count;
+		}
+	} else {
+		refcnt = bre->bre_count;
+		rw_exit(&brtvd->bv_lock);
+	}
 
-	brt_unlock(brt);
 	return (refcnt);
 }
 
 static void
-brt_prefetch(brt_t *brt, const blkptr_t *bp)
+brt_prefetch(brt_vdev_t *brtvd, const blkptr_t *bp)
 {
-	brt_entry_t bre;
-	uint64_t vdevid;
-
-	ASSERT(bp != NULL);
-
-	if (!brt_zap_prefetch)
+	if (!brt_zap_prefetch || brtvd->bv_mos_entries == 0)
 		return;
 
-	brt_entry_fill(bp, &bre, &vdevid);
-
-	brt_entry_prefetch(brt, vdevid, &bre);
+	uint64_t off = DVA_GET_OFFSET(&bp->blk_dva[0]);
+	rw_enter(&brtvd->bv_mos_entries_lock, RW_READER);
+	if (brtvd->bv_mos_entries != 0) {
+		(void) zap_prefetch_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
+		    &off, BRT_KEY_WORDS);
+	}
+	rw_exit(&brtvd->bv_mos_entries_lock);
 }
 
 static int
-brt_pending_entry_compare(const void *x1, const void *x2)
+brt_entry_compare(const void *x1, const void *x2)
 {
-	const brt_pending_entry_t *bpe1 = x1, *bpe2 = x2;
-	const blkptr_t *bp1 = &bpe1->bpe_bp, *bp2 = &bpe2->bpe_bp;
-	int cmp;
+	const brt_entry_t *bre1 = x1, *bre2 = x2;
+	const blkptr_t *bp1 = &bre1->bre_bp, *bp2 = &bre2->bre_bp;
 
-	cmp = TREE_CMP(DVA_GET_VDEV(&bp1->blk_dva[0]),
-	    DVA_GET_VDEV(&bp2->blk_dva[0]));
-	if (cmp == 0) {
-		cmp = TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
-		    DVA_GET_OFFSET(&bp2->blk_dva[0]));
-		if (unlikely(cmp == 0)) {
-			cmp = TREE_CMP(BP_GET_BIRTH(bp1), BP_GET_BIRTH(bp2));
-		}
-	}
-
-	return (cmp);
+	return (TREE_CMP(DVA_GET_OFFSET(&bp1->blk_dva[0]),
+	    DVA_GET_OFFSET(&bp2->blk_dva[0])));
 }
 
 void
 brt_pending_add(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	brt_t *brt;
-	avl_tree_t *pending_tree;
-	kmutex_t *pending_lock;
-	brt_pending_entry_t *bpe, *newbpe;
+	brt_entry_t *bre, *newbre;
 	avl_index_t where;
 	uint64_t txg;
 
-	brt = spa->spa_brt;
 	txg = dmu_tx_get_txg(tx);
 	ASSERT3U(txg, !=, 0);
-	pending_tree = &brt->brt_pending_tree[txg & TXG_MASK];
-	pending_lock = &brt->brt_pending_lock[txg & TXG_MASK];
 
-	newbpe = kmem_cache_alloc(brt_pending_entry_cache, KM_SLEEP);
-	newbpe->bpe_bp = *bp;
-	newbpe->bpe_count = 1;
+	uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[0]);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_TRUE);
+	avl_tree_t *pending_tree = &brtvd->bv_pending_tree[txg & TXG_MASK];
 
-	mutex_enter(pending_lock);
+	newbre = kmem_cache_alloc(brt_entry_cache, KM_SLEEP);
+	newbre->bre_bp = *bp;
+	newbre->bre_count = 0;
+	newbre->bre_pcount = 1;
 
-	bpe = avl_find(pending_tree, newbpe, &where);
-	if (bpe == NULL) {
-		avl_insert(pending_tree, newbpe, where);
-		newbpe = NULL;
+	mutex_enter(&brtvd->bv_pending_lock);
+	bre = avl_find(pending_tree, newbre, &where);
+	if (bre == NULL) {
+		avl_insert(pending_tree, newbre, where);
+		newbre = NULL;
 	} else {
-		bpe->bpe_count++;
+		bre->bre_pcount++;
 	}
+	mutex_exit(&brtvd->bv_pending_lock);
 
-	mutex_exit(pending_lock);
-
-	if (newbpe != NULL) {
-		ASSERT(bpe != NULL);
-		ASSERT(bpe != newbpe);
-		kmem_cache_free(brt_pending_entry_cache, newbpe);
+	if (newbre != NULL) {
+		ASSERT(bre != NULL);
+		ASSERT(bre != newbre);
+		kmem_cache_free(brt_entry_cache, newbre);
 	} else {
-		ASSERT(bpe == NULL);
+		ASSERT0P(bre);
 
 		/* Prefetch BRT entry for the syncing context. */
-		brt_prefetch(brt, bp);
+		brt_prefetch(brtvd, bp);
 	}
 }
 
 void
 brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 {
-	brt_t *brt;
-	avl_tree_t *pending_tree;
-	kmutex_t *pending_lock;
-	brt_pending_entry_t *bpe, bpe_search;
+	brt_entry_t *bre, bre_search;
 	uint64_t txg;
 
-	brt = spa->spa_brt;
 	txg = dmu_tx_get_txg(tx);
 	ASSERT3U(txg, !=, 0);
-	pending_tree = &brt->brt_pending_tree[txg & TXG_MASK];
-	pending_lock = &brt->brt_pending_lock[txg & TXG_MASK];
 
-	bpe_search.bpe_bp = *bp;
+	uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[0]);
+	brt_vdev_t *brtvd = brt_vdev(spa, vdevid, B_FALSE);
+	ASSERT(brtvd != NULL);
+	avl_tree_t *pending_tree = &brtvd->bv_pending_tree[txg & TXG_MASK];
 
-	mutex_enter(pending_lock);
+	bre_search.bre_bp = *bp;
 
-	bpe = avl_find(pending_tree, &bpe_search, NULL);
-	/* I believe we should always find bpe when this function is called. */
-	if (bpe != NULL) {
-		ASSERT(bpe->bpe_count > 0);
+	mutex_enter(&brtvd->bv_pending_lock);
+	bre = avl_find(pending_tree, &bre_search, NULL);
+	ASSERT(bre != NULL);
+	ASSERT(bre->bre_pcount > 0);
+	bre->bre_pcount--;
+	if (bre->bre_pcount == 0)
+		avl_remove(pending_tree, bre);
+	else
+		bre = NULL;
+	mutex_exit(&brtvd->bv_pending_lock);
 
-		bpe->bpe_count--;
-		if (bpe->bpe_count == 0) {
-			avl_remove(pending_tree, bpe);
-			kmem_cache_free(brt_pending_entry_cache, bpe);
+	if (bre)
+		kmem_cache_free(brt_entry_cache, bre);
+}
+
+static void
+brt_pending_apply_vdev(spa_t *spa, brt_vdev_t *brtvd, uint64_t txg)
+{
+	brt_entry_t *bre, *nbre;
+
+	/*
+	 * We are in syncing context, so no other bv_pending_tree accesses
+	 * are possible for the TXG.  So we don't need bv_pending_lock.
+	 */
+	ASSERT(avl_is_empty(&brtvd->bv_tree));
+	avl_swap(&brtvd->bv_tree, &brtvd->bv_pending_tree[txg & TXG_MASK]);
+
+	for (bre = avl_first(&brtvd->bv_tree); bre; bre = nbre) {
+		nbre = AVL_NEXT(&brtvd->bv_tree, bre);
+
+		/*
+		 * If the block has DEDUP bit set, it means that it
+		 * already exists in the DEDUP table, so we can just
+		 * use that instead of creating new entry in the BRT.
+		 */
+		if (BP_GET_DEDUP(&bre->bre_bp)) {
+			while (bre->bre_pcount > 0) {
+				if (!ddt_addref(spa, &bre->bre_bp))
+					break;
+				bre->bre_pcount--;
+			}
+			if (bre->bre_pcount == 0) {
+				avl_remove(&brtvd->bv_tree, bre);
+				kmem_cache_free(brt_entry_cache, bre);
+				continue;
+			}
+		}
+
+		/*
+		 * Unless we know that the block is definitely not in ZAP,
+		 * try to get its reference count from there.
+		 */
+		uint64_t off = BRE_OFFSET(bre);
+		if (brtvd->bv_mos_entries != 0 &&
+		    brt_vdev_lookup(spa, brtvd, off)) {
+			int error = zap_lookup_uint64_by_dnode(
+			    brtvd->bv_mos_entries_dnode, &off,
+			    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
+			    &bre->bre_count);
+			if (error == 0) {
+				BRTSTAT_BUMP(brt_addref_entry_on_disk);
+			} else {
+				ASSERT3U(error, ==, ENOENT);
+				BRTSTAT_BUMP(brt_addref_entry_not_on_disk);
+			}
 		}
 	}
 
-	mutex_exit(pending_lock);
+	/*
+	 * If all the cloned blocks we had were handled by DDT, we don't need
+	 * to initiate the vdev.
+	 */
+	if (avl_is_empty(&brtvd->bv_tree))
+		return;
+
+	if (!brtvd->bv_initiated) {
+		rw_enter(&brtvd->bv_lock, RW_WRITER);
+		brt_vdev_realloc(spa, brtvd);
+		rw_exit(&brtvd->bv_lock);
+	}
+
+	/*
+	 * Convert pending references into proper ones.  This has to be a
+	 * separate loop, since entcount modifications would cause false
+	 * positives for brt_vdev_lookup() on following iterations.
+	 */
+	for (bre = avl_first(&brtvd->bv_tree); bre;
+	    bre = AVL_NEXT(&brtvd->bv_tree, bre)) {
+		brt_vdev_addref(spa, brtvd, bre,
+		    bp_get_dsize(spa, &bre->bre_bp), bre->bre_pcount);
+		bre->bre_count += bre->bre_pcount;
+	}
 }
 
 void
 brt_pending_apply(spa_t *spa, uint64_t txg)
 {
-	brt_t *brt = spa->spa_brt;
-	brt_pending_entry_t *bpe;
-	avl_tree_t *pending_tree;
-	void *c;
 
-	ASSERT3U(txg, !=, 0);
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		brt_unlock(spa);
 
-	/*
-	 * We are in syncing context, so no other brt_pending_tree accesses
-	 * are possible for the TXG. Don't need to acquire brt_pending_lock.
-	 */
-	pending_tree = &brt->brt_pending_tree[txg & TXG_MASK];
+		brt_pending_apply_vdev(spa, brtvd, txg);
 
-	c = NULL;
-	while ((bpe = avl_destroy_nodes(pending_tree, &c)) != NULL) {
-		boolean_t added_to_ddt;
-
-		for (int i = 0; i < bpe->bpe_count; i++) {
-			/*
-			 * If the block has DEDUP bit set, it means that it
-			 * already exists in the DEDUP table, so we can just
-			 * use that instead of creating new entry in
-			 * the BRT table.
-			 */
-			if (BP_GET_DEDUP(&bpe->bpe_bp)) {
-				added_to_ddt = ddt_addref(spa, &bpe->bpe_bp);
-			} else {
-				added_to_ddt = B_FALSE;
-			}
-			if (!added_to_ddt)
-				brt_entry_addref(brt, &bpe->bpe_bp);
-		}
-
-		kmem_cache_free(brt_pending_entry_cache, bpe);
+		brt_rlock(spa);
 	}
+	brt_unlock(spa);
 }
 
 static void
 brt_sync_entry(dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 {
-	if (bre->bre_refcount == 0) {
-		int error = zap_remove_uint64_by_dnode(dn, &bre->bre_offset,
+	uint64_t off = BRE_OFFSET(bre);
+
+	if (bre->bre_pcount == 0) {
+		/* The net change is zero, nothing to do in ZAP. */
+	} else if (bre->bre_count == 0) {
+		int error = zap_remove_uint64_by_dnode(dn, &off,
 		    BRT_KEY_WORDS, tx);
 		VERIFY(error == 0 || error == ENOENT);
 	} else {
-		VERIFY0(zap_update_uint64_by_dnode(dn, &bre->bre_offset,
-		    BRT_KEY_WORDS, 1, sizeof (bre->bre_refcount),
-		    &bre->bre_refcount, tx));
+		VERIFY0(zap_update_uint64_by_dnode(dn, &off,
+		    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
+		    &bre->bre_count, tx));
 	}
 }
 
 static void
-brt_sync_table(brt_t *brt, dmu_tx_t *tx)
+brt_sync_table(spa_t *spa, dmu_tx_t *tx)
 {
-	brt_vdev_t *brtvd;
 	brt_entry_t *bre;
-	dnode_t *dn;
-	uint64_t vdevid;
-	void *c;
 
-	brt_wlock(brt);
-
-	for (vdevid = 0; vdevid < brt->brt_nvdevs; vdevid++) {
-		brtvd = &brt->brt_vdevs[vdevid];
-
-		if (!brtvd->bv_initiated)
-			continue;
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		brt_unlock(spa);
 
 		if (!brtvd->bv_meta_dirty) {
 			ASSERT(!brtvd->bv_entcount_dirty);
 			ASSERT0(avl_numnodes(&brtvd->bv_tree));
+			brt_rlock(spa);
 			continue;
 		}
 
@@ -1535,139 +1360,122 @@ brt_sync_table(brt_t *brt, dmu_tx_t *tx)
 		    avl_numnodes(&brtvd->bv_tree) != 0);
 
 		if (brtvd->bv_mos_brtvdev == 0)
-			brt_vdev_create(brt, brtvd, tx);
+			brt_vdev_create(spa, brtvd, tx);
 
-		VERIFY0(dnode_hold(brt->brt_mos, brtvd->bv_mos_entries,
-		    FTAG, &dn));
-
-		c = NULL;
+		void *c = NULL;
 		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(dn, bre, tx);
-			brt_entry_free(bre);
-			ASSERT(brt->brt_nentries > 0);
-			brt->brt_nentries--;
+			brt_sync_entry(brtvd->bv_mos_entries_dnode, bre, tx);
+			kmem_cache_free(brt_entry_cache, bre);
 		}
 
-		dnode_rele(dn, FTAG);
-
-		brt_vdev_sync(brt, brtvd, tx);
-
+#ifdef ZFS_DEBUG
+		if (zfs_flags & ZFS_DEBUG_BRT)
+			brt_vdev_dump(brtvd);
+#endif
 		if (brtvd->bv_totalcount == 0)
-			brt_vdev_destroy(brt, brtvd, tx);
+			brt_vdev_destroy(spa, brtvd, tx);
+		else
+			brt_vdev_sync(spa, brtvd, tx);
+		brt_rlock(spa);
 	}
-
-	ASSERT0(brt->brt_nentries);
-
-	brt_unlock(brt);
+	brt_unlock(spa);
 }
 
 void
 brt_sync(spa_t *spa, uint64_t txg)
 {
 	dmu_tx_t *tx;
-	brt_t *brt;
+	uint64_t vdevid;
 
-	ASSERT(spa_syncing_txg(spa) == txg);
+	ASSERT3U(spa_syncing_txg(spa), ==, txg);
 
-	brt = spa->spa_brt;
-	brt_rlock(brt);
-	if (brt->brt_nentries == 0) {
-		/* No changes. */
-		brt_unlock(brt);
+	brt_rlock(spa);
+	for (vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		if (spa->spa_brt_vdevs[vdevid]->bv_meta_dirty)
+			break;
+	}
+	if (vdevid >= spa->spa_brt_nvdevs) {
+		brt_unlock(spa);
 		return;
 	}
-	brt_unlock(brt);
+	brt_unlock(spa);
 
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
-
-	brt_sync_table(brt, tx);
-
+	brt_sync_table(spa, tx);
 	dmu_tx_commit(tx);
-}
-
-static void
-brt_table_alloc(brt_t *brt)
-{
-
-	for (int i = 0; i < TXG_SIZE; i++) {
-		avl_create(&brt->brt_pending_tree[i],
-		    brt_pending_entry_compare,
-		    sizeof (brt_pending_entry_t),
-		    offsetof(brt_pending_entry_t, bpe_node));
-		mutex_init(&brt->brt_pending_lock[i], NULL, MUTEX_DEFAULT,
-		    NULL);
-	}
-}
-
-static void
-brt_table_free(brt_t *brt)
-{
-
-	for (int i = 0; i < TXG_SIZE; i++) {
-		ASSERT(avl_is_empty(&brt->brt_pending_tree[i]));
-
-		avl_destroy(&brt->brt_pending_tree[i]);
-		mutex_destroy(&brt->brt_pending_lock[i]);
-	}
 }
 
 static void
 brt_alloc(spa_t *spa)
 {
-	brt_t *brt;
-
-	ASSERT(spa->spa_brt == NULL);
-
-	brt = kmem_zalloc(sizeof (*brt), KM_SLEEP);
-	rw_init(&brt->brt_lock, NULL, RW_DEFAULT, NULL);
-	brt->brt_spa = spa;
-	brt->brt_rangesize = 0;
-	brt->brt_nentries = 0;
-	brt->brt_vdevs = NULL;
-	brt->brt_nvdevs = 0;
-	brt_table_alloc(brt);
-
-	spa->spa_brt = brt;
+	rw_init(&spa->spa_brt_lock, NULL, RW_DEFAULT, NULL);
+	spa->spa_brt_vdevs = NULL;
+	spa->spa_brt_nvdevs = 0;
+	spa->spa_brt_rangesize = 0;
 }
 
 void
 brt_create(spa_t *spa)
 {
-
 	brt_alloc(spa);
-	brt_vdevs_alloc(spa->spa_brt, B_FALSE);
+	spa->spa_brt_rangesize = BRT_RANGESIZE;
 }
 
 int
 brt_load(spa_t *spa)
 {
+	int error = 0;
 
 	brt_alloc(spa);
-	brt_vdevs_alloc(spa->spa_brt, B_TRUE);
+	brt_wlock(spa);
+	for (uint64_t vdevid = 0; vdevid < spa->spa_root_vdev->vdev_children;
+	    vdevid++) {
+		char name[64];
+		uint64_t mos_brtvdev;
 
-	return (0);
+		/* Look if this vdev had active block cloning. */
+		snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
+		    (u_longlong_t)vdevid);
+		error = zap_lookup(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, name, sizeof (uint64_t), 1,
+		    &mos_brtvdev);
+		if (error == ENOENT) {
+			error = 0;
+			continue;
+		}
+		if (error != 0)
+			break;
+
+		/* If it did, then allocate them all and load this one. */
+		brt_vdevs_expand(spa, spa->spa_root_vdev->vdev_children);
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		rw_enter(&brtvd->bv_lock, RW_WRITER);
+		brtvd->bv_mos_brtvdev = mos_brtvdev;
+		error = brt_vdev_load(spa, brtvd);
+		rw_exit(&brtvd->bv_lock);
+		if (error != 0)
+			break;
+	}
+
+	if (spa->spa_brt_rangesize == 0)
+		spa->spa_brt_rangesize = BRT_RANGESIZE;
+	brt_unlock(spa);
+	return (error);
 }
 
 void
 brt_unload(spa_t *spa)
 {
-	brt_t *brt = spa->spa_brt;
-
-	if (brt == NULL)
+	if (spa->spa_brt_rangesize == 0)
 		return;
-
-	brt_vdevs_free(brt);
-	brt_table_free(brt);
-	rw_destroy(&brt->brt_lock);
-	kmem_free(brt, sizeof (*brt));
-	spa->spa_brt = NULL;
+	brt_vdevs_free(spa);
+	rw_destroy(&spa->spa_brt_lock);
+	spa->spa_brt_rangesize = 0;
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_prefetch, INT, ZMOD_RW,
 	"Enable prefetching of BRT ZAP entries");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_bs, UINT, ZMOD_RW,
 	"BRT ZAP leaf blockshift");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_ibs, UINT, ZMOD_RW,
 	"BRT ZAP indirect blockshift");
-/* END CSTYLED */

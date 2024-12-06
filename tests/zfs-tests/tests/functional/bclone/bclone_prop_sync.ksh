@@ -41,9 +41,11 @@ log_must zfs set compress=zle $TESTDSTFS
 
 for prop in "${sync_prop_vals[@]}"; do
     log_must zfs set sync=$prop $TESTSRCFS
+    # 15*8=120, which is greater than 113, so we are sure the data won't
+    # be embedded into BP.
     # 32767*8=262136, which is larger than a single default recordsize of
     # 131072.
-    FILESIZE=$(random_int_between 1 32767)
+    FILESIZE=$(random_int_between 15 32767)
     FILESIZE=$((FILESIZE * 8))
     bclone_test random $FILESIZE false $TESTSRCDIR $TESTSRCDIR
 done
@@ -52,9 +54,11 @@ for srcprop in "${sync_prop_vals[@]}"; do
     log_must zfs set sync=$srcprop $TESTSRCFS
     for dstprop in "${sync_prop_vals[@]}"; do
         log_must zfs set sync=$dstprop $TESTDSTFS
+        # 15*8=120, which is greater than 113, so we are sure the data won't
+        # be embedded into BP.
         # 32767*8=262136, which is larger than a single default recordsize of
         # 131072.
-        FILESIZE=$(random_int_between 1 32767)
+        FILESIZE=$(random_int_between 15 32767)
         FILESIZE=$((FILESIZE * 8))
         bclone_test random $FILESIZE false $TESTSRCDIR $TESTDSTDIR
     done
