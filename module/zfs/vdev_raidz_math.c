@@ -643,8 +643,6 @@ vdev_raidz_impl_get(char *buffer, size_t size)
 	char *fmt;
 	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
 
-	ASSERT(raidz_math_initialized);
-
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(math_impl_opts) - 2; i++) {
 		fmt = (impl == math_impl_opts[i].sel) ? "[%s] " : "%s ";
