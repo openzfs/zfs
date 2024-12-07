@@ -16,9 +16,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.\" Copyright (c) 2024, Klara, Inc.
-.\"
-.Dd November 1, 2024
+.Dd November 13, 2024
 .Dt ZFS 4
 .Os
 .
@@ -74,6 +72,17 @@ Set the size of the mutex array for the dbuf cache.
 When set to
 .Sy 0
 the array is dynamically sized based on total system memory.
+.
+.It Sy dbuf_evict_parallel Ns = Ns Sy 0 Pq uint
+When set to 1, ZFS will use up to
+.Sy dbuf_evict_threads
+threads to evict dbuf data in parallel, improving the responsiveness
+of ZFS to memory pressure.
+.
+.It Sy dbuf_evict_threads Ns = Ns Sy 0 Pq uint
+Sets the maximum number of dbuf eviction threads to be used.
+When set to 0, ZFS uses one-eighth of the available CPUs,
+with a minimum of 2 and a maximum of 16.
 .
 .It Sy dmu_object_alloc_chunk_shift Ns = Ns Sy 7 Po 128 Pc Pq uint
 dnode slots allocated in a single operation as a power of 2.
@@ -678,449 +687,449 @@ When the number of bytes consumed by dnodes in the ARC exceeds this number of
 bytes, try to unpin some of it in response to demand for non-metadata.
 This value acts as a ceiling to the amount of dnode metadata, and defaults to
 .Sy 0 ,
-which indicates that a percent which is based on
-.Sy zfs_arc_dnode_limit_percent
-of the ARC meta buffers that may be used for dnodes.
-.It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq u64
-Percentage that can be consumed by dnodes of ARC meta buffers.
-.Pp
-See also
-.Sy zfs_arc_dnode_limit ,
-which serves a similar purpose but has a higher priority if nonzero.
-.
-.It Sy zfs_arc_dnode_reduce_percent Ns = Ns Sy 10 Ns % Pq u64
-Percentage of ARC dnodes to try to scan in response to demand for non-metadata
-when the number of bytes consumed by dnodes exceeds
-.Sy zfs_arc_dnode_limit .
-.
-.It Sy zfs_arc_average_blocksize Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq uint
-The ARC's buffer hash table is sized based on the assumption of an average
-block size of this value.
-This works out to roughly 1 MiB of hash table per 1 GiB of physical memory
-with 8-byte pointers.
-For configurations with a known larger average block size,
-this value can be increased to reduce the memory footprint.
-.
-.It Sy zfs_arc_eviction_pct Ns = Ns Sy 200 Ns % Pq uint
-When
-.Fn arc_is_overflowing ,
-.Fn arc_get_data_impl
-waits for this percent of the requested amount of data to be evicted.
-For example, by default, for every
-.Em 2 KiB
-that's evicted,
-.Em 1 KiB
-of it may be "reused" by a new allocation.
-Since this is above
-.Sy 100 Ns % ,
-it ensures that progress is made towards getting
-.Sy arc_size No under Sy arc_c .
-Since this is finite, it ensures that allocations can still happen,
-even during the potentially long time that
-.Sy arc_size No is more than Sy arc_c .
-.
-.It Sy zfs_arc_evict_batch_limit Ns = Ns Sy 10 Pq uint
-Number ARC headers to evict per sub-list before proceeding to another sub-list.
-This batch-style operation prevents entire sub-lists from being evicted at once
-but comes at a cost of additional unlocking and locking.
-.
-.It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
-If set to a non zero value, it will replace the
-.Sy arc_grow_retry
-value with this value.
-The
-.Sy arc_grow_retry
-.No value Pq default Sy 5 Ns s
-is the number of seconds the ARC will wait before
-trying to resume growth after a memory pressure event.
-.
-.It Sy zfs_arc_lotsfree_percent Ns = Ns Sy 10 Ns % Pq int
-Throttle I/O when free system memory drops below this percentage of total
-system memory.
-Setting this value to
-.Sy 0
-will disable the throttle.
-.
-.It Sy zfs_arc_max Ns = Ns Sy 0 Ns B Pq u64
-Max size of ARC in bytes.
-If
-.Sy 0 ,
-then the max size of ARC is determined by the amount of system memory installed.
-The larger of
-.Sy all_system_memory No \- Sy 1 GiB
-and
-.Sy 5/8 No \(mu Sy all_system_memory
-will be used as the limit.
-This value must be at least
-.Sy 67108864 Ns B Pq 64 MiB .
-.Pp
-This value can be changed dynamically, with some caveats.
-It cannot be set back to
-.Sy 0
-while running, and reducing it below the current ARC size will not cause
-the ARC to shrink without memory pressure to induce shrinking.
-.
-.It Sy zfs_arc_meta_balance Ns = Ns Sy 500 Pq uint
-Balance between metadata and data on ghost hits.
-Values above 100 increase metadata caching by proportionally reducing effect
-of ghost data hits on target data/metadata rate.
-.
-.It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq u64
-Min size of ARC in bytes.
-.No If set to Sy 0 , arc_c_min
-will default to consuming the larger of
-.Sy 32 MiB
-and
-.Sy all_system_memory No / Sy 32 .
-.
-.It Sy zfs_arc_min_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 1s Pc Pq uint
-Minimum time prefetched blocks are locked in the ARC.
-.
-.It Sy zfs_arc_min_prescient_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 6s Pc Pq uint
-Minimum time "prescient prefetched" blocks are locked in the ARC.
-These blocks are meant to be prefetched fairly aggressively ahead of
-the code that may use them.
-.
-.It Sy zfs_arc_prune_task_threads Ns = Ns Sy 1 Pq int
-Number of arc_prune threads.
-.Fx
-does not need more than one.
-Linux may theoretically use one per mount point up to number of CPUs,
-but that was not proven to be useful.
-.
-.It Sy zfs_max_missing_tvds Ns = Ns Sy 0 Pq int
-Number of missing top-level vdevs which will be allowed during
-pool import (only in read-only mode).
-.
-.It Sy zfs_max_nvlist_src_size Ns = Sy 0 Pq u64
-Maximum size in bytes allowed to be passed as
-.Sy zc_nvlist_src_size
-for ioctls on
-.Pa /dev/zfs .
-This prevents a user from causing the kernel to allocate
-an excessive amount of memory.
-When the limit is exceeded, the ioctl fails with
-.Sy EINVAL
-and a description of the error is sent to the
-.Pa zfs-dbgmsg
-log.
-This parameter should not need to be touched under normal circumstances.
-If
-.Sy 0 ,
-equivalent to a quarter of the user-wired memory limit under
-.Fx
-and to
-.Sy 134217728 Ns B Pq 128 MiB
-under Linux.
-.
-.It Sy zfs_multilist_num_sublists Ns = Ns Sy 0 Pq uint
-To allow more fine-grained locking, each ARC state contains a series
-of lists for both data and metadata objects.
-Locking is performed at the level of these "sub-lists".
-This parameters controls the number of sub-lists per ARC state,
-and also applies to other uses of the multilist data structure.
-.Pp
-If
-.Sy 0 ,
-equivalent to the greater of the number of online CPUs and
-.Sy 4 .
-.
-.It Sy zfs_arc_overflow_shift Ns = Ns Sy 8 Pq int
-The ARC size is considered to be overflowing if it exceeds the current
-ARC target size
-.Pq Sy arc_c
-by thresholds determined by this parameter.
-Exceeding by
-.Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No / Sy 2
-starts ARC reclamation process.
-If that appears insufficient, exceeding by
-.Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No \(mu Sy 1.5
-blocks new buffer allocation until the reclaim thread catches up.
-Started reclamation process continues till ARC size returns below the
-target size.
-.Pp
-The default value of
-.Sy 8
-causes the ARC to start reclamation if it exceeds the target size by
-.Em 0.2%
-of the target size, and block allocations by
-.Em 0.6% .
-.
-.It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq uint
-If nonzero, this will update
-.Sy arc_shrink_shift Pq default Sy 7
-with the new value.
-.
-.It Sy zfs_arc_pc_percent Ns = Ns Sy 0 Ns % Po off Pc Pq uint
-Percent of pagecache to reclaim ARC to.
-.Pp
-This tunable allows the ZFS ARC to play more nicely
-with the kernel's LRU pagecache.
-It can guarantee that the ARC size won't collapse under scanning
-pressure on the pagecache, yet still allows the ARC to be reclaimed down to
-.Sy zfs_arc_min
-if necessary.
-This value is specified as percent of pagecache size (as measured by
-.Sy NR_FILE_PAGES ) ,
-where that percent may exceed
-.Sy 100 .
-This
-only operates during memory pressure/reclaim.
-.
-.It Sy zfs_arc_shrinker_limit Ns = Ns Sy 10000 Pq int
-This is a limit on how many pages the ARC shrinker makes available for
-eviction in response to one page allocation attempt.
-Note that in practice, the kernel's shrinker can ask us to evict
-up to about four times this for one allocation attempt.
-To reduce OOM risk, this limit is applied for kswapd reclaims only.
-.Pp
-The default limit of
-.Sy 10000 Pq in practice, Em 160 MiB No per allocation attempt with 4 KiB pages
-limits the amount of time spent attempting to reclaim ARC memory to
-less than 100 ms per allocation attempt,
-even with a small average compressed block size of ~8 KiB.
-.Pp
-The parameter can be set to 0 (zero) to disable the limit,
-and only applies on Linux.
-.
-.It Sy zfs_arc_shrinker_seeks Ns = Ns Sy 2 Pq int
-Relative cost of ARC eviction on Linux, AKA number of seeks needed to
-restore evicted page.
-Bigger values make ARC more precious and evictions smaller, comparing to
-other kernel subsystems.
-Value of 4 means parity with page cache.
-.
-.It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq u64
-The target number of bytes the ARC should leave as free memory on the system.
-If zero, equivalent to the bigger of
-.Sy 512 KiB No and Sy all_system_memory/64 .
-.
-.It Sy zfs_autoimport_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Disable pool import at module load by ignoring the cache file
-.Pq Sy spa_config_path .
-.
-.It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
-Rate limit checksum events to this many per second.
-Note that this should not be set below the ZED thresholds
+    which indicates that a percent which is based on
+    .Sy zfs_arc_dnode_limit_percent
+    of the ARC meta buffers that may be used for dnodes.
+    .It Sy zfs_arc_dnode_limit_percent Ns = Ns Sy 10 Ns % Pq u64
+    Percentage that can be consumed by dnodes of ARC meta buffers.
+    .Pp
+    See also
+    .Sy zfs_arc_dnode_limit ,
+    which serves a similar purpose but has a higher priority if nonzero.
+    .
+    .It Sy zfs_arc_dnode_reduce_percent Ns = Ns Sy 10 Ns % Pq u64
+    Percentage of ARC dnodes to try to scan in response to demand for non-metadata
+    when the number of bytes consumed by dnodes exceeds
+    .Sy zfs_arc_dnode_limit .
+    .
+    .It Sy zfs_arc_average_blocksize Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq uint
+    The ARC's buffer hash table is sized based on the assumption of an average
+    block size of this value.
+    This works out to roughly 1 MiB of hash table per 1 GiB of physical memory
+    with 8-byte pointers.
+    For configurations with a known larger average block size,
+    this value can be increased to reduce the memory footprint.
+    .
+    .It Sy zfs_arc_eviction_pct Ns = Ns Sy 200 Ns % Pq uint
+    When
+    .Fn arc_is_overflowing ,
+    .Fn arc_get_data_impl
+    waits for this percent of the requested amount of data to be evicted.
+    For example, by default, for every
+    .Em 2 KiB
+    that's evicted,
+    .Em 1 KiB
+    of it may be "reused" by a new allocation.
+    Since this is above
+    .Sy 100 Ns % ,
+    it ensures that progress is made towards getting
+    .Sy arc_size No under Sy arc_c .
+    Since this is finite, it ensures that allocations can still happen,
+    even during the potentially long time that
+    .Sy arc_size No is more than Sy arc_c .
+    .
+    .It Sy zfs_arc_evict_batch_limit Ns = Ns Sy 10 Pq uint
+    Number ARC headers to evict per sub-list before proceeding to another sub-list.
+    This batch-style operation prevents entire sub-lists from being evicted at once
+    but comes at a cost of additional unlocking and locking.
+    .
+    .It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
+    If set to a non zero value, it will replace the
+    .Sy arc_grow_retry
+    value with this value.
+    The
+    .Sy arc_grow_retry
+    .No value Pq default Sy 5 Ns s
+    is the number of seconds the ARC will wait before
+    trying to resume growth after a memory pressure event.
+    .
+    .It Sy zfs_arc_lotsfree_percent Ns = Ns Sy 10 Ns % Pq int
+    Throttle I/O when free system memory drops below this percentage of total
+    system memory.
+    Setting this value to
+    .Sy 0
+    will disable the throttle.
+    .
+    .It Sy zfs_arc_max Ns = Ns Sy 0 Ns B Pq u64
+    Max size of ARC in bytes.
+    If
+    .Sy 0 ,
+    then the max size of ARC is determined by the amount of system memory installed.
+    The larger of
+    .Sy all_system_memory No \- Sy 1 GiB
+    and
+    .Sy 5/8 No \(mu Sy all_system_memory
+    will be used as the limit.
+    This value must be at least
+    .Sy 67108864 Ns B Pq 64 MiB .
+    .Pp
+    This value can be changed dynamically, with some caveats.
+    It cannot be set back to
+    .Sy 0
+    while running, and reducing it below the current ARC size will not cause
+    the ARC to shrink without memory pressure to induce shrinking.
+    .
+    .It Sy zfs_arc_meta_balance Ns = Ns Sy 500 Pq uint
+    Balance between metadata and data on ghost hits.
+    Values above 100 increase metadata caching by proportionally reducing effect
+    of ghost data hits on target data/metadata rate.
+    .
+    .It Sy zfs_arc_min Ns = Ns Sy 0 Ns B Pq u64
+    Min size of ARC in bytes.
+    .No If set to Sy 0 , arc_c_min
+    will default to consuming the larger of
+    .Sy 32 MiB
+    and
+    .Sy all_system_memory No / Sy 32 .
+    .
+    .It Sy zfs_arc_min_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 1s Pc Pq uint
+    Minimum time prefetched blocks are locked in the ARC.
+    .
+    .It Sy zfs_arc_min_prescient_prefetch_ms Ns = Ns Sy 0 Ns ms Ns Po Ns ≡ Ns 6s Pc Pq uint
+    Minimum time "prescient prefetched" blocks are locked in the ARC.
+    These blocks are meant to be prefetched fairly aggressively ahead of
+    the code that may use them.
+    .
+    .It Sy zfs_arc_prune_task_threads Ns = Ns Sy 1 Pq int
+    Number of arc_prune threads.
+    .Fx
+    does not need more than one.
+    Linux may theoretically use one per mount point up to number of CPUs,
+    but that was not proven to be useful.
+    .
+    .It Sy zfs_max_missing_tvds Ns = Ns Sy 0 Pq int
+    Number of missing top-level vdevs which will be allowed during
+    pool import (only in read-only mode).
+    .
+    .It Sy zfs_max_nvlist_src_size Ns = Sy 0 Pq u64
+    Maximum size in bytes allowed to be passed as
+    .Sy zc_nvlist_src_size
+    for ioctls on
+    .Pa /dev/zfs .
+    This prevents a user from causing the kernel to allocate
+    an excessive amount of memory.
+    When the limit is exceeded, the ioctl fails with
+    .Sy EINVAL
+    and a description of the error is sent to the
+    .Pa zfs-dbgmsg
+    log.
+    This parameter should not need to be touched under normal circumstances.
+    If
+    .Sy 0 ,
+    equivalent to a quarter of the user-wired memory limit under
+    .Fx
+    and to
+    .Sy 134217728 Ns B Pq 128 MiB
+    under Linux.
+    .
+    .It Sy zfs_multilist_num_sublists Ns = Ns Sy 0 Pq uint
+    To allow more fine-grained locking, each ARC state contains a series
+    of lists for both data and metadata objects.
+    Locking is performed at the level of these "sub-lists".
+    This parameters controls the number of sub-lists per ARC state,
+    and also applies to other uses of the multilist data structure.
+    .Pp
+    If
+    .Sy 0 ,
+    equivalent to the greater of the number of online CPUs and
+    .Sy 4 .
+    .
+    .It Sy zfs_arc_overflow_shift Ns = Ns Sy 8 Pq int
+    The ARC size is considered to be overflowing if it exceeds the current
+    ARC target size
+    .Pq Sy arc_c
+    by thresholds determined by this parameter.
+    Exceeding by
+    .Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No / Sy 2
+    starts ARC reclamation process.
+    If that appears insufficient, exceeding by
+    .Sy ( arc_c No >> Sy zfs_arc_overflow_shift ) No \(mu Sy 1.5
+    blocks new buffer allocation until the reclaim thread catches up.
+    Started reclamation process continues till ARC size returns below the
+    target size.
+    .Pp
+    The default value of
+    .Sy 8
+    causes the ARC to start reclamation if it exceeds the target size by
+    .Em 0.2%
+    of the target size, and block allocations by
+    .Em 0.6% .
+    .
+    .It Sy zfs_arc_shrink_shift Ns = Ns Sy 0 Pq uint
+    If nonzero, this will update
+    .Sy arc_shrink_shift Pq default Sy 7
+    with the new value.
+    .
+    .It Sy zfs_arc_pc_percent Ns = Ns Sy 0 Ns % Po off Pc Pq uint
+    Percent of pagecache to reclaim ARC to.
+    .Pp
+    This tunable allows the ZFS ARC to play more nicely
+    with the kernel's LRU pagecache.
+    It can guarantee that the ARC size won't collapse under scanning
+    pressure on the pagecache, yet still allows the ARC to be reclaimed down to
+    .Sy zfs_arc_min
+    if necessary.
+    This value is specified as percent of pagecache size (as measured by
+            .Sy NR_FILE_PAGES ) ,
+    where that percent may exceed
+    .Sy 100 .
+    This
+    only operates during memory pressure/reclaim.
+    .
+    .It Sy zfs_arc_shrinker_limit Ns = Ns Sy 10000 Pq int
+    This is a limit on how many pages the ARC shrinker makes available for
+    eviction in response to one page allocation attempt.
+    Note that in practice, the kernel's shrinker can ask us to evict
+    up to about four times this for one allocation attempt.
+    To reduce OOM risk, this limit is applied for kswapd reclaims only.
+    .Pp
+    The default limit of
+    .Sy 10000 Pq in practice, Em 160 MiB No per allocation attempt with 4 KiB pages
+    limits the amount of time spent attempting to reclaim ARC memory to
+    less than 100 ms per allocation attempt,
+    even with a small average compressed block size of ~8 KiB.
+    .Pp
+    The parameter can be set to 0 (zero) to disable the limit,
+    and only applies on Linux.
+    .
+    .It Sy zfs_arc_shrinker_seeks Ns = Ns Sy 2 Pq int
+    Relative cost of ARC eviction on Linux, AKA number of seeks needed to
+    restore evicted page.
+    Bigger values make ARC more precious and evictions smaller, comparing to
+    other kernel subsystems.
+    Value of 4 means parity with page cache.
+    .
+    .It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq u64
+    The target number of bytes the ARC should leave as free memory on the system.
+    If zero, equivalent to the bigger of
+    .Sy 512 KiB No and Sy all_system_memory/64 .
+    .
+    .It Sy zfs_autoimport_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
+    Disable pool import at module load by ignoring the cache file
+    .Pq Sy spa_config_path .
+    .
+    .It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
+    Rate limit checksum events to this many per second.
+    Note that this should not be set below the ZED thresholds
 (currently 10 checksums over 10 seconds)
-or else the daemon may not trigger any action.
-.
-.It Sy zfs_commit_timeout_pct Ns = Ns Sy 10 Ns % Pq uint
-This controls the amount of time that a ZIL block (lwb) will remain "open"
-when it isn't "full", and it has a thread waiting for it to be committed to
-stable storage.
-The timeout is scaled based on a percentage of the last lwb
-latency to avoid significantly impacting the latency of each individual
-transaction record (itx).
-.
-.It Sy zfs_condense_indirect_commit_entry_delay_ms Ns = Ns Sy 0 Ns ms Pq int
-Vdev indirection layer (used for device removal) sleeps for this many
-milliseconds during mapping generation.
-Intended for use with the test suite to throttle vdev removal speed.
-.
-.It Sy zfs_condense_indirect_obsolete_pct Ns = Ns Sy 25 Ns % Pq uint
-Minimum percent of obsolete bytes in vdev mapping required to attempt to
-condense
-.Pq see Sy zfs_condense_indirect_vdevs_enable .
-Intended for use with the test suite
-to facilitate triggering condensing as needed.
-.
-.It Sy zfs_condense_indirect_vdevs_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable condensing indirect vdev mappings.
-When set, attempt to condense indirect vdev mappings
-if the mapping uses more than
-.Sy zfs_condense_min_mapping_bytes
-bytes of memory and if the obsolete space map object uses more than
-.Sy zfs_condense_max_obsolete_bytes
-bytes on-disk.
-The condensing process is an attempt to save memory by removing obsolete
-mappings.
-.
-.It Sy zfs_condense_max_obsolete_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
-Only attempt to condense indirect vdev mappings if the on-disk size
-of the obsolete space map object is greater than this number of bytes
-.Pq see Sy zfs_condense_indirect_vdevs_enable .
-.
-.It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
-Minimum size vdev mapping to attempt to condense
-.Pq see Sy zfs_condense_indirect_vdevs_enable .
-.
-.It Sy zfs_dbgmsg_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Internally ZFS keeps a small log to facilitate debugging.
-The log is enabled by default, and can be disabled by unsetting this option.
-The contents of the log can be accessed by reading
-.Pa /proc/spl/kstat/zfs/dbgmsg .
-Writing
-.Sy 0
-to the file clears the log.
-.Pp
-This setting does not influence debug prints due to
-.Sy zfs_flags .
-.
-.It Sy zfs_dbgmsg_maxsize Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
-Maximum size of the internal ZFS debug log.
-.
-.It Sy zfs_dbuf_state_index Ns = Ns Sy 0 Pq int
-Historically used for controlling what reporting was available under
-.Pa /proc/spl/kstat/zfs .
-No effect.
-.
-.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
-Check time in milliseconds.
-This defines the frequency at which we check for hung I/O requests
-and potentially invoke the
-.Sy zfs_deadman_failmode
-behavior.
-.
-.It Sy zfs_deadman_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-When a pool sync operation takes longer than
-.Sy zfs_deadman_synctime_ms ,
-or when an individual I/O operation takes longer than
-.Sy zfs_deadman_ziotime_ms ,
-then the operation is considered to be "hung".
-If
-.Sy zfs_deadman_enabled
-is set, then the deadman behavior is invoked as described by
-.Sy zfs_deadman_failmode .
-By default, the deadman is enabled and set to
-.Sy wait
-which results in "hung" I/O operations only being logged.
-The deadman is automatically disabled when a pool gets suspended.
-.
-.It Sy zfs_deadman_events_per_second Ns = Ns Sy 1 Ns /s Pq int
-Rate limit deadman zevents (which report hung I/O operations) to this many per
-second.
-.
-.It Sy zfs_deadman_failmode Ns = Ns Sy wait Pq charp
-Controls the failure behavior when the deadman detects a "hung" I/O operation.
-Valid values are:
-.Bl -tag -compact -offset 4n -width "continue"
-.It Sy wait
-Wait for a "hung" operation to complete.
-For each "hung" operation a "deadman" event will be posted
-describing that operation.
-.It Sy continue
-Attempt to recover from a "hung" operation by re-dispatching it
-to the I/O pipeline if possible.
-.It Sy panic
-Panic the system.
-This can be used to facilitate automatic fail-over
-to a properly configured fail-over partner.
-.El
-.
-.It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq u64
-Interval in milliseconds after which the deadman is triggered and also
-the interval after which a pool sync operation is considered to be "hung".
-Once this limit is exceeded the deadman will be invoked every
-.Sy zfs_deadman_checktime_ms
-milliseconds until the pool sync completes.
-.
-.It Sy zfs_deadman_ziotime_ms Ns = Ns Sy 300000 Ns ms Po 5 min Pc Pq u64
-Interval in milliseconds after which the deadman is triggered and an
-individual I/O operation is considered to be "hung".
-As long as the operation remains "hung",
-the deadman will be invoked every
-.Sy zfs_deadman_checktime_ms
-milliseconds until the operation completes.
-.
-.It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Enable prefetching dedup-ed blocks which are going to be freed.
-.
-.It Sy zfs_dedup_log_flush_passes_max Ns = Ns Sy 8 Ns Pq uint
-Maximum number of dedup log flush passes (iterations) each transaction.
-.Pp
-At the start of each transaction, OpenZFS will estimate how many entries it
-needs to flush out to keep up with the change rate, taking the amount and time
-taken to flush on previous txgs into account (see
-.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
-It will spread this amount into a number of passes.
-At each pass, it will use the amount already flushed and the total time taken
-by flushing and by other IO to recompute how much it should do for the remainder
-of the txg.
-.Pp
-Reducing the max number of passes will make flushing more aggressive, flushing
-out more entries on each pass.
-This can be faster, but also more likely to compete with other IO.
-Increasing the max number of passes will put fewer entries onto each pass,
-keeping the overhead of dedup changes to a minimum but possibly causing a large
-number of changes to be dumped on the last pass, which can blow out the txg
-sync time beyond
-.Sy zfs_txg_timeout .
-.
-.It Sy zfs_dedup_log_flush_min_time_ms Ns = Ns Sy 1000 Ns Pq uint
-Minimum time to spend on dedup log flush each transaction.
-.Pp
-At least this long will be spent flushing dedup log entries each transaction,
-up to
-.Sy zfs_txg_timeout .
-This occurs even if doing so would delay the transaction, that is, other IO
-completes under this time.
-.
-.It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 1000 Ns Pq uint
-Flush at least this many entries each transaction.
-.Pp
-OpenZFS will estimate how many entries it needs to flush each transaction to
-keep up with the ingest rate (see
-.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
-This sets the minimum for that estimate.
-Raising it can force OpenZFS to flush more aggressively, keeping the log small
-and so reducing pool import times, but can make it less able to back off if
-log flushing would compete with other IO too much.
-.
-.It Sy zfs_dedup_log_flush_flow_rate_txgs Ns = Ns Sy 10 Ns Pq uint
-Number of transactions to use to compute the flow rate.
-.Pp
-OpenZFS will estimate how many entries it needs to flush each transaction by
-monitoring the number of entries changed (ingest rate), number of entries
-flushed (flush rate) and time spent flushing (flush time rate) and combining
-these into an overall "flow rate".
-It will use an exponential weighted moving average over some number of recent
-transactions to compute these rates.
-This sets the number of transactions to compute these averages over.
-Setting it higher can help to smooth out the flow rate in the face of spiky
-workloads, but will take longer for the flow rate to adjust to a sustained
-change in the ingress rate.
-.
-.It Sy zfs_dedup_log_txg_max Ns = Ns Sy 8 Ns Pq uint
-Max transactions to before starting to flush dedup logs.
-.Pp
-OpenZFS maintains two dedup logs, one receiving new changes, one flushing.
-If there is nothing to flush, it will accumulate changes for no more than this
-many transactions before switching the logs and starting to flush entries out.
-.
-.It Sy zfs_dedup_log_mem_max Ns = Ns Sy 0 Ns Pq u64
-Max memory to use for dedup logs.
-.Pp
-OpenZFS will spend no more than this much memory on maintaining the in-memory
-dedup log.
-Flushing will begin when around half this amount is being spent on logs.
-The default value of
-.Sy 0
-will cause it to be set by
-.Sy zfs_dedup_log_mem_max_percent
-instead.
-.
-.It Sy zfs_dedup_log_mem_max_percent Ns = Ns Sy 1 Ns % Pq uint
-Max memory to use for dedup logs, as a percentage of total memory.
-.Pp
-If
-.Sy zfs_dedup_log_mem_max
-is not set, it will be initialised as a percentage of the total memory in the
-system.
-.
-.It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
-Start to delay each transaction once there is this amount of dirty data,
-expressed as a percentage of
-.Sy zfs_dirty_data_max .
-This value should be at least
-.Sy zfs_vdev_async_write_active_max_dirty_percent .
-.No See Sx ZFS TRANSACTION DELAY .
-.
-.It Sy zfs_delay_scale Ns = Ns Sy 500000 Pq int
-This controls how quickly the transaction delay approaches infinity.
-Larger values cause longer delays for a given amount of dirty data.
-.Pp
-For the smoothest delay, this value should be about 1 billion divided
+    or else the daemon may not trigger any action.
+    .
+    .It Sy zfs_commit_timeout_pct Ns = Ns Sy 10 Ns % Pq uint
+    This controls the amount of time that a ZIL block (lwb) will remain "open"
+    when it isn't "full", and it has a thread waiting for it to be committed to
+    stable storage.
+    The timeout is scaled based on a percentage of the last lwb
+    latency to avoid significantly impacting the latency of each individual
+    transaction record (itx).
+    .
+    .It Sy zfs_condense_indirect_commit_entry_delay_ms Ns = Ns Sy 0 Ns ms Pq int
+    Vdev indirection layer (used for device removal) sleeps for this many
+    milliseconds during mapping generation.
+    Intended for use with the test suite to throttle vdev removal speed.
+    .
+    .It Sy zfs_condense_indirect_obsolete_pct Ns = Ns Sy 25 Ns % Pq uint
+    Minimum percent of obsolete bytes in vdev mapping required to attempt to
+    condense
+    .Pq see Sy zfs_condense_indirect_vdevs_enable .
+    Intended for use with the test suite
+    to facilitate triggering condensing as needed.
+    .
+    .It Sy zfs_condense_indirect_vdevs_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
+    Enable condensing indirect vdev mappings.
+    When set, attempt to condense indirect vdev mappings
+    if the mapping uses more than
+    .Sy zfs_condense_min_mapping_bytes
+    bytes of memory and if the obsolete space map object uses more than
+    .Sy zfs_condense_max_obsolete_bytes
+    bytes on-disk.
+    The condensing process is an attempt to save memory by removing obsolete
+    mappings.
+    .
+    .It Sy zfs_condense_max_obsolete_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
+    Only attempt to condense indirect vdev mappings if the on-disk size
+    of the obsolete space map object is greater than this number of bytes
+    .Pq see Sy zfs_condense_indirect_vdevs_enable .
+    .
+    .It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
+    Minimum size vdev mapping to attempt to condense
+    .Pq see Sy zfs_condense_indirect_vdevs_enable .
+    .
+    .It Sy zfs_dbgmsg_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
+    Internally ZFS keeps a small log to facilitate debugging.
+    The log is enabled by default, and can be disabled by unsetting this option.
+    The contents of the log can be accessed by reading
+    .Pa /proc/spl/kstat/zfs/dbgmsg .
+    Writing
+    .Sy 0
+    to the file clears the log.
+    .Pp
+    This setting does not influence debug prints due to
+    .Sy zfs_flags .
+    .
+    .It Sy zfs_dbgmsg_maxsize Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
+    Maximum size of the internal ZFS debug log.
+    .
+    .It Sy zfs_dbuf_state_index Ns = Ns Sy 0 Pq int
+    Historically used for controlling what reporting was available under
+    .Pa /proc/spl/kstat/zfs .
+    No effect.
+    .
+    .It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
+    Check time in milliseconds.
+    This defines the frequency at which we check for hung I/O requests
+    and potentially invoke the
+    .Sy zfs_deadman_failmode
+    behavior.
+    .
+    .It Sy zfs_deadman_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+    When a pool sync operation takes longer than
+    .Sy zfs_deadman_synctime_ms ,
+    or when an individual I/O operation takes longer than
+    .Sy zfs_deadman_ziotime_ms ,
+    then the operation is considered to be "hung".
+    If
+    .Sy zfs_deadman_enabled
+    is set, then the deadman behavior is invoked as described by
+    .Sy zfs_deadman_failmode .
+    By default, the deadman is enabled and set to
+    .Sy wait
+    which results in "hung" I/O operations only being logged.
+    The deadman is automatically disabled when a pool gets suspended.
+    .
+    .It Sy zfs_deadman_events_per_second Ns = Ns Sy 1 Ns /s Pq int
+    Rate limit deadman zevents (which report hung I/O operations) to this many per
+    second.
+    .
+    .It Sy zfs_deadman_failmode Ns = Ns Sy wait Pq charp
+    Controls the failure behavior when the deadman detects a "hung" I/O operation.
+    Valid values are:
+    .Bl -tag -compact -offset 4n -width "continue"
+    .It Sy wait
+    Wait for a "hung" operation to complete.
+    For each "hung" operation a "deadman" event will be posted
+    describing that operation.
+    .It Sy continue
+    Attempt to recover from a "hung" operation by re-dispatching it
+    to the I/O pipeline if possible.
+    .It Sy panic
+    Panic the system.
+    This can be used to facilitate automatic fail-over
+    to a properly configured fail-over partner.
+    .El
+    .
+    .It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq u64
+    Interval in milliseconds after which the deadman is triggered and also
+    the interval after which a pool sync operation is considered to be "hung".
+    Once this limit is exceeded the deadman will be invoked every
+    .Sy zfs_deadman_checktime_ms
+    milliseconds until the pool sync completes.
+    .
+    .It Sy zfs_deadman_ziotime_ms Ns = Ns Sy 300000 Ns ms Po 5 min Pc Pq u64
+    Interval in milliseconds after which the deadman is triggered and an
+    individual I/O operation is considered to be "hung".
+    As long as the operation remains "hung",
+    the deadman will be invoked every
+    .Sy zfs_deadman_checktime_ms
+    milliseconds until the operation completes.
+    .
+    .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
+    Enable prefetching dedup-ed blocks which are going to be freed.
+    .
+    .It Sy zfs_dedup_log_flush_passes_max Ns = Ns Sy 8 Ns Pq uint
+    Maximum number of dedup log flush passes (iterations) each transaction.
+    .Pp
+    At the start of each transaction, OpenZFS will estimate how many entries it
+    needs to flush out to keep up with the change rate, taking the amount and time
+    taken to flush on previous txgs into account (see
+            .Sy zfs_dedup_log_flush_flow_rate_txgs ) .
+    It will spread this amount into a number of passes.
+    At each pass, it will use the amount already flushed and the total time taken
+    by flushing and by other IO to recompute how much it should do for the remainder
+    of the txg.
+    .Pp
+    Reducing the max number of passes will make flushing more aggressive, flushing
+    out more entries on each pass.
+    This can be faster, but also more likely to compete with other IO.
+    Increasing the max number of passes will put fewer entries onto each pass,
+    keeping the overhead of dedup changes to a minimum but possibly causing a large
+    number of changes to be dumped on the last pass, which can blow out the txg
+    sync time beyond
+    .Sy zfs_txg_timeout .
+    .
+    .It Sy zfs_dedup_log_flush_min_time_ms Ns = Ns Sy 1000 Ns Pq uint
+    Minimum time to spend on dedup log flush each transaction.
+    .Pp
+    At least this long will be spent flushing dedup log entries each transaction,
+    up to
+    .Sy zfs_txg_timeout .
+    This occurs even if doing so would delay the transaction, that is, other IO
+    completes under this time.
+    .
+    .It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 1000 Ns Pq uint
+    Flush at least this many entries each transaction.
+    .Pp
+    OpenZFS will estimate how many entries it needs to flush each transaction to
+    keep up with the ingest rate (see
+            .Sy zfs_dedup_log_flush_flow_rate_txgs ) .
+    This sets the minimum for that estimate.
+    Raising it can force OpenZFS to flush more aggressively, keeping the log small
+    and so reducing pool import times, but can make it less able to back off if
+    log flushing would compete with other IO too much.
+    .
+    .It Sy zfs_dedup_log_flush_flow_rate_txgs Ns = Ns Sy 10 Ns Pq uint
+    Number of transactions to use to compute the flow rate.
+    .Pp
+    OpenZFS will estimate how many entries it needs to flush each transaction by
+    monitoring the number of entries changed (ingest rate), number of entries
+    flushed (flush rate) and time spent flushing (flush time rate) and combining
+    these into an overall "flow rate".
+    It will use an exponential weighted moving average over some number of recent
+    transactions to compute these rates.
+    This sets the number of transactions to compute these averages over.
+    Setting it higher can help to smooth out the flow rate in the face of spiky
+    workloads, but will take longer for the flow rate to adjust to a sustained
+    change in the ingress rate.
+    .
+    .It Sy zfs_dedup_log_txg_max Ns = Ns Sy 8 Ns Pq uint
+    Max transactions to before starting to flush dedup logs.
+    .Pp
+    OpenZFS maintains two dedup logs, one receiving new changes, one flushing.
+    If there is nothing to flush, it will accumulate changes for no more than this
+    many transactions before switching the logs and starting to flush entries out.
+    .
+    .It Sy zfs_dedup_log_mem_max Ns = Ns Sy 0 Ns Pq u64
+    Max memory to use for dedup logs.
+    .Pp
+    OpenZFS will spend no more than this much memory on maintaining the in-memory
+    dedup log.
+    Flushing will begin when around half this amount is being spent on logs.
+    The default value of
+    .Sy 0
+    will cause it to be set by
+    .Sy zfs_dedup_log_mem_max_percent
+    instead.
+    .
+    .It Sy zfs_dedup_log_mem_max_percent Ns = Ns Sy 1 Ns % Pq uint
+    Max memory to use for dedup logs, as a percentage of total memory.
+    .Pp
+    If
+    .Sy zfs_dedup_log_mem_max
+    is not set, it will be initialised as a percentage of the total memory in the
+    system.
+    .
+    .It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
+    Start to delay each transaction once there is this amount of dirty data,
+    expressed as a percentage of
+    .Sy zfs_dirty_data_max .
+    This value should be at least
+    .Sy zfs_vdev_async_write_active_max_dirty_percent .
+    .No See Sx ZFS TRANSACTION DELAY .
+    .
+    .It Sy zfs_delay_scale Ns = Ns Sy 500000 Pq int
+    This controls how quickly the transaction delay approaches infinity.
+    Larger values cause longer delays for a given amount of dirty data.
+    .Pp
+    For the smoothest delay, this value should be about 1 billion divided
 by the maximum number of operations per second.
 This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
