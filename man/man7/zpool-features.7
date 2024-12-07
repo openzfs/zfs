@@ -18,7 +18,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd October 2, 2024
+.Dd November 18, 2024
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -931,6 +931,41 @@ Thus the produced checksums are unique to a given pool,
 preventing hash collision attacks on systems with dedup.
 .Pp
 .checksum-spiel skein
+.
+.feature com.klarasystems slack_compress no extensible_dataset
+.Sy slack
+is a compression option that simply removes the trailing run of zero bytes at
+the end of each block.
+It is designed for when very large block sizes are used with to store largely
+incompressible data.
+Normally in this scenario
+.Sy compress Ns = Ns Sy none
+would be used,
+but with large block sizes that can often leave a multi-megabyte run of zeroes
+at the end of a block, adding memory and checksumming overhead.
+.Pp
+When the
+.Sy slack_compress
+feature is set to
+.Sy enabled ,
+the administrator can turn on
+.Sy slack
+compression of any dataset using
+.Nm zfs Cm set Sy compress Ns = Ns Sy slack Ar dset
+.Po see Xr zfs-set 8 Pc .
+This feature becomes
+.Sy active
+once a
+.Sy compress
+property has been set to
+.Sy slack ,
+and will return to being
+.Sy enabled
+once all filesystems that have ever had their
+.Sy compress
+property set to
+.Sy slack
+are destroyed.
 .
 .feature com.delphix spacemap_histogram yes
 This features allows ZFS to maintain more information about how free space

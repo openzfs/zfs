@@ -757,18 +757,71 @@ abd_advance_abd_iter(abd_t *abd, abd_t *cabd, struct abd_iter *aiter,
 	return (cabd);
 }
 
-int
-abd_iterate_func(abd_t *abd, size_t off, size_t size,
-    abd_iter_func_t *func, void *private)
+static int
+abd_iterate_func_reverse_flags(abd_t *abd, size_t off, size_t size,
+    abd_iter_func_t *func, void *private, abd_iter_flags_t flags)
 {
+	ASSERT0(flags & ~ABD_ITER_FLAGS_MASK);
+	ASSERT(flags & ABD_ITER_REVERSE);
+
 	struct abd_iter aiter;
 	int ret = 0;
+
+	abd_t *c_abd;
+	while (size > 0) {
+		/*
+		 * XXX in the forward iterator, this is abd_advance_abd_iter().
+		 *     going backwards directly is awkward, so for now we just
+		 *     reinitialise the iterator to the wanted position. that
+		 *     itself is a forward walk, but to truly go backwards
+		 *     would require backpointers in gang abds too. this is
+		 *     fine for now. -- robn, 2024-11-19
+		 */
+		c_abd = abd_init_abd_iter(abd, &aiter, off + size - 1);
+		IMPLY(abd_is_gang(abd), c_abd != NULL);
+
+		abd_iter_map(&aiter);
+
+		/*
+		 * XXX abd_iter_map() set iter_mapaddr =
+		 *     page addr + iter_offset, so we need to adjust back
+		 */
+		void *addr = aiter.iter_mapaddr - aiter.iter_offset;
+		size_t len = aiter.iter_offset + 1;
+
+		ASSERT3U(len, >, 0);
+
+		ret = func(addr, len, private);
+
+		abd_iter_unmap(&aiter);
+
+		if (ret != 0)
+			break;
+
+		size -= len;
+	}
+
+	return (ret);
+}
+
+int
+abd_iterate_func_flags(abd_t *abd, size_t off, size_t size,
+    abd_iter_func_t *func, void *private, abd_iter_flags_t flags)
+{
+	ASSERT0(flags & ~ABD_ITER_FLAGS_MASK);
 
 	if (size == 0)
 		return (0);
 
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
+
+	if (flags & ABD_ITER_REVERSE)
+		return (abd_iterate_func_reverse_flags(abd, off, size, func,
+		    private, flags));
+
+	struct abd_iter aiter;
+	int ret = 0;
 
 	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
 
@@ -932,12 +985,16 @@ abd_zero_off(abd_t *abd, size_t off, size_t size)
  * times during this iteration.
  */
 int
-abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
-    size_t size, abd_iter_func2_t *func, void *private)
+abd_iterate_func2_flags(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
+    size_t size, abd_iter_func2_t *func, void *private, abd_iter_flags_t flags)
 {
+	(void) flags;
 	int ret = 0;
 	struct abd_iter daiter, saiter;
 	abd_t *c_dabd, *c_sabd;
+
+	ASSERT0(flags & ~ABD_ITER_FLAGS_MASK);
+	ASSERT0(flags & ABD_ITER_REVERSE); /* XXX no support for reverse yet */
 
 	if (size == 0)
 		return (0);
