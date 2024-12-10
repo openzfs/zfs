@@ -13,26 +13,21 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 		error = fault_in_iov_iter_readable(&iter, size);
 	])
 
-	ZFS_LINUX_TEST_SRC([iov_iter_get_pages2], [
-		#include <linux/uio.h>
-	],[
-		struct iov_iter iter = { 0 };
-		struct page **pages = NULL;
-		size_t maxsize = 4096;
-		unsigned maxpages = 1;
-		size_t start;
-		size_t ret __attribute__ ((unused));
-
-		ret = iov_iter_get_pages2(&iter, pages, maxsize, maxpages,
-		    &start);
-	])
-
 	ZFS_LINUX_TEST_SRC([iov_iter_type], [
 		#include <linux/fs.h>
 		#include <linux/uio.h>
 	],[
 		struct iov_iter iter = { 0 };
 		__attribute__((unused)) enum iter_type i = iov_iter_type(&iter);
+	])
+
+	ZFS_LINUX_TEST_SRC([iter_is_ubuf], [
+		#include <linux/uio.h>
+	],[
+		struct iov_iter iter = { 0 };
+		bool ret __attribute__((unused));
+
+		ret = iter_is_ubuf(&iter);
 	])
 
 	ZFS_LINUX_TEST_SRC([iter_iov], [
@@ -56,18 +51,6 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 	])
 
 	dnl #
-	dnl # Kernel 6.0 changed iov_iter_get_pages() to iov_iter_page_pages2().
-	dnl #
-	AC_MSG_CHECKING([whether iov_iter_get_pages2() is available])
-	ZFS_LINUX_TEST_RESULT([iov_iter_get_pages2], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_IOV_ITER_GET_PAGES2, 1,
-		    [iov_iter_get_pages2() is available])
-	],[
-		AC_MSG_RESULT(no)
-	])
-
-	dnl #
 	dnl # This checks for iov_iter_type() in linux/uio.h. It is not
 	dnl # required, however, and the module will compiled without it
 	dnl # using direct access of the member attribute
@@ -77,6 +60,18 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_IOV_ITER_TYPE, 1,
 		    [iov_iter_type() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+
+	dnl #
+	dnl # Kernel 6.0 introduced the ITER_UBUF iov_iter type. iter_is_ubuf()
+	dnl # was also added to determine if the iov_iter is an ITER_UBUF.
+	dnl #
+	AC_MSG_CHECKING([whether iter_is_ubuf() is available])
+	ZFS_LINUX_TEST_RESULT([iter_is_ubuf], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_ITER_IS_UBUF, 1, [iter_is_ubuf() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])
