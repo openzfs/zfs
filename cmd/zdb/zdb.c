@@ -6254,34 +6254,38 @@ skipped:
 	 */
 	int bin;
 
+#define BIN(size) (highbit64(size) - 1)
+
 	switch (block_bin_mode) {
-	case BIN_PSIZE: bin = highbit64(BP_GET_PSIZE(bp)) - 1; break;
-	case BIN_LSIZE: bin = highbit64(BP_GET_LSIZE(bp)) - 1; break;
-	case BIN_ASIZE: bin = highbit64(BP_GET_ASIZE(bp)) - 1; break;
+	case BIN_PSIZE: bin = BIN(BP_GET_PSIZE(bp)); break;
+	case BIN_LSIZE: bin = BIN(BP_GET_LSIZE(bp)); break;
+	case BIN_ASIZE: bin = BIN(BP_GET_ASIZE(bp)); break;
 	case BIN_AUTO: break;
 	default: PANIC("bad block_bin_mode"); abort();
 	}
 
 	if (block_bin_mode == BIN_AUTO)
-		bin = highbit64(BP_GET_PSIZE(bp)) - 1;
+		bin = BIN(BP_GET_PSIZE(bp));
 
 	zcb->zcb_psize_count[bin]++;
 	zcb->zcb_psize_len[bin] += BP_GET_PSIZE(bp);
 	zcb->zcb_psize_total += BP_GET_PSIZE(bp);
 
 	if (block_bin_mode == BIN_AUTO)
-		bin = highbit64(BP_GET_LSIZE(bp)) - 1;
+		bin = BIN(BP_GET_LSIZE(bp));
 
 	zcb->zcb_lsize_count[bin]++;
 	zcb->zcb_lsize_len[bin] += BP_GET_LSIZE(bp);
 	zcb->zcb_lsize_total += BP_GET_LSIZE(bp);
 
 	if (block_bin_mode == BIN_AUTO)
-		bin = highbit64(BP_GET_ASIZE(bp)) - 1;
+		bin = BIN(BP_GET_ASIZE(bp));
 
 	zcb->zcb_asize_count[bin]++;
 	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
 	zcb->zcb_asize_total += BP_GET_ASIZE(bp);
+
+#undef BIN
 
 hist_skipped:
 	if (!do_claim)
