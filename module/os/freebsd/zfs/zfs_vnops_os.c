@@ -291,8 +291,12 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	case F_SEEK_HOLE:
 	{
 		off = *(offset_t *)data;
+		error = vn_lock(vp, LK_SHARED);
+		if (error)
+			return (error);
 		/* offset parameter is in/out */
 		error = zfs_holey(VTOZ(vp), com, &off);
+		VOP_UNLOCK(vp);
 		if (error)
 			return (error);
 		*(offset_t *)data = off;
@@ -3956,10 +3960,8 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 			 * to the page fault handler's OOM logic, but this is
 			 * the best we can do for now.
 			 */
-			for (int i = 0; i < count; i++) {
-				ASSERT(vm_page_none_valid(ma[i]));
+			for (int i = 0; i < count; i++)
 				vm_page_xunbusy(ma[i]);
-			}
 
 			lr = zfs_rangelock_enter(&zp->z_rangelock,
 			    rounddown(start, blksz), len, RL_READER);
@@ -6198,7 +6200,7 @@ zfs_freebsd_copy_file_range(struct vop_copy_file_range_args *ap)
 	} else {
 #if (__FreeBSD_version >= 1302506 && __FreeBSD_version < 1400000) || \
 	__FreeBSD_version >= 1400086
-		vn_lock_pair(invp, false, LK_EXCLUSIVE, outvp, false,
+		vn_lock_pair(invp, false, LK_SHARED, outvp, false,
 		    LK_EXCLUSIVE);
 #else
 		vn_lock_pair(invp, false, outvp, false);

@@ -54,7 +54,6 @@
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
 
-/* CSTYLED */
 module_param(spl_hostid, ulong, 0644);
 MODULE_PARM_DESC(spl_hostid, "The system hostid.");
 

@@ -2921,7 +2921,7 @@ dmu_buf_will_fill(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t canfail)
 		 * pending clone and mark the block as uncached. This will be
 		 * as if the clone was never done.
 		 */
-		if (dr && dr->dt.dl.dr_brtwrite) {
+		if (db->db_state == DB_NOFILL) {
 			VERIFY(!dbuf_undirty(db, tx));
 			db->db_state = DB_UNCACHED;
 		}

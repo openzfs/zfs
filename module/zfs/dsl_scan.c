@@ -231,6 +231,9 @@ static uint_t zfs_resilver_defer_percent = 10;
 	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
 	(scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
 
+#define	DSL_SCAN_IS_SCRUB(scn)		\
+	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB)
+
 /*
  * Enable/disable the processing of the free_bpobj object.
  */
@@ -855,15 +858,15 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 void
 dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
-	(void) arg;
+	setup_sync_arg_t *setup_sync_arg = (setup_sync_arg_t *)arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
-	pool_scan_func_t *funcp = arg;
 	dmu_object_type_t ot = 0;
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
 
 	ASSERT(!dsl_scan_is_running(scn));
-	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
+	ASSERT3U(setup_sync_arg->func, >, POOL_SCAN_NONE);
+	ASSERT3U(setup_sync_arg->func, <, POOL_SCAN_FUNCS);
 	memset(&scn->scn_phys, 0, sizeof (scn->scn_phys));
 
 	/*
@@ -873,10 +876,14 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	memset(&scn->errorscrub_phys, 0, sizeof (scn->errorscrub_phys));
 	dsl_errorscrub_sync_state(scn, tx);
 
-	scn->scn_phys.scn_func = *funcp;
+	scn->scn_phys.scn_func = setup_sync_arg->func;
 	scn->scn_phys.scn_state = DSS_SCANNING;
-	scn->scn_phys.scn_min_txg = 0;
-	scn->scn_phys.scn_max_txg = tx->tx_txg;
+	scn->scn_phys.scn_min_txg = setup_sync_arg->txgstart;
+	if (setup_sync_arg->txgend == 0) {
+		scn->scn_phys.scn_max_txg = tx->tx_txg;
+	} else {
+		scn->scn_phys.scn_max_txg = setup_sync_arg->txgend;
+	}
 	scn->scn_phys.scn_ddt_class_max = DDT_CLASSES - 1; /* the entire DDT */
 	scn->scn_phys.scn_start_time = gethrestime_sec();
 	scn->scn_phys.scn_errors = 0;
@@ -963,7 +970,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, (u_longlong_t)scn->scn_phys.scn_min_txg,
+	    setup_sync_arg->func, (u_longlong_t)scn->scn_phys.scn_min_txg,
 	    (u_longlong_t)scn->scn_phys.scn_max_txg);
 }
 
@@ -973,10 +980,16 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
  * error scrub.
  */
 int
-dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
+dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
+    uint64_t txgend)
 {
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
+	setup_sync_arg_t setup_sync_arg;
+
+	if (func != POOL_SCAN_SCRUB && (txgstart != 0 || txgend != 0)) {
+		return (EINVAL);
+	}
 
 	/*
 	 * Purge all vdev caches and probe all devices.  We do this here
@@ -1027,8 +1040,13 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		return (SET_ERROR(err));
 	}
 
+	setup_sync_arg.func = func;
+	setup_sync_arg.txgstart = txgstart;
+	setup_sync_arg.txgend = txgend;
+
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
-	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED));
+	    dsl_scan_setup_sync, &setup_sync_arg, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 static void
@@ -1116,15 +1134,24 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	spa_notify_waiters(spa);
 
-	if (dsl_scan_restarting(scn, tx))
+	if (dsl_scan_restarting(scn, tx)) {
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
-	else if (!complete)
+	} else if (!complete) {
 		spa_history_log_internal(spa, "scan cancelled", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
-	else
+	} else {
 		spa_history_log_internal(spa, "scan done", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
+		if (DSL_SCAN_IS_SCRUB(scn)) {
+			VERIFY0(zap_update(dp->dp_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_LAST_SCRUBBED_TXG,
+			    sizeof (uint64_t), 1,
+			    &scn->scn_phys.scn_max_txg, tx));
+			spa->spa_scrubbed_last_txg = scn->scn_phys.scn_max_txg;
+		}
+	}
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_active = B_FALSE;
@@ -4330,14 +4357,18 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * current scan progress is below zfs_resilver_defer_percent.
 	 */
 	if (dsl_scan_restarting(scn, tx) || restart_early) {
-		pool_scan_func_t func = POOL_SCAN_SCRUB;
+		setup_sync_arg_t setup_sync_arg = {
+			.func = POOL_SCAN_SCRUB,
+			.txgstart = 0,
+			.txgend = 0,
+		};
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
-			func = POOL_SCAN_RESILVER;
+			setup_sync_arg.func = POOL_SCAN_RESILVER;
 		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
-		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg,
-		    restart_early);
-		dsl_scan_setup_sync(&func, tx);
+		    setup_sync_arg.func, dp->dp_spa->spa_name,
+		    (longlong_t)tx->tx_txg, restart_early);
+		dsl_scan_setup_sync(&setup_sync_arg, tx);
 	}
 
 	/*
@@ -5314,4 +5345,3 @@ ZFS_MODULE_PARAM(zfs, zfs_, resilver_defer_percent, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
-/* END CSTYLED */

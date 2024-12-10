@@ -185,7 +185,6 @@ zfs_valstr_ ## name(int v, char *out, size_t outlen)			\
 /* String tables */
 
 /* ZIO flags: zio_flag_t, typically zio->io_flags */
-/* BEGIN CSTYLED */
 _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "DA", "DONT_AGGREGATE" },
 	{ '.', "RP", "IO_REPAIR" },
@@ -221,13 +220,11 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "DG", "DELEGATED" },
 	{ '.', "DC", "DIO_CHKSUM_ERR" },
 )
-/* END CSTYLED */
 
 /*
  * ZIO pipeline stage(s): enum zio_stage, typically zio->io_stage or
  *                        zio->io_pipeline.
  */
-/* BEGIN CSTYLED */
 _VALSTR_BITFIELD_IMPL(zio_stage,
 	{ 'O', "O ", "OPEN" },
 	{ 'I', "RI", "READ_BP_INIT" },
@@ -257,10 +254,8 @@ _VALSTR_BITFIELD_IMPL(zio_stage,
 	{ 'C', "DC", "DIO_CHECKSUM_VERIFY" },
 	{ 'X', "X ", "DONE" },
 )
-/* END CSTYLED */
 
 /* ZIO priority: zio_priority_t, typically zio->io_priority */
-/* BEGIN CSTYLED */
 _VALSTR_ENUM_IMPL(zio_priority,
 	"SYNC_READ",
 	"SYNC_WRITE",
@@ -274,7 +269,6 @@ _VALSTR_ENUM_IMPL(zio_priority,
 	"[NUM_QUEUEABLE]",
 	"NOW",
 )
-/* END CSTYLED */
 
 #undef _VALSTR_BITFIELD_IMPL
 #undef _VALSTR_ENUM_IMPL

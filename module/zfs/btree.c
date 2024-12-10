@@ -2208,8 +2208,6 @@ zfs_btree_verify(zfs_btree_t *tree)
 	zfs_btree_verify_poison(tree);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, btree_verify_intensity, UINT, ZMOD_RW,
 	"Enable btree verification. Levels above 4 require ZFS be built "
 	"with debugging");
-/* END CSTYLED */

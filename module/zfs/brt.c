@@ -642,6 +642,7 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	BRT_DEBUG("MOS BRT VDEV destroyed, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_brtvdev);
 	brtvd->bv_mos_brtvdev = 0;
+	brtvd->bv_entcount_dirty = FALSE;
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
@@ -1472,11 +1473,9 @@ brt_unload(spa_t *spa)
 	spa->spa_brt_rangesize = 0;
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_prefetch, INT, ZMOD_RW,
 	"Enable prefetching of BRT ZAP entries");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_bs, UINT, ZMOD_RW,
 	"BRT ZAP leaf blockshift");
 ZFS_MODULE_PARAM(zfs_brt, , brt_zap_default_ibs, UINT, ZMOD_RW,
 	"BRT ZAP indirect blockshift");
-/* END CSTYLED */

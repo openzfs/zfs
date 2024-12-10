@@ -198,7 +198,7 @@ void dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value,
     dmu_tx_t *tx);
 void dsl_dir_zapify(dsl_dir_t *dd, dmu_tx_t *tx);
 boolean_t dsl_dir_is_zapified(dsl_dir_t *dd);
-void dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj);
+int dsl_dir_livelist_open(dsl_dir_t *dd, uint64_t obj);
 void dsl_dir_livelist_close(dsl_dir_t *dd);
 void dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total);
 int dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
