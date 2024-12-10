@@ -108,6 +108,7 @@ extern uint_t zfs_btree_verify_intensity;
 
 enum {
 	ARG_ALLOCATED = 256,
+	ARG_BLOCK_BIN_MODE,
 };
 
 static const char cmdname[] = "zdb";
@@ -132,6 +133,13 @@ static spa_t *spa;
 static objset_t *os;
 static boolean_t kernel_init_done;
 static boolean_t corruption_found = B_FALSE;
+
+static enum {
+	BIN_AUTO = 0,
+	BIN_PSIZE,
+	BIN_LSIZE,
+	BIN_ASIZE,
+} block_bin_mode = BIN_AUTO;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
@@ -751,6 +759,8 @@ usage(void)
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
 	(void) fprintf(stderr, "        -b --block-stats             "
 	    "block statistics\n");
+	(void) fprintf(stderr, "           --bin=(lsize|psize|asize) "
+	    "bin blocks based on this size in all three columns\n");
 	(void) fprintf(stderr, "        -B --backup                  "
 	    "backup stream\n");
 	(void) fprintf(stderr, "        -c --checksum                "
@@ -5816,6 +5826,20 @@ dump_size_histograms(zdb_cb_t *zcb)
 
 
 	(void) printf("\nBlock Size Histogram\n");
+	switch (block_bin_mode) {
+	case BIN_PSIZE:
+		printf("(note: all categories are binned by %s)\n", "psize");
+		break;
+	case BIN_LSIZE:
+		printf("(note: all categories are binned by %s)\n", "lsize");
+		break;
+	case BIN_ASIZE:
+		printf("(note: all categories are binned by %s)\n", "asize");
+		break;
+	default:
+		printf("(note: all categories are binned separately)\n");
+		break;
+	}
 	/*
 	 * Print the first line titles
 	 */
@@ -6164,24 +6188,38 @@ skipped:
 		    [BPE_GET_PSIZE(bp)]++;
 		return;
 	}
+
 	/*
 	 * The binning histogram bins by powers of two up to
 	 * SPA_MAXBLOCKSIZE rather than creating bins for
 	 * every possible blocksize found in the pool.
 	 */
-	int bin = highbit64(BP_GET_PSIZE(bp)) - 1;
+	int bin;
+
+	switch (block_bin_mode) {
+	case BIN_PSIZE: bin = highbit64(BP_GET_PSIZE(bp)) - 1; break;
+	case BIN_LSIZE: bin = highbit64(BP_GET_LSIZE(bp)) - 1; break;
+	case BIN_ASIZE: bin = highbit64(BP_GET_ASIZE(bp)) - 1; break;
+	case BIN_AUTO: break;
+	default: PANIC("bad block_bin_mode"); abort();
+	}
+
+	if (block_bin_mode == BIN_AUTO)
+		bin = highbit64(BP_GET_PSIZE(bp)) - 1;
 
 	zcb->zcb_psize_count[bin]++;
 	zcb->zcb_psize_len[bin] += BP_GET_PSIZE(bp);
 	zcb->zcb_psize_total += BP_GET_PSIZE(bp);
 
-	bin = highbit64(BP_GET_LSIZE(bp)) - 1;
+	if (block_bin_mode == BIN_AUTO)
+		bin = highbit64(BP_GET_LSIZE(bp)) - 1;
 
 	zcb->zcb_lsize_count[bin]++;
 	zcb->zcb_lsize_len[bin] += BP_GET_LSIZE(bp);
 	zcb->zcb_lsize_total += BP_GET_LSIZE(bp);
 
-	bin = highbit64(BP_GET_ASIZE(bp)) - 1;
+	if (block_bin_mode == BIN_AUTO)
+		bin = highbit64(BP_GET_ASIZE(bp)) - 1;
 
 	zcb->zcb_asize_count[bin]++;
 	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
@@ -9429,6 +9467,8 @@ main(int argc, char **argv)
 		{"zstd-headers",	no_argument,		NULL, 'Z'},
 		{"allocated-map",	no_argument,		NULL,
 		    ARG_ALLOCATED},
+		{"bin",			required_argument,	NULL,
+		    ARG_BLOCK_BIN_MODE},
 		{0, 0, 0, 0}
 	};
 
@@ -9541,6 +9581,20 @@ main(int argc, char **argv)
 			break;
 		case 'x':
 			vn_dumpdir = optarg;
+			break;
+		case ARG_BLOCK_BIN_MODE:
+			if (strcmp(optarg, "lsize") == 0) {
+				block_bin_mode = BIN_LSIZE;
+			} else if (strcmp(optarg, "psize") == 0) {
+				block_bin_mode = BIN_PSIZE;
+			} else if (strcmp(optarg, "asize") == 0) {
+				block_bin_mode = BIN_ASIZE;
+			} else {
+				(void) fprintf(stderr,
+				    "--bin=\"%s\" must be one of \"lsize\", "
+				    "\"psize\" or \"asize\"\n", optarg);
+				usage();
+			}
 			break;
 		default:
 			usage();
