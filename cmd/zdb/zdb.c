@@ -6254,7 +6254,12 @@ skipped:
 	 */
 	int bin;
 
-#define BIN(size) (highbit64(size) - 1)
+	/*
+	 * Binning strategy: each bin includes blocks up to and including
+	 * the given size (excluding blocks that fit into the previous bin).
+	 * This way, the "4K" bin includes blocks within the (2K; 4K] range.
+	 */
+#define	BIN(size) (highbit64((size) - 1))
 
 	switch (block_bin_mode) {
 	case BIN_PSIZE: bin = BIN(BP_GET_PSIZE(bp)); break;
