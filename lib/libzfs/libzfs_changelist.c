@@ -563,8 +563,15 @@ change_one(zfs_handle_t *zhp, void *data)
 			cn = NULL;
 		}
 
-		if (!clp->cl_alldependents)
-			ret = zfs_iter_children_v2(zhp, 0, change_one, data);
+		if (!clp->cl_alldependents) {
+			if (clp->cl_prop != ZFS_PROP_MOUNTPOINT) {
+				ret = zfs_iter_filesystems_v2(zhp, 0,
+				    change_one, data);
+			} else {
+				ret = zfs_iter_children_v2(zhp, 0, change_one,
+				    data);
+			}
+		}
 
 		/*
 		 * If we added the handle to the changelist, we will re-use it
@@ -735,6 +742,11 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 	} else if (clp->cl_alldependents) {
 		if (zfs_iter_dependents_v2(zhp, 0, B_TRUE, change_one,
 		    clp) != 0) {
+			changelist_free(clp);
+			return (NULL);
+		}
+	} else if (clp->cl_prop != ZFS_PROP_MOUNTPOINT) {
+		if (zfs_iter_filesystems_v2(zhp, 0, change_one, clp) != 0) {
 			changelist_free(clp);
 			return (NULL);
 		}
