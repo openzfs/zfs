@@ -1695,6 +1695,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pam/cleanup.ksh \
 	functional/pam/pam_basic.ksh \
 	functional/pam/pam_change_unmounted.ksh \
+	functional/pam/pam_mount_recursively.ksh \
 	functional/pam/pam_nounmount.ksh \
 	functional/pam/pam_recursive.ksh \
 	functional/pam/pam_short_password.ksh \
