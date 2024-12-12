@@ -859,6 +859,9 @@ brt_entry_lookup(brt_vdev_t *brtvd, brt_entry_t *bre)
 {
 	uint64_t off = BRE_OFFSET(bre);
 
+	if (brtvd->bv_mos_entries == 0)
+		return (SET_ERROR(ENOENT));
+
 	return (zap_lookup_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
 	    &off, BRT_KEY_WORDS, 1, sizeof (bre->bre_count), &bre->bre_count));
 }
