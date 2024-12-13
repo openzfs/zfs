@@ -4779,8 +4779,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	if (*datap != NULL && *datap == db->db_buf &&
 	    dn->dn_object != DMU_META_DNODE_OBJECT &&
-	    zfs_refcount_count(&db->db_holds) > 1 &&
-	    dr->dt.dl.dr_override_state != DR_OVERRIDDEN) {
+	    zfs_refcount_count(&db->db_holds) > 1) {
 		/*
 		 * If this buffer is currently "in use" (i.e., there
 		 * are active holds and db_data still references it),
