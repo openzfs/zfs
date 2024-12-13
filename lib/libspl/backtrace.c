@@ -38,7 +38,7 @@
  */
 #define	spl_bt_write_n(fd, s, n) \
 	do { ssize_t r __maybe_unused = write(fd, s, n); } while (0)
-#define	spl_bt_write(fd, s)		spl_bt_write_n(fd, s, sizeof (s))
+#define	spl_bt_write(fd, s)		spl_bt_write_n(fd, s, sizeof (s)-1)
 
 #if defined(HAVE_LIBUNWIND)
 #define	UNW_LOCAL_ONLY
