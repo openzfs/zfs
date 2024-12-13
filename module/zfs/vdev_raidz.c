@@ -3914,8 +3914,8 @@ raidz_reflow_read_done(zio_t *zio)
 
 	if (atomic_dec_32_nv(&rra->rra_tbd) > 0)
 		return;
-	rra->rra_tbd = rra->rra_writes;
-	for (uint64_t i = 0; i < rra->rra_writes; i++)
+	uint32_t writes = rra->rra_tbd = rra->rra_writes;
+	for (uint64_t i = 0; i < writes; i++)
 		zio_nowait(rra->rra_zio[i]);
 }
 
