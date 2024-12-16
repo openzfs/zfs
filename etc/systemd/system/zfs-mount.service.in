@@ -8,6 +8,13 @@ After=systemd-remount-fs.service
 Before=local-fs.target
 ConditionPathIsDirectory=/sys/module/zfs
 
+# This merely tells the service manager
+# that unmounting everything undoes the
+# effect of this service. No extra logic
+# is ran as a result of these settings.
+Conflicts=umount.target
+Before=umount.target
+
 [Service]
 Type=oneshot
 RemainAfterExit=yes

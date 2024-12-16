@@ -216,27 +216,6 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
-/*
- * When HAVE_VFS_IOV_ITER is defined the iov_iter structure supports
- * iovecs, kvevs, bvecs and pipes, plus all the required interfaces to
- * manipulate the iov_iter are available.  In which case the full iov_iter
- * can be attached to the uio and correctly handled in the lower layers.
- * Otherwise, for older kernels extract the iovec and pass it instead.
- */
-static void
-zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
-    loff_t pos, ssize_t count, size_t skip)
-{
-#if defined(HAVE_VFS_IOV_ITER)
-	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
-#else
-	zfs_uio_iovec_init(uio, zfs_uio_iter_iov(to), to->nr_segs, pos,
-	    zfs_uio_iov_iter_type(to) & ITER_KVEC ?
-	    UIO_SYSSPACE : UIO_USERSPACE,
-	    count, skip);
-#endif
-}
-
 static ssize_t
 zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 {
@@ -246,7 +225,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	ssize_t count = iov_iter_count(to);
 	zfs_uio_t uio;
 
-	zpl_uio_init(&uio, kiocb, to, kiocb->ki_pos, count, 0);
+	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count, 0);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -296,7 +275,8 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	if (ret)
 		return (ret);
 
-	zpl_uio_init(&uio, kiocb, from, kiocb->ki_pos, count, from->iov_offset);
+	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count,
+	    from->iov_offset);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -317,33 +297,17 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 }
 
 static ssize_t
-zpl_direct_IO_impl(void)
+zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter)
 {
 	/*
 	 * All O_DIRECT requests should be handled by
-	 * zpl_{iter/aio}_{write/read}(). There is no way kernel generic code
-	 * should call the direct_IO address_space_operations function. We set
-	 * this code path to be fatal if it is executed.
+	 * zpl_iter_write/read}(). There is no way kernel generic code should
+	 * call the direct_IO address_space_operations function. We set this
+	 * code path to be fatal if it is executed.
 	 */
 	PANIC(0);
 	return (0);
 }
-
-#if defined(HAVE_VFS_DIRECT_IO_ITER)
-static ssize_t
-zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter)
-{
-	return (zpl_direct_IO_impl());
-}
-#elif defined(HAVE_VFS_DIRECT_IO_ITER_OFFSET)
-static ssize_t
-zpl_direct_IO(struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
-{
-	return (zpl_direct_IO_impl());
-}
-#else
-#error "Unknown Direct I/O interface"
-#endif
 
 static loff_t
 zpl_llseek(struct file *filp, loff_t offset, int whence)
@@ -1104,14 +1068,12 @@ const struct file_operations zpl_file_operations = {
 	.llseek		= zpl_llseek,
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
-#ifdef HAVE_VFS_IOV_ITER
 #ifdef HAVE_COPY_SPLICE_READ
 	.splice_read	= copy_splice_read,
 #else
 	.splice_read	= generic_file_splice_read,
 #endif
 	.splice_write	= iter_file_splice_write,
-#endif
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 	.fallocate	= zpl_fallocate,

@@ -54,7 +54,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_GET_DENTRY_INODE_FLAGS], [
-	AC_MSG_RESULT(no)
 	AC_MSG_CHECKING(
 	    [whether xattr_handler->get() wants dentry and inode and flags])
 	ZFS_LINUX_TEST_RESULT([xattr_handler_get_dentry_inode_flags], [

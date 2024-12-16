@@ -1198,9 +1198,8 @@ vdev_disk_io_flush_completion(struct bio *bio)
 {
 	zio_t *zio = bio->bi_private;
 	zio->io_error = bi_status_to_errno(bio->bi_status);
-
-	if (zio->io_error && (zio->io_error == EOPNOTSUPP))
-		zio->io_vd->vdev_nowritecache = B_TRUE;
+	if (zio->io_error == EOPNOTSUPP || zio->io_error == ENOTTY)
+		zio->io_error = SET_ERROR(ENOTSUP);
 
 	bio_put(bio);
 	ASSERT3S(zio->io_error, >=, 0);
