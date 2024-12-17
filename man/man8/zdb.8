@@ -567,6 +567,15 @@ refcnt   blocks   LSIZE   PSIZE   DSIZE   blocks   LSIZE   PSIZE   DSIZE
 dedup = 1.11, compress = 1.80, copies = 1.00, dedup * compress / copies = 2.00
 .Ed
 .
+.Sh ENVIRONMENT VARIABLES
+.Bl -tag -width "ZFS_OUTPUT_BYTES_SI"
+.\" Shared with zfs.8 and zpool.8
+.It Sy ZFS_OUTPUT_BYTES_SI
+Make K/M/G/T/P/E prefixes in
+.Nm zdb
+output to represent powers of 1000 bytes, i.e. KB, MB, GB, TB, PB, EB.
+.El
+.
 .Sh SEE ALSO
 .Xr zfs 8 ,
 .Xr zpool 8
