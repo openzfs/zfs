@@ -162,18 +162,15 @@ For encrypted datasets, indicates where the dataset is currently inheriting its
 encryption key from.
 Loading or unloading a key for the
 .Sy encryptionroot
-will implicitly load / unload the key for any inheriting datasets (see
-.Nm zfs Cm load-key
-and
-.Nm zfs Cm unload-key
-for details).
+will implicitly load/unload the key for any inheriting datasets.
 Clones will always share an
 encryption key with their origin.
 See the
 .Sx Encryption
 section of
 .Xr zfs-load-key 8
-for details.
+for details and known
+.Sx BUGS .
 .It Sy filesystem_count
 The total number of filesystems and volumes that exist under this location in
 the dataset tree.
@@ -188,9 +185,9 @@ The possible values are
 and
 .Sy unavailable .
 See
-.Nm zfs Cm load-key
+.Xr zfs-load-key 8
 and
-.Nm zfs Cm unload-key .
+.Xr zfs-unload-key 8 .
 .It Sy guid
 The 64 bit GUID of this dataset or bookmark which does not change over its
 entire lifetime.
@@ -1148,7 +1145,9 @@ selected, which is currently
 In order to provide consistent data protection, encryption must be specified at
 dataset creation time and it cannot be changed afterwards.
 .Pp
-For more details and caveats about encryption see the
+For more details about encryption and known
+.Sx BUGS ,
+see the
 .Sx Encryption
 section of
 .Xr zfs-load-key 8 .
