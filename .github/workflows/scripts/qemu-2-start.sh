@@ -14,7 +14,7 @@ OSv=$OS
 
 # compressed with .zst extension
 REPO="https://github.com/mcmilk/openzfs-freebsd-images"
-FREEBSD="$REPO/releases/download/v2024-10-05"
+FREEBSD="$REPO/releases/download/v2024-12-14"
 URLzs=""
 
 # Ubuntu mirrors
@@ -76,16 +76,16 @@ case "$OS" in
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
     ;;
-  freebsd14-0r)
-    OSNAME="FreeBSD 14.0-RELEASE"
-    OSv="freebsd14.0"
-    URLzs="$FREEBSD/amd64-freebsd-14.0-RELEASE.qcow2.zst"
-    BASH="/usr/local/bin/bash"
-    ;;
   freebsd14-1r)
     OSNAME="FreeBSD 14.1-RELEASE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.1-RELEASE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    ;;
+  freebsd14-2r)
+    OSNAME="FreeBSD 14.2-RELEASE"
+    OSv="freebsd14.0"
+    URLzs="$FREEBSD/amd64-freebsd-14.2-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
   freebsd13-4s)
@@ -94,10 +94,10 @@ case "$OS" in
     URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
-  freebsd14-1s)
-    OSNAME="FreeBSD 14.1-STABLE"
+  freebsd14-2s)
+    OSNAME="FreeBSD 14.2-STABLE"
     OSv="freebsd14.0"
-    URLzs="$FREEBSD/amd64-freebsd-14.1-STABLE.qcow2.zst"
+    URLzs="$FREEBSD/amd64-freebsd-14.2-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
   freebsd15-0c)
