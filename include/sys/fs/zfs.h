@@ -266,6 +266,7 @@ typedef enum {
 	ZPOOL_PROP_DEDUP_TABLE_QUOTA,
 	ZPOOL_PROP_DEDUPCACHED,
 	ZPOOL_PROP_LAST_SCRUBBED_TXG,
+	ZPOOL_PROP_NEWNAME,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -865,6 +866,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
+#define	ZPOOL_CONFIG_NEWNAME		"org.openzfs:newname"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single

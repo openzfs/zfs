@@ -307,6 +307,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_CACHEFILE:
 		case ZPOOL_PROP_COMMENT:
 		case ZPOOL_PROP_COMPATIBILITY:
+		case ZPOOL_PROP_NEWNAME:
 			if (zhp->zpool_props != NULL ||
 			    zpool_get_all_props(zhp) == 0) {
 				(void) strlcpy(buf,
@@ -876,6 +877,13 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			    "any effect\n", propname);
 			break;
 
+		case ZPOOL_PROP_NEWNAME:
+			if (zpool_name_valid(hdl, B_FALSE, strval))
+				break;
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "invalid pool name '%s'"), strval);
+			(void) zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
+			goto error;
 		default:
 			break;
 		}
@@ -2192,6 +2200,15 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot import pool '%s'"), origname);
+
+	if (newname == NULL) {
+		error = nvlist_lookup_string(config, ZPOOL_CONFIG_NEWNAME,
+		    &newname);
+		if (error != 0 && error != ENOENT)
+			return (zpool_standard_error(hdl, error,
+			    dgettext(TEXT_DOMAIN, "error looking up newname")));
+		error = 0;
+	}
 
 	if (newname != NULL) {
 		if (!zpool_name_valid(hdl, B_FALSE, newname))
