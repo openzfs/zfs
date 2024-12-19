@@ -542,7 +542,8 @@ tags = ['functional', 'cli_root', 'zpool_scrub']
 [tests/functional/cli_root/zpool_set]
 tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
     'zpool_set_ashift', 'zpool_set_features', 'vdev_set_001_pos',
-    'user_property_001_pos', 'user_property_002_neg']
+    'user_property_001_pos', 'user_property_002_neg',
+    'zpool_set_clear_userprop']
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]
