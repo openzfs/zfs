@@ -160,19 +160,55 @@ function user_property_value
 	random_string ALL_CHAR $len
 }
 
+function _check_user_prop
+{
+	typeset pool="$1"
+	typeset vdev="$2"
+	typeset user_prop="$3"
+	typeset expect_value="$4"
+	typeset expect_source="$5"
+
+	typeset -a \
+	    v=($(zpool get -p -H -o value,source "$user_prop" $pool $vdev 2>&1))
+
+	[[ "$expect_value" == "${v[0]}" && \
+	    -z "$expect_source" || "$expect_source" == "${v[1]}" ]]
+}
+
 #
 # Check if the user-defined property is identical to the expected value.
 #
 # $1 pool
 # $2 user property
 # $3 expected value
+# $4 expected source (optional)
 #
 function check_user_prop
 {
 	typeset pool=$1
 	typeset user_prop="$2"
 	typeset expect_value="$3"
-	typeset value=$(zpool get -p -H -o value "$user_prop" $pool 2>&1)
+	typeset expect_source="${4:-}"
 
-	[ "$expect_value" = "$value" ]
+	_check_user_prop $pool '' $user_prop $expect_value $expect_source
+}
+
+#
+# Check if the user-defined property is identical to the expected value.
+#
+# $1 pool
+# $2 vdev
+# $3 user property
+# $4 expected value
+# $5 expected source (optional)
+#
+function check_vdev_user_prop
+{
+	typeset pool="$1"
+	typeset vdev="$2"
+	typeset user_prop="$3"
+	typeset expect_value="$4"
+	typeset expect_source="${5:-}"
+
+	_check_user_prop $pool $vdev $user_prop $expect_value $expect_source
 }
