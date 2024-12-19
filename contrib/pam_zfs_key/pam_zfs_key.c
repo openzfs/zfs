@@ -492,7 +492,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_INFO,
 		    "canmount is not on for: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0); // Skip dataset
+		return (0);
 	}
 
 	/* Get mountpoint prop for check */
@@ -510,7 +510,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_INFO,
 		    "mountpoint is none or legacy for: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0);  // Skip dataset
+		return (0);
 	}
 
 	/* Don't mount the dataset if already mounted */
