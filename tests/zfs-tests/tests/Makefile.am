@@ -1243,6 +1243,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_set/user_property_001_pos.ksh \
 	functional/cli_root/zpool_set/user_property_002_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_features.ksh \
+	functional/cli_root/zpool_set/zpool_set_clear_userprop.ksh \
 	functional/cli_root/zpool_split/cleanup.ksh \
 	functional/cli_root/zpool_split/setup.ksh \
 	functional/cli_root/zpool_split/zpool_split_cliargs.ksh \
