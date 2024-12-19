@@ -93,6 +93,7 @@ case "$OS" in
     OSv="freebsd13.0"
     URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
+    NIC="rtl8139"
     ;;
   freebsd14-2s)
     OSNAME="FreeBSD 14.2-STABLE"
