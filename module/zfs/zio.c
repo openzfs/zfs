@@ -1921,13 +1921,14 @@ zio_write_compress(zio_t *zio)
 		if (psize == 0) {
 			compress = ZIO_COMPRESS_OFF;
 		} else if (psize >= lsize) {
+			ASSERT0P(cabd);
 			compress = ZIO_COMPRESS_OFF;
-			if (cabd != NULL)
-				abd_free(cabd);
 		} else if (!zp->zp_dedup && !zp->zp_encrypt &&
 		    psize <= BPE_PAYLOAD_SIZE &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
 		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
+			if (cabd == NULL)
+				cabd = zio->io_abd;
 			void *cbuf = abd_borrow_buf_copy(cabd, lsize);
 			encode_embedded_bp_compressed(bp,
 			    cbuf, compress, lsize, psize);
@@ -1935,7 +1936,8 @@ zio_write_compress(zio_t *zio)
 			BP_SET_TYPE(bp, zio->io_prop.zp_type);
 			BP_SET_LEVEL(bp, zio->io_prop.zp_level);
 			abd_return_buf(cabd, cbuf, lsize);
-			abd_free(cabd);
+			if (cabd != zio->io_abd)
+				abd_free(cabd);
 			BP_SET_LOGICAL_BIRTH(bp, zio->io_txg);
 			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 			ASSERT(spa_feature_is_active(spa,
@@ -1954,13 +1956,20 @@ zio_write_compress(zio_t *zio)
 			    psize);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
-				abd_free(cabd);
+				if (cabd != NULL)
+					abd_free(cabd);
 				psize = lsize;
-			} else {
+			} else if (cabd != NULL) {
 				abd_zero_off(cabd, psize, rounded - psize);
 				psize = rounded;
 				zio_push_transform(zio, cabd,
 				    psize, lsize, NULL);
+			} else {
+				abd_zero_off(zio->io_abd, psize,
+				    rounded - psize);
+				psize = rounded;
+				zio_push_transform(zio, zio->io_abd,
+				    psize, 0, NULL);
 			}
 		}
 

@@ -55,6 +55,7 @@ enum zio_compress {
 	ZIO_COMPRESS_ZLE,
 	ZIO_COMPRESS_LZ4,
 	ZIO_COMPRESS_ZSTD,
+	ZIO_COMPRESS_SLACK,
 	ZIO_COMPRESS_FUNCTIONS
 };
 
@@ -119,6 +120,9 @@ enum zio_zstd_levels {
 	ZIO_ZSTD_LEVEL_LEVELS
 };
 
+/* True if compressor will reuse the source buffer */
+#define	ZIO_COMPRESS_INPLACE(c)		(c == ZIO_COMPRESS_SLACK)
+
 /* Forward Declaration to avoid visibility problems */
 struct zio_prop;
 
@@ -170,11 +174,15 @@ extern size_t zfs_lz4_compress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);
 extern int zfs_lz4_decompress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);
+extern size_t zfs_slack_compress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
+extern int zfs_slack_decompress(abd_t *src, abd_t *dst, size_t s_len,
+    size_t d_len, int level);
 
 /*
  * Compress and decompress data if necessary.
  */
-extern size_t zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst,
+extern size_t zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dstp,
     size_t s_len, size_t d_len, uint8_t level);
 extern int zio_decompress_data(enum zio_compress c, abd_t *src, abd_t *abd,
     size_t s_len, size_t d_len, uint8_t *level);

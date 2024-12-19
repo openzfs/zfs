@@ -37,8 +37,9 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+.\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd June 29, 2024
+.Dd November 18, 2024
 .Dt ZFSPROPS 7
 .Os
 .
@@ -796,7 +797,7 @@ Changing this property affects only newly-written data.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Ar N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
-.Sy zstd- Ns Ar N Ns | Ns Sy zstd-fast Ns | Ns Sy zstd-fast- Ns Ar N
+.Sy zstd- Ns Ar N Ns | Ns Sy zstd-fast Ns | Ns Sy zstd-fast- Ns | Ns Sy slack Ns Ar N
 .Xc
 Controls the compression algorithm used for this dataset.
 .Pp
@@ -905,6 +906,11 @@ is equivalent to
 The
 .Sy zle
 compression algorithm compresses runs of zeros.
+.Pp
+The
+.Sy slack
+compression algorithm removes runs of zeroes from the end of blocks.
+It is useful when using very large block sizes with incompressible data.
 .Pp
 This property can also be referred to by its shortened column name
 .Sy compress .
