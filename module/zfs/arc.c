@@ -1804,11 +1804,12 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	 */
 	if (HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
 	    !HDR_COMPRESSION_ENABLED(hdr)) {
-		abd = NULL;
+		abd = abd_alloc_sametype(hdr->b_l1hdr.b_pabd, lsize);
 		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
 		    hdr->b_l1hdr.b_pabd, &abd, lsize, MIN(lsize, psize),
 		    hdr->b_complevel);
 		if (csize >= lsize || csize > psize) {
+			abd_free(abd);
 			ret = SET_ERROR(EIO);
 			return (ret);
 		}
@@ -10780,6 +10781,8 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 
 	/* a log block is never entirely zero */
 	ASSERT(psize != 0);
+	/* LZ4 compress will always allocate a buffer */
+	ASSERT3P(abd, !=, NULL);
 	asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
 	ASSERT(asize <= sizeof (*lb));
 
