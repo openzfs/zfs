@@ -5969,7 +5969,7 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			goto end;
 		}
 
-		if (vdev_prop_readonly(prop)) {
+		if (prop != VDEV_PROP_USERPROP && vdev_prop_readonly(prop)) {
 			error = EROFS;
 			goto end;
 		}
