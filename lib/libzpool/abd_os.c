@@ -311,6 +311,38 @@ abd_iter_advance(struct abd_iter *aiter, size_t amount)
 	ASSERT3U(aiter->iter_pos, <=, aiter->iter_abd->abd_size);
 }
 
+/* Data in current linear chunk is always just distance to end of ABD */
+#define	ABD_ITER_LINEAR_SIZE(aiter) \
+	((aiter)->iter_abd->abd_size - (aiter)->iter_pos)
+
+/*
+ * Data in current scatter chunk is always distance to end of chunk, or in
+ * the last chunk, distance to end of ABD
+ */
+#define	ABD_ITER_SCATTER_SIZE(aiter)					\
+	(MIN(ABD_PAGESIZE - (((aiter)->iter_pos +			\
+	    ABD_SCATTER((aiter)->iter_abd).abd_offset) & ABD_PAGEMASK),	\
+	    (aiter)->iter_abd->abd_size - (aiter)->iter_pos))		\
+
+/*
+ * Return size of data in current chunk (_not_ underlying memory size).
+ */
+size_t
+abd_iter_size(struct abd_iter *aiter)
+{
+	/* If it's already mapped, just return that size. */
+	if (aiter->iter_mapsize > 0)
+		return (aiter->iter_mapsize);
+
+	/* There's no current chunk if the iterator is exhausted. */
+	if (abd_iter_at_end(aiter))
+		return (0);
+
+	if (abd_is_linear(aiter->iter_abd))
+		return (ABD_ITER_LINEAR_SIZE(aiter));
+	return (ABD_ITER_SCATTER_SIZE(aiter));
+}
+
 void
 abd_iter_map(struct abd_iter *aiter)
 {
@@ -323,8 +355,7 @@ abd_iter_map(struct abd_iter *aiter)
 	if (abd_is_linear(aiter->iter_abd)) {
 		aiter->iter_mapaddr =
 		    ABD_LINEAR_BUF(aiter->iter_abd) + aiter->iter_pos;
-		aiter->iter_mapsize =
-		    aiter->iter_abd->abd_size - aiter->iter_pos;
+		aiter->iter_mapsize = ABD_ITER_LINEAR_SIZE(aiter);
 		return;
 	}
 
@@ -342,6 +373,7 @@ abd_iter_map(struct abd_iter *aiter)
 	aiter->iter_mapsize = MIN(ABD_PAGESIZE - (poff & ABD_PAGEMASK),
 	    aiter->iter_abd->abd_size - aiter->iter_pos);
 	ASSERT3U(aiter->iter_mapsize, <=, ABD_PAGESIZE);
+	ASSERT3U(aiter->iter_mapsize, ==, ABD_ITER_SCATTER_SIZE(aiter));
 
 	aiter->iter_mapaddr = iov->iov_base + (poff & ABD_PAGEMASK);
 }
