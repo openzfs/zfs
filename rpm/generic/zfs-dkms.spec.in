@@ -30,9 +30,9 @@ Requires(preun): dkms >= 2.2.0.3
 Requires:       gcc, make, perl, diffutils
 Requires(post): gcc, make, perl, diffutils
 %if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}%{?openEuler}
-Requires:       kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
-Requires(post): kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
-Conflicts:      kernel-devel < @ZFS_META_KVER_MIN@, kernel-devel > @ZFS_META_KVER_MAX@.999
+Requires:       (kernel-devel >= @ZFS_META_KVER_MIN@ or kernel-longterm-devel >= @ZFS_META_KVER_MIN@ or kernel-16k-devel >= @ZFS_META_KVER_MIN@) and (kernel-devel <= @ZFS_META_KVER_MAX@.999 or kernel-longterm-devel <= @ZFS_META_KVER_MAX@.999 or kernel-16k-devel <= @ZFS_META_KVER_MAX@.999)
+Requires(post): (kernel-devel >= @ZFS_META_KVER_MIN@ or kernel-longterm-devel >= @ZFS_META_KVER_MIN@ or kernel-16k-devel >= @ZFS_META_KVER_MIN@) and (kernel-devel <= @ZFS_META_KVER_MAX@.999 or kernel-longterm-devel <= @ZFS_META_KVER_MAX@.999 or kernel-16k-devel <= @ZFS_META_KVER_MAX@.999)
+Conflicts:      (kernel-devel >= @ZFS_META_KVER_MIN@ or kernel-longterm-devel >= @ZFS_META_KVER_MIN@ or kernel-16k-devel >= @ZFS_META_KVER_MIN@) and (kernel-devel <= @ZFS_META_KVER_MAX@.999 or kernel-longterm-devel <= @ZFS_META_KVER_MAX@.999 or kernel-16k-devel <= @ZFS_META_KVER_MAX@.999)
 Obsoletes:      spl-dkms <= %{version}
 %endif
 Provides:       %{module}-kmod = %{version}
