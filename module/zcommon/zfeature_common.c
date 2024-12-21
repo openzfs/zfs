@@ -785,6 +785,18 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, large_microzap_deps, sfeatures);
 	}
 
+	{
+		static const spa_feature_t txg_log_time_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_TXG_TIMELOG,
+		    "com.klaraystems:txg_log_time", "txg_log_time",
+		    "Log history of txg.",
+		    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+		    ZFEATURE_TYPE_BOOLEAN, txg_log_time_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
