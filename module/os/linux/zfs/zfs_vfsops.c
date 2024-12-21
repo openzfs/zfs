@@ -1717,7 +1717,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 			 * Must have an existing ref, so igrab()
 			 * cannot return NULL
 			 */
-			VERIFY3P(igrab(*ipp), !=, NULL);
+			zhold(ITOZ(*ipp));
 		}
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
