@@ -3790,14 +3790,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	redirty_page_for_writepage(wbc, pp);
 	unlock_page(pp);
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
-	    pgoff, pglen, RL_WRITER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&zp->z_rangelock, &lr, pgoff, pglen, RL_WRITER);
 	lock_page(pp);
 
 	/* Page mapping changed or it was no longer dirty, we're done */
 	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
 		unlock_page(pp);
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
 	}
@@ -3805,7 +3805,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	/* Another process started write block if required */
 	if (PageWriteback(pp)) {
 		unlock_page(pp);
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 
 		if (wbc->sync_mode != WB_SYNC_NONE) {
 			/*
@@ -3832,7 +3832,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	/* Clear the dirty flag the required locks are held */
 	if (!clear_page_dirty_for_io(pp)) {
 		unlock_page(pp);
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
 	}
@@ -3864,7 +3864,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		end_page_writeback(pp);
 		if (!for_sync)
 			atomic_dec_32(&zp->z_async_writes_cnt);
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (err);
 	}
@@ -3915,7 +3915,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	dmu_tx_commit(tx);
 
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	if (commit)
 		zil_commit(zfsvfs->z_log, zp->z_id);
@@ -4127,9 +4127,10 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	 * dmu_read_impl() for db->db_data during the mempcy operation when
 	 * zfs_fillpage() calls dmu_read().
 	 */
-	zfs_locked_range_t *lr = zfs_rangelock_tryenter(&zp->z_rangelock,
-	    io_off, io_len, RL_READER);
-	if (lr == NULL) {
+	zfs_locked_range_t lr;
+	boolean_t res = zfs_rangelock_tryenter(&zp->z_rangelock, &lr, io_off,
+	    io_len, RL_READER);
+	if (res == B_FALSE) {
 		/*
 		 * It is important to drop the page lock before grabbing the
 		 * rangelock to avoid another deadlock between here and
@@ -4138,13 +4139,13 @@ zfs_getpage(struct inode *ip, struct page *pp)
 		 */
 		get_page(pp);
 		unlock_page(pp);
-		lr = zfs_rangelock_enter(&zp->z_rangelock, io_off,
-		    io_len, RL_READER);
+		zfs_rangelock_enter(&zp->z_rangelock, &lr, io_off, io_len,
+		    RL_READER);
 		lock_page(pp);
 		put_page(pp);
 	}
 	error = zfs_fillpage(ip, pp);
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	if (error == 0)
 		dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, PAGE_SIZE);

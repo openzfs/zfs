@@ -655,7 +655,7 @@ zvol_get_done(zgd_t *zgd, int error)
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
-	zfs_rangelock_exit(zgd->zgd_lr);
+	zfs_rangelock_exit(&zgd->zgd_lr);
 
 	kmem_free(zgd, sizeof (zgd_t));
 }
@@ -688,7 +688,7 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+		zfs_rangelock_enter(&zv->zv_rangelock, &zgd->zgd_lr, offset,
 		    size, RL_READER);
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
 		    DMU_READ_NO_PREFETCH);
@@ -702,7 +702,7 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		 */
 		size = zv->zv_volblocksize;
 		offset = P2ALIGN_TYPED(offset, size, uint64_t);
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+		zfs_rangelock_enter(&zv->zv_rangelock, &zgd->zgd_lr, offset,
 		    size, RL_READER);
 		error = dmu_buf_hold_noread_by_dnode(zv->zv_dn, offset, zgd,
 		    &db);

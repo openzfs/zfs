@@ -49,6 +49,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_priority.h>
+#include <sys/zfs_rlock.h>
 #include <sys/uio.h>
 #include <sys/zfs_file.h>
 
@@ -1083,10 +1084,10 @@ uint64_t dmu_tx_get_txg(dmu_tx_t *tx);
  * {zfs,zvol,ztest}_get_done() args
  */
 typedef struct zgd {
+	zfs_locked_range_t zgd_lr;
 	struct lwb	*zgd_lwb;
 	struct blkptr	*zgd_bp;
 	dmu_buf_t	*zgd_db;
-	struct zfs_locked_range *zgd_lr;
 	void		*zgd_private;
 } zgd_t;
 
