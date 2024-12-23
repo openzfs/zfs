@@ -4520,6 +4520,8 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_checksum_errors = 0;
 	vd->vdev_stat.vs_dio_verify_errors = 0;
 	vd->vdev_stat.vs_slow_ios = 0;
+	atomic_store_64(&vd->vdev_outlier_count, 0);
+	vd->vdev_read_sit_out_expire = 0;
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);

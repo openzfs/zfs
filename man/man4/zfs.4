@@ -501,6 +501,14 @@ For testing, pause RAID-Z expansion when reflow amount reaches this value.
 .It Sy raidz_io_aggregate_rows Ns = Ns Sy 4 Pq ulong
 For expanded RAID-Z, aggregate reads that have more rows than this.
 .
+.It Sy raid_read_sit_out_secs Ns = Ns Sy 600 Ns s Po 10 min Pc Pq ulong
+For RAID-Z and dRAID only, this is the slow disk sit out time period in
+seconds.
+When a slow disk outlier is detected, then it gets placed in a sit out
+during reads for the duration of this time period.
+Defaults to 600 seconds and a value of zero disables slow disk outlier
+detection.
+.
 .It Sy reference_history Ns = Ns Sy 3 Pq int
 Maximum reference holders being tracked when reference_tracking_enable is
 active.
