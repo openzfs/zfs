@@ -643,8 +643,8 @@ zfs_prop_init(void)
 	    ZFS_TYPE_VOLUME, "512 to 16M, power of 2", "VOLBLOCK", B_FALSE,
 	    sfeatures);
 	zprop_register_index(ZFS_PROP_VOLTHREADING, "volthreading",
-	    1, PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off", "zvol threading",
-	    boolean_table, sfeatures);
+	    1, PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off",
+	    "VOLTHREAD", boolean_table, sfeatures);
 	zprop_register_number(ZFS_PROP_USEDSNAP, "usedbysnapshots", 0,
 	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<size>",
 	    "USEDSNAP", B_FALSE, sfeatures);
