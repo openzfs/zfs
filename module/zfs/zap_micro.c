@@ -54,14 +54,25 @@
  * machinery to understand not to try to split a microzap block).
  *
  * If large_microzap is enabled, this value will be clamped to
- * spa_maxblocksize(). If not, it will be clamped to SPA_OLD_MAXBLOCKSIZE.
+ * spa_maxblocksize(), up to 1M. If not, it will be clamped to
+ * SPA_OLD_MAXBLOCKSIZE.
  */
 static int zap_micro_max_size = SPA_OLD_MAXBLOCKSIZE;
+
+/*
+ * The 1M upper limit is necessary because the count of chunks in a microzap
+ * block is stored as a uint16_t (mze_chunkid). Each chunk is 64 bytes, and the
+ * first is used to store a header, so there are 32767 usable chunks, which is
+ * just under 2M. 1M is the largest power-2-rounded block size under 2M, so we
+ * must set the limit there.
+ */
+#define	MZAP_MAX_SIZE	(1048576)
 
 uint64_t
 zap_get_micro_max_size(spa_t *spa)
 {
-	uint64_t maxsz = P2ROUNDUP(zap_micro_max_size, SPA_MINBLOCKSIZE);
+	uint64_t maxsz = MIN(MZAP_MAX_SIZE,
+	    P2ROUNDUP(zap_micro_max_size, SPA_MINBLOCKSIZE));
 	if (maxsz <= SPA_OLD_MAXBLOCKSIZE)
 		return (maxsz);
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_MICROZAP))
@@ -2031,5 +2042,6 @@ EXPORT_SYMBOL(zap_cursor_init_serialized);
 EXPORT_SYMBOL(zap_get_stats);
 
 ZFS_MODULE_PARAM(zfs, , zap_micro_max_size, INT, ZMOD_RW,
-	"Maximum micro ZAP size, before converting to a fat ZAP, in bytes");
+	"Maximum micro ZAP size before converting to a fat ZAP, "
+	    "in bytes (max 1M)");
 #endif
