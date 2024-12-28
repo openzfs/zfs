@@ -16,7 +16,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-typeset -a compress_prop_vals=('off' 'lzjb' 'lz4' 'gzip' 'zle' 'zstd')
+typeset -a compress_prop_vals=('off' 'lzjb' 'lz4' 'gzip' 'zle' 'zstd' 'slack')
 typeset -a checksum_prop_vals=('on' 'off' 'fletcher2' 'fletcher4' 'sha256'
     'noparity' 'sha512' 'skein' 'blake3')
 if ! is_freebsd; then
