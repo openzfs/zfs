@@ -88,6 +88,11 @@ int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 int zvol_init_impl(void);
 void zvol_fini_impl(void);
 void zvol_wait_close(zvol_state_t *zv);
+int zvol_clone_range(zvol_state_handle_t *, uint64_t,
+    zvol_state_handle_t *, uint64_t, uint64_t);
+void zvol_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
+    size_t nbps);
 
 /*
  * platform dependent functions exported to platform independent code
