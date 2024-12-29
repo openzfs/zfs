@@ -63,7 +63,7 @@
  * practice, the kernel's shrinker can ask us to evict up to about 4x this
  * for one allocation attempt.
  *
- * The default limit of 10,000 (in practice, 160MB per allocation attempt
+ * For example a value of 10,000 (in practice, 160MB per allocation attempt
  * with 4K pages) limits the amount of time spent attempting to reclaim ARC
  * memory to less than 100ms per allocation attempt, even with a small
  * average compressed block size of ~8KB.
@@ -71,7 +71,7 @@
  * See also the comment in arc_shrinker_count().
  * Set to 0 to disable limit.
  */
-static int zfs_arc_shrinker_limit = 10000;
+static int zfs_arc_shrinker_limit = 0;
 
 /*
  * Relative cost of ARC eviction, AKA number of seeks needed to restore evicted
