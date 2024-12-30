@@ -95,6 +95,8 @@ struct zfsvfs {
 	uint64_t	z_groupobjquota_obj;
 	uint64_t	z_projectquota_obj;
 	uint64_t	z_projectobjquota_obj;
+	uint64_t	z_defaultuserquota_obj;
+	uint64_t	z_defaultgroupquota_obj;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	64

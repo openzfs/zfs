@@ -1444,6 +1444,9 @@ but it limits the number of objects a user can create.
 Please refer to
 .Sy userobjused
 for more information about how objects are counted.
+.It Sy defaultuserquota Ns = Ns Ar size Ns | Ns Sy none
+Sets a default quota to be applied to each user for whom no user-specific
+quota is set.
 .It Sy groupquota@ Ns Ar group Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space consumed by the specified group.
 Group space consumption is identified by the
@@ -1465,6 +1468,9 @@ but it limits number of objects a group can consume.
 Please refer to
 .Sy userobjused
 for more information about how objects are counted.
+.It Sy defaultgroupquota Ns = Ns Ar size Ns | Ns Sy none
+Sets a default quota to be applied to each group for whom no group-specific
+quota is set.
 .It Sy projectquota@ Ns Ar project Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space consumed by the specified project.
 Project space consumption is identified by the
