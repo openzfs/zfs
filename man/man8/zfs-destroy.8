@@ -40,10 +40,12 @@
 .Nm zfs
 .Cm destroy
 .Op Fl Rfnprv
+.Oo Fl t Ar type Ns Oc
 .Ar filesystem Ns | Ns Ar volume
 .Nm zfs
 .Cm destroy
 .Op Fl Rdnprv
+.Oo Fl t Ar type Ns Oc
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Nm zfs
@@ -56,6 +58,7 @@
 .Nm zfs
 .Cm destroy
 .Op Fl Rfnprv
+.Oo Fl t Ar type Ns Oc
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 Destroys the given dataset.
@@ -84,6 +87,28 @@ flags to determine what data would be deleted.
 Print machine-parsable verbose information about the deleted data.
 .It Fl r
 Recursively destroy all children.
+.It Fl t Ar type
+The specified type to destroy, where
+.Ar type
+is one of
+.Sy filesystem ,
+.Sy snapshot ,
+.Sy volume ,
+or
+.Sy bookmark .
+For example, specifying
+.Fl t Sy snapshot
+will not destroy data if the supplied argument is not a
+.Sy snapshot .
+.Sy fs ,
+.Sy snap ,
+or
+.Sy vol
+can be used as aliases for
+.Sy filesystem ,
+.Sy snapshot ,
+or
+.Sy volume .
 .It Fl v
 Print verbose information about the deleted data.
 .El
@@ -98,6 +123,7 @@ behavior for mounted file systems in use.
 .Nm zfs
 .Cm destroy
 .Op Fl Rdnprv
+.Oo Fl t Ar type Ns Oc
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Xc
@@ -155,6 +181,28 @@ Print machine-parsable verbose information about the deleted data.
 Destroy
 .Pq or mark for deferred deletion
 all snapshots with this name in descendent file systems.
+.It Fl t Ar type
+The specified type to destroy, where
+.Ar type
+is one of
+.Sy filesystem ,
+.Sy snapshot ,
+.Sy volume ,
+or
+.Sy bookmark .
+For example, specifying
+.Fl t Sy snapshot
+will not destroy data if the supplied argument is not a
+.Sy snapshot .
+.Sy fs ,
+.Sy snap ,
+or
+.Sy vol
+can be used as aliases for
+.Sy filesystem ,
+.Sy snapshot ,
+or
+.Sy volume .
 .It Fl v
 Print verbose information about the deleted data.
 .Pp
