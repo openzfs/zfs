@@ -43,7 +43,7 @@ log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"
 function test_cleanup
 {
 	# reset memory limit to 16M
-	set_tunable64 SPA_DISCARD_MEMORY_LIMIT 1000000
+	set_tunable64 SPA_DISCARD_MEMORY_LIMIT 16777216
 	cleanup_nested_pools
 }
 
