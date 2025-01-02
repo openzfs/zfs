@@ -40,6 +40,12 @@ case "$OS" in
     # dns sometimes fails with that url  :/
     echo "89.187.191.12  geo.mirror.pkgbuild.com" | sudo tee /etc/hosts > /dev/null
     ;;
+  centos-stream10)
+    OSNAME="CentOS Stream 10"
+    # TODO: #16903 Overwrite OSv to stream9 for virt-install until it's added to osinfo
+    OSv="centos-stream9"
+    URL="https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2"
+    ;;
   centos-stream9)
     OSNAME="CentOS Stream 9"
     URL="https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2"
