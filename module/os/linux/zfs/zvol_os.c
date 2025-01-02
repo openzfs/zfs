@@ -275,8 +275,9 @@ zvol_write(zv_request_t *zvr)
 	boolean_t sync =
 	    io_is_fua(bio, rq) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    uio.uio_loffset, uio.uio_resid, RL_WRITER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, uio.uio_loffset,
+	    uio.uio_resid, RL_WRITER);
 
 	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
@@ -304,7 +305,7 @@ zvol_write(zv_request_t *zvr)
 		if (error)
 			break;
 	}
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	int64_t nwritten = start_resid - uio.uio_resid;
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
@@ -381,8 +382,8 @@ zvol_discard(zv_request_t *zvr)
 	if (start >= end)
 		goto unlock;
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    start, size, RL_WRITER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, start, size, RL_WRITER);
 
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
@@ -395,7 +396,7 @@ zvol_discard(zv_request_t *zvr)
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);
 	}
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -453,8 +454,9 @@ zvol_read(zv_request_t *zvr)
 			    bio);
 	}
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    uio.uio_loffset, uio.uio_resid, RL_READER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, uio.uio_loffset,
+	    uio.uio_resid, RL_READER);
 
 	uint64_t volsize = zv->zv_volsize;
 
@@ -473,7 +475,7 @@ zvol_read(zv_request_t *zvr)
 			break;
 		}
 	}
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
 	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);

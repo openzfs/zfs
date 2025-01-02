@@ -2534,7 +2534,8 @@ vdev_raidz_io_start(zio_t *zio)
 	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz,
 	    BP_GET_BIRTH(zio->io_bp));
 	if (logical_width != vdrz->vd_physical_width) {
-		zfs_locked_range_t *lr = NULL;
+		zfs_locked_range_t *lr = kmem_alloc(
+		    sizeof (zfs_locked_range_t), KM_SLEEP);
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
 		boolean_t use_scratch = B_FALSE;
@@ -2553,7 +2554,7 @@ vdev_raidz_io_start(zio_t *zio)
 		if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 			ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==,
 			    &vdrz->vn_vre);
-			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
+			zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock, lr,
 			    zio->io_offset, zio->io_size, RL_READER);
 			use_scratch =
 			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
@@ -3578,6 +3579,7 @@ vdev_raidz_io_done(zio_t *zio)
 done:
 	if (rm->rm_lr != NULL) {
 		zfs_rangelock_exit(rm->rm_lr);
+		kmem_free(rm->rm_lr, sizeof (zfs_locked_range_t));
 		rm->rm_lr = NULL;
 	}
 }
@@ -3723,9 +3725,9 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	VERIFY3U(vre->vre_failed_offset, >=, old_offset);
 	mutex_exit(&vre->vre_lock);
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    old_offset, new_offset - old_offset,
-	    RL_WRITER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&vre->vre_rangelock, &lr, old_offset,
+	    new_offset - old_offset, RL_WRITER);
 
 	/*
 	 * Update the uberblock that will be written when this txg completes.
@@ -3733,7 +3735,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	RAIDZ_REFLOW_SET(&spa->spa_uberblock,
 	    RRSS_SCRATCH_INVALID_SYNCED_REFLOW, new_offset);
 	vre->vre_offset_pertxg[txgoff] = 0;
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	mutex_enter(&vre->vre_lock);
 	vre->vre_bytes_copied += vre->vre_bytes_copied_pertxg[txgoff];
@@ -3830,8 +3832,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
  * State of one copy batch.
  */
 typedef struct raidz_reflow_arg {
+	zfs_locked_range_t rra_lr;	/* Range lock of this batch. */
 	vdev_raidz_expand_t *rra_vre;	/* Global expantion state. */
-	zfs_locked_range_t *rra_lr;	/* Range lock of this batch. */
 	uint64_t rra_txg;	/* TXG of this batch. */
 	uint_t rra_ashift;	/* Ashift of the vdev. */
 	uint32_t rra_tbd;	/* Number of in-flight ZIOs. */
@@ -3855,11 +3857,11 @@ raidz_reflow_write_done(zio_t *zio)
 	if (zio->io_error != 0) {
 		/* Force a reflow pause on errors */
 		vre->vre_failed_offset =
-		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
+		    MIN(vre->vre_failed_offset, rra->rra_lr.lr_offset);
 	}
 	ASSERT3U(vre->vre_outstanding_bytes, >=, zio->io_size);
 	vre->vre_outstanding_bytes -= zio->io_size;
-	if (rra->rra_lr->lr_offset + rra->rra_lr->lr_length <
+	if (rra->rra_lr.lr_offset + rra->rra_lr.lr_length <
 	    vre->vre_failed_offset) {
 		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] +=
 		    zio->io_size;
@@ -3870,8 +3872,9 @@ raidz_reflow_write_done(zio_t *zio)
 
 	if (!done)
 		return;
+
 	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
-	zfs_rangelock_exit(rra->rra_lr);
+	zfs_rangelock_exit(&rra->rra_lr);
 	kmem_free(rra, sizeof (*rra) + sizeof (zio_t *) * rra->rra_writes);
 }
 
@@ -3899,8 +3902,8 @@ raidz_reflow_read_done(zio_t *zio)
 	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_MISSING)) {
 		zfs_dbgmsg("reflow read failed off=%llu size=%llu txg=%llu "
 		    "err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
-		    (long long)rra->rra_lr->lr_offset,
-		    (long long)rra->rra_lr->lr_length,
+		    (long long)rra->rra_lr.lr_offset,
+		    (long long)rra->rra_lr.lr_length,
 		    (long long)rra->rra_txg,
 		    zio->io_error,
 		    vdev_dtl_empty(zio->io_vd, DTL_PARTIAL),
@@ -3908,7 +3911,7 @@ raidz_reflow_read_done(zio_t *zio)
 		mutex_enter(&vre->vre_lock);
 		/* Force a reflow pause on errors */
 		vre->vre_failed_offset =
-		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
+		    MIN(vre->vre_failed_offset, rra->rra_lr.lr_offset);
 		mutex_exit(&vre->vre_lock);
 	}
 
@@ -4008,7 +4011,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	raidz_reflow_arg_t *rra = kmem_zalloc(sizeof (*rra) +
 	    sizeof (zio_t *) * writes, KM_SLEEP);
 	rra->rra_vre = vre;
-	rra->rra_lr = zfs_rangelock_enter(&vre->vre_rangelock,
+	zfs_rangelock_enter(&vre->vre_rangelock, &rra->rra_lr,
 	    offset, size, RL_WRITER);
 	rra->rra_txg = dmu_tx_get_txg(tx);
 	rra->rra_ashift = ashift;
@@ -4027,18 +4030,18 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	if (vdev_raidz_expand_child_replacing(vd)) {
 		zfs_dbgmsg("replacing vdev encountered, reflow paused at "
 		    "offset=%llu txg=%llu",
-		    (long long)rra->rra_lr->lr_offset,
+		    (long long)rra->rra_lr.lr_offset,
 		    (long long)rra->rra_txg);
 
 		mutex_enter(&vre->vre_lock);
 		vre->vre_failed_offset =
-		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
+		    MIN(vre->vre_failed_offset, rra->rra_lr.lr_offset);
 		cv_signal(&vre->vre_cv);
 		mutex_exit(&vre->vre_lock);
 
 		/* drop everything we acquired */
 		spa_config_exit(spa, SCL_STATE, spa);
-		zfs_rangelock_exit(rra->rra_lr);
+		zfs_rangelock_exit(&rra->rra_lr);
 		kmem_free(rra, sizeof (*rra) + sizeof (zio_t *) * writes);
 		return (B_TRUE);
 	}
@@ -4152,8 +4155,9 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	VERIFY3U(write_size, <=, VDEV_BOOT_SIZE);
 	VERIFY3U(write_size, <=, read_size);
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    0, logical_size, RL_WRITER);
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&vre->vre_rangelock, &lr, 0, logical_size,
+	    RL_WRITER);
 
 	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
 	    KM_SLEEP);
@@ -4215,7 +4219,7 @@ io_error_exit:
 		for (int i = 0; i < raidvd->vdev_children; i++)
 			abd_free(abds[i]);
 		kmem_free(abds, raidvd->vdev_children * sizeof (abd_t *));
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		spa_config_exit(spa, SCL_STATE, FTAG);
 		return;
 	}
@@ -4367,7 +4371,7 @@ overwrite:
 	 * Update progress.
 	 */
 	vre->vre_offset = logical_size;
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;

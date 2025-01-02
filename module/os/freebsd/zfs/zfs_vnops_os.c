@@ -3924,7 +3924,8 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 {
 	znode_t *zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
+	boolean_t res;
 	vm_object_t object;
 	off_t start, end, obj_size;
 	uint_t blksz;
@@ -3948,9 +3949,9 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 		blksz = zp->z_blksz;
 		len = roundup(end, blksz) - rounddown(start, blksz);
 
-		lr = zfs_rangelock_tryenter(&zp->z_rangelock,
+		res = zfs_rangelock_tryenter(&zp->z_rangelock, &lr,
 		    rounddown(start, blksz), len, RL_READER);
-		if (lr == NULL) {
+		if (res == B_FALSE) {
 			/*
 			 * Avoid a deadlock with update_pages().  We need to
 			 * hold the range lock when copying from the DMU, so
@@ -3963,7 +3964,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 			for (int i = 0; i < count; i++)
 				vm_page_xunbusy(ma[i]);
 
-			lr = zfs_rangelock_enter(&zp->z_rangelock,
+			zfs_rangelock_enter(&zp->z_rangelock, &lr,
 			    rounddown(start, blksz), len, RL_READER);
 
 			zfs_vmobject_wlock(object);
@@ -3974,14 +3975,14 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 		}
 		if (blksz == zp->z_blksz)
 			break;
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 	}
 
 	zfs_vmobject_wlock(object);
 	obj_size = object->un_pager.vnp.vnp_size;
 	zfs_vmobject_wunlock(object);
 	if (IDX_TO_OFF(ma[count - 1]->pindex) >= obj_size) {
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (zfs_vm_pagerret_bad);
 	}
@@ -4032,7 +4033,7 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 		i += count1 - 1;
 	}
 
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, count*PAGE_SIZE);
@@ -4075,7 +4076,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	zfs_locked_range_t		*lr;
+	zfs_locked_range_t		lr;
 	dmu_tx_t	*tx;
 	struct sf_buf	*sf;
 	vm_object_t	object;
@@ -4107,7 +4108,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 	blksz = zp->z_blksz;
 	lo_off = rounddown(off, blksz);
 	lo_len = roundup(len + (off - lo_off), blksz);
-	lr = zfs_rangelock_enter(&zp->z_rangelock, lo_off, lo_len, RL_WRITER);
+	zfs_rangelock_enter(&zp->z_rangelock, &lr, lo_off, lo_len, RL_WRITER);
 
 	zfs_vmobject_wlock(object);
 	if (len + off > object->un_pager.vnp.vnp_size) {
@@ -4213,7 +4214,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 	dmu_tx_commit(tx);
 
 out:
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 	if (commit)
 		zil_commit(zfsvfs->z_log, zp->z_id);
 
