@@ -61,6 +61,7 @@
 #include <sys/sid.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/zfs_quota.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>
@@ -282,17 +283,16 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
  * from memory mapped pages, otherwise fallback to reading through the dmu.
  */
 int
-mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
+mappedread(znode_t *zp, int len, zfs_uio_t *uio)
 {
 	struct inode *ip = ZTOI(zp);
 	struct address_space *mp = ip->i_mapping;
 	int64_t start = uio->uio_loffset;
 	int64_t off = start & (PAGE_SIZE - 1);
-	int len = nbytes;
 	int error = 0;
 
 	for (start &= PAGE_MASK; len > 0; start += PAGE_SIZE) {
-		uint64_t bytes = MIN(PAGE_SIZE - off, len);
+		uint64_t nbytes = MIN(PAGE_SIZE - off, len);
 
 		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
@@ -316,7 +316,7 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			unlock_page(pp);
 
 			void *pb = kmap(pp);
-			error = zfs_uiomove(pb + off, bytes, UIO_READ, uio);
+			error = zfs_uiomove(pb + off, nbytes, UIO_READ, uio);
 			kunmap(pp);
 
 			if (mapping_writably_mapped(mp))
@@ -326,10 +326,10 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			put_page(pp);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, bytes);
+			    uio, nbytes);
 		}
 
-		len -= bytes;
+		len -= nbytes;
 		off = 0;
 
 		if (error)
@@ -719,6 +719,12 @@ top:
 			goto out;
 		}
 
+		error = zfs_iolimit_metadata_write(os);
+		if (error != 0) {
+			zfs_acl_ids_free(&acl_ids);
+			goto out;
+		}
+
 		tx = dmu_tx_create(os);
 
 		dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
@@ -913,6 +919,12 @@ top:
 		goto out;
 	}
 
+	error = zfs_iolimit_metadata_write(os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		goto out;
+	}
+
 	tx = dmu_tx_create(os);
 
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
@@ -1041,6 +1053,11 @@ top:
 	 */
 	if (S_ISDIR(ZTOI(zp)->i_mode)) {
 		error = SET_ERROR(EPERM);
+		goto out;
+	}
+
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
 		goto out;
 	}
 
@@ -1320,6 +1337,14 @@ top:
 		return (SET_ERROR(EDQUOT));
 	}
 
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		zfs_dirent_unlock(dl);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
 	/*
 	 * Add a new entry to the directory.
 	 */
@@ -1462,6 +1487,11 @@ top:
 		goto out;
 	}
 
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		goto out;
+	}
+
 	/*
 	 * Grab a lock on the directory to make sure that no one is
 	 * trying to add (or lookup) entries while we are removing it.
@@ -1561,6 +1591,7 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 	int		done = 0;
 	uint64_t	parent;
 	uint64_t	offset; /* must be unsigned; checks for < 1 */
+	size_t		nbytes;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
@@ -1580,6 +1611,21 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 	offset = ctx->pos;
 	prefetch = zp->z_zn_prefetch;
 	zap = zap_attribute_long_alloc();
+	nbytes = 0;
+
+	/*
+	 * Calling zfs_iolimit_data_read() for each directory entry would be
+	 * way too expensive. We don't want to do that so we do the following
+	 * instead:
+	 * We charge here only for a single block. If there is a lot of traffic
+	 * we are going to wait before any reading is issued. Once we read all
+	 * directory entries we will charge the process for the rest, as this is
+	 * when we will know how much data exactly was read.
+	 */
+	error = zfs_iolimit_data_read(os, zp->z_blksz, zp->z_blksz);
+	if (error != 0) {
+		goto out;
+	}
 
 	/*
 	 * Initialize the iterator cursor.
@@ -1672,8 +1718,21 @@ zfs_readdir(struct inode *ip, struct dir_context *ctx, cred_t *cr)
 			offset += 1;
 		}
 		ctx->pos = offset;
+		/*
+		 * TODO: We should be adding size of dirent structure here too.
+		 */
+		nbytes += strlen(zap->za_name);
 	}
 	zp->z_zn_prefetch = B_FALSE; /* a lookup will re-enable pre-fetching */
+
+	/*
+	 * Charge the process for the rest, if more than a single block was
+	 * read.
+	 */
+	if (error == 0 && nbytes > zp->z_blksz) {
+		error = zfs_iolimit_data_read(os, zp->z_blksz,
+		    nbytes - zp->z_blksz);
+	}
 
 update:
 	zap_cursor_fini(&zc);
@@ -1714,6 +1773,12 @@ zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	error = zfs_iolimit_metadata_read(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
 
 	mutex_enter(&zp->z_lock);
 
@@ -2327,6 +2392,12 @@ top:
 			goto out2;
 		}
 	}
+
+	err = zfs_iolimit_metadata_write(os);
+	if (err != 0) {
+		goto out2;
+	}
+
 	tx = dmu_tx_create(os);
 
 	if (mask & ATTR_MODE) {
@@ -3039,6 +3110,11 @@ top:
 		}
 	}
 
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		goto out;
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, B_FALSE);
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, B_FALSE);
@@ -3352,6 +3428,15 @@ top:
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EDQUOT));
 	}
+
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		zfs_dirent_unlock(dl);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
 	dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, MAX(1, len));
@@ -3459,6 +3544,12 @@ zfs_readlink(struct inode *ip, zfs_uio_t *uio, cred_t *cr)
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	error = zfs_iolimit_metadata_read(zfsvfs->z_os);
+	if (error != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
 
 	mutex_enter(&zp->z_lock);
 	if (zp->z_is_sa)
@@ -3593,6 +3684,12 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 
 	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr,
 	    zfs_init_idmap))) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -3837,6 +3934,13 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		return (0);
 	}
 
+	if (zfs_iolimit_data_write(zfsvfs->z_os, zp->z_blksz, pglen) != 0) {
+		unlock_page(pp);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
 	/*
 	 * Counterpart for redirty_page_for_writepage() above.  This page
 	 * was in fact not skipped and should not be counted as if it were.
@@ -3847,6 +3951,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	set_page_writeback(pp);
 	unlock_page(pp);
 
+	err = zfs_iolimit_data_write(zfsvfs->z_os, zp->z_blksz, pglen);
+	if (err != 0) {
+		goto error;
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -3855,6 +3964,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
+error:
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
 #else
@@ -3962,6 +4072,11 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	}
 #endif
 
+	error = zfs_iolimit_metadata_write(zfsvfs->z_os);
+	if (error != 0) {
+		goto out;
+	}
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -4007,7 +4122,6 @@ zfs_inactive(struct inode *ip)
 	znode_t	*zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	uint64_t atime[2];
-	int error;
 	int need_unlock = 0;
 
 	/* Only read lock if we haven't already write locked, e.g. rollback */
@@ -4022,26 +4136,30 @@ zfs_inactive(struct inode *ip)
 	}
 
 	if (zp->z_atime_dirty && zp->z_unlinked == B_FALSE) {
+		if (zfs_iolimit_metadata_write(zfsvfs->z_os) != 0) {
+			goto out;
+		}
+
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error) {
+		if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
 			dmu_tx_abort(tx);
-		} else {
-			inode_timespec_t tmp_atime;
-			tmp_atime = zpl_inode_get_atime(ip);
-			ZFS_TIME_ENCODE(&tmp_atime, atime);
-			mutex_enter(&zp->z_lock);
-			(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs),
-			    (void *)&atime, sizeof (atime), tx);
-			zp->z_atime_dirty = B_FALSE;
-			mutex_exit(&zp->z_lock);
-			dmu_tx_commit(tx);
+			goto out;
 		}
-	}
 
+		inode_timespec_t tmp_atime;
+		tmp_atime = zpl_inode_get_atime(ip);
+		ZFS_TIME_ENCODE(&tmp_atime, atime);
+		mutex_enter(&zp->z_lock);
+		(void) sa_update(zp->z_sa_hdl, SA_ZPL_ATIME(zfsvfs),
+		    (void *)&atime, sizeof (atime), tx);
+		zp->z_atime_dirty = B_FALSE;
+		mutex_exit(&zp->z_lock);
+		dmu_tx_commit(tx);
+	}
+out:
 	zfs_zinactive(zp);
 	if (need_unlock)
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
@@ -4070,7 +4188,6 @@ zfs_fillpage(struct inode *ip, struct page *pp)
 	if (io_len != PAGE_SIZE)
 		memset((char *)va + io_len, 0, PAGE_SIZE - io_len);
 	kunmap(pp);
-
 	if (error) {
 		/* convert checksum errors into IO errors */
 		if (error == ECKSUM)
@@ -4143,7 +4260,9 @@ zfs_getpage(struct inode *ip, struct page *pp)
 		lock_page(pp);
 		put_page(pp);
 	}
-	error = zfs_fillpage(ip, pp);
+	error = zfs_iolimit_data_read(zfsvfs->z_os, 0, io_len);
+	if (error == 0)
+		error = zfs_fillpage(ip, pp);
 	zfs_rangelock_exit(lr);
 
 	if (error == 0)
