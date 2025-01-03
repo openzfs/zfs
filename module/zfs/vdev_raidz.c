@@ -2305,104 +2305,25 @@ vdev_skip_latency_outlier(vdev_t *vd, zio_flag_t io_flags)
 	if (io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))
 		return (B_FALSE);
 
+	return (vd->vdev_read_sit_out_expire != 0);
+}
+
+/*
+ * Calculate the Exponential Weighted Moving Average (EWMA)
+ * where
+ *   alpha: the smoothing factor -- represented here as a scaled integer
+ *   scale: the number of bits used to scale alpha
+ */
+static uint64_t
+calculate_ewma(uint64_t previous_ewma, uint64_t latest_value) {
 	/*
-	 * Ignore until we have a reasonable number of outlier events.
-	 * This is the expected exit in most cases.
+	 * Scale using 16 bits with an effective alpha of 0.50
 	 */
-	if (atomic_load_64(&vd->vdev_outlier_count) < 50)
-		return (B_FALSE);
+	const uint64_t scale = 16;
+	const uint64_t alpha = 32768;
 
-	vdev_t *raidvd = vd->vdev_parent;
-
-	/*
-	 * We're using the stat lock to also synchronize access to the
-	 * vdev_read_sit_out_expire states. This code path is limited
-	 * to an identified outlier vdev.
-	 */
-	mutex_enter(&vd->vdev_stat_lock);
-
-	/*
-	 * A slow vdev child can be in one of four states here.
-	 * 1. monitoring for outlier classification
-	 * 2. determined to be an outlier and begin a sit out period
-	 * 3. inside a sit out period
-	 * 4. finished sit out period and back to monitoring state
-	 */
-	if (vd->vdev_read_sit_out_expire == 0) {
-		uint64_t largest_peer_cnt = 0;
-
-		for (int c = 0; c < raidvd->vdev_children; c++) {
-			vdev_t *cvd = raidvd->vdev_child[c];
-
-			/* skip over ourself */
-			if (cvd == vd)
-				continue;
-
-			/*
-			 * Whan a peer has a larger outlier count or is
-			 * in a sit out period then we're not an outlier.
-			 */
-			uint64_t child_outlier_count =
-			    atomic_load_64(&cvd->vdev_outlier_count);
-			if (child_outlier_count >=
-			    atomic_load_64(&vd->vdev_outlier_count) ||
-			    cvd->vdev_read_sit_out_expire) {
-				mutex_exit(&vd->vdev_stat_lock);
-				return (B_FALSE);
-			}
-			if (child_outlier_count > largest_peer_cnt) {
-				largest_peer_cnt = child_outlier_count;
-			}
-		}
-
-		if (atomic_load_64(&vd->vdev_outlier_count) <
-		    largest_peer_cnt + 10) {
-			mutex_exit(&vd->vdev_stat_lock);
-			return (B_FALSE);
-		}
-
-		/*
-		 * Begin a sit out period for this slow drive
-		 */
-		vd->vdev_read_sit_out_expire = gethrtime() +
-		    SEC2NSEC(raid_read_sit_out_secs);
-
-		/* count each slow io period */
-		vd->vdev_stat.vs_slow_ios++;
-
-		mutex_exit(&vd->vdev_stat_lock);
-
-		(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY, vd->vdev_spa,
-		    vd, NULL, NULL, 0);
-		zfs_dbgmsg("vd-%d begin read sit out for %d secs",
-		    (int)vd->vdev_id, (int)raid_read_sit_out_secs);
-
-		return (B_TRUE);
-	} else {
-		/*
-		 * exceeded the sit out time?
-		 */
-		if (vd->vdev_read_sit_out_expire < gethrtime()) {
-			/* Done with sit out -- wait for new outlier */
-			vd->vdev_read_sit_out_expire = 0;
-
-			/* reset peers */
-			for (int c = 0; c < raidvd->vdev_children; c++) {
-				atomic_store_64(
-				    &raidvd->vdev_child[c]->vdev_outlier_count,
-				    0);
-				atomic_store_64(
-				    &raidvd->vdev_child[c]->vdev_recent_latency,
-				    0);
-			}
-		}
-		mutex_exit(&vd->vdev_stat_lock);
-		return (B_TRUE);
-	}
-
-	mutex_exit(&vd->vdev_stat_lock);
-	return (B_FALSE);
-
+	return (((alpha * latest_value) + (((1ULL << scale) - alpha) *
+	    previous_ewma)) >> scale);
 }
 
 void
@@ -2427,8 +2348,12 @@ vdev_raidz_child_done(zio_t *zio)
 	if (zio->io_type == ZIO_TYPE_READ && zio->io_error == 0 &&
 	    zio->io_size >= two_sectors && zio->io_delay != 0) {
 		vdev_t *vd = zio->io_vd;
+		uint64_t previous_ewma = atomic_load_64(&vd->vdev_ewma_latency);
+		if (previous_ewma == 0)
+			previous_ewma = zio->io_delay;
 
-		atomic_store_64(&vd->vdev_recent_latency, zio->io_delay);
+		atomic_store_64(&vd->vdev_ewma_latency,
+		    calculate_ewma(previous_ewma, zio->io_delay));
 	}
 }
 
@@ -2916,6 +2841,46 @@ vdev_raidz_worst_error(raidz_row_t *rr)
 	return (error);
 }
 
+static void
+vdev_check_outlier_state(vdev_t *vd)
+{
+	/*
+	 * A slow vdev child can be in one of four states.
+	 * 1. monitoring for outlier classification
+	 * 2. determined to be an outlier and begin a sit out period
+	 * 3. inside a sit out period
+	 * 4. finished sit out period and back to monitoring state
+	 */
+	if (vd->vdev_read_sit_out_expire == 0) {
+		/*
+		 * Begin a sit out period for this slow drive
+		 */
+		vd->vdev_read_sit_out_expire = gethrtime() +
+		    SEC2NSEC(raid_read_sit_out_secs);
+
+		/* count each slow io period */
+		mutex_enter(&vd->vdev_stat_lock);
+		vd->vdev_stat.vs_slow_ios++;
+		mutex_exit(&vd->vdev_stat_lock);
+
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY, vd->vdev_spa,
+		    vd, NULL, NULL, 0);
+		zfs_dbgmsg("vd-%d begin read sit out for %d secs",
+		    (int)vd->vdev_id, (int)raid_read_sit_out_secs);
+
+		vdev_t *raidvd = vd->vdev_parent;
+		for (int c = 0; c < raidvd->vdev_children; c++) {
+			atomic_store_64(
+			    &raidvd->vdev_child[c]->vdev_outlier_count, 0);
+			atomic_store_64(
+			    &raidvd->vdev_child[c]->vdev_ewma_latency, 0);
+		}
+	} else if (vd->vdev_read_sit_out_expire < gethrtime()) {
+		/* Done with our sit out -- wait for new outlier to emerge */
+		vd->vdev_read_sit_out_expire = 0;
+	}
+}
+
 /*
  * Find the median value from a set of n values
  */
@@ -2969,7 +2934,7 @@ latency_sort(uint64_t *samples, int size) {
 }
 
 #define	STACK_SAMPLES	32
-#define	MIN_LAT_SAMPLES	4
+#define	MIN_LAT_SAMPLES	5
 
 /*
  * Check for any latency outlier from latest set of child reads.
@@ -2995,12 +2960,12 @@ vdev_child_slow_outlier(zio_t *zio)
 	}
 
 	hrtime_t now = gethrtime();
-	if ((now - vd->vdev_last_latency_check) <
-	    MSEC2NSEC(raid_outlier_check_interval_ms)) {
+	uint64_t last = atomic_load_64(&vd->vdev_last_latency_check);
+
+	if ((now - last) < MSEC2NSEC(raid_outlier_check_interval_ms) ||
+	    atomic_cas_64(&vd->vdev_last_latency_check, last, now) != last) {
 		return;
 	}
-
-	vd->vdev_last_latency_check = now;
 
 	int samples = vd->vdev_children;
 	uint64_t data[STACK_SAMPLES];
@@ -3012,16 +2977,18 @@ vdev_child_slow_outlier(zio_t *zio)
 		lat_data = &data[0];
 
 	uint64_t max = 0;
+	uint64_t max_outier_count = 0;
 	vdev_t *svd = NULL; /* suspect vdev */
+	vdev_t *ovd = NULL; /* largest outlier vdev */
 	for (int c = 0; c < samples; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (cvd->vdev_read_sit_out_expire > 0) {
-			atomic_store_64(&cvd->vdev_recent_latency, 0);
+			atomic_store_64(&cvd->vdev_ewma_latency, 0);
 			goto out;
 		}
 
-		lat_data[c] = atomic_load_64(&cvd->vdev_recent_latency);
+		lat_data[c] = atomic_load_64(&cvd->vdev_ewma_latency);
 
 		/* wait until all disks have been read from */
 		if (lat_data[c] == 0)
@@ -3031,6 +2998,12 @@ vdev_child_slow_outlier(zio_t *zio)
 		if (lat_data[c] > max) {
 			max = lat_data[c];
 			svd = cvd;
+		}
+
+		uint64_t count = atomic_load_64(&cvd->vdev_outlier_count);
+		if (count > max_outier_count) {
+			max_outier_count = count;
+			ovd = cvd;
 		}
 	}
 
@@ -3043,7 +3016,10 @@ vdev_child_slow_outlier(zio_t *zio)
 		 * higer than peers outlier count will be considered
 		 * a slow disk.
 		 */
-		atomic_add_64(&svd->vdev_outlier_count, 1);
+		if (atomic_add_64_nv(&svd->vdev_outlier_count, 1) > 50 &&
+		    svd == ovd) {
+			vdev_check_outlier_state(svd);
+		}
 	}
 out:
 	if (samples > STACK_SAMPLES)
@@ -3792,7 +3768,7 @@ vdev_raidz_io_done(zio_t *zio)
 				vdev_raidz_io_done_verified(zio, rr);
 
 				/* Periodically check for a read outlier */
-				if (zio->io_type == ZIO_TYPE_READ)
+				if (i == 0 && zio->io_type == ZIO_TYPE_READ)
 					vdev_child_slow_outlier(zio);
 			}
 			zio_checksum_verified(zio);
