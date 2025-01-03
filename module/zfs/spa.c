@@ -504,6 +504,11 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 		    spa->spa_compatibility, 0, ZPROP_SRC_LOCAL);
 	}
 
+	if (spa->spa_newname != NULL) {
+		spa_prop_add_list(nv, ZPOOL_PROP_NEWNAME,
+		    spa->spa_newname, 0, ZPROP_SRC_LOCAL);
+	}
+
 	if (spa->spa_root != NULL)
 		spa_prop_add_list(nv, ZPOOL_PROP_ALTROOT, spa->spa_root,
 		    0, ZPROP_SRC_LOCAL);
@@ -3900,6 +3905,7 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	uint64_t pool_guid;
 	const char *comment;
 	const char *compatibility;
+	const char *newname;
 
 	/*
 	 * Versioning wasn't explicitly added to the label until later, so if
@@ -3952,6 +3958,10 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMPATIBILITY,
 	    &compatibility) == 0)
 		spa->spa_compatibility = spa_strdup(compatibility);
+
+	ASSERT(spa->spa_newname == NULL);
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_NEWNAME, &newname) == 0)
+		spa->spa_newname = spa_strdup(newname);
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
 	    &spa->spa_config_txg);
@@ -6861,6 +6871,12 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		spa_aux_check_removed(&spa->spa_l2cache);
 	}
 
+	/* Clear newname after each successful import */
+	if (spa->spa_newname != NULL) {
+		spa_strfree(spa->spa_newname);
+		spa->spa_newname = NULL;
+	}
+
 	if (spa_writeable(spa)) {
 		/*
 		 * Update the config cache to include the newly-imported pool.
@@ -9634,6 +9650,22 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			if (spa->spa_compatibility != NULL)
 				spa_strfree(spa->spa_compatibility);
 			spa->spa_compatibility = spa_strdup(strval);
+			/*
+			 * Dirty the configuration on vdevs as above.
+			 */
+			if (tx->tx_txg != TXG_INITIAL) {
+				vdev_config_dirty(spa->spa_root_vdev);
+				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+			}
+
+			spa_history_log_internal(spa, "set", tx,
+			    "%s=%s", nvpair_name(elem), strval);
+			break;
+		case ZPOOL_PROP_NEWNAME:
+			strval = fnvpair_value_string(elem);
+			if (spa->spa_newname != NULL)
+				spa_strfree(spa->spa_newname);
+			spa->spa_newname = spa_strdup(strval);
 			/*
 			 * Dirty the configuration on vdevs as above.
 			 */
