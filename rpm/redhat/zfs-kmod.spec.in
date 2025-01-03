@@ -69,7 +69,9 @@ fi
         %{debuginfo} \
         %{?kernel_cc} \
         %{?kernel_ld} \
-        %{?kernel_llvm}
+        %{?kernel_llvm} \
+        %{?kernel_cross_compile} \
+        %{?kernel_arch}
 make %{?_smp_mflags}
 
 # Module signing (modsign)

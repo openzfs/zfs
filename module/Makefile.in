@@ -55,6 +55,8 @@ modules-Linux:
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
+		$(if @KERNEL_CROSS_COMPILE@,CROSS_COMPILE=@KERNEL_CROSS_COMPILE@) \
+		$(if @KERNEL_ARCH@,ARCH=@KERNEL_ARCH@) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
 modules-FreeBSD:
