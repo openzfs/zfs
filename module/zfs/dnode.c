@@ -2528,13 +2528,18 @@ dnode_diduse_space(dnode_t *dn, int64_t delta)
  * If we don't find what we are looking for in the block, we return ESRCH.
  * Otherwise, return with *offset pointing to the beginning (if searching
  * forwards) or end (if searching backwards) of the range covered by the
- * block pointer we matched on (or dnode).
+ * block pointer we matched on (or dnode) but never less (or greater) than
+ * the starting offset.
  *
- * The basic search algorithm used below by dnode_next_offset() is to
- * use this function to search up the block tree (widen the search) until
- * we find something (i.e., we don't return ESRCH) and then search back
- * down the tree (narrow the search) until we reach our original search
- * level.
+ * For ESRCH, *offset is set to the first byte offset after (or before) the
+ * searched block unless the block is a hole or the resulting offset would
+ * underflow or overflow (in both cases the starting *offset is unchanged).
+ *
+ * The basic search algorithm used below by dnode_next_offset() uses this
+ * function to perform a block-order tree traversal. We search up the block
+ * tree (widen the search) until we find something (i.e., we don't return
+ * ESRCH) and then search back down the tree (narrow the search) until we
+ * reach our original search level or backtrack up because nothing matches.
  */
 static int
 dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
@@ -2549,6 +2554,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	int i, inc, error, span;
 
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+	ASSERT3U(dn->dn_nlevels, >, 0);
 
 	hole = ((flags & DNODE_FIND_HOLE) != 0);
 	inc = (flags & DNODE_FIND_BACKWARDS) ? -1 : 1;
@@ -2599,24 +2605,29 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
 		ASSERT(!(flags & DNODE_FIND_BACKWARDS));
+		ASSERT3U(P2PHASE(*offset, DNODE_SHIFT), ==, 0);
+		ASSERT(ISP2(blkfill));
 
-		for (i = (*offset >> DNODE_SHIFT) & (blkfill - 1);
+		for (i = P2PHASE(*offset >> DNODE_SHIFT, blkfill);
 		    i < blkfill; i += dnp[i].dn_extra_slots + 1) {
 			if ((dnp[i].dn_type == DMU_OT_NONE) == hole)
 				break;
+			ASSERT3S(i + dnp[i].dn_extra_slots, <, blkfill);
 		}
 
-		if (i == blkfill)
+		if (i >= blkfill)
 			error = SET_ERROR(ESRCH);
 
-		*offset = (*offset & ~(DNODE_BLOCK_SIZE - 1)) +
+		*offset = P2ALIGN_TYPED(*offset, DNODE_BLOCK_SIZE, uint64_t) +
 		    (i << DNODE_SHIFT);
 	} else {
 		blkptr_t *bp = data;
-		uint64_t start = *offset;
+		uint64_t blkid, limit;
 		span = (lvl - 1) * epbs + dn->dn_datablkshift;
 		minfill = 0;
 		maxfill = blkfill << ((lvl - 1) * epbs);
+		ASSERT3S(span, >, 0);
+		ASSERT3U(maxfill, >, 0);
 
 		if (hole)
 			maxfill--;
@@ -2625,46 +2636,79 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 
 		if (span >= 8 * sizeof (*offset)) {
 			/* This only happens on the highest indirection level */
-			ASSERT3U((lvl - 1), ==, dn->dn_phys->dn_nlevels - 1);
-			*offset = 0;
-		} else {
-			*offset = *offset >> span;
+			ASSERT3U(lvl, ==, dn->dn_nlevels);
+			goto out;
 		}
 
-		for (i = BF64_GET(*offset, 0, epbs);
+		blkid = *offset >> span;
+		limit = 1ULL << (8 * sizeof (*offset) - span);
+		epb = MIN(epb, limit);  /* don't overflow *offset */
+		ASSERT3U(P2ALIGN_TYPED(blkid, 1ULL << epbs, uint64_t) + epb,
+		    <=, limit);
+
+		if (inc < 0 && lvl == dn->dn_nlevels)
+			blkid = MIN(epb - 1, blkid);
+
+		for (i = BF64_GET(blkid, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
 			if (BP_GET_FILL(&bp[i]) >= minfill &&
 			    BP_GET_FILL(&bp[i]) <= maxfill &&
 			    (hole || BP_GET_LOGICAL_BIRTH(&bp[i]) > txg))
 				break;
-			if (inc > 0 || *offset > 0)
-				*offset += inc;
+			if (inc > 0 || blkid > 0)
+				blkid += inc;
 		}
 
-		if (span >= 8 * sizeof (*offset)) {
-			*offset = start;
-		} else {
-			*offset = *offset << span;
+		ASSERT(i >= 0 || inc < 0);
+		ASSERT(blkid < limit || (inc > 0 && i >= epb));
+
+		/* set *offset unless matched same block or under/overflow */
+		if (blkid != (*offset >> span) && blkid < limit &&
+		    (i >= 0 || blkid > 0)) {
+			/* position offset at end if traversing backwards */
+			uint64_t endoff = inc < 0 ? 1 : 0;
+			uint64_t result = ((blkid + endoff) << span) - endoff;
+			ASSERT(inc > 0 ? result > *offset : result < *offset);
+			*offset = result;
 		}
 
-		if (inc < 0) {
-			/* traversing backwards; position offset at the end */
-			if (span < 8 * sizeof (*offset))
-				*offset = MIN(*offset + (1ULL << span) - 1,
-				    start);
-		} else if (*offset < start) {
-			*offset = start;
-		}
 		if (i < 0 || i >= epb)
 			error = SET_ERROR(ESRCH);
 	}
 
+out:
 	if (db != NULL) {
 		rw_exit(&db->db_rwlock);
 		dbuf_rele(db, FTAG);
 	}
 
 	return (error);
+}
+
+/*
+ * Adjust *offset to the next (or previous) block byte offset at lvl.
+ * Returns FALSE if *offset would overflow or underflow.
+ */
+static boolean_t
+dnode_next_block(dnode_t *dn, boolean_t back, uint64_t *offset, int lvl)
+{
+	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+	int span = lvl * epbs + dn->dn_datablkshift;
+	uint64_t blkid, limit;
+
+	if (span >= 8 * sizeof (uint64_t))
+		return (B_FALSE);
+
+	blkid = *offset >> span;
+	limit = 1ULL << (8 * sizeof (*offset) - span);
+	if (!back && blkid + 1 < limit)
+		*offset = (blkid + 1) << span;
+	else if (back && blkid > 0)
+		*offset = (blkid << span) - 1;
+	else
+		return (B_FALSE);
+
+	return (B_TRUE);
 }
 
 /*
@@ -2694,9 +2738,10 @@ int
 dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
     int minlvl, uint64_t blkfill, uint64_t txg)
 {
-	uint64_t initial_offset = *offset;
+	uint64_t matched = *offset;
 	int lvl, maxlvl;
 	int error = 0;
+	boolean_t back = ((flags & DNODE_FIND_BACKWARDS) != 0);
 
 	if (!(flags & DNODE_FIND_HAVELOCK))
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -2718,16 +2763,36 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 
 	maxlvl = dn->dn_phys->dn_nlevels;
 
-	for (lvl = minlvl; lvl <= maxlvl; lvl++) {
+	for (lvl = minlvl; lvl <= maxlvl; ) {
 		error = dnode_next_offset_level(dn,
 		    flags, offset, lvl, blkfill, txg);
-		if (error != ESRCH)
+		if (error == 0 && lvl > minlvl) {
+			--lvl;
+			matched = *offset;
+		} else if (error == ESRCH && lvl < maxlvl &&
+		    dnode_next_block(dn, back, &matched, lvl)) {
+			/*
+			 * Continue search at next/prev offset in lvl+1 block.
+			 *
+			 * Usually we only search upwards at the start of the
+			 * search as higher level blocks point at a matching
+			 * minlvl block in most cases, but we backtrack if not.
+			 *
+			 * This can happen for txg > 0 searches if the block
+			 * contains only BPs/dnodes freed at that txg. It also
+			 * happens if we are still syncing out the tree, and
+			 * some BP's at higher levels are not updated yet.
+			 *
+			 * We must adjust offset to avoid coming back to the
+			 * same offset and getting stuck looping forever. This
+			 * also deals with the case where offset is already at
+			 * the beginning or end of the object.
+			 */
+			++lvl;
+			*offset = matched;
+		} else {
 			break;
-	}
-
-	while (error == 0 && --lvl >= minlvl) {
-		error = dnode_next_offset_level(dn,
-		    flags, offset, lvl, blkfill, txg);
+		}
 	}
 
 	/*
@@ -2739,9 +2804,6 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		error = 0;
 	}
 
-	if (error == 0 && (flags & DNODE_FIND_BACKWARDS ?
-	    initial_offset < *offset : initial_offset > *offset))
-		error = SET_ERROR(ESRCH);
 out:
 	if (!(flags & DNODE_FIND_HAVELOCK))
 		rw_exit(&dn->dn_struct_rwlock);
