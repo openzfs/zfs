@@ -276,15 +276,14 @@ _LIBZUTIL_H void update_vdev_config_dev_sysfs_path(nvlist_t *nv,
  * Thread-safe strerror() for use in ZFS libraries
  */
 static inline char *zfs_strerror(int errnum) {
-	static __thread char errbuf[2048];
-	static __thread pthread_mutex_t zfs_strerror_lock =
-		PTHREAD_MUTEX_INITIALIZER;
+	static __thread char errbuf[512];
+	static pthread_mutex_t zfs_strerror_lock = PTHREAD_MUTEX_INITIALIZER;
 
-	pthread_mutex_lock(&zfs_strerror_lock);
-	strlcpy(errbuf, strerror(errnum), sizeof(errbuf));
-	pthread_mutex_unlock(&zfs_strerror_lock);
+	(void) pthread_mutex_lock(&zfs_strerror_lock);
+	(void) strlcpy(errbuf, strerror(errnum), sizeof (errbuf));
+	(void) pthread_mutex_unlock(&zfs_strerror_lock);
 
-	return errbuf;
+	return (errbuf);
 }
 
 #ifdef	__cplusplus
