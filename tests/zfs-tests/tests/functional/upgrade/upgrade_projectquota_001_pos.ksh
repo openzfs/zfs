@@ -29,15 +29,12 @@
 #
 # DESCRIPTION:
 #
-# Check whether zfs upgrade for project quota works or not.
-# The project quota is per dataset based feature, this test
-# will create multiple datasets and try different upgrade methods.
+# Check whether zpool upgrade for project quota works or not.
 #
 # STRATEGY:
-# 1. Create a pool with all features disabled
-# 2. Create a few dataset for testing
-# 3. Make sure automatic upgrade work
-# 4. Make sure manual upgrade work
+# 1. Create a pool with projectquota features disabled
+# 2. Create a dataset for testing
+# 3. Validate projectquota upgrade works
 #
 
 verify_runnable "global"
@@ -49,16 +46,7 @@ fi
 log_assert "pool upgrade for projectquota should work"
 log_onexit cleanup_upgrade
 
-log_must zpool create -d -m $TESTDIR $TESTPOOL $TMPDEV
-
-log_must mkfiles $TESTDIR/tf $((RANDOM % 100 + 1))
-log_must zfs create $TESTPOOL/fs1
-log_must mkfiles $TESTDIR/fs1/tf $((RANDOM % 100 + 1))
-log_must zfs umount $TESTPOOL/fs1
-
-log_must zfs create $TESTPOOL/fs2
-log_must mkdir $TESTDIR/fs2/dir
-log_must mkfiles $TESTDIR/fs2/tf $((RANDOM % 100 + 1))
+log_must zpool create -o feature@project_quota=disabled -m $TESTDIR $TESTPOOL $TMPDEV
 
 log_must zfs create $TESTPOOL/fs3
 log_must mkdir $TESTDIR/fs3/dir
@@ -66,14 +54,14 @@ log_must mkfiles $TESTDIR/fs3/tf $((RANDOM % 100 + 1))
 log_must set_xattr_stdin passwd $TESTDIR/fs3/dir < /etc/passwd
 
 # Make sure project quota is disabled
-zfs projectspace -o used $TESTPOOL | grep -q "USED" &&
+zpool get feature@project_quota -ovalue -H $TESTPOOL | grep -q "disabled" ||
 	log_fail "project quota should be disabled initially"
 
 # set projectquota before upgrade will fail
-log_mustnot zfs set projectquota@100=100m $TESTDIR/fs3
+log_mustnot zfs set projectquota@100=100m $TESTPOOL/fs3
 
 # set projectobjquota before upgrade will fail
-log_mustnot zfs set projectobjquota@100=1000 $TESTDIR/fs3
+log_mustnot zfs set projectobjquota@100=1000 $TESTPOOL/fs3
 
 # 'chattr -p' should fail before upgrade
 log_mustnot chattr -p 100 $TESTDIR/fs3/dir
@@ -83,33 +71,32 @@ log_mustnot chattr +P $TESTDIR/fs3/dir
 
 # Upgrade zpool to support all features
 log_must zpool upgrade $TESTPOOL
+zpool get feature@project_quota -ovalue -H $TESTPOOL
 
-# Double check project quota is disabled
-zfs projectspace -o used $TESTPOOL | grep -q "USED" &&
-	log_fail "project quota should be disabled after pool upgrade"
+# pool upgrade should enable project quota
+zpool get feature@project_quota -ovalue -H $TESTPOOL | grep -q "enabled" ||
+	log_fail "project quota should be enabled after pool upgrade"
 
-# Mount dataset should trigger upgrade
-log_must zfs mount $TESTPOOL/fs1
-log_must sleep 3 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs1 | grep -q "USED" ||
-	log_fail "project quota should be enabled for $TESTPOOL/fs1"
+# set projectquota should succeed after upgrade
+log_must zfs set projectquota@100=100m $TESTPOOL/fs3
 
-# Create file should trigger dataset upgrade
-log_must mkfile 1m $TESTDIR/fs2/dir/tf
-log_must sleep 3 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs2 | grep -q "USED" ||
-	log_fail "project quota should be enabled for $TESTPOOL/fs2"
+# set projectobjquota should succeed after upgrade
+log_must zfs set projectobjquota@100=1000 $TESTPOOL/fs3
 
-# "lsattr -p" should NOT trigger upgrade
-log_must lsattr -p -d $TESTDIR/fs3/dir
-zfs projectspace -o used $TESTPOOL/fs3 | grep -q "USED" &&
-	log_fail "project quota should not active for $TESTPOOL/fs3"
-
-# 'chattr -p' should trigger dataset upgrade
+# 'chattr -p' should succeed after upgrade
 log_must chattr -p 100 $TESTDIR/fs3/dir
-log_must sleep 5 # upgrade done in the background so let's wait for a while
-zfs projectspace -o used $TESTPOOL/fs3 | grep -q "USED" ||
-	log_fail "project quota should be enabled for $TESTPOOL/fs3"
+
+# 'chattr +P' should succeed after upgrade
+log_must chattr +P $TESTDIR/fs3/dir
+
+# project quota should be active
+zpool get feature@project_quota -ovalue -H $TESTPOOL | grep -q "active" ||
+	log_fail "project quota should be active after chattr"
+# project id 100 usage should be accounted
+zfs projectspace -o name -H $TESTPOOL/fs3 | grep -q "100" ||
+	log_fail "project id 100 usage should be accounted for $TESTPOOL/fs3"
+
+# xattr inodes should be accounted in project quota
 dirino=$(stat -c '%i' $TESTDIR/fs3/dir)
 log_must zdb -ddddd $TESTPOOL/fs3 $dirino
 xattrdirino=$(zdb -ddddd $TESTPOOL/fs3 $dirino |grep -w "xattr" |awk '{print $2}')
@@ -128,16 +115,5 @@ fi
 cnt=$(get_prop projectobjused@100 $TESTPOOL/fs3)
 [[ $cnt -ne $expectedcnt ]] &&
 	log_fail "projectquota accounting failed $cnt"
-
-# All in all, after having been through this, the dataset for testpool
-# still shouldn't be upgraded
-zfs projectspace -o used $TESTPOOL | grep -q "USED" &&
-	log_fail "project quota should be disabled for $TESTPOOL"
-
-# Manual upgrade root dataset
-# uses an ioctl which will wait for the upgrade to be done before returning
-log_must zfs set version=current $TESTPOOL
-zfs projectspace -o used $TESTPOOL | grep -q "USED" ||
-	log_fail "project quota should be enabled for $TESTPOOL"
 
 log_pass "Project Quota upgrade done"
