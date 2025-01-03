@@ -1702,12 +1702,13 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	/* A zero fid_gen means we are in the .zfs control directories */
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
-		*ipp = zfsvfs->z_ctldir;
-		ASSERT(*ipp != NULL);
-
 		if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+			zfs_exit(zfsvfs, FTAG);
 			return (SET_ERROR(ENOENT));
 		}
+
+		*ipp = zfsvfs->z_ctldir;
+		ASSERT(*ipp != NULL);
 
 		if (object == ZFSCTL_INO_SNAPDIR) {
 			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,

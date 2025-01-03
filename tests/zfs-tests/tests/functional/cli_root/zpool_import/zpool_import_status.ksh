@@ -103,20 +103,15 @@ log_must zpool export $TESTPOOL1
 log_must set_tunable64 METASLAB_DEBUG_LOAD 1
 log_note "Starting zpool import in background at" $(date +'%H:%M:%S')
 zpool import -d $DEVICE_DIR -f $guid &
-pid=$!
 
 #
 # capture progress until import is finished
 #
-log_note waiting for pid $pid to exit
 kstat import_progress
-while [[ -d /proc/"$pid" ]]; do
+while [[ -n $(jobs) ]]; do
 	line=$(kstat import_progress | grep -v pool_guid)
 	if [[ -n $line ]]; then
 		echo $line
-	fi
-	if [[ -f /$TESTPOOL1/fs/00 ]]; then
-		break;
 	fi
 	sleep 0.0001
 done

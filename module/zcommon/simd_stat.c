@@ -132,8 +132,10 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 #if defined(__arm__) || defined(__aarch64__)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_neon", HAVE_KERNEL_NEON);
+#if defined(CONFIG_KERNEL_MODE_NEON)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_mode_neon", CONFIG_KERNEL_MODE_NEON);
+#endif /* CONFIG_KERNEL_MODE_NEON */
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "neon", zfs_neon_available());
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,

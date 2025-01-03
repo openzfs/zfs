@@ -105,7 +105,7 @@ zpool_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_POOL, "<percent>", "FRAG", B_FALSE,
 	    sfeatures);
 	zprop_register_number(ZPOOL_PROP_CAPACITY, "capacity", 0, PROP_READONLY,
-	    ZFS_TYPE_POOL, "<size>", "CAP", B_FALSE, sfeatures);
+	    ZFS_TYPE_POOL, "<percent>", "CAP", B_FALSE, sfeatures);
 	zprop_register_number(ZPOOL_PROP_GUID, "guid", 0, PROP_READONLY,
 	    ZFS_TYPE_POOL, "<guid>", "GUID", B_TRUE, sfeatures);
 	zprop_register_number(ZPOOL_PROP_LOAD_GUID, "load_guid", 0,

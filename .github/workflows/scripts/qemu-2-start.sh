@@ -14,7 +14,7 @@ OSv=$OS
 
 # compressed with .zst extension
 REPO="https://github.com/mcmilk/openzfs-freebsd-images"
-FREEBSD="$REPO/releases/download/v2024-10-05"
+FREEBSD="$REPO/releases/download/v2024-12-14"
 URLzs=""
 
 # Ubuntu mirrors
@@ -39,6 +39,12 @@ case "$OS" in
     URL="https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
     # dns sometimes fails with that url  :/
     echo "89.187.191.12  geo.mirror.pkgbuild.com" | sudo tee /etc/hosts > /dev/null
+    ;;
+  centos-stream10)
+    OSNAME="CentOS Stream 10"
+    # TODO: #16903 Overwrite OSv to stream9 for virt-install until it's added to osinfo
+    OSv="centos-stream9"
+    URL="https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2"
     ;;
   centos-stream9)
     OSNAME="CentOS Stream 9"
@@ -76,16 +82,16 @@ case "$OS" in
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
     ;;
-  freebsd14-0r)
-    OSNAME="FreeBSD 14.0-RELEASE"
-    OSv="freebsd14.0"
-    URLzs="$FREEBSD/amd64-freebsd-14.0-RELEASE.qcow2.zst"
-    BASH="/usr/local/bin/bash"
-    ;;
   freebsd14-1r)
     OSNAME="FreeBSD 14.1-RELEASE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.1-RELEASE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    ;;
+  freebsd14-2r)
+    OSNAME="FreeBSD 14.2-RELEASE"
+    OSv="freebsd14.0"
+    URLzs="$FREEBSD/amd64-freebsd-14.2-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
   freebsd13-4s)
@@ -93,11 +99,12 @@ case "$OS" in
     OSv="freebsd13.0"
     URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
+    NIC="rtl8139"
     ;;
-  freebsd14-1s)
-    OSNAME="FreeBSD 14.1-STABLE"
+  freebsd14-2s)
+    OSNAME="FreeBSD 14.2-STABLE"
     OSv="freebsd14.0"
-    URLzs="$FREEBSD/amd64-freebsd-14.1-STABLE.qcow2.zst"
+    URLzs="$FREEBSD/amd64-freebsd-14.2-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
   freebsd15-0c)

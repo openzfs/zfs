@@ -57,8 +57,7 @@ typedef enum zfs_uio_rw {
 } zfs_uio_rw_t;
 
 typedef enum zfs_uio_seg {
-	UIO_USERSPACE =	0,
-	UIO_SYSSPACE =	1,
+	UIO_SYSSPACE =	0,
 } zfs_uio_seg_t;
 
 #elif defined(__FreeBSD__)

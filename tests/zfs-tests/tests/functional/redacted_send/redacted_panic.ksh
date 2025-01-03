@@ -39,7 +39,7 @@ function cleanup
 log_onexit cleanup
 
 log_must zfs create -o recsize=8k $sendfs
-log_must dd if=/dev/urandom of=/$sendfs/file bs=1024k count=2048
+log_must dd if=/dev/urandom of=/$sendfs/file bs=1024k count=1024
 log_must zfs snapshot $sendfs@init
 log_must zfs clone $sendfs@init $clone
 log_must stride_dd -i /dev/urandom -o /$clone/file -b 8192 -s 2 -c 7226

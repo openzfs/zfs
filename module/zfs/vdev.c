@@ -2041,6 +2041,7 @@ vdev_open(vdev_t *vd)
 	vd->vdev_cant_read = B_FALSE;
 	vd->vdev_cant_write = B_FALSE;
 	vd->vdev_fault_wanted = B_FALSE;
+	vd->vdev_remove_wanted = B_FALSE;
 	vd->vdev_min_asize = vdev_get_min_asize(vd);
 
 	/*
@@ -5969,7 +5970,7 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			goto end;
 		}
 
-		if (vdev_prop_readonly(prop)) {
+		if (prop != VDEV_PROP_USERPROP && vdev_prop_readonly(prop)) {
 			error = EROFS;
 			goto end;
 		}

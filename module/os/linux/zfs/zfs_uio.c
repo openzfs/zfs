@@ -68,55 +68,13 @@ zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
 
+	ASSERT3S(uio->uio_segflg, ==, UIO_SYSSPACE);
 	while (n && uio->uio_resid) {
 		cnt = MIN(iov->iov_len - skip, n);
-		switch (uio->uio_segflg) {
-		case UIO_USERSPACE:
-			/*
-			 * p = kernel data pointer
-			 * iov->iov_base = user data pointer
-			 */
-			if (rw == UIO_READ) {
-				if (copy_to_user(iov->iov_base+skip, p, cnt))
-					return (EFAULT);
-			} else {
-				unsigned long b_left = 0;
-				if (uio->uio_fault_disable) {
-					if (!zfs_access_ok(VERIFY_READ,
-					    (iov->iov_base + skip), cnt)) {
-						return (EFAULT);
-					}
-					pagefault_disable();
-					b_left =
-					    __copy_from_user_inatomic(p,
-					    (iov->iov_base + skip), cnt);
-					pagefault_enable();
-				} else {
-					b_left =
-					    copy_from_user(p,
-					    (iov->iov_base + skip), cnt);
-				}
-				if (b_left > 0) {
-					unsigned long c_bytes =
-					    cnt - b_left;
-					uio->uio_skip += c_bytes;
-					ASSERT3U(uio->uio_skip, <,
-					    iov->iov_len);
-					uio->uio_resid -= c_bytes;
-					uio->uio_loffset += c_bytes;
-					return (EFAULT);
-				}
-			}
-			break;
-		case UIO_SYSSPACE:
-			if (rw == UIO_READ)
-				memcpy(iov->iov_base + skip, p, cnt);
-			else
-				memcpy(p, iov->iov_base + skip, cnt);
-			break;
-		default:
-			ASSERT(0);
-		}
+		if (rw == UIO_READ)
+			memcpy(iov->iov_base + skip, p, cnt);
+		else
+			memcpy(p, iov->iov_base + skip, cnt);
 		skip += cnt;
 		if (skip == iov->iov_len) {
 			skip = 0;
@@ -268,7 +226,6 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	return (zfs_uiomove_bvec_impl(p, n, rw, uio));
 }
 
-#if defined(HAVE_VFS_IOV_ITER)
 static int
 zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
     boolean_t revert)
@@ -303,17 +260,14 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 
 	return (0);
 }
-#endif
 
 int
 zfs_uiomove(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
 	if (uio->uio_segflg == UIO_BVEC)
 		return (zfs_uiomove_bvec(p, n, rw, uio));
-#if defined(HAVE_VFS_IOV_ITER)
 	else if (uio->uio_segflg == UIO_ITER)
 		return (zfs_uiomove_iter(p, n, rw, uio, B_FALSE));
-#endif
 	else
 		return (zfs_uiomove_iov(p, n, rw, uio));
 }
@@ -336,44 +290,14 @@ zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 		 * there is never a time for these pages a fault will occur.
 		 */
 		return (0);
-#if defined(HAVE_VFS_IOV_ITER)
-	} else if (uio->uio_segflg == UIO_ITER) {
+	} else  {
+		ASSERT3S(uio->uio_segflg, ==, UIO_ITER);
 		/*
-		 * At least a Linux 4.9 kernel, iov_iter_fault_in_readable()
+		 * At least a Linux 4.18 kernel, iov_iter_fault_in_readable()
 		 * can be relied on to fault in user pages when referenced.
 		 */
 		if (iov_iter_fault_in_readable(uio->uio_iter, n))
 			return (EFAULT);
-#endif
-	} else {
-		/* Fault in all user pages */
-		ASSERT3S(uio->uio_segflg, ==, UIO_USERSPACE);
-		const struct iovec *iov = uio->uio_iov;
-		int iovcnt = uio->uio_iovcnt;
-		size_t skip = uio->uio_skip;
-		uint8_t tmp;
-		caddr_t p;
-
-		for (; n > 0 && iovcnt > 0; iov++, iovcnt--, skip = 0) {
-			ulong_t cnt = MIN(iov->iov_len - skip, n);
-			/* empty iov */
-			if (cnt == 0)
-				continue;
-			n -= cnt;
-			/* touch each page in this segment. */
-			p = iov->iov_base + skip;
-			while (cnt) {
-				if (copy_from_user(&tmp, p, 1))
-					return (EFAULT);
-				ulong_t incr = MIN(cnt, PAGESIZE);
-				p += incr;
-				cnt -= incr;
-			}
-			/* touch the last byte in case it straddles a page. */
-			p--;
-			if (copy_from_user(&tmp, p, 1))
-				return (EFAULT);
-		}
 	}
 
 	return (0);
@@ -394,10 +318,8 @@ zfs_uiocopy(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio, size_t *cbytes)
 
 	if (uio->uio_segflg == UIO_BVEC)
 		ret = zfs_uiomove_bvec(p, n, rw, &uio_copy);
-#if defined(HAVE_VFS_IOV_ITER)
 	else if (uio->uio_segflg == UIO_ITER)
 		ret = zfs_uiomove_iter(p, n, rw, &uio_copy, B_TRUE);
-#endif
 	else
 		ret = zfs_uiomove_iov(p, n, rw, &uio_copy);
 
@@ -430,11 +352,10 @@ zfs_uioskip(zfs_uio_t *uio, size_t n)
 			uio->uio_bvec++;
 			uio->uio_iovcnt--;
 		}
-#if defined(HAVE_VFS_IOV_ITER)
 	} else if (uio->uio_segflg == UIO_ITER) {
 		iov_iter_advance(uio->uio_iter, n);
-#endif
 	} else {
+		ASSERT3S(uio->uio_segflg, ==, UIO_SYSSPACE);
 		uio->uio_skip += n;
 		while (uio->uio_iovcnt &&
 		    uio->uio_skip >= uio->uio_iov->iov_len) {
@@ -457,8 +378,7 @@ zfs_uio_page_aligned(zfs_uio_t *uio)
 {
 	boolean_t aligned = B_TRUE;
 
-	if (uio->uio_segflg == UIO_USERSPACE ||
-	    uio->uio_segflg == UIO_SYSSPACE) {
+	if (uio->uio_segflg == UIO_SYSSPACE) {
 		const struct iovec *iov = uio->uio_iov;
 		size_t skip = uio->uio_skip;
 
@@ -472,12 +392,10 @@ zfs_uio_page_aligned(zfs_uio_t *uio)
 			}
 			skip = 0;
 		}
-#if defined(HAVE_VFS_IOV_ITER)
 	} else if (uio->uio_segflg == UIO_ITER) {
 		unsigned long alignment =
 		    iov_iter_alignment(uio->uio_iter);
 		aligned = IS_P2ALIGNED(alignment, PAGE_SIZE);
-#endif
 	} else {
 		/* Currently not supported */
 		aligned = B_FALSE;
@@ -523,6 +441,7 @@ zfs_unmark_page(struct page *page)
 }
 #endif /* HAVE_ZERO_PAGE_GPL_ONLY || !_LP64 */
 
+#if !defined(HAVE_PIN_USER_PAGES_UNLOCKED)
 static void
 zfs_uio_dio_check_for_zero_page(zfs_uio_t *uio)
 {
@@ -554,6 +473,7 @@ zfs_uio_dio_check_for_zero_page(zfs_uio_t *uio)
 		}
 	}
 }
+#endif
 
 void
 zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
@@ -562,6 +482,9 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	ASSERT(uio->uio_extflg & UIO_DIRECT);
 	ASSERT3P(uio->uio_dio.pages, !=, NULL);
 
+#if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
+	unpin_user_pages(uio->uio_dio.pages, uio->uio_dio.npages);
+#else
 	for (long i = 0; i < uio->uio_dio.npages; i++) {
 		struct page *p = uio->uio_dio.pages[i];
 
@@ -573,114 +496,106 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 		put_page(p);
 	}
-
+#endif
 	vmem_free(uio->uio_dio.pages,
 	    uio->uio_dio.npages * sizeof (struct page *));
 }
 
-/*
- * zfs_uio_iov_step() is just a modified version of the STEP function of Linux's
- * iov_iter_get_pages().
- */
+#if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
 static int
-zfs_uio_iov_step(struct iovec v, zfs_uio_rw_t rw, zfs_uio_t *uio,
-    long *numpages)
+zfs_uio_pin_user_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 {
-	unsigned long addr = (unsigned long)(v.iov_base);
-	size_t len = v.iov_len;
-	unsigned long n = DIV_ROUND_UP(len, PAGE_SIZE);
-
-	/*
-	 * read returning FOLL_WRITE is due to the fact that we are stating
-	 * that the kernel will have write access to the user pages. So, when a
-	 * Direct I/O read request is issued, the kernel must write to the user
-	 * pages.
-	 */
-	long res = get_user_pages_unlocked(
-	    P2ALIGN_TYPED(addr, PAGE_SIZE, unsigned long), n,
-	    &uio->uio_dio.pages[uio->uio_dio.npages],
-	    rw == UIO_READ ? FOLL_WRITE : 0);
-	if (res < 0) {
-		return (SET_ERROR(-res));
-	} else if (len != (res * PAGE_SIZE)) {
-		return (SET_ERROR(EFAULT));
-	}
-
-	ASSERT3S(len, ==, res * PAGE_SIZE);
-	*numpages = res;
-	return (0);
-}
-
-static int
-zfs_uio_get_dio_pages_iov(zfs_uio_t *uio, zfs_uio_rw_t rw)
-{
-	const struct iovec *iovp = uio->uio_iov;
+	long res;
 	size_t skip = uio->uio_skip;
 	size_t len = uio->uio_resid - skip;
+	unsigned int gup_flags = 0;
+	unsigned long addr;
+	unsigned long nr_pages;
 
-	ASSERT(uio->uio_segflg != UIO_SYSSPACE);
+	/*
+	 * Kernel 6.2 introduced the FOLL_PCI_P2PDMA flag. This flag could
+	 * possibly be used here in the future to allow for P2P operations with
+	 * user pages.
+	 */
+	if (rw == UIO_READ)
+		gup_flags = FOLL_WRITE;
 
+	if (len == 0)
+		return (0);
+
+#if defined(HAVE_ITER_IS_UBUF)
+	if (iter_is_ubuf(uio->uio_iter)) {
+		nr_pages = DIV_ROUND_UP(len, PAGE_SIZE);
+		addr = (unsigned long)uio->uio_iter->ubuf + skip;
+		res = pin_user_pages_unlocked(addr, nr_pages,
+		    &uio->uio_dio.pages[uio->uio_dio.npages], gup_flags);
+		if (res < 0) {
+			return (SET_ERROR(-res));
+		} else if (len != (res * PAGE_SIZE)) {
+			uio->uio_dio.npages += res;
+			return (SET_ERROR(EFAULT));
+		}
+		uio->uio_dio.npages += res;
+		return (0);
+	}
+#endif
+	const struct iovec *iovp = zfs_uio_iter_iov(uio->uio_iter);
 	for (int i = 0; i < uio->uio_iovcnt; i++) {
-		struct iovec iov;
-		long numpages = 0;
-
-		if (iovp->iov_len == 0) {
+		size_t amt = iovp->iov_len - skip;
+		if (amt == 0) {
 			iovp++;
 			skip = 0;
 			continue;
 		}
-		iov.iov_len = MIN(len, iovp->iov_len - skip);
-		iov.iov_base = iovp->iov_base + skip;
-		int error = zfs_uio_iov_step(iov, rw, uio, &numpages);
 
-		if (error)
-			return (error);
+		addr = (unsigned long)iovp->iov_base + skip;
+		nr_pages = DIV_ROUND_UP(amt, PAGE_SIZE);
+		res = pin_user_pages_unlocked(addr, nr_pages,
+		    &uio->uio_dio.pages[uio->uio_dio.npages], gup_flags);
+		if (res < 0) {
+			return (SET_ERROR(-res));
+		} else if (amt != (res * PAGE_SIZE)) {
+			uio->uio_dio.npages += res;
+			return (SET_ERROR(EFAULT));
+		}
 
-		uio->uio_dio.npages += numpages;
-		len -= iov.iov_len;
+		len -= amt;
+		uio->uio_dio.npages += res;
 		skip = 0;
 		iovp++;
-	}
+	};
 
 	ASSERT0(len);
 
 	return (0);
 }
 
-#if defined(HAVE_VFS_IOV_ITER)
+#else
 static int
 zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 {
-	size_t skip = uio->uio_skip;
+	size_t start;
 	size_t wanted = uio->uio_resid - uio->uio_skip;
 	ssize_t rollback = 0;
 	ssize_t cnt;
 	unsigned maxpages = DIV_ROUND_UP(wanted, PAGE_SIZE);
 
 	while (wanted) {
-#if defined(HAVE_IOV_ITER_GET_PAGES2)
-		cnt = iov_iter_get_pages2(uio->uio_iter,
-		    &uio->uio_dio.pages[uio->uio_dio.npages],
-		    wanted, maxpages, &skip);
-#else
 		cnt = iov_iter_get_pages(uio->uio_iter,
 		    &uio->uio_dio.pages[uio->uio_dio.npages],
-		    wanted, maxpages, &skip);
-#endif
+		    wanted, maxpages, &start);
 		if (cnt < 0) {
 			iov_iter_revert(uio->uio_iter, rollback);
 			return (SET_ERROR(-cnt));
 		}
+		/*
+		 * All Direct I/O operations must be page aligned.
+		 */
+		ASSERT(IS_P2ALIGNED(start, PAGE_SIZE));
 		uio->uio_dio.npages += DIV_ROUND_UP(cnt, PAGE_SIZE);
 		rollback += cnt;
 		wanted -= cnt;
-		skip = 0;
-#if !defined(HAVE_IOV_ITER_GET_PAGES2)
-		/*
-		 * iov_iter_get_pages2() advances the iov_iter on success.
-		 */
 		iov_iter_advance(uio->uio_iter, cnt);
-#endif
 
 	}
 	ASSERT3U(rollback, ==, uio->uio_resid - uio->uio_skip);
@@ -688,7 +603,7 @@ zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	return (0);
 }
-#endif /* HAVE_VFS_IOV_ITER */
+#endif /* HAVE_PIN_USER_PAGES_UNLOCKED */
 
 /*
  * This function pins user pages. In the event that the user pages were not
@@ -703,12 +618,11 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	long npages = DIV_ROUND_UP(uio->uio_resid, PAGE_SIZE);
 	size_t size = npages * sizeof (struct page *);
 
-	if (uio->uio_segflg == UIO_USERSPACE) {
+	if (uio->uio_segflg == UIO_ITER) {
 		uio->uio_dio.pages = vmem_alloc(size, KM_SLEEP);
-		error = zfs_uio_get_dio_pages_iov(uio, rw);
-#if defined(HAVE_VFS_IOV_ITER)
-	} else if (uio->uio_segflg == UIO_ITER) {
-		uio->uio_dio.pages = vmem_alloc(size, KM_SLEEP);
+#if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
+		error = zfs_uio_pin_user_pages(uio, rw);
+#else
 		error = zfs_uio_get_dio_pages_iov_iter(uio, rw);
 #endif
 	} else {
@@ -718,17 +632,22 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	ASSERT3S(uio->uio_dio.npages, >=, 0);
 
 	if (error) {
+#if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
+		unpin_user_pages(uio->uio_dio.pages, uio->uio_dio.npages);
+#else
 		for (long i = 0; i < uio->uio_dio.npages; i++)
 			put_page(uio->uio_dio.pages[i]);
+#endif
 		vmem_free(uio->uio_dio.pages, size);
 		return (error);
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);
 	}
 
-	if (rw == UIO_WRITE) {
+#if !defined(HAVE_PIN_USER_PAGES_UNLOCKED)
+	if (rw == UIO_WRITE)
 		zfs_uio_dio_check_for_zero_page(uio);
-	}
+#endif
 
 	uio->uio_extflg |= UIO_DIRECT;
 

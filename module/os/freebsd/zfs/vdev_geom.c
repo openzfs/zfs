@@ -1014,21 +1014,6 @@ vdev_geom_io_intr(struct bio *bp)
 		zio->io_error = SET_ERROR(EIO);
 
 	switch (zio->io_error) {
-	case ENOTSUP:
-		/*
-		 * If we get ENOTSUP for BIO_FLUSH or BIO_DELETE we know
-		 * that future attempts will never succeed. In this case
-		 * we set a persistent flag so that we don't bother with
-		 * requests in the future.
-		 */
-		switch (bp->bio_cmd) {
-		case BIO_FLUSH:
-			vd->vdev_nowritecache = B_TRUE;
-			break;
-		case BIO_DELETE:
-			break;
-		}
-		break;
 	case ENXIO:
 		if (!vd->vdev_remove_wanted) {
 			/*

@@ -867,14 +867,14 @@ where that percent may exceed
 This
 only operates during memory pressure/reclaim.
 .
-.It Sy zfs_arc_shrinker_limit Ns = Ns Sy 10000 Pq int
+.It Sy zfs_arc_shrinker_limit Ns = Ns Sy 0 Pq int
 This is a limit on how many pages the ARC shrinker makes available for
 eviction in response to one page allocation attempt.
 Note that in practice, the kernel's shrinker can ask us to evict
 up to about four times this for one allocation attempt.
 To reduce OOM risk, this limit is applied for kswapd reclaims only.
 .Pp
-The default limit of
+For example a value of
 .Sy 10000 Pq in practice, Em 160 MiB No per allocation attempt with 4 KiB pages
 limits the amount of time spent attempting to reclaim ARC memory to
 less than 100 ms per allocation attempt,

@@ -6258,7 +6258,7 @@ struct vop_vector zfs_vnodeops = {
 	.vop_fplookup_vexec = zfs_freebsd_fplookup_vexec,
 	.vop_fplookup_symlink = zfs_freebsd_fplookup_symlink,
 	.vop_access =		zfs_freebsd_access,
-	.vop_allocate =		VOP_EINVAL,
+	.vop_allocate =		VOP_EOPNOTSUPP,
 #if __FreeBSD_version >= 1400032
 	.vop_deallocate =	zfs_deallocate,
 #endif

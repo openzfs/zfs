@@ -93,6 +93,7 @@ unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 struct hlist_head *zvol_htable;
 static list_t zvol_state_list;
 krwlock_t zvol_state_lock;
+extern int zfs_bclone_wait_dirty;
 
 typedef enum {
 	ZVOL_ASYNC_REMOVE_MINORS,
@@ -516,6 +517,285 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
+/*
+ * Replay a TX_CLONE_RANGE ZIL transaction that didn't get committed
+ * after a system failure
+ */
+static int
+zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
+{
+	zvol_state_t *zv = arg1;
+	lr_clone_range_t *lr = arg2;
+	objset_t *os = zv->zv_objset;
+	dmu_tx_t *tx;
+	int error;
+	uint64_t blksz;
+	uint64_t off;
+	uint64_t len;
+
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+	ASSERT3U(lr->lr_common.lrc_reclen, >=, offsetof(lr_clone_range_t,
+	    lr_bps[lr->lr_nbps]));
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	ASSERT(spa_feature_is_enabled(dmu_objset_spa(os),
+	    SPA_FEATURE_BLOCK_CLONING));
+
+	off = lr->lr_offset;
+	len = lr->lr_length;
+	blksz = lr->lr_blksz;
+
+	if ((off % blksz) != 0) {
+		return (SET_ERROR(EINVAL));
+	}
+
+	error = dnode_hold(os, ZVOL_OBJ, zv, &zv->zv_dn);
+	if (error != 0 || !zv->zv_dn)
+		return (error);
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_clone_by_dnode(tx, zv->zv_dn, off, len);
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+	error = dmu_brt_clone(zv->zv_objset, ZVOL_OBJ, off, len,
+	    tx, lr->lr_bps, lr->lr_nbps);
+	if (error != 0) {
+		dmu_tx_commit(tx);
+		goto out;
+	}
+
+	/*
+	 * zil_replaying() not only check if we are replaying ZIL, but also
+	 * updates the ZIL header to record replay progress.
+	 */
+	VERIFY(zil_replaying(zv->zv_zilog, tx));
+	dmu_tx_commit(tx);
+
+out:
+	dnode_rele(zv->zv_dn, zv);
+	zv->zv_dn = NULL;
+	return (error);
+}
+
+int
+zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
+    uint64_t outoff, uint64_t len)
+{
+	zilog_t	*zilog_dst;
+	zfs_locked_range_t *inlr, *outlr;
+	objset_t *inos, *outos;
+	dmu_tx_t *tx;
+	blkptr_t *bps;
+	size_t maxblocks;
+	int error = EINVAL;
+
+	rw_enter(&zv_dst->zv_suspend_lock, RW_READER);
+	if (zv_dst->zv_zilog == NULL) {
+		rw_exit(&zv_dst->zv_suspend_lock);
+		rw_enter(&zv_dst->zv_suspend_lock, RW_WRITER);
+		if (zv_dst->zv_zilog == NULL) {
+			zv_dst->zv_zilog = zil_open(zv_dst->zv_objset,
+			    zvol_get_data, &zv_dst->zv_kstat.dk_zil_sums);
+			zv_dst->zv_flags |= ZVOL_WRITTEN_TO;
+			VERIFY0((zv_dst->zv_zilog->zl_header->zh_flags &
+			    ZIL_REPLAY_NEEDED));
+		}
+		rw_downgrade(&zv_dst->zv_suspend_lock);
+	}
+	if (zv_src != zv_dst)
+		rw_enter(&zv_src->zv_suspend_lock, RW_READER);
+
+	inos = zv_src->zv_objset;
+	outos = zv_dst->zv_objset;
+
+	/*
+	 * Sanity checks
+	 */
+	if (!spa_feature_is_enabled(dmu_objset_spa(outos),
+	    SPA_FEATURE_BLOCK_CLONING)) {
+		error = EOPNOTSUPP;
+		goto out;
+	}
+	if (dmu_objset_spa(inos) != dmu_objset_spa(outos)) {
+		error = EXDEV;
+		goto out;
+	}
+	if (inos->os_encrypted != outos->os_encrypted) {
+		error = EXDEV;
+		goto out;
+	}
+	if (zv_src->zv_volblocksize != zv_dst->zv_volblocksize) {
+		error = EINVAL;
+		goto out;
+	}
+	if (inoff >= zv_src->zv_volsize || outoff >= zv_dst->zv_volsize) {
+		error = 0;
+		goto out;
+	}
+
+	/*
+	 * Do not read beyond boundary
+	 */
+	if (len > zv_src->zv_volsize - inoff)
+		len = zv_src->zv_volsize - inoff;
+	if (len > zv_dst->zv_volsize - outoff)
+		len = zv_dst->zv_volsize - outoff;
+	if (len == 0) {
+		error = 0;
+		goto out;
+	}
+
+	/*
+	 * No overlapping if we are cloning within the same file
+	 */
+	if (zv_src == zv_dst) {
+		if (inoff < outoff + len && outoff < inoff + len) {
+			error = EINVAL;
+			goto out;
+		}
+	}
+
+	/*
+	 * Offsets and length must be at block boundaries
+	 */
+	if ((inoff % zv_src->zv_volblocksize) != 0 ||
+	    (outoff % zv_dst->zv_volblocksize) != 0) {
+		error = EINVAL;
+		goto out;
+	}
+
+	/*
+	 * Length must be multiple of block size
+	 */
+	if ((len % zv_src->zv_volblocksize) != 0) {
+		error = EINVAL;
+		goto out;
+	}
+
+	zilog_dst = zv_dst->zv_zilog;
+	maxblocks = zil_max_log_data(zilog_dst, sizeof (lr_clone_range_t)) /
+	    sizeof (bps[0]);
+	bps = vmem_alloc(sizeof (bps[0]) * maxblocks, KM_SLEEP);
+	/*
+	 * Maintain predictable lock order.
+	 */
+	if (zv_src < zv_dst || (zv_src == zv_dst && inoff < outoff)) {
+		inlr = zfs_rangelock_enter(&zv_src->zv_rangelock, inoff, len,
+		    RL_READER);
+		outlr = zfs_rangelock_enter(&zv_dst->zv_rangelock, outoff, len,
+		    RL_WRITER);
+	} else {
+		outlr = zfs_rangelock_enter(&zv_dst->zv_rangelock, outoff, len,
+		    RL_WRITER);
+		inlr = zfs_rangelock_enter(&zv_src->zv_rangelock, inoff, len,
+		    RL_READER);
+	}
+
+	while (len > 0) {
+		uint64_t size, last_synced_txg;
+		size_t nbps = maxblocks;
+		size = MIN(zv_src->zv_volblocksize * maxblocks, len);
+		last_synced_txg = spa_last_synced_txg(
+		    dmu_objset_spa(zv_src->zv_objset));
+		error = dmu_read_l0_bps(zv_src->zv_objset, ZVOL_OBJ, inoff,
+		    size, bps, &nbps);
+		if (error != 0) {
+			/*
+			 * If we are trying to clone a block that was created
+			 * in the current transaction group, the error will be
+			 * EAGAIN here.  Based on zfs_bclone_wait_dirty either
+			 * return a shortened range to the caller so it can
+			 * fallback, or wait for the next TXG and check again.
+			 */
+			if (error == EAGAIN && zfs_bclone_wait_dirty) {
+				txg_wait_synced(dmu_objset_pool
+				    (zv_src->zv_objset), last_synced_txg + 1);
+					continue;
+			}
+			break;
+		}
+
+		tx = dmu_tx_create(zv_dst->zv_objset);
+		dmu_tx_hold_clone_by_dnode(tx, zv_dst->zv_dn, outoff, size);
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error != 0) {
+			dmu_tx_abort(tx);
+			break;
+		}
+		error = dmu_brt_clone(zv_dst->zv_objset, ZVOL_OBJ, outoff, size,
+		    tx, bps, nbps);
+		if (error != 0) {
+			dmu_tx_commit(tx);
+			break;
+		}
+		zvol_log_clone_range(zilog_dst, tx, TX_CLONE_RANGE, outoff,
+		    size, zv_src->zv_volblocksize, bps, nbps);
+		dmu_tx_commit(tx);
+		inoff += size;
+		outoff += size;
+		len -= size;
+	}
+	vmem_free(bps, sizeof (bps[0]) * maxblocks);
+	zfs_rangelock_exit(outlr);
+	zfs_rangelock_exit(inlr);
+	if (error == 0 && zv_dst->zv_objset->os_sync == ZFS_SYNC_ALWAYS) {
+		zil_commit(zilog_dst, ZVOL_OBJ);
+	}
+out:
+	if (zv_src != zv_dst)
+		rw_exit(&zv_src->zv_suspend_lock);
+	rw_exit(&zv_dst->zv_suspend_lock);
+	return (SET_ERROR(error));
+}
+
+/*
+ * Handles TX_CLONE_RANGE transactions.
+ */
+void
+zvol_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, uint64_t off,
+    uint64_t len, uint64_t blksz, const blkptr_t *bps, size_t nbps)
+{
+	itx_t *itx;
+	lr_clone_range_t *lr;
+	uint64_t partlen, max_log_data;
+	size_t partnbps;
+
+	if (zil_replaying(zilog, tx))
+		return;
+
+	max_log_data = zil_max_log_data(zilog, sizeof (lr_clone_range_t));
+
+	while (nbps > 0) {
+		partnbps = MIN(nbps, max_log_data / sizeof (bps[0]));
+		partlen = partnbps * blksz;
+		ASSERT3U(partlen, <, len + blksz);
+		partlen = MIN(partlen, len);
+
+		itx = zil_itx_create(txtype,
+		    sizeof (*lr) + sizeof (bps[0]) * partnbps);
+		lr = (lr_clone_range_t *)&itx->itx_lr;
+		lr->lr_foid = ZVOL_OBJ;
+		lr->lr_offset = off;
+		lr->lr_length = partlen;
+		lr->lr_blksz = blksz;
+		lr->lr_nbps = partnbps;
+		memcpy(lr->lr_bps, bps, sizeof (bps[0]) * partnbps);
+
+		zil_itx_assign(zilog, itx, tx);
+
+		bps += partnbps;
+		ASSERT3U(nbps, >=, partnbps);
+		nbps -= partnbps;
+		off += partlen;
+		ASSERT3U(len, >=, partlen);
+		len -= partlen;
+	}
+}
+
 static int
 zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
@@ -540,7 +820,9 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_write,	/* TX_WRITE */
 	zvol_replay_truncate,	/* TX_TRUNCATE */
 	zvol_replay_err,	/* TX_SETATTR */
+	zvol_replay_err,	/* TX_ACL_V0 */
 	zvol_replay_err,	/* TX_ACL */
+	zvol_replay_err,	/* TX_CREATE_ACL */
 	zvol_replay_err,	/* TX_CREATE_ATTR */
 	zvol_replay_err,	/* TX_CREATE_ACL_ATTR */
 	zvol_replay_err,	/* TX_MKDIR_ACL */
@@ -550,7 +832,7 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_SETSAXATTR */
 	zvol_replay_err,	/* TX_RENAME_EXCHANGE */
 	zvol_replay_err,	/* TX_RENAME_WHITEOUT */
-	zvol_replay_err,	/* TX_CLONE_RANGE */
+	zvol_replay_clone_range,	/* TX_CLONE_RANGE */
 };
 
 /*

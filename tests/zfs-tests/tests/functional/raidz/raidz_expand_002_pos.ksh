@@ -78,13 +78,13 @@ log_must zpool create -f $opts $pool $raid ${disks[1..$(($nparity+1))]}
 log_must zfs set primarycache=metadata $pool
 
 log_must zfs create $pool/fs
-log_must fill_fs /$pool/fs 1 512 100 1024 R
+log_must fill_fs /$pool/fs 1 512 102400 1 R
 
 log_must zfs create -o compress=on $pool/fs2
-log_must fill_fs /$pool/fs2 1 512 100 1024 R
+log_must fill_fs /$pool/fs2 1 512 102400 1 R
 
 log_must zfs create -o compress=on -o recordsize=8k $pool/fs3
-log_must fill_fs /$pool/fs3 1 512 100 1024 R
+log_must fill_fs /$pool/fs3 1 512 102400 1 R
 
 typeset pool_size=$(get_pool_prop size $pool)
 

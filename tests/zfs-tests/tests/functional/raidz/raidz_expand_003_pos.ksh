@@ -94,10 +94,10 @@ opts="-o cachefile=none"
 log_must zpool create -f $opts $pool $raid ${disks[1..$(($nparity+1))]}
 
 log_must zfs create -o recordsize=8k $pool/fs
-log_must fill_fs /$pool/fs 1 256 100 1024 R
+log_must fill_fs /$pool/fs 1 256 102400 1 R
 
 log_must zfs create -o recordsize=128k $pool/fs2
-log_must fill_fs /$pool/fs2 1 256 100 1024 R
+log_must fill_fs /$pool/fs2 1 256 102400 1 R
 
 for disk in ${disks[$(($nparity+2))..$devs]}; do
 	log_must mkfile -n 400m /$pool/fs/file

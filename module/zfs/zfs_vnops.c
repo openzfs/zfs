@@ -71,7 +71,7 @@ int zfs_bclone_enabled = 1;
  * a copy of the file and is therefore not the default.  However, in certain
  * scenarios this behavior may be desirable so a tunable is provided.
  */
-static int zfs_bclone_wait_dirty = 0;
+int zfs_bclone_wait_dirty = 0;
 
 /*
  * Enable Direct I/O. If this setting is 0, then all I/O requests will be

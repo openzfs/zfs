@@ -92,7 +92,7 @@ log_must zpool destroy $pool
 log_must zpool create -f $opts $pool $raid ${disks[1..$(($devs-1))]}
 log_must zfs set primarycache=metadata $pool
 log_must zfs create $pool/fs
-log_must fill_fs /$pool/fs 1 512 100 1024 R
+log_must fill_fs /$pool/fs 1 512 102400 1 R
 allocated=$(zpool list -Hp -o allocated $pool)
 log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $((allocated / 4))
 log_must zpool attach $pool ${raid}-0 ${disks[$devs]}
