@@ -18,7 +18,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd October 2, 2024
+.Dd November 20, 2024
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -957,6 +957,26 @@ once it is
 .Sy enabled ,
 and never returns back to being
 .Sy enabled .
+.
+.feature com.klarasystems txg_log_time yes
+This feature enables the use of the TXG time database, allowing tracking of
+when TXGs have been committed to disk.
+While this feature does not retain all TXGs, it provides a good estimate of
+the time range in which TXGs were committed.
+This functionality can be used with
+.Xr zpool-scrub 8
+to scrub only the TXGs flushed within a specified date range.
+.Pp
+The database is created after this feature is enabled.
+As a result, TXGs flushed before the feature was enabled will not be
+timestamped.
+.Pp
+This feature becomes
+.Sy active
+once it is
+.Sy enabled ,
+and never returns back to being
+.Sy disabled .
 .
 .feature org.zfsonlinux userobj_accounting yes extensible_dataset
 This feature allows administrators to account the object usage information

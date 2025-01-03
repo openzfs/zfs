@@ -99,6 +99,7 @@
 #include <sys/vmsystm.h>
 #endif	/* _KERNEL */
 
+#include "zfs_crrd.h"
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
 #include <cityhash.h>
@@ -308,6 +309,17 @@ static int zfs_livelist_condense_zthr_cancel = 0;
  * remapped blkptrs in dbuf_remap_impl)
  */
 static int zfs_livelist_condense_new_alloc = 0;
+
+/*
+ * Time variable to decide how often the txg should be added into the
+ * database.
+ */
+static uint_t spa_note_txg_time = 60;
+
+/*
+ * How often flush txg database to a disk.
+ */
+static uint_t spa_flush_txg_time = 5 * 60;
 
 /*
  * ==========================================================================
@@ -3327,6 +3339,103 @@ spa_start_livelist_condensing_thread(spa_t *spa)
 }
 
 static void
+spa_sync_time_logger(spa_t *spa, dmu_tx_t *tx)
+{
+	uint64_t curtime;
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_TXG_TIMELOG)) {
+		return;
+	}
+	if (!spa_writeable(spa)) {
+		return;
+	}
+	if (tx->tx_txg == spa->spa_last_noted_txg) {
+		return;
+	}
+	curtime = gethrestime_sec();
+	if (curtime < spa->spa_last_noted_txg_time + spa_note_txg_time) {
+		return;
+	}
+
+	spa->spa_last_noted_txg_time = curtime;
+	spa->spa_last_noted_txg = tx->tx_txg;
+
+	mutex_enter(&spa->spa_txg_log_time_lock);
+	dbrrd_add(&spa->spa_txg_log_time, curtime, tx->tx_txg);
+
+	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
+		goto out;
+	}
+	spa->spa_last_flush_txg_time = curtime;
+
+	if (zap_contains(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MINUTES) == ENOENT) {
+		VERIFY0(zap_add(spa_meta_objset(spa),
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_MINUTES,
+		    1, sizeof (spa->spa_txg_log_time.dbr_minutes),
+		    &spa->spa_txg_log_time.dbr_minutes, tx));
+		VERIFY0(zap_add(spa_meta_objset(spa),
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_DAYS,
+		    1, sizeof (spa->spa_txg_log_time.dbr_days),
+		    &spa->spa_txg_log_time.dbr_days, tx));
+		VERIFY0(zap_add(spa_meta_objset(spa),
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_MONTHS,
+		    1, sizeof (spa->spa_txg_log_time.dbr_months),
+		    &spa->spa_txg_log_time.dbr_months, tx));
+		spa_feature_incr(spa, SPA_FEATURE_TXG_TIMELOG, tx);
+	} else {
+		VERIFY0(zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_MINUTES,
+		    1, sizeof (spa->spa_txg_log_time.dbr_minutes),
+		    &spa->spa_txg_log_time.dbr_minutes, tx));
+		VERIFY0(zap_update(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_DAYS,
+		    1, sizeof (spa->spa_txg_log_time.dbr_days),
+		    &spa->spa_txg_log_time.dbr_days, tx));
+		VERIFY0(zap_update(spa_meta_objset(spa),
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_TXG_LOG_TIME_MONTHS,
+		    1, sizeof (spa->spa_txg_log_time.dbr_months),
+		    &spa->spa_txg_log_time.dbr_months, tx));
+	}
+
+out:
+	mutex_exit(&spa->spa_txg_log_time_lock);
+}
+
+static int
+spa_load_txg_log_time(spa_t *spa)
+{
+	int error;
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MINUTES,
+	    1, sizeof (spa->spa_txg_log_time.dbr_minutes),
+	    &spa->spa_txg_log_time.dbr_minutes);
+
+	if (error == ENOENT)
+		return (0);
+	if (error != 0)
+		return (error);
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_DAYS,
+	    1, sizeof (spa->spa_txg_log_time.dbr_days),
+	    &spa->spa_txg_log_time.dbr_days);
+	if (error != 0)
+		return (error);
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MONTHS,
+	    1, sizeof (spa->spa_txg_log_time.dbr_months),
+	    &spa->spa_txg_log_time.dbr_months);
+	if (error != 0)
+		return (error);
+
+	return (0);
+}
+
+
+static void
 spa_spawn_aux_threads(spa_t *spa)
 {
 	ASSERT(spa_writeable(spa));
@@ -4712,6 +4821,11 @@ spa_ld_get_props(spa_t *spa)
 	error = spa_dir_prop(spa, DMU_POOL_CREATION_VERSION,
 	    &spa->spa_creation_version, B_FALSE);
 	if (error != 0 && error != ENOENT)
+		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+
+	/* Load time log */
+	error = spa_load_txg_log_time(spa);
+	if (error != 0)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	/*
@@ -10237,6 +10351,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	}
 
 	spa_sync_rewrite_vdev_config(spa, tx);
+	spa_sync_time_logger(spa, tx);
 	dmu_tx_commit(tx);
 
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid);
@@ -11060,6 +11175,12 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT,
 	ZMOD_RW,
 	"Whether extra ALLOC blkptrs were added to a livelist entry while it "
 	"was being condensed");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, note_txg_time, UINT, ZMOD_RW,
+	"How often txg should be registred in database");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, flush_txg_time, UINT, ZMOD_RW,
+	"How often txg database should be flushed");
 
 #ifdef _KERNEL
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
