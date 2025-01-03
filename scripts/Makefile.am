@@ -79,7 +79,7 @@ CLEANFILES += %D%/common.sh
 	-$(AM_V_at)echo "$$SCRIPTS_EXTRA_ENVIRONMENT" >>$@
 
 ALL_LOCAL += scripts-all-local
-scripts-all-local: %D%/common.sh
+scripts-all-local: %D%/common.sh $(PROGRAMS) $(SCRIPTS) $(DATA)
 	-SCRIPT_COMMON=$< $(srcdir)/%D%/zfs-tests.sh -c
 
 CLEAN_LOCAL += scripts-clean-local
