@@ -1,4 +1,5 @@
 #!/usr/bin/env @PYTHON_SHEBANG@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
 # For a definition of fields, or usage, use arcstat -v
