@@ -1890,6 +1890,17 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 	IMPLY(zio->io_priority == ZIO_PRIORITY_REBUILD, rr->rr_nempty == 0);
 
 	/*
+	 * Calculate how much parity is available for sitting out reads
+	 */
+	int parity_avail = rr->rr_firstdatacol;
+	for (int p = 0; p < rr->rr_firstdatacol; p++) {
+		raidz_col_t *rc = &rr->rr_col[p];
+		if (!vdev_draid_readable(vd->vdev_child[rc->rc_devidx],
+		    rc->rc_offset)) {
+			parity_avail--;
+		}
+	}
+	/*
 	 * Iterate over the columns in reverse order so that we hit the parity
 	 * last.  Any errors along the way will force us to read the parity.
 	 * For scrub/resilver IOs which verify skip sectors, a gang ABD will
@@ -1993,6 +2004,14 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 				rc->rc_force_repair = 1;
 				rc->rc_allow_repair = 1;
 			}
+		} else if (parity_avail > 0 && c >= rr->rr_firstdatacol &&
+		    rr->rr_missingdata == 0 &&
+		    vdev_skip_latency_outlier(cvd, zio->io_flags)) {
+			rr->rr_missingdata++;
+			rc->rc_error = SET_ERROR(EAGAIN);
+			rc->rc_skipped = 1;
+			parity_avail--;
+			continue;
 		}
 	}
 
