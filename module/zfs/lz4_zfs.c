@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * LZ4 - Fast LZ compression algorithm
  * Header File
