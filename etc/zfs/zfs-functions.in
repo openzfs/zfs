@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BSD-2-Clause
 # This is a script with common functions etc used by zfs-import, zfs-load-key,
 # zfs-mount, zfs-share and zfs-zed.
 #
