@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2010 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * Copyright (c) 2020 iXsystems, Inc.
