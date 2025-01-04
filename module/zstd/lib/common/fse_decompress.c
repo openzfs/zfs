@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /* ******************************************************************
  * FSE : Finite State Entropy decoder
  * Copyright (c) 2013-2020, Yann Collet, Facebook, Inc.
