@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (C) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  * All rights reserved.
