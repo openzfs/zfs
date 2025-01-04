@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: CDDL-1.0
 # shellcheck disable=SC2154
 #
 # CDDL HEADER START
