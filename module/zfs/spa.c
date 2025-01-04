@@ -8948,16 +8948,26 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 }
 
 static void
-spa_async_fault_vdev(spa_t *spa, vdev_t *vd)
+spa_async_fault_vdev(vdev_t *vd, boolean_t *suspend)
 {
 	if (vd->vdev_fault_wanted) {
+		vdev_state_t newstate = VDEV_STATE_FAULTED;
 		vd->vdev_fault_wanted = B_FALSE;
-		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
-		    VDEV_AUX_ERR_EXCEEDED);
-	}
 
+		/*
+		 * If this device has the only valid copy of the data, then
+		 * back off and simply mark the vdev as degraded instead.
+		 */
+		if (!vd->vdev_top->vdev_islog && vd->vdev_aux == NULL &&
+		    vdev_dtl_required(vd)) {
+			newstate = VDEV_STATE_DEGRADED;
+			/* A required disk is missing so suspend the pool */
+			*suspend = B_TRUE;
+		}
+		vdev_set_state(vd, B_TRUE, newstate, VDEV_AUX_ERR_EXCEEDED);
+	}
 	for (int c = 0; c < vd->vdev_children; c++)
-		spa_async_fault_vdev(spa, vd->vdev_child[c]);
+		spa_async_fault_vdev(vd->vdev_child[c], suspend);
 }
 
 static void
@@ -9049,8 +9059,11 @@ spa_async_thread(void *arg)
 	 */
 	if (tasks & SPA_ASYNC_FAULT_VDEV) {
 		spa_vdev_state_enter(spa, SCL_NONE);
-		spa_async_fault_vdev(spa, spa->spa_root_vdev);
+		boolean_t suspend = B_FALSE;
+		spa_async_fault_vdev(spa->spa_root_vdev, &suspend);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
+		if (suspend)
+			zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
 	}
 
 	/*
