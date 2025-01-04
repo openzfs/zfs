@@ -144,7 +144,9 @@ for kernel_version in %{?kernel_versions}; do
         %{debuginfo} \
         %{?kernel_cc} \
         %{?kernel_ld} \
-        %{?kernel_llvm}
+        %{?kernel_llvm} \
+        %{?kernel_cross_compile} \
+        %{?kernel_arch}
 
     # Pre-6.10 kernel builds didn't need to copy over the source files to the
     # build directory.  However we do need to do it though post-6.10 due to
