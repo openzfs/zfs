@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lstring.c,v 2.26.1.1 2013/04/12 18:48:47 roberto Exp $
 ** String table (keeps all strings handled by Lua)

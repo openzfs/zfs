@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lgc.c,v 2.140.1.3 2014/09/01 16:55:08 roberto Exp $
 ** Garbage Collector
