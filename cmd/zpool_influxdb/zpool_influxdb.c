@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * Gather top-level ZFS pool and resilver/scan statistics and print using
  * influxdb line protocol
