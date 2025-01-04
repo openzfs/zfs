@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: ldo.h,v 2.20.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Stack and Call structure of Lua

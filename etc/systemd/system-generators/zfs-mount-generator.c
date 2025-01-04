@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
  * Copyright (c) 2017 Antonio Russo <antonio.e.russo@gmail.com>
  * Copyright (c) 2020 InsanePrawn <insane.prawny@gmail.com>
