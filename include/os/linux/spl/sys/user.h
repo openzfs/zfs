@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2015 Cluster Inc.
  *  Produced at ClusterHQ Inc (cf, DISCLAIMER).
