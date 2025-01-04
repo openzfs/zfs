@@ -1,4 +1,5 @@
 #!@DEFAULT_INIT_SHELL@
+# SPDX-License-Identifier: BSD-2-Clause
 # shellcheck disable=SC2154
 #
 # zfs-zed
