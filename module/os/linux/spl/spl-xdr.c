@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (c) 2008-2010 Sun Microsystems, Inc.
  *  Written by Ricardo Correia <Ricardo.M.Correia@Sun.COM>
