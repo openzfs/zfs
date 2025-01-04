@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lapi.c,v 2.171.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Lua API

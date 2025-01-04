@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lualib.h,v 1.43.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Lua standard libraries

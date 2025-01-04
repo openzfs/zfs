@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lbaselib.c,v 1.276.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Basic library

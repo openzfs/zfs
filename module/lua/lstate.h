@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lstate.h,v 2.82.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Global State
