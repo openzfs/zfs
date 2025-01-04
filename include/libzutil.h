@@ -277,7 +277,16 @@ _LIBZUTIL_H void update_vdev_config_dev_sysfs_path(nvlist_t *nv,
  */
 static inline char *zfs_strerror(int errnum) {
 #ifdef HAVE_STRERROR_L
-	return (strerror_l(errnum, uselocale(0)));
+	locale_t l = uselocale(0);
+
+	/*
+	 * the behavior is undefined if the second argument
+	 * to strerror_l() is LC_GLOBAL_LOCALE.
+	 */
+	if (l == LC_GLOBAL_LOCALE)
+		return (strerror(errnum));
+	else
+		return (strerror_l(errnum, l));
 #else
 	return (strerror(errnum));
 #endif
