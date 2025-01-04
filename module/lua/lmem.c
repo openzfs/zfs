@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lmem.c,v 1.84.1.1 2013/04/12 18:48:47 roberto Exp $
 ** Interface to Memory Manager
