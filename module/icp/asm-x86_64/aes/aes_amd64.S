@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Brian-Gladman-3-Clause
 /*
  * ---------------------------------------------------------------------------
  * Copyright (c) 1998-2007, Brian Gladman, Worcester, UK. All rights reserved.
