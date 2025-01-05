@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-OpenZFS-ThirdParty-PublicDomain
 /*
  * Pre-computed Skein IVs
  *
