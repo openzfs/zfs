@@ -98,6 +98,15 @@ gethrestime_sec(void)
 }
 
 static inline hrtime_t
+getlrtime(void)
+{
+	struct timeval tv;
+	(void) gettimeofday(&tv, NULL);
+	return ((((uint64_t)tv.tv_sec) * NANOSEC) +
+	    ((uint64_t)tv.tv_usec * NSEC_PER_USEC));
+}
+
+static inline hrtime_t
 gethrtime(void)
 {
 	struct timespec ts;

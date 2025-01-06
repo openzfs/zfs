@@ -63,6 +63,23 @@ typedef longlong_t	hrtime_t;
 #define	NSEC_TO_TICK(nsec)	((nsec) / (NANOSEC / hz))
 
 static __inline hrtime_t
+getlrtime(void)
+{
+	struct timespec ts;
+	hrtime_t nsec;
+
+	getnanotime(&ts);
+	nsec = ((hrtime_t)ts.tv_sec * NANOSEC) + ts.tv_nsec;
+	return (nsec);
+}
+
+static __inline void
+nanouptime(struct timespec *ts)
+{
+	clock(&ts);
+}
+
+static __inline hrtime_t
 gethrtime(void)
 {
 	struct timespec ts;
