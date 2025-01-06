@@ -4521,6 +4521,8 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_checksum_errors = 0;
 	vd->vdev_stat.vs_dio_verify_errors = 0;
 	vd->vdev_stat.vs_slow_ios = 0;
+	atomic_store_64(&vd->vdev_outlier_count, 0);
+	vd->vdev_read_sit_out_expire = 0;
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);
@@ -6358,6 +6360,19 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				if (vd->vdev_ops == &vdev_raidz_ops) {
 					vdev_prop_add_list(outnvl, propname,
 					    NULL, vd->vdev_rz_expanding,
+					    ZPROP_SRC_NONE);
+				}
+				continue;
+			case VDEV_PROP_SIT_OUT_READS:
+				/* Only expose this for a draid or raidz leaf */
+				if (vd->vdev_ops->vdev_op_leaf &&
+				    vd->vdev_top != NULL &&
+				    (vd->vdev_top->vdev_ops ==
+				    &vdev_raidz_ops ||
+				    vd->vdev_top->vdev_ops ==
+				    &vdev_draid_ops)) {
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, vdev_sit_out_reads(vd, 0),
 					    ZPROP_SRC_NONE);
 				}
 				continue;

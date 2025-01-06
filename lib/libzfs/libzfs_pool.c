@@ -5478,6 +5478,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 			/* Only use if provided by the RAIDZ VDEV above */
 			if (prop == VDEV_PROP_RAIDZ_EXPANDING)
 				return (ENOENT);
+			if (prop == VDEV_PROP_SIT_OUT_READS)
+				return (ENOENT);
 		}
 		if (vdev_prop_index_to_string(prop, intval,
 		    (const char **)&strval) != 0)
