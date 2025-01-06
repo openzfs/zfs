@@ -467,6 +467,9 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_RAIDZ_EXPANDING, "raidz_expanding", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
 	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_SIT_OUT_READS, "sit_out_reads", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "SIT_OUT_READS",
+	    boolean_table, sfeatures);
 	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);

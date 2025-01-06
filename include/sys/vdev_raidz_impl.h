@@ -119,6 +119,7 @@ typedef struct raidz_col {
 	uint8_t rc_need_orig_restore:1;	/* need to restore from orig_data? */
 	uint8_t rc_force_repair:1;	/* Write good data to this column */
 	uint8_t rc_allow_repair:1;	/* Allow repair I/O to this column */
+	uint8_t rc_latency_outlier:1;	/* Latency outlier for this device */
 	int rc_shadow_devidx;		/* for double write during expansion */
 	int rc_shadow_error;		/* for double write during expansion */
 	uint64_t rc_shadow_offset;	/* for double write during expansion */
@@ -133,6 +134,7 @@ typedef struct raidz_row {
 	int rr_firstdatacol;		/* First data column/parity count */
 	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
 	int rr_nempty;			/* empty sectors included in parity */
+	int rr_outlier_cnt;		/* Count of latency outlier devices */
 #ifdef ZFS_DEBUG
 	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
 	uint64_t rr_size;		/* Physical size for *_io_verify() */
