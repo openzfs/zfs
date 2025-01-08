@@ -376,6 +376,27 @@ zio_inject_bitflip_cb(void *data, size_t len, void *private)
 	return (1);	/* stop after first flip */
 }
 
+/* Test if this zio matches the iotype from the injection record. */
+static boolean_t
+zio_match_iotype(zio_t *zio, uint32_t iotype)
+{
+	ASSERT3P(zio, !=, NULL);
+
+	/* Unknown iotype, maybe from a newer version of zinject. Reject it. */
+	if (iotype >= ZINJECT_IOTYPES)
+		return (B_FALSE);
+
+	/* Standard IO types, match against ZIO type. */
+	if (iotype < ZINJECT_IOTYPE_ALL)
+		return (iotype == zio->io_type);
+
+	/* Match any standard IO type. */
+	if (iotype == ZINJECT_IOTYPE_ALL)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 static int
 zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 {
@@ -410,9 +431,8 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 			}
 
 			/* Handle type specific I/O failures */
-			if (zio != NULL &&
-			    handler->zi_record.zi_iotype != ZIO_TYPES &&
-			    handler->zi_record.zi_iotype != zio->io_type)
+			if (zio != NULL && !zio_match_iotype(zio,
+			    handler->zi_record.zi_iotype))
 				continue;
 
 			if (handler->zi_record.zi_error == err1 ||
@@ -635,10 +655,8 @@ zio_handle_io_delay(zio_t *zio)
 			continue;
 
 		/* also match on I/O type (e.g., -T read) */
-		if (handler->zi_record.zi_iotype != ZIO_TYPES &&
-		    handler->zi_record.zi_iotype != zio->io_type) {
+		if (!zio_match_iotype(zio, handler->zi_record.zi_iotype))
 			continue;
-		}
 
 		/*
 		 * Defensive; should never happen as the array allocation
