@@ -251,6 +251,7 @@ static const char *const iotypestrtable[ZINJECT_IOTYPES] = {
 	[ZINJECT_IOTYPE_FLUSH]	= "flush",
 	[ZINJECT_IOTYPE_TRIM]	= "trim",
 	[ZINJECT_IOTYPE_ALL]	= "all",
+	[ZINJECT_IOTYPE_PROBE]	= "probe",
 };
 
 static zinject_iotype_t

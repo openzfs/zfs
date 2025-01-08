@@ -386,6 +386,10 @@ zio_match_iotype(zio_t *zio, uint32_t iotype)
 	if (iotype >= ZINJECT_IOTYPES)
 		return (B_FALSE);
 
+	/* Probe IOs only match IOTYPE_PROBE, regardless of their type. */
+	if (zio->io_flags & ZIO_FLAG_PROBE)
+		return (iotype == ZINJECT_IOTYPE_PROBE);
+
 	/* Standard IO types, match against ZIO type. */
 	if (iotype < ZINJECT_IOTYPE_ALL)
 		return (iotype == zio->io_type);
@@ -405,9 +409,11 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 
 	/*
 	 * We skip over faults in the labels unless it's during device open
-	 * (i.e. zio == NULL) or a device flush (offset is meaningless)
+	 * (i.e. zio == NULL) or a device flush (offset is meaningless). We let
+	 * probe IOs through so we can match them to probe inject records.
 	 */
-	if (zio != NULL && zio->io_type != ZIO_TYPE_FLUSH) {
+	if (zio != NULL && zio->io_type != ZIO_TYPE_FLUSH &&
+	    !(zio->io_flags & ZIO_FLAG_PROBE)) {
 		uint64_t offset = zio->io_offset;
 
 		if (offset < VDEV_LABEL_START_SIZE ||

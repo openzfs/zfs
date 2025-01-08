@@ -471,7 +471,8 @@ typedef enum zinject_iotype {
 	ZINJECT_IOTYPE_TRIM	= ZIO_TYPE_TRIM,
 	ZINJECT_IOTYPE_ALL	= ZIO_TYPES,
 	/* Room for future expansion for ZIO_TYPE_* */
-	ZINJECT_IOTYPES		= 16,
+	ZINJECT_IOTYPE_PROBE	= 16,
+	ZINJECT_IOTYPES,
 } zinject_iotype_t;
 
 typedef struct zfs_share {
