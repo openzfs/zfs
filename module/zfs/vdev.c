@@ -6363,7 +6363,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					    ZPROP_SRC_NONE);
 				}
 				continue;
-			case VDEV_PROP_SIT_OUT_READS:
+			case VDEV_PROP_SIT_OUT:
 				/* Only expose this for a draid or raidz leaf */
 				if (vd->vdev_ops->vdev_op_leaf &&
 				    vd->vdev_top != NULL &&

@@ -702,6 +702,10 @@ tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
     'dio_unaligned_block', 'dio_unaligned_filesize']
 tags = ['functional', 'direct']
 
+[tests/functional/events]
+tests = ['slow_vdev_sit_out']
+tags = ['functional', 'events']
+
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']

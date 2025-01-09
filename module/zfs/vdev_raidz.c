@@ -2302,11 +2302,11 @@ vdev_sit_out_reads(vdev_t *vd, zio_flag_t io_flags)
 	if (raidz_read_sit_out_secs == 0)
 		return (B_FALSE);
 
-	/* Avoid skipping a data column read when resilvering */
-	if (io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))
+	/* Avoid skipping a data column read when scrubbing */
+	if (io_flags & ZIO_FLAG_SCRUB)
 		return (B_FALSE);
 
-	return (vd->vdev_read_sit_out_expire >= gethrtime());
+	return (vd->vdev_read_sit_out_expire >= gethrestime_sec());
 }
 
 /*
@@ -2318,10 +2318,10 @@ vdev_sit_out_reads(vdev_t *vd, zio_flag_t io_flags)
 static uint64_t
 calculate_ewma(uint64_t previous_ewma, uint64_t latest_value) {
 	/*
-	 * Scale using 16 bits with an effective alpha of 0.50
+	 * Scale using 8 bits with an effective alpha of 0.25
 	 */
-	const uint64_t scale = 16;
-	const uint64_t alpha = 32768;
+	const uint64_t scale = 8;
+	const uint64_t alpha = 64;
 
 	return (((alpha * latest_value) + (((1ULL << scale) - alpha) *
 	    previous_ewma)) >> scale);
@@ -2874,10 +2874,14 @@ latency_quartiles_fence(const uint64_t *data, size_t n)
 	else
 		q3 = latency_median_value(&data[(n+1) >> 1], n>>1);
 
-	uint64_t iqr = q3 - q1;
-	uint64_t fence = q3 + iqr;
+	/*
+	 * To avoid detecting false positive outliers when N is small and
+	 * and the latencies values are very close, make sure the fence
+	 * is at least 25% larger than Q1.
+	 */
+	uint64_t iqr = MAX(q3 - q1, q1 >> 3);
 
-	return (fence);
+	return (q3 + (iqr << 1));
 }
 
 #define	LAT_SAMPLES_STACK	64
@@ -2908,14 +2912,6 @@ vdev_child_slow_outlier(zio_t *zio)
 	if (raidz_read_sit_out_secs == 0 || vd->vdev_children < LAT_SAMPLES_MIN)
 		return;
 
-	spa_t *spa = zio->io_spa;
-	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT ||
-	    spa_load_state(spa) == SPA_LOAD_RECOVER ||
-	    (spa_load_state(spa) != SPA_LOAD_NONE &&
-	    spa->spa_last_open_failed)) {
-		return;
-	}
-
 	hrtime_t now = gethrtime();
 	uint64_t last = atomic_load_64(&vd->vdev_last_latency_check);
 
@@ -2934,14 +2930,12 @@ vdev_child_slow_outlier(zio_t *zio)
 		lat_data = &data[0];
 
 	uint64_t max = 0;
-	uint64_t max_outier_count = 0;
 	vdev_t *svd = NULL; /* suspect vdev */
-	vdev_t *ovd = NULL; /* largest outlier vdev */
 	for (int c = 0; c < samples; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
 		if (cvd->vdev_read_sit_out_expire != 0) {
-			if (cvd->vdev_read_sit_out_expire < gethrtime()) {
+			if (cvd->vdev_read_sit_out_expire < gethrestime_sec()) {
 				/*
 				 * Done with our sit out, wait for new outlier
 				 * to emerge.
@@ -2965,12 +2959,6 @@ vdev_child_slow_outlier(zio_t *zio)
 			max = lat_data[c];
 			svd = cvd;
 		}
-
-		uint64_t count = atomic_load_64(&cvd->vdev_outlier_count);
-		if (count > max_outier_count) {
-			max_outier_count = count;
-			ovd = cvd;
-		}
 	}
 
 	qsort((void *)lat_data, samples, sizeof (uint64_t), latency_compare);
@@ -2982,28 +2970,26 @@ vdev_child_slow_outlier(zio_t *zio)
 		 * higher than peers outlier count will be considered
 		 * a slow disk.
 		 */
-		if (atomic_add_64_nv(&svd->vdev_outlier_count, 1) >
-		    LAT_OUTLIER_LIMIT && svd == ovd &&
-		    svd->vdev_read_sit_out_expire == 0) {
+		if (++svd->vdev_outlier_count > LAT_OUTLIER_LIMIT) {
+			ASSERT0(svd->vdev_read_sit_out_expire);
 			/*
 			 * Begin a sit out period for this slow drive
 			 */
-			svd->vdev_read_sit_out_expire = gethrtime() +
-			    SEC2NSEC(raidz_read_sit_out_secs);
+			svd->vdev_read_sit_out_expire = gethrestime_sec() +
+			    raidz_read_sit_out_secs;
 
 			/* count each slow io period */
 			mutex_enter(&svd->vdev_stat_lock);
 			svd->vdev_stat.vs_slow_ios++;
 			mutex_exit(&svd->vdev_stat_lock);
 
-			(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY, spa, svd,
-			    NULL, NULL, 0);
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
+			    zio->io_spa, svd, NULL, NULL, 0);
 			vdev_dbgmsg(svd, "begin read sit out for %d secs",
 			    (int)raidz_read_sit_out_secs);
-			for (int c = 0; c < vd->vdev_children; c++) {
-				atomic_store_64(
-				    &vd->vdev_child[c]->vdev_outlier_count, 0);
-			}
+
+			for (int c = 0; c < vd->vdev_children; c++)
+				vd->vdev_child[c]->vdev_outlier_count = 0;
 		}
 	}
 out:
