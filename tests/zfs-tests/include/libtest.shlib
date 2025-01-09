@@ -1112,6 +1112,16 @@ function get_pool_prop # property pool
 	zpool get -Hpo value "$prop" "$pool" || log_fail "zpool get $prop $pool"
 }
 
+# Get the specified vdev property in parsable format or fail
+function get_vdev_prop
+{
+	typeset prop="$1"
+	typeset pool="$2"
+	typeset vdev="$3"
+
+	zpool get -Hpo value "$prop" "$pool" "$vdev" || log_fail "zpool get $prop $pool $vdev"
+}
+
 # Return 0 if a pool exists; $? otherwise
 #
 # $1 - pool name
