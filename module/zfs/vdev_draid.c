@@ -1995,6 +1995,7 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			}
 		} else if (vdev_sit_out_reads(cvd, zio->io_flags)) {
 			rr->rr_outlier_cnt++;
+			ASSERT0(rc->rc_latency_outlier);
 			rc->rc_latency_outlier = 1;
 		}
 	}
@@ -2004,13 +2005,14 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 	 * exists to reconstruct the column data, then skip reading the
 	 * known slow child vdev as a performance optimization.
 	 */
-	if (rr->rr_outlier_cnt > 0 && rr->rr_missingdata == 0 &&
-	    (rr->rr_firstdatacol - rr->rr_missingparity) > 0) {
+	if (rr->rr_outlier_cnt > 0 &&
+	    (rr->rr_firstdatacol - rr->rr_missingparity) >=
+	    (rr->rr_missingdata + 1)) {
 
 		for (int c = rr->rr_cols - 1; c >= rr->rr_firstdatacol; c--) {
 			raidz_col_t *rc = &rr->rr_col[c];
 
-			if (rc->rc_latency_outlier) {
+			if (rc->rc_error == 0 && rc->rc_latency_outlier) {
 				rr->rr_missingdata++;
 				rc->rc_error = SET_ERROR(EAGAIN);
 				rc->rc_skipped = 1;

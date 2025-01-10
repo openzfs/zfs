@@ -357,7 +357,7 @@ uint_t raidz_expand_pause_point = 0;
 /*
  * This represents the duration for a slow drive read sit out.
  */
-static unsigned long raidz_read_sit_out_secs = 600;
+static unsigned long vdev_read_sit_out_secs = 600;
 
 static hrtime_t raid_outlier_check_interval_ms = 20;
 
@@ -2299,7 +2299,7 @@ vdev_raidz_min_asize(vdev_t *vd)
 boolean_t
 vdev_sit_out_reads(vdev_t *vd, zio_flag_t io_flags)
 {
-	if (raidz_read_sit_out_secs == 0)
+	if (vdev_read_sit_out_secs == 0)
 		return (B_FALSE);
 
 	/* Avoid skipping a data column read when scrubbing */
@@ -2343,7 +2343,7 @@ vdev_raidz_child_done(zio_t *zio)
 	 * A zio->io_delay value of zero means this IO was part of
 	 * an aggregation.
 	 */
-	if (raidz_read_sit_out_secs != 0 && zio->io_type == ZIO_TYPE_READ &&
+	if (vdev_read_sit_out_secs != 0 && zio->io_type == ZIO_TYPE_READ &&
 	    zio->io_error == 0 && zio->io_size > 0 && zio->io_delay != 0) {
 		vdev_t *vd = zio->io_vd;
 		uint64_t previous_ewma = atomic_load_64(&vd->vdev_ewma_latency);
@@ -2511,6 +2511,7 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 
 		if (vdev_sit_out_reads(cvd, zio->io_flags)) {
 			rr->rr_outlier_cnt++;
+			ASSERT0(rc->rc_latency_outlier);
 			rc->rc_latency_outlier = 1;
 		}
 	}
@@ -2520,13 +2521,14 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 	 * exists to reconstruct the column data, then skip reading the
 	 * known slow child vdev as a performance optimization.
 	 */
-	if (rr->rr_outlier_cnt > 0 && rr->rr_missingdata == 0 &&
-	    (rr->rr_firstdatacol - rr->rr_missingparity) > 0) {
+	if (rr->rr_outlier_cnt > 0 &&
+	    (rr->rr_firstdatacol - rr->rr_missingparity) >=
+	    (rr->rr_missingdata + 1)) {
 
-		for (int c = rr->rr_cols - 1; c >= rr->rr_firstdatacol; c--) {
+		for (int c = rr->rr_cols - 1; c >= 0; c--) {
 			raidz_col_t *rc = &rr->rr_col[c];
 
-			if (rc->rc_latency_outlier) {
+			if (rc->rc_error == 0 && rc->rc_latency_outlier) {
 				rr->rr_missingdata++;
 				rc->rc_error = SET_ERROR(EAGAIN);
 				rc->rc_skipped = 1;
@@ -2909,7 +2911,7 @@ static void
 vdev_child_slow_outlier(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	if (raidz_read_sit_out_secs == 0 || vd->vdev_children < LAT_SAMPLES_MIN)
+	if (vdev_read_sit_out_secs == 0 || vd->vdev_children < LAT_SAMPLES_MIN)
 		return;
 
 	hrtime_t now = gethrtime();
@@ -2976,7 +2978,7 @@ vdev_child_slow_outlier(zio_t *zio)
 			 * Begin a sit out period for this slow drive
 			 */
 			svd->vdev_read_sit_out_expire = gethrestime_sec() +
-			    raidz_read_sit_out_secs;
+			    vdev_read_sit_out_secs;
 
 			/* count each slow io period */
 			mutex_enter(&svd->vdev_stat_lock);
@@ -2986,7 +2988,7 @@ vdev_child_slow_outlier(zio_t *zio)
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
 			    zio->io_spa, svd, NULL, NULL, 0);
 			vdev_dbgmsg(svd, "begin read sit out for %d secs",
-			    (int)raidz_read_sit_out_secs);
+			    (int)vdev_read_sit_out_secs);
 
 			for (int c = 0; c < vd->vdev_children; c++)
 				vd->vdev_child[c]->vdev_outlier_count = 0;
@@ -3066,7 +3068,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			zfs_dbgmsg("zio=%px repairing c=%u devidx=%u "
 			    "offset=%llx",
 			    zio, c, rc->rc_devidx, (long long)rc->rc_offset);
-
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE,
@@ -5376,6 +5377,6 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, read_sit_out_secs, ULONG, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, read_sit_out_secs, ULONG, ZMOD_RW,
 	"Raidz/draid slow disk sit out time period in seconds");
 /* END CSTYLED */
