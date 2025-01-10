@@ -96,7 +96,7 @@ vdev_check_boot_reserve(spa_t *spa, vdev_t *childvd)
 {
 	ASSERT(childvd->vdev_ops->vdev_op_leaf);
 
-	size_t size = SPA_MINBLOCKSIZE;
+	size_t size = 1ULL << childvd->vdev_top->vdev_ashift;
 	abd_t *abd = abd_alloc_linear(size, B_FALSE);
 
 	zio_t *pio = zio_root(spa, NULL, NULL, 0);
