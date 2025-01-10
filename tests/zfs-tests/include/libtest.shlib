@@ -1599,6 +1599,7 @@ function create_pool #pool devs_list
 
 	if is_global_zone ; then
 		[[ -d /$pool ]] && rm -rf /$pool
+		echo zpool create -f $pool $@
 		log_must zpool create -f $pool $@
 	fi
 
@@ -1975,6 +1976,28 @@ function wait_vdev_state # pool disk state timeout
 
 		i=$((i+1))
 		sleep 1
+	done
+
+	return 1
+}
+
+#
+# Wait for vdev 'sit_out' property to be cleared.
+#
+# $1 pool name
+# $2 vdev name
+# $3 timeout
+#
+function wait_sit_out #pool vdev timeout
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset vdev="$2"
+	typeset timeout=${3:-300}
+	for (( timer = 0; timer < $timeout; timer++ )); do
+		if [ "$(get_vdev_prop sit_out "$pool" "$vdev")" = "off" ]; then
+			return 0
+		fi
+		sleep 1;
 	done
 
 	return 1
