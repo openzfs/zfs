@@ -29,17 +29,14 @@
 #	1. Create various raidz/draid pools
 #	2. Inject delays into one of the disks
 #	3. Verify disk is set to 'sit out' for awhile.
-#	4. Wait for RAIDZ_READ_SIT_OUT_SECS and verify sit out state is lifted.
+#	4. Wait for READ_SIT_OUT_SECS and verify sit out state is lifted.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-# Avoid name conflicts with the default pool
-TESTPOOL2=testpool2
-
 function cleanup
 {
-	restore_tunable RAIDZ_READ_SIT_OUT_SECS
+	restore_tunable READ_SIT_OUT_SECS
 	log_must zinject -c all
 	destroy_pool $TESTPOOL2
 	log_must rm -f $TEST_BASE_DIR/vdev.$$.*
@@ -50,8 +47,8 @@ log_assert "Verify sit_out works"
 log_onexit cleanup
 
 # shorten sit out period for testing
-save_tunable RAIDZ_READ_SIT_OUT_SECS
-set_tunable32 RAIDZ_READ_SIT_OUT_SECS 5
+save_tunable READ_SIT_OUT_SECS
+set_tunable32 READ_SIT_OUT_SECS 5
 
 log_must truncate -s 150M $TEST_BASE_DIR/vdev.$$.{0..9}
 
@@ -71,7 +68,7 @@ for raidtype in raidz raidz2 raidz3 draid1 draid2 draid3 ; do
 
 	# Do some reads and wait for us to sit out
 	for i in {1..100} ; do
-		dd if=/$TESTPOOL2/bigfile skip=$i bs=1M count=1 of=/dev/null &> /dev/null
+		dd if=/$TESTPOOL2/bigfile skip=$i bs=1M count=1 of=/dev/null
 
 		sit_out=$(get_vdev_prop sit_out $TESTPOOL2 $BAD_VDEV)
 		if [[ "$sit_out" == "on" ]] ; then
@@ -85,7 +82,8 @@ for raidtype in raidz raidz2 raidz3 draid1 draid2 draid3 ; do
 	log_must zinject -c all
 
 	# Wait for us to exit our sit out period
-	sleep 6
+	log_must wait_sit_out $TESTPOOL2 $BAD_VDEV 10
+
 	log_must test "$(get_vdev_prop sit_out $TESTPOOL2 $BAD_VDEV)" == "off"
 	destroy_pool $TESTPOOL2
 done
