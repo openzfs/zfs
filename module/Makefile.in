@@ -90,6 +90,7 @@ modules_install-Linux: modules_uninstall-Linux-legacy
 	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
 		INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
+		$(if @KERNEL_ARCH@,ARCH=@KERNEL_ARCH@) \
 		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
 	if [ -n "$(DESTDIR)" ]; then \
