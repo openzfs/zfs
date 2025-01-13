@@ -23,7 +23,7 @@
  * Copyright (c) 2012, 2024 by Delphix. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024-2025, Klara, Inc.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -421,6 +421,8 @@ typedef struct zinject_record {
 	uint64_t	zi_nlanes;
 	uint32_t	zi_cmd;
 	uint32_t	zi_dvas;
+	uint64_t	zi_match_count;		/* count of times matched */
+	uint64_t	zi_inject_count;	/* count of times injected */
 } zinject_record_t;
 
 #define	ZINJECT_NULL		0x1
