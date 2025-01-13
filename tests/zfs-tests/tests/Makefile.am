@@ -615,6 +615,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/json/setup.ksh \
 	functional/cli_root/json/json_sanity.ksh \
 	functional/cli_root/zinject/zinject_args.ksh \
+	functional/cli_root/zinject/zinject_counts.ksh \
 	functional/cli_root/zdb/zdb_002_pos.ksh \
 	functional/cli_root/zdb/zdb_003_pos.ksh \
 	functional/cli_root/zdb/zdb_004_pos.ksh \

@@ -159,7 +159,7 @@ tests = ['json_sanity']
 tags = ['functional', 'cli_root', 'json']
 
 [tests/functional/cli_root/zinject]
-tests = ['zinject_args']
+tests = ['zinject_args', 'zinject_counts']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zinject']
