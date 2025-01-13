@@ -77,8 +77,15 @@ int zfs_bclone_wait_dirty = 0;
  * Enable Direct I/O. If this setting is 0, then all I/O requests will be
  * directed through the ARC acting as though the dataset property direct was
  * set to disabled.
+ *
+ * Disabled by default on FreeBSD until a potential range locking issue in
+ * zfs_getpages() can be resolved.
  */
+#ifdef __FreeBSD__
 static int zfs_dio_enabled = 0;
+#else
+static int zfs_dio_enabled = 1;
+#endif
 
 
 /*
