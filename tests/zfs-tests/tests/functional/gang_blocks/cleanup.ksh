@@ -26,4 +26,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+restore_tunable METASLAB_FORCE_GANGING
+restore_tunable METASLAB_FORCE_GANGING_PCT
+restore_tunable METASLAB_ALLOW_DEGANGING_PCT
 default_cleanup

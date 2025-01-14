@@ -30,6 +30,7 @@
 
 log_assert "Verify that deganging works correctly"
 
+preamble
 log_onexit cleanup
 
 log_must zpool create -f -o ashift=12 -o feature@dynamic_gang_header=enabled $TESTPOOL $DISKS
@@ -42,7 +43,7 @@ set_tunable32 METASLAB_ALLOW_DEGANGING_PCT 100
 path="${mountpoint}/file"
 log_must dd if=/dev/urandom of=$path bs=1M count=1
 log_must zpool sync $TESTPOOL
-first_block=$(get_first_block $TESTPOOL/$TESTFS file)
+first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file)
 check_not_gang_dva $first_block
 
 log_must verify_pool $TESTPOOL

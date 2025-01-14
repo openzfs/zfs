@@ -29,9 +29,22 @@
 # Get 0th DVA of first L0 block of file
 #
 # $1 filesystem
-# $2 path to file
+# $2 object number
 #
-function get_first_block
+function get_object_info
+{
+	typeset fs=$1
+	typeset obj=$2
+
+	zdb -dddddd $fs $obj
+}
+
+#
+# $1 filesystem
+# $2 path to file
+# $3 block filter
+#
+function get_blocks_filter
 {
 	typeset fs=$1
 	typeset path=$2
@@ -39,10 +52,23 @@ function get_first_block
 	typeset full_path="$(get_prop mountpoint $fs)/$path"
 	typeset obj="$(ls -i $full_path | awk '{print $1}')"
 
-	typeset l0_line="$(zdb -ddddd $fs $obj | grep L0 | grep -v Dataset | head -n 1)"
-	echo $l0_line | sed 's/.*L0 \([^ ]*\).*/\1/'
+	get_object_info $fs $obj | grep $3 | grep -v Dataset
+}
 
-	return 0
+function get_first_block
+{
+	get_blocks_filter $1 $2 L0 | head -n 1
+}
+
+function get_first_block_dva
+{
+	get_first_block $1 $2 | sed 's/.*L0 \([^ ]*\).*/\1/'
+}
+
+# Takes a zdb compressed blkptr line on stdin
+function get_num_dvas
+{
+	sed 's/.*L[0-9] \(.*\) [a-f0-9]*L.*/\1/' | awk '{print NF}'
 }
 
 function check_gang_dva
@@ -80,9 +106,13 @@ function read_gang_header
 	zdb -R $pool "${dva%:*}:$size:g" 2>&1 | grep -v "Found vdev:"
 }
 
-save_tunable METASLAB_FORCE_GANGING
-save_tunable METASLAB_FORCE_GANGING_PCT
-save_tunable METASLAB_ALLOW_DEGANGING_PCT
+function preamble
+{
+	save_tunable METASLAB_FORCE_GANGING
+	save_tunable METASLAB_FORCE_GANGING_PCT
+	save_tunable METASLAB_ALLOW_DEGANGING_PCT
+}
+
 function cleanup
 {
 	destroy_pool $TESTPOOL

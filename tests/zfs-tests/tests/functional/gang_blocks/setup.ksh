@@ -25,3 +25,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+
+set_tunable64 METASLAB_FORCE_GANGING 16777217
+set_tunable32 METASLAB_FORCE_GANGING_PCT 0
+set_tunable32 METASLAB_ALLOW_DEGANGING_PCT 0
