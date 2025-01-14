@@ -5351,8 +5351,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		mutex_enter(&db->db_mtx);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
-		    dr->dt.dl.dr_copies, dr->dt.dl.dr_nopwrite,
-		    dr->dt.dl.dr_brtwrite);
+		    dr->dt.dl.dr_copies, dr->dt.dl.dr_gang_copies,
+		    dr->dt.dl.dr_nopwrite, dr->dt.dl.dr_brtwrite);
 		mutex_exit(&db->db_mtx);
 	} else if (data == NULL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF ||

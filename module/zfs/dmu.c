@@ -1915,6 +1915,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 		dr->dt.dl.dr_overridden_by = *zio->io_bp;
 		dr->dt.dl.dr_override_state = DR_OVERRIDDEN;
 		dr->dt.dl.dr_copies = zio->io_prop.zp_copies;
+		dr->dt.dl.dr_gang_copies = zio->io_prop.zp_gang_copies;
 
 		/*
 		 * Old style holes are filled with all zeros, whereas
@@ -2321,6 +2322,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	boolean_t dedup_verify = os->os_dedup_verify;
 	boolean_t encrypt = B_FALSE;
 	int copies = os->os_copies;
+	int gang_copies = os->os_copies;
 
 	/*
 	 * We maintain different write policies for each of the following
@@ -2353,15 +2355,24 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		switch (os->os_redundant_metadata) {
 		case ZFS_REDUNDANT_METADATA_ALL:
 			copies++;
+			gang_copies++;
 			break;
 		case ZFS_REDUNDANT_METADATA_MOST:
 			if (level >= zfs_redundant_metadata_most_ditto_level ||
 			    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))
 				copies++;
+			if (level + 1 >=
+			    zfs_redundant_metadata_most_ditto_level ||
+			    DMU_OT_IS_METADATA(type) || (wp & WP_SPILL))
+				gang_copies++;
 			break;
 		case ZFS_REDUNDANT_METADATA_SOME:
-			if (DMU_OT_IS_CRITICAL(type))
+			if (DMU_OT_IS_CRITICAL(type)) {
 				copies++;
+				gang_copies++;
+			} else if (DMU_OT_IS_METADATA(type)) {
+				gang_copies++;
+			}
 			break;
 		case ZFS_REDUNDANT_METADATA_NONE:
 			break;
@@ -2435,6 +2446,12 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		nopwrite = (!dedup && (zio_checksum_table[checksum].ci_flags &
 		    ZCHECKSUM_FLAG_NOPWRITE) &&
 		    compress != ZIO_COMPRESS_OFF && zfs_nopwrite_enabled);
+
+		if (os->os_redundant_metadata == ZFS_REDUNDANT_METADATA_ALL ||
+		    (os->os_redundant_metadata ==
+		    ZFS_REDUNDANT_METADATA_MOST &&
+		    zfs_redundant_metadata_most_ditto_level <= 1))
+			gang_copies++;
 	}
 
 	/*
@@ -2451,6 +2468,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 
 		if (DMU_OT_IS_ENCRYPTED(type)) {
 			copies = MIN(copies, SPA_DVAS_PER_BP - 1);
+			gang_copies = MIN(gang_copies, SPA_DVAS_PER_BP - 1);
 			nopwrite = B_FALSE;
 		} else {
 			dedup = B_FALSE;
@@ -2468,6 +2486,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
 	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
+	zp->zp_gang_copies = MIN(gang_copies, spa_max_replication(os->os_spa));
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;
