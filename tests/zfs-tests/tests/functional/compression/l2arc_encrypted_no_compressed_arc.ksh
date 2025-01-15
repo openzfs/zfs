@@ -88,12 +88,12 @@ log_must eval "echo $PASSPHRASE | zfs create -o compression=zstd " \
 	"-o encryption=on -o keyformat=passphrase -o keylocation=prompt " \
 	"$TESTPOOL-l2arc/encrypted"
 
-l2_cksum_bad_start=$(get_arcstat l2_cksum_bad)
+l2_cksum_bad_start=$(kstat arcstats.l2_cksum_bad)
 
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
-l2_cksum_bad_end=$(get_arcstat l2_cksum_bad)
+l2_cksum_bad_end=$(kstat arcstats.l2_cksum_bad)
 
 log_note "L2ARC Failed Checksums before: $l2_cksum_bad_start After:"\
 	"$l2_cksum_bad_end"
