@@ -54,10 +54,6 @@ function cleanup
 	[[ -e $TESTDIR ]] && log_must rm -Rf $TESTDIR/*
 }
 
-getstat() {
-	awk -v c="$1" '$1 == c {print $3; exit}' /proc/spl/kstat/zfs/arcstats
-}
-
 log_assert "Ensure fadvise prefetch data"
 
 log_onexit cleanup
@@ -67,12 +63,12 @@ log_must zfs set primarycache=metadata $TESTPOOL
 log_must file_write -o create -f $FILE -b $BLKSZ -c 1000
 sync_pool $TESTPOOL
 
-data_size1=$(getstat data_size)
+data_size1=$(kstat arcstats.data_size)
 
 log_must file_fadvise -f $FILE -a 2
 sleep 10
 
-data_size2=$(getstat data_size)
+data_size2=$(kstat arcstats.data_size)
 log_note "original data_size is $data_size1, final data_size is $data_size2"
 
 log_must [ $data_size1 -le $data_size2 ]

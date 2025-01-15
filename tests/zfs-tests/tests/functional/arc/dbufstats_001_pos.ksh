@@ -29,8 +29,8 @@
 
 #
 # DESCRIPTION:
-# Ensure stats presented in /proc/spl/kstat/zfs/dbufstats are correct
-# based on /proc/spl/kstat/zfs/dbufs.
+# Ensure stats presented in the dbufstats kstat are correct based on the
+# dbufs kstat.
 #
 # STRATEGY:
 # 1. Generate a file with random data in it
@@ -55,12 +55,7 @@ function testdbufstat # stat_name dbufstat_filter
 
         [[ -n "$2" ]] && filter="-F $2"
 
-	if is_linux; then
-		read -r _ _ from_dbufstat _ < <(grep -w "$name" "$DBUFSTATS_FILE")
-	else
-		from_dbufstat=$(awk "/dbufstats\.$name:/ { print \$2 }" \
-		    "$DBUFSTATS_FILE")
-	fi
+	from_dbufstat=$(grep "^$name " "$DBUFSTATS_FILE" | cut -f2 -d' ')
 	from_dbufs=$(dbufstat -bxn -i "$DBUFS_FILE" "$filter" | wc -l)
 
 	within_tolerance $from_dbufstat $from_dbufs 15 \
@@ -77,7 +72,7 @@ log_must file_write -o create -f "$TESTDIR/file" -b 1048576 -c 20 -d R
 sync_all_pools
 
 log_must eval "kstat dbufs > $DBUFS_FILE"
-log_must eval "kstat dbufstats '' > $DBUFSTATS_FILE"
+log_must eval "kstat -g dbufstats > $DBUFSTATS_FILE"
 
 for level in {0..11}; do
 	testdbufstat "cache_level_$level" "dbc=1,level=$level"
