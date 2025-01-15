@@ -3664,23 +3664,6 @@ function ls_xattr # path
 	esac
 }
 
-function get_arcstat # stat
-{
-	typeset stat=$1
-
-	case "$UNAME" in
-	FreeBSD)
-		kstat arcstats.$stat
-		;;
-	Linux)
-		kstat arcstats | awk "/$stat/"' { print $3 }'
-		;;
-	*)
-		false
-		;;
-	esac
-}
-
 function punch_hole # offset length file
 {
 	typeset offset=$1
@@ -3732,9 +3715,9 @@ function arcstat_quiescence # stat echo
 	fi
 
 	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
-		typeset stat1=$(get_arcstat $stat)
+		typeset stat1=$(kstat arcstats.$stat)
 		sleep 0.5
-		typeset stat2=$(get_arcstat $stat)
+		typeset stat2=$(kstat arcstats.$stat)
 		do_once=false
 	done
 
