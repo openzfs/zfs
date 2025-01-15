@@ -119,14 +119,14 @@ log_must dd if=/dev/urandom of=$MNTPOINT/writes bs=1M count=1
 # Wait until sync starts, and the pool suspends
 log_note "waiting for pool to suspend"
 typeset -i tries=30
-until [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) == "SUSPENDED" ]] ; do
+until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
 	if ((tries-- == 0)); then
 		zpool status -s
 		log_fail "UNEXPECTED -- pool did not suspend"
 	fi
 	sleep 1
 done
-log_note $(cat /proc/spl/kstat/zfs/$TESTPOOL/state)
+log_note $(kstat_pool $TESTPOOL state)
 
 # Put the missing disks back into service
 log_must eval "echo running > /sys/block/$sd/device/state"
@@ -137,7 +137,7 @@ log_must zpool clear $TESTPOOL
 # Wait until the pool resumes
 log_note "waiting for pool to resume"
 tries=30
-until [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) != "SUSPENDED" ]] ; do
+until [[ $(kstat_pool $TESTPOOL state) != "SUSPENDED" ]] ; do
 	if ((tries-- == 0)); then
 		log_fail "pool did not resume"
 	fi
