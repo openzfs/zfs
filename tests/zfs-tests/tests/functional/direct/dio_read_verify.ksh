@@ -72,8 +72,8 @@ for type in "" "mirror" "raidz" "draid"; do
 	    $TESTPOOL1/$TESTFS1"
 
 	mntpnt=$(get_prop mountpoint $TESTPOOL1/$TESTFS1)
-	prev_dio_rd=$(get_iostats_stat $TESTPOOL1 direct_read_count)
-	prev_arc_rd=$(get_iostats_stat $TESTPOOL1 arc_read_count)
+	prev_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
+	prev_arc_rd=$(kstat_pool $TESTPOOL1 iostats.arc_read_count)
 
 	# Create the file before trying to manipulate the contents
 	log_must stride_dd -o "$mntpnt/direct-write.iso" -i /dev/urandom \
@@ -83,8 +83,8 @@ for type in "" "mirror" "raidz" "draid"; do
 	    -n $NUMBLOCKS -b $BS -r
 
 	# Getting new Direct I/O and ARC Write counts.
-	curr_dio_rd=$(get_iostats_stat $TESTPOOL1 direct_read_count)
-	curr_arc_rd=$(get_iostats_stat $TESTPOOL1 arc_read_count)
+	curr_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
+	curr_arc_rd=$(kstat_pool $TESTPOOL1 iostats.arc_read_count)
 	total_dio_rd=$((curr_dio_rd - prev_dio_rd))
 	total_arc_rd=$((curr_arc_rd - prev_arc_rd))
 

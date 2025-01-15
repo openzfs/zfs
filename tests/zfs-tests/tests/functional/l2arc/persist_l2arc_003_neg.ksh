@@ -32,8 +32,7 @@
 #	4. Export pool.
 #	5. Import pool.
 #	6. Check in zpool iostat if the cache device has space allocated.
-#	7. Read the file written in (3) and check if l2_hits in
-#		/proc/spl/kstat/zfs/arcstats increased.
+#	7. Read the file written in (3) and check if arcstats.l2_hits increased.
 #
 
 verify_runnable "global"

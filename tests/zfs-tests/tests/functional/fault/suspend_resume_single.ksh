@@ -26,8 +26,6 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-set -x
-
 DATAFILE="$TMPDIR/datafile"
 
 function cleanup
@@ -62,7 +60,7 @@ log_must cp $DATAFILE /$TESTPOOL/file
 # wait until sync starts, and the pool suspends
 log_note "waiting for pool to suspend"
 typeset -i tries=10
-until [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) == "SUSPENDED" ]] ; do
+until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
 	if ((tries-- == 0)); then
 		log_fail "pool didn't suspend"
 	fi
@@ -82,7 +80,7 @@ log_note "giving pool time to settle and complete txg"
 sleep 7
 
 # if the pool suspended, then everything is bad
-if [[ $(cat /proc/spl/kstat/zfs/$TESTPOOL/state) == "SUSPENDED" ]] ; then
+if [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; then
 	log_fail "pool suspended"
 fi
 
