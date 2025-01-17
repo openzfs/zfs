@@ -3539,8 +3539,13 @@ scan_io_queues_run(dsl_scan_t *scn)
 		 * scan_io_queues_run_one can occur during spa_sync runs
 		 * and that significantly impacts performance.
 		 */
+#if defined(__APPLE__) && defined(_KERNEL)
+		scn->scn_taskq = taskq_create("dsl_scan_iss", nthreads,
+		    DSL_SCAN_ISS_SYSPRI, nthreads, nthreads, TASKQ_PREPOPULATE);
+#else
 		scn->scn_taskq = taskq_create("dsl_scan_iss", nthreads,
 		    minclsyspri, nthreads, nthreads, TASKQ_PREPOPULATE);
+#endif
 	}
 
 	for (uint64_t i = 0; i < spa->spa_root_vdev->vdev_children; i++) {

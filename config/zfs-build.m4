@@ -543,6 +543,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 			VENDOR=debian ;
 		elif test -f /etc/redhat-release ; then
 			VENDOR=redhat ;
+		elif test -f /usr/bin/sw_vers ; then
+			VENDOR=apple ;
 		else
 			VENDOR= ;
 		fi],
@@ -560,6 +562,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		debian|ubuntu)
 			DEFAULT_PACKAGE=deb  ;;
 		freebsd)
+			DEFAULT_PACKAGE=pkg  ;;
+		apple)
 			DEFAULT_PACKAGE=pkg  ;;
 		*)
 		# fedora|openeuler|redhat|sles|toss
@@ -609,6 +613,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		freebsd)
 			initconfdir=$sysconfdir/rc.conf.d
 			;;
+		apple)
+			initconfdir=${prefix}/etc/launchd/launchd.d/ ;;
 		*)
 		# debian|ubuntu
 			initconfdir=/etc/default
@@ -649,7 +655,7 @@ dnl # Default ZFS package configuration
 dnl #
 AC_DEFUN([ZFS_AC_PACKAGE], [
 	ZFS_AC_DEFAULT_PACKAGE
-	AS_IF([test x$VENDOR != xfreebsd], [
+	AS_IF([test x$VENDOR != xfreebsd -a x$VENDOR != xapple], [
 		ZFS_AC_RPM
 		ZFS_AC_DPKG
 		ZFS_AC_ALIEN

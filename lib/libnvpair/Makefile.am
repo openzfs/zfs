@@ -6,6 +6,27 @@ libnvpair_la_CFLAGS += -fvisibility=hidden
 %D%/libnvpair_la-libnvpair_json.$(OBJEXT) : CFLAGS += -Wno-type-limits
 %D%/libnvpair_la-libnvpair_json.l$(OBJEXT): CFLAGS += -Wno-type-limits
 
+
+if BUILD_MACOS
+# See comment in macOS rpc/xdr.h, starting at:
+# "A xdrproc_t exists for each data type which is to be encoded or decoded."
+module/nvpair/nvpair.$(OBJEXT): CFLAGS += -Wno-incompatible-pointer-types
+../../module/nvpair/nvpair.$(OBJEXT): CFLAGS += -Wwgat -Wno-incompatible-pointer-types
+%D%/libnvpair_la-nvpair.$(OBJEXT) : CFLAGS += -Wno-type-limits
+nvpair.$(OBJEXT) : CFLAGS += -Wno-type-limits2
+libnvpair_la-nvpair.$(OBJEXT) : CFLAGS += -Wno-type-limits3
+%D%/../../module/nvpair/libnvpair_la-nvpair.$(OBJEXT) : CFLAGS += -Wno-type-limits4
+endif
+nvpair.lo : CFLAGS += -Wno-type-limits2
+libnvpair_la-nvpair.lo : CFLAGS += -Wno-type-limits2
+%D%/libnvpair_la-nvpair.lo : CFLAGS += -Wno-type-limits2
+../../module/nvpair/nvpair.lo : CFLAGS += -Wno-type-limits2
+module/nvpair/nvpair.lo : CFLAGS += -Wno-type-limits2
+module/nvpair/libnvpair_la-nvpair.lo : CFLAGS += -Wno-type-limits2
+
+
+
+
 lib_LTLIBRARIES += libnvpair.la
 CPPCHECKTARGETS += libnvpair.la
 
@@ -26,8 +47,10 @@ libnvpair_la_LIBADD += $(LIBTIRPC_LIBS) $(LTLIBINTL)
 
 libnvpair_la_LDFLAGS =
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libnvpair_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 libnvpair_la_LDFLAGS += -version-info 3:0:0

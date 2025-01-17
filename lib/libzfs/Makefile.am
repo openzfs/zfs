@@ -33,6 +33,15 @@ dist_libzfs_la_SOURCES += \
 	%D%/os/linux/libzfs_util_os.c
 endif
 
+if BUILD_MACOS
+dist_libzfs_la_SOURCES += \
+	%D%/os/macos/libzfs_dataset_os.c \
+	%D%/os/macos/libzfs_getmntany.c \
+	%D%/os/macos/libzfs_mount_os.c \
+	%D%/os/macos/libzfs_pool_os.c \
+	%D%/os/macos/libzfs_util_os.c
+endif
+
 nodist_libzfs_la_SOURCES = \
 	module/zcommon/cityhash.c \
 	module/zcommon/zfeature_common.c \
@@ -58,12 +67,17 @@ libzfs_la_LIBADD = \
 	libzutil.la \
 	libuutil.la
 
-libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+if !BUILD_MACOS
+libzfs_la_LIBADD += -lrt
+endif
 
 libzfs_la_LDFLAGS = -pthread
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libzfs_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 if BUILD_FREEBSD
@@ -71,6 +85,12 @@ libzfs_la_LIBADD += -lutil -lgeom
 endif
 
 libzfs_la_LDFLAGS += -version-info 6:0:0
+
+if BUILD_MACOS
+libzfs_la_LIBADD += \
+	libdiskmgt.la
+libzfs_la_LDFLAGS += -lobjc -framework IOKit -framework Foundation -lssl
+endif
 
 pkgconfig_DATA += %D%/libzfs.pc
 

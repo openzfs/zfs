@@ -297,7 +297,7 @@ copyout_entry(const zbookmark_phys_t *zb, void *uaddr, uint64_t *count)
 		return (SET_ERROR(ENOMEM));
 
 	*count -= 1;
-	if (copyout(zb, (char *)uaddr + (*count) * sizeof (zbookmark_phys_t),
+	if (xcopyout(zb, (char *)uaddr + (*count) * sizeof (zbookmark_phys_t),
 	    sizeof (zbookmark_phys_t)) != 0)
 		return (SET_ERROR(EFAULT));
 	return (0);

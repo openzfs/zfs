@@ -218,7 +218,8 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 
 		component[0] = '/';
 		if (is_xattrdir) {
-			strcpy(component + 1, "<xattrdir>");
+			strlcpy(component + 1, "<xattrdir>",
+			    ZAP_MAXNAMELEN_NEW);
 		} else {
 			error = zap_value_search(osp, pobj, obj,
 			    ZFS_DIRENT_OBJ(-1ULL), component + 1,

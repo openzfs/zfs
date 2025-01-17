@@ -40,7 +40,10 @@ zed_LDADD = \
 	libnvpair.la \
 	libuutil.la
 
+if !BUILD_MACOS
 zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
+endif
+
 zed_LDFLAGS = -pthread
 
 dist_noinst_DATA += %D%/agents/README.md

@@ -1249,6 +1249,27 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 				pri++;
 #elif defined(__FreeBSD__)
 				pri += 4;
+#elif defined(__APPLE__)
+				pri -= 4;
+#if defined(_KERNEL)
+			} else {
+				/*
+				 * we want to be below maclsyspri for zio
+				 * taskqs on macOS, to avoid starving out
+				 * base=81 (maxclsyspri) kernel tasks when
+				 * doing computation-intensive checksums etc.
+				 */
+				pri -= 1;
+			}
+			/* macOS cannot handle TASKQ_DYNAMIC zio taskqs */
+
+			if ((flags & (TASKQ_DC_BATCH|TASKQ_DUTY_CYCLE)) == 0)
+				flags |= TASKQ_TIMESHARE;
+
+			if (flags & TASKQ_DYNAMIC) {
+				flags &= ~TASKQ_DYNAMIC;
+				/* fallthrough to closing brace after #endif */
+#endif
 #else
 #error "unknown OS"
 #endif
@@ -1472,11 +1493,13 @@ spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
 	for (uint_t q = 0; q < ZIO_TASKQ_TYPES; q++) {
 		const zio_taskq_info_t *zti = &zio_taskqs[t][q];
 		if (zti->zti_mode == ZTI_MODE_FIXED)
-			pos += sprintf(&buf[pos], "%s%s,%u,%u", sep,
+			pos += snprintf(&buf[pos], LINUX_MAX_MODULE_PARAM_LEN,
+			    "%s%s,%u,%u", sep,
 			    modes[zti->zti_mode], zti->zti_count,
 			    zti->zti_value);
 		else
-			pos += sprintf(&buf[pos], "%s%s", sep,
+			pos += snprintf(&buf[pos], LINUX_MAX_MODULE_PARAM_LEN,
+			    "%s%s", sep,
 			    modes[zti->zti_mode]);
 		sep = " ";
 	}
@@ -6878,11 +6901,11 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
+	spa_import_os(spa);
+
 	mutex_exit(&spa_namespace_lock);
 
 	zvol_create_minors_recursive(pool);
-
-	spa_import_os(spa);
 
 	return (0);
 }
@@ -7670,10 +7693,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * to make it distinguishable from newvd, and unopenable from now on.
 	 */
 	if (strcmp(oldvdpath, newvdpath) == 0) {
+		int n = strlen(newvdpath) + 5;
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
+		oldvd->vdev_path = kmem_alloc(n,
 		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/old",
+		(void) snprintf(oldvd->vdev_path, n,
+		    "%s/old",
 		    newvdpath);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);

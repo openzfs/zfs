@@ -4044,7 +4044,9 @@ dbuf_rm_spill(dnode_t *dn, dmu_tx_t *tx)
 	dbuf_free_range(dn, DMU_SPILL_BLKID, DMU_SPILL_BLKID, tx);
 }
 
+#ifndef __APPLE__
 #pragma weak dmu_buf_add_ref = dbuf_add_ref
+#endif
 void
 dbuf_add_ref(dmu_buf_impl_t *db, const void *tag)
 {
@@ -4052,7 +4054,19 @@ dbuf_add_ref(dmu_buf_impl_t *db, const void *tag)
 	VERIFY3S(holds, >, 1);
 }
 
+#ifdef __APPLE__
+/* No #pragma weaks here! */
+void
+dmu_buf_add_ref(dmu_buf_t *db, const void *tag)
+{
+	dbuf_add_ref((dmu_buf_impl_t *)db, tag);
+}
+#endif
+
+#ifndef __APPLE__
 #pragma weak dmu_buf_try_add_ref = dbuf_try_add_ref
+#endif
+
 boolean_t
 dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
     const void *tag)
@@ -4075,6 +4089,15 @@ dbuf_try_add_ref(dmu_buf_t *db_fake, objset_t *os, uint64_t obj, uint64_t blkid,
 	}
 	return (result);
 }
+
+#ifdef __APPLE__
+boolean_t
+dmu_buf_try_add_ref(dmu_buf_t *db, objset_t *os, uint64_t object,
+    uint64_t blkid, const void *tag)
+{
+	return (dbuf_try_add_ref(db, os, object, blkid, tag));
+}
+#endif
 
 /*
  * If you call dbuf_rele() you had better not be referencing the dnode handle

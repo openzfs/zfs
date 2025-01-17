@@ -612,7 +612,9 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 	(void) unlink(path);
 	free(path);
 
+#ifdef O_TMPFILE
 kfdok:
+#endif
 	if ((key = fdopen(kfd, "r+")) == NULL) {
 		ret = errno;
 		(void) close(kfd);

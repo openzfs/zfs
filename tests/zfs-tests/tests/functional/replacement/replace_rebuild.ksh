@@ -148,7 +148,7 @@ for type in "" "mirror" "draid"; do
 		log_must eval "zpool iostat -v $TESTPOOL1 | grep \"$REPLACEFILE\""
 
 		destroy_pool $TESTPOOL1
-		log_must rm -rf /$TESTPOOL1
+		rm -f /$TESTPOOL1
 	done
 done
 

@@ -47,6 +47,10 @@
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
 
+#ifdef __APPLE__
+#include <sys/spa_impl.h> // spa_min_alloc
+#endif
+
 /*
  * These zfs_log_* functions must be called within a dmu tx, in one
  * of 2 contexts depending on zilog->z_replay:
@@ -242,6 +246,28 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	while (tzp->z_pflags & ZFS_XATTR) {
 		ASSERT3U(zp->z_xattr_parent, !=, 0);
 		if (zfs_zget(ZTOZSB(tzp), tzp->z_xattr_parent, &dzp) != 0) {
+			unlinked = 1;
+			break;
+		}
+
+		if (tzp != zp)
+			zrele(tzp);
+		tzp = dzp;
+		unlinked = tzp->z_unlinked;
+	}
+	if (tzp != zp)
+		zrele(tzp);
+#elif defined(__APPLE__)
+	znode_t *tzp = zp;
+
+	/*
+	 * if zp is XATTR node, keep walking up via z_xattr_parent
+	 * until we get the owner
+	 */
+	while (tzp->z_pflags & ZFS_XATTR) {
+		ASSERT3U(tzp->z_xattr_parent, !=, 0);
+		if (zfs_zget(ZTOZSB(tzp), tzp->z_xattr_parent,
+		    &dzp) != 0) {
 			unlinked = 1;
 			break;
 		}
@@ -618,6 +644,9 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	itx_wr_state_t write_state;
 	uint64_t gen = 0;
 	ssize_t size = resid;
+
+	if (unlikely(blocksize == 0))
+		blocksize = SPA_MINBLOCKSIZE;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {

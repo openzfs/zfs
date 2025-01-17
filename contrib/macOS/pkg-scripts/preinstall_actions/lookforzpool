@@ -1,0 +1,34 @@
+#!/bin/bash
+date '+%s' >> /tmp/o3x.log
+echo $0 >> /tmp/o3x.log
+set -e
+
+TMPF=`mktemp /private/tmp/zfsinstaller-lookforzpool.XXXXXX`
+
+echo "Checking for /dev/zfs"
+if [ -c /dev/zfs ] ; then
+echo "Found /dev/zfs"
+for zpoolcommand in /usr/local/zfs/bin/zpool /Library/OpenZFSonOSX/ZFSUserland/usr/local/sbin/zpool /Library/OpenZFSonOSX/ZFSCommandLineTools/usr/sbin/zpool /usr/sbin/zpool /usr/local/sbin/zpool /sbin /usr/local/bin/zpool /usr/bin/zpool /bin/zpool zpool ; do
+	printf "Checking for zpool command at %s\n" "$zpoolcommand"
+	if [ -f "$zpoolcommand" -o -L "$zpoolcommand" ] ; then
+		echo "Found zpool command $zpoolcommand"
+		set +e
+		echo "Checking output of zpool status"
+		2>"$TMPF" 1>"$TMPF" sudo "$zpoolcommand" status
+		err=$?
+		set -e
+		count=$(cat "$TMPF" | wc -l | tr -d ' ')
+		if [ "$count" -gt 1 ] ; then
+			cat "$TMPF"
+			if [ $err -eq 0 ] ; then
+				printf "First export all pools\n"
+			fi
+			exit 1
+		fi
+		if [ "$err" -ne 0 -a "$err" -ne 1 ] ; then
+			echo "$err"
+			exit "$err"
+		fi
+	fi
+done
+fi
