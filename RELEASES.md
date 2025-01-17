@@ -28,7 +28,7 @@ Two release branches are maintained for OpenZFS, they are:
     Minor changes to support these distribution kernels will be applied as
     needed. New kernel versions released after the OpenZFS LTS release are
     not supported. LTS releases will receive patches for at least 2 years.
-    The current LTS release is OpenZFS 2.1.
+    The current LTS release is OpenZFS 2.2.
 
   * OpenZFS current - Tracks the newest MAJOR.MINOR release. This branch
     includes support for the latest OpenZFS features and recently releases
