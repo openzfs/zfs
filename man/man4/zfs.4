@@ -428,7 +428,7 @@ but this may negatively impact pool space efficiency.
 .
 .It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
 If non-zero, then a Direct I/O write's checksum will be verified every
-time the write is issued and before it is commited to the block pointer.
+time the write is issued and before it is committed to the block pointer.
 In the event the checksum is not valid then the I/O operation will return EIO.
 This module parameter can be used to detect if the
 contents of the users buffer have changed in the process of doing a Direct I/O
@@ -438,7 +438,7 @@ writes.
 Each verify error causes a
 .Sy dio_verify_wr
 zevent.
-Direct Write I/O checkum verify errors can be seen with
+Direct Write I/O checksum verify errors can be seen with
 .Nm zpool Cm status Fl d .
 The default value for this is 1 on Linux, but is 0 for
 .Fx
@@ -1612,7 +1612,7 @@ _
 .
 .It Sy zfs_btree_verify_intensity Ns = Ns Sy 0 Pq uint
 Enables btree verification.
-The following settings are culminative:
+The following settings are cumulative:
 .TS
 box;
 lbz r l l .
@@ -2525,7 +2525,7 @@ generate a system-dependent value close to 6 threads per taskq.
 Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_write_tpq Ns = Ns Sy 16 Pq uint
-Determines the minumum number of threads per write issue taskq.
+Determines the minimum number of threads per write issue taskq.
 Higher values improve CPU utilization on high throughput,
 while lower reduce taskq locks contention on high IOPS.
 Set value only applies to pools imported/created after that.
