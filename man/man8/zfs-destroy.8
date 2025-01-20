@@ -157,6 +157,7 @@ Destroy
 all snapshots with this name in descendent file systems.
 .It Fl v
 Print verbose information about the deleted data.
+.El
 .Pp
 Extreme care should be taken when applying either the
 .Fl r
@@ -164,7 +165,6 @@ or the
 .Fl R
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
-.El
 .It Xo
 .Nm zfs
 .Cm destroy
