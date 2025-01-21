@@ -25,6 +25,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -1081,6 +1082,24 @@ zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
+}
+
+/*
+ * Get the optimal alignment to ensure direct IO can be performed without
+ * incurring any RMW penalty on write. If direct IO is not enabled for this
+ * file, returns an error.
+ */
+int
+zfs_get_direct_alignment(znode_t *zp, uint64_t *alignp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	if (!zfs_dio_enabled || zfsvfs->z_os->os_direct == ZFS_DIRECT_DISABLED)
+		return (SET_ERROR(EOPNOTSUPP));
+
+	*alignp = MAX(zp->z_blksz, PAGE_SIZE);
+
+	return (0);
 }
 
 #ifdef ZFS_DEBUG
