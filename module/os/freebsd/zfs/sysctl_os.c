@@ -680,6 +680,26 @@ param_set_deadman_failmode(SYSCTL_HANDLER_ARGS)
 }
 
 int
+param_set_raidz_impl(SYSCTL_HANDLER_ARGS)
+{
+	char *buf;
+	int rc;
+
+	buf = malloc(64, M_SOLARIS, M_NOWAIT | M_ZERO);
+	if (req->newptr == NULL)
+		vdev_raidz_impl_get(buf, 64);
+
+	rc = sysctl_handle_string(oidp, buf, 64, req);
+	if (rc || req->newptr == NULL) {
+		free(buf, M_SOLARIS);
+		return (rc);
+	}
+	rc = vdev_raidz_impl_set(buf);
+	free(buf, M_SOLARIS);
+	return (rc);
+}
+
+int
 param_set_slop_shift(SYSCTL_HANDLER_ARGS)
 {
 	int val;

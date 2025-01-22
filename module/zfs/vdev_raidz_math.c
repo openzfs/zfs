@@ -81,7 +81,7 @@ static boolean_t raidz_math_initialized = B_FALSE;
 
 #define	RAIDZ_IMPL_READ(i)	(*(volatile uint32_t *) &(i))
 
-static uint32_t zfs_vdev_raidz_impl = IMPL_SCALAR;
+static uint32_t zfs_vdev_raidz_impl_setting = IMPL_SCALAR;
 static uint32_t user_sel_impl = IMPL_FASTEST;
 
 /* Hold all supported implementations */
@@ -111,7 +111,7 @@ vdev_raidz_math_get_ops(void)
 		return (&vdev_raidz_scalar_impl);
 
 	raidz_impl_ops_t *ops = NULL;
-	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
+	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl_setting);
 
 	switch (impl) {
 	case IMPL_FASTEST:
@@ -540,7 +540,7 @@ vdev_raidz_math_init(void)
 #endif
 
 	/* Finish initialization */
-	atomic_swap_32(&zfs_vdev_raidz_impl, user_sel_impl);
+	atomic_swap_32(&zfs_vdev_raidz_impl_setting, user_sel_impl);
 	raidz_math_initialized = B_TRUE;
 }
 
@@ -579,7 +579,7 @@ static const struct {
  * If we are called before init(), user preference will be saved in
  * user_sel_impl, and applied in later init() call. This occurs when module
  * parameter is specified on module load. Otherwise, directly update
- * zfs_vdev_raidz_impl.
+ * zfs_vdev_raidz_impl_setting.
  *
  * @val		Name of raidz implementation to use
  * @param	Unused.
@@ -625,7 +625,7 @@ vdev_raidz_impl_set(const char *val)
 
 	if (err == 0) {
 		if (raidz_math_initialized)
-			atomic_swap_32(&zfs_vdev_raidz_impl, impl);
+			atomic_swap_32(&zfs_vdev_raidz_impl_setting, impl);
 		else
 			atomic_swap_32(&user_sel_impl, impl);
 	}
@@ -633,41 +633,32 @@ vdev_raidz_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
 
-static int
-zfs_vdev_raidz_impl_set(const char *val, zfs_kernel_param_t *kp)
-{
-	return (vdev_raidz_impl_set(val));
-}
-
-static int
-zfs_vdev_raidz_impl_get(char *buffer, zfs_kernel_param_t *kp)
+int
+vdev_raidz_impl_get(char *buffer, size_t size)
 {
 	int i, cnt = 0;
 	char *fmt;
-	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
+	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl_setting);
 
 	ASSERT(raidz_math_initialized);
 
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(math_impl_opts) - 2; i++) {
 		fmt = (impl == math_impl_opts[i].sel) ? "[%s] " : "%s ";
-		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
+		cnt += kmem_scnprintf(buffer + cnt, size - cnt, fmt,
 		    math_impl_opts[i].name);
 	}
 
 	/* list all supported implementations */
 	for (i = 0; i < raidz_supp_impl_cnt; i++) {
 		fmt = (i == impl) ? "[%s] " : "%s ";
-		cnt += kmem_scnprintf(buffer + cnt, PAGE_SIZE - cnt, fmt,
+		cnt += kmem_scnprintf(buffer + cnt, size - cnt, fmt,
 		    raidz_supp_impl[i]->name);
 	}
 
 	return (cnt);
 }
 
-module_param_call(zfs_vdev_raidz_impl, zfs_vdev_raidz_impl_set,
-    zfs_vdev_raidz_impl_get, NULL, 0644);
-MODULE_PARM_DESC(zfs_vdev_raidz_impl, "Select raidz implementation.");
 #endif
