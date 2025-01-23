@@ -66,6 +66,9 @@ extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
 /*
  * vdev_raidz_math interface
  */
+#if defined(__linux__)
+extern const char *zfs_vdev_raidz_impl;
+#endif
 void vdev_raidz_math_init(void);
 void vdev_raidz_math_fini(void);
 const struct raidz_impl_ops *vdev_raidz_math_get_ops(void);
