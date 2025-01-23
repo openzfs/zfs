@@ -62,7 +62,6 @@ struct abd;
 extern uint_t zfs_vdev_queue_depth_pct;
 extern uint_t zfs_vdev_def_queue_depth;
 extern uint_t zfs_vdev_async_write_max_active;
-extern const char *zfs_vdev_raidz_impl;
 
 /*
  * Virtual device operations
@@ -646,7 +645,6 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
 uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
-int param_set_raidz_impl(ZFS_MODULE_PARAM_ARGS);
 
 /*
  * Vdev ashift optimization tunables

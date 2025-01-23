@@ -1637,15 +1637,6 @@ param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 	return (0);
 }
 
-int
-param_set_raidz_impl(const char *val, zfs_kernel_param_t *kp)
-{
-	int error;
-
-	error = vdev_raidz_impl_set(val);
-	return (error);
-}
-
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, open_timeout_ms, UINT, ZMOD_RW,
 	"Timeout before determining that a device is missing");
 

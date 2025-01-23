@@ -679,7 +679,7 @@ param_set_deadman_failmode(SYSCTL_HANDLER_ARGS)
 	return (-param_set_deadman_failmode_common(buf));
 }
 
-int
+static int
 param_set_raidz_impl(SYSCTL_HANDLER_ARGS)
 {
 	char *buf;
@@ -807,6 +807,12 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, validate_skip,
 	"Enable to bypass vdev_validate().");
 
 /* vdev_mirror.c */
+
+/* vdev_raidz_math.c */
+
+SYSCTL_PROC(_vfs_zfs_vdev, OID_AUTO, raidz_impl,
+	CTLTYPE_STRING | CTLFLAG_RWTUN | CTLFLAG_MPSAFE,
+	NULL, 0, param_set_raidz_impl, "IU", "select RAIDZ implementation");
 
 /* vdev_queue.c */
 
