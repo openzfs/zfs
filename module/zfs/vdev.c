@@ -6582,5 +6582,5 @@ ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, max_auto_ashift,
 	"size on new top-level vdevs");
 
 ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, raidz_impl,
-		param_set_raidz_impl, param_get_charp, ZMOD_RW,
+		param_set_raidz_impl, param_get_raidz_impl, ZMOD_RW,
 		"RAIDZ implementation");

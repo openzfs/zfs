@@ -1638,6 +1638,12 @@ param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 }
 
 int
+param_get_raidz_impl(char *buf, zfs_kernel_param_t *kp)
+{
+	return vdev_raidz_impl_get(buf, PAGE_SIZE);
+}
+
+int
 param_set_raidz_impl(const char *val, zfs_kernel_param_t *kp)
 {
 	int error;

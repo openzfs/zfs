@@ -646,6 +646,9 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
 uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
+#if defined(__linux__)
+int param_get_raidz_impl(char *buf, zfs_kernel_param_t *kp);
+#endif
 int param_set_raidz_impl(ZFS_MODULE_PARAM_ARGS);
 
 /*
