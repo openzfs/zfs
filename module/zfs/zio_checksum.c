@@ -544,14 +544,40 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 	uint_t checksum = (bp == NULL ? zio->io_prop.zp_checksum :
 	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
 	int error;
-	uint64_t size = (bp == NULL ? zio->io_size :
-	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
+	uint64_t size = bp == NULL ? zio->io_size :
+	    (BP_IS_GANG(bp) ? SPA_OLD_GANGBLOCKSIZE : BP_GET_PSIZE(bp));
 	uint64_t offset = zio->io_offset;
 	abd_t *data = zio->io_abd;
 	spa_t *spa = zio->io_spa;
 
+	if (bp && BP_IS_GANG(bp) && spa_feature_is_active(spa,
+	    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+		size = UINT64_MAX;
+		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
+			vdev_t *vd = vdev_lookup_top(spa,
+			    DVA_GET_VDEV(&bp->blk_dva[dva]));
+			size = MIN(size, vdev_gang_header_asize(vd));
+		}
+		ASSERT3U(size, !=, UINT64_MAX);
+	}
+
 	error = zio_checksum_error_impl(spa, bp, checksum, data, size,
 	    offset, info);
+	if (error && bp && BP_IS_GANG(bp) && size > SPA_OLD_GANGBLOCKSIZE) {
+		/*
+		 * It's possible that this is an old gang block. Rerun
+		 * the checksum with the old size; if that passes, then
+		 * update the gangblocksize appropriately.
+		 */
+		error = zio_checksum_error_impl(spa, bp, checksum, data,
+		    SPA_OLD_GANGBLOCKSIZE, offset, info);
+		if (error == 0) {
+			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
+			zio_t *pio = zio_unique_parent(zio);
+			zio_gang_node_t *gn = pio->io_private;
+			gn->gn_gangblocksize = SPA_OLD_GANGBLOCKSIZE;
+		}
+	}
 
 	if (zio_injection_enabled && error == 0 && zio->io_error == 0) {
 		error = zio_handle_fault_injection(zio, ECKSUM);
