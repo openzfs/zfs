@@ -739,7 +739,8 @@ tags = ['functional', 'features', 'large_dnode']
 
 [tests/functional/gang_blocks]
 tests = ['gang_blocks_001_pos', 'gang_blocks_redundant',
-    'gang_blocks_ddt_copies']
+    'gang_blocks_ddt_copies', 'gang_blocks_dyn_header_pos',
+    'gang_blocks_dyn_header_neg', 'gang_blocks_dyn_multi']
 tags = ['functional', 'gang_blocks']
 
 [tests/functional/grow]

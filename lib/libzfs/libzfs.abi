@@ -631,7 +631,7 @@
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2464' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2520' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='528' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6210,7 +6210,8 @@
       <enumerator name='SPA_FEATURE_FAST_DEDUP' value='41'/>
       <enumerator name='SPA_FEATURE_LONGNAME' value='42'/>
       <enumerator name='SPA_FEATURE_LARGE_MICROZAP' value='43'/>
-      <enumerator name='SPA_FEATURES' value='44'/>
+      <enumerator name='SPA_FEATURE_DYNAMIC_GANG_HEADER' value='44'/>
+      <enumerator name='SPA_FEATURES' value='45'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
@@ -9394,8 +9395,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='19712' id='fd4573e5'>
-      <subrange length='44' type-id='7359adad' id='cf8ba455'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='20160' id='b948da70'>
+      <subrange length='45' type-id='7359adad' id='cb8ddca0'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -9403,6 +9404,7 @@
       <enumerator name='ZFEATURE_FLAG_MOS' value='2'/>
       <enumerator name='ZFEATURE_FLAG_ACTIVATE_ON_ENABLE' value='4'/>
       <enumerator name='ZFEATURE_FLAG_PER_DATASET' value='8'/>
+      <enumerator name='ZFEATURE_FLAG_NO_UPGRADE' value='16'/>
     </enum-decl>
     <typedef-decl name='zfeature_flags_t' type-id='6db816a4' id='fc329033'/>
     <enum-decl name='zfeature_type' id='c4fa2355'>
@@ -9472,7 +9474,7 @@
     <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='fd4573e5' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='b948da70' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>

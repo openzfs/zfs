@@ -8588,9 +8588,9 @@ zdb_dump_indirect(blkptr_t *bp, int nbps, int flags)
 }
 
 static void
-zdb_dump_gbh(void *buf, int flags)
+zdb_dump_gbh(void *buf, uint64_t size, int flags)
 {
-	zdb_dump_indirect((blkptr_t *)buf, SPA_GBH_NBLKPTRS, flags);
+	zdb_dump_indirect((blkptr_t *)buf, gbh_nblkptrs(size), flags);
 }
 
 static void
@@ -9073,7 +9073,7 @@ zdb_read_block(char *thing, spa_t *spa)
 		zdb_dump_indirect((blkptr_t *)buf,
 		    orig_lsize / sizeof (blkptr_t), flags);
 	else if (flags & ZDB_FLAG_GBH)
-		zdb_dump_gbh(buf, flags);
+		zdb_dump_gbh(buf, lsize, flags);
 	else
 		zdb_dump_block(thing, buf, lsize, flags);
 
