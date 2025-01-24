@@ -81,12 +81,8 @@ static boolean_t raidz_math_initialized = B_FALSE;
 
 #define	RAIDZ_IMPL_READ(i)	(*(volatile uint32_t *) &(i))
 
-static uint32_t zfs_vdev_raidz_impl_setting = IMPL_SCALAR;
+uint32_t zfs_vdev_raidz_impl = IMPL_SCALAR;
 static uint32_t user_sel_impl = IMPL_FASTEST;
-#if defined(__linux__)
-/* Required, but not used, by ZFS_MODULE_PARAM_CALL */
-const char *zfs_vdev_raidz_impl = NULL;
-#endif
 
 /* Hold all supported implementations */
 static size_t raidz_supp_impl_cnt = 0;
@@ -115,7 +111,7 @@ vdev_raidz_math_get_ops(void)
 		return (&vdev_raidz_scalar_impl);
 
 	raidz_impl_ops_t *ops = NULL;
-	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl_setting);
+	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
 
 	switch (impl) {
 	case IMPL_FASTEST:
@@ -544,7 +540,7 @@ vdev_raidz_math_init(void)
 #endif
 
 	/* Finish initialization */
-	atomic_swap_32(&zfs_vdev_raidz_impl_setting, user_sel_impl);
+	atomic_swap_32(&zfs_vdev_raidz_impl, user_sel_impl);
 	raidz_math_initialized = B_TRUE;
 }
 
@@ -583,7 +579,7 @@ static const struct {
  * If we are called before init(), user preference will be saved in
  * user_sel_impl, and applied in later init() call. This occurs when module
  * parameter is specified on module load. Otherwise, directly update
- * zfs_vdev_raidz_impl_setting.
+ * zfs_vdev_raidz_impl.
  *
  * @val		Name of raidz implementation to use
  * @param	Unused.
@@ -629,7 +625,7 @@ vdev_raidz_impl_set(const char *val)
 
 	if (err == 0) {
 		if (raidz_math_initialized)
-			atomic_swap_32(&zfs_vdev_raidz_impl_setting, impl);
+			atomic_swap_32(&zfs_vdev_raidz_impl, impl);
 		else
 			atomic_swap_32(&user_sel_impl, impl);
 	}
@@ -644,7 +640,7 @@ vdev_raidz_impl_get(char *buffer, size_t size)
 {
 	int i, cnt = 0;
 	char *fmt;
-	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl_setting);
+	const uint32_t impl = RAIDZ_IMPL_READ(zfs_vdev_raidz_impl);
 
 	ASSERT(raidz_math_initialized);
 
