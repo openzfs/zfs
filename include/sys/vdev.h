@@ -148,7 +148,7 @@ extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
 static inline uint64_t
 vdev_gang_header_asize(vdev_t *vd)
 {
-	return (vdev_psize_to_asize_txg(vd, SPA_GANGBLOCKSIZE, 0));
+	return (vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE, 0));
 }
 
 extern int vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux);
