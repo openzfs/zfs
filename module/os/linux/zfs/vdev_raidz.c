@@ -29,7 +29,7 @@
 int
 param_get_raidz_impl(char *buf, zfs_kernel_param_t *kp)
 {
-	return vdev_raidz_impl_get(buf, PAGE_SIZE);
+	return (vdev_raidz_impl_get(buf, PAGE_SIZE));
 }
 
 int
