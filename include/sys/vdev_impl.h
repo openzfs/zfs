@@ -62,7 +62,6 @@ struct abd;
 extern uint_t zfs_vdev_queue_depth_pct;
 extern uint_t zfs_vdev_def_queue_depth;
 extern uint_t zfs_vdev_async_write_max_active;
-extern const char *zfs_vdev_raidz_impl;
 
 /*
  * Virtual device operations
