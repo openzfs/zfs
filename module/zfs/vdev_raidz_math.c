@@ -84,7 +84,8 @@ static boolean_t raidz_math_initialized = B_FALSE;
 static uint32_t zfs_vdev_raidz_impl_setting = IMPL_SCALAR;
 static uint32_t user_sel_impl = IMPL_FASTEST;
 #if defined(__linux__)
-const char *zfs_vdev_raidz_impl = "fastest";
+/* Required, but not used, by ZFS_MODULE_PARAM_CALL */
+const char *zfs_vdev_raidz_impl = NULL;
 #endif
 
 /* Hold all supported implementations */
@@ -631,9 +632,6 @@ vdev_raidz_impl_set(const char *val)
 			atomic_swap_32(&zfs_vdev_raidz_impl_setting, impl);
 		else
 			atomic_swap_32(&user_sel_impl, impl);
-#if defined(__linux__)
-		zfs_vdev_raidz_impl = raidz_supp_impl[i]->name;
-#endif
 	}
 
 	return (err);
