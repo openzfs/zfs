@@ -238,6 +238,11 @@ uint64_t zfs_max_nvlist_src_size = 0;
  */
 static uint64_t zfs_history_output_max = 1024 * 1024;
 
+/*
+ * zfs_recv_force_needs_perm: if true, force receive (-F) requires rollback permission
+ */
+static int zfs_recv_force_needs_perm = 0;
+
 uint_t zfs_allow_log_key;
 
 /* DATA_TYPE_ANY is used when zkey_type can vary. */
@@ -906,6 +911,12 @@ zfs_secpolicy_recv(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	if ((error = zfs_secpolicy_write_perms(zc->zc_name,
 	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
+		return (error);
+
+	/* Forced receive can rollback or destroy snapshots */
+	if (zfs_recv_force_needs_perm && zc->zc_guid &&
+	    (error = zfs_secpolicy_write_perms(zc->zc_name,
+	    ZFS_DELEG_PERM_ROLLBACK, cr)) != 0)
 		return (error);
 
 	return (zfs_secpolicy_write_perms(zc->zc_name,
@@ -8177,3 +8188,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, U64, ZMOD_RW,
 	"Maximum size in bytes of ZFS ioctl output that will be logged");
+
+ZFS_MODULE_PARAM(zfs, zfs_, recv_force_needs_perm, INT, ZMOD_RW,
+	"Force receive (-F) requires rollback permission");
