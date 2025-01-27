@@ -686,7 +686,7 @@ param_set_raidz_impl(SYSCTL_HANDLER_ARGS)
 	char *buf;
 	int rc;
 
-	buf = malloc(bufsize, M_SOLARIS, M_NOWAIT | M_ZERO);
+	buf = malloc(bufsize, M_SOLARIS, M_WAITOK | M_ZERO);
 	if (req->newptr == NULL)
 		vdev_raidz_impl_get(buf, bufsize);
 
