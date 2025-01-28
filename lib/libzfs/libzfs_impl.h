@@ -182,7 +182,7 @@ extern int changelist_unshare(prop_changelist_t *, const enum sa_protocol *);
 extern int changelist_haszonedchild(prop_changelist_t *);
 
 extern void remove_mountpoint(zfs_handle_t *);
-extern int create_parents(libzfs_handle_t *, char *, int);
+extern int create_parents(libzfs_handle_t *, char *, int, nvlist_t *);
 
 extern zfs_handle_t *make_dataset_handle(libzfs_handle_t *, const char *);
 extern zfs_handle_t *make_bookmark_handle(zfs_handle_t *, const char *,
