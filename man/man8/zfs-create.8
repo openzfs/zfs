@@ -85,6 +85,10 @@ property inherited from their parent.
 Any property specified on the command line using the
 .Fl o
 option is ignored.
+If the
+.Fl p
+option is specified multiple times, parent datasets are created with
+.Sy canmount Ns = Ns Ar off .
 If the target filesystem already exists, the operation completes successfully.
 .It Fl n
 Do a dry-run
@@ -177,6 +181,10 @@ property inherited from their parent.
 Any property specified on the command line using the
 .Fl o
 option is ignored.
+If the
+.Fl p
+option is specified multiple times, parent datasets are created with
+.Sy canmount Ns = Ns Ar off .
 If the target filesystem already exists, the operation completes successfully.
 .It Fl s
 Creates a sparse volume with no reservation.
