@@ -1171,6 +1171,22 @@ function datasetnonexists
 	return 0
 }
 
+# Check if the specified dataset property has the expected value or fail
+function dataset_has_prop # property expected_value dataset
+{
+	typeset prop=$1
+	typeset expected=$2
+	typeset dataset=$3
+
+	typeset value=""
+
+	value="$(get_prop "$prop" "$dataset")"
+	[[ "$value" == "$expected" ]] || {
+		log_note "dataset $dataset: property $prop == $value (!= $expected)"
+		return 1
+	}
+}
+
 # FreeBSD breaks exports(5) at whitespace and doesn't process escapes
 # Solaris just breaks
 #
@@ -2629,9 +2645,14 @@ function verify_opt_p_ops
 	typeset datatype=$2
 	typeset dataset=$3
 	typeset newdataset=$4
+	typeset popt=$5
 
 	if [[ $datatype != "fs" && $datatype != "vol" ]]; then
 		log_fail "$datatype is not supported."
+	fi
+
+	if [[ -z "$popt" ]]; then
+		popt=-p
 	fi
 
 	# check parameters accordingly
@@ -2671,7 +2692,7 @@ function verify_opt_p_ops
 	log_mustnot datasetexists $newdataset ${newdataset%/*}
 
 	# with -p option, operation should succeed
-	log_must zfs $ops -p $dataset $newdataset
+	log_must zfs $ops $popt $dataset $newdataset
 	block_device_wait
 
 	if ! datasetexists $newdataset ; then
@@ -2680,7 +2701,7 @@ function verify_opt_p_ops
 
 	# when $ops is create or clone, redo the operation still return zero
 	if [[ $ops != "rename" ]]; then
-		log_must zfs $ops -p $dataset $newdataset
+		log_must zfs $ops $popt $dataset $newdataset
 	fi
 
 	return 0

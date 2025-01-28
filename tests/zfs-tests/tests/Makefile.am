@@ -677,6 +677,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_clone/zfs_clone_008_neg.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_009_neg.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_010_pos.ksh \
+	functional/cli_root/zfs_clone/zfs_clone_011_pos.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_deeply_nested.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_encrypted.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_nomount.ksh \
@@ -705,6 +706,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_create/zfs_create_012_pos.ksh \
 	functional/cli_root/zfs_create/zfs_create_013_pos.ksh \
 	functional/cli_root/zfs_create/zfs_create_014_pos.ksh \
+	functional/cli_root/zfs_create/zfs_create_015_pos.ksh \
 	functional/cli_root/zfs_create/zfs_create_crypt_combos.ksh \
 	functional/cli_root/zfs_create/zfs_create_dryrun.ksh \
 	functional/cli_root/zfs_create/zfs_create_encrypted.ksh \
@@ -864,6 +866,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rename/zfs_rename_012_neg.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_013_pos.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_014_neg.ksh \
+	functional/cli_root/zfs_rename/zfs_rename_015_pos.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_encrypted_child.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_mountpoint.ksh \
 	functional/cli_root/zfs_rename/zfs_rename_nounmount.ksh \
