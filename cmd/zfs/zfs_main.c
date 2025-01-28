@@ -1048,7 +1048,7 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 }
 
 /*
- * zfs create [-Pnpv] [-o prop=value] ... fs
+ * zfs create [-Pnpuv] [-o prop=value] ... fs
  * zfs create [-Pnpsv] [-b blocksize] [-o prop=value] ... -V vol size
  *
  * Create a new dataset.  This command can be used to create filesystems
