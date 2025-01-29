@@ -447,6 +447,7 @@ ZFS_OBJS_OS := \
 	trace.o \
 	vdev_disk.o \
 	vdev_file.o \
+	vdev_raidz.o \
 	vdev_label_os.o \
 	zfs_acl.o \
 	zfs_ctldir.o \

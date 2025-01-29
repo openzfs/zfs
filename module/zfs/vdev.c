@@ -6580,3 +6580,7 @@ ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, max_auto_ashift,
 	param_set_max_auto_ashift, param_get_uint, ZMOD_RW,
 	"Maximum ashift used when optimizing for logical -> physical sector "
 	"size on new top-level vdevs");
+
+ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, raidz_impl,
+		param_set_raidz_impl, param_get_raidz_impl, ZMOD_RW,
+		"RAIDZ implementation");
