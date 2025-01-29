@@ -3137,10 +3137,10 @@ zio_write_gang_member_ready(zio_t *zio)
 	VERIFY3U(BP_GET_NDVAS(zio->io_bp), <=, BP_GET_NDVAS(pio->io_bp));
 
 	mutex_enter(&pio->io_lock);
-	for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+	for (int d = 0; d < BP_GET_NDVAS(pio->io_bp); d++) {
 		ASSERT(DVA_GET_GANG(&pdva[d]));
 		asize = DVA_GET_ASIZE(&pdva[d]);
-		asize += DVA_GET_ASIZE(&cdva[d]);
+		asize += DVA_GET_ASIZE(&cdva[0]);
 		DVA_SET_ASIZE(&pdva[d], asize);
 	}
 	mutex_exit(&pio->io_lock);
