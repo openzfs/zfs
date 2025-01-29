@@ -3051,6 +3051,13 @@ zio_write_gang_done(zio_t *zio)
 		abd_free(zio->io_abd);
 }
 
+static void
+zio_update_feature(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	spa_feature_incr(spa, (spa_feature_t)arg, tx);
+}
+
 static zio_t *
 zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 {
@@ -3103,13 +3110,12 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	}
 
 	uint64_t gangblocksize = SPA_OLD_GANGBLOCKSIZE;
-	boolean_t new_gb = B_FALSE;
 
 	error = metaslab_alloc(spa, mc, gangblocksize,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    &pio->io_alloc_list, pio, pio->io_allocator);
 
-	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
 		gangblocksize = UINT64_MAX;
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
@@ -3123,7 +3129,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		}
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 		ASSERT3U(gangblocksize, !=, UINT64_MAX);
-		new_gb = B_TRUE;
 	}
 	if (error) {
 		if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
@@ -3155,8 +3160,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	gn = zio_gang_node_alloc(gnpp, gangblocksize);
 	gbh = gn->gn_gbh;
 	memset(gbh, 0, gangblocksize);
-	if (new_gb)
-		gbh_tail(gbh, gangblocksize)->zgt_version = ZIO_GB_SIZED;
 	gbh_abd = abd_get_from_buf(gbh, gangblocksize);
 
 	/*
@@ -3171,9 +3174,11 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	/*
 	 * Create and nowait the gang children.
 	 */
-	for (int g = 0; resid != 0; resid -= lsize, g++) {
-		lsize = MIN(P2ROUNDUP(resid / (gbh_nblkptrs(gangblocksize) - g),
-		    spa->spa_min_alloc), resid);
+	int g;
+	for (g = 0; resid != 0; resid -= lsize, g++) {
+		lsize = zio_roundup_alloc_size(spa,
+		    resid / (gbh_nblkptrs(gangblocksize) - g));
+		lsize = MIN(lsize, resid);
 		IMPLY(lsize < spa->spa_min_alloc, lsize == resid);
 		IMPLY(lsize >= spa->spa_min_alloc, lsize <= resid);
 
@@ -3215,6 +3220,23 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 			    zp.zp_copies, cio->io_allocator, cio, flags));
 		}
 		zio_nowait(cio);
+	}
+	if (g > gbh_nblkptrs(SPA_OLD_GANGBLOCKSIZE)) {
+		gbh_tail(gbh, gangblocksize)->zgt_version = ZIO_GB_SIZED;
+		if (!spa_feature_is_active(spa,
+		    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+			dmu_tx_t *tx =
+			    dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+			dsl_sync_task_nowait(spa->spa_dsl_pool,
+			    zio_update_feature,
+			    (void *)SPA_FEATURE_DYNAMIC_GANG_HEADER, tx);
+			dmu_tx_commit(tx);
+		}
+	} else if (gn->gn_gangblocksize != SPA_OLD_GANGBLOCKSIZE) {
+		// If we can fit it into an old-style gang header, do so
+		gn->gn_gangblocksize = SPA_OLD_GANGBLOCKSIZE;
+		zio->io_orig_size = zio->io_size = zio->io_lsize =
+		    gn->gn_gangblocksize;
 	}
 
 	/*

@@ -788,7 +788,7 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_DYNAMIC_GANG_HEADER,
 	    "com.klarasystems:dynamic_gang_header", "dynamic_gang_header",
 	    "Support for dynamically sized gang headers",
-	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
