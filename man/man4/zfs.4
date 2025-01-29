@@ -2499,6 +2499,19 @@ the xattr so as to not accumulate duplicates.
 .
 .It Sy zio_requeue_io_start_cut_in_line Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Prioritize requeued I/O.
+.It Sy zio_dynamic_gang_headers_enable Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Enable dynamically sized gang headers.
+.Pp
+When set to 0 (the default), the dynamic_gang_header feature will never be
+activated, even if it is enabled.
+All gang headers will store at most 3 children, regardless of the header's
+allocated size on disk.
+When set to 1, the dynamic_gang_header feature will be activated once a
+gang allocation is larger than 512 bytes.
+This will cause the gang header to store more more gang children on pools
+with larger ashifts.
+Enabling this flag and the feature will reduce multi-level gang trees,
+but can result in more IOs for individual gang blocks.
 .
 .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
 Percentage of online CPUs which will run a worker thread for I/O.

@@ -139,6 +139,8 @@ static uint_t zfs_sync_pass_rewrite = 2;
 int zio_exclude_metadata = 0;
 static int zio_requeue_io_start_cut_in_line = 1;
 
+static int zio_dynamic_gang_headers_enable = 0;
+
 #ifdef ZFS_DEBUG
 static const int zio_buf_debug_limit = 16384;
 #else
@@ -3115,7 +3117,8 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    &pio->io_alloc_list, pio, pio->io_allocator);
 
-	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER) &&
+	    zio_dynamic_gang_headers_enable) {
 		gangblocksize = UINT64_MAX;
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
