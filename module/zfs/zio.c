@@ -5801,3 +5801,6 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, dva_throttle_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, deadman_log_all, INT, ZMOD_RW,
 	"Log all slow ZIOs, not just those with vdevs");
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, dynamic_gang_headers_enable, INT, ZMOD_RW,
+	"Enable dynamic gang header creation");
