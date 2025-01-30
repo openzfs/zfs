@@ -1475,6 +1475,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_dedup.ksh \
 	functional/direct/dio_encryption.ksh \
 	functional/direct/dio_grow_block.ksh \
+	functional/direct/dio_loopback_dev.ksh \
 	functional/direct/dio_max_recordsize.ksh \
 	functional/direct/dio_mixed.ksh \
 	functional/direct/dio_mmap.ksh \
