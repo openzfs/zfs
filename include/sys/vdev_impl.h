@@ -299,7 +299,8 @@ struct vdev {
 	kcondvar_t	vdev_initialize_cv;
 	uint64_t	vdev_initialize_offset[TXG_SIZE];
 	uint64_t	vdev_initialize_last_offset;
-	range_tree_t	*vdev_initialize_tree;	/* valid while initializing */
+	/* valid while initializing */
+	zfs_range_tree_t	*vdev_initialize_tree;
 	uint64_t	vdev_initialize_bytes_est;
 	uint64_t	vdev_initialize_bytes_done;
 	uint64_t	vdev_initialize_action_time;	/* start and end time */
@@ -375,7 +376,7 @@ struct vdev {
 	 * from multiple zio threads.
 	 */
 	kmutex_t	vdev_obsolete_lock;
-	range_tree_t	*vdev_obsolete_segments;
+	zfs_range_tree_t	*vdev_obsolete_segments;
 	space_map_t	*vdev_obsolete_sm;
 
 	/*
@@ -388,7 +389,7 @@ struct vdev {
 	/*
 	 * Leaf vdev state.
 	 */
-	range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs	*/
+	zfs_range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs */
 	space_map_t	*vdev_dtl_sm;	/* dirty time log space map	*/
 	txg_node_t	vdev_dtl_node;	/* per-txg dirty DTL linkage	*/
 	uint64_t	vdev_dtl_object; /* DTL object			*/

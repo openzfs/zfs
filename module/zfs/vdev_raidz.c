@@ -3953,18 +3953,18 @@ vdev_raidz_expand_child_replacing(vdev_t *raidz_vd)
 }
 
 static boolean_t
-raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
+raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, zfs_range_tree_t *rt,
     dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
 	uint_t ashift = vd->vdev_top->vdev_ashift;
 
-	range_seg_t *rs = range_tree_first(rt);
+	zfs_range_seg_t *rs = zfs_range_tree_first(rt);
 	if (rt == NULL)
 		return (B_FALSE);
-	uint64_t offset = rs_get_start(rs, rt);
+	uint64_t offset = zfs_rs_get_start(rs, rt);
 	ASSERT(IS_P2ALIGNED(offset, 1 << ashift));
-	uint64_t size = rs_get_end(rs, rt) - offset;
+	uint64_t size = zfs_rs_get_end(rs, rt) - offset;
 	ASSERT3U(size, >=, 1 << ashift);
 	ASSERT(IS_P2ALIGNED(size, 1 << ashift));
 
@@ -4001,7 +4001,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	uint_t blocks = MIN(size >> ashift, next_overwrite_blkid - blkid);
 	size = (uint64_t)blocks << ashift;
 
-	range_tree_remove(rt, offset, size);
+	zfs_range_tree_remove(rt, offset, size);
 
 	uint_t reads = MIN(blocks, old_children);
 	uint_t writes = MIN(blocks, vd->vdev_children);
@@ -4553,12 +4553,13 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		 * space (e.g. in ms_defer), and it's fine to copy that too.
 		 */
 		uint64_t shift, start;
-		range_seg_type_t type = metaslab_calculate_range_tree_type(
+		zfs_range_seg_type_t type = metaslab_calculate_range_tree_type(
 		    raidvd, msp, &start, &shift);
-		range_tree_t *rt = range_tree_create(NULL, type, NULL,
+		zfs_range_tree_t *rt = zfs_range_tree_create(NULL, type, NULL,
 		    start, shift);
-		range_tree_add(rt, msp->ms_start, msp->ms_size);
-		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
+		zfs_range_tree_add(rt, msp->ms_start, msp->ms_size);
+		zfs_range_tree_walk(msp->ms_allocatable, zfs_range_tree_remove,
+		    rt);
 		mutex_exit(&msp->ms_lock);
 
 		/*
@@ -4572,8 +4573,8 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		int sectorsz = 1 << raidvd->vdev_ashift;
 		uint64_t ms_last_offset = msp->ms_start +
 		    msp->ms_size - sectorsz;
-		if (!range_tree_contains(rt, ms_last_offset, sectorsz)) {
-			range_tree_add(rt, ms_last_offset, sectorsz);
+		if (!zfs_range_tree_contains(rt, ms_last_offset, sectorsz)) {
+			zfs_range_tree_add(rt, ms_last_offset, sectorsz);
 		}
 
 		/*
@@ -4582,12 +4583,12 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		 * discard any state that we have already processed.
 		 */
 		if (vre->vre_offset > msp->ms_start) {
-			range_tree_clear(rt, msp->ms_start,
+			zfs_range_tree_clear(rt, msp->ms_start,
 			    vre->vre_offset - msp->ms_start);
 		}
 
 		while (!zthr_iscancelled(zthr) &&
-		    !range_tree_is_empty(rt) &&
+		    !zfs_range_tree_is_empty(rt) &&
 		    vre->vre_failed_offset == UINT64_MAX) {
 
 			/*
@@ -4649,8 +4650,8 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 		metaslab_enable(msp, B_FALSE, B_FALSE);
-		range_tree_vacate(rt, NULL, NULL);
-		range_tree_destroy(rt);
+		zfs_range_tree_vacate(rt, NULL, NULL);
+		zfs_range_tree_destroy(rt);
 
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
