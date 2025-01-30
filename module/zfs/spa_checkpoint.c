@@ -235,9 +235,9 @@ spa_checkpoint_discard_sync_callback(space_map_entry_t *sme, void *arg)
 	 * potentially save ourselves from future headaches.
 	 */
 	mutex_enter(&ms->ms_lock);
-	if (range_tree_is_empty(ms->ms_freeing))
+	if (zfs_range_tree_is_empty(ms->ms_freeing))
 		vdev_dirty(vd, VDD_METASLAB, ms, sdc->sdc_txg);
-	range_tree_add(ms->ms_freeing, sme->sme_offset, sme->sme_run);
+	zfs_range_tree_add(ms->ms_freeing, sme->sme_offset, sme->sme_run);
 	mutex_exit(&ms->ms_lock);
 
 	ASSERT3U(vd->vdev_spa->spa_checkpoint_info.sci_dspace, >=,
