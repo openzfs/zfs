@@ -404,7 +404,6 @@ zfs_uio_page_aligned(zfs_uio_t *uio)
 	return (aligned);
 }
 
-
 #if defined(HAVE_ZERO_PAGE_GPL_ONLY) || !defined(_LP64)
 #define	ZFS_MARKEED_PAGE	0x0
 #define	IS_ZFS_MARKED_PAGE(_p)	0
@@ -441,7 +440,6 @@ zfs_unmark_page(struct page *page)
 }
 #endif /* HAVE_ZERO_PAGE_GPL_ONLY || !_LP64 */
 
-#if !defined(HAVE_PIN_USER_PAGES_UNLOCKED)
 static void
 zfs_uio_dio_check_for_zero_page(zfs_uio_t *uio)
 {
@@ -473,7 +471,6 @@ zfs_uio_dio_check_for_zero_page(zfs_uio_t *uio)
 		}
 	}
 }
-#endif
 
 void
 zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
@@ -482,21 +479,24 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	ASSERT(uio->uio_extflg & UIO_DIRECT);
 	ASSERT3P(uio->uio_dio.pages, !=, NULL);
 
+	if (uio->uio_dio.pinned) {
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
-	unpin_user_pages(uio->uio_dio.pages, uio->uio_dio.npages);
-#else
-	for (long i = 0; i < uio->uio_dio.npages; i++) {
-		struct page *p = uio->uio_dio.pages[i];
-
-		if (IS_ZFS_MARKED_PAGE(p)) {
-			zfs_unmark_page(p);
-			__free_page(p);
-			continue;
-		}
-
-		put_page(p);
-	}
+		unpin_user_pages(uio->uio_dio.pages, uio->uio_dio.npages);
 #endif
+	} else {
+		for (long i = 0; i < uio->uio_dio.npages; i++) {
+			struct page *p = uio->uio_dio.pages[i];
+
+			if (IS_ZFS_MARKED_PAGE(p)) {
+				zfs_unmark_page(p);
+				__free_page(p);
+				continue;
+			}
+
+			put_page(p);
+		}
+	}
+
 	vmem_free(uio->uio_dio.pages,
 	    uio->uio_dio.npages * sizeof (struct page *));
 }
@@ -523,6 +523,7 @@ zfs_uio_pin_user_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	if (len == 0)
 		return (0);
 
+	uio->uio_dio.pinned = B_TRUE;
 #if defined(HAVE_ITER_IS_UBUF)
 	if (iter_is_ubuf(uio->uio_iter)) {
 		nr_pages = DIV_ROUND_UP(len, PAGE_SIZE);
@@ -569,8 +570,8 @@ zfs_uio_pin_user_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	return (0);
 }
+#endif
 
-#else
 static int
 zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 {
@@ -581,9 +582,15 @@ zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	unsigned maxpages = DIV_ROUND_UP(wanted, PAGE_SIZE);
 
 	while (wanted) {
+#if defined(HAVE_IOV_ITER_GET_PAGES2)
+		cnt = iov_iter_get_pages2(uio->uio_iter,
+		    &uio->uio_dio.pages[uio->uio_dio.npages],
+		    wanted, maxpages, &start);
+#else
 		cnt = iov_iter_get_pages(uio->uio_iter,
 		    &uio->uio_dio.pages[uio->uio_dio.npages],
 		    wanted, maxpages, &start);
+#endif
 		if (cnt < 0) {
 			iov_iter_revert(uio->uio_iter, rollback);
 			return (SET_ERROR(-cnt));
@@ -595,7 +602,12 @@ zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 		uio->uio_dio.npages += DIV_ROUND_UP(cnt, PAGE_SIZE);
 		rollback += cnt;
 		wanted -= cnt;
+#if !defined(HAVE_IOV_ITER_GET_PAGES2)
+		/*
+		 * iov_iter_get_pages2() advances the iov_iter on success.
+		 */
 		iov_iter_advance(uio->uio_iter, cnt);
+#endif
 
 	}
 	ASSERT3U(rollback, ==, uio->uio_resid - uio->uio_skip);
@@ -603,7 +615,6 @@ zfs_uio_get_dio_pages_iov_iter(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	return (0);
 }
-#endif /* HAVE_PIN_USER_PAGES_UNLOCKED */
 
 /*
  * This function pins user pages. In the event that the user pages were not
@@ -621,7 +632,10 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	if (uio->uio_segflg == UIO_ITER) {
 		uio->uio_dio.pages = vmem_alloc(size, KM_SLEEP);
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
-		error = zfs_uio_pin_user_pages(uio, rw);
+		if (zfs_user_backed_iov_iter(uio->uio_iter))
+			error = zfs_uio_pin_user_pages(uio, rw);
+		else
+			error = zfs_uio_get_dio_pages_iov_iter(uio, rw);
 #else
 		error = zfs_uio_get_dio_pages_iov_iter(uio, rw);
 #endif
@@ -632,22 +646,24 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	ASSERT3S(uio->uio_dio.npages, >=, 0);
 
 	if (error) {
+		if (uio->uio_dio.pinned) {
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
-		unpin_user_pages(uio->uio_dio.pages, uio->uio_dio.npages);
-#else
-		for (long i = 0; i < uio->uio_dio.npages; i++)
-			put_page(uio->uio_dio.pages[i]);
+			unpin_user_pages(uio->uio_dio.pages,
+			    uio->uio_dio.npages);
 #endif
+		} else {
+			for (long i = 0; i < uio->uio_dio.npages; i++)
+				put_page(uio->uio_dio.pages[i]);
+		}
+
 		vmem_free(uio->uio_dio.pages, size);
 		return (error);
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);
 	}
 
-#if !defined(HAVE_PIN_USER_PAGES_UNLOCKED)
-	if (rw == UIO_WRITE)
+	if (rw == UIO_WRITE && !uio->uio_dio.pinned)
 		zfs_uio_dio_check_for_zero_page(uio);
-#endif
 
 	uio->uio_extflg |= UIO_DIRECT;
 

@@ -63,6 +63,7 @@ typedef enum zfs_uio_seg {
 typedef struct {
 	struct page	**pages;	/* Mapped pages */
 	long 		npages;		/* Number of mapped pages */
+	boolean_t	pinned;		/* Whether FOLL_PIN was used */
 } zfs_uio_dio_t;
 
 typedef struct zfs_uio {
@@ -197,6 +198,15 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 #define	zfs_uio_iov_iter_type(iter)	iov_iter_type((iter))
 #else
 #define	zfs_uio_iov_iter_type(iter)	(iter)->type
+#endif
+
+#if defined(HAVE_ITER_IS_UBUF)
+#define	zfs_user_backed_iov_iter(iter)	\
+	(iter_is_ubuf((iter)) || \
+	(zfs_uio_iov_iter_type((iter)) == ITER_IOVEC))
+#else
+#define	zfs_user_backed_iov_iter(iter) \
+	(zfs_uio_iov_iter_type((iter)) == ITER_IOVEC)
 #endif
 
 #endif /* SPL_UIO_H */
