@@ -179,6 +179,8 @@
     <elf-symbol name='mkdirp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='print_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spl_pagesize' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='strlcat' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='strlcpy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_avl_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_avl_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_avl_find' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -802,6 +804,12 @@
       <parameter type-id='822cd80b'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='strtoull' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='3a47d82b'/>
+    </function-decl>
     <function-decl name='getenv' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <return type-id='26a90f95'/>
@@ -1015,6 +1023,12 @@
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/os/linux/zone.c' language='LANG_C99'>
     <typedef-decl name='zoneid_t' type-id='3502e3ff' id='4da03624'/>
+    <function-decl name='strtoul' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='7359adad'/>
+    </function-decl>
     <function-decl name='getzoneid' mangled-name='getzoneid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
       <return type-id='4da03624'/>
     </function-decl>
@@ -1025,6 +1039,14 @@
       <return type-id='bd54fe1a'/>
     </function-decl>
     <function-decl name='spl_pagesize' mangled-name='spl_pagesize' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
+      <return type-id='b59d7dce'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr address-size='64' path='lib/libspl/strlcat.c' language='LANG_C99'>
+    <function-decl name='strlcat' mangled-name='strlcat' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
+      <parameter type-id='26a90f95' name='dst'/>
+      <parameter type-id='80f4b756' name='src'/>
+      <parameter type-id='b59d7dce' name='dstsize'/>
       <return type-id='b59d7dce'/>
     </function-decl>
   </abi-instr>
@@ -1466,6 +1488,12 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='eaa32e2f'/>
     </function-decl>
+    <function-decl name='strlcpy' mangled-name='strlcpy' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
+      <parameter type-id='26a90f95'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='b59d7dce'/>
+      <return type-id='b59d7dce'/>
+    </function-decl>
     <function-decl name='pthread_mutex_init' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='18c91f9e'/>
       <parameter type-id='c2afbd7e'/>
@@ -1482,13 +1510,6 @@
     <function-decl name='pthread_mutex_unlock' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='18c91f9e'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='__strlcpy_chk' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='26a90f95'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='b59d7dce'/>
-      <parameter type-id='b59d7dce'/>
-      <return type-id='b59d7dce'/>
     </function-decl>
     <function-decl name='uu_avl_pool_create' mangled-name='uu_avl_pool_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_pool_create'>
       <parameter type-id='80f4b756' name='name'/>
