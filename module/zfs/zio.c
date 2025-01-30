@@ -139,8 +139,6 @@ static uint_t zfs_sync_pass_rewrite = 2;
 int zio_exclude_metadata = 0;
 static int zio_requeue_io_start_cut_in_line = 1;
 
-static int zio_dynamic_gang_headers_enable = 0;
-
 #ifdef ZFS_DEBUG
 static const int zio_buf_debug_limit = 16384;
 #else
@@ -1881,7 +1879,8 @@ zio_write_compress(zio_t *zio)
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
 	ASSERT(zio->io_bp_override == NULL);
 
-	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg) {
+	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg &&
+	    !(zio->io_flags & ZIO_FLAG_PREALLOCATED)) {
 		/*
 		 * We're rewriting an existing block, which means we're
 		 * working on behalf of spa_sync().  For spa_sync() to
@@ -2028,7 +2027,8 @@ zio_write_compress(zio_t *zio)
 		zio->io_pipeline = ZIO_REWRITE_PIPELINE | gang_stages;
 		zio->io_flags |= ZIO_FLAG_IO_REWRITE;
 	} else {
-		BP_ZERO(bp);
+		if (!(zio->io_flags & ZIO_FLAG_PREALLOCATED))
+			BP_ZERO(bp);
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 	}
 
@@ -3023,7 +3023,12 @@ zio_write_gang_member_ready(zio_t *zio)
 	if (BP_IS_HOLE(zio->io_bp))
 		return;
 
-	ASSERT(BP_IS_HOLE(&zio->io_bp_orig));
+	/*
+	 * If we're getting direct-invoked from zio_write_gang_block(),
+	 * the bp_orig will be set.
+	 */
+	ASSERT(BP_IS_HOLE(&zio->io_bp_orig) ||
+	    zio->io_flags & ZIO_FLAG_PREALLOCATED);
 
 	ASSERT(zio->io_child_type == ZIO_CHILD_GANG);
 	ASSERT3U(zio->io_prop.zp_copies, ==, gio->io_prop.zp_copies);
@@ -3072,7 +3077,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	abd_t *gbh_abd;
 	uint64_t txg = pio->io_txg;
 	uint64_t resid = pio->io_size;
-	uint64_t lsize;
 	int copies = gio->io_prop.zp_copies;
 	zio_prop_t zp;
 	int error;
@@ -3117,8 +3121,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    &pio->io_alloc_list, pio, pio->io_allocator);
 
-	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER) &&
-	    zio_dynamic_gang_headers_enable) {
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
 		gangblocksize = UINT64_MAX;
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
@@ -3175,40 +3178,111 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	zio_gang_inherit_allocator(pio, zio);
 
 	/*
-	 * Create and nowait the gang children.
+	 * Create and nowait the gang children. First, we try to do
+	 * opportunistic allocations. If that fails to generate enough
+	 * space, we fall back to normal zio_write calls.
 	 */
 	int g;
-	for (g = 0; resid != 0; resid -= lsize, g++) {
-		lsize = zio_roundup_alloc_size(spa,
+	flags &= METASLAB_ASYNC_ALLOC;
+	flags |= METASLAB_GANG_CHILD;
+	zp.zp_checksum = gio->io_prop.zp_checksum;
+	zp.zp_compress = ZIO_COMPRESS_OFF;
+	zp.zp_complevel = gio->io_prop.zp_complevel;
+	zp.zp_type = zp.zp_storage_type = DMU_OT_NONE;
+	zp.zp_level = 0;
+	zp.zp_copies = gio->io_prop.zp_copies;
+	zp.zp_dedup = B_FALSE;
+	zp.zp_dedup_verify = B_FALSE;
+	zp.zp_nopwrite = B_FALSE;
+	zp.zp_encrypt = gio->io_prop.zp_encrypt;
+	zp.zp_byteorder = gio->io_prop.zp_byteorder;
+	zp.zp_direct_write = B_FALSE;
+	memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
+	memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
+	memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
+
+	for (g = 0; resid != 0; g++) {
+		uint64_t min_size = zio_roundup_alloc_size(spa,
 		    resid / (gbh_nblkptrs(gangblocksize) - g));
-		lsize = MIN(lsize, resid);
-		IMPLY(lsize < spa->spa_min_alloc, lsize == resid);
-		IMPLY(lsize >= spa->spa_min_alloc, lsize <= resid);
+		min_size = MIN(min_size, resid);
+		IMPLY(min_size < spa->spa_min_alloc, min_size == resid);
+		IMPLY(min_size >= spa->spa_min_alloc, min_size <= resid);
+		bp = &((blkptr_t *)gbh)[g];
 
-		zp.zp_checksum = gio->io_prop.zp_checksum;
-		zp.zp_compress = ZIO_COMPRESS_OFF;
-		zp.zp_complevel = gio->io_prop.zp_complevel;
-		zp.zp_type = zp.zp_storage_type = DMU_OT_NONE;
-		zp.zp_level = 0;
-		zp.zp_copies = gio->io_prop.zp_copies;
-		zp.zp_dedup = B_FALSE;
-		zp.zp_dedup_verify = B_FALSE;
-		zp.zp_nopwrite = B_FALSE;
-		zp.zp_encrypt = gio->io_prop.zp_encrypt;
-		zp.zp_byteorder = gio->io_prop.zp_byteorder;
-		zp.zp_direct_write = B_FALSE;
-		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
-		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
-		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
+		zio_alloc_list_t cio_list;
+		metaslab_trace_init(&cio_list);
+		error = metaslab_alloc_range(spa, mc, min_size, resid,
+		    bp, gio->io_prop.zp_copies, txg, NULL,
+		    flags, &cio_list, NULL, zio->io_allocator);
 
-		zio_t *cio = zio_write(zio, spa, txg, &((blkptr_t *)gbh)[g],
-		    has_data ? abd_get_offset(pio->io_abd, pio->io_size -
-		    resid) : NULL, lsize, lsize, &zp,
-		    zio_write_gang_member_ready, NULL,
+		uint64_t allocated_size = 0;
+		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+			uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[d]);
+			if (asize > allocated_size)
+				allocated_size = asize;
+		}
+		boolean_t allocated = allocated_size != 0;
+		if (g == 0 && error == 0 && allocated_size == pio->io_size) {
+			ASSERT3U(BP_GET_NDVAS(bp), ==, gio->io_prop.zp_copies);
+			/*
+			 * De-gang case: We got an allocation big enough to
+			 * satisfy the original allocation. Just do that
+			 * instead of ganging.
+			 */
+			for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+				dva_t *dva = &zio->io_bp->blk_dva[d];
+				metaslab_unalloc_dva(spa,
+				    dva, txg);
+				metaslab_group_alloc_decrement(spa,
+				    DVA_GET_VDEV(dva), pio, flags,
+				    pio->io_allocator, B_FALSE);
+			}
+			metaslab_trace_move(&cio_list, &pio->io_alloc_list);
+			metaslab_group_alloc_increment_all(spa, bp, pio, flags,
+			    pio->io_allocator);
+			if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
+				metaslab_class_throttle_unreserve(mc,
+				    gbh_copies - copies, pio->io_allocator,
+				    pio);
+			}
+			zio->io_bp = pio->io_bp;
+			*zio->io_bp = zio->io_bp_orig = *bp;
+
+			if (zio->io_abd != NULL)
+				abd_free(zio->io_abd);
+			zio->io_orig_abd = zio->io_abd = pio->io_abd;
+
+			zio->io_size = zio->io_orig_size = allocated_size;
+			zio->io_lsize = allocated_size;
+			zio->io_done = NULL;
+			zio->io_orig_pipeline = zio->io_pipeline =
+			    (zio->io_pipeline & ~ZIO_GANG_STAGES) |
+			    ZIO_STAGE_WRITE_COMPRESS | ZIO_STAGE_DVA_ALLOCATE;
+			zio->io_flags |= ZIO_FLAG_PREALLOCATED;
+			zp.zp_type = zp.zp_storage_type = pio->io_prop.zp_type;
+			zp.zp_level = pio->io_prop.zp_level;
+			zio->io_prop = zp;
+
+			goto end;
+		}
+
+		uint64_t lsize = allocated ? allocated_size : min_size;
+
+		zio_t *cio = zio_write(zio, spa, txg, bp, has_data ?
+		    abd_get_offset(pio->io_abd, pio->io_size - resid) : NULL,
+		    lsize, lsize, &zp, zio_write_gang_member_ready, NULL,
 		    zio_write_gang_done, &gn->gn_child[g], pio->io_priority,
-		    ZIO_GANG_CHILD_FLAGS(pio), &pio->io_bookmark);
+		    ZIO_GANG_CHILD_FLAGS(pio) |
+		    (allocated ? ZIO_FLAG_PREALLOCATED : 0), &pio->io_bookmark);
+
+		resid -= lsize;
 
 		zio_gang_inherit_allocator(zio, cio);
+		if (allocated) {
+			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
+			metaslab_group_alloc_increment_all(spa, bp, cio, flags,
+			    zio->io_allocator);
+		}
 
 		if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 			ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
@@ -3242,6 +3316,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		    gn->gn_gangblocksize;
 	}
 
+end:
 	/*
 	 * Set pio's pipeline to just wait for zio to finish.
 	 */
@@ -4089,6 +4164,10 @@ zio_dva_allocate(zio_t *zio)
 	if (zio->io_gang_leader == NULL) {
 		ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
 		zio->io_gang_leader = zio;
+	}
+	if (zio->io_flags & ZIO_FLAG_PREALLOCATED) {
+		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_GANG);
+		return (zio);
 	}
 
 	ASSERT(BP_IS_HOLE(bp));
@@ -5096,7 +5175,8 @@ zio_ready(zio_t *zio)
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
 		ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg ||
-		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE));
+		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE) ||
+		    (zio->io_flags & ZIO_FLAG_PREALLOCATED));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
 
 		zio->io_ready(zio);
@@ -5801,6 +5881,3 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, dva_throttle_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, deadman_log_all, INT, ZMOD_RW,
 	"Log all slow ZIOs, not just those with vdevs");
-
-ZFS_MODULE_PARAM(zfs_zio, zio_, dynamic_gang_headers_enable, INT, ZMOD_RW,
-	"Enable dynamic gang header creation");
