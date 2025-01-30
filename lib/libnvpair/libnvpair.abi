@@ -2630,6 +2630,12 @@
     <pointer-type-def type-id='bd226ac0' size-in-bits='64' id='fce59795'/>
     <pointer-type-def type-id='32580e96' size-in-bits='64' id='ede2c2f5'/>
     <pointer-type-def type-id='c87cb1d0' size-in-bits='64' id='d781e3b2'/>
+    <function-decl name='strtol' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='bd54fe1a'/>
+    </function-decl>
     <function-decl name='strncmp' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='80f4b756'/>
