@@ -56,6 +56,8 @@ save_tunable TXG_TIMEOUT
 # where things appear on-disk
 log_must save_tunable DEDUP_LOG_TXG_MAX
 log_must set_tunable32 DEDUP_LOG_TXG_MAX 1
+log_must save_tunable DEDUP_LOG_FLUSH_ENTRIES_MIN
+log_must set_tunable32 DEDUP_LOG_FLUSH_ENTRIES_MIN 100000
 
 function cleanup
 {
@@ -65,6 +67,7 @@ function cleanup
 	log_must rm -fd $VDEV_GENERAL $VDEV_DEDUP $MOUNTDIR
 	log_must restore_tunable TXG_TIMEOUT
 	log_must restore_tunable DEDUP_LOG_TXG_MAX
+	log_must restore_tunable DEDUP_LOG_FLUSH_ENTRIES_MIN
 }
 
 
