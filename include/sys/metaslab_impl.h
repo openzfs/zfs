@@ -141,23 +141,24 @@ typedef enum trace_alloc_type {
  * Per-allocator data structure.
  */
 typedef struct metaslab_class_allocator {
+	kmutex_t		mca_lock;
+	avl_tree_t		mca_tree;
+
 	metaslab_group_t	*mca_rotor;
 	uint64_t		mca_aliquot;
 
 	/*
 	 * The allocation throttle works on a reservation system. Whenever
 	 * an asynchronous zio wants to perform an allocation it must
-	 * first reserve the number of blocks that it wants to allocate.
+	 * first reserve the number of bytes that it wants to allocate.
 	 * If there aren't sufficient slots available for the pending zio
 	 * then that I/O is throttled until more slots free up. The current
-	 * number of reserved allocations is maintained by the mca_alloc_slots
-	 * refcount. The mca_alloc_max_slots value determines the maximum
-	 * number of allocations that the system allows. Gang blocks are
-	 * allowed to reserve slots even if we've reached the maximum
-	 * number of allocations allowed.
+	 * size of reserved allocations is maintained by mca_reserved.
+	 * The maximum total size of reserved allocations is determined by
+	 * mc_alloc_max in the metaslab_class_t.  Gang blocks are allowed
+	 * to reserve for their headers even if we've reached the maximum.
 	 */
-	uint64_t		mca_alloc_max_slots;
-	zfs_refcount_t		mca_alloc_slots;
+	uint64_t		mca_reserved;
 } ____cacheline_aligned metaslab_class_allocator_t;
 
 /*
@@ -190,10 +191,10 @@ struct metaslab_class {
 	 */
 	uint64_t		mc_groups;
 
-	/*
-	 * Toggle to enable/disable the allocation throttle.
-	 */
+	boolean_t		mc_is_log;
 	boolean_t		mc_alloc_throttle_enabled;
+	uint64_t		mc_alloc_io_size;
+	uint64_t		mc_alloc_max;
 
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
@@ -216,11 +217,10 @@ struct metaslab_class {
  * Per-allocator data structure.
  */
 typedef struct metaslab_group_allocator {
-	uint64_t	mga_cur_max_alloc_queue_depth;
-	zfs_refcount_t	mga_alloc_queue_depth;
+	zfs_refcount_t	mga_queue_depth;
 	metaslab_t	*mga_primary;
 	metaslab_t	*mga_secondary;
-} metaslab_group_allocator_t;
+} ____cacheline_aligned metaslab_group_allocator_t;
 
 /*
  * Metaslab groups encapsulate all the allocatable regions (i.e. metaslabs)
@@ -235,6 +235,7 @@ struct metaslab_group {
 	kmutex_t		mg_lock;
 	avl_tree_t		mg_metaslab_tree;
 	uint64_t		mg_aliquot;
+	uint64_t		mg_queue_target;
 	boolean_t		mg_allocatable;		/* can we allocate? */
 	uint64_t		mg_ms_ready;
 
@@ -246,39 +247,11 @@ struct metaslab_group {
 	 */
 	boolean_t		mg_initialized;
 
-	uint64_t		mg_free_capacity;	/* percentage free */
-	int64_t			mg_bias;
 	int64_t			mg_activation_count;
 	metaslab_class_t	*mg_class;
 	vdev_t			*mg_vd;
 	metaslab_group_t	*mg_prev;
 	metaslab_group_t	*mg_next;
-
-	/*
-	 * In order for the allocation throttle to function properly, we cannot
-	 * have too many IOs going to each disk by default; the throttle
-	 * operates by allocating more work to disks that finish quickly, so
-	 * allocating larger chunks to each disk reduces its effectiveness.
-	 * However, if the number of IOs going to each allocator is too small,
-	 * we will not perform proper aggregation at the vdev_queue layer,
-	 * also resulting in decreased performance. Therefore, we will use a
-	 * ramp-up strategy.
-	 *
-	 * Each allocator in each metaslab group has a current queue depth
-	 * (mg_alloc_queue_depth[allocator]) and a current max queue depth
-	 * (mga_cur_max_alloc_queue_depth[allocator]), and each metaslab group
-	 * has an absolute max queue depth (mg_max_alloc_queue_depth).  We
-	 * add IOs to an allocator until the mg_alloc_queue_depth for that
-	 * allocator hits the cur_max. Every time an IO completes for a given
-	 * allocator on a given metaslab group, we increment its cur_max until
-	 * it reaches mg_max_alloc_queue_depth. The cur_max resets every txg to
-	 * help protect against disks that decrease in performance over time.
-	 *
-	 * It's possible for an allocator to handle more allocations than
-	 * its max. This can occur when gang blocks are required or when other
-	 * groups are unable to handle their share of allocations.
-	 */
-	uint64_t		mg_max_alloc_queue_depth;
 
 	/*
 	 * A metalab group that can no longer allocate the minimum block
@@ -288,8 +261,6 @@ struct metaslab_group {
 	 */
 	boolean_t		mg_no_free_space;
 
-	uint64_t		mg_allocations;
-	uint64_t		mg_failed_allocations;
 	uint64_t		mg_fragmentation;
 	uint64_t		mg_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
@@ -508,7 +479,7 @@ struct metaslab {
 	 */
 	hrtime_t	ms_load_time;	/* time last loaded */
 	hrtime_t	ms_unload_time;	/* time last unloaded */
-	hrtime_t	ms_selected_time; /* time last allocated from */
+	uint64_t	ms_selected_time; /* time last allocated from (secs) */
 
 	uint64_t	ms_alloc_txg;	/* last successful alloc (debug only) */
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
