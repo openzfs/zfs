@@ -638,7 +638,8 @@ void
 metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 {
 	multilist_t *ml = &mc->mc_metaslab_txg_list;
-	hrtime_t now = gethrtime();
+	uint64_t now = gethrestime_sec();
+	uint_t delay = (metaslab_unload_delay_ms + 999) / 1000;
 	for (int i = 0; i < multilist_get_num_sublists(ml); i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock_idx(ml, i);
 		metaslab_t *msp = multilist_sublist_head(mls);
@@ -662,8 +663,7 @@ metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 			multilist_sublist_unlock(mls);
 			if (txg >
 			    msp->ms_selected_txg + metaslab_unload_delay &&
-			    now > msp->ms_selected_time +
-			    MSEC2NSEC(metaslab_unload_delay_ms) &&
+			    now > msp->ms_selected_time + delay &&
 			    (msp->ms_allocator == -1 ||
 			    !metaslab_preload_enabled)) {
 				metaslab_evict(msp, txg);
@@ -2602,15 +2602,15 @@ metaslab_unload(metaslab_t *msp)
 		spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 		zfs_dbgmsg("metaslab_unload: txg %llu, spa %s, vdev_id %llu, "
 		    "ms_id %llu, weight %llx, "
-		    "selected txg %llu (%llu ms ago), alloc_txg %llu, "
+		    "selected txg %llu (%llu s ago), alloc_txg %llu, "
 		    "loaded %llu ms ago, max_size %llu",
 		    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
 		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
 		    (u_longlong_t)msp->ms_id,
 		    (u_longlong_t)msp->ms_weight,
 		    (u_longlong_t)msp->ms_selected_txg,
-		    (u_longlong_t)(msp->ms_unload_time -
-		    msp->ms_selected_time) / 1000 / 1000,
+		    (u_longlong_t)(NSEC2SEC(msp->ms_unload_time) -
+		    msp->ms_selected_time),
 		    (u_longlong_t)msp->ms_alloc_txg,
 		    (u_longlong_t)(msp->ms_unload_time -
 		    msp->ms_load_time) / 1000 / 1000,
@@ -2666,7 +2666,7 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	msp->ms_selected_txg = txg;
-	msp->ms_selected_time = gethrtime();
+	msp->ms_selected_time = gethrestime_sec();
 	multilist_sublist_insert_tail(mls, msp);
 	multilist_sublist_unlock(mls);
 }
