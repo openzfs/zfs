@@ -23,7 +23,7 @@
  * Copyright (c) 2011, 2022 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2019, 2023, 2024, Klara Inc.
+ * Copyright (c) 2019, 2023, 2024, 2025, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
@@ -2537,13 +2537,29 @@ zio_reexecute(void *arg)
 	pio->io_state[ZIO_WAIT_READY] = (pio->io_stage >= ZIO_STAGE_READY) ||
 	    (pio->io_pipeline & ZIO_STAGE_READY) == 0;
 	pio->io_state[ZIO_WAIT_DONE] = (pio->io_stage >= ZIO_STAGE_DONE);
+
+	/*
+	 * It's possible for a failed ZIO to be a descendant of more than one
+	 * ZIO tree. When reexecuting it, we have to be sure to add its wait
+	 * states to all parent wait counts.
+	 *
+	 * Those parents, in turn, may have other children that are currently
+	 * active, usually because they've already been reexecuted after
+	 * resuming. Those children may be executing and may call
+	 * zio_notify_parent() at the same time as we're updating our parent's
+	 * counts. To avoid races while updating the counts, we take
+	 * gio->io_lock before each update.
+	 */
 	zio_link_t *zl = NULL;
 	while ((gio = zio_walk_parents(pio, &zl)) != NULL) {
+		mutex_enter(&gio->io_lock);
 		for (int w = 0; w < ZIO_WAIT_TYPES; w++) {
 			gio->io_children[pio->io_child_type][w] +=
 			    !pio->io_state[w];
 		}
+		mutex_exit(&gio->io_lock);
 	}
+
 	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
 		pio->io_child_error[c] = 0;
 
