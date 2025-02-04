@@ -15,6 +15,7 @@
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
 # Copyright (c) 2017 Lawrence Livermore National Security, LLC.
+# Copyright (c) 2025, Klara, Inc.
 #
 
 # $1: number of lines to output (default: 200)
@@ -25,7 +26,11 @@ echo " Tailing last $lines lines of dmesg log"
 echo "================================================================="
 
 # report and reset afterwards
-sudo dmesg -c | tail -n $lines
+dmesg_args="-c"
+if [[ $(uname) = "Linux" ]] ; then
+	dmesg_args="$dmesg_args --time-format=iso"
+fi
+sudo dmesg $dmesg_args | tail -n $lines
 
 echo "================================================================="
 echo " End of dmesg log"
