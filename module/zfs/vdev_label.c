@@ -1840,34 +1840,6 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 	}
 	(void) zio_wait(zio);
 
-	/*
-	 * Flush the uberblocks to disk.  This ensures that the odd labels
-	 * are no longer needed (because the new uberblocks and the even
-	 * labels are safely on disk), so it is safe to overwrite them.
-	 */
-	zio = zio_root(spa, NULL, NULL, flags);
-
-	for (int v = 0; v < svdcount; v++) {
-		if (vdev_writeable(svd[v])) {
-			zio_flush(zio, svd[v]);
-		}
-	}
-	if (spa->spa_aux_sync_uber) {
-		spa->spa_aux_sync_uber = B_FALSE;
-		for (int v = 0; v < spa->spa_spares.sav_count; v++) {
-			if (vdev_writeable(spa->spa_spares.sav_vdevs[v])) {
-				zio_flush(zio, spa->spa_spares.sav_vdevs[v]);
-			}
-		}
-		for (int v = 0; v < spa->spa_l2cache.sav_count; v++) {
-			if (vdev_writeable(spa->spa_l2cache.sav_vdevs[v])) {
-				zio_flush(zio, spa->spa_l2cache.sav_vdevs[v]);
-			}
-		}
-	}
-
-	(void) zio_wait(zio);
-
 	return (good_writes >= 1 ? 0 : EIO);
 }
 
@@ -2020,24 +1992,14 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 
 	error = zio_wait(zio);
 
-	/*
-	 * Flush the new labels to disk.
-	 */
-	zio = zio_root(spa, NULL, NULL, flags);
-
-	for (vd = list_head(dl); vd != NULL; vd = list_next(dl, vd))
-		zio_flush(zio, vd);
-
-	for (int i = 0; i < 2; i++) {
-		if (!sav[i]->sav_label_sync)
-			continue;
-		for (int v = 0; v < sav[i]->sav_count; v++)
-			zio_flush(zio, sav[i]->sav_vdevs[v]);
-		if (l == 1)
-			sav[i]->sav_label_sync = B_FALSE;
+	if (l == 1) {
+		for (int i = 0; i < 2; i++) {
+			if (!sav[i]->sav_label_sync)
+				continue;
+			if (l == 1)
+				sav[i]->sav_label_sync = B_FALSE;
+		}
 	}
-
-	(void) zio_wait(zio);
 
 	return (error);
 }
@@ -2098,21 +2060,6 @@ retry:
 		return (0);
 
 	ASSERT(txg <= spa->spa_final_txg);
-
-	/*
-	 * Flush the write cache of every disk that's been written to
-	 * in this transaction group.  This ensures that all blocks
-	 * written in this txg will be committed to stable storage
-	 * before any uberblock that references them.
-	 */
-	zio_t *zio = zio_root(spa, NULL, NULL, flags);
-
-	for (vdev_t *vd =
-	    txg_list_head(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)); vd != NULL;
-	    vd = txg_list_next(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg)))
-		zio_flush(zio, vd);
-
-	(void) zio_wait(zio);
 
 	/*
 	 * Sync out the even labels (L0, L2) for every dirty vdev.  If the
