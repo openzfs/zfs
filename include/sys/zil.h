@@ -624,7 +624,6 @@ extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 extern int	zil_suspend(const char *osname, void **cookiep);
 extern void	zil_resume(void *cookie);
 
-extern void	zil_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
 extern void	zil_lwb_add_txg(struct lwb *lwb, uint64_t txg);
 extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 
