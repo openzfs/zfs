@@ -1175,9 +1175,8 @@ metaslab_group_sort(metaslab_group_t *mg, metaslab_t *msp, uint64_t weight)
 }
 
 /*
- * Calculate the fragmentation for a given metaslab group. We can use
- * a simple average here since all metaslabs within the group must have
- * the same size. The return value will be a value between 0 and 100
+ * Calculate the fragmentation for a given metaslab group.  Weight metaslabs
+ * on the amount of free space.  The return value will be between 0 and 100
  * (inclusive), or ZFS_FRAG_INVALID if less than half of the metaslab in this
  * group have a fragmentation metric.
  */
@@ -1186,24 +1185,29 @@ metaslab_group_fragmentation(metaslab_group_t *mg)
 {
 	vdev_t *vd = mg->mg_vd;
 	uint64_t fragmentation = 0;
-	uint64_t valid_ms = 0;
+	uint64_t valid_ms = 0, total_ms = 0;
+	uint64_t free, total_free = 0;
 
 	for (int m = 0; m < vd->vdev_ms_count; m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
 
-		if (msp->ms_fragmentation == ZFS_FRAG_INVALID)
-			continue;
 		if (msp->ms_group != mg)
+			continue;
+		total_ms++;
+		if (msp->ms_fragmentation == ZFS_FRAG_INVALID)
 			continue;
 
 		valid_ms++;
-		fragmentation += msp->ms_fragmentation;
+		free = (msp->ms_size - metaslab_allocated_space(msp)) /
+		    SPA_MINBLOCKSIZE;  /* To prevent overflows. */
+		total_free += free;
+		fragmentation += msp->ms_fragmentation * free;
 	}
 
-	if (valid_ms <= mg->mg_vd->vdev_ms_count / 2)
+	if (valid_ms < (total_ms + 1) / 2 || total_free == 0)
 		return (ZFS_FRAG_INVALID);
 
-	fragmentation /= valid_ms;
+	fragmentation /= total_free;
 	ASSERT3U(fragmentation, <=, 100);
 	return (fragmentation);
 }
@@ -4457,8 +4461,8 @@ metaslab_sync_reassess(metaslab_group_t *mg)
 	spa_t *spa = mg->mg_class->mc_spa;
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
-	metaslab_group_alloc_update(mg);
 	mg->mg_fragmentation = metaslab_group_fragmentation(mg);
+	metaslab_group_alloc_update(mg);
 
 	/*
 	 * Preload the next potential metaslabs but only on active
