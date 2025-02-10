@@ -57,6 +57,7 @@ int
 zfs_resolve_shortname(const char *name, char *path, size_t len)
 {
 	const char *env = getenv("ZPOOL_IMPORT_PATH");
+	char resolved_path[PATH_MAX];
 
 	if (env) {
 		for (;;) {
@@ -85,6 +86,15 @@ zfs_resolve_shortname(const char *name, char *path, size_t len)
 		}
 	}
 
+	/* The user may have passed a relative path like ./file1 for the vdev */
+	if (realpath(name, resolved_path) != NULL) {
+		if (access(resolved_path, F_OK) == 0) {
+			if (strlen(resolved_path) + 1 <= len) {
+				if (strlcpy(path, resolved_path, len) < len)
+					return (0); /* success */
+			}
+		}
+	}
 	return (errno = ENOENT);
 }
 
