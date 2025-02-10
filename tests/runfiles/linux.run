@@ -129,6 +129,10 @@ tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
     'suspend_resume_single', 'zpool_status_-s']
 tags = ['functional', 'fault']
 
+[tests/functional/flush:Linux]
+tests = ['sync_flush_error']
+tags = ['functional', 'flush']
+
 [tests/functional/features/large_dnode:Linux]
 tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
 tags = ['functional', 'features', 'large_dnode']
