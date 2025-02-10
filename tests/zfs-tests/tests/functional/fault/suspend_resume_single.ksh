@@ -30,6 +30,7 @@ DATAFILE="$TMPDIR/datafile"
 
 function cleanup
 {
+	zpool clear $TESTPOOL
 	destroy_pool $TESTPOOL
 	unload_scsi_debug
 	rm -f $DATA_FILE
