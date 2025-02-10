@@ -37,7 +37,7 @@
 extern "C" {
 #endif
 
-#define	RANGE_TREE_HISTOGRAM_SIZE	64
+#define	ZFS_RANGE_TREE_HISTOGRAM_SIZE	64
 
 typedef struct zfs_range_tree_ops zfs_range_tree_ops_t;
 
@@ -72,34 +72,34 @@ typedef struct zfs_range_tree {
 	 * rt_histogram[i], contains the number of ranges whose size is:
 	 * 2^i <= size of range in bytes < 2^(i+1)
 	 */
-	uint64_t	rt_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+	uint64_t	rt_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 } zfs_range_tree_t;
 
-typedef struct range_seg32 {
+typedef struct zfs_range_seg32 {
 	uint32_t	rs_start;	/* starting offset of this segment */
 	uint32_t	rs_end;		/* ending offset (non-inclusive) */
-} range_seg32_t;
+} zfs_range_seg32_t;
 
 /*
  * Extremely large metaslabs, vdev-wide trees, and dnode-wide trees may
  * require 64-bit integers for ranges.
  */
-typedef struct range_seg64 {
+typedef struct zfs_range_seg64 {
 	uint64_t	rs_start;	/* starting offset of this segment */
 	uint64_t	rs_end;		/* ending offset (non-inclusive) */
-} range_seg64_t;
+} zfs_range_seg64_t;
 
-typedef struct range_seg_gap {
+typedef struct zfs_range_seg_gap {
 	uint64_t	rs_start;	/* starting offset of this segment */
 	uint64_t	rs_end;		/* ending offset (non-inclusive) */
 	uint64_t	rs_fill;	/* actual fill if gap mode is on */
-} range_seg_gap_t;
+} zfs_range_seg_gap_t;
 
 /*
  * This type needs to be the largest of the range segs, since it will be stack
  * allocated and then cast the actual type to do tree operations.
  */
-typedef range_seg_gap_t range_seg_max_t;
+typedef zfs_range_seg_gap_t zfs_range_seg_max_t;
 
 /*
  * This is just for clarity of code purposes, so we can make it clear that a
@@ -122,11 +122,11 @@ zfs_rs_get_start_raw(const zfs_range_seg_t *rs, const zfs_range_tree_t *rt)
 	ASSERT3U(rt->rt_type, <=, ZFS_RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32:
-		return (((const range_seg32_t *)rs)->rs_start);
+		return (((const zfs_range_seg32_t *)rs)->rs_start);
 	case ZFS_RANGE_SEG64:
-		return (((const range_seg64_t *)rs)->rs_start);
+		return (((const zfs_range_seg64_t *)rs)->rs_start);
 	case ZFS_RANGE_SEG_GAP:
-		return (((const range_seg_gap_t *)rs)->rs_start);
+		return (((const zfs_range_seg_gap_t *)rs)->rs_start);
 	default:
 		VERIFY(0);
 		return (0);
@@ -139,11 +139,11 @@ zfs_rs_get_end_raw(const zfs_range_seg_t *rs, const zfs_range_tree_t *rt)
 	ASSERT3U(rt->rt_type, <=, ZFS_RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32:
-		return (((const range_seg32_t *)rs)->rs_end);
+		return (((const zfs_range_seg32_t *)rs)->rs_end);
 	case ZFS_RANGE_SEG64:
-		return (((const range_seg64_t *)rs)->rs_end);
+		return (((const zfs_range_seg64_t *)rs)->rs_end);
 	case ZFS_RANGE_SEG_GAP:
-		return (((const range_seg_gap_t *)rs)->rs_end);
+		return (((const zfs_range_seg_gap_t *)rs)->rs_end);
 	default:
 		VERIFY(0);
 		return (0);
@@ -156,15 +156,15 @@ zfs_rs_get_fill_raw(const zfs_range_seg_t *rs, const zfs_range_tree_t *rt)
 	ASSERT3U(rt->rt_type, <=, ZFS_RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32: {
-		const range_seg32_t *r32 = (const range_seg32_t *)rs;
+		const zfs_range_seg32_t *r32 = (const zfs_range_seg32_t *)rs;
 		return (r32->rs_end - r32->rs_start);
 	}
 	case ZFS_RANGE_SEG64: {
-		const range_seg64_t *r64 = (const range_seg64_t *)rs;
+		const zfs_range_seg64_t *r64 = (const zfs_range_seg64_t *)rs;
 		return (r64->rs_end - r64->rs_start);
 	}
 	case ZFS_RANGE_SEG_GAP:
-		return (((const range_seg_gap_t *)rs)->rs_fill);
+		return (((const zfs_range_seg_gap_t *)rs)->rs_fill);
 	default:
 		VERIFY(0);
 		return (0);
@@ -197,13 +197,13 @@ zfs_rs_set_start_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt, uint64_t start)
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32:
 		ASSERT3U(start, <=, UINT32_MAX);
-		((range_seg32_t *)rs)->rs_start = (uint32_t)start;
+		((zfs_range_seg32_t *)rs)->rs_start = (uint32_t)start;
 		break;
 	case ZFS_RANGE_SEG64:
-		((range_seg64_t *)rs)->rs_start = start;
+		((zfs_range_seg64_t *)rs)->rs_start = start;
 		break;
 	case ZFS_RANGE_SEG_GAP:
-		((range_seg_gap_t *)rs)->rs_start = start;
+		((zfs_range_seg_gap_t *)rs)->rs_start = start;
 		break;
 	default:
 		VERIFY(0);
@@ -217,13 +217,13 @@ zfs_rs_set_end_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt, uint64_t end)
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32:
 		ASSERT3U(end, <=, UINT32_MAX);
-		((range_seg32_t *)rs)->rs_end = (uint32_t)end;
+		((zfs_range_seg32_t *)rs)->rs_end = (uint32_t)end;
 		break;
 	case ZFS_RANGE_SEG64:
-		((range_seg64_t *)rs)->rs_end = end;
+		((zfs_range_seg64_t *)rs)->rs_end = end;
 		break;
 	case ZFS_RANGE_SEG_GAP:
-		((range_seg_gap_t *)rs)->rs_end = end;
+		((zfs_range_seg_gap_t *)rs)->rs_end = end;
 		break;
 	default:
 		VERIFY(0);
@@ -243,7 +243,7 @@ zfs_zfs_rs_set_fill_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt,
 		    zfs_rs_get_start_raw(rs, rt));
 		break;
 	case ZFS_RANGE_SEG_GAP:
-		((range_seg_gap_t *)rs)->rs_fill = fill;
+		((zfs_range_seg_gap_t *)rs)->rs_fill = fill;
 		break;
 	default:
 		VERIFY(0);
