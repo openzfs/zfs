@@ -130,7 +130,7 @@ tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
 tags = ['functional', 'fault']
 
 [tests/functional/flush:Linux]
-tests = ['sync_flush_error', 'zil_flush_error']
+tests = ['propagate_flush_error', 'sync_flush_error', 'zil_flush_error']
 tags = ['functional', 'flush']
 
 [tests/functional/features/large_dnode:Linux]
