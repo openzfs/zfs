@@ -294,8 +294,8 @@ vdev_get_mg(vdev_t *vd, metaslab_class_t *mc)
 }
 
 void
-vdev_default_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs)
+vdev_default_xlate(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs)
 {
 	(void) vd, (void) remain_rs;
 
@@ -1677,7 +1677,7 @@ vdev_metaslab_fini(vdev_t *vd)
 		vd->vdev_ms = NULL;
 		vd->vdev_ms_count = 0;
 
-		for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+		for (int i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
 			ASSERT0(mg->mg_histogram[i]);
 			if (vd->vdev_log_mg != NULL)
 				ASSERT0(vd->vdev_log_mg->mg_histogram[i]);
@@ -5689,7 +5689,7 @@ vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx)
 }
 
 boolean_t
-vdev_xlate_is_empty(range_seg64_t *rs)
+vdev_xlate_is_empty(zfs_range_seg64_t *rs)
 {
 	return (rs->rs_start == rs->rs_end);
 }
@@ -5703,8 +5703,8 @@ vdev_xlate_is_empty(range_seg64_t *rs)
  * specific translation function to do the real conversion.
  */
 void
-vdev_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs)
+vdev_xlate(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs)
 {
 	/*
 	 * Walk up the vdev tree
@@ -5736,7 +5736,7 @@ vdev_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
 	 * range into its physical and any remaining components by calling
 	 * the vdev specific translate function.
 	 */
-	range_seg64_t intermediate = { 0 };
+	zfs_range_seg64_t intermediate = { 0 };
 	pvd->vdev_ops->vdev_op_xlate(vd, physical_rs, &intermediate, remain_rs);
 
 	physical_rs->rs_start = intermediate.rs_start;
@@ -5744,12 +5744,12 @@ vdev_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
 }
 
 void
-vdev_xlate_walk(vdev_t *vd, const range_seg64_t *logical_rs,
+vdev_xlate_walk(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
     vdev_xlate_func_t *func, void *arg)
 {
-	range_seg64_t iter_rs = *logical_rs;
-	range_seg64_t physical_rs;
-	range_seg64_t remain_rs;
+	zfs_range_seg64_t iter_rs = *logical_rs;
+	zfs_range_seg64_t physical_rs;
+	zfs_range_seg64_t remain_rs;
 
 	while (!vdev_xlate_is_empty(&iter_rs)) {
 
