@@ -518,7 +518,7 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 	if ((zfs_flags & ZFS_DEBUG_HISTOGRAM_VERIFY) == 0)
 		return;
 
-	mc_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
+	mc_hist = kmem_zalloc(sizeof (uint64_t) * ZFS_RANGE_TREE_HISTOGRAM_SIZE,
 	    KM_SLEEP);
 
 	mutex_enter(&mc->mc_lock);
@@ -538,16 +538,16 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
 		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 
-		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+		for (i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++)
 			mc_hist[i] += mg->mg_histogram[i];
 	}
 
-	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+	for (i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
 		VERIFY3U(mc_hist[i], ==, mc->mc_histogram[i]);
 	}
 
 	mutex_exit(&mc->mc_lock);
-	kmem_free(mc_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
+	kmem_free(mc_hist, sizeof (uint64_t) * ZFS_RANGE_TREE_HISTOGRAM_SIZE);
 }
 
 /*
@@ -1029,10 +1029,10 @@ metaslab_group_histogram_verify(metaslab_group_t *mg)
 	if ((zfs_flags & ZFS_DEBUG_HISTOGRAM_VERIFY) == 0)
 		return;
 
-	mg_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
+	mg_hist = kmem_zalloc(sizeof (uint64_t) * ZFS_RANGE_TREE_HISTOGRAM_SIZE,
 	    KM_SLEEP);
 
-	ASSERT3U(RANGE_TREE_HISTOGRAM_SIZE, >=,
+	ASSERT3U(ZFS_RANGE_TREE_HISTOGRAM_SIZE, >=,
 	    SPACE_MAP_HISTOGRAM_SIZE + ashift);
 
 	mutex_enter(&mg->mg_lock);
@@ -1049,12 +1049,12 @@ metaslab_group_histogram_verify(metaslab_group_t *mg)
 		}
 	}
 
-	for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i ++)
+	for (int i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i ++)
 		VERIFY3U(mg_hist[i], ==, mg->mg_histogram[i]);
 
 	mutex_exit(&mg->mg_lock);
 
-	kmem_free(mg_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
+	kmem_free(mg_hist, sizeof (uint64_t) * ZFS_RANGE_TREE_HISTOGRAM_SIZE);
 }
 
 static void
@@ -1344,8 +1344,8 @@ __attribute__((always_inline)) inline
 static int
 metaslab_rangesize32_compare(const void *x1, const void *x2)
 {
-	const range_seg32_t *r1 = x1;
-	const range_seg32_t *r2 = x2;
+	const zfs_range_seg32_t *r1 = x1;
+	const zfs_range_seg32_t *r2 = x2;
 
 	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
@@ -1363,8 +1363,8 @@ __attribute__((always_inline)) inline
 static int
 metaslab_rangesize64_compare(const void *x1, const void *x2)
 {
-	const range_seg64_t *r1 = x1;
-	const range_seg64_t *r2 = x2;
+	const zfs_range_seg64_t *r1 = x1;
+	const zfs_range_seg64_t *r2 = x2;
 
 	uint64_t rs_size1 = r1->rs_end - r1->rs_start;
 	uint64_t rs_size2 = r2->rs_end - r2->rs_start;
@@ -1390,7 +1390,7 @@ metaslab_size_sorted_add(void *arg, uint64_t start, uint64_t size)
 	struct mssa_arg *mssap = arg;
 	zfs_range_tree_t *rt = mssap->rt;
 	metaslab_rt_arg_t *mrap = mssap->mra;
-	range_seg_max_t seg = {0};
+	zfs_range_seg_max_t seg = {0};
 	zfs_rs_set_start(&seg, rt, start);
 	zfs_rs_set_end(&seg, rt, start + size);
 	metaslab_rt_add(rt, &seg, mrap);
@@ -1411,10 +1411,10 @@ metaslab_size_tree_full_load(zfs_range_tree_t *rt)
 
 
 ZFS_BTREE_FIND_IN_BUF_FUNC(metaslab_rt_find_rangesize32_in_buf,
-    range_seg32_t, metaslab_rangesize32_compare)
+    zfs_range_seg32_t, metaslab_rangesize32_compare)
 
 ZFS_BTREE_FIND_IN_BUF_FUNC(metaslab_rt_find_rangesize64_in_buf,
-    range_seg64_t, metaslab_rangesize64_compare)
+    zfs_range_seg64_t, metaslab_rangesize64_compare)
 
 /*
  * Create any block allocator specific components. The current allocators
@@ -1432,12 +1432,12 @@ metaslab_rt_create(zfs_range_tree_t *rt, void *arg)
 	bt_find_in_buf_f bt_find;
 	switch (rt->rt_type) {
 	case ZFS_RANGE_SEG32:
-		size = sizeof (range_seg32_t);
+		size = sizeof (zfs_range_seg32_t);
 		compare = metaslab_rangesize32_compare;
 		bt_find = metaslab_rt_find_rangesize32_in_buf;
 		break;
 	case ZFS_RANGE_SEG64:
-		size = sizeof (range_seg64_t);
+		size = sizeof (zfs_range_seg64_t);
 		compare = metaslab_rangesize64_compare;
 		bt_find = metaslab_rt_find_rangesize64_in_buf;
 		break;
@@ -1603,7 +1603,7 @@ metaslab_block_find(zfs_btree_t *t, zfs_range_tree_t *rt, uint64_t start,
     uint64_t size, zfs_btree_index_t *where)
 {
 	zfs_range_seg_t *rs;
-	range_seg_max_t rsearch;
+	zfs_range_seg_max_t rsearch;
 
 	zfs_rs_set_start(&rsearch, rt, start);
 	zfs_rs_set_end(&rsearch, rt, start + size);
@@ -1857,7 +1857,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size)
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	zfs_btree_index_t where;
 	zfs_range_seg_t *rs;
-	range_seg_max_t rsearch;
+	zfs_range_seg_max_t rsearch;
 	uint64_t hbit = highbit64(size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
 	uint64_t max_size = metaslab_largest_allocatable(msp);
@@ -2035,7 +2035,7 @@ metaslab_aux_histogram_add(uint64_t *histogram, uint64_t shift,
 	 * from the space map histogram.
 	 */
 	int idx = 0;
-	for (int i = shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+	for (int i = shift; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
 		ASSERT3U(i, >=, idx + shift);
 		histogram[idx] += rt->rt_histogram[i] << (i - idx - shift);
 
@@ -3110,7 +3110,7 @@ metaslab_weight_from_range_tree(metaslab_t *msp)
 
 	ASSERT(msp->ms_loaded);
 
-	for (int i = RANGE_TREE_HISTOGRAM_SIZE - 1; i >= SPA_MINBLOCKSHIFT;
+	for (int i = ZFS_RANGE_TREE_HISTOGRAM_SIZE - 1; i >= SPA_MINBLOCKSHIFT;
 	    i--) {
 		uint8_t shift = msp->ms_group->mg_vd->vdev_ashift;
 		int max_idx = SPACE_MAP_HISTOGRAM_SIZE + shift - 1;

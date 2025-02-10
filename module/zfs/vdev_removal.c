@@ -1143,7 +1143,7 @@ spa_vdev_copy_segment(vdev_t *vd, zfs_range_tree_t *segs,
 		 * the allocation at the end of a segment, thus avoiding
 		 * additional split blocks.
 		 */
-		range_seg_max_t search;
+		zfs_range_seg_max_t search;
 		zfs_btree_index_t where;
 		zfs_rs_set_start(&search, segs, start + maxalloc);
 		zfs_rs_set_end(&search, segs, start + maxalloc);

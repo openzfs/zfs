@@ -645,7 +645,7 @@ done:
 }
 
 static void
-vdev_trim_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
+vdev_trim_xlate_last_rs_end(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	uint64_t *last_rs_end = (uint64_t *)arg;
 
@@ -654,7 +654,7 @@ vdev_trim_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
 }
 
 static void
-vdev_trim_xlate_progress(void *arg, range_seg64_t *physical_rs)
+vdev_trim_xlate_progress(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	vdev_t *vd = (vdev_t *)arg;
 
@@ -696,7 +696,7 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg64_t logical_rs, physical_rs, remain_rs;
+		zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
 
@@ -807,7 +807,7 @@ vdev_trim_load(vdev_t *vd)
 }
 
 static void
-vdev_trim_xlate_range_add(void *arg, range_seg64_t *physical_rs)
+vdev_trim_xlate_range_add(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	trim_args_t *ta = arg;
 	vdev_t *vd = ta->trim_vdev;
@@ -845,7 +845,7 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	trim_args_t *ta = arg;
 	vdev_t *vd = ta->trim_vdev;
-	range_seg64_t logical_rs;
+	zfs_range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 
@@ -1588,7 +1588,7 @@ vdev_trim_l2arc_thread(void *arg)
 	spa_t		*spa = vd->vdev_spa;
 	l2arc_dev_t	*dev = l2arc_vdev_get(vd);
 	trim_args_t	ta = {0};
-	range_seg64_t 	physical_rs;
+	zfs_range_seg64_t 	physical_rs;
 
 	ASSERT(vdev_is_concrete(vd));
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
@@ -1722,7 +1722,7 @@ int
 vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size)
 {
 	trim_args_t ta = {0};
-	range_seg64_t physical_rs;
+	zfs_range_seg64_t physical_rs;
 	int error;
 	physical_rs.rs_start = start;
 	physical_rs.rs_end = start + size;

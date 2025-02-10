@@ -2305,7 +2305,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
 	(void) rm;
 #ifdef ZFS_DEBUG
-	range_seg64_t logical_rs, physical_rs, remain_rs;
+	zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
 	    vdev_raidz_asize(zio->io_vd, rr->rr_size,
@@ -3650,8 +3650,8 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 }
 
 static void
-vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs)
+vdev_raidz_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs)
 {
 	(void) remain_rs;
 

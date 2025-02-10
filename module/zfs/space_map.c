@@ -497,7 +497,7 @@ space_map_histogram_add(space_map_t *sm, zfs_range_tree_t *rt, dmu_tx_t *tx)
 	 * map only cares about allocatable blocks (minimum of sm_shift) we
 	 * can safely ignore all ranges in the range tree smaller than sm_shift.
 	 */
-	for (int i = sm->sm_shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+	for (int i = sm->sm_shift; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
 
 		/*
 		 * Since the largest histogram bucket in the space map is
@@ -1050,7 +1050,7 @@ space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,
 			size += histogram[idx] * entry_size;
 
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2)) {
-			for (; idx < RANGE_TREE_HISTOGRAM_SIZE; idx++) {
+			for (; idx < ZFS_RANGE_TREE_HISTOGRAM_SIZE; idx++) {
 				ASSERT3U(idx, >=, single_entry_max_bucket);
 				entries_for_seg =
 				    1ULL << (idx - single_entry_max_bucket);
@@ -1067,7 +1067,7 @@ space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,
 	for (; idx <= double_entry_max_bucket; idx++)
 		size += histogram[idx] * 2 * sizeof (uint64_t);
 
-	for (; idx < RANGE_TREE_HISTOGRAM_SIZE; idx++) {
+	for (; idx < ZFS_RANGE_TREE_HISTOGRAM_SIZE; idx++) {
 		ASSERT3U(idx, >=, double_entry_max_bucket);
 		entries_for_seg = 1ULL << (idx - double_entry_max_bucket);
 		size += histogram[idx] *

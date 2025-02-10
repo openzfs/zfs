@@ -200,7 +200,7 @@ struct metaslab_class {
 	uint64_t		mc_deferred;	/* total deferred frees */
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
-	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+	uint64_t		mc_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
 	/*
 	 * List of all loaded metaslabs in the class, sorted in order of most
@@ -290,7 +290,7 @@ struct metaslab_group {
 	uint64_t		mg_allocations;
 	uint64_t		mg_failed_allocations;
 	uint64_t		mg_fragmentation;
-	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+	uint64_t		mg_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
 	int			mg_ms_disabled;
 	boolean_t		mg_disabled_updating;
