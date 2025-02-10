@@ -1602,8 +1602,8 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 			 * # of extents in exts_by_addr = # in exts_by_size.
 			 * B-tree efficiency is ~75%, but can be as low as 50%.
 			 */
-			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
-			    ((sizeof (range_seg_gap_t) + sizeof (uint64_t)) *
+			mused += zfs_btree_numnodes(&queue->q_exts_by_size) * ((
+			    sizeof (zfs_range_seg_gap_t) + sizeof (uint64_t)) *
 			    3 / 2) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
@@ -5006,7 +5006,7 @@ ext_size_destroy(zfs_range_tree_t *rt, void *arg)
 }
 
 static uint64_t
-ext_size_value(zfs_range_tree_t *rt, range_seg_gap_t *rsg)
+ext_size_value(zfs_range_tree_t *rt, zfs_range_seg_gap_t *rsg)
 {
 	(void) rt;
 	uint64_t size = rsg->rs_end - rsg->rs_start;
@@ -5021,7 +5021,7 @@ ext_size_add(zfs_range_tree_t *rt, zfs_range_seg_t *rs, void *arg)
 {
 	zfs_btree_t *size_tree = arg;
 	ASSERT3U(rt->rt_type, ==, ZFS_RANGE_SEG_GAP);
-	uint64_t v = ext_size_value(rt, (range_seg_gap_t *)rs);
+	uint64_t v = ext_size_value(rt, (zfs_range_seg_gap_t *)rs);
 	zfs_btree_add(size_tree, &v);
 }
 
@@ -5030,7 +5030,7 @@ ext_size_remove(zfs_range_tree_t *rt, zfs_range_seg_t *rs, void *arg)
 {
 	zfs_btree_t *size_tree = arg;
 	ASSERT3U(rt->rt_type, ==, ZFS_RANGE_SEG_GAP);
-	uint64_t v = ext_size_value(rt, (range_seg_gap_t *)rs);
+	uint64_t v = ext_size_value(rt, (zfs_range_seg_gap_t *)rs);
 	zfs_btree_remove(size_tree, &v);
 }
 

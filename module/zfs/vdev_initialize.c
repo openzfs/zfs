@@ -359,7 +359,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 }
 
 static void
-vdev_initialize_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_last_rs_end(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	uint64_t *last_rs_end = (uint64_t *)arg;
 
@@ -368,7 +368,7 @@ vdev_initialize_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
 }
 
 static void
-vdev_initialize_xlate_progress(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_progress(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	vdev_t *vd = (vdev_t *)arg;
 
@@ -407,7 +407,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg64_t logical_rs, physical_rs, remain_rs;
+		zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
 
@@ -481,7 +481,7 @@ vdev_initialize_load(vdev_t *vd)
 }
 
 static void
-vdev_initialize_xlate_range_add(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_range_add(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	vdev_t *vd = arg;
 
@@ -516,7 +516,7 @@ static void
 vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = arg;
-	range_seg64_t logical_rs;
+	zfs_range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 

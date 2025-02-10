@@ -643,7 +643,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			 * will be combined with adjacent allocated segments
 			 * as a single mapping.
 			 */
-			for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+			for (int i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE;
+			    i++) {
 				if (i + 1 < highbit64(vdev_removal_max_span)
 				    - 1) {
 					to_alloc +=

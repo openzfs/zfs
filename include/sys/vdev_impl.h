@@ -91,8 +91,8 @@ typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
  */
-typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *logical,
-    range_seg64_t *physical, range_seg64_t *remain);
+typedef void vdev_xlation_func_t(vdev_t *cvd, const zfs_range_seg64_t *logical,
+    zfs_range_seg64_t *physical, zfs_range_seg64_t *remain);
 typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
 typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
@@ -616,8 +616,8 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
-extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs);
+extern void vdev_default_xlate(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg);
 extern uint64_t vdev_default_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
