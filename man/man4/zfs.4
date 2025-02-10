@@ -1040,12 +1040,12 @@ Flush at least this many entries each transaction.
 .Pp
 OpenZFS will a fraction of the log every TXG, to keep the size proportional
 to the ingest rate (see
-.Sy zfs_dedup_log_flush_txgs) .
+.Sy zfs_dedup_log_flush_txgs ) .
 This sets the minimum for that estimate, which prevents the backlog from
 never completely draining if the ingest rate falls.
-Raising it can force OpenZFS to flush more aggressively, keeping the log small
-and so reducing pool import times, but can make it less able to back off if
-log flushing would compete with other IO too much.
+Raising it can force OpenZFS to flush more aggressively, reducing the backlog
+to zero more quickly, but can make it less able to back off if log
+flushing would compete with other IO too much.
 .
 .It Sy zfs_dedup_log_flush_entries_max Ns = Ns Sy UINT_MAX Ns Pq uint
 Flush at most this many entries each transaction.
