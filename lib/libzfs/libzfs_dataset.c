@@ -4673,6 +4673,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
+		(void) strlcpy(zhp->zfs_name, target, sizeof (zhp->zfs_name));
 	}
 
 error:
