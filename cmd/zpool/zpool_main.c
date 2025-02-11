@@ -32,7 +32,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
- * Copyright (c) 2021, 2023, Klara Inc.
+ * Copyright (c) 2021, 2023, 2025, Klara, Inc.
  * Copyright [2021] Hewlett Packard Enterprise Development LP
  */
 
@@ -262,6 +262,7 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
 	    ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE,
 	    ZPOOL_CONFIG_VDEV_TRIM_ACTIVE_QUEUE,
 	    ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE,
+	    ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE,
 	    NULL},
 	[IOS_RQ_HISTO] = {
 	    ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO,
@@ -4716,7 +4717,7 @@ typedef struct name_and_columns {
 	unsigned int columns;	/* Center name to this number of columns */
 } name_and_columns_t;
 
-#define	IOSTAT_MAX_LABELS	15	/* Max number of labels on one line */
+#define	IOSTAT_MAX_LABELS	17	/* Max number of labels on one line */
 
 static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 {
@@ -4727,7 +4728,7 @@ static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 	    {NULL}},
 	[IOS_QUEUES] = {{"syncq_read", 2}, {"syncq_write", 2},
 	    {"asyncq_read", 2}, {"asyncq_write", 2}, {"scrubq_read", 2},
-	    {"trimq_write", 2}, {"rebuildq_write", 2}, {NULL}},
+	    {"trimq_write", 2}, {"rebuildq_write", 2}, {"flushq", 2}, {NULL}},
 	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2}, {"syncq_wait", 2},
 	    {"asyncq_wait", 2}, {NULL}},
 	[IOS_RQ_HISTO] = {{"sync_read", 2}, {"sync_write", 2},
@@ -4745,7 +4746,8 @@ static const name_and_columns_t iostat_bottom_labels[][IOSTAT_MAX_LABELS] =
 	    {NULL}},
 	[IOS_QUEUES] = {{"pend"}, {"activ"}, {"pend"}, {"activ"}, {"pend"},
 	    {"activ"}, {"pend"}, {"activ"}, {"pend"}, {"activ"},
-	    {"pend"}, {"activ"}, {"pend"}, {"activ"}, {NULL}},
+	    {"pend"}, {"activ"}, {"pend"}, {"activ"}, {"pend"}, {"activ"},
+	    {NULL}},
 	[IOS_L_HISTO] = {{"read"}, {"write"}, {"read"}, {"write"}, {"read"},
 	    {"write"}, {"read"}, {"write"}, {"scrub"}, {"trim"}, {"rebuild"},
 	    {NULL}},
@@ -5417,6 +5419,8 @@ print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *newnv)
 		ZPOOL_CONFIG_VDEV_TRIM_ACTIVE_QUEUE,
 		ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,
 		ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE,
+		ZPOOL_CONFIG_VDEV_FLUSH_IO_PEND,
+		ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE,
 	};
 
 	struct stat_array *nva;

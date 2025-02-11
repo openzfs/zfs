@@ -586,6 +586,8 @@ print_queue_stats(nvlist_t *nvroot, const char *pool_name,
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE,	"async_w_pend"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE,	"async_scrub_pend"},
 	    {ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,	"rebuild_pend"},
+	    {ZPOOL_CONFIG_VDEV_FLUSH_IO_PEND,		"flush_io_pend"},
+	    {ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE,		"flush_io_active"},
 	    {NULL,	NULL}
 	};
 

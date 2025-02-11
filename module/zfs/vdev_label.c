@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 /*
@@ -281,6 +282,11 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 
 	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,
 	    vsx->vsx_pend_queue[ZIO_PRIORITY_REBUILD]);
+
+	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_FLUSH_IO_PEND,
+	    vsx->vsx_flush_io_pend);
+	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE,
+	    vsx->vsx_flush_io_active);
 
 	/* Histograms */
 	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO,
