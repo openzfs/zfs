@@ -169,6 +169,7 @@ uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 static int zfs_zil_clean_taskq_nthr_pct = 100;
 static int zfs_zil_clean_taskq_minalloc = 1024;
 static int zfs_zil_clean_taskq_maxalloc = 1024 * 1024;
+int zfs_zil_replay_prime_arc = 0;
 
 int
 dsl_pool_open_special_dir(dsl_pool_t *dp, const char *name, dsl_dir_t **ddp)
@@ -216,6 +217,10 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	    zfs_zil_clean_taskq_minalloc,
 	    zfs_zil_clean_taskq_maxalloc,
 	    TASKQ_PREPOPULATE | TASKQ_THREADS_CPU_PCT);
+
+	dp->dp_zil_prime_taskq = taskq_create("dp_zil_prime_taskq",
+	    100, minclsyspri, boot_ncpus, boot_ncpus * 2,
+	    TASKQ_THREADS_CPU_PCT);
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);

@@ -1123,7 +1123,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				zfsvfs->z_use_namecache = B_FALSE;
 				zfsvfs->z_replay = B_TRUE;
 				zil_replay(zfsvfs->z_os, zfsvfs,
-				    zfs_replay_vector);
+				    zfs_replay_vector, zfs_replay_prime_vector);
 				zfsvfs->z_replay = B_FALSE;
 				zfsvfs->z_use_namecache = use_nc;
 			}

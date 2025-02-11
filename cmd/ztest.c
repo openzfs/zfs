@@ -1261,6 +1261,29 @@ ztest_record_enospc(const char *s)
 	ztest_shared->zs_enospc_count++;
 }
 
+static zfs_replay_prime_arc_func_t *ztest_replay_prime_vector[TX_MAX_TYPE] = {
+	NULL,			/* 0 no such transaction type */
+	NULL,			/* TX_CREATE */
+	NULL,			/* TX_MKDIR */
+	NULL,			/* TX_MKXATTR */
+	NULL,			/* TX_SYMLINK */
+	NULL,			/* TX_REMOVE */
+	NULL,			/* TX_RMDIR */
+	NULL,			/* TX_LINK */
+	NULL,			/* TX_RENAME */
+	NULL,			/* TX_WRITE */
+	NULL,			/* TX_TRUNCATE */
+	NULL,			/* TX_SETATTR */
+	NULL,			/* TX_ACL */
+	NULL,			/* TX_CREATE_ACL */
+	NULL,			/* TX_CREATE_ATTR */
+	NULL,			/* TX_CREATE_ACL_ATTR */
+	NULL,			/* TX_MKDIR_ACL */
+	NULL,			/* TX_MKDIR_ATTR */
+	NULL,			/* TX_MKDIR_ACL_ATTR */
+	NULL,			/* TX_WRITE2 */
+};
+
 static uint64_t
 ztest_get_ashift(void)
 {
@@ -3010,7 +3033,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 
 	/* zfsvfs_setup() */
 	VERIFY3P(zil_open(os, ztest_get_data, NULL), ==, zd->zd_zilog);
-	zil_replay(os, zd, ztest_replay_vector);
+	zil_replay(os, zd, ztest_replay_vector, ztest_replay_prime_vector);
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 	mutex_exit(&zd->zd_dirobj_lock);
@@ -4715,7 +4738,8 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	    ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE,
 	    B_TRUE, FTAG, &os) == 0) {
 		ztest_zd_init(zdtmp, NULL, os);
-		zil_replay(os, zdtmp, ztest_replay_vector);
+		zil_replay(os, zdtmp, ztest_replay_vector,
+		    ztest_replay_prime_vector);
 		ztest_zd_fini(zdtmp);
 		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
@@ -7836,7 +7860,7 @@ ztest_dataset_open(int d)
 
 	ztest_dataset_dirobj_verify(zd);
 
-	zil_replay(os, zd, ztest_replay_vector);
+	zil_replay(os, zd, ztest_replay_vector, ztest_replay_prime_vector);
 
 	ztest_dataset_dirobj_verify(zd);
 
@@ -7883,7 +7907,7 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
 
 	ztest_zd_init(zdtmp, NULL, os);
-	zil_replay(os, zdtmp, ztest_replay_vector);
+	zil_replay(os, zdtmp, ztest_replay_vector, ztest_replay_prime_vector);
 	ztest_zd_fini(zdtmp);
 
 	if (dmu_objset_zil(os)->zl_parse_lr_count != 0 &&

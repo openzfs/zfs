@@ -65,6 +65,7 @@ extern krwlock_t zvol_state_lock;
 extern struct hlist_head *zvol_htable;
 #define	ZVOL_HT_HEAD(hash)	(&zvol_htable[(hash) & (ZVOL_HT_SIZE-1)])
 extern zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE];
+extern zfs_replay_prime_arc_func_t *const zvol_replay_prime_vector[TX_MAX_TYPE];
 
 extern unsigned int zvol_volmode;
 extern unsigned int zvol_inhibit_dev;
