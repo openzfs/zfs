@@ -2784,7 +2784,7 @@ ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_txgs, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_cap, UINT, ZMOD_RW,
 	"Soft cap for the size of the current dedup log");
 
-ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_hard_cap, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_hard_cap, UINT, ZMOD_RW,
 	"Whether to use the soft cap as a hard cap");
 
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_flow_rate_txgs, UINT, ZMOD_RW,

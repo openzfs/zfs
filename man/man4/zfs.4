@@ -1038,8 +1038,8 @@ completes under this time.
 .It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 100 Ns Pq uint
 Flush at least this many entries each transaction.
 .Pp
-OpenZFS will a fraction of the log every TXG, to keep the size proportional
-to the ingest rate (see
+OpenZFS will flush a fraction of the log every TXG, to keep the size
+proportional to the ingest rate (see
 .Sy zfs_dedup_log_flush_txgs ) .
 This sets the minimum for that estimate, which prevents the backlog from
 never completely draining if the ingest rate falls.
@@ -1071,7 +1071,7 @@ the flushing to try to bring it back down to the soft cap.
 Setting it will reduce import times, but will reduce the efficiency of
 the DDT log, increasing the expected number of IOs required to flush the same
 amount of data.
-.It Sy zfs_dedup_log_hard_cap Ns = Ns Sy 0 Ns | Ns 1 Pq int
+.It Sy zfs_dedup_log_hard_cap Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Whether to treat the log cap as a firm cap or not.
 .Pp
 When set to 0 (the default), the
