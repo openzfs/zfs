@@ -218,7 +218,8 @@ NVPAIR_OBJS := \
 	fnvpair.o \
 	nvpair.o \
 	nvpair_alloc_fixed.o \
-	nvpair_alloc_spl.o
+	nvpair_alloc_spl.o \
+	nvpair_json.o
 
 zfs-objs += $(addprefix nvpair/,$(NVPAIR_OBJS))
 
@@ -231,6 +232,8 @@ zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
 
 ZCOMMON_OBJS := \
 	cityhash.o \
+	json.o \
+	literals.o \
 	simd_stat.o \
 	zfeature_common.o \
 	zfs_comutil.o \
@@ -377,6 +380,7 @@ ZFS_OBJS := \
 	spa_log_spacemap.o \
 	spa_misc.o \
 	spa_stats.o \
+	spa_stats_json.o \
 	space_map.o \
 	space_reftree.o \
 	txg.o \
