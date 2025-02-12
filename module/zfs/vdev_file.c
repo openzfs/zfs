@@ -249,10 +249,21 @@ vdev_file_io_fsync(void *arg)
 }
 
 static void
+vdev_file_io_deallocate(void *arg)
+{
+	zio_t *zio = (zio_t *)arg;
+	vdev_file_t *vf = zio->io_vd->vdev_tsd;
+
+	zio->io_error = zfs_file_deallocate(vf->vf_file,
+	    zio->io_offset, zio->io_size);
+
+	zio_interrupt(zio);
+}
+
+static void
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_file_t *vf = vd->vdev_tsd;
 
 	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
@@ -263,33 +274,23 @@ vdev_file_io_start(zio_t *zio)
 		}
 
 		if (zfs_nocacheflush) {
-			zio_execute(zio);
+			zio_interrupt(zio);
 			return;
 		}
 
-#ifdef __linux__
-		/*
-		 * We cannot safely call vfs_fsync() when PF_FSTRANS
-		 * is set in the current context.  Filesystems like
-		 * XFS include sanity checks to verify it is not
-		 * already set, see xfs_vm_writepage().  Therefore
-		 * the sync must be dispatched to a different context.
-		 */
-		if (__spl_pf_fstrans_check()) {
-			VERIFY3U(taskq_dispatch(vdev_file_taskq,
-			    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
-			    TASKQID_INVALID);
-			return;
-		}
-#endif
+		VERIFY3U(taskq_dispatch(vdev_file_taskq,
+		    vdev_file_io_fsync, zio, TQ_SLEEP), !=, TASKQID_INVALID);
 
-		vdev_file_io_fsync(zio);
 		return;
-	} else if (zio->io_type == ZIO_TYPE_TRIM) {
+	}
+
+	if (zio->io_type == ZIO_TYPE_TRIM) {
 		ASSERT3U(zio->io_size, !=, 0);
-		zio->io_error = zfs_file_deallocate(vf->vf_file,
-		    zio->io_offset, zio->io_size);
-		zio_execute(zio);
+
+		VERIFY3U(taskq_dispatch(vdev_file_taskq,
+		    vdev_file_io_deallocate, zio, TQ_SLEEP), !=,
+		    TASKQID_INVALID);
+
 		return;
 	}
 
