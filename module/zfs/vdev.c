@@ -5036,6 +5036,17 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				vsx->vsx_total_histo[type]
 				    [L_HISTO(zio->io_delta)]++;
 			}
+		} else if (type == ZIO_TYPE_FLUSH) {
+			ASSERT(vd->vdev_ops->vdev_op_leaf);
+			ASSERT3U(zio->io_delta, !=, 0);
+			ASSERT3U(zio->io_delay, !=, 0);
+
+			/*
+			 * Flush ZIOs are not queued, but do have latency
+			 * numbers which are interesting to see.
+			 */
+			vsx->vsx_disk_histo[type][L_HISTO(zio->io_delay)]++;
+			vsx->vsx_total_histo[type][L_HISTO(zio->io_delta)]++;
 		}
 
 		mutex_exit(&vd->vdev_stat_lock);

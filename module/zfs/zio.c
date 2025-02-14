@@ -4507,28 +4507,42 @@ zio_vdev_io_start(zio_t *zio)
 	 * applying the dRAID mapping.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf &&
-	    vd->vdev_ops != &vdev_draid_spare_ops &&
-	    (zio->io_type == ZIO_TYPE_READ ||
-	    zio->io_type == ZIO_TYPE_WRITE ||
-	    zio->io_type == ZIO_TYPE_TRIM)) {
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
 
-		if ((zio = vdev_queue_io(zio)) == NULL)
-			return (NULL);
+		if (zio->io_type == ZIO_TYPE_READ ||
+		    zio->io_type == ZIO_TYPE_WRITE ||
+		    zio->io_type == ZIO_TYPE_TRIM) {
 
-		if (!vdev_accessible(vd, zio)) {
-			zio->io_error = SET_ERROR(ENXIO);
-			zio_interrupt(zio);
-			return (NULL);
-		}
-		zio->io_delay = gethrtime();
-
-		if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
 			/*
-			 * "no-op" injections return success, but do no actual
-			 * work. Just return it.
+			 * READ, WRITE and TRIM all go to the queue for
+			 * reordering and aggregation.
 			 */
-			zio_delay_interrupt(zio);
-			return (NULL);
+
+			if ((zio = vdev_queue_io(zio)) == NULL)
+				return (NULL);
+
+			if (!vdev_accessible(vd, zio)) {
+				zio->io_error = SET_ERROR(ENXIO);
+				zio_interrupt(zio);
+				return (NULL);
+			}
+			zio->io_delay = gethrtime();
+
+			if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
+				/*
+				 * "no-op" injections return success, but do no
+				 * actual work. Just return it.
+				 */
+
+				zio_delay_interrupt(zio);
+				return (NULL);
+			}
+		} else if (zio->io_type == ZIO_TYPE_FLUSH) {
+			/*
+			 * Record start time for flush, so we can still record
+			 * the time it takes.
+			 */
+			zio->io_delay = gethrtime();
 		}
 	}
 
@@ -4574,6 +4588,8 @@ zio_vdev_io_done(zio_t *zio)
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		if (zio->io_type != ZIO_TYPE_FLUSH)
 			vdev_queue_io_done(zio);
+		else
+			zio->io_delta = gethrtime() - zio->io_timestamp;
 
 		if (zio_injection_enabled && zio->io_error == 0)
 			zio->io_error = zio_handle_device_injections(vd, zio,

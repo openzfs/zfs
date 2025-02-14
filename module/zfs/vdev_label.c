@@ -297,6 +297,10 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	    vsx->vsx_total_histo[ZIO_TYPE_WRITE],
 	    ARRAY_SIZE(vsx->vsx_total_histo[ZIO_TYPE_WRITE]));
 
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_TOT_F_LAT_HISTO,
+	    vsx->vsx_disk_histo[ZIO_TYPE_FLUSH],
+	    ARRAY_SIZE(vsx->vsx_disk_histo[ZIO_TYPE_FLUSH]));
+
 	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_DISK_R_LAT_HISTO,
 	    vsx->vsx_disk_histo[ZIO_TYPE_READ],
 	    ARRAY_SIZE(vsx->vsx_disk_histo[ZIO_TYPE_READ]));
@@ -304,6 +308,10 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_DISK_W_LAT_HISTO,
 	    vsx->vsx_disk_histo[ZIO_TYPE_WRITE],
 	    ARRAY_SIZE(vsx->vsx_disk_histo[ZIO_TYPE_WRITE]));
+
+	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_DISK_F_LAT_HISTO,
+	    vsx->vsx_disk_histo[ZIO_TYPE_FLUSH],
+	    ARRAY_SIZE(vsx->vsx_disk_histo[ZIO_TYPE_FLUSH]));
 
 	fnvlist_add_uint64_array(nvx, ZPOOL_CONFIG_VDEV_SYNC_R_LAT_HISTO,
 	    vsx->vsx_queue_histo[ZIO_PRIORITY_SYNC_READ],
