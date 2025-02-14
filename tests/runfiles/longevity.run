@@ -17,7 +17,6 @@
 quiet = False
 user = root
 timeout = 10800
-outputdir = /var/tmp/test_results
 
 [/opt/zfs-tests/tests/longevity]
 tests = ['slop_space_test']
