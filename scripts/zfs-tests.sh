@@ -505,7 +505,6 @@ user = $SINGLETESTUSER
 timeout = 600
 post_user = root
 post =
-outputdir = /var/tmp/test_results
 EOF
 	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
 		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
