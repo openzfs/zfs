@@ -1739,30 +1739,6 @@ zio_vdev_flush(vdev_t *vd, zio_done_func_t *done, void *priv)
 	return (zio);
 }
 
-/*
- * Send a flush command to the given vdev. Unlike most zio creation functions,
- * the flush zios are issued immediately. You can wait on pio to pause until
- * the flushes complete.
- */
-void
-zio_flush(zio_t *pio, vdev_t *vd)
-{
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
-
-	if (vd->vdev_nowritecache)
-		return;
-
-	if (vd->vdev_children == 0) {
-		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
-		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
-		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
-	} else {
-		for (uint64_t c = 0; c < vd->vdev_children; c++)
-			zio_flush(pio, vd->vdev_child[c]);
-	}
-}
-
 void
 zio_shrink(zio_t *zio, uint64_t size)
 {

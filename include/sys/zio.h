@@ -603,7 +603,6 @@ extern zio_t *zio_vdev_flush(vdev_t *vd, zio_done_func_t *done, void *priv);
 
 extern int zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg,
     blkptr_t *new_bp, uint64_t size, boolean_t *slog);
-extern void zio_flush(zio_t *zio, vdev_t *vd);
 extern void zio_shrink(zio_t *zio, uint64_t size);
 
 extern size_t zio_get_compression_max_size(enum zio_compress compress,
