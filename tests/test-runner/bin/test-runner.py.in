@@ -746,8 +746,11 @@ class TestRun(object):
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
-                setattr(self, opt, config.get('DEFAULT', opt))
-        self.outputdir = os.path.join(self.outputdir, self.timestamp)
+                if opt == 'outputdir':
+                    outputdir = config.get('DEFAULT', opt)
+                    setattr(self, opt, os.path.join(outputdir, self.timestamp))
+                else:
+                    setattr(self, opt, config.get('DEFAULT', opt))
 
         testdir = options.testdir
 
@@ -775,6 +778,11 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(testgroup, prop,
                                         os.path.join(testdir, failsafe))
+                            elif prop == 'outputdir':
+                                outputdir = config.get(sect, prop)
+                                setattr(self, opt,
+                                        os.path.join(outputdir,
+                                                     self.timestamp))
                             else:
                                 setattr(testgroup, prop,
                                         config.get(sect, prop))
@@ -793,6 +801,11 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(test, prop,
                                         os.path.join(testdir, failsafe))
+                            elif prop == 'outputdir':
+                                outputdir = config.get(sect, prop)
+                                setattr(self, opt,
+                                        os.path.join(outputdir,
+                                                     self.timestamp))
                             else:
                                 setattr(test, prop, config.get(sect, prop))
 
