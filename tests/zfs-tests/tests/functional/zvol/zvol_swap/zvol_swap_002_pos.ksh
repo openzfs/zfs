@@ -39,7 +39,7 @@
 #
 # STRATEGY:
 #	1. Create a new zvol and add it as swap
-#	2. Fill //var/tmp with 80% the size of the zvol
+#	2. Fill //var/tmp (TEST_BASE_DIR) with 80% the size of the zvol
 #	5. Remove the new zvol, and restore original swap devices
 #
 
@@ -54,7 +54,7 @@ function cleanup
 	fi
 }
 
-log_assert "Using a zvol as swap space, fill /var/tmp to 80%."
+log_assert "Using a zvol as swap space, fill $TEST_BASE_DIR to 80%."
 
 log_onexit cleanup
 
@@ -73,4 +73,4 @@ log_must dd if=/dev/urandom of=$TEMPFILE bs=1048576 count=$count
 log_must rm -f $TEMPFILE
 log_must swap_cleanup $swapdev
 
-log_pass "Using a zvol as swap space, fill /var/tmp to 80%."
+log_pass "Using a zvol as swap space, fill $TEST_BASE_DIR to 80%."
