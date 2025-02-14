@@ -152,7 +152,7 @@ cleanup_all() {
 	else
 		TEST_LOOPBACKS=$("${LOSETUP}" -a | awk -F: '/file-vdev/ {print $1}')
 	fi
-	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* /var/tmp/file-vdev* 2>/dev/null)
+	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* 2>/dev/null)
 
 	msg
 	msg "--- Cleanup ---"
@@ -308,8 +308,8 @@ constrain_path() {
 		# Special case links for zfs test suite utilities
 		create_links "$CMD_DIR/tests/zfs-tests/cmd" "$ZFSTEST_FILES"
 	else
-		# Constrained path set to /var/tmp/constrained_path.*
-		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXXXX}
+		# Constrained path set to $FILEDIR/constrained_path.*
+		SYSTEMDIR=${SYSTEMDIR:-$FILEDIR/constrained_path.XXXXXX}
 		STF_PATH=$(mktemp -d "$SYSTEMDIR")
 		STF_PATH_REMOVE="yes"
 		STF_MISSING_BIN=""
@@ -492,7 +492,7 @@ if [ -n "$SINGLETEST" ]; then
 	if [ -n "$TAGS" ]; then
 		fail "-t and -T are mutually exclusive."
 	fi
-	RUNFILE_DIR="/var/tmp"
+	RUNFILE_DIR="$FILEDIR"
 	RUNFILES="zfs-tests.$$.run"
 	[ -n "$QUIET" ] && SINGLEQUIET="True" || SINGLEQUIET="False"
 
