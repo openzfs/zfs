@@ -1,9 +1,19 @@
 // This file is generated from a similarly-named Perl script in the BoringSSL
 // source tree. Do not edit by hand.
 
-#include <openssl/asm_base.h>
+#if defined(__x86_64__) && defined(HAVE_AVX) && \
+    defined(HAVE_VAES) && defined(HAVE_VPCLMULQDQ)
 
-#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_X86_64) && defined(__ELF__)
+#define _ASM
+#include <sys/asm_linkage.h>
+
+/* Windows userland links with OpenSSL */
+#if !defined (_WIN32) || defined (_KERNEL)
+
+#ifndef _CET_ENDBR
+#define _CET_ENDBR
+#endif
+
 .section	.rodata
 .align	16
 
@@ -48,7 +58,11 @@ _CET_ENDBR
 
 
 
-	vpshufd	$0x4e,(%rsi),%xmm3
+	vmovdqu	(%rsi),%xmm3
+	// KCF/ICP stores H in network byte order with the hi qword first
+	// so we need to swap all bytes, not the 2 qwords.
+	vmovdqu	.Lbswap_mask(%rip),%xmm4
+	vpshufb	%xmm4,%xmm3,%xmm3
 
 
 
@@ -381,8 +395,8 @@ _CET_ENDBR
 
 
 
-	movl	240(%rcx),%r10d
-	leal	-20(,%r10,4),%r10d
+	movl	504(%rcx),%r10d		// ICP has a larger offset for rounds.
+	leal	-24(,%r10,4),%r10d	// ICP uses 10,12,14 not 9,11,13 for rounds.
 
 
 
@@ -917,8 +931,8 @@ _CET_ENDBR
 
 
 
-	movl	240(%rcx),%r10d
-	leal	-20(,%r10,4),%r10d
+	movl	504(%rcx),%r10d		// ICP has a larger offset for rounds.
+	leal	-24(,%r10,4),%r10d	// ICP uses 10,12,14 not 9,11,13 for rounds.
 
 
 
@@ -1315,4 +1329,12 @@ _CET_ENDBR
 
 .cfi_endproc
 .size	aes_gcm_dec_update_vaes_avx2, . - aes_gcm_dec_update_vaes_avx2
+
+#endif /* !_WIN32 || _KERNEL */
+
+/* Mark the stack non-executable. */
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
 #endif
+
+#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
