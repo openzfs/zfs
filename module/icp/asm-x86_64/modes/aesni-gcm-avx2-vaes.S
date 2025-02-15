@@ -2,11 +2,17 @@
 // This file is generated from a similarly-named Perl script in the BoringSSL
 // source tree. Do not edit by hand.
 
-#include <openssl/asm_base.h>
+#if defined(__x86_64__) && defined(HAVE_AVX) && \
+    defined(HAVE_VAES) && defined(HAVE_VPCLMULQDQ)
 
-#if !defined(OPENSSL_NO_ASM) && defined(OPENSSL_X86_64) && defined(__ELF__)
+#define _ASM
+#include <sys/asm_linkage.h>
+
+/* Windows userland links with OpenSSL */
+#if !defined (_WIN32) || defined (_KERNEL)
+
 .section	.rodata
-.align	16
+.balign	16
 
 
 .Lbswap_mask:
@@ -26,7 +32,7 @@
 .Lgfpoly_and_internal_carrybit:
 .quad	1, 0xc200000000000001
 
-.align	32
+.balign	32
 
 .Lctr_pattern:
 .quad	0, 0
@@ -35,21 +41,20 @@
 .quad	2, 0
 .quad	2, 0
 
-.text
-.globl	gcm_init_vpclmulqdq_avx2
-.hidden gcm_init_vpclmulqdq_avx2
-.type	gcm_init_vpclmulqdq_avx2,@function
-.align	32
-gcm_init_vpclmulqdq_avx2:
+ENTRY_ALIGN(gcm_init_vpclmulqdq_avx2, 32)
 .cfi_startproc
 
-_CET_ENDBR
+ENDBR
 
 
 
 
 
-	vpshufd	$0x4e,(%rsi),%xmm3
+	vmovdqu	(%rsi),%xmm3
+	// KCF/ICP stores H in network byte order with the hi qword first
+	// so we need to swap all bytes, not the 2 qwords.
+	vmovdqu	.Lbswap_mask(%rip),%xmm4
+	vpshufb	%xmm4,%xmm3,%xmm3
 
 
 
@@ -150,18 +155,14 @@ _CET_ENDBR
 	vmovdqu	%ymm0,128(%rdi)
 
 	vzeroupper
-	ret
+	RET
 
 .cfi_endproc
-.size	gcm_init_vpclmulqdq_avx2, . - gcm_init_vpclmulqdq_avx2
-.globl	gcm_gmult_vpclmulqdq_avx2
-.hidden gcm_gmult_vpclmulqdq_avx2
-.type	gcm_gmult_vpclmulqdq_avx2,@function
-.align	32
-gcm_gmult_vpclmulqdq_avx2:
+SET_SIZE(gcm_init_vpclmulqdq_avx2)
+ENTRY_ALIGN(gcm_gmult_vpclmulqdq_avx2, 32)
 .cfi_startproc
 
-_CET_ENDBR
+ENDBR
 
 
 
@@ -188,18 +189,14 @@ _CET_ENDBR
 
 	vpshufb	%xmm1,%xmm0,%xmm0
 	vmovdqu	%xmm0,(%rdi)
-	ret
+	RET
 
 .cfi_endproc
-.size	gcm_gmult_vpclmulqdq_avx2, . - gcm_gmult_vpclmulqdq_avx2
-.globl	gcm_ghash_vpclmulqdq_avx2
-.hidden gcm_ghash_vpclmulqdq_avx2
-.type	gcm_ghash_vpclmulqdq_avx2,@function
-.align	32
-gcm_ghash_vpclmulqdq_avx2:
+SET_SIZE(gcm_gmult_vpclmulqdq_avx2)
+ENTRY_ALIGN(gcm_ghash_vpclmulqdq_avx2, 32)
 .cfi_startproc
 
-_CET_ENDBR
+ENDBR
 
 
 
@@ -349,18 +346,14 @@ _CET_ENDBR
 
 	vpshufb	%xmm6,%xmm5,%xmm5
 	vmovdqu	%xmm5,(%rdi)
-	ret
+	RET
 
 .cfi_endproc
-.size	gcm_ghash_vpclmulqdq_avx2, . - gcm_ghash_vpclmulqdq_avx2
-.globl	aes_gcm_enc_update_vaes_avx2
-.hidden aes_gcm_enc_update_vaes_avx2
-.type	aes_gcm_enc_update_vaes_avx2,@function
-.align	32
-aes_gcm_enc_update_vaes_avx2:
+SET_SIZE(gcm_ghash_vpclmulqdq_avx2)
+ENTRY_ALIGN(aes_gcm_enc_update_vaes_avx2, 32)
 .cfi_startproc
 
-_CET_ENDBR
+ENDBR
 	pushq	%r12
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%r12,-16
@@ -382,8 +375,8 @@ _CET_ENDBR
 
 
 
-	movl	240(%rcx),%r10d
-	leal	-20(,%r10,4),%r10d
+	movl	504(%rcx),%r10d		// ICP has a larger offset for rounds.
+	leal	-24(,%r10,4),%r10d	// ICP uses 10,12,14 not 9,11,13 for rounds.
 
 
 
@@ -449,7 +442,7 @@ _CET_ENDBR
 	addq	$-128,%rdx
 	cmpq	$127,%rdx
 	jbe	.Lghash_last_ciphertext_4x__func1
-.align	16
+.balign	16
 .Lcrypt_loop_4x__func1:
 
 
@@ -890,18 +883,14 @@ _CET_ENDBR
 	popq	%r12
 .cfi_adjust_cfa_offset	-8
 .cfi_restore	%r12
-	ret
+	RET
 
 .cfi_endproc
-.size	aes_gcm_enc_update_vaes_avx2, . - aes_gcm_enc_update_vaes_avx2
-.globl	aes_gcm_dec_update_vaes_avx2
-.hidden aes_gcm_dec_update_vaes_avx2
-.type	aes_gcm_dec_update_vaes_avx2,@function
-.align	32
-aes_gcm_dec_update_vaes_avx2:
+SET_SIZE(aes_gcm_enc_update_vaes_avx2)
+ENTRY_ALIGN(aes_gcm_dec_update_vaes_avx2, 32)
 .cfi_startproc
 
-_CET_ENDBR
+ENDBR
 	pushq	%r12
 .cfi_adjust_cfa_offset	8
 .cfi_offset	%r12,-16
@@ -918,8 +907,8 @@ _CET_ENDBR
 
 
 
-	movl	240(%rcx),%r10d
-	leal	-20(,%r10,4),%r10d
+	movl	504(%rcx),%r10d		// ICP has a larger offset for rounds.
+	leal	-24(,%r10,4),%r10d	// ICP uses 10,12,14 not 9,11,13 for rounds.
 
 
 
@@ -938,7 +927,7 @@ _CET_ENDBR
 
 	vmovdqu	128(%r9),%ymm7
 	vmovdqu	128+32(%r9),%ymm8
-.align	16
+.balign	16
 .Lcrypt_loop_4x__func2:
 
 
@@ -1312,8 +1301,16 @@ _CET_ENDBR
 	popq	%r12
 .cfi_adjust_cfa_offset	-8
 .cfi_restore	%r12
-	ret
+	RET
 
 .cfi_endproc
-.size	aes_gcm_dec_update_vaes_avx2, . - aes_gcm_dec_update_vaes_avx2
+SET_SIZE(aes_gcm_dec_update_vaes_avx2)
+
+#endif /* !_WIN32 || _KERNEL */
+
+/* Mark the stack non-executable. */
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits
 #endif
+
+#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
