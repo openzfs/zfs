@@ -24,6 +24,8 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
@@ -421,6 +423,46 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES], [
+	AC_MSG_CHECKING([whether host toolchain supports VAES])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+			__asm__ __volatile__("vaesenc %ymm0, %ymm1, %ymm0");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_VAES], 1, [Define if host toolchain supports VAES])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ], [
+	AC_MSG_CHECKING([whether host toolchain supports VPCLMULQDQ])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+			__asm__ __volatile__("vpclmulqdq %0, %%ymm4, %%ymm3, %%ymm5" :: "i"(0));
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_VPCLMULQDQ], 1, [Define if host toolchain supports VPCLMULQDQ])
 	], [
 		AC_MSG_RESULT([no])
 	])

@@ -174,6 +174,7 @@ typedef struct gcm_ctx {
 	uint8_t *gcm_pt_buf;
 #ifdef CAN_USE_GCM_ASM
 	boolean_t gcm_use_avx;
+	boolean_t gcm_use_avx2;
 #endif
 } gcm_ctx_t;
 
