@@ -26,13 +26,13 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-DATAFILE="$TMPDIR/datafile"
+DATAFILE=$(mktemp)
 
 function cleanup
 {
 	destroy_pool $TESTPOOL
 	unload_scsi_debug
-	rm -f $DATA_FILE
+	rm -f $DATAFILE
 }
 
 log_onexit cleanup
