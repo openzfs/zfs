@@ -238,7 +238,15 @@ User: %s
             if os.path.isfile(cmd+'.sh') and os.access(cmd+'.sh', os.X_OK):
                 cmd += '.sh'
 
-        ret = '%s -E -u %s %s' % (SUDO, user, cmd)
+        # glibc (at least) will not pass TMPDIR through to setuid programs.
+        # if set, arrange for it to be reset before running the target cmd
+        tmpdir = os.getenv('TMPDIR')
+        if tmpdir:
+            tmpdirarg = 'env TMPDIR=%s' % tmpdir
+        else:
+            tmpdirarg = ''
+
+        ret = '%s -E -u %s %s %s' % (SUDO, user, tmpdirarg, cmd)
         return ret.split(' ')
 
     def collect_output(self, proc, debug=False):
