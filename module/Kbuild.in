@@ -135,6 +135,7 @@ ICP_OBJS_X86_64 := \
 	asm-x86_64/sha2/sha256-x86_64.o \
 	asm-x86_64/sha2/sha512-x86_64.o \
 	asm-x86_64/modes/aesni-gcm-x86_64.o \
+	asm-x86_64/modes/aesni-gcm-avx2.o \
 	asm-x86_64/modes/gcm_pclmulqdq.o \
 	asm-x86_64/modes/ghash-x86_64.o
 
@@ -178,6 +179,7 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 
 # Suppress objtool "return with modified stack frame" warnings.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_aesni-gcm-avx2.o := y
 
 # Suppress objtool "unsupported stack pointer realignment" warnings.
 # See #6950 for the reasoning.
