@@ -718,6 +718,12 @@ if [ -e /sys/module/zfs/parameters/zfs_dbgmsg_enable ]; then
 	sudo sh -c "echo 0 >/proc/spl/kstat/zfs/dbgmsg"
 fi
 
+#
+# Set TMPDIR. Some tests run mktemp, and we want those files contained to
+# the work dir the same as any other.
+#
+export TMPDIR="$FILEDIR"
+
 msg
 msg "--- Configuration ---"
 msg "Runfiles:        $RUNFILES"
@@ -725,6 +731,7 @@ msg "STF_TOOLS:       $STF_TOOLS"
 msg "STF_SUITE:       $STF_SUITE"
 msg "STF_PATH:        $STF_PATH"
 msg "FILEDIR:         $FILEDIR"
+msg "TMPDIR:          $TMPDIR"
 msg "FILES:           $FILES"
 msg "LOOPBACKS:       $LOOPBACKS"
 msg "DISKS:           $DISKS"
