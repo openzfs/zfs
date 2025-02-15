@@ -47,8 +47,8 @@ if ! is_linux ; then
 	log_unsupported "Only linux supports dd with oflag=dsync for FUA writes"
 fi
 
-typeset datafile1="$(mktemp zvol_misc_fua1.XXXXXX)"
-typeset datafile2="$(mktemp zvol_misc_fua2.XXXXXX)"
+typeset datafile1="$(mktemp -t zvol_misc_fua1.XXXXXX)"
+typeset datafile2="$(mktemp -t zvol_misc_fua2.XXXXXX)"
 typeset zvolpath=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 
 function cleanup
