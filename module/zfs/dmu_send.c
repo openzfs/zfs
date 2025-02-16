@@ -62,6 +62,7 @@
 #include <sys/zvol.h>
 #include <sys/policy.h>
 #include <sys/objlist.h>
+#include <sys/zfs_iolimit.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -1590,6 +1591,7 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	struct srd *srdp = &range->sru.data;
 	blkptr_t *bp = &srdp->bp;
 	objset_t *os = srta->smta->os;
+	int error;
 
 	ASSERT3U(range->type, ==, DATA);
 	ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
@@ -1644,9 +1646,15 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	    .zb_blkid = range->start_blkid,
 	};
 
+	/*
+	 * zfs_iolimit_data_read_spin() will sleep in short periods and return
+	 * immediately when a signal is pending.
+	 */
+	zfs_iolimit_data_read_spin(os, 0, BP_GET_LSIZE(bp));
+
 	arc_flags_t aflags = ARC_FLAG_CACHED_ONLY;
 
-	int arc_err = arc_read(NULL, os->os_spa, bp,
+	error = arc_read(NULL, os->os_spa, bp,
 	    arc_getbuf_func, &srdp->abuf, ZIO_PRIORITY_ASYNC_READ,
 	    zioflags, &aflags, &zb);
 	/*
@@ -1655,7 +1663,7 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	 * entry to the ARC, and we also avoid polluting the ARC cache with
 	 * data that is not likely to be used in the future.
 	 */
-	if (arc_err != 0) {
+	if (error != 0) {
 		srdp->abd = abd_alloc_linear(srdp->datasz, B_FALSE);
 		srdp->io_outstanding = B_TRUE;
 		zio_nowait(zio_read(NULL, os->os_spa, bp, srdp->abd,
@@ -2569,8 +2577,9 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	while (err == 0 && !range->eos_marker) {
 		err = do_dump(&dsc, range);
 		range = get_next_range(&srt_arg->q, range);
-		if (issig())
+		if (issig()) {
 			err = SET_ERROR(EINTR);
+		}
 	}
 
 	/*
