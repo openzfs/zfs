@@ -57,26 +57,17 @@ static uint32_t user_sel_impl = IMPL_FASTEST;
 boolean_t gcm_avx_can_use_movbe = B_FALSE;
 /*
  * Whether to use the optimized openssl gcm and ghash implementations.
- * Set to true if module parameter icp_gcm_impl == "avx".
  */
-static boolean_t gcm_use_avx = B_FALSE;
-#define	GCM_IMPL_USE_AVX	(*(volatile boolean_t *)&gcm_use_avx)
-/*
- * Whether to use the optimized openssl gcm and ghash implementations.
- * Set to true if module parameter icp_gcm_impl == "avx2-vaes".
- */
-static boolean_t gcm_use_avx2 = B_FALSE;
-#define	GCM_IMPL_USE_AVX2	(*(volatile boolean_t *)&gcm_use_avx2)
+static gcm_impl gcm_impl_used = GCM_IMPL_GENERIC;
+#define	GCM_IMPL_USED	(*(volatile gcm_impl *)&gcm_impl_used)
 
 extern boolean_t ASMABI atomic_toggle_boolean_nv(volatile boolean_t *);
 
 static inline boolean_t gcm_avx_will_work(void);
-static inline void gcm_set_avx(boolean_t);
-static inline boolean_t gcm_toggle_avx(void);
 static inline boolean_t gcm_avx2_will_work(void);
-static inline void gcm_set_avx2(boolean_t);
-static inline boolean_t gcm_toggle_avx2(void);
-static inline size_t gcm_simd_get_htab_size(boolean_t);
+static inline void gcm_use_impl(gcm_impl impl);
+static inline gcm_impl gcm_toggle_impl(void);
+static inline size_t gcm_simd_get_htab_size(void);
 
 static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
     crypto_data_t *, size_t);
@@ -99,7 +90,7 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
     void (*xor_block)(uint8_t *, uint8_t *))
 {
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx2 == B_TRUE || ctx->gcm_use_avx == B_TRUE)
+	if (ctx->impl != GCM_IMPL_GENERIC)
 		return (gcm_mode_encrypt_contiguous_blocks_avx(
 		    ctx, data, length, out, block_size));
 #endif
@@ -218,7 +209,7 @@ gcm_encrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
 {
 	(void) copy_block;
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx2 == B_TRUE || ctx->gcm_use_avx == B_TRUE)
+	if (ctx->impl != GCM_IMPL_GENERIC)
 		return (gcm_encrypt_final_avx(ctx, out, block_size));
 #endif
 
@@ -384,7 +375,7 @@ gcm_decrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     void (*xor_block)(uint8_t *, uint8_t *))
 {
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx2 == B_TRUE || ctx->gcm_use_avx == B_TRUE)
+	if (ctx->impl != GCM_IMPL_GENERIC)
 		return (gcm_decrypt_final_avx(ctx, out, block_size));
 #endif
 
@@ -641,26 +632,23 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	    ((aes_key_t *)gcm_ctx->gcm_keysched)->ops->needs_byteswap;
 
 	if (GCM_IMPL_READ(icp_gcm_impl) != IMPL_CYCLE) {
-		gcm_ctx->gcm_use_avx = GCM_IMPL_USE_AVX;
-		gcm_ctx->gcm_use_avx2 = GCM_IMPL_USE_AVX2;
+		gcm_ctx->impl = GCM_IMPL_USED;
 	} else {
 		/*
-		 * Handle the "cycle" implementation by creating avx and
-		 * non-avx contexts alternately.
+		 * Handle the "cycle" implementation by creating different
+		 * contexts, one per implementation.
 		 */
-		gcm_ctx->gcm_use_avx = gcm_toggle_avx();
-		gcm_ctx->gcm_use_avx2 = gcm_toggle_avx2();
+		gcm_ctx->impl = gcm_toggle_impl();
 
-		/* The avx impl. doesn't handle byte swapped key schedules. */
+		/* The AVX impl. doesn't handle byte swapped key schedules. */
 		if (needs_bswap == B_TRUE) {
-			gcm_ctx->gcm_use_avx = B_FALSE;
-			gcm_ctx->gcm_use_avx2 = B_FALSE;
+			gcm_ctx->impl = GCM_IMPL_GENERIC;
 		}
 		/*
-		 * If this is a GCM context, use the MOVBE and the BSWAP
+		 * If this is an AVX context, use the MOVBE and the BSWAP
 		 * variants alternately.
 		 */
-		if (gcm_ctx->gcm_use_avx == B_TRUE &&
+		if (gcm_ctx->impl == GCM_IMPL_AVX &&
 		    zfs_movbe_available() == B_TRUE) {
 			(void) atomic_toggle_boolean_nv(
 			    (volatile boolean_t *)&gcm_avx_can_use_movbe);
@@ -671,10 +659,8 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	 * still they could be created by the aes generic implementation.
 	 * Make sure not to use them since we'll corrupt data if we do.
 	 */
-	if ((gcm_ctx->gcm_use_avx == B_TRUE ||
-	    gcm_ctx->gcm_use_avx2 == B_TRUE) && needs_bswap == B_TRUE) {
-		gcm_ctx->gcm_use_avx = B_FALSE;
-		gcm_ctx->gcm_use_avx2 = B_FALSE;
+	if (gcm_ctx->impl != GCM_IMPL_GENERIC && needs_bswap == B_TRUE) {
+		gcm_ctx->impl = GCM_IMPL_GENERIC;
 
 		cmn_err_once(CE_WARN,
 		    "ICP: Can't use the aes generic or cycle implementations "
@@ -689,14 +675,12 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	}
 
 	/* Allocate Htab memory as needed. */
-	if (gcm_ctx->gcm_use_avx == B_TRUE ||
-	    gcm_ctx->gcm_use_avx2 == B_TRUE) {
-		size_t htab_len = gcm_simd_get_htab_size(
-		    gcm_ctx->gcm_use_avx || gcm_ctx->gcm_use_avx2);
-
+	if (gcm_ctx->impl != GCM_IMPL_GENERIC) {
+		size_t htab_len = gcm_simd_get_htab_size();
 		if (htab_len == 0) {
 			return (CRYPTO_MECHANISM_PARAM_INVALID);
 		}
+
 		gcm_ctx->gcm_htab_len = htab_len;
 		gcm_ctx->gcm_Htable =
 		    kmem_alloc(htab_len, KM_SLEEP);
@@ -704,23 +688,18 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 		if (gcm_ctx->gcm_Htable == NULL) {
 			return (CRYPTO_HOST_MEMORY);
 		}
-	}
-	/* Avx and non avx context initialization differs from here on. */
-	if (gcm_ctx->gcm_use_avx == B_FALSE &&
-	    gcm_ctx->gcm_use_avx2 == B_FALSE) {
-#endif /* ifdef CAN_USE_GCM_ASM */
-		if (gcm_init(gcm_ctx, iv, iv_len, aad, aad_len, block_size,
-		    encrypt_block, copy_block, xor_block) != CRYPTO_SUCCESS) {
-			rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		}
-#ifdef CAN_USE_GCM_ASM
-	} else {
+
 		if (gcm_init_avx(gcm_ctx, iv, iv_len, aad, aad_len,
 		    block_size) != CRYPTO_SUCCESS) {
 			rv = CRYPTO_MECHANISM_PARAM_INVALID;
 		}
 	}
+	else
 #endif /* ifdef CAN_USE_GCM_ASM */
+	if (gcm_init(gcm_ctx, iv, iv_len, aad, aad_len, block_size,
+	    encrypt_block, copy_block, xor_block) != CRYPTO_SUCCESS) {
+		rv = CRYPTO_MECHANISM_PARAM_INVALID;
+	}
 
 	return (rv);
 }
@@ -850,7 +829,7 @@ gcm_impl_init(void)
 	 */
 	if (gcm_avx2_will_work()) {
 		if (GCM_IMPL_READ(user_sel_impl) == IMPL_FASTEST) {
-			gcm_set_avx2(B_TRUE);
+			gcm_use_impl(GCM_IMPL_AVX2);
 		}
 	} else if (gcm_avx_will_work()) {
 #ifdef HAVE_MOVBE
@@ -859,7 +838,7 @@ gcm_impl_init(void)
 		}
 #endif
 		if (GCM_IMPL_READ(user_sel_impl) == IMPL_FASTEST) {
-			gcm_set_avx(B_TRUE);
+			gcm_use_impl(GCM_IMPL_AVX);
 		}
 	}
 #endif
@@ -946,15 +925,12 @@ gcm_impl_set(const char *val)
 	 */
 	if (gcm_avx2_will_work() == B_TRUE &&
 	    (impl == IMPL_AVX2 || impl == IMPL_FASTEST)) {
-		gcm_set_avx2(B_TRUE);
-		gcm_set_avx(B_FALSE);
+		gcm_use_impl(GCM_IMPL_AVX2);
 	} else if (gcm_avx_will_work() == B_TRUE &&
 	    (impl == IMPL_AVX || impl == IMPL_FASTEST)) {
-		gcm_set_avx2(B_FALSE);
-		gcm_set_avx(B_TRUE);
+		gcm_use_impl(GCM_IMPL_AVX);
 	} else {
-		gcm_set_avx2(B_FALSE);
-		gcm_set_avx(B_FALSE);
+		gcm_use_impl(GCM_IMPL_GENERIC);
 	}
 #endif
 
@@ -1068,12 +1044,19 @@ extern void ASMABI gcm_ghash_vpclmulqdq_avx2(uint64_t ghash[2],
     const uint64_t *Htable, const uint8_t *in, size_t len);
 static inline void GHASH_AVX(gcm_ctx_t *ctx, const uint8_t *in, size_t len)
 {
-	if (ctx->gcm_use_avx2) {
-		gcm_ghash_vpclmulqdq_avx2(ctx->gcm_ghash,
-		    (const uint64_t *)ctx->gcm_Htable, in, len);
-	} else {
-		gcm_ghash_avx(ctx->gcm_ghash,
-		    (const uint64_t *)ctx->gcm_Htable, in, len);
+	switch (ctx->impl) {
+		case GCM_IMPL_AVX2:
+			gcm_ghash_vpclmulqdq_avx2(ctx->gcm_ghash,
+			    (const uint64_t *)ctx->gcm_Htable, in, len);
+			break;
+
+		case GCM_IMPL_AVX:
+			gcm_ghash_avx(ctx->gcm_ghash,
+			    (const uint64_t *)ctx->gcm_Htable, in, len);
+			break;
+
+		default:
+			VERIFY(B_FALSE);
 	}
 }
 
@@ -1111,51 +1094,69 @@ gcm_avx_will_work(void)
 }
 
 static inline void
-gcm_set_avx2(boolean_t val)
+gcm_use_impl(gcm_impl impl)
 {
-	if (gcm_avx2_will_work() == B_TRUE) {
-		atomic_swap_32(&gcm_use_avx2, val);
+	switch (impl) {
+		case GCM_IMPL_AVX2:
+			if (gcm_avx2_will_work() == B_TRUE) {
+				atomic_swap_32(&gcm_impl_used, impl);
+				return;
+			}
+
+			zfs_fallthrough;
+
+		case GCM_IMPL_AVX:
+			if (gcm_avx_will_work() == B_TRUE) {
+				atomic_swap_32(&gcm_impl_used, impl);
+				return;
+			}
+
+			zfs_fallthrough;
+
+		default:
+			atomic_swap_32(&gcm_impl_used, GCM_IMPL_GENERIC);
 	}
 }
 
 static inline boolean_t
-gcm_toggle_avx2(void)
+gcm_impl_will_work(gcm_impl impl)
 {
-	if (gcm_avx2_will_work() == B_TRUE) {
-		return (atomic_toggle_boolean_nv(&GCM_IMPL_USE_AVX2));
-	} else {
-		return (B_FALSE);
+	switch (impl) {
+		case GCM_IMPL_AVX2:
+			return (gcm_avx2_will_work());
+
+		case GCM_IMPL_AVX:
+			return (gcm_avx_will_work());
+
+		default:
+			return (B_TRUE);
 	}
 }
 
-static inline void
-gcm_set_avx(boolean_t val)
+static inline gcm_impl
+gcm_toggle_impl(void)
 {
-	if (gcm_avx_will_work() == B_TRUE) {
-		atomic_swap_32(&gcm_use_avx, val);
-	}
-}
+	gcm_impl current_impl, new_impl;
+	do { /* handle races */
+		current_impl = atomic_load_32(&gcm_impl_used);
+		new_impl = current_impl;
+		while (B_TRUE) { /* handle incompatble implementations */
+			new_impl = (new_impl + 1) % GCM_IMPL_MAX;
+			if (gcm_impl_will_work(new_impl)) {
+				break;
+			}
+		}
 
-static inline boolean_t
-gcm_toggle_avx(void)
-{
-	if (gcm_avx_will_work() == B_TRUE) {
-		return (atomic_toggle_boolean_nv(&GCM_IMPL_USE_AVX));
-	} else {
-		return (B_FALSE);
-	}
+	} while (atomic_cas_32(&gcm_impl_used, current_impl, new_impl) !=
+	    current_impl);
+
+	return (new_impl);
 }
 
 static inline size_t
-gcm_simd_get_htab_size(boolean_t simd_mode)
+gcm_simd_get_htab_size(void)
 {
-	switch (simd_mode) {
-	case B_TRUE:
-		return (2 * 6 * 2 * sizeof (uint64_t));
-
-	default:
-		return (0);
-	}
+	return (2 * 6 * 2 * sizeof (uint64_t));
 }
 
 
@@ -1227,7 +1228,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	size_t done = 0;
 	uint8_t *datap = (uint8_t *)data;
 	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
-	aesni_gcm_encrypt_impl *encrypt_blocks = ctx->gcm_use_avx2 ?
+	aesni_gcm_encrypt_impl *encrypt_blocks = ctx->impl == GCM_IMPL_AVX2 ?
 	    aesni_gcm_encrypt_avx2 : aesni_gcm_encrypt_avx;
 	const aes_key_t *key = ((aes_key_t *)ctx->gcm_keysched);
 	uint64_t *ghash = ctx->gcm_ghash;
@@ -1467,7 +1468,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	    B_FALSE);
 
 	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
-	aesni_gcm_decrypt_impl *decrypt_blocks = ctx->gcm_use_avx2 ?
+	aesni_gcm_decrypt_impl *decrypt_blocks = ctx->impl == GCM_IMPL_AVX2 ?
 	    aesni_gcm_decrypt_avx2 : aesni_gcm_decrypt_avx;
 	size_t pt_len = ctx->gcm_processed_data_len - ctx->gcm_tag_len;
 	uint8_t *datap = ctx->gcm_pt_buf;
@@ -1594,7 +1595,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 	aes_encrypt_intel(keysched, aes_rounds,
 	    (const uint32_t *)H, (uint32_t *)H);
 
-	if (ctx->gcm_use_avx2) {
+	if (ctx->impl == GCM_IMPL_AVX2) {
 		gcm_init_vpclmulqdq_avx2((uint128_t *)ctx->gcm_Htable, H);
 	} else {
 		gcm_init_htab_avx(ctx->gcm_Htable, H);
