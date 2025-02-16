@@ -170,7 +170,7 @@ gcm_clear_ctx(gcm_ctx_t *ctx)
 	explicit_memset(ctx->gcm_remainder, 0, sizeof (ctx->gcm_remainder));
 	explicit_memset(ctx->gcm_H, 0, sizeof (ctx->gcm_H));
 #if defined(CAN_USE_GCM_ASM)
-	if (ctx->gcm_use_avx == B_TRUE || ctx->gcm_use_avx2 == B_TRUE) {
+	if (ctx->impl != GCM_IMPL_GENERIC) {
 		ASSERT3P(ctx->gcm_Htable, !=, NULL);
 		memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
 		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);

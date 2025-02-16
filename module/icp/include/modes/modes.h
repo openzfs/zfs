@@ -128,6 +128,13 @@ typedef struct ccm_ctx {
 #define	ccm_copy_to		ccm_common.cc_copy_to
 #define	ccm_flags		ccm_common.cc_flags
 
+typedef enum gcm_impl {
+	GCM_IMPL_GENERIC = 0,
+	GCM_IMPL_AVX,
+	GCM_IMPL_AVX2,
+	GCM_IMPL_MAX,
+} gcm_impl;
+
 /*
  * gcm_tag_len:		Length of authentication tag.
  *
@@ -173,8 +180,7 @@ typedef struct gcm_ctx {
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
 #ifdef CAN_USE_GCM_ASM
-	boolean_t gcm_use_avx;
-	boolean_t gcm_use_avx2;
+	enum gcm_impl impl;
 #endif
 } gcm_ctx_t;
 
