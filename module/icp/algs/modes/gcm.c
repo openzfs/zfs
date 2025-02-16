@@ -44,7 +44,7 @@
 #define	IMPL_FASTEST	(UINT32_MAX)
 #define	IMPL_CYCLE	(UINT32_MAX-1)
 #ifdef CAN_USE_GCM_ASM
-#define	IMPL_AVX	(UINT32_MAX-2)
+#define	IMPL_HARDWARE	(UINT32_MAX-2)
 #endif
 #define	GCM_IMPL_READ(i) (*(volatile uint32_t *) &(i))
 static uint32_t icp_gcm_impl = IMPL_FASTEST;
@@ -52,27 +52,27 @@ static uint32_t user_sel_impl = IMPL_FASTEST;
 
 #ifdef CAN_USE_GCM_ASM
 /* Does the architecture we run on support the MOVBE instruction? */
-boolean_t gcm_avx_can_use_movbe = B_FALSE;
+boolean_t gcm_hardware_can_use_movbe = B_FALSE;
 /*
  * Whether to use the optimized openssl gcm and ghash implementations.
- * Set to true if module parameter icp_gcm_impl == "avx".
+ * Set to true if module parameter icp_gcm_impl == "hardware".
  */
-static boolean_t gcm_use_avx = B_FALSE;
-#define	GCM_IMPL_USE_AVX	(*(volatile boolean_t *)&gcm_use_avx)
+static boolean_t gcm_use_hardware = B_FALSE;
+#define	GCM_IMPL_USE_HARDWARE	(*(volatile boolean_t *)&gcm_use_hardware)
 
 extern boolean_t ASMABI atomic_toggle_boolean_nv(volatile boolean_t *);
 
-static inline boolean_t gcm_avx_will_work(void);
-static inline void gcm_set_avx(boolean_t);
-static inline boolean_t gcm_toggle_avx(void);
+static inline boolean_t gcm_hardware_will_work(void);
+static inline void gcm_set_hardware(boolean_t);
+static inline boolean_t gcm_toggle_hardware(void);
 static inline size_t gcm_simd_get_htab_size(boolean_t);
 
-static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
+static int gcm_mode_encrypt_contiguous_blocks_hardware(gcm_ctx_t *, char *, size_t,
     crypto_data_t *, size_t);
 
-static int gcm_encrypt_final_avx(gcm_ctx_t *, crypto_data_t *, size_t);
-static int gcm_decrypt_final_avx(gcm_ctx_t *, crypto_data_t *, size_t);
-static int gcm_init_avx(gcm_ctx_t *, const uint8_t *, size_t, const uint8_t *,
+static int gcm_encrypt_final_hardware(gcm_ctx_t *, crypto_data_t *, size_t);
+static int gcm_decrypt_final_hardware(gcm_ctx_t *, crypto_data_t *, size_t);
+static int gcm_init_hardware(gcm_ctx_t *, const uint8_t *, size_t, const uint8_t *,
     size_t, size_t);
 #endif /* ifdef CAN_USE_GCM_ASM */
 
@@ -88,8 +88,8 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
     void (*xor_block)(uint8_t *, uint8_t *))
 {
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx == B_TRUE)
-		return (gcm_mode_encrypt_contiguous_blocks_avx(
+	if (ctx->gcm_use_hardware == B_TRUE)
+		return (gcm_mode_encrypt_contiguous_blocks_hardware(
 		    ctx, data, length, out, block_size));
 #endif
 
@@ -207,8 +207,8 @@ gcm_encrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
 {
 	(void) copy_block;
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx == B_TRUE)
-		return (gcm_encrypt_final_avx(ctx, out, block_size));
+	if (ctx->gcm_use_hardware == B_TRUE)
+		return (gcm_encrypt_final_hardware(ctx, out, block_size));
 #endif
 
 	const gcm_impl_ops_t *gops;
@@ -373,8 +373,8 @@ gcm_decrypt_final(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
     void (*xor_block)(uint8_t *, uint8_t *))
 {
 #ifdef CAN_USE_GCM_ASM
-	if (ctx->gcm_use_avx == B_TRUE)
-		return (gcm_decrypt_final_avx(ctx, out, block_size));
+	if (ctx->gcm_use_hardware == B_TRUE)
+		return (gcm_decrypt_final_hardware(ctx, out, block_size));
 #endif
 
 	const gcm_impl_ops_t *gops;
@@ -586,7 +586,7 @@ gcm_init(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 }
 
 /*
- * Init the GCM context struct. Handle the cycle and avx implementations here.
+ * Init the GCM context struct. Handle the cycle and hardware implementations here.
  */
 int
 gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
@@ -630,39 +630,41 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	    ((aes_key_t *)gcm_ctx->gcm_keysched)->ops->needs_byteswap;
 
 	if (GCM_IMPL_READ(icp_gcm_impl) != IMPL_CYCLE) {
-		gcm_ctx->gcm_use_avx = GCM_IMPL_USE_AVX;
+		gcm_ctx->gcm_use_hardware = GCM_IMPL_USE_HARDWARE;
 	} else {
 		/*
-		 * Handle the "cycle" implementation by creating avx and
-		 * non-avx contexts alternately.
+		 * Handle the "cycle" implementation by creating hardware and
+		 * non-hardware contexts alternately.
 		 */
-		gcm_ctx->gcm_use_avx = gcm_toggle_avx();
+		gcm_ctx->gcm_use_hardware = gcm_toggle_hardware();
 
-		/* The avx impl. doesn't handle byte swapped key schedules. */
-		if (gcm_ctx->gcm_use_avx == B_TRUE && needs_bswap == B_TRUE) {
-			gcm_ctx->gcm_use_avx = B_FALSE;
+		/* The hardware impl. doesn't handle byte swapped key schedules. */
+		if (gcm_ctx->gcm_use_hardware == B_TRUE && needs_bswap == B_TRUE) {
+			gcm_ctx->gcm_use_hardware = B_FALSE;
 		}
+#if defined(__x86_64__)
 		/*
 		 * If this is a GCM context, use the MOVBE and the BSWAP
 		 * variants alternately.
 		 */
-		if (gcm_ctx->gcm_use_avx == B_TRUE &&
+		if (gcm_ctx->gcm_use_hardware == B_TRUE &&
 		    zfs_movbe_available() == B_TRUE) {
 			(void) atomic_toggle_boolean_nv(
-			    (volatile boolean_t *)&gcm_avx_can_use_movbe);
+			    (volatile boolean_t *)&gcm_hardware_can_use_movbe);
 		}
+#endif
 	}
 	/*
-	 * We don't handle byte swapped key schedules in the avx code path,
+	 * We don't handle byte swapped key schedules in the hardware code path,
 	 * still they could be created by the aes generic implementation.
 	 * Make sure not to use them since we'll corrupt data if we do.
 	 */
-	if (gcm_ctx->gcm_use_avx == B_TRUE && needs_bswap == B_TRUE) {
-		gcm_ctx->gcm_use_avx = B_FALSE;
+	if (gcm_ctx->gcm_use_hardware == B_TRUE && needs_bswap == B_TRUE) {
+		gcm_ctx->gcm_use_hardware = B_FALSE;
 
 		cmn_err_once(CE_WARN,
 		    "ICP: Can't use the aes generic or cycle implementations "
-		    "in combination with the gcm avx implementation!");
+		    "in combination with the gcm hardware implementation!");
 		cmn_err_once(CE_WARN,
 		    "ICP: Falling back to a compatible implementation, "
 		    "aes-gcm performance will likely be degraded.");
@@ -672,8 +674,8 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	}
 
 	/* Allocate Htab memory as needed. */
-	if (gcm_ctx->gcm_use_avx == B_TRUE) {
-		size_t htab_len = gcm_simd_get_htab_size(gcm_ctx->gcm_use_avx);
+	if (gcm_ctx->gcm_use_hardware == B_TRUE) {
+		size_t htab_len = gcm_simd_get_htab_size(gcm_ctx->gcm_use_hardware);
 
 		if (htab_len == 0) {
 			return (CRYPTO_MECHANISM_PARAM_INVALID);
@@ -686,8 +688,8 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 			return (CRYPTO_HOST_MEMORY);
 		}
 	}
-	/* Avx and non avx context initialization differs from here on. */
-	if (gcm_ctx->gcm_use_avx == B_FALSE) {
+	/* hardware and non hardware context initialization differs from here on. */
+	if (gcm_ctx->gcm_use_hardware == B_FALSE) {
 #endif /* ifdef CAN_USE_GCM_ASM */
 		if (gcm_init(gcm_ctx, iv, iv_len, aad, aad_len, block_size,
 		    encrypt_block, copy_block, xor_block) != CRYPTO_SUCCESS) {
@@ -695,7 +697,7 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 		}
 #ifdef CAN_USE_GCM_ASM
 	} else {
-		if (gcm_init_avx(gcm_ctx, iv, iv_len, aad, aad_len,
+		if (gcm_init_hardware(gcm_ctx, iv, iv_len, aad, aad_len,
 		    block_size) != CRYPTO_SUCCESS) {
 			rv = CRYPTO_MECHANISM_PARAM_INVALID;
 		}
@@ -765,11 +767,11 @@ gcm_impl_get_ops(void)
 		ops = gcm_supp_impl[idx];
 		break;
 #ifdef CAN_USE_GCM_ASM
-	case IMPL_AVX:
+	case IMPL_HARDWARE:
 		/*
 		 * Make sure that we return a valid implementation while
-		 * switching to the avx implementation since there still
-		 * may be unfinished non-avx contexts around.
+		 * switching to the hardware implementation since there still
+		 * may be unfinished non-hardware contexts around.
 		 */
 		ops = &gcm_generic_impl;
 		break;
@@ -824,17 +826,17 @@ gcm_impl_init(void)
 
 #ifdef CAN_USE_GCM_ASM
 	/*
-	 * Use the avx implementation if it's available and the implementation
+	 * Use the hardware implementation if it's available and the implementation
 	 * hasn't changed from its default value of fastest on module load.
 	 */
-	if (gcm_avx_will_work()) {
+	if (gcm_hardware_will_work()) {
 #ifdef HAVE_MOVBE
 		if (zfs_movbe_available() == B_TRUE) {
-			atomic_swap_32(&gcm_avx_can_use_movbe, B_TRUE);
+			atomic_swap_32(&gcm_hardware_can_use_movbe, B_TRUE);
 		}
 #endif
 		if (GCM_IMPL_READ(user_sel_impl) == IMPL_FASTEST) {
-			gcm_set_avx(B_TRUE);
+			gcm_set_hardware(B_TRUE);
 		}
 	}
 #endif
@@ -850,7 +852,7 @@ static const struct {
 		{ "cycle",	IMPL_CYCLE },
 		{ "fastest",	IMPL_FASTEST },
 #ifdef CAN_USE_GCM_ASM
-		{ "avx",	IMPL_AVX },
+		{ "hardware",	IMPL_HARDWARE },
 #endif
 };
 
@@ -886,8 +888,8 @@ gcm_impl_set(const char *val)
 	/* Check mandatory options */
 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
 #ifdef CAN_USE_GCM_ASM
-		/* Ignore avx implementation if it won't work. */
-		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
+		/* Ignore hardware implementation if it won't work. */
+		if (gcm_impl_opts[i].sel == IMPL_HARDWARE && !gcm_hardware_will_work()) {
 			continue;
 		}
 #endif
@@ -911,14 +913,14 @@ gcm_impl_set(const char *val)
 	}
 #ifdef CAN_USE_GCM_ASM
 	/*
-	 * Use the avx implementation if available and the requested one is
-	 * avx or fastest.
+	 * Use the hardware implementation if available and the requested one is
+	 * hardware or fastest.
 	 */
-	if (gcm_avx_will_work() == B_TRUE &&
-	    (impl == IMPL_AVX || impl == IMPL_FASTEST)) {
-		gcm_set_avx(B_TRUE);
+	if (gcm_hardware_will_work() == B_TRUE &&
+	    (impl == IMPL_HARDWARE || impl == IMPL_FASTEST)) {
+		gcm_set_hardware(B_TRUE);
 	} else {
-		gcm_set_avx(B_FALSE);
+		gcm_set_hardware(B_FALSE);
 	}
 #endif
 
@@ -952,8 +954,8 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
 #ifdef CAN_USE_GCM_ASM
-		/* Ignore avx implementation if it won't work. */
-		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
+		/* Ignore hardware implementation if it won't work. */
+		if (gcm_impl_opts[i].sel == IMPL_HARDWARE && !gcm_hardware_will_work()) {
 			continue;
 		}
 #endif
@@ -983,36 +985,38 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
  * The openssl asm routines are 6x aggregated and need that many bytes
  * at minimum.
  */
-#define	GCM_AVX_MIN_DECRYPT_BYTES (GCM_BLOCK_LEN * 6)
-#define	GCM_AVX_MIN_ENCRYPT_BYTES (GCM_BLOCK_LEN * 6 * 3)
+#define	GCM_HARDWARE_MIN_DECRYPT_BYTES (GCM_BLOCK_LEN * 6)
+#define	GCM_HARDWARE_MIN_ENCRYPT_BYTES (GCM_BLOCK_LEN * 6 * 3)
 /*
  * Ensure the chunk size is reasonable since we are allocating a
- * GCM_AVX_MAX_CHUNK_SIZEd buffer and disabling preemption and interrupts.
+ * GCM_HARDWARE_MAX_CHUNK_SIZEd buffer and disabling preemption and interrupts.
  */
-#define	GCM_AVX_MAX_CHUNK_SIZE \
-	(((128*1024)/GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES)
+#define	GCM_HARDWARE_MAX_CHUNK_SIZE \
+	(((128*1024)/GCM_HARDWARE_MIN_DECRYPT_BYTES) * GCM_HARDWARE_MIN_DECRYPT_BYTES)
 
 /* Clear the FPU registers since they hold sensitive internal state. */
-#define	clear_fpu_regs() clear_fpu_regs_avx()
-#define	GHASH_AVX(ctx, in, len) \
-    gcm_ghash_avx((ctx)->gcm_ghash, (const uint64_t *)(ctx)->gcm_Htable, \
+#define	clear_fpu_regs() clear_fpu_regs_hardware()
+#define	GHASH_HARDWARE(ctx, in, len) \
+    gcm_ghash_hardware((ctx)->gcm_ghash, (const uint64_t *)(ctx)->gcm_Htable, \
     in, len)
 
 #define	gcm_incr_counter_block(ctx) gcm_incr_counter_block_by(ctx, 1)
 
 /* Get the chunk size module parameter. */
-#define	GCM_CHUNK_SIZE_READ *(volatile uint32_t *) &gcm_avx_chunk_size
+#define	GCM_CHUNK_SIZE_READ *(volatile uint32_t *) &gcm_hardware_chunk_size
 
 /*
  * Module parameter: number of bytes to process at once while owning the FPU.
- * Rounded down to the next GCM_AVX_MIN_DECRYPT_BYTES byte boundary and is
- * ensured to be greater or equal than GCM_AVX_MIN_DECRYPT_BYTES.
+ * Rounded down to the next GCM_HARDWARE_MIN_DECRYPT_BYTES byte boundary and is
+ * ensured to be greater or equal than GCM_HARDWARE_MIN_DECRYPT_BYTES.
  */
-static uint32_t gcm_avx_chunk_size =
-	((32 * 1024) / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
+static uint32_t gcm_hardware_chunk_size =
+	((32 * 1024) / GCM_HARDWARE_MIN_DECRYPT_BYTES) * GCM_HARDWARE_MIN_DECRYPT_BYTES;
 
+#if defined(__x86_64__)
 extern void ASMABI clear_fpu_regs_avx(void);
 extern void ASMABI gcm_xor_avx(const uint8_t *src, uint8_t *dst);
+
 extern void ASMABI aes_encrypt_intel(const uint32_t rk[], int nr,
     const uint32_t pt[4], uint32_t ct[4]);
 
@@ -1026,28 +1030,128 @@ extern size_t ASMABI aesni_gcm_encrypt(const uint8_t *, uint8_t *, size_t,
 extern size_t ASMABI aesni_gcm_decrypt(const uint8_t *, uint8_t *, size_t,
     const void *, uint64_t *, uint64_t *);
 
-static inline boolean_t
-gcm_avx_will_work(void)
+#define clear_fpu_regs_hardware clear_fpu_regs_avx
+#define gcm_xor_hardware gcm_xor_avx
+#define aes_hardware_encrypt_block aes_encrypt_intel
+#define aes_hardware_encrypt_chunk aesni_gcm_encrypt
+#define aes_hardware_decrypt_chunk aesni_gcm_decrypt
+#define gcm_ghash_hardware gcm_ghash_avx
+#define gcm_init_htab_hardware gcm_init_htab_avx
+
+#else // aarch64
+extern void ASMABI clear_fpu_regs_v8(void);
+extern void ASMABI gcm_xor_v8(const uint8_t *src, uint8_t *dst);
+
+extern ASMABI void aes_v8_encrypt(const uint32_t pt[4], uint32_t ct[4],
+	const uint32_t rk[], int Nr);
+
+extern size_t ASMABI aes_gcm_enc_128_kernel(const uint8_t *plaintext,
+	uint64_t plaintext_length, uint8_t *ciphertext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+extern size_t ASMABI aes_gcm_enc_192_kernel(const uint8_t *plaintext,
+	uint64_t plaintext_length, uint8_t *ciphertext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+extern size_t ASMABI aes_gcm_enc_256_kernel(const uint8_t *plaintext,
+	uint64_t plaintext_length, uint8_t *ciphertext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+extern size_t ASMABI aes_gcm_dec_128_kernel(const uint8_t *ciphertext,
+	uint64_t ciphertext_length, uint8_t *plaintext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+extern size_t ASMABI aes_gcm_dec_192_kernel(const uint8_t *ciphertext,
+	uint64_t ciphertext_length, uint8_t *plaintext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+extern size_t ASMABI aes_gcm_dec_256_kernel(const uint8_t *ciphertext,
+	uint64_t ciphertext_length, uint8_t *plaintext, uint64_t *Xi,
+	uint64_t *ivec, const void *key);
+
+
+extern ASMABI void gcm_init_v8(uint64_t *Htable, const uint64_t H[2]);
+extern ASMABI void gcm_ghash_v8(uint64_t ghash[2], const uint64_t *Htable,
+    const uint8_t *in, size_t len);
+
+#define clear_fpu_regs_hardware clear_fpu_regs_v8
+#define gcm_xor_hardware gcm_xor_v8
+
+// Reorder args:
+#define aes_hardware_encrypt_block(rk, nr, pt, ct) aes_v8_encrypt(pt, ct, rk, nr)
+
+static size_t aes_hardware_encrypt_chunk(const uint8_t *in, uint8_t *out,
+	size_t len, const aes_key_t *key, uint64_t *cb, uint64_t *ghash)
 {
-	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
+	size_t ret = 0;
+	len = len - (len % 16);
+	len = len * 8;
+	switch (key->nr) {
+	case 10:
+		ret = aes_gcm_enc_128_kernel(in, len, out, ghash, cb, key);
+		break;
+	case 12:
+		ret = aes_gcm_enc_192_kernel(in, len, out, ghash, cb, key);
+		break;
+	case 14:
+		ret = aes_gcm_enc_256_kernel(in, len, out, ghash, cb, key);
+		break;
+	}
+	return (ret);
+}
+
+static size_t aes_hardware_decrypt_chunk(const uint8_t *in, uint8_t *out,
+	size_t len, const aes_key_t *key, uint64_t *cb, uint64_t *ghash)
+{
+	size_t ret = 0;
+	len = len - (len % 16);
+	len = len * 8;
+	switch (key->nr) {
+	case 10:
+		ret = aes_gcm_dec_128_kernel(in, len, out, ghash, cb, key);
+		break;
+	case 12:
+		ret = aes_gcm_dec_192_kernel(in, len, out, ghash, cb, key);
+		break;
+	case 14:
+		ret = aes_gcm_dec_256_kernel(in, len, out, ghash, cb, key);
+		break;
+	}
+	return (ret);
+}
+
+#define gcm_ghash_hardware gcm_ghash_v8
+#define gcm_init_htab_hardware gcm_init_v8
+
+#endif
+
+static inline boolean_t
+gcm_hardware_will_work(void)
+{
+#if defined(__x86_64__)
+	/* hardware should imply aes-ni and pclmulqdq, but make sure anyhow. */
 	return (kfpu_allowed() &&
-	    zfs_avx_available() && zfs_aes_available() &&
+	    zfs_hardware_available() && zfs_aes_available() &&
 	    zfs_pclmulqdq_available());
+#else
+	return (kfpu_allowed() && zfs_pmull_available() &&
+	    zfs_aes_available());
+#endif
 }
 
 static inline void
-gcm_set_avx(boolean_t val)
+gcm_set_hardware(boolean_t val)
 {
-	if (gcm_avx_will_work() == B_TRUE) {
-		atomic_swap_32(&gcm_use_avx, val);
+	if (gcm_hardware_will_work() == B_TRUE) {
+		atomic_swap_32(&gcm_use_hardware, val);
 	}
 }
 
 static inline boolean_t
-gcm_toggle_avx(void)
+gcm_toggle_hardware(void)
 {
-	if (gcm_avx_will_work() == B_TRUE) {
-		return (atomic_toggle_boolean_nv(&GCM_IMPL_USE_AVX));
+	if (gcm_hardware_will_work() == B_TRUE) {
+		return (atomic_toggle_boolean_nv(&GCM_IMPL_USE_HARDWARE));
 	} else {
 		return (B_FALSE);
 	}
@@ -1080,11 +1184,11 @@ gcm_incr_counter_block_by(gcm_ctx_t *ctx, int n)
 
 /*
  * Encrypt multiple blocks of data in GCM mode.
- * This is done in gcm_avx_chunk_size chunks, utilizing AVX assembler routines
+ * This is done in gcm_hardware_chunk_size chunks, utilizing HARDWARE assembler routines
  * if possible. While processing a chunk the FPU is "locked".
  */
 static int
-gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
+gcm_mode_encrypt_contiguous_blocks_hardware(gcm_ctx_t *ctx, char *data,
     size_t length, crypto_data_t *out, size_t block_size)
 {
 	size_t bleft = length;
@@ -1128,7 +1232,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	}
 
 	/* Allocate a buffer to encrypt to if there is enough input. */
-	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
+	if (bleft >= GCM_HARDWARE_MIN_ENCRYPT_BYTES) {
 		ct_buf = vmem_alloc(chunk_size, KM_SLEEP);
 		if (ct_buf == NULL) {
 			return (CRYPTO_HOST_MEMORY);
@@ -1138,11 +1242,11 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	/* If we completed an incomplete block, encrypt and write it out. */
 	if (ctx->gcm_remainder_len > 0) {
 		kfpu_begin();
-		aes_encrypt_intel(key->encr_ks.ks32, key->nr,
+		aes_hardware_encrypt_block(key->encr_ks.ks32, key->nr,
 		    (const uint32_t *)cb, (uint32_t *)tmp);
 
-		gcm_xor_avx((const uint8_t *) ctx->gcm_remainder, tmp);
-		GHASH_AVX(ctx, tmp, block_size);
+		gcm_xor_hardware((const uint8_t *) ctx->gcm_remainder, tmp);
+		GHASH_HARDWARE(ctx, tmp, block_size);
 		clear_fpu_regs();
 		kfpu_end();
 		rv = crypto_put_output_data(tmp, out, block_size);
@@ -1157,7 +1261,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	/* Do the bulk encryption in chunk_size blocks. */
 	for (; bleft >= chunk_size; bleft -= chunk_size) {
 		kfpu_begin();
-		done = aesni_gcm_encrypt(
+		done = aes_hardware_encrypt_chunk(
 		    datap, ct_buf, chunk_size, key, cb, ghash);
 
 		clear_fpu_regs();
@@ -1180,8 +1284,8 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	}
 	/* Bulk encrypt the remaining data. */
 	kfpu_begin();
-	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
-		done = aesni_gcm_encrypt(datap, ct_buf, bleft, key, cb, ghash);
+	if (bleft >= GCM_HARDWARE_MIN_ENCRYPT_BYTES) {
+		done = aes_hardware_encrypt_chunk(datap, ct_buf, bleft, key, cb, ghash);
 		if (done == 0) {
 			rv = CRYPTO_FAILED;
 			goto out;
@@ -1196,7 +1300,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 		bleft -= done;
 
 	}
-	/* Less than GCM_AVX_MIN_ENCRYPT_BYTES remain, operate on blocks. */
+	/* Less than GCM_HARDWARE_MIN_ENCRYPT_BYTES remain, operate on blocks. */
 	while (bleft > 0) {
 		if (bleft < block_size) {
 			memcpy(ctx->gcm_remainder, datap, bleft);
@@ -1205,11 +1309,11 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 			goto out;
 		}
 		/* Encrypt, hash and write out. */
-		aes_encrypt_intel(key->encr_ks.ks32, key->nr,
+		aes_hardware_encrypt_block(key->encr_ks.ks32, key->nr,
 		    (const uint32_t *)cb, (uint32_t *)tmp);
 
-		gcm_xor_avx(datap, tmp);
-		GHASH_AVX(ctx, tmp, block_size);
+		gcm_xor_hardware(datap, tmp);
+		GHASH_HARDWARE(ctx, tmp, block_size);
 		rv = crypto_put_output_data(tmp, out, block_size);
 		if (rv != CRYPTO_SUCCESS) {
 			goto out;
@@ -1235,7 +1339,7 @@ out_nofpu:
  * incomplete last block. Encrypt the ICB. Calculate the tag and write it out.
  */
 static int
-gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
+gcm_encrypt_final_hardware(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 {
 	uint8_t *ghash = (uint8_t *)ctx->gcm_ghash;
 	uint32_t *J0 = (uint32_t *)ctx->gcm_J0;
@@ -1259,22 +1363,22 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
 		const uint32_t *cb = (uint32_t *)ctx->gcm_cb;
 
-		aes_encrypt_intel(keysched, aes_rounds, cb, (uint32_t *)tmp);
+		aes_hardware_encrypt_block(keysched, aes_rounds, cb, (uint32_t *)tmp);
 		memset(remainder + rem_len, 0, block_size - rem_len);
 		for (int i = 0; i < rem_len; i++) {
 			remainder[i] ^= tmp[i];
 		}
-		GHASH_AVX(ctx, remainder, block_size);
+		GHASH_HARDWARE(ctx, remainder, block_size);
 		ctx->gcm_processed_data_len += rem_len;
 		/* No need to increment counter_block, it's the last block. */
 	}
 	/* Finish tag. */
 	ctx->gcm_len_a_len_c[1] =
 	    htonll(CRYPTO_BYTES2BITS(ctx->gcm_processed_data_len));
-	GHASH_AVX(ctx, (const uint8_t *)ctx->gcm_len_a_len_c, block_size);
-	aes_encrypt_intel(keysched, aes_rounds, J0, J0);
+	GHASH_HARDWARE(ctx, (const uint8_t *)ctx->gcm_len_a_len_c, block_size);
+	aes_hardware_encrypt_block(keysched, aes_rounds, J0, J0);
 
-	gcm_xor_avx((uint8_t *)J0, ghash);
+	gcm_xor_hardware((uint8_t *)J0, ghash);
 	clear_fpu_regs();
 	kfpu_end();
 
@@ -1299,7 +1403,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
  * decrypt it here inplace.
  */
 static int
-gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
+gcm_decrypt_final_hardware(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 {
 	ASSERT3U(ctx->gcm_processed_data_len, ==, ctx->gcm_pt_buf_len);
 	ASSERT3U(block_size, ==, 16);
@@ -1317,13 +1421,13 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	size_t bleft, done;
 
 	/*
-	 * Decrypt in chunks of gcm_avx_chunk_size, which is asserted to be
-	 * greater or equal than GCM_AVX_MIN_ENCRYPT_BYTES, and a multiple of
-	 * GCM_AVX_MIN_DECRYPT_BYTES.
+	 * Decrypt in chunks of gcm_hardware_chunk_size, which is asserted to be
+	 * greater or equal than GCM_HARDWARE_MIN_ENCRYPT_BYTES, and a multiple of
+	 * GCM_HARDWARE_MIN_DECRYPT_BYTES.
 	 */
 	for (bleft = pt_len; bleft >= chunk_size; bleft -= chunk_size) {
 		kfpu_begin();
-		done = aesni_gcm_decrypt(datap, datap, chunk_size,
+		done = aes_hardware_decrypt_chunk(datap, datap, chunk_size,
 		    (const void *)key, ctx->gcm_cb, ghash);
 		clear_fpu_regs();
 		kfpu_end();
@@ -1334,8 +1438,8 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	}
 	/* Decrypt remainder, which is less than chunk size, in one go. */
 	kfpu_begin();
-	if (bleft >= GCM_AVX_MIN_DECRYPT_BYTES) {
-		done = aesni_gcm_decrypt(datap, datap, bleft,
+	if (bleft >= GCM_HARDWARE_MIN_DECRYPT_BYTES) {
+		done = aes_hardware_decrypt_chunk(datap, datap, bleft,
 		    (const void *)key, ctx->gcm_cb, ghash);
 		if (done == 0) {
 			clear_fpu_regs();
@@ -1345,10 +1449,10 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		datap += done;
 		bleft -= done;
 	}
-	ASSERT(bleft < GCM_AVX_MIN_DECRYPT_BYTES);
+	ASSERT(bleft < GCM_HARDWARE_MIN_DECRYPT_BYTES);
 
 	/*
-	 * Now less than GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
+	 * Now less than GCM_HARDWARE_MIN_DECRYPT_BYTES bytes remain,
 	 * decrypt them block by block.
 	 */
 	while (bleft > 0) {
@@ -1359,17 +1463,17 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 			memset(lastb, 0, block_size);
 			memcpy(lastb, datap, bleft);
 			/* The GCM processing. */
-			GHASH_AVX(ctx, lastb, block_size);
-			aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
+			GHASH_HARDWARE(ctx, lastb, block_size);
+			aes_hardware_encrypt_block(key->encr_ks.ks32, key->nr, cb, tmp);
 			for (size_t i = 0; i < bleft; i++) {
 				datap[i] = lastb[i] ^ ((uint8_t *)tmp)[i];
 			}
 			break;
 		}
 		/* The GCM processing. */
-		GHASH_AVX(ctx, datap, block_size);
-		aes_encrypt_intel(key->encr_ks.ks32, key->nr, cb, tmp);
-		gcm_xor_avx((uint8_t *)tmp, datap);
+		GHASH_HARDWARE(ctx, datap, block_size);
+		aes_hardware_encrypt_block(key->encr_ks.ks32, key->nr, cb, tmp);
+		gcm_xor_hardware((uint8_t *)tmp, datap);
 		gcm_incr_counter_block(ctx);
 
 		datap += block_size;
@@ -1382,11 +1486,11 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	}
 	/* Decryption done, finish the tag. */
 	ctx->gcm_len_a_len_c[1] = htonll(CRYPTO_BYTES2BITS(pt_len));
-	GHASH_AVX(ctx, (uint8_t *)ctx->gcm_len_a_len_c, block_size);
-	aes_encrypt_intel(key->encr_ks.ks32, key->nr, (uint32_t *)ctx->gcm_J0,
+	GHASH_HARDWARE(ctx, (uint8_t *)ctx->gcm_len_a_len_c, block_size);
+	aes_hardware_encrypt_block(key->encr_ks.ks32, key->nr, (uint32_t *)ctx->gcm_J0,
 	    (uint32_t *)ctx->gcm_J0);
 
-	gcm_xor_avx((uint8_t *)ctx->gcm_J0, (uint8_t *)ghash);
+	gcm_xor_hardware((uint8_t *)ctx->gcm_J0, (uint8_t *)ghash);
 
 	/* We are done with the FPU, restore its state. */
 	clear_fpu_regs();
@@ -1410,7 +1514,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
  * initial counter block.
  */
 static int
-gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
+gcm_init_hardware(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
     const uint8_t *auth_data, size_t auth_data_len, size_t block_size)
 {
 	uint8_t *cb = (uint8_t *)ctx->gcm_cb;
@@ -1429,10 +1533,10 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 	memset(ctx->gcm_ghash, 0, sizeof (ctx->gcm_ghash));
 	memset(H, 0, sizeof (ctx->gcm_H));
 	kfpu_begin();
-	aes_encrypt_intel(keysched, aes_rounds,
+	aes_hardware_encrypt_block(keysched, aes_rounds,
 	    (const uint32_t *)H, (uint32_t *)H);
 
-	gcm_init_htab_avx(ctx->gcm_Htable, H);
+	gcm_init_htab_hardware(ctx->gcm_Htable, H);
 
 	if (iv_len == 12) {
 		memcpy(cb, iv, 12);
@@ -1460,7 +1564,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 
 	/* Ghash AAD in chunk_size blocks. */
 	for (bleft = auth_data_len; bleft >= chunk_size; bleft -= chunk_size) {
-		GHASH_AVX(ctx, datap, chunk_size);
+		GHASH_HARDWARE(ctx, datap, chunk_size);
 		datap += chunk_size;
 		clear_fpu_regs();
 		kfpu_end();
@@ -1472,7 +1576,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 
 		bleft -= incomp;
 		if (bleft > 0) {
-			GHASH_AVX(ctx, datap, bleft);
+			GHASH_HARDWARE(ctx, datap, bleft);
 			datap += bleft;
 		}
 		if (incomp > 0) {
@@ -1481,7 +1585,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 
 			memset(authp, 0, block_size);
 			memcpy(authp, datap, incomp);
-			GHASH_AVX(ctx, authp, block_size);
+			GHASH_HARDWARE(ctx, authp, block_size);
 		}
 	}
 	clear_fpu_regs();
@@ -1491,7 +1595,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 
 #if defined(_KERNEL)
 static int
-icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
+icp_gcm_hardware_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 {
 	unsigned long val;
 	char val_rounded[16];
@@ -1501,9 +1605,9 @@ icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 	if (error)
 		return (error);
 
-	val = (val / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
+	val = (val / GCM_HARDWARE_MIN_DECRYPT_BYTES) * GCM_HARDWARE_MIN_DECRYPT_BYTES;
 
-	if (val < GCM_AVX_MIN_ENCRYPT_BYTES || val > GCM_AVX_MAX_CHUNK_SIZE)
+	if (val < GCM_HARDWARE_MIN_ENCRYPT_BYTES || val > GCM_HARDWARE_MAX_CHUNK_SIZE)
 		return (-EINVAL);
 
 	snprintf(val_rounded, 16, "%u", (uint32_t)val);
@@ -1511,10 +1615,10 @@ icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 	return (error);
 }
 
-module_param_call(icp_gcm_avx_chunk_size, icp_gcm_avx_set_chunk_size,
-    param_get_uint, &gcm_avx_chunk_size, 0644);
+module_param_call(icp_gcm_hardware_chunk_size, icp_gcm_hardware_set_chunk_size,
+    param_get_uint, &gcm_hardware_chunk_size, 0644);
 
-MODULE_PARM_DESC(icp_gcm_avx_chunk_size,
+MODULE_PARM_DESC(icp_gcm_hardware_chunk_size,
 	"How many bytes to process while owning the FPU");
 
 #endif /* defined(__KERNEL) */
