@@ -1869,6 +1869,7 @@ vdev_ops_t vdev_indirect_ops = {
 	.vdev_op_asize = vdev_default_asize,
 	.vdev_op_min_asize = vdev_default_min_asize,
 	.vdev_op_min_alloc = NULL,
+	.vdev_op_worst_alloc = NULL,
 	.vdev_op_io_start = vdev_indirect_io_start,
 	.vdev_op_io_done = vdev_indirect_io_done,
 	.vdev_op_state_change = NULL,

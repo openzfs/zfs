@@ -1112,7 +1112,8 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	}
 
 	/* needed allocation: worst-case estimate of write space */
-	uint64_t asize = spa_get_worst_case_asize(tx->tx_pool->dp_spa, towrite);
+	uint64_t asize = spa_get_worst_case_asize(tx->tx_pool->dp_spa,
+	    tx->tx_objset, towrite);
 	/* calculate memory footprint estimate */
 	uint64_t memory = towrite + tohold;
 

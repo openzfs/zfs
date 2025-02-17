@@ -75,6 +75,7 @@ typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize, uint64_t txg);
 typedef uint64_t vdev_min_asize_func_t(vdev_t *vd);
 typedef uint64_t vdev_min_alloc_func_t(vdev_t *vd);
+typedef uint64_t vdev_worst_alloc_func_t(vdev_t *vd);
 typedef void	vdev_io_start_func_t(zio_t *zio);
 typedef void	vdev_io_done_func_t(zio_t *zio);
 typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
@@ -109,6 +110,7 @@ typedef const struct vdev_ops {
 	vdev_asize_func_t		*vdev_op_asize;
 	vdev_min_asize_func_t		*vdev_op_min_asize;
 	vdev_min_alloc_func_t		*vdev_op_min_alloc;
+	vdev_worst_alloc_func_t		*vdev_op_worst_alloc;
 	vdev_io_start_func_t		*vdev_op_io_start;
 	vdev_io_done_func_t		*vdev_op_io_done;
 	vdev_state_change_func_t	*vdev_op_state_change;
@@ -623,6 +625,7 @@ extern uint64_t vdev_default_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_alloc(vdev_t *vd);
+extern uint64_t vdev_get_worst_alloc(vdev_t *vd);
 extern uint64_t vdev_get_nparity(vdev_t *vd);
 extern uint64_t vdev_get_ndisks(vdev_t *vd);
 

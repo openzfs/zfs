@@ -1185,6 +1185,16 @@ vdev_draid_min_alloc(vdev_t *vd)
 	return (vdc->vdc_ndata << vd->vdev_ashift);
 }
 
+static uint64_t
+vdev_draid_worst_alloc(vdev_t *vd)
+{
+	vdev_draid_config_t *vdc = vd->vdev_tsd;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
+
+	return (vdc->vdc_groupwidth);
+}
+
 /*
  * Returns true if the txg range does not exist on any leaf vdev.
  *
@@ -2313,6 +2323,7 @@ vdev_ops_t vdev_draid_ops = {
 	.vdev_op_asize = vdev_draid_asize,
 	.vdev_op_min_asize = vdev_draid_min_asize,
 	.vdev_op_min_alloc = vdev_draid_min_alloc,
+	.vdev_op_worst_alloc = vdev_draid_worst_alloc,
 	.vdev_op_io_start = vdev_draid_io_start,
 	.vdev_op_io_done = vdev_draid_io_done,
 	.vdev_op_state_change = vdev_draid_state_change,
@@ -2803,6 +2814,7 @@ vdev_ops_t vdev_draid_spare_ops = {
 	.vdev_op_asize = vdev_default_asize,
 	.vdev_op_min_asize = vdev_default_min_asize,
 	.vdev_op_min_alloc = NULL,
+	.vdev_op_worst_alloc = NULL,
 	.vdev_op_io_start = vdev_draid_spare_io_start,
 	.vdev_op_io_done = vdev_draid_spare_io_done,
 	.vdev_op_state_change = NULL,
