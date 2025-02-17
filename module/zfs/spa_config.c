@@ -466,6 +466,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_compatibility != NULL)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMPATIBILITY,
 		    spa->spa_compatibility);
+	if (spa->spa_newname != NULL)
+		fnvlist_add_string(config, ZPOOL_CONFIG_NEWNAME,
+		    spa->spa_newname);
 
 	hostid = spa_get_hostid(spa);
 	if (hostid != 0)
