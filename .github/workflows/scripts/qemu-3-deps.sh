@@ -16,7 +16,7 @@ function archlinux() {
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
     parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
-    samba sysstat rng-tools rsync wget xxhash
+    samba sysstat rng-tools rsync wget words xxhash xfsprogs
   echo "##[endgroup]"
 }
 
