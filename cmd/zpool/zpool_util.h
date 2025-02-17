@@ -52,6 +52,12 @@ int lowbit64(uint64_t i);
  */
 char *zpool_get_cmd_search_path(void);
 
+struct zpool_option_flag {
+	const char *name;
+	int *flag;
+};
+char *zpool_option_flag_apply(char *, struct zpool_option_flag *);
+
 /*
  * Virtual device functions
  */

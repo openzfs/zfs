@@ -27,7 +27,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd March 16, 2022
+.Dd July 15, 2023
 .Dt ZPOOL-CREATE 8
 .Os
 .
@@ -37,7 +37,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm create
-.Op Fl dfn
+.Op Fl dn
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Oo Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value Oc
@@ -45,6 +45,7 @@
 .Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns …
 .Op Fl R Ar root
 .Op Fl t Ar tname
+.Op Fl -force= Ns Ar flag Ns Oo , Ns Ar flag Oc Ns …
 .Ar pool
 .Ar vdev Ns …
 .
@@ -142,11 +143,6 @@ with
 See
 .Xr zpool-features 7
 for details about feature properties.
-.It Fl f
-Forces use of
-.Ar vdev Ns s ,
-even if they appear in use or specify a conflicting replication level.
-Not all devices can be overridden in this manner.
 .It Fl m Ar mountpoint
 Sets the mount point for the root dataset.
 The default mount point is
@@ -204,6 +200,20 @@ This is intended
 to handle name space collisions when creating pools for other systems,
 such as virtual machines or physical machines whose pools live on network
 block devices.
+.It Fl -force= Ns Ar flag Ns Oo , Ns Ar flag Oc Ns …
+.Bl -tag -width Ds
+.It Sy vdevs
+Forces use of
+.Ar vdev Ns s ,
+even if they appear in use or specify a conflicting replication level.
+Not all devices can be overridden in this manner.
+.It Sy layout
+Allows certain kinds of suboptimal pool layouts to be created.
+.El
+.It Fl f
+Alias for
+.Fl -force=vdevs
+.
 .El
 .
 .Sh EXAMPLES
