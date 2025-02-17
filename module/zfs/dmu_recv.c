@@ -2126,8 +2126,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dnode_t *dn;
 		uint32_t flags = DMU_READ_NO_PREFETCH;
 
-		if (rwa->raw)
-			flags |= DMU_READ_NO_DECRYPT;
+		flags |= DMU_READ_NO_DECRYPT;
 
 		VERIFY0(dnode_hold(rwa->os, drro->drr_object, FTAG, &dn));
 		VERIFY0(dmu_bonus_hold_by_dnode(dn, FTAG, &db, flags));
