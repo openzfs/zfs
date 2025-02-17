@@ -343,6 +343,78 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/mv_files/mv_files_common.kshlib \
 	functional/nopwrite/nopwrite.shlib \
 	functional/no_space/enospc.cfg \
+	functional/libnvpair/refs/boolean_flag.ref \
+	functional/libnvpair/refs/byte.ref \
+	functional/libnvpair/refs/int16.ref \
+	functional/libnvpair/refs/uint16.ref \
+	functional/libnvpair/refs/int32.ref \
+	functional/libnvpair/refs/uint32.ref \
+	functional/libnvpair/refs/int64.ref \
+	functional/libnvpair/refs/uint64.ref \
+	functional/libnvpair/refs/string_.ref \
+	functional/libnvpair/refs/string_0.ref \
+	functional/libnvpair/refs/string_01.ref \
+	functional/libnvpair/refs/string_012.ref \
+	functional/libnvpair/refs/string_0123.ref \
+	functional/libnvpair/refs/string_01234.ref \
+	functional/libnvpair/refs/string_012345.ref \
+	functional/libnvpair/refs/string_0123456.ref \
+	functional/libnvpair/refs/string_01234567.ref \
+	functional/libnvpair/refs/string_012345678.ref \
+	functional/libnvpair/refs/string_0123456789.ref \
+	functional/libnvpair/refs/byte_array.ref \
+	functional/libnvpair/refs/string_0123456789a.ref \
+	functional/libnvpair/refs/string_0123456789ab.ref \
+	functional/libnvpair/refs/string_0123456789abc.ref \
+	functional/libnvpair/refs/string_0123456789abcd.ref \
+	functional/libnvpair/refs/string_0123456789abcde.ref \
+	functional/libnvpair/refs/string_0123456789abcdef.ref \
+	functional/libnvpair/refs/string_0123456789abcdefg.ref \
+	functional/libnvpair/refs/byte_array_empty.ref \
+	functional/libnvpair/refs/byte_array_single.ref \
+	functional/libnvpair/refs/int16_array.ref \
+	functional/libnvpair/refs/int16_array_empty.ref \
+	functional/libnvpair/refs/int16_array_single.ref \
+	functional/libnvpair/refs/uint16_array.ref \
+	functional/libnvpair/refs/uint16_array_empty.ref \
+	functional/libnvpair/refs/uint16_array_single.ref \
+	functional/libnvpair/refs/hrtime.ref \
+	functional/libnvpair/refs/int32_array.ref \
+	functional/libnvpair/refs/int32_array_empty.ref \
+	functional/libnvpair/refs/int32_array_single.ref \
+	functional/libnvpair/refs/uint32_array.ref \
+	functional/libnvpair/refs/uint32_array_empty.ref \
+	functional/libnvpair/refs/uint32_array_single.ref \
+	functional/libnvpair/refs/int64_array.ref \
+	functional/libnvpair/refs/int64_array_empty.ref \
+	functional/libnvpair/refs/int64_array_single.ref \
+	functional/libnvpair/refs/uint64_array.ref \
+	functional/libnvpair/refs/uint64_array_empty.ref \
+	functional/libnvpair/refs/uint64_array_single.ref \
+	functional/libnvpair/refs/string_array.ref \
+	functional/libnvpair/refs/string_array_empty.ref \
+	functional/libnvpair/refs/string_array_single.ref \
+	functional/libnvpair/refs/nvlist0.ref \
+	functional/libnvpair/refs/nvlist1.ref \
+	functional/libnvpair/refs/nvlist2.ref \
+	functional/libnvpair/refs/nvlist3.ref \
+	functional/libnvpair/refs/nvlist_array.ref \
+	functional/libnvpair/refs/nvlist_array_empty.ref \
+	functional/libnvpair/refs/nvlist_array_single.ref \
+	functional/libnvpair/refs/boolean.ref \
+	functional/libnvpair/refs/int8.ref \
+	functional/libnvpair/refs/uint8.ref \
+	functional/libnvpair/refs/boolean_array.ref \
+	functional/libnvpair/refs/boolean_array_empty.ref \
+	functional/libnvpair/refs/boolean_array_single.ref \
+	functional/libnvpair/refs/int8_array.ref \
+	functional/libnvpair/refs/int8_array_empty.ref \
+	functional/libnvpair/refs/int8_array_single.ref \
+	functional/libnvpair/refs/uint8_array.ref \
+	functional/libnvpair/refs/uint8_array_empty.ref \
+	functional/libnvpair/refs/uint8_array_single.ref \
+	functional/libnvpair/refs/double.ref \
+	functional/libnvpair/refs/empty_name.ref \
 	functional/online_offline/online_offline.cfg \
 	functional/pool_checkpoint/pool_checkpoint.kshlib \
 	functional/projectquota/projectquota.cfg \
@@ -1688,6 +1760,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/no_space/enospc_ganging.ksh \
 	functional/no_space/enospc_rm.ksh \
 	functional/no_space/setup.ksh \
+	functional/libnvpair/cleanup.ksh \
+	functional/libnvpair/packed.ksh \
+	functional/libnvpair/setup.ksh \
 	functional/online_offline/cleanup.ksh \
 	functional/online_offline/online_offline_001_pos.ksh \
 	functional/online_offline/online_offline_002_neg.ksh \
