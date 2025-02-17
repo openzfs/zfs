@@ -2188,6 +2188,9 @@ If there is an error during healing, the healing receive is not
 terminated instead it moves on to the next record.
 .El
 .
+.It Sy zfs_recv_force_needs_perm Ns = Ns Sy 0 Pq int
+When not zero, force receive (zfs recv -F) requires rollback permission.
+.
 .It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Setting this variable overrides the default logic for estimating block
 sizes when doing a
