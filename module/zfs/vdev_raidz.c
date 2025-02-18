@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -4268,9 +4269,6 @@ io_error_exit:
 		zfs_dbgmsg("reflow: error %d writing scratch location", error);
 		goto io_error_exit;
 	}
-	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
-	zio_wait(pio);
 
 	zfs_dbgmsg("reflow: wrote %llu bytes (logical) to scratch area",
 	    (long long)logical_size);
@@ -4327,9 +4325,6 @@ overwrite:
 		    logical_size);
 		goto io_error_exit;
 	}
-	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
-	zio_wait(pio);
 
 	zfs_dbgmsg("reflow: overwrote %llu bytes (logical) to real location",
 	    (long long)logical_size);
@@ -4433,9 +4428,6 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 		    ZIO_PRIORITY_REMOVAL, 0,
 		    raidz_scratch_child_done, pio));
 	}
-	zio_wait(pio);
-	pio = zio_root(spa, NULL, NULL, 0);
-	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
 	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) "
