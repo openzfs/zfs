@@ -3145,6 +3145,17 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	 * This value respects the redundant_metadata property.
 	 */
 	int gbh_copies = gio->io_prop.zp_gang_copies;
+	if (gbh_copies == 0) {
+		/*
+		 * This should only happen in the case where we're filling in
+		 * DDT entries for a parent that wants more copies than the DDT
+		 * has.  In that case, we cannot gang without creating a mixed
+		 * blkptr, which is illegal.
+		 */
+		ASSERT3U(gio->io_child_type, ==, ZIO_CHILD_DDT);
+		pio->io_error = EAGAIN;
+		return (pio);
+	}
 	ASSERT3S(gbh_copies, >, 0);
 	ASSERT3S(gbh_copies, <=, SPA_DVAS_PER_BP);
 
@@ -3769,8 +3780,9 @@ zio_ddt_write(zio_t *zio)
 	 */
 	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
 	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
+	int gang_dvas = ddt_phys_gang_count(ddp, v, BP_IS_ENCRYPTED(bp));
 
-	/* Number of DVAs requested bya the IO. */
+	/* Number of DVAs requested by the IO. */
 	uint8_t need_dvas = zp->zp_copies;
 
 	/*
@@ -3916,13 +3928,28 @@ zio_ddt_write(zio_t *zio)
 		need_dvas -= parent_dvas;
 	}
 
+	if (gang_dvas > 0 && have_dvas > 0) {
+		zp->zp_dedup = B_FALSE;
+		BP_SET_DEDUP(bp, B_FALSE);
+		zio->io_pipeline = ZIO_WRITE_PIPELINE;
+		ddt_exit(ddt);
+		return (zio);
+	}
+
 	/*
 	 * We need to write. We will create a new write with the copies
 	 * property adjusted to match the number of DVAs we need to need to
 	 * grow the DDT entry by to satisfy the request.
 	 */
 	zio_prop_t czp = *zp;
-	czp.zp_copies = czp.zp_gang_copies = need_dvas;
+	if (gang_dvas == 0 && have_dvas > 0) {
+		czp.zp_copies = need_dvas;
+		czp.zp_gang_copies = 0;
+	} else {
+		czp.zp_copies = need_dvas;
+		czp.zp_gang_copies = need_dvas +
+		    (zp->zp_gang_copies - zp->zp_copies);
+	}
 	zio_t *cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
 	    zio->io_orig_size, zio->io_orig_size, &czp,
 	    zio_ddt_child_write_ready, NULL,
@@ -4106,6 +4133,7 @@ zio_dva_allocate(zio_t *zio)
 	ASSERT(BP_IS_HOLE(bp));
 	ASSERT0(BP_GET_NDVAS(bp));
 	ASSERT3U(zio->io_prop.zp_copies, >, 0);
+
 	ASSERT3U(zio->io_prop.zp_copies, <=, spa_max_replication(spa));
 	ASSERT3U(zio->io_size, ==, BP_GET_PSIZE(bp));
 
@@ -5391,6 +5419,16 @@ zio_done(zio_t *zio)
 	}
 
 	if (zio->io_error && zio == zio->io_logical) {
+
+		/*
+		 * A DDT child tried to create a mixed gang/non-gang BP. We're
+		 * going to have to just retry as a non-dedup IO.
+		 */
+		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
+		    zio->io_prop.zp_dedup) {
+			zio->io_reexecute |= ZIO_REEXECUTE_NOW;
+			zio->io_prop.zp_dedup = B_FALSE;
+		}
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
