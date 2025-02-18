@@ -46,6 +46,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dnode.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
@@ -1963,8 +1964,8 @@ zfs_acl_ids_overquota(zfsvfs_t *zv, zfs_acl_ids_t *acl_ids, uint64_t projid)
 /*
  * Retrieve a file's ACL
  */
-int
-zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
+static int
+zfs_getacl_impl(znode_t *zp, vsecattr_t *vsecp, boolean_t stripped, cred_t *cr)
 {
 	zfs_acl_t	*aclp;
 	ulong_t		mask;
@@ -1975,19 +1976,16 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	mask = vsecp->vsa_mask & (VSA_ACE | VSA_ACECNT |
 	    VSA_ACE_ACLFLAGS | VSA_ACE_ALLTYPES);
 
-	if (mask == 0)
-		return (SET_ERROR(ENOSYS));
-
-	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr,
-	    zfs_init_idmap)))
-		return (error);
-
-	mutex_enter(&zp->z_acl_lock);
-
-	error = zfs_acl_node_read(zp, B_FALSE, &aclp, B_FALSE);
-	if (error != 0) {
-		mutex_exit(&zp->z_acl_lock);
-		return (error);
+	if (stripped) {
+		mode_t mode = ZTOI(zp)->i_mode;
+		aclp = zfs_acl_alloc(zfs_acl_version_zp(zp));
+		(aclp)->z_hints = zp->z_pflags & V4_ACL_WIDE_FLAGS;
+		zfs_acl_chmod(S_ISDIR(mode), mode, B_TRUE,
+		    (ZTOZSB(zp)->z_acl_mode == ZFS_ACL_GROUPMASK), aclp);
+	} else {
+		error = zfs_acl_node_read(zp, B_FALSE, &aclp, B_FALSE);
+		if (error != 0)
+			return (error);
 	}
 
 	/*
@@ -2054,11 +2052,37 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 			vsecp->vsa_aclflags |= ACL_PROTECTED;
 		if (zp->z_pflags & ZFS_ACL_AUTO_INHERIT)
 			vsecp->vsa_aclflags |= ACL_AUTO_INHERIT;
+		if (zp->z_pflags & ZFS_ACL_TRIVIAL)
+			vsecp->vsa_aclflags |= ACL_IS_TRIVIAL;
+		if (S_ISDIR(ZTOI(zp)->i_mode))
+			vsecp->vsa_aclflags |= ACL_IS_DIR;
 	}
 
+	return (0);
+}
+
+int
+zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
+{
+	int error;
+	ulong_t		mask;
+
+	mask = vsecp->vsa_mask & (VSA_ACE | VSA_ACECNT |
+	    VSA_ACE_ACLFLAGS | VSA_ACE_ALLTYPES);
+
+	if (mask == 0)
+		return (SET_ERROR(ENOSYS));
+
+	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr,
+	    zfs_init_idmap))) {
+		return (error);
+	}
+
+	mutex_enter(&zp->z_acl_lock);
+	error  = zfs_getacl_impl(zp, vsecp, B_FALSE, cr);
 	mutex_exit(&zp->z_acl_lock);
 
-	return (0);
+	return (error);
 }
 
 int
@@ -2119,28 +2143,17 @@ zfs_vsec_2_aclp(zfsvfs_t *zfsvfs, umode_t obj_mode,
 /*
  * Set a file's ACL
  */
-int
-zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
+static int
+zfs_setacl_impl(znode_t *zp, vsecattr_t *vsecp, cred_t *cr)
 {
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	zilog_t		*zilog = zfsvfs->z_log;
-	ulong_t		mask = vsecp->vsa_mask & (VSA_ACE | VSA_ACECNT);
 	dmu_tx_t	*tx;
 	int		error;
 	zfs_acl_t	*aclp;
 	zfs_fuid_info_t	*fuidp = NULL;
 	boolean_t	fuid_dirtied;
 	uint64_t	acl_obj;
-
-	if (mask == 0)
-		return (SET_ERROR(ENOSYS));
-
-	if (zp->z_pflags & ZFS_IMMUTABLE)
-		return (SET_ERROR(EPERM));
-
-	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
-	    zfs_init_idmap)))
-		return (error);
 
 	error = zfs_vsec_2_aclp(zfsvfs, ZTOI(zp)->i_mode, vsecp, cr, &fuidp,
 	    &aclp);
@@ -2156,9 +2169,6 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 		    (zp->z_pflags & V4_ACL_WIDE_FLAGS);
 	}
 top:
-	mutex_enter(&zp->z_acl_lock);
-	mutex_enter(&zp->z_lock);
-
 	tx = dmu_tx_create(zfsvfs->z_os);
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
@@ -2189,12 +2199,15 @@ top:
 	zfs_sa_upgrade_txholds(tx, zp);
 	error = dmu_tx_assign(tx, TXG_NOWAIT);
 	if (error) {
-		mutex_exit(&zp->z_acl_lock);
-		mutex_exit(&zp->z_lock);
-
 		if (error == ERESTART) {
+			mutex_exit(&zp->z_lock);
+			mutex_exit(&zp->z_acl_lock);
+
 			dmu_tx_wait(tx);
 			dmu_tx_abort(tx);
+
+			mutex_enter(&zp->z_acl_lock);
+			mutex_enter(&zp->z_lock);
 			goto top;
 		}
 		dmu_tx_abort(tx);
@@ -2216,9 +2229,89 @@ top:
 		zfs_fuid_info_free(fuidp);
 	dmu_tx_commit(tx);
 
+	return (error);
+}
+
+int
+zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
+{
+	ulong_t		mask = vsecp->vsa_mask & (VSA_ACE | VSA_ACECNT);
+	int		error;
+
+	if (mask == 0)
+		return (SET_ERROR(ENOSYS));
+
+	if (zp->z_pflags & ZFS_IMMUTABLE)
+		return (SET_ERROR(EPERM));
+
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
+	    zfs_init_idmap)))
+		return (error);
+
+	mutex_enter(&zp->z_acl_lock);
+	mutex_enter(&zp->z_lock);
+
+	error = zfs_setacl_impl(zp, vsecp, cr);
+
+	mutex_exit(&zp->z_lock);
+	mutex_exit(&zp->z_acl_lock);
+	return (error);
+}
+
+
+int
+zfs_stripacl(znode_t *zp, cred_t *cr)
+{
+	int error;
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	vsecattr_t vsec = {
+		.vsa_mask = VSA_ACE_ALLTYPES | VSA_ACECNT | VSA_ACE |
+		    VSA_ACE_ACLFLAGS
+	};
+
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if ((error = zfs_verify_zp(zp)) != 0)
+		goto done;
+
+	if (zp->z_pflags & ZFS_IMMUTABLE) {
+		error = SET_ERROR(EPERM);
+		goto done;
+	}
+
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, B_FALSE, cr,
+	    zfs_init_idmap)))
+		goto done;
+
+	if (zp->z_pflags & ZFS_ACL_TRIVIAL) {
+		// ACL is already stripped. Nothing to do.
+		error = 0;
+		goto done;
+	}
+
+	mutex_enter(&zp->z_acl_lock);
+	error = zfs_getacl_impl(zp, &vsec, B_TRUE, cr);
+	if (error) {
+		mutex_exit(&zp->z_acl_lock);
+		goto done;
+	}
+
+	mutex_enter(&zp->z_lock);
+
+	error = zfs_setacl_impl(zp, &vsec, cr);
+
 	mutex_exit(&zp->z_lock);
 	mutex_exit(&zp->z_acl_lock);
 
+	kmem_free(vsec.vsa_aclentp, vsec.vsa_aclentsz);
+
+	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		zil_commit(zfsvfs->z_log, 0);
+
+done:
+	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
 
@@ -2345,8 +2438,11 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 			break;
 		case OWNING_GROUP:
 			who = gowner;
-			zfs_fallthrough;
+			checkit = zfs_groupmember(zfsvfs, who, cr);
+			break;
 		case ACE_IDENTIFIER_GROUP:
+			who = zfs_gid_to_vfsgid(mnt_ns, zfs_i_user_ns(ZTOI(zp)),
+			    who);
 			checkit = zfs_groupmember(zfsvfs, who, cr);
 			break;
 		case ACE_EVERYONE:
@@ -2357,6 +2453,8 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 		default:
 			if (entry_type == 0) {
 				uid_t newid;
+				who = zfs_uid_to_vfsuid(mnt_ns,
+				    zfs_i_user_ns(ZTOI(zp)), who);
 
 				newid = zfs_fuid_map_id(zfsvfs, who, cr,
 				    ZFS_ACE_USER);
@@ -2523,7 +2621,7 @@ zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
 	 * Also note: DOS R/O is ignored for directories.
 	 */
 	if ((v4_mode & WRITE_MASK_DATA) &&
-	    S_ISDIR(ZTOI(zp)->i_mode) &&
+	    !S_ISDIR(ZTOI(zp)->i_mode) &&
 	    (zp->z_pflags & ZFS_READONLY)) {
 		return (SET_ERROR(EPERM));
 	}
