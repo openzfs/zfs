@@ -3138,6 +3138,17 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	 * encryption, which uses DVA[2] for the IV+salt.
 	 */
 	int gbh_copies = gio->io_prop.zp_gang_copies;
+	if (gbh_copies == 0) {
+		/*
+		 * This should only happen in the case where we're filling in
+		 * DDT entries for a parent that wants more copies than the DDT
+		 * has.  In that case, we cannot gang without creating a mixed
+		 * blkptr, which is illegal.
+		 */
+		ASSERT3U(gio->io_child_type, ==, ZIO_CHILD_DDT);
+		pio->io_error = EAGAIN;
+		return (pio);
+	}
 	ASSERT3S(gbh_copies, >, 0);
 	ASSERT3S(gbh_copies, <=, SPA_DVAS_PER_BP);
 
@@ -3149,7 +3160,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 		flags |= METASLAB_ASYNC_ALLOC;
 		VERIFY(zfs_refcount_held(&mc->mc_allocator[pio->io_allocator].
-		    mca_alloc_slots, pio));
+		    mca_alloc_slots, pio) || gio->io_prop.zp_copies == 0);
 
 		/*
 		 * The logical zio has already placed a reservation for
@@ -3229,6 +3240,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_byteorder = gio->io_prop.zp_byteorder;
 		zp.zp_direct_write = B_FALSE;
+		zp.zp_must_gang = B_FALSE;
 		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
 		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
 		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
@@ -3784,8 +3796,9 @@ zio_ddt_write(zio_t *zio)
 	 */
 	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
 	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
+	int gang_dvas = ddt_phys_gang_count(ddp, v, BP_IS_ENCRYPTED(bp));
 
-	/* Number of DVAs requested bya the IO. */
+	/* Number of DVAs requested by the IO. */
 	uint8_t need_dvas = zp->zp_copies;
 
 	/*
@@ -3937,7 +3950,19 @@ zio_ddt_write(zio_t *zio)
 	 * grow the DDT entry by to satisfy the request.
 	 */
 	zio_prop_t czp = *zp;
-	czp.zp_copies = czp.zp_gang_copies = need_dvas;
+	if (gang_dvas > 0 && have_dvas > 0) {
+		czp.zp_gang_copies = need_dvas +
+		    (zp->zp_gang_copies - zp->zp_copies);
+		czp.zp_copies = need_dvas;
+		czp.zp_must_gang = B_TRUE;
+	} else if (gang_dvas == 0 && have_dvas > 0) {
+		czp.zp_copies = need_dvas;
+		czp.zp_gang_copies = 0;
+	} else {
+		czp.zp_copies = need_dvas;
+		czp.zp_gang_copies = need_dvas +
+		    (zp->zp_gang_copies - zp->zp_copies);
+	}
 	zio_t *cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
 	    zio->io_orig_size, zio->io_orig_size, &czp,
 	    zio_ddt_child_write_ready, NULL,
@@ -4109,6 +4134,7 @@ zio_dva_allocate(zio_t *zio)
 	ASSERT(BP_IS_HOLE(bp));
 	ASSERT0(BP_GET_NDVAS(bp));
 	ASSERT3U(zio->io_prop.zp_copies, >, 0);
+
 	ASSERT3U(zio->io_prop.zp_copies, <=, spa_max_replication(spa));
 	ASSERT3U(zio->io_size, ==, BP_GET_PSIZE(bp));
 
@@ -4141,14 +4167,15 @@ zio_dva_allocate(zio_t *zio)
 	 * back to spa_sync() which is abysmal for performance.
 	 */
 	ASSERT(ZIO_HAS_ALLOCATOR(zio));
-	error = metaslab_alloc(spa, mc, zio->io_size, bp,
-	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
-	    &zio->io_alloc_list, zio, zio->io_allocator);
+	error = zio->io_prop.zp_must_gang ? ENOSPC : metaslab_alloc(spa,
+	    mc, zio->io_size, bp, zio->io_prop.zp_copies, zio->io_txg, NULL,
+	    flags, &zio->io_alloc_list, zio, zio->io_allocator);
 
 	/*
 	 * Fallback to normal class when an alloc class is full
 	 */
-	if (error == ENOSPC && mc != spa_normal_class(spa)) {
+	if (error == ENOSPC && mc != spa_normal_class(spa) &&
+	    !zio->io_prop.zp_must_gang) {
 		/*
 		 * When the dedup or special class is spilling into the  normal
 		 * class, there can still be significant space available due
@@ -4200,7 +4227,8 @@ zio_dva_allocate(zio_t *zio)
 	}
 
 	if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE) {
-		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC &&
+		    !zio->io_prop.zp_must_gang) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
 			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
@@ -5422,6 +5450,16 @@ zio_done(zio_t *zio)
 	}
 
 	if (zio->io_error && zio == zio->io_logical) {
+
+		/*
+		 * A DDT child tried to create a mixed gang/non-gang BP. We're
+		 * going to have to just retry as a non-dedup IO.
+		 */
+		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
+		    zio->io_prop.zp_dedup) {
+			zio->io_reexecute |= ZIO_REEXECUTE_NOW;
+			zio->io_prop.zp_dedup = B_FALSE;
+		}
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
