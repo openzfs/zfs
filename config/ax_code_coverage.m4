@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
 # ===========================================================================
 #     https://www.gnu.org/software/autoconf-archive/ax_code_coverage.html
 # ===========================================================================
