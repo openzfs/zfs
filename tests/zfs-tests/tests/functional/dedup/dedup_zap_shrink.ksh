@@ -68,7 +68,7 @@ log_must test 1 -lt $nleafs
 
 nleafs_old=$nleafs
 
-log_must truncate --size=512 $mountpoint/file
+log_must truncate -s 512 $mountpoint/file
 sync_pool $TESTPOOL
 nleafs=$(zdb -dddd $TESTPOOL "$zap_obj" | grep "Leaf blocks:" | awk -F\: '{print($2);}')
 log_must test $nleafs -lt $nleafs_old

@@ -82,7 +82,7 @@ new_entries=$(ddt_entries)
 [[ "$entries" -eq "$new_entries" ]] || \
 	log_fail "DDT entries changed from $entries to $new_entries"
 
-log_must truncate --size=128k $mountpoint/f2
+log_must truncate -s 128k $mountpoint/f2
 sync_pool $TESTPOOL
 sleep 1
 log_must zpool ddtprune -p 100 $TESTPOOL
