@@ -1,0 +1,7 @@
+.json test vectors taken from Project Wycheproof:
+
+  https://github.com/c2sp/wycheproof
+
+Licensed under the Apache License, Version 2.0
+
+.txt files generated with scripts/convert_wycheproof.pl
