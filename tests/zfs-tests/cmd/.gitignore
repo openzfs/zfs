@@ -4,6 +4,7 @@
 /clonefile
 /clone_mmap_cached
 /clone_mmap_write
+/crypto_test
 /devname2devid
 /dir_rd_update
 /draid
