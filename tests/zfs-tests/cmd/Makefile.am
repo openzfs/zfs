@@ -30,6 +30,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
 	libzfs_core.la
 
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
+%C%_crypto_test_SOURCES = %D%/crypto_test.c
+%C%_crypto_test_LDADD = libzpool.la
+
+
 if WANT_DEVNAME2DEVID
 scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
 %C%_devname2devid_CFLAGS = $(AM_CFLAGS) $(LIBUDEV_CFLAGS)
