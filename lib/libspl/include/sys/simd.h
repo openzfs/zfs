@@ -101,7 +101,9 @@ typedef enum cpuid_inst_sets {
 	AES,
 	PCLMULQDQ,
 	MOVBE,
-	SHA_NI
+	SHA_NI,
+	VAES,
+	VPCLMULQDQ
 } cpuid_inst_sets_t;
 
 /*
@@ -126,6 +128,8 @@ typedef struct cpuid_feature_desc {
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
 #define	_MOVBE_BIT		(1U << 22)
+#define	_VAES_BIT		(1U << 9)
+#define	_VPCLMULQDQ_BIT		(1U << 10)
 #define	_SHA_NI_BIT		(1U << 29)
 
 /*
@@ -156,6 +160,8 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
 	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
 	[SHA_NI]	= {7U, 0U, _SHA_NI_BIT,		EBX	},
+	[VAES]		= {7U, 0U, _VAES_BIT,		ECX	},
+	[VPCLMULQDQ]	= {7U, 0U, _VPCLMULQDQ_BIT,	ECX	},
 };
 
 /*
@@ -230,6 +236,8 @@ CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
 CPUID_FEATURE_CHECK(movbe, MOVBE);
 CPUID_FEATURE_CHECK(shani, SHA_NI);
+CPUID_FEATURE_CHECK(vaes, VAES);
+CPUID_FEATURE_CHECK(vpclmulqdq, VPCLMULQDQ);
 
 /*
  * Detect register set support
@@ -378,6 +386,24 @@ static inline boolean_t
 zfs_shani_available(void)
 {
 	return (__cpuid_has_shani());
+}
+
+/*
+ * Check if VAES instruction is available
+ */
+static inline boolean_t
+zfs_vaes_available(void)
+{
+	return (__cpuid_has_vaes());
+}
+
+/*
+ * Check if VPCLMULQDQ instruction is available
+ */
+static inline boolean_t
+zfs_vpclmulqdq_available(void)
+{
+	return (__cpuid_has_vpclmulqdq());
 }
 
 /*
