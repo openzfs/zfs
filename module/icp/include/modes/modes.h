@@ -33,17 +33,26 @@ extern "C" {
 #include <sys/zfs_context.h>
 #include <sys/crypto/common.h>
 #include <sys/crypto/impl.h>
-
+//TODO: Remove
+#define __x86_64__ 1
+#define HAVE_AVX 1
+#define HAVE_AES 1
+#define HAVE_PCLMULQDQ 1
 /*
  * Does the build chain support all instructions needed for the GCM assembler
- * routines. AVX support should imply AES-NI and PCLMULQDQ, but make sure
- * anyhow.
+* routines.
  */
-#if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64__) && defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
+	/* XXXX: does AES + PCLMULQDQ really imply at least SSE4_1? */
 #define	CAN_USE_GCM_ASM
+#if defined(HAVE_SSE4_1)
+#define	CAN_USE_GCM_ASM_SSE
+#endif
+#if defined(HAVE_AVX)
+#define	CAN_USE_GCM_ASM_AVX
 extern boolean_t gcm_avx_can_use_movbe;
 #endif
+#endif /* defined(__x86_64__) && defined(HAVE_AES) && defined(HAVE_PCLMULQDQ) */
 
 #define	CCM_MODE			0x00000010
 #define	GCM_MODE			0x00000020
@@ -128,6 +137,35 @@ typedef struct ccm_ctx {
 #define	ccm_copy_to		ccm_common.cc_copy_to
 #define	ccm_flags		ccm_common.cc_flags
 
+#if defined(CAN_USE_GCM_ASM)
+	/*
+	 * enum gcm_simd_impl holds the types of the implemented gcm asm routines for
+	 * the various x86 SIMD extensions. Please note that other parts of the code
+	 * depends on the order given below, so do not change the order and append new
+	 * implementations at the end, but before GSI_NUM_IMPL.
+	 */
+	typedef enum gcm_simd_impl {
+		GSI_NONE,
+		GSI_OSSL_AVX,
+		GSI_ISALC_SSE,
+		GSI_NUM_IMPL
+	} gcm_simd_impl_t;
+
+#define	GSI_ISALC_FIRST_IMPL	((int)GSI_ISALC_SSE)
+#define	GSI_ISALC_LAST_IMPL	((int)GSI_ISALC_SSE)
+
+	/*
+	 * XXXX: Serves as a template to remind us what to do if adding an isalc impl
+	 * #ifdef CAN_USE_GCM_ASM_AVX2
+	 * #undef GSI_ISALC_LAST_IMPL
+	 * #define	GSI_ISALC_LAST_IMPL	((int)GSI_ISALC_AVX2)
+	 * #endif
+	 */
+
+#define	GSI_ISALC_NUM_IMPL	(GSI_ISALC_LAST_IMPL - GSI_ISALC_FIRST_IMPL +1)
+
+#endif /* if defined(CAN_USE_GCM_ASM) */
+
 /*
  * gcm_tag_len:		Length of authentication tag.
  *
@@ -173,7 +211,7 @@ typedef struct gcm_ctx {
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
 #ifdef CAN_USE_GCM_ASM
-	boolean_t gcm_use_avx;
+	gcm_simd_impl_t gcm_simd_impl;
 #endif
 } gcm_ctx_t;
 

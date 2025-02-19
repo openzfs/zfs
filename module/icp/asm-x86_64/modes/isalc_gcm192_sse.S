@@ -30,7 +30,7 @@
 #if defined(__x86_64__) && defined(HAVE_SSE4_1) && defined(HAVE_AES) && \
     defined(HAVE_PCLMULQDQ)
 
-#define GCM128_MODE 1
+#define GCM192_MODE 1
 #include "isalc_gcm_sse.S"
 
 #endif

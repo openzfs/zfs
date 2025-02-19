@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //  Copyright(c) 2011-2019 Intel Corporation All rights reserved.
 //
 //  Redistribution and use in source and binary forms, with or without
@@ -25,7 +25,10 @@
 //  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 //  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 //  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// Port to GNU as, translation to GNU as att-syntax and adoptions for the ICP
+// Copyright(c) 2023 Attila Fülöp <attila@fueloep.org>
 
 #ifndef _REG_SIZES_ASM_
 #define _REG_SIZES_ASM_
@@ -203,12 +206,6 @@
 #define __x86_64__
 #endif
 
-
-#ifdef __x86_64__
-#define endbranch .byte 0xf3, 0x0f, 0x1e, 0xfa
-#else
-#define endbranch .byte 0xf3, 0x0f, 0x1e, 0xfb
-#endif
 
 #ifdef REL_TEXT
 #define WRT_OPT

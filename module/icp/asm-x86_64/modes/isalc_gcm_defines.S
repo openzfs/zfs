@@ -36,10 +36,10 @@
 //       Vinodh Gopal
 //       James Guilford
 
+// Port to GNU as, translation to GNU as att-syntax and adoptions for the ICP
+// Copyright(c) 2023 Attila Fülöp <attila@fueloep.org>
 
-////////////
-
-.section .rodata
+SECTION_STATIC
 
 .balign 16
 POLY:		.quad     0x0000000000000001, 0xC200000000000000
@@ -181,76 +181,146 @@ mask_out_top_block:
 
 .section .text
 
+// #define	KEYSCHED_LEN (15 * GCM_BLOCKSIZE)
+// #define	AES_KEY_LEN (2 * KEYSCHED_LEN + 16 + 8 + 4 + 4)	// 512
 
-////define the fields of gcm_data struct
-//typedef struct gcm_data
-//{
-//        u8 expanded_keys[16*15]//
-//        u8 shifted_hkey_1[16]//  // store HashKey <<1 mod poly here
-//        u8 shifted_hkey_2[16]//  // store HashKey^2 <<1 mod poly here
-//        u8 shifted_hkey_3[16]//  // store HashKey^3 <<1 mod poly here
-//        u8 shifted_hkey_4[16]//  // store HashKey^4 <<1 mod poly here
-//        u8 shifted_hkey_5[16]//  // store HashKey^5 <<1 mod poly here
-//        u8 shifted_hkey_6[16]//  // store HashKey^6 <<1 mod poly here
-//        u8 shifted_hkey_7[16]//  // store HashKey^7 <<1 mod poly here
-//        u8 shifted_hkey_8[16]//  // store HashKey^8 <<1 mod poly here
-//        u8 shifted_hkey_1_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_2_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^2 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_3_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^3 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_4_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^4 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_5_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^5 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_6_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^6 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_7_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^7 <<1 mod poly here (for Karatsuba purposes)
-//        u8 shifted_hkey_8_k[16]//  // store XOR of High 64 bits and Low 64 bits of  HashKey^8 <<1 mod poly here (for Karatsuba purposes)
-//} gcm_data//
+// Offsets into struct gcm_ctx:
+//
+// typedef struct gcm_ctx {
+//	void *gcm_keysched;		OFFSET:   0	=   0
+//	size_t gcm_keysched_len;	OFFSET:	  1*8	=   8
+//	uint64_t gcm_cb[2];		OFFSET:   2*8	=  16
+//	uint64_t gcm_remainder[2];	OFFSET:   4*8	=  32
+//	size_t gcm_remainder_len;	OFFSET:   6*8	=  48
+//	uint8_t *gcm_lastp;		OFFSET:   7*8	=  56
+//	uint8_t *gcm_copy_to;		OFFSET:   8*8	=  64
+//	uint32_t gcm_flags;		OFFSET:   9*8	=  72
+//	size_t gcm_tag_len;		OFFSET:  10*8	=  80
+//	size_t gcm_processed_data_len;	OFFSET:  11*8	=  88
+//	size_t gcm_pt_buf_len;		OFFSET:  12*8	=  96
+//	uint32_t gcm_tmp[4];		OFFSET:  13*8	= 104
+//	uint64_t gcm_ghash[2];		OFFSET:  15*8	= 120
+//	uint64_t gcm_H[2];		OFFSET:  17*8	= 136
+//	uint64_t *gcm_Htable;		OFFSET:  19*8	= 152
+//	size_t gcm_htab_len;		OFFSET:  20*8	= 160
+//	uint64_t gcm_J0[2];		OFFSET:  21*8	= 168
+//	uint64_t gcm_len_a_len_c[2];	OFFSET:  23*8	= 184
+//	uint8_t *gcm_pt_buf;		OFFSET:  25*8	= 200
+//	gcm_simd_impl_t gcm_simd_impl;	OFFSET:  26*8	= 208
+// } gcm_ctx_t;				SIZE:		= 216
+
+// AadHash:
+//	Store current Hash of data which has been input: gcm_ctx->ghash.
+//
+// AadLen:
+//	Store length of input data which will not be encrypted or decrypted:
+//	gcm_ctx->gcm_tag_len.
+//
+// InLen:
+//	Store length of input data which will be encrypted or decrypted:
+//	gcm_ctx->gcm_processed_data_len.
+//
+// PBlockEncKey:
+//	Encryption key for the partial block at the end of the previous update:
+//	no real match, use: gcm_ctx->gcm_remainder.
+//
+// OrigIV:
+//	The initial counter: 12 bytes IV with (int32_t) 1 appended:
+//	gcm_ctx->gcm_J0.
+//
+// CurCount:
+//	Current counter for generation of encryption key: gcm_ctx->gcm_cb.
+//
+// PBlockLen:
+//	Length of partial block at the end of the previous update:
+//	gcm_ctx->gcm_remainder_len.
+
+#define KeySched	    0		// gcm_ctx->gcm_keysched
+#define AadHash		(15*8)		// gcm_ctx->gcm_ghash
+#define AadLen		(23*8)		// gcm_ctx->gcm_len_a_len_c[0]
+#define	TagLen		(10*8)		// gcm_ctx->gcm_tag_len
+#define InLen		(11*8)		// gcm_ctx->gcm_processed_data_len
+#define PBlockEncKey	 (4*8)		// gcm_ctx->gcm_remainder
+#define OrigIV		(21*8)		// gcm_ctx->gcm_J0
+#define CurCount	 (2*8)		// gcm_ctx->gcm_cb
+#define PBlockLen	 (6*8)		// gcm_ctx->gcm_remainder_len
+#define GcmH		(17*8)		// gcm_ctx->gcm_H
+#define GcmHtab		(19*8)		// gcm_ctx->gcm_Htable
+#define LenALenC	(23*8)		// gcm_ctx->gcm_len_a_len_c
+
+// Define the offsets into gcm_ctx of the fields fields of gcm_htab.
+//  u8 shifted_hkey_1[16]	store HashKey <<1 mod poly here
+//  u8 shifted_hkey_2[16]	store HashKey^2 <<1 mod poly here
+//  u8 shifted_hkey_3[16]	store HashKey^3 <<1 mod poly here
+//  u8 shifted_hkey_4[16]	store HashKey^4 <<1 mod poly here
+//  u8 shifted_hkey_5[16]	store HashKey^5 <<1 mod poly here
+//  u8 shifted_hkey_6[16]	store HashKey^6 <<1 mod poly here
+//  u8 shifted_hkey_7[16]	store HashKey^7 <<1 mod poly here
+//  u8 shifted_hkey_8[16]	store HashKey^8 <<1 mod poly here
+//  u8 shifted_hkey_1_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_2_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^2 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_3_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^3 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_4_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^4 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_5_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^5 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_6_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^6 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_7_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^7 <<1 mod poly here (for Karatsuba purposes)
+//  u8 shifted_hkey_8_k[16]	store XOR of High 64 bits and Low 64 bits of  HashKey^8 <<1 mod poly here (for Karatsuba purposes)
+
+#define	GCM_BLOCKSIZE	16
 
 #ifndef GCM_KEYS_VAES_AVX512_INCLUDED
-#define HashKey         16*15    // store HashKey <<1 mod poly here
-#define HashKey_1       16*15    // store HashKey <<1 mod poly here
-#define HashKey_2       16*16    // store HashKey^2 <<1 mod poly here
-#define HashKey_3       16*17    // store HashKey^3 <<1 mod poly here
-#define HashKey_4       16*18    // store HashKey^4 <<1 mod poly here
-#define HashKey_5       16*19    // store HashKey^5 <<1 mod poly here
-#define HashKey_6       16*20    // store HashKey^6 <<1 mod poly here
-#define HashKey_7       16*21    // store HashKey^7 <<1 mod poly here
-#define HashKey_8       16*22    // store HashKey^8 <<1 mod poly here
-#define HashKey_k       16*23    // store XOR of High 64 bits and Low 64 bits of  HashKey <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_2_k     16*24    // store XOR of High 64 bits and Low 64 bits of  HashKey^2 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_3_k     16*25   // store XOR of High 64 bits and Low 64 bits of  HashKey^3 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_4_k     16*26   // store XOR of High 64 bits and Low 64 bits of  HashKey^4 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_5_k     16*27   // store XOR of High 64 bits and Low 64 bits of  HashKey^5 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_6_k     16*28   // store XOR of High 64 bits and Low 64 bits of  HashKey^6 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_7_k     16*29   // store XOR of High 64 bits and Low 64 bits of  HashKey^7 <<1 mod poly here (for Karatsuba purposes)
-#define HashKey_8_k     16*30   // store XOR of High 64 bits and Low 64 bits of  HashKey^8 <<1 mod poly here (for Karatsuba purposes)
+#define	HashKey		(GCM_BLOCKSIZE *  0)
+#define	HashKey_1	(GCM_BLOCKSIZE *  0)
+#define	HashKey_2	(GCM_BLOCKSIZE *  1)
+#define	HashKey_3	(GCM_BLOCKSIZE *  2)
+#define	HashKey_4	(GCM_BLOCKSIZE *  3)
+#define	HashKey_5	(GCM_BLOCKSIZE *  4)
+#define	HashKey_6	(GCM_BLOCKSIZE *  5)
+#define	HashKey_7	(GCM_BLOCKSIZE *  6)
+#define	HashKey_8	(GCM_BLOCKSIZE *  7)
+#define	HashKey_k	(GCM_BLOCKSIZE *  8)
+#define	HashKey_2_k	(GCM_BLOCKSIZE *  9)
+#define	HashKey_3_k	(GCM_BLOCKSIZE * 10)
+#define	HashKey_4_k	(GCM_BLOCKSIZE * 11)
+#define	HashKey_5_k	(GCM_BLOCKSIZE * 12)
+#define	HashKey_6_k	(GCM_BLOCKSIZE * 13)
+#define	HashKey_7_k	(GCM_BLOCKSIZE * 14)
+#define	HashKey_8_k	(GCM_BLOCKSIZE * 15)
 #endif
-
-#define AadHash		16*0	// store current Hash of data which has been input
-#define AadLen		16*1	// store length of input data which will not be encrypted or decrypted
-#define InLen		(16*1)+8 // store length of input data which will be encrypted or decrypted
-#define PBlockEncKey	16*2	// encryption key for the partial block at the end of the previous update
-#define OrigIV		16*3	// input IV
-#define CurCount	16*4	// Current counter for generation of encryption key
-#define PBlockLen	16*5	// length of partial block at the end of the previous update
 
 .macro xmmreg name, num
 	.set xmm\name, %xmm\num
 .endm
 
+// Push a 64 bit register to the stack and generate the needed CFI directives.
+.macro CFI_PUSHQ	REG, OFFS
+	pushq	\REG
+	.cfi_adjust_cfa_offset	8
+	.cfi_offset	\REG, \OFFS
+.endm
+
+// Pop a 64 bit register from the stack and generate the needed CFI directives.
+.macro CFI_POPQ		REG
+	popq	\REG
+	.cfi_restore	\REG
+	.cfi_adjust_cfa_offset	-8
+.endm
+
 #define arg(x) (STACK_OFFSET + 8*(x))(%r14)
 
+/*
+.macro STACK_FRAME_NON_STANDARD func:req
+	.pushsection .discard.func_stack_frame_non_standard, "aw"
+-		.long \func - .
++#ifdef CONFIG_64BIT
++		.quad \func
++#else
++		.long \func
++#endif
+ 	.popsection
+.endm
+*/
 
-#if __OUTPUT_FORMAT__ != elf64
-#define arg1 %rcx
-#define arg2 %rdx
-#define arg3 %r8
-#define arg4 %r9
-#define arg5 %rsi
-#define arg6 (STACK_OFFSET + 8*6)(%r14)
-#define arg7 (STACK_OFFSET + 8*7)(%r14)
-#define arg8 (STACK_OFFSET + 8*8)(%r14)
-#define arg9 (STACK_OFFSET + 8*9)(%r14)
-#define arg10 (STACK_OFFSET + 8*10)(%r14)
-#else
 #define arg1 %rdi
 #define arg2 %rsi
 #define arg3 %rdx
@@ -261,7 +331,6 @@ mask_out_top_block:
 #define arg8 ((STACK_OFFSET) + 8*2)(%r14)
 #define arg9 ((STACK_OFFSET) + 8*3)(%r14)
 #define arg10 ((STACK_OFFSET) + 8*4)(%r14)
-#endif
 
 #ifdef NT_LDST
 #define NT_LD
