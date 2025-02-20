@@ -119,7 +119,7 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 static int
 zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 {
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	uint64_t noff = (uint64_t)*off; /* new offset */
 	uint64_t file_sz;
 	int error;
@@ -139,9 +139,9 @@ zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 	if (zn_has_cached_data(zp, 0, file_sz - 1))
 		zn_flush_cached_data(zp, B_TRUE);
 
-	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_READER);
+	zfs_rangelock_enter(&zp->z_rangelock, &lr, 0, UINT64_MAX, RL_READER);
 	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	if (error == ESRCH)
 		return (SET_ERROR(ENXIO));
@@ -361,7 +361,8 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * Lock the range against changes.
 	 */
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	zfs_locked_range_t lr;
+	zfs_rangelock_enter(&zp->z_rangelock, &lr,
 	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
 	/*
@@ -496,7 +497,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 out:
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	if (dio_checksum_failure == B_TRUE)
 		uio->uio_extflg |= UIO_DIRECT;
@@ -666,15 +667,15 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * If in append mode, set the io offset pointer to eof.
 	 */
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	if (ioflag & O_APPEND) {
 		/*
 		 * Obtain an appending range lock to guarantee file append
 		 * semantics.  We reset the write offset once we have the lock.
 		 */
-		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
-		woff = lr->lr_offset;
-		if (lr->lr_length == UINT64_MAX) {
+		zfs_rangelock_enter(&zp->z_rangelock, &lr, 0, n, RL_APPEND);
+		woff = lr.lr_offset;
+		if (lr.lr_length == UINT64_MAX) {
 			/*
 			 * We overlocked the file because this write will cause
 			 * the file block size to increase.
@@ -695,11 +696,11 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 * this write, then this range lock will lock the entire file
 		 * so that we can re-write the block safely.
 		 */
-		lr = zfs_rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
+		zfs_rangelock_enter(&zp->z_rangelock, &lr, woff, n, RL_WRITER);
 	}
 
 	if (zn_rlimit_fsize_uio(zp, uio)) {
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFBIG));
 	}
@@ -707,7 +708,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	const rlim64_t limit = MAXOFFSET_T;
 
 	if (woff >= limit) {
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFBIG));
 	}
@@ -746,7 +747,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * through the ARC; however, the following 3 1K requests will
 	 * use Direct I/O.
 	 */
-	if (uio->uio_extflg & UIO_DIRECT && lr->lr_length == UINT64_MAX) {
+	if (uio->uio_extflg & UIO_DIRECT && lr.lr_length == UINT64_MAX) {
 		uio->uio_extflg &= ~UIO_DIRECT;
 		o_direct_defer = B_TRUE;
 	}
@@ -769,7 +770,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 
 		uint64_t blksz;
-		if (lr->lr_length == UINT64_MAX && zp->z_size <= zp->z_blksz) {
+		if (lr.lr_length == UINT64_MAX && zp->z_size <= zp->z_blksz) {
 			if (zp->z_blksz > zfsvfs->z_max_blksz &&
 			    !ISP2(zp->z_blksz)) {
 				/*
@@ -852,9 +853,9 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 * on the first iteration since rangelock_reduce() will
 		 * shrink down lr_length to the appropriate size.
 		 */
-		if (lr->lr_length == UINT64_MAX) {
+		if (lr.lr_length == UINT64_MAX) {
 			zfs_grow_blocksize(zp, blksz, tx);
-			zfs_rangelock_reduce(lr, woff, n);
+			zfs_rangelock_reduce(&lr, woff, n);
 		}
 
 		ssize_t tx_bytes;
@@ -1019,7 +1020,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	zfs_znode_update_vfs(zp);
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	/*
 	 * Cleanup for Direct I/O if requested.
@@ -1145,8 +1146,8 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	 * we don't have to write the data twice.
 	 */
 	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock, offset,
-		    size, RL_READER);
+		zfs_rangelock_enter(&zp->z_rangelock, &zgd->zgd_lr,
+		    offset, size, RL_READER);
 		/* test for truncation needs to be done while range locked */
 		if (offset >= zp->z_size) {
 			error = SET_ERROR(ENOENT);
@@ -1168,12 +1169,12 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			size = zp->z_blksz;
 			blkoff = ISP2(size) ? P2PHASE(offset, size) : offset;
 			offset -= blkoff;
-			zgd->zgd_lr = zfs_rangelock_enter(&zp->z_rangelock,
+			zfs_rangelock_enter(&zp->z_rangelock, &zgd->zgd_lr,
 			    offset, size, RL_READER);
 			if (zp->z_blksz == size)
 				break;
 			offset += blkoff;
-			zfs_rangelock_exit(zgd->zgd_lr);
+			zfs_rangelock_exit(&zgd->zgd_lr);
 		}
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
@@ -1265,7 +1266,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
-	zfs_rangelock_exit(zgd->zgd_lr);
+	zfs_rangelock_exit(&zgd->zgd_lr);
 
 	/*
 	 * Release the vnode asynchronously as we currently have the
@@ -1332,7 +1333,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 {
 	zfsvfs_t	*inzfsvfs, *outzfsvfs;
 	objset_t	*inos, *outos;
-	zfs_locked_range_t *inlr, *outlr;
+	zfs_locked_range_t inlr, outlr;
 	dmu_buf_impl_t	*db;
 	dmu_tx_t	*tx;
 	zilog_t		*zilog;
@@ -1475,14 +1476,14 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	 * Maintain predictable lock order.
 	 */
 	if (inzp < outzp || (inzp == outzp && inoff < outoff)) {
-		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
+		zfs_rangelock_enter(&inzp->z_rangelock, &inlr, inoff, len,
 		    RL_READER);
-		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
+		zfs_rangelock_enter(&outzp->z_rangelock, &outlr, outoff, len,
 		    RL_WRITER);
 	} else {
-		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
+		zfs_rangelock_enter(&outzp->z_rangelock, &outlr, outoff, len,
 		    RL_WRITER);
-		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
+		zfs_rangelock_enter(&inzp->z_rangelock, &inlr, inoff, len,
 		    RL_READER);
 	}
 
@@ -1500,7 +1501,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		goto unlock;
 	}
 	if (inblksz != outzp->z_blksz && (outzp->z_size > outzp->z_blksz ||
-	    outlr->lr_length != UINT64_MAX)) {
+	    outlr.lr_length != UINT64_MAX)) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
 	}
@@ -1632,7 +1633,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		 * on the first iteration since zfs_rangelock_reduce() will
 		 * shrink down lr_length to the appropriate size.
 		 */
-		if (outlr->lr_length == UINT64_MAX) {
+		if (outlr.lr_length == UINT64_MAX) {
 			zfs_grow_blocksize(outzp, inblksz, tx);
 
 			/*
@@ -1649,7 +1650,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 * Round range lock up to the block boundary, so we
 			 * prevent appends until we are done.
 			 */
-			zfs_rangelock_reduce(outlr, outoff,
+			zfs_rangelock_reduce(&outlr, outoff,
 			    ((len - 1) / inblksz + 1) * inblksz);
 		}
 
@@ -1703,8 +1704,8 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	zfs_znode_update_vfs(outzp);
 
 unlock:
-	zfs_rangelock_exit(outlr);
-	zfs_rangelock_exit(inlr);
+	zfs_rangelock_exit(&outlr);
+	zfs_rangelock_exit(&inlr);
 
 	if (done > 0) {
 		/*

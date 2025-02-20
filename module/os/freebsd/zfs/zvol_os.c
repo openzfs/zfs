@@ -666,7 +666,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	size_t resid;
 	char *addr;
 	objset_t *os;
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	int error = 0;
 	boolean_t doread = B_FALSE;
 	boolean_t is_dumpified;
@@ -731,7 +731,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	 * There must be no buffer changes when doing a dmu_sync() because
 	 * we can't change the data whilst calculating the checksum.
 	 */
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, off, resid,
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, off, resid,
 	    doread ? RL_READER : RL_WRITER);
 
 	if (bp->bio_cmd == BIO_DELETE) {
@@ -776,7 +776,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 		resid -= size;
 	}
 unlock:
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 
 	bp->bio_completed = bp->bio_length - resid;
 	if (bp->bio_completed < bp->bio_length && off > volsize)
@@ -821,7 +821,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 {
 	zvol_state_t *zv;
 	uint64_t volsize;
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	int error = 0;
 	zfs_uio_t uio;
 
@@ -840,7 +840,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	ssize_t start_resid = zfs_uio_resid(&uio);
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_READER);
 	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
 		uint64_t bytes = MIN(zfs_uio_resid(&uio), DMU_MAX_ACCESS >> 1);
@@ -857,7 +857,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 			break;
 		}
 	}
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 	int64_t nread = start_resid - zfs_uio_resid(&uio);
 	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
 	rw_exit(&zv->zv_suspend_lock);
@@ -870,7 +870,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 {
 	zvol_state_t *zv;
 	uint64_t volsize;
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	int error = 0;
 	boolean_t commit;
 	zfs_uio_t uio;
@@ -892,7 +892,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	zvol_ensure_zilog(zv);
 
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
+	zfs_rangelock_enter(&zv->zv_rangelock, &lr, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_WRITER);
 	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
 		uint64_t bytes = MIN(zfs_uio_resid(&uio), DMU_MAX_ACCESS >> 1);
@@ -916,7 +916,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 		if (error)
 			break;
 	}
-	zfs_rangelock_exit(lr);
+	zfs_rangelock_exit(&lr);
 	int64_t nwritten = start_resid - zfs_uio_resid(&uio);
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	if (commit)
@@ -1109,7 +1109,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
     int fflag, struct thread *td)
 {
 	zvol_state_t *zv;
-	zfs_locked_range_t *lr;
+	zfs_locked_range_t lr;
 	off_t offset, length;
 	int error;
 	boolean_t sync;
@@ -1149,7 +1149,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		}
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 		zvol_ensure_zilog(zv);
-		lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, length,
+		zfs_rangelock_enter(&zv->zv_rangelock, &lr, offset, length,
 		    RL_WRITER);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -1163,7 +1163,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 			error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ,
 			    offset, length);
 		}
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		if (sync)
 			zil_commit(zv->zv_zilog, ZVOL_OBJ);
 		rw_exit(&zv->zv_suspend_lock);
@@ -1209,10 +1209,10 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 
 		hole = (cmd == FIOSEEKHOLE);
 		noff = *off;
-		lr = zfs_rangelock_enter(&zv->zv_rangelock, 0, UINT64_MAX,
+		zfs_rangelock_enter(&zv->zv_rangelock, &lr, 0, UINT64_MAX,
 		    RL_READER);
 		error = dmu_offset_next(zv->zv_objset, ZVOL_OBJ, hole, &noff);
-		zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(&lr);
 		*off = noff;
 		break;
 	}

@@ -478,25 +478,23 @@ got_lock:
  * entire file is locked as RL_WRITER), or NULL if nonblock is true and the
  * lock could not be acquired immediately.
  */
-static zfs_locked_range_t *
-zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
-    zfs_rangelock_type_t type, boolean_t nonblock)
+static boolean_t
+zfs_rangelock_enter_impl(zfs_rangelock_t *rl, zfs_locked_range_t *lr,
+    uint64_t off, uint64_t len, zfs_rangelock_type_t type, boolean_t nonblock)
 {
-	zfs_locked_range_t *new;
-
+	boolean_t success = B_TRUE;
 	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
 
-	new = kmem_alloc(sizeof (zfs_locked_range_t), KM_SLEEP);
-	new->lr_rangelock = rl;
-	new->lr_offset = off;
+	lr->lr_rangelock = rl;
+	lr->lr_offset = off;
 	if (len + off < off)	/* overflow */
 		len = UINT64_MAX - off;
-	new->lr_length = len;
-	new->lr_count = 1; /* assume it's going to be in the tree */
-	new->lr_type = type;
-	new->lr_proxy = B_FALSE;
-	new->lr_write_wanted = B_FALSE;
-	new->lr_read_wanted = B_FALSE;
+	lr->lr_length = len;
+	lr->lr_count = 1; /* assume it's going to be in the tree */
+	lr->lr_type = type;
+	lr->lr_proxy = B_FALSE;
+	lr->lr_write_wanted = B_FALSE;
+	lr->lr_read_wanted = B_FALSE;
 
 	mutex_enter(&rl->rl_lock);
 	if (type == RL_READER) {
@@ -504,31 +502,29 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 		 * First check for the usual case of no locks
 		 */
 		if (avl_numnodes(&rl->rl_tree) == 0) {
-			avl_add(&rl->rl_tree, new);
-		} else if (!zfs_rangelock_enter_reader(rl, new, nonblock)) {
-			kmem_free(new, sizeof (*new));
-			new = NULL;
+			avl_add(&rl->rl_tree, lr);
+		} else if (!zfs_rangelock_enter_reader(rl, lr, nonblock)) {
+			success = B_FALSE;
 		}
-	} else if (!zfs_rangelock_enter_writer(rl, new, nonblock)) {
-		kmem_free(new, sizeof (*new));
-		new = NULL;
+	} else if (!zfs_rangelock_enter_writer(rl, lr, nonblock)) {
+		success = B_FALSE;
 	}
 	mutex_exit(&rl->rl_lock);
-	return (new);
+	return (success);
 }
 
-zfs_locked_range_t *
-zfs_rangelock_enter(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
-    zfs_rangelock_type_t type)
+void
+zfs_rangelock_enter(zfs_rangelock_t *rl, zfs_locked_range_t *lr, uint64_t off,
+    uint64_t len, zfs_rangelock_type_t type)
 {
-	return (zfs_rangelock_enter_impl(rl, off, len, type, B_FALSE));
+	(void) zfs_rangelock_enter_impl(rl, lr, off, len, type, B_FALSE);
 }
 
-zfs_locked_range_t *
-zfs_rangelock_tryenter(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
-    zfs_rangelock_type_t type)
+boolean_t
+zfs_rangelock_tryenter(zfs_rangelock_t *rl, zfs_locked_range_t *lr,
+    uint64_t off, uint64_t len, zfs_rangelock_type_t type)
 {
-	return (zfs_rangelock_enter_impl(rl, off, len, type, B_TRUE));
+	return (zfs_rangelock_enter_impl(rl, lr, off, len, type, B_TRUE));
 }
 
 /*
@@ -542,8 +538,6 @@ zfs_rangelock_free(zfs_locked_range_t *lr)
 
 	if (lr->lr_read_wanted)
 		cv_destroy(&lr->lr_read_cv);
-
-	kmem_free(lr, sizeof (zfs_locked_range_t));
 }
 
 /*
