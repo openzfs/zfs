@@ -264,6 +264,8 @@ _LIBZFS_H int zpool_create(libzfs_handle_t *, const char *, nvlist_t *,
     nvlist_t *, nvlist_t *);
 _LIBZFS_H int zpool_destroy(zpool_handle_t *, const char *);
 _LIBZFS_H int zpool_add(zpool_handle_t *, nvlist_t *, boolean_t check_ashift);
+_LIBZFS_H void libzfs_set_lock_behavior(libzfs_handle_t *,
+    zpool_lock_behavior_t);
 
 typedef struct splitflags {
 	/* do not split, but return the config that would be split off */

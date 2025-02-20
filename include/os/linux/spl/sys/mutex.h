@@ -26,6 +26,7 @@
 #define	_SPL_MUTEX_H
 
 #include <sys/types.h>
+#include <sys/time.h>
 #include <linux/sched.h>
 #include <linux/mutex.h>
 #include <linux/lockdep.h>
@@ -185,6 +186,21 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 	spl_mutex_lockdep_on_maybe(mp);				\
 	spin_unlock(&(mp)->m_lock);				\
 	/* NOTE: do not dereference mp after this point */	\
+}
+
+/*
+ * Poor-man's version of Linux kernel's down_timeout(). Try to acquire a mutex
+ * for 'ns' number of nanoseconds.  Returns 0 if mutex was acquired or ETIME
+ * if timeout occurred.
+ */
+static inline int mutex_enter_timeout(kmutex_t *mutex, uint64_t ns)
+{
+	hrtime_t end = gethrtime() + ns;
+	while (gethrtime() < end) {
+		if (mutex_tryenter(mutex))
+			return (0);	/* success */
+	}
+	return (ETIME);
 }
 
 #endif /* _SPL_MUTEX_H */

@@ -109,6 +109,7 @@ namespace_reload(libzfs_handle_t *hdl)
 	nvpair_t *elem;
 	zfs_cmd_t zc = {"\0"};
 	void *cookie;
+	nvlist_t *nv_args = NULL;
 
 	if (hdl->libzfs_ns_gen == 0) {
 		/*
@@ -129,21 +130,35 @@ namespace_reload(libzfs_handle_t *hdl)
 
 	zcmd_alloc_dst_nvlist(hdl, &zc, 0);
 
+
+	VERIFY0(nvlist_alloc(&nv_args, NV_UNIQUE_NAME, 0));
+	VERIFY0(nvlist_add_uint64(nv_args, ZPOOL_CONFIG_LOCK_BEHAVIOR,
+	    hdl->zpool_lock_behavior));
+	zcmd_write_src_nvlist(hdl, &zc, nv_args);
+
 	for (;;) {
 		zc.zc_cookie = hdl->libzfs_ns_gen;
 		if (zfs_ioctl(hdl, ZFS_IOC_POOL_CONFIGS, &zc) != 0) {
 			switch (errno) {
+			case EAGAIN:
+				return (zfs_standard_error(hdl, errno,
+				    dgettext(TEXT_DOMAIN, "Unable to get the "
+				    "pool config lock in a reasonable amount of"
+				    " time")));
 			case EEXIST:
 				/*
 				 * The namespace hasn't changed.
 				 */
 				zcmd_free_nvlists(&zc);
 				return (0);
-
 			case ENOMEM:
 				zcmd_expand_dst_nvlist(hdl, &zc);
 				break;
-
+			case ENOTSUP:
+				return (zfs_standard_error(hdl, errno,
+				    dgettext(TEXT_DOMAIN, "--lockless requires"
+				    " module parameter "
+				    "zfs_allow_lockless_zpool_status=1")));
 			default:
 				zcmd_free_nvlists(&zc);
 				return (zfs_standard_error(hdl, errno,
@@ -253,6 +268,7 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 	int error;
 	nvlist_t *config;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	nvlist_t *nv_args = NULL;
 
 	*missing = B_FALSE;
 	(void) strcpy(zc.zc_name, zhp->zpool_name);
@@ -262,9 +278,15 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 
 	zcmd_alloc_dst_nvlist(hdl, &zc, zhp->zpool_config_size);
 
+	VERIFY0(nvlist_alloc(&nv_args, NV_UNIQUE_NAME, 0));
+	VERIFY0(nvlist_add_uint64(nv_args, ZPOOL_CONFIG_LOCK_BEHAVIOR,
+	    hdl->zpool_lock_behavior));
+	zcmd_write_src_nvlist(hdl, &zc, nv_args);
+
 	for (;;) {
-		if (zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_STATS,
-		    &zc) == 0) {
+		int rc;
+		rc = zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_POOL_STATS, &zc);
+		if (rc == 0) {
 			/*
 			 * The real error is returned in the zc_cookie field.
 			 */
@@ -276,7 +298,8 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 			zcmd_expand_dst_nvlist(hdl, &zc);
 		else {
 			zcmd_free_nvlists(&zc);
-			if (errno == ENOENT || errno == EINVAL)
+
+			if (errno == ENOENT || errno == EINVAL || rc)
 				*missing = B_TRUE;
 			zhp->zpool_state = POOL_STATE_UNAVAIL;
 			return (0);

@@ -146,7 +146,9 @@ enum zpool_options {
 	ZPOOL_OPTION_ALLOW_ASHIFT_MISMATCH,
 	ZPOOL_OPTION_POOL_KEY_GUID,
 	ZPOOL_OPTION_JSON_NUMS_AS_INT,
-	ZPOOL_OPTION_JSON_FLAT_VDEVS
+	ZPOOL_OPTION_JSON_FLAT_VDEVS,
+	ZPOOL_OPTION_LOCKLESS,
+	ZPOOL_OPTION_TRYLOCK,
 };
 
 /*
@@ -490,8 +492,8 @@ get_usage(zpool_help_t idx)
 	case HELP_LABELCLEAR:
 		return (gettext("\tlabelclear [-f] <vdev>\n"));
 	case HELP_LIST:
-		return (gettext("\tlist [-gHLpPv] [-o property[,...]] [-j "
-		    "[--json-int, --json-pool-key-guid]] ...\n"
+		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
+		    "[-j [--json-int, --json-pool-key-guid]] ...\n"
 		    "\t    [-T d|u] [pool] [interval [count]]\n"));
 	case HELP_PREFETCH:
 		return (gettext("\tprefetch -t <type> [<type opts>] <pool>\n"
@@ -521,8 +523,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [--power] [-j [--json-int, "
-		    "--json-flat-vdevs, ...\n"
+		return (gettext("\tstatus [--power] [--lockless|--trylock] "
+		    "[-j [--json-int, --json-flat-vdevs, ...\n"
 		    "\t    --json-pool-key-guid]] [-c [script1,script2,...]] "
 		    "[-dDegiLpPstvx] ...\n"
 		    "\t    [-T d|u] [pool] [interval [count]]\n"));
@@ -2614,6 +2616,9 @@ typedef struct status_cbdata {
 	nvlist_t	*cb_jsobj;
 	boolean_t	cb_json_as_int;
 	boolean_t	cb_json_pool_key_guid;
+	boolean_t	cb_lockless;
+	boolean_t	cb_trylock;
+
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
@@ -11002,6 +11007,8 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	--json-int Display numbers in inteeger format instead of string
  *	--json-flat-vdevs Display vdevs in flat hierarchy
  *	--json-pool-key-guid Use pool GUID as key for pool objects
+ *	--lockless	No locks
+ *	--trylock	Try to get namespace lock, but abort if not
  *
  * Describes the health status of all pools or some subset.
  */
@@ -11024,6 +11031,10 @@ zpool_do_status(int argc, char **argv)
 		    ZPOOL_OPTION_JSON_FLAT_VDEVS},
 		{"json-pool-key-guid", no_argument, NULL,
 		    ZPOOL_OPTION_POOL_KEY_GUID},
+		{"lockless", no_argument, NULL,
+		    ZPOOL_OPTION_LOCKLESS},
+		{"trylock", no_argument, NULL,
+		    ZPOOL_OPTION_TRYLOCK},
 		{0, 0, 0, 0}
 	};
 
@@ -11111,6 +11122,12 @@ zpool_do_status(int argc, char **argv)
 		case ZPOOL_OPTION_POOL_KEY_GUID:
 			cb.cb_json_pool_key_guid = B_TRUE;
 			break;
+		case ZPOOL_OPTION_LOCKLESS:
+			cb.cb_lockless = B_TRUE;
+			break;
+		case ZPOOL_OPTION_TRYLOCK:
+			cb.cb_trylock = B_TRUE;
+			break;
 		case '?':
 			if (optopt == 'c') {
 				print_zpool_script_list("status");
@@ -11150,6 +11167,16 @@ zpool_do_status(int argc, char **argv)
 		(void) fprintf(stderr, gettext("'json-pool-key-guid' only"
 		    " works with '-j' option\n"));
 		usage(B_FALSE);
+	}
+
+	if (cb.cb_lockless && cb.cb_trylock) {
+		(void) fprintf(stderr, gettext("cannot pass both --lockless and"
+		    " --trylock\n"));
+		usage(B_FALSE);
+	} else if (cb.cb_lockless) {
+		libzfs_set_lock_behavior(g_zfs, ZPOOL_LOCK_BEHAVIOR_LOCKLESS);
+	} else if (cb.cb_trylock) {
+		libzfs_set_lock_behavior(g_zfs, ZPOOL_LOCK_BEHAVIOR_TRYLOCK);
 	}
 
 	for (;;) {

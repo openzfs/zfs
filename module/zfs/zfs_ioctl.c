@@ -1585,13 +1585,63 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * Given a zc with only ZPOOL_CONFIG_LOCK_BEHAVIOR set in its ioctl
+ * source nvlist, extract and return the zpool_lock_behavior_t value.
+ *
+ * Return zpool_lock_behavior_t on success.  On failure, return
+ * ZPOOL_LOCK_BEHAVIOR_DEFAULT.
+ */
+static zpool_lock_behavior_t
+zfs_get_zpool_lock_behavior_helper(zfs_cmd_t *zc)
+{
+	int error = 0;
+	uint64_t zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_DEFAULT;
+	nvlist_t *nvl = NULL; /* args being passed in */
+
+	/*
+	 * Our zfs_cmd_t can include an nvlist with optional input arguments.
+	 * Right now the only optional arg is zpool_lock_behavior.  Check if
+	 * that exists and if it does, set values accordingly.
+	 */
+	error = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+	    zc->zc_iflags, &nvl);
+
+	if (error == 0) {
+		if (nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_LOCK_BEHAVIOR,
+		    &zpool_lock_behavior) == 0) {
+			if (zpool_lock_behavior >= ZPOOL_LOCK_BEHAVIOR_END) {
+				nvlist_free(nvl);
+				/* Weird zpool_lock_behavior value */
+				return (ZPOOL_LOCK_BEHAVIOR_DEFAULT);
+			}
+		}
+		nvlist_free(nvl);
+	}
+	return ((zpool_lock_behavior_t)zpool_lock_behavior);
+}
+
 static int
 zfs_ioc_pool_configs(zfs_cmd_t *zc)
 {
 	nvlist_t *configs;
 	int error;
+	zpool_lock_behavior_t zpool_lock_behavior;
 
-	error = spa_all_configs(&zc->zc_cookie, &configs);
+	zpool_lock_behavior = zfs_get_zpool_lock_behavior_helper(zc);
+
+	if ((zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS) &&
+	    (zfs_allow_lockless_zpool_status != 1)) {
+		/*
+		 * Error - you must have zfs_debug_namespace_lock_delay=1 to
+		 * enable --lockless.
+		 */
+		zc->zc_cookie = ENOTSUP;
+		return (ENOTSUP);
+	}
+
+	error = spa_all_configs(&zc->zc_cookie, &configs, zpool_lock_behavior);
+
 	if (error)
 		return (error);
 
@@ -1617,9 +1667,21 @@ zfs_ioc_pool_stats(zfs_cmd_t *zc)
 	nvlist_t *config;
 	int error;
 	int ret = 0;
+	zpool_lock_behavior_t zpool_lock_behavior;
+
+	zpool_lock_behavior = zfs_get_zpool_lock_behavior_helper(zc);
+	if ((zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS) &&
+	    (zfs_allow_lockless_zpool_status != 1)) {
+		/*
+		 * Error - you must have zfs_debug_namespace_lock_delay=1 to
+		 * enable --lockless.
+		 */
+		zc->zc_cookie = ENOTSUP;
+		return (ENOTSUP);
+	}
 
 	error = spa_get_stats(zc->zc_name, &config, zc->zc_value,
-	    sizeof (zc->zc_value));
+	    sizeof (zc->zc_value), zpool_lock_behavior);
 
 	if (config != NULL) {
 		ret = put_nvlist(zc, config);
@@ -3092,6 +3154,7 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 
 static const zfs_ioc_key_t zfs_keys_get_props[] = {
 	{ ZPOOL_GET_PROPS_NAMES,	DATA_TYPE_STRING_ARRAY,	ZK_OPTIONAL },
+	{ ZPOOL_CONFIG_LOCK_BEHAVIOR, DATA_TYPE_UINT64, ZK_OPTIONAL },
 };
 
 static int
@@ -3101,26 +3164,71 @@ zfs_ioc_pool_get_props(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 	char **props = NULL;
 	unsigned int n_props = 0;
 	int error;
+	int rc;
+	uint64_t zpool_lock_behavior;
+	boolean_t is_locked;
 
 	if (nvlist_lookup_string_array(innvl, ZPOOL_GET_PROPS_NAMES,
 	    &props, &n_props) != 0) {
 		props = NULL;
 	}
 
-	if ((error = spa_open(pool, &spa, FTAG)) != 0) {
+	zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_DEFAULT;
+	if (nvlist_lookup_uint64(innvl, ZPOOL_CONFIG_LOCK_BEHAVIOR,
+	    &zpool_lock_behavior) == 0) {
+		if (zpool_lock_behavior >= ZPOOL_LOCK_BEHAVIOR_END) {
+			zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_DEFAULT;
+		}
+	}
+
+	if ((zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS) &&
+	    (zfs_allow_lockless_zpool_status != 1)) {
+		/*
+		 * Error - you must have zfs_debug_namespace_lock_delay=1 to
+		 * enable --lockless.
+		 */
+		return (ENOTSUP);
+	}
+
+	if ((error = spa_open_common_lock_behavior(pool, &spa, FTAG, NULL, NULL,
+	    zpool_lock_behavior)) != 0) {
 		/*
 		 * If the pool is faulted, there may be properties we can still
 		 * get (such as altroot and cachefile), so attempt to get them
 		 * anyway.
 		 */
-		mutex_enter(&spa_namespace_lock);
-		if ((spa = spa_lookup(pool)) != NULL) {
+
+		is_locked = B_FALSE;
+		if ((zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_TRYLOCK) ||
+		    (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS)) {
+			rc = mutex_enter_timeout(&spa_namespace_lock,
+			    MSEC2NSEC(spa_namespace_trylock_ms));
+			if (rc == 0)
+				is_locked = B_TRUE;
+		} else {
+			mutex_enter(&spa_namespace_lock);
+			is_locked = B_TRUE;
+		}
+
+		if (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_TRYLOCK &&
+		    !is_locked) {
+			return (EAGAIN);
+		}
+
+		if (is_locked)
+			spa = spa_lookup(pool);
+		else
+			spa = spa_lookup_lockless(pool);
+
+		if (spa != NULL) {
 			error = spa_prop_get(spa, outnvl);
 			if (error == 0 && props != NULL)
 				error = spa_prop_get_nvlist(spa, props, n_props,
 				    outnvl);
 		}
-		mutex_exit(&spa_namespace_lock);
+
+		if (is_locked)
+			mutex_exit(&spa_namespace_lock);
 	} else {
 		error = spa_prop_get(spa, outnvl);
 		if (error == 0 && props != NULL)

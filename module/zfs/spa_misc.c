@@ -608,21 +608,14 @@ spa_config_held(spa_t *spa, int locks, krw_t rw)
  * ==========================================================================
  */
 
-/*
- * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held.
- * Returns NULL if no matching spa_t is found.
- */
 spa_t *
-spa_lookup(const char *name)
+spa_lookup_lockless(const char *name)
 {
 	static spa_t search;	/* spa_t is large; don't allocate on stack */
-	spa_t *spa;
 	avl_index_t where;
+	spa_t *spa;
 	char *cp;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
-retry:
 	(void) strlcpy(search.spa_name, name, sizeof (search.spa_name));
 
 	/*
@@ -634,7 +627,24 @@ retry:
 		*cp = '\0';
 
 	spa = avl_find(&spa_namespace_avl, &search, &where);
-	if (spa == NULL)
+
+	return (spa);
+}
+
+/*
+ * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held.
+ * Returns NULL if no matching spa_t is found.
+ */
+spa_t *
+spa_lookup(const char *name)
+{
+	spa_t *spa;
+
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+retry:
+	spa = spa_lookup_lockless(name);
+	if (!spa)
 		return (NULL);
 
 	/*
@@ -842,7 +852,6 @@ spa_remove(spa_t *spa)
 	ASSERT0(spa->spa_waiters);
 
 	nvlist_free(spa->spa_config_splitting);
-
 	avl_remove(&spa_namespace_avl, spa);
 
 	if (spa->spa_root)
@@ -907,6 +916,15 @@ spa_remove(spa_t *spa)
 	kmem_free(spa, sizeof (spa_t));
 }
 
+spa_t *
+spa_next_lockless(spa_t *prev)
+{
+	if (prev)
+		return (AVL_NEXT(&spa_namespace_avl, prev));
+	else
+		return (avl_first(&spa_namespace_avl));
+}
+
 /*
  * Given a pool, return the next pool in the namespace, or NULL if there is
  * none.  If 'prev' is NULL, return the first pool.
@@ -915,11 +933,7 @@ spa_t *
 spa_next(spa_t *prev)
 {
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
-
-	if (prev)
-		return (AVL_NEXT(&spa_namespace_avl, prev));
-	else
-		return (avl_first(&spa_namespace_avl));
+	return (spa_next_lockless(prev));
 }
 
 /*
@@ -1583,8 +1597,9 @@ spa_load_guid_exists(uint64_t guid)
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
 	for (spa_t *spa = avl_first(t); spa != NULL; spa = AVL_NEXT(t, spa)) {
-		if (spa_load_guid(spa) == guid)
+		if (spa_load_guid(spa) == guid) {
 			return (B_TRUE);
+		}
 	}
 
 	return (arc_async_flush_guid_inuse(guid));
@@ -3033,6 +3048,7 @@ EXPORT_SYMBOL(spa_lookup);
 EXPORT_SYMBOL(spa_add);
 EXPORT_SYMBOL(spa_remove);
 EXPORT_SYMBOL(spa_next);
+EXPORT_SYMBOL(spa_next_lockless);
 
 /* Refcount functions */
 EXPORT_SYMBOL(spa_open_ref);
@@ -3160,6 +3176,3 @@ ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 
 ZFS_MODULE_PARAM(zfs, spa_, num_allocators, INT, ZMOD_RW,
 	"Number of allocators per spa");
-
-ZFS_MODULE_PARAM(zfs, spa_, cpus_per_allocator, INT, ZMOD_RW,
-	"Minimum number of CPUs per allocators");

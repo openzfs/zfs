@@ -80,14 +80,14 @@ zpool_get_all_props(zpool_handle_t *zhp)
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 
+	nvlist_t *innvl = fnvlist_alloc();
 	if (zhp->zpool_n_propnames > 0) {
-		nvlist_t *innvl = fnvlist_alloc();
 		fnvlist_add_string_array(innvl, ZPOOL_GET_PROPS_NAMES,
 		    zhp->zpool_propnames, zhp->zpool_n_propnames);
-		zcmd_write_src_nvlist(hdl, &zc, innvl);
 	}
-
-	zcmd_alloc_dst_nvlist(hdl, &zc, 0);
+	VERIFY0(nvlist_add_uint64(innvl, ZPOOL_CONFIG_LOCK_BEHAVIOR,
+	    hdl->zpool_lock_behavior));
+	zcmd_write_src_nvlist(hdl, &zc, innvl);
 
 	while (zfs_ioctl(hdl, ZFS_IOC_POOL_GET_PROPS, &zc) != 0) {
 		if (errno == ENOMEM)
