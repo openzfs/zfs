@@ -280,19 +280,42 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent,
  * information for all pool visible within the zone.
  */
 int
-spa_all_configs(uint64_t *generation, nvlist_t **pools)
+spa_all_configs(uint64_t *generation, nvlist_t **pools, zpool_lock_behavior_t
+    zpool_lock_behavior)
 {
+	int error = 0;
 	spa_t *spa = NULL;
+	boolean_t use_lock = B_TRUE;
 
 	if (*generation == spa_config_generation)
 		return (SET_ERROR(EEXIST));
 
-	int error = mutex_enter_interruptible(&spa_namespace_lock);
-	if (error)
-		return (SET_ERROR(EINTR));
+	if (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_WAIT) {
+		error = mutex_enter_interruptible(&spa_namespace_lock);
+	} else {
+		error = mutex_enter_timeout(&spa_namespace_lock,
+		    MSEC2NSEC(spa_namespace_trylock_ms));
+	}
+	if (error) {
+		if (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_TRYLOCK)
+			return (SET_ERROR(EAGAIN));
+		else if (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS)
+			use_lock = B_FALSE;
+		else
+			return (SET_ERROR(EINTR));
+	}
 
 	*pools = fnvlist_alloc();
-	while ((spa = spa_next(spa)) != NULL) {
+
+	do {
+		if (use_lock)
+			spa = spa_next(spa);
+		else
+			spa = spa_next_lockless(spa);
+
+		if (spa == NULL)
+			break;
+
 		if (INGLOBALZONE(curproc) ||
 		    zone_dataset_visible(spa_name(spa), NULL)) {
 			mutex_enter(&spa->spa_props_lock);
@@ -300,9 +323,11 @@ spa_all_configs(uint64_t *generation, nvlist_t **pools)
 			    spa->spa_config);
 			mutex_exit(&spa->spa_props_lock);
 		}
-	}
+	} while (1);
 	*generation = spa_config_generation;
-	mutex_exit(&spa_namespace_lock);
+
+	if (use_lock)
+		mutex_exit(&spa_namespace_lock);
 
 	return (0);
 }
@@ -323,8 +348,9 @@ spa_config_set(spa_t *spa, nvlist_t *config)
  * We infer whether to generate a complete config or just one top-level config
  * based on whether vd is the root vdev.
  */
-nvlist_t *
-spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
+static nvlist_t *
+spa_config_generate_impl(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats,
+    zpool_lock_behavior_t zpool_lock_behavior)
 {
 	nvlist_t *config, *nvroot;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -332,15 +358,26 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	boolean_t locked = B_FALSE;
 	uint64_t split_guid;
 	const char *pool_name;
+	boolean_t skip_locks = B_FALSE;
+
+	/* Special debug case: we've selected a pool for lockless operation */
+	if (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS) {
+		skip_locks = B_TRUE;
+	}
 
 	if (vd == NULL) {
 		vd = rvd;
 		locked = B_TRUE;
-		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+
+		if (!skip_locks)
+			spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG,
+			    RW_READER);
 	}
 
-	ASSERT(spa_config_held(spa, SCL_CONFIG | SCL_STATE, RW_READER) ==
-	    (SCL_CONFIG | SCL_STATE));
+	if (!skip_locks)
+		ASSERT(spa_config_held(spa, SCL_CONFIG | SCL_STATE,
+		    RW_READER) == (SCL_CONFIG | SCL_STATE));
+
 
 	/*
 	 * If txg is -1, report the current value of spa->spa_config_txg.
@@ -463,10 +500,25 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		kmem_free(dds, sizeof (ddt_stat_t));
 	}
 
-	if (locked)
+	if (locked && !skip_locks)
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 
 	return (config);
+}
+
+nvlist_t *
+spa_config_generate_lock_behavior(spa_t *spa, vdev_t *vd, uint64_t txg,
+    int getstats, zpool_lock_behavior_t zpool_lock_behavior)
+{
+	return (spa_config_generate_impl(spa, vd, txg, getstats,
+	    zpool_lock_behavior));
+}
+
+nvlist_t *
+spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
+{
+	return (spa_config_generate_impl(spa, vd, txg, getstats,
+	    ZPOOL_LOCK_BEHAVIOR_DEFAULT));
 }
 
 /*

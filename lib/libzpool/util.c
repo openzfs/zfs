@@ -137,7 +137,8 @@ show_pool_stats(spa_t *spa)
 	nvlist_t *config, *nvroot;
 	const char *name;
 
-	VERIFY0(spa_get_stats(spa_name(spa), &config, NULL, 0));
+	VERIFY0(spa_get_stats(spa_name(spa), &config, NULL, 0,
+	    ZPOOL_LOCK_BEHAVIOR_DEFAULT));
 
 	VERIFY0(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvroot));
 	VERIFY0(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME, &name));
