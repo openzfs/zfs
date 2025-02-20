@@ -43,6 +43,7 @@
 #include <sys/vdev_draid.h>
 #include <sys/uberblock_impl.h>
 #include <sys/dsl_scan.h>
+#include <sys/zia.h>
 
 #ifdef ZFS_DEBUG
 #include <sys/vdev.h>	/* For vdev_xlate() in vdev_raidz_io_verify() */
@@ -380,6 +381,8 @@ static int zfs_scrub_after_expand = 1;
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
 {
+	zia_raidz_free(rr, B_FALSE);
+
 	for (int c = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 
@@ -642,6 +645,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	rr->rr_offset = zio->io_offset;
 	rr->rr_size = zio->io_size;
 #endif
+	rr->rr_zia_handle = NULL;
 
 	uint64_t asize = 0;
 
@@ -1108,7 +1112,7 @@ vdev_raidz_pqr_func(void *buf, size_t size, void *private)
 	return (0);
 }
 
-static void
+void
 vdev_raidz_generate_parity_p(raidz_row_t *rr)
 {
 	uint64_t *p = abd_to_buf(rr->rr_col[VDEV_RAIDZ_P].rc_abd);
@@ -1126,7 +1130,9 @@ vdev_raidz_generate_parity_p(raidz_row_t *rr)
 	}
 }
 
-static void
+EXPORT_SYMBOL(vdev_raidz_generate_parity_p);
+
+void
 vdev_raidz_generate_parity_pq(raidz_row_t *rr)
 {
 	uint64_t *p = abd_to_buf(rr->rr_col[VDEV_RAIDZ_P].rc_abd);
@@ -1168,7 +1174,9 @@ vdev_raidz_generate_parity_pq(raidz_row_t *rr)
 	}
 }
 
-static void
+EXPORT_SYMBOL(vdev_raidz_generate_parity_pq);
+
+void
 vdev_raidz_generate_parity_pqr(raidz_row_t *rr)
 {
 	uint64_t *p = abd_to_buf(rr->rr_col[VDEV_RAIDZ_P].rc_abd);
@@ -1215,6 +1223,8 @@ vdev_raidz_generate_parity_pqr(raidz_row_t *rr)
 		}
 	}
 }
+
+EXPORT_SYMBOL(vdev_raidz_generate_parity_pqr);
 
 /*
  * Generate RAID parity in the first virtual columns according to the number of
@@ -1902,7 +1912,7 @@ vdev_raidz_matrix_reconstruct(raidz_row_t *rr, int n, int nmissing,
 	kmem_free(p, psize);
 }
 
-static void
+void
 vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	int i, c, t, tt;
@@ -2042,6 +2052,8 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 		kmem_free(bufs, rr->rr_cols * sizeof (abd_t *));
 	}
 }
+
+EXPORT_SYMBOL(vdev_raidz_reconstruct_general);
 
 static void
 vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
@@ -2347,7 +2359,24 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 	vdev_t *vd = zio->io_vd;
 	raidz_map_t *rm = zio->io_vsd;
 
-	vdev_raidz_generate_parity_row(rm, rr);
+	/*
+	 * here instead of vdev_raidz_map_alloc or
+	 * vdev_raidz_generate_parity_row to not have to
+	 * store local_offload and be able to use zio
+	 */
+	boolean_t local_offload = B_FALSE;
+	if ((zia_raidz_alloc(zio, rr, B_FALSE, 0, &local_offload) != ZIA_OK) ||
+	    (zia_raidz_gen(rr) != ZIA_OK)) {
+		if (zia_raidz_gen_cleanup(zio, rr,
+		    local_offload) == ZIA_ACCELERATOR_DOWN) {
+			zia_disable_offloading(zio, B_TRUE);
+			zio->io_stage = ZIO_STAGE_VDEV_IO_ASSESS >> 1;
+			return;
+		}
+		vdev_raidz_generate_parity_row(rm, rr);
+	} else {
+		zio->io_flags |= ZIO_FLAG_DONT_AGGREGATE;
+	}
 
 	for (int c = 0; c < rr->rr_scols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
@@ -2645,6 +2674,11 @@ raidz_checksum_verify(zio_t *zio)
 {
 	zio_bad_cksum_t zbc = {0};
 	raidz_map_t *rm = zio->io_vsd;
+	/*
+	 * if the zio entered this function offloaded,
+	 * need to onload the parity columns on error
+	 */
+	const boolean_t entered_offloaded = zia_is_offloaded(zio->io_abd);
 
 	int ret = zio_checksum_error(zio, &zbc);
 	/*
@@ -2664,7 +2698,57 @@ raidz_checksum_verify(zio_t *zio)
 	if (ret != 0 && zbc.zbc_injected != 0)
 		rm->rm_ecksuminjected = 1;
 
+	/*
+	 * zio_checksum_error does not get access to
+	 * rm, so only the abd is freed on error -
+	 * clean up rm here
+	 */
+	if (zia_is_offloaded(zio->io_abd) != B_TRUE) {
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
+
+			/*
+			 * force onload, since data was modified
+			 *
+			 * ignore return value - will always return ZIA_ERROR
+			 */
+			zia_raidz_rec_cleanup(zio, rr, B_TRUE,
+			    entered_offloaded);
+		}
+	}
+
 	return (ret);
+}
+
+static void
+raidz_move_orig_parity(zio_t *zio, raidz_row_t *rr, abd_t **orig)
+{
+	(void) zio;
+
+	for (uint64_t c = 0; c < rr->rr_firstdatacol; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		if (!rc->rc_tried || rc->rc_error != 0)
+			continue;
+
+		orig[c] = rc->rc_abd;
+		ASSERT3U(abd_get_size(rc->rc_abd), ==, rc->rc_size);
+		rc->rc_abd = abd_alloc_linear(rc->rc_size, B_FALSE);
+		zia_raidz_new_parity(zio, rr, c);
+	}
+}
+
+static void
+raidz_restore_orig_parity(raidz_row_t *rr, abd_t **orig)
+{
+	for (uint64_t c = 0; c < rr->rr_firstdatacol; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		if (!rc->rc_tried || rc->rc_error != 0)
+			continue;
+
+		abd_free(rc->rc_abd);
+		rc->rc_abd = orig[c];
+		orig[c] = NULL;
+	}
 }
 
 /*
@@ -2676,7 +2760,7 @@ raidz_checksum_verify(zio_t *zio)
 static int
 raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 {
-	abd_t *orig[VDEV_RAIDZ_MAXPARITY];
+	abd_t *orig[VDEV_RAIDZ_MAXPARITY] = { NULL };
 	int c, ret = 0;
 	raidz_map_t *rm = zio->io_vsd;
 	raidz_col_t *rc;
@@ -2688,15 +2772,7 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 	if (checksum == ZIO_CHECKSUM_NOPARITY)
 		return (ret);
 
-	for (c = 0; c < rr->rr_firstdatacol; c++) {
-		rc = &rr->rr_col[c];
-		if (!rc->rc_tried || rc->rc_error != 0)
-			continue;
-
-		orig[c] = rc->rc_abd;
-		ASSERT3U(abd_get_size(rc->rc_abd), ==, rc->rc_size);
-		rc->rc_abd = abd_alloc_linear(rc->rc_size, B_FALSE);
-	}
+	raidz_move_orig_parity(zio, rr, orig);
 
 	/*
 	 * Verify any empty sectors are zero filled to ensure the parity
@@ -2710,7 +2786,29 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 	 * isn't harmful but it does have the side effect of fixing stuff
 	 * we didn't realize was necessary (i.e. even if we return 0).
 	 */
-	vdev_raidz_generate_parity_row(rm, rr);
+	if (zia_raidz_gen(rr) != ZIA_OK) {
+		/*
+		 * restore original parity columns so
+		 * that the reconstructed parity can
+		 * be brought back with the data columns
+		 */
+		raidz_restore_orig_parity(rr, orig);
+
+		/* return reconstructed columns to memory */
+		const int zia_rc = zia_raidz_rec_cleanup(zio, rr,
+		    B_FALSE, B_TRUE);
+
+		if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+			return (VDEV_RAIDZ_MAXPARITY + 1);
+		}
+
+		/*
+		 * continue to software, so redo the
+		 * original moving of parity columns
+		 */
+		raidz_move_orig_parity(zio, rr, orig);
+		vdev_raidz_generate_parity_row(rm, rr);
+	}
 
 	for (c = 0; c < rr->rr_firstdatacol; c++) {
 		rc = &rr->rr_col[c];
@@ -2718,7 +2816,70 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 		if (!rc->rc_tried || rc->rc_error != 0)
 			continue;
 
-		if (abd_cmp(orig[c], rc->rc_abd) != 0) {
+		int cmp = 0;
+		if (zia_raidz_cmp(orig[c], rc->rc_abd, &cmp) != ZIA_OK) {
+			if (zia_is_offloaded(zio->io_abd) ||
+			    rr->rr_zia_handle) {
+				/*
+				 * should only need to onload orig[c] and
+				 * rc but onloading everything to not create
+				 * inconsistent rr state
+				 */
+				int zia_rc = zia_raidz_rec_cleanup(zio, rr,
+				    B_FALSE, B_TRUE);
+
+				for (uint64_t i = 0; i < rr->rr_firstdatacol;
+				    i++) {
+					if (orig[i]) {
+						zia_rc = zia_worst_error(zia_rc,
+						    zia_onload_abd(orig[i],
+						    orig[i]->abd_size,
+						    B_FALSE));
+					}
+				}
+
+				if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+					/*
+					 * get original parity columns back to
+					 * get the original in-memory data
+					 */
+					raidz_restore_orig_parity(rr, orig);
+					return (VDEV_RAIDZ_MAXPARITY + 1);
+				}
+			}
+			cmp = abd_cmp(orig[c], rc->rc_abd);
+		}
+		if (cmp != 0) {
+			if (zia_is_offloaded(zio->io_abd) ||
+			    rr->rr_zia_handle) {
+				/*
+				 * should only need to onload orig[c] and
+				 * rc but onloading everything to not create
+				 * inconsistent rr state
+				 */
+				int zia_rc = zia_raidz_rec_cleanup(zio, rr,
+				    B_FALSE, B_TRUE);
+
+				for (uint64_t i = 0; i < rr->rr_firstdatacol;
+				    i++) {
+					if (orig[i]) {
+						zia_rc = zia_worst_error(zia_rc,
+						    zia_onload_abd(orig[i],
+						    orig[i]->abd_size,
+						    B_FALSE));
+					}
+				}
+
+				if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+					/*
+					 * get original parity columns back to
+					 * get the original in-memory data
+					 */
+					raidz_restore_orig_parity(rr, orig);
+					return (VDEV_RAIDZ_MAXPARITY + 1);
+				}
+			}
+
 			zfs_dbgmsg("found error on col=%u devidx=%u off %llx",
 			    c, (int)rc->rc_devidx, (u_longlong_t)rc->rc_offset);
 			vdev_raidz_checksum_error(zio, rc, orig[c]);
@@ -2744,7 +2905,7 @@ vdev_raidz_worst_error(raidz_row_t *rr)
 	return (error);
 }
 
-static void
+static int
 vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 {
 	int unexpected_errors = 0;
@@ -2786,6 +2947,10 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	    (zio->io_flags & ZIO_FLAG_RESILVER)) {
 		int n = raidz_parity_verify(zio, rr);
 		unexpected_errors += n;
+
+		if (n != 0) {
+			return (n);
+		}
 	}
 
 	if (zio->io_error == 0 && spa_writeable(zio->io_spa) &&
@@ -2859,6 +3024,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			zio_nowait(cio);
 		}
 	}
+	return (0);
 }
 
 static void
@@ -3003,17 +3169,46 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 				zfs_dbgmsg("reconstruction not possible; "
 				    "too many failures");
 			}
+
+			/* drop offloaded data */
+			for (int i = 0; i < rm->rm_nrows; i++) {
+				raidz_row_t *rr = rm->rm_row[i];
+				zia_raidz_rec_cleanup(zio, rr, B_TRUE, B_FALSE);
+				/* no data movement, so errors don't matter */
+			}
 			raidz_restore_orig_data(rm);
 			return (EINVAL);
 		}
-		if (dead_data > 0)
-			vdev_raidz_reconstruct_row(rm, rr, my_tgts, t);
+
+		if (dead_data > 0) {
+			/*
+			 * here instead of vdev_raidz_reconstruct_row
+			 * to be able to use zio
+			 */
+			if (zia_raidz_rec(rr, my_tgts, t) != ZIA_OK) {
+				int ret = ZIA_OK;
+				for (int i = 0; i < rm->rm_nrows; i++) {
+					raidz_row_t *rr = rm->rm_row[i];
+					ret = zia_worst_error(ret,
+					    zia_raidz_rec_cleanup(zio, rr,
+					    B_FALSE, B_TRUE));
+				}
+
+				if ((ret != ZIA_OK) &&
+				    (ret != ZIA_ACCELERATOR_DOWN)) {
+					vdev_raidz_reconstruct_row(rm, rr,
+					    my_tgts, t);
+				}
+			}
+		}
 	}
 
 	/* Check for success */
 	if (raidz_checksum_verify(zio) == 0) {
 		if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
 			return (0);
+
+		int ret = 0;
 
 		/* Reconstruction succeeded - report errors */
 		for (int i = 0; i < rm->rm_nrows; i++) {
@@ -3043,19 +3238,32 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 				}
 			}
 
-			vdev_raidz_io_done_verified(zio, rr);
+			const int rc =
+			    vdev_raidz_io_done_verified(zio, rr);
+			ret = zia_worst_error(ret, rc);
 		}
 
 		zio_checksum_verified(zio);
+
+		if (ret != ZIA_ACCELERATOR_DOWN) {
+			ret = 0;
+		}
 
 		if (dbgmsg) {
 			zfs_dbgmsg("reconstruction successful "
 			    "(checksum verified)");
 		}
-		return (0);
+
+		return (ret);
 	}
 
 	/* Reconstruction failed - restore original data */
+	/* drop offloaded data */
+	for (int i = 0; i < rm->rm_nrows; i++) {
+		raidz_row_t *rr = rm->rm_row[i];
+		zia_raidz_rec_cleanup(zio, rr, B_TRUE, B_FALSE);
+		/* no data movement, so errors don't matter */
+	}
 	raidz_restore_orig_data(rm);
 	if (dbgmsg) {
 		zfs_dbgmsg("raidz_reconstruct_expanded(zio=%px) checksum "
@@ -3163,6 +3371,9 @@ vdev_raidz_combrec(zio_t *zio)
 		for (;;) {
 			int err = raidz_reconstruct(zio, ltgts, num_failures,
 			    nparity);
+			if (err == ZIA_ACCELERATOR_DOWN) {
+				return (err);
+			}
 			if (err == EINVAL) {
 				/*
 				 * Reconstruction not possible with this #
@@ -3351,6 +3562,18 @@ vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
 
 		ASSERT(rr->rr_firstdatacol >= n);
 
+		if (zia_raidz_rec(rr, tgts, n) == ZIA_OK) {
+			return;
+		}
+
+		/*
+		 * drop handles instead of onloading
+		 *
+		 * return value doesn't matter because
+		 * the data hasn't changed yet
+		 */
+		zia_raidz_rec_cleanup(zio, rr,
+		    B_TRUE, B_FALSE);
 		vdev_raidz_reconstruct_row(rm, rr, tgts, n);
 	}
 }
@@ -3471,19 +3694,91 @@ vdev_raidz_io_done(zio_t *zio)
 			}
 		}
 
+		/* the raidz rows should never enter here already offloaded */
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
+			ASSERT(rr->rr_zia_handle == NULL);
+		}
+
+		/* offload once at beginning */
+		blkptr_t *bp = zio->io_bp;
+		if (bp && !BP_IS_METADATA(bp)) {
+			uint_t checksum = (BP_IS_GANG(bp) ?
+			    ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp));
+			zio_checksum_info_t *ci = &zio_checksum_table[checksum];
+			if (!(ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED)) {
+				for (int i = 0; i < rm->rm_nrows; i++) {
+					raidz_row_t *rr = rm->rm_row[i];
+					/*
+					 * Allow unchecked failure since failure
+					 * to offload means the software path
+					 * will be taken. Whether or not the
+					 * provider/offloader is valid
+					 * becomes irrelevant.
+					 */
+					zia_raidz_alloc(zio, rr,
+					    B_TRUE, checksum, NULL);
+				}
+			}
+		}
+
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
 			vdev_raidz_io_done_reconstruct_known_missing(zio,
 			    rm, rr);
+			/*
+			 * Restarting here is unnecessary. If the offloader
+			 * failed, the offloaded data is still in sync with
+			 * the in-memory data, and falling back reconstructed
+			 * using the correct data.
+			 */
 		}
 
-		if (raidz_checksum_verify(zio) == 0) {
+		int ret = raidz_checksum_verify(zio);
+
+		/* ZIA_ACCELERATOR_DOWN is a completely orthogonal error */
+		if (ret == ZIA_ACCELERATOR_DOWN) {
+			for (int i = 0; i < rm->rm_nrows; i++) {
+				raidz_row_t *rr = rm->rm_row[i];
+				zia_raidz_rec_cleanup(zio, rr, B_TRUE, B_FALSE);
+			}
+
+			zio->io_can_offload = B_FALSE;
+			zio_vdev_io_redone(zio);
+			return;
+		}
+
+		if (ret == 0) {
 			if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
 				goto done;
 
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
-				vdev_raidz_io_done_verified(zio, rr);
+				ret =
+				    vdev_raidz_io_done_verified(zio, rr);
+				if (ret == ZIA_ACCELERATOR_DOWN) {
+					for (int j = 0; j < rm->rm_nrows; j++) {
+						rr = rm->rm_row[j];
+
+						/*
+						 * vdev_raidz_io_done_verified
+						 * will have already attempted
+						 * to load reconstructed data
+						 * back into memory, so this
+						 * line should just drop any
+						 * remaining handles
+						 *
+						 * not sure why onload_parity
+						 * has to be set to B_TRUE
+						 */
+						zia_raidz_rec_cleanup(zio, rr,
+						    B_TRUE, B_TRUE);
+					}
+
+					zio->io_can_offload = B_FALSE;
+					zio_vdev_io_redone(zio);
+					return;
+				}
 			}
 			zio_checksum_verified(zio);
 		} else {
@@ -3510,6 +3805,12 @@ vdev_raidz_io_done(zio_t *zio)
 				    rm->rm_row[i]);
 			}
 			if (nread != 0) {
+				/* drop handles */
+				for (int i = 0; i < rm->rm_nrows; i++) {
+					raidz_row_t *rr = rm->rm_row[i];
+					zia_raidz_rec_cleanup(zio, rr,
+					    B_TRUE, B_FALSE);
+				}
 				/*
 				 * Normally our stage is VDEV_IO_DONE, but if
 				 * we've already called redone(), it will have
@@ -3569,6 +3870,14 @@ vdev_raidz_io_done(zio_t *zio)
 			 * that is also a known failure, that's fine.
 			 */
 			zio->io_error = vdev_raidz_combrec(zio);
+
+			if (zio->io_error == ZIA_ACCELERATOR_DOWN) {
+				zio->io_error = 0;
+				zio->io_can_offload = B_FALSE;
+				zio_vdev_io_redone(zio);
+				return;
+			}
+
 			if (zio->io_error == ECKSUM &&
 			    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 				vdev_raidz_io_done_unrecoverable(zio);

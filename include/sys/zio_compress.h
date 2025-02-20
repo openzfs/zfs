@@ -145,10 +145,18 @@ typedef const struct zio_compress_info {
 
 extern zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
 
+extern int zio_compress_zeroed_cb(void *data, size_t len, void *private);
+
 /*
  * lz4 compression init & free
  */
 extern void lz4_init(void);
+extern size_t
+zfs_lz4_compress_buf(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n);
+extern int
+zfs_lz4_decompress_buf(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, int n);
 extern void lz4_fini(void);
 
 /*
