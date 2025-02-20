@@ -1213,6 +1213,11 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 		}
 		return (errors == 0);
 	}
+	if (unlikely(!BP_IS_EMBEDDED(bp) && !BP_IS_HOLE(bp) &&
+	    BP_GET_NDVAS(bp) <= 0)) {
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %px has no valid DVAs", bp);
+	}
 	if (unlikely(BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS)) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 		    "blkptr at %px has invalid CHECKSUM %llu",
