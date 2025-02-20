@@ -37,6 +37,7 @@ extern int zfs_userspace_many(struct zfsvfs *, zfs_userquota_prop_t,
     uint64_t *, void *, uint64_t *);
 extern int zfs_set_userquota(struct zfsvfs *, zfs_userquota_prop_t,
     const char *, uint64_t, uint64_t);
+extern int zfs_set_defaultquota(struct zfsvfs *, int, uint64_t);
 
 extern boolean_t zfs_id_overobjquota(struct zfsvfs *, uint64_t, uint64_t);
 extern boolean_t zfs_id_overblockquota(struct zfsvfs *, uint64_t, uint64_t);
