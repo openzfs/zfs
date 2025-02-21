@@ -210,7 +210,8 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 			vdev_t *cvd = rvd->vdev_child[id];
 
 			if (cvd == vd ||
-			    cvd->vdev_ops == &vdev_indirect_ops)
+			    cvd->vdev_ops == &vdev_indirect_ops ||
+			    cvd->vdev_ops == &vdev_hole_ops)
 				continue;
 
 			metaslab_class_t *mc = cvd->vdev_mg->mg_class;
