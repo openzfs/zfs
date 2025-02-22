@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014, 2016, 2024 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -37,7 +37,6 @@
 #define	_SYS_FS_ZFS_H extern __attribute__((visibility("default")))
 
 #include <sys/time.h>
-#include <sys/zio_priority.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -1125,6 +1124,26 @@ typedef enum zio_type {
  * user programs.
  */
 #define	ZIO_TYPE_IOCTL	ZIO_TYPE_FLUSH
+
+/*
+ * ZIO priority types. Needed to interpret vdev statistics below.
+ *
+ * NOTE: PLEASE UPDATE THE ENUM STRINGS IN zfs_valstr.c IF YOU ADD ANOTHER
+ * VALUE.
+ */
+typedef enum zio_priority {
+	ZIO_PRIORITY_SYNC_READ,
+	ZIO_PRIORITY_SYNC_WRITE,	/* ZIL */
+	ZIO_PRIORITY_ASYNC_READ,	/* prefetch */
+	ZIO_PRIORITY_ASYNC_WRITE,	/* spa_sync() */
+	ZIO_PRIORITY_SCRUB,		/* asynchronous scrub/resilver reads */
+	ZIO_PRIORITY_REMOVAL,		/* reads/writes for vdev removal */
+	ZIO_PRIORITY_INITIALIZING,	/* initializing I/O */
+	ZIO_PRIORITY_TRIM,		/* trim I/O (discard) */
+	ZIO_PRIORITY_REBUILD,		/* reads/writes for vdev rebuild */
+	ZIO_PRIORITY_NUM_QUEUEABLE,
+	ZIO_PRIORITY_NOW,		/* non-queued i/os (e.g. free) */
+} zio_priority_t;
 
 /*
  * Pool statistics.  Note: all fields should be 64-bit because this
