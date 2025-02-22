@@ -150,7 +150,6 @@ COMMON_H = \
 	sys/zio_compress.h \
 	sys/zio_crypt.h \
 	sys/zio_impl.h \
-	sys/zio_priority.h \
 	sys/zrlock.h \
 	sys/zthr.h \
 	\
