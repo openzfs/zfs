@@ -110,7 +110,6 @@ ICP_OBJS := \
 	algs/sha2/sha512_impl.o \
 	algs/skein/skein.o \
 	algs/skein/skein_block.o \
-	algs/skein/skein_iv.o \
 	api/kcf_cipher.o \
 	api/kcf_ctxops.o \
 	api/kcf_mac.o \
