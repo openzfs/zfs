@@ -143,7 +143,11 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 			atomic_dec_32(&zp->z_sync_writes_cnt);
 			return (error);
 		}
-		zil_commit(zfsvfs->z_log, zp->z_id);
+		if ((error = -zil_commit(zfsvfs->z_log, zp->z_id)) != 0) {
+			atomic_dec_32(&zp->z_sync_writes_cnt);
+			zpl_exit(zfsvfs, FTAG);
+			return (error);
+		}
 		zpl_exit(zfsvfs, FTAG);
 	}
 
@@ -539,8 +543,17 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		if ((result = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (result);
 		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, zp->z_id);
+			result = -zil_commit(zfsvfs->z_log, zp->z_id);
 		zpl_exit(zfsvfs, FTAG);
+
+		/*
+		 * If zil_commit() failed, it's unclear what state things
+		 * are currently in. putpage() has written back out what
+		 * it can to the DMU, but it may not be on disk. We have
+		 * little choice but to escape.
+		 */
+		if (result != 0)
+			return (result);
 
 		/*
 		 * We need to call write_cache_pages() again (we can't just
