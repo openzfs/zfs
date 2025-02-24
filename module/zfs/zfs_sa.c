@@ -286,7 +286,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 
 		dmu_tx_commit(tx);
 		if (logsaxattr && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-			zil_commit(zilog, 0);
+			error = zil_commit(zilog, 0);
 	}
 out_free:
 	vmem_free(obj, size);

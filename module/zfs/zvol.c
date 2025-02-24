@@ -772,7 +772,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	zfs_rangelock_exit(outlr);
 	zfs_rangelock_exit(inlr);
 	if (error == 0 && zv_dst->zv_objset->os_sync == ZFS_SYNC_ALWAYS) {
-		zil_commit(zilog_dst, ZVOL_OBJ);
+		error = zil_commit(zilog_dst, ZVOL_OBJ);
 	}
 out:
 	if (zv_src != zv_dst)

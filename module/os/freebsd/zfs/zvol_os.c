@@ -727,9 +727,9 @@ unlock:
 		break;
 	}
 
-	if (commit) {
+	if (error == 0 && commit) {
 commit:
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	}
 resume:
 	rw_exit(&zv->zv_suspend_lock);
@@ -906,8 +906,8 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	zfs_rangelock_exit(lr);
 	int64_t nwritten = start_resid - zfs_uio_resid(&uio);
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
-	if (commit)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	if (error == 0 && commit)
+		error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	rw_exit(&zv->zv_suspend_lock);
 
 	return (error);
@@ -1117,7 +1117,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 	case DIOCGFLUSH:
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 		if (zv->zv_zilog != NULL)
-			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+			error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 		rw_exit(&zv->zv_suspend_lock);
 		break;
 	case DIOCGDELETE:
@@ -1152,7 +1152,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		}
 		zfs_rangelock_exit(lr);
 		if (sync)
-			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+			error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 		rw_exit(&zv->zv_suspend_lock);
 		break;
 	case DIOCGSTRIPESIZE:

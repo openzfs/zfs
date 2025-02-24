@@ -208,8 +208,14 @@ zvol_write(zv_request_t *zvr)
 	disk = zv->zv_zso->zvo_disk;
 
 	/* bio marked as FLUSH need to flush before write */
-	if (io_is_flush(bio, rq))
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	if (io_is_flush(bio, rq)) {
+		error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		if (error != 0) {
+			rw_exit(&zv->zv_suspend_lock);
+			zvol_end_io(bio, rq, -error);
+			return;
+		}
+	}
 
 	/* Some requests are just for flush and nothing else. */
 	if (io_size(bio, rq) == 0) {
@@ -273,8 +279,8 @@ zvol_write(zv_request_t *zvr)
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	task_io_account_write(nwritten);
 
-	if (sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	if (error == 0 && sync)
+		error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	rw_exit(&zv->zv_suspend_lock);
 
@@ -361,7 +367,7 @@ zvol_discard(zv_request_t *zvr)
 	zfs_rangelock_exit(lr);
 
 	if (error == 0 && sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		error = zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 unlock:
 	rw_exit(&zv->zv_suspend_lock);

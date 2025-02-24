@@ -2965,7 +2965,7 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 
 	(void) pthread_rwlock_rdlock(&zd->zd_zilog_lock);
 
-	zil_commit(zilog, ztest_random(ZTEST_OBJECTS));
+	VERIFY0(zil_commit(zilog, ztest_random(ZTEST_OBJECTS)));
 
 	/*
 	 * Remember the committed values in zd, which is in parent/child
@@ -7936,7 +7936,7 @@ ztest_freeze(void)
 	 */
 	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_log)) {
 		ztest_dmu_object_alloc_free(zd, 0);
-		zil_commit(zd->zd_zilog, 0);
+		VERIFY0(zil_commit(zd->zd_zilog, 0));
 	}
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
@@ -7978,7 +7978,7 @@ ztest_freeze(void)
 	/*
 	 * Commit all of the changes we just generated.
 	 */
-	zil_commit(zd->zd_zilog, 0);
+	VERIFY0(zil_commit(zd->zd_zilog, 0));
 	txg_wait_synced(spa_get_dsl(spa), 0);
 
 	/*
