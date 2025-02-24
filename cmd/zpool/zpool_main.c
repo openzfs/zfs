@@ -3888,7 +3888,29 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	if (zpool_import_props(g_zfs, config, newname, props, flags) != 0)
 		return (1);
 
-	if (newname != NULL)
+	/*
+	 * Figure out the imported name, so we can use it to open the pool
+	 * and mount the filesystems.
+	 *
+	 * XXX ideally, zpool_import_props() would return the name it used,
+	 *     or there would be some other mechanism to get it. Alas, there
+	 *     is not. Choices seem to be to break a public function, or to
+	 *     smuggle it through one of the nvlists. Not keen on either
+	 *     until we get there -- robn, 2024-12-16
+	 */
+	if (newname == NULL) {
+		int error = nvlist_lookup_string(config, ZPOOL_CONFIG_NEWNAME,
+		    &newname);
+		if (error == 0) {
+			fprintf(stderr, gettext("Pool '%s' has newname "
+			    "property set and was renamed to '%s'\n"), name,
+			    newname);
+			name = newname;
+		}
+		else
+			VERIFY3U(error, ==, ENOENT);
+	}
+	else
 		name = newname;
 
 	if ((zhp = zpool_open_canfail(g_zfs, name)) == NULL)
