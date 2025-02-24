@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 
@@ -495,8 +496,17 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		if ((result = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (result);
 		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, zp->z_id);
+			result = -zil_commit(zfsvfs->z_log, zp->z_id);
 		zpl_exit(zfsvfs, FTAG);
+
+		/*
+		 * If zil_commit() failed, it's unclear what state things
+		 * are currently in. putpage() has written back out what
+		 * it can to the DMU, but it may not be on disk. We have
+		 * little choice but to escape.
+		 */
+		if (result != 0)
+			return (result);
 
 		/*
 		 * We need to call write_cache_pages() again (we can't just

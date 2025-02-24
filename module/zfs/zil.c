@@ -3640,7 +3640,9 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
  *      but the order in which they complete will be the same order in
  *      which they were created.
  */
-void
+static int zil_commit_impl(zilog_t *zilog, uint64_t foid);
+
+int
 zil_commit(zilog_t *zilog, uint64_t foid)
 {
 	/*
@@ -3659,7 +3661,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	ASSERT3B(dmu_objset_is_snapshot(zilog->zl_os), ==, B_FALSE);
 
 	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
-		return;
+		return (0);
 
 	if (!spa_writeable(zilog->zl_spa)) {
 		/*
@@ -3673,7 +3675,7 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 		ASSERT0P(zilog->zl_last_lwb_opened);
 		for (int i = 0; i < TXG_SIZE; i++)
 			ASSERT0P(zilog->zl_itxg[i].itxg_itxs);
-		return;
+		return (0);
 	}
 
 	/*
@@ -3686,13 +3688,13 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	if (zilog->zl_suspend > 0) {
 		ZIL_STAT_BUMP(zilog, zil_commit_suspend_count);
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
-		return;
+		return (0);
 	}
 
-	zil_commit_impl(zilog, foid);
+	return (zil_commit_impl(zilog, foid));
 }
 
-void
+static int
 zil_commit_impl(zilog_t *zilog, uint64_t foid)
 {
 	ZIL_STAT_BUMP(zilog, zil_commit_count);
@@ -3748,6 +3750,8 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	}
 
 	zil_free_commit_waiter(zcw);
+
+	return (0);
 }
 
 /*
@@ -4025,7 +4029,8 @@ zil_close(zilog_t *zilog)
 	uint64_t txg;
 
 	if (!dmu_objset_is_snapshot(zilog->zl_os)) {
-		zil_commit(zilog, 0);
+		if (zil_commit(zilog, 0) != 0)
+			txg_wait_synced(zilog->zl_dmu_pool, 0);
 	} else {
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
 		ASSERT0(zilog->zl_dirty_max_txg);

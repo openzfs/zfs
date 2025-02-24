@@ -288,10 +288,10 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 		return (SET_ERROR(EIO));
 	}
 
-	zil_commit(zfsvfs->z_log, 0);
+	err = zil_commit(zfsvfs->z_log, 0);
 	zfs_exit(zfsvfs, FTAG);
 
-	return (0);
+	return (err);
 }
 
 static void
