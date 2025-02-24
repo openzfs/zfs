@@ -25,6 +25,7 @@
  */
 /*
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #ifndef _SYS_TXG_H
@@ -78,6 +79,9 @@ typedef enum {
 
 	/* If a signal arrives while waiting, abort and return EINTR */
 	TXG_WAIT_SIGNAL = (1 << 0),
+
+	/* If the pool suspends while waiting, abort and return ESHUTDOWN. */
+	TXG_WAIT_SUSPEND = (1 << 1),
 } txg_wait_flag_t;
 
 struct dsl_pool;
@@ -110,6 +114,11 @@ extern int txg_wait_synced_flags(struct dsl_pool *dp, uint64_t txg,
  * Shorthand for VERIFY0(txg_wait_synced_flags(dp, TXG_WAIT_NONE))
  */
 extern void txg_wait_synced(struct dsl_pool *dp, uint64_t txg);
+
+/*
+ * Wake all threads waiting in txg_wait_synced_flags() so they can reevaluate.
+ */
+extern void txg_wait_kick(struct dsl_pool *dp);
 
 /*
  * Wait until the given transaction group, or one after it, is
