@@ -834,7 +834,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			    blksz);
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == blksz);
-			if ((error = zfs_uiocopy(abuf->b_data, blksz,
+			if ((error = zfs_uiocopy_abd(abuf->b_abd, 0, blksz,
 			    UIO_WRITE, uio, &nbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;

@@ -2962,10 +2962,10 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		    ZIO_PRIORITY_ASYNC_READ, ZIO_FLAG_CANFAIL, &flags, zb);
 		if (err)
 			return (err);
-		ASSERT(buf->b_data);
+		ASSERT(buf->b_abd);
 
 		/* recursively visit blocks below this */
-		cbp = buf->b_data;
+		cbp = abd_to_buf(buf->b_abd);
 		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_phys_t czb;
 
@@ -3223,7 +3223,7 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 		return;
 
 	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
-	bt = db->db_data;
+	bt = abd_to_buf(db->db_abd);
 	zdb_nicenum(bt->bt_bytes, bytes, sizeof (bytes));
 	(void) printf("\n    %s: %llu datasets, %s\n",
 	    name, (unsigned long long)(bt->bt_end - bt->bt_begin), bytes);
@@ -4317,7 +4317,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 			if (error)
 				fatal("dmu_bonus_hold(%llu) failed, errno %u",
 				    object, error);
-			bonus = db->db_data;
+			bonus = abd_to_buf(db->db_abd);
 			bsize = db->db_size;
 			dn = DB_DNODE((dmu_buf_impl_t *)db);
 		}
@@ -4917,7 +4917,7 @@ dump_config(spa_t *spa)
 	    spa->spa_config_object, FTAG, &db);
 
 	if (error == 0) {
-		nvsize = *(uint64_t *)db->db_data;
+		nvsize = *(uint64_t *)abd_to_buf(db->db_abd);
 		dmu_buf_rele(db, FTAG);
 
 		(void) printf("\nMOS Configuration:\n");

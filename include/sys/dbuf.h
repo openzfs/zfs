@@ -200,7 +200,7 @@ typedef struct dbuf_dirty_record {
 typedef struct dmu_buf_impl {
 	/*
 	 * The following members are immutable, with the exception of
-	 * db.db_data, which is protected by db_mtx.
+	 * db.db_abd, which is protected by db_mtx.
 	 */
 
 	/* the publicly visible structure */

@@ -49,8 +49,7 @@
 #include <sys/uio_impl.h>
 #include <sys/sysmacros.h>
 #include <sys/string.h>
-#include <sys/zfs_refcount.h>
-#include <sys/zfs_debug.h>
+#include <sys/abd.h>
 #include <linux/kmap_compat.h>
 #include <linux/uaccess.h>
 #include <linux/pagemap.h>
@@ -280,6 +279,32 @@ zfs_uiomove(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 }
 EXPORT_SYMBOL(zfs_uiomove);
 
+struct uiomove_arg {
+	zfs_uio_t *uio;
+	zfs_uio_rw_t rw;
+	int ret;
+};
+
+static int zfs_uiomove_abd_cb(void *buf, size_t size, void *private)
+{
+	struct uiomove_arg *arg = private;
+
+	arg->ret = zfs_uiomove(buf, size, arg->rw, arg->uio);
+
+	return (!!arg->ret);
+}
+
+int
+zfs_uiomove_abd(abd_t *abd, size_t off, size_t n, zfs_uio_rw_t rw,
+    zfs_uio_t *uio)
+{
+	struct uiomove_arg arg = { uio, rw, 0 };
+	(void) abd_iterate_func_impl(abd, off, n, zfs_uiomove_abd_cb, &arg,
+	    uio_is_user(uio));
+	return (arg.ret);
+}
+EXPORT_SYMBOL(zfs_uiomove_abd);
+
 /*
  * Fault in the pages of the first n bytes specified by the uio structure.
  * 1 byte in each page is touched and the uio struct is unmodified. Any
@@ -335,6 +360,26 @@ zfs_uiocopy(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio, size_t *cbytes)
 	return (ret);
 }
 EXPORT_SYMBOL(zfs_uiocopy);
+
+int
+zfs_uiocopy_abd(abd_t *abd, size_t off, size_t n, zfs_uio_rw_t rw,
+    zfs_uio_t *uio, size_t *cbytes)
+{
+	zfs_uio_t uio_copy;
+	int ret;
+
+	memcpy(&uio_copy, uio, sizeof (zfs_uio_t));
+
+	ret = zfs_uiomove_abd(abd, off, n, rw, &uio_copy);
+
+	*cbytes = uio->uio_resid - uio_copy.uio_resid;
+
+	if (uio->uio_segflg == UIO_ITER)
+		iov_iter_revert(uio->uio_iter, *cbytes);
+
+	return (ret);
+}
+EXPORT_SYMBOL(zfs_uiocopy_abd);
 
 /*
  * Drop the next n chars out of *uio.

@@ -102,7 +102,7 @@ ddt_log_update_header(ddt_t *ddt, ddt_log_t *ddl, dmu_tx_t *tx)
 	VERIFY0(dmu_bonus_hold(ddt->ddt_os, ddl->ddl_object, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
 
-	ddt_log_header_t *hdr = (ddt_log_header_t *)db->db_data;
+	ddt_log_header_t *hdr = (ddt_log_header_t *)abd_to_buf(db->db_abd);
 	DLH_SET_VERSION(hdr, 1);
 	DLH_SET_FLAGS(hdr, ddl->ddl_flags);
 	hdr->dlh_length = ddl->ddl_length;
@@ -306,11 +306,11 @@ ddt_log_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, ddt_log_update_t *dlu)
 	if (dlu->dlu_offset == 0) {
 		dmu_buf_will_fill_flags(db, dlu->dlu_tx, B_FALSE,
 		    DMU_UNCACHEDIO);
-		memset(db->db_data, 0, db->db_size);
+		abd_zero(db->db_abd, db->db_size);
 	}
 
 	/* Create the log record directly in the buffer */
-	ddt_log_record_t *dlr = (db->db_data + dlu->dlu_offset);
+	ddt_log_record_t *dlr = abd_to_buf(db->db_abd) + dlu->dlu_offset;
 	DLR_SET_TYPE(dlr, DLR_ENTRY);
 	DLR_SET_RECLEN(dlr, dlu->dlu_reclen);
 	DLR_SET_ENTRY_TYPE(dlr, ddlwe->ddlwe_type);
@@ -582,7 +582,7 @@ ddt_log_load_one(ddt_t *ddt, uint_t n)
 		dnode_rele(dn, FTAG);
 		return (err);
 	}
-	memcpy(&hdr, db->db_data, sizeof (ddt_log_header_t));
+	abd_copy_to_buf(&hdr, db->db_abd, sizeof (ddt_log_header_t));
 	dmu_buf_rele(db, FTAG);
 
 	if (DLH_GET_VERSION(&hdr) != 1) {
@@ -619,7 +619,7 @@ ddt_log_load_one(ddt_t *ddt, uint_t n)
 			uint64_t boffset = 0;
 			while (boffset < db->db_size) {
 				ddt_log_record_t *dlr =
-				    (ddt_log_record_t *)(db->db_data + boffset);
+				    abd_to_buf(db->db_abd) + boffset;
 
 				/* Partially-filled block, skip the rest */
 				if (DLR_GET_TYPE(dlr) == DLR_INVALID)

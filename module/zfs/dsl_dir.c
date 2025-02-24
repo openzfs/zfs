@@ -265,7 +265,7 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			    &origin_bonus);
 			if (err != 0)
 				goto errout;
-			origin_phys = origin_bonus->db_data;
+			origin_phys = abd_to_buf(origin_bonus->db_abd);
 			dd->dd_origin_txg =
 			    origin_phys->ds_creation_txg;
 			dmu_buf_rele(origin_bonus, FTAG);
@@ -969,7 +969,7 @@ dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
 	}
 	VERIFY0(dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
 	dmu_buf_will_dirty(dbuf, tx);
-	ddphys = dbuf->db_data;
+	ddphys = abd_to_buf(dbuf->db_abd);
 
 	ddphys->dd_creation_time = gethrestime_sec();
 	if (pds) {

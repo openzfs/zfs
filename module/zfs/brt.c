@@ -564,7 +564,7 @@ brt_vdev_load(spa_t *spa, brt_vdev_t *brtvd)
 	if (error != 0)
 		return (error);
 
-	bvphys = db->db_data;
+	bvphys = abd_to_buf(db->db_abd);
 	if (spa->spa_brt_rangesize == 0) {
 		spa->spa_brt_rangesize = bvphys->bvp_rangesize;
 	} else {
@@ -823,7 +823,7 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	}
 
 	dmu_buf_will_dirty(db, tx);
-	bvphys = db->db_data;
+	bvphys = abd_to_buf(db->db_abd);
 	bvphys->bvp_mos_entries = brtvd->bv_mos_entries;
 	bvphys->bvp_size = brtvd->bv_size;
 	if (brtvd->bv_need_byteswap) {

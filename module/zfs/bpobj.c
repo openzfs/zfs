@@ -131,7 +131,7 @@ bpobj_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 		ASSERT3U(offset, >=, dbuf->db_offset);
 		ASSERT3U(offset, <, dbuf->db_offset + dbuf->db_size);
 
-		objarray = dbuf->db_data;
+		objarray = abd_to_buf(dbuf->db_abd);
 		bpobj_free(os, objarray[blkoff], tx);
 	}
 	if (dbuf) {
@@ -176,7 +176,7 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	bpo->bpo_havecomp = (doi.doi_bonus_size > BPOBJ_SIZE_V0);
 	bpo->bpo_havesubobj = (doi.doi_bonus_size > BPOBJ_SIZE_V1);
 	bpo->bpo_havefreed = (doi.doi_bonus_size > BPOBJ_SIZE_V2);
-	bpo->bpo_phys = bpo->bpo_dbuf->db_data;
+	bpo->bpo_phys = abd_to_buf(bpo->bpo_dbuf->db_abd);
 	return (0);
 }
 
@@ -318,7 +318,7 @@ bpobj_iterate_blkptrs(bpobj_info_t *bpi, bpobj_itor_t func, void *arg,
 		ASSERT3U(offset, >=, dbuf->db_offset);
 		ASSERT3U(offset, <, dbuf->db_offset + dbuf->db_size);
 
-		blkptr_t *bparray = dbuf->db_data;
+		blkptr_t *bparray = abd_to_buf(dbuf->db_abd);
 		blkptr_t *bp = &bparray[blkoff];
 
 		boolean_t bp_freed = BP_GET_FREE(bp);
@@ -752,7 +752,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		}
 		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
 		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
-		    numsubsub * sizeof (subobj), subdb->db_data, tx,
+		    numsubsub * sizeof (subobj), abd_to_buf(subdb->db_abd), tx,
 		    DMU_READ_NO_PREFETCH);
 		dmu_buf_rele(subdb, FTAG);
 		bpo->bpo_phys->bpo_num_subobjs += numsubsub;
@@ -778,7 +778,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		dmu_write(bpo->bpo_os, bpo->bpo_object,
 		    bpo->bpo_phys->bpo_num_blkptrs * sizeof (blkptr_t),
 		    numbps * sizeof (blkptr_t),
-		    bps->db_data, tx, DMU_READ_NO_PREFETCH);
+		    abd_to_buf(bps->db_abd), tx, DMU_READ_NO_PREFETCH);
 		dmu_buf_rele(bps, FTAG);
 		bpo->bpo_phys->bpo_num_blkptrs += numbps;
 
@@ -921,7 +921,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
 	}
 
 	dmu_buf_will_dirty(bpo->bpo_cached_dbuf, tx);
-	bparray = bpo->bpo_cached_dbuf->db_data;
+	bparray = abd_to_buf(bpo->bpo_cached_dbuf->db_abd);
 	bparray[blkoff] = stored_bp;
 
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);

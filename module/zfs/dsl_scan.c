@@ -2161,7 +2161,8 @@ dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		int epb = BP_GET_LSIZE(bp) >> SPA_BLKPTRSHIFT;
 		zbookmark_phys_t czb;
 
-		for (i = 0, cbp = buf->b_data; i < epb; i++, cbp++) {
+		cbp = abd_to_buf(buf->b_abd);
+		for (i = 0; i < epb; i++, cbp++) {
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1, zb->zb_blkid * epb + i);
 			dsl_scan_prefetch(spc, cbp, &czb);
@@ -2171,14 +2172,15 @@ dsl_scan_prefetch_cb(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		int i;
 		int epb = BP_GET_LSIZE(bp) >> DNODE_SHIFT;
 
-		for (i = 0, cdnp = buf->b_data; i < epb;
+		cdnp = abd_to_buf(buf->b_abd);
+		for (i = 0; i < epb;
 		    i += cdnp->dn_extra_slots + 1,
 		    cdnp += cdnp->dn_extra_slots + 1) {
 			dsl_scan_prefetch_dnode(scn, cdnp,
 			    zb->zb_objset, zb->zb_blkid * epb + i);
 		}
 	} else if (BP_GET_TYPE(bp) == DMU_OT_OBJSET) {
-		objset_phys_t *osp = buf->b_data;
+		objset_phys_t *osp = abd_to_buf(buf->b_abd);
 
 		dsl_scan_prefetch_dnode(scn, &osp->os_meta_dnode,
 		    zb->zb_objset, DMU_META_DNODE_OBJECT);
@@ -2360,7 +2362,8 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cbp = buf->b_data; i < epb; i++, cbp++) {
+		cbp = abd_to_buf(buf->b_abd);
+		for (i = 0; i < epb; i++, cbp++) {
 			zbookmark_phys_t czb;
 
 			SET_BOOKMARK(&czb, zb->zb_objset, zb->zb_object,
@@ -2388,7 +2391,8 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			scn->scn_phys.scn_errors++;
 			return (err);
 		}
-		for (i = 0, cdnp = buf->b_data; i < epb;
+		cdnp = abd_to_buf(buf->b_abd);
+		for (i = 0; i < epb;
 		    i += cdnp->dn_extra_slots + 1,
 		    cdnp += cdnp->dn_extra_slots + 1) {
 			dsl_scan_visitdnode(scn, ds, ostype,
@@ -2408,7 +2412,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 			return (err);
 		}
 
-		osp = buf->b_data;
+		osp = abd_to_buf(buf->b_abd);
 
 		dsl_scan_visitdnode(scn, ds, osp->os_type,
 		    &osp->os_meta_dnode, DMU_META_DNODE_OBJECT, tx);

@@ -874,6 +874,17 @@ send_do_embed(const blkptr_t *bp, uint64_t featureflags)
 	return (B_FALSE);
 }
 
+static int
+fillbadblock(void *p, size_t size, void *private)
+{
+	(void) private;
+	int i;
+	uint64_t *x = p;
+	for (i = 0; i < size >> 3; i++)
+		x[i] = 0x2f5baddb10cULL;
+	return (0);
+}
+
 /*
  * This function actually handles figuring out what kind of record needs to be
  * dumped, and calling the appropriate helper function.  In most cases,
@@ -946,11 +957,8 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 				 */
 				srdp->abuf = arc_alloc_buf(spa, &srdp->abuf,
 				    ARC_BUFC_DATA, srdp->datablksz);
-				uint64_t *ptr;
-				for (ptr = srdp->abuf->b_data;
-				    (char *)ptr < (char *)srdp->abuf->b_data +
-				    srdp->datablksz; ptr++)
-					*ptr = 0x2f5baddb10cULL;
+				abd_iterate_func(srdp->abuf->b_abd, 0,
+				    srdp->datablksz, fillbadblock, NULL);
 			} else {
 				return (SET_ERROR(EIO));
 			}
@@ -959,17 +967,26 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		ASSERT(dscp->dsc_dso->dso_dryrun ||
 		    srdp->abuf != NULL || srdp->abd != NULL);
 
-		char *data = NULL;
+		abd_t *data = NULL;
 		if (srdp->abd != NULL) {
-			data = abd_to_buf(srdp->abd);
+			data = srdp->abd;
 			ASSERT0P(srdp->abuf);
 		} else if (srdp->abuf != NULL) {
-			data = srdp->abuf->b_data;
+			data = srdp->abuf->b_abd;
+		}
+
+		void *dump_buf = NULL;
+		if (data) {
+			ASSERT(data->abd_size == srdp->datablksz ||
+			    data->abd_size == srdp->datasz);
+			dump_buf = abd_borrow_buf_copy(data, data->abd_size);
 		}
 
 		if (BP_GET_TYPE(bp) == DMU_OT_SA) {
 			ASSERT3U(range->start_blkid, ==, DMU_SPILL_BLKID);
-			err = dump_spill(dscp, bp, range->object, data);
+			err = dump_spill(dscp, bp, range->object, dump_buf);
+			if (data)
+				abd_return_buf(data, dump_buf, data->abd_size);
 			return (err);
 		}
 
@@ -983,28 +1000,31 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		if (srdp->datablksz > SPA_OLD_MAXBLOCKSIZE &&
 		    !(dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS)) {
+			void *tmp = dump_buf;
 			while (srdp->datablksz > 0 && err == 0) {
 				int n = MIN(srdp->datablksz,
 				    SPA_OLD_MAXBLOCKSIZE);
 				err = dmu_dump_write(dscp, srdp->obj_type,
 				    range->object, offset, n, n, NULL, B_FALSE,
-				    data);
+				    tmp);
 				offset += n;
 				/*
 				 * When doing dry run, data==NULL is used as a
 				 * sentinel value by
 				 * dmu_dump_write()->dump_record().
 				 */
-				if (data != NULL)
-					data += n;
+				if (tmp != NULL)
+					tmp += n;
 				srdp->datablksz -= n;
 			}
 		} else {
 			err = dmu_dump_write(dscp, srdp->obj_type,
 			    range->object, offset,
 			    srdp->datablksz, srdp->datasz, bp,
-			    srdp->io_compressed, data);
+			    srdp->io_compressed, dump_buf);
 		}
+		if (data)
+			abd_return_buf(data, dump_buf, data->abd_size);
 		return (err);
 	}
 	case HOLE: {

@@ -108,6 +108,13 @@ void abd_iter_advance(struct abd_iter *, size_t);
 void abd_iter_map(struct abd_iter *);
 void abd_iter_unmap(struct abd_iter *);
 void abd_iter_page(struct abd_iter *);
+#if defined(__linux__) && defined(_KERNEL)
+void abd_iter_map_impl(struct abd_iter *, boolean_t);
+void abd_iter_unmap_impl(struct abd_iter *, boolean_t);
+#else
+#define	abd_iter_map_impl(aiter, x)	((void)x, abd_iter_map(aiter))
+#define	abd_iter_unmap_impl(aiter, x)	((void)x, abd_iter_unmap(aiter))
+#endif
 
 /*
  * Helper macros

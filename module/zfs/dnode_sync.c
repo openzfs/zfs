@@ -80,10 +80,10 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_dbuf != NULL)
 		rw_enter(&dn->dn_dbuf->db_rwlock, RW_WRITER);
 	rw_enter(&db->db_rwlock, RW_WRITER);
-	ASSERT(db->db.db_data);
+	ASSERT(db->db.db_abd);
 	ASSERT(arc_released(db->db_buf));
 	ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
-	memcpy(db->db.db_data, dn->dn_phys->dn_blkptr,
+	abd_copy_from_buf(db->db.db_abd, dn->dn_phys->dn_blkptr,
 	    sizeof (blkptr_t) * nblkptr);
 	arc_buf_freeze(db->db_buf);
 
@@ -110,8 +110,9 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 		child->db_parent = db;
 		dbuf_add_ref(db, child);
-		if (db->db.db_data)
-			child->db_blkptr = (blkptr_t *)db->db.db_data + i;
+		if (db->db.db_abd)
+			child->db_blkptr =
+			    (blkptr_t *)abd_to_buf(db->db.db_abd) + i;
 		else
 			child->db_blkptr = NULL;
 		dprintf_dbuf_bp(child, child->db_blkptr,
@@ -173,10 +174,23 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 }
 
 #ifdef ZFS_DEBUG
+static int
+checkzero(void *p, size_t size, void *private)
+{
+	(void) private;
+	size_t i;
+	uint64_t *x = p;
+	for (i = 0; i < size >> 3; i++) {
+		if (x[i] != 0)
+			return (1);
+	}
+	return (0);
+}
+
 static void
 free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 {
-	uint64_t off, num, i, j;
+	uint64_t off, num, i;
 	unsigned int epbs;
 	int err;
 	uint64_t txg = tx->tx_txg;
@@ -197,7 +211,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	ASSERT(db->db_blkptr != NULL);
 
 	for (i = off; i < off+num; i++) {
-		uint64_t *buf;
+		abd_t *buf;
 		dmu_buf_impl_t *child;
 		dbuf_dirty_record_t *dr;
 
@@ -215,37 +229,33 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 
 		/* data_old better be zeroed */
 		if (dr) {
-			buf = dr->dt.dl.dr_data->b_data;
-			for (j = 0; j < child->db.db_size >> 3; j++) {
-				if (buf[j] != 0) {
-					panic("freed data not zero: "
-					    "child=%p i=%llu off=%llu "
-					    "num=%llu\n",
-					    (void *)child, (u_longlong_t)i,
-					    (u_longlong_t)off,
-					    (u_longlong_t)num);
-				}
-			}
+			buf = dr->dt.dl.dr_data->b_abd;
+			if (abd_iterate_func(buf, 0, child->db.db_size,
+			    checkzero, NULL) != 0)
+				panic("freed data not zero: "
+				    "child=%p i=%llu off=%llu "
+				    "num=%llu\n",
+				    (void *)child, (u_longlong_t)i,
+				    (u_longlong_t)off,
+				    (u_longlong_t)num);
 		}
 
 		/*
-		 * db_data better be zeroed unless it's dirty in a
+		 * db_abd better be zeroed unless it's dirty in a
 		 * future txg.
 		 */
 		mutex_enter(&child->db_mtx);
-		buf = child->db.db_data;
+		buf = child->db.db_abd;
 		if (buf != NULL && child->db_state != DB_FILL &&
 		    list_is_empty(&child->db_dirty_records)) {
-			for (j = 0; j < child->db.db_size >> 3; j++) {
-				if (buf[j] != 0) {
-					panic("freed data not zero: "
-					    "child=%p i=%llu off=%llu "
-					    "num=%llu\n",
-					    (void *)child, (u_longlong_t)i,
-					    (u_longlong_t)off,
-					    (u_longlong_t)num);
-				}
-			}
+			if (abd_iterate_func(buf, 0, child->db.db_size,
+			    checkzero, NULL) != 0)
+				panic("freed data not zero: "
+				    "child=%p i=%llu off=%llu "
+				    "num=%llu\n",
+				    (void *)child, (u_longlong_t)i,
+				    (u_longlong_t)off,
+				    (u_longlong_t)num);
 		}
 		mutex_exit(&child->db_mtx);
 
@@ -313,7 +323,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	}
 
 	dbuf_release_bp(db);
-	bp = db->db.db_data;
+	bp = abd_to_buf(db->db.db_abd);
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
@@ -356,9 +366,10 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 
 	if (free_indirects) {
 		rw_enter(&db->db_rwlock, RW_WRITER);
-		for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++)
+		bp = abd_to_buf(db->db.db_abd);
+		for (i = 0; i < 1 << epbs; i++, bp++)
 			ASSERT(BP_IS_HOLE(bp));
-		memset(db->db.db_data, 0, db->db.db_size);
+		abd_zero(db->db.db_abd, db->db.db_size);
 		free_blocks(dn, db->db_blkptr, 1, tx);
 		rw_exit(&db->db_rwlock);
 	}

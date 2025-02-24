@@ -4287,12 +4287,12 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	 * It is important to hold the rangelock here because it is possible
 	 * a Direct I/O write or block clone might be taking place at the same
 	 * time that a page is being faulted in through filemap_fault(). With
-	 * Direct I/O writes and block cloning db->db_data will be set to NULL
+	 * Direct I/O writes and block cloning db->db_abd will be set to NULL
 	 * with dbuf_clear_data() in dmu_buif_will_clone_or_dio(). If the
 	 * rangelock is not held, then there is a race between faulting in a
 	 * page and writing out a Direct I/O write or block cloning. Without
 	 * the rangelock a NULL pointer dereference can occur in
-	 * dmu_read_impl() for db->db_data during the mempcy operation when
+	 * dmu_read_impl() for db->db_abd during the mempcy operation when
 	 * zfs_fillpage() calls dmu_read().
 	 */
 	zfs_locked_range_t *lr = zfs_rangelock_tryenter(&zp->z_rangelock,

@@ -519,6 +519,12 @@ zap_byteswap(void *buf, size_t size)
 	}
 }
 
+void
+abd_zap_byteswap(abd_t *abd, size_t size)
+{
+	zap_byteswap(abd_to_buf(abd), size);
+}
+
 /*
  * Cursor attribute allocator/free. Part of the public interface in zap.h,
  * in this file to get access to the kmem caches.

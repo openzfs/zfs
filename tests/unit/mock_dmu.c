@@ -74,7 +74,8 @@ mock_dnode_block_alloc(mock_dnode_t *mdn, uint64_t blkid)
 	mdb->mdb_db.db_object = mdn->mdn_dn.dn_object;
 	mdb->mdb_db.db_offset = blkid * mdn->mdn_blksize;
 	mdb->mdb_db.db_size   = mdn->mdn_blksize;
-	mdb->mdb_db.db_data   = mdb->mdb_data;
+	mdb->mdb_db.db_abd    = abd_get_from_buf(mdb->mdb_data,
+	    mdn->mdn_blksize);
 	mdb->mdb_owner = mdn;
 
 	return (mdb);
@@ -136,6 +137,7 @@ mock_dnode_destroy(mock_dnode_t *mdn)
 		    mdb->mdb_user->dbu_evict_func_sync != NULL)
 			mdb->mdb_user->dbu_evict_func_sync(mdb->mdb_user);
 
+		abd_free(mdb->mdb_db.db_abd);
 		kmem_free(mdb->mdb_data, mdb->mdb_db.db_size);
 		kmem_free(mdb, sizeof (mock_dbuf_t));
 	}
@@ -156,7 +158,7 @@ mock_dnode_block_data(mock_dnode_t *mdn, uint64_t blkid)
 {
 	if (blkid >= mdn->mdn_nblocks)
 		return (NULL);
-	return (mdn->mdn_blocks[blkid]->mdb_db.db_data);
+	return (abd_to_buf(mdn->mdn_blocks[blkid]->mdb_db.db_abd));
 }
 
 uint64_t
@@ -254,11 +256,12 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
 	void *new_data = kmem_zalloc(size, KM_SLEEP);
 	memcpy(new_data, mdb->mdb_data,
 	    MIN(size, (size_t)mdb->mdb_db.db_size));
+	abd_free(mdb->mdb_db.db_abd);
 	kmem_free(mdb->mdb_data, mdb->mdb_db.db_size);
 
 	mdb->mdb_data = new_data;
 	mdb->mdb_db.db_size = size;
-	mdb->mdb_db.db_data = new_data;
+	mdb->mdb_db.db_abd = abd_get_from_buf(new_data, size);
 	mdn->mdn_blksize = size;
 
 	return (0);
@@ -406,4 +409,38 @@ dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset,
 {
 	(void) os; (void) object; (void) offset; (void) len;
 	return (EIO);
+}
+
+abd_t *
+abd_get_from_buf(void *buf, size_t size)
+{
+	abd_t *abd = kmem_zalloc(sizeof (abd_t), KM_SLEEP);
+	abd->abd_flags = ABD_FLAG_ALLOCD | ABD_FLAG_LINEAR;
+	abd->abd_size = size;
+	abd->abd_u.abd_linear.abd_buf = buf;
+	return (abd);
+}
+
+void *
+abd_to_buf(abd_t *abd)
+{
+	return (abd->abd_u.abd_linear.abd_buf);
+}
+
+void
+abd_zero_off(abd_t *abd, size_t off, size_t size)
+{
+	memset(abd_to_buf(abd) + off, 0, size);
+}
+
+void
+abd_copy_to_buf_off(void *buf, abd_t *abd, size_t off, size_t size)
+{
+	memcpy(buf, abd_to_buf(abd) + off, size);
+}
+
+void
+abd_free(abd_t *abd)
+{
+	kmem_free(abd, sizeof (abd_t));
 }

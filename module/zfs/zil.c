@@ -283,7 +283,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 
 		uint64_t size = BP_GET_LSIZE(bp);
 		if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t *zilc = (*abuf)->b_data;
+			zil_chain_t *zilc = abd_to_buf((*abuf)->b_abd);
 			char *lr = (char *)(zilc + 1);
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
@@ -297,7 +297,7 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 				*nbp = zilc->zc_next_blk;
 			}
 		} else {
-			char *lr = (*abuf)->b_data;
+			char *lr = abd_to_buf((*abuf)->b_abd);
 			zil_chain_t *zilc = (zil_chain_t *)(lr + size) - 1;
 
 			if (memcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
@@ -354,7 +354,7 @@ zil_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 
 	if (error == 0) {
 		if (wbuf != NULL)
-			memcpy(wbuf, abuf->b_data, arc_buf_size(abuf));
+			abd_copy_to_buf(wbuf, abuf->b_abd, arc_buf_size(abuf));
 		arc_buf_destroy(abuf, &abuf);
 	}
 

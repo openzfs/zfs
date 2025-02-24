@@ -341,6 +341,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		ptidx = 0;
 		pidx = 1;
 		prefetchlimit = zfs_traverse_indirect_prefetch_limit;
+		blkptr_t *bps = abd_to_buf(buf->b_abd);
 		for (i = 0; i < epb; i++) {
 			if (prefetchlimit && i == ptidx) {
 				ASSERT3S(ptidx, <=, pidx);
@@ -350,8 +351,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 					    zb->zb_object, zb->zb_level - 1,
 					    zb->zb_blkid * epb + pidx);
 					if (traverse_prefetch_metadata(td, dnp,
-					    &((blkptr_t *)buf->b_data)[pidx],
-					    czb) == B_TRUE) {
+					    &bps[pidx], czb) == B_TRUE) {
 						prefetched++;
 						if (prefetched ==
 						    MAX(prefetchlimit / 2, 1))
@@ -364,8 +364,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 			SET_BOOKMARK(czb, zb->zb_objset, zb->zb_object,
 			    zb->zb_level - 1,
 			    zb->zb_blkid * epb + i);
-			err = traverse_visitbp(td, dnp,
-			    &((blkptr_t *)buf->b_data)[i], czb);
+			err = traverse_visitbp(td, dnp, &bps[i], czb);
 			if (err != 0)
 				break;
 		}
@@ -391,7 +390,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (err != 0)
 			goto post;
 
-		child_dnp = buf->b_data;
+		child_dnp = abd_to_buf(buf->b_abd);
 
 		for (i = 0; i < epb; i += child_dnp[i].dn_extra_slots + 1) {
 			prefetch_dnode_metadata(td, &child_dnp[i],
@@ -418,7 +417,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		if (err != 0)
 			goto post;
 
-		osp = buf->b_data;
+		osp = abd_to_buf(buf->b_abd);
 		prefetch_dnode_metadata(td, &osp->os_meta_dnode, zb->zb_objset,
 		    DMU_META_DNODE_OBJECT);
 		/*
@@ -699,7 +698,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 			    !(td->td_flags & TRAVERSE_PRE))
 				goto out;
 		} else {
-			osp = buf->b_data;
+			osp = abd_to_buf(buf->b_abd);
 			traverse_zil(td, &osp->os_zil_header);
 			arc_buf_destroy(buf, &buf);
 		}

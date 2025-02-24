@@ -98,6 +98,8 @@ typedef struct zfs_uio {
 #define	zfs_uio_soffset(u)		(u)->uio_soffset
 #define	zfs_uio_rlimit_fsize(z, u)	(0)
 #define	zfs_uio_fault_move(p, n, rw, u)	zfs_uiomove((p), (n), (rw), (u))
+#define	zfs_uio_fault_move_abd(p, o, n, rw, u)	\
+	zfs_uiomove_abd((p), (o), (n), (rw), (u))
 
 extern int zfs_uio_prefaultpages(ssize_t, zfs_uio_t *);
 
@@ -209,5 +211,12 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 #define	zfs_user_backed_iov_iter(iter) \
 	(zfs_uio_iov_iter_type((iter)) == ITER_IOVEC)
 #endif
+
+static inline boolean_t
+uio_is_user(zfs_uio_t *uio)
+{
+	return (uio->uio_segflg == UIO_ITER &&
+	    zfs_user_backed_iov_iter(uio->uio_iter));
+}
 
 #endif /* SPL_UIO_H */

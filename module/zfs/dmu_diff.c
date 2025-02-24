@@ -147,7 +147,7 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		    ZIO_PRIORITY_ASYNC_READ, zio_flags, &aflags, zb) != 0)
 			return (SET_ERROR(EIO));
 
-		blk = abuf->b_data;
+		blk = abd_to_buf(abuf->b_abd);
 		for (i = 0; i < epb; i += blk[i].dn_extra_slots + 1) {
 			uint64_t dnobj = (zb->zb_blkid <<
 			    (DNODE_BLOCK_SHIFT - DNODE_SHIFT)) + i;

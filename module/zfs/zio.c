@@ -3677,8 +3677,7 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 			    &aflags, &zio->io_bookmark);
 
 			if (error == 0) {
-				if (abd_cmp_buf(zio->io_orig_abd, abuf->b_data,
-				    zio->io_orig_size) != 0)
+				if (abd_cmp(zio->io_orig_abd, abuf->b_abd) != 0)
 					error = SET_ERROR(ENOENT);
 				arc_buf_destroy(abuf, &abuf);
 			}

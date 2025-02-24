@@ -100,7 +100,7 @@ abd_checksum_off(abd_t *abd, uint64_t size,
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 }
 
-static void
+void
 abd_fletcher_2_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
