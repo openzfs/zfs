@@ -25,6 +25,7 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -840,8 +841,8 @@ out:
 		*zpp = zp;
 	}
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1202,8 +1203,8 @@ out:
 		zfs_zrele_async(xzp);
 	}
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1391,14 +1392,15 @@ out:
 
 	zfs_dirent_unlock(dl);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
-
 	if (error != 0) {
 		zrele(zp);
 	} else {
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
+
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			error = zil_commit(zilog, 0);
+
 	}
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1527,8 +1529,8 @@ out:
 	zfs_znode_update_vfs(zp);
 	zrele(zp);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -2629,8 +2631,8 @@ out:
 	}
 
 out2:
-	if (os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (err == 0 && os->os_sync == ZFS_SYNC_ALWAYS)
+		err = zil_commit(zilog, 0);
 
 out3:
 	kmem_free(xattr_bulk, sizeof (sa_bulk_attr_t) * bulks);
@@ -3234,8 +3236,8 @@ out:
 	zfs_dirent_unlock(sdl);
 	zfs_dirent_unlock(tdl);
 
-	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -3435,7 +3437,7 @@ top:
 		*zpp = zp;
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-			zil_commit(zilog, 0);
+			error = zil_commit(zilog, 0);
 	} else {
 		zrele(zp);
 	}
@@ -3669,18 +3671,20 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		zil_commit(zilog, 0);
+	if (error == 0) {
+		if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			error = zil_commit(zilog, 0);
 
-	if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
-		txg_wait_flag_t wait_flags =
-		    spa_get_failmode(dmu_objset_spa(zfsvfs->z_os)) ==
-		    ZIO_FAILURE_MODE_CONTINUE ? TXG_WAIT_SUSPEND : 0;
-		error = txg_wait_synced_flags(dmu_objset_pool(zfsvfs->z_os),
-		    txg, wait_flags);
-		if (error != 0) {
-			ASSERT3U(error, ==, ESHUTDOWN);
-			error = SET_ERROR(EIO);
+		if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
+			txg_wait_flag_t wait_flags =
+			    spa_get_failmode(dmu_objset_spa(zfsvfs->z_os)) ==
+			    ZIO_FAILURE_MODE_CONTINUE ? TXG_WAIT_SUSPEND : 0;
+			error = txg_wait_synced_flags(
+			    dmu_objset_pool(zfsvfs->z_os), txg, wait_flags);
+			if (error != 0) {
+				ASSERT3U(error, ==, ESHUTDOWN);
+				error = SET_ERROR(EIO);
+			}
 		}
 	}
 
@@ -3833,7 +3837,16 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 			 * Refer to the comment in zpl_fsync() for details.
 			 */
 			if (atomic_load_32(&zp->z_async_writes_cnt) > 0) {
-				zil_commit(zfsvfs->z_log, zp->z_id);
+				/*
+				 * We're only calling zil_commit() here in
+				 * order to force the writes to happen now
+				 * instead of at end of txg. We don't care
+				 * about a durability guarantee; any errors
+				 * are reported elsewhere. So we ignore the
+				 * error here.
+				 */
+				int _zilerr __maybe_unused =
+				    zil_commit(zfsvfs->z_log, zp->z_id);
 			}
 
 			if (PageWriteback(pp))
@@ -3936,8 +3949,13 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	zfs_rangelock_exit(lr);
 
-	if (commit)
-		zil_commit(zfsvfs->z_log, zp->z_id);
+	if (commit) {
+		err = zil_commit(zfsvfs->z_log, zp->z_id);
+		if (err != 0) {
+			zfs_exit(zfsvfs, FTAG);
+			return (err);
+		}
+	}
 
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
 
