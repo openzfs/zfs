@@ -498,10 +498,13 @@ typedef struct zil_stats {
 	 *            (see zil_commit_writer_stall())
 	 * - suspend: ZIL suspended
 	 *            (see zil_commit(), zil_get_commit_list())
+	 * -   crash: ZIL crashed
+	 *            (see zil_crash(), zil_commit(), ...)
 	 */
 	kstat_named_t zil_commit_error_count;
 	kstat_named_t zil_commit_stall_count;
 	kstat_named_t zil_commit_suspend_count;
+	kstat_named_t zil_commit_crash_count;
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
@@ -549,6 +552,7 @@ typedef struct zil_sums {
 	wmsum_t zil_commit_error_count;
 	wmsum_t zil_commit_stall_count;
 	wmsum_t zil_commit_suspend_count;
+	wmsum_t zil_commit_crash_count;
 	wmsum_t zil_itx_count;
 	wmsum_t zil_itx_indirect_count;
 	wmsum_t zil_itx_indirect_bytes;

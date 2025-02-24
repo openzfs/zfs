@@ -221,6 +221,7 @@ struct zilog {
 	uint64_t	zl_cur_left;	/* current burst remaining size */
 	uint64_t	zl_cur_max;	/* biggest record in current burst */
 	list_t		zl_lwb_list;	/* in-flight log write list */
+	list_t		zl_lwb_crash_list; /* log writes in-flight at crash */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
@@ -244,6 +245,9 @@ struct zilog {
 	 * (see zil_max_copied_data()).
 	 */
 	uint64_t	zl_max_block_size;
+
+	/* After crash, txg to restart zil */
+	uint64_t	zl_restart_txg;
 
 	/* Pointer for per dataset zil sums */
 	zil_sums_t *zl_sums;
