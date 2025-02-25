@@ -3546,6 +3546,15 @@ metaslab_segment_may_passivate(metaslab_t *msp)
 		return;
 
 	/*
+	 * As long as a single largest free segment covers majorioty of free
+	 * space, don't consider the metaslab fragmented.  It should allow
+	 * us to fill new unfragmented metaslabs full before switching.
+	 */
+	if (metaslab_largest_allocatable(msp) >
+	    zfs_range_tree_space(msp->ms_allocatable) * 15 / 16)
+		return;
+
+	/*
 	 * Since we are in the middle of a sync pass, the most accurate
 	 * information that is accessible to us is the in-core range tree
 	 * histogram; calculate the new weight based on that information.
