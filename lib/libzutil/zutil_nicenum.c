@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <libzutil.h>
 #include <string.h>
+#include <locale.h>
 
 /*
  * Return B_TRUE if "str" is a number string, B_FALSE otherwise.
@@ -97,6 +98,8 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 	}
 
 	u = units[format][index];
+
+	setlocale(LC_NUMERIC, "");
 
 	/* Don't print zero latencies since they're invalid */
 	if ((format == ZFS_NICENUM_TIME) && (num == 0)) {
