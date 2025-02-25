@@ -5568,6 +5568,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	boolean_t no_buf = *arc_flags & ARC_FLAG_NO_BUF;
 	arc_buf_t *buf = NULL;
 	int rc = 0;
+	boolean_t bp_validation = B_FALSE;
 
 	ASSERT(!embedded_bp ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
@@ -5610,7 +5611,7 @@ top:
 		 * should always be the case since the blkptr is protected by
 		 * a checksum.
 		 */
-		if (!zfs_blkptr_verify(spa, bp, BLK_CONFIG_SKIP,
+		if (zfs_blkptr_verify(spa, bp, BLK_CONFIG_SKIP,
 		    BLK_VERIFY_LOG)) {
 			mutex_exit(hash_lock);
 			rc = SET_ERROR(ECKSUM);
@@ -5762,6 +5763,8 @@ top:
 		abd_t *hdr_abd;
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 		arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
+		int config_lock;
+		int error;
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			if (hash_lock != NULL)
@@ -5770,16 +5773,31 @@ top:
 			goto done;
 		}
 
+		if (zio_flags & ZIO_FLAG_CONFIG_WRITER) {
+			config_lock = BLK_CONFIG_HELD;
+		} else if (hash_lock != NULL) {
+			/*
+			 * Prevent lock order reversal
+			 */
+			config_lock = BLK_CONFIG_NEEDED_TRY;
+		} else {
+			config_lock = BLK_CONFIG_NEEDED;
+		}
+
 		/*
 		 * Verify the block pointer contents are reasonable.  This
 		 * should always be the case since the blkptr is protected by
 		 * a checksum.
 		 */
-		if (!zfs_blkptr_verify(spa, bp,
-		    (zio_flags & ZIO_FLAG_CONFIG_WRITER) ?
-		    BLK_CONFIG_HELD : BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
+		if (!bp_validation && (error = zfs_blkptr_verify(spa, bp,
+		    config_lock, BLK_VERIFY_LOG))) {
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
+			if (error == EBUSY && !zfs_blkptr_verify(spa, bp,
+			    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
+				bp_validation = B_TRUE;
+				goto top;
+			}
 			rc = SET_ERROR(ECKSUM);
 			goto done;
 		}

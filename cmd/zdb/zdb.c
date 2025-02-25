@@ -9043,7 +9043,7 @@ zdb_read_block(char *thing, spa_t *spa)
 		const blkptr_t *b = (const blkptr_t *)(void *)
 		    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
 		if (zfs_blkptr_verify(spa, b,
-		    BLK_CONFIG_NEEDED, BLK_VERIFY_ONLY) == B_FALSE) {
+		    BLK_CONFIG_NEEDED, BLK_VERIFY_ONLY)) {
 			abd_return_buf_copy(pabd, buf, lsize);
 			borrowed = B_FALSE;
 			buf = lbuf;
@@ -9052,7 +9052,7 @@ zdb_read_block(char *thing, spa_t *spa)
 			b = (const blkptr_t *)(void *)
 			    ((uintptr_t)buf + (uintptr_t)blkptr_offset);
 			if (lsize == -1 || zfs_blkptr_verify(spa, b,
-			    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG) == B_FALSE) {
+			    BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
 				printf("invalid block pointer at this DVA\n");
 				goto out;
 			}
