@@ -267,6 +267,8 @@ int zfs_flags = 0;
  * in leaked space, or worse.
  */
 int zfs_recover = B_FALSE;
+/* Localized to metaslab loading only */
+int zfs_recover_ms = B_FALSE;
 
 /*
  * If destroy encounters an EIO while reading metadata (e.g. indirect
@@ -1668,6 +1670,16 @@ zfs_panic_recover(const char *fmt, ...)
 
 	va_start(adx, fmt);
 	vcmn_err(zfs_recover ? CE_WARN : CE_PANIC, fmt, adx);
+	va_end(adx);
+}
+
+void
+zfs_panic_recover_ms(const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	vcmn_err((zfs_recover || zfs_recover_ms) ? CE_WARN : CE_PANIC, fmt, adx);
 	va_end(adx);
 }
 
@@ -3132,6 +3144,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, flags, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, recover, INT, ZMOD_RW,
 	"Set to attempt to recover from fatal errors");
+
+ZFS_MODULE_PARAM(zfs, zfs_, recover_ms, INT, ZMOD_RW,
+	"Set to attempt to recover from fatal errors during metaslab loading");
 
 ZFS_MODULE_PARAM(zfs, zfs_, free_leak_on_eio, INT, ZMOD_RW,
 	"Set to ignore IO errors during free and permanently leak the space");
