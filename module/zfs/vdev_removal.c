@@ -209,8 +209,8 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		for (uint64_t id = 0; id < rvd->vdev_children; id++) {
 			vdev_t *cvd = rvd->vdev_child[id];
 
-			if (cvd == vd ||
-			    cvd->vdev_ops == &vdev_indirect_ops)
+			if (cvd == vd || !vdev_is_concrete(cvd) ||
+			    vdev_is_dead(cvd))
 				continue;
 
 			metaslab_class_t *mc = cvd->vdev_mg->mg_class;
