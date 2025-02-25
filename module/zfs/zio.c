@@ -3133,9 +3133,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	/*
 	 * Store multiple copies of the GBH, so that we can still traverse
 	 * all the data (e.g. to free or scrub) even if a block is damaged.
-	 * This value respects the redundant_metadata property. Note that
-	 * we can't store 3 copies of the GBH in all cases, e.g. with
-	 * encryption, which uses DVA[2] for the IV+salt.
+	 * This value respects the redundant_metadata property.
 	 */
 	int gbh_copies = gio->io_prop.zp_gang_copies;
 	ASSERT3S(gbh_copies, >, 0);
