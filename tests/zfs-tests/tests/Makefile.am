@@ -2054,6 +2054,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/stat/cleanup.ksh \
 	functional/stat/setup.ksh \
 	functional/stat/stat_001_pos.ksh \
+	functional/stat/statx_dioalign.ksh \
 	functional/suid/cleanup.ksh \
 	functional/suid/setup.ksh \
 	functional/suid/suid_write_to_none.ksh \
