@@ -21,7 +21,6 @@ user = root
 timeout = 0
 post_user = root
 post = cleanup
-outputdir = /var/tmp/test_results
 tags = ['perf']
 
 [tests/perf/regression]
