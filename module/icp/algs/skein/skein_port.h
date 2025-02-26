@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-OpenZFS-ThirdParty-PublicDomain
 /*
  * Platform-specific definitions for Skein hash function.
  *
