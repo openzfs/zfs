@@ -2397,6 +2397,15 @@ The default value of
 .Sy 100%
 will create a maximum of one thread per cpu.
 .
+.It Sy zfs_zil_replay_prime_arc Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Controls whether zil_replay will read the zil and in parallel issue
+zfs_read to prime the arc cache prior to performing real zil replay,
+which is serial. Priming before replay can reduce zpool_import latency
+by reducing zil_replay time for high latency pools. It does this by
+eliminating serial read-modify-write cycles in zil_replay.
+The value of 1 will perform arc_priming prior to zil_replay.
+The deafult value of 0 will not perform arc priming prior to zil_replay.
+.
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
 On very fragmented pools, lowering this

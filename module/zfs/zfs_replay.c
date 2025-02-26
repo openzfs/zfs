@@ -676,6 +676,39 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 	return (error);
 }
 
+static void
+zfs_replay_prime_link(void *args)
+{
+	zil_replay_arg_t *zr = args;
+	lr_link_t *lr;
+	zfsvfs_t *zfsvfs;
+	znode_t *dzp, *zp;
+	boolean_t byteswap;
+	int error;
+
+	zfsvfs = (zfsvfs_t *)zr->zr_arg;
+	lr = (lr_link_t *)zr->zr_lr;
+	byteswap = (boolean_t)zr->zr_byteswap;
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_doid, &dzp)) != 0) {
+		cmn_err(CE_WARN, "Failed to get znode for link dir "
+		    "during replay prime: %d", error);
+		return;
+	}
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_link_obj, &zp)) != 0) {
+		cmn_err(CE_WARN, "Failed to get znode for link "
+		    "during replay prime: %d", error);
+		zrele(dzp);
+		return;
+	}
+
+	zrele(zp);
+	zrele(dzp);
+}
+
 static int
 do_zfs_replay_rename(zfsvfs_t *zfsvfs, _lr_rename_t *lr, char *sname,
     char *tname, uint64_t rflags, vattr_t *wo_vap)
@@ -867,6 +900,52 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	zfsvfs->z_replay_eof = 0;	/* safety */
 
 	return (error);
+}
+
+static void
+zfs_replay_prime_write(void *args)
+{
+	fstrans_cookie_t cookie;
+	zil_replay_arg_t *zr = args;
+	zfsvfs_t *zfsvfs;
+	lr_write_t *lr;
+	znode_t	*zp;
+	uint64_t length;
+	uint64_t offset;
+	char *data;
+	struct iovec iov;
+	zfs_uio_t uio;
+	boolean_t byteswap;
+
+	zfsvfs = (zfsvfs_t *)zr->zr_arg;
+	lr = (lr_write_t *)zr->zr_lr;
+	byteswap = (boolean_t)zr->zr_byteswap;
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
+	length = lr->lr_length % zfsvfs->z_max_blksz;
+	if (length == 0)
+		goto read_task_done;
+
+	offset = lr->lr_offset + (lr->lr_length - length);
+	data = (char *)(lr + 1);
+	iov.iov_base = (void *)data;
+	iov.iov_len = length;
+	zfs_uio_iovec_init(&uio, &iov, 1, offset, UIO_SYSSPACE, length, 0);
+
+	if (zfs_zget(zfsvfs, lr->lr_foid, &zp) != 0)
+		goto read_task_done;
+
+	cookie = spl_fstrans_mark();
+	// Call zfs_read with the provided arguments
+	zfs_read(zp, &uio, /* ioflags */ 0, kcred);
+	spl_fstrans_unmark(cookie);
+
+	// Free the allocated memory
+	zrele(zp);
+read_task_done:
+	vmem_free(zr->zr_lr, sizeof (lr_write_t) + lr->lr_length);
+	kmem_free(zr, sizeof (zil_replay_arg_t));
 }
 
 /*
@@ -1261,4 +1340,31 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_rename_exchange,	/* TX_RENAME_EXCHANGE */
 	zfs_replay_rename_whiteout,	/* TX_RENAME_WHITEOUT */
 	zfs_replay_clone_range,	/* TX_CLONE_RANGE */
+};
+
+/*
+ * Callback vectors for priming the arc for zil records
+ */
+zfs_replay_prime_arc_func_t *const zfs_replay_prime_vector[TX_MAX_TYPE] = {
+	NULL,			/* no such type */
+	NULL,			/* TX_CREATE */
+	NULL,			/* TX_MKDIR */
+	NULL,			/* TX_MKXATTR */
+	NULL,			/* TX_SYMLINK */
+	NULL,			/* TX_REMOVE */
+	NULL,			/* TX_RMDIR */
+	zfs_replay_prime_link,	/* TX_LINK */
+	NULL,			/* TX_RENAME */
+	zfs_replay_prime_write,	/* TX_WRITE */
+	NULL,			/* TX_TRUNCATE */
+	NULL,			/* TX_SETATTR */
+	NULL,			/* TX_ACL_V0 */
+	NULL,			/* TX_ACL */
+	NULL,			/* TX_CREATE_ACL */
+	NULL,			/* TX_CREATE_ATTR */
+	NULL,			/* TX_CREATE_ACL_ATTR */
+	NULL,			/* TX_MKDIR_ACL */
+	NULL,			/* TX_MKDIR_ATTR */
+	NULL,			/* TX_MKDIR_ACL_ATTR */
+	NULL,			/* TX_WRITE2 */
 };
