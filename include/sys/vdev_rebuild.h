@@ -65,7 +65,8 @@ typedef struct vdev_rebuild_phys {
 typedef struct vdev_rebuild {
 	vdev_t		*vr_top_vdev;		/* top-level vdev to rebuild */
 	metaslab_t	*vr_scan_msp;		/* scanning disabled metaslab */
-	range_tree_t	*vr_scan_tree;		/* scan ranges (in metaslab) */
+	/* scan ranges (in metaslab) */
+	zfs_range_tree_t	*vr_scan_tree;
 	kmutex_t	vr_io_lock;		/* inflight IO lock */
 	kcondvar_t	vr_io_cv;		/* inflight IO cv */
 

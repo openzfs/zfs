@@ -333,7 +333,7 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		mutex_enter(&vd->vdev_obsolete_lock);
-		range_tree_add(vd->vdev_obsolete_segments, offset, size);
+		zfs_range_tree_add(vd->vdev_obsolete_segments, offset, size);
 		mutex_exit(&vd->vdev_obsolete_lock);
 		vdev_dirty(vd, 0, NULL, spa_syncing_txg(spa));
 	}
@@ -816,7 +816,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
-	ASSERT(range_tree_space(vd->vdev_obsolete_segments) > 0);
+	ASSERT(zfs_range_tree_space(vd->vdev_obsolete_segments) > 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS));
 
@@ -845,7 +845,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 
 	space_map_write(vd->vdev_obsolete_sm,
 	    vd->vdev_obsolete_segments, SM_ALLOC, SM_NO_VDEVID, tx);
-	range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
+	zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 }
 
 int

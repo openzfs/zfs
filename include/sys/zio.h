@@ -35,7 +35,6 @@
 #ifndef _ZIO_H
 #define	_ZIO_H
 
-#include <sys/zio_priority.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
@@ -546,6 +545,7 @@ enum blk_verify_flag {
 enum blk_config_flag {
 	BLK_CONFIG_HELD,   // SCL_VDEV held for writer
 	BLK_CONFIG_NEEDED, // SCL_VDEV should be obtained for reader
+	BLK_CONFIG_NEEDED_TRY, // Try with SCL_VDEV for reader
 	BLK_CONFIG_SKIP,   // skip checks which require SCL_VDEV
 };
 
@@ -663,7 +663,7 @@ extern void zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t);
 extern int zio_resume(spa_t *spa);
 extern void zio_resume_wait(spa_t *spa);
 
-extern boolean_t zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
+extern int zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
     enum blk_config_flag blk_config, enum blk_verify_flag blk_verify);
 
 /*

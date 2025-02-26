@@ -330,13 +330,14 @@ vdev_initialize_block_free(abd_t *data)
 static int
 vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 {
-	range_tree_t *rt = vd->vdev_initialize_tree;
+	zfs_range_tree_t *rt = vd->vdev_initialize_tree;
 	zfs_btree_t *bt = &rt->rt_root;
 	zfs_btree_index_t where;
 
-	for (range_seg_t *rs = zfs_btree_first(bt, &where); rs != NULL;
+	for (zfs_range_seg_t *rs = zfs_btree_first(bt, &where); rs != NULL;
 	    rs = zfs_btree_next(bt, &where, &where)) {
-		uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
+		uint64_t size = zfs_rs_get_end(rs, rt) -
+		    zfs_rs_get_start(rs, rt);
 
 		/* Split range into legally-sized physical chunks */
 		uint64_t writes_required =
@@ -346,7 +347,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 			int error;
 
 			error = vdev_initialize_write(vd,
-			    VDEV_LABEL_START_SIZE + rs_get_start(rs, rt) +
+			    VDEV_LABEL_START_SIZE + zfs_rs_get_start(rs, rt) +
 			    (w * zfs_initialize_chunk_size),
 			    MIN(size - (w * zfs_initialize_chunk_size),
 			    zfs_initialize_chunk_size), data);
@@ -358,7 +359,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 }
 
 static void
-vdev_initialize_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_last_rs_end(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	uint64_t *last_rs_end = (uint64_t *)arg;
 
@@ -367,7 +368,7 @@ vdev_initialize_xlate_last_rs_end(void *arg, range_seg64_t *physical_rs)
 }
 
 static void
-vdev_initialize_xlate_progress(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_progress(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	vdev_t *vd = (vdev_t *)arg;
 
@@ -406,7 +407,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg64_t logical_rs, physical_rs, remain_rs;
+		zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
 
@@ -440,13 +441,13 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		VERIFY0(metaslab_load(msp));
 
 		zfs_btree_index_t where;
-		range_tree_t *rt = msp->ms_allocatable;
-		for (range_seg_t *rs =
+		zfs_range_tree_t *rt = msp->ms_allocatable;
+		for (zfs_range_seg_t *rs =
 		    zfs_btree_first(&rt->rt_root, &where); rs;
 		    rs = zfs_btree_next(&rt->rt_root, &where,
 		    &where)) {
-			logical_rs.rs_start = rs_get_start(rs, rt);
-			logical_rs.rs_end = rs_get_end(rs, rt);
+			logical_rs.rs_start = zfs_rs_get_start(rs, rt);
+			logical_rs.rs_end = zfs_rs_get_end(rs, rt);
 
 			vdev_xlate_walk(vd, &logical_rs,
 			    vdev_initialize_xlate_progress, vd);
@@ -480,7 +481,7 @@ vdev_initialize_load(vdev_t *vd)
 }
 
 static void
-vdev_initialize_xlate_range_add(void *arg, range_seg64_t *physical_rs)
+vdev_initialize_xlate_range_add(void *arg, zfs_range_seg64_t *physical_rs)
 {
 	vdev_t *vd = arg;
 
@@ -503,7 +504,7 @@ vdev_initialize_xlate_range_add(void *arg, range_seg64_t *physical_rs)
 
 	ASSERT3U(physical_rs->rs_end, >, physical_rs->rs_start);
 
-	range_tree_add(vd->vdev_initialize_tree, physical_rs->rs_start,
+	zfs_range_tree_add(vd->vdev_initialize_tree, physical_rs->rs_start,
 	    physical_rs->rs_end - physical_rs->rs_start);
 }
 
@@ -515,7 +516,7 @@ static void
 vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = arg;
-	range_seg64_t logical_rs;
+	zfs_range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 
@@ -539,8 +540,8 @@ vdev_initialize_thread(void *arg)
 
 	abd_t *deadbeef = vdev_initialize_block_alloc();
 
-	vd->vdev_initialize_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
-	    0, 0);
+	vd->vdev_initialize_tree = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
 
 	for (uint64_t i = 0; !vd->vdev_detached &&
 	    i < vd->vdev_top->vdev_ms_count; i++) {
@@ -563,15 +564,15 @@ vdev_initialize_thread(void *arg)
 			unload_when_done = B_TRUE;
 		VERIFY0(metaslab_load(msp));
 
-		range_tree_walk(msp->ms_allocatable, vdev_initialize_range_add,
-		    vd);
+		zfs_range_tree_walk(msp->ms_allocatable,
+		    vdev_initialize_range_add, vd);
 		mutex_exit(&msp->ms_lock);
 
 		error = vdev_initialize_ranges(vd, deadbeef);
 		metaslab_enable(msp, B_TRUE, unload_when_done);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
-		range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);
+		zfs_range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);
 		if (error != 0)
 			break;
 	}
@@ -584,7 +585,7 @@ vdev_initialize_thread(void *arg)
 	}
 	mutex_exit(&vd->vdev_initialize_io_lock);
 
-	range_tree_destroy(vd->vdev_initialize_tree);
+	zfs_range_tree_destroy(vd->vdev_initialize_tree);
 	vdev_initialize_block_free(deadbeef);
 	vd->vdev_initialize_tree = NULL;
 

@@ -72,7 +72,7 @@ do
 		log_note "Verifying stable pages for Direct I/O writes \
 		    iteration $i of $ITERATIONS"
 
-		prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+		prev_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 
 		# Manipulate the user's buffer while running O_DIRECT write
 		# workload with the buffer.
@@ -83,7 +83,7 @@ do
 		log_must stride_dd -i $mntpnt/direct-write.iso -o /dev/null \
 		    -b $BS -c $NUMBLOCKS
 
-		curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+		curr_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 		total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
 		log_note "Making sure we have Direct I/O writes logged"

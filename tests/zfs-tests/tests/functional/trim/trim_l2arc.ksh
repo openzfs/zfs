@@ -89,9 +89,9 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 export RUNTIME=1
 typeset do_once=true
 while $do_once || [[ $l2_size1 -le $l2_size2 ]]; do
-	typeset l2_size1=$(get_arcstat l2_size)
+	typeset l2_size1=$(kstat arcstats.l2_size)
 	log_must fio $FIO_SCRIPTS/random_reads.fio
-	typeset l2_size2=$(get_arcstat l2_size)
+	typeset l2_size2=$(kstat arcstats.l2_size)
 	do_once=false
 done
 

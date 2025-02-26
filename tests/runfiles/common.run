@@ -159,7 +159,7 @@ tests = ['json_sanity']
 tags = ['functional', 'cli_root', 'json']
 
 [tests/functional/cli_root/zinject]
-tests = ['zinject_args']
+tests = ['zinject_args', 'zinject_counts', 'zinject_probe']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zinject']
@@ -387,8 +387,7 @@ tags = ['functional', 'cli_root', 'zpool']
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
     'zpool_add_008_neg', 'zpool_add_009_neg', 'zpool_add_010_pos',
-    'add-o_ashift', 'add_prop_ashift', 'zpool_add_dryrun_output',
-    'zpool_add--allow-ashift-mismatch']
+    'add-o_ashift', 'add_prop_ashift', 'zpool_add_dryrun_output']
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
@@ -888,7 +887,8 @@ tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
     'removal_with_send_recv', 'removal_with_snapshot',
     'removal_with_write', 'removal_with_zdb', 'remove_expanded',
     'remove_mirror', 'remove_mirror_sanity', 'remove_raidz',
-    'remove_indirect', 'remove_attach_mirror', 'removal_reservation']
+    'remove_indirect', 'remove_attach_mirror', 'removal_reservation',
+    'removal_with_hole']
 tags = ['functional', 'removal']
 
 [tests/functional/rename_dirs]

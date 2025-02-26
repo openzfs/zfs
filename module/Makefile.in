@@ -90,9 +90,10 @@ modules_install-Linux: modules_uninstall-Linux-legacy
 	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
 		INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
+		$(if @KERNEL_ARCH@,ARCH=@KERNEL_ARCH@) \
 		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
-	if [ -n "$(DESTDIR)" ]; then \
+	if [ -n "$(DESTDIR)" ] && [ "$(DONT_DELETE_MODULES_FILES)" != "1" ]; then \
 		find $(KMODDIR) -name 'modules.*' -delete; \
 	fi
 	@# Debian ships tiny fake System.map files that are
@@ -105,7 +106,7 @@ modules_install-Linux: modules_uninstall-Linux-legacy
 	{ [ -f "$$sysmap" ] && [ $$(wc -l < "$$sysmap") -ge 100 ]; } || \
 		sysmap=$(INSTALL_MOD_PATH)/usr/lib/debug/boot/System.map-@LINUX_VERSION@; \
 	if [ -f $$sysmap ]; then \
-		depmod -ae -F $$sysmap @LINUX_VERSION@; \
+		depmod -ae -F $$sysmap @LINUX_VERSION@ -b $(INSTALL_MOD_PATH)/; \
 	fi
 
 modules_install-FreeBSD:

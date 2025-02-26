@@ -42,6 +42,7 @@ scripts_zfs_tests_includedir = $(datadir)/$(PACKAGE)/zfs-tests/include
 dist_scripts_zfs_tests_include_DATA = \
 	%D%/include/blkdev.shlib \
 	%D%/include/commands.cfg \
+	%D%/include/kstat.shlib \
 	%D%/include/libtest.shlib \
 	%D%/include/math.shlib \
 	%D%/include/properties.shlib \

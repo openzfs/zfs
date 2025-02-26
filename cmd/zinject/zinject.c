@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2023-2024, Klara Inc.
+ * Copyright (c) 2023-2025, Klara, Inc.
  */
 
 /*
@@ -242,6 +242,36 @@ err_to_str(int err)
 	return ("[unknown]");
 }
 
+static const char *const iotypestrtable[ZINJECT_IOTYPES] = {
+	[ZINJECT_IOTYPE_NULL]	= "null",
+	[ZINJECT_IOTYPE_READ]	= "read",
+	[ZINJECT_IOTYPE_WRITE]	= "write",
+	[ZINJECT_IOTYPE_FREE]	= "free",
+	[ZINJECT_IOTYPE_CLAIM]	= "claim",
+	[ZINJECT_IOTYPE_FLUSH]	= "flush",
+	[ZINJECT_IOTYPE_TRIM]	= "trim",
+	[ZINJECT_IOTYPE_ALL]	= "all",
+	[ZINJECT_IOTYPE_PROBE]	= "probe",
+};
+
+static zinject_iotype_t
+str_to_iotype(const char *arg)
+{
+	for (uint_t iotype = 0; iotype < ZINJECT_IOTYPES; iotype++)
+		if (iotypestrtable[iotype] != NULL &&
+		    strcasecmp(iotypestrtable[iotype], arg) == 0)
+			return (iotype);
+	return (ZINJECT_IOTYPES);
+}
+
+static const char *
+iotype_to_str(zinject_iotype_t iotype)
+{
+	if (iotype >= ZINJECT_IOTYPES || iotypestrtable[iotype] == NULL)
+		return ("[unknown]");
+	return (iotypestrtable[iotype]);
+}
+
 /*
  * Print usage message.
  */
@@ -404,26 +434,29 @@ print_data_handler(int id, const char *pool, zinject_record_t *record,
 
 	if (*count == 0) {
 		(void) printf("%3s  %-15s  %-6s  %-6s  %-8s  %3s  %-4s  "
-		    "%-15s\n", "ID", "POOL", "OBJSET", "OBJECT", "TYPE",
-		    "LVL", "DVAs", "RANGE");
+		    "%-15s  %-6s  %-15s\n", "ID", "POOL", "OBJSET", "OBJECT",
+		    "TYPE", "LVL", "DVAs", "RANGE", "MATCH", "INJECT");
 		(void) printf("---  ---------------  ------  "
-		    "------  --------  ---  ----  ---------------\n");
+		    "------  --------  ---  ----  ---------------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
 
-	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  ",
-	    id, pool, (u_longlong_t)record->zi_objset,
-	    (u_longlong_t)record->zi_object, type_to_name(record->zi_type),
-	    record->zi_level, record->zi_dvas);
-
-
-	if (record->zi_start == 0 &&
-	    record->zi_end == -1ULL)
-		(void) printf("all\n");
+	char rangebuf[32];
+	if (record->zi_start == 0 && record->zi_end == -1ULL)
+		snprintf(rangebuf, sizeof (rangebuf), "all");
 	else
-		(void) printf("[%llu, %llu]\n", (u_longlong_t)record->zi_start,
+		snprintf(rangebuf, sizeof (rangebuf), "[%llu, %llu]",
+		    (u_longlong_t)record->zi_start,
 		    (u_longlong_t)record->zi_end);
+
+
+	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  %-15s  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_objset,
+	    (u_longlong_t)record->zi_object, type_to_name(record->zi_type),
+	    record->zi_level, record->zi_dvas, rangebuf,
+	    record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
@@ -432,10 +465,6 @@ static int
 print_device_handler(int id, const char *pool, zinject_record_t *record,
     void *data)
 {
-	static const char *iotypestr[] = {
-	    "null", "read", "write", "free", "claim", "flush", "trim", "all",
-	};
-
 	int *count = data;
 
 	if (record->zi_guid == 0 || record->zi_func[0] != '\0')
@@ -445,11 +474,14 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s\n",
-		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ");
+		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s  "
+		    "%-6s  %-6s\n",
+		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ",
+		    "MATCH", "INJECT");
 		(void) printf(
 		    "---  ---------------  ----------------  "
-		    "-----  ----------  ---------\n");
+		    "-----  ----------  ---------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
@@ -457,9 +489,10 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 	double freq = record->zi_freq == 0 ? 100.0f :
 	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
 
-	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%\n", id, pool,
-	    (u_longlong_t)record->zi_guid, iotypestr[record->zi_iotype],
-	    err_to_str(record->zi_error), freq);
+	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
+	    iotype_to_str(record->zi_iotype), err_to_str(record->zi_error),
+	    freq, record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
@@ -477,18 +510,25 @@ print_delay_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-15s  %-15s  %s\n",
-		    "ID", "POOL", "DELAY (ms)", "LANES", "GUID");
-		(void) printf("---  ---------------  ---------------  "
-		    "---------------  ----------------\n");
+		(void) printf("%3s  %-15s  %-16s  %-10s  %-5s  %-9s  "
+		    "%-6s  %-6s\n",
+		    "ID", "POOL", "GUID", "DELAY (ms)", "LANES", "FREQ",
+		    "MATCH", "INJECT");
+		(void) printf("---  ---------------  ----------------  "
+		    "----------  -----  ---------  "
+		    "------  ------\n");
 	}
 
 	*count += 1;
 
-	(void) printf("%3d  %-15s  %-15llu  %-15llu  %llx\n", id, pool,
+	double freq = record->zi_freq == 0 ? 100.0f :
+	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
+
+	(void) printf("%3d  %-15s  %llx  %10llu  %5llu  %8.4f%%  "
+	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
 	    (u_longlong_t)NSEC2MSEC(record->zi_timer),
 	    (u_longlong_t)record->zi_nlanes,
-	    (u_longlong_t)record->zi_guid);
+	    freq, record->zi_match_count, record->zi_inject_count);
 
 	return (0);
 }
@@ -852,7 +892,7 @@ main(int argc, char **argv)
 	int quiet = 0;
 	int error = 0;
 	int domount = 0;
-	int io_type = ZIO_TYPES;
+	int io_type = ZINJECT_IOTYPE_ALL;
 	int action = VDEV_STATE_UNKNOWN;
 	err_type_t type = TYPE_INVAL;
 	err_type_t label = TYPE_INVAL;
@@ -1046,19 +1086,8 @@ main(int argc, char **argv)
 			}
 			break;
 		case 'T':
-			if (strcasecmp(optarg, "read") == 0) {
-				io_type = ZIO_TYPE_READ;
-			} else if (strcasecmp(optarg, "write") == 0) {
-				io_type = ZIO_TYPE_WRITE;
-			} else if (strcasecmp(optarg, "free") == 0) {
-				io_type = ZIO_TYPE_FREE;
-			} else if (strcasecmp(optarg, "claim") == 0) {
-				io_type = ZIO_TYPE_CLAIM;
-			} else if (strcasecmp(optarg, "flush") == 0) {
-				io_type = ZIO_TYPE_FLUSH;
-			} else if (strcasecmp(optarg, "all") == 0) {
-				io_type = ZIO_TYPES;
-			} else {
+			io_type = str_to_iotype(optarg);
+			if (io_type == ZINJECT_IOTYPES) {
 				(void) fprintf(stderr, "invalid I/O type "
 				    "'%s': must be 'read', 'write', 'free', "
 				    "'claim', 'flush' or 'all'\n", optarg);
@@ -1180,7 +1209,7 @@ main(int argc, char **argv)
 		}
 
 		if (error == EILSEQ &&
-		    (record.zi_freq == 0 || io_type != ZIO_TYPE_READ)) {
+		    (record.zi_freq == 0 || io_type != ZINJECT_IOTYPE_READ)) {
 			(void) fprintf(stderr, "device corrupt errors require "
 			    "io type read and a frequency value\n");
 			libzfs_fini(g_zfs);
@@ -1195,9 +1224,9 @@ main(int argc, char **argv)
 
 		if (record.zi_nlanes) {
 			switch (io_type) {
-			case ZIO_TYPE_READ:
-			case ZIO_TYPE_WRITE:
-			case ZIO_TYPES:
+			case ZINJECT_IOTYPE_READ:
+			case ZINJECT_IOTYPE_WRITE:
+			case ZINJECT_IOTYPE_ALL:
 				break;
 			default:
 				(void) fprintf(stderr, "I/O type for a delay "

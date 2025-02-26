@@ -202,7 +202,16 @@ static int zvol_blk_mq_alloc_tag_set(zvol_state_t *zv)
 	 * We need BLK_MQ_F_BLOCKING here since we do blocking calls in
 	 * zvol_request_impl()
 	 */
-	zso->tag_set.flags = BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_BLOCKING;
+	zso->tag_set.flags = BLK_MQ_F_BLOCKING;
+
+#ifdef BLK_MQ_F_SHOULD_MERGE
+	/*
+	 * Linux 6.14 removed BLK_MQ_F_SHOULD_MERGE and made it implicit.
+	 * For older kernels, we set it.
+	 */
+	zso->tag_set.flags |= BLK_MQ_F_SHOULD_MERGE;
+#endif
+
 	zso->tag_set.driver_data = zv;
 
 	return (blk_mq_alloc_tag_set(&zso->tag_set));

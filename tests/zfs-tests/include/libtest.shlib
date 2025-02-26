@@ -28,6 +28,7 @@
 # Copyright (c) 2017, Datto Inc. All rights reserved.
 # Copyright (c) 2017, Open-E Inc. All rights reserved.
 # Copyright (c) 2021, The FreeBSD Foundation.
+# Copyright (c) 2025, Klara, Inc.
 # Use is subject to license terms.
 #
 
@@ -36,6 +37,7 @@
 . ${STF_TOOLS}/include/logapi.shlib
 . ${STF_SUITE}/include/math.shlib
 . ${STF_SUITE}/include/blkdev.shlib
+
 
 # On AlmaLinux 9 we will see $PWD = '.' instead of the full path.  This causes
 # some tests to fail.  Fix it up here.
@@ -3662,41 +3664,6 @@ function ls_xattr # path
 	esac
 }
 
-function kstat # stat flags?
-{
-	typeset stat=$1
-	typeset flags=${2-"-n"}
-
-	case "$UNAME" in
-	FreeBSD)
-		sysctl $flags kstat.zfs.misc.$stat
-		;;
-	Linux)
-		cat "/proc/spl/kstat/zfs/$stat" 2>/dev/null
-		;;
-	*)
-		false
-		;;
-	esac
-}
-
-function get_arcstat # stat
-{
-	typeset stat=$1
-
-	case "$UNAME" in
-	FreeBSD)
-		kstat arcstats.$stat
-		;;
-	Linux)
-		kstat arcstats | awk "/$stat/"' { print $3 }'
-		;;
-	*)
-		false
-		;;
-	esac
-}
-
 function punch_hole # offset length file
 {
 	typeset offset=$1
@@ -3748,9 +3715,9 @@ function arcstat_quiescence # stat echo
 	fi
 
 	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
-		typeset stat1=$(get_arcstat $stat)
+		typeset stat1=$(kstat arcstats.$stat)
 		sleep 0.5
-		typeset stat2=$(get_arcstat $stat)
+		typeset stat2=$(kstat arcstats.$stat)
 		do_once=false
 	done
 
@@ -3916,3 +3883,5 @@ function pop_coredump_pattern
 		;;
 	esac
 }
+
+. ${STF_SUITE}/include/kstat.shlib

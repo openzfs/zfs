@@ -103,7 +103,7 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/direct:Linux]
-tests = ['dio_write_verify']
+tests = ['dio_loopback_dev', 'dio_write_verify']
 tags = ['functional', 'direct']
 
 [tests/functional/events:Linux]
