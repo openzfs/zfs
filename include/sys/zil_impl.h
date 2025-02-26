@@ -21,6 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -55,11 +56,9 @@ extern "C" {
  * When lwb in "ready" state receives its block pointer, it can transition to
  * "issued". "zl_lock" must be held when making this transition.
  *
- * After the lwb's write zio completes, it transitions into the "write
- * done" state via zil_lwb_write_done(); and then into the "flush done"
- * state via zil_lwb_flush_vdevs_done(). When transitioning from
- * "issued" to "write done", and then from "write done" to "flush done",
- * the zilog's "zl_lock" must be held, *not* the "zl_issuer_lock".
+ * After the lwb's write zio completes, it transitions into the "done" state
+ * via zil_lwb_write_done(). When transitioning from "issued" to "done", the
+ * zilog's "zl_lock" must be held, *not* the "zl_issuer_lock".
  *
  * The zilog's "zl_issuer_lock" can become heavily contended in certain
  * workloads, so we specifically avoid acquiring that lock when
@@ -71,7 +70,7 @@ extern "C" {
  * Additionally, correctness when reading an lwb's state is often
  * achieved by exploiting the fact that these state transitions occur in
  * this specific order; i.e. "new" to "opened" to "closed" to "ready" to
- * "issued" to "write_done" and finally "flush_done".
+ * "issued" and finally "done".
  *
  * Thus, if an lwb is in the "new" or "opened" state, holding the
  * "zl_issuer_lock" will prevent a concurrent thread from transitioning
@@ -85,8 +84,7 @@ typedef enum {
     LWB_STATE_CLOSED,
     LWB_STATE_READY,
     LWB_STATE_ISSUED,
-    LWB_STATE_WRITE_DONE,
-    LWB_STATE_FLUSH_DONE,
+    LWB_STATE_DONE,
     LWB_NUM_STATES
 } lwb_state_t;
 
@@ -113,7 +111,6 @@ typedef struct lwb {
 	char		*lwb_buf;	/* log write buffer */
 	zio_t		*lwb_child_zio;	/* parent zio for children */
 	zio_t		*lwb_write_zio;	/* zio for the lwb buffer */
-	zio_t		*lwb_root_zio;	/* root zio for lwb write and flushes */
 	hrtime_t	lwb_issued_timestamp; /* when was the lwb issued? */
 	uint64_t	lwb_issued_txg;	/* the txg when the write is issued */
 	uint64_t	lwb_alloc_txg;	/* the txg when lwb_blk is allocated */
@@ -122,8 +119,6 @@ typedef struct lwb {
 	list_node_t	lwb_issue_node;	/* linkage of lwbs ready for issue */
 	list_t		lwb_itxs;	/* list of itx's */
 	list_t		lwb_waiters;	/* list of zil_commit_waiter's */
-	avl_tree_t	lwb_vdev_tree;	/* vdevs to flush after lwb write */
-	kmutex_t	lwb_vdev_lock;	/* protects lwb_vdev_tree */
 } lwb_t;
 
 /*
@@ -137,7 +132,7 @@ typedef struct lwb {
  * The "zcw_lock" field is used to protect the commit waiter against
  * concurrent access. This lock is often acquired while already holding
  * the zilog's "zl_issuer_lock" or "zl_lock"; see the functions
- * zil_process_commit_list() and zil_lwb_flush_vdevs_done() as examples
+ * zil_process_commit_list() and zil_lwb_write_done() as examples
  * of this. Thus, one must be careful not to acquire the
  * "zl_issuer_lock" or "zl_lock" when already holding the "zcw_lock";
  * e.g. see the zil_commit_waiter_timeout() function.
@@ -171,15 +166,6 @@ typedef struct itx_async_node {
 	list_t		ia_list;	/* list of async itxs for this foid */
 	avl_node_t	ia_node;	/* AVL tree linkage */
 } itx_async_node_t;
-
-/*
- * Vdev flushing: during a zil_commit(), we build up an AVL tree of the vdevs
- * we've touched so we know which ones need a write cache flush at the end.
- */
-typedef struct zil_vdev_node {
-	uint64_t	zv_vdev;	/* vdev to be flushed */
-	avl_node_t	zv_node;	/* AVL tree linkage */
-} zil_vdev_node_t;
 
 #define	ZIL_BURSTS 8
 
@@ -233,7 +219,7 @@ struct zilog {
 
 	kmutex_t	zl_lwb_io_lock; /* protect following members */
 	uint64_t	zl_lwb_inflight[TXG_SIZE]; /* io issued, but not done */
-	kcondvar_t	zl_lwb_io_cv;	/* signal when the flush is done */
+	kcondvar_t	zl_lwb_io_cv;	/* signal when the io is done */
 	uint64_t	zl_lwb_max_issued_txg; /* max txg when lwb io issued */
 
 	/*

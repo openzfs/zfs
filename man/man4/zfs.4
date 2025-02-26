@@ -16,9 +16,9 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.\" Copyright (c) 2024, Klara, Inc.
+.\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd November 1, 2024
+.Dd February 11, 2025
 .Dt ZFS 4
 .Os
 .
@@ -2407,12 +2407,6 @@ can improve performance.
 This sets the maximum number of write bytes logged via WR_COPIED.
 It tunes a tradeoff between additional memory copy and possibly worse log
 space efficiency vs additional range lock/unlock.
-.
-.It Sy zil_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Disable the cache flush commands that are normally sent to disk by
-the ZIL after an LWB write has completed.
-Setting this will cause ZIL corruption on power loss
-if a volatile out-of-order write cache is enabled.
 .
 .It Sy zil_replay_disable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable intent logging replay.

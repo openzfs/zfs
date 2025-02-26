@@ -462,13 +462,16 @@ function unload_scsi_debug
 # Get scsi_debug device name.
 # Returns basename of scsi_debug device (for example "sdb").
 #
-function get_debug_device
+# $1 (optional): Return the first $1 number of SCSI debug device names.
+function get_debug_device #num
 {
+  typeset num=${1:-1}
+
 	for i in {1..10} ; do
-		val=$(lsscsi | awk '/scsi_debug/ {print $6; exit}' | cut -d/ -f3)
+		val=$(lsscsi | awk '/scsi_debug/ {print $6}' | cut -d/ -f3 | head -n$num)
 
 		# lsscsi can take time to settle
-		if [ "$val" != "-" ] ; then
+		if [[ ! "$val" =~ "-" ]] ; then
 			break
 		fi
 		sleep 1
