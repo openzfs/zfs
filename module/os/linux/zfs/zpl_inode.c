@@ -797,6 +797,7 @@ const struct inode_operations zpl_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 const struct inode_operations zpl_dir_inode_operations = {
@@ -827,6 +828,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
@@ -848,4 +850,5 @@ const struct inode_operations zpl_special_inode_operations = {
 	.get_acl	= zpl_get_acl,
 #endif /* HAVE_GET_INODE_ACL */
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
