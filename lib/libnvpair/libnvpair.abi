@@ -196,6 +196,7 @@
     <elf-symbol name='nvlist_remove_all' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_remove_nvpair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_size' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nvlist_to_json' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_unpack' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_xalloc' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_xdup' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1879,6 +1880,25 @@
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='32' id='8e0573fd'>
       <subrange length='4' type-id='7359adad' id='16fe7105'/>
     </array-type-def>
+    <typedef-decl name='nvjson_writer_t' type-id='b98b07cc' id='4e9d7f33'/>
+    <class-decl name='nvjson' size-in-bits='320' is-struct='yes' visibility='default' id='dcaf122b'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='buf' type-id='26a90f95' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='size' type-id='b59d7dce' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='writer' type-id='4e9d7f33' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='writer_ctx' type-id='eaa32e2f' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='str_handler' type-id='60a1a574' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='nvjson_t' type-id='dcaf122b' id='25417009'/>
     <class-decl name='__mbstate_t' size-in-bits='64' is-struct='yes' naming-typedef-id='55e5b2b5' visibility='default' id='87447a2e'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='__count' type-id='95e97e5e' visibility='default'/>
@@ -1898,8 +1918,11 @@
     <typedef-decl name='__mbstate_t' type-id='87447a2e' id='55e5b2b5'/>
     <typedef-decl name='mbstate_t' type-id='55e5b2b5' id='3d7d8cbf'/>
     <typedef-decl name='wchar_t' type-id='95e97e5e' id='928221d2'/>
+    <pointer-type-def type-id='d3d2487a' size-in-bits='64' id='60a1a574'/>
+    <pointer-type-def type-id='fec2782a' size-in-bits='64' id='b98b07cc'/>
     <pointer-type-def type-id='3d7d8cbf' size-in-bits='64' id='a68021ce'/>
     <qualified-type-def type-id='a68021ce' restrict='yes' id='03aaab72'/>
+    <pointer-type-def type-id='25417009' size-in-bits='64' id='cd4de0be'/>
     <pointer-type-def type-id='928221d2' size-in-bits='64' id='323d93c1'/>
     <qualified-type-def type-id='323d93c1' restrict='yes' id='f1358bc3'/>
     <function-decl name='fnvpair_value_boolean_value' mangled-name='fnvpair_value_boolean_value' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='fnvpair_value_boolean_value'>
@@ -1973,6 +1996,17 @@
       <parameter type-id='5ce45b60' name='nvl'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-type size-in-bits='64' id='d3d2487a'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='4e9d7f33'/>
+      <parameter type-id='eaa32e2f'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <function-type size-in-bits='64' id='fec2782a'>
+      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libnvpair/nvpair_alloc_system.c' language='LANG_C99'>
     <class-decl name='__va_list_tag' size-in-bits='192' is-struct='yes' visibility='default' id='d5027220'>
@@ -3433,5 +3467,12 @@
   <abi-instr address-size='64' path='module/nvpair/nvpair_alloc_fixed.c' language='LANG_C99'>
     <qualified-type-def type-id='ee1d4944' const='yes' id='4b95388f'/>
     <var-decl name='nv_fixed_ops' type-id='4b95388f' mangled-name='nv_fixed_ops' visibility='default' elf-symbol-id='nv_fixed_ops'/>
+  </abi-instr>
+  <abi-instr address-size='64' path='module/nvpair/nvpair_json.c' language='LANG_C99'>
+    <function-decl name='nvlist_to_json' mangled-name='nvlist_to_json' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_to_json'>
+      <parameter type-id='cd4de0be'/>
+      <parameter type-id='5ce45b60'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
   </abi-instr>
 </abi-corpus>
