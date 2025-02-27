@@ -1482,7 +1482,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	}
 
 	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
-		zil_itx_destroy(itx);
+		zil_itx_destroy(itx, 0);
 
 	while ((zcw = list_remove_head(&lwb->lwb_waiters)) != NULL) {
 		mutex_enter(&zcw->zcw_lock);
@@ -2468,7 +2468,7 @@ zil_itx_clone(itx_t *oitx)
 }
 
 void
-zil_itx_destroy(itx_t *itx)
+zil_itx_destroy(itx_t *itx, int err)
 {
 	ASSERT3U(itx->itx_size, >=, sizeof (itx_t));
 	ASSERT3U(itx->itx_lr.lrc_reclen, ==,
@@ -2477,7 +2477,7 @@ zil_itx_destroy(itx_t *itx)
 	IMPLY(itx->itx_callback != NULL, itx->itx_lr.lrc_txtype != TX_COMMIT);
 
 	if (itx->itx_callback != NULL)
-		itx->itx_callback(itx->itx_callback_data);
+		itx->itx_callback(itx->itx_callback_data, err);
 
 	zio_data_buf_free(itx, itx->itx_size);
 }
@@ -2520,7 +2520,7 @@ zil_itxg_clean(void *arg)
 		if (itx->itx_lr.lrc_txtype == TX_COMMIT)
 			zil_commit_waiter_skip(itx->itx_private);
 
-		zil_itx_destroy(itx);
+		zil_itx_destroy(itx, 0);
 	}
 
 	cookie = NULL;
@@ -2530,7 +2530,7 @@ zil_itxg_clean(void *arg)
 		while ((itx = list_remove_head(list)) != NULL) {
 			/* commit itxs should never be on the async lists. */
 			ASSERT3U(itx->itx_lr.lrc_txtype, !=, TX_COMMIT);
-			zil_itx_destroy(itx);
+			zil_itx_destroy(itx, 0);
 		}
 		list_destroy(list);
 		kmem_free(ian, sizeof (itx_async_node_t));
@@ -2592,7 +2592,7 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 	while ((itx = list_remove_head(&clean_list)) != NULL) {
 		/* commit itxs should never be on the async lists. */
 		ASSERT3U(itx->itx_lr.lrc_txtype, !=, TX_COMMIT);
-		zil_itx_destroy(itx);
+		zil_itx_destroy(itx, 0);
 	}
 	list_destroy(&clean_list);
 }
@@ -2883,7 +2883,7 @@ zil_prune_commit_list(zilog_t *zilog)
 		mutex_exit(&zilog->zl_lock);
 
 		list_remove(&zilog->zl_itx_commit_list, itx);
-		zil_itx_destroy(itx);
+		zil_itx_destroy(itx, 0);
 	}
 
 	IMPLY(itx != NULL, itx->itx_lr.lrc_txtype != TX_COMMIT);
@@ -3082,7 +3082,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		} else {
 			ASSERT3S(lrc->lrc_txtype, !=, TX_COMMIT);
 			zilog->zl_cur_left -= zil_itx_full_size(itx);
-			zil_itx_destroy(itx);
+			zil_itx_destroy(itx, 0);
 		}
 	}
 
@@ -3113,7 +3113,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * the itx's callback if one exists for the itx.
 		 */
 		while ((itx = list_remove_head(&nolwb_itxs)) != NULL)
-			zil_itx_destroy(itx);
+			zil_itx_destroy(itx, 0);
 	} else {
 		ASSERT(list_is_empty(&nolwb_waiters));
 		ASSERT3P(lwb, !=, NULL);

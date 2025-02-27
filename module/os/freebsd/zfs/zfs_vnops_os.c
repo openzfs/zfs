@@ -4312,8 +4312,9 @@ typedef struct {
 } putpage_commit_arg_t;
 
 static void
-zfs_putpage_commit_cb(void *arg)
+zfs_putpage_commit_cb(void *arg, int err)
 {
+	(void) err;
 	putpage_commit_arg_t *pca = arg;
 	vm_object_t object = pca->pca_pages[0]->object;
 
