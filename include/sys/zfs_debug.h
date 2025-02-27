@@ -98,6 +98,7 @@ extern void __dprintf(boolean_t dprint, const char *file, const char *func,
 #endif /* ZFS_DEBUG */
 
 extern void zfs_panic_recover(const char *fmt, ...);
+extern void zfs_panic_recover_ms(const char *fmt, ...);
 
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
