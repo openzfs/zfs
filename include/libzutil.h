@@ -144,13 +144,15 @@ _LIBZUTIL_H boolean_t zfs_isnumber(const char *);
  * ZFS_NICENUM_TIME:	Print nanosecs, microsecs, millisecs, seconds...
  * ZFS_NICENUM_RAW:	Print the raw number without any formatting
  * ZFS_NICENUM_RAWTIME:	Same as RAW, but print dashes ('-') for zero.
+ * ZFS_NICENUM_1000: Same as ZFS_NICENUM_BYTES but use powers of 1000.
  */
 enum zfs_nicenum_format {
 	ZFS_NICENUM_1024 = 0,
 	ZFS_NICENUM_BYTES = 1,
 	ZFS_NICENUM_TIME = 2,
 	ZFS_NICENUM_RAW = 3,
-	ZFS_NICENUM_RAWTIME = 4
+	ZFS_NICENUM_RAWTIME = 4,
+	ZFS_NICENUM_1000 = 5
 };
 
 /*

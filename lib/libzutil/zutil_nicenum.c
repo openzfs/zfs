@@ -26,6 +26,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <libzutil.h>
 #include <string.h>
 
@@ -64,19 +65,22 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 	uint64_t n = num;
 	int index = 0;
 	const char *u;
-	const char *units[3][7] = {
+	const char *units[6][7] = {
 	    [ZFS_NICENUM_1024] = {"", "K", "M", "G", "T", "P", "E"},
 	    [ZFS_NICENUM_BYTES] = {"B", "K", "M", "G", "T", "P", "E"},
-	    [ZFS_NICENUM_TIME] = {"ns", "us", "ms", "s", "?", "?", "?"}
+	    [ZFS_NICENUM_TIME] = {"ns", "us", "ms", "s", "?", "?", "?"},
+	    [ZFS_NICENUM_1000] = {"B", "K", "M", "G", "T", "P", "E"}
 	};
 
 	const int units_len[] = {[ZFS_NICENUM_1024] = 6,
 	    [ZFS_NICENUM_BYTES] = 6,
-	    [ZFS_NICENUM_TIME] = 4};
+	    [ZFS_NICENUM_TIME] = 4,
+	    [ZFS_NICENUM_1000] = 6};
 
 	const int k_unit[] = {	[ZFS_NICENUM_1024] = 1024,
 	    [ZFS_NICENUM_BYTES] = 1024,
-	    [ZFS_NICENUM_TIME] = 1000};
+	    [ZFS_NICENUM_TIME] = 1000,
+	    [ZFS_NICENUM_1000] = 1000};
 
 	double val;
 
@@ -180,5 +184,9 @@ zfs_niceraw(uint64_t num, char *buf, size_t buflen)
 void
 zfs_nicebytes(uint64_t num, char *buf, size_t buflen)
 {
-	zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_BYTES);
+	if (getenv("ZFS_OUTPUT_BYTES_SI") != NULL) {
+		zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_1000);
+	} else {
+		zfs_nicenum_format(num, buf, buflen, ZFS_NICENUM_BYTES);
+	}
 }
