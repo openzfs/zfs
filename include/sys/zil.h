@@ -456,7 +456,7 @@ typedef enum {
 	WR_NUM_STATES	/* number of states */
 } itx_wr_state_t;
 
-typedef void (*zil_callback_t)(void *data);
+typedef void (*zil_callback_t)(void *data, int err);
 
 typedef struct itx {
 	list_node_t	itx_node;	/* linkage on zl_itx_list */
@@ -606,7 +606,7 @@ extern boolean_t zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
 
 extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
-extern void	zil_itx_destroy(itx_t *itx);
+extern void	zil_itx_destroy(itx_t *itx, int err);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
 extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
