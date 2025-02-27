@@ -220,6 +220,15 @@ sudo virt-install \
   --disk $DISK,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
   --import --noautoconsole >/dev/null
 
+# Give the VMs hostnames so we don't have to refer to them with
+# hardcoded IP addresses.
+#
+# vm0:          Initial VM we install dependencies and build ZFS on.
+# vm1..2        Testing VMs
+for i in {0..9} ; do
+  echo "192.168.122.1$i vm$i" | sudo tee -a /etc/hosts
+done
+
 # in case the directory isn't there already
 mkdir -p $HOME/.ssh
 
