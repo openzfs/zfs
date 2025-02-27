@@ -1,0 +1,27 @@
+from setuptools import setup, Extension, find_packages
+import os
+import sys
+
+srcdir = '@abs_top_srcdir@/lib/libzfsacl'
+
+topsrcdir = '@abs_top_srcdir@'
+incdir = [topsrcdir, topsrcdir + '/include', topsrcdir + '/lib/libspl/include']
+src = ['zfsacl/libzfsacl_impl_common.c', 'libpyzfsacl.c']
+if sys.platform.startswith('linux'):
+    src.append('zfsacl/libzfsacl_impl_linux.c')
+else:
+    src.append('zfsacl/libzfsacl_impl_freebsd.c')
+
+libzfsacl_mod = Extension('libzfsacl', include_dirs=incdir, sources=src)
+setup(
+    name='libzfsacl',
+    version='@VERSION@',
+    description='ACL wrapper library for acessing NFSv4 ACLs on Linux/FreeBSD',
+    ext_modules=[libzfsacl_mod],
+    packages=find_packages(where=srcdir) + ['zfsacltests'],
+    package_dir={"": os.path.relpath(srcdir),
+                 "zfsacltests": os.path.relpath(srcdir) + '/zfsacltests'},
+    include_package_data=True,
+    python_requires='>=3.6,<4',
+    zip_safe=False,
+)
