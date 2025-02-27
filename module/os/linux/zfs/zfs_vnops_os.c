@@ -3685,22 +3685,45 @@ top:
 }
 
 static void
-zfs_putpage_sync_commit_cb(void *arg)
+zfs_putpage_sync_commit_cb(void *arg, int err)
 {
 	struct page *pp = arg;
 
-	ClearPageError(pp);
+	if (err == 0)
+		ClearPageError(pp);
+	else {
+		/*
+		 * ZIL couldn't guarantee the write made it out. Keep the
+		 * page dirty, and make it ineligible for reclaim this round.
+		 */
+		SetPageError(pp);
+		set_page_dirty(pp);
+		ClearPageReclaim(pp);
+	}
+
 	end_page_writeback(pp);
 }
 
 static void
-zfs_putpage_async_commit_cb(void *arg)
+zfs_putpage_async_commit_cb(void *arg, int err)
 {
 	struct page *pp = arg;
 	znode_t *zp = ITOZ(pp->mapping->host);
 
-	ClearPageError(pp);
+	if (err == 0)
+		ClearPageError(pp);
+	else {
+		/*
+		 * ZIL couldn't guarantee the write made it out. Keep the
+		 * page dirty, and make it ineligible for reclaim this round.
+		 */
+		SetPageError(pp);
+		set_page_dirty(pp);
+		ClearPageReclaim(pp);
+	}
+
 	end_page_writeback(pp);
+
 	atomic_dec_32(&zp->z_async_writes_cnt);
 }
 
@@ -3831,9 +3854,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 				 * We're only calling zil_commit() here in
 				 * order to force the writes to happen now
 				 * instead of at end of txg. We don't care
-				 * about a durability guarantee; any errors
-				 * are reported elsewhere. So we ignore the
-				 * error here.
+				 * about a durability guarantee; any errors are
+				 * reported via
+				 * zfs_putpage_[a]sync_commit_cb(). So we
+				 * ignore the error here.
 				 */
 				int _zilerr __maybe_unused =
 				    zil_commit(zfsvfs->z_log, zp->z_id);
