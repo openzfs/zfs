@@ -117,6 +117,10 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		    "pclmulqdq", zfs_pclmulqdq_available());
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "movbe", zfs_movbe_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "vaes", zfs_vaes_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "vpclmulqdq", zfs_vpclmulqdq_available());
 
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "osxsave", boot_cpu_has(X86_FEATURE_OSXSAVE));
