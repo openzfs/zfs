@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: CDDL-1.0
 # shellcheck disable=SC2154
 # shellcheck disable=SC2292
 #
