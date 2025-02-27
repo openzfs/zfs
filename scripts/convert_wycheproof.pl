@@ -182,7 +182,7 @@ if ($skipped) {
 }
 if ($ntests == 0) {
 	die "E: no tests extracted, sorry!\n";
-
+}
 
 my $outfh;
 if ($outfile) {
