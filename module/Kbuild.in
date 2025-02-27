@@ -369,6 +369,7 @@ ZFS_OBJS := \
 	sa.o \
 	sha2_zfs.o \
 	skein_zfs.o \
+	slack.o \
 	spa.o \
 	spa_checkpoint.o \
 	spa_config.o \
