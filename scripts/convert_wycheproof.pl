@@ -143,11 +143,20 @@ for my $group (@{$data->{testGroups}}) {
 		my ($id, $comment, $iv, $key, $msg, $ct, $aad, $tag, $result) =
 		    @$test{qw(tcId comment iv key msg ct aad tag result)};
 
-		# sanity check; iv, key and tag must have the length declared
-		# by the group params
+		# sanity check; iv and key must have the length declared by the
+		# group params.
 		unless (
 		    length_check($id, 'iv', $iv, $iv_size) &&
-		    length_check($id, 'key', $key, $key_size) &&
+		    length_check($id, 'key', $key, $key_size)) {
+			$skipped++;
+			next;
+		}
+
+		# sanity check; tag must have the length declared by the group
+		# param, but only for valid tests (invalid tests should be
+		# rejected, and so can't produce a tag anyway)
+		unless (
+		    $result eq 'invalid' ||
 		    length_check($id, 'tag', $tag, $tag_size)) {
 			$skipped++;
 			next;
