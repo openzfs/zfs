@@ -1823,7 +1823,7 @@ static void
 vdev_draid_io_verify(vdev_t *vd, raidz_row_t *rr, int col)
 {
 #ifdef ZFS_DEBUG
-	range_seg64_t logical_rs, physical_rs, remain_rs;
+	zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
 	    vdev_draid_asize(vd, rr->rr_size, 0);
@@ -2080,8 +2080,8 @@ vdev_draid_state_change(vdev_t *vd, int faulted, int degraded)
 }
 
 static void
-vdev_draid_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs)
+vdev_draid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs)
 {
 	vdev_t *raidvd = cvd->vdev_parent;
 	ASSERT(raidvd->vdev_ops == &vdev_draid_ops);

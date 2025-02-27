@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2024-2025, Klara, Inc.
  */
 
 /*
@@ -129,6 +129,9 @@ static boolean_t
 zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
     zinject_record_t *record, int error)
 {
+	boolean_t matched = B_FALSE;
+	boolean_t injected = B_FALSE;
+
 	/*
 	 * Check for a match against the MOS, which is based on type
 	 */
@@ -137,9 +140,8 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 	    record->zi_object == DMU_META_DNODE_OBJECT) {
 		if (record->zi_type == DMU_OT_NONE ||
 		    type == record->zi_type)
-			return (freq_triggered(record->zi_freq));
-		else
-			return (B_FALSE);
+			matched = B_TRUE;
+		goto done;
 	}
 
 	/*
@@ -153,10 +155,20 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 	    (record->zi_dvas == 0 ||
 	    (dva != ZI_NO_DVA && (record->zi_dvas & (1ULL << dva)))) &&
 	    error == record->zi_error) {
-		return (freq_triggered(record->zi_freq));
+		matched = B_TRUE;
+		goto done;
 	}
 
-	return (B_FALSE);
+done:
+	if (matched) {
+		record->zi_match_count++;
+		injected = freq_triggered(record->zi_freq);
+	}
+
+	if (injected)
+		record->zi_inject_count++;
+
+	return (injected);
 }
 
 /*
@@ -177,8 +189,11 @@ zio_handle_panic_injection(spa_t *spa, const char *tag, uint64_t type)
 			continue;
 
 		if (handler->zi_record.zi_type == type &&
-		    strcmp(tag, handler->zi_record.zi_func) == 0)
+		    strcmp(tag, handler->zi_record.zi_func) == 0) {
+			handler->zi_record.zi_match_count++;
+			handler->zi_record.zi_inject_count++;
 			panic("Panic requested in function %s\n", tag);
+		}
 	}
 
 	rw_exit(&inject_lock);
@@ -336,6 +351,8 @@ zio_handle_label_injection(zio_t *zio, int error)
 
 		if (zio->io_vd->vdev_guid == handler->zi_record.zi_guid &&
 		    (offset >= start && offset <= end)) {
+			handler->zi_record.zi_match_count++;
+			handler->zi_record.zi_inject_count++;
 			ret = error;
 			break;
 		}
@@ -359,6 +376,31 @@ zio_inject_bitflip_cb(void *data, size_t len, void *private)
 	return (1);	/* stop after first flip */
 }
 
+/* Test if this zio matches the iotype from the injection record. */
+static boolean_t
+zio_match_iotype(zio_t *zio, uint32_t iotype)
+{
+	ASSERT3P(zio, !=, NULL);
+
+	/* Unknown iotype, maybe from a newer version of zinject. Reject it. */
+	if (iotype >= ZINJECT_IOTYPES)
+		return (B_FALSE);
+
+	/* Probe IOs only match IOTYPE_PROBE, regardless of their type. */
+	if (zio->io_flags & ZIO_FLAG_PROBE)
+		return (iotype == ZINJECT_IOTYPE_PROBE);
+
+	/* Standard IO types, match against ZIO type. */
+	if (iotype < ZINJECT_IOTYPE_ALL)
+		return (iotype == zio->io_type);
+
+	/* Match any standard IO type. */
+	if (iotype == ZINJECT_IOTYPE_ALL)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 static int
 zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 {
@@ -367,9 +409,11 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 
 	/*
 	 * We skip over faults in the labels unless it's during device open
-	 * (i.e. zio == NULL) or a device flush (offset is meaningless)
+	 * (i.e. zio == NULL) or a device flush (offset is meaningless). We let
+	 * probe IOs through so we can match them to probe inject records.
 	 */
-	if (zio != NULL && zio->io_type != ZIO_TYPE_FLUSH) {
+	if (zio != NULL && zio->io_type != ZIO_TYPE_FLUSH &&
+	    !(zio->io_flags & ZIO_FLAG_PROBE)) {
 		uint64_t offset = zio->io_offset;
 
 		if (offset < VDEV_LABEL_START_SIZE ||
@@ -393,18 +437,21 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 			}
 
 			/* Handle type specific I/O failures */
-			if (zio != NULL &&
-			    handler->zi_record.zi_iotype != ZIO_TYPES &&
-			    handler->zi_record.zi_iotype != zio->io_type)
+			if (zio != NULL && !zio_match_iotype(zio,
+			    handler->zi_record.zi_iotype))
 				continue;
 
 			if (handler->zi_record.zi_error == err1 ||
 			    handler->zi_record.zi_error == err2) {
+				handler->zi_record.zi_match_count++;
+
 				/*
 				 * limit error injection if requested
 				 */
 				if (!freq_triggered(handler->zi_record.zi_freq))
 					continue;
+
+				handler->zi_record.zi_inject_count++;
 
 				/*
 				 * For a failed open, pretend like the device
@@ -441,6 +488,8 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 				break;
 			}
 			if (handler->zi_record.zi_error == ENXIO) {
+				handler->zi_record.zi_match_count++;
+				handler->zi_record.zi_inject_count++;
 				ret = SET_ERROR(EIO);
 				break;
 			}
@@ -483,6 +532,8 @@ zio_handle_ignored_writes(zio_t *zio)
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
 
+		handler->zi_record.zi_match_count++;
+
 		/*
 		 * Positive duration implies # of seconds, negative
 		 * a number of txgs
@@ -495,8 +546,10 @@ zio_handle_ignored_writes(zio_t *zio)
 		}
 
 		/* Have a "problem" writing 60% of the time */
-		if (random_in_range(100) < 60)
+		if (random_in_range(100) < 60) {
+			handler->zi_record.zi_inject_count++;
 			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
+		}
 		break;
 	}
 
@@ -519,6 +572,9 @@ spa_handle_ignored_writes(spa_t *spa)
 		if (spa != handler->zi_spa ||
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
+
+		handler->zi_record.zi_match_count++;
+		handler->zi_record.zi_inject_count++;
 
 		if (handler->zi_record.zi_duration > 0) {
 			VERIFY(handler->zi_record.zi_timer == 0 ||
@@ -601,17 +657,12 @@ zio_handle_io_delay(zio_t *zio)
 		if (handler->zi_record.zi_cmd != ZINJECT_DELAY_IO)
 			continue;
 
-		if (!freq_triggered(handler->zi_record.zi_freq))
-			continue;
-
 		if (vd->vdev_guid != handler->zi_record.zi_guid)
 			continue;
 
 		/* also match on I/O type (e.g., -T read) */
-		if (handler->zi_record.zi_iotype != ZIO_TYPES &&
-		    handler->zi_record.zi_iotype != zio->io_type) {
+		if (!zio_match_iotype(zio, handler->zi_record.zi_iotype))
 			continue;
-		}
 
 		/*
 		 * Defensive; should never happen as the array allocation
@@ -627,6 +678,12 @@ zio_handle_io_delay(zio_t *zio)
 
 		ASSERT3U(handler->zi_record.zi_nlanes, >,
 		    handler->zi_next_lane);
+
+		handler->zi_record.zi_match_count++;
+
+		/* Limit the use of this handler if requested */
+		if (!freq_triggered(handler->zi_record.zi_freq))
+			continue;
 
 		/*
 		 * We want to issue this IO to the lane that will become
@@ -699,6 +756,9 @@ zio_handle_io_delay(zio_t *zio)
 		 */
 		min_handler->zi_next_lane = (min_handler->zi_next_lane + 1) %
 		    min_handler->zi_record.zi_nlanes;
+
+		min_handler->zi_record.zi_inject_count++;
+
 	}
 
 	mutex_exit(&inject_delay_mtx);
@@ -721,9 +781,11 @@ zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
 	    handler = list_next(&inject_handlers, handler)) {
 		ASSERT3P(handler->zi_spa_name, !=, NULL);
 		if (strcmp(spa_name(spa), handler->zi_spa_name) == 0) {
+			handler->zi_record.zi_match_count++;
 			uint64_t pause =
 			    SEC2NSEC(handler->zi_record.zi_duration);
 			if (pause > elapsed) {
+				handler->zi_record.zi_inject_count++;
 				delay = pause - elapsed;
 			}
 			id = handler->zi_id;

@@ -23,7 +23,7 @@
  * Copyright (c) 2012, 2024 by Delphix. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024-2025, Klara, Inc.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -421,6 +421,8 @@ typedef struct zinject_record {
 	uint64_t	zi_nlanes;
 	uint32_t	zi_cmd;
 	uint32_t	zi_dvas;
+	uint64_t	zi_match_count;		/* count of times matched */
+	uint64_t	zi_inject_count;	/* count of times injected */
 } zinject_record_t;
 
 #define	ZINJECT_NULL		0x1
@@ -453,6 +455,25 @@ typedef enum zinject_type {
 	ZINJECT_DELAY_IMPORT,
 	ZINJECT_DELAY_EXPORT,
 } zinject_type_t;
+
+typedef enum zinject_iotype {
+	/*
+	 * Compatibility: zi_iotype used to be set to ZIO_TYPE_, so make sure
+	 * the corresponding ZINJECT_IOTYPE_ matches. Note that existing here
+	 * does not mean that injections are possible for all these types.
+	 */
+	ZINJECT_IOTYPE_NULL	= ZIO_TYPE_NULL,
+	ZINJECT_IOTYPE_READ	= ZIO_TYPE_READ,
+	ZINJECT_IOTYPE_WRITE	= ZIO_TYPE_WRITE,
+	ZINJECT_IOTYPE_FREE	= ZIO_TYPE_FREE,
+	ZINJECT_IOTYPE_CLAIM	= ZIO_TYPE_CLAIM,
+	ZINJECT_IOTYPE_FLUSH	= ZIO_TYPE_FLUSH,
+	ZINJECT_IOTYPE_TRIM	= ZIO_TYPE_TRIM,
+	ZINJECT_IOTYPE_ALL	= ZIO_TYPES,
+	/* Room for future expansion for ZIO_TYPE_* */
+	ZINJECT_IOTYPE_PROBE	= 16,
+	ZINJECT_IOTYPES,
+} zinject_iotype_t;
 
 typedef struct zfs_share {
 	uint64_t	z_exportdata;

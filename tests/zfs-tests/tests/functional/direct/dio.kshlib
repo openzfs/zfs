@@ -141,29 +141,6 @@ function check_dio_chksum_verify_failures # pool vdev_type op expect_errors
 }
 
 #
-# Get the value of a counter from
-# Linux: /proc/spl/kstat/zfs/$pool/iostats file.
-# FreeBSD: kstat.zfs.$pool.msic.iostats.$stat
-#
-function get_iostats_stat # pool stat
-{
-	typeset pool=$1
-	typeset stat=$2
-
-	if is_linux; then
-		iostats_file=/proc/spl/kstat/zfs/$pool/iostats
-		val=$(grep -m1 "$stat" $iostats_file | awk '{ print $3 }')
-	else
-		val=$(sysctl -n kstat.zfs.$pool.misc.iostats.$stat)
-	fi
-	if [[ -z "$val" ]]; then
-		log_fail "Unable to read $stat counter"
-	fi
-
-	echo "$val"
-}
-
-#
 # Evict any buffered blocks by overwritting them using an O_DIRECT request.
 #
 function evict_blocks
@@ -190,17 +167,13 @@ function verify_dio_write_count #pool bs size mnpnt
 
 	log_note "Checking for $dio_wr_expected Direct I/O writes"
 
-	prev_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	prev_dio_wr=$(kstat_pool $pool iostats.direct_write_count)
 	dio_and_verify write $size $bs $mntpnt "sync"
-	curr_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	curr_dio_wr=$(kstat_pool $pool iostats.direct_write_count)
 	dio_wr_actual=$((curr_dio_wr - prev_dio_wr))
 
 	if [[ $dio_wr_actual -lt $dio_wr_expected ]]; then
-		if is_linux; then
-			cat /proc/spl/kstat/zfs/$pool/iostats
-		else
-			sysctl kstat.zfs.$pool.misc.iostats
-		fi
+		kstat_pool -g $pool iostats
 		log_fail "Direct writes $dio_wr_actual of $dio_wr_expected"
 	fi
 }
@@ -223,33 +196,25 @@ function check_write # pool file bs count seek flags buf_wr dio_wr
 
 	log_note "Checking $count * $bs write(s) at offset $seek, $flags"
 
-	prev_buf_wr=$(get_iostats_stat $pool arc_write_count)
-	prev_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	prev_buf_wr=$(kstat_pool $pool iostats.arc_write_count)
+	prev_dio_wr=$(kstat_pool $pool iostats.direct_write_count)
 
 	log_must stride_dd -i /dev/urandom -o $file -b $bs -c $count \
 	    -k $seek $flags
 
-	curr_buf_wr=$(get_iostats_stat $pool arc_write_count)
+	curr_buf_wr=$(kstat_pool $pool iostats.arc_write_count)
 	buf_wr_actual=$((curr_buf_wr - prev_buf_wr))
 
-	curr_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	curr_dio_wr=$(kstat_pool $pool iostats.direct_write_count)
 	dio_wr_actual=$((curr_dio_wr - prev_dio_wr))
 
 	if [[ $buf_wr_actual -lt $buf_wr_expect ]]; then
-		if is_linux; then
-			cat /proc/spl/kstat/zfs/$pool/iostats
-		else
-			sysctl kstat.zfs.$pool.misc.iostats
-		fi
+		kstat_pool -g $pool iostats
 		log_fail "Buffered writes $buf_wr_actual of $buf_wr_expect"
 	fi
 
 	if [[ $dio_wr_actual -lt $dio_wr_expect ]]; then
-		if is_linux; then
-			cat /proc/spl/kstat/zfs/$pool/iostats
-		else
-			sysctl kstat.zfs.$pool.misc.iostats
-		fi
+		kstat_pool -g $pool iostats
 		log_fail "Direct writes $dio_wr_actual of $dio_wr_expect"
 	fi
 }
@@ -272,33 +237,25 @@ function check_read # pool file bs count skip flags buf_rd dio_rd
 
 	log_note "Checking $count * $bs read(s) at offset $skip, $flags"
 
-	prev_buf_rd=$(get_iostats_stat $pool arc_read_count)
-	prev_dio_rd=$(get_iostats_stat $pool direct_read_count)
+	prev_buf_rd=$(kstat_pool $pool iostats.arc_read_count)
+	prev_dio_rd=$(kstat_pool $pool iostats.direct_read_count)
 
 	log_must stride_dd -i $file -o /dev/null -b $bs -c $count \
 	    -p $skip $flags
 
-	curr_buf_rd=$(get_iostats_stat $pool arc_read_count)
+	curr_buf_rd=$(kstat_pool $pool iostats.arc_read_count)
 	buf_rd_actual=$((curr_buf_rd - prev_buf_rd))
 
-	curr_dio_rd=$(get_iostats_stat $pool direct_read_count)
+	curr_dio_rd=$(kstat_pool $pool iostats.direct_read_count)
 	dio_rd_actual=$((curr_dio_rd - prev_dio_rd))
 
 	if [[ $buf_rd_actual -lt $buf_rd_expect ]]; then
-		if is_linux; then
-			cat /proc/spl/kstat/zfs/$pool/iostats
-		else
-			sysctl kstat.zfs.$pool.misc.iostats
-		fi
+		kstat_pool -g $pool iostats
 		log_fail "Buffered reads $buf_rd_actual of $buf_rd_expect"
 	fi
 
 	if [[ $dio_rd_actual -lt $dio_rd_expect ]]; then
-		if is_linux; then
-			cat /proc/spl/kstat/zfs/$pool/iostats
-		else
-			sysctl kstat.zfs.$pool.misc.iostats
-		fi
+		kstat_pool -g $pool iostats
 		log_fail "Direct reads $dio_rd_actual of $dio_rd_expect"
 	fi
 }

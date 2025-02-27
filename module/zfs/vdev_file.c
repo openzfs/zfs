@@ -21,26 +21,19 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
-#include <sys/spa_impl.h>
 #include <sys/vdev_file.h>
 #include <sys/vdev_impl.h>
-#include <sys/vdev_trim.h>
 #include <sys/zio.h>
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/abd.h>
-#include <sys/vnode.h>
-#include <sys/zfs_file.h>
-#ifdef _KERNEL
-#include <linux/falloc.h>
-#include <sys/fcntl.h>
-#else
-#include <fcntl.h>
-#endif
+#include <sys/stat.h>
+
 /*
  * Virtual device vector for files.
  */
@@ -58,16 +51,31 @@ static taskq_t *vdev_file_taskq;
 static uint_t vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
 static uint_t vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
+void
+vdev_file_init(void)
+{
+	vdev_file_taskq = taskq_create("z_vdev_file", MAX(boot_ncpus, 16),
+	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_DYNAMIC);
+
+	VERIFY(vdev_file_taskq);
+}
+
+void
+vdev_file_fini(void)
+{
+	taskq_destroy(vdev_file_taskq);
+}
+
 static void
 vdev_file_hold(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static void
 vdev_file_rele(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static mode_t
@@ -139,7 +147,8 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * administrator has already decided that the pool should be available
 	 * to local zone users, so the underlying devices should be as well.
 	 */
-	ASSERT(vd->vdev_path != NULL && vd->vdev_path[0] == '/');
+	ASSERT3P(vd->vdev_path, !=, NULL);
+	ASSERT3S(vd->vdev_path[0], ==, '/');
 
 	error = zfs_file_open(vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
@@ -201,8 +210,8 @@ vdev_file_io_strategy(void *arg)
 	zio_t *zio = (zio_t *)arg;
 	vdev_t *vd = zio->io_vd;
 	vdev_file_t *vf = vd->vdev_tsd;
-	ssize_t resid;
 	void *buf;
+	ssize_t resid;
 	loff_t off;
 	ssize_t size;
 	int err;
@@ -211,6 +220,7 @@ vdev_file_io_strategy(void *arg)
 	size = zio->io_size;
 	resid = 0;
 
+	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 	if (zio->io_type == ZIO_TYPE_READ) {
 		buf = abd_borrow_buf(zio->io_abd, zio->io_size);
 		err = zfs_file_pread(vf->vf_file, buf, size, off, &resid);
@@ -239,10 +249,21 @@ vdev_file_io_fsync(void *arg)
 }
 
 static void
+vdev_file_io_deallocate(void *arg)
+{
+	zio_t *zio = (zio_t *)arg;
+	vdev_file_t *vf = zio->io_vd->vdev_tsd;
+
+	zio->io_error = zfs_file_deallocate(vf->vf_file,
+	    zio->io_offset, zio->io_size);
+
+	zio_interrupt(zio);
+}
+
+static void
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_file_t *vf = vd->vdev_tsd;
 
 	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
@@ -253,36 +274,27 @@ vdev_file_io_start(zio_t *zio)
 		}
 
 		if (zfs_nocacheflush) {
-			zio_execute(zio);
+			zio_interrupt(zio);
 			return;
 		}
 
-		/*
-		 * We cannot safely call vfs_fsync() when PF_FSTRANS
-		 * is set in the current context.  Filesystems like
-		 * XFS include sanity checks to verify it is not
-		 * already set, see xfs_vm_writepage().  Therefore
-		 * the sync must be dispatched to a different context.
-		 */
-		if (__spl_pf_fstrans_check()) {
-			VERIFY3U(taskq_dispatch(vdev_file_taskq,
-			    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
-			    TASKQID_INVALID);
-			return;
-		}
+		VERIFY3U(taskq_dispatch(vdev_file_taskq,
+		    vdev_file_io_fsync, zio, TQ_SLEEP), !=, TASKQID_INVALID);
 
-		zio->io_error = zfs_file_fsync(vf->vf_file, O_SYNC | O_DSYNC);
-
-		zio_execute(zio);
-		return;
-	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-		ASSERT3U(zio->io_size, !=, 0);
-		zio->io_error = zfs_file_deallocate(vf->vf_file,
-		    zio->io_offset, zio->io_size);
-		zio_execute(zio);
 		return;
 	}
 
+	if (zio->io_type == ZIO_TYPE_TRIM) {
+		ASSERT3U(zio->io_size, !=, 0);
+
+		VERIFY3U(taskq_dispatch(vdev_file_taskq,
+		    vdev_file_io_deallocate, zio, TQ_SLEEP), !=,
+		    TASKQID_INVALID);
+
+		return;
+	}
+
+	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
 	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
@@ -319,21 +331,6 @@ vdev_ops_t vdev_file_ops = {
 	.vdev_op_type = VDEV_TYPE_FILE,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
-
-void
-vdev_file_init(void)
-{
-	vdev_file_taskq = taskq_create("z_vdev_file", MAX(boot_ncpus, 16),
-	    minclsyspri, boot_ncpus, INT_MAX, TASKQ_DYNAMIC);
-
-	VERIFY(vdev_file_taskq);
-}
-
-void
-vdev_file_fini(void)
-{
-	taskq_destroy(vdev_file_taskq);
-}
 
 /*
  * From userland we access disks just like files.
