@@ -598,6 +598,32 @@ zfs_movbe_available(void)
 }
 
 /*
+ * Check if VAES instruction set is available
+ */
+static inline boolean_t
+zfs_vaes_available(void)
+{
+#if defined(X86_FEATURE_VAES)
+	return (!!boot_cpu_has(X86_FEATURE_VAES));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if VPCLMULQDQ instruction set is available
+ */
+static inline boolean_t
+zfs_vpclmulqdq_available(void)
+{
+#if defined(X86_FEATURE_VPCLMULQDQ)
+	return (!!boot_cpu_has(X86_FEATURE_VPCLMULQDQ));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
  * Check if SHA_NI instruction set is available
  */
 static inline boolean_t
