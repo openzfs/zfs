@@ -927,6 +927,22 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	else if (error != 0)
 		return (error);
 
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTUSERQUOTA),
+	    8, 1, &zfsvfs->z_defaultuserquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_defaultuserquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
+	error = zap_lookup(os, MASTER_NODE_OBJ,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPQUOTA),
+	    8, 1, &zfsvfs->z_defaultgroupquota_obj);
+	if (error == ENOENT)
+		zfsvfs->z_defaultgroupquota_obj = 0;
+	else if (error != 0)
+		return (error);
+
 	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES, 8, 1,
 	    &zfsvfs->z_fuid_obj);
 	if (error == ENOENT)
