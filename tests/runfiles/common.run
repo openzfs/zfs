@@ -25,7 +25,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/off]
@@ -665,6 +664,12 @@ tags = ['functional', 'zap_shrink']
 tests = ['crtime_001_pos' ]
 tags = ['functional', 'crtime']
 
+[tests/functional/crypto]
+tests = ['icp_aes_ccm', 'icp_aes_gcm']
+pre =
+post =
+tags = ['functional', 'crypto']
+
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
@@ -888,7 +893,8 @@ tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
     'removal_with_send_recv', 'removal_with_snapshot',
     'removal_with_write', 'removal_with_zdb', 'remove_expanded',
     'remove_mirror', 'remove_mirror_sanity', 'remove_raidz',
-    'remove_indirect', 'remove_attach_mirror', 'removal_reservation']
+    'remove_indirect', 'remove_attach_mirror', 'removal_reservation',
+    'removal_with_hole']
 tags = ['functional', 'removal']
 
 [tests/functional/rename_dirs]

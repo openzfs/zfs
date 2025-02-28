@@ -48,7 +48,6 @@
 #include <sys/cred.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_compress.h>
-#include <sys/zio_priority.h>
 #include <sys/uio.h>
 #include <sys/zfs_file.h>
 

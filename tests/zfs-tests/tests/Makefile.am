@@ -139,6 +139,10 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/checksum/default.cfg \
 	functional/clean_mirror/clean_mirror_common.kshlib \
 	functional/clean_mirror/default.cfg \
+	functional/crypto/aes_ccm_test.json \
+	functional/crypto/aes_ccm_test.txt \
+	functional/crypto/aes_gcm_test.json \
+	functional/crypto/aes_gcm_test.txt \
 	functional/cli_root/cli_common.kshlib \
 	functional/cli_root/zfs_copies/zfs_copies.cfg \
 	functional/cli_root/zfs_copies/zfs_copies.kshlib \
@@ -1427,9 +1431,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/crtime/cleanup.ksh \
 	functional/crtime/crtime_001_pos.ksh \
 	functional/crtime/setup.ksh \
-	functional/ctime/cleanup.ksh \
-	functional/ctime/ctime_001_pos.ksh \
-	functional/ctime/setup.ksh \
+	functional/crypto/icp_aes_ccm.ksh \
+	functional/crypto/icp_aes_gcm.ksh \
 	functional/deadman/deadman_ratelimit.ksh \
 	functional/deadman/deadman_sync.ksh \
 	functional/deadman/deadman_zio.ksh \
@@ -1853,6 +1856,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_export.ksh \
 	functional/removal/removal_with_faulted.ksh \
 	functional/removal/removal_with_ganging.ksh \
+	functional/removal/removal_with_hole.ksh \
 	functional/removal/removal_with_indirect.ksh \
 	functional/removal/removal_with_remove.ksh \
 	functional/removal/removal_with_scrub.ksh \

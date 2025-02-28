@@ -385,6 +385,7 @@ ZFS_OBJS := \
 	vdev.o \
 	vdev_draid.o \
 	vdev_draid_rand.o \
+	vdev_file.o \
 	vdev_indirect.o \
 	vdev_indirect_births.o \
 	vdev_indirect_mapping.o \
@@ -446,7 +447,6 @@ ZFS_OBJS_OS := \
 	spa_misc_os.o \
 	trace.o \
 	vdev_disk.o \
-	vdev_file.o \
 	vdev_raidz.o \
 	vdev_label_os.o \
 	zfs_acl.o \

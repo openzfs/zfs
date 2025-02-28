@@ -2778,7 +2778,7 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 * When damaged consider it to be a metadata error since we cannot
 	 * trust the BP_GET_TYPE and BP_GET_LEVEL values.
 	 */
-	if (!zfs_blkptr_verify(spa, bp, BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
+	if (zfs_blkptr_verify(spa, bp, BLK_CONFIG_NEEDED, BLK_VERIFY_LOG)) {
 		atomic_inc_64(&sle->sle_meta_count);
 		return (0);
 	}
@@ -9869,7 +9869,7 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	 * happen in syncing context, the obsolete segments
 	 * tree must be empty when we start syncing.
 	 */
-	ASSERT0(range_tree_space(vd->vdev_obsolete_segments));
+	ASSERT0(zfs_range_tree_space(vd->vdev_obsolete_segments));
 }
 
 /*

@@ -641,10 +641,10 @@ vdev_rebuild_ranges(vdev_rebuild_t *vr)
 	zfs_btree_index_t idx;
 	int error;
 
-	for (range_seg_t *rs = zfs_btree_first(t, &idx); rs != NULL;
+	for (zfs_range_seg_t *rs = zfs_btree_first(t, &idx); rs != NULL;
 	    rs = zfs_btree_next(t, &idx, &idx)) {
-		uint64_t start = rs_get_start(rs, vr->vr_scan_tree);
-		uint64_t size = rs_get_end(rs, vr->vr_scan_tree) - start;
+		uint64_t start = zfs_rs_get_start(rs, vr->vr_scan_tree);
+		uint64_t size = zfs_rs_get_end(rs, vr->vr_scan_tree) - start;
 
 		/*
 		 * zfs_scan_suspend_progress can be set to disable rebuild
@@ -786,7 +786,8 @@ vdev_rebuild_thread(void *arg)
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 	vr->vr_top_vdev = vd;
 	vr->vr_scan_msp = NULL;
-	vr->vr_scan_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	vr->vr_scan_tree = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64, NULL,
+	    0, 0);
 	mutex_init(&vr->vr_io_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vr->vr_io_cv, NULL, CV_DEFAULT, NULL);
 
@@ -833,7 +834,7 @@ vdev_rebuild_thread(void *arg)
 			break;
 		}
 
-		ASSERT0(range_tree_space(vr->vr_scan_tree));
+		ASSERT0(zfs_range_tree_space(vr->vr_scan_tree));
 
 		/* Disable any new allocations to this metaslab */
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -848,7 +849,7 @@ vdev_rebuild_thread(void *arg)
 		 * on disk and therefore will be rebuilt.
 		 */
 		for (int j = 0; j < TXG_SIZE; j++) {
-			if (range_tree_space(msp->ms_allocating[j])) {
+			if (zfs_range_tree_space(msp->ms_allocating[j])) {
 				mutex_exit(&msp->ms_lock);
 				mutex_exit(&msp->ms_sync_lock);
 				txg_wait_synced(dsl, 0);
@@ -869,21 +870,21 @@ vdev_rebuild_thread(void *arg)
 			    vr->vr_scan_tree, SM_ALLOC));
 
 			for (int i = 0; i < TXG_SIZE; i++) {
-				ASSERT0(range_tree_space(
+				ASSERT0(zfs_range_tree_space(
 				    msp->ms_allocating[i]));
 			}
 
-			range_tree_walk(msp->ms_unflushed_allocs,
-			    range_tree_add, vr->vr_scan_tree);
-			range_tree_walk(msp->ms_unflushed_frees,
-			    range_tree_remove, vr->vr_scan_tree);
+			zfs_range_tree_walk(msp->ms_unflushed_allocs,
+			    zfs_range_tree_add, vr->vr_scan_tree);
+			zfs_range_tree_walk(msp->ms_unflushed_frees,
+			    zfs_range_tree_remove, vr->vr_scan_tree);
 
 			/*
 			 * Remove ranges which have already been rebuilt based
 			 * on the last offset.  This can happen when restarting
 			 * a scan after exporting and re-importing the pool.
 			 */
-			range_tree_clear(vr->vr_scan_tree, 0,
+			zfs_range_tree_clear(vr->vr_scan_tree, 0,
 			    vrp->vrp_last_offset);
 		}
 
@@ -904,7 +905,7 @@ vdev_rebuild_thread(void *arg)
 		 * Walk the allocated space map and issue the rebuild I/O.
 		 */
 		error = vdev_rebuild_ranges(vr);
-		range_tree_vacate(vr->vr_scan_tree, NULL, NULL);
+		zfs_range_tree_vacate(vr->vr_scan_tree, NULL, NULL);
 
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		metaslab_enable(msp, B_FALSE, B_FALSE);
@@ -913,7 +914,7 @@ vdev_rebuild_thread(void *arg)
 			break;
 	}
 
-	range_tree_destroy(vr->vr_scan_tree);
+	zfs_range_tree_destroy(vr->vr_scan_tree);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	/* Wait for any remaining rebuild I/O to complete */
