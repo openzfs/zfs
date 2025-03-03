@@ -5302,7 +5302,7 @@ metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
 static int
 metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     uint64_t max_psize, dva_t *dva, int d, dva_t *hintdva, uint64_t txg,
-    int flags, zio_alloc_list_t *zal, int allocator)
+    int flags, zio_alloc_list_t *zal, int allocator, uint64_t *actual_psize)
 {
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
 	metaslab_group_t *mg = NULL, *rotor;
@@ -5325,9 +5325,13 @@ metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		    allocator);
 		return (SET_ERROR(ENOSPC));
 	}
-	if (max_psize > psize && max_psize >= metaslab_force_ganging) {
-		max_psize = (metaslab_force_ganging - psize) / 2 + psize;
+	if (max_psize > psize && max_psize >= metaslab_force_ganging &&
+	    metaslab_force_ganging_pct > 0 &&
+	    (random_in_range(100) < MIN(metaslab_force_ganging_pct, 100))) {
+		max_psize = MAX((psize + max_psize) / 2,
+		    metaslab_force_ganging);
 	}
+	ASSERT3U(psize, <=, max_psize);
 
 	/*
 	 * Start at the rotor and loop through all mgs until we find something.
@@ -5382,6 +5386,8 @@ top:
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize,
 		    max_asize, txg, dva, d, allocator, try_hard,
 		    &asize);
+		if (actual_psize)
+			*actual_psize = vdev_asize_to_psize_txg(vd, asize, txg);
 
 		if (offset != -1ULL) {
 			metaslab_class_rotate(mg, allocator, psize, B_TRUE);
@@ -5423,7 +5429,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     zio_alloc_list_t *zal, int allocator)
 {
 	return (metaslab_alloc_dva_range(spa, mc, psize, psize, dva, d, hintdva,
-	    txg, flags, zal, allocator));
+	    txg, flags, zal, allocator, NULL));
 }
 
 void
@@ -5915,14 +5921,14 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     zio_alloc_list_t *zal, int allocator, const void *tag)
 {
 	return (metaslab_alloc_range(spa, mc, psize, psize, bp, ndvas, txg,
-	    hintbp, flags, zal, zio, allocator));
+	    hintbp, flags, zal, zio, allocator, NULL));
 }
 
 int
 metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     uint64_t max_psize, blkptr_t *bp, int ndvas, uint64_t txg,
     blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, 
-    int allocator, zio_t *zio)
+    int allocator, zio_t *zio, uint64_t *actual_psize)
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
@@ -5944,9 +5950,11 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
+	uint64_t cur_psize = 0, min_psize = UINT64_MAX;
+
 	for (int d = 0; d < ndvas; d++) {
 		error = metaslab_alloc_dva_range(spa, mc, psize, max_psize,
-		    dva, d, hintdva, txg, flags, zal, allocator);
+		    dva, d, hintdva, txg, flags, zal, allocator, &cur_psize);
 		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_unalloc_dva(spa, &dva[d], txg);
@@ -5965,10 +5973,14 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 			metaslab_group_alloc_increment(spa,
 			    DVA_GET_VDEV(&dva[d]), allocator, flags, psize,
 			    tag);
+			min_psize = MIN(cur_psize, min_psize);
 		}
 	}
 	ASSERT(error == 0);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);
+	ASSERT3U(min_psize, !=, UINT64_MAX);
+	if (actual_psize)
+		*actual_psize = min_psize;
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
