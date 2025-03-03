@@ -3249,13 +3249,12 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		    bp, gio->io_prop.zp_copies, txg, NULL,
 		    flags, &cio_list, NULL, zio->io_allocator);
 
-		uint64_t allocated_size = 0;
+		uint64_t allocated_size = UINT64_MAX;
 		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
 			uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[d]);
-			if (asize > allocated_size)
-				allocated_size = asize;
+			allocated_size = MIN(allocated_size, asize);
 		}
-		boolean_t allocated = allocated_size != 0;
+		boolean_t allocated = allocated_size != UINT64_MAX;
 
 		uint64_t lsize = allocated ? allocated_size : min_size;
 
