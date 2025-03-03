@@ -3245,27 +3245,24 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 		zio_alloc_list_t cio_list;
 		metaslab_trace_init(&cio_list);
+		uint64_t allocated_size = UINT64_MAX;
 		error = metaslab_alloc_range(spa, mc, min_size, resid,
 		    bp, gio->io_prop.zp_copies, txg, NULL,
-		    flags, &cio_list, NULL, zio->io_allocator);
+		    flags, &cio_list, NULL, zio->io_allocator, &allocated_size);
 
-		uint64_t allocated_size = UINT64_MAX;
-		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
-			uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[d]);
-			allocated_size = MIN(allocated_size, asize);
-		}
 		boolean_t allocated = allocated_size != UINT64_MAX;
 
-		uint64_t lsize = allocated ? allocated_size : min_size;
+		uint64_t psize = allocated ? MIN(resid, allocated_size) :
+		    min_size;
 
 		zio_t *cio = zio_write(zio, spa, txg, bp, has_data ?
 		    abd_get_offset(pio->io_abd, pio->io_size - resid) : NULL,
-		    lsize, lsize, &zp, zio_write_gang_member_ready, NULL,
+		    psize, psize, &zp, zio_write_gang_member_ready, NULL,
 		    zio_write_gang_done, &gn->gn_child[g], pio->io_priority,
 		    ZIO_GANG_CHILD_FLAGS(pio) |
 		    (allocated ? ZIO_FLAG_PREALLOCATED : 0), &pio->io_bookmark);
 
-		resid -= lsize;
+		resid -= psize;
 		zio_gang_inherit_allocator(zio, cio);
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);

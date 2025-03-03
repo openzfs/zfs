@@ -88,7 +88,7 @@ int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
     int);
 int metaslab_alloc_range(spa_t *, metaslab_class_t *, uint64_t, uint64_t,
     blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,
-    int);
+    int, uint64_t *);
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
     dva_t *, int, dva_t *, uint64_t, int, zio_alloc_list_t *, int);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
