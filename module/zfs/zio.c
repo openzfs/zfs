@@ -3231,18 +3231,15 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 		zio_alloc_list_t cio_list;
 		metaslab_trace_init(&cio_list);
+		uint64_t allocated_size = UINT64_MAX;
 		error = metaslab_alloc_range(spa, mc, min_size, resid,
 		    bp, gio->io_prop.zp_copies, txg, NULL,
-		    flags, &cio_list, zio->io_allocator, NULL);
+		    flags, &cio_list, zio->io_allocator, NULL, &allocated_size);
 
-		uint64_t allocated_size = UINT64_MAX;
-		for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
-			uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[d]);
-			allocated_size = MIN(allocated_size, asize);
-		}
 		boolean_t allocated = allocated_size != UINT64_MAX;
 
-		uint64_t psize = allocated ? allocated_size : min_size;
+		uint64_t psize = allocated ? MIN(resid, allocated_size) :
+		    min_size;
 
 		zio_t *cio = zio_write(zio, spa, txg, bp, has_data ?
 		    abd_get_offset(pio->io_abd, pio->io_size - resid) : NULL,
