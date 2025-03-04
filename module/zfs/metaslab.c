@@ -368,6 +368,17 @@ static metaslab_stats_t metaslab_stats = {
 #define	METASLABSTAT_BUMP(stat) \
 	atomic_inc_64(&metaslab_stats.stat.value.ui64);
 
+static inline char *
+zfs_rt_name(metaslab_group_t *mg, metaslab_t *ms,
+    const char *name)
+{
+	return (kmem_asprintf("{spa=%s vdev_guid=%llu ms_id=%llu %s}",
+	    mg->mg_vd->vdev_spa->spa_name,
+	    (u_longlong_t)mg->mg_vd->vdev_guid,
+	    (u_longlong_t)ms->ms_id,
+	    name));
+}
+
 
 static kstat_t *metaslab_ksp;
 
@@ -2753,30 +2764,53 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	zfs_range_seg_type_t type =
 	    metaslab_calculate_range_tree_type(vd, ms, &start, &shift);
 
-	ms->ms_allocatable = zfs_range_tree_create(NULL, type, NULL, start,
-	    shift);
+	ms->ms_allocatable = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_allocatable"));
 	for (int t = 0; t < TXG_SIZE; t++) {
-		ms->ms_allocating[t] = zfs_range_tree_create(NULL, type,
-		    NULL, start, shift);
+		ms->ms_allocating[t] = zfs_range_tree_create_flags(
+		    NULL, type, NULL, start, shift,
+		    ZFS_RANGE_TREE_F_UC_ALLOCATED_SPACE |
+		    ZFS_RANGE_TREE_F_DYN_NAME,
+		    zfs_rt_name(mg, ms, "ms_allocating"));
 	}
-	ms->ms_freeing = zfs_range_tree_create(NULL, type, NULL, start, shift);
-	ms->ms_freed = zfs_range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_freeing = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_freeing"));
+	ms->ms_freed = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_freed"));
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-		ms->ms_defer[t] = zfs_range_tree_create(NULL, type, NULL,
-		    start, shift);
+		ms->ms_defer[t] = zfs_range_tree_create_flags(
+		    NULL, type, NULL, start, shift,
+		    ZFS_RANGE_TREE_F_UC_FREE_SPACE |
+		    ZFS_RANGE_TREE_F_DYN_NAME,
+		    zfs_rt_name(mg, ms, "ms_defer"));
 	}
-	ms->ms_checkpointing =
-	    zfs_range_tree_create(NULL, type, NULL, start, shift);
-	ms->ms_unflushed_allocs =
-	    zfs_range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_checkpointing = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_checkpointing"));
+	ms->ms_unflushed_allocs = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_ALLOCATED_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_unflushed_allocs"));
 
 	metaslab_rt_arg_t *mrap = kmem_zalloc(sizeof (*mrap), KM_SLEEP);
 	mrap->mra_bt = &ms->ms_unflushed_frees_by_size;
 	mrap->mra_floor_shift = metaslab_by_size_min_shift;
-	ms->ms_unflushed_frees = zfs_range_tree_create(&metaslab_rt_ops,
-	    type, mrap, start, shift);
+	ms->ms_unflushed_frees = zfs_range_tree_create_flags(
+	    &metaslab_rt_ops, type, mrap, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_unflushed_frees"));
 
-	ms->ms_trim = zfs_range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_trim = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(mg, ms, "ms_trim"));
 
 	metaslab_group_add(mg, ms);
 	metaslab_set_fragmentation(ms, B_FALSE);
@@ -3750,7 +3784,10 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	type = metaslab_calculate_range_tree_type(msp->ms_group->mg_vd, msp,
 	    &start, &shift);
 
-	condense_tree = zfs_range_tree_create(NULL, type, NULL, start, shift);
+	condense_tree = zfs_range_tree_create_flags(
+	    NULL, type, NULL, start, shift,
+	    ZFS_RANGE_TREE_F_UC_FREE_SPACE | ZFS_RANGE_TREE_F_DYN_NAME,
+	    zfs_rt_name(msp->ms_group, msp, "condense_tree"));
 
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 		zfs_range_tree_walk(msp->ms_defer[t],

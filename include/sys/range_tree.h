@@ -49,6 +49,32 @@ typedef enum zfs_range_seg_type {
 } zfs_range_seg_type_t;
 
 /*
+ * Range tree behavior flags.
+ *
+ * The UC (use case) flags are intended to support the zfs_recover_rt mode.
+ * The range tree's logic needs to know the context in order to correctly
+ * recover from an unexpected situation by exchanging potential data loss for
+ * a potential space leak:
+ *
+ * - If it knows that the tree represents allocated space then it should better
+ *   perform an unexpected addition to the tree.
+ *
+ * - Similarly, if it's about free space (aka allocatable) then it should
+ *   perform unexpected removals instead of silently ignoring the issue.
+ *
+ * The generic case means to simply ignore unexpected additions/removals as
+ * a recovery mechanism, without special treatment.
+ *
+ * Unexpected actions are logged with extra details such as a range tree
+ * name string, which can be marked as dynamic to be freed along with the tree
+ * instance destruction.
+ */
+#define	ZFS_RANGE_TREE_F_UC_GENERIC		(1 << 0)
+#define	ZFS_RANGE_TREE_F_UC_ALLOCATED_SPACE	(1 << 1)
+#define	ZFS_RANGE_TREE_F_UC_FREE_SPACE		(1 << 2)
+#define	ZFS_RANGE_TREE_F_DYN_NAME		(1 << 3)
+
+/*
  * Note: the range_tree may not be accessed concurrently; consumers
  * must provide external locking if required.
  */
@@ -66,6 +92,9 @@ typedef struct zfs_range_tree {
 	const zfs_range_tree_ops_t *rt_ops;
 	void		*rt_arg;
 	uint64_t	rt_gap;		/* allowable inter-segment gap */
+
+	uint64_t	rt_flags;
+	const char	*rt_name;	/* details for debugging */
 
 	/*
 	 * The rt_histogram maintains a histogram of ranges. Each bucket,
@@ -280,6 +309,9 @@ zfs_range_tree_t *zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
     uint64_t gap);
 zfs_range_tree_t *zfs_range_tree_create(const zfs_range_tree_ops_t *ops,
     zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift);
+zfs_range_tree_t *zfs_range_tree_create_flags(const zfs_range_tree_ops_t *ops,
+    zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
+    uint64_t flags, const char *name);
 void zfs_range_tree_destroy(zfs_range_tree_t *rt);
 boolean_t zfs_range_tree_contains(zfs_range_tree_t *rt, uint64_t start,
     uint64_t size);

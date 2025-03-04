@@ -2435,8 +2435,10 @@ done:
 	{
 		int txgoff = tx->tx_txg & TXG_MASK;
 		if (dn->dn_free_ranges[txgoff] == NULL) {
-			dn->dn_free_ranges[txgoff] = zfs_range_tree_create(NULL,
-			    ZFS_RANGE_SEG64, NULL, 0, 0);
+			dn->dn_free_ranges[txgoff] =
+			    zfs_range_tree_create_flags(
+			    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+			    ZFS_RANGE_TREE_F_UC_FREE_SPACE, "dn_free_ranges");
 		}
 		zfs_range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
 		zfs_range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
