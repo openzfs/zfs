@@ -1995,8 +1995,7 @@ zio_write_compress(zio_t *zio)
 			compress = ZIO_COMPRESS_OFF;
 			if (cabd != NULL)
 				abd_free(cabd);
-		} else if (!zp->zp_dedup && !zp->zp_encrypt &&
-		    psize <= BPE_PAYLOAD_SIZE &&
+		} else if (psize <= BPE_PAYLOAD_SIZE && !zp->zp_encrypt &&
 		    zp->zp_level == 0 && !DMU_OT_HAS_FILL(zp->zp_type) &&
 		    spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA)) {
 			void *cbuf = abd_borrow_buf_copy(cabd, lsize);
