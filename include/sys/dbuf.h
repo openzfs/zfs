@@ -399,7 +399,6 @@ dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
 boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 int dmu_buf_get_bp_from_dbuf(dmu_buf_impl_t *db, blkptr_t **bp);
 int dmu_buf_untransform_direct(dmu_buf_impl_t *db, spa_t *spa);
-arc_buf_t *dbuf_loan_arcbuf(dmu_buf_impl_t *db);
 void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
     int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
