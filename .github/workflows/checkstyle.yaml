@@ -19,7 +19,7 @@ jobs:
       run: |
         # for x in lxd core20 snapd; do sudo snap remove $x; done
         sudo apt-get purge -y snapd google-chrome-stable firefox
-        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps.sh ubuntu22
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu22
         sudo apt-get install -y cppcheck devscripts mandoc pax-utils shellcheck
         sudo python -m pipx install --quiet flake8
         # confirm that the tools are installed

@@ -49,7 +49,7 @@ jobs:
             os_selection="$FULL_OS"
           fi
           os_json=$(echo ${os_selection} | jq -c)
-          
+
           # Add optional runners
           if [ "${{ github.event.inputs.include_stream9 }}" == 'true' ]; then
             os_json=$(echo $os_json | jq -c '. += ["centos-stream9"]')
@@ -57,14 +57,11 @@ jobs:
           if [ "${{ github.event.inputs.include_stream10 }}" == 'true' ]; then
             os_json=$(echo $os_json | jq -c '. += ["centos-stream10"]')
           fi
-          
+
           echo $os_json
           echo "os=$os_json" >> $GITHUB_OUTPUT
           echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
 
-
-
-          
   qemu-vm:
     name: qemu-x86
     needs: [ test-config ]
@@ -95,31 +92,11 @@ jobs:
 
     - name: Install dependencies
       timeout-minutes: 20
-      run: |
-        echo "Install dependencies in QEMU machine"
-        IP=192.168.122.10
-        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
-          ssh 2>/dev/null zfs@$IP "uname -a" && break
-        done
-        scp .github/workflows/scripts/qemu-3-deps.sh zfs@$IP:qemu-3-deps.sh
-        PID=`pidof /usr/bin/qemu-system-x86_64`
-        ssh zfs@$IP '$HOME/qemu-3-deps.sh' ${{ matrix.os }}
-        # wait for poweroff to succeed
-        tail --pid=$PID -f /dev/null
-        sleep 5 # avoid this: "error: Domain is already active"
-        rm -f $HOME/.ssh/known_hosts
+      run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
 
     - name: Build modules
       timeout-minutes: 30
-      run: |
-        echo "Build modules in QEMU machine"
-        sudo virsh start openzfs
-        IP=192.168.122.10
-        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
-          ssh 2>/dev/null zfs@$IP "uname -a" && break
-        done
-        rsync -ar $HOME/work/zfs/zfs zfs@$IP:./
-        ssh zfs@$IP '$HOME/zfs/.github/workflows/scripts/qemu-4-build.sh' ${{ matrix.os }}
+      run: .github/workflows/scripts/qemu-4-build.sh --poweroff --enable-debug ${{ matrix.os }}
 
     - name: Setup testing machines
       timeout-minutes: 5
