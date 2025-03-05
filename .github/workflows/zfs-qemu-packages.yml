@@ -1,0 +1,140 @@
+# This workflow is used to build and test RPM packages.  It is a
+# 'workflow_dispatch' workflow, which means it gets run manually.
+#
+# The workflow has a dropdown menu with two options:
+#
+# Build RPMs - Build release RPMs and tarballs and put them into an artifact
+#              ZIP file.  The directory structure used in the ZIP file mirrors
+#              the ZFS yum repo.
+#
+# Test repo -  Test install the ZFS RPMs from the ZFS repo.  On EL distos, this
+#              will do a DKMS and KMOD test install from both the regular and
+#              testing repos.  On Fedora, it will do a DKMS install from the
+#              regular repo.  All test install results will be displayed in the
+#              Summary page.  Note that the workflow provides an optional text
+#              text box where you can specify the full URL to an alternate repo.
+#              If left blank, it will install from the default repo from the
+#              zfs-release RPM (http://download.zfsonlinux.org).
+#
+# Most users will never need to use this workflow.  It will be used primary by
+# ZFS admins for building and testing releases.
+#
+name: zfs-qemu-packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        type: choice
+        required: false
+        default: "Build RPMs"
+        description: "Build RPMs or test the repo?"
+        options:
+        - "Build RPMs"
+        - "Test repo"
+      repo_url:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) repo URL (blank: use http://download.zfsonlinux.org)"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  zfs-qemu-packages-jobs:
+    name: qemu-VMs
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ['almalinux8', 'almalinux9', 'fedora40', 'fedora41']
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Setup QEMU
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+
+    - name: Install dependencies
+      timeout-minutes: 20
+      run: |
+        .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
+
+    - name: Build modules or Test repo
+      timeout-minutes: 30
+      run: |
+        set -e
+        if [ "${{ github.event.inputs.test_type }}" == "Test repo" ] ; then
+                # Bring VM back up and copy over zfs source
+                .github/workflows/scripts/qemu-prepare-for-build.sh
+
+                mkdir -p /tmp/repo
+                ssh zfs@vm0 '$HOME/zfs/.github/workflows/scripts/qemu-test-repo-vm.sh' ${{ github.event.inputs.repo_url }}
+        else
+                .github/workflows/scripts/qemu-4-build.sh --repo --release --dkms --tarball ${{ matrix.os }}
+        fi
+
+    - name: Prepare artifacts
+      if: always()
+      timeout-minutes: 10
+      run: |
+        rsync -a zfs@vm0:/tmp/repo /tmp || true
+        .github/workflows/scripts/replace-dupes-with-symlinks.sh /tmp/repo
+        tar -cf ${{ matrix.os }}-repo.tar -C /tmp repo
+
+    - uses: actions/upload-artifact@v4
+      id: artifact-upload
+      if: always()
+      with:
+        name: ${{ matrix.os }}-repo
+        path: ${{ matrix.os }}-repo.tar
+        compression-level: 0
+        retention-days: 2
+        if-no-files-found: ignore
+
+  combine_repos:
+    if: always()
+    needs: [zfs-qemu-packages-jobs]
+    name: "Results"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      id: artifact-download
+      if: always()
+    - name: Test Summary
+      if: always()
+      run: |
+        for i in $(find . -type f -iname "*.tar") ; do
+          tar -xf $i -C /tmp
+        done
+        tar -cf all-repo.tar -C /tmp repo
+
+        # If we're installing from a repo, print out the summary of the versions
+        # that got installed using Markdown.
+        if [ "${{ github.event.inputs.test_type }}" == "Test repo" ] ; then
+          cd /tmp/repo
+          for i in $(ls *.txt) ; do
+            nicename="$(echo $i | sed 's/.txt//g; s/-/ /g')"
+            echo "### $nicename" >> $GITHUB_STEP_SUMMARY
+            echo "|repo|RPM|URL|" >> $GITHUB_STEP_SUMMARY
+            echo "|:---|:---|:---|" >> $GITHUB_STEP_SUMMARY
+            awk '{print "|"$1"|"$2"|"$3"|"}' $i >> $GITHUB_STEP_SUMMARY
+          done
+        fi
+
+    - uses: actions/upload-artifact@v4
+      id: artifact-upload2
+      if: always()
+      with:
+        name: all-repo
+        path: all-repo.tar
+        compression-level: 0
+        retention-days: 5
+        if-no-files-found: ignore
