@@ -179,12 +179,16 @@ tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
 tags = ['functional', 'procfs']
 
 [tests/functional/projectquota:Linux]
-tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_002_pos',
+    'defaultprojectquota_003_neg', 'defaultprojectquota_004_pos',
+    'defaultprojectquota_005_pos', 'defaultprojectquota_006_pos',
+    'defaultprojectquota_007_pos',
+    'projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
     'projectquota_001_pos', 'projectquota_002_pos', 'projectquota_003_pos',
     'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_006_pos',
     'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
-    'projectspace_004_pos',
+    'projectspace_004_pos', 'projectspace_005_pos',
     'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg']
 tags = ['functional', 'projectquota']
 
