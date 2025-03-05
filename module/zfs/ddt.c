@@ -1106,7 +1106,7 @@ ddt_entry_lookup_is_valid(ddt_t *ddt, const blkptr_t *bp, ddt_entry_t *dde)
 }
 
 ddt_entry_t *
-ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
+ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 {
 	spa_t *spa = ddt->ddt_spa;
 	ddt_key_t search;
@@ -1141,7 +1141,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		/* If it's already loaded, we can just return it. */
 		DDT_KSTAT_BUMP(ddt, dds_lookup_live_hit);
 		if (dde->dde_flags & DDE_FLAG_LOADED) {
-			if (ddt_entry_lookup_is_valid(ddt, bp, dde))
+			if (!verify || ddt_entry_lookup_is_valid(ddt, bp, dde))
 				return (dde);
 			return (NULL);
 		}
@@ -1165,7 +1165,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
 
 		/* Make sure the loaded entry matches the BP */
-		if (ddt_entry_lookup_is_valid(ddt, bp, dde))
+		if (!verify || ddt_entry_lookup_is_valid(ddt, bp, dde))
 			return (dde);
 		return (NULL);
 	} else
@@ -1194,7 +1194,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 			memcpy(dde->dde_phys, &ddlwe.ddlwe_phys,
 			    DDT_PHYS_SIZE(ddt));
 			/* Whatever we found isn't valid for this BP, eject */
-			if (!ddt_entry_lookup_is_valid(ddt, bp, dde)) {
+			if (verify &&
+			    !ddt_entry_lookup_is_valid(ddt, bp, dde)) {
 				avl_remove(&ddt->ddt_tree, dde);
 				ddt_free(ddt, dde);
 				return (NULL);
@@ -1276,7 +1277,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp)
 		 * worth the effort to deal with without taking an entry
 		 * update.
 		 */
-		valid = ddt_entry_lookup_is_valid(ddt, bp, dde);
+		valid = !verify || ddt_entry_lookup_is_valid(ddt, bp, dde);
 		if (!valid && dde->dde_waiters == 0) {
 			avl_remove(&ddt->ddt_tree, dde);
 			ddt_free(ddt, dde);
@@ -2469,7 +2470,7 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	ddt = ddt_select(spa, bp);
 	ddt_enter(ddt);
 
-	dde = ddt_lookup(ddt, bp);
+	dde = ddt_lookup(ddt, bp, B_TRUE);
 
 	/* Can be NULL if the entry for this block was pruned. */
 	if (dde == NULL) {
@@ -2551,7 +2552,7 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		ddt_bp_create(ddt->ddt_checksum, &dpe->dpe_key,
 		    dpe->dpe_phys, DDT_PHYS_FLAT, &blk);
 
-		ddt_entry_t *dde = ddt_lookup(ddt, &blk);
+		ddt_entry_t *dde = ddt_lookup(ddt, &blk, B_TRUE);
 		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED)) {
 			ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 			/*
