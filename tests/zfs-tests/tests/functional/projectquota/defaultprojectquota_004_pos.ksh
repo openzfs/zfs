@@ -1,5 +1,4 @@
 #!/bin/ksh -p
-# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -34,26 +33,34 @@
 
 #
 # DESCRIPTION:
-#	zfs get all <fs> does not print out project{obj}quota
+#	Check the invalid parameter of zfs get defaultproject{obj}quota
+#
 #
 # STRATEGY:
-#	1. set project{obj}quota to a fs
-#	2. check zfs get all fs
+#	1. check the invalid zfs get defaultproject{obj}quota to fs
+#	2. check the valid zfs get defaultproject{obj}quota to snapshots
 #
 
 function cleanup
 {
+	datasetexists $snap_fs && destroy_dataset $snap_fs
+
 	log_must cleanup_projectquota
 }
 
 log_onexit cleanup
 
-log_assert "Check zfs get all will not print out project{obj}quota"
+log_assert "Check the invalid parameter of zfs get defaultproject{obj}quota"
+typeset snap_fs=$QFS@snap
 
-log_must zfs set projectquota@$PRJID1=50m $QFS
-log_must zfs set projectobjquota@$PRJID2=100 $QFS
+log_must zfs snapshot $snap_fs
 
-log_mustnot eval "zfs get all $QFS | grep -w projectquota"
-log_mustnot eval "zfs get all $QFS | grep -w projectobjquota"
+set -A no_prjs "mms1234" "ss@#" "root-122"
+for prj in "${no_prjs[@]}"; do
+	log_must eval "zfs get defaultprojectquota $QFS >/dev/null 2>&1"
+	log_must eval "zfs get defaultprojectquota $snap_fs >/dev/null 2>&1"
+	log_must eval "zfs get defaultprojectobjquota $QFS >/dev/null 2>&1"
+	log_must eval "zfs get defaultprojectobjquota $snap_fs >/dev/null 2>&1"
+done
 
-log_pass "zfs get all will not print out project{obj}quota"
+log_pass "Check the invalid parameter of zfs get defaultproject{obj}quota"

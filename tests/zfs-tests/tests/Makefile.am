@@ -1761,10 +1761,18 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/projectquota/projectquota_007_pos.ksh \
 	functional/projectquota/projectquota_008_pos.ksh \
 	functional/projectquota/projectquota_009_pos.ksh \
+	functional/projectquota/defaultprojectquota_001_pos.ksh \
+	functional/projectquota/defaultprojectquota_002_pos.ksh \
+	functional/projectquota/defaultprojectquota_003_neg.ksh \
+	functional/projectquota/defaultprojectquota_004_pos.ksh \
+	functional/projectquota/defaultprojectquota_005_pos.ksh \
+	functional/projectquota/defaultprojectquota_006_pos.ksh \
+	functional/projectquota/defaultprojectquota_007_pos.ksh \
 	functional/projectquota/projectspace_001_pos.ksh \
 	functional/projectquota/projectspace_002_pos.ksh \
 	functional/projectquota/projectspace_003_pos.ksh \
 	functional/projectquota/projectspace_004_pos.ksh \
+	functional/projectquota/projectspace_005_pos.ksh \
 	functional/projectquota/projecttree_001_pos.ksh \
 	functional/projectquota/projecttree_002_pos.ksh \
 	functional/projectquota/projecttree_003_neg.ksh \
