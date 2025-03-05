@@ -25,6 +25,7 @@
 
 /*
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -115,6 +116,59 @@
  * maximum percentage, this indicates that the rate of incoming data is
  * greater than the rate that the backend storage can handle. In this case, we
  * must further throttle incoming writes (see dmu_tx_delay() for details).
+ *
+ * Flushing writes
+ *
+ * The queue will ensure that all writes (except probe writes) will be followed
+ * by a successful device flush before being returned. This is necessary to
+ * ensure that a device with a volatile write cache has fully committed the
+ * data to durable storage before ZFS continues. If the flush fails, the write
+ * IO error will be set to the value of the flush error before it is returned,
+ * so that its error handling path can take action.
+ *
+ * However, issuing a full device flush after every write would destroy
+ * performance, so instead we accumulate completed writes as they return and
+ * then issue a single device flush, and return them all once it's done.
+ *
+ * Any IOs that might require flushing (currently only writes) have the
+ * ZIO_STAGE_VDEV_IO_FLUSH stage in their pipeline, which calls
+ * vdev_queue_io_flush(). The IO is added to vq_flush_list to wait for a flush,
+ * which is issued some time later in vdev_queue_flush_issue(). The done
+ * function vdev_queue_flush_done() loops over the list of waiting IOs, updates
+ * their error code with the flush error code if necessary, and sends them back
+ * to the IO pipeline to be completed.
+ *
+ * The decision on whether to issue a flush now or wait until later is done in
+ * vdev_queue_flush_check(). It's always safe to issue a flush at any time
+ * there is not already a flush in-flight. The decision from there is around
+ * performance. The top write operation is blocked until all flushes on all
+ * devices involved have completed and propagated, so ideally we would issue
+ * the flush as the last of a set of related writes completes. Before that, and
+ * we flush "in the middle" of the set, and have to issue another flush for the
+ * remainder; after that and the caller is just waiting around for no good
+ * reason.
+ *
+ * Unfortunately we're too far away from the callers to have a clear idea of
+ * intention, and we have no insight into what other devices servicing related
+ * writes (eg a raidz stripe) might be doing. So we try to make a best guess
+ * based on the number of IOs in-flight that will require a flush (vq_factive),
+ * the presence of other queued or in-flight operations (vq_active and
+ * vq_cqueued) and a target time for the next flush determined from the IO
+ * priority (ZIO_PRIORITY_SYNC_WRITE) and tuneables (zfs_vdev_flush_timeout_ms
+ * and zfs_vdev_flush_sync_timeout_ms). See zio_queue_flush_check() for the
+ * details.
+ *
+ * IOs that don't need to be flushed come through ZIO_STAGE_VDEV_IO_DONE and
+ * vdev_queue_io_done() as normal. The _FLUSH and _DONE stages are very
+ * similar, but are kept separate to avoid a returning IO needing to take
+ * vq_lock twice, as it is already a quite heavily contended lock.
+ *
+ * Note that flushes are only ever triggered following an IO returning (in
+ * _flush() or _done()), there is no separate heartbeat or deadman switch.
+ * Thus, it is critical that if zio_queue_flush_check() cannot be totally sure
+ * that there will be an IO returned to the queue in the future to give another
+ * opportunity to issue a flush, it must return B_TRUE and trigger a flush
+ * right now.
  */
 
 /*
@@ -227,6 +281,15 @@ uint_t zfs_vdev_queue_depth_pct = 300;
  * to be 32 per allocator to get good aggregation of sequential writes.
  */
 uint_t zfs_vdev_def_queue_depth = 32;
+
+/*
+ * Ideal maximum time that a regular or sync IO could be on the flush list
+ * before the flush is issued. Setting this to 0 means no timeout, and the
+ * flush decision will be based entirely on the amount of IO in-flight and
+ * queued.
+ */
+static uint64_t zfs_vdev_flush_timeout_ms = 500;
+static uint64_t zfs_vdev_flush_sync_timeout_ms = 100;
 
 static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
@@ -501,6 +564,10 @@ vdev_queue_init(vdev_t *vd)
 	vq->vq_last_offset = 0;
 	list_create(&vq->vq_active_list, sizeof (struct zio),
 	    offsetof(struct zio, io_queue_node.l));
+	list_create(&vq->vq_flush_list, sizeof (struct zio),
+	    offsetof(struct zio, io_queue_node.l));
+	list_create(&vq->vq_flush_active_list, sizeof (struct zio),
+	    offsetof(struct zio, io_queue_node.l));
 	mutex_init(&vq->vq_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
@@ -519,6 +586,8 @@ vdev_queue_fini(vdev_t *vd)
 	avl_destroy(&vq->vq_write_offset_tree);
 
 	list_destroy(&vq->vq_active_list);
+	list_destroy(&vq->vq_flush_list);
+	list_destroy(&vq->vq_flush_active_list);
 	mutex_destroy(&vq->vq_lock);
 }
 
@@ -558,6 +627,13 @@ vdev_queue_is_interactive(zio_priority_t p)
 	}
 }
 
+static boolean_t
+vdev_queue_should_flush(zio_t *zio)
+{
+	return ((zio->io_type == ZIO_TYPE_WRITE) &&
+	    !(zio->io_flags & ZIO_FLAG_PROBE));
+}
+
 static void
 vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 {
@@ -571,6 +647,8 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 	} else if (vq->vq_ia_active > 0) {
 		vq->vq_nia_credit--;
 	}
+	if (vdev_queue_should_flush(zio))
+		vq->vq_factive++;
 	zio->io_queue_state = ZIO_QS_ACTIVE;
 	list_insert_tail(&vq->vq_active_list, zio);
 }
@@ -579,6 +657,7 @@ static void
 vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
+	ASSERT3U(zio->io_queue_state, ==, ZIO_QS_ACTIVE);
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_cactive[zio->io_priority]--;
 	vq->vq_active--;
@@ -589,6 +668,8 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 			vq->vq_nia_credit = zfs_vdev_nia_credit;
 	} else if (vq->vq_ia_active == 0)
 		vq->vq_nia_credit++;
+	if (vdev_queue_should_flush(zio))
+		vq->vq_factive--;
 	list_remove(&vq->vq_active_list, zio);
 	zio->io_queue_state = ZIO_QS_NONE;
 }
@@ -967,19 +1048,14 @@ vdev_queue_io(zio_t *zio)
 	return (nio);
 }
 
-void
-vdev_queue_io_done(zio_t *zio)
+/* Issue as much queued IO as possible, up to the configured limits. */
+static void
+vdev_queue_io_issue(vdev_queue_t *vq)
 {
-	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
 	zio_t *dio, *nio;
 	zio_link_t *zl = NULL;
 
-	hrtime_t now = gethrtime();
-	vq->vq_io_complete_ts = now;
-	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
-
-	mutex_enter(&vq->vq_lock);
-	vdev_queue_pending_remove(vq, zio);
+	ASSERT(MUTEX_HELD(&vq->vq_lock));
 
 	while ((nio = vdev_queue_io_to_issue(vq)) != NULL) {
 		mutex_exit(&vq->vq_lock);
@@ -996,6 +1072,236 @@ vdev_queue_io_done(zio_t *zio)
 		}
 		mutex_enter(&vq->vq_lock);
 	}
+
+	ASSERT(MUTEX_HELD(&vq->vq_lock));
+}
+
+static boolean_t
+vdev_queue_flush_check(vdev_queue_t *vq)
+{
+	ASSERT(MUTEX_HELD(&vq->vq_lock));
+
+	/*
+	 * If there is a flush in flight, we cannot flush right now. The flush
+	 * done handler will reconsider this before it returns.
+	 */
+	if (vq->vq_flush_active_numnodes != 0) {
+		ASSERT(!list_is_empty(&vq->vq_flush_active_list));
+		return (B_FALSE);
+	}
+
+	/*
+	 * If there's nothing to flush, then there's no point issuing a flush
+	 * right now.
+	 */
+	if (vq->vq_flush_numnodes == 0) {
+		ASSERT(list_is_empty(&vq->vq_flush_list));
+		return (B_FALSE);
+	}
+
+	if (vq->vq_flush_next_ts != 0) {
+		/* If the timeout has passed, flush everything now. */
+		if (gethrtime() >= vq->vq_flush_next_ts)
+			return (B_TRUE);
+	} else {
+		/*
+		 * No timeout set, so flush when there are no IOs in flight
+		 * requiring a flush. In this way we wait for any in flight
+		 * to complete, but don't worry too much about what's on the
+		 * queue, so we don't end up waiting until IO has entirely
+		 * stopped before flushing.
+		 */
+		if (vq->vq_factive == 0)
+			return (B_TRUE);
+	}
+
+	/*
+	 * If there's no IO in-flight and nothing waiting on the queue, then
+	 * this is the last flush trigger, and we have to flush now. If we
+	 * don't and no other IO arrives, we will hang forever, holding IO
+	 * waiting for a flush that was never issued.
+	 */
+	if (vq->vq_cqueued == 0 && vq->vq_active == 0)
+		return (B_TRUE);
+
+	/* Don't flush yet. */
+	return (B_FALSE);
+}
+
+static void vdev_queue_flush_issue(vdev_queue_t *vq);
+
+static void
+vdev_queue_flush_done(zio_t *fzio)
+{
+	vdev_queue_t *vq = fzio->io_private;
+	int err = fzio->io_error;
+
+	/*
+	 * Take the lock, then capture the waiting the IOs. This will allow
+	 * vdev_queue_io_flush() to issue a new flush if it wants.
+	 */
+	list_t l;
+	list_create(&l, sizeof (struct zio),
+	    offsetof(struct zio, io_queue_node.l));
+
+	mutex_enter(&vq->vq_lock);
+	list_move_tail(&l, &vq->vq_flush_active_list);
+	vq->vq_flush_active_numnodes = 0;
+	mutex_exit(&vq->vq_lock);
+
+	/*
+	 * Loop over the IOs, set the error if necessary, and submit them
+	 * back into the pipeline.
+	 */
+	zio_t *zio;
+	while ((zio = list_remove_head(&l)) != NULL) {
+		ASSERT3U(zio->io_stage, ==, ZIO_STAGE_VDEV_IO_FLUSH);
+		zio->io_error = zio_worst_error(zio->io_error, err);
+		zio_interrupt(zio);
+	}
+
+	/*
+	 * While this flush was in progress, more IOs needing flushing may have
+	 * returned and been added to the flush list. If there are none in
+	 * flight, and there isn't a new flush in progress, then there is
+	 * nothing to trigger a flush for them, and we must do that now.
+	 */
+	mutex_enter(&vq->vq_lock);
+	if (vdev_queue_flush_check(vq))
+		vdev_queue_flush_issue(vq);
+	mutex_exit(&vq->vq_lock);
+}
+
+static void
+vdev_queue_flush_issue(vdev_queue_t *vq)
+{
+	ASSERT(MUTEX_HELD(&vq->vq_lock));
+	ASSERT(!list_is_empty(&vq->vq_flush_list));
+	ASSERT(list_is_empty(&vq->vq_flush_active_list));
+
+	/*
+	 * Move the waiting IOs to the active list, and issue the flush.
+	 * vdev_queue_flush_done() will take care of propagating any flush
+	 * error to the waiting IOs and reexecuting them.
+	 *
+	 * Note that we issue the flush unconditionally, even if flushing is
+	 * disabled. This is not a problem, as the flush IO will return
+	 * successfully and the waiting IOs will be reexecute as expected, so
+	 * it only costs us a little time. We could check here and not issue
+	 * the flush and just reexecute the IOs directly, but this is a rare
+	 * case around the time the flush is first disabled, because otherwise
+	 * there'll be nothing to flush per the check in vdev_queue_io_flush().
+	 * It's not worth the extra complexity to handle this.
+	 */
+	list_move_tail(&vq->vq_flush_active_list, &vq->vq_flush_list);
+	vq->vq_flush_active_numnodes = vq->vq_flush_numnodes;
+	vq->vq_flush_numnodes = 0;
+	vq->vq_flush_next_ts = 0;
+	zio_nowait(zio_vdev_flush(vq->vq_vdev, vdev_queue_flush_done, vq));
+}
+
+static uint64_t
+vdev_queue_flush_timeout_ms(zio_t *zio)
+{
+	return (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE ?
+	    zfs_vdev_flush_sync_timeout_ms : zfs_vdev_flush_timeout_ms);
+}
+
+zio_t *
+vdev_queue_io_flush(zio_t *zio)
+{
+	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
+
+	/*
+	 * If this IO doesn't need to be flushed, just return it for IO_DONE
+	 * to process instead.
+	 */
+	if (!vdev_queue_should_flush(zio))
+		return (zio);
+
+	mutex_enter(&vq->vq_lock);
+	vdev_queue_pending_remove(vq, zio);
+
+	/*
+	 * If flushing is disabled, then its a waste of time to collect up IOs,
+	 * issue a flush and reexecute the ZIOs, so we don't bother adding
+	 * this one to the list. However, we still need to check the list
+	 * and possibly issue a flush, as flushing may have been disabled
+	 * while they were in flight.
+	 */
+	if (!(zfs_nocacheflush || vq->vq_vdev->vdev_nowritecache)) {
+		/*
+		 * Compute flush timeout for this zio. If its earlier than the
+		 * currently scheduled timeout, update it.
+		 */
+		uint64_t timeout = vdev_queue_flush_timeout_ms(zio);
+		if (timeout != 0) {
+			hrtime_t next_ts = gethrtime() + MSEC2NSEC(timeout);
+			if (vq->vq_flush_next_ts == 0 ||
+			    vq->vq_flush_next_ts > next_ts)
+				vq->vq_flush_next_ts = next_ts;
+		}
+
+		/* Add to pending list */
+		list_insert_tail(&vq->vq_flush_list, zio);
+		vq->vq_flush_numnodes++;
+
+		/*
+		 * This IO now owned by the queue, not to be returned to the
+		 * pipeline until after the flush.
+		 */
+		zio = NULL;
+	}
+
+	/*
+	 * Refill the IO pipeline. We do this before the flush check as it will
+	 * update the counts of in-flight and queued IO, which the flush check
+	 * uses to know if there's more IO on the way. If we do it after, the
+	 * check can decide there's more IO coming, but that IO ends up not
+	 * being issued (eg NODATA), and we end up with no in-flight IO and
+	 * so nothing to trigger the flush, and we hang.
+	 */
+	vdev_queue_io_issue(vq);
+
+	/* Check if a flush is required, and issue it if so. */
+	if (vdev_queue_flush_check(vq))
+		vdev_queue_flush_issue(vq);
+
+	mutex_exit(&vq->vq_lock);
+
+	return (zio);
+}
+
+void
+vdev_queue_io_done(zio_t *zio)
+{
+	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
+
+	/*
+	 * Record time of last completion and total time on queue+in-flight.
+	 * These are included in slow/fault reports and iostat output.
+	 */
+	hrtime_t now = gethrtime();
+	vq->vq_io_complete_ts = now;
+	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
+
+	/*
+	 * If this IO needed to be flushed, then it's arriving after being
+	 * reissued when the flush completed, so there's nothing else we need
+	 * to do.
+	 */
+	if (vdev_queue_should_flush(zio))
+		return;
+
+	mutex_enter(&vq->vq_lock);
+	vdev_queue_pending_remove(vq, zio);
+
+	/* Refill the IO pipeline. */
+	vdev_queue_io_issue(vq);
+
+	/* Check if a flush is required, and issue it if so. */
+	if (vdev_queue_flush_check(vq))
+		vdev_queue_flush_issue(vq);
 
 	mutex_exit(&vq->vq_lock);
 }
@@ -1035,8 +1341,8 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 	 * If the zio is in none of the queues we can simply change
 	 * the priority. If the zio is waiting to be submitted we must
 	 * remove it from the queue and re-insert it with the new priority.
-	 * Otherwise, the zio is currently active and we cannot change its
-	 * priority.
+	 * Otherwise, the zio is either active or waiting for flush and we
+	 * cannot change its priority.
 	 */
 	if (zio->io_queue_state == ZIO_QS_QUEUED) {
 		vdev_queue_class_remove(vq, zio);
@@ -1163,3 +1469,9 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, def_queue_depth, UINT, ZMOD_RW,
 	"Default queue depth for each allocator");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, flush_timeout_ms, U64, ZMOD_RW,
+	"Max wait time to wait before issuing flush for regular IO");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, flush_sync_timeout_ms, U64, ZMOD_RW,
+	"Max wait time to wait before issuing flush for sync IO");

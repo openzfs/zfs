@@ -30,7 +30,7 @@
  * Portions Copyright 2010 Robert Milkowski
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #ifndef	_SYS_FS_ZFS_H
@@ -768,11 +768,17 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_TRIM_PEND_QUEUE	"vdev_async_trim_pend_queue"
 #define	ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE	"vdev_rebuild_pend_queue"
 
+/* Completed IOs waiting for flush */
+#define	ZPOOL_CONFIG_VDEV_FLUSH_IO_PEND		"vdev_flush_io_pend"
+#define	ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE	"vdev_flush_io_active"
+
 /* Latency read/write histogram stats */
 #define	ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO	"vdev_tot_r_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_TOT_W_LAT_HISTO	"vdev_tot_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_TOT_F_LAT_HISTO	"vdev_tot_f_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_DISK_R_LAT_HISTO	"vdev_disk_r_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_DISK_W_LAT_HISTO	"vdev_disk_w_lat_histo"
+#define	ZPOOL_CONFIG_VDEV_DISK_F_LAT_HISTO	"vdev_disk_f_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_SYNC_R_LAT_HISTO	"vdev_sync_r_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_SYNC_W_LAT_HISTO	"vdev_sync_w_lat_histo"
 #define	ZPOOL_CONFIG_VDEV_ASYNC_R_LAT_HISTO	"vdev_async_r_lat_histo"
@@ -1316,6 +1322,12 @@ typedef struct vdev_stat_ex {
 
 	/* Number of ZIOs pending to be issued to disk */
 	uint64_t vsx_pend_queue[ZIO_PRIORITY_NUM_QUEUEABLE];
+
+	/* Number of ZIOs waiting for flush to be issued. */
+	uint64_t vsx_flush_io_pend;
+
+	/* Number of ZIOs waiting for flush to complete. */
+	uint64_t vsx_flush_io_active;
 
 	/*
 	 * Below are the histograms for various latencies. Buckets are in
