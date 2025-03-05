@@ -58,7 +58,7 @@ function cleanup
 log_assert "A long VDEV probe doesn't cause a MMP check suspend"
 log_onexit cleanup
 
-MMP_HISTORY_URL=/proc/spl/kstat/zfs/$MMP_POOL/multihost
+MMP_HISTORY_TMP=$MMP_DIR/history
 
 # Create a multiple drive pool
 log_must zpool events -c
@@ -83,8 +83,9 @@ sleep 10
 sync_pool $MMP_POOL
 
 # Confirm mmp writes to the non-slow disks have taken place
+kstat_pool $MMP_POOL multihost > $MMP_HISTORY_TMP
 for x in {0,1,2,4}; do
-	write_count=$(grep -c file.${x} $MMP_HISTORY_URL)
+	write_count=$(grep -c file.${x} $MMP_HISTORY_TMP)
 	[[ $write_count -gt 0 ]] || log_fail "expecting mmp writes"
 done
 

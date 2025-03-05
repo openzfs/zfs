@@ -139,7 +139,7 @@ void metaslab_set_selected_txg(metaslab_t *, uint64_t);
 
 extern int metaslab_debug_load;
 
-range_seg_type_t metaslab_calculate_range_tree_type(vdev_t *vdev,
+zfs_range_seg_type_t metaslab_calculate_range_tree_type(vdev_t *vdev,
     metaslab_t *msp, uint64_t *start, uint64_t *shift);
 
 #ifdef	__cplusplus

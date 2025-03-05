@@ -2435,11 +2435,11 @@ done:
 	{
 		int txgoff = tx->tx_txg & TXG_MASK;
 		if (dn->dn_free_ranges[txgoff] == NULL) {
-			dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
-			    RANGE_SEG64, NULL, 0, 0);
+			dn->dn_free_ranges[txgoff] = zfs_range_tree_create(NULL,
+			    ZFS_RANGE_SEG64, NULL, 0, 0);
 		}
-		range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
-		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
+		zfs_range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
+		zfs_range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
 	    (u_longlong_t)blkid, (u_longlong_t)nblks,
@@ -2482,7 +2482,7 @@ dnode_block_freed(dnode_t *dn, uint64_t blkid)
 	mutex_enter(&dn->dn_mtx);
 	for (i = 0; i < TXG_SIZE; i++) {
 		if (dn->dn_free_ranges[i] != NULL &&
-		    range_tree_contains(dn->dn_free_ranges[i], blkid, 1))
+		    zfs_range_tree_contains(dn->dn_free_ranges[i], blkid, 1))
 			break;
 	}
 	mutex_exit(&dn->dn_mtx);

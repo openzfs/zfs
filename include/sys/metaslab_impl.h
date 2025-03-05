@@ -200,7 +200,7 @@ struct metaslab_class {
 	uint64_t		mc_deferred;	/* total deferred frees */
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
-	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+	uint64_t		mc_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
 	/*
 	 * List of all loaded metaslabs in the class, sorted in order of most
@@ -290,7 +290,7 @@ struct metaslab_group {
 	uint64_t		mg_allocations;
 	uint64_t		mg_failed_allocations;
 	uint64_t		mg_fragmentation;
-	uint64_t		mg_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+	uint64_t		mg_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
 	int			mg_ms_disabled;
 	boolean_t		mg_disabled_updating;
@@ -398,8 +398,8 @@ struct metaslab {
 	uint64_t	ms_size;
 	uint64_t	ms_fragmentation;
 
-	range_tree_t	*ms_allocating[TXG_SIZE];
-	range_tree_t	*ms_allocatable;
+	zfs_range_tree_t	*ms_allocating[TXG_SIZE];
+	zfs_range_tree_t	*ms_allocatable;
 	uint64_t	ms_allocated_this_txg;
 	uint64_t	ms_allocating_total;
 
@@ -408,10 +408,12 @@ struct metaslab {
 	 * ms_free*tree only have entries while syncing, and are empty
 	 * between syncs.
 	 */
-	range_tree_t	*ms_freeing;	/* to free this syncing txg */
-	range_tree_t	*ms_freed;	/* already freed this syncing txg */
-	range_tree_t	*ms_defer[TXG_DEFER_SIZE];
-	range_tree_t	*ms_checkpointing; /* to add to the checkpoint */
+	zfs_range_tree_t	*ms_freeing;	/* to free this syncing txg */
+	/* already freed this syncing txg */
+	zfs_range_tree_t	*ms_freed;
+	zfs_range_tree_t	*ms_defer[TXG_DEFER_SIZE];
+	/* to add to the checkpoint */
+	zfs_range_tree_t	*ms_checkpointing;
 
 	/*
 	 * The ms_trim tree is the set of allocatable segments which are
@@ -421,7 +423,7 @@ struct metaslab {
 	 * is unloaded.  Its purpose is to aggregate freed ranges to
 	 * facilitate efficient trimming.
 	 */
-	range_tree_t	*ms_trim;
+	zfs_range_tree_t	*ms_trim;
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
@@ -542,8 +544,8 @@ struct metaslab {
 	 * Allocs and frees that are committed to the vdev log spacemap but
 	 * not yet to this metaslab's spacemap.
 	 */
-	range_tree_t	*ms_unflushed_allocs;
-	range_tree_t	*ms_unflushed_frees;
+	zfs_range_tree_t	*ms_unflushed_allocs;
+	zfs_range_tree_t	*ms_unflushed_frees;
 
 	/*
 	 * We have flushed entries up to but not including this TXG. In

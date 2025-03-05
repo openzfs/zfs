@@ -144,12 +144,14 @@ struct vfsops zfs_vfsops = {
 	.vfs_quotactl =		zfs_quotactl,
 };
 
+VFS_SET(zfs_vfsops, zfs, VFCF_DELEGADMIN | VFCF_JAIL
 #ifdef VFCF_CROSS_COPY_FILE_RANGE
-VFS_SET(zfs_vfsops, zfs,
-    VFCF_DELEGADMIN | VFCF_JAIL | VFCF_CROSS_COPY_FILE_RANGE);
-#else
-VFS_SET(zfs_vfsops, zfs, VFCF_DELEGADMIN | VFCF_JAIL);
+	| VFCF_CROSS_COPY_FILE_RANGE
 #endif
+#ifdef VFCF_FILEREVINC
+	| VFCF_FILEREVINC
+#endif
+);
 
 /*
  * We need to keep a count of active fs's.

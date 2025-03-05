@@ -615,6 +615,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/json/setup.ksh \
 	functional/cli_root/json/json_sanity.ksh \
 	functional/cli_root/zinject/zinject_args.ksh \
+	functional/cli_root/zinject/zinject_counts.ksh \
+	functional/cli_root/zinject/zinject_probe.ksh \
 	functional/cli_root/zdb/zdb_002_pos.ksh \
 	functional/cli_root/zdb/zdb_003_pos.ksh \
 	functional/cli_root/zdb/zdb_004_pos.ksh \
@@ -998,7 +1000,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_add/add_prop_ashift.ksh \
 	functional/cli_root/zpool_add/cleanup.ksh \
 	functional/cli_root/zpool_add/setup.ksh \
-	functional/cli_root/zpool_add/zpool_add--allow-ashift-mismatch.ksh \
 	functional/cli_root/zpool_add/zpool_add_001_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_002_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_003_pos.ksh \
@@ -1474,6 +1475,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_dedup.ksh \
 	functional/direct/dio_encryption.ksh \
 	functional/direct/dio_grow_block.ksh \
+	functional/direct/dio_loopback_dev.ksh \
 	functional/direct/dio_max_recordsize.ksh \
 	functional/direct/dio_mixed.ksh \
 	functional/direct/dio_mmap.ksh \
@@ -1693,6 +1695,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pam/cleanup.ksh \
 	functional/pam/pam_basic.ksh \
 	functional/pam/pam_change_unmounted.ksh \
+	functional/pam/pam_mount_recursively.ksh \
 	functional/pam/pam_nounmount.ksh \
 	functional/pam/pam_recursive.ksh \
 	functional/pam/pam_short_password.ksh \
@@ -1849,6 +1852,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_export.ksh \
 	functional/removal/removal_with_faulted.ksh \
 	functional/removal/removal_with_ganging.ksh \
+	functional/removal/removal_with_hole.ksh \
 	functional/removal/removal_with_indirect.ksh \
 	functional/removal/removal_with_remove.ksh \
 	functional/removal/removal_with_scrub.ksh \

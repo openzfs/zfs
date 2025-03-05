@@ -103,7 +103,7 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/direct:Linux]
-tests = ['dio_write_verify']
+tests = ['dio_loopback_dev', 'dio_write_verify']
 tags = ['functional', 'direct']
 
 [tests/functional/events:Linux]
@@ -169,8 +169,8 @@ tests = ['umount_unlinked_drain']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
-tests = ['pam_basic', 'pam_change_unmounted', 'pam_nounmount', 'pam_recursive',
-    'pam_short_password']
+tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
+    'pam_nounmount', 'pam_recursive', 'pam_short_password']
 tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]

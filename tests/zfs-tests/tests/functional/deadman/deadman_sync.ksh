@@ -73,11 +73,7 @@ log_must zinject -c all
 sync_all_pools
 
 # Log txg sync times for reference and the zpool event summary.
-if is_freebsd; then
-	log_must sysctl -n kstat.zfs.$TESTPOOL.txgs
-else
-	log_must cat /proc/spl/kstat/zfs/$TESTPOOL/txgs
-fi
+log_must kstat_pool $TESTPOOL txgs
 log_must zpool events
 
 # Verify at least 3 deadman events were logged.  The first after 5 seconds,

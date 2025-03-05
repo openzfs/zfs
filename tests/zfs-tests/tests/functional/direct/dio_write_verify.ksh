@@ -90,10 +90,10 @@ log_must set_tunable32 VDEV_DIRECT_WR_VERIFY 0
 # failures
 log_note "Verifying no panics for Direct I/O writes with compression"
 log_must zfs set compression=on $TESTPOOL/$TESTFS
-prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+prev_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" -n $NUMBLOCKS \
     -b $BS -w
-curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+curr_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
 log_note "Making sure we have Direct I/O writes logged"
@@ -115,7 +115,7 @@ for i in $(seq 1 $ITERATIONS); do
 	log_note "Verifying Direct I/O write checksums iteration \
 	    $i of $ITERATIONS with zfs_vdev_direct_write_verify=0"
 
-	prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+	prev_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
 	    -n $NUMBLOCKS -b $BS -w
 
@@ -126,7 +126,7 @@ for i in $(seq 1 $ITERATIONS); do
 	    -c $num_blocks
 
 	# Getting new Direct I/O and ARC write counts.
-	curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+	curr_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 	total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
 	# Verifying there are checksum errors
@@ -165,7 +165,7 @@ for i in $(seq 1 $ITERATIONS); do
 	log_note "Verifying every Direct I/O write checksums iteration $i of \
 	    $ITERATIONS with zfs_vdev_direct_write_verify=1"
 
-	prev_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+	prev_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
 	    -n $NUMBLOCKS -b $BS -e -w
 
@@ -176,7 +176,7 @@ for i in $(seq 1 $ITERATIONS); do
 	    -c $num_blocks
 
 	# Getting new Direct I/O write counts.
-	curr_dio_wr=$(get_iostats_stat $TESTPOOL direct_write_count)
+	curr_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 	total_dio_wr=$((curr_dio_wr - prev_dio_wr))
 
 	log_note "Making sure there are no checksum errors with the ZPool"
