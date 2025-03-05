@@ -1068,15 +1068,19 @@ zfs_statfs_project(zfsvfs_t *zfsvfs, znode_t *zp, struct kstatfs *statp,
 	if (err)
 		return (err);
 
-	if (zfsvfs->z_projectquota_obj == 0)
-		goto objs;
-
-	err = zap_lookup(zfsvfs->z_os, zfsvfs->z_projectquota_obj,
-	    buf + offset, 8, 1, &quota);
-	if (err == ENOENT)
-		goto objs;
-	else if (err)
-		return (err);
+	if (zfsvfs->z_projectquota_obj == 0) {
+		if (zfsvfs->z_defaultprojectquota == 0)
+			goto objs;
+		quota = zfsvfs->z_defaultprojectquota;
+	} else {
+		err = zap_lookup(zfsvfs->z_os, zfsvfs->z_projectquota_obj,
+		    buf + offset, 8, 1, &quota);
+		if (err && (quota = zfsvfs->z_defaultprojectquota) == 0) {
+			if (err == ENOENT)
+				goto objs;
+			return (err);
+		}
+	}
 
 	err = zap_lookup(zfsvfs->z_os, DMU_PROJECTUSED_OBJECT,
 	    buf + offset, 8, 1, &used);
@@ -1102,15 +1106,21 @@ zfs_statfs_project(zfsvfs_t *zfsvfs, znode_t *zp, struct kstatfs *statp,
 	statp->f_bavail = statp->f_bfree;
 
 objs:
-	if (zfsvfs->z_projectobjquota_obj == 0)
-		return (0);
 
-	err = zap_lookup(zfsvfs->z_os, zfsvfs->z_projectobjquota_obj,
-	    buf + offset, 8, 1, &quota);
-	if (err == ENOENT)
-		return (0);
-	else if (err)
-		return (err);
+	if (zfsvfs->z_projectobjquota_obj == 0) {
+		if (zfsvfs->z_defaultprojectobjquota == 0)
+			return (0);
+		quota = zfsvfs->z_defaultprojectobjquota;
+	} else {
+		err = zap_lookup(zfsvfs->z_os, zfsvfs->z_projectobjquota_obj,
+		    buf + offset, 8, 1, &quota);
+		if (err && (quota = zfsvfs->z_defaultprojectobjquota) == 0) {
+			if (err == ENOENT)
+				return (0);
+			return (err);
+		}
+	}
+
 
 	err = zap_lookup(zfsvfs->z_os, DMU_PROJECTUSED_OBJECT,
 	    buf, 8, 1, &used);
