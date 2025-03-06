@@ -127,6 +127,21 @@ static spa_t *spa;
 static objset_t *os;
 static boolean_t kernel_init_done;
 
+
+static enum {
+	BIN_AUTO = 0,
+	BIN_PSIZE,
+	BIN_LSIZE,
+	BIN_ASIZE,
+} block_bin_mode = BIN_AUTO;
+
+static enum {
+	CLASS_NORMAL = 1 << 1,
+	CLASS_SPECIAL = 1 << 2,
+	CLASS_DEDUP = 1 << 3,
+	CLASS_OTHER = 1 << 4,
+} block_classes = 0;
+
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
 static void mos_obj_refd(uint64_t);
@@ -737,6 +752,11 @@ usage(void)
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
 	(void) fprintf(stderr, "        -b --block-stats             "
 	    "block statistics\n");
+	(void) fprintf(stderr, "           --bin=(lsize|psize|asize) "
+	    "bin blocks based on this size in all three columns\n");
+	(void) fprintf(stderr, "           --class=(normal|special|dedup|other)[,...]\n"
+	    "                                     only consider blocks from these "
+	    "allocation classes\n");
 	(void) fprintf(stderr, "        -B --backup                  "
 	    "backup stream\n");
 	(void) fprintf(stderr, "        -c --checksum                "
@@ -5719,6 +5739,21 @@ dump_size_histograms(zdb_cb_t *zcb)
 
 
 	(void) printf("\nBlock Size Histogram\n");
+	switch (block_bin_mode) {
+	case BIN_PSIZE: (void) printf("(note: all categories are binned by %s)\n", "psize"); break;
+	case BIN_LSIZE: (void) printf("(note: all categories are binned by %s)\n", "lsize"); break;
+	case BIN_ASIZE: (void) printf("(note: all categories are binned by %s)\n", "asize"); break;
+	default: (void) printf("(note: all categories are binned separately)\n"); break;
+	}
+	if (block_classes != 0) {
+		char buf[256] = "";
+		if (block_classes & CLASS_NORMAL)  { strlcat(buf, "\"normal\", ", sizeof(buf)); }
+		if (block_classes & CLASS_SPECIAL) { strlcat(buf, "\"special\", ", sizeof(buf)); }
+		if (block_classes & CLASS_DEDUP)   { strlcat(buf, "\"dedup\", ", sizeof(buf)); }
+		if (block_classes & CLASS_OTHER)   { strlcat(buf, "\"other\", ", sizeof(buf)); }
+		buf[strlen(buf)-2] = '\0';
+		(void) printf("(note: only blocks in these classes are counted: %s)\n", buf);
+	}
 	/*
 	 * Print the first line titles
 	 */
@@ -6067,29 +6102,85 @@ skipped:
 		    [BPE_GET_PSIZE(bp)]++;
 		return;
 	}
+
+	if (block_classes != 0) {
+		spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
+
+		uint64_t vdev = DVA_GET_VDEV(&bp->blk_dva[0]);
+		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
+		vdev_t *vd = vdev_lookup_top(zcb->zcb_spa, vdev);
+		ASSERT(vd != NULL);
+		metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
+		ASSERT(ms != NULL);
+		metaslab_group_t *mg = ms->ms_group;
+		ASSERT(mg != NULL);
+		metaslab_class_t *mc = mg->mg_class;
+		ASSERT(mc != NULL);
+
+		spa_config_exit(zcb->zcb_spa, SCL_CONFIG, FTAG);
+
+		int class;
+		if (mc == spa_normal_class(zcb->zcb_spa)) {
+			class = CLASS_NORMAL;
+		} else if (mc == spa_special_class(zcb->zcb_spa)) {
+			class = CLASS_SPECIAL;
+		} else if (mc == spa_dedup_class(zcb->zcb_spa)) {
+			class = CLASS_DEDUP;
+		} else {
+			class = CLASS_OTHER;
+		}
+
+		if (!(block_classes & class)) {
+			goto hist_skipped;
+		}
+	}
+
 	/*
 	 * The binning histogram bins by powers of two up to
 	 * SPA_MAXBLOCKSIZE rather than creating bins for
 	 * every possible blocksize found in the pool.
 	 */
-	int bin = highbit64(BP_GET_PSIZE(bp)) - 1;
+	int bin;
+
+	/*
+	 * Binning strategy: each bin includes blocks up to and including
+	 * the given size (excluding blocks that fit into the previous bin).
+	 * This way, the "4K" bin includes blocks within the (2K; 4K] range.
+	 */
+#define BIN(size) (highbit64((size) - 1))
+
+	switch (block_bin_mode) {
+	case BIN_PSIZE: bin = BIN(BP_GET_PSIZE(bp)); break;
+	case BIN_LSIZE: bin = BIN(BP_GET_LSIZE(bp)); break;
+	case BIN_ASIZE: bin = BIN(BP_GET_ASIZE(bp)); break;
+	case BIN_AUTO: break;
+	default: PANIC("bad block_bin_mode"); abort();
+	}
+
+	if (block_bin_mode == BIN_AUTO)
+		bin = BIN(BP_GET_PSIZE(bp));
 
 	zcb->zcb_psize_count[bin]++;
 	zcb->zcb_psize_len[bin] += BP_GET_PSIZE(bp);
 	zcb->zcb_psize_total += BP_GET_PSIZE(bp);
 
-	bin = highbit64(BP_GET_LSIZE(bp)) - 1;
+	if (block_bin_mode == BIN_AUTO)
+		bin = BIN(BP_GET_LSIZE(bp));
 
 	zcb->zcb_lsize_count[bin]++;
 	zcb->zcb_lsize_len[bin] += BP_GET_LSIZE(bp);
 	zcb->zcb_lsize_total += BP_GET_LSIZE(bp);
 
-	bin = highbit64(BP_GET_ASIZE(bp)) - 1;
+	if (block_bin_mode == BIN_AUTO)
+		bin = BIN(BP_GET_ASIZE(bp));
 
 	zcb->zcb_asize_count[bin]++;
 	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
 	zcb->zcb_asize_total += BP_GET_ASIZE(bp);
 
+#undef BIN
+
+hist_skipped:
 	if (!do_claim)
 		return;
 
@@ -9209,6 +9300,12 @@ dummy_get_file_info(dmu_object_type_t bonustype, const void *data,
 	abort();
 }
 
+enum
+{
+	ARG_BLOCK_BIN_MODE = 256,
+	ARG_BLOCK_CLASSES,
+};
+
 int
 main(int argc, char **argv)
 {
@@ -9310,6 +9407,8 @@ main(int argc, char **argv)
 		{"all-reconstruction",	no_argument,		NULL, 'Y'},
 		{"livelist",		no_argument,		NULL, 'y'},
 		{"zstd-headers",	no_argument,		NULL, 'Z'},
+		{"bin",			required_argument,	NULL, ARG_BLOCK_BIN_MODE},
+		{"class",		required_argument,	NULL, ARG_BLOCK_CLASSES},
 		{0, 0, 0, 0}
 	};
 
@@ -9420,6 +9519,55 @@ main(int argc, char **argv)
 		case 'x':
 			vn_dumpdir = optarg;
 			break;
+		case ARG_BLOCK_BIN_MODE:
+			if (!strcmp(optarg, "lsize")) {
+				block_bin_mode = BIN_LSIZE;
+			} else if (!strcmp(optarg, "psize")) {
+				block_bin_mode = BIN_PSIZE;
+			} else if (!strcmp(optarg, "asize")) {
+				block_bin_mode = BIN_ASIZE;
+			} else {
+				(void) fprintf(stderr,
+				    "--bin=\"%s\" must be one of \"lsize\", "
+				    "\"psize\" or \"asize\"\n", optarg);
+				usage();
+			}
+			break;
+
+		case ARG_BLOCK_CLASSES: {
+			char *buf = strdupa(optarg), *tok = buf, *next;
+
+			while ((next = strtok(tok, ",")) != NULL) {
+				tok = NULL;
+
+				if (!strcmp(next, "normal")) {
+					block_classes |= CLASS_NORMAL;
+				} else if (!strcmp(next, "special")) {
+					block_classes |= CLASS_SPECIAL;
+				} else if (!strcmp(next, "dedup")) {
+					block_classes |= CLASS_DEDUP;
+				} else if (!strcmp(next, "other")) {
+					block_classes |= CLASS_OTHER;
+				} else {
+					(void) fprintf(stderr,
+					    "--class=\"%s\" must be a comma-separated "
+					    "list of either \"normal\", \"special\", "
+					    "\"asize\" or \"other\"; got \"%s\"\n",
+					    optarg, next);
+					usage();
+				}
+			}
+
+			if (block_classes == 0) {
+				(void) fprintf(stderr,
+				    "--class= must be a comma-separated "
+				    "list of either \"normal\", \"special\", "
+				    "\"asize\" or \"other\"; got empty\n");
+				usage();
+			}
+
+			break;
+		}
 		default:
 			usage();
 			break;
