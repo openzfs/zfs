@@ -112,6 +112,10 @@ commitcheck:
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
+CHECKS += spdxcheck
+spdxcheck:
+	$(AM_V_at)$(top_srcdir)/scripts/spdxcheck.pl
+
 if HAVE_PARALLEL
 cstyle_line = -print0 | parallel -X0 ${top_srcdir}/scripts/cstyle.pl -cpP {}
 else

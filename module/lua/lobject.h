@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lobject.h,v 2.71.1.2 2014/05/07 14:14:58 roberto Exp $
 ** Type definitions for Lua objects

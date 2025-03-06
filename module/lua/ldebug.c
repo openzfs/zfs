@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: ldebug.c,v 2.90.1.4 2015/02/19 17:05:13 roberto Exp $
 ** Debug Interface
