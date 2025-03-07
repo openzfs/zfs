@@ -94,6 +94,14 @@
 static uint_t zfs_commit_timeout_pct = 10;
 
 /*
+ * The controls whether or not zil_replay will read through the zil log
+ * once and prime the arc cache in parallel prior to performing serial
+ * zil_replay to restore the pool. This priming improves zil replay
+ * latencies, especially on pools made up of high latency devices.
+ */
+boolean_t zfs_zil_is_priming = B_FALSE;
+
+/*
  * See zil.h for more information about these fields.
  */
 static zil_kstat_values_t zil_stats = {
@@ -4181,13 +4189,6 @@ zil_resume(void *cookie)
 	dsl_dataset_rele(dmu_objset_ds(os), suspend_tag);
 }
 
-typedef struct zil_replay_arg {
-	zil_replay_func_t *const *zr_replay;
-	void		*zr_arg;
-	boolean_t	zr_byteswap;
-	char		*zr_lr;
-} zil_replay_arg_t;
-
 static int
 zil_replay_error(zilog_t *zilog, const lr_t *lr, int error)
 {
@@ -4267,6 +4268,31 @@ zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 		byteswap_uint64_array(zr->zr_lr, reclen);
 
 	/*
+	 * If priming is enabled, dispatch the zil replay prime function on a
+	 * taskq and return, skipping the serial blocking replay function call.
+	 */
+	if (zfs_zil_is_priming && zr->zr_replay_prime[txtype] != NULL) {
+		zil_replay_arg_t *zrc = kmem_alloc(
+		    sizeof (zil_replay_arg_t), KM_SLEEP);
+		zrc->zr_replay = zr->zr_replay;
+		zrc->zr_replay_prime = zr->zr_replay_prime;
+		zrc->zr_arg = zr->zr_arg;
+		zrc->zr_byteswap = zr->zr_byteswap;
+
+		/*
+		 * allocate enough memory for the struct and the buffer
+		 * to read into
+		 */
+		zrc->zr_lr = vmem_alloc(sizeof (lr_write_t) +
+		    ((lr_write_t *)zr->zr_lr)->lr_length,
+		    KM_SLEEP);
+		memmove(zrc->zr_lr, zr->zr_lr, reclen);
+		taskq_dispatch(zilog->zl_dmu_pool->dp_zil_prime_taskq,
+		    zrc->zr_replay_prime[txtype], zrc, TQ_SLEEP);
+		return (0);
+	}
+
+	/*
 	 * We must now do two things atomically: replay this log record,
 	 * and update the log header sequence number to reflect the fact that
 	 * we did so. At the end of each replay function the sequence number
@@ -4305,7 +4331,8 @@ zil_incr_blks(zilog_t *zilog, const blkptr_t *bp, void *arg, uint64_t claim_txg)
  */
 boolean_t
 zil_replay(objset_t *os, void *arg,
-    zil_replay_func_t *const replay_func[TX_MAX_TYPE])
+    zil_replay_func_t *const replay_func[TX_MAX_TYPE],
+    zfs_replay_prime_arc_func_t *const replay_prime_func[TX_MAX_TYPE])
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 	const zil_header_t *zh = zilog->zl_header;
@@ -4316,6 +4343,7 @@ zil_replay(objset_t *os, void *arg,
 	}
 
 	zr.zr_replay = replay_func;
+	zr.zr_replay_prime = replay_prime_func;
 	zr.zr_arg = arg;
 	zr.zr_byteswap = BP_SHOULD_BYTESWAP(&zh->zh_log);
 	zr.zr_lr = vmem_alloc(2 * SPA_MAXBLOCKSIZE, KM_SLEEP);
@@ -4328,6 +4356,17 @@ zil_replay(objset_t *os, void *arg,
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
 	ASSERT(zilog->zl_replay_blks == 0);
+	/*
+	 * Parse the zil log once to prime the arc cache with zfs_get
+	 */
+	if (zfs_zil_replay_prime_arc == 1) {
+		zfs_dbgmsg("Starting zil arc priming");
+		zfs_zil_is_priming = B_TRUE;
+		(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record,
+		    &zr, zh->zh_claim_txg, B_TRUE);
+		zfs_dbgmsg("Completed zil arc priming");
+		zfs_zil_is_priming = B_FALSE;
+	}
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
 	    zh->zh_claim_txg, B_TRUE);
 	vmem_free(zr.zr_lr, 2 * SPA_MAXBLOCKSIZE);
