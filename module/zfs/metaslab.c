@@ -1604,17 +1604,30 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 
 static zfs_range_seg_t *
 metaslab_block_find(zfs_btree_t *t, zfs_range_tree_t *rt, uint64_t start,
-    uint64_t size, zfs_btree_index_t *where)
+    uint64_t size, uint64_t max_size, zfs_btree_index_t *where)
 {
 	zfs_range_seg_t *rs;
 	zfs_range_seg_max_t rsearch;
 
 	zfs_rs_set_start(&rsearch, rt, start);
-	zfs_rs_set_end(&rsearch, rt, start + size);
+	zfs_rs_set_end(&rsearch, rt, start + max_size);
 
 	rs = zfs_btree_find(t, &rsearch, where);
 	if (rs == NULL) {
-		rs = zfs_btree_next(t, where, where);
+		if (size == max_size) {
+			rs = zfs_btree_next(t, where, where);
+		} else {
+			/*
+			 * If we're searching for a range, get the largest
+			 * segment in that range, or the smallest one bigger
+			 * than it.
+			 */
+			rs = zfs_btree_prev(t, where, where);
+			if (rs == NULL || zfs_rs_get_end(rt, rs) -
+			    zfs_rs_get_start(rt, rs) < size) {
+				rs = zfs_btree_next(t, where, where);
+			}
+		}
 	}
 
 	return (rs);
@@ -1633,7 +1646,7 @@ metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
 		*cursor = rt->rt_start;
 	zfs_btree_t *bt = &rt->rt_root;
 	zfs_btree_index_t where;
-	zfs_range_seg_t *rs = metaslab_block_find(bt, rt, *cursor, size,
+	zfs_range_seg_t *rs = metaslab_block_find(bt, rt, *cursor, size, size,
 	    &where);
 	uint64_t first_found;
 	int count_searched = 0;
@@ -1783,8 +1796,8 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 		if (max_size != size && offset == -1) {
 			align = size & -size;
 			cursor = &msp->ms_lbas[highbit64(align) - 1];
-			offset = metaslab_block_picker(rt, cursor, max_size,
-			    max_size, metaslab_df_max_search, found_size);
+			offset = metaslab_block_picker(rt, cursor, size,
+			    size, metaslab_df_max_search, found_size);
 		}
 	}
 
@@ -1800,7 +1813,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 			zfs_btree_index_t where;
 			/* use segment of this size, or next largest */
 			rs = metaslab_block_find(&msp->ms_allocatable_by_size,
-			    rt, msp->ms_start, size, &where);
+			    rt, msp->ms_start, size, max_size, &where);
 		}
 		if (rs != NULL && zfs_rs_get_start(rs, rt) + size <=
 		    zfs_rs_get_end(rs, rt)) {
