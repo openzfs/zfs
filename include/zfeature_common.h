@@ -86,6 +86,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_FAST_DEDUP,
 	SPA_FEATURE_LONGNAME,
 	SPA_FEATURE_LARGE_MICROZAP,
+	SPA_FEATURE_DYNAMIC_GANG_HEADER,
 	SPA_FEATURES
 } spa_feature_t;
 
@@ -102,7 +103,14 @@ typedef enum zfeature_flags {
 	/* Activate this feature at the same time it is enabled. */
 	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
 	/* Each dataset has a field set if it has ever used this feature. */
-	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
+	ZFEATURE_FLAG_PER_DATASET =		(1 << 3),
+	/*
+	 * This feature isn't enabled by zpool upgrade; it must be explicitly
+	 * listed to be enabled. This also applies to compatibility lists. This
+	 * flag can be removed from a given feature once support is sufficiently
+	 * widespread.
+	 */
+	ZFEATURE_FLAG_NO_UPGRADE = 		(1 << 4)
 } zfeature_flags_t;
 
 typedef enum zfeature_type {
