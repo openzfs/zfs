@@ -497,7 +497,8 @@ vdev to an existing pool.
 This feature enables larger gang headers based on the sector size of the pool.
 When enabled, gang headers will use the entire space allocated for them, instead
 of always restricting themselves to 512 bytes.
-This can reduce the need for nested gang trees in extreme fragmentation scenarios.
+This can reduce the need for nested gang trees in extreme fragmentation
+scenarios.
 .Pp
 This feature becomes active when a gang header is written that is larger than
 512 bytes.
