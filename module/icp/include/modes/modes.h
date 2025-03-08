@@ -41,7 +41,7 @@ extern "C" {
  */
 #if defined(__x86_64__) && defined(HAVE_AVX) && \
     defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
-#define	CAN_USE_GCM_ASM
+#define	CAN_USE_GCM_ASM (HAVE_VAES && HAVE_VPCLMULQDQ ? 2 : 1)
 extern boolean_t gcm_avx_can_use_movbe;
 #endif
 
@@ -128,6 +128,15 @@ typedef struct ccm_ctx {
 #define	ccm_copy_to		ccm_common.cc_copy_to
 #define	ccm_flags		ccm_common.cc_flags
 
+#ifdef CAN_USE_GCM_ASM
+typedef enum gcm_impl {
+	GCM_IMPL_GENERIC = 0,
+	GCM_IMPL_AVX,
+	GCM_IMPL_AVX2,
+	GCM_IMPL_MAX,
+} gcm_impl;
+#endif
+
 /*
  * gcm_tag_len:		Length of authentication tag.
  *
@@ -173,7 +182,7 @@ typedef struct gcm_ctx {
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
 #ifdef CAN_USE_GCM_ASM
-	boolean_t gcm_use_avx;
+	enum gcm_impl impl;
 #endif
 } gcm_ctx_t;
 
