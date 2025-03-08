@@ -67,7 +67,6 @@ static inline boolean_t gcm_avx_will_work(void);
 static inline boolean_t gcm_avx2_will_work(void);
 static inline void gcm_use_impl(gcm_impl impl);
 static inline gcm_impl gcm_toggle_impl(void);
-static inline size_t gcm_simd_get_htab_size(void);
 
 static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
     crypto_data_t *, size_t);
@@ -674,25 +673,13 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 		    "restore performance.");
 	}
 
-	/* Allocate Htab memory as needed. */
+	/*
+	 * AVX implementations use Htable with sizes depending on
+	 * implementation.
+	 */
 	if (gcm_ctx->impl != GCM_IMPL_GENERIC) {
-		size_t htab_len = gcm_simd_get_htab_size();
-		if (htab_len == 0) {
-			return (CRYPTO_MECHANISM_PARAM_INVALID);
-		}
-
-		gcm_ctx->gcm_htab_len = htab_len;
-		gcm_ctx->gcm_Htable =
-		    kmem_alloc(htab_len, KM_SLEEP);
-
-		if (gcm_ctx->gcm_Htable == NULL) {
-			return (CRYPTO_HOST_MEMORY);
-		}
-
-		if (gcm_init_avx(gcm_ctx, iv, iv_len, aad, aad_len,
-		    block_size) != CRYPTO_SUCCESS) {
-			rv = CRYPTO_MECHANISM_PARAM_INVALID;
-		}
+		rv = gcm_init_avx(gcm_ctx, iv, iv_len, aad, aad_len,
+		    block_size);
 	}
 	else
 #endif /* ifdef CAN_USE_GCM_ASM */
@@ -1153,12 +1140,6 @@ gcm_toggle_impl(void)
 	return (new_impl);
 }
 
-static inline size_t
-gcm_simd_get_htab_size(void)
-{
-	return (2 * 6 * 2 * sizeof (uint64_t));
-}
-
 
 /* Increment the GCM counter block by n. */
 static inline void
@@ -1588,6 +1569,25 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 	ASSERT(block_size == GCM_BLOCK_LEN);
 	ASSERT3S(((aes_key_t *)ctx->gcm_keysched)->ops->needs_byteswap, ==,
 	    B_FALSE);
+
+	size_t htab_len = 0;
+	if (ctx->impl == GCM_IMPL_AVX2) {
+		/*
+		 * BoringSSL's API specifies uint128_t[16] for htab; but only
+		 * uint128_t[12] are used.
+		 * See https://github.com/google/boringssl/blob/
+		 * 813840dd094f9e9c1b00a7368aa25e656554221f1/crypto/fipsmodule/
+		 * modes/asm/aes-gcm-avx2-x86_64.pl#L198-L200
+		 */
+		htab_len = (2 * 8 * sizeof (uint128_t));
+	} else {
+		htab_len = (2 * 6 * sizeof (uint128_t));
+	}
+
+	ctx->gcm_Htable = kmem_alloc(htab_len, KM_SLEEP);
+	if (ctx->gcm_Htable == NULL) {
+		return (CRYPTO_HOST_MEMORY);
+	}
 
 	/* Init H (encrypt zero block) and create the initial counter block. */
 	memset(H, 0, sizeof (ctx->gcm_H));
