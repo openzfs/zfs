@@ -63,7 +63,7 @@ static boolean_t gcm_use_avx = B_FALSE;
 #define	GCM_IMPL_USE_AVX	(*(volatile boolean_t *)&gcm_use_avx)
 /*
  * Whether to use the optimized openssl gcm and ghash implementations.
- * Set to true if module parameter icp_gcm_impl == "avx2".
+ * Set to true if module parameter icp_gcm_impl == "avx2-vaes".
  */
 static boolean_t gcm_use_avx2 = B_FALSE;
 #define	GCM_IMPL_USE_AVX2	(*(volatile boolean_t *)&gcm_use_avx2)
@@ -678,7 +678,8 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 
 		cmn_err_once(CE_WARN,
 		    "ICP: Can't use the aes generic or cycle implementations "
-		    "in combination with the gcm avx or avx2 implementation!");
+		    "in combination with the gcm avx or avx2-vaes "
+		    "implementation!");
 		cmn_err_once(CE_WARN,
 		    "ICP: Falling back to a compatible implementation, "
 		    "aes-gcm performance will likely be degraded.");
@@ -875,7 +876,7 @@ static const struct {
 		{ "fastest",	IMPL_FASTEST },
 #ifdef CAN_USE_GCM_ASM
 		{ "avx",	IMPL_AVX },
-		{ "avx2",	IMPL_AVX2 },
+		{ "avx2-vaes",	IMPL_AVX2 },
 #endif
 };
 
