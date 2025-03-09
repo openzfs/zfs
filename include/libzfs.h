@@ -853,7 +853,7 @@ _LIBZFS_H uint64_t zvol_volsize_to_reservation(zpool_handle_t *, uint64_t,
     nvlist_t *);
 
 typedef int (*zfs_userspace_cb_t)(void *arg, const char *domain,
-    uid_t rid, uint64_t space);
+    uid_t rid, uint64_t space, uint64_t default_quota);
 
 _LIBZFS_H int zfs_userspace(zfs_handle_t *, zfs_userquota_prop_t,
     zfs_userspace_cb_t, void *);

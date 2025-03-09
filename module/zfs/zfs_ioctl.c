@@ -6350,7 +6350,7 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 	void *buf = vmem_alloc(bufsize, KM_SLEEP);
 
 	error = zfs_userspace_many(zfsvfs, zc->zc_objset_type, &zc->zc_cookie,
-	    buf, &zc->zc_nvlist_dst_size);
+	    buf, &zc->zc_nvlist_dst_size, &zc->zc_guid);
 
 	if (error == 0) {
 		error = xcopyout(buf,

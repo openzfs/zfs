@@ -35,7 +35,7 @@ extern int zpl_get_file_info(dmu_object_type_t,
 extern int zfs_userspace_one(struct zfsvfs *, zfs_userquota_prop_t,
     const char *, uint64_t, uint64_t *);
 extern int zfs_userspace_many(struct zfsvfs *, zfs_userquota_prop_t,
-    uint64_t *, void *, uint64_t *);
+    uint64_t *, void *, uint64_t *, uint64_t *);
 extern int zfs_set_userquota(struct zfsvfs *, zfs_userquota_prop_t,
     const char *, uint64_t, uint64_t);
 
