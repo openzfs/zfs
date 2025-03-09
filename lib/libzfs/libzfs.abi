@@ -3879,7 +3879,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='renameflags_t' type-id='7aee5792' id='067170c2'/>
-    <typedef-decl name='zfs_userspace_cb_t' type-id='ca64ff60' id='16c5f410'/>
+    <typedef-decl name='zfs_userspace_cb_t' type-id='bbaa4f9c' id='16c5f410'/>
     <enum-decl name='lzc_dataset_type' id='bc9887f1'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='LZC_DATSET_TYPE_ZFS' value='2'/>
@@ -4074,7 +4074,7 @@
     <qualified-type-def type-id='566b3f52' restrict='yes' id='c878edd6'/>
     <pointer-type-def type-id='566b3f52' size-in-bits='64' id='82d4e9e8'/>
     <qualified-type-def type-id='82d4e9e8' restrict='yes' id='aa19c230'/>
-    <pointer-type-def type-id='7e291ce6' size-in-bits='64' id='ca64ff60'/>
+    <pointer-type-def type-id='02362c02' size-in-bits='64' id='bbaa4f9c'/>
     <pointer-type-def type-id='9da381c4' size-in-bits='64' id='cb785ebf'/>
     <pointer-type-def type-id='1b055409' size-in-bits='64' id='9d424d31'/>
     <pointer-type-def type-id='8e0af06e' size-in-bits='64' id='053457bd'/>
@@ -5019,10 +5019,11 @@
       <parameter type-id='80f4b756'/>
       <return type-id='c19b74c3'/>
     </function-decl>
-    <function-type size-in-bits='64' id='7e291ce6'>
+    <function-type size-in-bits='64' id='02362c02'>
       <parameter type-id='eaa32e2f'/>
       <parameter type-id='80f4b756'/>
       <parameter type-id='354978ed'/>
+      <parameter type-id='9c313c2d'/>
       <parameter type-id='9c313c2d'/>
       <return type-id='95e97e5e'/>
     </function-type>
