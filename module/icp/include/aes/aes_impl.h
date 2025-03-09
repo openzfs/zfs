@@ -198,6 +198,9 @@ extern ASMABI void aes_decrypt_amd64(const uint32_t rk[], int Nr,
 #if defined(__x86_64) && defined(HAVE_AES)
 extern const aes_impl_ops_t aes_aesni_impl;
 #endif
+#if defined(__aarch64__) && defined(HAVE_ARM_AES)
+extern const aes_impl_ops_t aes_armv8_crypto_impl;
+#endif
 
 /*
  * Initializes fastest implementation

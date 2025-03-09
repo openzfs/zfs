@@ -233,6 +233,9 @@ static const aes_impl_ops_t *aes_all_impl[] = {
 #if defined(__x86_64) && defined(HAVE_AES)
 	&aes_aesni_impl,
 #endif
+#if defined(__aarch64__) && defined(HAVE_ARM_AES)
+	&aes_armv8_crypto_impl,
+#endif
 };
 
 /* Indicate that benchmark has been completed */
@@ -325,8 +328,16 @@ aes_impl_init(void)
 		    sizeof (aes_fastest_impl));
 	}
 #else
-	memcpy(&aes_fastest_impl, &aes_generic_impl,
-	    sizeof (aes_fastest_impl));
+#if defined(__aarch64__) && defined(HAVE_ARM_AES)
+	if (aes_armv8_crypto_impl.is_supported()) {
+		memcpy(&aes_fastest_impl, &aes_armv8_crypto_impl,
+		    sizeof (aes_fastest_impl));
+	} else
+#endif
+	{
+		memcpy(&aes_fastest_impl, &aes_generic_impl,
+			sizeof (aes_fastest_impl));
+	}
 #endif
 
 	strlcpy(aes_fastest_impl.name, "fastest", AES_IMPL_NAME_MAX);
