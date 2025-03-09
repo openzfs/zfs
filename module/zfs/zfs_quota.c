@@ -160,9 +160,31 @@ zfs_userquota_prop_to_obj(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
 	}
 }
 
+static uint64_t
+zfs_usedquota_prop_to_default(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
+{
+	switch (type) {
+	case ZFS_PROP_USERUSED:
+		return (zfsvfs->z_defaultuserquota);
+	case ZFS_PROP_USEROBJUSED:
+		return (zfsvfs->z_defaultuserobjquota);
+	case ZFS_PROP_GROUPUSED:
+		return (zfsvfs->z_defaultgroupquota);
+	case ZFS_PROP_GROUPOBJUSED:
+		return (zfsvfs->z_defaultgroupobjquota);
+	case ZFS_PROP_PROJECTUSED:
+		return (zfsvfs->z_defaultprojectquota);
+	case ZFS_PROP_PROJECTOBJUSED:
+		return (zfsvfs->z_defaultprojectobjquota);
+	default:
+		return (0);
+	}
+}
+
 int
 zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep)
+    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep,
+    uint64_t *default_quota)
 {
 	int error;
 	zap_cursor_t zc;
@@ -186,6 +208,8 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	    type == ZFS_PROP_PROJECTOBJQUOTA) &&
 	    !dmu_objset_userobjspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
+
+	*default_quota = zfs_usedquota_prop_to_default(zfsvfs, type);
 
 	obj = zfs_userquota_prop_to_obj(zfsvfs, type);
 	if (obj == ZFS_NO_OBJECT) {
