@@ -80,10 +80,33 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
+#include <sys/xvattr.h>
 #include <sys/zap.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
+
+#define	NFS41ACL_XATTR		"system.nfs4_acl_xdr"
+
+static const struct {
+	int kmask;
+	int zfsperm;
+} mask2zfs[] = {
+	{ MAY_READ, ACE_READ_DATA },
+	{ MAY_WRITE, ACE_WRITE_DATA },
+	{ MAY_EXEC, ACE_EXECUTE },
+#ifdef SB_NFSV4ACL
+	{ MAY_DELETE, ACE_DELETE },
+	{ MAY_DELETE_CHILD, ACE_DELETE_CHILD },
+	{ MAY_WRITE_ATTRS, ACE_WRITE_ATTRIBUTES },
+	{ MAY_WRITE_NAMED_ATTRS, ACE_WRITE_NAMED_ATTRS },
+	{ MAY_WRITE_ACL, ACE_WRITE_ACL },
+	{ MAY_WRITE_OWNER, ACE_WRITE_OWNER },
+#endif
+};
+
+#define	POSIX_MASKS	(MAY_READ|MAY_WRITE|MAY_EXEC|MAY_OPEN)
+#define	GENERIC_MASK(mask) ((mask & ~POSIX_MASKS) == 0)
 
 enum xattr_permission {
 	XAPERM_DENY,
@@ -251,6 +274,14 @@ zpl_xattr_list(struct dentry *dentry, char *buffer, size_t buffer_size)
 	if ((error = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		goto out1;
 	rw_enter(&zp->z_xattr_lock, RW_READER);
+
+	if ((zfsvfs->z_acl_type == ZFS_ACLTYPE_NFSV4) &&
+	    ((zp->z_pflags & ZFS_ACL_TRIVIAL) == 0)) {
+		error = zpl_xattr_filldir(&xf, NFS41ACL_XATTR,
+		    sizeof (NFS41ACL_XATTR) - 1);
+		if (error)
+			goto out;
+	}
 
 	if (zfsvfs->z_use_sa && zp->z_is_sa) {
 		error = zpl_xattr_list_sa(&xf);
@@ -1384,6 +1415,454 @@ static xattr_handler_t zpl_xattr_acl_default_handler = {
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
+/*
+ * zpl_permission() gets called by linux kernel whenever it checks
+ * inode_permission via inode->i_op->permission. The general preference
+ * is to defer to the standard in-kernel permission check (generic_permission)
+ * wherever possible.
+ *
+ * https://www.kernel.org/doc/Documentation/filesystems/vfs.txt
+ */
+int
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+zpl_permission(struct user_namespace *userns, struct inode *ip, int mask)
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+zpl_permission(struct mnt_idmap *idmap, struct inode *ip, int mask)
+#else
+zpl_permission(struct inode *ip, int mask)
+#endif
+{
+	int to_check = 0, i, ret;
+	cred_t *cr = NULL;
+	zfsvfs_t *zfsvfs = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(mask2zfs); i++) {
+		if (mask & mask2zfs[i].kmask)
+			to_check |= mask2zfs[i].zfsperm;
+	}
+
+	/*
+	 * If NFSv4 ACLs are not being used, go back to
+	 * generic_permission(). If ACL is trivial and the
+	 * mask is representable by POSIX permissions, then
+	 * also go back to generic_permission().
+	 */
+	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
+	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL &&
+	    GENERIC_MASK(mask))) || to_check == 0) {
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
+#else
+		return (generic_permission(ip, mask));
+#endif
+	}
+
+	/*
+	 * We're being asked to check something that doesn't contain an
+	 * NFSv4 ACE. Pass back to default kernel permissions check.
+	 */
+	if (to_check == 0) {
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+		return (generic_permission(idmap, ip, mask));
+#else
+		return (generic_permission(ip, mask));
+#endif
+	}
+
+	/*
+	 * Fast path for execute checks. Do not use zfs_fastaccesschk_execute
+	 * since it may end up granting execute access in presence of explicit
+	 * deny entry for user / group, and it also read the ZFS ACL
+	 * (non-cached) which we wish to avoid in RCU.
+	 */
+	if ((to_check == ACE_EXECUTE) &&
+	    (ITOZ(ip)->z_pflags & ZFS_NO_EXECS_DENIED))
+			return (0);
+
+	/*
+	 * inode permission operation may be called in rcu-walk mode
+	 * (mask & MAY_NOT_BLOCK). If in rcu-walk mode, the filesystem must
+	 * check the permission without blocking or storing to the inode.
+	 *
+	 * If a situation is encountered that rcu-walk cannot handle,
+	 * return -ECHILD and it will be called again in ref-walk mode.
+	 */
+	cr = CRED();
+	crhold(cr);
+
+	/*
+	 * There are some situations in which capabilities may allow overriding
+	 * the DACL. Skip reading ACL if requested permissions are fully
+	 * satisfied by capabilities.
+	 */
+
+	/*
+	 * CAP_DAC_OVERRIDE may override RWX on directories, and RW on other
+	 * files. Execute may also be overriden if at least one execute bit is
+	 * set. This behavior is not formally documented, but is covered in
+	 * commit messages and code comments in namei.c.
+	 *
+	 * CAP_DAC_READ_SEARCH may bypass file read permission checks and
+	 * directory read and execute permission checks.
+	 */
+	if (S_ISDIR(ip->i_mode)) {
+#ifdef SB_NFSV4ACL
+		if (!(mask & (MAY_WRITE | NFS41ACL_WRITE_ALL))) {
+#else
+		if (!(mask & MAY_WRITE)) {
+#endif
+			if (capable(CAP_DAC_READ_SEARCH)) {
+				crfree(cr);
+				return (0);
+			}
+		}
+		if (capable(CAP_DAC_OVERRIDE)) {
+			crfree(cr);
+			return (0);
+		}
+	}
+
+	if (!(mask & MAY_EXEC) || (ip->i_mode & S_IXUGO)) {
+		if (capable(CAP_DAC_OVERRIDE)) {
+			crfree(cr);
+			return (0);
+		}
+	}
+
+	if ((to_check == ACE_READ_DATA) &&
+	    capable(CAP_DAC_READ_SEARCH)) {
+		crfree(cr);
+		return (0);
+	}
+
+	if (mask & MAY_NOT_BLOCK) {
+		crfree(cr);
+		return (-ECHILD);
+	}
+
+	zfsvfs = ZTOZSB(ITOZ(ip));
+
+	if ((ret = -zfs_enter_verify_zp(zfsvfs, ITOZ(ip), FTAG)) != 0)
+		return (ret);
+
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    userns);
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    idmap);
+#else
+	ret = -zfs_zaccess(ITOZ(ip), to_check, V_ACE_MASK, B_FALSE, cr,
+	    zfs_init_idmap);
+#endif
+
+	zfs_exit(zfsvfs, FTAG);
+
+	crfree(cr);
+	return (ret);
+}
+
+#define	ACEI4_SPECIAL_WHO	1
+#define	ACE4_SPECIAL_OWNER	1
+#define	ACE4_SPECIAL_GROUP	2
+#define	ACE4_SPECIAL_EVERYONE	3
+#define	NFS41ACL_MAX_ACES	MAX_ACL_ENTRIES
+#define	NFS41_FLAGS		(ACE_DIRECTORY_INHERIT_ACE| \
+				ACE_FILE_INHERIT_ACE| \
+				ACE_NO_PROPAGATE_INHERIT_ACE| \
+				ACE_INHERIT_ONLY_ACE| \
+				ACE_INHERITED_ACE| \
+				ACE_IDENTIFIER_GROUP)
+
+/*
+ * Macros for sanity checks related to XDR and ACL buffer sizes
+ */
+#define	ACE4ELEM		5
+#define	ACE4SIZE		(ACE4ELEM * sizeof (u32))
+#define	XDRBASE			(2 * sizeof (u32))
+
+#define	ACES_TO_XDRSIZE(x)	(XDRBASE + ((x) * ACE4SIZE))
+#define	XDRSIZE_TO_ACES(x)	(((x) - XDRBASE) / ACE4SIZE)
+#define	XDRSIZE_IS_VALID(x)	(((x) >= XDRBASE) && \
+				((((x) - XDRBASE) % ACE4SIZE) == 0))
+
+static int
+__zpl_xattr_nfs41acl_list(struct inode *ip, char *list, size_t list_size,
+    const char *name, size_t name_len)
+{
+	char *xattr_name = NFS41ACL_XATTR;
+	size_t xattr_size = sizeof (NFS41ACL_XATTR);
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
+		return (0);
+
+	if (list && xattr_size <= list_size)
+		memcpy(list, xattr_name, xattr_size);
+
+	return (xattr_size);
+}
+ZPL_XATTR_LIST_WRAPPER(zpl_xattr_nfs41acl_list);
+
+static int
+acep_to_nfsace4i(const ace_t *acep, u32 *xattrbuf)
+{
+	u32 who = 0, iflag = 0;
+
+	switch (acep->a_flags & ACE_TYPE_FLAGS) {
+	case ACE_OWNER:
+		iflag = ACEI4_SPECIAL_WHO;
+		who = ACE4_SPECIAL_OWNER;
+		break;
+
+	case ACE_GROUP|ACE_IDENTIFIER_GROUP:
+		iflag = ACEI4_SPECIAL_WHO;
+		who = ACE4_SPECIAL_GROUP;
+		break;
+
+	case ACE_EVERYONE:
+		iflag = ACEI4_SPECIAL_WHO;
+		who = ACE4_SPECIAL_EVERYONE;
+		break;
+
+	case ACE_IDENTIFIER_GROUP:
+	case 0:
+		who = acep->a_who;
+		break;
+
+	default:
+		dprintf("Unknown ACE_TYPE_FLAG 0x%08x\n",
+		    acep->a_flags & ACE_TYPE_FLAGS);
+		return (-EINVAL);
+	}
+
+	*xattrbuf++ = htonl(acep->a_type);
+	*xattrbuf++ = htonl(acep->a_flags & NFS41_FLAGS);
+	*xattrbuf++ = htonl(iflag);
+	*xattrbuf++ = htonl(acep->a_access_mask);
+	*xattrbuf++ = htonl(who);
+
+	return (0);
+}
+
+static int
+zfsacl_to_nfsacl41i(const vsecattr_t vsecp, u32 *xattrbuf)
+{
+	int i, error = 0;
+	ace_t *acep = NULL;
+
+	*xattrbuf++ = htonl(vsecp.vsa_aclflags);
+	*xattrbuf++ = htonl(vsecp.vsa_aclcnt);
+
+	for (i = 0; i < vsecp.vsa_aclcnt; i++, xattrbuf += ACE4ELEM) {
+		acep = vsecp.vsa_aclentp + (i * sizeof (ace_t));
+
+		error = acep_to_nfsace4i(acep, xattrbuf);
+		if (error)
+			break;
+	}
+
+	return (error);
+}
+
+static int
+nfsace4i_to_acep(const u32 *xattrbuf, ace_t *acep)
+{
+	u32 iflag, id;
+
+	acep->a_type = ntohl(*(xattrbuf++));
+	acep->a_flags = ntohl(*(xattrbuf++)) & NFS41_FLAGS;
+	iflag = ntohl(*(xattrbuf++));
+	acep->a_access_mask = ntohl(*(xattrbuf++));
+	id = ntohl(*(xattrbuf++));
+
+	if (iflag & ACEI4_SPECIAL_WHO) {
+		switch (id) {
+		case ACE4_SPECIAL_OWNER:
+			acep->a_flags |= ACE_OWNER;
+			acep->a_who = -1;
+			break;
+
+		case ACE4_SPECIAL_GROUP:
+			acep->a_flags |= (ACE_GROUP | ACE_IDENTIFIER_GROUP);
+			acep->a_who = -1;
+			break;
+
+		case ACE4_SPECIAL_EVERYONE:
+			acep->a_flags |= ACE_EVERYONE;
+			acep->a_who = -1;
+			break;
+
+		default:
+			dprintf("Unknown id 0x%08x\n", id);
+			return (-EINVAL);
+		}
+	} else {
+		acep->a_who = id;
+	}
+
+	return (0);
+}
+
+static int
+nfsacl41i_to_zfsacl(const u32 *xattrbuf, size_t bufsz, vsecattr_t *vsecp)
+{
+	int error;
+	int i;
+
+	vsecp->vsa_aclflags = ntohl(*(xattrbuf++));
+	vsecp->vsa_aclcnt = ntohl(*(xattrbuf++));
+	bufsz -= (2 * sizeof (u32));
+	vsecp->vsa_aclentsz = vsecp->vsa_aclcnt * sizeof (ace_t);
+
+	if (bufsz != (vsecp->vsa_aclcnt * ACE4SIZE)) {
+		dprintf("Embedded ACL count [%d] is not equal to "
+		    "what can fit in provided buffer size: %zu\n",
+		    vsecp->vsa_aclcnt, bufsz);
+		return (-ERANGE);
+	}
+
+	vsecp->vsa_aclentp = kmem_alloc(vsecp->vsa_aclentsz, KM_SLEEP);
+
+	for (i = 0; i < vsecp->vsa_aclcnt; i++, xattrbuf += ACE4ELEM) {
+		ace_t *acep = vsecp->vsa_aclentp + (i * sizeof (ace_t));
+
+		error = nfsace4i_to_acep(xattrbuf, acep);
+		if (error) {
+			kmem_free(vsecp->vsa_aclentp, vsecp->vsa_aclentsz);
+			return (error);
+		}
+	}
+
+	return (0);
+}
+
+static int
+__zpl_xattr_nfs41acl_get(struct inode *ip, const char *name,
+    void *buffer, size_t size)
+{
+	vsecattr_t vsecp = {0};
+	cred_t *cr = CRED();
+	int ret, fl;
+	size_t xdr_size;
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
+		return (-EOPNOTSUPP);
+
+	if (size == 0) {
+		/*
+		 * API user may send 0 size so that we
+		 * return size of buffer needed for ACL.
+		 */
+		crhold(cr);
+		vsecp.vsa_mask = VSA_ACECNT;
+		ret = -zfs_getsecattr(ITOZ(ip), &vsecp, ATTR_NOACLCHECK, cr);
+		if (ret) {
+			return (ret);
+		}
+		crfree(cr);
+		ret = ACES_TO_XDRSIZE(vsecp.vsa_aclcnt);
+		return (ret);
+	}
+
+	vsecp.vsa_mask = VSA_ACE_ALLTYPES | VSA_ACECNT | VSA_ACE |
+	    VSA_ACE_ACLFLAGS;
+
+	crhold(cr);
+	fl = capable(CAP_DAC_OVERRIDE) ? ATTR_NOACLCHECK : 0;
+	ret = -zfs_getsecattr(ITOZ(ip), &vsecp, fl, cr);
+	crfree(cr);
+
+	if (ret)
+		return (ret);
+
+	if (vsecp.vsa_aclcnt == 0) {
+		ret = -ENODATA;
+		goto nfs4acl_get_out;
+	}
+
+	xdr_size = ACES_TO_XDRSIZE(vsecp.vsa_aclcnt);
+	if (xdr_size > size) {
+		ret = -ERANGE;
+		goto nfs4acl_get_out;
+	}
+
+	ret = zfsacl_to_nfsacl41i(vsecp, (u32 *)buffer);
+	if (ret == 0)
+		ret = xdr_size;
+
+nfs4acl_get_out:
+	kmem_free(vsecp.vsa_aclentp, vsecp.vsa_aclentsz);
+
+	return (ret);
+}
+ZPL_XATTR_GET_WRAPPER(zpl_xattr_nfs41acl_get);
+
+static int
+__zpl_xattr_nfs41acl_set(zidmap_t *mnt_ns,
+    struct inode *ip, const char *name,
+    const void *value, size_t size, int flags)
+{
+	(void) mnt_ns;
+	cred_t *cr = CRED();
+	int error, fl, naces;
+	vsecattr_t vsecp = { .vsa_mask = (VSA_ACE | VSA_ACE_ACLFLAGS) };
+
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
+		return (-EOPNOTSUPP);
+
+	if (value == NULL && size == 0) {
+		crhold(cr);
+		error = zfs_stripacl(ITOZ(ip), cr);
+		crfree(cr);
+		return (error);
+	}
+
+	/* xdr data is 4-byte aligned */
+	if (((ulong_t)value % 4) != 0) {
+		return (-EINVAL);
+	}
+
+	naces = XDRSIZE_TO_ACES(size);
+	if (naces > NFS41ACL_MAX_ACES) {
+		return (-E2BIG);
+	}
+
+	if (!XDRSIZE_IS_VALID(size)) {
+		return (-EINVAL);
+	}
+
+	error = nfsacl41i_to_zfsacl((u32 *)value, size, &vsecp);
+	if (error)
+		return (error);
+
+	crhold(cr);
+	fl = capable(CAP_DAC_OVERRIDE) ? ATTR_NOACLCHECK : 0;
+	error = -zfs_setsecattr(ITOZ(ip), &vsecp, fl, cr);
+	crfree(cr);
+
+	kmem_free(vsecp.vsa_aclentp, vsecp.vsa_aclentsz);
+	return (error);
+}
+ZPL_XATTR_SET_WRAPPER(zpl_xattr_nfs41acl_set);
+
+/*
+ * ACL access xattr namespace handlers.
+ *
+ * Use .name instead of .prefix when available. xattr_resolve_name will match
+ * whole name and reject anything that has .name only as prefix.
+ */
+xattr_handler_t zpl_xattr_nfs41acl_handler =
+{
+	.name	= NFS41ACL_XATTR,
+	.list	= zpl_xattr_nfs41acl_list,
+	.get	= zpl_xattr_nfs41acl_get,
+	.set	= zpl_xattr_nfs41acl_set,
+};
+
 xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_security_handler,
 	&zpl_xattr_trusted_handler,
@@ -1392,6 +1871,7 @@ xattr_handler_t *zpl_xattr_handlers[] = {
 	&zpl_xattr_acl_access_handler,
 	&zpl_xattr_acl_default_handler,
 #endif /* CONFIG_FS_POSIX_ACL */
+	&zpl_xattr_nfs41acl_handler,
 	NULL
 };
 
@@ -1419,6 +1899,10 @@ zpl_xattr_handler(const char *name)
 	    sizeof (XATTR_NAME_POSIX_ACL_DEFAULT)) == 0)
 		return (&zpl_xattr_acl_default_handler);
 #endif /* CONFIG_FS_POSIX_ACL */
+
+	if (strncmp(name, NFS41ACL_XATTR,
+	    sizeof (NFS41ACL_XATTR)) == 0)
+		return (&zpl_xattr_nfs41acl_handler);
 
 	return (NULL);
 }

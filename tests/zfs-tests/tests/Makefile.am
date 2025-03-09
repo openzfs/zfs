@@ -72,7 +72,8 @@ regen:
 nobase_nodist_datadir_zfs_tests_tests_DATA = \
 	functional/pam/utilities.kshlib
 nobase_nodist_datadir_zfs_tests_tests_SCRIPTS = \
-	functional/pyzfs/pyzfs_unittest.ksh
+	functional/pyzfs/pyzfs_unittest.ksh \
+	functional/acl/nfsv4/nfsacl_001.ksh
 
 SUBSTFILES += $(nobase_nodist_datadir_zfs_tests_tests_DATA) $(nobase_nodist_datadir_zfs_tests_tests_SCRIPTS)
 
@@ -397,6 +398,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/idmap_mount/idmap_mount_common.kshlib
 
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
+	functional/acl/nfsv4/cleanup.ksh \
+	functional/acl/nfsv4/setup.ksh \
 	functional/acl/off/cleanup.ksh \
 	functional/acl/off/dosmode.ksh \
 	functional/acl/off/posixmode.ksh \

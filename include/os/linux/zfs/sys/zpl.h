@@ -98,6 +98,15 @@ zpl_chmod_acl(struct inode *ip)
 }
 #endif /* CONFIG_FS_POSIX_ACL */
 
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+extern int zpl_permission(struct user_namespace *userns, struct inode *ip,
+    int mask);
+#elif defined(HAVE_IOPS_PERMISSION_IDMAP)
+extern int zpl_permission(struct mnt_idmap *idmap, struct inode *ip, int mask);
+#else
+extern int zpl_permission(struct inode *ip, int mask);
+#endif
+
 extern xattr_handler_t *zpl_xattr_handlers[];
 
 /* zpl_ctldir.c */
