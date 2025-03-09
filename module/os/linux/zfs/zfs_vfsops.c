@@ -697,6 +697,36 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 			zfsvfs->z_xattr_sa = B_TRUE;
 	}
 
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTUSERQUOTA,
+	    &zfsvfs->z_defaultuserquota);
+	if (error != 0)
+		return (error);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTGROUPQUOTA,
+	    &zfsvfs->z_defaultgroupquota);
+	if (error != 0)
+		return (error);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTPROJECTQUOTA,
+	    &zfsvfs->z_defaultprojectquota);
+	if (error != 0)
+		return (error);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTUSEROBJQUOTA,
+	    &zfsvfs->z_defaultuserobjquota);
+	if (error != 0)
+		return (error);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTGROUPOBJQUOTA,
+	    &zfsvfs->z_defaultgroupobjquota);
+	if (error != 0)
+		return (error);
+
+	error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
+	    &zfsvfs->z_defaultprojectobjquota);
+	if (error != 0)
+		return (error);
+
 	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_ROOT_OBJ, 8, 1,
 	    &zfsvfs->z_root);
 	if (error != 0)
@@ -2005,6 +2035,62 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 	return (0);
 }
 
+int
+zfs_set_default_quota(zfsvfs_t *zfsvfs, zfs_prop_t prop, uint64_t quota)
+{
+	int error;
+	objset_t *os = zfsvfs->z_os;
+	const char *propstr = zfs_prop_to_name(prop);
+	dmu_tx_t *tx;
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, B_FALSE, propstr);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		return (error);
+	}
+
+	if (quota == 0) {
+		error = zap_remove(os, MASTER_NODE_OBJ, propstr, tx);
+		if (error == ENOENT)
+			error = 0;
+	} else {
+		error = zap_update(os, MASTER_NODE_OBJ, propstr, 8, 1,
+		    &quota, tx);
+	}
+
+	if (error)
+		goto out;
+
+	switch (prop) {
+	case ZFS_PROP_DEFAULTUSERQUOTA:
+		zfsvfs->z_defaultuserquota = quota;
+		break;
+	case ZFS_PROP_DEFAULTGROUPQUOTA:
+		zfsvfs->z_defaultgroupquota = quota;
+		break;
+	case ZFS_PROP_DEFAULTPROJECTQUOTA:
+		zfsvfs->z_defaultprojectquota = quota;
+		break;
+	case ZFS_PROP_DEFAULTUSEROBJQUOTA:
+		zfsvfs->z_defaultuserobjquota = quota;
+		break;
+	case ZFS_PROP_DEFAULTGROUPOBJQUOTA:
+		zfsvfs->z_defaultgroupobjquota = quota;
+		break;
+	case ZFS_PROP_DEFAULTPROJECTOBJQUOTA:
+		zfsvfs->z_defaultprojectobjquota = quota;
+		break;
+	default:
+		break;
+	}
+
+out:
+	dmu_tx_commit(tx);
+	return (error);
+}
+
 /*
  * Return true if the corresponding vfs's unmounted flag is set.
  * Otherwise return false.
@@ -2073,4 +2159,5 @@ EXPORT_SYMBOL(zfs_remount);
 EXPORT_SYMBOL(zfs_statvfs);
 EXPORT_SYMBOL(zfs_vget);
 EXPORT_SYMBOL(zfs_prune);
+EXPORT_SYMBOL(zfs_set_default_quota);
 #endif
