@@ -28,7 +28,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
- * Copyright (c) 2021, Klara Inc.
+ * Copyright (c) 2021, 2025, Klara, Inc.
  * Copyright (c) 2021, 2023 Hewlett Packard Enterprise Development LP.
  */
 
@@ -4698,6 +4698,8 @@ vdev_get_child_stat_ex(vdev_t *cvd, vdev_stat_ex_t *vsx, vdev_stat_ex_t *cvsx)
 			vsx->vsx_agg_histo[t][b] += cvsx->vsx_agg_histo[t][b];
 	}
 
+	vsx->vsx_flush_io_pend += cvsx->vsx_flush_io_pend;
+	vsx->vsx_flush_io_active += cvsx->vsx_flush_io_active;
 }
 
 boolean_t
@@ -4765,6 +4767,11 @@ vdev_get_stats_ex_impl(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			vsx->vsx_active_queue[t] = vd->vdev_queue.vq_cactive[t];
 			vsx->vsx_pend_queue[t] = vdev_queue_class_length(vd, t);
 		}
+
+		vsx->vsx_flush_io_pend =
+		    vd->vdev_queue.vq_flush_numnodes;
+		vsx->vsx_flush_io_active =
+		    vd->vdev_queue.vq_flush_active_numnodes;
 	}
 }
 
@@ -5029,6 +5036,17 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				vsx->vsx_total_histo[type]
 				    [L_HISTO(zio->io_delta)]++;
 			}
+		} else if (type == ZIO_TYPE_FLUSH) {
+			ASSERT(vd->vdev_ops->vdev_op_leaf);
+			ASSERT3U(zio->io_delta, !=, 0);
+			ASSERT3U(zio->io_delay, !=, 0);
+
+			/*
+			 * Flush ZIOs are not queued, but do have latency
+			 * numbers which are interesting to see.
+			 */
+			vsx->vsx_disk_histo[type][L_HISTO(zio->io_delay)]++;
+			vsx->vsx_total_histo[type][L_HISTO(zio->io_delta)]++;
 		}
 
 		mutex_exit(&vd->vdev_stat_lock);
