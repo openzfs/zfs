@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /* ******************************************************************
  * Huffman encoder, part of New Generation Entropy library
  * Copyright (c) 2013-2020, Yann Collet, Facebook, Inc.

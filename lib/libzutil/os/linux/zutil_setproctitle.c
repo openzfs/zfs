@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
 /*
  * Copyright © 2013 Guillem Jover <guillem@hadrons.org>
  *
