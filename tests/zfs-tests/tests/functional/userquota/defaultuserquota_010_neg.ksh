@@ -26,33 +26,39 @@
 #
 
 #
-# Copyright (c) 2017 by Fan Yong. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/projectquota/projectquota_common.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
 # DESCRIPTION:
-#	zfs get all <fs> does not print out project{obj}quota
+#       defaultuserquota and defaultgroupquota can not be set against snapshot
+#
 #
 # STRATEGY:
-#	1. set project{obj}quota to a fs
-#	2. check zfs get all fs
+#       1. Set defaultuserquota on snap
+#       2. Set defaultgroupquota on snap
 #
 
 function cleanup
 {
-	log_must cleanup_projectquota
+	cleanup_quota
+
+	datasetexists $snap_fs && destroy_dataset $snap_fs
 }
 
 log_onexit cleanup
 
-log_assert "Check zfs get all will not print out project{obj}quota"
+typeset snap_fs=$QFS@snap
+log_assert "Check setting default{user|group}quota on snapshot"
 
-log_must zfs set projectquota@$PRJID1=50m $QFS
-log_must zfs set projectobjquota@$PRJID2=100 $QFS
+log_note "Check can not set default{user|group}quota on snapshot"
+log_must zfs snapshot $snap_fs
 
-log_mustnot eval "zfs get all $QFS | grep -w projectquota"
-log_mustnot eval "zfs get all $QFS | grep -w projectobjquota"
+log_mustnot zfs set defaultuserquota=$UQUOTA_SIZE $snap_fs
 
-log_pass "zfs get all will not print out project{obj}quota"
+log_mustnot zfs set defaultgroupquota=$GQUOTA_SIZE $snap_fs
+
+log_pass "Check setting default{user|group}quota on snapshot fails as expected"

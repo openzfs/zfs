@@ -26,33 +26,35 @@
 #
 
 #
-# Copyright (c) 2017 by Fan Yong. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/projectquota/projectquota_common.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
 # DESCRIPTION:
-#	zfs get all <fs> does not print out project{obj}quota
+#
+#      zfs get all <fs> does print out defaultuserquota/defaultgroupquota
 #
 # STRATEGY:
-#	1. set project{obj}quota to a fs
-#	2. check zfs get all fs
+#       1. set defaultuserquota and defaultgroupquota to a fs
+#       2. check zfs get all fs
 #
 
 function cleanup
 {
-	log_must cleanup_projectquota
+	log_must cleanup_quota
 }
 
 log_onexit cleanup
 
-log_assert "Check zfs get all will not print out project{obj}quota"
+log_assert "Check zfs get all will print out default{user|group}quota"
 
-log_must zfs set projectquota@$PRJID1=50m $QFS
-log_must zfs set projectobjquota@$PRJID2=100 $QFS
+log_must zfs set defaultuserquota=50m $QFS
+log_must zfs set defaultgroupquota=100m $QFS
 
-log_mustnot eval "zfs get all $QFS | grep -w projectquota"
-log_mustnot eval "zfs get all $QFS | grep -w projectobjquota"
+log_must zfs get all $QFS | grep defaultuserquota
+log_must zfs get all $QFS | grep defaultgroupquota
 
-log_pass "zfs get all will not print out project{obj}quota"
+log_pass "zfs get all will print out default{user|group}quota"

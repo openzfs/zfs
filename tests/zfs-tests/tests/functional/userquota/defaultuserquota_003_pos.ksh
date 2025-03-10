@@ -26,33 +26,36 @@
 #
 
 #
-# Copyright (c) 2017 by Fan Yong. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/projectquota/projectquota_common.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
 #
 # DESCRIPTION:
-#	zfs get all <fs> does not print out project{obj}quota
+#       Check the basic function of set/get defaultuserquota and defaultgroupquota on fs
+#
 #
 # STRATEGY:
-#	1. set project{obj}quota to a fs
-#	2. check zfs get all fs
+#       1. Set defaultuserquota on fs and check output of zfs get
+#       2. Set defaultgroupquota on fs and check output of zfs get
 #
 
 function cleanup
 {
-	log_must cleanup_projectquota
+	cleanup_quota
 }
 
 log_onexit cleanup
 
-log_assert "Check zfs get all will not print out project{obj}quota"
+log_assert "Check the basic function of set/get default{user|group}quota on fs"
 
-log_must zfs set projectquota@$PRJID1=50m $QFS
-log_must zfs set projectobjquota@$PRJID2=100 $QFS
+log_note "Check zfs {set|get} default{user|group}quota"
+log_must zfs set defaultuserquota=$UQUOTA_SIZE $QFS
+log_must check_quota "defaultuserquota" $QFS "$UQUOTA_SIZE"
 
-log_mustnot eval "zfs get all $QFS | grep -w projectquota"
-log_mustnot eval "zfs get all $QFS | grep -w projectobjquota"
+log_must zfs set defaultgroupquota=$GQUOTA_SIZE $QFS
+log_must check_quota "defaultgroupquota" $QFS "$GQUOTA_SIZE"
 
-log_pass "zfs get all will not print out project{obj}quota"
+log_pass "Check the basic function of zfs {set|get} default{user|group}quota passed as expected"
