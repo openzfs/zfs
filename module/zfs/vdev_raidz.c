@@ -2257,7 +2257,7 @@ vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 	ASSERT0(asize % (1 << ashift));
 
 	psize = (asize >> ashift);
-	psize -= nparity * ((asize + cols - nparity - 1) / (cols - nparity));
+	psize -= nparity * DIV_ROUND_UP(psize, cols);
 	psize <<= ashift;
 
 	return (asize);
