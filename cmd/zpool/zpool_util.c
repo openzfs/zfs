@@ -139,3 +139,69 @@ lowbit64(uint64_t i)
 
 	return (__builtin_ffsll(i));
 }
+
+/*
+ * Given a string of comma-separated flag names, set or clear the corresponding
+ * flag variables, as defined in flagspec. If an unknown flag name is offered,
+ * returns it. On succes, returns NULL.
+ *
+ * This is most useful when combined with getopt, to allow related options to
+ * be set at once.
+ *
+ * Example:
+ *
+ * int main(int arvc, char **argv) {
+ *   struct option long_options[] = {
+ *     {"frobnicate", required_argument, NULL, 1},
+ *     {0, 0, 0, 0},
+ *   };
+ *   struct zpool_option_flag frobnicate_flags[] = {
+ *     {"gizmo",  &frobnicate_gizmo},
+ *     {"widget", &frobnicate_widget},
+ *     {"thingy", &frobnicate_thingy},
+ *   };
+ *   int do_gizmo = 0, do_widget = 1, do_thingy = 0;
+ *
+ *   while ((c = getopt_long(argc, argv, "", long_options, NULL)) != -1) {
+ *     switch (c) {
+ *     case 1:
+ *       char *unknown = zpool_option_flag_apply(optarg, frobnicate_flags);
+ *       if (unknown)
+ *         printf("unknown flag to --frobnicate: %s\n", unknown);
+ *   }
+ *
+ *   printf("gizmo %d widget %d thingy %d\n", do_gizmo, do_widget, do_thingy);
+ *   return (0);
+ * }
+ *
+ * $ myprogram --frobnicate='!widget,thingy'
+ * gizmo 0 widget 0 thingy 1
+ *
+ *
+ */
+char *
+zpool_option_flag_apply(char *argstr, struct zpool_option_flag *flagspec)
+{
+	char *name, *tmp = NULL;
+	while ((name = strtok_r(argstr, ",", &tmp)) != NULL) {
+		argstr = NULL;
+		int newval = 1;
+		if (*name == '!') {
+			newval = 0;
+			name++;
+		}
+		int found = 0;
+		for (struct zpool_option_flag *f = flagspec; f->name; f++) {
+			if (strcmp(name, f->name) == 0) {
+				if (f->flag)
+					*f->flag = newval;
+				found = 1;
+				break;
+			}
+		}
+		if (!found)
+			return (name);
+	}
+
+	return (NULL);
+}

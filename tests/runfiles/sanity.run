@@ -267,7 +267,7 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_encrypted',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
-    'zpool_create_features_005_pos']
+    'zpool_create_features_005_pos', 'zpool_create_force_layout']
 tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]
