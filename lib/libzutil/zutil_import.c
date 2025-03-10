@@ -589,10 +589,12 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				 *	pool state
 				 *	hostid (if available)
 				 *	hostname (if available)
+				 *	new name (if available)
 				 */
 				uint64_t state, version;
 				const char *comment = NULL;
 				const char *compatibility = NULL;
+				const char *newname = NULL;
 
 				version = fnvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_VERSION);
@@ -634,6 +636,11 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					fnvlist_add_string(config,
 					    ZPOOL_CONFIG_HOSTNAME, hostname);
 				}
+
+				if (nvlist_lookup_string(tmp,
+				    ZPOOL_CONFIG_NEWNAME, &newname) == 0)
+					fnvlist_add_string(config,
+					    ZPOOL_CONFIG_NEWNAME, newname);
 
 				config_seen = B_TRUE;
 			}
