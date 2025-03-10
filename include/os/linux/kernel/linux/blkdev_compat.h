@@ -383,7 +383,7 @@ bio_set_flush(struct bio *bio)
 static inline boolean_t
 bio_is_flush(struct bio *bio)
 {
-	return (bio_op(bio) == REQ_OP_FLUSH);
+	return (bio->bi_opf & REQ_PREFLUSH);
 }
 
 /*
