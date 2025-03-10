@@ -109,6 +109,7 @@ icp_fini(void)
 {
 	sha2_mod_fini();
 	aes_mod_fini();
+	chapoly_mod_fini();
 	kcf_sched_destroy();
 	kcf_prov_tab_destroy();
 	kcf_destroy_mech_tabs();
@@ -131,6 +132,7 @@ icp_init(void)
 	kcf_sched_init();
 
 	/* initialize algorithms */
+	chapoly_mod_init();
 	aes_mod_init();
 	sha2_mod_init();
 
