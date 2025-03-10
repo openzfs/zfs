@@ -5148,10 +5148,10 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		mg->mg_failed_allocations++;
 		metaslab_trace_add(zal, mg, NULL, asize, d,
 		    TRACE_GROUP_FAILURE, allocator);
-		if (asize == SPA_GANGBLOCKSIZE) {
+		if (asize <= (1 << mg->mg_vd->vdev_ashift)) {
 			/*
 			 * This metaslab group was unable to allocate
-			 * the minimum gang block size so it must be out of
+			 * the minimum block size so it must be out of
 			 * space. We must notify the allocation throttle
 			 * to start skipping allocation attempts to this
 			 * metaslab group until more space becomes available.
