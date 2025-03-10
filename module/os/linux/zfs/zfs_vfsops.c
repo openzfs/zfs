@@ -928,7 +928,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 			} else {
 				zfsvfs->z_replay = B_TRUE;
 				zil_replay(zfsvfs->z_os, zfsvfs,
-				    zfs_replay_vector);
+				    zfs_replay_vector, zfs_replay_prime_vector);
 				zfsvfs->z_replay = B_FALSE;
 			}
 		}

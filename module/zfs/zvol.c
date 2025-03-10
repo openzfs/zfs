@@ -836,6 +836,35 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 };
 
 /*
+ * Callback vectors for priming the arc cache prior to replaying records.
+ * These functions can be implemented to improve zil replay latencies, in
+ * particular for high latency devices.
+ */
+zfs_replay_prime_arc_func_t *const zvol_replay_prime_vector[TX_MAX_TYPE] = {
+	NULL,			/* no such type */
+	NULL,			/* TX_CREATE */
+	NULL,			/* TX_MKDIR */
+	NULL,			/* TX_MKXATTR */
+	NULL,			/* TX_SYMLINK */
+	NULL,			/* TX_REMOVE */
+	NULL,			/* TX_RMDIR */
+	NULL,			/* TX_LINK */
+	NULL,			/* TX_RENAME */
+	NULL,			/* TX_WRITE */
+	NULL,			/* TX_TRUNCATE */
+	NULL,			/* TX_SETATTR */
+	NULL,			/* TX_ACL_V0 */
+	NULL,			/* TX_ACL */
+	NULL,			/* TX_CREATE_ACL */
+	NULL,			/* TX_CREATE_ATTR */
+	NULL,			/* TX_CREATE_ACL_ATTR */
+	NULL,			/* TX_MKDIR_ACL */
+	NULL,			/* TX_MKDIR_ATTR */
+	NULL,			/* TX_MKDIR_ACL_ATTR */
+	NULL,			/* TX_WRITE2 */
+};
+
+/*
  * zvol_log_write() handles synchronous writes using TX_WRITE ZIL transactions.
  *
  * We store data in the log buffers if it's small enough.
