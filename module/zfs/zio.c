@@ -3240,7 +3240,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_byteorder = gio->io_prop.zp_byteorder;
 		zp.zp_direct_write = B_FALSE;
-		zp.zp_must_gang = B_FALSE;
 		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
 		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
 		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
@@ -3944,18 +3943,21 @@ zio_ddt_write(zio_t *zio)
 		need_dvas -= parent_dvas;
 	}
 
+	if (gang_dvas > 0 && have_dvas > 0) {
+		zp->zp_dedup = B_FALSE;
+		BP_SET_DEDUP(bp, B_FALSE);
+		zio->io_pipeline = ZIO_WRITE_PIPELINE;
+		ddt_exit(ddt);
+		return (zio);
+	}
+
 	/*
 	 * We need to write. We will create a new write with the copies
 	 * property adjusted to match the number of DVAs we need to need to
 	 * grow the DDT entry by to satisfy the request.
 	 */
 	zio_prop_t czp = *zp;
-	if (gang_dvas > 0 && have_dvas > 0) {
-		czp.zp_gang_copies = need_dvas +
-		    (zp->zp_gang_copies - zp->zp_copies);
-		czp.zp_copies = need_dvas;
-		czp.zp_must_gang = B_TRUE;
-	} else if (gang_dvas == 0 && have_dvas > 0) {
+	if (gang_dvas == 0 && have_dvas > 0) {
 		czp.zp_copies = need_dvas;
 		czp.zp_gang_copies = 0;
 	} else {
@@ -4167,15 +4169,14 @@ zio_dva_allocate(zio_t *zio)
 	 * back to spa_sync() which is abysmal for performance.
 	 */
 	ASSERT(ZIO_HAS_ALLOCATOR(zio));
-	error = zio->io_prop.zp_must_gang ? ENOSPC : metaslab_alloc(spa,
-	    mc, zio->io_size, bp, zio->io_prop.zp_copies, zio->io_txg, NULL,
-	    flags, &zio->io_alloc_list, zio, zio->io_allocator);
+	error = metaslab_alloc(spa, mc, zio->io_size, bp,
+	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
+	    &zio->io_alloc_list, zio, zio->io_allocator);
 
 	/*
 	 * Fallback to normal class when an alloc class is full
 	 */
-	if (error == ENOSPC && mc != spa_normal_class(spa) &&
-	    !zio->io_prop.zp_must_gang) {
+	if (error == ENOSPC && mc != spa_normal_class(spa)) {
 		/*
 		 * When the dedup or special class is spilling into the  normal
 		 * class, there can still be significant space available due
@@ -4227,8 +4228,7 @@ zio_dva_allocate(zio_t *zio)
 	}
 
 	if (error == ENOSPC && zio->io_size > SPA_MINBLOCKSIZE) {
-		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC &&
-		    !zio->io_prop.zp_must_gang) {
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
 			    spa_name(spa), zio, (u_longlong_t)zio->io_size,

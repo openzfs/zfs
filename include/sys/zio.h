@@ -358,7 +358,6 @@ typedef struct zio_prop {
 	boolean_t		zp_encrypt;
 	boolean_t		zp_byteorder;
 	boolean_t		zp_direct_write;
-	boolean_t		zp_must_gang;
 	uint8_t			zp_salt[ZIO_DATA_SALT_LEN];
 	uint8_t			zp_iv[ZIO_DATA_IV_LEN];
 	uint8_t			zp_mac[ZIO_DATA_MAC_LEN];
