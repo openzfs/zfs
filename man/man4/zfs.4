@@ -1282,7 +1282,7 @@ This should be less than
 .Sy zfs_vdev_async_write_active_min_dirty_percent .
 .
 .It Sy zfs_wrlog_data_max Ns = Pq int
-The upper limit of write-transaction zil log data size in bytes.
+The upper limit of write-transaction ZIL log data size in bytes.
 Write operations are throttled when approaching the limit until log data is
 cleared out after transaction group sync.
 Because of some overhead, it should be set at least 2 times the size of
@@ -2396,7 +2396,7 @@ This controls the number of threads used by
 .Sy dp_zil_clean_taskq .
 The default value of
 .Sy 100%
-will create a maximum of one thread per cpu.
+will create a maximum of one thread per CPU.
 .
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.

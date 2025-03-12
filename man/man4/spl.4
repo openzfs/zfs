@@ -100,7 +100,7 @@ when exceeding this value.
 .It Sy spl_kmem_cache_magazine_size Ns = Ns Sy 0 Pq uint
 Cache magazines are an optimization designed to minimize the cost of
 allocating memory.
-They do this by keeping a per-cpu cache of recently
+They do this by keeping a per-CPU cache of recently
 freed objects, which can then be reallocated without taking a lock.
 This can improve performance on highly contended caches.
 However, because objects in magazines will prevent otherwise empty slabs
@@ -111,8 +111,8 @@ For this reason,
 can be used to set a maximum magazine size.
 When this value is set to 0 the magazine size will
 be automatically determined based on the object size.
-Otherwise magazines will be limited to 2-256 objects per magazine (i.e. per CPU).
-Magazines may never be entirely disabled in this implementation.
+Otherwise magazines will be limited to 2-256 objects per magazine (i.e. per
+CPU). Magazines may never be entirely disabled in this implementation.
 .
 .It Sy spl_hostid Ns = Ns Sy 0 Pq ulong
 The system hostid, when set this can be used to uniquely identify a system.
