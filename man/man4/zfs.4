@@ -237,7 +237,7 @@ in reading stored log metadata, or the metadata
 has become somehow fragmented/unusable).
 .
 .It Sy l2arc_rebuild_blocks_min_l2size Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
-Mininum size of an L2ARC device required in order to write log blocks in it.
+Minimum size of an L2ARC device required in order to write log blocks in it.
 The log blocks are used upon importing the pool to rebuild the persistent L2ARC.
 .Pp
 For L2ARC devices less than 1 GiB, the amount of data
@@ -572,16 +572,16 @@ most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
 .It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
-Determines the number of block alloctators to use per spa instance.
+Determines the number of block allocators to use per spa instance.
 Capped by the number of actual CPUs in the system via
 .Sy spa_cpus_per_allocator .
 .Pp
 Note that setting this value too high could result in performance
-degredation and/or excess fragmentation.
+degradation and/or excess fragmentation.
 Set value only applies to pools imported/created after that.
 .
 .It Sy spa_cpus_per_allocator Ns = Ns Sy 4 Pq int
-Determines the minimum number of CPUs in a system for block alloctator
+Determines the minimum number of CPUs in a system for block allocator
 per spa instance.
 Set value only applies to pools imported/created after that.
 .
