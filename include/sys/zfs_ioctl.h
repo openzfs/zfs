@@ -421,8 +421,6 @@ typedef struct zinject_record {
 	uint64_t	zi_nlanes;
 	uint32_t	zi_cmd;
 	uint32_t	zi_dvas;
-	uint64_t	zi_match_count;		/* count of times matched */
-	uint64_t	zi_inject_count;	/* count of times injected */
 } zinject_record_t;
 
 #define	ZINJECT_NULL		0x1
