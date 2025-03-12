@@ -188,7 +188,7 @@ form below for details.
 If neither of the
 .Fl dl
 options are specified, or both are, then the permissions are allowed for the
-file system or volume, and all of its descendents.
+file system or volume, and all of its descendants.
 .Pp
 Permissions are generally the ability to use a ZFS subcommand or change a ZFS
 property.
@@ -311,7 +311,7 @@ to the creator of any newly-created descendent file system.
 Defines or adds permissions to a permission set.
 The set can be used by other
 .Nm zfs Cm allow
-commands for the specified file system and its descendents.
+commands for the specified file system and its descendants.
 Sets are evaluated dynamically, so changes to a set are immediately reflected.
 Permission sets follow the same naming restrictions as ZFS file systems, but the
 name must begin with
@@ -371,7 +371,7 @@ command for a description of the
 options.
 .Bl -tag -width "-r"
 .It Fl r
-Recursively remove the permissions from this file system and all descendents.
+Recursively remove the permissions from this file system and all descendants.
 .El
 .It Xo
 .Nm zfs
