@@ -2238,7 +2238,7 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 /*
  * This code converts an asize into the largest psize that can safely be written
  * to an allocation of that size for this vdev.
- * 
+ *
  * Note that this function will not take into account the effect of gang
  * headers, which also modify the ASIZE of the DVAs. It is purely a reverse of
  * the psize_to_asize function.
