@@ -55,7 +55,7 @@ Force the daemon to run if at all possible, disabling security checks and
 throwing caution to the wind.
 Not recommended for use in production.
 .It Fl F
-Don't daemonise: remain attached to the controlling terminal,
+Don't daemonize: remain attached to the controlling terminal,
 log to the standard I/O streams.
 .It Fl M
 Lock all current and future pages in the virtual memory address space.
