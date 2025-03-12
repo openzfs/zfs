@@ -1106,7 +1106,7 @@ Max memory to use for dedup logs, as a percentage of total memory.
 .Pp
 If
 .Sy zfs_dedup_log_mem_max
-is not set, it will be initialised as a percentage of the total memory in the
+is not set, it will be initialized as a percentage of the total memory in the
 system.
 .
 .It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
@@ -1991,7 +1991,7 @@ as it typically results in leaked space, or worse.
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Ignore hard I/O errors during device removal.
 When set, if a device encounters a hard I/O error during the removal process
-the removal will not be cancelled.
+the removal will not be canceled.
 This can result in a normally recoverable block becoming permanently damaged
 and is hence not recommended.
 This should only be used as a last resort when the
@@ -2650,7 +2650,7 @@ and
 limits.
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
-Defines zvol block devices behaviour when
+Defines zvol block devices behavior when
 .Sy volmode Ns = Ns Sy default :
 .Bl -tag -compact -offset 4n -width "a"
 .It Sy 1
