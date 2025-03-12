@@ -3780,7 +3780,7 @@ zio_ddt_write(zio_t *zio)
 	 */
 	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
 	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
-	int gang_dvas = ddt_phys_gang_count(ddp, v, BP_IS_ENCRYPTED(bp));
+	boolean_t is_ganged = ddt_phys_is_gang(ddp, v);
 
 	/* Number of DVAs requested by the IO. */
 	uint8_t need_dvas = zp->zp_copies;
@@ -3928,7 +3928,7 @@ zio_ddt_write(zio_t *zio)
 		need_dvas -= parent_dvas;
 	}
 
-	if (gang_dvas > 0 && have_dvas > 0) {
+	if (is_ganged) {
 		zp->zp_dedup = B_FALSE;
 		BP_SET_DEDUP(bp, B_FALSE);
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
@@ -3942,7 +3942,7 @@ zio_ddt_write(zio_t *zio)
 	 * grow the DDT entry by to satisfy the request.
 	 */
 	zio_prop_t czp = *zp;
-	if (gang_dvas == 0 && have_dvas > 0) {
+	if (have_dvas > 0) {
 		czp.zp_copies = need_dvas;
 		czp.zp_gang_copies = 0;
 	} else {
