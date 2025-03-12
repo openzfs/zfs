@@ -220,7 +220,7 @@ This property can also be referred to by its shortened column name,
 .It Sy logicalused
 The amount of space that is
 .Qq logically
-consumed by this dataset and all its descendents.
+consumed by this dataset and all its descendants.
 See the
 .Sy used
 property.
@@ -298,7 +298,7 @@ The type of dataset:
 or
 .Sy bookmark .
 .It Sy used
-The amount of space consumed by this dataset and all its descendents.
+The amount of space consumed by this dataset and all its descendants.
 This is the value that is checked against this dataset's quota and reservation.
 The space used does not include this dataset's reservation, but does take into
 account the reservations of any descendent datasets.
@@ -361,7 +361,7 @@ The amount of space used by this dataset itself, which would be freed if the
 dataset were destroyed
 .Po after first removing any
 .Sy refreservation
-and destroying any necessary snapshots or descendents
+and destroying any necessary snapshots or descendants
 .Pc .
 .It Sy usedbyrefreservation
 The amount of space used by a
@@ -1270,7 +1270,7 @@ Setting a
 .Sy filesystem_limit
 to
 .Sy on
-a descendent of a filesystem that already has a
+a descendant of a filesystem that already has a
 .Sy filesystem_limit
 does not override the ancestor's
 .Sy filesystem_limit ,
@@ -1362,11 +1362,11 @@ then only metadata is cached.
 The default value is
 .Sy all .
 .It Sy quota Ns = Ns Ar size Ns | Ns Sy none
-Limits the amount of space a dataset and its descendents can consume.
+Limits the amount of space a dataset and its descendants can consume.
 This property enforces a hard limit on the amount of space used.
-This includes all space consumed by descendents, including file systems and
+This includes all space consumed by descendants, including file systems and
 snapshots.
-Setting a quota on a descendent of a dataset that already has a quota does not
+Setting a quota on a descendant of a dataset that already has a quota does not
 override the ancestor's quota, but rather imposes an additional limit.
 .Pp
 Quotas cannot be set on volumes, as the
@@ -1374,10 +1374,10 @@ Quotas cannot be set on volumes, as the
 property acts as an implicit quota.
 .It Sy snapshot_limit Ns = Ns Ar count Ns | Ns Sy none
 Limits the number of snapshots that can be created on a dataset and its
-descendents.
+descendants.
 Setting a
 .Sy snapshot_limit
-on a descendent of a dataset that already has a
+on a descendant of a dataset that already has a
 .Sy snapshot_limit
 does not override the ancestor's
 .Sy snapshot_limit ,
@@ -1608,11 +1608,11 @@ The default value is
 .It Sy refquota Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space a dataset can consume.
 This property enforces a hard limit on the amount of space used.
-This hard limit does not include space used by descendents, including file
+This hard limit does not include space used by descendants, including file
 systems and snapshots.
 .It Sy refreservation Ns = Ns Ar size Ns | Ns Sy none Ns | Ns Sy auto
 The minimum amount of space guaranteed to a dataset, not including its
-descendents.
+descendants.
 When the amount of space used is below this value, the dataset is treated as if
 it were taking up the amount of space specified by
 .Sy refreservation .
