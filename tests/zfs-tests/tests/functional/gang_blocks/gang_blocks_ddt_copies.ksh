@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -43,7 +44,7 @@ function cleanup2
 preamble
 log_onexit cleanup2
 
-log_must zpool create -f -o ashift=9 $TESTPOOL $DISKS
+log_must zpool create -f -o ashift=9 -o feature@block_cloning=disabled $TESTPOOL $DISKS
 log_must zfs create -o recordsize=64k -o dedup=on $TESTPOOL/fs1
 log_must zfs create -o recordsize=64k -o dedup=on -o copies=3 $TESTPOOL/fs2
 set_tunable32 DEDUP_LOG_TXG_MAX 1
@@ -61,6 +62,18 @@ log_must sync_pool $TESTPOOL
 log_must zdb -D $TESTPOOL
 set_tunable32 METASLAB_FORCE_GANGING_PCT 0
 log_must dd if=/$TESTPOOL/fs1/f1 of=/$TESTPOOL/fs2/f1 bs=64k count=1
-log_must sync_pool $TESTPOOL # This will panic, case 3
+log_must sync_pool $TESTPOOL
+
+log_must rm /$TESTPOOL/fs*/f1
+log_must sync_pool $TESTPOOL
+set_tunable32 METASLAB_FORCE_GANGING_PCT 50
+set_tunable32 METASLAB_FORCE_GANGING 40000
+log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=64k count=1
+for i in `seq 1 16`; do
+	log_must cp /$TESTPOOL/f1 /$TESTPOOL/fs2/f1
+	log_must cp /$TESTPOOL/f1 /$TESTPOOL/fs1/f1
+	log_must sync_pool $TESTPOOL
+	log_must zdb -D $TESTPOOL
+done
 
 log_pass "Verify that mixed gang blocks and copies interact correctly in FDT"
