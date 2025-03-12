@@ -3647,16 +3647,6 @@ zio_ddt_child_write_done(zio_t *zio)
 	}
 
 	/*
-	 * We've successfully added new DVAs to the entry. Clear the saved
-	 * state or, if there's still outstanding IO, remember it so we can
-	 * revert to a known good state if that IO fails.
-	 */
-	if (dde->dde_io->dde_lead_zio[p] == NULL)
-		ddt_phys_clear(orig, v);
-	else
-		ddt_phys_copy(orig, ddp, v);
-
-	/*
 	 * Add references for all dedup writes that were waiting on the
 	 * physical one, skipping any other physical writes that are waiting.
 	 */
@@ -3666,6 +3656,16 @@ zio_ddt_child_write_done(zio_t *zio)
 		if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
 			ddt_phys_addref(ddp, v);
 	}
+
+	/*
+	 * We've successfully added new DVAs to the entry. Clear the saved
+	 * state or, if there's still outstanding IO, remember it so we can
+	 * revert to a known good state if that IO fails.
+	 */
+	if (dde->dde_io->dde_lead_zio[p] == NULL)
+		ddt_phys_clear(orig, v);
+	else
+		ddt_phys_copy(orig, ddp, v);
 
 	ddt_exit(ddt);
 }
@@ -3681,6 +3681,16 @@ zio_ddt_child_write_ready(zio_t *zio)
 
 	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+
+	if (ddt_phys_is_gang(dde->dde_phys, v)) {
+		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
+			dva_t *d = &zio->io_bp->blk_dva[i];
+			metaslab_group_alloc_decrement(zio->io_spa,
+			    DVA_GET_VDEV(d), zio, METASLAB_ASYNC_ALLOC,
+			    zio->io_allocator, B_FALSE);
+		}
+		zio->io_error = EAGAIN;
+	}
 
 	if (zio->io_error != 0)
 		return;
@@ -3799,6 +3809,8 @@ zio_ddt_write(zio_t *zio)
 
 	/* Number of DVAs requested by the IO. */
 	uint8_t need_dvas = zp->zp_copies;
+	/* Number of DVAs in outstanding writes for this dde. */
+	uint8_t parent_dvas = 0;
 
 	/*
 	 * What we do next depends on whether or not there's IO outstanding that
@@ -3928,7 +3940,7 @@ zio_ddt_write(zio_t *zio)
 		zio_t *pio =
 		    zio_walk_parents(dde->dde_io->dde_lead_zio[p], &zl);
 		ASSERT(pio);
-		uint8_t parent_dvas = pio->io_prop.zp_copies;
+		parent_dvas = pio->io_prop.zp_copies;
 
 		if (parent_dvas >= need_dvas) {
 			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
@@ -3957,14 +3969,13 @@ zio_ddt_write(zio_t *zio)
 	 * grow the DDT entry by to satisfy the request.
 	 */
 	zio_prop_t czp = *zp;
-	if (have_dvas > 0) {
+	if (have_dvas > 0 || parent_dvas > 0) {
 		czp.zp_copies = need_dvas;
 		czp.zp_gang_copies = 0;
 	} else {
-		czp.zp_copies = need_dvas;
-		czp.zp_gang_copies = need_dvas +
-		    (zp->zp_gang_copies - zp->zp_copies);
+		ASSERT3U(czp.zp_copies, ==, need_dvas);
 	}
+
 	zio_t *cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
 	    zio->io_orig_size, zio->io_orig_size, &czp,
 	    zio_ddt_child_write_ready, NULL,
