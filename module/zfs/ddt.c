@@ -815,17 +815,14 @@ ddt_phys_birth(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 }
 
 int
-ddt_phys_gang_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
-    boolean_t encrypted)
+ddt_phys_is_gang(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 {
 	ASSERT3U(v, <, DDT_PHYS_NONE);
 
 	const dva_t *dvas = (v == DDT_PHYS_FLAT) ?
 	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
 
-	return (DVA_GET_GANG(&dvas[0]) +
-	    DVA_GET_GANG(&dvas[1] +
-	    DVA_GET_GANG(&dvas[2]) * !encrypted));
+	return (DVA_GET_GANG(&dvas[0]));
 }
 
 int
