@@ -76,7 +76,7 @@ log_must zpool prefetch -t ddt $TESTPOOL
 # to generate a reasonable size DDT for testing purposes.
 
 DATASET=$TESTPOOL/ddt
-log_must zfs create -o dedup=on $DATASET
+log_must zfs create -o compression=off -o dedup=on $DATASET
 MNTPOINT=$(get_prop mountpoint $TESTPOOL/ddt)
 
 log_note "Generating dataset ..."
