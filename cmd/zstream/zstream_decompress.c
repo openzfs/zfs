@@ -125,14 +125,16 @@ zstream_do_decompress(int argc, char *argv[])
 				type = ZIO_COMPRESS_LZJB;
 			else if (0 == strcmp("gzip", argv[i]))
 				type = ZIO_COMPRESS_GZIP_1;
+			else if (0 == strcmp("slack", argv[i]))
+				type = ZIO_COMPRESS_SLACK;
 			else if (0 == strcmp("zle", argv[i]))
 				type = ZIO_COMPRESS_ZLE;
 			else if (0 == strcmp("zstd", argv[i]))
 				type = ZIO_COMPRESS_ZSTD;
 			else {
 				fprintf(stderr, "Invalid compression type %s.\n"
-				    "Supported types are off, lz4, lzjb, gzip, "
-				    "zle, and zstd\n",
+				    "Supported types are off, lz4, lzjb, "
+				    "gzip, slack, zle, and zstd\n",
 				    argv[i]);
 				exit(2);
 			}

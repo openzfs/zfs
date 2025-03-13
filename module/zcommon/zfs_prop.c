@@ -131,6 +131,7 @@ zfs_prop_init(void)
 		{ "gzip-9",	ZIO_COMPRESS_GZIP_9 },
 		{ "zle",	ZIO_COMPRESS_ZLE },
 		{ "lz4",	ZIO_COMPRESS_LZ4 },
+		{ "slack",	ZIO_COMPRESS_SLACK },
 		{ "zstd",	ZIO_COMPRESS_ZSTD },
 		{ "zstd-fast",
 		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_DEFAULT) },
