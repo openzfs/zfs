@@ -35,6 +35,7 @@
 /rename_dir
 /rm_lnkcnt_zero_file
 /send_doall
+/statx
 /stride_dd
 /threadsappend
 /user_ns_exec
@@ -53,3 +54,4 @@
 /skein_test
 /sha2_test
 /idmap_util
+/statx

@@ -974,7 +974,7 @@ tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
 
 [tests/functional/stat]
-tests = ['stat_001_pos']
+tests = ['stat_001_pos', 'statx_dioalign']
 tags = ['functional', 'stat']
 
 [tests/functional/suid]
