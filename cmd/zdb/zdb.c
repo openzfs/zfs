@@ -5864,7 +5864,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		 * Find the block. This will create the entry in memory, but
 		 * we'll know if that happened by its refcount.
 		 */
-		ddt_entry_t *dde = ddt_lookup(ddt, bp);
+		ddt_entry_t *dde = ddt_lookup(ddt, bp, B_TRUE);
 
 		/*
 		 * ddt_lookup() can return NULL if this block didn't exist

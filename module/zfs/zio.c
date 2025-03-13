@@ -3718,7 +3718,13 @@ zio_ddt_write(zio_t *zio)
 	ASSERT3B(zio->io_prop.zp_direct_write, ==, B_FALSE);
 
 	ddt_enter(ddt);
-	dde = ddt_lookup(ddt, bp);
+	/*
+	 * Search DDT for matching entry.  Skip DVAs verification here, since
+	 * they can go only from override, and once we get here the override
+	 * pointer can't have "D" flag to be confused with pruned DDT entries.
+	 */
+	IMPLY(zio->io_bp_override, !BP_GET_DEDUP(zio->io_bp_override));
+	dde = ddt_lookup(ddt, bp, B_FALSE);
 	if (dde == NULL) {
 		/* DDT size is over its quota so no new entries */
 		zp->zp_dedup = B_FALSE;
@@ -3994,7 +4000,7 @@ zio_ddt_free(zio_t *zio)
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
 	ddt_enter(ddt);
-	freedde = dde = ddt_lookup(ddt, bp);
+	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
 	if (dde) {
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		if (v != DDT_PHYS_NONE)
