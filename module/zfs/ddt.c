@@ -251,11 +251,6 @@ boolean_t ddt_prune_artificial_age = B_FALSE;
 boolean_t ddt_dump_prune_histogram = B_FALSE;
 
 /*
- * Don't do more than this many incremental flush passes per txg.
- */
-uint_t zfs_dedup_log_flush_passes_max = 8;
-
-/*
  * Minimum time to flush per txg.
  */
 uint_t zfs_dedup_log_flush_min_time_ms = 1000;
@@ -263,7 +258,32 @@ uint_t zfs_dedup_log_flush_min_time_ms = 1000;
 /*
  * Minimum entries to flush per txg.
  */
-uint_t zfs_dedup_log_flush_entries_min = 1000;
+uint_t zfs_dedup_log_flush_entries_min = 200;
+
+/*
+ * Target number of TXGs until the whole dedup log has been flushed.
+ * The log size will float around this value times the ingest rate.
+ */
+uint_t zfs_dedup_log_flush_txgs = 100;
+
+/*
+ * Maximum entries to flush per txg. Used for testing the dedup log.
+ */
+uint_t zfs_dedup_log_flush_entries_max = UINT_MAX;
+
+/*
+ * Soft cap for the size of the current dedup log. If the log is larger
+ * than this size, we slightly increase the aggressiveness of the flushing to
+ * try to bring it back down to the soft cap.
+ */
+uint_t zfs_dedup_log_cap = UINT_MAX;
+
+/*
+ * If this is set to B_TRUE, the cap above acts more like a hard cap:
+ * flushing is significantly more aggressive, increasing the minimum amount we
+ * flush per txg, as well as the maximum.
+ */
+boolean_t zfs_dedup_log_hard_cap = B_FALSE;
 
 /*
  * Number of txgs to average flow rates across.
@@ -1600,6 +1620,7 @@ ddt_table_alloc(spa_t *spa, enum zio_checksum c)
 	ddt->ddt_spa = spa;
 	ddt->ddt_os = spa->spa_meta_objset;
 	ddt->ddt_version = DDT_VERSION_UNCONFIGURED;
+	ddt->ddt_log_flush_pressure = 10;
 
 	ddt_log_alloc(ddt);
 	ddt_table_alloc_kstats(ddt);
@@ -2013,146 +2034,6 @@ _ewma(int32_t val, int32_t prev, uint32_t weight)
 	return (new);
 }
 
-/* Returns true if done for this txg */
-static boolean_t
-ddt_sync_flush_log_incremental(ddt_t *ddt, dmu_tx_t *tx)
-{
-	if (ddt->ddt_flush_pass == 0) {
-		if (spa_sync_pass(ddt->ddt_spa) == 1) {
-			/* First run this txg, get set up */
-			ddt->ddt_flush_start = gethrtime();
-			ddt->ddt_flush_count = 0;
-
-			/*
-			 * How many entries we need to flush. We want to at
-			 * least match the ingest rate.
-			 */
-			ddt->ddt_flush_min = MAX(
-			    ddt->ddt_log_ingest_rate,
-			    zfs_dedup_log_flush_entries_min);
-
-			/*
-			 * If we've been asked to flush everything in a hurry,
-			 * try to dump as much as possible on this txg. In
-			 * this case we're only limited by time, not amount.
-			 */
-			if (ddt->ddt_flush_force_txg > 0)
-				ddt->ddt_flush_min =
-				    MAX(ddt->ddt_flush_min, avl_numnodes(
-				    &ddt->ddt_log_flushing->ddl_tree));
-		} else {
-			/* We already decided we're done for this txg */
-			return (B_FALSE);
-		}
-	} else if (ddt->ddt_flush_pass == spa_sync_pass(ddt->ddt_spa)) {
-		/*
-		 * We already did some flushing on this pass, skip it. This
-		 * happens when dsl_process_async_destroys() runs during a scan
-		 * (on pass 1) and does an additional ddt_sync() to update
-		 * freed blocks.
-		 */
-		return (B_FALSE);
-	}
-
-	if (spa_sync_pass(ddt->ddt_spa) >
-	    MAX(zfs_dedup_log_flush_passes_max, 1)) {
-		/* Too many passes this txg, defer until next. */
-		ddt->ddt_flush_pass = 0;
-		return (B_TRUE);
-	}
-
-	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree)) {
-		/* Nothing to flush, done for this txg. */
-		ddt->ddt_flush_pass = 0;
-		return (B_TRUE);
-	}
-
-	uint64_t target_time = txg_sync_waiting(ddt->ddt_spa->spa_dsl_pool) ?
-	    MIN(MSEC2NSEC(zfs_dedup_log_flush_min_time_ms),
-	    SEC2NSEC(zfs_txg_timeout)) : SEC2NSEC(zfs_txg_timeout);
-
-	uint64_t elapsed_time = gethrtime() - ddt->ddt_flush_start;
-
-	if (elapsed_time >= target_time) {
-		/* Too long since we started, done for this txg. */
-		ddt->ddt_flush_pass = 0;
-		return (B_TRUE);
-	}
-
-	ddt->ddt_flush_pass++;
-	ASSERT3U(spa_sync_pass(ddt->ddt_spa), ==, ddt->ddt_flush_pass);
-
-	/*
-	 * Estimate how much time we'll need to flush the remaining entries
-	 * based on how long it normally takes.
-	 */
-	uint32_t want_time;
-	if (ddt->ddt_flush_pass == 1) {
-		/* First pass, use the average time/entries */
-		if (ddt->ddt_log_flush_rate == 0)
-			/* Zero rate, just assume the whole time */
-			want_time = target_time;
-		else
-			want_time = ddt->ddt_flush_min *
-			    ddt->ddt_log_flush_time_rate /
-			    ddt->ddt_log_flush_rate;
-	} else {
-		/* Later pass, calculate from this txg so far */
-		want_time = ddt->ddt_flush_min *
-		    elapsed_time / ddt->ddt_flush_count;
-	}
-
-	/* Figure out how much time we have left */
-	uint32_t remain_time = target_time - elapsed_time;
-
-	/* Smear the remaining entries over the remaining passes. */
-	uint32_t nentries = ddt->ddt_flush_min /
-	    (MAX(1, zfs_dedup_log_flush_passes_max) + 1 - ddt->ddt_flush_pass);
-	if (want_time > remain_time) {
-		/*
-		 * We're behind; try to catch up a bit by doubling the amount
-		 * this pass. If we're behind that means we're in a later
-		 * pass and likely have most of the remaining time to
-		 * ourselves. If we're in the last couple of passes, then
-		 * doubling might just take us over the timeout, but probably
-		 * not be much, and it stops us falling behind. If we're
-		 * in the middle passes, there'll be more to do, but it
-		 * might just help us catch up a bit and we'll recalculate on
-		 * the next pass anyway.
-		 */
-		nentries = MIN(ddt->ddt_flush_min, nentries*2);
-	}
-
-	ddt_lightweight_entry_t ddlwe;
-	uint32_t count = 0;
-	while (ddt_log_take_first(ddt, ddt->ddt_log_flushing, &ddlwe)) {
-		ddt_sync_flush_entry(ddt, &ddlwe,
-		    ddlwe.ddlwe_type, ddlwe.ddlwe_class, tx);
-
-		/* End this pass if we've synced as much as we need to. */
-		if (++count >= nentries)
-			break;
-	}
-	ddt->ddt_flush_count += count;
-	ddt->ddt_flush_min -= count;
-
-	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree)) {
-		/* We emptied it, so truncate on-disk */
-		DDT_KSTAT_ZERO(ddt, dds_log_flushing_entries);
-		ddt_log_truncate(ddt, tx);
-		/* No more passes needed this txg */
-		ddt->ddt_flush_pass = 0;
-	} else {
-		/* More to do next time, save checkpoint */
-		DDT_KSTAT_SUB(ddt, dds_log_flushing_entries, count);
-		ddt_log_checkpoint(ddt, &ddlwe, tx);
-	}
-
-	ddt_sync_update_stats(ddt, tx);
-
-	return (ddt->ddt_flush_pass == 0);
-}
-
 static inline void
 ddt_flush_force_update_txg(ddt_t *ddt, uint64_t txg)
 {
@@ -2190,19 +2071,135 @@ ddt_flush_force_update_txg(ddt_t *ddt, uint64_t txg)
 static void
 ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
 	ASSERT(avl_is_empty(&ddt->ddt_tree));
 
-	/* Don't do any flushing when the pool is ready to shut down */
-	if (tx->tx_txg > spa_final_dirty_txg(ddt->ddt_spa))
+	/*
+	 * Don't do any flushing when the pool is ready to shut down, or in
+	 * passes beyond the first.
+	 */
+	if (spa_sync_pass(spa) > 1 || tx->tx_txg > spa_final_dirty_txg(spa))
 		return;
 
-	/* Try to flush some. */
-	if (!ddt_sync_flush_log_incremental(ddt, tx))
-		/* More to do next time */
-		return;
+	hrtime_t flush_start = gethrtime();
+	uint32_t count = 0;
 
-	/* No more flushing this txg, so we can do end-of-txg housekeeping */
+	/*
+	 * How many entries we need to flush. We need to at
+	 * least match the ingest rate, and also consider the
+	 * current backlog of entries.
+	 */
+	uint64_t backlog = avl_numnodes(&ddt->ddt_log_flushing->ddl_tree) +
+	    avl_numnodes(&ddt->ddt_log_active->ddl_tree);
 
+	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree))
+		goto housekeeping;
+
+	uint64_t txgs = MAX(1, zfs_dedup_log_flush_txgs);
+	uint64_t cap = MAX(1, zfs_dedup_log_cap);
+	uint64_t flush_min = MAX(backlog / txgs,
+	    zfs_dedup_log_flush_entries_min);
+
+	/*
+	 * The theory for this block is that if we increase the pressure while
+	 * we're growing above the cap, and remove it when we're significantly
+	 * below the cap, we'll stay near cap while not bouncing around too
+	 * much.
+	 *
+	 * The factor of 10 is to smooth the pressure effect by expressing it
+	 * in tenths. The addition of the cap to the backlog in the second
+	 * block is to round up, instead of down. We never let the pressure go
+	 * below 1 (10 tenths).
+	 */
+	if (cap != UINT_MAX && backlog > cap &&
+	    backlog > ddt->ddt_log_flush_prev_backlog) {
+		ddt->ddt_log_flush_pressure += 10 * backlog / cap;
+	} else if (cap != UINT_MAX && backlog < cap) {
+		ddt->ddt_log_flush_pressure -=
+		    11 - (((10 * backlog) + cap - 1) / cap);
+		ddt->ddt_log_flush_pressure =
+		    MAX(ddt->ddt_log_flush_pressure, 10);
+	}
+
+	if (zfs_dedup_log_hard_cap && cap != UINT_MAX)
+		flush_min = MAX(flush_min, MIN(backlog - cap,
+		    (flush_min * ddt->ddt_log_flush_pressure) / 10));
+
+	uint64_t flush_max;
+
+	/*
+	 * If we've been asked to flush everything in a hurry,
+	 * try to dump as much as possible on this txg. In
+	 * this case we're only limited by time, not amount.
+	 *
+	 * Otherwise, if we are over the cap, try to get back down to it.
+	 *
+	 * Finally if there is no cap (or no pressure), just set the max a
+	 * little higher than the min to help smooth out variations in flush
+	 * times.
+	 */
+	if (ddt->ddt_flush_force_txg > 0)
+		flush_max = avl_numnodes(&ddt->ddt_log_flushing->ddl_tree);
+	else if (cap != UINT32_MAX && !zfs_dedup_log_hard_cap)
+		flush_max = MAX(flush_min * 5 / 4, MIN(backlog - cap,
+		    (flush_min * ddt->ddt_log_flush_pressure) / 10));
+	else
+		flush_max = flush_min * 5 / 4;
+	flush_max = MIN(flush_max, zfs_dedup_log_flush_entries_max);
+
+	/*
+	 * When the pool is busy or someone is explicitly waiting for this txg
+	 * to complete, use the zfs_dedup_log_flush_min_time_ms.  Otherwise use
+	 * half of the time in the txg timeout.
+	 */
+	uint64_t target_time;
+
+	if (txg_sync_waiting(ddt->ddt_spa->spa_dsl_pool) ||
+	    vdev_queue_pool_busy(spa)) {
+		target_time = MIN(MSEC2NSEC(zfs_dedup_log_flush_min_time_ms),
+		    SEC2NSEC(zfs_txg_timeout) / 2);
+	} else {
+		target_time = SEC2NSEC(zfs_txg_timeout) / 2;
+	}
+
+	ddt_lightweight_entry_t ddlwe;
+	while (ddt_log_take_first(ddt, ddt->ddt_log_flushing, &ddlwe)) {
+		ddt_sync_flush_entry(ddt, &ddlwe,
+		    ddlwe.ddlwe_type, ddlwe.ddlwe_class, tx);
+
+		/* End if we've synced as much as we needed to. */
+		if (++count >= flush_max)
+			break;
+
+		/*
+		 * As long as we've flushed the absolute minimum,
+		 * stop if we're way over our target time.
+		 */
+		uint64_t diff = gethrtime() - flush_start;
+		if (count > zfs_dedup_log_flush_entries_min &&
+		    diff >= target_time * 2)
+			break;
+
+		/*
+		 * End if we've passed the minimum flush and we're out of time.
+		 */
+		if (count > flush_min && diff >= target_time)
+			break;
+	}
+
+	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree)) {
+		/* We emptied it, so truncate on-disk */
+		DDT_KSTAT_ZERO(ddt, dds_log_flushing_entries);
+		ddt_log_truncate(ddt, tx);
+	} else {
+		/* More to do next time, save checkpoint */
+		DDT_KSTAT_SUB(ddt, dds_log_flushing_entries, count);
+		ddt_log_checkpoint(ddt, &ddlwe, tx);
+	}
+
+	ddt_sync_update_stats(ddt, tx);
+
+housekeeping:
 	if (avl_is_empty(&ddt->ddt_log_flushing->ddl_tree) &&
 	    !avl_is_empty(&ddt->ddt_log_active->ddl_tree)) {
 		/*
@@ -2219,12 +2216,13 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 	/* If force flush is no longer necessary, turn it off. */
 	ddt_flush_force_update_txg(ddt, 0);
 
+	ddt->ddt_log_flush_prev_backlog = backlog;
+
 	/*
-	 * Update flush rate. This is an exponential weighted moving average of
-	 * the number of entries flushed over recent txgs.
+	 * Update flush rate. This is an exponential weighted moving
+	 * average of the number of entries flushed over recent txgs.
 	 */
-	ddt->ddt_log_flush_rate = _ewma(
-	    ddt->ddt_flush_count, ddt->ddt_log_flush_rate,
+	ddt->ddt_log_flush_rate = _ewma(count, ddt->ddt_log_flush_rate,
 	    zfs_dedup_log_flush_flow_rate_txgs);
 	DDT_KSTAT_SET(ddt, dds_log_flush_rate, ddt->ddt_log_flush_rate);
 
@@ -2232,12 +2230,21 @@ ddt_sync_flush_log(ddt_t *ddt, dmu_tx_t *tx)
 	 * Update flush time rate. This is an exponential weighted moving
 	 * average of the total time taken to flush over recent txgs.
 	 */
-	ddt->ddt_log_flush_time_rate = _ewma(
-	    ddt->ddt_log_flush_time_rate,
-	    ((int32_t)(NSEC2MSEC(gethrtime() - ddt->ddt_flush_start))),
+	ddt->ddt_log_flush_time_rate = _ewma(ddt->ddt_log_flush_time_rate,
+	    (int32_t)NSEC2MSEC(gethrtime() - flush_start),
 	    zfs_dedup_log_flush_flow_rate_txgs);
 	DDT_KSTAT_SET(ddt, dds_log_flush_time_rate,
 	    ddt->ddt_log_flush_time_rate);
+	if (avl_numnodes(&ddt->ddt_log_flushing->ddl_tree) > 0 &&
+	    zfs_flags & ZFS_DEBUG_DDT) {
+		zfs_dbgmsg("%lu entries remain(%lu in active), flushed %u @ "
+		    "txg %llu, in %llu ms, flush rate %d, time rate %d",
+		    (ulong_t)avl_numnodes(&ddt->ddt_log_flushing->ddl_tree),
+		    (ulong_t)avl_numnodes(&ddt->ddt_log_active->ddl_tree),
+		    count, (u_longlong_t)tx->tx_txg,
+		    (u_longlong_t)NSEC2MSEC(gethrtime() - flush_start),
+		    ddt->ddt_log_flush_rate, ddt->ddt_log_flush_time_rate);
+	}
 }
 
 static void
@@ -2785,14 +2792,23 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, prefetch, INT, ZMOD_RW,
 	"Enable prefetching dedup-ed blks");
 
-ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_passes_max, UINT, ZMOD_RW,
-	"Max number of incremental dedup log flush passes per transaction");
-
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_min_time_ms, UINT, ZMOD_RW,
 	"Min time to spend on incremental dedup log flush each transaction");
 
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_entries_min, UINT, ZMOD_RW,
 	"Min number of log entries to flush each transaction");
+
+ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_entries_max, UINT, ZMOD_RW,
+	"Max number of log entries to flush each transaction");
+
+ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_txgs, UINT, ZMOD_RW,
+	"Number of TXGs to try to rotate the log in");
+
+ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_cap, UINT, ZMOD_RW,
+	"Soft cap for the size of the current dedup log");
+
+ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_hard_cap, UINT, ZMOD_RW,
+	"Whether to use the soft cap as a hard cap");
 
 ZFS_MODULE_PARAM(zfs_dedup, zfs_dedup_, log_flush_flow_rate_txgs, UINT, ZMOD_RW,
 	"Number of txgs to average flow rates across");

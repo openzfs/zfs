@@ -286,14 +286,11 @@ typedef struct {
 	ddt_log_t	*ddt_log_active;	/* pointers into ddt_log */
 	ddt_log_t	*ddt_log_flushing;	/* swapped when flush starts */
 
-	hrtime_t	ddt_flush_start;	/* log flush start this txg */
-	uint32_t	ddt_flush_pass;		/* log flush pass this txg */
-
-	int32_t		ddt_flush_count;	/* entries flushed this txg */
-	int32_t		ddt_flush_min;		/* min rem entries to flush */
 	int32_t		ddt_log_ingest_rate;	/* rolling log ingest rate */
 	int32_t		ddt_log_flush_rate;	/* rolling log flush rate */
 	int32_t		ddt_log_flush_time_rate; /* avg time spent flushing */
+	uint32_t	ddt_log_flush_pressure;	/* pressure to apply for cap */
+	uint32_t	ddt_log_flush_prev_backlog; /* prev backlog size */
 
 	uint64_t	ddt_flush_force_txg;	/* flush hard before this txg */
 

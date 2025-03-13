@@ -173,6 +173,7 @@ extern void vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority);
 extern uint32_t vdev_queue_length(vdev_t *vd);
 extern uint64_t vdev_queue_last_offset(vdev_t *vd);
 extern uint64_t vdev_queue_class_length(vdev_t *vq, zio_priority_t p);
+extern boolean_t vdev_queue_pool_busy(spa_t *spa);
 
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);

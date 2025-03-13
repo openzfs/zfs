@@ -1442,6 +1442,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/setup.ksh \
 	functional/dedup/dedup_fdt_create.ksh \
 	functional/dedup/dedup_fdt_import.ksh \
+	functional/dedup/dedup_fdt_pacing.ksh \
 	functional/dedup/dedup_legacy_create.ksh \
 	functional/dedup/dedup_legacy_import.ksh \
 	functional/dedup/dedup_legacy_fdt_upgrade.ksh \
