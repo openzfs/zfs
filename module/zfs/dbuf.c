@@ -771,41 +771,75 @@ dbuf_cache_above_lowater(void)
  * Evict the oldest eligible dbuf from the dbuf cache.
  */
 static void
-dbuf_evict_one(void)
+dbuf_evict_many(uint64_t bytes)
 {
+	uint64_t evicted = 0;
+	uint_t num_sublists = multilist_get_num_sublists(
+	    &dbuf_caches[DB_DBUF_CACHE].cache);
+
 	int idx = multilist_get_random_index(&dbuf_caches[DB_DBUF_CACHE].cache);
-	multilist_sublist_t *mls = multilist_sublist_lock_idx(
-	    &dbuf_caches[DB_DBUF_CACHE].cache, idx);
+	int start = idx;
 
-	ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
+	while (evicted < bytes && !dbuf_evict_thread_exit) {
+		multilist_sublist_t *mls = multilist_sublist_lock_idx(
+		    &dbuf_caches[DB_DBUF_CACHE].cache, idx++);
 
-	dmu_buf_impl_t *db = multilist_sublist_tail(mls);
-	while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
-		db = multilist_sublist_prev(mls, db);
+		ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
+
+		dmu_buf_impl_t *db = multilist_sublist_tail(mls);
+		while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
+			db = multilist_sublist_prev(mls, db);
+		}
+
+		if (db != NULL) {
+			multilist_sublist_remove(mls, db);
+			multilist_sublist_unlock(mls);
+
+			DTRACE_PROBE2(dbuf__evict__one, dmu_buf_impl_t *, db,
+			    multilist_sublist_t *, mls);
+
+			uint64_t size = db->db.db_size;
+			uint64_t usize = dmu_buf_user_size(&db->db);
+
+			(void) zfs_refcount_remove_many(
+			    &dbuf_caches[DB_DBUF_CACHE].size, size, db);
+			(void) zfs_refcount_remove_many(
+			    &dbuf_caches[DB_DBUF_CACHE].size, usize,
+			    db->db_user);
+
+			DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
+			DBUF_STAT_BUMPDOWN(cache_count);
+			DBUF_STAT_DECR(cache_levels_bytes[db->db_level],
+			    size + usize);
+
+			ASSERT3U(db->db_caching_status, ==, DB_DBUF_CACHE);
+
+			db->db_caching_status = DB_NO_CACHE;
+			dbuf_destroy(db);
+
+			DBUF_STAT_BUMP(cache_total_evicts);
+		} else {
+			multilist_sublist_unlock(mls);
+		}
+
+		if (idx == start)
+			break;
+
+		if (idx == num_sublists) /* wrap */
+			idx = 0;
 	}
+}
 
-	DTRACE_PROBE2(dbuf__evict__one, dmu_buf_impl_t *, db,
-	    multilist_sublist_t *, mls);
+static void
+dbuf_evict(void)
+{
+	int64_t bytes = (zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size) -
+	    dbuf_cache_lowater_bytes());
 
-	if (db != NULL) {
-		multilist_sublist_remove(mls, db);
-		multilist_sublist_unlock(mls);
-		uint64_t size = db->db.db_size;
-		uint64_t usize = dmu_buf_user_size(&db->db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, size, db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, usize, db->db_user);
-		DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
-		DBUF_STAT_BUMPDOWN(cache_count);
-		DBUF_STAT_DECR(cache_levels_bytes[db->db_level], size + usize);
-		ASSERT3U(db->db_caching_status, ==, DB_DBUF_CACHE);
-		db->db_caching_status = DB_NO_CACHE;
-		dbuf_destroy(db);
-		DBUF_STAT_BUMP(cache_total_evicts);
-	} else {
-		multilist_sublist_unlock(mls);
-	}
+	if (bytes <= 0)
+		return;
+
+	dbuf_evict_many(bytes);
 }
 
 /*
@@ -839,7 +873,7 @@ dbuf_evict_thread(void *unused)
 		 * minimize lock contention.
 		 */
 		while (dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
-			dbuf_evict_one();
+			dbuf_evict();
 		}
 
 		mutex_enter(&dbuf_evict_lock);
@@ -866,7 +900,7 @@ dbuf_evict_notify(uint64_t size)
 	 */
 	if (size > dbuf_cache_target_bytes()) {
 		if (size > dbuf_cache_hiwater_bytes())
-			dbuf_evict_one();
+			dbuf_evict();
 		cv_signal(&dbuf_evict_cv);
 	}
 }
@@ -4106,7 +4140,7 @@ dmu_buf_rele(dmu_buf_t *db, const void *tag)
  * dbuf_rele()-->dbuf_rele_and_unlock()-->dbuf_evict_notify()
  *	^						|
  *	|						|
- *	+-----dbuf_destroy()<--dbuf_evict_one()<--------+
+ *	+-----dbuf_destroy()<--dbuf_evict()<--------+
  *
  */
 void
