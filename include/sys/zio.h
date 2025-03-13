@@ -60,19 +60,38 @@ typedef struct zio_eck {
  * Gang block headers are self-checksumming and contain an array
  * of block pointers.
  */
-#define	SPA_GANGBLOCKSIZE	SPA_MINBLOCKSIZE
-#define	SPA_GBH_NBLKPTRS	((SPA_GANGBLOCKSIZE - \
-	sizeof (zio_eck_t)) / sizeof (blkptr_t))
-#define	SPA_GBH_FILLER		((SPA_GANGBLOCKSIZE - \
-	sizeof (zio_eck_t) - \
-	(SPA_GBH_NBLKPTRS * sizeof (blkptr_t))) /\
-	sizeof (uint64_t))
 
-typedef struct zio_gbh {
-	blkptr_t		zg_blkptr[SPA_GBH_NBLKPTRS];
-	uint64_t		zg_filler[SPA_GBH_FILLER];
-	zio_eck_t		zg_tail;
-} zio_gbh_phys_t;
+typedef enum zio_gb_version {
+	ZIO_GB_OLD = 0,
+	ZIO_GB_SIZED,
+	ZIO_GB_VERSIONS,
+} zio_gb_version_t;
+
+typedef struct zio_gb_tail {
+	uint64_t	zgt_version;	/* gang block type */
+	zio_eck_t	zgt_eck;	/* embedded checksum */
+} zio_gb_tail_t;
+
+#define	SPA_OLD_GANGBLOCKSIZE	SPA_MINBLOCKSIZE
+
+static inline uint64_t
+gbh_nblkptrs(uint64_t size) {
+	return ((size - sizeof (zio_gb_tail_t)) /
+	    sizeof (blkptr_t));
+}
+
+static inline uint64_t
+gbh_filler(uint64_t size) {
+	return ((size - sizeof (zio_gb_tail_t) -
+	    (gbh_nblkptrs(size) * sizeof (blkptr_t))) /
+	    sizeof (uint64_t));
+}
+
+static inline zio_gb_tail_t *
+gbh_tail(void *gbh, uint64_t size) {
+	return ((zio_gb_tail_t *)((uintptr_t)gbh + size -
+	    sizeof (zio_gb_tail_t)));
+}
 
 enum zio_checksum {
 	ZIO_CHECKSUM_INHERIT = 0,
@@ -395,8 +414,10 @@ typedef struct zio_vsd_ops {
 } zio_vsd_ops_t;
 
 typedef struct zio_gang_node {
-	zio_gbh_phys_t		*gn_gbh;
-	struct zio_gang_node	*gn_child[SPA_GBH_NBLKPTRS];
+	void			*gn_gbh;
+	uint64_t		gn_gangblocksize;
+	uint64_t		gn_orig_gangblocksize;
+	struct zio_gang_node	*gn_child[];
 } zio_gang_node_t;
 
 typedef zio_t *zio_gang_issue_func_t(zio_t *zio, blkptr_t *bp,
