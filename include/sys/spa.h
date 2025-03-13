@@ -670,7 +670,6 @@ typedef struct blkptr {
 			    (u_longlong_t)DVA_GET_ASIZE(dva),		\
 			    ws);					\
 		}							\
-		ASSERT3S(copies, >, 0);					\
 		if (BP_IS_ENCRYPTED(bp)) {				\
 			len += func(buf + len, size - len,		\
 			    "salt=%llx iv=%llx:%llx%c",			\
@@ -679,10 +678,6 @@ typedef struct blkptr {
 			    (u_longlong_t)BP_GET_IV2(bp),		\
 			    ws);					\
 		}							\
-		if (BP_IS_GANG(bp) &&					\
-		    DVA_GET_ASIZE(&bp->blk_dva[2]) <=			\
-		    DVA_GET_ASIZE(&bp->blk_dva[1]) / 2)			\
-			copies--;					\
 		len += func(buf + len, size - len,			\
 		    "[L%llu %s] %s %s %s %s %s %s %s%c"			\
 		    "size=%llxL/%llxP birth=%lluL/%lluP fill=%llu%c"	\
