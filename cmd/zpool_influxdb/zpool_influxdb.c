@@ -393,8 +393,10 @@ print_vdev_latency_stats(nvlist_t *nvroot, const char *pool_name,
 	struct lat_lookup lat_type[] = {
 	    {ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO,   "total_read", 0},
 	    {ZPOOL_CONFIG_VDEV_TOT_W_LAT_HISTO,   "total_write", 0},
+	    {ZPOOL_CONFIG_VDEV_TOT_F_LAT_HISTO,   "total_flush", 0},
 	    {ZPOOL_CONFIG_VDEV_DISK_R_LAT_HISTO,  "disk_read", 0},
 	    {ZPOOL_CONFIG_VDEV_DISK_W_LAT_HISTO,  "disk_write", 0},
+	    {ZPOOL_CONFIG_VDEV_DISK_F_LAT_HISTO,  "disk_flush", 0},
 	    {ZPOOL_CONFIG_VDEV_SYNC_R_LAT_HISTO,  "sync_read", 0},
 	    {ZPOOL_CONFIG_VDEV_SYNC_W_LAT_HISTO,  "sync_write", 0},
 	    {ZPOOL_CONFIG_VDEV_ASYNC_R_LAT_HISTO, "async_read", 0},
@@ -587,6 +589,8 @@ print_queue_stats(nvlist_t *nvroot, const char *pool_name,
 	    {ZPOOL_CONFIG_VDEV_ASYNC_W_PEND_QUEUE,	"async_w_pend"},
 	    {ZPOOL_CONFIG_VDEV_SCRUB_PEND_QUEUE,	"async_scrub_pend"},
 	    {ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,	"rebuild_pend"},
+	    {ZPOOL_CONFIG_VDEV_FLUSH_IO_PEND,		"flush_io_pend"},
+	    {ZPOOL_CONFIG_VDEV_FLUSH_IO_ACTIVE,		"flush_io_active"},
 	    {NULL,	NULL}
 	};
 
