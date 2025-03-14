@@ -25,6 +25,7 @@
 # Use is subject to license terms.
 #
 # Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+# Copyright (c) 2025, Klara, Inc.
 #
 
 STF_PASS=0
@@ -465,7 +466,7 @@ function _endlog
 
 function _printline
 {
-	echo "$@"
+	printf '[%(%FT%T.%6N)T] %s\n' now "$*"
 }
 
 # Output an error message
