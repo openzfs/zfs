@@ -21,6 +21,10 @@
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
+/*
+ * Copyright (c) 2024-2025, Klara, Inc.
+ * Copyright (c) 2024-2025, Syneto
+ */
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
@@ -90,6 +94,8 @@ typedef struct kstat_module {
 	struct list_head ksm_module_list;	/* module linkage */
 	struct list_head ksm_kstat_list;	/* list of kstat entries */
 	struct proc_dir_entry *ksm_proc;	/* proc entry */
+	struct kstat_module *ksm_parent;	/* parent module in hierarchy */
+	uint_t ksm_nchildren;			/* number of child modules */
 } kstat_module_t;
 
 typedef struct kstat_raw_ops {
