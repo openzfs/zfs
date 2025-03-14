@@ -29,6 +29,7 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -276,13 +277,13 @@ typedef enum dmu_object_type {
 } dmu_object_type_t;
 
 /*
- * These flags are intended to be used to specify the "txg_how"
- * parameter when calling the dmu_tx_assign() function. See the comment
- * above dmu_tx_assign() for more details on the meaning of these flags.
+ * These flags are for the dmu_tx_assign() function and describe what to do if
+ * the transaction is full. See the comment above dmu_tx_assign() for more
+ * details on the meaning of these flags.
  */
-#define	TXG_NOWAIT	(0ULL)
-#define	TXG_WAIT	(1ULL<<0)
-#define	TXG_NOTHROTTLE	(1ULL<<1)
+#define	DMU_TX_NOWAIT		(0ULL)
+#define	DMU_TX_WAIT		(1ULL<<0)
+#define	DMU_TX_NOTHROTTLE	(1ULL<<1)
 
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);
@@ -827,7 +828,7 @@ void dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_sa(dmu_tx_t *tx, struct sa_handle *hdl, boolean_t may_grow);
 void dmu_tx_hold_sa_create(dmu_tx_t *tx, int total_size);
 void dmu_tx_abort(dmu_tx_t *tx);
-int dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how);
+int dmu_tx_assign(dmu_tx_t *tx, uint64_t flags);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_mark_netfree(dmu_tx_t *tx);

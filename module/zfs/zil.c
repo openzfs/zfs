@@ -957,7 +957,7 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL &&
 	    !dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR)) {
 		tx = dmu_tx_create(zilog->zl_os);
-		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 		dsl_dataset_dirty(ds, tx);
 		txg = dmu_tx_get_txg(tx);
 
@@ -1003,7 +1003,7 @@ zil_create(zilog_t *zilog)
 	 */
 	if (BP_IS_HOLE(&blk) || BP_SHOULD_BYTESWAP(&blk)) {
 		tx = dmu_tx_create(zilog->zl_os);
-		VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 		dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 		txg = dmu_tx_get_txg(tx);
 
@@ -1093,7 +1093,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 		return (B_FALSE);
 
 	tx = dmu_tx_create(zilog->zl_os);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	txg = dmu_tx_get_txg(tx);
 
@@ -1977,7 +1977,7 @@ next_lwb:
 	 * Open transaction to allocate the next block pointer.
 	 */
 	dmu_tx_t *tx = dmu_tx_create(zilog->zl_os);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_NOTHROTTLE));
 	dsl_dataset_dirty(dmu_objset_ds(zilog->zl_os), tx);
 	uint64_t txg = dmu_tx_get_txg(tx);
 
@@ -3454,9 +3454,9 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * Since we are not going to create any new dirty data, and we
 	 * can even help with clearing the existing dirty data, we
 	 * should not be subject to the dirty data based delays. We
-	 * use TXG_NOTHROTTLE to bypass the delay mechanism.
+	 * use DMU_TX_NOTHROTTLE to bypass the delay mechanism.
 	 */
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT | TXG_NOTHROTTLE));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_NOTHROTTLE));
 
 	itx_t *itx = zil_itx_create(TX_COMMIT, sizeof (lr_t));
 	itx->itx_sync = B_TRUE;

@@ -2024,7 +2024,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	tx = dmu_tx_create(rwa->os);
 	dmu_tx_hold_bonus(tx, object_to_hold);
 	dmu_tx_hold_write(tx, object_to_hold, 0, 0);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		return (err);
@@ -2228,7 +2228,7 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 	dmu_tx_hold_write_by_dnode(tx, dn, first_drrw->drr_offset,
 	    last_drrw->drr_offset - first_drrw->drr_offset +
 	    last_drrw->drr_logical_size);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		dnode_rele(dn, FTAG);
@@ -2501,7 +2501,7 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 
 	dmu_tx_hold_write(tx, drrwe->drr_object,
 	    drrwe->drr_offset, drrwe->drr_length);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		return (err);
@@ -2564,7 +2564,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 
 	dmu_tx_hold_spill(tx, db->db_object);
 
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_buf_rele(db, FTAG);
 		dmu_buf_rele(db_spill, FTAG);

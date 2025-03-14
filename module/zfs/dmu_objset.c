@@ -2452,7 +2452,7 @@ dmu_objset_space_upgrade(objset_t *os)
 			continue;
 		tx = dmu_tx_create(os);
 		dmu_tx_hold_bonus(tx, obj);
-		objerr = dmu_tx_assign(tx, TXG_WAIT);
+		objerr = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (objerr != 0) {
 			dmu_buf_rele(db, FTAG);
 			dmu_tx_abort(tx);

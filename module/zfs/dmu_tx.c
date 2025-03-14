@@ -1017,7 +1017,7 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
  * decreasing performance.
  */
 static int
-dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_try_assign(dmu_tx_t *tx, uint64_t flags)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 
@@ -1037,11 +1037,11 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		 * Otherwise, return EIO so that an error can get
 		 * propagated back to the VOP calls.
 		 *
-		 * Note that we always honor the txg_how flag regardless
+		 * Note that we always honor the `flags` flag regardless
 		 * of the failuremode setting.
 		 */
 		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE &&
-		    !(txg_how & TXG_WAIT))
+		    !(flags & DMU_TX_WAIT))
 			return (SET_ERROR(EIO));
 
 		return (SET_ERROR(ERESTART));
@@ -1165,20 +1165,20 @@ dmu_tx_unassign(dmu_tx_t *tx)
 }
 
 /*
- * Assign tx to a transaction group; txg_how is a bitmask:
+ * Assign tx to a transaction group; `flags` is a bitmask:
  *
- * If TXG_WAIT is set and the currently open txg is full, this function
+ * If DMU_TX_WAIT is set and the currently open txg is full, this function
  * will wait until there's a new txg. This should be used when no locks
  * are being held. With this bit set, this function will only fail if
  * we're truly out of space (or over quota).
  *
- * If TXG_WAIT is *not* set and we can't assign into the currently open
+ * If DMU_TX_WAIT is *not* set and we can't assign into the currently open
  * txg without blocking, this function will return immediately with
  * ERESTART. This should be used whenever locks are being held.  On an
  * ERESTART error, the caller should drop all locks, call dmu_tx_wait(),
  * and try again.
  *
- * If TXG_NOTHROTTLE is set, this indicates that this tx should not be
+ * If DMU_TX_NOTHROTTLE is set, this indicates that this tx should not be
  * delayed due on the ZFS Write Throttle (see comments in dsl_pool.c for
  * details on the throttle). This is used by the VFS operations, after
  * they have already called dmu_tx_wait() (though most likely on a
@@ -1201,24 +1201,24 @@ dmu_tx_unassign(dmu_tx_t *tx)
  *     1 <- dmu_tx_get_txg(T3)
  */
 int
-dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
+dmu_tx_assign(dmu_tx_t *tx, uint64_t flags)
 {
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT0(txg_how & ~(TXG_WAIT | TXG_NOTHROTTLE));
+	ASSERT0(flags & ~(DMU_TX_WAIT | DMU_TX_NOTHROTTLE));
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	/* If we might wait, we must not hold the config lock. */
-	IMPLY((txg_how & TXG_WAIT), !dsl_pool_config_held(tx->tx_pool));
+	IMPLY((flags & DMU_TX_WAIT), !dsl_pool_config_held(tx->tx_pool));
 
-	if ((txg_how & TXG_NOTHROTTLE))
+	if ((flags & DMU_TX_NOTHROTTLE))
 		tx->tx_dirty_delayed = B_TRUE;
 
-	while ((err = dmu_tx_try_assign(tx, txg_how)) != 0) {
+	while ((err = dmu_tx_try_assign(tx, flags)) != 0) {
 		dmu_tx_unassign(tx);
 
-		if (err != ERESTART || !(txg_how & TXG_WAIT))
+		if (err != ERESTART || !(flags & DMU_TX_WAIT))
 			return (err);
 
 		dmu_tx_wait(tx);
@@ -1263,9 +1263,9 @@ dmu_tx_wait(dmu_tx_t *tx)
 
 		/*
 		 * Note: setting tx_dirty_delayed only has effect if the
-		 * caller used TX_WAIT.  Otherwise they are going to
+		 * caller used DMU_TX_WAIT.  Otherwise they are going to
 		 * destroy this tx and try again.  The common case,
-		 * zfs_write(), uses TX_WAIT.
+		 * zfs_write(), uses DMU_TX_WAIT.
 		 */
 		tx->tx_dirty_delayed = B_TRUE;
 	} else if (spa_suspended(spa) || tx->tx_lasttried_txg == 0) {
