@@ -707,6 +707,10 @@ tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
     'dio_unaligned_block', 'dio_unaligned_filesize']
 tags = ['functional', 'direct']
 
+[tests/functional/events]
+tests = ['slow_vdev_sit_out']
+tags = ['functional', 'events']
+
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
@@ -906,8 +910,8 @@ tags = ['functional', 'rename_dirs']
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
     'attach_resilver', 'detach', 'rebuild_disabled_feature',
     'rebuild_multiple', 'rebuild_raidz', 'replace_import', 'replace_rebuild',
-    'replace_resilver', 'resilver_restart_001', 'resilver_restart_002',
-    'scrub_cancel']
+    'replace_resilver', 'replace_resilver_sit_out' 'resilver_restart_001',
+    'resilver_restart_002', 'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]
