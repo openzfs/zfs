@@ -1172,10 +1172,10 @@ spa_vdev_copy_segment(vdev_t *vd, zfs_range_tree_t *segs,
 	if (mc->mc_groups == 0)
 		mc = spa_normal_class(spa);
 	int error = metaslab_alloc_dva(spa, mc, size, &dst, 0, NULL, txg,
-	    METASLAB_DONT_THROTTLE, zal, 0);
+	    0, zal, 0);
 	if (error == ENOSPC && mc != spa_normal_class(spa)) {
 		error = metaslab_alloc_dva(spa, spa_normal_class(spa), size,
-		    &dst, 0, NULL, txg, METASLAB_DONT_THROTTLE, zal, 0);
+		    &dst, 0, NULL, txg, 0, zal, 0);
 	}
 	if (error != 0)
 		return (error);
