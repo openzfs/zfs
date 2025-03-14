@@ -6908,6 +6908,8 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 			localprop.zp_nopwrite = B_FALSE;
 			localprop.zp_copies =
 			    MIN(localprop.zp_copies, SPA_DVAS_PER_BP - 1);
+			localprop.zp_gang_copies =
+			    MIN(localprop.zp_gang_copies, SPA_DVAS_PER_BP - 1);
 		}
 		zio_flags |= ZIO_FLAG_RAW;
 	} else if (ARC_BUF_COMPRESSED(buf)) {
