@@ -137,6 +137,15 @@ Description: OpenZFS pool library for Linux
  .
  This zpool library provides support for managing zpools.
 
+Package: openzfs-libzfsacl1
+Section: contrib/libs
+Architecture: linux-any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Replaces: libzfsacl1
+Conflicts: libzfsacl1
+Description: libzfsacl is cross platform python library for accessing NFSv41
+ style ACLs.
+
 Package: openzfs-python3-pyzfs
 Section: contrib/python
 Architecture: linux-any
@@ -182,6 +191,16 @@ Description: wrapper for libzfs_core C library (documentation)
  in which the error code is produced.
  .
  This package contains the documentation.
+
+Package: openzfs-python3-libzfsacl
+Section: contrib/python
+Architecture: linux-any
+Depends: openzfs-libzfsacl1
+	 ${misc:Depends},
+         ${python3:Depends}
+Replaces: python3-libzfsacl
+Conflicts: python3-libzfsacl
+Description: Python bindings for libzfsacl1.
 
 Package: openzfs-zfs-dkms
 Architecture: all
@@ -248,6 +267,7 @@ Depends: openzfs-libnvpair3 (= ${binary:Version}),
          openzfs-libuutil3 (= ${binary:Version}),
          openzfs-libzfs6 (= ${binary:Version}),
          openzfs-libzpool6 (= ${binary:Version}),
+         openzfs-python3-libzfsacl (= ${binary:Version}),
          python3,
          ${misc:Depends},
          ${shlibs:Depends}
