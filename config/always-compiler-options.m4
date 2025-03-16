@@ -156,6 +156,34 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH], [
 ])
 
 dnl #
+dnl # Check if kernel cc supports -Wno-format-zero-length option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_FORMAT_ZERO_LENGTH], [
+	saved_cc="$CC"
+	AS_IF(
+		[ test -n "$KERNEL_CC" ], [ CC="$KERNEL_CC" ],
+		[ test -n "$KERNEL_LLVM" ], [ CC="clang" ],
+		[ CC="gcc" ]
+	)
+	AC_MSG_CHECKING([whether $CC supports -Wno-format-zero-length])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wno-format-zero-length"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		KERNEL_NO_FORMAT_ZERO_LENGTH=-Wno-format-zero-length
+		AC_MSG_RESULT([yes])
+	], [
+		KERNEL_NO_FORMAT_ZERO_LENGTH=
+		AC_MSG_RESULT([no])
+	])
+
+	CC="$saved_cc"
+	CFLAGS="$saved_flags"
+	AC_SUBST([KERNEL_NO_FORMAT_ZERO_LENGTH])
+])
+
+dnl #
 dnl # Check if cc supports -Wno-clobbered option.
 dnl #
 dnl # We actually invoke it with the -Wclobbered option
@@ -231,19 +259,16 @@ dnl #
 dnl # Check if kernel cc supports -Winfinite-recursion option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_INFINITE_RECURSION], [
-	AC_MSG_CHECKING([whether $KERNEL_CC supports -Winfinite-recursion])
-
 	saved_cc="$CC"
-	saved_flags="$CFLAGS"
-	CC="gcc"
-	CFLAGS="$CFLAGS -Werror -Winfinite-recursion"
+	AS_IF(
+		[ test -n "$KERNEL_CC" ], [ CC="$KERNEL_CC" ],
+		[ test -n "$KERNEL_LLVM" ], [ CC="clang" ],
+		[ CC="gcc" ]
+	)
+	AC_MSG_CHECKING([whether $CC supports -Winfinite-recursion])
 
-	AS_IF([ test -n "$KERNEL_CC" ], [
-		CC="$KERNEL_CC"
-	])
-	AS_IF([ test -n "$KERNEL_LLVM" ], [
-		CC="clang"
-	])
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Winfinite-recursion"
 
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 		KERNEL_INFINITE_RECURSION=-Winfinite-recursion
@@ -329,19 +354,16 @@ dnl #
 dnl # Check if kernel cc supports -fno-ipa-sra option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_IPA_SRA], [
-	AC_MSG_CHECKING([whether $KERNEL_CC supports -fno-ipa-sra])
-
 	saved_cc="$CC"
-	saved_flags="$CFLAGS"
-	CC="gcc"
-	CFLAGS="$CFLAGS -Werror -fno-ipa-sra"
+	AS_IF(
+		[ test -n "$KERNEL_CC" ], [ CC="$KERNEL_CC" ],
+		[ test -n "$KERNEL_LLVM" ], [ CC="clang" ],
+		[ CC="gcc" ]
+	)
+	AC_MSG_CHECKING([whether $CC supports -fno-ipa-sra])
 
-	AS_IF([ test -n "$KERNEL_CC" ], [
-		CC="$KERNEL_CC"
-	])
-	AS_IF([ test -n "$KERNEL_LLVM" ], [
-		CC="clang"
-	])
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -fno-ipa-sra"
 
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 		KERNEL_NO_IPA_SRA=-fno-ipa-sra
