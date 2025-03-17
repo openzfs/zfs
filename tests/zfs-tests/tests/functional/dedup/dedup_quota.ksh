@@ -50,8 +50,6 @@ VDEV_GENERAL="$TEST_BASE_DIR/vdevfile.general.$$"
 VDEV_DEDUP="$TEST_BASE_DIR/vdevfile.dedup.$$"
 POOL="dedup_pool"
 
-save_tunable TXG_TIMEOUT
-
 # we set the dedup log txg interval to 1, to get a log flush every txg,
 # effectively disabling the log. without this it's hard to predict when and
 # where things appear on-disk
@@ -64,7 +62,6 @@ function cleanup
 		destroy_pool $POOL
 	fi
 	log_must rm -fd $VDEV_GENERAL $VDEV_DEDUP $MOUNTDIR
-	log_must restore_tunable TXG_TIMEOUT
 	log_must restore_tunable DEDUP_LOG_TXG_MAX
 }
 
@@ -81,7 +78,6 @@ function do_setup
 	# Use 'xattr=sa' to prevent selinux xattrs influencing our accounting
 	log_must zpool create -o ashift=12 -f -O xattr=sa -m $MOUNTDIR $POOL $VDEV_GENERAL
 	log_must zfs set compression=off dedup=on $POOL
-	log_must set_tunable32 TXG_TIMEOUT 600
 }
 
 function dedup_table_size
