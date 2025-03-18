@@ -1717,7 +1717,7 @@ spa_vdev_remove_thread(void *arg)
 			dmu_tx_t *tx =
 			    dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 
-			VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 			uint64_t txg = dmu_tx_get_txg(tx);
 
 			/*
