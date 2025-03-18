@@ -835,7 +835,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, nbytes);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 			if (abuf != NULL)
@@ -1660,7 +1660,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);
 			break;
@@ -1827,7 +1827,7 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len);
 	DB_DNODE_EXIT(db);
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error != 0) {
 		dmu_tx_abort(tx);
 		zfs_exit(zfsvfs, FTAG);

@@ -143,14 +143,14 @@ typedef ulong_t cookie_t;
  *  (3)	All range locks must be grabbed before calling dmu_tx_assign(),
  *	as they can span dmu_tx_assign() calls.
  *
- *  (4) If ZPL locks are held, pass TXG_NOWAIT as the second argument to
+ *  (4) If ZPL locks are held, pass DMU_TX_NOWAIT as the second argument to
  *      dmu_tx_assign().  This is critical because we don't want to block
  *      while holding locks.
  *
- *	If no ZPL locks are held (aside from zfs_enter()), use TXG_WAIT.  This
- *	reduces lock contention and CPU usage when we must wait (note that if
- *	throughput is constrained by the storage, nearly every transaction
- *	must wait).
+ *	If no ZPL locks are held (aside from zfs_enter()), use DMU_TX_WAIT.
+ *	This reduces lock contention and CPU usage when we must wait (note
+ *	that if throughput is constrained by the storage, nearly every
+ *	transaction must wait).
  *
  *      Note, in particular, that if a lock is sometimes acquired before
  *      the tx assigns, and sometimes after (e.g. z_lock), then failing
@@ -158,15 +158,16 @@ typedef ulong_t cookie_t;
  *
  *	Thread A has grabbed a lock before calling dmu_tx_assign().
  *	Thread B is in an already-assigned tx, and blocks for this lock.
- *	Thread A calls dmu_tx_assign(TXG_WAIT) and blocks in txg_wait_open()
- *	forever, because the previous txg can't quiesce until B's tx commits.
+ *	Thread A calls dmu_tx_assign(DMU_TX_WAIT) and blocks in
+ *	txg_wait_open() forever, because the previous txg can't quiesce
+ *	until B's tx commits.
  *
- *	If dmu_tx_assign() returns ERESTART and zfsvfs->z_assign is TXG_NOWAIT,
- *	then drop all locks, call dmu_tx_wait(), and try again.  On subsequent
- *	calls to dmu_tx_assign(), pass TXG_NOTHROTTLE in addition to TXG_NOWAIT,
- *	to indicate that this operation has already called dmu_tx_wait().
- *	This will ensure that we don't retry forever, waiting a short bit
- *	each time.
+ *	If dmu_tx_assign() returns ERESTART and zfsvfs->z_assign is
+ *	DMU_TX_NOWAIT, then drop all locks, call dmu_tx_wait(), and try
+ *	again.  On subsequent calls to dmu_tx_assign(), pass
+ *	DMU_TX_NOTHROTTLE in addition to DMU_TX_NOWAIT, to indicate that
+ *	this operation has already called dmu_tx_wait().  This will ensure
+ *	that we don't retry forever, waiting a short bit each time.
  *
  *  (5)	If the operation succeeded, generate the intent log entry for it
  *	before dropping locks.  This ensures that the ordering of events
@@ -188,7 +189,8 @@ typedef ulong_t cookie_t;
  *	rw_enter(...);			// grab any other locks you need
  *	tx = dmu_tx_create(...);	// get DMU tx
  *	dmu_tx_hold_*();		// hold each object you might modify
- *	error = dmu_tx_assign(tx, (waited ? TXG_NOTHROTTLE : 0) | TXG_NOWAIT);
+ *	error = dmu_tx_assign(tx,
+ *	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
  *	if (error) {
  *		rw_exit(...);		// drop locks
  *		zfs_dirent_unlock(dl);	// unlock directory entry
@@ -1045,7 +1047,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 		    0, acl_ids.z_aclp->z_acl_bytes);
 	}
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_abort(tx);
@@ -1186,7 +1188,7 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	 */
 	dmu_tx_mark_netfree(tx);
 
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		zfs_exit(zfsvfs, FTAG);
@@ -1409,7 +1411,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
 
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_abort(tx);
@@ -1511,7 +1513,7 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
 	dmu_tx_mark_netfree(tx);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		zfs_exit(zfsvfs, FTAG);
@@ -2543,7 +2545,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 
 	zfs_sa_upgrade_txholds(tx, zp);
 
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
 		goto out;
 
@@ -3244,7 +3246,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		goto out_seq;
@@ -3445,7 +3447,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_abort(tx);
@@ -3664,7 +3666,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 		zfs_exit(zfsvfs, FTAG);
@@ -3793,7 +3795,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 		} else {
@@ -4164,7 +4166,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		goto out;

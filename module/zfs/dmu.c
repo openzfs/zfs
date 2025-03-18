@@ -1051,7 +1051,7 @@ dmu_free_long_range_impl(objset_t *os, dnode_t *dn, uint64_t offset,
 		 * reduction in space used.
 		 */
 		dmu_tx_mark_netfree(tx);
-		err = dmu_tx_assign(tx, TXG_WAIT);
+		err = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (err) {
 			dmu_tx_abort(tx);
 			return (err);
@@ -1142,7 +1142,7 @@ dmu_free_long_object(objset_t *os, uint64_t object)
 	dmu_tx_hold_bonus(tx, object);
 	dmu_tx_hold_free(tx, object, 0, DMU_OBJECT_END);
 	dmu_tx_mark_netfree(tx);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err == 0) {
 		err = dmu_object_free(os, object, tx);
 		dmu_tx_commit(tx);
@@ -1996,7 +1996,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	 * which time the log block we are writing will be obsolete, so we can
 	 * skip waiting and just return error here instead.
 	 */
-	if (dmu_tx_assign(tx, TXG_NOWAIT | TXG_NOTHROTTLE) != 0) {
+	if (dmu_tx_assign(tx, DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE) != 0) {
 		dmu_tx_abort(tx);
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));

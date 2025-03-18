@@ -265,7 +265,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 	dmu_tx_hold_sa_create(tx, size);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {

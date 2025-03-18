@@ -569,7 +569,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	dmu_tx_hold_space(tx, sizeof (*vimep) + sizeof (count));
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 
 	/*
