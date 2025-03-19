@@ -725,6 +725,10 @@ tests = ['large_dnode_001_pos', 'large_dnode_003_pos', 'large_dnode_004_neg',
     'large_dnode_005_pos', 'large_dnode_007_neg', 'large_dnode_009_pos']
 tags = ['functional', 'features', 'large_dnode']
 
+[tests/functional/gang_blocks]
+tests = ['gang_blocks_redundant']
+tags = ['functional', 'gang_blocks']
+
 [tests/functional/grow]
 pre =
 post =
