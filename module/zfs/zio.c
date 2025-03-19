@@ -1633,7 +1633,8 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
     abd_t *data, uint64_t size, int type, zio_priority_t priority,
     zio_flag_t flags, zio_done_func_t *done, void *private)
 {
-	enum zio_stage pipeline = ZIO_VDEV_CHILD_PIPELINE;
+	enum zio_stage pipeline = (type == ZIO_TYPE_WRITE) ?
+	    ZIO_VDEV_CHILD_WRITE_PIPELINE : ZIO_VDEV_CHILD_PIPELINE;
 	zio_t *zio;
 
 	/*
@@ -1724,6 +1725,8 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
     zio_type_t type, zio_priority_t priority, zio_flag_t flags,
     zio_done_func_t *done, void *private)
 {
+	enum zio_stage pipeline = (type == ZIO_TYPE_WRITE) ?
+	    ZIO_VDEV_CHILD_WRITE_PIPELINE : ZIO_VDEV_CHILD_PIPELINE;
 	zio_t *zio;
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
@@ -1732,34 +1735,24 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 	    data, size, size, done, private, type, priority,
 	    flags | ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY | ZIO_FLAG_DELEGATED,
 	    vd, offset, NULL,
-	    ZIO_STAGE_VDEV_IO_START >> 1, ZIO_VDEV_CHILD_PIPELINE);
+	    ZIO_STAGE_VDEV_IO_START >> 1, pipeline);
 
 	return (zio);
 }
 
-
-/*
- * Send a flush command to the given vdev. Unlike most zio creation functions,
- * the flush zios are issued immediately. You can wait on pio to pause until
- * the flushes complete.
- */
-void
-zio_flush(zio_t *pio, vdev_t *vd)
+/* Create an IO that flushes the given leaf vdev. */
+zio_t *
+zio_vdev_flush(vdev_t *vd, zio_done_func_t *done, void *priv)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT0(vd->vdev_children);
 
-	if (vd->vdev_nowritecache)
-		return;
+	zio_t *zio = zio_create(NULL, vd->vdev_spa, 0, NULL, NULL, 0, 0, done,
+	    priv, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY, vd, 0, NULL,
+	    ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE);
 
-	if (vd->vdev_children == 0) {
-		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
-		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
-		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
-	} else {
-		for (uint64_t c = 0; c < vd->vdev_children; c++)
-			zio_flush(pio, vd->vdev_child[c]);
-	}
+	return (zio);
 }
 
 void
@@ -2866,7 +2859,7 @@ zio_rewrite_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
 		 * leave the GBH alone so that we can detect the damage.
 		 */
 		if (pio->io_gang_leader->io_flags & ZIO_FLAG_INDUCE_DAMAGE)
-			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
+			zio->io_pipeline &= ~ZIO_VDEV_IO_WRITE_STAGES;
 	} else {
 		zio = zio_rewrite(pio, pio->io_spa, pio->io_txg, bp,
 		    abd_get_offset(data, offset), BP_GET_PSIZE(bp),
@@ -4511,33 +4504,62 @@ zio_vdev_io_start(zio_t *zio)
 	 * applying the dRAID mapping.
 	 */
 	if (vd->vdev_ops->vdev_op_leaf &&
-	    vd->vdev_ops != &vdev_draid_spare_ops &&
-	    (zio->io_type == ZIO_TYPE_READ ||
-	    zio->io_type == ZIO_TYPE_WRITE ||
-	    zio->io_type == ZIO_TYPE_TRIM)) {
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
 
-		if ((zio = vdev_queue_io(zio)) == NULL)
-			return (NULL);
+		if (zio->io_type == ZIO_TYPE_READ ||
+		    zio->io_type == ZIO_TYPE_WRITE ||
+		    zio->io_type == ZIO_TYPE_TRIM) {
 
-		if (!vdev_accessible(vd, zio)) {
-			zio->io_error = SET_ERROR(ENXIO);
-			zio_interrupt(zio);
-			return (NULL);
-		}
-		zio->io_delay = gethrtime();
-
-		if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
 			/*
-			 * "no-op" injections return success, but do no actual
-			 * work. Just return it.
+			 * READ, WRITE and TRIM all go to the queue for
+			 * reordering and aggregation.
 			 */
-			zio_delay_interrupt(zio);
-			return (NULL);
+
+			if ((zio = vdev_queue_io(zio)) == NULL)
+				return (NULL);
+
+			if (!vdev_accessible(vd, zio)) {
+				zio->io_error = SET_ERROR(ENXIO);
+				zio_interrupt(zio);
+				return (NULL);
+			}
+			zio->io_delay = gethrtime();
+
+			if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
+				/*
+				 * "no-op" injections return success, but do no
+				 * actual work. Just return it.
+				 */
+
+				zio_delay_interrupt(zio);
+				return (NULL);
+			}
+		} else if (zio->io_type == ZIO_TYPE_FLUSH) {
+			/*
+			 * Record start time for flush, so we can still record
+			 * the time it takes.
+			 */
+			zio->io_delay = gethrtime();
 		}
 	}
 
 	vd->vdev_ops->vdev_op_io_start(zio);
 	return (NULL);
+}
+
+static zio_t *
+zio_vdev_io_flush(zio_t *zio)
+{
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
+
+	vdev_t *vd = zio->io_vd;
+
+	/* Non-leaf writes don't get flushed directly. */
+	if (vd == NULL || !vd->vdev_ops->vdev_op_leaf ||
+	    vd->vdev_ops == &vdev_draid_spare_ops)
+		return (zio);
+
+	return (vdev_queue_io_flush(zio));
 }
 
 static zio_t *
@@ -4563,6 +4585,8 @@ zio_vdev_io_done(zio_t *zio)
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		if (zio->io_type != ZIO_TYPE_FLUSH)
 			vdev_queue_io_done(zio);
+		else
+			zio->io_delta = gethrtime() - zio->io_timestamp;
 
 		if (zio_injection_enabled && zio->io_error == 0)
 			zio->io_error = zio_handle_device_injections(vd, zio,
@@ -5183,7 +5207,7 @@ zio_ready(zio_t *zio)
 			zio->io_flags &= ~ZIO_FLAG_NODATA;
 		} else {
 			ASSERT((uintptr_t)zio->io_abd < SPA_MAXBLOCKSIZE);
-			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
+			zio->io_pipeline &= ~ZIO_VDEV_IO_WRITE_STAGES;
 		}
 	}
 
@@ -5658,6 +5682,7 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_dva_claim,
 	zio_ready,
 	zio_vdev_io_start,
+	zio_vdev_io_flush,
 	zio_vdev_io_done,
 	zio_vdev_io_assess,
 	zio_checksum_verify,
