@@ -257,6 +257,12 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 	return (0);
 }
 
+static void
+vrele_task_runner(void *vp)
+{
+	vrele((vnode_t *)vp);
+}
+
 /*
  * Like vn_rele() except if we are going to call VOP_INACTIVE() then do it
  * asynchronously using a taskq. This can avoid deadlocks caused by re-entering
@@ -273,6 +279,6 @@ vn_rele_async(vnode_t *vp, taskq_t *taskq)
 	VERIFY3U(vp->v_usecount, >, 0);
 	if (refcount_release_if_not_last(&vp->v_usecount))
 		return;
-	VERIFY3U(taskq_dispatch((taskq_t *)taskq,
-	    (task_func_t *)vrele, vp, TQ_SLEEP), !=, 0);
+	VERIFY3U(taskq_dispatch((taskq_t *)taskq, vrele_task_runner, vp,
+	    TQ_SLEEP), !=, 0);
 }
