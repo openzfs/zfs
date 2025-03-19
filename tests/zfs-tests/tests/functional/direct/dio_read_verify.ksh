@@ -57,8 +57,6 @@ log_must  truncate -s $MINVDEVSIZE $DIO_VDEVS
 # while manipulating the buffer contents while the I/O is still in flight and
 # also that Direct I/O checksum verify failures and dio_verify_rd zevents are
 # reported.
-
-
 for type in "" "mirror" "raidz" "draid"; do
 	typeset vdev_type=$type
 	if [[ "${vdev_type}" == "" ]]; then
@@ -83,25 +81,28 @@ for type in "" "mirror" "raidz" "draid"; do
 	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
 	    -n $NUMBLOCKS -b $BS -r
 
-	# Getting new Direct I/O and ARC Write counts.
+	# Getting new Direct I/O and ARC read counts.
 	curr_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
 	curr_arc_rd=$(kstat_pool $TESTPOOL1 iostats.arc_read_count)
 	total_dio_rd=$((curr_dio_rd - prev_dio_rd))
 	total_arc_rd=$((curr_arc_rd - prev_arc_rd))
 
-	log_note "Making sure there are no checksum errors with the ZPool"
-	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
-
-	log_note "Making sure we have Direct I/O and ARC reads logged"
+	log_note "Making sure we have Direct I/O reads logged"
 	if [[ $total_dio_rd -lt 1 ]]; then
 		log_fail "No Direct I/O reads $total_dio_rd"
 	fi
+
+	log_note "Making sure we have Direct I/O read checksum verifies with ZPool"
+	check_dio_chksum_verify_failures "$TESTPOOL1" "$vdev_type" 1 "rd"
+
+	log_note "Making sure we have ARC reads logged"
 	if [[ $total_arc_rd -lt 1 ]]; then
 		log_fail "No ARC reads $total_arc_rd"
 	fi
 
-	log_note "Making sure we have Direct I/O write checksum verifies with ZPool"
-	check_dio_chksum_verify_failures "$TESTPOOL1" "$vdev_type" 1 "rd"
+	log_note "Making sure there are no checksum errors with the ZPool"
+	log_must check_pool_status $TESTPOOL "errors" "No known data errors"	
+
 	destroy_pool $TESTPOOL1
 done
 
