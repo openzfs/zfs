@@ -1621,6 +1621,9 @@ spa_vdev_remove_thread(void *arg)
 	vca.vca_read_error_bytes = 0;
 	vca.vca_write_error_bytes = 0;
 
+	zfs_range_tree_t *segs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
+
 	mutex_enter(&svr->svr_lock);
 
 	/*
@@ -1633,7 +1636,9 @@ spa_vdev_remove_thread(void *arg)
 		metaslab_t *msp = vd->vdev_ms[msi];
 		ASSERT3U(msi, <=, vd->vdev_ms_count);
 
+again:
 		ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
+		mutex_exit(&svr->svr_lock);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
@@ -1646,35 +1651,48 @@ spa_vdev_remove_thread(void *arg)
 		}
 
 		/*
-		 * If the metaslab has ever been allocated from (ms_sm!=NULL),
+		 * If the metaslab has ever been synced (ms_sm != NULL),
 		 * read the allocated segments from the space map object
 		 * into svr_allocd_segs. Since we do this while holding
-		 * svr_lock and ms_sync_lock, concurrent frees (which
+		 * ms_lock and ms_sync_lock, concurrent frees (which
 		 * would have modified the space map) will wait for us
 		 * to finish loading the spacemap, and then take the
 		 * appropriate action (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL) {
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			zfs_range_tree_walk(msp->ms_unflushed_allocs,
-			    zfs_range_tree_add, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_unflushed_frees,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_freeing,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * When we are resuming from a paused removal (i.e.
-			 * when importing a pool with a removal in progress),
-			 * discard any state that we have already processed.
-			 */
-			zfs_range_tree_clear(svr->svr_allocd_segs, 0,
-			    start_offset);
+		/*
+		 * We could not hold svr_lock while loading space map, or we
+		 * could hit deadlock in a ZIO pipeline, having to wait for
+		 * it.  But we can not block for it here under metaslab locks,
+		 * or it would be a lock ordering violation.
+		 */
+		if (!mutex_tryenter(&svr->svr_lock)) {
+			mutex_exit(&msp->ms_lock);
+			mutex_exit(&msp->ms_sync_lock);
+			zfs_range_tree_vacate(segs, NULL, NULL);
+			mutex_enter(&svr->svr_lock);
+			goto again;
 		}
+
+		zfs_range_tree_swap(&segs, &svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+
 		mutex_exit(&msp->ms_lock);
 		mutex_exit(&msp->ms_sync_lock);
+
+		/*
+		 * When we are resuming from a paused removal (i.e.
+		 * when importing a pool with a removal in progress),
+		 * discard any state that we have already processed.
+		 */
+		zfs_range_tree_clear(svr->svr_allocd_segs, 0, start_offset);
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
@@ -1750,6 +1768,8 @@ spa_vdev_remove_thread(void *arg)
 	mutex_exit(&svr->svr_lock);
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	zfs_range_tree_destroy(segs);
 
 	/*
 	 * Wait for all copies to finish before cleaning up the vca.
