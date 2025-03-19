@@ -146,6 +146,12 @@ destroy_zvols
 set_blk_mq 1
 create_zvols
 do_zvol_stress
+destroy_zvols
+
+# Enable zvol sync mode, and re-run test
+set_zvol_sync 1
+create_zvols
+do_zvol_stress
 
 # Inject some errors, and verify we see some IO errors in zpool status
 for DISK in $DISKS ; do
