@@ -5410,12 +5410,12 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * +-------+-------+-------+-------+-------+
  *
  * Above, notice that the 4k block required one sector for parity and another
- * for data.  vdev_raidz_asize() will return 8k and as such the pool's allocated
- * and free properties will be adjusted by 8k.  The dataset will not be charged
- * 8k.  Rather, it will be charged a value that is scaled according to the
- * overhead of the 128k block on the same vdev.  This 8k allocation will be
- * charged 8k * 128k / 160k.  128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as
- * calculated in the 128k block example above.
+ * for data.  vdev_raidz_psize_to_asize() will return 8k and as such the pool's
+ * allocated and free properties will be adjusted by 8k.  The dataset will not
+ * be charged 8k.  Rather, it will be charged a value that is scaled according
+ * to the overhead of the 128k block on the same vdev.  This 8k allocation will
+ * be charged 8k * 128k / 160k.  128k is from SPA_OLD_MAXBLOCKSIZE and 160k is
+ * as calculated in the 128k block example above.
  *
  * Every raidz allocation is sized to be a multiple of nparity+1 sectors.  That
  * is, every raidz1 allocation will be a multiple of 2 sectors, raidz2
@@ -5462,7 +5462,7 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * not necessarily equal to "blksize", due to RAIDZ deflation.
  */
 static uint64_t
-vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+vdev_raidz_psize_to_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
     uint64_t blksize)
 {
 	uint64_t asize, ndata;
@@ -5482,7 +5482,7 @@ vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
  * size.
  */
 static uint64_t
-vdev_draid_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+vdev_draid_psize_to_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
     uint64_t blksize)
 {
 	ASSERT3U(ndisks, >, nparity);
@@ -5542,12 +5542,12 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 				continue;
 
 			/* allocation size for the "typical" 128k block */
-			tsize = vdev_raidz_asize(ndisks, nparity, ashift,
-			    SPA_OLD_MAXBLOCKSIZE);
+			tsize = vdev_raidz_psize_to_asize(ndisks, nparity,
+			    ashift, SPA_OLD_MAXBLOCKSIZE);
 
 			/* allocation size for the blksize block */
-			asize = vdev_raidz_asize(ndisks, nparity, ashift,
-			    blksize);
+			asize = vdev_raidz_psize_to_asize(ndisks, nparity,
+			    ashift, blksize);
 		} else {
 			uint64_t ndata;
 
@@ -5556,12 +5556,12 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 				continue;
 
 			/* allocation size for the "typical" 128k block */
-			tsize = vdev_draid_asize(ndata + nparity, nparity,
-			    ashift, SPA_OLD_MAXBLOCKSIZE);
+			tsize = vdev_draid_psize_to_asize(ndata + nparity,
+			    nparity, ashift, SPA_OLD_MAXBLOCKSIZE);
 
 			/* allocation size for the blksize block */
-			asize = vdev_draid_asize(ndata + nparity, nparity,
-			    ashift, blksize);
+			asize = vdev_draid_psize_to_asize(ndata + nparity,
+			    nparity, ashift, blksize);
 		}
 
 		/*

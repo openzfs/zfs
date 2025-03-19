@@ -41,7 +41,7 @@ extern "C" {
 
 typedef struct metaslab_ops {
 	const char *msop_name;
-	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
+	uint64_t (*msop_alloc)(metaslab_t *, uint64_t, uint64_t, uint64_t *);
 } metaslab_ops_t;
 
 
@@ -86,7 +86,10 @@ uint64_t metaslab_largest_allocatable(metaslab_t *);
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
     blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,
-	int);
+    int);
+int metaslab_alloc_range(spa_t *, metaslab_class_t *, uint64_t, uint64_t,
+    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,
+    int, uint64_t *);
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
     dva_t *, int, dva_t *, uint64_t, int, zio_alloc_list_t *, int);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
@@ -100,6 +103,7 @@ void metaslab_check_free(spa_t *, const blkptr_t *);
 
 void metaslab_stat_init(void);
 void metaslab_stat_fini(void);
+void metaslab_trace_move(zio_alloc_list_t *, zio_alloc_list_t *);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 
@@ -130,6 +134,8 @@ uint64_t metaslab_group_get_space(metaslab_group_t *);
 void metaslab_group_histogram_verify(metaslab_group_t *);
 uint64_t metaslab_group_fragmentation(metaslab_group_t *);
 void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
+void metaslab_group_alloc_increment_all(spa_t *, blkptr_t *, const void *,
+    int, int);
 void metaslab_group_alloc_decrement(spa_t *, uint64_t, const void *, int, int,
     boolean_t);
 void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, const void *, int);
