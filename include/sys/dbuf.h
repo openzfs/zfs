@@ -174,6 +174,7 @@ typedef struct dbuf_dirty_record {
 			arc_buf_t *dr_data;
 			override_states_t dr_override_state;
 			uint8_t dr_copies;
+			uint8_t dr_gang_copies;
 			boolean_t dr_nopwrite;
 			boolean_t dr_brtwrite;
 			boolean_t dr_diowrite;

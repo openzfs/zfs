@@ -2545,12 +2545,14 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 
 	blkbuf[0] = '\0';
 
-	for (i = 0; i < ndvas; i++)
+	for (i = 0; i < ndvas; i++) {
 		(void) snprintf(blkbuf + strlen(blkbuf),
-		    buflen - strlen(blkbuf), "%llu:%llx:%llx ",
+		    buflen - strlen(blkbuf), "%llu:%llx:%llx%s ",
 		    (u_longlong_t)DVA_GET_VDEV(&dva[i]),
 		    (u_longlong_t)DVA_GET_OFFSET(&dva[i]),
-		    (u_longlong_t)DVA_GET_ASIZE(&dva[i]));
+		    (u_longlong_t)DVA_GET_ASIZE(&dva[i]),
+		    (DVA_GET_GANG(&dva[i]) ? "G" : ""));
+	}
 
 	if (BP_IS_HOLE(bp)) {
 		(void) snprintf(blkbuf + strlen(blkbuf),
@@ -8981,7 +8983,7 @@ zdb_read_block(char *thing, spa_t *spa)
 
 	DVA_SET_VDEV(&dva[0], vd->vdev_id);
 	DVA_SET_OFFSET(&dva[0], offset);
-	DVA_SET_GANG(&dva[0], !!(flags & ZDB_FLAG_GBH));
+	DVA_SET_GANG(&dva[0], 0);
 	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, psize));
 
 	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
@@ -8996,7 +8998,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-	zio = zio_root(spa, NULL, NULL, 0);
+	zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
 	if (vd == vd->vdev_top) {
 		/*
