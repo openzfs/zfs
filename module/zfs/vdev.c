@@ -1626,9 +1626,10 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 * no allocations are performed on this device.
 	 */
 	if (vd->vdev_noalloc) {
-		/* track non-allocating vdev space */
-		spa->spa_nonallocating_dspace += spa_deflate(spa) ?
-		    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+		if (vd->vdev_mg->mg_class == spa_normal_class(spa)) {
+			spa->spa_nonallocating_dspace += spa_deflate(spa) ?
+			    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+		}
 	} else if (!expanding) {
 		metaslab_group_activate(vd->vdev_mg);
 		if (vd->vdev_log_mg != NULL)
