@@ -1082,6 +1082,13 @@ again:
 }
 
 int
+zfs_zget_impl(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp,
+    boolean_t check_sync)
+{
+	return (zfs_zget(zfsvfs, obj_num, zpp));
+}
+
+int
 zfs_rezget(znode_t *zp)
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
