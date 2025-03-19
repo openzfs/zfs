@@ -350,6 +350,7 @@ typedef struct zio_prop {
 	uint8_t			zp_complevel;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
+	uint8_t			zp_gang_copies;
 	dmu_object_type_t	zp_type;
 	boolean_t		zp_dedup;
 	boolean_t		zp_dedup_verify;
@@ -575,7 +576,7 @@ extern zio_t *zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
     zio_priority_t priority, zio_flag_t flags, zbookmark_phys_t *zb);
 
 extern void zio_write_override(zio_t *zio, blkptr_t *bp, int copies,
-    boolean_t nopwrite, boolean_t brtwrite);
+    int gang_copies, boolean_t nopwrite, boolean_t brtwrite);
 
 extern void zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp);
 
