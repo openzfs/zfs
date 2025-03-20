@@ -708,6 +708,28 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_SNAPSHOT_LIMIT, "snapshot_limit",
 	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<count> | none", "SSLIMIT", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTUSERQUOTA, "defaultuserquota", 0,
+	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "<size> | none", "DEFAULTUSERQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTGROUPQUOTA, "defaultgroupquota",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "<size> | none", "DEFAULTGROUPQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTPROJECTQUOTA,
+	    "defaultprojectquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTPROJECTQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTUSEROBJQUOTA,
+	    "defaultuserobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTUSEROBJQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTGROUPOBJQUOTA,
+	    "defaultgroupobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTGROUPOBJQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
+	    "defaultprojectobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTPROJECTOBJQUOTA", B_FALSE, sfeatures);
 
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",

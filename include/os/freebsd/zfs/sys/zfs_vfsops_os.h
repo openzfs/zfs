@@ -96,6 +96,12 @@ struct zfsvfs {
 	uint64_t	z_groupobjquota_obj;
 	uint64_t	z_projectquota_obj;
 	uint64_t	z_projectobjquota_obj;
+	uint64_t	z_defaultuserquota;
+	uint64_t	z_defaultgroupquota;
+	uint64_t	z_defaultprojectquota;
+	uint64_t	z_defaultuserobjquota;
+	uint64_t	z_defaultgroupobjquota;
+	uint64_t	z_defaultprojectobjquota;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 #define	ZFS_OBJ_MTX_SZ	64
@@ -226,6 +232,8 @@ extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
 extern int zfs_get_temporary_prop(struct dsl_dataset *ds, zfs_prop_t zfs_prop,
     uint64_t *val, char *setpoint);
 extern int zfs_busy(void);
+extern int zfs_set_default_quota(zfsvfs_t *zfsvfs, zfs_prop_t zfs_prop,
+    uint64_t quota);
 
 #ifdef	__cplusplus
 }

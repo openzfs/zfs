@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: CDDL-1.0
+#!/bin/ksh -p
 #
 # CDDL HEADER START
 #
@@ -26,24 +26,39 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-export QUSER1=quser1
-export QUSER2=quser2
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
-export QGROUP=qgroup
-export QGROUP1=qgroup1
-export QGROUP1=qgroup2
+#
+# DESCRIPTION:
+#       defaultuserquota and defaultgroupquota can not be set against snapshot
+#
+#
+# STRATEGY:
+#       1. Set defaultuserquota on snap
+#       2. Set defaultgroupquota on snap
+#
 
-export UQUOTA_SIZE=1000000
-export GQUOTA_SIZE=4000000
+function cleanup
+{
+	cleanup_quota
 
-export QFS=$TESTPOOL/$TESTFS
-export QFILE=$TESTDIR/qf
-export OFILE=$TESTDIR/of
-export QFILE2=$TESTDIR/qf2
-export OFILE2=$TESTDIR/of2
+	datasetexists $snap_fs && destroy_dataset $snap_fs
+}
 
-export SNAP_QUOTA=100m
-export TEST_QUOTA=88888
+log_onexit cleanup
+
+typeset snap_fs=$QFS@snap
+log_assert "Check setting default{user|group}quota on snapshot"
+
+log_note "Check can not set default{user|group}quota on snapshot"
+log_must zfs snapshot $snap_fs
+
+log_mustnot zfs set defaultuserquota=$UQUOTA_SIZE $snap_fs
+
+log_mustnot zfs set defaultgroupquota=$GQUOTA_SIZE $snap_fs
+
+log_pass "Check setting default{user|group}quota on snapshot fails as expected"
