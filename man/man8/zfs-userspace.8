@@ -40,7 +40,8 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm userspace
-.Op Fl Hinp
+.Op Fl Hinpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …
@@ -48,7 +49,8 @@
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm zfs
 .Cm groupspace
-.Op Fl Hinp
+.Op Fl Hinpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …
@@ -56,7 +58,8 @@
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm zfs
 .Cm projectspace
-.Op Fl Hp
+.Op Fl Hpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …
@@ -67,7 +70,8 @@
 .It Xo
 .Nm zfs
 .Cm userspace
-.Op Fl Hinp
+.Op Fl Hinpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …
@@ -92,6 +96,10 @@ Do not print headers, use tab-delimited output.
 Sort by this field in reverse order.
 See
 .Fl s .
+.It Fl d Ar depth
+Calculate the sum of usage for the specified filesystem, snapshot,
+or path and any of its children, limiting the recursion to
+.Ar depth .
 .It Fl i
 Translate SID to POSIX ID.
 The POSIX ID may be ephemeral if no mapping exists.
@@ -124,6 +132,9 @@ The default is to display all fields.
 Use exact
 .Pq parsable
 numeric output.
+.It Fl r
+Recursively calculate the sum of usage for the specified
+filesystem, snapshot, or path and any of its children.
 .It Fl s Ar field
 Sort output by this field.
 The
@@ -148,7 +159,8 @@ The default can be changed to include group types.
 .It Xo
 .Nm zfs
 .Cm groupspace
-.Op Fl Hinp
+.Op Fl Hinpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …
@@ -164,7 +176,8 @@ except that the default types to display are
 .It Xo
 .Nm zfs
 .Cm projectspace
-.Op Fl Hp
+.Op Fl Hpr
+.Op Fl d Ar depth
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
 .Oo Fl s Ar field Oc Ns …
 .Oo Fl S Ar field Oc Ns …

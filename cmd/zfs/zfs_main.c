@@ -382,18 +382,18 @@ get_usage(zfs_help_t idx)
 		    "\tunallow [-r] -s @setname [<perm|@setname>[,...]] "
 		    "<filesystem|volume>\n"));
 	case HELP_USERSPACE:
-		return (gettext("\tuserspace [-Hinp] [-o field[,...]] "
-		    "[-s field] ...\n"
+		return (gettext("\tuserspace [-Hinpr] [-d depth] "
+		    "[-o field[,...]] [-s field] ...\n"
 		    "\t    [-S field] ... [-t type[,...]] "
 		    "<filesystem|snapshot|path>\n"));
 	case HELP_GROUPSPACE:
-		return (gettext("\tgroupspace [-Hinp] [-o field[,...]] "
-		    "[-s field] ...\n"
+		return (gettext("\tgroupspace [-Hinpr] [-d depth] "
+		    "[-o field[,...]] [-s field] ...\n"
 		    "\t    [-S field] ... [-t type[,...]] "
 		    "<filesystem|snapshot|path>\n"));
 	case HELP_PROJECTSPACE:
-		return (gettext("\tprojectspace [-Hp] [-o field[,...]] "
-		    "[-s field] ... \n"
+		return (gettext("\tprojectspace [-Hpr] [-d depth] "
+		    "[-o field[,...]] [-s field] ... \n"
 		    "\t    [-S field] ... <filesystem|snapshot|path>\n"));
 	case HELP_PROJECT:
 		return (gettext("\tproject [-d|-r] <directory|file ...>\n"
@@ -2762,13 +2762,13 @@ zfs_do_upgrade(int argc, char **argv)
 }
 
 /*
- * zfs userspace [-Hinp] [-o field[,...]] [-s field [-s field]...]
+ * zfs userspace [-Hinpr]] [-d depth] [-o field[,...]] [-s field [-s field]...]
  *               [-S field [-S field]...] [-t type[,...]]
  *               filesystem | snapshot | path
- * zfs groupspace [-Hinp] [-o field[,...]] [-s field [-s field]...]
+ * zfs groupspace [-Hinpr]] [-d depth] [-o field[,...]] [-s field [-s field]...]
  *                [-S field [-S field]...] [-t type[,...]]
  *                filesystem | snapshot | path
- * zfs projectspace [-Hp] [-o field[,...]] [-s field [-s field]...]
+ * zfs projectspace [-Hpr]] [-d depth] [-o field[,...]] [-s field [-s field]...]
  *                [-S field [-S field]...] filesystem | snapshot | path
  *
  *	-H      Scripted mode; elide headers and separate columns by tabs.
@@ -2776,6 +2776,8 @@ zfs_do_upgrade(int argc, char **argv)
  *	-n	Print numeric ID instead of user/group name.
  *	-o      Control which fields to display.
  *	-p	Use exact (parsable) numeric output.
+ *	-r	Recursive over children of the dataset as well.
+ *	-d	Limit depth of recursion
  *	-s      Specify sort columns, descending order.
  *	-S      Specify sort columns, ascending order.
  *	-t      Control which object types to display.
@@ -2835,6 +2837,12 @@ typedef struct us_cbdata {
 	zfs_sort_column_t *cb_sortcol;
 	size_t		cb_width[USFIELD_LAST];
 } us_cbdata_t;
+
+typedef struct us_cb_recurse {
+	int 			types;
+	zfs_userspace_cb_t	zfs_us_cb;
+	us_cbdata_t		*cb;
+} us_cb_recurse_t;
 
 static boolean_t us_populated = B_FALSE;
 
@@ -2986,6 +2994,36 @@ us_type2str(unsigned field_type)
 }
 
 static int
+userspace_recurse_cb(zfs_handle_t *zhp, void *arg)
+{
+	us_cb_recurse_t *usrcb = (us_cb_recurse_t *)arg;
+	zfs_userquota_prop_t p;
+	int ret;
+
+	if (zfs_get_underlying_type(zhp) != ZFS_TYPE_FILESYSTEM) {
+		(void) fprintf(stderr, gettext("operation is only applicable "
+		    "to filesystems and their snapshots\n"));
+		return (1);
+	}
+
+	for (p = 0; p < ZFS_NUM_USERQUOTA_PROPS; p++) {
+		if ((zfs_prop_is_user(p) &&
+		    !(usrcb->types & (USTYPE_PSX_USR | USTYPE_SMB_USR))) ||
+		    (zfs_prop_is_group(p) &&
+		    !(usrcb->types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))) ||
+		    (zfs_prop_is_project(p) && usrcb->types != USTYPE_PROJ))
+			continue;
+
+		usrcb->cb->cb_prop = p;
+		if ((ret = zfs_userspace(zhp, p, usrcb->zfs_us_cb,
+		    usrcb->cb)) != 0)
+			return (ret);
+	}
+
+	return (0);
+}
+
+static int
 userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 {
 	us_cbdata_t *cb = (us_cbdata_t *)arg;
@@ -3110,34 +3148,6 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 	if (nameidx >= 0 && namelen > cb->cb_width[nameidx])
 		cb->cb_width[nameidx] = namelen;
 
-	/*
-	 * Check if this type/name combination is in the list and update it;
-	 * otherwise add new node to the list.
-	 */
-	if ((n = uu_avl_find(avl, node, &sortinfo, &idx)) == NULL) {
-		uu_avl_insert(avl, node, idx);
-	} else {
-		nvlist_free(props);
-		free(node);
-		node = n;
-		props = node->usn_nvl;
-	}
-
-	/* Calculate/update width of USED/QUOTA fields */
-	if (cb->cb_nicenum) {
-		if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
-		    prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA ||
-		    prop == ZFS_PROP_PROJECTUSED ||
-		    prop == ZFS_PROP_PROJECTQUOTA) {
-			zfs_nicebytes(space, sizebuf, sizeof (sizebuf));
-		} else {
-			zfs_nicenum(space, sizebuf, sizeof (sizebuf));
-		}
-	} else {
-		(void) snprintf(sizebuf, sizeof (sizebuf), "%llu",
-		    (u_longlong_t)space);
-	}
-	sizelen = strlen(sizebuf);
 	if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
 	    prop == ZFS_PROP_PROJECTUSED) {
 		propname = "used";
@@ -3162,6 +3172,39 @@ userspace_cb(void *arg, const char *domain, uid_t rid, uint64_t space)
 	} else {
 		return (-1);
 	}
+
+	/*
+	 * Check if this type/name combination is in the list and update it;
+	 * otherwise add new node to the list.
+	 */
+	if ((n = uu_avl_find(avl, node, &sortinfo, &idx)) == NULL) {
+		uu_avl_insert(avl, node, idx);
+	} else {
+		uint64_t oldspace = 0;
+
+		if (nvlist_lookup_uint64(n->usn_nvl, propname, &oldspace) == 0)
+			space += oldspace;
+		nvlist_free(props);
+		free(node);
+		node = n;
+		props = node->usn_nvl;
+	}
+
+	/* Calculate/update width of USED/QUOTA fields */
+	if (cb->cb_nicenum) {
+		if (prop == ZFS_PROP_USERUSED || prop == ZFS_PROP_GROUPUSED ||
+		    prop == ZFS_PROP_USERQUOTA || prop == ZFS_PROP_GROUPQUOTA ||
+		    prop == ZFS_PROP_PROJECTUSED ||
+		    prop == ZFS_PROP_PROJECTQUOTA) {
+			zfs_nicebytes(space, sizebuf, sizeof (sizebuf));
+		} else {
+			zfs_nicenum(space, sizebuf, sizeof (sizebuf));
+		}
+	} else {
+		(void) snprintf(sizebuf, sizeof (sizebuf), "%llu",
+		    (u_longlong_t)space);
+	}
+	sizelen = strlen(sizebuf);
 	sizeidx = us_field_index(propname);
 	if (sizeidx >= 0 && sizelen > cb->cb_width[sizeidx])
 		cb->cb_width[sizeidx] = sizelen;
@@ -3323,7 +3366,6 @@ static int
 zfs_do_userspace(int argc, char **argv)
 {
 	zfs_handle_t *zhp;
-	zfs_userquota_prop_t p;
 	uu_avl_pool_t *avl_pool;
 	uu_avl_t *avl_tree;
 	uu_avl_walk_t *walk;
@@ -3333,6 +3375,8 @@ zfs_do_userspace(int argc, char **argv)
 	char *tfield = NULL;
 	int cfield = 0;
 	int fields[256];
+	int flags = ZFS_ITER_ARGS_CAN_BE_PATHS;
+	int limit = 0;
 	int i;
 	boolean_t scripted = B_FALSE;
 	boolean_t prtnum = B_FALSE;
@@ -3343,6 +3387,7 @@ zfs_do_userspace(int argc, char **argv)
 	zfs_sort_column_t *sortcol = NULL;
 	int types = USTYPE_PSX_USR | USTYPE_SMB_USR;
 	us_cbdata_t cb;
+	us_cb_recurse_t usrcb;
 	us_node_t *node;
 	us_node_t *rmnode;
 	uu_list_pool_t *listpool;
@@ -3361,8 +3406,11 @@ zfs_do_userspace(int argc, char **argv)
 		prtnum = B_TRUE;
 	}
 
-	while ((c = getopt(argc, argv, "nHpo:s:S:t:i")) != -1) {
+	while ((c = getopt(argc, argv, "d:nHpo:rs:S:t:i")) != -1) {
 		switch (c) {
+		case 'd':
+			limit = parse_depth(optarg, &flags);
+			break;
 		case 'n':
 			if (types == USTYPE_PROJ) {
 				(void) fprintf(stderr,
@@ -3379,6 +3427,9 @@ zfs_do_userspace(int argc, char **argv)
 			break;
 		case 'o':
 			ofield = optarg;
+			break;
+		case 'r':
+			flags |= ZFS_ITER_RECURSE;
 			break;
 		case 's':
 		case 'S':
@@ -3492,6 +3543,10 @@ zfs_do_userspace(int argc, char **argv)
 	(void) zfs_add_sort_column(&sortcol, "type", B_FALSE);
 	(void) zfs_add_sort_column(&sortcol, "name", B_FALSE);
 
+	usrcb.types = types;
+	usrcb.zfs_us_cb = userspace_cb;
+	usrcb.cb = &cb;
+
 	cb.cb_sortcol = sortcol;
 	cb.cb_numname = prtnum;
 	cb.cb_nicenum = !parsable;
@@ -3502,21 +3557,8 @@ zfs_do_userspace(int argc, char **argv)
 	for (i = 0; i < USFIELD_LAST; i++)
 		cb.cb_width[i] = strlen(gettext(us_field_hdr[i]));
 
-	for (p = 0; p < ZFS_NUM_USERQUOTA_PROPS; p++) {
-		if ((zfs_prop_is_user(p) &&
-		    !(types & (USTYPE_PSX_USR | USTYPE_SMB_USR))) ||
-		    (zfs_prop_is_group(p) &&
-		    !(types & (USTYPE_PSX_GRP | USTYPE_SMB_GRP))) ||
-		    (zfs_prop_is_project(p) && types != USTYPE_PROJ))
-			continue;
-
-		cb.cb_prop = p;
-		if ((ret = zfs_userspace(zhp, p, userspace_cb, &cb)) != 0) {
-			zfs_close(zhp);
-			return (ret);
-		}
-	}
-	zfs_close(zhp);
+	ret = zfs_for_each(argc, argv, flags, ZFS_TYPE_FILESYSTEM, NULL, NULL,
+	    limit, userspace_recurse_cb, &usrcb);
 
 	/* Sort the list */
 	if ((node = uu_avl_first(avl_tree)) == NULL)
