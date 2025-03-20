@@ -493,6 +493,19 @@ vdev type, or when adding a new
 .Sy draid
 vdev to an existing pool.
 .
+.feature com.klarasystems dynamic_gang_header no
+This feature enables larger gang headers based on the sector size of the pool.
+When enabled, gang headers will use the entire space allocated for them, instead
+of always restricting themselves to 512 bytes.
+This can reduce the need for nested gang trees in extreme fragmentation
+scenarios.
+.Pp
+This feature becomes active when a gang header is written that is larger than
+512 bytes.
+This feature is not enabled by
+.Xr zpool-upgrade 8 .
+Instead, it must be manually enabled, or be part of a compatibility file.
+.
 .feature org.illumos edonr no extensible_dataset
 This feature enables the use of the Edon-R hash algorithm for checksum,
 including for nopwrite
