@@ -1686,11 +1686,11 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	spa->spa_mode = mode;
 	spa->spa_read_spacemaps = spa_mode_readable_spacemaps;
 
-	spa->spa_normal_class = metaslab_class_create(spa, msp);
-	spa->spa_log_class = metaslab_class_create(spa, msp);
-	spa->spa_embedded_log_class = metaslab_class_create(spa, msp);
-	spa->spa_special_class = metaslab_class_create(spa, msp);
-	spa->spa_dedup_class = metaslab_class_create(spa, msp);
+	spa->spa_normal_class = metaslab_class_create(spa, msp, B_FALSE);
+	spa->spa_log_class = metaslab_class_create(spa, msp, B_TRUE);
+	spa->spa_embedded_log_class = metaslab_class_create(spa, msp, B_TRUE);
+	spa->spa_special_class = metaslab_class_create(spa, msp, B_FALSE);
+	spa->spa_dedup_class = metaslab_class_create(spa, msp, B_FALSE);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -9883,60 +9883,9 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 {
 	ASSERT(spa_writeable(spa));
 
-	vdev_t *rvd = spa->spa_root_vdev;
-	uint32_t max_queue_depth = zfs_vdev_async_write_max_active *
-	    zfs_vdev_queue_depth_pct / 100;
-	metaslab_class_t *normal = spa_normal_class(spa);
-	metaslab_class_t *special = spa_special_class(spa);
-	metaslab_class_t *dedup = spa_dedup_class(spa);
-
-	uint64_t slots_per_allocator = 0;
-	for (int c = 0; c < rvd->vdev_children; c++) {
-		vdev_t *tvd = rvd->vdev_child[c];
-
-		metaslab_group_t *mg = tvd->vdev_mg;
-		if (mg == NULL || !metaslab_group_initialized(mg))
-			continue;
-
-		metaslab_class_t *mc = mg->mg_class;
-		if (mc != normal && mc != special && mc != dedup)
-			continue;
-
-		/*
-		 * It is safe to do a lock-free check here because only async
-		 * allocations look at mg_max_alloc_queue_depth, and async
-		 * allocations all happen from spa_sync().
-		 */
-		for (int i = 0; i < mg->mg_allocators; i++) {
-			ASSERT0(zfs_refcount_count(
-			    &(mg->mg_allocator[i].mga_alloc_queue_depth)));
-		}
-		mg->mg_max_alloc_queue_depth = max_queue_depth;
-
-		for (int i = 0; i < mg->mg_allocators; i++) {
-			mg->mg_allocator[i].mga_cur_max_alloc_queue_depth =
-			    zfs_vdev_def_queue_depth;
-		}
-		slots_per_allocator += zfs_vdev_def_queue_depth;
-	}
-
-	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		ASSERT0(zfs_refcount_count(&normal->mc_allocator[i].
-		    mca_alloc_slots));
-		ASSERT0(zfs_refcount_count(&special->mc_allocator[i].
-		    mca_alloc_slots));
-		ASSERT0(zfs_refcount_count(&dedup->mc_allocator[i].
-		    mca_alloc_slots));
-		normal->mc_allocator[i].mca_alloc_max_slots =
-		    slots_per_allocator;
-		special->mc_allocator[i].mca_alloc_max_slots =
-		    slots_per_allocator;
-		dedup->mc_allocator[i].mca_alloc_max_slots =
-		    slots_per_allocator;
-	}
-	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	dedup->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
+	metaslab_class_balance(spa_normal_class(spa), B_TRUE);
+	metaslab_class_balance(spa_special_class(spa), B_TRUE);
+	metaslab_class_balance(spa_dedup_class(spa), B_TRUE);
 }
 
 static void
@@ -10156,12 +10105,6 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_syncing_txg = txg;
 	spa->spa_sync_pass = 0;
 
-	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_allocs[i].spaa_lock);
-		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
-		mutex_exit(&spa->spa_allocs[i].spaa_lock);
-	}
-
 	/*
 	 * If there are any pending vdev state changes, convert them
 	 * into config changes that go out with this transaction group.
@@ -10273,12 +10216,6 @@ spa_sync(spa_t *spa, uint64_t txg)
 	}
 
 	dsl_pool_sync_done(dp, txg);
-
-	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_allocs[i].spaa_lock);
-		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
-		mutex_exit(&spa->spa_allocs[i].spaa_lock);
-	}
 
 	/*
 	 * Update usable space statistics.
