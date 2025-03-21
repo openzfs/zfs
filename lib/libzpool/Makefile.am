@@ -49,6 +49,8 @@ nodist_libzpool_la_SOURCES = \
 	module/os/linux/zfs/zio_crypt.c \
 	\
 	module/zcommon/cityhash.c \
+	module/zcommon/json.c \
+	module/zcommon/literals.c \
 	module/zcommon/simd_stat.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
@@ -134,6 +136,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/spa_log_spacemap.c \
 	module/zfs/spa_misc.c \
 	module/zfs/spa_stats.c \
+	module/zfs/spa_stats_json.c \
 	module/zfs/space_map.c \
 	module/zfs/space_reftree.c \
 	module/zfs/txg.c \

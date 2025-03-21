@@ -174,7 +174,8 @@ SRCS+=	lapi.c \
 SRCS+=	fnvpair.c \
 	nvpair.c \
 	nvpair_alloc_fixed.c \
-	nvpair_alloc_spl.c
+	nvpair_alloc_spl.c \
+	nvpair_json.c
 
 #os/freebsd/spl
 SRCS+=	acl_common.c \
@@ -234,6 +235,8 @@ SRCS+= 	u8_textprep.c
 
 #zcommon
 SRCS+=	cityhash.c \
+	json.c \
+	literals.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
@@ -320,6 +323,7 @@ SRCS+=	abd.c \
 	spa_log_spacemap.c \
 	spa_misc.c \
 	spa_stats.c \
+	spa_stats_json.c \
 	txg.c \
 	uberblock.c \
 	unique.c \

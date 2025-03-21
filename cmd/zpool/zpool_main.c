@@ -77,6 +77,8 @@
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
 #include "zfs_valstr.h"
+#include "json.h"
+#include "literals.h"
 
 #include "statcommon.h"
 
@@ -308,41 +310,6 @@ static const char *checkpoint_state_str[] = {
 	"NONE",
 	"EXISTS",
 	"DISCARDING"
-};
-
-static const char *vdev_state_str[] = {
-	"UNKNOWN",
-	"CLOSED",
-	"OFFLINE",
-	"REMOVED",
-	"CANT_OPEN",
-	"FAULTED",
-	"DEGRADED",
-	"ONLINE"
-};
-
-static const char *vdev_aux_str[] = {
-	"NONE",
-	"OPEN_FAILED",
-	"CORRUPT_DATA",
-	"NO_REPLICAS",
-	"BAD_GUID_SUM",
-	"TOO_SMALL",
-	"BAD_LABEL",
-	"VERSION_NEWER",
-	"VERSION_OLDER",
-	"UNSUP_FEAT",
-	"SPARED",
-	"ERR_EXCEEDED",
-	"IO_FAILURE",
-	"BAD_LOG",
-	"EXTERNAL",
-	"SPLIT_POOL",
-	"BAD_ASHIFT",
-	"EXTERNAL_PERSIST",
-	"ACTIVE",
-	"CHILDREN_OFFLINE",
-	"ASHIFT_TOO_BIG"
 };
 
 static const char *vdev_init_state_str[] = {
@@ -1090,15 +1057,10 @@ static nvlist_t *
 zpool_json_schema(int maj_v, int min_v)
 {
 	char cmd[MAX_CMD_LEN];
-	nvlist_t *sch = fnvlist_alloc();
-	nvlist_t *ov = fnvlist_alloc();
-
 	snprintf(cmd, MAX_CMD_LEN, "zpool %s", current_command->name);
-	fnvlist_add_string(ov, "command", cmd);
-	fnvlist_add_uint32(ov, "vers_major", maj_v);
-	fnvlist_add_uint32(ov, "vers_minor", min_v);
-	fnvlist_add_nvlist(sch, "output_version", ov);
-	fnvlist_free(ov);
+
+	nvlist_t *sch = fnvlist_alloc();
+	json_add_output_version(sch, cmd, maj_v, min_v);
 	return (sch);
 }
 
@@ -1248,7 +1210,7 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 		if (nvlist_lookup_uint64_array(nvdev, ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &c) == 0) {
 			fnvlist_add_string(list, "state",
-			    vdev_state_str[vs->vs_state]);
+			    vdev_state_string(vs->vs_state));
 		}
 	}
 }
@@ -9276,7 +9238,7 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 		fnvlist_add_string(vds, "was",
 		    fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH));
 	} else if (vs->vs_aux != VDEV_AUX_NONE) {
-		fnvlist_add_string(vds, "aux", vdev_aux_str[vs->vs_aux]);
+		fnvlist_add_string(vds, "aux", vdev_aux_string(vs->vs_aux));
 	} else if (children == 0 && !isspare &&
 	    getenv("ZPOOL_STATUS_NON_NATIVE_ASHIFT_IGNORE") == NULL &&
 	    VDEV_STAT_VALID(vs_physical_ashift, vsc) &&

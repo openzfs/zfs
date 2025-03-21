@@ -8,6 +8,8 @@ endif
 
 COMMON_H = \
 	cityhash.h \
+	json.h \
+	literals.h \
 	zfeature_common.h \
 	zfs_comutil.h \
 	zfs_deleg.h \
@@ -175,6 +177,7 @@ COMMON_H = \
 
 
 KERNEL_H = \
+	sys/spa_stats_json.h \
 	sys/zfs_ioctl.h \
 	sys/zfs_ioctl_impl.h \
 	sys/zfs_onexit.h \
