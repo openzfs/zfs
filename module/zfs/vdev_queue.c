@@ -26,6 +26,8 @@
 
 /*
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2023-2025, Klara, Inc.
+ * Copyright (c) 2024-2025, Syneto
  */
 
 #include <sys/zfs_context.h>
@@ -229,6 +231,81 @@ uint_t zfs_vdev_queue_depth_pct = 300;
  */
 uint_t zfs_vdev_def_queue_depth = 32;
 
+typedef struct vdev_queue_kstats {
+	kstat_named_t vqks_io_queued;
+	kstat_named_t vqks_io_class_queued[ZIO_PRIORITY_NUM_QUEUEABLE];
+	kstat_named_t vqks_io_active;
+	kstat_named_t vqks_io_class_active[ZIO_PRIORITY_NUM_QUEUEABLE];
+	kstat_named_t vqks_io_enqueued_total;
+	kstat_named_t vqks_io_class_enqueued_total[ZIO_PRIORITY_NUM_QUEUEABLE];
+	kstat_named_t vqks_io_dequeued_total;
+	kstat_named_t vqks_io_class_dequeued_total[ZIO_PRIORITY_NUM_QUEUEABLE];
+	kstat_named_t vqks_io_aggregated_total;
+	kstat_named_t vqks_io_aggregated_data_total;
+	kstat_named_t vqks_io_aggregated_read_gap_total;
+	kstat_named_t vqks_io_aggregated_write_gap_total;
+	kstat_named_t vqks_io_aggregated_shrunk_total;
+} vdev_queue_kstats_t;
+
+static vdev_queue_kstats_t vdev_queue_kstats_template = {
+	{ "io_queued",	KSTAT_DATA_UINT64 },
+	{
+		{ "io_syncread_queued",		KSTAT_DATA_UINT64 },
+		{ "io_syncwrite_queued",	KSTAT_DATA_UINT64 },
+		{ "io_asyncread_queued",	KSTAT_DATA_UINT64 },
+		{ "io_asyncwrite_queued",	KSTAT_DATA_UINT64 },
+		{ "io_scrub_queued",		KSTAT_DATA_UINT64 },
+		{ "io_removal_queued",		KSTAT_DATA_UINT64 },
+		{ "io_initializing_queued",	KSTAT_DATA_UINT64 },
+		{ "io_trim_queued",		KSTAT_DATA_UINT64 },
+		{ "io_rebuild_queued",		KSTAT_DATA_UINT64 },
+	},
+	{ "io_active",	KSTAT_DATA_UINT64 },
+	{
+		{ "io_syncread_active",		KSTAT_DATA_UINT64 },
+		{ "io_syncwrite_active",	KSTAT_DATA_UINT64 },
+		{ "io_asyncread_active",	KSTAT_DATA_UINT64 },
+		{ "io_asyncwrite_active",	KSTAT_DATA_UINT64 },
+		{ "io_scrub_active",		KSTAT_DATA_UINT64 },
+		{ "io_removal_active",		KSTAT_DATA_UINT64 },
+		{ "io_initializing_active",	KSTAT_DATA_UINT64 },
+		{ "io_trim_active",		KSTAT_DATA_UINT64 },
+		{ "io_rebuild_active",		KSTAT_DATA_UINT64 },
+	},
+	{ "io_enqueued_total",	KSTAT_DATA_UINT64 },
+	{
+		{ "io_syncread_enqueued_total",		KSTAT_DATA_UINT64 },
+		{ "io_syncwrite_enqueued_total",	KSTAT_DATA_UINT64 },
+		{ "io_asyncread_enqueued_total",	KSTAT_DATA_UINT64 },
+		{ "io_asyncwrite_enqueued_total",	KSTAT_DATA_UINT64 },
+		{ "io_scrub_enqueued_total",		KSTAT_DATA_UINT64 },
+		{ "io_removal_enqueued_total",		KSTAT_DATA_UINT64 },
+		{ "io_initializing_enqueued_total",	KSTAT_DATA_UINT64 },
+		{ "io_trim_enqueued_total",		KSTAT_DATA_UINT64 },
+		{ "io_rebuild_enqueued_total",		KSTAT_DATA_UINT64 },
+	},
+	{ "io_dequeued_total",	KSTAT_DATA_UINT64 },
+	{
+		{ "io_syncread_dequeued_total",		KSTAT_DATA_UINT64 },
+		{ "io_syncwrite_dequeued_total",	KSTAT_DATA_UINT64 },
+		{ "io_asyncread_dequeued_total",	KSTAT_DATA_UINT64 },
+		{ "io_asyncwrite_dequeued_total",	KSTAT_DATA_UINT64 },
+		{ "io_scrub_dequeued_total",		KSTAT_DATA_UINT64 },
+		{ "io_removal_dequeued_total",		KSTAT_DATA_UINT64 },
+		{ "io_initializing_dequeued_total",	KSTAT_DATA_UINT64 },
+		{ "io_trim_dequeued_total",		KSTAT_DATA_UINT64 },
+		{ "io_rebuild_dequeued_total",		KSTAT_DATA_UINT64 },
+	},
+	{ "io_aggregated_total",		KSTAT_DATA_UINT64 },
+	{ "io_aggregated_data_total",		KSTAT_DATA_UINT64 },
+	{ "io_aggregated_read_gap_total",	KSTAT_DATA_UINT64 },
+	{ "io_aggregated_write_gap_total",	KSTAT_DATA_UINT64 },
+	{ "io_aggregated_shrunk_total",		KSTAT_DATA_UINT64 },
+};
+
+#define	VQSTAT_INC(vq, stat)	wmsum_add(&vq->vq_sums.vqs_##stat, 1)
+#define	VQSTAT_DEC(vq, stat)	wmsum_add(&vq->vq_sums.vqs_##stat, -1)
+
 static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
@@ -280,6 +357,10 @@ vdev_queue_class_add(vdev_queue_t *vq, zio_t *zio)
 	}
 	else
 		avl_add(&vq->vq_class[p].vqc_tree, zio);
+	VQSTAT_INC(vq, io_queued);
+	VQSTAT_INC(vq, io_class_queued[p]);
+	VQSTAT_INC(vq, io_enqueued_total);
+	VQSTAT_INC(vq, io_class_enqueued_total[p]);
 }
 
 static void
@@ -298,6 +379,10 @@ vdev_queue_class_remove(vdev_queue_t *vq, zio_t *zio)
 		empty = avl_is_empty(tree);
 	}
 	vq->vq_cqueued &= ~(empty << p);
+	VQSTAT_DEC(vq, io_queued);
+	VQSTAT_DEC(vq, io_class_queued[p]);
+	VQSTAT_INC(vq, io_dequeued_total);
+	VQSTAT_INC(vq, io_class_dequeued_total[p]);
 }
 
 static uint_t
@@ -473,6 +558,129 @@ found:
 	return (p);
 }
 
+static void
+vdev_queue_sums_init(vdev_queue_t *vq)
+{
+	vdev_queue_sums_t *vqs = &vq->vq_sums;
+	wmsum_init(&vqs->vqs_io_queued, 0);
+	wmsum_init(&vqs->vqs_io_active, 0);
+	wmsum_init(&vqs->vqs_io_enqueued_total, 0);
+	wmsum_init(&vqs->vqs_io_dequeued_total, 0);
+	wmsum_init(&vqs->vqs_io_aggregated_total, 0);
+	wmsum_init(&vqs->vqs_io_aggregated_data_total, 0);
+	wmsum_init(&vqs->vqs_io_aggregated_read_gap_total, 0);
+	wmsum_init(&vqs->vqs_io_aggregated_write_gap_total, 0);
+	wmsum_init(&vqs->vqs_io_aggregated_shrunk_total, 0);
+	for (int i = 0; i < ZIO_PRIORITY_NUM_QUEUEABLE; i++) {
+		wmsum_init(&vqs->vqs_io_class_queued[i], 0);
+		wmsum_init(&vqs->vqs_io_class_active[i], 0);
+		wmsum_init(&vqs->vqs_io_class_enqueued_total[i], 0);
+		wmsum_init(&vqs->vqs_io_class_dequeued_total[i], 0);
+	}
+}
+
+static void
+vdev_queue_sums_fini(vdev_queue_t *vq)
+{
+	vdev_queue_sums_t *vqs = &vq->vq_sums;
+	wmsum_fini(&vqs->vqs_io_queued);
+	wmsum_fini(&vqs->vqs_io_active);
+	wmsum_fini(&vqs->vqs_io_enqueued_total);
+	wmsum_fini(&vqs->vqs_io_dequeued_total);
+	wmsum_fini(&vqs->vqs_io_aggregated_total);
+	wmsum_fini(&vqs->vqs_io_aggregated_data_total);
+	wmsum_fini(&vqs->vqs_io_aggregated_read_gap_total);
+	wmsum_fini(&vqs->vqs_io_aggregated_write_gap_total);
+	wmsum_fini(&vqs->vqs_io_aggregated_shrunk_total);
+	for (int i = 0; i < ZIO_PRIORITY_NUM_QUEUEABLE; i++) {
+		wmsum_fini(&vqs->vqs_io_class_queued[i]);
+		wmsum_fini(&vqs->vqs_io_class_active[i]);
+		wmsum_fini(&vqs->vqs_io_class_enqueued_total[i]);
+		wmsum_fini(&vqs->vqs_io_class_dequeued_total[i]);
+	}
+}
+
+static int
+vdev_queue_kstats_update(kstat_t *ksp, int rw)
+{
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+
+	vdev_queue_t *vq = ksp->ks_private;
+	vdev_queue_kstats_t *vqks = ksp->ks_data;
+	vdev_queue_sums_t *vqs = &vq->vq_sums;
+
+	vqks->vqks_io_queued.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_queued);
+	vqks->vqks_io_active.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_active);
+	vqks->vqks_io_enqueued_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_enqueued_total);
+	vqks->vqks_io_dequeued_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_dequeued_total);
+	vqks->vqks_io_aggregated_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_aggregated_total);
+	vqks->vqks_io_aggregated_data_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_aggregated_data_total);
+	vqks->vqks_io_aggregated_read_gap_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_aggregated_read_gap_total);
+	vqks->vqks_io_aggregated_write_gap_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_aggregated_write_gap_total);
+	vqks->vqks_io_aggregated_shrunk_total.value.ui64 =
+	    wmsum_value(&vqs->vqs_io_aggregated_shrunk_total);
+	for (int i = 0; i < ZIO_PRIORITY_NUM_QUEUEABLE; i++) {
+		vqks->vqks_io_class_queued[i].value.ui64 =
+		    wmsum_value(&vqs->vqs_io_class_queued[i]);
+		vqks->vqks_io_class_active[i].value.ui64 =
+		    wmsum_value(&vqs->vqs_io_class_active[i]);
+		vqks->vqks_io_class_enqueued_total[i].value.ui64 =
+		    wmsum_value(&vqs->vqs_io_class_enqueued_total[i]);
+		vqks->vqks_io_class_dequeued_total[i].value.ui64 =
+		    wmsum_value(&vqs->vqs_io_class_dequeued_total[i]);
+	}
+
+	return (0);
+}
+
+static void
+vdev_queue_kstats_init(vdev_queue_t *vq)
+{
+	char *module =
+	    kmem_asprintf("zfs/%s/vdev/%llu", spa_name(vq->vq_vdev->vdev_spa),
+	    (u_longlong_t)vq->vq_vdev->vdev_guid);
+
+	kstat_t *ksp = kstat_create(module, 0, "queue", "misc",
+	    KSTAT_TYPE_NAMED,
+	    sizeof (vdev_queue_kstats_t) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	kmem_strfree(module);
+
+	if (ksp == NULL)
+		return;
+
+	ksp->ks_private = vq;
+	ksp->ks_update = vdev_queue_kstats_update;
+	ksp->ks_data = kmem_alloc(sizeof (vdev_queue_kstats_t), KM_SLEEP);
+	memcpy(ksp->ks_data, &vdev_queue_kstats_template,
+	    sizeof (vdev_queue_kstats_t));
+	kstat_install(ksp);
+
+	vq->vq_ksp = ksp;
+}
+
+static void
+vdev_queue_kstats_fini(vdev_queue_t *vq)
+{
+	if (vq->vq_ksp == NULL)
+		return;
+
+	kmem_free(vq->vq_ksp->ks_data, sizeof (vdev_queue_kstats_t));
+	kstat_delete(vq->vq_ksp);
+
+	vq->vq_ksp = NULL;
+}
+
 void
 vdev_queue_init(vdev_t *vd)
 {
@@ -503,12 +711,28 @@ vdev_queue_init(vdev_t *vd)
 	list_create(&vq->vq_active_list, sizeof (struct zio),
 	    offsetof(struct zio, io_queue_node.l));
 	mutex_init(&vq->vq_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	vdev_queue_sums_init(vq);
+
+	/*
+	 * IO for interior vdevs and distributed spares never go through the
+	 * queue, so do not create kstat nodes for them.
+	 * See zio_vdev_io_start().
+	 */
+	if (spa_load_state(vd->vdev_spa) != SPA_LOAD_TRYIMPORT &&
+	    vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
+		vdev_queue_kstats_init(vq);
+	}
 }
 
 void
 vdev_queue_fini(vdev_t *vd)
 {
 	vdev_queue_t *vq = &vd->vdev_queue;
+
+	vdev_queue_kstats_fini(vq);
+	vdev_queue_sums_fini(vq);
 
 	for (zio_priority_t p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
 		if (vdev_queue_class_fifo(p))
@@ -564,9 +788,12 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 {
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
-	vq->vq_cactive[zio->io_priority]++;
+	zio_priority_t p = zio->io_priority;
+	vq->vq_cactive[p]++;
 	vq->vq_active++;
-	if (vdev_queue_is_interactive(zio->io_priority)) {
+	VQSTAT_INC(vq, io_active);
+	VQSTAT_INC(vq, io_class_active[p]);
+	if (vdev_queue_is_interactive(p)) {
 		if (++vq->vq_ia_active == 1)
 			vq->vq_nia_credit = 1;
 	} else if (vq->vq_ia_active > 0) {
@@ -581,9 +808,12 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
-	vq->vq_cactive[zio->io_priority]--;
+	zio_priority_t p = zio->io_priority;
+	vq->vq_cactive[p]--;
 	vq->vq_active--;
-	if (vdev_queue_is_interactive(zio->io_priority)) {
+	VQSTAT_DEC(vq, io_active);
+	VQSTAT_DEC(vq, io_class_active[p]);
+	if (vdev_queue_is_interactive(p)) {
 		if (--vq->vq_ia_active == 0)
 			vq->vq_nia_credit = 0;
 		else
@@ -778,6 +1008,8 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	    flags | ZIO_FLAG_DONT_QUEUE, vdev_queue_agg_io_done, NULL);
 	aio->io_timestamp = first->io_timestamp;
 
+	VQSTAT_INC(vq, io_aggregated_total);
+
 	nio = first;
 	next_offset = first->io_offset;
 	do {
@@ -786,6 +1018,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 		ASSERT3P(dio, !=, NULL);
 		zio_add_child(dio, aio);
 		vdev_queue_io_remove(vq, dio);
+		VQSTAT_INC(vq, io_aggregated_data_total);
 
 		if (dio->io_offset != next_offset) {
 			/* allocate a buffer for a read gap */
@@ -794,6 +1027,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 			abd = abd_alloc_for_io(
 			    dio->io_offset - next_offset, B_TRUE);
 			abd_gang_add(aio->io_abd, abd, B_TRUE);
+			VQSTAT_INC(vq, io_aggregated_read_gap_total);
 		}
 		if (dio->io_abd &&
 		    (dio->io_size != abd_get_size(dio->io_abd))) {
@@ -801,6 +1035,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 			ASSERT3U(abd_get_size(dio->io_abd), >, dio->io_size);
 			abd = abd_get_offset_size(dio->io_abd, 0, dio->io_size);
 			abd_gang_add(aio->io_abd, abd, B_TRUE);
+			VQSTAT_INC(vq, io_aggregated_shrunk_total);
 		} else {
 			if (dio->io_flags & ZIO_FLAG_NODATA) {
 				/* allocate a buffer for a write gap */
@@ -808,6 +1043,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 				ASSERT3P(dio->io_abd, ==, NULL);
 				abd_gang_add(aio->io_abd,
 				    abd_get_zeros(dio->io_size), B_TRUE);
+				VQSTAT_INC(vq, io_aggregated_write_gap_total);
 			} else {
 				/*
 				 * We pass B_FALSE to abd_gang_add()

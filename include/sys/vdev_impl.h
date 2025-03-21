@@ -23,7 +23,8 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2023-2025, Klara, Inc.
+ * Copyright (c) 2024-2025, Syneto
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -42,6 +43,7 @@
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/zfs_ratelimit.h>
+#include <sys/wmsum.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -139,6 +141,25 @@ typedef union vdev_queue_class {
 	avl_tree_t	vqc_tree;
 } vdev_queue_class_t;
 
+typedef struct vdev_queue_sums {
+	/* gauges (inc/dec counters, current value) */
+	wmsum_t	vqs_io_queued;
+	wmsum_t	vqs_io_class_queued[ZIO_PRIORITY_NUM_QUEUEABLE];
+	wmsum_t	vqs_io_active;
+	wmsum_t	vqs_io_class_active[ZIO_PRIORITY_NUM_QUEUEABLE];
+
+	/* counters (inc only, since queue creation ) */
+	wmsum_t	vqs_io_enqueued_total;
+	wmsum_t	vqs_io_class_enqueued_total[ZIO_PRIORITY_NUM_QUEUEABLE];
+	wmsum_t	vqs_io_dequeued_total;
+	wmsum_t	vqs_io_class_dequeued_total[ZIO_PRIORITY_NUM_QUEUEABLE];
+	wmsum_t	vqs_io_aggregated_total;
+	wmsum_t	vqs_io_aggregated_data_total;
+	wmsum_t	vqs_io_aggregated_read_gap_total;
+	wmsum_t	vqs_io_aggregated_write_gap_total;
+	wmsum_t	vqs_io_aggregated_shrunk_total;
+} vdev_queue_sums_t;
+
 struct vdev_queue {
 	vdev_t		*vq_vdev;
 	vdev_queue_class_t vq_class[ZIO_PRIORITY_NUM_QUEUEABLE];
@@ -156,6 +177,8 @@ struct vdev_queue {
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */
 	kmutex_t	vq_lock;
+	vdev_queue_sums_t vq_sums;
+	kstat_t		*vq_ksp;
 };
 
 typedef enum vdev_alloc_bias {
