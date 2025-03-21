@@ -82,6 +82,7 @@
 #include "zfs_util.h"
 #include "zfs_comutil.h"
 #include "zfs_projectutil.h"
+#include "json.h"
 
 libzfs_handle_t *g_zfs;
 
@@ -1908,18 +1909,11 @@ is_recvd_column(zprop_get_cbdata_t *cbp)
 static nvlist_t *
 zfs_json_schema(int maj_v, int min_v)
 {
-	nvlist_t *sch = NULL;
-	nvlist_t *ov = NULL;
 	char cmd[MAX_CMD_LEN];
 	snprintf(cmd, MAX_CMD_LEN, "zfs %s", current_command->name);
 
-	sch = fnvlist_alloc();
-	ov = fnvlist_alloc();
-	fnvlist_add_string(ov, "command", cmd);
-	fnvlist_add_uint32(ov, "vers_major", maj_v);
-	fnvlist_add_uint32(ov, "vers_minor", min_v);
-	fnvlist_add_nvlist(sch, "output_version", ov);
-	fnvlist_free(ov);
+	nvlist_t *sch = fnvlist_alloc();
+	json_add_output_version(sch, cmd, maj_v, min_v);
 	return (sch);
 }
 
