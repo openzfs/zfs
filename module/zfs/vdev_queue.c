@@ -229,6 +229,12 @@ uint_t zfs_vdev_queue_depth_pct = 300;
  */
 uint_t zfs_vdev_def_queue_depth = 32;
 
+/*
+ * Allow io to bypass the queue depending on how full the queue is.
+ * 0 = never bypass, 100 = always bypass.
+ */
+uint_t zfs_vdev_queue_bypass_pct = 10;
+
 static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
@@ -503,6 +509,7 @@ vdev_queue_init(vdev_t *vd)
 	list_create(&vq->vq_active_list, sizeof (struct zio),
 	    offsetof(struct zio, io_queue_node.l));
 	mutex_init(&vq->vq_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&vq->vq_active_list_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
 void
@@ -521,6 +528,7 @@ vdev_queue_fini(vdev_t *vd)
 
 	list_destroy(&vq->vq_active_list);
 	mutex_destroy(&vq->vq_lock);
+	mutex_destroy(&vq->vq_active_list_lock);
 }
 
 static void
@@ -565,7 +573,6 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_cactive[zio->io_priority]++;
-	vq->vq_active++;
 	if (vdev_queue_is_interactive(zio->io_priority)) {
 		if (++vq->vq_ia_active == 1)
 			vq->vq_nia_credit = 1;
@@ -573,7 +580,11 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 		vq->vq_nia_credit--;
 	}
 	zio->io_queue_state = ZIO_QS_ACTIVE;
+	mutex_enter(&vq->vq_active_list_lock);
 	list_insert_tail(&vq->vq_active_list, zio);
+	vq->vq_active++;
+	vq->vq_queued_active++;
+	mutex_exit(&vq->vq_active_list_lock);
 }
 
 static void
@@ -582,7 +593,6 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_cactive[zio->io_priority]--;
-	vq->vq_active--;
 	if (vdev_queue_is_interactive(zio->io_priority)) {
 		if (--vq->vq_ia_active == 0)
 			vq->vq_nia_credit = 0;
@@ -590,7 +600,11 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 			vq->vq_nia_credit = zfs_vdev_nia_credit;
 	} else if (vq->vq_ia_active == 0)
 		vq->vq_nia_credit++;
+	mutex_enter(&vq->vq_active_list_lock);
 	list_remove(&vq->vq_active_list, zio);
+	vq->vq_active--;
+	vq->vq_queued_active--;
+	mutex_exit(&vq->vq_active_list_lock);
 	zio->io_queue_state = ZIO_QS_NONE;
 }
 
@@ -947,6 +961,31 @@ vdev_queue_io(zio_t *zio)
 	zio->io_flags |= ZIO_FLAG_DONT_QUEUE;
 	zio->io_timestamp = gethrtime();
 
+	/*
+	 * Bypass queue if certain conditions are met. Queue bypassing requires
+	 * a non-rotational device. Reads / writes will attempt to bypass queue,
+	 * depending on how full the queue is. Other operations will always
+	 * queue. Bypassing the queue can lead to a 2x IOPS speed-ups on some
+	 * benchmarks. If the queue is too full (due to a scrub or resilver)
+	 * then go back to queuing normal reads/writes so as not to starve out
+	 * the more important IOs.
+	 */
+	if (zio->io_vd->vdev_nonrot && ZIO_IS_NORMAL(zio)) {
+
+		boolean_t is_bypass = vq->vq_queued_active <
+		    (zfs_vdev_max_active * zfs_vdev_queue_bypass_pct) / 100
+		    ? 1 : 0;
+
+		if (is_bypass) {
+			zio->io_queue_state = ZIO_QS_BYPASS;
+			mutex_enter(&vq->vq_active_list_lock);
+			list_insert_tail(&vq->vq_active_list, zio);
+			vq->vq_active++;
+			mutex_exit(&vq->vq_active_list_lock);
+			return (zio);
+		}
+	}
+
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_io_add(vq, zio);
 	nio = vdev_queue_io_to_issue(vq);
@@ -978,6 +1017,15 @@ vdev_queue_io_done(zio_t *zio)
 	hrtime_t now = gethrtime();
 	vq->vq_io_complete_ts = now;
 	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
+
+	if (zio->io_queue_state == ZIO_QS_BYPASS) {
+		mutex_enter(&vq->vq_active_list_lock);
+		list_remove(&vq->vq_active_list, zio);
+		vq->vq_active--;
+		mutex_exit(&vq->vq_active_list_lock);
+		zio->io_queue_state = ZIO_QS_NONE;
+		return;
+	}
 
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_pending_remove(vq, zio);
@@ -1174,3 +1222,6 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, def_queue_depth, UINT, ZMOD_RW,
 	"Default queue depth for each allocator");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_bypass_pct, UINT, ZMOD_RW,
+	"Queue bypass percentage per vdev");
