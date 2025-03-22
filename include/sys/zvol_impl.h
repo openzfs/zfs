@@ -60,6 +60,30 @@ typedef struct zvol_state {
 	boolean_t		zv_threading;	/* volthreading property */
 } zvol_state_t;
 
+/*
+ * zvol taskqs
+ */
+typedef struct zv_taskq {
+	uint_t tqs_cnt;
+	taskq_t **tqs_taskq;
+} zv_taskq_t;
+
+typedef struct zv_request_stack {
+	zvol_state_t	*zv;
+	struct bio	*bio;
+	struct request	*rq;
+} zv_request_t;
+
+typedef struct zv_request_task {
+	zv_request_t	zvr;
+	taskq_ent_t	ent;
+} zv_request_task_t;
+
+/*
+ * Switch taskq at multiple of 512 MB offset. This can be set to a lower value
+ * to utilize more threads for small files but may affect prefetch hits.
+ */
+#define	ZVOL_TASKQ_OFFSET_SHIFT 29
 
 extern krwlock_t zvol_state_lock;
 #define	ZVOL_HT_SIZE	1024
@@ -69,6 +93,8 @@ extern zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE];
 
 extern unsigned int zvol_volmode;
 extern unsigned int zvol_inhibit_dev;
+
+extern zv_taskq_t zvol_taskqs;
 
 /*
  * platform independent functions exported to platform code
@@ -86,7 +112,7 @@ void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
     uint64_t size, boolean_t commit);
 int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio);
-int zvol_init_impl(void);
+int zvol_init_impl(uint32_t ncpus, uint32_t num_taskqs, uint32_t zvol_threads);
 void zvol_fini_impl(void);
 void zvol_wait_close(zvol_state_t *zv);
 int zvol_clone_range(zvol_state_handle_t *, uint64_t,
@@ -94,6 +120,8 @@ int zvol_clone_range(zvol_state_handle_t *, uint64_t,
 void zvol_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
     size_t nbps);
+zv_request_task_t *zv_request_task_create(zv_request_t zvr);
+void zv_request_task_free(zv_request_task_t *task);
 
 /*
  * platform dependent functions exported to platform independent code
