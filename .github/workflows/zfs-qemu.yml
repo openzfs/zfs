@@ -15,6 +15,11 @@ on:
         required: false
         default: false
         description: 'Test on CentOS 10 stream'
+      fedora_kernel_ver:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) Experimental kernel version to install on Fedora (like '6.14' or '6.13.3-0.rc3')"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -48,7 +53,15 @@ jobs:
           else
             os_selection="$FULL_OS"
           fi
-          os_json=$(echo ${os_selection} | jq -c)
+
+          if [ ${{ github.event.inputs.fedora_kernel_ver }} != "" ] ; then
+              # They specified a custom kernel version for Fedora.  Use only
+              # Fedora runners.
+              os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
+          else
+              # Normal case
+              os_json=$(echo ${os_selection} | jq -c)
+          fi
 
           # Add optional runners
           if [ "${{ github.event.inputs.include_stream9 }}" == 'true' ]; then
@@ -92,7 +105,7 @@ jobs:
 
     - name: Install dependencies
       timeout-minutes: 20
-      run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
+      run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }} ${{ github.event.inputs.fedora_kernel_ver }}
 
     - name: Build modules
       timeout-minutes: 30
