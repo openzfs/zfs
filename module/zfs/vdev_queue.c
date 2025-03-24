@@ -149,7 +149,7 @@ static uint_t zfs_vdev_sync_write_max_active = 10;
 static uint_t zfs_vdev_async_read_min_active = 1;
 /*  */ uint_t zfs_vdev_async_read_max_active = 3;
 static uint_t zfs_vdev_async_write_min_active = 2;
-/*  */ uint_t zfs_vdev_async_write_max_active = 10;
+static uint_t zfs_vdev_async_write_max_active = 10;
 static uint_t zfs_vdev_scrub_min_active = 1;
 static uint_t zfs_vdev_scrub_max_active = 3;
 static uint_t zfs_vdev_removal_min_active = 1;
@@ -203,31 +203,6 @@ static uint_t zfs_vdev_aggregation_limit = 1 << 20;
 static uint_t zfs_vdev_aggregation_limit_non_rotating = SPA_OLD_MAXBLOCKSIZE;
 static uint_t zfs_vdev_read_gap_limit = 32 << 10;
 static uint_t zfs_vdev_write_gap_limit = 4 << 10;
-
-/*
- * Define the queue depth percentage for each top-level. This percentage is
- * used in conjunction with zfs_vdev_async_max_active to determine how many
- * allocations a specific top-level vdev should handle. Once the queue depth
- * reaches zfs_vdev_queue_depth_pct * zfs_vdev_async_write_max_active / 100
- * then allocator will stop allocating blocks on that top-level device.
- * The default kernel setting is 1000% which will yield 100 allocations per
- * device. For userland testing, the default setting is 300% which equates
- * to 30 allocations per device.
- */
-#ifdef _KERNEL
-uint_t zfs_vdev_queue_depth_pct = 1000;
-#else
-uint_t zfs_vdev_queue_depth_pct = 300;
-#endif
-
-/*
- * When performing allocations for a given metaslab, we want to make sure that
- * there are enough IOs to aggregate together to improve throughput. We want to
- * ensure that there are at least 128k worth of IOs that can be aggregated, and
- * we assume that the average allocation size is 4k, so we need the queue depth
- * to be 32 per allocator to get good aggregation of sequential writes.
- */
-uint_t zfs_vdev_def_queue_depth = 32;
 
 static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
@@ -1168,9 +1143,3 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_credit, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_delay, UINT, ZMOD_RW,
 	"Number of non-interactive I/Os before _max_active");
-
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, UINT, ZMOD_RW,
-	"Queue depth percentage for each top-level vdev");
-
-ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, def_queue_depth, UINT, ZMOD_RW,
-	"Default queue depth for each allocator");

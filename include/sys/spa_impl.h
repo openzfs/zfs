@@ -59,11 +59,6 @@
 extern "C" {
 #endif
 
-typedef struct spa_alloc {
-	kmutex_t	spaa_lock;
-	avl_tree_t	spaa_tree;
-} ____cacheline_aligned spa_alloc_t;
-
 typedef struct spa_allocs_use {
 	kmutex_t	sau_lock;
 	uint_t		sau_rotor;
@@ -273,12 +268,6 @@ struct spa {
 	uint64_t	spa_last_synced_guid;	/* last synced guid */
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
-	/*
-	 * spa_allocs is an array, whose lengths is stored in spa_alloc_count.
-	 * There is one tree and one lock for each allocator, to help improve
-	 * allocation performance in write-heavy workloads.
-	 */
-	spa_alloc_t	*spa_allocs;
 	spa_allocs_use_t *spa_allocs_use;
 	int		spa_alloc_count;
 	int		spa_active_allocator;	/* selectable allocator */

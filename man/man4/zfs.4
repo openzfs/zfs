@@ -245,16 +245,26 @@ For L2ARC devices less than 1 GiB, the amount of data
 evicts is significant compared to the amount of restored L2ARC data.
 In this case, do not write log blocks in L2ARC in order not to waste space.
 .
-.It Sy metaslab_aliquot Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
-Metaslab granularity, in bytes.
+.It Sy metaslab_aliquot Ns = Ns Sy 2097152 Ns B Po 2 MiB Pc Pq u64
+Metaslab group's per child vdev allocation granularity, in bytes.
 This is roughly similar to what would be referred to as the "stripe size"
 in traditional RAID arrays.
-In normal operation, ZFS will try to write this amount of data to each disk
-before moving on to the next top-level vdev.
+In normal operation, ZFS will try to write this amount of data to each child
+of a top-level vdev before moving on to the next top-level vdev.
 .
 .It Sy metaslab_bias_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable metaslab group biasing based on their vdevs' over- or under-utilization
-relative to the pool.
+Enable metaslab groups biasing based on their over- or under-utilization
+relative to the metaslab class average.
+If disabled, each metaslab group will receive allocations proportional to its
+capacity.
+.
+.It Sy metaslab_perf_bias Ns = Ns Sy 1 Ns | Ns 0 Ns | Ns 2 Pq int
+Controls metaslab groups biasing based on their write performance.
+Setting to 0 makes all metaslab groups receive fixed amounts of allocations.
+Setting to 2 allows faster metaslab groups to allocate more.
+Setting to 1 equals to 2 if the pool is write-bound or 0 otherwise.
+That is, if the pool is limited by write throughput, then allocate more from
+faster metaslab groups, but if not, try to evenly distribute the allocations.
 .
 .It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
@@ -1527,23 +1537,6 @@ This enforced wait ensures the HDD services the interactive I/O
 within a reasonable amount of time.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_queue_depth_pct Ns = Ns Sy 1000 Ns % Pq uint
-Maximum number of queued allocations per top-level vdev expressed as
-a percentage of
-.Sy zfs_vdev_async_write_max_active ,
-which allows the system to detect devices that are more capable
-of handling allocations and to allocate more blocks to those devices.
-This allows for dynamic allocation distribution when devices are imbalanced,
-as fuller devices will tend to be slower than empty devices.
-.Pp
-Also see
-.Sy zio_dva_throttle_enabled .
-.
-.It Sy zfs_vdev_def_queue_depth Ns = Ns Sy 32 Pq uint
-Default queue depth for each vdev IO allocator.
-Higher values allow for better coalescing of sequential writes before sending
-them to the disk, but can increase transaction commit times.
-.
 .It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
 Defines if the driver should retire on a given error type.
 The following options may be bitwise-ored together:
@@ -2488,10 +2481,7 @@ Slow I/O counters can be seen with
 .
 .It Sy zio_dva_throttle_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Throttle block allocations in the I/O pipeline.
-This allows for dynamic allocation distribution when devices are imbalanced.
-When enabled, the maximum number of pending allocations per top-level vdev
-is limited by
-.Sy zfs_vdev_queue_depth_pct .
+This allows for dynamic allocation distribution based on device performance.
 .
 .It Sy zfs_xattr_compat Ns = Ns 0 Ns | Ns 1 Pq int
 Control the naming scheme used when setting new xattrs in the user namespace.
