@@ -83,8 +83,8 @@ uint64_t metaslab_largest_allocatable(metaslab_t *);
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t, blkptr_t *, int,
     uint64_t, blkptr_t *, int, zio_alloc_list_t *, int, const void *);
 int metaslab_alloc_range(spa_t *, metaslab_class_t *, uint64_t, uint64_t,
-    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,
-    int, uint64_t *);
+    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *,
+    int, const void *, uint64_t *);
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
     dva_t *, int, dva_t *, uint64_t, int, zio_alloc_list_t *, int);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
@@ -131,8 +131,8 @@ uint64_t metaslab_group_get_space(metaslab_group_t *);
 void metaslab_group_histogram_verify(metaslab_group_t *);
 uint64_t metaslab_group_fragmentation(metaslab_group_t *);
 void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
-void metaslab_group_alloc_increment_all(spa_t *, blkptr_t *, const void *,
-    int, int);
+void metaslab_group_alloc_increment_all(spa_t *, blkptr_t *, int, int,
+    uint64_t, const void *);
 void metaslab_group_alloc_decrement(spa_t *, uint64_t, int, int, uint64_t,
     const void *);
 void metaslab_recalculate_weight_and_sort(metaslab_t *);
