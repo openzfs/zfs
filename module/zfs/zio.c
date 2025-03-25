@@ -3252,8 +3252,8 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zio_gang_inherit_allocator(zio, cio);
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
-			metaslab_group_alloc_increment_all(spa, bp, cio, flags,
-			    zio->io_allocator);
+			metaslab_group_alloc_increment_all(spa, bp,
+			    zio->io_allocator, flags, psize, cio);
 		}
 		/*
 		 * We do not reserve for the child writes, since we already

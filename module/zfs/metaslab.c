@@ -4759,13 +4759,13 @@ metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, int allocator,
 }
 
 void
-metaslab_group_alloc_increment_all(spa_t *spa, blkptr_t *bp, const void *tag,
-    int flags, int allocator)
+metaslab_group_alloc_increment_all(spa_t *spa, blkptr_t *bp, int allocator,
+    int flags, uint64_t psize, const void *tag)
 {
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
 		uint64_t vdev = DVA_GET_VDEV(&bp->blk_dva[d]);
-		metaslab_group_alloc_increment(spa, vdev, tag, flags,
-		    allocator);
+		metaslab_group_alloc_increment(spa, vdev, allocator, flags,
+		    psize, tag);
 	}
 }
 
@@ -5925,14 +5925,14 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     zio_alloc_list_t *zal, int allocator, const void *tag)
 {
 	return (metaslab_alloc_range(spa, mc, psize, psize, bp, ndvas, txg,
-	    hintbp, flags, zal, zio, allocator, NULL));
+	    hintbp, flags, zal, allocator, tag, NULL));
 }
 
 int
 metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     uint64_t max_psize, blkptr_t *bp, int ndvas, uint64_t txg,
     blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, 
-    int allocator, zio_t *zio, uint64_t *actual_psize)
+    int allocator, const void *tag, uint64_t *actual_psize)
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
