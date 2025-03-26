@@ -259,8 +259,9 @@ function rpm_build_and_install() {
 
     # ZFS release RPMs are built.  Copy them to the ~/zfs directory just to
     # keep all the RPMs in the same place.
-    cp ~/rpmbuild/RPMS/noarch/*.rpm .
-    cp ~/rpmbuild/SRPMS/*.rpm .
+    cp ~/rpmbuild/RPMS/noarch/*.rpm ~/zfs
+    cp ~/rpmbuild/SRPMS/*.rpm ~/zfs
+
     popd
     rm -fr ~/rpmbuild
     echo "##[endgroup]"
