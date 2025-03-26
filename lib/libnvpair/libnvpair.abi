@@ -2194,6 +2194,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='stack_t' type-id='380f9954' id='ac5e685f'/>
+    <typedef-decl name='unw_regnum_t' type-id='95e97e5e' id='c53620f0'/>
     <class-decl name='unw_cursor' size-in-bits='8128' is-struct='yes' visibility='default' id='384a1f22'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='opaque' type-id='dc70ec0b' visibility='default'/>
@@ -2305,6 +2306,10 @@
       <parameter type-id='eaa32e2f'/>
       <parameter type-id='b59d7dce'/>
       <return type-id='79a0948f'/>
+    </function-decl>
+    <function-decl name='_Ux86_64_regname' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='c53620f0'/>
+      <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='_ULx86_64_init_local' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='3946e4d1'/>
