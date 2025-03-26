@@ -4271,7 +4271,7 @@ vdev_remove_wanted(spa_t *spa, uint64_t guid)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(EEXIST)));
 
 	vd->vdev_remove_wanted = B_TRUE;
-	spa_async_request(spa, SPA_ASYNC_REMOVE);
+	spa_async_request(spa, SPA_ASYNC_REMOVE_BY_USER);
 
 	return (spa_vdev_state_exit(spa, vd, 0));
 }
