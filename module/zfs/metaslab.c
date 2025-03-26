@@ -28,6 +28,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/brt.h>
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
 #include <sys/space_map.h>
@@ -5582,6 +5583,13 @@ spa_remap_blkptr(spa_t *spa, blkptr_t *bp, spa_remap_cb_t callback, void *arg)
 	 * Embedded BP's have no DVA to remap.
 	 */
 	if (BP_GET_NDVAS(bp) < 1)
+		return (B_FALSE);
+
+	/*
+	 * Cloned blocks can not be remapped since BRT depends on specific
+	 * vdev id and offset in the DVA[0] for its reference counting.
+	 */
+	if (!BP_IS_METADATA(bp) && brt_maybe_exists(spa, bp))
 		return (B_FALSE);
 
 	/*
