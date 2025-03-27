@@ -465,6 +465,11 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	AC_SUBST(LINUX)
 	AC_SUBST(LINUX_OBJ)
 	AC_SUBST(LINUX_VERSION)
+
+	dnl # create a relatively unique numeric checksum based on the kernel
+	dnl # version and path. this is included in the cache key below,
+	dnl # allowing different cached values for different kernels
+	_zfs_linux_cache_checksum=$(echo ${kernelsrc} {$kernelbuild} ${kernsrcver} | cksum | cut -f1 -d' ')
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_VERSION_WARNING], [
@@ -812,14 +817,18 @@ dnl # must never depend on the results of previous tests.  Each test
 dnl # needs to be entirely independent.
 dnl #
 AC_DEFUN([ZFS_LINUX_TEST_SRC], [
-	ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]],
-	    [["Dual BSD/GPL"]])], [$1])
-	ZFS_LINUX_CONFTEST_MAKEFILE([$1], [yes], [$4])
+	cachevar="zfs_cv_kernel_[$1]_$_zfs_linux_cache_checksum"
+	eval "cacheval=\$$cachevar"
+	AS_IF([test "x$cacheval" = "x"], [
+		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]],
+		    [["Dual BSD/GPL"]])], [$1])
+		ZFS_LINUX_CONFTEST_MAKEFILE([$1], [yes], [$4])
 
-	AS_IF([ test -n "$5" ], [
-		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM(
-		    [[$2]], [[$3]], [[$5]])], [$1_license])
-		ZFS_LINUX_CONFTEST_MAKEFILE([$1_license], [yes], [$4])
+		AS_IF([ test -n "$5" ], [
+			ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM(
+			    [[$2]], [[$3]], [[$5]])], [$1_license])
+			ZFS_LINUX_CONFTEST_MAKEFILE([$1_license], [yes], [$4])
+		])
 	])
 ])
 
@@ -831,14 +840,23 @@ dnl # $2 - run on success (valid .ko generated)
 dnl # $3 - run on failure (unable to compile)
 dnl #
 AC_DEFUN([ZFS_LINUX_TEST_RESULT], [
-	AS_IF([test -d build/$1], [
-		AS_IF([test -f build/$1/$1.ko], [$2], [$3])
-	], [
-		AC_MSG_ERROR([
+	cachevar="zfs_cv_kernel_[$1]_$_zfs_linux_cache_checksum"
+	AC_CACHE_VAL([$cachevar], [
+		AS_IF([test -d build/$1], [
+			AS_IF([test -f build/$1/$1.ko], [
+				eval "$cachevar=yes"
+			], [
+				eval "$cachevar=no"
+			])
+		], [
+			AC_MSG_ERROR([
 	*** No matching source for the "$1" test, check that
 	*** both the test source and result macros refer to the same name.
+			])
 		])
 	])
+	eval "cacheval=\$$cachevar"
+	AS_IF([test "x$cacheval" = "xyes"], [$2], [$3])
 ])
 
 dnl #
@@ -867,15 +885,24 @@ dnl # verify symbol exports, unless --enable-linux-builtin was provided to
 dnl # configure.
 dnl #
 AC_DEFUN([ZFS_LINUX_TEST_RESULT_SYMBOL], [
-	AS_IF([ ! test -f build/$1/$1.ko], [
-		$5
-	], [
-		AS_IF([test "x$enable_linux_builtin" != "xyes"], [
-			ZFS_CHECK_SYMBOL_EXPORT([$2], [$3], [$4], [$5])
+	cachevar="zfs_cv_kernel_[$1]_$_zfs_linux_cache_checksum"
+	AC_CACHE_VAL([$cachevar], [
+		AS_IF([ ! test -f build/$1/$1.ko], [
+			eval "$cachevar=no"
 		], [
-			$4
+			AS_IF([test "x$enable_linux_builtin" != "xyes"], [
+				ZFS_CHECK_SYMBOL_EXPORT([$2], [$3], [
+					eval "$cachevar=yes"
+				], [
+					eval "$cachevar=no"
+				])
+			], [
+				eval "$cacheval=yes"
+			])
 		])
 	])
+	eval "cacheval=\$$cachevar"
+	AS_IF([test "x$cacheval" = "xyes"], [$4], [$5])
 ])
 
 dnl #
