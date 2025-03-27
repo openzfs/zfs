@@ -257,9 +257,12 @@ secpolicy_zfs(const cred_t *cr)
 int
 secpolicy_zfs_proc(const cred_t *cr, proc_t *proc)
 {
-	if (!has_capability(proc, CAP_SYS_ADMIN))
-		return (EACCES);
-	return (0);
+	const struct cred *c = get_task_cred(proc);
+	const struct cred *old = override_creds(c);
+	bool hascap = capable(CAP_SYS_ADMIN);
+	revert_creds(old);
+	put_cred(c);
+	return (hascap ? 0 : EACCES);
 }
 
 void
