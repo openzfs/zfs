@@ -5940,8 +5940,8 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 int
 metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     uint64_t max_psize, blkptr_t *bp, int ndvas, uint64_t txg,
-    blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, 
-    int allocator, const void *tag, uint64_t *actual_psize)
+    blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, int allocator,
+    const void *tag, uint64_t *actual_psize)
 {
 	dva_t *dva = bp->blk_dva;
 	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
