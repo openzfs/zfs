@@ -1433,9 +1433,23 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
  * removal.
  */
 void
-zfs_post_remove(spa_t *spa, vdev_t *vd)
+zfs_post_remove(spa_t *spa, vdev_t *vd, boolean_t by_kernel)
 {
-	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED, NULL);
+	nvlist_t *aux = NULL;
+
+	if (by_kernel) {
+		/*
+		 * Add optional supplemental keys to payload
+		 */
+		aux = fm_nvlist_create(NULL);
+		if (aux)
+			fnvlist_add_boolean(aux, "by_kernel");
+	}
+
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED, aux);
+
+	if (by_kernel && aux)
+		fm_nvlist_destroy(aux, FM_NVA_FREE);
 }
 
 /*
