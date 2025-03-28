@@ -395,7 +395,7 @@ kstat_delete_module(kstat_module_t *module)
 
 	kstat_module_t *parent = module->ksm_parent;
 
-	char *p = module->ksm_name, *frag;
+	char *p = module->ksm_name, *frag = NULL;
 	while (p != NULL && (frag = strsep(&p, "/"))) {}
 
 	remove_proc_entry(frag, parent ? parent->ksm_proc : proc_spl_kstat);
@@ -420,7 +420,7 @@ kstat_create_module(char *name)
 
 	(void) strlcpy(buf, name, KSTAT_STRLEN);
 
-	parent = NULL;
+	module = parent = NULL;
 	char *p = buf, *frag;
 	while ((frag = strsep(&p, "/")) != NULL) {
 		module = kstat_find_module(buf);
@@ -454,7 +454,6 @@ kstat_create_module(char *name)
 	}
 
 	return (module);
-
 }
 
 static int
