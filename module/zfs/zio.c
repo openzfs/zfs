@@ -1022,6 +1022,10 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 			zio->io_logical = zio;
 		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
 			pipeline |= ZIO_GANG_STAGES;
+		if (flags & ZIO_FLAG_PREALLOCATED) {
+			BP_ZERO_DVAS(zio->io_bp);
+			BP_SET_BIRTH(zio->io_bp, 0, 0);
+		}
 	}
 
 	zio->io_spa = spa;
@@ -1962,8 +1966,7 @@ zio_write_compress(zio_t *zio)
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
 	ASSERT(zio->io_bp_override == NULL);
 
-	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg &&
-	    !(zio->io_flags & ZIO_FLAG_PREALLOCATED)) {
+	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg) {
 		/*
 		 * We're rewriting an existing block, which means we're
 		 * working on behalf of spa_sync().  For spa_sync() to
@@ -2109,8 +2112,7 @@ zio_write_compress(zio_t *zio)
 		zio->io_pipeline = ZIO_REWRITE_PIPELINE | gang_stages;
 		zio->io_flags |= ZIO_FLAG_IO_REWRITE;
 	} else {
-		if (!(zio->io_flags & ZIO_FLAG_PREALLOCATED))
-			BP_ZERO(bp);
+		BP_ZERO(bp);
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
 	}
 
@@ -3252,8 +3254,9 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zio_gang_inherit_allocator(zio, cio);
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
-			metaslab_group_alloc_increment_all(spa, bp,
-			    zio->io_allocator, flags, psize, cio);
+			metaslab_group_alloc_increment_all(spa,
+			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
+			    cio);
 		}
 		/*
 		 * We do not reserve for the child writes, since we already
@@ -4133,6 +4136,10 @@ zio_dva_allocate(zio_t *zio)
 		zio->io_gang_leader = zio;
 	}
 	if (zio->io_flags & ZIO_FLAG_PREALLOCATED) {
+		memcpy(zio->io_bp->blk_dva, zio->io_bp_orig.blk_dva,
+		    3 * sizeof (dva_t));
+		BP_SET_BIRTH(zio->io_bp, BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig),
+		    BP_GET_PHYSICAL_BIRTH(&zio->io_bp_orig));
 		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_GANG);
 		return (zio);
 	}
@@ -5153,8 +5160,7 @@ zio_ready(zio_t *zio)
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
 		ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg ||
-		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE) ||
-		    (zio->io_flags & ZIO_FLAG_PREALLOCATED));
+		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
 
 		zio->io_ready(zio);
