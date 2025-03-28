@@ -1734,8 +1734,8 @@ metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
 		*cursor = rt->rt_start;
 	zfs_btree_t *bt = &rt->rt_root;
 	zfs_btree_index_t where;
-	zfs_range_seg_t *rs = metaslab_block_find(bt, rt, *cursor, size, size,
-	    &where);
+	zfs_range_seg_t *rs = metaslab_block_find(bt, rt, *cursor, size,
+	    max_size, &where);
 	uint64_t first_found;
 	int count_searched = 0;
 
@@ -1885,7 +1885,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 			align = size & -size;
 			cursor = &msp->ms_lbas[highbit64(align) - 1];
 			offset = metaslab_block_picker(rt, cursor, size,
-			    size, metaslab_df_max_search, found_size);
+			    max_size, metaslab_df_max_search, found_size);
 		}
 	}
 
@@ -5164,16 +5164,17 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 
 		offset = metaslab_block_alloc(msp, asize, max_asize, txg,
 		    actual_asize);
-		metaslab_trace_add(zal, mg, msp, *actual_asize, d, offset,
-		    allocator);
 
 		if (offset != -1ULL) {
+			metaslab_trace_add(zal, mg, msp, *actual_asize, d,
+			    offset, allocator);
 			/* Proactively passivate the metaslab, if needed */
 			if (activated)
 				metaslab_segment_may_passivate(msp);
 			mutex_exit(&msp->ms_lock);
 			break;
 		}
+		metaslab_trace_add(zal, mg, msp, asize, d, offset, allocator);
 next:
 		ASSERT(msp->ms_loaded);
 
@@ -5399,10 +5400,11 @@ top:
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize,
 		    max_asize, txg, dva, d, allocator, try_hard,
 		    &asize);
-		if (actual_psize)
-			*actual_psize = vdev_asize_to_psize_txg(vd, asize, txg);
 
 		if (offset != -1ULL) {
+			if (actual_psize)
+				*actual_psize = vdev_asize_to_psize_txg(vd,
+				    asize, txg);
 			metaslab_class_rotate(mg, allocator, psize, B_TRUE);
 
 			DVA_SET_VDEV(&dva[d], vd->vdev_id);

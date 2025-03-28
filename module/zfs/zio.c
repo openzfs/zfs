@@ -3200,7 +3200,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	/*
 	 * Create and nowait the gang children. First, we try to do
 	 * opportunistic allocations. If that fails to generate enough
-	 * space, we fall back to normal zio_write calls.
+	 * space, we fall back to normal zio_write calls for nested gang.
 	 */
 	for (int g = 0; resid != 0; g++) {
 		flags &= METASLAB_ASYNC_ALLOC;
@@ -3236,7 +3236,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		    bp, gio->io_prop.zp_copies, txg, NULL,
 		    flags, &cio_list, zio->io_allocator, NULL, &allocated_size);
 
-		boolean_t allocated = allocated_size != UINT64_MAX;
+		boolean_t allocated = error == 0;
 
 		uint64_t psize = allocated ? MIN(resid, allocated_size) :
 		    min_size;
@@ -4964,7 +4964,6 @@ zio_checksum_generate(zio_t *zio)
 		ASSERT(checksum == ZIO_CHECKSUM_LABEL);
 	} else {
 		if (BP_IS_GANG(bp) && zio->io_child_type == ZIO_CHILD_GANG) {
-			zfs_dbgmsg("gang: %px", zio);
 			ASSERT(!IO_IS_ALLOCATING(zio));
 			checksum = ZIO_CHECKSUM_GANG_HEADER;
 		} else {
