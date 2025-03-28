@@ -44,6 +44,8 @@ function cleanup_projectquota
 		log_must zfs set projectobjquota@$PRJID1=none $QFS
 		log_must zfs set projectquota@$PRJID2=none $QFS
 		log_must zfs set projectobjquota@$PRJID2=none $QFS
+		log_must zfs set defaultprojectquota=none $QFS
+		log_must zfs set defaultprojectobjquota=none $QFS
 		log_must chmod 0755 $mntp
 	fi
 

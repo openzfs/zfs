@@ -384,6 +384,14 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 			*value = ZFS_ACLTYPE_OFF;
 #endif
 			break;
+		case ZFS_PROP_DEFAULTUSERQUOTA:
+		case ZFS_PROP_DEFAULTGROUPQUOTA:
+		case ZFS_PROP_DEFAULTPROJECTQUOTA:
+		case ZFS_PROP_DEFAULTUSEROBJQUOTA:
+		case ZFS_PROP_DEFAULTGROUPOBJQUOTA:
+		case ZFS_PROP_DEFAULTPROJECTOBJQUOTA:
+			*value = 0;
+			return (0);
 		default:
 			return (error);
 		}

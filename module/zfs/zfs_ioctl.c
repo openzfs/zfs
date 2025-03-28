@@ -2259,7 +2259,19 @@ zfs_ioc_objset_zplprops(zfs_cmd_t *zc)
 		if ((err = nvl_add_zplprop(os, nv, ZFS_PROP_VERSION)) == 0 &&
 		    (err = nvl_add_zplprop(os, nv, ZFS_PROP_NORMALIZE)) == 0 &&
 		    (err = nvl_add_zplprop(os, nv, ZFS_PROP_UTF8ONLY)) == 0 &&
-		    (err = nvl_add_zplprop(os, nv, ZFS_PROP_CASE)) == 0)
+		    (err = nvl_add_zplprop(os, nv, ZFS_PROP_CASE)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTUSERQUOTA)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTGROUPQUOTA)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTPROJECTQUOTA)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTUSEROBJQUOTA)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTGROUPOBJQUOTA)) == 0 &&
+		    (err = nvl_add_zplprop(os, nv,
+		    ZFS_PROP_DEFAULTPROJECTOBJQUOTA)) == 0)
 			err = put_nvlist(zc, nv);
 		nvlist_free(nv);
 	} else {
@@ -2639,6 +2651,20 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			 */
 			err = -1;
 		}
+		zfsvfs_rele(zfsvfs, FTAG);
+		break;
+	}
+	case ZFS_PROP_DEFAULTUSERQUOTA:
+	case ZFS_PROP_DEFAULTGROUPQUOTA:
+	case ZFS_PROP_DEFAULTPROJECTQUOTA:
+	case ZFS_PROP_DEFAULTUSEROBJQUOTA:
+	case ZFS_PROP_DEFAULTGROUPOBJQUOTA:
+	case ZFS_PROP_DEFAULTPROJECTOBJQUOTA:
+	{
+		zfsvfs_t *zfsvfs;
+		if ((err = zfsvfs_hold(dsname, FTAG, &zfsvfs, B_TRUE)) != 0)
+			break;
+		err = zfs_set_default_quota(zfsvfs, prop, intval);
 		zfsvfs_rele(zfsvfs, FTAG);
 		break;
 	}
@@ -3331,6 +3357,9 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	uint64_t sense = ZFS_PROP_UNDEFINED;
 	uint64_t norm = ZFS_PROP_UNDEFINED;
 	uint64_t u8 = ZFS_PROP_UNDEFINED;
+	uint64_t duq = ZFS_PROP_UNDEFINED, duoq = ZFS_PROP_UNDEFINED;
+	uint64_t dgq = ZFS_PROP_UNDEFINED, dgoq = ZFS_PROP_UNDEFINED;
+	uint64_t dpq = ZFS_PROP_UNDEFINED, dpoq = ZFS_PROP_UNDEFINED;
 	int error;
 
 	ASSERT(zplprops != NULL);
@@ -3357,6 +3386,30 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 		    zfs_prop_to_name(ZFS_PROP_CASE), &sense);
 		(void) nvlist_remove_all(createprops,
 		    zfs_prop_to_name(ZFS_PROP_CASE));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTUSERQUOTA), &duq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTUSERQUOTA));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPQUOTA), &dgq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPQUOTA));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTQUOTA), &dpq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTQUOTA));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTUSEROBJQUOTA), &duoq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTUSEROBJQUOTA));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPOBJQUOTA), &dgoq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPOBJQUOTA));
+		(void) nvlist_lookup_uint64(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTOBJQUOTA), &dpoq);
+		(void) nvlist_remove_all(createprops,
+		    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTOBJQUOTA));
 	}
 
 	/*
@@ -3401,6 +3454,47 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 		return (error);
 	VERIFY(nvlist_add_uint64(zplprops,
 	    zfs_prop_to_name(ZFS_PROP_CASE), sense) == 0);
+
+	if (duq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTUSERQUOTA, &duq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTUSERQUOTA), duq) == 0);
+
+	if (dgq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTGROUPQUOTA,
+	    &dgq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPQUOTA), dgq) == 0);
+
+	if (dpq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTPROJECTQUOTA,
+	    &dpq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTQUOTA), dpq) == 0);
+
+	if (duoq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTUSEROBJQUOTA,
+	    &duoq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTUSEROBJQUOTA), duoq) == 0);
+
+	if (dgoq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTGROUPOBJQUOTA,
+	    &dgoq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTGROUPOBJQUOTA), dgoq) == 0);
+
+	if (dpoq == ZFS_PROP_UNDEFINED &&
+	    (error = zfs_get_zplprop(os, ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
+	    &dpoq)) != 0)
+		return (error);
+	VERIFY(nvlist_add_uint64(zplprops,
+	    zfs_prop_to_name(ZFS_PROP_DEFAULTPROJECTOBJQUOTA), dpoq) == 0);
 
 	if (is_ci)
 		*is_ci = (sense == ZFS_CASE_INSENSITIVE);
@@ -6256,7 +6350,7 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 	void *buf = vmem_alloc(bufsize, KM_SLEEP);
 
 	error = zfs_userspace_many(zfsvfs, zc->zc_objset_type, &zc->zc_cookie,
-	    buf, &zc->zc_nvlist_dst_size);
+	    buf, &zc->zc_nvlist_dst_size, &zc->zc_guid);
 
 	if (error == 0) {
 		error = xcopyout(buf,

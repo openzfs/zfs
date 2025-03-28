@@ -1,3 +1,4 @@
+#!/bin/ksh -p
 # SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
@@ -26,24 +27,36 @@
 #
 
 #
-# Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
 #
 
-export QUSER1=quser1
-export QUSER2=quser2
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/userquota/userquota_common.kshlib
 
-export QGROUP=qgroup
-export QGROUP1=qgroup1
-export QGROUP1=qgroup2
+#
+# DESCRIPTION:
+#       Check the basic function of set/get defaultuserquota and defaultgroupquota on fs
+#
+#
+# STRATEGY:
+#       1. Set defaultuserquota on fs and check output of zfs get
+#       2. Set defaultgroupquota on fs and check output of zfs get
+#
 
-export UQUOTA_SIZE=1000000
-export GQUOTA_SIZE=4000000
+function cleanup
+{
+	cleanup_quota
+}
 
-export QFS=$TESTPOOL/$TESTFS
-export QFILE=$TESTDIR/qf
-export OFILE=$TESTDIR/of
-export QFILE2=$TESTDIR/qf2
-export OFILE2=$TESTDIR/of2
+log_onexit cleanup
 
-export SNAP_QUOTA=100m
-export TEST_QUOTA=88888
+log_assert "Check the basic function of set/get default{user|group}quota on fs"
+
+log_note "Check zfs {set|get} default{user|group}quota"
+log_must zfs set defaultuserquota=$UQUOTA_SIZE $QFS
+log_must check_quota "defaultuserquota" $QFS "$UQUOTA_SIZE"
+
+log_must zfs set defaultgroupquota=$GQUOTA_SIZE $QFS
+log_must check_quota "defaultgroupquota" $QFS "$GQUOTA_SIZE"
+
+log_pass "Check the basic function of zfs {set|get} default{user|group}quota passed as expected"
