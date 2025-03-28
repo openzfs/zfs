@@ -118,7 +118,7 @@ uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 void metaslab_space_update(vdev_t *, metaslab_class_t *,
     int64_t, int64_t, int64_t);
 
-metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *, int);
+metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
 void metaslab_group_activate(metaslab_group_t *);
 void metaslab_group_passivate(metaslab_group_t *);
