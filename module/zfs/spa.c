@@ -8921,7 +8921,7 @@ spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
  */
 
 static void
-spa_async_remove(spa_t *spa, vdev_t *vd)
+spa_async_remove(spa_t *spa, vdev_t *vd, boolean_t by_kernel)
 {
 	if (vd->vdev_remove_wanted) {
 		vd->vdev_remove_wanted = B_FALSE;
@@ -8941,11 +8941,11 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 		vdev_state_dirty(vd->vdev_top);
 
 		/* Tell userspace that the vdev is gone. */
-		zfs_post_remove(spa, vd);
+		zfs_post_remove(spa, vd, by_kernel);
 	}
 
 	for (int c = 0; c < vd->vdev_children; c++)
-		spa_async_remove(spa, vd->vdev_child[c]);
+		spa_async_remove(spa, vd->vdev_child[c], by_kernel);
 }
 
 static void
@@ -9039,13 +9039,18 @@ spa_async_thread(void *arg)
 	/*
 	 * See if any devices need to be marked REMOVED.
 	 */
-	if (tasks & SPA_ASYNC_REMOVE) {
+	if (tasks & (SPA_ASYNC_REMOVE | SPA_ASYNC_REMOVE_BY_USER)) {
+		boolean_t by_kernel = B_TRUE;
+		if (tasks & SPA_ASYNC_REMOVE_BY_USER)
+			by_kernel = B_FALSE;
 		spa_vdev_state_enter(spa, SCL_NONE);
-		spa_async_remove(spa, spa->spa_root_vdev);
+		spa_async_remove(spa, spa->spa_root_vdev, by_kernel);
 		for (int i = 0; i < spa->spa_l2cache.sav_count; i++)
-			spa_async_remove(spa, spa->spa_l2cache.sav_vdevs[i]);
+			spa_async_remove(spa, spa->spa_l2cache.sav_vdevs[i],
+			    by_kernel);
 		for (int i = 0; i < spa->spa_spares.sav_count; i++)
-			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i]);
+			spa_async_remove(spa, spa->spa_spares.sav_vdevs[i],
+			    by_kernel);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 	}
 

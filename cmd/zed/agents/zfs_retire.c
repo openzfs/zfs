@@ -404,6 +404,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	    (state == VDEV_STATE_REMOVED || state == VDEV_STATE_FAULTED))) {
 		const char *devtype;
 		char *devname;
+		boolean_t skip_removal = B_FALSE;
 
 		if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE,
 		    &devtype) == 0) {
@@ -441,18 +442,28 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		nvlist_lookup_uint64_array(vdev, ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &c);
 
+		if (vs->vs_state == VDEV_STATE_OFFLINE)
+			return;
+
 		/*
 		 * If state removed is requested for already removed vdev,
 		 * its a loopback event from spa_async_remove(). Just
 		 * ignore it.
 		 */
-		if ((vs->vs_state == VDEV_STATE_REMOVED && state ==
-		    VDEV_STATE_REMOVED) || vs->vs_state == VDEV_STATE_OFFLINE)
-			return;
+		if ((vs->vs_state == VDEV_STATE_REMOVED &&
+		    state == VDEV_STATE_REMOVED)) {
+			if (strcmp(class, "resource.fs.zfs.removed") == 0 &&
+			    nvlist_exists(nvl, "by_kernel")) {
+				skip_removal = B_TRUE;
+			} else {
+				return;
+			}
+		}
 
 		/* Remove the vdev since device is unplugged */
 		int remove_status = 0;
-		if (l2arc || (strcmp(class, "resource.fs.zfs.removed") == 0)) {
+		if (!skip_removal && (l2arc ||
+		    (strcmp(class, "resource.fs.zfs.removed") == 0))) {
 			remove_status = zpool_vdev_remove_wanted(zhp, devname);
 			fmd_hdl_debug(hdl, "zpool_vdev_remove_wanted '%s'"
 			    ", err:%d", devname, libzfs_errno(zhdl));
