@@ -1519,17 +1519,18 @@ void
 vdev_update_nonallocating_space(vdev_t *vd, boolean_t add)
 {
 	spa_t *spa = vd->vdev_spa;
-	if (vd->vdev_mg->mg_class == spa_normal_class(spa)) {
-		uint64_t raw_space = vd->vdev_stat.vs_space -
-		    metaslab_group_get_space(vd->vdev_log_mg);
-		uint64_t dspace = spa_deflate(spa) ?
-		    vdev_deflated_space(vd, raw_space) : raw_space;
-		if (add) {
-			spa->spa_nonallocating_dspace += dspace;
-		} else {
-			ASSERT3U(spa->spa_nonallocating_dspace, >=, dspace);
-			spa->spa_nonallocating_dspace -= dspace;
-		}
+
+	if (vd->vdev_mg->mg_class != spa_normal_class(spa))
+		return;
+
+	uint64_t raw_space = metaslab_group_get_space(vd->vdev_mg);
+	uint64_t dspace = spa_deflate(spa) ?
+	    vdev_deflated_space(vd, raw_space) : raw_space;
+	if (add) {
+		spa->spa_nonallocating_dspace += dspace;
+	} else {
+		ASSERT3U(spa->spa_nonallocating_dspace, >=, dspace);
+		spa->spa_nonallocating_dspace -= dspace;
 	}
 }
 
