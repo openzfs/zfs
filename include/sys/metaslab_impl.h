@@ -269,7 +269,6 @@ struct metaslab_group {
 	kmutex_t		mg_ms_disabled_lock;
 	kcondvar_t		mg_ms_disabled_cv;
 
-	int			mg_allocators;
 	metaslab_group_allocator_t	mg_allocator[];
 };
 

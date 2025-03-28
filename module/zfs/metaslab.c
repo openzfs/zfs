@@ -1037,12 +1037,13 @@ metaslab_sort_by_flushed(const void *va, const void *vb)
 }
 
 metaslab_group_t *
-metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
+metaslab_group_create(metaslab_class_t *mc, vdev_t *vd)
 {
+	spa_t *spa = mc->mc_spa;
 	metaslab_group_t *mg;
 
 	mg = kmem_zalloc(offsetof(metaslab_group_t,
-	    mg_allocator[allocators]), KM_SLEEP);
+	    mg_allocator[spa->spa_alloc_count]), KM_SLEEP);
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&mg->mg_ms_disabled_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&mg->mg_ms_disabled_cv, NULL, CV_DEFAULT, NULL);
@@ -1053,9 +1054,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 	mg->mg_activation_count = 0;
 	mg->mg_initialized = B_FALSE;
 	mg->mg_no_free_space = B_TRUE;
-	mg->mg_allocators = allocators;
 
-	for (int i = 0; i < allocators; i++) {
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
 		zfs_refcount_create_tracked(&mga->mga_queue_depth);
 	}
@@ -1066,6 +1066,8 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 void
 metaslab_group_destroy(metaslab_group_t *mg)
 {
+	spa_t *spa = mg->mg_class->mc_spa;
+
 	ASSERT(mg->mg_prev == NULL);
 	ASSERT(mg->mg_next == NULL);
 	/*
@@ -1080,12 +1082,12 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	mutex_destroy(&mg->mg_ms_disabled_lock);
 	cv_destroy(&mg->mg_ms_disabled_cv);
 
-	for (int i = 0; i < mg->mg_allocators; i++) {
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
 		zfs_refcount_destroy(&mga->mga_queue_depth);
 	}
 	kmem_free(mg, offsetof(metaslab_group_t,
-	    mg_allocator[mg->mg_allocators]));
+	    mg_allocator[spa->spa_alloc_count]));
 }
 
 void
@@ -1167,7 +1169,7 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	taskq_wait_outstanding(spa->spa_metaslab_taskq, 0);
 	spa_config_enter(spa, locks & ~(SCL_ZIO - 1), spa, RW_WRITER);
 	metaslab_group_alloc_update(mg);
-	for (int i = 0; i < mg->mg_allocators; i++) {
+	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
 		metaslab_t *msp = mga->mga_primary;
 		if (msp != NULL) {
@@ -3574,7 +3576,7 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 	mutex_enter(&mg->mg_lock);
 	ASSERT3P(msp->ms_group, ==, mg);
 	ASSERT3S(0, <=, msp->ms_allocator);
-	ASSERT3U(msp->ms_allocator, <, mg->mg_allocators);
+	ASSERT3U(msp->ms_allocator, <, mg->mg_class->mc_spa->spa_alloc_count);
 
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[msp->ms_allocator];
 	if (msp->ms_primary) {
@@ -3700,7 +3702,7 @@ metaslab_group_preload(metaslab_group_t *mg)
 		}
 
 		VERIFY(taskq_dispatch(spa->spa_metaslab_taskq, metaslab_preload,
-		    msp, TQ_SLEEP | (m <= mg->mg_allocators ? TQ_FRONT : 0))
+		    msp, TQ_SLEEP | (m <= spa->spa_alloc_count ? TQ_FRONT : 0))
 		    != TASKQID_INVALID);
 	}
 	mutex_exit(&mg->mg_lock);
@@ -4896,10 +4898,9 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 	}
 
 	/*
-	 * If we don't have enough metaslabs active to fill the entire array, we
-	 * just use the 0th slot.
+	 * If we don't have enough metaslabs active, we just use the 0th slot.
 	 */
-	if (mg->mg_ms_ready < mg->mg_allocators * 3)
+	if (allocator >= mg->mg_ms_ready / 3)
 		allocator = 0;
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 
