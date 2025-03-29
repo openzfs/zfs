@@ -146,7 +146,11 @@ for (( i=0; i < ${#tests[@]}; i+=1 )); do
 		log_fail eval "zpool split -n '$TESTPOOL' '$NEWPOOL' $devs"
 	fi
 	if [[ "$out" != "$want" ]]; then
-		log_fail "Got:\n" "$out" "\nbut expected:\n" "$want"
+		log_note "Got:"
+		log_note "$out"
+		log_note "but expected:"
+		log_note "$want"
+		log_fail "Dry run does not display config correctly"
 	fi
 	log_must destroy_pool "$TESTPOOL"
 done
