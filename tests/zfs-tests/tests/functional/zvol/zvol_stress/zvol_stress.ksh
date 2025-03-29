@@ -119,6 +119,13 @@ function do_zvol_stress
 	done
 }
 
+function enable_zvol_threading
+{
+	for i in $(seq $num_zvols) ; do
+		log_must zfs set volthreading=on $TESTPOOL/testvol$i
+	done
+}
+
 function cleanup
 {
 	log_must zinject -c all
@@ -146,6 +153,21 @@ destroy_zvols
 set_blk_mq 1
 create_zvols
 do_zvol_stress
+destroy_zvols
+
+# The zvol sync mode on Linux side is disabled by default, mean all requests
+# are processed asyncronously by zvol threadpool.  But zvol sync is enabled
+# by default on FreeBSD.  Switch zvol sync modes dependent of the OS type.
+if is_linux ; then
+	set_zvol_sync 1
+	create_zvols
+	do_zvol_stress
+else
+	set_zvol_sync 0
+	create_zvols
+	enable_zvol_threading
+	do_zvol_stress
+fi
 
 # Inject some errors, and verify we see some IO errors in zpool status
 for DISK in $DISKS ; do

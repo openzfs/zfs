@@ -99,6 +99,7 @@
 #include <geom/geom.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <cityhash.h>
 
 #include "zfs_namecheck.h"
 
@@ -146,8 +147,19 @@ SYSCTL_NODE(_vfs_zfs, OID_AUTO, vol, CTLFLAG_RW, 0, "ZFS VOLUME");
 SYSCTL_INT(_vfs_zfs_vol, OID_AUTO, mode, CTLFLAG_RWTUN, &zvol_volmode, 0,
 	"Expose as GEOM providers (1), device files (2) or neither");
 static boolean_t zpool_on_zvol = B_FALSE;
+static unsigned int zvol_threads = 0;
+static unsigned int zvol_num_taskqs = 0;
+static unsigned int zvol_request_sync = 1;
 SYSCTL_INT(_vfs_zfs_vol, OID_AUTO, recursive, CTLFLAG_RWTUN, &zpool_on_zvol, 0,
 	"Allow zpools to use zvols as vdevs (DANGEROUS)");
+SYSCTL_UINT(_vfs_zfs_vol, OID_AUTO, threads, CTLFLAG_RWTUN, &zvol_threads, 0,
+	"Number of threads for I/O requests. Set to 0 to use all active CPUs");
+SYSCTL_UINT(_vfs_zfs_vol, OID_AUTO, taskqs, CTLFLAG_RWTUN, &zvol_num_taskqs, 0,
+	"Number of zvol taskqs");
+SYSCTL_UINT(_vfs_zfs_vol, OID_AUTO, sync, CTLFLAG_RWTUN, &zvol_request_sync, 0,
+	"Synchronously handle bio requests");
+
+struct request {};
 
 /*
  * Toggle unmap functionality.
@@ -660,9 +672,10 @@ zvol_cdev_kqfilter(struct cdev *dev, struct knote *kn)
 }
 
 static void
-zvol_geom_bio_strategy(struct bio *bp)
+zvol_strategy_impl(zv_request_t *zvr)
 {
 	zvol_state_t *zv;
+	struct bio *bp;
 	uint64_t off, volsize;
 	size_t resid;
 	char *addr;
@@ -673,11 +686,8 @@ zvol_geom_bio_strategy(struct bio *bp)
 	boolean_t is_dumpified;
 	boolean_t commit;
 
-	if (bp->bio_to)
-		zv = bp->bio_to->private;
-	else
-		zv = bp->bio_dev->si_drv2;
-
+	bp = zvr->bio;
+	zv = zvr->zv;
 	if (zv == NULL) {
 		error = SET_ERROR(ENXIO);
 		goto out;
@@ -813,6 +823,58 @@ out:
 		biofinish(bp, NULL, error);
 }
 
+static void
+zvol_strategy_task(void *arg)
+{
+	zv_request_task_t *task = arg;
+
+	zvol_strategy_impl(&task->zvr);
+	zv_request_task_free(task);
+}
+
+static void
+zvol_geom_bio_strategy(struct bio *bp)
+{
+	zv_taskq_t *ztqs = &zvol_taskqs;
+	zv_request_task_t *task;
+	zvol_state_t *zv;
+	uint64_t taskq_hash;
+	uint32_t tq_idx;
+	int error;
+
+	if (bp->bio_to)
+		zv = bp->bio_to->private;
+	else
+		zv = bp->bio_dev->si_drv2;
+
+	if (zv == NULL) {
+		error = SET_ERROR(ENXIO);
+		if (bp->bio_to)
+			g_io_deliver(bp, error);
+		else
+			biofinish(bp, NULL, error);
+
+		return;
+	}
+
+	zv_request_t zvr = {
+		.zv = zv,
+		.bio = bp,
+	};
+
+	if (zvol_request_sync || zv->zv_threading == B_FALSE) {
+		zvol_strategy_impl(&zvr);
+		return;
+	}
+
+	taskq_hash = cityhash3((uintptr_t)zv, curcpu, bp->bio_offset >>
+	    ZVOL_TASKQ_OFFSET_SHIFT);
+	tq_idx = taskq_hash % ztqs->tqs_cnt;
+	task = zv_request_task_create(zvr);
+	taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx], zvol_strategy_task, task,
+	    0, &task->ent);
+}
+
 /*
  * Character device mode implementation
  */
@@ -838,6 +900,9 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	if (zfs_uio_resid(&uio) > 0 &&
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
+
+	if (!zvol_request_sync && !zv->zv_threading)
+		return (physread(dev, uio_s, ioflag));
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	ssize_t start_resid = zfs_uio_resid(&uio);
@@ -885,6 +950,9 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	if (zfs_uio_resid(&uio) > 0 &&
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
+
+	if (!zvol_request_sync && !zv->zv_threading)
+		return (physwrite(dev, uio_s, ioflag));
 
 	ssize_t start_resid = zfs_uio_resid(&uio);
 	commit = (ioflag & IO_SYNC) ||
@@ -1385,6 +1453,7 @@ zvol_os_create_minor(const char *name)
 	uint64_t volsize;
 	uint64_t volmode, hash;
 	int error;
+	uint64_t volthreading;
 	bool replayed_zil = B_FALSE;
 
 	ZFS_LOG(1, "Creating ZVOL %s...", name);
@@ -1478,6 +1547,13 @@ zvol_os_create_minor(const char *name)
 	zv->zv_volblocksize = doi->doi_data_block_size;
 	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
+
+	/* Default */
+	zv->zv_threading = B_FALSE;
+	error = dsl_prop_get_integer(name, "volthreading", &volthreading,
+	    NULL);
+	if (error == 0)
+		zv->zv_threading = volthreading;
 
 	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
 	error = dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
@@ -1606,8 +1682,7 @@ zvol_busy(void)
 int
 zvol_init(void)
 {
-	zvol_init_impl();
-	return (0);
+	return (zvol_init_impl(mp_ncpus, zvol_num_taskqs, zvol_threads));
 }
 
 void
