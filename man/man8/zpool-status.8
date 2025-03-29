@@ -38,11 +38,13 @@
 .Nm zpool
 .Cm status
 .Op Fl dDegiLpPstvx
+.Op Fl --lockless|--trylock
+.Op Fl --power
+.Op Fl j Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 .Oo Ar pool Oc Ns …
 .Op Ar interval Op Ar count
-.Op Fl j Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
 .
 .Sh DESCRIPTION
 Displays the detailed health status for the given pools.
@@ -61,6 +63,38 @@ the other workloads on the system can change.
 .Bl -tag -width Ds
 .It Fl -power
 Display vdev enclosure slot power status (on or off).
+.It Fl -lockless
+If
+.Sy zpool status
+is unable to acquire the pool config lock (a.k.a the
+spa_namespace lock) in a reasonable amount of time, then proceed without the
+lock.
+This is useful in emergency situations when you really want to see the status
+of a pool that's locked up.
+WARNING: This can crash your system if the pool configuration is being updated
+while
+.Sy zpool status --lockless
+is being run.
+As an additional safety measure,
+.Sy --lockless
+requires the
+.Sy zfs_debug_allow_lockless_zpool
+module param be set to 1 in order to work.
+This prevents unprivileged users who have delegated access to
+.Sy zpool status
+from potentially crashing the system.
+.It Fl -trylock
+When
+.Sy zpool status
+runs, it will try to acquire the pool config lock within the
+kernel module (the spa_namespace lock).
+However, there can be times when a pool gets locked up while holding this lock,
+leading to subsequent zpool status invocations getting hung.
+The
+.Sy --trylock
+option gets around this by attempting to take the pool config lock
+for a reasonable amount of time, and then aborting if it's unable to take the
+lock.
 .It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 Run a script (or scripts) on each vdev and include the output as a new column
 in the
