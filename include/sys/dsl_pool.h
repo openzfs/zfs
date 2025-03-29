@@ -67,6 +67,7 @@ extern uint_t zfs_delay_min_dirty_percent;
 extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 extern uint_t zfs_vdev_async_write_active_max_dirty_percent;
 extern uint64_t zfs_delay_scale;
+extern int zfs_zil_replay_prime_arc;
 
 /* These macros are for indexing into the zfs_all_blkstats_t. */
 #define	DMU_OT_DEFERRED	DMU_OT_NONE
@@ -140,6 +141,7 @@ typedef struct dsl_pool {
 	txg_list_t dp_early_sync_tasks;
 	taskq_t *dp_sync_taskq;
 	taskq_t *dp_zil_clean_taskq;
+	taskq_t *dp_zil_prime_taskq;
 
 	/*
 	 * Protects administrative changes (properties, namespace)
