@@ -127,10 +127,11 @@ done
 for (( i=0; i < ${#tests[@]}; i+=1 )); do
 	tree="${tests[$i].tree}"
 	want="${tests[$i].want}"
-
-	typeset out="$(log_must eval "zpool create -n '$TESTPOOL' $tree" | \
-	    sed /^SUCCESS/d)"
-
+	typeset out
+	out="$(eval zpool create -n '$TESTPOOL' $tree)"
+	if [[ $? -ne 0 ]]; then
+		log_fail eval "zpool create -n '$TESTPOOL' $tree"
+	fi
 	if [[ "$out" != "$want" ]]; then
 		log_fail "Got:\n" "$out" "\nbut expected:\n" "$want"
 	fi
