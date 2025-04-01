@@ -31,6 +31,7 @@
 log_assert "Gang blocks behave correctly."
 
 log_onexit cleanup
+preamble
 
 log_must zpool create -f $TESTPOOL $DISKS
 log_must zfs create -o recordsize=128k $TESTPOOL/$TESTFS
