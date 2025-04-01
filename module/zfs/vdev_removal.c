@@ -1894,6 +1894,8 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		    vdev_indirect_mapping_max_offset(vim));
 	}
 
+	zfs_range_tree_t *segs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
 
@@ -1913,38 +1915,30 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 			ASSERT0(zfs_range_tree_space(msp->ms_defer[i]));
 		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 
-		if (msp->ms_sm != NULL) {
-			mutex_enter(&svr->svr_lock);
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			zfs_range_tree_walk(msp->ms_unflushed_allocs,
-			    zfs_range_tree_add, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_unflushed_frees,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_freeing,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * Clear everything past what has been synced,
-			 * because we have not allocated mappings for it yet.
-			 */
-			uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
-			uint64_t sm_end = msp->ms_sm->sm_start +
-			    msp->ms_sm->sm_size;
-			if (sm_end > syncd)
-				zfs_range_tree_clear(svr->svr_allocd_segs,
-				    syncd, sm_end - syncd);
-
-			mutex_exit(&svr->svr_lock);
-		}
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, segs);
 		mutex_exit(&msp->ms_lock);
 
-		mutex_enter(&svr->svr_lock);
-		zfs_range_tree_vacate(svr->svr_allocd_segs,
-		    free_mapped_segment_cb, vd);
-		mutex_exit(&svr->svr_lock);
+		/*
+		 * Clear everything past what has been synced,
+		 * because we have not allocated mappings for it yet.
+		 */
+		uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
+		uint64_t sm_end = msp->ms_sm->sm_start +
+		    msp->ms_sm->sm_size;
+		if (sm_end > syncd)
+			zfs_range_tree_clear(segs, syncd, sm_end - syncd);
+
+		zfs_range_tree_vacate(segs, free_mapped_segment_cb, vd);
 	}
+	zfs_range_tree_destroy(segs);
 
 	/*
 	 * Note: this must happen after we invoke free_mapped_segment_cb,
