@@ -1516,6 +1516,25 @@ vdev_metaslab_group_create(vdev_t *vd)
 	}
 }
 
+void
+vdev_update_nonallocating_space(vdev_t *vd, boolean_t add)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	if (vd->vdev_mg->mg_class != spa_normal_class(spa))
+		return;
+
+	uint64_t raw_space = metaslab_group_get_space(vd->vdev_mg);
+	uint64_t dspace = spa_deflate(spa) ?
+	    vdev_deflated_space(vd, raw_space) : raw_space;
+	if (add) {
+		spa->spa_nonallocating_dspace += dspace;
+	} else {
+		ASSERT3U(spa->spa_nonallocating_dspace, >=, dspace);
+		spa->spa_nonallocating_dspace -= dspace;
+	}
+}
+
 int
 vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 {
@@ -1627,8 +1646,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 */
 	if (vd->vdev_noalloc) {
 		/* track non-allocating vdev space */
-		spa->spa_nonallocating_dspace += spa_deflate(spa) ?
-		    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+		vdev_update_nonallocating_space(vd, B_TRUE);
 	} else if (!expanding) {
 		metaslab_group_activate(vd->vdev_mg);
 		if (vd->vdev_log_mg != NULL)
