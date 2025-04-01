@@ -5307,6 +5307,7 @@ zio_dva_throttle_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;
 	const void *tag = pio;
+	uint64_t size = pio->io_size;
 
 	ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
@@ -5324,8 +5325,10 @@ zio_dva_throttle_done(zio_t *zio)
 	 * allocated the constituent blocks.  The first use their parent as tag.
 	 */
 	if (pio->io_child_type == ZIO_CHILD_GANG &&
-	    (pio->io_flags & ZIO_FLAG_IO_REWRITE))
+	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)) {
 		tag = zio_unique_parent(pio);
+		size = SPA_OLD_GANGBLOCKSIZE;
+	}
 
 	ASSERT(IO_IS_ALLOCATING(pio) || (pio->io_child_type == ZIO_CHILD_GANG &&
 	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)));
@@ -5338,7 +5341,7 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT(zio->io_metaslab_class->mc_alloc_throttle_enabled);
 
 	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
-	    pio->io_allocator, flags, pio->io_size, tag);
+	    pio->io_allocator, flags, size, tag);
 
 	if (metaslab_class_throttle_unreserve(zio->io_metaslab_class, 1, pio)) {
 		zio_allocate_dispatch(zio->io_metaslab_class,
