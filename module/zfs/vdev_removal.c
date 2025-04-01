@@ -172,9 +172,6 @@ static void
 vdev_activate(vdev_t *vd)
 {
 	metaslab_group_t *mg = vd->vdev_mg;
-	spa_t *spa = vd->vdev_spa;
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
 	ASSERT(!vd->vdev_islog);
 	ASSERT(vd->vdev_noalloc);
@@ -182,9 +179,7 @@ vdev_activate(vdev_t *vd)
 	metaslab_group_activate(mg);
 	metaslab_group_activate(vd->vdev_log_mg);
 
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	vd->vdev_noalloc = B_FALSE;
 }
@@ -256,8 +251,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		return (error);
 	}
 
-	spa->spa_nonallocating_dspace += spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+	vdev_update_nonallocating_space(vd, B_TRUE);
 	vd->vdev_noalloc = B_TRUE;
 
 	return (0);
@@ -1370,8 +1364,6 @@ vdev_remove_complete(spa_t *spa)
 	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
 	vdev_rebuild_stop_wait(vd);
 	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
@@ -1379,11 +1371,8 @@ vdev_remove_complete(spa_t *spa)
 	zfs_dbgmsg("finishing device removal for vdev %llu in txg %llu",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)txg);
 
-	ASSERT3U(0, !=, vdev_space);
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
 	/* the vdev is no longer part of the dspace */
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	/*
 	 * Discard allocation state.
