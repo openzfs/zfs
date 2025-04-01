@@ -421,14 +421,14 @@ run_test(const page_test_t *test, bool verbose)
 		size_t take = MIN(rem, len);
 
 		if (verbose)
-			printf("  page %d [off %lx len %lx], "
-			    "rem %lx, take %lx\n",
+			printf("  page %d [off %zx len %zx], "
+			    "rem %zx, take %zx\n",
 			    i, off, len, rem, take);
 
 		if (vdev_disk_check_alignment_cb(NULL, off, take, &s)) {
 			if (verbose)
 				printf("  ABORT: misalignment detected, "
-				    "rem %lx\n", rem);
+				    "rem %zx\n", rem);
 			return (false);
 		}
 
@@ -439,7 +439,7 @@ run_test(const page_test_t *test, bool verbose)
 
 	if (rem > 0) {
 		if (verbose)
-			printf("  ABORT: ran out of pages, rem %lx\n", rem);
+			printf("  ABORT: ran out of pages, rem %zx\n", rem);
 		return (false);
 	}
 
