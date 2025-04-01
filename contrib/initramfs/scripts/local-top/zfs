@@ -41,9 +41,9 @@ activate_vg()
                 return 1
         fi
 
-        # Detect and activate available volume groups
+        # Detect and auto-activate available volume groups
         /sbin/lvm vgscan
-        /sbin/lvm vgchange -a y --sysinit
+        /sbin/lvm vgchange -aay --sysinit
         return $?
 }
 
