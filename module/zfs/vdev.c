@@ -1939,14 +1939,17 @@ vdev_open_children_impl(vdev_t *vd, vdev_open_children_func_t *open_func)
 			VERIFY(taskq_dispatch(tq, vdev_open_child,
 			    cvd, TQ_SLEEP) != TASKQID_INVALID);
 		}
+	}
 
+	if (tq != NULL)
+		taskq_wait(tq);
+	for (int c = 0; c < children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
 		vd->vdev_nonrot &= cvd->vdev_nonrot;
 	}
 
-	if (tq != NULL) {
-		taskq_wait(tq);
+	if (tq != NULL)
 		taskq_destroy(tq);
-	}
 }
 
 /*
