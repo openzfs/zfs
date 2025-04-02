@@ -24,6 +24,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>

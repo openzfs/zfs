@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2018 Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
