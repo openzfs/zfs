@@ -2903,13 +2903,8 @@ latency_median_value(const uint64_t *data, size_t n)
 static uint64_t
 latency_quartiles_fence(const uint64_t *data, size_t n)
 {
-	uint64_t q1, q3;
-
-	q1 = latency_median_value(&data[0], n>>1);
-	if (n % 2 == 0)
-		q3 = latency_median_value(&data[n>>1], n>>1);
-	else
-		q3 = latency_median_value(&data[(n+1) >> 1], n>>1);
+	uint64_t q1 = latency_median_value(&data[0], n >> 1);
+	uint64_t q3 = latency_median_value(&data[(n + 1) >> 1], n >> 1);
 
 	/*
 	 * To avoid detecting false positive outliers when N is small and
