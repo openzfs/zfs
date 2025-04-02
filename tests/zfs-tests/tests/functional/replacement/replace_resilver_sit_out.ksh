@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -27,6 +28,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2025, Klara, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib

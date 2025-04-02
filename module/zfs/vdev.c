@@ -29,7 +29,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
- * Copyright (c) 2021, Klara Inc.
+ * Copyright (c) 2021, 2025, Klara, Inc.
  * Copyright (c) 2021, 2023 Hewlett Packard Enterprise Development LP.
  */
 
