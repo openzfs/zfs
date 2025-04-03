@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -40,8 +41,8 @@
 #    dbufstat and the dbufs kstat output
 #
 
-DBUFSTATS_FILE=$(mktemp $TEST_BASE_DIR/dbufstats.out.XXXXXX)
-DBUFS_FILE=$(mktemp $TEST_BASE_DIR/dbufs.out.XXXXXX)
+DBUFSTATS_FILE=$(mktemp -t dbufstats.out.XXXXXX)
+DBUFS_FILE=$(mktemp -t dbufs.out.XXXXXX)
 
 function cleanup
 {

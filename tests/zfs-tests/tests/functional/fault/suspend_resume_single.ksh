@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -26,14 +27,14 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-DATAFILE="$TMPDIR/datafile"
+DATAFILE=$(mktemp)
 
 function cleanup
 {
 	zpool clear $TESTPOOL
 	destroy_pool $TESTPOOL
 	unload_scsi_debug
-	rm -f $DATA_FILE
+	rm -f $DATAFILE
 }
 
 log_onexit cleanup

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -900,9 +901,18 @@ zfs_secpolicy_recv(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	(void) innvl;
 	int error;
 
+	/*
+	 * zfs receive -F requires full receive permission,
+	 * otherwise receive:append permission is enough
+	 */
 	if ((error = zfs_secpolicy_write_perms(zc->zc_name,
-	    ZFS_DELEG_PERM_RECEIVE, cr)) != 0)
-		return (error);
+	    ZFS_DELEG_PERM_RECEIVE, cr)) != 0) {
+		if (zc->zc_guid || nvlist_exists(innvl, "force"))
+			return (error);
+		if ((error = zfs_secpolicy_write_perms(zc->zc_name,
+		    ZFS_DELEG_PERM_RECEIVE_APPEND, cr)) != 0)
+			return (error);
+	}
 
 	if ((error = zfs_secpolicy_write_perms(zc->zc_name,
 	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)

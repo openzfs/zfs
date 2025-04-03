@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -2059,6 +2060,8 @@ dump_ddt_object(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 	if (dump_opt['D'] < 3)
 		return;
 
+	(void) printf("%s: object=%llu\n", name,
+	    (u_longlong_t)ddt->ddt_object[type][class]);
 	zpool_dump_ddt(NULL, &ddt->ddt_histogram[type][class]);
 
 	if (dump_opt['D'] < 4)
@@ -5862,7 +5865,7 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		 * Find the block. This will create the entry in memory, but
 		 * we'll know if that happened by its refcount.
 		 */
-		ddt_entry_t *dde = ddt_lookup(ddt, bp);
+		ddt_entry_t *dde = ddt_lookup(ddt, bp, B_TRUE);
 
 		/*
 		 * ddt_lookup() can return NULL if this block didn't exist

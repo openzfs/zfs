@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -57,7 +58,7 @@ biggest_zvol_size_possible=$(largest_volsize_from_pool $TESTPOOL)
 typeset -f each_zvol_size=$(( floor($biggest_zvol_size_possible * 0.9 / \
 	$num_zvols )))
 
-typeset tmpdir="$(mktemp -d zvol_stress_fio_state.XXXXXX)"
+typeset tmpdir="$(mktemp -t -d zvol_stress_fio_state.XXXXXX)"
 
 function create_zvols
 {

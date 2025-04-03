@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -129,9 +130,6 @@ static boolean_t
 zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
     zinject_record_t *record, int error)
 {
-	boolean_t matched = B_FALSE;
-	boolean_t injected = B_FALSE;
-
 	/*
 	 * Check for a match against the MOS, which is based on type
 	 */
@@ -140,8 +138,9 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 	    record->zi_object == DMU_META_DNODE_OBJECT) {
 		if (record->zi_type == DMU_OT_NONE ||
 		    type == record->zi_type)
-			matched = B_TRUE;
-		goto done;
+			return (freq_triggered(record->zi_freq));
+		else
+			return (B_FALSE);
 	}
 
 	/*
@@ -155,20 +154,10 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 	    (record->zi_dvas == 0 ||
 	    (dva != ZI_NO_DVA && (record->zi_dvas & (1ULL << dva)))) &&
 	    error == record->zi_error) {
-		matched = B_TRUE;
-		goto done;
+		return (freq_triggered(record->zi_freq));
 	}
 
-done:
-	if (matched) {
-		record->zi_match_count++;
-		injected = freq_triggered(record->zi_freq);
-	}
-
-	if (injected)
-		record->zi_inject_count++;
-
-	return (injected);
+	return (B_FALSE);
 }
 
 /*
@@ -189,11 +178,8 @@ zio_handle_panic_injection(spa_t *spa, const char *tag, uint64_t type)
 			continue;
 
 		if (handler->zi_record.zi_type == type &&
-		    strcmp(tag, handler->zi_record.zi_func) == 0) {
-			handler->zi_record.zi_match_count++;
-			handler->zi_record.zi_inject_count++;
+		    strcmp(tag, handler->zi_record.zi_func) == 0)
 			panic("Panic requested in function %s\n", tag);
-		}
 	}
 
 	rw_exit(&inject_lock);
@@ -351,8 +337,6 @@ zio_handle_label_injection(zio_t *zio, int error)
 
 		if (zio->io_vd->vdev_guid == handler->zi_record.zi_guid &&
 		    (offset >= start && offset <= end)) {
-			handler->zi_record.zi_match_count++;
-			handler->zi_record.zi_inject_count++;
 			ret = error;
 			break;
 		}
@@ -443,15 +427,11 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 
 			if (handler->zi_record.zi_error == err1 ||
 			    handler->zi_record.zi_error == err2) {
-				handler->zi_record.zi_match_count++;
-
 				/*
 				 * limit error injection if requested
 				 */
 				if (!freq_triggered(handler->zi_record.zi_freq))
 					continue;
-
-				handler->zi_record.zi_inject_count++;
 
 				/*
 				 * For a failed open, pretend like the device
@@ -488,8 +468,6 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 				break;
 			}
 			if (handler->zi_record.zi_error == ENXIO) {
-				handler->zi_record.zi_match_count++;
-				handler->zi_record.zi_inject_count++;
 				ret = SET_ERROR(EIO);
 				break;
 			}
@@ -532,8 +510,6 @@ zio_handle_ignored_writes(zio_t *zio)
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
 
-		handler->zi_record.zi_match_count++;
-
 		/*
 		 * Positive duration implies # of seconds, negative
 		 * a number of txgs
@@ -546,10 +522,8 @@ zio_handle_ignored_writes(zio_t *zio)
 		}
 
 		/* Have a "problem" writing 60% of the time */
-		if (random_in_range(100) < 60) {
-			handler->zi_record.zi_inject_count++;
+		if (random_in_range(100) < 60)
 			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
-		}
 		break;
 	}
 
@@ -572,9 +546,6 @@ spa_handle_ignored_writes(spa_t *spa)
 		if (spa != handler->zi_spa ||
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
-
-		handler->zi_record.zi_match_count++;
-		handler->zi_record.zi_inject_count++;
 
 		if (handler->zi_record.zi_duration > 0) {
 			VERIFY(handler->zi_record.zi_timer == 0 ||
@@ -657,6 +628,9 @@ zio_handle_io_delay(zio_t *zio)
 		if (handler->zi_record.zi_cmd != ZINJECT_DELAY_IO)
 			continue;
 
+		if (!freq_triggered(handler->zi_record.zi_freq))
+			continue;
+
 		if (vd->vdev_guid != handler->zi_record.zi_guid)
 			continue;
 
@@ -678,12 +652,6 @@ zio_handle_io_delay(zio_t *zio)
 
 		ASSERT3U(handler->zi_record.zi_nlanes, >,
 		    handler->zi_next_lane);
-
-		handler->zi_record.zi_match_count++;
-
-		/* Limit the use of this handler if requested */
-		if (!freq_triggered(handler->zi_record.zi_freq))
-			continue;
 
 		/*
 		 * We want to issue this IO to the lane that will become
@@ -756,9 +724,6 @@ zio_handle_io_delay(zio_t *zio)
 		 */
 		min_handler->zi_next_lane = (min_handler->zi_next_lane + 1) %
 		    min_handler->zi_record.zi_nlanes;
-
-		min_handler->zi_record.zi_inject_count++;
-
 	}
 
 	mutex_exit(&inject_delay_mtx);
@@ -781,11 +746,9 @@ zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
 	    handler = list_next(&inject_handlers, handler)) {
 		ASSERT3P(handler->zi_spa_name, !=, NULL);
 		if (strcmp(spa_name(spa), handler->zi_spa_name) == 0) {
-			handler->zi_record.zi_match_count++;
 			uint64_t pause =
 			    SEC2NSEC(handler->zi_record.zi_duration);
 			if (pause > elapsed) {
-				handler->zi_record.zi_inject_count++;
 				delay = pause - elapsed;
 			}
 			id = handler->zi_id;

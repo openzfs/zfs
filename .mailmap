@@ -71,6 +71,7 @@ Rob Norris <rob.norris@klarasystems.com>
 Sam Lunt <samuel.j.lunt@gmail.com>
 Sanjeev Bagewadi <sanjeev.bagewadi@gmail.com>
 Sebastian Wuerl <s.wuerl@mailbox.org>
+SHENGYI HONG <aokblast@FreeBSD.org>
 Stoiko Ivanov <github@nomore.at>
 Tamas TEVESZ <ice@extreme.hu>
 WHR <msl0000023508@gmail.com>
@@ -78,8 +79,11 @@ Yanping Gao <yanping.gao@xtaotech.com>
 Youzhong Yang <youzhong@gmail.com>
 
 # Signed-off-by: overriding Author:
+Alexander Ziaee <ziaee@FreeBSD.org> <concussious@runbox.com>
 Ryan <errornointernet@envs.net> <error.nointernet@gmail.com>
 Sietse <sietse@wizdom.nu> <uglymotha@wizdom.nu>
+Phil Sutter <phil@nwl.cc> <p.github@nwl.cc>
+poscat <poscat@poscat.moe> <poscat0x04@outlook.com>
 Qiuhao Chen <chenqiuhao1997@gmail.com> <haohao0924@126.com>
 Yuxin Wang <yuxinwang9999@gmail.com> <Bi11gates9999@gmail.com>
 Zhenlei Huang <zlei@FreeBSD.org> <zlei.huang@gmail.com>
@@ -207,6 +211,7 @@ Torsten Wörtwein <twoertwein@gmail.com> <twoertwein@users.noreply.github.com>
 Tulsi Jain <tulsi.jain@delphix.com> <TulsiJain@users.noreply.github.com>
 Václav Skála <skala@vshosting.cz> <33496485+vaclavskala@users.noreply.github.com>
 Vaibhav Bhanawat <vaibhav.bhanawat@delphix.com> <88050553+vaibhav-delphix@users.noreply.github.com>
+Vandana Rungta <vrungta@amazon.com> <46906819+vandanarungta@users.noreply.github.com>
 Violet Purcell <vimproved@inventati.org> <66446404+vimproved@users.noreply.github.com>
 Vipin Kumar Verma <vipin.verma@hpe.com> <75025470+vermavipinkumar@users.noreply.github.com>
 Wolfgang Bumiller <w.bumiller@proxmox.com> <Blub@users.noreply.github.com>

@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -44,18 +45,18 @@
 #    that the files contents remain the same across transfers.
 #
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-log_must mkfile $(($MINVDEVSIZE * 2)) $TMPDIR/dsk1
-log_must mkfile $(($MINVDEVSIZE * 2)) $TMPDIR/dsk2
-DISKS="$TMPDIR/dsk1 $TMPDIR/dsk2"
-REMOVEDISK=$TMPDIR/dsk1
+DISKDIR=$(mktemp -d)
+log_must mkfile $(($MINVDEVSIZE * 2)) $DISKDIR/dsk1
+log_must mkfile $(($MINVDEVSIZE * 2)) $DISKDIR/dsk2
+DISKS="$DISKDIR/dsk1 $DISKDIR/dsk2"
+REMOVEDISK=$DISKDIR/dsk1
 
 log_must default_setup_noexit "$DISKS"
 
 function cleanup
 {
 	default_cleanup_noexit
-	log_must rm -f $DISKS
+	log_must rm -rf $DISKDIR
 
 	# reset REMOVE_MAX_SEGMENT to 1M
 	set_tunable32 REMOVE_MAX_SEGMENT 1048576
@@ -71,19 +72,19 @@ FILE_CONTENTS=$(<$TESTDIR/$TESTFILE0)
 log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 
 for i in {1..10}; do
-	log_must zpool remove $TESTPOOL $TMPDIR/dsk1
+	log_must zpool remove $TESTPOOL $DISKDIR/dsk1
 	log_must wait_for_removal $TESTPOOL
-	log_mustnot vdevs_in_pool $TESTPOOL $TMPDIR/dsk1
-	log_must zpool add $TESTPOOL $TMPDIR/dsk1
+	log_mustnot vdevs_in_pool $TESTPOOL $DISKDIR/dsk1
+	log_must zpool add $TESTPOOL $DISKDIR/dsk1
 
 	log_must zinject -a
 	log_must dd if=$TESTDIR/$TESTFILE0 of=/dev/null
 	log_must [ "x$(<$TESTDIR/$TESTFILE0)" = "x$FILE_CONTENTS" ]
 
-	log_must zpool remove $TESTPOOL $TMPDIR/dsk2
+	log_must zpool remove $TESTPOOL $DISKDIR/dsk2
 	log_must wait_for_removal $TESTPOOL
-	log_mustnot vdevs_in_pool $TESTPOOL $TMPDIR/dsk2
-	log_must zpool add $TESTPOOL $TMPDIR/dsk2
+	log_mustnot vdevs_in_pool $TESTPOOL $DISKDIR/dsk2
+	log_must zpool add $TESTPOOL $DISKDIR/dsk2
 
 	log_must zinject -a
 	log_must dd if=$TESTDIR/$TESTFILE0 of=/dev/null

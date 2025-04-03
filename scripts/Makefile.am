@@ -59,6 +59,7 @@ export INSTALL_UDEV_RULE_DIR=$(udevruledir)
 export INSTALL_MOUNT_HELPER_DIR=$(mounthelperdir)
 export INSTALL_SYSCONF_DIR=$(sysconfdir)
 export INSTALL_PYTHON_DIR=$(pythonsitedir)
+export INSTALL_PKGDATA_DIR=$(pkgdatadir)
 
 export KMOD_SPL=$(abs_top_builddir)/module/spl.ko
 export KMOD_ZFS=$(abs_top_builddir)/module/zfs.ko

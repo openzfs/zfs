@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -915,7 +916,7 @@ function set_partition
 			log_fail "The slice, size or disk name is unspecified."
 		fi
 
-		typeset format_file=/var/tmp/format_in.$$
+		typeset format_file="$TEST_BASE_DIR"/format_in.$$
 
 		echo "partition" >$format_file
 		echo "$slicenum" >> $format_file
@@ -2404,7 +2405,7 @@ function add_user #<group_name> <user_name> <basedir>
 {
 	typeset group=$1
 	typeset user=$2
-	typeset basedir=${3:-"/var/tmp"}
+	typeset basedir=${3:-"$TEST_BASE_DIR"}
 
 	if ((${#group} == 0 || ${#user} == 0)); then
 		log_fail "group name or user name are not defined."
@@ -2434,7 +2435,7 @@ function add_user #<group_name> <user_name> <basedir>
 function del_user #<logname> <basedir>
 {
 	typeset user=$1
-	typeset basedir=${2:-"/var/tmp"}
+	typeset basedir=${2:-"$TEST_BASE_DIR"}
 
 	if ((${#user} == 0)); then
 		log_fail "login name is necessary."
@@ -3184,7 +3185,7 @@ function zed_start
 		return
 	fi
 
-	# ZEDLET_DIR=/var/tmp/zed
+	# ZEDLET_DIR=$TEST_BASE_DIR/zed
 	if [[ ! -d $ZEDLET_DIR ]]; then
 		log_must mkdir $ZEDLET_DIR
 	fi

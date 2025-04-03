@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -25,6 +26,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -833,7 +835,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, nbytes);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 			if (abuf != NULL)
@@ -1081,6 +1083,44 @@ zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
+}
+
+/*
+ * Get the optimal alignment to ensure direct IO can be performed without
+ * incurring any RMW penalty on write. If direct IO is not enabled for this
+ * file, returns an error.
+ */
+int
+zfs_get_direct_alignment(znode_t *zp, uint64_t *alignp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	if (!zfs_dio_enabled || zfsvfs->z_os->os_direct == ZFS_DIRECT_DISABLED)
+		return (SET_ERROR(EOPNOTSUPP));
+
+	/*
+	 * If the file has multiple blocks, then its block size is fixed
+	 * forever, and so is the ideal alignment.
+	 *
+	 * If however it only has a single block, then we want to return the
+	 * max block size it could possibly grown to (ie, the dataset
+	 * recordsize). We do this so that a program querying alignment
+	 * immediately after the file is created gets a value that won't change
+	 * once the file has grown into the second block and beyond.
+	 *
+	 * Because we don't have a count of blocks easily available here, we
+	 * check if the apparent file size is smaller than its current block
+	 * size (meaning, the file hasn't yet grown into the current block
+	 * size) and then, check if the block size is smaller than the dataset
+	 * maximum (meaning, if the file grew past the current block size, the
+	 * block size could would be increased).
+	 */
+	if (zp->z_size <= zp->z_blksz && zp->z_blksz < zfsvfs->z_max_blksz)
+		*alignp = MAX(zfsvfs->z_max_blksz, PAGE_SIZE);
+	else
+		*alignp = MAX(zp->z_blksz, PAGE_SIZE);
+
+	return (0);
 }
 
 #ifdef ZFS_DEBUG
@@ -1620,7 +1660,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);
 			break;
@@ -1787,7 +1827,7 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len);
 	DB_DNODE_EXIT(db);
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error != 0) {
 		dmu_tx_abort(tx);
 		zfs_exit(zfsvfs, FTAG);

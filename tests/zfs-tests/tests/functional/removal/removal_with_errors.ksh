@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -44,11 +45,11 @@
 # 7. Lastly verify the pool data is still intact.
 #
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-DISK0=$TMPDIR/dsk0
-DISK1=$TMPDIR/dsk1
-DISK2=$TMPDIR/dsk2
-DISK3=$TMPDIR/dsk3
+DISKDIR=$(mktemp -d)
+DISK0=$DISKDIR/dsk0
+DISK1=$DISKDIR/dsk1
+DISK2=$DISKDIR/dsk2
+DISK3=$DISKDIR/dsk3
 
 log_must truncate -s $MINVDEVSIZE $DISK0 $DISK1
 log_must truncate -s $((MINVDEVSIZE * 4)) $DISK2 $DISK3
@@ -57,7 +58,7 @@ function cleanup
 {
 	log_must zinject -c all
 	default_cleanup_noexit
-	log_must rm -f $DISK0 $DISK1 $DISK2 $DISK3
+	log_must rm -rf $DISKDIR
 }
 
 function wait_for_removing_cancel
@@ -88,7 +89,7 @@ log_must file_write -o create -f $TESTDIR/$TESTFILE1 -b $((2**20)) -c $((2**8))
 
 # Flush the ARC to minimize cache effects.
 log_must zpool export $TESTPOOL
-log_must zpool import -d $TMPDIR $TESTPOOL
+log_must zpool import -d $DISKDIR $TESTPOOL
 
 # Verify that unexpected read errors automatically cancel the removal.
 log_must zinject -d $DISK0 -e io -T all -f 100 $TESTPOOL
@@ -99,7 +100,7 @@ log_must zinject -c all
 
 # Flush the ARC to minimize cache effects.
 log_must zpool export $TESTPOOL
-log_must zpool import -d $TMPDIR $TESTPOOL
+log_must zpool import -d $DISKDIR $TESTPOOL
 
 # Verify that unexpected write errors automatically cancel the removal.
 log_must zinject -d $DISK3 -e io -T all -f 100 $TESTPOOL

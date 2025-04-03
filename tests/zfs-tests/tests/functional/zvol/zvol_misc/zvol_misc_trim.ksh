@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -65,8 +66,8 @@ if ! is_physical_device $DISKS; then
 	log_unsupported "This directory cannot be run on raw files."
 fi
 
-typeset datafile1="$(mktemp zvol_misc_flags1.XXXXXX)"
-typeset datafile2="$(mktemp zvol_misc_flags2.XXXXXX)"
+typeset datafile1="$(mktemp -t zvol_misc_flags1.XXXXXX)"
+typeset datafile2="$(mktemp -t zvol_misc_flags2.XXXXXX)"
 typeset zvolpath=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 
 function cleanup
