@@ -1420,19 +1420,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 	zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
 
-	/*
-	 * If the IO failed, then either the ZIL is already failed, or we need
-	 * to call zil_fail() to fail it. To call zil_fail() we have to hold
-	 * both zl_issuer_lock and zl_lock, and zl_issuer_lock must be taken
-	 * before zl_lock, so we have to take it now.
-	 *
-	 * If zl_issuer_lock is already taken its because new IO is in the
-	 * process of being issued. That's fine, as once we've called
-	 * zil_fail() those IOs will be come through here and hit the
-	 * zil_failed() test below anyway.
-	 */
-	if (zio->io_error != 0)
-		mutex_enter(&zilog->zl_issuer_lock);
 	mutex_enter(&zilog->zl_lock);
 
 	/*
@@ -1461,8 +1448,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * to do here.
 		 */
 		mutex_exit(&zilog->zl_lock);
-		if (MUTEX_HELD(&zilog->zl_issuer_lock))
-			mutex_exit(&zilog->zl_issuer_lock);
 
 		/*
 		 * This is the transaction for the next block; we have to
@@ -1483,10 +1468,25 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * flush, as well as any errors from other dependent LWBs
 		 * (e.g. a root LWB ZIO that might be a child of this LWB).
 		 */
-		ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
-		ASSERT(MUTEX_HELD(&zilog->zl_lock));
 
-		zil_fail(zilog);
+		/*
+		 * The IO failed, so we need to fail the ZIL by calling
+		 * zil_fail().  To call zil_fail() we need to hold both
+		 * zl_issuer_lock and zl_lock. We already have zl_lock, but
+		 * zl_issuer_lock must be taken before zl_lock, so we must
+		 * release and retake them in the right order.
+		 */
+		mutex_exit(&zilog->zl_lock);
+		mutex_enter(&zilog->zl_issuer_lock);
+		mutex_enter(&zilog->zl_lock);
+
+		/*
+		 * ZIL might have been failed by another thread while the locks
+		 * were down, so we need to check again.
+		 */
+		if (!zil_failed(zilog))
+			/* It wasn't, so fail it. */
+			zil_fail(zilog);
 
 		mutex_exit(&zilog->zl_lock);
 		mutex_exit(&zilog->zl_issuer_lock);
@@ -1495,8 +1495,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 
 		return;
 	}
-
-	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
 
 	if (zilog->zl_last_lwb_opened == lwb) {
 		/*
