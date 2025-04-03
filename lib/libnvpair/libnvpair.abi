@@ -196,6 +196,7 @@
     <elf-symbol name='nvlist_remove_all' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_remove_nvpair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_size' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nvlist_snprintf' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_unpack' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_xalloc' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_xdup' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -967,6 +968,13 @@
     <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='010ae0b9'/>
     <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='79bd3751'/>
     <class-decl name='re_dfa_t' is-struct='yes' visibility='default' is-declaration-only='yes' id='b48d2441'/>
+    <function-decl name='nvlist_snprintf' mangled-name='nvlist_snprintf' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_snprintf'>
+      <parameter type-id='26a90f95'/>
+      <parameter type-id='b59d7dce'/>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nvlist_next_nvpair' mangled-name='nvlist_next_nvpair' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_next_nvpair'>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='dace003f'/>
@@ -1126,18 +1134,17 @@
       <parameter type-id='7408d286'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='dcgettext' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='26a90f95'/>
-    </function-decl>
     <function-decl name='regexec' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='a431a9da'/>
       <parameter type-id='9d26089a'/>
       <parameter type-id='b59d7dce'/>
       <parameter type-id='fc212857'/>
       <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='fputs' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='e75a27e9'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='malloc' visibility='default' binding='global' size-in-bits='64'>
@@ -1177,12 +1184,6 @@
       <parameter type-id='e75a27e9'/>
       <parameter type-id='95e97e5e'/>
       <parameter type-id='9d26089a'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='__printf_chk' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='80f4b756'/>
       <parameter is-variadic='yes'/>
       <return type-id='95e97e5e'/>
     </function-decl>
@@ -1398,11 +1399,6 @@
       <parameter type-id='b0c1ff8d' name='pctl'/>
       <return type-id='48b5725f'/>
     </function-decl>
-    <function-decl name='dump_nvlist' mangled-name='dump_nvlist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='dump_nvlist'>
-      <parameter type-id='5ce45b60' name='list'/>
-      <parameter type-id='95e97e5e' name='indent'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
     <function-decl name='nvpair_value_match_regex' mangled-name='nvpair_value_match_regex' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvpair_value_match_regex'>
       <parameter type-id='3fa542f0' name='nvp'/>
       <parameter type-id='95e97e5e' name='ai'/>
@@ -1417,6 +1413,11 @@
       <parameter type-id='80f4b756' name='value'/>
       <parameter type-id='7d3cd834' name='ep'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='dump_nvlist' mangled-name='dump_nvlist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='dump_nvlist'>
+      <parameter type-id='5ce45b60' name='list'/>
+      <parameter type-id='95e97e5e' name='indent'/>
+      <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='9f88f76e'>
       <parameter type-id='196db161'/>
@@ -2194,6 +2195,7 @@
       </data-member>
     </class-decl>
     <typedef-decl name='stack_t' type-id='380f9954' id='ac5e685f'/>
+    <typedef-decl name='unw_regnum_t' type-id='95e97e5e' id='c53620f0'/>
     <class-decl name='unw_cursor' size-in-bits='8128' is-struct='yes' visibility='default' id='384a1f22'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='opaque' type-id='dc70ec0b' visibility='default'/>
@@ -2305,6 +2307,10 @@
       <parameter type-id='eaa32e2f'/>
       <parameter type-id='b59d7dce'/>
       <return type-id='79a0948f'/>
+    </function-decl>
+    <function-decl name='_Ux86_64_regname' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='c53620f0'/>
+      <return type-id='80f4b756'/>
     </function-decl>
     <function-decl name='_ULx86_64_init_local' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='3946e4d1'/>
