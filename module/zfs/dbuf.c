@@ -1437,6 +1437,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 static int
 dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 {
+	void* db_data;
 	int bonuslen, max_bonuslen;
 
 	bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
@@ -1444,12 +1445,13 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(DB_DNODE_HELD(db));
 	ASSERT3U(bonuslen, <=, db->db.db_size);
-	db->db.db_data = kmem_alloc(max_bonuslen, KM_SLEEP);
+	db_data = kmem_alloc(max_bonuslen, KM_SLEEP);
 	arc_space_consume(max_bonuslen, ARC_SPACE_BONUS);
 	if (bonuslen < max_bonuslen)
-		memset(db->db.db_data, 0, max_bonuslen);
+		memset(db_data, 0, max_bonuslen);
 	if (bonuslen)
-		memcpy(db->db.db_data, DN_BONUS(dn->dn_phys), bonuslen);
+		memcpy(db_data, DN_BONUS(dn->dn_phys), bonuslen);
+	db->db.db_data = db_data;
 	db->db_state = DB_CACHED;
 	DTRACE_SET_STATE(db, "bonus buffer filled");
 	return (0);
@@ -1462,6 +1464,7 @@ dbuf_handle_indirect_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *dbbp)
 	uint32_t indbs = 1ULL << dn->dn_indblkshift;
 	int n_bps = indbs >> SPA_BLKPTRSHIFT;
 
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	for (int i = 0; i < n_bps; i++) {
 		blkptr_t *bp = &bps[i];
 
@@ -2520,6 +2523,7 @@ dbuf_undirty_bonus(dbuf_dirty_record_t *dr)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	if (dr->dt.dl.dr_data != db->db.db_data) {
 		struct dnode *dn = dr->dr_dnode;
 		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
@@ -3874,6 +3878,7 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 		    DBUF_GET_BUFC_TYPE(db), db->db.db_size));
 	}
 
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	rw_enter(&db->db_rwlock, RW_WRITER);
 	memcpy(db->db.db_data, data->b_data, arc_buf_size(data));
 	rw_exit(&db->db_rwlock);
@@ -3937,6 +3942,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	if (db->db_buf != NULL) {
 		arc_buf_access(db->db_buf);
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		ASSERT3P(db->db.db_data, ==, db->db_buf->b_data);
 	}
 
