@@ -752,7 +752,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	while (resid != 0 && off < volsize) {
 		size_t size = MIN(resid, zvol_maxphys);
 		if (doread) {
-			error = dmu_read(os, ZVOL_OBJ, off, size, addr,
+			error = dmu_read_by_dnode(zv->zv_dn, off, size, addr,
 			    DMU_READ_PREFETCH);
 		} else {
 			dmu_tx_t *tx = dmu_tx_create(os);
@@ -761,7 +761,8 @@ zvol_geom_bio_strategy(struct bio *bp)
 			if (error) {
 				dmu_tx_abort(tx);
 			} else {
-				dmu_write(os, ZVOL_OBJ, off, size, addr, tx);
+				dmu_write_by_dnode(zv->zv_dn, off, size, addr,
+				    tx, DMU_READ_PREFETCH);
 				zvol_log_write(zv, tx, off, size, commit);
 				dmu_tx_commit(tx);
 			}
@@ -850,7 +851,8 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 		if (bytes > volsize - zfs_uio_offset(&uio))
 			bytes = volsize - zfs_uio_offset(&uio);
 
-		error =  dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
+		error =  dmu_read_uio_dnode(zv->zv_dn, &uio, bytes,
+		    DMU_READ_PREFETCH);
 		if (error) {
 			/* Convert checksum errors into IO errors. */
 			if (error == ECKSUM)
@@ -909,7 +911,8 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 			dmu_tx_abort(tx);
 			break;
 		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
+		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
+		    DMU_READ_PREFETCH);
 		if (error == 0)
 			zvol_log_write(zv, tx, off, bytes, commit);
 		dmu_tx_commit(tx);
