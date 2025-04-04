@@ -59,6 +59,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __FreeBSD__
+#include <sys/sysctl.h>
+#endif
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -1811,7 +1814,15 @@ zpool_find_import(libpc_handle_t *hdl, importargs_t *iarg)
 	pthread_mutex_t lock;
 	avl_tree_t *cache;
 	nvlist_t *pools = NULL;
+	int raw = 0;
+#ifdef __FreeBSD__
+	size_t size;
 
+	/* Do full directory scan if vdev raw mode is enabled. */
+	if (sysctlbyname("vfs.zfs.vdev.raw_mode", &raw, &size, NULL, 0) == -1) {
+		return (NULL);
+	}
+#endif
 	verify(iarg->poolname == NULL || iarg->guid == 0);
 	pthread_mutex_init(&lock, NULL);
 
@@ -1821,7 +1832,7 @@ zpool_find_import(libpc_handle_t *hdl, importargs_t *iarg)
 	 * entry for each discovered vdev will be returned in the cache.
 	 * It's the caller's responsibility to consume and destroy this tree.
 	 */
-	if (iarg->scan || iarg->paths != 0) {
+	if (raw || iarg->scan || iarg->paths != 0) {
 		size_t dirs = iarg->paths;
 		const char * const *dir = (const char * const *)iarg->path;
 
