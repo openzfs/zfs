@@ -732,6 +732,27 @@ ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 }
 
 void
+ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+    ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+	dva_t *cur_dvas = (v == DDT_PHYS_FLAT) ?
+	    cur->ddp_flat.ddp_dva : cur->ddp_trad[v].ddp_dva;
+	dva_t *orig_dvas = (v == DDT_PHYS_FLAT) ?
+	    orig->ddp_flat.ddp_dva : orig->ddp_trad[v].ddp_dva;
+
+	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
+		cur_dvas[d] = orig_dvas[d];
+
+	if (ddt_phys_birth(orig, v) == 0) {
+		if (v == DDT_PHYS_FLAT)
+			cur->ddp_flat.ddp_phys_birth = 0;
+		else
+			cur->ddp_trad[v].ddp_phys_birth = 0;
+	}
+}
+
+void
 ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
     ddt_phys_variant_t v)
 {

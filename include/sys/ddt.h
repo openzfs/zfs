@@ -339,6 +339,8 @@ extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
 
 extern void ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
     const blkptr_t *bp);
+extern void ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+    ddt_phys_variant_t v);
 extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
     ddt_phys_variant_t v);
 extern void ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
