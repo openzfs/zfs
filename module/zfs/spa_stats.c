@@ -948,7 +948,8 @@ spa_iostats_trim_add(spa_t *spa, trim_type_t type,
 }
 
 void
-spa_iostats_read_add(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
+spa_iostats_read_add(spa_t *spa, uint64_t size, uint64_t iops,
+    dmu_flags_t flags)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
 	kstat_t *ksp = shk->kstat;
@@ -967,7 +968,8 @@ spa_iostats_read_add(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
 }
 
 void
-spa_iostats_write_add(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
+spa_iostats_write_add(spa_t *spa, uint64_t size, uint64_t iops,
+    dmu_flags_t flags)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
 	kstat_t *ksp = shk->kstat;
