@@ -2449,3 +2449,15 @@ zpool_prepare_and_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp,
 	rc = zpool_label_disk(hdl, zhp, name);
 	return (rc);
 }
+
+/*
+ * Set spa_namespace locking behavior for zpools.  For example you may want to
+ * error out if you can't acquire the lock, or skip the lock entirely (which
+ * can be dangerous).
+ */
+void
+libzfs_set_lock_behavior(libzfs_handle_t *hdl,
+	zpool_lock_behavior_t zpool_lock_behavior)
+{
+	hdl->zpool_lock_behavior = zpool_lock_behavior;
+}

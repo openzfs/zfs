@@ -73,6 +73,8 @@ struct libzfs_handle {
 	uint64_t libzfs_max_nvlist;
 	void *libfetch;
 	char *libfetch_load_error;
+
+	zpool_lock_behavior_t zpool_lock_behavior;
 };
 
 struct zfs_handle {
