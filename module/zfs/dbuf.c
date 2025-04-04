@@ -3560,12 +3560,9 @@ dbuf_issue_final_prefetch_done(zio_t *zio, const zbookmark_phys_t *zb,
 static void
 dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 {
-	ASSERT(!BP_IS_REDACTED(bp) ||
-	    dsl_dataset_feature_is_active(
-	    dpa->dpa_dnode->dn_objset->os_dsl_dataset,
-	    SPA_FEATURE_REDACTED_DATASETS));
-
-	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
+	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_REDACTED(bp));
+	if (BP_IS_EMBEDDED(bp))
 		return (dbuf_prefetch_fini(dpa, B_FALSE));
 
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
@@ -3651,10 +3648,10 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 	blkptr_t *bp = ((blkptr_t *)abuf->b_data) +
 	    P2PHASE(nextblkid, 1ULL << dpa->dpa_epbs);
 
-	ASSERT(!BP_IS_REDACTED(bp) || (dpa->dpa_dnode &&
+	ASSERT(!BP_IS_REDACTED(bp) || dpa->dpa_dnode == NULL ||
 	    dsl_dataset_feature_is_active(
 	    dpa->dpa_dnode->dn_objset->os_dsl_dataset,
-	    SPA_FEATURE_REDACTED_DATASETS)));
+	    SPA_FEATURE_REDACTED_DATASETS));
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp)) {
 		arc_buf_destroy(abuf, private);
 		dbuf_prefetch_fini(dpa, B_TRUE);
@@ -3667,8 +3664,14 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		zbookmark_phys_t zb;
 
 		/* flag if L2ARC eligible, l2arc_noprefetch then decides */
-		if (dpa->dpa_aflags & ARC_FLAG_L2CACHE)
-			iter_aflags |= ARC_FLAG_L2CACHE;
+		if (dpa->dpa_dnode) {
+			if (dnode_level_is_l2cacheable(bp, dpa->dpa_dnode,
+			    dpa->dpa_curlevel))
+				iter_aflags |= ARC_FLAG_L2CACHE;
+		} else {
+			if (dpa->dpa_aflags & ARC_FLAG_L2CACHE)
+				iter_aflags |= ARC_FLAG_L2CACHE;
+		}
 
 		ASSERT3U(dpa->dpa_curlevel, ==, BP_GET_LEVEL(bp));
 
@@ -3807,7 +3810,7 @@ dbuf_prefetch_impl(dnode_t *dn, int64_t level, uint64_t blkid,
 		zbookmark_phys_t zb;
 
 		/* flag if L2ARC eligible, l2arc_noprefetch then decides */
-		if (dnode_level_is_l2cacheable(&bp, dn, level))
+		if (dnode_level_is_l2cacheable(&bp, dn, curlevel))
 			iter_aflags |= ARC_FLAG_L2CACHE;
 
 		SET_BOOKMARK(&zb, ds != NULL ? ds->ds_object : DMU_META_OBJSET,
