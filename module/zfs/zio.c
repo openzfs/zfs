@@ -3636,7 +3636,7 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * chain. We need to revert the entry back to what it was at
 		 * the last time it was successfully extended.
 		 */
-		ddt_phys_copy(ddp, orig, v);
+		ddt_phys_unextend(ddp, orig, v);
 		ddt_phys_clear(orig, v);
 
 		ddt_exit(ddt);
