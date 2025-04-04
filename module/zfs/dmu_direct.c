@@ -208,7 +208,7 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 
 int
 dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
-    abd_t *data, uint32_t flags, dmu_tx_t *tx)
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
 {
 	dmu_buf_t **dbp;
 	spa_t *spa = dn->dn_objset->os_spa;
@@ -247,7 +247,7 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 
 int
 dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
-    abd_t *data, uint32_t flags)
+    abd_t *data, dmu_flags_t flags)
 {
 	objset_t *os = dn->dn_objset;
 	spa_t *spa = os->os_spa;
@@ -351,7 +351,8 @@ error:
 
 #ifdef _KERNEL
 int
-dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
+dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags)
 {
 	offset_t offset = zfs_uio_offset(uio);
 	offset_t page_index = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
@@ -362,7 +363,7 @@ dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 
 	abd_t *data = abd_alloc_from_pages(&uio->uio_dio.pages[page_index],
 	    offset & (PAGESIZE - 1), size);
-	err = dmu_read_abd(dn, offset, size, data, DMU_DIRECTIO);
+	err = dmu_read_abd(dn, offset, size, data, flags);
 	abd_free(data);
 
 	if (err == 0)
@@ -372,7 +373,8 @@ dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 }
 
 int
-dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
+dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags, dmu_tx_t *tx)
 {
 	offset_t offset = zfs_uio_offset(uio);
 	offset_t page_index = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
@@ -383,7 +385,7 @@ dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 
 	abd_t *data = abd_alloc_from_pages(&uio->uio_dio.pages[page_index],
 	    offset & (PAGESIZE - 1), size);
-	err = dmu_write_abd(dn, offset, size, data, DMU_DIRECTIO, tx);
+	err = dmu_write_abd(dn, offset, size, data, flags, tx);
 	abd_free(data);
 
 	if (err == 0)

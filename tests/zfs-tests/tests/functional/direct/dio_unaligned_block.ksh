@@ -40,8 +40,10 @@
 
 verify_runnable "global"
 
+log_must save_tunable DIO_STRICT
 function cleanup
 {
+	restore_tunable DIO_STRICT
 	zfs set recordsize=$rs $TESTPOOL/$TESTFS
 	zfs set direct=standard $TESTPOOL/$TESTFS
 	log_must rm -f $tmp_file
@@ -61,6 +63,13 @@ file_size=$((rs * 8))
 
 log_must stride_dd -i /dev/urandom -o $tmp_file -b $file_size -c 1
 
+log_must set_tunable32 DIO_STRICT 0
+log_must zfs set direct=standard $TESTPOOL/$TESTFS
+# sub-pagesize direct writes/read will always pass if not strict.
+log_must stride_dd -i /dev/urandom -o $tmp_file -b 512 -c 8 -D
+log_must stride_dd -i $tmp_file -o /dev/null -b 512 -c 8 -d
+
+log_must set_tunable32 DIO_STRICT 1
 log_must zfs set direct=standard $TESTPOOL/$TESTFS
 # sub-pagesize direct writes/read will always fail if direct=standard.
 log_mustnot stride_dd -i /dev/urandom -o $tmp_file -b 512 -c 8 -D

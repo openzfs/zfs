@@ -270,11 +270,13 @@ void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
 
 int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *);
-int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, uint32_t flags);
-int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, uint32_t, dmu_tx_t *);
+int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t);
+int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t,
+    dmu_tx_t *);
 #if defined(_KERNEL)
-int dmu_read_uio_direct(dnode_t *, zfs_uio_t *, uint64_t);
-int dmu_write_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_tx_t *);
+int dmu_read_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t);
+int dmu_write_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t,
+    dmu_tx_t *);
 #endif
 
 #ifdef	__cplusplus

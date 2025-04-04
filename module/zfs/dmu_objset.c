@@ -2330,12 +2330,11 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			data = DN_BONUS(dn->dn_phys);
 		}
 	} else if (dn->dn_bonuslen == 0 && dn->dn_bonustype == DMU_OT_SA) {
-			int rf = 0;
+			dmu_flags_t rf = DB_RF_MUST_SUCCEED;
 
 			if (RW_WRITE_HELD(&dn->dn_struct_rwlock))
 				rf |= DB_RF_HAVESTRUCT;
-			error = dmu_spill_hold_by_dnode(dn,
-			    rf | DB_RF_MUST_SUCCEED,
+			error = dmu_spill_hold_by_dnode(dn, rf,
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT(error == 0);
 			mutex_enter(&db->db_mtx);
