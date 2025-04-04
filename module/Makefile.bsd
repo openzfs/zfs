@@ -90,19 +90,25 @@ SRCS+=	blake3.c \
 	blake3_generic.c \
 	blake3_impl.c
 
+.if ${MACHINE_ARCH} == "aarch64"
 #icp/asm-aarch64/blake3
 SRCS+=	b3_aarch64_sse2.S \
 	b3_aarch64_sse41.S
+.endif
 
+.if ${MACHINE_ARCH} == "powerpc64le"
 #icp/asm-ppc64/blake3
 SRCS+=	b3_ppc64le_sse2.S \
 	b3_ppc64le_sse41.S
+.endif
 
+.if ${MACHINE_ARCH} == "amd64" || ${MACHINE_ARCH} == "i386"
 #icp/asm-x86_64/blake3
 SRCS+=	blake3_avx2.S \
 	blake3_avx512.S \
 	blake3_sse2.S \
 	blake3_sse41.S
+.endif
 
 #icp/algs/edonr
 SRCS+=	edonr.c
@@ -112,23 +118,31 @@ SRCS+=	sha256_impl.c \
 	sha2_generic.c \
 	sha512_impl.c
 
+.if ${MACHINE_ARCH} == "armv7"
 #icp/asm-arm/sha2
 SRCS+=	sha256-armv7.S \
 	sha512-armv7.S
+.endif
 
+.if ${MACHINE_ARCH} == "aarch64"
 #icp/asm-aarch64/sha2
 SRCS+=	sha256-armv8.S \
 	sha512-armv8.S
+.endif
 
+.if ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc64le"
 #icp/asm-ppc64/sha2
 SRCS+=	sha256-p8.S \
 	sha256-ppc.S \
 	sha512-p8.S \
 	sha512-ppc.S
+.endif
 
+.if ${MACHINE_ARCH} == "amd64" || ${MACHINE_ARCH} == "i386"
 #icp/asm-x86_64/sha2
 SRCS+=	sha256-x86_64.S \
 	sha512-x86_64.S
+.endif
 
 #lua
 SRCS+=	lapi.c \
@@ -505,7 +519,7 @@ CFLAGS.zstd_lazy.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGIC
 CFLAGS.zstd_ldm.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
 CFLAGS.zstd_opt.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
 
-.if ${MACHINE_CPUARCH} == "aarch64"
+.if ${MACHINE_ARCH} == "aarch64"
 __ZFS_ZSTD_AARCH64_FLAGS= -include ${SRCDIR}/zstd/include/aarch64_compat.h
 CFLAGS.zstd.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
 CFLAGS.entropy_common.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
