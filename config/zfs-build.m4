@@ -601,24 +601,24 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
 		alpine|artix|gentoo)
-			initconfdir=/etc/conf.d
+			initconfdir=$sysconfdir/conf.d
 			;;
 		fedora|openeuler|redhat|sles|toss)
-			initconfdir=/etc/sysconfig
+			initconfdir=$sysconfdir/sysconfig
 			;;
 		freebsd)
 			initconfdir=$sysconfdir/rc.conf.d
 			;;
 		*)
 		# debian|ubuntu
-			initconfdir=/etc/default
+			initconfdir=$sysconfdir/default
 			;;
 	esac
 	AC_MSG_RESULT([$initconfdir])
 	AC_SUBST(initconfdir)
 
 	AC_MSG_CHECKING([whether initramfs-tools is available])
-	if test -d /usr/share/initramfs-tools ; then
+	if test -d $datarootdir/initramfs-tools ; then
 		RPM_DEFINE_INITRAMFS='--define "_initramfs 1"'
 		AC_MSG_RESULT([yes])
 	else
@@ -630,13 +630,13 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	AC_MSG_CHECKING([default bash completion directory])
 	case "$VENDOR" in
 		alpine|arch|artix|debian|gentoo|ubuntu)
-			bashcompletiondir=/usr/share/bash-completion/completions
+			bashcompletiondir=$datarootdir/bash-completion/completions
 			;;
 		freebsd)
 			bashcompletiondir=$sysconfdir/bash_completion.d
 			;;
 		*)
-			bashcompletiondir=/etc/bash_completion.d
+			bashcompletiondir=$sysconfdir/bash_completion.d
 			;;
 	esac
 	AC_MSG_RESULT([$bashcompletiondir])
