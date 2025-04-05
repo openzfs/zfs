@@ -329,7 +329,7 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			put_page(pp);
 		} else {
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, bytes);
+			    uio, bytes, DMU_READ_PREFETCH);
 		}
 
 		len -= bytes;

@@ -513,6 +513,7 @@ dnode_evict_dbufs(dnode_t *dn)
 			avl_remove(&dn->dn_dbufs, db_marker);
 		} else {
 			db->db_pending_evict = TRUE;
+			db->db_partial_read = FALSE;
 			mutex_exit(&db->db_mtx);
 			db_next = AVL_NEXT(&dn->dn_dbufs, db);
 		}
