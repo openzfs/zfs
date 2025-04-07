@@ -2592,18 +2592,6 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 	int l;
 
 	offset = (u_longlong_t)blkid2offset(dnp, bp, zb);
-	if (!BP_IS_EMBEDDED(bp)) {
-		if (BP_GET_TYPE(bp) != dnp->dn_type) {
-			(void) fprintf(stderr, "%16llx: Block pointer type "
-			    "(%llu) does not match dnode type (%hhu)\n",
-			    offset, BP_GET_TYPE(bp), dnp->dn_type);
-		}
-		if (BP_GET_LEVEL(bp) != zb->zb_level) {
-			(void) fprintf(stderr, "%16llx: Block pointer level "
-			    "(%llu) does not match bookmark level (%ld)\n",
-			    offset, BP_GET_LEVEL(bp), zb->zb_level);
-		}
-	}
 
 	(void) printf("%16llx ", offset);
 
@@ -2620,7 +2608,21 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, B_FALSE);
 	if (dump_opt['Z'] && BP_GET_COMPRESS(bp) == ZIO_COMPRESS_ZSTD)
 		snprintf_zstd_header(spa, blkbuf, sizeof (blkbuf), bp);
-	(void) printf("%s\n", blkbuf);
+	(void) printf("%s", blkbuf);
+
+	if (!BP_IS_EMBEDDED(bp)) {
+		if (BP_GET_TYPE(bp) != dnp->dn_type) {
+			(void) printf(" (ERROR: Block pointer type "
+			    "(%llu) does not match dnode type (%hhu))",
+			    BP_GET_TYPE(bp), dnp->dn_type);
+		}
+		if (BP_GET_LEVEL(bp) != zb->zb_level) {
+			(void) printf(" (ERROR: Block pointer level "
+			    "(%llu) does not match bookmark level (%ld))",
+			    BP_GET_LEVEL(bp), zb->zb_level);
+		}
+	}
+	(void) printf("\n");
 
 	return (offset);
 }
@@ -2667,7 +2669,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 		}
 		if (!err) {
 			if (fill != BP_GET_FILL(bp)) {
-				(void) fprintf(stderr, "%16llx: Block pointer "
+				(void) printf("%16llx: Block pointer "
 				    "fill (%llu) does not match calculated "
 				    "value (%lu)\n", offset, BP_GET_FILL(bp),
 				    fill);
