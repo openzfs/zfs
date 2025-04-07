@@ -110,11 +110,29 @@ zpl_sync_fs(struct super_block *sb, int wait)
 {
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
+	znode_t *zp;
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	struct writeback_control wbc = {
+		.sync_mode = wait ? WB_SYNC_ALL : WB_SYNC_NONE,
+		.nr_to_write = LONG_MAX,
+		.range_start = 0,
+		.range_end = LLONG_MAX,
+	};
 	int error;
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_sync(sb, wait, cr);
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	for (zp = list_head(&zfsvfs->z_all_znodes); zp;
+	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+		if (zp->z_sa_hdl)
+			error = zpl_writepages(ZTOI(zp)->i_mapping, &wbc);
+		if (error != 0)
+			break;
+	}
+	mutex_exit(&zfsvfs->z_znodes_lock);
+	if (error == 0)
+		error = -zfs_sync(sb, wait, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
