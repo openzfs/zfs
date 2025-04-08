@@ -46,6 +46,23 @@
 #include <libunwind.h>
 
 /*
+ * libunwind-gcc and libunwind-llvm both list registers using an enum,
+ * unw_regnum_t, however they indicate the highest numbered register for
+ * a given architecture in different ways. We can check which one is defined
+ * and mark which libunwind is in use
+ */
+
+#if defined(UNW_TDEP_LAST_REG)
+#define	LIBUNWIND_GCC
+#define	LAST_REG_INDEX UNW_TDEP_LAST_REG
+#elif defined(_LIBUNWIND_HIGHEST_DWARF_REGISTER)
+#define	LIBUNWIND_LLVM
+#define	LAST_REG_INDEX _LIBUNWIND_HIGHEST_DWARF_REGISTER
+#else
+#error Can't figure out which libunwind library is in use
+#endif
+
+/*
  * Convert `v` to ASCII hex characters. The bottom `n` nybbles (4-bits ie one
  * hex digit) will be written, up to `buflen`. The buffer will not be
  * null-terminated. Returns the number of digits written.
@@ -102,14 +119,13 @@ libspl_backtrace(int fd)
 	unw_init_local(&cp, &uc);
 
 	/*
-	 * libunwind's list of possible registers for this architecture is an
-	 * enum, unw_regnum_t. UNW_TDEP_LAST_REG is the highest-numbered
-	 * register in that list, however, not all register numbers in this
-	 * range are defined by the architecture, and not all defined registers
-	 * will be present on every implementation of that architecture.
-	 * Moreover, libunwind provides nice names for most, but not all
-	 * registers, but these are hardcoded; a name being available does not
-	 * mean that register is available.
+	 * Iterate over all registers for the architecture. We've figured
+	 * out the highest number above, however, not all register numbers in
+	 * this range are defined by the architecture, and not all defined
+	 * registers will be present on every implementation of that
+	 * architecture. Moreover, libunwind provides nice names for most, but
+	 * not all registers, but these are hardcoded; a name being available
+	 * does not mean that register is available.
 	 *
 	 * So, we have to pull this all together here. We try to get the value
 	 * of every possible register. If we get a value for it, then the
@@ -120,26 +136,42 @@ libspl_backtrace(int fd)
 	 * thing.
 	 */
 	uint_t cols = 0;
-	for (uint_t regnum = 0; regnum <= UNW_TDEP_LAST_REG; regnum++) {
+	for (uint_t regnum = 0; regnum <= LAST_REG_INDEX; regnum++) {
 		/*
 		 * Get the value. Any error probably means the register
-		 * doesn't exist, and we skip it.
+		 * doesn't exist, and we skip it. LLVM libunwind iterates over
+		 * fp registers in the same list, however they have to be
+		 * accessed using unw_get_fpreg instead. Here, we just ignore
+		 * them.
 		 */
+#if defined(LIBUNWIND_GCC)
 		if (unw_get_reg(&cp, regnum, &v) < 0)
 			continue;
+#elif defined(LIBUNWIND_LLVM)
+		if (unw_is_fpreg(&cp, regnum) ||
+		    unw_get_reg(&cp, regnum, &v) < 0)
+			continue;
+#endif
 
 		/*
-		 * Register name. If libunwind doesn't have a name for it,
+		 * Register name. If GCC libunwind doesn't have a name for it,
 		 * it will return "???". As a shortcut, we just treat '?'
-		 * is an alternate end-of-string character.
+		 * is an alternate end-of-string character. LLVM libunwind will
+		 * return the string 'unknown register', which we detect by
+		 * checking if the register name is longer than 5 characters.
 		 */
+#if defined(LIBUNWIND_GCC)
 		const char *name = unw_regname(regnum);
+#elif defined(LIBUNWIND_LLVM)
+		const char *name = unw_regname(&cp, regnum);
+#endif
 		for (n = 0; name[n] != '\0' && name[n] != '?'; n++) {}
-		if (n == 0) {
+		if (n == 0 || n > 5) {
 			/*
-			 * No valid name, so make one of the form "?xx", where
-			 * "xx" is the two-char hex of libunwind's register
-			 * number.
+			 * No valid name, or likely llvm_libunwind returned
+			 * unknown_register, so make one of the form "?xx",
+			 * where "xx" is the two-char hex of libunwind's
+			 * register number.
 			 */
 			buf[0] = '?';
 			n = spl_bt_u64_to_hex_str(regnum, 2,
