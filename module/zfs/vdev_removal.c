@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -171,9 +172,6 @@ static void
 vdev_activate(vdev_t *vd)
 {
 	metaslab_group_t *mg = vd->vdev_mg;
-	spa_t *spa = vd->vdev_spa;
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
 	ASSERT(!vd->vdev_islog);
 	ASSERT(vd->vdev_noalloc);
@@ -181,9 +179,7 @@ vdev_activate(vdev_t *vd)
 	metaslab_group_activate(mg);
 	metaslab_group_activate(vd->vdev_log_mg);
 
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	vd->vdev_noalloc = B_FALSE;
 }
@@ -255,8 +251,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		return (error);
 	}
 
-	spa->spa_nonallocating_dspace += spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+	vdev_update_nonallocating_space(vd, B_TRUE);
 	vd->vdev_noalloc = B_TRUE;
 
 	return (0);
@@ -1369,8 +1364,6 @@ vdev_remove_complete(spa_t *spa)
 	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
 	vdev_rebuild_stop_wait(vd);
 	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
@@ -1378,11 +1371,8 @@ vdev_remove_complete(spa_t *spa)
 	zfs_dbgmsg("finishing device removal for vdev %llu in txg %llu",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)txg);
 
-	ASSERT3U(0, !=, vdev_space);
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
 	/* the vdev is no longer part of the dspace */
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	/*
 	 * Discard allocation state.
@@ -1620,6 +1610,9 @@ spa_vdev_remove_thread(void *arg)
 	vca.vca_read_error_bytes = 0;
 	vca.vca_write_error_bytes = 0;
 
+	zfs_range_tree_t *segs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
+
 	mutex_enter(&svr->svr_lock);
 
 	/*
@@ -1632,7 +1625,9 @@ spa_vdev_remove_thread(void *arg)
 		metaslab_t *msp = vd->vdev_ms[msi];
 		ASSERT3U(msi, <=, vd->vdev_ms_count);
 
+again:
 		ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
+		mutex_exit(&svr->svr_lock);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
@@ -1645,35 +1640,48 @@ spa_vdev_remove_thread(void *arg)
 		}
 
 		/*
-		 * If the metaslab has ever been allocated from (ms_sm!=NULL),
+		 * If the metaslab has ever been synced (ms_sm != NULL),
 		 * read the allocated segments from the space map object
 		 * into svr_allocd_segs. Since we do this while holding
-		 * svr_lock and ms_sync_lock, concurrent frees (which
+		 * ms_lock and ms_sync_lock, concurrent frees (which
 		 * would have modified the space map) will wait for us
 		 * to finish loading the spacemap, and then take the
 		 * appropriate action (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL) {
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			zfs_range_tree_walk(msp->ms_unflushed_allocs,
-			    zfs_range_tree_add, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_unflushed_frees,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_freeing,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * When we are resuming from a paused removal (i.e.
-			 * when importing a pool with a removal in progress),
-			 * discard any state that we have already processed.
-			 */
-			zfs_range_tree_clear(svr->svr_allocd_segs, 0,
-			    start_offset);
+		/*
+		 * We could not hold svr_lock while loading space map, or we
+		 * could hit deadlock in a ZIO pipeline, having to wait for
+		 * it.  But we can not block for it here under metaslab locks,
+		 * or it would be a lock ordering violation.
+		 */
+		if (!mutex_tryenter(&svr->svr_lock)) {
+			mutex_exit(&msp->ms_lock);
+			mutex_exit(&msp->ms_sync_lock);
+			zfs_range_tree_vacate(segs, NULL, NULL);
+			mutex_enter(&svr->svr_lock);
+			goto again;
 		}
+
+		zfs_range_tree_swap(&segs, &svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+
 		mutex_exit(&msp->ms_lock);
 		mutex_exit(&msp->ms_sync_lock);
+
+		/*
+		 * When we are resuming from a paused removal (i.e.
+		 * when importing a pool with a removal in progress),
+		 * discard any state that we have already processed.
+		 */
+		zfs_range_tree_clear(svr->svr_allocd_segs, 0, start_offset);
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
@@ -1716,7 +1724,7 @@ spa_vdev_remove_thread(void *arg)
 			dmu_tx_t *tx =
 			    dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 
-			VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 			uint64_t txg = dmu_tx_get_txg(tx);
 
 			/*
@@ -1749,6 +1757,8 @@ spa_vdev_remove_thread(void *arg)
 	mutex_exit(&svr->svr_lock);
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	zfs_range_tree_destroy(segs);
 
 	/*
 	 * Wait for all copies to finish before cleaning up the vca.
@@ -1884,6 +1894,8 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		    vdev_indirect_mapping_max_offset(vim));
 	}
 
+	zfs_range_tree_t *segs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
 
@@ -1903,38 +1915,30 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 			ASSERT0(zfs_range_tree_space(msp->ms_defer[i]));
 		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 
-		if (msp->ms_sm != NULL) {
-			mutex_enter(&svr->svr_lock);
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			zfs_range_tree_walk(msp->ms_unflushed_allocs,
-			    zfs_range_tree_add, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_unflushed_frees,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-			zfs_range_tree_walk(msp->ms_freeing,
-			    zfs_range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * Clear everything past what has been synced,
-			 * because we have not allocated mappings for it yet.
-			 */
-			uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
-			uint64_t sm_end = msp->ms_sm->sm_start +
-			    msp->ms_sm->sm_size;
-			if (sm_end > syncd)
-				zfs_range_tree_clear(svr->svr_allocd_segs,
-				    syncd, sm_end - syncd);
-
-			mutex_exit(&svr->svr_lock);
-		}
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, segs);
 		mutex_exit(&msp->ms_lock);
 
-		mutex_enter(&svr->svr_lock);
-		zfs_range_tree_vacate(svr->svr_allocd_segs,
-		    free_mapped_segment_cb, vd);
-		mutex_exit(&svr->svr_lock);
+		/*
+		 * Clear everything past what has been synced,
+		 * because we have not allocated mappings for it yet.
+		 */
+		uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
+		uint64_t sm_end = msp->ms_sm->sm_start +
+		    msp->ms_sm->sm_size;
+		if (sm_end > syncd)
+			zfs_range_tree_clear(segs, syncd, sm_end - syncd);
+
+		zfs_range_tree_vacate(segs, free_mapped_segment_cb, vd);
 	}
+	zfs_range_tree_destroy(segs);
 
 	/*
 	 * Note: this must happen after we invoke free_mapped_segment_cb,

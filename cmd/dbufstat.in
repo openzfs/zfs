@@ -1,4 +1,5 @@
 #!/usr/bin/env @PYTHON_SHEBANG@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Print out statistics for all cached dmu buffers.  This information
 # is available through the dbufs kstat and may be post-processed as

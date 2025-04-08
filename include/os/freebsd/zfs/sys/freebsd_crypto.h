@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2018 Sean Eric Fagan <sef@ixsystems.com>
  * Portions Copyright (c) 2005-2011 Pawel Jakub Dawidek <pawel@dawidek.net>

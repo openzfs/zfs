@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -27,6 +28,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/brt.h>
 #include <sys/dmu.h>
 #include <sys/dmu_tx.h>
 #include <sys/space_map.h>
@@ -5405,12 +5407,13 @@ metaslab_free_concrete(vdev_t *vd, uint64_t offset, uint64_t asize,
 {
 	metaslab_t *msp;
 	spa_t *spa = vd->vdev_spa;
+	int m = offset >> vd->vdev_ms_shift;
 
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
-	ASSERT3U(offset >> vd->vdev_ms_shift, <, vd->vdev_ms_count);
+	VERIFY3U(m, <, vd->vdev_ms_count);
 
-	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
+	msp = vd->vdev_ms[m];
 
 	VERIFY(!msp->ms_condensing);
 	VERIFY3U(offset, >=, msp->ms_start);
@@ -5580,6 +5583,13 @@ spa_remap_blkptr(spa_t *spa, blkptr_t *bp, spa_remap_cb_t callback, void *arg)
 	 * Embedded BP's have no DVA to remap.
 	 */
 	if (BP_GET_NDVAS(bp) < 1)
+		return (B_FALSE);
+
+	/*
+	 * Cloned blocks can not be remapped since BRT depends on specific
+	 * vdev id and offset in the DVA[0] for its reference counting.
+	 */
+	if (!BP_IS_METADATA(bp) && brt_maybe_exists(spa, bp))
 		return (B_FALSE);
 
 	/*

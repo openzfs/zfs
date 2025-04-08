@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -38,10 +39,10 @@
 
 verify_runnable "both"
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-MNTPT=$TMPDIR/zfs_mount_test_race_mntpt
-DISK1="$TMPDIR/zfs_mount_test_race_disk1"
-DISK2="$TMPDIR/zfs_mount_test_race_disk2"
+DISKDIR=$(mktemp -d)
+MNTPT=$DISKDIR/zfs_mount_test_race_mntpt
+DISK1="$DISKDIR/zfs_mount_test_race_disk1"
+DISK2="$DISKDIR/zfs_mount_test_race_disk2"
 
 TESTPOOL1=zfs_mount_test_race_tp1
 TESTPOOL2=zfs_mount_test_race_tp2
@@ -54,11 +55,9 @@ function cleanup
 {
 	zpool destroy $TESTPOOL1
 	zpool destroy $TESTPOOL2
-	rm -rf $MNTPT
+	rm -rf $DISKDIR
 	rm -rf /$TESTPOOL1
 	rm -rf /$TESTPOOL2
-	rm -f $DISK1
-	rm -f $DISK2
 	export __ZFS_POOL_RESTRICT="$TESTPOOL1 $TESTPOOL2"
 	log_must zfs $mountall
 	unset __ZFS_POOL_RESTRICT

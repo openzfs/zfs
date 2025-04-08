@@ -36,6 +36,7 @@ CONTRIBUTORS:
     Alexander Pyhalov <apyhalov@gmail.com>
     Alexander Richardson <Alexander.Richardson@cl.cam.ac.uk>
     Alexander Stetsenko <ams@nexenta.com>
+    Alexander Ziaee <ziaee@FreeBSD.org>
     Alex Braunegg <alex.braunegg@gmail.com>
     Alexey Shvetsov <alexxy@gentoo.org>
     Alexey Smirnoff <fling@member.fsf.org>
@@ -288,6 +289,7 @@ CONTRIBUTORS:
     ilovezfs <ilovezfs@icloud.com>
     InsanePrawn <Insane.Prawny@gmail.com>
     Isaac Huang <he.huang@intel.com>
+    Ivan Volosyuk <Ivan.Volosyuk@gmail.com>
     Jacek Fefliński <feflik@gmail.com>
     Jacob Adams <tookmund@gmail.com>
     Jake Howard <git@theorangeone.net>
@@ -295,6 +297,7 @@ CONTRIBUTORS:
     James H <james@kagisoft.co.uk>
     James Lee <jlee@thestaticvoid.com>
     James Pan <jiaming.pan@yahoo.com>
+    James Reilly <jreilly1821@gmail.com>
     James Wah <james@laird-wah.net>
     Jan Engelhardt <jengelh@inai.de>
     Jan Kryl <jan.kryl@nexenta.com>
@@ -306,6 +309,7 @@ CONTRIBUTORS:
     Jason Lee <jasonlee@lanl.gov>
     Jason Zaman <jasonzaman@gmail.com>
     Javen Wu <wu.javen@gmail.com>
+    Jaydeep Kshirsagar <jkshirsagar@maxlinear.com>
     Jean-Baptiste Lallement <jean-baptiste@ubuntu.com>
     Jeff Dike <jdike@akamai.com>
     Jeremy Faulkner <gldisater@gmail.com>
@@ -313,6 +317,7 @@ CONTRIBUTORS:
     Jeremy Jones <jeremy@delphix.com>
     Jeremy Visser <jeremy.visser@gmail.com>
     Jerry Jelinek <jerry.jelinek@joyent.com>
+    Jerzy Kołosowski <jerzy@kolosowscy.pl>
     Jessica Clarke <jrtc27@jrtc27.com>
     Jinshan Xiong <jinshan.xiong@intel.com>
     Jitendra Patidar <jitendra.patidar@nutanix.com>
@@ -372,6 +377,7 @@ CONTRIBUTORS:
     Kohsuke Kawaguchi <kk@kohsuke.org>
     Konstantin Khorenko <khorenko@virtuozzo.com>
     KORN Andras <korn@elan.rulez.org>
+    kotauskas <v.toncharov@gmail.com>
     Kristof Provost <github@sigsegv.be>
     Krzysztof Piecuch <piecuch@kpiecuch.pl>
     Kyle Blatter <kyleblatter@llnl.gov>
@@ -452,6 +458,7 @@ CONTRIBUTORS:
     Mike Swanson <mikeonthecomputer@gmail.com>
     Milan Jurik <milan.jurik@xylab.cz>
     Minsoo Choo <minsoochoo0122@proton.me>
+    mnrx <mnrx@users.noreply.github.com>
     Mohamed Tawfik <m_tawfik@aucegypt.edu>
     Morgan Jones <mjones@rice.edu>
     Moritz Maxeiner <moritz@ucworks.org>
@@ -494,6 +501,7 @@ CONTRIBUTORS:
     Pawel Jakub Dawidek <pjd@FreeBSD.org>
     Pedro Giffuni <pfg@freebsd.org>
     Peng <peng.hse@xtaotech.com>
+    Peng Liu <littlenewton6@gmail.com>
     Peter Ashford <ashford@accs.com>
     Peter Dave Hello <hsu@peterdavehello.org>
     Peter Doherty <peterd@acranox.org>
@@ -503,9 +511,11 @@ CONTRIBUTORS:
     Philip Pokorny <ppokorny@penguincomputing.com>
     Philipp Riederer <pt@philipptoelke.de>
     Phil Kauffman <philip@kauffman.me>
+    Phil Sutter <phil@nwl.cc>
     Ping Huang <huangping@smartx.com>
     Piotr Kubaj <pkubaj@anongoth.pl>
     Piotr P. Stefaniak <pstef@freebsd.org>
+    poscat <poscat@poscat.moe>
     Prakash Surya <prakash.surya@delphix.com>
     Prasad Joshi <prasadjoshi124@gmail.com>
     privb0x23 <privb0x23@users.noreply.github.com>
@@ -575,6 +585,7 @@ CONTRIBUTORS:
     Shaun Tancheff <shaun@aeonazure.com>
     Shawn Bayern <sbayern@law.fsu.edu>
     Shengqi Chen <harry-chen@outlook.com>
+    SHENGYI HONG <aokblast@FreeBSD.org>
     Shen Yan <shenyanxxxy@qq.com>
     Sietse <sietse@wizdom.nu>
     Simon Guest <simon.guest@tesujimath.org>
@@ -616,7 +627,9 @@ CONTRIBUTORS:
     timor <timor.dd@googlemail.com>
     Timothy Day <tday141@gmail.com>
     Tim Schumacher <timschumi@gmx.de>
+    Tim Smith <tim@mondoo.com>
     Tino Reichardt <milky-zfs@mcmilk.de>
+    tleydxdy <shironeko.github@tesaguri.club>
     Tobin Harding <me@tobin.cc>
     Todd Seidelmann <seidelma@users.noreply.github.com>
     Tom Caputi <tcaputi@datto.com>
@@ -640,6 +653,7 @@ CONTRIBUTORS:
     Vaibhav Bhanawat <vaibhav.bhanawat@delphix.com>
     Valmiky Arquissandas <kayvlim@gmail.com>
     Val Packett <val@packett.cool>
+    Vandana Rungta <vrungta@amazon.com>
     Vince van Oosten <techhazard@codeforyouand.me>
     Violet Purcell <vimproved@inventati.org>
     Vipin Kumar Verma <vipin.verma@hpe.com>

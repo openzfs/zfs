@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: CDDL-1.0
 # shellcheck disable=SC2154
 # shellcheck disable=SC2292
 #
@@ -152,7 +153,7 @@ cleanup_all() {
 	else
 		TEST_LOOPBACKS=$("${LOSETUP}" -a | awk -F: '/file-vdev/ {print $1}')
 	fi
-	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* /var/tmp/file-vdev* 2>/dev/null)
+	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* 2>/dev/null)
 
 	msg
 	msg "--- Cleanup ---"
@@ -308,8 +309,8 @@ constrain_path() {
 		# Special case links for zfs test suite utilities
 		create_links "$CMD_DIR/tests/zfs-tests/cmd" "$ZFSTEST_FILES"
 	else
-		# Constrained path set to /var/tmp/constrained_path.*
-		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXXXX}
+		# Constrained path set to $FILEDIR/constrained_path.*
+		SYSTEMDIR=${SYSTEMDIR:-$FILEDIR/constrained_path.XXXXXX}
 		STF_PATH=$(mktemp -d "$SYSTEMDIR")
 		STF_PATH_REMOVE="yes"
 		STF_MISSING_BIN=""
@@ -492,7 +493,7 @@ if [ -n "$SINGLETEST" ]; then
 	if [ -n "$TAGS" ]; then
 		fail "-t and -T are mutually exclusive."
 	fi
-	RUNFILE_DIR="/var/tmp"
+	RUNFILE_DIR="$FILEDIR"
 	RUNFILES="zfs-tests.$$.run"
 	[ -n "$QUIET" ] && SINGLEQUIET="True" || SINGLEQUIET="False"
 
@@ -505,7 +506,6 @@ user = $SINGLETESTUSER
 timeout = 600
 post_user = root
 post =
-outputdir = /var/tmp/test_results
 EOF
 	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
 		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
@@ -719,6 +719,12 @@ if [ -e /sys/module/zfs/parameters/zfs_dbgmsg_enable ]; then
 	sudo sh -c "echo 0 >/proc/spl/kstat/zfs/dbgmsg"
 fi
 
+#
+# Set TMPDIR. Some tests run mktemp, and we want those files contained to
+# the work dir the same as any other.
+#
+export TMPDIR="$FILEDIR"
+
 msg
 msg "--- Configuration ---"
 msg "Runfiles:        $RUNFILES"
@@ -726,6 +732,7 @@ msg "STF_TOOLS:       $STF_TOOLS"
 msg "STF_SUITE:       $STF_SUITE"
 msg "STF_PATH:        $STF_PATH"
 msg "FILEDIR:         $FILEDIR"
+msg "TMPDIR:          $TMPDIR"
 msg "FILES:           $FILES"
 msg "LOOPBACKS:       $LOOPBACKS"
 msg "DISKS:           $DISKS"

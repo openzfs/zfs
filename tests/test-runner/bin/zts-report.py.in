@@ -1,4 +1,5 @@
 #!/usr/bin/env @PYTHON_SHEBANG@
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -127,6 +128,11 @@ idmap_reason = 'Idmapped mount needs kernel 5.12+'
 # copy_file_range() is not supported by all kernels
 #
 cfr_reason = 'Kernel copy_file_range support required'
+
+#
+# Some statx fields are not supported by all kernels
+#
+statx_reason = 'Needed statx(2) field not supported on this kernel'
 
 if sys.platform.startswith('freebsd'):
     cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs FreeBSD 14+'
@@ -293,7 +299,8 @@ if sys.platform.startswith('freebsd'):
         'block_cloning/block_cloning_cross_enc_dataset':
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_copyfilerange_cross_dataset':
-            ['SKIP', cfr_cross_reason]
+            ['SKIP', cfr_cross_reason],
+        'stat/statx_dioalign': ['SKIP', 'na_reason'],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
@@ -361,6 +368,7 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_active_import': ['FAIL', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
+        'stat/statx_dioalign': ['SKIP', 'statx_reason'],
     })
 
 

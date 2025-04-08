@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -25,7 +26,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/off]
@@ -159,7 +159,7 @@ tests = ['json_sanity']
 tags = ['functional', 'cli_root', 'json']
 
 [tests/functional/cli_root/zinject]
-tests = ['zinject_args', 'zinject_counts', 'zinject_probe']
+tests = ['zinject_args', 'zinject_probe']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zinject']
@@ -543,7 +543,8 @@ tags = ['functional', 'cli_root', 'zpool_scrub']
 [tests/functional/cli_root/zpool_set]
 tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
     'zpool_set_ashift', 'zpool_set_features', 'vdev_set_001_pos',
-    'user_property_001_pos', 'user_property_002_neg']
+    'user_property_001_pos', 'user_property_002_neg',
+    'zpool_set_clear_userprop']
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]
@@ -664,6 +665,12 @@ tags = ['functional', 'zap_shrink']
 tests = ['crtime_001_pos' ]
 tags = ['functional', 'crtime']
 
+[tests/functional/crypto]
+tests = ['icp_aes_ccm', 'icp_aes_gcm']
+pre =
+post =
+tags = ['functional', 'crypto']
+
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
@@ -677,7 +684,7 @@ tags = ['functional', 'deadman']
 [tests/functional/dedup]
 tests = ['dedup_fdt_create', 'dedup_fdt_import', 'dedup_legacy_create',
     'dedup_legacy_import', 'dedup_legacy_fdt_upgrade',
-    'dedup_legacy_fdt_mixed', 'dedup_quota']
+    'dedup_legacy_fdt_mixed', 'dedup_quota', 'dedup_prune', 'dedup_zap_shrink']
 pre =
 post =
 tags = ['functional', 'dedup']
@@ -975,7 +982,7 @@ tests = ['sparse_001_pos']
 tags = ['functional', 'sparse']
 
 [tests/functional/stat]
-tests = ['stat_001_pos']
+tests = ['stat_001_pos', 'statx_dioalign']
 tags = ['functional', 'stat']
 
 [tests/functional/suid]

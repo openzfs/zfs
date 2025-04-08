@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -58,7 +59,7 @@ log_onexit user_ns_cleanup
 log_must zfs create -o zoned=on "$TESTPOOL/userns"
 
 # 1. Try to pass a non-namespace file to zfs zone.
-temp_file="$(TMPDIR=$TEST_BASE_DIR mktemp)"
+temp_file="$(mktemp)"
 log_mustnot zfs zone "$temp_file" "$TESTPOOL/userns"
 
 # 2. Try to pass a non-namespace and non-existent file to zfs zone.

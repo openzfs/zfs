@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -20,6 +21,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #ifndef	_SYS_FS_ZFS_VNOPS_H
@@ -41,6 +43,8 @@ extern int zfs_clone_range_replay(znode_t *, uint64_t, uint64_t, uint64_t,
 
 extern int zfs_getsecattr(znode_t *, vsecattr_t *, int, cred_t *);
 extern int zfs_setsecattr(znode_t *, vsecattr_t *, int, cred_t *);
+
+extern int zfs_get_direct_alignment(znode_t *, uint64_t *);
 
 extern int mappedread(znode_t *, int, zfs_uio_t *);
 extern int mappedread_sf(znode_t *, int, zfs_uio_t *);

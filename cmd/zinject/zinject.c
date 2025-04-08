@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -434,29 +435,26 @@ print_data_handler(int id, const char *pool, zinject_record_t *record,
 
 	if (*count == 0) {
 		(void) printf("%3s  %-15s  %-6s  %-6s  %-8s  %3s  %-4s  "
-		    "%-15s  %-6s  %-15s\n", "ID", "POOL", "OBJSET", "OBJECT",
-		    "TYPE", "LVL", "DVAs", "RANGE", "MATCH", "INJECT");
+		    "%-15s\n", "ID", "POOL", "OBJSET", "OBJECT", "TYPE",
+		    "LVL", "DVAs", "RANGE");
 		(void) printf("---  ---------------  ------  "
-		    "------  --------  ---  ----  ---------------  "
-		    "------  ------\n");
+		    "------  --------  ---  ----  ---------------\n");
 	}
 
 	*count += 1;
 
-	char rangebuf[32];
-	if (record->zi_start == 0 && record->zi_end == -1ULL)
-		snprintf(rangebuf, sizeof (rangebuf), "all");
-	else
-		snprintf(rangebuf, sizeof (rangebuf), "[%llu, %llu]",
-		    (u_longlong_t)record->zi_start,
-		    (u_longlong_t)record->zi_end);
-
-
-	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  %-15s  "
-	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_objset,
+	(void) printf("%3d  %-15s  %-6llu  %-6llu  %-8s  %-3d  0x%02x  ",
+	    id, pool, (u_longlong_t)record->zi_objset,
 	    (u_longlong_t)record->zi_object, type_to_name(record->zi_type),
-	    record->zi_level, record->zi_dvas, rangebuf,
-	    record->zi_match_count, record->zi_inject_count);
+	    record->zi_level, record->zi_dvas);
+
+
+	if (record->zi_start == 0 &&
+	    record->zi_end == -1ULL)
+		(void) printf("all\n");
+	else
+		(void) printf("[%llu, %llu]\n", (u_longlong_t)record->zi_start,
+		    (u_longlong_t)record->zi_end);
 
 	return (0);
 }
@@ -474,14 +472,11 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s  "
-		    "%-6s  %-6s\n",
-		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ",
-		    "MATCH", "INJECT");
+		(void) printf("%3s  %-15s  %-16s  %-5s  %-10s  %-9s\n",
+		    "ID", "POOL", "GUID", "TYPE", "ERROR", "FREQ");
 		(void) printf(
 		    "---  ---------------  ----------------  "
-		    "-----  ----------  ---------  "
-		    "------  ------\n");
+		    "-----  ----------  ---------\n");
 	}
 
 	*count += 1;
@@ -489,10 +484,9 @@ print_device_handler(int id, const char *pool, zinject_record_t *record,
 	double freq = record->zi_freq == 0 ? 100.0f :
 	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
 
-	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%  "
-	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
-	    iotype_to_str(record->zi_iotype), err_to_str(record->zi_error),
-	    freq, record->zi_match_count, record->zi_inject_count);
+	(void) printf("%3d  %-15s  %llx  %-5s  %-10s  %8.4f%%\n", id, pool,
+	    (u_longlong_t)record->zi_guid, iotype_to_str(record->zi_iotype),
+	    err_to_str(record->zi_error), freq);
 
 	return (0);
 }
@@ -510,25 +504,18 @@ print_delay_handler(int id, const char *pool, zinject_record_t *record,
 		return (0);
 
 	if (*count == 0) {
-		(void) printf("%3s  %-15s  %-16s  %-10s  %-5s  %-9s  "
-		    "%-6s  %-6s\n",
-		    "ID", "POOL", "GUID", "DELAY (ms)", "LANES", "FREQ",
-		    "MATCH", "INJECT");
-		(void) printf("---  ---------------  ----------------  "
-		    "----------  -----  ---------  "
-		    "------  ------\n");
+		(void) printf("%3s  %-15s  %-15s  %-15s  %s\n",
+		    "ID", "POOL", "DELAY (ms)", "LANES", "GUID");
+		(void) printf("---  ---------------  ---------------  "
+		    "---------------  ----------------\n");
 	}
 
 	*count += 1;
 
-	double freq = record->zi_freq == 0 ? 100.0f :
-	    (((double)record->zi_freq) / ZI_PERCENTAGE_MAX) * 100.0f;
-
-	(void) printf("%3d  %-15s  %llx  %10llu  %5llu  %8.4f%%  "
-	    "%6lu  %6lu\n", id, pool, (u_longlong_t)record->zi_guid,
+	(void) printf("%3d  %-15s  %-15llu  %-15llu  %llx\n", id, pool,
 	    (u_longlong_t)NSEC2MSEC(record->zi_timer),
 	    (u_longlong_t)record->zi_nlanes,
-	    freq, record->zi_match_count, record->zi_inject_count);
+	    (u_longlong_t)record->zi_guid);
 
 	return (0);
 }
