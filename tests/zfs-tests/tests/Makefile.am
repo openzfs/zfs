@@ -1921,6 +1921,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/attach_multiple.ksh \
 	functional/replacement/attach_rebuild.ksh \
 	functional/replacement/attach_resilver.ksh \
+	functional/replacement/attach_resilver_sit_out.ksh \
 	functional/replacement/cleanup.ksh \
 	functional/replacement/detach.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
