@@ -952,7 +952,8 @@ vdev_indirect_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	*psize = *max_psize = vd->vdev_asize +
-	    VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
+	    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+	    VDEV_LABEL_END_SIZE(vd->vdev_large_label);
 	*logical_ashift = vd->vdev_ashift;
 	*physical_ashift = vd->vdev_physical_ashift;
 	return (0);
