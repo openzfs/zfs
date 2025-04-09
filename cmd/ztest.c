@@ -6432,7 +6432,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	int iters = 1000;
 	int maxfaults;
 	int mirror_save;
-	vdev_t *vd0 = NULL;
+	vdev_t *vd0 = NULL, *vdrand = NULL;
 	uint64_t guid0 = 0;
 	boolean_t islog = B_FALSE;
 	boolean_t injected = B_FALSE;
@@ -6517,6 +6517,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		vd0 = vdev_lookup_by_path(spa->spa_root_vdev, path0);
 		if (vd0 != NULL && vd0->vdev_top->vdev_islog)
 			islog = B_TRUE;
+		vdrand = vdev_lookup_by_path(spa->spa_root_vdev, pathrand);
 
 		/*
 		 * If the top-level vdev needs to be resilvered
@@ -6562,7 +6563,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 			(void) pthread_rwlock_unlock(&ztest_name_lock);
 			goto out;
 		}
-		vd0 = sav->sav_vdevs[ztest_random(sav->sav_count)];
+		vdrand = vd0 = sav->sav_vdevs[ztest_random(sav->sav_count)];
 		guid0 = vd0->vdev_guid;
 		(void) strlcpy(path0, vd0->vdev_path, MAXPATHLEN);
 		(void) strlcpy(pathrand, vd0->vdev_path, MAXPATHLEN);
@@ -6668,7 +6669,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * odd label, so that we can handle crashes in the
 		 * middle of vdev_config_sync().
 		 */
-		if ((leaf & 1) == 0 && offset < VDEV_LABEL_START_SIZE)
+		boolean_t new = vdrand->vdev_large_label;
+		if ((leaf & 1) == 0 && offset < VDEV_LABEL_START_SIZE(new))
 			continue;
 
 		/*
@@ -6676,10 +6678,11 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * the end of the disk (vdev_psize) is aligned to
 		 * sizeof (vdev_label_t).
 		 */
-		uint64_t psize = P2ALIGN_TYPED(fsize, sizeof (vdev_label_t),
+		uint64_t psize = P2ALIGN_TYPED(fsize,
+		    new ? VDEV_LARGE_LABEL_ALIGN : sizeof (vdev_label_t),
 		    uint64_t);
-		if ((leaf & 1) == 1 &&
-		    offset + sizeof (bad) > psize - VDEV_LABEL_END_SIZE)
+		if ((leaf & 1) == 1 && offset + sizeof (bad) >
+		    psize - VDEV_LABEL_END_SIZE(new))
 			continue;
 
 		if (mirror_save != zs->zs_mirrors) {

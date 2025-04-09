@@ -4786,12 +4786,12 @@ print_label_numbers(const char *prefix, const cksum_record_t *rec)
 	putchar('\n');
 }
 
-#define	MAX_UBERBLOCK_COUNT (VDEV_UBERBLOCK_RING >> UBERBLOCK_SHIFT)
+#define	MAX_UBERBLOCK_COUNT (VDEV_LARGE_UBERBLOCK_RING >> UBERBLOCK_SHIFT)
 
 typedef struct zdb_label {
-	vdev_label_t label;
 	uint64_t label_offset;
 	nvlist_t *config_nv;
+	char *ub_array;
 	cksum_record_t *config;
 	cksum_record_t *uberblocks[MAX_UBERBLOCK_COUNT];
 	boolean_t header_printed;
@@ -4800,7 +4800,7 @@ typedef struct zdb_label {
 } zdb_label_t;
 
 static void
-print_label_header(zdb_label_t *label, int l)
+print_label_header(zdb_label_t *label, boolean_t large_label, int l)
 {
 
 	if (dump_opt['q'])
@@ -4810,7 +4810,7 @@ print_label_header(zdb_label_t *label, int l)
 		return;
 
 	(void) printf("------------------------------------\n");
-	(void) printf("LABEL %d %s\n", l,
+	(void) printf("LABEL(%s) %d %s\n", large_label ? "new" : "old", l,
 	    label->cksum_valid ? "" : "(Bad label cksum)");
 	(void) printf("------------------------------------\n");
 
@@ -5016,7 +5016,7 @@ dump_l2arc_header(int fd)
 	int error = B_FALSE;
 
 	if (pread64(fd, &l2dhdr, sizeof (l2dhdr),
-	    VDEV_LABEL_START_SIZE) != sizeof (l2dhdr)) {
+	    VDEV_LABEL_START_SIZE(B_FALSE)) != sizeof (l2dhdr)) {
 		error = B_TRUE;
 	} else {
 		if (l2dhdr.dh_magic == BSWAP_64(L2ARC_DEV_HDR_MAGIC))
@@ -5088,7 +5088,8 @@ dump_l2arc_header(int fd)
 }
 
 static void
-dump_config_from_label(zdb_label_t *label, size_t buflen, int l)
+dump_config_from_label(zdb_label_t *label, size_t buflen, boolean_t large_label,
+    int l)
 {
 	if (dump_opt['q'])
 		return;
@@ -5096,7 +5097,7 @@ dump_config_from_label(zdb_label_t *label, size_t buflen, int l)
 	if ((dump_opt['l'] < 3) && (first_label(label->config) != l))
 		return;
 
-	print_label_header(label, l);
+	print_label_header(label, large_label, l);
 	dump_nvlist(label->config_nv, 4);
 	print_label_numbers("    labels = ", label->config);
 
@@ -5107,23 +5108,20 @@ dump_config_from_label(zdb_label_t *label, size_t buflen, int l)
 #define	ZDB_MAX_UB_HEADER_SIZE 32
 
 static void
-dump_label_uberblocks(zdb_label_t *label, uint64_t ashift, int label_num)
+dump_label_uberblocks(zdb_label_t *label, vdev_t *vd, int label_num)
 {
-
-	vdev_t vd;
+	boolean_t large_label = vd->vdev_large_label;
 	char header[ZDB_MAX_UB_HEADER_SIZE];
 
-	vd.vdev_ashift = ashift;
-	vd.vdev_top = &vd;
-
-	for (int i = 0; i < VDEV_UBERBLOCK_COUNT(&vd); i++) {
-		uint64_t uoff = VDEV_UBERBLOCK_OFFSET(&vd, i);
-		uberblock_t *ub = (void *)((char *)&label->label + uoff);
+	for (int i = 0; i < VDEV_UBERBLOCK_COUNT(vd); i++) {
+		uint64_t uoff = i << VDEV_UBERBLOCK_SHIFT(vd);
+		uberblock_t *ub = (void *)(label->ub_array + uoff);
 		cksum_record_t *rec = label->uberblocks[i];
 
 		if (rec == NULL) {
 			if (dump_opt['u'] >= 2) {
-				print_label_header(label, label_num);
+				print_label_header(label, large_label,
+				    label_num);
 				(void) printf("    Uberblock[%d] invalid\n", i);
 			}
 			continue;
@@ -5134,10 +5132,10 @@ dump_label_uberblocks(zdb_label_t *label, uint64_t ashift, int label_num)
 
 		if ((dump_opt['u'] < 4) &&
 		    (ub->ub_mmp_magic == MMP_MAGIC) && ub->ub_mmp_delay &&
-		    (i >= VDEV_UBERBLOCK_COUNT(&vd) - MMP_BLOCKS_PER_LABEL))
+		    (i >= VDEV_UBERBLOCK_COUNT(vd) - MMP_BLOCKS_PER_LABEL))
 			continue;
 
-		print_label_header(label, label_num);
+		print_label_header(label, large_label, label_num);
 		(void) snprintf(header, ZDB_MAX_UB_HEADER_SIZE,
 		    "    Uberblock[%d]\n", i);
 		dump_uberblock(ub, header, "");
@@ -5409,7 +5407,7 @@ zdb_copy_object(objset_t *os, uint64_t srcobj, char *destfile)
 }
 
 static boolean_t
-label_cksum_valid(vdev_label_t *label, uint64_t offset)
+phys_cksum_valid(void *data, uint64_t offset, uint64_t size)
 {
 	zio_checksum_info_t *ci = &zio_checksum_table[ZIO_CHECKSUM_LABEL];
 	zio_cksum_t expected_cksum;
@@ -5418,10 +5416,8 @@ label_cksum_valid(vdev_label_t *label, uint64_t offset)
 	zio_eck_t *eck;
 	int byteswap;
 
-	void *data = (char *)label + offsetof(vdev_label_t, vl_vdev_phys);
-	eck = (zio_eck_t *)((char *)(data) + VDEV_PHYS_SIZE) - 1;
+	eck = (zio_eck_t *)((char *)(data) + size) - 1;
 
-	offset += offsetof(vdev_label_t, vl_vdev_phys);
 	ZIO_SET_CHECKSUM(&verifier, offset, 0, 0, 0);
 
 	byteswap = (eck->zec_magic == BSWAP_64(ZEC_MAGIC));
@@ -5431,8 +5427,8 @@ label_cksum_valid(vdev_label_t *label, uint64_t offset)
 	expected_cksum = eck->zec_cksum;
 	eck->zec_cksum = verifier;
 
-	abd_t *abd = abd_get_from_buf(data, VDEV_PHYS_SIZE);
-	ci->ci_func[byteswap](abd, VDEV_PHYS_SIZE, NULL, &actual_cksum);
+	abd_t *abd = abd_get_from_buf(data, size);
+	ci->ci_func[byteswap](abd, size, NULL, &actual_cksum);
 	abd_free(abd);
 
 	if (byteswap)
@@ -5444,12 +5440,97 @@ label_cksum_valid(vdev_label_t *label, uint64_t offset)
 	return (B_FALSE);
 }
 
+static boolean_t
+label_cksum_valid(vdev_label_t *label, uint64_t offset)
+{
+	return (phys_cksum_valid(&label->vl_vdev_phys,
+	    offset + offsetof(vdev_label_t, vl_vdev_phys), VDEV_PHYS_SIZE));
+}
+
+static nvlist_t *
+vdev_config_lookup(nvlist_t *vdev_config, uint64_t guid)
+{
+	if (fnvlist_lookup_uint64(vdev_config, ZPOOL_CONFIG_GUID) == guid)
+		return (vdev_config);
+
+	nvlist_t **children;
+	uint_t child_count;
+	if (nvlist_lookup_nvlist_array(vdev_config, ZPOOL_CONFIG_CHILDREN,
+	    &children, &child_count) != 0)
+		return (NULL);
+	for (int c = 0; c < child_count; c++) {
+		nvlist_t *child;
+		if ((child = vdev_config_lookup(children[c], guid)) !=
+		    NULL)
+			return (child);
+	}
+
+	return (NULL);
+}
+
+static boolean_t
+has_large_label(int fd, uint64_t psize)
+{
+	for (int l = 0; l < VDEV_LABELS / 2; l++) {
+		vdev_label_t label;
+		nvlist_t *config;
+		uint64_t offset = vdev_label_offset(psize, l, 0, B_FALSE);
+
+		if (pread64(fd, &label, sizeof (label), offset) !=
+		    sizeof (label))
+			continue;
+		if (!label_cksum_valid(&label, offset))
+			continue;
+
+		char *buf = label.vl_vdev_phys.vp_nvlist;
+		size_t buflen = sizeof (label.vl_vdev_phys.vp_nvlist);
+		if (nvlist_unpack(buf, buflen, &config, 0) != 0)
+			continue;
+		uint64_t pool_state;
+		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
+		    &pool_state) == 0 && (pool_state == POOL_STATE_SPARE ||
+		    pool_state == POOL_STATE_L2CACHE)) {
+			boolean_t retry_new = B_FALSE;
+			(void) nvlist_lookup_boolean_value(config,
+			    ZPOOL_CONFIG_LARGE_LABEL, &retry_new);
+			if (retry_new)
+				return (B_TRUE);
+			else
+				continue;
+		}
+		nvlist_t *vdev_tree;
+		if (nvlist_lookup_nvlist(config,
+		    ZPOOL_CONFIG_VDEV_TREE, &vdev_tree) != 0)
+			continue;
+		size_t size;
+		if (nvlist_size(config, &size, NV_ENCODE_XDR) != 0)
+			size = buflen;
+
+		boolean_t retry_new = B_FALSE;
+		if (fnvlist_lookup_uint64(config,
+		    ZPOOL_CONFIG_VERSION) >= SPA_VERSION_FEATURES) {
+			uint64_t guid = fnvlist_lookup_uint64(config,
+			    ZPOOL_CONFIG_GUID);
+			nvlist_t *child = vdev_config_lookup(vdev_tree, guid);
+			ASSERT(child);
+			ASSERT3U(guid, ==,
+			    fnvlist_lookup_uint64(child, ZPOOL_CONFIG_GUID));
+			(void) nvlist_lookup_boolean_value(child,
+			    ZPOOL_CONFIG_LARGE_LABEL, &retry_new);
+		}
+		if (retry_new) {
+			return (B_TRUE);
+		}
+	}
+	return (B_FALSE);
+}
+
 static int
 dump_label(const char *dev)
 {
 	char path[MAXPATHLEN];
-	zdb_label_t labels[VDEV_LABELS] = {{{{0}}}};
-	uint64_t psize, ashift, l2cache;
+	zdb_label_t labels[VDEV_LABELS] = {{0}};
+	uint64_t psize, ashift, l2cache, ub_size;
 	struct stat64 statbuf;
 	boolean_t config_found = B_FALSE;
 	boolean_t error = B_FALSE;
@@ -5505,6 +5586,10 @@ dump_label(const char *dev)
 	psize = statbuf.st_size;
 	psize = P2ALIGN_TYPED(psize, sizeof (vdev_label_t), uint64_t);
 	ashift = SPA_MINBLOCKSHIFT;
+	boolean_t large_label = has_large_label(fd, psize);
+	vdev_t vd;
+	vd.vdev_top = &vd;
+	vd.vdev_large_label = large_label;
 
 	/*
 	 * 1. Read the label from disk
@@ -5514,27 +5599,127 @@ dump_label(const char *dev)
 	 */
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		zdb_label_t *label = &labels[l];
-		char *buf = label->label.vl_vdev_phys.vp_nvlist;
-		size_t buflen = sizeof (label->label.vl_vdev_phys.vp_nvlist);
+		char *buf;
+		size_t buflen;
 		nvlist_t *config;
 		cksum_record_t *rec;
 		zio_cksum_t cksum;
-		vdev_t vd;
 
-		label->label_offset = vdev_label_offset(psize, l, 0);
+		label->label_offset = vdev_label_offset(psize, l, 0,
+		    large_label);
 
-		if (pread64(fd, &label->label, sizeof (label->label),
-		    label->label_offset) != sizeof (label->label)) {
-			if (!dump_opt['q'])
-				(void) printf("failed to read label %d\n", l);
-			label->read_failed = B_TRUE;
-			error = B_TRUE;
-			continue;
+		if (large_label) {
+			char toc_buf[VDEV_TOC_SIZE];
+			if (pread64(fd, toc_buf, VDEV_TOC_SIZE,
+			    label->label_offset + VDEV_NEW_PAD_SIZE) !=
+			    VDEV_TOC_SIZE) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read label "
+					    "%d\n", l);
+				label->read_failed = B_TRUE;
+				error = B_TRUE;
+				continue;
+			}
+
+			label->cksum_valid =
+			    phys_cksum_valid(toc_buf,
+			    label->label_offset + VDEV_NEW_PAD_SIZE,
+			    VDEV_TOC_SIZE);
+
+			label->read_failed = B_FALSE;
+			nvlist_t *toc;
+			if (nvlist_unpack(toc_buf, VDEV_TOC_SIZE, &toc, 0)) {
+				if (!dump_opt['q'])
+					(void) printf("failed to unpack TOC of "
+					    "label %d\n", l);
+				error = B_TRUE;
+				continue;
+			}
+
+			if (dump_opt['l'] > 2)
+				nvlist_print(stdout, toc);
+
+			uint32_t conf_size, toc_size, bootenv_size;
+			if (nvlist_lookup_uint32(toc, VDEV_TOC_TOC_SIZE,
+			    &toc_size) != 0) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read size of "
+					    "TOC of label %d\n", l);
+				error = B_TRUE;
+				continue;
+			}
+			int err;
+			if ((err = nvlist_lookup_uint32(toc,
+			    VDEV_TOC_BOOT_REGION, &bootenv_size)) != 0) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read size of "
+					    "bootenv of label %d %s\n", l,
+					    strerror(err));
+				error = B_TRUE;
+				continue;
+			}
+			if (nvlist_lookup_uint32(toc, VDEV_TOC_VDEV_CONFIG,
+			    &conf_size) != 0) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read size of "
+					    "vdev config of label %d\n", l);
+				error = B_TRUE;
+				continue;
+			}
+			buf = alloca(conf_size);
+			buflen = conf_size;
+			uint64_t phys_off = label->label_offset +
+			    VDEV_NEW_PAD_SIZE + toc_size + bootenv_size;
+			if (pread64(fd, buf, conf_size, phys_off) !=
+			    conf_size) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read "
+					    "vdev config of label %d\n", l);
+				error = B_TRUE;
+				continue;
+			}
+
+			label->cksum_valid = label->cksum_valid &&
+			    phys_cksum_valid(buf, phys_off,
+			    conf_size);
+			ub_size = VDEV_LARGE_UBERBLOCK_RING;
+			label->ub_array = malloc(ub_size);
+
+			if (pread64(fd, label->ub_array, ub_size,
+			    label->label_offset + VDEV_LARGE_UBERBLOCK_RING) !=
+			    ub_size) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read "
+					"uberblocks for label %d\n", l);
+				label->read_failed = B_TRUE;
+				error = B_TRUE;
+				continue;
+			}
+		} else {
+			vdev_label_t vl;
+			if (pread64(fd, &vl, sizeof (vl),
+			    label->label_offset) != sizeof (vl)) {
+				if (!dump_opt['q'])
+					(void) printf("failed to read label "
+					    "%d\n", l);
+				label->read_failed = B_TRUE;
+				error = B_TRUE;
+				continue;
+			}
+
+			label->read_failed = B_FALSE;
+			label->cksum_valid = label_cksum_valid(&vl,
+			    label->label_offset);
+
+			buf = alloca(sizeof (vl.vl_vdev_phys));
+			buflen = sizeof (vl.vl_vdev_phys);
+			memcpy(buf, &vl.vl_vdev_phys, buflen);
+
+			ub_size = VDEV_UBERBLOCK_RING;
+			label->ub_array = alloca(ub_size);
+			memcpy(label->ub_array, vl.vl_uberblock,
+			    VDEV_UBERBLOCK_RING);
 		}
-
-		label->read_failed = B_FALSE;
-		label->cksum_valid = label_cksum_valid(&label->label,
-		    label->label_offset);
 
 		if (nvlist_unpack(buf, buflen, &config, 0) == 0) {
 			nvlist_t *vdev_tree = NULL;
@@ -5569,11 +5754,11 @@ dump_label(const char *dev)
 		}
 
 		vd.vdev_ashift = ashift;
-		vd.vdev_top = &vd;
+
 
 		for (int i = 0; i < VDEV_UBERBLOCK_COUNT(&vd); i++) {
-			uint64_t uoff = VDEV_UBERBLOCK_OFFSET(&vd, i);
-			uberblock_t *ub = (void *)((char *)label + uoff);
+			uint64_t uoff = i << VDEV_UBERBLOCK_SHIFT(&vd);
+			uberblock_t *ub = (void *)(label->ub_array + uoff);
 
 			if (uberblock_verify(ub))
 				continue;
@@ -5590,20 +5775,21 @@ dump_label(const char *dev)
 	 */
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		zdb_label_t *label = &labels[l];
-		size_t buflen = sizeof (label->label.vl_vdev_phys.vp_nvlist);
+		size_t buflen = large_label ? VDEV_LARGE_UBERBLOCK_RING :
+		    VDEV_PHYS_SIZE - sizeof (zio_eck_t);
 
 		if (label->read_failed == B_TRUE)
 			continue;
 
 		if (label->config_nv) {
-			dump_config_from_label(label, buflen, l);
+			dump_config_from_label(label, buflen, large_label, l);
 		} else {
 			if (!dump_opt['q'])
 				(void) printf("failed to unpack label %d\n", l);
 		}
 
 		if (dump_opt['u'])
-			dump_label_uberblocks(label, ashift, l);
+			dump_label_uberblocks(label, &vd, l);
 
 		nvlist_free(label->config_nv);
 	}
@@ -5613,6 +5799,12 @@ dump_label(const char *dev)
 	 */
 	if (read_l2arc_header)
 		error |= dump_l2arc_header(fd);
+
+	if (large_label) {
+		for (int l = 0; l < VDEV_LABELS; l++)
+			if (labels[l].ub_array)
+				free(labels[l].ub_array);
+	}
 
 	cookie = NULL;
 	while ((node = avl_destroy_nodes(&config_tree, &cookie)) != NULL)

@@ -234,6 +234,7 @@ struct spa {
 	uint8_t		spa_sync_on;		/* sync threads are running */
 	spa_load_state_t spa_load_state;	/* current load operation */
 	boolean_t	spa_indirect_vdevs_loaded; /* mappings loaded? */
+	boolean_t	spa_create_large_label_ok;
 	boolean_t	spa_trust_config;	/* do we trust vdev tree? */
 	boolean_t	spa_is_splitting;	/* in the middle of a split? */
 	spa_config_source_t spa_config_source;	/* where config comes from? */
