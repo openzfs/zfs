@@ -1560,7 +1560,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/large_dnode/large_dnode_009_pos.ksh \
 	functional/features/large_dnode/setup.ksh \
 	functional/gang_blocks/cleanup.ksh \
+	functional/gang_blocks/gang_blocks_001_pos.ksh \
 	functional/gang_blocks/gang_blocks_redundant.ksh \
+	functional/gang_blocks/gang_blocks_dyn_header_neg.ksh \
+	functional/gang_blocks/gang_blocks_dyn_header_pos.ksh \
+	functional/gang_blocks/gang_blocks_dyn_multi.ksh \
 	functional/gang_blocks/setup.ksh \
 	functional/grow/grow_pool_001_pos.ksh \
 	functional/grow/grow_replicas_001_pos.ksh \

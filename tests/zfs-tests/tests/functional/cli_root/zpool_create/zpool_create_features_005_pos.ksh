@@ -58,6 +58,9 @@ function check_features
 				return 1;
 			fi
 		else
+			if [[ "feature@dynamic_gang_header" == "${2}" ]]; then
+				continue
+			fi
 			# Failure other features must be enabled or active.
 			if [[ "${3}" != "enabled" && "${3}" != "active" ]]; then
 				return 2;
