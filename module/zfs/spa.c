@@ -1020,7 +1020,7 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 			}
 
 			/* Save time if the version is already set. */
-			if (ver == spa_version(spa))
+			if (spa_version(spa) >= ver)
 				continue;
 
 			/*
@@ -7081,6 +7081,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	boolean_t has_allocclass;
 	boolean_t has_draid;
 	boolean_t has_draid_fdomains;
+	boolean_t has_large_label;
 	spa_feature_t feat;
 	const char *feat_name;
 	const char *poolname;
@@ -7129,6 +7130,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	has_allocclass = B_FALSE;
 	has_draid = B_FALSE;
 	has_draid_fdomains = B_FALSE;
+	has_large_label = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -7144,6 +7146,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 				has_draid = B_TRUE;
 			if (feat == SPA_FEATURE_DRAID_FAIL_DOMAINS)
 				has_draid_fdomains = B_TRUE;
+			if (feat == SPA_FEATURE_LARGE_LABEL)
+				has_large_label = B_TRUE;
 		}
 	}
 
@@ -7180,6 +7184,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_removing_phys.sr_prev_indirect_vdev = -1;
 	spa->spa_indirect_vdevs_loaded = B_TRUE;
 	spa->spa_deflate = (version >= SPA_VERSION_RAIDZ_DEFLATE);
+	spa->spa_create_large_label_ok = has_large_label;
 
 	/*
 	 * Create "The Godfather" zio to hold all async IOs
@@ -10383,7 +10388,7 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
 	ASSERT(tx->tx_txg != TXG_INITIAL);
 
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
-	ASSERT(version >= spa_version(spa));
+	ASSERT3U(version, >=, spa_version(spa));
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);
@@ -10649,6 +10654,13 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_CHECKSUM_SALT, 1,
 		    sizeof (spa->spa_cksum_salt.zcs_bytes),
 		    spa->spa_cksum_salt.zcs_bytes, tx));
+	}
+
+	if (spa->spa_uberblock.ub_version >= SPA_VERSION_FEATURES &&
+	    spa->spa_root_vdev->vdev_large_label &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_LABEL) &&
+	    !spa_feature_is_active(spa, SPA_FEATURE_LARGE_LABEL)) {
+		spa_feature_incr(spa, SPA_FEATURE_LARGE_LABEL, tx);
 	}
 
 	rrw_exit(&dp->dp_config_rwlock, FTAG);
