@@ -1233,6 +1233,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 		memcpy(report->zcr_ckinfo, info, sizeof (*info));
 	}
 
+	ASSERT(vd->vdev_top);
 	report->zcr_sector = 1ULL << vd->vdev_top->vdev_ashift;
 	report->zcr_align =
 	    vdev_psize_to_asize(vd->vdev_top, report->zcr_sector);
@@ -1248,6 +1249,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	}
 #endif
 
+	ASSERT(zio->io_logical);
 	mutex_enter(&spa->spa_errlist_lock);
 	report->zcr_next = zio->io_logical->io_cksum_report;
 	zio->io_logical->io_cksum_report = report;
