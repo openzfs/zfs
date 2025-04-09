@@ -539,7 +539,7 @@ mmp_write_uberblock(spa_t *spa)
 	    MMP_BLOCKS_PER_LABEL + random_in_range(MMP_BLOCKS_PER_LABEL));
 
 	label = random_in_range(VDEV_LABELS);
-	vdev_label_write(zio, vd, label, ub_abd, offset,
+	vdev_label_write(zio, vd, label, vd->vdev_large_label, ub_abd, offset,
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
 
@@ -601,7 +601,7 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	abd_zero_off(ub_abd, sizeof (uberblock_t),
 	    VDEV_UBERBLOCK_SIZE(vd) - sizeof (uberblock_t));
 
-	vdev_label_write(zio, vd, 0, ub_abd,
+	vdev_label_write(zio, vd, 0, vd->vdev_large_label, ub_abd,
 	    VDEV_UBERBLOCK_OFFSET(vd, VDEV_UBERBLOCK_COUNT(vd) -
 	    MMP_BLOCKS_PER_LABEL), VDEV_UBERBLOCK_SIZE(vd),
 	    mmp_claim_uberblock_sync_done, good_writes,
