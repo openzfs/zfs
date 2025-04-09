@@ -438,6 +438,12 @@ struct vdev {
 	int64_t		vdev_outlier_count;	/* read outlier amongst peers */
 	hrtime_t	vdev_read_sit_out_expire; /* end of sit out period    */
 	list_node_t	vdev_leaf_node;		/* leaf vdev list */
+	boolean_t	vdev_large_label;
+
+	kmutex_t	vdev_be_lock;
+	kcondvar_t	vdev_be_cv;
+	abd_t		*vdev_next_bootenv;
+	size_t		vdev_bootenv_size;
 
 	/*
 	 * For DTrace to work in userland (libzpool) context, these fields must
@@ -480,6 +486,7 @@ struct vdev {
 #define	VDEV_SKIP_SIZE		VDEV_PAD_SIZE * 2
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
+#define	VDEV_LARGE_UBERBLOCK_RING	(128 << 20) // The last 128MiB
 
 /*
  * MMP blocks occupy the last MMP_BLOCKS_PER_LABEL slots in the uberblock
@@ -488,14 +495,22 @@ struct vdev {
 #define	MMP_BLOCKS_PER_LABEL	1
 
 /* The largest uberblock we support is 8k. */
-#define	MAX_UBERBLOCK_SHIFT (13)
+#define	MAX_UBERBLOCK_SHIFT(new) ((new) ? 24 : 13)
 #define	VDEV_UBERBLOCK_SHIFT(vd)	\
 	MIN(MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT), \
-	    MAX_UBERBLOCK_SHIFT)
-#define	VDEV_UBERBLOCK_COUNT(vd)	\
+	MAX_UBERBLOCK_SHIFT((vd)->vdev_large_label))
+#define	VDEV_UBERBLOCK_COUNT_OLD(vd) \
 	(VDEV_UBERBLOCK_RING >> VDEV_UBERBLOCK_SHIFT(vd))
-#define	VDEV_UBERBLOCK_OFFSET(vd, n)	\
+#define	VDEV_UBERBLOCK_COUNT(vd)	\
+	(((vd)->vdev_large_label ? VDEV_LARGE_LABEL_SIZE - \
+	VDEV_LARGE_UBERBLOCK_RING : \
+	VDEV_UBERBLOCK_RING) >> VDEV_UBERBLOCK_SHIFT(vd))
+#define	VDEV_UBERBLOCK_OFFSET_OLD(vd, n) \
 	offsetof(vdev_label_t, vl_uberblock[(n) << VDEV_UBERBLOCK_SHIFT(vd)])
+#define	VDEV_UBERBLOCK_OFFSET(vd, n)	\
+	((vd)->vdev_large_label ? (VDEV_LARGE_UBERBLOCK_RING + \
+	((n) << VDEV_UBERBLOCK_SHIFT(vd))) : \
+	VDEV_UBERBLOCK_OFFSET_OLD(vd, n))
 #define	VDEV_UBERBLOCK_SIZE(vd)		(1ULL << VDEV_UBERBLOCK_SHIFT(vd))
 
 typedef struct vdev_phys {
@@ -540,6 +555,51 @@ typedef struct vdev_label {
 } vdev_label_t;						/* 256K total */
 
 /*
+ * The new label format is intended to help future-proof ZFS as sector sizes
+ * grow. The number of uberblocks that can be safely written is limited by the
+ * size of the ring divided by the sector size, which is already getting
+ * uncomfortably small. The new label is only used on top-level vdevs and their
+ * children; l2arc and spare devices are excluded. The new label layout:
+ *
+ *   16 MiB             112 MiB                           128 MiB
+ * +---------+--------------------------------+-------------------------------+
+ * | padding |   Data (boot info, configs,    |        Uberblock ring         |
+ * |         |         aux uberblocks)        |                               |
+ * +---------+--------------------------------+-------------------------------+
+ *
+ * The first thing in the Data section is a 32KiB sub-section for the Table
+ * of Contents (ToC). The ToC is an nvlist of nvlists; each nvlist pertains to
+ * a different sub-section in the Data region (boot info, vdev config, pool
+ * config, etc). The sub-nvlist contains relevant information, mostly offset
+ * and size.
+ *
+ * Each sub-section is protected with an embedded checksum. In the event that a
+ * sub-section is larger than 16MiB, it will be split in 16MiB - sizeof
+ * (zio_eck_t) chunks, which will each have their own checksum.
+ */
+#define	VDEV_NEW_PAD_SIZE	(1 << 24) // 16MiB
+#define	VDEV_NEW_DATA_SIZE	((1 << 27) - VDEV_NEW_PAD_SIZE)
+#define	VDEV_LARGE_LABEL_SIZE	(VDEV_NEW_PAD_SIZE + VDEV_NEW_DATA_SIZE + \
+	VDEV_LARGE_UBERBLOCK_RING) // 256MiB per label
+#define	VDEV_LARGE_LABEL_ALIGN	(1 << 24) // 16MiB
+
+#define	VDEV_RESERVE_OFFSET	(VDEV_LARGE_LABEL_SIZE * 2)
+#define	VDEV_RESERVE_SIZE	(1 << 29) // 512MiB
+
+#define	VDEV_TOC_SIZE		(1 << 13)
+
+/*
+ * While the data part of the TOC is always VDEV_TOC_SIZE, the actual write
+ * gets rounded up to the ashift. We don't know the ashift yet early in import,
+ * when we need to read this info.
+ */
+#define	VDEV_TOC_TOC_SIZE	"toc_size"
+#define	VDEV_TOC_BOOT_REGION	"boot_region"
+#define	VDEV_TOC_VDEV_CONFIG	"vdev_config"
+#define	VDEV_TOC_POOL_CONFIG	"pool_config"
+#define	VDEV_TOC_AUX_UBERBLOCK	"aux_uberblock"
+
+/*
  * vdev_dirty() flags
  */
 #define	VDD_METASLAB	0x01
@@ -557,13 +617,17 @@ typedef struct vdev_label {
 /*
  * Size of label regions at the start and end of each leaf device.
  */
-#define	VDEV_LABEL_START_SIZE	(2 * sizeof (vdev_label_t) + VDEV_BOOT_SIZE)
-#define	VDEV_LABEL_END_SIZE	(2 * sizeof (vdev_label_t))
+#define	VDEV_LABEL_START_SIZE(new)	(new ? \
+	VDEV_RESERVE_OFFSET + VDEV_RESERVE_SIZE : \
+	2 * sizeof (vdev_label_t) + VDEV_BOOT_SIZE)
+#define	VDEV_LABEL_END_SIZE(new)	(new ? \
+	2 * VDEV_LARGE_LABEL_SIZE : 2 * sizeof (vdev_label_t))
 #define	VDEV_LABELS		4
 #define	VDEV_BEST_LABEL		VDEV_LABELS
-#define	VDEV_OFFSET_IS_LABEL(vd, off)                           \
-	(((off) < VDEV_LABEL_START_SIZE) ||                     \
-	((off) >= ((vd)->vdev_psize - VDEV_LABEL_END_SIZE)))
+#define	VDEV_OFFSET_IS_LABEL(vd, off)                           	\
+	(((off) < VDEV_LABEL_START_SIZE(vd->vdev_large_label)) ||	\
+	((off) >= ((vd)->vdev_psize -					\
+	VDEV_LABEL_END_SIZE(vd->vdev_large_label))))
 
 #define	VDEV_ALLOC_LOAD		0
 #define	VDEV_ALLOC_ADD		1

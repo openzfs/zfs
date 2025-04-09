@@ -250,8 +250,10 @@ zio_match_dva(zio_t *zio)
 			    DVA_GET_VDEV(dva));
 
 			/* Compensate for vdev label added to leaves */
-			if (zio->io_vd->vdev_ops->vdev_op_leaf)
-				off += VDEV_LABEL_START_SIZE;
+			if (zio->io_vd->vdev_ops->vdev_op_leaf) {
+				off += VDEV_LABEL_START_SIZE(
+				    zio->io_vd->vdev_large_label);
+			}
 
 			if (zio->io_vd == vd && zio->io_offset == off)
 				break;
@@ -326,9 +328,10 @@ zio_handle_label_injection(zio_t *zio, int error)
 	uint64_t offset = zio->io_offset;
 	int label;
 	int ret = 0;
+	boolean_t new = vd->vdev_large_label;
 
-	if (offset >= VDEV_LABEL_START_SIZE &&
-	    offset < vd->vdev_psize - VDEV_LABEL_END_SIZE)
+	if (offset >= VDEV_LABEL_START_SIZE(new) &&
+	    offset < vd->vdev_psize - VDEV_LABEL_END_SIZE(new))
 		return (0);
 
 	rw_enter(&inject_lock, RW_READER);
@@ -346,9 +349,9 @@ zio_handle_label_injection(zio_t *zio, int error)
 		 * vdev label. We must determine the label which is being
 		 * updated and adjust our region accordingly.
 		 */
-		label = vdev_label_number(vd->vdev_psize, offset);
-		start = vdev_label_offset(vd->vdev_psize, label, start);
-		end = vdev_label_offset(vd->vdev_psize, label, end);
+		label = vdev_label_number(vd->vdev_psize, offset, new);
+		start = vdev_label_offset(vd->vdev_psize, label, start, new);
+		end = vdev_label_offset(vd->vdev_psize, label, end, new);
 
 		if (zio->io_vd->vdev_guid == handler->zi_record.zi_guid &&
 		    (offset >= start && offset <= end)) {
@@ -417,8 +420,10 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 	    !(zio->io_flags & ZIO_FLAG_PROBE)) {
 		uint64_t offset = zio->io_offset;
 
-		if (offset < VDEV_LABEL_START_SIZE ||
-		    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE)
+		if (offset <
+		    VDEV_LABEL_START_SIZE(vd->vdev_large_label) ||
+		    offset >= vd->vdev_psize -
+		    VDEV_LABEL_END_SIZE(vd->vdev_large_label))
 			return (0);
 	}
 

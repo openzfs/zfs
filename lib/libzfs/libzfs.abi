@@ -6539,7 +6539,8 @@
       <enumerator name='SPA_FEATURE_DYNAMIC_GANG_HEADER' value='44'/>
       <enumerator name='SPA_FEATURE_BLOCK_CLONING_ENDIAN' value='45'/>
       <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
-      <enumerator name='SPA_FEATURES' value='47'/>
+      <enumerator name='SPA_FEATURE_LARGE_LABEL' value='47'/>
+      <enumerator name='SPA_FEATURES' value='48'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>

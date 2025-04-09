@@ -100,6 +100,8 @@ static uint_t zfs_vdev_default_ms_shift = 29;
 /* upper limit for metaslab size (16G) */
 static uint_t zfs_vdev_max_ms_shift = 34;
 
+uint64_t zfs_vdev_large_label_min_size = 1ULL << 40;
+
 static int vdev_validate_skip = B_FALSE;
 
 /*
@@ -600,12 +602,15 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 
 	cvd->vdev_top = (pvd->vdev_top ? pvd->vdev_top: cvd);
 	ASSERT0P(cvd->vdev_top->vdev_parent->vdev_parent);
+	pvd->vdev_large_label |= cvd->vdev_large_label;
 
 	/*
 	 * Walk up all ancestors to update guid sum.
 	 */
-	for (; pvd != NULL; pvd = pvd->vdev_parent)
+	for (; pvd != NULL; pvd = pvd->vdev_parent) {
+		pvd->vdev_large_label |= cvd->vdev_large_label;
 		pvd->vdev_guid_sum += cvd->vdev_guid_sum;
+	}
 
 	if (cvd->vdev_ops->vdev_op_leaf) {
 		list_insert_head(&cvd->vdev_spa->spa_leaf_list, cvd);
@@ -794,6 +799,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	mutex_init(&vd->vdev_rebuild_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vd->vdev_rebuild_cv, NULL, CV_DEFAULT, NULL);
 
+	mutex_init(&vd->vdev_be_lock, NULL, MUTEX_NOLOCKDEP, NULL);
+	cv_init(&vd->vdev_be_cv, NULL, CV_DEFAULT, NULL);
 	for (int t = 0; t < DTL_TYPES; t++) {
 		vd->vdev_dtl[t] = zfs_range_tree_create_flags(
 		    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
@@ -1115,6 +1122,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		vd->vdev_autosit =
 		    vdev_prop_default_numeric(VDEV_PROP_AUTOSIT);
 
+	if (vd->vdev_ops->vdev_op_leaf) {
+		(void) nvlist_lookup_boolean_value(nv, ZPOOL_CONFIG_LARGE_LABEL,
+		    &vd->vdev_large_label);
+	}
+
 	/*
 	 * Add ourselves to the parent's list of children.
 	 */
@@ -1268,6 +1280,9 @@ vdev_free(vdev_t *vd)
 
 	mutex_destroy(&vd->vdev_rebuild_lock);
 	cv_destroy(&vd->vdev_rebuild_cv);
+
+	mutex_destroy(&vd->vdev_be_lock);
+	cv_destroy(&vd->vdev_be_cv);
 
 	zfs_ratelimit_fini(&vd->vdev_delay_rl);
 	zfs_ratelimit_fini(&vd->vdev_deadman_rl);
@@ -1947,10 +1962,18 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 	}
 
 	for (int l = 1; l < VDEV_LABELS; l++) {
+		size_t size;
+		offset_t offset;
+		if (vd->vdev_large_label) {
+			size = P2ROUNDUP(VDEV_TOC_SIZE, 1 << vd->vdev_ashift);
+			offset = VDEV_NEW_PAD_SIZE;
+		} else {
+			size = VDEV_PAD_SIZE;
+			offset = offsetof(vdev_label_t, vl_be);
+		}
 		zio_nowait(zio_read_phys(pio, vd,
-		    vdev_label_offset(vd->vdev_psize, l,
-		    offsetof(vdev_label_t, vl_be)), VDEV_PAD_SIZE,
-		    abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE),
+		    vdev_label_offset(vd->vdev_psize, l, offset,
+		    vd->vdev_large_label), size, abd_alloc_for_io(size, B_TRUE),
 		    ZIO_CHECKSUM_OFF, vdev_probe_done, vps,
 		    ZIO_PRIORITY_SYNC_READ, vps->vps_flags, B_TRUE));
 	}
@@ -2260,9 +2283,22 @@ vdev_open(vdev_t *vd)
 		}
 	}
 
-	osize = P2ALIGN_TYPED(osize, sizeof (vdev_label_t), uint64_t);
-	max_osize = P2ALIGN_TYPED(max_osize, sizeof (vdev_label_t), uint64_t);
-
+	boolean_t large_label;
+	if (spa_version(spa) < SPA_VERSION_FEATURES ||
+	    !(spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_LABEL) ||
+	    spa->spa_create_large_label_ok))
+		large_label = B_FALSE;
+	else if (vd->vdev_asize == 0 && vd->vdev_ops->vdev_op_leaf)
+		large_label = osize > zfs_vdev_large_label_min_size;
+	else
+		large_label = vd->vdev_large_label;
+	uint64_t align;
+	if (large_label)
+		align = VDEV_LARGE_LABEL_ALIGN;
+	else
+		align = sizeof (vdev_label_t);
+	osize = P2ALIGN_TYPED(osize, align, uint64_t);
+	max_osize = P2ALIGN_TYPED(max_osize, align, uint64_t);
 	if (vd->vdev_children == 0) {
 		if (osize < SPA_MINDEVSIZE) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
@@ -2270,12 +2306,14 @@ vdev_open(vdev_t *vd)
 			return (SET_ERROR(EOVERFLOW));
 		}
 		psize = osize;
-		asize = osize - (VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE);
-		max_asize = max_osize - (VDEV_LABEL_START_SIZE +
-		    VDEV_LABEL_END_SIZE);
+		asize = osize - (VDEV_LABEL_START_SIZE(large_label) +
+		    VDEV_LABEL_END_SIZE(large_label));
+		max_asize = max_osize - (VDEV_LABEL_START_SIZE(large_label) +
+		    VDEV_LABEL_END_SIZE(large_label));
 	} else {
 		if (vd->vdev_parent != NULL && osize < SPA_MINDEVSIZE -
-		    (VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE)) {
+		    (VDEV_LABEL_START_SIZE(B_FALSE) +
+		    VDEV_LABEL_END_SIZE(B_FALSE))) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_TOO_SMALL);
 			return (SET_ERROR(EOVERFLOW));
@@ -2322,6 +2360,10 @@ vdev_open(vdev_t *vd)
 		 */
 		vd->vdev_asize = asize;
 		vd->vdev_max_asize = max_asize;
+
+		if (vd->vdev_ops->vdev_op_leaf && large_label) {
+			vd->vdev_large_label = B_TRUE;
+		}
 
 		/*
 		 * If the vdev_ashift was not overridden at creation time
@@ -2410,6 +2452,13 @@ vdev_open(vdev_t *vd)
 	 */
 	if (vd->vdev_ops->vdev_op_leaf && !spa->spa_scrub_reopen)
 		dsl_scan_assess_vdev(spa->spa_dsl_pool, vd);
+
+	if (!vd->vdev_ops->vdev_op_leaf) {
+		for (int c = 0; c < vd->vdev_children; c++) {
+			vd->vdev_large_label |=
+			    vd->vdev_child[c]->vdev_large_label;
+		}
+	}
 
 	return (0);
 }
@@ -4934,8 +4983,9 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 
 		if (vd->vdev_ops->vdev_op_leaf) {
 			vs->vs_pspace = vd->vdev_psize;
-			vs->vs_rsize += VDEV_LABEL_START_SIZE +
-			    VDEV_LABEL_END_SIZE;
+			vs->vs_rsize +=
+			    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+			    VDEV_LABEL_END_SIZE(vd->vdev_large_label);
 			/*
 			 * Report initializing progress. Since we don't
 			 * have the initializing locks held, this is only
@@ -6818,6 +6868,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, nocacheflush, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, embedded_slog_min_ms, UINT, ZMOD_RW,
 	"Minimum number of metaslabs required to dedicate one for log blocks");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, large_label_min_size, U64, ZMOD_RW,
+	"Minimum size for a disk to use the new large label format");
 
 ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, min_auto_ashift,
 	param_set_min_auto_ashift, param_get_uint, ZMOD_RW,

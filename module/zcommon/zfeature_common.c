@@ -810,6 +810,18 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	{
+		static const spa_feature_t large_label_deps[] = {
+			SPA_FEATURE_LARGE_BLOCKS,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_LARGE_LABEL,
+		    "com.klarasystems:large_label", "large_label",
+		    "Support for larger label format.",
+		    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, large_label_deps,
+		    sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
