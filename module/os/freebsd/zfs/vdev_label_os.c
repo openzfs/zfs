@@ -61,7 +61,7 @@ vdev_label_write_pad2(vdev_t *vd, const char *buf, size_t size)
 	abd_zero_off(pad2, size, VDEV_PAD_SIZE - size);
 
 	zio = zio_root(spa, NULL, NULL, flags);
-	vdev_label_write(zio, vd, 0, pad2,
+	vdev_label_write(zio, vd, 0, B_FALSE, pad2,
 	    offsetof(vdev_label_t, vl_be),
 	    VDEV_PAD_SIZE, NULL, NULL, flags);
 	error = zio_wait(zio);
@@ -103,8 +103,9 @@ vdev_check_boot_reserve(spa_t *spa, vdev_t *childvd)
 	 * offset lets us access the boot area.
 	 */
 	zio_nowait(zio_vdev_child_io(pio, NULL, childvd,
-	    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abd, size, ZIO_TYPE_READ,
-	    ZIO_PRIORITY_ASYNC_READ, 0, vdev_child_done, pio));
+	    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE(childvd->vdev_large_label),
+	    abd, size, ZIO_TYPE_READ, ZIO_PRIORITY_ASYNC_READ, 0,
+	    vdev_child_done, pio));
 	zio_wait(pio);
 
 	unsigned char *buf = abd_to_buf(abd);
