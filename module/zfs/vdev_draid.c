@@ -2508,8 +2508,11 @@ vdev_draid_spare_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	vdev_draid_calculate_asize(tvd, &asize, &max_asize,
 	    logical_ashift, physical_ashift);
 
-	*psize = asize + VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
-	*max_psize = max_asize + VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
+	*psize = asize + VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+	    VDEV_LABEL_END_SIZE(vd->vdev_large_label);
+	*max_psize = max_asize +
+	    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+	    VDEV_LABEL_END_SIZE(vd->vdev_large_label);
 
 	vds->vds_draid_vdev = tvd;
 	vd->vdev_nonrot = tvd->vdev_nonrot;
@@ -2611,7 +2614,8 @@ vdev_draid_spare_io_start(zio_t *zio)
 {
 	vdev_t *cvd = NULL, *vd = zio->io_vd;
 	vdev_draid_spare_t *vds = vd->vdev_tsd;
-	uint64_t offset = zio->io_offset - VDEV_LABEL_START_SIZE;
+	uint64_t offset = zio->io_offset -
+	    VDEV_LABEL_START_SIZE(vd->vdev_large_label);
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
