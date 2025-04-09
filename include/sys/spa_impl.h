@@ -36,6 +36,7 @@
 #include <sys/spa.h>
 #include <sys/spa_checkpoint.h>
 #include <sys/spa_log_spacemap.h>
+#include <sys/spa_stats_json.h>
 #include <sys/vdev.h>
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
@@ -437,6 +438,7 @@ struct spa {
 	uint64_t	spa_autotrim;		/* automatic background trim? */
 	uint64_t	spa_errata;		/* errata issues detected */
 	spa_stats_t	spa_stats;		/* assorted spa statistics */
+	spa_stats_json_t	spa_stats_json;	/* diagnostic status in JSON */
 	spa_keystore_t	spa_keystore;		/* loaded crypto keys */
 
 	/* arc_memory_throttle() parameters during low memory condition */

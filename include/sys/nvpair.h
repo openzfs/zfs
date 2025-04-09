@@ -413,6 +413,18 @@ _SYS_NVPAIR_H uint64_t fnvpair_value_uint64(const nvpair_t *nvp);
 _SYS_NVPAIR_H const char *fnvpair_value_string(const nvpair_t *nvp);
 _SYS_NVPAIR_H nvlist_t *fnvpair_value_nvlist(nvpair_t *nvp);
 
+/* JSON generation */
+
+typedef int (*nvjson_writer_t)(void *, const char *);
+typedef struct nvjson {
+	char *buf;
+	size_t size;
+	nvjson_writer_t writer;
+	void *writer_ctx;
+	int (*str_handler)(const char *, nvjson_writer_t, void *);
+} nvjson_t;
+_SYS_NVPAIR_H int nvlist_to_json(nvjson_t *, nvlist_t *);
+
 #ifdef	__cplusplus
 }
 #endif
