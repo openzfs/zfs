@@ -394,6 +394,9 @@ typedef struct dmu_buf {
 #define	DMU_POOL_ZPOOL_CHECKPOINT	"com.delphix:zpool_checkpoint"
 #define	DMU_POOL_LOG_SPACEMAP_ZAP	"com.delphix:log_spacemap_zap"
 #define	DMU_POOL_DELETED_CLONES		"com.delphix:deleted_clones"
+#define	DMU_POOL_TXG_LOG_TIME_MINUTES	"com.klaraystems:txg_log_time:minutes"
+#define	DMU_POOL_TXG_LOG_TIME_DAYS	"com.klaraystems:txg_log_time:days"
+#define	DMU_POOL_TXG_LOG_TIME_MONTHS	"com.klaraystems:txg_log_time:months"
 
 /*
  * Allocate an object from this objset.  The range of object numbers
