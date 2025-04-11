@@ -24,6 +24,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -354,6 +355,13 @@ unsigned long raidz_expand_max_reflow_bytes = 0;
  * For testing only: pause the raidz expansion at a certain point.
  */
 uint_t raidz_expand_pause_point = 0;
+
+/*
+ * This represents the duration for a slow drive read sit out.
+ */
+static unsigned long vdev_read_sit_out_secs = 600;
+
+static hrtime_t raid_outlier_check_interval_ms = 20;
 
 /*
  * Maximum amount of copy io's outstanding at once.
@@ -2282,6 +2290,45 @@ vdev_raidz_min_asize(vdev_t *vd)
 	    vd->vdev_children);
 }
 
+/*
+ * return B_TRUE if a read should be skipped due to being too slow.
+ *
+ * In vdev_child_slow_outlier() it looks for outliers based on disk
+ * latency from the most recent child reads.  Here we're checking if,
+ * over time, a disk has has been an outlier too many times and is
+ * now in a sit out period.
+ */
+boolean_t
+vdev_sit_out_reads(vdev_t *vd, zio_flag_t io_flags)
+{
+	if (vdev_read_sit_out_secs == 0)
+		return (B_FALSE);
+
+	/* Avoid skipping a data column read when scrubbing */
+	if (io_flags & ZIO_FLAG_SCRUB)
+		return (B_FALSE);
+
+	return (vd->vdev_read_sit_out_expire >= gethrestime_sec());
+}
+
+/*
+ * Calculate the Exponential Weighted Moving Average (EWMA)
+ * where
+ *   alpha: the smoothing factor -- represented here as a scaled integer
+ *   scale: the number of bits used to scale alpha
+ */
+static uint64_t
+calculate_ewma(uint64_t previous_ewma, uint64_t latest_value) {
+	/*
+	 * Scale using 8 bits with an effective alpha of 0.25
+	 */
+	const uint64_t scale = 8;
+	const uint64_t alpha = 64;
+
+	return (((alpha * latest_value) + (((1ULL << scale) - alpha) *
+	    previous_ewma)) >> scale);
+}
+
 void
 vdev_raidz_child_done(zio_t *zio)
 {
@@ -2291,6 +2338,23 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_error = zio->io_error;
 	rc->rc_tried = 1;
 	rc->rc_skipped = 0;
+
+	/*
+	 * Process the disk io latency before it goes out of scope.
+	 *
+	 * A zio->io_delay value of zero means this IO was part of
+	 * an aggregation.
+	 */
+	if (vdev_read_sit_out_secs != 0 && zio->io_type == ZIO_TYPE_READ &&
+	    zio->io_error == 0 && zio->io_size > 0 && zio->io_delay != 0) {
+		vdev_t *vd = zio->io_vd;
+		uint64_t previous_ewma = atomic_load_64(&vd->vdev_ewma_latency);
+		if (previous_ewma == 0)
+			previous_ewma = zio->io_delay;
+
+		atomic_store_64(&vd->vdev_ewma_latency,
+		    calculate_ewma(previous_ewma, zio->io_delay));
+	}
 }
 
 static void
@@ -2446,6 +2510,42 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 			rc->rc_skipped = 1;
 			continue;
 		}
+
+		if (vdev_sit_out_reads(cvd, zio->io_flags)) {
+			rr->rr_outlier_cnt++;
+			ASSERT0(rc->rc_latency_outlier);
+			rc->rc_latency_outlier = 1;
+		}
+	}
+
+	/*
+	 * When the row contains a latency outlier and sufficient parity
+	 * exists to reconstruct the column data, then skip reading the
+	 * known slow child vdev as a performance optimization.
+	 */
+	if (rr->rr_outlier_cnt > 0 &&
+	    (rr->rr_firstdatacol - rr->rr_missingparity) >=
+	    (rr->rr_missingdata + 1)) {
+
+		for (int c = rr->rr_cols - 1; c >= 0; c--) {
+			raidz_col_t *rc = &rr->rr_col[c];
+
+			if (rc->rc_error == 0 && rc->rc_latency_outlier) {
+				rr->rr_missingdata++;
+				rc->rc_error = SET_ERROR(EAGAIN);
+				rc->rc_skipped = 1;
+				break;
+			}
+		}
+	}
+
+	for (int c = rr->rr_cols - 1; c >= 0; c--) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+
+		if (rc->rc_error || rc->rc_size == 0)
+			continue;
+
 		if (forceparity ||
 		    c >= rr->rr_firstdatacol || rr->rr_missingdata > 0 ||
 		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
@@ -2469,6 +2569,7 @@ vdev_raidz_io_start_read_phys_cols(zio_t *zio, raidz_map_t *rm)
 
 		ASSERT3U(prc->rc_devidx, ==, i);
 		vdev_t *cvd = vd->vdev_child[i];
+
 		if (!vdev_readable(cvd)) {
 			prc->rc_error = SET_ERROR(ENXIO);
 			prc->rc_tried = 1;	/* don't even try */
@@ -2745,6 +2846,156 @@ vdev_raidz_worst_error(raidz_row_t *rr)
 	return (error);
 }
 
+/*
+ * Find the median value from a set of n values
+ */
+static uint64_t
+latency_median_value(const uint64_t *data, size_t n)
+{
+	uint64_t m;
+
+	if (n % 2 == 0)
+		m = (data[(n>>1) - 1] + data[n>>1]) >> 1;
+	else
+		m = data[((n + 1) >> 1) - 1];
+
+	return (m);
+}
+
+/*
+ * Calculate the outlier fence from a set of n latency values
+ *
+ * fence = Q3 + 2 x (Q3 - Q1)
+ */
+static uint64_t
+latency_quartiles_fence(const uint64_t *data, size_t n)
+{
+	uint64_t q1 = latency_median_value(&data[0], n >> 1);
+	uint64_t q3 = latency_median_value(&data[(n + 1) >> 1], n >> 1);
+
+	/*
+	 * To avoid detecting false positive outliers when N is small and
+	 * and the latencies values are very close, make sure the fence
+	 * is at least 25% larger than Q1.
+	 */
+	uint64_t iqr = MAX(q3 - q1, q1 >> 3);
+
+	return (q3 + (iqr << 1));
+}
+
+#define	LAT_SAMPLES_STACK	64
+#define	LAT_SAMPLES_MIN		5
+#define	LAT_OUTLIER_LIMIT	50
+
+static int
+latency_compare(const void *arg1, const void *arg2)
+{
+	const uint64_t *l1 = (uint64_t *)arg1;
+	const uint64_t *l2 = (uint64_t *)arg2;
+
+	return (TREE_CMP(*l1, *l2));
+}
+
+/*
+ * Check for any latency outlier from latest set of child reads.
+ *
+ * Uses a Tukey's fence, with K = 2, for detecting extreme outliers. This
+ * rule defines extreme outliers as data points outside the fence of the
+ * third quartile plus two times the Interquartile Range (IQR). This range
+ * is the distance between the first and third quartile.
+ */
+static void
+vdev_child_slow_outlier(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	if (vdev_read_sit_out_secs == 0 || vd->vdev_children < LAT_SAMPLES_MIN)
+		return;
+
+	hrtime_t now = gethrtime();
+	uint64_t last = atomic_load_64(&vd->vdev_last_latency_check);
+
+	if ((now - last) < MSEC2NSEC(raid_outlier_check_interval_ms) ||
+	    atomic_cas_64(&vd->vdev_last_latency_check, last, now) != last) {
+		return;
+	}
+
+	int samples = vd->vdev_children;
+	uint64_t data[LAT_SAMPLES_STACK];
+	uint64_t *lat_data;
+
+	if (samples > LAT_SAMPLES_STACK)
+		lat_data = kmem_alloc(sizeof (uint64_t) * samples, KM_SLEEP);
+	else
+		lat_data = &data[0];
+
+	uint64_t max = 0;
+	vdev_t *svd = NULL; /* suspect vdev */
+	for (int c = 0; c < samples; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (cvd->vdev_read_sit_out_expire != 0) {
+			if (cvd->vdev_read_sit_out_expire < gethrestime_sec()) {
+				/*
+				 * Done with our sit out, wait for new outlier
+				 * to emerge.
+				 */
+				cvd->vdev_read_sit_out_expire = 0;
+			} else {
+				atomic_store_64(&cvd->vdev_ewma_latency, 0);
+				/* Only one sit out disk at a time for now */
+				goto out;
+			}
+		}
+
+		lat_data[c] = atomic_load_64(&cvd->vdev_ewma_latency);
+
+		/* wait until all disks have been read from */
+		if (lat_data[c] == 0)
+			goto out;
+
+		/* keep track of the vdev with largest value */
+		if (lat_data[c] > max) {
+			max = lat_data[c];
+			svd = cvd;
+		}
+	}
+
+	qsort((void *)lat_data, samples, sizeof (uint64_t), latency_compare);
+	uint64_t fence = latency_quartiles_fence(lat_data, samples);
+	if (lat_data[samples - 1] > fence) {
+		/*
+		 * Keep track of how many times this child has had
+		 * an outlier read. A disk that persitently has a
+		 * higher than peers outlier count will be considered
+		 * a slow disk.
+		 */
+		if (++svd->vdev_outlier_count > LAT_OUTLIER_LIMIT) {
+			ASSERT0(svd->vdev_read_sit_out_expire);
+			/*
+			 * Begin a sit out period for this slow drive
+			 */
+			svd->vdev_read_sit_out_expire = gethrestime_sec() +
+			    vdev_read_sit_out_secs;
+
+			/* count each slow io period */
+			mutex_enter(&svd->vdev_stat_lock);
+			svd->vdev_stat.vs_slow_ios++;
+			mutex_exit(&svd->vdev_stat_lock);
+
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
+			    zio->io_spa, svd, NULL, NULL, 0);
+			vdev_dbgmsg(svd, "begin read sit out for %d secs",
+			    (int)vdev_read_sit_out_secs);
+
+			for (int c = 0; c < vd->vdev_children; c++)
+				vd->vdev_child[c]->vdev_outlier_count = 0;
+		}
+	}
+out:
+	if (samples > LAT_SAMPLES_STACK)
+		kmem_free(lat_data, sizeof (uint64_t) * samples);
+}
+
 static void
 vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 {
@@ -2814,7 +3065,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			zfs_dbgmsg("zio=%px repairing c=%u devidx=%u "
 			    "offset=%llx",
 			    zio, c, rc->rc_devidx, (long long)rc->rc_offset);
-
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE,
@@ -3486,6 +3736,9 @@ vdev_raidz_io_done(zio_t *zio)
 				raidz_row_t *rr = rm->rm_row[i];
 				vdev_raidz_io_done_verified(zio, rr);
 			}
+			/* Periodically check for a read outlier */
+			if (zio->io_type == ZIO_TYPE_READ)
+				vdev_child_slow_outlier(zio);
 			zio_checksum_verified(zio);
 		} else {
 			/*
@@ -5122,3 +5375,6 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, read_sit_out_secs, ULONG, ZMOD_RW,
+	"Raidz/draid slow disk sit out time period in seconds");
+/* END CSTYLED */
