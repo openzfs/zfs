@@ -99,6 +99,7 @@
 #include <geom/geom.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <cityhash.h>
 
 #include "zfs_namecheck.h"
 
@@ -169,7 +170,7 @@ static d_close_t	zvol_cdev_close;
 static d_ioctl_t	zvol_cdev_ioctl;
 static d_read_t		zvol_cdev_read;
 static d_write_t	zvol_cdev_write;
-static d_strategy_t	zvol_geom_bio_strategy;
+static d_strategy_t	zvol_bio_strategy;
 static d_kqfilter_t	zvol_cdev_kqfilter;
 
 static struct cdevsw zvol_cdevsw = {
@@ -181,7 +182,7 @@ static struct cdevsw zvol_cdevsw = {
 	.d_ioctl =	zvol_cdev_ioctl,
 	.d_read =	zvol_cdev_read,
 	.d_write =	zvol_cdev_write,
-	.d_strategy =	zvol_geom_bio_strategy,
+	.d_strategy =	zvol_bio_strategy,
 	.d_kqfilter =	zvol_cdev_kqfilter,
 };
 
@@ -211,7 +212,8 @@ static int zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace);
 static void zvol_geom_worker(void *arg);
 static void zvol_geom_bio_start(struct bio *bp);
 static int zvol_geom_bio_getattr(struct bio *bp);
-/* static d_strategy_t	zvol_geom_bio_strategy; (declared elsewhere) */
+/* static d_strategy_t	zvol_bio_strategy; (declared elsewhere) */
+static void zvol_geom_bio_strategy(struct bio *bp, boolean_t sync);
 
 /*
  * GEOM mode implementation
@@ -544,7 +546,7 @@ zvol_geom_worker(void *arg)
 			continue;
 		}
 		mtx_unlock(&zsg->zsg_queue_mtx);
-		zvol_geom_bio_strategy(bp);
+		zvol_geom_bio_strategy(bp, B_FALSE);
 	}
 }
 
@@ -576,7 +578,7 @@ zvol_geom_bio_start(struct bio *bp)
 		return;
 	}
 
-	zvol_geom_bio_strategy(bp);
+	zvol_geom_bio_strategy(bp, B_TRUE);
 }
 
 static int
@@ -660,9 +662,10 @@ zvol_cdev_kqfilter(struct cdev *dev, struct knote *kn)
 }
 
 static void
-zvol_geom_bio_strategy(struct bio *bp)
+zvol_strategy_impl(zv_request_t *zvr)
 {
 	zvol_state_t *zv;
+	struct bio *bp;
 	uint64_t off, volsize;
 	size_t resid;
 	char *addr;
@@ -673,11 +676,8 @@ zvol_geom_bio_strategy(struct bio *bp)
 	boolean_t is_dumpified;
 	boolean_t commit;
 
-	if (bp->bio_to)
-		zv = bp->bio_to->private;
-	else
-		zv = bp->bio_dev->si_drv2;
-
+	bp = zvr->bio;
+	zv = zvr->zv;
 	if (zv == NULL) {
 		error = SET_ERROR(ENXIO);
 		goto out;
@@ -811,6 +811,64 @@ out:
 		g_io_deliver(bp, error);
 	else
 		biofinish(bp, NULL, error);
+}
+
+static void
+zvol_strategy_task(void *arg)
+{
+	zv_request_task_t *task = arg;
+
+	zvol_strategy_impl(&task->zvr);
+	zv_request_task_free(task);
+}
+
+static void
+zvol_geom_bio_strategy(struct bio *bp, boolean_t sync)
+{
+	zv_taskq_t *ztqs = &zvol_taskqs;
+	zv_request_task_t *task;
+	zvol_state_t *zv;
+	uint64_t taskq_hash;
+	uint32_t tq_idx;
+	int error;
+
+	if (bp->bio_to)
+		zv = bp->bio_to->private;
+	else
+		zv = bp->bio_dev->si_drv2;
+
+	if (zv == NULL) {
+		error = SET_ERROR(ENXIO);
+		if (bp->bio_to)
+			g_io_deliver(bp, error);
+		else
+			biofinish(bp, NULL, error);
+
+		return;
+	}
+
+	zv_request_t zvr = {
+		.zv = zv,
+		.bio = bp,
+	};
+
+	if (sync || zvol_request_sync) {
+		zvol_strategy_impl(&zvr);
+		return;
+	}
+
+	taskq_hash = cityhash3((uintptr_t)zv, curcpu, bp->bio_offset >>
+	    ZVOL_TASKQ_OFFSET_SHIFT);
+	tq_idx = taskq_hash % ztqs->tqs_cnt;
+	task = zv_request_task_create(zvr);
+	taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx], zvol_strategy_task, task,
+	    0, &task->ent);
+}
+
+static void
+zvol_bio_strategy(struct bio *bp)
+{
+	zvol_geom_bio_strategy(bp, B_FALSE);
 }
 
 /*
@@ -1606,8 +1664,7 @@ zvol_busy(void)
 int
 zvol_init(void)
 {
-	zvol_init_impl();
-	return (0);
+	return (zvol_init_impl(mp_ncpus, zvol_num_taskqs, zvol_threads));
 }
 
 void
