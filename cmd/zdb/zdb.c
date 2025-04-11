@@ -2582,19 +2582,17 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 	}
 }
 
-static void
+static u_longlong_t
 print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
     const dnode_phys_t *dnp)
 {
 	char blkbuf[BP_SPRINTF_LEN];
+	u_longlong_t offset;
 	int l;
 
-	if (!BP_IS_EMBEDDED(bp)) {
-		ASSERT3U(BP_GET_TYPE(bp), ==, dnp->dn_type);
-		ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_level);
-	}
+	offset = (u_longlong_t)blkid2offset(dnp, bp, zb);
 
-	(void) printf("%16llx ", (u_longlong_t)blkid2offset(dnp, bp, zb));
+	(void) printf("%16llx ", offset);
 
 	ASSERT(zb->zb_level >= 0);
 
@@ -2609,19 +2607,36 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, B_FALSE);
 	if (dump_opt['Z'] && BP_GET_COMPRESS(bp) == ZIO_COMPRESS_ZSTD)
 		snprintf_zstd_header(spa, blkbuf, sizeof (blkbuf), bp);
-	(void) printf("%s\n", blkbuf);
+	(void) printf("%s", blkbuf);
+
+	if (!BP_IS_EMBEDDED(bp)) {
+		if (BP_GET_TYPE(bp) != dnp->dn_type) {
+			(void) printf(" (ERROR: Block pointer type "
+			    "(%llu) does not match dnode type (%hhu))",
+			    BP_GET_TYPE(bp), dnp->dn_type);
+		}
+		if (BP_GET_LEVEL(bp) != zb->zb_level) {
+			(void) printf(" (ERROR: Block pointer level "
+			    "(%llu) does not match bookmark level (%ld))",
+			    BP_GET_LEVEL(bp), zb->zb_level);
+		}
+	}
+	(void) printf("\n");
+
+	return (offset);
 }
 
 static int
 visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
     blkptr_t *bp, const zbookmark_phys_t *zb)
 {
+	u_longlong_t offset;
 	int err = 0;
 
 	if (BP_GET_LOGICAL_BIRTH(bp) == 0)
 		return (0);
 
-	print_indirect(spa, bp, zb, dnp);
+	offset = print_indirect(spa, bp, zb, dnp);
 
 	if (BP_GET_LEVEL(bp) > 0 && !BP_IS_HOLE(bp)) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
@@ -2651,8 +2666,14 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 				break;
 			fill += BP_GET_FILL(cbp);
 		}
-		if (!err)
-			ASSERT3U(fill, ==, BP_GET_FILL(bp));
+		if (!err) {
+			if (fill != BP_GET_FILL(bp)) {
+				(void) printf("%16llx: Block pointer "
+				    "fill (%llu) does not match calculated "
+				    "value (%lu)\n", offset, BP_GET_FILL(bp),
+				    fill);
+			}
+		}
 		arc_buf_destroy(buf, &buf);
 	}
 
