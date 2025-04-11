@@ -899,7 +899,7 @@ AC_DEFUN([ZFS_LINUX_TEST_RESULT_SYMBOL], [
 					eval "$cachevar=no"
 				])
 			], [
-				eval "$cacheval=yes"
+				eval "$cachevar=yes"
 			])
 		])
 	])
