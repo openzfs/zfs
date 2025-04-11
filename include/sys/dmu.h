@@ -533,6 +533,26 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
     struct zio_prop *zp);
 
 /*
+ * DB_RF_* are to be used for dbuf_read() or in limited other cases.
+ */
+typedef enum dmu_flags {
+	DB_RF_MUST_SUCCEED	= 0,	  /* Suspend on I/O errors. */
+	DB_RF_CANFAIL		= 1 << 0, /* Return on I/O errors. */
+	DB_RF_HAVESTRUCT	= 1 << 1, /* dn_struct_rwlock is locked. */
+	DB_RF_NEVERWAIT		= 1 << 2,
+	DMU_READ_PREFETCH	= 0,	  /* Try speculative prefetch. */
+	DMU_READ_NO_PREFETCH	= 1 << 3, /* Don't prefetch speculatively. */
+	DB_RF_NOPREFETCH	= DMU_READ_NO_PREFETCH,
+	DMU_READ_NO_DECRYPT	= 1 << 4, /* Don't decrypt. */
+	DB_RF_NO_DECRYPT	= DMU_READ_NO_DECRYPT,
+	DMU_DIRECTIO		= 1 << 5, /* Bypass ARC. */
+	DMU_UNCACHEDIO		= 1 << 6, /* Reduce caching. */
+	DMU_PARTIAL_FIRST	= 1 << 7, /* First partial access. */
+	DMU_PARTIAL_MORE	= 1 << 8, /* Following partial access. */
+	DMU_KEEP_CACHING	= 1 << 9, /* Don't affect caching. */
+} dmu_flags_t;
+
+/*
  * The bonus data is accessed more or less like a regular buffer.
  * You must dmu_bonus_hold() to get the buffer, which will give you a
  * dmu_buf_t with db_offset==-1ULL, and db_size = the size of the bonus
@@ -547,7 +567,7 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 int dmu_bonus_hold(objset_t *os, uint64_t object, const void *tag,
     dmu_buf_t **dbp);
 int dmu_bonus_hold_by_dnode(dnode_t *dn, const void *tag, dmu_buf_t **dbp,
-    uint32_t flags);
+    dmu_flags_t flags);
 int dmu_bonus_max(void);
 int dmu_set_bonus(dmu_buf_t *, int, dmu_tx_t *);
 int dmu_set_bonustype(dmu_buf_t *, dmu_object_type_t, dmu_tx_t *);
@@ -558,9 +578,9 @@ int dmu_rm_spill(objset_t *, uint64_t, dmu_tx_t *);
  * Special spill buffer support used by "SA" framework
  */
 
-int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, const void *tag,
-    dmu_buf_t **dbp);
-int dmu_spill_hold_by_dnode(dnode_t *dn, uint32_t flags,
+int dmu_spill_hold_by_bonus(dmu_buf_t *bonus, dmu_flags_t flags,
+    const void *tag, dmu_buf_t **dbp);
+int dmu_spill_hold_by_dnode(dnode_t *dn, dmu_flags_t flags,
     const void *tag, dmu_buf_t **dbp);
 int dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp);
 
@@ -579,17 +599,17 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp);
  * The object number must be a valid, allocated object number.
  */
 int dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
-    const void *tag, dmu_buf_t **, int flags);
+    const void *tag, dmu_buf_t **, dmu_flags_t flags);
 int dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t length, int read, const void *tag, int *numbufsp,
     dmu_buf_t ***dbpp);
 int dmu_buf_hold_noread(objset_t *os, uint64_t object, uint64_t offset,
     const void *tag, dmu_buf_t **dbp);
 int dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
-    const void *tag, dmu_buf_t **dbp, int flags);
+    const void *tag, dmu_buf_t **dbp, dmu_flags_t flags);
 int dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset,
     uint64_t length, boolean_t read, const void *tag, int *numbufsp,
-    dmu_buf_t ***dbpp, uint32_t flags);
+    dmu_buf_t ***dbpp, dmu_flags_t flags);
 int dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset, const void *tag,
     dmu_buf_t **dbp);
 
@@ -781,6 +801,7 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
+void dmu_buf_will_dirty_flags(dmu_buf_t *db, dmu_tx_t *tx, dmu_flags_t flags);
 boolean_t dmu_buf_is_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
@@ -874,40 +895,36 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
  * Canfail routines will return 0 on success, or an errno if there is a
  * nonrecoverable I/O error.
  */
-#define	DMU_READ_PREFETCH	0 /* prefetch */
-#define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
-#define	DMU_READ_NO_DECRYPT	2 /* don't decrypt */
-#define	DMU_DIRECTIO		4 /* use Direct I/O */
-
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    void *buf, uint32_t flags);
+    void *buf, dmu_flags_t flags);
 int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
-    uint32_t flags);
+    dmu_flags_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx);
 int dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx);
-int dmu_write_by_dnode_flags(dnode_t *dn, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx, uint32_t flags);
+    const void *buf, dmu_tx_t *tx, dmu_flags_t flags);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     dmu_tx_t *tx);
 #ifdef _KERNEL
-int dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size);
-int dmu_read_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size);
-int dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size);
+int dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags);
+int dmu_read_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags);
+int dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags);
 int dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
-	dmu_tx_t *tx);
+	dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
-	dmu_tx_t *tx);
+	dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
-	dmu_tx_t *tx);
+	dmu_tx_t *tx, dmu_flags_t flags);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
 int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
-    struct arc_buf *buf, dmu_tx_t *tx);
+    struct arc_buf *buf, dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
-    struct arc_buf *buf, dmu_tx_t *tx);
+    struct arc_buf *buf, dmu_tx_t *tx, dmu_flags_t flags);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
 extern uint_t zfs_max_recordsize;
 
