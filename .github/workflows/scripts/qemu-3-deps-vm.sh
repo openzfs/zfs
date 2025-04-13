@@ -32,8 +32,8 @@ function debian() {
 
   echo "##[group]Install Development Tools"
   sudo apt-get install -y \
-    acl alien attr autoconf bc cpio cryptsetup curl dbench dh-python dkms \
-    fakeroot fio gdb gdebi git ksh lcov isc-dhcp-client jq libacl1-dev \
+    acl alien attr autoconf bc cpio cron cryptsetup curl dbench dh-python \
+    dkms fakeroot fio gdb gdebi git ksh lcov isc-dhcp-client jq libacl1-dev \
     libaio-dev libattr1-dev libblkid-dev libcurl4-openssl-dev libdevmapper-dev \
     libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev \
     libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
@@ -76,8 +76,8 @@ function rhel() {
   fi
 
   sudo dnf install -y \
-    acl attr bc bzip2 cryptsetup curl dbench dkms elfutils-libelf-devel fio \
-    gdb git jq kernel-rpm-macros ksh libacl-devel libaio-devel \
+    acl attr bc bzip2 cronie cryptsetup curl dbench dkms elfutils-libelf-devel \
+    fio gdb git jq kernel-rpm-macros ksh libacl-devel libaio-devel \
     libargon2-devel libattr-devel libblkid-devel libcurl-devel libffi-devel \
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \

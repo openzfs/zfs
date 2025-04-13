@@ -45,6 +45,7 @@ if [ -z ${1:-} ]; then
   echo 0 > /tmp/ctr
   date "+%s" > /tmp/tsstart
 
+  test $KSM = 1 && sudo systemctl start ksmtuned
   for i in $(seq 1 $VMs); do
     IP="192.168.122.1$i"
     daemonize -c /var/tmp -p vm${i}.pid -o vm${i}log.txt -- \
@@ -85,6 +86,17 @@ case "$1" in
     sudo mv -f /tmp/*.txt /var/tmp
     sudo -E modprobe zfs
     TDIR="/usr/share/zfs"
+
+    # drop caches from time to time to have more virtual memory
+    echo 'echo 3 > /proc/sys/vm/drop_caches' \
+      | sudo tee /root/cronjob.sh >/dev/null
+    sudo chmod +x /root/cronjob.sh
+    echo '*/2 * * * *  /root/cronjob.sh' > crontab.txt
+    sudo crontab crontab.txt
+    rm crontab.txt
+
+    # disable informational drop_cache messages in klog
+    echo 4 | sudo tee /proc/sys/vm/drop_caches >/dev/null
     ;;
 esac
 
