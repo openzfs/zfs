@@ -150,7 +150,7 @@ echo "ENV=$ENV" >> $ENV
 # result path
 echo 'RESPATH="/var/tmp/test_results"' >> $ENV
 
-# FreeBSD 13 has problems with: e1000+virtio
+# FreeBSD 13 has problems with: e1000 and virtio
 echo "NIC=$NIC" >> $ENV
 
 # freebsd15 -> used in zfs-qemu.yml
@@ -161,6 +161,14 @@ echo "OSv=\"$OSv\"" >> $ENV
 
 # FreeBSD 15 (Current) -> used for summary
 echo "OSNAME=\"$OSNAME\"" >> $ENV
+
+# default vm count for testings
+VMs=2
+echo "VMs=\"$VMs\"" >> $ENV
+
+# default cpu count for testing vm's
+CPU=2
+echo "CPU=\"$CPU\"" >> $ENV
 
 sudo mkdir -p "/mnt/tests"
 sudo chown -R $(whoami) /mnt/tests
@@ -223,12 +231,19 @@ sudo virt-install \
   --disk $DISK,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
   --import --noautoconsole >/dev/null
 
+# enable KSM on Linux
+if [ ${OS:0:7} != "freebsd" ]; then
+  sudo virsh dommemstat --domain "openzfs" --period 5
+  sudo virsh node-memory-tune 100 50 1
+  echo 1 | sudo tee /sys/kernel/mm/ksm/run > /dev/null
+fi
+
 # Give the VMs hostnames so we don't have to refer to them with
 # hardcoded IP addresses.
 #
 # vm0:          Initial VM we install dependencies and build ZFS on.
 # vm1..2        Testing VMs
-for i in {0..9} ; do
+for ((i=0; i<=VMs; i++)); do
   echo "192.168.122.1$i vm$i" | sudo tee -a /etc/hosts
 done
 
