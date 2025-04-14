@@ -425,6 +425,8 @@ struct spa {
 	kmutex_t	spa_suspend_lock;	/* protects suspend_zio_root */
 	kcondvar_t	spa_suspend_cv;		/* notification of resume */
 	zio_suspend_reason_t	spa_suspended;	/* pool is suspended */
+	boolean_t	spa_forced_exit_required; /* allowed to inititate */
+	boolean_t	spa_forcibly_exiting;	/* by dropping dirty data etc */
 	uint8_t		spa_claiming;		/* pool is doing zil_claim() */
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */

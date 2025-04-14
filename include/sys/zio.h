@@ -448,6 +448,7 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_POST_REEXECUTE	(1 << 0)
 #define	ZIO_POST_SUSPEND	(1 << 1)
 #define	ZIO_POST_DIO_CHKSUM_ERR	(1 << 2)
+#define	ZIO_POST_CANCELLED	(1 << 3)
 
 /*
  * The io_trim flags are used to specify the type of TRIM to perform.  They
@@ -697,6 +698,7 @@ extern uint8_t zio_complevel_select(spa_t *spa, enum zio_compress compress,
 extern void zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t);
 extern int zio_resume(spa_t *spa);
 extern void zio_resume_wait(spa_t *spa);
+extern void zio_resume_but_keep_suspended(spa_t *spa);
 
 extern int zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
     enum blk_config_flag blk_config, enum blk_verify_flag blk_verify);

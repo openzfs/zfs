@@ -2079,6 +2079,12 @@ spa_suspended(spa_t *spa)
 	return (spa->spa_suspended != ZIO_SUSPEND_NONE);
 }
 
+boolean_t
+spa_exiting(spa_t *spa)
+{
+	return (spa->spa_forcibly_exiting == B_TRUE);
+}
+
 uint64_t
 spa_version(spa_t *spa)
 {

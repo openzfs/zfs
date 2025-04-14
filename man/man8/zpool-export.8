@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd April 14, 2025
 .Dt ZPOOL-EXPORT 8
 .Os
 .
@@ -38,6 +38,7 @@
 .Nm zpool
 .Cm export
 .Op Fl f
+.Op Fl F
 .Fl a Ns | Ns Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -68,6 +69,21 @@ spares.
 This command will forcefully export the pool even if it has a shared spare that
 is currently being used.
 This may lead to potential data corruption.
+.It Fl F
+Implies and extends -f flag by forcibly exporting a suspended pool.
+It will cause data not already synced to the underlying storage to be lost.
+.Pp
+It must be used only as the last resort, and it is critical to avoid
+other operations over any pool in parallel such as create, import, export,
+destroy, etc.
+.Pp
+Once a pool is requested for forced export there is no way back to the normal
+state as some dirty data may have already been dropped.
+The export process must be completed.
+If there are obstacles, such as the
+operating system's inability to unmount the related file systems, then export
+command with the hardforce flag must be repeated after the unmounting issue is
+resolved.
 .El
 .
 .Sh EXAMPLES

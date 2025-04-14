@@ -1396,7 +1396,8 @@ mountpoint_compare(const void *a, const void *b)
  * and gather all the filesystems that are currently mounted.
  */
 int
-zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
+zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force,
+    boolean_t hardforce)
 {
 	int used, alloc;
 	FILE *mnttab;
@@ -1406,7 +1407,38 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	int i;
 	int ret = -1;
-	int flags = (force ? MS_FORCE : 0);
+	int flags;
+	zpool_status_t status;
+
+	force = hardforce || force;
+	flags = force ? MS_FORCE : 0;
+
+	if (!hardforce) {
+		/*
+		 * It is important not to inquire about the pool's status on
+		 * the hardforce path, as it might end up sleeping for
+		 * spa_namespace_lock held by someone else, without forced exit
+		 * actually being initiated.
+		 */
+		status = zpool_get_status(zhp, NULL, NULL);
+		if (zpool_suspended(status)) {
+			(void) fprintf(stderr, gettext("cannot disable datasets"
+			    " of suspended pool '%s'\n"), zhp->zpool_name);
+			return (EAGAIN);
+		}
+	}
+
+	/*
+	 * We say that this pool is allowed to automatically switch to
+	 * the spa_forcibly_exiting state if it finds itself suspended.
+	 * If it is already suspended, then initiate exiting right now.
+	 * Once a forced exit is initiated, there is no way back to the
+	 * normal state, as some dirty data may have already been
+	 * dropped. The initiation is required before unmounting as zil_close
+	 * can be the first one to call txg_wait_synced().
+	 */
+	if (hardforce)
+		zpool_set_forced_exit_required(zhp);
 
 	namelen = strlen(zhp->zpool_name);
 
@@ -1488,8 +1520,15 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 */
 	for (i = 0; i < used; i++) {
 		if (unmount_one(sets[i].dataset, sets[i].mountpoint,
-		    flags) != 0)
+		    flags) != 0) {
+			if (hardforce) {
+				(void) fprintf(stderr, gettext("cannot unmount"
+				    " '%s' of pool '%s', close the files and"
+				    " repeat\n"), sets[i].mountpoint,
+				    zhp->zpool_name);
+			}
 			goto out;
+		}
 	}
 
 	for (i = 0; i < used; i++) {
@@ -1497,7 +1536,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 			remove_mountpoint(sets[i].dataset);
 	}
 
-	zpool_disable_datasets_os(zhp, force);
+	zpool_disable_datasets_os(zhp, force, hardforce);
 
 	ret = 0;
 out:
