@@ -33,11 +33,19 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <sys/dmu_objset.h>
+#include <sys/dsl_dir.h>
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
 #include <linux/fs_context.h>
 #include <linux/fs_parser.h>
+
+enum {
+	ZFS_FORCED_UNMOUNT_DEFAULT,
+	ZFS_FORCED_UNMOUNT_DRAIN_IO,
+};
+uint_t zfs_forced_unmount_level = ZFS_FORCED_UNMOUNT_DRAIN_IO;
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -146,6 +154,33 @@ zpl_evict_inode(struct inode *ip)
 	clear_inode(ip);
 	zfs_inactive(ip);
 	spl_fstrans_unmark(cookie);
+}
+
+static void
+zpl_umount_begin(struct super_block *sb)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	const uint_t level = zfs_forced_unmount_level;
+
+	if (zfsvfs == NULL)
+		return;
+	if (!zfs_forcibly_unmounting(zfsvfs))
+		return;
+
+	if (level >= ZFS_FORCED_UNMOUNT_DRAIN_IO) {
+		/*
+		 * Flush out all POSIX I/Os.  Notify all waiters that they
+		 * must end, then wait for all users to drop their holds on
+		 * z_teardown_*_lock, and evict buffers.
+		 */
+		rrm_enter(&zfsvfs->z_teardown_lock, RW_WRITER, FTAG);
+		rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_WRITER);
+		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+
+		dmu_objset_evict_dbufs(zfsvfs->z_os);
+		dsl_dir_cancel_waiters(zfsvfs->z_os->os_dsl_dataset->ds_dir);
+	}
 }
 
 static void
@@ -1053,6 +1088,7 @@ const struct super_operations zpl_super_operations = {
 	.drop_inode		= zpl_drop_inode,
 	.evict_inode		= zpl_evict_inode,
 	.put_super		= zpl_put_super,
+	.umount_begin		= zpl_umount_begin,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
 	.show_devname		= zpl_show_devname,
