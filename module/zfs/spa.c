@@ -7715,6 +7715,36 @@ spa_tryimport(nvlist_t *tryconfig)
 	return (config);
 }
 
+void
+spa_initiate_forced_exit(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa->spa_suspend_lock));
+
+	if (spa_suspended(spa) && spa->spa_forced_exit_required) {
+		if (!spa->spa_forcibly_exiting) {
+			spa->spa_forcibly_exiting = B_TRUE;
+			cmn_err(CE_WARN, "Pool '%s' is now forcibly exiting",
+			    spa_name(spa));
+			zfs_dbgmsg("Pool '%s' is now forcibly exiting",
+			    spa_name(spa));
+		}
+		zio_resume_but_keep_suspended(spa);
+	}
+}
+
+void
+spa_set_forced_exit_required(spa_t *spa)
+{
+	mutex_enter(&spa->spa_suspend_lock);
+	if (!spa->spa_forced_exit_required) {
+		spa->spa_forced_exit_required = B_TRUE;
+		zfs_dbgmsg("Pool '%s' forced exit requirement has been set",
+		    spa_name(spa));
+	}
+	spa_initiate_forced_exit(spa);
+	mutex_exit(&spa->spa_suspend_lock);
+}
+
 /*
  * Pool export/destroy
  *
@@ -7731,6 +7761,9 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	int error = 0;
 	spa_t *spa;
 	hrtime_t export_start = gethrtime();
+	uint_t hardforce_ref_checks_left;
+
+	force = hardforce || force;
 
 	if (oldconfig)
 		*oldconfig = NULL;
@@ -7744,12 +7777,20 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		return (SET_ERROR(ENOENT));
 	}
 
+	if (spa_suspended(spa) && !hardforce) {
+		spa_namespace_exit(FTAG);
+		return (SET_ERROR(EAGAIN));
+	}
+
 	if (spa->spa_is_exporting) {
 		/* the pool is being exported by another thread */
 		spa_namespace_exit(FTAG);
 		return (SET_ERROR(ZFS_ERR_EXPORT_IN_PROGRESS));
 	}
 	spa->spa_is_exporting = B_TRUE;
+
+	if (hardforce)
+		spa_set_forced_exit_required(spa);
 
 	/*
 	 * Put a hold on the pool, drop the namespace lock, stop async tasks
@@ -7780,7 +7821,18 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * so we have to force it to sync before checking spa_refcnt.
 	 */
 	if (spa->spa_sync_on) {
-		txg_wait_synced(spa->spa_dsl_pool, 0);
+		if (hardforce) {
+			txg_wait_synced(spa->spa_dsl_pool, 0);
+		} else if (txg_wait_synced_flags(spa->spa_dsl_pool, 0,
+		    TXG_WAIT_SUSPEND) != 0) {
+			/*
+			 * We want to release spa_namespace_lock instead of
+			 * holding it forever, so that hardforce can be asked to
+			 * do the trick.
+			 */
+			error = SET_ERROR(EAGAIN);
+			goto fail;
+		}
 		spa_evicting_os_wait(spa);
 	}
 
@@ -7789,7 +7841,36 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * references.  If we are resetting a pool, allow references by
 	 * fault injection handlers.
 	 */
-	if (!spa_refcount_zero(spa) || (spa->spa_inject_ref != 0)) {
+	hardforce_ref_checks_left = TXG_SIZE * zfs_txg_timeout;
+	if (spa->spa_inject_ref != 0) {
+		/* No one is going to fight with zinject, even the hardforce */
+		goto open_refs;
+	}
+	while (hardforce && !spa_refcount_zero(spa) &&
+	    hardforce_ref_checks_left > 0 && !issig()) {
+		/*
+		 * Others might be stuck having spa references without a
+		 * chance to release them as we are holding spa_namespace_lock.
+		 * Wait for the last pool users to eject. The timeout is
+		 * arbitrary, waiting a little while is a UX improvement for
+		 * an operator, while waiting forever in the kernel would just
+		 * make a bad situation worse.
+		 */
+		hardforce_ref_checks_left--;
+		spa_namespace_exit(FTAG);
+		zfs_sleep_until(gethrtime() + SEC2NSEC(1));
+		spa_namespace_enter(FTAG);
+	}
+	if (!spa_refcount_zero(spa)) {
+open_refs:
+		zfs_dbgmsg("Pool '%s' cannot be exported due to open refs:"
+		    " spa_minref=%llu spa_refcount=%llu spa_inject_ref=%llu"
+		    " hardforce_ref_checks_left=%u",
+		    spa_name(spa),
+		    (u_longlong_t)spa->spa_minref,
+		    (u_longlong_t)zfs_refcount_count(&spa->spa_refcount),
+		    (u_longlong_t)spa->spa_inject_ref,
+		    hardforce_ref_checks_left);
 		error = SET_ERROR(EBUSY);
 		goto fail;
 	}
@@ -7835,7 +7916,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		 * so mark them all dirty.  spa_unload() will do the
 		 * final sync that pushes these changes out.
 		 */
-		if (new_state != POOL_STATE_UNINITIALIZED && !hardforce) {
+		if (new_state != POOL_STATE_UNINITIALIZED &&
+		    !spa_exiting(spa)) {
 			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 			spa->spa_state = new_state;
 			vdev_config_dirty(rvd);
@@ -7858,7 +7940,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		if (spa_should_flush_logs_on_unload(spa))
 			spa_unload_log_sm_flush_all(spa);
 
-		if (new_state != POOL_STATE_UNINITIALIZED && !hardforce) {
+		if (new_state != POOL_STATE_UNINITIALIZED &&
+		    !spa_exiting(spa)) {
 			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 			spa->spa_final_txg = spa_last_synced_txg(spa) +
 			    TXG_DEFER_SIZE + 1;
@@ -7890,8 +7973,7 @@ export_spa:
 	 */
 	spa_namespace_enter(FTAG);
 	if (new_state != POOL_STATE_UNINITIALIZED) {
-		if (!hardforce)
-			spa_write_cachefile(spa, B_TRUE, B_TRUE, B_FALSE);
+		spa_write_cachefile(spa, B_TRUE, B_TRUE, B_FALSE);
 		spa_remove(spa);
 	} else {
 		/*

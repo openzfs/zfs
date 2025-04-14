@@ -486,7 +486,7 @@ get_usage(zpool_help_t idx)
 	case HELP_DETACH:
 		return (gettext("\tdetach <pool> <device>\n"));
 	case HELP_EXPORT:
-		return (gettext("\texport [-af] <pool> ...\n"));
+		return (gettext("\texport [-afF] <pool> ...\n"));
 	case HELP_HISTORY:
 		return (gettext("\thistory [-il] [<pool>] ...\n"));
 	case HELP_IMPORT:
@@ -2391,7 +2391,7 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
-	if (zpool_disable_datasets(zhp, force) != 0) {
+	if (zpool_disable_datasets(zhp, force, B_FALSE) != 0) {
 		(void) fprintf(stderr, gettext("could not destroy '%s': "
 		    "could not unmount datasets\n"), zpool_get_name(zhp));
 		zpool_close(zhp);
@@ -2437,7 +2437,7 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 	if (cb->taskq != NULL)
 		(void) pthread_mutex_lock(&cb->mnttab_lock);
 
-	int retval = zpool_disable_datasets(zhp, cb->force);
+	int retval = zpool_disable_datasets(zhp, cb->force, cb->hardforce);
 
 	if (cb->taskq != NULL)
 		(void) pthread_mutex_unlock(&cb->mnttab_lock);
@@ -2503,10 +2503,14 @@ zpool_export_one_async(zpool_handle_t *zhp, void *data)
  *
  *	-a	Export all pools
  *	-f	Forcefully unmount datasets
+ *	-F	Forcefully drop dirty data if the pool is suspended,
+ *		implies -f.
  *
  * Export the given pools.  By default, the command will attempt to cleanly
  * unmount any active datasets within the pool.  If the '-f' flag is specified,
- * then the datasets will be forcefully unmounted.
+ * then the datasets will be forcefully unmounted.  If the '-F' flag is
+ * specified, the pool's dirty data if any will simply be dropped if the pool
+ * is found in suspended state or gets suspended during the export.
  */
 int
 zpool_do_export(int argc, char **argv)
@@ -2515,7 +2519,8 @@ zpool_do_export(int argc, char **argv)
 	boolean_t do_all = B_FALSE;
 	boolean_t force = B_FALSE;
 	boolean_t hardforce = B_FALSE;
-	int c, ret;
+	zpool_handle_t *zhp;
+	int c, ret, i;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "afF")) != -1) {
@@ -2527,7 +2532,7 @@ zpool_do_export(int argc, char **argv)
 			force = B_TRUE;
 			break;
 		case 'F':
-			hardforce = B_TRUE;
+			force = hardforce = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -2574,8 +2579,24 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
-	    B_FALSE, zpool_export_one, &cb);
+	if (hardforce) {
+		/*
+		 * The hardforce code path should reach the kernel w/o extra
+		 * locks to break through and initiate forced exit.
+		 */
+		for (i = 0; i < argc; i++) {
+			zhp = zpool_open_unchecked(g_zfs, argv[i]);
+			if (zhp == NULL)
+				return (EINVAL);
+			ret = zpool_export_one(zhp, &cb);
+			zpool_close(zhp);
+			if (ret != 0)
+				return (ret);
+		}
+	} else {
+		ret = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, zpool_export_one, &cb);
+	}
 
 	return (ret);
 }

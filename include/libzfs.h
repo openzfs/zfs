@@ -246,6 +246,7 @@ _LIBZFS_H void libzfs_mnttab_remove(libzfs_handle_t *, const char *);
  */
 _LIBZFS_H zpool_handle_t *zpool_open(libzfs_handle_t *, const char *);
 _LIBZFS_H zpool_handle_t *zpool_open_canfail(libzfs_handle_t *, const char *);
+_LIBZFS_H zpool_handle_t *zpool_open_unchecked(libzfs_handle_t *, const char *);
 _LIBZFS_H void zpool_close(zpool_handle_t *);
 _LIBZFS_H const char *zpool_get_name(zpool_handle_t *);
 _LIBZFS_H int zpool_get_state(zpool_handle_t *);
@@ -476,6 +477,7 @@ _LIBZFS_H zpool_status_t zpool_get_status(zpool_handle_t *, const char **,
     zpool_errata_t *);
 _LIBZFS_H zpool_status_t zpool_import_status(nvlist_t *, const char **,
     zpool_errata_t *);
+_LIBZFS_H boolean_t zpool_suspended(zpool_status_t status);
 
 /*
  * Statistics and configuration functions.
@@ -499,6 +501,7 @@ _LIBZFS_H int zpool_import_props(libzfs_handle_t *, nvlist_t *, const char *,
     nvlist_t *, int);
 _LIBZFS_H void zpool_collect_unsup_feat(nvlist_t *config, char *buf,
     size_t size);
+_LIBZFS_H int zpool_set_forced_exit_required(zpool_handle_t *);
 
 /*
  * Miscellaneous pool functions
@@ -1067,8 +1070,9 @@ _LIBZFS_H int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *,
  */
 _LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int,
     uint_t);
-_LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t);
-_LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t);
+_LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t, boolean_t);
+_LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t,
+    boolean_t);
 _LIBZFS_H void zpool_disable_volume_os(const char *);
 
 /*

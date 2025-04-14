@@ -1607,7 +1607,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Core features - 89/128 numbers reserved.
+	 * Core features - 91/128 numbers reserved.
 	 */
 #ifdef __FreeBSD__
 	ZFS_IOC_FIRST =	0,
@@ -1706,6 +1706,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_POOL_SET_FORCED_EXIT_REQUIRED,	/* 0x5a5b */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

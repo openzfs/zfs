@@ -559,7 +559,7 @@ txg_sync_thread(void *arg)
 		 * harder to detect if another host is changing it when
 		 * resuming after a MMP suspend.
 		 */
-		if (spa_suspended(spa))
+		if (spa_suspended(spa) && !SPA_EXITING(spa))
 			continue;
 
 		/*
@@ -751,6 +751,10 @@ txg_wait_synced_flags(dsl_pool_t *dp, uint64_t txg, txg_wait_flag_t flags)
 				error = SET_ERROR(EINTR);
 				break;
 			}
+		} else if (flags & TXG_WAIT_SUSPEND) {
+			(void) cv_timedwait_io(&tx->tx_sync_done_cv,
+			    &tx->tx_sync_lock, ddi_get_lbolt() +
+			    SEC_TO_TICK(2 * zfs_txg_timeout));
 		} else {
 			/* Uninterruptable wait, until the condvar fires */
 			cv_wait_io(&tx->tx_sync_done_cv, &tx->tx_sync_lock);
