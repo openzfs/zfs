@@ -231,6 +231,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
+	ret = ret ? ret : -zfsvfs_error(ITOZSB(filp->f_mapping->host));
 	if (ret < 0)
 		return (ret);
 
@@ -281,6 +282,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
+	ret = ret ? ret : -zfsvfs_error(ITOZSB(ip));
 	if (ret < 0)
 		return (ret);
 
@@ -664,7 +666,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		wbc->sync_mode = sync_mode;
 		result = zpl_write_cache_pages(mapping, wbc, &for_sync);
 	}
-	return (result);
+	return (result ? result : -zfsvfs_error(zfsvfs));
 }
 
 #ifdef HAVE_VFS_WRITEPAGE
@@ -682,7 +684,9 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 
 	boolean_t for_sync = (wbc->sync_mode == WB_SYNC_ALL);
 
-	return (zpl_putpage(pp, wbc, &for_sync));
+	zfsvfs_t *zfsvfs = ITOZSB(pp->mapping->host);
+	int error = zpl_putpage(pp, wbc, &for_sync);
+	return (error ? error : -zfsvfs_error(zfsvfs));
 }
 #endif
 

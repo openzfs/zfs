@@ -1107,3 +1107,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, delete_inode, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, delete_dentry, INT, ZMOD_RW,
 	"Delete dentries from dentry cache as soon as the last reference is "
 	"released.");
+
+ZFS_MODULE_PARAM(zfs, zfs_, forced_unmount_level, UINT, ZMOD_RW,
+	"Enables extra help in addition to the standard Linux forced umount"
+	" facility");

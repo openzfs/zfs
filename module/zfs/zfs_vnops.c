@@ -127,7 +127,7 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 		error = zil_commit(zfsvfs->z_log, zp->z_id);
 		zfs_exit(zfsvfs, FTAG);
 	}
-	return (error);
+	return (error ? error : zfsvfs_error(zfsvfs));
 }
 
 
