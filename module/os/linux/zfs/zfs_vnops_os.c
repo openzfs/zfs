@@ -220,7 +220,7 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
 
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((error = zfs_enter_unmountingok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
 	/* Decrement the synchronous opens in the znode */

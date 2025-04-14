@@ -987,7 +987,7 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
 	int err = 0;
 
-	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((err = zfs_enter_unmountingok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (err);
 
 	dmu_objset_space(zfsvfs->z_os,
@@ -1058,7 +1058,7 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 	znode_t *rootzp;
 	int error;
 
-	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+	if ((error = zfs_enter_unmountingok(zfsvfs, FTAG)) != 0)
 		return (error);
 
 	error = zfs_zget(zfsvfs, zfsvfs->z_root, &rootzp);
