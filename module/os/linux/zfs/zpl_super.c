@@ -271,7 +271,7 @@ static int
 __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
 	int error;
-	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+	if ((error = zfs_enter_unmountingok(zfsvfs, FTAG)) != 0)
 		return (error);
 
 	char *fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);

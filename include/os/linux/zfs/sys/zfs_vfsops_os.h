@@ -39,6 +39,8 @@
 #include <sys/dsl_dataset.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/objlist.h>
+#include <sys/spa_impl.h>
+#include <sys/dmu_objset.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -228,6 +230,11 @@ typedef struct zfid_long {
 
 #define	SHORT_FID_LEN	(sizeof (zfid_short_t) - sizeof (uint16_t))
 #define	LONG_FID_LEN	(sizeof (zfid_long_t) - sizeof (uint16_t))
+
+#define	zfs_forcibly_unmounting(zfsvfs)				\
+	(((zfsvfs)->z_os && (zfsvfs)->z_os->os_spa)		\
+	? (zfsvfs)->z_os->os_spa->spa_forced_exit_required	\
+	: B_FALSE)
 
 extern void zfs_init(void);
 extern void zfs_fini(void);
