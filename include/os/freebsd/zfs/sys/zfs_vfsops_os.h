@@ -36,6 +36,7 @@
 #include <sys/rrwlock.h>
 #include <sys/rmlock.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/dmu_objset.h>
 
 #ifdef	__cplusplus
 extern "C" {
