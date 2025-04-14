@@ -986,9 +986,9 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 	 * without mounting it (O_PATH + fstatfs()).
 	 */
 	if (zfsctl_is_node(ip))
-		err = zfs_enter(zfsvfs, FTAG);
+		err = zfs_enter_unmountingok(zfsvfs, FTAG);
 	else
-		err = zfs_enter_verify_zp(zfsvfs, zp, FTAG);
+		err = zfs_enter_unmountingok_verify_zp(zfsvfs, zp, FTAG);
 	if (err != 0)
 		return (err);
 
@@ -1069,7 +1069,7 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 	znode_t *rootzp;
 	int error;
 
-	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+	if ((error = zfs_enter_unmountingok(zfsvfs, FTAG)) != 0)
 		return (error);
 
 	error = zfs_zget(zfsvfs, zfsvfs->z_root, &rootzp);
