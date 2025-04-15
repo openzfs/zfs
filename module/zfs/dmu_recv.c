@@ -3488,7 +3488,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	 * stream, then we free drc->drc_rrd and exit.
 	 */
 	while (rwa->err == 0) {
-		if (issig()) {
+		if (issig() || drc->drc_os->os_spa->spa_forced_exit_required) {
 			err = SET_ERROR(EINTR);
 			break;
 		}
