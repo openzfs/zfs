@@ -4028,6 +4028,26 @@ zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
 			    dgettext(TEXT_DOMAIN, "snapshot is cloned"));
 			ret = zfs_error(hdl, EZFS_EXISTS, errbuf);
 			break;
+		case EBUSY: {
+			nvlist_t *existing_holds;
+			int err = lzc_get_holds(nvpair_name(pair),
+			    &existing_holds);
+
+			/* check the presence of holders */
+			if (err == 0 && !nvlist_empty(existing_holds)) {
+				zfs_error_aux(hdl,
+				    dgettext(TEXT_DOMAIN, "it's being held. "
+				    "Run 'zfs holds -r %s' to see holders."),
+				    nvpair_name(pair));
+				ret = zfs_error(hdl, EBUSY, errbuf);
+			} else {
+				ret = zfs_standard_error(hdl, errno, errbuf);
+			}
+
+			if (err == 0)
+				nvlist_free(existing_holds);
+			break;
+		}
 		default:
 			ret = zfs_standard_error(hdl, errno, errbuf);
 			break;
