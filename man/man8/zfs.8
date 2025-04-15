@@ -37,7 +37,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 12, 2022
+.Dd April 18, 2025
 .Dt ZFS 8
 .Os
 .
@@ -297,6 +297,12 @@ removing the ability to access the dataset.
 .It Xr zfs-program 8
 Execute ZFS administrative operations
 programmatically via a Lua script-language channel program.
+.El
+.
+.Ss Data rewrite
+.Bl -tag -width ""
+.It Xr zfs-rewrite 8
+Rewrite specified files without modification.
 .El
 .
 .Ss Jails
