@@ -2603,7 +2603,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	while (err == 0 && !range->eos_marker) {
 		err = do_dump(&dsc, range);
 		range = get_next_range(&srt_arg->q, range);
-		if (issig())
+		if (issig() || os->os_spa->spa_forced_exit_required)
 			err = SET_ERROR(EINTR);
 	}
 
