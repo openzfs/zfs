@@ -1620,6 +1620,15 @@ typedef enum zfs_ioc {
 
 #endif
 
+typedef struct zfs_rewrite_args {
+	uint64_t	off;
+	uint64_t	len;
+	uint64_t	flags;
+	uint64_t	arg;
+} zfs_rewrite_args_t;
+
+#define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
+
 /*
  * ZFS-specific error codes used for returning descriptive errors
  * to the userland through zfs ioctls.

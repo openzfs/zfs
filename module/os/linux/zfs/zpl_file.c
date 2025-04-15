@@ -986,6 +986,27 @@ zpl_ioctl_setdosflags(struct file *filp, void __user *arg)
 	return (err);
 }
 
+static int
+zpl_ioctl_rewrite(struct file *filp, void __user *arg)
+{
+	struct inode *ip = file_inode(filp);
+	zfs_rewrite_args_t args;
+	fstrans_cookie_t cookie;
+	int err;
+
+	if (copy_from_user(&args, arg, sizeof (args)))
+		return (-EFAULT);
+
+	if (unlikely(!(filp->f_mode & FMODE_WRITE)))
+		return (-EBADF);
+
+	cookie = spl_fstrans_mark();
+	err = -zfs_rewrite(ITOZ(ip), args.off, args.len, args.flags, args.arg);
+	spl_fstrans_unmark(cookie);
+
+	return (err);
+}
+
 static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -1004,6 +1025,8 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_getdosflags(filp, (void *)arg));
 	case ZFS_IOC_SETDOSFLAGS:
 		return (zpl_ioctl_setdosflags(filp, (void *)arg));
+	case ZFS_IOC_REWRITE:
+		return (zpl_ioctl_rewrite(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}
