@@ -259,8 +259,9 @@ function rpm_build_and_install() {
 
     # ZFS release RPMs are built.  Copy them to the ~/zfs directory just to
     # keep all the RPMs in the same place.
-    cp ~/rpmbuild/RPMS/noarch/*.rpm .
-    cp ~/rpmbuild/SRPMS/*.rpm .
+    cp ~/rpmbuild/RPMS/noarch/*.rpm ~/zfs
+    cp ~/rpmbuild/SRPMS/*.rpm ~/zfs
+
     popd
     rm -fr ~/rpmbuild
     echo "##[endgroup]"
@@ -298,6 +299,17 @@ function deb_build_and_install() {
   run sudo apt-get -y install $(find ../ | grep -E '\.deb$' \
     | grep -Ev 'dkms|dracut')
   echo "##[endgroup]"
+}
+
+function build_tarball {
+  if [ -n "$REPO" ] ; then
+    ./autogen.sh
+    ./configure --with-config=srpm
+    make dist
+    mkdir -p /tmp/repo/releases
+    # The tarball name is based off of 'Version' field in the META file.
+    mv *.tar.gz /tmp/repo/releases/
+  fi
 }
 
 # Debug: show kernel cmdline
@@ -339,6 +351,13 @@ case "$OS" in
     ;;
   fedora*)
     rpm_build_and_install "$extra"
+
+    # Historically, we've always built the release tarballs on Fedora, since
+    # there was one instance long ago where we built them on CentOS 7, and they
+    # didn't work correctly for everyone.
+    if [ -n "$TARBALL" ] ; then
+        build_tarball
+    fi
     ;;
   debian*|ubuntu*)
     deb_build_and_install "$extra"
@@ -348,16 +367,6 @@ case "$OS" in
     ;;
 esac
 
-# Optionally build tarballs.  The tarball's root directory name will be named
-# after the current tag, like 'zfs-2.3.0' or 'master'.
-if [ -n "$TARBALL" ] ; then
-  tag="$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match)"
-  git archive --format=tar.gz -o $tag.tar.gz $tag
-  if [ -n "$REPO" ] ; then
-    mkdir -p /tmp/repo/releases
-    cp $tag.tar.gz /tmp/repo/releases
-  fi
-fi
 
 # building the zfs module was ok
 echo 0 > /var/tmp/build-exitcode.txt

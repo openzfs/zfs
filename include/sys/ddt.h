@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -341,6 +342,8 @@ extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
 
 extern void ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
     const blkptr_t *bp);
+extern void ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+    ddt_phys_variant_t v);
 extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
     ddt_phys_variant_t v);
 extern void ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
@@ -378,7 +381,8 @@ extern void ddt_enter(ddt_t *ddt);
 extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
-extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp);
+extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp,
+    boolean_t verify);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_prefetch_all(spa_t *spa);

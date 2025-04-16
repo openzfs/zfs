@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -1212,6 +1213,16 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 			    bp, (longlong_t)BPE_GET_PSIZE(bp));
 		}
 		return (errors ? ECKSUM : 0);
+	} else if (BP_IS_HOLE(bp)) {
+		/*
+		 * Holes are allowed (expected, even) to have no DVAs, no
+		 * checksum, and no psize.
+		 */
+		return (errors ? ECKSUM : 0);
+	} else if (unlikely(!DVA_IS_VALID(&bp->blk_dva[0]))) {
+		/* Non-hole, non-embedded BPs _must_ have at least one DVA */
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %px has no valid DVAs", bp);
 	}
 	if (unlikely(BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS)) {
 		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
@@ -3625,7 +3636,7 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * chain. We need to revert the entry back to what it was at
 		 * the last time it was successfully extended.
 		 */
-		ddt_phys_copy(ddp, orig, v);
+		ddt_phys_unextend(ddp, orig, v);
 		ddt_phys_clear(orig, v);
 
 		ddt_exit(ddt);
@@ -3708,7 +3719,13 @@ zio_ddt_write(zio_t *zio)
 	ASSERT3B(zio->io_prop.zp_direct_write, ==, B_FALSE);
 
 	ddt_enter(ddt);
-	dde = ddt_lookup(ddt, bp);
+	/*
+	 * Search DDT for matching entry.  Skip DVAs verification here, since
+	 * they can go only from override, and once we get here the override
+	 * pointer can't have "D" flag to be confused with pruned DDT entries.
+	 */
+	IMPLY(zio->io_bp_override, !BP_GET_DEDUP(zio->io_bp_override));
+	dde = ddt_lookup(ddt, bp, B_FALSE);
 	if (dde == NULL) {
 		/* DDT size is over its quota so no new entries */
 		zp->zp_dedup = B_FALSE;
@@ -3984,7 +4001,7 @@ zio_ddt_free(zio_t *zio)
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
 	ddt_enter(ddt);
-	freedde = dde = ddt_lookup(ddt, bp);
+	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
 	if (dde) {
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		if (v != DDT_PHYS_NONE)

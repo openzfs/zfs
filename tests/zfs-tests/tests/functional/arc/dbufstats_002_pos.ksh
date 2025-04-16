@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -42,7 +43,7 @@
 # 8. Ensure that at least some dbufs moved to the mfu list in the ARC
 #
 
-DBUFS_FILE=$(mktemp $TEST_BASE_DIR/dbufs.out.XXXXXX)
+DBUFS_FILE=$(mktemp -t dbufs.out.XXXXXX)
 
 function cleanup
 {

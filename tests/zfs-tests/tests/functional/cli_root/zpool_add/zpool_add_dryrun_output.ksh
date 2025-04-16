@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -154,11 +155,17 @@ for (( i=0; i < ${#tests[@]}; i+=1 )); do
 
 	log_must eval zpool create "$TESTPOOL" $tree
 	log_must poolexists "$TESTPOOL"
-	typeset out="$(log_must eval "zpool add -n '$TESTPOOL' $add" | \
-	    sed /^SUCCESS/d)"
-
+	typeset out
+	out="$(eval zpool add -n '$TESTPOOL' $add)"
+	if [[ $? -ne 0 ]]; then
+		log_fail eval "zpool add -n '$TESTPOOL' $add"
+	fi
 	if [[ "$out" != "$want" ]]; then
-		log_fail "Got:\n" "$out" "\nbut expected:\n" "$want"
+		log_note "Got:"
+		log_note "$out"
+		log_note "but expected:"
+		log_note "$want"
+		log_fail "Dry run does not display config correctly"
 	fi
 	log_must destroy_pool "$TESTPOOL"
 done
@@ -169,7 +176,11 @@ log_must eval "zpool create '$TESTPOOL' '${dev[0]}' log '${dev[1]}' \
 
 # Create a hole vdev.
 log_must eval "zpool remove '$TESTPOOL' '${dev[1]}'"
-log_mustnot eval "zpool add -n '$TESTPOOL' '${dev[1]}' | \
-    grep -qE '[[:space:]]+hole'"
+typeset out
+out="$(eval zpool add -n '$TESTPOOL' '${dev[1]}')"
+if [[ $? -ne 0 ]]; then
+    log_fail eval "zpool add -n '$TESTPOOL' '${dev[1]}'"
+fi
+log_mustnot grep -qE '[[:space:]]+hole' <<<"$out"
 
 log_pass "'zpool add -n <pool> <vdev> ...' displays config correctly."

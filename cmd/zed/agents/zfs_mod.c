@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -214,6 +215,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	vdev_stat_t *vs;
 	char **lines = NULL;
 	int lines_cnt = 0;
+	int rc;
 
 	/*
 	 * Get the persistent path, typically under the '/dev/disk/by-id' or
@@ -405,17 +407,17 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	}
 
 	nvlist_lookup_string(vdev, "new_devid", &new_devid);
-
 	if (is_mpath_wholedisk) {
 		/* Don't label device mapper or multipath disks. */
 		zed_log_msg(LOG_INFO,
 		    "  it's a multipath wholedisk, don't label");
-		if (zpool_prepare_disk(zhp, vdev, "autoreplace", &lines,
-		    &lines_cnt) != 0) {
+		rc = zpool_prepare_disk(zhp, vdev, "autoreplace", &lines,
+		    &lines_cnt);
+		if (rc != 0) {
 			zed_log_msg(LOG_INFO,
 			    "  zpool_prepare_disk: could not "
-			    "prepare '%s' (%s)", fullpath,
-			    libzfs_error_description(g_zfshdl));
+			    "prepare '%s' (%s), path '%s', rc = %d", fullpath,
+			    libzfs_error_description(g_zfshdl), path, rc);
 			if (lines_cnt > 0) {
 				zed_log_msg(LOG_INFO,
 				    "  zfs_prepare_disk output:");
@@ -446,12 +448,13 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		 * If this is a request to label a whole disk, then attempt to
 		 * write out the label.
 		 */
-		if (zpool_prepare_and_label_disk(g_zfshdl, zhp, leafname,
-		    vdev, "autoreplace", &lines, &lines_cnt) != 0) {
+		rc = zpool_prepare_and_label_disk(g_zfshdl, zhp, leafname,
+		    vdev, "autoreplace", &lines, &lines_cnt);
+		if (rc != 0) {
 			zed_log_msg(LOG_WARNING,
 			    "  zpool_prepare_and_label_disk: could not "
-			    "label '%s' (%s)", leafname,
-			    libzfs_error_description(g_zfshdl));
+			    "label '%s' (%s), rc = %d", leafname,
+			    libzfs_error_description(g_zfshdl), rc);
 			if (lines_cnt > 0) {
 				zed_log_msg(LOG_INFO,
 				"  zfs_prepare_disk output:");

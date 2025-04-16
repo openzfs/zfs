@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -383,7 +384,7 @@ bio_set_flush(struct bio *bio)
 static inline boolean_t
 bio_is_flush(struct bio *bio)
 {
-	return (bio_op(bio) == REQ_OP_FLUSH);
+	return (bio_op(bio) == REQ_OP_FLUSH || op_is_flush(bio->bi_opf));
 }
 
 /*

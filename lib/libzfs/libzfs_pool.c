@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -84,6 +85,7 @@ zpool_get_all_props(zpool_handle_t *zhp)
 		fnvlist_add_string_array(innvl, ZPOOL_GET_PROPS_NAMES,
 		    zhp->zpool_propnames, zhp->zpool_n_propnames);
 		zcmd_write_src_nvlist(hdl, &zc, innvl);
+		fnvlist_free(innvl);
 	}
 
 	zcmd_alloc_dst_nvlist(hdl, &zc, 0);
@@ -331,7 +333,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 	 */
 	if (prop == ZPOOL_PROP_DEDUPCACHED) {
 		zpool_add_propname(zhp, ZPOOL_DEDUPCACHED_PROP_NAME);
-		(void) zpool_get_all_props(zhp);
+		(void) zpool_props_refresh(zhp);
 	}
 
 	if (zhp->zpool_props == NULL && zpool_get_all_props(zhp) &&

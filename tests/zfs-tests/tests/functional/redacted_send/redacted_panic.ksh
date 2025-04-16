@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -28,7 +29,7 @@ typeset ds_name="panic"
 typeset sendfs="$POOL/$ds_name"
 typeset recvfs="$POOL2/$ds_name"
 typeset clone="$POOL/${ds_name}_clone"
-typeset stream=$(mktemp $TEST_BASE_DIR/stream.XXXX)
+typeset stream=$(mktemp -t stream.XXXX)
 
 function cleanup
 {

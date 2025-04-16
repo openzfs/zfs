@@ -163,6 +163,7 @@ if [ "${INSTALL}" = "yes" ]; then
 		install "$UDEV_RULE_DIR/$rule" "$INSTALL_UDEV_RULE_DIR/$rule"
 	done
 	install "$ZPOOL_SCRIPT_DIR"              "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	install "$ZPOOL_COMPAT_DIR"              "$INSTALL_PKGDATA_DIR/compatibility.d"
 	install "$CONTRIB_DIR/pyzfs/libzfs_core" "$INSTALL_PYTHON_DIR/libzfs_core"
 	# Ideally we would install these in the configured ${libdir}, which is
 	# by default "/usr/local/lib and unfortunately not included in the
@@ -179,6 +180,7 @@ else
 	remove "$INSTALL_UDEV_RULE_DIR/69-vdev.rules"
 	remove "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
 	remove "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	remove "$INSTALL_PKGDATA_DIR/compatibility.d"
 	remove "$INSTALL_PYTHON_DIR/libzfs_core"
 	remove "/lib/libzfs_core.so"
 	remove "/lib/libnvpair.so"

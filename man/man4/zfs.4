@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
@@ -151,7 +152,7 @@ transition to MRU, in which case the
 Setting it to 1 means to L2 cache only MFU data and metadata.
 .Pp
 Setting it to 2 means to L2 cache all metadata (MRU+MFU) but
-only MFU data (ie: MRU data are not cached). This can be the right setting
+only MFU data (i.e. MRU data are not cached). This can be the right setting
 to cache as much metadata as possible even when having high data turnover.
 .Pp
 Regardless of
@@ -236,7 +237,7 @@ in reading stored log metadata, or the metadata
 has become somehow fragmented/unusable).
 .
 .It Sy l2arc_rebuild_blocks_min_l2size Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
-Mininum size of an L2ARC device required in order to write log blocks in it.
+Minimum size of an L2ARC device required in order to write log blocks in it.
 The log blocks are used upon importing the pool to rebuild the persistent L2ARC.
 .Pp
 For L2ARC devices less than 1 GiB, the amount of data
@@ -571,16 +572,16 @@ most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
 .It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
-Determines the number of block alloctators to use per spa instance.
+Determines the number of block allocators to use per spa instance.
 Capped by the number of actual CPUs in the system via
 .Sy spa_cpus_per_allocator .
 .Pp
 Note that setting this value too high could result in performance
-degredation and/or excess fragmentation.
+degradation and/or excess fragmentation.
 Set value only applies to pools imported/created after that.
 .
 .It Sy spa_cpus_per_allocator Ns = Ns Sy 4 Pq int
-Determines the minimum number of CPUs in a system for block alloctator
+Determines the minimum number of CPUs in a system for block allocator
 per spa instance.
 Set value only applies to pools imported/created after that.
 .
@@ -1105,7 +1106,7 @@ Max memory to use for dedup logs, as a percentage of total memory.
 .Pp
 If
 .Sy zfs_dedup_log_mem_max
-is not set, it will be initialised as a percentage of the total memory in the
+is not set, it will be initialized as a percentage of the total memory in the
 system.
 .
 .It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
@@ -1281,7 +1282,7 @@ This should be less than
 .Sy zfs_vdev_async_write_active_min_dirty_percent .
 .
 .It Sy zfs_wrlog_data_max Ns = Pq int
-The upper limit of write-transaction zil log data size in bytes.
+The upper limit of write-transaction ZIL log data size in bytes.
 Write operations are throttled when approaching the limit until log data is
 cleared out after transaction group sync.
 Because of some overhead, it should be set at least 2 times the size of
@@ -1990,7 +1991,7 @@ as it typically results in leaked space, or worse.
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Ignore hard I/O errors during device removal.
 When set, if a device encounters a hard I/O error during the removal process
-the removal will not be cancelled.
+the removal will not be canceled.
 This can result in a normally recoverable block becoming permanently damaged
 and is hence not recommended.
 This should only be used as a last resort when the
@@ -2395,7 +2396,7 @@ This controls the number of threads used by
 .Sy dp_zil_clean_taskq .
 The default value of
 .Sy 100%
-will create a maximum of one thread per cpu.
+will create a maximum of one thread per CPU.
 .
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
@@ -2649,7 +2650,7 @@ and
 limits.
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
-Defines zvol block devices behaviour when
+Defines zvol block devices behavior when
 .Sy volmode Ns = Ns Sy default :
 .Bl -tag -compact -offset 4n -width "a"
 .It Sy 1

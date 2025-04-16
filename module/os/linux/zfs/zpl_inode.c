@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -21,6 +22,7 @@
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 
@@ -30,6 +32,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
 #include <sys/dmu_objset.h>
+#include <sys/spa_impl.h>
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <sys/file.h>
@@ -487,6 +490,17 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	if (request_mask & STATX_BTIME) {
 		stat->btime = zp->z_btime;
 		stat->result_mask |= STATX_BTIME;
+	}
+#endif
+
+#ifdef STATX_DIOALIGN
+	if (request_mask & STATX_DIOALIGN) {
+		uint64_t align;
+		if (zfs_get_direct_alignment(zp, &align) == 0) {
+			stat->dio_mem_align = PAGE_SIZE;
+			stat->dio_offset_align = align;
+			stat->result_mask |= STATX_DIOALIGN;
+		}
 	}
 #endif
 

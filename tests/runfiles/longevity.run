@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -17,7 +18,6 @@
 quiet = False
 user = root
 timeout = 10800
-outputdir = /var/tmp/test_results
 
 [/opt/zfs-tests/tests/longevity]
 tests = ['slop_space_test']

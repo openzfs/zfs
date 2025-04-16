@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-OpenZFS-ThirdParty-PublicDomain
 /*
  * Implementation of the Skein hash function.
  * Source code author: Doug Whiting, 2008.

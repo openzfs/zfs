@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -670,7 +671,6 @@ typedef struct blkptr {
 			    (u_longlong_t)DVA_GET_ASIZE(dva),		\
 			    ws);					\
 		}							\
-		ASSERT3S(copies, >, 0);					\
 		if (BP_IS_ENCRYPTED(bp)) {				\
 			len += func(buf + len, size - len,		\
 			    "salt=%llx iv=%llx:%llx%c",			\
@@ -679,10 +679,6 @@ typedef struct blkptr {
 			    (u_longlong_t)BP_GET_IV2(bp),		\
 			    ws);					\
 		}							\
-		if (BP_IS_GANG(bp) &&					\
-		    DVA_GET_ASIZE(&bp->blk_dva[2]) <=			\
-		    DVA_GET_ASIZE(&bp->blk_dva[1]) / 2)			\
-			copies--;					\
 		len += func(buf + len, size - len,			\
 		    "[L%llu %s] %s %s %s %s %s %s %s%c"			\
 		    "size=%llxL/%llxP birth=%lluL/%lluP fill=%llu%c"	\
@@ -788,6 +784,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_L2CACHE_TRIM			0x1000
 #define	SPA_ASYNC_REBUILD_DONE			0x2000
 #define	SPA_ASYNC_DETACH_SPARE			0x4000
+#define	SPA_ASYNC_REMOVE_BY_USER		0x8000
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t ashift_check);
@@ -1182,7 +1179,7 @@ extern void zfs_ereport_taskq_fini(void);
 extern void zfs_ereport_clear(spa_t *spa, vdev_t *vd);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);
-extern void zfs_post_remove(spa_t *spa, vdev_t *vd);
+extern void zfs_post_remove(spa_t *spa, vdev_t *vd, boolean_t by_kernel);
 extern void zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate);
 extern void zfs_post_autoreplace(spa_t *spa, vdev_t *vd);
 extern uint64_t spa_approx_errlog_size(spa_t *spa);
