@@ -2263,8 +2263,10 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	dbuf_dirty_record_t *dr;
 	void *data;
 
-	if (db->db_dirtycnt == 0)
+	if (db->db_dirtycnt == 0) {
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		return (db->db.db_data);  /* Nothing is changing */
+	}
 
 	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 
