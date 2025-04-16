@@ -62,7 +62,7 @@ main(int argc, char **argv)
 	offset_t	llseek_ret = 0;
 	int		write_ret = 0;
 	int		err = 0;
-	char		mybuf[5] = "aaaa\0";
+	char		mybuf[5] = "aaaa";
 	char		*testfile;
 	mode_t		mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	struct sigaction sa;
