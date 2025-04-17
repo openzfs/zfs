@@ -68,6 +68,11 @@ case "$OS" in
     OSv="fedora-unknown"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
     ;;
+  fedora42)
+    OSNAME="Fedora 42"
+    OSv="fedora-unknown"
+    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+    ;;
   freebsd13-4r)
     OSNAME="FreeBSD 13.4-RELEASE"
     OSv="freebsd13.0"
