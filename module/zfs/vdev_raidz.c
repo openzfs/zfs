@@ -2235,6 +2235,33 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 	mutex_exit(&vdrz->vd_expand_lock);
 	return (width);
 }
+/*
+ * This code converts an asize into the largest psize that can safely be written
+ * to an allocation of that size for this vdev.
+ *
+ * Note that this function will not take into account the effect of gang
+ * headers, which also modify the ASIZE of the DVAs. It is purely a reverse of
+ * the psize_to_asize function.
+ */
+static uint64_t
+vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t psize;
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
+	uint64_t cols = vdrz->vd_original_width;
+	uint64_t nparity = vdrz->vd_nparity;
+
+	cols = vdev_raidz_get_logical_width(vdrz, txg);
+
+	ASSERT0(asize % (1 << ashift));
+
+	psize = (asize >> ashift);
+	psize -= nparity * DIV_ROUND_UP(psize, cols);
+	psize <<= ashift;
+
+	return (asize);
+}
 
 /*
  * Note: If the RAIDZ vdev has been expanded, older BP's may have allocated
@@ -2245,7 +2272,7 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
  * allocate P+1 sectors regardless of width ("cols", which is at least P+1).
  */
 static uint64_t
-vdev_raidz_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
+vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
@@ -2309,7 +2336,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
-	    vdev_raidz_asize(zio->io_vd, rr->rr_size,
+	    vdev_raidz_psize_to_asize(zio->io_vd, rr->rr_size,
 	    BP_GET_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
@@ -5093,7 +5120,8 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_fini = vdev_raidz_fini,
 	.vdev_op_open = vdev_raidz_open,
 	.vdev_op_close = vdev_raidz_close,
-	.vdev_op_asize = vdev_raidz_asize,
+	.vdev_op_psize_to_asize = vdev_raidz_psize_to_asize,
+	.vdev_op_asize_to_psize = vdev_raidz_asize_to_psize,
 	.vdev_op_min_asize = vdev_raidz_min_asize,
 	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_raidz_io_start,

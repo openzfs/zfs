@@ -185,7 +185,8 @@ zfs_refcount_remove_many(zfs_refcount_t *rc, uint64_t number,
 	ASSERT3U(rc->rc_count, >=, number);
 	ref = avl_find(&rc->rc_tree, &s, NULL);
 	if (unlikely(ref == NULL)) {
-		panic("No such hold %p on refcount %llx", holder,
+		PANIC("No such hold %llx on refcount %llx",
+		    (u_longlong_t)(uintptr_t)holder,
 		    (u_longlong_t)(uintptr_t)rc);
 		return (-1);
 	}
