@@ -1275,33 +1275,6 @@ dbuf_alloc_arcbuf(dmu_buf_impl_t *db)
 }
 
 /*
- * Loan out an arc_buf for read.  Return the loaned arc_buf.
- */
-arc_buf_t *
-dbuf_loan_arcbuf(dmu_buf_impl_t *db)
-{
-	arc_buf_t *abuf;
-
-	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-	mutex_enter(&db->db_mtx);
-	if (arc_released(db->db_buf) || zfs_refcount_count(&db->db_holds) > 1) {
-		int blksz = db->db.db_size;
-		spa_t *spa = db->db_objset->os_spa;
-
-		mutex_exit(&db->db_mtx);
-		abuf = arc_loan_buf(spa, B_FALSE, blksz);
-		memcpy(abuf->b_data, db->db.db_data, blksz);
-	} else {
-		abuf = db->db_buf;
-		arc_loan_inuse_buf(abuf, db);
-		db->db_buf = NULL;
-		dbuf_clear_data(db);
-		mutex_exit(&db->db_mtx);
-	}
-	return (abuf);
-}
-
-/*
  * Calculate which level n block references the data at the level 0 offset
  * provided.
  */
@@ -5390,7 +5363,6 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 EXPORT_SYMBOL(dbuf_find);
 EXPORT_SYMBOL(dbuf_is_metadata);
 EXPORT_SYMBOL(dbuf_destroy);
-EXPORT_SYMBOL(dbuf_loan_arcbuf);
 EXPORT_SYMBOL(dbuf_whichblock);
 EXPORT_SYMBOL(dbuf_read);
 EXPORT_SYMBOL(dbuf_unoverride);
