@@ -352,6 +352,8 @@ extern ddt_phys_variant_t ddt_phys_select(const ddt_t *ddt,
     const ddt_entry_t *dde, const blkptr_t *bp);
 extern uint64_t ddt_phys_birth(const ddt_univ_phys_t *ddp,
     ddt_phys_variant_t v);
+extern int ddt_phys_is_gang(const ddt_univ_phys_t *ddp,
+    ddt_phys_variant_t v);
 extern int ddt_phys_dva_count(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
     boolean_t encrypted);
 
