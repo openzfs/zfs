@@ -79,7 +79,7 @@ function do_setup
 {
 	log_must truncate -s 5G $VDEV_GENERAL
 	# Use 'xattr=sa' to prevent selinux xattrs influencing our accounting
-	log_must zpool create -o ashift=12 -f -O xattr=sa -m $MOUNTDIR $POOL $VDEV_GENERAL
+	log_must zpool create -f -O xattr=sa -m $MOUNTDIR $POOL $VDEV_GENERAL
 	log_must zfs set compression=off dedup=on $POOL
 }
 
@@ -189,31 +189,30 @@ function ddt_dedup_vdev_limit
 	# add a dedicated dedup/special VDEV and enable an automatic quota
 	if (( RANDOM % 2 == 0 )) ; then
 		class="special"
+		size="200M"
 	else
 		class="dedup"
+		size="100M"
 	fi
-	log_must truncate -s 200M $VDEV_DEDUP
+	log_must truncate -s $size $VDEV_DEDUP
 	log_must zpool add $POOL $class $VDEV_DEDUP
 	log_must zpool set dedup_table_quota=auto $POOL
 
 	log_must zfs set recordsize=1K $POOL
-	log_must zfs set compression=zstd $POOL
 
 	# Generate a working set to fill up the dedup/special allocation class
-	log_must fio --directory=$MOUNTDIR --name=dedup-filler-1 \
-		--rw=read --bs=1m --numjobs=2 --iodepth=8 \
-		--size=512M --end_fsync=1 --ioengine=posixaio --runtime=1 \
-		--group_reporting --fallocate=none --output-format=terse \
-		--dedupe_percentage=0
-	log_must sync_pool $POOL
+	for i in {0..63}; do
+		log_must dd if=/dev/urandom of=$MOUNTDIR/file${i} bs=1M count=16
+		log_must sync_pool $POOL
+	done
 
 	zpool status -D $POOL
 	zpool list -v $POOL
 	echo DDT size $(dedup_table_size), with $(ddt_entries) entries
 
 	#
-	# With no DDT quota in place, the above workload will produce over
-	# 800,000 entries by using space in the normal class. With a quota, it
+	# With no DDT quota in place, the above workload will produce up to
+	# 1M of entries by using space in the normal class. With a quota, it
 	# should be well under 500,000. However, logged entries are hard to
 	# account for because they can appear on both logs, and can also
 	# represent an eventual removal. This isn't easily visible from
