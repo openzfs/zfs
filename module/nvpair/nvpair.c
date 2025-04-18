@@ -3681,6 +3681,240 @@ nvs_xdr(nvstream_t *nvs, nvlist_t *nvl, char *buf, size_t *buflen)
 	return (err);
 }
 
+#define	NVP(buf, size, len, buf_end, elem, type, vtype, ptype, format) { \
+	vtype	value; \
+	int rc; \
+\
+	(void) nvpair_value_##type(elem, &value); \
+	rc = snprintf(buf, size, "%*s%s: " format "\n", indent, "", \
+	nvpair_name(elem), (ptype)value); \
+	if (rc < 0) \
+		return (rc); \
+	size = MAX((int)size - rc, 0); \
+	buf = size == 0 ? NULL : buf_end - size; \
+	len += rc; \
+}
+
+#define	NVPA(buf, size, len, buf_end, elem, type, vtype, ptype, format) \
+{ \
+	uint_t	i, count; \
+	vtype	*value;  \
+	int rc; \
+\
+	(void) nvpair_value_##type(elem, &value, &count); \
+	for (i = 0; i < count; i++) { \
+		rc = snprintf(buf, size, "%*s%s[%d]: " format "\n", indent, \
+		"", nvpair_name(elem), i, (ptype)value[i]); \
+		if (rc < 0) \
+			return (rc); \
+		size = MAX((int)size - rc, 0); \
+		buf = size == 0 ? NULL : buf_end - size; \
+		len += rc; \
+	} \
+}
+
+/*
+ * snprintf() version of dump_nvlist()
+ *
+ * Works just like snprintf(), but with an nvlist and indent count as args.
+ *
+ * Output is similar to nvlist_print() but handles arrays slightly differently.
+ *
+ * Return value matches C99 snprintf() return value conventions.
+ */
+int
+nvlist_snprintf(char *buf, size_t size, nvlist_t *list, int indent)
+{
+	nvpair_t	*elem = NULL;
+	boolean_t	bool_value;
+	nvlist_t	*nvlist_value;
+	nvlist_t	**nvlist_array_value;
+	uint_t		i, count;
+	int len = 0;
+	int rc;
+	char *buf_end = &buf[size];
+
+	if (list == NULL)
+		return (0);
+
+	while ((elem = nvlist_next_nvpair(list, elem)) != NULL) {
+		switch (nvpair_type(elem)) {
+		case DATA_TYPE_BOOLEAN:
+			rc = snprintf(buf, size, "%*s%s\n", indent, "",
+			    nvpair_name(elem));
+			if (rc < 0)
+				return (rc);
+			size = MAX((int)size - rc, 0);
+			buf = size == 0 ? NULL : buf_end - size;
+			len += rc;
+			break;
+
+		case DATA_TYPE_BOOLEAN_VALUE:
+			(void) nvpair_value_boolean_value(elem, &bool_value);
+			rc = snprintf(buf, size, "%*s%s: %s\n", indent, "",
+			    nvpair_name(elem), bool_value ? "true" : "false");
+			if (rc < 0)
+				return (rc);
+			size = MAX((int)size - rc, 0);
+			buf = size == 0 ? NULL : buf_end - size;
+			len += rc;
+			break;
+
+		case DATA_TYPE_BYTE:
+			NVP(buf, size, len, buf_end, elem, byte, uchar_t, int,
+			    "%u");
+			break;
+
+		case DATA_TYPE_INT8:
+			NVP(buf, size, len, buf_end, elem, int8, int8_t, int,
+			    "%d");
+			break;
+
+		case DATA_TYPE_UINT8:
+			NVP(buf, size, len, buf_end, elem, uint8, uint8_t, int,
+			    "%u");
+			break;
+
+		case DATA_TYPE_INT16:
+			NVP(buf, size, len, buf_end, elem, int16, int16_t, int,
+			    "%d");
+			break;
+
+		case DATA_TYPE_UINT16:
+			NVP(buf, size, len, buf_end, elem, uint16, uint16_t,
+			    int, "%u");
+			break;
+
+		case DATA_TYPE_INT32:
+			NVP(buf, size, len, buf_end, elem, int32, int32_t,
+			    long, "%ld");
+			break;
+
+		case DATA_TYPE_UINT32:
+			NVP(buf, size, len, buf_end, elem, uint32, uint32_t,
+			    ulong_t, "%lu");
+			break;
+
+		case DATA_TYPE_INT64:
+			NVP(buf, size, len, buf_end, elem, int64, int64_t,
+			    longlong_t, "%lld");
+			break;
+
+		case DATA_TYPE_UINT64:
+			NVP(buf, size, len, buf_end, elem, uint64, uint64_t,
+			    u_longlong_t, "%llu");
+			break;
+
+		case DATA_TYPE_STRING:
+			NVP(buf, size, len, buf_end, elem, string, const char *,
+			    const char *, "'%s'");
+			break;
+
+		case DATA_TYPE_BYTE_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, byte_array, uchar_t,
+			    int, "%u");
+			break;
+
+		case DATA_TYPE_INT8_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, int8_array, int8_t,
+			    int, "%d");
+			break;
+
+		case DATA_TYPE_UINT8_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, uint8_array,
+			    uint8_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT16_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, int16_array,
+			    int16_t, int, "%d");
+			break;
+
+		case DATA_TYPE_UINT16_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, uint16_array,
+			    uint16_t, int, "%u");
+			break;
+
+		case DATA_TYPE_INT32_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, int32_array,
+			    int32_t, long, "%ld");
+			break;
+
+		case DATA_TYPE_UINT32_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, uint32_array,
+			    uint32_t, ulong_t, "%lu");
+			break;
+
+		case DATA_TYPE_INT64_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, int64_array,
+			    int64_t, longlong_t, "%lld");
+			break;
+
+		case DATA_TYPE_UINT64_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, uint64_array,
+			    uint64_t, u_longlong_t, "%llu");
+			break;
+
+		case DATA_TYPE_STRING_ARRAY:
+			NVPA(buf, size, len, buf_end, elem, string_array,
+			    const char *, const char *, "'%s'");
+			break;
+
+		case DATA_TYPE_NVLIST:
+			(void) nvpair_value_nvlist(elem, &nvlist_value);
+
+			rc = snprintf(buf, size, "%*s%s:\n", indent, "",
+			    nvpair_name(elem));
+			if (rc < 0)
+				return (rc);
+			size = MAX((int)size - rc, 0);
+			buf = size == 0 ? NULL : buf_end - size;
+			len += rc;
+
+			rc = nvlist_snprintf(buf, size, nvlist_value,
+			    indent + 4);
+			if (rc < 0)
+				return (rc);
+			size = MAX((int)size - rc, 0);
+			buf = size == 0 ? NULL : buf_end - size;
+			len += rc;
+			break;
+
+		case DATA_TYPE_NVLIST_ARRAY:
+			(void) nvpair_value_nvlist_array(elem,
+			    &nvlist_array_value, &count);
+			for (i = 0; i < count; i++) {
+				rc = snprintf(buf, size, "%*s%s[%u]:\n",
+				    indent, "", nvpair_name(elem), i);
+				if (rc < 0)
+					return (rc);
+				size = MAX((int)size - rc, 0);
+				buf = size == 0 ? NULL : buf_end - size;
+				len += rc;
+
+				rc = nvlist_snprintf(buf, size,
+				    nvlist_array_value[i], indent + 4);
+				if (rc < 0)
+					return (rc);
+				size = MAX((int)size - rc, 0);
+				buf = size == 0 ? NULL : buf_end - size;
+				len += rc;
+			}
+			break;
+
+		default:
+			rc = snprintf(buf, size, "bad config type %d for %s\n",
+			    nvpair_type(elem), nvpair_name(elem));
+			if (rc < 0)
+				return (rc);
+			size = MAX((int)size - rc, 0);
+			buf = size == 0 ? NULL : buf_end - size;
+			len += rc;
+		}
+	}
+	return (len);
+}
+
 EXPORT_SYMBOL(nv_alloc_init);
 EXPORT_SYMBOL(nv_alloc_reset);
 EXPORT_SYMBOL(nv_alloc_fini);
@@ -3765,6 +3999,8 @@ EXPORT_SYMBOL(nvlist_lookup_pairs);
 
 EXPORT_SYMBOL(nvlist_lookup_nvpair);
 EXPORT_SYMBOL(nvlist_exists);
+
+EXPORT_SYMBOL(nvlist_snprintf);
 
 /* processing nvpair */
 EXPORT_SYMBOL(nvpair_name);

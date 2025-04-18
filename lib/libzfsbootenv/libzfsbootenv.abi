@@ -1,6 +1,6 @@
 <abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfsbootenv.so.1'>
   <elf-needed>
-    <dependency name='libzfs.so.4'/>
+    <dependency name='libzfs.so.6'/>
     <dependency name='libnvpair.so.3'/>
     <dependency name='libc.so.6'/>
   </elf-needed>
