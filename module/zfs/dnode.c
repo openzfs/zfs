@@ -1510,7 +1510,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	 * if we get the encrypted or decrypted version.
 	 */
 	err = dbuf_read(db, NULL, DB_RF_CANFAIL |
-	    DB_RF_NO_DECRYPT | DB_RF_NOPREFETCH);
+	    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
 	if (err) {
 		DNODE_STAT_BUMP(dnode_hold_dbuf_read);
 		dbuf_rele(db, FTAG);
@@ -2578,7 +2578,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		}
 		error = dbuf_read(db, NULL,
 		    DB_RF_CANFAIL | DB_RF_HAVESTRUCT |
-		    DB_RF_NO_DECRYPT | DB_RF_NOPREFETCH);
+		    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
 		if (error) {
 			dbuf_rele(db, FTAG);
 			return (error);
