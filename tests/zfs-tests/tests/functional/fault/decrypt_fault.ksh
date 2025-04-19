@@ -47,9 +47,14 @@ log_must eval "echo 'password' | zfs create -o encryption=on \
 mntpt=$(get_prop mountpoint $TESTPOOL/fs)
 log_must mkfile 32M $mntpt/file1
 
-log_must zinject -a -t data -e decrypt -f 20 $mntpt/file1
-log_must zfs umount $TESTPOOL/fs
+# Remember guid to reimport so we don't import wrong pool
+guid="$(zpool get guid $TESTPOOL -Ho value)"
+# Reimport the pool to clear cache
+log_must zpool export $TESTPOOL
+log_must zpool import "$guid"
+log_must eval "echo 'password' | zfs load-key $TESTPOOL/fs"
 log_must zfs mount $TESTPOOL/fs
+log_must zinject -a -t data -e decrypt -f 20 $mntpt/file1
 
 log_mustnot eval "cat $mntpt/file1 > /dev/null"
 # Events are not supported on FreeBSD
