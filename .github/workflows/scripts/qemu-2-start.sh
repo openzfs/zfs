@@ -25,6 +25,9 @@ UBMIRROR="https://mirror.citrahost.com/ubuntu-cloud-images"
 # default nic model for vm's
 NIC="virtio"
 
+# use KSM only for linux
+KSM=1
+
 case "$OS" in
   almalinux8)
     OSNAME="AlmaLinux 8"
@@ -79,12 +82,14 @@ case "$OS" in
     URLzs="$FREEBSD/amd64-freebsd-13.4-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
+    KSM=0
     ;;
   freebsd14-2r)
     OSNAME="FreeBSD 14.2-RELEASE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.2-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
+    KSM=0
     ;;
   freebsd13-4s)
     OSNAME="FreeBSD 13.4-STABLE"
@@ -92,18 +97,21 @@ case "$OS" in
     URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
+    KSM=0
     ;;
   freebsd14-2s)
     OSNAME="FreeBSD 14.2-STABLE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.2-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
+    KSM=0
     ;;
   freebsd15-0c)
     OSNAME="FreeBSD 15.0-CURRENT"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-15.0-CURRENT.qcow2.zst"
     BASH="/usr/local/bin/bash"
+    KSM=0
     ;;
   tumbleweed)
     OSNAME="openSUSE Tumbleweed"
@@ -141,6 +149,9 @@ echo 'RESPATH="/var/tmp/test_results"' >> $ENV
 
 # FreeBSD 13 has problems with: e1000+virtio
 echo "NIC=$NIC" >> $ENV
+
+# KSM usage 1/0
+echo "KSM=$KSM" >> $ENV
 
 # freebsd15 -> used in zfs-qemu.yml
 echo "OS=$OS" >> $ENV

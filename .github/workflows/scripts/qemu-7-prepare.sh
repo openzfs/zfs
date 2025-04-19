@@ -34,6 +34,7 @@ for i in $(seq 1 $VMs); do
   scp zfs@vm$i:"/var/tmp/*.rpm" $RESPATH/vm$i || true
 done
 cp -f /var/tmp/*.txt $RESPATH || true
+cp -f /var/log/ksmtuned.log $RESPATH || true
 cd $RESPATH
 
 # prepare result files for summary

@@ -97,12 +97,23 @@ echo "*******************************************************"
 date
 uptime
 free -m
+
+# don't waste memory with buffering
+echo "dropped caches free:"
+sync
+echo 3 > /proc/sys/vm/drop_caches
+free -m
+
 df -h /mnt/tests
 zfs list
 EOF
+
+# disable informational drop_cache messages in klog
+echo 4 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+
 sudo chmod +x cronjob.sh
 sudo mv -f cronjob.sh /root/cronjob.sh
-echo '*/5 * * * *  /root/cronjob.sh' > crontab.txt
+echo '*/2 * * * *  /root/cronjob.sh' > crontab.txt
 sudo crontab crontab.txt
 rm crontab.txt
 

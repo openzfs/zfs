@@ -19,26 +19,24 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -q -N ""
 # we expect RAM shortage
 cat << EOF | sudo tee /etc/ksmtuned.conf > /dev/null
 # /etc/ksmtuned.conf - Configuration file for ksmtuned
-# https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/virtualization_tuning_and_optimization_guide/chap-ksm
-KSM_MONITOR_INTERVAL=60
-
-# Millisecond sleep between ksm scans for 16Gb server.
-# Smaller servers sleep more, bigger sleep less.
-KSM_SLEEP_MSEC=30
+KSM_MONITOR_INTERVAL=30
+KSM_SLEEP_MSEC=20
 
 KSM_NPAGES_BOOST=0
 KSM_NPAGES_DECAY=0
-KSM_NPAGES_MIN=1000
-KSM_NPAGES_MAX=25000
+KSM_NPAGES_MIN=100
+KSM_NPAGES_MAX=10000
 
-KSM_THRES_COEF=80
-KSM_THRES_CONST=8192
+KSM_THRES_COEF=75
+KSM_THRES_CONST=4096
 
 LOGFILE=/var/log/ksmtuned.log
 DEBUG=1
 EOF
-sudo systemctl restart ksm
-sudo systemctl restart ksmtuned
+
+# start it later - for the testings
+sudo systemctl stop ksm
+sudo systemctl stop ksmtuned
 
 # not needed
 sudo systemctl stop docker.socket
@@ -89,5 +87,5 @@ sudo zpool create -f -o ashift=12 zpool $SSD1 $SSD2 \
 
 # no need for some scheduler
 for i in /sys/block/s*/queue/scheduler; do
-  echo "none" | sudo tee $i > /dev/null
+  echo "none" | sudo tee $i
 done
