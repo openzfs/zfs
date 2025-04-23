@@ -833,7 +833,7 @@ usage(void)
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
-	zdb_exit(1);
+	zdb_exit(2);
 }
 
 static void
@@ -9666,7 +9666,7 @@ main(int argc, char **argv)
 		} else if (objset_str && !zdb_numeric(objset_str + 1) &&
 		    dump_opt['N']) {
 			printf("Supply a numeric objset ID with -N\n");
-			error = 1;
+			error = 2;
 			goto fini;
 		}
 	} else {
