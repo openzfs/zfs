@@ -14,7 +14,7 @@ OSv=$OS
 
 # compressed with .zst extension
 REPO="https://github.com/mcmilk/openzfs-freebsd-images"
-FREEBSD="$REPO/releases/download/v2024-12-14"
+FREEBSD="$REPO/releases/download/v2025-04-13"
 URLzs=""
 
 # Ubuntu mirrors
@@ -37,8 +37,6 @@ case "$OS" in
   archlinux)
     OSNAME="Archlinux"
     URL="https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
-    # dns sometimes fails with that url  :/
-    echo "89.187.191.12  geo.mirror.pkgbuild.com" | sudo tee /etc/hosts > /dev/null
     ;;
   centos-stream10)
     OSNAME="CentOS Stream 10"
@@ -80,16 +78,29 @@ case "$OS" in
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
     ;;
+  freebsd13-5r)
+    OSNAME="FreeBSD 13.5-RELEASE"
+    OSv="freebsd13.0"
+    URLzs="$FREEBSD/amd64-freebsd-13.5-RELEASE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    NIC="rtl8139"
+    ;;
+  freebsd14-1r)
+    OSNAME="FreeBSD 14.1-RELEASE"
+    OSv="freebsd14.0"
+    URLzs="$FREEBSD/amd64-freebsd-14.1-RELEASE.qcow2.zst"
+    BASH="/usr/local/bin/bash"
+    ;;
   freebsd14-2r)
     OSNAME="FreeBSD 14.2-RELEASE"
     OSv="freebsd14.0"
     URLzs="$FREEBSD/amd64-freebsd-14.2-RELEASE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     ;;
-  freebsd13-4s)
-    OSNAME="FreeBSD 13.4-STABLE"
+  freebsd13-5s)
+    OSNAME="FreeBSD 13.5-STABLE"
     OSv="freebsd13.0"
-    URLzs="$FREEBSD/amd64-freebsd-13.4-STABLE.qcow2.zst"
+    URLzs="$FREEBSD/amd64-freebsd-13.5-STABLE.qcow2.zst"
     BASH="/usr/local/bin/bash"
     NIC="rtl8139"
     ;;
