@@ -49,7 +49,6 @@ function cleanup
 		destroy_pool $TESTPOOL1
 	fi
 
-	kill $killpid >/dev/null 2>&1
 	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
@@ -59,7 +58,7 @@ log_onexit cleanup
 
 specials_list=""
 for i in 0 1 2; do
-	mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
+	log_must mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 done
 disk=($specials_list)
@@ -68,15 +67,9 @@ create_pool $TESTPOOL1 $specials_list
 log_must zfs create $TESTPOOL1/$TESTFS1
 log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-file_trunc -f $((64 * 1024 * 1024)) -b 8192 -c 0 -r $TESTDIR/$TESTFILE1 &
-typeset killpid="$! "
-
 for i in 0 1 2; do
 	log_mustnot zpool offline $TESTPOOL1 ${disk[$i]}
 	check_state $TESTPOOL1 ${disk[$i]} "online"
 done
-
-log_must kill $killpid
-sync_all_pools
 
 log_pass
