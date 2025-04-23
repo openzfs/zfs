@@ -127,6 +127,7 @@ static zfs_range_tree_t *mos_refd_objs;
 static spa_t *spa;
 static objset_t *os;
 static boolean_t kernel_init_done;
+static boolean_t corruption_found = B_FALSE;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
@@ -250,6 +251,7 @@ sublivelist_verify_func(void *args, dsl_deadlist_entry_t *dle)
 		    &e->svbr_blk, B_TRUE);
 		(void) printf("\tERROR: %d unmatched FREE(s): %s\n",
 		    e->svbr_refcnt, blkbuf);
+		corruption_found = B_TRUE;
 	}
 	zfs_btree_destroy(&sv->sv_pair);
 
@@ -405,6 +407,7 @@ verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
 			    (u_longlong_t)DVA_GET_ASIZE(&found->svb_dva),
 			    (u_longlong_t)found->svb_allocated_txg,
 			    (u_longlong_t)txg);
+			corruption_found = B_TRUE;
 		}
 	}
 }
@@ -439,6 +442,7 @@ metaslab_spacemap_validation_cb(space_map_entry_t *sme, void *arg)
 			    (u_longlong_t)txg, (u_longlong_t)offset,
 			    (u_longlong_t)size, (u_longlong_t)mv->mv_vdid,
 			    (u_longlong_t)mv->mv_msid);
+			corruption_found = B_TRUE;
 		} else {
 			zfs_range_tree_remove(mv->mv_allocated,
 			    offset, size);
@@ -542,6 +546,7 @@ mv_populate_livelist_allocs(metaslab_verify_t *mv, sublivelist_verify_t *sv)
 			    (u_longlong_t)DVA_GET_VDEV(&svb->svb_dva),
 			    (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
 			    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva));
+			corruption_found = B_TRUE;
 			continue;
 		}
 
@@ -655,6 +660,7 @@ livelist_metaslab_validate(spa_t *spa)
 	}
 	(void) printf("ERROR: Found livelist blocks marked as allocated "
 	    "for indirect vdevs:\n");
+	corruption_found = B_TRUE;
 
 	zfs_btree_index_t *where = NULL;
 	sublivelist_verify_block_t *svb;
@@ -2615,11 +2621,13 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 			(void) printf(" (ERROR: Block pointer type "
 			    "(%llu) does not match dnode type (%hhu))",
 			    BP_GET_TYPE(bp), dnp->dn_type);
+			corruption_found = B_TRUE;
 		}
 		if (BP_GET_LEVEL(bp) != zb->zb_level) {
 			(void) printf(" (ERROR: Block pointer level "
 			    "(%llu) does not match bookmark level (%ld))",
 			    BP_GET_LEVEL(bp), zb->zb_level);
+			corruption_found = B_TRUE;
 		}
 	}
 	(void) printf("\n");
@@ -2673,6 +2681,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 				    "fill (%llu) does not match calculated "
 				    "value (%lu)\n", offset, BP_GET_FILL(bp),
 				    fill);
+				corruption_found = B_TRUE;
 			}
 		}
 		arc_buf_destroy(buf, &buf);
@@ -2930,6 +2939,7 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 				(void) printf("ERROR %u while trying to open "
 				    "subobj id %llu\n",
 				    error, (u_longlong_t)subobj);
+				corruption_found = B_TRUE;
 				continue;
 			}
 			dump_full_bpobj(&subbpo, "subobj", indent + 1);
@@ -3109,6 +3119,7 @@ bpobj_count_refd(bpobj_t *bpo)
 				(void) printf("ERROR %u while trying to open "
 				    "subobj id %llu\n",
 				    error, (u_longlong_t)subobj);
+				corruption_found = B_TRUE;
 				continue;
 			}
 			bpobj_count_refd(&subbpo);
@@ -9956,6 +9967,9 @@ fini:
 
 	if (kernel_init_done)
 		kernel_fini();
+
+	if (corruption_found && error == 0)
+		error = 3;
 
 	return (error);
 }
