@@ -61,8 +61,7 @@ do
 			tdev=$(random_get $LDEV2)
 			log_must zpool replace $TESTPOOL $sdev $tdev
 			log_must display_status $TESTPOOL
-			# sleep 15 to make sure replacement completely.
-			log_must sleep 15
+			log_must zpool wait $TESTPOOL
 			log_must verify_slog_device \
 				$TESTPOOL $tdev 'ONLINE' $logtype
 
