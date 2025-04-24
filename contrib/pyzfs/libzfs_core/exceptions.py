@@ -605,4 +605,8 @@ class RaidzExpansionRunning(ZFSError):
     message = "A raidz device is currently expanding"
 
 
+class TooManyArguments(ZFSError):
+    error = errno.EOVERFLOW
+    message = "Too many arguments provided"
+
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

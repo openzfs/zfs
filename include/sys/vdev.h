@@ -230,6 +230,9 @@ extern int vdev_label_init(vdev_t *vd, uint64_t txg, vdev_labeltype_t reason);
 extern int vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl);
 extern int vdev_prop_get(vdev_t *vd, nvlist_t *nvprops, nvlist_t *outnvl);
 
+extern int vdev_raw_alloc(vdev_t *vd, uint64_t *allocations,
+    uint_t alloc_count);
+
 #ifdef	__cplusplus
 }
 #endif
