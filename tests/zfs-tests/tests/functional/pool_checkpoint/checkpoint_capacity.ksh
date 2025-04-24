@@ -60,14 +60,15 @@ log_must set_tunable32 SPA_ASIZE_INFLATION 4
 log_must zfs create $DISKFS
 
 log_must mkfile $FILEDISKSIZE $FILEDISK1
-log_must zpool create $NESTEDPOOL $FILEDISK1
+log_must zpool create -O primarycache=metadata $NESTEDPOOL $FILEDISK1
 
-log_must zfs create -o compression=lz4 -o recordsize=8k $NESTEDFS0
+log_must zfs create $NESTEDFS0
 log_must dd if=/dev/urandom of=$NESTEDFS0FILE bs=1M count=700
 FILE0INTRO=$(head -c 100 $NESTEDFS0FILE)
 
 log_must zpool checkpoint $NESTEDPOOL
 log_must rm $NESTEDFS0FILE
+log_must sync_pool $NESTEDPOOL
 
 #
 # only for debugging purposes
