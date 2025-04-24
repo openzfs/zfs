@@ -1132,10 +1132,6 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		}
 	}
 
-	scn->scn_phys.scn_state = complete ? DSS_FINISHED : DSS_CANCELED;
-
-	spa_notify_waiters(spa);
-
 	if (dsl_scan_restarting(scn, tx)) {
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
@@ -1194,6 +1190,9 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * Don't clear flag until after vdev_dtl_reassess to ensure that
 		 * DTL_MISSING will get updated when possible.
 		 */
+		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
+		    DSS_CANCELED;
+		scn->scn_phys.scn_end_time = gethrestime_sec();
 		spa->spa_scrub_started = B_FALSE;
 
 		/*
@@ -1223,9 +1222,13 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		/* Clear recent error events (i.e. duplicate events tracking) */
 		if (complete)
 			zfs_ereport_clear(spa, NULL);
+	} else {
+		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
+		    DSS_CANCELED;
+		scn->scn_phys.scn_end_time = gethrestime_sec();
 	}
 
-	scn->scn_phys.scn_end_time = gethrestime_sec();
+	spa_notify_waiters(spa);
 
 	if (spa->spa_errata == ZPOOL_ERRATA_ZOL_2094_SCRUB)
 		spa->spa_errata = 0;
