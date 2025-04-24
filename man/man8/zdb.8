@@ -69,6 +69,13 @@
 .Op Fl U Ar cache
 .Ar poolname Op Ar vdev Oo Ar metaslab Oc Ns …
 .Nm
+.Fl -allocated-map
+.Op Fl mAFLPXY
+.Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
+.Op Fl t Ar txg
+.Op Fl U Ar cache
+.Ar poolname Op Ar vdev Oo Ar metaslab Oc Ns …
+.Nm
 .Fl O
 .Op Fl K Ar key
 .Ar dataset path
@@ -128,6 +135,11 @@ that zdb may interpret inconsistent pool data and behave erratically.
 .Sh OPTIONS
 Display options:
 .Bl -tag -width Ds
+.It Fl Sy -allocated-map
+Prints out a list of all the allocated regions in the pool.
+Primarily intended for use with the
+.Nm zhack metaslab leak
+subcommand.
 .It Fl b , -block-stats
 Display statistics regarding the number, size
 .Pq logical, physical and allocated
