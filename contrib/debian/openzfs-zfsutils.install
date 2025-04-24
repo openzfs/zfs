@@ -42,6 +42,7 @@ usr/sbin/arcstat
 usr/sbin/zarcstat
 usr/sbin/dbufstat
 usr/sbin/zilstat
+usr/sbin/zleak
 usr/share/zfs/compatibility.d/
 usr/share/bash-completion/completions
 usr/share/man/man1/arcstat.1
