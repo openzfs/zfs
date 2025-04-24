@@ -34,6 +34,22 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBUNWIND], [
 			], [
 				AC_MSG_RESULT([no])
 			])
+			dnl LLVM includes it's own libunwind library, which
+			dnl defines the highest numbered register in a different
+			dnl way, and has an incompatible unw_resname function.
+			AC_MSG_CHECKING([whether libunwind is llvm libunwind])
+			AC_COMPILE_IFELSE([
+				AC_LANG_PROGRAM([
+					#include <libunwind.h>
+					#if !defined(_LIBUNWIND_HIGHEST_DWARF_REGISTER)
+					#error "_LIBUNWIND_HIGHEST_DWARF_REGISTER is not defined"
+					#endif
+				], [])], [
+					AC_MSG_RESULT([yes])
+					AC_DEFINE(IS_LIBUNWIND_LLVM, 1, [libunwind is llvm libunwind])
+				], [
+					AC_MSG_RESULT([no])
+			])
 			AX_RESTORE_FLAGS
 		], [
 			AS_IF([test "x$with_libunwind" = "xyes"], [
