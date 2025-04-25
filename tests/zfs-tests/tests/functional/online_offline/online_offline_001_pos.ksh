@@ -59,6 +59,7 @@ function cleanup
 		log_must zpool online $TESTPOOL $disk
 		log_must check_state $TESTPOOL $disk "online"
 	done
+	sleep 1 # Delay for resilver to start
 	log_must zpool wait -t resilver $TESTPOOL
 
 	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
@@ -77,7 +78,7 @@ for disk in $DISKLIST; do
 
 	log_must zpool online $TESTPOOL $disk
 	log_must check_state $TESTPOOL $disk "online"
-
+	sleep 1 # Delay for resilver to start
 	log_must zpool wait -t resilver $TESTPOOL
 done
 
