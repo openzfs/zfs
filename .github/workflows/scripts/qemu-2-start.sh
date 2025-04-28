@@ -18,9 +18,9 @@ FREEBSD="$REPO/releases/download/v2025-04-13"
 URLzs=""
 
 # Ubuntu mirrors
-#UBMIRROR="https://cloud-images.ubuntu.com"
+UBMIRROR="https://cloud-images.ubuntu.com"
 #UBMIRROR="https://mirrors.cloud.tencent.com/ubuntu-cloud-images"
-UBMIRROR="https://mirror.citrahost.com/ubuntu-cloud-images"
+#UBMIRROR="https://mirror.citrahost.com/ubuntu-cloud-images"
 
 # default nic model for vm's
 NIC="virtio"
