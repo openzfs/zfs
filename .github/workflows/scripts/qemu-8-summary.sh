@@ -45,7 +45,7 @@ fi
 
 echo -e "\nFull logs for download:\n    $1\n"
 
-for i in $(seq 1 $VMs); do
+for ((i=1; i<=VMs; i++)); do
   rv=$(cat vm$i/tests-exitcode.txt)
 
   if [ $rv = 0 ]; then

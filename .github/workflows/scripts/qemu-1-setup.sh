@@ -10,35 +10,11 @@ set -eu
 export DEBIAN_FRONTEND="noninteractive"
 sudo apt-get -y update
 sudo apt-get install -y axel cloud-image-utils daemonize guestfs-tools \
-  ksmtuned virt-manager linux-modules-extra-$(uname -r) zfsutils-linux
+  virt-manager linux-modules-extra-$(uname -r) zfsutils-linux
 
 # generate ssh keys
 rm -f ~/.ssh/id_ed25519
 ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -q -N ""
-
-# we expect RAM shortage
-cat << EOF | sudo tee /etc/ksmtuned.conf > /dev/null
-# /etc/ksmtuned.conf - Configuration file for ksmtuned
-# https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/virtualization_tuning_and_optimization_guide/chap-ksm
-KSM_MONITOR_INTERVAL=60
-
-# Millisecond sleep between ksm scans for 16Gb server.
-# Smaller servers sleep more, bigger sleep less.
-KSM_SLEEP_MSEC=30
-
-KSM_NPAGES_BOOST=0
-KSM_NPAGES_DECAY=0
-KSM_NPAGES_MIN=1000
-KSM_NPAGES_MAX=25000
-
-KSM_THRES_COEF=80
-KSM_THRES_CONST=8192
-
-LOGFILE=/var/log/ksmtuned.log
-DEBUG=1
-EOF
-sudo systemctl restart ksm
-sudo systemctl restart ksmtuned
 
 # not needed
 sudo systemctl stop docker.socket
@@ -65,16 +41,14 @@ $DISK
 sync
 sleep 1
 
-# swap with same size as RAM
+# swap with same size as RAM (16GiB)
 sudo mkswap $DISK-part1
 sudo swapon $DISK-part1
 
-# 60GB data disk
+# JBOD 2xdisk for OpenZFS storage (test vm's)
 SSD1="$DISK-part2"
-
-# 10GB data disk on ext4
-sudo fallocate -l 10G /test.ssd1
-SSD2=$(sudo losetup -b 4096 -f /test.ssd1 --show)
+sudo fallocate -l 12G /test.ssd2
+SSD2=$(sudo losetup -b 4096 -f /test.ssd2 --show)
 
 # adjust zfs module parameter and create pool
 exec 1>/dev/null
@@ -83,11 +57,11 @@ ARC_MAX=$((1024*1024*512))
 echo $ARC_MIN | sudo tee /sys/module/zfs/parameters/zfs_arc_min
 echo $ARC_MAX | sudo tee /sys/module/zfs/parameters/zfs_arc_max
 echo 1 | sudo tee /sys/module/zfs/parameters/zvol_use_blk_mq
-sudo zpool create -f -o ashift=12 zpool $SSD1 $SSD2 \
-  -O relatime=off -O atime=off -O xattr=sa -O compression=lz4 \
-  -O mountpoint=/mnt/tests
+sudo zpool create -f -o ashift=12 zpool $SSD1 $SSD2 -O relatime=off \
+  -O atime=off -O xattr=sa -O compression=lz4 -O sync=disabled \
+  -O redundant_metadata=none -O mountpoint=/mnt/tests
 
 # no need for some scheduler
 for i in /sys/block/s*/queue/scheduler; do
-  echo "none" | sudo tee $i > /dev/null
+  echo "none" | sudo tee $i
 done
