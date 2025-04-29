@@ -28,7 +28,7 @@ BASE="$HOME/work/zfs/zfs"
 MERGE="$BASE/.github/workflows/scripts/merge_summary.awk"
 
 # catch result files of testings (vm's should be there)
-for i in $(seq 1 $VMs); do
+for ((i=1; i<=VMs; i++)); do
   rsync -arL zfs@vm$i:$RESPATH/current $RESPATH/vm$i || true
   scp zfs@vm$i:"/var/tmp/*.txt" $RESPATH/vm$i || true
   scp zfs@vm$i:"/var/tmp/*.rpm" $RESPATH/vm$i || true
@@ -37,7 +37,7 @@ cp -f /var/tmp/*.txt $RESPATH || true
 cd $RESPATH
 
 # prepare result files for summary
-for i in $(seq 1 $VMs); do
+for ((i=1; i<=VMs; i++)); do
   file="vm$i/build-stderr.txt"
   test -s $file && mv -f $file build-stderr.txt
 
