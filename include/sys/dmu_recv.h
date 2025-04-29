@@ -60,7 +60,6 @@ typedef struct dmu_recv_cookie {
 	uint64_t drc_ivset_guid;
 	void *drc_owner;
 	cred_t *drc_cred;
-	proc_t *drc_proc;
 	nvlist_t *drc_begin_nvl;
 
 	objset_t *drc_os;

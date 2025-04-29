@@ -30,6 +30,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2022 Axcient.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #include <sys/arc.h>
@@ -68,6 +69,7 @@
 #include <sys/zfs_vfsops.h>
 #endif
 #include <sys/zfs_file.h>
+#include <sys/cred.h>
 
 static uint_t zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 static uint_t zfs_recv_queue_ff = 20;
@@ -145,7 +147,6 @@ typedef struct dmu_recv_begin_arg {
 	const char *drba_origin;
 	dmu_recv_cookie_t *drba_cookie;
 	cred_t *drba_cred;
-	proc_t *drba_proc;
 	dsl_crypto_params_t *drba_dcp;
 } dmu_recv_begin_arg_t;
 
@@ -411,7 +412,7 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	 * against that limit.
 	 */
 	error = dsl_fs_ss_limit_check(ds->ds_dir, 1, ZFS_PROP_SNAPSHOT_LIMIT,
-	    NULL, drba->drba_cred, drba->drba_proc);
+	    NULL, drba->drba_cred);
 	if (error != 0)
 		return (error);
 
@@ -750,16 +751,14 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 		 * filesystems and increment those counts during begin_sync).
 		 */
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
-		    ZFS_PROP_FILESYSTEM_LIMIT, NULL,
-		    drba->drba_cred, drba->drba_proc);
+		    ZFS_PROP_FILESYSTEM_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			return (error);
 		}
 
 		error = dsl_fs_ss_limit_check(ds->ds_dir, 1,
-		    ZFS_PROP_SNAPSHOT_LIMIT, NULL,
-		    drba->drba_cred, drba->drba_proc);
+		    ZFS_PROP_SNAPSHOT_LIMIT, NULL, drba->drba_cred);
 		if (error != 0) {
 			dsl_dataset_rele(ds, FTAG);
 			return (error);
@@ -1265,6 +1264,9 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 	dmu_recv_begin_arg_t drba = { 0 };
 	int err = 0;
 
+	cred_t *cr = CRED();
+	crhold(cr);
+
 	memset(drc, 0, sizeof (dmu_recv_cookie_t));
 	drc->drc_drr_begin = drr_begin;
 	drc->drc_drrb = &drr_begin->drr_u.drr_begin;
@@ -1273,8 +1275,7 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 	drc->drc_force = force;
 	drc->drc_heal = heal;
 	drc->drc_resumable = resumable;
-	drc->drc_cred = CRED();
-	drc->drc_proc = curproc;
+	drc->drc_cred = cr;
 	drc->drc_clone = (origin != NULL);
 
 	if (drc->drc_drrb->drr_magic == BSWAP_64(DMU_BACKUP_MAGIC)) {
@@ -1286,6 +1287,8 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 		(void) fletcher_4_incremental_native(drr_begin,
 		    sizeof (dmu_replay_record_t), &drc->drc_cksum);
 	} else {
+		crfree(cr);
+		drc->drc_cred = NULL;
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1302,9 +1305,11 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 	 * upper limit. Systems with less than 1GB of RAM will see a lower
 	 * limit from `arc_all_memory() / 4`.
 	 */
-	if (payloadlen > (MIN((1U << 28), arc_all_memory() / 4)))
-		return (E2BIG);
-
+	if (payloadlen > (MIN((1U << 28), arc_all_memory() / 4))) {
+		crfree(cr);
+		drc->drc_cred = NULL;
+		return (SET_ERROR(E2BIG));
+	}
 
 	if (payloadlen != 0) {
 		void *payload = vmem_alloc(payloadlen, KM_SLEEP);
@@ -1320,6 +1325,8 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 		    payload);
 		if (err != 0) {
 			vmem_free(payload, payloadlen);
+			crfree(cr);
+			drc->drc_cred = NULL;
 			return (err);
 		}
 		err = nvlist_unpack(payload, payloadlen, &drc->drc_begin_nvl,
@@ -1328,6 +1335,8 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 		if (err != 0) {
 			kmem_free(drc->drc_next_rrd,
 			    sizeof (*drc->drc_next_rrd));
+			crfree(cr);
+			drc->drc_cred = NULL;
 			return (err);
 		}
 	}
@@ -1337,8 +1346,7 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 
 	drba.drba_origin = origin;
 	drba.drba_cookie = drc;
-	drba.drba_cred = CRED();
-	drba.drba_proc = curproc;
+	drba.drba_cred = drc->drc_cred;
 
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RESUMING) {
 		err = dsl_sync_task(tofs,
@@ -1373,6 +1381,8 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 	if (err != 0) {
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 		nvlist_free(drc->drc_begin_nvl);
+		crfree(cr);
+		drc->drc_cred = NULL;
 	}
 	return (err);
 }
@@ -3527,6 +3537,8 @@ out:
 		 */
 		dmu_recv_cleanup_ds(drc);
 		nvlist_free(drc->drc_keynvl);
+		crfree(drc->drc_cred);
+		drc->drc_cred = NULL;
 	}
 
 	objlist_destroy(drc->drc_ignore_objlist);
@@ -3601,8 +3613,7 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 			return (error);
 		}
 		error = dsl_dataset_snapshot_check_impl(origin_head,
-		    drc->drc_tosnap, tx, B_TRUE, 1,
-		    drc->drc_cred, drc->drc_proc);
+		    drc->drc_tosnap, tx, B_TRUE, 1, drc->drc_cred);
 		dsl_dataset_rele(origin_head, FTAG);
 		if (error != 0)
 			return (error);
@@ -3610,8 +3621,7 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 		error = dsl_destroy_head_check_impl(drc->drc_ds, 1);
 	} else {
 		error = dsl_dataset_snapshot_check_impl(drc->drc_ds,
-		    drc->drc_tosnap, tx, B_TRUE, 1,
-		    drc->drc_cred, drc->drc_proc);
+		    drc->drc_tosnap, tx, B_TRUE, 1, drc->drc_cred);
 	}
 	return (error);
 }
@@ -3823,6 +3833,10 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 		zvol_create_minor(snapname);
 		kmem_strfree(snapname);
 	}
+
+	crfree(drc->drc_cred);
+	drc->drc_cred = NULL;
+
 	return (error);
 }
 
