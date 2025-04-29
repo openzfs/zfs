@@ -1140,12 +1140,14 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	}
 	VERIFY3U(3, ==, lua_gettop(state));
 
+	cred_t *cr = CRED();
+	crhold(cr);
+
 	runinfo.zri_state = state;
 	runinfo.zri_allocargs = &allocargs;
 	runinfo.zri_outnvl = outnvl;
 	runinfo.zri_result = 0;
-	runinfo.zri_cred = CRED();
-	runinfo.zri_proc = curproc;
+	runinfo.zri_cred = cr;
 	runinfo.zri_timed_out = B_FALSE;
 	runinfo.zri_canceled = B_FALSE;
 	runinfo.zri_sync = sync;
@@ -1163,6 +1165,8 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 		zcp_eval_open(&runinfo, poolname);
 	}
 	lua_close(state);
+
+	crfree(cr);
 
 	/*
 	 * Create device minor nodes for any new zvols.
