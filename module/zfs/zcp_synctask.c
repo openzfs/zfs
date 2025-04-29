@@ -193,7 +193,6 @@ zcp_synctask_promote(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	ddpa.ddpa_clonename = dsname;
 	ddpa.err_ds = err_details;
 	ddpa.cr = ri->zri_cred;
-	ddpa.proc = ri->zri_proc;
 
 	/*
 	 * If there was a snapshot name conflict, then err_ds will be filled
@@ -277,7 +276,6 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	ddsa.ddsa_errors = NULL;
 	ddsa.ddsa_props = NULL;
 	ddsa.ddsa_cr = ri->zri_cred;
-	ddsa.ddsa_proc = ri->zri_proc;
 	ddsa.ddsa_snaps = fnvlist_alloc();
 	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
 
