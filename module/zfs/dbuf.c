@@ -1458,13 +1458,12 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 }
 
 static void
-dbuf_handle_indirect_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *dbbp)
+dbuf_handle_indirect_hole(arc_buf_t *db_data, dnode_t *dn, blkptr_t *dbbp)
 {
-	blkptr_t *bps = db->db.db_data;
+	blkptr_t *bps = (blkptr_t*)db_data;
 	uint32_t indbs = 1ULL << dn->dn_indblkshift;
 	int n_bps = indbs >> SPA_BLKPTRSHIFT;
 
-	ASSERT(MUTEX_HELD(&db->db_mtx));
 	for (int i = 0; i < n_bps; i++) {
 		blkptr_t *bp = &bps[i];
 
@@ -1486,6 +1485,7 @@ static int
 dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	arc_buf_t *db_data;
 
 	int is_hole = bp == NULL || BP_IS_HOLE(bp);
 	/*
@@ -1498,13 +1498,14 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 		is_hole = dnode_block_freed(dn, db->db_blkid) || BP_IS_HOLE(bp);
 
 	if (is_hole) {
-		dbuf_set_data(db, dbuf_alloc_arcbuf(db));
-		memset(db->db.db_data, 0, db->db.db_size);
+		db_data = dbuf_alloc_arcbuf(db);
+		memset(db_data->b_data, 0, db->db.db_size);
 
 		if (bp != NULL && db->db_level > 0 && BP_IS_HOLE(bp) &&
 		    BP_GET_LOGICAL_BIRTH(bp) != 0) {
-			dbuf_handle_indirect_hole(db, dn, bp);
+			dbuf_handle_indirect_hole(db_data->b_data, dn, bp);
 		}
+		dbuf_set_data(db, db_data);
 		db->db_state = DB_CACHED;
 		DTRACE_SET_STATE(db, "hole read satisfied");
 		return (0);
