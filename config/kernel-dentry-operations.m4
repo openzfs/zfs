@@ -46,12 +46,37 @@ AC_DEFUN([ZFS_AC_KERNEL_D_SET_D_OP], [
 	])
 ])
 
+dnl #
+dnl # 6.17 API change
+dnl # sb->s_d_op removed; set_default_d_op(sb, dop) added
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_SET_DEFAULT_D_OP], [
+	ZFS_LINUX_TEST_SRC([set_default_d_op], [
+		#include <linux/dcache.h>
+	], [
+		set_default_d_op(NULL, NULL);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_SET_DEFAULT_D_OP], [
+	AC_MSG_CHECKING([whether set_default_d_op() is available])
+	ZFS_LINUX_TEST_RESULT([set_default_d_op], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_SET_DEFAULT_D_OP, 1,
+		    [Define if set_default_d_op() is available])
+	], [
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_DENTRY], [
         ZFS_AC_KERNEL_SRC_D_OBTAIN_ALIAS
         ZFS_AC_KERNEL_SRC_D_SET_D_OP
+        ZFS_AC_KERNEL_SRC_SET_DEFAULT_D_OP
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_DENTRY], [
         ZFS_AC_KERNEL_D_OBTAIN_ALIAS
         ZFS_AC_KERNEL_D_SET_D_OP
+        ZFS_AC_KERNEL_SET_DEFAULT_D_OP
 ])

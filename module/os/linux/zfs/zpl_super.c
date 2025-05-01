@@ -41,6 +41,14 @@
  */
 int zfs_delete_inode = 0;
 
+/*
+ * What to do when the last reference to a dentry is released. If 0, the kernel
+ * will cache it until the entry (file) is destroyed. If 1, the dentry will be
+ * marked for cleanup, at which time its inode reference will be released. See
+ * zpl_dentry_delete().
+ */
+int zfs_delete_dentry = 0;
+
 static struct inode *
 zpl_inode_alloc(struct super_block *sb)
 {
@@ -513,6 +521,35 @@ const struct super_operations zpl_super_operations = {
 	.show_stats		= NULL,
 };
 
+/*
+ * ->d_delete() is called when the last reference to a dentry is released. Its
+ *  return value indicates if the dentry should be destroyed immediately, or
+ *  retained in the dentry cache.
+ *
+ * By default (zfs_delete_dentry=0) the kernel will always cache unused
+ * entries.  Each dentry holds an inode reference, so cached dentries can hold
+ * the final inode reference indefinitely, leading to the inode and its related
+ * data being pinned (see zpl_drop_inode()).
+ *
+ * When set to 1, we signal that the dentry should be destroyed immediately and
+ * never cached. This reduces memory usage, at the cost of higher overheads to
+ * lookup a file, as the inode and its underlying data (dnode/dbuf) need to be
+ * reloaded and reinflated.
+ *
+ * Note that userspace does not have direct control over dentry references and
+ * reclaim; rather, this is part of the kernel's caching and reclaim subsystems
+ * (eg vm.vfs_cache_pressure).
+ */
+static int
+zpl_dentry_delete(const struct dentry *dentry)
+{
+	return (zfs_delete_dentry ? 1 : 0);
+}
+
+const struct dentry_operations zpl_dentry_operations = {
+	.d_delete = zpl_dentry_delete,
+};
+
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
 	.name			= ZFS_DRIVER,
@@ -527,3 +564,7 @@ struct file_system_type zpl_fs_type = {
 
 ZFS_MODULE_PARAM(zfs, zfs_, delete_inode, INT, ZMOD_RW,
 	"Delete inodes as soon as the last reference is released.");
+
+ZFS_MODULE_PARAM(zfs, zfs_, delete_dentry, INT, ZMOD_RW,
+	"Delete dentries from dentry cache as soon as the last reference is "
+	"released.");
