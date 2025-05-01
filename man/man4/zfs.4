@@ -2604,6 +2604,28 @@ frequently evicted and reloaded.
 .Pp
 This parameter is only available on Linux.
 .
+.It Sy zfs_delete_dentry Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Sets whether the kernel should free a dentry structure when it is no longer
+required, or hold it in the dentry cache.
+Intended for testing/debugging.
+.
+Since a dentry structure holds an inode reference, a cached dentry can "pin"
+an inode in memory indefinitely, along with associated OpenZFS structures (See
+.Sy zfs_delete_inode ) .
+.Pp
+The default value of
+.Sy 0
+instructs the kernel to cache entries and their associated inodes when they
+are no longer directly referenced.
+They will be reclaimed as part of the kernel's normal cache management
+processes.
+Setting it to
+.Sy 1
+will instruct the kernel to release directory entries and their inodes as soon
+as they are no longer referenced by the filesystem.
+.Pp
+This parameter is only available on Linux.
+.
 .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
 Percentage of online CPUs which will run a worker thread for I/O.
 These workers are responsible for I/O work such as compression, encryption,
