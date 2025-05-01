@@ -2087,6 +2087,20 @@ zio_write_compress(zio_t *zio)
 			zio_push_transform(zio, cdata,
 			    psize, rounded, NULL);
 		}
+	} else if (zp->zp_dedup == B_TRUE) {
+		/*
+		 * Storing many references to an all zeros block in the dedup
+		 * table would be expensive, and each different size of block
+		 * would have its own checksum.
+		 * Instead, if dedup is enabled, store all zero blocks as
+		 * holes even if compression is not enabled.
+		 */
+		if (abd_cmp_zero(zio->io_abd, lsize) == 0) {
+			psize = 0;
+			compress = ZIO_COMPRESS_OFF;
+		} else {
+			psize = lsize;
+		}
 	} else {
 		ASSERT3U(psize, !=, 0);
 	}
