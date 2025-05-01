@@ -55,6 +55,7 @@ extern const struct file_operations zpl_dir_file_operations;
 extern void zpl_prune_sb(uint64_t nr_to_scan, void *arg);
 
 extern const struct super_operations zpl_super_operations;
+extern const struct dentry_operations zpl_dentry_operations;
 extern const struct export_operations zpl_export_operations;
 extern struct file_system_type zpl_fs_type;
 
