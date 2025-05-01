@@ -63,7 +63,7 @@ log_must fio --rw=write --name=job --size=10M --filename=/$TESTPOOL2/10m_file
 log_must zinject -t data -e checksum -f 100 -am /$TESTPOOL2/10m_file
 
 # Try to read the file
-dd if=/$TESTPOOL2/10m_file bs=1M || true
+dd if=/$TESTPOOL2/10m_file bs=1M of=/dev/null || true
 
 log_must zfs snapshot $TESTPOOL2@snap
 log_must zfs clone $TESTPOOL2@snap $TESTPOOL2/clone
