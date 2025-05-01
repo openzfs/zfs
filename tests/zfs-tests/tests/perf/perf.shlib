@@ -15,7 +15,7 @@
 # Copyright (c) 2016, Intel Corporation.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. "$STF_SUITE"/include/libtest.shlib
 
 # Defaults common to all the tests in the regression group
 export PERF_RUNTIME=${PERF_RUNTIME:-'180'}
@@ -46,12 +46,12 @@ function get_suffix
 	typeset sync=$2
 	typeset iosize=$3
 
-	typeset sync_str=$(get_sync_str $sync)
+	typeset sync_str=$(get_sync_str "$sync")
 	typeset filesystems=$(get_nfilesystems)
 
 	typeset suffix="$sync_str.$iosize-ios"
 	suffix="$suffix.$threads-threads.$filesystems-filesystems"
-	echo $suffix
+	echo "$suffix"
 }
 
 function do_fio_run_impl
@@ -65,12 +65,12 @@ function do_fio_run_impl
 	typeset sync=$6
 	typeset iosize=$7
 
-	typeset sync_str=$(get_sync_str $sync)
+	typeset sync_str=$(get_sync_str "$sync")
 	log_note "Running with $threads $sync_str threads, $iosize ios"
 
 	if [[ -n $threads_per_fs && $threads_per_fs -ne 0 ]]; then
-		log_must test $do_recreate
-		verify_threads_per_fs $threads $threads_per_fs
+		log_must test "$do_recreate"
+		verify_threads_per_fs "$threads" "$threads_per_fs"
 	fi
 
 	if $do_recreate; then
@@ -105,7 +105,7 @@ function do_fio_run_impl
 	# the default filesystem (e.g. against a clone).
 	#
 	export DIRECTORY=$(get_directory)
-	log_note "DIRECTORY: " $DIRECTORY
+	log_note "DIRECTORY: $DIRECTORY"
 
 	export RUNTIME=$PERF_RUNTIME
 	export RANDSEED=$PERF_RANDSEED
@@ -122,33 +122,33 @@ function do_fio_run_impl
 	# disable client cache for reads.
 	if [[ $NFS -eq 1 ]]; then
 		export DIRECT=1
-		do_setup_nfs $script
+		do_setup_nfs "$script"
 	else
 		export DIRECT=0
 	fi
 
 	# This will be part of the output filename.
-	typeset suffix=$(get_suffix $threads $sync $iosize)
+	typeset suffix=$(get_suffix "$threads" "$sync" "$iosize")
 
 	# Start the data collection
-	do_collect_scripts $suffix
+	do_collect_scripts "$suffix"
 
 	# Define output file
 	typeset logbase="$(get_perf_output_dir)/$(basename \
-	    $SUDO_COMMAND)"
+	    "$SUDO_COMMAND")"
 	typeset outfile="$logbase.fio.$suffix"
 
 	# Start the load
 	if [[ $NFS -eq 1 ]]; then
-		log_must ssh -t $NFS_USER@$NFS_CLIENT "
+		log_must ssh -t "$NFS_USER@$NFS_CLIENT" "
 			fio --output-format=${PERF_FIO_FORMAT} \
 			    --output /tmp/fio.out /tmp/test.fio
 		"
-		log_must scp $NFS_USER@$NFS_CLIENT:/tmp/fio.out $outfile
-		log_must ssh -t $NFS_USER@$NFS_CLIENT "sudo -S umount $NFS_MOUNT"
+		log_must scp "$NFS_USER@$NFS_CLIENT":/tmp/fio.out "$outfile"
+		log_must ssh -t "$NFS_USER@$NFS_CLIENT" "sudo -S umount $NFS_MOUNT"
 	else
-		log_must fio --output-format=${PERF_FIO_FORMAT} \
-		    --output $outfile $FIO_SCRIPTS/$script
+		log_must fio --output-format="${PERF_FIO_FORMAT}" \
+		    --output "$outfile" "$FIO_SCRIPTS/$script"
 	fi
 }
 
@@ -176,13 +176,13 @@ function do_fio_run
 			for sync in $PERF_SYNC_TYPES; do
 				for iosize in $PERF_IOSIZES; do
 					do_fio_run_impl \
-					    $script \
-					    $do_recreate \
-					    $clear_cache \
-					    $threads \
-					    $threads_per_fs \
-					    $sync \
-					    $iosize
+					    "$script" \
+					    "$do_recreate" \
+					    "$clear_cache" \
+					    "$threads" \
+					    "$threads_per_fs" \
+					    "$sync" \
+					    "$iosize"
 				done
 			done
 		done
@@ -195,12 +195,12 @@ function do_fio_run
 function do_setup_nfs
 {
 	typeset script=$1
-	zfs set sharenfs=on $TESTFS
-	log_must chmod  -R 777 /$TESTFS
+	zfs set sharenfs=on "$TESTFS"
+	log_must chmod  -R 777 /"$TESTFS"
 
-	ssh -t $NFS_USER@$NFS_CLIENT "mkdir -m 777 -p $NFS_MOUNT"
-	ssh -t $NFS_USER@$NFS_CLIENT "sudo -S umount $NFS_MOUNT"
-	log_must ssh -t $NFS_USER@$NFS_CLIENT "
+	ssh -t "$NFS_USER@$NFS_CLIENT" "mkdir -m 777 -p $NFS_MOUNT"
+	ssh -t "$NFS_USER@$NFS_CLIENT" "sudo -S umount $NFS_MOUNT"
+	log_must ssh -t "$NFS_USER@$NFS_CLIENT" "
 		sudo -S mount $NFS_OPTIONS $NFS_SERVER:/$TESTFS $NFS_MOUNT
 	"
 	#
@@ -211,9 +211,9 @@ function do_setup_nfs
 	export jobnum='$jobnum'
 	while read line; do
 		eval echo "$line"
-	done < $FIO_SCRIPTS/$script > /tmp/test.fio
+	done < "$FIO_SCRIPTS/$script" > /tmp/test.fio
 	log_must sed -i -e "s%directory.*%directory=$NFS_MOUNT%" /tmp/test.fio
-	log_must scp /tmp/test.fio $NFS_USER@$NFS_CLIENT:/tmp
+	log_must scp /tmp/test.fio "$NFS_USER@$NFS_CLIENT":/tmp
 	log_must rm /tmp/test.fio
 }
 
@@ -233,17 +233,17 @@ function do_collect_scripts
 	typeset oIFS=$IFS
 	IFS=','
 	for item in $PERF_COLLECT_SCRIPTS; do
-		collect_scripts+=($(echo $item | sed 's/^ *//g'))
+		collect_scripts+=($(echo "$item" | sed 's/^ *//g'))
 	done
 	IFS=$oIFS
 
 	typeset idx=0
 	while [[ $idx -lt "${#collect_scripts[@]}" ]]; do
 		typeset logbase="$(get_perf_output_dir)/$(basename \
-		    $SUDO_COMMAND)"
+		    "$SUDO_COMMAND")"
 		typeset outfile="$logbase.${collect_scripts[$idx + 1]}.$suffix"
 
-		timeout $PERF_RUNTIME ${collect_scripts[$idx]} >$outfile 2>&1 &
+		timeout "$PERF_RUNTIME" "${collect_scripts[$idx]}" >"$outfile" 2>&1 &
 		((idx += 2))
 	done
 
@@ -256,9 +256,9 @@ function do_collect_scripts
 function get_perf_output_dir
 {
 	typeset dir="$PWD/perf_data"
-	[[ -d $dir ]] || mkdir -p $dir
+	[[ -d $dir ]] || mkdir -p "$dir"
 
-	echo $dir
+	echo "$dir"
 }
 
 function apply_zinject_delays
@@ -270,7 +270,7 @@ function apply_zinject_delays
 
 		for disk in $DISKS; do
 			log_must zinject \
-			    -d $disk -D ${ZINJECT_DELAYS[$idx]} $PERFPOOL
+			    -d "$disk" -D "${ZINJECT_DELAYS[$idx]}" "$PERFPOOL"
 		done
 
 		((idx += 1))
@@ -302,7 +302,7 @@ function recreate_perf_pool
 	# This function handles the case where the pool already exists,
 	# and will destroy the previous pool and recreate a new pool.
 	#
-	create_pool $PERFPOOL $DISKS
+	create_pool "$PERFPOOL" "$DISKS"
 }
 
 function verify_threads_per_fs
@@ -310,8 +310,8 @@ function verify_threads_per_fs
 	typeset threads=$1
 	typeset threads_per_fs=$2
 
-	log_must test -n $threads
-	log_must test -n $threads_per_fs
+	log_must test -n "$threads"
+	log_must test -n "$threads_per_fs"
 
 	#
 	# A value of "0" is treated as a "special value", and it is
@@ -325,7 +325,7 @@ function verify_threads_per_fs
 	# than or equal to zero; since we just verified the value isn't
 	# 0 above, then it must be greater than zero here.
 	#
-	log_must test $threads_per_fs -ge 0
+	log_must test "$threads_per_fs" -ge 0
 
 	#
 	# This restriction can be lifted later if needed, but for now,
@@ -341,9 +341,9 @@ function populate_perf_filesystems
 	typeset nfilesystems=${1:-1}
 
 	export TESTFS=""
-	for i in $(seq 1 $nfilesystems); do
+	for i in $(seq 1 "$nfilesystems"); do
 		typeset dataset="$PERFPOOL/fs$i"
-		create_dataset $dataset $PERF_FS_OPTS
+		create_dataset "$dataset" "$PERF_FS_OPTS"
 		if [[ -z "$TESTFS" ]]; then
 			TESTFS="$dataset"
 		else
@@ -354,13 +354,13 @@ function populate_perf_filesystems
 
 function get_nfilesystems
 {
-	typeset filesystems=( $TESTFS )
+	typeset filesystems=($TESTFS)
 	echo ${#filesystems[@]}
 }
 
 function get_directory
 {
-	typeset filesystems=( $TESTFS )
+	typeset filesystems=($TESTFS)
 	typeset directory=
 
 	typeset idx=0
@@ -376,7 +376,7 @@ function get_directory
 		((idx += 1))
 	done
 
-	echo $directory
+	echo "$directory"
 }
 
 function get_min_arc_size
@@ -447,7 +447,7 @@ function get_dbuf_cache_size
 		dbuf_cache_size=$(($(get_arc_target) / 2**dbuf_cache_shift))
 	fi || log_fail "get_dbuf_cache_size failed"
 
-	echo $dbuf_cache_size
+	echo "$dbuf_cache_size"
 }
 
 # Create a file with some information about how this system is configured.
@@ -455,23 +455,23 @@ function get_system_config
 {
 	typeset config=$PERF_DATA_DIR/$1
 
-	echo "{" >>$config
+	echo "{" >>"$config"
 	if is_linux; then
-		echo "  \"ncpus\": \"$(lscpu | awk '/^CPU\(s\)/ {print $2; exit}')\"," >>$config
+		echo "  \"ncpus\": \"$(lscpu | awk '/^CPU\(s\)/ {print $2; exit}')\"," >>"$config"
 		echo "  \"physmem\": \"$(free -b | \
-		    awk '$1 == "Mem:" { print $2 }')\"," >>$config
-		echo "  \"c_max\": \"$(get_max_arc_size)\"," >>$config
-		echo "  \"hostname\": \"$(uname -n)\"," >>$config
-		echo "  \"kernel version\": \"$(uname -sr)\"," >>$config
+		    awk '$1 == "Mem:" { print $2 }')\"," >>"$config"
+		echo "  \"c_max\": \"$(get_max_arc_size)\"," >>"$config"
+		echo "  \"hostname\": \"$(uname -n)\"," >>"$config"
+		echo "  \"kernel version\": \"$(uname -sr)\"," >>"$config"
 	else
 		dtrace -qn 'BEGIN{
 		    printf("  \"ncpus\": %d,\n", `ncpus);
 		    printf("  \"physmem\": %u,\n", `physmem * `_pagesize);
 		    printf("  \"c_max\": %u,\n", `arc_stats.arcstat_c_max.value.ui64);
 		    printf("  \"kmem_flags\": \"0x%x\",", `kmem_flags);
-		    exit(0)}' >>$config
-		echo "  \"hostname\": \"$(uname -n)\"," >>$config
-		echo "  \"kernel version\": \"$(uname -v)\"," >>$config
+		    exit(0)}' >>"$config"
+		echo "  \"hostname\": \"$(uname -n)\"," >>"$config"
+		echo "  \"kernel version\": \"$(uname -v)\"," >>"$config"
 	fi
 	if is_linux; then
 		lsblk -dino NAME,SIZE | awk 'BEGIN {
@@ -479,11 +479,11 @@ function get_system_config
 		    {disk = $1} {size = $2;
 		    if (first != 1) {printf(",\n")} else {first = 0}
 		    printf("    \"%s\": \"%s\"", disk, size)}
-		    END {printf("\n  },\n")}' >>$config
+		    END {printf("\n  },\n")}' >>"$config"
 
 		zfs_tunables="/sys/module/zfs/parameters"
 
-		printf "  \"tunables\": {\n" >>$config
+		printf "  \"tunables\": {\n" >>"$config"
 		for tunable in \
 		    zfs_arc_max \
 		    zfs_arc_sys_free \
@@ -500,12 +500,12 @@ function get_system_config
 		do
 			if [ "$tunable" != "zfs_arc_max" ]
 			then
-				printf ",\n" >>$config
+				printf ",\n" >>"$config"
 			fi
 			printf  "    \"$tunable\": \"$(<$zfs_tunables/$tunable)\"" \
-			    >>$config
+			    >>"$config"
 		done
-		printf "\n  }\n" >>$config
+		printf "\n  }\n" >>"$config"
 	else
 		iostat -En | awk 'BEGIN {
 		    printf("  \"disks\": {\n"); first = 1}
@@ -513,15 +513,15 @@ function get_system_config
 		    /^Size: [^0]/ {size = $2;
 		    if (first != 1) {printf(",\n")} else {first = 0}
 		    printf("    \"%s\": \"%s\"", disk, size)}
-		    END {printf("\n  },\n")}' >>$config
+		    END {printf("\n  },\n")}' >>"$config"
 
 		sed -n 's/^set \(.*\)[ ]=[ ]\(.*\)/\1=\2/p' /etc/system | \
 		    awk -F= 'BEGIN {printf("  \"system\": {\n"); first = 1}
 		    {if (first != 1) {printf(",\n")} else {first = 0};
 		    printf("    \"%s\": %s", $1, $2)}
-		    END {printf("\n  }\n")}' >>$config
+		    END {printf("\n  }\n")}' >>"$config"
 	fi
-	echo "}" >>$config
+	echo "}" >>"$config"
 }
 
 #
@@ -535,7 +535,7 @@ function pool_to_lun_list
 
 	case "$UNAME" in
 	Linux)
-		ctds=$(zpool list -HLv $pool | \
+		ctds=$(zpool list -HLv "$pool" | \
 		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
 
 		for ctd in $ctds; do
@@ -543,17 +543,17 @@ function pool_to_lun_list
 		done
 		;;
 	FreeBSD)
-		lun_list+=$(zpool list -HLv $pool | \
+		lun_list+=$(zpool list -HLv "$pool" | \
 		    awk '/a?da[0-9]+|md[0-9]+|mfid[0-9]+|nda[0-9]+|nvd[0-9]+|vtbd[0-9]+/
 		         { printf "%s:", $1 }')
 		;;
 	*)
-		ctds=$(zpool list -v $pool |
+		ctds=$(zpool list -v "$pool" |
 		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
 
 		for ctd in $ctds; do
 			# Get the device name as it appears in /etc/path_to_inst
-			devname=$(readlink -f /dev/dsk/${ctd}s0 | sed -n 's/\/devices\([^:]*\):.*/\1/p')
+			devname=$(readlink -f /dev/dsk/"${ctd}"s0 | sed -n 's/\/devices\([^:]*\):.*/\1/p')
 			# Add a string composed of the driver name and instance
 			# number to the list for comparison with dev_statname.
 			lun=$(sed 's/"//g' /etc/path_to_inst | awk -v dn="$devname" '$0 ~ dn {print $3$2}')
@@ -561,7 +561,7 @@ function pool_to_lun_list
 		done
 		;;
 	esac
-	echo $lun_list
+	echo "$lun_list"
 }
 
 function print_perf_settings
