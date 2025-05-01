@@ -1458,9 +1458,9 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 }
 
 static void
-dbuf_handle_indirect_hole(arc_buf_t *db_data, dnode_t *dn, blkptr_t *dbbp)
+dbuf_handle_indirect_hole(void *data, dnode_t *dn, blkptr_t *dbbp)
 {
-	blkptr_t *bps = (blkptr_t*)db_data;
+	blkptr_t *bps = data;
 	uint32_t indbs = 1ULL << dn->dn_indblkshift;
 	int n_bps = indbs >> SPA_BLKPTRSHIFT;
 
@@ -3881,7 +3881,6 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 	}
 	memcpy(db_data->b_data, data->b_data, arc_buf_size(data));
 
-	ASSERT(MUTEX_HELD(&db->db_mtx));
 	dbuf_set_data(db, db_data);
 }
 
