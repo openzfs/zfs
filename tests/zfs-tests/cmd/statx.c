@@ -109,6 +109,9 @@ _statx(int fd, const char *path, int flags, unsigned int mask, void *stx)
 #ifndef STATX_DIOALIGN
 #define	STATX_DIOALIGN	(1<<13)
 #endif
+#ifndef S_IFMT
+#define	S_IFMT 0170000
+#endif
 
 typedef struct {
 	int64_t		tv_sec;
