@@ -154,7 +154,7 @@ do
 	log_must zpool events -c
 
 	# limit scanning time
-	log_must set_tunable32 RESILVER_MIN_TIME_MS 50
+	log_must set_tunable32 RESILVER_MIN_TIME_MS 20
 
 	# initiate a resilver and suspend the scan as soon as possible
 	log_must zpool replace $TESTPOOL1 $VDEV_REPLACE
