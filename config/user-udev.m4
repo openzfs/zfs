@@ -8,13 +8,15 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_UDEV], [
 
 	AS_IF([test "x$udevdir" = xcheck], [
 		path1=/lib/udev
-		path2=/usr/lib/udev
+		path2=$prefix/lib/udev
 		default=$path2
 
-		AS_IF([test -d "$path1"], [udevdir="$path1"], [
-			AS_IF([test -d "$path2"], [udevdir="$path2"],
-				[udevdir="$default"])
-		])
+		AS_IF([test "$prefix" = "/usr"], [
+			AS_IF([test -d "$path1"], [udevdir="$path1"], [
+				AS_IF([test -d "$path2"], [udevdir="$path2"],
+					[udevdir="$default"])
+			])
+		], [udevdir="$default"])
 	])
 
 	AC_ARG_WITH(udevruledir,
