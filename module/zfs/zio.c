@@ -1022,6 +1022,10 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 			zio->io_logical = zio;
 		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
 			pipeline |= ZIO_GANG_STAGES;
+		if (flags & ZIO_FLAG_PREALLOCATED) {
+			BP_ZERO_DVAS(zio->io_bp);
+			BP_SET_BIRTH(zio->io_bp, 0, 0);
+		}
 	}
 
 	zio->io_spa = spa;
@@ -3092,7 +3096,12 @@ zio_write_gang_member_ready(zio_t *zio)
 	if (BP_IS_HOLE(zio->io_bp))
 		return;
 
-	ASSERT(BP_IS_HOLE(&zio->io_bp_orig));
+	/*
+	 * If we're getting direct-invoked from zio_write_gang_block(),
+	 * the bp_orig will be set.
+	 */
+	ASSERT(BP_IS_HOLE(&zio->io_bp_orig) ||
+	    zio->io_flags & ZIO_FLAG_PREALLOCATED);
 
 	ASSERT(zio->io_child_type == ZIO_CHILD_GANG);
 	ASSERT3U(zio->io_prop.zp_copies, ==, gio->io_prop.zp_copies);
@@ -3134,7 +3143,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	abd_t *gbh_abd;
 	uint64_t txg = pio->io_txg;
 	uint64_t resid = pio->io_size;
-	uint64_t psize;
 	zio_prop_t zp;
 	int error;
 	boolean_t has_data = !(pio->io_flags & ZIO_FLAG_NODATA);
@@ -3203,14 +3211,13 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	}
 
 	/*
-	 * Create and nowait the gang children.
+	 * Create and nowait the gang children. First, we try to do
+	 * opportunistic allocations. If that fails to generate enough
+	 * space, we fall back to normal zio_write calls for nested gang.
 	 */
-	for (int g = 0; resid != 0; resid -= psize, g++) {
-		psize = zio_roundup_alloc_size(spa,
-		    resid / (SPA_GBH_NBLKPTRS - g));
-		psize = MIN(resid, psize);
-		ASSERT3U(psize, >=, SPA_MINBLOCKSIZE);
-
+	for (int g = 0; resid != 0; g++) {
+		flags &= METASLAB_ASYNC_ALLOC;
+		flags |= METASLAB_GANG_CHILD;
 		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
 		zp.zp_complevel = gio->io_prop.zp_complevel;
@@ -3228,14 +3235,38 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
 		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
 
-		zio_t *cio = zio_write(zio, spa, txg, &gbh->zg_blkptr[g],
-		    has_data ? abd_get_offset(pio->io_abd, pio->io_size -
-		    resid) : NULL, psize, psize, &zp,
-		    zio_write_gang_member_ready, NULL,
-		    zio_write_gang_done, &gn->gn_child[g], pio->io_priority,
-		    ZIO_GANG_CHILD_FLAGS(pio), &pio->io_bookmark);
+		uint64_t min_size = zio_roundup_alloc_size(spa,
+		    resid / (SPA_GBH_NBLKPTRS - g));
+		min_size = MIN(min_size, resid);
+		bp = &gbh->zg_blkptr[g];
 
+		zio_alloc_list_t cio_list;
+		metaslab_trace_init(&cio_list);
+		uint64_t allocated_size = UINT64_MAX;
+		error = metaslab_alloc_range(spa, mc, min_size, resid,
+		    bp, gio->io_prop.zp_copies, txg, NULL,
+		    flags, &cio_list, zio->io_allocator, NULL, &allocated_size);
+
+		boolean_t allocated = error == 0;
+
+		uint64_t psize = allocated ? MIN(resid, allocated_size) :
+		    min_size;
+
+		zio_t *cio = zio_write(zio, spa, txg, bp, has_data ?
+		    abd_get_offset(pio->io_abd, pio->io_size - resid) : NULL,
+		    psize, psize, &zp, zio_write_gang_member_ready, NULL,
+		    zio_write_gang_done, &gn->gn_child[g], pio->io_priority,
+		    ZIO_GANG_CHILD_FLAGS(pio) |
+		    (allocated ? ZIO_FLAG_PREALLOCATED : 0), &pio->io_bookmark);
+
+		resid -= psize;
 		zio_gang_inherit_allocator(zio, cio);
+		if (allocated) {
+			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
+			metaslab_group_alloc_increment_all(spa,
+			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
+			    cio);
+		}
 		/*
 		 * We do not reserve for the child writes, since we already
 		 * reserved for the parent.  Unreserve though will be called
@@ -4139,6 +4170,14 @@ zio_dva_allocate(zio_t *zio)
 	if (zio->io_gang_leader == NULL) {
 		ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
 		zio->io_gang_leader = zio;
+	}
+	if (zio->io_flags & ZIO_FLAG_PREALLOCATED) {
+		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_GANG);
+		memcpy(zio->io_bp->blk_dva, zio->io_bp_orig.blk_dva,
+		    3 * sizeof (dva_t));
+		BP_SET_BIRTH(zio->io_bp, BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig),
+		    BP_GET_PHYSICAL_BIRTH(&zio->io_bp_orig));
+		return (zio);
 	}
 
 	ASSERT(BP_IS_HOLE(bp));

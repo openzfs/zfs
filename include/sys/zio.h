@@ -227,6 +227,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_REEXECUTED	(1ULL << 30)
 #define	ZIO_FLAG_DELEGATED	(1ULL << 31)
 #define	ZIO_FLAG_DIO_CHKSUM_ERR	(1ULL << 32)
+#define	ZIO_FLAG_PREALLOCATED	(1ULL << 33)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)

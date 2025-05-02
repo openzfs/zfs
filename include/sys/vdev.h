@@ -134,6 +134,8 @@ extern void vdev_space_update(vdev_t *vd,
 
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
+extern uint64_t vdev_asize_to_psize_txg(vdev_t *vd, uint64_t asize,
+    uint64_t txg);
 extern uint64_t vdev_psize_to_asize_txg(vdev_t *vd, uint64_t psize,
     uint64_t txg);
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);

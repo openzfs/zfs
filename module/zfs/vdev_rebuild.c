@@ -529,7 +529,7 @@ vdev_rebuild_blkptr_init(blkptr_t *bp, vdev_t *vd, uint64_t start,
 	    vd->vdev_ops == &vdev_spare_ops);
 
 	uint64_t psize = vd->vdev_ops == &vdev_draid_ops ?
-	    vdev_draid_asize_to_psize(vd, asize) : asize;
+	    vdev_draid_asize_to_psize(vd, asize, 0) : asize;
 
 	BP_ZERO(bp);
 
