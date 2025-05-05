@@ -3162,7 +3162,7 @@ static void
 zio_update_feature(void *arg, dmu_tx_t *tx)
 {
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	spa_feature_incr(spa, (spa_feature_t)arg, tx);
+	spa_feature_incr(spa, (spa_feature_t)(uintptr_t)arg, tx);
 }
 
 static zio_t *
