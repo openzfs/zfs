@@ -222,6 +222,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "EX", "REEXECUTED" },
 	{ '.', "DG", "DELEGATED" },
 	{ '.', "DC", "DIO_CHKSUM_ERR" },
+	{ '.', "PA", "PREALLOCATED" },
 )
 
 /*
