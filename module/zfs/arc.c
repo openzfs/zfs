@@ -4205,15 +4205,17 @@ static uint64_t
 arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
     uint_t balance)
 {
-	if (total < 8 || up + down == 0)
+	if (total < 32 || up + down == 0)
 		return (frac);
 
 	/*
-	 * We should not have more ghost hits than ghost size, but they
-	 * may get close.  Restrict maximum adjustment in that case.
+	 * We should not have more ghost hits than ghost size, but they may
+	 * get close.  To avoid overflows below up/down should not be bigger
+	 * than 1/5 of total.  But to limit maximum adjustment speed restrict
+	 * it some more.
 	 */
-	if (up + down >= total / 4) {
-		uint64_t scale = (up + down) / (total / 8);
+	if (up + down >= total / 16) {
+		uint64_t scale = (up + down) / (total / 32);
 		up /= scale;
 		down /= scale;
 	}
@@ -4222,6 +4224,7 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 	int s = highbit64(total);
 	s = MIN(64 - s, 32);
 
+	ASSERT3U(frac, <=, 1ULL << 32);
 	uint64_t ofrac = (1ULL << 32) - frac;
 
 	if (frac >= 4 * ofrac)
@@ -4232,6 +4235,8 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 	down = (down << s) / (total >> (32 - s));
 	down = down * 100 / balance;
 
+	ASSERT3U(up, <=, (1ULL << 32) - frac);
+	ASSERT3U(down, <=, frac);
 	return (frac + up - down);
 }
 
