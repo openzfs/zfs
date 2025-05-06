@@ -3203,6 +3203,10 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	error = metaslab_alloc(spa, mc, gangblocksize,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    &pio->io_alloc_list, pio->io_allocator, pio);
+	if (error) {
+		pio->io_error = error;
+		return (pio);
+	}
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
 		gangblocksize = UINT64_MAX;
@@ -3218,10 +3222,6 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		}
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 		ASSERT3U(gangblocksize, !=, UINT64_MAX);
-	}
-	if (error) {
-		pio->io_error = error;
-		return (pio);
 	}
 
 	if (pio == gio) {
