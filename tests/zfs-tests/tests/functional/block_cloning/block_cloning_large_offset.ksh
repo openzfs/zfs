@@ -37,10 +37,6 @@
 
 verify_runnable "global"
 
-if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
-  log_unsupported "copy_file_range not available before Linux 4.5"
-fi
-
 claim="The first clone at a large offset is functional"
 
 log_assert $claim

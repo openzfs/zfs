@@ -31,13 +31,6 @@ export RECORDSIZE=$(zfs get -Hp -o value recordsize $TESTPOOL/$TESTFS)
 MINBLKSIZE1=512
 MINBLKSIZE2=1024
 
-function verify_block_cloning
-{
-	if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
-		log_unsupported "copy_file_range not available before Linux 4.5"
-	fi
-}
-
 function verify_crossfs_block_cloning
 {
 	if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
