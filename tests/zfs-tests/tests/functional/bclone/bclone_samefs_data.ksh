@@ -30,8 +30,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
-
 log_assert "Verify block cloning properly clones regular files within the same dataset"
 
 # Disable compression to make sure we won't use embedded blocks.
