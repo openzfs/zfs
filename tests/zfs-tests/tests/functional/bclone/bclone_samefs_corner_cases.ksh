@@ -30,8 +30,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
-
 log_assert "Verify various corner cases in block cloning within the same dataset"
 
 # Disable compression to make sure we won't use embedded blocks.
