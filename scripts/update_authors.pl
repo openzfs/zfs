@@ -133,8 +133,15 @@ for my $line (do { local (@ARGV) = ('AUTHORS'); <> }) {
 # mappings, keyed on slug. Note that this format is getting the
 # .mailmap-converted form. This lets us control the input to some extent by
 # making changes there.
-my %git_names;
-my %git_emails;
+my %seen_names;
+my %seen_emails;
+
+# The true email address from commits, by slug. We do this so we can generate
+# mailmap entries, which will only match the exact address from the commit,
+# not anything "prettified". This lets us remember the prefix part of Github
+# noreply addresses, while not including it in AUTHORS if that is truly the
+# best option we have.
+my %commit_email;
 
 for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE:::%(trailers:key=signed-off-by,valueonly,separator=:::)')) {
 	chomp $line;
@@ -145,8 +152,11 @@ for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE:::%(trailers:key=si
 	my $sname = name_slug($name);
 
 	# Track the committer name and email.
-	$git_names{$semail}{$sname} = 1;
-	$git_emails{$sname}{$semail} = 1;
+	$seen_names{$semail}{$sname} = 1;
+	$seen_emails{$sname}{$semail} = 1;
+
+	# Keep the original commit address.
+	$commit_email{$semail} = $email;
 
 	# Consider if these are the best we've ever seen.
 	update_display_name($name);
@@ -160,8 +170,8 @@ for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE:::%(trailers:key=si
 		my $ssoname = name_slug($soname);
 		my $ssoemail = email_slug($soemail);
 		if (($semail eq $ssoemail) ^ ($sname eq $ssoname)) {
-		    $git_names{$ssoemail}{$ssoname} = 1;
-		    $git_emails{$ssoname}{$ssoemail} = 1;
+		    $seen_names{$ssoemail}{$ssoname} = 1;
+		    $seen_emails{$ssoname}{$ssoemail} = 1;
 		    update_display_name($soname);
 		    update_display_email($soemail);
 		}
@@ -172,9 +182,9 @@ for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE:::%(trailers:key=si
 # We start with emails and resolve all possible names, then we resolve the
 # emails for those names, and round and round until there's nothing left.
 my @committers;
-for my $start_email (sort keys %git_names) {
+for my $start_email (sort keys %seen_names) {
 	# it might have been deleted already through a cross-reference
-	next unless $git_names{$start_email};
+	next unless $seen_names{$start_email};
 
 	my %emails;
 	my %names;
@@ -185,12 +195,12 @@ for my $start_email (sort keys %git_names) {
 		while (my $email = shift @check_emails) {
 			next if $emails{$email}++;
 			push @check_names,
-			    sort keys %{delete $git_names{$email}};
+			    sort keys %{delete $seen_names{$email}};
 		}
 		while (my $name = shift @check_names) {
 			next if $names{$name}++;
 			push @check_emails,
-			    sort keys %{delete $git_emails{$name}};
+			    sort keys %{delete $seen_emails{$name}};
 		}
 	}
 
@@ -212,6 +222,20 @@ for my $committer (@committers) {
 
 	$authors_email{$name} = $email;
 	$authors_name{$email} = $name;
+
+	# We've now selected our canonical name going forward. If there
+	# were other options from commit authors only (not signoffs),
+	# emit mailmap lines for the user to past into .mailmap
+	my $cemail = $display_email{email_slug($authors_email{$name})};
+	for my $alias (@$emails) {
+		next if $alias eq $email;
+
+		my $calias = $commit_email{$alias};
+		next unless $calias;
+
+		my $cname = $display_name{$name};
+		say "$cname <$cemail> <$calias>";
+	}
 }
 
 # Now output the new AUTHORS file
