@@ -51,21 +51,13 @@ static void zvol_request_impl(zvol_state_t *zv, struct bio *bio,
     struct request *rq, boolean_t force_sync);
 
 static unsigned int zvol_major = ZVOL_MAJOR;
-static unsigned int zvol_request_sync = 0;
 static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
-
-/*
- * Switch taskq at multiple of 512 MB offset. This can be set to a lower value
- * to utilize more threads for small files but may affect prefetch hits.
- */
-#define	ZVOL_TASKQ_OFFSET_SHIFT 29
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 static unsigned int zvol_open_timeout_ms = 1000;
 #endif
 
-static unsigned int zvol_threads = 0;
 static unsigned int zvol_blk_mq_threads = 0;
 static unsigned int zvol_blk_mq_actual_threads;
 static boolean_t zvol_use_blk_mq = B_FALSE;
@@ -81,8 +73,6 @@ static boolean_t zvol_use_blk_mq = B_FALSE;
  * read and write tests to a zvol in an NVMe pool (with 16 CPUs).
  */
 static unsigned int zvol_blk_mq_blocks_per_thread = 8;
-
-static unsigned int zvol_num_taskqs = 0;
 
 #ifndef	BLKDEV_DEFAULT_RQ
 /* BLKDEV_MAX_RQ was renamed to BLKDEV_DEFAULT_RQ in the 5.16 kernel */
@@ -117,44 +107,7 @@ struct zvol_state_os {
 	boolean_t use_blk_mq;
 };
 
-typedef struct zv_taskq {
-	uint_t tqs_cnt;
-	taskq_t **tqs_taskq;
-} zv_taskq_t;
-static zv_taskq_t zvol_taskqs;
 static struct ida zvol_ida;
-
-typedef struct zv_request_stack {
-	zvol_state_t	*zv;
-	struct bio	*bio;
-	struct request *rq;
-} zv_request_t;
-
-typedef struct zv_work {
-	struct request  *rq;
-	struct work_struct work;
-} zv_work_t;
-
-typedef struct zv_request_task {
-	zv_request_t zvr;
-	taskq_ent_t	ent;
-} zv_request_task_t;
-
-static zv_request_task_t *
-zv_request_task_create(zv_request_t zvr)
-{
-	zv_request_task_t *task;
-	task = kmem_alloc(sizeof (zv_request_task_t), KM_SLEEP);
-	taskq_init_ent(&task->ent);
-	task->zvr = zvr;
-	return (task);
-}
-
-static void
-zv_request_task_free(zv_request_task_t *task)
-{
-	kmem_free(task, sizeof (*task));
-}
 
 /*
  * This is called when a new block multiqueue request comes in.  A request
@@ -1793,59 +1746,14 @@ zvol_init(void)
 {
 	int error;
 
-	/*
-	 * zvol_threads is the module param the user passes in.
-	 *
-	 * zvol_actual_threads is what we use internally, since the user can
-	 * pass zvol_thread = 0 to mean "use all the CPUs" (the default).
-	 */
-	static unsigned int zvol_actual_threads;
-
-	if (zvol_threads == 0) {
-		/*
-		 * See dde9380a1 for why 32 was chosen here.  This should
-		 * probably be refined to be some multiple of the number
-		 * of CPUs.
-		 */
-		zvol_actual_threads = MAX(num_online_cpus(), 32);
-	} else {
-		zvol_actual_threads = MIN(MAX(zvol_threads, 1), 1024);
+	error = zvol_init_impl();
+	if (error) {
+		printk(KERN_INFO "ZFS: zvol_init_impl() failed %d\n", error);
+		return (error);
 	}
 
-	/*
-	 * Use atleast 32 zvol_threads but for many core system,
-	 * prefer 6 threads per taskq, but no more taskqs
-	 * than threads in them on large systems.
-	 *
-	 *                 taskq   total
-	 * cpus    taskqs  threads threads
-	 * ------- ------- ------- -------
-	 * 1       1       32       32
-	 * 2       1       32       32
-	 * 4       1       32       32
-	 * 8       2       16       32
-	 * 16      3       11       33
-	 * 32      5       7        35
-	 * 64      8       8        64
-	 * 128     11      12       132
-	 * 256     16      16       256
-	 */
-	zv_taskq_t *ztqs = &zvol_taskqs;
-	uint_t num_tqs = MIN(num_online_cpus(), zvol_num_taskqs);
-	if (num_tqs == 0) {
-		num_tqs = 1 + num_online_cpus() / 6;
-		while (num_tqs * num_tqs > zvol_actual_threads)
-			num_tqs--;
-	}
-	uint_t per_tq_thread = zvol_actual_threads / num_tqs;
-	if (per_tq_thread * num_tqs < zvol_actual_threads)
-		per_tq_thread++;
-	ztqs->tqs_cnt = num_tqs;
-	ztqs->tqs_taskq = kmem_alloc(num_tqs * sizeof (taskq_t *), KM_SLEEP);
 	error = register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
-		kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt * sizeof (taskq_t *));
-		ztqs->tqs_taskq = NULL;
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
 		return (error);
 	}
@@ -1864,25 +1772,6 @@ zvol_init(void)
 		    1024);
 	}
 
-	for (uint_t i = 0; i < num_tqs; i++) {
-		char name[32];
-		(void) snprintf(name, sizeof (name), "%s_tq-%u",
-		    ZVOL_DRIVER, i);
-		ztqs->tqs_taskq[i] = taskq_create(name, per_tq_thread,
-		    maxclsyspri, per_tq_thread, INT_MAX,
-		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
-		if (ztqs->tqs_taskq[i] == NULL) {
-			for (int j = i - 1; j >= 0; j--)
-				taskq_destroy(ztqs->tqs_taskq[j]);
-			unregister_blkdev(zvol_major, ZVOL_DRIVER);
-			kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt *
-			    sizeof (taskq_t *));
-			ztqs->tqs_taskq = NULL;
-			return (-ENOMEM);
-		}
-	}
-
-	zvol_init_impl();
 	ida_init(&zvol_ida);
 	return (0);
 }
@@ -1890,21 +1779,9 @@ zvol_init(void)
 void
 zvol_fini(void)
 {
-	zv_taskq_t *ztqs = &zvol_taskqs;
-	zvol_fini_impl();
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 
-	if (ztqs->tqs_taskq == NULL) {
-		ASSERT3U(ztqs->tqs_cnt, ==, 0);
-	} else {
-		for (uint_t i = 0; i < ztqs->tqs_cnt; i++) {
-			ASSERT3P(ztqs->tqs_taskq[i], !=, NULL);
-			taskq_destroy(ztqs->tqs_taskq[i]);
-		}
-		kmem_free(ztqs->tqs_taskq, ztqs->tqs_cnt *
-		    sizeof (taskq_t *));
-		ztqs->tqs_taskq = NULL;
-	}
+	zvol_fini_impl();
 
 	ida_destroy(&zvol_ida);
 }
@@ -1915,18 +1792,8 @@ MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
 module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
-module_param(zvol_threads, uint, 0444);
-MODULE_PARM_DESC(zvol_threads, "Number of threads to handle I/O requests. Set"
-	"to 0 to use all active CPUs");
-
-module_param(zvol_request_sync, uint, 0644);
-MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
-
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
-
-module_param(zvol_num_taskqs, uint, 0444);
-MODULE_PARM_DESC(zvol_num_taskqs, "Number of zvol taskqs");
 
 module_param(zvol_prefetch_bytes, uint, 0644);
 MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
