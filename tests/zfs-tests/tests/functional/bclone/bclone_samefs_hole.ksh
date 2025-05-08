@@ -30,8 +30,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
-
 log_assert "Verify block cloning properly clones sparse files (files with holes) within the same dataset"
 
 # Compression doesn't matter here.

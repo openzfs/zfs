@@ -30,8 +30,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
-
 log_assert "Verify block cloning properly clones small files (with embedded blocks) within the same dataset"
 
 # Enable ZLE compression to make sure what is the maximum amount of data we
