@@ -1410,6 +1410,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 static int
 dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 {
+	void* db_data;
 	int bonuslen, max_bonuslen;
 
 	bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
@@ -1417,21 +1418,22 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn)
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(DB_DNODE_HELD(db));
 	ASSERT3U(bonuslen, <=, db->db.db_size);
-	db->db.db_data = kmem_alloc(max_bonuslen, KM_SLEEP);
+	db_data = kmem_alloc(max_bonuslen, KM_SLEEP);
 	arc_space_consume(max_bonuslen, ARC_SPACE_BONUS);
 	if (bonuslen < max_bonuslen)
-		memset(db->db.db_data, 0, max_bonuslen);
+		memset(db_data, 0, max_bonuslen);
 	if (bonuslen)
-		memcpy(db->db.db_data, DN_BONUS(dn->dn_phys), bonuslen);
+		memcpy(db_data, DN_BONUS(dn->dn_phys), bonuslen);
+	db->db.db_data = db_data;
 	db->db_state = DB_CACHED;
 	DTRACE_SET_STATE(db, "bonus buffer filled");
 	return (0);
 }
 
 static void
-dbuf_handle_indirect_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *dbbp)
+dbuf_handle_indirect_hole(void *data, dnode_t *dn, blkptr_t *dbbp)
 {
-	blkptr_t *bps = db->db.db_data;
+	blkptr_t *bps = data;
 	uint32_t indbs = 1ULL << dn->dn_indblkshift;
 	int n_bps = indbs >> SPA_BLKPTRSHIFT;
 
@@ -1456,6 +1458,7 @@ static int
 dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	arc_buf_t *db_data;
 
 	int is_hole = bp == NULL || BP_IS_HOLE(bp);
 	/*
@@ -1468,13 +1471,14 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 		is_hole = dnode_block_freed(dn, db->db_blkid) || BP_IS_HOLE(bp);
 
 	if (is_hole) {
-		dbuf_set_data(db, dbuf_alloc_arcbuf(db));
-		memset(db->db.db_data, 0, db->db.db_size);
+		db_data = dbuf_alloc_arcbuf(db);
+		memset(db_data->b_data, 0, db->db.db_size);
 
 		if (bp != NULL && db->db_level > 0 && BP_IS_HOLE(bp) &&
 		    BP_GET_LOGICAL_BIRTH(bp) != 0) {
-			dbuf_handle_indirect_hole(db, dn, bp);
+			dbuf_handle_indirect_hole(db_data->b_data, dn, bp);
 		}
+		dbuf_set_data(db, db_data);
 		db->db_state = DB_CACHED;
 		DTRACE_SET_STATE(db, "hole read satisfied");
 		return (0);
@@ -2493,6 +2497,7 @@ dbuf_undirty_bonus(dbuf_dirty_record_t *dr)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	if (dr->dt.dl.dr_data != db->db.db_data) {
 		struct dnode *dn = dr->dr_dnode;
 		int max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
@@ -3827,6 +3832,7 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 {
 	dbuf_dirty_record_t *dr = db->db_data_pending;
 	arc_buf_t *data = dr->dt.dl.dr_data;
+	arc_buf_t *db_data;
 	enum zio_compress compress_type = arc_get_compression(data);
 	uint8_t complevel = arc_get_complevel(data);
 
@@ -3837,22 +3843,21 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 		uint8_t mac[ZIO_DATA_MAC_LEN];
 
 		arc_get_raw_params(data, &byteorder, salt, iv, mac);
-		dbuf_set_data(db, arc_alloc_raw_buf(dn->dn_objset->os_spa, db,
+		db_data = arc_alloc_raw_buf(dn->dn_objset->os_spa, db,
 		    dmu_objset_id(dn->dn_objset), byteorder, salt, iv, mac,
 		    dn->dn_type, arc_buf_size(data), arc_buf_lsize(data),
-		    compress_type, complevel));
+		    compress_type, complevel);
 	} else if (compress_type != ZIO_COMPRESS_OFF) {
-		dbuf_set_data(db, arc_alloc_compressed_buf(
+		db_data = arc_alloc_compressed_buf(
 		    dn->dn_objset->os_spa, db, arc_buf_size(data),
-		    arc_buf_lsize(data), compress_type, complevel));
+		    arc_buf_lsize(data), compress_type, complevel);
 	} else {
-		dbuf_set_data(db, arc_alloc_buf(dn->dn_objset->os_spa, db,
-		    DBUF_GET_BUFC_TYPE(db), db->db.db_size));
+		db_data = arc_alloc_buf(dn->dn_objset->os_spa, db,
+		    DBUF_GET_BUFC_TYPE(db), db->db.db_size);
 	}
+	memcpy(db_data->b_data, data->b_data, arc_buf_size(data));
 
-	rw_enter(&db->db_rwlock, RW_WRITER);
-	memcpy(db->db.db_data, data->b_data, arc_buf_size(data));
-	rw_exit(&db->db_rwlock);
+	dbuf_set_data(db, db_data);
 }
 
 /*
@@ -3913,6 +3918,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	if (db->db_buf != NULL) {
 		arc_buf_access(db->db_buf);
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		ASSERT3P(db->db.db_data, ==, db->db_buf->b_data);
 	}
 
