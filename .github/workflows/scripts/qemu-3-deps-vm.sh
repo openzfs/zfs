@@ -4,6 +4,8 @@
 # 3) install dependencies for compiling and loading
 #
 # $1: OS name (like 'fedora41')
+# $2: (optional) Experimental Fedora kernel version, like "6.14" to
+#     install instead of Fedora defaults.
 ######################################################################
 
 set -eu
@@ -95,6 +97,25 @@ function tumbleweed() {
   echo "##[endgroup]"
 }
 
+# $1: Kernel version to install (like '6.14rc7')
+function install_fedora_experimental_kernel {
+
+  our_version="$1"
+  sudo dnf -y copr enable @kernel-vanilla/stable
+  sudo dnf -y copr enable @kernel-vanilla/mainline
+  all="$(sudo dnf list --showduplicates kernel-*)"
+  echo "Available versions:"
+  echo "$all"
+
+  # You can have a bunch of minor variants of the version we want '6.14'.
+  # Pick the newest variant (sorted by version number).
+  specific_version=$(echo "$all" | grep $our_version | awk '{print $2}' | sort -V | tail -n 1)
+  list="$(echo "$all" | grep $specific_version | grep -Ev 'kernel-rt|kernel-selftests|kernel-debuginfo' | sed 's/.x86_64//g' | awk '{print $1"-"$2}')"
+  sudo dnf install -y $list
+  sudo dnf -y copr disable @kernel-vanilla/stable
+  sudo dnf -y copr disable @kernel-vanilla/mainline
+}
+
 # Install dependencies
 case "$1" in
   almalinux8)
@@ -133,6 +154,11 @@ case "$1" in
 
     # Fedora 42+ moves /usr/bin/script from 'util-linux' to 'util-linux-script'
     sudo dnf install -y util-linux-script || true
+
+    # Optional: Install an experimental kernel ($2 = kernel version)
+    if [ -n "${2:-}" ] ; then
+      install_fedora_experimental_kernel "$2"
+    fi
     ;;
   freebsd*)
     freebsd
