@@ -141,6 +141,7 @@ override_dh_auto_install:
 
 override_dh_python3:
 	dh_python3 -p openzfs-python3-pyzfs
+	dh_python3 -p openzfs-python3-libzfsacl
 
 override_dh_dkms:
 	'$(CURDIR)/scripts/dkms.mkconf' -n $(NAME) -v $(DEB_VERSION_UPSTREAM) -f '$(CURDIR)/scripts/zfs-dkms.dkms'
