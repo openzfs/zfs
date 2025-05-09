@@ -73,6 +73,7 @@ usr/share/man/man8/zfs-recv.8
 usr/share/man/man8/zfs-redact.8
 usr/share/man/man8/zfs-release.8
 usr/share/man/man8/zfs-rename.8
+usr/share/man/man8/zfs-rewrite.8
 usr/share/man/man8/zfs-rollback.8
 usr/share/man/man8/zfs-send.8
 usr/share/man/man8/zfs-set.8

@@ -37,6 +37,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <sys/debug.h>
+#include <dirent.h>
 #include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
@@ -121,6 +122,7 @@ static int zfs_do_change_key(int argc, char **argv);
 static int zfs_do_project(int argc, char **argv);
 static int zfs_do_version(int argc, char **argv);
 static int zfs_do_redact(int argc, char **argv);
+static int zfs_do_rewrite(int argc, char **argv);
 static int zfs_do_wait(int argc, char **argv);
 
 #ifdef __FreeBSD__
@@ -193,6 +195,7 @@ typedef enum {
 	HELP_CHANGE_KEY,
 	HELP_VERSION,
 	HELP_REDACT,
+	HELP_REWRITE,
 	HELP_JAIL,
 	HELP_UNJAIL,
 	HELP_WAIT,
@@ -227,7 +230,7 @@ static zfs_command_t command_table[] = {
 	{ "promote",	zfs_do_promote,		HELP_PROMOTE		},
 	{ "rename",	zfs_do_rename,		HELP_RENAME		},
 	{ "bookmark",	zfs_do_bookmark,	HELP_BOOKMARK		},
-	{ "program",    zfs_do_channel_program, HELP_CHANNEL_PROGRAM    },
+	{ "diff",	zfs_do_diff,		HELP_DIFF		},
 	{ NULL },
 	{ "list",	zfs_do_list,		HELP_LIST		},
 	{ NULL },
@@ -249,27 +252,31 @@ static zfs_command_t command_table[] = {
 	{ NULL },
 	{ "send",	zfs_do_send,		HELP_SEND		},
 	{ "receive",	zfs_do_receive,		HELP_RECEIVE		},
+	{ "redact",	zfs_do_redact,		HELP_REDACT		},
 	{ NULL },
 	{ "allow",	zfs_do_allow,		HELP_ALLOW		},
-	{ NULL },
 	{ "unallow",	zfs_do_unallow,		HELP_UNALLOW		},
 	{ NULL },
 	{ "hold",	zfs_do_hold,		HELP_HOLD		},
 	{ "holds",	zfs_do_holds,		HELP_HOLDS		},
 	{ "release",	zfs_do_release,		HELP_RELEASE		},
-	{ "diff",	zfs_do_diff,		HELP_DIFF		},
+	{ NULL },
 	{ "load-key",	zfs_do_load_key,	HELP_LOAD_KEY		},
 	{ "unload-key",	zfs_do_unload_key,	HELP_UNLOAD_KEY		},
 	{ "change-key",	zfs_do_change_key,	HELP_CHANGE_KEY		},
-	{ "redact",	zfs_do_redact,		HELP_REDACT		},
+	{ NULL },
+	{ "program",	zfs_do_channel_program,	HELP_CHANNEL_PROGRAM	},
+	{ "rewrite",	zfs_do_rewrite,		HELP_REWRITE		},
 	{ "wait",	zfs_do_wait,		HELP_WAIT		},
 
 #ifdef __FreeBSD__
+	{ NULL },
 	{ "jail",	zfs_do_jail,		HELP_JAIL		},
 	{ "unjail",	zfs_do_unjail,		HELP_UNJAIL		},
 #endif
 
 #ifdef __linux__
+	{ NULL },
 	{ "zone",	zfs_do_zone,		HELP_ZONE		},
 	{ "unzone",	zfs_do_unzone,		HELP_UNZONE		},
 #endif
@@ -432,6 +439,9 @@ get_usage(zfs_help_t idx)
 	case HELP_REDACT:
 		return (gettext("\tredact <snapshot> <bookmark> "
 		    "<redaction_snapshot> ...\n"));
+	case HELP_REWRITE:
+		return (gettext("\trewrite [-rvx] [-o <offset>] [-l <length>] "
+		    "<directory|file ...>\n"));
 	case HELP_JAIL:
 		return (gettext("\tjail <jailid|jailname> <filesystem>\n"));
 	case HELP_UNJAIL:
@@ -9012,6 +9022,192 @@ zfs_do_project(int argc, char **argv)
 		if (err && !ret)
 			ret = err;
 	}
+
+	return (ret);
+}
+
+static int
+zfs_rewrite_file(const char *path, boolean_t verbose, zfs_rewrite_args_t *args)
+{
+	int fd, ret = 0;
+
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		ret = errno;
+		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
+		    path, strerror(errno));
+		return (ret);
+	}
+
+	if (ioctl(fd, ZFS_IOC_REWRITE, args) < 0) {
+		ret = errno;
+		(void) fprintf(stderr, gettext("failed to rewrite %s: %s\n"),
+		    path, strerror(errno));
+	} else if (verbose) {
+		printf("%s\n", path);
+	}
+
+	close(fd);
+	return (ret);
+}
+
+static int
+zfs_rewrite_dir(const char *path, boolean_t verbose, boolean_t xdev, dev_t dev,
+    zfs_rewrite_args_t *args, nvlist_t *dirs)
+{
+	struct dirent *ent;
+	DIR *dir;
+	int ret = 0, err;
+
+	dir = opendir(path);
+	if (dir == NULL) {
+		if (errno == ENOENT)
+			return (0);
+		ret = errno;
+		(void) fprintf(stderr, gettext("failed to opendir %s: %s\n"),
+		    path, strerror(errno));
+		return (ret);
+	}
+
+	size_t plen = strlen(path) + 1;
+	while ((ent = readdir(dir)) != NULL) {
+		char *fullname;
+		struct stat st;
+
+		if (ent->d_type != DT_REG && ent->d_type != DT_DIR)
+			continue;
+
+		if (strcmp(ent->d_name, ".") == 0 ||
+		    strcmp(ent->d_name, "..") == 0)
+			continue;
+
+		if (plen + strlen(ent->d_name) >= PATH_MAX) {
+			(void) fprintf(stderr, gettext("path too long %s/%s\n"),
+			    path, ent->d_name);
+			ret = ENAMETOOLONG;
+			continue;
+		}
+
+		if (asprintf(&fullname, "%s/%s", path, ent->d_name) == -1) {
+			(void) fprintf(stderr,
+			    gettext("failed to allocate memory\n"));
+			ret = ENOMEM;
+			continue;
+		}
+
+		if (xdev) {
+			if (lstat(fullname, &st) < 0) {
+				ret = errno;
+				(void) fprintf(stderr,
+				    gettext("failed to stat %s: %s\n"),
+				    fullname, strerror(errno));
+				free(fullname);
+				continue;
+			}
+			if (st.st_dev != dev) {
+				free(fullname);
+				continue;
+			}
+		}
+
+		if (ent->d_type == DT_REG) {
+			err = zfs_rewrite_file(fullname, verbose, args);
+			if (err)
+				ret = err;
+		} else { /* DT_DIR */
+			fnvlist_add_uint64(dirs, fullname, dev);
+		}
+
+		free(fullname);
+	}
+
+	closedir(dir);
+	return (ret);
+}
+
+static int
+zfs_rewrite_path(const char *path, boolean_t verbose, boolean_t recurse,
+    boolean_t xdev, zfs_rewrite_args_t *args, nvlist_t *dirs)
+{
+	struct stat st;
+	int ret = 0;
+
+	if (lstat(path, &st) < 0) {
+		ret = errno;
+		(void) fprintf(stderr, gettext("failed to stat %s: %s\n"),
+		    path, strerror(errno));
+		return (ret);
+	}
+
+	if (S_ISREG(st.st_mode)) {
+		ret = zfs_rewrite_file(path, verbose, args);
+	} else if (S_ISDIR(st.st_mode) && recurse) {
+		ret = zfs_rewrite_dir(path, verbose, xdev, st.st_dev, args,
+		    dirs);
+	}
+	return (ret);
+}
+
+static int
+zfs_do_rewrite(int argc, char **argv)
+{
+	int ret = 0, err, c;
+	boolean_t recurse = B_FALSE, verbose = B_FALSE, xdev = B_FALSE;
+
+	if (argc < 2)
+		usage(B_FALSE);
+
+	zfs_rewrite_args_t args;
+	memset(&args, 0, sizeof (args));
+
+	while ((c = getopt(argc, argv, "l:o:rvx")) != -1) {
+		switch (c) {
+		case 'l':
+			args.len = strtoll(optarg, NULL, 0);
+			break;
+		case 'o':
+			args.off = strtoll(optarg, NULL, 0);
+			break;
+		case 'r':
+			recurse = B_TRUE;
+			break;
+		case 'v':
+			verbose = B_TRUE;
+			break;
+		case 'x':
+			xdev = B_TRUE;
+			break;
+		default:
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argv += optind;
+	argc -= optind;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    gettext("missing file or directory target(s)\n"));
+		usage(B_FALSE);
+	}
+
+	nvlist_t *dirs = fnvlist_alloc();
+	for (int i = 0; i < argc; i++) {
+		err = zfs_rewrite_path(argv[i], verbose, recurse, xdev, &args,
+		    dirs);
+		if (err)
+			ret = err;
+	}
+	nvpair_t *dir;
+	while ((dir = nvlist_next_nvpair(dirs, NULL)) != NULL) {
+		err = zfs_rewrite_dir(nvpair_name(dir), verbose, xdev,
+		    fnvpair_value_uint64(dir), &args, dirs);
+		if (err)
+			ret = err;
+		fnvlist_remove_nvpair(dirs, dir);
+	}
+	fnvlist_free(dirs);
 
 	return (ret);
 }
