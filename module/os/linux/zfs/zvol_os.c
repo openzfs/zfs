@@ -258,7 +258,8 @@ zvol_write(zv_request_t *zvr)
 			dmu_tx_abort(tx);
 			break;
 		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
+		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
+		    DMU_READ_PREFETCH);
 		if (error == 0) {
 			zvol_log_write(zv, tx, off, bytes, sync);
 		}
@@ -428,7 +429,8 @@ zvol_read(zv_request_t *zvr)
 		if (bytes > volsize - uio.uio_loffset)
 			bytes = volsize - uio.uio_loffset;
 
-		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
+		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes,
+		    DMU_READ_PREFETCH);
 		if (error) {
 			/* convert checksum errors into IO errors */
 			if (error == ECKSUM)
