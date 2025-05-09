@@ -3,7 +3,7 @@
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
-.\" Copyright (c) 2023, 2024 Klara, Inc.
+.\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -17,9 +17,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.\" Copyright (c) 2024, Klara, Inc.
-.\"
-.Dd November 1, 2024
+.Dd May 7, 2025
 .Dt ZFS 4
 .Os
 .
@@ -734,6 +732,40 @@ even during the potentially long time that
 Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
+.
+.It Sy zfs_arc_evict_threads Ns = Ns Sy 0 Pq int
+Sets the number of ARC eviction threads to be used.
+.Pp
+If set greater than 0, ZFS will dedicate up to that many threads to ARC
+eviction.
+Each thread will process one sub-list at a time,
+until the eviction target is reached or all sub-lists have been processed.
+When set to 0, ZFS will compute a reasonable number of eviction threads based
+on the number of CPUs.
+.TS
+box;
+lb l l .
+	CPUs	Threads
+_
+	1-4	1
+	5-8	2
+	9-15	3
+	16-31	4
+	32-63	6
+	64-95	8
+	96-127	9
+	128-160	11
+	160-191	12
+	192-223	13
+	224-255	14
+	256+	16
+.TE
+.Pp
+More threads may improve the responsiveness of ZFS to memory pressure.
+This can be important for performance when eviction from the ARC becomes
+a bottleneck for reads and writes.
+.Pp
+This parameter can only be set at module load time.
 .
 .It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
 If set to a non zero value, it will replace the
