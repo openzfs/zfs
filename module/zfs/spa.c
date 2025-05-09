@@ -2194,6 +2194,7 @@ spa_unload(spa_t *spa)
 	}
 
 	spa->spa_raidz_expand = NULL;
+	spa->spa_checkpoint_txg = 0;
 
 	spa_config_exit(spa, SCL_ALL, spa);
 }
