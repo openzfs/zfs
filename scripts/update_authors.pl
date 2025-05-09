@@ -59,6 +59,17 @@
 # the display version. We use this slug to update two maps, one of email->name,
 # the other of name->email.
 #
+# Where possible, we also consider Signed-off-by: trailers in the commit
+# message, and if they match the commit author, enter them into the maps also.
+# Because a commit can contain multiple signoffs, we only track one if either
+# the name or the email address match the commit author (by slug). This is
+# mostly aimed at letting an explicit signoff override a generated name or
+# email on the same commit (usually a Github noreply), while avoiding every
+# signoff ever being treated as a possible canonical ident for some other
+# committer. (Also note that this behaviour only works for signoffs that can be
+# extracted with git-interpret-trailers, which misses many seen in the OpenZFS
+# git history, for various reasons).
+#
 # Once collected, we then walk all the emails we've seen and get all the names
 # associated with every instance. Then for each of those names, we get all the
 # emails associated, and so on until we've seen all the connected names and
@@ -118,31 +129,52 @@ for my $line (do { local (@ARGV) = ('AUTHORS'); <> }) {
 	}
 }
 
-# Next, we load all the commit authors. and form name<->email mappings, keyed
-# on slug. Note that this format is getting the .mailmap-converted form. This
-# lets us control the input to some extent by making changes there.
-my %git_names;
-my %git_emails;
+# Next, we load all the commit authors and signoff pairs, and form name<->email
+# mappings, keyed on slug. Note that this format is getting the
+# .mailmap-converted form. This lets us control the input to some extent by
+# making changes there.
+my %seen_names;
+my %seen_emails;
 
-for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE')) {
+# The true email address from commits, by slug. We do this so we can generate
+# mailmap entries, which will only match the exact address from the commit,
+# not anything "prettified". This lets us remember the prefix part of Github
+# noreply addresses, while not including it in AUTHORS if that is truly the
+# best option we have.
+my %commit_email;
+
+for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE:::%(trailers:key=signed-off-by,valueonly,separator=:::)')) {
 	chomp $line;
-	my ($name, $email) = $line =~ m/^(.*):::(.*)/;
+	my ($name, $email, @signoffs) = split ':::', $line;
 	next unless $name && $email;
 
 	my $semail = email_slug($email);
 	my $sname = name_slug($name);
 
-	$git_names{$semail}{$sname} = 1;
-	$git_emails{$sname}{$semail} = 1;
+	# Track the committer name and email.
+	$seen_names{$semail}{$sname} = 1;
+	$seen_emails{$sname}{$semail} = 1;
 
-	# Update the "best looking" display value, but only if we don't already
-	# have something from the AUTHORS file. If we do, we must not change it.
-	if (!$authors_name{email_slug($email)}) {
-		update_display_email($email);
-	}
+	# Keep the original commit address.
+	$commit_email{$semail} = $email;
 
-	if (!$authors_email{name_slug($name)}) {
-		update_display_name($name);
+	# Consider if these are the best we've ever seen.
+	update_display_name($name);
+	update_display_email($email);
+
+	# Check signoffs. any that have a matching name or email as the
+	# committer (by slug), also track them.
+	for my $signoff (@signoffs) {
+		my ($soname, $soemail) = $signoff =~ m/^([^<]+)\s+<(.+)>$/;
+		next unless $soname && $soemail;
+		my $ssoname = name_slug($soname);
+		my $ssoemail = email_slug($soemail);
+		if (($semail eq $ssoemail) ^ ($sname eq $ssoname)) {
+		    $seen_names{$ssoemail}{$ssoname} = 1;
+		    $seen_emails{$ssoname}{$ssoemail} = 1;
+		    update_display_name($soname);
+		    update_display_email($soemail);
+		}
 	}
 }
 
@@ -150,9 +182,9 @@ for my $line (reverse qx(git log --pretty=tformat:'%aN:::%aE')) {
 # We start with emails and resolve all possible names, then we resolve the
 # emails for those names, and round and round until there's nothing left.
 my @committers;
-for my $start_email (sort keys %git_names) {
+for my $start_email (sort keys %seen_names) {
 	# it might have been deleted already through a cross-reference
-	next unless $git_names{$start_email};
+	next unless $seen_names{$start_email};
 
 	my %emails;
 	my %names;
@@ -163,12 +195,12 @@ for my $start_email (sort keys %git_names) {
 		while (my $email = shift @check_emails) {
 			next if $emails{$email}++;
 			push @check_names,
-			    sort keys %{delete $git_names{$email}};
+			    sort keys %{delete $seen_names{$email}};
 		}
 		while (my $name = shift @check_names) {
 			next if $names{$name}++;
 			push @check_emails,
-			    sort keys %{delete $git_emails{$name}};
+			    sort keys %{delete $seen_emails{$name}};
 		}
 	}
 
@@ -190,11 +222,24 @@ for my $committer (@committers) {
 
 	$authors_email{$name} = $email;
 	$authors_name{$email} = $name;
+
+	# We've now selected our canonical name going forward. If there
+	# were other options from commit authors only (not signoffs),
+	# emit mailmap lines for the user to past into .mailmap
+	my $cemail = $display_email{email_slug($authors_email{$name})};
+	for my $alias (@$emails) {
+		next if $alias eq $email;
+
+		my $calias = $commit_email{$alias};
+		next unless $calias;
+
+		my $cname = $display_name{$name};
+		say "$cname <$cemail> <$calias>";
+	}
 }
 
 # Now output the new AUTHORS file
 open my $fh, '>', 'AUTHORS' or die "E: couldn't open AUTHORS for write: $!\n";
-#my $fh = \*STDOUT;
 say $fh join("\n", @authors_header, "");
 for my $name (sort keys %authors_email) {
 	my $cname = $display_name{$name};
@@ -233,9 +278,18 @@ sub email_slug {
 	return lc $email;
 }
 
+# As we accumulate new names and addresses, record the "best looking" version
+# of each. Once we decide to add a committer to AUTHORS, we'll take the best
+# version of their name and address from here.
+#
+# Note that we don't record them if they're already in AUTHORS (that is, in
+# %authors_name or %authors_email) because that file already contains the
+# "best" version, by definition. So we return immediately if we've seen it
+# there already.
 sub update_display_name {
 	my ($name) = @_;
 	my $sname = name_slug($name);
+	return if $authors_email{$sname};
 
 	# For names, "more specific" means "has more non-lower-case characters"
 	# (in ASCII), guessing that if a person has gone to some effort to
@@ -252,9 +306,11 @@ sub update_display_name {
 sub update_display_email {
 	my ($email) = @_;
 	my $semail = email_slug($email);
+	return if $authors_name{$semail};
 
 	# Like names, we prefer uppercase when possible. We also remove any
 	# leading "plus address" for Github noreply addresses.
+
 	$email =~ s/^[^\+]*\+//g if $email =~ m/\.noreply\.github\.com$/;
 
 	my $cemail = $display_email{$semail};
