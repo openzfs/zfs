@@ -1021,7 +1021,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 			if (err == 0) {
 				spa_event_notify(spa, NULL, NULL,
 				    ESC_ZFS_ERRORSCRUB_RESUME);
-				return (ECANCELED);
+				return (0);
 			}
 			return (SET_ERROR(err));
 		}
@@ -1037,7 +1037,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 		    POOL_SCRUB_NORMAL);
 		if (err == 0) {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
-			return (SET_ERROR(ECANCELED));
+			return (0);
 		}
 		return (SET_ERROR(err));
 	}
