@@ -1537,6 +1537,13 @@ This enforced wait ensures the HDD services the interactive I/O
 within a reasonable amount of time.
 .No See Sx ZFS I/O SCHEDULER .
 .
+.It Sy zfs_vdev_queue_bypass_pct Ns = Ns Sy 10 Pq uint
+Allow bypassing the vdev's queue if the vdev queue is less than
+zfs_vdev_queue_bypass_pct percent full.
+This only applies to SSDs (non-rotational drives).
+Only "normal" (read/write) zios can bypass the queue.
+You can use 0 to always queue IOs and 100 to never queue IOs.
+.
 .It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
 Defines if the driver should retire on a given error type.
 The following options may be bitwise-ored together:
