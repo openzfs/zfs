@@ -225,6 +225,7 @@ zfs_prop_init(void)
 		{ "aes-128-gcm",	ZIO_CRYPT_AES_128_GCM },
 		{ "aes-192-gcm",	ZIO_CRYPT_AES_192_GCM },
 		{ "aes-256-gcm",	ZIO_CRYPT_AES_256_GCM },
+		{ "chacha20-poly1305",	ZIO_CRYPT_CHACHA20_POLY1305 },
 		{ NULL }
 	};
 
@@ -566,8 +567,8 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_ENCRYPTION, "encryption",
 	    ZIO_CRYPT_DEFAULT, PROP_ONETIME, ZFS_TYPE_DATASET,
 	    "on | off | aes-128-ccm | aes-192-ccm | aes-256-ccm | "
-	    "aes-128-gcm | aes-192-gcm | aes-256-gcm", "ENCRYPTION",
-	    crypto_table, sfeatures);
+	    "aes-128-gcm | aes-192-gcm | aes-256-gcm | chacha20-poly1305",
+	    "ENCRYPTION", crypto_table, sfeatures);
 
 	/* set once index (boolean) properties */
 	zprop_register_index(ZFS_PROP_UTF8ONLY, "utf8only", 0, PROP_ONETIME,
