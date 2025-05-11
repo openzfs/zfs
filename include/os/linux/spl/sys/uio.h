@@ -151,7 +151,7 @@ zfs_uio_bvec_init(zfs_uio_t *uio, struct bio *bio, struct request *rq)
 #if defined(HAVE_VFS_IOV_ITER)
 static inline void
 zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
-    ssize_t resid, size_t skip)
+    ssize_t resid)
 {
 	uio->uio_iter = iter;
 	uio->uio_iovcnt = iter->nr_segs;
@@ -161,7 +161,7 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 	uio->uio_fmode = 0;
 	uio->uio_extflg = 0;
 	uio->uio_resid = resid;
-	uio->uio_skip = skip;
+	uio->uio_skip = 0;
 }
 #endif
 
