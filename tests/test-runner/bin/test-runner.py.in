@@ -858,9 +858,10 @@ class TestRun(object):
 
     def complete_outputdirs(self):
         """
-        Collect all the pathnames for Tests, and TestGroups. Work
-        backwards one pathname component at a time, to create a unique
-        directory name in which to deposit test output. Tests will be able
+        Collect all the pathnames for Tests, and TestGroups. Strip off all
+        common leading path components, and append what remains to the top
+        "output" dir, to create a tree of output directories that match
+        the test and group names in structure. Tests will be able
         to write output files directly in the newly modified outputdir.
         TestGroups will be able to create one subdirectory per test in the
         outputdir, and are guaranteed uniqueness because a group can only
@@ -869,24 +870,30 @@ class TestRun(object):
         question for their output. Failsafe scripts will create a directory
         rooted at the outputdir of each Test for their output.
         """
-        done = False
-        components = 0
-        tmp_dict = dict(list(self.tests.items()) +
-                        list(self.testgroups.items()))
-        total = len(tmp_dict)
-        base = self.outputdir
 
-        while not done:
-            paths = []
-            components -= 1
-            for testfile in list(tmp_dict.keys()):
-                uniq = '/'.join(testfile.split('/')[components:]).lstrip('/')
-                if uniq not in paths:
-                    paths.append(uniq)
-                    tmp_dict[testfile].outputdir = os.path.join(base, uniq)
-                else:
-                    break
-            done = total == len(paths)
+        alltests = dict(list(self.tests.items()) +
+                        list(self.testgroups.items()))
+        base = os.path.join(self.outputdir, 'output')
+
+        seen = []
+
+        for path in list(alltests.keys()):
+            frag = path.split('/')
+            for i in range(0, len(frag)):
+                if len(seen) == i:
+                    seen.append({})
+                seen[i][frag[i]] = 1
+
+        cut = 0
+        for i in range(0, len(seen)):
+            if len(list(seen[i].keys())) == 1:
+                cut += 1
+            else:
+                break
+
+        for path in list(alltests.keys()):
+            uniq = path.split('/', cut)[-1]
+            alltests[path].outputdir = os.path.join(base, uniq)
 
     def setup_logging(self, options):
         """
