@@ -227,7 +227,8 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
     loff_t pos, ssize_t count, size_t skip)
 {
 #if defined(HAVE_VFS_IOV_ITER)
-	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
+	(void) skip;
+	zfs_uio_iov_iter_init(uio, to, pos, count);
 #else
 	zfs_uio_iovec_init(uio, zfs_uio_iter_iov(to), to->nr_segs, pos,
 	    zfs_uio_iov_iter_type(to) & ITER_KVEC ?
