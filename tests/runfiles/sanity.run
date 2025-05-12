@@ -194,6 +194,10 @@ tags = ['functional', 'cli_root', 'zfs_rename']
 tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 tags = ['functional', 'cli_root', 'zfs_reservation']
 
+[tests/functional/cli_root/zfs_rewrite]
+tests = ['zfs_rewrite']
+tags = ['functional', 'cli_root', 'zfs_rewrite']
+
 [tests/functional/cli_root/zfs_rollback]
 tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
 tags = ['functional', 'cli_root', 'zfs_rollback']
