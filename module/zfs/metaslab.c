@@ -5315,7 +5315,7 @@ metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
 
 static int
 metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    uint64_t max_psize, dva_t *dva, int d, dva_t *hintdva, uint64_t txg,
+    uint64_t max_psize, dva_t *dva, int d, const dva_t *hintdva, uint64_t txg,
     int flags, zio_alloc_list_t *zal, int allocator, uint64_t *actual_psize)
 {
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
@@ -5440,7 +5440,7 @@ next:
  */
 int
 metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
-    dva_t *dva, int d, dva_t *hintdva, uint64_t txg, int flags,
+    dva_t *dva, int d, const dva_t *hintdva, uint64_t txg, int flags,
     zio_alloc_list_t *zal, int allocator)
 {
 	return (metaslab_alloc_dva_range(spa, mc, psize, psize, dva, d, hintdva,
@@ -5932,7 +5932,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
-    int ndvas, uint64_t txg, blkptr_t *hintbp, int flags,
+    int ndvas, uint64_t txg, const blkptr_t *hintbp, int flags,
     zio_alloc_list_t *zal, int allocator, const void *tag)
 {
 	return (metaslab_alloc_range(spa, mc, psize, psize, bp, ndvas, txg,
@@ -5942,11 +5942,11 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 int
 metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
     uint64_t max_psize, blkptr_t *bp, int ndvas, uint64_t txg,
-    blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, int allocator,
+    const blkptr_t *hintbp, int flags, zio_alloc_list_t *zal, int allocator,
     const void *tag, uint64_t *actual_psize)
 {
 	dva_t *dva = bp->blk_dva;
-	dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
+	const dva_t *hintdva = (hintbp != NULL) ? hintbp->blk_dva : NULL;
 	int error = 0;
 
 	ASSERT0(BP_GET_LOGICAL_BIRTH(bp));
