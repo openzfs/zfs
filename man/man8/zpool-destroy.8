@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd May 12, 2025
 .Dt ZPOOL-DESTROY 8
 .Os
 .
@@ -38,6 +38,7 @@
 .Nm zpool
 .Cm destroy
 .Op Fl f
+.Op Fl F
 .Ar pool
 .
 .Sh DESCRIPTION
@@ -46,6 +47,20 @@ This command tries to unmount any active datasets before destroying the pool.
 .Bl -tag -width Ds
 .It Fl f
 Forcefully unmount all active datasets.
+.It Fl F
+Implies and extends -f flag by forcibly destroying a suspended pool.
+It will cause data not already synced to the underlying storage to be lost.
+.Pp
+It must be used only as the last resort, and it is critical to avoid
+other operations over any pool in parallel such as create, import, export,
+destroy, etc.
+.Pp
+Once a pool is requested for forced destruction there is no way back to the
+normal state as some dirty data may have already been dropped.
+The destruction process must be finished, if there are obstacles such as
+operating system inability to unmount the related file systems, then destroy
+command with this hardforce flag must be repeated after unmounting issue
+resolution.
 .El
 .
 .Sh EXAMPLES

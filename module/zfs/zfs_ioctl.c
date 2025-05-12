@@ -1829,7 +1829,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	 */
 	if (!error && (error = zfs_set_prop_nvlist(spa_name,
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0) {
-		(void) spa_destroy(spa_name);
+		(void) spa_destroy(spa_name, B_FALSE, B_FALSE);
 		unload_wkey = B_FALSE; /* spa_destroy() unloads wrapping keys */
 	}
 
@@ -1847,8 +1847,13 @@ static int
 zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 {
 	int error;
-	zfs_log_history(zc);
-	error = spa_destroy(zc->zc_name);
+	boolean_t force = (boolean_t)zc->zc_cookie;
+	boolean_t hardforce = (boolean_t)zc->zc_guid;
+
+	if (!hardforce)
+		zfs_log_history(zc);
+
+	error = spa_destroy(zc->zc_name, force, hardforce);
 
 	return (error);
 }
@@ -8338,7 +8343,7 @@ zfs_ioctl_init(void)
 	 * does the logging of those commands.
 	 */
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_DESTROY, zfs_ioc_pool_destroy,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_EXPORT, zfs_ioc_pool_export,
 	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 
