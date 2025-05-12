@@ -3803,6 +3803,7 @@
       <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='5ce45b60' name='raw_props'/>
       <parameter type-id='c19b74c3' name='inheritkey'/>
+      <parameter type-id='c19b74c3' name='forceinherit'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_error_aux' visibility='default' binding='global' size-in-bits='64'>
