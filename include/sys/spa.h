@@ -901,6 +901,7 @@ extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
 
 /* Namespace manipulation */
 extern spa_t *spa_lookup(const char *name);
+extern spa_t *spa_lookup_lockless(const char *name);
 extern spa_t *spa_add(const char *name, nvlist_t *config, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
