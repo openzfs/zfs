@@ -266,7 +266,8 @@ _LIBZFS_H boolean_t zpool_skip_pool(const char *);
  */
 _LIBZFS_H int zpool_create(libzfs_handle_t *, const char *, nvlist_t *,
     nvlist_t *, nvlist_t *);
-_LIBZFS_H int zpool_destroy(zpool_handle_t *, const char *);
+_LIBZFS_H int zpool_destroy(zpool_handle_t *, boolean_t, boolean_t,
+    const char *);
 _LIBZFS_H int zpool_add(zpool_handle_t *, nvlist_t *, boolean_t check_ashift);
 
 typedef struct splitflags {

@@ -1,3 +1,4 @@
+#!/bin/ksh -p
 # SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
@@ -21,21 +22,36 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
+# Copyright (c) 2025, Klara, Inc.
 #
 
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_destroy/zpool_destroy.cfg
+
 #
-# Copyright (c) 2012 by Delphix. All rights reserved.
+# DESCRIPTION:
+# Verify that a healthy pool without mountpoints can be destroyed using
+# hardforce flag.
+#
+# STRATEGY:
+# 1. Create a pool.
+# 2. Unmount the fs.
+# 3. Forcibly destroy.
 #
 
-export DISK_ARRAY_NUM=$(echo ${DISKS} | awk '{print NF}')
-export DISKSARRAY=$DISKS
-echo $DISKS | read DISK0 DISK1
+verify_runnable "global"
 
-read -r FEDISK0 FEDISK1 FEDISK2 <<<"$DISKS"
-export FEDISK0 FEDISK1 FEDISK2
+function cleanup
+{
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+}
 
-if is_linux; then
-	set_device_dir
-fi
+log_assert "zpool destroy -F of a healthy pool without mountpoints."
+log_onexit cleanup
+
+log_must create_pool $TESTPOOL raidz $FEDISK0 $FEDISK1 $FEDISK2
+log_must zfs unmount /$TESTPOOL
+log_must zpool destroy -F $TESTPOOL
+log_mustnot poolexists $TESTPOOL
+
+log_pass "zpool destroy -F of a healthy pool."

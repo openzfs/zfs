@@ -782,7 +782,7 @@ extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
-extern int spa_destroy(const char *pool);
+extern int spa_destroy(const char *pool, boolean_t, boolean_t);
 extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
 extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,

@@ -2347,16 +2347,20 @@ int
 zpool_do_destroy(int argc, char **argv)
 {
 	boolean_t force = B_FALSE;
+	boolean_t hardforce = B_FALSE;
 	int c;
 	char *pool;
 	zpool_handle_t *zhp;
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt(argc, argv, "fF")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
+			break;
+		case 'F':
+			force = hardforce = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -2380,7 +2384,17 @@ zpool_do_destroy(int argc, char **argv)
 
 	pool = argv[0];
 
-	if ((zhp = zpool_open_canfail(g_zfs, pool)) == NULL) {
+	if (hardforce) {
+		/*
+		 * The hardforce code path should reach the kernel w/o extra
+		 * locks to break through and initiate forced exit.
+		 */
+		zhp = zpool_open_unchecked(g_zfs, pool);
+	} else {
+		zhp = zpool_open_canfail(g_zfs, pool);
+	}
+
+	if (zhp == NULL) {
 		/*
 		 * As a special case, check for use of '/' in the name, and
 		 * direct the user to use 'zfs destroy' instead.
@@ -2391,7 +2405,7 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
-	if (zpool_disable_datasets(zhp, force, B_FALSE) != 0) {
+	if (zpool_disable_datasets(zhp, force, hardforce) != 0) {
 		(void) fprintf(stderr, gettext("could not destroy '%s': "
 		    "could not unmount datasets\n"), zpool_get_name(zhp));
 		zpool_close(zhp);
@@ -2401,7 +2415,7 @@ zpool_do_destroy(int argc, char **argv)
 	/* The history must be logged as part of the export */
 	log_history = B_FALSE;
 
-	ret = (zpool_destroy(zhp, history_str) != 0);
+	ret = (zpool_destroy(zhp, force, hardforce, history_str) != 0);
 
 	zpool_close(zhp);
 

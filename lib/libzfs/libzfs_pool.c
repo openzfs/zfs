@@ -1815,18 +1815,22 @@ create_failed:
  * datasets left in the pool.
  */
 int
-zpool_destroy(zpool_handle_t *zhp, const char *log_str)
+zpool_destroy(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
+    const char *log_str)
 {
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *zfp = NULL;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char errbuf[ERRBUFLEN];
 
-	if (zhp->zpool_state == POOL_STATE_ACTIVE &&
+	/* The hardforce path should avoid extra locking. */
+	if (!hardforce && zhp->zpool_state == POOL_STATE_ACTIVE &&
 	    (zfp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_FILESYSTEM)) == NULL)
 		return (-1);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	zc.zc_cookie = force;
+	zc.zc_guid = hardforce;
 	zc.zc_history = (uint64_t)(uintptr_t)log_str;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0) {

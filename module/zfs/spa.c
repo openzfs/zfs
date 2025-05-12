@@ -8009,10 +8009,10 @@ fail:
  * Destroy a storage pool.
  */
 int
-spa_destroy(const char *pool)
+spa_destroy(const char *pool, boolean_t force, boolean_t hardforce)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
-	    B_FALSE, B_FALSE));
+	    force, hardforce));
 }
 
 /*

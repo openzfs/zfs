@@ -445,6 +445,10 @@ tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]
 tests = ['zpool_destroy_001_pos', 'zpool_destroy_002_pos',
+    'zpool_destroy_hardforce_001_pos',
+    'zpool_destroy_hardforce_002_pos',
+    'zpool_destroy_hardforce_003_pos',
+    'zpool_destroy_hardforce_004_pos',
     'zpool_destroy_003_neg']
 pre =
 post =
