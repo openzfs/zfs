@@ -48,6 +48,7 @@ TESTDS=${TESTPOOL}/${TESTFS}
 TESTFILE=${TESTDIR}/${TESTFILE0}
 
 log_must save_tunable DIO_ENABLED
+log_must save_tunable DIO_STRICT
 typeset recordsize_saved=$(get_prop recordsize $TESTDS)
 typeset direct_saved=$(get_prop direct $TESTDS)
 
@@ -57,6 +58,7 @@ function cleanup
 	zfs set recordsize=$recordsize_saved $TESTDS
 	zfs set direct=$direct_saved $TESTDS
 	restore_tunable DIO_ENABLED
+	restore_tunable DIO_STRICT
 }
 log_onexit cleanup
 
@@ -154,6 +156,7 @@ for krs in 4 8 16 32 64 128 256 512 ; do
 done
 
 # reset for write tests
+log_must set_tunable32 DIO_STRICT 1
 log_must zfs set recordsize=16K $TESTDS
 log_must zfs set direct=standard $TESTDS
 
@@ -172,5 +175,13 @@ log_must touch $TESTFILE
 log_must zpool sync
 assert_dioalign $TESTFILE $PAGE_SIZE 16384
 log_mustnot dd if=/dev/urandom of=$TESTFILE bs=1024 count=256 oflag=direct
+
+# same again, but without strict, which should succeed.
+log_must set_tunable32 DIO_STRICT 0
+log_must rm -f $TESTFILE
+log_must touch $TESTFILE
+log_must zpool sync
+assert_dioalign $TESTFILE $PAGE_SIZE 16384
+log_must dd if=/dev/urandom of=$TESTFILE bs=1024 count=256 oflag=direct
 
 log_pass $CLAIM

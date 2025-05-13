@@ -46,20 +46,6 @@ extern "C" {
 #define	IN_DMU_SYNC 2
 
 /*
- * define flags for dbuf_read
- */
-
-#define	DB_RF_MUST_SUCCEED	(1 << 0)
-#define	DB_RF_CANFAIL		(1 << 1)
-#define	DB_RF_HAVESTRUCT	(1 << 2)
-#define	DB_RF_NOPREFETCH	(1 << 3)
-#define	DB_RF_NEVERWAIT		(1 << 4)
-#define	DB_RF_CACHED		(1 << 5)
-#define	DB_RF_NO_DECRYPT	(1 << 6)
-#define	DB_RF_PARTIAL_FIRST	(1 << 7)
-#define	DB_RF_PARTIAL_MORE	(1 << 8)
-
-/*
  * The simplified state transition diagram for dbufs looks like:
  *
  *                  +-------> READ ------+
@@ -389,12 +375,15 @@ void dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag,
 dmu_buf_impl_t *dbuf_find(struct objset *os, uint64_t object, uint8_t level,
     uint64_t blkid, uint64_t *hash_out);
 
-int dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags);
+int dbuf_read(dmu_buf_impl_t *db, zio_t *zio, dmu_flags_t flags);
 void dmu_buf_will_clone_or_dio(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_will_not_fill(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_will_fill(dmu_buf_t *db, dmu_tx_t *tx, boolean_t canfail);
+void dmu_buf_will_fill_flags(dmu_buf_t *db, dmu_tx_t *tx, boolean_t canfail,
+    dmu_flags_t flags);
 boolean_t dmu_buf_fill_done(dmu_buf_t *db, dmu_tx_t *tx, boolean_t failed);
-void dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx);
+void dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
+    dmu_flags_t flags);
 dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
     dmu_tx_t *tx);
@@ -475,10 +464,10 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 #define	DBUF_GET_BUFC_TYPE(_db)	\
 	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
-#define	DBUF_IS_CACHEABLE(_db)						\
+#define	DBUF_IS_CACHEABLE(_db)	(!(_db)->db_pending_evict &&		\
 	((_db)->db_objset->os_primary_cache == ZFS_CACHE_ALL ||		\
 	(dbuf_is_metadata(_db) &&					\
-	((_db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA)))
+	((_db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA))))
 
 boolean_t dbuf_is_l2cacheable(dmu_buf_impl_t *db, blkptr_t *db_bp);
 

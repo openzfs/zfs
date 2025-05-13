@@ -690,7 +690,7 @@ prescient:
 
 void
 dmu_zfetch_run(zfetch_t *zf, zstream_t *zs, boolean_t missed,
-    boolean_t have_lock)
+    boolean_t have_lock, boolean_t uncached)
 {
 	int64_t pf_start, pf_end, ipf_start, ipf_end;
 	int epbs, issued;
@@ -745,7 +745,8 @@ dmu_zfetch_run(zfetch_t *zf, zstream_t *zs, boolean_t missed,
 	issued = 0;
 	for (int64_t blk = pf_start; blk < pf_end; blk++) {
 		issued += dbuf_prefetch_impl(zf->zf_dnode, 0, blk,
-		    ZIO_PRIORITY_ASYNC_READ, 0, dmu_zfetch_done, zs);
+		    ZIO_PRIORITY_ASYNC_READ, uncached ?
+		    ARC_FLAG_UNCACHED : 0, dmu_zfetch_done, zs);
 	}
 	for (int64_t iblk = ipf_start; iblk < ipf_end; iblk++) {
 		issued += dbuf_prefetch_impl(zf->zf_dnode, 1, iblk,
@@ -761,13 +762,13 @@ dmu_zfetch_run(zfetch_t *zf, zstream_t *zs, boolean_t missed,
 
 void
 dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
-    boolean_t missed, boolean_t have_lock)
+    boolean_t missed, boolean_t have_lock, boolean_t uncached)
 {
 	zstream_t *zs;
 
 	zs = dmu_zfetch_prepare(zf, blkid, nblks, fetch_data, have_lock);
 	if (zs)
-		dmu_zfetch_run(zf, zs, missed, have_lock);
+		dmu_zfetch_run(zf, zs, missed, have_lock, uncached);
 }
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfs_prefetch_, disable, INT, ZMOD_RW,
