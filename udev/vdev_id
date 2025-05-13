@@ -288,13 +288,20 @@ sas_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			# Match p[number], remove the 'p' and prepend "-part"
-			PART=$(echo "$DM_NAME" |
-				awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        # WWNs end with number -> p<partition>, alphabet -> <partition>
+                        # '3' + (WWN length 16) = 17
+                        PART=${DM_NAME:17}
+                        if [[ $PART = "p"*  ]]; then
+                                # Match p[number], remove the 'p' and prepend "-part"
+                                PART=$(echo "$DM_NAME" |
+                                    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        elif [[ $PART != "" ]]; then
+                                PART="-part"${PART}
+                        fi
 		fi
 
 		# Strip off partition information.
-		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
+                DM_NAME=${DM_NAME:0:17}
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
@@ -305,10 +312,20 @@ sas_handler() {
 		# If our DEVNAME is something like /dev/dm-177, then we may be
 		# able to get our DMDEV from it.
 		DMDEV=$(echo $DEVNAME | sed 's;/dev/;;g')
+                if [ -n "$DMDEV"  ]; then
+                        DEV=$(ls /sys/block/$DMDEV/slaves)
+                        for elm in "${DEV[@]}"; do
+                                if [[ $elm == "dm-"* ]]; then
+                                        DMDEV=$elm
+                                        break
+                                fi
+                        done
+                fi
+
 		if [ ! -e /sys/block/$DMDEV/slaves/* ] ; then
 			# It's not there, try looking in /dev/mapper
 			DMDEV=$(ls -l --full-time /dev/mapper | grep $DM_NAME |
-			awk '{gsub("../", " "); print $NF}')
+			awk '{gsub("../", " "); print $NF}' | head -n 1)
 		fi
 
 		# Use sysfs pointers in /sys/block/dm-X/slaves because using
@@ -520,13 +537,20 @@ scsi_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			# Match p[number], remove the 'p' and prepend "-part"
-			PART=$(echo "$DM_NAME" |
-			    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        # WWNs end with number -> p<partition>, alphabet -> <partition>
+                        # '3' + (WWN length 16) = 17
+                        PART=${DM_NAME:17}
+                        if [[ $PART = "p"*  ]]; then
+                                # Match p[number], remove the 'p' and prepend "-part"
+                                PART=$(echo "$DM_NAME" |
+                                    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        elif [[ $PART != "" ]]; then
+                                PART="-part"${PART}
+                        fi
 		fi
 
 		# Strip off partition information.
-		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
+                DM_NAME=${DM_NAME:0:17}
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
