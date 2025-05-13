@@ -872,7 +872,9 @@ pressure on the pagecache, yet still allows the ARC to be reclaimed down to
 .Sy zfs_arc_min
 if necessary.
 This value is specified as percent of pagecache size (as measured by
-.Sy NR_FILE_PAGES ) ,
+.Sy NR_ACTIVE_FILE
++
+.Sy NR_INACTIVE_FILE ) ,
 where that percent may exceed
 .Sy 100 .
 This
