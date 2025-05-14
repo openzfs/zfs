@@ -872,6 +872,19 @@ dbuf_evict_notify(uint64_t size)
 	}
 }
 
+/*
+ * Since dbuf cache size is a fraction of target ARC size, ARC calls this when
+ * its target size is reduced due to memory pressure.
+ */
+void
+dbuf_cache_reduce_target_size(void)
+{
+	uint64_t size = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
+
+	if (size > dbuf_cache_target_bytes())
+		cv_signal(&dbuf_evict_cv);
+}
+
 static int
 dbuf_kstat_update(kstat_t *ksp, int rw)
 {
