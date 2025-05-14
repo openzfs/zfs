@@ -446,6 +446,7 @@ int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 
 void dbuf_init(void);
 void dbuf_fini(void);
+void dbuf_cache_reduce_target_size(void);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 
