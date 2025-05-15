@@ -38,12 +38,18 @@ DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
 for type in "mirror" "anyraid1"; do
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
+	if [[ "$type" == "anyraid1" ]]; then
+		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=3k
+		log_must zpool sync
+		log_must rm /$TESTPOOL/f1
+	fi
 
 	log_must zpool initialize $TESTPOOL $DISK1
 	progress="$(initialize_progress $TESTPOOL $DISK1)"
 	[[ -z "$progress" ]] && log_fail "Initializing did not start"
 
 	log_must zpool offline -f $TESTPOOL $DISK1
+	log_must zpool sync $TESTPOOL
 	log_must check_vdev_state $TESTPOOL $DISK1 "FAULTED"
 	log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
 

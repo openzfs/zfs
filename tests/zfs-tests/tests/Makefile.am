@@ -438,7 +438,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/anyraid/anyraid_clean_mirror_001_pos.ksh \
 	functional/anyraid/anyraid_clean_mirror_002_pos.ksh \
 	functional/anyraid/anyraid_clean_mirror_003_pos.ksh \
+	functional/anyraid/anyraid_faildisk_write_replace_resilver.ksh \
+	functional/anyraid/anyraid_offline_write_online_resilver.ksh \
 	functional/anyraid/anyraid_tile_layout.ksh \
+	functional/anyraid/anyraid_special_vdev_001_pos.ksh \
+	functional/anyraid/anyraid_special_vdev_002_pos.ksh \
 	functional/anyraid/cleanup.ksh \
 	functional/anyraid/setup.ksh \
 	functional/append/file_append.ksh \

@@ -68,8 +68,8 @@ log_must set_tunable64 TRIM_TXG_BATCH 8
 typeset vdev_min_ms_count=$(get_tunable VDEV_MIN_MS_COUNT)
 log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 
-typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
-typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+typeset VDEV_MAX_MB=$(( 4 * MINVDEVSIZE / 1024 / 1024 ))
+typeset VDEV_MIN_MB=0
 
 for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz2" "draid"; do
 
@@ -77,16 +77,32 @@ for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz2" "dr
 		VDEVS="$TRIM_VDEV1"
 	elif [[ "$type" = "mirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
-	elif [[ "$type" =~ "anyraid" ]]; then
+	elif [[ "$type" = "anyraid0" ]]; then
+		VDEVS="$TRIM_VDEV1"
+	elif [[ "$type" = "anyraid1" ]]; then
+		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
+	elif [[ "$type" = "anyraid2" ]]; then
+		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
+	elif [[ "$type" = "anyraid3" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 	elif [[ "$type" = "raidz2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
 	elif [[ "$type" = "draid" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
+	fi
 
+	if [[ "$type" =~ "anyraid" ]]; then
+		# The AnyRAID VDEV takes some space for the mapping itself
+		VDEV_MAX_MB=$(( floor(3 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
+		VDEV_MIN_MB=$(( floor(3 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+	elif [[ "$type" = "draid" ]]; then
 		# The per-vdev utilization is lower due to the capacity
 		# resilverd for the distributed spare.
 		VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.50 / 1024 / 1024) ))
+		VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+	else
+		VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
+		VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
 	fi
 
 	log_must truncate -s $((4 * MINVDEVSIZE)) $VDEVS

@@ -41,7 +41,7 @@ else
 	fi
 fi
 
-save_tunable ANYRAID_MIN_TILE_SIZE
-set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
+log_must save_tunable ANYRAID_MIN_TILE_SIZE
+log_must set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
 
 log_pass

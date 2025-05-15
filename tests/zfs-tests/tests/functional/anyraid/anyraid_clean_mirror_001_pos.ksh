@@ -43,11 +43,11 @@ log_assert "AnyRAID mirror1 can survive having 1 failed disk"
 
 log_must create_sparse_files "disk" 3 $DEVSIZE
 
-spec_cases "anyraid1 $disk0 $disk1" \
+clean_mirror_spec_cases "anyraid1 $disk0 $disk1" \
 	"$disk0" \
 	"$disk1"
 
-spec_cases "anyraid1 $disk0 $disk1 $disk2" \
+clean_mirror_spec_cases "anyraid1 $disk0 $disk1 $disk2" \
 	"$disk0" \
 	"$disk1" \
 	"$disk2"
