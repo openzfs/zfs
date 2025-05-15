@@ -29,38 +29,44 @@
 
 #
 # DESCRIPTION:
-# AnyRAID mirror2 can survive having 1-2 failed disks.
+# Verify a variety of AnyRAID pools with a special VDEV AnyRAID.
 #
 # STRATEGY:
-# 1. Write several files to the ZFS filesystem mirror.
-# 2. Override the selected disks of the mirror with zeroes.
-# 3. Verify that all the file contents are unchanged on the file system.
+# 1. Create an AnyRAID pool with a special VDEV AnyRAID.
+# 2. Write to it, sync.
+# 3. Export and re-import the pool.
+# 4. Verify that all the file contents are unchanged on the file system.
 #
 
 verify_runnable "global"
 
-log_assert "AnyRAID mirror2 can survive having 1-2 failed disks"
+function cleanup
+{
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+}
+log_onexit cleanup
+
+log_assert "Verify a variety of AnyRAID pools with a special VDEV AnyRAID"
 
 log_must create_sparse_files "disk" 4 $DEVSIZE
+log_must create_sparse_files "sdisk" 4 $DEVSIZE
 
-clean_mirror_spec_cases "anyraid2 $disk0 $disk1 $disk2" \
-	"$disk0" \
-	"$disk1" \
-	"$disk2" \
-	"\"$disk0 $disk1\"" \
-	"\"$disk0 $disk2\"" \
-	"\"$disk1 $disk2\""
+typeset oldcksum
+typeset newcksum
+for parity in {0..3}; do
+	log_must zpool create $TESTPOOL anyraid$parity $disks special anyraid$parity $sdisks
+	log_must poolexists $TESTPOOL
 
-clean_mirror_spec_cases "anyraid2 $disk0 $disk1 $disk2 $disk3" \
-	"$disk0" \
-	"$disk1" \
-	"$disk2" \
-	"$disk3" \
-	"\"$disk0 $disk1\"" \
-	"\"$disk0 $disk2\"" \
-	"\"$disk0 $disk3\"" \
-	"\"$disk1 $disk2\"" \
-	"\"$disk1 $disk3\"" \
-	"\"$disk2 $disk3\""
+	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+	oldcksum=$(xxh128digest /$TESTPOOL/file.bin)
+	log_must zpool export $TESTPOOL
 
-log_pass "AnyRAID mirror2 can survive having 1-2 failed disks"
+	log_must zpool import -d $(dirname $disk0) $TESTPOOL
+	newcksum=$(xxh128digest /$TESTPOOL/file.bin)
+
+	log_must test "$oldcksum" = "$newcksum"
+
+	log_must destroy_pool $TESTPOOL
+done
+
+log_pass "Verify a variety of AnyRAID pools with a special VDEV AnyRAID"

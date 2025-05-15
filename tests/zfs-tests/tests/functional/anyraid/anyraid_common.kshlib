@@ -41,7 +41,7 @@ function wipe_some_disks_and_verify_content_is_still_okay
 		files[$atfile]=/$pool/file.$atfile
 		log_must file_write -o create -f ${files[$atfile]} \
 			-b $FILE_SIZE -c 1
-		cksums[$atfile]=$(md5sum ${files[$atfile]})
+		cksums[$atfile]=$(xxh128digest ${files[$atfile]})
 		(( atfile = atfile + 1 ))
 	done
 
@@ -61,7 +61,7 @@ function wipe_some_disks_and_verify_content_is_still_okay
 	atfile=0
 	typeset -i failedcount=0
 	while (( atfile < FILE_COUNT )); do
-		newcksum=$(md5sum ${files[$atfile]})
+		newcksum=$(xxh128digest ${files[$atfile]})
 		if [[ $newcksum != ${cksums[$atfile]} ]]; then
 			(( failedcount = failedcount + 1 ))
 			log_note "Wrong checksum of ${files[$atfile]}"
@@ -80,7 +80,7 @@ function wipe_some_disks_and_verify_content_is_still_okay
 	log_must zpool status
 }
 
-function spec_cases
+function clean_mirror_spec_cases
 {
 	typeset poolspec=$1
 	shift

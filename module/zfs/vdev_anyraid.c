@@ -197,9 +197,7 @@ vdev_anyraid_fini(vdev_t *vd)
 	vdev_anyraid_t *var = vd->vdev_tsd;
 	avl_destroy(&var->vd_tile_map);
 
-
 	vdev_anyraid_node_t *node;
-	
 	void *cookie = NULL;
 	while ((node = avl_destroy_nodes(&var->vd_children_tree, &cookie))) {
 		kmem_free(node, sizeof (*node));

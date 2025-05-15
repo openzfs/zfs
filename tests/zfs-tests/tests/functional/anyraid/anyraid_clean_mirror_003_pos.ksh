@@ -43,7 +43,7 @@ log_assert "AnyRAID mirror3 can survive having 1-3 failed disks"
 
 log_must create_sparse_files "disk" 4 $DEVSIZE
 
-spec_cases "anyraid3 $disk0 $disk1 $disk2 $disk3" \
+clean_mirror_spec_cases "anyraid3 $disk0 $disk1 $disk2 $disk3" \
 	"$disk0" \
 	"$disk1" \
 	"$disk2" \

@@ -41,10 +41,16 @@
 
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
+DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
 for type in "mirror" "anyraid1"; do
 
-	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
+	if [[ "$type" =~ "anyraid" ]]; then
+		export disks="$DISK1 $DISK2 $DISK3"
+	else
+		export disks="$DISK1 $DISK2"
+	fi
+	log_must zpool create -f $TESTPOOL $type $disks
 
 	log_must zpool initialize $TESTPOOL $DISK1
 	log_must zpool offline $TESTPOOL $DISK1
