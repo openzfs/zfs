@@ -717,6 +717,10 @@ tags = ['functional', 'direct']
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
 
+[tests/functional/failmode]
+tests = ['failmode_dmu_tx_wait', 'failmode_dmu_tx_continue']
+tags = ['functional', 'failmode']
+
 [tests/functional/fallocate]
 tests = ['fallocate_punch-hole']
 tags = ['functional', 'fallocate']
