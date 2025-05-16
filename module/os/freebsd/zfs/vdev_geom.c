@@ -1241,7 +1241,16 @@ vdev_geom_io_done(zio_t *zio)
 	}
 
 	if (bp == NULL) {
-		ASSERT3S(zio->io_error, ==, ENXIO);
+		if (zio_injection_enabled && zio->io_error == EIO)
+			/*
+			 * Convert an injected EIO to ENXIO. This is needed to
+			 * work around zio_handle_device_injection_impl() not
+			 * currently being able to inject ENXIO directly, while
+			 * the assertion below only allows ENXIO here.
+			 */
+			zio->io_error = SET_ERROR(ENXIO);
+		else
+			ASSERT3S(zio->io_error, ==, ENXIO);
 		return;
 	}
 
