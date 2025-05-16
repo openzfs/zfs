@@ -825,19 +825,22 @@ zil_alloc_lwb(zilog_t *zilog, int sz, blkptr_t *bp, boolean_t slog,
 	lwb_t *lwb;
 
 	lwb = kmem_cache_alloc(zil_lwb_cache, KM_SLEEP);
+	lwb->lwb_flags = 0;
 	lwb->lwb_zilog = zilog;
 	if (bp) {
 		lwb->lwb_blk = *bp;
-		lwb->lwb_slim = (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2);
+		if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2)
+			lwb->lwb_flags |= LWB_FLAG_SLIM;
 		sz = BP_GET_LSIZE(bp);
 	} else {
 		BP_ZERO(&lwb->lwb_blk);
-		lwb->lwb_slim = (spa_version(zilog->zl_spa) >=
-		    SPA_VERSION_SLIM_ZIL);
+		if (spa_version(zilog->zl_spa) >= SPA_VERSION_SLIM_ZIL)
+			lwb->lwb_flags |= LWB_FLAG_SLIM;
 	}
-	lwb->lwb_slog = slog;
+	if (slog)
+		lwb->lwb_flags |= LWB_FLAG_SLOG;
 	lwb->lwb_error = 0;
-	if (lwb->lwb_slim) {
+	if (lwb->lwb_flags & LWB_FLAG_SLIM) {
 		lwb->lwb_nmax = sz;
 		lwb->lwb_nused = lwb->lwb_nfilled = sizeof (zil_chain_t);
 	} else {
@@ -1944,14 +1947,15 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	mutex_exit(&zilog->zl_lock);
 
 next_lwb:
-	if (lwb->lwb_slim)
+	if (lwb->lwb_flags & LWB_FLAG_SLIM)
 		zilc = (zil_chain_t *)lwb->lwb_buf;
 	else
 		zilc = (zil_chain_t *)(lwb->lwb_buf + lwb->lwb_nmax);
 	int wsz = lwb->lwb_sz;
 	if (lwb->lwb_error == 0) {
 		abd_t *lwb_abd = abd_get_from_buf(lwb->lwb_buf, lwb->lwb_sz);
-		if (!lwb->lwb_slog || zilog->zl_cur_size <= zil_slog_bulk)
+		if (!(lwb->lwb_flags & LWB_FLAG_SLOG) ||
+		    zilog->zl_cur_size <= zil_slog_bulk)
 			prio = ZIO_PRIORITY_SYNC_WRITE;
 		else
 			prio = ZIO_PRIORITY_ASYNC_WRITE;
@@ -1963,7 +1967,7 @@ next_lwb:
 		    lwb, prio, ZIO_FLAG_CANFAIL, &zb);
 		zil_lwb_add_block(lwb, &lwb->lwb_blk);
 
-		if (lwb->lwb_slim) {
+		if (lwb->lwb_flags & LWB_FLAG_SLIM) {
 			/* For Slim ZIL only write what is used. */
 			wsz = P2ROUNDUP_TYPED(lwb->lwb_nused, ZIL_MIN_BLKSZ,
 			    int);
@@ -2009,8 +2013,8 @@ next_lwb:
 	}
 	if (error == 0) {
 		ASSERT3U(BP_GET_BIRTH(bp), ==, txg);
-		BP_SET_CHECKSUM(bp, nlwb->lwb_slim ? ZIO_CHECKSUM_ZILOG2 :
-		    ZIO_CHECKSUM_ZILOG);
+		BP_SET_CHECKSUM(bp, (nlwb->lwb_flags & LWB_FLAG_SLIM) ?
+		    ZIO_CHECKSUM_ZILOG2 : ZIO_CHECKSUM_ZILOG);
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
 		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
 	}
@@ -2039,14 +2043,15 @@ next_lwb:
 	if (nlwb) {
 		nlwb->lwb_blk = *bp;
 		nlwb->lwb_error = error;
-		nlwb->lwb_slog = slog;
+		if (slog)
+			nlwb->lwb_flags |= LWB_FLAG_SLOG;
 		nlwb->lwb_alloc_txg = txg;
 		if (nlwb->lwb_state != LWB_STATE_READY)
 			nlwb = NULL;
 	}
 	mutex_exit(&zilog->zl_lock);
 
-	if (lwb->lwb_slog) {
+	if (lwb->lwb_flags & LWB_FLAG_SLOG) {
 		ZIL_STAT_BUMP(zilog, zil_itx_metaslab_slog_count);
 		ZIL_STAT_INCR(zilog, zil_itx_metaslab_slog_bytes,
 		    lwb->lwb_nused);
