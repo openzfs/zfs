@@ -1201,7 +1201,7 @@ dmu_tx_unassign(dmu_tx_t *tx)
  *     1 <- dmu_tx_get_txg(T3)
  */
 int
-dmu_tx_assign(dmu_tx_t *tx, uint64_t flags)
+dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 {
 	int err;
 

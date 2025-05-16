@@ -281,9 +281,24 @@ typedef enum dmu_object_type {
  * the transaction is full. See the comment above dmu_tx_assign() for more
  * details on the meaning of these flags.
  */
-#define	DMU_TX_NOWAIT		(0ULL)
-#define	DMU_TX_WAIT		(1ULL<<0)
-#define	DMU_TX_NOTHROTTLE	(1ULL<<1)
+typedef enum {
+	/*
+	 * If the tx cannot be assigned to a transaction for any reason, do
+	 * not block but return immediately.
+	 */
+	DMU_TX_NOWAIT		= 0,
+
+	/*
+	 * Assign the tx to the open transaction. If the open transaction is
+	 * full, or the write throttle is active, block until the next
+	 * transaction and try again. If the pool suspends while waiting,
+	 * return an error.
+	 */
+	DMU_TX_WAIT		= (1 << 0),
+
+	/* If the write throttle would prevent the assignment, ignore it. */
+	DMU_TX_NOTHROTTLE	= (1 << 1),
+} dmu_tx_flag_t;
 
 void byteswap_uint64_array(void *buf, size_t size);
 void byteswap_uint32_array(void *buf, size_t size);
@@ -849,7 +864,7 @@ void dmu_tx_hold_spill(dmu_tx_t *tx, uint64_t object);
 void dmu_tx_hold_sa(dmu_tx_t *tx, struct sa_handle *hdl, boolean_t may_grow);
 void dmu_tx_hold_sa_create(dmu_tx_t *tx, int total_size);
 void dmu_tx_abort(dmu_tx_t *tx);
-int dmu_tx_assign(dmu_tx_t *tx, uint64_t flags);
+int dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags);
 void dmu_tx_wait(dmu_tx_t *tx);
 void dmu_tx_commit(dmu_tx_t *tx);
 void dmu_tx_mark_netfree(dmu_tx_t *tx);
