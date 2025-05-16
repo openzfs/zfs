@@ -2368,7 +2368,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 				gang_copies++;
 			break;
 		case ZFS_REDUNDANT_METADATA_SOME:
-			if (DMU_OT_IS_CRITICAL(type)) {
+			if (DMU_OT_IS_CRITICAL(type, level)) {
 				copies++;
 				gang_copies++;
 			} else if (DMU_OT_IS_METADATA(type)) {
