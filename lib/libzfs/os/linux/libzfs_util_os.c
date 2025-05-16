@@ -53,12 +53,6 @@
 
 #define	ZDIFF_SHARESDIR		"/.zfs/shares/"
 
-int
-zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
-{
-	return (ioctl(hdl->libzfs_fd, request, zc));
-}
-
 const char *
 libzfs_error_init(int error)
 {
