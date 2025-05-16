@@ -1,0 +1,149 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2025, Klara, Inc.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+typeset -A failmode_sync_helper_cmd=(
+    ["fsync"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1 conv=fsync'
+    ["msync"]='mmap_write_sync DATAFILE'
+    ["osync"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1 oflag=sync'
+    ["syncalways"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1'
+)
+
+typeset -A failmode_sync_helper_dsopts=(
+    ["syncalways"]="-o sync=always"
+)
+
+function failmode_sync_cleanup
+{
+	zinject -c all || true
+	zpool clear $TESTPOOL || true
+	destroy_pool $TESTPOOL
+}
+
+#
+# failmode_sync_test <failmode> <helper>
+#
+# run a failmode sync test:
+# - failmode: wait|continue
+# - helper: fsync|msync|osync|syncalways
+#
+function failmode_sync_test
+{
+	typeset failmode=$1
+	typeset helper=$2
+
+	# we'll need two disks, one for the main pool, one for the log
+	read -r DISK1 DISK2 _ <<<"$DISKS"
+
+	# file to write to the pool
+	typeset datafile="/$TESTPOOL/$TESTFS/datafile"
+
+	# create a single-disk pool with a separate log and the wanted failmode
+	log_must zpool create \
+	    -f -o failmode=$failmode $TESTPOOL $DISK1 log $DISK2
+
+	# create the test dataset. we bias the ZIL towards the log device to
+	# try to ensure that the sync write never involves the main device
+	log_must zfs create \
+	    -o recordsize=128k -o logbias=latency \
+	    ${failmode_sync_helper_dsopts[$helper]} \
+	    $TESTPOOL/$TESTFS
+
+	# create the target file. the ZIL head structure is created on first
+	# use, and does a full txg wait to finish, which we want to avoid
+	log_must dd if=/dev/zero of=$datafile bs=128k count=1 conv=fsync
+	log_must zpool sync
+
+	# inject errors. writes will fail, as will the followup probes
+	zinject -d $DISK1 -e io -T write $TESTPOOL
+	zinject -d $DISK1 -e nxio -T probe $TESTPOOL
+	zinject -d $DISK2 -e io -T write $TESTPOOL
+	zinject -d $DISK2 -e nxio -T probe $TESTPOOL
+
+	# run the helper program in the background. the pool should immediately
+	# suspend, and the sync op block or fail based on the failmode
+	typeset helper_cmd=${failmode_sync_helper_cmd[$helper]/DATAFILE/$datafile}
+	log_note "running failmode sync helper: $helper_cmd"
+	$helper_cmd &
+	typeset -i pid=$!
+
+	# should only take a moment, but give it a chance
+	log_note "waiting for pool to suspend"
+	typeset -i tries=10
+	until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
+		if ((tries-- == 0)); then
+			log_fail "pool didn't suspend"
+		fi
+		sleep 1
+	done
+
+	# zil_commit() should have noticed the suspend by now
+	typeset -i zilerr=$(kstat zil.zil_commit_error_count)
+
+	# see if the helper program blocked
+	typeset -i blocked
+	if kill -0 $pid ; then
+		blocked=1
+		log_note "$helper: blocked in the kernel"
+	else
+		blocked=0
+		log_note "$helper: exited while pool suspended"
+	fi
+
+	# bring the pool back online
+	zinject -c all
+	zpool clear $TESTPOOL
+
+	# program definitely exited now, get its return code
+	wait $pid
+	typeset -i rc=$?
+
+	failmode_sync_cleanup
+
+	log_note "$helper: zilerr=$zilerr blocked=$blocked rc=$rc"
+
+	# confirm expected results for the failmode
+	if [[ $failmode = "wait" ]] ; then
+		# - the ZIL saw an error, and fell back to a txg sync
+		# - sync op blocked when the pool suspended
+		# - after resume, sync op succeeded, helper returned success
+		log_must test $zilerr -ne 0
+		log_must test $blocked -eq 1
+		log_must test $rc -eq 0
+	elif [[ $failmode = "continue" ]] ; then
+		# confirm expected results:
+		# - the ZIL saw an error, and fell back to a txg sync
+		# - helper exited when the pool suspended
+		# - sync op returned an error, so helper returned failure
+		log_must test $zilerr -ne 0
+		log_must test $blocked -eq 0
+		log_must test $rc -ne 0
+	else
+		log_fail "impossible failmode: $failmode"
+	fi
+}

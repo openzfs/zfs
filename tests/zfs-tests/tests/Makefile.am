@@ -276,6 +276,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/direct/dio.kshlib \
 	functional/events/events.cfg \
 	functional/events/events_common.kshlib \
+	functional/failmode/failmode.kshlib \
 	functional/fault/fault.cfg \
 	functional/gang_blocks/gang_blocks.kshlib \
 	functional/grow/grow.cfg \
@@ -1541,6 +1542,14 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/failmode/cleanup.ksh \
 	functional/failmode/failmode_dmu_tx_wait.ksh \
 	functional/failmode/failmode_dmu_tx_continue.ksh \
+	functional/failmode/failmode_fsync_wait.ksh \
+	functional/failmode/failmode_fsync_continue.ksh \
+	functional/failmode/failmode_msync_wait.ksh \
+	functional/failmode/failmode_msync_continue.ksh \
+	functional/failmode/failmode_osync_wait.ksh \
+	functional/failmode/failmode_osync_continue.ksh \
+	functional/failmode/failmode_syncalways_wait.ksh \
+	functional/failmode/failmode_syncalways_continue.ksh \
 	functional/failmode/setup.ksh \
 	functional/fallocate/cleanup.ksh \
 	functional/fallocate/fallocate_prealloc.ksh \
