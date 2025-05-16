@@ -100,11 +100,15 @@ typedef enum {
  * holding the "zl_issuer_lock". After the lwb is issued, the zilog's
  * "zl_lock" is used to protect the lwb against concurrent access.
  */
+typedef enum {
+	LWB_FLAG_SLIM =	(1<<0),		/* log block has slim format */
+	LWB_FLAG_SLOG =	(1<<1),		/* lwb_blk is on SLOG device */
+} lwb_flag_t;
+
 typedef struct lwb {
 	zilog_t		*lwb_zilog;	/* back pointer to log struct */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
-	boolean_t	lwb_slim;	/* log block has slim format */
-	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
+	lwb_flag_t	lwb_flags;	/* extra info about this lwb */
 	int		lwb_error;	/* log block allocation error */
 	int		lwb_nmax;	/* max bytes in the buffer */
 	int		lwb_nused;	/* # used bytes in buffer */
