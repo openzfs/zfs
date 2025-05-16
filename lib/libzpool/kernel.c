@@ -239,6 +239,22 @@ mutex_exit(kmutex_t *mp)
 }
 
 /*
+ * Poor-man's version of Linux kernel's down_timeout(). Try to acquire a mutex
+ * for 'ns' number of nanoseconds.  Returns 0 if mutex was acquired or ENOLCK
+ * if timeout occurred.
+ */
+int
+mutex_enter_timeout(kmutex_t *mutex, uint64_t ns)
+{
+	hrtime_t end = gethrtime() + ns;
+	while (gethrtime() < end) {
+		if (mutex_tryenter(mutex))
+			return (0);	/* success */
+	}
+	return (ENOLCK);
+}
+
+/*
  * =========================================================================
  * rwlocks
  * =========================================================================
