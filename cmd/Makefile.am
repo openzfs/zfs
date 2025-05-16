@@ -98,13 +98,18 @@ endif
 
 
 if USING_PYTHON
-bin_SCRIPTS      += arc_summary     arcstat        dbufstat        zilstat
-CLEANFILES       += arc_summary     arcstat        dbufstat        zilstat
-dist_noinst_DATA += %D%/arc_summary %D%/arcstat.in %D%/dbufstat.in %D%/zilstat.in
+bin_SCRIPTS      += arc_summary     arcstat        dbufstat        zilstat \
+		     zfs_getnfs4facl zfs_setnfs4facl
+CLEANFILES       += arc_summary     arcstat        dbufstat        zilstat \
+		     zfs_getnfs4facl zfs_setnfs4facl
+dist_noinst_DATA += %D%/arc_summary %D%/arcstat.in %D%/dbufstat.in %D%/zilstat.in \
+		     %D%/zfs_getnfs4facl.in %D%/zfs_setnfs4facl.in
 
 $(call SUBST,arcstat,%D%/)
 $(call SUBST,dbufstat,%D%/)
 $(call SUBST,zilstat,%D%/)
+$(call SUBST,zfs_getnfs4facl,%D%/)
+$(call SUBST,zfs_setnfs4facl,%D%/)
 arc_summary: %D%/arc_summary
 	$(AM_V_at)cp $< $@
 endif
