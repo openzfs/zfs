@@ -26,6 +26,7 @@
 #include <os/freebsd/zfs/sys/zfs_ioctl_compat.h>
 #include <err.h>
 #include <libzfs_core.h>
+#include "libzfs_core_impl.h"
 
 int zfs_ioctl_version = ZFS_IOCVER_UNDEF;
 
@@ -101,7 +102,7 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
  * error is returned zc_nvlist_dst_size won't be updated.
  */
 int
-lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
+lzc_ioctl_fd_os(int fd, unsigned long request, zfs_cmd_t *zc)
 {
 	size_t oldsize;
 	int ret, cflag = ZFS_CMD_COMPAT_NONE;

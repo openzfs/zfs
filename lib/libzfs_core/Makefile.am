@@ -1,18 +1,21 @@
 libzfs_core_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzfs_core_la_CFLAGS += -fvisibility=hidden
 
+libzfs_core_la_CPPFLAGS  = $(AM_CPPFLAGS)
+libzfs_core_la_CPPFLAGS += -I$(srcdir)/%D%
+
 lib_LTLIBRARIES += libzfs_core.la
 CPPCHECKTARGETS += libzfs_core.la
 
 libzfs_core_la_SOURCES = \
-	%D%/libzfs_core.c
+	%D%/libzfs_core.c \
+	%D%/libzfs_core_impl.h
 
 if BUILD_LINUX
 libzfs_core_la_SOURCES += \
 	%D%/os/linux/libzfs_core_ioctl.c
 endif
 
-libzfs_core_la_CPPFLAGS  = $(AM_CPPFLAGS)
 if BUILD_FREEBSD
 libzfs_core_la_CPPFLAGS += -Iinclude/os/freebsd/zfs
 
