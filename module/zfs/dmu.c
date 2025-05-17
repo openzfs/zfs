@@ -1383,7 +1383,7 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
 
-	if (uio->uio_extflg & UIO_DIRECT)
+	if ((flags & DMU_DIRECTIO) && (uio->uio_extflg & UIO_DIRECT))
 		return (dmu_read_uio_direct(dn, uio, size, flags));
 	flags &= ~DMU_DIRECTIO;
 
@@ -1489,7 +1489,7 @@ top:
 	 * We only allow Direct I/O writes to happen if we are block
 	 * sized aligned. Otherwise, we pass the write off to the ARC.
 	 */
-	if ((uio->uio_extflg & UIO_DIRECT) &&
+	if ((flags & DMU_DIRECTIO) && (uio->uio_extflg & UIO_DIRECT) &&
 	    (write_size >= dn->dn_datablksz)) {
 		if (zfs_dio_aligned(zfs_uio_offset(uio), write_size,
 		    dn->dn_datablksz)) {
@@ -1564,10 +1564,12 @@ top:
 
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
-	if ((uio->uio_extflg & UIO_DIRECT) && size > 0) {
+	if ((oflags & DMU_DIRECTIO) && (uio->uio_extflg & UIO_DIRECT) &&
+	    err == 0 && size > 0) {
 		flags = oflags;
 		goto top;
 	}
+	IMPLY(err == 0, size == 0);
 
 	return (err);
 }
