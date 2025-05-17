@@ -2,3 +2,4 @@ name: "Custom CodeQL Analysis"
 
 queries:
   - uses: ./.github/codeql/custom-queries/cpp/deprecatedFunctionUsage.ql
+  - uses: ./.github/codeql/custom-queries/cpp/dslDatasetHoldReleMismatch.ql
