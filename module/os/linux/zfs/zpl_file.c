@@ -44,6 +44,9 @@
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 #include <linux/writeback.h>
 #endif
+#include <sys/zap.h>
+#include <sys/zfs_quota.h>
+
 
 /*
  * When using fallocate(2) to preallocate space, inflate the requested
@@ -873,12 +876,41 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	xoptattr_t *xoap;
 	int err;
 	fstrans_cookie_t cookie;
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
 
 	if (copy_from_user(&fsx, arg, sizeof (fsx)))
 		return (-EFAULT);
 
 	if (!zpl_is_valid_projid(fsx.fsx_projid))
 		return (-EINVAL);
+
+	if (ITOZ(ip)->z_projid == fsx.fsx_projid &&
+	    (!!(fsx.fsx_xflags & ZFS_PROJINHERIT_FL)) ==
+	    (!!(ITOZ(ip)->z_pflags & ZFS_PROJINHERIT))) {
+		return (0);
+	}
+	if (fsx.fsx_projid != ZFS_DEFAULT_PROJID &&
+	    ITOZ(ip)->z_projid != ZFS_DEFAULT_PROJID &&
+	    fsx.fsx_projid != ITOZ(ip)->z_projid) {
+
+		/*
+		 * Skip if fsx.fsx_projid is hierarchical parent of z_projid.
+		 * Return special error code EXDEV for caller to know that
+		 * object has projid set, whose parent project is project id
+		 * being set. Caller can skip setting project id futher on EXDEV
+		 * assuming its successfully done setting the projid.
+		 * Usage of child project is already accounted in parent project
+		 * while associating project to inode hierarchy.
+		 */
+		boolean_t hierarchical = B_FALSE;
+		err = -zfs_projects_are_hierarchical(zfsvfs, ITOZ(ip)->z_projid,
+		    fsx.fsx_projid, &hierarchical);
+		if (err)
+			return (err);
+		if (hierarchical) {
+			return (-EXDEV);
+		}
+	}
 
 	err = __zpl_ioctl_setflags(ip, fsx.fsx_xflags, &xva);
 	if (err)
@@ -1006,6 +1038,73 @@ zpl_ioctl_rewrite(struct file *filp, void __user *arg)
 	return (err);
 }
 
+static int
+zpl_ioctl_add_project_hierarchy(struct file *filp, void *arg)
+{
+	project_hierarchy_arg_t pharg;
+	zfsvfs_t *zfsvfs;
+	uint64_t projid;
+	uint64_t ino;
+	int error = 0;
+
+	if (copy_from_user(&pharg, arg, sizeof (project_hierarchy_arg_t))) {
+		cmn_err(CE_NOTE, "%s:%d arg copyin error ", __func__,
+		    __LINE__);
+		return (SET_ERROR(-EFAULT));
+	}
+
+	zfsvfs = ITOZSB(file_inode(filp));
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	ino = file_inode(filp)->i_ino;
+	projid = pharg.pha_projid;
+
+	zfs_dbgmsg("projid=%lld ino=%lld", projid, ino);
+	if (!dmu_objset_projectquota_enabled(zfsvfs->z_os)) {
+		cmn_err(CE_NOTE, "%s:%d projquota not enabled", __func__,
+		    __LINE__);
+		error = (SET_ERROR(-ENOTSUP));
+		goto out;
+	}
+	if (!zpl_is_valid_projid(projid)) {
+		cmn_err(CE_NOTE, "%s:%d projid=%lld ino=%lld projid not valid",
+		    __func__, __LINE__, projid, ino);
+		error = (SET_ERROR(-EINVAL));
+		goto out;
+	}
+	uint64_t quotaobj = zfsvfs->z_projectquota_obj;
+	uint64_t quota;
+	char buf[32];
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)projid);
+	if ((quotaobj == 0) || (zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1,
+	    &quota) != 0)) {
+		cmn_err(CE_NOTE, "%s:%d projid=%lld ino=%lld quota not set",
+		    __func__, __LINE__, projid, ino);
+		error = (SET_ERROR(-EINVAL));
+		goto out;
+	}
+
+	cred_t *cr = CRED();
+	crhold(cr);
+	fstrans_cookie_t cookie = spl_fstrans_mark();
+	error = -zfs_project_hierarchy_add(zfsvfs, projid, ino);
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+out:
+	if (error) {
+		char dsname[ZFS_MAX_DATASET_NAME_LEN];
+		dsl_dataset_name(zfsvfs->z_os->os_dsl_dataset, dsname);
+		cmn_err(CE_NOTE, "%s:%d ds=:%s hobj=%lld project=%lld ino=%lld "
+		    "error=%d on hierarchy add", __func__, __LINE__, dsname,
+		    zfsvfs->z_projecthierarchy_obj, projid, ino, -error);
+	}
+	zpl_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
 static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -1026,6 +1125,8 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_setdosflags(filp, (void *)arg));
 	case ZFS_IOC_REWRITE:
 		return (zpl_ioctl_rewrite(filp, (void *)arg));
+	case FS_IOC_ADD_PROJECT_HIERARCHY:
+		return (zpl_ioctl_add_project_hierarchy(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}

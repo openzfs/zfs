@@ -2640,6 +2640,50 @@ out3:
 	return (err);
 }
 
+/*
+ * This function sets projid of zp on its xattr dir and each xattr file
+ */
+int
+zfs_setattr_xattr_dir(znode_t *zp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	znode_t *xzp = NULL;
+	uint64_t xattr_obj = 0;
+	xoptattr_t *xoap;
+	xvattr_t xva;
+	int err;
+
+	err = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
+	    &xattr_obj, sizeof (xattr_obj));
+	if (err || !xattr_obj)
+		return (err);
+
+	err = zfs_zget(zfsvfs, xattr_obj, &xzp);
+	ASSERT(err == 0);
+	xva_init(&xva);
+	xoap = xva_getxoptattr(&xva);
+	XVA_SET_REQ(&xva, XAT_PROJID);
+	xoap->xoa_projid = zp->z_projid;
+	XVA_SET_REQ(&xva, XAT_PROJINHERIT);
+	xoap->xoa_projinherit = 1;
+
+	cred_t *cr = CRED();
+	crhold(cr);
+	err = zfs_setattr(xzp, (vattr_t *)&xva, 0, cr, zfs_init_idmap);
+	crfree(cr);
+	if (err) {
+		zrele(xzp);
+		return (err);
+	}
+	err = zfs_setattr_dir(xzp);
+	if (err) {
+		zrele(xzp);
+		return (err);
+	}
+	zrele(xzp);
+	return (0);
+}
+
 typedef struct zfs_zlock {
 	krwlock_t	*zl_rwlock;	/* lock we acquired */
 	znode_t		*zl_znode;	/* znode we held */
