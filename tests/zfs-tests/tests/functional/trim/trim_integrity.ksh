@@ -34,7 +34,7 @@
 #	3. Manually trim the pool.
 #	4. Verify trim IOs of the expected type were issued for the pool.
 #	5. Verify data integrity of the pool after trim.
-#	6. Repeat test for striped, mirrored, and RAIDZ pools.
+#	6. Repeat test for striped, mirrored, AnyRAID, and RAIDZ pools.
 
 verify_runnable "global"
 
@@ -61,7 +61,7 @@ log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 512
 typeset trim_txg_batch=$(get_tunable TRIM_TXG_BATCH)
 log_must set_tunable64 TRIM_TXG_BATCH 8
 
-for type in "" "mirror" "raidz" "draid"; do
+for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz" "draid"; do
 	log_must truncate -s 1G $TRIM_VDEVS
 
 	log_must zpool create -f $TESTPOOL $type $TRIM_VDEVS

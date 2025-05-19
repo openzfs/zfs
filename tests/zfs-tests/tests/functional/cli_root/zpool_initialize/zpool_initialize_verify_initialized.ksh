@@ -59,30 +59,37 @@ log_must set_tunable64 INITIALIZE_VALUE $(printf %llu 0x$PATTERN)
 
 log_must mkdir "$TESTDIR"
 log_must truncate -s $MINVDEVSIZE "$SMALLFILE"
-log_must zpool create $TESTPOOL "$SMALLFILE"
-log_must zpool initialize -w $TESTPOOL
-log_must zpool export $TESTPOOL
 
-metaslabs=0
-bs=512
-zdb -p $TESTDIR -Pme $TESTPOOL | awk '/metaslab[ ]+[0-9]+/ { print $4, $8 }' |
-while read -r offset size; do
-	log_note "offset: '$offset'"
-	log_note "size: '$size'"
+for type in "" "anyraid0"; do
 
-	metaslabs=$((metaslabs + 1))
-	offset=$(((4 * 1024 * 1024) + 16#$offset))
-	log_note "vdev file offset: '$offset'"
+	log_must zpool create $TESTPOOL $type "$SMALLFILE"
+	log_must zpool initialize -w $TESTPOOL
+	log_must zpool export $TESTPOOL
 
-	# Note we use '-t x4' instead of '-t x8' here because x8 is not
-	# a supported format on FreeBSD.
-	dd if=$SMALLFILE skip=$((offset / bs)) count=$((size / bs)) bs=$bs |
-	    od -t x4 -Ad | grep -qE "deadbeef +deadbeef +deadbeef +deadbeef" ||
-	    log_fail "Pattern not found in metaslab free space"
+	metaslabs=0
+	bs=512
+	zdb -p $TESTDIR -Pme $TESTPOOL | awk '/metaslab[ ]+[0-9]+/ { print $4, $8 }' |
+	while read -r offset size; do
+		log_note "offset: '$offset'"
+		log_note "size: '$size'"
+
+		metaslabs=$((metaslabs + 1))
+		offset=$(((4 * 1024 * 1024) + 16#$offset))
+		log_note "vdev file offset: '$offset'"
+
+		# Note we use '-t x4' instead of '-t x8' here because x8 is not
+		# a supported format on FreeBSD.
+		dd if=$SMALLFILE skip=$((offset / bs)) count=$((size / bs)) bs=$bs |
+		    od -t x4 -Ad | grep -qE "deadbeef +deadbeef +deadbeef +deadbeef" ||
+		    log_fail "Pattern not found in metaslab free space"
+	done
+
+	if [[ $metaslabs -eq 0 ]]; then
+		log_fail "Did not find any metaslabs to check"
+	else
+		log_pass "Initializing wrote to each metaslab"
+	fi
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
 done
-
-if [[ $metaslabs -eq 0 ]]; then
-	log_fail "Did not find any metaslabs to check"
-else
-	log_pass "Initializing wrote to each metaslab"
-fi

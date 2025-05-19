@@ -35,4 +35,6 @@ zed_stop
 zed_cleanup resilver_finish-start-scrub.sh
 zed_events_drain
 
+restore_tunable ANYRAID_MIN_TILE_SIZE
+
 log_pass
