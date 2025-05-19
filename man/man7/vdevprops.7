@@ -194,6 +194,23 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 See
 .Xr zpool-remove 8 .
+.It Sy scheduler Ns = Ns Sy auto Ns | Ns Sy on Ns | Ns Sy off
+Controls how I/O requests are added to the vdev queue when reading or
+writing to this vdev.
+This property can be set on leaf vdevs.
+The value of these properties do not persist across vdev replacement.
+.Bl -tag -compact -width "auto"
+.It Ar auto
+Let ZFS choose which scheduler it thinks will be best.
+Currently, the scheduler will queue I/O if the vdev is backed by a rotational
+block device or file, and not queue otherwise.
+.It Ar on
+Always adds I/O requests to the vdev queue.
+.It Ar off
+Never adds I/O requests to the vdev queue.
+This is not recommended for vdevs backed by spinning disks as it could
+result in starvation.
+.El
 .El
 .Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user

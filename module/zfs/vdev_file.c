@@ -109,6 +109,9 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 */
 	vd->vdev_nonrot = B_TRUE;
 
+	/* Is not backed by a block device. */
+	vd->vdev_is_blkdev = B_FALSE;
+
 	/*
 	 * Allow TRIM on file based vdevs.  This may not always be supported,
 	 * since it depends on your kernel version and underlying filesystem

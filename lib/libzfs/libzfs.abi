@@ -6255,7 +6255,8 @@
       <enumerator name='VDEV_PROP_SIT_OUT' value='52'/>
       <enumerator name='VDEV_PROP_AUTOSIT' value='53'/>
       <enumerator name='VDEV_PROP_SLOW_IO_EVENTS' value='54'/>
-      <enumerator name='VDEV_NUM_PROPS' value='55'/>
+      <enumerator name='VDEV_PROP_SCHEDULER' value='55'/>
+      <enumerator name='VDEV_NUM_PROPS' value='56'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
