@@ -39,6 +39,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
+#include <sys/vdev_mirror.h>
 
 /*
  * Vdev mirror kstats
@@ -99,31 +100,6 @@ vdev_mirror_stat_fini(void)
 	}
 }
 
-/*
- * Virtual device vector for mirroring.
- */
-typedef struct mirror_child {
-	vdev_t		*mc_vd;
-	abd_t		*mc_abd;
-	uint64_t	mc_offset;
-	int		mc_error;
-	int		mc_load;
-	uint8_t		mc_tried;
-	uint8_t		mc_skipped;
-	uint8_t		mc_speculative;
-	uint8_t		mc_rebuilding;
-} mirror_child_t;
-
-typedef struct mirror_map {
-	int		*mm_preferred;
-	int		mm_preferred_cnt;
-	int		mm_children;
-	boolean_t	mm_resilvering;
-	boolean_t	mm_rebuilding;
-	boolean_t	mm_root;
-	mirror_child_t	mm_child[];
-} mirror_map_t;
-
 static const int vdev_mirror_shift = 21;
 
 /*
@@ -152,7 +128,7 @@ vdev_mirror_map_size(int children)
 	    sizeof (int) * children);
 }
 
-static inline mirror_map_t *
+mirror_map_t *
 vdev_mirror_map_alloc(int children, boolean_t resilvering, boolean_t root)
 {
 	mirror_map_t *mm;
@@ -175,7 +151,7 @@ vdev_mirror_map_free(zio_t *zio)
 	kmem_free(mm, vdev_mirror_map_size(mm->mm_children));
 }
 
-static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
+zio_vsd_ops_t vdev_mirror_vsd_ops = {
 	.vsd_free = vdev_mirror_map_free,
 };
 
@@ -601,23 +577,11 @@ vdev_mirror_child_select(zio_t *zio)
 	return (-1);
 }
 
-static void
-vdev_mirror_io_start(zio_t *zio)
+void
+vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 {
-	mirror_map_t *mm;
 	mirror_child_t *mc;
 	int c, children;
-
-	mm = vdev_mirror_map_init(zio);
-	zio->io_vsd = mm;
-	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
-
-	if (mm == NULL) {
-		ASSERT(!spa_trust_config(zio->io_spa));
-		ASSERT(zio->io_type == ZIO_TYPE_READ);
-		zio_execute(zio);
-		return;
-	}
 
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
@@ -650,7 +614,6 @@ vdev_mirror_io_start(zio_t *zio)
 				    vdev_mirror_child_done, mc));
 				first = B_FALSE;
 			}
-			zio_execute(zio);
 			return;
 		}
 		/*
@@ -690,6 +653,25 @@ vdev_mirror_io_start(zio_t *zio)
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_mirror_child_done, mc));
 	}
+}
+
+static void
+vdev_mirror_io_start(zio_t *zio)
+{
+	mirror_map_t *mm;
+
+	mm = vdev_mirror_map_init(zio);
+	zio->io_vsd = mm;
+	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
+
+	if (mm == NULL) {
+		ASSERT(!spa_trust_config(zio->io_spa));
+		ASSERT(zio->io_type == ZIO_TYPE_READ);
+		zio_execute(zio);
+		return;
+	}
+
+	vdev_mirror_io_start_impl(zio, mm);
 
 	zio_execute(zio);
 }
@@ -708,7 +690,7 @@ vdev_mirror_worst_error(mirror_map_t *mm)
 	return (error[0] ? error[0] : error[1]);
 }
 
-static void
+void
 vdev_mirror_io_done(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
