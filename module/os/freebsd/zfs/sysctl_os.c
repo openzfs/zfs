@@ -93,6 +93,8 @@
 #include <sys/vmmeter.h>
 
 SYSCTL_DECL(_vfs_zfs);
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, anyraid, CTLFLAG_RW, 0,
+	"ZFS AnyRAID VDEV");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, arc, CTLFLAG_RW, 0,
 	"ZFS adaptive replacement cache");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, brt, CTLFLAG_RW, 0,
