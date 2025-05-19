@@ -70,7 +70,7 @@ typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
     uint64_t *ashift, uint64_t *pshift);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize, uint64_t txg);
-typedef uint64_t vdev_min_asize_func_t(vdev_t *vd);
+typedef uint64_t vdev_min_asize_func_t(vdev_t *pvd, vdev_t *cvd);
 typedef uint64_t vdev_min_alloc_func_t(vdev_t *vd);
 typedef void	vdev_io_start_func_t(zio_t *zio);
 typedef void	vdev_io_done_func_t(zio_t *zio);
@@ -94,6 +94,7 @@ typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
 typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
     uint64_t *sizep);
+typedef void vdev_metaslab_size_func_t(vdev_t *vd, uint64_t *shiftp);
 typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
 typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
 typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
@@ -121,6 +122,7 @@ typedef const struct vdev_ops {
 	vdev_nparity_func_t		*vdev_op_nparity;
 	vdev_ndisks_func_t		*vdev_op_ndisks;
 	vdev_kobj_post_evt_func_t	*vdev_op_kobj_evt_post;
+	vdev_metaslab_size_func_t	*vdev_op_metaslab_size;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -611,6 +613,8 @@ extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 extern vdev_ops_t vdev_indirect_ops;
 
+extern zio_vsd_ops_t vdev_mirror_vsd_ops;
+
 /*
  * Common size functions
  */
@@ -618,7 +622,7 @@ extern void vdev_default_xlate(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
     zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs);
 extern uint64_t vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg);
-extern uint64_t vdev_default_min_asize(vdev_t *vd);
+extern uint64_t vdev_default_min_asize(vdev_t *pvd, vdev_t *cvd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_alloc(vdev_t *vd);
