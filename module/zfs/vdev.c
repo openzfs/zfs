@@ -271,6 +271,7 @@ static vdev_ops_t *const vdev_ops_table[] = {
 	&vdev_missing_ops,
 	&vdev_hole_ops,
 	&vdev_indirect_ops,
+	&vdev_anyraid_ops,
 	NULL
 };
 
@@ -886,6 +887,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (ops != &vdev_root_ops && spa->spa_root_vdev == NULL)
 		return (SET_ERROR(EINVAL));
 
+	if (ops == &vdev_anyraid_ops && parent->vdev_ops != &vdev_root_ops)
+		return (SET_ERROR(EINVAL));
 	/*
 	 * Determine whether we're a log vdev.
 	 */
@@ -920,6 +923,13 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		if (ops == &vdev_draid_ops &&
 		    spa->spa_load_state != SPA_LOAD_CREATE &&
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		/* spa_vdev_add() expects feature to be enabled */
+		if (ops == &vdev_anyraid_ops &&
+		    spa->spa_load_state != SPA_LOAD_CREATE &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_ANYRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
 	}
@@ -1762,6 +1772,12 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 		metaslab_fini(slog_ms);
 		VERIFY0(metaslab_init(vd->vdev_log_mg, slog_msid, sm_obj, txg,
 		    &vd->vdev_ms[slog_msid]));
+
+		metaslab_t *msp = vd->vdev_ms[slog_msid];
+		if (vd->vdev_ops == &vdev_anyraid_ops &&
+		    !vdev_anyraid_mapped(vd, msp->ms_start, txg)) {
+			vdev_anyraid_map(vd, msp->ms_start);
+		}
 	}
 
 	if (txg == 0)
@@ -3556,8 +3572,9 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 			if (t == DTL_PARTIAL) {
 				/* i.e. non-zero */
 				minref = 1;
-			} else if (vdev_get_nparity(vd) != 0) {
-				/* RAIDZ, DRAID */
+			} else if (vdev_get_nparity(vd) != 0 ||
+			    vd->vdev_ops == &vdev_anyraid_ops) {
+				/* RAIDZ, DRAID, AnyRAID */
 				minref = vdev_get_nparity(vd) + 1;
 				if (vd->vdev_ops == &vdev_draid_ops) {
 					vdev_draid_config_t *vdc = vd->vdev_tsd;
@@ -6218,7 +6235,7 @@ vdev_xlate_walk(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
 	}
 }
 
-static char *
+char *
 vdev_name(vdev_t *vd, char *buf, int buflen)
 {
 	if (vd->vdev_path == NULL) {
