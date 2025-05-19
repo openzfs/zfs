@@ -37,12 +37,17 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm status
+.Op Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
 .Op Fl dDegiLpPstvx
-.Op Fl T Sy u Ns | Ns Sy d
-.Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
-.Oo Ar pool Oc Ns …
+.Oo Fl j
+.Oo Ns Fl Fl json-int Oc
+.Oo Ns Fl Fl json-flat-vdevs Oc
+.Oo Ns Fl Fl json-pool-key-guid Oc
+.Oc
+.Op Fl Fl power
+.Op Fl T Ar d|u
+.Op Ar pool
 .Op Ar interval Op Ar count
-.Op Fl j Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
 .
 .Sh DESCRIPTION
 Displays the detailed health status for the given pools.
@@ -59,9 +64,7 @@ and the estimated time to completion.
 Both of these are only approximate, because the amount of data in the pool and
 the other workloads on the system can change.
 .Bl -tag -width Ds
-.It Fl -power
-Display vdev enclosure slot power status (on or off).
-.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
+.It Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
 Run a script (or scripts) on each vdev and include the output as a new column
 in the
 .Nm zpool Cm status
@@ -71,17 +74,6 @@ See the
 option of
 .Nm zpool Cm iostat
 for complete details.
-.It Fl j , -json Op Ar --json-int, --json-flat-vdevs, --json-pool-key-guid
-Display the status for ZFS pools in JSON format.
-Specify
-.Sy --json-int
-to display numbers in integer format instead of strings.
-Specify
-.Sy --json-flat-vdevs
-to display vdevs in flat hierarchy instead of nested vdev objects.
-Specify
-.Sy --json-pool-key-guid
-to set pool GUID as key for pool objects instead of pool names.
 .It Fl d
 Display the number of Direct I/O read/write checksum verify errors that have
 occurred on a top-level VDEV.
@@ -111,6 +103,18 @@ These GUIDs can be used in place of device names for the zpool
 detach/offline/remove/replace commands.
 .It Fl i
 Display vdev initialization status.
+.It Fl j , -json Oo Ns Fl Fl json-int Oc Oo Ns Fl Fl json-flat-vdevs Oc \
+Oo Ns Fl Fl json-pool-key-guid Oc
+Display the status for ZFS pools in JSON format.
+Specify
+.Sy --json-int
+to display numbers in integer format instead of strings.
+Specify
+.Sy --json-flat-vdevs
+to display vdevs in flat hierarchy instead of nested vdev objects.
+Specify
+.Sy --json-pool-key-guid
+to set pool GUID as key for pool objects instead of pool names.
 .It Fl L
 Display real paths for vdevs resolving all symbolic links.
 This can be used to look up the current block device name regardless of the
@@ -124,6 +128,8 @@ the path.
 This can be used in conjunction with the
 .Fl L
 flag.
+.It Fl -power
+Display vdev enclosure slot power status (on or off).
 .It Fl s
 Display the number of leaf vdev slow I/O operations.
 This is the number of I/O operations that didn't complete in
@@ -136,18 +142,18 @@ unreasonably long amount of time.
 This may indicate a problem with the underlying storage.
 .It Fl t
 Display vdev TRIM status.
-.It Fl T Sy u Ns | Ns Sy d
+.It Fl T Sy d Ns | Ns Sy u
 Display a time stamp.
-Specify
-.Sy u
-for a printed representation of the internal representation of time.
-See
-.Xr time 1 .
 Specify
 .Sy d
 for standard date format.
 See
 .Xr date 1 .
+Specify
+.Sy u
+for a printed representation of the internal representation of time.
+See
+.Xr time 1 .
 .It Fl v
 Displays verbose data error information, printing out a complete list of all
 data errors since the last complete pool scrub.
