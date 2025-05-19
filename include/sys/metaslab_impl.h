@@ -82,6 +82,8 @@ typedef enum trace_alloc_type {
 	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY | \
 	METASLAB_WEIGHT_CLAIM)
 
+#define	METASLAB_MAX_WEIGHT		(METASLAB_WEIGHT_TYPE - 1)
+
 /*
  * The metaslab weight is used to encode the amount of free space in a
  * metaslab, such that the "best" metaslab appears first when sorting the
