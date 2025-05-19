@@ -5499,7 +5499,8 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 			if (svdcount == SPA_SYNC_MIN_VDEVS)
 				break;
 		}
-		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg);
+		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg,
+		    VDEV_CONFIG_REWINDING_CHECKPOINT);
 		if (error == 0)
 			spa->spa_last_synced_guid = rvd->vdev_guid;
 		spa_config_exit(spa, SCL_ALL, FTAG);
@@ -10329,6 +10330,13 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t txg = tx->tx_txg;
+	vdev_config_sync_status_t status;
+	if (dmu_tx_get_txg(tx) == spa->spa_checkpoint_txg + 1)
+		status = VDEV_CONFIG_CREATING_CHECKPOINT;
+	else if (spa->spa_checkpoint_txg == 0)
+		status = VDEV_CONFIG_DISCARDING_CHECKPOINT;
+	else
+		status = VDEV_CONFIG_NORMAL;
 
 	for (;;) {
 		int error = 0;
@@ -10362,10 +10370,10 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 				if (svdcount == SPA_SYNC_MIN_VDEVS)
 					break;
 			}
-			error = vdev_config_sync(svd, svdcount, txg);
+			error = vdev_config_sync(svd, svdcount, txg, status);
 		} else {
 			error = vdev_config_sync(rvd->vdev_child,
-			    rvd->vdev_children, txg);
+			    rvd->vdev_children, txg, status);
 		}
 
 		if (error == 0)
