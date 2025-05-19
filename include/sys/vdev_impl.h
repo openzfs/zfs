@@ -612,6 +612,7 @@ extern vdev_ops_t vdev_missing_ops;
 extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 extern vdev_ops_t vdev_indirect_ops;
+extern vdev_ops_t vdev_anyraid_ops;
 
 extern zio_vsd_ops_t vdev_mirror_vsd_ops;
 

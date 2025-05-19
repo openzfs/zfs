@@ -30,31 +30,36 @@
 # 1. Create a pool with a two-way mirror.
 # 2. Start initializing, fault, export, import, online and verify along
 #    the way that the initializing was cancelled and not restarted.
+# 3. Repeat for AnyRAID1.
 #
 
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2
+for type in "mirror" "anyraid1"; do
+	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
 
-log_must zpool initialize $TESTPOOL $DISK1
-progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$progress" ]] && log_fail "Initializing did not start"
+	log_must zpool initialize $TESTPOOL $DISK1
+	progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$progress" ]] && log_fail "Initializing did not start"
 
-log_must zpool offline -f $TESTPOOL $DISK1
-log_must check_vdev_state $TESTPOOL $DISK1 "FAULTED"
-log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
+	log_must zpool offline -f $TESTPOOL $DISK1
+	log_must check_vdev_state $TESTPOOL $DISK1 "FAULTED"
+	log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
 
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
 
-log_must check_vdev_state $TESTPOOL $DISK1 "FAULTED"
-log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
+	log_must check_vdev_state $TESTPOOL $DISK1 "FAULTED"
+	log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
 
-log_must zpool online $TESTPOOL $DISK1
-log_must zpool clear $TESTPOOL $DISK1
-log_must check_vdev_state $TESTPOOL $DISK1 "ONLINE"
-log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
+	log_must zpool online $TESTPOOL $DISK1
+	log_must zpool clear $TESTPOOL $DISK1
+	log_must check_vdev_state $TESTPOOL $DISK1 "ONLINE"
+	log_must eval "zpool status -i $TESTPOOL | grep $DISK1 | grep uninitialized"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+done
 
 log_pass "Initializing behaves as expected at each step of:" \
     "initialize + fault + export + import + online"

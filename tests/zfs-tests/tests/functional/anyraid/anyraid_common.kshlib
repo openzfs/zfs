@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2025, Klara, Inc.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/anyraid/default.cfg
+
+function wipe_some_disks_and_verify_content_is_still_okay
+{
+	typeset pool=$1
+	shift
+
+	typeset atfile=0
+	set -A files
+	set -A cksums
+	typeset newcksum
+
+	while (( atfile < FILE_COUNT )); do
+		files[$atfile]=/$pool/file.$atfile
+		log_must file_write -o create -f ${files[$atfile]} \
+			-b $FILE_SIZE -c 1
+		cksums[$atfile]=$(md5sum ${files[$atfile]})
+		(( atfile = atfile + 1 ))
+	done
+
+	for disk in $@; do
+		log_must dd if=/dev/zero of=$disk seek=8 bs=$DD_BLOCK \
+			count=$(( DD_COUNT - 128 )) conv=notrunc
+	done
+
+	#
+	# Flush out the cache so that we ensure we're reading from disk.
+	#
+	log_must zpool status
+	log_must zpool export $pool
+	log_must zpool import -d $(dirname $1)
+	log_must zpool import -d $(dirname $1) $pool
+
+	atfile=0
+	typeset -i failedcount=0
+	while (( atfile < FILE_COUNT )); do
+		newcksum=$(md5sum ${files[$atfile]})
+		if [[ $newcksum != ${cksums[$atfile]} ]]; then
+			(( failedcount = failedcount + 1 ))
+			log_note "Wrong checksum of ${files[$atfile]}"
+		fi
+		(( atfile = atfile + 1 ))
+	done
+
+	if [[ $failedcount > 0 ]]; then
+		log_fail "$failedcount of the $FILE_COUNT files did not" \
+			"have the same checksum before and after"
+	fi
+
+	log_must zpool status
+	log_must zpool scrub $TESTPOOL
+	log_must wait_scrubbed $TESTPOOL
+	log_must zpool status
+}
+
+function spec_cases
+{
+	typeset poolspec=$1
+	shift
+
+	typeset tcases
+	eval "typeset -a tcases=($*)"
+
+	log_note "pool specification: $poolspec"
+
+	for tcase in "${tcases[@]}"; do
+		log_note "failed disk case: $tcase"
+		log_must zpool create -f $TESTPOOL $poolspec
+		wipe_some_disks_and_verify_content_is_still_okay $TESTPOOL $tcase
+		poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	done
+}

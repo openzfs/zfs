@@ -36,32 +36,39 @@
 # 2. Start initializing, offline, export, import, online and verify that
 #    initializing state is preserved / initializing behaves as expected
 #    at each step.
+# 3. Repeat for other VDEV types.
 #
 
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2
+for type in "mirror" "anyraid1"; do
 
-log_must zpool initialize $TESTPOOL $DISK1
-log_must zpool offline $TESTPOOL $DISK1
-progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$progress" ]] && log_fail "Initializing did not start"
-log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
 
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+	log_must zpool initialize $TESTPOOL $DISK1
+	log_must zpool offline $TESTPOOL $DISK1
+	progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$progress" ]] && log_fail "Initializing did not start"
+	log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
 
-new_progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$new_progress" ]] && log_fail "Initializing did not start after import"
-[[ "$new_progress" -ge "$progress" ]] || \
-    log_fail "Initializing lost progress after import"
-log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
 
-log_must zpool online $TESTPOOL $DISK1
-new_progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ "$new_progress" -ge "$progress" ]] || \
-    log_fail "Initializing lost progress after online"
+	new_progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$new_progress" ]] && log_fail "Initializing did not start after import"
+	[[ "$new_progress" -ge "$progress" ]] || \
+	    log_fail "Initializing lost progress after import"
+	log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+
+	log_must zpool online $TESTPOOL $DISK1
+	new_progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ "$new_progress" -ge "$progress" ]] || \
+	    log_fail "Initializing lost progress after online"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Initializing behaves as expected at each step of:" \
     "initialize + offline + export + import + online"

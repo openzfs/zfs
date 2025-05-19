@@ -125,6 +125,8 @@ SYSCTL_NODE(_vfs_zfs, OID_AUTO, zio, CTLFLAG_RW, 0, "ZFS ZIO");
 
 SYSCTL_NODE(_vfs_zfs_livelist, OID_AUTO, condense, CTLFLAG_RW, 0,
 	"ZFS livelist condense");
+SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, anyraid, CTLFLAG_RW, 0,
+	"ZFS AnyRAID VDEV");
 SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, file, CTLFLAG_RW, 0, "ZFS VDEV file");
 SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, mirror, CTLFLAG_RD, 0,
 	"ZFS VDEV mirror");

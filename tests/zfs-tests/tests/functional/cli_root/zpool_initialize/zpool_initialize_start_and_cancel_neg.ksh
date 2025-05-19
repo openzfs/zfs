@@ -37,25 +37,32 @@
 # 2. Start initializing and verify that initializing is active.
 # 3. Try to cancel and suspend initializing on the non-initializing disks.
 # 4. Try to re-initialize the currently initializing disk.
+# 5. Repeat for other VDEVs
 #
 
 DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
-log_must zpool list -v
-log_must zpool create -f $TESTPOOL $DISK1 $DISK2 $DISK3
-log_must zpool initialize $TESTPOOL $DISK1
+for type in "" "anyraid2"; do
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
-    log_fail "Initialize did not start"
+	log_must zpool list -v
+	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
+	log_must zpool initialize $TESTPOOL $DISK1
 
-log_mustnot zpool initialize -c $TESTPOOL $DISK2
-log_mustnot zpool initialize -c $TESTPOOL $DISK2 $DISK3
+	[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
+	    log_fail "Initialize did not start"
 
-log_mustnot zpool initialize -s $TESTPOOL $DISK2
-log_mustnot zpool initialize -s $TESTPOOL $DISK2 $DISK3
+	log_mustnot zpool initialize -c $TESTPOOL $DISK2
+	log_mustnot zpool initialize -c $TESTPOOL $DISK2 $DISK3
 
-log_mustnot zpool initialize $TESTPOOL $DISK1
+	log_mustnot zpool initialize -s $TESTPOOL $DISK2
+	log_mustnot zpool initialize -s $TESTPOOL $DISK2 $DISK3
+
+	log_mustnot zpool initialize $TESTPOOL $DISK1
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Nonsensical initialize operations fail"
