@@ -255,7 +255,7 @@ tests = ['zpool_add_002_pos', 'zpool_add_003_pos',
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
-tests = ['zpool_attach_001_neg']
+tests = ['zpool_attach_001_neg', 'zpool_attach_002_pos']
 tags = ['functional', 'cli_root', 'zpool_attach']
 
 [tests/functional/cli_root/zpool_clear]
@@ -318,7 +318,6 @@ tags = ['functional', 'cli_root', 'zpool_labelclear']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_online_offline']
-pre =
 tags = ['functional', 'cli_root', 'zpool_initialize']
 
 [tests/functional/cli_root/zpool_offline]

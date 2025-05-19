@@ -35,19 +35,26 @@
 # 1. Create a one-disk pool.
 # 2. Start initializing and verify that initializing is active.
 # 3. Cancel initializing and verify that initializing is not active.
+# 4. Repeat for other VDEVs
 #
 
 DISK1=${DISKS%% *}
 
-log_must zpool create -f $TESTPOOL $DISK1
-log_must zpool initialize $TESTPOOL
+for type in "" "anyraid0"; do
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
-    log_fail "Initialize did not start"
+	log_must zpool create -f $TESTPOOL $type $DISK1
+	log_must zpool initialize $TESTPOOL
 
-log_must zpool initialize -c $TESTPOOL
+	[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
+	    log_fail "Initialize did not start"
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] || \
-    log_fail "Initialize did not stop"
+	log_must zpool initialize -c $TESTPOOL
+
+	[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] || \
+	    log_fail "Initialize did not stop"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Initialize start + cancel works"

@@ -59,22 +59,30 @@ fi
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 
-for type in "mirror" "raidz" "raidz2"; do
+for type in "mirror" "raidz" "raidz2" "anyraid1" "anyraid2" "anyraid3"; do
+        if [[ "$type" =~ "anyraid" ]]; then
+                export VDEVSIZE=1073741824
+                export TESTFILE_SIZE=268435456
+        else
+                export VDEVSIZE=$MINVDEVSIZE
+                export TESTFILE_SIZE=67108864
+        fi
 	# 1. Create a pool with hot spares
-	log_must truncate -s $MINVDEVSIZE $VDEV_FILES $SPARE_FILE
+	log_must truncate -s $VDEVSIZE $VDEV_FILES $SPARE_FILE
 	log_must zpool create -f $TESTPOOL $type $VDEV_FILES \
 	    spare $SPARE_FILE
 
 	# 2. Create a filesystem with the primary cache disable to force reads
 	log_must zfs create -o primarycache=none $TESTPOOL/$TESTFS
-	log_must zfs set recordsize=16k $TESTPOOL/$TESTFS
+	log_must zfs set recordsize=16k compression=off $TESTPOOL/$TESTFS
 
 	# 3. Write a file to the pool to be read back
-	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=64
+	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=$(( TESTFILE_SIZE / 1024 / 1024 ))
 
 	# 4. Inject CHECKSUM ERRORS on read with a zinject error handler
-	log_must zinject -d $FAULT_FILE -e corrupt -f 50 -T read $TESTPOOL
-	log_must dd if=$TESTFILE of=/dev/null bs=1M count=64
+	log_must zinject -d $FAULT_FILE -e corrupt -f 100 -T read $TESTPOOL
+	log_must dd if=$TESTFILE of=/dev/null bs=1M count=$(( TESTFILE_SIZE / 1024 / 1024 ))
+	log_must zinject
 
 	# 5. Verify the ZED kicks in a hot spare and expected pool/device status
 	log_note "Wait for ZED to auto-spare"

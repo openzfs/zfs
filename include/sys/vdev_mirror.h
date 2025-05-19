@@ -19,8 +19,13 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright 2010 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
 /*
+ * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2025, Klara Inc.
  */
 
