@@ -40,7 +40,8 @@
 #   b. Verify uninitialize fails when actively initializing.
 #   c. Cancel or suspend initializing and verify that initializing is not active.
 #   d. Verify uninitialize succeeds after being cancelled.
-# 4. Verify per-disk cancel|suspend + uninit
+# 4. Verify per-disk cancel|suspend + uninit.
+# 5. Repeat for other VDEVs.
 #
 
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
@@ -78,65 +79,71 @@ function status_check_all # pool disk-state
 	status_check "$pool" "$disk_state" "$disk_state" "$disk_state"
 }
 
-# 1. Create a one-disk pool.
-log_must zpool create -f $TESTPOOL $DISK1 $DISK2 $DISK3
-status_check_all $TESTPOOL "uninitialized"
+for type in "" "anyraid1"; do
 
-# 2. Verify uninitialize succeeds for uninitialized pool.
-log_must zpool initialize -u $TESTPOOL
-status_check_all $TESTPOOL "uninitialized"
+	# 1. Create a one-disk pool.
+	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
+	status_check_all $TESTPOOL "uninitialized"
 
-# 3. Verify pool wide cancel + uninit
-log_must zpool initialize $TESTPOOL
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	# 2. Verify uninitialize succeeds for uninitialized pool.
+	log_must zpool initialize -u $TESTPOOL
+	status_check_all $TESTPOOL "uninitialized"
 
-log_mustnot zpool initialize -u $TESTPOOL
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	# 3. Verify pool wide cancel + uninit
+	log_must zpool initialize $TESTPOOL
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -c $TESTPOOL
-status_check_all $TESTPOOL "uninitialized"
+	log_mustnot zpool initialize -u $TESTPOOL
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -u $TESTPOOL
-status_check_all $TESTPOOL "uninitialized"
+	log_must zpool initialize -c $TESTPOOL
+	status_check_all $TESTPOOL "uninitialized"
 
-# 3. Verify pool wide suspend + uninit
-log_must zpool initialize $TESTPOOL
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	log_must zpool initialize -u $TESTPOOL
+	status_check_all $TESTPOOL "uninitialized"
 
-log_mustnot zpool initialize -u $TESTPOOL
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	# 3. Verify pool wide suspend + uninit
+	log_must zpool initialize $TESTPOOL
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -s $TESTPOOL
-status_check_all $TESTPOOL "suspended"
+	log_mustnot zpool initialize -u $TESTPOOL
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -u $TESTPOOL
-status_check_all $TESTPOOL "uninitialized"
+	log_must zpool initialize -s $TESTPOOL
+	status_check_all $TESTPOOL "suspended"
 
-# 4. Verify per-disk cancel|suspend + uninit
-log_must zpool initialize $TESTPOOL
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	log_must zpool initialize -u $TESTPOOL
+	status_check_all $TESTPOOL "uninitialized"
 
-log_must zpool initialize -c $TESTPOOL $DISK1
-log_must zpool initialize -s $TESTPOOL $DISK2
-log_mustnot zpool initialize -u $TESTPOOL $DISK3
-status_check $TESTPOOL "uninitialized" "suspended" "[[:digit:]]* initialized"
+	# 4. Verify per-disk cancel|suspend + uninit
+	log_must zpool initialize $TESTPOOL
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -u $TESTPOOL $DISK1
-status_check $TESTPOOL "uninitialized" "suspended" "[[:digit:]]* initialized"
+	log_must zpool initialize -c $TESTPOOL $DISK1
+	log_must zpool initialize -s $TESTPOOL $DISK2
+	log_mustnot zpool initialize -u $TESTPOOL $DISK3
+	status_check $TESTPOOL "uninitialized" "suspended" "[[:digit:]]* initialized"
 
-log_must zpool initialize -u $TESTPOOL $DISK2
-status_check $TESTPOOL "uninitialized" "uninitialized" "[[:digit:]]* initialized"
+	log_must zpool initialize -u $TESTPOOL $DISK1
+	status_check $TESTPOOL "uninitialized" "suspended" "[[:digit:]]* initialized"
 
-log_must zpool initialize $TESTPOOL $DISK1
-status_check $TESTPOOL "[[:digit:]]* initialized" "uninitialized" "[[:digit:]]* initialized"
+	log_must zpool initialize -u $TESTPOOL $DISK2
+	status_check $TESTPOOL "uninitialized" "uninitialized" "[[:digit:]]* initialized"
 
-log_must zpool initialize $TESTPOOL $DISK2
-status_check_all $TESTPOOL "[[:digit:]]* initialized"
+	log_must zpool initialize $TESTPOOL $DISK1
+	status_check $TESTPOOL "[[:digit:]]* initialized" "uninitialized" "[[:digit:]]* initialized"
 
-log_must zpool initialize -s $TESTPOOL
-status_check_all $TESTPOOL "suspended"
+	log_must zpool initialize $TESTPOOL $DISK2
+	status_check_all $TESTPOOL "[[:digit:]]* initialized"
 
-log_must zpool initialize -u $TESTPOOL $DISK1 $DISK2 $DISK3
-status_check_all $TESTPOOL "uninitialized"
+	log_must zpool initialize -s $TESTPOOL
+	status_check_all $TESTPOOL "suspended"
+
+	log_must zpool initialize -u $TESTPOOL $DISK1 $DISK2 $DISK3
+	status_check_all $TESTPOOL "uninitialized"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Initialize start + cancel/suspend + uninit + start works"

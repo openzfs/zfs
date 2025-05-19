@@ -3108,7 +3108,8 @@ zpool_vdev_is_interior(const char *name)
 	    strncmp(name,
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_ROOT, strlen(VDEV_TYPE_ROOT)) == 0 ||
-	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
+	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0 ||
+	    strncmp(name, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0)
 		return (B_TRUE);
 
 	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&

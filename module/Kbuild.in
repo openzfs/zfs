@@ -385,6 +385,7 @@ ZFS_OBJS := \
 	vdev_label.o \
 	vdev_mirror.o \
 	vdev_missing.o \
+	vdev_anyraid.o \
 	vdev_queue.o \
 	vdev_raidz.o \
 	vdev_raidz_math.o \

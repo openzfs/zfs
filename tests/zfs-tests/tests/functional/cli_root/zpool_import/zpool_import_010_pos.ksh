@@ -43,15 +43,18 @@
 #	3. Create a draid2 pool C with dev2/3/4/5. Then destroy it.
 #	4. Create a raidz pool D with dev3/4. Then destroy it.
 #	5. Create a stripe pool E with dev4. Then destroy it.
-#	6. Verify 'zpool import -D -a' recover all the pools.
+#	6. Create an anyraid pool F with dev6. Then destroy it.
+#	7. Verify 'zpool import -D -a' recover all the pools.
 #
 
 verify_runnable "global"
 
+VDEV6="$DEVICE_DIR/disk6_anyraid"
+
 function cleanup
 {
 	typeset dt
-	for dt in $poolE $poolD $poolC $poolB $poolA; do
+	for dt in $poolF $poolE $poolD $poolC $poolB $poolA; do
 		destroy_pool $dt
 	done
 
@@ -67,7 +70,7 @@ log_assert "'zpool -D -a' can import all the specified directories " \
 	"destroyed pools."
 log_onexit cleanup
 
-poolA=poolA.$$; poolB=poolB.$$; poolC=poolC.$$; poolD=poolD.$$; poolE=poolE.$$
+poolA=poolA.$$; poolB=poolB.$$; poolC=poolC.$$; poolD=poolD.$$; poolE=poolE.$$; poolF=poolF.$$;
 
 log_must zpool create $poolA mirror $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4
 log_must zpool destroy $poolA
@@ -84,9 +87,13 @@ log_must zpool destroy $poolD
 log_must zpool create $poolE $VDEV4
 log_must zpool destroy $poolE
 
+truncate -s 24G $VDEV6
+log_must zpool create $poolF anyraid $VDEV6
+log_must zpool destroy $poolF
+
 log_must zpool import -d $DEVICE_DIR -D -f -a
 
-for dt in $poolA $poolB $poolC $poolD $poolE; do
+for dt in $poolA $poolB $poolC $poolD $poolE $poolF; do
 	log_must datasetexists $dt
 done
 
