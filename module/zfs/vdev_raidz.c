@@ -2332,10 +2332,11 @@ vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
  * so each child must provide at least 1/Nth of its asize.
  */
 static uint64_t
-vdev_raidz_min_asize(vdev_t *vd)
+vdev_raidz_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	return ((vd->vdev_min_asize + vd->vdev_children - 1) /
-	    vd->vdev_children);
+	(void) cvd;
+	return ((pvd->vdev_min_asize + pvd->vdev_children - 1) /
+	    pvd->vdev_children);
 }
 
 /*
