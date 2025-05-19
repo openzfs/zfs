@@ -57,17 +57,19 @@ log_assert "'zpool add' should fail if vdevs are the same or vdev is " \
 
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISK0
+create_sparse_files "disk" 2 $MINVDEVSIZE2
+
+create_pool $TESTPOOL $disk0
 log_must poolexists $TESTPOOL
 
-log_mustnot zpool add -f $TESTPOOL $DISK0
+log_mustnot zpool add -f $TESTPOOL $disk0
 
-for type in "" "mirror" "raidz" "draid" "spare" "log" "dedup" "special" "cache"
+for type in "" "mirror" "raidz" "anyraid" "draid" "spare" "log" "dedup" "special" "cache"
 do
-	log_mustnot zpool add -f $TESTPOOL $type $DISK0 $DISK1
-	log_mustnot zpool add --allow-in-use $TESTPOOL $type $DISK0 $DISK1
-	log_mustnot zpool add -f $TESTPOOL $type $DISK1 $DISK1
-	log_mustnot zpool add --allow-in-use $TESTPOOL $type $DISK1 $DISK1
+	log_mustnot zpool add -f $TESTPOOL $type $disk0 $disk1
+	log_mustnot zpool add --allow-in-use $TESTPOOL $type $disk0 $disk1
+	log_mustnot zpool add -f $TESTPOOL $type $disk1 $disk1
+	log_mustnot zpool add --allow-in-use $TESTPOOL $type $disk1 $disk1
 done
 
 log_pass "'zpool add' get fail as expected if vdevs are the same or vdev is " \

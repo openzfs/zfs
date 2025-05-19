@@ -49,8 +49,6 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-
-	rm -f $disk1 $disk2
 }
 
 log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
@@ -58,16 +56,16 @@ log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
 
 log_onexit cleanup
 
-typeset disk1=$(create_blockfile $FILESIZE)
-typeset disk2=$(create_blockfile $FILESIZE)
+create_sparse_files "disk" 4 $MINVDEVSIZE2
 
 pooldevs="${DISK0} \
 	\"${DISK0} ${DISK1}\" \
 	\"${DISK0} ${DISK1} ${DISK2}\" \
-	\"$disk1 $disk2\""
+	\"$disk0 $disk1\""
 mirrordevs="\"${DISK0} ${DISK1}\" \
 	$raidzdevs \
-	\"$disk1 $disk2\""
+	\"$disk0 $disk1\""
+anyraiddevs="\"$disk0 $disk1 $disk2 $disk3\""
 raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
 draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
 
@@ -75,6 +73,11 @@ create_pool_test "$TESTPOOL" "" "$pooldevs"
 create_pool_test "$TESTPOOL" "mirror" "$mirrordevs"
 create_pool_test "$TESTPOOL" "raidz" "$raidzdevs"
 create_pool_test "$TESTPOOL" "raidz1" "$raidzdevs"
+create_pool_test "$TESTPOOL" "anyraid" "$anyraiddevs"
+create_pool_test "$TESTPOOL" "anyraid0" "$anyraiddevs"
+create_pool_test "$TESTPOOL" "anyraid1" "$anyraiddevs"
+create_pool_test "$TESTPOOL" "anyraid2" "$anyraiddevs"
+create_pool_test "$TESTPOOL" "anyraid3" "$anyraiddevs"
 create_pool_test "$TESTPOOL" "draid" "$draiddevs"
 
 log_pass "'zpool create <pool> <vspec> ...' success."
