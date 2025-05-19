@@ -140,6 +140,10 @@ export MAX_FINDDISKSNUM=6
 # Default minimum size for file based vdevs in the test suite
 export MINVDEVSIZE=$((256 * 1024 * 1024))
 
+# AnyRAID has higher requirements by design,
+# it depends on the minimal region size
+export MINVDEVSIZE2=$((24 * 1024 * 1024 * 1024))
+
 # Minimum vdev size possible as defined in the OS
 export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
 

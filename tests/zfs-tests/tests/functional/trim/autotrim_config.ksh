@@ -26,7 +26,7 @@
 
 #
 # DESCRIPTION:
-# 	Check various pool geometries stripe, mirror, raidz)
+# 	Check various pool geometries stripe, mirror, anyraid, raidz.
 #
 # STRATEGY:
 #	1. Create a pool on file vdevs to trim.
@@ -36,7 +36,7 @@
 #	5. Remove all files making it possible to trim the entire pool.
 #	6. Wait for auto trim to issue trim IOs for the free blocks.
 #	7. Verify the disks contain 30% or less allocated blocks.
-#	8. Repeat for test for striped, mirrored, and RAIDZ pools.
+#	8. Repeat for test for striped, mirrored, AnyRAID, and RAIDZ pools.
 
 verify_runnable "global"
 
@@ -71,12 +71,14 @@ log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
 typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
 
-for type in "" "mirror" "raidz2" "draid"; do
+for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz2" "draid"; do
 
 	if [[ "$type" = "" ]]; then
 		VDEVS="$TRIM_VDEV1"
 	elif [[ "$type" = "mirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
+	elif [[ "$type" =~ "anyraid" ]]; then
+		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 	elif [[ "$type" = "raidz2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
 	elif [[ "$type" = "draid" ]]; then

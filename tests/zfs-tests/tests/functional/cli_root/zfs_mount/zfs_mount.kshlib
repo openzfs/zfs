@@ -65,6 +65,7 @@ function setup_filesystem #disklist #pool #fs #mntpoint #type #vdev
 	if [[ $vdev != "" && \
 		$vdev != "mirror" && \
 		$vdev != "raidz" && \
+		$vdev != "anyraid" && \
 		$vdev != "draid" ]] ; then
 
 		log_note "Wrong vdev: (\"$vdev\")"

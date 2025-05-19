@@ -49,32 +49,31 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	rm -f $disk0 $disk1
 }
 
 log_assert "'zpool add <pool> <vdev> ...' can add devices to the pool."
 
 log_onexit cleanup
 
-set -A keywords "" "mirror" "raidz" "raidz1" "draid:1s" "draid1:1s" "spare"
+set -A keywords "" "mirror" "raidz" "raidz1" "anyraid" "anyraid1" "anyraid2" "anyraid3" "draid:1s" "draid1:1s" "spare"
+
+create_sparse_files "disk" 4 $MINVDEVSIZE2
+create_sparse_files "extradisk" 4 $MINVDEVSIZE2
 
 pooldevs="${DISK0} \
 	\"${DISK0} ${DISK1}\" \
 	\"${DISK0} ${DISK1} ${DISK2}\""
 mirrordevs="\"${DISK0} ${DISK1}\""
 raidzdevs="\"${DISK0} ${DISK1}\""
+anyraiddevs="\"${extradisks}\""
 draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
-
-disk0=$TEST_BASE_DIR/disk0
-disk1=$TEST_BASE_DIR/disk1
-disk2=$TEST_BASE_DIR/disk2
-truncate -s $MINVDEVSIZE $disk0 $disk1 $disk2
 
 typeset -i i=0
 typeset vdev
 eval set -A poolarray $pooldevs
 eval set -A mirrorarray $mirrordevs
 eval set -A raidzarray $raidzdevs
+eval set -A anyraidarray $anyraiddevs
 eval set -A draidarray $draiddevs
 
 while (( $i < ${#keywords[*]} )); do
@@ -105,6 +104,16 @@ while (( $i < ${#keywords[*]} )); do
 		for vdev in "${raidzarray[@]}"; do
 			create_pool "$TESTPOOL" "${keywords[i]}" \
 				"$disk0" "$disk1"
+			log_must poolexists "$TESTPOOL"
+			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
+			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
+			destroy_pool "$TESTPOOL"
+		done
+
+		;;
+	anyraid*)
+		for vdev in "${anyraidarray[@]}"; do
+			create_pool "$TESTPOOL" "${keywords[i]}" $disks
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
