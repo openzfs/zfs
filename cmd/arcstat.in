@@ -735,13 +735,14 @@ def calculate():
                             v[group["percent"]] if v[group["percent"]] > 0 else 0
 
     if l2exist:
+        l2asize = cur["l2_asize"]
         v["l2hits"] = d["l2_hits"] / sint
         v["l2miss"] = d["l2_misses"] / sint
         v["l2read"] = v["l2hits"] + v["l2miss"]
         v["l2hit%"] = 100 * v["l2hits"] / v["l2read"] if v["l2read"] > 0 else 0
 
         v["l2miss%"] = 100 - v["l2hit%"] if v["l2read"] > 0 else 0
-        v["l2asize"] = cur["l2_asize"]
+        v["l2asize"] = l2asize
         v["l2size"] = cur["l2_size"]
         v["l2bytes"] = d["l2_read_bytes"] / sint
         v["l2wbytes"] = d["l2_write_bytes"] / sint
@@ -751,11 +752,11 @@ def calculate():
         v["l2mru"] = cur["l2_mru_asize"]
         v["l2data"] = cur["l2_bufc_data_asize"]
         v["l2meta"] = cur["l2_bufc_metadata_asize"]
-        v["l2pref%"] = 100 * v["l2pref"] / v["l2asize"]
-        v["l2mfu%"] = 100 * v["l2mfu"] / v["l2asize"]
-        v["l2mru%"] = 100 * v["l2mru"] / v["l2asize"]
-        v["l2data%"] = 100 * v["l2data"] / v["l2asize"]
-        v["l2meta%"] = 100 * v["l2meta"] / v["l2asize"]
+        v["l2pref%"] = 100 * v["l2pref"] / l2asize if l2asize > 0 else 0
+        v["l2mfu%"] = 100 * v["l2mfu"] / l2asize if l2asize > 0 else 0
+        v["l2mru%"] = 100 * v["l2mru"] / l2asize if l2asize > 0 else 0
+        v["l2data%"] = 100 * v["l2data"] / l2asize if l2asize > 0 else 0
+        v["l2meta%"] = 100 * v["l2meta"] / l2asize if l2asize > 0 else 0
 
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]
