@@ -56,7 +56,14 @@ zed_events_drain
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 
-for type in "mirror" "raidz" "raidz2" "draid:1s"; do
+for type in "mirror" "raidz" "raidz2" "draid:1s" "anyraid1" "anyraid2" "anyraid3"; do
+        if [[ "$type" =~ "anyraid" ]]; then
+                export VDEVSIZE=1073741824
+                export TESTFILE_SIZE=268435456
+        else
+                export VDEVSIZE=$MINVDEVSIZE
+                export TESTFILE_SIZE=67108864
+        fi
 	if [ "$type" = "draid:1s" ]; then
 		# 1. Create a dRAID pool with a distributed hot spare
 		#
@@ -64,13 +71,13 @@ for type in "mirror" "raidz" "raidz2" "draid:1s"; do
 		# vdev since the dRAID permutation at these offsets maps
 		# to distributed spare space and not data devices.
 		#
-		log_must truncate -s $MINVDEVSIZE $VDEV_FILES
+		log_must truncate -s $VDEVSIZE $VDEV_FILES
 		log_must zpool create -f $TESTPOOL $type $VDEV_FILES
 		SPARE="draid1-0-0"
 		FAULT="$TEST_BASE_DIR/file-2"
 	else
 		# 1. Create a pool with hot spares
-		log_must truncate -s $MINVDEVSIZE $VDEV_FILES $SPARE_FILE
+		log_must truncate -s $VDEVSIZE $VDEV_FILES $SPARE_FILE
 		log_must zpool create -f $TESTPOOL $type $VDEV_FILES \
 		    spare $SPARE_FILE
 		SPARE=$SPARE_FILE
@@ -79,14 +86,14 @@ for type in "mirror" "raidz" "raidz2" "draid:1s"; do
 
 	# 2. Create a filesystem with the primary cache disable to force reads
 	log_must zfs create -o primarycache=none $TESTPOOL/$TESTFS
-	log_must zfs set recordsize=16k $TESTPOOL/$TESTFS
+	log_must zfs set recordsize=16k compression=off $TESTPOOL/$TESTFS
 
 	# 3. Write a file to the pool to be read back
-	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=64
+	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=$(( TESTFILE_SIZE / 1024 / 1024 ))
 
 	# 4. Inject IO ERRORS on read with a zinject error handler
 	log_must zinject -d $FAULT -e io -T read $TESTPOOL
-	log_must cp $TESTFILE /dev/null
+	log_must dd if=$TESTFILE of=/dev/null bs=1M count=$(( TESTFILE_SIZE / 1024 / 1024 ))
 
 	# 5. Verify the ZED kicks in a hot spare and expected pool/device status
 	log_note "Wait for ZED to auto-spare"

@@ -6412,7 +6412,10 @@
       <enumerator name='VDEV_PROP_SCHEDULER' value='55'/>
       <enumerator name='VDEV_PROP_FDOMAIN' value='56'/>
       <enumerator name='VDEV_PROP_FGROUP' value='57'/>
-      <enumerator name='VDEV_NUM_PROPS' value='58'/>
+      <enumerator name='VDEV_PROP_ANYRAID_CAP_TILES' value='58'/>
+      <enumerator name='VDEV_PROP_ANYRAID_NUM_TILES' value='59'/>
+      <enumerator name='VDEV_PROP_ANYRAID_TILE_SIZE' value='60'/>
+      <enumerator name='VDEV_NUM_PROPS' value='61'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
@@ -6697,7 +6700,8 @@
       <enumerator name='SPA_FEATURE_BLOCK_CLONING_ENDIAN' value='45'/>
       <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
       <enumerator name='SPA_FEATURE_DRAID_FAIL_DOMAINS' value='47'/>
-      <enumerator name='SPA_FEATURES' value='48'/>
+      <enumerator name='SPA_FEATURE_ANYRAID' value='48'/>
+      <enumerator name='SPA_FEATURES' value='49'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
