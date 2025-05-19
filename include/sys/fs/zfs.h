@@ -385,8 +385,22 @@ typedef enum {
 	VDEV_PROP_TRIM_SUPPORT,
 	VDEV_PROP_TRIM_ERRORS,
 	VDEV_PROP_SLOW_IOS,
+	VDEV_PROP_QUEUE_IO,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
+
+/*
+ * Different queuing behaviors for vdev prop queue_io.
+ * VDEV_QUEUE_AUTO = Don't queue if vdev is nonrot and backed by blkdev,
+ * queue otherwise.
+ * VDEV_QUEUE_CLASSIC = Always queue.
+ * VDEV_QUEUE_NONE = Never Queue.
+ */
+typedef enum {
+	VDEV_QUEUE_AUTO,
+	VDEV_QUEUE_CLASSIC,
+	VDEV_QUEUE_NONE
+} vdev_queue_type_t;
 
 /*
  * Dataset property functions shared between libzfs and kernel.

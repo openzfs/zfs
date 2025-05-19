@@ -326,6 +326,13 @@ vdev_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t vdevqueuetype_table[] = {
+		{ "auto",	VDEV_QUEUE_AUTO },
+		{ "classic",	VDEV_QUEUE_CLASSIC },
+		{ "none",	VDEV_QUEUE_NONE },
+		{ NULL }
+	};
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_VDEV_PROPERTIES);
 
@@ -470,6 +477,9 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_QUEUE_IO, "queue_io", VDEV_QUEUE_AUTO,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "auto | classic | none", "QUEUE_IO",
+	    vdevqueuetype_table, sfeatures);
 
 	/* default index properties */
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,
