@@ -192,9 +192,9 @@ extern uint64_t vdev_queue_class_length(vdev_t *vq, zio_priority_t p);
 extern boolean_t vdev_queue_pool_busy(spa_t *spa);
 
 typedef enum vdev_config_sync_status {
-    VDEV_CONFIG_NORMAL,
+    VDEV_CONFIG_KEEP_CHECKPOINT,
     VDEV_CONFIG_CREATING_CHECKPOINT,
-    VDEV_CONFIG_DISCARDING_CHECKPOINT,
+    VDEV_CONFIG_NO_CHECKPOINT,
     VDEV_CONFIG_REWINDING_CHECKPOINT
 } vdev_config_sync_status_t;
 
