@@ -521,11 +521,11 @@ get_usage(zpool_help_t idx)
 		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [--power] [-j [--json-int, "
-		    "--json-flat-vdevs, ...\n"
-		    "\t    --json-pool-key-guid]] [-c [script1,script2,...]] "
+		return (gettext("\tstatus [-c script1[,script2,...]] "
 		    "[-dDegiLpPstvx] ...\n"
-		    "\t    [-T d|u] [pool] [interval [count]]\n"));
+		    "\t    [-j [--json-int] [--json-flat-vdevs] "
+		    "[--json-pool-key-guid]] ...\n"
+		    "\t    [--power] [-T d|u] [pool] [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -10980,8 +10980,10 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-dDegiLpPstvx] [--power] ...
- *              [-T d|u] [pool] [interval [count]]
+ * zpool status [-c [script1,script2,...]] [-dDegiLpPstvx] ...
+ * 				[-j [--json-int] [--json-flat-vdevs] ...
+ * 				[--json-pool-key-guid]] [--power] [-T d|u] ...
+ * 				[pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
  *	-d	Display Direct I/O write verify errors
@@ -10989,19 +10991,19 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	-e	Display only unhealthy vdevs
  *	-g	Display guid for individual vdev name.
  *	-i	Display vdev initialization status.
+ *	-j [...]	Display output in JSON format
+ *	   --json-int Display numbers in inteeger format instead of string
+ *	   --json-flat-vdevs Display vdevs in flat hierarchy
+ *	   --json-pool-key-guid Use pool GUID as key for pool objects
  *	-L	Follow links when resolving vdev path name.
  *	-p	Display values in parsable (exact) format.
  *	-P	Display full path for vdev name.
+ *	--power	Display vdev enclosure slot power status
  *	-s	Display slow IOs column.
  *	-t	Display vdev TRIM status.
  *	-T	Display a timestamp in date(1) or Unix format
  *	-v	Display complete error logs
  *	-x	Display only pools with potential problems
- *	-j	Display output in JSON format
- *	--power	Display vdev enclosure slot power status
- *	--json-int Display numbers in inteeger format instead of string
- *	--json-flat-vdevs Display vdevs in flat hierarchy
- *	--json-pool-key-guid Use pool GUID as key for pool objects
  *
  * Describes the health status of all pools or some subset.
  */
