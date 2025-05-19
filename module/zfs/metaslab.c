@@ -3411,6 +3411,18 @@ metaslab_segment_weight(metaslab_t *msp)
 	}
 
 	/*
+	 * Anyraid vdevs strongly prefer allocations from earlier regions, in
+	 * order to prevent premature region placement. While this optimization
+	 * is not usually good for segment-based weighting, we enable it for
+	 * that case specifically.
+	 */
+	vdev_t *vd = mg->mg_vd;
+	if (B_FALSE) {
+		weight = 2 * weight - (msp->ms_id * weight) / vd->vdev_ms_count;
+		weight = MIN(weight, METASLAB_MAX_WEIGHT);
+	}
+
+	/*
 	 * If the metaslab was active the last time we calculated its weight
 	 * then keep it active. We want to consume the entire region that
 	 * is associated with this weight.
