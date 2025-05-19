@@ -107,6 +107,7 @@ COMMON_H = \
 	sys/vdev_indirect_births.h \
 	sys/vdev_indirect_mapping.h \
 	sys/vdev_initialize.h \
+	sys/vdev_mirror.h \
 	sys/vdev_raidz.h \
 	sys/vdev_raidz_impl.h \
 	sys/vdev_rebuild.h \
