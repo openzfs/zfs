@@ -968,6 +968,9 @@ skip_open:
 	else
 		vd->vdev_nonrot = B_FALSE;
 
+	/* Is backed by a block device. */
+	vd->vdev_is_blkdev = B_TRUE;
+
 	/* Set when device reports it supports TRIM. */
 	error = g_getattr("GEOM::candelete", cp, &has_trim);
 	vd->vdev_has_trim = (error == 0 && has_trim);
