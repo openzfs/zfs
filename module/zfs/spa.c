@@ -8465,9 +8465,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	/*
 	 * Make sure the new device is big enough.
 	 */
-	vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
-	if (newvd->vdev_asize < vdev_get_min_asize(min_vdev))
-		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
+	if (newvd->vdev_asize < vdev_get_min_attach_size(oldvd))
+		return (spa_vdev_exit(spa, newrootvd, txg, anyraid ? ENOLCK :
+		    EOVERFLOW));
 
 	/*
 	 * The new device cannot have a higher alignment requirement

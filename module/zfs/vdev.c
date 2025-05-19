@@ -337,6 +337,21 @@ vdev_derive_alloc_bias(const char *bias)
 }
 
 uint64_t
+vdev_default_min_attach_size(vdev_t *vd)
+{
+	return (vdev_get_min_asize(vd));
+}
+
+uint64_t
+vdev_get_min_attach_size(vdev_t *vd)
+{
+	vdev_t *pvd = vd->vdev_parent;
+	if (vd == vd->vdev_top)
+		pvd = vd;
+	return (pvd->vdev_ops->vdev_op_min_attach_size(pvd));
+}
+
+uint64_t
 vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 {
 	ASSERT0(asize % (1ULL << vd->vdev_top->vdev_ashift));
@@ -368,9 +383,10 @@ vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 }
 
 uint64_t
-vdev_default_min_asize(vdev_t *vd)
+vdev_default_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	return (vd->vdev_min_asize);
+	(void) cvd;
+	return (pvd->vdev_min_asize);
 }
 
 /*
@@ -399,7 +415,7 @@ vdev_get_min_asize(vdev_t *vd)
 		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
 		    uint64_t));
 
-	return (pvd->vdev_ops->vdev_op_min_asize(pvd));
+	return (pvd->vdev_ops->vdev_op_min_asize(pvd, vd));
 }
 
 void
@@ -3030,6 +3046,8 @@ vdev_metaslab_set_size(vdev_t *vd)
 		if ((asize >> ms_shift) > zfs_vdev_ms_count_limit)
 			ms_shift = highbit64(asize / zfs_vdev_ms_count_limit);
 	}
+	if (vd->vdev_ops->vdev_op_metaslab_size)
+		vd->vdev_ops->vdev_op_metaslab_size(vd, &ms_shift);
 
 	vd->vdev_ms_shift = ms_shift;
 	ASSERT3U(vd->vdev_ms_shift, >=, SPA_MAXBLOCKSHIFT);
