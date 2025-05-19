@@ -32,7 +32,7 @@
 # Initializing automatically resumes across import/export.
 #
 # STRATEGY:
-# 1. Create a one-disk pool.
+# 1. Create a pool.
 # 2. Start initializing and verify that initializing is active.
 # 3. Export the pool.
 # 4. Import the pool.
@@ -40,40 +40,52 @@
 # 6. Suspend initializing.
 # 7. Repeat steps 3-4.
 # 8. Verify that progress does not regress but initializing is still suspended.
+# 9. Repeat for other VDEV types.
 #
 
-DISK1=${DISKS%% *}
+DISK1="$(echo $DISKS | cut -d' ' -f1)"
+DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-log_must zpool create -f $TESTPOOL $DISK1
-log_must zpool initialize $TESTPOOL
+for type in "" "anyraid1"; do
+	if [[ "$type" = "" ]]; then
+		VDEVS="$DISK1"
+	elif [[ "$type" = "anyraid1" ]]; then
+		VDEVS="$DISK1 $DISK2"
+	fi
 
-sleep 2
+	log_must zpool create -f $TESTPOOL $type $VDEVS
+	log_must zpool initialize $TESTPOOL
 
-progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$progress" ]] && log_fail "Initializing did not start"
+	sleep 2
 
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+	progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$progress" ]] && log_fail "Initializing did not start"
 
-new_progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$new_progress" ]] && log_fail "Initializing did not restart after import"
-[[ "$progress" -le "$new_progress" ]] || \
-    log_fail "Initializing lost progress after import"
-log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
 
-log_must zpool initialize -s $TESTPOOL $DISK1
-action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
-    sed 's/.*ed at \(.*\)).*/\1/g')"
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
-new_action_date=$(initialize_prog_line $TESTPOOL $DISK1 | \
-    sed 's/.*ed at \(.*\)).*/\1/g')
-[[ "$action_date" != "$new_action_date" ]] && \
-    log_fail "Initializing action date did not persist across export/import"
+	new_progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$new_progress" ]] && log_fail "Initializing did not restart after import"
+	[[ "$progress" -le "$new_progress" ]] || \
+	    log_fail "Initializing lost progress after import"
+	log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
 
-[[ "$new_progress" -le "$(initialize_progress $TESTPOOL $DISK1)" ]] || \
-        log_fail "Initializing lost progress after import"
+	log_must zpool initialize -s $TESTPOOL $DISK1
+	action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
+	    sed 's/.*ed at \(.*\)).*/\1/g')"
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
+	new_action_date=$(initialize_prog_line $TESTPOOL $DISK1 | \
+	    sed 's/.*ed at \(.*\)).*/\1/g')
+	[[ "$action_date" != "$new_action_date" ]] && \
+	    log_fail "Initializing action date did not persist across export/import"
 
-log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	[[ "$new_progress" -le "$(initialize_progress $TESTPOOL $DISK1)" ]] || \
+	        log_fail "Initializing lost progress after import"
+
+	log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+done
 
 log_pass "Initializing retains state as expected across export/import"

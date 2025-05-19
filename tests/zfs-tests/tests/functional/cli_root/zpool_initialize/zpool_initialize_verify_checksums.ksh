@@ -37,24 +37,31 @@
 # 3. Start initializing and verify that initializing is active.
 # 4. Write more data to the pool.
 # 5. Run zdb to validate checksums.
+# 6. Repeat for other VDEVs.
 #
 
 DISK1=${DISKS%% *}
 
-log_must zpool create -f $TESTPOOL $DISK1
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1M count=30
-sync_all_pools
+for type in "" "anyraid0"; do
 
-log_must zpool initialize $TESTPOOL
+	log_must zpool create -f $TESTPOOL $type $DISK1
+	log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1M count=30
+	sync_all_pools
 
-log_must zdb -cc $TESTPOOL
+	log_must zpool initialize $TESTPOOL
 
-[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
-    log_fail "Initializing did not start"
+	log_must zdb -cc $TESTPOOL
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=1M count=30
-sync_all_pools
+	[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
+	    log_fail "Initializing did not start"
 
-log_must zdb -cc $TESTPOOL
+	log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=1M count=30
+	sync_all_pools
+
+	log_must zdb -cc $TESTPOOL
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Initializing does not corrupt existing or new data"
