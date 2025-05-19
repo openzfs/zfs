@@ -919,3 +919,71 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 		len -= partlen;
 	}
 }
+
+void
+zfs_log_link_tmpfile(zilog_t *zilog, dmu_tx_t *tx, znode_t *dzp, znode_t *zp,
+    const char *name)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+
+	if (zil_replaying(zilog, tx))
+		return;
+
+	vattr_t va = { 0 };
+	va.va_mask = ATTR_MODE | ATTR_UID | ATTR_GID;
+	va.va_mode = zp->z_mode;
+	va.va_uid  = (uid_t)KUID_TO_SUID(ZTOUID(zp));
+	va.va_gid  = (gid_t)KGID_TO_SGID(ZTOGID(zp));
+
+	zfs_log_create(zilog, tx, TX_CREATE, dzp, zp, name, NULL, NULL, &va);
+
+	uint64_t size = zp->z_size;
+	uint64_t off = 0;
+	uint64_t max_chunk = (uint64_t)zfs_immediate_write_sz;
+
+	/* TODO: Reflect the file sync open flags here */
+	boolean_t commit =
+	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
+	while (off < size) {
+		uint64_t len = size - off;
+		if (len > max_chunk)
+			len = max_chunk;
+		zfs_log_write(zilog, tx, TX_WRITE, zp, off, len, commit,
+		    B_FALSE, NULL, NULL);
+		off += len;
+	}
+
+	if (!zp->z_xattr_cached)
+		return;
+
+	/* Haven't thought about xattr=dir tbh, is there a way to log those? */
+	ASSERT3P(zfsvfs->z_xattr_sa, !=, NULL);
+
+	nvpair_t *nvp = NULL;
+	nvlist_t *nvl = zp->z_xattr_cached;
+
+	while ((nvp = nvlist_next_nvpair(nvl, nvp)) != NULL) {
+		const char *xname = nvpair_name(nvp);
+		const void *val = NULL;
+		size_t vlen = 0;
+
+		if (nvpair_type(nvp) == DATA_TYPE_STRING) {
+			const char *s;
+			VERIFY0(nvpair_value_string(nvp, &s));
+			val = s;
+			vlen = strlen(s);
+		} else if (nvpair_type(nvp) == DATA_TYPE_BYTE_ARRAY) {
+			const uchar_t *buf;
+			uint_t n;
+			VERIFY0(nvpair_value_byte_array(nvp,
+			    (uchar_t **)&buf, &n));
+			val = buf;
+			vlen = n;
+		} else
+			continue;
+
+
+		zfs_log_setsaxattr(zilog, tx, TX_SETSAXATTR,
+		    zp, xname, val, vlen);
+	}
+}

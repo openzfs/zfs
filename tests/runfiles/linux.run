@@ -249,7 +249,7 @@ post =
 
 [tests/functional/tmpfile:Linux]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
-    'tmpfile_stat_mode']
+    'tmpfile_004_pos', 'tmpfile_stat_mode']
 tags = ['functional', 'tmpfile']
 
 [tests/functional/tmpfile_dmlog:Linux]

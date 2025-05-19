@@ -82,6 +82,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/simd/simd_supported.ksh \
 	functional/tmpfile/cleanup.ksh \
 	functional/tmpfile/setup.ksh \
+	functional/tmpfile/tmpfile_004_pos.ksh \
 	functional/tmpfile_dmlog/cleanup.ksh \
 	functional/tmpfile_dmlog/setup.ksh \
 	functional/tmpfile_dmlog/tmpfile_dmlog.kshlib \
