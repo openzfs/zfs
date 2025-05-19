@@ -145,6 +145,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -1988,22 +1989,29 @@ vdev_extra_sync(zio_t *zio, uint64_t *good_writes, vdev_t *vd, int flags,
 	if (!vdev_writeable(vd))
 		return;
 
-	// TODO Invoke extra sync logic for anyraid
+	if (vd->vdev_top->vdev_ops == &vdev_anyraid_ops) {
+		vdev_anyraid_write_map_sync(vd, zio, txg, good_writes, flags,
+		    status);
+	}
 }
 
 /* Sync the extra data of all vdevs in svd[] */
 static int
-vdev_extra_sync_list(vdev_t **svd, int svdcount, int flags, uint64_t txg,
+vdev_extra_sync_all(spa_t *spa, int flags, uint64_t txg,
     vdev_config_sync_status_t status)
 {
-	spa_t *spa = svd[0]->vdev_spa;
 	zio_t *zio;
 	uint64_t good_writes = 0;
+	vdev_t **vdevs = spa->spa_root_vdev->vdev_child;
+	int svdcount = spa->spa_root_vdev->vdev_children;
 
 	boolean_t have_extra = B_FALSE;
 
 	for (int i = 0; i < svdcount; i++) {
-		// TODO use this for anyraid
+		if (vdevs[i]->vdev_ops == &vdev_anyraid_ops) {
+			have_extra = B_TRUE;
+			break;
+		}
 	}
 	if (!have_extra)
 		return (0);
@@ -2011,7 +2019,8 @@ vdev_extra_sync_list(vdev_t **svd, int svdcount, int flags, uint64_t txg,
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (int v = 0; v < svdcount; v++)
-		vdev_extra_sync(zio, &good_writes, svd[v], flags, txg, status);
+		vdev_extra_sync(zio, &good_writes, vdevs[v], flags, txg,
+		    status);
 
 	(void) zio_wait(zio);
 
@@ -2023,8 +2032,8 @@ vdev_extra_sync_list(vdev_t **svd, int svdcount, int flags, uint64_t txg,
 	zio = zio_root(spa, NULL, NULL, flags);
 
 	for (int v = 0; v < svdcount; v++) {
-		if (vdev_writeable(svd[v])) {
-			zio_flush(zio, svd[v]);
+		if (vdev_writeable(vdevs[v])) {
+			zio_flush(zio, vdevs[v]);
 		}
 	}
 
@@ -2294,10 +2303,9 @@ retry:
 		goto retry;
 	}
 
-	if ((error = vdev_extra_sync_list(svd, svdcount, flags, txg, status)) !=
-	    0) {
+	if ((error = vdev_extra_sync_all(spa, flags, txg, status)) != 0) {
 		if ((flags & ZIO_FLAG_TRYHARD) != 0) {
-			zfs_dbgmsg("vdev_extra_sync_list() returned error %d "
+			zfs_dbgmsg("vdev_extra_sync_all() returned error %d "
 			    "for pool '%s' when syncing out the extra data "
 			    "of dirty vdevs", error, spa_name(spa));
 		}

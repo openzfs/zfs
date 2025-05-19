@@ -2468,7 +2468,7 @@ vdev_raidz_min_asize(vdev_t *pvd, vdev_t *cvd)
 static uint64_t
 vdev_raidz_min_attach_size(vdev_t *vd)
 {
-	ASSERT3P(vd->vdev_top, ==, vd);
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
 	return (vdev_raidz_min_asize(vd, vd->vdev_child[0]));
 }
 
