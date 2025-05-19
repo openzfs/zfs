@@ -3179,8 +3179,6 @@ EXPORT_SYMBOL(spa_guid);
 EXPORT_SYMBOL(spa_last_synced_txg);
 EXPORT_SYMBOL(spa_first_txg);
 EXPORT_SYMBOL(spa_syncing_txg);
-EXPORT_SYMBOL(spa_load_max_txg);
-EXPORT_SYMBOL(spa_current_txg);
 EXPORT_SYMBOL(spa_version);
 EXPORT_SYMBOL(spa_state);
 EXPORT_SYMBOL(spa_load_state);

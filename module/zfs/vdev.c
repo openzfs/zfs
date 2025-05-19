@@ -279,6 +279,7 @@ static vdev_ops_t *const vdev_ops_table[] = {
 	&vdev_missing_ops,
 	&vdev_hole_ops,
 	&vdev_indirect_ops,
+	&vdev_anyraid_ops,
 	NULL
 };
 
@@ -902,6 +903,13 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		if (ops == &vdev_draid_ops &&
 		    spa->spa_load_state != SPA_LOAD_CREATE &&
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		/* spa_vdev_add() expects feature to be enabled */
+		if (ops == &vdev_anyraid_ops &&
+		    spa->spa_load_state != SPA_LOAD_CREATE &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_ANYRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
 	}
