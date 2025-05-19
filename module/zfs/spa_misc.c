@@ -1875,6 +1875,18 @@ spa_syncing_txg(spa_t *spa)
 	return (spa->spa_syncing_txg);
 }
 
+uint64_t
+spa_load_max_txg(spa_t *spa)
+{
+	return (spa->spa_load_max_txg);
+}
+
+uint64_t
+spa_current_txg(spa_t *spa)
+{
+	return (spa->spa_uberblock.ub_txg);
+}
+
 /*
  * Return the last txg where data can be dirtied. The final txgs
  * will be used to just clear out any deferred frees that remain.
@@ -2321,6 +2333,12 @@ uint64_t
 spa_dirty_data(spa_t *spa)
 {
 	return (spa->spa_dsl_pool->dp_dirty_total);
+}
+
+uint64_t
+spa_load_txg(spa_t *spa)
+{
+	return (spa->spa_load_txg);
 }
 
 /*
@@ -3042,11 +3060,24 @@ spa_has_checkpoint(spa_t *spa)
 	return (spa->spa_checkpoint_txg != 0);
 }
 
+uint64_t
+spa_checkpoint_txg(spa_t *spa)
+{
+	return (spa->spa_checkpoint_txg);
+}
+
 boolean_t
 spa_importing_readonly_checkpoint(spa_t *spa)
 {
 	return ((spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT) &&
 	    spa->spa_mode == SPA_MODE_READ);
+}
+
+boolean_t
+spa_importing_checkpoint(spa_t *spa)
+{
+	return ((spa->spa_import_flags & ZFS_IMPORT_CHECKPOINT) &&
+	    spa->spa_uberblock.ub_checkpoint_txg != 0);
 }
 
 uint64_t
@@ -3148,9 +3179,12 @@ EXPORT_SYMBOL(spa_guid);
 EXPORT_SYMBOL(spa_last_synced_txg);
 EXPORT_SYMBOL(spa_first_txg);
 EXPORT_SYMBOL(spa_syncing_txg);
+EXPORT_SYMBOL(spa_load_max_txg);
+EXPORT_SYMBOL(spa_current_txg);
 EXPORT_SYMBOL(spa_version);
 EXPORT_SYMBOL(spa_state);
 EXPORT_SYMBOL(spa_load_state);
+EXPORT_SYMBOL(spa_load_txg);
 EXPORT_SYMBOL(spa_freeze_txg);
 EXPORT_SYMBOL(spa_get_min_alloc_range); /* for Lustre */
 EXPORT_SYMBOL(spa_get_dspace);
@@ -3193,8 +3227,10 @@ EXPORT_SYMBOL(spa_missing_tvds_allowed);
 EXPORT_SYMBOL(spa_set_missing_tvds);
 EXPORT_SYMBOL(spa_state_to_name);
 EXPORT_SYMBOL(spa_importing_readonly_checkpoint);
+EXPORT_SYMBOL(spa_importing_checkpoint);
 EXPORT_SYMBOL(spa_min_claim_txg);
 EXPORT_SYMBOL(spa_suspend_async_destroy);
+EXPORT_SYMBOL(spa_checkpoint_txg);
 EXPORT_SYMBOL(spa_has_checkpoint);
 EXPORT_SYMBOL(spa_top_vdevs_spacemap_addressable);
 
