@@ -100,6 +100,7 @@ COMMON_H = \
 	sys/unique.h \
 	sys/uuid.h \
 	sys/vdev.h \
+	sys/vdev_anyraid.h \
 	sys/vdev_disk.h \
 	sys/vdev_draid.h \
 	sys/vdev_file.h \
