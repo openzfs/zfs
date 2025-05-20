@@ -521,11 +521,11 @@ get_usage(zpool_help_t idx)
 		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-c script1[,script2,...]] "
-		    "[-dDegiLpPstvx] ...\n"
-		    "\t    [-j [--json-int] [--json-flat-vdevs] "
+		return (gettext("\tstatus [-DdegiLPpstvx] "
+		    "[-c script1[,script2,...]] ...\n"
+		    "\t    [-j|--json [--json-flat-vdevs] [--json-int] "
 		    "[--json-pool-key-guid]] ...\n"
-		    "\t    [--power] [-T d|u] [pool] [interval [count]]\n"));
+		    "\t    [-T d|u] [--power] [pool] [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -10980,28 +10980,28 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-dDegiLpPstvx] ...
- * 				[-j [--json-int] [--json-flat-vdevs] ...
+ * zpool status [-dDegiLpPstvx] [-c [script1,script2,...]] ...
+ * 				[-j|--json [--json-flat-vdevs] [--json-int] ...
  * 				[--json-pool-key-guid]] [--power] [-T d|u] ...
  * 				[pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
- *	-d	Display Direct I/O write verify errors
  *	-D	Display dedup status (undocumented)
+ *	-d	Display Direct I/O write verify errors
  *	-e	Display only unhealthy vdevs
  *	-g	Display guid for individual vdev name.
  *	-i	Display vdev initialization status.
  *	-j [...]	Display output in JSON format
- *	   --json-int Display numbers in inteeger format instead of string
  *	   --json-flat-vdevs Display vdevs in flat hierarchy
+ *	   --json-int Display numbers in integer format instead of string
  *	   --json-pool-key-guid Use pool GUID as key for pool objects
  *	-L	Follow links when resolving vdev path name.
- *	-p	Display values in parsable (exact) format.
  *	-P	Display full path for vdev name.
+ *	-p	Display values in parsable (exact) format.
  *	--power	Display vdev enclosure slot power status
  *	-s	Display slow IOs column.
- *	-t	Display vdev TRIM status.
  *	-T	Display a timestamp in date(1) or Unix format
+ *	-t	Display vdev TRIM status.
  *	-v	Display complete error logs
  *	-x	Display only pools with potential problems
  *
