@@ -1585,7 +1585,8 @@ error:
 }
 
 int
-zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
+zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey,
+    boolean_t forceinherit)
 {
 	int ret;
 	char errbuf[ERRBUFLEN];
@@ -1601,6 +1602,9 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 	char origin_name[MAXNAMELEN];
 	char prop_keylocation[MAXNAMELEN];
 	char parent_name[ZFS_MAX_DATASET_NAME_LEN];
+
+	if (inheritkey && forceinherit)
+		cmd = DCP_CMD_FORCE_INHERIT;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "Key change error"));
@@ -1761,7 +1765,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 		/* check that the parent's key is loaded */
 		pkeystatus = zfs_prop_get_int(pzhp, ZFS_PROP_KEYSTATUS);
-		if (pkeystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+		if (!forceinherit && pkeystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
 			zfs_error_aux(pzhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Parent key must be loaded."));
 			ret = EACCES;
@@ -1771,7 +1775,7 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 
 	/* check that the key is loaded */
 	keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
-	if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+	if (!forceinherit && keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
 		zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 		    "Key must be loaded."));
 		ret = EACCES;
