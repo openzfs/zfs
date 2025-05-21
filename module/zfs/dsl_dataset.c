@@ -2886,6 +2886,7 @@ dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat)
 	stat->dds_guid = dsl_get_guid(ds);
 	stat->dds_redacted = dsl_get_redacted(ds);
 	stat->dds_origin[0] = '\0';
+	stat->dds_is_encrypted = (ds->ds_dir->dd_crypto_obj != 0) | 0x80;
 	if (ds->ds_is_snapshot) {
 		stat->dds_is_snapshot = B_TRUE;
 		stat->dds_num_clones = dsl_get_numclones(ds);
