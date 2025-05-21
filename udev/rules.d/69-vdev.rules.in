@@ -7,6 +7,7 @@ ENV{DEVTYPE}=="partition", IMPORT{program}="@udevdir@/vdev_id -d %k"
 
 KERNEL=="*[!0-9]", ENV{SUBSYSTEM}=="block", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
 KERNEL=="nvme*[0-9]n*[0-9]", ENV{SUBSYSTEM}=="block", ENV{DEVTYPE}=="disk", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
+KERNEL=="md*[0-9]", ENV{SUBSYSTEM}=="block", ENV{DEVTYPE}=="disk", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
 KERNEL=="*[0-9]", ENV{SUBSYSTEM}=="block", ENV{DEVTYPE}=="partition", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}-part%n"
 KERNEL=="dm-[0-9]*", ENV{SUBSYSTEM}=="block", ENV{ID_VDEV}=="?*", SYMLINK+="$env{ID_VDEV_PATH}"
 
