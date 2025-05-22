@@ -576,6 +576,49 @@ or
 by setting
 .Sy ZFS_VDEV_DEVID_OPT_OUT .
 .Pp
+.It Sy ZPOOL_LOCK_BEHAVIOR
+Change the
+.Sy zpool status
+pool lock acquisition behavior.
+This can be useful for running
+.Sy zpool status
+even when the pool is hung.
+Valid
+.Sy ZPOOL_LOCK_BEHAVIOR
+values are:
+.Bl -tag -compact -offset 4n -width "lockless"
+.It Sy trylock
+Try for a short amount of time to get the pool config lock (spa_namespace lock).
+If that doesn't work then simply abort
+.Sy zpool status .
+The amount of time to wait for the lock is controlled by the
+.Sy spa_namespace_trylock_ms
+module parameter.
+.It Sy lockless
+Same as
+.Sy trylock
+but if
+.Sy zpool status
+cannot get the lock, then read the status information locklessly.
+.Sy WARNING: this is dangerous and can crash your system if pool configs are being modified while zpool status is running.
+As a safegurard,
+.Sy zpool status
+with
+.Sy ZPOOL_LOCK_BEHAVIOR=lockless
+can only be run by root.
+.Sy lockless
+should only be used in emergency/debug situations.
+.It Sy wait
+Wait forever for the lock.
+This is the default behavior.
+.El
+.Pp
+If
+.Sy ZPOOL_LOCK_BEHAVIOR
+is set to any other value, or not set, then
+.Sy zpool status
+will wait forever for the pool config lock.
+.Pp
 .It Sy ZPOOL_SCRIPTS_AS_ROOT
 Allow a privileged user to run
 .Nm zpool Cm status Ns / Ns Cm iostat Fl c .

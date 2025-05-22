@@ -118,6 +118,7 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, zfs_type_t type,
     boolean_t literal, int *err)
 {
 	zpool_list_t *zlp;
+	int rc;
 
 	zlp = safe_malloc(sizeof (zpool_list_t));
 
@@ -137,7 +138,11 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, zfs_type_t type,
 	zlp->zl_literal = literal;
 
 	if (argc == 0) {
-		(void) zpool_iter(g_zfs, add_pool, zlp);
+		rc = zpool_iter(g_zfs, add_pool, zlp);
+		if (rc != 0) {
+			free(zlp);
+			return (NULL);
+		}
 		zlp->zl_findall = B_TRUE;
 	} else {
 		int i;
