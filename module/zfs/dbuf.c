@@ -1531,6 +1531,7 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 		return (0);
 
 	mutex_enter(&dndb->db_mtx);
+	dnbuf = dndb->db_buf;
 
 	/*
 	 * Since dnode buffer is modified by sync process, there can be only
@@ -1548,6 +1549,7 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 		if (dr == NULL || dr->dt.dl.dr_data != dnbuf)
 			break;
 		cv_wait(&dndb->db_changed, &dndb->db_mtx);
+		dnbuf = dndb->db_buf;
 	};
 
 	SET_BOOKMARK(&zb, dmu_objset_id(os),
