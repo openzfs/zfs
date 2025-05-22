@@ -24,17 +24,18 @@
 
 verify_runnable "global"
 
-TESTDATASET="channelprogramencryption"
-
-passphrase="password"
-log_must eval "echo "$passphrase" | zfs create -o encryption=aes-256-ccm " \
-        "-o keyformat=passphrase $TESTPOOL/$TESTDATASET"
-
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTDATASET && \
 	    log_must zfs destroy -R $TESTPOOL/$TESTDATASET
 }
+log_onexit cleanup
+
+TESTDATASET="channelprogramencryption"
+
+passphrase="password"
+log_must eval "echo "$passphrase" | zfs create -o encryption=aes-256-ccm " \
+        "-o keyformat=passphrase $TESTPOOL/$TESTDATASET"
 
 log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.encryption.zcp \
     $TESTPOOL/$TESTDATASET

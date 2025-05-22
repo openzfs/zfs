@@ -24,15 +24,16 @@
 
 verify_runnable "global"
 
-# create $TESTSNAP and $TESTCLONE
-create_snapshot
-create_clone
-
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
 	    destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
 }
+log_onexit cleanup
+
+# create $TESTSNAP and $TESTCLONE
+create_snapshot
+create_clone
 
 log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.exists.zcp \
     $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS@$TESTSNAP \
