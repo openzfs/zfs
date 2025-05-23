@@ -268,9 +268,6 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 {
 	size_t cnt = MIN(n, uio->uio_resid);
 
-	if (uio->uio_skip)
-		iov_iter_advance(uio->uio_iter, uio->uio_skip);
-
 	if (rw == UIO_READ)
 		cnt = copy_to_iter(p, cnt, uio->uio_iter);
 	else
