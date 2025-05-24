@@ -296,6 +296,15 @@ Default DDT ZAP indirect block size as a power of 2. Note that changing this
 after creating a DDT on the pool will not affect existing DDTs, only newly
 created ones.
 .
+.It Sy zfs_lockless_read_enabled Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Enables lockless traversal of kernel structures in emergencies
+when reading pool status via the
+.Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /status_json .
+It may proceed even if required read locks are not held.
+Potential consequences, such as a kernel panic, must be considered before use.
+For instance, a debug build of a kernel will panic due to lock assertions.
+The default is 0.
+.
 .It Sy zfs_default_bs Ns = Ns Sy 9 Po 512 B Pc Pq int
 Default dnode block size as a power of 2.
 .

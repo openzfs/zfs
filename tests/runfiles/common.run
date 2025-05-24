@@ -767,6 +767,12 @@ tests = ['inuse_004_pos', 'inuse_005_pos', 'inuse_008_pos', 'inuse_009_pos']
 post =
 tags = ['functional', 'inuse']
 
+[tests/functional/kstat]
+pre =
+post =
+tests = ['pool_status_json']
+tags = ['functional', 'kstat']
+
 [tests/functional/large_files]
 tests = ['large_files_001_pos', 'large_files_002_pos']
 tags = ['functional', 'large_files']
