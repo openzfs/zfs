@@ -1576,29 +1576,6 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_kobj_evt_post = vdev_disk_kobj_evt_post
 };
 
-/*
- * The zfs_vdev_scheduler module option has been deprecated. Setting this
- * value no longer has any effect.  It has not yet been entirely removed
- * to allow the module to be loaded if this option is specified in the
- * /etc/modprobe.d/zfs.conf file.  The following warning will be logged.
- */
-static int
-param_set_vdev_scheduler(const char *val, zfs_kernel_param_t *kp)
-{
-	int error = param_set_charp(val, kp);
-	if (error == 0) {
-		printk(KERN_INFO "The 'zfs_vdev_scheduler' module option "
-		    "is not supported.\n");
-	}
-
-	return (error);
-}
-
-static const char *zfs_vdev_scheduler = "unused";
-module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
-    param_get_charp, &zfs_vdev_scheduler, 0644);
-MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
-
 int
 param_set_min_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
 {
