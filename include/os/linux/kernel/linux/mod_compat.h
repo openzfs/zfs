@@ -79,7 +79,7 @@ enum scope_prefix_types {
 };
 
 /*
- * While we define our own s64/u64 types, there is no reason to reimplement the
+ * While we define our own u64 types, there is no reason to reimplement the
  * existing Linux kernel types, so we use the preprocessor to remap our
  * "custom" implementations to the kernel ones. This is done because the CPP
  * does not allow us to write conditional definitions. The fourth definition
@@ -111,11 +111,6 @@ enum scope_prefix_types {
 #define	spl_param_get_charp param_get_charp
 #define	spl_param_ops_charp param_ops_charp
 #define	spl_param_ops_STRING param_ops_charp
-
-int spl_param_set_s64(const char *val, zfs_kernel_param_t *kp);
-extern int spl_param_get_s64(char *buffer, zfs_kernel_param_t *kp);
-extern const struct kernel_param_ops spl_param_ops_s64;
-#define	spl_param_ops_S64 spl_param_ops_s64
 
 extern int spl_param_set_u64(const char *val, zfs_kernel_param_t *kp);
 extern int spl_param_get_u64(char *buffer, zfs_kernel_param_t *kp);
