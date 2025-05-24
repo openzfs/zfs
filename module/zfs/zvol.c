@@ -2159,6 +2159,8 @@ ZFS_MODULE_PARAM(zfs_vol, zvol_, inhibit_dev, UINT, ZMOD_RW,
 	"Do not create zvol device nodes");
 ZFS_MODULE_PARAM(zfs_vol, zvol_, prefetch_bytes, UINT, ZMOD_RW,
 	"Prefetch N bytes at zvol start+end");
+ZFS_MODULE_PARAM(zfs_vol, zvol_vol, mode, UINT, ZMOD_RW,
+	"Default volmode property value");
 ZFS_MODULE_PARAM(zfs_vol, zvol_, threads, UINT, ZMOD_RW,
 	"Number of threads for I/O requests. Set to 0 to use all active CPUs");
 ZFS_MODULE_PARAM(zfs_vol, zvol_, num_taskqs, UINT, ZMOD_RW,

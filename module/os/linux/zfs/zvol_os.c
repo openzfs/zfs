@@ -1795,9 +1795,6 @@ MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
 
-module_param(zvol_volmode, uint, 0644);
-MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");
-
 module_param(zvol_blk_mq_queue_depth, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_queue_depth, "Default blk-mq queue depth");
 
