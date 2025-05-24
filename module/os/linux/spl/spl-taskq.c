@@ -37,6 +37,7 @@
 #include <sys/atomic.h>
 #include <sys/kstat.h>
 #include <linux/cpuhotplug.h>
+#include <linux/mod_compat.h>
 
 /* Linux 6.2 renamed timer_delete_sync(); point it at its old name for those. */
 #ifndef HAVE_TIMER_DELETE_SYNC
@@ -1651,18 +1652,8 @@ spl_taskq_kstat_fini(void)
 
 static unsigned int spl_taskq_kick = 0;
 
-/*
- * 2.6.36 API Change
- * module_param_cb is introduced to take kernel_param_ops and
- * module_param_call is marked as obsolete. Also set and get operations
- * were changed to take a 'const struct kernel_param *'.
- */
 static int
-#ifdef module_param_cb
-param_set_taskq_kick(const char *val, const struct kernel_param *kp)
-#else
-param_set_taskq_kick(const char *val, struct kernel_param *kp)
-#endif
+param_set_taskq_kick(const char *val, zfs_kernel_param_t *kp)
 {
 	int ret;
 	taskq_t *tq = NULL;
@@ -1692,16 +1683,8 @@ param_set_taskq_kick(const char *val, struct kernel_param *kp)
 	return (ret);
 }
 
-#ifdef module_param_cb
-static const struct kernel_param_ops param_ops_taskq_kick = {
-	.set = param_set_taskq_kick,
-	.get = param_get_uint,
-};
-module_param_cb(spl_taskq_kick, &param_ops_taskq_kick, &spl_taskq_kick, 0644);
-#else
 module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
 	&spl_taskq_kick, 0644);
-#endif
 MODULE_PARM_DESC(spl_taskq_kick,
 	"Write nonzero to kick stuck taskqs to spawn more threads");
 
