@@ -39,7 +39,6 @@ struct znode;
 
 int	secpolicy_nfs(cred_t *cr);
 int	secpolicy_zfs(cred_t *crd);
-int	secpolicy_zfs_proc(cred_t *cr, proc_t *proc);
 int	secpolicy_sys_config(cred_t *cr, int checkonly);
 int	secpolicy_zinject(cred_t *cr);
 int	secpolicy_fs_unmount(cred_t *cr, struct mount *vfsp);

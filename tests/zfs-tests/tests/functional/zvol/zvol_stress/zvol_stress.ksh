@@ -148,10 +148,11 @@ create_zvols
 do_zvol_stress
 
 # Inject some errors, and verify we see some IO errors in zpool status
+sync_pool $TESTPOOL
 for DISK in $DISKS ; do
 	log_must zinject -d $DISK -f 10 -e io -T write $TESTPOOL
 done
-log_must dd if=/dev/zero of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=512 count=50
+log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=16M count=1
 sync_pool $TESTPOOL
 log_must zinject -c all
 

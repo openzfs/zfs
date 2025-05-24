@@ -970,8 +970,8 @@ zcp_pool_error(zcp_run_info_t *ri, const char *poolname, int error)
 }
 
 /*
- * This callback is called when txg_wait_synced_sig encountered a signal.
- * The txg_wait_synced_sig will continue to wait for the txg to complete
+ * This callback is called when txg_wait_synced_flags encountered a signal.
+ * The txg_wait_synced_flags will continue to wait for the txg to complete
  * after calling this callback.
  */
 static void
@@ -1141,12 +1141,14 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	}
 	VERIFY3U(3, ==, lua_gettop(state));
 
+	cred_t *cr = CRED();
+	crhold(cr);
+
 	runinfo.zri_state = state;
 	runinfo.zri_allocargs = &allocargs;
 	runinfo.zri_outnvl = outnvl;
 	runinfo.zri_result = 0;
-	runinfo.zri_cred = CRED();
-	runinfo.zri_proc = curproc;
+	runinfo.zri_cred = cr;
 	runinfo.zri_timed_out = B_FALSE;
 	runinfo.zri_canceled = B_FALSE;
 	runinfo.zri_sync = sync;
@@ -1164,6 +1166,8 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 		zcp_eval_open(&runinfo, poolname);
 	}
 	lua_close(state);
+
+	crfree(cr);
 
 	/*
 	 * Create device minor nodes for any new zvols.

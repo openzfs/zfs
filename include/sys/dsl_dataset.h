@@ -284,7 +284,6 @@ typedef struct dsl_dataset_promote_arg {
 	uint64_t used, comp, uncomp, unique, cloneusedsnap, originusedsnap;
 	nvlist_t *err_ds;
 	cred_t *cr;
-	proc_t *proc;
 } dsl_dataset_promote_arg_t;
 
 typedef struct dsl_dataset_rollback_arg {
@@ -299,7 +298,6 @@ typedef struct dsl_dataset_snapshot_arg {
 	nvlist_t *ddsa_props;
 	nvlist_t *ddsa_errors;
 	cred_t *ddsa_cr;
-	proc_t *ddsa_proc;
 } dsl_dataset_snapshot_arg_t;
 
 typedef struct dsl_dataset_rename_snapshot_arg {
@@ -459,7 +457,7 @@ int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr, proc_t *proc);
+    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx);
 

@@ -1931,10 +1931,9 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		 * because we have not allocated mappings for it yet.
 		 */
 		uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
-		uint64_t sm_end = msp->ms_sm->sm_start +
-		    msp->ms_sm->sm_size;
-		if (sm_end > syncd)
-			zfs_range_tree_clear(segs, syncd, sm_end - syncd);
+		uint64_t ms_end = msp->ms_start + msp->ms_size;
+		if (ms_end > syncd)
+			zfs_range_tree_clear(segs, syncd, ms_end - syncd);
 
 		zfs_range_tree_vacate(segs, free_mapped_segment_cb, vd);
 	}

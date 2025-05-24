@@ -55,7 +55,7 @@ function cleanup
 	if poolexists $POOL ; then
 		destroy_pool $POOL
 	fi
-	log_must rm -fd $VDEV $MOUNTDIR
+	log_must rm -fd $VDEV $VDEV1 $MOUNTDIR
 }
 log_onexit cleanup
 

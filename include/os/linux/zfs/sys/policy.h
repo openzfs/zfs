@@ -52,7 +52,6 @@ int secpolicy_vnode_setids_setgids(const cred_t *, gid_t, zidmap_t *,
     struct user_namespace *);
 int secpolicy_zinject(const cred_t *);
 int secpolicy_zfs(const cred_t *);
-int secpolicy_zfs_proc(const cred_t *, proc_t *);
 void secpolicy_setid_clear(vattr_t *, cred_t *);
 int secpolicy_setid_setsticky_clear(struct inode *, vattr_t *,
     const vattr_t *, cred_t *, zidmap_t *, struct user_namespace *);

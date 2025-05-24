@@ -14,39 +14,33 @@ PID=$(pidof /usr/bin/qemu-system-x86_64)
 tail --pid=$PID -f /dev/null
 sudo virsh undefine openzfs
 
-# default values per test vm:
-VMs=2
-CPU=2
-
 # cpu pinning
 CPUSET=("0,1" "2,3")
 
 case "$OS" in
   freebsd*)
-    # FreeBSD can't be optimized via ksmtuned
+    # FreeBSD needs only 6GiB
     RAM=6
     ;;
   *)
-    # Linux can be optimized via ksmtuned
+    # Linux needs more memory, but can be optimized to share it via KSM
     RAM=8
     ;;
 esac
-
-# this can be different for each distro
-echo "VMs=$VMs" >> $ENV
 
 # create snapshot we can clone later
 sudo zfs snapshot zpool/openzfs@now
 
 # setup the testing vm's
 PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
-for i in $(seq 1 $VMs); do
 
+# start testing VMs
+for ((i=1; i<=VMs; i++)); do
   echo "Creating disk for vm$i..."
   DISK="/dev/zvol/zpool/vm$i"
   FORMAT="raw"
-  sudo zfs clone zpool/openzfs@now zpool/vm$i
-  sudo zfs create -ps -b 64k -V 80g zpool/vm$i-2
+  sudo zfs clone zpool/openzfs@now zpool/vm$i-system
+  sudo zfs create -ps -b 64k -V 64g zpool/vm$i-tests
 
   cat <<EOF > /tmp/user-data
 #cloud-config
@@ -83,23 +77,21 @@ EOF
     --graphics none \
     --cloud-init user-data=/tmp/user-data \
     --network bridge=virbr0,model=$NIC,mac="52:54:00:83:79:0$i" \
-    --disk $DISK,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
-    --disk $DISK-2,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
+    --disk $DISK-system,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
+    --disk $DISK-tests,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
     --import --noautoconsole >/dev/null
 done
 
-# check the memory state from time to time
+# generate some memory stats
 cat <<EOF > cronjob.sh
-# $OS
 exec 1>>/var/tmp/stats.txt
 exec 2>&1
-echo "*******************************************************"
-date
+echo "********************************************************************************"
 uptime
 free -m
-df -h /mnt/tests
 zfs list
 EOF
+
 sudo chmod +x cronjob.sh
 sudo mv -f cronjob.sh /root/cronjob.sh
 echo '*/5 * * * *  /root/cronjob.sh' > crontab.txt
@@ -108,7 +100,7 @@ rm crontab.txt
 
 # check if the machines are okay
 echo "Waiting for vm's to come up...  (${VMs}x CPU=$CPU RAM=$RAM)"
-for i in $(seq 1 $VMs); do
+for ((i=1; i<=VMs; i++)); do
   .github/workflows/scripts/qemu-wait-for-vm.sh vm$i
 done
 echo "All $VMs VMs are up now."
@@ -116,7 +108,7 @@ echo "All $VMs VMs are up now."
 # Save the VM's serial output (ttyS0) to /var/tmp/console.txt
 # - ttyS0 on the VM corresponds to a local /dev/pty/N entry
 # - use 'virsh ttyconsole' to lookup the /dev/pty/N entry
-for i in $(seq 1 $VMs); do
+for ((i=1; i<=VMs; i++)); do
   mkdir -p $RESPATH/vm$i
   read "pty" <<< $(sudo virsh ttyconsole vm$i)
   sudo nohup bash -c "cat $pty > $RESPATH/vm$i/console.txt" &

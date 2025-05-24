@@ -139,7 +139,8 @@ function setup_nested_pool
 	log_must truncate -s $DISKSIZE $FILEDISK1
 	log_must truncate -s $DISKSIZE $FILEDISK2
 
-	log_must zpool create -O sync=disabled $NESTEDPOOL $FILEDISKS
+	log_must zpool create -O primarycache=metadata -O sync=disabled \
+	    $NESTEDPOOL $FILEDISKS
 }
 
 function setup_test_pool

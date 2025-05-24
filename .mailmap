@@ -80,11 +80,13 @@ Youzhong Yang <youzhong@gmail.com>
 
 # Signed-off-by: overriding Author:
 Alexander Ziaee <ziaee@FreeBSD.org> <concussious@runbox.com>
-Ryan <errornointernet@envs.net> <error.nointernet@gmail.com>
-Sietse <sietse@wizdom.nu> <uglymotha@wizdom.nu>
+Felix Schmidt <felixschmidt20@aol.com> <f.sch.prototype@gmail.com>
+Olivier Certner <olce@FreeBSD.org> <olce.freebsd@certner.fr>
 Phil Sutter <phil@nwl.cc> <p.github@nwl.cc>
 poscat <poscat@poscat.moe> <poscat0x04@outlook.com>
 Qiuhao Chen <chenqiuhao1997@gmail.com> <haohao0924@126.com>
+Ryan <errornointernet@envs.net> <error.nointernet@gmail.com>
+Sietse <sietse@wizdom.nu> <uglymotha@wizdom.nu>
 Yuxin Wang <yuxinwang9999@gmail.com> <Bi11gates9999@gmail.com>
 Zhenlei Huang <zlei@FreeBSD.org> <zlei.huang@gmail.com>
 
@@ -101,6 +103,7 @@ Tulsi Jain <tulsi.jain@delphix.com> <tulsi.jain@Tulsi-Jains-MacBook-Pro.local>
 # Mappings from Github no-reply addresses
 ajs124 <git@ajs124.de> <ajs124@users.noreply.github.com>
 Alek Pinchuk <apinchuk@axcient.com> <alek-p@users.noreply.github.com>
+Aleksandr Liber <aleksandr.liber@perforce.com> <61714074+AleksandrLiber@users.noreply.github.com>
 Alexander Lobakin <alobakin@pm.me> <solbjorn@users.noreply.github.com>
 Alexey Smirnoff <fling@member.fsf.org> <fling-@users.noreply.github.com>
 Allen Holl <allen.m.holl@gmail.com> <65494904+allen-4@users.noreply.github.com>
@@ -137,6 +140,7 @@ Fedor Uporov <fuporov.vstack@gmail.com> <60701163+fuporovvStack@users.noreply.gi
 Felix Dörre <felix@dogcraft.de> <felixdoerre@users.noreply.github.com>
 Felix Neumärker <xdch47@posteo.de> <34678034+xdch47@users.noreply.github.com>
 Finix Yan <yancw@info2soft.com> <Finix1979@users.noreply.github.com>
+Friedrich Weber <f.weber@proxmox.com> <56110206+frwbr@users.noreply.github.com>
 Gaurav Kumar <gauravk.18@gmail.com> <gaurkuma@users.noreply.github.com>
 George Gaydarov <git@gg7.io> <gg7@users.noreply.github.com>
 Georgy Yakovlev <gyakovlev@gentoo.org> <168902+gyakovlev@users.noreply.github.com>

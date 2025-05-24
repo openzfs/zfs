@@ -19,14 +19,18 @@
  *
  * CDDL HEADER END
  */
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/zfs_ioctl.h>
-#include <libzfs_core.h>
-#include "libzfs_core_impl.h"
 
-int
-lzc_ioctl_fd_os(int fd, unsigned long request, zfs_cmd_t *zc)
-{
-	return (ioctl(fd, request, zc));
-}
+/*
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ * Copyright 2017 RackTop Systems.
+ * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019 Datto Inc.
+ */
+
+#ifndef	_LIBZFS_CORE_IMPL_H
+#define	_LIBZFS_CORE_IMPL_H
+
+struct zfs_cmd;
+int lzc_ioctl_fd_os(int, unsigned long, struct zfs_cmd *);
+
+#endif	/* _LIBZFS_CORE_IMPL_H */

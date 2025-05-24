@@ -226,7 +226,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	ssize_t count = iov_iter_count(to);
 	zfs_uio_t uio;
 
-	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count, 0);
+	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -276,8 +276,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	if (ret)
 		return (ret);
 
-	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count,
-	    from->iov_offset);
+	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();

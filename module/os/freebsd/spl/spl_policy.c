@@ -53,13 +53,6 @@ secpolicy_zfs(cred_t *cr)
 }
 
 int
-secpolicy_zfs_proc(cred_t *cr, proc_t *proc)
-{
-
-	return (priv_check_cred(cr, PRIV_VFS_MOUNT));
-}
-
-int
 secpolicy_sys_config(cred_t *cr, int checkonly __unused)
 {
 

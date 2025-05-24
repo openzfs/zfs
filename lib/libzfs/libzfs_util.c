@@ -785,6 +785,12 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	return (-1);
 }
 
+int
+zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
+{
+	return (lzc_ioctl_fd(hdl->libzfs_fd, request, zc));
+}
+
 /*
  * Display an out of memory error message and abort the current program.
  */

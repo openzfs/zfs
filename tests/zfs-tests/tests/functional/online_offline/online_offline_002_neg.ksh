@@ -51,6 +51,8 @@ DISKLIST=$(get_disklist $TESTPOOL)
 
 function cleanup
 {
+	kill $killpid >/dev/null 2>&1
+
 	#
 	# Ensure we don't leave disks in the offline state
 	#
@@ -58,8 +60,9 @@ function cleanup
 		log_must zpool online $TESTPOOL $disk
 		log_must check_state $TESTPOOL $disk "online"
 	done
+	sleep 1 # Delay for resilver to start
+	log_must zpool wait -t resilver $TESTPOOL
 
-	kill $killpid >/dev/null 2>&1
 	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
@@ -87,6 +90,7 @@ while [[ $i -lt ${#disks[*]} ]]; do
 		log_must zpool online $TESTPOOL ${disks[$i]}
 		check_state $TESTPOOL ${disks[$i]} "online" || \
 		    log_fail "Failed to set ${disks[$i]} online"
+		sleep 1 # Delay for resilver to start
 		log_must zpool wait -t resilver $TESTPOOL
 		log_must zpool clear $TESTPOOL
 		while [[ $j -lt ${#disks[*]} ]]; do
@@ -119,6 +123,7 @@ while [[ $i -lt ${#disks[*]} ]]; do
 		log_must zpool online $TESTPOOL ${disks[$i]}
 		check_state $TESTPOOL ${disks[$i]} "online" || \
 		    log_fail "Failed to set ${disks[$i]} online"
+		sleep 1 # Delay for resilver to start
 		log_must zpool wait -t resilver $TESTPOOL
 		log_must zpool clear $TESTPOOL
 	fi

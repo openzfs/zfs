@@ -570,7 +570,7 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 		err = zfs_iter_filesystems_v2(zhp, ida->flags,
 		    iter_dependents_cb, ida);
 		if (err == 0)
-			err = zfs_iter_snapshots_v2(zhp, ida->flags,
+			err = zfs_iter_snapshots_sorted_v2(zhp, ida->flags,
 			    iter_dependents_cb, ida, 0, 0);
 		ida->stack = isf.next;
 	}

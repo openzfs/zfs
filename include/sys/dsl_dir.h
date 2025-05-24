@@ -185,11 +185,11 @@ int dsl_dir_set_reservation(const char *ddname, zprop_source_t source,
     uint64_t reservation);
 int dsl_dir_activate_fs_ss_limit(const char *);
 int dsl_fs_ss_limit_check(dsl_dir_t *, uint64_t, zfs_prop_t, dsl_dir_t *,
-    cred_t *, proc_t *);
+    cred_t *);
 void dsl_fs_ss_count_adjust(dsl_dir_t *, int64_t, const char *, dmu_tx_t *);
 int dsl_dir_rename(const char *oldname, const char *newname);
 int dsl_dir_transfer_possible(dsl_dir_t *sdd, dsl_dir_t *tdd,
-    uint64_t fs_cnt, uint64_t ss_cnt, uint64_t space, cred_t *, proc_t *);
+    uint64_t fs_cnt, uint64_t ss_cnt, uint64_t space, cred_t *);
 boolean_t dsl_dir_is_clone(dsl_dir_t *dd);
 void dsl_dir_new_refreservation(dsl_dir_t *dd, struct dsl_dataset *ds,
     uint64_t reservation, cred_t *cr, dmu_tx_t *tx);
