@@ -2373,7 +2373,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 
 		if (dmu_ddt_copies > 0) {
 			/*
-			 * If this tuneable is set, and this is a write for a
+			 * If this tunable is set, and this is a write for a
 			 * dedup entry store (zap or log), then we treat it
 			 * something like ZFS_REDUNDANT_METADATA_MOST on a
 			 * regular dataset: this many copies, and one more for

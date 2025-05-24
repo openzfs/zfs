@@ -31,15 +31,6 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 
-/*
- * Despite constifying struct kernel_param_ops, some older kernels define a
- * `__check_old_set_param()` function in their headers that checks for a
- * non-constified `->set()`. This has long been fixed in Linux mainline, but
- * since we support older kernels, we workaround it by using a preprocessor
- * definition to disable it.
- */
-#define	__check_old_set_param(_) (0)
-
 typedef const struct kernel_param zfs_kernel_param_t;
 
 #define	ZMOD_RW 0644
@@ -79,48 +70,23 @@ enum scope_prefix_types {
 };
 
 /*
- * While we define our own s64/u64 types, there is no reason to reimplement the
- * existing Linux kernel types, so we use the preprocessor to remap our
- * "custom" implementations to the kernel ones. This is done because the CPP
- * does not allow us to write conditional definitions. The fourth definition
- * exists because the CPP will not allow us to replace things like INT with int
- * before string concatenation.
+ * Our uint64 params are called U64 in part because we had them before Linux
+ * provided ULLONG param ops. Now it does, and we use them, but we retain the
+ * U64 name to keep many existing tunables working without issue.
  */
+#define	spl_param_set_u64	param_set_ullong
+#define	spl_param_get_u64	param_get_ullong
+#define	spl_param_ops_U64	param_ops_ullong
 
-#define	spl_param_set_int param_set_int
-#define	spl_param_get_int param_get_int
-#define	spl_param_ops_int param_ops_int
-#define	spl_param_ops_INT param_ops_int
-
-#define	spl_param_set_long param_set_long
-#define	spl_param_get_long param_get_long
-#define	spl_param_ops_long param_ops_long
-#define	spl_param_ops_LONG param_ops_long
-
-#define	spl_param_set_uint param_set_uint
-#define	spl_param_get_uint param_get_uint
-#define	spl_param_ops_uint param_ops_uint
-#define	spl_param_ops_UINT param_ops_uint
-
-#define	spl_param_set_ulong param_set_ulong
-#define	spl_param_get_ulong param_get_ulong
-#define	spl_param_ops_ulong param_ops_ulong
-#define	spl_param_ops_ULONG param_ops_ulong
-
-#define	spl_param_set_charp param_set_charp
-#define	spl_param_get_charp param_get_charp
-#define	spl_param_ops_charp param_ops_charp
-#define	spl_param_ops_STRING param_ops_charp
-
-int spl_param_set_s64(const char *val, zfs_kernel_param_t *kp);
-extern int spl_param_get_s64(char *buffer, zfs_kernel_param_t *kp);
-extern const struct kernel_param_ops spl_param_ops_s64;
-#define	spl_param_ops_S64 spl_param_ops_s64
-
-extern int spl_param_set_u64(const char *val, zfs_kernel_param_t *kp);
-extern int spl_param_get_u64(char *buffer, zfs_kernel_param_t *kp);
-extern const struct kernel_param_ops spl_param_ops_u64;
-#define	spl_param_ops_U64 spl_param_ops_u64
+/*
+ * We keep our own names for param ops to make expanding them in
+ * ZFS_MODULE_PARAM easy.
+ */
+#define	spl_param_ops_INT	param_ops_int
+#define	spl_param_ops_LONG	param_ops_long
+#define	spl_param_ops_UINT	param_ops_uint
+#define	spl_param_ops_ULONG	param_ops_ulong
+#define	spl_param_ops_STRING	param_ops_charp
 
 /*
  * Declare a module parameter / sysctl node

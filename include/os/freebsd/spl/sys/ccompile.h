@@ -43,10 +43,7 @@ extern "C" {
 #endif
 
 #define	EXPORT_SYMBOL(x)
-#define	module_param(a, b, c)
-#define	module_param_call(a, b, c, d, e)
-#define	module_param_named(a, b, c, d)
-#define	MODULE_PARM_DESC(a, b)
+
 #define	asm __asm
 #ifdef ZFS_DEBUG
 #undef NDEBUG

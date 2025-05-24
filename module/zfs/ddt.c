@@ -153,7 +153,7 @@
  * storage object (ie ZAP) as normal. OpenZFS will try hard to flush enough to
  * keep up with the rate of change on dedup entries, but not so much that it
  * would impact overall throughput, and not using too much memory. See the
- * zfs_dedup_log_* tuneables in zfs(4) for more details.
+ * zfs_dedup_log_* tunables in zfs(4) for more details.
  *
  * ## Repair IO
  *
