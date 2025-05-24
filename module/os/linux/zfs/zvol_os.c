@@ -1788,9 +1788,6 @@ zvol_fini(void)
 	ida_destroy(&zvol_ida);
 }
 
-module_param(zvol_inhibit_dev, uint, 0644);
-MODULE_PARM_DESC(zvol_inhibit_dev, "Do not create zvol device nodes");
-
 module_param(zvol_major, uint, 0444);
 MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 

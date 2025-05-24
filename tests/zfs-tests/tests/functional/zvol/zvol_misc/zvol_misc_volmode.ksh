@@ -42,7 +42,7 @@
 # 5. Verify "volmode=default" behaves accordingly to "volmode" module parameter
 # 6. Verify "volmode" property is inherited correctly
 # 7. Verify "volmode" behaves correctly at import time
-# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
+# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev
 #
 
 verify_runnable "global"
@@ -64,10 +64,8 @@ function sysctl_inhibit_dev # value
 {
 	typeset value="$1"
 
-	if is_linux; then
-		log_note "Setting zvol_inhibit_dev tunable to $value"
-		log_must set_tunable32 VOL_INHIBIT_DEV $value
-	fi
+	log_note "Setting zvol_inhibit_dev tunable to $value"
+	log_must set_tunable32 VOL_INHIBIT_DEV $value
 }
 
 #
@@ -230,31 +228,29 @@ log_must_busy zfs destroy $SUBZVOL
 blockdev_missing $ZDEV
 blockdev_missing $SUBZDEV
 
-# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
-if is_linux; then
-	sysctl_inhibit_dev 1
-	# 7.1 Verify device nodes not are not created with "volmode=full"
-	sysctl_volmode 1
-	log_must zfs create -V $VOLSIZE -s $ZVOL
-	blockdev_missing $ZDEV
-	set_volmode full $ZVOL
-	blockdev_missing $ZDEV
-	log_must_busy zfs destroy $ZVOL
-	blockdev_missing $ZDEV
-	# 7.1 Verify device nodes not are not created with "volmode=dev"
-	sysctl_volmode 2
-	log_must zfs create -V $VOLSIZE -s $ZVOL
-	blockdev_missing $ZDEV
-	set_volmode dev $ZVOL
-	blockdev_missing $ZDEV
-	log_must_busy zfs destroy $ZVOL
-	blockdev_missing $ZDEV
-	# 7.1 Verify device nodes not are not created with "volmode=none"
-	sysctl_volmode 3
-	log_must zfs create -V $VOLSIZE -s $ZVOL
-	blockdev_missing $ZDEV
-	set_volmode none $ZVOL
-	blockdev_missing $ZDEV
-fi
+# 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev
+sysctl_inhibit_dev 1
+# 7.1 Verify device nodes not are not created with "volmode=full"
+sysctl_volmode 1
+log_must zfs create -V $VOLSIZE -s $ZVOL
+blockdev_missing $ZDEV
+set_volmode full $ZVOL
+blockdev_missing $ZDEV
+log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
+# 7.1 Verify device nodes not are not created with "volmode=dev"
+sysctl_volmode 2
+log_must zfs create -V $VOLSIZE -s $ZVOL
+blockdev_missing $ZDEV
+set_volmode dev $ZVOL
+blockdev_missing $ZDEV
+log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
+# 7.1 Verify device nodes not are not created with "volmode=none"
+sysctl_volmode 3
+log_must zfs create -V $VOLSIZE -s $ZVOL
+blockdev_missing $ZDEV
+set_volmode none $ZVOL
+blockdev_missing $ZDEV
 
 log_pass "Verify that ZFS volume property 'volmode' works as intended"

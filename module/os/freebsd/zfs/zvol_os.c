@@ -1373,6 +1373,9 @@ zvol_os_create_minor(const char *name)
 	int error;
 	bool replayed_zil = B_FALSE;
 
+	if (zvol_inhibit_dev)
+		return (0);
+
 	ZFS_LOG(1, "Creating ZVOL %s...", name);
 	hash = zvol_name_hash(name);
 	if ((zv = zvol_find_by_name_hash(name, hash, RW_NONE)) != NULL) {
