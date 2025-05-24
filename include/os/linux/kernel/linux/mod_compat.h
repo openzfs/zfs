@@ -107,15 +107,15 @@ enum scope_prefix_types {
 #define	spl_param_ops_ulong param_ops_ulong
 #define	spl_param_ops_ULONG param_ops_ulong
 
+#define	spl_param_set_u64 param_set_ullong
+#define	spl_param_get_u64 param_get_ullong
+#define	spl_param_ops_u64 param_ops_ullong
+#define	spl_param_ops_U64 param_ops_ullong
+
 #define	spl_param_set_charp param_set_charp
 #define	spl_param_get_charp param_get_charp
 #define	spl_param_ops_charp param_ops_charp
 #define	spl_param_ops_STRING param_ops_charp
-
-extern int spl_param_set_u64(const char *val, zfs_kernel_param_t *kp);
-extern int spl_param_get_u64(char *buffer, zfs_kernel_param_t *kp);
-extern const struct kernel_param_ops spl_param_ops_u64;
-#define	spl_param_ops_U64 spl_param_ops_u64
 
 /*
  * Declare a module parameter / sysctl node
