@@ -486,13 +486,13 @@ static taskq_t *arc_flush_taskq;
 static uint_t zfs_arc_evict_threads = 0;
 
 /* The 7 states: */
-arc_state_t ARC_anon;
-arc_state_t ARC_mru;
-arc_state_t ARC_mru_ghost;
-arc_state_t ARC_mfu;
-arc_state_t ARC_mfu_ghost;
-arc_state_t ARC_l2c_only;
-arc_state_t ARC_uncached;
+static arc_state_t ARC_anon;
+/*  */ arc_state_t ARC_mru;
+static arc_state_t ARC_mru_ghost;
+/*  */ arc_state_t ARC_mfu;
+static arc_state_t ARC_mfu_ghost;
+static arc_state_t ARC_l2c_only;
+static arc_state_t ARC_uncached;
 
 arc_stats_t arc_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
@@ -832,15 +832,15 @@ typedef struct arc_async_flush {
 #define	L2ARC_FEED_TYPES	4
 
 /* L2ARC Performance Tunables */
-uint64_t l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
-uint64_t l2arc_write_boost = L2ARC_WRITE_SIZE;	/* extra warmup write */
-uint64_t l2arc_headroom = L2ARC_HEADROOM;	/* # of dev writes */
-uint64_t l2arc_headroom_boost = L2ARC_HEADROOM_BOOST;
-uint64_t l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
-uint64_t l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
-int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
-int l2arc_feed_again = B_TRUE;			/* turbo warmup */
-int l2arc_norw = B_FALSE;			/* no reads during writes */
+static uint64_t l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
+static uint64_t l2arc_write_boost = L2ARC_WRITE_SIZE;	/* extra warmup write */
+static uint64_t l2arc_headroom = L2ARC_HEADROOM;	/* # of dev writes */
+static uint64_t l2arc_headroom_boost = L2ARC_HEADROOM_BOOST;
+static uint64_t l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
+static uint64_t l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
+static int l2arc_noprefetch = B_TRUE;		/* don't cache prefetch bufs */
+static int l2arc_feed_again = B_TRUE;		/* turbo warmup */
+static int l2arc_norw = B_FALSE;		/* no reads during writes */
 static uint_t l2arc_meta_percent = 33;	/* limit on headers size */
 
 /*
