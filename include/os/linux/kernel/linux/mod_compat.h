@@ -31,15 +31,6 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 
-/*
- * Despite constifying struct kernel_param_ops, some older kernels define a
- * `__check_old_set_param()` function in their headers that checks for a
- * non-constified `->set()`. This has long been fixed in Linux mainline, but
- * since we support older kernels, we workaround it by using a preprocessor
- * definition to disable it.
- */
-#define	__check_old_set_param(_) (0)
-
 typedef const struct kernel_param zfs_kernel_param_t;
 
 #define	ZMOD_RW 0644
