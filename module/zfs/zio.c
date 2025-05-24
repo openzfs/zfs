@@ -2307,12 +2307,12 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 	zio_t *cio, *cio_next;
 	zio_link_t *zl = NULL;
 	vdev_t *vd = pio->io_vd;
+	uint64_t failmode = spa_get_deadman_failmode(pio->io_spa);
 
 	if (zio_deadman_log_all || (vd != NULL && vd->vdev_ops->vdev_op_leaf)) {
 		vdev_queue_t *vq = vd ? &vd->vdev_queue : NULL;
 		zbookmark_phys_t *zb = &pio->io_bookmark;
 		uint64_t delta = gethrtime() - pio->io_timestamp;
-		uint64_t failmode = spa_get_deadman_failmode(pio->io_spa);
 
 		zfs_dbgmsg("slow zio[%d]: zio=%px timestamp=%llu "
 		    "delta=%llu queued=%llu io=%llu "
@@ -2336,11 +2336,15 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    pio->io_error);
 		(void) zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
 		    pio->io_spa, vd, zb, pio, 0);
+	}
 
-		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
-		    taskq_empty_ent(&pio->io_tqent)) {
-			zio_interrupt(pio);
-		}
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	    list_is_empty(&pio->io_child_list) &&
+	    failmode == ZIO_FAILURE_MODE_CONTINUE &&
+	    taskq_empty_ent(&pio->io_tqent) &&
+	    pio->io_queue_state == ZIO_QS_ACTIVE) {
+		pio->io_error = EINTR;
+		zio_interrupt(pio);
 	}
 
 	mutex_enter(&pio->io_lock);
