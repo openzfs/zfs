@@ -575,7 +575,6 @@ EXPORT_SYMBOL(spl_param_get_##type);					\
 EXPORT_SYMBOL(spl_param_set_##type);					\
 EXPORT_SYMBOL(spl_param_ops_##type);
 
-define_spl_param(s64, "%lld")
 define_spl_param(u64, "%llu")
 
 /*
