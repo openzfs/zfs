@@ -58,7 +58,7 @@ dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
 
 top:
 	tx = dmu_tx_create_dd(dp->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
 	dst.dst_pool = dp;
 	dst.dst_txg = dmu_tx_get_txg(tx);

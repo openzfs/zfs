@@ -2714,6 +2714,8 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 	}
 
 	mutex_exit(&spa->spa_suspend_lock);
+
+	txg_wait_kick(spa->spa_dsl_pool);
 }
 
 int

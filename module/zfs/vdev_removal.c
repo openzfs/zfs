@@ -1724,7 +1724,8 @@ again:
 			dmu_tx_t *tx =
 			    dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 
-			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT |
+			    DMU_TX_SUSPEND));
 			uint64_t txg = dmu_tx_get_txg(tx);
 
 			/*
