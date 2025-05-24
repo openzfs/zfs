@@ -89,6 +89,7 @@
 #include <sys/zvol_impl.h>
 
 unsigned int zvol_inhibit_dev = 0;
+unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 unsigned int zvol_threads = 0;
 unsigned int zvol_num_taskqs = 0;
@@ -2156,6 +2157,8 @@ zvol_fini_impl(void)
 
 ZFS_MODULE_PARAM(zfs_vol, zvol_, inhibit_dev, UINT, ZMOD_RW,
 	"Do not create zvol device nodes");
+ZFS_MODULE_PARAM(zfs_vol, zvol_, prefetch_bytes, UINT, ZMOD_RW,
+	"Prefetch N bytes at zvol start+end");
 ZFS_MODULE_PARAM(zfs_vol, zvol_, threads, UINT, ZMOD_RW,
 	"Number of threads for I/O requests. Set to 0 to use all active CPUs");
 ZFS_MODULE_PARAM(zfs_vol, zvol_, num_taskqs, UINT, ZMOD_RW,
