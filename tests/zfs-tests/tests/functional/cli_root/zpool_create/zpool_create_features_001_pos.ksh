@@ -50,7 +50,7 @@ function cleanup
 
 function check_features
 {
-	for state in $(zpool get all $TESTPOOL | \
+	for state in $(zpool get all $TESTPOOL | grep -v "dynamic_gang_header" | \
 	    awk '$2 ~ /feature@/ { print $3 }'); do
 		if [[ "$state" != "enabled" && "$state" != "active" ]]; then
 			log_fail "some features are not enabled on new pool"
