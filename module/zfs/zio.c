@@ -4164,7 +4164,7 @@ static zio_t *
 zio_dva_allocate(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
-	metaslab_class_t *mc;
+	metaslab_class_t *mc, *newmc;
 	blkptr_t *bp = zio->io_bp;
 	int error;
 	int flags = 0;
@@ -4207,7 +4207,7 @@ zio_dva_allocate(zio_t *zio)
 again:
 	/*
 	 * Try allocating the block in the usual metaslab class.
-	 * If that's full, allocate it in the normal class.
+	 * If that's full, allocate it in some other class(es).
 	 * If that's full, allocate as a gang block,
 	 * and if all are full, the allocation fails (which shouldn't happen).
 	 *
@@ -4222,29 +4222,29 @@ again:
 	    &zio->io_alloc_list, zio->io_allocator, zio);
 
 	/*
-	 * Fallback to normal class when an alloc class is full
+	 * When the dedup or special class is spilling into the normal class,
+	 * there can still be significant space available due to deferred
+	 * frees that are in-flight.  We track the txg when this occurred and
+	 * back off adding new DDT entries for a few txgs to allow the free
+	 * blocks to be processed.
 	 */
-	if (error == ENOSPC && mc != spa_normal_class(spa)) {
-		/*
-		 * When the dedup or special class is spilling into the  normal
-		 * class, there can still be significant space available due
-		 * to deferred frees that are in-flight.  We track the txg when
-		 * this occurred and back off adding new DDT entries for a few
-		 * txgs to allow the free blocks to be processed.
-		 */
-		if ((mc == spa_dedup_class(spa) || (spa_special_has_ddt(spa) &&
-		    mc == spa_special_class(spa))) &&
-		    spa->spa_dedup_class_full_txg != zio->io_txg) {
-			spa->spa_dedup_class_full_txg = zio->io_txg;
-			zfs_dbgmsg("%s[%d]: %s class spilling, req size %d, "
-			    "%llu allocated of %llu",
-			    spa_name(spa), (int)zio->io_txg,
-			    mc == spa_dedup_class(spa) ? "dedup" : "special",
-			    (int)zio->io_size,
-			    (u_longlong_t)metaslab_class_get_alloc(mc),
-			    (u_longlong_t)metaslab_class_get_space(mc));
-		}
+	if (error == ENOSPC && spa->spa_dedup_class_full_txg != zio->io_txg &&
+	    (mc == spa_dedup_class(spa) || (mc == spa_special_class(spa) &&
+	    !spa_has_dedup(spa) && spa_special_has_ddt(spa)))) {
+		spa->spa_dedup_class_full_txg = zio->io_txg;
+		zfs_dbgmsg("%s[%llu]: %s class spilling, req size %llu, "
+		    "%llu allocated of %llu",
+		    spa_name(spa), (u_longlong_t)zio->io_txg,
+		    mc == spa_dedup_class(spa) ? "dedup" : "special",
+		    (u_longlong_t)zio->io_size,
+		    (u_longlong_t)metaslab_class_get_alloc(mc),
+		    (u_longlong_t)metaslab_class_get_space(mc));
+	}
 
+	/*
+	 * Fall back to some other class when this one is full.
+	 */
+	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc) {
 		/*
 		 * If we are holding old class reservation, drop it.
 		 * Dispatch the next ZIO(s) there if some are waiting.
@@ -4260,15 +4260,15 @@ again:
 
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
-			    "trying normal class: zio %px, size %llu, error %d",
+			    "trying fallback: zio %px, size %llu, error %d",
 			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
 			    error);
 		}
-		zio->io_metaslab_class = mc = spa_normal_class(spa);
+		zio->io_metaslab_class = mc = newmc;
 		ZIOSTAT_BUMP(ziostat_alloc_class_fallbacks);
 
 		/*
-		 * If normal class uses throttling, return to that pipeline
+		 * If the new class uses throttling, return to that pipeline
 		 * stage.  Otherwise just do another allocation attempt.
 		 */
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_WRITE &&
