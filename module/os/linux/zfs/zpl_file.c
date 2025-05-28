@@ -555,6 +555,7 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	return (result);
 }
 
+#ifdef HAVE_VFS_WRITEPAGE
 /*
  * Write out dirty pages to the ARC, this function is only required to
  * support mmap(2).  Mapped pages may be dirtied by memory operations
@@ -571,6 +572,7 @@ zpl_writepage(struct page *pp, struct writeback_control *wbc)
 
 	return (zpl_putpage(pp, wbc, &for_sync));
 }
+#endif
 
 /*
  * The flag combination which matches the behavior of zfs_space() is
@@ -1063,7 +1065,9 @@ const struct address_space_operations zpl_address_space_operations = {
 #else
 	.readpage	= zpl_readpage,
 #endif
+#ifdef HAVE_VFS_WRITEPAGE
 	.writepage	= zpl_writepage,
+#endif
 	.writepages	= zpl_writepages,
 	.direct_IO	= zpl_direct_IO,
 #ifdef HAVE_VFS_SET_PAGE_DIRTY_NOBUFFERS
