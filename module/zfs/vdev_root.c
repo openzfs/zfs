@@ -26,6 +26,7 @@
 
 /*
  * Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -142,6 +143,26 @@ vdev_root_state_change(vdev_t *vd, int faulted, int degraded)
 	}
 }
 
+/*
+ * "Root" IO just hands off to vdev_mirror, because handling multiple DVAs in
+ * a single BP can be thought of as just another kind of mirror.
+ */
+static void
+vdev_root_io_start(zio_t *zio)
+{
+	ASSERT0(zio->io_error);
+	ASSERT0(zio->io_child_error[ZIO_CHILD_VDEV]);
+	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
+
+	vdev_mirror_ops.vdev_op_io_start(zio);
+}
+
+static void
+vdev_root_io_done(zio_t *zio)
+{
+	vdev_mirror_ops.vdev_op_io_done(zio);
+}
+
 vdev_ops_t vdev_root_ops = {
 	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,
@@ -151,8 +172,8 @@ vdev_ops_t vdev_root_ops = {
 	.vdev_op_asize_to_psize = vdev_default_psize,
 	.vdev_op_min_asize = vdev_default_min_asize,
 	.vdev_op_min_alloc = NULL,
-	.vdev_op_io_start = NULL,	/* not applicable to the root */
-	.vdev_op_io_done = NULL,	/* not applicable to the root */
+	.vdev_op_io_start = vdev_root_io_start,
+	.vdev_op_io_done = vdev_root_io_done,
 	.vdev_op_state_change = vdev_root_state_change,
 	.vdev_op_need_resilver = NULL,
 	.vdev_op_hold = NULL,

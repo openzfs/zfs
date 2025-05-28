@@ -857,8 +857,8 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 
 	if (*countp == 0 && pio->io_stall == countp) {
 		zio_taskq_type_t type =
-		    pio->io_stage < ZIO_STAGE_VDEV_IO_START ? ZIO_TASKQ_ISSUE :
-		    ZIO_TASKQ_INTERRUPT;
+		    pio->io_stage < ZIO_STAGE_LOGICAL_IO_START ?
+		    ZIO_TASKQ_ISSUE : ZIO_TASKQ_INTERRUPT;
 		pio->io_stall = NULL;
 		mutex_exit(&pio->io_lock);
 
@@ -1658,6 +1658,19 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		ASSERT3P(bp, !=, NULL);
 		ASSERT3U(pio->io_child_type, ==, ZIO_CHILD_LOGICAL);
 		pipeline |= ZIO_STAGE_DIO_CHECKSUM_VERIFY;
+	} else if (type == ZIO_TYPE_WRITE &&
+	    pio->io_pipeline & ZIO_STAGE_DIO_CHECKSUM_VERIFY &&
+	    pio->io_child_type == ZIO_CHILD_VDEV &&
+	    pio->io_vd == pio->io_spa->spa_root_vdev) {
+		/*
+		 * Push write checksum verification down onto the top vdev,
+		 * not the root vdev. We need to do this there because the top
+		 * vdev is where errors are recorded, not the root vdev.
+		 */
+		ASSERT3P(vd, !=, pio->io_spa->spa_root_vdev);
+		ASSERT3P(vd, ==, vd->vdev_top);
+		pipeline |= ZIO_STAGE_DIO_CHECKSUM_VERIFY;
+		pio->io_pipeline &= ~ZIO_STAGE_DIO_CHECKSUM_VERIFY;
 	}
 
 	if (vd->vdev_ops->vdev_op_leaf) {
@@ -1676,12 +1689,13 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 	/*
 	 * If we're creating a child I/O that is not associated with a
-	 * top-level vdev, then the child zio is not an allocating I/O.
-	 * If this is a retried I/O then we ignore it since we will
-	 * have already processed the original allocating I/O.
+	 * top-level vdev (or the root), then the child zio is not an
+	 * allocating I/O.  If this is a retried I/O then we ignore it since we
+	 * will have already processed the original allocating I/O.
 	 */
 	if (flags & ZIO_FLAG_ALLOC_THROTTLED &&
-	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
+	    ((vd != vd->vdev_spa->spa_root_vdev && vd != vd->vdev_top) ||
+	    (flags & ZIO_FLAG_IO_RETRY))) {
 		ASSERT(pio->io_metaslab_class != NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
 		ASSERT(type == ZIO_TYPE_WRITE);
@@ -2450,12 +2464,13 @@ __zio_execute(zio_t *zio)
 		 * or may wait for an I/O that needs an interrupt thread
 		 * to complete, issue async to avoid deadlock.
 		 *
-		 * For VDEV_IO_START, we cut in line so that the io will
+		 * For LOGICAL_IO_START, we cut in line so that the io will
 		 * be sent to disk promptly.
 		 */
-		if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
+		if ((stage & ZIO_BLOCKING_STAGES) &&
 		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
-			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+			ASSERT0P(zio->io_vd);
+			boolean_t cut = (stage == ZIO_STAGE_LOGICAL_IO_START) ?
 			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
@@ -2466,7 +2481,7 @@ __zio_execute(zio_t *zio)
 		 * the zio must be issued asynchronously to prevent overflow.
 		 */
 		if (zio_execute_stack_check(zio)) {
-			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+			boolean_t cut = (stage == ZIO_STAGE_LOGICAL_IO_START) ?
 			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
 			return;
@@ -4536,6 +4551,100 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 
 /*
  * ==========================================================================
+ * Read and write to the logical top device
+ * ==========================================================================
+ */
+/*
+ * Logical reads and writes arrive at zio_logical_io_start(), which issues the
+ * first child IO to specific vdevs (through zio_vdev_child_io()). The logical
+ * IO will wait at zio_logical_io_done() for the tree of child IO to complete,
+ * and then process its result.
+ *
+ * Thus, these represent the handoff between the logical IO pipeline
+ * (compression, encryption, checksums, DVA allocation, etc) and the physical
+ * IO pipeline (the vdev tree).
+ */
+
+static void
+zio_logical_io_child_done(zio_t *zio)
+{
+	zio_t *pio = zio->io_private;
+	pio->io_error = zio->io_error;
+}
+
+static zio_t *
+zio_logical_io_start(zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+
+	ASSERT3U(zio->io_child_type, >, ZIO_CHILD_VDEV);
+	ASSERT3P(zio->io_bp, !=, NULL);
+	ASSERT0P(zio->io_vd);
+	ASSERT0(zio->io_error);
+	ASSERT0(zio->io_child_error[ZIO_CHILD_VDEV]);
+	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
+
+	if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
+		spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
+
+	zio_nowait(zio_vdev_child_io(zio, zio->io_bp, spa->spa_root_vdev,
+	    zio->io_offset, zio->io_abd, zio->io_size, zio->io_type,
+	    zio->io_priority, 0, zio_logical_io_child_done, zio));
+
+	return (zio);
+}
+
+static zio_t *
+zio_logical_io_done(zio_t *zio)
+{
+	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV_BIT, ZIO_WAIT_DONE)) {
+		return (NULL);
+	}
+
+	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
+
+	if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
+		spa_config_exit(zio->io_spa, SCL_ZIO, zio);
+
+	/*
+	 * If a checksum verify error was propagated up to this Direct I/O
+	 * operation then it should not do any other checksum verification
+	 * itself.
+	 */
+	if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR) {
+		ASSERT3U(zio->io_error, !=, 0);
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+		return (zio);
+	}
+
+	/*
+	 * If the I/O failed, determine whether we should attempt to retry it.
+	 *
+	 * We don't successful I/O, or I/O that we've already retried, or is
+	 * flagged not for retry. We don't retry Direct I/O with a failed
+	 * checksum, as the data may have been modified the by caller and we
+	 * can't retry it safely.
+	 *
+	 * On retry, we cut in line in the issue queue, since we don't want
+	 * compression/checksumming/etc. work to prevent our (cheap) IO reissue.
+	 */
+	if (zio->io_error && !(zio->io_flags & (ZIO_FLAG_DONT_RETRY |
+	    ZIO_FLAG_IO_RETRY) && !(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR))) {
+		ASSERT(!(zio->io_flags & ZIO_FLAG_DONT_QUEUE));	/* not a leaf */
+		ASSERT(!(zio->io_flags & ZIO_FLAG_IO_BYPASS));	/* not a leaf */
+		zio->io_error = 0;
+		zio->io_flags |= ZIO_FLAG_IO_RETRY | ZIO_FLAG_DONT_AGGREGATE;
+		zio->io_stage = ZIO_STAGE_LOGICAL_IO_START >> 1;
+		zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE,
+		    zio_requeue_io_start_cut_in_line);
+		return (NULL);
+	}
+
+	return (zio);
+}
+
+/*
+ * ==========================================================================
  * Read and write to physical devices
  * ==========================================================================
  */
@@ -4554,24 +4663,14 @@ static zio_t *
 zio_vdev_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	uint64_t align;
 	spa_t *spa = zio->io_spa;
 
-	zio->io_delay = 0;
-
+	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
+	ASSERT3P(vd, !=, NULL);
 	ASSERT0(zio->io_error);
 	ASSERT0(zio->io_child_error[ZIO_CHILD_VDEV]);
 
-	if (vd == NULL) {
-		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
-			spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
-
-		/*
-		 * The mirror_ops handle multiple DVAs in a single BP.
-		 */
-		vdev_mirror_ops.vdev_op_io_start(zio);
-		return (NULL);
-	}
+	zio->io_delay = 0;
 
 	ASSERT3P(zio->io_logical, !=, zio);
 	if (zio->io_type == ZIO_TYPE_WRITE) {
@@ -4588,35 +4687,44 @@ zio_vdev_io_start(zio_t *zio)
 		}
 	}
 
-	align = 1ULL << vd->vdev_top->vdev_ashift;
-
-	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL) &&
-	    P2PHASE(zio->io_size, align) != 0) {
-		/* Transform logical writes to be a full physical block size. */
-		uint64_t asize = P2ROUNDUP(zio->io_size, align);
-		abd_t *abuf = abd_alloc_sametype(zio->io_abd, asize);
-		ASSERT(vd == vd->vdev_top);
-		if (zio->io_type == ZIO_TYPE_WRITE) {
-			abd_copy(abuf, zio->io_abd, zio->io_size);
-			abd_zero_off(abuf, zio->io_size, asize - zio->io_size);
-		}
-		zio_push_transform(zio, abuf, asize, asize, zio_subblock);
-	}
-
 	/*
-	 * If this is not a physical io, make sure that it is properly aligned
-	 * before proceeding.
+	 * Alignment checks. Alignment is always to the top-level vdev, so
+	 * don't do anything on the root vdev.
 	 */
-	if (!(zio->io_flags & ZIO_FLAG_PHYSICAL)) {
-		ASSERT0(P2PHASE(zio->io_offset, align));
-		ASSERT0(P2PHASE(zio->io_size, align));
-	} else {
+	if (vd->vdev_ops != &vdev_root_ops) {
+		uint64_t align = 1ULL << vd->vdev_top->vdev_ashift;
+
+		if (!(zio->io_flags & ZIO_FLAG_PHYSICAL) &&
+		    P2PHASE(zio->io_size, align) != 0) {
+			/* Expand logical writes to a full physical block. */
+			uint64_t asize = P2ROUNDUP(zio->io_size, align);
+			abd_t *abuf = abd_alloc_sametype(zio->io_abd, asize);
+			ASSERT3P(vd, ==, vd->vdev_top);
+			if (zio->io_type == ZIO_TYPE_WRITE) {
+				abd_copy(abuf, zio->io_abd, zio->io_size);
+				abd_zero_off(abuf, zio->io_size,
+				    asize - zio->io_size);
+			}
+			zio_push_transform(zio, abuf, asize, asize,
+			    zio_subblock);
+		}
+
 		/*
-		 * For physical writes, we allow 512b aligned writes and assume
-		 * the device will perform a read-modify-write as necessary.
+		 * If this is not a physical io, make sure that it is properly
+		 * aligned before proceeding.
 		 */
-		ASSERT0(P2PHASE(zio->io_offset, SPA_MINBLOCKSIZE));
-		ASSERT0(P2PHASE(zio->io_size, SPA_MINBLOCKSIZE));
+		if (!(zio->io_flags & ZIO_FLAG_PHYSICAL)) {
+			ASSERT0(P2PHASE(zio->io_offset, align));
+			ASSERT0(P2PHASE(zio->io_size, align));
+		} else {
+			/*
+			 * For physical writes, we allow 512b aligned writes
+			 * and assume the device will perform a
+			 * read-modify-write as necessary.
+			 */
+			ASSERT0(P2PHASE(zio->io_offset, SPA_MINBLOCKSIZE));
+			ASSERT0(P2PHASE(zio->io_size, SPA_MINBLOCKSIZE));
+		}
 	}
 
 	VERIFY(zio->io_type != ZIO_TYPE_WRITE || spa_writeable(spa));
@@ -4711,7 +4819,6 @@ static zio_t *
 zio_vdev_io_done(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_ops_t *ops = vd ? vd->vdev_ops : &vdev_mirror_ops;
 	boolean_t unexpected_error = B_FALSE;
 
 	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV_BIT, ZIO_WAIT_DONE)) {
@@ -4726,7 +4833,7 @@ zio_vdev_io_done(zio_t *zio)
 	if (zio->io_delay)
 		zio->io_delay = gethrtime() - zio->io_delay;
 
-	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	if (vd->vdev_ops->vdev_op_leaf &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		if (zio->io_type != ZIO_TYPE_FLUSH)
 			vdev_queue_io_done(zio);
@@ -4748,7 +4855,7 @@ zio_vdev_io_done(zio_t *zio)
 		}
 	}
 
-	ops->vdev_op_io_done(zio);
+	vd->vdev_ops->vdev_op_io_done(zio);
 
 	if (unexpected_error && vd->vdev_remove_wanted == B_FALSE)
 		VERIFY0P(vdev_probe(vd, zio));
@@ -4819,53 +4926,25 @@ zio_vdev_io_assess(zio_t *zio)
 		return (NULL);
 	}
 
-	if (vd == NULL && !(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
-		spa_config_exit(zio->io_spa, SCL_ZIO, zio);
-
 	if (zio->io_vsd != NULL) {
 		zio->io_vsd_ops->vsd_free(zio);
 		zio->io_vsd = NULL;
 	}
 
 	/*
-	 * If a Direct I/O operation has a checksum verify error then this I/O
-	 * should not attempt to be issued again.
+	 * Inject data faults (targeting object type, bookmark or DVA). While
+	 * these are actually logical errors, injection can target specific
+	 * vdevs, so they are injected here instead of in zio_logical_io_done().
 	 */
-	if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR) {
-		if (zio->io_type == ZIO_TYPE_WRITE) {
-			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_LOGICAL);
-			ASSERT3U(zio->io_error, ==, EIO);
-		}
-		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
-		return (zio);
-	}
-
-	if (zio_injection_enabled && zio->io_error == 0)
+	if (zio_injection_enabled && zio->io_error == 0 &&
+	    vd != vd->vdev_spa->spa_root_vdev)
 		zio->io_error = zio_handle_fault_injection(zio, EIO);
-
-	/*
-	 * If the I/O failed, determine whether we should attempt to retry it.
-	 *
-	 * On retry, we cut in line in the issue queue, since we don't want
-	 * compression/checksumming/etc. work to prevent our (cheap) IO reissue.
-	 */
-	if (zio->io_error && vd == NULL &&
-	    !(zio->io_flags & (ZIO_FLAG_DONT_RETRY | ZIO_FLAG_IO_RETRY))) {
-		ASSERT(!(zio->io_flags & ZIO_FLAG_DONT_QUEUE));	/* not a leaf */
-		ASSERT(!(zio->io_flags & ZIO_FLAG_IO_BYPASS));	/* not a leaf */
-		zio->io_error = 0;
-		zio->io_flags |= ZIO_FLAG_IO_RETRY | ZIO_FLAG_DONT_AGGREGATE;
-		zio->io_stage = ZIO_STAGE_VDEV_IO_START >> 1;
-		zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE,
-		    zio_requeue_io_start_cut_in_line);
-		return (NULL);
-	}
 
 	/*
 	 * If we got an error on a leaf device, convert it to ENXIO
 	 * if the device is not accessible at all.
 	 */
-	if (zio->io_error && vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	if (zio->io_error && vd->vdev_ops->vdev_op_leaf &&
 	    !vdev_accessible(vd, zio))
 		zio->io_error = SET_ERROR(ENXIO);
 
@@ -4874,7 +4953,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 * set vdev_cant_write so that we stop trying to allocate from it.
 	 */
 	if (zio->io_error == ENXIO && zio->io_type == ZIO_TYPE_WRITE &&
-	    vd != NULL && !vd->vdev_ops->vdev_op_leaf) {
+	    !vd->vdev_ops->vdev_op_leaf) {
 		vdev_dbgmsg(vd, "zio_vdev_io_assess(zio=%px) setting "
 		    "cant_write=TRUE due to write failure with ENXIO",
 		    zio);
@@ -4887,8 +4966,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 * boolean flag so that we don't bother with it in the future, and
 	 * then we act like the flush succeeded.
 	 */
-	if (zio->io_error == ENOTSUP && zio->io_type == ZIO_TYPE_FLUSH &&
-	    vd != NULL) {
+	if (zio->io_error == ENOTSUP && zio->io_type == ZIO_TYPE_FLUSH) {
 		vd->vdev_nowritecache = B_TRUE;
 		zio->io_error = 0;
 	}
@@ -5183,15 +5261,25 @@ zio_checksum_verify(zio_t *zio)
 static zio_t *
 zio_dio_checksum_verify(zio_t *zio)
 {
-	zio_t *pio = zio_unique_parent(zio);
 	int error;
 
-	ASSERT3P(zio->io_vd, !=, NULL);
 	ASSERT3P(zio->io_bp, !=, NULL);
+	ASSERT3P(zio->io_vd, !=, NULL);
+	ASSERT3P(zio->io_vd, ==, zio->io_vd->vdev_top);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
-	ASSERT3B(pio->io_prop.zp_direct_write, ==, B_TRUE);
+
+#ifdef ZFS_DEBUG
+	/* This zio is for a top-level vdev; its parent is for the root vdev */
+	zio_t *pio = zio_unique_parent(zio);
+	ASSERT3U(pio->io_child_type, ==, ZIO_CHILD_VDEV);
+	ASSERT3P(pio->io_vd->vdev_ops, ==, &vdev_root_ops);
+
+	/* Its parent, in turn, is the logical+direct write */
+	pio = zio_unique_parent(pio);
 	ASSERT3U(pio->io_child_type, ==, ZIO_CHILD_LOGICAL);
+	ASSERT3B(pio->io_prop.zp_direct_write, ==, B_TRUE);
+#endif
 
 	if (zfs_vdev_direct_write_verify == 0 || zio->io_error != 0)
 		goto out;
@@ -5369,21 +5457,24 @@ zio_ready(zio_t *zio)
 static void
 zio_dva_throttle_done(zio_t *zio)
 {
-	zio_t *pio = zio_unique_parent(zio);
-	vdev_t *vd = zio->io_vd;
-	int flags = METASLAB_ASYNC_ALLOC;
-	const void *tag = pio;
-	uint64_t size = pio->io_size;
-
 	ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 	ASSERT3U(zio->io_priority, ==, ZIO_PRIORITY_ASYNC_WRITE);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
-	ASSERT(vd != NULL);
-	ASSERT3P(vd, ==, vd->vdev_top);
+	ASSERT(zio->io_vd != NULL);
+	ASSERT3P(zio->io_vd, ==, zio->io_vd->vdev_top);
 	ASSERT(zio_injection_enabled || !(zio->io_flags & ZIO_FLAG_IO_RETRY));
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REPAIR));
 	ASSERT(zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED);
+
+	/*
+	 * The original allocation was against the logical write. We are the
+	 * vdev child IO for the top vdev; our parent is the vdev child IO for
+	 * the parent vdev. So, we have to walk two steps up the tree.
+	 */
+	zio_t *pio = zio_unique_parent(zio_unique_parent(zio));
+	const void *tag = pio;
+	uint64_t size = pio->io_size;
 
 	/*
 	 * Parents of gang children can have two flavors -- ones that allocated
@@ -5407,8 +5498,8 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT(zio->io_metaslab_class != NULL);
 	ASSERT(zio->io_metaslab_class->mc_alloc_throttle_enabled);
 
-	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
-	    pio->io_allocator, flags, size, tag);
+	metaslab_group_alloc_decrement(zio->io_spa, zio->io_vd->vdev_id,
+	    pio->io_allocator, METASLAB_ASYNC_ALLOC, size, tag);
 
 	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
 	    pio->io_allocator, 1, pio->io_size)) {
@@ -5443,7 +5534,8 @@ zio_done(zio_t *zio)
 	 * by the logical I/O but the actual write is done by child I/Os.
 	 */
 	if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED &&
-	    zio->io_child_type == ZIO_CHILD_VDEV)
+	    zio->io_child_type == ZIO_CHILD_VDEV &&
+	    zio->io_vd == zio->io_vd->vdev_top)
 		zio_dva_throttle_done(zio);
 
 	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
@@ -5808,6 +5900,8 @@ static zio_pipe_stage_t *zio_pipeline[] = {
 	zio_dva_free,
 	zio_dva_claim,
 	zio_ready,
+	zio_logical_io_start,
+	zio_logical_io_done,
 	zio_vdev_io_start,
 	zio_vdev_io_done,
 	zio_vdev_io_assess,
