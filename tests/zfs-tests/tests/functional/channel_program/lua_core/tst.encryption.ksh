@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2017 by Delphix. All rights reserved.
+# Copyright (c) 2021 by Determinate Systems. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/channel_program/channel_common.kshlib
@@ -26,20 +26,18 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
-	    destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
+	datasetexists $TESTPOOL/$TESTDATASET && \
+	    log_must zfs destroy -R $TESTPOOL/$TESTDATASET
 }
 log_onexit cleanup
 
-# create $TESTSNAP and $TESTCLONE
-create_snapshot
-create_clone
+TESTDATASET="channelprogramencryption"
 
-log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.exists.zcp \
-    $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS@$TESTSNAP \
-    $TESTPOOL/$TESTCLONE
+passphrase="password"
+log_must eval "echo "$passphrase" | zfs create -o encryption=aes-256-ccm " \
+        "-o keyformat=passphrase $TESTPOOL/$TESTDATASET"
 
-log_mustnot_checkerror_program "not in the target pool" \
-    $TESTPOOL - <<<"return zfs.exists('rpool')"
+log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.encryption.zcp \
+    $TESTPOOL/$TESTDATASET
 
-log_pass "zfs.exists() gives correct results"
+log_pass "zfs.get_prop(dataset, ...)  on \"encryption\" and \"encryptionroot\" gives correct results"
