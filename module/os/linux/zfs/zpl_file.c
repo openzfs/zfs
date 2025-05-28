@@ -36,10 +36,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
-#if defined(HAVE_VFS_SET_PAGE_DIRTY_NOBUFFERS) || \
-    defined(HAVE_VFS_FILEMAP_DIRTY_FOLIO)
-#include <linux/pagemap.h>
-#endif
+#include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 #include <linux/writeback.h>
