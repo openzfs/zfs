@@ -378,14 +378,17 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		break;
 	}
 
+	case ZFS_PROP_ENCRYPTION:
 	case ZFS_PROP_KEYSTATUS:
 	case ZFS_PROP_KEYFORMAT: {
 		/* provide defaults in case no crypto obj exists */
 		setpoint[0] = '\0';
-		if (zfs_prop == ZFS_PROP_KEYSTATUS)
-			numval = ZFS_KEYSTATUS_NONE;
-		else
+		if (zfs_prop == ZFS_PROP_ENCRYPTION)
+			numval = ZIO_CRYPT_OFF;
+		else if (zfs_prop == ZFS_PROP_KEYFORMAT)
 			numval = ZFS_KEYFORMAT_NONE;
+		else if (zfs_prop == ZFS_PROP_KEYSTATUS)
+			numval = ZFS_KEYSTATUS_NONE;
 
 		nvlist_t *nvl, *propval;
 		nvl = fnvlist_alloc();
@@ -396,6 +399,29 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 
 			(void) nvlist_lookup_uint64(propval, ZPROP_VALUE,
 			    &numval);
+			if (nvlist_lookup_string(propval, ZPROP_SOURCE,
+			    &source) == 0)
+				strlcpy(setpoint, source, sizeof (setpoint));
+		}
+		nvlist_free(nvl);
+		break;
+	}
+
+	case ZFS_PROP_ENCRYPTION_ROOT: {
+		setpoint[0] = '\0';
+		strval[0] = '\0';
+
+		nvlist_t *nvl, *propval;
+		nvl = fnvlist_alloc();
+		dsl_dataset_crypt_stats(ds, nvl);
+		if (nvlist_lookup_nvlist(nvl, zfs_prop_to_name(zfs_prop),
+		    &propval) == 0) {
+			const char *dsname;
+			const char *source;
+
+			if (nvlist_lookup_string(propval, ZPROP_VALUE,
+			    &dsname) == 0)
+				strlcpy(strval, dsname, ZAP_MAXVALUELEN);
 			if (nvlist_lookup_string(propval, ZPROP_SOURCE,
 			    &source) == 0)
 				strlcpy(setpoint, source, sizeof (setpoint));
