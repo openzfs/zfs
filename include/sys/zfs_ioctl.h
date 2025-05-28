@@ -534,10 +534,22 @@ typedef struct zfs_cmd {
 	zfs_share_t	zc_share;
 	dmu_objset_stats_t zc_objset_stats;
 	struct drr_begin zc_begin_record;
-	zinject_record_t zc_inject_record;
-	uint32_t	zc_defer_destroy;
-	uint32_t	zc_flags;
-	uint64_t	zc_action_handle;
+
+	/*
+	 * zinject_record_t grew past its original size, which would push out
+	 * the size of zfs_cmd_t. To adjust for this, we allow it to use the
+	 * space after it, since those fields aren't used with ZFS_IOC_INJECT.
+	 */
+	union {
+		zinject_record_t zc_inject_record;
+		struct {
+			char		zc_pad1[sizeof (zinject_record_t) - 16];
+			uint32_t	zc_defer_destroy;
+			uint32_t	zc_flags;
+			uint64_t	zc_action_handle;
+		};
+	};
+
 	int		zc_cleanup_fd;
 	uint8_t		zc_simple;
 	uint8_t		zc_pad[3];		/* alignment */
@@ -547,6 +559,20 @@ typedef struct zfs_cmd {
 	zfs_stat_t	zc_stat;
 	uint64_t	zc_zoneid;
 } zfs_cmd_t;
+
+/*
+ * zfs_cmd_t (and by extension, it's member structs) must always be the same
+ * size. Changing it will break compatibility between the kernel module and the
+ * userspace tools.
+ *
+ * This test is convoluted because MAXPATHLEN and MAXNAMELEN can vary across
+ * platforms. We include them directly here, which means it won't trip if those
+ * ever change, but if that happens we likely have other things to worry about.
+ */
+#define	_expected_zfs_cmd_size	((MAXPATHLEN*3)+MAXNAMELEN+1200)
+_Static_assert(sizeof (zfs_cmd_t) == _expected_zfs_cmd_size,
+	"zfs_cmd_t has wrong size");
+#undef	_expected_zfs_cmd_size
 
 typedef struct zfs_useracct {
 	char zu_domain[256];
