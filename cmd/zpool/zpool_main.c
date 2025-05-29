@@ -10432,10 +10432,9 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		break;
 
 	case ZPOOL_STATUS_REMOVED_DEV:
-		snprintf(status, ST_SIZE, gettext("One or more devices has "
-		    "been removed by the administrator.\n\tSufficient "
-		    "replicas exist for the pool to continue functioning in "
-		    "a\n\tdegraded state.\n"));
+		snprintf(status, ST_SIZE, gettext("One or more devices have "
+		    "been removed.\n\tSufficient replicas exist for the pool "
+		    "to continue functioning in a\n\tdegraded state.\n"));
 		snprintf(action, AC_SIZE, gettext("Online the device "
 		    "using zpool online' or replace the device with\n\t'zpool "
 		    "replace'.\n"));
