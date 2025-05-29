@@ -42,7 +42,7 @@
 #
 
 # NOTE: if HAVE_FILE_FADVISE is not defined former data_size
-# should less or eaqul to latter one
+# should less or equal to latter one
 
 verify_runnable "global"
 
@@ -66,7 +66,7 @@ sync_pool $TESTPOOL
 
 data_size1=$(kstat arcstats.data_size)
 
-log_must file_fadvise -f $FILE -a 2
+log_must file_fadvise -f $FILE -a POSIX_FADV_WILLNEED
 sleep 10
 
 data_size2=$(kstat arcstats.data_size)

@@ -730,6 +730,18 @@ dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 	 */
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift != 0) {
+
+		/*
+		 * Limit prefetch to present blocks.
+		 */
+		uint64_t size = (dn->dn_maxblkid + 1) << dn->dn_datablkshift;
+		if (offset >= size) {
+			rw_exit(&dn->dn_struct_rwlock);
+			return;
+		}
+		if (offset + len < offset || offset + len > size)
+			len = size - offset;
+
 		/*
 		 * The object has multiple blocks.  Calculate the full range
 		 * of blocks [start, end2) and then split it into two parts,

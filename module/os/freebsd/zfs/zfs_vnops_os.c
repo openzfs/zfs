@@ -6055,6 +6055,78 @@ zfs_freebsd_aclcheck(struct vop_aclcheck_args *ap)
 	return (EOPNOTSUPP);
 }
 
+#ifndef _SYS_SYSPROTO_H_
+struct vop_advise_args {
+	struct vnode *a_vp;
+	off_t a_start;
+	off_t a_end;
+	int a_advice;
+};
+#endif
+
+static int
+zfs_freebsd_advise(struct vop_advise_args *ap)
+{
+	vnode_t *vp = ap->a_vp;
+	off_t start = ap->a_start;
+	off_t end = ap->a_end;
+	int advice = ap->a_advice;
+	off_t len;
+	znode_t *zp;
+	zfsvfs_t *zfsvfs;
+	objset_t *os;
+	int error = 0;
+
+	if (end < start)
+		return (EINVAL);
+
+	error = vn_lock(vp, LK_SHARED);
+	if (error)
+		return (error);
+
+	zp = VTOZ(vp);
+	zfsvfs = zp->z_zfsvfs;
+	os = zp->z_zfsvfs->z_os;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		goto out_unlock;
+
+	/* kern_posix_fadvise points to the last byte, we want one past */
+	if (end != OFF_MAX)
+		end += 1;
+	len = end - start;
+
+	switch (advice) {
+	case POSIX_FADV_WILLNEED:
+		/*
+		 * Pass on the caller's size directly, but note that
+		 * dmu_prefetch_max will effectively cap it.  If there really
+		 * is a larger sequential access pattern, perhaps dmu_zfetch
+		 * will detect it.
+		 */
+		dmu_prefetch(os, zp->z_id, 0, start, len,
+		    ZIO_PRIORITY_ASYNC_READ);
+		break;
+	case POSIX_FADV_NORMAL:
+	case POSIX_FADV_RANDOM:
+	case POSIX_FADV_SEQUENTIAL:
+	case POSIX_FADV_DONTNEED:
+	case POSIX_FADV_NOREUSE:
+		/* ignored for now */
+		break;
+	default:
+		error = EINVAL;
+		break;
+	}
+
+	zfs_exit(zfsvfs, FTAG);
+
+out_unlock:
+	VOP_UNLOCK(vp);
+
+	return (error);
+}
+
 static int
 zfs_vptocnp(struct vop_vptocnp_args *ap)
 {
@@ -6293,6 +6365,7 @@ struct vop_vector zfs_vnodeops = {
 	.vop_link =		zfs_freebsd_link,
 	.vop_symlink =		zfs_freebsd_symlink,
 	.vop_readlink =		zfs_freebsd_readlink,
+	.vop_advise =		zfs_freebsd_advise,
 	.vop_read =		zfs_freebsd_read,
 	.vop_write =		zfs_freebsd_write,
 	.vop_remove =		zfs_freebsd_remove,
