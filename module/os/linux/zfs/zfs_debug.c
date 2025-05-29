@@ -128,6 +128,8 @@ __set_error(const char *file, const char *func, int line, int err)
 		    (ulong_t)err);
 }
 
+EXPORT_SYMBOL(__set_error);
+
 void
 __zfs_dbgmsg(char *buf)
 {
