@@ -12071,6 +12071,11 @@ zpool_do_events_nvprint(nvlist_t *nvl, int depth)
 				    sizeof (flagstr));
 				printf(gettext("0x%x [%s]"), i32, flagstr);
 			} else if (strcmp(name,
+			    FM_EREPORT_PAYLOAD_ZFS_ZIO_TYPE) == 0) {
+				zfs_valstr_zio_type(i32, flagstr,
+				    sizeof (flagstr));
+				printf(gettext("0x%x [%s]"), i32, flagstr);
+			} else if (strcmp(name,
 			    FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY) == 0) {
 				zfs_valstr_zio_priority(i32, flagstr,
 				    sizeof (flagstr));

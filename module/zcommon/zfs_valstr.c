@@ -259,6 +259,17 @@ _VALSTR_BITFIELD_IMPL(zio_stage,
 	{ 'X', "X ", "DONE" },
 )
 
+/* ZIO type: zio_type_t, typically zio->io_type */
+_VALSTR_ENUM_IMPL(zio_type,
+	"NULL",
+	"READ",
+	"WRITE",
+	"FREE",
+	"CLAIM",
+	"FLUSH",
+	"TRIM",
+)
+
 /* ZIO priority: zio_priority_t, typically zio->io_priority */
 _VALSTR_ENUM_IMPL(zio_priority,
 	"SYNC_READ",
