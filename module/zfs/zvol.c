@@ -2156,9 +2156,9 @@ zvol_fini_impl(void)
 
 ZFS_MODULE_PARAM(zfs_vol, zvol_, inhibit_dev, UINT, ZMOD_RW,
 	"Do not create zvol device nodes");
-ZFS_MODULE_PARAM(zfs, , zvol_threads, UINT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vol, zvol_, threads, UINT, ZMOD_RW,
 	"Number of threads for I/O requests. Set to 0 to use all active CPUs");
-ZFS_MODULE_PARAM(zfs, , zvol_num_taskqs, UINT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vol, zvol_, num_taskqs, UINT, ZMOD_RW,
 	"Number of zvol taskqs");
-ZFS_MODULE_PARAM(zfs, , zvol_request_sync, UINT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_vol, zvol_, request_sync, UINT, ZMOD_RW,
 	"Synchronously handle bio requests");
