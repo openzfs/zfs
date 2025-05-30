@@ -24,6 +24,8 @@ libspl_rpc_HEADERS = \
 
 libspl_sysdir = $(libspldir)/sys
 libspl_sys_HEADERS = \
+	%D%/sys/abd_os.h \
+	%D%/sys/abd_impl_os.h \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
 	%D%/sys/asm_linkage.h \
