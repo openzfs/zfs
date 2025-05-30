@@ -39,7 +39,7 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "debian11", "debian12", "fedora40", "fedora41", "fedora42", "freebsd13-4r", "freebsd14-2s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
+          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "debian11", "debian12", "fedora41", "fedora42", "freebsd13-4r", "freebsd14-2s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
           QUICK_OS='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd14-2r", "ubuntu24"]'
           # determine CI type when running on PR
           ci_type="full"
@@ -81,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rhl:     almalinux8, almalinux9, centos-stream9, fedora40, fedora41
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora41
         # debian:  debian11, debian12, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
         # FreeBSD variants of 2024-12:
