@@ -93,6 +93,13 @@ case "$1" in
     ;;
 esac
 
+# enable io_uring on el9/el10
+case "$1" in
+  almalinux9|almalinux10)
+    sudo sysctl kernel.io_uring_disabled=0 > /dev/null
+    ;;
+esac
+
 # run functional testings and save exitcode
 cd /var/tmp
 TAGS=$2/$3
