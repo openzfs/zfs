@@ -1403,9 +1403,12 @@ zvol_os_create_minor(const char *name)
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
-	if (error || volmode == ZFS_VOLMODE_DEFAULT)
+	if (error || volmode == ZFS_VOLMODE_NONE) {
+		/* return same error value, as on Linux side in this case */
+		error = SET_ERROR(EAGAIN);
+		goto out_dmu_objset_disown;
+	} else if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
-	error = 0;
 
 	/*
 	 * zvol_alloc equivalent ...
