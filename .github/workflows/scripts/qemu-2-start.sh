@@ -122,11 +122,6 @@ case "$OS" in
     MIRROR="http://opensuse-mirror-gce-us.susecloud.net"
     URL="$MIRROR/tumbleweed/appliances/openSUSE-MicroOS.x86_64-OpenStack-Cloud.qcow2"
     ;;
-  ubuntu20)
-    OSNAME="Ubuntu 20.04"
-    OSv="ubuntu20.04"
-    URL="$UBMIRROR/focal/current/focal-server-cloudimg-amd64.img"
-    ;;
   ubuntu22)
     OSNAME="Ubuntu 22.04"
     OSv="ubuntu22.04"
