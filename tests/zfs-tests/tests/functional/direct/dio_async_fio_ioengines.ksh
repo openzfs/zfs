@@ -65,26 +65,11 @@ fio_async_ioengines="posixaio"
 if is_linux; then
 	fio_async_ioengines+=" libaio"
 	if $(grep -q "CONFIG_IO_URING=y" /boot/config-$(uname -r)); then
-		if [ -e /etc/os-release ] ; then
-			source /etc/os-release
-			if [ $PLATFORM_ID = "platform:el9" ] ; then
-				log_note "io_uring disabled on RHEL 9 " \
-				"variants: fails with " \
-				"'Operation not permitted'"
-			elif $(check_fio_ioengine -eq 0); then
-				fio_async_ioengines+=" io_uring"
-			else
-				log_note "io_uring not supported by fio and " \
-				    "will not be tested"
-			fi
-		else 
-			if $(check_fio_ioengine); then
-				fio_async_ioengines+=" io_uring"
-	
-			else
-				log_note "io_uring not supported by fio and " \
-				   "will not be tested"
-			fi
+		if $(check_fio_ioengine); then
+			fio_async_ioengines+=" io_uring"
+		else
+			log_note "io_uring not supported by fio and " \
+			   "will not be tested"
 		fi
 	else
 		log_note "io_uring not supported by kernel will not " \
