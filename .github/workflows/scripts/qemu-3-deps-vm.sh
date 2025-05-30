@@ -128,7 +128,7 @@ case "$1" in
     sudo dnf install -y kernel-abi-whitelists
     echo "##[endgroup]"
     ;;
-  almalinux9|centos-stream9|centos-stream10)
+  almalinux9|almalinux10|centos-stream9|centos-stream10)
     echo "##[group]Enable epel and crb repositories"
     sudo dnf config-manager -y --set-enabled crb
     sudo dnf install -y epel-release
