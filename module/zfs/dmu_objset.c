@@ -98,6 +98,8 @@ static void dmu_objset_find_dp_cb(void *arg);
 
 static void dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb);
 static void dmu_objset_upgrade_stop(objset_t *os);
+static void projectusage_os_avl_create(objset_t *os);
+static void projectusage_os_avl_destroy(objset_t *os);
 
 void
 dmu_objset_init(void)
@@ -703,6 +705,10 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	}
 
 	mutex_init(&os->os_upgrade_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&os->os_projecthierarchyused_lock, NULL, MUTEX_DEFAULT,
+	    NULL);
+	mutex_init(&os->os_projecthierarchyop_lock, NULL, MUTEX_DEFAULT, NULL);
+	projectusage_os_avl_create(os);
 
 	*osp = os;
 	return (0);
@@ -1064,6 +1070,9 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
 	mutex_destroy(&os->os_upgrade_lock);
+	mutex_destroy(&os->os_projecthierarchyused_lock);
+	mutex_destroy(&os->os_projecthierarchyop_lock);
+	projectusage_os_avl_destroy(os);
 	for (int i = 0; i < TXG_SIZE; i++)
 		multilist_destroy(&os->os_dirty_dnodes[i]);
 	spa_evicting_os_deregister(os->os_spa, os);
@@ -1958,6 +1967,34 @@ userquota_compare(const void *l, const void *r)
 }
 
 static void
+projectusage_os_avl_create(objset_t *os)
+{
+	for (int i = 0; i < TXG_SIZE; i++) {
+		avl_create(&os->os_project_deltas[i], userquota_compare,
+		    sizeof (userquota_node_t), offsetof(userquota_node_t,
+		    uqn_node));
+	}
+}
+
+static void
+projectusage_os_avl_destroy(objset_t *os)
+{
+	for (int i = 0; i < TXG_SIZE; i++) {
+		avl_destroy(&os->os_project_deltas[i]);
+	}
+}
+
+/*
+ * Return TRUE if the given record is for counting objects and not used-bytes.
+ */
+static boolean_t
+is_obj_record(userquota_node_t *uqn)
+{
+	return (strncmp(uqn->uqn_id, DMU_OBJACCT_PREFIX,
+	    DMU_OBJACCT_PREFIX_LEN) == 0);
+}
+
+static void
 do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 {
 	void *cookie;
@@ -1993,6 +2030,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 	avl_destroy(&cache->uqc_group_deltas);
 
 	if (dmu_objset_projectquota_enabled(os)) {
+		uint64_t parentproj_ino[2] = {0, 0};
+		uint64_t parent_projid = 0;
+		char pbuf[32];
+
 		cookie = NULL;
 		while ((uqn = avl_destroy_nodes(&cache->uqc_project_deltas,
 		    &cookie)) != NULL) {
@@ -2000,9 +2041,66 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 			VERIFY0(zap_increment(os, DMU_PROJECTUSED_OBJECT,
 			    uqn->uqn_id, uqn->uqn_delta, tx));
 			mutex_exit(&os->os_userused_lock);
+			if (!is_obj_record(uqn) &&
+			    os->os_projecthierarchy_obj) {
+				if (zap_lookup(os, os->os_projecthierarchy_obj,
+				    uqn->uqn_id, 8, 2, parentproj_ino) == 0) {
+					parent_projid = parentproj_ino[0];
+				} else {
+					parent_projid = 0;
+				}
+				while (parent_projid != 0) {
+					(void) snprintf(pbuf, sizeof (pbuf),
+					    "%llx", (longlong_t)parent_projid);
+					mutex_enter(&os->os_userused_lock);
+					zap_increment(os,
+					    DMU_PROJECTUSED_OBJECT,
+					    pbuf, uqn->uqn_delta, tx);
+					mutex_exit(&os->os_userused_lock);
+					parentproj_ino[0] = 0;
+					if (zap_lookup(os,
+					    os->os_projecthierarchy_obj, pbuf,
+					    8, 2, parentproj_ino) == 0) {
+						parent_projid =
+						    parentproj_ino[0];
+					} else {
+						parent_projid = 0;
+					}
+				}
+			}
 			kmem_free(uqn, sizeof (*uqn));
 		}
 		avl_destroy(&cache->uqc_project_deltas);
+	}
+
+	uint64_t txg = tx->tx_txg;
+	if (dmu_objset_projectquota_enabled(os) &&
+	    (avl_numnodes(&os->os_project_deltas[txg & TXG_MASK]) != 0)) {
+		mutex_enter(&os->os_projecthierarchyused_lock);
+		if (avl_numnodes(&os->os_project_deltas[txg & TXG_MASK]) != 0) {
+			avl_tree_t project_deltas = { 0 };
+
+			avl_create(&project_deltas, userquota_compare,
+			    sizeof (userquota_node_t),
+			    offsetof(userquota_node_t, uqn_node));
+			avl_swap(&project_deltas,
+			    &os->os_project_deltas[txg & TXG_MASK]);
+			mutex_exit(&os->os_projecthierarchyused_lock);
+
+			cookie = NULL;
+			while ((uqn = avl_destroy_nodes(&project_deltas,
+			    &cookie)) != NULL) {
+				mutex_enter(&os->os_userused_lock);
+
+				zap_increment(os, DMU_PROJECTUSED_OBJECT,
+				    uqn->uqn_id, uqn->uqn_delta, tx);
+				mutex_exit(&os->os_userused_lock);
+				kmem_free(uqn, sizeof (*uqn));
+			}
+			avl_destroy(&project_deltas);
+		} else {
+			mutex_exit(&os->os_projecthierarchyused_lock);
+		}
 	}
 }
 
@@ -2077,6 +2175,20 @@ do_userobjquota_update(objset_t *os, userquota_cache_t *cache, uint64_t flags,
 			    name, delta);
 		}
 	}
+}
+
+void
+do_projectusage_update(objset_t *os, uint64_t projid, int64_t used,
+    dmu_tx_t *tx)
+{
+	char name[20 + DMU_OBJACCT_PREFIX_LEN];
+	int64_t delta = used;
+
+	if (delta == 0)
+		return;
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)projid);
+	userquota_update_cache(&os->os_project_deltas[tx->tx_txg & TXG_MASK],
+	    name, delta);
 }
 
 typedef struct userquota_updates_arg {
