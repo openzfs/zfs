@@ -34,6 +34,11 @@ case "$OS" in
     OSNAME="AlmaLinux 9"
     URL="https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
     ;;
+  almalinux10)
+    OSNAME="AlmaLinux 10"
+    OSv="almalinux9"
+    URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
+    ;;
   archlinux)
     OSNAME="Archlinux"
     URL="https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
