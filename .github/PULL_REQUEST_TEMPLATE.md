@@ -27,6 +27,7 @@ https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Performance enhancement (non-breaking change which improves efficiency)
 - [ ] Code cleanup (non-breaking change which makes code smaller or more readable)
+- [ ] Quality assurance (non-breaking change which makes the code more robust against bugs)
 - [ ] Breaking change (fix or feature that would cause existing functionality to change)
 - [ ] Library ABI change (libzfs, libzfs\_core, libnvpair, libuutil and libzfsbootenv)
 - [ ] Documentation (a change to man pages or other documentation)

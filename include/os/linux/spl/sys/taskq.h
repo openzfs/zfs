@@ -33,6 +33,7 @@
 #include <sys/thread.h>
 #include <sys/rwlock.h>
 #include <sys/wait.h>
+#include <sys/kstat.h>
 
 #define	TASKQ_NAMELEN		31
 

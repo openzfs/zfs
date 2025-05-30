@@ -438,7 +438,8 @@ ddt_stat_update(ddt_t *ddt, ddt_entry_t *dde, uint64_t neg)
 	ddt_stat_generate(ddt, dde, &dds);
 
 	bucket = highbit64(dds.dds_ref_blocks) - 1;
-	ASSERT(bucket >= 0);
+	if (unlikely(bucket >= 0))	/* if() needed for GCC bounds check */
+		ASSERT(bucket >= 0);
 
 	ddh = &ddt->ddt_histogram[dde->dde_type][dde->dde_class];
 

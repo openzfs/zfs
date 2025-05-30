@@ -171,11 +171,11 @@ issig(void)
 #if defined(HAVE_DEQUEUE_SIGNAL_4ARG)
 	enum pid_type __type;
 	if (dequeue_signal(current, &set, &__info, &__type) != 0) {
-#elif defined(HAVE_DEQUEUE_SIGNAL_3ARG_TASK)
-	if (dequeue_signal(current, &set, &__info) != 0) {
-#else
+#elif defined(HAVE_DEQUEUE_SIGNAL_3ARG_TYPE)
 	enum pid_type __type;
 	if (dequeue_signal(&set, &__info, &__type) != 0) {
+#else
+	if (dequeue_signal(current, &set, &__info) != 0) {
 #endif
 		spin_unlock_irq(&current->sighand->siglock);
 		kernel_signal_stop();

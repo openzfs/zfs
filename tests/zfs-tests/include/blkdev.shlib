@@ -556,27 +556,15 @@ function list_file_blocks # input_file
 	# 512B blocks for ease of use with dd.
 	#
 	typeset level vdev path offset length
-	if awk -n '' 2>/dev/null; then
-		# gawk needs -n to decode hex
-		AWK='awk -n'
-	else
-		AWK='awk'
-	fi
 	sync_all_pools true
-	zdb -dddddd $ds $objnum | $AWK -v pad=$((4<<20)) -v bs=512 '
+	zdb -dddddd $ds $objnum | awk '
 	    /^$/ { looking = 0 }
 	    looking {
 	        level = $2
 	        field = 3
 	        while (split($field, dva, ":") == 3) {
-	            # top level vdev id
-	            vdev = int(dva[1])
-	            # offset + 4M label/boot pad in 512B blocks
-	            offset = (int("0x"dva[2]) + pad) / bs
-		    # length in 512B blocks
-		    len = int("0x"dva[3]) / bs
 
-	            print level, vdev, offset, len
+	            print level, int(dva[1]), "0x"dva[2], "0x"dva[3]
 
 	            ++field
 	        }
@@ -585,7 +573,8 @@ function list_file_blocks # input_file
 	' | \
 	while read level vdev offset length; do
 		for path in ${VDEV_MAP[$vdev][@]}; do
-			echo "$level $path $offset $length"
+			echo "$level $path $(( ($offset + (4<<20)) / 512 ))" \
+			    "$(( $length / 512 ))"
 		done
 	done 2>/dev/null
 }
