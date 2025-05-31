@@ -93,8 +93,9 @@ extern struct hlist_head *zvol_htable;
 #define	ZVOL_HT_HEAD(hash)	(&zvol_htable[(hash) & (ZVOL_HT_SIZE-1)])
 extern zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE];
 
-extern unsigned int zvol_volmode;
 extern unsigned int zvol_inhibit_dev;
+extern unsigned int zvol_prefetch_bytes;
+extern unsigned int zvol_volmode;
 extern unsigned int zvol_threads;
 extern unsigned int zvol_num_taskqs;
 extern unsigned int zvol_request_sync;

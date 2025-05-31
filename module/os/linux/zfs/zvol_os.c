@@ -51,7 +51,6 @@ static void zvol_request_impl(zvol_state_t *zv, struct bio *bio,
     struct request *rq, boolean_t force_sync);
 
 static unsigned int zvol_major = ZVOL_MAJOR;
-static unsigned int zvol_prefetch_bytes = (128 * 1024);
 static unsigned long zvol_max_discard_blocks = 16384;
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
@@ -1795,9 +1794,6 @@ MODULE_PARM_DESC(zvol_major, "Major number for zvol device");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
-
-module_param(zvol_prefetch_bytes, uint, 0644);
-MODULE_PARM_DESC(zvol_prefetch_bytes, "Prefetch N bytes at zvol start+end");
 
 module_param(zvol_volmode, uint, 0644);
 MODULE_PARM_DESC(zvol_volmode, "Default volmode property value");

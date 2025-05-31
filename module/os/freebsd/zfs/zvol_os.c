@@ -1369,7 +1369,7 @@ zvol_os_create_minor(const char *name)
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
-	uint64_t volmode, hash;
+	uint64_t volmode, hash, len;
 	int error;
 	bool replayed_zil = B_FALSE;
 
@@ -1480,7 +1480,12 @@ zvol_os_create_minor(const char *name)
 		zil_close(zv->zv_zilog);
 	zv->zv_zilog = NULL;
 
-	/* TODO: prefetch for geom tasting */
+	len = MIN(zvol_prefetch_bytes, SPA_MAXBLOCKSIZE);
+	if (len > 0) {
+		dmu_prefetch(os, ZVOL_OBJ, 0, 0, len, ZIO_PRIORITY_ASYNC_READ);
+		dmu_prefetch(os, ZVOL_OBJ, 0, volsize - len, len,
+		    ZIO_PRIORITY_ASYNC_READ);
+	}
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
