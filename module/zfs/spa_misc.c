@@ -2009,8 +2009,7 @@ spa_dedup_class(spa_t *spa)
 boolean_t
 spa_special_has_ddt(spa_t *spa)
 {
-	return (zfs_ddt_data_is_special &&
-	    spa->spa_special_class->mc_groups != 0);
+	return (zfs_ddt_data_is_special && spa_has_special(spa));
 }
 
 /*
@@ -2019,6 +2018,9 @@ spa_special_has_ddt(spa_t *spa)
 metaslab_class_t *
 spa_preferred_class(spa_t *spa, const zio_t *zio)
 {
+	metaslab_class_t *mc = zio->io_metaslab_class;
+	boolean_t tried_dedup = (mc == spa_dedup_class(spa));
+	boolean_t tried_special = (mc == spa_special_class(spa));
 	const zio_prop_t *zp = &zio->io_prop;
 
 	/*
@@ -2036,12 +2038,10 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	 */
 	ASSERT(objtype != DMU_OT_INTENT_LOG);
 
-	boolean_t has_special_class = spa->spa_special_class->mc_groups != 0;
-
 	if (DMU_OT_IS_DDT(objtype)) {
-		if (spa->spa_dedup_class->mc_groups != 0)
+		if (spa_has_dedup(spa) && !tried_dedup && !tried_special)
 			return (spa_dedup_class(spa));
-		else if (has_special_class && zfs_ddt_data_is_special)
+		else if (spa_special_has_ddt(spa) && !tried_special)
 			return (spa_special_class(spa));
 		else
 			return (spa_normal_class(spa));
@@ -2050,14 +2050,15 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	/* Indirect blocks for user data can land in special if allowed */
 	if (zp->zp_level > 0 &&
 	    (DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL)) {
-		if (has_special_class && zfs_user_indirect_is_special)
+		if (zfs_user_indirect_is_special && spa_has_special(spa) &&
+		    !tried_special)
 			return (spa_special_class(spa));
 		else
 			return (spa_normal_class(spa));
 	}
 
 	if (DMU_OT_IS_METADATA(objtype) || zp->zp_level > 0) {
-		if (has_special_class)
+		if (spa_has_special(spa) && !tried_special)
 			return (spa_special_class(spa));
 		else
 			return (spa_normal_class(spa));
@@ -2069,7 +2070,8 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	 * zfs_special_class_metadata_reserve_pct exclusively for metadata.
 	 */
 	if ((DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL) &&
-	    has_special_class && zio->io_size <= zp->zp_zpl_smallblk) {
+	    spa_has_special(spa) && !tried_special &&
+	    zio->io_size <= zp->zp_zpl_smallblk) {
 		metaslab_class_t *special = spa_special_class(spa);
 		uint64_t alloc = metaslab_class_get_alloc(special);
 		uint64_t space = metaslab_class_get_space(special);
@@ -2640,6 +2642,12 @@ spa_fini(void)
 	mutex_destroy(&spa_l2cache_lock);
 }
 
+boolean_t
+spa_has_dedup(spa_t *spa)
+{
+	return (spa->spa_dedup_class->mc_groups != 0);
+}
+
 /*
  * Return whether this pool has a dedicated slog device. No locking needed.
  * It's not a problem if the wrong answer is returned as it's only for
@@ -2649,6 +2657,12 @@ boolean_t
 spa_has_slogs(spa_t *spa)
 {
 	return (spa->spa_log_class->mc_groups != 0);
+}
+
+boolean_t
+spa_has_special(spa_t *spa)
+{
+	return (spa->spa_special_class->mc_groups != 0);
 }
 
 spa_log_state_t

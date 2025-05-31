@@ -1037,29 +1037,18 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 	ddt_free(ddt, dde);
 }
 
+/*
+ * We're considered over quota when we hit 85% full, or for larger drives,
+ * when there is less than 8GB free.
+ */
 static boolean_t
-ddt_special_over_quota(spa_t *spa, metaslab_class_t *mc)
+ddt_special_over_quota(metaslab_class_t *mc)
 {
-	if (mc != NULL && metaslab_class_get_space(mc) > 0) {
-		/* Over quota if allocating outside of this special class */
-		if (spa_syncing_txg(spa) <= spa->spa_dedup_class_full_txg +
-		    dedup_class_wait_txgs) {
-			/* Waiting for some deferred frees to be processed */
-			return (B_TRUE);
-		}
-
-		/*
-		 * We're considered over quota when we hit 85% full, or for
-		 * larger drives, when there is less than 8GB free.
-		 */
-		uint64_t allocated = metaslab_class_get_alloc(mc);
-		uint64_t capacity = metaslab_class_get_space(mc);
-		uint64_t limit = MAX(capacity * 85 / 100,
-		    (capacity > (1LL<<33)) ? capacity - (1LL<<33) : 0);
-
-		return (allocated >= limit);
-	}
-	return (B_FALSE);
+	uint64_t allocated = metaslab_class_get_alloc(mc);
+	uint64_t capacity = metaslab_class_get_space(mc);
+	uint64_t limit = MAX(capacity * 85 / 100,
+	    (capacity > (1LL<<33)) ? capacity - (1LL<<33) : 0);
+	return (allocated >= limit);
 }
 
 /*
@@ -1082,13 +1071,21 @@ ddt_over_quota(spa_t *spa)
 		return (ddt_get_ddt_dsize(spa) > spa->spa_dedup_table_quota);
 
 	/*
+	 * Over quota if have to allocate outside of the dedup/special class.
+	 */
+	if (spa_syncing_txg(spa) <= spa->spa_dedup_class_full_txg +
+	    dedup_class_wait_txgs) {
+		/* Waiting for some deferred frees to be processed */
+		return (B_TRUE);
+	}
+
+	/*
 	 * For automatic quota, table size is limited by dedup or special class
 	 */
-	if (ddt_special_over_quota(spa, spa_dedup_class(spa)))
-		return (B_TRUE);
-	else if (spa_special_has_ddt(spa) &&
-	    ddt_special_over_quota(spa, spa_special_class(spa)))
-		return (B_TRUE);
+	if (spa_has_dedup(spa))
+		return (ddt_special_over_quota(spa_dedup_class(spa)));
+	else if (spa_special_has_ddt(spa))
+		return (ddt_special_over_quota(spa_special_class(spa)));
 
 	return (B_FALSE);
 }
