@@ -1485,6 +1485,31 @@ vdev_anyraid_mapped(vdev_t *vd, uint64_t offset)
 	return (result);
 }
 
+/*
+ * Return the maximum asize for a rebuild zio in the provided range
+ * given the following constraints.  An anyraid chunk may not:
+ *
+ * - Exceed the maximum allowed block size (SPA_MAXBLOCKSIZE), or
+ * - Span anyraid tiles
+ */
+static uint64_t
+vdev_anyraid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
+    uint64_t max_segment)
+{
+	vdev_anyraid_t *var = vd->vdev_tsd;
+	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
+
+	uint64_t psize = MIN(P2ROUNDUP(max_segment, 1 << vd->vdev_ashift),
+	    SPA_MAXBLOCKSIZE);
+
+	if (start / var->vd_tile_size !=
+	    (start + psize) / var->vd_tile_size) {
+		psize = P2ROUNDUP(start, var->vd_tile_size) - start;
+	}
+
+	return (MIN(asize, vdev_psize_to_asize(vd, psize)));
+}
+
 vdev_ops_t vdev_anyraid_ops = {
 	.vdev_op_init = vdev_anyraid_init,
 	.vdev_op_fini = vdev_anyraid_fini,
@@ -1502,7 +1527,7 @@ vdev_ops_t vdev_anyraid_ops = {
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_anyraid_xlate,
-	.vdev_op_rebuild_asize = NULL, // TODO do we want to support rebuilds?
+	.vdev_op_rebuild_asize = vdev_anyraid_rebuild_asize,
 	.vdev_op_metaslab_init = NULL,
 	.vdev_op_config_generate = vdev_anyraid_config_generate,
 	.vdev_op_nparity = vdev_anyraid_nparity,
