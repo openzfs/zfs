@@ -122,7 +122,7 @@
  * The maximum number of i/os active to each device.  Ideally, this will be >=
  * the sum of each queue's max_active.
  */
-uint_t zfs_vdev_max_active = 1000;
+static uint_t zfs_vdev_max_active = 1000;
 
 /*
  * Per-queue limits on the number of i/os active to each device.  If the
