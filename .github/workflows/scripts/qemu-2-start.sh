@@ -61,11 +61,6 @@ case "$OS" in
     OSNAME="Debian 12"
     URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"
     ;;
-  fedora40)
-    OSNAME="Fedora 40"
-    OSv="fedora-unknown"
-    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
-    ;;
   fedora41)
     OSNAME="Fedora 41"
     OSv="fedora-unknown"
