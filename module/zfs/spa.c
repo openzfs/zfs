@@ -7887,6 +7887,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 		if (tvd->vdev_ops != &vdev_mirror_ops &&
 		    tvd->vdev_ops != &vdev_root_ops &&
+		    tvd->vdev_ops != &vdev_anyraid_ops &&
 		    tvd->vdev_ops != &vdev_draid_ops) {
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 		}
