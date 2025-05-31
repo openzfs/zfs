@@ -525,6 +525,7 @@ vdev_rebuild_blkptr_init(blkptr_t *bp, vdev_t *vd, uint64_t start,
 {
 	ASSERT(vd->vdev_ops == &vdev_draid_ops ||
 	    vd->vdev_ops == &vdev_mirror_ops ||
+	    vd->vdev_ops == &vdev_anyraid_ops ||
 	    vd->vdev_ops == &vdev_replacing_ops ||
 	    vd->vdev_ops == &vdev_spare_ops);
 
