@@ -1178,7 +1178,7 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 		dmu_buf_t **dbp;
 		int numbufs;
 		error = dmu_buf_hold_array_by_dnode(dn, off, n, TRUE, FTAG,
-		    &numbufs, &dbp, DMU_READ_PREFETCH);
+		    &numbufs, &dbp, DMU_READ_PREFETCH | DMU_UNCACHEDIO);
 		if (error) {
 			dmu_tx_abort(tx);
 			break;
