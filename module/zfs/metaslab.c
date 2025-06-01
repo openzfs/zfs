@@ -412,7 +412,8 @@ metaslab_stat_fini(void)
  * ==========================================================================
  */
 metaslab_class_t *
-metaslab_class_create(spa_t *spa, const metaslab_ops_t *ops, boolean_t is_log)
+metaslab_class_create(spa_t *spa, const char *name,
+    const metaslab_ops_t *ops, boolean_t is_log)
 {
 	metaslab_class_t *mc;
 
@@ -420,6 +421,7 @@ metaslab_class_create(spa_t *spa, const metaslab_ops_t *ops, boolean_t is_log)
 	    mc_allocator[spa->spa_alloc_count]), KM_SLEEP);
 
 	mc->mc_spa = spa;
+	mc->mc_name = name;
 	mc->mc_ops = ops;
 	mc->mc_is_log = is_log;
 	mc->mc_alloc_io_size = SPA_OLD_MAXBLOCKSIZE;
@@ -687,6 +689,12 @@ metaslab_class_space_update(metaslab_class_t *mc, int64_t alloc_delta,
 	atomic_add_64(&mc->mc_deferred, defer_delta);
 	atomic_add_64(&mc->mc_space, space_delta);
 	atomic_add_64(&mc->mc_dspace, dspace_delta);
+}
+
+const char *
+metaslab_class_get_name(metaslab_class_t *mc)
+{
+	return (mc->mc_name);
 }
 
 uint64_t
@@ -2631,7 +2639,7 @@ metaslab_load_impl(metaslab_t *msp)
 	ASSERT3U(max_size, <=, msp->ms_max_size);
 	hrtime_t load_end = gethrtime();
 	msp->ms_load_time = load_end;
-	zfs_dbgmsg("metaslab_load: txg %llu, spa %s, vdev_id %llu, "
+	zfs_dbgmsg("metaslab_load: txg %llu, spa %s, class %s, vdev_id %llu, "
 	    "ms_id %llu, smp_length %llu, "
 	    "unflushed_allocs %llu, unflushed_frees %llu, "
 	    "freed %llu, defer %llu + %llu, unloaded time %llu ms, "
@@ -2639,6 +2647,7 @@ metaslab_load_impl(metaslab_t *msp)
 	    "max size error %lld, "
 	    "old_weight %llx, new_weight %llx",
 	    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
+	    msp->ms_group->mg_class->mc_name,
 	    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
 	    (u_longlong_t)msp->ms_id,
 	    (u_longlong_t)space_map_length(msp->ms_sm),
@@ -2744,11 +2753,12 @@ metaslab_unload(metaslab_t *msp)
 		multilist_sublist_unlock(mls);
 
 		spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
-		zfs_dbgmsg("metaslab_unload: txg %llu, spa %s, vdev_id %llu, "
-		    "ms_id %llu, weight %llx, "
+		zfs_dbgmsg("metaslab_unload: txg %llu, spa %s, class %s, "
+		    "vdev_id %llu, ms_id %llu, weight %llx, "
 		    "selected txg %llu (%llu s ago), alloc_txg %llu, "
 		    "loaded %llu ms ago, max_size %llu",
 		    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
+		    msp->ms_group->mg_class->mc_name,
 		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
 		    (u_longlong_t)msp->ms_id,
 		    (u_longlong_t)msp->ms_weight,

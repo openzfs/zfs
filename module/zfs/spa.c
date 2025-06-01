@@ -1687,11 +1687,15 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	spa->spa_mode = mode;
 	spa->spa_read_spacemaps = spa_mode_readable_spacemaps;
 
-	spa->spa_normal_class = metaslab_class_create(spa, msp, B_FALSE);
-	spa->spa_log_class = metaslab_class_create(spa, msp, B_TRUE);
-	spa->spa_embedded_log_class = metaslab_class_create(spa, msp, B_TRUE);
-	spa->spa_special_class = metaslab_class_create(spa, msp, B_FALSE);
-	spa->spa_dedup_class = metaslab_class_create(spa, msp, B_FALSE);
+	spa->spa_normal_class = metaslab_class_create(spa, "normal",
+	    msp, B_FALSE);
+	spa->spa_log_class = metaslab_class_create(spa, "log", msp, B_TRUE);
+	spa->spa_embedded_log_class = metaslab_class_create(spa,
+	    "embedded_log", msp, B_TRUE);
+	spa->spa_special_class = metaslab_class_create(spa, "special",
+	    msp, B_FALSE);
+	spa->spa_dedup_class = metaslab_class_create(spa, "dedup",
+	    msp, B_FALSE);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);

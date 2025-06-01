@@ -4221,7 +4221,7 @@ again:
 		zfs_dbgmsg("%s[%llu]: %s class spilling, req size %llu, "
 		    "%llu allocated of %llu",
 		    spa_name(spa), (u_longlong_t)zio->io_txg,
-		    mc == spa_dedup_class(spa) ? "dedup" : "special",
+		    metaslab_class_get_name(mc),
 		    (u_longlong_t)zio->io_size,
 		    (u_longlong_t)metaslab_class_get_alloc(mc),
 		    (u_longlong_t)metaslab_class_get_space(mc));
@@ -4245,10 +4245,12 @@ again:
 		}
 
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
-			zfs_dbgmsg("%s: metaslab allocation failure, "
-			    "trying fallback: zio %px, size %llu, error %d",
-			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
-			    error);
+			zfs_dbgmsg("%s: metaslab allocation failure in %s "
+			    "class, trying fallback to %s class: zio %px, "
+			    "size %llu, error %d", spa_name(spa),
+			    metaslab_class_get_name(mc),
+			    metaslab_class_get_name(newmc),
+			    zio, (u_longlong_t)zio->io_size, error);
 		}
 		zio->io_metaslab_class = mc = newmc;
 		ZIOSTAT_BUMP(ziostat_alloc_class_fallbacks);
