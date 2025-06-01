@@ -44,6 +44,7 @@
 .Op Fl D Ar draid_data
 .Op Fl S Ar draid_spares
 .Op Fl C Ar vdev_class_state
+.Op Fl c Ar pool-count
 .Op Fl d Ar datasets
 .Op Fl t Ar threads
 .Op Fl g Ar gang_block_threshold
@@ -148,10 +149,12 @@ the kind alternates between raidz, eraidz (expandable raidz) and draid.
 Number of data disks in a dRAID redundancy group.
 .It Fl S , -draid-spares Ns = (default: Sy 1 )
 Number of dRAID distributed spare disks.
+.It Fl c , -pool-count Ns = (default: Sy 1 )
+Number of pools to use.
 .It Fl d , -datasets Ns = (default: Sy 7 )
 Number of datasets.
 .It Fl t , -threads Ns = (default: Sy 23 )
-Number of threads.
+Number of threads (per pool).
 .It Fl g , -gang-block-threshold Ns = (default: Sy 32K )
 Gang block threshold.
 .It Fl i , -init-count Ns = (default: Sy 1 )
