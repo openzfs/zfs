@@ -1980,7 +1980,7 @@ Disable QAT hardware acceleration for AES-GCM encryption.
 May be unset after the ZFS modules have been loaded to initialize the QAT
 hardware as long as support is compiled in and the QAT driver is present.
 .
-.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
+.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Bytes to read per chunk.
 .
 .It Sy zfs_read_history Ns = Ns Sy 0 Pq uint
