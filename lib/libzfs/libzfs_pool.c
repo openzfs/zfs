@@ -5358,6 +5358,10 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
 			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
 			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
+		} else if (prop == VDEV_PROP_ANYRAID_CAP_TILES ||
+		    prop == VDEV_PROP_ANYRAID_NUM_TILES ||
+		    prop == VDEV_PROP_ANYRAID_TILE_SIZE) {
+			return (ENOENT);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
@@ -5388,6 +5392,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_BYTES_FREE:
 		case VDEV_PROP_BYTES_CLAIM:
 		case VDEV_PROP_BYTES_TRIM:
+		case VDEV_PROP_ANYRAID_TILE_SIZE:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
