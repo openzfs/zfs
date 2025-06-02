@@ -55,11 +55,11 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
-#include <sys/vdev_raidz.h>
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 #include "zfs_prop.h"
@@ -6723,6 +6723,68 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					break;
 				}
 				break;
+			case VDEV_PROP_ANYRAID_CAP_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = vd->vdev_tsd;
+					for (int i = 0; i < vd->vdev_children;
+					    i++) {
+						total += var->vd_children[i]
+						    ->van_capacity;
+					}
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = pvd->vdev_tsd;
+					total = var->vd_children[vd->vdev_id]
+					    ->van_capacity;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_NUM_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = vd->vdev_tsd;
+					for (int i = 0; i < vd->vdev_children;
+					    i++) {
+						total += var->vd_children[i]
+						    ->van_next_offset;
+					}
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = pvd->vdev_tsd;
+					total = var->vd_children[vd->vdev_id]
+					    ->van_next_offset;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_TILE_SIZE:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				vdev_anyraid_t *var = NULL;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					var = vd->vdev_tsd;
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					var = pvd->vdev_tsd;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, var->vd_tile_size, ZPROP_SRC_NONE);
+				continue;
+			}
 			default:
 				err = ENOENT;
 				break;
