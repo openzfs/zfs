@@ -65,10 +65,16 @@ AC_DEFUN([ZFS_AC_KERNEL_OBJTOOL], [
 			AC_DEFINE(HAVE_STACK_FRAME_NON_STANDARD, 1,
 			   [STACK_FRAME_NON_STANDARD is defined])
 
-			dnl # Needed for kernels missing the asm macro.
+			dnl # Needed for kernels missing the asm macro. We grep
+			dnl # for it in the header file since there is currently
+			dnl # no test to check the result of assembling a file.
 			AC_MSG_CHECKING(
 			    [whether STACK_FRAME_NON_STANDARD asm macro is defined])
-			AS_IF([$GREP -s -q ".macro STACK_FRAME_NON_STANDARD" $objtool_header],[
+			dnl # Escape square brackets.
+			sp='@<:@@<:@:space:@:>@@:>@'
+			dotmacro='@<:@.@:>@macro'
+			regexp="^$sp*$dotmacro$sp+STACK_FRAME_NON_STANDARD$sp"
+			AS_IF([$EGREP -s -q "$regexp" $objtool_header],[
 				AC_MSG_RESULT(yes)
 				AC_DEFINE(HAVE_STACK_FRAME_NON_STANDARD_ASM, 1,
 				   [STACK_FRAME_NON_STANDARD asm macro is defined])
