@@ -2235,8 +2235,12 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
-			data = (before) ? db->db.db_data :
-			    dmu_objset_userquota_find_data(db, tx);
+			if (before) {
+				assert_db_data_contents_locked(db, FALSE);
+				data = db->db.db_data;
+			} else {
+				data = dmu_objset_userquota_find_data(db, tx);
+			}
 			have_spill = B_TRUE;
 	} else {
 		mutex_enter(&dn->dn_mtx);
