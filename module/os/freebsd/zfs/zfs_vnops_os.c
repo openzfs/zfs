@@ -4314,7 +4314,6 @@ typedef struct {
 static void
 zfs_putpage_commit_cb(void *arg, int err)
 {
-	(void) err;
 	putpage_commit_arg_t *pca = arg;
 	vm_object_t object = pca->pca_pages[0]->object;
 
@@ -4322,7 +4321,17 @@ zfs_putpage_commit_cb(void *arg, int err)
 
 	for (uint_t i = 0; i < pca->pca_npages; i++) {
 		vm_page_t pp = pca->pca_pages[i];
-		vm_page_undirty(pp);
+
+		if (err == 0) {
+			/*
+			 * Writeback succeeded, so undirty the page. If it
+			 * fails, we leave it in the same state it was. That's
+			 * most likely dirty, so it will get tried again some
+			 * other time.
+			 */
+			vm_page_undirty(pp);
+		}
+
 		vm_page_sunbusy(pp);
 	}
 
@@ -5228,8 +5237,32 @@ struct vop_fsync_args {
 static int
 zfs_freebsd_fsync(struct vop_fsync_args *ap)
 {
+	vnode_t *vp = ap->a_vp;
+	int err = 0;
 
-	return (zfs_fsync(VTOZ(ap->a_vp), 0, ap->a_td->td_ucred));
+	/*
+	 * Push any dirty mmap()'d data out to the DMU and ZIL, ready for
+	 * zil_commit() to be called in zfs_fsync().
+	 */
+	if (vm_object_mightbedirty(vp->v_object)) {
+		zfs_vmobject_wlock(vp->v_object);
+		if (!vm_object_page_clean(vp->v_object, 0, 0, 0))
+			err = SET_ERROR(EIO);
+		zfs_vmobject_wunlock(vp->v_object);
+		if (err) {
+			/*
+			 * Unclear what state things are in. zfs_putpages()
+			 * will ensure the pages remain dirty if they haven't
+			 * been written down to the DMU, but because there may
+			 * be nothing logged, we can't assume that zfs_sync()
+			 * -> zil_commit() will give us a useful error. It's
+			 *  safest if we just error out here.
+			 */
+			return (err);
+		}
+	}
+
+	return (zfs_fsync(VTOZ(vp), 0, ap->a_td->td_ucred));
 }
 
 #ifndef _SYS_SYSPROTO_H_
