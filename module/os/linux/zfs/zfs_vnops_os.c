@@ -3694,26 +3694,49 @@ top:
 	return (error);
 }
 
+/* Finish page writeback. */
+static inline void
+zfs_page_writeback_done(struct page *pp, int err, boolean_t for_sync)
+{
+	if (err != 0) {
+		/*
+		 * Writeback failed. Re-dirty the page. It was undirtied before
+		 * the IO was issued (in zfs_putpage() or write_cache_pages()).
+		 * The kernel only considers writeback for dirty pages; if we
+		 * don't do this, it is eligible for eviction without being
+		 * written out, which we definitely don't want.
+		 */
+#ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
+		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
+#else
+		__set_page_dirty_nobuffers(pp);
+#endif
+	}
+
+	ClearPageError(pp);
+
+	end_page_writeback(pp);
+
+	if (!for_sync) {
+		znode_t *zp = ITOZ(pp->mapping->host);
+		atomic_dec_32(&zp->z_async_writes_cnt);
+	}
+}
+
+/*
+ * These callbacks are passed to zfs_log_write() in zfs_putpage(), and are
+ * called with the ZIL itx has been written to the log, or if the ZIL crashes
+ * or the pool suspends. Any failure is passed as `err`.
+ */
 static void
 zfs_putpage_sync_commit_cb(void *arg, int err)
 {
-	(void) err;
-	struct page *pp = arg;
-
-	ClearPageError(pp);
-	end_page_writeback(pp);
+	zfs_page_writeback_done(arg, err, B_TRUE);
 }
-
 static void
 zfs_putpage_async_commit_cb(void *arg, int err)
 {
-	(void) err;
-	struct page *pp = arg;
-	znode_t *zp = ITOZ(pp->mapping->host);
-
-	ClearPageError(pp);
-	end_page_writeback(pp);
-	atomic_dec_32(&zp->z_async_writes_cnt);
+	zfs_page_writeback_done(arg, err, B_FALSE);
 }
 
 /*
@@ -3847,8 +3870,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 				 * are reported elsewhere. So we ignore the
 				 * error here.
 				 */
-				int _zilerr __maybe_unused =
-				    zil_commit(zfsvfs->z_log, zp->z_id);
+				zil_commit_flags(zfsvfs->z_log, zp->z_id,
+				    ZIL_COMMIT_NOW);
 			}
 
 			if (PageWriteback(pp))
@@ -3889,18 +3912,15 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
-#ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
-		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
-#else
-		__set_page_dirty_nobuffers(pp);
-#endif
-		ClearPageError(pp);
-		end_page_writeback(pp);
-		if (!for_sync)
-			atomic_dec_32(&zp->z_async_writes_cnt);
+		zfs_page_writeback_done(pp, err, for_sync);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
-		return (err);
+
+		/*
+		 * Don't return error for an async writeback; we've re-dirtied
+		 * the page so it will be tried again some other time.
+		 */
+		return (wbc->sync_mode != WB_SYNC_NONE ? err : 0);
 	}
 
 	va = kmap(pp);
@@ -3923,14 +3943,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	boolean_t commit = B_FALSE;
+	enum { NONE, ASYNC, SYNC } commit = NONE;
 	if (wbc->sync_mode != WB_SYNC_NONE) {
 		/*
 		 * Note that this is rarely called under writepages(), because
 		 * writepages() normally handles the entire commit for
 		 * performance reasons.
 		 */
-		commit = B_TRUE;
+		commit = SYNC;
 	} else if (!for_sync && atomic_load_32(&zp->z_sync_writes_cnt) > 0) {
 		/*
 		 * If the caller does not intend to wait synchronously
@@ -3940,23 +3960,30 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		 * our writeback to complete. Refer to the comment in
 		 * zpl_fsync() (when HAVE_FSYNC_RANGE is defined) for details.
 		 */
-		commit = B_TRUE;
+		commit = ASYNC;
 	}
 
-	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, commit,
-	    B_FALSE, for_sync ? zfs_putpage_sync_commit_cb :
+	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen,
+	    commit != NONE, B_FALSE,
+	    for_sync ? zfs_putpage_sync_commit_cb :
 	    zfs_putpage_async_commit_cb, pp);
 
 	dmu_tx_commit(tx);
-
 	zfs_rangelock_exit(lr);
 
-	if (commit) {
-		err = zil_commit(zfsvfs->z_log, zp->z_id);
-		if (err != 0) {
+	if (commit != NONE) {
+		/*
+		 * If this is a sync write, or a sync write is in progress,
+		 * forces this out now. However, if it was an async write
+		 * while a sync write was in progress, ignore the error here,
+		 * since no one actually asked for it.
+		 */
+		err = zil_commit_flags(zfsvfs->z_log, zp->z_id, ZIL_COMMIT_NOW);
+		if (err != 0 && commit == SYNC) {
 			zfs_exit(zfsvfs, FTAG);
 			return (err);
 		}
+		err = 0;
 	}
 
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
