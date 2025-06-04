@@ -6624,6 +6624,15 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		spa_namespace_exit(FTAG);
 		return (SET_ERROR(EIO));
 	}
+	if (spa->spa_forced_exit_required) {
+		/*
+		 * Do not restart activities for the pool destined to exit
+		 * abnormally, otherwise it's a bigger mess than we have
+		 * already.
+		 */
+		spa_namespace_exit(FTAG);
+		return (SET_ERROR(EIO));
+	}
 	if (spa_get_log_state(spa) == SPA_LOG_MISSING) {
 		/* we need to let spa_open/spa_load clear the chains */
 		spa_set_log_state(spa, SPA_LOG_CLEAR);
