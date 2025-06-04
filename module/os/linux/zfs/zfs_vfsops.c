@@ -274,12 +274,13 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	ZFS_ENTER(zfsvfs);
 
 	/*
-	 * If the system is shutting down, then skip any
-	 * filesystems which may exist on a suspended pool.
+	 * If the pool is suspended, just return an error. This is to help
+	 * with shutting down with pools suspended, as we don't want to block
+	 * in that case.
 	 */
 	if (spa_suspended(zfsvfs->z_os->os_spa)) {
 		ZFS_EXIT(zfsvfs);
-		return (0);
+		return (SET_ERROR(EIO));
 	}
 
 	if (zfsvfs->z_log != NULL)
