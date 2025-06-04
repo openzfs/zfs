@@ -99,7 +99,11 @@ static int zfs_dio_strict = 0;
 /*
  * Maximum bytes to read per chunk in zfs_read().
  */
+#ifdef _ILP32
 static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
+#else
+static uint64_t zfs_vnops_read_chunk_size = DMU_MAX_ACCESS / 2;
+#endif
 
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -401,7 +405,8 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 #if defined(__linux__)
 	ssize_t start_offset = zfs_uio_offset(uio);
 #endif
-	ssize_t chunk_size = zfs_vnops_read_chunk_size;
+	uint_t blksz = zp->z_blksz;
+	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
 	ssize_t start_resid = n;
 	ssize_t dio_remaining_resid = 0;
@@ -432,11 +437,14 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (dio_remaining_resid != 0)
 			n -= dio_remaining_resid;
 		dflags |= DMU_DIRECTIO;
+	} else {
+		chunk_size = MIN(MAX(zfs_vnops_read_chunk_size, blksz),
+		    DMU_MAX_ACCESS / 2);
 	}
 
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, chunk_size -
-		    P2PHASE(zfs_uio_offset(uio), chunk_size));
+		    P2PHASE(zfs_uio_offset(uio), blksz));
 #ifdef UIO_NOCOPY
 		if (zfs_uio_segflg(uio) == UIO_NOCOPY)
 			error = mappedread_sf(zp, nbytes, uio);
