@@ -107,6 +107,10 @@ zpl_iterate(struct file *filp, struct dir_context *ctx)
 	return (error);
 }
 
+static inline int
+zpl_write_cache_pages(struct address_space *mapping,
+    struct writeback_control *wbc, void *data);
+
 static int
 zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 {
@@ -149,7 +153,33 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 		zpl_exit(zfsvfs, FTAG);
 	}
 
-	error = filemap_write_and_wait_range(inode->i_mapping, start, end);
+	/*
+	 * Force dirty pages in the range out to the DMU and the log. This may
+	 * end up calling zil_commit(), which is fine; there will just be very
+	 * little for zfs_fsync() to do below. If the page writeback fails, the
+	 * zfs_putpage() callbacks will keep the page dirty.
+	 *
+	 * No matter what happens here, we always call zfs_fsync() and so
+	 * zil_commit(). The only way the writeback can fail is if the ZIL
+	 * itself has already crashed because the pool suspended, and so it
+	 * will return error below. Thus, we don't need to ever track writeback
+	 * errors on the mapping (or in page flags in older kernels), and so
+	 * this call is guaranteed to return 0.
+	 *
+	 * We call write_cache_pages() directly to ensure that zpl_putpage() is
+	 * called with the flags we need. We need WB_SYNC_NONE so that we don't
+	 * count these as syncing writes and so fall back to zil_commit()
+	 * (since we're doing this is a kind of pre-sync); but we do need
+	 * for_sync so we can avoid bumping z_async_writes_cnt as we go.
+	 */
+	int for_sync = 1;
+	struct writeback_control wbc = {
+		.sync_mode = WB_SYNC_NONE,
+		.nr_to_write = LONG_MAX,
+		.range_start = start,
+		.range_end = end,
+	};
+	VERIFY0(zpl_write_cache_pages(inode->i_mapping, &wbc, &for_sync));
 
 	/*
 	 * The sync write is not complete yet but we decrement
@@ -161,9 +191,6 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	 * the non-sync write.
 	 */
 	atomic_dec_32(&zp->z_sync_writes_cnt);
-
-	if (error)
-		return (error);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -540,15 +567,25 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	if (sync_mode != wbc->sync_mode) {
 		if ((result = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (result);
-		if (zfsvfs->z_log != NULL)
-			result = -zil_commit(zfsvfs->z_log, zp->z_id);
+
+		if (zfsvfs->z_log != NULL) {
+			/*
+			 * We don't want to block here if the pool suspends,
+			 * because this is not a syncing op by itself, but
+			 * might be part of one that the caller will
+			 * coordinate.
+			 */
+			result = -zil_commit_flags(zfsvfs->z_log, zp->z_id,
+			    ZIL_COMMIT_NOW);
+		}
+
 		zpl_exit(zfsvfs, FTAG);
 
 		/*
-		 * If zil_commit() failed, it's unclear what state things
-		 * are currently in. putpage() has written back out what
-		 * it can to the DMU, but it may not be on disk. We have
-		 * little choice but to escape.
+		 * If zil_commit_flags() failed, it's unclear what state things
+		 * are currently in. putpage() has written back out what it can
+		 * to the DMU, but it may not be on disk. We have little choice
+		 * but to escape.
 		 */
 		if (result != 0)
 			return (result);
