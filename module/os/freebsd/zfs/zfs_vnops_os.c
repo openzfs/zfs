@@ -4307,7 +4307,6 @@ typedef struct {
 static void
 zfs_putpage_commit_cb(void *arg, int err)
 {
-	(void) err;
 	putpage_commit_arg_t *pca = arg;
 	vm_object_t object = pca->pca_pages[0]->object;
 
@@ -4315,7 +4314,17 @@ zfs_putpage_commit_cb(void *arg, int err)
 
 	for (uint_t i = 0; i < pca->pca_npages; i++) {
 		vm_page_t pp = pca->pca_pages[i];
-		vm_page_undirty(pp);
+
+		if (err == 0) {
+			/*
+			 * Writeback succeeded, so undirty the page. If it
+			 * fails, we leave it in the same state it was. That's
+			 * most likely dirty, so it will get tried again some
+			 * other time.
+			 */
+			vm_page_undirty(pp);
+		}
+
 		vm_page_sunbusy(pp);
 	}
 
@@ -4956,6 +4965,11 @@ struct vop_fsync_args {
 static int
 zfs_freebsd_fsync(struct vop_fsync_args *ap)
 {
+	/*
+	 * Push any dirty mmap()'d data out to the DMU and ZIL, ready for
+	 * zil_commit() to be called in zfs_fsync().
+	 */
+	vn_flush_cached_data(ap->a_vp, B_FALSE);
 
 	return (zfs_fsync(VTOZ(ap->a_vp), 0, ap->a_td->td_ucred));
 }
