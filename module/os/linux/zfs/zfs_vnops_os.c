@@ -3694,14 +3694,39 @@ top:
 	return (error);
 }
 
-static void
-zfs_putpage_commit_cb(void *arg)
+/* Finish page writeback. */
+static inline void
+zfs_page_writeback_done(struct page *pp, int err)
 {
-	(void) err;
-	struct page *pp = arg;
+	if (err != 0) {
+		/*
+		 * Writeback failed. Re-dirty the page. It was undirtied before
+		 * the IO was issued (in zfs_putpage() or write_cache_pages()).
+		 * The kernel only considers writeback for dirty pages; if we
+		 * don't do this, it is eligible for eviction without being
+		 * written out, which we definitely don't want.
+		 */
+#ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
+		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
+#else
+		__set_page_dirty_nobuffers(pp);
+#endif
+	}
 
 	ClearPageError(pp);
 	end_page_writeback(pp);
+}
+
+/*
+ * ZIL callback for page writeback. Passes to zfs_log_write() in zfs_putpage()
+ * for syncing writes. Called when the ZIL itx has been written to the log or
+ * the whole txg syncs, or if the ZIL crashes or the pool suspends. Any failure
+ * is passed as `err`.
+ */
+static void
+zfs_putpage_commit_cb(void *arg, int err)
+{
+	zfs_page_writeback_done(arg, err);
 }
 
 /*
@@ -3857,16 +3882,15 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
-#ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
-		filemap_dirty_folio(page_mapping(pp), page_folio(pp));
-#else
-		__set_page_dirty_nobuffers(pp);
-#endif
-		ClearPageError(pp);
-		end_page_writeback(pp);
+		zfs_page_writeback_done(pp, err);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
-		return (err);
+
+		/*
+		 * Don't return error for an async writeback; we've re-dirtied
+		 * the page so it will be tried again some other time.
+		 */
+		return (for_sync ? err : 0);
 	}
 
 	va = kmap(pp);
@@ -3920,7 +3944,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	 * ALL, zfs_putpage should do it.
 	 *
 	 * Summary:
-	 *   for_sync:  0=unlock immediately; 1 unlock once on disk
+	 *   for_sync:  0=unlock immediately; 1=unlock once on disk
 	 *   sync_mode: NONE=caller will commit; ALL=we will commit
 	 */
 	boolean_t need_commit = (wbc->sync_mode != WB_SYNC_NONE);
@@ -3935,8 +3959,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	    B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
 
 	if (!for_sync) {
-		ClearPageError(pp);
-		end_page_writeback(pp);
+		/*
+		 * Async writeback is logged and written to the DMU, so page
+		 * can now be unlocked.
+		 */
+		zfs_page_writeback_done(pp, 0);
 	}
 
 	dmu_tx_commit(tx);
@@ -3944,7 +3971,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	zfs_rangelock_exit(lr);
 
 	if (need_commit) {
-		err = zil_commit(zfsvfs->z_log, zp->z_id);
+		err = zil_commit_flags(zfsvfs->z_log, zp->z_id, ZIL_COMMIT_NOW);
 		if (err != 0) {
 			zfs_exit(zfsvfs, FTAG);
 			return (err);
