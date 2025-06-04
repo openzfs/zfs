@@ -7755,6 +7755,12 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		return (1);
 	}
 
+	if (strcmp(entry.mnt_mountp, path) != 0) {
+		(void) fprintf(stderr, gettext("cannot %s '%s': not an original"
+		    " mountpoint\n"), cmdname, path);
+		return (1);
+	}
+
 	if ((zhp = zfs_open(g_zfs, entry.mnt_special,
 	    ZFS_TYPE_FILESYSTEM)) == NULL)
 		return (1);
