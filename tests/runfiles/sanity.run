@@ -84,7 +84,7 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
     'tst.promote_multiple', 'tst.promote_simple', 'tst.rollback_mult',
     'tst.rollback_one', 'tst.set_props', 'tst.snapshot_destroy',
     'tst.snapshot_neg', 'tst.snapshot_recursive', 'tst.snapshot_simple',
-    'tst.bookmark.create', 'tst.bookmark.copy']
+    'tst.bookmark.create', 'tst.bookmark.copy', 'tst.clone']
 tags = ['functional', 'channel_program', 'synctask_core']
 
 [tests/functional/cli_root/zdb]
