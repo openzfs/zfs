@@ -1813,9 +1813,17 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 * fallback, or wait for the next TXG and check again.
 			 */
 			if (error == EAGAIN && zfs_bclone_wait_dirty) {
-				txg_wait_synced(dmu_objset_pool(inos),
-				    last_synced_txg + 1);
-				continue;
+				txg_wait_flag_t wait_flags =
+				    spa_get_failmode(dmu_objset_spa(inos)) ==
+				    ZIO_FAILURE_MODE_CONTINUE ?
+				    TXG_WAIT_SUSPEND : 0;
+				error = txg_wait_synced_flags(
+				    dmu_objset_pool(inos), last_synced_txg + 1,
+				    wait_flags);
+				if (error == 0)
+					continue;
+				ASSERT3U(error, ==, ESHUTDOWN);
+				error = SET_ERROR(EIO);
 			}
 
 			break;
