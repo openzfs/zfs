@@ -50,6 +50,7 @@
 
 #define _ASM
 #include <sys/asm_linkage.h>
+#include <sys/frame.h>
 
 /* Windows userland links with OpenSSL */
 #if !defined (_WIN32) || defined (_KERNEL)
@@ -378,6 +379,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	RET
 .cfi_endproc
 SET_SIZE(_aesni_ctr32_ghash_6x)
+STACK_FRAME_NON_STANDARD _aesni_ctr32_ghash_6x
 #endif /* ifdef HAVE_MOVBE */
 
 .balign 32
@@ -706,6 +708,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	RET
 .cfi_endproc
 SET_SIZE(_aesni_ctr32_ghash_no_movbe_6x)
+STACK_FRAME_NON_STANDARD _aesni_ctr32_ghash_no_movbe_6x
 
 ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 .cfi_startproc
@@ -823,6 +826,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 	RET
 .cfi_endproc
 SET_SIZE(aesni_gcm_decrypt)
+STACK_FRAME_NON_STANDARD aesni_gcm_decrypt
 
 .balign 32
 FUNCTION(_aesni_ctr32_6x)
@@ -1198,6 +1202,7 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 	RET
 .cfi_endproc
 SET_SIZE(aesni_gcm_encrypt)
+STACK_FRAME_NON_STANDARD aesni_gcm_encrypt
 
 #endif /* !_WIN32 || _KERNEL */
 
@@ -1256,6 +1261,18 @@ SECTION_STATIC
 .byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 .byte	65,69,83,45,78,73,32,71,67,77,32,109,111,100,117,108,101,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
 .balign	64
+
+/* Workaround for missing asm macro in RHEL 8. */
+#if defined(__linux__) && defined(HAVE_STACK_FRAME_NON_STANDARD) && \
+    ! defined(HAVE_STACK_FRAME_NON_STANDARD_ASM)
+.section .discard.func_stack_frame_non_standard, "aw"
+#ifdef HAVE_MOVBE
+	.long _aesni_ctr32_ghash_6x  - .
+#endif
+	.long _aesni_ctr32_ghash_no_movbe_6x - .
+	.long aesni_gcm_decrypt - .
+	.long aesni_gcm_encrypt - .
+#endif
 
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)
