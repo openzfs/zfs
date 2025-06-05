@@ -3320,6 +3320,106 @@ dsl_dataset_rollback(const char *fsname, const char *tosnap, void *owner,
 	    1, ZFS_SPACE_CHECK_RESERVED));
 }
 
+int
+dsl_dataset_clone_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_clone_arg_t *ddca = arg;
+	dsl_dir_t *pdd;
+	const char *tail;
+	int error;
+	dsl_dataset_t *origin;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+
+	if (strchr(ddca->ddca_clone, '@') != NULL)
+		return (SET_ERROR(EINVAL));
+
+	if (strlen(ddca->ddca_clone) >= ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
+	error = dsl_dir_hold(dp, ddca->ddca_clone, FTAG, &pdd, &tail);
+	if (error != 0)
+		return (error);
+	if (tail == NULL) {
+		dsl_dir_rele(pdd, FTAG);
+		return (SET_ERROR(EEXIST));
+	}
+
+	error = dsl_fs_ss_limit_check(pdd, 1, ZFS_PROP_FILESYSTEM_LIMIT, NULL,
+	    ddca->ddca_cred);
+	if (error != 0) {
+		dsl_dir_rele(pdd, FTAG);
+		return (SET_ERROR(EDQUOT));
+	}
+
+	error = dsl_dataset_hold(dp, ddca->ddca_origin, FTAG, &origin);
+	if (error != 0) {
+		dsl_dir_rele(pdd, FTAG);
+		return (error);
+	}
+
+	/* You can only clone snapshots, not the head datasets. */
+	if (!origin->ds_is_snapshot) {
+		dsl_dataset_rele(origin, FTAG);
+		dsl_dir_rele(pdd, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	dsl_dataset_rele(origin, FTAG);
+	dsl_dir_rele(pdd, FTAG);
+
+	return (0);
+}
+
+void
+dsl_dataset_clone_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_clone_arg_t *ddca = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *pdd;
+	const char *tail;
+	dsl_dataset_t *origin, *ds;
+	uint64_t obj;
+	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
+
+	VERIFY0(dsl_dir_hold(dp, ddca->ddca_clone, FTAG, &pdd, &tail));
+	VERIFY0(dsl_dataset_hold(dp, ddca->ddca_origin, FTAG, &origin));
+
+	obj = dsl_dataset_create_sync(pdd, tail, origin, 0,
+	    ddca->ddca_cred, NULL, tx);
+
+	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
+	dsl_dataset_name(origin, namebuf);
+	spa_history_log_internal_ds(ds, "clone", tx,
+	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_dataset_rele(origin, FTAG);
+	dsl_dir_rele(pdd, FTAG);
+}
+
+int
+dsl_dataset_clone(const char *clone, const char *origin)
+{
+	dsl_dataset_clone_arg_t ddca;
+
+	cred_t *cr = CRED();
+	crhold(cr);
+
+	ddca.ddca_clone = clone;
+	ddca.ddca_origin = origin;
+	ddca.ddca_cred = cr;
+
+	int rv = dsl_sync_task(clone,
+	    dsl_dataset_clone_check, dsl_dataset_clone_sync, &ddca,
+	    6, ZFS_SPACE_CHECK_NORMAL);
+
+	if (rv == 0)
+		zvol_create_minor(clone);
+
+	crfree(cr);
+
+	return (rv);
+}
+
 struct promotenode {
 	list_node_t link;
 	dsl_dataset_t *ds;
