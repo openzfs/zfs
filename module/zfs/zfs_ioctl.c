@@ -3730,7 +3730,7 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (dataset_namecheck(origin_name, NULL, NULL) != 0)
 		return (SET_ERROR(EINVAL));
 
-	error = dmu_objset_clone(fsname, origin_name);
+	error = dsl_dataset_clone(fsname, origin_name);
 
 	/*
 	 * It would be nice to do this atomically.
