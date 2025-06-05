@@ -1828,7 +1828,8 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, B_FALSE);
 		db = (dmu_buf_impl_t *)sa_get_db(outzp->z_sa_hdl);
 		DB_DNODE_ENTER(db);
-		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size);
+		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size,
+		    inblksz);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
@@ -1995,7 +1996,7 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	DB_DNODE_ENTER(db);
-	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len);
+	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len, blksz);
 	DB_DNODE_EXIT(db);
 	zfs_sa_upgrade_txholds(tx, zp);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
