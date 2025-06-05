@@ -276,6 +276,12 @@ dsl_dataset_phys(dsl_dataset_t *ds)
 	return ((dsl_dataset_phys_t *)ds->ds_dbuf->db_data);
 }
 
+typedef struct dsl_dataset_clone_arg_t {
+	const char *ddca_clone;
+	const char *ddca_origin;
+	cred_t *ddca_cred;
+} dsl_dataset_clone_arg_t;
+
 typedef struct dsl_dataset_promote_arg {
 	const char *ddpa_clonename;
 	dsl_dataset_t *ddpa_clone;
@@ -364,6 +370,9 @@ uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 void dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors);
+void dsl_dataset_clone_sync(void *arg, dmu_tx_t *tx);
+int dsl_dataset_clone_check(void *arg, dmu_tx_t *tx);
+int dsl_dataset_clone(const char *clone, const char *origin);
 void dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_promote_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_promote(const char *name, char *conflsnap);
