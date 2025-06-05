@@ -23,6 +23,7 @@
 
 #define _ASM
 #include <sys/asm_linkage.h>
+#include <sys/frame.h>
 
 SECTION_STATIC
 
@@ -1419,6 +1420,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_x64)
+STACK_FRAME_NON_STANDARD zfs_sha256_transform_x64
 
 ENTRY_ALIGN(zfs_sha256_transform_shani, 64)
 .cfi_startproc
@@ -1627,6 +1629,7 @@ ENTRY_ALIGN(zfs_sha256_transform_shani, 64)
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_shani)
+STACK_FRAME_NON_STANDARD zfs_sha256_transform_shani
 
 ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 .cfi_startproc
@@ -2738,6 +2741,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_ssse3)
+STACK_FRAME_NON_STANDARD zfs_sha256_transform_ssse3
 
 ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 .cfi_startproc
@@ -3812,6 +3816,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_avx)
+STACK_FRAME_NON_STANDARD zfs_sha256_transform_avx
 
 ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 .cfi_startproc
@@ -5097,6 +5102,18 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_avx2)
+STACK_FRAME_NON_STANDARD zfs_sha256_transform_avx2
+
+/* Workaround for missing asm macro in RHEL 8. */
+#if defined(__linux__) && defined(HAVE_STACK_FRAME_NON_STANDARD) && \
+    ! defined(HAVE_STACK_FRAME_NON_STANDARD_ASM)
+.section .discard.func_stack_frame_non_standard, "aw"
+	.long zfs_sha256_transform_x64 - .
+	.long zfs_sha256_transform_shani - .
+	.long zfs_sha256_transform_ssse3 - .
+	.long zfs_sha256_transform_avx - .
+	.long zfs_sha256_transform_avx2 - .
+#endif
 
 #if defined(__ELF__)
 	.section .note.GNU-stack,"",%progbits
