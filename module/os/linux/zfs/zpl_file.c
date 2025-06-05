@@ -28,6 +28,7 @@
 #include <linux/compat.h>
 #endif
 #include <linux/fs.h>
+#include <linux/migrate.h>
 #include <sys/file.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_znode.h>
@@ -227,7 +228,8 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
     loff_t pos, ssize_t count, size_t skip)
 {
 #if defined(HAVE_VFS_IOV_ITER)
-	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
+	(void) skip;
+	zfs_uio_iov_iter_init(uio, to, pos, count);
 #else
 	zfs_uio_iovec_init(uio, zfs_uio_iter_iov(to), to->nr_segs, pos,
 	    zfs_uio_iov_iter_type(to) & ITER_KVEC ?
@@ -1089,6 +1091,11 @@ const struct address_space_operations zpl_address_space_operations = {
 #endif
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 	.dirty_folio	= filemap_dirty_folio,
+#endif
+#ifdef HAVE_VFS_MIGRATE_FOLIO
+	.migrate_folio	= migrate_folio,
+#elif defined(HAVE_VFS_MIGRATEPAGE)
+	.migratepage	= migrate_page,
 #endif
 };
 

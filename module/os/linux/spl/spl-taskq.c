@@ -30,6 +30,11 @@
 #include <sys/trace_spl.h>
 #include <linux/cpuhotplug.h>
 
+/* Linux 6.2 renamed timer_delete_sync(); point it at its old name for those. */
+#ifndef HAVE_TIMER_DELETE_SYNC
+#define	timer_delete_sync(t)	del_timer_sync(t)
+#endif
+
 static int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_bind, "Bind taskq thread to CPU by default");
@@ -547,7 +552,7 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 		 */
 		if (timer_pending(&t->tqent_timer)) {
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
-			del_timer_sync(&t->tqent_timer);
+			timer_delete_sync(&t->tqent_timer);
 			spin_lock_irqsave_nested(&tq->tq_lock, flags,
 			    tq->tq_lock_class);
 		}

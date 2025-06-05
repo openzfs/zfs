@@ -3,6 +3,23 @@ name: zfs-qemu
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      include_stream9:
+        type: boolean
+        required: false
+        default: false
+        description: 'Test on CentOS 9 stream'
+      include_stream10:
+        type: boolean
+        required: false
+        default: false
+        description: 'Test on CentOS 10 stream'
+      fedora_kernel_ver:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) Experimental kernel version to install on Fedora (like '6.14' or '6.13.3-0.rc3')"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -22,8 +39,8 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "centos-stream9", "debian11", "debian12", "fedora40", "fedora41", "freebsd13-4r", "freebsd14-0r", "freebsd14-1s", "ubuntu20", "ubuntu22", "ubuntu24"]'
-          QUICK_OS='["almalinux8", "almalinux9", "debian12", "fedora41", "freebsd13-3r", "freebsd14-1r", "ubuntu24"]'
+          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "debian11", "debian12", "fedora41", "fedora42", "freebsd13-4r", "freebsd14-2s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd14-2r", "ubuntu24"]'
           # determine CI type when running on PR
           ci_type="full"
           if ${{ github.event_name == 'pull_request' }}; then
@@ -36,7 +53,25 @@ jobs:
           else
             os_selection="$FULL_OS"
           fi
-          os_json=$(echo ${os_selection} | jq -c)
+
+          if [ ${{ github.event.inputs.fedora_kernel_ver }} != "" ] ; then
+              # They specified a custom kernel version for Fedora.  Use only
+              # Fedora runners.
+              os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
+          else
+              # Normal case
+              os_json=$(echo ${os_selection} | jq -c)
+          fi
+
+          # Add optional runners
+          if [ "${{ github.event.inputs.include_stream9 }}" == 'true' ]; then
+            os_json=$(echo $os_json | jq -c '. += ["centos-stream9"]')
+          fi
+          if [ "${{ github.event.inputs.include_stream10 }}" == 'true' ]; then
+            os_json=$(echo $os_json | jq -c '. += ["centos-stream10"]')
+          fi
+
+          echo $os_json
           echo "os=$os_json" >> $GITHUB_OUTPUT
           echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
 
@@ -46,11 +81,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rhl:     almalinux8, almalinux9, centos-stream9, fedora40, fedora41
-        # debian:  debian11, debian12, ubuntu20, ubuntu22, ubuntu24
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora41
+        # debian:  debian11, debian12, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
-        # FreeBSD Release: freebsd13-3r, freebsd13-4r, freebsd14-0r, freebsd14-1r
-        # FreeBSD Stable:  freebsd13-4s, freebsd14-1s
+        # FreeBSD variants of 2024-12:
+        # FreeBSD Release: freebsd13-4r, freebsd14-2r
+        # FreeBSD Stable:  freebsd13-4s, freebsd14-2s
         # FreeBSD Current: freebsd15-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
@@ -69,31 +105,11 @@ jobs:
 
     - name: Install dependencies
       timeout-minutes: 20
-      run: |
-        echo "Install dependencies in QEMU machine"
-        IP=192.168.122.10
-        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
-          ssh 2>/dev/null zfs@$IP "uname -a" && break
-        done
-        scp .github/workflows/scripts/qemu-3-deps.sh zfs@$IP:qemu-3-deps.sh
-        PID=`pidof /usr/bin/qemu-system-x86_64`
-        ssh zfs@$IP '$HOME/qemu-3-deps.sh' ${{ matrix.os }}
-        # wait for poweroff to succeed
-        tail --pid=$PID -f /dev/null
-        sleep 5 # avoid this: "error: Domain is already active"
-        rm -f $HOME/.ssh/known_hosts
+      run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }} ${{ github.event.inputs.fedora_kernel_ver }}
 
     - name: Build modules
       timeout-minutes: 30
-      run: |
-        echo "Build modules in QEMU machine"
-        sudo virsh start openzfs
-        IP=192.168.122.10
-        while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
-          ssh 2>/dev/null zfs@$IP "uname -a" && break
-        done
-        rsync -ar $HOME/work/zfs/zfs zfs@$IP:./
-        ssh zfs@$IP '$HOME/zfs/.github/workflows/scripts/qemu-4-build.sh' ${{ matrix.os }}
+      run: .github/workflows/scripts/qemu-4-build.sh --poweroff --enable-debug ${{ matrix.os }}
 
     - name: Setup testing machines
       timeout-minutes: 5

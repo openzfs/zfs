@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get purge -y snapd google-chrome-stable firefox
-        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps.sh ubuntu24
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
     - name: Autogen.sh
       run: |
         sed -i '/DEBUG_CFLAGS="-Werror"/s/^/#/' config/zfs-build.m4
