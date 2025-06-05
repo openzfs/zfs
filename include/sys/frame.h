@@ -31,8 +31,16 @@ extern "C" {
 #else
 #include <linux/frame.h>
 #endif
+#if defined(_ASM) && ! defined(HAVE_STACK_FRAME_NON_STANDARD_ASM)
+.macro STACK_FRAME_NON_STANDARD func:req
+.endm
+#endif
 #else
 #define	STACK_FRAME_NON_STANDARD(func)
+#if defined(_ASM)
+.macro STACK_FRAME_NON_STANDARD func:req
+.endm
+#endif
 #endif
 
 #ifdef	__cplusplus
