@@ -2530,7 +2530,8 @@ int
 dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
 {
 	dnode_t *dn;
-	int restarted = 0, err;
+	uint64_t txg, maxtxg = 0;
+	int err;
 
 restart:
 	err = dnode_hold(os, object, FTAG, &dn);
@@ -2546,19 +2547,22 @@ restart:
 		 * must be synced to disk to accurately report holes.
 		 *
 		 * Provided a RL_READER rangelock spanning 0-UINT64_MAX is
-		 * held by the caller only a single restart will be required.
+		 * held by the caller only limited restarts will be required.
 		 * We tolerate callers which do not hold the rangelock by
-		 * returning EBUSY and not reporting holes after one restart.
+		 * returning EBUSY and not reporting holes after at most
+		 * TXG_CONCURRENT_STATES (3) restarts.
 		 */
 		if (zfs_dmu_offset_next_sync) {
 			rw_exit(&dn->dn_struct_rwlock);
 			dnode_rele(dn, FTAG);
 
-			if (restarted)
+			if (maxtxg == 0) {
+				txg = spa_last_synced_txg(dmu_objset_spa(os));
+				maxtxg = txg + TXG_CONCURRENT_STATES;
+			} else if (txg >= maxtxg)
 				return (SET_ERROR(EBUSY));
 
-			txg_wait_synced(dmu_objset_pool(os), 0);
-			restarted = 1;
+			txg_wait_synced(dmu_objset_pool(os), ++txg);
 			goto restart;
 		}
 
