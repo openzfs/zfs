@@ -265,6 +265,7 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
 	(void) cr;
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	ASSERT3P(zfsvfs, !=, NULL);
 
 	/*
 	 * Semantically, the only requirement is that the sync be initiated.
@@ -273,38 +274,22 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	if (!wait)
 		return (0);
 
-	if (zfsvfs != NULL) {
-		/*
-		 * Sync a specific filesystem.
-		 */
-		dsl_pool_t *dp;
-		int error;
+	int err = zfs_enter(zfsvfs, FTAG);
+	if (err != 0)
+		return (err);
 
-		if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
-			return (error);
-		dp = dmu_objset_pool(zfsvfs->z_os);
-
-		/*
-		 * If the system is shutting down, then skip any
-		 * filesystems which may exist on a suspended pool.
-		 */
-		if (spa_suspended(dp->dp_spa)) {
-			zfs_exit(zfsvfs, FTAG);
-			return (0);
-		}
-
-		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, 0);
-
+	/*
+	 * If the pool is suspended, just return an error. This is to help
+	 * with shutting down with pools suspended, as we don't want to block
+	 * in that case.
+	 */
+	if (spa_suspended(zfsvfs->z_os->os_spa)) {
 		zfs_exit(zfsvfs, FTAG);
-	} else {
-		/*
-		 * Sync all ZFS filesystems.  This is what happens when you
-		 * run sync(1).  Unlike other filesystems, ZFS honors the
-		 * request by waiting for all pools to commit all dirty data.
-		 */
-		spa_sync_allpools();
+		return (SET_ERROR(EIO));
 	}
+
+	zil_commit(zfsvfs->z_log, 0);
+	zfs_exit(zfsvfs, FTAG);
 
 	return (0);
 }
