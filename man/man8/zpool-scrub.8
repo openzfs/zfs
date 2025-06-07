@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 18, 2024
+.Dd December 11, 2024
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -39,6 +39,8 @@
 .Cm scrub
 .Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
 .Op Fl w
+.Op Fl S Ar date
+.Op Fl E Ar date
 .Ar pool Ns …
 .
 .Sh DESCRIPTION
@@ -109,15 +111,49 @@ Wait until scrub has completed before returning.
 .It Fl e
 Only scrub files with known data errors as reported by
 .Nm zpool Cm status Fl v .
-The pool must have been scrubbed at least once with the
-.Sy head_errlog
-feature enabled to use this option.
 Error scrubbing cannot be run simultaneously with regular scrubbing or
 resilvering, nor can it be run when a regular scrub is paused.
 .It Fl C
 Continue scrub from last saved txg (see zpool
 .Sy last_scrubbed_txg
 property).
+.It Fl S Ar date , Fl E Ar date
+Allows specifying the date range for blocks created between these dates.
+.Bl -bullet -compact -offset indent
+.It
+.Fl S
+Defines a start date.
+If not specified, scrubbing begins from the start of the pool's
+existence.
+.It
+.Fl E
+Defines an end date.
+If not specified, scrubbing continues up to the most recent data.
+.El
+The provided date should be in the format:
+.Dq YYYY-MM-DD HH:MM .
+Where:
+.Bl -bullet -compact -offset indent
+.It
+.Dq YYYY
+is the year.
+.It
+.Dq MM
+is the numeric representation of the month.
+.It
+.Dq DD
+is the day of the month.
+.It
+.Dq HH
+is the hour.
+.It
+.Dq MM
+is the minutes.
+.El
+The hour and minutes parameters can be omitted.
+The time should be provided in machine local time zone.
+Specifying dates prior to enabling this feature will result in scrubbing
+starting from the date the pool was created.
 .El
 .Sh EXAMPLES
 .Ss Example 1

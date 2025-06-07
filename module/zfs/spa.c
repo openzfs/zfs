@@ -100,6 +100,7 @@
 #include <sys/vmsystm.h>
 #endif	/* _KERNEL */
 
+#include "zfs_crrd.h"
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
 #include <cityhash.h>
@@ -309,6 +310,17 @@ static int zfs_livelist_condense_zthr_cancel = 0;
  * remapped blkptrs in dbuf_remap_impl)
  */
 static int zfs_livelist_condense_new_alloc = 0;
+
+/*
+ * Time variable to decide how often the txg should be added into the
+ * database.
+ */
+static uint_t spa_note_txg_time = 60;
+
+/*
+ * How often flush txg database to a disk.
+ */
+static uint_t spa_flush_txg_time = 5 * 60;
 
 /*
  * ==========================================================================
@@ -2046,6 +2058,104 @@ spa_destroy_aux_threads(spa_t *spa)
 	}
 }
 
+static void
+spa_sync_time_logger(spa_t *spa, uint64_t txg)
+{
+	uint64_t curtime;
+	dmu_tx_t *tx;
+
+	if (!spa_writeable(spa)) {
+		return;
+	}
+	curtime = gethrestime_sec();
+	if (curtime < spa->spa_last_noted_txg_time + spa_note_txg_time) {
+		return;
+	}
+
+	if (txg > spa->spa_last_noted_txg) {
+		spa->spa_last_noted_txg_time = curtime;
+		spa->spa_last_noted_txg = txg;
+
+		mutex_enter(&spa->spa_txg_log_time_lock);
+		dbrrd_add(&spa->spa_txg_log_time, curtime, txg);
+		mutex_exit(&spa->spa_txg_log_time_lock);
+	}
+
+	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
+		return;
+	}
+	spa->spa_last_flush_txg_time = curtime;
+
+	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
+
+	VERIFY0(zap_update(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MINUTES, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_minutes, tx));
+	VERIFY0(zap_update(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_DAYS, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_days, tx));
+	VERIFY0(zap_update(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MONTHS, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_months, tx));
+	dmu_tx_commit(tx);
+}
+
+static void
+spa_unload_sync_time_logger(spa_t *spa)
+{
+	uint64_t txg;
+	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+
+	txg = dmu_tx_get_txg(tx);
+	spa->spa_last_noted_txg_time = 0;
+	spa->spa_last_flush_txg_time = 0;
+	spa_sync_time_logger(spa, txg);
+
+	dmu_tx_commit(tx);
+}
+
+static void
+spa_load_txg_log_time(spa_t *spa)
+{
+	int error;
+
+	error = zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MINUTES, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_minutes);
+	error |= zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_DAYS, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_days);
+	error |= zap_lookup(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_TXG_LOG_TIME_MONTHS, RRD_ENTRY_SIZE, RRD_STRUCT_ELEM,
+	    &spa->spa_txg_log_time.dbr_months);
+
+	if (error != 0) {
+		memset(&spa->spa_txg_log_time, 0,
+		    sizeof (spa->spa_txg_log_time));
+	}
+}
+
+static boolean_t
+spa_should_sync_time_logger_on_unload(spa_t *spa)
+{
+
+	if (!spa_writeable(spa))
+		return (B_FALSE);
+
+	if (!spa->spa_sync_on)
+		return (B_FALSE);
+
+	if (spa_state(spa) != POOL_STATE_EXPORTED)
+		return (B_FALSE);
+
+	if (spa->spa_last_noted_txg == 0)
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+
 /*
  * Opposite of spa_load().
  */
@@ -2067,6 +2177,9 @@ spa_unload(spa_t *spa)
 	 * we delay the final TXGs beyond what spa_final_txg is set at.
 	 */
 	if (spa->spa_final_txg == UINT64_MAX) {
+		if (spa_should_sync_time_logger_on_unload(spa))
+			spa_unload_sync_time_logger(spa);
+
 		/*
 		 * If the log space map feature is enabled and the pool is
 		 * getting exported (but not destroyed), we want to spend some
@@ -4726,6 +4839,9 @@ spa_ld_get_props(spa_t *spa)
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
+	/* Load time log */
+	spa_load_txg_log_time(spa);
+
 	/*
 	 * Load the persistent error log.  If we have an older pool, this will
 	 * not be present.
@@ -7148,6 +7264,9 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 			vdev_config_dirty(rvd);
 			spa_config_exit(spa, SCL_ALL, FTAG);
 		}
+
+		if (spa_should_sync_time_logger_on_unload(spa))
+			spa_unload_sync_time_logger(spa);
 
 		/*
 		 * If the log space map feature is enabled and the pool is
@@ -10195,6 +10314,8 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 */
 	brt_pending_apply(spa, txg);
 
+	spa_sync_time_logger(spa, txg);
+
 	/*
 	 * Lock out configuration changes.
 	 */
@@ -10237,6 +10358,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
 
 	spa->spa_sync_starttime = gethrtime();
+
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid);
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
 	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
@@ -11109,6 +11231,13 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT,
 	ZMOD_RW,
 	"Whether extra ALLOC blkptrs were added to a livelist entry while it "
 	"was being condensed");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, note_txg_time, UINT, ZMOD_RW,
+	"How frequently TXG timestamps are stored internally (in seconds)");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, flush_txg_time, UINT, ZMOD_RW,
+	"How frequently the TXG timestamps database should be flushed "
+	"to disk (in seconds)");
 
 #ifdef _KERNEL
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
