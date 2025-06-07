@@ -2422,6 +2422,15 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 		complevel = zio_complevel_select(os->os_spa, compress,
 		    complevel, complevel);
 
+		/*
+		 * Storing many references to an all zeros block in the dedup
+		 * table would be expensive.  Instead, if dedup is enabled,
+		 * store them as holes even if compression is not enabled.
+		 */
+		if (compress == ZIO_COMPRESS_OFF &&
+		    dedup_checksum != ZIO_CHECKSUM_OFF)
+			compress = ZIO_COMPRESS_EMPTY;
+
 		checksum = (dedup_checksum == ZIO_CHECKSUM_OFF) ?
 		    zio_checksum_select(dn->dn_checksum, checksum) :
 		    dedup_checksum;
