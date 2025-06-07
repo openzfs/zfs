@@ -12,8 +12,9 @@
 .\" Copyright (c) 2016, 2019 by Delphix. All Rights Reserved.
 .\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\" Copyright 2020 Joyent, Inc.
+.\" Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
 .\"
-.Dd May 27, 2021
+.Dd June 5, 2025
 .Dt ZFS-PROGRAM 8
 .Os
 .
@@ -347,6 +348,32 @@ They are executed in "syncing context".
 .Pp
 The available sync submodule functions are as follows:
 .Bl -tag -width "xx"
+.It Fn zfs.sync.clone snapshot newdataset
+Create a new filesystem from a snapshot.
+Returns 0 if the filesystem was successfully created,
+and a nonzero error code otherwise.
+.Pp
+Note: Due to general limitations in channel programs, a filesystem created
+this way will not be mounted, regardless of the value of the
+.Sy mountpoint
+and
+.Sy canmount
+properties.
+This limitation may be removed in the future,
+so it is recommended that you set
+.Sy mountpoint Ns = Ns Sy none
+or
+.Sy canmount Ns = Ns Sy off
+or
+.Sy noauto
+to avoid surprises.
+.Pp
+.Bl -tag -compact -width "newbookmark (string)"
+.It Ar snapshot Pq string
+Name of the source snapshot to clone.
+.It Ar newdataset Pq string
+Name of the target dataset to create.
+.El
 .It Sy zfs.sync.destroy Ns Pq Ar dataset , Op Ar defer Ns = Ns Sy true Ns | Ns Sy false
 Destroy the given dataset.
 Returns 0 on successful destroy, or a nonzero error code if the dataset could
@@ -474,6 +501,7 @@ The available
 .Sy zfs.check
 functions are:
 .Bl -tag -compact -width "xx"
+.It Fn zfs.check.clone snapshot newdataset
 .It Sy zfs.check.destroy Ns Pq Ar dataset , Op Ar defer Ns = Ns Sy true Ns | Ns Sy false
 .It Fn zfs.check.promote dataset
 .It Fn zfs.check.rollback filesystem
