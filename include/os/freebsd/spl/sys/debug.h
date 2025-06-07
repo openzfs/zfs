@@ -69,6 +69,10 @@
 #define	__maybe_unused __attribute__((unused))
 #endif
 
+#ifndef __must_check
+#define	__must_check __attribute__((__warn_unused_result__))
+#endif
+
 /*
  * Without this, we see warnings from objtool during normal Linux builds when
  * the kernel is built with CONFIG_STACK_VALIDATION=y:
