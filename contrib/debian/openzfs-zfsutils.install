@@ -30,6 +30,8 @@ sbin/zinject
 sbin/zpool
 sbin/zstream
 sbin/zstreamdump
+usr/bin/zfs_getnfs4facl
+usr/bin/zfs_setnfs4facl
 usr/bin/zvol_wait
 usr/lib/modules-load.d/ lib/
 usr/lib/zfs-linux/zpool.d/
