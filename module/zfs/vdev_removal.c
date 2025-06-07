@@ -105,7 +105,7 @@ static const uint_t zfs_remove_max_copy_bytes = 64 * 1024 * 1024;
  *
  * See also the accessor function spa_remove_max_segment().
  */
-uint_t zfs_remove_max_segment = SPA_MAXBLOCKSIZE;
+static uint_t zfs_remove_max_segment = SPA_MAXBLOCKSIZE;
 
 /*
  * Ignore hard IO errors during device removal.  When set if a device
@@ -137,7 +137,7 @@ uint_t vdev_removal_max_span = 32 * 1024;
  * This is used by the test suite so that it can ensure that certain
  * actions happen while in the middle of a removal.
  */
-int zfs_removal_suspend_progress = 0;
+static int zfs_removal_suspend_progress = 0;
 
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
