@@ -26,6 +26,7 @@
 
 /*
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -270,7 +271,15 @@ vdev_mirror_map_init(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	int c;
 
-	if (vd == NULL) {
+	ASSERT3P(vd, !=, NULL);
+
+	if (vd == zio->io_spa->spa_root_vdev) {
+		/*
+		 * Special case for "root" IO handling. We create a mirror map
+		 * that points to multiple locations within the same top-level
+		 * vdev, rather than the same location on multiple vdevs.
+		 */
+
 		dva_t *dva = zio->io_bp->blk_dva;
 		spa_t *spa = zio->io_spa;
 		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
@@ -746,7 +755,7 @@ vdev_mirror_io_done(zio_t *zio)
 			/*
 			 * Always require at least one good copy.
 			 *
-			 * For ditto blocks (io_vd == NULL), require
+			 * For ditto blocks (root vdev), require
 			 * all copies to be good.
 			 *
 			 * XXX -- for replacing vdevs, there's no great answer.
@@ -757,7 +766,8 @@ vdev_mirror_io_done(zio_t *zio)
 			 * to be able to detach it -- which requires all
 			 * writes to the old device to have succeeded.
 			 */
-			if (good_copies == 0 || zio->io_vd == NULL)
+			if (good_copies == 0 ||
+			    zio->io_vd == zio->io_spa->spa_root_vdev)
 				zio->io_error = vdev_mirror_worst_error(mm);
 		}
 		return;
