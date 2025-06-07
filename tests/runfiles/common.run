@@ -1088,7 +1088,7 @@ tests = ['many_fds', 'libzfs_input']
 tags = ['functional', 'libzfs']
 
 [tests/functional/log_spacemap]
-tests = ['log_spacemap_import_logs']
+tests = ['log_spacemap_import_logs', 'log_spacemap_flushall']
 pre =
 post =
 tags = ['functional', 'log_spacemap']

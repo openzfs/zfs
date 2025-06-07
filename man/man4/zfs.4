@@ -17,7 +17,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd May 29, 2025
+.Dd June 4, 2025
 .Dt ZFS 4
 .Os
 .
@@ -1809,6 +1809,10 @@ Normally disabled because these datasets may be missing key data.
 .
 .It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq u64
 Minimum number of metaslabs to flush per dirty TXG.
+.
+.It Sy zfs_min_metaslabs_to_flush_all Ns = Ns Sy 5 Pq u64
+Minimum number of metaslabs to flush per dirty TXG when condensing log
+spacemaps.
 .
 .It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 77 Ns % Pq uint
 Allow metaslabs to keep their active state as long as their fragmentation

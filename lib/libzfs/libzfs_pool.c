@@ -30,7 +30,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
- * Copyright (c) 2021, 2023, Klara Inc.
+ * Copyright (c) 2021, 2023, 2024, 2025, Klara, Inc.
  */
 
 #include <errno.h>
@@ -4419,6 +4419,23 @@ zpool_sync_one(zpool_handle_t *zhp, void *data)
 		    dgettext(TEXT_DOMAIN, "sync '%s' failed"), pool_name));
 	}
 	nvlist_free(innvl);
+
+	return (0);
+}
+
+int
+zpool_condense(zpool_handle_t *zhp,
+    pool_condense_func_t func, pool_condense_type_t type)
+{
+	int ret;
+
+	libzfs_handle_t *hdl = zpool_get_handle(zhp);
+	const char *pool_name = zpool_get_name(zhp);
+
+	if ((ret = lzc_condense(pool_name, func, type)) != 0) {
+		return (zpool_standard_error_fmt(hdl, ret,
+		    dgettext(TEXT_DOMAIN, "condense '%s' failed"), pool_name));
+	}
 
 	return (0);
 }

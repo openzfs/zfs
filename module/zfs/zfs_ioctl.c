@@ -39,7 +39,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
- * Copyright (c) 2019, 2021, 2023, 2024, Klara Inc.
+ * Copyright (c) 2019, 2021, 2023, 2024, 2025, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  * Copyright 2024 Oxide Computer Company
  */
@@ -7186,6 +7186,70 @@ zfs_ioc_pool_sync(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 	return (0);
 }
 
+static const zfs_ioc_key_t zfs_keys_pool_condense[] = {
+	{ZPOOL_CONDENSE_COMMAND,	DATA_TYPE_UINT64,	0},
+	{ZPOOL_CONDENSE_TYPE,		DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_pool_condense(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
+{
+	spa_t *spa;
+	int err;
+
+	uint64_t cmd;
+	if (nvlist_lookup_uint64(innvl, ZPOOL_CONDENSE_COMMAND, &cmd) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (cmd >= POOL_CONDENSE_FUNCS)
+		return (SET_ERROR(EINVAL));
+
+	uint64_t type;
+	if (nvlist_lookup_uint64(innvl, ZPOOL_CONDENSE_TYPE, &type) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (type >= POOL_CONDENSE_TYPES)
+		return (SET_ERROR(EINVAL));
+
+	if ((err = spa_open(pool, &spa, FTAG)) != 0)
+		return (err);
+
+	if (spa_suspended(spa)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EAGAIN));
+	}
+
+	if (!spa_writeable(spa)) {
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EROFS));
+	}
+
+	switch (type) {
+	case POOL_CONDENSE_LOG_SPACEMAP:
+		if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
+			spa_close(spa, FTAG);
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		if (cmd == POOL_CONDENSE_START)
+			spa_log_flushall_start(spa,
+			    SPA_LOG_FLUSHALL_REQUEST, 0);
+		else
+			spa_log_flushall_cancel(spa);
+
+		break;
+
+	default:
+		/* unreachable */
+		spa_close(spa, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	spa_close(spa, FTAG);
+
+	return (0);
+}
+
 /*
  * Load a user's wrapping key into the kernel.
  * innvl: {
@@ -7533,6 +7597,10 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_sync, zfs_secpolicy_none, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_pool_sync, ARRAY_SIZE(zfs_keys_pool_sync));
+	zfs_ioctl_register("condense", ZFS_IOC_POOL_CONDENSE,
+	    zfs_ioc_pool_condense, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_pool_condense, ARRAY_SIZE(zfs_keys_pool_condense));
 	zfs_ioctl_register("reopen", ZFS_IOC_POOL_REOPEN, zfs_ioc_pool_reopen,
 	    zfs_secpolicy_config, POOL_NAME, POOL_CHECK_SUSPENDED, B_TRUE,
 	    B_TRUE, zfs_keys_pool_reopen, ARRAY_SIZE(zfs_keys_pool_reopen));

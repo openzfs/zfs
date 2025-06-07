@@ -27,6 +27,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 /*
@@ -536,6 +537,23 @@ lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
 {
 	(void) outnvl;
 	return (lzc_ioctl(ZFS_IOC_POOL_SYNC, pool_name, innvl, NULL));
+}
+
+int
+lzc_condense(const char *pool_name,
+    pool_condense_func_t func, pool_condense_type_t type)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_uint64(args, ZPOOL_CONDENSE_COMMAND, (uint64_t)func);
+	fnvlist_add_uint64(args, ZPOOL_CONDENSE_TYPE, (uint64_t)type);
+
+	error = lzc_ioctl(ZFS_IOC_POOL_CONDENSE, pool_name, args, NULL);
+
+	fnvlist_free(args);
+
+	return (error);
 }
 
 /*
