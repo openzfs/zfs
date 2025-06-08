@@ -494,3 +494,6 @@ UBSAN_SANITIZE_zfs/sa.o := n
 ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec
 endif
+
+OBJTOOL_FLAGS :=  @ADDITIONAL_OBJTOOL_FLAGS@
+export OBJTOOL_ARGS := $(OBJTOOL_FLAGS)

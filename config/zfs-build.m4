@@ -205,6 +205,28 @@ AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS], [
 	AC_MSG_RESULT([$enable_invariants])
 ])
 
+dnl # Disabled by default, enables objtool unreachable checks. Needed for
+dnl # silencing spurious "falls through to next function" objtool warnings.
+dnl # Note that this also disables noreturn checks, so enable it (or use
+dnl # 'make OBJTOOL_FLAGS=""') to see noreturn warnings produced.
+dnl #
+AC_DEFUN([ZFS_AC_OBJTOOL_CHECK_UNREACHABLE], [
+	AC_MSG_CHECKING([whether objtool unreachable checks are enabled])
+	AC_ARG_ENABLE([objtool-check-unreachable],
+		[AS_HELP_STRING([--enable-objtool-check-unreachable],
+		[Enable objtool unreachable checks @<:@default=no@:>@])],
+		[enable_objtool_check_unreachable=yes],
+		[enable_objtool_check_unreachable=no])
+
+	AS_IF([test "x$enable_objtool_check_unreachable" = xyes],
+		[ADDITIONAL_OBJTOOL_FLAGS=],
+		[ADDITIONAL_OBJTOOL_FLAGS="--no-unreachable"])
+
+	AC_SUBST([ADDITIONAL_OBJTOOL_FLAGS])
+
+	AC_MSG_RESULT([$enable_objtool_check_unreachable])
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	AX_COUNT_CPUS([])
 	AC_SUBST(CPU_COUNT)
