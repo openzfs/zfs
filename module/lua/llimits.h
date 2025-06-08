@@ -97,10 +97,8 @@ typedef LUAI_UACNUMBER l_uacNumber;
 
 /*
 ** non-return type
-**
-** Suppress noreturn attribute in kernel builds to avoid objtool check warnings
 */
-#if defined(__GNUC__) && !defined(_KERNEL)
+#if defined(__GNUC__) || defined(__clang__) /* XXX separate change? test! */
 #define l_noret		void __attribute__((noreturn))
 #elif defined(_MSC_VER)
 #define l_noret		void __declspec(noreturn)

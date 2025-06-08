@@ -45,6 +45,7 @@ spl_dumpstack(void)
 }
 EXPORT_SYMBOL(spl_dumpstack);
 
+__attribute__((__noreturn__))
 void
 spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 {
