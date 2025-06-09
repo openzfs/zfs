@@ -88,7 +88,7 @@ log_must zpool create $poolE $VDEV4
 log_must zpool destroy $poolE
 
 truncate -s 24G $VDEV6
-log_must zpool create $poolF anyraid $VDEV6
+log_must zpool create $poolF anyraid0 $VDEV6
 log_must zpool destroy $poolF
 
 log_must zpool import -d $DEVICE_DIR -D -f -a
