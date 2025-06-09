@@ -483,6 +483,7 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 		if (!nvlist_exists(nvl, VDEV_ANYRAID_HEADER_DISK) ||
 		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_TILE_SIZE) ||
 		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_LENGTH)) {
+			free_header(&header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
@@ -491,10 +492,12 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 		uint_t count;
 		if (nvlist_lookup_uint16_array(nvl,
 		    VDEV_ANYRAID_HEADER_DISK_SIZES, &caps, &count) != 0) {
+			free_header(&header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
 		if (count != vd->vdev_children) {
+			free_header(&header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
