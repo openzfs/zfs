@@ -165,6 +165,26 @@ An error is returned when the provided number of children differs.
 The number of distributed hot spares.
 Defaults to zero.
 .El
+.It Sy anyraid , anyraid0 , anyraid1 , anyraid2
+A new device type that allows for mirror-parity redundancy while using devices
+of different sizes.
+An AnyRAID vdev works by dividing each of the underlying disks that make it up
+into
+.Sy tiles \.
+The tiles are then each mirrored at the desired parity level.
+This allows for full redundancy, since tiles are allocated from independent
+disks, while enabling maximum space usage by allocating more tiles from the
+disks with the most free space.
+In addition, the device can be expanded by attaching new disks, and new tiles
+will be allocated from those disks.
+.Sy anyraid
+is a synonym for
+.Sy anyraid1
+, which is the 2-way mirror parity version (1 parity tile).
+.Sy anyraid2
+is a 3-way mirror (2 parity tiles), while
+.Sy anyraid0
+is striped (no parity tiles), and is primarily intended for testing.
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
 For more information, see the
