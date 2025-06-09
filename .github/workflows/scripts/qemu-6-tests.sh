@@ -95,7 +95,7 @@ esac
 
 # enable io_uring on el9/el10
 case "$1" in
-  almalinux9|almalinux10)
+  almalinux9|almalinux10|centos-stream*)
     sudo sysctl kernel.io_uring_disabled=0 > /dev/null
     ;;
 esac
