@@ -73,7 +73,7 @@ set -A args \
 	"$TOOSMALL $TESTDIR/file1" "$TESTPOOL1 $TESTDIR/file1 $TESTDIR/file2" \
         "$TOOSMALL mirror $TESTDIR/file1 $TESTDIR/file2" \
 	"$TOOSMALL raidz $TESTDIR/file1 $TESTDIR/file2" \
-	"$TOOSMALL anyraid $TESTDIR/file1" \
+	"$TOOSMALL anyraid0 $TESTDIR/file1" \
 	"$TOOSMALL draid $TESTDIR/file1 $TESTDIR/file2 $TESTDIR/file3"
 
 typeset -i i=0

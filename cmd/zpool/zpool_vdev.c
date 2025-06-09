@@ -1256,8 +1256,8 @@ get_parity(const char *type)
 		p = type + strlen(VDEV_TYPE_ANYRAID);
 
 		if (*p == '\0') {
-			/* when unspecified default to no parity */
-			return (0);
+			/* when unspecified default to 1-parity mirror */
+			return (1);
 		} else {
 			char *end;
 			errno = 0;
