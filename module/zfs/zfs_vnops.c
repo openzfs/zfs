@@ -1681,7 +1681,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 */
 			if (inblksz != outzp->z_blksz) {
 				error = SET_ERROR(EINVAL);
-				dmu_tx_abort(tx);
+				dmu_tx_commit(tx);
 				break;
 			}
 
