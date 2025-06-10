@@ -694,8 +694,11 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		itx->itx_sync = (zp->z_sync_cnt != 0);
 		itx->itx_gen = gen;
 
-		itx->itx_callback = callback;
-		itx->itx_callback_data = callback_data;
+		if (resid == len) {
+			itx->itx_callback = callback;
+			itx->itx_callback_data = callback_data;
+		}
+
 		zil_itx_assign(zilog, itx, tx);
 
 		off += len;
