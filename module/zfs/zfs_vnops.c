@@ -1188,7 +1188,7 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 		error = dmu_buf_hold_array_by_dnode(dn, off, n, TRUE, FTAG,
 		    &numbufs, &dbp, DMU_READ_PREFETCH | DMU_UNCACHEDIO);
 		if (error) {
-			dmu_tx_abort(tx);
+			dmu_tx_commit(tx);
 			break;
 		}
 		for (int i = 0; i < numbufs; i++) {
@@ -1860,7 +1860,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 */
 			if (inblksz != outzp->z_blksz) {
 				error = SET_ERROR(EINVAL);
-				dmu_tx_abort(tx);
+				dmu_tx_commit(tx);
 				break;
 			}
 
