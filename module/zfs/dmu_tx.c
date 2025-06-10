@@ -1323,6 +1323,7 @@ dmu_tx_destroy(dmu_tx_t *tx)
 void
 dmu_tx_commit(dmu_tx_t *tx)
 {
+	/* This function should only be used on assigned transactions. */
 	ASSERT(tx->tx_txg != 0);
 
 	/*
@@ -1361,13 +1362,21 @@ dmu_tx_commit(dmu_tx_t *tx)
 void
 dmu_tx_abort(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_txg == 0);
+	/* This function should not be used on assigned transactions. */
+	ASSERT0(tx->tx_txg);
+
+	/* Should not be needed, but better be safe than sorry. */
+	if (tx->tx_tempreserve_cookie)
+		dsl_dir_tempreserve_clear(tx->tx_tempreserve_cookie, tx);
 
 	/*
 	 * Call any registered callbacks with an error code.
 	 */
 	if (!list_is_empty(&tx->tx_callbacks))
 		dmu_tx_do_callbacks(&tx->tx_callbacks, SET_ERROR(ECANCELED));
+
+	/* Should not be needed, but better be safe than sorry. */
+	dmu_tx_unassign(tx);
 
 	dmu_tx_destroy(tx);
 }
