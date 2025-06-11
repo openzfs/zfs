@@ -2559,6 +2559,11 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		error = 0;
 		epb = dn->dn_phys->dn_nblkptr;
 		data = dn->dn_phys->dn_blkptr;
+		if (dn->dn_dbuf != NULL)
+			rw_enter(&dn->dn_dbuf->db_rwlock, RW_READER);
+		else if (dmu_objset_ds(dn->dn_objset) != NULL)
+			rrw_enter(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
+			    RW_READER, FTAG);
 	} else {
 		uint64_t blkid = dbuf_whichblock(dn, lvl, *offset);
 		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE, FTAG, &db);
@@ -2663,6 +2668,12 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	if (db != NULL) {
 		rw_exit(&db->db_rwlock);
 		dbuf_rele(db, FTAG);
+	} else {
+		if (dn->dn_dbuf != NULL)
+			rw_exit(&dn->dn_dbuf->db_rwlock);
+		else if (dmu_objset_ds(dn->dn_objset) != NULL)
+			rrw_exit(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
+			    FTAG);
 	}
 
 	return (error);

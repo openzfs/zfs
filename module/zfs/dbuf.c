@@ -1185,16 +1185,9 @@ dbuf_verify(dmu_buf_impl_t *db)
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
-			/*
-			 * dnode_grow_indblksz() can make this fail if we don't
-			 * have the parent's rwlock.  XXX indblksz no longer
-			 * grows.  safe to do this now?
-			 */
-			if (RW_LOCK_HELD(&db->db_parent->db_rwlock)) {
-				ASSERT3P(db->db_blkptr, ==,
-				    ((blkptr_t *)db->db_parent->db.db_data +
-				    db->db_blkid % epb));
-			}
+			ASSERT3P(db->db_blkptr, ==,
+			    ((blkptr_t *)db->db_parent->db.db_data +
+			    db->db_blkid % epb));
 		}
 	}
 	if ((db->db_blkptr == NULL || BP_IS_HOLE(db->db_blkptr)) &&
@@ -3391,12 +3384,8 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 			*parentp = NULL;
 			return (err);
 		}
-		rw_enter(&(*parentp)->db_rwlock, RW_READER);
 		*bpp = ((blkptr_t *)(*parentp)->db.db_data) +
 		    (blkid & ((1ULL << epbs) - 1));
-		if (blkid > (dn->dn_phys->dn_maxblkid >> (level * epbs)))
-			ASSERT(BP_IS_HOLE(*bpp));
-		rw_exit(&(*parentp)->db_rwlock);
 		return (0);
 	} else {
 		/* the block is referenced from the dnode */
