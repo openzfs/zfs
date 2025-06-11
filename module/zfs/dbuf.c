@@ -3901,7 +3901,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	ASSERT(blkid != DMU_BONUS_BLKID);
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
-	ASSERT3U(dn->dn_nlevels, >, level);
+	if (!fail_sparse)
+		ASSERT3U(dn->dn_nlevels, >, level);
 
 	*dbp = NULL;
 
