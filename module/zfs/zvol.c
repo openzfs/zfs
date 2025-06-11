@@ -556,7 +556,7 @@ zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	if (error != 0 || !zv->zv_dn)
 		return (error);
 	tx = dmu_tx_create(os);
-	dmu_tx_hold_clone_by_dnode(tx, zv->zv_dn, off, len);
+	dmu_tx_hold_clone_by_dnode(tx, zv->zv_dn, off, len, blksz);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error != 0) {
 		dmu_tx_abort(tx);
@@ -721,7 +721,8 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		}
 
 		tx = dmu_tx_create(zv_dst->zv_objset);
-		dmu_tx_hold_clone_by_dnode(tx, zv_dst->zv_dn, outoff, size);
+		dmu_tx_hold_clone_by_dnode(tx, zv_dst->zv_dn, outoff, size,
+		    zv_src->zv_volblocksize);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);
