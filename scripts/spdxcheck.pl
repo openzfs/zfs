@@ -94,6 +94,7 @@ my $tagged_patterns = q(
 	etc/init.d/zfs-share.in
 	etc/init.d/zfs-zed.in
 	etc/zfs/zfs-functions.in
+	scripts/objtool-wrapper.in
 
 	# Misc items that have clear licensing info but aren't easily matched,
 	# or are the first of a class that we aren't ready to match yet.
