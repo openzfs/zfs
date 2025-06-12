@@ -1691,7 +1691,7 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 	 * If the previous lwb's write hasn't already completed, we also want
 	 * to order the completion of the lwb write zios (above, we only order
 	 * the completion of the lwb root zios). This is required because of
-	 * how we can defer the flush commands for each lwb.
+	 * how we can defer the flush commands for any lwb without waiters.
 	 *
 	 * When the flush commands are deferred, the previous lwb will rely on
 	 * this lwb to flush the vdevs written to by that previous lwb. Thus,
@@ -1708,7 +1708,10 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 	 */
 	if (prev_lwb->lwb_state == LWB_STATE_ISSUED) {
 		ASSERT3P(prev_lwb->lwb_write_zio, !=, NULL);
-		zio_add_child(lwb->lwb_write_zio, prev_lwb->lwb_write_zio);
+		if (list_is_empty(&prev_lwb->lwb_waiters)) {
+			zio_add_child(lwb->lwb_write_zio,
+			    prev_lwb->lwb_write_zio);
+		}
 	} else {
 		ASSERT3S(prev_lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
 	}
