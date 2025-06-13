@@ -27,7 +27,7 @@
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2023, Klara, Inc.
+ * Copyright (c) 2023, 2024, 2025, Klara, Inc.
  */
 
 /*
@@ -450,6 +450,8 @@ ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
 ztest_func_t ztest_pool_prefetch_ddt;
 ztest_func_t ztest_ddt_prune;
+ztest_func_t ztest_spa_log_flushall_start;
+ztest_func_t ztest_spa_log_flushall_cancel;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -507,6 +509,8 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_pool_prefetch_ddt, 1, &zopt_rarely),
 	ZTI_INIT(ztest_ddt_prune, 1, &zopt_rarely),
+	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
+	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -6217,6 +6221,20 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 		dmu_buf_rele(db, FTAG);
 		ztest_object_unlock(zd, obj);
 	}
+}
+
+void
+ztest_spa_log_flushall_start(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_log_flushall_start(ztest_spa, SPA_LOG_FLUSHALL_REQUEST, 0);
+}
+
+void
+ztest_spa_log_flushall_cancel(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_log_flushall_cancel(ztest_spa);
 }
 
 void

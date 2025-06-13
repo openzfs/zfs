@@ -22,6 +22,7 @@
 
 /*
  * Copyright (c) 2018, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #ifndef _SYS_SPA_LOG_SPACEMAP_H
@@ -57,6 +58,12 @@ typedef struct spa_log_sm {
 	space_map_t *sls_sm;	/* space map pointer, if open */
 } spa_log_sm_t;
 
+typedef enum spa_log_flushall_mode {
+	SPA_LOG_FLUSHALL_NONE = 0,	/* flushall inactive */
+	SPA_LOG_FLUSHALL_REQUEST,	/* flushall active by admin request */
+	SPA_LOG_FLUSHALL_EXPORT,	/* flushall active for pool export */
+} spa_log_flushall_mode_t;
+
 int spa_ld_log_spacemaps(spa_t *);
 
 void spa_generate_syncing_log_sm(spa_t *, dmu_tx_t *);
@@ -78,7 +85,10 @@ void spa_log_summary_dirty_flushed_metaslab(spa_t *, uint64_t);
 void spa_log_summary_decrement_mscount(spa_t *, uint64_t, boolean_t);
 void spa_log_summary_decrement_blkcount(spa_t *, uint64_t);
 
-boolean_t spa_flush_all_logs_requested(spa_t *);
+void spa_log_flushall_start(spa_t *spa, spa_log_flushall_mode_t mode,
+    uint64_t txg);
+void spa_log_flushall_done(spa_t *spa);
+void spa_log_flushall_cancel(spa_t *spa);
 
 extern int zfs_keep_log_spacemaps_at_export;
 
