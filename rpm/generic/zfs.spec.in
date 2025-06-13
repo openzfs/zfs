@@ -275,7 +275,7 @@ validating the file system.
 %package dracut
 Summary:        Dracut module
 Group:          System Environment/Kernel
-BuildArch:	noarch
+BuildArch:      noarch
 Requires:       %{name} >= %{version}
 Requires:       dracut
 Requires:       /usr/bin/awk
