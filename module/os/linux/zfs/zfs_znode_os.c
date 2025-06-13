@@ -539,6 +539,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
+	zp->z_is_tmpfile = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_suspended = B_FALSE;
@@ -938,6 +939,12 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	(*zpp)->z_mode = ZTOI(*zpp)->i_mode = mode;
 	(*zpp)->z_dnodesize = dnodesize;
 	(*zpp)->z_projid = projid;
+	if (flag & IS_TMPFILE) {
+		(*zpp)->z_is_tmpfile = B_TRUE;
+		/* Add to unlinked set */
+		(*zpp)->z_unlinked = B_TRUE;
+		zfs_unlinked_add((*zpp), tx);
+	}
 
 	if (obj_type == DMU_OT_ZNODE ||
 	    acl_ids->z_aclp->z_version < ZFS_ACL_VERSION_FUID) {
@@ -1120,7 +1127,7 @@ again:
 		 * the VFS that this inode should not be evicted.
 		 */
 		if (igrab(ZTOI(zp)) == NULL) {
-			if (zp->z_unlinked)
+			if (zp->z_unlinked && !zp->z_is_tmpfile)
 				err = SET_ERROR(ENOENT);
 			else
 				err = SET_ERROR(EAGAIN);
