@@ -1584,13 +1584,21 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 void
 zvol_os_set_disk_ro(zvol_state_t *zv, int flags)
 {
-	// XXX? set_disk_ro(zv->zv_zso->zvo_disk, flags);
+	/*
+	 * The ro/rw ZVOL mode is switched using zvol_set_ro() function by
+	 * enabling/disabling ZVOL_RDONLY flag.  No additional FreeBSD-specific
+	 * actions are required for readonly zfs property switching.
+	 */
 }
 
 void
 zvol_os_set_capacity(zvol_state_t *zv, uint64_t capacity)
 {
-	// XXX? set_capacity(zv->zv_zso->zvo_disk, capacity);
+	/*
+	 * The ZVOL size/capacity is changed by zvol_set_volsize() function.
+	 * Leave this method empty, because all required job is doing by
+	 * zvol_os_update_volsize() platform-specific function.
+	 */
 }
 
 /*

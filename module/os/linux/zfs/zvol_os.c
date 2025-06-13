@@ -1397,13 +1397,15 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volblocksize)
 	 */
 	if (zv->zv_zso->use_blk_mq) {
 		ret = zvol_alloc_blk_mq(zv, &limits);
+		if (ret != 0)
+			goto out_kmem;
 		zso->zvo_disk->fops = &zvol_ops_blk_mq;
 	} else {
 		ret = zvol_alloc_non_blk_mq(zso, &limits);
+		if (ret != 0)
+			goto out_kmem;
 		zso->zvo_disk->fops = &zvol_ops;
 	}
-	if (ret != 0)
-		goto out_kmem;
 
 	/* Limit read-ahead to a single page to prevent over-prefetching. */
 	blk_queue_set_read_ahead(zso->zvo_queue, 1);

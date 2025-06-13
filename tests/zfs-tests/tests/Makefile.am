@@ -106,6 +106,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/channel_program/lua_core/tst.args_to_lua.zcp \
 	functional/channel_program/lua_core/tst.divide_by_zero.err \
 	functional/channel_program/lua_core/tst.divide_by_zero.zcp \
+	functional/channel_program/lua_core/tst.encryption.zcp \
 	functional/channel_program/lua_core/tst.exists.zcp \
 	functional/channel_program/lua_core/tst.large_prog.out \
 	functional/channel_program/lua_core/tst.large_prog.zcp \
@@ -275,6 +276,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/events/events.cfg \
 	functional/events/events_common.kshlib \
 	functional/fault/fault.cfg \
+	functional/gang_blocks/gang_blocks.kshlib \
 	functional/grow/grow.cfg \
 	functional/history/history.cfg \
 	functional/history/history_common.kshlib \
@@ -542,6 +544,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/lua_core/setup.ksh \
 	functional/channel_program/lua_core/tst.args_to_lua.ksh \
 	functional/channel_program/lua_core/tst.divide_by_zero.ksh \
+	functional/channel_program/lua_core/tst.encryption.ksh \
 	functional/channel_program/lua_core/tst.exists.ksh \
 	functional/channel_program/lua_core/tst.integer_illegal.ksh \
 	functional/channel_program/lua_core/tst.integer_overflow.ksh \
@@ -1558,6 +1561,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/large_dnode/large_dnode_008_pos.ksh \
 	functional/features/large_dnode/large_dnode_009_pos.ksh \
 	functional/features/large_dnode/setup.ksh \
+	functional/gang_blocks/cleanup.ksh \
+	functional/gang_blocks/gang_blocks_ddt_copies.ksh \
+	functional/gang_blocks/gang_blocks_redundant.ksh \
+	functional/gang_blocks/setup.ksh \
 	functional/grow/grow_pool_001_pos.ksh \
 	functional/grow/grow_replicas_001_pos.ksh \
 	functional/history/cleanup.ksh \
@@ -1984,6 +1991,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_holds.ksh \
 	functional/rsend/send_hole_birth.ksh \
 	functional/rsend/send_invalid.ksh \
+	functional/rsend/send_leak_keymaps.ksh \
 	functional/rsend/send-L_toggle.ksh \
 	functional/rsend/send_mixed_raw.ksh \
 	functional/rsend/send_partial_dataset.ksh \
@@ -2061,6 +2069,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/stat/setup.ksh \
 	functional/stat/stat_001_pos.ksh \
 	functional/stat/statx_dioalign.ksh \
+	functional/syncfs/syncfs_suspend.ksh \
 	functional/suid/cleanup.ksh \
 	functional/suid/setup.ksh \
 	functional/suid/suid_write_to_none.ksh \

@@ -607,7 +607,7 @@ zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  * called as soon as the write is on stable storage (be it via a DMU sync or a
  * ZIL commit).
  */
-static int64_t zfs_immediate_write_sz = 32768;
+static uint_t zfs_immediate_write_sz = 32768;
 
 void
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
@@ -617,8 +617,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
-	uint64_t gen = 0;
-	ssize_t size = resid;
+	uint64_t gen = 0, log_size = 0;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
@@ -679,6 +678,10 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 			}
 		}
 
+		log_size += itx->itx_size;
+		if (wr_state == WR_NEED_COPY)
+			log_size += len;
+
 		itx->itx_wr_state = wr_state;
 		lr->lr_foid = zp->z_id;
 		lr->lr_offset = off;
@@ -690,17 +693,18 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		itx->itx_sync = (zp->z_sync_cnt != 0);
 		itx->itx_gen = gen;
 
-		itx->itx_callback = callback;
-		itx->itx_callback_data = callback_data;
+		if (resid == len) {
+			itx->itx_callback = callback;
+			itx->itx_callback_data = callback_data;
+		}
+
 		zil_itx_assign(zilog, itx, tx);
 
 		off += len;
 		resid -= len;
 	}
 
-	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {
-		dsl_pool_wrlog_count(zilog->zl_dmu_pool, size, tx->tx_txg);
-	}
+	dsl_pool_wrlog_count(zilog->zl_dmu_pool, log_size, tx->tx_txg);
 }
 
 /*
@@ -934,5 +938,5 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 	}
 }
 
-ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, S64, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
 	"Largest data block to write to zil");

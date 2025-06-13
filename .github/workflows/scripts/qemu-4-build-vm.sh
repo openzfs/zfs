@@ -326,7 +326,7 @@ fi
 #
 # rhel8.10
 # almalinux9.5
-# fedora40
+# fedora42
 source /etc/os-release
 sudo hostname "$ID$VERSION_ID"
 

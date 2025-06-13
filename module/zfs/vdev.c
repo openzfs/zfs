@@ -648,7 +648,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	if (spa->spa_root_vdev == NULL) {
 		ASSERT(ops == &vdev_root_ops);
 		spa->spa_root_vdev = vd;
-		spa->spa_load_guid = spa_generate_guid(NULL);
+		spa->spa_load_guid = spa_generate_load_guid();
 	}
 
 	if (guid == 0 && ops != &vdev_hole_ops) {
@@ -1490,12 +1490,11 @@ vdev_metaslab_group_create(vdev_t *vd)
 			mc = spa_normal_class(spa);
 		}
 
-		vd->vdev_mg = metaslab_group_create(mc, vd,
-		    spa->spa_alloc_count);
+		vd->vdev_mg = metaslab_group_create(mc, vd);
 
 		if (!vd->vdev_islog) {
 			vd->vdev_log_mg = metaslab_group_create(
-			    spa_embedded_log_class(spa), vd, 1);
+			    spa_embedded_log_class(spa), vd);
 		}
 
 		/*
@@ -1760,8 +1759,11 @@ vdev_probe_done(zio_t *zio)
 			 * change the state in a spa_async_request. Probes that
 			 * were initiated from a vdev_open can change the state
 			 * as part of the open call.
+			 * Skip fault injection if this vdev is already removed
+			 * or a removal is pending.
 			 */
-			if (vps->vps_zio_done_probe) {
+			if (vps->vps_zio_done_probe &&
+			    !vd->vdev_remove_wanted && !vd->vdev_removed) {
 				vd->vdev_fault_wanted = B_TRUE;
 				spa_async_request(spa, SPA_ASYNC_FAULT_VDEV);
 			}

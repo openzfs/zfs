@@ -36,6 +36,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/zap_impl.h>
 #include <sys/spa.h>
+#include <sys/brt_impl.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
@@ -547,17 +548,45 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 }
 
 static void
-dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
+    uint_t blksz)
 {
+	dmu_tx_t *tx = txh->txh_tx;
+	dnode_t *dn = txh->txh_dnode;
+	int err;
 
-	/*
-	 * Reuse dmu_tx_count_free(), it does exactly what we need for clone.
-	 */
-	dmu_tx_count_free(txh, off, len);
+	ASSERT0(tx->tx_txg);
+	ASSERT(dn->dn_indblkshift != 0);
+	ASSERT(blksz != 0);
+	ASSERT0(off % blksz);
+
+	(void) zfs_refcount_add_many(&txh->txh_memory_tohold,
+	    len / blksz * sizeof (brt_entry_t), FTAG);
+
+	int shift = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+	uint64_t start = off / blksz >> shift;
+	uint64_t end = (off + len) / blksz >> shift;
+
+	(void) zfs_refcount_add_many(&txh->txh_space_towrite,
+	    (end - start + 1) << dn->dn_indblkshift, FTAG);
+
+	zio_t *zio = zio_root(tx->tx_pool->dp_spa,
+	    NULL, NULL, ZIO_FLAG_CANFAIL);
+	for (uint64_t i = start; i <= end; i++) {
+		err = dmu_tx_check_ioerr(zio, dn, 1, i);
+		if (err != 0) {
+			tx->tx_err = err;
+			break;
+		}
+	}
+	err = zio_wait(zio);
+	if (err != 0)
+		tx->tx_err = err;
 }
 
 void
-dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    uint64_t len, uint_t blksz)
 {
 	dmu_tx_hold_t *txh;
 
@@ -567,7 +596,7 @@ dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_CLONE, off, len);
 	if (txh != NULL) {
 		dmu_tx_count_dnode(txh);
-		dmu_tx_count_clone(txh, off, len);
+		dmu_tx_count_clone(txh, off, len, blksz);
 	}
 }
 
@@ -1323,6 +1352,7 @@ dmu_tx_destroy(dmu_tx_t *tx)
 void
 dmu_tx_commit(dmu_tx_t *tx)
 {
+	/* This function should only be used on assigned transactions. */
 	ASSERT(tx->tx_txg != 0);
 
 	/*
@@ -1361,13 +1391,21 @@ dmu_tx_commit(dmu_tx_t *tx)
 void
 dmu_tx_abort(dmu_tx_t *tx)
 {
-	ASSERT(tx->tx_txg == 0);
+	/* This function should not be used on assigned transactions. */
+	ASSERT0(tx->tx_txg);
+
+	/* Should not be needed, but better be safe than sorry. */
+	if (tx->tx_tempreserve_cookie)
+		dsl_dir_tempreserve_clear(tx->tx_tempreserve_cookie, tx);
 
 	/*
 	 * Call any registered callbacks with an error code.
 	 */
 	if (!list_is_empty(&tx->tx_callbacks))
 		dmu_tx_do_callbacks(&tx->tx_callbacks, SET_ERROR(ECANCELED));
+
+	/* Should not be needed, but better be safe than sorry. */
+	dmu_tx_unassign(tx);
 
 	dmu_tx_destroy(tx);
 }

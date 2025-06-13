@@ -814,7 +814,7 @@ void dmu_tx_hold_append(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
 void dmu_tx_hold_append_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     int len);
 void dmu_tx_hold_clone_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
-    int len);
+    uint64_t len, uint_t blksz);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
@@ -980,6 +980,11 @@ void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
 
 void dmu_object_dnsize_from_db(dmu_buf_t *db, int *dnsize);
 
+typedef enum {
+	DDS_FLAG_ENCRYPTED = (1<<0),
+	DDS_FLAG_HAS_ENCRYPTED = (1<<7),
+} dmu_objset_flag_t;
+
 typedef struct dmu_objset_stats {
 	uint64_t dds_num_clones; /* number of clones of this */
 	uint64_t dds_creation_txg;
@@ -989,6 +994,7 @@ typedef struct dmu_objset_stats {
 	uint8_t dds_inconsistent;
 	uint8_t dds_redacted;
 	char dds_origin[ZFS_MAX_DATASET_NAME_LEN];
+	uint8_t dds_flags; /* dmu_objset_flag_t */
 } dmu_objset_stats_t;
 
 /*

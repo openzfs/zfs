@@ -153,7 +153,7 @@
  * storage object (ie ZAP) as normal. OpenZFS will try hard to flush enough to
  * keep up with the rate of change on dedup entries, but not so much that it
  * would impact overall throughput, and not using too much memory. See the
- * zfs_dedup_log_* tuneables in zfs(4) for more details.
+ * zfs_dedup_log_* tunables in zfs(4) for more details.
  *
  * ## Repair IO
  *
@@ -834,6 +834,17 @@ ddt_phys_birth(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 		return (ddp->ddp_flat.ddp_phys_birth);
 	else
 		return (ddp->ddp_trad[v].ddp_phys_birth);
+}
+
+int
+ddt_phys_is_gang(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	ASSERT3U(v, <, DDT_PHYS_NONE);
+
+	const dva_t *dvas = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
+
+	return (DVA_GET_GANG(&dvas[0]));
 }
 
 int

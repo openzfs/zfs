@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['almalinux8', 'almalinux9', 'fedora40', 'fedora41', 'fedora42']
+        os: ['almalinux8', 'almalinux9', 'almalinux10', 'fedora41', 'fedora42']
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4

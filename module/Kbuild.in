@@ -176,14 +176,6 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 	$(ICP_OBJS_ARM64) $(ICP_OBJS_PPC_PPC64)) : ccflags-y += -I$(icp_include) -I$(zfs_include)/os/linux/spl -I$(zfs_include)
 
-# Suppress objtool "return with modified stack frame" warnings.
-OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
-
-# Suppress objtool "unsupported stack pointer realignment" warnings.
-# See #6950 for the reasoning.
-OBJECT_FILES_NON_STANDARD_sha256-x86_64.o := y
-OBJECT_FILES_NON_STANDARD_sha512-x86_64.o := y
-
 LUA_OBJS := \
 	lapi.o \
 	lauxlib.o \
@@ -498,11 +490,6 @@ UBSAN_SANITIZE_zap_micro.o := n
 UBSAN_SANITIZE_sa.o := n
 UBSAN_SANITIZE_zfs/zap_micro.o := n
 UBSAN_SANITIZE_zfs/sa.o := n
-
-# Suppress incorrect warnings from versions of objtool which are not
-# aware of x86 EVEX prefix instructions used for AVX512.
-OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
-OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
 ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec

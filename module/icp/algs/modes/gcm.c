@@ -948,8 +948,6 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
 	char *fmt;
 	const uint32_t impl = GCM_IMPL_READ(icp_gcm_impl);
 
-	ASSERT(gcm_impl_initialized);
-
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
 #ifdef CAN_USE_GCM_ASM

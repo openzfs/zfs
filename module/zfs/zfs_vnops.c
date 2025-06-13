@@ -93,7 +93,11 @@ static int zfs_dio_enabled = 1;
 /*
  * Maximum bytes to read per chunk in zfs_read().
  */
+#ifdef _ILP32
 static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
+#else
+static uint64_t zfs_vnops_read_chunk_size = DMU_MAX_ACCESS / 2;
+#endif
 
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
@@ -387,7 +391,8 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 #if defined(__linux__)
 	ssize_t start_offset = zfs_uio_offset(uio);
 #endif
-	ssize_t chunk_size = zfs_vnops_read_chunk_size;
+	uint_t blksz = zp->z_blksz;
+	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
 	ssize_t start_resid = n;
 	ssize_t dio_remaining_resid = 0;
@@ -414,11 +419,14 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		dio_remaining_resid = n - P2ALIGN_TYPED(n, PAGE_SIZE, ssize_t);
 		if (dio_remaining_resid != 0)
 			n -= dio_remaining_resid;
+	} else {
+		chunk_size = MIN(MAX(zfs_vnops_read_chunk_size, blksz),
+		    DMU_MAX_ACCESS / 2);
 	}
 
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, chunk_size -
-		    P2PHASE(zfs_uio_offset(uio), chunk_size));
+		    P2PHASE(zfs_uio_offset(uio), blksz));
 #ifdef UIO_NOCOPY
 		if (zfs_uio_segflg(uio) == UIO_NOCOPY)
 			error = mappedread_sf(zp, nbytes, uio);
@@ -1657,7 +1665,8 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, B_FALSE);
 		db = (dmu_buf_impl_t *)sa_get_db(outzp->z_sa_hdl);
 		DB_DNODE_ENTER(db);
-		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size);
+		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size,
+		    inblksz);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
@@ -1681,7 +1690,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			 */
 			if (inblksz != outzp->z_blksz) {
 				error = SET_ERROR(EINVAL);
-				dmu_tx_abort(tx);
+				dmu_tx_commit(tx);
 				break;
 			}
 
@@ -1824,7 +1833,7 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	DB_DNODE_ENTER(db);
-	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len);
+	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len, blksz);
 	DB_DNODE_EXIT(db);
 	zfs_sa_upgrade_txholds(tx, zp);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);

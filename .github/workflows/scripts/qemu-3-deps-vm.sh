@@ -128,7 +128,7 @@ case "$1" in
     sudo dnf install -y kernel-abi-whitelists
     echo "##[endgroup]"
     ;;
-  almalinux9|centos-stream9|centos-stream10)
+  almalinux9|almalinux10|centos-stream9|centos-stream10)
     echo "##[group]Enable epel and crb repositories"
     sudo dnf config-manager -y --set-enabled crb
     sudo dnf install -y epel-release
@@ -171,9 +171,7 @@ case "$1" in
     echo "##[group]Install Ubuntu specific"
     sudo apt-get install -yq linux-tools-common libtirpc-dev \
       linux-modules-extra-$(uname -r)
-    if [ "$1" != "ubuntu20" ]; then
-      sudo apt-get install -yq dh-sequence-dkms
-    fi
+    sudo apt-get install -yq dh-sequence-dkms
     echo "##[endgroup]"
     echo "##[group]Delete Ubuntu OpenZFS modules"
     for i in $(find /lib/modules -name zfs -type d); do sudo rm -rvf $i; done

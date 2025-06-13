@@ -31,6 +31,7 @@
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
 #include <linux/iversion.h>
+#include <linux/version.h>
 
 
 static struct inode *
@@ -105,6 +106,42 @@ zpl_put_super(struct super_block *sb)
 	ASSERT3S(error, <=, 0);
 }
 
+/*
+ * zfs_sync() is the underlying implementation for the sync(2) and syncfs(2)
+ * syscalls, via sb->s_op->sync_fs().
+ *
+ * Before kernel 5.17 (torvalds/linux@5679897eb104), syncfs() ->
+ * sync_filesystem() would ignore the return from sync_fs(), instead only
+ * considing the error from syncing the underlying block device (sb->s_dev).
+ * Since OpenZFS doesn't _have_ an underlying block device, there's no way for
+ * us to report a sync directly.
+ *
+ * However, in 5.8 (torvalds/linux@735e4ae5ba28) the superblock gained an extra
+ * error store `s_wb_err`, to carry errors seen on page writeback since the
+ * last call to syncfs(). If sync_filesystem() does not return an error, any
+ * existing writeback error on the superblock will be used instead (and cleared
+ * either way). We don't use this (page writeback is a different thing for us),
+ * so for 5.8-5.17 we can use that instead to get syncfs() to return the error.
+ *
+ * Before 5.8, we have no other good options - no matter what happens, the
+ * userspace program will be told the call has succeeded, and so we must make
+ * it so, Therefore, when we are asked to wait for sync to complete (wait ==
+ * 1), if zfs_sync() has returned an error we have no choice but to block,
+ * regardless of the reason.
+ *
+ * The 5.17 change was backported to the 5.10, 5.15 and 5.16 series, and likely
+ * to some vendor kernels. Meanwhile, s_wb_err is still in use in 6.15 (the
+ * mainline Linux series at time of writing), and has likely been backported to
+ * vendor kernels before 5.8. We don't really want to use a workaround when we
+ * don't have to, but we can't really detect whether or not sync_filesystem()
+ * will return our errors (without a difficult runtime test anyway). So, we use
+ * a static version check: any kernel reporting its version as 5.17+ will use a
+ * direct error return, otherwise, we'll either use s_wb_err if it was detected
+ * at configure (5.8-5.16 + vendor backports). If it's unavailable, we will
+ * block to ensure the correct semantics.
+ *
+ * See https://github.com/openzfs/zfs/issues/17416 for further discussion.
+ */
 static int
 zpl_sync_fs(struct super_block *sb, int wait)
 {
@@ -115,10 +152,28 @@ zpl_sync_fs(struct super_block *sb, int wait)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_sync(sb, wait, cr);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+#ifdef HAVE_SUPER_BLOCK_S_WB_ERR
+	if (error && wait)
+		errseq_set(&sb->s_wb_err, error);
+#else
+	if (error && wait) {
+		zfsvfs_t *zfsvfs = sb->s_fs_info;
+		ASSERT3P(zfsvfs, !=, NULL);
+		if (zfs_enter(zfsvfs, FTAG) == 0) {
+			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+			zfs_exit(zfsvfs, FTAG);
+			error = 0;
+		}
+	}
+#endif
+#endif /* < 5.17.0 */
+
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
-	ASSERT3S(error, <=, 0);
 
+	ASSERT3S(error, <=, 0);
 	return (error);
 }
 

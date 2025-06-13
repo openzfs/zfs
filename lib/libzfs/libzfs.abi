@@ -345,6 +345,7 @@
     <elf-symbol name='zfs_hold' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_hold_nvl' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_ioctl' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_is_encrypted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_is_mounted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_is_shared' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_isnumber' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1919,6 +1920,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='248'>
         <var-decl name='dds_origin' type-id='d1617432' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2296'>
+        <var-decl name='dds_flags' type-id='b96825af' visibility='default'/>
       </data-member>
     </class-decl>
     <typedef-decl name='dmu_objset_stats_t' type-id='098f0221' id='b2c14f17'/>
@@ -3814,6 +3818,10 @@
       <parameter type-id='5ce45b60' name='raw_props'/>
       <parameter type-id='c19b74c3' name='inheritkey'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_is_encrypted' mangled-name='zfs_is_encrypted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_is_encrypted'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <return type-id='c19b74c3'/>
     </function-decl>
     <function-decl name='zfs_error_aux' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='b0382bb3'/>

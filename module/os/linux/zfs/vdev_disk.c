@@ -614,7 +614,7 @@ static inline uint_t
 vdev_bio_max_segs(struct block_device *bdev)
 {
 	/*
-	 * Smallest of the device max segs and the tuneable max segs. Minimum
+	 * Smallest of the device max segs and the tunable max segs. Minimum
 	 * 4, so there's room to finish split pages if they come up.
 	 */
 	const uint_t dev_max_segs = queue_max_segments(bdev_get_queue(bdev));

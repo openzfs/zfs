@@ -32,7 +32,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
 verify_crossfs_block_cloning
 
 log_assert "Verify block cloning across datasets with different checksum properties"

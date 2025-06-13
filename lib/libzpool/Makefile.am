@@ -1,5 +1,3 @@
-include $(srcdir)/%D%/include/Makefile.am
-
 libzpool_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libzpool_la_CFLAGS += $(ZLIB_CFLAGS)
 

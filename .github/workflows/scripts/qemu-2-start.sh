@@ -34,6 +34,11 @@ case "$OS" in
     OSNAME="AlmaLinux 9"
     URL="https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
     ;;
+  almalinux10)
+    OSNAME="AlmaLinux 10"
+    OSv="almalinux9"
+    URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
+    ;;
   archlinux)
     OSNAME="Archlinux"
     URL="https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
@@ -55,11 +60,6 @@ case "$OS" in
   debian12)
     OSNAME="Debian 12"
     URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"
-    ;;
-  fedora40)
-    OSNAME="Fedora 40"
-    OSv="fedora-unknown"
-    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic.x86_64-40-1.14.qcow2"
     ;;
   fedora41)
     OSNAME="Fedora 41"
@@ -121,11 +121,6 @@ case "$OS" in
     OSv="opensusetumbleweed"
     MIRROR="http://opensuse-mirror-gce-us.susecloud.net"
     URL="$MIRROR/tumbleweed/appliances/openSUSE-MicroOS.x86_64-OpenStack-Cloud.qcow2"
-    ;;
-  ubuntu20)
-    OSNAME="Ubuntu 20.04"
-    OSv="ubuntu20.04"
-    URL="$UBMIRROR/focal/current/focal-server-cloudimg-amd64.img"
     ;;
   ubuntu22)
     OSNAME="Ubuntu 22.04"

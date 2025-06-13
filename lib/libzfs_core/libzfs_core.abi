@@ -1494,6 +1494,9 @@
       <data-member access='public' layout-offset-in-bits='248'>
         <var-decl name='dds_origin' type-id='d1617432' visibility='default'/>
       </data-member>
+      <data-member access='public' layout-offset-in-bits='2296'>
+        <var-decl name='dds_flags' type-id='b96825af' visibility='default'/>
+      </data-member>
     </class-decl>
     <typedef-decl name='dmu_objset_stats_t' type-id='098f0221' id='b2c14f17'/>
     <enum-decl name='dmu_objset_type' id='6b1b19f9'>
