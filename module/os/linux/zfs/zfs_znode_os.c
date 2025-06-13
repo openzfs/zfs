@@ -612,8 +612,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	if (links > 0)
-		unlock_new_inode(ip);
 	return (zp);
 
 error:
@@ -1148,9 +1146,12 @@ again:
 	zp = zfs_znode_alloc(zfsvfs, db, doi.doi_data_block_size,
 	    doi.doi_bonus_type, NULL);
 	if (zp == NULL) {
+		drop_nlink(ZTOI(zp));
+		iput(ZTOI(zp));
 		err = SET_ERROR(ENOENT);
 	} else {
 		*zpp = zp;
+		unlock_new_inode(ZTOI(zp));
 	}
 	zfs_znode_hold_exit(zfsvfs, zh);
 	return (err);
