@@ -202,10 +202,11 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
+			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -264,10 +265,11 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
+			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -304,6 +306,16 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	zidmap_t *userns = kcred->user_ns;
 #endif
 
+#ifndef HAVE_TMPFILE_DENTRY
+#define	fname	&file->f_path.dentry->d_name
+#define	tmpfp	file
+#define	_fini	error = finish_open_simple(file, error)
+#else
+#define	fname	&dentry->d_name
+#define	tmpfp	dentry
+#define	_fini
+#endif
+
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 	/*
@@ -317,23 +329,22 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
 	if (error == 0) {
-		/* d_tmpfile will do drop_nlink, so we should set it first */
-		set_nlink(ip, 1);
-#ifndef HAVE_TMPFILE_DENTRY
-		d_tmpfile(file, ip);
-
-		error = zpl_xattr_security_init(ip, dir,
-		    &file->f_path.dentry->d_name);
-#else
-		d_tmpfile(dentry, ip);
-
-		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
-#endif
+		error = zpl_xattr_security_init(ip, dir, fname);
 		if (error == 0)
 			error = zpl_init_acl(ip, dir);
-#ifndef HAVE_TMPFILE_DENTRY
-		error = finish_open_simple(file, error);
-#endif
+		if (error == 0) {
+			set_nlink(ip, 1);
+			d_tmpfile(tmpfp, ip);
+			unlock_new_inode(ip);
+		} else {
+			/*
+			 * If we failed to initialize the xattr or ACL,
+			 * iput the inode, it will be deleted,
+			 * as it's in the unlinked set.
+			 */
+			iput(ip);
+		}
+		_fini;
 		/*
 		 * don't need to handle error here, file is already in
 		 * unlinked set.
@@ -420,10 +431,11 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 		if (error) {
 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
-			remove_inode_hash(ZTOI(zp));
+			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -706,10 +718,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
+			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 

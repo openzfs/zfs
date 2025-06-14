@@ -1860,7 +1860,8 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		err2 = zfs_rezget(zp);
 		if (err2) {
 			zpl_d_drop_aliases(ZTOI(zp));
-			remove_inode_hash(ZTOI(zp));
+			drop_nlink(ZTOI(zp));
+			iput(ZTOI(zp));
 		}
 
 		/* see comment in zfs_suspend_fs() */
