@@ -48,4 +48,13 @@ typedef struct spl_fid {
 #define	fid_len		un._fid.len
 #define	fid_data	un._fid.data
 
+#ifndef HAVE_VFS_D_INSTANTIATE_NEW
+inline void
+d_instantiate_new(struct dentry *dentry, struct inode *inode)
+{
+	d_instantiate(dentry, inode);
+	unlock_new_inode(inode);
+}
+#endif
+
 #endif /* SPL_ZFS_H */

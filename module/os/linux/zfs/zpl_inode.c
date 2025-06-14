@@ -205,8 +205,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
-			d_instantiate(dentry, ZTOI(zp));
-			unlock_new_inode(ZTOI(zp));
+			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
 
@@ -268,8 +267,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
-			d_instantiate(dentry, ZTOI(zp));
-			unlock_new_inode(ZTOI(zp));
+			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
 
@@ -434,8 +432,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
-			d_instantiate(dentry, ZTOI(zp));
-			unlock_new_inode(ZTOI(zp));
+			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
 
@@ -721,8 +718,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
 		} else {
-			d_instantiate(dentry, ZTOI(zp));
-			unlock_new_inode(ZTOI(zp));
+			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
 
