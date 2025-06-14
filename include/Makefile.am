@@ -10,6 +10,7 @@ COMMON_H = \
 	cityhash.h \
 	zfeature_common.h \
 	zfs_comutil.h \
+	zfs_crrd.h \
 	zfs_deleg.h \
 	zfs_fletcher.h \
 	zfs_namecheck.h \
