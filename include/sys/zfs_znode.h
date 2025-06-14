@@ -140,6 +140,7 @@ extern "C" {
 #define	ZFS_FUID_TABLES		"FUID"
 #define	ZFS_SHARES_DIR		"SHARES"
 #define	ZFS_SA_ATTRS		"SA_ATTRS"
+#define	ZFS_PROJECT_HIERARCHY	"PROJECT_HIERARCHY"
 
 /*
  * Convert mode bits (zp_mode) to BSD-style DT_* values for storing in
