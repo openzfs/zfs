@@ -49,6 +49,15 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_OBJTOOL], [
 		#error "STACK_FRAME_NON_STANDARD is not defined."
 		#endif
 	])
+
+	dnl # 6.15 made CONFIG_OBJTOOL_WERROR=y the default. We need to handle
+	dnl # this or our build will fail.
+	ZFS_LINUX_TEST_SRC([config_objtool_werror], [
+		#if !defined(CONFIG_OBJTOOL_WERROR)
+		#error "CONFIG_OBJTOOL_WERROR is not defined."
+		#endif
+	])
+
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_OBJTOOL], [
@@ -81,6 +90,14 @@ AC_DEFUN([ZFS_AC_KERNEL_OBJTOOL], [
 			],[
 				AC_MSG_RESULT(no)
 			])
+		],[
+			AC_MSG_RESULT(no)
+		])
+
+		AC_MSG_CHECKING([whether CONFIG_OBJTOOL_WERROR is defined])
+		ZFS_LINUX_TEST_RESULT([config_objtool_werror],[
+			AC_MSG_RESULT(yes)
+			CONFIG_OBJTOOL_WERROR_DEFINED=yes
 		],[
 			AC_MSG_RESULT(no)
 		])
