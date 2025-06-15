@@ -75,6 +75,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_rlock.h>
+#include <sys/zfs_project.h>
 #include <sys/bio.h>
 #include <sys/buf.h>
 #include <sys/sched.h>
@@ -268,6 +269,71 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 }
 
 static int
+zfs_ioctl_getxattr(vnode_t *vp, zfsxattr_t *fsx)
+{
+	znode_t *zp = VTOZ(vp);
+
+	memset(fsx, 0, sizeof (*fsx));
+	fsx->fsx_xflags = (zp->z_pflags & ZFS_PROJINHERIT) ?
+	    ZFS_PROJINHERIT_FL : 0;
+	fsx->fsx_projid = zp->z_projid;
+
+	return (0);
+}
+
+static int
+zfs_ioctl_setflags(vnode_t *vp, uint32_t ioctl_flags, xvattr_t *xva)
+{
+	uint64_t zfs_flags = VTOZ(vp)->z_pflags;
+	xoptattr_t *xoap;
+
+	if (ioctl_flags & ~(ZFS_PROJINHERIT_FL))
+		return (SET_ERROR(EOPNOTSUPP));
+
+	xva_init(xva);
+	xoap = xva_getxoptattr(xva);
+
+#define	FLAG_CHANGE(iflag, zflag, xflag, xfield)	do {		\
+	if (((ioctl_flags & (iflag)) && !(zfs_flags & (zflag))) ||	\
+	    ((zfs_flags & (zflag)) && !(ioctl_flags & (iflag)))) {	\
+		XVA_SET_REQ(xva, (xflag));				\
+		(xfield) = ((ioctl_flags & (iflag)) != 0);		\
+	}								\
+} while (0)
+
+	FLAG_CHANGE(ZFS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	    xoap->xoa_projinherit);
+
+#undef	FLAG_CHANGE
+
+	return (0);
+}
+
+static int
+zfs_ioctl_setxattr(vnode_t *vp, zfsxattr_t *fsx, cred_t *cr)
+{
+	znode_t *zp = VTOZ(vp);
+	xvattr_t xva;
+	xoptattr_t *xoap;
+	int err;
+
+	if (!zpl_is_valid_projid(fsx->fsx_projid))
+		return (SET_ERROR(EINVAL));
+
+	err = zfs_ioctl_setflags(vp, fsx->fsx_xflags, &xva);
+	if (err)
+		return (err);
+
+	xoap = xva_getxoptattr(&xva);
+	XVA_SET_REQ(&xva, XAT_PROJID);
+	xoap->xoa_projid = fsx->fsx_projid;
+
+	err = zfs_setattr(zp, (vattr_t *)&xva, 0, cr, NULL);
+
+	return (err);
+}
+
+static int
 zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
     int *rvalp)
 {
@@ -305,6 +371,24 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 			return (error);
 		*(offset_t *)data = off;
 		return (0);
+	}
+	case ZFS_IOC_FSGETXATTR: {
+		zfsxattr_t *fsx = (zfsxattr_t *)data;
+		error = vn_lock(vp, LK_SHARED);
+		if (error)
+			return (error);
+		error = zfs_ioctl_getxattr(vp, fsx);
+		VOP_UNLOCK(vp);
+		return (error);
+	}
+	case ZFS_IOC_FSSETXATTR: {
+		zfsxattr_t *fsx = (zfsxattr_t *)data;
+		error = vn_lock(vp, LK_EXCLUSIVE);
+		if (error)
+			return (error);
+		error = zfs_ioctl_setxattr(vp, fsx, cred);
+		VOP_UNLOCK(vp);
+		return (error);
 	}
 	case ZFS_IOC_REWRITE: {
 		zfs_rewrite_args_t *args = (zfs_rewrite_args_t *)data;
@@ -2059,6 +2143,132 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
 }
 
 /*
+ * For the operation of changing file's user/group/project, we need to
+ * handle not only the main object that is assigned to the file directly,
+ * but also the ones that are used by the file via hidden xattr directory.
+ *
+ * Because the xattr directory may contains many EA entries, as to it may
+ * be impossible to change all of them via the transaction of changing the
+ * main object's user/group/project attributes. Then we have to change them
+ * via other multiple independent transactions one by one. It may be not good
+ * solution, but we have no better idea yet.
+ */
+static int
+zfs_setattr_dir(znode_t *dzp)
+{
+	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
+	objset_t	*os = zfsvfs->z_os;
+	zap_cursor_t	zc;
+	zap_attribute_t	*zap;
+	znode_t		*zp = NULL;
+	dmu_tx_t	*tx = NULL;
+	uint64_t	uid, gid;
+	sa_bulk_attr_t	bulk[4];
+	int		count;
+	int		err;
+
+	zap = zap_attribute_alloc();
+	zap_cursor_init(&zc, os, dzp->z_id);
+	while ((err = zap_cursor_retrieve(&zc, zap)) == 0) {
+		count = 0;
+		if (zap->za_integer_length != 8 || zap->za_num_integers != 1) {
+			err = ENXIO;
+			break;
+		}
+
+		err = zfs_dirent_lookup(dzp, zap->za_name, &zp, ZEXISTS);
+		if (err == ENOENT)
+			goto next;
+		if (err)
+			break;
+
+		if (zp->z_uid == dzp->z_uid &&
+		    zp->z_gid == dzp->z_gid &&
+		    zp->z_projid == dzp->z_projid)
+			goto next;
+
+		tx = dmu_tx_create(os);
+		if (!(zp->z_pflags & ZFS_PROJID))
+			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+		else
+			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+
+		err = dmu_tx_assign(tx, DMU_TX_WAIT);
+		if (err)
+			break;
+
+		mutex_enter(&dzp->z_lock);
+
+		if (zp->z_uid != dzp->z_uid) {
+			uid = dzp->z_uid;
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_UID(zfsvfs), NULL,
+			    &uid, sizeof (uid));
+			zp->z_uid = uid;
+		}
+
+		if (zp->z_gid != dzp->z_gid) {
+			gid = dzp->z_gid;
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GID(zfsvfs), NULL,
+			    &gid, sizeof (gid));
+			zp->z_gid = gid;
+		}
+
+		uint64_t projid = dzp->z_projid;
+		if (zp->z_projid != projid) {
+			if (!(zp->z_pflags & ZFS_PROJID)) {
+				err = sa_add_projid(zp->z_sa_hdl, tx, projid);
+				if (unlikely(err == EEXIST)) {
+					err = 0;
+				} else if (err != 0) {
+					goto sa_add_projid_err;
+				} else {
+					projid = ZFS_INVALID_PROJID;
+				}
+			}
+
+			if (projid != ZFS_INVALID_PROJID) {
+				zp->z_projid = projid;
+				SA_ADD_BULK_ATTR(bulk, count,
+				    SA_ZPL_PROJID(zfsvfs), NULL, &zp->z_projid,
+				    sizeof (zp->z_projid));
+			}
+		}
+
+sa_add_projid_err:
+		mutex_exit(&dzp->z_lock);
+
+		if (likely(count > 0)) {
+			err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+			dmu_tx_commit(tx);
+		} else if (projid == ZFS_INVALID_PROJID) {
+			dmu_tx_commit(tx);
+		} else {
+			dmu_tx_abort(tx);
+		}
+		tx = NULL;
+		if (err != 0 && err != ENOENT)
+			break;
+
+next:
+		if (zp) {
+			zrele(zp);
+			zp = NULL;
+		}
+		zap_cursor_advance(&zc);
+	}
+
+	if (tx)
+		dmu_tx_abort(tx);
+	if (zp) {
+		zrele(zp);
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
+
+	return (err == ENOENT ? 0 : err);
+}
+
+/*
  * Set the file attributes to the values contained in the
  * vattr structure.
  *
@@ -2103,6 +2313,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 	zfs_acl_t	*aclp;
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	boolean_t	fuid_dirtied = B_FALSE;
+	boolean_t	handle_eadir = B_FALSE;
 	sa_bulk_attr_t	bulk[7], xattr_bulk[7];
 	int		count = 0, xattr_count = 0;
 
@@ -2454,6 +2665,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 	mask = vap->va_mask;
 
 	if ((mask & (AT_UID | AT_GID)) || projid != ZFS_INVALID_PROJID) {
+		handle_eadir = B_TRUE;
 		err = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 		    &xattr_obj, sizeof (xattr_obj));
 
@@ -2783,6 +2995,10 @@ out:
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
+		if (attrzp) {
+			if (err2 == 0 && handle_eadir)
+				err = zfs_setattr_dir(attrzp);
+		}
 	}
 
 out2:
@@ -3439,8 +3655,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids,
-	    0 /* projid */)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, ZFS_DEFAULT_PROJID)) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EDQUOT));
