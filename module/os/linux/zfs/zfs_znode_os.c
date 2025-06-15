@@ -371,9 +371,14 @@ zfs_inode_alloc(struct super_block *sb, struct inode **ip)
 	return (0);
 }
 
-/*
- * Called in multiple places when an inode should be destroyed.
- */
+void
+zfs_inode_free(struct inode *ip)
+{
+	znode_t *zp = ITOZ(ip);
+
+	kmem_cache_free(znode_cache, zp);
+}
+
 void
 zfs_inode_destroy(struct inode *ip)
 {
@@ -396,7 +401,9 @@ zfs_inode_destroy(struct inode *ip)
 		zp->z_xattr_cached = NULL;
 	}
 
-	kmem_cache_free(znode_cache, zp);
+#ifndef HAVE_INODE_FREE
+	zfs_inode_free(ip);
+#endif
 }
 
 static void
