@@ -195,20 +195,26 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
-	if (error == 0) {
-		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
-		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
 
-		if (error) {
-			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+	if (error)
+		goto out;
+
+	VERIFY0(insert_inode_locked(ZTOI(zp)));
+
+	error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+	if (error == 0)
+		error = zpl_init_acl(ZTOI(zp), dir);
+
+	if (error) {
+		(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+		if (zp != NULL) {
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
-		} else {
-			d_instantiate_new(dentry, ZTOI(zp));
 		}
+	} else {
+		d_instantiate_new(dentry, ZTOI(zp));
 	}
-
+out:
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -257,20 +263,26 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
-	if (error == 0) {
-		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
-		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
 
-		if (error) {
-			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+	if (error)
+		goto out;
+
+	VERIFY0(insert_inode_locked(ZTOI(zp)));
+
+	error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+	if (error == 0)
+		error = zpl_init_acl(ZTOI(zp), dir);
+
+	if (error) {
+		(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+		if (zp != NULL) {
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
-		} else {
-			d_instantiate_new(dentry, ZTOI(zp));
 		}
+	} else {
+		d_instantiate_new(dentry, ZTOI(zp));
 	}
-
+out:
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -422,20 +434,26 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL,
 	    user_ns);
-	if (error == 0) {
-		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
-		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
 
-		if (error) {
-			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
+	if (error)
+		goto out;
+
+	VERIFY0(insert_inode_locked(ZTOI(zp)));
+
+	error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+	if (error == 0)
+		error = zpl_init_acl(ZTOI(zp), dir);
+
+	if (error) {
+		(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
+		if (zp != NULL) {
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
-		} else {
-			d_instantiate_new(dentry, ZTOI(zp));
 		}
+	} else {
+		d_instantiate_new(dentry, ZTOI(zp));
 	}
-
+out:
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -711,17 +729,24 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink(ITOZ(dir), dname(dentry), vap,
 	    (char *)name, &zp, cr, 0, user_ns);
-	if (error == 0) {
-		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
-		if (error) {
-			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+
+	if (error)
+		goto out;
+
+	VERIFY0(insert_inode_locked(ZTOI(zp)));
+
+	error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
+
+	if (error) {
+		(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
+		if (zp != NULL) {
 			drop_nlink(ZTOI(zp));
 			iput(ZTOI(zp));
-		} else {
-			d_instantiate_new(dentry, ZTOI(zp));
 		}
+	} else {
+		d_instantiate_new(dentry, ZTOI(zp));
 	}
-
+out:
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
