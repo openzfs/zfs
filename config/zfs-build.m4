@@ -205,6 +205,46 @@ AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS], [
 	AC_MSG_RESULT([$enable_invariants])
 ])
 
+dnl # Disabled by default. If enabled allows a configured "turn objtools
+dnl # warnings into errors" (CONFIG_OBJTOOL_WERROR) behavior to take effect.
+dnl # If disabled, objtool warnings are never turned into errors. It can't
+dnl # be enabled if the kernel wasn't compiled with CONFIG_OBJTOOL_WERROR=y.
+dnl #
+AC_DEFUN([ZFS_AC_OBJTOOL_WERROR], [
+	AC_MSG_CHECKING([whether objtool error on warning behavior is enabled])
+	AC_ARG_ENABLE([objtool-werror],
+		[AS_HELP_STRING([--enable-objtool-werror],
+		[Enable objtool's error on warning behaviour if present @<:@default=no@:>@])],
+		[enable_objtool_werror=$enableval],
+		[enable_objtool_werror=no])
+	AC_MSG_RESULT([$enable_objtool_werror])
+
+	AS_IF([test x$CONFIG_OBJTOOL_WERROR_DEFINED = xyes],[
+		AS_IF([test x$enable_objtool_werror = xyes],[
+			AC_MSG_NOTICE([enable-objtool-werror defined, keeping -Werror ])
+		],[
+			AC_MSG_NOTICE([enable-objtool-werror undefined, disabling -Werror ])
+			OBJTOOL_DISABLE_WERROR=y
+			abs_objtool_binary=$kernelsrc/tools/objtool/objtool
+			AS_IF([test -x $abs_objtool_binary],[],[
+				AC_MSG_ERROR([*** objtool binary $abs_objtool_binary not found])
+			])
+			dnl # The path to the wrapper is defined in modules/Makefile.in.
+		])
+	],[
+		dnl # We can't enable --Werror if it's not there.
+		AS_IF([test x$enable_objtool_werror = xyes],[
+			AC_MSG_ERROR([
+	*** Cannot enable objtool-werror,
+	*** a kernel built with CONFIG_OBJTOOL_WERROR=y is required.
+			])
+		],[])
+	])
+
+	AC_SUBST(OBJTOOL_DISABLE_WERROR)
+	AC_SUBST(abs_objtool_binary)
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	AX_COUNT_CPUS([])
 	AC_SUBST(CPU_COUNT)
