@@ -65,6 +65,7 @@ ZFS_AC_DEBUGINFO
 ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
 ZFS_AC_DEBUG_INVARIANTS
+ZFS_AC_OBJTOOL_WERROR
 
 AC_CONFIG_FILES([
 	contrib/debian/rules
@@ -86,6 +87,7 @@ AC_CONFIG_FILES([
 	zfs.release
 ])
 
+AC_CONFIG_FILES([scripts/objtool-wrapper], [chmod +x scripts/objtool-wrapper])
 
 AC_OUTPUT
 
