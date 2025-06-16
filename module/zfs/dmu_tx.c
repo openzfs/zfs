@@ -1054,7 +1054,7 @@ dmu_tx_try_assign(dmu_tx_t *tx)
 
 	if (tx->tx_err) {
 		DMU_TX_STAT_BUMP(dmu_tx_error);
-		return (tx->tx_err);
+		return (SET_ERROR(EIO));
 	}
 
 	if (spa_suspended(spa)) {
@@ -1190,7 +1190,8 @@ dmu_tx_unassign(dmu_tx_t *tx)
  * If DMU_TX_WAIT is set and the currently open txg is full, this function
  * will wait until there's a new txg. This should be used when no locks
  * are being held. With this bit set, this function will only fail if
- * we're truly out of space (or over quota).
+ * we're truly out of space (ENOSPC), over quota (EDQUOT), or required
+ * data for the transaction could not be read from disk (EIO).
  *
  * If DMU_TX_WAIT is *not* set and we can't assign into the currently open
  * txg without blocking, this function will return immediately with
@@ -1279,8 +1280,11 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 		 * Return unless we decided to retry, or the caller does not
 		 * want to block.
 		 */
-		if (err != ERESTART || !(flags & DMU_TX_WAIT))
+		if (err != ERESTART || !(flags & DMU_TX_WAIT)) {
+			ASSERT(err == EDQUOT || err == ENOSPC ||
+			    err == ERESTART || err == EIO);
 			return (err);
+		}
 
 		/*
 		 * Wait until there's room in this txg, or until it's been

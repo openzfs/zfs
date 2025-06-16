@@ -1816,7 +1816,7 @@ ztest_zd_fini(ztest_ds_t *zd)
 	(ztest_random(10) == 0 ? DMU_TX_NOWAIT : DMU_TX_WAIT)
 
 static uint64_t
-ztest_tx_assign(dmu_tx_t *tx, uint64_t txg_how, const char *tag)
+ztest_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t txg_how, const char *tag)
 {
 	uint64_t txg;
 	int error;
@@ -1829,9 +1829,10 @@ ztest_tx_assign(dmu_tx_t *tx, uint64_t txg_how, const char *tag)
 		if (error == ERESTART) {
 			ASSERT3U(txg_how, ==, DMU_TX_NOWAIT);
 			dmu_tx_wait(tx);
-		} else {
-			ASSERT3U(error, ==, ENOSPC);
+		} else if (error == ENOSPC) {
 			ztest_record_enospc(tag);
+		} else {
+			ASSERT(error == EDQUOT || error == EIO);
 		}
 		dmu_tx_abort(tx);
 		return (0);
