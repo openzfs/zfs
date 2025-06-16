@@ -475,6 +475,9 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,
 	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "FAILFAST", boolean_table,
 	    sfeatures);
+	zprop_register_index(VDEV_PROP_SLOW_IO_REPORTING, "slow_io_reporting",
+	    B_TRUE, PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off",
+	    "SLOW_IO_REPORTING", boolean_table, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,
