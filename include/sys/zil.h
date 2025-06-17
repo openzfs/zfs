@@ -581,6 +581,25 @@ typedef struct zil_sums {
 #define	ZIL_STAT_BUMP(zil, stat) \
     ZIL_STAT_INCR(zil, stat, 1);
 
+/*
+ * Flags for zil_commit_flags(). zil_commit() is a shortcut for
+ * zil_commit_flags(ZIL_COMMIT_FAILMODE), which is the most common use.
+ */
+typedef enum {
+	/*
+	 * Try to commit the ZIL. If it fails, fall back to txg_wait_synced().
+	 * If that fails, return EIO.
+	 */
+	ZIL_COMMIT_NOW = 0,
+
+	/*
+	 * Like ZIL_COMMIT_NOW, but if the ZIL commit fails because the pool
+	 * suspended, act according to the pool's failmode= setting (wait for
+	 * the pool to resume, or return EIO).
+	 */
+	ZIL_COMMIT_FAILMODE = (1 << 1),
+} zil_commit_flag_t;
+
 typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t txg);
 typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
@@ -614,8 +633,11 @@ extern void	zil_itx_destroy(itx_t *itx, int err);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
 extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
-extern int __must_check	zil_commit(zilog_t *zilog, uint64_t oid);
 extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
+
+extern int	zil_commit_flags(zilog_t *zilog, uint64_t oid,
+    zil_commit_flag_t flags);
+extern int __must_check	zil_commit(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_reset(const char *osname, void *txarg);
 extern int	zil_claim(struct dsl_pool *dp,
