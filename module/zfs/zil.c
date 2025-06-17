@@ -3879,6 +3879,12 @@ static int zil_commit_impl(zilog_t *zilog, uint64_t foid);
 int
 zil_commit(zilog_t *zilog, uint64_t foid)
 {
+	return (zil_commit_flags(zilog, foid, ZIL_COMMIT_FAILMODE));
+}
+
+int
+zil_commit_flags(zilog_t *zilog, uint64_t foid, zil_commit_flag_t flags)
+{
 	/*
 	 * We should never attempt to call zil_commit on a snapshot for
 	 * a couple of reasons:
@@ -3955,7 +3961,11 @@ out:
 	 */
 	ASSERT3U(err, ==, ESHUTDOWN);
 
-	if (spa_get_failmode(zilog->zl_spa) == ZIO_FAILURE_MODE_CONTINUE)
+	/*
+	 * Return error if failmode=continue or caller will handle directly.
+	 */
+	if (!(flags & ZIL_COMMIT_FAILMODE) ||
+	    spa_get_failmode(zilog->zl_spa) == ZIO_FAILURE_MODE_CONTINUE)
 		return (SET_ERROR(EIO));
 
 	/*
@@ -4321,7 +4331,7 @@ zil_close(zilog_t *zilog)
 	uint64_t txg;
 
 	if (!dmu_objset_is_snapshot(zilog->zl_os)) {
-		if (zil_commit(zilog, 0) != 0)
+		if (zil_commit_flags(zilog, 0, ZIL_COMMIT_NOW) != 0)
 			txg_wait_synced(zilog->zl_dmu_pool, 0);
 	} else {
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
