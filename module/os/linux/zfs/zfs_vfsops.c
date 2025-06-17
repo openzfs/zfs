@@ -279,16 +279,11 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 		return (err);
 
 	/*
-	 * If the pool is suspended, just return an error. This is to help
-	 * with shutting down with pools suspended, as we don't want to block
-	 * in that case.
+	 * Sync any pending writes, but do not block if the pool is suspended.
+	 * This is to help with shutting down with pools suspended, as we don't
+	 * want to block in that case.
 	 */
-	if (spa_suspended(zfsvfs->z_os->os_spa)) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EIO));
-	}
-
-	err = zil_commit(zfsvfs->z_log, 0);
+	err = zil_commit_flags(zfsvfs->z_log, 0, ZIL_COMMIT_NOW);
 	zfs_exit(zfsvfs, FTAG);
 
 	return (err);
