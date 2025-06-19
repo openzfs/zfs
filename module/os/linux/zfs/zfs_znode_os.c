@@ -768,7 +768,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode)) {
 		/*
 		 * With ZFS_PROJID flag, we can easily know whether there is
-		 * project ID stored on disk or not. See zfs_space_delta_cb().
+		 * project ID stored on disk or not. See zpl_get_file_info().
 		 */
 		if (obj_type != DMU_OT_ZNODE &&
 		    dmu_objset_projectquota_enabled(zfsvfs->z_os))

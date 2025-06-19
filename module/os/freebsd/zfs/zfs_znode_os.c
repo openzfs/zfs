@@ -564,6 +564,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	uint64_t	crtime[2], atime[2], mtime[2], ctime[2];
 	uint64_t	mode, size, links, parent, pflags;
 	uint64_t	dzp_pflags = 0;
+	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	uint64_t	rdev = 0;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	dmu_buf_t	*db;
@@ -671,6 +672,23 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (flag & IS_XATTR)
 		pflags |= ZFS_XATTR;
 
+	if (vap->va_type == VREG || vap->va_type == VDIR) {
+		/*
+		 * With ZFS_PROJID flag, we can easily know whether there is
+		 * project ID stored on disk or not. See zpl_get_file_info().
+		 */
+		if (obj_type != DMU_OT_ZNODE &&
+		    dmu_objset_projectquota_enabled(zfsvfs->z_os))
+			pflags |= ZFS_PROJID;
+
+		/*
+		 * Inherit project ID from parent if required.
+		 */
+		projid = zfs_inherit_projid(dzp);
+		if (dzp_pflags & ZFS_PROJINHERIT)
+			pflags |= ZFS_PROJINHERIT;
+	}
+
 	/*
 	 * No execs denied will be determined when zfs_mode_compute() is called.
 	 */
@@ -752,6 +770,10 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_XATTR(zfsvfs), NULL,
 		    &empty_xattr, 8);
+	} else if (dmu_objset_projectquota_enabled(zfsvfs->z_os) &&
+	    pflags & ZFS_PROJID) {
+		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_PROJID(zfsvfs),
+		    NULL, &projid, 8);
 	}
 	if (obj_type == DMU_OT_ZNODE ||
 	    (vap->va_type == VBLK || vap->va_type == VCHR)) {
@@ -799,6 +821,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	(*zpp)->z_pflags = pflags;
 	(*zpp)->z_mode = mode;
 	(*zpp)->z_dnodesize = dnodesize;
+	(*zpp)->z_projid = projid;
 
 	if (vap->va_mask & AT_XVATTR)
 		zfs_xvattr_set(*zpp, (xvattr_t *)vap, tx);
@@ -915,6 +938,11 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		ZFS_ATTR_SET(zp, ZFS_SPARSE, xoap->xoa_sparse,
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_SPARSE);
+	}
+	if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT)) {
+		ZFS_ATTR_SET(zp, ZFS_PROJINHERIT, xoap->xoa_projinherit,
+		    zp->z_pflags, tx);
+		XVA_SET_RTN(xvap, XAT_PROJINHERIT);
 	}
 }
 
@@ -1068,6 +1096,7 @@ zfs_rezget(znode_t *zp)
 	int err;
 	int count = 0;
 	uint64_t gen;
+	uint64_t projid = ZFS_DEFAULT_PROJID;
 
 	/*
 	 * Remove cached pages before reloading the znode, so that they are not
@@ -1148,6 +1177,17 @@ zfs_rezget(znode_t *zp)
 		return (SET_ERROR(EIO));
 	}
 
+	if (dmu_objset_projectquota_enabled(zfsvfs->z_os)) {
+		err = sa_lookup(zp->z_sa_hdl, SA_ZPL_PROJID(zfsvfs),
+		    &projid, 8);
+		if (err != 0 && err != ENOENT) {
+			zfs_znode_dmu_fini(zp);
+			ZFS_OBJ_HOLD_EXIT(zfsvfs, obj_num);
+			return (err);
+		}
+	}
+
+	zp->z_projid = projid;
 	zp->z_mode = mode;
 
 	if (gen != zp->z_gen) {
