@@ -61,37 +61,17 @@ typedef struct zio_eck {
  * Gang block headers are self-checksumming and contain an array
  * of block pointers.
  */
-
-typedef enum zio_gb_version {
-	ZIO_GB_OLD = 0,
-	ZIO_GB_SIZED,
-	ZIO_GB_VERSIONS,
-} zio_gb_version_t;
-
-typedef struct zio_gb_tail {
-	uint64_t	zgt_version;	/* gang block type */
-	zio_eck_t	zgt_eck;	/* embedded checksum */
-} zio_gb_tail_t;
-
 #define	SPA_OLD_GANGBLOCKSIZE	SPA_MINBLOCKSIZE
+typedef void zio_gbh_phys_t;
 
 static inline uint64_t
 gbh_nblkptrs(uint64_t size) {
-	return ((size - sizeof (zio_gb_tail_t)) /
-	    sizeof (blkptr_t));
+	return ((size - sizeof (zio_eck_t)) / sizeof (blkptr_t));
 }
 
-static inline uint64_t
-gbh_filler(uint64_t size) {
-	return ((size - sizeof (zio_gb_tail_t) -
-	    (gbh_nblkptrs(size) * sizeof (blkptr_t))) /
-	    sizeof (uint64_t));
-}
-
-static inline zio_gb_tail_t *
-gbh_tail(void *gbh, uint64_t size) {
-	return ((zio_gb_tail_t *)((uintptr_t)gbh + size -
-	    sizeof (zio_gb_tail_t)));
+static inline zio_eck_t *
+gbh_eck(zio_gbh_phys_t *gbh, uint64_t size) {
+	return ((zio_eck_t *)((uintptr_t)gbh + size - sizeof (zio_eck_t)));
 }
 
 enum zio_checksum {
@@ -417,9 +397,9 @@ typedef struct zio_vsd_ops {
 } zio_vsd_ops_t;
 
 typedef struct zio_gang_node {
-	void			*gn_gbh;
+	zio_gbh_phys_t		*gn_gbh;
 	uint64_t		gn_gangblocksize;
-	uint64_t		gn_orig_gangblocksize;
+	uint64_t		gn_allocsize;
 	struct zio_gang_node	*gn_child[];
 } zio_gang_node_t;
 

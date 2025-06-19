@@ -39,6 +39,8 @@ mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 set_tunable64 METASLAB_FORCE_GANGING 200000
 set_tunable32 METASLAB_FORCE_GANGING_PCT 100
 
+status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
+[[ "$status" == "enabled" ]] || log_fail "Dynamic gang headers not enabled"
 path="${mountpoint}/file"
 log_must dd if=/dev/urandom of=$path bs=1M count=1
 log_must zpool sync $TESTPOOL
@@ -48,7 +50,22 @@ first_dva=$(echo "$leaves" | head -n 1 | awk '{print $1}' | sed 's/.*<//' | sed 
 check_not_gang_dva $first_dva
 
 num_leaves=$(echo "$leaves" | wc -l)
+[[ "$num_leaves" -gt 3 ]] && log_fail "used a larger gang header too soon: \"$leaves\""
+log_must verify_pool $TESTPOOL
+status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
+[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
+
+path="${mountpoint}/file2"
+log_must dd if=/dev/urandom of=$path bs=1M count=1
+log_must zpool sync $TESTPOOL
+first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file2)
+leaves=$(read_gang_header $TESTPOOL $first_block 1000 | grep -v HOLE)
+first_dva=$(echo "$leaves" | head -n 1 | awk '{print $1}' | sed 's/.*<//' | sed 's/>.*//')
+check_not_gang_dva $first_dva
+
+num_leaves=$(echo "$leaves" | wc -l)
 [[ "$num_leaves" -gt 3 ]] || log_fail "didn't use a larger gang header: \"$leaves\""
+
 
 log_must verify_pool $TESTPOOL
 status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)

@@ -2918,7 +2918,7 @@ zio_gang_node_alloc(zio_gang_node_t **gnpp, uint64_t gangblocksize)
 
 	gn = kmem_zalloc(sizeof (*gn) +
 	    (gbh_nblkptrs(gangblocksize) * sizeof (gn)), KM_SLEEP);
-	gn->gn_gangblocksize = gn->gn_orig_gangblocksize = gangblocksize;
+	gn->gn_gangblocksize = gn->gn_allocsize = gangblocksize;
 	gn->gn_gbh = zio_buf_alloc(gangblocksize);
 	*gnpp = gn;
 
@@ -2930,12 +2930,12 @@ zio_gang_node_free(zio_gang_node_t **gnpp)
 {
 	zio_gang_node_t *gn = *gnpp;
 
-	for (int g = 0; g < gbh_nblkptrs(gn->gn_orig_gangblocksize); g++)
+	for (int g = 0; g < gbh_nblkptrs(gn->gn_allocsize); g++)
 		ASSERT(gn->gn_child[g] == NULL);
 
-	zio_buf_free(gn->gn_gbh, gn->gn_orig_gangblocksize);
+	zio_buf_free(gn->gn_gbh, gn->gn_allocsize);
 	kmem_free(gn, sizeof (*gn) +
-	    (gbh_nblkptrs(gn->gn_orig_gangblocksize) * sizeof (gn)));
+	    (gbh_nblkptrs(gn->gn_allocsize) * sizeof (gn)));
 	*gnpp = NULL;
 }
 
@@ -2947,7 +2947,7 @@ zio_gang_tree_free(zio_gang_node_t **gnpp)
 	if (gn == NULL)
 		return;
 
-	for (int g = 0; g < gbh_nblkptrs(gn->gn_orig_gangblocksize); g++)
+	for (int g = 0; g < gbh_nblkptrs(gn->gn_allocsize); g++)
 		zio_gang_tree_free(&gn->gn_child[g]);
 
 	zio_gang_node_free(gnpp);
@@ -3004,7 +3004,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	 * If this was an old-style gangblock, the gangblocksize should have
 	 * been updated in zio_checksum_error to reflect that.
 	 */
-	ASSERT3U(gbh_tail(gn->gn_gbh, gn->gn_gangblocksize)->zgt_eck.zec_magic,
+	ASSERT3U(gbh_eck(gn->gn_gbh, gn->gn_gangblocksize)->zec_magic,
 	    ==, ZEC_MAGIC);
 
 	abd_free(zio->io_abd);
@@ -3035,8 +3035,8 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, abd_t *data,
 	zio = zio_gang_issue_func[gio->io_type](pio, bp, gn, data, offset);
 
 	if (gn != NULL) {
-		ASSERT3U(gbh_tail(gn->gn_gbh,
-		    gn->gn_gangblocksize)->zgt_eck.zec_magic, ==, ZEC_MAGIC);
+		ASSERT3U(gbh_eck(gn->gn_gbh,
+		    gn->gn_gangblocksize)->zec_magic, ==, ZEC_MAGIC);
 
 		for (int g = 0; g < gbh_nblkptrs(gn->gn_gangblocksize); g++) {
 			blkptr_t *gbp = &((blkptr_t *)gn->gn_gbh)[g];
@@ -3128,7 +3128,8 @@ zio_write_gang_member_ready(zio_t *zio)
 	for (int d = 0; d < BP_GET_NDVAS(pio->io_bp); d++) {
 		ASSERT(DVA_GET_GANG(&pdva[d]));
 		asize = DVA_GET_ASIZE(&pdva[d]);
-		asize += DVA_GET_ASIZE(&cdva[0]);
+		for (int cd = 0; cd < BP_GET_NDVAS(zio->io_bp); cd++)
+			asize += DVA_GET_ASIZE(&cdva[cd]);
 		DVA_SET_ASIZE(&pdva[d], asize);
 	}
 	mutex_exit(&pio->io_lock);
@@ -3161,7 +3162,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	zio_t *gio = pio->io_gang_leader;
 	zio_t *zio;
 	zio_gang_node_t *gn, **gnpp;
-	void *gbh;
+	zio_gbh_phys_t *gbh;
 	abd_t *gbh_abd;
 	uint64_t txg = pio->io_txg;
 	uint64_t resid = pio->io_size;
@@ -3207,22 +3208,27 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		pio->io_error = error;
 		return (pio);
 	}
-
+	uint64_t candidate = gangblocksize;
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-		gangblocksize = UINT64_MAX;
+		candidate = UINT64_MAX;
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
 			vdev_t *vd = vdev_lookup_top(spa,
 			    DVA_GET_VDEV(&bp->blk_dva[dva]));
-			gangblocksize = MIN(gangblocksize,
+			candidate = MIN(candidate,
 			    vdev_gang_header_asize(vd));
-			// For now, the asize still reflects the actual asize.
-			ASSERT3U(gangblocksize, <=,
+			/*
+			 * For now, the asize still reflects the actual
+			 * allocated size.
+			 */
+			ASSERT3U(candidate, <=,
 			    DVA_GET_ASIZE(&(bp->blk_dva[dva])));
 		}
 		spa_config_exit(spa, SCL_VDEV, FTAG);
-		ASSERT3U(gangblocksize, !=, UINT64_MAX);
+		ASSERT3U(candidate, !=, UINT64_MAX);
 	}
+	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
+		gangblocksize = candidate;
 
 	if (pio == gio) {
 		gnpp = &gio->io_gang_tree;
@@ -3256,6 +3262,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	 * space, we fall back to normal zio_write calls for nested gang.
 	 */
 	int g;
+	boolean_t any_failed = B_FALSE;
 	for (g = 0; resid != 0; g++) {
 		flags &= METASLAB_ASYNC_ALLOC;
 		flags |= METASLAB_GANG_CHILD;
@@ -3289,6 +3296,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		    flags, &cio_list, zio->io_allocator, NULL, &allocated_size);
 
 		boolean_t allocated = error == 0;
+		any_failed |= !allocated;
 
 		uint64_t psize = allocated ? MIN(resid, allocated_size) :
 		    min_size;
@@ -3319,22 +3327,27 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zio_nowait(cio);
 	}
 
+	/*
+	 * If we used more gang children than the old limit, we must already be
+	 * using the new headers. No need to update anything, just move on.
+	 *
+	 * Otherwise, we might be in a case where we need to turn on the new
+	 * feature, so we check that. We enable the new feature if we didn't
+	 * manage to fit everything into 3 gang children and we could have
+	 * written more than that.
+	 */
 	if (g > gbh_nblkptrs(SPA_OLD_GANGBLOCKSIZE)) {
-		gbh_tail(gbh, gangblocksize)->zgt_version = ZIO_GB_SIZED;
-		if (!spa_feature_is_active(spa,
-		    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-			dmu_tx_t *tx =
-			    dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
-			dsl_sync_task_nowait(spa->spa_dsl_pool,
-			    zio_update_feature,
-			    (void *)SPA_FEATURE_DYNAMIC_GANG_HEADER, tx);
-			dmu_tx_commit(tx);
-		}
-	} else if (gn->gn_gangblocksize != SPA_OLD_GANGBLOCKSIZE) {
-		// If we can fit it into an old-style gang header, do so
-		gn->gn_gangblocksize = SPA_OLD_GANGBLOCKSIZE;
-		zio->io_orig_size = zio->io_size = zio->io_lsize =
-		    gn->gn_gangblocksize;
+		ASSERT(spa_feature_is_active(spa,
+		    SPA_FEATURE_DYNAMIC_GANG_HEADER));
+	} else if (any_failed && candidate > SPA_OLD_GANGBLOCKSIZE &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER) &&
+	    !spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+		dmu_tx_t *tx =
+		    dmu_tx_create_assigned(spa->spa_dsl_pool, txg + 1);
+		dsl_sync_task_nowait(spa->spa_dsl_pool,
+		    zio_update_feature,
+		    (void *)SPA_FEATURE_DYNAMIC_GANG_HEADER, tx);
+		dmu_tx_commit(tx);
 	}
 
 	/*

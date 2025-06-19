@@ -553,13 +553,7 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 
 	if (bp && BP_IS_GANG(bp) && spa_feature_is_active(spa,
 	    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-		size = UINT64_MAX;
-		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
-			vdev_t *vd = vdev_lookup_top(spa,
-			    DVA_GET_VDEV(&bp->blk_dva[dva]));
-			size = MIN(size, vdev_gang_header_asize(vd));
-		}
-		ASSERT3U(size, !=, UINT64_MAX);
+		size = zio->io_size;
 	}
 
 	error = zio_checksum_error_impl(spa, bp, checksum, data, size,
