@@ -1045,12 +1045,20 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 int
 zfs_zget(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp)
 {
+	return (zfs_zget_impl(zfsvfs, obj_num, zpp, B_FALSE));
+}
+
+int
+zfs_zget_impl(zfsvfs_t *zfsvfs, uint64_t obj_num, znode_t **zpp,
+    boolean_t check_sync)
+{
 	dmu_object_info_t doi;
 	dmu_buf_t	*db;
 	znode_t		*zp;
 	znode_hold_t	*zh;
 	int err;
 	sa_handle_t	*hdl;
+	boolean_t	noloop = B_FALSE;
 
 	*zpp = NULL;
 
@@ -1109,8 +1117,18 @@ again:
 		if (igrab(ZTOI(zp)) == NULL) {
 			if (zp->z_unlinked)
 				err = SET_ERROR(ENOENT);
-			else
+			else {
 				err = SET_ERROR(EAGAIN);
+				/*
+				 * In writeback path, I_SYNC flag will be set
+				 * and block inode eviction. So we must not
+				 * loop doing igrab in possible writeback
+				 * path, i.e. zfs_get_data, if inode is being
+				 * evicted and I_SYNC is also set.
+				 */
+				if (check_sync && (ZTOI(zp)->i_state & I_SYNC))
+					noloop = B_TRUE;
+			}
 		} else {
 			*zpp = zp;
 			err = 0;
@@ -1120,7 +1138,7 @@ again:
 		sa_buf_rele(db, NULL);
 		zfs_znode_hold_exit(zfsvfs, zh);
 
-		if (err == EAGAIN) {
+		if (err == EAGAIN && !noloop) {
 			/* inode might need this to finish evict */
 			cond_resched();
 			goto again;
