@@ -719,7 +719,7 @@ abd_take_ownership_of_buf(abd_t *abd, boolean_t is_metadata)
  * Initializes an abd_iter based on whether the abd is a gang ABD
  * or just a single ABD.
  */
-static inline abd_t *
+abd_t *
 abd_init_abd_iter(abd_t *abd, struct abd_iter *aiter, size_t off)
 {
 	abd_t *cabd = NULL;
@@ -742,7 +742,7 @@ abd_init_abd_iter(abd_t *abd, struct abd_iter *aiter, size_t off)
  * advancing could mean that we are at the end of a particular ABD and
  * must grab the ABD in the gang ABD's list.
  */
-static inline abd_t *
+abd_t *
 abd_advance_abd_iter(abd_t *abd, abd_t *cabd, struct abd_iter *aiter,
     size_t len)
 {
@@ -762,35 +762,13 @@ int
 abd_iterate_func(abd_t *abd, size_t off, size_t size,
     abd_iter_func_t *func, void *private)
 {
-	struct abd_iter aiter;
 	int ret = 0;
 
-	if (size == 0)
-		return (0);
-
-	abd_verify(abd);
-	ASSERT3U(off + size, <=, abd->abd_size);
-
-	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
-
-	while (size > 0) {
-		IMPLY(abd_is_gang(abd), c_abd != NULL);
-
-		abd_iter_map(&aiter);
-
-		size_t len = MIN(aiter.iter_mapsize, size);
-		ASSERT3U(len, >, 0);
-
-		ret = func(aiter.iter_mapaddr, len, private);
-
-		abd_iter_unmap(&aiter);
-
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		ret = func(data, dsize, private);
 		if (ret != 0)
 			break;
-
-		size -= len;
-		c_abd = abd_advance_abd_iter(abd, c_abd, &aiter, len);
-	}
+	});
 
 	return (ret);
 }
@@ -837,43 +815,17 @@ abd_iterate_page_func(abd_t *abd, size_t off, size_t size,
 }
 #endif
 
-struct buf_arg {
-	void *arg_buf;
-};
-
-static int
-abd_copy_to_buf_off_cb(void *buf, size_t size, void *private)
-{
-	struct buf_arg *ba_ptr = private;
-
-	(void) memcpy(ba_ptr->arg_buf, buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
-
-	return (0);
-}
-
 /*
  * Copy abd to buf. (off is the offset in abd.)
  */
 void
 abd_copy_to_buf_off(void *buf, abd_t *abd, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { buf };
-
-	(void) abd_iterate_func(abd, off, size, abd_copy_to_buf_off_cb,
-	    &ba_ptr);
-}
-
-static int
-abd_cmp_buf_off_cb(void *buf, size_t size, void *private)
-{
-	int ret;
-	struct buf_arg *ba_ptr = private;
-
-	ret = memcmp(buf, ba_ptr->arg_buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
-
-	return (ret);
+	char *c = buf;
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		memcpy(c, data, dsize);
+		c += dsize;
+	});
 }
 
 /*
@@ -882,20 +834,17 @@ abd_cmp_buf_off_cb(void *buf, size_t size, void *private)
 int
 abd_cmp_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { (void *) buf };
+	int ret = 0;
+	const char *c = buf;
 
-	return (abd_iterate_func(abd, off, size, abd_cmp_buf_off_cb, &ba_ptr));
-}
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		ret = memcmp(c, data, dsize);
+		if (ret != 0)
+			break;
+		c += dsize;
+	});
 
-static int
-abd_copy_from_buf_off_cb(void *buf, size_t size, void *private)
-{
-	struct buf_arg *ba_ptr = private;
-
-	(void) memcpy(buf, ba_ptr->arg_buf, size);
-	ba_ptr->arg_buf = (char *)ba_ptr->arg_buf + size;
-
-	return (0);
+	return (ret);
 }
 
 /*
@@ -904,18 +853,12 @@ abd_copy_from_buf_off_cb(void *buf, size_t size, void *private)
 void
 abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 {
-	struct buf_arg ba_ptr = { (void *) buf };
+	const char *c = buf;
 
-	(void) abd_iterate_func(abd, off, size, abd_copy_from_buf_off_cb,
-	    &ba_ptr);
-}
-
-static int
-abd_zero_off_cb(void *buf, size_t size, void *private)
-{
-	(void) private;
-	(void) memset(buf, 0, size);
-	return (0);
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		memcpy(data, c, dsize);
+		c += dsize;
+	});
 }
 
 /*
@@ -924,7 +867,9 @@ abd_zero_off_cb(void *buf, size_t size, void *private)
 void
 abd_zero_off(abd_t *abd, size_t off, size_t size)
 {
-	(void) abd_iterate_func(abd, off, size, abd_zero_off_cb, NULL);
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		memset(data, 0, dsize);
+	});
 }
 
 /*
@@ -937,48 +882,89 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
     size_t size, abd_iter_func2_t *func, void *private)
 {
 	int ret = 0;
-	struct abd_iter daiter, saiter;
-	abd_t *c_dabd, *c_sabd;
 
 	if (size == 0)
 		return (0);
 
-	abd_verify(dabd);
-	abd_verify(sabd);
+	abd_chunk_t sch = abd_chunk_start(sabd, soff, size);
+	abd_chunk_t dch = abd_chunk_start(dabd, doff, size);
 
-	ASSERT3U(doff + size, <=, dabd->abd_size);
-	ASSERT3U(soff + size, <=, sabd->abd_size);
+	/*
+	 * Current chunk is always mapped inside the loop, and remapped after
+	 * advance, so we can leave a larger chunk mapped across iterations.
+	 */
+	void *saddr = abd_chunk_map(&sch);
+	size_t ssize = abd_chunk_size(&sch);
 
-	c_dabd = abd_init_abd_iter(dabd, &daiter, doff);
-	c_sabd = abd_init_abd_iter(sabd, &saiter, soff);
+	void *daddr = abd_chunk_map(&dch);
+	size_t dsize = abd_chunk_size(&dch);
+
+	/*
+	 * Offset to data in current mapping. If we only take less than the
+	 * full chunk then we need to offset the next iteration.
+	 */
+	soff = doff = 0;
 
 	while (size > 0) {
-		IMPLY(abd_is_gang(dabd), c_dabd != NULL);
-		IMPLY(abd_is_gang(sabd), c_sabd != NULL);
+		ASSERT3U(ssize, >, 0);
+		ASSERT3U(dsize, >, 0);
 
-		abd_iter_map(&daiter);
-		abd_iter_map(&saiter);
+		/*
+		 * This iteration we take the largest amount without going
+		 * past the end of the chunk.
+		 */
+		size_t isize = MIN(size, MIN(ssize, dsize));
 
-		size_t dlen = MIN(daiter.iter_mapsize, size);
-		size_t slen = MIN(saiter.iter_mapsize, size);
-		size_t len = MIN(dlen, slen);
-		ASSERT(dlen > 0 || slen > 0);
-
-		ret = func(daiter.iter_mapaddr, saiter.iter_mapaddr, len,
-		    private);
-
-		abd_iter_unmap(&saiter);
-		abd_iter_unmap(&daiter);
+		ret = func(daddr + doff, saddr + soff, isize, private);
 
 		if (ret != 0)
 			break;
 
-		size -= len;
-		c_dabd =
-		    abd_advance_abd_iter(dabd, c_dabd, &daiter, len);
-		c_sabd =
-		    abd_advance_abd_iter(sabd, c_sabd, &saiter, len);
+		/*
+		 * If we've got all the data we want, eject now, rather than
+		 * advance and remap below. This makes the while() condition
+		 * above redundant.
+		 */
+		size -= isize;
+		if (size == 0)
+			break;
+
+		/*
+		 * If we consumed all of the source chunk, advance and remap.
+		 * Otherwise, record the offset for the next iteration.
+		 *
+		 * Note the assertion on abd_chunk_done(). Because of the size
+		 * check and break above, we need advance out of the last
+		 * chunk, so the iterator will never be completed.
+		 */
+		ssize -= isize;
+		if (ssize == 0) {
+			abd_chunk_unmap(&sch);
+			abd_chunk_advance(&sch);
+			ASSERT(!abd_chunk_done(&sch));
+			saddr = abd_chunk_map(&sch);
+			ssize = abd_chunk_size(&sch);
+			soff = 0;
+		} else
+			soff += isize;
+
+		/*
+		 * Same for the dest chunk.
+		 */
+		dsize -= isize;
+		if (dsize == 0) {
+			abd_chunk_unmap(&dch);
+			abd_chunk_advance(&dch);
+			ASSERT(!abd_chunk_done(&dch));
+			daddr = abd_chunk_map(&dch);
+			dsize = abd_chunk_size(&dch);
+			doff = 0;
+		} else
+			doff += isize;
 	}
+
+	abd_chunk_unmap(&sch);
+	abd_chunk_unmap(&dch);
 
 	return (ret);
 }
@@ -1022,26 +1008,28 @@ abd_cmp(abd_t *dabd, abd_t *sabd)
 /*
  * Check if ABD content is all-zeroes.
  */
-static int
-abd_cmp_zero_off_cb(void *data, size_t len, void *private)
-{
-	(void) private;
-
-	/* This function can only check whole uint64s. Enforce that. */
-	ASSERT0(P2PHASE(len, 8));
-
-	uint64_t *end = (uint64_t *)((char *)data + len);
-	for (uint64_t *word = (uint64_t *)data; word < end; word++)
-		if (*word != 0)
-			return (1);
-
-	return (0);
-}
-
 int
 abd_cmp_zero_off(abd_t *abd, size_t off, size_t size)
 {
-	return (abd_iterate_func(abd, off, size, abd_cmp_zero_off_cb, NULL));
+	int ret = 0;
+
+	abd_for_each_chunk(abd, off, size, data, dsize, {
+		/* This function can only check whole uint64s. Enforce that. */
+		ASSERT0(P2PHASE(dsize, 8));
+
+		uint64_t *end = (uint64_t *)((char *)data + dsize);
+		for (uint64_t *word = data; word < end; word++) {
+			if (*word != 0) {
+				ret = 1;
+				break;
+			}
+		}
+
+		if (ret != 0)
+			break;
+	});
+
+	return (ret);
 }
 
 /*
