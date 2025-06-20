@@ -1450,6 +1450,8 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 			    MSEC2NSEC(10), MSEC2NSEC(10));
 			err = SET_ERROR(ERESTART);
 		}
+
+		ASSERT3U(err, ==, ERESTART);
 	}
 
 	if (err == 0) {
