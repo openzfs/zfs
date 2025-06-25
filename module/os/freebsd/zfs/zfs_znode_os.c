@@ -293,6 +293,7 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	sharezp->z_atime_dirty = 0;
 	sharezp->z_zfsvfs = zfsvfs;
 	sharezp->z_is_sa = zfsvfs->z_use_sa;
+	sharezp->z_pflags = 0;
 
 	VERIFY0(zfs_acl_ids_create(sharezp, IS_ROOT_NODE, &vattr,
 	    kcred, NULL, &acl_ids, NULL));
@@ -1769,6 +1770,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
 	rootzp->z_is_sa = USE_SA(version, os);
+	rootzp->z_pflags = 0;
 
 	zfsvfs->z_os = os;
 	zfsvfs->z_parent = zfsvfs;
