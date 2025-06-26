@@ -26,8 +26,9 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd February 14, 2024
+.Dd June 4, 2025
 .Dt ZPOOL 8
 .Os
 .
@@ -178,6 +179,8 @@ specified.
 Prefetches specific types of pool data.
 .It Xr zpool-scrub 8
 Begins a scrub or resumes a paused scrub.
+.It Xr zpool-condense 8
+Condense, flush, garbage collect or otherwise clean up pool metadata.
 .It Xr zpool-checkpoint 8
 Checkpoints the current state of
 .Ar pool ,

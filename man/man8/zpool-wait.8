@@ -27,8 +27,9 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd May 27, 2021
+.Dd June 4, 2025
 .Dt ZPOOL-WAIT 8
 .Os
 .
@@ -79,6 +80,8 @@ Scrub to cease
 Manual trim to cease
 .It Sy raidz_expand
 Attaching to a RAID-Z vdev to complete
+.It Sy condense
+Metadata condense operations to complete
 .El
 .Pp
 If an
@@ -110,6 +113,7 @@ See
 .
 .Sh SEE ALSO
 .Xr zpool-checkpoint 8 ,
+.Xr zpool-condense 8 ,
 .Xr zpool-initialize 8 ,
 .Xr zpool-remove 8 ,
 .Xr zpool-replace 8 ,

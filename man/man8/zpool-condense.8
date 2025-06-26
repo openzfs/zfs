@@ -1,0 +1,63 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or http://www.opensolaris.org/os/licensing.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\"
+.\" Copyright (c) 2024, 2025, Klara, Inc.
+.\"
+.Dd June 4, 2025
+.Dt ZPOOL-CONDENSE 8
+.Os
+.
+.Sh NAME
+.Nm zpool-condense
+.Nd Condense, flush, garbage collect or otherwise clean up pool metadata
+.Sh SYNOPSIS
+.Nm zpool
+.Cm condense
+.Fl t Ar target
+.Op Fl c | w
+.Ar pool
+.Sh DESCRIPTION
+Many internal pool metadata updates are performed in the background at a rate
+chosen to limit the performance impact to normal use of the pool.
+Sometimes it is desirable to accelerate these operations,
+even if it affects overall performance.
+.Sy condense
+allows an operator to request that a specific background operation be
+prioritised to complete as soon as possible.
+.Pp
+These are the possible values for
+.Ar target :
+.Bl -tag -compact -offset Ds -width "log-spacemap"
+.It Sy log-spacemap
+flushing log spacemap entries to their underlying metaslabs
+.El
+.Bl -tag -width Ds
+.It Fl c
+Cancel a previous
+.Sy condense .
+This will return background updates to their normal rate.
+.It Fl w
+Wait until the condense has completed before returning.
+.El
+.Sh SEE ALSO
+.Xr zpool-status 8 ,
+.Xr zpool-wait 8
