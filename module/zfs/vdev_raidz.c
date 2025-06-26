@@ -2257,6 +2257,14 @@ vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 	ASSERT0(asize % (1 << ashift));
 
 	psize = (asize >> ashift);
+	/*
+	 * If the roundup to nparity + 1 caused us to spill into a new row, we
+	 * need to ignore that row entirely (since it can't store data or
+	 * parity).
+	 */
+	uint64_t rows = psize / cols;
+	psize = psize - (rows * cols) <= nparity ? rows * cols : psize;
+	/*  Subtract out parity sectors for each row storing data. */
 	psize -= nparity * DIV_ROUND_UP(psize, cols);
 	psize <<= ashift;
 

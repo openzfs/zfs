@@ -3239,6 +3239,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 		uint64_t psize = allocated ? MIN(resid, allocated_size) :
 		    min_size;
+		ASSERT3U(psize, >=, min_size);
 
 		zio_t *cio = zio_write(zio, spa, txg, bp, has_data ?
 		    abd_get_offset(pio->io_abd, pio->io_size - resid) : NULL,
