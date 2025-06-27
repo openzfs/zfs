@@ -7729,6 +7729,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	struct extmnttab entry;
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	ino_t path_inode;
+	char *zfs_mntpnt, *entry_mntpnt;
 
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
@@ -7769,6 +7770,24 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		    "%s '%s': not a mountpoint\n"), cmdname, path);
 		goto out;
 	}
+
+	/*
+	 * If the filesystem is mounted, check that the mountpoint matches
+	 * the one in the mnttab entry w.r.t. provided path. If it doesn't,
+	 * then we should not proceed further.
+	 */
+	entry_mntpnt = strdup(entry.mnt_mountp);
+	if (zfs_is_mounted(zhp, &zfs_mntpnt)) {
+		if (strcmp(zfs_mntpnt, entry_mntpnt) != 0) {
+			(void) fprintf(stderr, gettext("cannot %s '%s': "
+			    "not an original mountpoint\n"), cmdname, path);
+			free(zfs_mntpnt);
+			free(entry_mntpnt);
+			goto out;
+		}
+		free(zfs_mntpnt);
+	}
+	free(entry_mntpnt);
 
 	if (op == OP_SHARE) {
 		char nfs_mnt_prop[ZFS_MAXPROPLEN];
