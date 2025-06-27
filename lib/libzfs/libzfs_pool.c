@@ -896,7 +896,7 @@ int
 zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 {
 	zfs_cmd_t zc = {"\0"};
-	int ret = -1;
+	int ret;
 	char errbuf[ERRBUFLEN];
 	nvlist_t *nvl = NULL;
 	nvlist_t *realprops;
@@ -4310,7 +4310,7 @@ zpool_set_guid(zpool_handle_t *zhp, const uint64_t *guid)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	nvlist_t *nvl = NULL;
 	zfs_cmd_t zc = {"\0"};
-	int error = -1;
+	int error;
 
 	if (guid != NULL) {
 		if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
