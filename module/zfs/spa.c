@@ -3768,20 +3768,17 @@ out:
 	 * ZPOOL_CONFIG_MMP_HOSTID   - hostid from the active pool
 	 */
 	if (error == EREMOTEIO) {
-		const char *hostname = "<unknown>";
-		uint64_t hostid = 0;
-
 		if (mmp_label) {
 			if (nvlist_exists(mmp_label, ZPOOL_CONFIG_HOSTNAME)) {
-				hostname = fnvlist_lookup_string(mmp_label,
-				    ZPOOL_CONFIG_HOSTNAME);
+				const char *hostname = fnvlist_lookup_string(
+				    mmp_label, ZPOOL_CONFIG_HOSTNAME);
 				fnvlist_add_string(spa->spa_load_info,
 				    ZPOOL_CONFIG_MMP_HOSTNAME, hostname);
 			}
 
 			if (nvlist_exists(mmp_label, ZPOOL_CONFIG_HOSTID)) {
-				hostid = fnvlist_lookup_uint64(mmp_label,
-				    ZPOOL_CONFIG_HOSTID);
+				uint64_t hostid = fnvlist_lookup_uint64(
+				    mmp_label, ZPOOL_CONFIG_HOSTID);
 				fnvlist_add_uint64(spa->spa_load_info,
 				    ZPOOL_CONFIG_MMP_HOSTID, hostid);
 			}
