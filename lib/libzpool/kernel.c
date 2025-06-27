@@ -1073,8 +1073,8 @@ zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
 int
 zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 {
-	int fd = -1;
-	int dump_fd = -1;
+	int fd;
+	int dump_fd;
 	int err;
 	int old_umask = 0;
 	zfs_file_t *fp;

@@ -1304,7 +1304,7 @@ zap_increment_int(objset_t *os, uint64_t obj, uint64_t key, int64_t delta,
 int
 fzap_cursor_retrieve(zap_t *zap, zap_cursor_t *zc, zap_attribute_t *za)
 {
-	int err = ENOENT;
+	int err;
 	zap_entry_handle_t zeh;
 	zap_leaf_t *l;
 

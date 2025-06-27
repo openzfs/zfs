@@ -59,7 +59,7 @@ static void *
 normal_writer(void *filename)
 {
 	char *file_path = filename;
-	int fd = -1;
+	int fd;
 	ssize_t write_num = 0;
 	int page_size = getpagesize();
 
@@ -93,7 +93,7 @@ normal_writer(void *filename)
 static void *
 map_writer(void *filename)
 {
-	int fd = -1;
+	int fd;
 	int ret = 0;
 	char *buf = NULL;
 	int page_size = getpagesize();

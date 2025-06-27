@@ -4408,7 +4408,7 @@ int
 zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
     uint64_t size, boolean_t *slog)
 {
-	int error = 1;
+	int error;
 	zio_alloc_list_t io_alloc_list;
 
 	ASSERT(txg > spa_syncing_txg(spa));

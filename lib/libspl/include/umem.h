@@ -102,7 +102,7 @@ static inline void *
 umem_alloc_aligned(size_t size, size_t align, int flags)
 {
 	void *ptr = NULL;
-	int rc = EINVAL;
+	int rc;
 
 	do {
 		rc = posix_memalign(&ptr, align, size);

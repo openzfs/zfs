@@ -584,7 +584,7 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 		goto end;
 	}
 
-	int kfd = -1;
+	int kfd;
 #ifdef O_TMPFILE
 	kfd = open(getenv("TMPDIR") ?: "/tmp",
 	    O_RDWR | O_TMPFILE | O_EXCL | O_CLOEXEC, 0600);
