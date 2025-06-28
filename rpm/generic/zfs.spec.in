@@ -229,6 +229,20 @@ This package provides support for managing ZFS filesystems
 %postun -n libzfs6 -p /sbin/ldconfig
 %endif
 
+%package -n libzfsacl1
+Summary:        Native ZFS filesystem library for accessing NFS v4.1 ACLs
+Group:          System Environment/Kernel
+
+%description -n libzfsacl1
+This package provides support for accessing native NFS v4.1 style ZFS ACLs
+
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzfsacl1
+%else
+%post -n libzfsacl1 -p /sbin/ldconfig
+%postun -n libzfsacl1 -p /sbin/ldconfig
+%endif
+
 %package -n libzfs6-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
@@ -349,6 +363,22 @@ This package contains the pam_zfs_key PAM module, which provides
 support for unlocking datasets on user login.
 %endif
 
+%package -n python%{__python_pkg_version}-libzfsacl
+Summary:        Python bindings for libzfsacl1
+Group:          System Environment/Kernel
+Requires:       python%{__python_pkg_version}
+
+%if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
+%if 0%{?centos} == 7
+BuildRequires:  python36-setuptools
+%else
+BuildRequires:  python%{__python_pkg_version}-setuptools
+%endif
+%endif
+
+%description -n python%{__python_pkg_version}-libzfsacl
+This package contains python bindings for libzfsacl1.
+
 %prep
 %if %{with debug}
     %define debug --enable-debug
@@ -422,7 +452,8 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %if 0%{!?__brp_mangle_shebangs:1}
 find %{?buildroot}%{_bindir} \
     \( -name arc_summary -or -name arcstat -or -name dbufstat \
-    -or -name zilstat \) \
+    -or -name zilstat -or -name zfs_getnfs4facl  \
+    -or -name zfs_setnfs4facl \) \
     -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
 find %{?buildroot}%{_datadir} \
     \( -name test-runner.py -or -name zts-report.py \) \
@@ -501,6 +532,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/arcstat
 %{_bindir}/dbufstat
 %{_bindir}/zilstat
+%{_bindir}/zfs_getnfs4facl
+%{_bindir}/zfs_setnfs4facl
 # Man pages
 %{_mandir}/man1/*
 %{_mandir}/man4/*
@@ -547,7 +580,13 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libuutil.so.*
 
 %files -n libzfs6
-%{_libdir}/libzfs*.so.*
+%{_libdir}/libzfs.so.*
+%{_libdir}/libzfsbootenv.so.*
+%{_libdir}/libzfs_core.so.*
+
+%files -n libzfsacl1
+%{_libdir}/libzfsacl.so.*
+%{_libdir}/libsunacl.so.*
 
 %files -n libzfs6-devel
 %{_pkgconfigdir}/libzfs.pc
@@ -591,3 +630,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/security/*
 %{_datadir}/pam-configs/*
 %endif
+
+%files -n python%{__python_pkg_version}-libzfsacl
+%{__python_sitelib}/libzfsacl-*/*
+%{__python_sitelib}/libzfsacl.cpython*.so
+%{__python_sitelib}/zfsacltests/*
