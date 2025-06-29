@@ -8,6 +8,7 @@ lib/systemd/system/zfs-import-scan.service
 lib/systemd/system/zfs-import.target
 lib/systemd/system/zfs-load-key.service
 lib/systemd/system/zfs-mount.service
+lib/systemd/system/zfs-mount@.service
 lib/systemd/system/zfs-scrub-monthly@.timer
 lib/systemd/system/zfs-scrub-weekly@.timer
 lib/systemd/system/zfs-scrub@.service
