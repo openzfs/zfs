@@ -47,6 +47,7 @@ cols = {
 	"cec":       [5,         1000,       "zil_commit_error_count"],
 	"csc":       [5,         1000,       "zil_commit_stall_count"],
 	"cSc":       [5,         1000,       "zil_commit_suspend_count"],
+	"cCc":       [5,         1000,       "zil_commit_crash_count"],
 	"ic":        [5,         1000,       "zil_itx_count"],
 	"iic":       [5,         1000,       "zil_itx_indirect_count"],
 	"iib":       [5,         1024,       "zil_itx_indirect_bytes"],
