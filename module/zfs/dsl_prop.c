@@ -1230,6 +1230,15 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 			goto out;
 	}
 
+#ifdef __FreeBSD__
+		nvlist_t *propval = fnvlist_alloc();
+		fnvlist_add_string(propval, ZPROP_VALUE,
+		    (ds->ds_jailname && INGLOBALZONE(curproc)) ?
+		    ds->ds_jailname : "0");
+		fnvlist_add_nvlist(*nvp, "jail", propval);
+		nvlist_free(propval);
+#endif
+
 	for (; dd != NULL; dd = dd->dd_parent) {
 		if (dd != ds->ds_dir || (flags & DSL_PROP_GET_SNAPSHOT)) {
 			if (flags & (DSL_PROP_GET_LOCAL |
