@@ -56,7 +56,7 @@ function cleanup
 {
 	datasetexists $TESTPOOL/cp-reflink && \
 	    destroy_dataset $$TESTPOOL/cp-reflink -f
-	log_must set_tunable32 BCLONE_WAIT_DIRTY 0
+	log_must restore_tunable BCLONE_WAIT_DIRTY
 }
 
 function verify_copy
@@ -80,6 +80,8 @@ SRC_SIZE=$((1024 + $RANDOM % 1024))
 
 # A smaller recordsize is used merely to speed up the test.
 RECORDSIZE=4096
+
+log_must save_tunable BCLONE_WAIT_DIRTY
 
 log_must zfs create -o recordsize=$RECORDSIZE $TESTPOOL/cp-reflink
 CP_TESTDIR=$(get_prop mountpoint $TESTPOOL/cp-reflink)
