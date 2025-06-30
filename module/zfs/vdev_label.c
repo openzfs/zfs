@@ -24,6 +24,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 /*
@@ -436,6 +437,14 @@ root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t *)&pres,
 		    sizeof (pres) / sizeof (uint64_t));
 	}
+
+	pool_condense_stat_t pcns[POOL_CONDENSE_TYPES];
+	memcpy(pcns, spa->spa_condense_stats,
+	    sizeof (pool_condense_stat_t) * POOL_CONDENSE_TYPES);
+	fnvlist_add_uint64_array(nvl,
+	    ZPOOL_CONFIG_CONDENSE_STATS, (uint64_t *)pcns,
+	    (sizeof (pool_condense_stat_t) / sizeof (uint64_t)) *
+	    POOL_CONDENSE_TYPES);
 }
 
 static void

@@ -20,6 +20,10 @@
  * CDDL HEADER END
  */
 
+/*
+ * Copyright (c) 2024, 2025, Klara, Inc.
+ */
+
 #include <sys/zfs_context.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
@@ -1037,6 +1041,82 @@ spa_iostats_destroy(spa_t *spa)
 	mutex_destroy(&shk->lock);
 }
 
+/*
+ * Log spacemap stats.
+ */
+typedef struct spa_log_sm_stats {
+	kstat_named_t	unflushed_memused;
+	kstat_named_t	unflushed_blocklimit;
+	kstat_named_t	unflushed_nblocks;
+} spa_log_sm_stats_t;
+
+static spa_log_sm_stats_t spa_log_sm_stats_template = {
+	{ "unflushed_memused",		KSTAT_DATA_UINT64 },
+	{ "unflushed_blocklimit",	KSTAT_DATA_UINT64 },
+	{ "unflushed_nblocks",		KSTAT_DATA_UINT64 }
+};
+
+#define	SPA_LOG_SM_STATS_SET(stat, val) \
+    atomic_store_64(&log_sm_stats->stat.value.ui64, (val));
+
+void
+spa_log_sm_stats_update(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
+	kstat_t *ksp = shk->kstat;
+
+	if (ksp == NULL)
+		return;
+
+	spa_log_sm_stats_t *log_sm_stats = ksp->ks_data;
+
+	SPA_LOG_SM_STATS_SET(unflushed_memused,
+	    spa->spa_unflushed_stats.sus_memused);
+	SPA_LOG_SM_STATS_SET(unflushed_blocklimit,
+	    spa->spa_unflushed_stats.sus_blocklimit);
+	SPA_LOG_SM_STATS_SET(unflushed_nblocks,
+	    spa->spa_unflushed_stats.sus_nblocks);
+}
+
+static void
+spa_log_sm_stats_init(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
+
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	char *name = kmem_asprintf("zfs/%s", spa_name(spa));
+	kstat_t *ksp = kstat_create(name, 0, "log_spacemaps", "misc",
+	    KSTAT_TYPE_NAMED,
+	    sizeof (spa_log_sm_stats_t) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	shk->kstat = ksp;
+	if (ksp) {
+		ksp->ks_lock = &shk->lock;
+		ksp->ks_data =
+		    kmem_alloc(sizeof (spa_log_sm_stats_t), KM_SLEEP);
+		memcpy(ksp->ks_data, &spa_log_sm_stats_template,
+		    sizeof (spa_log_sm_stats_t));
+		kstat_install(ksp);
+	}
+
+	kmem_strfree(name);
+}
+
+static void
+spa_log_sm_stats_destroy(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
+	kstat_t *ksp = shk->kstat;
+	if (ksp) {
+		kmem_free(ksp->ks_data, sizeof (spa_log_sm_stats_t));
+		kstat_delete(ksp);
+	}
+
+	mutex_destroy(&shk->lock);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
@@ -1047,11 +1127,13 @@ spa_stats_init(spa_t *spa)
 	spa_state_init(spa);
 	spa_guid_init(spa);
 	spa_iostats_init(spa);
+	spa_log_sm_stats_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_log_sm_stats_destroy(spa);
 	spa_iostats_destroy(spa);
 	spa_health_destroy(spa);
 	spa_tx_assign_destroy(spa);

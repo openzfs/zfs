@@ -25,6 +25,7 @@
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #ifndef	_LIBZFS_CORE_H
@@ -142,6 +143,9 @@ _LIBZFS_CORE_H int lzc_channel_program_nosync(const char *, const char *,
 
 _LIBZFS_CORE_H int lzc_sync(const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_reopen(const char *, boolean_t);
+
+_LIBZFS_CORE_H int lzc_condense(const char *,
+    pool_condense_func_t, pool_condense_type_t);
 
 _LIBZFS_CORE_H int lzc_pool_checkpoint(const char *);
 _LIBZFS_CORE_H int lzc_pool_checkpoint_discard(const char *);
