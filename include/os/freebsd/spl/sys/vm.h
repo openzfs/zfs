@@ -35,6 +35,7 @@
 extern const int zfs_vm_pagerret_bad;
 extern const int zfs_vm_pagerret_error;
 extern const int zfs_vm_pagerret_ok;
+extern const int zfs_vm_pagerret_pend;
 extern const int zfs_vm_pagerput_sync;
 extern const int zfs_vm_pagerput_inval;
 
