@@ -541,10 +541,16 @@ The
 .Sy blocksize
 cannot be changed once the volume has been written, so it should be set at
 volume creation time.
-The default
-.Sy blocksize
-for volumes is 16 KiB.
-Any power of 2 from 512 bytes to 128 KiB is valid.
+The size specified must be a power of two greater than or equal to
+.Ar 512 B
+and less than or equal to
+.Ar 128 KiB .
+If the
+.Sy large_blocks
+feature is enabled on the pool, the size may be up to
+.Ar 16 MiB .
+The default size is
+.Ar 16 KiB .
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy volblock .
@@ -1282,10 +1288,12 @@ This feature must be enabled to be used
 .It Sy special_small_blocks Ns = Ns Ar size
 This value represents the threshold block size for including small file
 or zvol blocks into the special allocation class.
-Blocks smaller than or equal to this
-value will be assigned to the special allocation class while greater blocks
-will be assigned to the regular class.
-Valid values are zero or a power of two from 512 up to 1048576 (1 MiB).
+Blocks smaller than or equal to this value after compression and encryption
+will be assigned to the special allocation class, while greater blocks will
+be assigned to the regular class.
+Valid values are from 0 to maximum block size (
+.Ar 16 MiB
+).
 The default size is 0 which means no small file or zvol blocks
 will be allocated in the special class.
 .Pp
@@ -1568,11 +1576,6 @@ feature is enabled on the pool, the size may be up to
 See
 .Xr zpool-features 7
 for details on ZFS feature flags.
-.Pp
-However, blocks larger than
-.Ar 1 MiB
-can have an impact on i/o latency (e.g. tying up a spinning disk for
-~300ms), and also potentially on the memory allocator.
 .Pp
 Note that maximum size is still limited by default to
 .Ar 1 MiB

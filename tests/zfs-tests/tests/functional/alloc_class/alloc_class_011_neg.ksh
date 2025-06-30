@@ -22,7 +22,7 @@
 #
 # DESCRIPTION:
 #	Setting the special_small_blocks property to invalid values fails.
-#	Powers of two from 512 to 1M are allowed.
+#	Only values between 0 and 16M including are allowed.
 #
 
 verify_runnable "global"
@@ -36,7 +36,7 @@ log_must disk_setup
 log_must zpool create $TESTPOOL raidz $ZPOOL_DISKS special mirror \
 	$CLASS_DISK0 $CLASS_DISK1
 
-for value in 256 1025 33554432
+for value in 16777217 33554432 4294967296
 do
 	log_mustnot zfs set special_small_blocks=$value $TESTPOOL
 done

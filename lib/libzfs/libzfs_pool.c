@@ -1422,30 +1422,6 @@ zpool_get_state(zpool_handle_t *zhp)
 }
 
 /*
- * Check if vdev list contains a special vdev
- */
-static boolean_t
-zpool_has_special_vdev(nvlist_t *nvroot)
-{
-	nvlist_t **child;
-	uint_t children;
-
-	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &child,
-	    &children) == 0) {
-		for (uint_t c = 0; c < children; c++) {
-			const char *bias;
-
-			if (nvlist_lookup_string(child[c],
-			    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias) == 0 &&
-			    strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0) {
-				return (B_TRUE);
-			}
-		}
-	}
-	return (B_FALSE);
-}
-
-/*
  * Check if vdev list contains a dRAID vdev
  */
 static boolean_t
@@ -1545,16 +1521,6 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 
 		if ((zc_fsprops = zfs_valid_proplist(hdl, ZFS_TYPE_FILESYSTEM,
 		    fsprops, zoned, NULL, NULL, B_TRUE, errbuf)) == NULL) {
-			goto create_failed;
-		}
-
-		if (nvlist_exists(zc_fsprops,
-		    zfs_prop_to_name(ZFS_PROP_SPECIAL_SMALL_BLOCKS)) &&
-		    !zpool_has_special_vdev(nvroot)) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "%s property requires a special vdev"),
-			    zfs_prop_to_name(ZFS_PROP_SPECIAL_SMALL_BLOCKS));
-			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 			goto create_failed;
 		}
 
