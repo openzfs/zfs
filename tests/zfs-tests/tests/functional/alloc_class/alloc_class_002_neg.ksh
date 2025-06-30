@@ -41,9 +41,4 @@ log_mustnot zpool create $TESTPOOL $ZPOOL_DISKS special mirror \
 log_mustnot display_status $TESTPOOL
 log_mustnot zpool destroy -f $TESTPOOL
 
-log_mustnot zpool create $TESTPOOL raidz $ZPOOL_DISKS special raidz \
-    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
-log_mustnot display_status $TESTPOOL
-log_mustnot zpool destroy -f $TESTPOOL
-
 log_pass $claim

@@ -32,7 +32,7 @@ log_onexit cleanup
 
 log_must disk_setup
 
-for type in "" "mirror" "raidz"
+for type in "" "mirror" "raidz" "draid"
 do
 	log_must zpool create $TESTPOOL $type $ZPOOL_DISKS
 
@@ -47,6 +47,12 @@ do
 		    $CLASS_DISK0 $CLASS_DISK1
 		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
 		log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
+	elif [ "$type" = "draid" ]; then
+		log_must zpool add $TESTPOOL special raidz \
+		    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
+		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
+		log_must zpool iostat -H $TESTPOOL $CLASS_DISK1
+		log_must zpool iostat -H $TESTPOOL $CLASS_DISK2
 	else
 		log_must zpool add $TESTPOOL special $CLASS_DISK0
 		log_must zpool iostat -H $TESTPOOL $CLASS_DISK0
