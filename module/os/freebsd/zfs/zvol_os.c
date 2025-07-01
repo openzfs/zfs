@@ -513,6 +513,16 @@ zvol_geom_bio_getattr(struct bio *bp)
 
 	if (g_handleattr_int(bp, "GEOM::candelete", 1))
 		return (0);
+
+	if (strcmp(bp->bio_attribute, "GEOM::physpath") == 0) {
+		mutex_enter(&zv->zv_state_lock);
+		if (g_handleattr_str(bp, "GEOM::physpath", zv->zv_name)) {
+			mutex_exit(&zv->zv_state_lock);
+			return (0);
+		}
+		mutex_exit(&zv->zv_state_lock);
+	}
+
 	if (strcmp(bp->bio_attribute, "blocksavail") == 0) {
 		dmu_objset_space(zv->zv_objset, &refd, &avail,
 		    &usedobjs, &availobjs);

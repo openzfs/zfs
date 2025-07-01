@@ -1931,12 +1931,22 @@ zfs_ioc_obj_to_path(zfs_cmd_t *zc)
  * outputs:
  * zc_stat		stats on object
  * zc_value		path to object
+ *
+ * -------------------------
+ * Optional extended stats
+ * -------------------------
+ * The legacy behavior of ZFS_IOC_OBJ_TO_STATS is return a zfs_stat_t stuct.
+ * However, if the user passes in a nvlist dst buffer, we also return
+ * "extended" object stats.  Currently, these extended stats are handpicked
+ * fields from dmu_object_info_t, but they could be expanded to include
+ * anything. See the ZFS_OBJ_STAT_* macros for the current list.
  */
 static int
 zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 {
 	objset_t *os;
 	int error;
+	nvlist_t *nv = NULL;
 
 	/* XXX reading from objset not owned */
 	if ((error = dmu_objset_hold_flags(zc->zc_name, B_TRUE,
@@ -1946,9 +1956,18 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 		dmu_objset_rele_flags(os, B_TRUE, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
+
+	if (zc->zc_nvlist_dst != 0 && zc->zc_nvlist_dst_size != 0)
+		VERIFY0(nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
+
 	error = zfs_obj_to_stats(os, zc->zc_obj, &zc->zc_stat, zc->zc_value,
-	    sizeof (zc->zc_value));
+	    sizeof (zc->zc_value), nv);
 	dmu_objset_rele_flags(os, B_TRUE, FTAG);
+
+	if (nv != NULL) {
+		error = put_nvlist(zc, nv);
+		nvlist_free(nv);
+	}
 
 	return (error);
 }
