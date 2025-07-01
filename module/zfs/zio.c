@@ -88,8 +88,6 @@ static uint64_t zio_buf_cache_frees[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 /* Mark IOs as "slow" if they take longer than 30 seconds */
 static uint_t zio_slow_io_ms = (30 * MILLISEC);
 
-#define	BP_SPANB(indblkshift, level) \
-	(((uint64_t)1) << ((level) * ((indblkshift) - SPA_BLKPTRSHIFT)))
 #define	COMPARE_META_LEVEL	0x80000000ul
 /*
  * The following actions directly effect the spa's sync-to-convergence logic.

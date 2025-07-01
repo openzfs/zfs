@@ -25,6 +25,7 @@
  */
 
 #include <libzfs.h>
+#include <libzutil.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -43,6 +44,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dnode.h>
 #include <sys/vdev_impl.h>
+#include <sys/zvol.h>
 
 #include <sys/mkdev.h>
 
@@ -76,10 +78,44 @@ compress_slashes(const char *src, char *dest)
 }
 
 /*
- * Given a full path to a file, translate into a dataset name and a relative
- * path within the dataset.  'dataset' must be at least MAXNAMELEN characters,
- * and 'relpath' must be at least MAXPATHLEN characters.  We also pass a stat64
- * buffer, which we need later to get the object ID.
+ * If 'inpath' points to a zvol block device, copy the zvol dataset path to 'ds'
+ * (like "tank/vol"), and return true.  If 'inpath' does not point to a zvol
+ * block device, then return false.
+ */
+static boolean_t
+get_zvol_dataset(const char *inpath, char *ds)
+{
+	char buf[MAXPATHLEN];
+	int fd;
+	boolean_t rc = B_FALSE;
+
+	if (realpath(inpath, buf) == NULL)
+		return (B_FALSE);
+
+	if ((fd = open(buf, O_RDONLY|O_CLOEXEC)) == -1)
+		return (B_FALSE);
+
+	/*
+	 * We want to determine if 'inpath' is a zvol device.  There's no
+	 * universal way to do that, so we use OS-specific zvol ioctls.
+	 */
+#if defined(__FreeBSD__)
+	if (ioctl(fd, DIOCGPHYSPATH, ds) == 0)
+		rc = B_TRUE;
+#else
+	if (ioctl(fd, BLKZNAME, ds) == 0)
+		rc = B_TRUE;
+#endif
+	close(fd);
+
+	return (rc);
+}
+
+/*
+ * Given a full path to a file or zvol device, translate into a dataset name and
+ * a relative path within the dataset.  'dataset' must be at least MAXNAMELEN
+ * characters, and 'relpath' must be at least MAXPATHLEN characters.  We also
+ * pass a stat64 buffer, which we need later to get the object ID.
  */
 static int
 parse_pathname(const char *inpath, char *dataset, char *relpath,
@@ -96,6 +132,39 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		    "path\n", fullpath);
 		usage();
 		return (-1);
+	}
+
+	/* special case: inject errors into zvol */
+	if (get_zvol_dataset(inpath, fullpath)) {
+		char *slash;
+		/*
+		 * The zvol's inode does not contain its object number.
+		 * However, it has long been the case that the zvol data is
+		 * object number 1 (ZVOL_OBJ):
+		 *
+		 * Object  lvl   iblk   dblk  dsize  lsize   %full  type
+		 *      0    6   128K    16K    11K    16K    6.25  DMU dnode
+		 *      1    2   128K    16K  20.1M    20M  100.00  zvol object
+		 *      2    1   128K    512      0    512  100.00  zvol prop
+		 *
+		 * So we hardcode that in the statbuf inode field as workaround.
+		 */
+		statbuf->st_ino = ZVOL_OBJ;
+
+		(void) strlcpy(dataset, fullpath, MAXNAMELEN);
+
+		/*
+		 * fullpath contains string like 'tank/zvol'.  Strip off the
+		 * 'tank' and 'zvol' parts.
+		 */
+		slash = strchr(fullpath, '/');
+		if (slash == NULL) {
+			(void) fprintf(stderr, "invalid volume name: '%s'\n",
+			    fullpath);
+			return (-1);
+		};
+		(void) strcpy(relpath, slash + 1);
+		return (0);
 	}
 
 	if (getextmntent(fullpath, &mp, statbuf) != 0) {
