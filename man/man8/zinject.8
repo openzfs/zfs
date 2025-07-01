@@ -174,9 +174,10 @@ Panic inside the specified function.
 .Op Fl l Ar level
 .Op Fl r Ar range
 .Op Fl amq
-.Ar path
+.Ar path|zvol
 .Xc
-Force an error into the contents of a file.
+Force an error into the contents of a file or zvol.
+For zvols, pass the path to the zvol block device.
 .
 .It Xo
 .Nm zinject

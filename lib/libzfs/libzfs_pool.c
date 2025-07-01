@@ -44,11 +44,14 @@
 #include <zone.h>
 #include <sys/stat.h>
 #include <sys/efi_partition.h>
+#include <sys/range_tree.h>
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_sysfs.h>
 #include <sys/vdev_disk.h>
 #include <sys/types.h>
+#include <sys/spa.h>
+#include <sys/dmu.h>
 #include <dlfcn.h>
 #include <libzutil.h>
 #include <fcntl.h>
@@ -60,6 +63,11 @@
 #include "zfeature_common.h"
 
 static boolean_t zpool_vdev_is_interior(const char *name);
+static nvlist_t *zpool_get_extended_objset_stat(zpool_handle_t *zhp,
+    uint64_t dsobj, uint64_t obj);
+
+static nvlist_t *
+zpool_get_extended_obj_stat(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj);
 
 typedef struct prop_flags {
 	unsigned int create:1;	/* Validate property on creation */
@@ -4618,6 +4626,186 @@ zpool_add_propname(zpool_handle_t *zhp, const char *propname)
 }
 
 /*
+ * Given a properties nvlist like:
+ *
+ * refreservation:
+ *     source: 'tank/vol'
+ *     value: 1092616192
+ * recordsize:
+ *     value: 4096
+ *     source: 'tank'
+ * refcompressratio:
+ *     value: 100
+ * logicalreferenced:
+ *     value: 1076408320
+ * compressratio:
+ *    value: 100
+ *    ...
+ *
+ * Lookup the 'value' field for a uint64_t and return it into *val.  For
+ * example, if you pass "recordsize" for the name, it will store 4096 into *val.
+ */
+static int
+zpool_get_from_prop_nvlist_uint64(nvlist_t *nv, const char *name, uint64_t *val)
+{
+	nvlist_t *tmp;
+	int rc;
+
+	rc = nvlist_lookup_nvlist(nv, name, &tmp);
+	if (rc != 0)
+		return (rc);
+
+	return (nvlist_lookup_uint64(tmp, "value", val));
+}
+
+static int
+zpool_get_extended_obj_stat_helper(zpool_handle_t *zhp, uint64_t dsobj,
+    uint64_t obj, uint64_t *data_block_size, const char **type_str)
+{
+	nvlist_t *nv;
+	boolean_t is_zvol = B_FALSE;
+	uint64_t val;
+	int rc;
+	nv = zpool_get_extended_obj_stat(zhp, dsobj, obj);
+	if (nv == NULL) {
+		nv = zpool_get_extended_objset_stat(zhp, dsobj, obj);
+		if (nv == NULL) {
+			return (-1);
+		}
+		is_zvol = B_TRUE;
+	}
+	if (is_zvol) {
+		rc = zpool_get_from_prop_nvlist_uint64(nv,
+		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &val);
+	} else {
+		uint32_t val32 = 0;
+		rc = nvlist_lookup_uint32(nv, ZFS_OBJ_STAT_DATA_BLOCK_SIZE,
+		    &val32);
+		val = val32;
+	}
+
+	if (rc != 0) {
+		nvlist_free(nv);
+		return (rc);
+	}
+	*data_block_size = val;
+
+	if (is_zvol)
+		*type_str = "zvol";
+	else
+		*type_str = fnvlist_lookup_string(nv, ZFS_OBJ_STAT_TYPE_STR);
+	return (0);
+}
+
+static void zpool_get_errlog_process_file_cb(void *arg, uint64_t start,
+	uint64_t size) {
+	nvlist_t ***tmp = arg;
+	nvlist_t **nva_next = *tmp;
+	nvlist_t *nv;
+
+	nv = fnvlist_alloc();
+	fnvlist_add_uint64(nv, ZPOOL_ERR_START_BYTE, start);
+	fnvlist_add_uint64(nv, ZPOOL_ERR_END_BYTE, start + size - 1);
+	*nva_next = nv;
+
+	/* Advance to next array entry */
+	*tmp = (void *) nva_next + sizeof (nvlist_t *);
+}
+
+static void
+zpool_get_errlog_process_file(zpool_handle_t *zhp,
+    nvlist_t **nverrlistp, zbookmark_phys_t *zb_start, zbookmark_phys_t *zb_end)
+{
+	uint64_t data_block_size = 0;
+	const char *type_str = NULL;
+	nvlist_t *nv, **nva, **nva_next;
+	uint64_t count = 0;
+
+	/* Make the linter happy */
+	VERIFY(zb_start != NULL);
+	VERIFY(zb_end != NULL);
+
+	nv = fnvlist_alloc();
+	fnvlist_add_uint64(nv, ZPOOL_ERR_DATASET, zb_start->zb_objset);
+	fnvlist_add_uint64(nv, ZPOOL_ERR_OBJECT, zb_start->zb_object);
+
+	if (zpool_get_extended_obj_stat_helper(zhp, zb_start->zb_objset,
+	    zb_start->zb_object, &data_block_size, &type_str) != 0) {
+		/*
+		 * If the kernel supports extended stats, then include them.
+		 * If not, it's still OK.
+		 */
+		goto end;
+	}
+
+	fnvlist_add_string(nv, ZPOOL_ERR_OBJECT_TYPE, type_str);
+	fnvlist_add_uint64(nv, ZPOOL_ERR_BLOCK_SIZE, data_block_size);
+
+	zfs_range_tree_t *range_tree;
+	zfs_btree_init();
+	range_tree = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64, NULL, 0,  0);
+	if (!range_tree) {
+		zfs_btree_fini();
+		goto end;
+	}
+
+	do {
+		int data_block_size_shift;
+		uint64_t data_block_range;
+
+		/*
+		 * If an L1 (or higher block) is damaged, it will affect a much
+		 * larger byte range than a simple L0 block.  Calculate these
+		 * ranges correctly.
+		 */
+		data_block_size_shift = highbit64(data_block_size) - 1;
+		data_block_range = BP_BYTE_RANGE(data_block_size_shift,
+		    zb_start->zb_level);
+
+		/*
+		 * The error log can have duplicate entries, so check for
+		 * an existing entry in the range tree first.
+		 */
+		if (!zfs_range_tree_contains(range_tree,
+		    zb_start->zb_blkid * data_block_range, data_block_range)) {
+			zfs_range_tree_add(range_tree,
+			    zb_start->zb_blkid * data_block_range,
+			    data_block_range);
+		}
+
+		if (zb_start == zb_end)
+			break;
+	} while (zb_start++);
+
+	/*
+	 * Our range tree has all our ranges.  Construct an array of start/end
+	 * entries.
+	 */
+	count = zfs_range_tree_numsegs(range_tree);
+
+	nva = zfs_alloc(zhp->zpool_hdl, sizeof (nvlist_t *) * count);
+	nva_next = &nva[0];
+
+	zfs_range_tree_walk(range_tree, zpool_get_errlog_process_file_cb,
+	    &nva_next);
+
+	zfs_range_tree_vacate(range_tree, NULL, NULL);
+	zfs_range_tree_destroy(range_tree);
+	zfs_btree_fini();
+
+	fnvlist_add_nvlist_array(nv, ZPOOL_ERR_RANGES, (const nvlist_t **) nva,
+	    count);
+
+	for (uint64_t i = 0; i < count; i++)
+		nvlist_free(nva[i]);
+	free(nva);
+
+end:
+	fnvlist_add_nvlist(*nverrlistp, "ejk", nv);
+	nvlist_free(nv);
+}
+
+/*
  * Retrieve the persistent error log, uniquify the members, and return to the
  * caller.
  */
@@ -4628,6 +4816,7 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	zbookmark_phys_t *buf;
 	uint64_t buflen = 10000; /* approx. 1MB of RAM */
+	uint64_t i;
 
 	if (fnvlist_lookup_uint64(zhp->zpool_config,
 	    ZPOOL_CONFIG_ERRCOUNT) == 0)
@@ -4667,6 +4856,8 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	 */
 	zbookmark_phys_t *zb = buf + zc.zc_nvlist_dst_size;
 	uint64_t zblen = buflen - zc.zc_nvlist_dst_size;
+	if (zblen == 0)
+		return (0); /* nothing to do */
 
 	qsort(zb, zblen, sizeof (zbookmark_phys_t), zbookmark_mem_compare);
 
@@ -4675,39 +4866,35 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	/*
 	 * Fill in the nverrlistp with nvlist's of dataset and object numbers.
 	 */
-	for (uint64_t i = 0; i < zblen; i++) {
-		nvlist_t *nv;
+	zbookmark_phys_t *start = NULL;
 
-		/* ignoring zb_blkid and zb_level for now */
-		if (i > 0 && zb[i-1].zb_objset == zb[i].zb_objset &&
-		    zb[i-1].zb_object == zb[i].zb_object)
+	for (i = 0; i < zblen; i++) {
+		if (start == NULL) {
+			start = &zb[i];
 			continue;
+		}
 
-		if (nvlist_alloc(&nv, NV_UNIQUE_NAME, KM_SLEEP) != 0)
-			goto nomem;
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_DATASET,
-		    zb[i].zb_objset) != 0) {
-			nvlist_free(nv);
-			goto nomem;
+		/* filter out duplicate files and levels */
+		if (zb[i-1].zb_objset == zb[i].zb_objset &&
+		    zb[i-1].zb_object == zb[i].zb_object) {
+			/* same file, new error block */
+			continue;
+		} else {
+			/*
+			 * Every time we see a new object, process the
+			 * previous one.
+			 */
+			zpool_get_errlog_process_file(zhp, nverrlistp,
+			    start, &zb[i-1]);
+			start = &zb[i];
 		}
-		if (nvlist_add_uint64(nv, ZPOOL_ERR_OBJECT,
-		    zb[i].zb_object) != 0) {
-			nvlist_free(nv);
-			goto nomem;
-		}
-		if (nvlist_add_nvlist(*nverrlistp, "ejk", nv) != 0) {
-			nvlist_free(nv);
-			goto nomem;
-		}
-		nvlist_free(nv);
 	}
+	/* Process the last entry */
+	zpool_get_errlog_process_file(zhp, nverrlistp, start, &zb[i-1]);
 
 	free(buf);
+
 	return (0);
-
-nomem:
-	free(buf);
-	return (no_memory(zhp->zpool_hdl));
 }
 
 /*
@@ -4985,6 +5172,69 @@ zpool_events_seek(libzfs_handle_t *hdl, uint64_t eid, int zevent_fd)
 	return (error);
 }
 
+/*
+ * Return extended information about an object.  This calls the "extended"
+ * variant of ZFS_IOC_OBJ_TO_STATS to return things things like block size,
+ * dmu type, dnone size, etc (see dmu_object_info_t).
+ *
+ * Returned nvlist must be freed by the user when they are done with it.
+ */
+static nvlist_t *
+zpool_get_extended_obj_stat_impl(zpool_handle_t *zhp, uint64_t dsobj,
+    uint64_t obj, enum zfs_ioc stats_ioctl)
+{
+	zfs_cmd_t zc = {"\0"};
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
+	nvlist_t *nv = NULL;
+	int error;
+
+	/* get the dataset's name */
+	zc.zc_obj = dsobj;
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	error = zfs_ioctl(zhp->zpool_hdl, ZFS_IOC_DSOBJ_TO_DSNAME, &zc);
+	if (error)
+		return (NULL);
+
+	(void) strlcpy(dsname, zc.zc_value, sizeof (dsname));
+	(void) strlcpy(zc.zc_name, dsname, sizeof (zc.zc_name));
+
+	zcmd_alloc_dst_nvlist(zhp->zpool_hdl, &zc, 1024);
+	zc.zc_obj = obj;
+	while (zfs_ioctl(zhp->zpool_hdl, stats_ioctl, &zc) != 0) {
+		if (errno == ENOMEM) {
+			zcmd_expand_dst_nvlist(zhp->zpool_hdl, &zc);
+		} else {
+			return (NULL);
+		}
+	}
+
+	zcmd_read_dst_nvlist(zhp->zpool_hdl, &zc, &nv);
+
+	return (nv);
+}
+
+/*
+ * Return extended information about an object.  This calls the "extended"
+ * variant of ZFS_IOC_OBJ_TO_STATS to return things things like block size,
+ * dmu type, dnone size, etc (see dmu_object_info_t).
+ *
+ * Returned nvlist must be freed by the user when they are done with it.
+ */
+static nvlist_t *
+zpool_get_extended_obj_stat(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj)
+{
+	return (zpool_get_extended_obj_stat_impl(zhp, dsobj, obj,
+	    ZFS_IOC_OBJ_TO_STATS));
+}
+
+static nvlist_t *
+zpool_get_extended_objset_stat(zpool_handle_t *zhp, uint64_t dsobj,
+    uint64_t obj)
+{
+	return (zpool_get_extended_obj_stat_impl(zhp, dsobj, obj,
+	    ZFS_IOC_OBJSET_STATS));
+}
+
 static void
 zpool_obj_to_path_impl(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len, boolean_t always_unmounted)
@@ -5033,6 +5283,7 @@ zpool_obj_to_path_impl(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 		(void) snprintf(pathname, len, "%s:<0x%llx>", dsname,
 		    (longlong_t)obj);
 	}
+
 	free(mntpnt);
 }
 
