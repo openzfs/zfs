@@ -35,8 +35,8 @@ zhack_SOURCES = \
 zhack_LDADD = \
 	libzpool.la \
 	libzfs_core.la \
-	libnvpair.la
-
+	libnvpair.la \
+	librange_tree.la
 
 ztest_CFLAGS    = $(AM_CFLAGS) $(KERNEL_CFLAGS)
 ztest_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)

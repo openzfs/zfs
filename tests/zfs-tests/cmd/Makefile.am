@@ -27,8 +27,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
 %C%_btree_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 %C%_btree_test_LDADD = \
 	libzpool.la \
-	libzfs_core.la
-
+	libzfs_core.la \
+	libbtree.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c

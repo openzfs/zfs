@@ -30,7 +30,7 @@
 #define	_LIBSPL_SYS_SYSMACROS_H
 
 #include <stdint.h>
-
+#include <sys/param.h>
 #ifdef __linux__
 /*
  * On Linux, we need the system-provided sysmacros.h to get the makedev(),

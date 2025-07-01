@@ -73,7 +73,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/bpobj.c \
 	module/zfs/bptree.c \
 	module/zfs/bqueue.c \
-	module/zfs/btree.c \
 	module/zfs/brt.c \
 	module/zfs/dbuf.c \
 	module/zfs/dbuf_stats.c \
@@ -118,7 +117,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/multilist.c \
 	module/zfs/objlist.c \
 	module/zfs/pathname.c \
-	module/zfs/range_tree.c \
 	module/zfs/refcount.c \
 	module/zfs/rrwlock.c \
 	module/zfs/sa.c \
@@ -199,7 +197,9 @@ libzpool_la_LIBADD = \
 	libunicode.la \
 	libnvpair.la \
 	libzstd.la \
-	libzutil.la
+	libzutil.la \
+	libbtree.la \
+	librange_tree.la
 
 libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -lm
 
