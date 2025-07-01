@@ -5974,12 +5974,12 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
-	uint64_t cur_psize = 0;
-
+	uint64_t smallest_psize = UINT64_MAX;
 	for (int d = 0; d < ndvas; d++) {
-		error = metaslab_alloc_dva_range(spa, mc, psize, max_psize,
-		    dva, d, hintdva, txg, flags, zal, allocator,
-		    actual_psize ? &cur_psize : NULL);
+		uint64_t cur_psize = 0;
+		error = metaslab_alloc_dva_range(spa, mc, psize,
+		    MIN(smallest_psize, max_psize), dva, d, hintdva, txg,
+		    flags, zal, allocator, actual_psize ? &cur_psize : NULL);
 		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_unalloc_dva(spa, &dva[d], txg);
@@ -5999,13 +5999,13 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 			    DVA_GET_VDEV(&dva[d]), allocator, flags, psize,
 			    tag);
 			if (actual_psize)
-				max_psize = MIN(cur_psize, max_psize);
+				smallest_psize = MIN(cur_psize, smallest_psize);
 		}
 	}
 	ASSERT(error == 0);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);
 	if (actual_psize)
-		*actual_psize = max_psize;
+		*actual_psize = smallest_psize;
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 

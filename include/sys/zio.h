@@ -59,19 +59,35 @@ typedef struct zio_eck {
 
 /*
  * Gang block headers are self-checksumming and contain an array
- * of block pointers.
+ * of block pointers. The old gang block size has enough room for 3 blkptrs,
+ * while new gang blocks can store more.
+ *
+ * Layout:
+ * +--------+--------+--------+-----+---------+-----------+
+ * |        |        |        |     |         |           |
+ * | blkptr | blkptr | blkptr | ... | padding | zio_eck_t |
+ * |   1    |   2    |   3    |     |         |           |
+ * +--------+--------+--------+-----+---------+-----------+
+ *   128B     128B     128B             88B        40B
  */
 #define	SPA_OLD_GANGBLOCKSIZE	SPA_MINBLOCKSIZE
 typedef void zio_gbh_phys_t;
 
 static inline uint64_t
 gbh_nblkptrs(uint64_t size) {
+	ASSERT(IS_P2ALIGNED(size, sizeof (blkptr_t)));
 	return ((size - sizeof (zio_eck_t)) / sizeof (blkptr_t));
 }
 
 static inline zio_eck_t *
 gbh_eck(zio_gbh_phys_t *gbh, uint64_t size) {
+	ASSERT(IS_P2ALIGNED(size, sizeof (blkptr_t)));
 	return ((zio_eck_t *)((uintptr_t)gbh + size - sizeof (zio_eck_t)));
+}
+
+static inline blkptr_t *
+gbh_bp(zio_gbh_phys_t *gbh, int bp) {
+	return (&((blkptr_t *)gbh)[bp]);
 }
 
 enum zio_checksum {

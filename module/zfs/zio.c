@@ -2745,13 +2745,12 @@ zio_resume_wait(spa_t *spa)
  *
  * A gang block consists of a a gang header and up to gbh_nblkptrs(size)
  * gang members. The gang header is like an indirect block: it's an array
- * of block pointers, though the header has a small tail (zio_gb_tail_t)
- * that stores a version number (for future compatibility) and an embedded
- * checksum. It is allocated using only a single sector as the requested
- * size, and hence is allocatable regardless of fragmentation. Its size
- * is determined by the smallest allocatable asize of the vdevs it was
- * allocated on. The gang header's bps point to its gang members,
- * which hold the data.
+ * of block pointers, though the header has a small tail (a zio_eck_t)
+ * that stores an embedded checksum. It is allocated using only a single
+ * sector as the requested size, and hence is allocatable regardless of
+ * fragmentation. Its size is determined by the smallest allocatable
+ * asize of the vdevs it was allocated on. The gang header's bps point
+ * to its gang members, which hold the data.
  *
  * Gang blocks are self-checksumming, using the bp's <vdev, offset, txg>
  * as the verifier to ensure uniqueness of the SHA256 checksum.
@@ -3004,7 +3003,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	abd_free(zio->io_abd);
 
 	for (int g = 0; g < gbh_nblkptrs(gn->gn_gangblocksize); g++) {
-		blkptr_t *gbp = &((blkptr_t *)gn->gn_gbh)[g];
+		blkptr_t *gbp = gbh_bp(gn->gn_gbh, g);
 		if (!BP_IS_GANG(gbp))
 			continue;
 		zio_gang_tree_assemble(gio, gbp, &gn->gn_child[g]);
@@ -3033,7 +3032,7 @@ zio_gang_tree_issue(zio_t *pio, zio_gang_node_t *gn, blkptr_t *bp, abd_t *data,
 		    gn->gn_gangblocksize)->zec_magic, ==, ZEC_MAGIC);
 
 		for (int g = 0; g < gbh_nblkptrs(gn->gn_gangblocksize); g++) {
-			blkptr_t *gbp = &((blkptr_t *)gn->gn_gbh)[g];
+			blkptr_t *gbp = gbh_bp(gn->gn_gbh, g);
 			if (BP_IS_HOLE(gbp))
 				continue;
 			zio_gang_tree_issue(zio, gn->gn_child[g], gbp, data,
@@ -3193,32 +3192,13 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	}
 
 	uint64_t gangblocksize = SPA_OLD_GANGBLOCKSIZE;
-
-	error = metaslab_alloc(spa, mc, gangblocksize,
+	uint64_t candidate = gangblocksize;
+	error = metaslab_alloc_range(spa, mc, gangblocksize, gangblocksize,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
-	    &pio->io_alloc_list, pio->io_allocator, pio);
+	    &pio->io_alloc_list, pio->io_allocator, pio, &candidate);
 	if (error) {
 		pio->io_error = error;
 		return (pio);
-	}
-	uint64_t candidate = gangblocksize;
-	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-		candidate = UINT64_MAX;
-		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
-			vdev_t *vd = vdev_lookup_top(spa,
-			    DVA_GET_VDEV(&bp->blk_dva[dva]));
-			candidate = MIN(candidate,
-			    vdev_gang_header_asize(vd));
-			/*
-			 * For now, the asize still reflects the actual
-			 * allocated size.
-			 */
-			ASSERT3U(candidate, <=,
-			    DVA_GET_ASIZE(&(bp->blk_dva[dva])));
-		}
-		spa_config_exit(spa, SCL_VDEV, FTAG);
-		ASSERT3U(candidate, !=, UINT64_MAX);
 	}
 	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
 		gangblocksize = candidate;
@@ -4416,7 +4396,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 	if (gn != NULL) {
 		for (int g = 0; g < gbh_nblkptrs(gn->gn_gangblocksize); g++) {
 			zio_dva_unallocate(zio, gn->gn_child[g],
-			    &((blkptr_t *)gn->gn_gbh)[g]);
+			    gbh_bp(gn->gn_gbh, g));
 		}
 	}
 }
@@ -5361,6 +5341,7 @@ zio_dva_throttle_done(zio_t *zio)
 	 * Parents of gang children can have two flavors -- ones that allocated
 	 * the gang header (will have ZIO_FLAG_IO_REWRITE set) and ones that
 	 * allocated the constituent blocks.  The first use their parent as tag.
+	 * We set the size to match the original allocation call for that case.
 	 */
 	if (pio->io_child_type == ZIO_CHILD_GANG &&
 	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)) {
