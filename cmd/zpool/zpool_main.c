@@ -9528,7 +9528,7 @@ errors_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 				int count = 0;
 				size_t len = MAXPATHLEN * 2;
 				nvpair_t *elem = NULL;
-				char **errl, *pathbuf = NULL;
+				char **errl = NULL, *pathbuf = NULL;
 				nvlist_t **errnvl;
 
 				for (nvpair_t *pair =
