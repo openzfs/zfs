@@ -3199,32 +3199,13 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	}
 
 	uint64_t gangblocksize = SPA_OLD_GANGBLOCKSIZE;
-
-	error = metaslab_alloc(spa, mc, gangblocksize,
+	uint64_t candidate = gangblocksize;
+	error = metaslab_alloc_range(spa, mc, gangblocksize, gangblocksize,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
-	    &pio->io_alloc_list, pio->io_allocator, pio);
+	    &pio->io_alloc_list, pio->io_allocator, pio, &candidate);
 	if (error) {
 		pio->io_error = error;
 		return (pio);
-	}
-	uint64_t candidate = gangblocksize;
-	if (spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-		candidate = UINT64_MAX;
-		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
-		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
-			vdev_t *vd = vdev_lookup_top(spa,
-			    DVA_GET_VDEV(&bp->blk_dva[dva]));
-			candidate = MIN(candidate,
-			    vdev_gang_header_asize(vd));
-			/*
-			 * For now, the asize still reflects the actual
-			 * allocated size.
-			 */
-			ASSERT3U(candidate, <=,
-			    DVA_GET_ASIZE(&(bp->blk_dva[dva])));
-		}
-		spa_config_exit(spa, SCL_VDEV, FTAG);
-		ASSERT3U(candidate, !=, UINT64_MAX);
 	}
 	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
 		gangblocksize = candidate;
