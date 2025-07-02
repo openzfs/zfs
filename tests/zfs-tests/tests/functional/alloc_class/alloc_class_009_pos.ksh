@@ -36,7 +36,7 @@ typeset stype=""
 typeset sdisks=""
 typeset props=""
 
-for type in "" "mirror" "raidz"
+for type in "" "mirror" "raidz" "draid"
 do
 	if [ "$type" = "mirror" ]; then
 		stype="mirror"
@@ -45,6 +45,9 @@ do
 	elif [ "$type" = "raidz" ]; then
 		stype="mirror"
 		sdisks="${CLASS_DISK0} ${CLASS_DISK1}"
+	elif [ "$type" = "draid" ]; then
+		stype="raidz"
+		sdisks="${CLASS_DISK0} ${CLASS_DISK1} ${CLASS_DISK2}"
 	else
 		stype=""
 		sdisks="${CLASS_DISK0}"

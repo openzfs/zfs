@@ -876,6 +876,18 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 				    (u_longlong_t)mirror->zprl_children);
 				ret = -1;
 			}
+		} else if (is_raidz_draid(current, new)) {
+			if (current->zprl_parity != new->zprl_parity) {
+				vdev_error(gettext(
+				    "mismatched replication level: pool and "
+				    "new vdev with different redundancy, %s "
+				    "and %s vdevs, %llu vs. %llu\n"),
+				    current->zprl_type,
+				    new->zprl_type,
+				    (u_longlong_t)current->zprl_parity,
+				    (u_longlong_t)new->zprl_parity);
+				ret = -1;
+			}
 		} else if (strcmp(current->zprl_type, new->zprl_type) != 0) {
 			vdev_error(gettext(
 			    "mismatched replication level: pool uses %s "
@@ -1581,13 +1593,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				is_dedup = is_spare = B_FALSE;
 			}
 
-			if (is_log || is_special || is_dedup) {
+			if (is_log) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported '%s' "
-					    "device: %s\n"), is_log ? "log" :
-					    "special", type);
+					    "specification: unsupported 'log' "
+					    "device: %s\n"), type);
 					goto spec_out;
 				}
 				nlogs++;
