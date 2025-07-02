@@ -1065,6 +1065,7 @@ extern metaslab_class_t *spa_normal_class(spa_t *spa);
 extern metaslab_class_t *spa_log_class(spa_t *spa);
 extern metaslab_class_t *spa_embedded_log_class(spa_t *spa);
 extern metaslab_class_t *spa_special_class(spa_t *spa);
+extern metaslab_class_t *spa_special_embedded_log_class(spa_t *spa);
 extern metaslab_class_t *spa_dedup_class(spa_t *spa);
 extern metaslab_class_t *spa_preferred_class(spa_t *spa, const zio_t *zio);
 extern boolean_t spa_special_has_ddt(spa_t *spa);
