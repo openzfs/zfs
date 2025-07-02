@@ -152,7 +152,7 @@ struct objset {
 	 * The largest zpl file block allowed in special class.
 	 * cached here instead of zfsvfs for easier access.
 	 */
-	int os_zpl_special_smallblock;
+	uint64_t os_zpl_special_smallblock;
 
 	/*
 	 * Pointer is constant; the blkptr it points to is protected by

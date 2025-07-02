@@ -640,7 +640,7 @@ zfs_prop_init(void)
 	    "<1.00x or higher if compressed>", "REFRATIO", B_FALSE, sfeatures);
 	zprop_register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize",
 	    ZVOL_DEFAULT_BLOCKSIZE, PROP_ONETIME,
-	    ZFS_TYPE_VOLUME, "512 to 128k, power of 2",	"VOLBLOCK", B_FALSE,
+	    ZFS_TYPE_VOLUME, "512 to 16M, power of 2", "VOLBLOCK", B_FALSE,
 	    sfeatures);
 	zprop_register_index(ZFS_PROP_VOLTHREADING, "volthreading",
 	    1, PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off", "zvol threading",
@@ -734,13 +734,12 @@ zfs_prop_init(void)
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",
 	    SPA_OLD_MAXBLOCKSIZE, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "512 to 1M, power of 2", "RECSIZE", B_FALSE,
-	    sfeatures);
+	    ZFS_TYPE_FILESYSTEM, "512 to 16M, power of 2",
+	    "RECSIZE", B_FALSE, sfeatures);
 	zprop_register_number(ZFS_PROP_SPECIAL_SMALL_BLOCKS,
 	    "special_small_blocks", 0, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "zero or 512 to 1M, power of 2", "SPECIAL_SMALL_BLOCKS", B_FALSE,
-	    sfeatures);
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "0 to 16M",
+	    "SPECIAL_SMALL_BLOCKS", B_FALSE, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(ZFS_PROP_NUMCLONES, "numclones", PROP_TYPE_NUMBER,

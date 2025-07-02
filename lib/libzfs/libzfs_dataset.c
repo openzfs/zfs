@@ -1039,7 +1039,6 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 	nvlist_t *ret;
 	int chosen_normal = -1;
 	int chosen_utf = -1;
-	int set_maxbs = 0;
 
 	if (nvlist_alloc(&ret, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -1258,46 +1257,20 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
-			/* save the ZFS_PROP_RECORDSIZE during create op */
-			if (zpool_hdl == NULL && prop == ZFS_PROP_RECORDSIZE) {
-				set_maxbs = intval;
-			}
 			break;
 		}
 
 		case ZFS_PROP_SPECIAL_SMALL_BLOCKS:
 		{
-			int maxbs =
-			    set_maxbs == 0 ? SPA_OLD_MAXBLOCKSIZE : set_maxbs;
+			int maxbs = SPA_MAXBLOCKSIZE;
 			char buf[64];
 
-			if (zpool_hdl != NULL) {
-				char state[64] = "";
-
-				maxbs = zpool_get_prop_int(zpool_hdl,
-				    ZPOOL_PROP_MAXBLOCKSIZE, NULL);
-
-				/*
-				 * Issue a warning but do not fail so that
-				 * tests for settable properties succeed.
-				 */
-				if (zpool_prop_get_feature(zpool_hdl,
-				    "feature@allocation_classes", state,
-				    sizeof (state)) != 0 ||
-				    strcmp(state, ZFS_FEATURE_ACTIVE) != 0) {
-					(void) fprintf(stderr, gettext(
-					    "%s: property requires a special "
-					    "device in the pool\n"), propname);
-				}
-			}
-			if (intval != 0 &&
-			    (intval < SPA_MINBLOCKSIZE ||
-			    intval > maxbs || !ISP2(intval))) {
+			if (intval > SPA_MAXBLOCKSIZE) {
 				zfs_nicebytes(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid '%s=%llu' property: must be zero "
-				    "or a power of 2 from 512B to %s"),
-				    propname, (unsigned long long)intval, buf);
+				    "invalid '%s' property: must be between "
+				    "zero and %s"),
+				    propname, buf);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
