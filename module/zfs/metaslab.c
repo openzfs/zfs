@@ -5757,21 +5757,21 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 }
 
 /*
- * Reserve some allocation slots. The reservation system must be called
- * before we call into the allocator. If there aren't any available slots
- * then the I/O will be throttled until an I/O completes and its slots are
- * freed up. The function returns true if it was successful in placing
- * the reservation.
+ * Reserve some space for a future allocation. The reservation system must be
+ * called before we call into the allocator. If there aren't enough space
+ * available, the calling I/O will be throttled until another I/O completes and
+ * its reservation is released. The function returns true if it was successful
+ * in placing the reservation.
  */
 boolean_t
-metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
-    boolean_t must, boolean_t *more)
+metaslab_class_throttle_reserve(metaslab_class_t *mc, int allocator,
+    int copies, uint64_t io_size, boolean_t must, boolean_t *more)
 {
-	metaslab_class_allocator_t *mca = &mc->mc_allocator[zio->io_allocator];
+	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	if (mc->mc_alloc_io_size < zio->io_size) {
-		mc->mc_alloc_io_size = zio->io_size;
+	if (mc->mc_alloc_io_size < io_size) {
+		mc->mc_alloc_io_size = io_size;
 		metaslab_class_balance(mc, B_FALSE);
 	}
 	if (must || mca->mca_reserved <= mc->mc_alloc_max) {
@@ -5782,10 +5782,9 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
 		 * worst that can happen is few more I/Os get to allocation
 		 * earlier, that is not a problem.
 		 */
-		int64_t delta = slots * zio->io_size;
+		int64_t delta = copies * io_size;
 		*more = (atomic_add_64_nv(&mca->mca_reserved, delta) <=
 		    mc->mc_alloc_max);
-		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
 		return (B_TRUE);
 	}
 	*more = B_FALSE;
@@ -5793,13 +5792,13 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, zio_t *zio,
 }
 
 boolean_t
-metaslab_class_throttle_unreserve(metaslab_class_t *mc, int slots,
-    zio_t *zio)
+metaslab_class_throttle_unreserve(metaslab_class_t *mc, int allocator,
+    int copies, uint64_t io_size)
 {
-	metaslab_class_allocator_t *mca = &mc->mc_allocator[zio->io_allocator];
+	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	int64_t delta = slots * zio->io_size;
+	int64_t delta = copies * io_size;
 	return (atomic_add_64_nv(&mca->mca_reserved, -delta) <=
 	    mc->mc_alloc_max);
 }

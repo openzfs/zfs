@@ -3194,8 +3194,9 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	zio_gang_inherit_allocator(pio, zio);
 	if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 		boolean_t more;
-		VERIFY(metaslab_class_throttle_reserve(mc, gbh_copies,
-		    zio, B_TRUE, &more));
+		VERIFY(metaslab_class_throttle_reserve(mc, zio->io_allocator,
+		    gbh_copies, zio->io_size, B_TRUE, &more));
+		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
 	}
 
 	/*
@@ -4078,9 +4079,11 @@ zio_io_to_allocate(metaslab_class_allocator_t *mca, boolean_t *more)
 	 * reserve then we throttle.
 	 */
 	if (!metaslab_class_throttle_reserve(zio->io_metaslab_class,
-	    zio->io_prop.zp_copies, zio, B_FALSE, more)) {
+	    zio->io_allocator, zio->io_prop.zp_copies, zio->io_size,
+	    B_FALSE, more)) {
 		return (NULL);
 	}
+	zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
 
 	avl_remove(&mca->mca_tree, zio);
 	ASSERT3U(zio->io_stage, <, ZIO_STAGE_DVA_ALLOCATE);
@@ -4238,7 +4241,8 @@ again:
 		 */
 		if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 			if (metaslab_class_throttle_unreserve(mc,
-			    zio->io_prop.zp_copies, zio)) {
+			    zio->io_allocator, zio->io_prop.zp_copies,
+			    zio->io_size)) {
 				zio_allocate_dispatch(zio->io_metaslab_class,
 				    zio->io_allocator);
 			}
@@ -5213,8 +5217,8 @@ zio_ready(zio_t *zio)
 			 * issue the next I/O to allocate.
 			 */
 			if (metaslab_class_throttle_unreserve(
-			    zio->io_metaslab_class, zio->io_prop.zp_copies,
-			    zio)) {
+			    zio->io_metaslab_class, zio->io_allocator,
+			    zio->io_prop.zp_copies, zio->io_size)) {
 				zio_allocate_dispatch(zio->io_metaslab_class,
 				    zio->io_allocator);
 			}
@@ -5297,7 +5301,8 @@ zio_dva_throttle_done(zio_t *zio)
 	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
 	    pio->io_allocator, flags, pio->io_size, tag);
 
-	if (metaslab_class_throttle_unreserve(zio->io_metaslab_class, 1, pio)) {
+	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
+	    pio->io_allocator, 1, pio->io_size)) {
 		zio_allocate_dispatch(zio->io_metaslab_class,
 		    pio->io_allocator);
 	}
