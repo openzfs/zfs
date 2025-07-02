@@ -859,13 +859,8 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 };
 
 /*
- * zvol_log_write() handles synchronous writes using TX_WRITE ZIL transactions.
- *
- * We store data in the log buffers if it's small enough.
- * Otherwise we will later flush the data out via dmu_sync().
+ * zvol_log_write() handles TX_WRITE transactions.
  */
-static const ssize_t zvol_immediate_write_sz = 32768;
-
 void
 zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
     uint64_t size, boolean_t commit)
@@ -878,15 +873,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	if (zil_replaying(zilog, tx))
 		return;
 
-	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
-		write_state = WR_INDIRECT;
-	else if (!spa_has_slogs(zilog->zl_spa) &&
-	    size >= blocksize && blocksize > zvol_immediate_write_sz)
-		write_state = WR_INDIRECT;
-	else if (commit)
-		write_state = WR_COPIED;
-	else
-		write_state = WR_NEED_COPY;
+	write_state = zil_write_state(zilog, size, blocksize, B_FALSE, commit);
 
 	while (size) {
 		itx_t *itx;
