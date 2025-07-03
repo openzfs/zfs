@@ -9044,48 +9044,44 @@ l2arc_read_done(zio_t *zio)
 }
 
 /*
- * This is the list priority from which the L2ARC will search for pages to
- * cache.  This is used within loops (0..3) to cycle through lists in the
- * desired order.  This order can have a significant effect on cache
- * performance.
+ * Get the multilist for the given list number (0..3) to cycle through
+ * lists in the desired order.  This order can have a significant effect
+ * on cache performance.
  *
  * Currently the metadata lists are hit first, MFU then MRU, followed by
- * the data lists.  This function returns a locked list, and also returns
- * the lock pointer.
+ * the data lists.
  */
-static multilist_sublist_t *
-l2arc_sublist_lock(int list_num)
+static multilist_t *
+l2arc_get_list(int list_num)
 {
-	multilist_t *ml = NULL;
-	unsigned int idx;
-
 	ASSERT(list_num >= 0 && list_num < L2ARC_FEED_TYPES);
 
 	switch (list_num) {
 	case 0:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_METADATA];
-		break;
+		return (&arc_mfu->arcs_list[ARC_BUFC_METADATA]);
 	case 1:
-		ml = &arc_mru->arcs_list[ARC_BUFC_METADATA];
-		break;
+		return (&arc_mru->arcs_list[ARC_BUFC_METADATA]);
 	case 2:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_DATA];
-		break;
+		return (&arc_mfu->arcs_list[ARC_BUFC_DATA]);
 	case 3:
-		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
-		break;
+		return (&arc_mru->arcs_list[ARC_BUFC_DATA]);
 	default:
 		return (NULL);
 	}
+}
 
-	/*
-	 * Return a randomly-selected sublist. This is acceptable
-	 * because the caller feeds only a little bit of data for each
-	 * call (8MB). Subsequent calls will result in different
-	 * sublists being selected.
-	 */
-	idx = multilist_get_random_index(ml);
-	return (multilist_sublist_lock_idx(ml, idx));
+
+/*
+ * Lock a specific sublist within the given list number.
+ */
+static multilist_sublist_t *
+l2arc_sublist_lock(int list_num, int sublist_idx)
+{
+	multilist_t *ml = l2arc_get_list(list_num);
+	if (ml == NULL)
+		return (NULL);
+
+	return (multilist_sublist_lock_idx(ml, sublist_idx));
 }
 
 /*
@@ -9457,6 +9453,200 @@ error:
 	return (ret);
 }
 
+/*
+ * Process a single sublist for L2ARC writing.
+ * Returns B_TRUE if target size reached, B_FALSE otherwise.
+ */
+static boolean_t
+l2arc_write_sublist(spa_t *spa, l2arc_dev_t *dev, multilist_sublist_t *mls,
+    arc_buf_hdr_t *marker, boolean_t from_head, uint64_t target_sz,
+    uint64_t *write_asize, uint64_t *write_psize, zio_t **pio,
+    l2arc_write_callback_t **cb, arc_buf_hdr_t *head, uint64_t *consumed,
+    uint64_t sublist_headroom, uint64_t guid)
+{
+	arc_buf_hdr_t *hdr;
+	boolean_t full = B_FALSE;
+
+	/*
+	 * Until the ARC is warm and starts to evict, read from the
+	 * head of the ARC lists rather than the tail.
+	 */
+	if (from_head)
+		hdr = multilist_sublist_head(mls);
+	else
+		hdr = multilist_sublist_tail(mls);
+
+	while (hdr != NULL) {
+		kmutex_t *hash_lock;
+		abd_t *to_write = NULL;
+
+		hash_lock = HDR_LOCK(hdr);
+		if (!mutex_tryenter(hash_lock)) {
+skip:
+			/* Skip this buffer rather than waiting. */
+			if (from_head)
+				hdr = multilist_sublist_next(mls, hdr);
+			else
+				hdr = multilist_sublist_prev(mls, hdr);
+			continue;
+		}
+
+		if (l2arc_headroom != 0 &&
+		    *consumed + HDR_GET_LSIZE(hdr) >
+		    MAX(sublist_headroom, HDR_GET_LSIZE(hdr))) {
+			/*
+			 * Searched too far in this sublist.
+			 */
+			mutex_exit(hash_lock);
+			break;
+		}
+
+		*consumed += HDR_GET_LSIZE(hdr);
+
+		if (!l2arc_write_eligible(guid, hdr)) {
+			mutex_exit(hash_lock);
+			goto skip;
+		}
+
+		ASSERT(HDR_HAS_L1HDR(hdr));
+		ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
+		ASSERT3U(arc_hdr_size(hdr), >, 0);
+		ASSERT(hdr->b_l1hdr.b_pabd != NULL || HDR_HAS_RABD(hdr));
+		uint64_t psize = HDR_GET_PSIZE(hdr);
+		uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
+
+		/*
+		 * If the allocated size of this buffer plus the max
+		 * size for the pending log block exceeds the evicted
+		 * target size, terminate writing buffers for this run.
+		 */
+		if (*write_asize + asize +
+		    sizeof (l2arc_log_blk_phys_t) > target_sz) {
+			full = B_TRUE;
+			mutex_exit(hash_lock);
+			break;
+		}
+
+		/*
+		 * We should not sleep with sublist lock held or it
+		 * may block ARC eviction.  Insert a marker to save
+		 * the position and drop the lock.
+		 */
+		if (from_head) {
+			multilist_sublist_insert_after(mls, hdr, marker);
+		} else {
+			multilist_sublist_insert_before(mls, hdr, marker);
+		}
+		multilist_sublist_unlock(mls);
+
+		/*
+		 * If this header has b_rabd, we can use this since it
+		 * must always match the data exactly as it exists on
+		 * disk. Otherwise, the L2ARC can normally use the
+		 * hdr's data, but if we're sharing data between the
+		 * hdr and one of its bufs, L2ARC needs its own copy of
+		 * the data so that the ZIO below can't race with the
+		 * buf consumer. To ensure that this copy will be
+		 * available for the lifetime of the ZIO and be cleaned
+		 * up afterwards, we add it to the l2arc_free_on_write
+		 * queue. If we need to apply any transforms to the
+		 * data (compression, encryption) we will also need the
+		 * extra buffer.
+		 */
+		if (HDR_HAS_RABD(hdr) && psize == asize) {
+			to_write = hdr->b_crypt_hdr.b_rabd;
+		} else if ((HDR_COMPRESSION_ENABLED(hdr) ||
+		    HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) &&
+		    !HDR_ENCRYPTED(hdr) && !HDR_SHARED_DATA(hdr) &&
+		    psize == asize) {
+			to_write = hdr->b_l1hdr.b_pabd;
+		} else {
+			int ret;
+			arc_buf_contents_t type = arc_buf_type(hdr);
+
+			ret = l2arc_apply_transforms(spa, hdr, asize,
+			    &to_write);
+			if (ret != 0) {
+				arc_hdr_clear_flags(hdr, ARC_FLAG_L2CACHE);
+				mutex_exit(hash_lock);
+				goto next;
+			}
+
+			l2arc_free_abd_on_write(to_write, asize, type);
+		}
+
+		hdr->b_l2hdr.b_dev = dev;
+		hdr->b_l2hdr.b_daddr = dev->l2ad_hand;
+		hdr->b_l2hdr.b_hits = 0;
+		hdr->b_l2hdr.b_arcs_state =
+		    hdr->b_l1hdr.b_state->arcs_state;
+		/* l2arc_hdr_arcstats_update() expects a valid asize */
+		HDR_SET_L2SIZE(hdr, asize);
+		arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
+		    ARC_FLAG_L2_WRITING);
+
+		(void) zfs_refcount_add_many(&dev->l2ad_alloc,
+		    arc_hdr_size(hdr), hdr);
+		l2arc_hdr_arcstats_increment(hdr);
+		vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
+
+		mutex_enter(&dev->l2ad_mtx);
+		if (*pio == NULL) {
+			/*
+			 * Insert a dummy header on the buflist so
+			 * l2arc_write_done() can find where the
+			 * write buffers begin without searching.
+			 */
+			list_insert_head(&dev->l2ad_buflist, head);
+		}
+		list_insert_head(&dev->l2ad_buflist, hdr);
+		mutex_exit(&dev->l2ad_mtx);
+
+		boolean_t commit = l2arc_log_blk_insert(dev, hdr);
+		mutex_exit(hash_lock);
+
+		if (*pio == NULL) {
+			*cb = kmem_alloc(sizeof (l2arc_write_callback_t),
+			    KM_SLEEP);
+			(*cb)->l2wcb_dev = dev;
+			(*cb)->l2wcb_head = head;
+			list_create(&(*cb)->l2wcb_abd_list,
+			    sizeof (l2arc_lb_abd_buf_t),
+			    offsetof(l2arc_lb_abd_buf_t, node));
+			*pio = zio_root(spa, l2arc_write_done, *cb,
+			    ZIO_FLAG_CANFAIL);
+		}
+
+		zio_t *wzio = zio_write_phys(*pio, dev->l2ad_vdev,
+		    dev->l2ad_hand, asize, to_write, ZIO_CHECKSUM_OFF,
+		    NULL, hdr, ZIO_PRIORITY_ASYNC_WRITE,
+		    ZIO_FLAG_CANFAIL, B_FALSE);
+
+		DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
+		    zio_t *, wzio);
+		zio_nowait(wzio);
+
+		*write_psize += psize;
+		*write_asize += asize;
+		dev->l2ad_hand += asize;
+
+		if (commit) {
+			/* l2ad_hand will be adjusted inside. */
+			*write_asize += l2arc_log_blk_commit(dev, *pio, *cb);
+		}
+
+next:
+		multilist_sublist_lock(mls);
+		if (from_head)
+			hdr = multilist_sublist_next(mls, marker);
+		else
+			hdr = multilist_sublist_prev(mls, marker);
+		multilist_sublist_remove(mls, marker);
+	}
+
+	return (full);
+}
+
 static void
 l2arc_blk_fetch_done(zio_t *zio)
 {
@@ -9483,11 +9673,11 @@ l2arc_blk_fetch_done(zio_t *zio)
 static uint64_t
 l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 {
-	arc_buf_hdr_t 		*hdr, *head, *marker;
+	arc_buf_hdr_t 		*head, *marker;
 	uint64_t 		write_asize, write_psize, headroom;
 	boolean_t		full, from_head = !arc_warm;
 	l2arc_write_callback_t	*cb = NULL;
-	zio_t 			*pio, *wzio;
+	zio_t 			*pio;
 	uint64_t 		guid = spa_load_guid(spa);
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 
@@ -9518,195 +9708,41 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 		}
 
-		uint64_t passed_sz = 0;
 		headroom = target_sz * l2arc_headroom;
 		if (zfs_compressed_arc_enabled)
 			headroom = (headroom * l2arc_headroom_boost) / 100;
 
-		/*
-		 * Until the ARC is warm and starts to evict, read from the
-		 * head of the ARC lists rather than the tail.
-		 */
-		multilist_sublist_t *mls = l2arc_sublist_lock(pass);
-		ASSERT3P(mls, !=, NULL);
-		if (from_head)
-			hdr = multilist_sublist_head(mls);
-		else
-			hdr = multilist_sublist_tail(mls);
+		multilist_t *ml = l2arc_get_list(pass);
+		ASSERT3P(ml, !=, NULL);
+		int num_sublists = multilist_get_num_sublists(ml);
+		int current_sublist = multilist_get_random_index(ml);
+		uint64_t consumed_headroom = 0;
 
-		while (hdr != NULL) {
-			kmutex_t *hash_lock;
-			abd_t *to_write = NULL;
+		int processed_sublists = 0;
+		while (processed_sublists < num_sublists && !full) {
+			uint64_t sublist_headroom;
+			multilist_sublist_t *mls;
 
-			hash_lock = HDR_LOCK(hdr);
-			if (!mutex_tryenter(hash_lock)) {
-skip:
-				/* Skip this buffer rather than waiting. */
-				if (from_head)
-					hdr = multilist_sublist_next(mls, hdr);
-				else
-					hdr = multilist_sublist_prev(mls, hdr);
-				continue;
-			}
-
-			passed_sz += HDR_GET_LSIZE(hdr);
-			if (l2arc_headroom != 0 && passed_sz > headroom) {
-				/*
-				 * Searched too far.
-				 */
-				mutex_exit(hash_lock);
+			if (consumed_headroom >= headroom)
 				break;
-			}
 
-			if (!l2arc_write_eligible(guid, hdr)) {
-				mutex_exit(hash_lock);
-				goto skip;
-			}
+			sublist_headroom = (headroom - consumed_headroom) /
+			    (num_sublists - processed_sublists);
 
-			ASSERT(HDR_HAS_L1HDR(hdr));
-			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
-			ASSERT3U(arc_hdr_size(hdr), >, 0);
-			ASSERT(hdr->b_l1hdr.b_pabd != NULL ||
-			    HDR_HAS_RABD(hdr));
-			uint64_t psize = HDR_GET_PSIZE(hdr);
-			uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
-			    psize);
-
-			/*
-			 * If the allocated size of this buffer plus the max
-			 * size for the pending log block exceeds the evicted
-			 * target size, terminate writing buffers for this run.
-			 */
-			if (write_asize + asize +
-			    sizeof (l2arc_log_blk_phys_t) > target_sz) {
-				full = B_TRUE;
-				mutex_exit(hash_lock);
+			if (sublist_headroom == 0)
 				break;
-			}
+			mls = l2arc_sublist_lock(pass, current_sublist);
+			ASSERT3P(mls, !=, NULL);
 
-			/*
-			 * We should not sleep with sublist lock held or it
-			 * may block ARC eviction.  Insert a marker to save
-			 * the position and drop the lock.
-			 */
-			if (from_head) {
-				multilist_sublist_insert_after(mls, hdr,
-				    marker);
-			} else {
-				multilist_sublist_insert_before(mls, hdr,
-				    marker);
-			}
+			full = l2arc_write_sublist(spa, dev, mls, marker,
+			    from_head, target_sz, &write_asize, &write_psize,
+			    &pio, &cb, head, &consumed_headroom,
+			    sublist_headroom, guid);
+
 			multilist_sublist_unlock(mls);
-
-			/*
-			 * If this header has b_rabd, we can use this since it
-			 * must always match the data exactly as it exists on
-			 * disk. Otherwise, the L2ARC can normally use the
-			 * hdr's data, but if we're sharing data between the
-			 * hdr and one of its bufs, L2ARC needs its own copy of
-			 * the data so that the ZIO below can't race with the
-			 * buf consumer. To ensure that this copy will be
-			 * available for the lifetime of the ZIO and be cleaned
-			 * up afterwards, we add it to the l2arc_free_on_write
-			 * queue. If we need to apply any transforms to the
-			 * data (compression, encryption) we will also need the
-			 * extra buffer.
-			 */
-			if (HDR_HAS_RABD(hdr) && psize == asize) {
-				to_write = hdr->b_crypt_hdr.b_rabd;
-			} else if ((HDR_COMPRESSION_ENABLED(hdr) ||
-			    HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) &&
-			    !HDR_ENCRYPTED(hdr) && !HDR_SHARED_DATA(hdr) &&
-			    psize == asize) {
-				to_write = hdr->b_l1hdr.b_pabd;
-			} else {
-				int ret;
-				arc_buf_contents_t type = arc_buf_type(hdr);
-
-				ret = l2arc_apply_transforms(spa, hdr, asize,
-				    &to_write);
-				if (ret != 0) {
-					arc_hdr_clear_flags(hdr,
-					    ARC_FLAG_L2CACHE);
-					mutex_exit(hash_lock);
-					goto next;
-				}
-
-				l2arc_free_abd_on_write(to_write, asize, type);
-			}
-
-			hdr->b_l2hdr.b_dev = dev;
-			hdr->b_l2hdr.b_daddr = dev->l2ad_hand;
-			hdr->b_l2hdr.b_hits = 0;
-			hdr->b_l2hdr.b_arcs_state =
-			    hdr->b_l1hdr.b_state->arcs_state;
-			/* l2arc_hdr_arcstats_update() expects a valid asize */
-			HDR_SET_L2SIZE(hdr, asize);
-			arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
-			    ARC_FLAG_L2_WRITING);
-
-			(void) zfs_refcount_add_many(&dev->l2ad_alloc,
-			    arc_hdr_size(hdr), hdr);
-			l2arc_hdr_arcstats_increment(hdr);
-			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
-
-			mutex_enter(&dev->l2ad_mtx);
-			if (pio == NULL) {
-				/*
-				 * Insert a dummy header on the buflist so
-				 * l2arc_write_done() can find where the
-				 * write buffers begin without searching.
-				 */
-				list_insert_head(&dev->l2ad_buflist, head);
-			}
-			list_insert_head(&dev->l2ad_buflist, hdr);
-			mutex_exit(&dev->l2ad_mtx);
-
-			boolean_t commit = l2arc_log_blk_insert(dev, hdr);
-			mutex_exit(hash_lock);
-
-			if (pio == NULL) {
-				cb = kmem_alloc(
-				    sizeof (l2arc_write_callback_t), KM_SLEEP);
-				cb->l2wcb_dev = dev;
-				cb->l2wcb_head = head;
-				list_create(&cb->l2wcb_abd_list,
-				    sizeof (l2arc_lb_abd_buf_t),
-				    offsetof(l2arc_lb_abd_buf_t, node));
-				pio = zio_root(spa, l2arc_write_done, cb,
-				    ZIO_FLAG_CANFAIL);
-			}
-
-			wzio = zio_write_phys(pio, dev->l2ad_vdev,
-			    dev->l2ad_hand, asize, to_write,
-			    ZIO_CHECKSUM_OFF, NULL, hdr,
-			    ZIO_PRIORITY_ASYNC_WRITE,
-			    ZIO_FLAG_CANFAIL, B_FALSE);
-
-			DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
-			    zio_t *, wzio);
-			zio_nowait(wzio);
-
-			write_psize += psize;
-			write_asize += asize;
-			dev->l2ad_hand += asize;
-
-			if (commit) {
-				/* l2ad_hand will be adjusted inside. */
-				write_asize +=
-				    l2arc_log_blk_commit(dev, pio, cb);
-			}
-
-next:
-			multilist_sublist_lock(mls);
-			if (from_head)
-				hdr = multilist_sublist_next(mls, marker);
-			else
-				hdr = multilist_sublist_prev(mls, marker);
-			multilist_sublist_remove(mls, marker);
+			current_sublist = (current_sublist + 1) % num_sublists;
+			processed_sublists++;
 		}
-
-		multilist_sublist_unlock(mls);
 
 		if (full == B_TRUE)
 			break;
