@@ -103,7 +103,15 @@ typedef enum zfeature_flags {
 	/* Activate this feature at the same time it is enabled. */
 	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
 	/* Each dataset has a field set if it has ever used this feature. */
-	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
+	ZFEATURE_FLAG_PER_DATASET =		(1 << 3),
+	/*
+	 * This feature isn't enabled by zpool upgrade; it must be explicitly
+	 * listed to be enabled. It will also be applied if listed in an
+	 * explicitly provided compatibility list. This flag can be removed
+	 * from a given feature once support is sufficiently widespread, or
+	 * worries about backwards compatibility are no longer relevant.
+	 */
+	ZFEATURE_FLAG_NO_UPGRADE = 		(1 << 4)
 } zfeature_flags_t;
 
 typedef enum zfeature_type {

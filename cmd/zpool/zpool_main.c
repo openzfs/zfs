@@ -11330,7 +11330,8 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 		const char *fname = spa_feature_table[i].fi_uname;
 		const char *fguid = spa_feature_table[i].fi_guid;
 
-		if (!spa_feature_table[i].fi_zfs_mod_supported)
+		if (!spa_feature_table[i].fi_zfs_mod_supported ||
+		    (spa_feature_table[i].fi_flags & ZFEATURE_FLAG_NO_UPGRADE))
 			continue;
 
 		if (!nvlist_exists(enabled, fguid) && requested_features[i]) {
@@ -11485,7 +11486,11 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 					    "Note that the pool "
 					    "'compatibility' feature can be "
 					    "used to inhibit\nfeature "
-					    "upgrades.\n\n"));
+					    "upgrades.\n\n"
+					    "Features marked with (*) are not "
+					    "applied automatically on upgrade, "
+					    "and\nmust be applied explicitly "
+					    "with zpool-set(7).\n\n"));
 					(void) printf(gettext("POOL  "
 					    "FEATURE\n"));
 					(void) printf(gettext("------"
@@ -11499,7 +11504,9 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 					poolfirst = B_FALSE;
 				}
 
-				(void) printf(gettext("      %s\n"), fname);
+				(void) printf(gettext("      %s%s\n"), fname,
+				    spa_feature_table[i].fi_flags &
+				    ZFEATURE_FLAG_NO_UPGRADE ? "(*)" : "");
 			}
 			/*
 			 * If they did "zpool upgrade -a", then we could
