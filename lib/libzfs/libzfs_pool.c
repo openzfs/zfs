@@ -5093,9 +5093,10 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	/* special cases (unset), "" and "off" => enable all features */
 	if (compat == NULL || compat[0] == '\0' ||
 	    strcmp(compat, ZPOOL_COMPAT_OFF) == 0) {
-		if (features != NULL)
+		if (features != NULL) {
 			for (uint_t i = 0; i < SPA_FEATURES; i++)
 				features[i] = B_TRUE;
+		}
 		if (report != NULL)
 			strlcpy(report, gettext("all features enabled"), rlen);
 		return (ZPOOL_COMPATIBILITY_OK);
