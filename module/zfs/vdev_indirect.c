@@ -1842,7 +1842,7 @@ vdev_indirect_io_done(zio_t *zio)
 	 */
 	if (zio->io_flags & ZIO_FLAG_DIO_READ && ret == ECKSUM) {
 		zio->io_error = ret;
-		zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
+		zio->io_post |= ZIO_POST_DIO_CHKSUM_ERR;
 		zio_dio_chksum_verify_error_report(zio);
 		ret = 0;
 	}

@@ -104,7 +104,7 @@ dmu_write_direct_done(zio_t *zio)
 	dmu_sync_done(zio, NULL, zio->io_private);
 
 	if (zio->io_error != 0) {
-		if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
+		if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)
 			ASSERT3U(zio->io_error, ==, EIO);
 
 		/*

@@ -226,8 +226,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_NOPWRITE	(1ULL << 29)
 #define	ZIO_FLAG_REEXECUTED	(1ULL << 30)
 #define	ZIO_FLAG_DELEGATED	(1ULL << 31)
-#define	ZIO_FLAG_DIO_CHKSUM_ERR	(1ULL << 32)
-#define	ZIO_FLAG_PREALLOCATED	(1ULL << 33)
+#define	ZIO_FLAG_PREALLOCATED	(1ULL << 32)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)
@@ -427,6 +426,7 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
  */
 #define	ZIO_POST_REEXECUTE	(1 << 0)
 #define	ZIO_POST_SUSPEND	(1 << 1)
+#define	ZIO_POST_DIO_CHKSUM_ERR	(1 << 2)
 
 /*
  * The io_trim flags are used to specify the type of TRIM to perform.  They

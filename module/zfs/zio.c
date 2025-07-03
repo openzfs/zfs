@@ -853,12 +853,6 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 	pio->io_post |= zio->io_post;
 	ASSERT3U(*countp, >, 0);
 
-	/*
-	 * Propogate the Direct I/O checksum verify failure to the parent.
-	 */
-	if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)
-		pio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
-
 	(*countp)--;
 
 	if (*countp == 0 && pio->io_stall == countp) {
@@ -1649,7 +1643,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		 * through the mirror during self healing. See comment in
 		 * vdev_mirror_io_done() for more details.
 		 */
-		ASSERT0(pio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
+		ASSERT0(pio->io_post & ZIO_POST_DIO_CHKSUM_ERR);
 	} else if (type == ZIO_TYPE_WRITE &&
 	    pio->io_prop.zp_direct_write == B_TRUE) {
 		/*
@@ -4722,7 +4716,7 @@ zio_vdev_io_assess(zio_t *zio)
 	 * If a Direct I/O operation has a checksum verify error then this I/O
 	 * should not attempt to be issued again.
 	 */
-	if (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR) {
+	if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR) {
 		if (zio->io_type == ZIO_TYPE_WRITE) {
 			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_LOGICAL);
 			ASSERT3U(zio->io_error, ==, EIO);
@@ -5031,7 +5025,7 @@ zio_checksum_verify(zio_t *zio)
 		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
 	}
 
-	ASSERT0(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
+	ASSERT0(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR);
 	IMPLY(zio->io_flags & ZIO_FLAG_DIO_READ,
 	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE));
 
@@ -5040,7 +5034,7 @@ zio_checksum_verify(zio_t *zio)
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
 			if (zio->io_flags & ZIO_FLAG_DIO_READ) {
-				zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
+				zio->io_post |= ZIO_POST_DIO_CHKSUM_ERR;
 				zio_t *pio = zio_unique_parent(zio);
 				/*
 				 * Any Direct I/O read that has a checksum
@@ -5090,7 +5084,7 @@ zio_dio_checksum_verify(zio_t *zio)
 	if ((error = zio_checksum_error(zio, NULL)) != 0) {
 		zio->io_error = error;
 		if (error == ECKSUM) {
-			zio->io_flags |= ZIO_FLAG_DIO_CHKSUM_ERR;
+			zio->io_post |= ZIO_POST_DIO_CHKSUM_ERR;
 			zio_dio_chksum_verify_error_report(zio);
 		}
 	}
@@ -5115,7 +5109,7 @@ zio_checksum_verified(zio_t *zio)
 void
 zio_dio_chksum_verify_error_report(zio_t *zio)
 {
-	ASSERT(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR);
+	ASSERT(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL)
 		return;
@@ -5431,7 +5425,7 @@ zio_done(zio_t *zio)
 		 */
 		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
 		    !vdev_is_dead(zio->io_vd) &&
-		    !(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)) {
+		    !(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)) {
 			int ret = zfs_ereport_post(FM_EREPORT_ZFS_IO,
 			    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
 			if (ret != EALREADY) {
@@ -5446,7 +5440,7 @@ zio_done(zio_t *zio)
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
 		    (ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_PROPAGATE))) &&
-		    !(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR) &&
+		    !(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR) &&
 		    zio == zio->io_logical) {
 			/*
 			 * For logical I/O requests, tell the SPA to log the
@@ -5479,7 +5473,7 @@ zio_done(zio_t *zio)
 
 		if (IO_IS_ALLOCATING(zio) &&
 		    !(zio->io_flags & ZIO_FLAG_CANFAIL) &&
-		    !(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)) {
+		    !(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)) {
 			if (zio->io_error != ENOSPC)
 				zio->io_post |= ZIO_POST_REEXECUTE;
 			else
@@ -5536,7 +5530,7 @@ zio_done(zio_t *zio)
 		 * should not attempt to reexecute. Instead, the error should
 		 * just be propagated back.
 		 */
-		ASSERT(!(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR));
+		ASSERT0(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR);
 
 		/*
 		 * This is a logical I/O that wants to reexecute.
