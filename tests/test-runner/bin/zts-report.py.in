@@ -15,6 +15,7 @@
 #
 # Copyright (c) 2017 by Delphix. All rights reserved.
 # Copyright (c) 2018 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2025, Klara, Inc.
 #
 # This script must remain compatible with Python 3.6+.
 #
@@ -381,7 +382,8 @@ def process_results(pathname):
 
     prefix = '/zfs-tests/tests/(?:functional|perf/regression)/'
     pattern = \
-        r'^Test(?:\s+\(\S+\))?:' + \
+        r'^(?:\[[0-9\-T:\.]+\]\s+)?' + \
+        r'Test(?:\s+\(\S+\))?:' + \
         rf'\s*\S*{prefix}(\S+)' + \
         r'\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'
     pattern_log = r'^\s*Log directory:\s*(\S*)'
