@@ -850,7 +850,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 	mutex_enter(&pio->io_lock);
 	if (zio->io_error && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
 		*errorp = zio_worst_error(*errorp, zio->io_error);
-	pio->io_reexecute |= zio->io_reexecute;
+	pio->io_post |= zio->io_post;
 	ASSERT3U(*countp, >, 0);
 
 	/*
@@ -2602,7 +2602,7 @@ zio_reexecute(void *arg)
 	pio->io_flags = pio->io_orig_flags;
 	pio->io_stage = pio->io_orig_stage;
 	pio->io_pipeline = pio->io_orig_pipeline;
-	pio->io_reexecute = 0;
+	pio->io_post = 0;
 	pio->io_flags |= ZIO_FLAG_REEXECUTED;
 	pio->io_pipeline_trace = 0;
 	pio->io_error = 0;
@@ -5467,7 +5467,7 @@ zio_done(zio_t *zio)
 		 */
 		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
 		    zio->io_prop.zp_dedup) {
-			zio->io_reexecute |= ZIO_REEXECUTE_NOW;
+			zio->io_post |= ZIO_POST_REEXECUTE;
 			zio->io_prop.zp_dedup = B_FALSE;
 		}
 		/*
@@ -5481,9 +5481,9 @@ zio_done(zio_t *zio)
 		    !(zio->io_flags & ZIO_FLAG_CANFAIL) &&
 		    !(zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)) {
 			if (zio->io_error != ENOSPC)
-				zio->io_reexecute |= ZIO_REEXECUTE_NOW;
+				zio->io_post |= ZIO_POST_REEXECUTE;
 			else
-				zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
+				zio->io_post |= ZIO_POST_SUSPEND;
 		}
 
 		if ((zio->io_type == ZIO_TYPE_READ ||
@@ -5492,10 +5492,11 @@ zio_done(zio_t *zio)
 		    zio->io_error == ENXIO &&
 		    spa_load_state(zio->io_spa) == SPA_LOAD_NONE &&
 		    spa_get_failmode(zio->io_spa) != ZIO_FAILURE_MODE_CONTINUE)
-			zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
+			zio->io_post |= ZIO_POST_SUSPEND;
 
-		if (!(zio->io_flags & ZIO_FLAG_CANFAIL) && !zio->io_reexecute)
-			zio->io_reexecute |= ZIO_REEXECUTE_SUSPEND;
+		if (!(zio->io_flags & ZIO_FLAG_CANFAIL) &&
+		    !(zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND)))
+			zio->io_post |= ZIO_POST_SUSPEND;
 
 		/*
 		 * Here is a possibly good place to attempt to do
@@ -5514,7 +5515,8 @@ zio_done(zio_t *zio)
 	 */
 	zio_inherit_child_errors(zio, ZIO_CHILD_LOGICAL);
 
-	if ((zio->io_error || zio->io_reexecute) &&
+	if ((zio->io_error ||
+	    (zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND))) &&
 	    IO_IS_ALLOCATING(zio) && zio->io_gang_leader == zio &&
 	    !(zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)))
 		zio_dva_unallocate(zio, zio->io_gang_tree, zio->io_bp);
@@ -5525,10 +5527,10 @@ zio_done(zio_t *zio)
 	 * Godfather I/Os should never suspend.
 	 */
 	if ((zio->io_flags & ZIO_FLAG_GODFATHER) &&
-	    (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND))
-		zio->io_reexecute &= ~ZIO_REEXECUTE_SUSPEND;
+	    (zio->io_post & ZIO_POST_SUSPEND))
+		zio->io_post &= ~ZIO_POST_SUSPEND;
 
-	if (zio->io_reexecute) {
+	if (zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND)) {
 		/*
 		 * A Direct I/O operation that has a checksum verify error
 		 * should not attempt to reexecute. Instead, the error should
@@ -5571,7 +5573,7 @@ zio_done(zio_t *zio)
 			pio_next = zio_walk_parents(zio, &zl);
 
 			if ((pio->io_flags & ZIO_FLAG_GODFATHER) &&
-			    (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND)) {
+			    (zio->io_post & ZIO_POST_SUSPEND)) {
 				zio_remove_child(pio, zio, remove_zl);
 				/*
 				 * This is a rare code path, so we don't
@@ -5595,13 +5597,14 @@ zio_done(zio_t *zio)
 			 * "next_to_execute".
 			 */
 			zio_notify_parent(pio, zio, ZIO_WAIT_DONE, NULL);
-		} else if (zio->io_reexecute & ZIO_REEXECUTE_SUSPEND) {
+		} else if (zio->io_post & ZIO_POST_SUSPEND) {
 			/*
 			 * We'd fail again if we reexecuted now, so suspend
 			 * until conditions improve (e.g. device comes online).
 			 */
 			zio_suspend(zio->io_spa, zio, ZIO_SUSPEND_IOERR);
 		} else {
+			ASSERT(zio->io_post & ZIO_POST_REEXECUTE);
 			/*
 			 * Reexecution is potentially a huge amount of work.
 			 * Hand it off to the otherwise-unused claim taskq.
@@ -5614,7 +5617,8 @@ zio_done(zio_t *zio)
 	}
 
 	ASSERT(list_is_empty(&zio->io_child_list));
-	ASSERT(zio->io_reexecute == 0);
+	ASSERT0(zio->io_post & ZIO_POST_REEXECUTE);
+	ASSERT0(zio->io_post & ZIO_POST_SUSPEND);
 	ASSERT(zio->io_error == 0 || (zio->io_flags & ZIO_FLAG_CANFAIL));
 
 	/*
