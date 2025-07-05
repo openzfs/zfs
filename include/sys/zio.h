@@ -226,8 +226,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_NOPWRITE	(1ULL << 29)
 #define	ZIO_FLAG_REEXECUTED	(1ULL << 30)
 #define	ZIO_FLAG_DELEGATED	(1ULL << 31)
-#define	ZIO_FLAG_DIO_CHKSUM_ERR	(1ULL << 32)
-#define	ZIO_FLAG_PREALLOCATED	(1ULL << 33)
+#define	ZIO_FLAG_PREALLOCATED	(1ULL << 32)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)
@@ -418,14 +417,16 @@ typedef struct zio_transform {
 typedef zio_t *zio_pipe_stage_t(zio_t *zio);
 
 /*
- * The io_reexecute flags are distinct from io_flags because the child must
- * be able to propagate them to the parent.  The normal io_flags are local
- * to the zio, not protected by any lock, and not modifiable by children;
- * the reexecute flags are protected by io_lock, modifiable by children,
- * and always propagated -- even when ZIO_FLAG_DONT_PROPAGATE is set.
+ * The io_post flags describe additional actions that a parent IO should
+ * consider or perform on behalf of a child. They are distinct from io_flags
+ * because the child must be able to propagate them to the parent. The normal
+ * io_flags are local to the zio, not protected by any lock, and not modifiable
+ * by children; the reexecute flags are protected by io_lock, modifiable by
+ * children, and always propagated -- even when ZIO_FLAG_DONT_PROPAGATE is set.
  */
-#define	ZIO_REEXECUTE_NOW	0x01
-#define	ZIO_REEXECUTE_SUSPEND	0x02
+#define	ZIO_POST_REEXECUTE	(1 << 0)
+#define	ZIO_POST_SUSPEND	(1 << 1)
+#define	ZIO_POST_DIO_CHKSUM_ERR	(1 << 2)
 
 /*
  * The io_trim flags are used to specify the type of TRIM to perform.  They
@@ -461,7 +462,7 @@ struct zio {
 	enum zio_child	io_child_type;
 	enum trim_flag	io_trim_flags;
 	zio_priority_t	io_priority;
-	uint8_t		io_reexecute;
+	uint8_t		io_post;
 	uint8_t		io_state[ZIO_WAIT_TYPES];
 	uint64_t	io_txg;
 	spa_t		*io_spa;

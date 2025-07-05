@@ -779,7 +779,7 @@ vdev_mirror_io_done(zio_t *zio)
 	 * being written out during self healing.
 	 */
 	if ((zio->io_flags & ZIO_FLAG_DIO_READ) &&
-	    (zio->io_flags & ZIO_FLAG_DIO_CHKSUM_ERR)) {
+	    (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)) {
 		zio_dio_chksum_verify_error_report(zio);
 		zio->io_error = vdev_mirror_worst_error(mm);
 		ASSERT3U(zio->io_error, ==, ECKSUM);
