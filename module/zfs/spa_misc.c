@@ -1308,6 +1308,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 	metaslab_class_validate(spa_log_class(spa));
 	metaslab_class_validate(spa_embedded_log_class(spa));
 	metaslab_class_validate(spa_special_class(spa));
+	metaslab_class_validate(spa_special_embedded_log_class(spa));
 	metaslab_class_validate(spa_dedup_class(spa));
 
 	spa_config_exit(spa, SCL_ALL, spa);
@@ -1896,6 +1897,8 @@ spa_get_slop_space(spa_t *spa)
 	 */
 	uint64_t embedded_log =
 	    metaslab_class_get_dspace(spa_embedded_log_class(spa));
+	embedded_log += metaslab_class_get_dspace(
+	    spa_special_embedded_log_class(spa));
 	slop -= MIN(embedded_log, slop >> 1);
 
 	/*
@@ -1998,6 +2001,12 @@ metaslab_class_t *
 spa_special_class(spa_t *spa)
 {
 	return (spa->spa_special_class);
+}
+
+metaslab_class_t *
+spa_special_embedded_log_class(spa_t *spa)
+{
+	return (spa->spa_special_embedded_log_class);
 }
 
 metaslab_class_t *
