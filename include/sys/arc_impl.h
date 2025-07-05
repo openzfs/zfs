@@ -42,6 +42,16 @@ extern "C" {
 #endif
 
 /*
+ * L2ARC state and statistics for persistent marker management.
+ */
+typedef struct l2arc_info {
+	arc_buf_hdr_t	***l2arc_markers;	/* persistent markers */
+	uint64_t	l2arc_total_writes;	/* total writes for reset */
+	uint64_t	l2arc_total_capacity;	/* total L2ARC capacity */
+	uint64_t	l2arc_smallest_capacity; /* smallest device capacity */
+} l2arc_info_t;
+
+/*
  * Note that buffers can be in one of 6 states:
  *	ARC_anon	- anonymous (discussed below)
  *	ARC_mru		- recently used, currently cached
