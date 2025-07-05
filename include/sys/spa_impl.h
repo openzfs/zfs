@@ -52,6 +52,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/zfeature.h>
 #include <sys/zthr.h>
+#include <sys/arc_impl.h>
 #include <sys/dsl_deadlist.h>
 #include <zfeature_common.h>
 
@@ -283,6 +284,7 @@ struct spa {
 	spa_aux_vdev_t	spa_spares;		/* hot spares */
 	spa_aux_vdev_t	spa_l2cache;		/* L2ARC cache devices */
 	boolean_t	spa_aux_sync_uber;	/* need to sync aux uber */
+	l2arc_info_t	spa_l2arc_info;		/* L2ARC state and stats */
 	nvlist_t	*spa_label_features;	/* Features for reading MOS */
 	uint64_t	spa_config_object;	/* MOS object for pool config */
 	uint64_t	spa_config_generation;	/* config generation number */
