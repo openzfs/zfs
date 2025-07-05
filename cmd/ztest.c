@@ -3882,7 +3882,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * If newvd is too small, it should fail with EOVERFLOW.
 	 *
 	 * If newvd is a distributed spare and it's being attached to a
-	 * dRAID which is not its parent it should fail with EINVAL.
+	 * dRAID which is not its parent it should fail with ENOTSUP.
 	 */
 	if (pvd->vdev_ops != &vdev_mirror_ops &&
 	    pvd->vdev_ops != &vdev_root_ops && (!replacing ||
@@ -3901,7 +3901,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else if (ashift > oldvd->vdev_top->vdev_ashift)
 		expected_error = EDOM;
 	else if (newvd_is_dspare && pvd != vdev_draid_spare_get_parent(newvd))
-		expected_error = EINVAL;
+		expected_error = ENOTSUP;
 	else
 		expected_error = 0;
 
