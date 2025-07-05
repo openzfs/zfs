@@ -1679,7 +1679,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	 * If this is a retried I/O then we ignore it since we will
 	 * have already processed the original allocating I/O.
 	 */
-	if (flags & ZIO_FLAG_IO_ALLOCATING &&
+	if (flags & ZIO_FLAG_ALLOC_THROTTLED &&
 	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
 		ASSERT(pio->io_metaslab_class != NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
@@ -1689,7 +1689,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		ASSERT(!(pio->io_flags & ZIO_FLAG_IO_REWRITE) ||
 		    pio->io_child_type == ZIO_CHILD_GANG);
 
-		flags &= ~ZIO_FLAG_IO_ALLOCATING;
+		flags &= ~ZIO_FLAG_ALLOC_THROTTLED;
 	}
 
 	zio = zio_create(pio, pio->io_spa, pio->io_txg, bp, data, size, size,
@@ -3151,7 +3151,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 
 	ASSERT(ZIO_HAS_ALLOCATOR(pio));
 	int flags = METASLAB_GANG_HEADER;
-	if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
+	if (pio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
 		ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT(has_data);
 
@@ -3186,10 +3186,11 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    ZIO_GANG_CHILD_FLAGS(pio), &pio->io_bookmark);
 
 	zio_gang_inherit_allocator(pio, zio);
-	if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
+	if (pio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
 		boolean_t more;
-		VERIFY(metaslab_class_throttle_reserve(mc, gbh_copies,
-		    zio, B_TRUE, &more));
+		VERIFY(metaslab_class_throttle_reserve(mc, zio->io_allocator,
+		    gbh_copies, zio->io_size, B_TRUE, &more));
+		zio->io_flags |= ZIO_FLAG_ALLOC_THROTTLED;
 	}
 
 	/*
@@ -4072,9 +4073,11 @@ zio_io_to_allocate(metaslab_class_allocator_t *mca, boolean_t *more)
 	 * reserve then we throttle.
 	 */
 	if (!metaslab_class_throttle_reserve(zio->io_metaslab_class,
-	    zio->io_prop.zp_copies, zio, B_FALSE, more)) {
+	    zio->io_allocator, zio->io_prop.zp_copies, zio->io_size,
+	    B_FALSE, more)) {
 		return (NULL);
 	}
+	zio->io_flags |= ZIO_FLAG_ALLOC_THROTTLED;
 
 	avl_remove(&mca->mca_tree, zio);
 	ASSERT3U(zio->io_stage, <, ZIO_STAGE_DVA_ALLOCATE);
@@ -4230,13 +4233,14 @@ again:
 		 * If we are holding old class reservation, drop it.
 		 * Dispatch the next ZIO(s) there if some are waiting.
 		 */
-		if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
+		if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
 			if (metaslab_class_throttle_unreserve(mc,
-			    zio->io_prop.zp_copies, zio)) {
+			    zio->io_allocator, zio->io_prop.zp_copies,
+			    zio->io_size)) {
 				zio_allocate_dispatch(zio->io_metaslab_class,
 				    zio->io_allocator);
 			}
-			zio->io_flags &= ~ZIO_FLAG_IO_ALLOCATING;
+			zio->io_flags &= ~ZIO_FLAG_ALLOC_THROTTLED;
 		}
 
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
@@ -5196,7 +5200,7 @@ zio_ready(zio_t *zio)
 	if (zio->io_error != 0) {
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 
-		if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
+		if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
 			ASSERT(IO_IS_ALLOCATING(zio));
 			ASSERT(zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
 			ASSERT(zio->io_metaslab_class != NULL);
@@ -5207,8 +5211,8 @@ zio_ready(zio_t *zio)
 			 * issue the next I/O to allocate.
 			 */
 			if (metaslab_class_throttle_unreserve(
-			    zio->io_metaslab_class, zio->io_prop.zp_copies,
-			    zio)) {
+			    zio->io_metaslab_class, zio->io_allocator,
+			    zio->io_prop.zp_copies, zio->io_size)) {
 				zio_allocate_dispatch(zio->io_metaslab_class,
 				    zio->io_allocator);
 			}
@@ -5267,7 +5271,7 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT3P(vd, ==, vd->vdev_top);
 	ASSERT(zio_injection_enabled || !(zio->io_flags & ZIO_FLAG_IO_RETRY));
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REPAIR));
-	ASSERT(zio->io_flags & ZIO_FLAG_IO_ALLOCATING);
+	ASSERT(zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED);
 
 	/*
 	 * Parents of gang children can have two flavors -- ones that allocated
@@ -5291,7 +5295,8 @@ zio_dva_throttle_done(zio_t *zio)
 	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
 	    pio->io_allocator, flags, pio->io_size, tag);
 
-	if (metaslab_class_throttle_unreserve(zio->io_metaslab_class, 1, pio)) {
+	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
+	    pio->io_allocator, 1, pio->io_size)) {
 		zio_allocate_dispatch(zio->io_metaslab_class,
 		    pio->io_allocator);
 	}
@@ -5322,7 +5327,7 @@ zio_done(zio_t *zio)
 	 * write. We must do this since the allocation is performed
 	 * by the logical I/O but the actual write is done by child I/Os.
 	 */
-	if (zio->io_flags & ZIO_FLAG_IO_ALLOCATING &&
+	if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED &&
 	    zio->io_child_type == ZIO_CHILD_VDEV)
 		zio_dva_throttle_done(zio);
 
