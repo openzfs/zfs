@@ -223,6 +223,9 @@ vdev_prop_get_inherited(vdev_t *vd, vdev_prop_t prop)
 		case VDEV_PROP_IO_T:
 			propval = vd->vdev_io_t;
 			break;
+		case VDEV_PROP_SLOW_IO_REPORTING:
+			propval = vd->vdev_slow_io_reporting;
+			break;
 		case VDEV_PROP_SLOW_IO_N:
 			propval = vd->vdev_slow_io_n;
 			break;
