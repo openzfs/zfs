@@ -65,6 +65,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/uio.h \
 	%D%/sys/vnode.h \
 	%D%/sys/wmsum.h \
+	%D%/sys/zfs_context_os.h \
 	%D%/sys/zone.h
 
 libspl_ia32dir = $(libspldir)/sys/ia32
@@ -79,7 +80,6 @@ libspl_sys_HEADERS += \
 	%D%/os/linux/sys/stat.h \
 	%D%/os/linux/sys/sysmacros.h \
 	%D%/os/linux/sys/vfs.h \
-	%D%/os/linux/sys/zfs_context_os.h
 
 libspl_ia32_HEADERS = \
 	%D%/os/linux/sys/ia32/asm_linkage.h
@@ -95,8 +95,7 @@ libspl_sys_HEADERS += \
 	%D%/os/freebsd/sys/param.h \
 	%D%/os/freebsd/sys/stat.h \
 	%D%/os/freebsd/sys/sysmacros.h \
-	%D%/os/freebsd/sys/vfs.h \
-	%D%/os/freebsd/sys/zfs_context_os.h
+	%D%/os/freebsd/sys/vfs.h
 
 libspl_ia32_HEADERS = \
 	%D%/os/freebsd/sys/ia32/asm_linkage.h
