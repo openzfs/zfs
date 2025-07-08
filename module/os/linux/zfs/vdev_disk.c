@@ -124,6 +124,12 @@ typedef fmode_t vdev_bdev_mode_t;
 #define	VDEV_BDEV_MODE_MASK	(FMODE_READ|FMODE_WRITE|FMODE_EXCL)
 #endif
 
+struct block_device *
+get_bdev(void *tsd)
+{
+	return (BDH_BDEV(((vdev_disk_t *)tsd)->vd_bdh));
+}
+
 static vdev_bdev_mode_t
 vdev_bdev_mode(spa_mode_t smode)
 {
