@@ -45,6 +45,7 @@
 #include <sys/vdev.h>
 
 #ifdef __linux__
+struct block_device *get_bdev(void *tsd);
 int __vdev_classic_physio(struct block_device *bdev, zio_t *zio,
     size_t io_size, uint64_t io_offset, int rw, int flags);
 int vdev_disk_io_flush(struct block_device *bdev, zio_t *zio);
