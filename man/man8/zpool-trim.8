@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
 .Dd May 27, 2021
 .Dt ZPOOL-TRIM 8
@@ -40,7 +41,7 @@
 .Op Fl dw
 .Op Fl r Ar rate
 .Op Fl c Ns | Ns Fl s
-.Ar pool
+.Fl a Ns | Ns Ar pool
 .Oo Ar device Ns Oc Ns …
 .
 .Sh DESCRIPTION
@@ -57,6 +58,10 @@ See the documentation for the
 .Sy autotrim
 property above for the types of vdev devices which can be trimmed.
 .Bl -tag -width Ds
+.It Fl a , -all
+Perform TRIM operation on
+all
+pools.
 .It Fl d , -secure
 Causes a secure TRIM to be initiated.
 When performing a secure TRIM, the

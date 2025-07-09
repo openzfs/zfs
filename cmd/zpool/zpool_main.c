@@ -34,7 +34,7 @@
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2021, 2023, Klara Inc.
- * Copyright [2021] Hewlett Packard Enterprise Development LP
+ * Copyright (c) 2021, 2025 Hewlett Packard Enterprise Development LP.
  */
 
 #include <assert.h>
@@ -510,16 +510,16 @@ get_usage(zpool_help_t idx)
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_INITIALIZE:
-		return (gettext("\tinitialize [-c | -s | -u] [-w] <pool> "
-		    "[<device> ...]\n"));
+		return (gettext("\tinitialize [-c | -s | -u] [-w] <-a | <pool> "
+		    "[<device> ...]>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-e | -s | -p | -C] [-w] "
-		    "<pool> ...\n"));
+		return (gettext("\tscrub [-e | -s | -p | -C] [-w] <-a | "
+		    "<pool> [<pool> ...]>\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
-		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
-		    "[<device> ...]\n"));
+		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] "
+		    "<-a | <pool> [<device> ...]>\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-DdegiLPpstvx] "
 		    "[-c script1[,script2,...]] ...\n"
@@ -557,33 +557,6 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tddtprune -d|-p <amount> <pool>\n"));
 	default:
 		__builtin_unreachable();
-	}
-}
-
-static void
-zpool_collect_leaves(zpool_handle_t *zhp, nvlist_t *nvroot, nvlist_t *res)
-{
-	uint_t children = 0;
-	nvlist_t **child;
-	uint_t i;
-
-	(void) nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children);
-
-	if (children == 0) {
-		char *path = zpool_vdev_name(g_zfs, zhp, nvroot,
-		    VDEV_NAME_PATH);
-
-		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0 &&
-		    strcmp(path, VDEV_TYPE_HOLE) != 0)
-			fnvlist_add_boolean(res, path);
-
-		free(path);
-		return;
-	}
-
-	for (i = 0; i < children; i++) {
-		zpool_collect_leaves(zhp, child[i], res);
 	}
 }
 
@@ -794,22 +767,26 @@ zpool_do_initialize(int argc, char **argv)
 	int c;
 	char *poolname;
 	zpool_handle_t *zhp;
-	nvlist_t *vdevs;
 	int err = 0;
 	boolean_t wait = B_FALSE;
+	boolean_t initialize_all = B_FALSE;
 
 	struct option long_options[] = {
 		{"cancel",	no_argument,		NULL, 'c'},
 		{"suspend",	no_argument,		NULL, 's'},
 		{"uninit",	no_argument,		NULL, 'u'},
 		{"wait",	no_argument,		NULL, 'w'},
+		{"all", 	no_argument,		NULL, 'a'},
 		{0, 0, 0, 0}
 	};
 
 	pool_initialize_func_t cmd_type = POOL_INITIALIZE_START;
-	while ((c = getopt_long(argc, argv, "csuw", long_options,
+	while ((c = getopt_long(argc, argv, "acsuw", long_options,
 	    NULL)) != -1) {
 		switch (c) {
+		case 'a':
+			initialize_all = B_TRUE;
+			break;
 		case 'c':
 			if (cmd_type != POOL_INITIALIZE_START &&
 			    cmd_type != POOL_INITIALIZE_CANCEL) {
@@ -856,7 +833,18 @@ zpool_do_initialize(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 1) {
+	initialize_cbdata_t cbdata = {
+		.wait = wait,
+		.cmd_type = cmd_type
+	};
+
+	if (initialize_all && argc > 0) {
+		(void) fprintf(stderr, gettext("-a cannot be combined with "
+		    "individual pools or vdevs\n"));
+		usage(B_FALSE);
+	}
+
+	if (argc < 1 && !initialize_all) {
 		(void) fprintf(stderr, gettext("missing pool name argument\n"));
 		usage(B_FALSE);
 		return (-1);
@@ -868,30 +856,35 @@ zpool_do_initialize(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	poolname = argv[0];
-	zhp = zpool_open(g_zfs, poolname);
-	if (zhp == NULL)
-		return (-1);
-
-	vdevs = fnvlist_alloc();
-	if (argc == 1) {
-		/* no individual leaf vdevs specified, so add them all */
-		nvlist_t *config = zpool_get_config(zhp, NULL);
-		nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
-		    ZPOOL_CONFIG_VDEV_TREE);
-		zpool_collect_leaves(zhp, nvroot, vdevs);
+	if (argc == 0 && initialize_all) {
+		/* Initilize each pool recursively */
+		err = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, zpool_initialize_one, &cbdata);
+		return (err);
+	} else if (argc == 1) {
+		/* no individual leaf vdevs specified, initialize the pool */
+		poolname = argv[0];
+		zhp = zpool_open(g_zfs, poolname);
+		if (zhp == NULL)
+			return (-1);
+		err = zpool_initialize_one(zhp, &cbdata);
 	} else {
+		/* individual leaf vdevs specified, initialize them */
+		poolname = argv[0];
+		zhp = zpool_open(g_zfs, poolname);
+		if (zhp == NULL)
+			return (-1);
+		nvlist_t *vdevs = fnvlist_alloc();
 		for (int i = 1; i < argc; i++) {
 			fnvlist_add_boolean(vdevs, argv[i]);
 		}
+		if (wait)
+			err = zpool_initialize_wait(zhp, cmd_type, vdevs);
+		else
+			err = zpool_initialize(zhp, cmd_type, vdevs);
+		fnvlist_free(vdevs);
 	}
 
-	if (wait)
-		err = zpool_initialize_wait(zhp, cmd_type, vdevs);
-	else
-		err = zpool_initialize(zhp, cmd_type, vdevs);
-
-	fnvlist_free(vdevs);
 	zpool_close(zhp);
 
 	return (err);
@@ -8452,10 +8445,14 @@ zpool_do_scrub(int argc, char **argv)
 	boolean_t is_pause = B_FALSE;
 	boolean_t is_stop = B_FALSE;
 	boolean_t is_txg_continue = B_FALSE;
+	boolean_t scrub_all = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "spweC")) != -1) {
+	while ((c = getopt(argc, argv, "aspweC")) != -1) {
 		switch (c) {
+		case 'a':
+			scrub_all = B_TRUE;
+			break;
 		case 'e':
 			is_error_scrub = B_TRUE;
 			break;
@@ -8519,7 +8516,7 @@ zpool_do_scrub(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 1) {
+	if (argc < 1 && !scrub_all) {
 		(void) fprintf(stderr, gettext("missing pool name argument\n"));
 		usage(B_FALSE);
 	}
@@ -8591,6 +8588,7 @@ zpool_do_trim(int argc, char **argv)
 		{"rate",	required_argument,	NULL,	'r'},
 		{"suspend",	no_argument,		NULL,	's'},
 		{"wait",	no_argument,		NULL,	'w'},
+		{"all",		no_argument,		NULL,	'a'},
 		{0, 0, 0, 0}
 	};
 
@@ -8598,11 +8596,16 @@ zpool_do_trim(int argc, char **argv)
 	uint64_t rate = 0;
 	boolean_t secure = B_FALSE;
 	boolean_t wait = B_FALSE;
+	boolean_t trimall = B_FALSE;
+	int error;
 
 	int c;
-	while ((c = getopt_long(argc, argv, "cdr:sw", long_options, NULL))
+	while ((c = getopt_long(argc, argv, "acdr:sw", long_options, NULL))
 	    != -1) {
 		switch (c) {
+		case 'a':
+			trimall = B_TRUE;
+			break;
 		case 'c':
 			if (cmd_type != POOL_TRIM_START &&
 			    cmd_type != POOL_TRIM_CANCEL) {
@@ -8661,7 +8664,18 @@ zpool_do_trim(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 1) {
+	trimflags_t trim_flags = {
+		.secure = secure,
+		.rate = rate,
+		.wait = wait,
+	};
+
+	trim_cbdata_t cbdata = {
+		.trim_flags = trim_flags,
+		.cmd_type = cmd_type
+	};
+
+	if (argc < 1 && !trimall) {
 		(void) fprintf(stderr, gettext("missing pool name argument\n"));
 		usage(B_FALSE);
 		return (-1);
@@ -8669,40 +8683,45 @@ zpool_do_trim(int argc, char **argv)
 
 	if (wait && (cmd_type != POOL_TRIM_START)) {
 		(void) fprintf(stderr, gettext("-w cannot be used with -c or "
-		    "-s\n"));
+		    "-s options\n"));
 		usage(B_FALSE);
 	}
 
-	char *poolname = argv[0];
-	zpool_handle_t *zhp = zpool_open(g_zfs, poolname);
-	if (zhp == NULL)
-		return (-1);
+	if (trimall && argc > 0) {
+		(void) fprintf(stderr, gettext("-a cannot be combined with "
+		    "individual zpools or vdevs\n"));
+		usage(B_FALSE);
+	}
 
-	trimflags_t trim_flags = {
-		.secure = secure,
-		.rate = rate,
-		.wait = wait,
-	};
-
-	nvlist_t *vdevs = fnvlist_alloc();
-	if (argc == 1) {
+	if (argc == 0 && trimall) {
+		cbdata.trim_flags.fullpool = B_TRUE;
+		/* Trim each pool recursively */
+		error = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
+		    B_FALSE, zpool_trim_one, &cbdata);
+	} else if (argc == 1) {
+		char *poolname = argv[0];
+		zpool_handle_t *zhp = zpool_open(g_zfs, poolname);
+		if (zhp == NULL)
+			return (-1);
 		/* no individual leaf vdevs specified, so add them all */
-		nvlist_t *config = zpool_get_config(zhp, NULL);
-		nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
-		    ZPOOL_CONFIG_VDEV_TREE);
-		zpool_collect_leaves(zhp, nvroot, vdevs);
-		trim_flags.fullpool = B_TRUE;
+		error = zpool_trim_one(zhp, &cbdata);
+		zpool_close(zhp);
 	} else {
-		trim_flags.fullpool = B_FALSE;
+		char *poolname = argv[0];
+		zpool_handle_t *zhp = zpool_open(g_zfs, poolname);
+		if (zhp == NULL)
+			return (-1);
+		/* leaf vdevs specified, trim only those */
+		cbdata.trim_flags.fullpool = B_FALSE;
+		nvlist_t *vdevs = fnvlist_alloc();
 		for (int i = 1; i < argc; i++) {
 			fnvlist_add_boolean(vdevs, argv[i]);
 		}
+		error = zpool_trim(zhp, cbdata.cmd_type, vdevs,
+		    &cbdata.trim_flags);
+		fnvlist_free(vdevs);
+		zpool_close(zhp);
 	}
-
-	int error = zpool_trim(zhp, cmd_type, vdevs, &trim_flags);
-
-	fnvlist_free(vdevs);
-	zpool_close(zhp);
 
 	return (error);
 }

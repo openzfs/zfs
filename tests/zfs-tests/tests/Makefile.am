@@ -1176,6 +1176,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_initialize/zpool_initialize_attach_detach_add_remove.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_fault_export_import_online.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_import_export.ksh \
+	functional/cli_root/zpool_initialize/zpool_initialize_multiple_pools.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_offline_export_import_online.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_online_offline.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_split.ksh \
@@ -1239,6 +1240,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_scrub_005_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_encrypted_unloaded.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_copies.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_multiple_pools.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_offline_device.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_print_repairing.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_txg_continue_from_last.ksh \
@@ -1291,6 +1293,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_trim/zpool_trim_fault_export_import_online.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_import_export.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_multiple.ksh \
+	functional/cli_root/zpool_trim/zpool_trim_multiple_pools.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_neg.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_offline_export_import_online.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_online_offline.ksh \

@@ -28,6 +28,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -46,7 +47,7 @@
 verify_runnable "global"
 
 set -A args "" "-?" "blah blah" "-%" "--?" "-*" "-=" \
-    "-a" "-b" "-c" "-d" "-e" "-f" "-g" "-h" "-i" "-j" "-k" "-l" \
+    "-b" "-c" "-d" "-e" "-f" "-g" "-h" "-i" "-j" "-k" "-l" \
     "-m" "-n" "-o" "-p" "-q" "-r" "-s" "-t" "-u" "-v" "-w" "-x" "-y" "-z" \
     "-A" "-B" "-C" "-D" "-E" "-F" "-G" "-H" "-I" "-J" "-K" "-L" \
     "-M" "-N" "-O" "-P" "-Q" "-R" "-S" "-T" "-U" "-V" "-W" "-X" "-W" "-Z"

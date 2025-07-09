@@ -497,6 +497,7 @@ tags = ['functional', 'cli_root', 'zpool_labelclear']
 tests = ['zpool_initialize_attach_detach_add_remove',
     'zpool_initialize_fault_export_import_online',
     'zpool_initialize_import_export',
+    'zpool_initialize_multiple_pools',
     'zpool_initialize_offline_export_import_online',
     'zpool_initialize_online_offline',
     'zpool_initialize_split',
@@ -542,6 +543,7 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_004_pos', 'zpool_scrub_005_pos',
     'zpool_scrub_encrypted_unloaded', 'zpool_scrub_print_repairing',
     'zpool_scrub_offline_device', 'zpool_scrub_multiple_copies',
+    'zpool_scrub_multiple_pools',
     'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
     'zpool_error_scrub_003_pos', 'zpool_error_scrub_004_pos']
 tags = ['functional', 'cli_root', 'zpool_scrub']
@@ -574,8 +576,8 @@ tags = ['functional', 'cli_root', 'zpool_sync']
 
 [tests/functional/cli_root/zpool_trim]
 tests = ['zpool_trim_attach_detach_add_remove',
-    'zpool_trim_fault_export_import_online',
-    'zpool_trim_import_export', 'zpool_trim_multiple', 'zpool_trim_neg',
+    'zpool_trim_fault_export_import_online', 'zpool_trim_import_export',
+    'zpool_trim_multiple', 'zpool_trim_multiple_pools', 'zpool_trim_neg',
     'zpool_trim_offline_export_import_online', 'zpool_trim_online_offline',
     'zpool_trim_partial', 'zpool_trim_rate', 'zpool_trim_rate_neg',
     'zpool_trim_secure', 'zpool_trim_split', 'zpool_trim_start_and_cancel_neg',
