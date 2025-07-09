@@ -30,6 +30,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+ * Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
  */
 
 #ifndef	_LIBZFS_H
@@ -288,10 +289,20 @@ typedef struct trimflags {
 	uint64_t rate;
 } trimflags_t;
 
+typedef struct trim_cbdata {
+    trimflags_t trim_flags;
+    pool_trim_func_t cmd_type;
+} trim_cbdata_t;
+
+typedef struct initialize_cbdata {
+	boolean_t wait;
+	pool_initialize_func_t cmd_type;
+} initialize_cbdata_t;
 /*
  * Functions to manipulate pool and vdev state
  */
 _LIBZFS_H int zpool_scan(zpool_handle_t *, pool_scan_func_t, pool_scrub_cmd_t);
+_LIBZFS_H int zpool_initialize_one(zpool_handle_t *, void *);
 _LIBZFS_H int zpool_initialize(zpool_handle_t *, pool_initialize_func_t,
     nvlist_t *);
 _LIBZFS_H int zpool_initialize_wait(zpool_handle_t *, pool_initialize_func_t,
@@ -304,7 +315,9 @@ _LIBZFS_H int zpool_reguid(zpool_handle_t *);
 _LIBZFS_H int zpool_set_guid(zpool_handle_t *, const uint64_t *);
 _LIBZFS_H int zpool_reopen_one(zpool_handle_t *, void *);
 
+_LIBZFS_H void zpool_collect_leaves(zpool_handle_t *, nvlist_t *, nvlist_t *);
 _LIBZFS_H int zpool_sync_one(zpool_handle_t *, void *);
+_LIBZFS_H int zpool_trim_one(zpool_handle_t *, void *);
 
 _LIBZFS_H int zpool_ddt_prune(zpool_handle_t *, zpool_ddt_prune_unit_t,
     uint64_t);
