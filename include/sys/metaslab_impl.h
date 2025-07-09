@@ -77,10 +77,13 @@ typedef enum trace_alloc_type {
 #define	METASLAB_WEIGHT_PRIMARY		(1ULL << 63)
 #define	METASLAB_WEIGHT_SECONDARY	(1ULL << 62)
 #define	METASLAB_WEIGHT_CLAIM		(1ULL << 61)
-#define	METASLAB_WEIGHT_TYPE		(1ULL << 60)
+#define	METASLAB_WEIGHT_MASK		((1ULL << 60) | 1ULL << 59)
 #define	METASLAB_ACTIVE_MASK		\
 	(METASLAB_WEIGHT_PRIMARY | METASLAB_WEIGHT_SECONDARY | \
 	METASLAB_WEIGHT_CLAIM)
+
+#define	METASLAB_WEIGHT_MAX_IDX	58
+#define	METASLAB_WEIGHT_MAX	((1ULL << (METASLAB_WEIGHT_MAX_IDX + 1)) - 1)
 
 /*
  * The metaslab weight is used to encode the amount of free space in a
@@ -103,18 +106,30 @@ typedef enum trace_alloc_type {
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PSC1|                  weighted-free space                     |
+ *      |PSC10|                   weighted-free space                   |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
  *	C - indicates activation for claimed block zio
  *	space - the fragmentation-weighted space
  *
+ * Space-based weight v2:
+ *
+ *      64      56      48      40      32      24      16      8       0
+ *      +-------+-------+-------+-------+-------+-------+-------+-------+
+ *      |PSC11|                weighted-free space                | idx |
+ *      +-------+-------+-------+-------+-------+-------+-------+-------+
+ *
+ *	PS - indicates primary and secondary activation
+ *	C - indicates activation for claimed block zio
+ *	idx - index for the highest bucket in the histogram
+ *	space - the fragmentation-weighted space
+ *
  * Segment-based weight:
  *
  *      64      56      48      40      32      24      16      8       0
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
- *      |PSC0| idx|            count of segments in region              |
+ *      |PSC00| idx|            count of segments in region             |
  *      +-------+-------+-------+-------+-------+-------+-------+-------+
  *
  *	PS - indicates primary and secondary activation
@@ -125,17 +140,22 @@ typedef enum trace_alloc_type {
 #define	WEIGHT_GET_ACTIVE(weight)		BF64_GET((weight), 61, 3)
 #define	WEIGHT_SET_ACTIVE(weight, x)		BF64_SET((weight), 61, 3, x)
 
+#define	WEIGHT_GET_TYPE(weight)			BF64_GET((weight), 59, 2)
+#define	WEIGHT_SET_TYPE(weight, x)		BF64_SET((weight), 59, 2, x)
 #define	WEIGHT_IS_SPACEBASED(weight)		\
-	((weight) == 0 || BF64_GET((weight), 60, 1))
-#define	WEIGHT_SET_SPACEBASED(weight)		BF64_SET((weight), 60, 1, 1)
+	((weight) == 0 || WEIGHT_GET_TYPE((weight)))
+#define	WEIGHT_SET_SPACEBASED(weight)		WEIGHT_SET_TYPE((weight), 2)
+#define	WEIGHT_IS_SPACEBASED_V2(weight)		\
+	((weight) == 0 || WEIGHT_GET_TYPE((weight)) == 3)
+#define	WEIGHT_SET_SPACEBASED_V2(weight)	WEIGHT_SET_TYPE((weight), 3)
 
 /*
  * These macros are only applicable to segment-based weighting.
  */
-#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 54, 6)
-#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 54, 6, x)
-#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 54)
-#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 54, x)
+#define	WEIGHT_GET_INDEX(weight)		BF64_GET((weight), 53, 6)
+#define	WEIGHT_SET_INDEX(weight, x)		BF64_SET((weight), 53, 6, x)
+#define	WEIGHT_GET_COUNT(weight)		BF64_GET((weight), 0, 53)
+#define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 53, x)
 
 /*
  * Per-allocator data structure.

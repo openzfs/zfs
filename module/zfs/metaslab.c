@@ -259,6 +259,16 @@ static const boolean_t zfs_remap_blkptr_enable = B_TRUE;
 static int zfs_metaslab_segment_weight_enabled = B_TRUE;
 
 /*
+ * Enable/disable the new space-based metaslab selection algorithm.
+ *
+ * The new space-based algorithm attempts to take into account not only the
+ * largest free segment, as the segment-based weight does, but other segments
+ * that are almost as large. This can improve metaslab selection and reduce the
+ * number of metaslab loads needed to satisfy a given set of allocations.
+ */
+static int zfs_metaslab_space_weight_v2_enabled = B_TRUE;
+
+/*
  * When using segment-based metaslab selection, we will continue
  * allocating from the active metaslab until we have exhausted
  * zfs_metaslab_switch_threshold of its buckets.
@@ -2339,7 +2349,7 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 
 	uint64_t weight = msp->ms_weight;
 	uint64_t was_active = msp->ms_weight & METASLAB_ACTIVE_MASK;
-	boolean_t space_based = WEIGHT_IS_SPACEBASED(msp->ms_weight);
+	uint8_t type = WEIGHT_GET_TYPE(msp->ms_weight);
 	uint64_t frag = msp->ms_fragmentation;
 	uint64_t max_segsize = msp->ms_max_size;
 
@@ -2367,8 +2377,7 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	 * If the weight type changed then there is no point in doing
 	 * verification. Revert fields to their original values.
 	 */
-	if ((space_based && !WEIGHT_IS_SPACEBASED(msp->ms_weight)) ||
-	    (!space_based && WEIGHT_IS_SPACEBASED(msp->ms_weight))) {
+	if (type != WEIGHT_GET_TYPE(msp->ms_weight)) {
 		msp->ms_fragmentation = frag;
 		msp->ms_weight = weight;
 		return;
@@ -2753,6 +2762,7 @@ metaslab_unload(metaslab_t *msp)
 		return;
 
 	zfs_range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+
 	msp->ms_loaded = B_FALSE;
 	msp->ms_unload_time = gethrtime();
 
@@ -3073,6 +3083,152 @@ metaslab_fini(metaslab_t *msp)
 }
 
 /*
+ * Return the weight of the specified metaslab, according to the new space-based
+ * weighting algorithm. The metaslab must be loaded. This function can
+ * be called within a sync pass since it relies only on the metaslab's
+ * range tree which is always accurate when the metaslab is loaded.
+ */
+static uint64_t
+metaslab_space_weight_from_range_tree(metaslab_t *msp)
+{
+	uint64_t weight = 0;
+	uint8_t vd_shift = msp->ms_group->mg_vd->vdev_ashift;
+	ASSERT3U(vd_shift, >=, 3);
+
+	ASSERT(msp->ms_loaded);
+	ASSERT3U(vd_shift, >=, SPA_MINBLOCKSHIFT);
+
+	for (int i = ZFS_RANGE_TREE_HISTOGRAM_SIZE - 1; i >= vd_shift;
+	    i--) {
+		uint8_t seg_shift = 2 * (i - (vd_shift - 3));
+		uint64_t segments = msp->ms_allocatable->rt_histogram[i];
+		if (segments == 0)
+			continue;
+		if (weight == 0)
+			weight = i;
+		// Prevent overflow using log_2 math
+		if (seg_shift + highbit64(segments) > METASLAB_WEIGHT_MAX_IDX)
+			return (METASLAB_WEIGHT_MAX);
+		weight = MIN(METASLAB_WEIGHT_MAX,
+		    weight + (segments << seg_shift));
+	}
+	return (weight);
+}
+
+/*
+ * Calculate the new space-based weight based on the on-disk histogram.
+ * Should be applied only to unloaded metaslabs (i.e no incoming allocations)
+ * in-order to give results consistent with the on-disk state.
+ */
+static uint64_t
+metaslab_space_weight_from_spacemap(metaslab_t *msp)
+{
+	space_map_t *sm = msp->ms_sm;
+	ASSERT(!msp->ms_loaded);
+	ASSERT(sm != NULL);
+	ASSERT3U(space_map_object(sm), !=, 0);
+	ASSERT3U(sm->sm_dbuf->db_size, ==, sizeof (space_map_phys_t));
+	uint8_t vd_shift = msp->ms_group->mg_vd->vdev_ashift;
+	ASSERT3U(vd_shift, >=, 3);
+
+	/*
+	 * Create a joint histogram from all the segments that have made
+	 * it to the metaslab's space map histogram, that are not yet
+	 * available for allocation because they are still in the freeing
+	 * pipeline (e.g. freeing, freed, and defer trees). Then subtract
+	 * these segments from the space map's histogram to get a more
+	 * accurate weight.
+	 */
+	uint64_t deferspace_histogram[SPACE_MAP_HISTOGRAM_SIZE] = {0};
+	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++)
+		deferspace_histogram[i] += msp->ms_synchist[i];
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+			deferspace_histogram[i] += msp->ms_deferhist[t][i];
+		}
+	}
+
+	uint64_t weight = 0;
+	for (int i = SPACE_MAP_HISTOGRAM_SIZE - 1; i >= 0; i--) {
+		uint8_t seg_shift = 2 * (i + sm->sm_shift - vd_shift + 3);
+		uint64_t segments =
+		    sm->sm_phys->smp_histogram[i] - deferspace_histogram[i];
+		if (segments == 0)
+			continue;
+		if (weight == 0)
+			weight = i + sm->sm_shift;
+		// Prevent overflow using log_2 math
+		if (seg_shift + highbit64(segments) > METASLAB_WEIGHT_MAX_IDX)
+			return (METASLAB_WEIGHT_MAX);
+		weight = MIN(METASLAB_WEIGHT_MAX,
+		    weight + (segments << seg_shift));
+	}
+	return (weight);
+}
+
+/*
+ * The space weight v2 algorithm uses information from the free space
+ * histograms to provide a more useful weighting of the free space in
+ * the metaslab. Rather than simply using the fragmentation metric, we
+ * actually use the number of segments in each bucket to determine the
+ * weight. The weight is calculated as follows:
+ *
+ * sum from i = 0 to 29 of N(i) * 2^{2i}, where N(i) is the number of free
+ * segments of size 2^{i + shift}
+ *
+ * N(i) * 2^i is just the space used by the segments in a bucket divided
+ * by the shift, and the additional factor of 2^i weights the larger
+ * segments more heavily. If there are any segments of size larger than
+ * (28 + shift), we just max out the weight. That metaslab is free enough
+ * for any purpose.
+ */
+static uint64_t
+metaslab_space_weight_v2(metaslab_t *msp)
+{
+	metaslab_group_t *mg = msp->ms_group;
+	uint64_t weight = 0;
+	uint8_t shift = mg->mg_vd->vdev_ashift;
+	if (metaslab_allocated_space(msp) == 0) {
+		int idx = highbit64(msp->ms_size) - shift - 1 + 3;
+		weight = 1ULL << MIN(METASLAB_WEIGHT_MAX_IDX, 2 * idx);
+		weight += highbit64(msp->ms_size) - 1;
+		WEIGHT_SET_SPACEBASED_V2(weight);
+		return (weight);
+	}
+
+	ASSERT3U(msp->ms_sm->sm_dbuf->db_size, ==, sizeof (space_map_phys_t));
+
+	/*
+	 * If the metaslab is fully allocated then just make the weight 0.
+	 */
+	if (metaslab_allocated_space(msp) == msp->ms_size) {
+		WEIGHT_SET_SPACEBASED_V2(weight);
+		return (weight);
+	}
+
+	/*
+	 * If the metaslab is already loaded, then use the range tree to
+	 * determine the weight. Otherwise, we rely on the space map information
+	 * to generate the weight.
+	 */
+	if (msp->ms_loaded)
+		weight = metaslab_space_weight_from_range_tree(msp);
+	else
+		weight = metaslab_space_weight_from_spacemap(msp);
+	ASSERT3U(weight, <=, METASLAB_WEIGHT_MAX);
+
+	/*
+	 * If the metaslab was active the last time we calculated its weight
+	 * then keep it active. We want to consume the entire region that
+	 * is associated with this weight.
+	 */
+	if (msp->ms_activation_weight != 0 && weight != 0)
+		WEIGHT_SET_ACTIVE(weight, WEIGHT_GET_ACTIVE(msp->ms_weight));
+	WEIGHT_SET_SPACEBASED_V2(weight);
+	return (weight);
+}
+
+/*
  * This table defines a segment size based fragmentation metric that will
  * allow each metaslab to derive its own fragmentation value. This is done
  * by calculating the space in each bucket of the spacemap histogram and
@@ -3209,9 +3365,17 @@ metaslab_space_weight(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
+	spa_t *spa = vd->vdev_spa;
 	uint64_t weight, space;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if (zfs_metaslab_space_weight_v2_enabled &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
+	    (msp->ms_sm == NULL || msp->ms_sm->sm_dbuf->db_size ==
+	    sizeof (space_map_phys_t))) {
+		return (metaslab_space_weight_v2(msp));
+	}
 
 	/*
 	 * The baseline weight is the metaslab's free space.
@@ -3463,9 +3627,12 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 		 */
 		should_allocate = (asize <
 		    1ULL << (WEIGHT_GET_INDEX(msp->ms_weight) + 1));
+	} else if (WEIGHT_IS_SPACEBASED_V2(msp->ms_weight)) {
+		should_allocate = (asize <
+		    1ULL << ((msp->ms_weight & 0x3f) + 1));
 	} else {
 		should_allocate = (asize <=
-		    (msp->ms_weight & ~METASLAB_WEIGHT_TYPE));
+		    (msp->ms_weight & ~METASLAB_WEIGHT_MASK));
 	}
 
 	return (should_allocate);
@@ -3678,14 +3845,15 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 static void
 metaslab_passivate(metaslab_t *msp, uint64_t weight)
 {
-	uint64_t size __maybe_unused = weight & ~METASLAB_WEIGHT_TYPE;
+	uint64_t size __maybe_unused = weight & ~METASLAB_WEIGHT_MASK;
 
 	/*
 	 * If size < SPA_MINBLOCKSIZE, then we will not allocate from
 	 * this metaslab again.  In that case, it had better be empty,
 	 * or we would be leaving space on the table.
 	 */
-	ASSERT(!WEIGHT_IS_SPACEBASED(msp->ms_weight) ||
+	ASSERT(!(WEIGHT_IS_SPACEBASED(msp->ms_weight) &&
+	    !WEIGHT_IS_SPACEBASED_V2(msp->ms_weight)) ||
 	    size >= SPA_MINBLOCKSIZE ||
 	    zfs_range_tree_space(msp->ms_allocatable) == 0);
 	ASSERT0(weight & METASLAB_ACTIVE_MASK);
@@ -6400,6 +6568,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, perf_bias, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, segment_weight_enabled, INT,
 	ZMOD_RW, "Enable segment-based metaslab selection");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, space_weight_v2_enabled, INT,
+	ZMOD_RW, "Enable new space-based metaslab selection");
 
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
 	"Segment-based metaslab selection maximum buckets before switching");
