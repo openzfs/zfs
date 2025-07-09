@@ -5220,8 +5220,8 @@ next:
 		 */
 		uint64_t weight;
 		if (WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
-			weight = metaslab_largest_allocatable(msp);
-			WEIGHT_SET_SPACEBASED(weight);
+			weight = metaslab_space_weight(msp) &
+			    ~METASLAB_ACTIVE_MASK;
 		} else {
 			weight = metaslab_weight_from_range_tree(msp);
 		}
