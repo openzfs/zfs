@@ -71,14 +71,6 @@ case "$OS" in
     OSv="fedora-unknown"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
     ;;
-  freebsd13-4r)
-    FreeBSD="13.4-RELEASE"
-    OSNAME="FreeBSD $FreeBSD"
-    OSv="freebsd13.0"
-    URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI.raw.xz"
-    KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
-    NIC="rtl8139"
-    ;;
   freebsd13-5r)
     FreeBSD="13.5-RELEASE"
     OSNAME="FreeBSD $FreeBSD"
