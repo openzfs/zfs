@@ -5242,6 +5242,11 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 			return (0);
 		}
 		return (EINVAL);
+#ifdef _PC_HAS_HIDDENSYSTEM
+	case _PC_HAS_HIDDENSYSTEM:
+		*ap->a_retval = 1;
+		return (0);
+#endif
 	default:
 		return (vop_stdpathconf(ap));
 	}
