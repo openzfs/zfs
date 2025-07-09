@@ -1320,10 +1320,21 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	ASSERT3P(lwb, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
+	error = zfs_zget_impl(zfsvfs, object, &zp, B_TRUE);
+#if defined(__linux__)
+	/*
+	 * Under Linux, EAGAIN indicates the inode is being evicted and I_SYNC
+	 * is also set possibly blocking eviction, so we can't loop in
+	 * zfs_zget to avoid deadlock. Return EIO to force txg sync under such
+	 * scenario.
+	 */
+	if (error == EAGAIN)
+		return (SET_ERROR(EIO));
+#endif
 	/*
 	 * Nothing to do if the file has been removed
 	 */
-	if (zfs_zget(zfsvfs, object, &zp) != 0)
+	if (error)
 		return (SET_ERROR(ENOENT));
 	if (zp->z_unlinked) {
 		/*
