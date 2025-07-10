@@ -2180,6 +2180,11 @@ spa_unload(spa_t *spa)
 
 	bpobj_close(&spa->spa_deferred_bpobj);
 
+	if (zia_get_props(spa)->provider != NULL) {
+		zia_put_provider(&zia_get_props(spa)->provider,
+		    spa->spa_root_vdev);
+	}
+
 	spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
 
 	/*
@@ -2250,11 +2255,6 @@ spa_unload(spa_t *spa)
 
 	spa->spa_raidz_expand = NULL;
 	spa->spa_checkpoint_txg = 0;
-
-	if (zia_get_props(spa)->provider != NULL) {
-		zia_put_provider(&zia_get_props(spa)->provider,
-		    spa->spa_root_vdev);
-	}
 
 	spa_config_exit(spa, SCL_ALL, spa);
 }
@@ -9815,26 +9815,21 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			if (zia_props->provider != NULL)
 				zia_put_provider(&zia_props->provider,
 				    spa->spa_root_vdev);
-			zia_props->provider = zia_get_provider(strval,
-			    spa->spa_root_vdev);
+			zia_props->provider = zia_get_provider(strval);
 			zia_props->can_offload = !!zia_props->provider;
 
 			/*
-			 * Dirty the configuration on vdevs as above.
+			 * It is possible to enable disk_write or file_write
+			 * without passing a provider, or swapping one
+			 * provider with another while these flags are enabled.
+			 * In those cases, vdevs must be opened for the new
+			 * provider upon being passed.
+			 * The vdevs will be closed for the older provider
+			 * in zia_put_provider() first.
 			 */
-			if (tx->tx_txg != TXG_INITIAL) {
-				vdev_config_dirty(spa->spa_root_vdev);
-				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
-			}
-
-			/*
-			 * reopen devices so that provider is used
-			 * copied from zfs_ioc_pool_reopen
-			 */
-			spa_vdev_state_enter(spa, SCL_NONE);
-			vdev_close(spa->spa_root_vdev);
-			(void) vdev_open(spa->spa_root_vdev);
-			(void) spa_vdev_state_exit(spa, NULL, 0);
+			ASSERT3P(spa->spa_root_vdev, !=, NULL);
+			if (zia_props->disk_write || zia_props->file_write)
+				zia_open_vdevs(spa->spa_root_vdev);
 
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
@@ -9924,11 +9919,16 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			zia_props->file_write =
 			    fnvpair_value_uint64(elem);
 
-			/* reopen devices so that provider is used */
-			spa_vdev_state_enter(spa, SCL_NONE);
-			vdev_close(spa->spa_root_vdev);
-			(void) vdev_open(spa->spa_root_vdev);
-			(void) spa_vdev_state_exit(spa, NULL, 0);
+			/*
+			 * Only open vdevs for the provider if one
+			 * has already been instantiated and if the
+			 * passed value to file_write is 1, not 0
+			 * to disable it.
+			 */
+			ASSERT3P(spa->spa_root_vdev, !=, NULL);
+			if (zia_props->provider && zia_props->file_write) {
+				zia_open_vdevs(spa->spa_root_vdev);
+			}
 
 			zia_prop_warn(zia_props->file_write,
 			    "File Write");
@@ -9937,11 +9937,13 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			zia_props->disk_write =
 			    fnvpair_value_uint64(elem);
 
-			/* reopen devices so that provider is used */
-			spa_vdev_state_enter(spa, SCL_NONE);
-			vdev_close(spa->spa_root_vdev);
-			(void) vdev_open(spa->spa_root_vdev);
-			(void) spa_vdev_state_exit(spa, NULL, 0);
+			/*
+			 * Check for the same reason as file_write.
+			 */
+			ASSERT3P(spa->spa_root_vdev, !=, NULL);
+			if (zia_props->provider && zia_props->disk_write) {
+				zia_open_vdevs(spa->spa_root_vdev);
+			}
 
 			zia_prop_warn(zia_props->disk_write,
 			    "Disk Write");

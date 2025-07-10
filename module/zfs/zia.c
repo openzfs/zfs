@@ -295,7 +295,7 @@ zia_fini(void)
 
 #ifdef ZIA
 /* recursively find all leaf vdevs and open them */
-static void zia_open_vdevs(vdev_t *vd) {
+static void zia_open_vdevs_impl(vdev_t *vd) {
 	vdev_ops_t *ops = vd->vdev_ops;
 	if (ops->vdev_op_leaf) {
 		ASSERT(!vd->vdev_zia_handle);
@@ -309,23 +309,34 @@ static void zia_open_vdevs(vdev_t *vd) {
 			}
 #ifdef _KERNEL
 			else if (memcmp(ops->vdev_op_type, "disk", 4) == 0) {
-				/* first member is struct block_device * */
-				void *disk = vd->vdev_tsd;
-				zia_disk_open(vd, vd->vdev_path, disk);
+				zia_disk_open(vd, vd->vdev_path,
+				    get_bdev(vd->vdev_tsd));
 			}
 #endif
 		}
 	} else {
 		for (uint64_t i = 0; i < vd->vdev_children; i++) {
 			vdev_t *child = vd->vdev_child[i];
-			zia_open_vdevs(child);
+			zia_open_vdevs_impl(child);
 		}
 	}
 }
 #endif
 
+void zia_open_vdevs(vdev_t *vd) {
+#ifdef ZIA
+	if (!vd)
+		return;
+
+	spa_vdev_state_enter(vd->vdev_spa, SCL_NONE);
+	zia_open_vdevs_impl(vd);
+	(void) spa_vdev_state_exit(vd->vdev_spa, NULL, 0);
+#endif
+	(void) vd;
+}
+
 void *
-zia_get_provider(const char *name, vdev_t *vdev)
+zia_get_provider(const char *name)
 {
 #ifdef ZIA
 	if (!dpusm) {
@@ -339,13 +350,9 @@ zia_get_provider(const char *name, vdev_t *vdev)
 	    name, provider);
 #endif
 
-	/* set up Z.I.A. for existing vdevs */
-	if (vdev) {
-		zia_open_vdevs(vdev);
-	}
 	return (provider);
 #else
-	(void) name; (void) vdev;
+	(void) name;
 
 #ifdef _KERNEL
 	printk("Z.I.A. not available. Cannot obtain handle to providers.\n");
@@ -407,7 +414,9 @@ zia_put_provider(void **provider, vdev_t *vdev)
 	 * make sure the vdevs don't keep pointing to the invalid provider
 	 */
 	if (vdev) {
+		spa_vdev_state_enter(vdev->vdev_spa, SCL_NONE);
 		zia_close_vdevs(vdev);
+		(void) spa_vdev_state_exit(vdev->vdev_spa, NULL, 0);
 	}
 
 #ifdef _KERNEL
@@ -1663,8 +1672,10 @@ zia_disk_open(vdev_t *vdev, const char *path,
 		return (ZIA_ERROR);
 	}
 
-	void *provider = zia_get_props(vdev->vdev_spa)->provider;
-	if (!dpusm || !provider) {
+	zia_props_t *props = zia_get_props(vdev->vdev_spa);
+	void *provider = props->provider;
+
+	if (!dpusm || !provider || props->disk_write != 1) {
 		return (ZIA_FALLBACK);
 	}
 
