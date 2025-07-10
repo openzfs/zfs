@@ -1402,9 +1402,13 @@ zvol_os_create_minor(const char *name)
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
-	if (error || volmode == ZFS_VOLMODE_DEFAULT)
+	if (error)
+		goto out_dmu_objset_disown;
+
+	if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
-	error = 0;
+	if (volmode == ZFS_VOLMODE_NONE)
+		goto out_dmu_objset_disown;
 
 	/*
 	 * zvol_alloc equivalent ...
@@ -1496,7 +1500,7 @@ out_dmu_objset_disown:
 	}
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
-	if (error == 0) {
+	if (error == 0 && volmode != ZFS_VOLMODE_NONE) {
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		zvol_minors++;
