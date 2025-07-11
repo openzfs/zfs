@@ -205,18 +205,6 @@ extern void vpanic(const char *, va_list)
 #define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
 
 /*
- * Tunables.
- */
-typedef struct zfs_kernel_param {
-	const char *name;	/* unused stub */
-} zfs_kernel_param_t;
-
-#define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
-#define	ZFS_MODULE_PARAM_ARGS void
-#define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
-	getfunc, perm, desc)
-
-/*
  * Threads.
  */
 typedef pthread_t	kthread_t;
