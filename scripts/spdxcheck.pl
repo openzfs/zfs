@@ -253,7 +253,6 @@ my %override_file_license_tags = (
 	'GPL-2.0-or-later' => [qw(
 		include/os/freebsd/spl/sys/kstat.h
 		include/os/freebsd/spl/sys/sunddi.h
-		include/sys/mod.h
 	)],
 	'CDDL-1.0' => [qw(
 		include/os/linux/spl/sys/errno.h

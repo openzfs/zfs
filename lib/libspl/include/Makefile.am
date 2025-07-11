@@ -45,6 +45,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/list_impl.h \
 	%D%/sys/mhd.h \
 	%D%/sys/mkdev.h \
+	%D%/sys/mod.h \
 	%D%/sys/policy.h \
 	%D%/sys/poll.h \
 	%D%/sys/priv.h \
