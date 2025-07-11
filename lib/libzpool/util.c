@@ -169,12 +169,6 @@ set_global_var_parse_kv(const char *arg, char **k_out, u_longlong_t *v_out)
 	}
 
 	u_longlong_t val = strtoull(v_str, NULL, 0);
-	if (val > UINT32_MAX) {
-		fprintf(stderr, "Value for global variable '%s' must "
-		    "be a 32-bit unsigned integer, got '%s'\n", k, v_str);
-		err = EOVERFLOW;
-		goto err_free;
-	}
 
 	*k_out = strdup(k);
 	*v_out = val;
@@ -217,16 +211,27 @@ set_global_var(char const *arg)
 
 	zpoolhdl = dlopen("libzpool.so", RTLD_LAZY);
 	if (zpoolhdl != NULL) {
-		uint32_t *var;
-		var = dlsym(zpoolhdl, varname);
-		if (var == NULL) {
-			fprintf(stderr, "Global variable '%s' does not exist "
-			    "in libzpool.so\n", varname);
-			ret = EINVAL;
-			goto out_dlclose;
+		if (val > UINT32_MAX) {
+			uint64_t *var;
+			var = dlsym(zpoolhdl, varname);
+			if (var == NULL) {
+				fprintf(stderr, "Global variable '%s' does not "
+				    "exist in libzpool.so\n", varname);
+				ret = EINVAL;
+				goto out_dlclose;
+			}
+			*var = (uint64_t)val;
+		} else {
+			uint32_t *var;
+			var = dlsym(zpoolhdl, varname);
+			if (var == NULL) {
+				fprintf(stderr, "Global variable '%s' does not "
+				    "exist in libzpool.so\n", varname);
+				ret = EINVAL;
+				goto out_dlclose;
+			}
+			*var = (uint32_t)val;
 		}
-		*var = (uint32_t)val;
-
 	} else {
 		fprintf(stderr, "Failed to open libzpool.so to set global "
 		    "variable\n");
