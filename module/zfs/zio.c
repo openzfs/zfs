@@ -4433,14 +4433,34 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	int allocator = (uint_t)cityhash1(os->os_dsl_dataset->ds_object)
 	    % spa->spa_alloc_count;
 	ZIOSTAT_BUMP(ziostat_total_allocations);
+
+	/* Try log class (dedicated slog devices) first */
 	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
 	    txg, NULL, flags, &io_alloc_list, allocator, NULL);
 	*slog = (error == 0);
+
+	/* Try special_embedded_log class (reserved on special vdevs) */
+	if (error != 0) {
+		error = metaslab_alloc(spa, spa_special_embedded_log_class(spa),
+		    size, new_bp, 1, txg, NULL, flags, &io_alloc_list,
+		    allocator, NULL);
+	}
+
+	/* Try special class (general special vdev allocation) */
+	if (error != 0) {
+		error = metaslab_alloc(spa, spa_special_class(spa), size,
+		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
+		    NULL);
+	}
+
+	/* Try embedded_log class (reserved on normal vdevs) */
 	if (error != 0) {
 		error = metaslab_alloc(spa, spa_embedded_log_class(spa), size,
 		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
 		    NULL);
 	}
+
+	/* Finally fall back to normal class */
 	if (error != 0) {
 		ZIOSTAT_BUMP(ziostat_alloc_class_fallbacks);
 		error = metaslab_alloc(spa, spa_normal_class(spa), size,

@@ -1713,10 +1713,18 @@ Similar to
 but for cleanup of old indirection records for removed vdevs.
 .
 .It Sy zfs_immediate_write_sz Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq s64
-Largest data block to write to the ZIL.
-Larger blocks will be treated as if the dataset being written to had the
-.Sy logbias Ns = Ns Sy throughput
-property set.
+Largest write size to store the data directly into the ZIL if
+.Sy logbias Ns = Ns Sy latency .
+Larger writes may be written indirectly similar to
+.Sy logbias Ns = Ns Sy throughput .
+In presence of SLOG this parameter is ignored, as if it was set to infinity,
+storing all written data into ZIL to not depend on regular vdev latency.
+.
+.It Sy zil_special_is_slog Ns = Ns Sy 1 Ns | Ns 0 Pq int
+When enabled, and written blocks go to normal vdevs, treat present special
+vdevs as SLOGs, storing all synchronously written data into ZIL directly.
+Disabling this forces the indirect writes to preserve special vdev write
+throughput and endurance, likely at the cost of normal vdev latency.
 .
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by

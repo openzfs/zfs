@@ -282,12 +282,15 @@ vdev_getops(const char *type)
  * Given a vdev and a metaslab class, find which metaslab group we're
  * interested in. All vdevs may belong to two different metaslab classes.
  * Dedicated slog devices use only the primary metaslab group, rather than a
- * separate log group. For embedded slogs, the vdev_log_mg will be non-NULL.
+ * separate log group.  For embedded slogs, vdev_log_mg will be non-NULL and
+ * will point to a metaslab group of either embedded_log_class (for normal
+ * vdevs) or special_embedded_log_class (for special vdevs).
  */
 metaslab_group_t *
 vdev_get_mg(vdev_t *vd, metaslab_class_t *mc)
 {
-	if (mc == spa_embedded_log_class(vd->vdev_spa) &&
+	if ((mc == spa_embedded_log_class(vd->vdev_spa) ||
+	    mc == spa_special_embedded_log_class(vd->vdev_spa)) &&
 	    vd->vdev_log_mg != NULL)
 		return (vd->vdev_log_mg);
 	else
@@ -1508,8 +1511,13 @@ vdev_metaslab_group_create(vdev_t *vd)
 		vd->vdev_mg = metaslab_group_create(mc, vd);
 
 		if (!vd->vdev_islog) {
-			vd->vdev_log_mg = metaslab_group_create(
-			    spa_embedded_log_class(spa), vd);
+			if (mc == spa_special_class(spa)) {
+				vd->vdev_log_mg = metaslab_group_create(
+				    spa_special_embedded_log_class(spa), vd);
+			} else {
+				vd->vdev_log_mg = metaslab_group_create(
+				    spa_embedded_log_class(spa), vd);
+			}
 		}
 
 		/*
@@ -1624,9 +1632,10 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	/*
 	 * Find the emptiest metaslab on the vdev and mark it for use for
 	 * embedded slog by moving it from the regular to the log metaslab
-	 * group.
+	 * group.  This works for normal and special vdevs.
 	 */
-	if (vd->vdev_mg->mg_class == spa_normal_class(spa) &&
+	if ((vd->vdev_mg->mg_class == spa_normal_class(spa) ||
+	    vd->vdev_mg->mg_class == spa_special_class(spa)) &&
 	    vd->vdev_ms_count > zfs_embedded_slog_min_ms &&
 	    avl_is_empty(&vd->vdev_log_mg->mg_metaslab_tree)) {
 		uint64_t slog_msid = 0;
