@@ -4427,18 +4427,6 @@ arc_evict_adj(uint64_t frac, uint64_t total, uint64_t up, uint64_t down,
 }
 
 /*
- * Calculate (x * multiplier / divisor) without unnecesary overflows.
- */
-static uint64_t
-arc_mf(uint64_t x, uint64_t multiplier, uint64_t divisor)
-{
-	uint64_t q = (x / divisor);
-	uint64_t r = (x % divisor);
-
-	return ((q * multiplier) + ((r * multiplier) / divisor));
-}
-
-/*
  * Evict buffers from the cache, such that arcstat_size is capped by arc_c.
  */
 static uint64_t
@@ -4485,29 +4473,17 @@ arc_evict(void)
 	uint64_t ac = arc_c;
 	int64_t wt = t - (asize - ac);
 
-	/*
-	 * Try to reduce pinned dnodes if more than 3/4 of wanted metadata
-	 * target is not evictable or if they go over arc_dnode_limit.
-	 */
+	/* Avoid meta/data shrink to force dentries and inodes reclaim. */
 	int64_t prune = 0;
 	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
-	int64_t nem = zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA])
-	    + zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA])
-	    - zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA])
-	    - zfs_refcount_count(&arc_mfu->arcs_esize[ARC_BUFC_METADATA]);
-	w = wt * (int64_t)(arc_meta >> 16) >> 16;
-	if (nem > w * 3 / 4) {
-		prune = dn / sizeof (dnode_t) *
-		    zfs_arc_dnode_reduce_percent / 100;
-		if (nem < w && w > 4)
-			prune = arc_mf(prune, nem - w * 3 / 4, w / 4);
-	}
 	if (dn > arc_dnode_limit) {
 		prune = MAX(prune, (dn - arc_dnode_limit) / sizeof (dnode_t) *
-		    zfs_arc_dnode_reduce_percent / 100);
+				zfs_arc_dnode_reduce_percent / 100);
 	}
-	if (prune > 0)
+	if (prune > 0) {
 		arc_prune_async(prune);
+		return 0;
+	}
 
 	/* Evict MRU metadata. */
 	w = wt * (int64_t)(arc_meta * arc_pm >> 48) >> 16;
@@ -4698,6 +4674,11 @@ arc_async_flush_guid_inuse(uint64_t spa_guid)
 uint64_t
 arc_reduce_target_size(uint64_t to_free)
 {
+	/* Avoid meta/data shrink to force dentries and inodes reclaim. */
+	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
+	if (dn > arc_dnode_limit)
+		return 0;
+
 	/*
 	 * Get the actual arc size.  Even if we don't need it, this updates
 	 * the aggsum lower bound estimate for arc_is_overflowing().
