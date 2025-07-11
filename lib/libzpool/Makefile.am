@@ -177,6 +177,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zfs_byteswap.c \
 	module/zfs/zfs_chksum.c \
 	module/zfs/zfs_debug_common.c \
+	module/zfs/zfs_crrd.c \
 	module/zfs/zfs_fm.c \
 	module/zfs/zfs_fuid.c \
 	module/zfs/zfs_ratelimit.c \
