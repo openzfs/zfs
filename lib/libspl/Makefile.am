@@ -20,6 +20,7 @@ libspl_la_SOURCES = \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
 	%D%/timestamp.c \
+	%D%/tunables.c \
 	%D%/include/sys/list.h \
 	%D%/include/sys/list_impl.h
 
