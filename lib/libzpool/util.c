@@ -36,7 +36,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/zfs_refcount.h>
 #include <sys/zfs_ioctl.h>
-#include <dlfcn.h>
+#include <sys/tunables.h>
 #include <libzutil.h>
 
 /*
@@ -151,97 +151,119 @@ show_pool_stats(spa_t *spa)
 	nvlist_free(config);
 }
 
-/* *k_out must be freed by the caller */
-static int
-set_global_var_parse_kv(const char *arg, char **k_out, u_longlong_t *v_out)
-{
-	int err;
-	VERIFY(arg);
-	char *d = strdup(arg);
-
-	char *save = NULL;
-	char *k = strtok_r(d, "=", &save);
-	char *v_str = strtok_r(NULL, "=", &save);
-	char *follow = strtok_r(NULL, "=", &save);
-	if (k == NULL || v_str == NULL || follow != NULL) {
-		err = EINVAL;
-		goto err_free;
-	}
-
-	u_longlong_t val = strtoull(v_str, NULL, 0);
-	if (val > UINT32_MAX) {
-		fprintf(stderr, "Value for global variable '%s' must "
-		    "be a 32-bit unsigned integer, got '%s'\n", k, v_str);
-		err = EOVERFLOW;
-		goto err_free;
-	}
-
-	*k_out = strdup(k);
-	*v_out = val;
-	free(d);
-	return (0);
-
-err_free:
-	free(d);
-
-	return (err);
-}
-
 /*
- * Sets given global variable in libzpool to given unsigned 32-bit value.
- * arg: "<variable>=<value>"
+ * Common helper for working with libzpool tunables from the command line.
+ *
+ * Valid inputs:
+ *
+ *   <name>		show named tunable and value
+ *   <name>=<value>	set tunable value
+ *
+ *   show		show all tunables and values
+ *   show=<name>	show named tunable and value
+ *   info		show info about all tunables
+ *   info=<name>	show info about named tunable
  */
-int
-set_global_var(char const *arg)
+
+typedef enum { SHOW, INFO, SET } tunable_mode_t;
+
+static int
+list_tunables_cb(const zfs_tunable_t *tunable, void *arg)
 {
-	void *zpoolhdl;
-	char *varname;
-	u_longlong_t val;
-	int ret;
+	const tunable_mode_t *mode = arg;
 
-#ifndef _ZFS_LITTLE_ENDIAN
-	/*
-	 * On big endian systems changing a 64-bit variable would set the high
-	 * 32 bits instead of the low 32 bits, which could cause unexpected
-	 * results.
-	 */
-	fprintf(stderr, "Setting global variables is only supported on "
-	    "little-endian systems\n");
-	ret = ENOTSUP;
-	goto out_ret;
-#endif
+	static const char *type[] = {
+		"int", "uint", "ulong", "u64", "str",
+	};
+	static const char *perm[] = {
+		"rw", "rd",
+	};
 
-	if ((ret = set_global_var_parse_kv(arg, &varname, &val)) != 0) {
-		goto out_ret;
-	}
-
-	zpoolhdl = dlopen("libzpool.so", RTLD_LAZY);
-	if (zpoolhdl != NULL) {
-		uint32_t *var;
-		var = dlsym(zpoolhdl, varname);
-		if (var == NULL) {
-			fprintf(stderr, "Global variable '%s' does not exist "
-			    "in libzpool.so\n", varname);
-			ret = EINVAL;
-			goto out_dlclose;
-		}
-		*var = (uint32_t)val;
-
+	if (*mode == SHOW) {
+		char val[64];
+		int err = zfs_tunable_get(tunable, val, sizeof (val));
+		if (err == 0)
+			printf("%s: %s\n", tunable->zt_name, val);
+		else
+			printf("%s: [error getting tunable value: %s]\n",
+			    tunable->zt_name, strerror(err));
 	} else {
-		fprintf(stderr, "Failed to open libzpool.so to set global "
-		    "variable\n");
-		ret = EIO;
-		goto out_free;
+		printf("%s [%s %s]: %s\n", tunable->zt_name,
+		    type[tunable->zt_type], perm[tunable->zt_perm],
+		    tunable->zt_desc);
 	}
 
-	ret = 0;
+	return (0);
+}
+int
+handle_tunable_option(const char *_arg, boolean_t quiet)
+{
+	int err = 0;
+	char *arg = strdup(_arg);
+	char *k, *v;
 
-out_dlclose:
-	dlclose(zpoolhdl);
-out_free:
-	free(varname);
-out_ret:
-	return (ret);
+	v = arg;
+	k = strsep(&v, "=");
+
+	tunable_mode_t mode;
+
+	if (strcmp(k, "show") == 0) {
+		mode = SHOW;
+		k = v;
+	} else if (strcmp(k, "info") == 0) {
+		mode = INFO;
+		k = v;
+	} else if (v == NULL) {
+		mode = SHOW;
+	} else {
+		mode = SET;
+	}
+
+	if (quiet && mode != SET) {
+		err = EINVAL;
+		goto out;
+	}
+
+	if (mode == SET) {
+		const zfs_tunable_t *tunable = zfs_tunable_lookup(k);
+		if (tunable == NULL) {
+			err = ENOENT;
+			goto out;
+		}
+
+		char vold[256], vnew[256];
+		if (zfs_tunable_get(tunable, vold, sizeof (vold)) != 0)
+			strcpy(vold, "???");
+		err = zfs_tunable_set(tunable, v);
+		if (err != 0)
+			goto out;
+		if (zfs_tunable_get(tunable, vnew, sizeof (vnew)) != 0)
+			strcpy(vnew, "???");
+
+		if (!quiet)
+			printf("%s: %s -> %s\n", k, vold, vnew);
+	} else if (k != NULL) {
+		const zfs_tunable_t *tunable = zfs_tunable_lookup(k);
+		if (tunable == NULL) {
+			err = ENOENT;
+			goto out;
+		}
+		list_tunables_cb(tunable, &mode);
+	} else {
+		zfs_tunable_iter(list_tunables_cb, &mode);
+	}
+
+out:
+	if (!quiet) {
+		if (err == ENOENT)
+			fprintf(stderr, "no such tunable: %s\n", k);
+		else if (err != 0)
+			fprintf(stderr, "couldn't set tunable '%s': %s\n",
+			    k, strerror(err));
+	}
+
+	free(arg);
+	return (err);
 }
 
 static nvlist_t *
