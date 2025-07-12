@@ -199,7 +199,7 @@ libzpool_la_LIBADD = \
 	libzstd.la \
 	libzutil.la
 
-libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl -lm
+libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -lm
 
 libzpool_la_LDFLAGS = -pthread
 

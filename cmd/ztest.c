@@ -809,8 +809,8 @@ static ztest_option_t option_table[] = {
 	{ 'X', "raidz-expansion", NULL,
 	    "Perform a dedicated raidz expansion test",
 	    NO_DEFAULT, NULL},
-	{ 'o',	"option", "\"OPTION=INTEGER\"",
-	    "Set global variable to an unsigned 32-bit integer value",
+	{ 'o',	"option", "\"NAME=VALUE\"",
+	    "Set the named tunable to the given value",
 	    NO_DEFAULT, NULL},
 	{ 'G',	"dump-debug-msg", NULL,
 	    "Dump zfs_dbgmsg buffer before exiting due to an error",
@@ -7069,7 +7069,7 @@ ztest_set_global_vars(void)
 		char *kv = ztest_opts.zo_gvars[i];
 		VERIFY3U(strlen(kv), <=, ZO_GVARS_MAX_ARGLEN);
 		VERIFY3U(strlen(kv), >, 0);
-		int err = set_global_var(kv);
+		int err = handle_tunable_option(kv, B_TRUE);
 		if (ztest_opts.zo_verbose > 0) {
 			(void) printf("setting global var %s ... %s\n", kv,
 			    err ? "failed" : "ok");
