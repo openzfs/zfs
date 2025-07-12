@@ -69,7 +69,6 @@ COMMON_H = \
 	sys/metaslab_impl.h \
 	sys/mmp.h \
 	sys/mntent.h \
-	sys/mod.h \
 	sys/multilist.h \
 	sys/nvpair.h \
 	sys/nvpair_impl.h \
