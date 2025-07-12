@@ -49,4 +49,12 @@ typedef struct zfs_tunable {
 	const char		*zt_desc;
 } zfs_tunable_t;
 
+int zfs_tunable_set(const zfs_tunable_t *tunable, const char *val);
+int zfs_tunable_get(const zfs_tunable_t *tunable, char *val, size_t valsz);
+
+const zfs_tunable_t *zfs_tunable_lookup(const char *name);
+
+typedef int (*zfs_tunable_iter_t)(const zfs_tunable_t *tunable, void *arg);
+void zfs_tunable_iter(zfs_tunable_iter_t cb, void *arg);
+
 #endif
