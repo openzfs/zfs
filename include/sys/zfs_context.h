@@ -661,7 +661,7 @@ extern void random_fini(void);
 
 struct spa;
 extern void show_pool_stats(struct spa *);
-extern int set_global_var(char const *arg);
+extern int handle_tunable_option(const char *, boolean_t);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;

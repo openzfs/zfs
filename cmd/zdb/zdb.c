@@ -797,8 +797,8 @@ usage(void)
 	    "[default is 200]\n");
 	(void) fprintf(stderr, "        -K --key=KEY                 "
 	    "decryption key for encrypted dataset\n");
-	(void) fprintf(stderr, "        -o --option=\"OPTION=INTEGER\" "
-	    "set global variable to an unsigned 32-bit integer\n");
+	(void) fprintf(stderr, "        -o --option=\"NAME=VALUE\" "
+	    "set the named tunable to the given value\n");
 	(void) fprintf(stderr, "        -p --path==PATH              "
 	    "use one or more with -e to specify path to vdev dir\n");
 	(void) fprintf(stderr, "        -P --parseable               "
@@ -9377,9 +9377,11 @@ main(int argc, char **argv)
 			while (*optarg != '\0') { *optarg++ = '*'; }
 			break;
 		case 'o':
-			error = set_global_var(optarg);
+			dump_opt[c]++;
+			dump_all = 0;
+			error = handle_tunable_option(optarg, B_FALSE);
 			if (error != 0)
-				usage();
+				zdb_exit(1);
 			break;
 		case 'p':
 			if (searchdirs == NULL) {
@@ -9545,6 +9547,12 @@ main(int argc, char **argv)
 			error = 0;
 			goto fini;
 		}
+		if (dump_opt['o'])
+			/*
+			 * Avoid blasting tunable options off the top of the
+			 * screen.
+			 */
+			zdb_exit(1);
 		usage();
 	}
 
