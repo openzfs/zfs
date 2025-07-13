@@ -227,6 +227,7 @@ struct taskq;
 #define	LOOKUP_XATTR		0x02	/* lookup up extended attr dir */
 #define	CREATE_XATTR_DIR	0x04	/* Create extended attr dir */
 #define	LOOKUP_HAVE_SYSATTR_DIR	0x08	/* Already created virtual GFS dir */
+#define	LOOKUP_NAMED_ATTR	0x10	/* Lookup a named attribute */
 
 /*
  * Public vnode manipulation functions.
