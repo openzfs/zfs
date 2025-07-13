@@ -115,6 +115,8 @@ typedef uint64_t cookie_t;
 typedef ulong_t cookie_t;
 #endif
 
+static int zfs_check_attrname(const char *name);
+
 /*
  * Programming rules.
  *
@@ -814,7 +816,12 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 		/*
 		 * Do we have permission to get into attribute directory?
 		 */
-		error = zfs_zaccess(zp, ACE_EXECUTE, 0, B_FALSE, cr, NULL);
+		if (flags & LOOKUP_NAMED_ATTR)
+			error = zfs_zaccess(zp, ACE_EXECUTE, V_NAMEDATTR,
+			    B_FALSE, cr, NULL);
+		else
+			error = zfs_zaccess(zp, ACE_EXECUTE, 0, B_FALSE, cr,
+			    NULL);
 		if (error) {
 			vrele(ZTOV(zp));
 		}
@@ -4737,8 +4744,16 @@ zfs_freebsd_access(struct vop_access_args *ap)
 	 * ZFS itself only knowns about VREAD, VWRITE, VEXEC and VAPPEND,
 	 */
 	accmode = ap->a_accmode & (VREAD|VWRITE|VEXEC|VAPPEND);
-	if (accmode != 0)
-		error = zfs_access(zp, accmode, 0, ap->a_cred);
+	if (accmode != 0) {
+#if __FreeBSD_version >= 1500040
+		/* For named attributes, do the checks. */
+		if ((vn_irflag_read(vp) & VIRF_NAMEDATTR) != 0)
+			error = zfs_access(zp, accmode, V_NAMEDATTR,
+			    ap->a_cred);
+		else
+#endif
+			error = zfs_access(zp, accmode, 0, ap->a_cred);
+	}
 
 	/*
 	 * VADMIN has to be handled by vaccess().
@@ -4771,6 +4786,184 @@ struct vop_lookup_args {
 };
 #endif
 
+#if __FreeBSD_version >= 1500040
+static int
+zfs_lookup_nameddir(struct vnode *dvp, struct componentname *cnp,
+    struct vnode **vpp)
+{
+	struct vnode *xvp;
+	int error, flags;
+
+	*vpp = NULL;
+	flags = LOOKUP_XATTR | LOOKUP_NAMED_ATTR;
+	if ((cnp->cn_flags & CREATENAMED) != 0)
+		flags |= CREATE_XATTR_DIR;
+	error = zfs_lookup(dvp, NULL, &xvp, NULL, 0, cnp->cn_cred, flags,
+	    B_FALSE);
+	if (error == 0) {
+		if ((cnp->cn_flags & LOCKLEAF) != 0)
+			error = vn_lock(xvp, cnp->cn_lkflags);
+		if (error == 0) {
+			vn_irflag_set_cond(xvp, VIRF_NAMEDDIR);
+			*vpp = xvp;
+		} else {
+			vrele(xvp);
+		}
+	}
+	return (error);
+}
+
+static ssize_t
+zfs_readdir_named(struct vnode *vp, char *buf, ssize_t blen, off_t *offp,
+    int *eofflagp, struct ucred *cred, struct thread *td)
+{
+	struct uio io;
+	struct iovec iv;
+	zfs_uio_t uio;
+	int error;
+
+	io.uio_offset = *offp;
+	io.uio_segflg = UIO_SYSSPACE;
+	io.uio_rw = UIO_READ;
+	io.uio_td = td;
+	iv.iov_base = buf;
+	iv.iov_len = blen;
+	io.uio_iov = &iv;
+	io.uio_iovcnt = 1;
+	io.uio_resid = blen;
+	zfs_uio_init(&uio, &io);
+	error = zfs_readdir(vp, &uio, cred, eofflagp, NULL, NULL);
+	if (error != 0)
+		return (-1);
+	*offp = io.uio_offset;
+	return (blen - io.uio_resid);
+}
+
+static bool
+zfs_has_namedattr(struct vnode *vp, struct ucred *cred)
+{
+	struct componentname cn;
+	struct vnode *xvp;
+	struct dirent *dp;
+	off_t offs;
+	ssize_t rsize;
+	char *buf, *cp, *endcp;
+	int eofflag, error;
+	bool ret;
+
+	if ((vp->v_mount->mnt_flag & MNT_NAMEDATTR) == 0)
+		return (false);
+
+	/* Now see if a named attribute directory exists. */
+	cn.cn_flags = LOCKLEAF;
+	cn.cn_lkflags = LK_SHARED;
+	cn.cn_cred = cred;
+	error = zfs_lookup_nameddir(vp, &cn, &xvp);
+	if (error != 0)
+		return (false);
+
+	/* It exists, so see if there is any entry other than "." and "..". */
+	buf = malloc(DEV_BSIZE, M_TEMP, M_WAITOK);
+	ret = false;
+	offs = 0;
+	do {
+		rsize = zfs_readdir_named(xvp, buf, DEV_BSIZE, &offs, &eofflag,
+		    cred, curthread);
+		if (rsize <= 0)
+			break;
+		cp = buf;
+		endcp = &buf[rsize];
+		while (cp < endcp) {
+			dp = (struct dirent *)cp;
+			if (dp->d_fileno != 0 && (dp->d_type == DT_REG ||
+			    dp->d_type == DT_UNKNOWN) &&
+			    !ZFS_XA_NS_PREFIX_FORBIDDEN(dp->d_name) &&
+			    ((dp->d_namlen == 1 && dp->d_name[0] != '.') ||
+			    (dp->d_namlen == 2 && (dp->d_name[0] != '.' ||
+			    dp->d_name[1] != '.')) || dp->d_namlen > 2)) {
+				ret = true;
+				break;
+			}
+			cp += dp->d_reclen;
+		}
+	} while (!ret && rsize > 0 && eofflag == 0);
+	vput(xvp);
+	free(buf, M_TEMP);
+	return (ret);
+}
+
+static int
+zfs_freebsd_lookup(struct vop_lookup_args *ap, boolean_t cached)
+{
+	struct componentname *cnp = ap->a_cnp;
+	char nm[NAME_MAX + 1];
+	int error;
+	struct vnode **vpp = ap->a_vpp, *dvp = ap->a_dvp, *xvp;
+	bool is_nameddir, needs_nameddir, opennamed = false;
+
+	/*
+	 * These variables are used to handle the named attribute cases:
+	 * opennamed - Is true when this is a call from open with O_NAMEDATTR
+	 *    specified and it is the last component.
+	 * is_nameddir - Is true when the directory is a named attribute dir.
+	 * needs_nameddir - Is set when the lookup needs to look for/create
+	 *    a named attribute directory.  It is only set when is_nameddir
+	 *    is_nameddir is false and opennamed is true.
+	 * xvp - Is the directory that the lookup needs to be done in.
+	 *    Usually dvp, unless needs_nameddir is true where it is the
+	 *    result of the first non-named directory lookup.
+	 * Note that name caching must be disabled for named attribute
+	 * handling.
+	 */
+	needs_nameddir = false;
+	xvp = dvp;
+	opennamed = (cnp->cn_flags & (OPENNAMED | ISLASTCN)) ==
+	    (OPENNAMED | ISLASTCN);
+	is_nameddir = (vn_irflag_read(dvp) & VIRF_NAMEDDIR) != 0;
+	if (is_nameddir && (cnp->cn_flags & ISLASTCN) == 0)
+		return (ENOATTR);
+	if (opennamed && !is_nameddir && (cnp->cn_flags & ISDOTDOT) != 0)
+		return (ENOATTR);
+	if (opennamed || is_nameddir)
+		cnp->cn_flags &= ~MAKEENTRY;
+	if (opennamed && !is_nameddir)
+		needs_nameddir = true;
+	ASSERT3U(cnp->cn_namelen, <, sizeof (nm));
+	error = 0;
+	*vpp = NULL;
+	if (needs_nameddir) {
+		error = zfs_lookup_nameddir(dvp, cnp, &xvp);
+		if (error == 0)
+			is_nameddir = true;
+	}
+	if (error == 0) {
+		if (!needs_nameddir || cnp->cn_namelen != 1 ||
+		    *cnp->cn_nameptr != '.') {
+			strlcpy(nm, cnp->cn_nameptr, MIN(cnp->cn_namelen + 1,
+			    sizeof (nm)));
+			error = zfs_lookup(xvp, nm, vpp, cnp, cnp->cn_nameiop,
+			    cnp->cn_cred, 0, cached);
+			if (is_nameddir && error == 0 &&
+			    (cnp->cn_namelen != 1 || *cnp->cn_nameptr != '.') &&
+			    (cnp->cn_flags & ISDOTDOT) == 0) {
+				if ((*vpp)->v_type == VDIR)
+					vn_irflag_set_cond(*vpp, VIRF_NAMEDDIR);
+				else
+					vn_irflag_set_cond(*vpp,
+					    VIRF_NAMEDATTR);
+			}
+			if (needs_nameddir && xvp != *vpp)
+				vput(xvp);
+		} else {
+			/*
+			 * Lookup of "." when a named attribute dir is needed.
+			 */
+			*vpp = xvp;
+		}
+	}
+	return (error);
+}
+#else
 static int
 zfs_freebsd_lookup(struct vop_lookup_args *ap, boolean_t cached)
 {
@@ -4783,6 +4976,7 @@ zfs_freebsd_lookup(struct vop_lookup_args *ap, boolean_t cached)
 	return (zfs_lookup(ap->a_dvp, nm, ap->a_vpp, cnp, cnp->cn_nameiop,
 	    cnp->cn_cred, 0, cached));
 }
+#endif
 
 static int
 zfs_freebsd_cachedlookup(struct vop_cachedlookup_args *ap)
@@ -4805,7 +4999,11 @@ zfs_cache_lookup(struct vop_lookup_args *ap)
 	zfsvfs_t *zfsvfs;
 
 	zfsvfs = ap->a_dvp->v_mount->mnt_data;
+#if __FreeBSD_version >= 1500040
+	if (zfsvfs->z_use_namecache && (ap->a_cnp->cn_flags & OPENNAMED) == 0)
+#else
 	if (zfsvfs->z_use_namecache)
+#endif
 		return (vfs_cache_lookup(ap));
 	else
 		return (zfs_freebsd_lookup(ap, B_FALSE));
@@ -4828,6 +5026,11 @@ zfs_freebsd_create(struct vop_create_args *ap)
 	vattr_t *vap = ap->a_vap;
 	znode_t *zp = NULL;
 	int rc, mode;
+	struct vnode *dvp = ap->a_dvp;
+#if __FreeBSD_version >= 1500040
+	struct vnode *xvp;
+	bool is_nameddir;
+#endif
 
 #if __FreeBSD_version < 1400068
 	ASSERT(cnp->cn_flags & SAVENAME);
@@ -4838,10 +5041,36 @@ zfs_freebsd_create(struct vop_create_args *ap)
 	zfsvfs = ap->a_dvp->v_mount->mnt_data;
 	*ap->a_vpp = NULL;
 
-	rc = zfs_create(VTOZ(ap->a_dvp), cnp->cn_nameptr, vap, 0, mode,
-	    &zp, cnp->cn_cred, 0 /* flag */, NULL /* vsecattr */, NULL);
+	rc = 0;
+#if __FreeBSD_version >= 1500040
+	xvp = NULL;
+	is_nameddir = (vn_irflag_read(dvp) & VIRF_NAMEDDIR) != 0;
+	if (!is_nameddir && (cnp->cn_flags & OPENNAMED) != 0) {
+		/* Needs a named attribute directory. */
+		rc = zfs_lookup_nameddir(dvp, cnp, &xvp);
+		if (rc == 0) {
+			dvp = xvp;
+			is_nameddir = true;
+		}
+	}
+	if (is_nameddir && rc == 0)
+		rc = zfs_check_attrname(cnp->cn_nameptr);
+#endif
+
 	if (rc == 0)
+		rc = zfs_create(VTOZ(dvp), cnp->cn_nameptr, vap, 0, mode,
+		    &zp, cnp->cn_cred, 0 /* flag */, NULL /* vsecattr */, NULL);
+#if __FreeBSD_version >= 1500040
+	if (xvp != NULL)
+		vput(xvp);
+#endif
+	if (rc == 0) {
 		*ap->a_vpp = ZTOV(zp);
+#if __FreeBSD_version >= 1500040
+		if (is_nameddir)
+			vn_irflag_set_cond(*ap->a_vpp, VIRF_NAMEDATTR);
+#endif
+	}
 	if (zfsvfs->z_use_namecache &&
 	    rc == 0 && (cnp->cn_flags & MAKEENTRY) != 0)
 		cache_enter(ap->a_dvp, *ap->a_vpp, cnp);
@@ -4860,13 +5089,21 @@ struct vop_remove_args {
 static int
 zfs_freebsd_remove(struct vop_remove_args *ap)
 {
+	int error = 0;
 
 #if __FreeBSD_version < 1400068
 	ASSERT(ap->a_cnp->cn_flags & SAVENAME);
 #endif
 
-	return (zfs_remove_(ap->a_dvp, ap->a_vp, ap->a_cnp->cn_nameptr,
-	    ap->a_cnp->cn_cred));
+#if __FreeBSD_version >= 1500040
+	if ((vn_irflag_read(ap->a_dvp) & VIRF_NAMEDDIR) != 0)
+		error = zfs_check_attrname(ap->a_cnp->cn_nameptr);
+#endif
+
+	if (error == 0)
+		error = zfs_remove_(ap->a_dvp, ap->a_vp, ap->a_cnp->cn_nameptr,
+		    ap->a_cnp->cn_cred);
+	return (error);
 }
 
 #ifndef _SYS_SYSPROTO_H_
@@ -5024,6 +5261,11 @@ zfs_freebsd_getattr(struct vop_getattr_args *ap)
 #undef	FLAG_CHECK
 	*vap = xvap.xva_vattr;
 	vap->va_flags = fflags;
+
+#if __FreeBSD_version >= 1500040
+	if ((vn_irflag_read(ap->a_vp) & (VIRF_NAMEDDIR | VIRF_NAMEDATTR)) != 0)
+		vap->va_bsdflags |= SFBSD_NAMEDATTR;
+#endif
 	return (0);
 }
 
@@ -5166,15 +5408,24 @@ zfs_freebsd_rename(struct vop_rename_args *ap)
 	vnode_t *fvp = ap->a_fvp;
 	vnode_t *tdvp = ap->a_tdvp;
 	vnode_t *tvp = ap->a_tvp;
-	int error;
+	int error = 0;
 
 #if __FreeBSD_version < 1400068
 	ASSERT(ap->a_fcnp->cn_flags & (SAVENAME|SAVESTART));
 	ASSERT(ap->a_tcnp->cn_flags & (SAVENAME|SAVESTART));
 #endif
 
-	error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
-	    ap->a_tcnp, ap->a_fcnp->cn_cred);
+#if __FreeBSD_version >= 1500040
+	if ((vn_irflag_read(fdvp) & VIRF_NAMEDDIR) != 0) {
+		error = zfs_check_attrname(ap->a_fcnp->cn_nameptr);
+		if (error == 0)
+			error = zfs_check_attrname(ap->a_tcnp->cn_nameptr);
+	}
+#endif
+
+	if (error == 0)
+		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
+		    ap->a_tcnp, ap->a_fcnp->cn_cred);
 
 	vrele(fdvp);
 	vrele(fvp);
@@ -5428,6 +5679,22 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 			return (0);
 		}
 		return (EINVAL);
+#if __FreeBSD_version >= 1500040
+	case _PC_NAMEDATTR_ENABLED:
+		MNT_ILOCK(ap->a_vp->v_mount);
+		if ((ap->a_vp->v_mount->mnt_flag & MNT_NAMEDATTR) != 0)
+			*ap->a_retval = 1;
+		else
+			*ap->a_retval = 0;
+		MNT_IUNLOCK(ap->a_vp->v_mount);
+		return (0);
+	case _PC_HAS_NAMEDATTR:
+		if (zfs_has_namedattr(ap->a_vp, curthread->td_ucred))
+			*ap->a_retval = 1;
+		else
+			*ap->a_retval = 0;
+		return (0);
+#endif
 #ifdef _PC_HAS_HIDDENSYSTEM
 	case _PC_HAS_HIDDENSYSTEM:
 		*ap->a_retval = 1;
@@ -5438,7 +5705,7 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 	}
 }
 
-static int zfs_xattr_compat = 1;
+int zfs_xattr_compat = 1;
 
 static int
 zfs_check_attrname(const char *name)
