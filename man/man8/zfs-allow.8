@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 13, 2025
+.Dd September 8, 2025
 .Dt ZFS-ALLOW 8
 .Os
 .
@@ -212,7 +212,8 @@ receive	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability, requ
 release	subcommand	Allows releasing a user hold which might destroy the snapshot
 rename	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability in the new parent
 rollback	subcommand	Must also have the \fBmount\fR ability
-send	subcommand
+send	subcommand	Allows sending a replication stream of a dataset.
+send:raw	subcommand	Only allows sending raw replication streams, preventing encrypted datasets being sent in decrypted form.
 share	subcommand	Allows sharing file systems over NFS or SMB protocols
 snapshot	subcommand	Must also have the \fBmount\fR ability
 
