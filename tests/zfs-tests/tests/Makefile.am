@@ -892,6 +892,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_send/zfs_send_raw.ksh \
 	functional/cli_root/zfs_send/zfs_send_skip_missing.ksh \
 	functional/cli_root/zfs_send/zfs_send_sparse.ksh \
+	functional/cli_root/zfs_send_delegation/cleanup.ksh \
+	functional/cli_root/zfs_send_delegation/setup.ksh \
+	functional/cli_root/zfs_send_delegation/zfs_send_test.ksh \
 	functional/cli_root/zfs_set/cache_001_pos.ksh \
 	functional/cli_root/zfs_set/cache_002_neg.ksh \
 	functional/cli_root/zfs_set/canmount_001_pos.ksh \
@@ -1409,6 +1412,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_user/zfs_list/zfs_list_005_neg.ksh \
 	functional/cli_user/zfs_list/zfs_list_007_pos.ksh \
 	functional/cli_user/zfs_list/zfs_list_008_neg.ksh \
+	functional/cli_user/zfs_send_delegation_user/cleanup.ksh \
+	functional/cli_user/zfs_send_delegation_user/setup.ksh \
+	functional/cli_user/zfs_send_delegation_user/zfs_send_usertest.ksh \
 	functional/cli_user/zpool_iostat/cleanup.ksh \
 	functional/cli_user/zpool_iostat/setup.ksh \
 	functional/cli_user/zpool_iostat/zpool_iostat_001_neg.ksh \
