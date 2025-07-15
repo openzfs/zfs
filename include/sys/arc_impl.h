@@ -954,7 +954,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_data_size;
 	wmsum_t arcstat_metadata_size;
 	wmsum_t arcstat_dbuf_size;
-	wmsum_t arcstat_dnode_size;
+	aggsum_t arcstat_dnode_size;
 	wmsum_t arcstat_bonus_size;
 	wmsum_t arcstat_l2_hits;
 	wmsum_t arcstat_l2_misses;
