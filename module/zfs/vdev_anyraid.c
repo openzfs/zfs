@@ -265,6 +265,41 @@ create_tile_entry(vdev_anyraid_t *var, anyraid_map_loc_entry_t *amle,
 	*out_ar = ar;
 }
 
+static void
+child_read_done(zio_t *zio)
+{
+	zio_t *pio = zio_unique_parent(zio);
+	abd_t **cbp = pio->io_private;
+
+	if (zio->io_error == 0) {
+		mutex_enter(&pio->io_lock);
+		if (*cbp == NULL)
+			*cbp = zio->io_abd;
+		else
+			abd_free(zio->io_abd);
+		mutex_exit(&pio->io_lock);
+	} else {
+		abd_free(zio->io_abd);
+	}
+}
+
+static void
+child_read(zio_t *zio, vdev_t *vd, uint64_t offset, uint64_t size,
+    int checksum, void *private, int flags)
+{
+	for (int c = 0; c < vd->vdev_children; c++) {
+		child_read(zio, vd->vdev_child[c], offset, size, checksum,
+		    private, flags);
+	}
+
+	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd)) {
+		zio_nowait(zio_read_phys(zio, vd, offset, size,
+		    abd_alloc_linear(size, B_TRUE), checksum,
+		    child_read_done, private, ZIO_PRIORITY_SYNC_READ, flags,
+		    B_FALSE));
+	}
+}
+
 /*
  * This function is non-static for ZDB, and shouldn't be used for anything else.
  * Utility function that issues the read for the header and parses out the
@@ -281,11 +316,11 @@ vdev_anyraid_open_header(vdev_t *cvd, int header, anyraid_header_t *out_header)
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 
-	abd_t *header_abd = abd_alloc_linear(header_size, B_TRUE);
-	zio_t *rio = zio_root(spa, NULL, NULL, flags);
-	zio_nowait(zio_read_phys(rio, cvd, header_offset, header_size,
-	    header_abd, ZIO_CHECKSUM_LABEL, NULL, NULL, ZIO_PRIORITY_SYNC_READ,
-	    flags, B_FALSE));
+	abd_t *header_abd = NULL;
+	zio_t *rio = zio_root(spa, NULL, &header_abd, flags);
+	child_read(rio, cvd, header_offset, header_size, ZIO_CHECKSUM_LABEL,
+	    NULL, flags);
+
 	int error;
 	if ((error = zio_wait(rio)) != 0) {
 		zfs_dbgmsg("Error %d reading anyraid header %d on vdev %s",
@@ -514,11 +549,10 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 		zio_eck_t *cksum = (zio_eck_t *)
 		    &header.ah_buf[VDEV_ANYRAID_NVL_BYTES(ashift) +
 		    i * sizeof (*cksum)];
-		map_abds[i] = abd_alloc_linear(SPA_MAXBLOCKSIZE, B_TRUE);
-		zio_nowait(zio_read_phys(rio, cvd, map_offset +
-		    i * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE, map_abds[i],
-		    ZIO_CHECKSUM_ANYRAID_MAP, NULL, cksum,
-		    ZIO_PRIORITY_SYNC_READ, flags, B_FALSE));
+		zio_t *nio = zio_null(rio, spa, cvd, NULL, &map_abds[i], flags);
+		child_read(nio, cvd, map_offset + i * SPA_MAXBLOCKSIZE,
+		    SPA_MAXBLOCKSIZE, ZIO_CHECKSUM_ANYRAID_MAP, cksum, flags);
+		zio_nowait(nio);
 	}
 	i--;
 
