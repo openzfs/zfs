@@ -1426,6 +1426,11 @@
       <parameter type-id='80f4b756' name='name'/>
       <return type-id='a27af98c'/>
     </function-decl>
+    <function-decl name='zfs_tunable_iter' mangled-name='zfs_tunable_iter' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_iter'>
+      <parameter type-id='d8d5f4ab' name='cb'/>
+      <parameter type-id='eaa32e2f' name='arg'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='zfs_tunable_set' mangled-name='zfs_tunable_set' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_set'>
       <parameter type-id='a27af98c' name='zt'/>
       <parameter type-id='80f4b756' name='val'/>
@@ -1436,11 +1441,6 @@
       <parameter type-id='26a90f95' name='val'/>
       <parameter type-id='b59d7dce' name='valsz'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='zfs_tunable_iter' mangled-name='zfs_tunable_iter' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_iter'>
-      <parameter type-id='d8d5f4ab' name='cb'/>
-      <parameter type-id='eaa32e2f' name='arg'/>
-      <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='92f86508'>
       <parameter type-id='a27af98c'/>

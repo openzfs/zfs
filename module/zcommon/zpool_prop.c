@@ -468,11 +468,14 @@ vdev_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "RAIDZ_EXPANDING",
 	    boolean_table, sfeatures);
 	zprop_register_index(VDEV_PROP_SIT_OUT, "sit_out", 0,
-	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "SIT_OUT", boolean_table,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "SIT_OUT", boolean_table,
 	    sfeatures);
 	zprop_register_index(VDEV_PROP_TRIM_SUPPORT, "trim_support", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "TRIMSUP",
 	    boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_AUTOSIT, "autosit", 1,
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "AUTOSIT", boolean_table,
+	    sfeatures);
 
 	/* default index properties */
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,

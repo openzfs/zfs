@@ -49,10 +49,13 @@ verify_runnable "global"
 
 save_tunable READ_SIT_OUT_SECS
 set_tunable32 READ_SIT_OUT_SECS 120
+save_tunable SIT_OUT_CHECK_INTERVAL
+set_tunable64 SIT_OUT_CHECK_INTERVAL 20
 
 function cleanup
 {
 	restore_tunable READ_SIT_OUT_SECS
+	restore_tunable SIT_OUT_CHECK_INTERVAL
 	log_must zinject -c all
 
 	if [[ -n "$child_pids" ]]; then
