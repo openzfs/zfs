@@ -5073,29 +5073,16 @@ next:
 
 		/*
 		 * We were unable to allocate from this metaslab so determine
-		 * a new weight for this metaslab. Now that we have loaded
-		 * the metaslab we can provide a better hint to the metaslab
-		 * selector.
-		 *
-		 * For space-based metaslabs, we use the maximum block size.
-		 * This information is only available when the metaslab
-		 * is loaded and is more accurate than the generic free
-		 * space weight that was calculated by metaslab_weight().
-		 * This information allows us to quickly compare the maximum
-		 * available allocation in the metaslab to the allocation
-		 * size being requested.
-		 *
-		 * For segment-based metaslabs, determine the new weight
-		 * based on the highest bucket in the range tree. We
-		 * explicitly use the loaded segment weight (i.e. the range
-		 * tree histogram) since it contains the space that is
-		 * currently available for allocation and is accurate
-		 * even within a sync pass.
+		 * a new weight for this metaslab. The weight was last
+		 * recalculated either when we loaded it (if this is the first
+		 * TXG it's been loaded in), or the last time a txg was synced
+		 * out.
 		 */
 		uint64_t weight;
 		if (WEIGHT_IS_SPACEBASED(msp->ms_weight)) {
-			weight = metaslab_largest_allocatable(msp);
-			WEIGHT_SET_SPACEBASED(weight);
+			metaslab_set_fragmentation(msp, B_TRUE);
+			weight = metaslab_space_weight(msp) &
+			    ~METASLAB_ACTIVE_MASK;
 		} else {
 			weight = metaslab_weight_from_range_tree(msp);
 		}
@@ -5107,13 +5094,6 @@ next:
 			 * For the case where we use the metaslab that is
 			 * active for another allocator we want to make
 			 * sure that we retain the activation mask.
-			 *
-			 * Note that we could attempt to use something like
-			 * metaslab_recalculate_weight_and_sort() that
-			 * retains the activation mask here. That function
-			 * uses metaslab_weight() to set the weight though
-			 * which is not as accurate as the calculations
-			 * above.
 			 */
 			weight |= msp->ms_weight & METASLAB_ACTIVE_MASK;
 			metaslab_group_sort(mg, msp, weight);
