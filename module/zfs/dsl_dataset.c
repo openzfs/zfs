@@ -159,7 +159,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		return;
 	}
 
-	ASSERT3U(BP_GET_LOGICAL_BIRTH(bp), >,
+	ASSERT3U(BP_GET_BIRTH(bp), >,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);
 	mutex_enter(&ds->ds_lock);
@@ -194,7 +194,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	 * they do not need to be freed.
 	 */
 	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
-	    BP_GET_LOGICAL_BIRTH(bp) > ds->ds_dir->dd_origin_txg &&
+	    BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg &&
 	    !(BP_IS_EMBEDDED(bp))) {
 		ASSERT(dsl_dir_is_clone(ds->ds_dir));
 		ASSERT(spa_feature_is_enabled(spa,
@@ -263,7 +263,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		return (0);
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(BP_GET_LOGICAL_BIRTH(bp) <= tx->tx_txg);
+	ASSERT(BP_GET_BIRTH(bp) <= tx->tx_txg);
 
 	if (ds == NULL) {
 		dsl_free(tx->tx_pool, tx->tx_txg, bp);
@@ -281,7 +281,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	 * they do not need to be freed.
 	 */
 	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
-	    BP_GET_LOGICAL_BIRTH(bp) > ds->ds_dir->dd_origin_txg &&
+	    BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg &&
 	    !(BP_IS_EMBEDDED(bp))) {
 		ASSERT(dsl_dir_is_clone(ds->ds_dir));
 		ASSERT(spa_feature_is_enabled(spa,
@@ -289,7 +289,7 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		bplist_append(&ds->ds_dir->dd_pending_frees, bp);
 	}
 
-	if (BP_GET_LOGICAL_BIRTH(bp) > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
+	if (BP_GET_BIRTH(bp) > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
 		int64_t delta;
 
 		/*
@@ -346,14 +346,14 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		ASSERT(dsl_dataset_phys(ds->ds_prev)->ds_num_children > 0);
 		/* if (logical birth > prev prev snap txg) prev unique += bs */
 		if (dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj ==
-		    ds->ds_object && BP_GET_LOGICAL_BIRTH(bp) >
+		    ds->ds_object && BP_GET_BIRTH(bp) >
 		    dsl_dataset_phys(ds->ds_prev)->ds_prev_snap_txg) {
 			dmu_buf_will_dirty(ds->ds_prev->ds_dbuf, tx);
 			mutex_enter(&ds->ds_prev->ds_lock);
 			dsl_dataset_phys(ds->ds_prev)->ds_unique_bytes += used;
 			mutex_exit(&ds->ds_prev->ds_lock);
 		}
-		if (BP_GET_LOGICAL_BIRTH(bp) > ds->ds_dir->dd_origin_txg) {
+		if (BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg) {
 			dsl_dir_transfer_space(ds->ds_dir, used,
 			    DD_USED_HEAD, DD_USED_SNAP, tx);
 		}
@@ -2944,7 +2944,7 @@ dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 	if (snap == NULL)
 		return (B_FALSE);
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	birth = BP_GET_LOGICAL_BIRTH(dsl_dataset_get_blkptr(ds));
+	birth = BP_GET_BIRTH(dsl_dataset_get_blkptr(ds));
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	if (birth > dsl_dataset_phys(snap)->ds_creation_txg) {
 		objset_t *os, *os_snap;

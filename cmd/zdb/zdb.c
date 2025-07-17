@@ -208,7 +208,7 @@ sublivelist_verify_blkptr(void *arg, const blkptr_t *bp, boolean_t free,
 				sublivelist_verify_block_t svb = {
 				    .svb_dva = bp->blk_dva[i],
 				    .svb_allocated_txg =
-				    BP_GET_LOGICAL_BIRTH(bp)
+				    BP_GET_BIRTH(bp)
 				};
 
 				if (zfs_btree_find(&sv->sv_leftover, &svb,
@@ -2568,7 +2568,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 		    (u_longlong_t)BP_GET_PSIZE(bp),
 		    (u_longlong_t)BP_GET_FILL(bp),
 		    (u_longlong_t)BP_GET_LOGICAL_BIRTH(bp),
-		    (u_longlong_t)BP_GET_BIRTH(bp));
+		    (u_longlong_t)BP_GET_PHYSICAL_BIRTH(bp));
 		if (bp_freed)
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
@@ -2618,7 +2618,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 {
 	int err = 0;
 
-	if (BP_GET_LOGICAL_BIRTH(bp) == 0)
+	if (BP_GET_BIRTH(bp) == 0)
 		return (0);
 
 	print_indirect(spa, bp, zb, dnp);
@@ -2806,7 +2806,7 @@ dump_bptree_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	(void) arg, (void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
-	if (BP_GET_LOGICAL_BIRTH(bp) != 0) {
+	if (BP_GET_BIRTH(bp) != 0) {
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
 		(void) printf("\t%s\n", blkbuf);
 	}
@@ -2847,7 +2847,7 @@ dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	(void) arg, (void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
-	ASSERT(BP_GET_LOGICAL_BIRTH(bp) != 0);
+	ASSERT(BP_GET_BIRTH(bp) != 0);
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, bp_freed);
 	(void) printf("\t%s\n", blkbuf);
 	return (0);
@@ -5921,11 +5921,11 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		 * entry back to the block pointer before we claim it.
 		 */
 		if (v == DDT_PHYS_FLAT) {
-			ASSERT3U(BP_GET_BIRTH(bp), ==,
+			ASSERT3U(BP_GET_PHYSICAL_BIRTH(bp), ==,
 			    ddt_phys_birth(dde->dde_phys, v));
 			tempbp = *bp;
 			ddt_bp_fill(dde->dde_phys, v, &tempbp,
-			    BP_GET_BIRTH(bp));
+			    BP_GET_PHYSICAL_BIRTH(bp));
 			bp = &tempbp;
 		}
 
@@ -6151,7 +6151,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_level == ZB_DNODE_LEVEL)
 		return (0);
 
-	if (dump_opt['b'] >= 5 && BP_GET_LOGICAL_BIRTH(bp) > 0) {
+	if (dump_opt['b'] >= 5 && BP_GET_BIRTH(bp) > 0) {
 		char blkbuf[BP_SPRINTF_LEN];
 		snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
 		(void) printf("objset %llu object %llu "

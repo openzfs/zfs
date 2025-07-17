@@ -93,9 +93,9 @@ livelist_compare(const void *larg, const void *rarg)
 	 * Since we're storing blkptrs without cancelling FREE/ALLOC pairs,
 	 * it's possible the offsets are equal. In that case, sort by txg
 	 */
-	if (BP_GET_LOGICAL_BIRTH(l) < BP_GET_LOGICAL_BIRTH(r)) {
+	if (BP_GET_BIRTH(l) < BP_GET_BIRTH(r)) {
 		return (-1);
-	} else if (BP_GET_LOGICAL_BIRTH(l) > BP_GET_LOGICAL_BIRTH(r)) {
+	} else if (BP_GET_BIRTH(l) > BP_GET_BIRTH(r)) {
 		return (+1);
 	}
 	return (0);

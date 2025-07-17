@@ -140,7 +140,7 @@ typedef struct zio_cksum_salt {
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
  * 6	|BDX|lvl| type	| cksum |E| comp|    PSIZE	|     LSIZE	|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
- * 7	|			padding					|
+ * 7	|R|			padding					|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
  * 8	|			padding					|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
@@ -175,6 +175,7 @@ typedef struct zio_cksum_salt {
  * E		blkptr_t contains embedded data (see below)
  * lvl		level of indirection
  * type		DMU object type
+ * R		rewrite (reallocated/rewritten at phys birth TXG)
  * phys birth	txg when dva[0] was written; zero if same as logical birth txg
  *              note that typically all the dva's would be written in this
  *              txg, but they could be different if they were moved by
@@ -204,7 +205,7 @@ typedef struct zio_cksum_salt {
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
  * 6	|BDX|lvl| type	| cksum |E| comp|    PSIZE	|     LSIZE	|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
- * 7	|			padding					|
+ * 7	|R|			padding					|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
  * 8	|			padding					|
  *	+-------+-------+-------+-------+-------+-------+-------+-------+
@@ -373,7 +374,8 @@ typedef enum bp_embedded_type {
 typedef struct blkptr {
 	dva_t		blk_dva[SPA_DVAS_PER_BP]; /* Data Virtual Addresses */
 	uint64_t	blk_prop;	/* size, compression, type, etc	    */
-	uint64_t	blk_pad[2];	/* Extra space for the future	    */
+	uint64_t	blk_prop2;	/* additional properties	    */
+	uint64_t	blk_pad;	/* Extra space for the future	    */
 	uint64_t	blk_birth_word[2];
 	uint64_t	blk_fill;	/* fill count			    */
 	zio_cksum_t	blk_cksum;	/* 256-bit checksum		    */
@@ -476,32 +478,51 @@ typedef struct blkptr {
 #define	BP_GET_FREE(bp)			BF64_GET((bp)->blk_fill, 0, 1)
 #define	BP_SET_FREE(bp, x)		BF64_SET((bp)->blk_fill, 0, 1, x)
 
+/*
+ * Block birth time macros for different use cases:
+ * - BP_GET_LOGICAL_BIRTH(): When the block was logically modified by user.
+ *   To be used with a focus on user data, like incremental replication.
+ * - BP_GET_PHYSICAL_BIRTH(): When the block was physically written to disks.
+ *   For regular writes is equal to logical birth.  For dedup and block cloning
+ *   can be smaller than logical birth.  For remapped and rewritten blocks can
+ *   be bigger. To be used with focus on physical disk content: ARC, DDT, scrub.
+ * - BP_GET_RAW_PHYSICAL_BIRTH(): Raw physical birth value.  Zero if equal
+ *   to logical birth.  Should only be used for BP copying and debugging.
+ * - BP_GET_BIRTH(): When the block was allocated, which is a physical birth
+ *   for rewritten blocks (rewrite flag set) or logical birth otherwise.
+ */
 #define	BP_GET_LOGICAL_BIRTH(bp)	(bp)->blk_birth_word[1]
 #define	BP_SET_LOGICAL_BIRTH(bp, x)	((bp)->blk_birth_word[1] = (x))
 
-#define	BP_GET_PHYSICAL_BIRTH(bp)	(bp)->blk_birth_word[0]
+#define	BP_GET_RAW_PHYSICAL_BIRTH(bp)	(bp)->blk_birth_word[0]
 #define	BP_SET_PHYSICAL_BIRTH(bp, x)	((bp)->blk_birth_word[0] = (x))
 
-#define	BP_GET_BIRTH(bp)					\
-	(BP_IS_EMBEDDED(bp) ? 0 : 				\
-	BP_GET_PHYSICAL_BIRTH(bp) ? BP_GET_PHYSICAL_BIRTH(bp) :	\
+#define	BP_GET_PHYSICAL_BIRTH(bp)					\
+	(BP_IS_EMBEDDED(bp) ? 0 : 					\
+	BP_GET_RAW_PHYSICAL_BIRTH(bp) ? BP_GET_RAW_PHYSICAL_BIRTH(bp) :	\
 	BP_GET_LOGICAL_BIRTH(bp))
 
-#define	BP_SET_BIRTH(bp, logical, physical)	\
-{						\
-	ASSERT(!BP_IS_EMBEDDED(bp));		\
-	BP_SET_LOGICAL_BIRTH(bp, logical);	\
-	BP_SET_PHYSICAL_BIRTH(bp, 		\
-	    ((logical) == (physical) ? 0 : (physical))); \
+#define	BP_GET_BIRTH(bp)					\
+	((BP_IS_EMBEDDED(bp) || !BP_GET_REWRITE(bp)) ?		\
+	BP_GET_LOGICAL_BIRTH(bp) : BP_GET_PHYSICAL_BIRTH(bp))
+
+#define	BP_SET_BIRTH(bp, logical, physical)			\
+{								\
+	ASSERT(!BP_IS_EMBEDDED(bp));				\
+	BP_SET_LOGICAL_BIRTH(bp, logical);			\
+	BP_SET_PHYSICAL_BIRTH(bp, 				\
+	    ((logical) == (physical) ? 0 : (physical)));	\
 }
 
 #define	BP_GET_FILL(bp)				\
-	((BP_IS_ENCRYPTED(bp)) ? BF64_GET((bp)->blk_fill, 0, 32) : \
-	((BP_IS_EMBEDDED(bp)) ? 1 : (bp)->blk_fill))
+	(BP_IS_EMBEDDED(bp) ? 1 : 			\
+	BP_IS_ENCRYPTED(bp) ? BF64_GET((bp)->blk_fill, 0, 32) : \
+	(bp)->blk_fill)
 
 #define	BP_SET_FILL(bp, fill)			\
 {						\
-	if (BP_IS_ENCRYPTED(bp))			\
+	ASSERT(!BP_IS_EMBEDDED(bp));		\
+	if (BP_IS_ENCRYPTED(bp))		\
 		BF64_SET((bp)->blk_fill, 0, 32, fill); \
 	else					\
 		(bp)->blk_fill = fill;		\
@@ -514,6 +535,15 @@ typedef struct blkptr {
 {						\
 	ASSERT(BP_IS_ENCRYPTED(bp));		\
 	BF64_SET((bp)->blk_fill, 32, 32, iv2);	\
+}
+
+#define	BP_GET_REWRITE(bp)			\
+	(BP_IS_EMBEDDED(bp) ? 0 : BF64_GET((bp)->blk_prop2, 63, 1))
+
+#define	BP_SET_REWRITE(bp, x)			\
+{						\
+	ASSERT(!BP_IS_EMBEDDED(bp));		\
+	BF64_SET((bp)->blk_prop2, 63, 1, x);	\
 }
 
 #define	BP_IS_METADATA(bp)	\
@@ -545,7 +575,7 @@ typedef struct blkptr {
 	(dva1)->dva_word[0] == (dva2)->dva_word[0])
 
 #define	BP_EQUAL(bp1, bp2)	\
-	(BP_GET_BIRTH(bp1) == BP_GET_BIRTH(bp2) &&	\
+	(BP_GET_PHYSICAL_BIRTH(bp1) == BP_GET_PHYSICAL_BIRTH(bp2) &&	\
 	BP_GET_LOGICAL_BIRTH(bp1) == BP_GET_LOGICAL_BIRTH(bp2) &&	\
 	DVA_EQUAL(&(bp1)->blk_dva[0], &(bp2)->blk_dva[0]) &&	\
 	DVA_EQUAL(&(bp1)->blk_dva[1], &(bp2)->blk_dva[1]) &&	\
@@ -588,8 +618,8 @@ typedef struct blkptr {
 {						\
 	BP_ZERO_DVAS(bp);			\
 	(bp)->blk_prop = 0;			\
-	(bp)->blk_pad[0] = 0;			\
-	(bp)->blk_pad[1] = 0;			\
+	(bp)->blk_prop2 = 0;			\
+	(bp)->blk_pad = 0;			\
 	(bp)->blk_birth_word[0] = 0;		\
 	(bp)->blk_birth_word[1] = 0;		\
 	(bp)->blk_fill = 0;			\
@@ -696,7 +726,7 @@ typedef struct blkptr {
 		    (u_longlong_t)BP_GET_LSIZE(bp),			\
 		    (u_longlong_t)BP_GET_PSIZE(bp),			\
 		    (u_longlong_t)BP_GET_LOGICAL_BIRTH(bp),		\
-		    (u_longlong_t)BP_GET_BIRTH(bp),			\
+		    (u_longlong_t)BP_GET_PHYSICAL_BIRTH(bp),		\
 		    (u_longlong_t)BP_GET_FILL(bp),			\
 		    ws,							\
 		    (u_longlong_t)bp->blk_cksum.zc_word[0],		\

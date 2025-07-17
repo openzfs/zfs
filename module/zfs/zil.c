@@ -589,7 +589,7 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	 * that we rewind to is invalid. Thus, we return -1 so
 	 * zil_parse() doesn't attempt to read it.
 	 */
-	if (BP_GET_LOGICAL_BIRTH(bp) >= first_txg)
+	if (BP_GET_BIRTH(bp) >= first_txg)
 		return (-1);
 
 	if (zil_bp_tree_add(zilog, bp) != 0)
@@ -615,7 +615,7 @@ zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	 * Claim log block if not already committed and not already claimed.
 	 * If tx == NULL, just verify that the block is claimable.
 	 */
-	if (BP_IS_HOLE(bp) || BP_GET_LOGICAL_BIRTH(bp) < first_txg ||
+	if (BP_IS_HOLE(bp) || BP_GET_BIRTH(bp) < first_txg ||
 	    zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
@@ -640,7 +640,7 @@ zil_claim_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t first_txg)
 	 * waited for all writes to be stable first), so it is semantically
 	 * correct to declare this the end of the log.
 	 */
-	if (BP_GET_LOGICAL_BIRTH(&lr->lr_blkptr) >= first_txg) {
+	if (BP_GET_BIRTH(&lr->lr_blkptr) >= first_txg) {
 		error = zil_read_log_data(zilog, lr, NULL);
 		if (error != 0)
 			return (error);
@@ -687,7 +687,7 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx,
 		 * just in case lets be safe and just stop here now instead of
 		 * corrupting the pool.
 		 */
-		if (BP_GET_BIRTH(bp) >= first_txg)
+		if (BP_GET_PHYSICAL_BIRTH(bp) >= first_txg)
 			return (SET_ERROR(ENOENT));
 
 		/*
@@ -742,7 +742,7 @@ zil_free_write(zilog_t *zilog, const lr_t *lrc, void *tx, uint64_t claim_txg)
 	/*
 	 * If we previously claimed it, we need to free it.
 	 */
-	if (BP_GET_LOGICAL_BIRTH(bp) >= claim_txg &&
+	if (BP_GET_BIRTH(bp) >= claim_txg &&
 	    zil_bp_tree_add(zilog, bp) == 0 && !BP_IS_HOLE(bp)) {
 		zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 	}
@@ -1997,7 +1997,7 @@ next_lwb:
 		    &slog);
 	}
 	if (error == 0) {
-		ASSERT3U(BP_GET_LOGICAL_BIRTH(bp), ==, txg);
+		ASSERT3U(BP_GET_BIRTH(bp), ==, txg);
 		BP_SET_CHECKSUM(bp, nlwb->lwb_slim ? ZIO_CHECKSUM_ZILOG2 :
 		    ZIO_CHECKSUM_ZILOG);
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;

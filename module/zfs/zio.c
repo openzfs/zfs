@@ -692,7 +692,7 @@ error:
 		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 			spa_log_error(spa, &zio->io_bookmark,
-			    BP_GET_LOGICAL_BIRTH(zio->io_bp));
+			    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0);
 		}
@@ -1104,7 +1104,8 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
 	    "DVA[1]=%#llx/%#llx "
 	    "DVA[2]=%#llx/%#llx "
 	    "prop=%#llx "
-	    "pad=%#llx,%#llx "
+	    "prop2=%#llx "
+	    "pad=%#llx "
 	    "phys_birth=%#llx "
 	    "birth=%#llx "
 	    "fill=%#llx "
@@ -1117,9 +1118,9 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
 	    (long long)bp->blk_dva[2].dva_word[0],
 	    (long long)bp->blk_dva[2].dva_word[1],
 	    (long long)bp->blk_prop,
-	    (long long)bp->blk_pad[0],
-	    (long long)bp->blk_pad[1],
-	    (long long)BP_GET_PHYSICAL_BIRTH(bp),
+	    (long long)bp->blk_prop2,
+	    (long long)bp->blk_pad,
+	    (long long)BP_GET_RAW_PHYSICAL_BIRTH(bp),
 	    (long long)BP_GET_LOGICAL_BIRTH(bp),
 	    (long long)bp->blk_fill,
 	    (long long)bp->blk_cksum.zc_word[0],
@@ -1334,7 +1335,7 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zio = zio_create(pio, spa, BP_GET_BIRTH(bp), bp,
+	zio = zio_create(pio, spa, BP_GET_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
 	    ZIO_TYPE_READ, priority, flags, NULL, 0, zb,
 	    ZIO_STAGE_OPEN, (flags & ZIO_FLAG_DDT_CHILD) ?
@@ -1854,7 +1855,7 @@ zio_write_bp_init(zio_t *zio)
 		blkptr_t *bp = zio->io_bp;
 		zio_prop_t *zp = &zio->io_prop;
 
-		ASSERT(BP_GET_LOGICAL_BIRTH(bp) != zio->io_txg);
+		ASSERT(BP_GET_BIRTH(bp) != zio->io_txg);
 
 		*bp = *zio->io_bp_override;
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
@@ -1942,7 +1943,7 @@ zio_write_compress(zio_t *zio)
 	ASSERT(zio->io_child_type != ZIO_CHILD_DDT);
 	ASSERT(zio->io_bp_override == NULL);
 
-	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg) {
+	if (!BP_IS_HOLE(bp) && BP_GET_BIRTH(bp) == zio->io_txg) {
 		/*
 		 * We're rewriting an existing block, which means we're
 		 * working on behalf of spa_sync().  For spa_sync() to
@@ -2079,7 +2080,7 @@ zio_write_compress(zio_t *zio)
 	 * spa_sync() to allocate new blocks, but force rewrites after that.
 	 * There should only be a handful of blocks after pass 1 in any case.
 	 */
-	if (!BP_IS_HOLE(bp) && BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg &&
+	if (!BP_IS_HOLE(bp) && BP_GET_BIRTH(bp) == zio->io_txg &&
 	    BP_GET_PSIZE(bp) == psize &&
 	    pass >= zfs_sync_pass_rewrite) {
 		VERIFY3U(psize, !=, 0);
@@ -3894,7 +3895,7 @@ zio_ddt_write(zio_t *zio)
 			 * block and leave.
 			 */
 			if (have_dvas == 0) {
-				ASSERT(BP_GET_LOGICAL_BIRTH(bp) == txg);
+				ASSERT(BP_GET_BIRTH(bp) == txg);
 				ASSERT(BP_EQUAL(bp, zio->io_bp_override));
 				ddt_phys_extend(ddp, v, bp);
 				ddt_phys_addref(ddp, v);
@@ -4224,8 +4225,10 @@ zio_dva_allocate(zio_t *zio)
 		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_GANG);
 		memcpy(zio->io_bp->blk_dva, zio->io_bp_orig.blk_dva,
 		    3 * sizeof (dva_t));
-		BP_SET_BIRTH(zio->io_bp, BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig),
-		    BP_GET_PHYSICAL_BIRTH(&zio->io_bp_orig));
+		BP_SET_LOGICAL_BIRTH(zio->io_bp,
+		    BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig));
+		BP_SET_PHYSICAL_BIRTH(zio->io_bp,
+		    BP_GET_RAW_PHYSICAL_BIRTH(&zio->io_bp_orig));
 		return (zio);
 	}
 
@@ -4385,12 +4388,11 @@ zio_dva_claim(zio_t *zio)
 static void
 zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
 {
-	ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg || BP_IS_HOLE(bp));
+	ASSERT(BP_GET_BIRTH(bp) == zio->io_txg || BP_IS_HOLE(bp));
 	ASSERT(zio->io_bp_override == NULL);
 
 	if (!BP_IS_HOLE(bp)) {
-		metaslab_free(zio->io_spa, bp, BP_GET_LOGICAL_BIRTH(bp),
-		    B_TRUE);
+		metaslab_free(zio->io_spa, bp, BP_GET_BIRTH(bp), B_TRUE);
 	}
 
 	if (gn != NULL) {
@@ -5268,7 +5270,7 @@ zio_ready(zio_t *zio)
 
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
-		ASSERT(BP_GET_LOGICAL_BIRTH(bp) == zio->io_txg ||
+		ASSERT(BP_GET_BIRTH(bp) == zio->io_txg ||
 		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE));
 		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
 
@@ -5423,8 +5425,6 @@ zio_done(zio_t *zio)
 			ASSERT(zio->io_children[c][w] == 0);
 
 	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
-		ASSERT(zio->io_bp->blk_pad[0] == 0);
-		ASSERT(zio->io_bp->blk_pad[1] == 0);
 		ASSERT(memcmp(zio->io_bp, &zio->io_bp_copy,
 		    sizeof (blkptr_t)) == 0 ||
 		    (zio->io_bp == zio_unique_parent(zio)->io_bp));
@@ -5539,7 +5539,7 @@ zio_done(zio_t *zio)
 			 * error and generate a logical data ereport.
 			 */
 			spa_log_error(zio->io_spa, &zio->io_bookmark,
-			    BP_GET_LOGICAL_BIRTH(zio->io_bp));
+			    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
 			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0);
 		}

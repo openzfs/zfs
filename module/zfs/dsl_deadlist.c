@@ -484,7 +484,7 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t bp_freed,
 	dl->dl_phys->dl_comp += sign * BP_GET_PSIZE(bp);
 	dl->dl_phys->dl_uncomp += sign * BP_GET_UCSIZE(bp);
 
-	dle_tofind.dle_mintxg = BP_GET_LOGICAL_BIRTH(bp);
+	dle_tofind.dle_mintxg = BP_GET_BIRTH(bp);
 	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
 	if (dle == NULL)
 		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
@@ -493,7 +493,7 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t bp_freed,
 
 	if (dle == NULL) {
 		zfs_panic_recover("blkptr at %p has invalid BLK_BIRTH %llu",
-		    bp, (longlong_t)BP_GET_LOGICAL_BIRTH(bp));
+		    bp, (longlong_t)BP_GET_BIRTH(bp));
 		dle = avl_first(&dl->dl_tree);
 	}
 
