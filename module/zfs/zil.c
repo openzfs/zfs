@@ -2902,19 +2902,14 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
-	/*
-	 * Return if there's nothing to commit before we dirty the fs by
-	 * calling zil_create().
-	 */
-	if (list_is_empty(&zilog->zl_itx_commit_list))
-		return;
-
-	list_create(&nolwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
-	list_create(&nolwb_waiters, sizeof (zil_commit_waiter_t),
-	    offsetof(zil_commit_waiter_t, zcw_node));
-
 	lwb = list_tail(&zilog->zl_lwb_list);
 	if (lwb == NULL) {
+		/*
+		 * Return if there's nothing to commit before we dirty the fs.
+		 */
+		if (list_is_empty(&zilog->zl_itx_commit_list))
+			return;
+
 		lwb = zil_create(zilog);
 	} else {
 		/*
@@ -2941,6 +2936,10 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 			    ZIL_BURSTS / 2);
 		}
 	}
+
+	list_create(&nolwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
+	list_create(&nolwb_waiters, sizeof (zil_commit_waiter_t),
+	    offsetof(zil_commit_waiter_t, zcw_node));
 
 	while ((itx = list_remove_head(&zilog->zl_itx_commit_list)) != NULL) {
 		lr_t *lrc = &itx->itx_lr;
@@ -3111,7 +3110,8 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * possible, without significantly impacting the latency
 		 * of each individual itx.
 		 */
-		if (lwb->lwb_state == LWB_STATE_OPENED && !zilog->zl_parallel) {
+		if (lwb->lwb_state == LWB_STATE_OPENED &&
+		    (!zilog->zl_parallel || zilog->zl_suspend > 0)) {
 			zil_burst_done(zilog);
 			list_insert_tail(ilwbs, lwb);
 			lwb = zil_lwb_write_close(zilog, lwb, LWB_STATE_NEW);
