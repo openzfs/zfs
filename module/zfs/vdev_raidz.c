@@ -2206,11 +2206,7 @@ vdev_raidz_close(vdev_t *vd)
 
 /*
  * Return the logical width to use, given the txg in which the allocation
- * happened.  Note that BP_GET_BIRTH() is usually the txg in which the
- * BP was allocated.  Remapped BP's (that were relocated due to device
- * removal, see remap_blkptr_cb()), will have a more recent physical birth
- * which reflects when the BP was relocated, but we can ignore these because
- * they can't be on RAIDZ (device removal doesn't support RAIDZ).
+ * happened.
  */
 static uint64_t
 vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
@@ -2343,7 +2339,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
 	    vdev_raidz_psize_to_asize(zio->io_vd, rr->rr_size,
-	    BP_GET_BIRTH(zio->io_bp));
+	    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
 	vdev_t *cvd = zio->io_vd->vdev_child[rc->rc_devidx];
@@ -2566,7 +2562,7 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_map_t *rm;
 
 	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz,
-	    BP_GET_BIRTH(zio->io_bp));
+	    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 	if (logical_width != vdrz->vd_physical_width) {
 		zfs_locked_range_t *lr = NULL;
 		uint64_t synced_offset = UINT64_MAX;

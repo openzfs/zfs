@@ -74,6 +74,15 @@ static int traverse_dnode(traverse_data_t *td, const blkptr_t *bp,
 static void prefetch_dnode_metadata(traverse_data_t *td, const dnode_phys_t *,
     uint64_t objset, uint64_t object);
 
+static inline uint64_t
+get_birth_time(traverse_data_t *td, const blkptr_t *bp)
+{
+	if (td->td_flags & TRAVERSE_LOGICAL)
+		return (BP_GET_LOGICAL_BIRTH(bp));
+	else
+		return (BP_GET_BIRTH(bp));
+}
+
 static int
 traverse_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t claim_txg)
@@ -85,7 +94,7 @@ traverse_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 		return (0);
 
 	if (claim_txg == 0 &&
-	    BP_GET_LOGICAL_BIRTH(bp) >= spa_min_claim_txg(td->td_spa))
+	    get_birth_time(td, bp) >= spa_min_claim_txg(td->td_spa))
 		return (-1);
 
 	SET_BOOKMARK(&zb, td->td_objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
@@ -110,7 +119,7 @@ traverse_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		if (BP_IS_HOLE(bp))
 			return (0);
 
-		if (claim_txg == 0 || BP_GET_LOGICAL_BIRTH(bp) < claim_txg)
+		if (claim_txg == 0 || get_birth_time(td, bp) < claim_txg)
 			return (0);
 
 		ASSERT3U(BP_GET_LSIZE(bp), !=, 0);
@@ -194,7 +203,7 @@ traverse_prefetch_metadata(traverse_data_t *td, const dnode_phys_t *dnp,
 	 */
 	if (resume_skip_check(td, dnp, zb) != RESUME_SKIP_NONE)
 		return (B_FALSE);
-	if (BP_IS_HOLE(bp) || BP_GET_LOGICAL_BIRTH(bp) <= td->td_min_txg)
+	if (BP_IS_HOLE(bp) || get_birth_time(td, bp) <= td->td_min_txg)
 		return (B_FALSE);
 	if (BP_GET_LEVEL(bp) == 0 && BP_GET_TYPE(bp) != DMU_OT_DNODE)
 		return (B_FALSE);
@@ -265,7 +274,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 		    zb->zb_object == DMU_META_DNODE_OBJECT) &&
 		    td->td_hole_birth_enabled_txg <= td->td_min_txg)
 			return (0);
-	} else if (BP_GET_LOGICAL_BIRTH(bp) <= td->td_min_txg) {
+	} else if (get_birth_time(td, bp) <= td->td_min_txg) {
 		return (0);
 	}
 

@@ -253,7 +253,7 @@ find_birth_txg(dsl_dataset_t *ds, zbookmark_err_phys_t *zep,
 	if (error == 0 && BP_IS_HOLE(&bp))
 		error = SET_ERROR(ENOENT);
 
-	*birth_txg = BP_GET_LOGICAL_BIRTH(&bp);
+	*birth_txg = BP_GET_PHYSICAL_BIRTH(&bp);
 	rw_exit(&dn->dn_struct_rwlock);
 	dnode_rele(dn, FTAG);
 	return (error);
@@ -885,7 +885,7 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		if (error == EACCES)
 			error = 0;
 		else if (!error)
-			zep.zb_birth = BP_GET_LOGICAL_BIRTH(&bp);
+			zep.zb_birth = BP_GET_PHYSICAL_BIRTH(&bp);
 
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);

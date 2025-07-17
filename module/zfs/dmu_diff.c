@@ -224,8 +224,8 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 	 * call the ZFS_IOC_OBJ_TO_STATS ioctl.
 	 */
 	error = traverse_dataset(tosnap, fromtxg,
-	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
-	    diff_cb, &da);
+	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT |
+	    TRAVERSE_LOGICAL, diff_cb, &da);
 
 	if (error != 0) {
 		da.da_err = error;

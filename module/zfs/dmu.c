@@ -1966,7 +1966,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
 			ASSERT(!(zio->io_flags & ZIO_FLAG_NOPWRITE));
 			ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
-			ASSERT(BP_GET_LOGICAL_BIRTH(zio->io_bp) == zio->io_txg);
+			ASSERT(BP_GET_BIRTH(zio->io_bp) == zio->io_txg);
 			ASSERT(zio->io_txg > spa_syncing_txg(zio->io_spa));
 			zio_free(zio->io_spa, zio->io_txg, zio->io_bp);
 		}
@@ -2655,11 +2655,12 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		 * operation into ZIL, or it may be impossible to replay, since
 		 * the block may appear not yet allocated at that point.
 		 */
-		if (BP_GET_BIRTH(bp) > spa_freeze_txg(os->os_spa)) {
+		if (BP_GET_PHYSICAL_BIRTH(bp) > spa_freeze_txg(os->os_spa)) {
 			error = SET_ERROR(EINVAL);
 			goto out;
 		}
-		if (BP_GET_BIRTH(bp) > spa_last_synced_txg(os->os_spa)) {
+		if (BP_GET_PHYSICAL_BIRTH(bp) >
+		    spa_last_synced_txg(os->os_spa)) {
 			error = SET_ERROR(EAGAIN);
 			goto out;
 		}
@@ -2731,7 +2732,8 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		if (!BP_IS_HOLE(bp) || BP_GET_LOGICAL_BIRTH(bp) != 0) {
 			if (!BP_IS_EMBEDDED(bp)) {
 				BP_SET_BIRTH(&dl->dr_overridden_by, dr->dr_txg,
-				    BP_GET_BIRTH(bp));
+				    BP_GET_PHYSICAL_BIRTH(bp));
+				BP_SET_REWRITE(&dl->dr_overridden_by, 0);
 			} else {
 				BP_SET_LOGICAL_BIRTH(&dl->dr_overridden_by,
 				    dr->dr_txg);
