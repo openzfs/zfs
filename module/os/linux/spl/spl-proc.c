@@ -82,11 +82,7 @@ proc_domemused(CONST_CTL_TABLE *table, int write,
 	if (write) {
 		*ppos += *lenp;
 	} else {
-#ifdef HAVE_ATOMIC64_T
 		val = atomic64_read((atomic64_t *)table->data);
-#else
-		val = atomic_read((atomic_t *)table->data);
-#endif /* HAVE_ATOMIC64_T */
 		rc = proc_doulongvec_minmax(&dummy, write, buffer, lenp, ppos);
 	}
 
@@ -315,18 +311,14 @@ static struct ctl_table spl_kmem_table[] = {
 	{
 		.procname	= "kmem_used",
 		.data		= &kmem_alloc_used,
-#ifdef HAVE_ATOMIC64_T
 		.maxlen		= sizeof (atomic64_t),
-#else
-		.maxlen		= sizeof (atomic_t),
-#endif /* HAVE_ATOMIC64_T */
 		.mode		= 0444,
 		.proc_handler	= &proc_domemused,
 	},
 	{
 		.procname	= "kmem_max",
 		.data		= &kmem_alloc_max,
-		.maxlen		= sizeof (unsigned long),
+		.maxlen		= sizeof (uint64_t),
 		.extra1		= &table_min,
 		.extra2		= &table_max,
 		.mode		= 0444,

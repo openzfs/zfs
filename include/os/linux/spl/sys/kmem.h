@@ -127,21 +127,8 @@ spl_fstrans_check(void)
 	return (current->flags & SPL_FSTRANS);
 }
 
-#ifdef HAVE_ATOMIC64_T
-#define	kmem_alloc_used_add(size)	atomic64_add(size, &kmem_alloc_used)
-#define	kmem_alloc_used_sub(size)	atomic64_sub(size, &kmem_alloc_used)
-#define	kmem_alloc_used_read()		atomic64_read(&kmem_alloc_used)
-#define	kmem_alloc_used_set(size)	atomic64_set(&kmem_alloc_used, size)
 extern atomic64_t kmem_alloc_used;
-extern unsigned long long kmem_alloc_max;
-#else  /* HAVE_ATOMIC64_T */
-#define	kmem_alloc_used_add(size)	atomic_add(size, &kmem_alloc_used)
-#define	kmem_alloc_used_sub(size)	atomic_sub(size, &kmem_alloc_used)
-#define	kmem_alloc_used_read()		atomic_read(&kmem_alloc_used)
-#define	kmem_alloc_used_set(size)	atomic_set(&kmem_alloc_used, size)
-extern atomic_t kmem_alloc_used;
-extern unsigned long long kmem_alloc_max;
-#endif /* HAVE_ATOMIC64_T */
+extern uint64_t kmem_alloc_max;
 
 extern unsigned int spl_kmem_alloc_warn;
 extern unsigned int spl_kmem_alloc_max;
