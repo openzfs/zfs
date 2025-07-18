@@ -455,8 +455,13 @@ zfs_sync(vfs_t *vfsp, int waitfor)
 			return (0);
 		}
 
-		if (zfsvfs->z_log != NULL)
-			zil_commit(zfsvfs->z_log, 0);
+		if (zfsvfs->z_log != NULL) {
+			error = zil_commit(zfsvfs->z_log, 0);
+			if (error != 0) {
+				zfs_exit(zfsvfs, FTAG);
+				return (error);
+			}
+		}
 
 		zfs_exit(zfsvfs, FTAG);
 	} else {
