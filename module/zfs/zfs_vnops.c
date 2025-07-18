@@ -67,13 +67,14 @@
 int zfs_bclone_enabled = 1;
 
 /*
- * When set zfs_clone_range() waits for dirty data to be written to disk.
- * This allows the clone operation to reliably succeed when a file is modified
- * and then immediately cloned. For small files this may be slower than making
- * a copy of the file and is therefore not the default.  However, in certain
- * scenarios this behavior may be desirable so a tunable is provided.
+ * When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
+ * data to be written to disk before proceeding. This ensures that the clone
+ * operation reliably succeeds, even if a file is modified and then immediately
+ * cloned. Note that for small files this may be slower than simply copying
+ * the file. When set to 0 the clone operation will immediately fail if it
+ * encounters any dirty blocks. By default waiting is enabled.
  */
-int zfs_bclone_wait_dirty = 0;
+int zfs_bclone_wait_dirty = 1;
 
 /*
  * Enable Direct I/O. If this setting is 0, then all I/O requests will be
