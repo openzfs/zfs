@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
 .Dd May 27, 2021
 .Dt ZPOOL-INITIALIZE 8
@@ -39,7 +40,7 @@
 .Cm initialize
 .Op Fl c Ns | Ns Fl s | Ns Fl u
 .Op Fl w
-.Ar pool
+.Fl a Ns | Ns Ar pool
 .Oo Ar device Oc Ns …
 .
 .Sh DESCRIPTION
@@ -71,6 +72,10 @@ with no flags can be used to re-initialize all unallocated regions on
 the relevant target devices.
 .It Fl w , -wait
 Wait until the devices have finished initializing before returning.
+.It Fl a , -all
+Begin, cancel, suspend initializing on
+all
+pools.
 .El
 .
 .Sh SEE ALSO

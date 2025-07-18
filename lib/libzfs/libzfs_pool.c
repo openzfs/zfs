@@ -31,6 +31,7 @@
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2021, 2023, Klara Inc.
+ * Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
  */
 
 #include <errno.h>
@@ -2436,6 +2437,30 @@ xlate_init_err(int err)
 	return (err);
 }
 
+int
+zpool_initialize_one(zpool_handle_t *zhp, void *data)
+{
+	int error;
+	libzfs_handle_t *hdl = zpool_get_handle(zhp);
+	const char *pool_name = zpool_get_name(zhp);
+	if (zpool_open_silent(hdl, pool_name, &zhp) != 0)
+		return (-1);
+	initialize_cbdata_t *cb = data;
+	nvlist_t *vdevs = fnvlist_alloc();
+
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE);
+	zpool_collect_leaves(zhp, nvroot, vdevs);
+	if (cb->wait)
+		error = zpool_initialize_wait(zhp, cb->cmd_type, vdevs);
+	else
+		error = zpool_initialize(zhp, cb->cmd_type, vdevs);
+	fnvlist_free(vdevs);
+
+	return (error);
+}
+
 /*
  * Begin, suspend, cancel, or uninit (clear) the initialization (initializing
  * of all free blocks) for the given vdevs in the given pool.
@@ -2554,6 +2579,58 @@ xlate_trim_err(int err)
 		return (EZFS_TRIM_NOTSUP);
 	}
 	return (err);
+}
+
+void
+zpool_collect_leaves(zpool_handle_t *zhp, nvlist_t *nvroot, nvlist_t *res)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	uint_t children = 0;
+	nvlist_t **child;
+	uint_t i;
+
+	(void) nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+
+	if (children == 0) {
+		char *path = zpool_vdev_name(hdl, zhp, nvroot,
+		    VDEV_NAME_PATH);
+
+		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0 &&
+		    strcmp(path, VDEV_TYPE_HOLE) != 0)
+			fnvlist_add_boolean(res, path);
+
+		free(path);
+		return;
+	}
+
+	for (i = 0; i < children; i++) {
+		zpool_collect_leaves(zhp, child[i], res);
+	}
+}
+
+int
+zpool_trim_one(zpool_handle_t *zhp, void *data)
+{
+	int error;
+	libzfs_handle_t *hdl = zpool_get_handle(zhp);
+	const char *pool_name = zpool_get_name(zhp);
+	if (zpool_open_silent(hdl, pool_name, &zhp) != 0)
+		return (-1);
+
+	trim_cbdata_t *cb = data;
+	nvlist_t *vdevs = fnvlist_alloc();
+
+	/* no individual leaf vdevs specified, so add them all */
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE);
+
+	zpool_collect_leaves(zhp, nvroot, vdevs);
+	error = zpool_trim(zhp, cb->cmd_type, vdevs, &cb->trim_flags);
+	fnvlist_free(vdevs);
+
+	return (error);
 }
 
 static int
