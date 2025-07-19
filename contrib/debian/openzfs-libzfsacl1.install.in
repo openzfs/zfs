@@ -1,0 +1,2 @@
+lib/@DEB_HOST_MULTIARCH@/libzfsacl.so.*
+lib/@DEB_HOST_MULTIARCH@/libsunacl.so.*
