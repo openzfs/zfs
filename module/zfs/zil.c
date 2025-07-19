@@ -2095,11 +2095,64 @@ zil_max_waste_space(zilog_t *zilog)
  */
 static uint_t zil_maxcopied = 7680;
 
+/*
+ * Largest write size to store the data directly into ZIL.
+ */
+uint_t zfs_immediate_write_sz = 32768;
+
+/*
+ * When enabled and blocks go to normal vdev, treat special vdevs as SLOG,
+ * writing data to ZIL (WR_COPIED/WR_NEED_COPY).  Disabling this forces the
+ * indirect writes (WR_INDIRECT) to preserve special vdev throughput and
+ * endurance, likely at the cost of normal vdev latency.
+ */
+int zil_special_is_slog = 1;
+
 uint64_t
 zil_max_copied_data(zilog_t *zilog)
 {
 	uint64_t max_data = zil_max_log_data(zilog, sizeof (lr_write_t));
 	return (MIN(max_data, zil_maxcopied));
+}
+
+/*
+ * Determine the appropriate write state for ZIL transactions based on
+ * pool configuration, data placement, write size, and logbias settings.
+ */
+itx_wr_state_t
+zil_write_state(zilog_t *zilog, uint64_t size, uint32_t blocksize,
+    boolean_t o_direct, boolean_t commit)
+{
+	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT || o_direct)
+		return (WR_INDIRECT);
+
+	/*
+	 * Don't use indirect for too small writes to reduce overhead.
+	 * Don't use indirect if written less than a half of a block if
+	 * we are going to commit it immediately, since next write might
+	 * rewrite the same block again, causing inflation.  If commit
+	 * is not planned, then next writes might coalesce, and so the
+	 * indirect may be perfect.
+	 */
+	boolean_t indirect = (size >= zfs_immediate_write_sz &&
+	    (size >= blocksize / 2 || !commit));
+
+	if (spa_has_slogs(zilog->zl_spa)) {
+		/* Dedicated slogs: never use indirect */
+		indirect = B_FALSE;
+	} else if (spa_has_special(zilog->zl_spa)) {
+		/* Special vdevs: only when beneficial */
+		boolean_t on_special = (blocksize <=
+		    zilog->zl_os->os_zpl_special_smallblock);
+		indirect &= (on_special || !zil_special_is_slog);
+	}
+
+	if (indirect)
+		return (WR_INDIRECT);
+	else if (commit)
+		return (WR_COPIED);
+	else
+		return (WR_NEED_COPY);
 }
 
 static uint64_t
@@ -4418,3 +4471,9 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, maxcopied, UINT, ZMOD_RW,
 	"Limit in bytes WR_COPIED size");
+
+ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
+	"Largest write size to store data into ZIL");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, special_is_slog, INT, ZMOD_RW,
+	"Treat special vdevs as SLOG");

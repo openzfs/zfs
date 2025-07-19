@@ -635,6 +635,8 @@ extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
 
 extern uint64_t	zil_max_copied_data(zilog_t *zilog);
 extern uint64_t	zil_max_log_data(zilog_t *zilog, size_t hdrsize);
+extern itx_wr_state_t zil_write_state(zilog_t *zilog, uint64_t size,
+    uint32_t blocksize, boolean_t o_direct, boolean_t commit);
 
 extern void zil_sums_init(zil_sums_t *zs);
 extern void zil_sums_fini(zil_sums_t *zs);
@@ -642,6 +644,8 @@ extern void zil_kstat_values_update(zil_kstat_values_t *zs,
     zil_sums_t *zil_sums);
 
 extern int zil_replay_disable;
+extern uint_t zfs_immediate_write_sz;
+extern int zil_special_is_slog;
 
 #ifdef	__cplusplus
 }

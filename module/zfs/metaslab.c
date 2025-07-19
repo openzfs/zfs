@@ -750,7 +750,8 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 		}
 
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa) ||
+		    mc == spa_special_embedded_log_class(mg->mg_vd->vdev_spa));
 
 		for (i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++)
 			mc_hist[i] += mg->mg_histogram[i];
@@ -1288,7 +1289,8 @@ metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
 	mutex_enter(&mc->mc_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa) ||
+		    mc == spa_special_embedded_log_class(mg->mg_vd->vdev_spa));
 		mg->mg_histogram[i + ashift] +=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 		mc->mc_histogram[i + ashift] +=
@@ -1316,7 +1318,8 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 		ASSERT3U(mc->mc_histogram[i + ashift], >=,
 		    msp->ms_sm->sm_phys->smp_histogram[i]);
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa) ||
+		    mc == spa_special_embedded_log_class(mg->mg_vd->vdev_spa));
 
 		mg->mg_histogram[i + ashift] -=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
