@@ -301,7 +301,7 @@ static int
 write_idmap(pid_t pid, char *buf, size_t buf_size, idmap_type_t type)
 {
 	char path[PATH_MAX];
-	int fd = -EBADF;
+	int fd;
 	int ret;
 
 	(void) snprintf(path, sizeof (path), "/proc/%d/%cid_map",

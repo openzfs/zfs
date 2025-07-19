@@ -1991,7 +1991,7 @@ dump_ddt_log(ddt_t *ddt)
 				c += strlcpy(&flagstr[c], " UNKNOWN",
 				    sizeof (flagstr) - c);
 			flagstr[1] = '[';
-			flagstr[c++] = ']';
+			flagstr[c] = ']';
 		}
 
 		uint64_t count = avl_numnodes(&ddl->ddl_tree);
@@ -8800,7 +8800,6 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	(void) buf;
 	uint64_t orig_lsize = lsize;
 	boolean_t tryzle = ((getenv("ZDB_NO_ZLE") == NULL));
-	boolean_t found = B_FALSE;
 	/*
 	 * We don't know how the data was compressed, so just try
 	 * every decompress function at every inflated blocksize.
@@ -8843,20 +8842,19 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 		for (cfuncp = cfuncs; *cfuncp; cfuncp++) {
 			if (try_decompress_block(pabd, lsize, psize, flags,
 			    *cfuncp, lbuf, lbuf2)) {
-				found = B_TRUE;
+				tryzle = B_FALSE;
 				break;
 			}
 		}
 		if (*cfuncp != 0)
 			break;
 	}
-	if (!found && tryzle) {
+	if (tryzle) {
 		for (lsize = orig_lsize; lsize <= maxlsize;
 		    lsize += SPA_MINBLOCKSIZE) {
 			if (try_decompress_block(pabd, lsize, psize, flags,
 			    ZIO_COMPRESS_ZLE, lbuf, lbuf2)) {
 				*cfuncp = ZIO_COMPRESS_ZLE;
-				found = B_TRUE;
 				break;
 			}
 		}

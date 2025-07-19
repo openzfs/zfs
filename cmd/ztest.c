@@ -919,7 +919,7 @@ ztest_parse_name_value(const char *input, ztest_shared_opts_t *zo)
 {
 	char name[32];
 	char *value;
-	int state = ZTEST_VDEV_CLASS_RND;
+	int state;
 
 	(void) strlcpy(name, input, sizeof (name));
 

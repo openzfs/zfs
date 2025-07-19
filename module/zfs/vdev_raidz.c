@@ -2249,10 +2249,9 @@ vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t psize;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t cols = vdrz->vd_original_width;
 	uint64_t nparity = vdrz->vd_nparity;
 
-	cols = vdev_raidz_get_logical_width(vdrz, txg);
+	uint64_t cols = vdev_raidz_get_logical_width(vdrz, txg);
 
 	ASSERT0(asize % (1 << ashift));
 
@@ -2285,10 +2284,9 @@ vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t cols = vdrz->vd_original_width;
 	uint64_t nparity = vdrz->vd_nparity;
 
-	cols = vdev_raidz_get_logical_width(vdrz, txg);
+	uint64_t cols = vdev_raidz_get_logical_width(vdrz, txg);
 
 	asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));

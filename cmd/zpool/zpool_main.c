@@ -1788,7 +1788,7 @@ zpool_do_labelclear(int argc, char **argv)
 {
 	char vdev[MAXPATHLEN];
 	char *name = NULL;
-	int c, fd = -1, ret = 0;
+	int c, fd, ret = 0;
 	nvlist_t *config;
 	pool_state_t state;
 	boolean_t inuse = B_FALSE;
@@ -6157,7 +6157,6 @@ static void
 get_interval_count_filter_guids(int *argc, char **argv, float *interval,
     unsigned long *count, iostat_cbdata_t *cb)
 {
-	char **tmpargv = argv;
 	int argc_for_interval = 0;
 
 	/* Is the last arg an interval value?  Or a guid? */
@@ -6181,7 +6180,7 @@ get_interval_count_filter_guids(int *argc, char **argv, float *interval,
 	}
 
 	/* Point to our list of possible intervals */
-	tmpargv = &argv[*argc - argc_for_interval];
+	char **tmpargv = &argv[*argc - argc_for_interval];
 
 	*argc = *argc - argc_for_interval;
 	get_interval_count(&argc_for_interval, tmpargv,
@@ -6377,7 +6376,6 @@ zpool_do_iostat(int argc, char **argv)
 	int npools;
 	float interval = 0;
 	unsigned long count = 0;
-	int winheight = 24;
 	zpool_list_t *list;
 	boolean_t verbose = B_FALSE;
 	boolean_t latency = B_FALSE, l_histo = B_FALSE, rq_histo = B_FALSE;
@@ -6673,7 +6671,7 @@ zpool_do_iostat(int argc, char **argv)
 			 * even when terminal window has its height
 			 * changed.
 			 */
-			winheight = terminal_height();
+			int winheight = terminal_height();
 			/*
 			 * Are we connected to TTY? If not, headers_once
 			 * should be true, to avoid breaking scripts.
@@ -10706,7 +10704,6 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 	uint_t c;
 	vdev_stat_t *vs;
 	nvlist_t *item, *d, *load_info, *vds;
-	item = d = NULL;
 
 	/* If dedup stats were requested, also fetch dedupcached. */
 	if (cbp->cb_dedup_stats > 1)

@@ -204,7 +204,7 @@ write_map(const char *filename, nvlist_t *allcfgs)
 		error = errno;
 		free(buf);
 		free(tmpname);
-		return (errno);
+		return (error);
 	}
 
 	ssize_t rc, bytes = 0;

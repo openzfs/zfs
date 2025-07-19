@@ -379,8 +379,8 @@ process_unique_cmd_columns(vdev_cmd_data_list_t *vcdl)
 static int
 vdev_process_cmd_output(vdev_cmd_data_t *data, char *line)
 {
-	char *col = NULL;
-	char *val = line;
+	char *col;
+	char *val;
 	char *equals;
 	char **tmp;
 
@@ -397,6 +397,7 @@ vdev_process_cmd_output(vdev_cmd_data_t *data, char *line)
 		col = line;
 		val = equals + 1;
 	} else {
+		col = NULL;
 		val = line;
 	}
 

@@ -574,7 +574,6 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				nvlist_t *cnv = child[c];
 				const char *path;
 				struct stat64 statbuf;
-				int64_t size = -1LL;
 				const char *childtype;
 				int fd, err;
 
@@ -656,7 +655,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				    statbuf.st_size == MAXOFFSET_T)
 					continue;
 
-				size = statbuf.st_size;
+				int64_t size = statbuf.st_size;
 
 				/*
 				 * Also make sure that devices and
@@ -1365,7 +1364,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 static int
 draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
 {
-	uint64_t nparity = 1;
+	uint64_t nparity;
 	uint64_t nspares = 0;
 	uint64_t ndata = UINT64_MAX;
 	uint64_t ngroups = 1;
