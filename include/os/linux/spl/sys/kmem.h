@@ -61,7 +61,7 @@ void *spl_kvmalloc(size_t size, gfp_t flags);
 /*
  * Convert a KM_* flags mask to its Linux GFP_* counterpart.  The conversion
  * function is context aware which means that KM_SLEEP allocations can be
- * safely used in syncing contexts which have set PF_FSTRANS.
+ * safely used in syncing contexts which have set SPL_FSTRANS.
  */
 static inline gfp_t
 kmem_flags_convert(int flags)
@@ -91,25 +91,11 @@ typedef struct {
 } fstrans_cookie_t;
 
 /*
- * Introduced in Linux 3.9, however this cannot be solely relied on before
- * Linux 3.18 as it doesn't turn off __GFP_FS as it should.
+ * SPL_FSTRANS is the set of flags that indicate that the task is in a
+ * filesystem or IO codepath, and so any allocation must not call back into
+ * those codepaths (eg to swap).
  */
-#ifdef PF_MEMALLOC_NOIO
-#define	__SPL_PF_MEMALLOC_NOIO (PF_MEMALLOC_NOIO)
-#else
-#define	__SPL_PF_MEMALLOC_NOIO (0)
-#endif
-
-/*
- * PF_FSTRANS is removed from Linux 4.12
- */
-#ifdef PF_FSTRANS
-#define	__SPL_PF_FSTRANS (PF_FSTRANS)
-#else
-#define	__SPL_PF_FSTRANS (0)
-#endif
-
-#define	SPL_FSTRANS (__SPL_PF_FSTRANS|__SPL_PF_MEMALLOC_NOIO)
+#define	SPL_FSTRANS (PF_MEMALLOC_NOIO)
 
 static inline fstrans_cookie_t
 spl_fstrans_mark(void)
@@ -141,43 +127,8 @@ spl_fstrans_check(void)
 	return (current->flags & SPL_FSTRANS);
 }
 
-/*
- * specifically used to check PF_FSTRANS flag, cannot be relied on for
- * checking spl_fstrans_mark().
- */
-static inline int
-__spl_pf_fstrans_check(void)
-{
-	return (current->flags & __SPL_PF_FSTRANS);
-}
-
-/*
- * Kernel compatibility for GFP flags
- */
-/* < 4.13 */
-#ifndef __GFP_RETRY_MAYFAIL
-#define	__GFP_RETRY_MAYFAIL	__GFP_REPEAT
-#endif
-/* < 4.4 */
-#ifndef __GFP_RECLAIM
-#define	__GFP_RECLAIM		__GFP_WAIT
-#endif
-
-#ifdef HAVE_ATOMIC64_T
-#define	kmem_alloc_used_add(size)	atomic64_add(size, &kmem_alloc_used)
-#define	kmem_alloc_used_sub(size)	atomic64_sub(size, &kmem_alloc_used)
-#define	kmem_alloc_used_read()		atomic64_read(&kmem_alloc_used)
-#define	kmem_alloc_used_set(size)	atomic64_set(&kmem_alloc_used, size)
 extern atomic64_t kmem_alloc_used;
-extern unsigned long long kmem_alloc_max;
-#else  /* HAVE_ATOMIC64_T */
-#define	kmem_alloc_used_add(size)	atomic_add(size, &kmem_alloc_used)
-#define	kmem_alloc_used_sub(size)	atomic_sub(size, &kmem_alloc_used)
-#define	kmem_alloc_used_read()		atomic_read(&kmem_alloc_used)
-#define	kmem_alloc_used_set(size)	atomic_set(&kmem_alloc_used, size)
-extern atomic_t kmem_alloc_used;
-extern unsigned long long kmem_alloc_max;
-#endif /* HAVE_ATOMIC64_T */
+extern uint64_t kmem_alloc_max;
 
 extern unsigned int spl_kmem_alloc_warn;
 extern unsigned int spl_kmem_alloc_max;

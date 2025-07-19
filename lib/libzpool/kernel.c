@@ -1025,12 +1025,6 @@ spl_fstrans_unmark(fstrans_cookie_t cookie)
 }
 
 int
-__spl_pf_fstrans_check(void)
-{
-	return (0);
-}
-
-int
 kmem_cache_reap_active(void)
 {
 	return (0);

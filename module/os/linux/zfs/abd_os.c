@@ -256,10 +256,6 @@ abd_unmark_zfs_page(struct page *page)
 
 #ifndef CONFIG_HIGHMEM
 
-#ifndef __GFP_RECLAIM
-#define	__GFP_RECLAIM		__GFP_WAIT
-#endif
-
 /*
  * The goal is to minimize fragmentation by preferentially populating ABDs
  * with higher order compound pages from a single zone.  Allocation size is
