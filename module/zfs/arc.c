@@ -2631,7 +2631,7 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_bonus_size, space);
 		break;
 	case ARC_SPACE_DNODE:
-		ARCSTAT_INCR(arcstat_dnode_size, space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, space);
 		break;
 	case ARC_SPACE_DBUF:
 		ARCSTAT_INCR(arcstat_dbuf_size, space);
@@ -2677,7 +2677,7 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_bonus_size, -space);
 		break;
 	case ARC_SPACE_DNODE:
-		ARCSTAT_INCR(arcstat_dnode_size, -space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, -space);
 		break;
 	case ARC_SPACE_DBUF:
 		ARCSTAT_INCR(arcstat_dbuf_size, -space);
@@ -4490,7 +4490,7 @@ arc_evict(void)
 	 * target is not evictable or if they go over arc_dnode_limit.
 	 */
 	int64_t prune = 0;
-	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
+	int64_t dn = aggsum_value(&arc_sums.arcstat_dnode_size);
 	int64_t nem = zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA])
 	    + zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA])
 	    - zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA])
@@ -5082,11 +5082,13 @@ arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 	 * in the ARC. In practice, that's in the tens of MB, which is low
 	 * enough to be safe.
 	 */
-	int64_t over = aggsum_lower_bound(&arc_sums.arcstat_size) - arc_c -
+	int64_t arc_over = aggsum_lower_bound(&arc_sums.arcstat_size) - arc_c -
 	    zfs_max_recordsize;
+	int64_t dn_over = aggsum_lower_bound(&arc_sums.arcstat_dnode_size) -
+	    arc_dnode_limit;
 
 	/* Always allow at least one block of overflow. */
-	if (over < 0)
+	if (arc_over < 0 && dn_over <= 0)
 		return (ARC_OVF_NONE);
 
 	/* If we are under memory pressure, report severe overflow. */
@@ -5097,7 +5099,7 @@ arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 	int64_t overflow = (arc_c >> zfs_arc_overflow_shift) / 2;
 	if (use_reserve)
 		overflow *= 3;
-	return (over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
+	return (arc_over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
 }
 
 static abd_t *
@@ -7326,7 +7328,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 #if defined(COMPAT_FREEBSD11)
 	as->arcstat_other_size.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_bonus_size) +
-	    wmsum_value(&arc_sums.arcstat_dnode_size) +
+	    aggsum_value(&arc_sums.arcstat_dnode_size) +
 	    wmsum_value(&arc_sums.arcstat_dbuf_size);
 #endif
 
@@ -7368,7 +7370,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    &as->arcstat_uncached_evictable_metadata);
 
 	as->arcstat_dnode_size.value.ui64 =
-	    wmsum_value(&arc_sums.arcstat_dnode_size);
+	    aggsum_value(&arc_sums.arcstat_dnode_size);
 	as->arcstat_bonus_size.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_bonus_size);
 	as->arcstat_l2_hits.value.ui64 =
@@ -7738,7 +7740,7 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_data_size, 0);
 	wmsum_init(&arc_sums.arcstat_metadata_size, 0);
 	wmsum_init(&arc_sums.arcstat_dbuf_size, 0);
-	wmsum_init(&arc_sums.arcstat_dnode_size, 0);
+	aggsum_init(&arc_sums.arcstat_dnode_size, 0);
 	wmsum_init(&arc_sums.arcstat_bonus_size, 0);
 	wmsum_init(&arc_sums.arcstat_l2_hits, 0);
 	wmsum_init(&arc_sums.arcstat_l2_misses, 0);
@@ -7897,7 +7899,7 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_data_size);
 	wmsum_fini(&arc_sums.arcstat_metadata_size);
 	wmsum_fini(&arc_sums.arcstat_dbuf_size);
-	wmsum_fini(&arc_sums.arcstat_dnode_size);
+	aggsum_fini(&arc_sums.arcstat_dnode_size);
 	wmsum_fini(&arc_sums.arcstat_bonus_size);
 	wmsum_fini(&arc_sums.arcstat_l2_hits);
 	wmsum_fini(&arc_sums.arcstat_l2_misses);
