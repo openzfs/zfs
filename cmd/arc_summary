@@ -559,6 +559,7 @@ def section_arc(kstats_dict):
     print()
 
     compressed_size = arc_stats['compressed_size']
+    uncompressed_size = arc_stats['uncompressed_size']
     overhead_size = arc_stats['overhead_size']
     bonus_size = arc_stats['bonus_size']
     dnode_size = arc_stats['dnode_size']
@@ -671,6 +672,8 @@ def section_arc(kstats_dict):
     print()
 
     print('ARC misc:')
+    prt_i2('Uncompressed size:', f_perc(uncompressed_size, compressed_size),
+           f_bytes(uncompressed_size))
     prt_i1('Memory throttles:', arc_stats['memory_throttle_count'])
     prt_i1('Memory direct reclaims:', arc_stats['memory_direct_count'])
     prt_i1('Memory indirect reclaims:', arc_stats['memory_indirect_count'])
