@@ -31,7 +31,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm rewrite
-.Oo Fl rvx Ns Oc
+.Oo Fl Prvx Ns Oc
 .Op Fl l Ar length
 .Op Fl o Ar offset
 .Ar file Ns | Ns Ar directory Ns …
@@ -43,6 +43,15 @@ as is without modification at a new location and possibly with new
 properties, such as checksum, compression, dedup, copies, etc,
 as if they were atomically read and written back.
 .Bl -tag -width "-r"
+.It Fl P
+Perform physical rewrite, preserving logical birth time of blocks.
+By default, rewrite updates logical birth times, making blocks appear
+as modified in snapshots and incremental send streams.
+Physical rewrite preserves logical birth times, avoiding unnecessary
+inclusion in incremental streams.
+Physical rewrite requires the
+.Sy physical_rewrite
+feature to be enabled on the pool.
 .It Fl l Ar length
 Rewrite at most this number of bytes.
 .It Fl o Ar offset
@@ -60,17 +69,22 @@ same as some property changes may increase pool space usage.
 Holes that were never written or were previously zero-compressed are
 not rewritten and will remain holes even if compression is disabled.
 .Pp
-Rewritten blocks will be seen as modified in next snapshot and as such
-included into the incremental
-.Nm zfs Cm send
-stream.
-.Pp
 If a
 .Fl l
 or
 .Fl o
 value request a rewrite to regions past the end of the file, then those
 regions are silently ignored, and no error is reported.
+.Pp
+By default, rewritten blocks update their logical birth time,
+meaning they will be included in incremental
+.Nm zfs Cm send
+streams as modified data.
+When the
+.Fl P
+flag is used, rewritten blocks preserve their logical birth time, since
+there are no user data changes.
 .
 .Sh SEE ALSO
-.Xr zfsprops 7
+.Xr zfsprops 7 ,
+.Xr zpool-features 7

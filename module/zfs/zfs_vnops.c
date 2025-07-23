@@ -49,6 +49,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_crypt.h>
+#include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/dbuf.h>
@@ -1101,12 +1102,20 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 {
 	int error;
 
-	if (flags != 0 || arg != 0)
+	if ((flags & ~ZFS_REWRITE_PHYSICAL) != 0 || arg != 0)
 		return (SET_ERROR(EINVAL));
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	/* Check if physical rewrite is allowed */
+	spa_t *spa = zfsvfs->z_os->os_spa;
+	if ((flags & ZFS_REWRITE_PHYSICAL) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_PHYSICAL_REWRITE)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
 
 	if (zfs_is_readonly(zfsvfs)) {
 		zfs_exit(zfsvfs, FTAG);
@@ -1195,7 +1204,10 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 			if (dmu_buf_is_dirty(dbp[i], tx))
 				continue;
 			nw += dbp[i]->db_size;
-			dmu_buf_will_dirty(dbp[i], tx);
+			if (flags & ZFS_REWRITE_PHYSICAL)
+				dmu_buf_will_rewrite(dbp[i], tx);
+			else
+				dmu_buf_will_dirty(dbp[i], tx);
 		}
 		dmu_buf_rele_array(dbp, numbufs, FTAG);
 
