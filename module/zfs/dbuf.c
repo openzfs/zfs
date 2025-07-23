@@ -2152,6 +2152,12 @@ dbuf_redirty(dbuf_dirty_record_t *dr)
 			ASSERT(arc_released(db->db_buf));
 			arc_buf_thaw(db->db_buf);
 		}
+
+		/*
+		 * Clear the rewrite flag since this is now a logical
+		 * modification.
+		 */
+		dr->dt.dl.dr_rewrite = B_FALSE;
 	}
 }
 
@@ -2697,6 +2703,38 @@ void
 dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+}
+
+void
+dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	ASSERT(tx->tx_txg != 0);
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+
+	/*
+	 * If the dbuf is already dirty in this txg, it will be written
+	 * anyway, so there's nothing to do.
+	 */
+	mutex_enter(&db->db_mtx);
+	if (dbuf_find_dirty_eq(db, tx->tx_txg) != NULL) {
+		mutex_exit(&db->db_mtx);
+		return;
+	}
+	mutex_exit(&db->db_mtx);
+
+	/*
+	 * The dbuf is not dirty, so we need to make it dirty and
+	 * mark it for rewrite (preserve logical birth time).
+	 */
+	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+
+	mutex_enter(&db->db_mtx);
+	dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
+	if (dr != NULL && db->db_level == 0)
+		dr->dt.dl.dr_rewrite = B_TRUE;
+	mutex_exit(&db->db_mtx);
 }
 
 boolean_t
@@ -5331,6 +5369,24 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
 
 	/*
+	 * Set rewrite properties for zfs_rewrite() operations.
+	 */
+	if (db->db_level == 0 && dr->dt.dl.dr_rewrite) {
+		zp.zp_rewrite = B_TRUE;
+
+		/*
+		 * Mark physical rewrite feature for activation.
+		 * This will be activated automatically during dataset sync.
+		 */
+		dsl_dataset_t *ds = os->os_dsl_dataset;
+		if (!dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_PHYSICAL_REWRITE)) {
+			ds->ds_feature_activation[
+			    SPA_FEATURE_PHYSICAL_REWRITE] = (void *)B_TRUE;
+		}
+	}
+
+	/*
 	 * We copy the blkptr now (rather than when we instantiate the dirty
 	 * record), because its value can change between open context and
 	 * syncing context. We do not need to hold dn_struct_rwlock to read
@@ -5400,6 +5456,7 @@ EXPORT_SYMBOL(dbuf_release_bp);
 EXPORT_SYMBOL(dbuf_dirty);
 EXPORT_SYMBOL(dmu_buf_set_crypt_params);
 EXPORT_SYMBOL(dmu_buf_will_dirty);
+EXPORT_SYMBOL(dmu_buf_will_rewrite);
 EXPORT_SYMBOL(dmu_buf_is_dirty);
 EXPORT_SYMBOL(dmu_buf_will_clone_or_dio);
 EXPORT_SYMBOL(dmu_buf_will_not_fill);

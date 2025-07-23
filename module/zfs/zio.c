@@ -3923,6 +3923,23 @@ zio_ddt_write(zio_t *zio)
 		 * then we can just use them as-is.
 		 */
 		if (have_dvas >= need_dvas) {
+			/*
+			 * For rewrite operations, try preserving the original
+			 * logical birth time.  If the result matches the
+			 * original BP, this becomes a NOP.
+			 */
+			if (zp->zp_rewrite) {
+				uint64_t orig_logical_birth =
+				    BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
+				ddt_bp_fill(ddp, v, bp, orig_logical_birth);
+				if (BP_EQUAL(bp, &zio->io_bp_orig)) {
+					/* We can skip accounting. */
+					zio->io_flags |= ZIO_FLAG_NOPWRITE;
+					ddt_exit(ddt);
+					return (zio);
+				}
+			}
+
 			ddt_bp_fill(ddp, v, bp, txg);
 			ddt_phys_addref(ddp, v);
 			ddt_exit(ddt);
@@ -4355,6 +4372,15 @@ again:
 			    error);
 		}
 		zio->io_error = error;
+	} else if (zio->io_prop.zp_rewrite) {
+		/*
+		 * For rewrite operations, preserve the logical birth time
+		 * but set the physical birth time to the current txg.
+		 */
+		uint64_t logical_birth = BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
+		ASSERT3U(logical_birth, <=, zio->io_txg);
+		BP_SET_BIRTH(zio->io_bp, logical_birth, zio->io_txg);
+		BP_SET_REWRITE(zio->io_bp, 1);
 	}
 
 	return (zio);
