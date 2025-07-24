@@ -57,19 +57,19 @@ static unsigned int	zfetch_max_sec_reap = 2;
 /* min bytes to prefetch per stream (default 2MB) */
 static unsigned int	zfetch_min_distance = 2 * 1024 * 1024;
 /* max bytes to prefetch per stream (default 8MB) */
-unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
+static unsigned int	zfetch_max_distance = 8 * 1024 * 1024;
 #else
 /* min bytes to prefetch per stream (default 4MB) */
 static unsigned int	zfetch_min_distance = 4 * 1024 * 1024;
 /* max bytes to prefetch per stream (default 64MB) */
-unsigned int	zfetch_max_distance = 64 * 1024 * 1024;
+static unsigned int	zfetch_max_distance = 64 * 1024 * 1024;
 #endif
 /* max bytes to prefetch indirects for per stream (default 128MB) */
-unsigned int	zfetch_max_idistance = 128 * 1024 * 1024;
+static unsigned int	zfetch_max_idistance = 128 * 1024 * 1024;
 /* max request reorder distance within a stream (default 16MB) */
-unsigned int	zfetch_max_reorder = 16 * 1024 * 1024;
+static unsigned int	zfetch_max_reorder = 16 * 1024 * 1024;
 /* Max log2 fraction of holes in a stream */
-unsigned int	zfetch_hole_shift = 2;
+static unsigned int	zfetch_hole_shift = 2;
 
 typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
