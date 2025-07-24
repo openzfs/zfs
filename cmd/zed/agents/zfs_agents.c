@@ -134,11 +134,13 @@ zfs_agent_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *arg)
 	 * of blkid cache and L2ARC VDEV does not contain pool guid in its
 	 * blkid, so this is a special case for L2ARC VDEV.
 	 */
-	else if (gsp->gs_vdev_guid != 0 && gsp->gs_devid == NULL &&
+	else if (gsp->gs_vdev_guid != 0 &&
 	    nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_GUID, &vdev_guid) == 0 &&
 	    gsp->gs_vdev_guid == vdev_guid) {
-		(void) nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID,
-		    &gsp->gs_devid);
+		if (gsp->gs_devid == NULL) {
+			(void) nvlist_lookup_string(nvl, ZPOOL_CONFIG_DEVID,
+			    &gsp->gs_devid);
+		}
 		(void) nvlist_lookup_uint64(nvl, ZPOOL_CONFIG_EXPANSION_TIME,
 		    &gsp->gs_vdev_expandtime);
 		return (B_TRUE);
@@ -156,22 +158,28 @@ zfs_agent_iter_pool(zpool_handle_t *zhp, void *arg)
 	/*
 	 * For each vdev in this pool, look for a match by devid
 	 */
-	if ((config = zpool_get_config(zhp, NULL)) != NULL) {
-		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-		    &nvl) == 0) {
-			(void) zfs_agent_iter_vdev(zhp, nvl, gsp);
-		}
-	}
-	/*
-	 * if a match was found then grab the pool guid
-	 */
-	if (gsp->gs_vdev_guid && gsp->gs_devid) {
-		(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-		    &gsp->gs_pool_guid);
-	}
+	boolean_t found = B_FALSE;
+	uint64_t pool_guid;
 
+	/* Get pool configuration and extract pool GUID */
+	if ((config = zpool_get_config(zhp, NULL)) == NULL ||
+	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
+	    &pool_guid) != 0)
+		goto out;
+
+	/* Skip this pool if we're looking for a specific pool */
+	if (gsp->gs_pool_guid != 0 && pool_guid != gsp->gs_pool_guid)
+		goto out;
+
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvl) == 0)
+		found = zfs_agent_iter_vdev(zhp, nvl, gsp);
+
+	if (found && gsp->gs_pool_guid == 0)
+		gsp->gs_pool_guid = pool_guid;
+
+out:
 	zpool_close(zhp);
-	return (gsp->gs_devid != NULL && gsp->gs_vdev_guid != 0);
+	return (found);
 }
 
 void
@@ -233,20 +241,17 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 		 * For multipath, spare and l2arc devices ZFS_EV_VDEV_GUID or
 		 * ZFS_EV_POOL_GUID may be missing so find them.
 		 */
-		if (devid == NULL || pool_guid == 0 || vdev_guid == 0) {
-			if (devid == NULL)
-				search.gs_vdev_guid = vdev_guid;
-			else
-				search.gs_devid = devid;
-			zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search);
-			if (devid == NULL)
-				devid = search.gs_devid;
-			if (pool_guid == 0)
-				pool_guid = search.gs_pool_guid;
-			if (vdev_guid == 0)
-				vdev_guid = search.gs_vdev_guid;
-			devtype = search.gs_vdev_type;
-		}
+		search.gs_devid = devid;
+		search.gs_vdev_guid = vdev_guid;
+		search.gs_pool_guid = pool_guid;
+		zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search);
+		if (devid == NULL)
+			devid = search.gs_devid;
+		if (pool_guid == 0)
+			pool_guid = search.gs_pool_guid;
+		if (vdev_guid == 0)
+			vdev_guid = search.gs_vdev_guid;
+		devtype = search.gs_vdev_type;
 
 		/*
 		 * We want to avoid reporting "remove" events coming from
