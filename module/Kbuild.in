@@ -494,3 +494,34 @@ UBSAN_SANITIZE_zfs/sa.o := n
 ifeq ($(CONFIG_ALTIVEC),y)
 $(obj)/zfs/vdev_raidz_math_powerpc_altivec.o : c_flags += -maltivec
 endif
+
+# The following recipes attempt to fix out of src-tree builds, where $(src) != $(obj), so that the
+# subdir %.c/%.S -> %.o targets will work as expected. The in-kernel pattern targets do not seem to
+# be working on subdirs since about ~6.10
+zobjdirs = $(dir $(zfs-objs)) $(dir $(spl-objs))                                             \
+  $(dir $(zfs-$(CONFIG_X86))) $(dir $(zfs-$(CONFIG_UML_X86))) $(dir $(zfs-$(CONFIG_ARM64)))  \
+  $(dir $(zfs-$(CONFIG_PPC64))) $(dir $(zfs-$(CONFIG_PPC)))
+
+z_cdirs = $(sort $(filter-out lua/setjmp/ $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/) \
+  $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
+  $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
+  $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))
+z_sdirs = $(sort $(filter lua/setjmp/ $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/)     \
+  $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
+  $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
+  $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))
+
+define ZKMOD_C_O_MAKE_TARGET
+$1%.o: $(src)/$1%.c FORCE
+	$$(call if_changed_rule,cc_o_c)
+	$$(call cmd,force_checksrc)
+endef
+
+define ZKMOD_S_O_MAKE_TARGET
+$1%.o: $(src)/$1%.S FORCE
+	$$(call if_changed_rule,as_o_S)
+	$$(call cmd,force_checksrc)
+endef
+
+$(foreach target,$(z_cdirs), $(eval $(call ZKMOD_C_O_MAKE_TARGET,$(target))))
+$(foreach target,$(z_sdirs), $(eval $(call ZKMOD_S_O_MAKE_TARGET,$(target))))
