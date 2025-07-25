@@ -28,6 +28,7 @@ function debian() {
   export DEBIAN_FRONTEND="noninteractive"
 
   echo "##[group]Running apt-get update+upgrade"
+  sudo sed -i '/[[:alpha:]]-backports/d' /etc/apt/sources.list
   sudo apt-get update -y
   sudo apt-get upgrade -y
   echo "##[endgroup]"
