@@ -28,6 +28,7 @@
 #include <sys/kmem.h>
 #include <sys/tsd.h>
 #include <sys/string.h>
+#include <sys/misc.h>
 
 /*
  * Thread interfaces
@@ -197,3 +198,14 @@ issig(void)
 }
 
 EXPORT_SYMBOL(issig);
+
+/*
+ * Check if the current thread is a memory reclaim thread.
+ * Returns true if current thread is kswapd.
+ */
+int
+current_is_reclaim_thread(void)
+{
+	return (current_is_kswapd());
+}
+EXPORT_SYMBOL(current_is_reclaim_thread);
