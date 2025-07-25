@@ -1442,41 +1442,32 @@ zvol_task_update_status(zvol_task_t *task, uint64_t total, uint64_t done,
 	}
 }
 
-static const char *
-zvol_task_op_msg(zvol_async_op_t op)
-{
-	switch (op) {
-	case ZVOL_ASYNC_CREATE_MINORS:
-		return ("create");
-	case ZVOL_ASYNC_REMOVE_MINORS:
-		return ("remove");
-	case ZVOL_ASYNC_RENAME_MINORS:
-		return ("rename");
-	case ZVOL_ASYNC_SET_SNAPDEV:
-	case ZVOL_ASYNC_SET_VOLMODE:
-		return ("set property");
-	default:
-		return ("unknown");
-	}
-
-	__builtin_unreachable();
-	return (NULL);
-}
-
 static void
 zvol_task_report_status(zvol_task_t *task)
 {
+#ifdef ZFS_DEBUG
+	static const char *const msg[] = {
+		"create",
+		"remove",
+		"rename",
+		"set snapdev",
+		"set volmode",
+		"unknown",
+	};
 
 	if (task->zt_status == 0)
 		return;
 
+	zvol_async_op_t op = MIN(task->zt_op, ZVOL_ASYNC_MAX);
 	if (task->zt_error) {
 		dprintf("The %s minors zvol task was not ok, last error %d\n",
-		    zvol_task_op_msg(task->zt_op), task->zt_error);
+		    msg[op], task->zt_error);
 	} else {
-		dprintf("The %s minors zvol task was not ok\n",
-		    zvol_task_op_msg(task->zt_op));
+		dprintf("The %s minors zvol task was not ok\n", msg[op]);
 	}
+#else
+	(void) task;
+#endif
 }
 
 /*
