@@ -24,7 +24,13 @@
 #define	_OS_LINUX_SPL_MISC_H
 
 #include <linux/kobject.h>
+#include <linux/swap.h>
 
 extern void spl_signal_kobj_evt(struct block_device *bdev);
+
+/*
+ * Check if the current thread is a memory reclaim thread.
+ */
+extern int current_is_reclaim_thread(void);
 
 #endif
