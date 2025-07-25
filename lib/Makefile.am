@@ -65,12 +65,15 @@ include $(srcdir)/%D%/libuutil/Makefile.am
 include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
 include $(srcdir)/%D%/libzfs/Makefile.am
+include $(srcdir)/%D%/libzfsacl/zfsacl/Makefile.am
+include $(srcdir)/%D%/libzfsacl/Makefile.am
 include $(srcdir)/%D%/libzfsbootenv/Makefile.am
 include $(srcdir)/%D%/libzpool/Makefile.am
 include $(srcdir)/%D%/libzstd/Makefile.am
 include $(srcdir)/%D%/libzutil/Makefile.am
 if BUILD_LINUX
 include $(srcdir)/%D%/libefi/Makefile.am
+include $(srcdir)/%D%/libzfsacl/sunacl/Makefile.am
 endif
 
 
