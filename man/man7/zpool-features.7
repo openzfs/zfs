@@ -842,6 +842,23 @@ when the
 command is used on a top-level vdev, and will never return to being
 .Sy enabled .
 .
+.feature com.truenas physical_rewrite yes extensible_dataset
+This feature enables physical block rewriting that preserves logical birth
+times, avoiding unnecessary inclusion of rewritten blocks in incremental
+.Nm zfs Cm send
+streams.
+When enabled, the
+.Nm zfs Cm rewrite Fl P
+command can be used.
+.Pp
+This feature becomes
+.Sy active
+the first time
+.Nm zfs Cm rewrite Fl P
+is used on any dataset, and will return to being
+.Sy enabled
+once all datasets that have ever used physical rewrite are destroyed.
+.
 .feature org.zfsonlinux project_quota yes extensible_dataset
 This feature allows administrators to account the spaces and objects usage
 information against the project identifier

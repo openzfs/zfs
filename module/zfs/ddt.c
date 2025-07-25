@@ -724,10 +724,13 @@ ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 		dvas[2] = bp->blk_dva[2];
 
 	if (ddt_phys_birth(ddp, v) == 0) {
-		if (v == DDT_PHYS_FLAT)
-			ddp->ddp_flat.ddp_phys_birth = BP_GET_BIRTH(bp);
-		else
-			ddp->ddp_trad[v].ddp_phys_birth = BP_GET_BIRTH(bp);
+		if (v == DDT_PHYS_FLAT) {
+			ddp->ddp_flat.ddp_phys_birth =
+			    BP_GET_PHYSICAL_BIRTH(bp);
+		} else {
+			ddp->ddp_trad[v].ddp_phys_birth =
+			    BP_GET_PHYSICAL_BIRTH(bp);
+		}
 	}
 }
 
@@ -891,14 +894,14 @@ ddt_phys_select(const ddt_t *ddt, const ddt_entry_t *dde, const blkptr_t *bp)
 
 	if (ddt->ddt_flags & DDT_FLAG_FLAT) {
 		if (DVA_EQUAL(BP_IDENTITY(bp), &ddp->ddp_flat.ddp_dva[0]) &&
-		    BP_GET_BIRTH(bp) == ddp->ddp_flat.ddp_phys_birth) {
+		    BP_GET_PHYSICAL_BIRTH(bp) == ddp->ddp_flat.ddp_phys_birth) {
 			return (DDT_PHYS_FLAT);
 		}
 	} else /* traditional phys */ {
 		for (int p = 0; p < DDT_PHYS_MAX; p++) {
 			if (DVA_EQUAL(BP_IDENTITY(bp),
 			    &ddp->ddp_trad[p].ddp_dva[0]) &&
-			    BP_GET_BIRTH(bp) ==
+			    BP_GET_PHYSICAL_BIRTH(bp) ==
 			    ddp->ddp_trad[p].ddp_phys_birth) {
 				return (p);
 			}

@@ -792,6 +792,18 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_NO_UPGRADE,
 	    ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	{
+		static const spa_feature_t physical_rewrite_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_PHYSICAL_REWRITE,
+		    "com.truenas:physical_rewrite", "physical_rewrite",
+		    "Support for preserving logical birth time during rewrite.",
+		    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
+		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

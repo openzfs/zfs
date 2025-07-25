@@ -164,6 +164,7 @@ typedef struct dbuf_dirty_record {
 			boolean_t dr_nopwrite;
 			boolean_t dr_brtwrite;
 			boolean_t dr_diowrite;
+			boolean_t dr_rewrite;
 			boolean_t dr_has_raw_params;
 
 			/* Override and raw params are mutually exclusive. */

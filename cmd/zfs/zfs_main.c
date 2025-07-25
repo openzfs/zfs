@@ -440,7 +440,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tredact <snapshot> <bookmark> "
 		    "<redaction_snapshot> ...\n"));
 	case HELP_REWRITE:
-		return (gettext("\trewrite [-rvx] [-o <offset>] [-l <length>] "
+		return (gettext("\trewrite [-Prvx] [-o <offset>] [-l <length>] "
 		    "<directory|file ...>\n"));
 	case HELP_JAIL:
 		return (gettext("\tjail <jailid|jailname> <filesystem>\n"));
@@ -9177,8 +9177,11 @@ zfs_do_rewrite(int argc, char **argv)
 	zfs_rewrite_args_t args;
 	memset(&args, 0, sizeof (args));
 
-	while ((c = getopt(argc, argv, "l:o:rvx")) != -1) {
+	while ((c = getopt(argc, argv, "Pl:o:rvx")) != -1) {
 		switch (c) {
+		case 'P':
+			args.flags |= ZFS_REWRITE_PHYSICAL;
+			break;
 		case 'l':
 			args.len = strtoll(optarg, NULL, 0);
 			break;

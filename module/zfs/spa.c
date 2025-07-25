@@ -2718,8 +2718,8 @@ spa_claim_notify(zio_t *zio)
 		return;
 
 	mutex_enter(&spa->spa_props_lock);	/* any mutex will do */
-	if (spa->spa_claim_max_txg < BP_GET_LOGICAL_BIRTH(zio->io_bp))
-		spa->spa_claim_max_txg = BP_GET_LOGICAL_BIRTH(zio->io_bp);
+	if (spa->spa_claim_max_txg < BP_GET_BIRTH(zio->io_bp))
+		spa->spa_claim_max_txg = BP_GET_BIRTH(zio->io_bp);
 	mutex_exit(&spa->spa_props_lock);
 }
 
