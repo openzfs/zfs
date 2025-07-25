@@ -829,7 +829,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 			child_capacities[c] = var->vd_children[c]->van_capacity;
 		}
 	} else if (spa_load_state(vd->vdev_spa) != SPA_LOAD_CREATE &&
-	    spa_load_state(vd->vdev_spa) != SPA_LOAD_ERROR && 
+	    spa_load_state(vd->vdev_spa) != SPA_LOAD_ERROR &&
 	    spa_load_state(vd->vdev_spa) != SPA_LOAD_NONE) {
 		for (uint64_t c = 0; c < vd->vdev_children; c++) {
 			vdev_t *cvd = vd->vdev_child[c];
@@ -1358,8 +1358,8 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	// Populate the header
 	uint16_t *sizes = kmem_zalloc(sizeof (*sizes) *
 	    anyraidvd->vdev_children, KM_SLEEP);
-	uint8_t disk_id = 0;
-	for (uint8_t i = 0; i < anyraidvd->vdev_children; i++) {
+	uint64_t disk_id = 0;
+	for (uint64_t i = 0; i < anyraidvd->vdev_children; i++) {
 		if (anyraidvd->vdev_child[i] == vd)
 			disk_id = i;
 		sizes[i] = var->vd_children[i]->van_capacity;

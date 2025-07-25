@@ -6117,7 +6117,10 @@
       <enumerator name='VDEV_PROP_TRIM_SUPPORT' value='49'/>
       <enumerator name='VDEV_PROP_TRIM_ERRORS' value='50'/>
       <enumerator name='VDEV_PROP_SLOW_IOS' value='51'/>
-      <enumerator name='VDEV_NUM_PROPS' value='52'/>
+      <enumerator name='VDEV_PROP_ANYRAID_CAP_TILES' value='52'/>
+      <enumerator name='VDEV_PROP_ANYRAID_NUM_TILES' value='53'/>
+      <enumerator name='VDEV_PROP_ANYRAID_TILE_SIZE' value='54'/>
+      <enumerator name='VDEV_NUM_PROPS' value='55'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
@@ -6400,7 +6403,8 @@
       <enumerator name='SPA_FEATURE_DYNAMIC_GANG_HEADER' value='44'/>
       <enumerator name='SPA_FEATURE_BLOCK_CLONING_ENDIAN' value='45'/>
       <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
-      <enumerator name='SPA_FEATURES' value='47'/>
+      <enumerator name='SPA_FEATURE_ANYRAID' value='47'/>
+      <enumerator name='SPA_FEATURES' value='48'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
