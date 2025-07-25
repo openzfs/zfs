@@ -78,6 +78,7 @@
 #include "zpool_util.h"
 #include <sys/zfs_context.h>
 #include <sys/stat.h>
+#include <sys/vdev_anyraid.h>
 
 /*
  * For any given vdev specification, we can have multiple errors.  The
@@ -567,6 +568,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			 * already reported an error for this spec, so don't
 			 * bother doing it again.
 			 */
+			const char *orig_type = type;
 			type = NULL;
 			dontreport = 0;
 			vdev_size = -1LL;
@@ -666,7 +668,8 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				if (!dontreport &&
 				    (vdev_size != -1LL &&
 				    (llabs(size - vdev_size) >
-				    ZPOOL_FUZZ))) {
+				    ZPOOL_FUZZ)) && strcmp(orig_type,
+				    VDEV_TYPE_ANYRAID) != 0) {
 					if (ret != NULL)
 						free(ret);
 					ret = NULL;
@@ -1220,7 +1223,7 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 }
 
 /*
- * Returns the parity level extracted from a raidz or draid type.
+ * Returns the parity level extracted from a raidz, anyraid, or draid type.
  * If the parity cannot be determined zero is returned.
  */
 static int
@@ -1245,6 +1248,22 @@ get_parity(const char *type)
 			parity = strtol(p, &end, 10);
 			if (errno != 0 || *end != '\0' ||
 			    parity < 1 || parity > VDEV_RAIDZ_MAXPARITY) {
+				return (0);
+			}
+		}
+	} else if (strncmp(type, VDEV_TYPE_ANYRAID,
+	    strlen(VDEV_TYPE_ANYRAID)) == 0) {
+		p = type + strlen(VDEV_TYPE_ANYRAID);
+
+		if (*p == '\0') {
+			/* when unspecified default to 1-parity mirror */
+			return (1);
+		} else {
+			char *end;
+			errno = 0;
+			parity = strtol(p, &end, 10);
+			if (errno != 0 || *end != '\0' ||
+			    parity < 0 || parity > VDEV_ANYRAID_MAXPARITY) {
 				return (0);
 			}
 		}
@@ -1305,6 +1324,15 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	if (maxdev != NULL)
 		*maxdev = INT_MAX;
 
+	if (strncmp(type, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0) {
+		nparity = get_parity(type);
+		if (mindev != NULL)
+			*mindev = nparity + 1;
+		if (maxdev != NULL)
+			*maxdev = 255;
+		return (VDEV_TYPE_ANYRAID);
+	}
+
 	if (strcmp(type, "mirror") == 0) {
 		if (mindev != NULL)
 			*mindev = 2;
@@ -1337,6 +1365,22 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	}
 
 	return (NULL);
+}
+
+static int
+anyraid_config_by_type(nvlist_t *nv, const char *type)
+{
+	uint64_t nparity = 0;
+
+	if (strncmp(type, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) != 0)
+		return (EINVAL);
+
+	nparity = (uint64_t)get_parity(type);
+
+	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE, VAP_MIRROR);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, nparity);
+
+	return (0);
 }
 
 /*
@@ -1524,9 +1568,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 		nv = NULL;
 
 		/*
-		 * If it's a mirror, raidz, or draid the subsequent arguments
-		 * are its leaves -- until we encounter the next mirror,
-		 * raidz or draid.
+		 * If it's a mirror, raidz, anyraid, or draid the subsequent
+		 * arguments are its leaves -- until we encounter the next
+		 * mirror, raidz, anyraid, or draid.
 		 */
 		if ((type = is_grouping(fulltype, &mindev, &maxdev)) != NULL) {
 			nvlist_t **child = NULL;
@@ -1593,7 +1637,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			}
 
 			if (is_log) {
-				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
+				/*
+				 * TODO: only AnyRAID mirror is expected to be
+				 * allowed.
+				 */
+				if (strcmp(type, VDEV_TYPE_MIRROR) != 0 &&
+				    strcmp(type, VDEV_TYPE_ANYRAID) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
 					    "specification: unsupported 'log' "
@@ -1682,6 +1731,15 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					verify(nvlist_add_uint64(nv,
 					    ZPOOL_CONFIG_NPARITY,
 					    mindev - 1) == 0);
+				}
+				if (strcmp(type, VDEV_TYPE_ANYRAID) == 0) {
+					if (anyraid_config_by_type(nv, fulltype)
+					    != 0) {
+						for (c = 0; c < children; c++)
+							nvlist_free(child[c]);
+						free(child);
+						goto spec_out;
+					}
 				}
 				if (strcmp(type, VDEV_TYPE_DRAID) == 0) {
 					if (draid_config_by_type(nv,

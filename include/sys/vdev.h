@@ -177,9 +177,17 @@ extern uint64_t vdev_queue_last_offset(vdev_t *vd);
 extern uint64_t vdev_queue_class_length(vdev_t *vq, zio_priority_t p);
 extern boolean_t vdev_queue_pool_busy(spa_t *spa);
 
+typedef enum vdev_config_sync_status {
+    VDEV_CONFIG_NORMAL,
+    VDEV_CONFIG_CREATING_CHECKPOINT,
+    VDEV_CONFIG_DISCARDING_CHECKPOINT,
+    VDEV_CONFIG_REWINDING_CHECKPOINT
+} vdev_config_sync_status_t;
+
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);
-extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
+extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg,
+    vdev_config_sync_status_t status);
 
 extern void vdev_state_dirty(vdev_t *vd);
 extern void vdev_state_clean(vdev_t *vd);

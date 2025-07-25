@@ -1506,9 +1506,8 @@ arc_cksum_is_equal(arc_buf_hdr_t *hdr, zio_t *zio)
 	 * generated using the correct checksum algorithm and accounts for the
 	 * logical I/O size and not just a gang fragment.
 	 */
-	return (zio_checksum_error_impl(zio->io_spa, zio->io_bp,
-	    BP_GET_CHECKSUM(zio->io_bp), zio->io_abd, zio->io_size,
-	    zio->io_offset, NULL) == 0);
+	return (zio_checksum_error_impl(zio, BP_GET_CHECKSUM(zio->io_bp),
+	    zio->io_abd, zio->io_size, zio->io_offset, NULL) == 0);
 }
 
 /*
