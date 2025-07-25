@@ -450,8 +450,10 @@ zvol_check_volblocksize(const char *name, uint64_t volblocksize)
 		 * We don't allow setting the property above 1MB,
 		 * unless the tunable has been changed.
 		 */
-		if (volblocksize > zfs_max_recordsize)
+		if (volblocksize > zfs_max_recordsize) {
+			spa_close(spa, FTAG);
 			return (SET_ERROR(EDOM));
+		}
 
 		spa_close(spa, FTAG);
 	}
