@@ -101,6 +101,15 @@ spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 	va_end(ap);
 }
 
+/*
+ * Check if the current thread is a memory reclaim thread.
+ * Returns true if curproc is pageproc (FreeBSD's page daemon).
+ */
+int
+current_is_reclaim_thread(void)
+{
+	return (curproc == pageproc);
+}
 
 SYSINIT(opensolaris_utsname_init, SI_SUB_TUNABLES, SI_ORDER_ANY,
     opensolaris_utsname_init, NULL);
