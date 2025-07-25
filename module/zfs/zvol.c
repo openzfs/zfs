@@ -253,7 +253,7 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &val);
 	if (error)
-		return (SET_ERROR(error));
+		return (error);
 
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_VOLSIZE, val);
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
@@ -266,7 +266,7 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 
 	kmem_free(doi, sizeof (dmu_object_info_t));
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 /*
@@ -304,7 +304,7 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		return (SET_ERROR(error));
+		return (error);
 	}
 	txg = dmu_tx_get_txg(tx);
 
@@ -336,7 +336,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly, NULL);
 	if (error != 0)
-		return (SET_ERROR(error));
+		return (error);
 	if (readonly)
 		return (SET_ERROR(EROFS));
 
@@ -352,7 +352,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 		    FTAG, &os)) != 0) {
 			if (zv != NULL)
 				mutex_exit(&zv->zv_state_lock);
-			return (SET_ERROR(error));
+			return (error);
 		}
 		owned = B_TRUE;
 		if (zv != NULL)
@@ -389,7 +389,7 @@ out:
 	if (error == 0 && zv != NULL)
 		zvol_os_update_volsize(zv, volsize);
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 /*
@@ -400,7 +400,7 @@ zvol_set_volthreading(const char *name, boolean_t value)
 {
 	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
 	if (zv == NULL)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	zv->zv_threading = value;
 	mutex_exit(&zv->zv_state_lock);
 	return (0);
@@ -619,7 +619,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	dmu_tx_t *tx;
 	blkptr_t *bps;
 	size_t maxblocks;
-	int error = EINVAL;
+	int error = 0;
 
 	rw_enter(&zv_dst->zv_suspend_lock, RW_READER);
 	if (zv_dst->zv_zilog == NULL) {
@@ -645,23 +645,22 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	 */
 	if (!spa_feature_is_enabled(dmu_objset_spa(outos),
 	    SPA_FEATURE_BLOCK_CLONING)) {
-		error = EOPNOTSUPP;
+		error = SET_ERROR(EOPNOTSUPP);
 		goto out;
 	}
 	if (dmu_objset_spa(inos) != dmu_objset_spa(outos)) {
-		error = EXDEV;
+		error = SET_ERROR(EXDEV);
 		goto out;
 	}
 	if (inos->os_encrypted != outos->os_encrypted) {
-		error = EXDEV;
+		error = SET_ERROR(EXDEV);
 		goto out;
 	}
 	if (zv_src->zv_volblocksize != zv_dst->zv_volblocksize) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 		goto out;
 	}
 	if (inoff >= zv_src->zv_volsize || outoff >= zv_dst->zv_volsize) {
-		error = 0;
 		goto out;
 	}
 
@@ -672,17 +671,15 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		len = zv_src->zv_volsize - inoff;
 	if (len > zv_dst->zv_volsize - outoff)
 		len = zv_dst->zv_volsize - outoff;
-	if (len == 0) {
-		error = 0;
+	if (len == 0)
 		goto out;
-	}
 
 	/*
 	 * No overlapping if we are cloning within the same file
 	 */
 	if (zv_src == zv_dst) {
 		if (inoff < outoff + len && outoff < inoff + len) {
-			error = EINVAL;
+			error = SET_ERROR(EINVAL);
 			goto out;
 		}
 	}
@@ -692,7 +689,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	 */
 	if ((inoff % zv_src->zv_volblocksize) != 0 ||
 	    (outoff % zv_dst->zv_volblocksize) != 0) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 		goto out;
 	}
 
@@ -700,7 +697,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	 * Length must be multiple of block size
 	 */
 	if ((len % zv_src->zv_volblocksize) != 0) {
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 		goto out;
 	}
 
@@ -778,7 +775,7 @@ out:
 	if (zv_src != zv_dst)
 		rw_exit(&zv_src->zv_suspend_lock);
 	rw_exit(&zv_dst->zv_suspend_lock);
-	return (SET_ERROR(error));
+	return (error);
 }
 
 /*
@@ -1027,7 +1024,7 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 
 	zvol_get_done(zgd, error);
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 /*
@@ -1072,15 +1069,15 @@ zvol_setup_zv(zvol_state_t *zv)
 
 	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
 	if (error)
-		return (SET_ERROR(error));
+		return (error);
 
 	error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
 	if (error)
-		return (SET_ERROR(error));
+		return (error);
 
 	error = dnode_hold(os, ZVOL_OBJ, zv, &zv->zv_dn);
 	if (error)
-		return (SET_ERROR(error));
+		return (error);
 
 	zvol_os_set_capacity(zv, volsize >> 9);
 	zv->zv_volsize = volsize;
@@ -1199,7 +1196,7 @@ zvol_resume(zvol_state_t *zv)
 	if (zv->zv_flags & ZVOL_REMOVING)
 		cv_broadcast(&zv->zv_removing_cv);
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 int
@@ -1215,7 +1212,7 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
 	if (error)
-		return (SET_ERROR(error));
+		return (error);
 
 	zv->zv_objset = os;
 
@@ -1725,7 +1722,7 @@ zvol_remove_minor_impl(const char *name)
 
 	if (zv == NULL) {
 		rw_exit(&zvol_state_lock);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
