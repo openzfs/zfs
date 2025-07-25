@@ -9138,7 +9138,7 @@ zdb_read_block(char *thing, spa_t *spa)
 				ck_zio->io_offset =
 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
 				ck_zio->io_bp = bp;
-				zio_checksum_compute(ck_zio, ck, pabd, lsize);
+				zio_checksum_compute(ck_zio, ck, pabd, psize);
 				printf(
 				    "%12s\t"
 				    "cksum=%016llx:%016llx:%016llx:%016llx\n",
