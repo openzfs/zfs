@@ -620,7 +620,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
 		if (callback != NULL)
-			callback(callback_data);
+			callback(callback_data, 0);
 		return;
 	}
 
@@ -663,7 +663,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 			    DMU_KEEP_CACHING);
 			DB_DNODE_EXIT(db);
 			if (err != 0) {
-				zil_itx_destroy(itx);
+				zil_itx_destroy(itx, 0);
 				itx = zil_itx_create(txtype, sizeof (*lr));
 				lr = (lr_write_t *)&itx->itx_lr;
 				wr_state = WR_NEED_COPY;
