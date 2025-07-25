@@ -888,14 +888,16 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 		mutex_enter(&zv->zv_state_lock);
 		error = copy_to_user((void *)arg, zv->zv_name, MAXNAMELEN);
 		mutex_exit(&zv->zv_state_lock);
+		if (error)
+			error = SET_ERROR(-error);
 		break;
 
 	default:
-		error = -ENOTTY;
+		error = SET_ERROR(ENOTTY);
 		break;
 	}
 
-	return (SET_ERROR(error));
+	return (-error);
 }
 
 #ifdef CONFIG_COMPAT
@@ -1475,6 +1477,8 @@ __zvol_os_add_disk(struct gendisk *disk)
 	int error = 0;
 #ifdef HAVE_ADD_DISK_RET
 	error = add_disk(disk);
+	if (error)
+		error = SET_ERROR(-error);
 #else
 	add_disk(disk);
 #endif
@@ -1759,10 +1763,10 @@ zvol_init(void)
 		return (error);
 	}
 
-	error = register_blkdev(zvol_major, ZVOL_DRIVER);
+	error = -register_blkdev(zvol_major, ZVOL_DRIVER);
 	if (error) {
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
-		return (error);
+		return (SET_ERROR(error));
 	}
 
 	if (zvol_blk_mq_queue_depth == 0) {
