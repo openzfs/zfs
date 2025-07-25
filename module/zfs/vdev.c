@@ -695,8 +695,9 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 
 	rw_init(&vd->vdev_indirect_rwlock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&vd->vdev_obsolete_lock, NULL, MUTEX_DEFAULT, NULL);
-	vd->vdev_obsolete_segments = zfs_range_tree_create(NULL,
-	    ZFS_RANGE_SEG64, NULL, 0, 0);
+	vd->vdev_obsolete_segments = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RANGE_TREE_F_UC_GENERIC, "vdev_obsolete_segments");
 
 	/*
 	 * Initialize rate limit structs for events.  We rate limit ZIO delay
@@ -750,8 +751,9 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	cv_init(&vd->vdev_rebuild_cv, NULL, CV_DEFAULT, NULL);
 
 	for (int t = 0; t < DTL_TYPES; t++) {
-		vd->vdev_dtl[t] = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
-		    NULL, 0, 0);
+		vd->vdev_dtl[t] = zfs_range_tree_create_flags(
+		    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+		    ZFS_RANGE_TREE_F_UC_GENERIC, "vdev_dtl");
 	}
 
 	txg_list_create(&vd->vdev_ms_list, spa,
@@ -3458,7 +3460,9 @@ vdev_dtl_load(vdev_t *vd)
 			return (error);
 		ASSERT(vd->vdev_dtl_sm != NULL);
 
-		rt = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64, NULL, 0, 0);
+		rt = zfs_range_tree_create_flags(
+		    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+		    ZFS_RANGE_TREE_F_UC_ALLOCATED_SPACE, "vdev_dtl_load:rt");
 		error = space_map_load(vd->vdev_dtl_sm, rt, SM_ALLOC);
 		if (error == 0) {
 			mutex_enter(&vd->vdev_dtl_lock);

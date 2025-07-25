@@ -2028,6 +2028,12 @@ Set to attempt to recover from fatal errors.
 This should only be used as a last resort,
 as it typically results in leaked space, or worse.
 .
+.It Sy zfs_recover_rt Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Set to attempt to recover from fatal errors while adding or removing
+unexpected segments to a range tree.
+This should only be used as a last resort,
+as it typically results in leaked space.
+.
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Ignore hard I/O errors during device removal.
 When set, if a device encounters a hard I/O error during the removal process
