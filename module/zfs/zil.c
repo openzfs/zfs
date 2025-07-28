@@ -3263,83 +3263,94 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 
 	mutex_enter(&zcw->zcw_lock);
 
-	if (zcw->zcw_done) {
-		/*
-		 * The IO may have been issued and completed, or the ZIL may
-		 * have failed (signaling all outstanding waiters) since we
-		 * dropped zl_issuer_lock at the end of zil_commit_writer().
-		 * If so, there's no need to wait; our work here is done.
-		 */
-		mutex_exit(&zcw->zcw_lock);
-		return;
-	}
-
 	/*
-	 * Usually, the waiter will have a non-NULL lwb field here, but it's
-	 * possible for it to be NULL as a result of zil_commit() racing with
-	 * spa_sync().
-	 *
-	 * When zil_clean() is called, it's possible for the itxg list (which
-	 * may be cleaned via a taskq) to contain commit itxs. When this
-	 * occurs, the commit waiters linked off of these commit itxs will not
-	 * be committed to an lwb.  Additionally, these commit waiters will not
-	 * be marked done until zil_commit_waiter_skip() is called via
-	 * zil_itxg_clean().
-	 *
-	 * Thus, it's possible for this commit waiter (i.e. the "zcw" variable)
-	 * to be found in this "in between" state; where it's "zcw_lwb" field
-	 * is NULL, and it hasn't yet been skipped, so it's "zcw_done" field is
-	 * still B_FALSE.
+	 * The timeout is scaled based on the lwb latency to avoid
+	 * significantly impacting the latency of each individual itx.
+	 * For more details, see the comment at the bottom of the
+	 * zil_process_commit_list() function.
 	 */
-	lwb_t *lwb = zcw->zcw_lwb;
-	IMPLY(lwb != NULL, lwb->lwb_state != LWB_STATE_CLOSED);
+	int pct = MAX(zfs_commit_timeout_pct, 1);
+	hrtime_t sleep = (zilog->zl_last_lwb_latency * pct) / 100;
+	hrtime_t wakeup = gethrtime() + sleep;
+	boolean_t timedout = B_FALSE;
 
-	if (lwb != NULL && lwb->lwb_state == LWB_STATE_OPENED) {
-		/*
-		 * If the lwb hasn't been issued yet, then we need to wait with
-		 * a timeout, in case this function needs to issue the lwb
-		 * after the timeout is reached; responsibility (2) from the
-		 * comment above this function.
-		 *
-		 * The timeout is scaled based on the lwb latency to avoid
-		 * significantly impacting the latency of each individual itx.
-		 * For more details, see the comment at the bottom of the
-		 * zil_process_commit_list() function.
-		 */
-		int pct = MAX(zfs_commit_timeout_pct, 1);
-		hrtime_t sleep = (zilog->zl_last_lwb_latency * pct) / 100;
-		hrtime_t wakeup = gethrtime() + sleep;
-
-		int rc = cv_timedwait_hires(&zcw->zcw_cv,
-		    &zcw->zcw_lock, wakeup, USEC2NSEC(1),
-		    CALLOUT_FLAG_ABSOLUTE);
-
-		if (!zcw->zcw_done) {
-			ASSERT3U(rc, ==, -1);
-			/*
-			 * The wait timed out and the lwb hasn't been issued,
-			 * so we have to do that now.
-			 */
-			zil_commit_waiter_timeout(zilog, zcw);
-
-			ASSERT(MUTEX_HELD(&zcw->zcw_lock));
-		}
-	}
-
-	if (!zcw->zcw_done) {
+	while (!zcw->zcw_done) {
 		ASSERT(MUTEX_HELD(&zcw->zcw_lock));
 
-		/*
-		 * If we're here, then the lwb has been issued or the ZIL has
-		 * failed or is failing. In all cases, there's nothing else for
-		 * us to do except wait to be signaled that the data is on disk,
-		 * either when the lwb is flushed, the txg of the original op
-		 * completes, or the ZIL fails.
-		 */
-		cv_wait(&zcw->zcw_cv, &zcw->zcw_lock);
-	}
+		lwb_t *lwb = zcw->zcw_lwb;
 
-	ASSERT(zcw->zcw_done);
+		/*
+		 * Usually, the waiter will have a non-NULL lwb field here,
+		 * but it's possible for it to be NULL as a result of
+		 * zil_commit() racing with spa_sync().
+		 *
+		 * When zil_clean() is called, it's possible for the itxg
+		 * list (which may be cleaned via a taskq) to contain
+		 * commit itxs. When this occurs, the commit waiters linked
+		 * off of these commit itxs will not be committed to an
+		 * lwb.  Additionally, these commit waiters will not be
+		 * marked done until zil_commit_waiter_skip() is called via
+		 * zil_itxg_clean().
+		 *
+		 * Thus, it's possible for this commit waiter (i.e. the
+		 * "zcw" variable) to be found in this "in between" state;
+		 * where it's "zcw_lwb" field is NULL, and it hasn't yet
+		 * been skipped, so it's "zcw_done" field is still B_FALSE.
+		 */
+		IMPLY(lwb != NULL, lwb->lwb_state != LWB_STATE_CLOSED);
+
+		if (lwb != NULL && lwb->lwb_state == LWB_STATE_OPENED) {
+			ASSERT3B(timedout, ==, B_FALSE);
+
+			/*
+			 * If the lwb hasn't been issued yet, then we
+			 * need to wait with a timeout, in case this
+			 * function needs to issue the lwb after the
+			 * timeout is reached; responsibility (2) from
+			 * the comment above this function.
+			 */
+			int rc = cv_timedwait_hires(&zcw->zcw_cv,
+			    &zcw->zcw_lock, wakeup, USEC2NSEC(1),
+			    CALLOUT_FLAG_ABSOLUTE);
+
+			if (rc != -1 || zcw->zcw_done)
+				continue;
+
+			timedout = B_TRUE;
+			zil_commit_waiter_timeout(zilog, zcw);
+
+			if (!zcw->zcw_done) {
+				/*
+				 * If the commit waiter has already been
+				 * marked "done", it's possible for the
+				 * waiter's lwb structure to have already
+				 * been freed.  Thus, we can only reliably
+				 * make these assertions if the waiter
+				 * isn't done.
+				 */
+				ASSERT3P(lwb, ==, zcw->zcw_lwb);
+				ASSERT3S(lwb->lwb_state, !=, LWB_STATE_OPENED);
+			}
+		} else {
+			/*
+			 * If the lwb isn't open, then it must have already
+			 * been issued. In that case, there's no need to
+			 * use a timeout when waiting for the lwb to
+			 * complete.
+			 *
+			 * Additionally, if the lwb is NULL, the waiter
+			 * will soon be signaled and marked done via
+			 * zil_clean() and zil_itxg_clean(), so no timeout
+			 * is required.
+			 */
+
+			IMPLY(lwb != NULL,
+			    lwb->lwb_state == LWB_STATE_ISSUED ||
+			    lwb->lwb_state == LWB_STATE_WRITE_DONE ||
+			    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+			cv_wait(&zcw->zcw_cv, &zcw->zcw_lock);
+		}
+	}
 
 	mutex_exit(&zcw->zcw_lock);
 }
