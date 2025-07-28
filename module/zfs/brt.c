@@ -478,6 +478,18 @@ brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	    sizeof (uint64_t), 1, &brtvd->bv_mos_brtvdev, tx));
 	BRT_DEBUG("Pool directory object created, object=%s", name);
 
+	/*
+	 * Activate the endian-fixed feature if this is the first BRT ZAP
+	 * (i.e., BLOCK_CLONING is not yet active) and the feature is enabled.
+	 */
+	if (spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN) &&
+	    !spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING)) {
+		spa_feature_incr(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN, tx);
+	} else if (spa_feature_is_active(spa,
+	    SPA_FEATURE_BLOCK_CLONING_ENDIAN)) {
+		spa_feature_incr(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN, tx);
+	}
+
 	spa_feature_incr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
 }
 
@@ -658,6 +670,8 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	rw_exit(&brtvd->bv_lock);
 
 	spa_feature_decr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
+	if (spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN))
+		spa_feature_decr(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN, tx);
 }
 
 static void
@@ -855,16 +869,29 @@ brt_entry_fill(const blkptr_t *bp, brt_entry_t *bre, uint64_t *vdevidp)
 	*vdevidp = DVA_GET_VDEV(&bp->blk_dva[0]);
 }
 
+static boolean_t
+brt_has_endian_fixed(spa_t *spa)
+{
+	return (spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN));
+}
+
 static int
-brt_entry_lookup(brt_vdev_t *brtvd, brt_entry_t *bre)
+brt_entry_lookup(spa_t *spa, brt_vdev_t *brtvd, brt_entry_t *bre)
 {
 	uint64_t off = BRE_OFFSET(bre);
 
 	if (brtvd->bv_mos_entries == 0)
 		return (SET_ERROR(ENOENT));
 
-	return (zap_lookup_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
-	    &off, BRT_KEY_WORDS, 1, sizeof (bre->bre_count), &bre->bre_count));
+	if (brt_has_endian_fixed(spa)) {
+		return (zap_lookup_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
+		    &off, BRT_KEY_WORDS, sizeof (bre->bre_count), 1,
+		    &bre->bre_count));
+	} else {
+		return (zap_lookup_uint64_by_dnode(brtvd->bv_mos_entries_dnode,
+		    &off, BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
+		    &bre->bre_count));
+	}
 }
 
 /*
@@ -1056,7 +1083,7 @@ brt_entry_decref(spa_t *spa, const blkptr_t *bp)
 	}
 	rw_exit(&brtvd->bv_lock);
 
-	error = brt_entry_lookup(brtvd, &bre_search);
+	error = brt_entry_lookup(spa, brtvd, &bre_search);
 	/* bre_search now contains correct bre_count */
 	if (error == ENOENT) {
 		BRTSTAT_BUMP(brt_decref_no_entry);
@@ -1118,7 +1145,7 @@ brt_entry_get_refcount(spa_t *spa, const blkptr_t *bp)
 	bre = avl_find(&brtvd->bv_tree, &bre_search, NULL);
 	if (bre == NULL) {
 		rw_exit(&brtvd->bv_lock);
-		error = brt_entry_lookup(brtvd, &bre_search);
+		error = brt_entry_lookup(spa, brtvd, &bre_search);
 		if (error == ENOENT) {
 			refcnt = 0;
 		} else {
@@ -1270,10 +1297,18 @@ brt_pending_apply_vdev(spa_t *spa, brt_vdev_t *brtvd, uint64_t txg)
 		uint64_t off = BRE_OFFSET(bre);
 		if (brtvd->bv_mos_entries != 0 &&
 		    brt_vdev_lookup(spa, brtvd, off)) {
-			int error = zap_lookup_uint64_by_dnode(
-			    brtvd->bv_mos_entries_dnode, &off,
-			    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
-			    &bre->bre_count);
+			int error;
+			if (brt_has_endian_fixed(spa)) {
+				error = zap_lookup_uint64_by_dnode(
+				    brtvd->bv_mos_entries_dnode, &off,
+				    BRT_KEY_WORDS, sizeof (bre->bre_count), 1,
+				    &bre->bre_count);
+			} else {
+				error = zap_lookup_uint64_by_dnode(
+				    brtvd->bv_mos_entries_dnode, &off,
+				    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
+				    &bre->bre_count);
+			}
 			if (error == 0) {
 				BRTSTAT_BUMP(brt_addref_entry_on_disk);
 			} else {
@@ -1326,7 +1361,7 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 }
 
 static void
-brt_sync_entry(dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
+brt_sync_entry(spa_t *spa, dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 {
 	uint64_t off = BRE_OFFSET(bre);
 
@@ -1337,9 +1372,15 @@ brt_sync_entry(dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 		    BRT_KEY_WORDS, tx);
 		VERIFY(error == 0 || error == ENOENT);
 	} else {
-		VERIFY0(zap_update_uint64_by_dnode(dn, &off,
-		    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
-		    &bre->bre_count, tx));
+		if (brt_has_endian_fixed(spa)) {
+			VERIFY0(zap_update_uint64_by_dnode(dn, &off,
+			    BRT_KEY_WORDS, sizeof (bre->bre_count), 1,
+			    &bre->bre_count, tx));
+		} else {
+			VERIFY0(zap_update_uint64_by_dnode(dn, &off,
+			    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
+			    &bre->bre_count, tx));
+		}
 	}
 }
 
@@ -1368,7 +1409,8 @@ brt_sync_table(spa_t *spa, dmu_tx_t *tx)
 
 		void *c = NULL;
 		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(brtvd->bv_mos_entries_dnode, bre, tx);
+			brt_sync_entry(spa, brtvd->bv_mos_entries_dnode, bre,
+			    tx);
 			kmem_cache_free(brt_entry_cache, bre);
 		}
 
