@@ -3694,11 +3694,9 @@ static void
 zfs_putpage_async_commit_cb(void *arg)
 {
 	struct page *pp = arg;
-	znode_t *zp = ITOZ(pp->mapping->host);
 
 	ClearPageError(pp);
 	end_page_writeback(pp);
-	atomic_dec_32(&zp->z_async_writes_cnt);
 }
 
 /*
@@ -3818,15 +3816,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		zfs_rangelock_exit(lr);
 
 		if (wbc->sync_mode != WB_SYNC_NONE) {
-			/*
-			 * Speed up any non-sync page writebacks since
-			 * they may take several seconds to complete.
-			 * Refer to the comment in zpl_fsync() for details.
-			 */
-			if (atomic_load_32(&zp->z_async_writes_cnt) > 0) {
-				zil_commit(zfsvfs->z_log, zp->z_id);
-			}
-
 			if (PageWriteback(pp))
 #ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
 				folio_wait_bit(page_folio(pp), PG_writeback);
@@ -3852,8 +3841,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	 * was in fact not skipped and should not be counted as if it were.
 	 */
 	wbc->pages_skipped--;
-	if (!for_sync)
-		atomic_inc_32(&zp->z_async_writes_cnt);
 	set_page_writeback(pp);
 	unlock_page(pp);
 
@@ -3872,8 +3859,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 #endif
 		ClearPageError(pp);
 		end_page_writeback(pp);
-		if (!for_sync)
-			atomic_dec_32(&zp->z_async_writes_cnt);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (err);
@@ -3905,16 +3890,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		 * Note that this is rarely called under writepages(), because
 		 * writepages() normally handles the entire commit for
 		 * performance reasons.
-		 */
-		commit = B_TRUE;
-	} else if (!for_sync && atomic_load_32(&zp->z_sync_writes_cnt) > 0) {
-		/*
-		 * If the caller does not intend to wait synchronously
-		 * for this page writeback to complete and there are active
-		 * synchronous calls on this file, do a commit so that
-		 * the latter don't accidentally end up waiting for
-		 * our writeback to complete. Refer to the comment in
-		 * zpl_fsync() (when HAVE_FSYNC_RANGE is defined) for details.
 		 */
 		commit = B_TRUE;
 	}
