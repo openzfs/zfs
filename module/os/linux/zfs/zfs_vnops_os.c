@@ -3691,16 +3691,7 @@ top:
 }
 
 static void
-zfs_putpage_sync_commit_cb(void *arg)
-{
-	struct page *pp = arg;
-
-	ClearPageError(pp);
-	end_page_writeback(pp);
-}
-
-static void
-zfs_putpage_async_commit_cb(void *arg)
+zfs_putpage_commit_cb(void *arg)
 {
 	struct page *pp = arg;
 
@@ -3904,8 +3895,12 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	}
 
 	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, commit,
-	    B_FALSE, for_sync ? zfs_putpage_sync_commit_cb :
-	    zfs_putpage_async_commit_cb, pp);
+	    B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
+
+	if (!for_sync) {
+		ClearPageError(pp);
+		end_page_writeback(pp);
+	}
 
 	dmu_tx_commit(tx);
 
