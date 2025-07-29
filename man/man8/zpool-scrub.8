@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018, 2021 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
 .Dd November 18, 2024
 .Dt ZPOOL-SCRUB 8
@@ -39,7 +40,7 @@
 .Cm scrub
 .Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
 .Op Fl w
-.Ar pool Ns …
+.Fl a Ns | Ns Ar pool Ns …
 .
 .Sh DESCRIPTION
 Begins a scrub or resumes a paused scrub.
@@ -89,6 +90,12 @@ During this period, no completion time estimate will be provided.
 .
 .Sh OPTIONS
 .Bl -tag -width "-s"
+.It Fl a , -all
+Begin, pause, stop scrub on
+all
+pools.
+Initiating scrubs on multiple pools can put considerable load and memory
+pressure on the system, so this operation should be performed with caution.
 .It Fl s
 Stop scrubbing.
 .It Fl p

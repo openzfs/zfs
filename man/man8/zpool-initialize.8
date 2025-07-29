@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
 .Dd May 27, 2021
 .Dt ZPOOL-INITIALIZE 8
@@ -39,7 +40,7 @@
 .Cm initialize
 .Op Fl c Ns | Ns Fl s | Ns Fl u
 .Op Fl w
-.Ar pool
+.Fl a Ns | Ns Ar pool
 .Oo Ar device Oc Ns …
 .
 .Sh DESCRIPTION
@@ -48,6 +49,10 @@ devices, or all eligible devices in the pool if no individual devices are
 specified.
 Only leaf data or log devices may be initialized.
 .Bl -tag -width Ds
+.It Fl a , -all
+Begin, cancel, suspend initializing on
+all
+pools.
 .It Fl c , -cancel
 Cancel initializing on the specified devices, or all eligible devices if none
 are specified.
