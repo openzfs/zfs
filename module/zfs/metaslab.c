@@ -969,14 +969,16 @@ metaslab_group_passivate(metaslab_group_t *mg)
 		if (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
 			metaslab_passivate(msp,
-			    metaslab_weight_from_range_tree(msp));
+			    metaslab_weight(msp, B_TRUE) &
+			    ~METASLAB_ACTIVE_MASK);
 			mutex_exit(&msp->ms_lock);
 		}
 		msp = mga->mga_secondary;
 		if (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
 			metaslab_passivate(msp,
-			    metaslab_weight_from_range_tree(msp));
+			    metaslab_weight(msp, B_TRUE) &
+			    ~METASLAB_ACTIVE_MASK);
 			mutex_exit(&msp->ms_lock);
 		}
 	}
