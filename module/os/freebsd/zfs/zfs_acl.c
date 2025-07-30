@@ -2357,9 +2357,41 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 	 * In FreeBSD, we don't care about permissions of individual ADS.
 	 * Note that not checking them is not just an optimization - without
 	 * this shortcut, EA operations may bogusly fail with EACCES.
+	 *
+	 * If this is a named attribute lookup, do the checks.
 	 */
+#if __FreeBSD_version >= 1500040
+	if ((zp->z_pflags & ZFS_XATTR) && (flags & V_NAMEDATTR) == 0)
+#else
 	if (zp->z_pflags & ZFS_XATTR)
+#endif
 		return (0);
+
+	/*
+	 * If a named attribute directory then validate against base file
+	 */
+	if (is_attr) {
+		if ((error = zfs_zget(ZTOZSB(zp),
+		    zp->z_xattr_parent, &xzp)) != 0) {
+			return (error);
+		}
+
+		check_zp = xzp;
+
+		/*
+		 * fixup mode to map to xattr perms
+		 */
+
+		if (mode & (ACE_WRITE_DATA|ACE_APPEND_DATA)) {
+			mode &= ~(ACE_WRITE_DATA|ACE_APPEND_DATA);
+			mode |= ACE_WRITE_NAMED_ATTRS;
+		}
+
+		if (mode & (ACE_READ_DATA|ACE_EXECUTE)) {
+			mode &= ~(ACE_READ_DATA|ACE_EXECUTE);
+			mode |= ACE_READ_NAMED_ATTRS;
+		}
+	}
 
 	owner = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
 
