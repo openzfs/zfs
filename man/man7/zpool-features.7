@@ -401,6 +401,17 @@ This feature becomes
 .Sy active
 when first block is cloned.
 When the last cloned block is freed, it goes back to the enabled state.
+.feature com.truenas block_cloning_endian yes
+This feature corrects ZAP entry endianness issues in the Block Reference
+Table (BRT) used by block cloning.
+During the original block cloning implementation, BRT ZAP entries were
+mistakenly stored as arrays of 8 single-byte entries instead of single
+8-byte entries, making pools non-endian-safe.
+.Pp
+This feature is activated when the first BRT ZAP is created (that way
+ensuring compatibility with existing pools).
+When active, new BRT entries are stored in the correct endian-safe format.
+The feature becomes inactive when all BRT ZAPs are destroyed.
 .feature com.delphix bookmarks yes extensible_dataset
 This feature enables use of the
 .Nm zfs Cm bookmark

@@ -732,6 +732,12 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
+	zfeature_register(SPA_FEATURE_BLOCK_CLONING_ENDIAN,
+	    "com.truenas:block_cloning_endian", "block_cloning_endian",
+	    "Fixes BRT ZAP endianness on new pools.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
+
 	zfeature_register(SPA_FEATURE_AVZ_V2,
 	    "com.klarasystems:vdev_zaps_v2", "vdev_zaps_v2",
 	    "Support for root vdev ZAP.",
