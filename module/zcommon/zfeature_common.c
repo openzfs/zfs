@@ -792,6 +792,10 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_NO_UPGRADE,
 	    ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	zfeature_register(SPA_FEATURE_ANYRAID,
+	    "com.klarasystems:anyraid", "anyraid", "Support for anyraid VDEV",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

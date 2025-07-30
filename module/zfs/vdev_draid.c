@@ -1163,14 +1163,15 @@ vdev_draid_get_astart(vdev_t *vd, const uint64_t start)
  * 1 / (children - nspares) of its asize.
  */
 static uint64_t
-vdev_draid_min_asize(vdev_t *vd)
+vdev_draid_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	vdev_draid_config_t *vdc = vd->vdev_tsd;
+	(void) cvd;
+	vdev_draid_config_t *vdc = pvd->vdev_tsd;
 
-	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
+	ASSERT3P(pvd->vdev_ops, ==, &vdev_draid_ops);
 
 	return (VDEV_DRAID_REFLOW_RESERVE +
-	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	    (pvd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
 }
 
 /*
