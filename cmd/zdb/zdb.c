@@ -5016,7 +5016,7 @@ dump_l2arc_header(int fd)
 	int error = B_FALSE;
 
 	if (pread64(fd, &l2dhdr, sizeof (l2dhdr),
-	    VDEV_LABEL_START_SIZE(B_FALSE)) != sizeof (l2dhdr)) {
+	    VDEV_OLD_LABEL_START_SIZE) != sizeof (l2dhdr)) {
 		error = B_TRUE;
 	} else {
 		if (l2dhdr.dh_magic == BSWAP_64(L2ARC_DEV_HDR_MAGIC))
@@ -5611,7 +5611,7 @@ dump_label(const char *dev)
 		if (large_label) {
 			char toc_buf[VDEV_TOC_SIZE];
 			if (pread64(fd, toc_buf, VDEV_TOC_SIZE,
-			    label->label_offset + VDEV_NEW_PAD_SIZE) !=
+			    label->label_offset + VDEV_LARGE_PAD_SIZE) !=
 			    VDEV_TOC_SIZE) {
 				if (!dump_opt['q'])
 					(void) printf("failed to read label "
@@ -5623,7 +5623,7 @@ dump_label(const char *dev)
 
 			label->cksum_valid =
 			    phys_cksum_valid(toc_buf,
-			    label->label_offset + VDEV_NEW_PAD_SIZE,
+			    label->label_offset + VDEV_LARGE_PAD_SIZE,
 			    VDEV_TOC_SIZE);
 
 			label->read_failed = B_FALSE;
@@ -5669,7 +5669,7 @@ dump_label(const char *dev)
 			buf = alloca(conf_size);
 			buflen = conf_size;
 			uint64_t phys_off = label->label_offset +
-			    VDEV_NEW_PAD_SIZE + toc_size + bootenv_size;
+			    VDEV_LARGE_PAD_SIZE + toc_size + bootenv_size;
 			if (pread64(fd, buf, conf_size, phys_off) !=
 			    conf_size) {
 				if (!dump_opt['q'])

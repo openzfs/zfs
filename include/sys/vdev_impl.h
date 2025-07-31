@@ -438,6 +438,13 @@ struct vdev {
 	int64_t		vdev_outlier_count;	/* read outlier amongst peers */
 	hrtime_t	vdev_read_sit_out_expire; /* end of sit out period    */
 	list_node_t	vdev_leaf_node;		/* leaf vdev list */
+	/*
+	 * vdev_large_label has different meanings for leaf and non-leaf vdevs.
+	 * For leaf vdevs, it is true if that specific vdev is using the large
+	 * label format. For non-leaf vdevs, it is true if any of its children
+	 * is using the new format, so that we know if we need to invoke the
+	 * large label sync logic.
+	 */
 	boolean_t	vdev_large_label;
 
 	kmutex_t	vdev_be_lock;
@@ -555,11 +562,13 @@ typedef struct vdev_label {
 } vdev_label_t;						/* 256K total */
 
 /*
- * The new label format is intended to help future-proof ZFS as sector sizes
- * grow. The number of uberblocks that can be safely written is limited by the
- * size of the ring divided by the sector size, which is already getting
- * uncomfortably small. The new label is only used on top-level vdevs and their
- * children; l2arc and spare devices are excluded. The new label layout:
+ * The large label format was introduced to help future-proof ZFS as sector
+ * sizes grow. The number of uberblocks that can be safely written is limited
+ * by the size of the ring divided by the sector size, which in the original
+ * format was already getting uncomfortably small. The new label is only used
+ * on top-level vdevs and their children; l2arc and spare devices are excluded.
+ *
+ * Layout of the large label format:
  *
  *   16 MiB             112 MiB                           128 MiB
  * +---------+--------------------------------+-------------------------------+
@@ -577,9 +586,9 @@ typedef struct vdev_label {
  * sub-section is larger than 16MiB, it will be split in 16MiB - sizeof
  * (zio_eck_t) chunks, which will each have their own checksum.
  */
-#define	VDEV_NEW_PAD_SIZE	(1 << 24) // 16MiB
-#define	VDEV_NEW_DATA_SIZE	((1 << 27) - VDEV_NEW_PAD_SIZE)
-#define	VDEV_LARGE_LABEL_SIZE	(VDEV_NEW_PAD_SIZE + VDEV_NEW_DATA_SIZE + \
+#define	VDEV_LARGE_PAD_SIZE	(1 << 24) // 16MiB
+#define	VDEV_LARGE_DATA_SIZE	((1 << 27) - VDEV_LARGE_PAD_SIZE)
+#define	VDEV_LARGE_LABEL_SIZE	(VDEV_LARGE_PAD_SIZE + VDEV_LARGE_DATA_SIZE + \
 	VDEV_LARGE_UBERBLOCK_RING) // 256MiB per label
 #define	VDEV_LARGE_LABEL_ALIGN	(1 << 24) // 16MiB
 
@@ -594,9 +603,13 @@ typedef struct vdev_label {
  * when we need to read this info.
  */
 #define	VDEV_TOC_TOC_SIZE	"toc_size"
+/* The size of the section that stores the boot region */
 #define	VDEV_TOC_BOOT_REGION	"boot_region"
+/* The size of the section that stores the vdev config */
 #define	VDEV_TOC_VDEV_CONFIG	"vdev_config"
+/* The size of the section that stores the pool config */
 #define	VDEV_TOC_POOL_CONFIG	"pool_config"
+/* The size of the section that stores auxilliary uberblocks */
 #define	VDEV_TOC_AUX_UBERBLOCK	"aux_uberblock"
 
 /*
@@ -610,24 +623,31 @@ typedef struct vdev_label {
 /*
  * Size of embedded boot loader region on each label.
  * The total size of the first two labels plus the boot area is 4MB.
- * On RAIDZ, this space is overwritten during RAIDZ expansion.
+ * On RAIDZ, this space is overwritten durinvg RAIDZ expansion.
  */
 #define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M */
 
 /*
  * Size of label regions at the start and end of each leaf device.
  */
-#define	VDEV_LABEL_START_SIZE(new)	(new ? \
-	VDEV_RESERVE_OFFSET + VDEV_RESERVE_SIZE : \
-	2 * sizeof (vdev_label_t) + VDEV_BOOT_SIZE)
-#define	VDEV_LABEL_END_SIZE(new)	(new ? \
-	2 * VDEV_LARGE_LABEL_SIZE : 2 * sizeof (vdev_label_t))
+#define	VDEV_OLD_LABEL_START_SIZE	(2 * sizeof (vdev_label_t) + \
+	VDEV_BOOT_SIZE)
+#define	VDEV_OLD_LABEL_END_SIZE		(2 * sizeof (vdev_label_t))
+
+#define	VDEV_LARGE_LABEL_START_SIZE	(VDEV_RESERVE_OFFSET + \
+	VDEV_RESERVE_SIZE)
+#define	VDEV_LARGE_LABEL_END_SIZE	(2 * VDEV_LARGE_LABEL_SIZE)
+
+#define	VDEV_LABEL_START_SIZE(vd)	((vd)->vdev_large_label ? \
+	VDEV_LARGE_LABEL_START_SIZE : VDEV_OLD_LABEL_START_SIZE)
+#define	VDEV_LABEL_END_SIZE(vd)	((vd)->vdev_large_label ? \
+	VDEV_LARGE_LABEL_END_SIZE : VDEV_OLD_LABEL_END_SIZE)
+
 #define	VDEV_LABELS		4
 #define	VDEV_BEST_LABEL		VDEV_LABELS
-#define	VDEV_OFFSET_IS_LABEL(vd, off)                           	\
-	(((off) < VDEV_LABEL_START_SIZE(vd->vdev_large_label)) ||	\
-	((off) >= ((vd)->vdev_psize -					\
-	VDEV_LABEL_END_SIZE(vd->vdev_large_label))))
+#define	VDEV_OFFSET_IS_LABEL(vd, off)				\
+	(((off) < VDEV_LABEL_START_SIZE(vd)) ||			\
+	((off) >= ((vd)->vdev_psize - VDEV_LABEL_END_SIZE(vd))))
 
 #define	VDEV_ALLOC_LOAD		0
 #define	VDEV_ALLOC_ADD		1

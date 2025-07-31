@@ -1966,7 +1966,7 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 		offset_t offset;
 		if (vd->vdev_large_label) {
 			size = P2ROUNDUP(VDEV_TOC_SIZE, 1 << vd->vdev_ashift);
-			offset = VDEV_NEW_PAD_SIZE;
+			offset = VDEV_LARGE_PAD_SIZE;
 		} else {
 			size = VDEV_PAD_SIZE;
 			offset = offsetof(vdev_label_t, vl_be);
@@ -2305,15 +2305,16 @@ vdev_open(vdev_t *vd)
 			    VDEV_AUX_TOO_SMALL);
 			return (SET_ERROR(EOVERFLOW));
 		}
+		uint64_t ssize = large_label ? VDEV_LARGE_LABEL_START_SIZE :
+		    VDEV_OLD_LABEL_START_SIZE;
+		uint64_t esize = large_label ? VDEV_LARGE_LABEL_END_SIZE :
+		    VDEV_OLD_LABEL_END_SIZE;
 		psize = osize;
-		asize = osize - (VDEV_LABEL_START_SIZE(large_label) +
-		    VDEV_LABEL_END_SIZE(large_label));
-		max_asize = max_osize - (VDEV_LABEL_START_SIZE(large_label) +
-		    VDEV_LABEL_END_SIZE(large_label));
+		asize = osize - (ssize + esize);
+		max_asize = max_osize - (ssize + esize);
 	} else {
 		if (vd->vdev_parent != NULL && osize < SPA_MINDEVSIZE -
-		    (VDEV_LABEL_START_SIZE(B_FALSE) +
-		    VDEV_LABEL_END_SIZE(B_FALSE))) {
+		    (VDEV_OLD_LABEL_START_SIZE + VDEV_OLD_LABEL_END_SIZE)) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_TOO_SMALL);
 			return (SET_ERROR(EOVERFLOW));
@@ -4983,9 +4984,8 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 
 		if (vd->vdev_ops->vdev_op_leaf) {
 			vs->vs_pspace = vd->vdev_psize;
-			vs->vs_rsize +=
-			    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
-			    VDEV_LABEL_END_SIZE(vd->vdev_large_label);
+			vs->vs_rsize += VDEV_LABEL_START_SIZE(vd) +
+			    VDEV_LABEL_END_SIZE(vd);
 			/*
 			 * Report initializing progress. Since we don't
 			 * have the initializing locks held, this is only

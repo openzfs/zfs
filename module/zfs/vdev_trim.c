@@ -617,8 +617,7 @@ vdev_trim_ranges(trim_args_t *ta)
 		uint64_t writes_required = ((size - 1) / extent_bytes_max) + 1;
 
 		for (uint64_t w = 0; w < writes_required; w++) {
-			error = vdev_trim_range(ta,
-			    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+			error = vdev_trim_range(ta, VDEV_LABEL_START_SIZE(vd) +
 			    zfs_rs_get_start(rs, ta->trim_tree) +
 			    (w * extent_bytes_max), MIN(size -
 			    (w * extent_bytes_max), extent_bytes_max));
