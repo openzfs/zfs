@@ -1248,9 +1248,11 @@ zvol_os_is_zvol(const char *device)
 	return (device && strncmp(device, ZVOL_DIR, strlen(ZVOL_DIR)) == 0);
 }
 
-void
+int
 zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
+	int error = 0;
+
 	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
@@ -1304,42 +1306,47 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 		args.mda_gid = GID_OPERATOR;
 		args.mda_mode = 0640;
 		args.mda_si_drv2 = zv;
-		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, newname)
-		    == 0) {
+		error = make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, newname);
+		if (error == 0) {
 			dev->si_iosize_max = maxphys;
 			zsd->zsd_cdev = dev;
 		}
 	}
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
 	dataset_kstats_rename(&zv->zv_kstat, newname);
+
+	return (error);
 }
 
 /*
  * Allocate memory for a new zvol_state_t and setup the required
  * request queue and generic disk structures for the block device.
  */
-static zvol_state_t *
-zvol_alloc(const char *name, uint64_t volblocksize)
+static int
+zvol_alloc(const char *name, uint64_t volsize, uint64_t volblocksize,
+    zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	uint64_t volmode;
+	int error;
 
-	if (dsl_prop_get_integer(name,
-	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL) != 0)
-		return (NULL);
+	error = dsl_prop_get_integer(name, zfs_prop_to_name(ZFS_PROP_VOLMODE),
+	    &volmode, NULL);
+	if (error)
+		return (error);
 
 	if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
 
 	if (volmode == ZFS_VOLMODE_NONE)
-		return (NULL);
+		return (0);
 
 	zv = kmem_zalloc(sizeof (*zv), KM_SLEEP);
-	zv->zv_hash = zvol_name_hash(name);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
 	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_volmode = volmode;
+	zv->zv_volsize = volsize;
 	zv->zv_volblocksize = volblocksize;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
@@ -1370,10 +1377,11 @@ zvol_alloc(const char *name, uint64_t volblocksize)
 		args.mda_gid = GID_OPERATOR;
 		args.mda_mode = 0640;
 		args.mda_si_drv2 = zv;
-		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name) != 0) {
+		error = make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name);
+		if (error) {
 			kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 			kmem_free(zv, sizeof (zvol_state_t));
-			return (NULL);
+			return (error);
 		}
 
 		dev->si_iosize_max = maxphys;
@@ -1384,7 +1392,8 @@ zvol_alloc(const char *name, uint64_t volblocksize)
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 
-	return (zv);
+	*zvp = zv;
+	return (error);
 }
 
 /*
@@ -1437,7 +1446,7 @@ zvol_os_free(zvol_state_t *zv)
 int
 zvol_os_create_minor(const char *name)
 {
-	zvol_state_t *zv;
+	zvol_state_t *zv = NULL;
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
@@ -1473,16 +1482,15 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
-	zv = zvol_alloc(name, doi->doi_data_block_size);
-	if (zv == NULL) {
-		error = SET_ERROR(EAGAIN);
+	error = zvol_alloc(name, volsize, doi->doi_data_block_size, &zv);
+	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
-	}
+
+	zv->zv_hash = hash;
 
 	if (dmu_objset_is_snapshot(os) || !spa_writeable(dmu_objset_spa(os)))
 		zv->zv_flags |= ZVOL_RDONLY;
 
-	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
 
 	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
@@ -1512,14 +1520,14 @@ zvol_os_create_minor(const char *name)
 out_dmu_objset_disown:
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
-	if (error == 0 && zv->zv_volmode == ZFS_VOLMODE_GEOM) {
+	if (error == 0 && zv && zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		g_error_provider(zv->zv_zso->zso_geom.zsg_provider, 0);
 		/* geom was locked inside zvol_alloc() function */
 		g_topology_unlock();
 	}
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
-	if (error == 0 && zv->zv_volmode != ZFS_VOLMODE_NONE) {
+	if (error == 0 && zv) {
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		zvol_minors++;

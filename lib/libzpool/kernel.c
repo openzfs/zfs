@@ -1031,13 +1031,7 @@ kmem_cache_reap_active(void)
 }
 
 void
-zvol_create_minor(const char *name)
-{
-	(void) name;
-}
-
-void
-zvol_create_minors_recursive(const char *name)
+zvol_create_minors(const char *name)
 {
 	(void) name;
 }
