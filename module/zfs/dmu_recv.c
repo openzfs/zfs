@@ -3831,11 +3831,11 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 		nvlist_free(drc->drc_keynvl);
 	} else if (!drc->drc_heal) {
 		if (drc->drc_newfs) {
-			zvol_create_minor(drc->drc_tofs);
+			zvol_create_minors(drc->drc_tofs);
 		}
 		char *snapname = kmem_asprintf("%s@%s",
 		    drc->drc_tofs, drc->drc_tosnap);
-		zvol_create_minor(snapname);
+		zvol_create_minors(snapname);
 		kmem_strfree(snapname);
 	}
 

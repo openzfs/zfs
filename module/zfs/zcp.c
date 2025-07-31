@@ -1175,7 +1175,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	for (nvpair_t *pair = nvlist_next_nvpair(runinfo.zri_new_zvols, NULL);
 	    pair != NULL;
 	    pair = nvlist_next_nvpair(runinfo.zri_new_zvols, pair)) {
-		zvol_create_minor(nvpair_name(pair));
+		zvol_create_minors(nvpair_name(pair));
 	}
 	fnvlist_free(runinfo.zri_new_zvols);
 
