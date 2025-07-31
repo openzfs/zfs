@@ -182,9 +182,11 @@ vdev_label_number(uint64_t psize, uint64_t offset, boolean_t new)
 {
 	int l;
 	uint64_t lsize = new ? VDEV_LARGE_LABEL_SIZE : sizeof (vdev_label_t);
+	uint64_t esize = new ? VDEV_LARGE_LABEL_END_SIZE :
+	    VDEV_OLD_LABEL_END_SIZE;
 
-	if (offset >= psize - VDEV_LABEL_END_SIZE(new)) {
-		offset -= psize - VDEV_LABEL_END_SIZE(new);
+	if (offset >= psize - esize) {
+		offset -= psize - esize;
 		offset += (VDEV_LABELS / 2) * lsize;
 	}
 	l = offset / lsize;
@@ -844,7 +846,7 @@ retry:
 		for (int l = 0; l < VDEV_LABELS; l++) {
 			zio[l] = zio_root(spa, NULL, NULL, flags);
 			vdev_label_read(zio[l], vd, l, vd->vdev_large_label,
-			    vp_abd[l], VDEV_NEW_PAD_SIZE,
+			    vp_abd[l], VDEV_LARGE_PAD_SIZE,
 			    toc_size, NULL, NULL, flags);
 		}
 		for (int l = 0; l < VDEV_LABELS; l++) {
@@ -859,7 +861,7 @@ retry:
 				if (nvlist_lookup_uint32(toc,
 				    VDEV_TOC_VDEV_CONFIG, &vp_size[l]) != 0)
 					continue;
-				vp_off[l] = VDEV_NEW_PAD_SIZE + toc_size +
+				vp_off[l] = VDEV_LARGE_PAD_SIZE + toc_size +
 				    bootconf_size;
 				fnvlist_free(toc);
 			}
@@ -1336,7 +1338,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		    KM_SLEEP));
 		fnvlist_free(toc);
 		for (int l = 0; l < VDEV_LABELS; l++) {
-			uint64_t offset = VDEV_NEW_PAD_SIZE;
+			uint64_t offset = VDEV_LARGE_PAD_SIZE;
 			vdev_label_write(zio, vd, l, B_TRUE, toc_abd, offset,
 			    toc_buflen, NULL, NULL, flags);
 			offset += writesize;
@@ -1443,7 +1445,7 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 			rios[l] = zio_root(zio->io_spa, NULL, NULL, flags);
 			toc_abds[l] = abd_alloc_linear(toc_size, B_FALSE);
 			vdev_label_read(rios[l], vd, l, B_TRUE, toc_abds[l],
-			    VDEV_NEW_PAD_SIZE, toc_size, NULL, NULL, flags);
+			    VDEV_LARGE_PAD_SIZE, toc_size, NULL, NULL, flags);
 		}
 		for (int l = 0; l < VDEV_LABELS; l++) {
 			int err = zio_wait(rios[l]);
@@ -1463,7 +1465,7 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 
 			vdev_label_read(zio, vd, l, B_FALSE,
 			    abd_alloc_linear(bootenv_size, B_FALSE),
-			    VDEV_NEW_PAD_SIZE + toc_size, bootenv_size,
+			    VDEV_LARGE_PAD_SIZE + toc_size, bootenv_size,
 			    vdev_label_read_bootenv_done, zio, flags);
 		}
 	} else {
@@ -1646,7 +1648,7 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 			    flags | ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD);
 			toc_abds[l] = abd_alloc_linear(toc_size, B_FALSE);
 			vdev_label_read(rios[l], vd, l, B_TRUE, toc_abds[l],
-			    VDEV_NEW_PAD_SIZE, toc_size, NULL, NULL,
+			    VDEV_LARGE_PAD_SIZE, toc_size, NULL, NULL,
 			    flags | ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD);
 		}
 		boolean_t all_writeable = B_TRUE;
@@ -1668,8 +1670,8 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 
 			if (new_abd_size == bootenv_size) {
 				vdev_label_write(zio, vd, l, B_TRUE, abd,
-				    VDEV_NEW_PAD_SIZE + toc_size, new_abd_size,
-				    NULL, NULL, flags);
+				    VDEV_LARGE_PAD_SIZE + toc_size,
+				    new_abd_size, NULL, NULL, flags);
 			} else {
 				all_writeable = B_FALSE;
 			}
@@ -2179,7 +2181,7 @@ vdev_label_sync_large(vdev_t *vd, zio_t *zio, uint64_t *good_writes,
 	}
 
 	for (; l < VDEV_LABELS; l += 2) {
-		uint64_t offset = VDEV_NEW_PAD_SIZE;
+		uint64_t offset = VDEV_LARGE_PAD_SIZE;
 		vdev_label_write(zio, vd, l, B_TRUE, toc_abd, offset,
 		    toc_buflen, vdev_label_sync_done, good_writes,
 		    flags | ZIO_FLAG_DONT_PROPAGATE);
