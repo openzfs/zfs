@@ -197,7 +197,7 @@ zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 	return (!!dentry->d_inode);
 }
 
-static dentry_operations_t zpl_dops_snapdirs = {
+static const struct dentry_operations zpl_dops_snapdirs = {
 /*
  * Auto mounting of snapshots is only supported for 2.6.37 and
  * newer kernels.  Prior to this kernel the ops->follow_link()
@@ -209,6 +209,51 @@ static dentry_operations_t zpl_dops_snapdirs = {
 	.d_automount	= zpl_snapdir_automount,
 	.d_revalidate	= zpl_snapdir_revalidate,
 };
+
+/*
+ * For the .zfs control directory to work properly we must be able to override
+ * the default operations table and register custom .d_automount and
+ * .d_revalidate callbacks.
+ */
+static void
+set_snapdir_dentry_ops(struct dentry *dentry, unsigned int extraflags) {
+	static const unsigned int op_flags =
+	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
+	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE |
+	    DCACHE_OP_PRUNE | DCACHE_OP_WEAK_REVALIDATE | DCACHE_OP_REAL;
+
+#ifdef HAVE_D_SET_D_OP
+	/*
+	 * d_set_d_op() will set the DCACHE_OP_ flags according to what it
+	 * finds in the passed dentry_operations, so we don't have to.
+	 *
+	 * We clear the flags and the old op table before calling d_set_d_op()
+	 * because issues a warning when the dentry operations table is already
+	 * set.
+	 */
+	dentry->d_op = NULL;
+	dentry->d_flags &= ~op_flags;
+	d_set_d_op(dentry, &zpl_dops_snapdirs);
+	dentry->d_flags |= extraflags;
+#else
+	/*
+	 * Since 6.17 there's no exported way to modify dentry ops, so we have
+	 * to reach in and do it ourselves. This should be safe for our very
+	 * narrow use case, which is to create or splice in an entry to give
+	 * access to a snapshot.
+	 *
+	 * We need to set the op flags directly. We hardcode
+	 * DCACHE_OP_REVALIDATE because that's the only operation we have; if
+	 * we ever extend zpl_dops_snapdirs we will need to update the op flags
+	 * to match.
+	 */
+	spin_lock(&dentry->d_lock);
+	dentry->d_op = &zpl_dops_snapdirs;
+	dentry->d_flags &= ~op_flags;
+	dentry->d_flags |= DCACHE_OP_REVALIDATE | extraflags;
+	spin_unlock(&dentry->d_lock);
+#endif
+}
 
 static struct dentry *
 zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
@@ -231,10 +276,7 @@ zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
 		return (ERR_PTR(error));
 
 	ASSERT(error == 0 || ip == NULL);
-	d_clear_d_op(dentry);
-	d_set_d_op(dentry, &zpl_dops_snapdirs);
-	dentry->d_flags |= DCACHE_NEED_AUTOMOUNT;
-
+	set_snapdir_dentry_ops(dentry, DCACHE_NEED_AUTOMOUNT);
 	return (d_splice_alias(ip, dentry));
 }
 
@@ -368,8 +410,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {
-		d_clear_d_op(dentry);
-		d_set_d_op(dentry, &zpl_dops_snapdirs);
+		set_snapdir_dentry_ops(dentry, 0);
 		d_instantiate(dentry, ip);
 	}
 
