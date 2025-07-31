@@ -348,7 +348,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 			int error;
 
 			error = vdev_initialize_write(vd,
-			    VDEV_LABEL_START_SIZE(vd->vdev_large_label) +
+			    VDEV_LABEL_START_SIZE(vd) +
 			    zfs_rs_get_start(rs, rt) +
 			    (w * zfs_initialize_chunk_size),
 			    MIN(size - (w * zfs_initialize_chunk_size),
