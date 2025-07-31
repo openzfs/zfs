@@ -71,12 +71,44 @@ atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 	return ((void *)atomic_cas_64((volatile uint64_t *)target,
 	    (uint64_t)cmp, (uint64_t)newval));
 }
+static __inline__ void *
+atomic_swap_ptr(volatile void *target, void *newval)
+{
+	return ((void *)atomic_swap_64((volatile uint64_t *)target,
+	    (uint64_t)newval));
+}
+static __inline__ void *
+atomic_load_ptr(volatile void *target)
+{
+	return ((void *)atomic_load_64((volatile uint64_t *)target));
+}
+static __inline__ void
+atomic_store_ptr(volatile void *target, void *newval)
+{
+	atomic_store_64((volatile uint64_t *)target, (uint64_t)newval);
+}
 #else /* _LP64 */
 static __inline__ void *
 atomic_cas_ptr(volatile void *target,  void *cmp, void *newval)
 {
 	return ((void *)atomic_cas_32((volatile uint32_t *)target,
 	    (uint32_t)cmp, (uint32_t)newval));
+}
+static __inline__ void *
+atomic_swap_ptr(volatile void *target, void *newval)
+{
+	return ((void *)atomic_swap_32((volatile uint32_t *)target,
+	    (uint32_t)newval));
+}
+static __inline__ void *
+atomic_load_ptr(volatile void *target)
+{
+	return ((void *)atomic_load_32((volatile uint32_t *)target));
+}
+static __inline__ void
+atomic_store_ptr(volatile void *target, void *newval)
+{
+	atomic_store_32((volatile uint32_t *)target, (uint32_t)newval);
 }
 #endif /* _LP64 */
 
