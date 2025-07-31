@@ -1315,6 +1315,79 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 }
 
 /*
+ * Allocate memory for a new zvol_state_t and setup the required
+ * request queue and generic disk structures for the block device.
+ */
+static zvol_state_t *
+zvol_alloc(const char *name, uint64_t volblocksize)
+{
+	zvol_state_t *zv;
+	uint64_t volmode;
+
+	if (dsl_prop_get_integer(name,
+	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL) != 0)
+		return (NULL);
+
+	if (volmode == ZFS_VOLMODE_DEFAULT)
+		volmode = zvol_volmode;
+
+	if (volmode == ZFS_VOLMODE_NONE)
+		return (NULL);
+
+	zv = kmem_zalloc(sizeof (*zv), KM_SLEEP);
+	zv->zv_hash = zvol_name_hash(name);
+	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
+	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
+	zv->zv_volmode = volmode;
+	zv->zv_volblocksize = volblocksize;
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
+		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
+		struct g_provider *pp;
+		struct g_geom *gp;
+
+		g_topology_lock();
+		gp = g_new_geomf(&zfs_zvol_class, "zfs::zvol::%s", name);
+		gp->start = zvol_geom_bio_start;
+		gp->access = zvol_geom_access;
+		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, name);
+		pp->flags |= G_PF_DIRECT_RECEIVE | G_PF_DIRECT_SEND;
+		pp->sectorsize = DEV_BSIZE;
+		pp->mediasize = 0;
+		pp->private = zv;
+
+		zsg->zsg_provider = pp;
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
+		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
+		struct cdev *dev;
+		struct make_dev_args args;
+
+		make_dev_args_init(&args);
+		args.mda_flags = MAKEDEV_CHECKNAME | MAKEDEV_WAITOK;
+		args.mda_devsw = &zvol_cdevsw;
+		args.mda_cr = NULL;
+		args.mda_uid = UID_ROOT;
+		args.mda_gid = GID_OPERATOR;
+		args.mda_mode = 0640;
+		args.mda_si_drv2 = zv;
+		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name) != 0) {
+			kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
+			kmem_free(zv, sizeof (zvol_state_t));
+			return (NULL);
+		}
+
+		dev->si_iosize_max = maxphys;
+		zsd->zsd_cdev = dev;
+		knlist_init_sx(&zsd->zsd_selinfo.si_note, &zv->zv_state_lock);
+	}
+	(void) strlcpy(zv->zv_name, name, MAXPATHLEN);
+	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
+	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
+
+	return (zv);
+}
+
+/*
  * Remove minor node for the specified volume.
  */
 void
@@ -1368,7 +1441,7 @@ zvol_os_create_minor(const char *name)
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
-	uint64_t volmode, hash, len;
+	uint64_t hash, len;
 	int error;
 	bool replayed_zil = B_FALSE;
 
@@ -1400,70 +1473,15 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
-	error = dsl_prop_get_integer(name,
-	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
-	if (error)
+	zv = zvol_alloc(name, doi->doi_data_block_size);
+	if (zv == NULL) {
+		error = SET_ERROR(EAGAIN);
 		goto out_dmu_objset_disown;
-
-	if (volmode == ZFS_VOLMODE_DEFAULT)
-		volmode = zvol_volmode;
-	if (volmode == ZFS_VOLMODE_NONE)
-		goto out_dmu_objset_disown;
-
-	/*
-	 * zvol_alloc equivalent ...
-	 */
-	zv = kmem_zalloc(sizeof (*zv), KM_SLEEP);
-	zv->zv_hash = hash;
-	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&zv->zv_removing_cv, NULL, CV_DEFAULT, NULL);
-	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
-	zv->zv_volmode = volmode;
-	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
-		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-		struct g_provider *pp;
-		struct g_geom *gp;
-
-		g_topology_lock();
-		gp = g_new_geomf(&zfs_zvol_class, "zfs::zvol::%s", name);
-		gp->start = zvol_geom_bio_start;
-		gp->access = zvol_geom_access;
-		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, name);
-		pp->flags |= G_PF_DIRECT_RECEIVE | G_PF_DIRECT_SEND;
-		pp->sectorsize = DEV_BSIZE;
-		pp->mediasize = 0;
-		pp->private = zv;
-
-		zsg->zsg_provider = pp;
-	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
-		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
-		struct cdev *dev;
-		struct make_dev_args args;
-
-		make_dev_args_init(&args);
-		args.mda_flags = MAKEDEV_CHECKNAME | MAKEDEV_WAITOK;
-		args.mda_devsw = &zvol_cdevsw;
-		args.mda_cr = NULL;
-		args.mda_uid = UID_ROOT;
-		args.mda_gid = GID_OPERATOR;
-		args.mda_mode = 0640;
-		args.mda_si_drv2 = zv;
-		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name)
-		    == 0) {
-			dev->si_iosize_max = maxphys;
-			zsd->zsd_cdev = dev;
-			knlist_init_sx(&zsd->zsd_selinfo.si_note,
-			    &zv->zv_state_lock);
-		}
 	}
-	(void) strlcpy(zv->zv_name, name, MAXPATHLEN);
-	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
-	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 
 	if (dmu_objset_is_snapshot(os) || !spa_writeable(dmu_objset_spa(os)))
 		zv->zv_flags |= ZVOL_RDONLY;
 
-	zv->zv_volblocksize = doi->doi_data_block_size;
 	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
 
@@ -1494,13 +1512,14 @@ zvol_os_create_minor(const char *name)
 out_dmu_objset_disown:
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
-	if (error == 0 && volmode == ZFS_VOLMODE_GEOM) {
+	if (error == 0 && zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		g_error_provider(zv->zv_zso->zso_geom.zsg_provider, 0);
+		/* geom was locked inside zvol_alloc() function */
 		g_topology_unlock();
 	}
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
-	if (error == 0 && volmode != ZFS_VOLMODE_NONE) {
+	if (error == 0 && zv->zv_volmode != ZFS_VOLMODE_NONE) {
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		zvol_minors++;
