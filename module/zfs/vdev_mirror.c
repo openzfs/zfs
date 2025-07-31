@@ -198,7 +198,7 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 
 	/* Fix zio_offset for leaf vdevs */
 	if (vd->vdev_ops->vdev_op_leaf) {
-		zio_offset += VDEV_LABEL_START_SIZE(vd->vdev_large_label);
+		zio_offset += VDEV_LABEL_START_SIZE(vd);
 	}
 
 	/* Standard load based on pending queue length. */

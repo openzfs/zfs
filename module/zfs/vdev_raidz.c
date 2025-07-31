@@ -2394,8 +2394,7 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 			continue;
 
 		ASSERT3U(rc->rc_offset + rc->rc_size, <,
-		    cvd->vdev_psize -
-		    VDEV_LABEL_END_SIZE(cvd->vdev_large_label));
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE(cvd));
 
 		ASSERT3P(rc->rc_abd, !=, NULL);
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
@@ -2408,7 +2407,7 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 
 			ASSERT3U(rc->rc_shadow_offset +
 			    abd_get_size(rc->rc_abd), <, cvd2->vdev_psize -
-			    VDEV_LABEL_END_SIZE(cvd->vdev_large_label));
+			    VDEV_LABEL_END_SIZE(cvd));
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
 			    rc->rc_shadow_offset, rc->rc_abd,
@@ -2439,7 +2438,7 @@ raidz_start_skip_writes(zio_t *zio)
 		ASSERT3P(rc->rc_abd, ==, NULL);
 
 		ASSERT3U(rc->rc_offset, <, cvd->vdev_psize -
-		    VDEV_LABEL_END_SIZE(cvd->vdev_large_label));
+		    VDEV_LABEL_END_SIZE(cvd));
 
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd, rc->rc_offset,
 		    NULL, 1ULL << ashift, zio->io_type, zio->io_priority,
@@ -4221,7 +4220,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 			zio_nowait(zio_vdev_child_io(pio, NULL,
 			    cvd, (cvd->vdev_large_label ?
 			    VDEV_RESERVE_OFFSET : VDEV_BOOT_OFFSET) -
-			    VDEV_LABEL_START_SIZE(cvd->vdev_large_label),
+			    VDEV_LABEL_START_SIZE(cvd),
 			    abds[i], write_size, ZIO_TYPE_READ,
 			    ZIO_PRIORITY_REMOVAL, ZIO_FLAG_CANFAIL,
 			    raidz_scratch_child_done, pio));
@@ -4299,8 +4298,7 @@ io_error_exit:
 		 */
 		zio_nowait(zio_vdev_child_io(pio, NULL, cvd,
 		    (cvd->vdev_large_label ? VDEV_RESERVE_OFFSET :
-		    VDEV_BOOT_OFFSET) -
-		    VDEV_LABEL_START_SIZE(cvd->vdev_large_label), abds[i],
+		    VDEV_BOOT_OFFSET) - VDEV_LABEL_START_SIZE(cvd), abds[i],
 		    write_size, ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
 		    ZIO_FLAG_CANFAIL, raidz_scratch_child_done, pio));
 	}
@@ -4460,8 +4458,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(pio, NULL, cvd,
 		    (cvd->vdev_large_label ? VDEV_RESERVE_OFFSET :
-		    VDEV_BOOT_OFFSET) -
-		    VDEV_LABEL_START_SIZE(cvd->vdev_large_label), abds[i],
+		    VDEV_BOOT_OFFSET) - VDEV_LABEL_START_SIZE(cvd), abds[i],
 		    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL, 0,
 		    raidz_scratch_child_done, pio));
 	}
