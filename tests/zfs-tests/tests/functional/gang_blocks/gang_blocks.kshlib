@@ -72,6 +72,23 @@ function get_num_dvas
 	sed 's/.*L[0-9] \(.*\) [a-f0-9]*L.*/\1/' | awk '{print NF}'
 }
 
+function check_gang_bp
+{
+	typeset gang="$(echo -n $1 | grep -c 'gang')"
+	[[ "$gang" == "1" ]] || return 1
+	return 0
+}
+
+function check_is_gang_bp
+{
+	check_gang_bp $1 || log_fail "Not a gang DVA: \"$1\""
+}
+
+function check_not_gang_bp
+{
+	check_gang_bp $1 && log_fail "Gang DVA: \"$1\""
+}
+
 function check_gang_dva
 {
 	typeset last_byte="$(echo -n $1 | tail -c 1)"
