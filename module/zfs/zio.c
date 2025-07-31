@@ -1554,10 +1554,8 @@ zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 	spa_t *spa = vd->vdev_spa;
 
 	ASSERT0(vd->vdev_children);
-	ASSERT(!labels || offset + size <=
-	    VDEV_LABEL_START_SIZE(vd->vdev_large_label) ||
-	    offset >= vd->vdev_psize -
-	    VDEV_LABEL_END_SIZE(vd->vdev_large_label));
+	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE(vd) ||
+	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE(vd));
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
 
 	zio = zio_create(pio, spa, 0, NULL, data, size, size, done,
@@ -1578,10 +1576,8 @@ zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 	spa_t *spa = vd->vdev_spa;
 
 	ASSERT0(vd->vdev_children);
-	ASSERT(!labels || offset + size <=
-	    VDEV_LABEL_START_SIZE(vd->vdev_large_label) ||
-	    offset >= vd->vdev_psize -
-	    VDEV_LABEL_END_SIZE(vd->vdev_large_label));
+	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE(vd) ||
+	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE(vd));
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
 
 	zio = zio_create(pio, spa, 0, NULL, data, size, size, done,
@@ -1661,7 +1657,7 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 	if (vd->vdev_ops->vdev_op_leaf) {
 		ASSERT0(vd->vdev_children);
-		offset += VDEV_LABEL_START_SIZE(vd->vdev_large_label);
+		offset += VDEV_LABEL_START_SIZE(vd);
 	}
 
 	flags |= ZIO_VDEV_CHILD_FLAGS(pio);

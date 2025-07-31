@@ -6669,8 +6669,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * odd label, so that we can handle crashes in the
 		 * middle of vdev_config_sync().
 		 */
-		boolean_t new = vdrand->vdev_large_label;
-		if ((leaf & 1) == 0 && offset < VDEV_LABEL_START_SIZE(new))
+		if ((leaf & 1) == 0 && offset < VDEV_LABEL_START_SIZE(vdrand))
 			continue;
 
 		/*
@@ -6679,10 +6678,10 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * sizeof (vdev_label_t).
 		 */
 		uint64_t psize = P2ALIGN_TYPED(fsize,
-		    new ? VDEV_LARGE_LABEL_ALIGN : sizeof (vdev_label_t),
-		    uint64_t);
+		    vdrand->vdev_large_label ? VDEV_LARGE_LABEL_ALIGN :
+		    sizeof (vdev_label_t), uint64_t);
 		if ((leaf & 1) == 1 && offset + sizeof (bad) >
-		    psize - VDEV_LABEL_END_SIZE(new))
+		    psize - VDEV_LABEL_END_SIZE(vdrand))
 			continue;
 
 		if (mirror_save != zs->zs_mirrors) {
