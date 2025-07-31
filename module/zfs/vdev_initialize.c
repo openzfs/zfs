@@ -541,8 +541,9 @@ vdev_initialize_thread(void *arg)
 
 	abd_t *deadbeef = vdev_initialize_block_alloc();
 
-	vd->vdev_initialize_tree = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
-	    NULL, 0, 0);
+	vd->vdev_initialize_tree = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "vdev_initialize_tree"));
 
 	for (uint64_t i = 0; !vd->vdev_detached &&
 	    i < vd->vdev_top->vdev_ms_count; i++) {

@@ -201,10 +201,10 @@ ZFS_BTREE_FIND_IN_BUF_FUNC(zfs_range_tree_seg64_find_in_buf, zfs_range_seg64_t,
 ZFS_BTREE_FIND_IN_BUF_FUNC(zfs_range_tree_seg_gap_find_in_buf,
     zfs_range_seg_gap_t, zfs_range_tree_seg_gap_compare)
 
-zfs_range_tree_t *
-zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
+static zfs_range_tree_t *
+zfs_range_tree_create_impl(const zfs_range_tree_ops_t *ops,
     zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
-    uint64_t gap)
+    uint64_t gap, uint64_t flags, const char *name)
 {
 	zfs_range_tree_t *rt = kmem_zalloc(sizeof (zfs_range_tree_t), KM_SLEEP);
 
@@ -236,6 +236,8 @@ zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
 
 	rt->rt_ops = ops;
 	rt->rt_gap = gap;
+	rt->rt_flags = flags;
+	rt->rt_name = name;
 	rt->rt_arg = arg;
 	rt->rt_type = type;
 	rt->rt_start = start;
@@ -248,10 +250,29 @@ zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
 }
 
 zfs_range_tree_t *
+zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
+    zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
+    uint64_t gap)
+{
+	return (zfs_range_tree_create_impl(ops, type, arg, start, shift, gap,
+	    0, NULL));
+}
+
+zfs_range_tree_t *
 zfs_range_tree_create(const zfs_range_tree_ops_t *ops,
     zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift)
 {
-	return (zfs_range_tree_create_gap(ops, type, arg, start, shift, 0));
+	return (zfs_range_tree_create_impl(ops, type, arg, start, shift, 0,
+	    0, NULL));
+}
+
+zfs_range_tree_t *
+zfs_range_tree_create_flags(const zfs_range_tree_ops_t *ops,
+    zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
+    uint64_t flags, const char *name)
+{
+	return (zfs_range_tree_create_impl(ops, type, arg, start, shift, 0,
+	    flags, name));
 }
 
 void
@@ -262,6 +283,9 @@ zfs_range_tree_destroy(zfs_range_tree_t *rt)
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_destroy != NULL)
 		rt->rt_ops->rtop_destroy(rt, rt->rt_arg);
 
+	if (rt->rt_name != NULL && (rt->rt_flags & ZFS_RT_F_DYN_NAME))
+		kmem_strfree((char *)(uintptr_t)rt->rt_name);
+
 	zfs_btree_destroy(&rt->rt_root);
 	kmem_free(rt, sizeof (*rt));
 }
@@ -271,15 +295,17 @@ zfs_range_tree_adjust_fill(zfs_range_tree_t *rt, zfs_range_seg_t *rs,
     int64_t delta)
 {
 	if (delta < 0 && delta * -1 >= zfs_rs_get_fill(rs, rt)) {
-		zfs_panic_recover("zfs: attempting to decrease fill to or "
-		    "below 0; probable double remove in segment [%llx:%llx]",
+		zfs_panic_recover("zfs: rt=%s: attempting to decrease fill to "
+		    "or below 0; probable double remove in segment [%llx:%llx]",
+		    ZFS_RT_NAME(rt),
 		    (longlong_t)zfs_rs_get_start(rs, rt),
 		    (longlong_t)zfs_rs_get_end(rs, rt));
 	}
 	if (zfs_rs_get_fill(rs, rt) + delta > zfs_rs_get_end(rs, rt) -
 	    zfs_rs_get_start(rs, rt)) {
-		zfs_panic_recover("zfs: attempting to increase fill beyond "
-		    "max; probable double add in segment [%llx:%llx]",
+		zfs_panic_recover("zfs: rt=%s: attempting to increase fill "
+		    "beyond max; probable double add in segment [%llx:%llx]",
+		    ZFS_RT_NAME(rt),
 		    (longlong_t)zfs_rs_get_start(rs, rt),
 		    (longlong_t)zfs_rs_get_end(rs, rt));
 	}
@@ -319,14 +345,17 @@ zfs_range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 	 * the normal code paths.
 	 */
 	if (rs != NULL) {
-		if (gap == 0) {
-			zfs_panic_recover("zfs: adding existent segment to "
-			    "range tree (offset=%llx size=%llx)",
-			    (longlong_t)start, (longlong_t)size);
-			return;
-		}
 		uint64_t rstart = zfs_rs_get_start(rs, rt);
 		uint64_t rend = zfs_rs_get_end(rs, rt);
+		if (gap == 0) {
+			zfs_panic_recover("zfs: rt=%s: adding segment "
+			    "(offset=%llx size=%llx) overlapping with existing "
+			    "one (offset=%llx size=%llx)",
+			    ZFS_RT_NAME(rt),
+			    (longlong_t)start, (longlong_t)size,
+			    (longlong_t)rstart, (longlong_t)(rend - rstart));
+			return;
+		}
 		if (rstart <= start && rend >= end) {
 			zfs_range_tree_adjust_fill(rt, rs, fill);
 			return;
@@ -451,6 +480,7 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 	zfs_range_seg_t *rs;
 	zfs_range_seg_max_t rsearch, rs_tmp;
 	uint64_t end = start + size;
+	uint64_t rstart, rend;
 	boolean_t left_over, right_over;
 
 	VERIFY3U(size, !=, 0);
@@ -464,11 +494,14 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 
 	/* Make sure we completely overlap with someone */
 	if (rs == NULL) {
-		zfs_panic_recover("zfs: removing nonexistent segment from "
-		    "range tree (offset=%llx size=%llx)",
-		    (longlong_t)start, (longlong_t)size);
+		zfs_panic_recover("zfs: rt=%s: removing nonexistent segment "
+		    "from range tree (offset=%llx size=%llx)",
+		    ZFS_RT_NAME(rt), (longlong_t)start, (longlong_t)size);
 		return;
 	}
+
+	rstart = zfs_rs_get_start(rs, rt);
+	rend = zfs_rs_get_end(rs, rt);
 
 	/*
 	 * Range trees with gap support must only remove complete segments
@@ -479,31 +512,36 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 	if (rt->rt_gap != 0) {
 		if (do_fill) {
 			if (zfs_rs_get_fill(rs, rt) == size) {
-				start = zfs_rs_get_start(rs, rt);
-				end = zfs_rs_get_end(rs, rt);
+				start = rstart;
+				end = rend;
 				size = end - start;
 			} else {
 				zfs_range_tree_adjust_fill(rt, rs, -size);
 				return;
 			}
-		} else if (zfs_rs_get_start(rs, rt) != start ||
-		    zfs_rs_get_end(rs, rt) != end) {
-			zfs_panic_recover("zfs: freeing partial segment of "
-			    "gap tree (offset=%llx size=%llx) of "
+		} else if (rstart != start || rend != end) {
+			zfs_panic_recover("zfs: rt=%s: freeing partial segment "
+			    "of gap tree (offset=%llx size=%llx) of "
 			    "(offset=%llx size=%llx)",
+			    ZFS_RT_NAME(rt),
 			    (longlong_t)start, (longlong_t)size,
-			    (longlong_t)zfs_rs_get_start(rs, rt),
-			    (longlong_t)zfs_rs_get_end(rs, rt) -
-			    zfs_rs_get_start(rs, rt));
+			    (longlong_t)rstart, (longlong_t)(rend - rstart));
 			return;
 		}
 	}
 
-	VERIFY3U(zfs_rs_get_start(rs, rt), <=, start);
-	VERIFY3U(zfs_rs_get_end(rs, rt), >=, end);
+	if (!(rstart <= start && rend >= end)) {
+		panic("zfs: rt=%s: removing segment "
+		    "(offset=%llx size=%llx) not completely overlapped by "
+		    "existing one (offset=%llx size=%llx)",
+		    ZFS_RT_NAME(rt),
+		    (longlong_t)start, (longlong_t)size,
+		    (longlong_t)rstart, (longlong_t)(rend - rstart));
+		return;
+	}
 
-	left_over = (zfs_rs_get_start(rs, rt) != start);
-	right_over = (zfs_rs_get_end(rs, rt) != end);
+	left_over = (rstart != start);
+	right_over = (rend != end);
 
 	zfs_range_tree_stat_decr(rt, rs);
 
