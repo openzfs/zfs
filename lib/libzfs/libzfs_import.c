@@ -208,8 +208,7 @@ zpool_clear_label(int fd)
 		    "label < l2arc_dev_hdr_phys_t");
 		memset(label, 0, sizeof (l2arc_dev_hdr_phys_t));
 		if (pwrite64(fd, label, sizeof (l2arc_dev_hdr_phys_t),
-		    VDEV_LABEL_START_SIZE(B_FALSE)) ==
-		    sizeof (l2arc_dev_hdr_phys_t))
+		    VDEV_OLD_LABEL_START_SIZE) == sizeof (l2arc_dev_hdr_phys_t))
 			header_cleared = B_TRUE;
 	}
 
