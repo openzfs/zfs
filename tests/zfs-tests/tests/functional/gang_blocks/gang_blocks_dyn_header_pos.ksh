@@ -33,41 +33,49 @@ log_assert "Verify that we don't use large gang headers on small-ashift pools".
 log_onexit cleanup
 preamble
 
-log_must zpool create -f -o ashift=12 -o feature@dynamic_gang_header=enabled $TESTPOOL $DISKS
-log_must zfs create -o recordsize=1M $TESTPOOL/$TESTFS
-mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
-set_tunable64 METASLAB_FORCE_GANGING 200000
-set_tunable32 METASLAB_FORCE_GANGING_PCT 100
+for vdevtype in "" "mirror" "raidz" "raidz2" "draid"; do
+	log_must zpool create -f -o ashift=12 $TESTPOOL $vdevtype $DISKS
+	log_must zfs create -o recordsize=1M $TESTPOOL/$TESTFS
+	mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
+	set_tunable64 METASLAB_FORCE_GANGING 200000
+	set_tunable32 METASLAB_FORCE_GANGING_PCT 100
 
-status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
-[[ "$status" == "enabled" ]] || log_fail "Dynamic gang headers not enabled"
-path="${mountpoint}/file"
-log_must dd if=/dev/urandom of=$path bs=1M count=1
-log_must zpool sync $TESTPOOL
-first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file)
-leaves=$(read_gang_header $TESTPOOL $first_block 1000 | grep -v HOLE)
-first_dva=$(echo "$leaves" | head -n 1 | awk '{print $1}' | sed 's/.*<//' | sed 's/>.*//')
-check_not_gang_dva $first_dva
+	status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
+	[[ "$status" == "enabled" ]] || \
+		log_fail "Dynamic gang headers not enabled"
+	path="${mountpoint}/file"
+	log_must dd if=/dev/urandom of=$path bs=1M count=1
+	log_must zpool sync $TESTPOOL
+	first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file)
+	leaves=$(read_gang_header $TESTPOOL $first_block 1000 | \
+		grep -v HOLE | grep -v "^Found")
+	first_child=$(echo "$leaves" | head -n 1)
+	check_gang_bp $first_child
 
-num_leaves=$(echo "$leaves" | wc -l)
-[[ "$num_leaves" -gt 3 ]] && log_fail "used a larger gang header too soon: \"$leaves\""
-log_must verify_pool $TESTPOOL
-status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
-[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
+	num_leaves=$(echo "$leaves" | wc -l)
+	[[ "$num_leaves" -gt 3 ]] && \
+		log_fail "used a larger gang header too soon: \"$leaves\""
+	log_must verify_pool $TESTPOOL
+	status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
+	[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
 
-path="${mountpoint}/file2"
-log_must dd if=/dev/urandom of=$path bs=1M count=1
-log_must zpool sync $TESTPOOL
-first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file2)
-leaves=$(read_gang_header $TESTPOOL $first_block 1000 | grep -v HOLE)
-first_dva=$(echo "$leaves" | head -n 1 | awk '{print $1}' | sed 's/.*<//' | sed 's/>.*//')
-check_not_gang_dva $first_dva
+	path="${mountpoint}/file2"
+	log_must dd if=/dev/urandom of=$path bs=1M count=1
+	log_must zpool sync $TESTPOOL
+	first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file2)
+	leaves=$(read_gang_header $TESTPOOL $first_block 1000 | \
+		grep -v HOLE | grep -v "^Found")
+	first_child=$(echo "$leaves" | head -n 1)
+	check_not_gang_bp $first_child
 
-num_leaves=$(echo "$leaves" | wc -l)
-[[ "$num_leaves" -gt 3 ]] || log_fail "didn't use a larger gang header: \"$leaves\""
+	num_leaves=$(echo "$leaves" | wc -l)
+	[[ "$num_leaves" -gt 3 ]] || \
+		log_fail "didn't use a larger gang header: \"$leaves\""
 
 
-log_must verify_pool $TESTPOOL
-status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
-[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
+	log_must verify_pool $TESTPOOL
+	status=$(get_pool_prop feature@dynamic_gang_header $TESTPOOL)
+	[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
+	log_must zpool destroy $TESTPOOL
+done
 log_pass "We don't use large gang headers on small-ashift pools".
