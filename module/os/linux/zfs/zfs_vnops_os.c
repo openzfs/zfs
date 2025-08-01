@@ -25,6 +25,7 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -3875,17 +3876,49 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	boolean_t commit = B_FALSE;
-	if (wbc->sync_mode != WB_SYNC_NONE) {
-		/*
-		 * Note that this is rarely called under writepages(), because
-		 * writepages() normally handles the entire commit for
-		 * performance reasons.
-		 */
-		commit = B_TRUE;
-	}
+	/*
+	 * A note about for_sync vs wbc->sync_mode.
+	 *
+	 * for_sync indicates that this is a syncing writeback, that is, kernel
+	 * caller expects the data to be durably stored before being notified.
+	 * Often, but not always, the call was triggered by a userspace syncing
+	 * op (eg fsync(), msync(MS_SYNC)). For our purposes, for_sync==TRUE
+	 * means that that page should remain "locked" (in the writeback state)
+	 * until it is definitely on disk (ie zil_commit() or spa_sync()).
+	 * Otherwise, we can unlock and return as soon as it is on the
+	 * in-memory ZIL.
+	 *
+	 * wbc->sync_mode has similar meaning. wbc is passed from the kernel to
+	 * zpl_writepages()/zpl_writepage(); wbc->sync_mode==WB_SYNC_NONE
+	 * indicates this a regular async writeback (eg a cache eviction) and
+	 * so does not need a durability guarantee, while WB_SYNC_ALL indicates
+	 * a syncing op that must be waited on (by convention, we test for
+	 * !WB_SYNC_NONE rather than WB_SYNC_ALL, to prefer durability over
+	 * performance should there ever be a new mode that we have not yet
+	 * added support for).
+	 *
+	 * So, why a separate for_sync field? This is because zpl_writepages()
+	 * calls zfs_putpage() multiple times for a single "logical" operation.
+	 * It wants all the individual pages to be for_sync==TRUE ie only
+	 * unlocked once durably stored, but it only wants one call to
+	 * zil_commit() at the very end, once all the pages are synced. So,
+	 * it repurposes sync_mode slightly to indicate who issue and wait for
+	 * the IO: for NONE, the caller to zfs_putpage() will do it, while for
+	 * ALL, zfs_putpage should do it.
+	 *
+	 * Summary:
+	 *   for_sync:  0=unlock immediately; 1 unlock once on disk
+	 *   sync_mode: NONE=caller will commit; ALL=we will commit
+	 */
+	boolean_t need_commit = (wbc->sync_mode != WB_SYNC_NONE);
 
-	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, commit,
+	/*
+	 * We use for_sync as the "commit" arg to zfs_log_write() (arg 7)
+	 * because it is a policy flag that indicates "someone will call
+	 * zil_commit() soon". for_sync=TRUE means exactly that; the only
+	 * question is whether it will be us, or zpl_writepages().
+	 */
+	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, for_sync,
 	    B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
 
 	if (!for_sync) {
@@ -3897,7 +3930,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	zfs_rangelock_exit(lr);
 
-	if (commit)
+	if (need_commit)
 		zil_commit(zfsvfs->z_log, zp->z_id);
 
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
