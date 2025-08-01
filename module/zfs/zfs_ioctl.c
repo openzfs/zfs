@@ -205,6 +205,7 @@
 #include <sys/brt.h>
 #include <sys/ddt.h>
 
+#include "sys/zos.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -5014,6 +5015,20 @@ zfs_ioc_ddt_prune(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	return (error);
 }
 
+static const zfs_ioc_key_t zfs_keys_bucket_create[] = {
+	// TODO: Instead of optional, should this be just 0?
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	printk(KERN_INFO "ZFS: Creating bucket: %s/%s\n", poolname, bucketname);
+	// return create_bucket(bucketname);
+	return 0;
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -8206,6 +8221,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_wait_fs, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_fs_wait, ARRAY_SIZE(zfs_keys_fs_wait));
+
+	zfs_ioctl_register("bucket_create", ZFS_IOC_BUCKET_CREATE,
+	    zfs_ioc_bucket_create, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_bucket_create, ARRAY_SIZE(zfs_keys_bucket_create));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

@@ -2089,3 +2089,23 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+int
+lzc_bucket_create(const char *pool, const char *bucket) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	// TODO: Create a const/macro for "bucket"
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	fprintf(stdout, "Before creating bucket:\npool: %s\nbucket: %s\n\n", pool, bucket);
+	error = lzc_ioctl(ZFS_IOC_BUCKET_CREATE, pool, args, &result);
+	fprintf(stdout, "After creating bucket:\npool: %s\nbucket: %s\n\n", pool, bucket);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

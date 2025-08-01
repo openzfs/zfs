@@ -24,6 +24,7 @@
  * Copyright (c) 2024, Klara, Inc.
  */
 
+#include "sys/zos.h"
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H extern __attribute__((visibility("default")))
 
@@ -62,7 +63,8 @@ typedef enum dmu_objset_type {
 	DMU_OST_ZVOL,
 	DMU_OST_OTHER,			/* For testing only! */
 	DMU_OST_ANY,			/* Be careful! */
-	DMU_OST_NUMTYPES
+	DMU_OST_NUMTYPES,
+	DMU_OST_BUCKET
 } dmu_objset_type_t;
 
 #define	ZFS_TYPE_DATASET	\
@@ -1708,6 +1710,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_BUCKET_CREATE,			/* 0x5a5b */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
