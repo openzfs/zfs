@@ -55,6 +55,8 @@
 #include <sys/dsl_deadlist.h>
 #include <zfeature_common.h>
 
+#include "zfs_crrd.h"
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -343,6 +345,12 @@ struct spa {
 	uint64_t	spa_checkpoint_txg;	/* the txg of the checkpoint */
 	spa_checkpoint_info_t spa_checkpoint_info; /* checkpoint accounting */
 	zthr_t		*spa_checkpoint_discard_zthr;
+
+	kmutex_t	spa_txg_log_time_lock;	/* for spa_txg_log_time */
+	dbrrd_t		spa_txg_log_time;
+	uint64_t	spa_last_noted_txg;
+	uint64_t	spa_last_noted_txg_time;
+	uint64_t	spa_last_flush_txg_time;
 
 	space_map_t	*spa_syncing_log_sm;	/* current log space map */
 	avl_tree_t	spa_sm_logs_by_txg;

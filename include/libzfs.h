@@ -302,6 +302,8 @@ typedef struct initialize_cbdata {
  * Functions to manipulate pool and vdev state
  */
 _LIBZFS_H int zpool_scan(zpool_handle_t *, pool_scan_func_t, pool_scrub_cmd_t);
+_LIBZFS_H int zpool_scan_range(zpool_handle_t *, pool_scan_func_t,
+    pool_scrub_cmd_t, time_t, time_t);
 _LIBZFS_H int zpool_initialize_one(zpool_handle_t *, void *);
 _LIBZFS_H int zpool_initialize(zpool_handle_t *, pool_initialize_func_t,
     nvlist_t *);

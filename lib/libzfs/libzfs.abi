@@ -574,6 +574,7 @@
     <elf-symbol name='zpool_reguid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_reopen_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_scan' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_scan_range' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_search_import' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_set_guid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6944,6 +6945,14 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7313fbe2' name='func'/>
       <parameter type-id='b51cf3c2' name='cmd'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_scan_range' mangled-name='zpool_scan_range' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_scan_range'>
+      <parameter type-id='4c81de99' name='zhp'/>
+      <parameter type-id='7313fbe2' name='func'/>
+      <parameter type-id='b51cf3c2' name='cmd'/>
+      <parameter type-id='c9d12d66' name='date_start'/>
+      <parameter type-id='c9d12d66' name='date_end'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_find_vdev_by_physpath' mangled-name='zpool_find_vdev_by_physpath' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_vdev_by_physpath'>
