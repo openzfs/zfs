@@ -801,7 +801,7 @@ tags = ['functional', 'migration']
 
 [tests/functional/mmap]
 tests = ['mmap_mixed', 'mmap_read_001_pos', 'mmap_seek_001_pos',
-    'mmap_sync_001_pos', 'mmap_write_001_pos']
+    'mmap_sync_001_pos', 'mmap_write_001_pos', 'mmap_ftruncate']
 tags = ['functional', 'mmap']
 
 [tests/functional/mount]
