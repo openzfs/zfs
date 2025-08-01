@@ -2956,8 +2956,10 @@ zio_gang_tree_assemble(zio_t *gio, blkptr_t *bp, zio_gang_node_t **gnpp)
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
 			vdev_t *vd = vdev_lookup_top(gio->io_spa,
 			    DVA_GET_VDEV(&bp->blk_dva[dva]));
-			uint64_t asize = vdev_gang_header_asize(vd);
-			gangblocksize = MIN(gangblocksize, asize);
+			uint64_t psize =
+			    vdev_asize_to_psize_txg(vd,
+			    vdev_gang_header_asize(vd), 0);
+			gangblocksize = MIN(gangblocksize, psize);
 		}
 		spa_config_exit(gio->io_spa, SCL_VDEV, FTAG);
 	} else {
