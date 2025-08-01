@@ -866,8 +866,16 @@ dbuf_evict_notify(uint64_t size)
 	 * and grabbing the lock results in massive lock contention.
 	 */
 	if (size > dbuf_cache_target_bytes()) {
-		if (size > dbuf_cache_hiwater_bytes())
+		/*
+		 * Avoid calling dbuf_evict_one() from memory reclaim context
+		 * (e.g. Linux kswapd, FreeBSD pagedaemon) to prevent deadlocks.
+		 * Memory reclaim threads can get stuck waiting for the dbuf
+		 * hash lock.
+		 */
+		if (size > dbuf_cache_hiwater_bytes() &&
+		    !current_is_reclaim_thread()) {
 			dbuf_evict_one();
+		}
 		cv_signal(&dbuf_evict_cv);
 	}
 }
