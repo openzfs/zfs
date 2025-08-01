@@ -752,10 +752,11 @@ usage(boolean_t requested)
 }
 
 /*
- * zpool initialize [-c | -s | -u] [-w] <pool> [<vdev> ...]
+ * zpool initialize [-c | -s | -u] [-w] <-a | pool> [<vdev> ...]
  * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
  * if none specified.
  *
+ *	-a	Use all pools.
  *	-c	Cancel. Ends active initializing.
  *	-s	Suspend. Initializing can then be restarted with no flags.
  *	-u	Uninitialize. Clears initialization state.
@@ -776,7 +777,7 @@ zpool_do_initialize(int argc, char **argv)
 		{"suspend",	no_argument,		NULL, 's'},
 		{"uninit",	no_argument,		NULL, 'u'},
 		{"wait",	no_argument,		NULL, 'w'},
-		{"all", 	no_argument,		NULL, 'a'},
+		{"all",		no_argument,		NULL, 'a'},
 		{0, 0, 0, 0}
 	};
 
@@ -8446,8 +8447,9 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
 }
 
 /*
- * zpool scrub [-e | -s | -p | -C | -E | -S] [-w] <pool> ...
+ * zpool scrub [-e | -s | -p | -C | -E | -S] [-w] [-a | <pool> ...]
  *
+ *	-a	Scrub all pools.
  *	-e	Only scrub blocks in the error log.
  *	-E	End date of scrub.
  *	-S	Start date of scrub.
@@ -8621,8 +8623,9 @@ zpool_do_resilver(int argc, char **argv)
 }
 
 /*
- * zpool trim [-d] [-r <rate>] [-c | -s] <pool> [<device> ...]
+ * zpool trim [-d] [-r <rate>] [-c | -s] <-a | pool> [<device> ...]
  *
+ *	-a		Trim all pools.
  *	-c		Cancel. Ends any in-progress trim.
  *	-d		Secure trim.  Requires kernel and device support.
  *	-r <rate>	Sets the TRIM rate in bytes (per second). Supports
