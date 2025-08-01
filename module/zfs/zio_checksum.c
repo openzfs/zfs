@@ -569,7 +569,11 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 		    SPA_OLD_GANGBLOCKSIZE, offset, info);
 		if (error == 0) {
 			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
-			zio_t *pio = zio_unique_parent(zio);
+			zio_t *pio;
+			for (pio = zio_unique_parent(zio);
+			    pio->io_child_type != ZIO_CHILD_GANG;
+			    pio = zio_unique_parent(pio))
+				;
 			zio_gang_node_t *gn = pio->io_private;
 			gn->gn_gangblocksize = SPA_OLD_GANGBLOCKSIZE;
 		}
