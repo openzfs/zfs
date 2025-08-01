@@ -1084,7 +1084,7 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (sta->os->os_encrypted &&
 	    !BP_IS_HOLE(bp) && !BP_USES_CRYPT(bp)) {
-		spa_log_error(spa, zb, BP_GET_LOGICAL_BIRTH(bp));
+		spa_log_error(spa, zb, BP_GET_PHYSICAL_BIRTH(bp));
 		return (SET_ERROR(EIO));
 	}
 
@@ -1210,7 +1210,7 @@ send_traverse_thread(void *arg)
 
 	err = traverse_dataset_resume(st_arg->os->os_dsl_dataset,
 	    st_arg->fromtxg, &st_arg->resume,
-	    st_arg->flags, send_cb, st_arg);
+	    st_arg->flags | TRAVERSE_LOGICAL, send_cb, st_arg);
 
 	if (err != EINTR)
 		st_arg->error_code = err;

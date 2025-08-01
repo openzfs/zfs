@@ -1056,7 +1056,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		 * will be wrong.
 		 */
 		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-		ASSERT0(BP_GET_LOGICAL_BIRTH(&dsl_dataset_phys(prev)->ds_bp));
+		ASSERT0(BP_GET_BIRTH(&dsl_dataset_phys(prev)->ds_bp));
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 		/* The origin doesn't get attached to itself */

@@ -1523,7 +1523,7 @@ dsl_bookmark_block_killed(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		 * If the block was live (referenced) at the time of this
 		 * bookmark, add its space to the bookmark's FBN.
 		 */
-		if (BP_GET_LOGICAL_BIRTH(bp) <=
+		if (BP_GET_BIRTH(bp) <=
 		    dbn->dbn_phys.zbm_creation_txg &&
 		    (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)) {
 			mutex_enter(&dbn->dbn_lock);

@@ -1243,11 +1243,9 @@ dbuf_verify(dmu_buf_impl_t *db)
 					    DVA_IS_EMPTY(&bp->blk_dva[1]) &&
 					    DVA_IS_EMPTY(&bp->blk_dva[2]));
 					ASSERT0(bp->blk_fill);
-					ASSERT0(bp->blk_pad[0]);
-					ASSERT0(bp->blk_pad[1]);
 					ASSERT(!BP_IS_EMBEDDED(bp));
 					ASSERT(BP_IS_HOLE(bp));
-					ASSERT0(BP_GET_PHYSICAL_BIRTH(bp));
+					ASSERT0(BP_GET_RAW_PHYSICAL_BIRTH(bp));
 				}
 			}
 		}
@@ -1623,7 +1621,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, dmu_flags_t flags,
 	 */
 	if (db->db_objset->os_encrypted && !BP_USES_CRYPT(bp)) {
 		spa_log_error(db->db_objset->os_spa, &zb,
-		    BP_GET_LOGICAL_BIRTH(bp));
+		    BP_GET_PHYSICAL_BIRTH(bp));
 		err = SET_ERROR(EIO);
 		goto early_unlock;
 	}
@@ -2162,6 +2160,12 @@ dbuf_redirty(dbuf_dirty_record_t *dr)
 			ASSERT(arc_released(db->db_buf));
 			arc_buf_thaw(db->db_buf);
 		}
+
+		/*
+		 * Clear the rewrite flag since this is now a logical
+		 * modification.
+		 */
+		dr->dt.dl.dr_rewrite = B_FALSE;
 	}
 }
 
@@ -2707,6 +2711,38 @@ void
 dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+}
+
+void
+dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+
+	ASSERT(tx->tx_txg != 0);
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+
+	/*
+	 * If the dbuf is already dirty in this txg, it will be written
+	 * anyway, so there's nothing to do.
+	 */
+	mutex_enter(&db->db_mtx);
+	if (dbuf_find_dirty_eq(db, tx->tx_txg) != NULL) {
+		mutex_exit(&db->db_mtx);
+		return;
+	}
+	mutex_exit(&db->db_mtx);
+
+	/*
+	 * The dbuf is not dirty, so we need to make it dirty and
+	 * mark it for rewrite (preserve logical birth time).
+	 */
+	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+
+	mutex_enter(&db->db_mtx);
+	dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
+	if (dr != NULL && db->db_level == 0)
+		dr->dt.dl.dr_rewrite = B_TRUE;
+	mutex_exit(&db->db_mtx);
 }
 
 boolean_t
@@ -4907,7 +4943,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dnode_diduse_space(dn, delta - zio->io_prev_space_delta);
 	zio->io_prev_space_delta = delta;
 
-	if (BP_GET_LOGICAL_BIRTH(bp) != 0) {
+	if (BP_GET_BIRTH(bp) != 0) {
 		ASSERT((db->db_blkid != DMU_SPILL_BLKID &&
 		    BP_GET_TYPE(bp) == dn->dn_type) ||
 		    (db->db_blkid == DMU_SPILL_BLKID &&
@@ -5194,7 +5230,7 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
 
 	drica.drica_os = dn->dn_objset;
-	drica.drica_blk_birth = BP_GET_LOGICAL_BIRTH(bp);
+	drica.drica_blk_birth = BP_GET_BIRTH(bp);
 	drica.drica_tx = tx;
 	if (spa_remap_blkptr(spa, &bp_copy, dbuf_remap_impl_callback,
 	    &drica)) {
@@ -5209,8 +5245,7 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 		if (dn->dn_objset != spa_meta_objset(spa)) {
 			dsl_dataset_t *ds = dmu_objset_ds(dn->dn_objset);
 			if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist) &&
-			    BP_GET_LOGICAL_BIRTH(bp) >
-			    ds->ds_dir->dd_origin_txg) {
+			    BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg) {
 				ASSERT(!BP_IS_EMBEDDED(bp));
 				ASSERT(dsl_dir_is_clone(ds->ds_dir));
 				ASSERT(spa_feature_is_enabled(spa,
@@ -5328,7 +5363,7 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	}
 
 	ASSERT(db->db_level == 0 || data == db->db_buf);
-	ASSERT3U(BP_GET_LOGICAL_BIRTH(db->db_blkptr), <=, txg);
+	ASSERT3U(BP_GET_BIRTH(db->db_blkptr), <=, txg);
 	ASSERT(pio);
 
 	SET_BOOKMARK(&zb, os->os_dsl_dataset ?
@@ -5340,6 +5375,24 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	wp_flag |= (data == NULL) ? WP_NOFILL : 0;
 
 	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
+
+	/*
+	 * Set rewrite properties for zfs_rewrite() operations.
+	 */
+	if (db->db_level == 0 && dr->dt.dl.dr_rewrite) {
+		zp.zp_rewrite = B_TRUE;
+
+		/*
+		 * Mark physical rewrite feature for activation.
+		 * This will be activated automatically during dataset sync.
+		 */
+		dsl_dataset_t *ds = os->os_dsl_dataset;
+		if (!dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_PHYSICAL_REWRITE)) {
+			ds->ds_feature_activation[
+			    SPA_FEATURE_PHYSICAL_REWRITE] = (void *)B_TRUE;
+		}
+	}
 
 	/*
 	 * We copy the blkptr now (rather than when we instantiate the dirty
@@ -5411,6 +5464,7 @@ EXPORT_SYMBOL(dbuf_release_bp);
 EXPORT_SYMBOL(dbuf_dirty);
 EXPORT_SYMBOL(dmu_buf_set_crypt_params);
 EXPORT_SYMBOL(dmu_buf_will_dirty);
+EXPORT_SYMBOL(dmu_buf_will_rewrite);
 EXPORT_SYMBOL(dmu_buf_is_dirty);
 EXPORT_SYMBOL(dmu_buf_will_clone_or_dio);
 EXPORT_SYMBOL(dmu_buf_will_not_fill);

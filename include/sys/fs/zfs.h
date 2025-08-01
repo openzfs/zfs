@@ -1627,6 +1627,9 @@ typedef struct zfs_rewrite_args {
 	uint64_t	arg;
 } zfs_rewrite_args_t;
 
+/* zfs_rewrite_args flags */
+#define	ZFS_REWRITE_PHYSICAL	0x1	/* Preserve logical birth time. */
+
 #define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
 
 /*

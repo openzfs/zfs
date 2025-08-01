@@ -1403,7 +1403,7 @@ corrective_read_done(zio_t *zio)
 	/* Corruption corrected; update error log if needed */
 	if (zio->io_error == 0) {
 		spa_remove_error(data->spa, &data->zb,
-		    BP_GET_LOGICAL_BIRTH(zio->io_bp));
+		    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 	}
 	kmem_free(data, sizeof (cr_cb_data_t));
 	abd_free(zio->io_abd);
@@ -1530,7 +1530,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	}
 	rrd->abd = abd;
 
-	io = zio_rewrite(NULL, rwa->os->os_spa, BP_GET_LOGICAL_BIRTH(bp), bp,
+	io = zio_rewrite(NULL, rwa->os->os_spa, BP_GET_BIRTH(bp), bp,
 	    abd, BP_GET_PSIZE(bp), NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags,
 	    &zb);
 
