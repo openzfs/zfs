@@ -2005,7 +2005,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 	if (error == 0) {
 		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(snaps, pair)) {
-			zvol_create_minor(nvpair_name(pair));
+			zvol_create_minors(nvpair_name(pair));
 		}
 	}
 
@@ -3413,7 +3413,7 @@ dsl_dataset_clone(const char *clone, const char *origin)
 	    6, ZFS_SPACE_CHECK_NORMAL);
 
 	if (rv == 0)
-		zvol_create_minor(clone);
+		zvol_create_minors(clone);
 
 	crfree(cr);
 

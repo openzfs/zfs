@@ -108,7 +108,6 @@ zvol_state_t *zvol_find_by_name_hash(const char *name,
     uint64_t hash, int mode);
 int zvol_first_open(zvol_state_t *zv, boolean_t readonly);
 uint64_t zvol_name_hash(const char *name);
-void zvol_remove_minors_impl(const char *name);
 void zvol_last_close(zvol_state_t *zv);
 void zvol_insert(zvol_state_t *zv);
 void zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
@@ -132,7 +131,7 @@ void zv_request_task_free(zv_request_task_t *task);
  * platform dependent functions exported to platform independent code
  */
 void zvol_os_free(zvol_state_t *zv);
-void zvol_os_rename_minor(zvol_state_t *zv, const char *newname);
+int zvol_os_rename_minor(zvol_state_t *zv, const char *newname);
 int zvol_os_create_minor(const char *name);
 int zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize);
 boolean_t zvol_os_is_zvol(const char *path);
