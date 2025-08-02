@@ -205,6 +205,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 			inode_dec_link_count(ZTOI(zp));
 			discard_new_inode(ZTOI(zp));
 		} else {
+			mark_inode_dirty(ZTOI(zp));
 			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
@@ -267,6 +268,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 			inode_dec_link_count(ZTOI(zp));
 			discard_new_inode(ZTOI(zp));
 		} else {
+			mark_inode_dirty(ZTOI(zp));
 			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
@@ -333,6 +335,7 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 		if (error == 0) {
 			set_nlink(ip, 1);
 			d_tmpfile(tmpfp, ip);
+			mark_inode_dirty(ip);
 			unlock_new_inode(ip);
 		} else {
 			discard_new_inode(ip);
@@ -427,6 +430,7 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 			inode_dec_link_count(ZTOI(zp));
 			discard_new_inode(ZTOI(zp));
 		} else {
+			mark_inode_dirty(ZTOI(zp));
 			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
@@ -713,6 +717,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 			inode_dec_link_count(ZTOI(zp));
 			discard_new_inode(ZTOI(zp));
 		} else {
+			mark_inode_dirty(ZTOI(zp));
 			d_instantiate_new(dentry, ZTOI(zp));
 		}
 	}
