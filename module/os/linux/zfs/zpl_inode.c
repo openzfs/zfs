@@ -202,10 +202,11 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
+			inode_dec_link_count(ZTOI(zp));
+			discard_new_inode(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -264,10 +265,11 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
+			inode_dec_link_count(ZTOI(zp));
+			discard_new_inode(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -335,12 +337,7 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 			d_tmpfile(tmpfp, ip);
 			unlock_new_inode(ip);
 		} else {
-			/*
-			 * If we failed to initialize the xattr or ACL,
-			 * iput the inode, it will be deleted,
-			 * as it's in the unlinked set.
-			 */
-			iput(ip);
+			discard_new_inode(ip);
 		}
 		_fini;
 		/*
@@ -429,10 +426,11 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 		if (error) {
 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
+			inode_dec_link_count(ZTOI(zp));
+			discard_new_inode(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 
@@ -715,10 +713,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
-			remove_inode_hash(ZTOI(zp));
-			iput(ZTOI(zp));
+			inode_dec_link_count(ZTOI(zp));
+			discard_new_inode(ZTOI(zp));
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
+			unlock_new_inode(ZTOI(zp));
 		}
 	}
 

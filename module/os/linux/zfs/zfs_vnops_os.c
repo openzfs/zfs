@@ -762,7 +762,6 @@ top:
 			 * delete the newly created dnode.
 			 */
 			zfs_znode_delete(zp, tx);
-			remove_inode_hash(ZTOI(zp));
 			zfs_acl_ids_free(&acl_ids);
 			dmu_tx_commit(tx);
 			goto out;
@@ -1366,7 +1365,6 @@ top:
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
 		zfs_znode_delete(zp, tx);
-		remove_inode_hash(ZTOI(zp));
 		goto out;
 	}
 
@@ -3174,9 +3172,10 @@ top:
 		error = zfs_link_create(sdl, wzp, tx, ZNEW);
 		if (error) {
 			zfs_znode_delete(wzp, tx);
-			remove_inode_hash(ZTOI(wzp));
+			discard_new_inode(ZTOI(wzp));
 			goto commit_unlink_td_szp;
 		}
+		unlock_new_inode(ZTOI(wzp));
 		break;
 	}
 
@@ -3412,7 +3411,6 @@ top:
 	error = zfs_link_create(dl, zp, tx, ZNEW);
 	if (error != 0) {
 		zfs_znode_delete(zp, tx);
-		remove_inode_hash(ZTOI(zp));
 	} else {
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
