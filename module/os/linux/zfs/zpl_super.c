@@ -97,7 +97,7 @@ zpl_evict_inode(struct inode *ip)
 	fstrans_cookie_t cookie;
 
 	cookie = spl_fstrans_mark();
-	truncate_setsize(ip, 0);
+	truncate_inode_pages_final(&ip->i_data);
 	clear_inode(ip);
 	zfs_inactive(ip);
 	spl_fstrans_unmark(cookie);
