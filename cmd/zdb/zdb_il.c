@@ -48,7 +48,7 @@
 
 #include "zdb.h"
 
-extern uint8_t dump_opt[256];
+extern uint8_t dump_opt[512];
 
 static char tab_prefix[4] = "\t\t\t";
 

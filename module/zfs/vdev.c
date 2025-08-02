@@ -6617,6 +6617,47 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	return (0);
 }
 
+int
+vdev_raw_alloc(vdev_t *vd, uint64_t *allocations, uint_t alloc_count)
+{
+	int error = 0;
+	metaslab_t *prev = NULL;
+	dmu_tx_t *tx = NULL;
+
+	for (uint_t i = 0; i < alloc_count; i += 2) {
+		uint64_t offset = allocations[i];
+		uint64_t length = allocations[i + 1];
+		if (offset >> vd->vdev_ms_shift >= vd->vdev_ms_count) {
+			error = E2BIG;
+			break;
+		}
+
+		metaslab_t *cur = vd->vdev_ms[offset >> vd->vdev_ms_shift];
+		if (prev != cur) {
+			if (prev) {
+				dmu_tx_commit(tx);
+				mutex_exit(&prev->ms_lock);
+				metaslab_enable(prev, B_FALSE, B_FALSE);
+			}
+			ASSERT(cur);
+			metaslab_disable(cur);
+			mutex_enter(&cur->ms_lock);
+			metaslab_load(cur);
+			prev = cur;
+			tx = dmu_tx_create_dd(
+			    spa_get_dsl(vd->vdev_spa)->dp_root_dir);
+			dmu_tx_assign(tx, DMU_TX_WAIT);
+		}
+
+		metaslab_force_alloc(cur, offset, length, tx);
+	}
+	dmu_tx_commit(tx);
+	mutex_exit(&prev->ms_lock);
+	metaslab_enable(prev, B_FALSE, B_FALSE);
+
+	return (error);
+}
+
 EXPORT_SYMBOL(vdev_fault);
 EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
