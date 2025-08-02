@@ -823,16 +823,6 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 			mutex_exit(&zp->z_lock);
 			return (SET_ERROR(ENOENT));
 		}
-		if (!(flag & ZNEW)) {
-			/*
-			 * ZNEW nodes come from zfs_mknode() where the link
-			 * count has already been initialised
-			 */
-			inc_nlink(ZTOI(zp));
-			links = ZTOI(zp)->i_nlink;
-			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
-			    NULL, &links, sizeof (links));
-		}
 	}
 
 	value = zfs_dirent(zp, zp->z_mode);
@@ -846,8 +836,6 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	 * which will rollback the SA updates done above.
 	 */
 	if (error != 0) {
-		if (!(flag & ZRENAMING) && !(flag & ZNEW))
-			drop_nlink(ZTOI(zp));
 		mutex_exit(&zp->z_lock);
 		return (error);
 	}
@@ -872,6 +860,18 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 		zfs_tstamp_update_setup(zp, STATE_CHANGED, mtime,
 		    ctime);
 	}
+
+	if (!(flag & ZRENAMING) && !(flag & ZNEW)) {
+		/*
+		 * ZNEW nodes come from zfs_mknode() where the link
+		 * count has already been initialised
+		 */
+		inc_nlink(ZTOI(zp));
+		links = ZTOI(zp)->i_nlink;
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
+		    NULL, &links, sizeof (links));
+	}
+
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT(error == 0);
 
