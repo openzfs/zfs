@@ -2884,7 +2884,9 @@ function user_run
 	typeset out=$TEST_BASE_DIR/out
 	typeset err=$TEST_BASE_DIR/err
 
-	sudo -Eu $user env PATH="$PATH" ksh <<<"$*" >$out 2>$err
+	sudo -Eu $user \
+	    env PATH="$PATH" ZTS_LOG_SUPPRESS_TIMESTAMP=1 \
+	    ksh <<<"$*" >$out 2>$err
 	typeset res=$?
 	log_note "out: $(<$out)"
 	log_note "err: $(<$err)"
