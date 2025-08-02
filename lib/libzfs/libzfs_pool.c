@@ -3640,9 +3640,12 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0 || children != 1) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "new device must be a single disk"));
-		return (zfs_error(hdl, EZFS_INVALCONFIG, errbuf));
+		if (strcmp(type, VDEV_TYPE_RAIDZ)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "new device must be a single disk"));
+			return (zfs_error(hdl, EZFS_INVALCONFIG, errbuf));
+			// XXX more clean logic is required
+		}
 	}
 
 	config_root = fnvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
@@ -3670,6 +3673,13 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 
 	zcmd_write_conf_nvlist(hdl, &zc, nvroot);
 
+	printf("zc.zc_name=%s\n", zc.zc_name);
+	printf("zc.zc_guid=%lx\n", zc.zc_guid);
+	printf("zc.zc_cookie=%ld\n", zc.zc_cookie);
+	printf("zc.zc_simple=%d\n", zc.zc_simple);
+	dump_nvlist(nvroot, 0);
+
+	printf("==== zfs_ioctl:attach\n");
 	ret = zfs_ioctl(hdl, ZFS_IOC_VDEV_ATTACH, &zc);
 
 	zcmd_free_nvlists(&zc);

@@ -7492,11 +7492,16 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	boolean_t wait = B_FALSE;
 	int c;
 	nvlist_t *nvroot;
+	char raidz_prefix[] = "raidz";
 	char *poolname, *old_disk, *new_disk;
 	zpool_handle_t *zhp;
 	nvlist_t *props = NULL;
 	char *propval;
 	int ret;
+
+	printf("=====:\n");
+	for (int i = 0; i < argc; i++)
+		printf("i=%d, argv=%s\n", i, argv[i]);
 
 	/* check options */
 	while ((c = getopt(argc, argv, "fo:sw")) != -1) {
@@ -7564,7 +7569,8 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		argv += 2;
 	}
 
-	if (argc > 1) {
+	if (argc > 1 &&
+	    (replacing || strncmp(old_disk, raidz_prefix, strlen(raidz_prefix)))) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
 		usage(B_FALSE);
 	}
@@ -7604,12 +7610,17 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		return (1);
 	}
 
+	printf("nvroot:\n");
+	dump_nvlist(nvroot, 0);
+
+	printf("vdev_tree:\n");
+	print_vdev_tree(zhp, NULL, nvroot, 0, "", VDEV_NAME_PATH);
+
 	ret = zpool_vdev_attach(zhp, old_disk, new_disk, nvroot, replacing,
 	    rebuild);
 
 	if (ret == 0 && wait) {
 		zpool_wait_activity_t activity = ZPOOL_WAIT_RESILVER;
-		char raidz_prefix[] = "raidz";
 		if (replacing) {
 			activity = ZPOOL_WAIT_REPLACE;
 		} else if (strncmp(old_disk,
