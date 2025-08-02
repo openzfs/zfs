@@ -3172,10 +3172,10 @@ top:
 		error = zfs_link_create(sdl, wzp, tx, ZNEW);
 		if (error) {
 			zfs_znode_delete(wzp, tx);
-			drop_nlink(ZTOI(wzp));
-			iput(ZTOI(wzp));
+			discard_new_inode(ZTOI(wzp));
 			goto commit_unlink_td_szp;
 		}
+		VERIFY0(insert_inode_locked(ZTOI(wzp)));
 		unlock_new_inode(ZTOI(wzp));
 		break;
 	}

@@ -529,8 +529,7 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 #endif
 
 	if (insert_inode_locked(ip)) {
-		drop_nlink(ip);
-		iput(ip);
+		discard_new_inode(ip);
 		return (NULL);
 	}
 
