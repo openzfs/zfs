@@ -195,7 +195,10 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
+
 	if (error == 0) {
+		VERIFY0(insert_inode_locked(ZTOI(zp)));
+
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
 			error = zpl_init_acl(ZTOI(zp), dir);
@@ -258,7 +261,10 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	cookie = spl_fstrans_mark();
 	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
+
 	if (error == 0) {
+		VERIFY0(insert_inode_locked(ZTOI(zp)));
+
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
 			error = zpl_init_acl(ZTOI(zp), dir);
@@ -329,6 +335,8 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
 	if (error == 0) {
+		VERIFY0(insert_inode_locked(ip));
+
 		error = zpl_xattr_security_init(ip, dir, fname);
 		if (error == 0)
 			error = zpl_init_acl(ip, dir);
@@ -420,7 +428,10 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	cookie = spl_fstrans_mark();
 	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL,
 	    user_ns);
+
 	if (error == 0) {
+		VERIFY0(insert_inode_locked(ZTOI(zp)));
+
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
 			error = zpl_init_acl(ZTOI(zp), dir);
@@ -710,7 +721,10 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink(ITOZ(dir), dname(dentry), vap,
 	    (char *)name, &zp, cr, 0, user_ns);
+
 	if (error == 0) {
+		VERIFY0(insert_inode_locked(ZTOI(zp)));
+
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
