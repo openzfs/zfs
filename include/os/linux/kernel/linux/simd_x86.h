@@ -139,15 +139,6 @@
  */
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
 
-/*
- * For kernels not exporting *kfpu_{begin,end} we have to use inline assembly
- * with the XSAVE{,OPT,S} instructions, so we need the toolchain to support at
- * least XSAVE.
- */
-#if !defined(HAVE_XSAVE)
-#error "Toolchain needs to support the XSAVE assembler instruction"
-#endif
-
 #ifndef XFEATURE_MASK_XTILE
 /*
  * For kernels where this doesn't exist yet, we still don't want to break
@@ -335,9 +326,13 @@ kfpu_begin(void)
 		return;
 	}
 #endif
+#if defined(HAVE_XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xsave("xsave", state, ~XFEATURE_MASK_XTILE);
-	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		return;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(state);
 	} else {
 		kfpu_save_fsave(state);
@@ -390,9 +385,13 @@ kfpu_end(void)
 		goto out;
 	}
 #endif
+#if defined(HAVE_XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xrstor("xrstor", state, ~XFEATURE_MASK_XTILE);
-	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		goto out;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(state);
 	} else {
 		kfpu_restore_fsave(state);
