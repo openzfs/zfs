@@ -771,7 +771,7 @@ zio_add_child_impl(zio_t *pio, zio_t *cio, boolean_t first)
 	else
 		mutex_enter(&cio->io_lock);
 
-	ASSERT(pio->io_state[ZIO_WAIT_DONE] == 0);
+	ASSERT0(pio->io_state[ZIO_WAIT_DONE]);
 
 	uint64_t *countp = pio->io_children[cio->io_child_type];
 	for (int w = 0; w < ZIO_WAIT_TYPES; w++)
@@ -955,8 +955,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	zio_t *zio;
 
 	IMPLY(type != ZIO_TYPE_TRIM, psize <= SPA_MAXBLOCKSIZE);
-	ASSERT(P2PHASE(psize, SPA_MINBLOCKSIZE) == 0);
-	ASSERT(P2PHASE(offset, SPA_MINBLOCKSIZE) == 0);
+	ASSERT0(P2PHASE(psize, SPA_MINBLOCKSIZE));
+	ASSERT0(P2PHASE(offset, SPA_MINBLOCKSIZE));
 
 	ASSERT(!vd || spa_config_held(spa, SCL_STATE_ALL, RW_READER));
 	ASSERT(!bp || !(flags & ZIO_FLAG_CONFIG_WRITER));
@@ -1559,7 +1559,7 @@ zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 {
 	zio_t *zio;
 
-	ASSERT(vd->vdev_children == 0);
+	ASSERT0(vd->vdev_children);
 	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE ||
 	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE);
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
@@ -1580,7 +1580,7 @@ zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 {
 	zio_t *zio;
 
-	ASSERT(vd->vdev_children == 0);
+	ASSERT0(vd->vdev_children);
 	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE ||
 	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE);
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
@@ -3362,7 +3362,7 @@ zio_nop_write(zio_t *zio)
 	zio_prop_t *zp = &zio->io_prop;
 
 	ASSERT(BP_IS_HOLE(bp));
-	ASSERT(BP_GET_LEVEL(bp) == 0);
+	ASSERT0(BP_GET_LEVEL(bp));
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REWRITE));
 	ASSERT(zp->zp_nopwrite);
 	ASSERT(!zp->zp_dedup);
@@ -4559,8 +4559,8 @@ zio_vdev_io_start(zio_t *zio)
 
 	zio->io_delay = 0;
 
-	ASSERT(zio->io_error == 0);
-	ASSERT(zio->io_child_error[ZIO_CHILD_VDEV] == 0);
+	ASSERT0(zio->io_error);
+	ASSERT0(zio->io_child_error[ZIO_CHILD_VDEV]);
 
 	if (vd == NULL) {
 		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
@@ -4903,7 +4903,7 @@ void
 zio_vdev_io_reissue(zio_t *zio)
 {
 	ASSERT(zio->io_stage == ZIO_STAGE_VDEV_IO_START);
-	ASSERT(zio->io_error == 0);
+	ASSERT0(zio->io_error);
 
 	zio->io_stage >>= 1;
 }
@@ -4920,7 +4920,7 @@ void
 zio_vdev_io_bypass(zio_t *zio)
 {
 	ASSERT(zio->io_stage == ZIO_STAGE_VDEV_IO_START);
-	ASSERT(zio->io_error == 0);
+	ASSERT0(zio->io_error);
 
 	zio->io_flags |= ZIO_FLAG_IO_BYPASS;
 	zio->io_stage = ZIO_STAGE_VDEV_IO_ASSESS >> 1;
@@ -5298,7 +5298,7 @@ zio_ready(zio_t *zio)
 		ASSERT(IO_IS_ALLOCATING(zio));
 		ASSERT(BP_GET_BIRTH(bp) == zio->io_txg ||
 		    BP_IS_HOLE(bp) || (zio->io_flags & ZIO_FLAG_NOPWRITE));
-		ASSERT(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY] == 0);
+		ASSERT0(zio->io_children[ZIO_CHILD_GANG][ZIO_WAIT_READY]);
 
 		zio->io_ready(zio);
 	}
@@ -5448,7 +5448,7 @@ zio_done(zio_t *zio)
 
 	for (int c = 0; c < ZIO_CHILD_TYPES; c++)
 		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
-			ASSERT(zio->io_children[c][w] == 0);
+			ASSERT0(zio->io_children[c][w]);
 
 	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
 		ASSERT(memcmp(zio->io_bp, &zio->io_bp_copy,

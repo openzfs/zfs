@@ -2483,10 +2483,10 @@ top:
 			new_mode = zp->z_mode;
 		}
 		err = zfs_acl_chown_setattr(zp);
-		ASSERT(err == 0);
+		ASSERT0(err);
 		if (attrzp) {
 			err = zfs_acl_chown_setattr(attrzp);
-			ASSERT(err == 0);
+			ASSERT0(err);
 		}
 	}
 
@@ -2600,7 +2600,7 @@ out:
 	if (err == 0 && xattr_count > 0) {
 		err2 = sa_bulk_update(attrzp->z_sa_hdl, xattr_bulk,
 		    xattr_count, tx);
-		ASSERT(err2 == 0);
+		ASSERT0(err2);
 	}
 
 	if (aclp)
@@ -3654,8 +3654,8 @@ top:
 		 * operation are sync safe.
 		 */
 		if (is_tmpfile) {
-			VERIFY(zap_remove_int(zfsvfs->z_os,
-			    zfsvfs->z_unlinkedobj, szp->z_id, tx) == 0);
+			VERIFY0(zap_remove_int(zfsvfs->z_os,
+			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;

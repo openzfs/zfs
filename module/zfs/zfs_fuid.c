@@ -112,8 +112,7 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 	uint64_t fuid_size;
 
 	ASSERT(fuid_obj != 0);
-	VERIFY(0 == dmu_bonus_hold(os, fuid_obj,
-	    FTAG, &db));
+	VERIFY0(dmu_bonus_hold(os, fuid_obj, FTAG, &db));
 	fuid_size = *(uint64_t *)db->db_data;
 	dmu_buf_rele(db, FTAG);
 
@@ -125,22 +124,21 @@ zfs_fuid_table_load(objset_t *os, uint64_t fuid_obj, avl_tree_t *idx_tree,
 		int i;
 
 		packed = kmem_alloc(fuid_size, KM_SLEEP);
-		VERIFY(dmu_read(os, fuid_obj, 0,
-		    fuid_size, packed, DMU_READ_PREFETCH) == 0);
-		VERIFY(nvlist_unpack(packed, fuid_size,
-		    &nvp, 0) == 0);
-		VERIFY(nvlist_lookup_nvlist_array(nvp, FUID_NVP_ARRAY,
-		    &fuidnvp, &count) == 0);
+		VERIFY0(dmu_read(os, fuid_obj, 0,
+		    fuid_size, packed, DMU_READ_PREFETCH));
+		VERIFY0(nvlist_unpack(packed, fuid_size, &nvp, 0));
+		VERIFY0(nvlist_lookup_nvlist_array(nvp, FUID_NVP_ARRAY,
+		    &fuidnvp, &count));
 
 		for (i = 0; i != count; i++) {
 			fuid_domain_t *domnode;
 			const char *domain;
 			uint64_t idx;
 
-			VERIFY(nvlist_lookup_string(fuidnvp[i], FUID_DOMAIN,
-			    &domain) == 0);
-			VERIFY(nvlist_lookup_uint64(fuidnvp[i], FUID_IDX,
-			    &idx) == 0);
+			VERIFY0(nvlist_lookup_string(fuidnvp[i], FUID_DOMAIN,
+			    &domain));
+			VERIFY0(nvlist_lookup_uint64(fuidnvp[i], FUID_IDX,
+			    &idx));
 
 			domnode = kmem_alloc(sizeof (fuid_domain_t), KM_SLEEP);
 
@@ -246,35 +244,33 @@ zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 		    &zfsvfs->z_fuid_obj, tx) == 0);
 	}
 
-	VERIFY(nvlist_alloc(&nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(&nvp, NV_UNIQUE_NAME, KM_SLEEP));
 
 	numnodes = avl_numnodes(&zfsvfs->z_fuid_idx);
 	fuids = kmem_alloc(numnodes * sizeof (void *), KM_SLEEP);
 	for (i = 0, domnode = avl_first(&zfsvfs->z_fuid_domain); domnode; i++,
 	    domnode = AVL_NEXT(&zfsvfs->z_fuid_domain, domnode)) {
-		VERIFY(nvlist_alloc(&fuids[i], NV_UNIQUE_NAME, KM_SLEEP) == 0);
-		VERIFY(nvlist_add_uint64(fuids[i], FUID_IDX,
-		    domnode->f_idx) == 0);
-		VERIFY(nvlist_add_uint64(fuids[i], FUID_OFFSET, 0) == 0);
-		VERIFY(nvlist_add_string(fuids[i], FUID_DOMAIN,
-		    domnode->f_ksid->kd_name) == 0);
+		VERIFY0(nvlist_alloc(&fuids[i], NV_UNIQUE_NAME, KM_SLEEP));
+		VERIFY0(nvlist_add_uint64(fuids[i], FUID_IDX,
+		    domnode->f_idx));
+		VERIFY0(nvlist_add_uint64(fuids[i], FUID_OFFSET, 0));
+		VERIFY0(nvlist_add_string(fuids[i], FUID_DOMAIN,
+		    domnode->f_ksid->kd_name));
 	}
 	fnvlist_add_nvlist_array(nvp, FUID_NVP_ARRAY,
 	    (const nvlist_t * const *)fuids, numnodes);
 	for (i = 0; i != numnodes; i++)
 		nvlist_free(fuids[i]);
 	kmem_free(fuids, numnodes * sizeof (void *));
-	VERIFY(nvlist_size(nvp, &nvsize, NV_ENCODE_XDR) == 0);
+	VERIFY0(nvlist_size(nvp, &nvsize, NV_ENCODE_XDR));
 	packed = kmem_alloc(nvsize, KM_SLEEP);
-	VERIFY(nvlist_pack(nvp, &packed, &nvsize,
-	    NV_ENCODE_XDR, KM_SLEEP) == 0);
+	VERIFY0(nvlist_pack(nvp, &packed, &nvsize, NV_ENCODE_XDR, KM_SLEEP));
 	nvlist_free(nvp);
 	zfsvfs->z_fuid_size = nvsize;
 	dmu_write(zfsvfs->z_os, zfsvfs->z_fuid_obj, 0,
 	    zfsvfs->z_fuid_size, packed, tx);
 	kmem_free(packed, zfsvfs->z_fuid_size);
-	VERIFY(0 == dmu_bonus_hold(zfsvfs->z_os, zfsvfs->z_fuid_obj,
-	    FTAG, &db));
+	VERIFY0(dmu_bonus_hold(zfsvfs->z_os, zfsvfs->z_fuid_obj, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
 	*(uint64_t *)db->db_data = zfsvfs->z_fuid_size;
 	dmu_buf_rele(db, FTAG);

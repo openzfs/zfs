@@ -346,7 +346,7 @@ zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
 	zap_name_t *zn = kmem_cache_alloc(zap_name_cache, KM_SLEEP);
 
-	ASSERT(zap->zap_normflags == 0);
+	ASSERT0(zap->zap_normflags);
 	zn->zn_zap = zap;
 	zn->zn_key_intlen = sizeof (*key);
 	zn->zn_key_orig = zn->zn_key_norm = key;
@@ -1876,7 +1876,7 @@ zap_cursor_serialize(zap_cursor_t *zc)
 		return (-1ULL);
 	if (zc->zc_zap == NULL)
 		return (zc->zc_serialized);
-	ASSERT((zc->zc_hash & zap_maxcd(zc->zc_zap)) == 0);
+	ASSERT0((zc->zc_hash & zap_maxcd(zc->zc_zap)));
 	ASSERT(zc->zc_cd < zap_maxcd(zc->zc_zap));
 
 	/*
@@ -1911,7 +1911,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 		 * we must add to the existing zc_cd, which may already
 		 * be 1 due to the zap_cursor_advance.
 		 */
-		ASSERT(zc->zc_hash == 0);
+		ASSERT0(zc->zc_hash);
 		hb = zap_hashbits(zc->zc_zap);
 		zc->zc_hash = zc->zc_serialized << (64 - hb);
 		zc->zc_cd += zc->zc_serialized >> hb;

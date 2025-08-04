@@ -1187,7 +1187,7 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	ASSERT(origin == NULL || origin->ds_dir->dd_pool == dp);
 	ASSERT(origin == NULL || dsl_dataset_phys(origin)->ds_num_children > 0);
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dsl_dir_phys(dd)->dd_head_dataset_obj == 0);
+	ASSERT0(dsl_dir_phys(dd)->dd_head_dataset_obj);
 
 	dsobj = dmu_object_alloc(mos, DMU_OT_DSL_DATASET, 0,
 	    DMU_OT_DSL_DATASET, sizeof (dsl_dataset_phys_t), tx);
@@ -2112,7 +2112,7 @@ dsl_dataset_sync(dsl_dataset_t *ds, zio_t *rio, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(ds->ds_objset != NULL);
-	ASSERT(dsl_dataset_phys(ds)->ds_next_snap_obj == 0);
+	ASSERT0(dsl_dataset_phys(ds)->ds_next_snap_obj);
 
 	/*
 	 * in case we had to change ds_fsid_guid when we opened it,
@@ -4180,7 +4180,7 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int64_t unused_refres_delta;
 
-	ASSERT(clone->ds_reserved == 0);
+	ASSERT0(clone->ds_reserved);
 	/*
 	 * NOTE: On DEBUG kernels there could be a race between this and
 	 * the check function if spa_asize_inflation is adjusted...

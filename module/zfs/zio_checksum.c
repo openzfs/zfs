@@ -215,7 +215,7 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 spa_feature_t
 zio_checksum_to_feature(enum zio_checksum cksum)
 {
-	VERIFY((cksum & ~ZIO_CHECKSUM_MASK) == 0);
+	VERIFY0((cksum & ~ZIO_CHECKSUM_MASK));
 
 	switch (cksum) {
 	case ZIO_CHECKSUM_BLAKE3:

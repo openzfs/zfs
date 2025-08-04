@@ -1676,7 +1676,7 @@ zfs_umount(struct super_block *sb)
 
 	if (zfsvfs->z_arc_prune != NULL)
 		arc_remove_prune_callback(zfsvfs->z_arc_prune);
-	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
+	VERIFY0(zfsvfs_teardown(zfsvfs, B_TRUE));
 	os = zfsvfs->z_os;
 
 	/*
@@ -1802,8 +1802,8 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		ASSERT(*ipp != NULL);
 
 		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
-			    0, kcred, NULL, NULL) == 0);
+			VERIFY0(zfsctl_root_lookup(*ipp, "snapshot", ipp,
+			    0, kcred, NULL, NULL));
 		} else {
 			/*
 			 * Must have an existing ref, so igrab()
@@ -1905,7 +1905,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		goto bail;
 
 	ds->ds_dir->dd_activity_cancelled = B_FALSE;
-	VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
+	VERIFY0(zfsvfs_setup(zfsvfs, B_FALSE));
 
 	zfs_set_fuid_feature(zfsvfs);
 	zfsvfs->z_rollback_time = jiffies;
@@ -2078,7 +2078,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
 		ASSERT0(error);
 
-		VERIFY(0 == sa_set_sa_object(os, sa_obj));
+		VERIFY0(sa_set_sa_object(os, sa_obj));
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 

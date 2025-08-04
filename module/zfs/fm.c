@@ -337,7 +337,7 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 		}
 	}
 
-	VERIFY(nvlist_size(ev->ev_nvl, &size, NV_ENCODE_NATIVE) == 0);
+	VERIFY0(nvlist_size(ev->ev_nvl, &size, NV_ENCODE_NATIVE));
 	if (size > *event_size) {
 		*event_size = size;
 		error = ENOMEM;

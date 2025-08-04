@@ -49,7 +49,7 @@ zpl_inode_alloc(struct super_block *sb)
 static void
 zpl_inode_free(struct inode *ip)
 {
-	ASSERT(atomic_read(&ip->i_count) == 0);
+	ASSERT0(atomic_read(&ip->i_count));
 	zfs_inode_free(ip);
 }
 #endif
@@ -57,7 +57,7 @@ zpl_inode_free(struct inode *ip)
 static void
 zpl_inode_destroy(struct inode *ip)
 {
-	ASSERT(atomic_read(&ip->i_count) == 0);
+	ASSERT0(atomic_read(&ip->i_count));
 	zfs_inode_destroy(ip);
 }
 

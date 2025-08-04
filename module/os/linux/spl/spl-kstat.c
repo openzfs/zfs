@@ -541,7 +541,7 @@ __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
 	kstat_t *ksp;
 
 	ASSERT(ks_module);
-	ASSERT(ks_instance == 0);
+	ASSERT0(ks_instance);
 	ASSERT(ks_name);
 
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))

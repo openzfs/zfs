@@ -892,9 +892,9 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
 
-	VERIFY(0 == dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
+	VERIFY0(dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
 
-	VERIFY(nvlist_unpack(packed, nvsize, &nv, 0) == 0);
+	VERIFY0(nvlist_unpack(packed, nvsize, &nv, 0));
 
 	umem_free(packed, nvsize);
 
@@ -2043,10 +2043,10 @@ dump_ddt_object(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	if (error == ENOENT)
 		return;
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = ddt_object_count(ddt, type, class, &count);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	if (count == 0)
 		return;
 
@@ -3520,8 +3520,8 @@ dump_uidgid(objset_t *os, uint64_t uid, uint64_t gid)
 		uint64_t fuid_obj;
 
 		/* first find the fuid object.  It lives in the master node */
-		VERIFY(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
-		    8, 1, &fuid_obj) == 0);
+		VERIFY0(zap_lookup(os, MASTER_NODE_OBJ, ZFS_FUID_TABLES,
+		    8, 1, &fuid_obj));
 		zfs_fuid_avl_tree_create(&idx_tree, &domain_tree);
 		(void) zfs_fuid_table_load(os, fuid_obj,
 		    &idx_tree, &domain_tree);

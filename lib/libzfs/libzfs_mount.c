@@ -516,7 +516,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 		} else if (rc == ENOTSUP) {
 			int spa_version;
 
-			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
+			VERIFY0(zfs_spa_version(zhp, &spa_version));
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Can't mount a version %llu "
 			    "file system on a version %d pool. Pool must be"

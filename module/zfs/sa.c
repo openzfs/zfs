@@ -304,7 +304,7 @@ sa_get_spill(sa_handle_t *hdl)
 	if (hdl->sa_spill == NULL) {
 		if ((rc = dmu_spill_hold_existing(hdl->sa_bonus, NULL,
 		    &hdl->sa_spill)) == 0)
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY0(sa_build_index(hdl, SA_SPILL));
 	} else {
 		rc = 0;
 	}
@@ -432,7 +432,7 @@ sa_add_layout_entry(objset_t *os, const sa_attr_type_t *attrs, int attr_count,
 
 		(void) snprintf(attr_name, sizeof (attr_name),
 		    "%d", (int)lot_num);
-		VERIFY(0 == zap_update(os, os->os_sa->sa_layout_attr_obj,
+		VERIFY0(zap_update(os, os->os_sa->sa_layout_attr_obj,
 		    attr_name, 2, attr_count, attrs, tx));
 	}
 
@@ -505,7 +505,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 	}
 
 	error = dbuf_spill_set_blksz(hdl->sa_spill, blocksize, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	return (error);
 }
 
@@ -717,7 +717,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
 		    hdl->sa_spill->db_size)
-			VERIFY(0 == sa_resize_spill(hdl,
+			VERIFY0(sa_resize_spill(hdl,
 			    BUF_SPACE_NEEDED(spill_used, spillhdrsize), tx));
 	}
 
@@ -791,7 +791,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		hdl->sa_bonus_tab = NULL;
 	}
 	if (!sa->sa_force_spill)
-		VERIFY(0 == sa_build_index(hdl, SA_BONUS));
+		VERIFY0(sa_build_index(hdl, SA_BONUS));
 	if (hdl->sa_spill) {
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
 		if (!spilling) {
@@ -801,10 +801,10 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 			dmu_buf_rele(hdl->sa_spill, NULL);
 			hdl->sa_spill = NULL;
 			hdl->sa_spill_tab = NULL;
-			VERIFY(0 == dmu_rm_spill(hdl->sa_os,
+			VERIFY0(dmu_rm_spill(hdl->sa_os,
 			    sa_handle_object(hdl), tx));
 		} else {
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY0(sa_build_index(hdl, SA_SPILL));
 		}
 	}
 
@@ -1733,10 +1733,10 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		    NULL, dxattr_obj, dxattr_size);
 	}
 
-	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
-	VERIFY(sa_replace_all_by_template_locked(hdl, attrs, count, tx) == 0);
+	VERIFY0(dmu_set_bonustype(db, DMU_OT_SA, tx));
+	VERIFY0(sa_replace_all_by_template_locked(hdl, attrs, count, tx));
 	if (znode_acl.z_acl_extern_obj) {
-		VERIFY(0 == dmu_object_free(zfsvfs->z_os,
+		VERIFY0(dmu_object_free(zfsvfs->z_os,
 		    znode_acl.z_acl_extern_obj, tx));
 	}
 
@@ -1858,7 +1858,7 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 			continue;
 		ATTR_ENCODE(attr_value, tb[i].sa_attr, tb[i].sa_length,
 		    tb[i].sa_byteswap);
-		VERIFY(0 == zap_update(hdl->sa_os, sa->sa_reg_attr_obj,
+		VERIFY0(zap_update(hdl->sa_os, sa->sa_reg_attr_obj,
 		    tb[i].sa_name, 8, 1, &attr_value, tx));
 		tb[i].sa_registered = B_TRUE;
 	}

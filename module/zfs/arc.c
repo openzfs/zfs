@@ -7007,7 +7007,7 @@ arc_write_done(zio_t *zio)
 				ASSERT(ARC_BUF_LAST(hdr->b_l1hdr.b_buf));
 				ASSERT(hdr->b_l1hdr.b_state == arc_anon);
 				ASSERT(BP_GET_DEDUP(zio->io_bp));
-				ASSERT(BP_GET_LEVEL(zio->io_bp) == 0);
+				ASSERT0(BP_GET_LEVEL(zio->io_bp));
 			}
 		}
 		arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);

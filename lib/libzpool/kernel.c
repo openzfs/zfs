@@ -369,7 +369,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 	if (delta <= 0)
 		return (-1);
 
-	VERIFY(gettimeofday(&tv, NULL) == 0);
+	VERIFY0(gettimeofday(&tv, NULL));
 
 	ts.tv_sec = tv.tv_sec + delta / hz;
 	ts.tv_nsec = tv.tv_usec * NSEC_PER_USEC + (delta % hz) * (NANOSEC / hz);

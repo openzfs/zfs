@@ -478,7 +478,7 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 	size_t off = tree->avl_offset;
 
 #ifdef _LP64
-	ASSERT(((uintptr_t)new_data & 0x7) == 0);
+	ASSERT0(((uintptr_t)new_data & 0x7));
 #endif
 
 	node = AVL_DATA2NODE(new_data, off);
@@ -881,7 +881,7 @@ avl_create(avl_tree_t *tree, int (*compar) (const void *, const void *),
 	ASSERT(size > 0);
 	ASSERT(size >= offset + sizeof (avl_node_t));
 #ifdef _LP64
-	ASSERT((offset & 0x7) == 0);
+	ASSERT0((offset & 0x7));
 #endif
 
 	tree->avl_compar = compar;
@@ -897,7 +897,7 @@ void
 avl_destroy(avl_tree_t *tree)
 {
 	ASSERT(tree);
-	ASSERT(tree->avl_numnodes == 0);
+	ASSERT0(tree->avl_numnodes);
 	ASSERT(tree->avl_root == NULL);
 }
 

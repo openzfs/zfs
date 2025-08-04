@@ -456,10 +456,10 @@ metaslab_class_destroy(metaslab_class_t *mc)
 {
 	spa_t *spa = mc->mc_spa;
 
-	ASSERT(mc->mc_alloc == 0);
-	ASSERT(mc->mc_deferred == 0);
-	ASSERT(mc->mc_space == 0);
-	ASSERT(mc->mc_dspace == 0);
+	ASSERT0(mc->mc_alloc);
+	ASSERT0(mc->mc_deferred);
+	ASSERT0(mc->mc_space);
+	ASSERT0(mc->mc_dspace);
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_class_allocator_t *mca = &mc->mc_allocator[i];
@@ -5997,7 +5997,7 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	}
 
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));
-	ASSERT(BP_GET_NDVAS(bp) == 0);
+	ASSERT0(BP_GET_NDVAS(bp));
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
 	ASSERT3P(zal, !=, NULL);
 
@@ -6029,7 +6029,7 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 				smallest_psize = MIN(cur_psize, smallest_psize);
 		}
 	}
-	ASSERT(error == 0);
+	ASSERT0(error);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);
 	if (actual_psize)
 		*actual_psize = smallest_psize;

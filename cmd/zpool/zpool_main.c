@@ -12377,7 +12377,7 @@ zpool_do_events_next(ev_opts_t *opts)
 		nvlist_free(nvl);
 	}
 
-	VERIFY(0 == close(zevent_fd));
+	VERIFY0(close(zevent_fd));
 
 	return (ret);
 }

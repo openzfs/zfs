@@ -81,7 +81,7 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 	/* we can get stats even if we failed to get a path */
 	(void) memcpy(sb, &zc.zc_stat, sizeof (zfs_stat_t));
 	if (error == 0) {
-		ASSERT(di->zerr == 0);
+		ASSERT0(di->zerr);
 		(void) strlcpy(pn, zc.zc_value, maxlen);
 		return (0);
 	}
@@ -404,7 +404,7 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 	(void) strlcpy(zc.zc_name, di->fromsnap, sizeof (zc.zc_name));
 	zc.zc_obj = dr->ddr_first - 1;
 
-	ASSERT(di->zerr == 0);
+	ASSERT0(di->zerr);
 
 	while (zc.zc_obj < dr->ddr_last) {
 		int err;

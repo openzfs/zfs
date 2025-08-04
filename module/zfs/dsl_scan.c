@@ -1784,7 +1784,7 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	SET_BOOKMARK(&zb, zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	VERIFY(0 == scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+	VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	return (0);
 }
 
@@ -1820,7 +1820,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
-		VERIFY(0 == scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	}
 	return (0);
 }

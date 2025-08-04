@@ -247,7 +247,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	 * and fifos, but we want to know if this behavior ever changes.
 	 */
 	if (S_ISSOCK(mode) || S_ISFIFO(mode))
-		ASSERT(rdev == 0);
+		ASSERT0(rdev);
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);

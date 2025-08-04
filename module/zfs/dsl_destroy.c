@@ -525,7 +525,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	/* remove from snapshot namespace */
 	dsl_dataset_t *ds_head;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj == 0);
+	ASSERT0(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
 	VERIFY0(dsl_dataset_hold_obj(dp,
 	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head));
 	VERIFY0(dsl_dataset_get_snapname(ds));

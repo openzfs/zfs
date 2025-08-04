@@ -917,7 +917,7 @@ error:
 static uint64_t
 label_offset(uint64_t size, int l)
 {
-	ASSERT(P2PHASE_TYPED(size, sizeof (vdev_label_t), uint64_t) == 0);
+	ASSERT0(P2PHASE_TYPED(size, sizeof (vdev_label_t), uint64_t));
 	return (l * sizeof (vdev_label_t) + (l < VDEV_LABELS / 2 ?
 	    0 : size - VDEV_LABELS * sizeof (vdev_label_t)));
 }

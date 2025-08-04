@@ -1343,7 +1343,7 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	if (size == 0)
 		return;
 
-	VERIFY(0 == dmu_buf_hold_array(os, object, offset, size,
+	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
 	    FALSE, FTAG, &numbufs, &dbp));
 
 	for (i = 0; i < numbufs; i++) {
@@ -1872,7 +1872,7 @@ dmu_sync_ready(zio_t *zio, arc_buf_t *buf, void *varg)
 			 */
 			BP_SET_LSIZE(bp, db->db_size);
 		} else if (!BP_IS_EMBEDDED(bp)) {
-			ASSERT(BP_GET_LEVEL(bp) == 0);
+			ASSERT0(BP_GET_LEVEL(bp));
 			BP_SET_FILL(bp, 1);
 		}
 	}
@@ -2405,7 +2405,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 			}
 		}
 	} else if (wp & WP_NOFILL) {
-		ASSERT(level == 0);
+		ASSERT0(level);
 
 		/*
 		 * If we're writing preallocated blocks, we aren't actually
@@ -2865,7 +2865,7 @@ byteswap_uint64_array(void *vbuf, size_t size)
 	size_t count = size >> 3;
 	int i;
 
-	ASSERT((size & 7) == 0);
+	ASSERT0((size & 7));
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_64(buf[i]);
@@ -2878,7 +2878,7 @@ byteswap_uint32_array(void *vbuf, size_t size)
 	size_t count = size >> 2;
 	int i;
 
-	ASSERT((size & 3) == 0);
+	ASSERT0((size & 3));
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_32(buf[i]);
@@ -2891,7 +2891,7 @@ byteswap_uint16_array(void *vbuf, size_t size)
 	size_t count = size >> 1;
 	int i;
 
-	ASSERT((size & 1) == 0);
+	ASSERT0((size & 1));
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_16(buf[i]);

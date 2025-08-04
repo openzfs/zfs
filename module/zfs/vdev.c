@@ -1464,7 +1464,7 @@ vdev_remove_parent(vdev_t *cvd)
 	if (cvd == cvd->vdev_top)
 		vdev_top_transfer(mvd, cvd);
 
-	ASSERT(mvd->vdev_children == 0);
+	ASSERT0(mvd->vdev_children);
 	vdev_free(mvd);
 }
 
@@ -2134,14 +2134,14 @@ vdev_open(vdev_t *vd)
 	 * faulted, bail out of the open.
 	 */
 	if (!vd->vdev_removed && vd->vdev_faulted) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		ASSERT(vd->vdev_label_aux == VDEV_AUX_ERR_EXCEEDED ||
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    vd->vdev_label_aux);
 		return (SET_ERROR(ENXIO));
 	} else if (vd->vdev_offline) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_OFFLINE, VDEV_AUX_NONE);
 		return (SET_ERROR(ENXIO));
 	}
@@ -2197,7 +2197,7 @@ vdev_open(vdev_t *vd)
 	 * the vdev is accessible.  If we're faulted, bail.
 	 */
 	if (vd->vdev_faulted) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		ASSERT(vd->vdev_label_aux == VDEV_AUX_ERR_EXCEEDED ||
 		    vd->vdev_label_aux == VDEV_AUX_EXTERNAL);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
@@ -2206,7 +2206,7 @@ vdev_open(vdev_t *vd)
 	}
 
 	if (vd->vdev_degraded) {
-		ASSERT(vd->vdev_children == 0);
+		ASSERT0(vd->vdev_children);
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_DEGRADED,
 		    VDEV_AUX_ERR_EXCEEDED);
 	} else {
@@ -5194,7 +5194,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 int64_t
 vdev_deflated_space(vdev_t *vd, int64_t space)
 {
-	ASSERT((space & (SPA_MINBLOCKSIZE-1)) == 0);
+	ASSERT0((space & (SPA_MINBLOCKSIZE-1)));
 	ASSERT(vd->vdev_deflate_ratio != 0 || vd->vdev_isl2cache);
 
 	return ((space >> SPA_MINBLOCKSHIFT) * vd->vdev_deflate_ratio);
@@ -5286,8 +5286,8 @@ vdev_config_dirty(vdev_t *vd)
 
 		if (nvlist_lookup_nvlist_array(sav->sav_config,
 		    ZPOOL_CONFIG_L2CACHE, &aux, &naux) != 0) {
-			VERIFY(nvlist_lookup_nvlist_array(sav->sav_config,
-			    ZPOOL_CONFIG_SPARES, &aux, &naux) == 0);
+			VERIFY0(nvlist_lookup_nvlist_array(sav->sav_config,
+			    ZPOOL_CONFIG_SPARES, &aux, &naux));
 		}
 
 		ASSERT(c < naux);
@@ -5675,7 +5675,7 @@ vdev_expand(vdev_t *vd, uint64_t txg)
 	    (vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
 	    vdev_is_concrete(vd)) {
 		vdev_metaslab_group_create(vd);
-		VERIFY(vdev_metaslab_init(vd, txg) == 0);
+		VERIFY0(vdev_metaslab_init(vd, txg));
 		vdev_config_dirty(vd);
 	}
 }

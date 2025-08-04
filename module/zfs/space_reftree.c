@@ -149,6 +149,6 @@ space_reftree_generate_map(avl_tree_t *t, zfs_range_tree_t *rt, int64_t minref)
 			}
 		}
 	}
-	ASSERT(refcnt == 0);
+	ASSERT0(refcnt);
 	ASSERT(start == -1ULL);
 }

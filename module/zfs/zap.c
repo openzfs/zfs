@@ -921,7 +921,7 @@ fzap_add_cd(zap_name_t *zn,
 
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 	ASSERT(!zap->zap_ismicro);
-	ASSERT(fzap_check(zn, integer_size, num_integers) == 0);
+	ASSERT0(fzap_check(zn, integer_size, num_integers));
 
 	err = zap_deref_leaf(zap, zn->zn_hash, tx, RW_WRITER, &l);
 	if (err != 0)
@@ -1386,7 +1386,7 @@ again:
 		}
 		err = zap_entry_read_name(zap, &zeh,
 		    za->za_name_len, za->za_name);
-		ASSERT(err == 0);
+		ASSERT0(err);
 
 		za->za_normalization_conflict =
 		    zap_entry_normalization_conflict(&zeh,

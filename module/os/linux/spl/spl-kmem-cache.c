@@ -296,7 +296,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	spl_kmem_cache_t *skc;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_ref == 0);
+	ASSERT0(sks->sks_ref);
 
 	skc = sks->sks_cache;
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -598,7 +598,7 @@ static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
 	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skm->skm_avail == 0);
+	ASSERT0(skm->skm_avail);
 	kfree(skm);
 }
 
@@ -610,7 +610,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
 	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
@@ -640,7 +640,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	spl_kmem_magazine_t *skm;
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -986,7 +986,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	*obj = NULL;
 

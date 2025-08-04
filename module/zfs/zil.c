@@ -991,8 +991,8 @@ zil_create(zilog_t *zilog)
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
 
-	ASSERT(zh->zh_claim_txg == 0);
-	ASSERT(zh->zh_replay_seq == 0);
+	ASSERT0(zh->zh_claim_txg);
+	ASSERT0(zh->zh_replay_seq);
 
 	blk = zh->zh_log;
 
@@ -1104,7 +1104,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 	zilog->zl_keep_first = keep_first;
 
 	if (!list_is_empty(&zilog->zl_lwb_list)) {
-		ASSERT(zh->zh_claim_txg == 0);
+		ASSERT0(zh->zh_claim_txg);
 		VERIFY(!keep_first);
 		while ((lwb = list_remove_head(&zilog->zl_lwb_list)) != NULL) {
 			if (lwb->lwb_buf != NULL)
@@ -3773,7 +3773,7 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 
 	mutex_enter(&zilog->zl_lock);
 
-	ASSERT(zilog->zl_stop_sync == 0);
+	ASSERT0(zilog->zl_stop_sync);
 
 	if (*replayed_seq != 0) {
 		ASSERT(zh->zh_replay_seq < *replayed_seq);
@@ -4386,7 +4386,7 @@ zil_replay(objset_t *os, void *arg,
 
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
-	ASSERT(zilog->zl_replay_blks == 0);
+	ASSERT0(zilog->zl_replay_blks);
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
 	    zh->zh_claim_txg, B_TRUE);
 	vmem_free(zr.zr_lr, 2 * SPA_MAXBLOCKSIZE);

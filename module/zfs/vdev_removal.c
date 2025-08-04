@@ -344,10 +344,10 @@ spa_vdev_remove_aux(nvlist_t *config, const char *name, nvlist_t **dev,
 	for (int i = 0, j = 0; i < count; i++) {
 		if (dev[i] == dev_to_remove)
 			continue;
-		VERIFY(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP) == 0);
+		VERIFY0(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP));
 	}
 
-	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
+	VERIFY0(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY));
 	fnvlist_add_nvlist_array(config, name, (const nvlist_t * const *)newdev,
 	    count - 1);
 
