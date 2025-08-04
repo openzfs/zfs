@@ -207,7 +207,7 @@ insert_find_remove(zfs_btree_t *bt, char *why)
 		    "Found removed value (%llu)\n", *p);
 		return (1);
 	}
-	ASSERT3S(zfs_btree_numnodes(bt), ==, 0);
+	ASSERT0(zfs_btree_numnodes(bt));
 	zfs_btree_verify(bt);
 
 	return (0);
@@ -279,7 +279,7 @@ drain_tree(zfs_btree_t *bt, char *why)
 		node = avl_last(&avl);
 		ASSERT3U(node->data, ==, *(uint64_t *)zfs_btree_last(bt, NULL));
 	}
-	ASSERT3S(zfs_btree_numnodes(bt), ==, 0);
+	ASSERT0(zfs_btree_numnodes(bt));
 
 	void *avl_cookie = NULL;
 	while ((node = avl_destroy_nodes(&avl, &avl_cookie)) != NULL)
