@@ -1867,7 +1867,8 @@ property is updated with
 , the property is set to desired value, but the operation to share, reshare
 or unshare the the dataset is not performed.
 .It Sy logbias Ns = Ns Sy latency Ns | Ns Sy throughput
-Provide a hint to ZFS about handling of synchronous requests in this dataset.
+Provide a hint to ZFS about handling of synchronous write requests in this
+dataset.
 If
 .Sy logbias
 is set to
@@ -1875,12 +1876,12 @@ is set to
 .Pq the default ,
 ZFS will use pool log devices
 .Pq if configured
-to handle the requests at low latency.
+to handle the write requests at low latency.
 If
 .Sy logbias
 is set to
 .Sy throughput ,
-ZFS will not use configured pool log devices.
+ZFS will not use configured pool log devices to store written data.
 ZFS will instead optimize synchronous operations for global pool throughput and
 efficient use of resources.
 .It Sy snapdev Ns = Ns Sy hidden Ns | Ns Sy visible

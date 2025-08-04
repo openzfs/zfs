@@ -1723,9 +1723,10 @@ storing all written data into ZIL to not depend on regular vdev latency.
 .
 .It Sy zil_special_is_slog Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When enabled, and written blocks go to normal vdevs, treat present special
-vdevs as SLOGs, storing all synchronously written data into ZIL directly.
-Disabling this forces the indirect writes to preserve special vdev write
-throughput and endurance, likely at the cost of normal vdev latency.
+vdevs as SLOGs.
+Blocks that go to the special vdevs are still written indirectly, as with
+.Sy logbias Ns = Ns Sy throughput .
+This parameter is ignored if an SLOG is present.
 .
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by
@@ -2471,8 +2472,8 @@ code for this record type.
 The tunable has no effect if the feature is disabled.
 .
 .It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64 Pq uint
-Usually, one metaslab from each normal-class vdev is dedicated for use by
-the ZIL to log synchronous writes.
+Usually, one metaslab from each normal and special class vdev is dedicated
+for use by the ZIL to log synchronous writes.
 However, if there are fewer than
 .Sy zfs_embedded_slog_min_ms
 metaslabs in the vdev, this functionality is disabled.
