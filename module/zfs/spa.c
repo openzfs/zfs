@@ -1836,9 +1836,9 @@ static void
 spa_deactivate(spa_t *spa)
 {
 	ASSERT(spa->spa_sync_on == B_FALSE);
-	ASSERT(spa->spa_dsl_pool == NULL);
-	ASSERT(spa->spa_root_vdev == NULL);
-	ASSERT(spa->spa_async_zio_root == NULL);
+	ASSERT0P(spa->spa_dsl_pool);
+	ASSERT0P(spa->spa_root_vdev);
+	ASSERT0P(spa->spa_async_zio_root);
 	ASSERT(spa->spa_state != POOL_STATE_UNINITIALIZED);
 
 	spa_evicting_os_wait(spa);
@@ -2280,7 +2280,7 @@ spa_unload(spa_t *spa)
 	 */
 	if (spa->spa_root_vdev)
 		vdev_free(spa->spa_root_vdev);
-	ASSERT(spa->spa_root_vdev == NULL);
+	ASSERT0P(spa->spa_root_vdev);
 
 	/*
 	 * Close the dsl pool.
@@ -3275,7 +3275,7 @@ static int
 livelist_track_new_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
-	ASSERT(tx == NULL);
+	ASSERT0P(tx);
 	livelist_new_arg_t *lna = arg;
 	if (bp_freed) {
 		bplist_append(lna->frees, bp);
@@ -4091,11 +4091,11 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	nvlist_free(spa->spa_load_info);
 	spa->spa_load_info = fnvlist_alloc();
 
-	ASSERT(spa->spa_comment == NULL);
+	ASSERT0P(spa->spa_comment);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
 		spa->spa_comment = spa_strdup(comment);
 
-	ASSERT(spa->spa_compatibility == NULL);
+	ASSERT0P(spa->spa_compatibility);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMPATIBILITY,
 	    &compatibility) == 0)
 		spa->spa_compatibility = spa_strdup(compatibility);
@@ -10541,7 +10541,7 @@ spa_sync_tq_create(spa_t *spa, const char *name)
 {
 	kthread_t **kthreads;
 
-	ASSERT(spa->spa_sync_tq == NULL);
+	ASSERT0P(spa->spa_sync_tq);
 	ASSERT3S(spa->spa_alloc_count, <=, boot_ncpus);
 
 	/*

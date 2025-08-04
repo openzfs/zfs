@@ -66,9 +66,9 @@ void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
 	ASSERT(cvp);
-	ASSERT(name == NULL);
+	ASSERT0P(name);
 	ASSERT(type == CV_DEFAULT);
-	ASSERT(arg == NULL);
+	ASSERT0P(arg);
 
 	cvp->cv_magic = CV_MAGIC;
 	init_waitqueue_head(&cvp->cv_event);
@@ -83,7 +83,7 @@ static int
 cv_destroy_wakeup(kcondvar_t *cvp)
 {
 	if (!atomic_read(&cvp->cv_waiters) && !atomic_read(&cvp->cv_refs)) {
-		ASSERT(cvp->cv_mutex == NULL);
+		ASSERT0P(cvp->cv_mutex);
 		ASSERT(!waitqueue_active(&cvp->cv_event));
 		return (1);
 	}

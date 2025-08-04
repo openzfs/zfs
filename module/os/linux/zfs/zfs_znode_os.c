@@ -178,13 +178,13 @@ zfs_znode_init(void)
 	 * backed by kmalloc() when on the Linux slab in order that any
 	 * wait_on_bit() operations on the related inode operate properly.
 	 */
-	ASSERT(znode_cache == NULL);
+	ASSERT0P(znode_cache);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
 	    zfs_znode_cache_destructor, NULL, NULL, NULL,
 	    KMC_SLAB | KMC_RECLAIMABLE);
 
-	ASSERT(znode_hold_cache == NULL);
+	ASSERT0P(znode_hold_cache);
 	znode_hold_cache = kmem_cache_create("zfs_znode_hold_cache",
 	    sizeof (znode_hold_t), 0, zfs_znode_hold_cache_constructor,
 	    zfs_znode_hold_cache_destructor, NULL, NULL, NULL, 0);
@@ -327,8 +327,8 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 
 	mutex_enter(&zp->z_lock);
 
-	ASSERT(zp->z_sa_hdl == NULL);
-	ASSERT(zp->z_acl_cached == NULL);
+	ASSERT0P(zp->z_sa_hdl);
+	ASSERT0P(zp->z_acl_cached);
 	if (sa_hdl == NULL) {
 		VERIFY0(sa_handle_get_from_db(zfsvfs->z_os, db, zp,
 		    SA_HDL_SHARED, &zp->z_sa_hdl));
@@ -530,7 +530,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 		return (NULL);
 
 	zp = ITOZ(ip);
-	ASSERT(zp->z_dirlocks == NULL);
+	ASSERT0P(zp->z_dirlocks);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
@@ -1200,7 +1200,7 @@ zfs_rezget(znode_t *zp)
 	}
 	rw_exit(&zp->z_xattr_lock);
 
-	ASSERT(zp->z_sa_hdl == NULL);
+	ASSERT0P(zp->z_sa_hdl);
 	err = sa_buf_hold(zfsvfs->z_os, obj_num, NULL, &db);
 	if (err) {
 		zfs_znode_hold_exit(zfsvfs, zh);

@@ -77,7 +77,7 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	/*
 	 * Be sure there are no surprises.
 	 */
-	ASSERT(stk == NULL);
+	ASSERT0P(stk);
 	ASSERT0(len);
 	ASSERT(state == TS_RUN);
 

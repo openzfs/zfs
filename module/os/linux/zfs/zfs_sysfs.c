@@ -223,7 +223,7 @@ zfs_kobj_add(zfs_mod_kobj_t *zkobj, struct kobject *parent, const char *name)
 {
 	/* zko_default_group.attrs must be NULL terminated */
 	ASSERT(zkobj->zko_default_group.attrs != NULL);
-	ASSERT(zkobj->zko_default_group.attrs[zkobj->zko_attr_count] == NULL);
+	ASSERT0P(zkobj->zko_default_group.attrs[zkobj->zko_attr_count]);
 
 	kobject_init(&zkobj->zko_kobj, &zkobj->zko_kobj_type);
 	return (kobject_add(&zkobj->zko_kobj, parent, name));

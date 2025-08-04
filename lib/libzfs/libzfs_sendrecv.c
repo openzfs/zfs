@@ -5560,7 +5560,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 			if ((cp = strchr(nonpackage_sendfs, '@')) != NULL)
 				*cp = '\0';
 			sendfs = nonpackage_sendfs;
-			VERIFY(finalsnap == NULL);
+			VERIFY0P(finalsnap);
 		}
 		return (zfs_receive_one(hdl, infd, tosnap, originsnap, flags,
 		    &drr, &drr_noswap, sendfs, stream_nv, stream_avl, top_zfs,

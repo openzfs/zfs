@@ -3796,7 +3796,7 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 		DTRACE_PROBE1(arc__delete, arc_buf_hdr_t *, hdr);
 
 		if (HDR_HAS_L2HDR(hdr)) {
-			ASSERT(hdr->b_l1hdr.b_pabd == NULL);
+			ASSERT0P(hdr->b_l1hdr.b_pabd);
 			ASSERT(!HDR_HAS_RABD(hdr));
 			/*
 			 * This buffer is cached on the 2nd Level ARC;

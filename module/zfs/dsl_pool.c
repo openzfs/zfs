@@ -1077,7 +1077,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		dsl_dataset_phys(prev)->ds_num_children++;
 
 		if (dsl_dataset_phys(ds)->ds_next_snap_obj == 0) {
-			ASSERT(ds->ds_prev == NULL);
+			ASSERT0P(ds->ds_prev);
 			VERIFY0(dsl_dataset_hold_obj(dp,
 			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
 			    ds, &ds->ds_prev));
@@ -1173,7 +1173,7 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsl_dataset_t *ds;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dp->dp_origin_snap == NULL);
+	ASSERT0P(dp->dp_origin_snap);
 	ASSERT(rrw_held(&dp->dp_config_rwlock, RW_WRITER));
 
 	/* create the origin dir, ds, & snap-ds */

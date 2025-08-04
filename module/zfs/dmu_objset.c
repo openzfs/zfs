@@ -724,7 +724,7 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 
 		if (err == 0) {
 			mutex_enter(&ds->ds_lock);
-			ASSERT(ds->ds_objset == NULL);
+			ASSERT0P(ds->ds_objset);
 			ds->ds_objset = os;
 			mutex_exit(&ds->ds_lock);
 		}

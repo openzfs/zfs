@@ -8143,7 +8143,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		spa_t *spa;
 		nvlist_t *lognv = NULL;
 
-		ASSERT(vec->zvec_legacy_func == NULL);
+		ASSERT0P(vec->zvec_legacy_func);
 
 		/*
 		 * Add the innvl to the lognv before calling the func,

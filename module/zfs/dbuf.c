@@ -1128,8 +1128,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	if (dn == NULL) {
-		ASSERT(db->db_parent == NULL);
-		ASSERT(db->db_blkptr == NULL);
+		ASSERT0P(db->db_parent);
+		ASSERT0P(db->db_blkptr);
 	} else {
 		ASSERT3U(db->db.db_object, ==, dn->dn_object);
 		ASSERT3P(db->db_objset, ==, dn->dn_objset);
@@ -1180,7 +1180,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 			/* db is pointed to by the dnode */
 			/* ASSERT3U(db->db_blkid, <, dn->dn_nblkptr); */
 			if (DMU_OBJECT_IS_SPECIAL(db->db.db_object))
-				ASSERT(db->db_parent == NULL);
+				ASSERT0P(db->db_parent);
 			else
 				ASSERT(db->db_parent != NULL);
 			if (db->db_blkid != DMU_SPILL_BLKID)
@@ -1384,8 +1384,8 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 	 * All reads are synchronous, so we must have a hold on the dbuf
 	 */
 	ASSERT(zfs_refcount_count(&db->db_holds) > 0);
-	ASSERT(db->db_buf == NULL);
-	ASSERT(db->db.db_data == NULL);
+	ASSERT0P(db->db_buf);
+	ASSERT0P(db->db.db_data);
 	if (buf == NULL) {
 		/* i/o error */
 		ASSERT(zio == NULL || zio->io_error != 0);
@@ -1584,7 +1584,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, dmu_flags_t flags,
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(db->db_state == DB_UNCACHED || db->db_state == DB_NOFILL);
-	ASSERT(db->db_buf == NULL);
+	ASSERT0P(db->db_buf);
 	ASSERT(db->db_parent == NULL ||
 	    RW_LOCK_HELD(&db->db_parent->db_rwlock));
 
@@ -1901,8 +1901,8 @@ dbuf_noread(dmu_buf_impl_t *db, dmu_flags_t flags)
 	while (db->db_state == DB_READ || db->db_state == DB_FILL)
 		cv_wait(&db->db_changed, &db->db_mtx);
 	if (db->db_state == DB_UNCACHED) {
-		ASSERT(db->db_buf == NULL);
-		ASSERT(db->db.db_data == NULL);
+		ASSERT0P(db->db_buf);
+		ASSERT0P(db->db.db_data);
 		dbuf_set_data(db, dbuf_alloc_arcbuf(db));
 		db->db_state = DB_FILL;
 		DTRACE_SET_STATE(db, "assigning filled buffer");
@@ -2017,7 +2017,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		if (db->db_state == DB_UNCACHED ||
 		    db->db_state == DB_NOFILL ||
 		    db->db_state == DB_EVICTING) {
-			ASSERT(db->db.db_data == NULL);
+			ASSERT0P(db->db.db_data);
 			mutex_exit(&db->db_mtx);
 			continue;
 		}
@@ -3209,7 +3209,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
 		VERIFY(!dbuf_undirty(db, tx));
 		db->db_state = DB_UNCACHED;
 	}
-	ASSERT(db->db_buf == NULL);
+	ASSERT0P(db->db_buf);
 	dbuf_set_data(db, buf);
 	db->db_state = DB_FILL;
 	DTRACE_SET_STATE(db, "filling assigned arcbuf");
@@ -3269,7 +3269,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	}
 
 	ASSERT(db->db_state == DB_UNCACHED || db->db_state == DB_NOFILL);
-	ASSERT(db->db_data_pending == NULL);
+	ASSERT0P(db->db_data_pending);
 	ASSERT(list_is_empty(&db->db_dirty_records));
 
 	db->db_state = DB_EVICTING;
@@ -3321,11 +3321,11 @@ dbuf_destroy(dmu_buf_impl_t *db)
 
 	db->db_parent = NULL;
 
-	ASSERT(db->db_buf == NULL);
-	ASSERT(db->db.db_data == NULL);
-	ASSERT(db->db_hash_next == NULL);
-	ASSERT(db->db_blkptr == NULL);
-	ASSERT(db->db_data_pending == NULL);
+	ASSERT0P(db->db_buf);
+	ASSERT0P(db->db.db_data);
+	ASSERT0P(db->db_hash_next);
+	ASSERT0P(db->db_blkptr);
+	ASSERT0P(db->db_data_pending);
 	ASSERT3U(db->db_caching_status, ==, DB_NO_CACHE);
 	ASSERT(!multilist_link_active(&db->db_cache_link));
 
@@ -4064,7 +4064,7 @@ dbuf_create_bonus(dnode_t *dn)
 {
 	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 
-	ASSERT(dn->dn_bonus == NULL);
+	ASSERT0P(dn->dn_bonus);
 	dn->dn_bonus = dbuf_create(dn, 0, DMU_BONUS_BLKID, dn->dn_dbuf, NULL,
 	    dbuf_hash(dn->dn_objset, dn->dn_object, 0, DMU_BONUS_BLKID));
 	dn->dn_bonus->db_pending_evict = FALSE;
@@ -4416,7 +4416,7 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 		 * inappropriate to hook it in (i.e., nlevels mismatch).
 		 */
 		ASSERT(db->db_blkid < dn->dn_phys->dn_nblkptr);
-		ASSERT(db->db_parent == NULL);
+		ASSERT0P(db->db_parent);
 		db->db_parent = dn->dn_dbuf;
 		db->db_blkptr = &dn->dn_phys->dn_blkptr[db->db_blkid];
 		DBUF_VERIFY(db);

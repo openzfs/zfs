@@ -450,7 +450,7 @@ dsl_dataset_evict_sync(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT0P(ds->ds_owner);
 
 	unique_remove(ds->ds_fsid_guid);
 }
@@ -460,7 +460,7 @@ dsl_dataset_evict_async(void *dbu)
 {
 	dsl_dataset_t *ds = dbu;
 
-	ASSERT(ds->ds_owner == NULL);
+	ASSERT0P(ds->ds_owner);
 
 	ds->ds_dbuf = NULL;
 

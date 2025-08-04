@@ -391,7 +391,7 @@ static kstat_t *metaslab_ksp;
 void
 metaslab_stat_init(void)
 {
-	ASSERT(metaslab_alloc_trace_cache == NULL);
+	ASSERT0P(metaslab_alloc_trace_cache);
 	metaslab_alloc_trace_cache = kmem_cache_create(
 	    "metaslab_alloc_trace_cache", sizeof (metaslab_alloc_trace_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
@@ -465,7 +465,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 		metaslab_class_allocator_t *mca = &mc->mc_allocator[i];
 		avl_destroy(&mca->mca_tree);
 		mutex_destroy(&mca->mca_lock);
-		ASSERT(mca->mca_rotor == NULL);
+		ASSERT0P(mca->mca_rotor);
 		ASSERT0(mca->mca_reserved);
 	}
 	mutex_destroy(&mc->mc_lock);
@@ -1087,8 +1087,8 @@ metaslab_group_destroy(metaslab_group_t *mg)
 {
 	spa_t *spa = mg->mg_class->mc_spa;
 
-	ASSERT(mg->mg_prev == NULL);
-	ASSERT(mg->mg_next == NULL);
+	ASSERT0P(mg->mg_prev);
+	ASSERT0P(mg->mg_next);
 	/*
 	 * We may have gone below zero with the activation count
 	 * either because we never activated in the first place or
@@ -1118,8 +1118,8 @@ metaslab_group_activate(metaslab_group_t *mg)
 
 	ASSERT3U(spa_config_held(spa, SCL_ALLOC, RW_WRITER), !=, 0);
 
-	ASSERT(mg->mg_prev == NULL);
-	ASSERT(mg->mg_next == NULL);
+	ASSERT0P(mg->mg_prev);
+	ASSERT0P(mg->mg_next);
 	ASSERT(mg->mg_activation_count <= 0);
 
 	if (++mg->mg_activation_count <= 0)
@@ -1164,8 +1164,8 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	if (--mg->mg_activation_count != 0) {
 		for (int i = 0; i < spa->spa_alloc_count; i++)
 			ASSERT(mc->mc_allocator[i].mca_rotor != mg);
-		ASSERT(mg->mg_prev == NULL);
-		ASSERT(mg->mg_next == NULL);
+		ASSERT0P(mg->mg_prev);
+		ASSERT0P(mg->mg_next);
 		ASSERT(mg->mg_activation_count < 0);
 		return;
 	}
@@ -1345,7 +1345,7 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 static void
 metaslab_group_add(metaslab_group_t *mg, metaslab_t *msp)
 {
-	ASSERT(msp->ms_group == NULL);
+	ASSERT0P(msp->ms_group);
 	mutex_enter(&mg->mg_lock);
 	msp->ms_group = mg;
 	msp->ms_weight = 0;
@@ -3017,7 +3017,7 @@ metaslab_fini(metaslab_t *msp)
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
-	VERIFY(msp->ms_group == NULL);
+	VERIFY0P(msp->ms_group);
 
 	/*
 	 * If this metaslab hasn't been through metaslab_sync_done() yet its

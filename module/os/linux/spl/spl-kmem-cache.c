@@ -679,8 +679,8 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	/*
 	 * Unsupported flags
 	 */
-	ASSERT(vmp == NULL);
-	ASSERT(reclaim == NULL);
+	ASSERT0P(vmp);
+	ASSERT0P(reclaim);
 
 	might_sleep();
 

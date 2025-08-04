@@ -554,7 +554,7 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	vdev_t **newchild;
 
 	ASSERT(spa_config_held(cvd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
-	ASSERT(cvd->vdev_parent == NULL);
+	ASSERT0P(cvd->vdev_parent);
 
 	cvd->vdev_parent = pvd;
 
@@ -578,7 +578,7 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	pvd->vdev_nonrot &= cvd->vdev_nonrot;
 
 	cvd->vdev_top = (pvd->vdev_top ? pvd->vdev_top: cvd);
-	ASSERT(cvd->vdev_top->vdev_parent->vdev_parent == NULL);
+	ASSERT0P(cvd->vdev_top->vdev_parent->vdev_parent);
 
 	/*
 	 * Walk up all ancestors to update guid sum.
@@ -1133,7 +1133,7 @@ vdev_free(vdev_t *vd)
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_free(vd->vdev_child[c]);
 
-	ASSERT(vd->vdev_child == NULL);
+	ASSERT0P(vd->vdev_child);
 	ASSERT(vd->vdev_guid_sum == vd->vdev_guid);
 
 	if (vd->vdev_ops->vdev_op_fini != NULL)
@@ -1162,7 +1162,7 @@ vdev_free(vdev_t *vd)
 	 */
 	vdev_remove_child(vd->vdev_parent, vd);
 
-	ASSERT(vd->vdev_parent == NULL);
+	ASSERT0P(vd->vdev_parent);
 	ASSERT(!list_link_active(&vd->vdev_leaf_node));
 
 	/*
