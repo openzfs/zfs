@@ -590,7 +590,7 @@ zfsctl_inode_lookup(zfsvfs_t *zfsvfs, uint64_t id,
 int
 zfsctl_create(zfsvfs_t *zfsvfs)
 {
-	ASSERT(zfsvfs->z_ctldir == NULL);
+	ASSERT0P(zfsvfs->z_ctldir);
 
 	zfsvfs->z_ctldir = zfsctl_inode_alloc(zfsvfs, ZFSCTL_INO_ROOT,
 	    &zpl_fops_root, &zpl_ops_root, 0);

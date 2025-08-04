@@ -471,7 +471,7 @@ spa_config_lock_destroy(spa_t *spa)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
-		ASSERT(scl->scl_writer == NULL);
+		ASSERT0P(scl->scl_writer);
 		ASSERT0(scl->scl_write_wanted);
 		ASSERT0(scl->scl_count);
 	}

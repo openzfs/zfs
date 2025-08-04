@@ -728,7 +728,7 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		 */
 		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
-		ASSERT(zilog == NULL);
+		ASSERT0P(zilog);
 		ASSERT3U(BP_GET_BIRTH(bp), >,
 		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
 		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);

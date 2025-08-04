@@ -260,7 +260,7 @@ mmp_thread_stop(spa_t *spa)
 	zfs_dbgmsg("MMP thread stopped pool '%s' gethrtime %llu",
 	    spa_name(spa), gethrtime());
 
-	ASSERT(mmp->mmp_thread == NULL);
+	ASSERT0P(mmp->mmp_thread);
 	mmp->mmp_thread_exiting = 0;
 }
 

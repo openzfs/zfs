@@ -817,7 +817,7 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	space_map_t *sm;
 	int error;
 
-	ASSERT(*smp == NULL);
+	ASSERT0P(*smp);
 	ASSERT(os != NULL);
 	ASSERT(object != 0);
 

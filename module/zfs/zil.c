@@ -1250,7 +1250,7 @@ zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 	blkptr_t *bp;
 	int error;
 
-	ASSERT(tx == NULL);
+	ASSERT0P(tx);
 
 	error = dmu_objset_from_ds(ds, &os);
 	if (error != 0) {

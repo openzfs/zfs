@@ -225,7 +225,7 @@ avl_nearest(avl_tree_t *tree, avl_index_t where, int direction)
 	size_t off = tree->avl_offset;
 
 	if (node == NULL) {
-		ASSERT(tree->avl_root == NULL);
+		ASSERT0P(tree->avl_root);
 		return (NULL);
 	}
 	data = AVL_NODE2DATA(node, off);
@@ -495,10 +495,10 @@ avl_insert(avl_tree_t *tree, void *new_data, avl_index_t where)
 	AVL_SETBALANCE(node, 0);
 	AVL_SETPARENT(node, parent);
 	if (parent != NULL) {
-		ASSERT(parent->avl_child[which_child] == NULL);
+		ASSERT0P(parent->avl_child[which_child]);
 		parent->avl_child[which_child] = node;
 	} else {
-		ASSERT(tree->avl_root == NULL);
+		ASSERT0P(tree->avl_root);
 		tree->avl_root = node;
 	}
 	/*
@@ -608,7 +608,7 @@ avl_insert_here(
 		ASSERT(diff > 0 ? child == 1 : child == 0);
 #endif
 	}
-	ASSERT(node->avl_child[child] == NULL);
+	ASSERT0P(node->avl_child[child]);
 
 	avl_insert(tree, new_data, AVL_MKINDEX(node, child));
 }
@@ -898,7 +898,7 @@ avl_destroy(avl_tree_t *tree)
 {
 	ASSERT(tree);
 	ASSERT0(tree->avl_numnodes);
-	ASSERT(tree->avl_root == NULL);
+	ASSERT0P(tree->avl_root);
 }
 
 

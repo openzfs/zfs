@@ -318,7 +318,7 @@ dnode_kstats_update(kstat_t *ksp, int rw)
 void
 dnode_init(void)
 {
-	ASSERT(dnode_cache == NULL);
+	ASSERT0P(dnode_cache);
 	dnode_cache = kmem_cache_create("dnode_t", sizeof (dnode_t),
 	    0, dnode_cons, dnode_dest, NULL, NULL, NULL, KMC_RECLAIMABLE);
 	kmem_cache_set_move(dnode_cache, dnode_move);
