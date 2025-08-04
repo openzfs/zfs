@@ -298,8 +298,6 @@ zia_fini(void)
 static void zia_open_vdevs_impl(vdev_t *vd) {
 	vdev_ops_t *ops = vd->vdev_ops;
 	if (ops->vdev_op_leaf) {
-		ASSERT(!vd->vdev_zia_handle);
-
 		const size_t len = strlen(ops->vdev_op_type);
 		if (len == 4) {
 			if (memcmp(ops->vdev_op_type, "file", 4) == 0) {
