@@ -1900,7 +1900,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		if (!(flag & IS_ROOT_NODE) &&
 		    (dzp->z_pflags & ZFS_INHERIT_ACE) &&
 		    !(dzp->z_pflags & ZFS_XATTR)) {
-			VERIFY(0 == zfs_acl_node_read(dzp, B_TRUE,
+			VERIFY0(zfs_acl_node_read(dzp, B_TRUE,
 			    &paclp, B_FALSE));
 			acl_ids->z_aclp = zfs_acl_inherit(zfsvfs,
 			    vap->va_mode, paclp, acl_ids->z_mode, &need_chmod);
@@ -2204,7 +2204,7 @@ top:
 	}
 
 	error = zfs_aclset_common(zp, aclp, cr, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	ASSERT(zp->z_acl_cached == NULL);
 	zp->z_acl_cached = aclp;
 

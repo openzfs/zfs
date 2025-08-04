@@ -815,7 +815,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 */
 		err = zap_update(mos, zapobj, recvdstr,
 		    intsz, numints, value, tx);
-		ASSERT(err == 0);
+		ASSERT0(err);
 		break;
 	case (ZPROP_SRC_NONE | ZPROP_SRC_LOCAL | ZPROP_SRC_RECEIVED):
 		/*
@@ -1166,7 +1166,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 		if (nvlist_exists(nv, propname))
 			continue;
 
-		VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
 		if (za->za_integer_length == 1) {
 			/*
 			 * String property
@@ -1179,8 +1179,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 				kmem_free(tmp, za->za_num_integers);
 				break;
 			}
-			VERIFY(nvlist_add_string(propval, ZPROP_VALUE,
-			    tmp) == 0);
+			VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, tmp));
 			kmem_free(tmp, za->za_num_integers);
 		} else {
 			/*
@@ -1191,8 +1190,8 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			    za->za_first_integer);
 		}
 
-		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, source) == 0);
-		VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_SOURCE, source));
+		VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 		nvlist_free(propval);
 	}
 	zap_cursor_fini(&zc);
@@ -1215,7 +1214,7 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 	int err = 0;
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN];
 
-	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP));
 
 	if (ds->ds_is_snapshot)
 		flags |= DSL_PROP_GET_SNAPSHOT;
@@ -1333,18 +1332,18 @@ dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value)
 	uint64_t default_value;
 
 	if (nvlist_lookup_nvlist(nv, propname, &propval) == 0) {
-		VERIFY(nvlist_add_uint64(propval, ZPROP_VALUE, value) == 0);
+		VERIFY0(nvlist_add_uint64(propval, ZPROP_VALUE, value));
 		return;
 	}
 
-	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_uint64(propval, ZPROP_VALUE, value) == 0);
+	VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+	VERIFY0(nvlist_add_uint64(propval, ZPROP_VALUE, value));
 	/* Indicate the default source if we can. */
 	if (dodefault(prop, 8, 1, &default_value) == 0 &&
 	    value == default_value) {
-		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, "") == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_SOURCE, ""));
 	}
-	VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+	VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 	nvlist_free(propval);
 }
 
@@ -1355,13 +1354,13 @@ dsl_prop_nvlist_add_string(nvlist_t *nv, zfs_prop_t prop, const char *value)
 	const char *propname = zfs_prop_to_name(prop);
 
 	if (nvlist_lookup_nvlist(nv, propname, &propval) == 0) {
-		VERIFY(nvlist_add_string(propval, ZPROP_VALUE, value) == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, value));
 		return;
 	}
 
-	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(propval, ZPROP_VALUE, value) == 0);
-	VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+	VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+	VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, value));
+	VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 	nvlist_free(propval);
 }
 

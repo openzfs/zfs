@@ -2226,7 +2226,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 				rf |= DB_RF_HAVESTRUCT;
 			error = dmu_spill_hold_by_dnode(dn, rf,
 			    FTAG, (dmu_buf_t **)&db);
-			ASSERT(error == 0);
+			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
 			data = (before) ? db->db.db_data :
 			    dmu_objset_userquota_find_data(db, tx);

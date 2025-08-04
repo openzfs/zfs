@@ -522,8 +522,8 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 
 		/* create and open the free_bplist */
 		obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
-		VERIFY(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx) == 0);
+		VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
 		VERIFY0(bpobj_open(&dp->dp_free_bpobj,
 		    dp->dp_meta_objset, obj));
 	}
@@ -1250,7 +1250,7 @@ dsl_pool_user_hold_create_obj(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	objset_t *mos = dp->dp_meta_objset;
 
-	ASSERT(dp->dp_tmp_userrefs_obj == 0);
+	ASSERT0(dp->dp_tmp_userrefs_obj);
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	dp->dp_tmp_userrefs_obj = zap_create_link(mos, DMU_OT_USERREFS,

@@ -215,8 +215,8 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	int error;
 	uint64_t volblocksize, volsize;
 
-	VERIFY(nvlist_lookup_uint64(nvprops,
-	    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &volsize) == 0);
+	VERIFY0(nvlist_lookup_uint64(nvprops,
+	    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &volsize));
 	if (nvlist_lookup_uint64(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &volblocksize) != 0)
 		volblocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
@@ -225,21 +225,20 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	 * These properties must be removed from the list so the generic
 	 * property setting step won't apply to them.
 	 */
-	VERIFY(nvlist_remove_all(nvprops,
-	    zfs_prop_to_name(ZFS_PROP_VOLSIZE)) == 0);
+	VERIFY0(nvlist_remove_all(nvprops, zfs_prop_to_name(ZFS_PROP_VOLSIZE)));
 	(void) nvlist_remove_all(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE));
 
 	error = dmu_object_claim(os, ZVOL_OBJ, DMU_OT_ZVOL, volblocksize,
 	    DMU_OT_NONE, 0, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = zap_create_claim(os, ZVOL_ZAP_OBJ, DMU_OT_ZVOL_PROP,
 	    DMU_OT_NONE, 0, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 
 	error = zap_update(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 }
 
 /*

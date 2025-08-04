@@ -137,12 +137,10 @@ show_pool_stats(spa_t *spa)
 	nvlist_t *config, *nvroot;
 	const char *name;
 
-	VERIFY(spa_get_stats(spa_name(spa), &config, NULL, 0) == 0);
+	VERIFY0(spa_get_stats(spa_name(spa), &config, NULL, 0));
 
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvroot) == 0);
-	VERIFY(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
-	    &name) == 0);
+	VERIFY0(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvroot));
+	VERIFY0(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME, &name));
 
 	show_vdev_stats(name, ZPOOL_CONFIG_CHILDREN, nvroot, 0);
 	show_vdev_stats(NULL, ZPOOL_CONFIG_L2CACHE, nvroot, 0);

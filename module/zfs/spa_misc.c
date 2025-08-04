@@ -472,8 +472,8 @@ spa_config_lock_destroy(spa_t *spa)
 		mutex_destroy(&scl->scl_lock);
 		cv_destroy(&scl->scl_cv);
 		ASSERT(scl->scl_writer == NULL);
-		ASSERT(scl->scl_write_wanted == 0);
-		ASSERT(scl->scl_count == 0);
+		ASSERT0(scl->scl_write_wanted);
+		ASSERT0(scl->scl_count);
 	}
 }
 
@@ -784,24 +784,23 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	dp->scd_path = altroot ? NULL : spa_strdup(spa_config_path);
 	list_insert_head(&spa->spa_config_list, dp);
 
-	VERIFY(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME,
-	    KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(&spa->spa_load_info, NV_UNIQUE_NAME, KM_SLEEP));
 
 	if (config != NULL) {
 		nvlist_t *features;
 
 		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_FEATURES_FOR_READ,
 		    &features) == 0) {
-			VERIFY(nvlist_dup(features, &spa->spa_label_features,
-			    0) == 0);
+			VERIFY0(nvlist_dup(features,
+			    &spa->spa_label_features, 0));
 		}
 
-		VERIFY(nvlist_dup(config, &spa->spa_config, 0) == 0);
+		VERIFY0(nvlist_dup(config, &spa->spa_config, 0));
 	}
 
 	if (spa->spa_label_features == NULL) {
-		VERIFY(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
-		    KM_SLEEP) == 0);
+		VERIFY0(nvlist_alloc(&spa->spa_label_features, NV_UNIQUE_NAME,
+		    KM_SLEEP));
 	}
 
 	spa->spa_min_ashift = INT_MAX;

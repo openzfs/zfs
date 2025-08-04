@@ -2278,8 +2278,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 
 			ztest_block_tag_t rbt;
 
-			VERIFY(dmu_read(os, lr->lr_foid, offset,
-			    sizeof (rbt), &rbt, flags) == 0);
+			VERIFY0(dmu_read(os, lr->lr_foid, offset,
+			    sizeof (rbt), &rbt, flags));
 			if (rbt.bt_magic == BT_MAGIC) {
 				ztest_bt_verify(&rbt, os, lr->lr_foid, 0,
 				    offset, gen, txg, crtxg);
@@ -5537,8 +5537,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			}
 
 			if (i == 1) {
-				VERIFY(dmu_buf_hold(os, bigobj, off,
-				    FTAG, &dbt, DMU_READ_NO_PREFETCH) == 0);
+				VERIFY0(dmu_buf_hold(os, bigobj, off,
+				    FTAG, &dbt, DMU_READ_NO_PREFETCH));
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,

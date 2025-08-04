@@ -126,7 +126,7 @@ dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
 			 * problem, but there's no way for it to happen (for
 			 * now, at least).
 			 */
-			ASSERT(dn->dn_assigned_txg == 0);
+			ASSERT0(dn->dn_assigned_txg);
 			dn->dn_assigned_txg = tx->tx_txg;
 			(void) zfs_refcount_add(&dn->dn_tx_holds, tx);
 			mutex_exit(&dn->dn_mtx);
@@ -443,7 +443,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	dnode_t *dn = txh->txh_dnode;
 	int err;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	if (off >= (dn->dn_maxblkid + 1) * dn->dn_datablksz)
 		return;
@@ -607,7 +607,7 @@ dmu_tx_hold_zap_impl(dmu_tx_hold_t *txh, const char *name)
 	dnode_t *dn = txh->txh_dnode;
 	int err;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	dmu_tx_count_dnode(txh);
 
@@ -681,7 +681,7 @@ dmu_tx_hold_bonus(dmu_tx_t *tx, uint64_t object)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_BONUS, 0, 0);
@@ -706,7 +706,7 @@ dmu_tx_hold_space(dmu_tx_t *tx, uint64_t space)
 {
 	dmu_tx_hold_t *txh;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    DMU_NEW_OBJECT, THT_SPACE, space, 0);
@@ -1232,7 +1232,7 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 {
 	int err;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 	ASSERT0(flags & ~(DMU_TX_WAIT | DMU_TX_NOTHROTTLE | DMU_TX_SUSPEND));
 	IMPLY(flags & DMU_TX_SUSPEND, flags & DMU_TX_WAIT);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
@@ -1328,7 +1328,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 	dsl_pool_t *dp = tx->tx_pool;
 	hrtime_t before;
 
-	ASSERT(tx->tx_txg == 0);
+	ASSERT0(tx->tx_txg);
 	ASSERT(!dsl_pool_config_held(tx->tx_pool));
 
 	/*
@@ -1644,12 +1644,12 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		dmu_tx_hold_zap(tx, sa->sa_layout_attr_obj, B_TRUE, NULL);
 
 	if (sa->sa_force_spill || may_grow || hdl->sa_spill) {
-		ASSERT(tx->tx_txg == 0);
+		ASSERT0(tx->tx_txg);
 		dmu_tx_hold_spill(tx, object);
 	} else {
 		DB_DNODE_ENTER(db);
 		if (DB_DNODE(db)->dn_have_spill) {
-			ASSERT(tx->tx_txg == 0);
+			ASSERT0(tx->tx_txg);
 			dmu_tx_hold_spill(tx, object);
 		}
 		DB_DNODE_EXIT(db);

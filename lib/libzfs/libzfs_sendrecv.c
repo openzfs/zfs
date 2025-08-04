@@ -2505,7 +2505,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		err = ENOENT;
 
 	if (sdd.cleanup_fd != -1) {
-		VERIFY(0 == close(sdd.cleanup_fd));
+		VERIFY0(close(sdd.cleanup_fd));
 		sdd.cleanup_fd = -1;
 	}
 
@@ -2531,7 +2531,7 @@ err_out:
 	fnvlist_free(sdd.snapholds);
 
 	if (sdd.cleanup_fd != -1)
-		VERIFY(0 == close(sdd.cleanup_fd));
+		VERIFY0(close(sdd.cleanup_fd));
 	return (err);
 }
 
@@ -5108,7 +5108,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		nvlist_t *holds, *errors = NULL;
 		int cleanup_fd = -1;
 
-		VERIFY(0 == nvlist_alloc(&holds, 0, KM_SLEEP));
+		VERIFY0(nvlist_alloc(&holds, 0, KM_SLEEP));
 		for (pair = nvlist_next_nvpair(snapholds_nvlist, NULL);
 		    pair != NULL;
 		    pair = nvlist_next_nvpair(snapholds_nvlist, pair)) {

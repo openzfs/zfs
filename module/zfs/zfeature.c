@@ -210,8 +210,8 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 				    za->za_name, 1, MAXPATHLEN, buf) == 0)
 					desc = buf;
 
-				VERIFY(nvlist_add_string(unsup_feat,
-				    za->za_name, desc) == 0);
+				VERIFY0(nvlist_add_string(unsup_feat,
+				    za->za_name, desc));
 			}
 		}
 	}

@@ -169,7 +169,7 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	ASSERT(MUTEX_HELD(&zp->z_lock));
 	VERIFY((xoap = xva_getxoptattr(xvap)) != NULL);
 	if (zp->z_is_sa)
-		VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
+		VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_SCANSTAMP(zfsvfs),
 		    &xoap->xoa_av_scanstamp,
 		    sizeof (xoap->xoa_av_scanstamp), tx));
 	else {
@@ -181,12 +181,12 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		len = sizeof (xoap->xoa_av_scanstamp) +
 		    ZFS_OLD_ZNODE_PHYS_SIZE;
 		if (len > doi.doi_bonus_size)
-			VERIFY(dmu_set_bonus(db, len, tx) == 0);
+			VERIFY0(dmu_set_bonus(db, len, tx));
 		(void) memcpy((caddr_t)db->db_data + ZFS_OLD_ZNODE_PHYS_SIZE,
 		    xoap->xoa_av_scanstamp, sizeof (xoap->xoa_av_scanstamp));
 
 		zp->z_pflags |= ZFS_BONUS_SCANSTAMP;
-		VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
+		VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
 		    &zp->z_pflags, sizeof (uint64_t), tx));
 	}
 }
@@ -427,11 +427,10 @@ zfs_sa_upgrade(sa_handle_t *hdl, dmu_tx_t *tx)
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
 
-	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
-	VERIFY(sa_replace_all_by_template_locked(hdl, sa_attrs,
-	    count, tx) == 0);
+	VERIFY0(dmu_set_bonustype(db, DMU_OT_SA, tx));
+	VERIFY0(sa_replace_all_by_template_locked(hdl, sa_attrs, count, tx));
 	if (znode_acl.z_acl_extern_obj)
-		VERIFY(0 == dmu_object_free(zfsvfs->z_os,
+		VERIFY0(dmu_object_free(zfsvfs->z_os,
 		    znode_acl.z_acl_extern_obj, tx));
 
 	zp->z_is_sa = B_TRUE;

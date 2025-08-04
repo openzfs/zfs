@@ -335,7 +335,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 
 	dduha.dduha_holds = holds;
 	/* chkholds can have non-unique name */
-	VERIFY(0 == nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
+	VERIFY0(nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
 	dduha.dduha_errlist = errlist;
 	dduha.dduha_minor = cleanup_minor;
 

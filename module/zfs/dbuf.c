@@ -523,7 +523,7 @@ dbuf_verify_user(dmu_buf_impl_t *db, dbvu_verify_type_t verify_type)
 		return;
 
 	/* Only data blocks support the attachment of user data. */
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 
 	/* Clients must resolve a dbuf before attaching user data. */
 	ASSERT(db->db.db_data != NULL);
@@ -1219,7 +1219,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 				int i;
 
 				for (i = 0; i < db->db.db_size >> 3; i++) {
-					ASSERT(buf[i] == 0);
+					ASSERT0(buf[i]);
 				}
 			} else {
 				blkptr_t *bps = db->db.db_data;
@@ -1682,7 +1682,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(db->db.db_data != NULL);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT);
 
 	if (dr == NULL ||
@@ -1929,7 +1929,7 @@ dbuf_unoverride(dbuf_dirty_record_t *dr)
 	 * comes from dbuf_dirty() callers who must also hold a range lock.
 	 */
 	ASSERT(dr->dt.dl.dr_override_state != DR_IN_DMU_SYNC);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 
 	if (db->db_blkid == DMU_BONUS_BLKID ||
 	    dr->dt.dl.dr_override_state == DR_NOT_OVERRIDDEN)
@@ -2932,7 +2932,7 @@ dmu_buf_will_fill_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t canfail,
 
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT(tx->tx_txg != 0);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 
 	ASSERT(db->db.db_object != DMU_META_DNODE_OBJECT ||
@@ -3144,7 +3144,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
 {
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-	ASSERT(db->db_level == 0);
+	ASSERT0(db->db_level);
 	ASSERT3U(dbuf_is_metadata(db), ==, arc_is_metadata(buf));
 	ASSERT(buf != NULL);
 	ASSERT3U(arc_buf_lsize(buf), ==, db->db.db_size);
@@ -4588,7 +4588,7 @@ dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr)
 
 	/* ensure that everything is zero after our data */
 	for (; datap_end < datap_max; datap_end++)
-		ASSERT(*datap_end == 0);
+		ASSERT0(*datap_end);
 #endif
 }
 

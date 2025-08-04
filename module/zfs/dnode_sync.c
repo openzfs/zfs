@@ -209,8 +209,8 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
-		ASSERT(err == 0);
-		ASSERT(child->db_level == 0);
+		ASSERT0(err);
+		ASSERT0(child->db_level);
 		dr = dbuf_find_dirty_eq(child, txg);
 
 		/* data_old better be zeroed */

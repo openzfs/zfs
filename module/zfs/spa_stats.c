@@ -718,7 +718,7 @@ spa_mmp_history_set(spa_t *spa, uint64_t mmp_node_id, int io_error,
 	for (smh = list_tail(&shl->procfs_list.pl_list); smh != NULL;
 	    smh = list_prev(&shl->procfs_list.pl_list, smh)) {
 		if (smh->mmp_node_id == mmp_node_id) {
-			ASSERT(smh->io_error == 0);
+			ASSERT0(smh->io_error);
 			smh->io_error = io_error;
 			smh->duration = duration;
 			error = 0;

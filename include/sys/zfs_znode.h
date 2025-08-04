@@ -73,7 +73,7 @@ extern "C" {
 		pflags |= attr; \
 	else \
 		pflags &= ~attr; \
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
+	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
 	    &pflags, sizeof (pflags), tx)); \
 }
 

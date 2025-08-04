@@ -426,10 +426,10 @@ spa_prop_add_user(nvlist_t *nvl, const char *propname, char *strval,
 {
 	nvlist_t *propval;
 
-	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_uint64(propval, ZPROP_SOURCE, src) == 0);
-	VERIFY(nvlist_add_string(propval, ZPROP_VALUE, strval) == 0);
-	VERIFY(nvlist_add_nvlist(nvl, propname, propval) == 0);
+	VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+	VERIFY0(nvlist_add_uint64(propval, ZPROP_SOURCE, src));
+	VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, strval));
+	VERIFY0(nvlist_add_nvlist(nvl, propname, propval));
 	nvlist_free(propval);
 }
 
@@ -965,7 +965,7 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 			uint64_t ver = 0;
 
 			if (prop == ZPOOL_PROP_VERSION) {
-				VERIFY(nvpair_value_uint64(elem, &ver) == 0);
+				VERIFY0(nvpair_value_uint64(elem, &ver));
 			} else {
 				ASSERT(zpool_prop_feature(nvpair_name(elem)));
 				ver = SPA_VERSION_FEATURES;
@@ -2418,8 +2418,8 @@ spa_load_spares(spa_t *spa)
 	spa->spa_spares.sav_vdevs = kmem_zalloc(nspares * sizeof (void *),
 	    KM_SLEEP);
 	for (i = 0; i < spa->spa_spares.sav_count; i++) {
-		VERIFY(spa_config_parse(spa, &vd, spares[i], NULL, 0,
-		    VDEV_ALLOC_SPARE) == 0);
+		VERIFY0(spa_config_parse(spa, &vd, spares[i], NULL, 0,
+		    VDEV_ALLOC_SPARE));
 		ASSERT(vd != NULL);
 
 		spa->spa_spares.sav_vdevs[i] = vd;
@@ -2546,8 +2546,8 @@ spa_load_l2cache(spa_t *spa)
 			/*
 			 * Create new vdev
 			 */
-			VERIFY(spa_config_parse(spa, &vd, l2cache[i], NULL, 0,
-			    VDEV_ALLOC_L2CACHE) == 0);
+			VERIFY0(spa_config_parse(spa, &vd, l2cache[i], NULL, 0,
+			    VDEV_ALLOC_L2CACHE));
 			ASSERT(vd != NULL);
 			newvdevs[i] = vd;
 
@@ -9091,7 +9091,7 @@ spa_vdev_setfru(spa_t *spa, uint64_t guid, const char *newfru)
 int
 spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t cmd)
 {
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
+	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
 
 	if (dsl_scan_resilvering(spa->spa_dsl_pool))
 		return (SET_ERROR(EBUSY));
@@ -9102,7 +9102,7 @@ spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t cmd)
 int
 spa_scan_stop(spa_t *spa)
 {
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
+	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
 	if (dsl_scan_resilvering(spa->spa_dsl_pool))
 		return (SET_ERROR(EBUSY));
 
@@ -9119,7 +9119,7 @@ int
 spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
     uint64_t txgend)
 {
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
+	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
 
 	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
 		return (SET_ERROR(ENOTSUP));
@@ -9548,7 +9548,7 @@ spa_sync_frees(spa_t *spa, bplist_t *bpl, dmu_tx_t *tx)
 {
 	zio_t *zio = zio_root(spa, NULL, NULL, 0);
 	bplist_iterate(bpl, spa_free_sync_cb, zio, tx);
-	VERIFY(zio_wait(zio) == 0);
+	VERIFY0(zio_wait(zio));
 }
 
 /*
@@ -9587,7 +9587,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	size_t nvsize = 0;
 	dmu_buf_t *db;
 
-	VERIFY(nvlist_size(nv, &nvsize, NV_ENCODE_XDR) == 0);
+	VERIFY0(nvlist_size(nv, &nvsize, NV_ENCODE_XDR));
 
 	/*
 	 * Write full (SPA_CONFIG_BLOCKSIZE) blocks of configuration
@@ -9597,15 +9597,15 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	bufsize = P2ROUNDUP((uint64_t)nvsize, SPA_CONFIG_BLOCKSIZE);
 	packed = vmem_alloc(bufsize, KM_SLEEP);
 
-	VERIFY(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_XDR,
-	    KM_SLEEP) == 0);
+	VERIFY0(nvlist_pack(nv, &packed, &nvsize, NV_ENCODE_XDR,
+	    KM_SLEEP));
 	memset(packed + nvsize, 0, bufsize - nvsize);
 
 	dmu_write(spa->spa_meta_objset, obj, 0, bufsize, packed, tx);
 
 	vmem_free(packed, bufsize);
 
-	VERIFY(0 == dmu_bonus_hold(spa->spa_meta_objset, obj, FTAG, &db));
+	VERIFY0(dmu_bonus_hold(spa->spa_meta_objset, obj, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
 	*(uint64_t *)db->db_data = nvsize;
 	dmu_buf_rele(db, FTAG);

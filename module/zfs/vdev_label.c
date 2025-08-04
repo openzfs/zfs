@@ -163,7 +163,7 @@ uint64_t
 vdev_label_offset(uint64_t psize, int l, uint64_t offset)
 {
 	ASSERT(offset < sizeof (vdev_label_t));
-	ASSERT(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t) == 0);
+	ASSERT0(P2PHASE_TYPED(psize, sizeof (vdev_label_t), uint64_t));
 
 	return (offset + l * sizeof (vdev_label_t) + (l < VDEV_LABELS / 2 ?
 	    0 : psize - VDEV_LABELS * sizeof (vdev_label_t)));
@@ -768,12 +768,12 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
 	}
 
 	if (idx) {
-		VERIFY(nvlist_add_uint64_array(config, ZPOOL_CONFIG_HOLE_ARRAY,
-		    array, idx) == 0);
+		VERIFY0(nvlist_add_uint64_array(config,
+		    ZPOOL_CONFIG_HOLE_ARRAY, array, idx));
 	}
 
-	VERIFY(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
-	    rvd->vdev_children) == 0);
+	VERIFY0(nvlist_add_uint64(config, ZPOOL_CONFIG_VDEV_CHILDREN,
+	    rvd->vdev_children));
 
 	kmem_free(array, rvd->vdev_children * sizeof (uint64_t));
 }
@@ -1189,8 +1189,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		 * vdev uses as described above, and automatically expires if we
 		 * fail.
 		 */
-		VERIFY(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
-		    crtxg) == 0);
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+		    crtxg));
 	}
 
 	buf = vp->vp_nvlist;

@@ -3363,7 +3363,7 @@ vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
 		 * also have been fewer parity errors than parity
 		 * columns or, again, we wouldn't be in this code path.
 		 */
-		ASSERT(parity_untried == 0);
+		ASSERT0(parity_untried);
 		ASSERT(parity_errors < rr->rr_firstdatacol);
 
 		/*

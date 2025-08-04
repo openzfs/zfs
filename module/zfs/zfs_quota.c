@@ -374,7 +374,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (*objp == 0) {
 		*objp = zap_create(zfsvfs->z_os, DMU_OT_USERGROUP_QUOTA,
 		    DMU_OT_NONE, 0, tx);
-		VERIFY(0 == zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
+		VERIFY0(zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
 		    zfs_userquota_prop_prefixes[type], 8, 1, objp, tx));
 	}
 	mutex_exit(&zfsvfs->z_lock);
@@ -386,7 +386,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	} else {
 		err = zap_update(zfsvfs->z_os, *objp, buf, 8, 1, &quota, tx);
 	}
-	ASSERT(err == 0);
+	ASSERT0(err);
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 	dmu_tx_commit(tx);
