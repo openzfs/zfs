@@ -2211,7 +2211,7 @@ zvol_fini_impl(void)
 	rw_destroy(&zvol_state_lock);
 
 	if (ztqs->tqs_taskq == NULL) {
-		ASSERT3U(ztqs->tqs_cnt, ==, 0);
+		ASSERT0(ztqs->tqs_cnt);
 	} else {
 		for (uint_t i = 0; i < ztqs->tqs_cnt; i++) {
 			ASSERT3P(ztqs->tqs_taskq[i], !=, NULL);

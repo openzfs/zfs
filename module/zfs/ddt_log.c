@@ -116,7 +116,7 @@ static void
 ddt_log_create_one(ddt_t *ddt, ddt_log_t *ddl, uint_t n, dmu_tx_t *tx)
 {
 	ASSERT3U(ddt->ddt_dir_object, >, 0);
-	ASSERT3U(ddl->ddl_object, ==, 0);
+	ASSERT0(ddl->ddl_object);
 
 	char name[DDT_NAMELEN];
 	ddt_log_name(ddt, name, n);

@@ -397,7 +397,7 @@ ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	ddt_object_name(ddt, type, class, name);
 
-	ASSERT3U(*objectp, ==, 0);
+	ASSERT0(*objectp);
 	VERIFY0(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash));
 	ASSERT3U(*objectp, !=, 0);
 
@@ -1421,7 +1421,7 @@ ddt_key_compare(const void *x1, const void *x2)
 static void
 ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)
 {
-	ASSERT3U(ddt->ddt_dir_object, ==, 0);
+	ASSERT0(ddt->ddt_dir_object);
 	ASSERT3U(ddt->ddt_version, ==, DDT_VERSION_FDT);
 
 	char name[DDT_NAMELEN];

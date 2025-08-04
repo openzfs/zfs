@@ -4007,7 +4007,7 @@ raidz_scratch_verify(void)
 		 * requested by user, but scratch object was not created.
 		 */
 		case RRSS_SCRATCH_NOT_IN_USE:
-			ASSERT3U(offset, ==, 0);
+			ASSERT0(offset);
 			break;
 
 		/*

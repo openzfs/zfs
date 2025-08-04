@@ -2013,7 +2013,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 				 * Only a variable-sized attribute can be
 				 * replaced here, and its size must be changing.
 				 */
-				ASSERT3U(reg_length, ==, 0);
+				ASSERT0(reg_length);
 				ASSERT3U(length, !=, buflen);
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    locator, datastart, buflen);

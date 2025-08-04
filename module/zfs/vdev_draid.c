@@ -590,7 +590,7 @@ vdev_draid_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 	uint64_t asize = (rows * vdc->vdc_groupwidth) << ashift;
 
 	ASSERT3U(asize, !=, 0);
-	ASSERT3U(asize % (vdc->vdc_groupwidth), ==, 0);
+	ASSERT0(asize % (vdc->vdc_groupwidth));
 
 	return (asize);
 }
@@ -1623,7 +1623,7 @@ vdev_draid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
 	    SPA_MAXBLOCKSIZE);
 
 	ASSERT3U(vdev_draid_get_astart(vd, start), ==, start);
-	ASSERT3U(asize % (vdc->vdc_groupwidth << ashift), ==, 0);
+	ASSERT0(asize % (vdc->vdc_groupwidth << ashift));
 
 	/* Chunks must evenly span all data columns in the group. */
 	psize = (((psize >> ashift) / ndata) * ndata) << ashift;
@@ -1634,7 +1634,7 @@ vdev_draid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
 	uint64_t left = vdev_draid_group_to_offset(vd, group + 1) - start;
 	chunk_size = MIN(chunk_size, left);
 
-	ASSERT3U(chunk_size % (vdc->vdc_groupwidth << ashift), ==, 0);
+	ASSERT0(chunk_size % (vdc->vdc_groupwidth << ashift));
 	ASSERT3U(vdev_draid_offset_to_group(vd, start), ==,
 	    vdev_draid_offset_to_group(vd, start + chunk_size - 1));
 
@@ -2272,7 +2272,7 @@ vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	ASSERT3U(vdc->vdc_groupwidth, <=, vdc->vdc_ndisks);
 	ASSERT3U(vdc->vdc_groupsz, >=, 2 * VDEV_DRAID_ROWHEIGHT);
 	ASSERT3U(vdc->vdc_devslicesz, >=, VDEV_DRAID_ROWHEIGHT);
-	ASSERT3U(vdc->vdc_devslicesz % VDEV_DRAID_ROWHEIGHT, ==, 0);
+	ASSERT0(vdc->vdc_devslicesz % VDEV_DRAID_ROWHEIGHT);
 	ASSERT3U((vdc->vdc_groupwidth * vdc->vdc_ngroups) %
 	    vdc->vdc_ndisks, ==, 0);
 

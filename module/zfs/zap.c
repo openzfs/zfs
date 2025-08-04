@@ -1546,7 +1546,7 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 	boolean_t trunc = B_FALSE;
 	int err = 0;
 
-	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
+	ASSERT0(zap_leaf_phys(l)->l_hdr.lh_nentries);
 	ASSERT3U(prefix_len, <=, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
 	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
 	ASSERT3U(ZAP_HASH_IDX(hash, prefix_len), ==, prefix);
@@ -1564,7 +1564,7 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 		uint64_t sl_hash = ZAP_PREFIX_HASH(sl_prefix, prefix_len);
 		int slbit = prefix & 1;
 
-		ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_nentries, ==, 0);
+		ASSERT0(zap_leaf_phys(l)->l_hdr.lh_nentries);
 
 		/*
 		 * Check if there is a sibling by reading ptrtbl ptrs.

@@ -273,7 +273,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 	ASSERT(zp->z_unlinked);
-	ASSERT3U(zp->z_links, ==, 0);
+	ASSERT0(zp->z_links);
 
 	VERIFY0(zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 
@@ -437,7 +437,7 @@ zfs_rmnode(znode_t *zp)
 	uint64_t	count;
 	int		error;
 
-	ASSERT3U(zp->z_links, ==, 0);
+	ASSERT0(zp->z_links);
 	if (zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
 
