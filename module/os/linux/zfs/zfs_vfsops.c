@@ -883,7 +883,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	 * operations out since we closed the ZIL.
 	 */
 	if (mounting) {
-		ASSERT3P(zfsvfs->z_kstat.dk_kstats, ==, NULL);
+		ASSERT0P(zfsvfs->z_kstat.dk_kstats);
 		error = dataset_kstats_create(&zfsvfs->z_kstat, zfsvfs->z_os);
 		if (error)
 			return (error);

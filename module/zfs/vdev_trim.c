@@ -1010,7 +1010,7 @@ vdev_trim(vdev_t *vd, uint64_t rate, boolean_t partial, boolean_t secure)
 	ASSERT(MUTEX_HELD(&vd->vdev_trim_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
-	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+	ASSERT0P(vd->vdev_trim_thread);
 	ASSERT(!vd->vdev_detached);
 	ASSERT(!vd->vdev_trim_exit_wanted);
 	ASSERT(!vd->vdev_top->vdev_removing);
@@ -1032,7 +1032,7 @@ vdev_trim_stop_wait_impl(vdev_t *vd)
 	while (vd->vdev_trim_thread != NULL)
 		cv_wait(&vd->vdev_trim_cv, &vd->vdev_trim_lock);
 
-	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+	ASSERT0P(vd->vdev_trim_thread);
 	vd->vdev_trim_exit_wanted = B_FALSE;
 }
 
@@ -1539,7 +1539,7 @@ vdev_autotrim_stop_wait(vdev_t *tvd)
 		cv_wait(&tvd->vdev_autotrim_cv,
 		    &tvd->vdev_autotrim_lock);
 
-		ASSERT3P(tvd->vdev_autotrim_thread, ==, NULL);
+		ASSERT0P(tvd->vdev_autotrim_thread);
 		tvd->vdev_autotrim_exit_wanted = B_FALSE;
 	}
 	mutex_exit(&tvd->vdev_autotrim_lock);
@@ -1712,7 +1712,7 @@ vdev_trim_l2arc(spa_t *spa)
 		mutex_enter(&vd->vdev_trim_lock);
 		ASSERT(vd->vdev_ops->vdev_op_leaf);
 		ASSERT(vdev_is_concrete(vd));
-		ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+		ASSERT0P(vd->vdev_trim_thread);
 		ASSERT(!vd->vdev_detached);
 		ASSERT(!vd->vdev_trim_exit_wanted);
 		ASSERT(!vd->vdev_top->vdev_removing);

@@ -1119,7 +1119,7 @@ zio_clear_fault(int id)
 		kmem_free(handler->zi_lanes, sizeof (*handler->zi_lanes) *
 		    handler->zi_record.zi_nlanes);
 	} else {
-		ASSERT3P(handler->zi_lanes, ==, NULL);
+		ASSERT0P(handler->zi_lanes);
 	}
 
 	if (handler->zi_spa_name != NULL)

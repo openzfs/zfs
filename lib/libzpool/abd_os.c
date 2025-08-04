@@ -302,7 +302,7 @@ abd_iter_at_end(struct abd_iter *aiter)
 void
 abd_iter_advance(struct abd_iter *aiter, size_t amount)
 {
-	ASSERT3P(aiter->iter_mapaddr, ==, NULL);
+	ASSERT0P(aiter->iter_mapaddr);
 	ASSERT0(aiter->iter_mapsize);
 
 	if (abd_iter_at_end(aiter))
@@ -315,7 +315,7 @@ abd_iter_advance(struct abd_iter *aiter, size_t amount)
 void
 abd_iter_map(struct abd_iter *aiter)
 {
-	ASSERT3P(aiter->iter_mapaddr, ==, NULL);
+	ASSERT0P(aiter->iter_mapaddr);
 	ASSERT0(aiter->iter_mapsize);
 
 	if (abd_iter_at_end(aiter))

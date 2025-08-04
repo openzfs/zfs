@@ -478,7 +478,7 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 			 * We have unprocessed subobjs. Process the next one.
 			 */
 			ASSERT(bpo->bpo_havecomp);
-			ASSERT3P(bpobj_size, ==, NULL);
+			ASSERT0P(bpobj_size);
 
 			/* Add the last subobj to stack. */
 			int64_t i = bpi->bpi_unprocessed_subobjs - 1;

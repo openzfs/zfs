@@ -1769,7 +1769,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 			fnvlist_add_nvlist(pools, nvpair_name(pair),
 			    fnvpair_value_nvlist(pair));
 
-			VERIFY3P(nvlist_next_nvpair(nv, pair), ==, NULL);
+			VERIFY0P(nvlist_next_nvpair(nv, pair));
 
 			iarg->guid = saved_guid;
 			iarg->poolname = saved_poolname;

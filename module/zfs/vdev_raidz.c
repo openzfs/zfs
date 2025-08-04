@@ -412,7 +412,7 @@ vdev_raidz_map_free(raidz_map_t *rm)
 		    rm->rm_nphys_cols);
 	}
 
-	ASSERT3P(rm->rm_lr, ==, NULL);
+	ASSERT0P(rm->rm_lr);
 	kmem_free(rm, offsetof(raidz_map_t, rm_row[rm->rm_nrows]));
 }
 
@@ -2431,7 +2431,7 @@ raidz_start_skip_writes(zio_t *zio)
 		vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
 		if (rc->rc_size != 0)
 			continue;
-		ASSERT3P(rc->rc_abd, ==, NULL);
+		ASSERT0P(rc->rc_abd);
 
 		ASSERT3U(rc->rc_offset, <,
 		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
@@ -4743,7 +4743,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 void
 spa_start_raidz_expansion_thread(spa_t *spa)
 {
-	ASSERT3P(spa->spa_raidz_expand_zthr, ==, NULL);
+	ASSERT0P(spa->spa_raidz_expand_zthr);
 	spa->spa_raidz_expand_zthr = zthr_create("raidz_expand",
 	    spa_raidz_expand_thread_check, spa_raidz_expand_thread,
 	    spa, defclsyspri);

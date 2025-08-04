@@ -864,9 +864,9 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
 	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
-	ASSERT3P(lwb->lwb_child_zio, ==, NULL);
-	ASSERT3P(lwb->lwb_write_zio, ==, NULL);
-	ASSERT3P(lwb->lwb_root_zio, ==, NULL);
+	ASSERT0P(lwb->lwb_child_zio);
+	ASSERT0P(lwb->lwb_write_zio);
+	ASSERT0P(lwb->lwb_root_zio);
 	ASSERT3U(lwb->lwb_alloc_txg, <=, spa_syncing_txg(zilog->zl_spa));
 	ASSERT3U(lwb->lwb_max_txg, <=, spa_syncing_txg(zilog->zl_spa));
 	VERIFY(list_is_empty(&lwb->lwb_itxs));
@@ -1351,7 +1351,7 @@ zil_commit_waiter_link_lwb(zil_commit_waiter_t *zcw, lwb_t *lwb)
 
 	ASSERT(!list_link_active(&zcw->zcw_node));
 	list_insert_tail(&lwb->lwb_waiters, zcw);
-	ASSERT3P(zcw->zcw_lwb, ==, NULL);
+	ASSERT0P(zcw->zcw_lwb);
 	zcw->zcw_lwb = lwb;
 }
 
@@ -1365,7 +1365,7 @@ zil_commit_waiter_link_nolwb(zil_commit_waiter_t *zcw, list_t *nolwb)
 {
 	ASSERT(!list_link_active(&zcw->zcw_node));
 	list_insert_tail(nolwb, zcw);
-	ASSERT3P(zcw->zcw_lwb, ==, NULL);
+	ASSERT0P(zcw->zcw_lwb);
 }
 
 void
@@ -3489,7 +3489,7 @@ static void
 zil_free_commit_waiter(zil_commit_waiter_t *zcw)
 {
 	ASSERT(!list_link_active(&zcw->zcw_node));
-	ASSERT3P(zcw->zcw_lwb, ==, NULL);
+	ASSERT0P(zcw->zcw_lwb);
 	ASSERT3B(zcw->zcw_done, ==, B_TRUE);
 	mutex_destroy(&zcw->zcw_lock);
 	cv_destroy(&zcw->zcw_cv);
@@ -3670,9 +3670,9 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 		 * verifying that truth before we return to the caller.
 		 */
 		ASSERT(list_is_empty(&zilog->zl_lwb_list));
-		ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
+		ASSERT0P(zilog->zl_last_lwb_opened);
 		for (int i = 0; i < TXG_SIZE; i++)
-			ASSERT3P(zilog->zl_itxg[i].itxg_itxs, ==, NULL);
+			ASSERT0P(zilog->zl_itxg[i].itxg_itxs);
 		return;
 	}
 
@@ -4005,8 +4005,8 @@ zil_open(objset_t *os, zil_get_data_t *get_data, zil_sums_t *zil_sums)
 {
 	zilog_t *zilog = dmu_objset_zil(os);
 
-	ASSERT3P(zilog->zl_get_data, ==, NULL);
-	ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
+	ASSERT0P(zilog->zl_get_data);
+	ASSERT0P(zilog->zl_last_lwb_opened);
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 
 	zilog->zl_get_data = get_data;

@@ -90,7 +90,7 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 	if (allocated_dnode != NULL) {
 		ASSERT3P(tag, !=, NULL);
 	} else {
-		ASSERT3P(tag, ==, NULL);
+		ASSERT0P(tag);
 		tag = FTAG;
 	}
 

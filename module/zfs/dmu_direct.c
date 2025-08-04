@@ -95,9 +95,9 @@ dmu_write_direct_done(zio_t *zio)
 	abd_free(zio->io_abd);
 
 	mutex_enter(&db->db_mtx);
-	ASSERT3P(db->db_buf, ==, NULL);
-	ASSERT3P(dr->dt.dl.dr_data, ==, NULL);
-	ASSERT3P(db->db.db_data, ==, NULL);
+	ASSERT0P(db->db_buf);
+	ASSERT0P(dr->dt.dl.dr_data);
+	ASSERT0P(db->db.db_data);
 	db->db_state = DB_UNCACHED;
 	mutex_exit(&db->db_mtx);
 

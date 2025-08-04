@@ -7337,8 +7337,8 @@ zfs_ioctl_register_legacy(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
 
 	ASSERT3U(ioc, >=, ZFS_IOC_FIRST);
 	ASSERT3U(ioc, <, ZFS_IOC_LAST);
-	ASSERT3P(vec->zvec_legacy_func, ==, NULL);
-	ASSERT3P(vec->zvec_func, ==, NULL);
+	ASSERT0P(vec->zvec_legacy_func);
+	ASSERT0P(vec->zvec_func);
 
 	vec->zvec_legacy_func = func;
 	vec->zvec_secpolicy = secpolicy;
@@ -7361,8 +7361,8 @@ zfs_ioctl_register(const char *name, zfs_ioc_t ioc, zfs_ioc_func_t *func,
 
 	ASSERT3U(ioc, >=, ZFS_IOC_FIRST);
 	ASSERT3U(ioc, <, ZFS_IOC_LAST);
-	ASSERT3P(vec->zvec_legacy_func, ==, NULL);
-	ASSERT3P(vec->zvec_func, ==, NULL);
+	ASSERT0P(vec->zvec_legacy_func);
+	ASSERT0P(vec->zvec_func);
 
 	/* if we are logging, the name must be valid */
 	ASSERT(!allow_log || namecheck != NO_NAME);

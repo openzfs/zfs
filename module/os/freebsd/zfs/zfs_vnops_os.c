@@ -1101,7 +1101,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
-	ASSERT3P(zp, ==, NULL);
+	ASSERT0P(zp);
 
 	/*
 	 * Create a new file object and update the directory
@@ -1482,7 +1482,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
-	ASSERT3P(zp, ==, NULL);
+	ASSERT0P(zp);
 
 	if ((error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr,
 	    mnt_ns))) {

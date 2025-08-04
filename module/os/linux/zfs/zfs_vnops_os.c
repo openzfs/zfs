@@ -3157,7 +3157,7 @@ top:
 		 * zfs_link_create() to add back the same entry, but with a new
 		 * dnode (szp), should not fail.
 		 */
-		ASSERT3P(tzp, ==, NULL);
+		ASSERT0P(tzp);
 		goto commit_link_tzp;
 	}
 

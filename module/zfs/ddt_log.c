@@ -194,7 +194,7 @@ void
 ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx, ddt_log_update_t *dlu)
 {
 	ASSERT3U(nentries, >, 0);
-	ASSERT3P(dlu->dlu_dbp, ==, NULL);
+	ASSERT0P(dlu->dlu_dbp);
 
 	if (ddt->ddt_log_active->ddl_object == 0)
 		ddt_log_create(ddt, tx);
@@ -748,8 +748,8 @@ ddt_log_load(ddt_t *ddt)
 void
 ddt_log_alloc(ddt_t *ddt)
 {
-	ASSERT3P(ddt->ddt_log_active, ==, NULL);
-	ASSERT3P(ddt->ddt_log_flushing, ==, NULL);
+	ASSERT0P(ddt->ddt_log_active);
+	ASSERT0P(ddt->ddt_log_flushing);
 
 	avl_create(&ddt->ddt_log[0].ddl_tree, ddt_key_compare,
 	    sizeof (ddt_log_entry_t), offsetof(ddt_log_entry_t, ddle_node));

@@ -265,7 +265,7 @@ nv_priv_alloc_embedded(nvpriv_t *priv)
 static int
 nvt_tab_alloc(nvpriv_t *priv, uint64_t buckets)
 {
-	ASSERT3P(priv->nvp_hashtable, ==, NULL);
+	ASSERT0P(priv->nvp_hashtable);
 	ASSERT0(priv->nvp_nbuckets);
 	ASSERT0(priv->nvp_nentries);
 
@@ -334,7 +334,7 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 	i_nvp_t **tab = priv->nvp_hashtable;
 
 	if (tab == NULL) {
-		ASSERT3P(priv->nvp_list, ==, NULL);
+		ASSERT0P(priv->nvp_list);
 		ASSERT0(priv->nvp_nbuckets);
 		ASSERT0(priv->nvp_nentries);
 		return (NULL);
@@ -540,7 +540,7 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 
 	/* insert link at the beginning of the bucket */
 	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
-	ASSERT3P(new_entry->nvi_hashtable_next, ==, NULL);
+	ASSERT0P(new_entry->nvi_hashtable_next);
 	new_entry->nvi_hashtable_next = bucket;
 	// cppcheck-suppress nullPointerRedundantCheck
 	tab[index] = new_entry;

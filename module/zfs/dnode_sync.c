@@ -868,7 +868,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
 
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
-		ASSERT3P(list_head(list), ==, NULL);
+		ASSERT0P(list_head(list));
 		dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	}
 

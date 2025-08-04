@@ -176,7 +176,7 @@ static int
 sublivelist_verify_blkptr(void *arg, const blkptr_t *bp, boolean_t free,
     dmu_tx_t *tx)
 {
-	ASSERT3P(tx, ==, NULL);
+	ASSERT0P(tx);
 	struct sublivelist_verify *sv = arg;
 	sublivelist_verify_block_refcnt_t current = {
 			.svbr_blk = *bp,
@@ -1455,7 +1455,7 @@ get_obsolete_refcount(vdev_t *vd)
 			refcount++;
 		}
 	} else {
-		ASSERT3P(vd->vdev_obsolete_sm, ==, NULL);
+		ASSERT0P(vd->vdev_obsolete_sm);
 		ASSERT0(obsolete_sm_object);
 	}
 	for (unsigned c = 0; c < vd->vdev_children; c++) {
@@ -1792,7 +1792,7 @@ print_vdev_indirect(vdev_t *vd)
 	vdev_indirect_births_t *vib = vd->vdev_indirect_births;
 
 	if (vim == NULL) {
-		ASSERT3P(vib, ==, NULL);
+		ASSERT0P(vib);
 		return;
 	}
 
@@ -3347,7 +3347,7 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	uint64_t sa_attrs = 0;
 	uint64_t version = 0;
 
-	VERIFY3P(sa_os, ==, NULL);
+	VERIFY0P(sa_os);
 
 	/*
 	 * We can't own an objset if it's redacted.  Therefore, we do this
@@ -7016,7 +7016,7 @@ deleted_livelists_count_blocks(spa_t *spa, zdb_cb_t *zbc)
 static void
 dump_livelist_cb(dsl_deadlist_t *ll, void *arg)
 {
-	ASSERT3P(arg, ==, NULL);
+	ASSERT0P(arg);
 	global_feature_count[SPA_FEATURE_LIVELIST]++;
 	dump_blkptr_list(ll, "Deleted Livelist");
 	dsl_deadlist_iterate(ll, sublivelist_verify_lightweight, NULL);
@@ -7913,7 +7913,7 @@ verify_checkpoint_vdev_spacemaps(spa_t *checkpoint, spa_t *current)
 		for (uint64_t c = ckpoint_rvd->vdev_children;
 		    c < current_rvd->vdev_children; c++) {
 			vdev_t *current_vd = current_rvd->vdev_child[c];
-			VERIFY3P(current_vd->vdev_checkpoint_sm, ==, NULL);
+			VERIFY0P(current_vd->vdev_checkpoint_sm);
 		}
 	}
 

@@ -111,7 +111,7 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 #undef mutex_destroy
 #define	mutex_destroy(mp)					\
 {								\
-	VERIFY3P(mutex_owner(mp), ==, NULL);			\
+	VERIFY0P(mutex_owner(mp));			\
 }
 
 #define	mutex_tryenter(mp)					\

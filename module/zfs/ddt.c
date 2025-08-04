@@ -1011,7 +1011,7 @@ ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 {
 	if (dde->dde_io != NULL) {
 		for (int p = 0; p < DDT_NPHYS(ddt); p++)
-			ASSERT3P(dde->dde_io->dde_lead_zio[p], ==, NULL);
+			ASSERT0P(dde->dde_io->dde_lead_zio[p]);
 
 		if (dde->dde_io->dde_repair_abd != NULL)
 			abd_free(dde->dde_io->dde_repair_abd);
@@ -2395,7 +2395,7 @@ ddt_sync(spa_t *spa, uint64_t txg)
 	 * scan's root zio here so that we can wait for any scan IOs in
 	 * addition to the regular ddt IOs.
 	 */
-	ASSERT3P(scn->scn_zio_root, ==, NULL);
+	ASSERT0P(scn->scn_zio_root);
 	scn->scn_zio_root = rio;
 
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {

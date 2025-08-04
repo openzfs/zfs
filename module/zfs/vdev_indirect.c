@@ -792,7 +792,7 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	    DMU_POOL_CONDENSING_INDIRECT, sizeof (uint64_t),
 	    sizeof (*scip) / sizeof (uint64_t), scip, tx));
 
-	ASSERT3P(spa->spa_condensing_indirect, ==, NULL);
+	ASSERT0P(spa->spa_condensing_indirect);
 	spa->spa_condensing_indirect = spa_condensing_indirect_create(spa);
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
@@ -882,7 +882,7 @@ spa_condense_fini(spa_t *spa)
 void
 spa_start_indirect_condensing_thread(spa_t *spa)
 {
-	ASSERT3P(spa->spa_condense_zthr, ==, NULL);
+	ASSERT0P(spa->spa_condense_zthr);
 	spa->spa_condense_zthr = zthr_create("z_indirect_condense",
 	    spa_condense_indirect_thread_check,
 	    spa_condense_indirect_thread, spa, minclsyspri);
@@ -1504,7 +1504,7 @@ vdev_indirect_splits_checksum_validate(indirect_vsd_t *iv, zio_t *zio)
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
 
 		ASSERT3P(is->is_good_child->ic_data, !=, NULL);
-		ASSERT3P(is->is_good_child->ic_duplicate, ==, NULL);
+		ASSERT0P(is->is_good_child->ic_duplicate);
 
 		abd_copy_off(zio->io_abd, is->is_good_child->ic_data,
 		    is->is_split_offset, 0, is->is_size);

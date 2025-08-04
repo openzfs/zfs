@@ -923,7 +923,7 @@ zfs_do_clone(int argc, char **argv)
 	return (!!ret);
 
 usage:
-	ASSERT3P(zhp, ==, NULL);
+	ASSERT0P(zhp);
 	nvlist_free(props);
 	usage(B_FALSE);
 	return (-1);

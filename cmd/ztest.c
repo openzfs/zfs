@@ -828,8 +828,8 @@ static char *short_opts = NULL;
 static void
 init_options(void)
 {
-	ASSERT3P(long_opts, ==, NULL);
-	ASSERT3P(short_opts, ==, NULL);
+	ASSERT0P(long_opts);
+	ASSERT0P(short_opts);
 
 	int count = sizeof (option_table) / sizeof (option_table[0]);
 	long_opts = umem_alloc(sizeof (struct option) * count, UMEM_NOFAIL);
@@ -1685,7 +1685,7 @@ ztest_rll_init(rll_t *rll)
 static void
 ztest_rll_destroy(rll_t *rll)
 {
-	ASSERT3P(rll->rll_writer, ==, NULL);
+	ASSERT0P(rll->rll_writer);
 	ASSERT0(rll->rll_readers);
 	mutex_destroy(&rll->rll_lock);
 	cv_destroy(&rll->rll_cv);
@@ -1719,7 +1719,7 @@ ztest_rll_unlock(rll_t *rll)
 		rll->rll_writer = NULL;
 	} else {
 		ASSERT3S(rll->rll_readers, >, 0);
-		ASSERT3P(rll->rll_writer, ==, NULL);
+		ASSERT0P(rll->rll_writer);
 		rll->rll_readers--;
 	}
 

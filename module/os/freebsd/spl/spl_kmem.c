@@ -160,7 +160,7 @@ kmem_cache_create(const char *name, size_t bufsize, size_t align,
 {
 	kmem_cache_t *cache;
 
-	ASSERT3P(vmp, ==, NULL);
+	ASSERT0P(vmp);
 
 	cache = kmem_alloc(sizeof (*cache), KM_SLEEP);
 	strlcpy(cache->kc_name, name, sizeof (cache->kc_name));

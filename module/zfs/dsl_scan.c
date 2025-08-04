@@ -5141,7 +5141,7 @@ dsl_scan_io_queue_vdev_xfer(vdev_t *svd, vdev_t *tvd)
 	mutex_enter(&svd->vdev_scan_io_queue_lock);
 	mutex_enter(&tvd->vdev_scan_io_queue_lock);
 
-	VERIFY3P(tvd->vdev_scan_io_queue, ==, NULL);
+	VERIFY0P(tvd->vdev_scan_io_queue);
 	tvd->vdev_scan_io_queue = svd->vdev_scan_io_queue;
 	svd->vdev_scan_io_queue = NULL;
 	if (tvd->vdev_scan_io_queue != NULL)

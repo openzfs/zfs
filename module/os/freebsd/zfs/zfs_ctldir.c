@@ -357,7 +357,7 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 	vnode_t *rvp;
 	uint64_t crtime[2];
 
-	ASSERT3P(zfsvfs->z_ctldir, ==, NULL);
+	ASSERT0P(zfsvfs->z_ctldir);
 
 	snapdir = sfs_alloc_node(sizeof (*snapdir), "snapshot", ZFSCTL_INO_ROOT,
 	    ZFSCTL_INO_SNAPDIR);
@@ -1367,7 +1367,7 @@ zfsctl_snapshot_unmount(const char *snapname, int flags __unused)
 
 	int err = getzfsvfs(snapname, &zfsvfs);
 	if (err != 0) {
-		ASSERT3P(zfsvfs, ==, NULL);
+		ASSERT0P(zfsvfs);
 		return (0);
 	}
 	vfsp = zfsvfs->z_vfs;

@@ -477,7 +477,7 @@ vdev_draid_generate_perms(const draid_map_t *map, uint8_t **permsp)
 	VERIFY3U(map->dm_children, <=, VDEV_DRAID_MAX_CHILDREN);
 	VERIFY3U(map->dm_seed, !=, 0);
 	VERIFY3U(map->dm_nperms, !=, 0);
-	VERIFY3P(map->dm_perms, ==, NULL);
+	VERIFY0P(map->dm_perms);
 
 #ifdef _KERNEL
 	/*
@@ -704,7 +704,7 @@ vdev_draid_map_alloc_scrub(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
 	uint64_t skip_off = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
-	ASSERT3P(rr->rr_abd_empty, ==, NULL);
+	ASSERT0P(rr->rr_abd_empty);
 
 	if (rr->rr_nempty > 0) {
 		rr->rr_abd_empty = abd_alloc_linear(rr->rr_nempty * skip_size,
@@ -793,7 +793,7 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 	uint64_t skip_off = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
-	ASSERT3P(rr->rr_abd_empty, ==, NULL);
+	ASSERT0P(rr->rr_abd_empty);
 
 	if (rr->rr_nempty > 0) {
 		rr->rr_abd_empty = abd_alloc_linear(rr->rr_nempty * skip_size,
@@ -807,7 +807,7 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			/* empty data column (small read), add a skip sector */
 			ASSERT3U(skip_size, ==, parity_size);
 			ASSERT3U(rr->rr_nempty, !=, 0);
-			ASSERT3P(rc->rc_abd, ==, NULL);
+			ASSERT0P(rc->rc_abd);
 			rc->rc_abd = abd_get_offset_size(rr->rr_abd_empty,
 			    skip_off, skip_size);
 			skip_off += skip_size;

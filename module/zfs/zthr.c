@@ -316,7 +316,7 @@ zthr_destroy(zthr_t *t)
 {
 	ASSERT(!MUTEX_HELD(&t->zthr_state_lock));
 	ASSERT(!MUTEX_HELD(&t->zthr_request_lock));
-	VERIFY3P(t->zthr_thread, ==, NULL);
+	VERIFY0P(t->zthr_thread);
 	mutex_destroy(&t->zthr_request_lock);
 	mutex_destroy(&t->zthr_state_lock);
 	cv_destroy(&t->zthr_cv);
