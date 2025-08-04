@@ -8979,7 +8979,7 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	} else {
 		/* children should not be spawned if setting gvars fails */
-		VERIFY3S(err, ==, 0);
+		VERIFY0(err);
 	}
 
 	/* Override location of zpool.cache */

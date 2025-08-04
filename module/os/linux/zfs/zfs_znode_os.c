@@ -611,7 +611,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	 * processing so do not hash unlinked znodes.
 	 */
 	if (links > 0)
-		VERIFY3S(insert_inode_locked(ip), ==, 0);
+		VERIFY0(insert_inode_locked(ip));
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
