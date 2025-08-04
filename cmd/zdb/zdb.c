@@ -1456,7 +1456,7 @@ get_obsolete_refcount(vdev_t *vd)
 		}
 	} else {
 		ASSERT3P(vd->vdev_obsolete_sm, ==, NULL);
-		ASSERT3U(obsolete_sm_object, ==, 0);
+		ASSERT0(obsolete_sm_object);
 	}
 	for (unsigned c = 0; c < vd->vdev_children; c++) {
 		refcount += get_obsolete_refcount(vd->vdev_child[c]);

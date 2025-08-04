@@ -5554,7 +5554,7 @@ static void
 arc_hdr_verify(arc_buf_hdr_t *hdr, blkptr_t *bp)
 {
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp)) {
-		ASSERT3U(HDR_GET_PSIZE(hdr), ==, 0);
+		ASSERT0(HDR_GET_PSIZE(hdr));
 		ASSERT3U(arc_hdr_get_compress(hdr), ==, ZIO_COMPRESS_OFF);
 	} else {
 		if (HDR_COMPRESSION_ENABLED(hdr)) {
@@ -6973,7 +6973,7 @@ arc_write_done(zio_t *zio)
 		arc_buf_hdr_t *exists;
 		kmutex_t *hash_lock;
 
-		ASSERT3U(zio->io_error, ==, 0);
+		ASSERT0(zio->io_error);
 
 		arc_cksum_verify(buf);
 

@@ -863,11 +863,11 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	 * Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
 	 */
-	ASSERT3U(skc->skc_slab_alloc, ==, 0);
-	ASSERT3U(skc->skc_obj_alloc, ==, 0);
-	ASSERT3U(skc->skc_slab_total, ==, 0);
-	ASSERT3U(skc->skc_obj_total, ==, 0);
-	ASSERT3U(skc->skc_obj_emergency, ==, 0);
+	ASSERT0(skc->skc_slab_alloc);
+	ASSERT0(skc->skc_obj_alloc);
+	ASSERT0(skc->skc_slab_total);
+	ASSERT0(skc->skc_obj_total);
+	ASSERT0(skc->skc_obj_emergency);
 	ASSERT(list_empty(&skc->skc_complete_list));
 
 	ASSERT3U(percpu_counter_sum(&skc->skc_linux_alloc), ==, 0);

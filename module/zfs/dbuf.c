@@ -4477,7 +4477,7 @@ dbuf_prepare_encrypted_dnode_leaf(dbuf_dirty_record_t *dr)
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT3U(db->db.db_object, ==, DMU_META_DNODE_OBJECT);
-	ASSERT3U(db->db_level, ==, 0);
+	ASSERT0(db->db_level);
 
 	if (!db->db_objset->os_raw_receive && arc_is_encrypted(db->db_buf)) {
 		zbookmark_phys_t zb;

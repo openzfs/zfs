@@ -986,7 +986,7 @@ zfs_drop_nlink_locked(znode_t *zp, dmu_tx_t *tx, boolean_t *unlinkedp)
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
 	    NULL, &links, sizeof (links));
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
-	ASSERT3U(error, ==, 0);
+	ASSERT0(error);
 
 	if (unlinkedp != NULL)
 		*unlinkedp = unlinked;
@@ -1058,7 +1058,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 
 		/* The only error is !zfs_dirempty() and we checked earlier. */
 		error = zfs_drop_nlink_locked(zp, tx, &unlinked);
-		ASSERT3U(error, ==, 0);
+		ASSERT0(error);
 		mutex_exit(&zp->z_lock);
 	} else {
 		error = zfs_dropname(dl, zp, dzp, tx, flag);
