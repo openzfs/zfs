@@ -339,8 +339,8 @@ zio_fini(void)
 	}
 
 	for (size_t i = 0; i < n; i++) {
-		VERIFY3P(zio_buf_cache[i], ==, NULL);
-		VERIFY3P(zio_data_buf_cache[i], ==, NULL);
+		VERIFY0P(zio_buf_cache[i]);
+		VERIFY0P(zio_data_buf_cache[i]);
 	}
 
 	if (zio_ksp != NULL) {
@@ -1451,7 +1451,7 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 		metaslab_check_free(spa, bp);
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
-		VERIFY3P(zio_free_sync(NULL, spa, txg, bp, 0), ==, NULL);
+		VERIFY0P(zio_free_sync(NULL, spa, txg, bp, 0));
 	}
 }
 
@@ -1747,7 +1747,7 @@ zio_flush(zio_t *pio, vdev_t *vd)
 void
 zio_shrink(zio_t *zio, uint64_t size)
 {
-	ASSERT3P(zio->io_executor, ==, NULL);
+	ASSERT0P(zio->io_executor);
 	ASSERT3U(zio->io_orig_size, ==, zio->io_size);
 	ASSERT3U(size, <=, zio->io_size);
 
@@ -2509,7 +2509,7 @@ zio_wait(zio_t *zio)
 	int error;
 
 	ASSERT3S(zio->io_stage, ==, ZIO_STAGE_OPEN);
-	ASSERT3P(zio->io_executor, ==, NULL);
+	ASSERT0P(zio->io_executor);
 
 	zio->io_waiter = curthread;
 	ASSERT0(zio->io_queued_timestamp);
@@ -2551,7 +2551,7 @@ zio_nowait(zio_t *zio)
 	if (zio == NULL)
 		return;
 
-	ASSERT3P(zio->io_executor, ==, NULL);
+	ASSERT0P(zio->io_executor);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
 	    list_is_empty(&zio->io_parent_list)) {

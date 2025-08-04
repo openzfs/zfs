@@ -423,7 +423,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	svr = spa_vdev_removal_create(vd);
 
 	ASSERT(vd->vdev_removing);
-	ASSERT3P(vd->vdev_indirect_mapping, ==, NULL);
+	ASSERT0P(vd->vdev_indirect_mapping);
 
 	spa_feature_incr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
@@ -529,7 +529,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	 * but in any case only when there are outstanding free i/os, which
 	 * there are not).
 	 */
-	ASSERT3P(spa->spa_vdev_removal, ==, NULL);
+	ASSERT0P(spa->spa_vdev_removal);
 	spa->spa_vdev_removal = svr;
 	svr->svr_thread = thread_create(NULL, 0,
 	    spa_vdev_remove_thread, spa, 0, &p0, TS_RUN, minclsyspri);
@@ -1362,11 +1362,11 @@ vdev_remove_complete(spa_t *spa)
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 	txg = spa_vdev_enter(spa);
 	vdev_t *vd = vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
-	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
-	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
+	ASSERT0P(vd->vdev_initialize_thread);
+	ASSERT0P(vd->vdev_trim_thread);
+	ASSERT0P(vd->vdev_autotrim_thread);
 	vdev_rebuild_stop_wait(vd);
-	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
+	ASSERT0P(vd->vdev_rebuild_thread);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
@@ -1868,7 +1868,7 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	objset_t *mos = spa->spa_meta_objset;
 
-	ASSERT3P(svr->svr_thread, ==, NULL);
+	ASSERT0P(svr->svr_thread);
 
 	spa_feature_decr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
 
@@ -2076,7 +2076,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	ASSERT(vd->vdev_islog);
 	ASSERT(vd == vd->vdev_top);
-	ASSERT3P(vd->vdev_log_mg, ==, NULL);
+	ASSERT0P(vd->vdev_log_mg);
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
 	/*
@@ -2112,7 +2112,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	if (error != 0) {
 		metaslab_group_activate(mg);
-		ASSERT3P(vd->vdev_log_mg, ==, NULL);
+		ASSERT0P(vd->vdev_log_mg);
 		return (error);
 	}
 	ASSERT0(vd->vdev_stat.vs_alloc);

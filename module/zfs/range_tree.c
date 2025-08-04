@@ -377,7 +377,7 @@ zfs_range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		return;
 	}
 
-	ASSERT3P(rs, ==, NULL);
+	ASSERT0P(rs);
 
 	/*
 	 * Determine whether or not we will have to merge with our neighbors.
@@ -867,7 +867,7 @@ zfs_range_tree_remove_xor_add_segment(uint64_t start, uint64_t end,
 
 		next = zfs_btree_next(&removefrom->rt_root, &where, &where);
 	}
-	VERIFY3P(curr, ==, NULL);
+	VERIFY0P(curr);
 
 	if (start != end) {
 		VERIFY3U(start, <, end);

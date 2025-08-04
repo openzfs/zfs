@@ -1259,7 +1259,7 @@ dbuf_clear_data(dmu_buf_impl_t *db)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	dbuf_evict_user(db);
-	ASSERT3P(db->db_buf, ==, NULL);
+	ASSERT0P(db->db_buf);
 	db->db.db_data = NULL;
 	if (db->db_state != DB_NOFILL) {
 		db->db_state = DB_UNCACHED;
@@ -1390,7 +1390,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		/* i/o error */
 		ASSERT(zio == NULL || zio->io_error != 0);
 		ASSERT(db->db_blkid != DMU_BONUS_BLKID);
-		ASSERT3P(db->db_buf, ==, NULL);
+		ASSERT0P(db->db_buf);
 		db->db_state = DB_UNCACHED;
 		DTRACE_SET_STATE(db, "i/o error");
 	} else if (db->db_level == 0 && db->db_freed_in_flight) {
@@ -1994,7 +1994,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 
 	mutex_enter(&dn->dn_dbufs_mtx);
 	db = avl_find(&dn->dn_dbufs, db_search, &where);
-	ASSERT3P(db, ==, NULL);
+	ASSERT0P(db);
 
 	db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 
@@ -2896,8 +2896,8 @@ dmu_buf_will_clone_or_dio(dmu_buf_t *db_fake, dmu_tx_t *tx)
 		dbuf_clear_data(db);
 	}
 
-	ASSERT3P(db->db_buf, ==, NULL);
-	ASSERT3P(db->db.db_data, ==, NULL);
+	ASSERT0P(db->db_buf);
+	ASSERT0P(db->db.db_data);
 
 	db->db_state = DB_NOFILL;
 	DTRACE_SET_STATE(db,
@@ -3960,7 +3960,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 		if (fail_uncached)
 			return (SET_ERROR(ENOENT));
 
-		ASSERT3P(parent, ==, NULL);
+		ASSERT0P(parent);
 		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
 		if (fail_sparse) {
 			if (err == 0 && bp && BP_IS_HOLE(bp))
@@ -4596,7 +4596,7 @@ static blkptr_t *
 dbuf_lightweight_bp(dbuf_dirty_record_t *dr)
 {
 	/* This must be a lightweight dirty record. */
-	ASSERT3P(dr->dr_dbuf, ==, NULL);
+	ASSERT0P(dr->dr_dbuf);
 	dnode_t *dn = dr->dr_dnode;
 
 	if (dn->dn_phys->dn_nlevels == 1) {
@@ -4739,7 +4739,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 */
 	if (db->db_state == DB_UNCACHED) {
 		/* This buffer has been freed since it was dirtied */
-		ASSERT3P(db->db.db_data, ==, NULL);
+		ASSERT0P(db->db.db_data);
 	} else if (db->db_state == DB_FILL) {
 		/* This buffer was freed and is now being re-filled */
 		ASSERT(db->db.db_data != dr->dt.dl.dr_data);
@@ -4756,9 +4756,9 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		 */
 		dbuf_dirty_record_t *dr_head =
 		    list_head(&db->db_dirty_records);
-		ASSERT3P(db->db_buf, ==, NULL);
-		ASSERT3P(db->db.db_data, ==, NULL);
-		ASSERT3P(dr_head->dt.dl.dr_data, ==, NULL);
+		ASSERT0P(db->db_buf);
+		ASSERT0P(db->db.db_data);
+		ASSERT0P(dr_head->dt.dl.dr_data);
 		ASSERT3U(dr_head->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
 	} else {
 		ASSERT(db->db_state == DB_CACHED || db->db_state == DB_NOFILL);

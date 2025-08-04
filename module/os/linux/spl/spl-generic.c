@@ -709,7 +709,7 @@ zone_get_hostid(void *zone)
 {
 	uint32_t hostid;
 
-	ASSERT3P(zone, ==, NULL);
+	ASSERT0P(zone);
 
 	if (spl_hostid != 0)
 		return ((uint32_t)(spl_hostid & HW_HOSTID_MASK));

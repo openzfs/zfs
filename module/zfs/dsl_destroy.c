@@ -350,7 +350,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			dsl_dataset_deactivate_feature(ds, f, tx);
 	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
-		ASSERT3P(ds->ds_prev, ==, NULL);
+		ASSERT0P(ds->ds_prev);
 		VERIFY0(dsl_dataset_hold_obj(dp,
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &ds_prev));
 		after_branch_point =
@@ -465,7 +465,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		    &used, &comp, &uncomp);
 		dsl_dataset_phys(ds_next)->ds_unique_bytes += used;
 		dsl_dataset_rele(ds_nextnext, FTAG);
-		ASSERT3P(ds_next->ds_prev, ==, NULL);
+		ASSERT0P(ds_next->ds_prev);
 
 		/* Collapse range in this head. */
 		dsl_dataset_t *hds;

@@ -1494,7 +1494,7 @@ zpl_posix_acl_free(void *arg)
 				acl_rel_head = NULL;
 				if (cmpxchg(&acl_rel_tail, &a->next,
 				    &acl_rel_head) == &a->next) {
-					ASSERT3P(a->next, ==, NULL);
+					ASSERT0P(a->next);
 					a->next = freelist;
 					freelist = a;
 					break;
@@ -1544,7 +1544,7 @@ zpl_posix_acl_release_impl(struct posix_acl *acl)
 	a->time = ddi_get_lbolt();
 	/* atomically points tail to us and get the previous tail */
 	prev = xchg(&acl_rel_tail, &a->next);
-	ASSERT3P(*prev, ==, NULL);
+	ASSERT0P(*prev);
 	*prev = a;
 	/* if it was empty before, schedule the free task */
 	if (prev == &acl_rel_head)

@@ -2799,7 +2799,7 @@ spa_passivate_log(spa_t *spa)
 		vdev_t *tvd = rvd->vdev_child[c];
 
 		if (tvd->vdev_islog) {
-			ASSERT3P(tvd->vdev_log_mg, ==, NULL);
+			ASSERT0P(tvd->vdev_log_mg);
 			metaslab_group_passivate(tvd->vdev_mg);
 			slog_found = B_TRUE;
 		}
@@ -2822,7 +2822,7 @@ spa_activate_log(spa_t *spa)
 		vdev_t *tvd = rvd->vdev_child[c];
 
 		if (tvd->vdev_islog) {
-			ASSERT3P(tvd->vdev_log_mg, ==, NULL);
+			ASSERT0P(tvd->vdev_log_mg);
 			metaslab_group_activate(tvd->vdev_mg);
 		}
 	}
@@ -3259,7 +3259,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 static void
 spa_start_livelist_destroy_thread(spa_t *spa)
 {
-	ASSERT3P(spa->spa_livelist_delete_zthr, ==, NULL);
+	ASSERT0P(spa->spa_livelist_delete_zthr);
 	spa->spa_livelist_delete_zthr =
 	    zthr_create("z_livelist_destroy",
 	    spa_livelist_delete_cb_check, spa_livelist_delete_cb, spa,
@@ -3469,7 +3469,7 @@ spa_start_livelist_condensing_thread(spa_t *spa)
 	spa->spa_to_condense.syncing = B_FALSE;
 	spa->spa_to_condense.cancelled = B_FALSE;
 
-	ASSERT3P(spa->spa_livelist_condense_zthr, ==, NULL);
+	ASSERT0P(spa->spa_livelist_condense_zthr);
 	spa->spa_livelist_condense_zthr =
 	    zthr_create("z_livelist_condense",
 	    spa_livelist_condense_cb_check,
@@ -3486,7 +3486,7 @@ spa_spawn_aux_threads(spa_t *spa)
 	spa_start_livelist_destroy_thread(spa);
 	spa_start_livelist_condensing_thread(spa);
 
-	ASSERT3P(spa->spa_checkpoint_discard_zthr, ==, NULL);
+	ASSERT0P(spa->spa_checkpoint_discard_zthr);
 	spa->spa_checkpoint_discard_zthr =
 	    zthr_create("z_checkpoint_discard",
 	    spa_checkpoint_discard_thread_check,
@@ -5913,7 +5913,7 @@ spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
 		nvlist_free(config);
 
 	if (state == SPA_LOAD_RECOVER) {
-		ASSERT3P(loadinfo, ==, NULL);
+		ASSERT0P(loadinfo);
 		spa_import_progress_remove(spa_guid(spa));
 		return (rewind_error);
 	} else {

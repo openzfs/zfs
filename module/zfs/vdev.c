@@ -1101,10 +1101,10 @@ vdev_free(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
-	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
-	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
+	ASSERT0P(vd->vdev_initialize_thread);
+	ASSERT0P(vd->vdev_trim_thread);
+	ASSERT0P(vd->vdev_autotrim_thread);
+	ASSERT0P(vd->vdev_rebuild_thread);
 
 	/*
 	 * Scan queues are normally destroyed at the end of a scan. If the
@@ -1309,9 +1309,9 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	ASSERT0(tvd->vdev_indirect_config.vic_births_object);
 	ASSERT0(tvd->vdev_indirect_config.vic_mapping_object);
 	ASSERT3U(tvd->vdev_indirect_config.vic_prev_indirect_vdev, ==, -1ULL);
-	ASSERT3P(tvd->vdev_indirect_mapping, ==, NULL);
-	ASSERT3P(tvd->vdev_indirect_births, ==, NULL);
-	ASSERT3P(tvd->vdev_obsolete_sm, ==, NULL);
+	ASSERT0P(tvd->vdev_indirect_mapping);
+	ASSERT0P(tvd->vdev_indirect_births);
+	ASSERT0P(tvd->vdev_obsolete_sm);
 	ASSERT0(tvd->vdev_noalloc);
 	ASSERT0(tvd->vdev_removing);
 	ASSERT0(tvd->vdev_rebuilding);
@@ -3945,7 +3945,7 @@ vdev_load(vdev_t *vd)
 		if (error == 0 && checkpoint_sm_obj != 0) {
 			objset_t *mos = spa_meta_objset(vd->vdev_spa);
 			ASSERT(vd->vdev_asize != 0);
-			ASSERT3P(vd->vdev_checkpoint_sm, ==, NULL);
+			ASSERT0P(vd->vdev_checkpoint_sm);
 
 			error = space_map_open(&vd->vdev_checkpoint_sm,
 			    mos, checkpoint_sm_obj, 0, vd->vdev_asize,
@@ -3993,7 +3993,7 @@ vdev_load(vdev_t *vd)
 	if (error == 0 && obsolete_sm_object != 0) {
 		objset_t *mos = vd->vdev_spa->spa_meta_objset;
 		ASSERT(vd->vdev_asize != 0);
-		ASSERT3P(vd->vdev_obsolete_sm, ==, NULL);
+		ASSERT0P(vd->vdev_obsolete_sm);
 
 		if ((error = space_map_open(&vd->vdev_obsolete_sm, mos,
 		    obsolete_sm_object, 0, vd->vdev_asize, 0))) {
@@ -4521,7 +4521,7 @@ top:
 			/*
 			 * Prevent any future allocations.
 			 */
-			ASSERT3P(tvd->vdev_log_mg, ==, NULL);
+			ASSERT0P(tvd->vdev_log_mg);
 			metaslab_group_passivate(mg);
 			(void) spa_vdev_state_exit(spa, vd, 0);
 

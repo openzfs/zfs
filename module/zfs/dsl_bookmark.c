@@ -501,7 +501,7 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    sizeof (uint64_t) * num_redact_snaps);
 		local_rl->rl_phys->rlp_num_snaps = num_redact_snaps;
 		if (bookmark_redacted) {
-			ASSERT3P(redaction_list, ==, NULL);
+			ASSERT0P(redaction_list);
 			local_rl->rl_phys->rlp_last_blkid = UINT64_MAX;
 			local_rl->rl_phys->rlp_last_object = UINT64_MAX;
 			dsl_redaction_list_long_rele(local_rl, tag);

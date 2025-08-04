@@ -765,7 +765,7 @@ zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 			return (NULL);
 		}
 		(void) memcpy(luabuf, ptr, osize);
-		VERIFY3P(zcp_lua_alloc(ud, ptr, osize, 0), ==, NULL);
+		VERIFY0P(zcp_lua_alloc(ud, ptr, osize, 0));
 		return (luabuf);
 	}
 }

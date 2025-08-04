@@ -144,9 +144,9 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	rw_destroy(&zp->z_xattr_lock);
 	zfs_rangelock_fini(&zp->z_rangelock);
 
-	ASSERT3P(zp->z_dirlocks, ==, NULL);
-	ASSERT3P(zp->z_acl_cached, ==, NULL);
-	ASSERT3P(zp->z_xattr_cached, ==, NULL);
+	ASSERT0P(zp->z_dirlocks);
+	ASSERT0P(zp->z_acl_cached);
+	ASSERT0P(zp->z_xattr_cached);
 }
 
 static int
@@ -531,8 +531,8 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	zp = ITOZ(ip);
 	ASSERT0P(zp->z_dirlocks);
-	ASSERT3P(zp->z_acl_cached, ==, NULL);
-	ASSERT3P(zp->z_xattr_cached, ==, NULL);
+	ASSERT0P(zp->z_acl_cached);
+	ASSERT0P(zp->z_xattr_cached);
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;

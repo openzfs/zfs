@@ -552,7 +552,7 @@ vdev_bio_associate_blkg(struct bio *bio)
 #endif
 
 	ASSERT3P(q, !=, NULL);
-	ASSERT3P(bio->bi_blkg, ==, NULL);
+	ASSERT0P(bio->bi_blkg);
 
 	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
@@ -574,7 +574,7 @@ vdev_bio_set_dev(struct bio *bio, struct block_device *bdev)
 	bio->bi_bdev = bdev;
 
 	ASSERT3P(q, !=, NULL);
-	ASSERT3P(bio->bi_blkg, ==, NULL);
+	ASSERT0P(bio->bi_blkg);
 
 	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
@@ -806,7 +806,7 @@ vbio_completion(struct bio *bio)
 	 * here; instead we stash vbio on the zio and take care of it in the
 	 * done callback.
 	 */
-	ASSERT3P(zio->io_bio, ==, NULL);
+	ASSERT0P(zio->io_bio);
 	zio->io_bio = vbio;
 
 	zio_delay_interrupt(zio);

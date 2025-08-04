@@ -104,7 +104,7 @@ __cv_destroy(kcondvar_t *cvp)
 	while (cv_destroy_wakeup(cvp) == 0)
 		wait_event_timeout(cvp->cv_destroy, cv_destroy_wakeup(cvp), 1);
 
-	ASSERT3P(cvp->cv_mutex, ==, NULL);
+	ASSERT0P(cvp->cv_mutex);
 	ASSERT3S(atomic_read(&cvp->cv_refs), ==, 0);
 	ASSERT3S(atomic_read(&cvp->cv_waiters), ==, 0);
 	ASSERT3S(waitqueue_active(&cvp->cv_event), ==, 0);

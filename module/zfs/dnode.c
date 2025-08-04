@@ -214,7 +214,7 @@ dnode_dest(void *arg, void *unused)
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
-		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
+		ASSERT0P(dn->dn_free_ranges[i]);
 		list_destroy(&dn->dn_dirty_records[i]);
 		ASSERT0(dn->dn_next_nblkptr[i]);
 		ASSERT0(dn->dn_next_nlevels[i]);
@@ -231,10 +231,10 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_assigned_txg);
 	ASSERT0(dn->dn_dirty_txg);
 	ASSERT0(dn->dn_dirtyctx);
-	ASSERT3P(dn->dn_dirtyctx_firstset, ==, NULL);
-	ASSERT3P(dn->dn_bonus, ==, NULL);
+	ASSERT0P(dn->dn_dirtyctx_firstset);
+	ASSERT0P(dn->dn_bonus);
 	ASSERT(!dn->dn_have_spill);
-	ASSERT3P(dn->dn_zio, ==, NULL);
+	ASSERT0P(dn->dn_zio);
 	ASSERT0(dn->dn_oldused);
 	ASSERT0(dn->dn_oldflags);
 	ASSERT0(dn->dn_olduid);
@@ -780,7 +780,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 		ASSERT0(dn->dn_next_maxblkid[i]);
 		ASSERT(!multilist_link_active(&dn->dn_dirty_link[i]));
 		ASSERT3P(list_head(&dn->dn_dirty_records[i]), ==, NULL);
-		ASSERT3P(dn->dn_free_ranges[i], ==, NULL);
+		ASSERT0P(dn->dn_free_ranges[i]);
 	}
 
 	dn->dn_type = ot;

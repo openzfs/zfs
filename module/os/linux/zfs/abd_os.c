@@ -863,9 +863,9 @@ abd_iter_advance(struct abd_iter *aiter, size_t amount)
 	 * Ensure that last chunk is not in use. abd_iterate_*() must clear
 	 * this state (directly or abd_iter_unmap()) before advancing.
 	 */
-	ASSERT3P(aiter->iter_mapaddr, ==, NULL);
+	ASSERT0P(aiter->iter_mapaddr);
 	ASSERT0(aiter->iter_mapsize);
-	ASSERT3P(aiter->iter_page, ==, NULL);
+	ASSERT0P(aiter->iter_page);
 	ASSERT0(aiter->iter_page_doff);
 	ASSERT0(aiter->iter_page_dsize);
 
@@ -897,7 +897,7 @@ abd_iter_map(struct abd_iter *aiter)
 	void *paddr;
 	size_t offset = 0;
 
-	ASSERT3P(aiter->iter_mapaddr, ==, NULL);
+	ASSERT0P(aiter->iter_mapaddr);
 	ASSERT0(aiter->iter_mapsize);
 
 	/* There's nothing left to iterate over, so do nothing */

@@ -161,7 +161,7 @@ tsd_hash_add(tsd_hash_table_t *table, uint_t key, pid_t pid, void *value)
 	ulong_t hash;
 	int rc = 0;
 
-	ASSERT3P(tsd_hash_search(table, key, pid), ==, NULL);
+	ASSERT0P(tsd_hash_search(table, key, pid));
 
 	/* New entry allocate structure, set value, and add to hash */
 	entry = kmem_alloc(sizeof (tsd_hash_entry_t), KM_PUSHPAGE);

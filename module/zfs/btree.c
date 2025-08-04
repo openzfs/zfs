@@ -1110,7 +1110,7 @@ zfs_btree_add_idx(zfs_btree_t *tree, const void *value,
 	if (where->bti_node == NULL) {
 		ASSERT3U(tree->bt_num_elems, ==, 1);
 		ASSERT3S(tree->bt_height, ==, -1);
-		ASSERT3P(tree->bt_root, ==, NULL);
+		ASSERT0P(tree->bt_root);
 		ASSERT0(where->bti_offset);
 
 		tree->bt_num_nodes++;
@@ -1947,7 +1947,7 @@ void
 zfs_btree_destroy(zfs_btree_t *tree)
 {
 	ASSERT0(tree->bt_num_elems);
-	ASSERT3P(tree->bt_root, ==, NULL);
+	ASSERT0P(tree->bt_root);
 }
 
 /* Verify that every child of this node has the correct parent pointer. */
@@ -1969,10 +1969,10 @@ static void
 zfs_btree_verify_pointers(zfs_btree_t *tree)
 {
 	if (tree->bt_height == -1) {
-		VERIFY3P(tree->bt_root, ==, NULL);
+		VERIFY0P(tree->bt_root);
 		return;
 	}
-	VERIFY3P(tree->bt_root->bth_parent, ==, NULL);
+	VERIFY0P(tree->bt_root->bth_parent);
 	zfs_btree_verify_pointers_helper(tree, tree->bt_root);
 }
 

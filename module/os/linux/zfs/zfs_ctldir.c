@@ -494,9 +494,9 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	if (!creation)
 		now = current_time(ip);
 	zp = ITOZ(ip);
-	ASSERT3P(zp->z_dirlocks, ==, NULL);
-	ASSERT3P(zp->z_acl_cached, ==, NULL);
-	ASSERT3P(zp->z_xattr_cached, ==, NULL);
+	ASSERT0P(zp->z_dirlocks);
+	ASSERT0P(zp->z_acl_cached);
+	ASSERT0P(zp->z_xattr_cached);
 	zp->z_id = id;
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;

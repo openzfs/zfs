@@ -129,7 +129,7 @@ zrl_tryenter(zrlock_t *zrl)
 		    (uint32_t *)&zrl->zr_refcount, 0, ZRL_LOCKED);
 		if (cas == 0) {
 #ifdef	ZFS_DEBUG
-			ASSERT3P(zrl->zr_owner, ==, NULL);
+			ASSERT0P(zrl->zr_owner);
 			zrl->zr_owner = curthread;
 #endif
 			return (1);

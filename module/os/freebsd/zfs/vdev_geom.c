@@ -1236,7 +1236,7 @@ vdev_geom_io_done(zio_t *zio)
 	struct bio *bp = zio->io_bio;
 
 	if (zio->io_type != ZIO_TYPE_READ && zio->io_type != ZIO_TYPE_WRITE) {
-		ASSERT3P(bp, ==, NULL);
+		ASSERT0P(bp);
 		return;
 	}
 
