@@ -9812,6 +9812,13 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			break;
 		case ZPOOL_PROP_ZIA_PROVIDER:
 			strval = fnvpair_value_string(elem);
+			if (strncmp(strval, "NULL", 5) == 0 ||
+			    strncmp(strval, "off", 4) == 0) {
+				zia_put_provider(&zia_props->provider,
+				    spa->spa_root_vdev);
+				break;
+			}
+
 			if (zia_props->provider != NULL)
 				zia_put_provider(&zia_props->provider,
 				    spa->spa_root_vdev);
