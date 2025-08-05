@@ -105,6 +105,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_RESUME_EXISTS',
         'ZFS_ERR_CRYPTO_NOTSUP',
         'ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS',
+        'ZFS_ERR_ZIA_NONEXISTENT_PROVIDER',
     ],
     {}
 )
