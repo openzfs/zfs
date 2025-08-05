@@ -116,6 +116,8 @@ typedef ulong_t cookie_t;
 #endif
 
 static int zfs_check_attrname(const char *name);
+static int zfs_ensure_xattr_cached(znode_t *zp);
+static int zfs_deleteextattr_sa_impl(znode_t *zp, const char *attrname);
 
 /*
  * Programming rules.
@@ -5044,6 +5046,27 @@ zfs_cache_lookup(struct vop_lookup_args *ap)
 		return (zfs_freebsd_lookup(ap, B_FALSE));
 }
 
+#if __FreeBSD_version >= 1500040
+/*
+ * Delete an extended attribute in the sa.
+ * Called when a named attribute is created with the same name.
+ */
+static void
+zfs_delxattr_sa_dircreate(znode_t *zp, const char *attrname)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	if (zfs_enter_verify_zp(zfsvfs, zp, FTAG) != 0)
+		return;
+	rw_enter(&zp->z_xattr_lock, RW_WRITER);
+
+	(void) zfs_deleteextattr_sa_impl(zp, attrname);
+
+	rw_exit(&zp->z_xattr_lock);
+	zfs_exit(zfsvfs, FTAG);
+}
+#endif
+
 #ifndef _SYS_SYSPROTO_H_
 struct vop_create_args {
 	struct vnode *a_dvp;
@@ -5064,7 +5087,9 @@ zfs_freebsd_create(struct vop_create_args *ap)
 	struct vnode *dvp = ap->a_dvp;
 #if __FreeBSD_version >= 1500040
 	struct vnode *xvp;
-	bool is_nameddir;
+	znode_t *file_zp;
+	int err;
+	bool is_nameddir, vrele_filevp;
 #endif
 
 #if __FreeBSD_version < 1400068
@@ -5079,14 +5104,22 @@ zfs_freebsd_create(struct vop_create_args *ap)
 	rc = 0;
 #if __FreeBSD_version >= 1500040
 	xvp = NULL;
+	file_zp = NULL;
+	vrele_filevp = false;
 	is_nameddir = (vn_irflag_read(dvp) & VIRF_NAMEDDIR) != 0;
 	if (!is_nameddir && (cnp->cn_flags & OPENNAMED) != 0) {
 		/* Needs a named attribute directory. */
 		rc = zfs_lookup_nameddir(dvp, cnp, &xvp);
 		if (rc == 0) {
+			file_zp = VTOZ(dvp);
 			dvp = xvp;
 			is_nameddir = true;
 		}
+	} else if (is_nameddir) {
+		/* Needs a file_vp. */
+		err = zfs_dirlook(VTOZ(dvp), "..", &file_zp);
+		if (err == 0)
+			vrele_filevp = true;
 	}
 	if (is_nameddir && rc == 0)
 		rc = zfs_check_attrname(cnp->cn_nameptr);
@@ -5096,6 +5129,10 @@ zfs_freebsd_create(struct vop_create_args *ap)
 		rc = zfs_create(VTOZ(dvp), cnp->cn_nameptr, vap, 0, mode,
 		    &zp, cnp->cn_cred, 0 /* flag */, NULL /* vsecattr */, NULL);
 #if __FreeBSD_version >= 1500040
+	if (rc == 0 && file_zp != NULL && file_zp->z_is_sa)
+		zfs_delxattr_sa_dircreate(file_zp, cnp->cn_nameptr);
+	if (vrele_filevp)
+		vrele(ZTOV(file_zp));
 	if (xvp != NULL)
 		vput(xvp);
 #endif
@@ -6026,9 +6063,8 @@ zfs_deleteextattr_dir(struct vop_deleteextattr_args *ap, const char *attrname)
 }
 
 static int
-zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
+zfs_deleteextattr_sa_impl(znode_t *zp, const char *attrname)
 {
-	znode_t *zp = VTOZ(ap->a_vp);
 	nvlist_t *nvl;
 	int error;
 
@@ -6049,6 +6085,16 @@ zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
 		zp->z_xattr_cached = NULL;
 		nvlist_free(nvl);
 	}
+	return (error);
+}
+
+static int
+zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
+{
+	znode_t *zp = VTOZ(ap->a_vp);
+	int error;
+
+	error = zfs_deleteextattr_sa_impl(zp, attrname);
 	return (error);
 }
 
