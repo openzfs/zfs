@@ -1614,12 +1614,18 @@ zvol_free_task(void *arg)
 	zvol_os_free(arg);
 }
 
+/*
+ * Remove minors for specified dataset and, optionally, its children and
+ * snapshots.
+ */
 static void
 zvol_remove_minors_impl(zvol_task_t *task)
 {
 	zvol_state_t *zv, *zv_next;
 	const char *name = task ? task->zt_name1 : NULL;
 	int namelen = ((name) ? strlen(name) : 0);
+	boolean_t children = task ? !!task->zt_value : B_TRUE;
+
 	taskqid_t t;
 	list_t delay_list, free_list;
 
@@ -1631,20 +1637,33 @@ zvol_remove_minors_impl(zvol_task_t *task)
 	list_create(&free_list, sizeof (zvol_state_t),
 	    offsetof(zvol_state_t, zv_next));
 
+	int error = ENOENT;
+
 	rw_enter(&zvol_state_lock, RW_WRITER);
 
 	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
 		zv_next = list_next(&zvol_state_list, zv);
 
 		mutex_enter(&zv->zv_state_lock);
+
+		/*
+		 * This zvol should be removed if:
+		 * - no name was offered (ie removing all at shutdown); or
+		 * - name matches exactly; or
+		 * - we were asked to remove children, and
+		 *   - the start of the name matches, and
+		 *   - there is a '/' immediately after the matched name; or
+		 *   - there is a '@' immediately after the matched name
+		 */
 		if (name == NULL || strcmp(zv->zv_name, name) == 0 ||
-		    (strncmp(zv->zv_name, name, namelen) == 0 &&
+		    (children && strncmp(zv->zv_name, name, namelen) == 0 &&
 		    (zv->zv_name[namelen] == '/' ||
 		    zv->zv_name[namelen] == '@'))) {
 			/*
 			 * By holding zv_state_lock here, we guarantee that no
 			 * one is currently using this zv
 			 */
+			error = 0;
 
 			/*
 			 * If in use, try to throw everyone off and try again
@@ -1697,57 +1716,26 @@ zvol_remove_minors_impl(zvol_task_t *task)
 	/* Free any that we couldn't free in parallel earlier */
 	while ((zv = list_remove_head(&free_list)) != NULL)
 		zvol_os_free(zv);
+
+	if (error && task)
+		task->zt_error = SET_ERROR(error);
 }
 
 /* Remove minor for this specific volume only */
 static int
 zvol_remove_minor_impl(const char *name)
 {
-	zvol_state_t *zv = NULL, *zv_next;
-
 	if (zvol_inhibit_dev)
 		return (0);
 
-	rw_enter(&zvol_state_lock, RW_WRITER);
+	zvol_task_t task;
+	memset(&task, 0, sizeof (zvol_task_t));
+	strlcpy(task.zt_name1, name, sizeof (task.zt_name1));
+	task.zt_value = B_FALSE;
 
-	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
-		zv_next = list_next(&zvol_state_list, zv);
+	zvol_remove_minors_impl(&task);
 
-		mutex_enter(&zv->zv_state_lock);
-		if (strcmp(zv->zv_name, name) == 0)
-			/* Found, leave the the loop with zv_lock held */
-			break;
-		mutex_exit(&zv->zv_state_lock);
-	}
-
-	if (zv == NULL) {
-		rw_exit(&zvol_state_lock);
-		return (SET_ERROR(ENOENT));
-	}
-
-	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-
-	if (zv->zv_open_count > 0 || atomic_read(&zv->zv_suspend_ref)) {
-		/*
-		 * In use, so try to throw everyone off, then wait
-		 * until finished.
-		 */
-		zv->zv_flags |= ZVOL_REMOVING;
-		mutex_exit(&zv->zv_state_lock);
-		rw_exit(&zvol_state_lock);
-		zvol_remove_minor_task(zv);
-		return (0);
-	}
-
-	zvol_remove(zv);
-	zvol_os_clear_private(zv);
-
-	mutex_exit(&zv->zv_state_lock);
-	rw_exit(&zvol_state_lock);
-
-	zvol_os_free(zv);
-
-	return (0);
+	return (task.zt_error);
 }
 
 /*
@@ -2067,6 +2055,7 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 	task = kmem_zalloc(sizeof (zvol_task_t), KM_SLEEP);
 	task->zt_op = ZVOL_ASYNC_REMOVE_MINORS;
 	strlcpy(task->zt_name1, name, sizeof (task->zt_name1));
+	task->zt_value = B_TRUE;
 	id = taskq_dispatch(spa->spa_zvol_taskq, zvol_task_cb, task, TQ_SLEEP);
 	if ((async == B_FALSE) && (id != TASKQID_INVALID))
 		taskq_wait_id(spa->spa_zvol_taskq, id);
