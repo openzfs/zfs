@@ -324,6 +324,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ASHIFT_MISMATCH:
 		return (dgettext(TEXT_DOMAIN, "adding devices with "
 		    "different physical sector sizes is not allowed"));
+	case EZFS_ZIA_NONEXISTENT_PROVIDER:
+		return (dgettext(TEXT_DOMAIN, "given provider does not exist"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -775,6 +777,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_ASHIFT_MISMATCH:
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
+		break;
+	case ZFS_ERR_ZIA_NONEXISTENT_PROVIDER:
+		zfs_verror(hdl, EZFS_ZIA_NONEXISTENT_PROVIDER, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
