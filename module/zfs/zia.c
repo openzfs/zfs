@@ -996,7 +996,7 @@ zia_compress(zia_props_t *props, enum zio_compress c,
     uint8_t level, boolean_t *local_offload)
 {
 #ifdef ZIA
-	if (!dpusm) {
+	if (!dpusm || !props->provider) {
 		return (ZIA_FALLBACK);
 	}
 
@@ -1252,6 +1252,9 @@ zia_raidz_alloc(zio_t *zio, raidz_row_t *rr, boolean_t rec,
 	}
 
 	zia_props_t *props = zia_get_props(zio->io_spa);
+	if (!props->provider) {
+		return (ZIA_FALLBACK);
+	}
 
 	/* get column sizes */
 	const size_t column_sizes_size = sizeof (size_t) * rr->rr_cols;
