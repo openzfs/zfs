@@ -20,7 +20,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #ifndef	_SYS_ZVOL_IMPL_H
@@ -135,7 +135,7 @@ int zvol_os_rename_minor(zvol_state_t *zv, const char *newname);
 int zvol_os_create_minor(const char *name);
 int zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize);
 boolean_t zvol_os_is_zvol(const char *path);
-void zvol_os_clear_private(zvol_state_t *zv);
+void zvol_os_remove_minor(zvol_state_t *zv);
 void zvol_os_set_disk_ro(zvol_state_t *zv, int flags);
 void zvol_os_set_capacity(zvol_state_t *zv, uint64_t capacity);
 
