@@ -695,6 +695,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 	int error = 0, reset_bootfs = 0;
 	uint64_t objnum = 0;
 	boolean_t has_feature = B_FALSE;
+	zia_props_t *zia_props = zia_get_props(spa);
 
 	elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
@@ -890,6 +891,40 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			break;
 
 		case ZPOOL_PROP_ZIA_PROVIDER:
+			strval = fnvpair_value_string(elem);
+			if (strncmp(strval, "NULL", 5) == 0 ||
+			    strncmp(strval, "off", 4) == 0) {
+				zia_put_provider(&zia_props->provider,
+				    spa->spa_root_vdev);
+				break;
+			}
+
+			void *new_provider = zia_get_provider(strval);
+			if (new_provider == NULL) {
+				error = SET_ERROR(ZFS_ERR_ZIA_NONEXISTENT_PROVIDER);
+				break;
+			}
+
+			if (zia_props->provider != NULL)
+				zia_put_provider(&zia_props->provider,
+				    spa->spa_root_vdev);
+
+			zia_props->provider = new_provider;
+			zia_props->can_offload = !!zia_props->provider;
+
+			/*
+			 * It is possible to enable disk_write or file_write
+			 * without passing a provider, or swapping one
+			 * provider with another while these flags are enabled.
+			 * In those cases, vdevs must be opened for the new
+			 * provider upon being passed.
+			 * The vdevs will be closed for the older provider
+			 * in zia_put_provider() first.
+			 */
+			ASSERT3P(spa->spa_root_vdev, !=, NULL);
+			if (zia_props->disk_write || zia_props->file_write)
+				zia_open_vdevs(spa->spa_root_vdev);
+			break;
 		case ZPOOL_PROP_ZIA_COMPRESS:
 		case ZPOOL_PROP_ZIA_DECOMPRESS:
 		case ZPOOL_PROP_ZIA_CHECKSUM:
@@ -9812,32 +9847,6 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			break;
 		case ZPOOL_PROP_ZIA_PROVIDER:
 			strval = fnvpair_value_string(elem);
-			if (strncmp(strval, "NULL", 5) == 0 ||
-			    strncmp(strval, "off", 4) == 0) {
-				zia_put_provider(&zia_props->provider,
-				    spa->spa_root_vdev);
-				break;
-			}
-
-			if (zia_props->provider != NULL)
-				zia_put_provider(&zia_props->provider,
-				    spa->spa_root_vdev);
-			zia_props->provider = zia_get_provider(strval);
-			zia_props->can_offload = !!zia_props->provider;
-
-			/*
-			 * It is possible to enable disk_write or file_write
-			 * without passing a provider, or swapping one
-			 * provider with another while these flags are enabled.
-			 * In those cases, vdevs must be opened for the new
-			 * provider upon being passed.
-			 * The vdevs will be closed for the older provider
-			 * in zia_put_provider() first.
-			 */
-			ASSERT3P(spa->spa_root_vdev, !=, NULL);
-			if (zia_props->disk_write || zia_props->file_write)
-				zia_open_vdevs(spa->spa_root_vdev);
-
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
 			break;
