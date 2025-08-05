@@ -31,7 +31,7 @@
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 /* Portions Copyright 2011 Martin Matuska <mm@FreeBSD.org> */
@@ -196,7 +196,6 @@ DECLARE_GEOM_CLASS(zfs_zvol_class, zfs_zvol);
 
 static int zvol_geom_open(struct g_provider *pp, int flag, int count);
 static int zvol_geom_close(struct g_provider *pp, int flag, int count);
-static void zvol_geom_destroy(zvol_state_t *zv);
 static int zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace);
 static void zvol_geom_bio_start(struct bio *bp);
 static int zvol_geom_bio_getattr(struct bio *bp);
@@ -406,20 +405,6 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 	return (0);
-}
-
-static void
-zvol_geom_destroy(zvol_state_t *zv)
-{
-	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-	struct g_provider *pp = zsg->zsg_provider;
-
-	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
-
-	g_topology_assert();
-
-	zsg->zsg_provider = NULL;
-	g_wither_geom(pp->geom, ENXIO);
 }
 
 void
@@ -1400,42 +1385,65 @@ zvol_alloc(const char *name, uint64_t volsize, uint64_t volblocksize,
  * Remove minor node for the specified volume.
  */
 void
-zvol_os_free(zvol_state_t *zv)
+zvol_os_remove_minor(zvol_state_t *zv)
 {
-	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
-	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT0(zv->zv_open_count);
+	ASSERT0(atomic_read(&zv->zv_suspend_ref));
+	ASSERT(zv->zv_flags & ZVOL_REMOVING);
 
-	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
-
-	rw_destroy(&zv->zv_suspend_lock);
-	zfs_rangelock_fini(&zv->zv_rangelock);
+	struct zvol_state_os *zso = zv->zv_zso;
+	zv->zv_zso = NULL;
 
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
-		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-		struct g_provider *pp __maybe_unused = zsg->zsg_provider;
-
-		ASSERT0P(pp->private);
+		struct zvol_state_geom *zsg = &zso->zso_geom;
+		struct g_provider *pp = zsg->zsg_provider;
+		pp->private = NULL;
+		mutex_exit(&zv->zv_state_lock);
 
 		g_topology_lock();
-		zvol_geom_destroy(zv);
+		g_wither_geom(pp->geom, ENXIO);
 		g_topology_unlock();
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
-		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
+		struct zvol_state_dev *zsd = &zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
 
+		if (dev != NULL)
+			dev->si_drv2 = NULL;
+		mutex_exit(&zv->zv_state_lock);
+
 		if (dev != NULL) {
-			ASSERT0P(dev->si_drv2);
 			destroy_dev(dev);
 			knlist_clear(&zsd->zsd_selinfo.si_note, 0);
 			knlist_destroy(&zsd->zsd_selinfo.si_note);
 		}
 	}
 
+	kmem_free(zso, sizeof (struct zvol_state_os));
+
+	mutex_enter(&zv->zv_state_lock);
+}
+
+void
+zvol_os_free(zvol_state_t *zv)
+{
+	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
+	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT0(zv->zv_open_count);
+	ASSERT0P(zv->zv_zso);
+
+	ASSERT0P(zv->zv_objset);
+	ASSERT0P(zv->zv_zilog);
+	ASSERT0P(zv->zv_dn);
+
+	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
+
+	rw_destroy(&zv->zv_suspend_lock);
+	zfs_rangelock_fini(&zv->zv_rangelock);
+
 	mutex_destroy(&zv->zv_state_lock);
 	cv_destroy(&zv->zv_removing_cv);
 	dataset_kstats_destroy(&zv->zv_kstat);
-	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
 	zvol_minors--;
 }
@@ -1536,28 +1544,6 @@ out_doi:
 	}
 	PICKUP_GIANT();
 	return (error);
-}
-
-void
-zvol_os_clear_private(zvol_state_t *zv)
-{
-	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
-	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
-		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-		struct g_provider *pp = zsg->zsg_provider;
-
-		if (pp->private == NULL) /* already cleared */
-			return;
-
-		pp->private = NULL;
-		ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
-	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
-		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
-		struct cdev *dev = zsd->zsd_cdev;
-
-		if (dev != NULL)
-			dev->si_drv2 = NULL;
-	}
 }
 
 int

@@ -38,7 +38,7 @@
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 /*
@@ -1599,8 +1599,8 @@ zvol_remove_minor_task(void *arg)
 	rw_enter(&zvol_state_lock, RW_WRITER);
 	mutex_enter(&zv->zv_state_lock);
 
+	zvol_os_remove_minor(zv);
 	zvol_remove(zv);
-	zvol_os_clear_private(zv);
 
 	mutex_exit(&zv->zv_state_lock);
 	rw_exit(&zvol_state_lock);
@@ -1669,9 +1669,9 @@ zvol_remove_minors_impl(zvol_task_t *task)
 			 * If in use, try to throw everyone off and try again
 			 * later.
 			 */
+			zv->zv_flags |= ZVOL_REMOVING;
 			if (zv->zv_open_count > 0 ||
 			    atomic_read(&zv->zv_suspend_ref)) {
-				zv->zv_flags |= ZVOL_REMOVING;
 				t = taskq_dispatch(
 				    zv->zv_objset->os_spa->spa_zvol_taskq,
 				    zvol_remove_minor_task, zv, TQ_SLEEP);
@@ -1687,13 +1687,8 @@ zvol_remove_minors_impl(zvol_task_t *task)
 				continue;
 			}
 
+			zvol_os_remove_minor(zv);
 			zvol_remove(zv);
-
-			/*
-			 * Cleared while holding zvol_state_lock as a writer
-			 * which will prevent zvol_open() from opening it.
-			 */
-			zvol_os_clear_private(zv);
 
 			/* Drop zv_state_lock before zvol_free() */
 			mutex_exit(&zv->zv_state_lock);

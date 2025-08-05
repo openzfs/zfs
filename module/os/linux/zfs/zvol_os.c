@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #include <sys/dataset_kstats.h>
@@ -971,16 +971,6 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 	return (0);
 }
 
-void
-zvol_os_clear_private(zvol_state_t *zv)
-{
-	/*
-	 * Cleared while holding zvol_state_lock as a writer
-	 * which will prevent zvol_open() from opening it.
-	 */
-	zv->zv_zso->zvo_disk->private_data = NULL;
-}
-
 /*
  * Provide a simple virtual geometry for legacy compatibility.  For devices
  * smaller than 1 MiB a small head and sector count is used to allow very
@@ -1417,6 +1407,54 @@ out_kmem:
 	return (ret);
 }
 
+void
+zvol_os_remove_minor(zvol_state_t *zv)
+{
+	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
+	ASSERT0(zv->zv_open_count);
+	ASSERT0(atomic_read(&zv->zv_suspend_ref));
+	ASSERT(zv->zv_flags & ZVOL_REMOVING);
+
+	/*
+	 * Cleared while holding zvol_state_lock as a writer
+	 * which will prevent zvol_open() from opening it.
+	 */
+	struct zvol_state_os *zso = zv->zv_zso;
+	zv->zv_zso = NULL;
+
+	/* Clearing private_data will make new callers return immediately. */
+	zso->zvo_disk->private_data = NULL;
+
+	/*
+	 * Drop the state lock before calling del_gendisk(). There may be
+	 * callers waiting to acquire it, but del_gendisk() will block until
+	 * they exit, which would deadlock.
+	 */
+	mutex_exit(&zv->zv_state_lock);
+
+	del_gendisk(zso->zvo_disk);
+#if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS) && \
+	(defined(HAVE_BLK_ALLOC_DISK) || defined(HAVE_BLK_ALLOC_DISK_2ARG))
+#if defined(HAVE_BLK_CLEANUP_DISK)
+	blk_cleanup_disk(zso->zvo_disk);
+#else
+	put_disk(zso->zvo_disk);
+#endif
+#else
+	blk_cleanup_queue(zso->zvo_queue);
+	put_disk(zso->zvo_disk);
+#endif
+
+	if (zso->use_blk_mq)
+		blk_mq_free_tag_set(&zso->tag_set);
+
+	ida_simple_remove(&zvol_ida, MINOR(zso->zvo_dev) >> ZVOL_MINOR_BITS);
+
+	kmem_free(zso, sizeof (struct zvol_state_os));
+
+	mutex_enter(&zv->zv_state_lock);
+}
+
 /*
  * Cleanup then free a zvol_state_t which was created by zvol_alloc().
  * At this time, the structure is not opened by anyone, is taken off
@@ -1435,35 +1473,19 @@ zvol_os_free(zvol_state_t *zv)
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT0(zv->zv_open_count);
-	ASSERT0P(zv->zv_zso->zvo_disk->private_data);
+	ASSERT0P(zv->zv_zso);
+
+	ASSERT0P(zv->zv_objset);
+	ASSERT0P(zv->zv_zilog);
+	ASSERT0P(zv->zv_dn);
 
 	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rangelock_fini(&zv->zv_rangelock);
-
-	del_gendisk(zv->zv_zso->zvo_disk);
-#if defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS) && \
-	(defined(HAVE_BLK_ALLOC_DISK) || defined(HAVE_BLK_ALLOC_DISK_2ARG))
-#if defined(HAVE_BLK_CLEANUP_DISK)
-	blk_cleanup_disk(zv->zv_zso->zvo_disk);
-#else
-	put_disk(zv->zv_zso->zvo_disk);
-#endif
-#else
-	blk_cleanup_queue(zv->zv_zso->zvo_queue);
-	put_disk(zv->zv_zso->zvo_disk);
-#endif
-
-	if (zv->zv_zso->use_blk_mq)
-		blk_mq_free_tag_set(&zv->zv_zso->tag_set);
-
-	ida_simple_remove(&zvol_ida,
-	    MINOR(zv->zv_zso->zvo_dev) >> ZVOL_MINOR_BITS);
 
 	cv_destroy(&zv->zv_removing_cv);
 	mutex_destroy(&zv->zv_state_lock);
 	dataset_kstats_destroy(&zv->zv_kstat);
 
-	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
 }
 
