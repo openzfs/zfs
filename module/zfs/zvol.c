@@ -1580,51 +1580,6 @@ zvol_create_minors_impl(zvol_task_t *task)
 }
 
 /*
- * Remove minors for specified dataset including children and snapshots.
- */
-
-/*
- * Remove the minor for a given zvol. This will do it all:
- *  - flag the zvol for removal, so new requests are rejected
- *  - wait until outstanding requests are completed
- *  - remove it from lists
- *  - free it
- * It's also usable as a taskq task, and smells nice too.
- */
-static void
-zvol_remove_minor_task(void *arg)
-{
-	zvol_state_t *zv = (zvol_state_t *)arg;
-
-	ASSERT(!RW_LOCK_HELD(&zvol_state_lock));
-	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
-
-	mutex_enter(&zv->zv_state_lock);
-	while (zv->zv_open_count > 0 || atomic_read(&zv->zv_suspend_ref)) {
-		zv->zv_flags |= ZVOL_REMOVING;
-		cv_wait(&zv->zv_removing_cv, &zv->zv_state_lock);
-	}
-	mutex_exit(&zv->zv_state_lock);
-
-	rw_enter(&zvol_state_lock, RW_WRITER);
-	mutex_enter(&zv->zv_state_lock);
-
-	zvol_os_remove_minor(zv);
-	zvol_remove(zv);
-
-	mutex_exit(&zv->zv_state_lock);
-	rw_exit(&zvol_state_lock);
-
-	zvol_os_free(zv);
-}
-
-static void
-zvol_free_task(void *arg)
-{
-	zvol_os_free(arg);
-}
-
-/*
  * Remove minors for specified dataset and, optionally, its children and
  * snapshots.
  */
@@ -1636,25 +1591,33 @@ zvol_remove_minors_impl(zvol_task_t *task)
 	int namelen = ((name) ? strlen(name) : 0);
 	boolean_t children = task ? !!task->zt_value : B_TRUE;
 
-	taskqid_t t;
-	list_t delay_list, free_list;
-
 	if (zvol_inhibit_dev)
 		return;
 
-	list_create(&delay_list, sizeof (zvol_state_t),
-	    offsetof(zvol_state_t, zv_next));
-	list_create(&free_list, sizeof (zvol_state_t),
-	    offsetof(zvol_state_t, zv_next));
+	/*
+	 * We collect up zvols that we want to remove on a separate list, so
+	 * that we don't have to hold zvol_state_lock for the whole time.
+	 *
+	 * We can't remove them from the global lists until we're completely
+	 * done with them, because that would make them appear to ZFS-side ops
+	 * that they don't exist, and the name might be reused, which can't be
+	 * good.
+	 */
+	list_t remove_list;
+	list_create(&remove_list, sizeof (zvol_state_t),
+	    offsetof(zvol_state_t, zv_remove_node));
 
-	int error = ENOENT;
-
-	rw_enter(&zvol_state_lock, RW_WRITER);
+	rw_enter(&zvol_state_lock, RW_READER);
 
 	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
 		zv_next = list_next(&zvol_state_list, zv);
 
 		mutex_enter(&zv->zv_state_lock);
+		if (zv->zv_flags & ZVOL_REMOVING) {
+			/* Another thread is handling shutdown, skip it. */
+			mutex_exit(&zv->zv_state_lock);
+			continue;
+		}
 
 		/*
 		 * This zvol should be removed if:
@@ -1669,61 +1632,87 @@ zvol_remove_minors_impl(zvol_task_t *task)
 		    (children && strncmp(zv->zv_name, name, namelen) == 0 &&
 		    (zv->zv_name[namelen] == '/' ||
 		    zv->zv_name[namelen] == '@'))) {
-			/*
-			 * By holding zv_state_lock here, we guarantee that no
-			 * one is currently using this zv
-			 */
-			error = 0;
 
 			/*
-			 * If in use, try to throw everyone off and try again
-			 * later.
+			 * Matched, so mark it removal. We want to take the
+			 * write half of the suspend lock to make sure that
+			 * the zvol is not suspended, and give any data ops
+			 * chance to finish.
 			 */
-			zv->zv_flags |= ZVOL_REMOVING;
-			if (zv->zv_open_count > 0 ||
-			    atomic_read(&zv->zv_suspend_ref)) {
-				t = taskq_dispatch(
-				    zv->zv_objset->os_spa->spa_zvol_taskq,
-				    zvol_remove_minor_task, zv, TQ_SLEEP);
-				if (t == TASKQID_INVALID) {
-					/*
-					 * Couldn't create the task, so we'll
-					 * do it in place once the loop is
-					 * finished.
-					 */
-					list_insert_head(&delay_list, zv);
-				}
+			mutex_exit(&zv->zv_state_lock);
+			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+			mutex_enter(&zv->zv_state_lock);
+
+			if (zv->zv_flags & ZVOL_REMOVING) {
+				/* Another thread has taken it, let them. */
 				mutex_exit(&zv->zv_state_lock);
+				rw_exit(&zv->zv_suspend_lock);
 				continue;
 			}
 
-			zvol_os_remove_minor(zv);
-			zvol_remove(zv);
-
-			/* Drop zv_state_lock before zvol_free() */
+			/*
+			 * Mark it and unlock. New entries will see the flag
+			 * and return ENXIO.
+			 */
+			zv->zv_flags |= ZVOL_REMOVING;
 			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zv->zv_suspend_lock);
 
-			/* Try parallel zv_free, if failed do it in place */
-			t = taskq_dispatch(system_taskq, zvol_free_task, zv,
-			    TQ_SLEEP);
-			if (t == TASKQID_INVALID)
-				list_insert_head(&free_list, zv);
-		} else {
+			/* Put it on the list for the next stage. */
+			list_insert_head(&remove_list, zv);
+		} else
 			mutex_exit(&zv->zv_state_lock);
-		}
 	}
+
 	rw_exit(&zvol_state_lock);
 
-	/* Wait for zvols that we couldn't create a remove task for */
-	while ((zv = list_remove_head(&delay_list)) != NULL)
-		zvol_remove_minor_task(zv);
+	/* Didn't match any, nothing to do! */
+	if (list_is_empty(&remove_list)) {
+		if (task)
+			task->zt_error = SET_ERROR(ENOENT);
+		return;
+	}
 
-	/* Free any that we couldn't free in parallel earlier */
-	while ((zv = list_remove_head(&free_list)) != NULL)
+	/* Actually shut them all down. */
+	for (zv = list_head(&remove_list); zv != NULL; zv = zv_next) {
+		zv_next = list_next(&remove_list, zv);
+
+		mutex_enter(&zv->zv_state_lock);
+
+		/*
+		 * Still open or suspended, just wait. This can happen if, for
+		 * example, we managed to acquire zv_state_lock in the moments
+		 * where zvol_open() or zvol_release() are trading locks to
+		 * call zvol_first_open() or zvol_last_close().
+		 */
+		while (zv->zv_open_count > 0 ||
+		    atomic_read(&zv->zv_suspend_ref))
+			cv_wait(&zv->zv_removing_cv, &zv->zv_state_lock);
+
+		/*
+		 * No users, shut down the OS side. This may not remove the
+		 * minor from view immediately, depending on the kernel
+		 * specifics, but it will ensure that it is unusable and that
+		 * this zvol_state_t can never again be reached from an OS-side
+		 * operation.
+		 */
+		zvol_os_remove_minor(zv);
+		mutex_exit(&zv->zv_state_lock);
+
+		/* Remove it from the name lookup lists */
+		rw_enter(&zvol_state_lock, RW_WRITER);
+		zvol_remove(zv);
+		rw_exit(&zvol_state_lock);
+	}
+
+	/*
+	 * Our own references on remove_list is the last one, free them and
+	 * we're done.
+	 */
+	while ((zv = list_remove_head(&remove_list)) != NULL)
 		zvol_os_free(zv);
 
-	if (error && task)
-		task->zt_error = SET_ERROR(error);
+	list_destroy(&remove_list);
 }
 
 /* Remove minor for this specific volume only */
@@ -2181,14 +2170,6 @@ zvol_fini_impl(void)
 	zv_taskq_t *ztqs = &zvol_taskqs;
 
 	zvol_remove_minors_impl(NULL);
-
-	/*
-	 * The call to "zvol_remove_minors_impl" may dispatch entries to
-	 * the system_taskq, but it doesn't wait for those entries to
-	 * complete before it returns. Thus, we must wait for all of the
-	 * removals to finish, before we can continue.
-	 */
-	taskq_wait_outstanding(system_taskq, 0);
 
 	kmem_free(zvol_htable, ZVOL_HT_SIZE * sizeof (struct hlist_head));
 	list_destroy(&zvol_state_list);
