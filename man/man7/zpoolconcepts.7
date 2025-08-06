@@ -390,11 +390,6 @@ Multiple log devices can also be specified, and they can be mirrored.
 See the
 .Sx EXAMPLES
 section for an example of mirroring multiple log devices.
-.Pp
-Log devices can be added, replaced, attached, detached, and removed.
-In addition, log devices are imported and exported as part of the pool
-that contains them.
-Mirrored devices can be removed by specifying the top-level mirror vdev.
 .
 .Ss Cache Devices
 Devices can be added to a storage pool as
@@ -486,8 +481,8 @@ current state of the pool won't be scanned during a scrub.
 .
 .Ss Special Allocation Class
 Allocations in the special class are dedicated to specific block types.
-By default, this includes all metadata, the indirect blocks of user data, and
-any deduplication tables.
+By default, this includes all metadata, the indirect blocks of user data,
+intent log (in absence of separate log device), and deduplication tables.
 The class can also be provisioned to accept small file blocks or zvol blocks
 on a per dataset granularity.
 .Pp
