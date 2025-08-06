@@ -2246,6 +2246,21 @@ Defer frees starting in this pass.
 Maximum memory used for prefetching a checkpoint's space map on each
 vdev while discarding the checkpoint.
 .
+.It Sy zfs_spa_note_txg_time Ns = Ns Sy 600 Pq uint
+This parameter defines, in seconds, how often the TXG time database will record
+a new TXG if it has changed.
+After the specified time interval has passed, and if the TXG number has changed,
+the new value is recorded in the database.
+These timestamps can later be used for more granular operations, such as
+scrubbing.
+.
+.It Sy zfs_spa_flush_txg_time Ns = Ns Sy 600 Pq uint
+This parameter defines, in seconds, how often the ZFS will flush
+the TXG time database to disk.
+It ensures that the data is actually written to persistent storage, which helps
+preserve the database in case of unexpected shutdown.
+The database is also automatically flushed during the export sequence.
+.
 .It Sy zfs_special_class_metadata_reserve_pct Ns = Ns Sy 25 Ns % Pq uint
 Only allow small data blocks to be allocated on the special and dedup vdev
 types when the available free space percentage on these vdevs exceeds this

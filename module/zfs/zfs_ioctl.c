@@ -1704,6 +1704,8 @@ zfs_ioc_pool_scan(zfs_cmd_t *zc)
 static const zfs_ioc_key_t zfs_keys_pool_scrub[] = {
 	{"scan_type",		DATA_TYPE_UINT64,	0},
 	{"scan_command",	DATA_TYPE_UINT64,	0},
+	{"scan_date_start",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"scan_date_end",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 };
 
 static int
@@ -1712,6 +1714,7 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_t *spa;
 	int error;
 	uint64_t scan_type, scan_cmd;
+	uint64_t date_start, date_end;
 
 	if (nvlist_lookup_uint64(innvl, "scan_type", &scan_type) != 0)
 		return (SET_ERROR(EINVAL));
@@ -1720,6 +1723,11 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	if (scan_cmd >= POOL_SCRUB_FLAGS_END)
 		return (SET_ERROR(EINVAL));
+
+	if (nvlist_lookup_uint64(innvl, "scan_date_start", &date_start) != 0)
+		date_start = 0;
+	if (nvlist_lookup_uint64(innvl, "scan_date_end", &date_end) != 0)
+		date_end = 0;
 
 	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
 		return (error);
@@ -1732,7 +1740,24 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		error = spa_scan_range(spa, scan_type,
 		    spa_get_last_scrubbed_txg(spa), 0);
 	} else {
-		error = spa_scan(spa, scan_type);
+		uint64_t txg_start, txg_end;
+
+		txg_start = txg_end = 0;
+		if (date_start != 0 || date_end != 0) {
+			mutex_enter(&spa->spa_txg_log_time_lock);
+			if (date_start != 0) {
+				txg_start = dbrrd_query(&spa->spa_txg_log_time,
+				    date_start, DBRRD_FLOOR);
+			}
+
+			if (date_end != 0) {
+				txg_end = dbrrd_query(&spa->spa_txg_log_time,
+				    date_end, DBRRD_CEILING);
+			}
+			mutex_exit(&spa->spa_txg_log_time_lock);
+		}
+
+		error = spa_scan_range(spa, scan_type, txg_start, txg_end);
 	}
 
 	spa_close(spa, FTAG);
