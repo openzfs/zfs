@@ -1370,7 +1370,7 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	    6, ZFS_SPACE_CHECK_NORMAL);
 
 	if (rv == 0)
-		zvol_create_minor(name);
+		zvol_create_minors(name);
 
 	crfree(cr);
 

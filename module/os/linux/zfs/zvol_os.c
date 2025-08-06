@@ -1302,27 +1302,30 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
  * Allocate memory for a new zvol_state_t and setup the required
  * request queue and generic disk structures for the block device.
  */
-static zvol_state_t *
-zvol_alloc(dev_t dev, const char *name, uint64_t volblocksize)
+static int
+zvol_alloc(dev_t dev, const char *name, uint64_t volsize, uint64_t volblocksize,
+    zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	struct zvol_state_os *zso;
 	uint64_t volmode;
 	int ret;
 
-	if (dsl_prop_get_integer(name, "volmode", &volmode, NULL) != 0)
-		return (NULL);
+	ret = dsl_prop_get_integer(name, "volmode", &volmode, NULL);
+	if (ret)
+		return (ret);
 
 	if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
 
 	if (volmode == ZFS_VOLMODE_NONE)
-		return (NULL);
+		return (0);
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_zso = zso;
 	zv->zv_volmode = volmode;
+	zv->zv_volsize = volsize;
 	zv->zv_volblocksize = volblocksize;
 
 	list_link_init(&zv->zv_next);
@@ -1396,12 +1399,13 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volblocksize)
 	snprintf(zso->zvo_disk->disk_name, DISK_NAME_LEN, "%s%d",
 	    ZVOL_DEV_NAME, (dev & MINORMASK));
 
-	return (zv);
+	*zvp = zv;
+	return (ret);
 
 out_kmem:
 	kmem_free(zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
-	return (NULL);
+	return (ret);
 }
 
 /*
@@ -1562,7 +1566,7 @@ zvol_os_add_disk(struct gendisk *disk)
 int
 zvol_os_create_minor(const char *name)
 {
-	zvol_state_t *zv;
+	zvol_state_t *zv = NULL;
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
@@ -1611,18 +1615,16 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
-	zv = zvol_alloc(MKDEV(zvol_major, minor), name,
-	    doi->doi_data_block_size);
-	if (zv == NULL) {
-		error = SET_ERROR(EAGAIN);
+	error = zvol_alloc(MKDEV(zvol_major, minor), name,
+	    volsize, doi->doi_data_block_size, &zv);
+	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
-	}
+
 	zv->zv_hash = hash;
 
 	if (dmu_objset_is_snapshot(os))
 		zv->zv_flags |= ZVOL_RDONLY;
 
-	zv->zv_volsize = volsize;
 	zv->zv_objset = os;
 
 	/* Default */
@@ -1689,7 +1691,7 @@ out_doi:
 	 * zvol_open()->zvol_first_open() and zvol_release()->zvol_last_close()
 	 * directly as well.
 	 */
-	if (error == 0) {
+	if (error == 0 && zv) {
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_insert(zv);
 		rw_exit(&zvol_state_lock);
@@ -1701,7 +1703,7 @@ out_doi:
 	return (error);
 }
 
-void
+int
 zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
 	int readonly = get_disk_ro(zv->zv_zso->zvo_disk);
@@ -1728,6 +1730,8 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	set_disk_ro(zv->zv_zso->zvo_disk, readonly);
 
 	dataset_kstats_rename(&zv->zv_kstat, newname);
+
+	return (0);
 }
 
 void
