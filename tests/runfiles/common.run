@@ -323,6 +323,10 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_raw', 'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
 tags = ['functional', 'cli_root', 'zfs_send']
 
+[tests/functional/cli_root/zfs_send_delegation]
+tests = ['zfs_send_test']
+tags = ['functional', 'cli_root', 'zfs_send_delegation']
+
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
@@ -636,6 +640,10 @@ tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
     'zfs_list_008_neg']
 user =
 tags = ['functional', 'cli_user', 'zfs_list']
+
+[tests/functional/cli_root/zfs_send_delegation_user]
+tests = ['zfs_send_usertest']
+tags = ['functional', 'cli_root', 'zfs_send_delegation_user']
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
