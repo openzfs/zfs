@@ -506,7 +506,6 @@ systemctl --system daemon-reload >/dev/null || true
 # Core utilities
 %{_sbindir}/*
 %{_bindir}/raidz_test
-%{_sbindir}/zgenhostid
 %{_bindir}/zvol_wait
 # Optional Python 3 scripts
 %{_bindir}/arc_summary
