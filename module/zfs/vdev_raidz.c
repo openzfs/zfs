@@ -4556,8 +4556,10 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		uint64_t shift, start;
 		zfs_range_seg_type_t type = metaslab_calculate_range_tree_type(
 		    raidvd, msp, &start, &shift);
-		zfs_range_tree_t *rt = zfs_range_tree_create(NULL, type, NULL,
-		    start, shift);
+		zfs_range_tree_t *rt = zfs_range_tree_create_flags(
+		    NULL, type, NULL, start, shift, ZFS_RT_F_DYN_NAME,
+		    metaslab_rt_name(msp->ms_group, msp,
+		    "spa_raidz_expand_thread:rt"));
 		zfs_range_tree_add(rt, msp->ms_start, msp->ms_size);
 		zfs_range_tree_walk(msp->ms_allocatable, zfs_range_tree_remove,
 		    rt);

@@ -866,8 +866,16 @@ dbuf_evict_notify(uint64_t size)
 	 * and grabbing the lock results in massive lock contention.
 	 */
 	if (size > dbuf_cache_target_bytes()) {
-		if (size > dbuf_cache_hiwater_bytes())
+		/*
+		 * Avoid calling dbuf_evict_one() from memory reclaim context
+		 * (e.g. Linux kswapd, FreeBSD pagedaemon) to prevent deadlocks.
+		 * Memory reclaim threads can get stuck waiting for the dbuf
+		 * hash lock.
+		 */
+		if (size > dbuf_cache_hiwater_bytes() &&
+		    !current_is_reclaim_thread()) {
 			dbuf_evict_one();
+		}
 		cv_signal(&dbuf_evict_cv);
 	}
 }
@@ -1185,16 +1193,9 @@ dbuf_verify(dmu_buf_impl_t *db)
 			ASSERT3U(db->db_parent->db_level, ==, db->db_level+1);
 			ASSERT3U(db->db_parent->db.db_object, ==,
 			    db->db.db_object);
-			/*
-			 * dnode_grow_indblksz() can make this fail if we don't
-			 * have the parent's rwlock.  XXX indblksz no longer
-			 * grows.  safe to do this now?
-			 */
-			if (RW_LOCK_HELD(&db->db_parent->db_rwlock)) {
-				ASSERT3P(db->db_blkptr, ==,
-				    ((blkptr_t *)db->db_parent->db.db_data +
-				    db->db_blkid % epb));
-			}
+			ASSERT3P(db->db_blkptr, ==,
+			    ((blkptr_t *)db->db_parent->db.db_data +
+			    db->db_blkid % epb));
 		}
 	}
 	if ((db->db_blkptr == NULL || BP_IS_HOLE(db->db_blkptr)) &&
@@ -3391,12 +3392,8 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 			*parentp = NULL;
 			return (err);
 		}
-		rw_enter(&(*parentp)->db_rwlock, RW_READER);
 		*bpp = ((blkptr_t *)(*parentp)->db.db_data) +
 		    (blkid & ((1ULL << epbs) - 1));
-		if (blkid > (dn->dn_phys->dn_maxblkid >> (level * epbs)))
-			ASSERT(BP_IS_HOLE(*bpp));
-		rw_exit(&(*parentp)->db_rwlock);
 		return (0);
 	} else {
 		/* the block is referenced from the dnode */
@@ -5375,8 +5372,8 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		mutex_enter(&db->db_mtx);
 		dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
-		    dr->dt.dl.dr_copies, dr->dt.dl.dr_nopwrite,
-		    dr->dt.dl.dr_brtwrite);
+		    dr->dt.dl.dr_copies, dr->dt.dl.dr_gang_copies,
+		    dr->dt.dl.dr_nopwrite, dr->dt.dl.dr_brtwrite);
 		mutex_exit(&db->db_mtx);
 	} else if (data == NULL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF ||

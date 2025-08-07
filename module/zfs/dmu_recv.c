@@ -2310,6 +2310,9 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 					zp.zp_nopwrite = B_FALSE;
 					zp.zp_copies = MIN(zp.zp_copies,
 					    SPA_DVAS_PER_BP - 1);
+					zp.zp_gang_copies =
+					    MIN(zp.zp_gang_copies,
+					    SPA_DVAS_PER_BP - 1);
 				}
 				zio_flags |= ZIO_FLAG_RAW;
 			} else if (DRR_WRITE_COMPRESSED(drrw)) {

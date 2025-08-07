@@ -651,6 +651,7 @@ uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
 int param_get_raidz_impl(char *buf, zfs_kernel_param_t *kp);
 #endif
 int param_set_raidz_impl(ZFS_MODULE_PARAM_ARGS);
+char *vdev_rt_name(vdev_t *vd, const char *name);
 
 /*
  * Vdev ashift optimization tunables

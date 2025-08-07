@@ -49,6 +49,9 @@ typedef enum zfs_range_seg_type {
 	ZFS_RANGE_SEG_NUM_TYPES,
 } zfs_range_seg_type_t;
 
+#define	ZFS_RT_NAME(rt)		(((rt)->rt_name != NULL) ? (rt)->rt_name : "")
+#define	ZFS_RT_F_DYN_NAME	(1ULL << 0) /* if rt_name must be freed */
+
 /*
  * Note: the range_tree may not be accessed concurrently; consumers
  * must provide external locking if required.
@@ -67,6 +70,9 @@ typedef struct zfs_range_tree {
 	const zfs_range_tree_ops_t *rt_ops;
 	void		*rt_arg;
 	uint64_t	rt_gap;		/* allowable inter-segment gap */
+
+	uint64_t	rt_flags;
+	const char	*rt_name;	/* details for debugging */
 
 	/*
 	 * The rt_histogram maintains a histogram of ranges. Each bucket,
@@ -281,6 +287,9 @@ zfs_range_tree_t *zfs_range_tree_create_gap(const zfs_range_tree_ops_t *ops,
     uint64_t gap);
 zfs_range_tree_t *zfs_range_tree_create(const zfs_range_tree_ops_t *ops,
     zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift);
+zfs_range_tree_t *zfs_range_tree_create_flags(const zfs_range_tree_ops_t *ops,
+    zfs_range_seg_type_t type, void *arg, uint64_t start, uint64_t shift,
+    uint64_t flags, const char *name);
 void zfs_range_tree_destroy(zfs_range_tree_t *rt);
 boolean_t zfs_range_tree_contains(zfs_range_tree_t *rt, uint64_t start,
     uint64_t size);

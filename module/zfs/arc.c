@@ -2631,7 +2631,7 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_bonus_size, space);
 		break;
 	case ARC_SPACE_DNODE:
-		ARCSTAT_INCR(arcstat_dnode_size, space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, space);
 		break;
 	case ARC_SPACE_DBUF:
 		ARCSTAT_INCR(arcstat_dbuf_size, space);
@@ -2677,7 +2677,7 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 		ARCSTAT_INCR(arcstat_bonus_size, -space);
 		break;
 	case ARC_SPACE_DNODE:
-		ARCSTAT_INCR(arcstat_dnode_size, -space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, -space);
 		break;
 	case ARC_SPACE_DBUF:
 		ARCSTAT_INCR(arcstat_dbuf_size, -space);
@@ -4490,7 +4490,7 @@ arc_evict(void)
 	 * target is not evictable or if they go over arc_dnode_limit.
 	 */
 	int64_t prune = 0;
-	int64_t dn = wmsum_value(&arc_sums.arcstat_dnode_size);
+	int64_t dn = aggsum_value(&arc_sums.arcstat_dnode_size);
 	int64_t nem = zfs_refcount_count(&arc_mru->arcs_size[ARC_BUFC_METADATA])
 	    + zfs_refcount_count(&arc_mfu->arcs_size[ARC_BUFC_METADATA])
 	    - zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA])
@@ -5082,11 +5082,13 @@ arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 	 * in the ARC. In practice, that's in the tens of MB, which is low
 	 * enough to be safe.
 	 */
-	int64_t over = aggsum_lower_bound(&arc_sums.arcstat_size) - arc_c -
+	int64_t arc_over = aggsum_lower_bound(&arc_sums.arcstat_size) - arc_c -
 	    zfs_max_recordsize;
+	int64_t dn_over = aggsum_lower_bound(&arc_sums.arcstat_dnode_size) -
+	    arc_dnode_limit;
 
 	/* Always allow at least one block of overflow. */
-	if (over < 0)
+	if (arc_over < 0 && dn_over <= 0)
 		return (ARC_OVF_NONE);
 
 	/* If we are under memory pressure, report severe overflow. */
@@ -5097,7 +5099,7 @@ arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 	int64_t overflow = (arc_c >> zfs_arc_overflow_shift) / 2;
 	if (use_reserve)
 		overflow *= 3;
-	return (over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
+	return (arc_over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
 }
 
 static abd_t *
@@ -6627,26 +6629,10 @@ arc_release(arc_buf_t *buf, const void *tag)
 	arc_state_t *state = hdr->b_l1hdr.b_state;
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
 	ASSERT3P(state, !=, arc_anon);
+	ASSERT3P(state, !=, arc_l2c_only);
 
 	/* this buffer is not on any list */
 	ASSERT3S(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt), >, 0);
-
-	if (HDR_HAS_L2HDR(hdr)) {
-		mutex_enter(&hdr->b_l2hdr.b_dev->l2ad_mtx);
-
-		/*
-		 * We have to recheck this conditional again now that
-		 * we're holding the l2ad_mtx to prevent a race with
-		 * another thread which might be concurrently calling
-		 * l2arc_evict(). In that case, l2arc_evict() might have
-		 * destroyed the header's L2 portion as we were waiting
-		 * to acquire the l2ad_mtx.
-		 */
-		if (HDR_HAS_L2HDR(hdr))
-			arc_hdr_l2hdr_destroy(hdr);
-
-		mutex_exit(&hdr->b_l2hdr.b_dev->l2ad_mtx);
-	}
 
 	/*
 	 * Do we have more than one buf?
@@ -6659,10 +6645,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 		boolean_t protected = HDR_PROTECTED(hdr);
 		enum zio_compress compress = arc_hdr_get_compress(hdr);
 		arc_buf_contents_t type = arc_buf_type(hdr);
-		VERIFY3U(hdr->b_type, ==, type);
-
-		ASSERT(hdr->b_l1hdr.b_buf != buf || buf->b_next != NULL);
-		VERIFY3S(remove_reference(hdr, tag), >, 0);
 
 		if (ARC_BUF_SHARED(buf) && !ARC_BUF_COMPRESSED(buf)) {
 			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
@@ -6670,10 +6652,10 @@ arc_release(arc_buf_t *buf, const void *tag)
 		}
 
 		/*
-		 * Pull the data off of this hdr and attach it to
-		 * a new anonymous hdr. Also find the last buffer
+		 * Pull the buffer off of this hdr and find the last buffer
 		 * in the hdr's buffer list.
 		 */
+		VERIFY3S(remove_reference(hdr, tag), >, 0);
 		arc_buf_t *lastbuf = arc_buf_remove(hdr, buf);
 		ASSERT3P(lastbuf, !=, NULL);
 
@@ -6682,7 +6664,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 		 * buffer, then we must stop sharing that block.
 		 */
 		if (ARC_BUF_SHARED(buf)) {
-			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
 			ASSERT(!arc_buf_is_shared(lastbuf));
 
 			/*
@@ -6704,7 +6685,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 				abd_copy_from_buf(hdr->b_l1hdr.b_pabd,
 				    buf->b_data, psize);
 			}
-			VERIFY3P(lastbuf->b_data, !=, NULL);
 		} else if (HDR_SHARED_DATA(hdr)) {
 			/*
 			 * Uncompressed shared buffers are always at the end
@@ -6720,17 +6700,9 @@ arc_release(arc_buf_t *buf, const void *tag)
 		}
 
 		ASSERT(hdr->b_l1hdr.b_pabd != NULL || HDR_HAS_RABD(hdr));
-		ASSERT3P(state, !=, arc_l2c_only);
 
 		(void) zfs_refcount_remove_many(&state->arcs_size[type],
 		    arc_buf_size(buf), buf);
-
-		if (zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt)) {
-			ASSERT3P(state, !=, arc_l2c_only);
-			(void) zfs_refcount_remove_many(
-			    &state->arcs_esize[type],
-			    arc_buf_size(buf), buf);
-		}
 
 		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
@@ -6759,6 +6731,15 @@ arc_release(arc_buf_t *buf, const void *tag)
 		/* protected by hash lock, or hdr is on arc_anon */
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
+
+		if (HDR_HAS_L2HDR(hdr)) {
+			mutex_enter(&hdr->b_l2hdr.b_dev->l2ad_mtx);
+			/* Recheck to prevent race with l2arc_evict(). */
+			if (HDR_HAS_L2HDR(hdr))
+				arc_hdr_l2hdr_destroy(hdr);
+			mutex_exit(&hdr->b_l2hdr.b_dev->l2ad_mtx);
+		}
+
 		hdr->b_l1hdr.b_mru_hits = 0;
 		hdr->b_l1hdr.b_mru_ghost_hits = 0;
 		hdr->b_l1hdr.b_mfu_hits = 0;
@@ -7086,6 +7067,8 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 			localprop.zp_nopwrite = B_FALSE;
 			localprop.zp_copies =
 			    MIN(localprop.zp_copies, SPA_DVAS_PER_BP - 1);
+			localprop.zp_gang_copies =
+			    MIN(localprop.zp_gang_copies, SPA_DVAS_PER_BP - 1);
 		}
 		zio_flags |= ZIO_FLAG_RAW;
 	} else if (ARC_BUF_COMPRESSED(buf)) {
@@ -7343,7 +7326,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 #if defined(COMPAT_FREEBSD11)
 	as->arcstat_other_size.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_bonus_size) +
-	    wmsum_value(&arc_sums.arcstat_dnode_size) +
+	    aggsum_value(&arc_sums.arcstat_dnode_size) +
 	    wmsum_value(&arc_sums.arcstat_dbuf_size);
 #endif
 
@@ -7385,7 +7368,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    &as->arcstat_uncached_evictable_metadata);
 
 	as->arcstat_dnode_size.value.ui64 =
-	    wmsum_value(&arc_sums.arcstat_dnode_size);
+	    aggsum_value(&arc_sums.arcstat_dnode_size);
 	as->arcstat_bonus_size.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_bonus_size);
 	as->arcstat_l2_hits.value.ui64 =
@@ -7755,7 +7738,7 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_data_size, 0);
 	wmsum_init(&arc_sums.arcstat_metadata_size, 0);
 	wmsum_init(&arc_sums.arcstat_dbuf_size, 0);
-	wmsum_init(&arc_sums.arcstat_dnode_size, 0);
+	aggsum_init(&arc_sums.arcstat_dnode_size, 0);
 	wmsum_init(&arc_sums.arcstat_bonus_size, 0);
 	wmsum_init(&arc_sums.arcstat_l2_hits, 0);
 	wmsum_init(&arc_sums.arcstat_l2_misses, 0);
@@ -7914,7 +7897,7 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_data_size);
 	wmsum_fini(&arc_sums.arcstat_metadata_size);
 	wmsum_fini(&arc_sums.arcstat_dbuf_size);
-	wmsum_fini(&arc_sums.arcstat_dnode_size);
+	aggsum_fini(&arc_sums.arcstat_dnode_size);
 	wmsum_fini(&arc_sums.arcstat_bonus_size);
 	wmsum_fini(&arc_sums.arcstat_l2_hits);
 	wmsum_fini(&arc_sums.arcstat_l2_misses);

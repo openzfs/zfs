@@ -619,8 +619,9 @@ livelist_metaslab_validate(spa_t *spa)
 			    metaslab_calculate_range_tree_type(vd, m,
 			    &start, &shift);
 			metaslab_verify_t mv;
-			mv.mv_allocated = zfs_range_tree_create(NULL,
-			    type, NULL, start, shift);
+			mv.mv_allocated = zfs_range_tree_create_flags(
+			    NULL, type, NULL, start, shift,
+			    0, "livelist_metaslab_validate:mv_allocated");
 			mv.mv_vdid = vd->vdev_id;
 			mv.mv_msid = m->ms_id;
 			mv.mv_start = m->ms_start;
@@ -2545,12 +2546,14 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 
 	blkbuf[0] = '\0';
 
-	for (i = 0; i < ndvas; i++)
+	for (i = 0; i < ndvas; i++) {
 		(void) snprintf(blkbuf + strlen(blkbuf),
-		    buflen - strlen(blkbuf), "%llu:%llx:%llx ",
+		    buflen - strlen(blkbuf), "%llu:%llx:%llx%s ",
 		    (u_longlong_t)DVA_GET_VDEV(&dva[i]),
 		    (u_longlong_t)DVA_GET_OFFSET(&dva[i]),
-		    (u_longlong_t)DVA_GET_ASIZE(&dva[i]));
+		    (u_longlong_t)DVA_GET_ASIZE(&dva[i]),
+		    (DVA_GET_GANG(&dva[i]) ? "G" : ""));
+	}
 
 	if (BP_IS_HOLE(bp)) {
 		(void) snprintf(blkbuf + strlen(blkbuf),
@@ -6320,8 +6323,9 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 
 	ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
 
-	zfs_range_tree_t *allocs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
-	    NULL, 0, 0);
+	zfs_range_tree_t *allocs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    0, "zdb_claim_removing:allocs");
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
 
@@ -8449,8 +8453,9 @@ dump_zpool(spa_t *spa)
 
 	if (dump_opt['d'] || dump_opt['i']) {
 		spa_feature_t f;
-		mos_refd_objs = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
-		    NULL, 0, 0);
+		mos_refd_objs = zfs_range_tree_create_flags(
+		    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+		    0, "dump_zpool:mos_refd_objs");
 		dump_objset(dp->dp_meta_objset);
 
 		if (dump_opt['d'] >= 3) {
@@ -8981,7 +8986,7 @@ zdb_read_block(char *thing, spa_t *spa)
 
 	DVA_SET_VDEV(&dva[0], vd->vdev_id);
 	DVA_SET_OFFSET(&dva[0], offset);
-	DVA_SET_GANG(&dva[0], !!(flags & ZDB_FLAG_GBH));
+	DVA_SET_GANG(&dva[0], 0);
 	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, psize));
 
 	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
@@ -8996,7 +9001,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
-	zio = zio_root(spa, NULL, NULL, 0);
+	zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
 	if (vd == vd->vdev_top) {
 		/*
@@ -9118,7 +9123,7 @@ zdb_read_block(char *thing, spa_t *spa)
 				ck_zio->io_offset =
 				    DVA_GET_OFFSET(&bp->blk_dva[0]);
 				ck_zio->io_bp = bp;
-				zio_checksum_compute(ck_zio, ck, pabd, lsize);
+				zio_checksum_compute(ck_zio, ck, pabd, psize);
 				printf(
 				    "%12s\t"
 				    "cksum=%016llx:%016llx:%016llx:%016llx\n",

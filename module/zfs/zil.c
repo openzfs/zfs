@@ -1691,7 +1691,7 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 	 * If the previous lwb's write hasn't already completed, we also want
 	 * to order the completion of the lwb write zios (above, we only order
 	 * the completion of the lwb root zios). This is required because of
-	 * how we can defer the flush commands for each lwb.
+	 * how we can defer the flush commands for any lwb without waiters.
 	 *
 	 * When the flush commands are deferred, the previous lwb will rely on
 	 * this lwb to flush the vdevs written to by that previous lwb. Thus,
@@ -1708,7 +1708,10 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 	 */
 	if (prev_lwb->lwb_state == LWB_STATE_ISSUED) {
 		ASSERT3P(prev_lwb->lwb_write_zio, !=, NULL);
-		zio_add_child(lwb->lwb_write_zio, prev_lwb->lwb_write_zio);
+		if (list_is_empty(&prev_lwb->lwb_waiters)) {
+			zio_add_child(lwb->lwb_write_zio,
+			    prev_lwb->lwb_write_zio);
+		}
 	} else {
 		ASSERT3S(prev_lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
 	}
@@ -2898,19 +2901,14 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 
 	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
 
-	/*
-	 * Return if there's nothing to commit before we dirty the fs by
-	 * calling zil_create().
-	 */
-	if (list_is_empty(&zilog->zl_itx_commit_list))
-		return;
-
-	list_create(&nolwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
-	list_create(&nolwb_waiters, sizeof (zil_commit_waiter_t),
-	    offsetof(zil_commit_waiter_t, zcw_node));
-
 	lwb = list_tail(&zilog->zl_lwb_list);
 	if (lwb == NULL) {
+		/*
+		 * Return if there's nothing to commit before we dirty the fs.
+		 */
+		if (list_is_empty(&zilog->zl_itx_commit_list))
+			return;
+
 		lwb = zil_create(zilog);
 	} else {
 		/*
@@ -2937,6 +2935,10 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 			    ZIL_BURSTS / 2);
 		}
 	}
+
+	list_create(&nolwb_itxs, sizeof (itx_t), offsetof(itx_t, itx_node));
+	list_create(&nolwb_waiters, sizeof (zil_commit_waiter_t),
+	    offsetof(zil_commit_waiter_t, zcw_node));
 
 	while ((itx = list_remove_head(&zilog->zl_itx_commit_list)) != NULL) {
 		lr_t *lrc = &itx->itx_lr;
@@ -3107,7 +3109,8 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * possible, without significantly impacting the latency
 		 * of each individual itx.
 		 */
-		if (lwb->lwb_state == LWB_STATE_OPENED && !zilog->zl_parallel) {
+		if (lwb->lwb_state == LWB_STATE_OPENED &&
+		    (!zilog->zl_parallel || zilog->zl_suspend > 0)) {
 			zil_burst_done(zilog);
 			list_insert_tail(ilwbs, lwb);
 			lwb = zil_lwb_write_close(zilog, lwb, LWB_STATE_NEW);
