@@ -85,7 +85,7 @@ for type in "" "anyraid1"; do
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
 	status_check_all $TESTPOOL "uninitialized"
 	if [[ "$type" == "anyraid1" ]]; then
-		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=4k
+		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
 	fi

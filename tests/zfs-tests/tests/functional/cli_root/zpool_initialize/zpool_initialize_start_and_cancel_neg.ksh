@@ -49,7 +49,7 @@ for type in "" "anyraid2"; do
 	log_must zpool list -v
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
 	if [[ "$type" == "anyraid2" ]]; then
-		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=3k
+		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
 	fi

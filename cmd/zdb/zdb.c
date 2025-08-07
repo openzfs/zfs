@@ -9114,7 +9114,8 @@ zdb_read_block(char *thing, spa_t *spa)
 
 			if ((zio_checksum_table[ck].ci_flags &
 			    ZCHECKSUM_FLAG_EMBEDDED) ||
-			    ck == ZIO_CHECKSUM_NOPARITY) {
+			    ck == ZIO_CHECKSUM_NOPARITY ||
+			    ck == ZIO_CHECKSUM_ANYRAID_MAP) {
 				continue;
 			}
 			BP_SET_CHECKSUM(bp, ck);
