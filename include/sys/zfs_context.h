@@ -77,7 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_RWLOCK_H
 #define	_SYS_CONDVAR_H
 #define	_SYS_VNODE_H
 #define	_SYS_VFS_H
@@ -122,6 +121,7 @@ extern "C" {
 #include <sys/trace_zfs.h>
 
 #include <sys/mutex.h>
+#include <sys/rwlock.h>
 #include <sys/zfs_delay.h>
 
 #include <sys/zfs_context_os.h>
@@ -252,34 +252,6 @@ extern kthread_t *zk_thread_create(const char *name, void (*func)(void *),
 #define	kpreempt(x)		sched_yield()
 #define	kpreempt_disable()	((void)0)
 #define	kpreempt_enable()	((void)0)
-
-/*
- * RW locks
- */
-typedef struct krwlock {
-	pthread_rwlock_t	rw_lock;
-	pthread_t		rw_owner;
-	uint_t			rw_readers;
-} krwlock_t;
-
-typedef int krw_t;
-
-#define	RW_READER		0
-#define	RW_WRITER		1
-#define	RW_DEFAULT		RW_READER
-#define	RW_NOLOCKDEP		RW_READER
-
-#define	RW_READ_HELD(rw)	((rw)->rw_readers > 0)
-#define	RW_WRITE_HELD(rw)	pthread_equal((rw)->rw_owner, pthread_self())
-#define	RW_LOCK_HELD(rw)	(RW_READ_HELD(rw) || RW_WRITE_HELD(rw))
-
-extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);
-extern void rw_destroy(krwlock_t *rwlp);
-extern void rw_enter(krwlock_t *rwlp, krw_t rw);
-extern int rw_tryenter(krwlock_t *rwlp, krw_t rw);
-extern int rw_tryupgrade(krwlock_t *rwlp);
-extern void rw_exit(krwlock_t *rwlp);
-#define	rw_downgrade(rwlp) do { } while (0)
 
 /*
  * Credentials
