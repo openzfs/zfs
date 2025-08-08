@@ -1093,7 +1093,7 @@ tests = ['zvol_misc_002_pos', 'zvol_misc_hierarchy', 'zvol_misc_rename_inuse',
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/zvol/zvol_stress]
-tests = ['zvol_stress']
+tests = ['zvol_stress', 'zvol_stress_destroy']
 tags = ['functional', 'zvol', 'zvol_stress']
 
 [tests/functional/zvol/zvol_swap]

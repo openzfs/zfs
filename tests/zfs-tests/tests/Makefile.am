@@ -2244,6 +2244,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_stress/cleanup.ksh \
 	functional/zvol/zvol_stress/setup.ksh \
 	functional/zvol/zvol_stress/zvol_stress.ksh \
+	functional/zvol/zvol_stress/zvol_stress_destroy.ksh \
 	functional/zvol/zvol_swap/cleanup.ksh \
 	functional/zvol/zvol_swap/setup.ksh \
 	functional/zvol/zvol_swap/zvol_swap_001_pos.ksh \
