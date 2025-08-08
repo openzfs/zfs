@@ -77,7 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_MUTEX_H
 #define	_SYS_RWLOCK_H
 #define	_SYS_CONDVAR_H
 #define	_SYS_VNODE_H
@@ -122,6 +121,7 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/trace_zfs.h>
 
+#include <sys/mutex.h>
 #include <sys/zfs_delay.h>
 
 #include <sys/zfs_context_os.h>
@@ -253,29 +253,6 @@ extern kthread_t *zk_thread_create(const char *name, void (*func)(void *),
 #define	kpreempt_disable()	((void)0)
 #define	kpreempt_enable()	((void)0)
 
-/*
- * Mutexes
- */
-typedef struct kmutex {
-	pthread_mutex_t		m_lock;
-	pthread_t		m_owner;
-} kmutex_t;
-
-#define	MUTEX_DEFAULT		0
-#define	MUTEX_NOLOCKDEP		MUTEX_DEFAULT
-#define	MUTEX_HELD(mp)		pthread_equal((mp)->m_owner, pthread_self())
-#define	MUTEX_NOT_HELD(mp)	!MUTEX_HELD(mp)
-
-extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
-extern void mutex_destroy(kmutex_t *mp);
-extern void mutex_enter(kmutex_t *mp);
-extern int mutex_enter_check_return(kmutex_t *mp);
-extern void mutex_exit(kmutex_t *mp);
-extern int mutex_tryenter(kmutex_t *mp);
-
-#define	NESTED_SINGLE 1
-#define	mutex_enter_nested(mp, class) mutex_enter(mp)
-#define	mutex_enter_interruptible(mp) mutex_enter_check_return(mp)
 /*
  * RW locks
  */
