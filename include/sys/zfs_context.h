@@ -77,7 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_CONDVAR_H
 #define	_SYS_VNODE_H
 #define	_SYS_VFS_H
 #define	_SYS_SUNDDI_H
@@ -122,6 +121,7 @@ extern "C" {
 
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
+#include <sys/condvar.h>
 #include <sys/zfs_delay.h>
 
 #include <sys/zfs_context_os.h>
@@ -261,35 +261,6 @@ extern uid_t crgetruid(cred_t *cr);
 extern gid_t crgetgid(cred_t *cr);
 extern int crgetngroups(cred_t *cr);
 extern gid_t *crgetgroups(cred_t *cr);
-
-/*
- * Condition variables
- */
-typedef pthread_cond_t		kcondvar_t;
-
-#define	CV_DEFAULT		0
-#define	CALLOUT_FLAG_ABSOLUTE	0x2
-
-extern void cv_init(kcondvar_t *cv, char *name, int type, void *arg);
-extern void cv_destroy(kcondvar_t *cv);
-extern void cv_wait(kcondvar_t *cv, kmutex_t *mp);
-extern int cv_wait_sig(kcondvar_t *cv, kmutex_t *mp);
-extern int cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime);
-extern int cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
-    hrtime_t res, int flag);
-extern void cv_signal(kcondvar_t *cv);
-extern void cv_broadcast(kcondvar_t *cv);
-
-#define	cv_timedwait_io(cv, mp, at)		cv_timedwait(cv, mp, at)
-#define	cv_timedwait_idle(cv, mp, at)		cv_timedwait(cv, mp, at)
-#define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
-#define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
-#define	cv_wait_idle(cv, mp)			cv_wait(cv, mp)
-#define	cv_wait_io_sig(cv, mp)			cv_wait_sig(cv, mp)
-#define	cv_timedwait_sig_hires(cv, mp, t, r, f) \
-	cv_timedwait_hires(cv, mp, t, r, f)
-#define	cv_timedwait_idle_hires(cv, mp, t, r, f) \
-	cv_timedwait_hires(cv, mp, t, r, f)
 
 /*
  * Thread-specific data

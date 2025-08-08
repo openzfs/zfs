@@ -30,6 +30,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/backtrace.h \
 	%D%/sys/callb.h \
 	%D%/sys/cmn_err.h \
+	%D%/sys/condvar.h \
 	%D%/sys/cred.h \
 	%D%/sys/debug.h \
 	%D%/sys/dkio.h \
