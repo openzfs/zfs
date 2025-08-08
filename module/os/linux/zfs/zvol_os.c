@@ -558,8 +558,8 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 #ifdef HAVE_BLK_MQ_RQ_HCTX
 		blk_mq_hw_queue = rq->mq_hctx->queue_num;
 #else
-		blk_mq_hw_queue =
-		    rq->q->queue_hw_ctx[rq->q->mq_map[rq->cpu]]->queue_num;
+		blk_mq_hw_queue = rq->q->queue_hw_ctx[
+		    rq->q->mq_map[raw_smp_processor_id()]]->queue_num;
 #endif
 	taskq_hash = cityhash3((uintptr_t)zv, offset >> ZVOL_TASKQ_OFFSET_SHIFT,
 	    blk_mq_hw_queue);
