@@ -2995,7 +2995,8 @@ vdev_child_slow_outlier(zio_t *zio)
 	boolean_t skip = B_FALSE, svd_sitting = B_FALSE;
 	for (int c = 0; c < samples; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
-		boolean_t sitting = vdev_sit_out_reads(cvd, 0);
+		boolean_t sitting = vdev_sit_out_reads(cvd, 0) ||
+		    cvd->vdev_state != VDEV_STATE_HEALTHY;
 
 		if (sitting && sitouts++ >= vdev_get_nparity(vd)) {
 			/*
