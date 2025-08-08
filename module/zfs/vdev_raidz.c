@@ -2998,7 +2998,7 @@ vdev_child_slow_outlier(zio_t *zio)
 		boolean_t sitting = vdev_sit_out_reads(cvd, 0) ||
 		    cvd->vdev_state != VDEV_STATE_HEALTHY;
 
-		if (sitting && sitouts++ >= vdev_get_nparity(vd)) {
+		if (sitting && ++sitouts >= vdev_get_nparity(vd)) {
 			/*
 			 * We can't sit out more disks than we have
 			 * parity
