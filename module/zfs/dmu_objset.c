@@ -2184,6 +2184,7 @@ void
 dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 {
 	objset_t *os = dn->dn_objset;
+	krwlock_t *rw = NULL;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
 	int flags = dn->dn_id_flags;
@@ -2228,8 +2229,12 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
-			data = (before) ? db->db.db_data :
-			    dmu_objset_userquota_find_data(db, tx);
+			if (before) {
+				rw = &db->db_rwlock;
+				data = db->db.db_data;
+			} else {
+				data = dmu_objset_userquota_find_data(db, tx);
+			}
 			have_spill = B_TRUE;
 	} else {
 		mutex_enter(&dn->dn_mtx);
@@ -2243,7 +2248,11 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	 * type has changed and that type isn't an object type to track
 	 */
 	zfs_file_info_t zfi;
+	if (rw)
+		rw_enter(rw, RW_READER);
 	error = file_cbs[os->os_phys->os_type](dn->dn_bonustype, data, &zfi);
+	if (rw)
+		rw_exit(rw);
 
 	if (before) {
 		ASSERT(data);
