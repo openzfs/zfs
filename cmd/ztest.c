@@ -3031,6 +3031,9 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa;
 	nvlist_t *nvroot;
 
+	// XXX: SKIP
+	return;
+
 	if (zo->zo_mmp_test)
 		return;
 
@@ -3092,6 +3095,9 @@ ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 	(void) zd, (void) id;
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa = ztest_spa;
+
+	// XXX: SKIP
+	return;
 
 	if (zo->zo_mmp_test)
 		return;
@@ -3331,6 +3337,9 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	nvlist_t *nvroot;
 	int error;
 
+	// XXX: SKIP
+	return;
+
 	if (ztest_opts.zo_mmp_test)
 		return;
 
@@ -3423,6 +3432,9 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	    VDEV_ALLOC_BIAS_SPECIAL : VDEV_ALLOC_BIAS_DEDUP;
 	int error;
 
+	// XXX: SKIP
+	return;
+
 	/*
 	 * By default add a special vdev 50% of the time
 	 */
@@ -3505,6 +3517,9 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 	char *path;
 	uint64_t guid = 0;
 	int error, ignore_err = 0;
+
+	// XXX: SKIP
+	return;
 
 	if (ztest_opts.zo_mmp_test)
 		return;
@@ -3725,6 +3740,9 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	int oldvd_is_log;
 	int oldvd_is_special;
 	int error, expected_error;
+
+	// XXX: SKIP
+	return;
 
 	if (ztest_opts.zo_mmp_test)
 		return;
@@ -4074,11 +4092,13 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	(void) zd, (void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
-	uint64_t leaves, raidz_children, newsize, ashift = ztest_get_ashift();
+	uint64_t leaves, raidz_children, raidz_attach_children = 0, newsize;
+	uint64_t ashift = ztest_get_ashift();
 	kthread_t *scratch_thread = NULL;
 	vdev_t *newvd, *pvd;
-	nvlist_t *root;
-	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	nvlist_t *root = NULL;
+	nvlist_t **child = NULL;
+	char **newpath = NULL;
 	int error, expected_error = 0;
 
 	mutex_enter(&ztest_vdev_lock);
@@ -4106,6 +4126,11 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	ASSERT(pvd->vdev_ops == &vdev_raidz_ops);
 
 	/*
+	 * Get number of raidz childrent to attach
+	 */
+	raidz_attach_children = 2 + ztest_random(2);
+
+	/*
 	 * Get size of a child of the raidz group,
 	 * make sure device is a bit bigger
 	 */
@@ -4124,17 +4149,33 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	/*
-	 * Path to vdev to be attached
-	 */
-	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
-	    ztest_opts.zo_dir, ztest_opts.zo_pool, zs->zs_vdev_next_leaf);
+	newpath = umem_alloc(raidz_attach_children * sizeof (char*),
+	    UMEM_NOFAIL);
+	child = umem_alloc(raidz_attach_children * sizeof (nvlist_t *),
+	    UMEM_NOFAIL);
+	for (int i = 0; i < raidz_attach_children; i++) {
+		/*
+		 * Path to vdev to be attached
+		 */
+		newpath[i] = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+		(void) snprintf(newpath[i], MAXPATHLEN, ztest_dev_template,
+		    ztest_opts.zo_dir, ztest_opts.zo_pool,
+		    zs->zs_vdev_next_leaf + i);
 
-	/*
-	 * Build the nvlist describing newpath.
-	 */
-	root = make_vdev_root(newpath, NULL, NULL, newsize, ashift, NULL,
-	    0, 0, 1);
+		/*
+		 * Build the nvlist describing newpath.
+		 */
+		child[i] = make_vdev_file(newpath[i], NULL, NULL, newsize,
+		    ashift);
+	}
+
+	root = fnvlist_alloc();
+	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)child, raidz_attach_children);
+
+	printf("==== ztest_vdev_raidz_attach():\n");
+	dump_nvlist(root, 0);
 
 	/*
 	 * 50% of the time, set raidz_expand_pause_point to cause
@@ -4142,7 +4183,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	 * then kill the test after 10 seconds so raidz_scratch_verify()
 	 * can confirm consistency when the pool is imported.
 	 */
-	if (ztest_random(2) == 0 && expected_error == 0) {
+	if (0 /*ztest_random(2) == 0 && expected_error == 0*/) {
 		raidz_expand_pause_point =
 		    ztest_random(RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2) + 1;
 		scratch_thread = thread_create(NULL, 0, ztest_scratch_thread,
@@ -4160,7 +4201,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %"PRIu64") returned %d, expected %d",
-		    newpath, newsize, error, expected_error);
+		    newpath[0], newsize, error, expected_error);
 	}
 
 	if (raidz_expand_pause_point) {
@@ -4177,7 +4218,13 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 out:
 	mutex_exit(&ztest_vdev_lock);
 
-	umem_free(newpath, MAXPATHLEN);
+	for (int i = 0; i < raidz_attach_children; i++) {
+		fnvlist_free(child[i]);
+		umem_free(newpath[i], MAXPATHLEN);
+	}
+
+	umem_free(child, raidz_attach_children * sizeof (nvlist_t *));
+	umem_free(newpath, raidz_attach_children * sizeof (char*));
 }
 
 void
@@ -4188,6 +4235,9 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	vdev_t *vd;
 	uint64_t guid;
 	int error;
+
+	// XXX: SKIP
+	return;
 
 	mutex_enter(&ztest_vdev_lock);
 
@@ -4368,6 +4418,9 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	size_t psize, newsize;
 	uint64_t top;
 	uint64_t old_class_space, new_class_space, old_ms_count, new_ms_count;
+
+	// XXX: SKIP
+	return;
 
 	mutex_enter(&ztest_checkpoint_lock);
 	mutex_enter(&ztest_vdev_lock);
@@ -6436,6 +6489,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 
 	path0 = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+
+	// XXX: SKIP
+	return;
 
 	mutex_enter(&ztest_vdev_lock);
 

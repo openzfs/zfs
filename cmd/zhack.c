@@ -54,6 +54,7 @@
 #include <sys/dmu_tx.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
+#include <libnvpair.h>
 
 static importargs_t g_importargs;
 static char *g_pool;
@@ -157,8 +158,10 @@ zhack_import(char *target, boolean_t readonly)
 		.lpc_printerr = B_TRUE
 	};
 	error = zpool_find_config(&lpch, target, &config, &g_importargs);
-	if (error)
+	if (error) {
+		printf("zhack_import():P0\n");
 		fatal(NULL, FTAG, "cannot import '%s'", target);
+	}
 
 	props = NULL;
 	if (readonly) {
@@ -175,9 +178,11 @@ zhack_import(char *target, boolean_t readonly)
 	if (error == EEXIST)
 		error = 0;
 
-	if (error)
+	if (error) {
+		printf("zhack_import():P1\n");
 		fatal(NULL, FTAG, "can't import '%s': %s", target,
 		    strerror(error));
+	}
 }
 
 static void
@@ -966,6 +971,142 @@ zhack_do_label(int argc, char **argv)
 	return (err);
 }
 
+static nvlist_t *
+make_vdev_file(char *path[], int count, uint64_t ashift)
+{
+	nvlist_t **file;
+	nvlist_t *root;
+
+	file = umem_alloc(count * sizeof (nvlist_t *), UMEM_NOFAIL);
+
+	for (int i = 0; i < count; i++) {
+		file[i] = fnvlist_alloc();
+		fnvlist_add_string(file[i], ZPOOL_CONFIG_TYPE, VDEV_TYPE_FILE);
+		fnvlist_add_string(file[i], ZPOOL_CONFIG_PATH, path[i]);
+		fnvlist_add_uint64(file[i], ZPOOL_CONFIG_ASHIFT, ashift);
+	}
+
+	root = fnvlist_alloc();
+	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)file, count);
+
+	return (root);
+}
+
+#define MAX_DEVS_IN_RAIDZ 255
+
+static int
+zhack_do_raidz_expand(int argc, char **argv)
+{
+	spa_t *spa;
+	char *target;
+	char *newpath[MAX_DEVS_IN_RAIDZ];
+	nvlist_t *root;
+	vdev_t *cvd, *rzvd;
+	pool_raidz_expand_stat_t rzx_stats;
+	int count, err = 0;
+
+	argc--;
+	argv++;
+
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no pool to attach specified\n");
+		usage();
+	}
+
+	target = argv[0];
+
+	argc--;
+	argv++;
+
+	for (count = 0; argc != 0; count++,argc--,argv++)
+		newpath[count] = argv[0];
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	printf("Attaching to %s:\n", target);
+	for (int i = 0; i < count; i++)
+		printf("device %s\n", newpath[i]);
+
+	rzvd = spa->spa_root_vdev->vdev_child[0];
+	cvd = rzvd->vdev_child[0];
+	root = make_vdev_file(newpath, count, cvd->vdev_ashift);
+	if (root == NULL) {
+		printf("raidz expand: cannot file config\n");
+		exit(1);
+	}
+
+	dump_nvlist(root, 0);
+
+	err = spa_vdev_attach(spa, rzvd->vdev_guid, root, B_FALSE, B_FALSE);
+	nvlist_free(root);
+	if (err != 0) {
+		printf("raidz expand: attach returned %d", err);
+		exit(1);
+	}
+
+	/*
+	 * Wait for reflow to begin
+	 */
+	while (spa->spa_raidz_expand == NULL) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		sleep(1);
+	}
+
+	printf("Reflow started...\n");
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	(void) spa_raidz_expand_get_stats(spa, &rzx_stats);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	while (rzx_stats.pres_state == DSS_SCANNING) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) spa_raidz_expand_get_stats(spa, &rzx_stats);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+		printf("%ld/%ld,", rzx_stats.pres_reflowed/(1024*1024),
+		    rzx_stats.pres_to_reflow/(1024*1024));
+		fflush(stdout);
+
+		sleep(10);
+	}
+
+	printf("\n");
+	printf("Reflow done\n");
+
+	spa_close(spa, FTAG);
+
+	return (err);
+}
+
+static int
+zhack_do_rze(int argc, char **argv)
+{
+	char *subcommand;
+	int err;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no label operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "expand") == 0) {
+		err = zhack_do_raidz_expand(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (err);
+}
+
 #define	MAX_NUM_PATHS 1024
 
 int
@@ -1011,6 +1152,8 @@ main(int argc, char **argv)
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
+	} else if (strcmp(subcommand, "raidz") == 0) {
+		return (zhack_do_rze(argc, argv));
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
@@ -1026,3 +1169,59 @@ main(int argc, char **argv)
 
 	return (rv);
 }
+
+#if 0
+#!/bin/bash
+
+POOL_NAME="test"
+REF_POOL="/home/user/Pools/Ref"
+TEST_POOL="/home/user/Pools/Test"
+VDEV_SIZE="1G"
+VDEVS=4
+
+create_ref_pool()
+{
+	for i in $(seq 0 $(($VDEVS-1))); do
+		echo "Allocate file $REF_POOL/file${i}"
+		truncate -s $VDEV_SIZE $REF_POOL/file${i}
+	done
+
+	zpool create -f $POOL_NAME raidz $REF_POOL/file*
+
+	zpool status
+
+	dd if=/dev/urandom of=/test/file bs=1M status=progress
+
+	zpool export $POOL_NAME
+}
+
+attach_raidz_vdev()
+{
+	zpool status
+
+	echo "Copy ref pool..."
+	rm -r -f $TEST_POOL
+	mkdir $TEST_POOL
+
+	pids=()
+	for i in $(seq 0 $(($VDEVS-1))); do
+    		cp $REF_POOL/file${i} $TEST_POOL/ &
+    		pids[${i}]=$!
+	done
+
+	# wait for all pids
+	for pid in ${pids[*]}; do
+    		wait $pid
+	done
+
+	truncate -s $VDEV_SIZE $TEST_POOL/file${VDEVS}
+
+	/home/user/Sources/zfs/zhack -d $TEST_POOL raidz expand $POOL_NAME $TEST_POOL/file${VDEVS}
+
+	zdb -bcc -d -Y -e -p $TEST_POOL $POOL_NAME
+}
+
+# MAIN
+# create_ref_pool
+attach_raidz_vdev
+#endif
