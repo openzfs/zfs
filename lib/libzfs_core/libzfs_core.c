@@ -1994,3 +1994,24 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+int
+lzc_raw_alloc(const char *pool, uint64_t metaslab_size,
+    uint64_t metaslab_count, uint64_t vdev_id,
+    uint64_t *allocations, uint_t alloc_count, boolean_t force)
+{
+	int error;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_uint64(args, "metaslab_size", metaslab_size);
+	fnvlist_add_uint64(args, "metaslab_count", metaslab_count);
+	fnvlist_add_uint64(args, "vdev_id", vdev_id);
+	fnvlist_add_uint64_array(args, "allocations", allocations, alloc_count);
+	fnvlist_add_boolean_value(args, "force", force);
+
+	error = lzc_ioctl(ZFS_IOC_RAW_ALLOC, pool, args, NULL);
+
+	fnvlist_free(args);
+
+	return (error);
+}
