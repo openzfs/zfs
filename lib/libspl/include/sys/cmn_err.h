@@ -62,4 +62,31 @@ do {							\
 	}						\
 } while (0)
 
+/*
+ * Note that we are not using the debugging levels.
+ */
+
+#define	CE_CONT		0	/* continuation		*/
+#define	CE_NOTE		1	/* notice		*/
+#define	CE_WARN		2	/* warning		*/
+#define	CE_PANIC	3	/* panic		*/
+#define	CE_IGNORE	4	/* print nothing	*/
+
+/*
+ * ZFS debugging
+ */
+
+extern void dprintf_setup(int *argc, char **argv);
+
+extern void cmn_err(int, const char *, ...)
+    __attribute__((format(printf, 2, 3)));
+extern void vcmn_err(int, const char *, va_list)
+    __attribute__((format(printf, 2, 0)));
+extern void panic(const char *, ...)
+    __attribute__((format(printf, 1, 2), noreturn));
+extern void vpanic(const char *, va_list)
+    __attribute__((format(printf, 1, 0), noreturn));
+
+#define	fm_panic	panic
+
 #endif
