@@ -4,7 +4,7 @@
 
 ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
 ZFS_MODULE_CFLAGS += -Wmissing-prototypes
-ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
+ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@ @KERNEL_NO_FORMAT_ZERO_LENGTH@
 
 ifneq ($(KBUILD_EXTMOD),)
 zfs_include = @abs_top_srcdir@/include
