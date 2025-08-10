@@ -441,8 +441,9 @@ zed_notify_slack_webhook()
         "${pathname}")"
 
     # Construct the JSON message for posting.
+    # shellcheck disable=SC2016
     #
-    msg_json="$(printf '{"text": "*%s*\\n%s"}' "${subject}" "${msg_body}" )"
+    msg_json="$(printf '{"text": "*%s*\\n```%s```"}' "${subject}" "${msg_body}" )"
 
     # Send the POST request and check for errors.
     #
