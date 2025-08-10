@@ -4434,12 +4434,15 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
  */
 int
 zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
-    uint64_t size, boolean_t *slog)
+    uint64_t min_size, uint64_t max_size, boolean_t *slog,
+    boolean_t allow_larger)
 {
 	int error;
 	zio_alloc_list_t io_alloc_list;
+	uint64_t alloc_size = 0;
 
 	ASSERT(txg > spa_syncing_txg(spa));
+	ASSERT3U(min_size, <=, max_size);
 
 	metaslab_trace_init(&io_alloc_list);
 
@@ -4448,7 +4451,7 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	 * Fill in the obvious ones before calling into metaslab_alloc().
 	 */
 	BP_SET_TYPE(new_bp, DMU_OT_INTENT_LOG);
-	BP_SET_PSIZE(new_bp, size);
+	BP_SET_PSIZE(new_bp, max_size);
 	BP_SET_LEVEL(new_bp, 0);
 
 	/*
@@ -4463,43 +4466,51 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	ZIOSTAT_BUMP(ziostat_total_allocations);
 
 	/* Try log class (dedicated slog devices) first */
-	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
-	    txg, NULL, flags, &io_alloc_list, allocator, NULL);
+	error = metaslab_alloc_range(spa, spa_log_class(spa), min_size,
+	    max_size, new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
+	    NULL, &alloc_size);
 	*slog = (error == 0);
 
 	/* Try special_embedded_log class (reserved on special vdevs) */
 	if (error != 0) {
-		error = metaslab_alloc(spa, spa_special_embedded_log_class(spa),
-		    size, new_bp, 1, txg, NULL, flags, &io_alloc_list,
-		    allocator, NULL);
+		error = metaslab_alloc_range(spa,
+		    spa_special_embedded_log_class(spa), min_size, max_size,
+		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
+		    NULL, &alloc_size);
 	}
 
 	/* Try special class (general special vdev allocation) */
 	if (error != 0) {
-		error = metaslab_alloc(spa, spa_special_class(spa), size,
-		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
-		    NULL);
+		error = metaslab_alloc_range(spa, spa_special_class(spa),
+		    min_size, max_size, new_bp, 1, txg, NULL, flags,
+		    &io_alloc_list, allocator, NULL, &alloc_size);
 	}
 
 	/* Try embedded_log class (reserved on normal vdevs) */
 	if (error != 0) {
-		error = metaslab_alloc(spa, spa_embedded_log_class(spa), size,
-		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
-		    NULL);
+		error = metaslab_alloc_range(spa, spa_embedded_log_class(spa),
+		    min_size, max_size, new_bp, 1, txg, NULL, flags,
+		    &io_alloc_list, allocator, NULL, &alloc_size);
 	}
 
 	/* Finally fall back to normal class */
 	if (error != 0) {
 		ZIOSTAT_BUMP(ziostat_alloc_class_fallbacks);
-		error = metaslab_alloc(spa, spa_normal_class(spa), size,
-		    new_bp, 1, txg, NULL, flags, &io_alloc_list, allocator,
-		    NULL);
+		error = metaslab_alloc_range(spa, spa_normal_class(spa),
+		    min_size, max_size, new_bp, 1, txg, NULL, flags,
+		    &io_alloc_list, allocator, NULL, &alloc_size);
 	}
 	metaslab_trace_fini(&io_alloc_list);
 
 	if (error == 0) {
-		BP_SET_LSIZE(new_bp, size);
-		BP_SET_PSIZE(new_bp, size);
+		if (!allow_larger)
+			alloc_size = MIN(alloc_size, max_size);
+		else if (max_size <= SPA_OLD_MAXBLOCKSIZE)
+			alloc_size = MIN(alloc_size, SPA_OLD_MAXBLOCKSIZE);
+		alloc_size = P2ALIGN_TYPED(alloc_size, ZIL_MIN_BLKSZ, uint64_t);
+
+		BP_SET_LSIZE(new_bp, alloc_size);
+		BP_SET_PSIZE(new_bp, alloc_size);
 		BP_SET_COMPRESS(new_bp, ZIO_COMPRESS_OFF);
 		BP_SET_CHECKSUM(new_bp,
 		    spa_version(spa) >= SPA_VERSION_SLIM_ZIL
@@ -4527,8 +4538,8 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 		}
 	} else {
 		zfs_dbgmsg("%s: zil block allocation failure: "
-		    "size %llu, error %d", spa_name(spa), (u_longlong_t)size,
-		    error);
+		    "min_size %llu, max_size %llu, error %d", spa_name(spa),
+		    (u_longlong_t)min_size, (u_longlong_t)max_size, error);
 	}
 
 	return (error);

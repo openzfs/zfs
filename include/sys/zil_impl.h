@@ -41,8 +41,8 @@ extern "C" {
  *
  * An lwb will start out in the "new" state, and transition to the "opened"
  * state via a call to zil_lwb_write_open() on first itx assignment.  When
- * transitioning from "new" to "opened" the zilog's "zl_issuer_lock" must be
- * held.
+ * transitioning from "new" to "opened" the zilog's "zl_issuer_lock" and
+ * LWB's "lwb_lock" must be held.
  *
  * After the lwb is "opened", it can be assigned number of itxs and transition
  * into the "closed" state via zil_lwb_write_close() when full or on timeout.
@@ -115,6 +115,7 @@ typedef struct lwb {
 	int		lwb_nused;	/* # used bytes in buffer */
 	int		lwb_nfilled;	/* # filled bytes in buffer */
 	int		lwb_sz;		/* size of block and buffer */
+	int		lwb_min_sz;	/* min size for range allocation */
 	lwb_state_t	lwb_state;	/* the state of this lwb */
 	char		*lwb_buf;	/* log write buffer */
 	zio_t		*lwb_child_zio;	/* parent zio for children */
@@ -129,7 +130,7 @@ typedef struct lwb {
 	list_t		lwb_itxs;	/* list of itx's */
 	list_t		lwb_waiters;	/* list of zil_commit_waiter's */
 	avl_tree_t	lwb_vdev_tree;	/* vdevs to flush after lwb write */
-	kmutex_t	lwb_vdev_lock;	/* protects lwb_vdev_tree */
+	kmutex_t	lwb_lock;	/* protects lwb_vdev_tree and size */
 } lwb_t;
 
 /*
