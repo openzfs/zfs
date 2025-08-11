@@ -2548,13 +2548,6 @@ spa_name_compare(const void *a1, const void *a2)
 }
 
 void
-spa_boot_init(void *unused)
-{
-	(void) unused;
-	spa_config_load();
-}
-
-void
 spa_init(spa_mode_t mode)
 {
 	mutex_init(&spa_namespace_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -2607,7 +2600,6 @@ spa_init(spa_mode_t mode)
 	chksum_init();
 	zpool_prop_init();
 	zpool_feature_init();
-	spa_config_load();
 	vdev_prop_init();
 	l2arc_start();
 	scan_init();

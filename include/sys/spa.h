@@ -880,7 +880,6 @@ extern kcondvar_t spa_namespace_cv;
 #define	SPA_CONFIG_UPDATE_VDEVS	1
 
 extern void spa_write_cachefile(spa_t *, boolean_t, boolean_t, boolean_t);
-extern void spa_config_load(void);
 extern int spa_all_configs(uint64_t *generation, nvlist_t **pools);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
 extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
@@ -1244,7 +1243,6 @@ extern void vdev_mirror_stat_fini(void);
 /* Initialization and termination */
 extern void spa_init(spa_mode_t mode);
 extern void spa_fini(void);
-extern void spa_boot_init(void *);
 
 /* properties */
 extern int spa_prop_set(spa_t *spa, nvlist_t *nvp);

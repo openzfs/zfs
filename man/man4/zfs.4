@@ -941,10 +941,6 @@ The target number of bytes the ARC should leave as free memory on the system.
 If zero, equivalent to the bigger of
 .Sy 512 KiB No and Sy all_system_memory/64 .
 .
-.It Sy zfs_autoimport_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Disable pool import at module load by ignoring the cache file
-.Pq Sy spa_config_path .
-.
 .It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
 Rate limit checksum events to this many per second.
 Note that this should not be set below the ZED thresholds

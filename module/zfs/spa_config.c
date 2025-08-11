@@ -48,18 +48,17 @@
 /*
  * Pool configuration repository.
  *
- * Pool configuration is stored as a packed nvlist on the filesystem.  By
- * default, all pools are stored in /etc/zfs/zpool.cache and loaded on boot
- * (when the ZFS module is loaded).  Pools can also have the 'cachefile'
- * property set that allows them to be stored in an alternate location until
- * the control of external software.
+ * Pool configuration is stored as a packed nvlist on the filesystem.  When
+ * pools are imported they are added to the /etc/zfs/zpool.cache file and
+ * removed from it when exported.  For each cache file, we have a single nvlist
+ * which holds all the configuration information.  Pools can also have the
+ * 'cachefile' property set which allows this config to be stored in an
+ * alternate location under the control of external software.
  *
- * For each cache file, we have a single nvlist which holds all the
- * configuration information.  When the module loads, we read this information
- * from /etc/zfs/zpool.cache and populate the SPA namespace.  This namespace is
- * maintained independently in spa.c.  Whenever the namespace is modified, or
- * the configuration of a pool is changed, we call spa_write_cachefile(), which
- * walks through all the active pools and writes the configuration to disk.
+ * The kernel independantly maintains an AVL tree of imported pools.  See the
+ * "SPA locking" comment in spa.c.  Whenever a pool configuration is modified
+ * we call spa_write_cachefile() which walks through all the active pools and
+ * writes the updated configuration to to /etc/zfs/zpool.cache file.
  */
 
 static uint64_t spa_config_generation = 1;
@@ -69,94 +68,6 @@ static uint64_t spa_config_generation = 1;
  * userland pools when doing testing.
  */
 char *spa_config_path = (char *)ZPOOL_CACHE;
-#ifdef _KERNEL
-static int zfs_autoimport_disable = B_TRUE;
-#endif
-
-/*
- * Called when the module is first loaded, this routine loads the configuration
- * file into the SPA namespace.  It does not actually open or load the pools; it
- * only populates the namespace.
- */
-void
-spa_config_load(void)
-{
-	void *buf = NULL;
-	nvlist_t *nvlist, *child;
-	nvpair_t *nvpair;
-	char *pathname;
-	zfs_file_t *fp;
-	zfs_file_attr_t zfa;
-	uint64_t fsize;
-	int err;
-
-#ifdef _KERNEL
-	if (zfs_autoimport_disable)
-		return;
-#endif
-
-	/*
-	 * Open the configuration file.
-	 */
-	pathname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-
-	(void) snprintf(pathname, MAXPATHLEN, "%s", spa_config_path);
-
-	err = zfs_file_open(pathname, O_RDONLY, 0, &fp);
-
-#ifdef __FreeBSD__
-	if (err)
-		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, &fp);
-#endif
-	kmem_free(pathname, MAXPATHLEN);
-
-	if (err)
-		return;
-
-	if (zfs_file_getattr(fp, &zfa))
-		goto out;
-
-	fsize = zfa.zfa_size;
-	buf = kmem_alloc(fsize, KM_SLEEP);
-
-	/*
-	 * Read the nvlist from the file.
-	 */
-	if (zfs_file_read(fp, buf, fsize, NULL) < 0)
-		goto out;
-
-	/*
-	 * Unpack the nvlist.
-	 */
-	if (nvlist_unpack(buf, fsize, &nvlist, KM_SLEEP) != 0)
-		goto out;
-
-	/*
-	 * Iterate over all elements in the nvlist, creating a new spa_t for
-	 * each one with the specified configuration.
-	 */
-	mutex_enter(&spa_namespace_lock);
-	nvpair = NULL;
-	while ((nvpair = nvlist_next_nvpair(nvlist, nvpair)) != NULL) {
-		if (nvpair_type(nvpair) != DATA_TYPE_NVLIST)
-			continue;
-
-		child = fnvpair_value_nvlist(nvpair);
-
-		if (spa_lookup(nvpair_name(nvpair)) != NULL)
-			continue;
-		(void) spa_add(nvpair_name(nvpair), child, NULL);
-	}
-	mutex_exit(&spa_namespace_lock);
-
-	nvlist_free(nvlist);
-
-out:
-	if (buf != NULL)
-		kmem_free(buf, fsize);
-
-	zfs_file_close(fp);
-}
 
 static int
 spa_config_remove(spa_config_dirent_t *dp)
@@ -623,7 +534,6 @@ spa_config_update(spa_t *spa, int what)
 		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
 }
 
-EXPORT_SYMBOL(spa_config_load);
 EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
@@ -633,9 +543,4 @@ EXPORT_SYMBOL(spa_config_update);
 /* string sysctls require a char array on FreeBSD */
 ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
 	"SPA config file (/etc/zfs/zpool.cache)");
-#endif
-
-#ifdef _KERNEL
-ZFS_MODULE_PARAM(zfs, zfs_, autoimport_disable, INT, ZMOD_RW,
-	"Disable pool import at module load");
 #endif
