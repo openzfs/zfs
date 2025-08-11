@@ -86,6 +86,8 @@
 #include <sys/brt.h>
 #include <sys/brt_impl.h>
 #include <zfs_comutil.h>
+#include <sys/vdev_raidz.h>
+#include <sys/vdev_raidz_impl.h>
 #include <sys/zstd/zstd.h>
 #include <sys/backtrace.h>
 
@@ -712,11 +714,13 @@ usage(void)
 	    "\t%s -r [-K <key>] <dataset> <path> <destination>\n"
 	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
+	    "\t%s -f [-H] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]]\n"
 	    "\t%s -E [-A] word0:word1:...:word15\n"
 	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
 	    "<poolname>\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname, cmdname, cmdname, cmdname, cmdname);
+	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -749,6 +753,8 @@ usage(void)
 	    "dataset(s)\n");
 	(void) fprintf(stderr, "        -D --dedup-stats             "
 	    "dedup statistics\n");
+	(void) fprintf(stderr, "        -f --file-layout             "
+	    "display a file's layout across raidz disks\n");
 	(void) fprintf(stderr, "        -E --embedded-block-pointer=INTEGER\n"
 	    "                                     decode and display block "
 	    "from an embedded block pointer\n");
@@ -781,6 +787,7 @@ usage(void)
 	(void) fprintf(stderr, "        -y --livelist                "
 	    "perform livelist and metaslab validation on any livelists being "
 	    "deleted\n\n");
+
 	(void) fprintf(stderr, "    Below options are intended for use "
 	    "with other options:\n");
 	(void) fprintf(stderr, "        -A --ignore-assertions       "
@@ -793,6 +800,8 @@ usage(void)
 	    "groups\n");
 	(void) fprintf(stderr, "        -G --dump-debug-msg          "
 	    "dump zfs_dbgmsg buffer before exiting\n");
+	(void) fprintf(stderr, "        -H --scripting-mode          "
+	    "dump output in a format that is scripting friendly\n");
 	(void) fprintf(stderr, "        -I --inflight=INTEGER        "
 	    "specify the maximum number of checksumming I/Os "
 	    "[default is 200]\n");
@@ -2573,6 +2582,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 		if (bp_freed)
 			(void) snprintf(blkbuf + strlen(blkbuf),
 			    buflen - strlen(blkbuf), " %s", "FREE");
+
 		(void) snprintf(blkbuf + strlen(blkbuf),
 		    buflen - strlen(blkbuf),
 		    " cksum=%016llx:%016llx:%016llx:%016llx",
@@ -2581,6 +2591,73 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 		    (u_longlong_t)bp->blk_cksum.zc_word[2],
 		    (u_longlong_t)bp->blk_cksum.zc_word[3]);
 	}
+}
+
+static void
+inverse_text(boolean_t on)
+{
+	if (isatty(STDOUT_FILENO)) {
+		if (on)
+			fputs("\x1b[7m", stdout);
+		else
+			fputs("\x1b[m", stdout);
+	}
+}
+
+static void
+print_file_layout_line(int line, int first_disk, int last_disk, int ashift,
+    raidz_row_t *rr)
+{
+	if (first_disk != 0) {
+		/* Account for empty columns */
+		for (int c = 0; c < first_disk; c++) {
+			(void) printf("%s%s", (c == 0) ? " │ " : "  ",
+			    line == 0 ? "` ` ` ` ` " : " ` ` ` ` `");
+		}
+	}
+
+	/*
+	 * Check if we need to account for out of order disks in raidz1.
+	 * Here flip means the disks in first two column were exchanged.
+	 */
+	boolean_t flip = rr->rr_firstdatacol == 1 &&
+	    (rr->rr_offset & (1ULL << 20));
+
+	for (int c = 0; c < rr->rr_cols; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		char colname[8];
+		boolean_t pcol = flip ? (c == 1) : (c < rr->rr_firstdatacol);
+
+		if (rc->rc_devidx > last_disk)
+			continue;
+
+		(void) snprintf(colname, sizeof (colname), "%c%d",
+		    pcol ? 'P' : 'D', (flip && c < 2) ? 0 :
+		    pcol ? c : c - rr->rr_firstdatacol);
+
+		(void) printf("%s", (rc->rc_devidx == 0) ? " │ " : "  ");
+		if (pcol)
+			inverse_text(B_TRUE);
+		if (line == 0) {
+			(void) printf("%3s  %5d", colname,
+			    (int)(rc->rc_size >> ashift));
+		} else {
+			(void) printf("%10llx",
+			    (u_longlong_t)((rc->rc_offset +
+			    VDEV_LABEL_START_SIZE) >> ashift));
+		}
+		if (pcol)
+			inverse_text(B_FALSE);
+		if (rc->rc_devidx == last_disk) {
+			/* empty columns */
+			for (int c = last_disk + 1; c < rr->rr_cols; c++) {
+				(void) printf("  %s",
+				    line == 0 ? "` ` ` ` ` " : " ` ` ` ` `");
+			}
+			break;
+		}
+	}
+	(void) printf(" │\n");
 }
 
 static void
@@ -2613,6 +2690,114 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 	(void) printf("%s\n", blkbuf);
 }
 
+static void
+print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
+    boolean_t last)
+{
+	/*
+	 * RAIDZ file data layout
+	 *
+	 * Use vdev_raidz_map_alloc() to get the actual layout
+	 */
+	const dva_t *dva = bp->blk_dva;
+	zio_t zio = {0};
+	zio.io_size = BP_GET_LSIZE(bp);
+	zio.io_offset = DVA_GET_OFFSET(&dva[0]);
+	zio.io_type = ZIO_TYPE_READ;
+	zio.io_abd = abd_alloc_for_io(zio.io_size, B_FALSE);
+
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	raidz_map_t *rm = vdev_raidz_map_alloc(&zio, vd->vdev_ashift,
+	    vd->vdev_children, vdrz->vd_nparity);
+	raidz_row_t *rr = rm->rm_row[0];
+
+	/*
+	 * Account for out of order disks in raidz1.
+	 * For now just reverse them back and adjust for it later.
+	 */
+	if (rr->rr_firstdatacol == 1 && (zio.io_offset & (1ULL << 20))) {
+		uint64_t devidx = rr->rr_col[0].rc_devidx;
+		rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
+		rr->rr_col[1].rc_devidx = devidx;
+	}
+
+	if (!dump_opt['H']) {
+		int last_disk = vd->vdev_children - 1;
+		int first_disk = rr->rr_col[0].rc_devidx;
+
+		(void) printf("%12llx", (u_longlong_t)file_offset);
+		print_file_layout_line(0, first_disk, last_disk,
+		    vd->vdev_ashift, rr);
+		(void) printf("%*c", 12, ' ');
+		print_file_layout_line(1, first_disk, last_disk,
+		    vd->vdev_ashift, rr);
+		/* Check for split row */
+		if (first_disk != 0) {
+			(void) printf("%*c", 12, ' ');
+			print_file_layout_line(0, 0, first_disk - 1,
+			    vd->vdev_ashift, rr);
+			(void) printf("%*c", 12, ' ');
+			print_file_layout_line(1, 0, first_disk - 1,
+			    vd->vdev_ashift, rr);
+		}
+		/* seperate rows with a line */
+		(void) printf("%*c", 12, ' ');
+		for (int c = 0; c < vd->vdev_children; c++) {
+			(void) printf("%s%10s", (c == 0) ?
+			    (last ? " └─" : " ├─") : "──",
+			    "──────────");
+		}
+		(void) printf("─%s\n", last ? "┘" : "┤");
+	} else {
+		static uint64_t next_offset = 0;
+
+		if (next_offset != file_offset) {
+			(void) printf("skip hole\t-\t%llx\n",
+			    (u_longlong_t)((file_offset - next_offset) >>
+			    vd->vdev_ashift));
+		}
+		next_offset = file_offset + BP_GET_LSIZE(bp);
+
+		for (int c = 0; c < rr->rr_cols; c++) {
+			raidz_col_t *rc = &rr->rr_col[c];
+			char *path = vd->vdev_child[rc->rc_devidx]->vdev_path;
+			// c < rr->rr_firstdatacol
+			if (rc->rc_size == 0)
+				continue;
+			(void) printf("%s\t%llu\t%d\n",
+			    zfs_basename(path),
+			    (u_longlong_t)(rc->rc_offset +
+			    VDEV_LABEL_START_SIZE)/512,
+			    (int)rc->rc_size/512);
+		}
+	}
+}
+
+static void
+print_file_layout(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp)
+{
+	if (!BP_IS_EMBEDDED(bp)) {
+		ASSERT3U(BP_GET_TYPE(bp), ==, dnp->dn_type);
+		ASSERT3U(BP_GET_LEVEL(bp), ==, zb->zb_level);
+	}
+	ASSERT(zb->zb_level >= 0);
+	ASSERT0(BP_IS_HOLE(bp));
+
+	if (BP_IS_EMBEDDED(bp))
+		return;
+
+	const dva_t *dva = bp->blk_dva;
+	vdev_t *vd = spa->spa_root_vdev->vdev_child[DVA_GET_VDEV(&dva[0])];
+	uint64_t file_offset = blkid2offset(dnp, bp, zb);
+
+	if (strcmp("raidz", vd->vdev_ops->vdev_op_type) == 0) {
+		boolean_t last = (file_offset + BP_GET_LSIZE(bp)) >=
+		    (dnp->dn_used & ~0x03ffULL);
+		print_file_layout_raidz(vd, bp, file_offset, last);
+	}
+}
+
 static int
 visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
     blkptr_t *bp, const zbookmark_phys_t *zb)
@@ -2622,7 +2807,12 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 	if (BP_GET_BIRTH(bp) == 0)
 		return (0);
 
-	print_indirect(spa, bp, zb, dnp);
+	if (dump_opt['f']) {
+		if (BP_GET_LEVEL(bp) == 0)
+			print_file_layout(spa, bp, zb, dnp);
+	} else {
+		print_indirect(spa, bp, zb, dnp);
+	}
 
 	if (BP_GET_LEVEL(bp) > 0 && !BP_IS_HOLE(bp)) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
@@ -2667,6 +2857,63 @@ dump_indirect(dnode_t *dn)
 	zbookmark_phys_t czb;
 
 	(void) printf("Indirect blocks:\n");
+	SET_BOOKMARK(&czb, dmu_objset_id(dn->dn_objset),
+	    dn->dn_object, dnp->dn_nlevels - 1, 0);
+	for (int j = 0; j < dnp->dn_nblkptr; j++) {
+		czb.zb_blkid = j;
+		(void) visit_indirect(dmu_objset_spa(dn->dn_objset), dnp,
+		    &dnp->dn_blkptr[j], &czb);
+	}
+
+	(void) printf("\n");
+}
+
+static int
+dump_indirect_layout(dnode_t *dn)
+{
+	dnode_phys_t *dnp = dn->dn_phys;
+	zbookmark_phys_t czb;
+
+	spa_t *spa = dmu_objset_spa(dn->dn_objset);
+	int ashift = spa->spa_root_vdev->vdev_child[0]->vdev_ashift;
+	int children = spa->spa_root_vdev->vdev_child[0]->vdev_children;
+
+	if (strcmp(spa->spa_root_vdev->vdev_child[0]->vdev_ops->vdev_op_type,
+	    "raidz") != 0) {
+		(void) fprintf(stderr, "file layout only supports raidz\n");
+		return (ENOTSUP);
+	}
+
+	/*
+	 * Start layout with a header
+	 */
+	if (dump_opt['H']) {
+		(void) printf("DISK\t\tLBA\t\tCOUNT\n");
+	} else {
+		char diskhdr[16];
+
+		(void) printf("%12s: %d\n", "block size", dn->dn_datablksz);
+		(void) printf("%12s: %s%d\n", "vdev_type",
+		    spa->spa_root_vdev->vdev_child[0]->vdev_ops->vdev_op_type,
+		    (int)vdev_get_nparity(spa->spa_root_vdev->vdev_child[0]));
+		(void) printf("%12s: %d\n", "sector size", 1 << ashift);
+		(void) printf("%12s: %d\n\n", "child disks", children);
+
+		(void) printf("%*c ", 12, ' ');
+
+		for (int c = 0; c < children; c++) {
+			(void) snprintf(diskhdr, sizeof (diskhdr),
+			    "V%d:DISK-%d", 0, c);
+			(void) printf(" %10s ", diskhdr);
+		}
+		(void) printf("\n");
+
+		(void) printf("%12s", "FILE OFFSET");
+		for (int c = 0; c < children; c++)
+			(void) printf("%s%10s", (c == 0) ? " ┌─" : "──",
+			    "──────────");
+		(void) printf("─┐\n");
+	}
 
 	SET_BOOKMARK(&czb, dmu_objset_id(dn->dn_objset),
 	    dn->dn_object, dnp->dn_nlevels - 1, 0);
@@ -2677,6 +2924,7 @@ dump_indirect(dnode_t *dn)
 	}
 
 	(void) printf("\n");
+	return (0);
 }
 
 static void
@@ -2935,7 +3183,6 @@ dump_full_bpobj(bpobj_t *bpo, const char *name, int indent)
 
 	if (dump_opt['d'] < 5)
 		return;
-
 
 	if (indent == 0) {
 		(void) bpobj_iterate_nofree(bpo, dump_bpobj_cb, NULL, NULL);
@@ -4019,12 +4266,65 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 			start = end;
 		}
 	}
-
 out:
 	if (db != NULL)
 		dmu_buf_rele(db, FTAG);
 	if (dnode_held)
 		dnode_rele(dn, FTAG);
+}
+
+static void
+dump_object_file_layout(objset_t *os, uint64_t object, int verbosity)
+{
+	(void) verbosity;
+	dmu_buf_t *db = NULL;
+	dmu_object_info_t doi;
+	dnode_t *dn;
+	boolean_t dnode_held = B_FALSE;
+	int error;
+
+	char osname[ZFS_MAX_DATASET_NAME_LEN];
+	dmu_objset_name(os, osname);
+	(void) printf("%12s: '%s'\n", "objset", osname);
+	(void) printf("%12s: %d\n", "object", (int)object);
+
+	if (object == 0) {
+		dn = DMU_META_DNODE(os);
+		dmu_object_info_from_dnode(dn, &doi);
+	} else {
+		/*
+		 * Encrypted datasets will have sensitive bonus buffers
+		 * encrypted. Therefore we cannot hold the bonus buffer and
+		 * must hold the dnode itself instead.
+		 */
+		error = dmu_object_info(os, object, &doi);
+		if (error)
+			fatal("dmu_object_info() failed, errno %u", error);
+
+		if (!key_loaded && os->os_encrypted &&
+		    DMU_OT_IS_ENCRYPTED(doi.doi_bonus_type)) {
+			error = dnode_hold(os, object, FTAG, &dn);
+			if (error)
+				fatal("dnode_hold() failed, errno %u", error);
+			dnode_held = B_TRUE;
+		} else {
+			error = dmu_bonus_hold(os, object, FTAG, &db);
+			if (error)
+				fatal("dmu_bonus_hold(%llu) failed, errno %u",
+				    object, error);
+			dn = DB_DNODE((dmu_buf_impl_t *)db);
+		}
+	}
+
+	error = dump_indirect_layout(dn);
+
+	if (db != NULL)
+		dmu_buf_rele(db, FTAG);
+	if (dnode_held)
+		dnode_rele(dn, FTAG);
+
+	if (error)
+		zdb_exit(1);
 }
 
 static void
@@ -4215,7 +4515,7 @@ dump_objset(objset_t *os)
 
 	zdb_nicenum(refdbytes, numbuf, sizeof (numbuf));
 
-	if (verbosity >= 4) {
+	if (verbosity >= 4 || dump_opt['d']) {
 		(void) snprintf(blkbuf, sizeof (blkbuf), ", rootbp ");
 		(void) snprintf_blkptr(blkbuf + strlen(blkbuf),
 		    sizeof (blkbuf) - strlen(blkbuf), os->os_rootbp);
@@ -4238,21 +4538,21 @@ dump_objset(objset_t *os)
 		flags = zopt_object_ranges[i].zor_flags;
 
 		object = obj_start;
-		if (object == 0 || obj_start == obj_end)
-			dump_object(os, object, verbosity, &print_header, NULL,
-			    flags);
-		else
+		if (object == 0 || obj_start == obj_end) {
+			dump_object(os, object, verbosity,
+			    &print_header, NULL, flags);
+		} else {
 			object--;
+		}
 
 		while ((dmu_object_next(os, &object, B_FALSE, 0) == 0) &&
 		    object <= obj_end) {
-			dump_object(os, object, verbosity, &print_header, NULL,
-			    flags);
+			dump_object(os, object, verbosity,
+			    &print_header, NULL, flags);
 		}
 	}
 
 	if (zopt_object_args > 0) {
-		(void) printf("\n");
 		return;
 	}
 
@@ -4332,6 +4632,32 @@ dump_objset(objset_t *os)
 		(void) printf("%d potentially leaked objects detected\n",
 		    leaked_objects);
 		leaked_objects = 0;
+	}
+}
+
+static void
+dump_file_data_layout(objset_t *os)
+{
+	uint64_t object;
+	int verbosity = dump_opt['d'];
+	unsigned i;
+	uint64_t obj_start;
+	uint64_t obj_end;
+
+	for (i = 0; i < zopt_object_args; i++) {
+		obj_start = zopt_object_ranges[i].zor_obj_start;
+		obj_end = zopt_object_ranges[i].zor_obj_end;
+
+		object = obj_start;
+		if (object == 0 || obj_start == obj_end)
+			dump_object_file_layout(os, object, verbosity);
+		else
+			object--;
+
+		while ((dmu_object_next(os, &object, B_FALSE, 0) == 0) &&
+		    object <= obj_end) {
+			dump_object_file_layout(os, object, verbosity);
+		}
 	}
 }
 
@@ -5566,7 +5892,6 @@ dump_one_objset(const char *dsname, void *arg)
 	    !dmu_objset_is_snapshot(os)) {
 		global_feature_count[SPA_FEATURE_LIVELIST]++;
 	}
-
 	dump_objset(os);
 	close_objset(os, FTAG);
 	fuid_table_destroy();
@@ -9302,9 +9627,11 @@ main(int argc, char **argv)
 		{"dedup-stats",		no_argument,		NULL, 'D'},
 		{"exported",		no_argument,		NULL, 'e'},
 		{"embedded-block-pointer",	no_argument,	NULL, 'E'},
+		{"file-layout",		no_argument,		NULL, 'f'},
 		{"automatic-rewind",	no_argument,		NULL, 'F'},
 		{"dump-debug-msg",	no_argument,		NULL, 'G'},
 		{"history",		no_argument,		NULL, 'h'},
+		{"scripting-mode",	no_argument,		NULL, 'H'},
 		{"intent-logs",		no_argument,		NULL, 'i'},
 		{"inflight",		required_argument,	NULL, 'I'},
 		{"checkpointed-state",	no_argument,		NULL, 'k'},
@@ -9338,7 +9665,7 @@ main(int argc, char **argv)
 	};
 
 	while ((c = getopt_long(argc, argv,
-	    "AbBcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:TuU:vVx:XYyZ",
+	    "AbBcCdDeEfFGhHiI:kK:lLmMNo:Op:PqrRsSt:TuU:vVx:XYyZ",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'b':
@@ -9348,6 +9675,7 @@ main(int argc, char **argv)
 		case 'd':
 		case 'D':
 		case 'E':
+		case 'f':
 		case 'G':
 		case 'h':
 		case 'i':
@@ -9370,6 +9698,7 @@ main(int argc, char **argv)
 		case 'A':
 		case 'e':
 		case 'F':
+		case 'H':
 		case 'k':
 		case 'L':
 		case 'P':
@@ -9454,6 +9783,10 @@ main(int argc, char **argv)
 
 	if (!dump_opt['e'] && searchdirs != NULL) {
 		(void) fprintf(stderr, "-p option requires use of -e\n");
+		usage();
+	}
+	if (dump_opt['H'] && !dump_opt['f']) {
+		(void) fprintf(stderr, "-H option requires use of -f\n");
 		usage();
 	}
 #if defined(_LP64)
@@ -9863,7 +10196,7 @@ retry_lookup:
 		flagbits['z'] = ZOR_FLAG_ZAP;
 		flagbits['A'] = ZOR_FLAG_ALL_TYPES;
 
-		if (argc > 0 && dump_opt['d']) {
+		if (argc > 0 && (dump_opt['d'] || dump_opt['f'])) {
 			zopt_object_args = argc;
 			zopt_object_ranges = calloc(zopt_object_args,
 			    sizeof (zopt_object_range_t));
@@ -9889,7 +10222,10 @@ retry_lookup:
 					    strerror(errno));
 			}
 		}
-		if (dump_opt['B']) {
+
+		if (dump_opt['f'] && os != NULL) {
+			dump_file_data_layout(os);
+		} else if (dump_opt['B']) {
 			dump_backup(target, objset_id,
 			    argc > 0 ? argv[0] : NULL);
 		} else if (os != NULL) {
