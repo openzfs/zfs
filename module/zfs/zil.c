@@ -4485,16 +4485,16 @@ zil_suspend(const char *osname, void **cookiep)
 			cv_wait(&zilog->zl_cv_suspend, &zilog->zl_lock);
 		mutex_exit(&zilog->zl_lock);
 
-		if (cookiep == NULL)
+		if (zilog->zl_restart_txg > 0) {
+			/* ZIL crashed while we were waiting. */
+			zil_resume(os);
+			error = SET_ERROR(EBUSY);
+		} else if (cookiep == NULL)
 			zil_resume(os);
 		else
 			*cookiep = os;
 
-		if (zilog->zl_restart_txg > 0)
-			/* ZIL crashed while we were waiting. */
-			return (SET_ERROR(EBUSY));
-
-		return (0);
+		return (error);
 	}
 
 	/*
