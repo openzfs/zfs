@@ -2557,12 +2557,13 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	/*
 	 * Due to our use of dn_nlevels below, this can only be called
-	 * in open context, unless we are operating on the MOS.
-	 * From syncing context, dn_nlevels may be different from the
-	 * dn_nlevels used when dbuf was dirtied.
+	 * in open context, unless we are operating on the MOS or it's
+	 * a special object. From syncing context, dn_nlevels may be
+	 * different from the dn_nlevels used when dbuf was dirtied.
 	 */
 	ASSERT(db->db_objset ==
 	    dmu_objset_pool(db->db_objset)->dp_meta_objset ||
+	    DMU_OBJECT_IS_SPECIAL(db->db.db_object) ||
 	    txg != spa_syncing_txg(dmu_objset_spa(db->db_objset)));
 	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 	ASSERT0(db->db_level);
