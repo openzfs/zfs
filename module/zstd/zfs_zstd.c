@@ -796,9 +796,9 @@ static void __init
 zstd_mempool_init(void)
 {
 	zstd_mempool_cctx =
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
+	    vmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
 	zstd_mempool_dctx =
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
+	    vmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
 
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
 		mutex_init(&zstd_mempool_cctx[i].barrier, NULL,
@@ -844,8 +844,8 @@ zstd_mempool_deinit(void)
 		release_pool(&zstd_mempool_dctx[i]);
 	}
 
-	kmem_free(zstd_mempool_dctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
-	kmem_free(zstd_mempool_cctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
+	vmem_free(zstd_mempool_dctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
+	vmem_free(zstd_mempool_cctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
 	zstd_mempool_dctx = NULL;
 	zstd_mempool_cctx = NULL;
 }
