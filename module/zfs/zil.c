@@ -1591,7 +1591,7 @@ zil_lwb_write_done(zio_t *zio)
 	avl_tree_t *t = &lwb->lwb_vdev_tree;
 	void *cookie = NULL;
 	zil_vdev_node_t *zv;
-	lwb_t *nlwb;
+	lwb_t *nlwb = NULL;
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
 
@@ -1611,9 +1611,11 @@ zil_lwb_write_done(zio_t *zio)
 	 * its write ZIO a parent this ZIO.  In such case we can not defer
 	 * our flushes or below may be a race between the done callbacks.
 	 */
-	nlwb = list_next(&zilog->zl_lwb_list, lwb);
-	if (nlwb && nlwb->lwb_state != LWB_STATE_ISSUED)
-		nlwb = NULL;
+	if (!(lwb->lwb_flags & LWB_FLAG_CRASHED)) {
+		nlwb = list_next(&zilog->zl_lwb_list, lwb);
+		if (nlwb && nlwb->lwb_state != LWB_STATE_ISSUED)
+			nlwb = NULL;
+	}
 	mutex_exit(&zilog->zl_lock);
 
 	if (avl_numnodes(t) == 0)
@@ -1631,8 +1633,13 @@ zil_lwb_write_done(zio_t *zio)
 	 * we expect that to occur in "zil_lwb_flush_vdevs_done" (thus,
 	 * we expect any error seen here, to have been propagated to
 	 * that function).
+	 *
+	 * Note that we treat a "crashed" LWB as though it was in error,
+	 * even if it did appear to succeed, because we've already
+	 * signaled error and cleaned up waiters and committers in
+	 * zil_crash(); we just want to clean up and get out of here.
 	 */
-	if (zio->io_error != 0) {
+	if (zio->io_error != 0 || (lwb->lwb_flags & LWB_FLAG_CRASHED)) {
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
 		return;
@@ -2747,6 +2754,7 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 		}
 
 		/* This LWB is from the past, so we can clean it up now. */
+		ASSERT(lwb->lwb_flags & LWB_FLAG_CRASHED);
 		list_remove(&zilog->zl_lwb_crash_list, lwb);
 		if (lwb->lwb_buf != NULL)
 			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
@@ -3733,6 +3741,9 @@ zil_crash(zilog_t *zilog)
 	 */
 	for (lwb_t *lwb = list_head(&zilog->zl_lwb_crash_list); lwb != NULL;
 	    lwb = list_next(&zilog->zl_lwb_crash_list, lwb)) {
+		ASSERT(!(lwb->lwb_flags & LWB_FLAG_CRASHED));
+		lwb->lwb_flags |= LWB_FLAG_CRASHED;
+
 		itx_t *itx;
 		while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
 			zil_itx_destroy(itx, EIO);

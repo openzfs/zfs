@@ -101,8 +101,9 @@ typedef enum {
  * "zl_lock" is used to protect the lwb against concurrent access.
  */
 typedef enum {
-	LWB_FLAG_SLIM =	(1<<0),		/* log block has slim format */
-	LWB_FLAG_SLOG =	(1<<1),		/* lwb_blk is on SLOG device */
+	LWB_FLAG_SLIM =		(1<<0),	/* log block has slim format */
+	LWB_FLAG_SLOG =		(1<<1),	/* lwb_blk is on SLOG device */
+	LWB_FLAG_CRASHED =	(1<<2),	/* lwb is on the crash list */
 } lwb_flag_t;
 
 typedef struct lwb {
