@@ -979,7 +979,8 @@ mountroot()
 
 	touch /run/zfs_unlock_complete
 	if [ -e /run/zfs_unlock_complete_notify ]; then
-		read -r < /run/zfs_unlock_complete_notify
+		# shellcheck disable=SC2034
+		read -r zfs_unlock_complete_notify < /run/zfs_unlock_complete_notify
 	fi
 
 	# ------------
