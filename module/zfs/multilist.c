@@ -81,7 +81,7 @@ multilist_create_impl(multilist_t *ml, size_t size, size_t offset,
 	ml->ml_num_sublists = num;
 	ml->ml_index_func = index_func;
 
-	ml->ml_sublists = kmem_zalloc(sizeof (multilist_sublist_t) *
+	ml->ml_sublists = vmem_zalloc(sizeof (multilist_sublist_t) *
 	    ml->ml_num_sublists, KM_SLEEP);
 
 	ASSERT3P(ml->ml_sublists, !=, NULL);
@@ -134,7 +134,7 @@ multilist_destroy(multilist_t *ml)
 	}
 
 	ASSERT3P(ml->ml_sublists, !=, NULL);
-	kmem_free(ml->ml_sublists,
+	vmem_free(ml->ml_sublists,
 	    sizeof (multilist_sublist_t) * ml->ml_num_sublists);
 
 	ml->ml_num_sublists = 0;
