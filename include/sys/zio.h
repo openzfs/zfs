@@ -360,26 +360,26 @@ struct zbookmark_err_phys {
 	(zb)->zb_blkid == ZB_ROOT_BLKID)
 
 typedef struct zio_prop {
-	enum zio_checksum	zp_checksum;
-	enum zio_compress	zp_compress;
+	enum zio_checksum	zp_checksum:8;
+	enum zio_compress	zp_compress:8;
 	uint8_t			zp_complevel;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
 	uint8_t			zp_gang_copies;
-	dmu_object_type_t	zp_type;
-	boolean_t		zp_dedup;
-	boolean_t		zp_dedup_verify;
-	boolean_t		zp_nopwrite;
-	boolean_t		zp_brtwrite;
-	boolean_t		zp_encrypt;
-	boolean_t		zp_byteorder;
-	boolean_t		zp_direct_write;
-	boolean_t		zp_rewrite;
+	dmu_object_type_t	zp_type:8;
+	dmu_object_type_t	zp_storage_type:8;
+	boolean_t		zp_dedup:1;
+	boolean_t		zp_dedup_verify:1;
+	boolean_t		zp_nopwrite:1;
+	boolean_t		zp_brtwrite:1;
+	boolean_t		zp_encrypt:1;
+	boolean_t		zp_byteorder:1;
+	boolean_t		zp_direct_write:1;
+	boolean_t		zp_rewrite:1;
+	uint32_t		zp_zpl_smallblk;
 	uint8_t			zp_salt[ZIO_DATA_SALT_LEN];
 	uint8_t			zp_iv[ZIO_DATA_IV_LEN];
 	uint8_t			zp_mac[ZIO_DATA_MAC_LEN];
-	uint32_t		zp_zpl_smallblk;
-	dmu_object_type_t	zp_storage_type;
 } zio_prop_t;
 
 typedef struct zio_cksum_report zio_cksum_report_t;
