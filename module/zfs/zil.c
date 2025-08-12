@@ -1327,10 +1327,12 @@ zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
  * zil_commit() is racing with spa_sync().
  */
 static void
-zil_commit_waiter_skip(zil_commit_waiter_t *zcw)
+zil_commit_waiter_done(zil_commit_waiter_t *zcw, int err)
 {
 	mutex_enter(&zcw->zcw_lock);
 	ASSERT3B(zcw->zcw_done, ==, B_FALSE);
+	zcw->zcw_lwb = NULL;
+	zcw->zcw_error = err;
 	zcw->zcw_done = B_TRUE;
 	cv_broadcast(&zcw->zcw_cv);
 	mutex_exit(&zcw->zcw_lock);
@@ -1494,10 +1496,6 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		zil_itx_destroy(itx, 0);
 
 	while ((zcw = list_remove_head(&lwb->lwb_waiters)) != NULL) {
-		mutex_enter(&zcw->zcw_lock);
-
-		ASSERT3P(zcw->zcw_lwb, ==, lwb);
-		zcw->zcw_lwb = NULL;
 		/*
 		 * We expect any ZIO errors from child ZIOs to have been
 		 * propagated "up" to this specific LWB's root ZIO, in
@@ -1512,14 +1510,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * errors not being handled correctly here. See the
 		 * comment above the call to "zio_flush" for details.
 		 */
-
-		zcw->zcw_zio_error = zio->io_error;
-
-		ASSERT3B(zcw->zcw_done, ==, B_FALSE);
-		zcw->zcw_done = B_TRUE;
-		cv_broadcast(&zcw->zcw_cv);
-
-		mutex_exit(&zcw->zcw_lock);
+		zil_commit_waiter_done(zcw, zio->io_error);
 	}
 
 	uint64_t txg = lwb->lwb_issued_txg;
@@ -1629,10 +1620,10 @@ zil_lwb_write_done(zio_t *zio)
 	 * written out.
 	 *
 	 * Additionally, we don't perform any further error handling at
-	 * this point (e.g. setting "zcw_zio_error" appropriately), as
-	 * we expect that to occur in "zil_lwb_flush_vdevs_done" (thus,
-	 * we expect any error seen here, to have been propagated to
-	 * that function).
+	 * this point (e.g. setting "zcw_error" appropriately), as we
+	 * expect that to occur in "zil_lwb_flush_vdevs_done" (thus, we
+	 * expect any error seen here, to have been propagated to that
+	 * function).
 	 *
 	 * Note that we treat a "crashed" LWB as though it was in error,
 	 * even if it did appear to succeed, because we've already
@@ -2566,7 +2557,7 @@ zil_itxg_clean(void *arg)
 		 * called) we will hit this case.
 		 */
 		if (itx->itx_lr.lrc_txtype == TX_COMMIT)
-			zil_commit_waiter_skip(itx->itx_private);
+			zil_commit_waiter_done(itx->itx_private, 0);
 
 		zil_itx_destroy(itx, 0);
 	}
@@ -2994,7 +2985,7 @@ zil_prune_commit_list(zilog_t *zilog)
 			 * never any itx's for it to wait on), so it's
 			 * safe to skip this waiter and mark it done.
 			 */
-			zil_commit_waiter_skip(itx->itx_private);
+			zil_commit_waiter_done(itx->itx_private, 0);
 		} else {
 			zil_commit_waiter_link_lwb(itx->itx_private, last_lwb);
 		}
@@ -3243,7 +3234,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 */
 		zil_commit_waiter_t *zcw;
 		while ((zcw = list_remove_head(&nolwb_waiters)) != NULL)
-			zil_commit_waiter_skip(zcw);
+			zil_commit_waiter_done(zcw, 0);
 
 		/*
 		 * And finally, we have to destroy the itx's that
@@ -3559,7 +3550,7 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 		 * commit itxs. When this occurs, the commit waiters linked
 		 * off of these commit itxs will not be committed to an
 		 * lwb.  Additionally, these commit waiters will not be
-		 * marked done until zil_commit_waiter_skip() is called via
+		 * marked done until zil_commit_waiter_done() is called via
 		 * zil_itxg_clean().
 		 *
 		 * Thus, it's possible for this commit waiter (i.e. the
@@ -3637,7 +3628,7 @@ zil_alloc_commit_waiter(void)
 	list_link_init(&zcw->zcw_node);
 	zcw->zcw_lwb = NULL;
 	zcw->zcw_done = B_FALSE;
-	zcw->zcw_zio_error = 0;
+	zcw->zcw_error = 0;
 
 	return (zcw);
 }
@@ -3752,7 +3743,7 @@ zil_crash(zilog_t *zilog)
 		while ((zcw = list_remove_head(&lwb->lwb_waiters)) != NULL) {
 			mutex_enter(&zcw->zcw_lock);
 			zcw->zcw_lwb = NULL;
-			zcw->zcw_zio_error = EIO;
+			zcw->zcw_error = EIO;
 			zcw->zcw_done = B_TRUE;
 			cv_broadcast(&zcw->zcw_cv);
 			mutex_exit(&zcw->zcw_lock);
@@ -4030,7 +4021,7 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	zil_commit_waiter(zilog, zcw);
 
 	int err = 0;
-	if (zcw->zcw_zio_error != 0) {
+	if (zcw->zcw_error != 0) {
 		/*
 		 * If there was an error writing out the ZIL blocks that
 		 * this thread is waiting on, then we fallback to
