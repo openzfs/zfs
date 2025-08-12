@@ -3216,15 +3216,21 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * "next" lwb on-disk. When this happens, we must stall
 		 * the ZIL write pipeline; see the comment within
 		 * zil_commit_writer_stall() for more details.
+		 *
+		 * ESHUTDOWN has to be handled carefully here. If we get it,
+		 * then the pool suspended and zil_crash() was called, so we
+		 * need to stop trying and just get an error back to the
+		 * callers.
 		 */
 		int err = 0;
 		while ((lwb = list_remove_head(ilwbs)) != NULL) {
-			err = zil_lwb_write_issue(zilog, lwb);
-			if (err != 0)
-				break;
+			if (err == 0)
+				err = zil_lwb_write_issue(zilog, lwb);
 		}
-		if (err == 0)
+		if (err != ESHUTDOWN)
 			err = zil_commit_writer_stall(zilog);
+		if (err == ESHUTDOWN)
+			err = SET_ERROR(EIO);
 
 		/*
 		 * Additionally, we have to signal and mark the "nolwb"
@@ -3234,7 +3240,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 */
 		zil_commit_waiter_t *zcw;
 		while ((zcw = list_remove_head(&nolwb_waiters)) != NULL)
-			zil_commit_waiter_done(zcw, 0);
+			zil_commit_waiter_done(zcw, err);
 
 		/*
 		 * And finally, we have to destroy the itx's that
@@ -3242,7 +3248,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		 * the itx's callback if one exists for the itx.
 		 */
 		while ((itx = list_remove_head(&nolwb_itxs)) != NULL)
-			zil_itx_destroy(itx, 0);
+			zil_itx_destroy(itx, err);
 	} else {
 		ASSERT(list_is_empty(&nolwb_waiters));
 		ASSERT3P(lwb, !=, NULL);
@@ -3301,12 +3307,12 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 				int err = 0;
 				while ((lwb =
 				    list_remove_head(ilwbs)) != NULL) {
-					err = zil_lwb_write_issue(zilog, lwb);
-					if (err != 0)
-						break;
+					if (err == 0)
+						err = zil_lwb_write_issue(
+						    zilog, lwb);
 				}
-				if (err == 0)
-					zil_commit_writer_stall(zilog);
+				if (err != ESHUTDOWN)
+					(void) zil_commit_writer_stall(zilog);
 			}
 		}
 	}
