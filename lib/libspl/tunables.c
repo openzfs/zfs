@@ -33,6 +33,8 @@
 #include <inttypes.h>
 #include <sys/tunables.h>
 
+#ifdef HAVE_ELF_LINKER_SETS
+
 /*
  * Userspace tunables.
  *
@@ -317,3 +319,36 @@ zfs_tunable_get(const zfs_tunable_t *zt, char *val, size_t valsz)
 	}
 	return (err);
 }
+
+#else
+
+/* No-op API for platforms missing linker sets. */
+
+int
+zfs_tunable_set(const zfs_tunable_t *tunable, const char *val)
+{
+	(void) tunable, (void) val;
+	return (EOPNOTSUPP);
+}
+
+int
+zfs_tunable_get(const zfs_tunable_t *tunable, char *val, size_t valsz)
+{
+	(void) tunable, (void) val, (void) valsz;
+	return (EOPNOTSUPP);
+}
+
+const zfs_tunable_t
+*zfs_tunable_lookup(const char *name)
+{
+	(void) name;
+	return (NULL);
+}
+
+void
+zfs_tunable_iter(zfs_tunable_iter_t cb, void *arg)
+{
+	(void) cb, (void) arg;
+}
+
+#endif	/* HAVE_ELF_LINKER_SETS */

@@ -32,6 +32,7 @@
 
 #include <sys/tunables.h>
 
+#ifdef HAVE_ELF_LINKER_SETS
 #define	ZFS_MODULE_PARAM(scope, prefix, name, type, perm, desc)		\
 	static const zfs_tunable_t _zfs_tunable_##prefix##name = {	\
 		.zt_name = #prefix#name,				\
@@ -46,6 +47,9 @@
 	__attribute__((__section__("zfs_tunables")))			\
 	__attribute__((__used__))					\
 	= &_zfs_tunable_##prefix##name;
+#else
+#define	ZFS_MODULE_PARAM(scope, prefix, name, type, perm, desc)
+#endif /* HAVE_ELF_LINKER_SETS */
 
 #define	ZFS_MODULE_PARAM_ARGS void
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
