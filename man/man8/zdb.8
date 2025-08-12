@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd October 27, 2024
+.Dd April 23, 2025
 .Dt ZDB 8
 .Os
 .
@@ -531,6 +531,18 @@ option, with more occurrences enabling more verbosity.
 If no options are specified, all information about the named pool will be
 displayed at default verbosity.
 .
+.Sh EXIT STATUS
+The
+.Nm
+utility exits
+.Sy 0
+on success,
+.Sy 1
+if a fatal error occurs,
+.Sy 2
+if invalid command line options were specified, or
+.Sy 3
+if on-disk corruption was detected, but was not fatal.
 .Sh EXAMPLES
 .Ss Example 1 : No Display the configuration of imported pool Ar rpool
 .Bd -literal
