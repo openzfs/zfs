@@ -154,7 +154,7 @@ typedef struct zil_commit_waiter {
 	list_node_t	zcw_node;	/* linkage in lwb_t:lwb_waiter list */
 	lwb_t		*zcw_lwb;	/* back pointer to lwb when linked */
 	boolean_t	zcw_done;	/* B_TRUE when "done", else B_FALSE */
-	int		zcw_zio_error;	/* contains the zio io_error value */
+	int		zcw_error;	/* result to return from zil_commit() */
 } zil_commit_waiter_t;
 
 /*
