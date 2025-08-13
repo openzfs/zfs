@@ -43,7 +43,15 @@ extern "C" {
 #if defined(__x86_64__) && defined(HAVE_AVX) && \
     defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
 #define	CAN_USE_GCM_ASM
-extern boolean_t gcm_avx_can_use_movbe;
+#endif
+
+#if defined(__aarch64__) && defined(HAVE_ARM_AES) && \
+    (defined(HAVE_KERNEL_NEON) || defined(HAVE_KERNEL_FPU_INTERNAL))
+#define	CAN_USE_GCM_ASM
+#endif
+
+#if defined(CAN_USE_GCM_ASM)
+extern boolean_t gcm_hardware_can_use_movbe;
 #endif
 
 #define	CCM_MODE			0x00000010
@@ -174,7 +182,7 @@ typedef struct gcm_ctx {
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;
 #ifdef CAN_USE_GCM_ASM
-	boolean_t gcm_use_avx;
+	boolean_t gcm_use_hardware;
 #endif
 } gcm_ctx_t;
 
