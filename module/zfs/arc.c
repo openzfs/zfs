@@ -6985,7 +6985,7 @@ arc_write_done(zio_t *zio)
 			 * buffers from the hash table when we arc_free().
 			 */
 			if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
-				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
+				if (!BP_EQUAL(zio->io_bp_orig, zio->io_bp))
 					panic("bad overwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
 				ASSERT(zfs_refcount_is_zero(
@@ -6998,7 +6998,7 @@ arc_write_done(zio_t *zio)
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
 				/* nopwrite */
 				ASSERT(zio->io_prop.zp_nopwrite);
-				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
+				if (!BP_EQUAL(zio->io_bp_orig, zio->io_bp))
 					panic("bad nopwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
 			} else {

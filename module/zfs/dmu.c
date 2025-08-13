@@ -1908,7 +1908,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 		dr->dt.dl.dr_nopwrite = !!(zio->io_flags & ZIO_FLAG_NOPWRITE);
 		if (dr->dt.dl.dr_nopwrite) {
 			blkptr_t *bp = zio->io_bp;
-			blkptr_t *bp_orig = &zio->io_bp_orig;
+			blkptr_t *bp_orig = zio->io_bp_orig;
 			uint8_t chksum = BP_GET_CHECKSUM(bp_orig);
 
 			ASSERT(BP_EQUAL(bp, bp_orig));
@@ -1963,7 +1963,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
 
 		if (!BP_IS_HOLE(bp)) {
-			blkptr_t *bp_orig __maybe_unused = &zio->io_bp_orig;
+			blkptr_t *bp_orig __maybe_unused = zio->io_bp_orig;
 			ASSERT(!(zio->io_flags & ZIO_FLAG_NOPWRITE));
 			ASSERT(BP_IS_HOLE(bp_orig) || !BP_EQUAL(bp, bp_orig));
 			ASSERT(BP_GET_BIRTH(zio->io_bp) == zio->io_txg);

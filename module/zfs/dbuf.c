@@ -4667,10 +4667,10 @@ dbuf_lightweight_done(zio_t *zio)
 	dmu_tx_t *tx = os->os_synctx;
 
 	if (zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)) {
-		ASSERT(BP_EQUAL(zio->io_bp, &zio->io_bp_orig));
+		ASSERT(BP_EQUAL(zio->io_bp, zio->io_bp_orig));
 	} else {
 		dsl_dataset_t *ds = os->os_dsl_dataset;
-		(void) dsl_dataset_block_kill(ds, &zio->io_bp_orig, tx, B_TRUE);
+		(void) dsl_dataset_block_kill(ds, zio->io_bp_orig, tx, B_TRUE);
 		dsl_dataset_block_born(ds, zio->io_bp, tx);
 	}
 
@@ -4929,7 +4929,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dmu_buf_impl_t *db = vdb;
 	dnode_t *dn;
 	blkptr_t *bp = zio->io_bp;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
+	blkptr_t *bp_orig = zio->io_bp_orig;
 	spa_t *spa = zio->io_spa;
 	int64_t delta;
 	uint64_t fill = 0;
@@ -5077,7 +5077,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
 	(void) buf;
 	dmu_buf_impl_t *db = vdb;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
+	blkptr_t *bp_orig = zio->io_bp_orig;
 	blkptr_t *bp = db->db_blkptr;
 	objset_t *os = db->db_objset;
 	dmu_tx_t *tx = os->os_synctx;

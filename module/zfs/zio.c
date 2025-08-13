@@ -1005,7 +1005,10 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 		} else {
 			zio->io_bp = (blkptr_t *)bp;
 		}
-		zio->io_bp_orig = *bp;
+		if (type == ZIO_TYPE_WRITE &&
+		    zio->io_child_type != ZIO_CHILD_VDEV) {
+			zio->io_bp_orig = zio_dup_bp(bp);
+		}
 		if (zio->io_child_type == ZIO_CHILD_LOGICAL)
 			zio->io_logical = zio;
 		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
@@ -1064,6 +1067,8 @@ zio_destroy(zio_t *zio)
 	cv_destroy(&zio->io_cv);
 	if (zio->io_bp_copy != NULL)
 		kmem_cache_free(zio_bp_cache, zio->io_bp_copy);
+	if (zio->io_bp_orig != NULL)
+		kmem_cache_free(zio_bp_cache, zio->io_bp_orig);
 	kmem_cache_free(zio_cache, zio);
 }
 
@@ -1931,7 +1936,7 @@ zio_write_bp_init(zio_t *zio)
 		 * it as a regular write I/O.
 		 */
 		zio->io_bp_override = NULL;
-		*bp = zio->io_bp_orig;
+		*bp = *zio->io_bp_orig;
 		zio->io_pipeline = zio->io_orig_pipeline;
 	}
 
@@ -2063,7 +2068,7 @@ zio_write_compress(zio_t *zio)
 		 * it as a regular write I/O.
 		 */
 		zio->io_bp_override = NULL;
-		*bp = zio->io_bp_orig;
+		*bp = *zio->io_bp_orig;
 		zio->io_pipeline = zio->io_orig_pipeline;
 
 	} else if ((zio->io_flags & ZIO_FLAG_RAW_ENCRYPT) != 0 &&
@@ -2125,7 +2130,7 @@ zio_write_compress(zio_t *zio)
 	}
 
 	if (psize == 0) {
-		if (BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig) != 0 &&
+		if (BP_GET_LOGICAL_BIRTH(zio->io_bp_orig) != 0 &&
 		    spa_feature_is_active(spa, SPA_FEATURE_HOLE_BIRTH)) {
 			BP_SET_LSIZE(bp, lsize);
 			BP_SET_TYPE(bp, zp->zp_type);
@@ -3140,7 +3145,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	 * If we're getting direct-invoked from zio_write_gang_block(),
 	 * the bp_orig will be set.
 	 */
-	ASSERT(BP_IS_HOLE(&zio->io_bp_orig) ||
+	ASSERT(BP_IS_HOLE(zio->io_bp_orig) ||
 	    zio->io_flags & ZIO_FLAG_PREALLOCATED);
 
 	ASSERT(zio->io_child_type == ZIO_CHILD_GANG);
@@ -3320,7 +3325,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
 			metaslab_group_alloc_increment_all(spa,
-			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
+			    cio->io_bp_orig, zio->io_allocator, flags, psize,
 			    cio);
 		}
 		/*
@@ -3389,7 +3394,7 @@ static zio_t *
 zio_nop_write(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
+	blkptr_t *bp_orig = zio->io_bp_orig;
 	zio_prop_t *zp = &zio->io_prop;
 
 	ASSERT(BP_IS_HOLE(bp));
@@ -3961,9 +3966,9 @@ zio_ddt_write(zio_t *zio)
 			 */
 			if (zp->zp_rewrite) {
 				uint64_t orig_logical_birth =
-				    BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
+				    BP_GET_LOGICAL_BIRTH(zio->io_bp_orig);
 				ddt_bp_fill(ddp, v, bp, orig_logical_birth);
-				if (BP_EQUAL(bp, &zio->io_bp_orig)) {
+				if (BP_EQUAL(bp, zio->io_bp_orig)) {
 					/* We can skip accounting. */
 					zio->io_flags |= ZIO_FLAG_NOPWRITE;
 					ddt_exit(ddt);
@@ -4271,12 +4276,12 @@ zio_dva_allocate(zio_t *zio)
 	}
 	if (zio->io_flags & ZIO_FLAG_PREALLOCATED) {
 		ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_GANG);
-		memcpy(zio->io_bp->blk_dva, zio->io_bp_orig.blk_dva,
+		memcpy(zio->io_bp->blk_dva, zio->io_bp_orig->blk_dva,
 		    3 * sizeof (dva_t));
 		BP_SET_LOGICAL_BIRTH(zio->io_bp,
-		    BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig));
+		    BP_GET_LOGICAL_BIRTH(zio->io_bp_orig));
 		BP_SET_PHYSICAL_BIRTH(zio->io_bp,
-		    BP_GET_RAW_PHYSICAL_BIRTH(&zio->io_bp_orig));
+		    BP_GET_RAW_PHYSICAL_BIRTH(zio->io_bp_orig));
 		return (zio);
 	}
 
@@ -4408,7 +4413,7 @@ again:
 		 * For rewrite operations, preserve the logical birth time
 		 * but set the physical birth time to the current txg.
 		 */
-		uint64_t logical_birth = BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
+		uint64_t logical_birth = BP_GET_LOGICAL_BIRTH(zio->io_bp_orig);
 		ASSERT3U(logical_birth, <=, zio->io_txg);
 		BP_SET_BIRTH(zio->io_bp, logical_birth, zio->io_txg);
 		BP_SET_REWRITE(zio->io_bp, 1);
@@ -5512,7 +5517,7 @@ zio_done(zio_t *zio)
 			    BP_GET_NDVAS(zio->io_bp)));
 		}
 		if (zio->io_flags & ZIO_FLAG_NOPWRITE)
-			VERIFY(BP_EQUAL(zio->io_bp, &zio->io_bp_orig));
+			VERIFY(BP_EQUAL(zio->io_bp, zio->io_bp_orig));
 	}
 
 	/*

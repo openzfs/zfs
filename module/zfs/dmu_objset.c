@@ -1528,7 +1528,7 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 {
 	(void) abuf;
 	blkptr_t *bp = zio->io_bp;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
+	blkptr_t *bp_orig = zio->io_bp_orig;
 	objset_t *os = arg;
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
