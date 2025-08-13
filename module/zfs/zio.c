@@ -78,6 +78,7 @@ static int zio_deadman_log_all = B_FALSE;
  */
 static kmem_cache_t *zio_cache;
 static kmem_cache_t *zio_link_cache;
+static kmem_cache_t *zio_bp_cache;
 kmem_cache_t *zio_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 kmem_cache_t *zio_data_buf_cache[SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT];
 #if defined(ZFS_DEBUG) && !defined(_KERNEL)
@@ -202,6 +203,8 @@ zio_init(void)
 	    sizeof (zio_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	zio_link_cache = kmem_cache_create("zio_link_cache",
 	    sizeof (zio_link_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	zio_bp_cache = kmem_cache_create("zio_bp_cache",
+	    sizeof (blkptr_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	wmsum_init(&ziostat_sums.ziostat_total_allocations, 0);
 	wmsum_init(&ziostat_sums.ziostat_alloc_class_fallbacks, 0);
@@ -353,6 +356,7 @@ zio_fini(void)
 	wmsum_fini(&ziostat_sums.ziostat_gang_writes);
 	wmsum_fini(&ziostat_sums.ziostat_gang_multilevel);
 
+	kmem_cache_destroy(zio_bp_cache);
 	kmem_cache_destroy(zio_link_cache);
 	kmem_cache_destroy(zio_cache);
 
@@ -937,6 +941,14 @@ zio_bookmark_compare(const void *x1, const void *x2)
 		return (1);
 
 	return (0);
+}
+
+static inline blkptr_t *
+zio_dup_bp(const blkptr_t *bp)
+{
+	blkptr_t *nbp = kmem_cache_alloc(zio_bp_cache, KM_SLEEP);
+	*nbp = *bp;
+	return (nbp);
 }
 
 /*
