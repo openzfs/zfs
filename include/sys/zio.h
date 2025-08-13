@@ -498,7 +498,7 @@ struct zio {
 	zio_done_func_t	*io_done;
 	void		*io_private;
 	int64_t		io_prev_space_delta;	/* DMU private */
-	blkptr_t	io_bp_orig;
+	blkptr_t	*io_bp_orig;
 	/* io_lsize != io_orig_size iff this is a raw write */
 	uint64_t	io_lsize;
 
