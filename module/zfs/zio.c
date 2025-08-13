@@ -1000,8 +1000,8 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	if (bp != NULL) {
 		if (type != ZIO_TYPE_WRITE ||
 		    zio->io_child_type == ZIO_CHILD_DDT) {
-			zio->io_bp_copy = *bp;
-			zio->io_bp = &zio->io_bp_copy;	/* so caller can free */
+			/* so caller can free */
+			zio->io_bp = zio->io_bp_copy = zio_dup_bp(bp);
 		} else {
 			zio->io_bp = (blkptr_t *)bp;
 		}
@@ -1062,7 +1062,26 @@ zio_destroy(zio_t *zio)
 	list_destroy(&zio->io_child_list);
 	mutex_destroy(&zio->io_lock);
 	cv_destroy(&zio->io_cv);
+	if (zio->io_bp_copy != NULL)
+		kmem_cache_free(zio_bp_cache, zio->io_bp_copy);
 	kmem_cache_free(zio_cache, zio);
+}
+
+/*
+ * Forcibly set the block pointer in a completed ZIO. This is only used from
+ * l2arc_read_done() to set the original BP on the L2ARC read ZIO so that it
+ * looks sensible when sent back to arc_read_done(). Shouldn't be used anywhere
+ * else. If that changes, that is, you do something about the "XXX fix in L2ARC
+ * 2.0" comment in arc.c that has existed since prehistory, please rewrite this
+ * comment too.
+ */
+void
+zio_force_bp(zio_t *zio, const blkptr_t *bp)
+{
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+	ASSERT3U(zio->io_stage, ==, ZIO_STAGE_DONE);
+	ASSERT0P(zio->io_bp_copy);
+	zio->io_bp = zio->io_bp_copy = zio_dup_bp(bp);
 }
 
 /*
@@ -1822,7 +1841,7 @@ zio_read_bp_init(zio_t *zio)
 	uint64_t psize =
 	    BP_IS_EMBEDDED(bp) ? BPE_GET_PSIZE(bp) : BP_GET_PSIZE(bp);
 
-	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
+	ASSERT3P(zio->io_bp, ==, zio->io_bp_copy);
 
 	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF &&
 	    zio->io_child_type == ZIO_CHILD_LOGICAL &&
@@ -2150,7 +2169,7 @@ zio_free_bp_init(zio_t *zio)
 			zio->io_pipeline = ZIO_DDT_FREE_PIPELINE;
 	}
 
-	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
+	ASSERT3P(zio->io_bp, ==, zio->io_bp_copy);
 
 	return (zio);
 }
@@ -5327,8 +5346,12 @@ zio_ready(zio_t *zio)
 	}
 
 #ifdef ZFS_DEBUG
-	if (bp != NULL && bp != &zio->io_bp_copy)
-		zio->io_bp_copy = *bp;
+	if (bp != NULL && bp != zio->io_bp_copy) {
+		if (zio->io_bp_copy == NULL)
+			zio->io_bp_copy = zio_dup_bp(bp);
+		else
+			*zio->io_bp_copy = *bp;
+	}
 #endif
 
 	if (zio->io_error != 0) {
@@ -5474,9 +5497,11 @@ zio_done(zio_t *zio)
 			ASSERT0(zio->io_children[c][w]);
 
 	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
-		ASSERT(memcmp(zio->io_bp, &zio->io_bp_copy,
-		    sizeof (blkptr_t)) == 0 ||
-		    (zio->io_bp == zio_unique_parent(zio)->io_bp));
+		if (zio->io_bp_copy) {
+			ASSERT(memcmp(zio->io_bp, zio->io_bp_copy,
+			    sizeof (blkptr_t)) == 0 ||
+			    (zio->io_bp == zio_unique_parent(zio)->io_bp));
+		}
 		if (zio->io_type == ZIO_TYPE_WRITE && !BP_IS_HOLE(zio->io_bp) &&
 		    zio->io_bp_override == NULL &&
 		    !(zio->io_flags & ZIO_FLAG_IO_REPAIR)) {
