@@ -308,8 +308,7 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
 	ASSERT(VALID_FEATURE_OR_NONE(feature->fi_feature));
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
-	if (!MUTEX_HELD(&spa->spa_feat_stats_lock))
-		mutex_enter(&spa->spa_feat_stats_lock);
+	ASSERT(MUTEX_HELD(&spa->spa_feat_stats_lock));
 	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
 	    sizeof (uint64_t), 1, &refcount, tx));
 
@@ -326,7 +325,6 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
 		VERIFY3U(*refcount_cache, ==,
 		    atomic_swap_64(refcount_cache, refcount));
 	}
-	mutex_exit(&spa->spa_feat_stats_lock);
 
 	if (refcount == 0)
 		spa_deactivate_mos_feature(spa, feature->fi_guid);
@@ -363,7 +361,9 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	    feature->fi_guid, 1, strlen(feature->fi_desc) + 1,
 	    feature->fi_desc, tx));
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	feature_sync(spa, feature, initial_refcount, tx);
+	mutex_exit(&spa->spa_feat_stats_lock);
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_ENABLED_TXG)) {
 		uint64_t enabling_txg = dmu_tx_get_txg(tx);
@@ -437,6 +437,7 @@ feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
 	}
 
 	feature_sync(spa, feature, refcount, tx);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 void
