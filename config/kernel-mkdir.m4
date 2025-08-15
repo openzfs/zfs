@@ -84,6 +84,8 @@ AC_DEFUN([ZFS_AC_KERNEL_MKDIR], [
 		AC_DEFINE(HAVE_IOPS_MKDIR_DENTRY, 1,
 		    [iops->mkdir() returns struct dentry*])
 	],[
+		AC_MSG_RESULT(no)
+
 		dnl #
 		dnl # 6.3 API change
 		dnl # mkdir() takes struct mnt_idmap * as the first arg
