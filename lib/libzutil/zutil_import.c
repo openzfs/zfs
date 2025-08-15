@@ -1903,30 +1903,43 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 		*sepp = '\0';
 
 	pools = zpool_search_import(hdl, args);
-
-	if (pools != NULL) {
-		nvpair_t *elem = NULL;
-		while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
-			VERIFY0(nvpair_value_nvlist(elem, &config));
-			if (pool_match(config, targetdup)) {
-				count++;
-				if (match != NULL) {
-					/* multiple matches found */
-					continue;
-				} else {
-					match = fnvlist_dup(config);
-				}
-			}
-		}
-		fnvlist_free(pools);
+	if (pools == NULL) {
+		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN, "no pools found"));
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
+		    "failed to find config for pool '%s'"), targetdup);
+		free(targetdup);
+		return (ENOENT);
 	}
 
+	nvpair_t *elem = NULL;
+	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
+		VERIFY0(nvpair_value_nvlist(elem, &config));
+		if (pool_match(config, targetdup)) {
+			count++;
+			if (match != NULL) {
+				/* multiple matches found */
+				continue;
+			} else {
+				match = fnvlist_dup(config);
+			}
+		}
+	}
+	fnvlist_free(pools);
+
 	if (count == 0) {
+		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "no matching pools"));
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
+		    "failed to find config for pool '%s'"), targetdup);
 		free(targetdup);
 		return (ENOENT);
 	}
 
 	if (count > 1) {
+		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "more than one matching pool"));
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
+		    "failed to find config for pool '%s'"), targetdup);
 		free(targetdup);
 		fnvlist_free(match);
 		return (EINVAL);
