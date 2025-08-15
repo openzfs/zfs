@@ -20,7 +20,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
 #ifndef	_SYS_ZVOL_IMPL_H
@@ -56,6 +56,7 @@ typedef struct zvol_state {
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
 	kcondvar_t		zv_removing_cv;	/* ready to remove minor */
+	list_node_t		zv_remove_node;	/* node on removal list */
 	struct zvol_state_os	*zv_zso;	/* private platform state */
 	boolean_t		zv_threading;	/* volthreading property */
 } zvol_state_t;
@@ -135,7 +136,7 @@ int zvol_os_rename_minor(zvol_state_t *zv, const char *newname);
 int zvol_os_create_minor(const char *name);
 int zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize);
 boolean_t zvol_os_is_zvol(const char *path);
-void zvol_os_clear_private(zvol_state_t *zv);
+void zvol_os_remove_minor(zvol_state_t *zv);
 void zvol_os_set_disk_ro(zvol_state_t *zv, int flags);
 void zvol_os_set_capacity(zvol_state_t *zv, uint64_t capacity);
 
