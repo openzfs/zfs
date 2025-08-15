@@ -5,12 +5,13 @@
 #
 # Usage:
 #
-#       qemu-4-build-vm.sh OS [--enable-debug][--dkms][--poweroff]
-#           [--release][--repo][--tarball]
+#       qemu-4-build-vm.sh OS [--enable-debug][--dkms][--patch-level NUM]
+#               [--poweroff][--release][--repo][--tarball]
 #
 # OS:           OS name like 'fedora41'
 # --enable-debug:  Build RPMs with '--enable-debug' (for testing)
 # --dkms:       Build DKMS RPMs as well
+# --patch-level NUM:    Use a custom patch level number for packages.
 # --poweroff:   Power-off the VM after building
 # --release     Build zfs-release*.rpm as well
 # --repo        After building everything, copy RPMs into /tmp/repo
@@ -21,6 +22,7 @@
 
 ENABLE_DEBUG=""
 DKMS=""
+PATCH_LEVEL=""
 POWEROFF=""
 RELEASE=""
 REPO=""
@@ -33,6 +35,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dkms)
       DKMS=1
+      shift
+      ;;
+    --patch-level)
+      PATCH_LEVEL=$2
+      shift
       shift
       ;;
     --poweroff)
@@ -215,6 +222,10 @@ function rpm_build_and_install() {
   run ./autogen.sh
   echo "##[endgroup]"
 
+  if [ -n "$PATCH_LEVEL" ] ; then
+    sed -i -E 's/(Release:\s+)1/\1'$PATCH_LEVEL'/g' META
+  fi
+
   echo "##[group]Configure"
   run ./configure --enable-debuginfo $extra
   echo "##[endgroup]"
@@ -328,7 +339,13 @@ fi
 # almalinux9.5
 # fedora42
 source /etc/os-release
-sudo hostname "$ID$VERSION_ID"
+ if which hostnamectl &> /dev/null ; then
+  # Fedora 42+ use hostnamectl
+  sudo hostnamectl set-hostname "$ID$VERSION_ID"
+  sudo hostnamectl set-hostname --pretty "$ID$VERSION_ID"
+else
+  sudo hostname "$ID$VERSION_ID"
+fi
 
 # save some sysinfo
 uname -a > /var/tmp/uname.txt
