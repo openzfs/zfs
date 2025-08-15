@@ -26,6 +26,7 @@
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  * Copyright 2019 Joyent, Inc.
+ * Copyright 2025 ConnectWise, Inc.
  */
 
 #include <sys/dsl_scan.h>
@@ -56,6 +57,7 @@
 #include <sys/abd.h>
 #include <sys/range_tree.h>
 #include <sys/dbuf.h>
+#include <sys/fm/fs/zfs.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -245,6 +247,13 @@ static int zfs_free_bpobj_enabled = 1;
 
 /* Error blocks to be scrubbed in one txg. */
 static uint_t zfs_scrub_error_blocks_per_txg = 1 << 12;
+
+/*
+ * When set to a non-zero value will cause scrub to decompress blocks it
+ * reads so that it will catch the rare type of corruption where the
+ * checksum matches the data, but decompression fails.
+ */
+static uint_t zfs_scrub_decompress = 0;
 
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
@@ -4874,6 +4883,41 @@ dsl_scan_scrub_done(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	dsl_scan_io_queue_t *queue = zio->io_private;
 
+	/*
+	 * If the block was read without error, is compressed, and we're doing
+	 * a decompression scrub we will now attempt to decompress it to
+	 * further verify its integrity.
+	 */
+	if (zio->io_error == 0 && (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) &&
+	    zfs_scrub_decompress != 0) {
+		abd_t *dabd = abd_alloc_linear(BP_GET_LSIZE(bp), B_FALSE);
+		if (dabd != NULL) {
+			if (zio_decompress_data(BP_GET_COMPRESS(bp),
+			    zio->io_abd, dabd,
+			    abd_get_size(zio->io_abd), abd_get_size(dabd),
+			    &zio->io_prop.zp_complevel) != 0) {
+				// checksum was valid but decompression failed
+				if (dsl_errorscrubbing(spa->spa_dsl_pool) &&
+				    !dsl_errorscrub_is_paused(
+				    spa->spa_dsl_pool->dp_scan)) {
+					atomic_inc_64(&spa->spa_dsl_pool->
+					    dp_scan->errorscrub_phys
+					    .dep_errors);
+				} else {
+					atomic_inc_64(&spa->spa_dsl_pool->
+					    dp_scan->scn_phys.scn_errors);
+				}
+				// errlog this so it's in the zpool status -v
+				spa_log_error(zio->io_spa, &zio->io_bookmark,
+				    BP_GET_LOGICAL_BIRTH(zio->io_bp));
+				(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
+				    zio->io_spa, NULL, &zio->io_bookmark,
+				    zio, 0);
+			}
+			abd_free(dabd);
+		}
+	}
+
 	abd_free(zio->io_abd);
 
 	if (queue == NULL) {
@@ -5362,3 +5406,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, resilver_defer_percent, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
+
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_decompress, UINT, ZMOD_RW,
+	"Scrub will decompress compressed blocks");
