@@ -4618,7 +4618,7 @@ zpool_add_propname(zpool_handle_t *zhp, const char *propname)
  * caller.
  */
 int
-zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
+zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp, int verbosity)
 {
 	zfs_cmd_t zc = {"\0"};
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
@@ -4674,8 +4674,16 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 	for (uint64_t i = 0; i < zblen; i++) {
 		nvlist_t *nv;
 
-		/* ignoring zb_blkid and zb_level for now */
+		/* filter out duplicate records */
 		if (i > 0 && zb[i-1].zb_objset == zb[i].zb_objset &&
+		    zb[i-1].zb_object == zb[i].zb_object &&
+		    zb[i-1].zb_level == zb[i].zb_level &&
+		    zb[i-1].zb_blkid == zb[i].zb_blkid)
+			continue;
+
+		/* filter out duplicate files */
+		if (verbosity < 2 && i > 0 &&
+		    zb[i-1].zb_objset == zb[i].zb_objset &&
 		    zb[i-1].zb_object == zb[i].zb_object)
 			continue;
 
@@ -4690,6 +4698,18 @@ zpool_get_errlog(zpool_handle_t *zhp, nvlist_t **nverrlistp)
 		    zb[i].zb_object) != 0) {
 			nvlist_free(nv);
 			goto nomem;
+		}
+		if (verbosity > 1) {
+			if (nvlist_add_uint64(nv, ZPOOL_ERR_LEVEL,
+			    zb[i].zb_level) != 0) {
+				nvlist_free(nv);
+				goto nomem;
+			}
+			if (nvlist_add_uint64(nv, ZPOOL_ERR_BLKID,
+			    zb[i].zb_blkid) != 0) {
+				nvlist_free(nv);
+				goto nomem;
+			}
 		}
 		if (nvlist_add_nvlist(*nverrlistp, "ejk", nv) != 0) {
 			nvlist_free(nv);
