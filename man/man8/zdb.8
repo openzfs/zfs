@@ -88,6 +88,9 @@
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl U Ar cache
 .Ar poolname
+.Nm
+.Fl -anyraid-map
+.Ar poolname Op Ar vdev Ns …
 .
 .Sh DESCRIPTION
 The
@@ -414,6 +417,8 @@ Display histograms of per-vdev BRT refcounts.
 Dump the contents of the block reference tables.
 .It Fl u , -uberblock
 Display the current uberblock.
+.It Fl -anyraid-map
+Display information about the mappings of one or all anyraid vdevs in the pool.
 .El
 .Pp
 Other options:
