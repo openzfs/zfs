@@ -494,7 +494,7 @@ zfsctl_common_getattr(vnode_t *vp, vattr_t *vap)
 
 	vap->va_uid = 0;
 	vap->va_gid = 0;
-	vap->va_rdev = 0;
+	vap->va_rdev = NODEV;
 	/*
 	 * We are a purely virtual object, so we have no
 	 * blocksize or allocated blocks.
