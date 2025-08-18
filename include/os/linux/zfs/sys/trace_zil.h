@@ -139,18 +139,18 @@
 #define	ZCW_TP_STRUCT_ENTRY						    \
 		__field(lwb_t *,	zcw_lwb)			    \
 		__field(boolean_t,	zcw_done)			    \
-		__field(int,		zcw_zio_error)			    \
+		__field(int,		zcw_error)			    \
 
 #define	ZCW_TP_FAST_ASSIGN						    \
 		__entry->zcw_lwb		= zcw->zcw_lwb;		    \
 		__entry->zcw_done		= zcw->zcw_done;	    \
-		__entry->zcw_zio_error		= zcw->zcw_zio_error;
+		__entry->zcw_error		= zcw->zcw_error;
 
 #define	ZCW_TP_PRINTK_FMT						    \
 	"zcw { lwb %p done %u error %u }"
 
 #define	ZCW_TP_PRINTK_ARGS						    \
-	    __entry->zcw_lwb, __entry->zcw_done, __entry->zcw_zio_error
+	    __entry->zcw_lwb, __entry->zcw_done, __entry->zcw_error
 
 /*
  * Generic support for two argument tracepoints of the form:
