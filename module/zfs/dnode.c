@@ -173,7 +173,6 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
 	dn->dn_assigned_txg = 0;
-	dn->dn_dirtyctx = 0;
 	dn->dn_dirtycnt = 0;
 	dn->dn_bonus = NULL;
 	dn->dn_have_spill = B_FALSE;
@@ -228,7 +227,6 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_allocated_txg);
 	ASSERT0(dn->dn_free_txg);
 	ASSERT0(dn->dn_assigned_txg);
-	ASSERT0(dn->dn_dirtyctx);
 	ASSERT0(dn->dn_dirtycnt);
 	ASSERT0P(dn->dn_bonus);
 	ASSERT(!dn->dn_have_spill);
@@ -692,7 +690,6 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_assigned_txg = 0;
 	dn->dn_dirtycnt = 0;
 
-	dn->dn_dirtyctx = 0;
 	if (dn->dn_bonus != NULL) {
 		mutex_enter(&dn->dn_bonus->db_mtx);
 		dbuf_destroy(dn->dn_bonus);
@@ -797,7 +794,6 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	dn->dn_bonuslen = bonuslen;
 	dn->dn_checksum = ZIO_CHECKSUM_INHERIT;
 	dn->dn_compress = ZIO_COMPRESS_INHERIT;
-	dn->dn_dirtyctx = 0;
 
 	dn->dn_free_txg = 0;
 	dn->dn_dirtycnt = 0;
@@ -951,7 +947,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_allocated_txg = odn->dn_allocated_txg;
 	ndn->dn_free_txg = odn->dn_free_txg;
 	ndn->dn_assigned_txg = odn->dn_assigned_txg;
-	ndn->dn_dirtyctx = odn->dn_dirtyctx;
 	ndn->dn_dirtycnt = odn->dn_dirtycnt;
 	ASSERT0(zfs_refcount_count(&odn->dn_tx_holds));
 	zfs_refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
@@ -1015,7 +1010,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_allocated_txg = 0;
 	odn->dn_free_txg = 0;
 	odn->dn_assigned_txg = 0;
-	odn->dn_dirtyctx = 0;
 	odn->dn_dirtycnt = 0;
 	odn->dn_have_spill = B_FALSE;
 	odn->dn_zio = NULL;
@@ -2212,31 +2206,6 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 #endif
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);
-}
-
-void
-dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, const void *tag)
-{
-	/*
-	 * Don't set dirtyctx to SYNC if we're just modifying this as we
-	 * initialize the objset.
-	 */
-	if (dn->dn_dirtyctx == DN_UNDIRTIED) {
-		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
-
-		if (ds != NULL) {
-			rrw_enter(&ds->ds_bp_rwlock, RW_READER, tag);
-		}
-		if (!BP_IS_HOLE(dn->dn_objset->os_rootbp)) {
-			if (dmu_tx_is_syncing(tx))
-				dn->dn_dirtyctx = DN_DIRTY_SYNC;
-			else
-				dn->dn_dirtyctx = DN_DIRTY_OPEN;
-		}
-		if (ds != NULL) {
-			rrw_exit(&ds->ds_bp_rwlock, tag);
-		}
-	}
 }
 
 static void
