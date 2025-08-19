@@ -173,8 +173,10 @@ The receiving system must have the
 feature enabled.
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 Datasets that are sent with this flag may not be
 received as an encrypted dataset, since encrypted datasets cannot use the
 .Sy embedded_data
@@ -201,8 +203,10 @@ property for details
 .Pc .
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 If the
 .Sy large_blocks
 feature is enabled on the sending system but the
@@ -357,8 +361,10 @@ property for details
 .Pc .
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 If the
 .Sy large_blocks
 feature is enabled on the sending system but the
@@ -400,8 +406,10 @@ The receiving system must have the
 feature enabled.
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 Datasets that are sent with this flag may not be received as an encrypted
 dataset,
 since encrypted datasets cannot use the
