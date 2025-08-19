@@ -173,7 +173,6 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
 	dn->dn_assigned_txg = 0;
-	dn->dn_dirty_txg = 0;
 	dn->dn_dirtyctx = 0;
 	dn->dn_dirtyctx_firstset = NULL;
 	dn->dn_dirtycnt = 0;
@@ -230,7 +229,6 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_allocated_txg);
 	ASSERT0(dn->dn_free_txg);
 	ASSERT0(dn->dn_assigned_txg);
-	ASSERT0(dn->dn_dirty_txg);
 	ASSERT0(dn->dn_dirtyctx);
 	ASSERT0P(dn->dn_dirtyctx_firstset);
 	ASSERT0(dn->dn_dirtycnt);
@@ -694,7 +692,6 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
 	dn->dn_assigned_txg = 0;
-	dn->dn_dirty_txg = 0;
 	dn->dn_dirtycnt = 0;
 
 	dn->dn_dirtyctx = 0;
@@ -807,7 +804,6 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 
 	dn->dn_free_txg = 0;
 	dn->dn_dirtyctx_firstset = NULL;
-	dn->dn_dirty_txg = 0;
 	dn->dn_dirtycnt = 0;
 
 	dn->dn_allocated_txg = tx->tx_txg;
@@ -959,7 +955,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_allocated_txg = odn->dn_allocated_txg;
 	ndn->dn_free_txg = odn->dn_free_txg;
 	ndn->dn_assigned_txg = odn->dn_assigned_txg;
-	ndn->dn_dirty_txg = odn->dn_dirty_txg;
 	ndn->dn_dirtyctx = odn->dn_dirtyctx;
 	ndn->dn_dirtyctx_firstset = odn->dn_dirtyctx_firstset;
 	ndn->dn_dirtycnt = odn->dn_dirtycnt;
@@ -1025,7 +1020,6 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_allocated_txg = 0;
 	odn->dn_free_txg = 0;
 	odn->dn_assigned_txg = 0;
-	odn->dn_dirty_txg = 0;
 	odn->dn_dirtyctx = 0;
 	odn->dn_dirtyctx_firstset = NULL;
 	odn->dn_dirtycnt = 0;
@@ -1279,8 +1273,8 @@ dnode_check_slots_free(dnode_children_t *children, int idx, int slots)
 		} else if (DN_SLOT_IS_PTR(dn)) {
 			mutex_enter(&dn->dn_mtx);
 			boolean_t can_free = (dn->dn_type == DMU_OT_NONE &&
-			    zfs_refcount_is_zero(&dn->dn_holds) &&
-			    !DNODE_IS_DIRTY(dn));
+			    dn->dn_dirtycnt == 0 &&
+			    zfs_refcount_is_zero(&dn->dn_holds));
 			mutex_exit(&dn->dn_mtx);
 
 			if (!can_free)
