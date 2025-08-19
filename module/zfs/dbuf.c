@@ -2291,8 +2291,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	mutex_enter(&dn->dn_mtx);
 	dnode_set_dirtyctx(dn, tx, db);
-	if (tx->tx_txg > dn->dn_dirty_txg)
-		dn->dn_dirty_txg = tx->tx_txg;
 	mutex_exit(&dn->dn_mtx);
 
 	if (db->db_blkid == DMU_SPILL_BLKID)
