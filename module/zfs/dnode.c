@@ -1842,31 +1842,20 @@ dnode_try_claim(objset_t *os, uint64_t object, int slots)
 }
 
 /*
- * Checks if the dnode itself is dirty, or is carrying any uncommitted records.
- * It is important to check both conditions, as some operations (eg appending
- * to a file) can dirty both as a single logical unit, but they are not synced
- * out atomically, so checking one and not the other can result in an object
- * appearing to be clean mid-way through a commit.
+ * Test if the dnode is dirty, or carrying uncommitted records.
  *
- * Do not change this lightly! If you get it wrong, dmu_offset_next() can
- * detect a hole where there is really data, leading to silent corruption.
+ * dn_dirtycnt is the number of txgs this dnode is dirty on. It's incremented
+ * in dnode_setdirty() the first time the dnode is dirtied on a txg, and
+ * decremented in either dnode_rele_task() or userquota_updates_task() when the
+ * txg is synced out.
  */
 boolean_t
 dnode_is_dirty(dnode_t *dn)
 {
 	mutex_enter(&dn->dn_mtx);
-
-	for (int i = 0; i < TXG_SIZE; i++) {
-		if (multilist_link_active(&dn->dn_dirty_link[i]) ||
-		    !list_is_empty(&dn->dn_dirty_records[i])) {
-			mutex_exit(&dn->dn_mtx);
-			return (B_TRUE);
-		}
-	}
-
+	boolean_t dirty = (dn->dn_dirtycnt != 0);
 	mutex_exit(&dn->dn_mtx);
-
-	return (B_FALSE);
+	return (dirty);
 }
 
 void
