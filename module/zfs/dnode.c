@@ -176,6 +176,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_dirty_txg = 0;
 	dn->dn_dirtyctx = 0;
 	dn->dn_dirtyctx_firstset = NULL;
+	dn->dn_dirtycnt = 0;
 	dn->dn_bonus = NULL;
 	dn->dn_have_spill = B_FALSE;
 	dn->dn_zio = NULL;
@@ -232,6 +233,7 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_dirty_txg);
 	ASSERT0(dn->dn_dirtyctx);
 	ASSERT0P(dn->dn_dirtyctx_firstset);
+	ASSERT0(dn->dn_dirtycnt);
 	ASSERT0P(dn->dn_bonus);
 	ASSERT(!dn->dn_have_spill);
 	ASSERT0P(dn->dn_zio);
@@ -693,6 +695,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_free_txg = 0;
 	dn->dn_assigned_txg = 0;
 	dn->dn_dirty_txg = 0;
+	dn->dn_dirtycnt = 0;
 
 	dn->dn_dirtyctx = 0;
 	dn->dn_dirtyctx_firstset = NULL;
@@ -805,6 +808,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	dn->dn_free_txg = 0;
 	dn->dn_dirtyctx_firstset = NULL;
 	dn->dn_dirty_txg = 0;
+	dn->dn_dirtycnt = 0;
 
 	dn->dn_allocated_txg = tx->tx_txg;
 	dn->dn_id_flags = 0;
@@ -958,6 +962,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	ndn->dn_dirty_txg = odn->dn_dirty_txg;
 	ndn->dn_dirtyctx = odn->dn_dirtyctx;
 	ndn->dn_dirtyctx_firstset = odn->dn_dirtyctx_firstset;
+	ndn->dn_dirtycnt = odn->dn_dirtycnt;
 	ASSERT0(zfs_refcount_count(&odn->dn_tx_holds));
 	zfs_refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
 	ASSERT(avl_is_empty(&ndn->dn_dbufs));
@@ -1023,6 +1028,7 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_dirty_txg = 0;
 	odn->dn_dirtyctx = 0;
 	odn->dn_dirtyctx_firstset = NULL;
+	odn->dn_dirtycnt = 0;
 	odn->dn_have_spill = B_FALSE;
 	odn->dn_zio = NULL;
 	odn->dn_oldused = 0;
@@ -1757,17 +1763,23 @@ dnode_hold(objset_t *os, uint64_t object, const void *tag, dnode_t **dnp)
  * reference on the dnode.  Returns FALSE if unable to add a
  * new reference.
  */
+static boolean_t
+dnode_add_ref_locked(dnode_t *dn, const void *tag)
+{
+	ASSERT(MUTEX_HELD(&dn->dn_mtx));
+	if (zfs_refcount_is_zero(&dn->dn_holds))
+		return (FALSE);
+	VERIFY(1 < zfs_refcount_add(&dn->dn_holds, tag));
+	return (TRUE);
+}
+
 boolean_t
 dnode_add_ref(dnode_t *dn, const void *tag)
 {
 	mutex_enter(&dn->dn_mtx);
-	if (zfs_refcount_is_zero(&dn->dn_holds)) {
-		mutex_exit(&dn->dn_mtx);
-		return (FALSE);
-	}
-	VERIFY(1 < zfs_refcount_add(&dn->dn_holds, tag));
+	boolean_t r = dnode_add_ref_locked(dn, tag);
 	mutex_exit(&dn->dn_mtx);
-	return (TRUE);
+	return (r);
 }
 
 void
@@ -1916,7 +1928,11 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	 * dnode will hang around after we finish processing its
 	 * children.
 	 */
-	VERIFY(dnode_add_ref(dn, (void *)(uintptr_t)tx->tx_txg));
+	mutex_enter(&dn->dn_mtx);
+	VERIFY(dnode_add_ref_locked(dn, (void *)(uintptr_t)tx->tx_txg));
+	dn->dn_dirtycnt++;
+	ASSERT3U(dn->dn_dirtycnt, <=, 3);
+	mutex_exit(&dn->dn_mtx);
 
 	(void) dbuf_dirty(dn->dn_dbuf, tx);
 
