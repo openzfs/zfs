@@ -344,7 +344,6 @@ struct dnode {
 	kcondvar_t dn_notxholds;
 	kcondvar_t dn_nodnholds;
 	enum dnode_dirtycontext dn_dirtyctx;
-	const void *dn_dirtyctx_firstset;	/* dbg: contents meaningless */
 
 	/* protected by own devices */
 	zfs_refcount_t dn_tx_holds;
