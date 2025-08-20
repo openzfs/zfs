@@ -236,6 +236,11 @@ typedef pthread_t	kthread_t;
 #define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
 
 #define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
+/*
+ * Check if the current thread is a memory reclaim thread.
+ * Always returns false in userspace (no memory reclaim thread).
+ */
+#define	current_is_reclaim_thread()	(0)
 
 /* in libzpool, p0 exists only to have its address taken */
 typedef struct proc {
@@ -623,8 +628,10 @@ extern void delay(clock_t ticks);
  * Process priorities as defined by setpriority(2) and getpriority(2).
  */
 #define	minclsyspri	19
-#define	maxclsyspri	-20
 #define	defclsyspri	0
+/* Write issue taskq priority. */
+#define	wtqclsyspri	-19
+#define	maxclsyspri	-20
 
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
 #define	CPU_SEQID_UNSTABLE	CPU_SEQID

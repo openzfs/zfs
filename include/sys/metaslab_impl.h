@@ -568,6 +568,8 @@ typedef struct metaslab_unflushed_phys {
 	uint64_t	msp_unflushed_txg;
 } metaslab_unflushed_phys_t;
 
+char *metaslab_rt_name(metaslab_group_t *, metaslab_t *, const char *);
+
 #ifdef	__cplusplus
 }
 #endif

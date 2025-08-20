@@ -213,6 +213,8 @@ tags = ['functional', 'snapshot']
 [tests/functional/syncfs:Linux]
 tests = ['syncfs_suspend']
 tags = ['functional', 'syncfs']
+pre =
+post =
 
 [tests/functional/tmpfile:Linux]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',

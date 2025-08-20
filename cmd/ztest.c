@@ -3881,7 +3881,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * If newvd is too small, it should fail with EOVERFLOW.
 	 *
 	 * If newvd is a distributed spare and it's being attached to a
-	 * dRAID which is not its parent it should fail with EINVAL.
+	 * dRAID which is not its parent it should fail with ENOTSUP.
 	 */
 	if (pvd->vdev_ops != &vdev_mirror_ops &&
 	    pvd->vdev_ops != &vdev_root_ops && (!replacing ||
@@ -3900,7 +3900,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else if (ashift > oldvd->vdev_top->vdev_ashift)
 		expected_error = EDOM;
 	else if (newvd_is_dspare && pvd != vdev_draid_spare_get_parent(newvd))
-		expected_error = EINVAL;
+		expected_error = ENOTSUP;
 	else
 		expected_error = 0;
 
@@ -7812,6 +7812,9 @@ ztest_dataset_open(int d)
 
 	ztest_dataset_name(name, ztest_opts.zo_pool, d);
 
+	if (ztest_opts.zo_verbose >= 6)
+		(void) printf("Opening %s\n", name);
+
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
 	error = ztest_dataset_create(name);
@@ -8307,41 +8310,44 @@ static void
 ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 {
 	kthread_t **run_threads;
-	int t;
+	int i, ndatasets;
 
 	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    UMEM_NOFAIL);
 
 	/*
+	 * Actual number of datasets to be used.
+	 */
+	ndatasets = MIN(ztest_opts.zo_datasets, ztest_opts.zo_threads);
+
+	/*
+	 * Prepare the datasets first.
+	 */
+	for (i = 0; i < ndatasets; i++)
+		VERIFY0(ztest_dataset_open(i));
+
+	/*
 	 * Kick off all the tests that run in parallel.
 	 */
-	for (t = 0; t < ztest_opts.zo_threads; t++) {
-		if (t < ztest_opts.zo_datasets && ztest_dataset_open(t) != 0) {
-			umem_free(run_threads, ztest_opts.zo_threads *
-			    sizeof (kthread_t *));
-			return;
-		}
-
-		run_threads[t] = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)t, 0, NULL, TS_RUN | TS_JOINABLE,
+	for (i = 0; i < ztest_opts.zo_threads; i++) {
+		run_threads[i] = thread_create(NULL, 0, ztest_thread,
+		    (void *)(uintptr_t)i, 0, NULL, TS_RUN | TS_JOINABLE,
 		    defclsyspri);
 	}
 
 	/*
 	 * Wait for all of the tests to complete.
 	 */
-	for (t = 0; t < ztest_opts.zo_threads; t++)
-		VERIFY0(thread_join(run_threads[t]));
+	for (i = 0; i < ztest_opts.zo_threads; i++)
+		VERIFY0(thread_join(run_threads[i]));
 
 	/*
 	 * Close all datasets. This must be done after all the threads
 	 * are joined so we can be sure none of the datasets are in-use
 	 * by any of the threads.
 	 */
-	for (t = 0; t < ztest_opts.zo_threads; t++) {
-		if (t < ztest_opts.zo_datasets)
-			ztest_dataset_close(t);
-	}
+	for (i = 0; i < ndatasets; i++)
+		ztest_dataset_close(i);
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
 
@@ -8464,6 +8470,7 @@ ztest_run(ztest_shared_t *zs)
 
 		int d = ztest_random(ztest_opts.zo_datasets);
 		ztest_dataset_destroy(d);
+		txg_wait_synced(spa_get_dsl(spa), 0);
 	}
 	zs->zs_enospc_count = 0;
 

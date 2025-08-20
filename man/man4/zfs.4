@@ -1057,27 +1057,6 @@ milliseconds until the operation completes.
 .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enable prefetching dedup-ed blocks which are going to be freed.
 .
-.It Sy zfs_dedup_log_flush_passes_max Ns = Ns Sy 8 Ns Pq uint
-Maximum number of dedup log flush passes (iterations) each transaction.
-.Pp
-At the start of each transaction, OpenZFS will estimate how many entries it
-needs to flush out to keep up with the change rate, taking the amount and time
-taken to flush on previous txgs into account (see
-.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
-It will spread this amount into a number of passes.
-At each pass, it will use the amount already flushed and the total time taken
-by flushing and by other IO to recompute how much it should do for the remainder
-of the txg.
-.Pp
-Reducing the max number of passes will make flushing more aggressive, flushing
-out more entries on each pass.
-This can be faster, but also more likely to compete with other IO.
-Increasing the max number of passes will put fewer entries onto each pass,
-keeping the overhead of dedup changes to a minimum but possibly causing a large
-number of changes to be dumped on the last pass, which can blow out the txg
-sync time beyond
-.Sy zfs_txg_timeout .
-.
 .It Sy zfs_dedup_log_flush_min_time_ms Ns = Ns Sy 1000 Ns Pq uint
 Minimum time to spend on dedup log flush each transaction.
 .Pp
@@ -1087,22 +1066,58 @@ up to
 This occurs even if doing so would delay the transaction, that is, other IO
 completes under this time.
 .
-.It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 1000 Ns Pq uint
+.It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 100 Ns Pq uint
 Flush at least this many entries each transaction.
 .Pp
-OpenZFS will estimate how many entries it needs to flush each transaction to
-keep up with the ingest rate (see
-.Sy zfs_dedup_log_flush_flow_rate_txgs ) .
-This sets the minimum for that estimate.
-Raising it can force OpenZFS to flush more aggressively, keeping the log small
-and so reducing pool import times, but can make it less able to back off if
-log flushing would compete with other IO too much.
+OpenZFS will flush a fraction of the log every TXG, to keep the size
+proportional to the ingest rate (see
+.Sy zfs_dedup_log_flush_txgs ) .
+This sets the minimum for that estimate, which prevents the backlog from
+completely draining if the ingest rate falls.
+Raising it can force OpenZFS to flush more aggressively, reducing the backlog
+to zero more quickly, but can make it less able to back off if log
+flushing would compete with other IO too much.
 .
+.It Sy zfs_dedup_log_flush_entries_max Ns = Ns Sy UINT_MAX Ns Pq uint
+Flush at most this many entries each transaction.
+.Pp
+Mostly used for debugging purposes.
+.It Sy zfs_dedup_log_flush_txgs Ns = Ns Sy 100 Ns Pq uint
+Target number of TXGs to process the whole dedup log.
+.Pp
+Every TXG, OpenZFS will process the inverse of this number times the size
+of the DDT backlog.
+This will keep the backlog at a size roughly equal to the ingest rate
+times this value.
+This offers a balance between a more efficient DDT log, with better
+aggregation, and shorter import times, which increase as the size of the
+DDT log increases.
+Increasing this value will result in a more efficient DDT log, but longer
+import times.
+.It Sy zfs_dedup_log_cap Ns = Ns Sy UINT_MAX Ns Pq uint
+Soft cap for the size of the current dedup log.
+.Pp
+If the log is larger than this size, we increase the aggressiveness of
+the flushing to try to bring it back down to the soft cap.
+Setting it will reduce import times, but will reduce the efficiency of
+the DDT log, increasing the expected number of IOs required to flush the same
+amount of data.
+.It Sy zfs_dedup_log_hard_cap Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Whether to treat the log cap as a firm cap or not.
+.Pp
+When set to 0 (the default), the
+.Sy zfs_dedup_log_cap
+will increase the maximum number of log entries we flush in a given txg.
+This will bring the backlog size down towards the cap, but not at the expense
+of making TXG syncs take longer.
+If this is set to 1, the cap acts more like a hard cap than a soft cap; it will
+also increase the minimum number of log entries we flush per TXG.
+Enabling it will reduce worst-case import times, at the cost of increased TXG
+sync times.
 .It Sy zfs_dedup_log_flush_flow_rate_txgs Ns = Ns Sy 10 Ns Pq uint
 Number of transactions to use to compute the flow rate.
 .Pp
-OpenZFS will estimate how many entries it needs to flush each transaction by
-monitoring the number of entries changed (ingest rate), number of entries
+OpenZFS will estimate number of entries changed (ingest rate), number of entries
 flushed (flush rate) and time spent flushing (flush time rate) and combining
 these into an overall "flow rate".
 It will use an exponential weighted moving average over some number of recent
@@ -1369,14 +1384,15 @@ If this setting is 0, then even if feature@block_cloning is enabled,
 using functions and system calls that attempt to clone blocks will act as
 though the feature is disabled.
 .
-.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 0 Ns | Ns 1 Pq int
-When set to 1 the FICLONE and FICLONERANGE ioctls wait for dirty data to be
-written to disk.
-This allows the clone operation to reliably succeed when a file is
+.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 1 Ns | Ns 0 Pq int
+When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
+data to be written to disk before proceeding.
+This ensures that the clone operation reliably succeeds, even if a file is
 modified and then immediately cloned.
-For small files this may be slower than making a copy of the file.
-Therefore, this setting defaults to 0 which causes a clone operation to
-immediately fail when encountering a dirty block.
+Note that for small files this may be slower than simply copying the file.
+When set to 0 the clone operation will immediately fail if it encounters
+any dirty blocks.
+By default waiting is enabled.
 .
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
@@ -1638,6 +1654,10 @@ _
 	2048	ZFS_DEBUG_TRIM	Verify TRIM ranges are always within the allocatable range tree.
 	4096	ZFS_DEBUG_LOG_SPACEMAP	Verify that the log summary is consistent with the spacemap log
 			       and enable \fBzfs_dbgmsgs\fP for metaslab loading and flushing.
+	8192	ZFS_DEBUG_METASLAB_ALLOC	Enable debugging messages when allocations fail.
+	16384	ZFS_DEBUG_BRT	Enable BRT-related debugging messages.
+	32768	ZFS_DEBUG_RAIDZ_RECONSTRUCT	Enabled debugging messages for raidz reconstruction.
+	65536	ZFS_DEBUG_DDT	Enable DDT-related debugging messages.
 .TE
 .Sy \& * No Requires debug build .
 .

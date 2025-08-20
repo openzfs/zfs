@@ -2482,6 +2482,7 @@ vdev_draid_spare_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	*max_psize = max_asize + VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
 
 	vds->vds_draid_vdev = tvd;
+	vd->vdev_nonrot = tvd->vdev_nonrot;
 
 	return (0);
 }

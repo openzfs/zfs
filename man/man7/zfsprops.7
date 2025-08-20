@@ -1596,7 +1596,8 @@ When set to
 ZFS stores an extra copy of only critical metadata.
 This can improve file create performance since less metadata
 needs to be written.
-If a single on-disk block is corrupt, at worst a single user file can be lost.
+If a single on-disk block is corrupt, multiple user files or directories
+can be lost.
 .Pp
 When set to
 .Sy none ,

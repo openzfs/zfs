@@ -12,15 +12,25 @@ source /var/tmp/env.txt
 # wait for poweroff to succeed
 PID=$(pidof /usr/bin/qemu-system-x86_64)
 tail --pid=$PID -f /dev/null
-sudo virsh undefine openzfs
+sudo virsh undefine --nvram openzfs
 
 # cpu pinning
 CPUSET=("0,1" "2,3")
+
+# additional options for virt-install
+OPTS[0]=""
+OPTS[1]=""
 
 case "$OS" in
   freebsd*)
     # FreeBSD needs only 6GiB
     RAM=6
+    ;;
+  debian13)
+    RAM=8
+    # Boot Debian 13 with uefi=on and secureboot=off (ZFS Kernel Module not signed)
+    OPTS[0]="--boot"
+    OPTS[1]="firmware=efi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
     ;;
   *)
     # Linux needs more memory, but can be optimized to share it via KSM
@@ -79,7 +89,7 @@ EOF
     --network bridge=virbr0,model=$NIC,mac="52:54:00:83:79:0$i" \
     --disk $DISK-system,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
     --disk $DISK-tests,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
-    --import --noautoconsole >/dev/null
+    --import --noautoconsole ${OPTS[0]} ${OPTS[1]}
 done
 
 # generate some memory stats

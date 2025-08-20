@@ -32,9 +32,6 @@
 #include <sys/blake3.h>
 #include <sys/sha2.h>
 
-/* limit benchmarking to max 256KiB, when EdonR is slower then this: */
-#define	LIMIT_PERF_MBS	300
-
 typedef struct {
 	const char *name;
 	const char *impl;
@@ -52,9 +49,15 @@ typedef struct {
 	zio_checksum_tmpl_free_t *(free);
 } chksum_stat_t;
 
+#define	AT_STARTUP	0
+#define	AT_BENCHMARK	1
+#define	AT_DONE		2
+
 static chksum_stat_t *chksum_stat_data = 0;
-static int chksum_stat_cnt = 0;
 static kstat_t *chksum_kstat = NULL;
+static int chksum_stat_limit = AT_STARTUP;
+static int chksum_stat_cnt = 0;
+static void chksum_benchmark(void);
 
 /*
  * Sample output on i3-1005G1 System:
@@ -129,6 +132,9 @@ chksum_kstat_data(char *buf, size_t size, void *data)
 static void *
 chksum_kstat_addr(kstat_t *ksp, loff_t n)
 {
+	/* full benchmark */
+	chksum_benchmark();
+
 	if (n < chksum_stat_cnt)
 		ksp->ks_private = (void *)(chksum_stat_data + n);
 	else
@@ -176,13 +182,9 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 	kpreempt_enable();
 
 	run_bw = size * run_count * NANOSEC;
-	run_bw /= run_time_ns;	/* B/s */
+	run_bw /= run_time_ns; /* B/s */
 	*result = run_bw/1024/1024; /* MiB/s */
 }
-
-#define	LIMIT_INIT	0
-#define	LIMIT_NEEDED	1
-#define	LIMIT_NOLIMIT	2
 
 static void
 chksum_benchit(chksum_stat_t *cs)
@@ -190,33 +192,26 @@ chksum_benchit(chksum_stat_t *cs)
 	abd_t *abd;
 	void *ctx = 0;
 	void *salt = &cs->salt.zcs_bytes;
-	static int chksum_stat_limit = LIMIT_INIT;
 
 	memset(salt, 0, sizeof (cs->salt.zcs_bytes));
 	if (cs->init)
 		ctx = cs->init(&cs->salt);
 
+	/* benchmarks in startup mode */
+	if (chksum_stat_limit == AT_STARTUP) {
+		abd = abd_alloc_linear(1<<18, B_FALSE);
+		chksum_run(cs, abd, ctx, 5, &cs->bs256k);
+		goto done;
+	}
+
 	/* allocate test memory via abd linear interface */
 	abd = abd_alloc_linear(1<<20, B_FALSE);
+
+	/* benchmarks when requested */
 	chksum_run(cs, abd, ctx, 1, &cs->bs1k);
 	chksum_run(cs, abd, ctx, 2, &cs->bs4k);
 	chksum_run(cs, abd, ctx, 3, &cs->bs16k);
 	chksum_run(cs, abd, ctx, 4, &cs->bs64k);
-	chksum_run(cs, abd, ctx, 5, &cs->bs256k);
-
-	/* check if we ran on a slow cpu */
-	if (chksum_stat_limit == LIMIT_INIT) {
-		if (cs->bs1k < LIMIT_PERF_MBS) {
-			chksum_stat_limit = LIMIT_NEEDED;
-		} else {
-			chksum_stat_limit = LIMIT_NOLIMIT;
-		}
-	}
-
-	/* skip benchmarks >= 1MiB when the CPU is to slow */
-	if (chksum_stat_limit == LIMIT_NEEDED)
-		goto abort;
-
 	chksum_run(cs, abd, ctx, 6, &cs->bs1m);
 	abd_free(abd);
 
@@ -225,7 +220,7 @@ chksum_benchit(chksum_stat_t *cs)
 	chksum_run(cs, abd, ctx, 7, &cs->bs4m);
 	chksum_run(cs, abd, ctx, 8, &cs->bs16m);
 
-abort:
+done:
 	abd_free(abd);
 
 	/* free up temp memory */
@@ -243,7 +238,6 @@ chksum_benchmark(void)
 	/* we need the benchmark only for the kernel module */
 	return;
 #endif
-
 	chksum_stat_t *cs;
 	uint64_t max;
 	uint32_t id, cbid = 0, id_save;
@@ -251,8 +245,14 @@ chksum_benchmark(void)
 	const zfs_impl_t *sha256 = zfs_impl_get_ops("sha256");
 	const zfs_impl_t *sha512 = zfs_impl_get_ops("sha512");
 
+	/* benchmarks are done */
+	if (chksum_stat_limit == AT_DONE)
+		return;
+
+
 	/* count implementations */
-	chksum_stat_cnt = 2;
+	chksum_stat_cnt = 1;  /* edonr */
+	chksum_stat_cnt += 1; /* skein */
 	chksum_stat_cnt += sha256->getcnt();
 	chksum_stat_cnt += sha512->getcnt();
 	chksum_stat_cnt += blake3->getcnt();
@@ -332,6 +332,17 @@ chksum_benchmark(void)
 		}
 	}
 	blake3->setid(id_save);
+
+	switch (chksum_stat_limit) {
+	case AT_STARTUP:
+		/* next time we want a full benchmark */
+		chksum_stat_limit = AT_BENCHMARK;
+		break;
+	case AT_BENCHMARK:
+		/* no further benchmarks */
+		chksum_stat_limit = AT_DONE;
+		break;
+	}
 }
 
 void
@@ -341,7 +352,7 @@ chksum_init(void)
 	blake3_per_cpu_ctx_init();
 #endif
 
-	/* Benchmark supported implementations */
+	/* 256KiB benchmark */
 	chksum_benchmark();
 
 	/* Install kstats for all implementations */

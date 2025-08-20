@@ -1050,6 +1050,16 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 	mutex_exit(&vq->vq_lock);
 }
 
+boolean_t
+vdev_queue_pool_busy(spa_t *spa)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	uint64_t min_bytes = zfs_dirty_data_max *
+	    zfs_vdev_async_write_active_min_dirty_percent / 100;
+
+	return (dp->dp_dirty_total > min_bytes);
+}
+
 /*
  * As these two methods are only used for load calculations we're not
  * concerned if we get an incorrect value on 32bit platforms due to lack of

@@ -306,6 +306,18 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 		*(offset_t *)data = off;
 		return (0);
 	}
+	case ZFS_IOC_REWRITE: {
+		zfs_rewrite_args_t *args = (zfs_rewrite_args_t *)data;
+		if ((flag & FWRITE) == 0)
+			return (SET_ERROR(EBADF));
+		error = vn_lock(vp, LK_SHARED);
+		if (error)
+			return (error);
+		error = zfs_rewrite(VTOZ(vp), args->off, args->len,
+		    args->flags, args->arg);
+		VOP_UNLOCK(vp);
+		return (error);
+	}
 	}
 	return (SET_ERROR(ENOTTY));
 }
@@ -4228,17 +4240,46 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		ASSERT0(err);
 
-		putpage_commit_arg_t *pca = kmem_alloc(
-		    offsetof(putpage_commit_arg_t, pca_pages[ncount]),
-		    KM_SLEEP);
-		pca->pca_npages = ncount;
-		memcpy(pca->pca_pages, ma, sizeof (vm_page_t) * ncount);
+		if (commit) {
+			/*
+			 * Caller requested that we commit immediately. We set
+			 * a callback on the log entry, to be called once its
+			 * on disk after the call to zil_commit() below. The
+			 * pages will be undirtied and unbusied there.
+			 */
+			putpage_commit_arg_t *pca = kmem_alloc(
+			    offsetof(putpage_commit_arg_t, pca_pages[ncount]),
+			    KM_SLEEP);
+			pca->pca_npages = ncount;
+			memcpy(pca->pca_pages, ma, sizeof (vm_page_t) * ncount);
 
-		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp,
-		    off, len, commit, B_FALSE, zfs_putpage_commit_cb, pca);
+			zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len,
+			    B_TRUE, B_FALSE, zfs_putpage_commit_cb, pca);
 
-		for (i = 0; i < ncount; i++)
-			rtvals[i] = zfs_vm_pagerret_pend;
+			for (i = 0; i < ncount; i++)
+				rtvals[i] = zfs_vm_pagerret_pend;
+		} else {
+			/*
+			 * Caller just wants the page written back somewhere,
+			 * but doesn't need it committed yet. We've already
+			 * written it back to the DMU, so we just need to put
+			 * it on the async log, then undirty the page and
+			 * return.
+			 *
+			 * We cannot use a callback here, because it would keep
+			 * the page busy (locked) until it is eventually
+			 * written down at txg sync.
+			 */
+			zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len,
+			    B_FALSE, B_FALSE, NULL, NULL);
+
+			zfs_vmobject_wlock(object);
+			for (i = 0; i < ncount; i++) {
+				rtvals[i] = zfs_vm_pagerret_ok;
+				vm_page_undirty(ma[i]);
+			}
+			zfs_vmobject_wunlock(object);
+		}
 
 		VM_CNT_INC(v_vnodeout);
 		VM_CNT_ADD(v_vnodepgsout, ncount);
@@ -5201,6 +5242,11 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 			return (0);
 		}
 		return (EINVAL);
+#ifdef _PC_HAS_HIDDENSYSTEM
+	case _PC_HAS_HIDDENSYSTEM:
+		*ap->a_retval = 1;
+		return (0);
+#endif
 	default:
 		return (vop_stdpathconf(ap));
 	}

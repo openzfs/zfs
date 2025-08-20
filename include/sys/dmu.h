@@ -144,9 +144,9 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_DDT(ot) \
 	((ot) == DMU_OT_DDT_ZAP)
 
-#define	DMU_OT_IS_CRITICAL(ot) \
+#define	DMU_OT_IS_CRITICAL(ot, level) \
 	(DMU_OT_IS_METADATA(ot) && \
-	(ot) != DMU_OT_DNODE && \
+	((ot) != DMU_OT_DNODE || (level) > 0) && \
 	(ot) != DMU_OT_DIRECTORY_CONTENTS && \
 	(ot) != DMU_OT_SA)
 

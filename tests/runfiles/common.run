@@ -306,6 +306,10 @@ tags = ['functional', 'cli_root', 'zfs_rename']
 tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 tags = ['functional', 'cli_root', 'zfs_reservation']
 
+[tests/functional/cli_root/zfs_rewrite]
+tests = ['zfs_rewrite']
+tags = ['functional', 'cli_root', 'zfs_rewrite']
+
 [tests/functional/cli_root/zfs_rollback]
 tests = ['zfs_rollback_001_pos', 'zfs_rollback_002_pos',
     'zfs_rollback_003_neg', 'zfs_rollback_004_neg']
@@ -683,8 +687,8 @@ post =
 tags = ['functional', 'deadman']
 
 [tests/functional/dedup]
-tests = ['dedup_fdt_create', 'dedup_fdt_import', 'dedup_legacy_create',
-    'dedup_legacy_import', 'dedup_legacy_fdt_upgrade',
+tests = ['dedup_fdt_create', 'dedup_fdt_import', 'dedup_fdt_pacing',
+    'dedup_legacy_create', 'dedup_legacy_import', 'dedup_legacy_fdt_upgrade',
     'dedup_legacy_fdt_mixed', 'dedup_quota', 'dedup_prune', 'dedup_zap_shrink']
 pre =
 post =
@@ -724,6 +728,10 @@ tags = ['functional', 'features', 'async_destroy']
 tests = ['large_dnode_001_pos', 'large_dnode_003_pos', 'large_dnode_004_neg',
     'large_dnode_005_pos', 'large_dnode_007_neg', 'large_dnode_009_pos']
 tags = ['functional', 'features', 'large_dnode']
+
+[tests/functional/gang_blocks]
+tests = ['gang_blocks_redundant']
+tags = ['functional', 'gang_blocks']
 
 [tests/functional/grow]
 pre =
@@ -780,7 +788,7 @@ tags = ['functional', 'migration']
 
 [tests/functional/mmap]
 tests = ['mmap_mixed', 'mmap_read_001_pos', 'mmap_seek_001_pos',
-    'mmap_sync_001_pos', 'mmap_write_001_pos']
+    'mmap_sync_001_pos', 'mmap_write_001_pos', 'mmap_ftruncate']
 tags = ['functional', 'mmap']
 
 [tests/functional/mount]

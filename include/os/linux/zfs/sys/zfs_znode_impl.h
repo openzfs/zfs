@@ -157,6 +157,7 @@ struct znode;
 
 extern int	zfs_sync(struct super_block *, int, cred_t *);
 extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
+extern void	zfs_inode_free(struct inode *);
 extern void	zfs_inode_destroy(struct inode *);
 extern void	zfs_mark_inode_dirty(struct inode *);
 extern boolean_t zfs_relatime_need_update(const struct inode *);

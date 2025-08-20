@@ -28,6 +28,7 @@ function debian() {
   export DEBIAN_FRONTEND="noninteractive"
 
   echo "##[group]Running apt-get update+upgrade"
+  sudo sed -i '/[[:alpha:]]-backports/d' /etc/apt/sources.list
   sudo apt-get update -y
   sudo apt-get upgrade -y
   echo "##[endgroup]"
@@ -40,7 +41,7 @@ function debian() {
     libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev \
     libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
-    python3-cffi python3-dev python3-distlib python3-packaging \
+    python3-cffi python3-dev python3-distlib python3-packaging libtirpc-dev \
     python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
     rsync samba sysstat uuid-dev watchdog wget xfslibs-dev  xxhash zlib1g-dev
   echo "##[endgroup]"
@@ -51,7 +52,7 @@ function freebsd() {
 
   echo "##[group]Install Development Tools"
   sudo pkg install -y autoconf automake autotools base64 checkbashisms fio \
-    gdb gettext gettext-runtime git gmake gsed jq ksh93 lcov libtool lscpu \
+    gdb gettext gettext-runtime git gmake gsed jq ksh lcov libtool lscpu \
     pkgconf python python3 pamtester pamtester qemu-guest-agent rsync xxhash
   sudo pkg install -xy \
     '^samba4[[:digit:]]+$' \

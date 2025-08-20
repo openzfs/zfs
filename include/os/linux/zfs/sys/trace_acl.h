@@ -59,8 +59,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint64_t,		z_size)
 	    __field(uint64_t,		z_pflags)
 	    __field(uint32_t,		z_sync_cnt)
-	    __field(uint32_t,		z_sync_writes_cnt)
-	    __field(uint32_t,		z_async_writes_cnt)
 	    __field(mode_t,		z_mode)
 	    __field(boolean_t,		z_is_sa)
 	    __field(boolean_t,		z_is_ctldir)
@@ -92,8 +90,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_size		= zn->z_size;
 	    __entry->z_pflags		= zn->z_pflags;
 	    __entry->z_sync_cnt		= zn->z_sync_cnt;
-	    __entry->z_sync_writes_cnt	= zn->z_sync_writes_cnt;
-	    __entry->z_async_writes_cnt	= zn->z_async_writes_cnt;
 	    __entry->z_mode		= zn->z_mode;
 	    __entry->z_is_sa		= zn->z_is_sa;
 	    __entry->z_is_ctldir	= zn->z_is_ctldir;
@@ -117,7 +113,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	TP_printk("zn { id %llu unlinked %u atime_dirty %u "
 	    "zn_prefetch %u blksz %u seq %u "
 	    "mapcnt %llu size %llu pflags %llu "
-	    "sync_cnt %u sync_writes_cnt %u async_writes_cnt %u "
+	    "sync_cnt %u "
 	    "mode 0x%x is_sa %d is_ctldir %d "
 	    "inode { uid %u gid %u ino %lu nlink %u size %lli "
 	    "blkbits %u bytes %u mode 0x%x generation %x } } "
@@ -126,7 +122,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_zn_prefetch, __entry->z_blksz,
 	    __entry->z_seq, __entry->z_mapcnt, __entry->z_size,
 	    __entry->z_pflags, __entry->z_sync_cnt,
-	    __entry->z_sync_writes_cnt, __entry->z_async_writes_cnt,
 	    __entry->z_mode, __entry->z_is_sa, __entry->z_is_ctldir,
 	    __entry->i_uid, __entry->i_gid, __entry->i_ino, __entry->i_nlink,
 	    __entry->i_size, __entry->i_blkbits,

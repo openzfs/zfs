@@ -5,16 +5,6 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
-      include_stream9:
-        type: boolean
-        required: false
-        default: false
-        description: 'Test on CentOS 9 stream'
-      include_stream10:
-        type: boolean
-        required: false
-        default: false
-        description: 'Test on CentOS 10 stream'
       fedora_kernel_ver:
         type: string
         required: false
@@ -39,8 +29,8 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "debian11", "debian12", "fedora41", "fedora42", "freebsd13-4r", "freebsd14-2s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
-          QUICK_OS='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd14-2r", "ubuntu24"]'
+          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora41", "fedora42", "freebsd13-5r", "freebsd14-3s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
+          QUICK_OS='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd14-3s", "ubuntu24"]'
           # determine CI type when running on PR
           ci_type="full"
           if ${{ github.event_name == 'pull_request' }}; then
@@ -63,14 +53,6 @@ jobs:
               os_json=$(echo ${os_selection} | jq -c)
           fi
 
-          # Add optional runners
-          if [ "${{ github.event.inputs.include_stream9 }}" == 'true' ]; then
-            os_json=$(echo $os_json | jq -c '. += ["centos-stream9"]')
-          fi
-          if [ "${{ github.event.inputs.include_stream10 }}" == 'true' ]; then
-            os_json=$(echo $os_json | jq -c '. += ["centos-stream10"]')
-          fi
-
           echo $os_json
           echo "os=$os_json" >> $GITHUB_OUTPUT
           echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
@@ -81,12 +63,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rhl:     almalinux8, almalinux9, centos-stream9, fedora41
-        # debian:  debian11, debian12, ubuntu22, ubuntu24
+        # rhl:     almalinux8, almalinux9, centos-stream9, fedora4x
+        # debian:  debian12, debian13, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
-        # FreeBSD variants of 2024-12:
-        # FreeBSD Release: freebsd13-4r, freebsd14-2r
-        # FreeBSD Stable:  freebsd13-4s, freebsd14-2s
+        # FreeBSD variants of 2025-06:
+        # FreeBSD Release: freebsd13-5r, freebsd14-2r, freebsd14-3r
+        # FreeBSD Stable:  freebsd13-5s, freebsd14-3s
         # FreeBSD Current: freebsd15-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04

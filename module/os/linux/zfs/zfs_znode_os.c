@@ -126,8 +126,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
-	zp->z_sync_writes_cnt = 0;
-	zp->z_async_writes_cnt = 0;
 
 	return (0);
 }
@@ -149,9 +147,6 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT3P(zp->z_dirlocks, ==, NULL);
 	ASSERT3P(zp->z_acl_cached, ==, NULL);
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
-
-	ASSERT0(atomic_load_32(&zp->z_sync_writes_cnt));
-	ASSERT0(atomic_load_32(&zp->z_async_writes_cnt));
 }
 
 static int
@@ -371,6 +366,12 @@ zfs_inode_alloc(struct super_block *sb, struct inode **ip)
 	return (0);
 }
 
+void
+zfs_inode_free(struct inode *ip)
+{
+	kmem_cache_free(znode_cache, ITOZ(ip));
+}
+
 /*
  * Called in multiple places when an inode should be destroyed.
  */
@@ -395,8 +396,15 @@ zfs_inode_destroy(struct inode *ip)
 		nvlist_free(zp->z_xattr_cached);
 		zp->z_xattr_cached = NULL;
 	}
-
-	kmem_cache_free(znode_cache, zp);
+#ifndef HAVE_SOPS_FREE_INODE
+	/*
+	 * inode needs to be freed in RCU callback.  If we have
+	 * super_operations->free_inode, Linux kernel will do call_rcu
+	 * for us.  But if we don't have it, since call_rcu is GPL-only
+	 * symbol, we can only free synchronously and accept the risk.
+	 */
+	zfs_inode_free(ip);
+#endif
 }
 
 static void
@@ -535,8 +543,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
-	zp->z_sync_writes_cnt = 0;
-	zp->z_async_writes_cnt = 0;
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 

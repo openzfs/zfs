@@ -1,0 +1,76 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2025 iXsystems, Inc.
+.\"
+.Dd May 6, 2025
+.Dt ZFS-REWRITE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-rewrite
+.Nd rewrite specified files without modification
+.Sh SYNOPSIS
+.Nm zfs
+.Cm rewrite
+.Oo Fl rvx Ns Oc
+.Op Fl l Ar length
+.Op Fl o Ar offset
+.Ar file Ns | Ns Ar directory Ns …
+.
+.Sh DESCRIPTION
+Rewrite blocks of specified
+.Ar file
+as is without modification at a new location and possibly with new
+properties, such as checksum, compression, dedup, copies, etc,
+as if they were atomically read and written back.
+.Bl -tag -width "-r"
+.It Fl l Ar length
+Rewrite at most this number of bytes.
+.It Fl o Ar offset
+Start at this offset in bytes.
+.It Fl r
+Recurse into directories.
+.It Fl v
+Print names of all successfully rewritten files.
+.It Fl x
+Don't cross file system mount points when recursing.
+.El
+.Sh NOTES
+Rewrite of cloned blocks and blocks that are part of any snapshots,
+same as some property changes may increase pool space usage.
+Holes that were never written or were previously zero-compressed are
+not rewritten and will remain holes even if compression is disabled.
+.Pp
+Rewritten blocks will be seen as modified in next snapshot and as such
+included into the incremental
+.Nm zfs Cm send
+stream.
+.Pp
+If a
+.Fl l
+or
+.Fl o
+value request a rewrite to regions past the end of the file, then those
+regions are silently ignored, and no error is reported.
+.
+.Sh SEE ALSO
+.Xr zfsprops 7

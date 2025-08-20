@@ -67,13 +67,14 @@
 int zfs_bclone_enabled = 1;
 
 /*
- * When set zfs_clone_range() waits for dirty data to be written to disk.
- * This allows the clone operation to reliably succeed when a file is modified
- * and then immediately cloned. For small files this may be slower than making
- * a copy of the file and is therefore not the default.  However, in certain
- * scenarios this behavior may be desirable so a tunable is provided.
+ * When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
+ * data to be written to disk before proceeding. This ensures that the clone
+ * operation reliably succeeds, even if a file is modified and then immediately
+ * cloned. Note that for small files this may be slower than simply copying
+ * the file. When set to 0 the clone operation will immediately fail if it
+ * encounters any dirty blocks. By default waiting is enabled.
  */
-int zfs_bclone_wait_dirty = 0;
+int zfs_bclone_wait_dirty = 1;
 
 /*
  * Enable Direct I/O. If this setting is 0, then all I/O requests will be
@@ -108,9 +109,7 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 	if (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (error);
-		atomic_inc_32(&zp->z_sync_writes_cnt);
 		zil_commit(zfsvfs->z_log, zp->z_id);
-		atomic_dec_32(&zp->z_sync_writes_cnt);
 		zfs_exit(zfsvfs, FTAG);
 	}
 	return (error);
@@ -1056,6 +1055,143 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	zfs_exit(zfsvfs, FTAG);
 	return (0);
+}
+
+/*
+ * Rewrite a range of file as-is without modification.
+ *
+ *	IN:	zp	- znode of file to be rewritten.
+ *		off	- Offset of the range to rewrite.
+ *		len	- Length of the range to rewrite.
+ *		flags	- Random rewrite parameters.
+ *		arg	- flags-specific argument.
+ *
+ *	RETURN:	0 if success
+ *		error code if failure
+ */
+int
+zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
+    uint64_t arg)
+{
+	int error;
+
+	if (flags != 0 || arg != 0)
+		return (SET_ERROR(EINVAL));
+
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	if (zfs_is_readonly(zfsvfs)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EROFS));
+	}
+
+	if (off >= zp->z_size) {
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+	if (len == 0 || len > zp->z_size - off)
+		len = zp->z_size - off;
+
+	/* Flush any mmap()'d data to disk */
+	if (zn_has_cached_data(zp, off, off + len - 1))
+		zn_flush_cached_data(zp, B_TRUE);
+
+	zfs_locked_range_t *lr;
+	lr = zfs_rangelock_enter(&zp->z_rangelock, off, len, RL_WRITER);
+
+	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
+	const uint64_t gid = KGID_TO_SGID(ZTOGID(zp));
+	const uint64_t projid = zp->z_projid;
+
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
+	DB_DNODE_ENTER(db);
+	dnode_t *dn = DB_DNODE(db);
+
+	uint64_t n, noff = off, nr = 0, nw = 0;
+	while (len > 0) {
+		/*
+		 * Rewrite only actual data, skipping any holes.  This might
+		 * be inaccurate for dirty files, but we don't really care.
+		 */
+		if (noff == off) {
+			/* Find next data in the file. */
+			error = dnode_next_offset(dn, 0, &noff, 1, 1, 0);
+			if (error || noff >= off + len) {
+				if (error == ESRCH)	/* No more data. */
+					error = 0;
+				break;
+			}
+			ASSERT3U(noff, >=, off);
+			len -= noff - off;
+			off = noff;
+
+			/* Find where the data end. */
+			error = dnode_next_offset(dn, DNODE_FIND_HOLE, &noff,
+			    1, 1, 0);
+			if (error != 0)
+				noff = off + len;
+		}
+		ASSERT3U(noff, >, off);
+
+		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT, uid) ||
+		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT, gid) ||
+		    (projid != ZFS_DEFAULT_PROJID &&
+		    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
+		    projid))) {
+			error = SET_ERROR(EDQUOT);
+			break;
+		}
+
+		n = MIN(MIN(len, noff - off),
+		    DMU_MAX_ACCESS / 2 - P2PHASE(off, zp->z_blksz));
+
+		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
+		dmu_tx_hold_write_by_dnode(tx, dn, off, n);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
+		if (error) {
+			dmu_tx_abort(tx);
+			break;
+		}
+
+		/* Mark all dbufs within range as dirty to trigger rewrite. */
+		dmu_buf_t **dbp;
+		int numbufs;
+		error = dmu_buf_hold_array_by_dnode(dn, off, n, TRUE, FTAG,
+		    &numbufs, &dbp, DMU_READ_PREFETCH);
+		if (error) {
+			dmu_tx_commit(tx);
+			break;
+		}
+		for (int i = 0; i < numbufs; i++) {
+			nr += dbp[i]->db_size;
+			if (dmu_buf_is_dirty(dbp[i], tx))
+				continue;
+			nw += dbp[i]->db_size;
+			dmu_buf_will_dirty(dbp[i], tx);
+		}
+		dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+		dmu_tx_commit(tx);
+
+		len -= n;
+		off += n;
+
+		if (issig()) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+	}
+
+	DB_DNODE_EXIT(db);
+
+	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nr);
+	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nw);
+
+	zfs_rangelock_exit(lr);
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
 }
 
 int

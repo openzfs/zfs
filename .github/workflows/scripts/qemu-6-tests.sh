@@ -21,11 +21,13 @@ function prefix() {
   S=$((DIFF-(M*60)))
 
   CTR=$(cat /tmp/ctr)
-  echo $LINE| grep -q "^Test[: ]" && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr
+  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr
 
   BASE="$HOME/work/zfs/zfs"
   COLOR="$BASE/scripts/zfs-tests-color.sh"
-  CLINE=$(echo $LINE| grep "^Test[ :]" | sed -e 's|/usr/local|/usr|g' \
+  CLINE=$(echo $LINE| grep '^\[.*] Test[: ]' \
+    | sed -e 's|^\[.*] Test|Test|g' \
+    | sed -e 's|/usr/local|/usr|g' \
     | sed -e 's| /usr/share/zfs/zfs-tests/tests/| |g' | $COLOR)
   if [ -z "$CLINE" ]; then
     printf "vm${ID}: %s\n" "$LINE"

@@ -86,6 +86,19 @@ int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
 static kmem_cbrc_t dnode_move(void *, void *, size_t, void *);
 #endif /* _KERNEL */
 
+static char *
+rt_name(dnode_t *dn, const char *name)
+{
+	struct objset *os = dn->dn_objset;
+
+	return (kmem_asprintf("{spa=%s objset=%llu obj=%llu %s}",
+	    spa_name(os->os_spa),
+	    (u_longlong_t)(os->os_dsl_dataset ?
+	    os->os_dsl_dataset->ds_object : DMU_META_OBJSET),
+	    (u_longlong_t)dn->dn_object,
+	    name));
+}
+
 static int
 dbuf_compare(const void *x1, const void *x2)
 {
@@ -2436,8 +2449,10 @@ done:
 	{
 		int txgoff = tx->tx_txg & TXG_MASK;
 		if (dn->dn_free_ranges[txgoff] == NULL) {
-			dn->dn_free_ranges[txgoff] = zfs_range_tree_create(NULL,
-			    ZFS_RANGE_SEG64, NULL, 0, 0);
+			dn->dn_free_ranges[txgoff] =
+			    zfs_range_tree_create_flags(
+			    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+			    ZFS_RT_F_DYN_NAME, rt_name(dn, "dn_free_ranges"));
 		}
 		zfs_range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
 		zfs_range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
@@ -2559,6 +2574,11 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		error = 0;
 		epb = dn->dn_phys->dn_nblkptr;
 		data = dn->dn_phys->dn_blkptr;
+		if (dn->dn_dbuf != NULL)
+			rw_enter(&dn->dn_dbuf->db_rwlock, RW_READER);
+		else if (dmu_objset_ds(dn->dn_objset) != NULL)
+			rrw_enter(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
+			    RW_READER, FTAG);
 	} else {
 		uint64_t blkid = dbuf_whichblock(dn, lvl, *offset);
 		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE, FTAG, &db);
@@ -2663,6 +2683,12 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	if (db != NULL) {
 		rw_exit(&db->db_rwlock);
 		dbuf_rele(db, FTAG);
+	} else {
+		if (dn->dn_dbuf != NULL)
+			rw_exit(&dn->dn_dbuf->db_rwlock);
+		else if (dmu_objset_ds(dn->dn_objset) != NULL)
+			rrw_exit(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
+			    FTAG);
 	}
 
 	return (error);

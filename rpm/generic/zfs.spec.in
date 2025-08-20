@@ -87,7 +87,19 @@
 %define __python                  %{__use_python}
 %define __python_pkg_version      %{__use_python_pkg_version}
 %endif
-%define __python_sitelib          %(%{__python} -Esc "from distutils.sysconfig import get_python_lib; print(get_python_lib())" 2>/dev/null || %{__python} -Esc "import sysconfig; print(sysconfig.get_path('purelib'))")
+%define __python_sitelib          %(%{__python} -Esc "
+import sysconfig;
+if hasattr(sysconfig, 'get_default_scheme'):
+    scheme = sysconfig.get_default_scheme()
+else:
+    scheme = sysconfig._get_default_scheme()
+if scheme == 'posix_local':
+    scheme = 'posix_prefix'
+prefix = '%{_prefix}'
+if prefix == 'NONE':
+    prefix = '%{ac_default_prefix}'
+sitedir = sysconfig.get_path('purelib', scheme, vars={'base': prefix})
+print(sitedir);" 2>/dev/null || %{__python} -Esc "from distutils import sysconfig; print(sysconfig.get_python_lib(0,0))")
 
 Name:           @PACKAGE@
 Version:        @VERSION@
@@ -376,7 +388,7 @@ support for unlocking datasets on user login.
 
 %if 0%{?_systemd}
     %define systemd --enable-systemd --with-systemdunitdir=%{_unitdir} --with-systemdpresetdir=%{_presetdir} --with-systemdmodulesloaddir=%{_modulesloaddir} --with-systemdgeneratordir=%{_systemdgeneratordir} --disable-sysvinit
-    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
+    %define systemd_svcs zfs-import-cache.service zfs-import-scan.service zfs-mount.service zfs-mount@.service zfs-share.service zfs-zed.service zfs.target zfs-import.target zfs-volume-wait.service zfs-volumes.target
 %else
     %define systemd --enable-sysvinit --disable-systemd
 %endif
@@ -494,7 +506,6 @@ systemctl --system daemon-reload >/dev/null || true
 # Core utilities
 %{_sbindir}/*
 %{_bindir}/raidz_test
-%{_sbindir}/zgenhostid
 %{_bindir}/zvol_wait
 # Optional Python 3 scripts
 %{_bindir}/arc_summary
