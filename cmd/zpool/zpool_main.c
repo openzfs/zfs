@@ -10350,8 +10350,9 @@ print_error_log(zpool_handle_t *zhp, int verbosity)
 {
 	nvlist_t *nverrlist = NULL;
 	nvpair_t *elem;
-	char *pathname;
+	char *pathname, *last_pathname = NULL;
 	size_t len = MAXPATHLEN * 2;
+	boolean_t started = B_FALSE;
 
 	if (zpool_get_errlog(zhp, &nverrlist, verbosity) != 0)
 		return;
@@ -10371,12 +10372,25 @@ print_error_log(zpool_handle_t *zhp, int verbosity)
 		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
 		    &obj) == 0);
 		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
+		if (last_pathname == NULL ||
+		    0 != strncmp(pathname, last_pathname, len))
+		{
+			last_pathname = strdup(pathname);
+			if (started)
+				(void) printf("\n");
+			else
+				started = B_TRUE;
+			(void) printf("%7s %s ", "", pathname);
+		} else if (verbosity > 1) {
+			(void) printf(",");
+		}
 		if (verbosity > 1) {
 			uint64_t level, blkid, blkid_next, blkid_start;
 
 			blkid = fnvlist_lookup_uint64(nv, ZPOOL_ERR_BLKID);
 			blkid_start = blkid;
 			level = fnvlist_lookup_uint64(nv, ZPOOL_ERR_LEVEL);
+			(void) printf("L%lu=", level);
 			do {
 				uint64_t level_next;
 				uint64_t dsobj_next, obj_next;
@@ -10409,16 +10423,14 @@ print_error_log(zpool_handle_t *zhp, int verbosity)
 			} while(1) ;
 
 			if (blkid > blkid_start)
-				(void) printf("%7s %s L%lu=%lu-%lu\n", "",
-				    pathname, level, blkid_start, blkid);
+				(void) printf("%lu-%lu", blkid_start, blkid);
 			else
-				(void) printf("%7s %s L%lu=%lu\n", "", pathname,
-				    level, blkid);
-		} else {
-			(void) printf("%7s %s\n", "", pathname);
+				(void) printf("%lu", blkid);
 		}
 	}
+	(void) printf("\n");
 	free(pathname);
+	free(last_pathname);
 	nvlist_free(nverrlist);
 }
 
