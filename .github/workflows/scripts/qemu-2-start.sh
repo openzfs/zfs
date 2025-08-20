@@ -25,6 +25,10 @@ UBMIRROR="https://cloud-images.ubuntu.com"
 # default nic model for vm's
 NIC="virtio"
 
+# additional options for virt-install
+OPTS[0]=""
+OPTS[1]=""
+
 case "$OS" in
   almalinux8)
     OSNAME="AlmaLinux 8"
@@ -60,6 +64,14 @@ case "$OS" in
   debian12)
     OSNAME="Debian 12"
     URL="https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-generic-amd64.qcow2"
+    ;;
+  debian13)
+    OSNAME="Debian 13"
+    # TODO: Overwrite OSv to debian13 for virt-install until it's added to osinfo
+    OSv="debian12"
+    URL="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
+    OPTS[0]="--boot"
+    OPTS[1]="uefi=on"
     ;;
   fedora41)
     OSNAME="Fedora 41"
@@ -242,7 +254,7 @@ sudo virt-install \
   --network bridge=virbr0,model=$NIC,mac='52:54:00:83:79:00' \
   --cloud-init user-data=/tmp/user-data \
   --disk $DISK,bus=virtio,cache=none,format=raw,driver.discard=unmap \
-  --import --noautoconsole >/dev/null
+  --import --noautoconsole ${OPTS[0]} ${OPTS[1]} >/dev/null
 
 # Give the VMs hostnames so we don't have to refer to them with
 # hardcoded IP addresses.
