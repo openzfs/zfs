@@ -2037,6 +2037,8 @@ userquota_updates_task(void *arg)
 				dn->dn_id_flags |= DN_ID_CHKED_BONUS;
 		}
 		dn->dn_id_flags &= ~(DN_ID_NEW_EXIST);
+		ASSERT3U(dn->dn_dirtycnt, >, 0);
+		dn->dn_dirtycnt--;
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
@@ -2070,6 +2072,10 @@ dnode_rele_task(void *arg)
 
 	dnode_t *dn;
 	while ((dn = multilist_sublist_head(list)) != NULL) {
+		mutex_enter(&dn->dn_mtx);
+		ASSERT3U(dn->dn_dirtycnt, >, 0);
+		dn->dn_dirtycnt--;
+		mutex_exit(&dn->dn_mtx);
 		multilist_sublist_remove(list, dn);
 		dnode_rele(dn, &os->os_synced_dnodes);
 	}

@@ -2270,14 +2270,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (dn->dn_objset->os_dsl_dataset != NULL)
 		rrw_exit(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock, FTAG);
 #endif
-	/*
-	 * We make this assert for private objects as well, but after we
-	 * check if we're already dirty.  They are allowed to re-dirty
-	 * in syncing context.
-	 */
-	ASSERT(dn->dn_object == DMU_META_DNODE_OBJECT ||
-	    dn->dn_dirtyctx == DN_UNDIRTIED || dn->dn_dirtyctx ==
-	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
 
 	mutex_enter(&db->db_mtx);
 	/*
@@ -2288,12 +2280,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	ASSERT(db->db_level != 0 ||
 	    db->db_state == DB_CACHED || db->db_state == DB_FILL ||
 	    db->db_state == DB_NOFILL);
-
-	mutex_enter(&dn->dn_mtx);
-	dnode_set_dirtyctx(dn, tx, db);
-	if (tx->tx_txg > dn->dn_dirty_txg)
-		dn->dn_dirty_txg = tx->tx_txg;
-	mutex_exit(&dn->dn_mtx);
 
 	if (db->db_blkid == DMU_SPILL_BLKID)
 		dn->dn_have_spill = B_TRUE;
@@ -2312,13 +2298,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		mutex_exit(&db->db_mtx);
 		return (dr_next);
 	}
-
-	/*
-	 * Only valid if not already dirty.
-	 */
-	ASSERT(dn->dn_object == 0 ||
-	    dn->dn_dirtyctx == DN_UNDIRTIED || dn->dn_dirtyctx ==
-	    (dmu_tx_is_syncing(tx) ? DN_DIRTY_SYNC : DN_DIRTY_OPEN));
 
 	ASSERT3U(dn->dn_nlevels, >, db->db_level);
 

@@ -141,12 +141,6 @@ struct dmu_buf_impl;
 struct objset;
 struct zio;
 
-enum dnode_dirtycontext {
-	DN_UNDIRTIED,
-	DN_DIRTY_OPEN,
-	DN_DIRTY_SYNC
-};
-
 /* Is dn_used in bytes?  if not, it's in multiples of SPA_MINBLOCKSIZE */
 #define	DNODE_FLAG_USED_BYTES			(1 << 0)
 #define	DNODE_FLAG_USERUSED_ACCOUNTED		(1 << 1)
@@ -340,11 +334,9 @@ struct dnode {
 	uint64_t dn_allocated_txg;
 	uint64_t dn_free_txg;
 	uint64_t dn_assigned_txg;
-	uint64_t dn_dirty_txg;			/* txg dnode was last dirtied */
+	uint8_t dn_dirtycnt;
 	kcondvar_t dn_notxholds;
 	kcondvar_t dn_nodnholds;
-	enum dnode_dirtycontext dn_dirtyctx;
-	const void *dn_dirtyctx_firstset;	/* dbg: contents meaningless */
 
 	/* protected by own devices */
 	zfs_refcount_t dn_tx_holds;
@@ -440,7 +432,6 @@ void dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting);
 int dnode_try_claim(objset_t *os, uint64_t object, int slots);
 boolean_t dnode_is_dirty(dnode_t *dn);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
-void dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, const void *tag);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
     dmu_object_type_t bonustype, int bonuslen, int dn_slots, dmu_tx_t *tx);
@@ -467,9 +458,6 @@ void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
 
 void dnode_set_storage_type(dnode_t *dn, dmu_object_type_t type);
-
-#define	DNODE_IS_DIRTY(_dn)						\
-	((_dn)->dn_dirty_txg >= spa_syncing_txg((_dn)->dn_objset->os_spa))
 
 #define	DNODE_LEVEL_IS_CACHEABLE(_dn, _level)				\
 	((_dn)->dn_objset->os_primary_cache == ZFS_CACHE_ALL ||		\

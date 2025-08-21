@@ -168,12 +168,10 @@ extern "C" {
  * 	dn_allocated_txg
  * 	dn_free_txg
  * 	dn_assigned_txg
- * 	dn_dirty_txg
+ * 	dn_dirtycnt
  * 	dd_assigned_tx
  * 	dn_notxholds
  *	dn_nodnholds
- * 	dn_dirtyctx
- * 	dn_dirtyctx_firstset
  * 	(dn_phys copy fields?)
  * 	(dn_phys contents?)
  *   held from:
