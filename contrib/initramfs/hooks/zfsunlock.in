@@ -8,3 +8,11 @@ fi
 . /usr/share/initramfs-tools/hook-functions
 
 copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/zfsunlock
+
+if [ -f /etc/initramfs-tools/etc/motd ]; then
+	copy_file text /etc/initramfs-tools/etc/motd /etc/motd
+else
+	cat >>"$DESTDIR/etc/motd" <<- 'EOF'
+		To unlock ZFS encrypted root filesystems, run `zfsunlock`.
+	EOF
+fi
