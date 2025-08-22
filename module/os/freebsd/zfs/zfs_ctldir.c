@@ -674,6 +674,7 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
+	ssize_t orig_resid;
 	int error;
 
 	zfs_uio_init(&uio, ap->a_uio);
@@ -688,16 +689,16 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	 * count to return is 0.
 	 */
 	if (zfs_uio_offset(&uio) == 3 * sizeof (entry)) {
+		if (eofp != NULL)
+			*eofp = 1;
 		return (0);
 	}
 
+	orig_resid = zfs_uio_resid(&uio);
 	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
-	if (error != 0) {
-		if (error == ENAMETOOLONG) /* ran out of destination space */
-			error = 0;
-		return (error);
-	}
+	if (error != 0)
+		goto err;
 	if (zfs_uio_offset(&uio) != dots_offset)
 		return (SET_ERROR(EINVAL));
 
@@ -710,8 +711,11 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	entry.d_reclen = sizeof (entry);
 	error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 	if (error != 0) {
-		if (error == ENAMETOOLONG)
-			error = 0;
+err:
+		if (error == ENAMETOOLONG) {
+			error = orig_resid == zfs_uio_resid(&uio) ?
+			    EINVAL : 0;
+		}
 		return (SET_ERROR(error));
 	}
 	if (eofp != NULL)
@@ -1056,17 +1060,21 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
+	ssize_t orig_resid;
 	int error;
 
 	zfs_uio_init(&uio, ap->a_uio);
+	orig_resid = zfs_uio_resid(&uio);
 
 	ASSERT3S(vp->v_type, ==, VDIR);
 
 	error = sfs_readdir_common(ZFSCTL_INO_ROOT, ZFSCTL_INO_SNAPDIR, ap,
 	    &uio, &dots_offset);
 	if (error != 0) {
-		if (error == ENAMETOOLONG) /* ran out of destination space */
-			error = 0;
+		if (error == ENAMETOOLONG) { /* ran out of destination space */
+			error = orig_resid == zfs_uio_resid(&uio) ?
+			    EINVAL : 0;
+		}
 		return (error);
 	}
 
@@ -1084,9 +1092,13 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		dsl_pool_config_exit(dmu_objset_pool(zfsvfs->z_os), FTAG);
 		if (error != 0) {
 			if (error == ENOENT) {
-				if (eofp != NULL)
-					*eofp = 1;
-				error = 0;
+				if (orig_resid == zfs_uio_resid(&uio)) {
+					error = EINVAL;
+				} else {
+					error = 0;
+					if (eofp != NULL)
+						*eofp = 1;
+				}
 			}
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
@@ -1099,8 +1111,10 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		entry.d_reclen = sizeof (entry);
 		error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 		if (error != 0) {
-			if (error == ENAMETOOLONG)
-				error = 0;
+			if (error == ENAMETOOLONG) {
+				error = orig_resid == zfs_uio_resid(&uio) ?
+				    EINVAL : 0;
+			}
 			zfs_exit(zfsvfs, FTAG);
 			return (SET_ERROR(error));
 		}
