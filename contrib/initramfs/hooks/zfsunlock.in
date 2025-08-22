@@ -8,3 +8,12 @@ fi
 . /usr/share/initramfs-tools/hook-functions
 
 copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/zfsunlock
+
+if [ -f /etc/initramfs-tools/etc/motd ]; then
+	copy_file text /etc/initramfs-tools/etc/motd /etc/motd
+else
+	tmpf=$(mktemp)
+	echo "If you use zfs encrypted root filesystems, you can use \`zfsunlock\` to manually unlock it" > "$tmpf"
+	copy_file text "$tmpf" /etc/motd
+	rm -f "$tmpf"
+fi
