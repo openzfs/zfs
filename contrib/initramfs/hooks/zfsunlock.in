@@ -10,6 +10,8 @@ fi
 copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/zfsunlock
 
 [ -f /etc/initramfs-tools/etc/motd ] && copy_file text /etc/initramfs-tools/etc/motd /etc/motd || {
-	echo 'If you use zfs encrypted root filesystems, you can use `zfsunlock` to manually unlock it' > /tmp/zfsunlock_motd
-	copy_file text /tmp/zfsunlock_motd /etc/motd
+	tmpf=$(mktemp)
+	echo 'If you use zfs encrypted root filesystems, you can use `zfsunlock` to manually unlock it' > "$tmpf"
+	copy_file text "$tmpf" /etc/motd
+	rm -f "$tmpf"
 }
