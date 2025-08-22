@@ -486,7 +486,7 @@ struct zio {
 	spa_t		*io_spa;
 	blkptr_t	*io_bp;
 	blkptr_t	*io_bp_override;
-	blkptr_t	io_bp_copy;
+	blkptr_t	*io_bp_copy;
 	list_t		io_parent_list;
 	list_t		io_child_list;
 	zio_t		*io_logical;
@@ -498,7 +498,7 @@ struct zio {
 	zio_done_func_t	*io_done;
 	void		*io_private;
 	int64_t		io_prev_space_delta;	/* DMU private */
-	blkptr_t	io_bp_orig;
+	blkptr_t	*io_bp_orig;
 	/* io_lsize != io_orig_size iff this is a raw write */
 	uint64_t	io_lsize;
 
@@ -687,6 +687,8 @@ extern void zio_resume_wait(spa_t *spa);
 
 extern int zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
     enum blk_config_flag blk_config, enum blk_verify_flag blk_verify);
+
+extern void zio_force_bp(zio_t *zio, const blkptr_t *bp);
 
 /*
  * Initial setup and teardown.
