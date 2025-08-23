@@ -118,7 +118,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	/*
 	 * Pack the configuration into a buffer.
 	 */
-	buf = fnvlist_pack(nvl, &buflen);
+	buf = fnvlist_pack_xdr(nvl, &buflen);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
 	/*
