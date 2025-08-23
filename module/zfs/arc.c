@@ -6624,6 +6624,16 @@ arc_release(arc_buf_t *buf, const void *tag)
 	mutex_enter(hash_lock);
 
 	/*
+	 * Wait for any other IO for this hdr, as additional
+	 * buf(s) could be about to appear, in which case
+	 * we would not want to transition hdr to arc_anon.
+	 */
+	while (HDR_IO_IN_PROGRESS(hdr)) {
+		DTRACE_PROBE1(arc_release__io, arc_buf_hdr_t *, hdr);
+		cv_wait(&hdr->b_l1hdr.b_cv, hash_lock);
+	}
+
+	/*
 	 * This assignment is only valid as long as the hash_lock is
 	 * held, we must be careful not to reference state or the
 	 * b_state field after dropping the lock.
