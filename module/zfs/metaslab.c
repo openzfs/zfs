@@ -3250,7 +3250,8 @@ metaslab_space_weight(metaslab_t *msp)
 	 * In effect, this means that we'll select the metaslab with the most
 	 * free bandwidth rather than simply the one with the most free space.
 	 */
-	if (!vd->vdev_nonrot && metaslab_lba_weighting_enabled) {
+	if ((!vd->vdev_nonrot && metaslab_lba_weighting_enabled) ||
+	    vd->vdev_ops == &vdev_anyraid_ops) {
 		weight = 2 * weight - (msp->ms_id * weight) / vd->vdev_ms_count;
 		ASSERT(weight >= space && weight <= 2 * space);
 	}
@@ -3408,6 +3409,18 @@ metaslab_segment_weight(metaslab_t *msp)
 		weight = metaslab_weight_from_range_tree(msp);
 	} else {
 		weight = metaslab_weight_from_spacemap(msp);
+	}
+
+	/*
+	 * Anyraid vdevs strongly prefer allocations from earlier regions, in
+	 * order to prevent premature region placement. While this optimization
+	 * is not usually good for segment-based weighting, we enable it for
+	 * that case specifically.
+	 */
+	vdev_t *vd = mg->mg_vd;
+	if (vd->vdev_ops == &vdev_anyraid_ops) {
+		weight = 2 * weight - (msp->ms_id * weight) / vd->vdev_ms_count;
+		weight = MIN(weight, METASLAB_MAX_WEIGHT);
 	}
 
 	/*

@@ -385,6 +385,9 @@ typedef enum {
 	VDEV_PROP_TRIM_SUPPORT,
 	VDEV_PROP_TRIM_ERRORS,
 	VDEV_PROP_SLOW_IOS,
+	VDEV_PROP_ANYRAID_CAP_TILES,
+	VDEV_PROP_ANYRAID_NUM_TILES,
+	VDEV_PROP_ANYRAID_TILE_SIZE,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -902,10 +905,14 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DRAID_NSPARES	"draid_nspares"
 #define	ZPOOL_CONFIG_DRAID_NGROUPS	"draid_ngroups"
 
+/* ANYRAID configuration */
+#define	ZPOOL_CONFIG_ANYRAID_PARITY_TYPE	"parity_type"
+
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"
 #define	VDEV_TYPE_REPLACING		"replacing"
 #define	VDEV_TYPE_RAIDZ			"raidz"
+#define	VDEV_TYPE_ANYRAID		"anyraid"
 #define	VDEV_TYPE_DRAID			"draid"
 #define	VDEV_TYPE_DRAID_SPARE		"dspare"
 #define	VDEV_TYPE_DISK			"disk"
@@ -916,6 +923,8 @@ typedef struct zpool_load_policy {
 #define	VDEV_TYPE_LOG			"log"
 #define	VDEV_TYPE_L2CACHE		"l2cache"
 #define	VDEV_TYPE_INDIRECT		"indirect"
+
+#define	VDEV_ANYRAID_MAXPARITY		3
 
 #define	VDEV_RAIDZ_MAXPARITY		3
 
