@@ -5769,6 +5769,18 @@ arc_read_done(zio_t *zio)
 		arc_hdr_verify(hdr, zio->io_bp);
 	} else {
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
+		/*
+		 * hdr in the arc_anon state must not have L2 header.
+		 * Destroy it so that arc_release()'s anon fast path
+		 * wouldn't trip over a dangling L2 hdr.
+		 */
+		if (HDR_HAS_L2HDR(hdr)) {
+			mutex_enter(&hdr->b_l2hdr.b_dev->l2ad_mtx);
+			/* Recheck to prevent race with l2arc_evict(). */
+			if (HDR_HAS_L2HDR(hdr))
+				arc_hdr_l2hdr_destroy(hdr);
+			mutex_exit(&hdr->b_l2hdr.b_dev->l2ad_mtx);
+		}
 		if (hdr->b_l1hdr.b_state != arc_anon)
 			arc_change_state(arc_anon, hdr);
 		if (HDR_IN_HASH_TABLE(hdr))
@@ -5780,6 +5792,36 @@ arc_read_done(zio_t *zio)
 
 	if (hash_lock != NULL)
 		mutex_exit(hash_lock);
+
+	/*
+	 * Wake pure waiters (no done cb) first, so a waiter blocked under
+	 * db_mtx (e.g. dbuf_read_done()->arc_release()) isn't gated behind
+	 * a done callback that needs that lock.
+	 */
+	arc_callback_t *prev;
+	for (acb = callback_list; acb != NULL; acb = prev) {
+		prev = acb->acb_prev;
+
+		if (acb->acb_wait && acb->acb_done == NULL) {
+			arc_callback_t *next = acb->acb_next;
+
+			/* acb is freed by waiter, remove it from the list. */
+			if (next != NULL)
+				next->acb_prev = prev;
+			if (prev != NULL)
+				prev->acb_next = next;
+			if (callback_list == acb)
+				callback_list = prev;
+
+			mutex_enter(&acb->acb_wait_lock);
+			acb->acb_wait_error = zio->io_error;
+			acb->acb_wait = B_FALSE;
+			acb->acb_prev = NULL;
+			acb->acb_next = NULL;
+			cv_signal(&acb->acb_wait_cv);
+			mutex_exit(&acb->acb_wait_lock);
+		}
+	}
 
 	/* execute each callback and free its structure */
 	while ((acb = callback_list) != NULL) {
@@ -6023,7 +6065,6 @@ top:
 				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
 			}
-			mutex_exit(hash_lock);
 
 			ARCSTAT_BUMP(arcstat_iohits);
 			ARCSTAT_CONDSTAT(!(*arc_flags & ARC_FLAG_PREFETCH),
@@ -6031,6 +6072,7 @@ top:
 
 			if (*arc_flags & ARC_FLAG_WAIT) {
 				mutex_enter(&acb->acb_wait_lock);
+				mutex_exit(hash_lock);
 				while (acb->acb_wait) {
 					cv_wait(&acb->acb_wait_cv,
 					    &acb->acb_wait_lock);
@@ -6040,7 +6082,10 @@ top:
 				mutex_destroy(&acb->acb_wait_lock);
 				cv_destroy(&acb->acb_wait_cv);
 				kmem_free(acb, sizeof (arc_callback_t));
+			} else {
+				mutex_exit(hash_lock);
 			}
+
 			goto out;
 		}
 
@@ -6203,8 +6248,8 @@ top:
 				acb->acb_next = hdr->b_l1hdr.b_acb;
 				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
-				mutex_exit(hash_lock);
 				mutex_enter(&acb->acb_wait_lock);
+				mutex_exit(hash_lock);
 				while (acb->acb_wait) {
 					cv_wait(&acb->acb_wait_cv,
 					    &acb->acb_wait_lock);
@@ -6624,6 +6669,7 @@ void
 arc_release(arc_buf_t *buf, const void *tag)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
 
 	/*
 	 * It would be nice to assert that if its DMU metadata (level >
@@ -6632,6 +6678,45 @@ arc_release(arc_buf_t *buf, const void *tag)
 	 */
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
+
+	/*
+	 * Wait for any other IO for this hdr, as additional buf(s) could be
+	 * about to be added by arc_read_done(), in which case we would not
+	 * want to transition hdr to arc_anon.  This is a rare case, so take
+	 * the hash_lock only if it's true and re-check it under the lock.
+	 */
+	while (HDR_IO_IN_PROGRESS(hdr)) {
+		mutex_enter(hash_lock);
+
+		if (HDR_IO_IN_PROGRESS(hdr)) {
+			arc_callback_t *acb;
+
+			acb = kmem_zalloc(sizeof (*acb), KM_SLEEP);
+			acb->acb_wait = B_TRUE;
+			mutex_init(&acb->acb_wait_lock, NULL, MUTEX_DEFAULT,
+			    NULL);
+			cv_init(&acb->acb_wait_cv, NULL, CV_DEFAULT, NULL);
+
+			VERIFY3P(hdr->b_l1hdr.b_acb, !=, NULL);
+			acb->acb_zio_head = hdr->b_l1hdr.b_acb->acb_zio_head;
+			acb->acb_next = hdr->b_l1hdr.b_acb;
+			hdr->b_l1hdr.b_acb->acb_prev = acb;
+			hdr->b_l1hdr.b_acb = acb;
+
+			mutex_enter(&acb->acb_wait_lock);
+			mutex_exit(hash_lock);
+
+			while (acb->acb_wait)
+				cv_wait(&acb->acb_wait_cv, &acb->acb_wait_lock);
+
+			mutex_exit(&acb->acb_wait_lock);
+			mutex_destroy(&acb->acb_wait_lock);
+			cv_destroy(&acb->acb_wait_cv);
+			kmem_free(acb, sizeof (*acb));
+		} else {
+			mutex_exit(hash_lock);
+		}
+	}
 
 	/*
 	 * We don't grab the hash lock prior to this check, because if
@@ -6660,7 +6745,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 		return;
 	}
 
-	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 
 	/*
