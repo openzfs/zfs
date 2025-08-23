@@ -85,6 +85,7 @@ override_dh_auto_install:
 	mv '$(CURDIR)/debian/tmp/usr/bin/arcstat' '$(CURDIR)/debian/tmp/usr/sbin/arcstat'
 	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
 	mv '$(CURDIR)/debian/tmp/usr/bin/zilstat' '$(CURDIR)/debian/tmp/usr/sbin/zilstat'
+	mv '$(CURDIR)/debian/tmp/usr/bin/zleak' '$(CURDIR)/debian/tmp/usr/sbin/zleak'
 
 	@# Zed has dependencies outside of the system root.
 	mv '$(CURDIR)/debian/tmp/sbin/zed' '$(CURDIR)/debian/tmp/usr/sbin/zed'
