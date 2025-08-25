@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -70,7 +71,7 @@ if is_freebsd; then
 	recursive=$(get_tunable VOL_RECURSIVE)
 	log_must set_tunable64 VOL_RECURSIVE 1
 fi
-log_must zpool add $TESTPOOL $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
+log_must zpool add --allow-ashift-mismatch $TESTPOOL $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
 
 log_must vdevs_in_pool "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 

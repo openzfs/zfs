@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -30,18 +31,17 @@ export RECORDSIZE=$(zfs get -Hp -o value recordsize $TESTPOOL/$TESTFS)
 MINBLKSIZE1=512
 MINBLKSIZE2=1024
 
-function verify_block_cloning
-{
-	if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
-		log_unsupported "copy_file_range not available before Linux 4.5"
-	fi
-}
-
 function verify_crossfs_block_cloning
 {
 	if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
 		log_unsupported "copy_file_range can't copy cross-filesystem before Linux 5.3"
 	fi
+
+	# Cross dataset block cloning only supported on FreeBSD 14+
+	# https://github.com/freebsd/freebsd-src/commit/969071be938c
+        if is_freebsd && [ $(freebsd_version) -lt $(freebsd_version 14.0) ] ; then
+               log_unsupported "Cloning across datasets not supported in $(uname -r)"
+        fi
 }
 
 # Unused.
@@ -71,7 +71,7 @@ function test_file_integrity
     typeset -r clone=$2
     typeset -r filesize=$3
 
-    typeset -r clone_checksum=$(sha256digest $clone)
+    typeset -r clone_checksum=$(xxh128digest $clone)
 
     if [[ $original_checksum != $clone_checksum ]]; then
         log_fail "Clone $clone is corrupted with file size $filesize"
@@ -91,20 +91,19 @@ function verify_pool_prop_eq
 
 function verify_pool_props
 {
-    typeset -r dsize=$1
-    typeset -r ratio=$2
+    typeset -r oused=$1
+    typeset -r osaved=$2
+    typeset dsize=$3
+    typeset ratio=$4
 
     if [[ $dsize -eq 0 ]]; then
-        verify_pool_prop_eq bcloneused 0
-        verify_pool_prop_eq bclonesaved 0
-        verify_pool_prop_eq bcloneratio 1.00
-    else
-        if [[ $ratio -eq 1 ]]; then
-            verify_pool_prop_eq bcloneused 0
-        else
-            verify_pool_prop_eq bcloneused $dsize
-        fi
-        verify_pool_prop_eq bclonesaved $((dsize*(ratio-1)))
+        ratio=1
+    elif [[ $ratio -eq 1 ]]; then
+        dsize=0
+    fi
+    verify_pool_prop_eq bcloneused $(($oused+$dsize))
+    verify_pool_prop_eq bclonesaved $(($osaved+dsize*(ratio-1)))
+    if [[ $oused -eq 0 ]]; then
         verify_pool_prop_eq bcloneratio "${ratio}.00"
     fi
 }
@@ -118,16 +117,22 @@ function bclone_test
     typeset -r srcdir=$4
     typeset -r dstdir=$5
     typeset dsize
+    typeset oused
+    typeset osaved
 
     typeset -r original="${srcdir}/original"
     typeset -r clone="${dstdir}/clone"
 
     log_note "Testing file copy with datatype $datatype, file size $filesize, embedded $embedded"
 
+    # Save current block cloning stats for later use.
+    sync_pool $TESTPOOL
+    oused=$(get_pool_prop bcloneused $TESTPOOL)
+    osaved=$(get_pool_prop bclonesaved $TESTPOOL)
+
     # Create a test file with known content.
     case $datatype in
         random|text)
-            sync_pool $TESTPOOL
             if [[ $datatype = "random" ]]; then
                 dd if=/dev/urandom of=$original bs=$filesize count=1 2>/dev/null
             else
@@ -140,13 +145,13 @@ function bclone_test
             sync_pool $TESTPOOL
             # It is hard to predict block sizes that will be used,
             # so just do one clone and take it from bcloneused.
-            filesize=$(zpool get -Hp -o value bcloneused $TESTPOOL)
+            dsize=$(get_pool_prop bcloneused $TESTPOOL)
+            dsize=$(($dsize-$oused))
             if [[ $embedded = "false" ]]; then
-                log_must test $filesize -gt 0
+                log_must test $dsize -gt 0
             fi
             rm -f "${clone}-tmp"
             sync_pool $TESTPOOL
-            dsize=$filesize
             ;;
         hole)
             log_must truncate_test -s $filesize -f $original
@@ -160,7 +165,7 @@ function bclone_test
         dsize=0
     fi
 
-    typeset -r original_checksum=$(sha256digest $original)
+    typeset -r original_checksum=$(xxh128digest $original)
 
     sync_pool $TESTPOOL
 
@@ -211,7 +216,7 @@ function bclone_test
     test_file_integrity $original_checksum "${clone}4" $filesize
     test_file_integrity $original_checksum "${clone}5" $filesize
 
-    verify_pool_props $dsize 7
+    verify_pool_props $oused $osaved $dsize 7
 
     # Clear cache and test after fresh import.
     log_must zpool export $TESTPOOL
@@ -234,7 +239,7 @@ function bclone_test
 
     sync_pool $TESTPOOL
 
-    verify_pool_props $dsize 11
+    verify_pool_props $oused $osaved $dsize 11
 
     log_must zpool export $TESTPOOL
     log_must zpool import $TESTPOOL
@@ -262,7 +267,7 @@ function bclone_test
     test_file_integrity $original_checksum "${clone}8" $filesize
     test_file_integrity $original_checksum "${clone}9" $filesize
 
-    verify_pool_props $dsize 6
+    verify_pool_props $oused $osaved $dsize 6
 
     rm -f "${clone}0" "${clone}2" "${clone}4" "${clone}8" "${clone}9"
 
@@ -270,11 +275,11 @@ function bclone_test
 
     test_file_integrity $original_checksum "${clone}6" $filesize
 
-    verify_pool_props $dsize 1
+    verify_pool_props $oused $osaved $dsize 1
 
     rm -f "${clone}6"
 
     sync_pool $TESTPOOL
 
-    verify_pool_props $dsize 1
+    verify_pool_props $oused $osaved $dsize 1
 }

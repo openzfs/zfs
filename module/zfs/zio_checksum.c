@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -160,6 +161,12 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
 	abd_fletcher_4_impl(abd, size, &acd);
 }
 
+/*
+ * Checksum vectors.
+ *
+ * Note: you cannot change the name string for these functions, as they are
+ * embedded in on-disk data in some places (eg dedup table names).
+ */
 zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	{{NULL, NULL}, NULL, NULL, 0, "inherit"},
 	{{NULL, NULL}, NULL, NULL, 0, "on"},
@@ -208,7 +215,7 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 spa_feature_t
 zio_checksum_to_feature(enum zio_checksum cksum)
 {
-	VERIFY((cksum & ~ZIO_CHECKSUM_MASK) == 0);
+	VERIFY0((cksum & ~ZIO_CHECKSUM_MASK));
 
 	switch (cksum) {
 	case ZIO_CHECKSUM_BLAKE3:
@@ -272,7 +279,7 @@ static void
 zio_checksum_gang_verifier(zio_cksum_t *zcp, const blkptr_t *bp)
 {
 	const dva_t *dva = BP_IDENTITY(bp);
-	uint64_t txg = BP_PHYSICAL_BIRTH(bp);
+	uint64_t txg = BP_GET_PHYSICAL_BIRTH(bp);
 
 	ASSERT(BP_IS_GANG(bp));
 
@@ -538,14 +545,39 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 	uint_t checksum = (bp == NULL ? zio->io_prop.zp_checksum :
 	    (BP_IS_GANG(bp) ? ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp)));
 	int error;
-	uint64_t size = (bp == NULL ? zio->io_size :
-	    (BP_IS_GANG(bp) ? SPA_GANGBLOCKSIZE : BP_GET_PSIZE(bp)));
+	uint64_t size = bp ? BP_GET_PSIZE(bp) : zio->io_size;
 	uint64_t offset = zio->io_offset;
 	abd_t *data = zio->io_abd;
 	spa_t *spa = zio->io_spa;
 
+	if (bp && BP_IS_GANG(bp)) {
+		if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
+			size = zio->io_size;
+		else
+			size = SPA_OLD_GANGBLOCKSIZE;
+	}
+
 	error = zio_checksum_error_impl(spa, bp, checksum, data, size,
 	    offset, info);
+	if (error && bp && BP_IS_GANG(bp) && size > SPA_OLD_GANGBLOCKSIZE) {
+		/*
+		 * It's possible that this is an old gang block. Rerun
+		 * the checksum with the old size; if that passes, then
+		 * update the gangblocksize appropriately.
+		 */
+		error = zio_checksum_error_impl(spa, bp, checksum, data,
+		    SPA_OLD_GANGBLOCKSIZE, offset, info);
+		if (error == 0) {
+			ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
+			zio_t *pio;
+			for (pio = zio_unique_parent(zio);
+			    pio->io_child_type != ZIO_CHILD_GANG;
+			    pio = zio_unique_parent(pio))
+				;
+			zio_gang_node_t *gn = pio->io_private;
+			gn->gn_gangblocksize = SPA_OLD_GANGBLOCKSIZE;
+		}
+	}
 
 	if (zio_injection_enabled && error == 0 && zio->io_error == 0) {
 		error = zio_handle_fault_injection(zio, ECKSUM);

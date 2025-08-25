@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2008 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -39,20 +40,14 @@
 #include <sys/signalvar.h>
 #include <sys/debug.h>
 
-#define	FORREAL		0
-#define	JUSTLOOKING	1
-
 static __inline int
-issig(int why)
+issig(void)
 {
 	struct thread *td = curthread;
 	struct proc *p;
 	int sig;
 
-	ASSERT(why == FORREAL || why == JUSTLOOKING);
 	if (SIGPENDING(td)) {
-		if (why == JUSTLOOKING)
-			return (1);
 		p = td->td_proc;
 		PROC_LOCK(p);
 		mtx_lock(&p->p_sigacts->ps_mtx);

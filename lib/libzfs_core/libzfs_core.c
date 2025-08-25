@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -95,9 +96,13 @@
 #define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
 #endif
 
+#include "libzfs_core_impl.h"
+
 static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
+
+static int g_ioc_trace = 0;
 
 #ifdef ZFS_DEBUG
 static zfs_ioc_t fail_ioc_cmd = ZFS_IOC_LAST;
@@ -151,6 +156,10 @@ libzfs_core_init(void)
 #ifdef ZFS_DEBUG
 	libzfs_core_debug_ioc();
 #endif
+
+	if (getenv("ZFS_IOC_TRACE"))
+		g_ioc_trace = 1;
+
 	(void) pthread_mutex_unlock(&g_lock);
 	return (0);
 }
@@ -168,6 +177,42 @@ libzfs_core_fini(void)
 		g_fd = -1;
 	}
 	(void) pthread_mutex_unlock(&g_lock);
+}
+
+int
+lzc_ioctl_fd(int fd, unsigned long ioc, zfs_cmd_t *zc)
+{
+	if (!g_ioc_trace)
+		return (lzc_ioctl_fd_os(fd, ioc, zc));
+
+	nvlist_t *nvl;
+
+	fprintf(stderr, "=== lzc_ioctl: call: ioc=0x%lx name=%s\n",
+	    ioc, zc->zc_name[0] ? zc->zc_name : "[none]");
+	if (zc->zc_nvlist_src) {
+		nvl = fnvlist_unpack(
+		    (void *)(uintptr_t)zc->zc_nvlist_src,
+		    zc->zc_nvlist_src_size);
+		nvlist_print(stderr, nvl);
+		fnvlist_free(nvl);
+	}
+
+	int rc = lzc_ioctl_fd_os(fd, ioc, zc);
+	int err = errno;
+
+	fprintf(stderr, "=== lzc_ioctl: result: ioc=0x%lx name=%s "
+	    "rc=%d errno=%d\n", ioc, zc->zc_name[0] ? zc->zc_name : "[none]",
+	    rc, (rc < 0 ? err : 0));
+	if (rc >= 0 && zc->zc_nvlist_dst) {
+		nvl = fnvlist_unpack(
+		    (void *)(uintptr_t)zc->zc_nvlist_dst,
+		    zc->zc_nvlist_dst_size);
+		nvlist_print(stderr, nvl);
+		fnvlist_free(nvl);
+	}
+
+	errno = err;
+	return (rc);
 }
 
 static int
@@ -594,6 +639,12 @@ int
 lzc_get_holds(const char *snapname, nvlist_t **holdsp)
 {
 	return (lzc_ioctl(ZFS_IOC_GET_HOLDS, snapname, NULL, holdsp));
+}
+
+int
+lzc_get_props(const char *poolname, nvlist_t **props)
+{
+	return (lzc_ioctl(ZFS_IOC_POOL_GET_PROPS, poolname, NULL, props));
 }
 
 static unsigned int
@@ -1624,6 +1675,26 @@ lzc_pool_checkpoint_discard(const char *pool)
 }
 
 /*
+ * Load the requested data type for the specified pool.
+ */
+int
+lzc_pool_prefetch(const char *pool, zpool_prefetch_type_t type)
+{
+	int error;
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_int32(args, ZPOOL_PREFETCH_TYPE, type);
+
+	error = lzc_ioctl(ZFS_IOC_POOL_PREFETCH, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+/*
  * Executes a read-only channel program.
  *
  * A read-only channel program works programmatically the same way as a
@@ -1900,4 +1971,26 @@ int
 lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 {
 	return (lzc_ioctl(ZFS_IOC_GET_BOOTENV, pool, NULL, outnvl));
+}
+
+/*
+ * Prune the specified amount from the pool's dedup table.
+ */
+int
+lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
+{
+	int error;
+
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_int32(args, DDT_PRUNE_UNIT, unit);
+	fnvlist_add_uint64(args, DDT_PRUNE_AMOUNT, amount);
+
+	error = lzc_ioctl(ZFS_IOC_DDT_PRUNE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
 }

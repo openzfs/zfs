@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -295,8 +296,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	}
 
 	for (t = 0; t < nthreads; t++)
-		VERIFY((tq->tq_threadlist[t] = thread_create(NULL, 0,
-		    taskq_thread, tq, 0, &p0, TS_RUN, pri)) != NULL);
+		VERIFY((tq->tq_threadlist[t] = thread_create_named(tq->tq_name,
+		    NULL, 0, taskq_thread, tq, 0, &p0, TS_RUN, pri)) != NULL);
 
 	return (tq);
 }

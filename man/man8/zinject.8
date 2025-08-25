@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -19,10 +20,11 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
+.\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd May 26, 2021
+.Dd January 14, 2025
 .Dt ZINJECT 8
 .Os
 .
@@ -69,6 +71,7 @@ Force a vdev into the DEGRADED or FAULTED state.
 .Nm zinject
 .Fl d Ar vdev
 .Fl D Ar latency : Ns Ar lanes
+.Op Fl T Ar read|write
 .Ar pool
 .Xc
 Add an artificial delay to I/O requests on a particular
@@ -124,6 +127,14 @@ of 10 ms and two lanes with a 25 ms latency.
 .Ar pool
 .Xc
 Force a vdev error.
+.
+.It Xo
+.Nm zinject
+.Fl i Ar seconds
+.Ar pool
+.Xc
+Add an artificial delay during the future import of a pool.
+This injector is automatically cleared after the import is finished.
 .
 .It Xo
 .Nm zinject
@@ -209,9 +220,11 @@ to flip a bit in the data after a read,
 .It Sy dtl
 for an ECHILD error,
 .It Sy io
-for an EIO error where reopening the device will succeed, or
+for an EIO error where reopening the device will succeed,
 .It Sy nxio
-for an ENXIO error where reopening the device will fail.
+for an ENXIO error where reopening the device will fail, or
+.It Sy noop
+to drop the IO without executing it, and return success.
 .El
 .Pp
 For EIO and ENXIO, the "failed" reads or writes still occur.
@@ -253,14 +266,16 @@ will be translated to the appropriate blkid range according to the
 object's properties.
 .It Fl s Ar seconds
 Run for this many seconds before reporting failure.
-.It Fl T Ar failure
-Set the failure type to one of
-.Sy all ,
-.Sy claim ,
-.Sy free ,
-.Sy read ,
-or
-.Sy write .
+.It Fl T Ar type
+Inject the error into I/O of this type.
+.Bl -tag -compact -width "read, write, flush, claim, free"
+.It Sy read , Sy write , Sy flush , Sy claim , Sy free
+Fundamental I/O types
+.It Sy all
+All fundamental I/O types
+.It Sy probe
+Device probe I/O
+.El
 .It Fl t Ar mos_type
 Set this to
 .Bl -tag -compact -width "spacemap"

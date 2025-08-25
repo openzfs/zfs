@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -52,7 +53,8 @@
 /*
  * Compatibility macros/typedefs needed for Solaris -> Linux port
  */
-#define	P2ALIGN(x, align)	((x) & -(align))
+// Deprecated. Use P2ALIGN_TYPED instead.
+// #define	P2ALIGN(x, align)	((x) & -(align))
 #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
 #define	P2ROUNDUP(x, align)	((((x) - 1) | ((align) - 1)) + 1)
 #define	P2BOUNDARY(off, len, align) \

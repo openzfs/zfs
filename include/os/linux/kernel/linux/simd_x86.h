@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -137,15 +138,6 @@
  * versions which allow the FPU to be safely used.
  */
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
-
-/*
- * For kernels not exporting *kfpu_{begin,end} we have to use inline assembly
- * with the XSAVE{,OPT,S} instructions, so we need the toolchain to support at
- * least XSAVE.
- */
-#if !defined(HAVE_XSAVE)
-#error "Toolchain needs to support the XSAVE assembler instruction"
-#endif
 
 #ifndef XFEATURE_MASK_XTILE
 /*
@@ -334,9 +326,13 @@ kfpu_begin(void)
 		return;
 	}
 #endif
+#if defined(HAVE_XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xsave("xsave", state, ~XFEATURE_MASK_XTILE);
-	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		return;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(state);
 	} else {
 		kfpu_save_fsave(state);
@@ -389,9 +385,13 @@ kfpu_end(void)
 		goto out;
 	}
 #endif
+#if defined(HAVE_XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xrstor("xrstor", state, ~XFEATURE_MASK_XTILE);
-	} else if (static_cpu_has(X86_FEATURE_FXSR)) {
+		goto out;
+	}
+#endif
+	if (static_cpu_has(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(state);
 	} else {
 		kfpu_restore_fsave(state);
@@ -592,6 +592,32 @@ zfs_movbe_available(void)
 {
 #if defined(X86_FEATURE_MOVBE)
 	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if VAES instruction set is available
+ */
+static inline boolean_t
+zfs_vaes_available(void)
+{
+#if defined(X86_FEATURE_VAES)
+	return (!!boot_cpu_has(X86_FEATURE_VAES));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if VPCLMULQDQ instruction set is available
+ */
+static inline boolean_t
+zfs_vpclmulqdq_available(void)
+{
+#if defined(X86_FEATURE_VPCLMULQDQ)
+	return (!!boot_cpu_has(X86_FEATURE_VPCLMULQDQ));
 #else
 	return (B_FALSE);
 #endif

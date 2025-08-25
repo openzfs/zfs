@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2014 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -26,29 +27,5 @@
 
 #include <linux/sched.h>
 #include <linux/wait.h>
-
-#ifndef HAVE_WAIT_ON_BIT_ACTION
-#define	spl_wait_on_bit(word, bit, mode)	wait_on_bit(word, bit, mode)
-#else
-
-static inline int
-spl_bit_wait(void *word)
-{
-	schedule();
-	return (0);
-}
-
-#define	spl_wait_on_bit(word, bit, mode)		\
-	wait_on_bit(word, bit, spl_bit_wait, mode)
-
-#endif /* HAVE_WAIT_ON_BIT_ACTION */
-
-#ifdef HAVE_WAIT_QUEUE_ENTRY_T
-typedef wait_queue_head_t	spl_wait_queue_head_t;
-typedef wait_queue_entry_t	spl_wait_queue_entry_t;
-#else
-typedef wait_queue_head_t	spl_wait_queue_head_t;
-typedef wait_queue_t		spl_wait_queue_entry_t;
-#endif
 
 #endif /* SPL_WAIT_H */

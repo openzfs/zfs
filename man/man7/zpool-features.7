@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
@@ -14,11 +15,11 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.\" Copyright (c) 2019, Klara Inc.
+.\" Copyright (c) 2019, 2023, 2024, Klara, Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd June 23, 2022
+.Dd October 2, 2024
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -218,7 +219,7 @@ to the end of the line is ignored.
 .Sy Example :
 .Bd -literal -compact -offset 4n
 .No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2
-# Features which are supported by GRUB2
+# Features which are supported by GRUB2 versions from v2.12 onwards.
 allocation_classes
 async_destroy
 block_cloning
@@ -240,6 +241,31 @@ spacemap_histogram
 spacemap_v2
 userobj_accounting
 zilsaxattr
+zpool_checkpoint
+
+.No example# Nm cat Pa /usr/share/zfs/compatibility.d/grub2-2.06
+# Features which are supported by GRUB2 versions prior to v2.12.
+#
+# GRUB is not able to detect ZFS pool if snapshot of top level boot pool
+# is created. This issue is observed with GRUB versions before v2.12 if
+# extensible_dataset feature is enabled on ZFS boot pool.
+#
+# This file lists all read-only compatible features except
+# extensible_dataset and any other feature that depends on it.
+#
+allocation_classes
+async_destroy
+block_cloning
+device_rebuild
+embedded_data
+empty_bpobj
+enabled_txg
+hole_birth
+log_spacemap
+lz4_compress
+resilver_defer
+spacemap_histogram
+spacemap_v2
 zpool_checkpoint
 
 .No example# Nm zpool Cm create Fl o Sy compatibility Ns = Ns Ar grub2 Ar bootpool Ar vdev
@@ -375,6 +401,17 @@ This feature becomes
 .Sy active
 when first block is cloned.
 When the last cloned block is freed, it goes back to the enabled state.
+.feature com.truenas block_cloning_endian yes
+This feature corrects ZAP entry endianness issues in the Block Reference
+Table (BRT) used by block cloning.
+During the original block cloning implementation, BRT ZAP entries were
+mistakenly stored as arrays of 8 single-byte entries instead of single
+8-byte entries, making pools non-endian-safe.
+.Pp
+This feature is activated when the first BRT ZAP is created (that way
+ensuring compatibility with existing pools).
+When active, new BRT entries are stored in the correct endian-safe format.
+The feature becomes inactive when all BRT ZAPs are destroyed.
 .feature com.delphix bookmarks yes extensible_dataset
 This feature enables use of the
 .Nm zfs Cm bookmark
@@ -467,6 +504,19 @@ vdev type, or when adding a new
 .Sy draid
 vdev to an existing pool.
 .
+.feature com.klarasystems dynamic_gang_header no
+This feature enables larger gang headers based on the sector size of the pool.
+When enabled, gang headers will use the entire space allocated for them, instead
+of always restricting themselves to 512 bytes.
+This can reduce the need for nested gang trees in extreme fragmentation
+scenarios.
+.Pp
+This feature becomes active when a gang header is written that is larger than
+512 bytes.
+This feature is not enabled by
+.Xr zpool-upgrade 8 .
+Instead, it must be manually enabled, or be part of a compatibility file.
+.
 .feature org.illumos edonr no extensible_dataset
 This feature enables the use of the Edon-R hash algorithm for checksum,
 including for nopwrite
@@ -549,6 +599,20 @@ This feature becomes
 when an encrypted dataset is created and will be returned to the
 .Sy enabled
 state when all datasets that use this feature are destroyed.
+.
+.feature com.klarasystems fast_dedup yes
+This feature allows more advanced deduplication features to be enabled on new
+dedup tables.
+.Pp
+This feature will be
+.Sy active
+when the first deduplicated block is written after a new dedup table is created
+(i.e. after a new pool creation, or new checksum used on a dataset with
+.Sy dedup
+enabled).
+It will be returned to the
+.Sy enabled
+state when all deduplicated blocks using it are freed.
 .
 .feature com.delphix extensible_dataset no
 This feature allows more flexible use of internal ZFS data structures,
@@ -666,7 +730,25 @@ are destroyed.
 Large dnodes allow more data to be stored in the bonus buffer,
 thus potentially improving performance by avoiding the use of spill blocks.
 .
-.feature com.delphix livelist yes
+.feature com.klarasystems large_microzap yes extensible_dataset large_blocks
+This feature allows "micro" ZAPs to grow larger than 128 KiB without being
+upgraded to "fat" ZAPs.
+.Pp
+This feature becomes
+.Sy active
+the first time a micro ZAP grows larger than 128KiB.
+It will only be returned to the
+.Sy enabled
+state when all datasets that ever had a large micro ZAP are destroyed.
+.Pp
+Note that even when this feature is enabled, micro ZAPs cannot grow larger
+than 128 KiB without also changing the
+.Sy zap_micro_max_size
+module parameter.
+See
+.Xr zfs 4 .
+.
+.feature com.delphix livelist yes extensible_dataset
 This feature allows clones to be deleted faster than the traditional method
 when a large number of random/sparse writes have been made to the clone.
 All blocks allocated and freed after a clone is created are tracked by the
@@ -682,6 +764,23 @@ It does so by logging all the metaslab changes on a single spacemap every TXG
 instead of scattering multiple writes to all the metaslab spacemaps.
 .Pp
 \*[instant-never]
+.
+.feature org.zfsonlinux longname no extensible_dataset
+This feature allows creating files and directories with name up to 1023 bytes
+in length.
+A new dataset property
+.Sy longname
+is also introduced to toggle longname support for each dataset individually.
+This property can be disabled even if it contains longname files.
+In such case, new file cannot be created with longname but existing longname
+files can still be looked up.
+.Pp
+This feature becomes
+.Sy active
+when a file name greater than 255 is created in a dataset, and returns to
+being
+.Sy enabled
+when all such datasets are destroyed.
 .
 .feature org.illumos lz4_compress no
 .Sy lz4
@@ -753,6 +852,23 @@ when the
 .Nm zpool Cm remove
 command is used on a top-level vdev, and will never return to being
 .Sy enabled .
+.
+.feature com.truenas physical_rewrite yes extensible_dataset
+This feature enables physical block rewriting that preserves logical birth
+times, avoiding unnecessary inclusion of rewritten blocks in incremental
+.Nm zfs Cm send
+streams.
+When enabled, the
+.Nm zfs Cm rewrite Fl P
+command can be used.
+.Pp
+This feature becomes
+.Sy active
+the first time
+.Nm zfs Cm rewrite Fl P
+is used on any dataset, and will return to being
+.Sy enabled
+once all datasets that have ever used physical rewrite are destroyed.
 .
 .feature org.zfsonlinux project_quota yes extensible_dataset
 This feature allows administrators to account the spaces and objects usage

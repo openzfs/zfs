@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -184,7 +185,8 @@ zfs_refcount_remove_many(zfs_refcount_t *rc, uint64_t number,
 	ASSERT3U(rc->rc_count, >=, number);
 	ref = avl_find(&rc->rc_tree, &s, NULL);
 	if (unlikely(ref == NULL)) {
-		panic("No such hold %p on refcount %llx", holder,
+		PANIC("No such hold %llx on refcount %llx",
+		    (u_longlong_t)(uintptr_t)holder,
 		    (u_longlong_t)(uintptr_t)rc);
 		return (-1);
 	}
@@ -349,11 +351,9 @@ EXPORT_SYMBOL(zfs_refcount_add);
 EXPORT_SYMBOL(zfs_refcount_remove);
 EXPORT_SYMBOL(zfs_refcount_held);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, , reference_tracking_enable, INT, ZMOD_RW,
 	"Track reference holders to refcount_t objects");
 
 ZFS_MODULE_PARAM(zfs, , reference_history, UINT, ZMOD_RW,
 	"Maximum reference holders being tracked");
-/* END CSTYLED */
 #endif	/* ZFS_DEBUG */

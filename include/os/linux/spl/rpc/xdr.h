@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (c) 2008 Sun Microsystems, Inc.
  *  Written by Ricardo Correia <Ricardo.M.Correia@Sun.COM>
@@ -22,8 +23,6 @@
 #define	_SPL_RPC_XDR_H
 
 #include <sys/types.h>
-
-typedef int bool_t;
 
 /*
  * XDR enums and types.

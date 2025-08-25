@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -35,6 +36,10 @@
 #include <sys/dnode.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/uio.h>
+#include <sys/abd.h>
+#include <sys/arc.h>
+#include <sys/dbuf.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -134,7 +139,7 @@ extern "C" {
  * 	db_data_pending
  * 	db_dirtied
  * 	db_link
- * 	db_dirty_node (??)
+ * 	db_dirty_records
  * 	db_dirtycnt
  * 	db_d.*
  * 	db.*
@@ -150,8 +155,10 @@ extern "C" {
  *   	dbuf_find: none (db_holds)
  *   	dbuf_hash_insert: none (db_holds)
  *   	dmu_buf_read_array_impl: none (db_state, db_changed)
- *   	dmu_sync: none (db_dirty_node, db_d)
+ *   	dmu_sync: none (db_dirty_records, db_d)
  *   	dnode_reallocate: none (db)
+ *   	dmu_write_direct: none (db_dirty_records, db_d)
+ *   	dmu_write_direct_done: none (db_dirty_records, db_d)
  *
  * dn_mtx (leaf)
  *   protects:
@@ -161,12 +168,10 @@ extern "C" {
  * 	dn_allocated_txg
  * 	dn_free_txg
  * 	dn_assigned_txg
- * 	dn_dirty_txg
+ * 	dn_dirtycnt
  * 	dd_assigned_tx
  * 	dn_notxholds
  *	dn_nodnholds
- * 	dn_dirtyctx
- * 	dn_dirtyctx_firstset
  * 	(dn_phys copy fields?)
  * 	(dn_phys contents?)
  *   held from:
@@ -234,8 +239,9 @@ extern "C" {
  *	dnode_new_blkid
  */
 
-struct objset;
 struct dmu_pool;
+struct dmu_buf;
+struct zgd;
 
 typedef struct dmu_sendstatus {
 	list_node_t dss_link;
@@ -245,8 +251,31 @@ typedef struct dmu_sendstatus {
 	uint64_t dss_blocks; /* blocks visited during the sending process */
 } dmu_sendstatus_t;
 
+/*
+ * dmu_sync_{ready/done} args
+ */
+typedef struct {
+	dbuf_dirty_record_t	*dsa_dr;
+	void (*dsa_done)(struct zgd *, int);
+	struct zgd		*dsa_zgd;
+	dmu_tx_t		*dsa_tx;
+} dmu_sync_arg_t;
+
+void dmu_sync_done(zio_t *, arc_buf_t *buf, void *varg);
+void dmu_sync_ready(zio_t *, arc_buf_t *buf, void *varg);
+
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
+
+int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *);
+int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t);
+int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t,
+    dmu_tx_t *);
+#if defined(_KERNEL)
+int dmu_read_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t);
+int dmu_write_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t,
+    dmu_tx_t *);
+#endif
 
 #ifdef	__cplusplus
 }

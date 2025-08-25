@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -21,7 +22,8 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <linux/percpu_compat.h>
+#define	SPL_KMEM_CACHE_IMPLEMENTING
+
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/taskq.h>
@@ -32,16 +34,6 @@
 #include <linux/slab.h>
 #include <linux/swap.h>
 #include <linux/prefetch.h>
-
-/*
- * Within the scope of spl-kmem.c file the kmem_cache_* definitions
- * are removed to allow access to the real Linux slab allocator.
- */
-#undef kmem_cache_destroy
-#undef kmem_cache_create
-#undef kmem_cache_alloc
-#undef kmem_cache_free
-
 
 /*
  * Linux 3.16 replaced smp_mb__{before,after}_{atomic,clear}_{dec,inc,bit}()
@@ -57,7 +49,6 @@
 #define	smp_mb__after_atomic(x) smp_mb__after_clear_bit(x)
 #endif
 
-/* BEGIN CSTYLED */
 /*
  * Cache magazines are an optimization designed to minimize the cost of
  * allocating memory.  They do this by keeping a per-cpu cache of recently
@@ -106,7 +97,6 @@ static unsigned int spl_kmem_cache_kmem_threads = 4;
 module_param(spl_kmem_cache_kmem_threads, uint, 0444);
 MODULE_PARM_DESC(spl_kmem_cache_kmem_threads,
 	"Number of spl_kmem_cache threads");
-/* END CSTYLED */
 
 /*
  * Slab allocation interfaces
@@ -152,6 +142,8 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	gfp_t lflags = kmem_flags_convert(flags);
 	void *ptr;
 
+	if (skc->skc_flags & KMC_RECLAIMABLE)
+		lflags |= __GFP_RECLAIMABLE;
 	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
 
 	/* Resulting allocated memory will be page aligned */
@@ -304,7 +296,7 @@ spl_slab_free(spl_kmem_slab_t *sks,
 	spl_kmem_cache_t *skc;
 
 	ASSERT(sks->sks_magic == SKS_MAGIC);
-	ASSERT(sks->sks_ref == 0);
+	ASSERT0(sks->sks_ref);
 
 	skc = sks->sks_cache;
 	ASSERT(skc->skc_magic == SKC_MAGIC);
@@ -432,6 +424,8 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (!empty)
 		return (-EEXIST);
 
+	if (skc->skc_flags & KMC_RECLAIMABLE)
+		lflags |= __GFP_RECLAIMABLE;
 	ske = kmalloc(sizeof (*ske), lflags);
 	if (ske == NULL)
 		return (-ENOMEM);
@@ -604,7 +598,7 @@ static void
 spl_magazine_free(spl_kmem_magazine_t *skm)
 {
 	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skm->skm_avail == 0);
+	ASSERT0(skm->skm_avail);
 	kfree(skm);
 }
 
@@ -616,7 +610,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
 	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
@@ -646,7 +640,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	spl_kmem_magazine_t *skm;
 	int i = 0;
 
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -671,6 +665,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_KVMEM       Force kvmem backed SPL cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_NODEBUG	Disable debugging (unsupported)
+ *	KMC_RECLAIMABLE	Memory can be freed under pressure
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(const char *name, size_t size, size_t align,
@@ -684,8 +679,8 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	/*
 	 * Unsupported flags
 	 */
-	ASSERT(vmp == NULL);
-	ASSERT(reclaim == NULL);
+	ASSERT0P(vmp);
+	ASSERT0P(reclaim);
 
 	might_sleep();
 
@@ -731,9 +726,9 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
 
-	rc = percpu_counter_init_common(&skc->skc_linux_alloc, 0,
-	    GFP_KERNEL);
+	rc = percpu_counter_init(&skc->skc_linux_alloc, 0, GFP_KERNEL);
 	if (rc != 0) {
+		kfree(skc->skc_name);
 		kfree(skc);
 		return (NULL);
 	}
@@ -788,25 +783,11 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 		if (size > spl_kmem_cache_slab_limit)
 			goto out;
 
-#if defined(SLAB_USERCOPY)
-		/*
-		 * Required for PAX-enabled kernels if the slab is to be
-		 * used for copying between user and kernel space.
-		 */
-		slabflags |= SLAB_USERCOPY;
-#endif
+		if (skc->skc_flags & KMC_RECLAIMABLE)
+			slabflags |= SLAB_RECLAIM_ACCOUNT;
 
-#if defined(HAVE_KMEM_CACHE_CREATE_USERCOPY)
-		/*
-		 * Newer grsec patchset uses kmem_cache_create_usercopy()
-		 * instead of SLAB_USERCOPY flag
-		 */
 		skc->skc_linux_cache = kmem_cache_create_usercopy(
 		    skc->skc_name, size, align, slabflags, 0, size, NULL);
-#else
-		skc->skc_linux_cache = kmem_cache_create(
-		    skc->skc_name, size, align, slabflags, NULL);
-#endif
 		if (skc->skc_linux_cache == NULL)
 			goto out;
 	}
@@ -882,11 +863,11 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	 * Validate there are no objects in use and free all the
 	 * spl_kmem_slab_t, spl_kmem_obj_t, and object buffers.
 	 */
-	ASSERT3U(skc->skc_slab_alloc, ==, 0);
-	ASSERT3U(skc->skc_obj_alloc, ==, 0);
-	ASSERT3U(skc->skc_slab_total, ==, 0);
-	ASSERT3U(skc->skc_obj_total, ==, 0);
-	ASSERT3U(skc->skc_obj_emergency, ==, 0);
+	ASSERT0(skc->skc_slab_alloc);
+	ASSERT0(skc->skc_obj_alloc);
+	ASSERT0(skc->skc_slab_total);
+	ASSERT0(skc->skc_obj_total);
+	ASSERT0(skc->skc_obj_emergency);
 	ASSERT(list_empty(&skc->skc_complete_list));
 
 	ASSERT3U(percpu_counter_sum(&skc->skc_linux_alloc), ==, 0);
@@ -1005,7 +986,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 
 	ASSERT0(flags & ~KM_PUBLIC_MASK);
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
+	ASSERT0((skc->skc_flags & KMC_SLAB));
 
 	*obj = NULL;
 
@@ -1024,7 +1005,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 * then return so the local magazine can be rechecked for new objects.
 	 */
 	if (test_bit(KMC_BIT_REAPING, &skc->skc_flags)) {
-		rc = spl_wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
+		rc = wait_on_bit(&skc->skc_flags, KMC_BIT_REAPING,
 		    TASK_UNINTERRUPTIBLE);
 		return (rc ? rc : -EAGAIN);
 	}

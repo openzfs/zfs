@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -26,6 +27,10 @@
  * Links to Illumos.org for more information on kstat function:
  * [1] https://illumos.org/man/1M/kstat
  * [2] https://illumos.org/man/9f/kstat_create
+ */
+/*
+ * Copyright (c) 2024-2025, Klara, Inc.
+ * Copyright (c) 2024-2025, Syneto
  */
 
 #include <sys/types.h>
@@ -287,7 +292,7 @@ __kstat_create(const char *module, int instance, const char *name,
 	char buf[KSTAT_STRLEN];
 	struct sysctl_oid *root;
 	kstat_t *ksp;
-	char *pool;
+	char *p, *frag;
 
 	KASSERT(instance == 0, ("instance=%d", instance));
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
@@ -345,74 +350,54 @@ __kstat_create(const char *module, int instance, const char *name,
 	else
 		ksp->ks_data = kmem_zalloc(ksp->ks_data_size, KM_SLEEP);
 
-	/*
-	 * Some kstats use a module name like "zfs/poolname" to distinguish a
-	 * set of kstats belonging to a specific pool.  Split on '/' to add an
-	 * extra node for the pool name if needed.
-	 */
+	sysctl_ctx_init(&ksp->ks_sysctl_ctx);
+
 	(void) strlcpy(buf, module, KSTAT_STRLEN);
-	module = buf;
-	pool = strchr(module, '/');
-	if (pool != NULL)
-		*pool++ = '\0';
 
 	/*
-	 * Create sysctl tree for those statistics:
-	 *
-	 *	kstat.<module>[.<pool>].<class>.<name>
+	 * Walk over the module name, splitting on '/', and create the
+	 * intermediate nodes.
 	 */
-	sysctl_ctx_init(&ksp->ks_sysctl_ctx);
-	root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
-	    SYSCTL_STATIC_CHILDREN(_kstat), OID_AUTO, module, CTLFLAG_RW, 0,
-	    "");
-	if (root == NULL) {
-		printf("%s: Cannot create kstat.%s tree!\n", __func__, module);
-		sysctl_ctx_free(&ksp->ks_sysctl_ctx);
-		free(ksp, M_KSTAT);
-		return (NULL);
-	}
-	if (pool != NULL) {
-		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
-		    SYSCTL_CHILDREN(root), OID_AUTO, pool, CTLFLAG_RW, 0, "");
+	root = NULL;
+	p = buf;
+	while ((frag = strsep(&p, "/")) != NULL) {
+		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx, root ?
+		    SYSCTL_CHILDREN(root) : SYSCTL_STATIC_CHILDREN(_kstat),
+		    OID_AUTO, frag, CTLFLAG_RW, 0, "");
 		if (root == NULL) {
-			printf("%s: Cannot create kstat.%s.%s tree!\n",
-			    __func__, module, pool);
+			printf("%s: Cannot create kstat.%s tree!\n",
+			    __func__, buf);
 			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 			free(ksp, M_KSTAT);
 			return (NULL);
 		}
+		if (p != NULL)
+			p[-1] = '.';
 	}
+
 	root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx, SYSCTL_CHILDREN(root),
 	    OID_AUTO, class, CTLFLAG_RW, 0, "");
 	if (root == NULL) {
-		if (pool != NULL)
-			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
-			    __func__, module, pool, class);
-		else
-			printf("%s: Cannot create kstat.%s.%s tree!\n",
-			    __func__, module, class);
+		printf("%s: Cannot create kstat.%s.%s tree!\n",
+		    __func__, buf, class);
 		sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 		free(ksp, M_KSTAT);
 		return (NULL);
 	}
+
 	if (ksp->ks_type == KSTAT_TYPE_NAMED) {
 		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
 		    SYSCTL_CHILDREN(root),
 		    OID_AUTO, name, CTLFLAG_RW, 0, "");
 		if (root == NULL) {
-			if (pool != NULL)
-				printf("%s: Cannot create kstat.%s.%s.%s.%s "
-				    "tree!\n", __func__, module, pool, class,
-				    name);
-			else
-				printf("%s: Cannot create kstat.%s.%s.%s "
-				    "tree!\n", __func__, module, class, name);
+			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
+			    __func__, buf, class, name);
 			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 			free(ksp, M_KSTAT);
 			return (NULL);
 		}
-
 	}
+
 	ksp->ks_sysctl_root = root;
 
 	return (ksp);
@@ -436,7 +421,26 @@ kstat_install_named(kstat_t *ksp)
 		if (ksent->data_type != 0) {
 			typelast = ksent->data_type;
 			namelast = ksent->name;
+
+			/*
+			 * If a sysctl with this name already exists on this on
+			 * this root, first remove it by deleting it from its
+			 * old context, and then destroying it.
+			 */
+			struct sysctl_oid *oid = NULL;
+			SYSCTL_FOREACH(oid,
+			    SYSCTL_CHILDREN(ksp->ks_sysctl_root)) {
+				if (strcmp(oid->oid_name, namelast) == 0) {
+					kstat_t *oldksp =
+					    (kstat_t *)oid->oid_arg1;
+					sysctl_ctx_entry_del(
+					    &oldksp->ks_sysctl_ctx, oid);
+					sysctl_remove_oid(oid, 1, 0);
+					break;
+				}
+			}
 		}
+
 		switch (typelast) {
 		case KSTAT_DATA_CHAR:
 			/* Not Implemented */

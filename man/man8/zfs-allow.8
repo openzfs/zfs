@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -187,7 +188,7 @@ form below for details.
 If neither of the
 .Fl dl
 options are specified, or both are, then the permissions are allowed for the
-file system or volume, and all of its descendents.
+file system or volume, and all of its descendants.
 .Pp
 Permissions are generally the ability to use a ZFS subcommand or change a ZFS
 property.
@@ -205,9 +206,9 @@ diff	subcommand	Allows lookup of paths within a dataset given an object number, 
 hold	subcommand	Allows adding a user hold to a snapshot
 load-key	subcommand	Allows loading and unloading of encryption key (see \fBzfs load-key\fR and \fBzfs unload-key\fR).
 change-key	subcommand	Allows changing an encryption key via \fBzfs change-key\fR.
-mount	subcommand	Allows mounting/umounting ZFS datasets
+mount	subcommand	Allows mounting/unmounting ZFS datasets
 promote	subcommand	Must also have the \fBmount\fR and \fBpromote\fR ability in the origin file system
-receive	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability
+receive	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability, required for \fBzfs receive -F\fR (see also \fBreceive:append\fR for limited, non forced receive)
 release	subcommand	Allows releasing a user hold which might destroy the snapshot
 rename	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability in the new parent
 rollback	subcommand	Must also have the \fBmount\fR ability
@@ -215,6 +216,7 @@ send	subcommand
 share	subcommand	Allows sharing file systems over NFS or SMB protocols
 snapshot	subcommand	Must also have the \fBmount\fR ability
 
+receive:append	other	Must also have the \fBmount\fR and \fBcreate\fR ability, limited receive ability (can not do receive -F)
 groupquota	other	Allows accessing any \fBgroupquota@\fI…\fR property
 groupobjquota	other	Allows accessing any \fBgroupobjquota@\fI…\fR property
 groupused	other	Allows reading any \fBgroupused@\fI…\fR property
@@ -309,7 +311,7 @@ to the creator of any newly-created descendent file system.
 Defines or adds permissions to a permission set.
 The set can be used by other
 .Nm zfs Cm allow
-commands for the specified file system and its descendents.
+commands for the specified file system and its descendants.
 Sets are evaluated dynamically, so changes to a set are immediately reflected.
 Permission sets follow the same naming restrictions as ZFS file systems, but the
 name must begin with
@@ -369,7 +371,7 @@ command for a description of the
 options.
 .Bl -tag -width "-r"
 .It Fl r
-Recursively remove the permissions from this file system and all descendents.
+Recursively remove the permissions from this file system and all descendants.
 .El
 .It Xo
 .Nm zfs

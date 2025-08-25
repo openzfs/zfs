@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -17,6 +18,7 @@
  * Copyright (c) 2016, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  * Copyright 2020 Joyent, Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #include <sys/lua/lua.h>
@@ -112,6 +114,48 @@ zcp_sync_task(lua_State *state, dsl_checkfunc_t *checkfunc,
 	return (err);
 }
 
+static int zcp_synctask_clone(lua_State *, boolean_t, nvlist_t *);
+static const zcp_synctask_info_t zcp_synctask_clone_info = {
+	.name = "clone",
+	.func = zcp_synctask_clone,
+	.pargs = {
+	    {.za_name = "snapshot", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "newdataset", .za_lua_type = LUA_TSTRING },
+	    {NULL, 0}
+	},
+	.kwargs = {
+	    {NULL, 0}
+	},
+	.space_check = ZFS_SPACE_CHECK_NORMAL,
+	.blocks_modified = 3
+};
+static int
+zcp_synctask_clone(lua_State *state, boolean_t sync, nvlist_t *err_details)
+{
+	(void) err_details;
+	int err;
+
+	zcp_run_info_t *ri = zcp_run_info(state);
+	dsl_dataset_clone_arg_t ddca = {
+		.ddca_origin = lua_tostring(state, 1),
+		.ddca_clone = lua_tostring(state, 2),
+		.ddca_cred = ri->zri_cred,
+	};
+
+	err = zcp_sync_task(state, dsl_dataset_clone_check,
+	    dsl_dataset_clone_sync, &ddca, sync, ddca.ddca_origin);
+
+	if (err == 0)
+		/*
+		 * If the new dataset is a zvol, it will need a device
+		 * node. Put it on the list to be considered in open context.
+		 * We don't have to check the type here; if it's not a zvol,
+		 * or has volmode=none, it will be ignored.
+		 */
+		fnvlist_add_boolean(ri->zri_new_zvols, ddca.ddca_clone);
+
+	return (err);
+}
 
 static int zcp_synctask_destroy(lua_State *, boolean_t, nvlist_t *);
 static const zcp_synctask_info_t zcp_synctask_destroy_info = {
@@ -192,7 +236,6 @@ zcp_synctask_promote(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	ddpa.ddpa_clonename = dsname;
 	ddpa.err_ds = err_details;
 	ddpa.cr = ri->zri_cred;
-	ddpa.proc = ri->zri_proc;
 
 	/*
 	 * If there was a snapshot name conflict, then err_ds will be filled
@@ -276,7 +319,6 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	ddsa.ddsa_errors = NULL;
 	ddsa.ddsa_props = NULL;
 	ddsa.ddsa_cr = ri->zri_cred;
-	ddsa.ddsa_proc = ri->zri_proc;
 	ddsa.ddsa_snaps = fnvlist_alloc();
 	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
 
@@ -562,6 +604,7 @@ zcp_load_synctask_lib(lua_State *state, boolean_t sync)
 {
 	const zcp_synctask_info_t *zcp_synctask_funcs[] = {
 		&zcp_synctask_destroy_info,
+		&zcp_synctask_clone_info,
 		&zcp_synctask_promote_info,
 		&zcp_synctask_rollback_info,
 		&zcp_synctask_snapshot_info,

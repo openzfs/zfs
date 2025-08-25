@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -28,8 +29,6 @@
 . $STF_SUITE/tests/functional/bclone/bclone_corner_cases.kshlib
 
 verify_runnable "both"
-
-verify_block_cloning
 
 log_assert "Verify various corner cases in block cloning within the same dataset"
 

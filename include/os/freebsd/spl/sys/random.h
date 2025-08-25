@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -30,9 +31,7 @@
 #define	_OPENSOLARIS_SYS_RANDOM_H_
 
 #include_next <sys/random.h>
-#if  __FreeBSD_version >= 1300108
 #include <sys/prng.h>
-#endif
 
 static inline int
 random_get_bytes(uint8_t *p, size_t s)
@@ -51,7 +50,7 @@ random_get_pseudo_bytes(uint8_t *p, size_t s)
 static inline uint32_t
 random_in_range(uint32_t range)
 {
-#if defined(_KERNEL) && __FreeBSD_version >= 1300108
+#if defined(_KERNEL)
 	return (prng32_bounded(range));
 #else
 	uint32_t r;

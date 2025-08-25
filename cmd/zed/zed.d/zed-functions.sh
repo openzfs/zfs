@@ -283,6 +283,11 @@ zed_notify_email()
         if [ "${ZED_EMAIL_OPTS%@SUBJECT@*}" = "${ZED_EMAIL_OPTS}" ] ; then
             # inject subject header
             printf "Subject: %s\n" "${subject}"
+            # The following empty line is needed to separate the header from the
+            # body of the message. Otherwise programs like sendmail will skip
+            # everything up to the first empty line (or wont send an email at
+            # all) and will still exit with exit code 0
+            printf "\n"
         fi
         # output message
         cat "${pathname}"
@@ -436,8 +441,9 @@ zed_notify_slack_webhook()
         "${pathname}")"
 
     # Construct the JSON message for posting.
+    # shellcheck disable=SC2016
     #
-    msg_json="$(printf '{"text": "*%s*\\n%s"}' "${subject}" "${msg_body}" )"
+    msg_json="$(printf '{"text": "*%s*\\n```%s```"}' "${subject}" "${msg_body}" )"
 
     # Send the POST request and check for errors.
     #

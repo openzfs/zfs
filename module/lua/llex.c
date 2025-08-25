@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: llex.c,v 2.63.1.3 2015/02/09 17:56:34 roberto Exp $
 ** Lexical Analyzer

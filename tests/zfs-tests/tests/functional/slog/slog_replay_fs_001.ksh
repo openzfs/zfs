@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -78,6 +79,14 @@ log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
     conv=fdatasync,fsync bs=1 count=1
 
 #
+# Create a small file for the O_DIRECT test before freezing the pool. This
+# allows us to overwrite it after the pool is frozen and avoid the case
+# where O_DIRECT is disabled because the first block must be grown.
+#
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
+    oflag=sync,direct bs=4k count=1
+
+#
 # 2. Freeze TESTFS
 #
 log_must zpool freeze $TESTPOOL
@@ -110,7 +119,7 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload \
     oflag=sync bs=1k count=8
-typeset checksum=$(sha256digest /$TESTPOOL/$TESTFS/payload)
+typeset checksum=$(xxh128digest /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
@@ -139,6 +148,10 @@ log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 # TX_WRITE (large file)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
     oflag=sync bs=128k count=64
+
+# TX_WRITE (O_DIRECT)
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
+    oflag=sync,direct bs=4k count=1
 
 # Write zeros, which compress to holes, in the middle of a file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 \
@@ -239,7 +252,7 @@ log_note "Verify working set diff:"
 log_must replay_directory_diff $TESTDIR/copy /$TESTPOOL/$TESTFS
 
 log_note "Verify file checksum:"
-typeset checksum1=$(sha256digest /$TESTPOOL/$TESTFS/payload)
+typeset checksum1=$(xxh128digest /$TESTPOOL/$TESTFS/payload)
 [[ "$checksum1" == "$checksum" ]] || \
     log_fail "checksum mismatch ($checksum1 != $checksum)"
 

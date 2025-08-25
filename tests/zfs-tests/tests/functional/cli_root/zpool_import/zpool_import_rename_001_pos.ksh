@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -160,7 +161,7 @@ while (( i < ${#pools[*]} )); do
 	((i = i + 1))
 done
 
-VDEV_FILE=$(mktemp $TEST_BASE_DIR/tmp.XXXXXX)
+VDEV_FILE=$(mktemp)
 
 log_must mkfile -n 128M $VDEV_FILE
 log_must zpool create overflow $VDEV_FILE

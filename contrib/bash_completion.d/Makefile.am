@@ -1,5 +1,10 @@
-nodist_bashcompletion_DATA  = %D%/zfs
-SUBSTFILES                 += $(nodist_bashcompletion_DATA)
+nodist_bashcompletion_DATA  = %D%/zfs %D%/zpool
+COMPLETION_FILES            = %D%/zfs
+SUBSTFILES                  += $(COMPLETION_FILES)
+CLEANFILES                  += %D%/zpool
 
-SHELLCHECKSCRIPTS   += $(nodist_bashcompletion_DATA)
-$(call SHELLCHECK_OPTS,$(nodist_bashcompletion_DATA)): SHELLCHECK_SHELL = bash
+SHELLCHECKSCRIPTS   += $(COMPLETION_FILES)
+$(call SHELLCHECK_OPTS,$(COMPLETION_FILES)): SHELLCHECK_SHELL = bash
+
+%D%/zpool: %D%/zfs
+	$(LN_S) -f zfs $@

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -72,7 +73,7 @@ extern "C" {
 		pflags |= attr; \
 	else \
 		pflags &= ~attr; \
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
+	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(ZTOZSB(zp)), \
 	    &pflags, sizeof (pflags), tx)); \
 }
 
@@ -158,6 +159,8 @@ extern "C" {
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
 extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+extern int zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl,
+    sa_attr_type_t *sa_table, uint64_t *pobjp, int *is_xattrdir);
 extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 
 #ifdef _KERNEL
@@ -198,8 +201,6 @@ typedef struct znode {
 	uint64_t	z_size;		/* file size (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
-	uint32_t	z_sync_writes_cnt; /* synchronous write count */
-	uint32_t	z_async_writes_cnt; /* asynchronous write count */
 	mode_t		z_mode;		/* mode (cached) */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
@@ -308,7 +309,7 @@ extern void zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx,
     const char *dname, znode_t *szp, znode_t *wzp);
 extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t len, boolean_t commit,
-    zil_callback_t callback, void *callback_data);
+    boolean_t o_direct, zil_callback_t callback, void *callback_data);
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,

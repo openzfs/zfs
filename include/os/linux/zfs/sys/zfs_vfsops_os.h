@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -69,6 +70,7 @@ typedef struct vfs {
 	boolean_t	vfs_do_relatime;
 	boolean_t	vfs_nbmand;
 	boolean_t	vfs_do_nbmand;
+	kmutex_t	vfs_mntpt_lock;
 } vfs_t;
 
 typedef struct zfs_mnt {
@@ -110,7 +112,7 @@ struct zfsvfs {
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */
-	boolean_t	z_show_ctldir;	/* expose .zfs in the root dir */
+	uint_t		z_show_ctldir;	/* how to expose .zfs in the root dir */
 	boolean_t	z_issnap;	/* true if this is a snapshot */
 	boolean_t	z_use_fuids;	/* version allows fuids */
 	boolean_t	z_replay;	/* set during ZIL replay */
@@ -118,6 +120,7 @@ struct zfsvfs {
 	boolean_t	z_xattr_sa;	/* allow xattrs to be stores as SA */
 	boolean_t	z_draining;	/* is true when drain is active */
 	boolean_t	z_drain_cancel; /* signal the unlinked drain to stop */
+	boolean_t	z_longname;	/* Dataset supports long names */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	dataset_kstats_t	z_kstat;	/* fs kstats */
@@ -128,6 +131,12 @@ struct zfsvfs {
 	uint64_t	z_groupobjquota_obj;
 	uint64_t	z_projectquota_obj;
 	uint64_t	z_projectobjquota_obj;
+	uint64_t	z_defaultuserquota;
+	uint64_t	z_defaultgroupquota;
+	uint64_t	z_defaultprojectquota;
+	uint64_t	z_defaultuserobjquota;
+	uint64_t	z_defaultgroupobjquota;
+	uint64_t	z_defaultprojectobjquota;
 	uint64_t	z_replay_eof;	/* New end of file - replay only */
 	sa_attr_type_t	*z_attr_table;	/* SA attr mapping->id */
 	uint64_t	z_hold_size;	/* znode hold array size */
@@ -247,6 +256,8 @@ extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
     int *objects);
 extern int zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop,
     uint64_t *val, char *setpoint);
+extern int zfs_set_default_quota(zfsvfs_t *zfsvfs, zfs_prop_t zfs_prop,
+    uint64_t quota);
 
 #ifdef	__cplusplus
 }

@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -28,7 +29,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, Klara Inc.
 .\"
-.Dd January 2, 2024
+.Dd November 18, 2024
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -73,6 +74,12 @@ The amount of storage used by cloned blocks.
 Percentage of pool space used.
 This property can also be referred to by its shortened column name,
 .Sy cap .
+.It Sy dedupcached
+Total size of the deduplication table currently loaded into the ARC.
+See
+.Xr zpool-prefetch 8 .
+.It Sy dedup_table_size
+Total on-disk size of the deduplication table.
 .It Sy expandsize
 Amount of uninitialized space within the pool or device that can be used to
 increase the total capacity of the pool.
@@ -129,6 +136,19 @@ A unique identifier for the pool.
 The current health of the pool.
 Health can be one of
 .Sy ONLINE , DEGRADED , FAULTED , OFFLINE, REMOVED , UNAVAIL .
+.It Sy last_scrubbed_txg
+Indicates the transaction group (TXG) up to which the most recent scrub
+operation has checked and repaired the dataset.
+This provides insight into the data integrity status of their pool at
+a specific point in time.
+.Xr zpool-scrub 8
+can utilize this property to scan only data that has changed since the last
+scrub completed, when given the
+.Fl C
+flag.
+This property is not updated when performing an error scrub with the
+.Fl e
+flag.
 .It Sy leaked
 Space not released while
 .Sy freeing
@@ -348,6 +368,27 @@ See
 and
 .Xr zpool-upgrade 8
 for more information on the operation of compatibility feature sets.
+.It Sy dedup_table_quota Ns = Ns Ar number Ns | Ns Sy none Ns | Ns Sy auto
+This property sets a limit on the on-disk size of the pool's dedup table.
+Entries will not be added to the dedup table once this size is reached;
+if a dedup table already exists, and is larger than this size, they
+will not be removed as part of setting this property.
+Existing entries will still have their reference counts updated.
+.Pp
+The actual size limit of the table may be above or below the quota,
+depending on the actual on-disk size of the entries (which may be
+approximated for purposes of calculating the quota).
+That is, setting a quota size of 1M may result in the maximum size being
+slightly below, or slightly above, that value.
+Set to
+.Sy 'none'
+to disable.
+In automatic mode, which is the default, the size of a dedicated dedup vdev
+is used as the quota limit.
+.Pp
+The
+.Sy dedup_table_quota
+property works for both legacy and fast dedup tables.
 .It Sy dedupditto Ns = Ns Ar number
 This property is deprecated and no longer has any effect.
 .It Sy delegation Ns = Ns Sy on Ns | Ns Sy off
@@ -461,7 +502,7 @@ The expected convention is that the property name is divided into two portions
 such as
 .Ar module : Ns Ar property ,
 but this namespace is not enforced by ZFS.
-User property names can be at most 256 characters, and cannot begin with a dash
+User property names can be at most 255 characters, and cannot begin with a dash
 .Pq Qq Sy - .
 .Pp
 When making programmatic use of user properties, it is strongly suggested to use

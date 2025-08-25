@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -25,8 +26,9 @@
 .\" Copyright (c) 2018, 2021 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd June 22, 2023
+.Dd December 11, 2024
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -36,10 +38,11 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Fl s Ns | Ns Fl p
+.Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
 .Op Fl w
-.Op Fl e
-.Ar pool Ns …
+.Op Fl S Ar date
+.Op Fl E Ar date
+.Fl a Ns | Ns Ar pool Ns …
 .
 .Sh DESCRIPTION
 Begins a scrub or resumes a paused scrub.
@@ -89,6 +92,12 @@ During this period, no completion time estimate will be provided.
 .
 .Sh OPTIONS
 .Bl -tag -width "-s"
+.It Fl a , -all
+Begin, pause, stop scrub on
+all
+pools.
+Initiating scrubs on multiple pools can put considerable load and memory
+pressure on the system, so this operation should be performed with caution.
 .It Fl s
 Stop scrubbing.
 .It Fl p
@@ -114,6 +123,48 @@ The pool must have been scrubbed at least once with the
 feature enabled to use this option.
 Error scrubbing cannot be run simultaneously with regular scrubbing or
 resilvering, nor can it be run when a regular scrub is paused.
+.It Fl C
+Continue scrub from last saved txg (see zpool
+.Sy last_scrubbed_txg
+property).
+.It Fl S Ar date , Fl E Ar date
+Allows specifying the date range for blocks created between these dates.
+.Bl -bullet -compact -offset indent
+.It
+.Fl S
+Defines a start date.
+If not specified, scrubbing begins from the start of the pool's
+existence.
+.It
+.Fl E
+Defines an end date.
+If not specified, scrubbing continues up to the most recent data.
+.El
+The provided date should be in the format:
+.Dq YYYY-MM-DD HH:MM .
+Where:
+.Bl -bullet -compact -offset indent
+.It
+.Dq YYYY
+is the year.
+.It
+.Dq MM
+is the numeric representation of the month.
+.It
+.Dq DD
+is the day of the month.
+.It
+.Dq HH
+is the hour.
+.It
+.Dq MM
+is the minutes.
+.El
+The hour and minutes parameters can be omitted.
+The time should be provided in machine local time zone.
+Specifying dates prior to enabling this feature will result in scrubbing
+starting from the date the pool was created.
+If the time was moved backward manually the data range may become inaccurate.
 .El
 .Sh EXAMPLES
 .Ss Example 1

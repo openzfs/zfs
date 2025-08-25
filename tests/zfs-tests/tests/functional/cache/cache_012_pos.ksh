@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -75,7 +76,7 @@ export PERF_COMPPERCENT=66
 export PERF_COMPCHUNK=0
 export BLOCKSIZE=128K
 export SYNC_TYPE=0
-export DIRECT=1
+export DIRECT=0
 export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))
 
 log_must set_tunable32 L2ARC_WRITE_MAX $(( $VCACHE_SZ * 2 ))
@@ -96,9 +97,9 @@ export RUNTIME=1
 
 typeset do_once=true
 while $do_once || [[ $l2_size1 -le $l2_size2 ]]; do
-	typeset l2_size1=$(get_arcstat l2_size)
+	typeset l2_size1=$(kstat arcstats.l2_size)
 	log_must fio $FIO_SCRIPTS/random_reads.fio
-	typeset l2_size2=$(get_arcstat l2_size)
+	typeset l2_size2=$(kstat arcstats.l2_size)
 	do_once=false
 done
 

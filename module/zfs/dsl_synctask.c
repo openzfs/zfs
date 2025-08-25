@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -57,7 +58,7 @@ dsl_sync_task_common(const char *pool, dsl_checkfunc_t *checkfunc,
 
 top:
 	tx = dmu_tx_create_dd(dp->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
 	dst.dst_pool = dp;
 	dst.dst_txg = dmu_tx_get_txg(tx);
@@ -85,12 +86,19 @@ top:
 
 	dmu_tx_commit(tx);
 
-	if (sigfunc != NULL && txg_wait_synced_sig(dp, dst.dst_txg)) {
-		/* current contract is to call func once */
-		sigfunc(arg, tx);
-		sigfunc = NULL;	/* in case we're performing an EAGAIN retry */
-	}
-	txg_wait_synced(dp, dst.dst_txg);
+	if (sigfunc != NULL) {
+		err = txg_wait_synced_flags(dp, dst.dst_txg, TXG_WAIT_SIGNAL);
+		if (err != 0) {
+			VERIFY3U(err, ==, EINTR);
+			/* current contract is to call func once */
+			sigfunc(arg, tx);
+			/* in case we're performing an EAGAIN retry */
+			sigfunc = NULL;
+
+			txg_wait_synced(dp, dst.dst_txg);
+		}
+	} else
+		txg_wait_synced(dp, dst.dst_txg);
 
 	if (dst.dst_error == EAGAIN) {
 		txg_wait_synced(dp, dst.dst_txg + TXG_DEFER_SIZE);

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -138,4 +139,12 @@ function set_blk_mq
 	if tunable_exists VOL_USE_BLK_MQ ; then
 		log_must set_tunable32 VOL_USE_BLK_MQ $1
 	fi
+}
+
+# enable/disable zvol sync mode
+#
+# $1: 1 = enable, 0 = disable
+function set_zvol_sync
+{
+	log_must set_tunable32 VOL_REQUEST_SYNC $1
 }

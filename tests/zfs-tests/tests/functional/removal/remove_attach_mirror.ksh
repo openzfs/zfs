@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -34,10 +35,9 @@
 
 command -v fio > /dev/null || log_unsupported "fio missing"
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-
-DISK1="$TMPDIR/dsk1"
-DISK2="$TMPDIR/dsk2"
+DISKDIR=$(mktemp -d)
+DISK1="$DISKDIR/dsk1"
+DISK2="$DISKDIR/dsk2"
 DISKS="$DISK1 $DISK2"
 
 # fio options
@@ -58,7 +58,7 @@ log_must mkfile 4g $DISK2
 function cleanup
 {
 	default_cleanup_noexit
-	log_must rm -f $DISKS
+	log_must rm -rf $DISKDIR
 }
 
 log_must zpool create -O recordsize=4k $TESTPOOL $DISK1 $DISK2

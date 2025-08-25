@@ -18,6 +18,7 @@ subst_sed_cmd = \
 	-e 's|@ASAN_ENABLED[@]|$(ASAN_ENABLED)|g' \
 	-e 's|@DEFAULT_INIT_NFS_SERVER[@]|$(DEFAULT_INIT_NFS_SERVER)|g' \
 	-e 's|@DEFAULT_INIT_SHELL[@]|$(DEFAULT_INIT_SHELL)|g' \
+	-e 's|@IS_SYSV_RC[@]|$(IS_SYSV_RC)|g' \
 	-e 's|@LIBFETCH_DYNAMIC[@]|$(LIBFETCH_DYNAMIC)|g' \
 	-e 's|@LIBFETCH_SONAME[@]|$(LIBFETCH_SONAME)|g' \
 	-e 's|@PYTHON[@]|$(PYTHON)|g' \
@@ -43,4 +44,4 @@ SUBSTFILES =
 CLEANFILES += $(SUBSTFILES)
 dist_noinst_DATA += $(SUBSTFILES:=.in)
 
-$(call SUBST,%,)
+$(SUBSTFILES): $(call SUBST,%,)

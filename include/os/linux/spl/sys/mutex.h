@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -110,7 +111,7 @@ spl_mutex_lockdep_on_maybe(kmutex_t *mp)			\
 #undef mutex_destroy
 #define	mutex_destroy(mp)					\
 {								\
-	VERIFY3P(mutex_owner(mp), ==, NULL);			\
+	VERIFY0P(mutex_owner(mp));			\
 }
 
 #define	mutex_tryenter(mp)					\

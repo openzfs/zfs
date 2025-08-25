@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -471,7 +472,7 @@ zfs_acl_node_alloc(size_t bytes)
 
 	aclnode = kmem_zalloc(sizeof (zfs_acl_node_t), KM_SLEEP);
 	if (bytes) {
-		aclnode->z_acldata = kmem_alloc(bytes, KM_SLEEP);
+		aclnode->z_acldata = kmem_zalloc(bytes, KM_SLEEP);
 		aclnode->z_allocdata = aclnode->z_acldata;
 		aclnode->z_allocsize = bytes;
 		aclnode->z_size = bytes;
@@ -1899,7 +1900,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		if (!(flag & IS_ROOT_NODE) &&
 		    (dzp->z_pflags & ZFS_INHERIT_ACE) &&
 		    !(dzp->z_pflags & ZFS_XATTR)) {
-			VERIFY(0 == zfs_acl_node_read(dzp, B_TRUE,
+			VERIFY0(zfs_acl_node_read(dzp, B_TRUE,
 			    &paclp, B_FALSE));
 			acl_ids->z_aclp = zfs_acl_inherit(zfsvfs,
 			    vap->va_mode, paclp, acl_ids->z_mode, &need_chmod);
@@ -1921,8 +1922,8 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 			    zfsvfs->z_acl_inherit != ZFS_ACL_PASSTHROUGH &&
 			    zfsvfs->z_acl_inherit != ZFS_ACL_PASSTHROUGH_X)
 				trim = B_TRUE;
-			zfs_acl_chmod(vap->va_mode, acl_ids->z_mode, B_FALSE,
-			    trim, acl_ids->z_aclp);
+			zfs_acl_chmod(S_ISDIR(vap->va_mode), acl_ids->z_mode,
+			    B_FALSE, trim, acl_ids->z_aclp);
 		}
 	}
 
@@ -2187,7 +2188,7 @@ top:
 	}
 
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_NOWAIT);
+	error = dmu_tx_assign(tx, DMU_TX_NOWAIT);
 	if (error) {
 		mutex_exit(&zp->z_acl_lock);
 		mutex_exit(&zp->z_lock);
@@ -2203,8 +2204,8 @@ top:
 	}
 
 	error = zfs_aclset_common(zp, aclp, cr, tx);
-	ASSERT(error == 0);
-	ASSERT(zp->z_acl_cached == NULL);
+	ASSERT0(error);
+	ASSERT0P(zp->z_acl_cached);
 	zp->z_acl_cached = aclp;
 
 	if (fuid_dirtied)

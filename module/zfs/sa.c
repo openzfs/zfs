@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -236,7 +237,7 @@ sa_cache_init(void)
 {
 	sa_cache = kmem_cache_create("sa_cache",
 	    sizeof (sa_handle_t), 0, sa_cache_constructor,
-	    sa_cache_destructor, NULL, NULL, NULL, 0);
+	    sa_cache_destructor, NULL, NULL, NULL, KMC_RECLAIMABLE);
 }
 
 void
@@ -303,7 +304,7 @@ sa_get_spill(sa_handle_t *hdl)
 	if (hdl->sa_spill == NULL) {
 		if ((rc = dmu_spill_hold_existing(hdl->sa_bonus, NULL,
 		    &hdl->sa_spill)) == 0)
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY0(sa_build_index(hdl, SA_SPILL));
 	} else {
 		rc = 0;
 	}
@@ -431,7 +432,7 @@ sa_add_layout_entry(objset_t *os, const sa_attr_type_t *attrs, int attr_count,
 
 		(void) snprintf(attr_name, sizeof (attr_name),
 		    "%d", (int)lot_num);
-		VERIFY(0 == zap_update(os, os->os_sa->sa_layout_attr_obj,
+		VERIFY0(zap_update(os, os->os_sa->sa_layout_attr_obj,
 		    attr_name, 2, attr_count, attrs, tx));
 	}
 
@@ -504,7 +505,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 	}
 
 	error = dbuf_spill_set_blksz(hdl->sa_spill, blocksize, tx);
-	ASSERT(error == 0);
+	ASSERT0(error);
 	return (error);
 }
 
@@ -702,8 +703,8 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		boolean_t dummy;
 
 		if (hdl->sa_spill == NULL) {
-			VERIFY(dmu_spill_hold_by_bonus(hdl->sa_bonus, 0, NULL,
-			    &hdl->sa_spill) == 0);
+			VERIFY0(dmu_spill_hold_by_bonus(hdl->sa_bonus,
+			    DB_RF_MUST_SUCCEED, NULL, &hdl->sa_spill));
 		}
 		dmu_buf_will_dirty(hdl->sa_spill, tx);
 
@@ -716,7 +717,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 
 		if (BUF_SPACE_NEEDED(spill_used, spillhdrsize) >
 		    hdl->sa_spill->db_size)
-			VERIFY(0 == sa_resize_spill(hdl,
+			VERIFY0(sa_resize_spill(hdl,
 			    BUF_SPACE_NEEDED(spill_used, spillhdrsize), tx));
 	}
 
@@ -790,7 +791,7 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 		hdl->sa_bonus_tab = NULL;
 	}
 	if (!sa->sa_force_spill)
-		VERIFY(0 == sa_build_index(hdl, SA_BONUS));
+		VERIFY0(sa_build_index(hdl, SA_BONUS));
 	if (hdl->sa_spill) {
 		sa_idx_tab_rele(hdl->sa_os, hdl->sa_spill_tab);
 		if (!spilling) {
@@ -800,10 +801,10 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 			dmu_buf_rele(hdl->sa_spill, NULL);
 			hdl->sa_spill = NULL;
 			hdl->sa_spill_tab = NULL;
-			VERIFY(0 == dmu_rm_spill(hdl->sa_os,
+			VERIFY0(dmu_rm_spill(hdl->sa_os,
 			    sa_handle_object(hdl), tx));
 		} else {
-			VERIFY(0 == sa_build_index(hdl, SA_SPILL));
+			VERIFY0(sa_build_index(hdl, SA_SPILL));
 		}
 	}
 
@@ -840,7 +841,7 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 	uint64_t attr_value;
 	sa_attr_table_t *tb;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int registered_count = 0;
 	int i;
 	dmu_objset_type_t ostype = dmu_objset_type(os);
@@ -914,11 +915,12 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 	 */
 
 	if (sa->sa_reg_attr_obj) {
+		za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, os, sa->sa_reg_attr_obj);
-		    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+		    (error = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			uint64_t value;
-			value  = za.za_first_integer;
+			value  = za->za_first_integer;
 
 			registered_count++;
 			tb[ATTR_NUM(value)].sa_attr = ATTR_NUM(value);
@@ -930,11 +932,12 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 				continue;
 			}
 			tb[ATTR_NUM(value)].sa_name =
-			    kmem_zalloc(strlen(za.za_name) +1, KM_SLEEP);
-			(void) strlcpy(tb[ATTR_NUM(value)].sa_name, za.za_name,
-			    strlen(za.za_name) +1);
+			    kmem_zalloc(strlen(za->za_name) +1, KM_SLEEP);
+			(void) strlcpy(tb[ATTR_NUM(value)].sa_name, za->za_name,
+			    strlen(za->za_name) +1);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 		/*
 		 * Make sure we processed the correct number of registered
 		 * attributes
@@ -996,7 +999,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
     int count, sa_attr_type_t **user_table)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	sa_os_t *sa;
 	dmu_objset_type_t ostype = dmu_objset_type(os);
 	sa_attr_type_t *tb;
@@ -1053,33 +1056,35 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
 			goto fail;
 		}
 
+		za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, os, sa->sa_layout_attr_obj);
-		    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+		    (error = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			sa_attr_type_t *lot_attrs;
 			uint64_t lot_num;
 
 			lot_attrs = kmem_zalloc(sizeof (sa_attr_type_t) *
-			    za.za_num_integers, KM_SLEEP);
+			    za->za_num_integers, KM_SLEEP);
 
 			if ((error = (zap_lookup(os, sa->sa_layout_attr_obj,
-			    za.za_name, 2, za.za_num_integers,
+			    za->za_name, 2, za->za_num_integers,
 			    lot_attrs))) != 0) {
 				kmem_free(lot_attrs, sizeof (sa_attr_type_t) *
-				    za.za_num_integers);
+				    za->za_num_integers);
 				break;
 			}
-			VERIFY0(ddi_strtoull(za.za_name, NULL, 10,
+			VERIFY0(ddi_strtoull(za->za_name, NULL, 10,
 			    (unsigned long long *)&lot_num));
 
 			(void) sa_add_layout_entry(os, lot_attrs,
-			    za.za_num_integers, lot_num,
+			    za->za_num_integers, lot_num,
 			    sa_layout_info_hash(lot_attrs,
-			    za.za_num_integers), B_FALSE, NULL);
+			    za->za_num_integers), B_FALSE, NULL);
 			kmem_free(lot_attrs, sizeof (sa_attr_type_t) *
-			    za.za_num_integers);
+			    za->za_num_integers);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 
 		/*
 		 * Make sure layout count matches number of entries added
@@ -1501,6 +1506,42 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 	return (error);
 }
 
+/*
+ * Return size of an attribute
+ */
+
+static int
+sa_size_locked(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	sa_bulk_attr_t bulk;
+	int error;
+
+	bulk.sa_data = NULL;
+	bulk.sa_attr = attr;
+	bulk.sa_data_func = NULL;
+
+	ASSERT(hdl);
+	ASSERT(MUTEX_HELD(&hdl->sa_lock));
+	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
+		return (error);
+	}
+	*size = bulk.sa_size;
+
+	return (0);
+}
+
+int
+sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
+{
+	int error;
+
+	mutex_enter(&hdl->sa_lock);
+	error = sa_size_locked(hdl, attr, size);
+	mutex_exit(&hdl->sa_lock);
+
+	return (error);
+}
+
 #ifdef _KERNEL
 int
 sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, zfs_uio_t *uio)
@@ -1542,6 +1583,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
 	zfs_acl_phys_t znode_acl = { 0 };
 	char scanstamp[AV_SCANSTAMP_SZ];
+	char *dxattr_obj = NULL;
+	int dxattr_size = 0;
 
 	if (zp->z_acl_cached == NULL) {
 		zfs_acl_t *aclp;
@@ -1623,6 +1666,17 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
+	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
+	if (err != 0 && err != ENOENT)
+		goto out;
+	if (dxattr_size != 0) {
+		dxattr_obj = vmem_alloc(dxattr_size, KM_SLEEP);
+		err = sa_lookup_locked(hdl, SA_ZPL_DXATTR(zfsvfs), dxattr_obj,
+		    dxattr_size);
+		if (err != 0 && err != ENOENT)
+			goto out;
+	}
+
 	zp->z_projid = projid;
 	zp->z_pflags |= ZFS_PROJID;
 	links = ZTONLNK(zp);
@@ -1674,10 +1728,15 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		zp->z_pflags &= ~ZFS_BONUS_SCANSTAMP;
 	}
 
-	VERIFY(dmu_set_bonustype(db, DMU_OT_SA, tx) == 0);
-	VERIFY(sa_replace_all_by_template_locked(hdl, attrs, count, tx) == 0);
+	if (dxattr_obj) {
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DXATTR(zfsvfs),
+		    NULL, dxattr_obj, dxattr_size);
+	}
+
+	VERIFY0(dmu_set_bonustype(db, DMU_OT_SA, tx));
+	VERIFY0(sa_replace_all_by_template_locked(hdl, attrs, count, tx));
 	if (znode_acl.z_acl_extern_obj) {
-		VERIFY(0 == dmu_object_free(zfsvfs->z_os,
+		VERIFY0(dmu_object_free(zfsvfs->z_os,
 		    znode_acl.z_acl_extern_obj, tx));
 	}
 
@@ -1688,6 +1747,8 @@ out:
 	mutex_exit(&hdl->sa_lock);
 	kmem_free(attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
+	if (dxattr_obj)
+		vmem_free(dxattr_obj, dxattr_size);
 	return (err);
 }
 #endif
@@ -1797,7 +1858,7 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 			continue;
 		ATTR_ENCODE(attr_value, tb[i].sa_attr, tb[i].sa_length,
 		    tb[i].sa_byteswap);
-		VERIFY(0 == zap_update(hdl->sa_os, sa->sa_reg_attr_obj,
+		VERIFY0(zap_update(hdl->sa_os, sa->sa_reg_attr_obj,
 		    tb[i].sa_name, 8, 1, &attr_value, tx));
 		tb[i].sa_registered = B_TRUE;
 	}
@@ -1852,7 +1913,6 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 {
 	sa_os_t *sa = hdl->sa_os->os_sa;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
-	dnode_t *dn;
 	sa_bulk_attr_t *attr_desc;
 	void *old_data[2];
 	int bonus_attr_count = 0;
@@ -1872,8 +1932,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	/* First make of copy of the old data */
 
 	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
-	if (dn->dn_bonuslen != 0) {
+	if (DB_DNODE(db)->dn_bonuslen != 0) {
 		bonus_data_size = hdl->sa_bonus->db_size;
 		old_data[0] = kmem_alloc(bonus_data_size, KM_SLEEP);
 		memcpy(old_data[0], hdl->sa_bonus->db_data,
@@ -1954,7 +2013,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 				 * Only a variable-sized attribute can be
 				 * replaced here, and its size must be changing.
 				 */
-				ASSERT3U(reg_length, ==, 0);
+				ASSERT0(reg_length);
 				ASSERT3U(length, !=, buflen);
 				SA_ADD_BULK_ATTR(attr_desc, j, attr,
 				    locator, datastart, buflen);
@@ -2057,32 +2116,6 @@ sa_update(sa_handle_t *hdl, sa_attr_type_t type,
 	error = sa_bulk_update_impl(hdl, &bulk, 1, tx);
 	mutex_exit(&hdl->sa_lock);
 	return (error);
-}
-
-/*
- * Return size of an attribute
- */
-
-int
-sa_size(sa_handle_t *hdl, sa_attr_type_t attr, int *size)
-{
-	sa_bulk_attr_t bulk;
-	int error;
-
-	bulk.sa_data = NULL;
-	bulk.sa_attr = attr;
-	bulk.sa_data_func = NULL;
-
-	ASSERT(hdl);
-	mutex_enter(&hdl->sa_lock);
-	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) != 0) {
-		mutex_exit(&hdl->sa_lock);
-		return (error);
-	}
-	*size = bulk.sa_size;
-
-	mutex_exit(&hdl->sa_lock);
-	return (0);
 }
 
 int

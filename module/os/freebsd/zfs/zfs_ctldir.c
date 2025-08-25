@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -356,7 +357,7 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 	vnode_t *rvp;
 	uint64_t crtime[2];
 
-	ASSERT3P(zfsvfs->z_ctldir, ==, NULL);
+	ASSERT0P(zfsvfs->z_ctldir);
 
 	snapdir = sfs_alloc_node(sizeof (*snapdir), "snapshot", ZFSCTL_INO_ROOT,
 	    ZFSCTL_INO_SNAPDIR);
@@ -493,7 +494,7 @@ zfsctl_common_getattr(vnode_t *vp, vattr_t *vap)
 
 	vap->va_uid = 0;
 	vap->va_gid = 0;
-	vap->va_rdev = 0;
+	vap->va_rdev = NODEV;
 	/*
 	 * We are a purely virtual object, so we have no
 	 * blocksize or allocated blocks.
@@ -673,6 +674,7 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
+	ssize_t orig_resid;
 	int error;
 
 	zfs_uio_init(&uio, ap->a_uio);
@@ -687,16 +689,16 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	 * count to return is 0.
 	 */
 	if (zfs_uio_offset(&uio) == 3 * sizeof (entry)) {
+		if (eofp != NULL)
+			*eofp = 1;
 		return (0);
 	}
 
+	orig_resid = zfs_uio_resid(&uio);
 	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
-	if (error != 0) {
-		if (error == ENAMETOOLONG) /* ran out of destination space */
-			error = 0;
-		return (error);
-	}
+	if (error != 0)
+		goto err;
 	if (zfs_uio_offset(&uio) != dots_offset)
 		return (SET_ERROR(EINVAL));
 
@@ -709,8 +711,11 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	entry.d_reclen = sizeof (entry);
 	error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 	if (error != 0) {
-		if (error == ENAMETOOLONG)
-			error = 0;
+err:
+		if (error == ENAMETOOLONG) {
+			error = orig_resid == zfs_uio_resid(&uio) ?
+			    EINVAL : 0;
+		}
 		return (SET_ERROR(error));
 	}
 	if (eofp != NULL)
@@ -733,7 +738,7 @@ zfsctl_root_vptocnp(struct vop_vptocnp_args *ap)
 	if (error != 0)
 		return (SET_ERROR(error));
 
-	VOP_UNLOCK1(dvp);
+	VOP_UNLOCK(dvp);
 	*ap->a_vpp = dvp;
 	*ap->a_buflen -= sizeof (dotzfs_name);
 	memcpy(ap->a_buf + *ap->a_buflen, dotzfs_name, sizeof (dotzfs_name));
@@ -814,12 +819,8 @@ zfsctl_common_getacl(struct vop_getacl_args *ap)
 
 static struct vop_vector zfsctl_ops_root = {
 	.vop_default =	&default_vnodeops,
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_ioctl =	VOP_EINVAL,
@@ -1059,17 +1060,21 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
+	ssize_t orig_resid;
 	int error;
 
 	zfs_uio_init(&uio, ap->a_uio);
+	orig_resid = zfs_uio_resid(&uio);
 
 	ASSERT3S(vp->v_type, ==, VDIR);
 
 	error = sfs_readdir_common(ZFSCTL_INO_ROOT, ZFSCTL_INO_SNAPDIR, ap,
 	    &uio, &dots_offset);
 	if (error != 0) {
-		if (error == ENAMETOOLONG) /* ran out of destination space */
-			error = 0;
+		if (error == ENAMETOOLONG) { /* ran out of destination space */
+			error = orig_resid == zfs_uio_resid(&uio) ?
+			    EINVAL : 0;
+		}
 		return (error);
 	}
 
@@ -1087,9 +1092,13 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		dsl_pool_config_exit(dmu_objset_pool(zfsvfs->z_os), FTAG);
 		if (error != 0) {
 			if (error == ENOENT) {
-				if (eofp != NULL)
-					*eofp = 1;
-				error = 0;
+				if (orig_resid == zfs_uio_resid(&uio)) {
+					error = EINVAL;
+				} else {
+					error = 0;
+					if (eofp != NULL)
+						*eofp = 1;
+				}
 			}
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
@@ -1102,8 +1111,10 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		entry.d_reclen = sizeof (entry);
 		error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 		if (error != 0) {
-			if (error == ENAMETOOLONG)
-				error = 0;
+			if (error == ENAMETOOLONG) {
+				error = orig_resid == zfs_uio_resid(&uio) ?
+				    EINVAL : 0;
+			}
 			zfs_exit(zfsvfs, FTAG);
 			return (SET_ERROR(error));
 		}
@@ -1146,12 +1157,8 @@ zfsctl_snapdir_getattr(struct vop_getattr_args *ap)
 
 static struct vop_vector zfsctl_ops_snapdir = {
 	.vop_default =	&default_vnodeops,
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec = VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_getattr =	zfsctl_snapdir_getattr,
@@ -1226,27 +1233,19 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
 	 * before we can lock the vnode again.
 	 */
 	locked = VOP_ISLOCKED(vp);
-#if __FreeBSD_version >= 1300045
 	enum vgetstate vs = vget_prep(vp);
-#else
-	vhold(vp);
-#endif
 	vput(vp);
 
 	/* Look up .zfs/snapshot, our parent. */
 	error = zfsctl_snapdir_vnode(vp->v_mount, NULL, LK_SHARED, &dvp);
 	if (error == 0) {
-		VOP_UNLOCK1(dvp);
+		VOP_UNLOCK(dvp);
 		*ap->a_vpp = dvp;
 		*ap->a_buflen -= len;
 		memcpy(ap->a_buf + *ap->a_buflen, node->sn_name, len);
 	}
 	vfs_unbusy(mp);
-#if __FreeBSD_version >= 1300045
 	vget_finish(vp, locked | LK_RETRY, vs);
-#else
-	vget(vp, locked | LK_VNHELD | LK_RETRY, curthread);
-#endif
 	return (error);
 }
 
@@ -1256,18 +1255,12 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
  */
 static struct vop_vector zfsctl_ops_snapshot = {
 	.vop_default =		NULL, /* ensure very restricted access */
-#if __FreeBSD_version >= 1300121
 	.vop_fplookup_vexec =	VOP_EAGAIN,
-#endif
-#if __FreeBSD_version >= 1300139
 	.vop_fplookup_symlink = VOP_EAGAIN,
-#endif
 	.vop_open =		zfsctl_common_open,
 	.vop_close =		zfsctl_common_close,
 	.vop_inactive =		zfsctl_snapshot_inactive,
-#if __FreeBSD_version >= 1300045
-	.vop_need_inactive = vop_stdneed_inactive,
-#endif
+	.vop_need_inactive =	vop_stdneed_inactive,
 	.vop_reclaim =		zfsctl_snapshot_reclaim,
 	.vop_vptocnp =		zfsctl_snapshot_vptocnp,
 	.vop_lock1 =		vop_stdlock,
@@ -1388,7 +1381,7 @@ zfsctl_snapshot_unmount(const char *snapname, int flags __unused)
 
 	int err = getzfsvfs(snapname, &zfsvfs);
 	if (err != 0) {
-		ASSERT3P(zfsvfs, ==, NULL);
+		ASSERT0P(zfsvfs);
 		return (0);
 	}
 	vfsp = zfsvfs->z_vfs;

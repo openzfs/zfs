@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -159,13 +160,35 @@ zfs_userquota_prop_to_obj(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
 	}
 }
 
+static uint64_t
+zfs_usedquota_prop_to_default(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
+{
+	switch (type) {
+	case ZFS_PROP_USERUSED:
+		return (zfsvfs->z_defaultuserquota);
+	case ZFS_PROP_USEROBJUSED:
+		return (zfsvfs->z_defaultuserobjquota);
+	case ZFS_PROP_GROUPUSED:
+		return (zfsvfs->z_defaultgroupquota);
+	case ZFS_PROP_GROUPOBJUSED:
+		return (zfsvfs->z_defaultgroupobjquota);
+	case ZFS_PROP_PROJECTUSED:
+		return (zfsvfs->z_defaultprojectquota);
+	case ZFS_PROP_PROJECTOBJUSED:
+		return (zfsvfs->z_defaultprojectobjquota);
+	default:
+		return (0);
+	}
+}
+
 int
 zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep)
+    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep,
+    uint64_t *default_quota)
 {
 	int error;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zfs_useracct_t *buf = vbuf;
 	uint64_t obj;
 	int offset = 0;
@@ -186,6 +209,8 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	    !dmu_objset_userobjspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
 
+	*default_quota = zfs_usedquota_prop_to_default(zfsvfs, type);
+
 	obj = zfs_userquota_prop_to_obj(zfsvfs, type);
 	if (obj == ZFS_NO_OBJECT) {
 		*bufsizep = 0;
@@ -196,8 +221,9 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	    type == ZFS_PROP_PROJECTOBJUSED)
 		offset = DMU_OBJACCT_PREFIX_LEN;
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init_serialized(&zc, zfsvfs->z_os, obj, *cookiep);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((uintptr_t)buf - (uintptr_t)vbuf + sizeof (zfs_useracct_t) >
 		    *bufsizep)
@@ -207,14 +233,14 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		 * skip object quota (with zap name prefix DMU_OBJACCT_PREFIX)
 		 * when dealing with block quota and vice versa.
 		 */
-		if ((offset > 0) != (strncmp(za.za_name, DMU_OBJACCT_PREFIX,
+		if ((offset > 0) != (strncmp(za->za_name, DMU_OBJACCT_PREFIX,
 		    DMU_OBJACCT_PREFIX_LEN) == 0))
 			continue;
 
-		fuidstr_to_sid(zfsvfs, za.za_name + offset,
+		fuidstr_to_sid(zfsvfs, za->za_name + offset,
 		    buf->zu_domain, sizeof (buf->zu_domain), &buf->zu_rid);
 
-		buf->zu_space = za.za_first_integer;
+		buf->zu_space = za->za_first_integer;
 		buf++;
 	}
 	if (error == ENOENT)
@@ -224,6 +250,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	*bufsizep = (uintptr_t)buf - (uintptr_t)vbuf;
 	*cookiep = zap_cursor_serialize(&zc);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	return (error);
 }
 
@@ -337,7 +364,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err) {
 		dmu_tx_abort(tx);
 		return (err);
@@ -347,7 +374,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (*objp == 0) {
 		*objp = zap_create(zfsvfs->z_os, DMU_OT_USERGROUP_QUOTA,
 		    DMU_OT_NONE, 0, tx);
-		VERIFY(0 == zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
+		VERIFY0(zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
 		    zfs_userquota_prop_prefixes[type], 8, 1, objp, tx));
 	}
 	mutex_exit(&zfsvfs->z_lock);
@@ -359,7 +386,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	} else {
 		err = zap_update(zfsvfs->z_os, *objp, buf, 8, 1, &quota, tx);
 	}
-	ASSERT(err == 0);
+	ASSERT0(err);
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 	dmu_tx_commit(tx);
@@ -370,7 +397,7 @@ boolean_t
 zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 {
 	char buf[20 + DMU_OBJACCT_PREFIX_LEN];
-	uint64_t used, quota, quotaobj;
+	uint64_t used, quota, quotaobj, default_quota = 0;
 	int err;
 
 	if (!dmu_objset_userobjspace_present(zfsvfs->z_os)) {
@@ -396,20 +423,29 @@ zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 			return (B_FALSE);
 		}
 		quotaobj = zfsvfs->z_projectobjquota_obj;
+		default_quota = zfsvfs->z_defaultprojectobjquota;
 	} else if (usedobj == DMU_USERUSED_OBJECT) {
 		quotaobj = zfsvfs->z_userobjquota_obj;
+		default_quota = zfsvfs->z_defaultuserobjquota;
 	} else if (usedobj == DMU_GROUPUSED_OBJECT) {
 		quotaobj = zfsvfs->z_groupobjquota_obj;
+		default_quota = zfsvfs->z_defaultgroupobjquota;
 	} else {
 		return (B_FALSE);
 	}
-	if (quotaobj == 0 || zfsvfs->z_replay)
+	if (zfsvfs->z_replay)
 		return (B_FALSE);
 
 	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
-	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
-	if (err != 0)
-		return (B_FALSE);
+	if (quotaobj == 0) {
+		if (default_quota == 0)
+			return (B_FALSE);
+		quota = default_quota;
+	} else {
+		err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
+		if (err != 0 && ((quota = default_quota) == 0))
+			return (B_FALSE);
+	}
 
 	(void) snprintf(buf, sizeof (buf), DMU_OBJACCT_PREFIX "%llx",
 	    (longlong_t)id);
@@ -423,7 +459,7 @@ boolean_t
 zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 {
 	char buf[20];
-	uint64_t used, quota, quotaobj;
+	uint64_t used, quota, quotaobj, default_quota = 0;
 	int err;
 
 	if (usedobj == DMU_PROJECTUSED_OBJECT) {
@@ -438,20 +474,29 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 			return (B_FALSE);
 		}
 		quotaobj = zfsvfs->z_projectquota_obj;
+		default_quota = zfsvfs->z_defaultprojectquota;
 	} else if (usedobj == DMU_USERUSED_OBJECT) {
 		quotaobj = zfsvfs->z_userquota_obj;
+		default_quota = zfsvfs->z_defaultuserquota;
 	} else if (usedobj == DMU_GROUPUSED_OBJECT) {
 		quotaobj = zfsvfs->z_groupquota_obj;
+		default_quota = zfsvfs->z_defaultgroupquota;
 	} else {
 		return (B_FALSE);
 	}
-	if (quotaobj == 0 || zfsvfs->z_replay)
+	if (zfsvfs->z_replay)
 		return (B_FALSE);
 
 	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
-	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
-	if (err != 0)
-		return (B_FALSE);
+	if (quotaobj == 0) {
+		if (default_quota == 0)
+			return (B_FALSE);
+		quota = default_quota;
+	} else {
+		err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
+		if (err != 0 && ((quota = default_quota) == 0))
+			return (B_FALSE);
+	}
 
 	err = zap_lookup(zfsvfs->z_os, usedobj, buf, 8, 1, &used);
 	if (err != 0)

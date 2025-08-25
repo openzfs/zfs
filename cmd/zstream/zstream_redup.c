@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -55,15 +56,6 @@ typedef struct redup_table {
 	uint64_t	ddt_count;
 	int		numhashbits;
 } redup_table_t;
-
-int
-highbit64(uint64_t i)
-{
-	if (i == 0)
-		return (0);
-
-	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
-}
 
 void *
 safe_calloc(size_t n)
@@ -141,7 +133,7 @@ static void
 rdt_insert(redup_table_t *rdt,
     uint64_t guid, uint64_t object, uint64_t offset, uint64_t stream_offset)
 {
-	uint64_t ch = cityhash4(guid, object, offset, 0);
+	uint64_t ch = cityhash3(guid, object, offset);
 	uint64_t hashcode = BF64_GET(ch, 0, rdt->numhashbits);
 	redup_entry_t **rdepp;
 
@@ -161,7 +153,7 @@ rdt_lookup(redup_table_t *rdt,
     uint64_t guid, uint64_t object, uint64_t offset,
     uint64_t *stream_offsetp)
 {
-	uint64_t ch = cityhash4(guid, object, offset, 0);
+	uint64_t ch = cityhash3(guid, object, offset);
 	uint64_t hashcode = BF64_GET(ch, 0, rdt->numhashbits);
 
 	for (redup_entry_t *rde = rdt->redup_hash_array[hashcode];
@@ -186,13 +178,15 @@ static void
 zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 {
 	int bufsz = SPA_MAXBLOCKSIZE;
-	dmu_replay_record_t thedrr = { 0 };
+	dmu_replay_record_t thedrr;
 	dmu_replay_record_t *drr = &thedrr;
 	redup_table_t rdt;
 	zio_cksum_t stream_cksum;
 	uint64_t numbuckets;
 	uint64_t num_records = 0;
 	uint64_t num_write_byref_records = 0;
+
+	memset(&thedrr, 0, sizeof (dmu_replay_record_t));
 
 #ifdef _ILP32
 	uint64_t max_rde_size = SMALLEST_POSSIBLE_MAX_RDT_MB << 20;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -33,8 +34,14 @@
 #include <linux/bio.h>
 #include <asm/uaccess.h>
 #include <sys/types.h>
+#include <sys/string.h>
 
-#if defined(HAVE_VFS_IOV_ITER) && defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
+/*
+ * uio_extflg: extended flags
+ */
+#define	UIO_DIRECT	0x0001 /* Direct I/O request */
+
+#if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
 #endif
 
@@ -46,31 +53,36 @@ typedef enum zfs_uio_rw {
 } zfs_uio_rw_t;
 
 typedef enum zfs_uio_seg {
-	UIO_USERSPACE =		0,
-	UIO_SYSSPACE =		1,
-	UIO_BVEC =		2,
-#if defined(HAVE_VFS_IOV_ITER)
-	UIO_ITER =		3,
-#endif
+	UIO_SYSSPACE =		0,
+	UIO_BVEC =		1,
+	UIO_ITER =		2,
 } zfs_uio_seg_t;
+
+/*
+ * This structures is used when doing Direct I/O.
+ */
+typedef struct {
+	struct page	**pages;	/* Mapped pages */
+	long 		npages;		/* Number of mapped pages */
+	boolean_t	pinned;		/* Whether FOLL_PIN was used */
+} zfs_uio_dio_t;
 
 typedef struct zfs_uio {
 	union {
 		const struct iovec	*uio_iov;
 		const struct bio_vec	*uio_bvec;
-#if defined(HAVE_VFS_IOV_ITER)
 		struct iov_iter		*uio_iter;
-#endif
 	};
-	int		uio_iovcnt;
-	offset_t	uio_loffset;
-	zfs_uio_seg_t	uio_segflg;
+	int		uio_iovcnt;	/* Number of iovecs */
+	offset_t	uio_soffset;	/* Starting logical offset */
+	offset_t	uio_loffset;	/* Current logical offset */
+	zfs_uio_seg_t	uio_segflg;	/* Segment type */
 	boolean_t	uio_fault_disable;
-	uint16_t	uio_fmode;
-	uint16_t	uio_extflg;
-	ssize_t		uio_resid;
-
-	size_t		uio_skip;
+	uint16_t	uio_fmode;	/* Access mode (unused) */
+	uint16_t	uio_extflg;	/* Extra flags (UIO_DIRECT) */
+	ssize_t		uio_resid;	/* Residual unprocessed bytes */
+	size_t		uio_skip;	/* Skipped bytes in current iovec */
+	zfs_uio_dio_t	uio_dio;	/* Direct I/O user pages */
 
 	struct request	*rq;
 } zfs_uio_t;
@@ -83,6 +95,7 @@ typedef struct zfs_uio {
 #define	zfs_uio_iovlen(u, idx)		(u)->uio_iov[(idx)].iov_len
 #define	zfs_uio_iovbase(u, idx)		(u)->uio_iov[(idx)].iov_base
 #define	zfs_uio_fault_disable(u, set)	(u)->uio_fault_disable = set
+#define	zfs_uio_soffset(u)		(u)->uio_soffset
 #define	zfs_uio_rlimit_fsize(z, u)	(0)
 #define	zfs_uio_fault_move(p, n, rw, u)	zfs_uiomove((p), (n), (rw), (u))
 
@@ -92,6 +105,13 @@ static inline void
 zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
 {
 	uio->uio_loffset = off;
+}
+
+static inline void
+zfs_uio_setsoffset(zfs_uio_t *uio, offset_t off)
+{
+	ASSERT3U(zfs_uio_offset(uio), ==, off);
+	zfs_uio_soffset(uio) = off;
 }
 
 static inline void
@@ -106,7 +126,7 @@ zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
     unsigned long nr_segs, offset_t offset, zfs_uio_seg_t seg, ssize_t resid,
     size_t skip)
 {
-	ASSERT(seg == UIO_USERSPACE || seg == UIO_SYSSPACE);
+	ASSERT(seg == UIO_SYSSPACE);
 
 	uio->uio_iov = iov;
 	uio->uio_iovcnt = nr_segs;
@@ -117,6 +137,8 @@ zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
 	uio->uio_extflg = 0;
 	uio->uio_resid = resid;
 	uio->uio_skip = skip;
+	uio->uio_soffset = uio->uio_loffset;
+	memset(&uio->uio_dio, 0, sizeof (zfs_uio_dio_t));
 }
 
 static inline void
@@ -146,12 +168,13 @@ zfs_uio_bvec_init(zfs_uio_t *uio, struct bio *bio, struct request *rq)
 	}
 
 	uio->rq = rq;
+	uio->uio_soffset = uio->uio_loffset;
+	memset(&uio->uio_dio, 0, sizeof (zfs_uio_dio_t));
 }
 
-#if defined(HAVE_VFS_IOV_ITER)
 static inline void
 zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
-    ssize_t resid, size_t skip)
+    ssize_t resid)
 {
 	uio->uio_iter = iter;
 	uio->uio_iovcnt = iter->nr_segs;
@@ -161,9 +184,10 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 	uio->uio_fmode = 0;
 	uio->uio_extflg = 0;
 	uio->uio_resid = resid;
-	uio->uio_skip = skip;
+	uio->uio_skip = 0;
+	uio->uio_soffset = uio->uio_loffset;
+	memset(&uio->uio_dio, 0, sizeof (zfs_uio_dio_t));
 }
-#endif
 
 #if defined(HAVE_ITER_IOV)
 #define	zfs_uio_iter_iov(iter)	iter_iov((iter))
@@ -175,6 +199,15 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 #define	zfs_uio_iov_iter_type(iter)	iov_iter_type((iter))
 #else
 #define	zfs_uio_iov_iter_type(iter)	(iter)->type
+#endif
+
+#if defined(HAVE_ITER_IS_UBUF)
+#define	zfs_user_backed_iov_iter(iter)	\
+	(iter_is_ubuf((iter)) || \
+	(zfs_uio_iov_iter_type((iter)) == ITER_IOVEC))
+#else
+#define	zfs_user_backed_iov_iter(iter) \
+	(zfs_uio_iov_iter_type((iter)) == ITER_IOVEC)
 #endif
 
 #endif /* SPL_UIO_H */

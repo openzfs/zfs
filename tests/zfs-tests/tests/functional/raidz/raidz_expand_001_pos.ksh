@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -154,7 +155,9 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
+	is_pool_scrubbing $pool && wait_scrubbed $pool
 	log_must zpool scrub -w $pool
+
 	log_must zpool clear $pool
 	log_must zpool export $pool
 
@@ -166,6 +169,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
+	is_pool_scrubbing $pool && wait_scrubbed $pool
 	log_must zpool scrub -w $pool
 
 	log_must check_pool_status $pool "errors" "No known data errors"
@@ -197,13 +201,13 @@ log_must zpool create -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
 log_must zfs set primarycache=metadata $TESTPOOL
 
 log_must zfs create $TESTPOOL/fs
-log_must fill_fs /$TESTPOOL/fs 1 512 100 1024 R
+log_must fill_fs /$TESTPOOL/fs 1 512 102400 1 R
 
 log_must zfs create -o compress=on $TESTPOOL/fs2
-log_must fill_fs /$TESTPOOL/fs2 1 512 100 1024 R
+log_must fill_fs /$TESTPOOL/fs2 1 512 102400 1 R
 
 log_must zfs create -o compress=on -o recordsize=8k $TESTPOOL/fs3
-log_must fill_fs /$TESTPOOL/fs3 1 512 100 1024 R
+log_must fill_fs /$TESTPOOL/fs3 1 512 102400 1 R
 
 log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 

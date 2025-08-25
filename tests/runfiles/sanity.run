@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -27,7 +28,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/off]
@@ -64,7 +64,7 @@ tests = ['case_all_values', 'norm_all_values', 'sensitive_none_lookup',
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
-tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
+tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists', 'tst.encryption',
     'tst.integer_illegal', 'tst.integer_overflow', 'tst.language_functions_neg',
     'tst.language_functions_pos', 'tst.large_prog', 'tst.libraries',
     'tst.memory_limit', 'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
@@ -84,7 +84,7 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap', 'tst.get_count_and_limit',
     'tst.promote_multiple', 'tst.promote_simple', 'tst.rollback_mult',
     'tst.rollback_one', 'tst.set_props', 'tst.snapshot_destroy',
     'tst.snapshot_neg', 'tst.snapshot_recursive', 'tst.snapshot_simple',
-    'tst.bookmark.create', 'tst.bookmark.copy']
+    'tst.bookmark.create', 'tst.bookmark.copy', 'tst.clone']
 tags = ['functional', 'channel_program', 'synctask_core']
 
 [tests/functional/cli_root/zdb]
@@ -155,7 +155,8 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
     'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_007_pos',
     'zfs_mount_009_neg', 'zfs_mount_010_neg', 'zfs_mount_011_neg',
     'zfs_mount_012_pos', 'zfs_mount_encrypted', 'zfs_mount_remount',
-    'zfs_mount_all_fail', 'zfs_mount_all_mountpoints', 'zfs_mount_test_race']
+    'zfs_mount_all_fail', 'zfs_mount_all_mountpoints',
+    'zfs_mount_test_race', 'zfs_mount_recursive']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
@@ -192,6 +193,10 @@ tags = ['functional', 'cli_root', 'zfs_rename']
 [tests/functional/cli_root/zfs_reservation]
 tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 tags = ['functional', 'cli_root', 'zfs_reservation']
+
+[tests/functional/cli_root/zfs_rewrite]
+tests = ['zfs_rewrite', 'zfs_rewrite_physical']
+tags = ['functional', 'cli_root', 'zfs_rewrite']
 
 [tests/functional/cli_root/zfs_rollback]
 tests = ['zfs_rollback_003_neg', 'zfs_rollback_004_neg']
@@ -427,6 +432,10 @@ tests = ['large_dnode_003_pos', 'large_dnode_004_neg',
     'large_dnode_005_pos', 'large_dnode_007_neg']
 tags = ['functional', 'features', 'large_dnode']
 
+[tests/functional/gang_blocks]
+tests = ['gang_blocks_001_pos']
+tags = ['functional', 'gang_blocks']
+
 [tests/functional/grow]
 pre =
 post =
@@ -598,6 +607,12 @@ tags = ['functional', 'truncate']
 [tests/functional/upgrade]
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
+
+[tests/functional/vdev_disk:Linux]
+pre =
+post =
+tests = ['page_alignment']
+tags = ['functional', 'vdev_disk']
 
 [tests/functional/vdev_zaps]
 tests = ['vdev_zaps_001_pos', 'vdev_zaps_003_pos', 'vdev_zaps_004_pos',

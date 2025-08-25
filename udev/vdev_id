@@ -124,6 +124,7 @@ TOPOLOGY=
 BAY=
 ENCL_ID=""
 UNIQ_ENCL_ID=""
+ZPAD=1
 
 usage() {
 	cat << EOF
@@ -154,7 +155,7 @@ map_slot() {
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
-	printf "%d" "${MAPPED_SLOT}"
+	printf "%0${ZPAD}d" "${MAPPED_SLOT}"
 }
 
 map_channel() {
@@ -287,13 +288,20 @@ sas_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			# Match p[number], remove the 'p' and prepend "-part"
-			PART=$(echo "$DM_NAME" |
-				awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        # WWNs end with number -> p<partition>, alphabet -> <partition>
+                        # '3' + (WWN length 16) = 17
+                        PART=${DM_NAME:17}
+                        if [[ $PART = "p"*  ]]; then
+                                # Match p[number], remove the 'p' and prepend "-part"
+                                PART=$(echo "$DM_NAME" |
+                                    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        elif [[ $PART != "" ]]; then
+                                PART="-part"${PART}
+                        fi
 		fi
 
 		# Strip off partition information.
-		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
+                DM_NAME=${DM_NAME:0:17}
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
@@ -304,10 +312,20 @@ sas_handler() {
 		# If our DEVNAME is something like /dev/dm-177, then we may be
 		# able to get our DMDEV from it.
 		DMDEV=$(echo $DEVNAME | sed 's;/dev/;;g')
+                if [ -n "$DMDEV"  ]; then
+                        DEV=$(ls /sys/block/$DMDEV/slaves)
+                        for elm in "${DEV[@]}"; do
+                                if [[ $elm == "dm-"* ]]; then
+                                        DMDEV=$elm
+                                        break
+                                fi
+                        done
+                fi
+
 		if [ ! -e /sys/block/$DMDEV/slaves/* ] ; then
 			# It's not there, try looking in /dev/mapper
 			DMDEV=$(ls -l --full-time /dev/mapper | grep $DM_NAME |
-			awk '{gsub("../", " "); print $NF}')
+			awk '{gsub("../", " "); print $NF}' | head -n 1)
 		fi
 
 		# Use sysfs pointers in /sys/block/dm-X/slaves because using
@@ -430,6 +448,15 @@ sas_handler() {
 		d=$(eval echo '$'{$i})
 		SLOT=$(echo "$d" | sed -e 's/^.*://')
 		;;
+	"bay_lun")
+		# Like 'bay' but with the LUN number appened. Added for SAS 
+		# multi-actuator HDDs, where one physical drive has multiple
+		# LUNs, thus multiple logical drives share the same bay number
+		i=$((i + 2))
+		d=$(eval echo '$'{$i})
+		LUN="-lun$(echo "$d" | sed -e 's/^.*://')"
+		SLOT=$(cat "$end_device_dir/bay_identifier" 2>/dev/null)
+		;;
 	"ses")
 		# look for this SAS path in all SCSI Enclosure Services
 		# (SES) enclosures
@@ -460,7 +487,7 @@ sas_handler() {
 		if [ -z "$CHAN" ] ; then
 			return
 		fi
-		echo "${CHAN}"-"${JBOD}"-"${SLOT}${PART}"
+		echo "${CHAN}"-"${JBOD}"-"${SLOT}${LUN}${PART}"
 	else
 		CHAN=$(map_channel "$PCI_ID" "$PORT")
 		SLOT=$(map_slot "$SLOT" "$CHAN")
@@ -468,7 +495,7 @@ sas_handler() {
 		if [ -z "$CHAN" ] ; then
 			return
 		fi
-		echo "${CHAN}${SLOT}${PART}"
+		echo "${CHAN}${SLOT}${LUN}${PART}"
 	fi
 }
 
@@ -510,13 +537,20 @@ scsi_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			# Match p[number], remove the 'p' and prepend "-part"
-			PART=$(echo "$DM_NAME" |
-			    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        # WWNs end with number -> p<partition>, alphabet -> <partition>
+                        # '3' + (WWN length 16) = 17
+                        PART=${DM_NAME:17}
+                        if [[ $PART = "p"*  ]]; then
+                                # Match p[number], remove the 'p' and prepend "-part"
+                                PART=$(echo "$DM_NAME" |
+                                    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
+                        elif [[ $PART != "" ]]; then
+                                PART="-part"${PART}
+                        fi
 		fi
 
 		# Strip off partition information.
-		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
+                DM_NAME=${DM_NAME:0:17}
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
@@ -747,6 +781,8 @@ fi
 if [ -z "$BAY" ] ; then
 	BAY=$(awk '($1 == "slot") {print $2; exit}' "$CONFIG")
 fi
+
+ZPAD=$(awk '($1 == "zpad_slot") {print $2; exit}' "$CONFIG")
 
 TOPOLOGY=${TOPOLOGY:-sas_direct}
 

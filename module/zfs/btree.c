@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -218,7 +219,7 @@ zfs_btree_create_custom(zfs_btree_t *tree,
 	    zfs_btree_find_in_buf : bt_find_in_buf;
 	tree->bt_elem_size = size;
 	tree->bt_leaf_size = lsize;
-	tree->bt_leaf_cap = P2ALIGN(esize / size, 2);
+	tree->bt_leaf_cap = P2ALIGN_TYPED(esize / size, 2, size_t);
 	tree->bt_height = -1;
 	tree->bt_bulk = NULL;
 }
@@ -1109,7 +1110,7 @@ zfs_btree_add_idx(zfs_btree_t *tree, const void *value,
 	if (where->bti_node == NULL) {
 		ASSERT3U(tree->bt_num_elems, ==, 1);
 		ASSERT3S(tree->bt_height, ==, -1);
-		ASSERT3P(tree->bt_root, ==, NULL);
+		ASSERT0P(tree->bt_root);
 		ASSERT0(where->bti_offset);
 
 		tree->bt_num_nodes++;
@@ -1946,7 +1947,7 @@ void
 zfs_btree_destroy(zfs_btree_t *tree)
 {
 	ASSERT0(tree->bt_num_elems);
-	ASSERT3P(tree->bt_root, ==, NULL);
+	ASSERT0P(tree->bt_root);
 }
 
 /* Verify that every child of this node has the correct parent pointer. */
@@ -1968,10 +1969,10 @@ static void
 zfs_btree_verify_pointers(zfs_btree_t *tree)
 {
 	if (tree->bt_height == -1) {
-		VERIFY3P(tree->bt_root, ==, NULL);
+		VERIFY0P(tree->bt_root);
 		return;
 	}
-	VERIFY3P(tree->bt_root->bth_parent, ==, NULL);
+	VERIFY0P(tree->bt_root->bth_parent);
 	zfs_btree_verify_pointers_helper(tree, tree->bt_root);
 }
 
@@ -2208,8 +2209,6 @@ zfs_btree_verify(zfs_btree_t *tree)
 	zfs_btree_verify_poison(tree);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, btree_verify_intensity, UINT, ZMOD_RW,
 	"Enable btree verification. Levels above 4 require ZFS be built "
 	"with debugging");
-/* END CSTYLED */

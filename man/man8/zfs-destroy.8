@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -101,18 +102,25 @@ behavior for mounted file systems in use.
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Xc
-The given snapshots are destroyed immediately if and only if the
+Attempts to destroy the given snapshot(s).
+This will fail if any clones of the snapshot exist or if the snapshot is held.
+In this case, by default,
 .Nm zfs Cm destroy
-command without the
+will have no effect and exit in error.
+If the
 .Fl d
-option would have destroyed it.
-Such immediate destruction would occur, for example, if the snapshot had no
-clones and the user-initiated reference count were zero.
+option is applied, the command will instead mark the given snapshot for
+automatic destruction as soon as it becomes eligible.
+While marked for destruction, a snapshot remains visible, and the user may
+create new clones from it and place new holds on it.
 .Pp
-If a snapshot does not qualify for immediate destruction, it is marked for
-deferred deletion.
-In this state, it exists as a usable, visible snapshot until both of the
-preconditions listed above are met, at which point it is destroyed.
+The read-only snapshot properties
+.Sy defer_destroy
+and
+.Sy userrefs
+are used by
+.Nm zfs Cm destroy
+to determine eligibility and marked status.
 .Pp
 An inclusive range of snapshots may be specified by separating the first and
 last snapshots with a percent sign.
@@ -137,8 +145,9 @@ If this flag is specified, the
 .Fl d
 flag will have no effect.
 .It Fl d
-Destroy immediately.
-If a snapshot cannot be destroyed now, mark it for deferred destruction.
+Rather than returning error if the given snapshot is ineligible for immediate
+destruction, mark it for deferred, automatic destruction once it becomes
+eligible.
 .It Fl n
 Do a dry-run
 .Pq Qq No-op
@@ -157,6 +166,7 @@ Destroy
 all snapshots with this name in descendent file systems.
 .It Fl v
 Print verbose information about the deleted data.
+.El
 .Pp
 Extreme care should be taken when applying either the
 .Fl r
@@ -164,7 +174,6 @@ or the
 .Fl R
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
-.El
 .It Xo
 .Nm zfs
 .Cm destroy
@@ -223,4 +232,5 @@ renames the remaining snapshots, and then creates a new snapshot, as follows:
 .
 .Sh SEE ALSO
 .Xr zfs-create 8 ,
-.Xr zfs-hold 8
+.Xr zfs-hold 8 ,
+.Xr zfsprops 8

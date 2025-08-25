@@ -13,6 +13,9 @@ scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
 %C%_tests_functional_hkdf_hkdf_test_LDADD = \
 	libzpool.la
 
+scripts_zfs_tests_functional_vdev_diskdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/vdev_disk
+scripts_zfs_tests_functional_vdev_disk_PROGRAMS = %D%/tests/functional/vdev_disk/page_alignment
+
 scripts_zfs_tests_functional_cp_filesdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/cp_files
 scripts_zfs_tests_functional_cp_files_PROGRAMS = %D%/tests/functional/cp_files/seekflood
 
@@ -39,6 +42,7 @@ scripts_zfs_tests_includedir = $(datadir)/$(PACKAGE)/zfs-tests/include
 dist_scripts_zfs_tests_include_DATA = \
 	%D%/include/blkdev.shlib \
 	%D%/include/commands.cfg \
+	%D%/include/kstat.shlib \
 	%D%/include/libtest.shlib \
 	%D%/include/math.shlib \
 	%D%/include/properties.shlib \

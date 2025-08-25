@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -21,11 +22,10 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-
-DISK1="$TMPDIR/dsk1"
-DISK2="$TMPDIR/dsk2"
-DISK3="$TMPDIR/dsk3"
+DISKDIR=$(mktemp -d)
+DISK1="$DISKDIR/dsk1"
+DISK2="$DISKDIR/dsk2"
+DISK3="$DISKDIR/dsk3"
 DISKS="$DISK1 $DISK2 $DISK3"
 
 log_must mkfile $(($MINVDEVSIZE * 2)) $DISK1
@@ -35,7 +35,7 @@ log_must mkfile $(($MINVDEVSIZE * 2)) $DISK3
 function cleanup
 {
 	default_cleanup_noexit
-	log_must rm -f $DISKS
+	log_must rm -rf $DISKDIR
 }
 
 log_must default_setup_noexit "$DISK1 mirror $DISK2 $DISK3"

@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -175,7 +176,7 @@ Max loops in
 .It Fl B , -alt-ztest Ns =
 Path to alternate ("older")
 .Nm ztest
-to drive, which will be used to initialise the pool, and, a stochastic half the
+to drive, which will be used to initialize the pool, and, a stochastic half the
 time, to run the tests.
 The parallel
 .Pa lib
@@ -187,12 +188,8 @@ i.e. given
 will be loaded.
 .It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default : Sy random  )
 The vdev allocation class state.
-.It Fl o , -option Ns = Ns Ar variable Ns = Ns Ar value
-Set global
-.Ar variable
-to an unsigned 32-bit integer
-.Ar value
-(little-endian only).
+.It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
+Set the given tunable to the provided value.
 .It Fl G , -dump-debug
 Dump zfs_dbgmsg buffer before exiting due to an error.
 .It Fl V , -verbose

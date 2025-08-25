@@ -1,0 +1,28 @@
+-- SPDX-License-Identifier: CDDL-1.0
+--
+-- This file and its contents are supplied under the terms of the
+-- Common Development and Distribution License ("CDDL"), version 1.0.
+-- You may only use this file in accordance with the terms of version
+-- 1.0 of the CDDL.
+--
+-- A full copy of the text of the CDDL should have accompanied this
+-- source.  A copy of the CDDL is also available via the Internet at
+-- http://www.illumos.org/license/CDDL.
+--
+
+--
+-- Copyright (c) 2016, 2017 by Delphix. All rights reserved.
+-- Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+--
+
+-- This program should be invoked as "zfs program <pool> <prog> <fs> <snap> <new>"
+
+args = ...
+argv = args["argv"]
+assert(zfs.sync.clone(argv[1], argv[2]) == 0)
+clones = {}
+for c in zfs.list.clones(argv[1]) do
+	table.insert(clones, c)
+end
+assert(#clones == 1)
+assert(clones[1] == argv[2])

@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -31,10 +32,9 @@
 # 7. Run zdb -dddddd pool/objsetID objectID (hex) 
 # 8. Confirm names
 # 9. Repeat with zdb -NNNNNN pool/objsetID objectID
-# 10. Obtain objsetID from /proc/spl/kstat/zfs/testpool/obset-0x<ID>
-#    (linux only)
+# 10. Obtain dataset name from testpool.objset-0x<objsetID>.dataset_name kstat
 # 11. Run zdb -dddddd pool/objsetID (hex)
-# 12. Match name from zdb against proc entry
+# 12. Match name from zdb against kstat
 # 13. Create dataset with hex numeric name
 # 14. Create dataset with decimal numeric name
 # 15. zdb -d for numeric datasets succeeds
@@ -68,7 +68,7 @@ log_note "file $init_data has object number $obj"
 sync_pool $TESTPOOL
 
 IFS=", " read -r _ _ _ _ objset_id _ < <(zdb -d $TESTPOOL/$TESTFS)
-objset_hex=$(printf "0x%X" $objset_id)
+objset_hex=$(printf "0x%x" $objset_id)
 log_note "objset $TESTPOOL/$TESTFS has objset ID $objset_id ($objset_hex)"
 
 for id in "$objset_id" "$objset_hex"
@@ -89,13 +89,9 @@ do
 		log_fail "zdb -NNNNNN $TESTPOOL/$id $obj failed (file1 not in zdb output)"
 done
 
-if is_linux; then
-	output=$(ls -1 /proc/spl/kstat/zfs/$TESTPOOL | grep objset- | tail -1)
-	objset_hex=${output#*-}
-	name_from_proc=$(grep dataset_name /proc/spl/kstat/zfs/$TESTPOOL/$output | cut -d' ' -f3)
-	log_note "checking zdb output for $name_from_proc"
-	log_must eval "zdb -dddddd $TESTPOOL/$objset_hex | grep -q \"$name_from_proc\""
-fi
+name_from_proc=$(kstat_dataset -N $TESTPOOL/$objset_id dataset_name)
+log_note "checking zdb output for $name_from_proc"
+log_must eval "zdb -dddddd $TESTPOOL/$objset_hex | grep -q \"$name_from_proc\""
 
 log_must zfs create $hex_ds
 log_must zfs create $num_ds

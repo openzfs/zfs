@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -65,7 +66,7 @@ function send_and_verify
 	    ">$BACKDIR/pool-snap1-snap2"
 	log_must eval "zfs receive $recvfs < $BACKDIR/pool-snap1-snap2"
 
-	log_must cmp_md5s /$sendfs/file1 /$recvfs/file1
+	log_must cmp_xxh128 /$sendfs/file1 /$recvfs/file1
 }
 
 # By default sending hole_birth times is disabled.  This functionality needs

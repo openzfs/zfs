@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -26,12 +27,11 @@
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/block_cloning/block_cloning.kshlib
+. $STF_SUITE/tests/functional/bclone/bclone_common.kshlib
 
 verify_runnable "global"
 
-if is_linux && [[ $(linux_version) -lt $(linux_version "5.3") ]]; then
-  log_unsupported "copy_file_range can't copy cross-filesystem before Linux 5.3"
-fi
+verify_crossfs_block_cloning
 
 claim="The copy_file_range syscall can clone across datasets."
 

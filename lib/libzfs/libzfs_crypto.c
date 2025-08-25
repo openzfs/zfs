@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -583,7 +584,7 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 		goto end;
 	}
 
-	int kfd = -1;
+	int kfd;
 #ifdef O_TMPFILE
 	kfd = open(getenv("TMPDIR") ?: "/tmp",
 	    O_RDWR | O_TMPFILE | O_EXCL | O_CLOEXEC, 0600);
@@ -1816,4 +1817,15 @@ error:
 
 	zfs_error(zhp->zfs_hdl, EZFS_CRYPTOFAILED, errbuf);
 	return (ret);
+}
+
+boolean_t
+zfs_is_encrypted(zfs_handle_t *zhp)
+{
+	uint8_t flags = zhp->zfs_dmustats.dds_flags;
+
+	if (flags & DDS_FLAG_HAS_ENCRYPTED)
+		return ((flags & DDS_FLAG_ENCRYPTED) != 0);
+
+	return (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF);
 }

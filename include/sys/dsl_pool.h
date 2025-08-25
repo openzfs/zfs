@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -63,6 +64,8 @@ extern uint64_t zfs_wrlog_data_max;
 extern uint_t zfs_dirty_data_max_percent;
 extern uint_t zfs_dirty_data_max_max_percent;
 extern uint_t zfs_delay_min_dirty_percent;
+extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
+extern uint_t zfs_vdev_async_write_active_max_dirty_percent;
 extern uint64_t zfs_delay_scale;
 
 /* These macros are for indexing into the zfs_all_blkstats_t. */

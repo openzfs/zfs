@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -51,7 +52,7 @@ else
 fi
 
 set -A args "" "-x" "-v" "-x $testpool" "-v $testpool" "-xv $testpool" \
-	"-vx $testpool"
+	"-vx $testpool" "-e $testpool" "-es $testpool"
 
 log_assert "Executing 'zpool status' with correct options succeeds"
 
@@ -63,5 +64,7 @@ while [[ $i -lt ${#args[*]} ]]; do
 
 	(( i = i + 1 ))
 done
+
+cleanup 
 
 log_pass "'zpool status' with correct options succeeded"

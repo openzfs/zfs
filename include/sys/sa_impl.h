@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -167,8 +168,8 @@ typedef struct sa_hdr_phys {
 	 * | hdrsz  |layout |
 	 * +--------+-------+
 	 *
-	 * Bits 0-10 are the layout number
-	 * Bits 11-16 are the size of the header.
+	 * Bits 0-9 (10 bits) are the layout number (0-1023)
+	 * Bits 10-15 (6 bits) are the size of the header (0-63)
 	 * The hdrsize is the number * 8
 	 *
 	 * For example.
@@ -272,7 +273,6 @@ int sa_add_impl(sa_handle_t *, sa_attr_type_t,
     uint32_t, sa_data_locator_t, void *, dmu_tx_t *);
 
 void sa_register_update_callback_locked(objset_t *, sa_update_cb_t *);
-int sa_size_locked(sa_handle_t *, sa_attr_type_t, int *);
 
 void sa_default_locator(void **, uint32_t *, uint32_t, boolean_t, void *);
 int sa_attr_size(sa_os_t *, sa_idx_tab_t *, sa_attr_type_t,

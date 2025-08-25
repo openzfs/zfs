@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -57,7 +58,10 @@ biggest_zvol_size_possible=$(largest_volsize_from_pool $TESTPOOL)
 typeset -f each_zvol_size=$(( floor($biggest_zvol_size_possible * 0.9 / \
 	$num_zvols )))
 
-typeset tmpdir="$(mktemp -d zvol_stress_fio_state.XXXXXX)"
+typeset tmpdir="$(mktemp -t -d zvol_stress_fio_state.XXXXXX)"
+
+log_must save_tunable VOL_USE_BLK_MQ
+log_must save_tunable VOL_REQUEST_SYNC
 
 function create_zvols
 {
@@ -123,7 +127,8 @@ function cleanup
 	log_must zinject -c all
 	log_must zpool clear $TESTPOOL
 	destroy_zvols
-	set_blk_mq 0
+	log_must restore_tunable VOL_USE_BLK_MQ
+	log_must restore_tunable VOL_REQUEST_SYNC
 
 	# Remove all fio's leftover state files
 	if [ -n "$tmpdir" ] ; then
@@ -145,12 +150,25 @@ destroy_zvols
 set_blk_mq 1
 create_zvols
 do_zvol_stress
+destroy_zvols
+
+# Disable zvol sync mode, and re-run test
+set_zvol_sync 0
+create_zvols
+do_zvol_stress
+destroy_zvols
+
+# Same for enabled zvol sync mode
+set_zvol_sync 1
+create_zvols
+do_zvol_stress
 
 # Inject some errors, and verify we see some IO errors in zpool status
+sync_pool $TESTPOOL
 for DISK in $DISKS ; do
 	log_must zinject -d $DISK -f 10 -e io -T write $TESTPOOL
 done
-log_must dd if=/dev/zero of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=512 count=50
+log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=16M count=1
 sync_pool $TESTPOOL
 log_must zinject -c all
 

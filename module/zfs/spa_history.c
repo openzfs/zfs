@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -384,11 +385,14 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	}
 
 	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	err = dmu_tx_assign(tx, TXG_WAIT);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err) {
 		dmu_tx_abort(tx);
 		return (err);
 	}
+
+	ASSERT3UF(tx->tx_txg, <=, spa_final_dirty_txg(spa),
+	    "Logged %s after final txg was set!", "nvlist");
 
 	VERIFY0(nvlist_dup(nvl, &nvarg, KM_SLEEP));
 	if (spa_history_zone() != NULL) {
@@ -527,6 +531,9 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 		return;
 	}
 
+	ASSERT3UF(tx->tx_txg, <=, spa_final_dirty_txg(spa),
+	    "Logged after final txg was set: %s %s", operation, fmt);
+
 	msg = kmem_vasprintf(fmt, adx);
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_STR, msg);
 	kmem_strfree(msg);
@@ -554,7 +561,7 @@ spa_history_log_internal(spa_t *spa, const char *operation,
 	/* create a tx if we didn't get one */
 	if (tx == NULL) {
 		htx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-		if (dmu_tx_assign(htx, TXG_WAIT) != 0) {
+		if (dmu_tx_assign(htx, DMU_TX_WAIT) != 0) {
 			dmu_tx_abort(htx);
 			return;
 		}

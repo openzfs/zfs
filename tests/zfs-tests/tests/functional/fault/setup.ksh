@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -28,6 +29,7 @@
 
 verify_runnable "global"
 
+zed_events_drain
 zed_setup resilver_finish-start-scrub.sh
 zed_start
 

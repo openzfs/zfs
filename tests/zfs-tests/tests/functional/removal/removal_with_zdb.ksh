@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -21,7 +22,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-zdbout=${TMPDIR:-$TEST_BASE_DIR}/zdbout.$$
+zdbout=$(mktemp)
 
 if is_linux; then
 	log_unsupported "ZDB fails during concurrent pool activity."

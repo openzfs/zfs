@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -161,9 +162,9 @@ zhack_import(char *target, boolean_t readonly)
 
 	props = NULL;
 	if (readonly) {
-		VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
-		VERIFY(nvlist_add_uint64(props,
-		    zpool_prop_to_name(ZPOOL_PROP_READONLY), 1) == 0);
+		VERIFY0(nvlist_alloc(&props, NV_UNIQUE_NAME, 0));
+		VERIFY0(nvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_READONLY), 1));
 	}
 
 	zfeature_checks_disable = B_TRUE;
@@ -203,26 +204,27 @@ static void
 dump_obj(objset_t *os, uint64_t obj, const char *name)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_long_alloc();
 
 	(void) printf("%s_obj:\n", name);
 
 	for (zap_cursor_init(&zc, os, obj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
-		if (za.za_integer_length == 8) {
-			ASSERT(za.za_num_integers == 1);
+		if (za->za_integer_length == 8) {
+			ASSERT(za->za_num_integers == 1);
 			(void) printf("\t%s = %llu\n",
-			    za.za_name, (u_longlong_t)za.za_first_integer);
+			    za->za_name, (u_longlong_t)za->za_first_integer);
 		} else {
-			ASSERT(za.za_integer_length == 1);
+			ASSERT(za->za_integer_length == 1);
 			char val[1024];
-			VERIFY(zap_lookup(os, obj, za.za_name,
-			    1, sizeof (val), val) == 0);
-			(void) printf("\t%s = %s\n", za.za_name, val);
+			VERIFY0(zap_lookup(os, obj, za->za_name,
+			    1, sizeof (val), val));
+			(void) printf("\t%s = %s\n", za->za_name, val);
 		}
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 }
 
 static void
@@ -361,10 +363,12 @@ feature_incr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount + 1, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
@@ -374,10 +378,12 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount - 1, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
@@ -612,8 +618,8 @@ zhack_repair_undetach(uberblock_t *ub, nvlist_t *cfg, const int l)
 	 * Uberblock root block pointer has valid birth TXG.
 	 * Copying it to the label NVlist
 	 */
-	if (ub->ub_rootbp.blk_birth != 0) {
-		const uint64_t txg = ub->ub_rootbp.blk_birth;
+	if (BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp) != 0) {
+		const uint64_t txg = BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp);
 		ub->ub_txg = txg;
 
 		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_CREATE_TXG) != 0) {

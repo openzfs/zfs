@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -573,7 +574,6 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				nvlist_t *cnv = child[c];
 				const char *path;
 				struct stat64 statbuf;
-				int64_t size = -1LL;
 				const char *childtype;
 				int fd, err;
 
@@ -655,7 +655,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				    statbuf.st_size == MAXOFFSET_T)
 					continue;
 
-				size = statbuf.st_size;
+				int64_t size = statbuf.st_size;
 
 				/*
 				 * Also make sure that devices and
@@ -873,6 +873,18 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 				    (u_longlong_t)raidz->zprl_parity,
 				    (u_longlong_t)mirror->zprl_children - 1,
 				    (u_longlong_t)mirror->zprl_children);
+				ret = -1;
+			}
+		} else if (is_raidz_draid(current, new)) {
+			if (current->zprl_parity != new->zprl_parity) {
+				vdev_error(gettext(
+				    "mismatched replication level: pool and "
+				    "new vdev with different redundancy, %s "
+				    "and %s vdevs, %llu vs. %llu\n"),
+				    current->zprl_type,
+				    new->zprl_type,
+				    (u_longlong_t)current->zprl_parity,
+				    (u_longlong_t)new->zprl_parity);
 				ret = -1;
 			}
 		} else if (strcmp(current->zprl_type, new->zprl_type) != 0) {
@@ -1352,7 +1364,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 static int
 draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
 {
-	uint64_t nparity = 1;
+	uint64_t nparity;
 	uint64_t nspares = 0;
 	uint64_t ndata = UINT64_MAX;
 	uint64_t ngroups = 1;
@@ -1580,13 +1592,12 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				is_dedup = is_spare = B_FALSE;
 			}
 
-			if (is_log || is_special || is_dedup) {
+			if (is_log) {
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
-					    "specification: unsupported '%s' "
-					    "device: %s\n"), is_log ? "log" :
-					    "special", type);
+					    "specification: unsupported 'log' "
+					    "device: %s\n"), type);
 					goto spec_out;
 				}
 				nlogs++;

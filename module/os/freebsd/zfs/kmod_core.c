@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2020 iXsystems, Inc.
  * All rights reserved.
@@ -305,16 +306,19 @@ zfs_modevent(module_t mod, int type, void *unused __unused)
 	switch (type) {
 	case MOD_LOAD:
 		err = zfs__init();
-		if (err == 0)
+		if (err == 0) {
 			zfs_shutdown_event_tag = EVENTHANDLER_REGISTER(
 			    shutdown_post_sync, zfs_shutdown, NULL,
 			    SHUTDOWN_PRI_FIRST);
+		}
 		return (err);
 	case MOD_UNLOAD:
 		err = zfs__fini();
-		if (err == 0 && zfs_shutdown_event_tag != NULL)
-			EVENTHANDLER_DEREGISTER(shutdown_post_sync,
-			    zfs_shutdown_event_tag);
+		if (err == 0) {
+			if (zfs_shutdown_event_tag != NULL)
+				EVENTHANDLER_DEREGISTER(shutdown_post_sync,
+				    zfs_shutdown_event_tag);
+		}
 		return (err);
 	case MOD_SHUTDOWN:
 		return (0);
@@ -330,19 +334,12 @@ static moduledata_t zfs_mod = {
 	0
 };
 
-#ifdef _KERNEL
-EVENTHANDLER_DEFINE(mountroot, spa_boot_init, NULL, 0);
-#endif
 
 FEATURE(zfs, "OpenZFS support");
 
 DECLARE_MODULE(zfsctrl, zfs_mod, SI_SUB_CLOCKS, SI_ORDER_ANY);
 MODULE_VERSION(zfsctrl, 1);
-#if __FreeBSD_version > 1300092
 MODULE_DEPEND(zfsctrl, xdr, 1, 1, 1);
-#else
-MODULE_DEPEND(zfsctrl, krpc, 1, 1, 1);
-#endif
 MODULE_DEPEND(zfsctrl, acl_nfs4, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, crypto, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, zlib, 1, 1, 1);

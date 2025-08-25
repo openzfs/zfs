@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -41,6 +42,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
 #include <sys/dsl_crypt.h>
+#include <sys/simd.h>
 
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -237,6 +239,7 @@ zfs_prop_init(void)
 	static const zprop_index_t snapdir_table[] = {
 		{ "hidden",	ZFS_SNAPDIR_HIDDEN },
 		{ "visible",	ZFS_SNAPDIR_VISIBLE },
+		{ "disabled",	ZFS_SNAPDIR_DISABLED },
 		{ NULL }
 	};
 
@@ -361,7 +364,7 @@ zfs_prop_init(void)
 
 	static const zprop_index_t xattr_table[] = {
 		{ "off",	ZFS_XATTR_OFF },
-		{ "on",		ZFS_XATTR_DIR },
+		{ "on",		ZFS_XATTR_SA },
 		{ "sa",		ZFS_XATTR_SA },
 		{ "dir",	ZFS_XATTR_DIR },
 		{ NULL }
@@ -392,6 +395,13 @@ zfs_prop_init(void)
 		{ "geom",	ZFS_VOLMODE_GEOM },
 		{ "dev",	ZFS_VOLMODE_DEV },
 		{ "none",	ZFS_VOLMODE_NONE },
+		{ NULL }
+	};
+
+	static const zprop_index_t direct_table[] = {
+		{ "disabled",	ZFS_DIRECT_DISABLED },
+		{ "standard",	ZFS_DIRECT_STANDARD },
+		{ "always",	ZFS_DIRECT_ALWAYS },
 		{ NULL }
 	};
 
@@ -428,7 +438,7 @@ zfs_prop_init(void)
 	    "COMPRESS", compress_table, sfeatures);
 	zprop_register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "hidden | visible", "SNAPDIR", snapdir_table, sfeatures);
+	    "disabled | hidden | visible", "SNAPDIR", snapdir_table, sfeatures);
 	zprop_register_index(ZFS_PROP_SNAPDEV, "snapdev", ZFS_SNAPDEV_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "hidden | visible", "SNAPDEV", snapdev_table, sfeatures);
@@ -467,7 +477,7 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_LOGBIAS, "logbias", ZFS_LOGBIAS_LATENCY,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "latency | throughput", "LOGBIAS", logbias_table, sfeatures);
-	zprop_register_index(ZFS_PROP_XATTR, "xattr", ZFS_XATTR_DIR,
+	zprop_register_index(ZFS_PROP_XATTR, "xattr", ZFS_XATTR_SA,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "on | off | dir | sa", "XATTR", xattr_table, sfeatures);
 	zprop_register_index(ZFS_PROP_DNODESIZE, "dnodesize",
@@ -478,6 +488,10 @@ zfs_prop_init(void)
 	    ZFS_VOLMODE_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "default | full | geom | dev | none", "VOLMODE", volmode_table,
+	    sfeatures);
+	zprop_register_index(ZFS_PROP_DIRECT, "direct",
+	    ZFS_DIRECT_STANDARD, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
+	    "disabled | standard | always", "DIRECT", direct_table,
 	    sfeatures);
 
 	/* inherit index (boolean) properties */
@@ -626,7 +640,7 @@ zfs_prop_init(void)
 	    "<1.00x or higher if compressed>", "REFRATIO", B_FALSE, sfeatures);
 	zprop_register_number(ZFS_PROP_VOLBLOCKSIZE, "volblocksize",
 	    ZVOL_DEFAULT_BLOCKSIZE, PROP_ONETIME,
-	    ZFS_TYPE_VOLUME, "512 to 128k, power of 2",	"VOLBLOCK", B_FALSE,
+	    ZFS_TYPE_VOLUME, "512 to 16M, power of 2", "VOLBLOCK", B_FALSE,
 	    sfeatures);
 	zprop_register_index(ZFS_PROP_VOLTHREADING, "volthreading",
 	    1, PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off", "zvol threading",
@@ -694,16 +708,38 @@ zfs_prop_init(void)
 	zprop_register_number(ZFS_PROP_SNAPSHOT_LIMIT, "snapshot_limit",
 	    UINT64_MAX, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "<count> | none", "SSLIMIT", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTUSERQUOTA, "defaultuserquota", 0,
+	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "<size> | none", "DEFAULTUSERQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTGROUPQUOTA, "defaultgroupquota",
+	    0, PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "<size> | none", "DEFAULTGROUPQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTPROJECTQUOTA,
+	    "defaultprojectquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTPROJECTQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTUSEROBJQUOTA,
+	    "defaultuserobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTUSEROBJQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTGROUPOBJQUOTA,
+	    "defaultgroupobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTGROUPOBJQUOTA", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
+	    "defaultprojectobjquota", 0, PROP_DEFAULT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "<size> | none",
+	    "DEFAULTPROJECTOBJQUOTA", B_FALSE, sfeatures);
 
 	/* inherit number properties */
 	zprop_register_number(ZFS_PROP_RECORDSIZE, "recordsize",
 	    SPA_OLD_MAXBLOCKSIZE, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM, "512 to 1M, power of 2", "RECSIZE", B_FALSE,
-	    sfeatures);
+	    ZFS_TYPE_FILESYSTEM, "512 to 16M, power of 2",
+	    "RECSIZE", B_FALSE, sfeatures);
 	zprop_register_number(ZFS_PROP_SPECIAL_SMALL_BLOCKS,
-	    "special_small_blocks", 0, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "zero or 512 to 1M, power of 2", "SPECIAL_SMALL_BLOCKS", B_FALSE,
-	    sfeatures);
+	    "special_small_blocks", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "0 to 16M",
+	    "SPECIAL_SMALL_BLOCKS", B_FALSE, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(ZFS_PROP_NUMCLONES, "numclones", PROP_TYPE_NUMBER,
@@ -760,6 +796,10 @@ zfs_prop_init(void)
 	    ZFS_TYPE_VOLUME, "<date>", "SNAPSHOTS_CHANGED", B_FALSE, B_TRUE,
 	    B_TRUE, NULL, sfeatures);
 
+	zprop_register_index(ZFS_PROP_LONGNAME, "longname", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "LONGNAME", boolean_table,
+	    sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
@@ -792,11 +832,12 @@ zfs_name_to_prop(const char *propname)
 boolean_t
 zfs_prop_user(const char *name)
 {
-	int i;
+	int i, len;
 	char c;
 	boolean_t foundsep = B_FALSE;
 
-	for (i = 0; i < strlen(name); i++) {
+	len = strlen(name);
+	for (i = 0; i < len; i++) {
 		c = name[i];
 		if (!zprop_valid_char(c))
 			return (B_FALSE);
@@ -1071,6 +1112,7 @@ zcommon_init(void)
 		return (error);
 
 	fletcher_4_init();
+	simd_stat_init();
 
 	return (0);
 }
@@ -1078,6 +1120,7 @@ zcommon_init(void)
 void
 zcommon_fini(void)
 {
+	simd_stat_fini();
 	fletcher_4_fini();
 	kfpu_fini();
 }

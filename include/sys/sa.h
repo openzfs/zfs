@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -49,10 +50,10 @@ typedef uint16_t	sa_attr_type_t;
  * Attribute to register support for.
  */
 typedef struct sa_attr_reg {
-	const char 		*sa_name;	/* attribute name */
-	uint16_t 		sa_length;
+	const char		*sa_name;	/* attribute name */
+	uint16_t		sa_length;
 	sa_bswap_type_t		sa_byteswap;	/* bswap function enum */
-	sa_attr_type_t 		sa_attr; /* filled in during registration */
+	sa_attr_type_t		sa_attr; /* filled in during registration */
 } sa_attr_reg_t;
 
 
@@ -77,7 +78,7 @@ typedef struct sa_bulk_attr {
 	uint16_t		sa_length;
 	sa_attr_type_t		sa_attr;
 	/* the following are private to the sa framework */
-	void 			*sa_addr;
+	void			*sa_addr;
 	uint16_t		sa_buftype;
 	uint16_t		sa_size;
 } sa_bulk_attr_t;

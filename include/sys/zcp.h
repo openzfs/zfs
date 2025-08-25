@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -75,7 +76,6 @@ typedef struct zcp_run_info {
 	 * rather than the 'current' thread's.
 	 */
 	cred_t		*zri_cred;
-	proc_t		*zri_proc;
 
 	/*
 	 * The tx in which this channel program is running.

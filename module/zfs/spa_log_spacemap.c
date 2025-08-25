@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -783,7 +784,7 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 	 * request of flushing everything before we attempt to return
 	 * immediately.
 	 */
-	if (spa->spa_uberblock.ub_rootbp.blk_birth < txg &&
+	if (BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp) < txg &&
 	    !dmu_objset_is_dirty(spa_meta_objset(spa), txg) &&
 	    !spa_flush_all_logs_requested(spa))
 		return;
@@ -1020,16 +1021,17 @@ spa_ld_log_sm_metadata(spa_t *spa)
 	}
 
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, spa_meta_objset(spa), spacemap_zap);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t log_txg = zfs_strtonum(za.za_name, NULL);
+		uint64_t log_txg = zfs_strtonum(za->za_name, NULL);
 		spa_log_sm_t *sls =
-		    spa_log_sm_alloc(za.za_first_integer, log_txg);
+		    spa_log_sm_alloc(za->za_first_integer, log_txg);
 		avl_add(&spa->spa_sm_logs_by_txg, sls);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	if (error != ENOENT) {
 		spa_load_failed(spa, "spa_ld_log_sm_metadata(): failed at "
 		    "zap_cursor_retrieve(spacemap_zap) [error %d]",
@@ -1107,11 +1109,11 @@ spa_ld_log_sm_cb(space_map_entry_t *sme, void *arg)
 
 	switch (sme->sme_type) {
 	case SM_ALLOC:
-		range_tree_remove_xor_add_segment(offset, offset + size,
+		zfs_range_tree_remove_xor_add_segment(offset, offset + size,
 		    ms->ms_unflushed_frees, ms->ms_unflushed_allocs);
 		break;
 	case SM_FREE:
-		range_tree_remove_xor_add_segment(offset, offset + size,
+		zfs_range_tree_remove_xor_add_segment(offset, offset + size,
 		    ms->ms_unflushed_allocs, ms->ms_unflushed_frees);
 		break;
 	default:
@@ -1250,14 +1252,14 @@ out:
 	    m != NULL; m = AVL_NEXT(&spa->spa_metaslabs_by_flushed, m)) {
 		mutex_enter(&m->ms_lock);
 		m->ms_allocated_space = space_map_allocated(m->ms_sm) +
-		    range_tree_space(m->ms_unflushed_allocs) -
-		    range_tree_space(m->ms_unflushed_frees);
+		    zfs_range_tree_space(m->ms_unflushed_allocs) -
+		    zfs_range_tree_space(m->ms_unflushed_frees);
 
 		vdev_t *vd = m->ms_group->mg_vd;
 		metaslab_space_update(vd, m->ms_group->mg_class,
-		    range_tree_space(m->ms_unflushed_allocs), 0, 0);
+		    zfs_range_tree_space(m->ms_unflushed_allocs), 0, 0);
 		metaslab_space_update(vd, m->ms_group->mg_class,
-		    -range_tree_space(m->ms_unflushed_frees), 0, 0);
+		    -zfs_range_tree_space(m->ms_unflushed_frees), 0, 0);
 
 		ASSERT0(m->ms_weight & METASLAB_ACTIVE_MASK);
 		metaslab_recalculate_weight_and_sort(m);
@@ -1316,8 +1318,8 @@ spa_ld_unflushed_txgs(vdev_t *vd)
 
 		ms->ms_unflushed_txg = entry.msp_unflushed_txg;
 		ms->ms_unflushed_dirty = B_FALSE;
-		ASSERT(range_tree_is_empty(ms->ms_unflushed_allocs));
-		ASSERT(range_tree_is_empty(ms->ms_unflushed_frees));
+		ASSERT(zfs_range_tree_is_empty(ms->ms_unflushed_allocs));
+		ASSERT(zfs_range_tree_is_empty(ms->ms_unflushed_frees));
 		if (ms->ms_unflushed_txg != 0) {
 			mutex_enter(&spa->spa_flushed_ms_lock);
 			avl_add(&spa->spa_metaslabs_by_flushed, ms);
@@ -1363,7 +1365,6 @@ spa_ld_log_spacemaps(spa_t *spa)
 	return (error);
 }
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, unflushed_max_mem_amt, U64, ZMOD_RW,
 	"Specific hard-limit in memory that ZFS allows to be used for "
 	"unflushed changes");
@@ -1382,8 +1383,8 @@ ZFS_MODULE_PARAM(zfs, zfs_, unflushed_log_block_min, U64, ZMOD_RW,
 	"log spacemap (see zfs_unflushed_log_block_max)");
 
 ZFS_MODULE_PARAM(zfs, zfs_, unflushed_log_txg_max, U64, ZMOD_RW,
-    "Hard limit (upper-bound) in the size of the space map log "
-    "in terms of dirty TXGs.");
+	"Hard limit (upper-bound) in the size of the space map log "
+	"in terms of dirty TXGs.");
 
 ZFS_MODULE_PARAM(zfs, zfs_, unflushed_log_block_pct, UINT, ZMOD_RW,
 	"Tunable used to determine the number of blocks that can be used for "
@@ -1398,7 +1399,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_log_walking, U64, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, keep_log_spacemaps_at_export, INT, ZMOD_RW,
 	"Prevent the log spacemaps from being flushed and destroyed "
 	"during pool export/destroy");
-/* END CSTYLED */
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_logsm_summary_length, U64, ZMOD_RW,
 	"Maximum number of rows allowed in the summary of the spacemap log");

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -44,7 +45,9 @@
 #ifdef _KERNEL
 #define	CPU		curcpu
 #define	minclsyspri	PRIBIO
-#define	defclsyspri minclsyspri
+#define	defclsyspri	minclsyspri
+/* Write issue taskq priority. */
+#define	wtqclsyspri	((PVM + PRIBIO) / 2)
 #define	maxclsyspri	PVM
 #define	max_ncpus	(mp_maxid + 1)
 #define	boot_max_ncpus	(mp_maxid + 1)
@@ -74,8 +77,8 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	/*
 	 * Be sure there are no surprises.
 	 */
-	ASSERT(stk == NULL);
-	ASSERT(len == 0);
+	ASSERT0P(stk);
+	ASSERT0(len);
 	ASSERT(state == TS_RUN);
 
 	if (pp == &p0)
@@ -88,9 +91,6 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 		thread_lock(td);
 		sched_prio(td, pri);
 		sched_add(td, SRQ_BORING);
-#if __FreeBSD_version < 1300068
-		thread_unlock(td);
-#endif
 	}
 	return (td);
 }

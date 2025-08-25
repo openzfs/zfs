@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -171,9 +172,6 @@ static void
 vdev_activate(vdev_t *vd)
 {
 	metaslab_group_t *mg = vd->vdev_mg;
-	spa_t *spa = vd->vdev_spa;
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 
 	ASSERT(!vd->vdev_islog);
 	ASSERT(vd->vdev_noalloc);
@@ -181,9 +179,7 @@ vdev_activate(vdev_t *vd)
 	metaslab_group_activate(mg);
 	metaslab_group_activate(vd->vdev_log_mg);
 
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	vd->vdev_noalloc = B_FALSE;
 }
@@ -209,8 +205,8 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		for (uint64_t id = 0; id < rvd->vdev_children; id++) {
 			vdev_t *cvd = rvd->vdev_child[id];
 
-			if (cvd == vd ||
-			    cvd->vdev_ops == &vdev_indirect_ops)
+			if (cvd == vd || !vdev_is_concrete(cvd) ||
+			    vdev_is_dead(cvd))
 				continue;
 
 			metaslab_class_t *mc = cvd->vdev_mg->mg_class;
@@ -255,8 +251,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		return (error);
 	}
 
-	spa->spa_nonallocating_dspace += spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+	vdev_update_nonallocating_space(vd, B_TRUE);
 	vd->vdev_noalloc = B_TRUE;
 
 	return (0);
@@ -349,10 +344,10 @@ spa_vdev_remove_aux(nvlist_t *config, const char *name, nvlist_t **dev,
 	for (int i = 0, j = 0; i < count; i++) {
 		if (dev[i] == dev_to_remove)
 			continue;
-		VERIFY(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP) == 0);
+		VERIFY0(nvlist_dup(dev[i], &newdev[j++], KM_SLEEP));
 	}
 
-	VERIFY(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY) == 0);
+	VERIFY0(nvlist_remove(config, name, DATA_TYPE_NVLIST_ARRAY));
 	fnvlist_add_nvlist_array(config, name, (const nvlist_t * const *)newdev,
 	    count - 1);
 
@@ -369,12 +364,15 @@ spa_vdev_removal_create(vdev_t *vd)
 	spa_vdev_removal_t *svr = kmem_zalloc(sizeof (*svr), KM_SLEEP);
 	mutex_init(&svr->svr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&svr->svr_cv, NULL, CV_DEFAULT, NULL);
-	svr->svr_allocd_segs = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	svr->svr_allocd_segs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "svr_allocd_segs"));
 	svr->svr_vdev_id = vd->vdev_id;
 
 	for (int i = 0; i < TXG_SIZE; i++) {
-		svr->svr_frees[i] = range_tree_create(NULL, RANGE_SEG64, NULL,
-		    0, 0);
+		svr->svr_frees[i] = zfs_range_tree_create_flags(
+		    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+		    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "svr_frees"));
 		list_create(&svr->svr_new_segments[i],
 		    sizeof (vdev_indirect_mapping_entry_t),
 		    offsetof(vdev_indirect_mapping_entry_t, vime_node));
@@ -389,11 +387,11 @@ spa_vdev_removal_destroy(spa_vdev_removal_t *svr)
 	for (int i = 0; i < TXG_SIZE; i++) {
 		ASSERT0(svr->svr_bytes_done[i]);
 		ASSERT0(svr->svr_max_offset_to_sync[i]);
-		range_tree_destroy(svr->svr_frees[i]);
+		zfs_range_tree_destroy(svr->svr_frees[i]);
 		list_destroy(&svr->svr_new_segments[i]);
 	}
 
-	range_tree_destroy(svr->svr_allocd_segs);
+	zfs_range_tree_destroy(svr->svr_allocd_segs);
 	mutex_destroy(&svr->svr_lock);
 	cv_destroy(&svr->svr_cv);
 	kmem_free(svr, sizeof (*svr));
@@ -425,7 +423,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	svr = spa_vdev_removal_create(vd);
 
 	ASSERT(vd->vdev_removing);
-	ASSERT3P(vd->vdev_indirect_mapping, ==, NULL);
+	ASSERT0P(vd->vdev_indirect_mapping);
 
 	spa_feature_incr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
@@ -475,11 +473,11 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 		 * be copied.
 		 */
 		spa->spa_removing_phys.sr_to_copy -=
-		    range_tree_space(ms->ms_freeing);
+		    zfs_range_tree_space(ms->ms_freeing);
 
-		ASSERT0(range_tree_space(ms->ms_freed));
+		ASSERT0(zfs_range_tree_space(ms->ms_freed));
 		for (int t = 0; t < TXG_SIZE; t++)
-			ASSERT0(range_tree_space(ms->ms_allocating[t]));
+			ASSERT0(zfs_range_tree_space(ms->ms_allocating[t]));
 	}
 
 	/*
@@ -531,7 +529,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	 * but in any case only when there are outstanding free i/os, which
 	 * there are not).
 	 */
-	ASSERT3P(spa->spa_vdev_removal, ==, NULL);
+	ASSERT0P(spa->spa_vdev_removal);
 	spa->spa_vdev_removal = svr;
 	svr->svr_thread = thread_create(NULL, 0,
 	    spa_vdev_remove_thread, spa, 0, &p0, TS_RUN, minclsyspri);
@@ -770,7 +768,7 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size)
 			 * completed the copy and synced the mapping (see
 			 * vdev_mapping_sync).
 			 */
-			range_tree_add(svr->svr_frees[txgoff],
+			zfs_range_tree_add(svr->svr_frees[txgoff],
 			    offset, inflight_size);
 			size -= inflight_size;
 			offset += inflight_size;
@@ -806,7 +804,8 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size)
 		    uint64_t, size);
 
 		if (svr->svr_allocd_segs != NULL)
-			range_tree_clear(svr->svr_allocd_segs, offset, size);
+			zfs_range_tree_clear(svr->svr_allocd_segs, offset,
+			    size);
 
 		/*
 		 * Since we now do not need to copy this data, for
@@ -915,7 +914,7 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	 * mapping entries were in flight.
 	 */
 	mutex_enter(&svr->svr_lock);
-	range_tree_vacate(svr->svr_frees[txg & TXG_MASK],
+	zfs_range_tree_vacate(svr->svr_frees[txg & TXG_MASK],
 	    free_mapped_segment_cb, vd);
 	ASSERT3U(svr->svr_max_offset_to_sync[txg & TXG_MASK], >=,
 	    vdev_indirect_mapping_max_offset(vim));
@@ -929,7 +928,7 @@ typedef struct vdev_copy_segment_arg {
 	spa_t *vcsa_spa;
 	dva_t *vcsa_dest_dva;
 	uint64_t vcsa_txg;
-	range_tree_t *vcsa_obsolete_segs;
+	zfs_range_tree_t *vcsa_obsolete_segs;
 } vdev_copy_segment_arg_t;
 
 static void
@@ -966,9 +965,9 @@ spa_vdev_copy_segment_done(zio_t *zio)
 {
 	vdev_copy_segment_arg_t *vcsa = zio->io_private;
 
-	range_tree_vacate(vcsa->vcsa_obsolete_segs,
+	zfs_range_tree_vacate(vcsa->vcsa_obsolete_segs,
 	    unalloc_seg, vcsa);
-	range_tree_destroy(vcsa->vcsa_obsolete_segs);
+	zfs_range_tree_destroy(vcsa->vcsa_obsolete_segs);
 	kmem_free(vcsa, sizeof (*vcsa));
 
 	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
@@ -1119,7 +1118,7 @@ spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
  * read from the old location and write to the new location.
  */
 static int
-spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
+spa_vdev_copy_segment(vdev_t *vd, zfs_range_tree_t *segs,
     uint64_t maxalloc, uint64_t txg,
     vdev_copy_arg_t *vca, zio_alloc_list_t *zal)
 {
@@ -1128,28 +1127,28 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	vdev_indirect_mapping_entry_t *entry;
 	dva_t dst = {{ 0 }};
-	uint64_t start = range_tree_min(segs);
+	uint64_t start = zfs_range_tree_min(segs);
 	ASSERT0(P2PHASE(start, 1 << spa->spa_min_ashift));
 
 	ASSERT3U(maxalloc, <=, SPA_MAXBLOCKSIZE);
 	ASSERT0(P2PHASE(maxalloc, 1 << spa->spa_min_ashift));
 
-	uint64_t size = range_tree_span(segs);
-	if (range_tree_span(segs) > maxalloc) {
+	uint64_t size = zfs_range_tree_span(segs);
+	if (zfs_range_tree_span(segs) > maxalloc) {
 		/*
 		 * We can't allocate all the segments.  Prefer to end
 		 * the allocation at the end of a segment, thus avoiding
 		 * additional split blocks.
 		 */
-		range_seg_max_t search;
+		zfs_range_seg_max_t search;
 		zfs_btree_index_t where;
-		rs_set_start(&search, segs, start + maxalloc);
-		rs_set_end(&search, segs, start + maxalloc);
+		zfs_rs_set_start(&search, segs, start + maxalloc);
+		zfs_rs_set_end(&search, segs, start + maxalloc);
 		(void) zfs_btree_find(&segs->rt_root, &search, &where);
-		range_seg_t *rs = zfs_btree_prev(&segs->rt_root, &where,
+		zfs_range_seg_t *rs = zfs_btree_prev(&segs->rt_root, &where,
 		    &where);
 		if (rs != NULL) {
-			size = rs_get_end(rs, segs) - start;
+			size = zfs_rs_get_end(rs, segs) - start;
 		} else {
 			/*
 			 * There are no segments that end before maxalloc.
@@ -1169,10 +1168,10 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	if (mc->mc_groups == 0)
 		mc = spa_normal_class(spa);
 	int error = metaslab_alloc_dva(spa, mc, size, &dst, 0, NULL, txg,
-	    METASLAB_DONT_THROTTLE, zal, 0);
+	    0, zal, 0);
 	if (error == ENOSPC && mc != spa_normal_class(spa)) {
 		error = metaslab_alloc_dva(spa, spa_normal_class(spa), size,
-		    &dst, 0, NULL, txg, METASLAB_DONT_THROTTLE, zal, 0);
+		    &dst, 0, NULL, txg, 0, zal, 0);
 	}
 	if (error != 0)
 		return (error);
@@ -1182,27 +1181,28 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	 * relative to the start of the range to be copied (i.e. relative to the
 	 * local variable "start").
 	 */
-	range_tree_t *obsolete_segs = range_tree_create(NULL, RANGE_SEG64, NULL,
-	    0, 0);
+	zfs_range_tree_t *obsolete_segs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "obsolete_segs"));
 
 	zfs_btree_index_t where;
-	range_seg_t *rs = zfs_btree_first(&segs->rt_root, &where);
-	ASSERT3U(rs_get_start(rs, segs), ==, start);
-	uint64_t prev_seg_end = rs_get_end(rs, segs);
+	zfs_range_seg_t *rs = zfs_btree_first(&segs->rt_root, &where);
+	ASSERT3U(zfs_rs_get_start(rs, segs), ==, start);
+	uint64_t prev_seg_end = zfs_rs_get_end(rs, segs);
 	while ((rs = zfs_btree_next(&segs->rt_root, &where, &where)) != NULL) {
-		if (rs_get_start(rs, segs) >= start + size) {
+		if (zfs_rs_get_start(rs, segs) >= start + size) {
 			break;
 		} else {
-			range_tree_add(obsolete_segs,
+			zfs_range_tree_add(obsolete_segs,
 			    prev_seg_end - start,
-			    rs_get_start(rs, segs) - prev_seg_end);
+			    zfs_rs_get_start(rs, segs) - prev_seg_end);
 		}
-		prev_seg_end = rs_get_end(rs, segs);
+		prev_seg_end = zfs_rs_get_end(rs, segs);
 	}
 	/* We don't end in the middle of an obsolete range */
 	ASSERT3U(start + size, <=, prev_seg_end);
 
-	range_tree_clear(segs, start, size);
+	zfs_range_tree_clear(segs, start, size);
 
 	/*
 	 * We can't have any padding of the allocated size, otherwise we will
@@ -1216,7 +1216,8 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	DVA_MAPPING_SET_SRC_OFFSET(&entry->vime_mapping, start);
 	entry->vime_mapping.vimep_dst = dst;
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
-		entry->vime_obsolete_count = range_tree_space(obsolete_segs);
+		entry->vime_obsolete_count =
+		    zfs_range_tree_space(obsolete_segs);
 	}
 
 	vdev_copy_segment_arg_t *vcsa = kmem_zalloc(sizeof (*vcsa), KM_SLEEP);
@@ -1361,13 +1362,11 @@ vdev_remove_complete(spa_t *spa)
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 	txg = spa_vdev_enter(spa);
 	vdev_t *vd = vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
-	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
-	ASSERT3P(vd->vdev_trim_thread, ==, NULL);
-	ASSERT3P(vd->vdev_autotrim_thread, ==, NULL);
+	ASSERT0P(vd->vdev_initialize_thread);
+	ASSERT0P(vd->vdev_trim_thread);
+	ASSERT0P(vd->vdev_autotrim_thread);
 	vdev_rebuild_stop_wait(vd);
-	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
-	uint64_t vdev_space = spa_deflate(spa) ?
-	    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
+	ASSERT0P(vd->vdev_rebuild_thread);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
@@ -1375,11 +1374,8 @@ vdev_remove_complete(spa_t *spa)
 	zfs_dbgmsg("finishing device removal for vdev %llu in txg %llu",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)txg);
 
-	ASSERT3U(0, !=, vdev_space);
-	ASSERT3U(spa->spa_nonallocating_dspace, >=, vdev_space);
-
 	/* the vdev is no longer part of the dspace */
-	spa->spa_nonallocating_dspace -= vdev_space;
+	vdev_update_nonallocating_space(vd, B_FALSE);
 
 	/*
 	 * Discard allocation state.
@@ -1455,30 +1451,32 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 	 * allocated segments that we are copying.  We may also be copying
 	 * free segments (of up to vdev_removal_max_span bytes).
 	 */
-	range_tree_t *segs = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	zfs_range_tree_t *segs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "spa_vdev_copy_impl:segs"));
 	for (;;) {
-		range_tree_t *rt = svr->svr_allocd_segs;
-		range_seg_t *rs = range_tree_first(rt);
+		zfs_range_tree_t *rt = svr->svr_allocd_segs;
+		zfs_range_seg_t *rs = zfs_range_tree_first(rt);
 
 		if (rs == NULL)
 			break;
 
 		uint64_t seg_length;
 
-		if (range_tree_is_empty(segs)) {
+		if (zfs_range_tree_is_empty(segs)) {
 			/* need to truncate the first seg based on max_alloc */
-			seg_length = MIN(rs_get_end(rs, rt) - rs_get_start(rs,
-			    rt), *max_alloc);
+			seg_length = MIN(zfs_rs_get_end(rs, rt) -
+			    zfs_rs_get_start(rs, rt), *max_alloc);
 		} else {
-			if (rs_get_start(rs, rt) - range_tree_max(segs) >
-			    vdev_removal_max_span) {
+			if (zfs_rs_get_start(rs, rt) - zfs_range_tree_max(segs)
+			    > vdev_removal_max_span) {
 				/*
 				 * Including this segment would cause us to
 				 * copy a larger unneeded chunk than is allowed.
 				 */
 				break;
-			} else if (rs_get_end(rs, rt) - range_tree_min(segs) >
-			    *max_alloc) {
+			} else if (zfs_rs_get_end(rs, rt) -
+			    zfs_range_tree_min(segs) > *max_alloc) {
 				/*
 				 * This additional segment would extend past
 				 * max_alloc. Rather than splitting this
@@ -1486,19 +1484,19 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 				 */
 				break;
 			} else {
-				seg_length = rs_get_end(rs, rt) -
-				    rs_get_start(rs, rt);
+				seg_length = zfs_rs_get_end(rs, rt) -
+				    zfs_rs_get_start(rs, rt);
 			}
 		}
 
-		range_tree_add(segs, rs_get_start(rs, rt), seg_length);
-		range_tree_remove(svr->svr_allocd_segs,
-		    rs_get_start(rs, rt), seg_length);
+		zfs_range_tree_add(segs, zfs_rs_get_start(rs, rt), seg_length);
+		zfs_range_tree_remove(svr->svr_allocd_segs,
+		    zfs_rs_get_start(rs, rt), seg_length);
 	}
 
-	if (range_tree_is_empty(segs)) {
+	if (zfs_range_tree_is_empty(segs)) {
 		mutex_exit(&svr->svr_lock);
-		range_tree_destroy(segs);
+		zfs_range_tree_destroy(segs);
 		return;
 	}
 
@@ -1507,20 +1505,20 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 		    svr, tx);
 	}
 
-	svr->svr_max_offset_to_sync[txg & TXG_MASK] = range_tree_max(segs);
+	svr->svr_max_offset_to_sync[txg & TXG_MASK] = zfs_range_tree_max(segs);
 
 	/*
 	 * Note: this is the amount of *allocated* space
 	 * that we are taking care of each txg.
 	 */
-	svr->svr_bytes_done[txg & TXG_MASK] += range_tree_space(segs);
+	svr->svr_bytes_done[txg & TXG_MASK] += zfs_range_tree_space(segs);
 
 	mutex_exit(&svr->svr_lock);
 
 	zio_alloc_list_t zal;
 	metaslab_trace_init(&zal);
 	uint64_t thismax = SPA_MAXBLOCKSIZE;
-	while (!range_tree_is_empty(segs)) {
+	while (!zfs_range_tree_is_empty(segs)) {
 		int error = spa_vdev_copy_segment(vd,
 		    segs, thismax, txg, vca, &zal);
 
@@ -1537,7 +1535,7 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 			ASSERT3U(spa->spa_max_ashift, >=, SPA_MINBLOCKSHIFT);
 			ASSERT3U(spa->spa_max_ashift, ==, spa->spa_min_ashift);
 			uint64_t attempted =
-			    MIN(range_tree_span(segs), thismax);
+			    MIN(zfs_range_tree_span(segs), thismax);
 			thismax = P2ROUNDUP(attempted / 2,
 			    1 << spa->spa_max_ashift);
 			/*
@@ -1557,7 +1555,7 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 		}
 	}
 	metaslab_trace_fini(&zal);
-	range_tree_destroy(segs);
+	zfs_range_tree_destroy(segs);
 }
 
 /*
@@ -1616,6 +1614,10 @@ spa_vdev_remove_thread(void *arg)
 	vca.vca_read_error_bytes = 0;
 	vca.vca_write_error_bytes = 0;
 
+	zfs_range_tree_t *segs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
+	    ZFS_RT_F_DYN_NAME, vdev_rt_name(vd, "spa_vdev_remove_thread:segs"));
+
 	mutex_enter(&svr->svr_lock);
 
 	/*
@@ -1628,7 +1630,9 @@ spa_vdev_remove_thread(void *arg)
 		metaslab_t *msp = vd->vdev_ms[msi];
 		ASSERT3U(msi, <=, vd->vdev_ms_count);
 
-		ASSERT0(range_tree_space(svr->svr_allocd_segs));
+again:
+		ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
+		mutex_exit(&svr->svr_lock);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
@@ -1637,38 +1641,52 @@ spa_vdev_remove_thread(void *arg)
 		 * Assert nothing in flight -- ms_*tree is empty.
 		 */
 		for (int i = 0; i < TXG_SIZE; i++) {
-			ASSERT0(range_tree_space(msp->ms_allocating[i]));
+			ASSERT0(zfs_range_tree_space(msp->ms_allocating[i]));
 		}
 
 		/*
-		 * If the metaslab has ever been allocated from (ms_sm!=NULL),
+		 * If the metaslab has ever been synced (ms_sm != NULL),
 		 * read the allocated segments from the space map object
 		 * into svr_allocd_segs. Since we do this while holding
-		 * svr_lock and ms_sync_lock, concurrent frees (which
+		 * ms_lock and ms_sync_lock, concurrent frees (which
 		 * would have modified the space map) will wait for us
 		 * to finish loading the spacemap, and then take the
 		 * appropriate action (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL) {
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			range_tree_walk(msp->ms_unflushed_allocs,
-			    range_tree_add, svr->svr_allocd_segs);
-			range_tree_walk(msp->ms_unflushed_frees,
-			    range_tree_remove, svr->svr_allocd_segs);
-			range_tree_walk(msp->ms_freeing,
-			    range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * When we are resuming from a paused removal (i.e.
-			 * when importing a pool with a removal in progress),
-			 * discard any state that we have already processed.
-			 */
-			range_tree_clear(svr->svr_allocd_segs, 0, start_offset);
+		/*
+		 * We could not hold svr_lock while loading space map, or we
+		 * could hit deadlock in a ZIO pipeline, having to wait for
+		 * it.  But we can not block for it here under metaslab locks,
+		 * or it would be a lock ordering violation.
+		 */
+		if (!mutex_tryenter(&svr->svr_lock)) {
+			mutex_exit(&msp->ms_lock);
+			mutex_exit(&msp->ms_sync_lock);
+			zfs_range_tree_vacate(segs, NULL, NULL);
+			mutex_enter(&svr->svr_lock);
+			goto again;
 		}
+
+		zfs_range_tree_swap(&segs, &svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, svr->svr_allocd_segs);
+
 		mutex_exit(&msp->ms_lock);
 		mutex_exit(&msp->ms_sync_lock);
+
+		/*
+		 * When we are resuming from a paused removal (i.e.
+		 * when importing a pool with a removal in progress),
+		 * discard any state that we have already processed.
+		 */
+		zfs_range_tree_clear(svr->svr_allocd_segs, 0, start_offset);
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
@@ -1677,7 +1695,7 @@ spa_vdev_remove_thread(void *arg)
 		    (u_longlong_t)msp->ms_id);
 
 		while (!svr->svr_thread_exit &&
-		    !range_tree_is_empty(svr->svr_allocd_segs)) {
+		    !zfs_range_tree_is_empty(svr->svr_allocd_segs)) {
 
 			mutex_exit(&svr->svr_lock);
 
@@ -1711,7 +1729,8 @@ spa_vdev_remove_thread(void *arg)
 			dmu_tx_t *tx =
 			    dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 
-			VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT |
+			    DMU_TX_SUSPEND));
 			uint64_t txg = dmu_tx_get_txg(tx);
 
 			/*
@@ -1745,6 +1764,8 @@ spa_vdev_remove_thread(void *arg)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+	zfs_range_tree_destroy(segs);
+
 	/*
 	 * Wait for all copies to finish before cleaning up the vca.
 	 */
@@ -1756,7 +1777,7 @@ spa_vdev_remove_thread(void *arg)
 
 	if (svr->svr_thread_exit) {
 		mutex_enter(&svr->svr_lock);
-		range_tree_vacate(svr->svr_allocd_segs, NULL, NULL);
+		zfs_range_tree_vacate(svr->svr_allocd_segs, NULL, NULL);
 		svr->svr_thread = NULL;
 		cv_broadcast(&svr->svr_cv);
 		mutex_exit(&svr->svr_lock);
@@ -1776,7 +1797,7 @@ spa_vdev_remove_thread(void *arg)
 			spa_vdev_remove_cancel_impl(spa);
 		}
 	} else {
-		ASSERT0(range_tree_space(svr->svr_allocd_segs));
+		ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
 		vdev_remove_complete(spa);
 	}
 
@@ -1847,7 +1868,7 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	objset_t *mos = spa->spa_meta_objset;
 
-	ASSERT3P(svr->svr_thread, ==, NULL);
+	ASSERT0P(svr->svr_thread);
 
 	spa_feature_decr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
 
@@ -1879,13 +1900,16 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		    vdev_indirect_mapping_max_offset(vim));
 	}
 
+	zfs_range_tree_t *segs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0, ZFS_RT_F_DYN_NAME,
+	    vdev_rt_name(vd, "spa_vdev_remove_cancel_sync:segs"));
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
 
 		if (msp->ms_start >= vdev_indirect_mapping_max_offset(vim))
 			break;
 
-		ASSERT0(range_tree_space(svr->svr_allocd_segs));
+		ASSERT0(zfs_range_tree_space(svr->svr_allocd_segs));
 
 		mutex_enter(&msp->ms_lock);
 
@@ -1893,49 +1917,40 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		 * Assert nothing in flight -- ms_*tree is empty.
 		 */
 		for (int i = 0; i < TXG_SIZE; i++)
-			ASSERT0(range_tree_space(msp->ms_allocating[i]));
+			ASSERT0(zfs_range_tree_space(msp->ms_allocating[i]));
 		for (int i = 0; i < TXG_DEFER_SIZE; i++)
-			ASSERT0(range_tree_space(msp->ms_defer[i]));
-		ASSERT0(range_tree_space(msp->ms_freed));
+			ASSERT0(zfs_range_tree_space(msp->ms_defer[i]));
+		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 
-		if (msp->ms_sm != NULL) {
-			mutex_enter(&svr->svr_lock);
-			VERIFY0(space_map_load(msp->ms_sm,
-			    svr->svr_allocd_segs, SM_ALLOC));
+		if (msp->ms_sm != NULL)
+			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
 
-			range_tree_walk(msp->ms_unflushed_allocs,
-			    range_tree_add, svr->svr_allocd_segs);
-			range_tree_walk(msp->ms_unflushed_frees,
-			    range_tree_remove, svr->svr_allocd_segs);
-			range_tree_walk(msp->ms_freeing,
-			    range_tree_remove, svr->svr_allocd_segs);
-
-			/*
-			 * Clear everything past what has been synced,
-			 * because we have not allocated mappings for it yet.
-			 */
-			uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
-			uint64_t sm_end = msp->ms_sm->sm_start +
-			    msp->ms_sm->sm_size;
-			if (sm_end > syncd)
-				range_tree_clear(svr->svr_allocd_segs,
-				    syncd, sm_end - syncd);
-
-			mutex_exit(&svr->svr_lock);
-		}
+		zfs_range_tree_walk(msp->ms_unflushed_allocs,
+		    zfs_range_tree_add, segs);
+		zfs_range_tree_walk(msp->ms_unflushed_frees,
+		    zfs_range_tree_remove, segs);
+		zfs_range_tree_walk(msp->ms_freeing,
+		    zfs_range_tree_remove, segs);
 		mutex_exit(&msp->ms_lock);
 
-		mutex_enter(&svr->svr_lock);
-		range_tree_vacate(svr->svr_allocd_segs,
-		    free_mapped_segment_cb, vd);
-		mutex_exit(&svr->svr_lock);
+		/*
+		 * Clear everything past what has been synced,
+		 * because we have not allocated mappings for it yet.
+		 */
+		uint64_t syncd = vdev_indirect_mapping_max_offset(vim);
+		uint64_t ms_end = msp->ms_start + msp->ms_size;
+		if (ms_end > syncd)
+			zfs_range_tree_clear(segs, syncd, ms_end - syncd);
+
+		zfs_range_tree_vacate(segs, free_mapped_segment_cb, vd);
 	}
+	zfs_range_tree_destroy(segs);
 
 	/*
 	 * Note: this must happen after we invoke free_mapped_segment_cb,
 	 * because it adds to the obsolete_segments.
 	 */
-	range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
+	zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 
 	ASSERT3U(vic->vic_mapping_object, ==,
 	    vdev_indirect_mapping_object(vd->vdev_indirect_mapping));
@@ -2061,7 +2076,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	ASSERT(vd->vdev_islog);
 	ASSERT(vd == vd->vdev_top);
-	ASSERT3P(vd->vdev_log_mg, ==, NULL);
+	ASSERT0P(vd->vdev_log_mg);
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
 	/*
@@ -2097,7 +2112,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	if (error != 0) {
 		metaslab_group_activate(mg);
-		ASSERT3P(vd->vdev_log_mg, ==, NULL);
+		ASSERT0P(vd->vdev_log_mg);
 		return (error);
 	}
 	ASSERT0(vd->vdev_stat.vs_alloc);
@@ -2551,11 +2566,9 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_, remove_max_segment, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, removal_max_span, UINT, ZMOD_RW,
 	"Largest span of free chunks a remap segment can span");
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_suspend_progress, UINT, ZMOD_RW,
 	"Pause device removal after this many bytes are copied "
 	"(debug use only - causes removal to hang)");
-/* END CSTYLED */
 
 EXPORT_SYMBOL(free_from_removing_vdev);
 EXPORT_SYMBOL(spa_removal_get_stats);

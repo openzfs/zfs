@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -130,7 +131,7 @@ function test_posix_mode # base
 }
 
 # Sanity check on tmpfs first
-tmpdir=$(TMPDIR=$TEST_BASE_DIR mktemp -d)
+tmpdir=$(mktemp -d)
 log_must mount -t tmpfs tmp $tmpdir
 log_must chmod 777 $tmpdir
 

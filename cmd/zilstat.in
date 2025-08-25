@@ -1,4 +1,5 @@
 #!/usr/bin/env @PYTHON_SHEBANG@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Print out statistics for all zil stats. This information is
 # available through the zil kstat.
@@ -43,6 +44,10 @@ cols = {
 	"obj":       [12,        -1,         "objset"],
 	"cc":        [5,         1000,       "zil_commit_count"],
 	"cwc":       [5,         1000,       "zil_commit_writer_count"],
+	"cec":       [5,         1000,       "zil_commit_error_count"],
+	"csc":       [5,         1000,       "zil_commit_stall_count"],
+	"cSc":       [5,         1000,       "zil_commit_suspend_count"],
+	"cCc":       [5,         1000,       "zil_commit_crash_count"],
 	"ic":        [5,         1000,       "zil_itx_count"],
 	"iic":       [5,         1000,       "zil_itx_indirect_count"],
 	"iib":       [5,         1024,       "zil_itx_indirect_bytes"],

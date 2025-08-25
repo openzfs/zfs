@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -24,6 +25,7 @@
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef _ZFEATURE_COMMON_H
@@ -82,6 +84,12 @@ typedef enum spa_feature {
 	SPA_FEATURE_AVZ_V2,
 	SPA_FEATURE_REDACTION_LIST_SPILL,
 	SPA_FEATURE_RAIDZ_EXPANSION,
+	SPA_FEATURE_FAST_DEDUP,
+	SPA_FEATURE_LONGNAME,
+	SPA_FEATURE_LARGE_MICROZAP,
+	SPA_FEATURE_DYNAMIC_GANG_HEADER,
+	SPA_FEATURE_BLOCK_CLONING_ENDIAN,
+	SPA_FEATURE_PHYSICAL_REWRITE,
 	SPA_FEATURES
 } spa_feature_t;
 
@@ -98,7 +106,15 @@ typedef enum zfeature_flags {
 	/* Activate this feature at the same time it is enabled. */
 	ZFEATURE_FLAG_ACTIVATE_ON_ENABLE =	(1 << 2),
 	/* Each dataset has a field set if it has ever used this feature. */
-	ZFEATURE_FLAG_PER_DATASET =		(1 << 3)
+	ZFEATURE_FLAG_PER_DATASET =		(1 << 3),
+	/*
+	 * This feature isn't enabled by zpool upgrade; it must be explicitly
+	 * listed to be enabled. It will also be applied if listed in an
+	 * explicitly provided compatibility list. This flag can be removed
+	 * from a given feature once support is sufficiently widespread, or
+	 * worries about backwards compatibility are no longer relevant.
+	 */
+	ZFEATURE_FLAG_NO_UPGRADE = 		(1 << 4)
 } zfeature_flags_t;
 
 typedef enum zfeature_type {

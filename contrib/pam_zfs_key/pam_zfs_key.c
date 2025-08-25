@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause
 /*
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -63,6 +64,7 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 #include <sys/file.h>
 #include <sys/wait.h>
 #include <pwd.h>
+#include <lib/libzfs/libzfs_impl.h>
 
 #include <sys/mman.h>
 
@@ -370,67 +372,6 @@ change_key(pam_handle_t *pamh, const char *ds_name,
 	return (0);
 }
 
-static int
-decrypt_mount(pam_handle_t *pamh, const char *ds_name,
-    const char *passphrase, boolean_t noop)
-{
-	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
-	if (ds == NULL) {
-		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
-		return (-1);
-	}
-	pw_password_t *key = prepare_passphrase(pamh, ds, passphrase, NULL);
-	if (key == NULL) {
-		zfs_close(ds);
-		return (-1);
-	}
-	int ret = lzc_load_key(ds_name, noop, (uint8_t *)key->value,
-	    WRAPPING_KEY_LEN);
-	pw_free(key);
-	if (ret && ret != EEXIST) {
-		pam_syslog(pamh, LOG_ERR, "load_key failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-	if (noop) {
-		goto out;
-	}
-	ret = zfs_mount(ds, NULL, 0);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-out:
-	zfs_close(ds);
-	return (0);
-}
-
-static int
-unmount_unload(pam_handle_t *pamh, const char *ds_name, boolean_t force)
-{
-	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
-	if (ds == NULL) {
-		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
-		return (-1);
-	}
-	int ret = zfs_unmount(ds, NULL, force ? MS_FORCE : 0);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "zfs_unmount failed with: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-
-	ret = lzc_unload_key(ds_name);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "unload_key failed with: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-	zfs_close(ds);
-	return (0);
-}
-
 typedef struct {
 	char *homes_prefix;
 	char *runstatedir;
@@ -443,6 +384,7 @@ typedef struct {
 	boolean_t unmount_and_unload;
 	boolean_t force_unmount;
 	boolean_t recursive_homes;
+	boolean_t mount_recursively;
 } zfs_key_config_t;
 
 static int
@@ -481,6 +423,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->unmount_and_unload = B_TRUE;
 	config->force_unmount = B_FALSE;
 	config->recursive_homes = B_FALSE;
+	config->mount_recursively = B_FALSE;
 	config->dsname = NULL;
 	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
@@ -500,12 +443,225 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 			config->force_unmount = B_TRUE;
 		} else if (strcmp(argv[c], "recursive_homes") == 0) {
 			config->recursive_homes = B_TRUE;
+		} else if (strcmp(argv[c], "mount_recursively") == 0) {
+			config->mount_recursively = B_TRUE;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
 			if (config->homedir == NULL)
 				config->homedir = strdup(entry->pw_dir);
 		}
 	}
 	return (PAM_SUCCESS);
+}
+
+typedef struct {
+	pam_handle_t *pamh;
+	zfs_key_config_t *target;
+} mount_umount_dataset_data_t;
+
+static int
+mount_dataset(zfs_handle_t *zhp, void *data)
+{
+	mount_umount_dataset_data_t *mount_umount_dataset_data = data;
+
+	zfs_key_config_t *target = mount_umount_dataset_data->target;
+	pam_handle_t *pamh = mount_umount_dataset_data->pamh;
+
+	/* Refresh properties to get the latest key status */
+	zfs_refresh_properties(zhp);
+
+	int ret = 0;
+
+	/* Check if dataset type is filesystem */
+	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM) {
+		pam_syslog(pamh, LOG_DEBUG,
+		    "dataset is not filesystem: %s, skipping.",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Check if encryption key is available */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
+	    ZFS_KEYSTATUS_UNAVAILABLE) {
+		pam_syslog(pamh, LOG_WARNING,
+		    "key unavailable for: %s, skipping",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Check if prop canmount is on */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) != ZFS_CANMOUNT_ON) {
+		pam_syslog(pamh, LOG_INFO,
+		    "canmount is not on for: %s, skipping",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Get mountpoint prop for check */
+	char mountpoint[ZFS_MAXPROPLEN];
+	if ((ret = zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+	    sizeof (mountpoint), NULL, NULL, 0, 1)) != 0) {
+		pam_syslog(pamh, LOG_ERR,
+		    "failed to get mountpoint prop: %d", ret);
+		return (-1);
+	}
+
+	/* Check if mountpoint isn't none or legacy */
+	if (strcmp(mountpoint, ZFS_MOUNTPOINT_NONE) == 0 ||
+	    strcmp(mountpoint, ZFS_MOUNTPOINT_LEGACY) == 0) {
+		pam_syslog(pamh, LOG_INFO,
+		    "mountpoint is none or legacy for: %s, skipping",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Don't mount the dataset if already mounted */
+	if (zfs_is_mounted(zhp, NULL)) {
+		pam_syslog(pamh, LOG_INFO, "already mounted: %s",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Mount the dataset */
+	ret = zfs_mount(zhp, NULL, 0);
+	if (ret) {
+		pam_syslog(pamh, LOG_ERR,
+		    "zfs_mount failed for %s with: %d", zfs_get_name(zhp),
+		    ret);
+		return (ret);
+	}
+
+	/* Recursively mount children if the recursive flag is set */
+	if (target->mount_recursively) {
+		ret = zfs_iter_filesystems_v2(zhp, 0, mount_dataset, data);
+		if (ret != 0) {
+			pam_syslog(pamh, LOG_ERR,
+			    "child iteration failed: %d", ret);
+			return (-1);
+		}
+	}
+
+	return (ret);
+}
+
+static int
+umount_dataset(zfs_handle_t *zhp, void *data)
+{
+	mount_umount_dataset_data_t *mount_umount_dataset_data = data;
+
+	zfs_key_config_t *target = mount_umount_dataset_data->target;
+	pam_handle_t *pamh = mount_umount_dataset_data->pamh;
+
+	int ret = 0;
+	/* Recursively umount children if the recursive flag is set */
+	if (target->mount_recursively) {
+		ret = zfs_iter_filesystems_v2(zhp, 0, umount_dataset, data);
+		if (ret != 0) {
+			pam_syslog(pamh, LOG_ERR,
+			    "child iteration failed: %d", ret);
+			return (-1);
+		}
+	}
+
+	/* Check if dataset type is filesystem */
+	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM) {
+		pam_syslog(pamh, LOG_DEBUG,
+		    "dataset is not filesystem: %s, skipping",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Don't umount the dataset if already unmounted */
+	if (zfs_is_mounted(zhp, NULL) == 0) {
+		pam_syslog(pamh, LOG_INFO, "already unmounted: %s",
+		    zfs_get_name(zhp));
+		return (0);
+	}
+
+	/* Unmount the dataset */
+	ret = zfs_unmount(zhp, NULL, target->force_unmount ? MS_FORCE : 0);
+	if (ret) {
+		pam_syslog(pamh, LOG_ERR,
+		    "zfs_unmount failed for %s with: %d", zfs_get_name(zhp),
+		    ret);
+		return (ret);
+	}
+
+	return (ret);
+}
+
+static int
+decrypt_mount(pam_handle_t *pamh, zfs_key_config_t *config, const char *ds_name,
+	const char *passphrase, boolean_t noop)
+{
+	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
+	if (ds == NULL) {
+		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
+		return (-1);
+	}
+	pw_password_t *key = prepare_passphrase(pamh, ds, passphrase, NULL);
+	if (key == NULL) {
+		zfs_close(ds);
+		return (-1);
+	}
+	int ret = lzc_load_key(ds_name, noop, (uint8_t *)key->value,
+	    WRAPPING_KEY_LEN);
+	pw_free(key);
+	if (ret && ret != EEXIST) {
+		pam_syslog(pamh, LOG_ERR, "load_key failed: %d", ret);
+		zfs_close(ds);
+		return (-1);
+	}
+
+	if (noop) {
+		zfs_close(ds);
+		return (0);
+	}
+
+	mount_umount_dataset_data_t data;
+	data.pamh = pamh;
+	data.target = config;
+
+	ret = mount_dataset(ds, &data);
+	if (ret != 0) {
+		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
+		zfs_close(ds);
+		return (-1);
+	}
+
+	zfs_close(ds);
+	return (0);
+}
+
+static int
+unmount_unload(pam_handle_t *pamh, const char *ds_name,
+    zfs_key_config_t *target)
+{
+	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
+	if (ds == NULL) {
+		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
+		return (-1);
+	}
+
+	mount_umount_dataset_data_t data;
+	data.pamh = pamh;
+	data.target = target;
+
+	int ret = umount_dataset(ds, &data);
+	if (ret) {
+		pam_syslog(pamh, LOG_ERR,
+		    "unmount_dataset failed with: %d", ret);
+		zfs_close(ds);
+		return (-1);
+	}
+
+	ret = lzc_unload_key(ds_name);
+	if (ret) {
+		pam_syslog(pamh, LOG_ERR, "unload_key failed with: %d", ret);
+		zfs_close(ds);
+		return (-1);
+	}
+	zfs_close(ds);
+	return (0);
 }
 
 static void
@@ -548,7 +704,7 @@ find_dsname_by_prop_value(zfs_handle_t *zhp, void *data)
 }
 
 static char *
-zfs_key_config_get_dataset(zfs_key_config_t *config)
+zfs_key_config_get_dataset(pam_handle_t *pamh, zfs_key_config_t *config)
 {
 	if (config->homedir != NULL &&
 	    config->homes_prefix != NULL) {
@@ -559,7 +715,7 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 			zfs_handle_t *zhp = zfs_open(g_zfs,
 			    config->homes_prefix, ZFS_TYPE_FILESYSTEM);
 			if (zhp == NULL) {
-				pam_syslog(NULL, LOG_ERR,
+				pam_syslog(pamh, LOG_ERR,
 				    "dataset %s not found",
 				    config->homes_prefix);
 				return (NULL);
@@ -697,13 +853,13 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	char *dataset = zfs_key_config_get_dataset(&config);
+	char *dataset = zfs_key_config_get_dataset(pamh, &config);
 	if (!dataset) {
 		pam_zfs_free();
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	if (decrypt_mount(pamh, dataset, token->value, B_TRUE) == -1) {
+	if (decrypt_mount(pamh, &config, dataset, token->value, B_TRUE) == -1) {
 		free(dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
@@ -749,7 +905,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		char *dataset = zfs_key_config_get_dataset(&config);
+		char *dataset = zfs_key_config_get_dataset(pamh, &config);
 		if (!dataset) {
 			pam_zfs_free();
 			zfs_key_config_free(&config);
@@ -763,7 +919,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		if (decrypt_mount(pamh, dataset,
+		if (decrypt_mount(pamh, &config, dataset,
 		    old_token->value, B_TRUE) == -1) {
 			pam_syslog(pamh, LOG_ERR,
 			    "old token mismatch");
@@ -784,7 +940,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
 			return (PAM_SERVICE_ERR);
 		}
-		char *dataset = zfs_key_config_get_dataset(&config);
+		char *dataset = zfs_key_config_get_dataset(pamh, &config);
 		if (!dataset) {
 			pam_zfs_free();
 			zfs_key_config_free(&config);
@@ -793,7 +949,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			return (PAM_SERVICE_ERR);
 		}
 		int was_loaded = is_key_loaded(pamh, dataset);
-		if (!was_loaded && decrypt_mount(pamh, dataset,
+		if (!was_loaded && decrypt_mount(pamh, &config, dataset,
 		    old_token->value, B_FALSE) == -1) {
 			free(dataset);
 			pam_zfs_free();
@@ -804,7 +960,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		}
 		int changed = change_key(pamh, dataset, token->value);
 		if (!was_loaded) {
-			unmount_unload(pamh, dataset, config.force_unmount);
+			unmount_unload(pamh, dataset, &config);
 		}
 		free(dataset);
 		pam_zfs_free();
@@ -856,13 +1012,14 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	char *dataset = zfs_key_config_get_dataset(&config);
+	char *dataset = zfs_key_config_get_dataset(pamh, &config);
 	if (!dataset) {
 		pam_zfs_free();
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	if (decrypt_mount(pamh, dataset, token->value, B_FALSE) == -1) {
+	if (decrypt_mount(pamh, &config, dataset,
+	    token->value, B_FALSE) == -1) {
 		free(dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
@@ -910,13 +1067,13 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		char *dataset = zfs_key_config_get_dataset(&config);
+		char *dataset = zfs_key_config_get_dataset(pamh, &config);
 		if (!dataset) {
 			pam_zfs_free();
 			zfs_key_config_free(&config);
 			return (PAM_SESSION_ERR);
 		}
-		if (unmount_unload(pamh, dataset, config.force_unmount) == -1) {
+		if (unmount_unload(pamh, dataset, &config) == -1) {
 			free(dataset);
 			pam_zfs_free();
 			zfs_key_config_free(&config);

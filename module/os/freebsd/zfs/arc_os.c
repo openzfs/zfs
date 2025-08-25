@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -89,17 +90,17 @@ arc_available_memory(void)
 	if (n < lowest) {
 		lowest = n;
 	}
-#if defined(__i386) || !defined(UMA_MD_SMALL_ALLOC)
+#if !defined(UMA_MD_SMALL_ALLOC) && !defined(UMA_USE_DMAP)
 	/*
-	 * If we're on an i386 platform, it's possible that we'll exhaust the
-	 * kernel heap space before we ever run out of available physical
-	 * memory.  Most checks of the size of the heap_area compare against
-	 * tune.t_minarmem, which is the minimum available real memory that we
-	 * can have in the system.  However, this is generally fixed at 25 pages
-	 * which is so low that it's useless.  In this comparison, we seek to
-	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
-	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
-	 * free)
+	 * If we're on a platform without a direct map, it's possible that we'll
+	 * exhaust the kernel heap space before we ever run out of available
+	 * physical memory.  Most checks of the size of the heap_area compare
+	 * against tune.t_minarmem, which is the minimum available real memory
+	 * that we can have in the system.  However, this is generally fixed at
+	 * 25 pages which is so low that it's useless.  In this comparison, we
+	 * seek to calculate the total heap-size, and reclaim if more than
+	 * 3/4ths of the heap is allocated.  (Or, in the calculation, if less
+	 * than 1/4th is free)
 	 */
 	n = uma_avail() - (long)(uma_limit() / 4);
 	if (n < lowest) {
@@ -149,26 +150,29 @@ static eventhandler_tag arc_event_lowmem = NULL;
 static void
 arc_lowmem(void *arg __unused, int howto __unused)
 {
-	int64_t free_memory, to_free;
+	int64_t can_free, free_memory, to_free;
 
 	arc_no_grow = B_TRUE;
 	arc_warm = B_TRUE;
 	arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
+
 	free_memory = arc_available_memory();
-	int64_t can_free = arc_c - arc_c_min;
-	if (can_free <= 0)
-		return;
-	to_free = (can_free >> arc_shrink_shift) - MIN(free_memory, 0);
+	can_free = arc_c - arc_c_min;
+	to_free = (MAX(can_free, 0) >> arc_shrink_shift) - MIN(free_memory, 0);
 	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
-	arc_reduce_target_size(to_free);
+	to_free = arc_reduce_target_size(to_free);
 
 	/*
 	 * It is unsafe to block here in arbitrary threads, because we can come
 	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
 	 * with ARC reclaim thread.
 	 */
-	if (curproc == pageproc)
-		arc_wait_for_eviction(to_free, B_FALSE);
+	if (curproc == pageproc) {
+		arc_wait_for_eviction(to_free, B_FALSE, B_FALSE);
+		ARCSTAT_BUMP(arcstat_memory_indirect_count);
+	} else {
+		ARCSTAT_BUMP(arcstat_memory_direct_count);
+	}
 }
 
 void

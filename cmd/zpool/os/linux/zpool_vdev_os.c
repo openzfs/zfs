@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -87,7 +88,8 @@
 
 typedef struct vdev_disk_db_entry
 {
-	char id[24];
+	/* 24 byte name + 1 byte NULL terminator to make GCC happy */
+	char id[25];
 	int sector_size;
 } vdev_disk_db_entry_t;
 
@@ -438,7 +440,7 @@ static char *zpool_sysfs_gets(char *path)
 		return (NULL);
 	}
 
-	buf = calloc(sizeof (*buf), statbuf.st_size + 1);
+	buf = calloc(statbuf.st_size + 1, sizeof (*buf));
 	if (buf == NULL) {
 		close(fd);
 		return (NULL);
@@ -458,7 +460,7 @@ static char *zpool_sysfs_gets(char *path)
 	}
 
 	/* Remove trailing newline */
-	if (buf[count - 1] == '\n')
+	if (count > 0 && buf[count - 1] == '\n')
 		buf[count - 1] = 0;
 
 	close(fd);

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -80,7 +81,7 @@ multilist_create_impl(multilist_t *ml, size_t size, size_t offset,
 	ml->ml_num_sublists = num;
 	ml->ml_index_func = index_func;
 
-	ml->ml_sublists = kmem_zalloc(sizeof (multilist_sublist_t) *
+	ml->ml_sublists = vmem_zalloc(sizeof (multilist_sublist_t) *
 	    ml->ml_num_sublists, KM_SLEEP);
 
 	ASSERT3P(ml->ml_sublists, !=, NULL);
@@ -133,7 +134,7 @@ multilist_destroy(multilist_t *ml)
 	}
 
 	ASSERT3P(ml->ml_sublists, !=, NULL);
-	kmem_free(ml->ml_sublists,
+	vmem_free(ml->ml_sublists,
 	    sizeof (multilist_sublist_t) * ml->ml_num_sublists);
 
 	ml->ml_num_sublists = 0;
@@ -277,9 +278,15 @@ multilist_get_random_index(multilist_t *ml)
 	return (random_in_range(ml->ml_num_sublists));
 }
 
+void
+multilist_sublist_lock(multilist_sublist_t *mls)
+{
+	mutex_enter(&mls->mls_lock);
+}
+
 /* Lock and return the sublist specified at the given index */
 multilist_sublist_t *
-multilist_sublist_lock(multilist_t *ml, unsigned int sublist_idx)
+multilist_sublist_lock_idx(multilist_t *ml, unsigned int sublist_idx)
 {
 	multilist_sublist_t *mls;
 
@@ -294,7 +301,7 @@ multilist_sublist_lock(multilist_t *ml, unsigned int sublist_idx)
 multilist_sublist_t *
 multilist_sublist_lock_obj(multilist_t *ml, void *obj)
 {
-	return (multilist_sublist_lock(ml, ml->ml_index_func(ml, obj)));
+	return (multilist_sublist_lock_idx(ml, ml->ml_index_func(ml, obj)));
 }
 
 void
@@ -325,6 +332,22 @@ multilist_sublist_insert_tail(multilist_sublist_t *mls, void *obj)
 {
 	ASSERT(MUTEX_HELD(&mls->mls_lock));
 	list_insert_tail(&mls->mls_list, obj);
+}
+
+/* please see comment above multilist_sublist_insert_head */
+void
+multilist_sublist_insert_after(multilist_sublist_t *mls, void *prev, void *obj)
+{
+	ASSERT(MUTEX_HELD(&mls->mls_lock));
+	list_insert_after(&mls->mls_list, prev, obj);
+}
+
+/* please see comment above multilist_sublist_insert_head */
+void
+multilist_sublist_insert_before(multilist_sublist_t *mls, void *next, void *obj)
+{
+	ASSERT(MUTEX_HELD(&mls->mls_lock));
+	list_insert_before(&mls->mls_list, next, obj);
 }
 
 /*

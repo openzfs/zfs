@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -19,7 +20,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/cli_root/zfs_jail:FreeBSD]
@@ -27,6 +27,10 @@ tests = ['zfs_jail_001_pos']
 tags = ['functional', 'cli_root', 'zfs_jail']
 
 [tests/functional/pam:FreeBSD]
-tests = ['pam_basic', 'pam_change_unmounted', 'pam_nounmount', 'pam_recursive',
-    'pam_short_password']
+tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
+    'pam_nounmount', 'pam_recursive', 'pam_short_password']
 tags = ['functional', 'pam']
+
+[tests/functional/direct:FreeBSD]
+tests = ['dio_write_stable_pages']
+tags = ['functional', 'direct']

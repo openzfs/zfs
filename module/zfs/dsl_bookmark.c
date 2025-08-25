@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -242,7 +243,7 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 	/* error is retval of the following if-cascade */
 	if (strchr(source, '@') != NULL) {
 		dsl_dataset_t *source_snap_ds;
-		ASSERT3S(snapshot_namecheck(source, NULL, NULL), ==, 0);
+		ASSERT0(snapshot_namecheck(source, NULL, NULL));
 		error = dsl_dataset_hold(dp, source, FTAG, &source_snap_ds);
 		if (error == 0) {
 			VERIFY(source_snap_ds->ds_is_snapshot);
@@ -257,7 +258,7 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 		}
 	} else if (strchr(source, '#') != NULL) {
 		zfs_bookmark_phys_t source_phys;
-		ASSERT3S(bookmark_namecheck(source, NULL, NULL), ==, 0);
+		ASSERT0(bookmark_namecheck(source, NULL, NULL));
 		/*
 		 * Source must exists and be an earlier point in newbm_ds's
 		 * timeline (newbm_ds's origin may be a snap of source's ds)
@@ -500,7 +501,7 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    sizeof (uint64_t) * num_redact_snaps);
 		local_rl->rl_phys->rlp_num_snaps = num_redact_snaps;
 		if (bookmark_redacted) {
-			ASSERT3P(redaction_list, ==, NULL);
+			ASSERT0P(redaction_list);
 			local_rl->rl_phys->rlp_last_blkid = UINT64_MAX;
 			local_rl->rl_phys->rlp_last_object = UINT64_MAX;
 			dsl_redaction_list_long_rele(local_rl, tag);
@@ -870,13 +871,14 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 
 	int err = 0;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attr;
 
+	attr = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, ds->ds_bookmarks_obj);
-	    (err = zap_cursor_retrieve(&zc, &attr)) == 0;
+	    (err = zap_cursor_retrieve(&zc, attr)) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_bookmark_node_t *dbn =
-		    dsl_bookmark_node_alloc(attr.za_name);
+		    dsl_bookmark_node_alloc(attr->za_name);
 
 		err = dsl_bookmark_lookup_impl(ds,
 		    dbn->dbn_name, &dbn->dbn_phys);
@@ -888,6 +890,7 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 		avl_add(&ds->ds_bookmarks, dbn);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attr);
 	if (err == ENOENT)
 		err = 0;
 	return (err);
@@ -1520,7 +1523,8 @@ dsl_bookmark_block_killed(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		 * If the block was live (referenced) at the time of this
 		 * bookmark, add its space to the bookmark's FBN.
 		 */
-		if (bp->blk_birth <= dbn->dbn_phys.zbm_creation_txg &&
+		if (BP_GET_BIRTH(bp) <=
+		    dbn->dbn_phys.zbm_creation_txg &&
 		    (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN)) {
 			mutex_enter(&dbn->dbn_lock);
 			dbn->dbn_phys.zbm_referenced_freed_before_next_snap +=

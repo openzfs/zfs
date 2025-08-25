@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -111,6 +112,7 @@ static krwlock_t zfs_snapshot_lock;
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
 static int zfs_admin_snapshot = 0;
+static int zfs_snapshot_no_setuid = 0;
 
 typedef struct {
 	char		*se_name;	/* full snapshot name */
@@ -492,17 +494,14 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	if (!creation)
 		now = current_time(ip);
 	zp = ITOZ(ip);
-	ASSERT3P(zp->z_dirlocks, ==, NULL);
-	ASSERT3P(zp->z_acl_cached, ==, NULL);
-	ASSERT3P(zp->z_xattr_cached, ==, NULL);
+	ASSERT0P(zp->z_dirlocks);
+	ASSERT0P(zp->z_acl_cached);
+	ASSERT0P(zp->z_xattr_cached);
 	zp->z_id = id;
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_zn_prefetch = B_FALSE;
 	zp->z_is_sa = B_FALSE;
-#if !defined(HAVE_FILEMAP_RANGE_HAS_PAGE)
-	zp->z_is_mapped = B_FALSE;
-#endif
 	zp->z_is_ctldir = B_TRUE;
 	zp->z_sa_hdl = NULL;
 	zp->z_blksz = 0;
@@ -512,8 +511,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_pflags = 0;
 	zp->z_mode = 0;
 	zp->z_sync_cnt = 0;
-	zp->z_sync_writes_cnt = 0;
-	zp->z_async_writes_cnt = 0;
 	ip->i_generation = 0;
 	ip->i_ino = id;
 	ip->i_mode = (S_IFDIR | S_IRWXUGO);
@@ -593,7 +590,7 @@ zfsctl_inode_lookup(zfsvfs_t *zfsvfs, uint64_t id,
 int
 zfsctl_create(zfsvfs_t *zfsvfs)
 {
-	ASSERT(zfsvfs->z_ctldir == NULL);
+	ASSERT0P(zfsvfs->z_ctldir);
 
 	zfsvfs->z_ctldir = zfsctl_inode_alloc(zfsvfs, ZFSCTL_INO_ROOT,
 	    &zpl_fops_root, &zpl_ops_root, 0);
@@ -769,9 +766,6 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 	uint64_t id, pos = 0;
 	int error = 0;
 
-	if (zfsvfs->z_vfs->vfs_mntpoint == NULL)
-		return (SET_ERROR(ENOENT));
-
 	cookie = spl_fstrans_mark();
 	snapname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 
@@ -788,8 +782,14 @@ zfsctl_snapshot_path_objset(zfsvfs_t *zfsvfs, uint64_t objsetid,
 			break;
 	}
 
-	snprintf(full_path, path_len, "%s/.zfs/snapshot/%s",
-	    zfsvfs->z_vfs->vfs_mntpoint, snapname);
+	mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
+	if (zfsvfs->z_vfs->vfs_mntpoint != NULL) {
+		snprintf(full_path, path_len, "%s/.zfs/snapshot/%s",
+		    zfsvfs->z_vfs->vfs_mntpoint, snapname);
+	} else
+		error = SET_ERROR(ENOENT);
+	mutex_exit(&zfsvfs->z_vfs->vfs_mntpt_lock);
+
 out:
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	spl_fstrans_unmark(cookie);
@@ -810,7 +810,9 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-	if (strcmp(name, "..") == 0) {
+	if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+		*ipp = NULL;
+	} else if (strcmp(name, "..") == 0) {
 		*ipp = dip->i_sb->s_root->d_inode;
 	} else if (strcmp(name, ZFS_SNAPDIR_NAME) == 0) {
 		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIR,
@@ -1050,6 +1052,66 @@ exportfs_flush(void)
 }
 
 /*
+ * Returns the path in char format for given struct path. Uses
+ * d_path exported by kernel to convert struct path to char
+ * format. Returns the correct path for mountpoints and chroot
+ * environments.
+ *
+ * If chroot environment has directories that are mounted with
+ * --bind or --rbind flag, d_path returns the complete path inside
+ * chroot environment but does not return the absolute path, i.e.
+ * the path to chroot environment is missing.
+ */
+static int
+get_root_path(struct path *path, char *buff, int len)
+{
+	char *path_buffer, *path_ptr;
+	int error = 0;
+
+	path_get(path);
+	path_buffer = kmem_zalloc(len, KM_SLEEP);
+	path_ptr = d_path(path, path_buffer, len);
+	if (IS_ERR(path_ptr))
+		error = SET_ERROR(-PTR_ERR(path_ptr));
+	else
+		strcpy(buff, path_ptr);
+
+	kmem_free(path_buffer, len);
+	path_put(path);
+	return (error);
+}
+
+/*
+ * Returns if the current process root is chrooted or not. Linux
+ * kernel exposes the task_struct for current process and init.
+ * Since init process root points to actual root filesystem when
+ * Linux runtime is reached, we can compare the current process
+ * root with init process root to determine if root of the current
+ * process is different from init, which can reliably determine if
+ * current process is in chroot context or not.
+ */
+static int
+is_current_chrooted(void)
+{
+	struct task_struct *curr = current, *global = &init_task;
+	struct path cr_root, gl_root;
+
+	task_lock(curr);
+	get_fs_root(curr->fs, &cr_root);
+	task_unlock(curr);
+
+	task_lock(global);
+	get_fs_root(global->fs, &gl_root);
+	task_unlock(global);
+
+	int chrooted = !path_equal(&cr_root, &gl_root);
+	path_put(&gl_root);
+	path_put(&cr_root);
+
+	return (chrooted);
+}
+
+/*
  * Attempt to unmount a snapshot by making a call to user space.
  * There is no assurance that this can or will succeed, is just a
  * best effort.  In the case where it does fail, perhaps because
@@ -1100,9 +1162,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfsvfs_t *zfsvfs;
 	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
-	char *full_name, *full_path;
-	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", NULL, NULL,
-	    NULL };
+	char *full_name, *full_path, *options;
+	char *argv[] = { "/usr/bin/env", "mount", "-i", "-t", "zfs", "-n",
+	    "-o", NULL, NULL, NULL, NULL };
 	char *envp[] = { NULL };
 	int error;
 	struct path spath;
@@ -1116,20 +1178,60 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
+	options = kmem_zalloc(7, KM_SLEEP);
 
 	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
 	    ZFS_MAX_DATASET_NAME_LEN, full_name);
 	if (error)
 		goto error;
 
+	if (is_current_chrooted() == 0) {
+		/*
+		 * Current process is not in chroot context
+		 */
+
+		char *m = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
+		struct path mnt_path;
+		mnt_path.mnt = path->mnt;
+		mnt_path.dentry = path->mnt->mnt_root;
+
+		/*
+		 * Get path to current mountpoint
+		 */
+		error = get_root_path(&mnt_path, m, MAXPATHLEN);
+		if (error != 0) {
+			kmem_free(m, MAXPATHLEN);
+			goto error;
+		}
+		mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
+		if (zfsvfs->z_vfs->vfs_mntpoint != NULL) {
+			/*
+			 * If current mnountpoint and vfs_mntpoint are not same,
+			 * store current mountpoint in vfs_mntpoint.
+			 */
+			if (strcmp(zfsvfs->z_vfs->vfs_mntpoint, m) != 0) {
+				kmem_strfree(zfsvfs->z_vfs->vfs_mntpoint);
+				zfsvfs->z_vfs->vfs_mntpoint = kmem_strdup(m);
+			}
+		} else
+			zfsvfs->z_vfs->vfs_mntpoint = kmem_strdup(m);
+		mutex_exit(&zfsvfs->z_vfs->vfs_mntpt_lock);
+		kmem_free(m, MAXPATHLEN);
+	}
+
 	/*
 	 * Construct a mount point path from sb of the ctldir inode and dirent
 	 * name, instead of from d_path(), so that chroot'd process doesn't fail
 	 * on mount.zfs(8).
 	 */
+	mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
 	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
 	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
 	    dname(dentry));
+	mutex_exit(&zfsvfs->z_vfs->vfs_mntpt_lock);
+
+	snprintf(options, 7, "%s",
+	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
@@ -1153,8 +1255,9 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
 	 */
 	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[5] = full_name;
-	argv[6] = full_path;
+	argv[7] = options;
+	argv[8] = full_name;
+	argv[9] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
 		if (!(error & MOUNT_BUSY << 8)) {
@@ -1315,3 +1418,7 @@ MODULE_PARM_DESC(zfs_admin_snapshot, "Enable mkdir/rmdir/mv in .zfs/snapshot");
 
 module_param(zfs_expire_snapshot, int, 0644);
 MODULE_PARM_DESC(zfs_expire_snapshot, "Seconds to expire .zfs/snapshot");
+
+module_param(zfs_snapshot_no_setuid, int, 0644);
+MODULE_PARM_DESC(zfs_snapshot_no_setuid,
+	"Disable setuid/setgid for automounts in .zfs/snapshot");

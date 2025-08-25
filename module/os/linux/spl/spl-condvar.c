@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -31,10 +32,7 @@
 #include <linux/mod_compat.h>
 
 #include <linux/sched.h>
-
-#ifdef HAVE_SCHED_SIGNAL_HEADER
 #include <linux/sched/signal.h>
-#endif
 
 #define	MAX_HRTIMEOUT_SLACK_US	1000
 static unsigned int spl_schedule_hrtimeout_slack_us = 0;
@@ -68,9 +66,9 @@ void
 __cv_init(kcondvar_t *cvp, char *name, kcv_type_t type, void *arg)
 {
 	ASSERT(cvp);
-	ASSERT(name == NULL);
+	ASSERT0P(name);
 	ASSERT(type == CV_DEFAULT);
-	ASSERT(arg == NULL);
+	ASSERT0P(arg);
 
 	cvp->cv_magic = CV_MAGIC;
 	init_waitqueue_head(&cvp->cv_event);
@@ -85,7 +83,7 @@ static int
 cv_destroy_wakeup(kcondvar_t *cvp)
 {
 	if (!atomic_read(&cvp->cv_waiters) && !atomic_read(&cvp->cv_refs)) {
-		ASSERT(cvp->cv_mutex == NULL);
+		ASSERT0P(cvp->cv_mutex);
 		ASSERT(!waitqueue_active(&cvp->cv_event));
 		return (1);
 	}
@@ -106,7 +104,7 @@ __cv_destroy(kcondvar_t *cvp)
 	while (cv_destroy_wakeup(cvp) == 0)
 		wait_event_timeout(cvp->cv_destroy, cv_destroy_wakeup(cvp), 1);
 
-	ASSERT3P(cvp->cv_mutex, ==, NULL);
+	ASSERT0P(cvp->cv_mutex);
 	ASSERT3S(atomic_read(&cvp->cv_refs), ==, 0);
 	ASSERT3S(atomic_read(&cvp->cv_waiters), ==, 0);
 	ASSERT3S(waitqueue_active(&cvp->cv_event), ==, 0);
@@ -209,48 +207,6 @@ __cv_wait_idle(kcondvar_t *cvp, kmutex_t *mp)
 }
 EXPORT_SYMBOL(__cv_wait_idle);
 
-#if defined(HAVE_IO_SCHEDULE_TIMEOUT)
-#define	spl_io_schedule_timeout(t)	io_schedule_timeout(t)
-#else
-
-struct spl_task_timer {
-	struct timer_list timer;
-	struct task_struct *task;
-};
-
-static void
-__cv_wakeup(spl_timer_list_t t)
-{
-	struct timer_list *tmr = (struct timer_list *)t;
-	struct spl_task_timer *task_timer = from_timer(task_timer, tmr, timer);
-
-	wake_up_process(task_timer->task);
-}
-
-static long
-spl_io_schedule_timeout(long time_left)
-{
-	long expire_time = jiffies + time_left;
-	struct spl_task_timer task_timer;
-	struct timer_list *timer = &task_timer.timer;
-
-	task_timer.task = current;
-
-	timer_setup(timer, __cv_wakeup, 0);
-
-	timer->expires = expire_time;
-	add_timer(timer);
-
-	io_schedule();
-
-	del_timer_sync(timer);
-
-	time_left = expire_time - jiffies;
-
-	return (time_left < 0 ? 0 : time_left);
-}
-#endif
-
 /*
  * 'expire_time' argument is an absolute wall clock time in jiffies.
  * Return value is time left (expire_time - now) or -1 if timeout occurred.
@@ -290,7 +246,7 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	 */
 	mutex_exit(mp);
 	if (io)
-		time_left = spl_io_schedule_timeout(time_left);
+		time_left = io_schedule_timeout(time_left);
 	else
 		time_left = schedule_timeout(time_left);
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (C) 2007 John Birrell <jb@freebsd.org>
  * All rights reserved.
@@ -33,6 +34,7 @@
 #include <sys/types.h>
 #include_next <sys/param.h>
 #define	PAGESIZE	PAGE_SIZE
+#define	PAGESHIFT	PAGE_SHIFT
 #define	ptob(x)		((uint64_t)(x) << PAGE_SHIFT)
 #ifdef _KERNEL
 #include <sys/systm.h>

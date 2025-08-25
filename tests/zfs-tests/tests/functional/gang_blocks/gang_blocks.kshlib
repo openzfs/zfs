@@ -1,0 +1,138 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2025 By Klara Inc.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Get 0th DVA of first L0 block of file
+#
+# $1 filesystem
+# $2 object number
+#
+function get_object_info
+{
+	typeset fs=$1
+	typeset obj=$2
+
+	zdb -dddddd $fs $obj
+}
+
+#
+# $1 filesystem
+# $2 path to file
+# $3 block filter
+#
+function get_blocks_filter
+{
+	typeset fs=$1
+	typeset path=$2
+
+	typeset full_path="$(get_prop mountpoint $fs)/$path"
+	typeset obj="$(ls -i $full_path | awk '{print $1}')"
+
+	get_object_info $fs $obj | grep $3 | grep -v Dataset
+}
+
+function get_first_block
+{
+	get_blocks_filter $1 $2 L0 | head -n 1
+}
+
+function get_first_block_dva
+{
+	get_first_block $1 $2 | sed 's/.*L0 \([^ ]*\).*/\1/'
+}
+
+# Takes a zdb compressed blkptr line on stdin
+function get_num_dvas
+{
+	sed 's/.*L[0-9] \(.*\) [a-f0-9]*L.*/\1/' | awk '{print NF}'
+}
+
+function check_gang_bp
+{
+	typeset gang="$(echo -n $1 | grep -c 'gang')"
+	[[ "$gang" == "1" ]] || return 1
+	return 0
+}
+
+function check_is_gang_bp
+{
+	check_gang_bp $1 || log_fail "Not a gang DVA: \"$1\""
+}
+
+function check_not_gang_bp
+{
+	check_gang_bp $1 && log_fail "Gang DVA: \"$1\""
+}
+
+function check_gang_dva
+{
+	typeset last_byte="$(echo -n $1 | tail -c 1)"
+	[[ "$last_byte" == "G" ]] || return 1
+	return 0
+}
+
+function check_is_gang_dva
+{
+	check_gang_dva $1 || log_fail "Not a gang DVA: \"$1\""
+}
+
+function check_not_gang_dva
+{
+	check_gang_dva $1 && log_fail "Gang DVA: \"$1\""
+}
+
+#
+# Get the gang header contents of the given dva in the given pool
+#
+# $1 pool
+# $2 dva
+# $3 size (in hexidecimal)
+#
+function read_gang_header
+{
+	typeset pool=$1
+	typeset dva=$2
+	typeset size=$3
+
+	check_is_gang_dva $dva
+
+	zdb -R $pool "${dva%:*}:$size:g" 2>&1 | grep -v "Found vdev:"
+}
+
+function preamble
+{
+	save_tunable METASLAB_FORCE_GANGING
+	save_tunable METASLAB_FORCE_GANGING_PCT
+}
+
+function cleanup
+{
+	destroy_pool $TESTPOOL
+	restore_tunable METASLAB_FORCE_GANGING
+	restore_tunable METASLAB_FORCE_GANGING_PCT
+}

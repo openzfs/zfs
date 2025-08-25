@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -77,7 +78,7 @@ extern int fmd_serd_eng_fired(fmd_serd_eng_t *);
 extern int fmd_serd_eng_empty(fmd_serd_eng_t *);
 
 extern void fmd_serd_eng_reset(fmd_serd_eng_t *);
-extern void fmd_serd_eng_gc(fmd_serd_eng_t *);
+extern void fmd_serd_eng_gc(fmd_serd_eng_t *, void *);
 
 #ifdef	__cplusplus
 }

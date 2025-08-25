@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -29,7 +30,6 @@
 
 verify_runnable "both"
 
-verify_block_cloning
 verify_crossfs_block_cloning
 
 log_assert "Verify block cloning properly clones small files (with embedded blocks) across datasets"

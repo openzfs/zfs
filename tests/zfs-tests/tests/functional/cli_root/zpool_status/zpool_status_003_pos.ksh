@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -37,6 +38,7 @@
 # 3. Read the file
 # 4. Take a snapshot and make a clone
 # 5. Verify we see "snapshot, clone and filesystem" output in 'zpool status -v'
+#      and 'zpool status -ev'
 
 function cleanup
 {
@@ -57,7 +59,7 @@ log_must fio --rw=write --name=job --size=10M --filename=/$TESTPOOL2/10m_file
 log_must zinject -t data -e checksum -f 100 -am /$TESTPOOL2/10m_file
 
 # Try to read the 2nd megabyte of 10m_file
-dd if=/$TESTPOOL2/10m_file bs=1M || true
+dd if=/$TESTPOOL2/10m_file bs=1M of=/dev/null || true
 
 log_must zfs snapshot $TESTPOOL2@snap
 log_must zfs clone $TESTPOOL2@snap $TESTPOOL2/clone
@@ -68,6 +70,7 @@ log_must zpool status -v $TESTPOOL2
 log_must eval "zpool status -v | grep '$TESTPOOL2@snap:/10m_file'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/clone/10m_file'"
 log_must eval "zpool status -v | grep '$TESTPOOL2/10m_file'"
+log_must eval "zpool status -ev | grep '$TESTPOOL2/10m_file'"
 log_mustnot eval "zpool status -v | grep '$TESTFS1'"
 
 log_pass "'zpool status -v' outputs affected filesystem, snapshot & clone"

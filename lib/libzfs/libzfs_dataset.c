@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -1038,7 +1039,6 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 	nvlist_t *ret;
 	int chosen_normal = -1;
 	int chosen_utf = -1;
-	int set_maxbs = 0;
 
 	if (nvlist_alloc(&ret, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -1257,46 +1257,20 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
-			/* save the ZFS_PROP_RECORDSIZE during create op */
-			if (zpool_hdl == NULL && prop == ZFS_PROP_RECORDSIZE) {
-				set_maxbs = intval;
-			}
 			break;
 		}
 
 		case ZFS_PROP_SPECIAL_SMALL_BLOCKS:
 		{
-			int maxbs =
-			    set_maxbs == 0 ? SPA_OLD_MAXBLOCKSIZE : set_maxbs;
+			int maxbs = SPA_MAXBLOCKSIZE;
 			char buf[64];
 
-			if (zpool_hdl != NULL) {
-				char state[64] = "";
-
-				maxbs = zpool_get_prop_int(zpool_hdl,
-				    ZPOOL_PROP_MAXBLOCKSIZE, NULL);
-
-				/*
-				 * Issue a warning but do not fail so that
-				 * tests for settable properties succeed.
-				 */
-				if (zpool_prop_get_feature(zpool_hdl,
-				    "feature@allocation_classes", state,
-				    sizeof (state)) != 0 ||
-				    strcmp(state, ZFS_FEATURE_ACTIVE) != 0) {
-					(void) fprintf(stderr, gettext(
-					    "%s: property requires a special "
-					    "device in the pool\n"), propname);
-				}
-			}
-			if (intval != 0 &&
-			    (intval < SPA_MINBLOCKSIZE ||
-			    intval > maxbs || !ISP2(intval))) {
+			if (intval > SPA_MAXBLOCKSIZE) {
 				zfs_nicebytes(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid '%s=%llu' property: must be zero "
-				    "or a power of 2 from 512B to %s"),
-				    propname, (unsigned long long)intval, buf);
+				    "invalid '%s' property: must be between "
+				    "zero and %s"),
+				    propname, buf);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -2307,6 +2281,12 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_NORMALIZE:
 	case ZFS_PROP_UTF8ONLY:
 	case ZFS_PROP_CASE:
+	case ZFS_PROP_DEFAULTUSERQUOTA:
+	case ZFS_PROP_DEFAULTGROUPQUOTA:
+	case ZFS_PROP_DEFAULTPROJECTQUOTA:
+	case ZFS_PROP_DEFAULTUSEROBJQUOTA:
+	case ZFS_PROP_DEFAULTGROUPOBJQUOTA:
+	case ZFS_PROP_DEFAULTPROJECTOBJQUOTA:
 		zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
 
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -4021,6 +4001,26 @@ zfs_destroy_snaps_nvl(libzfs_handle_t *hdl, nvlist_t *snaps, boolean_t defer)
 			    dgettext(TEXT_DOMAIN, "snapshot is cloned"));
 			ret = zfs_error(hdl, EZFS_EXISTS, errbuf);
 			break;
+		case EBUSY: {
+			nvlist_t *existing_holds;
+			int err = lzc_get_holds(nvpair_name(pair),
+			    &existing_holds);
+
+			/* check the presence of holders */
+			if (err == 0 && !nvlist_empty(existing_holds)) {
+				zfs_error_aux(hdl,
+				    dgettext(TEXT_DOMAIN, "it's being held. "
+				    "Run 'zfs holds -r %s' to see holders."),
+				    nvpair_name(pair));
+				ret = zfs_error(hdl, EBUSY, errbuf);
+			} else {
+				ret = zfs_standard_error(hdl, errno, errbuf);
+			}
+
+			if (err == 0)
+				nvlist_free(existing_holds);
+			break;
+		}
 		default:
 			ret = zfs_standard_error(hdl, errno, errbuf);
 			break;
@@ -4673,6 +4673,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 			changelist_rename(cl, zfs_get_name(zhp), target);
 			ret = changelist_postfix(cl);
 		}
+		(void) strlcpy(zhp->zfs_name, target, sizeof (zhp->zfs_name));
 	}
 
 error:
@@ -4883,7 +4884,7 @@ zfs_smb_acl_mgmt(libzfs_handle_t *hdl, char *dataset, char *path,
 	default:
 		return (-1);
 	}
-	error = ioctl(hdl->libzfs_fd, ZFS_IOC_SMB_ACL, &zc);
+	error = lzc_ioctl_fd(hdl->libzfs_fd, ZFS_IOC_SMB_ACL, &zc);
 	nvlist_free(nvlist);
 	return (error);
 }
@@ -4958,7 +4959,7 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 
 		while (zc.zc_nvlist_dst_size > 0) {
 			if ((ret = func(arg, zua->zu_domain, zua->zu_rid,
-			    zua->zu_space)) != 0)
+			    zua->zu_space, zc.zc_guid)) != 0)
 				return (ret);
 			zua++;
 			zc.zc_nvlist_dst_size -= sizeof (zfs_useracct_t);
@@ -5408,12 +5409,12 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * +-------+-------+-------+-------+-------+
  *
  * Above, notice that the 4k block required one sector for parity and another
- * for data.  vdev_raidz_asize() will return 8k and as such the pool's allocated
- * and free properties will be adjusted by 8k.  The dataset will not be charged
- * 8k.  Rather, it will be charged a value that is scaled according to the
- * overhead of the 128k block on the same vdev.  This 8k allocation will be
- * charged 8k * 128k / 160k.  128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as
- * calculated in the 128k block example above.
+ * for data.  vdev_raidz_psize_to_asize() will return 8k and as such the pool's
+ * allocated and free properties will be adjusted by 8k.  The dataset will not
+ * be charged 8k.  Rather, it will be charged a value that is scaled according
+ * to the overhead of the 128k block on the same vdev.  This 8k allocation will
+ * be charged 8k * 128k / 160k.  128k is from SPA_OLD_MAXBLOCKSIZE and 160k is
+ * as calculated in the 128k block example above.
  *
  * Every raidz allocation is sized to be a multiple of nparity+1 sectors.  That
  * is, every raidz1 allocation will be a multiple of 2 sectors, raidz2
@@ -5460,7 +5461,7 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * not necessarily equal to "blksize", due to RAIDZ deflation.
  */
 static uint64_t
-vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+vdev_raidz_psize_to_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
     uint64_t blksize)
 {
 	uint64_t asize, ndata;
@@ -5480,7 +5481,7 @@ vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
  * size.
  */
 static uint64_t
-vdev_draid_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+vdev_draid_psize_to_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
     uint64_t blksize)
 {
 	ASSERT3U(ndisks, >, nparity);
@@ -5540,12 +5541,12 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 				continue;
 
 			/* allocation size for the "typical" 128k block */
-			tsize = vdev_raidz_asize(ndisks, nparity, ashift,
-			    SPA_OLD_MAXBLOCKSIZE);
+			tsize = vdev_raidz_psize_to_asize(ndisks, nparity,
+			    ashift, SPA_OLD_MAXBLOCKSIZE);
 
 			/* allocation size for the blksize block */
-			asize = vdev_raidz_asize(ndisks, nparity, ashift,
-			    blksize);
+			asize = vdev_raidz_psize_to_asize(ndisks, nparity,
+			    ashift, blksize);
 		} else {
 			uint64_t ndata;
 
@@ -5554,19 +5555,32 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 				continue;
 
 			/* allocation size for the "typical" 128k block */
-			tsize = vdev_draid_asize(ndata + nparity, nparity,
-			    ashift, SPA_OLD_MAXBLOCKSIZE);
+			tsize = vdev_draid_psize_to_asize(ndata + nparity,
+			    nparity, ashift, SPA_OLD_MAXBLOCKSIZE);
 
 			/* allocation size for the blksize block */
-			asize = vdev_draid_asize(ndata + nparity, nparity,
-			    ashift, blksize);
+			asize = vdev_draid_psize_to_asize(ndata + nparity,
+			    nparity, ashift, blksize);
 		}
 
 		/*
 		 * Scale this size down as a ratio of 128k / tsize.
 		 * See theory statement above.
+		 *
+		 * Bitshift is to avoid the case of nblocks * asize < tsize
+		 * producing a size of 0.
 		 */
-		volsize = nblocks * asize * SPA_OLD_MAXBLOCKSIZE / tsize;
+		volsize = (nblocks * asize) / (tsize >> SPA_MINBLOCKSHIFT);
+		/*
+		 * If we would blow UINT64_MAX with this next multiplication,
+		 * don't.
+		 */
+		if (volsize >
+		    (UINT64_MAX / (SPA_OLD_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT)))
+			volsize = UINT64_MAX;
+		else
+			volsize *= (SPA_OLD_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
+
 		if (volsize > ret) {
 			ret = volsize;
 		}

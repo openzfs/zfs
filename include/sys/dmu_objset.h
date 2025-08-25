@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -134,6 +135,7 @@ struct objset {
 	zfs_cache_type_t os_secondary_cache;
 	zfs_prefetch_type_t os_prefetch;
 	zfs_sync_type_t os_sync;
+	zfs_direct_t os_direct;
 	zfs_redundant_metadata_type_t os_redundant_metadata;
 	uint64_t os_recordsize;
 	/*
@@ -150,7 +152,7 @@ struct objset {
 	 * The largest zpl file block allowed in special class.
 	 * cached here instead of zfsvfs for easier access.
 	 */
-	int os_zpl_special_smallblock;
+	uint64_t os_zpl_special_smallblock;
 
 	/*
 	 * Pointer is constant; the blkptr it points to is protected by

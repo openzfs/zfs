@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -49,6 +50,7 @@ MALLOC_DECLARE(M_SOLARIS);
 #define	KM_NOSLEEP		M_NOWAIT
 #define	KM_NORMALPRI		0
 #define	KMC_NODEBUG		UMA_ZONE_NODUMP
+#define	KMC_RECLAIMABLE		0x0
 
 typedef struct vmem vmem_t;
 

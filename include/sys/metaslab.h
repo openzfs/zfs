@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -40,7 +41,7 @@ extern "C" {
 
 typedef struct metaslab_ops {
 	const char *msop_name;
-	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
+	uint64_t (*msop_alloc)(metaslab_t *, uint64_t, uint64_t, uint64_t *);
 } metaslab_ops_t;
 
 
@@ -74,20 +75,18 @@ uint64_t metaslab_largest_allocatable(metaslab_t *);
 /*
  * metaslab alloc flags
  */
-#define	METASLAB_HINTBP_FAVOR		0x0
-#define	METASLAB_HINTBP_AVOID		0x1
+#define	METASLAB_ZIL			0x1
 #define	METASLAB_GANG_HEADER		0x2
 #define	METASLAB_GANG_CHILD		0x4
 #define	METASLAB_ASYNC_ALLOC		0x8
-#define	METASLAB_DONT_THROTTLE		0x10
-#define	METASLAB_MUST_RESERVE		0x20
-#define	METASLAB_ZIL			0x80
 
-int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
-    blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,
-	int);
+int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t, blkptr_t *, int,
+    uint64_t, const blkptr_t *, int, zio_alloc_list_t *, int, const void *);
+int metaslab_alloc_range(spa_t *, metaslab_class_t *, uint64_t, uint64_t,
+    blkptr_t *, int, uint64_t, const blkptr_t *, int, zio_alloc_list_t *,
+    int, const void *, uint64_t *);
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
-    dva_t *, int, dva_t *, uint64_t, int, zio_alloc_list_t *, int);
+    dva_t *, int, const dva_t *, uint64_t, int, zio_alloc_list_t *, int);
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
 void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, boolean_t);
 void metaslab_free_dva(spa_t *, const dva_t *, boolean_t);
@@ -99,19 +98,24 @@ void metaslab_check_free(spa_t *, const blkptr_t *);
 
 void metaslab_stat_init(void);
 void metaslab_stat_fini(void);
+void metaslab_trace_move(zio_alloc_list_t *, zio_alloc_list_t *);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 
-metaslab_class_t *metaslab_class_create(spa_t *, const metaslab_ops_t *);
+metaslab_class_t *metaslab_class_create(spa_t *, const char *,
+    const metaslab_ops_t *, boolean_t);
 void metaslab_class_destroy(metaslab_class_t *);
-int metaslab_class_validate(metaslab_class_t *);
+void metaslab_class_validate(metaslab_class_t *);
+void metaslab_class_balance(metaslab_class_t *mc, boolean_t onsync);
 void metaslab_class_histogram_verify(metaslab_class_t *);
 uint64_t metaslab_class_fragmentation(metaslab_class_t *);
 uint64_t metaslab_class_expandable_space(metaslab_class_t *);
 boolean_t metaslab_class_throttle_reserve(metaslab_class_t *, int, int,
-    zio_t *, int);
-void metaslab_class_throttle_unreserve(metaslab_class_t *, int, int, zio_t *);
+    uint64_t, boolean_t, boolean_t *);
+boolean_t metaslab_class_throttle_unreserve(metaslab_class_t *, int, int,
+    uint64_t);
 void metaslab_class_evict_old(metaslab_class_t *, uint64_t);
+const char *metaslab_class_get_name(metaslab_class_t *);
 uint64_t metaslab_class_get_alloc(metaslab_class_t *);
 uint64_t metaslab_class_get_space(metaslab_class_t *);
 uint64_t metaslab_class_get_dspace(metaslab_class_t *);
@@ -120,7 +124,7 @@ uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 void metaslab_space_update(vdev_t *, metaslab_class_t *,
     int64_t, int64_t, int64_t);
 
-metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *, int);
+metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
 void metaslab_group_activate(metaslab_group_t *);
 void metaslab_group_passivate(metaslab_group_t *);
@@ -129,9 +133,10 @@ uint64_t metaslab_group_get_space(metaslab_group_t *);
 void metaslab_group_histogram_verify(metaslab_group_t *);
 uint64_t metaslab_group_fragmentation(metaslab_group_t *);
 void metaslab_group_histogram_remove(metaslab_group_t *, metaslab_t *);
-void metaslab_group_alloc_decrement(spa_t *, uint64_t, const void *, int, int,
-    boolean_t);
-void metaslab_group_alloc_verify(spa_t *, const blkptr_t *, const void *, int);
+void metaslab_group_alloc_increment_all(spa_t *, blkptr_t *, int, int,
+    uint64_t, const void *);
+void metaslab_group_alloc_decrement(spa_t *, uint64_t, int, int, uint64_t,
+    const void *);
 void metaslab_recalculate_weight_and_sort(metaslab_t *);
 void metaslab_disable(metaslab_t *);
 void metaslab_enable(metaslab_t *, boolean_t, boolean_t);
@@ -139,7 +144,7 @@ void metaslab_set_selected_txg(metaslab_t *, uint64_t);
 
 extern int metaslab_debug_load;
 
-range_seg_type_t metaslab_calculate_range_tree_type(vdev_t *vdev,
+zfs_range_seg_type_t metaslab_calculate_range_tree_type(vdev_t *vdev,
     metaslab_t *msp, uint64_t *start, uint64_t *shift);
 
 #ifdef	__cplusplus

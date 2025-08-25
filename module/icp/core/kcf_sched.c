@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -123,7 +124,7 @@ kcf_context_cache_destructor(void *buf, void *cdrarg)
 	(void) cdrarg;
 	kcf_context_t *kctx = (kcf_context_t *)buf;
 
-	ASSERT(kctx->kc_refcnt == 0);
+	ASSERT0(kctx->kc_refcnt);
 }
 
 void

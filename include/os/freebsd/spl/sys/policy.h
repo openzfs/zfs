@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -38,7 +39,6 @@ struct znode;
 
 int	secpolicy_nfs(cred_t *cr);
 int	secpolicy_zfs(cred_t *crd);
-int	secpolicy_zfs_proc(cred_t *cr, proc_t *proc);
 int	secpolicy_sys_config(cred_t *cr, int checkonly);
 int	secpolicy_zinject(cred_t *cr);
 int	secpolicy_fs_unmount(cred_t *cr, struct mount *vfsp);
@@ -70,10 +70,4 @@ int	secpolicy_xvattr(vnode_t *vp, xvattr_t *xvap, uid_t owner, cred_t *cr,
 	    vtype_t vtype);
 int	secpolicy_smb(cred_t *cr);
 
-
-#if __FreeBSD_version >= 1300005
-#define	spl_priv_check_cred(a, b) priv_check_cred((a), (b))
-#else
-#define	spl_priv_check_cred(a, b) priv_check_cred((a), (b), 0)
-#endif
 #endif	/* _OPENSOLARIS_SYS_POLICY_H_ */

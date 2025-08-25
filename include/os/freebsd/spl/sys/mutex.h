@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -70,4 +71,5 @@ typedef enum {
 #define	mutex_exit(lock)	sx_xunlock(lock)
 #define	mutex_owned(lock)	sx_xlocked(lock)
 #define	mutex_owner(lock)	sx_xholder(lock)
+
 #endif	/* _OPENSOLARIS_SYS_MUTEX_H_ */

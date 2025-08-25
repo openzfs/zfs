@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -62,6 +63,7 @@ log_must eval "zdb $TESTPOOL | grep -q \"Checkpointed uberblock found\""
 log_mustnot eval "zdb -k $TESTPOOL | grep -q \"Checkpointed uberblock found\""
 log_mustnot eval "zdb $TESTPOOL | grep \"Dataset $FS1\""
 log_must eval "zdb -k $TESTPOOL | grep \"Dataset $CHECKPOINTED_FS1\""
+log_must eval "zdb -k $TESTPOOL/ | grep \"$TESTPOOL$BOGUS_SUFFIX\""
 
 log_must zpool export $TESTPOOL
 
@@ -69,6 +71,7 @@ log_must eval "zdb -e $TESTPOOL | grep \"Checkpointed uberblock found\""
 log_mustnot eval "zdb -k -e $TESTPOOL | grep \"Checkpointed uberblock found\""
 log_mustnot eval "zdb -e $TESTPOOL | grep \"Dataset $FS1\""
 log_must eval "zdb -k -e $TESTPOOL | grep \"Dataset $CHECKPOINTED_FS1\""
+log_must eval "zdb -k -e $TESTPOOL/ | grep \"$TESTPOOL$BOGUS_SUFFIX\""
 
 log_must zpool import $TESTPOOL
 

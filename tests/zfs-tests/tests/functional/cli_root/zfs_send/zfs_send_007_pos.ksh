@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -48,8 +49,8 @@ function cleanup
 
 log_assert "Verify that 'zfs send' drills appropriate holes"
 log_onexit cleanup
-streamfile=$(mktemp $TESTDIR/file.XXXXXX)
-vdev=$(mktemp $TEST_BASE_DIR/file.XXXXXX)
+streamfile=$(mktemp)
+vdev=$(mktemp)
 
 
 function test_pool

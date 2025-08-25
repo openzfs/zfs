@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -24,6 +25,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef	_SYS_ZAP_IMPL_H
@@ -45,7 +47,6 @@ extern int fzap_default_block_shift;
 
 #define	MZAP_ENT_LEN		64
 #define	MZAP_NAME_LEN		(MZAP_ENT_LEN - 8 - 4 - 2)
-#define	MZAP_MAX_BLKSZ		SPA_OLD_MAXBLOCKSIZE
 
 #define	ZAP_NEED_CD		(-1U)
 
@@ -145,6 +146,7 @@ typedef struct zap {
 	dmu_buf_user_t zap_dbu;
 	objset_t *zap_objset;
 	uint64_t zap_object;
+	dnode_t *zap_dnode;
 	struct dmu_buf *zap_dbuf;
 	krwlock_t zap_rwlock;
 	boolean_t zap_ismicro;
@@ -190,7 +192,8 @@ typedef struct zap_name {
 	uint64_t zn_hash;
 	matchtype_t zn_matchtype;
 	int zn_normflags;
-	char zn_normbuf[ZAP_MAXNAMELEN];
+	int zn_normbuf_len;
+	char zn_normbuf[];
 } zap_name_t;
 
 #define	zap_f	zap_u.zap_fat
@@ -207,6 +210,8 @@ void zap_name_free(zap_name_t *zn);
 int zap_hashbits(zap_t *zap);
 uint32_t zap_maxcd(zap_t *zap);
 uint64_t zap_getflags(zap_t *zap);
+
+uint64_t zap_get_micro_max_size(spa_t *spa);
 
 #define	ZAP_HASH_IDX(hash, n) (((n) == 0) ? 0 : ((hash) >> (64 - (n))))
 

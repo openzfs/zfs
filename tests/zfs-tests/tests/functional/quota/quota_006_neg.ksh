@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -50,7 +51,7 @@ log_assert "Verify cannot set quota lower than the space currently in use"
 
 function cleanup
 {
-	log_must zfs set quota=none $TESTPOOL/$TESTFS
+	reset_quota $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup

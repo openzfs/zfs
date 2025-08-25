@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -275,6 +276,12 @@ dsl_dataset_phys(dsl_dataset_t *ds)
 	return ((dsl_dataset_phys_t *)ds->ds_dbuf->db_data);
 }
 
+typedef struct dsl_dataset_clone_arg_t {
+	const char *ddca_clone;
+	const char *ddca_origin;
+	cred_t *ddca_cred;
+} dsl_dataset_clone_arg_t;
+
 typedef struct dsl_dataset_promote_arg {
 	const char *ddpa_clonename;
 	dsl_dataset_t *ddpa_clone;
@@ -283,7 +290,6 @@ typedef struct dsl_dataset_promote_arg {
 	uint64_t used, comp, uncomp, unique, cloneusedsnap, originusedsnap;
 	nvlist_t *err_ds;
 	cred_t *cr;
-	proc_t *proc;
 } dsl_dataset_promote_arg_t;
 
 typedef struct dsl_dataset_rollback_arg {
@@ -298,7 +304,6 @@ typedef struct dsl_dataset_snapshot_arg {
 	nvlist_t *ddsa_props;
 	nvlist_t *ddsa_errors;
 	cred_t *ddsa_cr;
-	proc_t *ddsa_proc;
 } dsl_dataset_snapshot_arg_t;
 
 typedef struct dsl_dataset_rename_snapshot_arg {
@@ -365,6 +370,9 @@ uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 void dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors);
+void dsl_dataset_clone_sync(void *arg, dmu_tx_t *tx);
+int dsl_dataset_clone_check(void *arg, dmu_tx_t *tx);
+int dsl_dataset_clone(const char *clone, const char *origin);
 void dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_promote_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_promote(const char *name, char *conflsnap);
@@ -458,7 +466,7 @@ int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr, proc_t *proc);
+    dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx);
 

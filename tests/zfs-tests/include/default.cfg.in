@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # CDDL HEADER START
@@ -80,7 +81,7 @@ export TESTPOOL=testpool
 export TESTPOOL1=testpool1
 export TESTPOOL2=testpool2
 export TESTPOOL3=testpool3
-export PERFPOOL=perfpool
+export PERFPOOL=${PERFPOOL:-perfpool}
 
 # some test file system names
 export TESTFS=testfs
@@ -184,7 +185,7 @@ Linux)
 	DEV_RDSKDIR="/dev"
 	DEV_MPATHDIR="/dev/mapper"
 
-	ZEDLET_DIR="/var/tmp/zed"
+	ZEDLET_DIR="$TEST_BASE_DIR/zed"
 	ZED_LOG="$ZEDLET_DIR/zed.log"
 	ZED_DEBUG_LOG="$ZEDLET_DIR/zed.debug.log"
 	VDEVID_CONF="$ZEDLET_DIR/vdev_id.conf"

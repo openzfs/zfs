@@ -47,6 +47,7 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zfs_fletcher_superscalar4.c \
 	module/zcommon/zfs_namecheck.c \
 	module/zcommon/zfs_prop.c \
+	module/zcommon/zfs_valstr.c \
 	module/zcommon/zpool_prop.c \
 	module/zcommon/zprop_common.c
 
@@ -69,7 +70,7 @@ if BUILD_FREEBSD
 libzfs_la_LIBADD += -lutil -lgeom
 endif
 
-libzfs_la_LDFLAGS += -version-info 5:0:1
+libzfs_la_LDFLAGS += -version-info 6:0:0
 
 pkgconfig_DATA += %D%/libzfs.pc
 

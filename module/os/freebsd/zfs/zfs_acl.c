@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -473,7 +474,7 @@ zfs_acl_node_alloc(size_t bytes)
 
 	aclnode = kmem_zalloc(sizeof (zfs_acl_node_t), KM_SLEEP);
 	if (bytes) {
-		aclnode->z_acldata = kmem_alloc(bytes, KM_SLEEP);
+		aclnode->z_acldata = kmem_zalloc(bytes, KM_SLEEP);
 		aclnode->z_allocdata = aclnode->z_acldata;
 		aclnode->z_allocsize = bytes;
 		aclnode->z_size = bytes;
@@ -1631,7 +1632,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		if (zfsvfs->z_replay == B_FALSE)
 			ASSERT_VOP_ELOCKED(ZTOV(dzp), __func__);
 	} else
-		ASSERT3P(dzp->z_vnode, ==, NULL);
+		ASSERT0P(dzp->z_vnode);
 	memset(acl_ids, 0, sizeof (zfs_acl_ids_t));
 	acl_ids->z_mode = MAKEIMODE(vap->va_type, vap->va_mode);
 
@@ -1997,7 +1998,7 @@ top:
 	}
 
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_NOWAIT);
+	error = dmu_tx_assign(tx, DMU_TX_NOWAIT);
 	if (error) {
 		mutex_exit(&zp->z_acl_lock);
 
@@ -2013,7 +2014,7 @@ top:
 
 	error = zfs_aclset_common(zp, aclp, cr, tx);
 	ASSERT0(error);
-	ASSERT3P(zp->z_acl_cached, ==, NULL);
+	ASSERT0P(zp->z_acl_cached);
 	zp->z_acl_cached = aclp;
 
 	if (fuid_dirtied)
@@ -2356,9 +2357,41 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 	 * In FreeBSD, we don't care about permissions of individual ADS.
 	 * Note that not checking them is not just an optimization - without
 	 * this shortcut, EA operations may bogusly fail with EACCES.
+	 *
+	 * If this is a named attribute lookup, do the checks.
 	 */
+#if __FreeBSD_version >= 1500040
+	if ((zp->z_pflags & ZFS_XATTR) && (flags & V_NAMEDATTR) == 0)
+#else
 	if (zp->z_pflags & ZFS_XATTR)
+#endif
 		return (0);
+
+	/*
+	 * If a named attribute directory then validate against base file
+	 */
+	if (is_attr) {
+		if ((error = zfs_zget(ZTOZSB(zp),
+		    zp->z_xattr_parent, &xzp)) != 0) {
+			return (error);
+		}
+
+		check_zp = xzp;
+
+		/*
+		 * fixup mode to map to xattr perms
+		 */
+
+		if (mode & (ACE_WRITE_DATA|ACE_APPEND_DATA)) {
+			mode &= ~(ACE_WRITE_DATA|ACE_APPEND_DATA);
+			mode |= ACE_WRITE_NAMED_ATTRS;
+		}
+
+		if (mode & (ACE_READ_DATA|ACE_EXECUTE)) {
+			mode &= ~(ACE_READ_DATA|ACE_EXECUTE);
+			mode |= ACE_READ_NAMED_ATTRS;
+		}
+	}
 
 	owner = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
 

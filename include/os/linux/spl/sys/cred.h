@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -63,11 +64,7 @@ zfs_is_init_userns(struct user_namespace *user_ns)
 
 static inline struct user_namespace *zfs_i_user_ns(struct inode *inode)
 {
-#ifdef HAVE_SUPER_USER_NS
 	return (inode->i_sb->s_user_ns);
-#else
-	return (kcred->user_ns);
-#endif
 }
 
 static inline boolean_t zfs_no_idmapping(struct user_namespace *mnt_userns,

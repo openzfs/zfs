@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -28,8 +29,9 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd July 27, 2023
+.Dd October 2, 2024
 .Dt ZFS-SEND 8
 .Os
 .
@@ -111,6 +113,9 @@ property of this filesystem has never been set above 128 KiB.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.
+This flag is required if the
+.Sy large_microzap
+pool feature is active.
 See
 .Xr zpool-features 7
 for details on ZFS feature flags and the
@@ -168,8 +173,10 @@ The receiving system must have the
 feature enabled.
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 Datasets that are sent with this flag may not be
 received as an encrypted dataset, since encrypted datasets cannot use the
 .Sy embedded_data
@@ -196,8 +203,10 @@ property for details
 .Pc .
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 If the
 .Sy large_blocks
 feature is enabled on the sending system but the
@@ -291,7 +300,7 @@ hierarchy.
 When a snapshot is missing, instead of throwing an error and aborting the send,
 a warning is printed to the standard error stream and the dataset to which it
 belongs
-and its descendents are skipped.
+and its descendants are skipped.
 This flag can only be used in conjunction with
 .Fl R .
 .It Fl v , -verbose
@@ -352,8 +361,10 @@ property for details
 .Pc .
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 If the
 .Sy large_blocks
 feature is enabled on the sending system but the
@@ -395,8 +406,10 @@ The receiving system must have the
 feature enabled.
 If the
 .Sy lz4_compress
-feature is active on the sending system, then the receiving system must have
-that feature enabled as well.
+or
+.Sy zstd_compress
+features are active on the sending system, then the receiving system must have
+the corresponding features enabled as well.
 Datasets that are sent with this flag may not be received as an encrypted
 dataset,
 since encrypted datasets cannot use the

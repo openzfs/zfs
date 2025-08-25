@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -77,6 +78,7 @@ _LIBZFS_CORE_H int lzc_snaprange_space(const char *, const char *, uint64_t *);
 _LIBZFS_CORE_H int lzc_hold(nvlist_t *, int, nvlist_t **);
 _LIBZFS_CORE_H int lzc_release(nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_get_holds(const char *, nvlist_t **);
+_LIBZFS_CORE_H int lzc_get_props(const char *, nvlist_t **);
 
 enum lzc_send_flags {
 	LZC_SEND_FLAG_EMBED_DATA = 1 << 0,
@@ -147,6 +149,9 @@ _LIBZFS_CORE_H int lzc_pool_checkpoint_discard(const char *);
 _LIBZFS_CORE_H int lzc_wait(const char *, zpool_wait_activity_t, boolean_t *);
 _LIBZFS_CORE_H int lzc_wait_tag(const char *, zpool_wait_activity_t, uint64_t,
     boolean_t *);
+
+_LIBZFS_CORE_H int lzc_pool_prefetch(const char *, zpool_prefetch_type_t);
+
 _LIBZFS_CORE_H int lzc_wait_fs(const char *, zfs_wait_activity_t, boolean_t *);
 
 _LIBZFS_CORE_H int lzc_set_bootenv(const char *, const nvlist_t *);
@@ -156,6 +161,9 @@ _LIBZFS_CORE_H int lzc_get_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_set_vdev_prop(const char *, nvlist_t *, nvlist_t **);
 
 _LIBZFS_CORE_H int lzc_scrub(zfs_ioc_t, const char *, nvlist_t *, nvlist_t **);
+
+_LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
+    uint64_t);
 
 #ifdef	__cplusplus
 }

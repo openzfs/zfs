@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -39,10 +40,6 @@
 #
 
 verify_runnable "global"
-
-if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
-  log_unsupported "copy_file_range not available before Linux 4.5"
-fi
 
 VDIR=$TEST_BASE_DIR/disk-bclone
 VDEV="$VDIR/a"

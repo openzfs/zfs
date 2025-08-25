@@ -4,8 +4,6 @@ noinst_HEADERS = \
 	\
 	%D%/spl/acl/acl_common.h \
 	\
-	%D%/spl/rpc/xdr.h \
-	\
 	%D%/spl/sys/ia32/asm_linkage.h \
 	\
 	%D%/spl/sys/acl.h \
@@ -22,7 +20,6 @@ noinst_HEADERS = \
 	%D%/spl/sys/debug.h \
 	%D%/spl/sys/dirent.h \
 	%D%/spl/sys/disp.h \
-	%D%/spl/sys/dkio.h \
 	%D%/spl/sys/fcntl.h \
 	%D%/spl/sys/file.h \
 	%D%/spl/sys/freebsd_rwlock.h \
@@ -36,7 +33,7 @@ noinst_HEADERS = \
 	%D%/spl/sys/list_impl.h \
 	%D%/spl/sys/lock.h \
 	%D%/spl/sys/misc.h \
-	%D%/spl/sys/mod_os.h \
+	%D%/spl/sys/mod.h \
 	%D%/spl/sys/mode.h \
 	%D%/spl/sys/mount.h \
 	%D%/spl/sys/mutex.h \
@@ -80,7 +77,11 @@ noinst_HEADERS = \
 	%D%/spl/sys/zmod.h \
 	%D%/spl/sys/zone.h \
 	\
+	%D%/zfs/sys/abd_os.h \
+	%D%/zfs/sys/abd_impl_os.h \
+	%D%/zfs/sys/arc_os.h \
 	%D%/zfs/sys/freebsd_crypto.h \
+	%D%/zfs/sys/freebsd_event.h \
 	%D%/zfs/sys/vdev_os.h \
 	%D%/zfs/sys/zfs_bootenv_os.h \
 	%D%/zfs/sys/zfs_context_os.h \

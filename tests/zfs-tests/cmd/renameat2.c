@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /* SPDX-License-Identifier: CDDL-1.0 OR MPL-2.0 */
 /*
  * CDDL HEADER START

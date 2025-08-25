@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -64,11 +65,6 @@ typedef	uint32_t	size32_t;
 typedef	int32_t		ssize32_t;
 typedef	int32_t		time32_t;
 typedef	int32_t		clock32_t;
-
-struct timeval32 {
-	time32_t	tv_sec;		/* seconds */
-	int32_t		tv_usec;	/* and microseconds */
-};
 
 typedef struct timespec32 {
 	time32_t	tv_sec;		/* seconds */

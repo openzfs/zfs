@@ -1,0 +1,77 @@
+name: zloop
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  zloop:
+    runs-on: ubuntu-24.04
+    env:
+      WORK_DIR: /mnt/zloop
+      CORE_DIR: /mnt/zloop/cores
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Install dependencies
+      run: |
+        sudo apt-get purge -y snapd google-chrome-stable firefox
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+    - name: Autogen.sh
+      run: |
+        sed -i '/DEBUG_CFLAGS="-Werror"/s/^/#/' config/zfs-build.m4
+        ./autogen.sh
+    - name: Configure
+      run: |
+        ./configure --prefix=/usr --enable-debug --enable-debuginfo \
+           --enable-asan --enable-ubsan \
+           --enable-debug-kmem --enable-debug-kmem-tracking
+    - name: Make
+      run: |
+        make -j$(nproc)
+    - name: Install
+      run: |
+        sudo make install
+        sudo depmod
+        sudo modprobe zfs
+    - name: Tests
+      run: |
+        sudo truncate -s 256G /mnt/vdev
+        sudo zpool create cipool -m $WORK_DIR -O compression=on -o autotrim=on /mnt/vdev
+        sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -c $CORE_DIR -f $WORK_DIR -- -T 120 -P 60
+    - name: Prepare artifacts
+      if: failure()
+      run: |
+        sudo chmod +r -R $WORK_DIR/
+    - name: Ztest log
+      if: failure()
+      run: |
+        grep -B10 -A1000 'ASSERT' $CORE_DIR/*/ztest.out || tail -n 1000 $CORE_DIR/*/ztest.out
+    - name: Gdb log
+      if: failure()
+      run: |
+        sed -n '/Backtraces (full)/q;p' $CORE_DIR/*/ztest.gdb
+    - name: Zdb log
+      if: failure()
+      run: |
+        cat $CORE_DIR/*/ztest.zdb
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Logs
+        path: |
+          /mnt/zloop/*/
+          !/mnt/zloop/cores/*/vdev/
+        if-no-files-found: ignore
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Pool files
+        path: |
+          /mnt/zloop/cores/*/vdev/
+        if-no-files-found: ignore

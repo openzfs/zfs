@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -91,8 +92,10 @@
  * Treat shim tasks as SCHED_NORMAL tasks
  */
 #define	minclsyspri			(MAX_PRIO-1)
-#define	maxclsyspri			(MAX_RT_PRIO)
 #define	defclsyspri			(DEFAULT_PRIO)
+/* Write issue taskq priority. */
+#define	wtqclsyspri			(MAX_RT_PRIO + 1)
+#define	maxclsyspri			(MAX_RT_PRIO)
 
 #ifndef NICE_TO_PRIO
 #define	NICE_TO_PRIO(nice)		(MAX_RT_PRIO + (nice) + 20)
@@ -159,7 +162,8 @@ makedev(unsigned int major, unsigned int minor)
 /*
  * Compatibility macros/typedefs needed for Solaris -> Linux port
  */
-#define	P2ALIGN(x, align)	((x) & -(align))
+// Deprecated. Use P2ALIGN_TYPED instead.
+// #define	P2ALIGN(x, align)	((x) & -(align))
 #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
 #define	P2ROUNDUP(x, align)	((((x) - 1) | ((align) - 1)) + 1)
 #define	P2PHASE(x, align)	((x) & ((align) - 1))

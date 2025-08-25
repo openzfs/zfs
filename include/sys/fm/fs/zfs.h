@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -42,6 +43,8 @@ extern "C" {
 #define	FM_EREPORT_ZFS_DATA			"data"
 #define	FM_EREPORT_ZFS_DELAY			"delay"
 #define	FM_EREPORT_ZFS_DEADMAN			"deadman"
+#define	FM_EREPORT_ZFS_DIO_VERIFY_WR		"dio_verify_wr"
+#define	FM_EREPORT_ZFS_DIO_VERIFY_RD		"dio_verify_rd"
 #define	FM_EREPORT_ZFS_POOL			"zpool"
 #define	FM_EREPORT_ZFS_DEVICE_UNKNOWN		"vdev.unknown"
 #define	FM_EREPORT_ZFS_DEVICE_OPEN_FAILED	"vdev.open_failed"
@@ -82,6 +85,9 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_CKSUM_T	"vdev_cksum_t"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_N	"vdev_io_n"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_T	"vdev_io_t"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_N	"vdev_slow_io_n"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_T	"vdev_slow_io_t"
+#define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DIO_VERIFY_ERRORS "dio_verify_errors"
 #define	FM_EREPORT_PAYLOAD_ZFS_VDEV_DELAYS	"vdev_delays"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_GUID	"parent_guid"
 #define	FM_EREPORT_PAYLOAD_ZFS_PARENT_TYPE	"parent_type"
@@ -97,6 +103,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS	"zio_flags"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_STAGE	"zio_stage"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY	"zio_priority"
+#define	FM_EREPORT_PAYLOAD_ZFS_ZIO_TYPE		"zio_type"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE	"zio_pipeline"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DELAY	"zio_delay"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP	"zio_timestamp"

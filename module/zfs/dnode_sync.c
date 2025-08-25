@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -208,8 +209,8 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
-		ASSERT(err == 0);
-		ASSERT(child->db_level == 0);
+		ASSERT0(err);
+		ASSERT0(child->db_level);
 		dr = dbuf_find_dirty_eq(child, txg);
 
 		/* data_old better be zeroed */
@@ -512,6 +513,7 @@ dnode_evict_dbufs(dnode_t *dn)
 			avl_remove(&dn->dn_dbufs, db_marker);
 		} else {
 			db->db_pending_evict = TRUE;
+			db->db_partial_read = FALSE;
 			mutex_exit(&db->db_mtx);
 			db_next = AVL_NEXT(&dn->dn_dbufs, db);
 		}
@@ -566,7 +568,7 @@ dnode_undirty_dbufs(list_t *list)
 			mutex_destroy(&dr->dt.di.dr_mtx);
 			list_destroy(&dr->dt.di.dr_children);
 		}
-		kmem_free(dr, sizeof (dbuf_dirty_record_t));
+		kmem_cache_free(dbuf_dirty_kmem_cache, dr);
 		dbuf_rele_and_unlock(db, (void *)(uintptr_t)txg, B_FALSE);
 	}
 }
@@ -720,7 +722,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		    dn->dn_maxblkid == 0 || list_head(list) != NULL ||
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT ==
 		    dnp->dn_datablkszsec ||
-		    !range_tree_is_empty(dn->dn_free_ranges[txgoff]));
+		    !zfs_range_tree_is_empty(dn->dn_free_ranges[txgoff]));
 		dnp->dn_datablkszsec =
 		    dn->dn_next_blksz[txgoff] >> SPA_MINBLOCKSHIFT;
 		dn->dn_next_blksz[txgoff] = 0;
@@ -786,21 +788,22 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dsfra.dsfra_free_indirects = freeing_dnode;
 		mutex_enter(&dn->dn_mtx);
 		if (freeing_dnode) {
-			ASSERT(range_tree_contains(dn->dn_free_ranges[txgoff],
-			    0, dn->dn_maxblkid + 1));
+			ASSERT(zfs_range_tree_contains(
+			    dn->dn_free_ranges[txgoff], 0,
+			    dn->dn_maxblkid + 1));
 		}
 		/*
 		 * Because dnode_sync_free_range() must drop dn_mtx during its
-		 * processing, using it as a callback to range_tree_vacate() is
-		 * not safe.  No other operations (besides destroy) are allowed
-		 * once range_tree_vacate() has begun, and dropping dn_mtx
-		 * would leave a window open for another thread to observe that
-		 * invalid (and unsafe) state.
+		 * processing, using it as a callback to zfs_range_tree_vacate()
+		 * is not safe. No other operations (besides destroy) are
+		 * allowed once zfs_range_tree_vacate() has begun, and dropping
+		 * dn_mtx would leave a window open for another thread to
+		 * observe that invalid (and unsafe) state.
 		 */
-		range_tree_walk(dn->dn_free_ranges[txgoff],
+		zfs_range_tree_walk(dn->dn_free_ranges[txgoff],
 		    dnode_sync_free_range, &dsfra);
-		range_tree_vacate(dn->dn_free_ranges[txgoff], NULL, NULL);
-		range_tree_destroy(dn->dn_free_ranges[txgoff]);
+		zfs_range_tree_vacate(dn->dn_free_ranges[txgoff], NULL, NULL);
+		zfs_range_tree_destroy(dn->dn_free_ranges[txgoff]);
 		dn->dn_free_ranges[txgoff] = NULL;
 		mutex_exit(&dn->dn_mtx);
 	}
@@ -865,7 +868,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
 
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
-		ASSERT3P(list_head(list), ==, NULL);
+		ASSERT0P(list_head(list));
 		dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	}
 

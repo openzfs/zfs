@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -29,6 +30,11 @@
 #include_next <sys/stat.h>
 
 #include <sys/mount.h> /* for BLKGETSIZE64 */
+
+#ifdef HAVE_STATX
+#include <fcntl.h>
+#include <linux/stat.h>
+#endif
 
 /*
  * Emulate Solaris' behavior of returning the block device size in fstat64().

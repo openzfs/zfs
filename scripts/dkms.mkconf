@@ -26,6 +26,7 @@ PACKAGE_VERSION="${pkgver}"
 PACKAGE_CONFIG="${pkgcfg}"
 NO_WEAK_MODULES="yes"
 PRE_BUILD="configure
+  --disable-dependency-tracking
   --prefix=/usr
   --with-config=kernel
   --with-linux=\$(

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -310,6 +311,7 @@ xva_getxoptattr(xvattr_t *xvap)
  */
 #define	V_ACE_MASK	0x1	/* mask represents  NFSv4 ACE permissions */
 #define	V_APPEND	0x2	/* want to do append only check */
+#define	V_NAMEDATTR	0x4	/* is a named attribute check */
 
 /*
  * Structure used on VOP_GETSECATTR and VOP_SETSECATTR operations

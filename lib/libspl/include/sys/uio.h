@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -57,8 +58,7 @@ typedef enum zfs_uio_rw {
 } zfs_uio_rw_t;
 
 typedef enum zfs_uio_seg {
-	UIO_USERSPACE =	0,
-	UIO_SYSSPACE =	1,
+	UIO_SYSSPACE =	0,
 } zfs_uio_seg_t;
 
 #elif defined(__FreeBSD__)
@@ -81,6 +81,32 @@ typedef struct zfs_uio {
 #define	zfs_uio_iovcnt(uio)		(uio)->uio_iovcnt
 #define	zfs_uio_iovlen(uio, idx)	(uio)->uio_iov[(idx)].iov_len
 #define	zfs_uio_iovbase(uio, idx)	(uio)->uio_iov[(idx)].iov_base
+
+static inline boolean_t
+zfs_dio_page_aligned(void *buf)
+{
+	return ((((unsigned long)(buf) & (PAGESIZE - 1)) == 0) ?
+	    B_TRUE : B_FALSE);
+}
+
+static inline boolean_t
+zfs_dio_offset_aligned(uint64_t offset, uint64_t blksz)
+{
+	return ((IS_P2ALIGNED(offset, blksz)) ? B_TRUE : B_FALSE);
+}
+
+static inline boolean_t
+zfs_dio_size_aligned(uint64_t size, uint64_t blksz)
+{
+	return (((size % blksz) == 0) ? B_TRUE : B_FALSE);
+}
+
+static inline boolean_t
+zfs_dio_aligned(uint64_t offset, uint64_t size, uint64_t blksz)
+{
+	return ((zfs_dio_offset_aligned(offset, blksz) &&
+	    zfs_dio_size_aligned(size, blksz)) ? B_TRUE : B_FALSE);
+}
 
 static inline void
 zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)

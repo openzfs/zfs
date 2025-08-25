@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -418,8 +419,6 @@ icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 	int i, cnt = 0;
 	char *fmt;
 	const uint32_t impl = AES_IMPL_READ(icp_aes_impl);
-
-	ASSERT(aes_impl_initialized);
 
 	/* list mandatory options */
 	for (i = 0; i < ARRAY_SIZE(aes_impl_opts); i++) {

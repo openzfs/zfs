@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -272,7 +273,7 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 	ASSERT(zp->z_unlinked);
-	ASSERT3U(zp->z_links, ==, 0);
+	ASSERT0(zp->z_links);
 
 	VERIFY0(zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 
@@ -287,7 +288,7 @@ void
 zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 {
 	zap_cursor_t	zc;
-	zap_attribute_t zap;
+	zap_attribute_t *zap;
 	dmu_object_info_t doi;
 	znode_t		*zp;
 	dmu_tx_t	*tx;
@@ -296,8 +297,9 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 	/*
 	 * Iterate over the contents of the unlinked set.
 	 */
+	zap = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, zfsvfs->z_os, zfsvfs->z_unlinkedobj);
-	    zap_cursor_retrieve(&zc, &zap) == 0;
+	    zap_cursor_retrieve(&zc, zap) == 0;
 	    zap_cursor_advance(&zc)) {
 
 		/*
@@ -305,7 +307,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		 */
 
 		error = dmu_object_info(zfsvfs->z_os,
-		    zap.za_first_integer, &doi);
+		    zap->za_first_integer, &doi);
 		if (error != 0)
 			continue;
 
@@ -315,7 +317,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		 * We need to re-mark these list entries for deletion,
 		 * so we pull them back into core and set zp->z_unlinked.
 		 */
-		error = zfs_zget(zfsvfs, zap.za_first_integer, &zp);
+		error = zfs_zget(zfsvfs, zap->za_first_integer, &zp);
 
 		/*
 		 * We may pick up znodes that are already marked for deletion.
@@ -335,7 +337,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		if (zp->z_links != 0) {
 			tx = dmu_tx_create(zfsvfs->z_os);
 			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
-			error = dmu_tx_assign(tx, TXG_WAIT);
+			error = dmu_tx_assign(tx, DMU_TX_WAIT);
 			if (error != 0) {
 				dmu_tx_abort(tx);
 				vput(ZTOV(zp));
@@ -351,6 +353,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		vput(ZTOV(zp));
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 }
 
 /*
@@ -368,18 +371,19 @@ static int
 zfs_purgedir(znode_t *dzp)
 {
 	zap_cursor_t	zc;
-	zap_attribute_t	zap;
+	zap_attribute_t	*zap;
 	znode_t		*xzp;
 	dmu_tx_t	*tx;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	int skipped = 0;
 	int error;
 
+	zap = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, zfsvfs->z_os, dzp->z_id);
-	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
+	    (error = zap_cursor_retrieve(&zc, zap)) == 0;
 	    zap_cursor_advance(&zc)) {
 		error = zfs_zget(zfsvfs,
-		    ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp);
+		    ZFS_DIRENT_OBJ(zap->za_first_integer), &xzp);
 		if (error) {
 			skipped += 1;
 			continue;
@@ -391,13 +395,13 @@ zfs_purgedir(znode_t *dzp)
 
 		tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, dzp->z_sa_hdl, B_FALSE);
-		dmu_tx_hold_zap(tx, dzp->z_id, FALSE, zap.za_name);
+		dmu_tx_hold_zap(tx, dzp->z_id, FALSE, zap->za_name);
 		dmu_tx_hold_sa(tx, xzp->z_sa_hdl, B_FALSE);
 		dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 		/* Is this really needed ? */
 		zfs_sa_upgrade_txholds(tx, xzp);
 		dmu_tx_mark_netfree(tx);
-		error = dmu_tx_assign(tx, TXG_WAIT);
+		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error) {
 			dmu_tx_abort(tx);
 			vput(ZTOV(xzp));
@@ -405,7 +409,7 @@ zfs_purgedir(znode_t *dzp)
 			continue;
 		}
 
-		error = zfs_link_destroy(dzp, zap.za_name, xzp, tx, 0, NULL);
+		error = zfs_link_destroy(dzp, zap->za_name, xzp, tx, 0, NULL);
 		if (error)
 			skipped += 1;
 		dmu_tx_commit(tx);
@@ -413,6 +417,7 @@ zfs_purgedir(znode_t *dzp)
 		vput(ZTOV(xzp));
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 	if (error != ENOENT)
 		skipped += 1;
 	return (skipped);
@@ -432,7 +437,7 @@ zfs_rmnode(znode_t *zp)
 	uint64_t	count;
 	int		error;
 
-	ASSERT3U(zp->z_links, ==, 0);
+	ASSERT0(zp->z_links);
 	if (zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
 
@@ -498,7 +503,7 @@ zfs_rmnode(znode_t *zp)
 		dmu_tx_hold_free(tx, acl_obj, 0, DMU_OBJECT_END);
 
 	zfs_sa_upgrade_txholds(tx, zp);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		/*
 		 * Not enough space to delete the file.  Leave it in the
@@ -543,6 +548,7 @@ zfs_rmnode(znode_t *zp)
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
 	zfs_znode_delete(zp, tx);
+	zfs_znode_free(zp);
 
 	dmu_tx_commit(tx);
 
@@ -620,6 +626,15 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		if (!(flag & ZRENAMING) && !(flag & ZNEW))
 			zp->z_links--;
 		return (error);
+	}
+
+	/*
+	 * If we added a longname activate the SPA_FEATURE_LONGNAME.
+	 */
+	if (strlen(name) >= ZAP_MAXNAMELEN) {
+		dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
+		ds->ds_feature_activation[SPA_FEATURE_LONGNAME] =
+		    (void *)B_TRUE;
 	}
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,
@@ -818,12 +833,12 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
 	    &acl_ids, NULL)) != 0)
 		return (error);
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, 0)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zp->z_projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		return (SET_ERROR(EDQUOT));
 	}
 
-	getnewvnode_reserve_();
+	getnewvnode_reserve();
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
@@ -833,7 +848,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
-	error = dmu_tx_assign(tx, TXG_WAIT);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_abort(tx);
@@ -925,7 +940,7 @@ top:
 		goto top;
 	}
 	if (error == 0)
-		VOP_UNLOCK1(ZTOV(*xzpp));
+		VOP_UNLOCK(ZTOV(*xzpp));
 
 	return (error);
 }

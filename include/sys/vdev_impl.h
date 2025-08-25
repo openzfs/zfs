@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -22,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2023, Klara Inc.
  */
 
 #ifndef _SYS_VDEV_IMPL_H
@@ -34,7 +36,6 @@
 #include <sys/nvpair.h>
 #include <sys/space_map.h>
 #include <sys/vdev.h>
-#include <sys/dkio.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/vdev_indirect_births.h>
@@ -58,10 +59,6 @@ extern "C" {
  */
 typedef struct vdev_queue vdev_queue_t;
 struct abd;
-
-extern uint_t zfs_vdev_queue_depth_pct;
-extern uint_t zfs_vdev_def_queue_depth;
-extern uint_t zfs_vdev_async_write_max_active;
 
 /*
  * Virtual device operations
@@ -91,8 +88,8 @@ typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
  */
-typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *logical,
-    range_seg64_t *physical, range_seg64_t *remain);
+typedef void vdev_xlation_func_t(vdev_t *cvd, const zfs_range_seg64_t *logical,
+    zfs_range_seg64_t *physical, zfs_range_seg64_t *remain);
 typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
 typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
@@ -106,7 +103,8 @@ typedef const struct vdev_ops {
 	vdev_fini_func_t		*vdev_op_fini;
 	vdev_open_func_t		*vdev_op_open;
 	vdev_close_func_t		*vdev_op_close;
-	vdev_asize_func_t		*vdev_op_asize;
+	vdev_asize_func_t		*vdev_op_psize_to_asize;
+	vdev_asize_func_t		*vdev_op_asize_to_psize;
 	vdev_min_asize_func_t		*vdev_op_min_asize;
 	vdev_min_alloc_func_t		*vdev_op_min_alloc;
 	vdev_io_start_func_t		*vdev_op_io_start;
@@ -273,7 +271,7 @@ struct vdev {
 	txg_list_t	vdev_dtl_list;	/* per-txg dirty DTL lists	*/
 	txg_node_t	vdev_txg_node;	/* per-txg dirty vdev linkage	*/
 	boolean_t	vdev_remove_wanted; /* async remove wanted?	*/
-	boolean_t	vdev_probe_wanted; /* async probe wanted?	*/
+	boolean_t	vdev_fault_wanted; /* async faulted wanted?	*/
 	list_node_t	vdev_config_dirty_node; /* config dirty list	*/
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
@@ -299,7 +297,8 @@ struct vdev {
 	kcondvar_t	vdev_initialize_cv;
 	uint64_t	vdev_initialize_offset[TXG_SIZE];
 	uint64_t	vdev_initialize_last_offset;
-	range_tree_t	*vdev_initialize_tree;	/* valid while initializing */
+	/* valid while initializing */
+	zfs_range_tree_t	*vdev_initialize_tree;
 	uint64_t	vdev_initialize_bytes_est;
 	uint64_t	vdev_initialize_bytes_done;
 	uint64_t	vdev_initialize_action_time;	/* start and end time */
@@ -375,7 +374,7 @@ struct vdev {
 	 * from multiple zio threads.
 	 */
 	kmutex_t	vdev_obsolete_lock;
-	range_tree_t	*vdev_obsolete_segments;
+	zfs_range_tree_t	*vdev_obsolete_segments;
 	space_map_t	*vdev_obsolete_sm;
 
 	/*
@@ -388,7 +387,7 @@ struct vdev {
 	/*
 	 * Leaf vdev state.
 	 */
-	range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs	*/
+	zfs_range_tree_t	*vdev_dtl[DTL_TYPES]; /* dirty time logs */
 	space_map_t	*vdev_dtl_sm;	/* dirty time log space map	*/
 	txg_node_t	vdev_dtl_node;	/* per-txg dirty DTL linkage	*/
 	uint64_t	vdev_dtl_object; /* DTL object			*/
@@ -448,18 +447,25 @@ struct vdev {
 	/*
 	 * We rate limit ZIO delay, deadman, and checksum events, since they
 	 * can flood ZED with tons of events when a drive is acting up.
+	 *
+	 * We also rate limit Direct I/O write verify errors, since a user might
+	 * be continually manipulating a buffer that can flood ZED with tons of
+	 * events.
 	 */
 	zfs_ratelimit_t vdev_delay_rl;
 	zfs_ratelimit_t vdev_deadman_rl;
+	zfs_ratelimit_t vdev_dio_verify_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 
 	/*
-	 * Checksum and IO thresholds for tuning ZED
+	 * Vdev properties for tuning ZED or zfsd
 	 */
 	uint64_t	vdev_checksum_n;
 	uint64_t	vdev_checksum_t;
 	uint64_t	vdev_io_n;
 	uint64_t	vdev_io_t;
+	uint64_t	vdev_slow_io_n;
+	uint64_t	vdev_slow_io_t;
 };
 
 #define	VDEV_PAD_SIZE		(8 << 10)
@@ -608,13 +614,13 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
-extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
-    range_seg64_t *physical_rs, range_seg64_t *remain_rs);
+extern void vdev_default_xlate(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
+    zfs_range_seg64_t *physical_rs, zfs_range_seg64_t *remain_rs);
+extern uint64_t vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg);
 extern uint64_t vdev_default_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
-extern uint64_t vdev_get_min_alloc(vdev_t *vd);
 extern uint64_t vdev_get_nparity(vdev_t *vd);
 extern uint64_t vdev_get_ndisks(vdev_t *vd);
 
@@ -638,6 +644,11 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
 uint64_t vdev_best_ashift(uint64_t logical, uint64_t a, uint64_t b);
+#if defined(__linux__) && defined(_KERNEL)
+int param_get_raidz_impl(char *buf, zfs_kernel_param_t *kp);
+#endif
+int param_set_raidz_impl(ZFS_MODULE_PARAM_ARGS);
+char *vdev_rt_name(vdev_t *vd, const char *name);
 
 /*
  * Vdev ashift optimization tunables
@@ -646,6 +657,11 @@ extern uint_t zfs_vdev_min_auto_ashift;
 extern uint_t zfs_vdev_max_auto_ashift;
 int param_set_min_auto_ashift(ZFS_MODULE_PARAM_ARGS);
 int param_set_max_auto_ashift(ZFS_MODULE_PARAM_ARGS);
+
+/*
+ * VDEV checksum verification for Direct I/O writes
+ */
+extern uint_t zfs_vdev_direct_write_verify;
 
 #ifdef	__cplusplus
 }

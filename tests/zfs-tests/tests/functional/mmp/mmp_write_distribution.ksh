@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -47,7 +48,6 @@ log_assert "mmp writes are evenly distributed across leaf vdevs"
 log_onexit cleanup
 
 MMP_HISTORY_TMP=$MMP_DIR/history
-MMP_HISTORY=/proc/spl/kstat/zfs/$MMP_POOL/multihost
 
 # Step 1
 log_must mkdir -p $MMP_DIR
@@ -69,7 +69,7 @@ typeset -i min_writes=999
 typeset -i max_writes=0
 typeset -i write_count
 # copy to get as close to a consistent view as possible
-cp $MMP_HISTORY $MMP_HISTORY_TMP
+kstat_pool $MMP_POOL multihost > $MMP_HISTORY_TMP
 for x in {0..7}; do
 	write_count=$(grep -c file.${x} $MMP_HISTORY_TMP)
 	if [ $write_count -lt $min_writes ]; then

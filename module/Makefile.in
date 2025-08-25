@@ -55,6 +55,9 @@ modules-Linux:
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
+		$(if @KERNEL_CROSS_COMPILE@,CROSS_COMPILE=@KERNEL_CROSS_COMPILE@) \
+		$(if @KERNEL_ARCH@,ARCH=@KERNEL_ARCH@) \
+		$(if @OBJTOOL_DISABLE_WERROR@,objtool=@abs_top_builddir@/scripts/objtool-wrapper) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
 modules-FreeBSD:
@@ -88,9 +91,10 @@ modules_install-Linux: modules_uninstall-Linux-legacy
 	$(MAKE) -C @LINUX_OBJ@ M="$$PWD" modules_install \
 		INSTALL_MOD_PATH=$(INSTALL_MOD_PATH) \
 		INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) \
+		$(if @KERNEL_ARCH@,ARCH=@KERNEL_ARCH@) \
 		KERNELRELEASE=@LINUX_VERSION@
 	@# Remove extraneous build products when packaging
-	if [ -n "$(DESTDIR)" ]; then \
+	if [ -n "$(DESTDIR)" ] && [ "$(DONT_DELETE_MODULES_FILES)" != "1" ]; then \
 		find $(KMODDIR) -name 'modules.*' -delete; \
 	fi
 	@# Debian ships tiny fake System.map files that are
@@ -103,7 +107,7 @@ modules_install-Linux: modules_uninstall-Linux-legacy
 	{ [ -f "$$sysmap" ] && [ $$(wc -l < "$$sysmap") -ge 100 ]; } || \
 		sysmap=$(INSTALL_MOD_PATH)/usr/lib/debug/boot/System.map-@LINUX_VERSION@; \
 	if [ -f $$sysmap ]; then \
-		depmod -ae -F $$sysmap @LINUX_VERSION@; \
+		depmod -ae -F $$sysmap @LINUX_VERSION@ -b $(INSTALL_MOD_PATH)/; \
 	fi
 
 modules_install-FreeBSD:

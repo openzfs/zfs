@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -29,10 +30,6 @@
 . $STF_SUITE/tests/functional/block_cloning/block_cloning.kshlib
 
 verify_runnable "global"
-
-if is_linux && [[ $(linux_version) -lt $(linux_version "4.5") ]]; then
-  log_unsupported "copy_file_range not available before Linux 4.5"
-fi
 
 claim="copy_file_range will fall back to copy when cloning not possible."
 

@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -50,7 +51,7 @@ function dev_checksum
 
 	log_note "Compute checksum of '$dev'"
 
-	md5digest $dev ||
+	xxh128digest $dev ||
 		log_fail "Failed to compute checksum of '$dev'"
 }
 

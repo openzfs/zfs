@@ -1,7 +1,9 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
+.\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -15,7 +17,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd July 21, 2023
+.Dd May 29, 2025
 .Dt ZFS 4
 .Os
 .
@@ -76,13 +78,20 @@ the array is dynamically sized based on total system memory.
 dnode slots allocated in a single operation as a power of 2.
 The default value minimizes lock contention for the bulk operation performed.
 .
+.It Sy dmu_ddt_copies Ns = Ns Sy 3 Pq uint
+Controls the number of copies stored for DeDup Table
+.Pq DDT
+objects.
+Reducing the number of copies to 1 from the previous default of 3
+can reduce the write inflation caused by deduplication.
+This assumes redundancy for this data is provided by the vdev layer.
+If the DDT is damaged, space may be leaked
+.Pq not freed
+when the DDT can not report the correct reference count.
+.
 .It Sy dmu_prefetch_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Limit the amount we can prefetch with one call to this amount in bytes.
 This helps to limit the amount of memory that can be used by prefetching.
-.
-.It Sy ignore_hole_birth Pq int
-Alias for
-.Sy send_holes_without_birth_time .
 .
 .It Sy l2arc_feed_again Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Turbo L2ARC warm-up.
@@ -120,19 +129,25 @@ Controls whether buffers present on special vdevs are eligible for caching
 into L2ARC.
 If set to 1, exclude dbufs on special vdevs from being cached to L2ARC.
 .
-.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Pq  int
+.It Sy l2arc_mfuonly Ns = Ns Sy 0 Ns | Ns 1 Ns | Ns 2 Pq int
 Controls whether only MFU metadata and data are cached from ARC into L2ARC.
 This may be desired to avoid wasting space on L2ARC when reading/writing large
 amounts of data that are not expected to be accessed more than once.
 .Pp
-The default is off,
+The default is 0,
 meaning both MRU and MFU data and metadata are cached.
-When turning off this feature, some MRU buffers will still be present
-in ARC and eventually cached on L2ARC.
+When turning off this feature (setting it to 0), some MRU buffers will
+still be present in ARC and eventually cached on L2ARC.
 .No If Sy l2arc_noprefetch Ns = Ns Sy 0 ,
 some prefetched buffers will be cached to L2ARC, and those might later
 transition to MRU, in which case the
 .Sy l2arc_mru_asize No arcstat will not be Sy 0 .
+.Pp
+Setting it to 1 means to L2 cache only MFU data and metadata.
+.Pp
+Setting it to 2 means to L2 cache all metadata (MRU+MFU) but
+only MFU data (i.e. MRU data are not cached). This can be the right setting
+to cache as much metadata as possible even when having high data turnover.
 .Pp
 Regardless of
 .Sy l2arc_noprefetch ,
@@ -216,7 +231,7 @@ in reading stored log metadata, or the metadata
 has become somehow fragmented/unusable).
 .
 .It Sy l2arc_rebuild_blocks_min_l2size Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
-Mininum size of an L2ARC device required in order to write log blocks in it.
+Minimum size of an L2ARC device required in order to write log blocks in it.
 The log blocks are used upon importing the pool to rebuild the persistent L2ARC.
 .Pp
 For L2ARC devices less than 1 GiB, the amount of data
@@ -224,16 +239,26 @@ For L2ARC devices less than 1 GiB, the amount of data
 evicts is significant compared to the amount of restored L2ARC data.
 In this case, do not write log blocks in L2ARC in order not to waste space.
 .
-.It Sy metaslab_aliquot Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
-Metaslab granularity, in bytes.
+.It Sy metaslab_aliquot Ns = Ns Sy 2097152 Ns B Po 2 MiB Pc Pq u64
+Metaslab group's per child vdev allocation granularity, in bytes.
 This is roughly similar to what would be referred to as the "stripe size"
 in traditional RAID arrays.
-In normal operation, ZFS will try to write this amount of data to each disk
-before moving on to the next top-level vdev.
+In normal operation, ZFS will try to write this amount of data to each child
+of a top-level vdev before moving on to the next top-level vdev.
 .
 .It Sy metaslab_bias_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable metaslab group biasing based on their vdevs' over- or under-utilization
-relative to the pool.
+Enable metaslab groups biasing based on their over- or under-utilization
+relative to the metaslab class average.
+If disabled, each metaslab group will receive allocations proportional to its
+capacity.
+.
+.It Sy metaslab_perf_bias Ns = Ns Sy 1 Ns | Ns 0 Ns | Ns 2 Pq int
+Controls metaslab groups biasing based on their write performance.
+Setting to 0 makes all metaslab groups receive fixed amounts of allocations.
+Setting to 2 allows faster metaslab groups to allocate more.
+Setting to 1 equals to 2 if the pool is write-bound or 0 otherwise.
+That is, if the pool is limited by write throughput, then allocate more from
+faster metaslab groups, but if not, try to evenly distribute the allocations.
 .
 .It Sy metaslab_force_ganging Ns = Ns Sy 16777217 Ns B Po 16 MiB + 1 B Pc Pq u64
 Make some blocks above a certain size be gang blocks.
@@ -244,12 +269,25 @@ For blocks that could be forced to be a gang block (due to
 .Sy metaslab_force_ganging ) ,
 force this many of them to be gang blocks.
 .
-.It Sy zfs_ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Controls prefetching BRT records for blocks which are going to be cloned.
+.
+.It Sy brt_zap_default_bs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP data block size as a power of 2. Note that changing this after
+creating a BRT on the pool will not affect existing BRTs, only newly created
+ones.
+.
+.It Sy brt_zap_default_ibs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+Default BRT ZAP indirect block size as a power of 2. Note that changing this
+after creating a BRT on the pool will not affect existing BRTs, only newly
+created ones.
+.
+.It Sy ddt_zap_default_bs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP data block size as a power of 2. Note that changing this after
 creating a DDT on the pool will not affect existing DDTs, only newly created
 ones.
 .
-.It Sy zfs_ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
+.It Sy ddt_zap_default_ibs Ns = Ns Sy 15 Po 32 KiB Pc Pq int
 Default DDT ZAP indirect block size as a power of 2. Note that changing this
 after creating a DDT on the pool will not affect existing DDTs, only newly
 created ones.
@@ -259,6 +297,19 @@ Default dnode block size as a power of 2.
 .
 .It Sy zfs_default_ibs Ns = Ns Sy 17 Po 128 KiB Pc Pq int
 Default dnode indirect block size as a power of 2.
+.
+.It Sy zfs_dio_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Enable Direct I/O.
+If this setting is 0, then all I/O requests will be directed through the ARC
+acting as though the dataset property
+.Sy direct
+was set to
+.Sy disabled .
+.
+.It Sy zfs_dio_strict Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Strictly enforce alignment for Direct I/O requests, returning
+.Sy EINVAL
+if not page-aligned instead of silently falling back to uncached I/O.
 .
 .It Sy zfs_history_output_max Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 When attempting to log an output nvlist of an ioctl in the on-disk history,
@@ -385,6 +436,26 @@ May be increased up to
 .Sy ASHIFT_MAX Po 16 Pc ,
 but this may negatively impact pool space efficiency.
 .
+.It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
+If non-zero, then a Direct I/O write's checksum will be verified every
+time the write is issued and before it is committed to the block pointer.
+In the event the checksum is not valid then the I/O operation will return EIO.
+This module parameter can be used to detect if the
+contents of the users buffer have changed in the process of doing a Direct I/O
+write.
+It can also help to identify if reported checksum errors are tied to Direct I/O
+writes.
+Each verify error causes a
+.Sy dio_verify_wr
+zevent.
+Direct Write I/O checksum verify errors can be seen with
+.Nm zpool Cm status Fl d .
+The default value for this is 1 on Linux, but is 0 for
+.Fx
+because user pages can be placed under write protection in
+.Fx
+before the Direct I/O write is issued.
+.
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq uint
 Minimum ashift used when creating new top-level vdevs.
 .
@@ -510,11 +581,18 @@ most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
 .It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
-Determines the number of block alloctators to use per spa instance.
-Capped by the number of actual CPUs in the system.
+Determines the number of block allocators to use per spa instance.
+Capped by the number of actual CPUs in the system via
+.Sy spa_cpus_per_allocator .
 .Pp
 Note that setting this value too high could result in performance
-degredation and/or excess fragmentation.
+degradation and/or excess fragmentation.
+Set value only applies to pools imported/created after that.
+.
+.It Sy spa_cpus_per_allocator Ns = Ns Sy 4 Pq int
+Determines the minimum number of CPUs in a system for block allocator
+per spa instance.
+Set value only applies to pools imported/created after that.
 .
 .It Sy spa_upgrade_errlog_limit Ns = Ns Sy 0 Pq uint
 Limits the number of on-disk error log entries that will be converted to the
@@ -548,7 +626,14 @@ However, this is limited by
 .
 .It Sy zap_micro_max_size Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
 Maximum micro ZAP size.
-A micro ZAP is upgraded to a fat ZAP, once it grows beyond the specified size.
+A "micro" ZAP is upgraded to a "fat" ZAP once it grows beyond the specified
+size.
+Sizes higher than 128KiB will be clamped to 128KiB unless the
+.Sy large_microzap
+feature is enabled.
+.
+.It Sy zap_shrink_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+If set, adjacent empty ZAP blocks will be collapsed, reducing disk space.
 .
 .It Sy zfetch_min_distance Ns = Ns Sy 4194304 Ns B Po 4 MiB Pc Pq uint
 Min bytes to prefetch per stream.
@@ -563,6 +648,13 @@ Max bytes to prefetch per stream.
 .
 .It Sy zfetch_max_idistance Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq uint
 Max bytes to prefetch indirects for per stream.
+.
+.It Sy zfetch_max_reorder Ns = Ns Sy 16777216 Ns B Po 16 MiB Pc Pq uint
+Requests within this byte distance from the current prefetch stream position
+are considered parts of the stream, reordered due to parallel processing.
+Such requests do not advance the stream position immediately unless
+.Sy zfetch_hole_shift
+fill threshold is reached, but saved to fill holes in the stream later.
 .
 .It Sy zfetch_max_streams Ns = Ns Sy 8 Pq uint
 Max number of streams per zfetch (prefetch streams per file).
@@ -641,6 +733,40 @@ even during the potentially long time that
 Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
+.
+.It Sy zfs_arc_evict_threads Ns = Ns Sy 0 Pq int
+Sets the number of ARC eviction threads to be used.
+.Pp
+If set greater than 0, ZFS will dedicate up to that many threads to ARC
+eviction.
+Each thread will process one sub-list at a time,
+until the eviction target is reached or all sub-lists have been processed.
+When set to 0, ZFS will compute a reasonable number of eviction threads based
+on the number of CPUs.
+.TS
+box;
+lb l l .
+	CPUs	Threads
+_
+	1-4	1
+	5-8	2
+	9-15	3
+	16-31	4
+	32-63	6
+	64-95	8
+	96-127	9
+	128-160	11
+	160-191	12
+	192-223	13
+	224-255	14
+	256+	16
+.TE
+.Pp
+More threads may improve the responsiveness of ZFS to memory pressure.
+This can be important for performance when eviction from the ARC becomes
+a bottleneck for reads and writes.
+.Pp
+This parameter can only be set at module load time.
 .
 .It Sy zfs_arc_grow_retry Ns = Ns Sy 0 Ns s Pq uint
 If set to a non zero value, it will replace the
@@ -779,19 +905,22 @@ pressure on the pagecache, yet still allows the ARC to be reclaimed down to
 .Sy zfs_arc_min
 if necessary.
 This value is specified as percent of pagecache size (as measured by
-.Sy NR_FILE_PAGES ) ,
+.Sy NR_ACTIVE_FILE
++
+.Sy NR_INACTIVE_FILE ) ,
 where that percent may exceed
 .Sy 100 .
 This
 only operates during memory pressure/reclaim.
 .
-.It Sy zfs_arc_shrinker_limit Ns = Ns Sy 10000 Pq int
+.It Sy zfs_arc_shrinker_limit Ns = Ns Sy 0 Pq int
 This is a limit on how many pages the ARC shrinker makes available for
 eviction in response to one page allocation attempt.
 Note that in practice, the kernel's shrinker can ask us to evict
 up to about four times this for one allocation attempt.
+To reduce OOM risk, this limit is applied for kswapd reclaims only.
 .Pp
-The default limit of
+For example a value of
 .Sy 10000 Pq in practice, Em 160 MiB No per allocation attempt with 4 KiB pages
 limits the amount of time spent attempting to reclaim ARC memory to
 less than 100 ms per allocation attempt,
@@ -800,14 +929,17 @@ even with a small average compressed block size of ~8 KiB.
 The parameter can be set to 0 (zero) to disable the limit,
 and only applies on Linux.
 .
+.It Sy zfs_arc_shrinker_seeks Ns = Ns Sy 2 Pq int
+Relative cost of ARC eviction on Linux, AKA number of seeks needed to
+restore evicted page.
+Bigger values make ARC more precious and evictions smaller, comparing to
+other kernel subsystems.
+Value of 4 means parity with page cache.
+.
 .It Sy zfs_arc_sys_free Ns = Ns Sy 0 Ns B Pq u64
 The target number of bytes the ARC should leave as free memory on the system.
 If zero, equivalent to the bigger of
 .Sy 512 KiB No and Sy all_system_memory/64 .
-.
-.It Sy zfs_autoimport_disable Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Disable pool import at module load by ignoring the cache file
-.Pq Sy spa_config_path .
 .
 .It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
 Rate limit checksum events to this many per second.
@@ -875,6 +1007,13 @@ Historically used for controlling what reporting was available under
 .Pa /proc/spl/kstat/zfs .
 No effect.
 .
+.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
+Check time in milliseconds.
+This defines the frequency at which we check for hung I/O requests
+and potentially invoke the
+.Sy zfs_deadman_failmode
+behavior.
+.
 .It Sy zfs_deadman_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When a pool sync operation takes longer than
 .Sy zfs_deadman_synctime_ms ,
@@ -889,6 +1028,10 @@ By default, the deadman is enabled and set to
 .Sy wait
 which results in "hung" I/O operations only being logged.
 The deadman is automatically disabled when a pool gets suspended.
+.
+.It Sy zfs_deadman_events_per_second Ns = Ns Sy 1 Ns /s Pq int
+Rate limit deadman zevents (which report hung I/O operations) to this many per
+second.
 .
 .It Sy zfs_deadman_failmode Ns = Ns Sy wait Pq charp
 Controls the failure behavior when the deadman detects a "hung" I/O operation.
@@ -906,13 +1049,6 @@ Panic the system.
 This can be used to facilitate automatic fail-over
 to a properly configured fail-over partner.
 .El
-.
-.It Sy zfs_deadman_checktime_ms Ns = Ns Sy 60000 Ns ms Po 1 min Pc Pq u64
-Check time in milliseconds.
-This defines the frequency at which we check for hung I/O requests
-and potentially invoke the
-.Sy zfs_deadman_failmode
-behavior.
 .
 .It Sy zfs_deadman_synctime_ms Ns = Ns Sy 600000 Ns ms Po 10 min Pc Pq u64
 Interval in milliseconds after which the deadman is triggered and also
@@ -932,6 +1068,103 @@ milliseconds until the operation completes.
 .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enable prefetching dedup-ed blocks which are going to be freed.
 .
+.It Sy zfs_dedup_log_flush_min_time_ms Ns = Ns Sy 1000 Ns Pq uint
+Minimum time to spend on dedup log flush each transaction.
+.Pp
+At least this long will be spent flushing dedup log entries each transaction,
+up to
+.Sy zfs_txg_timeout .
+This occurs even if doing so would delay the transaction, that is, other IO
+completes under this time.
+.
+.It Sy zfs_dedup_log_flush_entries_min Ns = Ns Sy 100 Ns Pq uint
+Flush at least this many entries each transaction.
+.Pp
+OpenZFS will flush a fraction of the log every TXG, to keep the size
+proportional to the ingest rate (see
+.Sy zfs_dedup_log_flush_txgs ) .
+This sets the minimum for that estimate, which prevents the backlog from
+completely draining if the ingest rate falls.
+Raising it can force OpenZFS to flush more aggressively, reducing the backlog
+to zero more quickly, but can make it less able to back off if log
+flushing would compete with other IO too much.
+.
+.It Sy zfs_dedup_log_flush_entries_max Ns = Ns Sy UINT_MAX Ns Pq uint
+Flush at most this many entries each transaction.
+.Pp
+Mostly used for debugging purposes.
+.It Sy zfs_dedup_log_flush_txgs Ns = Ns Sy 100 Ns Pq uint
+Target number of TXGs to process the whole dedup log.
+.Pp
+Every TXG, OpenZFS will process the inverse of this number times the size
+of the DDT backlog.
+This will keep the backlog at a size roughly equal to the ingest rate
+times this value.
+This offers a balance between a more efficient DDT log, with better
+aggregation, and shorter import times, which increase as the size of the
+DDT log increases.
+Increasing this value will result in a more efficient DDT log, but longer
+import times.
+.It Sy zfs_dedup_log_cap Ns = Ns Sy UINT_MAX Ns Pq uint
+Soft cap for the size of the current dedup log.
+.Pp
+If the log is larger than this size, we increase the aggressiveness of
+the flushing to try to bring it back down to the soft cap.
+Setting it will reduce import times, but will reduce the efficiency of
+the DDT log, increasing the expected number of IOs required to flush the same
+amount of data.
+.It Sy zfs_dedup_log_hard_cap Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+Whether to treat the log cap as a firm cap or not.
+.Pp
+When set to 0 (the default), the
+.Sy zfs_dedup_log_cap
+will increase the maximum number of log entries we flush in a given txg.
+This will bring the backlog size down towards the cap, but not at the expense
+of making TXG syncs take longer.
+If this is set to 1, the cap acts more like a hard cap than a soft cap; it will
+also increase the minimum number of log entries we flush per TXG.
+Enabling it will reduce worst-case import times, at the cost of increased TXG
+sync times.
+.It Sy zfs_dedup_log_flush_flow_rate_txgs Ns = Ns Sy 10 Ns Pq uint
+Number of transactions to use to compute the flow rate.
+.Pp
+OpenZFS will estimate number of entries changed (ingest rate), number of entries
+flushed (flush rate) and time spent flushing (flush time rate) and combining
+these into an overall "flow rate".
+It will use an exponential weighted moving average over some number of recent
+transactions to compute these rates.
+This sets the number of transactions to compute these averages over.
+Setting it higher can help to smooth out the flow rate in the face of spiky
+workloads, but will take longer for the flow rate to adjust to a sustained
+change in the ingress rate.
+.
+.It Sy zfs_dedup_log_txg_max Ns = Ns Sy 8 Ns Pq uint
+Max transactions to before starting to flush dedup logs.
+.Pp
+OpenZFS maintains two dedup logs, one receiving new changes, one flushing.
+If there is nothing to flush, it will accumulate changes for no more than this
+many transactions before switching the logs and starting to flush entries out.
+.
+.It Sy zfs_dedup_log_mem_max Ns = Ns Sy 0 Ns Pq u64
+Max memory to use for dedup logs.
+.Pp
+OpenZFS will spend no more than this much memory on maintaining the in-memory
+dedup log.
+Flushing will begin when around half this amount is being spent on logs.
+The default value of
+.Sy 0
+will cause it to be set by
+.Sy zfs_dedup_log_mem_max_percent
+instead.
+.
+.It Sy zfs_dedup_log_mem_max_percent Ns = Ns Sy 1 Ns % Pq uint
+Max memory to use for dedup logs, as a percentage of total memory.
+.Pp
+If
+.Sy zfs_dedup_log_mem_max
+is not set, it will be initialized as a percentage of the total memory in the
+system.
+.
 .It Sy zfs_delay_min_dirty_percent Ns = Ns Sy 60 Ns % Pq uint
 Start to delay each transaction once there is this amount of dirty data,
 expressed as a percentage of
@@ -950,6 +1183,9 @@ This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 .Sy zfs_delay_scale No \(mu Sy zfs_dirty_data_max Em must No be smaller than Sy 2^64 .
+.
+.It Sy zfs_dio_write_verify_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
+Rate limit Direct I/O write verify events to this many per second.
 .
 .It Sy zfs_disable_ivset_guid_check Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disables requirement for IVset GUIDs to be present and match when doing a raw
@@ -971,8 +1207,7 @@ will result in objects waiting when there is not actually contention on the
 same object.
 .
 .It Sy zfs_slow_io_events_per_second Ns = Ns Sy 20 Ns /s Pq int
-Rate limit delay and deadman zevents (which report slow I/O operations) to this
-many per
+Rate limit delay zevents (which report slow I/O operations) to this many per
 second.
 .
 .It Sy zfs_unflushed_max_mem_amt Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
@@ -1103,7 +1338,7 @@ This should be less than
 .Sy zfs_vdev_async_write_active_min_dirty_percent .
 .
 .It Sy zfs_wrlog_data_max Ns = Pq int
-The upper limit of write-transaction zil log data size in bytes.
+The upper limit of write-transaction ZIL log data size in bytes.
 Write operations are throttled when approaching the limit until log data is
 cleared out after transaction group sync.
 Because of some overhead, it should be set at least 2 times the size of
@@ -1155,18 +1390,20 @@ results in vector instructions
 from the respective CPU instruction set being used.
 .
 .It Sy zfs_bclone_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable the experimental block cloning feature.
+Enables access to the block cloning feature.
 If this setting is 0, then even if feature@block_cloning is enabled,
-attempts to clone blocks will act as though the feature is disabled.
+using functions and system calls that attempt to clone blocks will act as
+though the feature is disabled.
 .
-.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 0 Ns | Ns 1 Pq int
-When set to 1 the FICLONE and FICLONERANGE ioctls wait for dirty data to be
-written to disk.
-This allows the clone operation to reliably succeed when a file is
+.It Sy zfs_bclone_wait_dirty Ns = Ns Sy 1 Ns | Ns 0 Pq int
+When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
+data to be written to disk before proceeding.
+This ensures that the clone operation reliably succeeds, even if a file is
 modified and then immediately cloned.
-For small files this may be slower than making a copy of the file.
-Therefore, this setting defaults to 0 which causes a clone operation to
-immediately fail when encountering a dirty block.
+Note that for small files this may be slower than simply copying the file.
+When set to 0 the clone operation will immediately fail if it encounters
+any dirty blocks.
+By default waiting is enabled.
 .
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
@@ -1332,23 +1569,6 @@ This enforced wait ensures the HDD services the interactive I/O
 within a reasonable amount of time.
 .No See Sx ZFS I/O SCHEDULER .
 .
-.It Sy zfs_vdev_queue_depth_pct Ns = Ns Sy 1000 Ns % Pq uint
-Maximum number of queued allocations per top-level vdev expressed as
-a percentage of
-.Sy zfs_vdev_async_write_max_active ,
-which allows the system to detect devices that are more capable
-of handling allocations and to allocate more blocks to those devices.
-This allows for dynamic allocation distribution when devices are imbalanced,
-as fuller devices will tend to be slower than empty devices.
-.Pp
-Also see
-.Sy zio_dva_throttle_enabled .
-.
-.It Sy zfs_vdev_def_queue_depth Ns = Ns Sy 32 Pq uint
-Default queue depth for each vdev IO allocator.
-Higher values allow for better coalescing of sequential writes before sending
-them to the disk, but can increase transaction commit times.
-.
 .It Sy zfs_vdev_failfast_mask Ns = Ns Sy 1 Pq uint
 Defines if the driver should retire on a given error type.
 The following options may be bitwise-ored together:
@@ -1362,6 +1582,13 @@ _
 	4	Driver	No driver retries on driver errors.
 .TE
 .
+.It Sy zfs_vdev_disk_max_segs Ns = Ns Sy 0 Pq uint
+Maximum number of segments to add to a BIO (min 4).
+If this is higher than the maximum allowed by the device queue or the kernel
+itself, it will be clamped.
+Setting it to zero will cause the kernel's ideal size to be used.
+This parameter only applies on Linux.
+.
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring
 .Pa .zfs/snapshot .
@@ -1374,6 +1601,15 @@ When enabled, this functionality works both locally and over NFS exports
 which have the
 .Em no_root_squash
 option set.
+.
+.It Sy zfs_snapshot_no_setuid Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Whether to disable
+.Em setuid/setgid
+support for snapshot mounts triggered by access to the
+.Sy .zfs/snapshot
+directory by setting the
+.Em nosuid
+mount option.
 .
 .It Sy zfs_flags Ns = Ns Sy 0 Pq int
 Set additional debugging flags.
@@ -1396,12 +1632,16 @@ _
 	2048	ZFS_DEBUG_TRIM	Verify TRIM ranges are always within the allocatable range tree.
 	4096	ZFS_DEBUG_LOG_SPACEMAP	Verify that the log summary is consistent with the spacemap log
 			       and enable \fBzfs_dbgmsgs\fP for metaslab loading and flushing.
+	8192	ZFS_DEBUG_METASLAB_ALLOC	Enable debugging messages when allocations fail.
+	16384	ZFS_DEBUG_BRT	Enable BRT-related debugging messages.
+	32768	ZFS_DEBUG_RAIDZ_RECONSTRUCT	Enabled debugging messages for raidz reconstruction.
+	65536	ZFS_DEBUG_DDT	Enable DDT-related debugging messages.
 .TE
 .Sy \& * No Requires debug build .
 .
 .It Sy zfs_btree_verify_intensity Ns = Ns Sy 0 Pq uint
 Enables btree verification.
-The following settings are culminative:
+The following settings are cumulative:
 .TS
 box;
 lbz r l l .
@@ -1470,10 +1710,19 @@ Similar to
 but for cleanup of old indirection records for removed vdevs.
 .
 .It Sy zfs_immediate_write_sz Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq s64
-Largest data block to write to the ZIL.
-Larger blocks will be treated as if the dataset being written to had the
-.Sy logbias Ns = Ns Sy throughput
-property set.
+Largest write size to store the data directly into the ZIL if
+.Sy logbias Ns = Ns Sy latency .
+Larger writes may be written indirectly similar to
+.Sy logbias Ns = Ns Sy throughput .
+In presence of SLOG this parameter is ignored, as if it was set to infinity,
+storing all written data into ZIL to not depend on regular vdev latency.
+.
+.It Sy zil_special_is_slog Ns = Ns Sy 1 Ns | Ns 0 Pq int
+When enabled, and written blocks go to normal vdevs, treat present special
+vdevs as SLOGs.
+Blocks that go to the special vdevs are still written indirectly, as with
+.Sy logbias Ns = Ns Sy throughput .
+This parameter is ignored if an SLOG is present.
 .
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by
@@ -1554,6 +1803,11 @@ Therefore, we formerly forbade creating blocks larger than 1M.
 Larger blocks could be created by changing it,
 and pools with larger blocks can always be imported and used,
 regardless of this setting.
+.Pp
+Note that it is still limited by default to
+.Ar 1 MiB
+on x86_32, because Linux's
+3/1 memory split doesn't leave much room for 16M chunks.
 .
 .It Sy zfs_allow_redacted_dataset_mount Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Allow datasets received with redacted send/receive to be mounted.
@@ -1562,7 +1816,7 @@ Normally disabled because these datasets may be missing key data.
 .It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq u64
 Minimum number of metaslabs to flush per dirty TXG.
 .
-.It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 70 Ns % Pq uint
+.It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 77 Ns % Pq uint
 Allow metaslabs to keep their active state as long as their fragmentation
 percentage is no more than this value.
 An active metaslab that exceeds this threshold
@@ -1732,7 +1986,7 @@ Disable QAT hardware acceleration for AES-GCM encryption.
 May be unset after the ZFS modules have been loaded to initialize the QAT
 hardware as long as support is compiled in and the QAT driver is present.
 .
-.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
+.It Sy zfs_vnops_read_chunk_size Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Bytes to read per chunk.
 .
 .It Sy zfs_read_history Ns = Ns Sy 0 Pq uint
@@ -1774,7 +2028,7 @@ as it typically results in leaked space, or worse.
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Ignore hard I/O errors during device removal.
 When set, if a device encounters a hard I/O error during the removal process
-the removal will not be cancelled.
+the removal will not be canceled.
 This can result in a normally recoverable block becoming permanently damaged
 and is hence not recommended.
 This should only be used as a last resort when the
@@ -1796,6 +2050,13 @@ Ignore the
 .Sy resilver_defer
 feature, causing an operation that would start a resilver to
 immediately restart the one in progress.
+.
+.It Sy zfs_resilver_defer_percent Ns = Ns Sy 10 Ns % Pq uint
+If the ongoing resilver progress is below this threshold, a new resilver will
+restart from scratch instead of being deferred after the current one finishes,
+even if the
+.Sy resilver_defer
+feature is enabled.
 .
 .It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq uint
 Resilvers are processed by the sync thread.
@@ -1982,6 +2243,21 @@ Defer frees starting in this pass.
 Maximum memory used for prefetching a checkpoint's space map on each
 vdev while discarding the checkpoint.
 .
+.It Sy zfs_spa_note_txg_time Ns = Ns Sy 600 Pq uint
+This parameter defines, in seconds, how often the TXG time database will record
+a new TXG if it has changed.
+After the specified time interval has passed, and if the TXG number has changed,
+the new value is recorded in the database.
+These timestamps can later be used for more granular operations, such as
+scrubbing.
+.
+.It Sy zfs_spa_flush_txg_time Ns = Ns Sy 600 Pq uint
+This parameter defines, in seconds, how often the ZFS will flush
+the TXG time database to disk.
+It ensures that the data is actually written to persistent storage, which helps
+preserve the database in case of unexpected shutdown.
+The database is also automatically flushed during the export sequence.
+.
 .It Sy zfs_special_class_metadata_reserve_pct Ns = Ns Sy 25 Ns % Pq uint
 Only allow small data blocks to be allocated on the special and dedup vdev
 types when the available free space percentage on these vdevs exceeds this
@@ -2056,7 +2332,7 @@ The default of
 .Sy 32
 was determined to be a reasonable compromise.
 .
-.It Sy zfs_txg_history Ns = Ns Sy 0 Pq uint
+.It Sy zfs_txg_history Ns = Ns Sy 100 Pq uint
 Historical statistics for this many latest TXGs will be available in
 .Pa /proc/spl/kstat/zfs/ Ns Ao Ar pool Ac Ns Pa /TXGs .
 .
@@ -2140,10 +2416,6 @@ aarch64_neonx2	NEON with more unrolling	Aarch64/64-bit ARMv8
 powerpc_altivec	Altivec	PowerPC
 .TE
 .
-.It Sy zfs_vdev_scheduler Pq charp
-.Sy DEPRECATED .
-Prints warning to kernel log for compatibility.
-.
 .It Sy zfs_zevent_len_max Ns = Ns Sy 512 Pq uint
 Max event queue length.
 Events in the queue can be viewed with
@@ -2172,7 +2444,7 @@ This controls the number of threads used by
 .Sy dp_zil_clean_taskq .
 The default value of
 .Sy 100%
-will create a maximum of one thread per cpu.
+will create a maximum of one thread per CPU.
 .
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
@@ -2211,8 +2483,8 @@ code for this record type.
 The tunable has no effect if the feature is disabled.
 .
 .It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64 Pq uint
-Usually, one metaslab from each normal-class vdev is dedicated for use by
-the ZIL to log synchronous writes.
+Usually, one metaslab from each normal and special class vdev is dedicated
+for use by the ZIL to log synchronous writes.
 However, if there are fewer than
 .Sy zfs_embedded_slog_min_ms
 metaslabs in the vdev, this functionality is disabled.
@@ -2245,10 +2517,7 @@ Slow I/O counters can be seen with
 .
 .It Sy zio_dva_throttle_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Throttle block allocations in the I/O pipeline.
-This allows for dynamic allocation distribution when devices are imbalanced.
-When enabled, the maximum number of pending allocations per top-level vdev
-is limited by
-.Sy zfs_vdev_queue_depth_pct .
+This allows for dynamic allocation distribution based on device performance.
 .
 .It Sy zfs_xattr_compat Ns = Ns 0 Ns | Ns 1 Pq int
 Control the naming scheme used when setting new xattrs in the user namespace.
@@ -2279,8 +2548,8 @@ Prioritize requeued I/O.
 .
 .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
 Percentage of online CPUs which will run a worker thread for I/O.
-These workers are responsible for I/O work such as compression and
-checksum calculations.
+These workers are responsible for I/O work such as compression, encryption,
+checksum and parity calculations.
 Fractional number of CPUs will be rounded down.
 .Pp
 The default value of
@@ -2288,33 +2557,36 @@ The default value of
 was chosen to avoid using all CPUs which can result in
 latency issues and inconsistent application performance,
 especially when slower compression and/or checksumming is enabled.
+Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_batch_tpq Ns = Ns Sy 0 Pq uint
 Number of worker threads per taskq.
-Lower values improve I/O ordering and CPU utilization,
-while higher reduces lock contention.
+Higher values improve I/O ordering and CPU utilization,
+while lower reduce lock contention.
+Set value only applies to pools imported/created after that.
 .Pp
 If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
+Set value only applies to pools imported/created after that.
 .
-.It Sy zio_taskq_wr_iss_ncpus Ns = Ns Sy 0 Pq uint
-Determines the number of CPUs to run write issue taskqs.
-.Pp
-When 0 (the default), the value to use is computed internally
-as the number of actual CPUs in the system divided by the
-.Sy spa_num_allocators
-value.
+.It Sy zio_taskq_write_tpq Ns = Ns Sy 16 Pq uint
+Determines the minimum number of threads per write issue taskq.
+Higher values improve CPU utilization on high throughput,
+while lower reduce taskq locks contention on high IOPS.
+Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp
 Set the queue and thread configuration for the IO read queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Set values only apply to pools imported/created after that.
 .
-.It Sy zio_taskq_write Ns = Ns Sy sync fixed,1,5 scale fixed,1,5 Pq charp
+.It Sy zio_taskq_write Ns = Ns Sy sync null scale null Pq charp
 Set the queue and thread configuration for the IO write queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Set values only apply to pools imported/created after that.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Do not create zvol device nodes.
@@ -2349,6 +2621,13 @@ The number of requests which can be handled concurrently is controlled by
 .Sy zvol_request_sync
 is ignored when running on a kernel that supports block multiqueue
 .Pq Li blk-mq .
+.
+.It Sy zvol_num_taskqs Ns = Ns Sy 0 Pq uint
+Number of zvol taskqs.
+If
+.Sy 0
+(the default) then scaling is done internally to prefer 6 threads per taskq.
+This only applies on Linux.
 .
 .It Sy zvol_threads Ns = Ns Sy 0 Pq uint
 The number of system wide threads to use for processing zvol block IOs.
@@ -2416,7 +2695,7 @@ and
 limits.
 .
 .It Sy zvol_volmode Ns = Ns Sy 1 Pq uint
-Defines zvol block devices behaviour when
+Defines zvol block devices behavior when
 .Sy volmode Ns = Ns Sy default :
 .Bl -tag -compact -offset 4n -width "a"
 .It Sy 1

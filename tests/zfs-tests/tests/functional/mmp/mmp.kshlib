@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -199,20 +200,20 @@ function count_skipped_mmp_writes # pool duration
 {
 	typeset pool=$1
 	typeset -i duration=$2
-	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
 
 	sleep $duration
-	awk 'BEGIN {count=0}; $NF == "-" {count++}; END {print count};' "$hist_path"
+	kstat_pool $pool multihost | \
+	    awk 'BEGIN {count=0}; $NF == "-" {count++}; END {print count};'
 }
 
 function count_mmp_writes # pool duration
 {
 	typeset pool=$1
 	typeset -i duration=$2
-	typeset hist_path="/proc/spl/kstat/zfs/$pool/multihost"
 
 	sleep $duration
-	awk 'BEGIN {count=0}; $NF != "-" {count++}; END {print count};' "$hist_path"
+	kstat_pool $pool multihost | \
+	    awk 'BEGIN {count=0}; $NF != "-" {count++}; END {print count};'
 }
 
 function summarize_uberblock_mmp # device

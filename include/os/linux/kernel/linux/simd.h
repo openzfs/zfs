@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -45,4 +46,8 @@
 #define	kfpu_fini()		((void) 0)
 
 #endif
+
+void simd_stat_init(void);
+void simd_stat_fini(void);
+
 #endif /* _LINUX_SIMD_H */

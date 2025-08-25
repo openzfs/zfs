@@ -17,7 +17,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 # by generating a preamble text file which kmodtool can append to the spec file.
 %(/bin/echo -e "\
 Requires:       @PACKAGE@ = %{version}\n\
-Conflicts:      @PACKAGE@-dkms)
+Conflicts:      @PACKAGE@-dkms" > %{_sourcedir}/kmod-preamble)
 
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.
 %ifarch ppc ppc64 ppc64le aarch64
@@ -69,7 +69,9 @@ fi
         %{debuginfo} \
         %{?kernel_cc} \
         %{?kernel_ld} \
-        %{?kernel_llvm}
+        %{?kernel_llvm} \
+        %{?kernel_cross_compile} \
+        %{?kernel_arch}
 make %{?_smp_mflags}
 
 # Module signing (modsign)

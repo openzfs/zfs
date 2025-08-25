@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -29,9 +30,17 @@
 #include <linux/highmem.h>
 #include <linux/uaccess.h>
 
+#ifdef HAVE_KMAP_LOCAL_PAGE
+/* 5.11 API change */
+#define	zfs_kmap_local(page)   kmap_local_page(page)
+#define	zfs_kunmap_local(addr) kunmap_local(addr)
+#else
 /* 2.6.37 API change */
-#define	zfs_kmap_atomic(page)	kmap_atomic(page)
-#define	zfs_kunmap_atomic(addr)	kunmap_atomic(addr)
+#define	zfs_kmap_local(page)   kmap_atomic(page)
+#define	zfs_kunmap_local(addr) kunmap_atomic(addr)
+#endif
+#define	zfs_kmap(page)		kmap(page)
+#define	zfs_kunmap(page)	kunmap(page)
 
 /* 5.0 API change - no more 'type' argument for access_ok() */
 #ifdef HAVE_ACCESS_OK_TYPE

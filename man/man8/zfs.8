@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -36,7 +37,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 12, 2022
+.Dd April 18, 2025
 .Dt ZFS 8
 .Os
 .
@@ -48,6 +49,7 @@
 .Fl ?V
 .Nm
 .Cm version
+.Op Fl j
 .Nm
 .Cm subcommand
 .Op Ar arguments
@@ -153,10 +155,14 @@ Displays a help message.
 .It Xo
 .Nm
 .Cm version
+.Op Fl j
 .Xc
 Displays the software version of the
 .Nm
 userland utility and the zfs kernel module.
+Use
+.Fl j
+option to output in JSON format.
 .El
 .
 .Ss Dataset Management
@@ -291,6 +297,12 @@ removing the ability to access the dataset.
 .It Xr zfs-program 8
 Execute ZFS administrative operations
 programmatically via a Lua script-language channel program.
+.El
+.
+.Ss Data rewrite
+.Bl -tag -width ""
+.It Xr zfs-rewrite 8
+Rewrite specified files without modification.
 .El
 .
 .Ss Jails
@@ -754,7 +766,7 @@ This option is provided for backwards compatibility with older ZFS versions.
 .It Sy ZFS_SET_PIPE_MAX
 Tells
 .Nm zfs
-to set the maximum pipe size for sends/recieves.
+to set the maximum pipe size for sends/receives.
 Disabled by default on Linux
 due to an unfixed deadlock in Linux's pipe size handling code.
 .

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -107,7 +108,7 @@ rrn_add(rrwlock_t *rrl, const void *tag)
 	rn->rn_rrl = rrl;
 	rn->rn_next = tsd_get(rrw_tsd_key);
 	rn->rn_tag = tag;
-	VERIFY(tsd_set(rrw_tsd_key, rn) == 0);
+	VERIFY0(tsd_set(rrw_tsd_key, rn));
 }
 
 /*
@@ -128,7 +129,7 @@ rrn_find_and_remove(rrwlock_t *rrl, const void *tag)
 			if (prev)
 				prev->rn_next = rn->rn_next;
 			else
-				VERIFY(tsd_set(rrw_tsd_key, rn->rn_next) == 0);
+				VERIFY0(tsd_set(rrw_tsd_key, rn->rn_next));
 			kmem_free(rn, sizeof (*rn));
 			return (B_TRUE);
 		}
@@ -154,7 +155,7 @@ rrw_destroy(rrwlock_t *rrl)
 {
 	mutex_destroy(&rrl->rr_lock);
 	cv_destroy(&rrl->rr_cv);
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT0P(rrl->rr_writer);
 	zfs_refcount_destroy(&rrl->rr_anon_rcount);
 	zfs_refcount_destroy(&rrl->rr_linked_rcount);
 }
@@ -187,7 +188,7 @@ rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, const void *tag)
 	} else {
 		(void) zfs_refcount_add(&rrl->rr_anon_rcount, tag);
 	}
-	ASSERT(rrl->rr_writer == NULL);
+	ASSERT0P(rrl->rr_writer);
 	mutex_exit(&rrl->rr_lock);
 }
 

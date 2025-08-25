@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -71,10 +72,10 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 log_must zpool export $TESTPOOL1
 log_must zpool import $TESTPOOL1 -d $VDEV1
 
-typeset starting_miss_count=$(get_arcstat l2_misses)
+typeset starting_miss_count=$(kstat arcstats.l2_misses)
 
 log_must fio $FIO_SCRIPTS/random_reads.fio
-log_must test $(get_arcstat l2_misses) -eq $starting_miss_count
+log_must test $(kstat arcstats.l2_misses) -eq $starting_miss_count
 
 # I/O to pool with l2arc - expect that l2_misses rises
 export DIRECTORY=/$TESTPOOL
@@ -88,7 +89,7 @@ log_must zpool export $TESTPOOL
 log_must zpool import $TESTPOOL -d $VDEV
 
 log_must fio $FIO_SCRIPTS/random_reads.fio
-log_must test $(get_arcstat l2_misses) -gt $starting_miss_count
+log_must test $(kstat arcstats.l2_misses) -gt $starting_miss_count
 
 log_must zpool destroy -f $TESTPOOL
 log_must zpool destroy -f $TESTPOOL1

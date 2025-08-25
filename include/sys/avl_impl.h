@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -34,6 +35,7 @@
  */
 
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 #ifdef	__cplusplus
 extern "C" {

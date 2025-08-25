@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -21,7 +22,6 @@ user = root
 timeout = 0
 post_user = root
 post = cleanup
-outputdir = /var/tmp/test_results
 tags = ['perf']
 
 [tests/perf/regression]

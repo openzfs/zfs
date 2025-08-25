@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -69,26 +70,6 @@ zfs_file_close(zfs_file_t *fp)
 	filp_close(fp, 0);
 }
 
-static ssize_t
-zfs_file_write_impl(zfs_file_t *fp, const void *buf, size_t count, loff_t *off)
-{
-#if defined(HAVE_KERNEL_WRITE_PPOS)
-	return (kernel_write(fp, buf, count, off));
-#else
-	mm_segment_t saved_fs;
-	ssize_t rc;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	rc = vfs_write(fp, (__force const char __user __user *)buf, count, off);
-
-	set_fs(saved_fs);
-
-	return (rc);
-#endif
-}
-
 /*
  * Stateful write - use os internal file pointer to determine where to
  * write and update on successful completion.
@@ -106,7 +87,7 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
-	rc = zfs_file_write_impl(fp, buf, count, &off);
+	rc = kernel_write(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -138,7 +119,7 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
 {
 	ssize_t rc;
 
-	rc  = zfs_file_write_impl(fp, buf, count, &off);
+	rc  = kernel_write(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -149,25 +130,6 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
 	}
 
 	return (0);
-}
-
-static ssize_t
-zfs_file_read_impl(zfs_file_t *fp, void *buf, size_t count, loff_t *off)
-{
-#if defined(HAVE_KERNEL_READ_PPOS)
-	return (kernel_read(fp, buf, count, off));
-#else
-	mm_segment_t saved_fs;
-	ssize_t rc;
-
-	saved_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	rc = vfs_read(fp, (void __user *)buf, count, off);
-	set_fs(saved_fs);
-
-	return (rc);
-#endif
 }
 
 /*
@@ -187,7 +149,7 @@ zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
-	rc = zfs_file_read_impl(fp, buf, count, &off);
+	rc = kernel_read(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -219,7 +181,7 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 {
 	ssize_t rc;
 
-	rc = zfs_file_read_impl(fp, buf, count, &off);
+	rc = kernel_read(fp, buf, count, &off);
 	if (rc < 0)
 		return (-rc);
 
@@ -274,16 +236,8 @@ zfs_file_getattr(zfs_file_t *filp, zfs_file_attr_t *zfattr)
 	struct kstat stat;
 	int rc;
 
-#if defined(HAVE_4ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, &stat, STATX_BASIC_STATS,
 	    AT_STATX_SYNC_AS_STAT);
-#elif defined(HAVE_2ARGS_VFS_GETATTR)
-	rc = vfs_getattr(&filp->f_path, &stat);
-#elif defined(HAVE_3ARGS_VFS_GETATTR)
-	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, &stat);
-#else
-#error "No available vfs_getattr()"
-#endif
 	if (rc)
 		return (-rc);
 
@@ -306,60 +260,38 @@ zfs_file_fsync(zfs_file_t *filp, int flags)
 {
 	int datasync = 0;
 	int error;
-	int fstrans;
 
 	if (flags & O_DSYNC)
 		datasync = 1;
 
-	/*
-	 * May enter XFS which generates a warning when PF_FSTRANS is set.
-	 * To avoid this the flag is cleared over vfs_sync() and then reset.
-	 */
-	fstrans = __spl_pf_fstrans_check();
-	if (fstrans)
-		current->flags &= ~(__SPL_PF_FSTRANS);
-
 	error = -vfs_fsync(filp, datasync);
-
-	if (fstrans)
-		current->flags |= __SPL_PF_FSTRANS;
 
 	return (error);
 }
 
 /*
- * fallocate - allocate or free space on disk
+ * deallocate - zero and/or deallocate file storage
  *
  * fp - file pointer
- * mode (non-standard options for hole punching etc)
- * offset - offset to start allocating or freeing from
- * len - length to free / allocate
- *
- * OPTIONAL
+ * offset - offset to start zeroing or deallocating
+ * len - length to zero or deallocate
  */
 int
-zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
+zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
 {
-	/*
-	 * May enter XFS which generates a warning when PF_FSTRANS is set.
-	 * To avoid this the flag is cleared over vfs_sync() and then reset.
-	 */
-	int fstrans = __spl_pf_fstrans_check();
-	if (fstrans)
-		current->flags &= ~(__SPL_PF_FSTRANS);
-
 	/*
 	 * When supported by the underlying file system preferentially
 	 * use the fallocate() callback to preallocate the space.
 	 */
 	int error = EOPNOTSUPP;
 	if (fp->f_op->fallocate)
-		error = fp->f_op->fallocate(fp, mode, offset, len);
+		error = -fp->f_op->fallocate(fp,
+		    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset, len);
 
-	if (fstrans)
-		current->flags |= __SPL_PF_FSTRANS;
+	if (error)
+		return (SET_ERROR(error));
 
-	return (error);
+	return (0);
 }
 
 /*

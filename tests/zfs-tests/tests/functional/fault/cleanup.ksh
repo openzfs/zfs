@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -32,5 +33,6 @@ cleanup_devices $DISKS
 
 zed_stop
 zed_cleanup resilver_finish-start-scrub.sh
+zed_events_drain
 
 log_pass

@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -46,7 +47,6 @@
 #
 
 verify_runnable "global"
-verify_block_cloning
 
 if ! is_linux; then
 	log_unsupported "cp --reflink is a GNU coreutils option"
@@ -56,13 +56,13 @@ function cleanup
 {
 	datasetexists $TESTPOOL/cp-reflink && \
 	    destroy_dataset $$TESTPOOL/cp-reflink -f
-	log_must set_tunable32 BCLONE_WAIT_DIRTY 0
+	log_must restore_tunable BCLONE_WAIT_DIRTY
 }
 
 function verify_copy
 {
-	src_cksum=$(sha256digest $1)
-	dst_cksum=$(sha256digest $2)
+	src_cksum=$(xxh128digest $1)
+	dst_cksum=$(xxh128digest $2)
 
 	if [[ "$src_cksum" != "$dst_cksum" ]]; then
 		log_must ls -l $CP_TESTDIR
@@ -76,10 +76,12 @@ log_onexit cleanup
 
 SRC_FILE=src.data
 DST_FILE=dst.data
-SRC_SIZE=$(($RANDOM % 2048))
+SRC_SIZE=$((1024 + $RANDOM % 1024))
 
 # A smaller recordsize is used merely to speed up the test.
 RECORDSIZE=4096
+
+log_must save_tunable BCLONE_WAIT_DIRTY
 
 log_must zfs create -o recordsize=$RECORDSIZE $TESTPOOL/cp-reflink
 CP_TESTDIR=$(get_prop mountpoint $TESTPOOL/cp-reflink)
@@ -120,7 +122,7 @@ for mode in "never" "auto" "always"; do
 	# Overwrite a random range of an existing file and immediately copy it.
 	sync_pool $TESTPOOL
 	log_must dd if=/dev/urandom of=$SRC_FILE bs=$((RECORDSIZE / 2)) \
-            seek=$(($RANDOM % $SRC_SIZE)) count=$(($RANDOM % 16)) conv=notrunc
+            seek=$(($RANDOM % $SRC_SIZE)) count=$((1 + $RANDOM % 16)) conv=notrunc
 	if [[ "$mode" == "always" ]]; then
 		log_mustnot cp --reflink=$mode $SRC_FILE $DST_FILE
 		log_must ls -l $CP_TESTDIR
@@ -152,7 +154,7 @@ for mode in "never" "auto" "always"; do
 
 	# Overwrite a random range of an existing file and immediately copy it.
 	log_must dd if=/dev/urandom of=$SRC_FILE bs=$((RECORDSIZE / 2)) \
-            seek=$(($RANDOM % $SRC_SIZE)) count=$(($RANDOM % 16)) conv=notrunc
+            seek=$(($RANDOM % $SRC_SIZE)) count=$((1 + $RANDOM % 16)) conv=notrunc
 	log_must cp --reflink=$mode $SRC_FILE $DST_FILE
 	verify_copy $SRC_FILE $DST_FILE
 	log_must rm -f $SRC_FILE $DST_FILE

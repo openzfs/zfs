@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-2-Clause
 /*
  * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
@@ -31,13 +32,14 @@
 
 #include_next <sys/sdt.h>
 #ifdef KDTRACE_HOOKS
-/* CSTYLED */
 SDT_PROBE_DECLARE(sdt, , , set__error);
 
-#define	SET_ERROR(err) \
-	((sdt_sdt___set__error->id ? \
-	(*sdt_probe_func)(sdt_sdt___set__error->id, \
-	    (uintptr_t)err, 0, 0, 0, 0) : 0), err)
+/* BEGIN CSTYLED */
+#define	SET_ERROR(err)	({ 					\
+	SDT_PROBE1(sdt, , , set__error, (uintptr_t)err);	\
+	err;							\
+})
+/* END CSTYLED */
 #else
 #define	SET_ERROR(err) (err)
 #endif

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -35,6 +36,10 @@
 
 #ifndef __maybe_unused
 #define	__maybe_unused __attribute__((unused))
+#endif
+
+#ifndef __must_check
+#define	__must_check __attribute__((warn_unused_result))
 #endif
 
 #endif

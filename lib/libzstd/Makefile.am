@@ -1,4 +1,6 @@
 libzstd_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
+libzstd_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
 libzstd_la_CFLAGS += -fno-tree-vectorize

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -1686,11 +1687,10 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	freebsd_crypt_session_t *tmpl = NULL;
 	uint8_t *authbuf = NULL;
 
-
+	memset(&puio_s, 0, sizeof (puio_s));
+	memset(&cuio_s, 0, sizeof (cuio_s));
 	zfs_uio_init(&puio, &puio_s);
 	zfs_uio_init(&cuio, &cuio_s);
-	memset(GET_UIO_STRUCT(&puio), 0, sizeof (struct uio));
-	memset(GET_UIO_STRUCT(&cuio), 0, sizeof (struct uio));
 
 #ifdef FCRYPTO_DEBUG
 	printf("%s(%s, %p, %p, %d, %p, %p, %u, %s, %p, %p, %p)\n",
@@ -1822,10 +1822,3 @@ error:
 
 	return (SET_ERROR(ret));
 }
-
-#if defined(_KERNEL) && defined(HAVE_SPL)
-/* CSTYLED */
-module_param(zfs_key_max_salt_uses, ulong, 0644);
-MODULE_PARM_DESC(zfs_key_max_salt_uses, "Max number of times a salt value "
-	"can be used for generating encryption keys before it is rotated");
-#endif

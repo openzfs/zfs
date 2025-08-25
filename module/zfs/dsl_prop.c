@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -662,7 +663,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 	}
 	mutex_exit(&dd->dd_lock);
 
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos,
 	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
@@ -670,7 +671,7 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
 		dsl_prop_changed_notify(dp, za->za_first_integer,
 		    propname, value, FALSE);
 	}
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	zap_cursor_fini(&zc);
 	dsl_dir_rele(dd, FTAG);
 }
@@ -696,6 +697,10 @@ dsl_prop_set_iuv(objset_t *mos, uint64_t zapobj, const char *propname,
 	case ZFS_PROP_REDUNDANT_METADATA:
 		if (*(uint64_t *)value == ZFS_REDUNDANT_METADATA_SOME ||
 		    *(uint64_t *)value == ZFS_REDUNDANT_METADATA_NONE)
+			iuv = B_TRUE;
+		break;
+	case ZFS_PROP_SNAPDIR:
+		if (*(uint64_t *)value == ZFS_SNAPDIR_DISABLED)
 			iuv = B_TRUE;
 		break;
 	default:
@@ -810,7 +815,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 */
 		err = zap_update(mos, zapobj, recvdstr,
 		    intsz, numints, value, tx);
-		ASSERT(err == 0);
+		ASSERT0(err);
 		break;
 	case (ZPROP_SRC_NONE | ZPROP_SRC_LOCAL | ZPROP_SRC_RECEIVED):
 		/*
@@ -1061,11 +1066,11 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
     const char *setpoint, dsl_prop_getflags_t flags, nvlist_t *nv)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	int err = 0;
 
 	for (zap_cursor_init(&zc, mos, propobj);
-	    (err = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		nvlist_t *propval;
 		zfs_prop_t prop;
@@ -1075,7 +1080,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 		const char *propname;
 		const char *source;
 
-		suffix = strchr(za.za_name, '$');
+		suffix = strchr(za->za_name, '$');
 
 		if (suffix == NULL) {
 			/*
@@ -1085,7 +1090,7 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			if (flags & DSL_PROP_GET_RECEIVED)
 				continue;
 
-			propname = za.za_name;
+			propname = za->za_name;
 			source = setpoint;
 
 			/* Skip if iuv entries are preset. */
@@ -1102,8 +1107,8 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			if (flags & DSL_PROP_GET_LOCAL)
 				continue;
 
-			(void) strlcpy(buf, za.za_name,
-			    MIN(sizeof (buf), suffix - za.za_name + 1));
+			(void) strlcpy(buf, za->za_name,
+			    MIN(sizeof (buf), suffix - za->za_name + 1));
 			propname = buf;
 
 			if (!(flags & DSL_PROP_GET_RECEIVED)) {
@@ -1128,14 +1133,14 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 			source = ((flags & DSL_PROP_GET_INHERITING) ?
 			    setpoint : ZPROP_SOURCE_VAL_RECVD);
 		} else if (strcmp(suffix, ZPROP_IUV_SUFFIX) == 0) {
-			(void) strlcpy(buf, za.za_name,
-			    MIN(sizeof (buf), suffix - za.za_name + 1));
+			(void) strlcpy(buf, za->za_name,
+			    MIN(sizeof (buf), suffix - za->za_name + 1));
 			propname = buf;
 			source = setpoint;
 			prop = zfs_name_to_prop(propname);
 
 			if (dsl_prop_known_index(prop,
-			    za.za_first_integer) != 1)
+			    za->za_first_integer) != 1)
 				continue;
 		} else {
 			/*
@@ -1161,36 +1166,36 @@ dsl_prop_get_all_impl(objset_t *mos, uint64_t propobj,
 		if (nvlist_exists(nv, propname))
 			continue;
 
-		VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-		if (za.za_integer_length == 1) {
+		VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+		if (za->za_integer_length == 1) {
 			/*
 			 * String property
 			 */
-			char *tmp = kmem_alloc(za.za_num_integers,
+			char *tmp = kmem_alloc(za->za_num_integers,
 			    KM_SLEEP);
 			err = zap_lookup(mos, propobj,
-			    za.za_name, 1, za.za_num_integers, tmp);
+			    za->za_name, 1, za->za_num_integers, tmp);
 			if (err != 0) {
-				kmem_free(tmp, za.za_num_integers);
+				kmem_free(tmp, za->za_num_integers);
 				break;
 			}
-			VERIFY(nvlist_add_string(propval, ZPROP_VALUE,
-			    tmp) == 0);
-			kmem_free(tmp, za.za_num_integers);
+			VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, tmp));
+			kmem_free(tmp, za->za_num_integers);
 		} else {
 			/*
 			 * Integer property
 			 */
-			ASSERT(za.za_integer_length == 8);
+			ASSERT(za->za_integer_length == 8);
 			(void) nvlist_add_uint64(propval, ZPROP_VALUE,
-			    za.za_first_integer);
+			    za->za_first_integer);
 		}
 
-		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, source) == 0);
-		VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_SOURCE, source));
+		VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 		nvlist_free(propval);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	if (err == ENOENT)
 		err = 0;
 	return (err);
@@ -1209,7 +1214,7 @@ dsl_prop_get_all_ds(dsl_dataset_t *ds, nvlist_t **nvp,
 	int err = 0;
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN];
 
-	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
+	VERIFY0(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP));
 
 	if (ds->ds_is_snapshot)
 		flags |= DSL_PROP_GET_SNAPSHOT;
@@ -1327,18 +1332,18 @@ dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value)
 	uint64_t default_value;
 
 	if (nvlist_lookup_nvlist(nv, propname, &propval) == 0) {
-		VERIFY(nvlist_add_uint64(propval, ZPROP_VALUE, value) == 0);
+		VERIFY0(nvlist_add_uint64(propval, ZPROP_VALUE, value));
 		return;
 	}
 
-	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_uint64(propval, ZPROP_VALUE, value) == 0);
+	VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+	VERIFY0(nvlist_add_uint64(propval, ZPROP_VALUE, value));
 	/* Indicate the default source if we can. */
 	if (dodefault(prop, 8, 1, &default_value) == 0 &&
 	    value == default_value) {
-		VERIFY(nvlist_add_string(propval, ZPROP_SOURCE, "") == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_SOURCE, ""));
 	}
-	VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+	VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 	nvlist_free(propval);
 }
 
@@ -1349,13 +1354,13 @@ dsl_prop_nvlist_add_string(nvlist_t *nv, zfs_prop_t prop, const char *value)
 	const char *propname = zfs_prop_to_name(prop);
 
 	if (nvlist_lookup_nvlist(nv, propname, &propval) == 0) {
-		VERIFY(nvlist_add_string(propval, ZPROP_VALUE, value) == 0);
+		VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, value));
 		return;
 	}
 
-	VERIFY(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(propval, ZPROP_VALUE, value) == 0);
-	VERIFY(nvlist_add_nvlist(nv, propname, propval) == 0);
+	VERIFY0(nvlist_alloc(&propval, NV_UNIQUE_NAME, KM_SLEEP));
+	VERIFY0(nvlist_add_string(propval, ZPROP_VALUE, value));
+	VERIFY0(nvlist_add_nvlist(nv, propname, propval));
 	nvlist_free(propval);
 }
 

@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -37,11 +38,6 @@ log_mustnot zpool destroy -f $TESTPOOL
 
 log_mustnot zpool create $TESTPOOL $ZPOOL_DISKS special mirror \
     $CLASS_DISK0 $CLASS_DISK1
-log_mustnot display_status $TESTPOOL
-log_mustnot zpool destroy -f $TESTPOOL
-
-log_mustnot zpool create $TESTPOOL raidz $ZPOOL_DISKS special raidz \
-    $CLASS_DISK0 $CLASS_DISK1 $CLASS_DISK2
 log_mustnot display_status $TESTPOOL
 log_mustnot zpool destroy -f $TESTPOOL
 

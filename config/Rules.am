@@ -21,7 +21,9 @@ AM_CFLAGS += $(IMPLICIT_FALLTHROUGH)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
 AM_CFLAGS += $(UBSAN_CFLAGS)
-AM_CFLAGS += $(CODE_COVERAGE_CFLAGS) $(NO_FORMAT_ZERO_LENGTH)
+AM_CFLAGS += $(CODE_COVERAGE_CFLAGS)
+AM_CFLAGS += $(NO_FORMAT_ZERO_LENGTH)
+AM_CFLAGS += $(NO_FORMAT_TRUNCATION)
 if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
@@ -55,7 +57,7 @@ AM_LDFLAGS += $(ASAN_LDFLAGS)
 AM_LDFLAGS += $(UBSAN_LDFLAGS)
 
 if BUILD_FREEBSD
-AM_LDFLAGS += -fstack-protector-strong -shared
+AM_LDFLAGS += -fstack-protector-strong
 AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
 AM_LDFLAGS += -lm
 endif
@@ -68,4 +70,7 @@ KERNEL_CFLAGS       = $(FRAME_LARGER_THAN)
 LIBRARY_CFLAGS      = -no-suppress
 
 # Forcibly enable asserts/debugging for libzpool &al.
-FORCEDEBUG_CPPFLAGS = -DDEBUG -UNDEBUG -DZFS_DEBUG
+# Since ZFS_DEBUG can change shared data structures, all libzpool users must
+# be compiled with the same flags.
+# See https://github.com/openzfs/zfs/issues/16476
+LIBZPOOL_CPPFLAGS = -DDEBUG -UNDEBUG -DZFS_DEBUG

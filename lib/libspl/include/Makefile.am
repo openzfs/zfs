@@ -24,9 +24,12 @@ libspl_rpc_HEADERS = \
 
 libspl_sysdir = $(libspldir)/sys
 libspl_sys_HEADERS = \
+	%D%/sys/abd_os.h \
+	%D%/sys/abd_impl_os.h \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
 	%D%/sys/asm_linkage.h \
+	%D%/sys/backtrace.h \
 	%D%/sys/callb.h \
 	%D%/sys/cmn_err.h \
 	%D%/sys/cred.h \
@@ -42,6 +45,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/list_impl.h \
 	%D%/sys/mhd.h \
 	%D%/sys/mkdev.h \
+	%D%/sys/mod.h \
 	%D%/sys/policy.h \
 	%D%/sys/poll.h \
 	%D%/sys/priv.h \
@@ -55,6 +59,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/time.h \
 	%D%/sys/trace_spl.h \
 	%D%/sys/trace_zfs.h \
+	%D%/sys/tunables.h \
 	%D%/sys/types.h \
 	%D%/sys/types32.h \
 	%D%/sys/uio.h \

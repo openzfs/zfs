@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -73,18 +74,18 @@ arcstat_quiescence_noecho l2_size
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 arcstat_quiescence_noecho l2_size
 
-typeset l2_mfu_init=$(get_arcstat l2_mfu_asize)
-typeset l2_mru_init=$(get_arcstat l2_mru_asize)
-typeset l2_prefetch_init=$(get_arcstat l2_prefetch_asize)
-typeset l2_asize_init=$(get_arcstat l2_asize)
+typeset l2_mfu_init=$(kstat arcstats.l2_mfu_asize)
+typeset l2_mru_init=$(kstat arcstats.l2_mru_asize)
+typeset l2_prefetch_init=$(kstat arcstats.l2_prefetch_asize)
+typeset l2_asize_init=$(kstat arcstats.l2_asize)
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
 arcstat_quiescence_noecho l2_size
 log_must zpool export $TESTPOOL
 arcstat_quiescence_noecho l2_feeds
 
-log_must test $(get_arcstat l2_mfu_asize) -eq 0
-log_must test $(get_arcstat l2_mru_asize) -eq 0
+log_must test $(kstat arcstats.l2_mfu_asize) -eq 0
+log_must test $(kstat arcstats.l2_mru_asize) -eq 0
 log_must zpool import -d $VDIR $TESTPOOL
 arcstat_quiescence_noecho l2_size
 
@@ -93,10 +94,10 @@ arcstat_quiescence_noecho l2_size
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 arcstat_quiescence_noecho l2_size
 
-typeset l2_mfu_end=$(get_arcstat l2_mfu_asize)
-typeset l2_mru_end=$(get_arcstat l2_mru_asize)
-typeset l2_prefetch_end=$(get_arcstat l2_prefetch_asize)
-typeset l2_asize_end=$(get_arcstat l2_asize)
+typeset l2_mfu_end=$(kstat arcstats.l2_mfu_asize)
+typeset l2_mru_end=$(kstat arcstats.l2_mru_asize)
+typeset l2_prefetch_end=$(kstat arcstats.l2_prefetch_asize)
+typeset l2_asize_end=$(kstat arcstats.l2_asize)
 
 log_must test $(( $l2_mru_end + $l2_mfu_end + $l2_prefetch_end - \
 	$l2_asize_end )) -eq 0

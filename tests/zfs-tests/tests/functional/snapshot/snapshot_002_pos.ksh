@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -63,7 +64,7 @@ function cleanup
 log_assert "Verify an archive of a file system is identical to " \
     "an archive of its snapshot."
 
-SNAPSHOT_TARDIR="$(mktemp -d /tmp/zfstests_snapshot_002.XXXXXX)"
+SNAPSHOT_TARDIR="$(mktemp -t -d zfstests_snapshot_002.XXXXXX)"
 log_onexit cleanup
 
 typeset -i COUNT=21

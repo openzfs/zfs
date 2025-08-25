@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 /*
 ** $Id: lstring.c,v 2.26.1.1 2013/04/12 18:48:47 roberto Exp $
 ** String table (keeps all strings handled by Lua)
@@ -103,7 +104,7 @@ static TString *createstrobj (lua_State *L, const char *str, size_t l,
   ts->tsv.len = l;
   ts->tsv.hash = h;
   ts->tsv.extra = 0;
-  sbuf = (char *)(TString *)(ts + 1);
+  sbuf = ts->contents;
   memcpy(sbuf, str, l*sizeof(char));
   sbuf[l] = '\0';  /* ending 0 */
   return ts;

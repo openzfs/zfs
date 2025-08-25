@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -29,9 +30,9 @@
 #	home directory.
 #
 # STRATEGY:
-#	1. Change HOME to /var/tmp
+#	1. Change HOME to /var/tmp (TEST_BASE_DIR)
 #	2. Make a simple script that echoes a key value pair
-#	   in /var/tmp/.zpool.d
+#	   in $HOME/.zpool.d
 #	3. Make sure it can be run with -c
 #	4. Remove the script we created
 

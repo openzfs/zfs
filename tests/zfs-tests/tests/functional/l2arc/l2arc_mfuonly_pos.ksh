@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -72,7 +73,7 @@ export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))M
 
 log_must truncate -s ${cache_sz}M $VDEV_CACHE
 
-typeset log_blk_start=$(get_arcstat l2_log_blk_writes)
+typeset log_blk_start=$(kstat arcstats.l2_log_blk_writes)
 
 log_must zpool create -f $TESTPOOL $VDEV cache $VDEV_CACHE
 
@@ -89,7 +90,7 @@ log_must zpool import -N -d $VDIR $TESTPOOL
 # will not be 0 (mentioned also in zfs.4)
 # For the purposes of this test we mitigate this by disabling (predictive)
 # ZFS prefetches with zfs_prefetch_disable=1.
-log_must test $(get_arcstat l2_mru_asize) -eq 0
+log_must test $(kstat arcstats.l2_mru_asize) -eq 0
 
 log_must zpool destroy -f $TESTPOOL
 

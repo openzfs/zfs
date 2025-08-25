@@ -1,4 +1,5 @@
 #!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -47,8 +48,8 @@ sync_pool $TESTPOOL
 log_must eval "zfs send -ecL $snap > $tmpfile.1"
 log_must eval "zdb -B $TESTPOOL/$objsetid ecL > $tmpfile.2"
 
-typeset sum1=$(cat $tmpfile.1 | md5sum)
-typeset sum2=$(cat $tmpfile.2 | md5sum)
+typeset sum1=$(xxh128digest $tmpfile.1)
+typeset sum2=$(xxh128digest $tmpfile.2)
 
 log_must test "$sum1" = "$sum2"
 

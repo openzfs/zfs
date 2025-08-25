@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -21,7 +22,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2014, 2016, 2024 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -30,13 +31,13 @@
  * Portions Copyright 2010 Robert Milkowski
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2024, Klara, Inc.
  */
 
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H extern __attribute__((visibility("default")))
 
 #include <sys/time.h>
-#include <sys/zio_priority.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -81,6 +82,7 @@ typedef enum dmu_objset_type {
  * All of these include the terminating NUL byte.
  */
 #define	ZAP_MAXNAMELEN 256
+#define	ZAP_MAXNAMELEN_NEW 1024
 #define	ZAP_MAXVALUELEN (1024 * 8)
 #define	ZAP_OLDMAXVALUELEN 1024
 #define	ZFS_MAX_DATASET_NAME_LEN 256
@@ -193,6 +195,14 @@ typedef enum {
 	ZFS_PROP_SNAPSHOTS_CHANGED,
 	ZFS_PROP_PREFETCH,
 	ZFS_PROP_VOLTHREADING,
+	ZFS_PROP_DIRECT,
+	ZFS_PROP_LONGNAME,
+	ZFS_PROP_DEFAULTUSERQUOTA,
+	ZFS_PROP_DEFAULTGROUPQUOTA,
+	ZFS_PROP_DEFAULTPROJECTQUOTA,
+	ZFS_PROP_DEFAULTUSEROBJQUOTA,
+	ZFS_PROP_DEFAULTGROUPOBJQUOTA,
+	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -258,6 +268,10 @@ typedef enum {
 	ZPOOL_PROP_BCLONEUSED,
 	ZPOOL_PROP_BCLONESAVED,
 	ZPOOL_PROP_BCLONERATIO,
+	ZPOOL_PROP_DEDUP_TABLE_SIZE,
+	ZPOOL_PROP_DEDUP_TABLE_QUOTA,
+	ZPOOL_PROP_DEDUPCACHED,
+	ZPOOL_PROP_LAST_SCRUBBED_TXG,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -366,6 +380,11 @@ typedef enum {
 	VDEV_PROP_IO_N,
 	VDEV_PROP_IO_T,
 	VDEV_PROP_RAIDZ_EXPANDING,
+	VDEV_PROP_SLOW_IO_N,
+	VDEV_PROP_SLOW_IO_T,
+	VDEV_PROP_TRIM_SUPPORT,
+	VDEV_PROP_TRIM_ERRORS,
+	VDEV_PROP_SLOW_IOS,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -524,6 +543,12 @@ typedef enum {
 	ZFS_VOLMODE_DEV = 2,
 	ZFS_VOLMODE_NONE = 3
 } zfs_volmode_t;
+
+typedef enum {
+	ZFS_DIRECT_DISABLED = 0,
+	ZFS_DIRECT_STANDARD,
+	ZFS_DIRECT_ALWAYS
+} zfs_direct_t;
 
 typedef enum zfs_keystatus {
 	ZFS_KEYSTATUS_NONE = 0,
@@ -781,6 +806,9 @@ typedef struct zpool_load_policy {
 
 /* Number of slow IOs */
 #define	ZPOOL_CONFIG_VDEV_SLOW_IOS		"vdev_slow_ios"
+
+/* Number of Direct I/O write verify errors */
+#define	ZPOOL_CONFIG_VDEV_DIO_VERIFY_ERRORS	"vdev_dio_verify_errors"
 
 /* vdev enclosure sysfs path */
 #define	ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
@@ -1067,6 +1095,7 @@ typedef enum pool_scan_func {
 typedef enum pool_scrub_cmd {
 	POOL_SCRUB_NORMAL = 0,
 	POOL_SCRUB_PAUSE,
+	POOL_SCRUB_FROM_LAST_TXG,
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
@@ -1092,10 +1121,36 @@ typedef enum zio_type {
 	ZIO_TYPE_WRITE,
 	ZIO_TYPE_FREE,
 	ZIO_TYPE_CLAIM,
-	ZIO_TYPE_IOCTL,
+	ZIO_TYPE_FLUSH,
 	ZIO_TYPE_TRIM,
 	ZIO_TYPES
 } zio_type_t;
+
+/*
+ * Compatibility: _IOCTL was renamed to _FLUSH; keep the old name available to
+ * user programs.
+ */
+#define	ZIO_TYPE_IOCTL	ZIO_TYPE_FLUSH
+
+/*
+ * ZIO priority types. Needed to interpret vdev statistics below.
+ *
+ * NOTE: PLEASE UPDATE THE ENUM STRINGS IN zfs_valstr.c IF YOU ADD ANOTHER
+ * VALUE.
+ */
+typedef enum zio_priority {
+	ZIO_PRIORITY_SYNC_READ,
+	ZIO_PRIORITY_SYNC_WRITE,	/* ZIL */
+	ZIO_PRIORITY_ASYNC_READ,	/* prefetch */
+	ZIO_PRIORITY_ASYNC_WRITE,	/* spa_sync() */
+	ZIO_PRIORITY_SCRUB,		/* asynchronous scrub/resilver reads */
+	ZIO_PRIORITY_REMOVAL,		/* reads/writes for vdev removal */
+	ZIO_PRIORITY_INITIALIZING,	/* initializing I/O */
+	ZIO_PRIORITY_TRIM,		/* trim I/O (discard) */
+	ZIO_PRIORITY_REBUILD,		/* reads/writes for vdev rebuild */
+	ZIO_PRIORITY_NUM_QUEUEABLE,
+	ZIO_PRIORITY_NOW,		/* non-queued i/os (e.g. free) */
+} zio_priority_t;
 
 /*
  * Pool statistics.  Note: all fields should be 64-bit because this
@@ -1248,6 +1303,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
 	uint64_t	vs_noalloc;		/* allocations halted?	*/
 	uint64_t	vs_pspace;		/* physical capacity */
+	uint64_t	vs_dio_verify_errors;	/* DIO write verify errors */
 } vdev_stat_t;
 
 #define	VDEV_STAT_VALID(field, uint64_t_field_count) \
@@ -1408,7 +1464,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Core features - 88/128 numbers reserved.
+	 * Core features - 89/128 numbers reserved.
 	 */
 #ifdef __FreeBSD__
 	ZFS_IOC_FIRST =	0,
@@ -1504,6 +1560,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_VDEV_GET_PROPS,			/* 0x5a55 */
 	ZFS_IOC_VDEV_SET_PROPS,			/* 0x5a56 */
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
+	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
+	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1562,6 +1620,18 @@ typedef enum zfs_ioc {
 
 #endif
 
+typedef struct zfs_rewrite_args {
+	uint64_t	off;
+	uint64_t	len;
+	uint64_t	flags;
+	uint64_t	arg;
+} zfs_rewrite_args_t;
+
+/* zfs_rewrite_args flags */
+#define	ZFS_REWRITE_PHYSICAL	0x1	/* Preserve logical birth time. */
+
+#define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
+
 /*
  * ZFS-specific error codes used for returning descriptive errors
  * to the userland through zfs ioctls.
@@ -1601,6 +1671,8 @@ typedef enum {
 	ZFS_ERR_RESUME_EXISTS,
 	ZFS_ERR_CRYPTO_NOTSUP,
 	ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
+	ZFS_ERR_ASHIFT_MISMATCH,
+	ZFS_ERR_STREAM_LARGE_MICROZAP,
 } zfs_errno_t;
 
 /*
@@ -1633,6 +1705,17 @@ typedef enum {
 	ZFS_WAIT_DELETEQ,
 	ZFS_WAIT_NUM_ACTIVITIES
 } zfs_wait_activity_t;
+
+typedef enum {
+	ZPOOL_PREFETCH_NONE = 0,
+	ZPOOL_PREFETCH_DDT
+} zpool_prefetch_type_t;
+
+typedef enum {
+	ZPOOL_DDT_PRUNE_NONE,
+	ZPOOL_DDT_PRUNE_AGE,		/* in seconds */
+	ZPOOL_DDT_PRUNE_PERCENTAGE,	/* 1 - 100 */
+} zpool_ddt_prune_unit_t;
 
 /*
  * Bookmark name values.
@@ -1673,10 +1756,26 @@ typedef enum {
 #define	ZPOOL_HIDDEN_ARGS	"hidden_args"
 
 /*
+ * The following is used when invoking ZFS_IOC_POOL_GET_PROPS.
+ */
+#define	ZPOOL_GET_PROPS_NAMES		"get_props_names"
+
+/*
+ * Opt-in property names used with ZPOOL_GET_PROPS_NAMES.
+ * For example, properties that are hidden or expensive to compute.
+ */
+#define	ZPOOL_DEDUPCACHED_PROP_NAME	"dedupcached"
+
+/*
  * The following are names used when invoking ZFS_IOC_POOL_INITIALIZE.
  */
 #define	ZPOOL_INITIALIZE_COMMAND	"initialize_command"
 #define	ZPOOL_INITIALIZE_VDEVS		"initialize_vdevs"
+
+/*
+ * The following are names used when invoking ZFS_IOC_POOL_REGUID.
+ */
+#define	ZPOOL_REGUID_GUID	"guid"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_TRIM.
@@ -1710,6 +1809,17 @@ typedef enum {
  */
 #define	ZFS_WAIT_ACTIVITY		"wait_activity"
 #define	ZFS_WAIT_WAITED			"wait_waited"
+
+/*
+ * The following are names used when invoking ZFS_IOC_POOL_PREFETCH.
+ */
+#define	ZPOOL_PREFETCH_TYPE		"prefetch_type"
+
+/*
+ * The following are names used when invoking ZFS_IOC_DDT_PRUNE.
+ */
+#define	DDT_PRUNE_UNIT		"ddt_prune_unit"
+#define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE

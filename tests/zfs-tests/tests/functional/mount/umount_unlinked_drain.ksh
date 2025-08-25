@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -42,13 +43,15 @@ function cleanup
 
 function unlinked_size_is
 {
+	typeset -i expect=$1
+	typeset dataset=$2
+
 	MAX_ITERS=5 # iteration to do before we consider reported number stable
 	iters=0
 	last_usize=0
 	while [[ $iters -le $MAX_ITERS ]]; do
-		kstat_file=$(grep -nrwl /proc/spl/kstat/zfs/$2/objset-0x* -e $3)
-		nunlinks=$(awk '/nunlinks/ {print $3}' $kstat_file)
-		nunlinked=$(awk '/nunlinked/ {print $3}' $kstat_file)
+		nunlinks=$(kstat_dataset $dataset nunlinks)
+		nunlinked=$(kstat_dataset $dataset nunlinked)
 		usize=$(($nunlinks - $nunlinked))
 		if [[ $iters == $MAX_ITERS && $usize == $1 ]]; then
 			return 0
@@ -89,20 +92,20 @@ for fs in 1 2 3; do
 		fi
 
 		log_must set_tunable32 UNLINK_SUSPEND_PROGRESS 1
-		log_must unlinked_size_is 0 $TESTPOOL $TESTPOOL/$TESTFS.$fs
+		log_must unlinked_size_is 0 $TESTPOOL/$TESTFS.$fs
 
 		# build up unlinked set
 		for fn in $(seq 1 100); do
 			log_must eval "rm $TESTDIR.$fs/file-$fn &"
 		done
-		log_must unlinked_size_is 100 $TESTPOOL $TESTPOOL/$TESTFS.$fs
+		log_must unlinked_size_is 100 $TESTPOOL/$TESTFS.$fs
 
 		# test that we can mount fs without emptying the unlinked list
 		log_must zfs umount $TESTPOOL/$TESTFS.$fs
 		log_must unmounted $TESTDIR.$fs
 		log_must zfs mount $TESTPOOL/$TESTFS.$fs
 		log_must mounted $TESTDIR.$fs
-		log_must unlinked_size_is 100 $TESTPOOL $TESTPOOL/$TESTFS.$fs
+		log_must unlinked_size_is 100 $TESTPOOL/$TESTFS.$fs
 
 		# confirm we can drain and add to unlinked set at the same time
 		log_must set_tunable32 UNLINK_SUSPEND_PROGRESS 0
@@ -111,7 +114,7 @@ for fs in 1 2 3; do
 		for fn in $(seq 101 175); do
 			log_must eval "rm $TESTDIR.$fs/file-$fn &"
 		done
-		log_must unlinked_size_is 0 $TESTPOOL $TESTPOOL/$TESTFS.$fs
+		log_must unlinked_size_is 0 $TESTPOOL/$TESTFS.$fs
 	done
 done
 

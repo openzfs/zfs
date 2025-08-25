@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -179,7 +180,7 @@ extern void zfs_znode_free(struct znode *);
 extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
 
 extern int zfs_znode_parent_and_name(struct znode *zp, struct znode **dzpp,
-    char *buf);
+    char *buf, uint64_t buflen);
 
 extern int zfs_rlimit_fsize(off_t fsize);
 #ifdef	__cplusplus

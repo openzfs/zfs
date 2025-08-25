@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -50,20 +51,20 @@ extern "C" {
 #define	MMP_SEQ_VALID_BIT	0x02
 #define	MMP_FAIL_INT_VALID_BIT	0x04
 
-#define	MMP_VALID(ubp)		(ubp->ub_magic == UBERBLOCK_MAGIC && \
-				    ubp->ub_mmp_magic == MMP_MAGIC)
-#define	MMP_INTERVAL_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_VALID(ubp)		((ubp)->ub_magic == UBERBLOCK_MAGIC && \
+				    (ubp)->ub_mmp_magic == MMP_MAGIC)
+#define	MMP_INTERVAL_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_INTERVAL_VALID_BIT))
-#define	MMP_SEQ_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_SEQ_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_SEQ_VALID_BIT))
-#define	MMP_FAIL_INT_VALID(ubp)	(MMP_VALID(ubp) && (ubp->ub_mmp_config & \
+#define	MMP_FAIL_INT_VALID(ubp)	(MMP_VALID(ubp) && ((ubp)->ub_mmp_config & \
 				    MMP_FAIL_INT_VALID_BIT))
 
-#define	MMP_INTERVAL(ubp)	((ubp->ub_mmp_config & 0x00000000FFFFFF00) \
+#define	MMP_INTERVAL(ubp)	(((ubp)->ub_mmp_config & 0x00000000FFFFFF00) \
 				    >> 8)
-#define	MMP_SEQ(ubp)		((ubp->ub_mmp_config & 0x0000FFFF00000000) \
+#define	MMP_SEQ(ubp)		(((ubp)->ub_mmp_config & 0x0000FFFF00000000) \
 				    >> 32)
-#define	MMP_FAIL_INT(ubp)	((ubp->ub_mmp_config & 0xFFFF000000000000) \
+#define	MMP_FAIL_INT(ubp)	(((ubp)->ub_mmp_config & 0xFFFF000000000000) \
 				    >> 48)
 
 #define	MMP_INTERVAL_SET(write) \
@@ -165,7 +166,7 @@ struct uberblock {
 	 * pool from a checkpointed uberblock [see spa_ld_select_uberblock()],
 	 * the value of the field is used to determine which ZIL blocks have
 	 * been allocated according to the ms_sm when we are rewinding to a
-	 * checkpoint. Specifically, if blk_birth > ub_checkpoint_txg, then
+	 * checkpoint. Specifically, if logical birth > ub_checkpoint_txg,then
 	 * the ZIL block is not allocated [see uses of spa_min_claim_txg()].
 	 */
 	uint64_t	ub_checkpoint_txg;

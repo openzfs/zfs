@@ -205,6 +205,46 @@ AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS], [
 	AC_MSG_RESULT([$enable_invariants])
 ])
 
+dnl # Disabled by default. If enabled allows a configured "turn objtools
+dnl # warnings into errors" (CONFIG_OBJTOOL_WERROR) behavior to take effect.
+dnl # If disabled, objtool warnings are never turned into errors. It can't
+dnl # be enabled if the kernel wasn't compiled with CONFIG_OBJTOOL_WERROR=y.
+dnl #
+AC_DEFUN([ZFS_AC_OBJTOOL_WERROR], [
+	AC_MSG_CHECKING([whether objtool error on warning behavior is enabled])
+	AC_ARG_ENABLE([objtool-werror],
+		[AS_HELP_STRING([--enable-objtool-werror],
+		[Enable objtool's error on warning behaviour if present @<:@default=no@:>@])],
+		[enable_objtool_werror=$enableval],
+		[enable_objtool_werror=no])
+	AC_MSG_RESULT([$enable_objtool_werror])
+
+	AS_IF([test x$CONFIG_OBJTOOL_WERROR_DEFINED = xyes],[
+		AS_IF([test x$enable_objtool_werror = xyes],[
+			AC_MSG_NOTICE([enable-objtool-werror defined, keeping -Werror ])
+		],[
+			AC_MSG_NOTICE([enable-objtool-werror undefined, disabling -Werror ])
+			OBJTOOL_DISABLE_WERROR=y
+			abs_objtool_binary=$kernelsrc/tools/objtool/objtool
+			AS_IF([test -x $abs_objtool_binary],[],[
+				AC_MSG_ERROR([*** objtool binary $abs_objtool_binary not found])
+			])
+			dnl # The path to the wrapper is defined in modules/Makefile.in.
+		])
+	],[
+		dnl # We can't enable --Werror if it's not there.
+		AS_IF([test x$enable_objtool_werror = xyes],[
+			AC_MSG_ERROR([
+	*** Cannot enable objtool-werror,
+	*** a kernel built with CONFIG_OBJTOOL_WERROR=y is required.
+			])
+		],[])
+	])
+
+	AC_SUBST(OBJTOOL_DISABLE_WERROR)
+	AC_SUBST(abs_objtool_binary)
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	AX_COUNT_CPUS([])
 	AC_SUBST(CPU_COUNT)
@@ -216,6 +256,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH
+	ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_FORMAT_ZERO_LENGTH
 	ZFS_AC_CONFIG_ALWAYS_CC_FORMAT_OVERFLOW
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_IPA_SRA
@@ -393,6 +434,8 @@ AC_DEFUN([ZFS_AC_RPM], [
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_cc KERNEL_CC=$(KERNEL_CC)"'
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_ld KERNEL_LD=$(KERNEL_LD)"'
 		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_llvm KERNEL_LLVM=$(KERNEL_LLVM)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_cross_compile KERNEL_CROSS_COMPILE=$(KERNEL_CROSS_COMPILE)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernel_arch KERNEL_ARCH=$(KERNEL_ARCH)"'
 	])
 
 	RPM_DEFINE_DKMS=''
@@ -512,32 +555,35 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		[with_vendor=$withval],
 		[with_vendor=check])
 	AS_IF([test "x$with_vendor" = "xcheck"],[
-		if test -f /etc/toss-release ; then
-			VENDOR=toss ;
-		elif test -f /etc/fedora-release ; then
-			VENDOR=fedora ;
-		elif test -f /etc/redhat-release ; then
-			VENDOR=redhat ;
-		elif test -f /etc/gentoo-release ; then
-			VENDOR=gentoo ;
+		if test -f /etc/alpine-release ; then
+			VENDOR=alpine ;
 		elif test -f /etc/arch-release ; then
 			VENDOR=arch ;
+		elif test -f /etc/artix-release ; then
+			VENDOR=artix ;
+		elif test -f /etc/fedora-release ; then
+			VENDOR=fedora ;
+		elif test -f /bin/freebsd-version ; then
+			VENDOR=freebsd ;
+		elif test -f /etc/gentoo-release ; then
+			VENDOR=gentoo ;
+		elif test -f /etc/lunar.release ; then
+			VENDOR=lunar ;
+		elif test -f /etc/openEuler-release ; then
+			VENDOR=openeuler ;
 		elif test -f /etc/SuSE-release ; then
 			VENDOR=sles ;
 		elif test -f /etc/slackware-version ; then
 			VENDOR=slackware ;
-		elif test -f /etc/lunar.release ; then
-			VENDOR=lunar ;
+		elif test -f /etc/toss-release ; then
+			VENDOR=toss ;
 		elif test -f /etc/lsb-release ; then
 			VENDOR=ubuntu ;
+		# put debian and redhat last as derivatives may have also their file
 		elif test -f /etc/debian_version ; then
 			VENDOR=debian ;
-		elif test -f /etc/alpine-release ; then
-			VENDOR=alpine ;
-		elif test -f /bin/freebsd-version ; then
-			VENDOR=freebsd ;
-		elif test -f /etc/openEuler-release ; then
-			VENDOR=openeuler ;
+		elif test -f /etc/redhat-release ; then
+			VENDOR=redhat ;
 		else
 			VENDOR= ;
 		fi],
@@ -550,20 +596,15 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
-		toss)       DEFAULT_PACKAGE=rpm  ;;
-		redhat)     DEFAULT_PACKAGE=rpm  ;;
-		fedora)     DEFAULT_PACKAGE=rpm  ;;
-		gentoo)     DEFAULT_PACKAGE=tgz  ;;
-		alpine)     DEFAULT_PACKAGE=tgz  ;;
-		arch)       DEFAULT_PACKAGE=tgz  ;;
-		sles)       DEFAULT_PACKAGE=rpm  ;;
-		slackware)  DEFAULT_PACKAGE=tgz  ;;
-		lunar)      DEFAULT_PACKAGE=tgz  ;;
-		ubuntu)     DEFAULT_PACKAGE=deb  ;;
-		debian)     DEFAULT_PACKAGE=deb  ;;
-		freebsd)    DEFAULT_PACKAGE=pkg  ;;
-		openeuler)  DEFAULT_PACKAGE=rpm  ;;
-		*)          DEFAULT_PACKAGE=rpm  ;;
+		alpine|arch|artix|gentoo|lunar|slackware)
+			DEFAULT_PACKAGE=tgz  ;;
+		debian|ubuntu)
+			DEFAULT_PACKAGE=deb  ;;
+		freebsd)
+			DEFAULT_PACKAGE=pkg  ;;
+		*)
+		# fedora|openeuler|redhat|sles|toss
+			DEFAULT_PACKAGE=rpm  ;;
 	esac
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
@@ -578,13 +619,17 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default shell])
 	case "$VENDOR" in
-		gentoo)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
-		alpine)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
-		*)          DEFAULT_INIT_SHELL="/bin/sh"         ;;
+		alpine|gentoo)	DEFAULT_INIT_SHELL=/sbin/openrc-run
+				IS_SYSV_RC=false	;;
+		artix)		DEFAULT_INIT_SHELL=/usr/bin/openrc-run
+				IS_SYSV_RC=false	;;
+		*)		DEFAULT_INIT_SHELL=/bin/sh
+				IS_SYSV_RC=true		;;
 	esac
 
 	AC_MSG_RESULT([$DEFAULT_INIT_SHELL])
 	AC_SUBST(DEFAULT_INIT_SHELL)
+	AC_SUBST(IS_SYSV_RC)
 
 	AC_MSG_CHECKING([default nfs server init script])
 	AS_IF([test "$VENDOR" = "debian"],
@@ -596,17 +641,19 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
-		alpine)     initconfdir=/etc/conf.d    ;;
-		gentoo)     initconfdir=/etc/conf.d    ;;
-		toss)       initconfdir=/etc/sysconfig ;;
-		redhat)     initconfdir=/etc/sysconfig ;;
-		fedora)     initconfdir=/etc/sysconfig ;;
-		sles)       initconfdir=/etc/sysconfig ;;
-		openeuler)  initconfdir=/etc/sysconfig ;;
-		ubuntu)     initconfdir=/etc/default   ;;
-		debian)     initconfdir=/etc/default   ;;
-		freebsd)    initconfdir=$sysconfdir/rc.conf.d;;
-		*)          initconfdir=/etc/default   ;;
+		alpine|artix|gentoo)
+			initconfdir=/etc/conf.d
+			;;
+		fedora|openeuler|redhat|sles|toss)
+			initconfdir=/etc/sysconfig
+			;;
+		freebsd)
+			initconfdir=$sysconfdir/rc.conf.d
+			;;
+		*)
+		# debian|ubuntu
+			initconfdir=/etc/default
+			;;
 	esac
 	AC_MSG_RESULT([$initconfdir])
 	AC_SUBST(initconfdir)
@@ -623,11 +670,15 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default bash completion directory])
 	case "$VENDOR" in
-		ubuntu)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
-		debian)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
-		freebsd)    bashcompletiondir=$sysconfdir/bash_completion.d;;
-		gentoo)     bashcompletiondir=/usr/share/bash-completion/completions   ;;
-		*)          bashcompletiondir=/etc/bash_completion.d   ;;
+		alpine|arch|artix|debian|gentoo|ubuntu)
+			bashcompletiondir=/usr/share/bash-completion/completions
+			;;
+		freebsd)
+			bashcompletiondir=$sysconfdir/bash_completion.d
+			;;
+		*)
+			bashcompletiondir=/etc/bash_completion.d
+			;;
 	esac
 	AC_MSG_RESULT([$bashcompletiondir])
 	AC_SUBST(bashcompletiondir)

@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -99,7 +100,7 @@ when exceeding this value.
 .It Sy spl_kmem_cache_magazine_size Ns = Ns Sy 0 Pq uint
 Cache magazines are an optimization designed to minimize the cost of
 allocating memory.
-They do this by keeping a per-cpu cache of recently
+They do this by keeping a per-CPU cache of recently
 freed objects, which can then be reallocated without taking a lock.
 This can improve performance on highly contended caches.
 However, because objects in magazines will prevent otherwise empty slabs
@@ -110,8 +111,8 @@ For this reason,
 can be used to set a maximum magazine size.
 When this value is set to 0 the magazine size will
 be automatically determined based on the object size.
-Otherwise magazines will be limited to 2-256 objects per magazine (i.e per cpu).
-Magazines may never be entirely disabled in this implementation.
+Otherwise magazines will be limited to 2-256 objects per magazine (i.e. per
+CPU). Magazines may never be entirely disabled in this implementation.
 .
 .It Sy spl_hostid Ns = Ns Sy 0 Pq ulong
 The system hostid, when set this can be used to uniquely identify a system.
@@ -175,29 +176,8 @@ Increasing this value will
 result in a slower thread creation rate which may be preferable for some
 configurations.
 .
-.It Sy spl_max_show_tasks Ns = Ns Sy 512 Pq uint
-The maximum number of tasks per pending list in each taskq shown in
-.Pa /proc/spl/taskq{,-all} .
-Write
-.Sy 0
-to turn off the limit.
-The proc file will walk the lists with lock held,
-reading it could cause a lock-up if the list grow too large
-without limiting the output.
-"(truncated)" will be shown if the list is larger than the limit.
-.
-.It Sy spl_taskq_thread_timeout_ms Ns = Ns Sy 10000 Pq uint
-(Linux-only)
-How long a taskq has to have had no work before we tear it down.
-Previously, we would tear down a dynamic taskq worker as soon
-as we noticed it had no work, but it was observed that this led
-to a lot of churn in tearing down things we then immediately
-spawned anew.
-In practice, it seems any nonzero value will remove the vast
-majority of this churn, while the nontrivially larger value
-was chosen to help filter out the little remaining churn on
-a mostly idle system.
-Setting this value to
-.Sy 0
-will revert to the previous behavior.
+.It Sy spl_taskq_thread_timeout_ms Ns = Ns Sy 5000 Pq uint
+Minimum idle threads exit interval for dynamic taskqs.
+Smaller values allow idle threads exit more often and potentially be
+respawned again on demand, causing more churn.
 .El

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -31,7 +32,6 @@
 /* ZIO macros */
 #define	ZIO_TP_STRUCT_ENTRY						\
 		__field(zio_type_t,		zio_type)		\
-		__field(int,			zio_cmd)		\
 		__field(zio_priority_t,		zio_priority)		\
 		__field(uint64_t,		zio_size)		\
 		__field(uint64_t,		zio_orig_size)		\
@@ -45,7 +45,7 @@
 		__field(zio_flag_t,		zio_orig_flags)		\
 		__field(enum zio_stage,		zio_orig_stage)		\
 		__field(enum zio_stage,		zio_orig_pipeline)	\
-		__field(uint8_t,		zio_reexecute)		\
+		__field(uint8_t,		zio_post)		\
 		__field(uint64_t,		zio_txg)		\
 		__field(int,			zio_error)		\
 		__field(uint64_t,		zio_ena)		\
@@ -61,7 +61,6 @@
 
 #define	ZIO_TP_FAST_ASSIGN						    \
 		__entry->zio_type		= zio->io_type;		    \
-		__entry->zio_cmd		= zio->io_cmd;		    \
 		__entry->zio_priority		= zio->io_priority;	    \
 		__entry->zio_size		= zio->io_size;		    \
 		__entry->zio_orig_size		= zio->io_orig_size;	    \
@@ -75,7 +74,7 @@
 		__entry->zio_orig_flags		= zio->io_orig_flags;	    \
 		__entry->zio_orig_stage		= zio->io_orig_stage;	    \
 		__entry->zio_orig_pipeline	= zio->io_orig_pipeline;    \
-		__entry->zio_reexecute		= zio->io_reexecute;	    \
+		__entry->zio_post		= zio->io_post;		    \
 		__entry->zio_txg		= zio->io_txg;		    \
 		__entry->zio_error		= zio->io_error;	    \
 		__entry->zio_ena		= zio->io_ena;		    \
@@ -90,20 +89,20 @@
 		__entry->zp_dedup_verify	= zio->io_prop.zp_dedup_verify;
 
 #define	ZIO_TP_PRINTK_FMT						\
-	"zio { type %u cmd %i prio %u size %llu orig_size %llu "	\
+	"zio { type %u prio %u size %llu orig_size %llu "		\
 	"offset %llu timestamp %llu delta %llu delay %llu "		\
 	"flags 0x%llx stage 0x%x pipeline 0x%x orig_flags 0x%llx "	\
-	"orig_stage 0x%x orig_pipeline 0x%x reexecute %u "		\
+	"orig_stage 0x%x orig_pipeline 0x%x post %u "			\
 	"txg %llu error %d ena %llu prop { checksum %u compress %u "	\
 	"type %u level %u copies %u dedup %u dedup_verify %u nopwrite %u } }"
 
 #define	ZIO_TP_PRINTK_ARGS						\
-	__entry->zio_type, __entry->zio_cmd, __entry->zio_priority,	\
+	__entry->zio_type, __entry->zio_priority,			\
 	__entry->zio_size, __entry->zio_orig_size, __entry->zio_offset,	\
 	__entry->zio_timestamp, __entry->zio_delta, __entry->zio_delay,	\
 	__entry->zio_flags, __entry->zio_stage, __entry->zio_pipeline,	\
 	__entry->zio_orig_flags, __entry->zio_orig_stage,		\
-	__entry->zio_orig_pipeline, __entry->zio_reexecute,		\
+	__entry->zio_orig_pipeline, __entry->zio_post,			\
 	__entry->zio_txg, __entry->zio_error, __entry->zio_ena,		\
 	__entry->zp_checksum, __entry->zp_compress, __entry->zp_type,	\
 	__entry->zp_level, __entry->zp_copies, __entry->zp_dedup,	\

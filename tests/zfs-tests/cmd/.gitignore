@@ -4,6 +4,7 @@
 /clonefile
 /clone_mmap_cached
 /clone_mmap_write
+/crypto_test
 /devname2devid
 /dir_rd_update
 /draid
@@ -16,15 +17,18 @@
 /getversion
 /largest_file
 /libzfs_input_check
+/manipulate_user_buffer
 /mkbusy
 /mkfile
 /mkfiles
 /mktree
 /mmap_exec
+/mmap_ftruncate
 /mmap_libaio
 /mmap_seek
 /mmap_sync
 /mmapwrite
+/mmap_write_sync
 /nvlist_to_lua
 /randfree_file
 /randwritecomp
@@ -34,6 +38,7 @@
 /rename_dir
 /rm_lnkcnt_zero_file
 /send_doall
+/statx
 /stride_dd
 /threadsappend
 /user_ns_exec
@@ -52,3 +57,4 @@
 /skein_test
 /sha2_test
 /idmap_util
+/statx

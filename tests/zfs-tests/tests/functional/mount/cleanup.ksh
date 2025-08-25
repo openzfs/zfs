@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -27,12 +28,14 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2025 MNX Cloud, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
 log_must destroy_pool $TESTPOOL
 
-for dir in $TESTDIRS; do
+for i in 1 2 3; do
+	dir=$TESTDIR.$i
 	rm -rf $dir
 done

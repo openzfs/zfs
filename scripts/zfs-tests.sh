@@ -1,5 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
+# SPDX-License-Identifier: CDDL-1.0
 # shellcheck disable=SC2154
+# shellcheck disable=SC2292
 #
 # CDDL HEADER START
 #
@@ -32,6 +34,7 @@ SCRIPT_COMMON=${SCRIPT_COMMON:-${0%/*}/common.sh}
 PROG=zfs-tests.sh
 VERBOSE="no"
 QUIET=""
+DEBUG=""
 CLEANUP="yes"
 CLEANUPALL="no"
 KMSG=""
@@ -150,7 +153,7 @@ cleanup_all() {
 	else
 		TEST_LOOPBACKS=$("${LOSETUP}" -a | awk -F: '/file-vdev/ {print $1}')
 	fi
-	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* /var/tmp/file-vdev* 2>/dev/null)
+	TEST_FILES=$(ls "${FILEDIR}"/file-vdev* 2>/dev/null)
 
 	msg
 	msg "--- Cleanup ---"
@@ -205,6 +208,49 @@ find_runfile() {
 	else
 		return 1
 	fi
+}
+
+# Given a TAGS with a format like "1/3" or "2/3" then divide up the test list
+# into portions and print that portion.  So "1/3" for "the first third of the
+# test tags".
+#
+#
+split_tags() {
+	# Get numerator and denominator
+	NUM=$(echo "$TAGS" | cut -d/ -f1)
+	DEN=$(echo "$TAGS" | cut -d/ -f2)
+	# At the point this is called, RUNFILES will contain a comma separated
+	# list of full paths to the runfiles, like:
+	#
+	# "/home/hutter/qemu/tests/runfiles/common.run,/home/hutter/qemu/tests/runfiles/linux.run"
+	#
+	# So to get tags for our selected tests we do:
+	#
+	# 1. Remove unneeded chars: [],\
+	# 2. Print out the last field of each tag line.  This will be the tag
+	#    for the test (like 'zpool_add').
+	# 3. Remove duplicates between the runfiles.  If the same tag is defined
+	#    in multiple runfiles, then when you do '-T <tag>' ZTS is smart
+	#    enough to know to run the tag in each runfile.  So '-T zpool_add'
+	#    will run the zpool_add from common.run and linux.run.
+	# 4. Ignore the 'functional' tag since we only want individual tests
+	# 5. Print out the tests in our faction of all tests.  This uses modulus
+	#    so "1/3" will run tests 1,3,6,9 etc.  That way the tests are
+	#    interleaved so, say, "3/4" isn't running all the zpool_* tests that
+	#    appear alphabetically at the end.
+	# 6. Remove trailing comma from list
+	#
+	# TAGS will then look like:
+	#
+	# "append,atime,bootfs,cachefile,checksum,cp_files,deadman,dos_attributes, ..."
+
+	# Change the comma to a space for easy processing
+	_RUNFILES=${RUNFILES//","/" "}
+	# shellcheck disable=SC2002,SC2086
+	cat $_RUNFILES | tr -d "[],\'" | awk '/tags = /{print $NF}' | sort | \
+		uniq | grep -v functional | \
+		awk -v num="$NUM" -v den="$DEN" '{ if(NR % den == (num - 1)) {printf "%s,",$0}}' | \
+		sed -E 's/,$//'
 }
 
 #
@@ -263,8 +309,8 @@ constrain_path() {
 		# Special case links for zfs test suite utilities
 		create_links "$CMD_DIR/tests/zfs-tests/cmd" "$ZFSTEST_FILES"
 	else
-		# Constrained path set to /var/tmp/constrained_path.*
-		SYSTEMDIR=${SYSTEMDIR:-/var/tmp/constrained_path.XXXXXX}
+		# Constrained path set to $FILEDIR/constrained_path.*
+		SYSTEMDIR=${SYSTEMDIR:-$FILEDIR/constrained_path.XXXXXX}
 		STF_PATH=$(mktemp -d "$SYSTEMDIR")
 		STF_PATH_REMOVE="yes"
 		STF_MISSING_BIN=""
@@ -313,6 +359,7 @@ OPTIONS:
 	-h          Show this message
 	-v          Verbose zfs-tests.sh output
 	-q          Quiet test-runner output
+	-D          Debug; show all test output immediately (noisy)
 	-x          Remove all testpools, dm, lo, and files (unsafe)
 	-k          Disable cleanup after test failure
 	-K          Log test names to /dev/kmsg
@@ -326,12 +373,17 @@ OPTIONS:
 	-d DIR      Use world-writable DIR for files and loopback devices
 	-s SIZE     Use vdevs of SIZE (default: 4G)
 	-r RUNFILES Run tests in RUNFILES (default: ${DEFAULT_RUNFILES})
-	-t PATH     Run single test at PATH relative to test suite
+	-t PATH|NAME  Run single test at PATH relative to test suite,
+	                or search for test by NAME
 	-T TAGS     Comma separated list of tags (default: 'functional')
+	            Alternately, specify a fraction like "1/3" or "2/3" to
+		     run the first third of tests or 2nd third of the tests.  This
+		     is useful for splitting up the test amongst different
+		     runners.
 	-u USER     Run single test as USER (default: root)
 
 EXAMPLES:
-# Run the default ($(echo "${DEFAULT_RUNFILES}" | sed 's/\.run//')) suite of tests and output the configuration used.
+# Run the default ${DEFAULT_RUNFILES//\.run/} suite of tests and output the configuration used.
 $0 -v
 
 # Run a smaller suite of tests designed to run more quickly.
@@ -340,14 +392,17 @@ $0 -r linux-fast
 # Run a single test
 $0 -t tests/functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh
 
+# Run a single test by name
+$0 -t zfs_bookmark_cliargs
+
 # Cleanup a previous run of the test suite prior to testing, run the
-# default ($(echo "${DEFAULT_RUNFILES}" | sed 's/\.run//')) suite of tests and perform no cleanup on exit.
+# default ${DEFAULT_RUNFILES//\.run//} suite of tests and perform no cleanup on exit.
 $0 -x
 
 EOF
 }
 
-while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkKfScRmn:d:Ds:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -393,6 +448,9 @@ while getopts 'hvqxkKfScRmn:d:s:r:?t:T:u:I:' OPTION; do
 	d)
 		FILEDIR="$OPTARG"
 		;;
+	D)
+		DEBUG="yes"
+		;;
 	I)
 		ITERATIONS="$OPTARG"
 		if [ "$ITERATIONS" -le 0 ]; then
@@ -435,7 +493,7 @@ if [ -n "$SINGLETEST" ]; then
 	if [ -n "$TAGS" ]; then
 		fail "-t and -T are mutually exclusive."
 	fi
-	RUNFILE_DIR="/var/tmp"
+	RUNFILE_DIR="$FILEDIR"
 	RUNFILES="zfs-tests.$$.run"
 	[ -n "$QUIET" ] && SINGLEQUIET="True" || SINGLEQUIET="False"
 
@@ -448,10 +506,16 @@ user = $SINGLETESTUSER
 timeout = 600
 post_user = root
 post =
-outputdir = /var/tmp/test_results
 EOF
-	SINGLETESTDIR="${SINGLETEST%/*}"
+	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
+		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
+		if [ -z "$NEWSINGLETEST" ] ; then
+			fail "couldn't find test matching '$SINGLETEST'"
+		fi
+		SINGLETEST=$NEWSINGLETEST
+	fi
 
+	SINGLETESTDIR="${SINGLETEST%/*}"
 	SETUPDIR="$SINGLETESTDIR"
 	[ "${SETUPDIR#/}" = "$SETUPDIR" ] && SETUPDIR="$STF_SUITE/$SINGLETESTDIR"
 	[ -x "$SETUPDIR/setup.ksh"   ] && SETUPSCRIPT="setup"     || SETUPSCRIPT=
@@ -473,6 +537,8 @@ fi
 #
 TAGS=${TAGS:='functional'}
 
+
+
 #
 # Attempt to locate the runfiles describing the test workload.
 #
@@ -492,6 +558,23 @@ for RUNFILE in $RUNFILES; do
 done
 unset IFS
 RUNFILES=${R#,}
+
+# The tag can be a fraction to indicate which portion of ZTS to run, Like
+#
+# 	"1/3": Run first one third of all tests in runfiles
+#	"2/3": Run second one third of all test in runfiles
+#	"6/10": Run 6th tenth of all tests in runfiles
+#
+# This is useful for splitting up the test across multiple runners.
+#
+# After this code block, TAGS will be transformed from something like
+# "1/3" to a comma separate taglist, like:
+#
+# "append,atime,bootfs,cachefile,checksum,cp_files,deadman,dos_attributes, ..."
+#
+if echo "$TAGS" | grep -Eq '^[0-9]+/[0-9]+$' ; then
+	TAGS=$(split_tags)
+fi
 
 #
 # This script should not be run as root.  Instead the test user, which may
@@ -636,6 +719,12 @@ if [ -e /sys/module/zfs/parameters/zfs_dbgmsg_enable ]; then
 	sudo sh -c "echo 0 >/proc/spl/kstat/zfs/dbgmsg"
 fi
 
+#
+# Set TMPDIR. Some tests run mktemp, and we want those files contained to
+# the work dir the same as any other.
+#
+export TMPDIR="$FILEDIR"
+
 msg
 msg "--- Configuration ---"
 msg "Runfiles:        $RUNFILES"
@@ -643,6 +732,7 @@ msg "STF_TOOLS:       $STF_TOOLS"
 msg "STF_SUITE:       $STF_SUITE"
 msg "STF_PATH:        $STF_PATH"
 msg "FILEDIR:         $FILEDIR"
+msg "TMPDIR:          $TMPDIR"
 msg "FILES:           $FILES"
 msg "LOOPBACKS:       $LOOPBACKS"
 msg "DISKS:           $DISKS"
@@ -680,6 +770,7 @@ REPORT_FILE=$(mktemp_file zts-report)
 #
 msg "${TEST_RUNNER}" \
     "${QUIET:+-q}" \
+    "${DEBUG:+-D}" \
     "${KMEMLEAK:+-m}" \
     "${KMSG:+-K}" \
     "-c \"${RUNFILES}\"" \
@@ -689,6 +780,7 @@ msg "${TEST_RUNNER}" \
 { PATH=$STF_PATH \
     ${TEST_RUNNER} \
     ${QUIET:+-q} \
+    ${DEBUG:+-D} \
     ${KMEMLEAK:+-m} \
     ${KMSG:+-K} \
     -c "${RUNFILES}" \
@@ -715,6 +807,7 @@ if [ "$RESULT" -eq "2" ] && [ -n "$RERUN" ]; then
 	{ PATH=$STF_PATH \
 	    ${TEST_RUNNER} \
 	        ${QUIET:+-q} \
+	        ${DEBUG:+-D} \
 	        ${KMEMLEAK:+-m} \
 	    -c "${RUNFILES}" \
 	    -T "${TAGS}" \

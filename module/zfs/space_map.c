@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -393,7 +394,7 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 
 typedef struct space_map_load_arg {
 	space_map_t	*smla_sm;
-	range_tree_t	*smla_rt;
+	zfs_range_tree_t	*smla_rt;
 	maptype_t	smla_type;
 } space_map_load_arg_t;
 
@@ -402,11 +403,13 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
 	if (sme->sme_type == smla->smla_type) {
-		VERIFY3U(range_tree_space(smla->smla_rt) + sme->sme_run, <=,
+		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
-		range_tree_add(smla->smla_rt, sme->sme_offset, sme->sme_run);
+		zfs_range_tree_add(smla->smla_rt, sme->sme_offset,
+		    sme->sme_run);
 	} else {
-		range_tree_remove(smla->smla_rt, sme->sme_offset, sme->sme_run);
+		zfs_range_tree_remove(smla->smla_rt, sme->sme_offset,
+		    sme->sme_run);
 	}
 
 	return (0);
@@ -417,15 +420,15 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
  * read the first 'length' bytes of the spacemap.
  */
 int
-space_map_load_length(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t length)
 {
 	space_map_load_arg_t smla;
 
-	VERIFY0(range_tree_space(rt));
+	VERIFY0(zfs_range_tree_space(rt));
 
 	if (maptype == SM_FREE)
-		range_tree_add(rt, sm->sm_start, sm->sm_size);
+		zfs_range_tree_add(rt, sm->sm_start, sm->sm_size);
 
 	smla.smla_rt = rt;
 	smla.smla_sm = sm;
@@ -434,7 +437,7 @@ space_map_load_length(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	    space_map_load_callback, &smla);
 
 	if (err != 0)
-		range_tree_vacate(rt, NULL, NULL);
+		zfs_range_tree_vacate(rt, NULL, NULL);
 
 	return (err);
 }
@@ -444,7 +447,7 @@ space_map_load_length(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
  * are added to the range tree, other segment types are removed.
  */
 int
-space_map_load(space_map_t *sm, range_tree_t *rt, maptype_t maptype)
+space_map_load(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype)
 {
 	return (space_map_load_length(sm, rt, maptype, space_map_length(sm)));
 }
@@ -460,7 +463,7 @@ space_map_histogram_clear(space_map_t *sm)
 }
 
 boolean_t
-space_map_histogram_verify(space_map_t *sm, range_tree_t *rt)
+space_map_histogram_verify(space_map_t *sm, zfs_range_tree_t *rt)
 {
 	/*
 	 * Verify that the in-core range tree does not have any
@@ -474,7 +477,7 @@ space_map_histogram_verify(space_map_t *sm, range_tree_t *rt)
 }
 
 void
-space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
+space_map_histogram_add(space_map_t *sm, zfs_range_tree_t *rt, dmu_tx_t *tx)
 {
 	int idx = 0;
 
@@ -495,7 +498,7 @@ space_map_histogram_add(space_map_t *sm, range_tree_t *rt, dmu_tx_t *tx)
 	 * map only cares about allocatable blocks (minimum of sm_shift) we
 	 * can safely ignore all ranges in the range tree smaller than sm_shift.
 	 */
-	for (int i = sm->sm_shift; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
+	for (int i = sm->sm_shift; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
 
 		/*
 		 * Since the largest histogram bucket in the space map is
@@ -667,7 +670,7 @@ space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
  * take effect.
  */
 static void
-space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+space_map_write_impl(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t vdev_id, dmu_tx_t *tx)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
@@ -700,12 +703,12 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	zfs_btree_t *t = &rt->rt_root;
 	zfs_btree_index_t where;
-	for (range_seg_t *rs = zfs_btree_first(t, &where); rs != NULL;
+	for (zfs_range_seg_t *rs = zfs_btree_first(t, &where); rs != NULL;
 	    rs = zfs_btree_next(t, &where, &where)) {
-		uint64_t offset = (rs_get_start(rs, rt) - sm->sm_start) >>
+		uint64_t offset = (zfs_rs_get_start(rs, rt) - sm->sm_start) >>
 		    sm->sm_shift;
-		uint64_t length = (rs_get_end(rs, rt) - rs_get_start(rs, rt)) >>
-		    sm->sm_shift;
+		uint64_t length = (zfs_rs_get_end(rs, rt) -
+		    zfs_rs_get_start(rs, rt)) >> sm->sm_shift;
 		uint8_t words = 1;
 
 		/*
@@ -730,8 +733,9 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 		    random_in_range(100) == 0)))
 			words = 2;
 
-		space_map_write_seg(sm, rs_get_start(rs, rt), rs_get_end(rs,
-		    rt), maptype, vdev_id, words, &db, FTAG, tx);
+		space_map_write_seg(sm, zfs_rs_get_start(rs, rt),
+		    zfs_rs_get_end(rs, rt), maptype, vdev_id, words, &db,
+		    FTAG, tx);
 	}
 
 	dmu_buf_rele(db, FTAG);
@@ -753,7 +757,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
  * for synchronizing writes to the space map.
  */
 void
-space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
+space_map_write(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t vdev_id, dmu_tx_t *tx)
 {
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(sm->sm_os)));
@@ -768,18 +772,18 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 */
 	sm->sm_phys->smp_object = sm->sm_object;
 
-	if (range_tree_is_empty(rt)) {
+	if (zfs_range_tree_is_empty(rt)) {
 		VERIFY3U(sm->sm_object, ==, sm->sm_phys->smp_object);
 		return;
 	}
 
 	if (maptype == SM_ALLOC)
-		sm->sm_phys->smp_alloc += range_tree_space(rt);
+		sm->sm_phys->smp_alloc += zfs_range_tree_space(rt);
 	else
-		sm->sm_phys->smp_alloc -= range_tree_space(rt);
+		sm->sm_phys->smp_alloc -= zfs_range_tree_space(rt);
 
 	uint64_t nodes = zfs_btree_numnodes(&rt->rt_root);
-	uint64_t rt_space = range_tree_space(rt);
+	uint64_t rt_space = zfs_range_tree_space(rt);
 
 	space_map_write_impl(sm, rt, maptype, vdev_id, tx);
 
@@ -788,7 +792,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * while we were in the middle of writing it out.
 	 */
 	VERIFY3U(nodes, ==, zfs_btree_numnodes(&rt->rt_root));
-	VERIFY3U(range_tree_space(rt), ==, rt_space);
+	VERIFY3U(zfs_range_tree_space(rt), ==, rt_space);
 }
 
 static int
@@ -813,7 +817,7 @@ space_map_open(space_map_t **smp, objset_t *os, uint64_t object,
 	space_map_t *sm;
 	int error;
 
-	ASSERT(*smp == NULL);
+	ASSERT0P(*smp);
 	ASSERT(os != NULL);
 	ASSERT(object != 0);
 
@@ -960,7 +964,7 @@ space_map_free(space_map_t *sm, dmu_tx_t *tx)
  * the given space map.
  */
 uint64_t
-space_map_estimate_optimal_size(space_map_t *sm, range_tree_t *rt,
+space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,
     uint64_t vdev_id)
 {
 	spa_t *spa = dmu_objset_spa(sm->sm_os);
@@ -1047,7 +1051,7 @@ space_map_estimate_optimal_size(space_map_t *sm, range_tree_t *rt,
 			size += histogram[idx] * entry_size;
 
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2)) {
-			for (; idx < RANGE_TREE_HISTOGRAM_SIZE; idx++) {
+			for (; idx < ZFS_RANGE_TREE_HISTOGRAM_SIZE; idx++) {
 				ASSERT3U(idx, >=, single_entry_max_bucket);
 				entries_for_seg =
 				    1ULL << (idx - single_entry_max_bucket);
@@ -1064,7 +1068,7 @@ space_map_estimate_optimal_size(space_map_t *sm, range_tree_t *rt,
 	for (; idx <= double_entry_max_bucket; idx++)
 		size += histogram[idx] * 2 * sizeof (uint64_t);
 
-	for (; idx < RANGE_TREE_HISTOGRAM_SIZE; idx++) {
+	for (; idx < ZFS_RANGE_TREE_HISTOGRAM_SIZE; idx++) {
 		ASSERT3U(idx, >=, double_entry_max_bucket);
 		entries_for_seg = 1ULL << (idx - double_entry_max_bucket);
 		size += histogram[idx] *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -53,7 +54,6 @@
  */
 
 
-#include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/zmod.h>
@@ -202,7 +202,7 @@ spl_zlib_init(void)
 	zlib_workspace_cache = kmem_cache_create(
 	    "spl_zlib_workspace_cache",
 	    size, 0, NULL, NULL, NULL, NULL, NULL,
-	    KMC_KVMEM);
+	    KMC_KVMEM | KMC_RECLAIMABLE);
 	if (!zlib_workspace_cache)
 		return (-ENOMEM);
 

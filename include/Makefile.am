@@ -10,10 +10,12 @@ COMMON_H = \
 	cityhash.h \
 	zfeature_common.h \
 	zfs_comutil.h \
+	zfs_crrd.h \
 	zfs_deleg.h \
 	zfs_fletcher.h \
 	zfs_namecheck.h \
 	zfs_prop.h \
+	zfs_valstr.h \
 	\
 	sys/abd.h \
 	sys/abd_impl.h \
@@ -37,6 +39,7 @@ COMMON_H = \
 	sys/dataset_kstats.h \
 	sys/dbuf.h \
 	sys/ddt.h \
+	sys/ddt_impl.h \
 	sys/dmu.h \
 	sys/dmu_impl.h \
 	sys/dmu_objset.h \
@@ -67,7 +70,6 @@ COMMON_H = \
 	sys/metaslab_impl.h \
 	sys/mmp.h \
 	sys/mntent.h \
-	sys/mod.h \
 	sys/multilist.h \
 	sys/nvpair.h \
 	sys/nvpair_impl.h \
@@ -148,7 +150,6 @@ COMMON_H = \
 	sys/zio_compress.h \
 	sys/zio_crypt.h \
 	sys/zio_impl.h \
-	sys/zio_priority.h \
 	sys/zrlock.h \
 	sys/zthr.h \
 	\

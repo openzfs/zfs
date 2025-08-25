@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -45,7 +46,7 @@
 	(ZTOZSB(zdp)->z_ctldir != NULL))
 #define	zfs_show_ctldir(zdp)	\
 	(zfs_has_ctldir(zdp) && \
-	(ZTOZSB(zdp)->z_show_ctldir))
+	(ZTOZSB(zdp)->z_show_ctldir == ZFS_SNAPDIR_VISIBLE))
 
 extern int zfs_expire_snapshot;
 

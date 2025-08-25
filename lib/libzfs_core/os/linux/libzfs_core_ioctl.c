@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -22,9 +23,10 @@
 #include <sys/param.h>
 #include <sys/zfs_ioctl.h>
 #include <libzfs_core.h>
+#include "libzfs_core_impl.h"
 
 int
-lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
+lzc_ioctl_fd_os(int fd, unsigned long request, zfs_cmd_t *zc)
 {
 	return (ioctl(fd, request, zc));
 }

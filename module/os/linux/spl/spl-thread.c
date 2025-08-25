@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -27,6 +28,7 @@
 #include <sys/kmem.h>
 #include <sys/tsd.h>
 #include <sys/string.h>
+#include <sys/misc.h>
 
 /*
  * Thread interfaces
@@ -78,7 +80,7 @@ __thread_create(caddr_t stk, size_t  stksize, thread_func_t func,
 
 	/* Option pp is simply ignored */
 	/* Variable stack size unsupported */
-	ASSERT(stk == NULL);
+	ASSERT0P(stk);
 
 	tp = kmem_alloc(sizeof (thread_priv_t), KM_PUSHPAGE);
 	if (tp == NULL)
@@ -152,56 +154,58 @@ spl_kthread_create(int (*func)(void *), void *data, const char namefmt[], ...)
 EXPORT_SYMBOL(spl_kthread_create);
 
 /*
- * The "why" argument indicates the allowable side-effects of the call:
- *
- * FORREAL:  Extract the next pending signal from p_sig into p_cursig;
- * stop the process if a stop has been requested or if a traced signal
- * is pending.
- *
- * JUSTLOOKING:  Don't stop the process, just indicate whether or not
- * a signal might be pending (FORREAL is needed to tell for sure).
+ * Extract the next pending signal from p_sig into p_cursig; stop the process
+ * if a stop has been requested or if a traced signal is pending.
  */
 int
-issig(int why)
+issig(void)
 {
-	ASSERT(why == FORREAL || why == JUSTLOOKING);
 
 	if (!signal_pending(current))
 		return (0);
 
-	if (why != FORREAL)
-		return (1);
-
-	struct task_struct *task = current;
 	spl_kernel_siginfo_t __info;
 	sigset_t set;
 	siginitsetinv(&set, 1ULL << (SIGSTOP - 1) | 1ULL << (SIGTSTP - 1));
-	sigorsets(&set, &task->blocked, &set);
+	sigorsets(&set, &current->blocked, &set);
 
-	spin_lock_irq(&task->sighand->siglock);
-#ifdef HAVE_DEQUEUE_SIGNAL_4ARG
+	spin_lock_irq(&current->sighand->siglock);
+#if defined(HAVE_DEQUEUE_SIGNAL_4ARG)
 	enum pid_type __type;
-	if (dequeue_signal(task, &set, &__info, &__type) != 0) {
+	if (dequeue_signal(current, &set, &__info, &__type) != 0) {
+#elif defined(HAVE_DEQUEUE_SIGNAL_3ARG_TYPE)
+	enum pid_type __type;
+	if (dequeue_signal(&set, &__info, &__type) != 0) {
 #else
-	if (dequeue_signal(task, &set, &__info) != 0) {
+	if (dequeue_signal(current, &set, &__info) != 0) {
 #endif
-#ifdef HAVE_SIGNAL_STOP
-		spin_unlock_irq(&task->sighand->siglock);
-		kernel_signal_stop();
-#else
-		if (current->jobctl & JOBCTL_STOP_DEQUEUED)
-			spl_set_special_state(TASK_STOPPED);
-
 		spin_unlock_irq(&current->sighand->siglock);
+		kernel_signal_stop();
 
-		schedule();
-#endif
+		/*
+		 * Dequeued SIGSTOP/SIGTSTP.
+		 * Check if process has other singal pending.
+		 */
+		if (signal_pending(current))
+			return (1);
+
 		return (0);
 	}
 
-	spin_unlock_irq(&task->sighand->siglock);
+	spin_unlock_irq(&current->sighand->siglock);
 
 	return (1);
 }
 
 EXPORT_SYMBOL(issig);
+
+/*
+ * Check if the current thread is a memory reclaim thread.
+ * Returns true if current thread is kswapd.
+ */
+int
+current_is_reclaim_thread(void)
+{
+	return (current_is_kswapd());
+}
+EXPORT_SYMBOL(current_is_reclaim_thread);

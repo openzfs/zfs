@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -27,5 +28,5 @@
 . $STF_SUITE/include/libtest.shlib
 verify_runnable "global"
 
-default_setup "$DISKS"
+default_raidz_setup "$DISKS"
 log_must zfs set compression=on $TESTPOOL/$TESTFS

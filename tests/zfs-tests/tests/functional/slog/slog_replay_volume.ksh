@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -140,7 +141,7 @@ fi
 #
 # 4. Generate checksums for all ext4 files.
 #
-typeset checksum=$(cat $MNTPNT/* | sha256digest)
+typeset checksum=$(cat $MNTPNT/* | xxh128digest)
 
 #
 # 5. Unmount filesystem and export the pool
@@ -172,7 +173,7 @@ log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
 log_note "Verify checksums"
-typeset checksum1=$(cat $MNTPNT/* | sha256digest)
+typeset checksum1=$(cat $MNTPNT/* | xxh128digest)
 [[ "$checksum1" == "$checksum" ]] || \
     log_fail "checksum mismatch ($checksum1 != $checksum)"
 

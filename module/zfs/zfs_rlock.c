@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -665,7 +666,7 @@ zfs_rangelock_reduce(zfs_locked_range_t *lr, uint64_t off, uint64_t len)
 
 	/* Ensure there are no other locks */
 	ASSERT3U(avl_numnodes(&rl->rl_tree), ==, 1);
-	ASSERT3U(lr->lr_offset, ==, 0);
+	ASSERT0(lr->lr_offset);
 	ASSERT3U(lr->lr_type, ==, RL_WRITER);
 	ASSERT(!lr->lr_proxy);
 	ASSERT3U(lr->lr_length, ==, UINT64_MAX);

@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" This file and its contents are supplied under the terms of the
 .\" Common Development and Distribution License ("CDDL"), version 1.0.
@@ -14,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd November 18, 2023
+.Dd April 23, 2025
 .Dt ZDB 8
 .Os
 .
@@ -314,7 +315,6 @@ fragmentation,
 and free space histogram, as well as overall pool fragmentation and histogram.
 .It Fl MM
 "Special" vdevs are added to -M's normal output.
-.It Fl O , -object-lookups Ns = Ns Ar dataset path
 Also display information about the maximum contiguous free space and the
 percentage of free space in each space map.
 .It Fl MMM
@@ -327,7 +327,7 @@ but force zdb to interpret the
 in
 .Op Ar poolname Ns Op / Ns Ar dataset Ns | Ns Ar objset-ID
 as a numeric objset ID.
-.It Fl O Ar dataset path
+.It Fl O , -object-lookups Ns = Ns Ar dataset path
 Look up the specified
 .Ar path
 inside of the
@@ -409,6 +409,8 @@ blocks cloned, the space saving as a result of cloning, and the saving ratio.
 .It Fl TT
 Display the per-vdev BRT statistics, including total references.
 .It Fl TTT
+Display histograms of per-vdev BRT refcounts.
+.It Fl TTTT
 Dump the contents of the block reference tables.
 .It Fl u , -uberblock
 Display the current uberblock.
@@ -472,10 +474,15 @@ as it runs.
 Exercise extreme caution when using this option in shared or uncontrolled
 environments.
 .It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
-Set the given global libzpool variable to the provided value.
-The value must be an unsigned 32-bit integer.
-Currently only little-endian systems are supported to avoid accidentally setting
-the high 32 bits of 64-bit variables.
+Set the given tunable to the provided value.
+.It Fl o , -option Ns = Ns Ar var Ns …
+Show the value of the given tunable.
+.It Fl o , -option Ns = Ns show
+Show all tunables and their values.
+.It Fl o , -option Ns = Ns info Ns = Ns Ar value Ns …
+Show info about a tunable, including their name, type and description.
+.It Fl o , -option Ns = Ns info
+Show info about all tunables.
 .It Fl P , -parseable
 Print numbers in an unscaled form more amenable to parsing, e.g.\&
 .Sy 1000000
@@ -524,6 +531,18 @@ option, with more occurrences enabling more verbosity.
 If no options are specified, all information about the named pool will be
 displayed at default verbosity.
 .
+.Sh EXIT STATUS
+The
+.Nm
+utility exits
+.Sy 0
+on success,
+.Sy 1
+if a fatal error occurs,
+.Sy 2
+if invalid command line options were specified, or
+.Sy 3
+if on-disk corruption was detected, but was not fatal.
 .Sh EXAMPLES
 .Ss Example 1 : No Display the configuration of imported pool Ar rpool
 .Bd -literal

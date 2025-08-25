@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -404,13 +405,21 @@ dsl_pool_close(dsl_pool_t *dp)
 	taskq_destroy(dp->dp_zil_clean_taskq);
 	spa_sync_tq_destroy(dp->dp_spa);
 
-	/*
-	 * We can't set retry to TRUE since we're explicitly specifying
-	 * a spa to flush. This is good enough; any missed buffers for
-	 * this spa won't cause trouble, and they'll eventually fall
-	 * out of the ARC just like any other unused buffer.
-	 */
-	arc_flush(dp->dp_spa, FALSE);
+	if (dp->dp_spa->spa_state == POOL_STATE_EXPORTED ||
+	    dp->dp_spa->spa_state == POOL_STATE_DESTROYED) {
+		/*
+		 * On export/destroy perform the ARC flush asynchronously.
+		 */
+		arc_flush_async(dp->dp_spa);
+	} else {
+		/*
+		 * We can't set retry to TRUE since we're explicitly specifying
+		 * a spa to flush. This is good enough; any missed buffers for
+		 * this spa won't cause trouble, and they'll eventually fall
+		 * out of the ARC just like any other unused buffer.
+		 */
+		arc_flush(dp->dp_spa, FALSE);
+	}
 
 	mmp_fini(dp->dp_spa);
 	txg_fini(dp);
@@ -513,8 +522,8 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 
 		/* create and open the free_bplist */
 		obj = bpobj_alloc(dp->dp_meta_objset, SPA_OLD_MAXBLOCKSIZE, tx);
-		VERIFY(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx) == 0);
+		VERIFY0(zap_add(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_FREE_BPOBJ, sizeof (uint64_t), 1, &obj, tx));
 		VERIFY0(bpobj_open(&dp->dp_free_bpobj,
 		    dp->dp_meta_objset, obj));
 	}
@@ -652,8 +661,8 @@ dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 
 		for (ms = txg_list_head(tl, TXG_CLEAN(txg)); ms;
 		    ms = txg_list_next(tl, ms, TXG_CLEAN(txg))) {
-			VERIFY(range_tree_is_empty(ms->ms_freeing));
-			VERIFY(range_tree_is_empty(ms->ms_checkpointing));
+			VERIFY(zfs_range_tree_is_empty(ms->ms_freeing));
+			VERIFY(zfs_range_tree_is_empty(ms->ms_checkpointing));
 		}
 	}
 
@@ -1047,7 +1056,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		 * will be wrong.
 		 */
 		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-		ASSERT0(dsl_dataset_phys(prev)->ds_bp.blk_birth);
+		ASSERT0(BP_GET_BIRTH(&dsl_dataset_phys(prev)->ds_bp));
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 		/* The origin doesn't get attached to itself */
@@ -1068,7 +1077,7 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 		dsl_dataset_phys(prev)->ds_num_children++;
 
 		if (dsl_dataset_phys(ds)->ds_next_snap_obj == 0) {
-			ASSERT(ds->ds_prev == NULL);
+			ASSERT0P(ds->ds_prev);
 			VERIFY0(dsl_dataset_hold_obj(dp,
 			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
 			    ds, &ds->ds_prev));
@@ -1164,7 +1173,7 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsl_dataset_t *ds;
 
 	ASSERT(dmu_tx_is_syncing(tx));
-	ASSERT(dp->dp_origin_snap == NULL);
+	ASSERT0P(dp->dp_origin_snap);
 	ASSERT(rrw_held(&dp->dp_config_rwlock, RW_WRITER));
 
 	/* create the origin dir, ds, & snap-ds */
@@ -1196,7 +1205,7 @@ dsl_pool_unlinked_drain_taskq(dsl_pool_t *dp)
 void
 dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 {
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zap_cursor_t zc;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t zapobj = dp->dp_tmp_userrefs_obj;
@@ -1208,19 +1217,20 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 
 	holds = fnvlist_alloc();
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, zapobj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
 		char *htag;
 		nvlist_t *tags;
 
-		htag = strchr(za.za_name, '-');
+		htag = strchr(za->za_name, '-');
 		*htag = '\0';
 		++htag;
-		if (nvlist_lookup_nvlist(holds, za.za_name, &tags) != 0) {
+		if (nvlist_lookup_nvlist(holds, za->za_name, &tags) != 0) {
 			tags = fnvlist_alloc();
 			fnvlist_add_boolean(tags, htag);
-			fnvlist_add_nvlist(holds, za.za_name, tags);
+			fnvlist_add_nvlist(holds, za->za_name, tags);
 			fnvlist_free(tags);
 		} else {
 			fnvlist_add_boolean(tags, htag);
@@ -1229,6 +1239,7 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 	dsl_dataset_user_release_tmp(dp, holds);
 	fnvlist_free(holds);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 }
 
 /*
@@ -1239,7 +1250,7 @@ dsl_pool_user_hold_create_obj(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	objset_t *mos = dp->dp_meta_objset;
 
-	ASSERT(dp->dp_tmp_userrefs_obj == 0);
+	ASSERT0(dp->dp_tmp_userrefs_obj);
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	dp->dp_tmp_userrefs_obj = zap_create_link(mos, DMU_OT_USERREFS,

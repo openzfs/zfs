@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 # CDDL HEADER START
 #
 # The contents of this file are subject to the terms of the
@@ -54,7 +55,7 @@ function cleanup
 	if poolexists $POOL ; then
 		destroy_pool $POOL
 	fi
-	log_must rm -fd $VDEV $MOUNTDIR
+	log_must rm -fd $VDEV $VDEV1 $MOUNTDIR
 }
 log_onexit cleanup
 

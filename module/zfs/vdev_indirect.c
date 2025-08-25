@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -34,6 +35,7 @@
 #include <sys/zap.h>
 #include <sys/abd.h>
 #include <sys/zthr.h>
+#include <sys/fm/fs/zfs.h>
 
 /*
  * An indirect vdev corresponds to a vdev that has been removed.  Since
@@ -332,7 +334,7 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		mutex_enter(&vd->vdev_obsolete_lock);
-		range_tree_add(vd->vdev_obsolete_segments, offset, size);
+		zfs_range_tree_add(vd->vdev_obsolete_segments, offset, size);
 		mutex_exit(&vd->vdev_obsolete_lock);
 		vdev_dirty(vd, 0, NULL, spa_syncing_txg(spa));
 	}
@@ -567,7 +569,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	dmu_tx_hold_space(tx, sizeof (*vimep) + sizeof (count));
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 
 	/*
@@ -790,7 +792,7 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	    DMU_POOL_CONDENSING_INDIRECT, sizeof (uint64_t),
 	    sizeof (*scip) / sizeof (uint64_t), scip, tx));
 
-	ASSERT3P(spa->spa_condensing_indirect, ==, NULL);
+	ASSERT0P(spa->spa_condensing_indirect);
 	spa->spa_condensing_indirect = spa_condensing_indirect_create(spa);
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
@@ -815,7 +817,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
-	ASSERT(range_tree_space(vd->vdev_obsolete_segments) > 0);
+	ASSERT(zfs_range_tree_space(vd->vdev_obsolete_segments) > 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS));
 
@@ -844,7 +846,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 
 	space_map_write(vd->vdev_obsolete_sm,
 	    vd->vdev_obsolete_segments, SM_ALLOC, SM_NO_VDEVID, tx);
-	range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
+	zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 }
 
 int
@@ -880,7 +882,7 @@ spa_condense_fini(spa_t *spa)
 void
 spa_start_indirect_condensing_thread(spa_t *spa)
 {
-	ASSERT3P(spa->spa_condense_zthr, ==, NULL);
+	ASSERT0P(spa->spa_condense_zthr);
 	spa->spa_condense_zthr = zthr_create("z_indirect_condense",
 	    spa_condense_indirect_thread_check,
 	    spa_condense_indirect_thread, spa, minclsyspri);
@@ -1502,7 +1504,7 @@ vdev_indirect_splits_checksum_validate(indirect_vsd_t *iv, zio_t *zio)
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
 
 		ASSERT3P(is->is_good_child->ic_data, !=, NULL);
-		ASSERT3P(is->is_good_child->ic_duplicate, ==, NULL);
+		ASSERT0P(is->is_good_child->ic_duplicate);
 
 		abd_copy_off(zio->io_abd, is->is_good_child->ic_data,
 		    is->is_split_offset, 0, is->is_size);
@@ -1832,6 +1834,19 @@ vdev_indirect_io_done(zio_t *zio)
 
 	zio_bad_cksum_t zbc;
 	int ret = zio_checksum_error(zio, &zbc);
+	/*
+	 * Any Direct I/O read that has a checksum error must be treated as
+	 * suspicious as the contents of the buffer could be getting
+	 * manipulated while the I/O is taking place. The checksum verify error
+	 * will be reported to the top-level VDEV.
+	 */
+	if (zio->io_flags & ZIO_FLAG_DIO_READ && ret == ECKSUM) {
+		zio->io_error = ret;
+		zio->io_post |= ZIO_POST_DIO_CHKSUM_ERR;
+		zio_dio_chksum_verify_error_report(zio);
+		ret = 0;
+	}
+
 	if (ret == 0) {
 		zio_checksum_verified(zio);
 		return;
@@ -1852,7 +1867,8 @@ vdev_ops_t vdev_indirect_ops = {
 	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_indirect_open,
 	.vdev_op_close = vdev_indirect_close,
-	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_psize_to_asize = vdev_default_asize,
+	.vdev_op_asize_to_psize = vdev_default_psize,
 	.vdev_op_min_asize = vdev_default_min_asize,
 	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_indirect_io_start,
@@ -1883,7 +1899,6 @@ EXPORT_SYMBOL(vdev_indirect_sync_obsolete);
 EXPORT_SYMBOL(vdev_obsolete_counts_are_precise);
 EXPORT_SYMBOL(vdev_obsolete_sm_object);
 
-/* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT,
 	ZMOD_RW, "Whether to attempt condensing indirect vdev mappings");
 
@@ -1908,4 +1923,3 @@ ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_commit_entry_delay_ms,
 ZFS_MODULE_PARAM(zfs_reconstruct, zfs_reconstruct_, indirect_combinations_max,
 	UINT, ZMOD_RW,
 	"Maximum number of combinations when reconstructing split segments");
-/* END CSTYLED */

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -22,7 +23,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2020 Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2024 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
  * Copyright (c) 2020 The FreeBSD Foundation
@@ -68,6 +69,7 @@
  * as necessary.
  */
 #define	URI_REGEX	"^\\([A-Za-z][A-Za-z0-9+.\\-]*\\):"
+#define	STR_NUMS	"0123456789"
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -319,6 +321,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 		    "dataset without force"));
 	case EZFS_RAIDZ_EXPAND_IN_PROGRESS:
 		return (dgettext(TEXT_DOMAIN, "raidz expansion in progress"));
+	case EZFS_ASHIFT_MISMATCH:
+		return (dgettext(TEXT_DOMAIN, "adding devices with "
+		    "different physical sector sizes is not allowed"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -768,6 +773,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS:
 		zfs_verror(hdl, EZFS_RAIDZ_EXPAND_IN_PROGRESS, fmt, ap);
 		break;
+	case ZFS_ERR_ASHIFT_MISMATCH:
+		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
@@ -775,6 +783,12 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 
 	va_end(ap);
 	return (-1);
+}
+
+int
+zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
+{
+	return (lzc_ioctl_fd(hdl->libzfs_fd, request, zc));
 }
 
 /*
@@ -925,6 +939,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	pid = fork();
 	if (pid == 0) {
 		/* Child process */
+		setpgid(0, 0);
 		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
 
 		if (devnull_fd < 0)
@@ -1261,6 +1276,14 @@ zcmd_read_dst_nvlist(libzfs_handle_t *hdl, zfs_cmd_t *zc, nvlist_t **nvlp)
  * ================================================================
  */
 
+void
+zcmd_print_json(nvlist_t *nvl)
+{
+	nvlist_print_json(stdout, nvl);
+	(void) putchar('\n');
+	nvlist_free(nvl);
+}
+
 static void
 zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 {
@@ -1388,6 +1411,103 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 }
 
 /*
+ * Add property value and source to provided nvlist, according to
+ * settings in cb structure. Later to be printed in JSON format.
+ */
+int
+zprop_nvlist_one_property(const char *propname,
+    const char *value, zprop_source_t sourcetype, const char *source,
+    const char *recvd_value, nvlist_t *nvl, boolean_t as_int)
+{
+	int ret = 0;
+	nvlist_t *src_nv, *prop;
+	boolean_t all_numeric = strspn(value, STR_NUMS) == strlen(value);
+	src_nv = prop = NULL;
+
+	if ((nvlist_alloc(&prop, NV_UNIQUE_NAME, 0) != 0) ||
+	    (nvlist_alloc(&src_nv, NV_UNIQUE_NAME, 0) != 0)) {
+		ret = -1;
+		goto err;
+	}
+
+	if (as_int && all_numeric) {
+		uint64_t val;
+		sscanf(value, "%lld", (u_longlong_t *)&val);
+		if (nvlist_add_uint64(prop, "value", val) != 0) {
+			ret = -1;
+			goto err;
+		}
+	} else {
+		if (nvlist_add_string(prop, "value", value) != 0) {
+			ret = -1;
+			goto err;
+		}
+	}
+
+	switch (sourcetype) {
+	case ZPROP_SRC_NONE:
+		if (nvlist_add_string(src_nv, "type", "NONE") != 0 ||
+		    (nvlist_add_string(src_nv, "data", "-") != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	case ZPROP_SRC_DEFAULT:
+		if (nvlist_add_string(src_nv, "type", "DEFAULT") != 0 ||
+		    (nvlist_add_string(src_nv, "data", "-") != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	case ZPROP_SRC_LOCAL:
+		if (nvlist_add_string(src_nv, "type", "LOCAL") != 0 ||
+		    (nvlist_add_string(src_nv, "data", "-") != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	case ZPROP_SRC_TEMPORARY:
+		if (nvlist_add_string(src_nv, "type", "TEMPORARY") != 0 ||
+		    (nvlist_add_string(src_nv, "data", "-") != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	case ZPROP_SRC_INHERITED:
+		if (nvlist_add_string(src_nv, "type", "INHERITED") != 0 ||
+		    (nvlist_add_string(src_nv, "data", source) != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	case ZPROP_SRC_RECEIVED:
+		if (nvlist_add_string(src_nv, "type", "RECEIVED") != 0 ||
+		    (nvlist_add_string(src_nv, "data",
+		    (recvd_value == NULL ? "-" : recvd_value)) != 0)) {
+			ret = -1;
+			goto err;
+		}
+		break;
+	default:
+		assert(!"unhandled zprop_source_t");
+		if (nvlist_add_string(src_nv, "type",
+		    "unhandled zprop_source_t") != 0) {
+			ret = -1;
+			goto err;
+		}
+	}
+	if ((nvlist_add_nvlist(prop, "source", src_nv) != 0) ||
+	    (nvlist_add_nvlist(nvl, propname, prop)) != 0) {
+		ret = -1;
+		goto err;
+	}
+err:
+	nvlist_free(src_nv);
+	nvlist_free(prop);
+	return (ret);
+}
+
+/*
  * Display a single line of output, according to the settings in the callback
  * structure.
  */
@@ -1478,6 +1598,26 @@ zprop_print_one_property(const char *name, zprop_get_cbdata_t *cbp,
 	(void) printf("\n");
 }
 
+int
+zprop_collect_property(const char *name, zprop_get_cbdata_t *cbp,
+    const char *propname, const char *value, zprop_source_t sourcetype,
+    const char *source, const char *recvd_value, nvlist_t *nvl)
+{
+	if (cbp->cb_json) {
+		if ((sourcetype & cbp->cb_sources) == 0)
+			return (0);
+		else {
+			return (zprop_nvlist_one_property(propname, value,
+			    sourcetype, source, recvd_value, nvl,
+			    cbp->cb_json_as_int));
+		}
+	} else {
+		zprop_print_one_property(name, cbp,
+		    propname, value, sourcetype, source, recvd_value);
+		return (0);
+	}
+}
+
 /*
  * Given a numeric suffix, convert the value into a number of bits that the
  * resulting value must be shifted.
@@ -1486,15 +1626,17 @@ static int
 str2shift(libzfs_handle_t *hdl, const char *buf)
 {
 	const char *ends = "BKMGTPEZ";
-	int i;
+	int i, len;
 
 	if (buf[0] == '\0')
 		return (0);
-	for (i = 0; i < strlen(ends); i++) {
+
+	len = strlen(ends);
+	for (i = 0; i < len; i++) {
 		if (toupper(buf[0]) == ends[i])
 			break;
 	}
-	if (i == strlen(ends)) {
+	if (i == len) {
 		if (hdl)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid numeric suffix '%s'"), buf);
@@ -1685,6 +1827,16 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			    "use 'none' to disable quota/refquota"));
 			goto error;
 		}
+		/*
+		 * Pool dedup table quota; force use of 'none' instead of 0
+		 */
+		if ((type & ZFS_TYPE_POOL) && *ivalp == 0 &&
+		    (!isnone && !isauto) &&
+		    prop == ZPOOL_PROP_DEDUP_TABLE_QUOTA) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "use 'none' to disable ddt table quota"));
+			goto error;
+		}
 
 		/*
 		 * Special handling for "*_limit=none". In this case it's not
@@ -1704,7 +1856,9 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		    (prop == VDEV_PROP_CHECKSUM_N ||
 		    prop == VDEV_PROP_CHECKSUM_T ||
 		    prop == VDEV_PROP_IO_N ||
-		    prop == VDEV_PROP_IO_T)) {
+		    prop == VDEV_PROP_IO_T ||
+		    prop == VDEV_PROP_SLOW_IO_N ||
+		    prop == VDEV_PROP_SLOW_IO_T)) {
 			*ivalp = UINT64_MAX;
 		}
 
@@ -1722,6 +1876,10 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 					    "volumes"), nvpair_name(elem));
 					goto error;
 				}
+				*ivalp = UINT64_MAX;
+				break;
+			case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
+				ASSERT(type & ZFS_TYPE_POOL);
 				*ivalp = UINT64_MAX;
 				break;
 			default:
@@ -1975,6 +2133,34 @@ zfs_version_print(void)
 	(void) printf("zfs-kmod-%s\n", kver);
 	free(kver);
 	return (0);
+}
+
+/*
+ * Returns an nvlist with both zfs userland and kernel versions.
+ * Returns NULL on error.
+ */
+nvlist_t *
+zfs_version_nvlist(void)
+{
+	nvlist_t *nvl;
+	char kmod_ver[64];
+	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
+		return (NULL);
+	if (nvlist_add_string(nvl, "userland", ZFS_META_ALIAS) != 0)
+		goto err;
+	char *kver = zfs_version_kernel();
+	if (kver == NULL) {
+		fprintf(stderr, "zfs_version_kernel() failed: %s\n",
+		    zfs_strerror(errno));
+		goto err;
+	}
+	(void) snprintf(kmod_ver, 64, "zfs-kmod-%s", kver);
+	if (nvlist_add_string(nvl, "kernel", kmod_ver) != 0)
+		goto err;
+	return (nvl);
+err:
+	nvlist_free(nvl);
+	return (NULL);
 }
 
 /*

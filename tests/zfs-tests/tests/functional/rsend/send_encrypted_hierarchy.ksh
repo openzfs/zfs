@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -61,16 +62,17 @@ log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/fs-before-R"
 dstds=$(get_dst_ds $POOL/$FS $POOL2)
 log_must cmp_ds_subs $POOL/$FS $dstds
 
-log_must verify_encryption_root $POOL/$FS $POOL/$FS
-log_must verify_keylocation $POOL/$FS "prompt"
-log_must verify_origin $POOL/$FS "-"
+log_must verify_encryption_root $POOL2/$FS $POOL2/$FS
+log_must verify_keylocation $POOL2/$FS "prompt"
+log_must verify_origin $POOL2/$FS "-"
 
-log_must verify_encryption_root $POOL/clone $POOL/$FS
-log_must verify_keylocation $POOL/clone "none"
-log_must verify_origin $POOL/clone "$POOL/$FS@snap"
+log_must verify_encryption_root $POOL2/clone $POOL2/$FS
+log_must verify_keylocation $POOL2/clone "none"
+log_must verify_origin $POOL2/clone "$POOL2/$FS@snap"
 
 log_must verify_encryption_root $POOL/$FS/child $POOL/$FS
-log_must verify_keylocation $POOL/$FS/child "none"
+log_must verify_encryption_root $POOL2/$FS/child $POOL2/$FS
+log_must verify_keylocation $POOL2/$FS/child "none"
 
 # Alter the hierarchy and re-send
 log_must eval "echo $PASSPHRASE1 | zfs change-key -o keyformat=passphrase" \
@@ -92,5 +94,21 @@ log_must verify_origin $POOL/clone "-"
 
 log_must verify_encryption_root $POOL/$FS/child $POOL/$FS/child
 log_must verify_keylocation $POOL/$FS/child "prompt"
+
+log_must verify_encryption_root $POOL2 "-"
+log_must verify_encryption_root $POOL2/clone $POOL2/clone
+log_must verify_encryption_root $POOL2/$FS $POOL2/clone
+log_must verify_encryption_root $POOL2/$FS/child $POOL2/$FS/child
+
+log_must verify_keylocation $POOL2 "none"
+log_must verify_keylocation $POOL2/clone "prompt"
+log_must verify_keylocation $POOL2/$FS "none"
+log_must verify_keylocation $POOL2/$FS/child "prompt"
+
+log_must verify_origin $POOL2 "-"
+log_must verify_origin $POOL2/clone "-"
+log_must verify_origin $POOL2/$FS "$POOL2/clone@snap"
+log_must verify_origin $POOL2/$FS/child "-"
+log_must zfs list
 
 log_pass "Raw recursive sends preserve filesystem structure."

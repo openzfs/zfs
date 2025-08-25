@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
@@ -21,7 +22,6 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <linux/percpu_compat.h>
 #include <sys/debug.h>
 #include <sys/vmem.h>
 #include <sys/kmem_cache.h>

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -57,6 +58,13 @@ typedef int (blkptr_cb_t)(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
  * to read the logical data.
  */
 #define	TRAVERSE_NO_DECRYPT		(1<<5)
+
+/*
+ * Always use logical birth time for birth time comparisons.  This is useful
+ * for operations that care about user data changes rather than physical
+ * block rewrites (e.g., incremental replication).
+ */
+#define	TRAVERSE_LOGICAL		(1<<6)
 
 /* Special traverse error return value to indicate skipping of children */
 #define	TRAVERSE_VISIT_NO_CHILDREN	-1

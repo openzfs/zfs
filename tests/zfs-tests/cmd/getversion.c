@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * This file and its contents are supplied under the terms of the
  * Common Development and Distribution License ("CDDL"), version 1.0.
@@ -19,7 +20,11 @@
  */
 
 #include <sys/ioctl.h>
+#ifdef _KERNEL
 #include <sys/fcntl.h>
+#else
+#include <fcntl.h>
+#endif
 #include <linux/fs.h>
 #include <err.h>
 #include <stdio.h>

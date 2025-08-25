@@ -16,36 +16,9 @@ dnl #
 dnl # 5.3: VFS copy_file_range() expected to do its own fallback,
 dnl #      generic_copy_file_range() added to support it
 dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_COPY_FILE_RANGE], [
-	ZFS_LINUX_TEST_SRC([vfs_copy_file_range], [
-		#include <linux/fs.h>
-
-		static ssize_t test_copy_file_range(struct file *src_file,
-		    loff_t src_off, struct file *dst_file, loff_t dst_off,
-		    size_t len, unsigned int flags) {
-			(void) src_file; (void) src_off;
-			(void) dst_file; (void) dst_off;
-			(void) len; (void) flags;
-			return (0);
-		}
-
-		static const struct file_operations
-		    fops __attribute__ ((unused)) = {
-			.copy_file_range	= test_copy_file_range,
-		};
-	],[])
-])
-AC_DEFUN([ZFS_AC_KERNEL_VFS_COPY_FILE_RANGE], [
-	AC_MSG_CHECKING([whether fops->copy_file_range() is available])
-	ZFS_LINUX_TEST_RESULT([vfs_copy_file_range], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE(HAVE_VFS_COPY_FILE_RANGE, 1,
-		    [fops->copy_file_range() is available])
-	],[
-		AC_MSG_RESULT([no])
-	])
-])
-
+dnl # 6.8: generic_copy_file_range() removed, replaced by
+dnl #      splice_copy_file_range()
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_GENERIC_COPY_FILE_RANGE], [
 	ZFS_LINUX_TEST_SRC([generic_copy_file_range], [
 		#include <linux/fs.h>
@@ -67,6 +40,30 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_GENERIC_COPY_FILE_RANGE], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_VFS_GENERIC_COPY_FILE_RANGE, 1,
 		    [generic_copy_file_range() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_SPLICE_COPY_FILE_RANGE], [
+	ZFS_LINUX_TEST_SRC([splice_copy_file_range], [
+		#include <linux/splice.h>
+	], [
+		struct file *src_file __attribute__ ((unused)) = NULL;
+		loff_t src_off __attribute__ ((unused)) = 0;
+		struct file *dst_file __attribute__ ((unused)) = NULL;
+		loff_t dst_off __attribute__ ((unused)) = 0;
+		size_t len __attribute__ ((unused)) = 0;
+		splice_copy_file_range(src_file, src_off, dst_file, dst_off,
+		    len);
+	])
+])
+AC_DEFUN([ZFS_AC_KERNEL_VFS_SPLICE_COPY_FILE_RANGE], [
+	AC_MSG_CHECKING([whether splice_copy_file_range() is available])
+	ZFS_LINUX_TEST_RESULT([splice_copy_file_range], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_VFS_SPLICE_COPY_FILE_RANGE, 1,
+		    [splice_copy_file_range() is available])
 	],[
 		AC_MSG_RESULT(no)
 	])

@@ -24,6 +24,8 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
@@ -38,9 +40,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE], [
 	AC_MSG_CHECKING([whether host toolchain supports SSE])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("xorps %xmm0, %xmm1");
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSE], 1, [Define if host toolchain supports SSE])
@@ -57,9 +60,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE2], [
 	AC_MSG_CHECKING([whether host toolchain supports SSE2])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("pxor %xmm0, %xmm1");
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSE2], 1, [Define if host toolchain supports SSE2])
@@ -76,10 +80,11 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE3], [
 	AC_MSG_CHECKING([whether host toolchain supports SSE3])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			char v[16];
 			__asm__ __volatile__("lddqu %0,%%xmm0" :: "m"(v[0]));
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSE3], 1, [Define if host toolchain supports SSE3])
@@ -96,9 +101,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSSE3], [
 	AC_MSG_CHECKING([whether host toolchain supports SSSE3])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("pshufb %xmm0,%xmm1");
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSSE3], 1, [Define if host toolchain supports SSSE3])
@@ -115,9 +121,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE4_1], [
 	AC_MSG_CHECKING([whether host toolchain supports SSE4.1])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("pmaxsb %xmm0,%xmm1");
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSE4_1], 1, [Define if host toolchain supports SSE4.1])
@@ -134,9 +141,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE4_2], [
 	AC_MSG_CHECKING([whether host toolchain supports SSE4.2])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("pcmpgtq %xmm0, %xmm1");
+			return (0);
 		}
 	]])], [
 		AC_DEFINE([HAVE_SSE4_2], 1, [Define if host toolchain supports SSE4.2])
@@ -153,10 +161,11 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX], [
 	AC_MSG_CHECKING([whether host toolchain supports AVX])
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		void main()
+		int main()
 		{
 			char v[32];
 			__asm__ __volatile__("vmovdqa %0,%%ymm0" :: "m"(v[0]));
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -174,9 +183,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX2], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpshufb %ymm0,%ymm1,%ymm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -194,9 +204,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512F], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpandd %zmm0,%zmm1,%zmm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -214,9 +225,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512CD], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vplzcntd %zmm0,%zmm1");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -234,9 +246,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512DQ], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vandpd %zmm0,%zmm1,%zmm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -254,9 +267,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512BW], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpshufb %zmm0,%zmm1,%zmm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -274,9 +288,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512IFMA], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpmadd52luq %zmm0,%zmm1,%zmm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -294,9 +309,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VBMI], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpermb %zmm0,%zmm1,%zmm2");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -314,9 +330,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512PF], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vgatherpf0dps (%rsi,%zmm0,4){%k1}");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -334,9 +351,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512ER], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vexp2pd %zmm0,%zmm1");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -354,9 +372,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VL], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("vpabsq %zmm0,%zmm1");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -374,9 +393,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("aesenc %xmm0, %xmm1");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -394,9 +414,10 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("pclmulqdq %0, %%xmm0, %%xmm1" :: "i"(0));
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -414,13 +435,56 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 			__asm__ __volatile__("movbe 0(%eax), %eax");
+			return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES], [
+	AC_MSG_CHECKING([whether host toolchain supports VAES])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		int main()
+		{
+			__asm__ __volatile__("vaesenc %ymm0, %ymm1, %ymm0");
+			return (0);
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_VAES], 1, [Define if host toolchain supports VAES])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ], [
+	AC_MSG_CHECKING([whether host toolchain supports VPCLMULQDQ])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		int main()
+		{
+			__asm__ __volatile__("vpclmulqdq %0, %%ymm4, %%ymm3, %%ymm5" :: "i"(0));
+			return (0);
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_VPCLMULQDQ], 1, [Define if host toolchain supports VPCLMULQDQ])
 	], [
 		AC_MSG_RESULT([no])
 	])
@@ -434,10 +498,11 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 		  char b[4096] __attribute__ ((aligned (64)));
 		  __asm__ __volatile__("xsave %[b]\n" : : [b] "m" (*b) : "memory");
+		  return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -455,10 +520,11 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 		  char b[4096] __attribute__ ((aligned (64)));
 		  __asm__ __volatile__("xsaveopt %[b]\n" : : [b] "m" (*b) : "memory");
+		  return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])
@@ -476,10 +542,11 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES], [
 
 	AC_LINK_IFELSE([AC_LANG_SOURCE([
 	[
-		void main()
+		int main()
 		{
 		  char b[4096] __attribute__ ((aligned (64)));
 		  __asm__ __volatile__("xsaves %[b]\n" : : [b] "m" (*b) : "memory");
+		  return (0);
 		}
 	]])], [
 		AC_MSG_RESULT([yes])

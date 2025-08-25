@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -26,7 +27,7 @@
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
  */
 
@@ -180,6 +181,8 @@ struct send_range {
 			 */
 			dnode_phys_t		*dnp;
 			blkptr_t		bp;
+			/* Piggyback unmodified spill block */
+			struct send_range	*spill_range;
 		} object;
 		struct srr {
 			uint32_t		datablksz;
@@ -231,6 +234,8 @@ range_free(struct send_range *range)
 		size_t size = sizeof (dnode_phys_t) *
 		    (range->sru.object.dnp->dn_extra_slots + 1);
 		kmem_free(range->sru.object.dnp, size);
+		if (range->sru.object.spill_range)
+			range_free(range->sru.object.spill_range);
 	} else if (range->type == DATA) {
 		mutex_enter(&range->sru.data.lock);
 		while (range->sru.data.io_outstanding)
@@ -617,9 +622,9 @@ dump_spill(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	drrs->drr_length = blksz;
 	drrs->drr_toguid = dscp->dsc_toguid;
 
-	/* See comment in dump_dnode() for full details */
+	/* See comment in piggyback_unmodified_spill() for full details */
 	if (zfs_send_unmodified_spill_blocks &&
-	    (bp->blk_birth <= dscp->dsc_fromtxg)) {
+	    (BP_GET_LOGICAL_BIRTH(bp) <= dscp->dsc_fromtxg)) {
 		drrs->drr_flags |= DRR_SPILL_UNMODIFIED;
 	}
 
@@ -793,35 +798,6 @@ dump_dnode(dmu_send_cookie_t *dscp, const blkptr_t *bp, uint64_t object,
 	    (dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT), DMU_OBJECT_END) != 0)
 		return (SET_ERROR(EINTR));
 
-	/*
-	 * Send DRR_SPILL records for unmodified spill blocks.	This is useful
-	 * because changing certain attributes of the object (e.g. blocksize)
-	 * can cause old versions of ZFS to incorrectly remove a spill block.
-	 * Including these records in the stream forces an up to date version
-	 * to always be written ensuring they're never lost.  Current versions
-	 * of the code which understand the DRR_FLAG_SPILL_BLOCK feature can
-	 * ignore these unmodified spill blocks.
-	 */
-	if (zfs_send_unmodified_spill_blocks &&
-	    (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) &&
-	    (DN_SPILL_BLKPTR(dnp)->blk_birth <= dscp->dsc_fromtxg)) {
-		struct send_range record;
-		blkptr_t *bp = DN_SPILL_BLKPTR(dnp);
-
-		memset(&record, 0, sizeof (struct send_range));
-		record.type = DATA;
-		record.object = object;
-		record.eos_marker = B_FALSE;
-		record.start_blkid = DMU_SPILL_BLKID;
-		record.end_blkid = record.start_blkid + 1;
-		record.sru.data.bp = *bp;
-		record.sru.data.obj_type = dnp->dn_type;
-		record.sru.data.datablksz = BP_GET_LSIZE(bp);
-
-		if (do_dump(dscp, &record) != 0)
-			return (SET_ERROR(EINTR));
-	}
-
 	if (dscp->dsc_err != 0)
 		return (SET_ERROR(EINTR));
 
@@ -911,6 +887,9 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 	case OBJECT:
 		err = dump_dnode(dscp, &range->sru.object.bp, range->object,
 		    range->sru.object.dnp);
+		/* Dump piggybacked unmodified spill block */
+		if (!err && range->sru.object.spill_range)
+			err = do_dump(dscp, range->sru.object.spill_range);
 		return (err);
 	case OBJECT_RANGE: {
 		ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
@@ -939,34 +918,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 
 		ASSERT3U(srdp->datablksz, ==, BP_GET_LSIZE(bp));
 		ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
-		if (BP_GET_TYPE(bp) == DMU_OT_SA) {
-			arc_flags_t aflags = ARC_FLAG_WAIT;
-			zio_flag_t zioflags = ZIO_FLAG_CANFAIL;
 
-			if (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW) {
-				ASSERT(BP_IS_PROTECTED(bp));
-				zioflags |= ZIO_FLAG_RAW;
-			}
-
-			zbookmark_phys_t zb;
-			ASSERT3U(range->start_blkid, ==, DMU_SPILL_BLKID);
-			zb.zb_objset = dmu_objset_id(dscp->dsc_os);
-			zb.zb_object = range->object;
-			zb.zb_level = 0;
-			zb.zb_blkid = range->start_blkid;
-
-			arc_buf_t *abuf = NULL;
-			if (!dscp->dsc_dso->dso_dryrun && arc_read(NULL, spa,
-			    bp, arc_getbuf_func, &abuf, ZIO_PRIORITY_ASYNC_READ,
-			    zioflags, &aflags, &zb) != 0)
-				return (SET_ERROR(EIO));
-
-			err = dump_spill(dscp, bp, zb.zb_object,
-			    (abuf == NULL ? NULL : abuf->b_data));
-			if (abuf != NULL)
-				arc_buf_destroy(abuf, &abuf);
-			return (err);
-		}
 		if (send_do_embed(bp, dscp->dsc_featureflags)) {
 			err = dump_write_embedded(dscp, range->object,
 			    range->start_blkid * srdp->datablksz,
@@ -975,8 +927,9 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		}
 		ASSERT(range->object > dscp->dsc_resume_object ||
 		    (range->object == dscp->dsc_resume_object &&
+		    (range->start_blkid == DMU_SPILL_BLKID ||
 		    range->start_blkid * srdp->datablksz >=
-		    dscp->dsc_resume_offset));
+		    dscp->dsc_resume_offset)));
 		/* it's a level-0 block of a regular object */
 
 		mutex_enter(&srdp->lock);
@@ -1006,15 +959,21 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		ASSERT(dscp->dsc_dso->dso_dryrun ||
 		    srdp->abuf != NULL || srdp->abd != NULL);
 
-		uint64_t offset = range->start_blkid * srdp->datablksz;
-
 		char *data = NULL;
 		if (srdp->abd != NULL) {
 			data = abd_to_buf(srdp->abd);
-			ASSERT3P(srdp->abuf, ==, NULL);
+			ASSERT0P(srdp->abuf);
 		} else if (srdp->abuf != NULL) {
 			data = srdp->abuf->b_data;
 		}
+
+		if (BP_GET_TYPE(bp) == DMU_OT_SA) {
+			ASSERT3U(range->start_blkid, ==, DMU_SPILL_BLKID);
+			err = dump_spill(dscp, bp, range->object, data);
+			return (err);
+		}
+
+		uint64_t offset = range->start_blkid * srdp->datablksz;
 
 		/*
 		 * If we have large blocks stored on disk but the send flags
@@ -1098,6 +1057,8 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
 		range->sru.data.io_outstanding = 0;
 		range->sru.data.io_err = 0;
 		range->sru.data.io_compressed = B_FALSE;
+	} else if (type == OBJECT) {
+		range->sru.object.spill_range = NULL;
 	}
 	return (range);
 }
@@ -1123,7 +1084,7 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (sta->os->os_encrypted &&
 	    !BP_IS_HOLE(bp) && !BP_USES_CRYPT(bp)) {
-		spa_log_error(spa, zb, &bp->blk_birth);
+		spa_log_error(spa, zb, BP_GET_PHYSICAL_BIRTH(bp));
 		return (SET_ERROR(EIO));
 	}
 
@@ -1249,7 +1210,7 @@ send_traverse_thread(void *arg)
 
 	err = traverse_dataset_resume(st_arg->os->os_dsl_dataset,
 	    st_arg->fromtxg, &st_arg->resume,
-	    st_arg->flags, send_cb, st_arg);
+	    st_arg->flags | TRAVERSE_LOGICAL, send_cb, st_arg);
 
 	if (err != EINTR)
 		st_arg->error_code = err;
@@ -1743,6 +1704,45 @@ enqueue_range(struct send_reader_thread_arg *srta, bqueue_t *q, dnode_t *dn,
 }
 
 /*
+ * Send DRR_SPILL records for unmodified spill blocks.	This is useful
+ * because changing certain attributes of the object (e.g. blocksize)
+ * can cause old versions of ZFS to incorrectly remove a spill block.
+ * Including these records in the stream forces an up to date version
+ * to always be written ensuring they're never lost.  Current versions
+ * of the code which understand the DRR_FLAG_SPILL_BLOCK feature can
+ * ignore these unmodified spill blocks.
+ *
+ * We piggyback the spill_range to dnode range instead of enqueueing it
+ * so send_range_after won't complain.
+ */
+static uint64_t
+piggyback_unmodified_spill(struct send_reader_thread_arg *srta,
+    struct send_range *range)
+{
+	ASSERT3U(range->type, ==, OBJECT);
+
+	dnode_phys_t *dnp = range->sru.object.dnp;
+	uint64_t fromtxg = srta->smta->to_arg->fromtxg;
+
+	if (!zfs_send_unmodified_spill_blocks ||
+	    !(dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) ||
+	    !(BP_GET_LOGICAL_BIRTH(DN_SPILL_BLKPTR(dnp)) <= fromtxg))
+		return (0);
+
+	blkptr_t *bp = DN_SPILL_BLKPTR(dnp);
+	struct send_range *spill_range = range_alloc(DATA, range->object,
+	    DMU_SPILL_BLKID, DMU_SPILL_BLKID+1, B_FALSE);
+	spill_range->sru.data.bp = *bp;
+	spill_range->sru.data.obj_type = dnp->dn_type;
+	spill_range->sru.data.datablksz = BP_GET_LSIZE(bp);
+
+	issue_data_read(srta, spill_range);
+	range->sru.object.spill_range = spill_range;
+
+	return (BP_GET_LSIZE(bp));
+}
+
+/*
  * This thread is responsible for two things: First, it retrieves the correct
  * blkptr in the to ds if we need to send the data because of something from
  * the from thread.  As a result of this, we're the first ones to discover that
@@ -1773,17 +1773,20 @@ send_reader_thread(void *arg)
 	uint64_t last_obj_exists = B_TRUE;
 	while (!range->eos_marker && !srta->cancel && smta->error == 0 &&
 	    err == 0) {
+		uint64_t spill = 0;
 		switch (range->type) {
 		case DATA:
 			issue_data_read(srta, range);
 			bqueue_enqueue(outq, range, range->sru.data.datablksz);
 			range = get_next_range_nofree(inq, range);
 			break;
-		case HOLE:
 		case OBJECT:
+			spill = piggyback_unmodified_spill(srta, range);
+			zfs_fallthrough;
+		case HOLE:
 		case OBJECT_RANGE:
 		case REDACT: // Redacted blocks must exist
-			bqueue_enqueue(outq, range, sizeof (*range));
+			bqueue_enqueue(outq, range, sizeof (*range) + spill);
 			range = get_next_range_nofree(inq, range);
 			break;
 		case PREVIOUSLY_REDACTED: {
@@ -2011,6 +2014,21 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_DNODE)) {
 		*featureflags |= DMU_BACKUP_FEATURE_LARGE_DNODE;
 	}
+
+	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LONGNAME)) {
+		*featureflags |= DMU_BACKUP_FEATURE_LONGNAME;
+	}
+
+	if (dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_LARGE_MICROZAP)) {
+		/*
+		 * We must never split a large microzap block, so we can only
+		 * send large microzaps if LARGE_BLOCKS is already enabled.
+		 */
+		if (!(*featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
+			return (SET_ERROR(ZFS_ERR_STREAM_LARGE_MICROZAP));
+		*featureflags |= DMU_BACKUP_FEATURE_LARGE_MICROZAP;
+	}
+
 	return (0);
 }
 
@@ -2496,7 +2514,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	 * list in the stream.
 	 */
 	if (dspp->numfromredactsnaps != NUM_SNAPS_NOT_REDACTED) {
-		ASSERT3P(from_rl, ==, NULL);
+		ASSERT0P(from_rl);
 		fnvlist_add_uint64_array(nvl, BEGINNV_REDACT_FROM_SNAPS,
 		    dspp->fromredactsnaps, (uint_t)dspp->numfromredactsnaps);
 		if (dspp->numfromredactsnaps > 0) {
@@ -2552,7 +2570,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	while (err == 0 && !range->eos_marker) {
 		err = do_dump(&dsc, range);
 		range = get_next_range(&srt_arg->q, range);
-		if (issig(JUSTLOOKING) && issig(FORREAL))
+		if (issig())
 			err = SET_ERROR(EINTR);
 	}
 
@@ -2669,8 +2687,8 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	}
 
 	if (fromsnap != 0) {
-		err = dsl_dataset_hold_obj_flags(dspp.dp, fromsnap, dsflags,
-		    FTAG, &fromds);
+		err = dsl_dataset_hold_obj(dspp.dp, fromsnap, FTAG, &fromds);
+
 		if (err != 0) {
 			dsl_dataset_rele_flags(dspp.to_ds, dsflags, FTAG);
 			dsl_pool_rele(dspp.dp, FTAG);
@@ -2722,7 +2740,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 		kmem_free(dspp.fromredactsnaps,
 		    dspp.numfromredactsnaps * sizeof (uint64_t));
 
-	dsl_dataset_rele(dspp.to_ds, FTAG);
+	dsl_dataset_rele_flags(dspp.to_ds, dsflags, FTAG);
 	return (err);
 }
 
@@ -2873,7 +2891,7 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			    &fromds);
 
 			if (err != 0) {
-				ASSERT3P(fromds, ==, NULL);
+				ASSERT0P(fromds);
 			} else {
 				/*
 				 * We need to make a deep copy of the redact

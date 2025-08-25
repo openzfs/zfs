@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -29,6 +30,8 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <linux/iversion.h>
+#include <linux/version.h>
 
 
 static struct inode *
@@ -42,10 +45,19 @@ zpl_inode_alloc(struct super_block *sb)
 	return (ip);
 }
 
+#ifdef HAVE_SOPS_FREE_INODE
+static void
+zpl_inode_free(struct inode *ip)
+{
+	ASSERT0(atomic_read(&ip->i_count));
+	zfs_inode_free(ip);
+}
+#endif
+
 static void
 zpl_inode_destroy(struct inode *ip)
 {
-	ASSERT(atomic_read(&ip->i_count) == 0);
+	ASSERT0(atomic_read(&ip->i_count));
 	zfs_inode_destroy(ip);
 }
 
@@ -54,7 +66,6 @@ zpl_inode_destroy(struct inode *ip)
  * inode has changed.  We use it to ensure the znode system attributes
  * are always strictly update to date with respect to the inode.
  */
-#ifdef HAVE_DIRTY_INODE_WITH_FLAGS
 static void
 zpl_dirty_inode(struct inode *ip, int flags)
 {
@@ -64,17 +75,6 @@ zpl_dirty_inode(struct inode *ip, int flags)
 	zfs_dirty_inode(ip, flags);
 	spl_fstrans_unmark(cookie);
 }
-#else
-static void
-zpl_dirty_inode(struct inode *ip)
-{
-	fstrans_cookie_t cookie;
-
-	cookie = spl_fstrans_mark();
-	zfs_dirty_inode(ip, 0);
-	spl_fstrans_unmark(cookie);
-}
-#endif /* HAVE_DIRTY_INODE_WITH_FLAGS */
 
 /*
  * When ->drop_inode() is called its return value indicates if the
@@ -115,6 +115,42 @@ zpl_put_super(struct super_block *sb)
 	ASSERT3S(error, <=, 0);
 }
 
+/*
+ * zfs_sync() is the underlying implementation for the sync(2) and syncfs(2)
+ * syscalls, via sb->s_op->sync_fs().
+ *
+ * Before kernel 5.17 (torvalds/linux@5679897eb104), syncfs() ->
+ * sync_filesystem() would ignore the return from sync_fs(), instead only
+ * considing the error from syncing the underlying block device (sb->s_dev).
+ * Since OpenZFS doesn't _have_ an underlying block device, there's no way for
+ * us to report a sync directly.
+ *
+ * However, in 5.8 (torvalds/linux@735e4ae5ba28) the superblock gained an extra
+ * error store `s_wb_err`, to carry errors seen on page writeback since the
+ * last call to syncfs(). If sync_filesystem() does not return an error, any
+ * existing writeback error on the superblock will be used instead (and cleared
+ * either way). We don't use this (page writeback is a different thing for us),
+ * so for 5.8-5.17 we can use that instead to get syncfs() to return the error.
+ *
+ * Before 5.8, we have no other good options - no matter what happens, the
+ * userspace program will be told the call has succeeded, and so we must make
+ * it so, Therefore, when we are asked to wait for sync to complete (wait ==
+ * 1), if zfs_sync() has returned an error we have no choice but to block,
+ * regardless of the reason.
+ *
+ * The 5.17 change was backported to the 5.10, 5.15 and 5.16 series, and likely
+ * to some vendor kernels. Meanwhile, s_wb_err is still in use in 6.15 (the
+ * mainline Linux series at time of writing), and has likely been backported to
+ * vendor kernels before 5.8. We don't really want to use a workaround when we
+ * don't have to, but we can't really detect whether or not sync_filesystem()
+ * will return our errors (without a difficult runtime test anyway). So, we use
+ * a static version check: any kernel reporting its version as 5.17+ will use a
+ * direct error return, otherwise, we'll either use s_wb_err if it was detected
+ * at configure (5.8-5.16 + vendor backports). If it's unavailable, we will
+ * block to ensure the correct semantics.
+ *
+ * See https://github.com/openzfs/zfs/issues/17416 for further discussion.
+ */
 static int
 zpl_sync_fs(struct super_block *sb, int wait)
 {
@@ -125,10 +161,28 @@ zpl_sync_fs(struct super_block *sb, int wait)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 	error = -zfs_sync(sb, wait, cr);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+#ifdef HAVE_SUPER_BLOCK_S_WB_ERR
+	if (error && wait)
+		errseq_set(&sb->s_wb_err, error);
+#else
+	if (error && wait) {
+		zfsvfs_t *zfsvfs = sb->s_fs_info;
+		ASSERT3P(zfsvfs, !=, NULL);
+		if (zfs_enter(zfsvfs, FTAG) == 0) {
+			txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+			zfs_exit(zfsvfs, FTAG);
+			error = 0;
+		}
+	}
+#endif
+#endif /* < 5.17.0 */
+
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
-	ASSERT3S(error, <=, 0);
 
+	ASSERT3S(error, <=, 0);
 	return (error);
 }
 
@@ -292,6 +346,7 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 {
 	struct super_block *s;
 	objset_t *os;
+	boolean_t issnap = B_FALSE;
 	int err;
 
 	err = dmu_objset_hold(zm->mnt_osname, FTAG, &os);
@@ -323,6 +378,7 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 		if (zpl_enter(zfsvfs, FTAG) == 0) {
 			if (os != zfsvfs->z_os)
 				err = -SET_ERROR(EBUSY);
+			issnap = zfsvfs->z_issnap;
 			zpl_exit(zfsvfs, FTAG);
 		} else {
 			err = -SET_ERROR(EBUSY);
@@ -346,7 +402,11 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 			return (ERR_PTR(err));
 		}
 		s->s_flags |= SB_ACTIVE;
-	} else if ((flags ^ s->s_flags) & SB_RDONLY) {
+	} else if (!issnap && ((flags ^ s->s_flags) & SB_RDONLY)) {
+		/*
+		 * Skip ro check for snap since snap is always ro regardless
+		 * ro flag is passed by mount or not.
+		 */
 		deactivate_locked_super(s);
 		return (ERR_PTR(-EBUSY));
 	}
@@ -380,11 +440,33 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 	struct super_block *sb = (struct super_block *)arg;
 	int objects = 0;
 
-	(void) -zfs_prune(sb, nr_to_scan, &objects);
+	/*
+	 * Ensure the superblock is not in the process of being torn down.
+	 */
+#ifdef HAVE_SB_DYING
+	if (down_read_trylock(&sb->s_umount)) {
+		if (!(sb->s_flags & SB_DYING) && sb->s_root &&
+		    (sb->s_flags & SB_BORN)) {
+			(void) zfs_prune(sb, nr_to_scan, &objects);
+		}
+		up_read(&sb->s_umount);
+	}
+#else
+	if (down_read_trylock(&sb->s_umount)) {
+		if (!hlist_unhashed(&sb->s_instances) &&
+		    sb->s_root && (sb->s_flags & SB_BORN)) {
+			(void) zfs_prune(sb, nr_to_scan, &objects);
+		}
+		up_read(&sb->s_umount);
+	}
+#endif
 }
 
 const struct super_operations zpl_super_operations = {
 	.alloc_inode		= zpl_inode_alloc,
+#ifdef HAVE_SOPS_FREE_INODE
+	.free_inode		= zpl_inode_free,
+#endif
 	.destroy_inode		= zpl_inode_destroy,
 	.dirty_inode		= zpl_dirty_inode,
 	.write_inode		= NULL,

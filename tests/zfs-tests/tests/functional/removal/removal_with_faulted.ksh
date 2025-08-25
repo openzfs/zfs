@@ -1,4 +1,5 @@
 #! /bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -63,11 +64,11 @@
 #    data is still intact.
 #
 
-TMPDIR=${TMPDIR:-$TEST_BASE_DIR}
-DISK0=$TMPDIR/dsk0
-DISK1=$TMPDIR/dsk1
-DISK2=$TMPDIR/dsk2
-DISK3=$TMPDIR/dsk3
+DISKDIR=$(mktemp -d)
+DISK0=$DISKDIR/dsk0
+DISK1=$DISKDIR/dsk1
+DISK2=$DISKDIR/dsk2
+DISK3=$DISKDIR/dsk3
 
 log_must truncate -s $MINVDEVSIZE $DISK0 $DISK1
 log_must truncate -s $((MINVDEVSIZE * 4)) $DISK2 $DISK3
@@ -75,7 +76,7 @@ log_must truncate -s $((MINVDEVSIZE * 4)) $DISK2 $DISK3
 function cleanup
 {
 	default_cleanup_noexit
-	log_must rm -f $DISK0 $DISK1 $DISK2 $DISK3
+	log_must rm -rf $DISKDIR
 }
 
 default_setup_noexit "mirror $DISK0 $DISK1 mirror $DISK2 $DISK3"

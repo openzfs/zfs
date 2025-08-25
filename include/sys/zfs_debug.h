@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -38,6 +39,8 @@ extern "C" {
 #define	FALSE 0
 #endif
 
+#include <sys/nvpair.h>
+
 extern int zfs_flags;
 extern int zfs_recover;
 extern int zfs_free_leak_on_eio;
@@ -59,6 +62,7 @@ extern int zfs_dbgmsg_enable;
 #define	ZFS_DEBUG_METASLAB_ALLOC	(1 << 13)
 #define	ZFS_DEBUG_BRT			(1 << 14)
 #define	ZFS_DEBUG_RAIDZ_RECONSTRUCT	(1 << 15)
+#define	ZFS_DEBUG_DDT			(1 << 16)
 
 extern void __set_error(const char *file, const char *func, int line, int err);
 extern void __zfs_dbgmsg(char *buf);
@@ -102,9 +106,27 @@ extern void zfs_panic_recover(const char *fmt, ...);
 extern void zfs_dbgmsg_init(void);
 extern void zfs_dbgmsg_fini(void);
 
+/*
+ * When printing an nvlist, print one beginning line with the file/func/line
+ * number and the text "nvlist <var name>:" followed by all the nvlist lines
+ * without the file/fun/line number.  This makes the nvlist lines easy to read.
+ */
+#define	zfs_dbgmsg_nvlist(nv) \
+	if (zfs_dbgmsg_enable) { \
+		zfs_dbgmsg("nvlist "#nv":"); \
+		__zfs_dbgmsg_nvlist(nv); \
+	}
+
+#define	zfs_dbgmsg(...) \
+	if (zfs_dbgmsg_enable) \
+		__dprintf(B_FALSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
+
+
+extern void __zfs_dbgmsg_nvlist(nvlist_t *nv);
+
 #ifndef _KERNEL
 extern int dprintf_find_string(const char *string);
-extern void zfs_dbgmsg_print(const char *tag);
+extern void zfs_dbgmsg_print(int fd, const char *tag);
 #endif
 
 #ifdef	__cplusplus

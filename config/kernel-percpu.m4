@@ -1,56 +1,4 @@
 dnl #
-dnl # 3.18 API change,
-dnl # The function percpu_counter_init now must be passed a GFP mask.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_INIT], [
-	ZFS_LINUX_TEST_SRC([percpu_counter_init_with_gfp], [
-		#include <linux/gfp.h>
-		#include <linux/percpu_counter.h>
-	],[
-		struct percpu_counter counter;
-		int error;
-
-		error = percpu_counter_init(&counter, 0, GFP_KERNEL);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_PERCPU_COUNTER_INIT], [
-	AC_MSG_CHECKING([whether percpu_counter_init() wants gfp_t])
-	ZFS_LINUX_TEST_RESULT([percpu_counter_init_with_gfp], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PERCPU_COUNTER_INIT_WITH_GFP, 1,
-		    [percpu_counter_init() wants gfp_t])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
-dnl # 4.13 API change,
-dnl # __percpu_counter_add() was renamed to percpu_counter_add_batch().
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_ADD_BATCH], [
-	ZFS_LINUX_TEST_SRC([percpu_counter_add_batch], [
-		#include <linux/percpu_counter.h>
-	],[
-		struct percpu_counter counter;
-
-		percpu_counter_add_batch(&counter, 1, 1);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_PERCPU_COUNTER_ADD_BATCH], [
-	AC_MSG_CHECKING([whether percpu_counter_add_batch() is defined])
-	ZFS_LINUX_TEST_RESULT([percpu_counter_add_batch], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_PERCPU_COUNTER_ADD_BATCH, 1,
-		    [percpu_counter_add_batch() is defined])
-	],[
-		AC_MSG_RESULT(no)
-	])
-])
-
-dnl #
 dnl # 5.10 API change,
 dnl # The "count" was moved into ref->data, from ref
 dnl #
@@ -75,13 +23,9 @@ AC_DEFUN([ZFS_AC_KERNEL_PERCPU_REF_COUNT_IN_DATA], [
 	])
 ])
 AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU], [
-	ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_INIT
-	ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_ADD_BATCH
 	ZFS_AC_KERNEL_SRC_PERCPU_REF_COUNT_IN_DATA
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_PERCPU], [
-	ZFS_AC_KERNEL_PERCPU_COUNTER_INIT
-	ZFS_AC_KERNEL_PERCPU_COUNTER_ADD_BATCH
 	ZFS_AC_KERNEL_PERCPU_REF_COUNT_IN_DATA
 ])

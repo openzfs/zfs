@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -26,12 +27,15 @@
 #ifndef _SYS_ZFS_RACCT_H
 #define	_SYS_ZFS_RACCT_H
 
-#include <sys/zfs_context.h>
+#include <sys/types.h>
+#include <sys/spa.h>
 
 /*
  * Platform-dependent resource accounting hooks
  */
-void zfs_racct_read(uint64_t size, uint64_t iops);
-void zfs_racct_write(uint64_t size, uint64_t iops);
+void zfs_racct_read(spa_t *spa, uint64_t size, uint64_t iops,
+    dmu_flags_t flags);
+void zfs_racct_write(spa_t *spa, uint64_t size, uint64_t iops,
+    dmu_flags_t flags);
 
 #endif /* _SYS_ZFS_RACCT_H */

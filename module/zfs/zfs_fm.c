@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -221,6 +222,12 @@ vdev_prop_get_inherited(vdev_t *vd, vdev_prop_t prop)
 			break;
 		case VDEV_PROP_IO_T:
 			propval = vd->vdev_io_t;
+			break;
+		case VDEV_PROP_SLOW_IO_N:
+			propval = vd->vdev_slow_io_n;
+			break;
+		case VDEV_PROP_SLOW_IO_T:
+			propval = vd->vdev_slow_io_t;
 			break;
 		default:
 			propval = propdef;
@@ -589,6 +596,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			    DATA_TYPE_UINT64, vs->vs_checksum_errors,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DELAYS,
 			    DATA_TYPE_UINT64, vs->vs_slow_ios,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DIO_VERIFY_ERRORS,
+			    DATA_TYPE_UINT64, vs->vs_dio_verify_errors,
 			    NULL);
 		}
 
@@ -639,7 +648,7 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_ERR,
 		    DATA_TYPE_INT32, zio->io_error, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS,
-		    DATA_TYPE_INT32, zio->io_flags, NULL);
+		    DATA_TYPE_UINT64, zio->io_flags, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_STAGE,
 		    DATA_TYPE_UINT32, zio->io_stage, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE,
@@ -650,6 +659,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    DATA_TYPE_UINT64, zio->io_timestamp, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA,
 		    DATA_TYPE_UINT64, zio->io_delta, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_TYPE,
+		    DATA_TYPE_UINT32, zio->io_type, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY,
 		    DATA_TYPE_UINT32, zio->io_priority, NULL);
 
@@ -738,6 +749,26 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_IO_T,
 			    DATA_TYPE_UINT64,
 			    io_t,
+			    NULL);
+	}
+
+	if (vd != NULL && strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) {
+		uint64_t slow_io_n, slow_io_t;
+
+		slow_io_n = vdev_prop_get_inherited(vd, VDEV_PROP_SLOW_IO_N);
+		if (slow_io_n != vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_N))
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_N,
+			    DATA_TYPE_UINT64,
+			    slow_io_n,
+			    NULL);
+
+		slow_io_t = vdev_prop_get_inherited(vd, VDEV_PROP_SLOW_IO_T);
+		if (slow_io_t != vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_T))
+			fm_payload_set(ereport,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_SLOW_IO_T,
+			    DATA_TYPE_UINT64,
+			    slow_io_t,
 			    NULL);
 	}
 
@@ -1070,10 +1101,7 @@ zfs_ereport_is_valid(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio)
 		return (B_FALSE);
 
 	if (zio != NULL) {
-		/*
-		 * If this is not a read or write zio, ignore the error.  This
-		 * can occur if the DKIOCFLUSHWRITECACHE ioctl fails.
-		 */
+		/* If this is not a read or write zio, ignore the error */
 		if (zio->io_type != ZIO_TYPE_READ &&
 		    zio->io_type != ZIO_TYPE_WRITE)
 			return (B_FALSE);
@@ -1407,9 +1435,23 @@ zfs_post_common(spa_t *spa, vdev_t *vd, const char *type, const char *name,
  * removal.
  */
 void
-zfs_post_remove(spa_t *spa, vdev_t *vd)
+zfs_post_remove(spa_t *spa, vdev_t *vd, boolean_t by_kernel)
 {
-	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED, NULL);
+	nvlist_t *aux = NULL;
+
+	if (by_kernel) {
+		/*
+		 * Add optional supplemental keys to payload
+		 */
+		aux = fm_nvlist_create(NULL);
+		if (aux)
+			fnvlist_add_boolean(aux, "by_kernel");
+	}
+
+	zfs_post_common(spa, vd, FM_RSRC_CLASS, FM_RESOURCE_REMOVED, aux);
+
+	if (by_kernel && aux)
+		fm_nvlist_destroy(aux, FM_NVA_FREE);
 }
 
 /*

@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -26,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd March 16, 2022
+.Dd February 14, 2024
 .Dt ZPOOL 8
 .Os
 .
@@ -38,6 +39,7 @@
 .Fl ?V
 .Nm
 .Cm version
+.Op Fl j
 .Nm
 .Cm subcommand
 .Op Ar arguments
@@ -79,10 +81,14 @@ Displays a help message.
 .It Xo
 .Nm
 .Cm version
+.Op Fl j
 .Xc
 Displays the software version of the
 .Nm
 userland utility and the ZFS kernel module.
+Use
+.Fl j
+option to output in JSON format.
 .El
 .
 .Ss Creation
@@ -168,6 +174,8 @@ specified.
 .
 .Ss Maintenance
 .Bl -tag -width Ds
+.It Xr zpool-prefetch 8
+Prefetches specific types of pool data.
 .It Xr zpool-scrub 8
 Begins a scrub or resumes a paused scrub.
 .It Xr zpool-checkpoint 8
@@ -398,9 +406,43 @@ The command to remove the mirrored log
 .Ar mirror-2 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-2
 .Pp
+At this point, the log device no longer exists
+(both sides of the mirror have been removed):
+.Bd -literal -compact -offset Ds
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
+
+        NAME        STATE     READ WRITE CKSUM
+        tank        ONLINE       0     0     0
+          mirror-0  ONLINE       0     0     0
+            sda     ONLINE       0     0     0
+            sdb     ONLINE       0     0     0
+          mirror-1  ONLINE       0     0     0
+            sdc     ONLINE       0     0     0
+            sdd     ONLINE       0     0     0
+.Ed
+.Pp
 The command to remove the mirrored data
 .Ar mirror-1 No is :
 .Dl # Nm zpool Cm remove Ar tank mirror-1
+.Pp
+After
+.Ar mirror-1 No has been evacuated, the pool remains redundant, but
+the total amount of space is reduced:
+.Bd -literal -compact -offset Ds
+  pool: tank
+ state: ONLINE
+  scan: none requested
+config:
+
+        NAME        STATE     READ WRITE CKSUM
+        tank        ONLINE       0     0     0
+          mirror-0  ONLINE       0     0     0
+            sda     ONLINE       0     0     0
+            sdb     ONLINE       0     0     0
+.Ed
 .
 .Ss Example 16 : No Displaying expanded space on a device
 The following command displays the detailed information for the pool
@@ -493,7 +535,7 @@ The value is not used, only the presence or absence of the variable matters.
 .It Sy ZPOOL_VDEV_NAME_GUID
 Cause
 .Nm
-subcommands to output vdev guids by default.
+subcommands to output vdev GUIDs by default.
 This behavior is identical to the
 .Nm zpool Cm status Fl g
 command line option.
@@ -585,6 +627,7 @@ don't wait.
 .Xr zpool-checkpoint 8 ,
 .Xr zpool-clear 8 ,
 .Xr zpool-create 8 ,
+.Xr zpool-ddtprune 8 ,
 .Xr zpool-destroy 8 ,
 .Xr zpool-detach 8 ,
 .Xr zpool-events 8 ,
@@ -598,6 +641,7 @@ don't wait.
 .Xr zpool-list 8 ,
 .Xr zpool-offline 8 ,
 .Xr zpool-online 8 ,
+.Xr zpool-prefetch 8 ,
 .Xr zpool-reguid 8 ,
 .Xr zpool-remove 8 ,
 .Xr zpool-reopen 8 ,

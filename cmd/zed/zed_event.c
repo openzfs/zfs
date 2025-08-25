@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * This file is part of the ZFS Event Daemon (ZED).
  *
@@ -109,7 +110,7 @@ zed_event_fini(struct zed_conf *zcp)
 static void
 _bump_event_queue_length(void)
 {
-	int zzlm = -1, wr;
+	int zzlm, wr;
 	char qlen_buf[12] = {0}; /* parameter is int => max "-2147483647\n" */
 	long int qlen, orig_qlen;
 

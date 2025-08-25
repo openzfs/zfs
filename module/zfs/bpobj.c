@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -159,8 +160,8 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	memset(bpo, 0, sizeof (*bpo));
 	mutex_init(&bpo->bpo_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	ASSERT(bpo->bpo_dbuf == NULL);
-	ASSERT(bpo->bpo_phys == NULL);
+	ASSERT0P(bpo->bpo_dbuf);
+	ASSERT0P(bpo->bpo_phys);
 	ASSERT(object != 0);
 	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ);
 	ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_BPOBJ_HDR);
@@ -477,7 +478,7 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 			 * We have unprocessed subobjs. Process the next one.
 			 */
 			ASSERT(bpo->bpo_havecomp);
-			ASSERT3P(bpobj_size, ==, NULL);
+			ASSERT0P(bpobj_size);
 
 			/* Add the last subobj to stack. */
 			int64_t i = bpi->bpi_unprocessed_subobjs - 1;
@@ -893,7 +894,7 @@ bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
 		 */
 		memset(&stored_bp, 0, sizeof (stored_bp));
 		stored_bp.blk_prop = bp->blk_prop;
-		stored_bp.blk_birth = bp->blk_birth;
+		BP_SET_LOGICAL_BIRTH(&stored_bp, BP_GET_LOGICAL_BIRTH(bp));
 	} else if (!BP_GET_DEDUP(bp)) {
 		/* The bpobj will compress better without the checksum */
 		memset(&stored_bp.blk_cksum, 0, sizeof (stored_bp.blk_cksum));
@@ -953,7 +954,8 @@ space_range_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 	(void) bp_freed, (void) tx;
 	struct space_range_arg *sra = arg;
 
-	if (bp->blk_birth > sra->mintxg && bp->blk_birth <= sra->maxtxg) {
+	if (BP_GET_BIRTH(bp) > sra->mintxg &&
+	    BP_GET_BIRTH(bp) <= sra->maxtxg) {
 		if (dsl_pool_sync_context(spa_get_dsl(sra->spa)))
 			sra->used += bp_get_dsize_sync(sra->spa, bp);
 		else
@@ -985,7 +987,7 @@ bpobj_space(bpobj_t *bpo, uint64_t *usedp, uint64_t *compp, uint64_t *uncompp)
 
 /*
  * Return the amount of space in the bpobj which is:
- * mintxg < blk_birth <= maxtxg
+ * mintxg < logical birth <= maxtxg
  */
 int
 bpobj_space_range(bpobj_t *bpo, uint64_t mintxg, uint64_t maxtxg,

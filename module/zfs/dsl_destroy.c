@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -132,10 +133,11 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 
 	ASSERT(!BP_IS_HOLE(bp));
 
-	if (bp->blk_birth <= dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
+	if (BP_GET_BIRTH(bp) <=
+	    dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
 		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
 		if (poa->ds_prev && !poa->after_branch_point &&
-		    bp->blk_birth >
+		    BP_GET_BIRTH(bp) >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
 			dsl_dataset_phys(poa->ds_prev)->ds_unique_bytes +=
 			    bp_get_dsize_sync(dp->dp_spa, bp);
@@ -181,10 +183,10 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	dsl_dataset_phys(ds)->ds_deadlist_obj =
 	    dsl_dataset_phys(ds_next)->ds_deadlist_obj;
 	dsl_dataset_phys(ds_next)->ds_deadlist_obj = deadlist_obj;
-	dsl_deadlist_open(&ds->ds_deadlist, mos,
-	    dsl_dataset_phys(ds)->ds_deadlist_obj);
-	dsl_deadlist_open(&ds_next->ds_deadlist, mos,
-	    dsl_dataset_phys(ds_next)->ds_deadlist_obj);
+	VERIFY0(dsl_deadlist_open(&ds->ds_deadlist, mos,
+	    dsl_dataset_phys(ds)->ds_deadlist_obj));
+	VERIFY0(dsl_deadlist_open(&ds_next->ds_deadlist, mos,
+	    dsl_dataset_phys(ds_next)->ds_deadlist_obj));
 }
 
 typedef struct remaining_clones_key {
@@ -215,7 +217,7 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 		return;
 
 	zap_cursor_t *zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	zap_attribute_t *za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 
 	for (zap_cursor_init(zc, mos, dsl_dir_phys(dd)->dd_clones);
 	    zap_cursor_retrieve(zc, za) == 0;
@@ -241,7 +243,7 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 	}
 	zap_cursor_fini(zc);
 
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
 }
 
@@ -313,7 +315,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
+	ASSERT3U(BP_GET_BIRTH(&dsl_dataset_phys(ds)->ds_bp), <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 
@@ -348,7 +350,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			dsl_dataset_deactivate_feature(ds, f, tx);
 	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
-		ASSERT3P(ds->ds_prev, ==, NULL);
+		ASSERT0P(ds->ds_prev);
 		VERIFY0(dsl_dataset_hold_obj(dp,
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &ds_prev));
 		after_branch_point =
@@ -463,7 +465,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		    &used, &comp, &uncomp);
 		dsl_dataset_phys(ds_next)->ds_unique_bytes += used;
 		dsl_dataset_rele(ds_nextnext, FTAG);
-		ASSERT3P(ds_next->ds_prev, ==, NULL);
+		ASSERT0P(ds_next->ds_prev);
 
 		/* Collapse range in this head. */
 		dsl_dataset_t *hds;
@@ -523,7 +525,7 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 	/* remove from snapshot namespace */
 	dsl_dataset_t *ds_head;
-	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj == 0);
+	ASSERT0(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
 	VERIFY0(dsl_dataset_hold_obj(dp,
 	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head));
 	VERIFY0(dsl_dataset_get_snapname(ds));
@@ -726,8 +728,8 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		 */
 		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
-		ASSERT(zilog == NULL);
-		ASSERT3U(bp->blk_birth, >,
+		ASSERT0P(zilog);
+		ASSERT3U(BP_GET_BIRTH(bp), >,
 		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
 		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
 	}
@@ -1017,7 +1019,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	ASSERT(ds->ds_prev == NULL ||
 	    dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj != ds->ds_object);
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
+	ASSERT3U(BP_GET_BIRTH(&dsl_dataset_phys(ds)->ds_bp), <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -94,4 +95,11 @@ function exceed_quota
 	[[ $zret -ne $EDQUOT ]] && \
 	    log_fail "Returned error code: $zret. Expected: $EDQUOT."
 	return 0
+}
+
+function reset_quota
+{
+	typeset FILESYSTEM="$1"
+
+	log_must zfs set quota=none $FILESYSTEM
 }

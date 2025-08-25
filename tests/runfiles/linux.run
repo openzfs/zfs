@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -19,7 +20,6 @@ post_user = root
 post = cleanup
 failsafe_user = root
 failsafe = callbacks/zfs_failsafe
-outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/posix:Linux]
@@ -102,14 +102,15 @@ tags = ['functional', 'compression']
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
+[tests/functional/direct:Linux]
+tests = ['dio_loopback_dev', 'dio_write_verify']
+tags = ['functional', 'direct']
+
 [tests/functional/events:Linux]
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
-    'zed_cksum_reported', 'zed_cksum_config', 'zed_io_config']
+    'zed_cksum_reported', 'zed_cksum_config', 'zed_io_config',
+    'zed_slow_io', 'zed_slow_io_many_vdevs', 'zed_diagnose_multiple']
 tags = ['functional', 'events']
-
-[tests/functional/fadvise:Linux]
-tests = ['fadvise_sequential']
-tags = ['functional', 'fadvise']
 
 [tests/functional/fallocate:Linux]
 tests = ['fallocate_prealloc', 'fallocate_zero-range']
@@ -118,9 +119,10 @@ tags = ['functional', 'fallocate']
 [tests/functional/fault:Linux]
 tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
     'auto_replace_001_pos', 'auto_replace_002_pos', 'auto_spare_001_pos',
-    'auto_spare_002_pos', 'auto_spare_multiple', 'auto_spare_ashift',
-    'auto_spare_shared', 'decrypt_fault', 'decompress_fault',
-    'scrub_after_resilver', 'zpool_status_-s']
+    'auto_spare_002_pos', 'auto_spare_double', 'auto_spare_multiple',
+    'auto_spare_ashift', 'auto_spare_shared', 'decrypt_fault',
+    'decompress_fault', 'fault_limits', 'scrub_after_resilver',
+    'suspend_on_probe_errors', 'suspend_resume_single', 'zpool_status_-s']
 tags = ['functional', 'fault']
 
 [tests/functional/features/large_dnode:Linux]
@@ -137,6 +139,16 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/longname:Linux]
+tests = ['longname_001_pos', 'longname_002_pos', 'longname_003_pos']
+tags = ['functional', 'longname']
+
+[tests/functional/luks:Linux]
+pre =
+post =
+tests = ['luks_sanity']
+tags = ['functional', 'luks']
+
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
@@ -145,16 +157,16 @@ tags = ['functional', 'mmap']
 tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_active_import', 'mmp_inactive_import', 'mmp_exported_import',
     'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history',
-    'mmp_on_zdb', 'mmp_write_distribution', 'mmp_hostid']
+    'mmp_on_zdb', 'mmp_write_distribution', 'mmp_hostid', 'mmp_write_slow_disk']
 tags = ['functional', 'mmp']
 
 [tests/functional/mount:Linux]
-tests = ['umount_unlinked_drain']
+tests = ['umount_unlinked_drain', 'mount_loopback']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
-tests = ['pam_basic', 'pam_change_unmounted', 'pam_nounmount', 'pam_recursive',
-    'pam_short_password']
+tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
+    'pam_nounmount', 'pam_recursive', 'pam_short_password']
 tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]
@@ -163,13 +175,11 @@ tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
 tags = ['functional', 'procfs']
 
 [tests/functional/projectquota:Linux]
-tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
-    'projectquota_001_pos', 'projectquota_002_pos', 'projectquota_003_pos',
-    'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_006_pos',
-    'projectquota_007_pos', 'projectquota_008_pos', 'projectquota_009_pos',
+tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_005_pos',
+    'projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectquota_001_pos', 'projectquota_003_pos', 'projectquota_006_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
-    'projectspace_004_pos',
-    'projecttree_001_pos', 'projecttree_002_pos', 'projecttree_003_neg']
+    'projectspace_004_pos', 'projectspace_005_pos', 'projecttree_001_pos']
 tags = ['functional', 'projectquota']
 
 [tests/functional/dos_attributes:Linux]
@@ -181,7 +191,7 @@ tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
 tags = ['functional', 'renameat2']
 
 [tests/functional/rsend:Linux]
-tests = ['send_realloc_dnode_size', 'send_encrypted_files']
+tests = ['send_realloc_dnode_size', 'send_encrypted_files', 'send-c_longname']
 tags = ['functional', 'rsend']
 
 [tests/functional/simd:Linux]
@@ -194,13 +204,19 @@ tags = ['functional', 'simd']
 tests = ['snapshot_015_pos', 'snapshot_016_pos']
 tags = ['functional', 'snapshot']
 
+[tests/functional/syncfs:Linux]
+tests = ['syncfs_suspend']
+tags = ['functional', 'syncfs']
+pre =
+post =
+
 [tests/functional/tmpfile:Linux]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
     'tmpfile_stat_mode']
 tags = ['functional', 'tmpfile']
 
 [tests/functional/upgrade:Linux]
-tests = ['upgrade_projectquota_001_pos']
+tests = ['upgrade_projectquota_001_pos', 'upgrade_projectquota_002_pos']
 tags = ['functional', 'upgrade']
 
 [tests/functional/user_namespace:Linux]
@@ -210,7 +226,7 @@ tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota:Linux]
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
-    'userquota_013_pos', 'userspace_003_pos']
+    'groupspace_004_pos','userquota_013_pos', 'userspace_003_pos']
 tags = ['functional', 'userquota']
 
 [tests/functional/zvol/zvol_misc:Linux]

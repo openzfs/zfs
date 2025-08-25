@@ -1,0 +1,517 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2025, Klara, Inc.
+#
+
+#
+# This file provides the following helpers to read kstats from tests.
+#
+#   kstat [-g] <stat>
+#   kstat_pool [-g] <pool> <stat>
+#   kstat_dataset [-N] <dataset | pool/objsetid> <stat>
+#
+# `kstat` and `kstat_pool` return the value of of the given <stat>, either
+# a global or pool-specific state.
+#
+#   $ kstat dbgmsg
+#   timestamp    message
+#   1736848201   spa_history.c:304:spa_history_log_sync(): txg 14734896 ...
+#   1736848201   spa_history.c:330:spa_history_log_sync(): ioctl ...
+#   ...
+#
+#   $ kstat_pool garden state
+#   ONLINE
+#
+# To get a single stat within a group or collection, separate the name with
+# '.' characters.
+#
+#   $ kstat dbufstats.cache_target_bytes
+#   3215780693
+#
+#   $ kstat_pool crayon iostats.arc_read_bytes
+#   253671670784
+#
+# -g is "group" mode. If the kstat is a group or collection, all stats in that
+# group are returned, one stat per line, key and value separated by a space.
+#
+#   $ kstat -g dbufstats
+#   cache_count 1792
+#   cache_size_bytes 87720376
+#   cache_size_bytes_max 305187768
+#   cache_target_bytes 97668555
+#   ...
+#
+#   $ kstat_pool -g crayon iostats
+#   trim_extents_written 0
+#   trim_bytes_written 0
+#   trim_extents_skipped 0
+#   trim_bytes_skipped 0
+#   ...
+#
+# `kstat_dataset` accesses the per-dataset group kstat. The dataset can be
+# specified by name:
+#
+#   $ kstat_dataset crayon/home/robn nunlinks
+#   2628514
+#
+# or, with the -N switch, as <pool>/<objsetID>:
+#
+#   $ kstat_dataset -N crayon/7 writes
+#   125135
+#
+
+####################
+# Public interface
+
+#
+# kstat [-g] <stat>
+#
+function kstat
+{
+	typeset -i want_group=0
+
+	OPTIND=1
+	while getopts "g" opt ; do
+		case $opt in
+			'g') want_group=1 ;;
+			*) log_fail "kstat: invalid option '$opt'" ;;
+		esac
+	done
+	shift $(expr $OPTIND - 1)
+
+	typeset stat=$1
+
+	$_kstat_os 'global' '' "$stat" $want_group
+}
+
+#
+# kstat_pool [-g] <pool> <stat>
+#
+function kstat_pool
+{
+	typeset -i want_group=0
+
+	OPTIND=1
+	while getopts "g" opt ; do
+		case $opt in
+			'g') want_group=1 ;;
+			*) log_fail "kstat_pool: invalid option '$opt'" ;;
+		esac
+	done
+	shift $(expr $OPTIND - 1)
+
+	typeset pool=$1
+	typeset stat=$2
+
+	$_kstat_os 'pool' "$pool" "$stat" $want_group
+}
+
+#
+# kstat_dataset [-N] <dataset | pool/objsetid> <stat>
+#
+function kstat_dataset
+{
+	typeset -i opt_objsetid=0
+
+	OPTIND=1
+	while getopts "N" opt ; do
+		case $opt in
+			'N') opt_objsetid=1 ;;
+			*) log_fail "kstat_dataset: invalid option '$opt'" ;;
+		esac
+	done
+	shift $(expr $OPTIND - 1)
+
+	typeset dsarg=$1
+	typeset stat=$2
+
+	if [[ $opt_objsetid == 0 ]] ; then
+		typeset pool="${dsarg%%/*}"	# clear first / -> end
+		typeset objsetid=$($_resolve_dsname_os "$pool" "$dsarg")
+		if [[ -z "$objsetid" ]] ; then
+			log_fail "kstat_dataset: dataset not found: $dsarg"
+		fi
+		dsarg="$pool/$objsetid"
+	fi
+
+	$_kstat_os 'dataset' "$dsarg" "$stat" 0
+}
+
+####################
+# Platform-specific interface
+
+#
+# Implementation notes
+#
+# There's not a lot of uniformity between platforms, so I've written to a rough
+# imagined model that seems to fit the majority of OpenZFS kstats.
+#
+# The main platform entry points look like this:
+#
+#    _kstat_freebsd <scope> <object> <stat> <want_group>
+#    _kstat_linux <scope> <object> <stat> <want_group>
+#
+# - scope: one of 'global', 'pool', 'dataset'. The "kind" of object the kstat
+#          is attached to.
+# - object: name of the scoped object
+#           global:  empty string
+#           pool:    pool name
+#           dataset: <pool>/<objsetId> pair
+# - stat: kstat name to get
+# - want_group: 0 to get the single value for the kstat, 1 to treat the kstat
+#               as a group and get all the stat names+values under it. group
+#               kstats cannot have values, and stat kstats cannot have
+#               children (by definition)
+#
+# Stat values can have multiple lines, so be prepared for those.
+#
+# These functions either succeed and produce the requested output, or call
+# log_fail. They should never output empty, or 0, or anything else.
+#
+# Output:
+#
+# - want_group=0: the single stat value, followed by newline
+# - want_group=1: One stat per line, <name><SP><value><newline>
+#
+
+#
+# To support kstat_dataset(), platforms also need to provide a dataset
+# name->object id resolver function.
+#
+#   _resolve_dsname_freebsd <pool> <dsname>
+#   _resolve_dsname_linux <pool> <dsname>
+#
+# - pool: pool name. always the first part of the dataset name
+# - dsname: dataset name, in the standard <pool>/<some>/<dataset> format.
+#
+# Output is <objsetID>. objsetID is a decimal integer, > 0
+#
+
+####################
+# FreeBSD
+
+#
+# All kstats are accessed through sysctl. We model "groups" as interior nodes
+# in the stat tree, which are normally opaque. Because sysctl has no filtering
+# options, and requesting any node produces all nodes below it, we have to
+# always get the name and value, and then consider the output to understand
+# if we got a group or a single stat, and post-process accordingly.
+#
+# Scopes are mostly mapped directly to known locations in the tree, but there
+# are a handful of stats that are out of position, so we need to adjust.
+#
+
+#
+# _kstat_freebsd <scope> <object> <stat> <want_group>
+#
+function _kstat_freebsd
+{
+	typeset scope=$1
+	typeset obj=$2
+	typeset stat=$3
+	typeset -i want_group=$4
+
+	typeset oid=""
+	case "$scope" in
+	global)
+		oid="kstat.zfs.misc.$stat"
+		;;
+	pool)
+		# For reasons unknown, the "multihost", "txgs" and "reads"
+		# pool-specific kstats are directly under kstat.zfs.<pool>,
+		# rather than kstat.zfs.<pool>.misc like the other pool kstats.
+		# Adjust for that here.
+		case "$stat" in
+		multihost|txgs|reads)
+		    oid="kstat.zfs.$obj.$stat"
+		    ;;
+		*)
+		    oid="kstat.zfs.$obj.misc.$stat"
+		    ;;
+		esac
+		;;
+	dataset)
+		typeset pool=""
+		typeset -i objsetid=0
+		_split_pool_objsetid $obj pool objsetid
+		oid=$(printf 'kstat.zfs.%s.dataset.objset-0x%x.%s' \
+		    $pool $objsetid $stat)
+		;;
+	esac
+
+	# Calling sysctl on a "group" node will return everything under that
+	# node, so we have to inspect the first line to make sure we are
+	# getting back what we expect. For a single value, the key will have
+	# the name we requested, while for a group, the key will not have the
+	# name (group nodes are "opaque", not returned by sysctl by default.
+
+	if [[ $want_group == 0 ]] ; then
+		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '
+			NR == 1 && $0 !~ oidre { exit 1 }
+			NR == 1 { print substr($0, length(oid)+2) ; next }
+			{ print }
+		'
+	else
+		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '
+			NR == 1 && $0 ~ oidre { exit 2 }
+			{
+			    sub("^" oid "\.", "")
+			    sub("=", " ")
+			    print
+			}
+		'
+	fi
+
+	typeset -i err=$?
+	case $err in
+		0) return ;;
+		1) log_fail "kstat: can't get value for group kstat: $oid" ;;
+		2) log_fail "kstat: not a group kstat: $oid" ;;
+	esac
+
+	log_fail "kstat: unknown error: $oid"
+}
+
+#
+#   _resolve_dsname_freebsd <pool> <dsname>
+#
+function _resolve_dsname_freebsd
+{
+	# we're searching for:
+	#
+	# kstat.zfs.shed.dataset.objset-0x8087.dataset_name: shed/poudriere
+	#
+	# We split on '.', then get the hex objsetid from field 5.
+	#
+	# We convert hex to decimal in the shell because there isn't a _simple_
+	# portable way to do it in awk and this code is already too intense to
+	# do it a complicated way.
+	typeset pool=$1
+	typeset dsname=$2
+	sysctl -e kstat.zfs.$pool | \
+	    awk -F '.' -v dsnamere="=$dsname$" '
+		/\.objset-0x[0-9a-f]+\.dataset_name=/ && $6 ~ dsnamere {
+		    print substr($5, 8)
+		    exit
+		}
+	    ' | xargs printf %d
+}
+
+####################
+# Linux
+
+#
+# kstats all live under /proc/spl/kstat/zfs. They have a flat structure: global
+# at top-level, pool in a directory, and dataset in a objset- file inside the
+# pool dir.
+#
+# Groups are challenge. A single stat can be the entire text of a file, or
+# a single line that must be extracted from a "group" file. The only way to
+# recognise a group from the outside is to look for its header. This naturally
+# breaks if a raw file had a matching header, or if a group file chooses to
+# hid its header. Fortunately OpenZFS does none of these things at the moment.
+#
+
+#
+# _kstat_linux <scope> <object> <stat> <want_group>
+#
+function _kstat_linux
+{
+	typeset scope=$1
+	typeset obj=$2
+	typeset stat=$3
+	typeset -i want_group=$4
+
+	typeset singlestat=""
+
+	if [[ $scope == 'dataset' ]] ; then
+		typeset pool=""
+		typeset -i objsetid=0
+		_split_pool_objsetid $obj pool objsetid
+		stat=$(printf 'objset-0x%x.%s' $objsetid $stat)
+		obj=$pool
+		scope='pool'
+	fi
+
+	typeset path=""
+	if [[ $scope == 'global' ]] ; then
+		path="/proc/spl/kstat/zfs/$stat"
+	else
+		path="/proc/spl/kstat/zfs/$obj/$stat"
+	fi
+
+	if [[ ! -e "$path" && $want_group -eq 0 ]] ; then
+		# This single stat doesn't have its own file, but the wanted
+		# stat could be in a group kstat file, which we now need to
+		# find. To do this, we split a single stat name into two parts:
+		# the file that would contain the stat, and the key within that
+		# file to match on. This works by converting all bar the last
+		# '.' separator to '/', then splitting on the remaining '.'
+		# separator. If there are no '.' separators, the second arg
+		# returned will be empty.
+		#
+		#   foo              -> (foo)
+		#   foo.bar          -> (foo, bar)
+		#   foo.bar.baz      -> (foo/bar, baz)
+		#   foo.bar.baz.quux -> (foo/bar/baz, quux)
+		#
+		# This is how we will target single stats within a larger NAMED
+		# kstat file, eg dbufstats.cache_target_bytes.
+		typeset -a split=($(echo "$stat" | \
+		    sed -E 's/^(.+)\.([^\.]+)$/\1 \2/ ; s/\./\//g'))
+		typeset statfile=${split[0]}
+		singlestat=${split[1]:-""}
+
+		if [[ $scope == 'global' ]] ; then
+			path="/proc/spl/kstat/zfs/$statfile"
+		else
+			path="/proc/spl/kstat/zfs/$obj/$statfile"
+		fi
+	fi
+	if [[ ! -r "$path" ]] ; then
+		log_fail "kstat: can't read $path"
+	fi
+
+	if [[ $want_group == 1 ]] ; then
+		# "group" (NAMED) kstats on Linux start:
+		#
+		#   $ cat /proc/spl/kstat/zfs/crayon/iostats
+		#   70 1 0x01 26 7072 8577844978 661416318663496
+		#   name                            type data
+		#   trim_extents_written            4    0
+		#   trim_bytes_written              4    0
+		#
+		# The second value on the first row is the ks_type. Group
+		# mode only works for type 1, KSTAT_TYPE_NAMED. So we check
+		# for that, and eject if it's the wrong type. Otherwise, we
+		# skip the header row and process the values.
+		awk '
+			NR == 1 && ! /^[0-9]+ 1 / { exit 2 }
+			NR < 3 { next }
+			{ print $1 " " $NF }
+		' "$path"
+	elif [[ -n $singlestat ]] ; then
+		# single stat. must be a single line within a group stat, so
+		# we look for the header again as above.
+		awk -v singlestat="$singlestat" \
+		    -v singlestatre="^$singlestat " '
+			NR == 1 && /^[0-9]+ [^1] / { exit 2 }
+			NR < 3 { next }
+			$0 ~ singlestatre { print $NF ; exit 0 }
+			ENDFILE { exit 3 }
+		' "$path"
+	else
+		# raw stat. dump contents, exclude group stats
+		awk '
+			NR == 1 && /^[0-9]+ 1 / { exit 1 }
+			{ print }
+		' "$path"
+	fi
+
+	typeset -i err=$?
+	case $err in
+		0) return ;;
+		1) log_fail "kstat: can't get value for group kstat: $path" ;;
+		2) log_fail "kstat: not a group kstat: $path" ;;
+		3) log_fail "kstat: stat not found in group: $path $singlestat" ;;
+	esac
+
+	log_fail "kstat: unknown error: $path"
+}
+
+#
+#   _resolve_dsname_linux <pool> <dsname>
+#
+function _resolve_dsname_linux
+{
+	# We look inside all:
+	#
+	#   /proc/spl/kstat/zfs/crayon/objset-0x113
+	#
+	# and check the dataset_name field inside. If we get a match, we split
+	# the filename on /, then extract the hex objsetid.
+	#
+	# We convert hex to decimal in the shell because there isn't a _simple_
+	# portable way to do it in awk and this code is already too intense to
+	# do it a complicated way.
+	typeset pool=$1
+	typeset dsname=$2
+	awk -v dsname="$dsname" '
+	    $1 == "dataset_name" && $3 == dsname {
+		split(FILENAME, a, "/")
+		print substr(a[7], 8)
+		exit
+	    }
+	    ' /proc/spl/kstat/zfs/$pool/objset-0x* | xargs printf %d
+}
+
+####################
+
+#
+# _split_pool_objsetid <obj> <*pool> <*objsetid>
+#
+# Splits pool/objsetId string in <obj> and fills <pool> and <objsetid>.
+#
+function _split_pool_objsetid
+{
+	typeset obj=$1
+	typeset -n pool=$2
+	typeset -n objsetid=$3
+
+	pool="${obj%%/*}"		# clear first / -> end
+	typeset osidarg="${obj#*/}"	# clear start -> first /
+
+	# ensure objsetid arg does not contain a /. we're about to convert it,
+	# but ksh will treat it as an expression, and a / will give a
+	# divide-by-zero
+	if [[ "${osidarg%%/*}" != "$osidarg" ]] ; then
+		log_fail "kstat: invalid objsetid: $osidarg"
+	fi
+
+	typeset -i id=$osidarg
+	if [[ $id -le 0 ]] ; then
+		log_fail "kstat: invalid objsetid: $osidarg"
+	fi
+	objsetid=$id
+}
+
+####################
+
+#
+# Per-platform function selection.
+#
+# To avoid needing platform check throughout, we store the names of the
+# platform functions and call through them.
+#
+if is_freebsd ; then
+	_kstat_os='_kstat_freebsd'
+	_resolve_dsname_os='_resolve_dsname_freebsd'
+elif is_linux ; then
+	_kstat_os='_kstat_linux'
+	_resolve_dsname_os='_resolve_dsname_linux'
+else
+	_kstat_os='_kstat_unknown_platform_implement_me'
+	_resolve_dsname_os='_resolve_dsname_unknown_platform_implement_me'
+fi
+

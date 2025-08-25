@@ -1,3 +1,4 @@
+.\" SPDX-License-Identifier: CDDL-1.0
 .\"
 .\" CDDL HEADER START
 .\"
@@ -260,8 +261,8 @@ sufficient replicas exist to continue functioning.
 The underlying conditions are as follows:
 .Bl -bullet -compact
 .It
-The number of checksum errors exceeds acceptable levels and the device is
-degraded as an indication that something may be wrong.
+The number of checksum errors or slow I/Os exceeds acceptable levels and the
+device is degraded as an indication that something may be wrong.
 ZFS continues to use the device as necessary.
 .It
 The number of I/O errors exceeds acceptable levels.
@@ -355,7 +356,7 @@ and both pools suffer a device failure at the same time,
 both could attempt to use the spare at the same time.
 This may not be detected, resulting in data corruption.
 .Pp
-An in-progress spare replacement can be cancelled by detaching the hot spare.
+An in-progress spare replacement can be canceled by detaching the hot spare.
 If the original faulted device is detached, then the hot spare assumes its
 place in the configuration, and is removed from the spare list of all active
 pools.
@@ -389,11 +390,6 @@ Multiple log devices can also be specified, and they can be mirrored.
 See the
 .Sx EXAMPLES
 section for an example of mirroring multiple log devices.
-.Pp
-Log devices can be added, replaced, attached, detached, and removed.
-In addition, log devices are imported and exported as part of the pool
-that contains them.
-Mirrored devices can be removed by specifying the top-level mirror vdev.
 .
 .Ss Cache Devices
 Devices can be added to a storage pool as
@@ -485,9 +481,10 @@ current state of the pool won't be scanned during a scrub.
 .
 .Ss Special Allocation Class
 Allocations in the special class are dedicated to specific block types.
-By default, this includes all metadata, the indirect blocks of user data, and
-any deduplication tables.
-The class can also be provisioned to accept small file blocks.
+By default, this includes all metadata, the indirect blocks of user data,
+intent log (in absence of separate log device), and deduplication tables.
+The class can also be provisioned to accept small file blocks or zvol blocks
+on a per dataset granularity.
 .Pp
 A pool must always have at least one normal
 .Pq non- Ns Sy dedup Ns /- Ns Sy special
@@ -502,7 +499,7 @@ Deduplication tables can be excluded from the special class by unsetting the
 .Sy zfs_ddt_data_is_special
 ZFS module parameter.
 .Pp
-Inclusion of small file blocks in the special class is opt-in.
+Inclusion of small file or zvol blocks in the special class is opt-in.
 Each dataset can control the size of small file blocks allowed
 in the special class by setting the
 .Sy special_small_blocks

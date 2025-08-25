@@ -1,4 +1,5 @@
 #!/usr/bin/env @PYTHON_SHEBANG@
+# SPDX-License-Identifier: CDDL-1.0
 
 #
 # This file and its contents are supplied under the terms of the
@@ -14,6 +15,7 @@
 #
 # Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 # Copyright (c) 2019 Datto Inc.
+# Copyright (c) 2025, Klara, Inc.
 #
 # This script must remain compatible with Python 3.6+.
 #
@@ -111,10 +113,11 @@ class Result(object):
 class Output(object):
     """
     This class is a slightly modified version of the 'Stream' class found
-    here: http://goo.gl/aSGfv
+    here: https://stackoverflow.com/q/4984549/
     """
-    def __init__(self, stream):
+    def __init__(self, stream, debug=False):
         self.stream = stream
+        self.debug = debug
         self._buf = b''
         self.lines = []
 
@@ -140,6 +143,8 @@ class Output(object):
         buf = os.read(fd, 4096)
         if not buf:
             return None
+        if self.debug:
+            os.write(sys.stderr.fileno(), buf)
         if b'\n' not in buf:
             self._buf += buf
             return []
@@ -235,17 +240,25 @@ User: %s
             if os.path.isfile(cmd+'.sh') and os.access(cmd+'.sh', os.X_OK):
                 cmd += '.sh'
 
-        ret = '%s -E -u %s %s' % (SUDO, user, cmd)
+        # glibc (at least) will not pass TMPDIR through to setuid programs.
+        # if set, arrange for it to be reset before running the target cmd
+        tmpdir = os.getenv('TMPDIR')
+        if tmpdir:
+            tmpdirarg = 'env TMPDIR=%s' % tmpdir
+        else:
+            tmpdirarg = ''
+
+        ret = '%s -E -u %s %s %s' % (SUDO, user, tmpdirarg, cmd)
         return ret.split(' ')
 
-    def collect_output(self, proc):
+    def collect_output(self, proc, debug=False):
         """
         Read from stdout/stderr as data becomes available, until the
         process is no longer running. Return the lines from the stdout and
         stderr Output objects.
         """
-        out = Output(proc.stdout)
-        err = Output(proc.stderr)
+        out = Output(proc.stdout, debug)
+        err = Output(proc.stderr, debug)
         res = []
         while proc.returncode is None:
             proc.poll()
@@ -292,6 +305,18 @@ User: %s
             except Exception:
                 pass
 
+        """
+        Log each test we run to /dev/ttyu0 (on FreeBSD), so if there's a kernel
+        warning we'll be able to match it up to a particular test.
+        """
+        if options.kmsg is True and exists("/dev/ttyu0"):
+            try:
+                kp = Popen([SUDO, "sh", "-c",
+                            f"echo ZTS run {self.pathname} > /dev/ttyu0"])
+                kp.wait()
+            except Exception:
+                pass
+
         self.result.starttime = monotonic_time()
 
         if kmemleak:
@@ -308,7 +333,10 @@ User: %s
 
         try:
             t.start()
-            self.result.stdout, self.result.stderr = self.collect_output(proc)
+
+            out, err = self.collect_output(proc, options.debug)
+            self.result.stdout = out
+            self.result.stderr = err
 
             if kmemleak:
                 cmd = f'{SUDO} sh -c "echo scan > {KMEMLEAK_FILE}"'
@@ -345,6 +373,8 @@ User: %s
         stdout/stderr/merged in its own file.
         """
 
+        timeprefix = datetime.now().strftime('[%FT%T.%f] ')
+
         logname = getpwuid(os.getuid()).pw_name
         rer = ''
         if self.reran is True:
@@ -356,7 +386,7 @@ User: %s
             msga = 'Test: %s%s ' % (self.pathname, user)
         msgb = '[%s] [%s]%s\n' % (self.result.runtime, self.result.result, rer)
         pad = ' ' * (80 - (len(msga) + len(msgb)))
-        result_line = msga + pad + msgb
+        result_line = timeprefix + msga + pad + msgb
 
         # The result line is always written to the log file. If -q was
         # specified only failures are written to the console, otherwise
@@ -624,7 +654,7 @@ Tags: %s
 
 
 class TestRun(object):
-    props = ['quiet', 'outputdir']
+    props = ['quiet', 'outputdir', 'debug']
 
     def __init__(self, options):
         self.tests = {}
@@ -644,7 +674,8 @@ class TestRun(object):
             ('post_user', ''),
             ('failsafe', ''),
             ('failsafe_user', ''),
-            ('tags', [])
+            ('tags', []),
+            ('debug', False)
         ]
 
     def __str__(self):
@@ -727,8 +758,11 @@ class TestRun(object):
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
-                setattr(self, opt, config.get('DEFAULT', opt))
-        self.outputdir = os.path.join(self.outputdir, self.timestamp)
+                if opt == 'outputdir':
+                    outputdir = config.get('DEFAULT', opt)
+                    setattr(self, opt, os.path.join(outputdir, self.timestamp))
+                else:
+                    setattr(self, opt, config.get('DEFAULT', opt))
 
         testdir = options.testdir
 
@@ -756,6 +790,11 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(testgroup, prop,
                                         os.path.join(testdir, failsafe))
+                            elif prop == 'outputdir':
+                                outputdir = config.get(sect, prop)
+                                setattr(self, opt,
+                                        os.path.join(outputdir,
+                                                     self.timestamp))
                             else:
                                 setattr(testgroup, prop,
                                         config.get(sect, prop))
@@ -774,6 +813,11 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(test, prop,
                                         os.path.join(testdir, failsafe))
+                            elif prop == 'outputdir':
+                                outputdir = config.get(sect, prop)
+                                setattr(self, opt,
+                                        os.path.join(outputdir,
+                                                     self.timestamp))
                             else:
                                 setattr(test, prop, config.get(sect, prop))
 
@@ -817,9 +861,10 @@ class TestRun(object):
 
     def complete_outputdirs(self):
         """
-        Collect all the pathnames for Tests, and TestGroups. Work
-        backwards one pathname component at a time, to create a unique
-        directory name in which to deposit test output. Tests will be able
+        Collect all the pathnames for Tests, and TestGroups. Strip off all
+        common leading path components, and append what remains to the top
+        "output" dir, to create a tree of output directories that match
+        the test and group names in structure. Tests will be able
         to write output files directly in the newly modified outputdir.
         TestGroups will be able to create one subdirectory per test in the
         outputdir, and are guaranteed uniqueness because a group can only
@@ -828,24 +873,30 @@ class TestRun(object):
         question for their output. Failsafe scripts will create a directory
         rooted at the outputdir of each Test for their output.
         """
-        done = False
-        components = 0
-        tmp_dict = dict(list(self.tests.items()) +
-                        list(self.testgroups.items()))
-        total = len(tmp_dict)
-        base = self.outputdir
 
-        while not done:
-            paths = []
-            components -= 1
-            for testfile in list(tmp_dict.keys()):
-                uniq = '/'.join(testfile.split('/')[components:]).lstrip('/')
-                if uniq not in paths:
-                    paths.append(uniq)
-                    tmp_dict[testfile].outputdir = os.path.join(base, uniq)
-                else:
-                    break
-            done = total == len(paths)
+        alltests = dict(list(self.tests.items()) +
+                        list(self.testgroups.items()))
+        base = os.path.join(self.outputdir, 'output')
+
+        seen = []
+
+        for path in list(alltests.keys()):
+            frag = path.split('/')
+            for i in range(0, len(frag)):
+                if len(seen) == i:
+                    seen.append({})
+                seen[i][frag[i]] = 1
+
+        cut = 0
+        for i in range(0, len(seen)):
+            if len(list(seen[i].keys())) == 1:
+                cut += 1
+            else:
+                break
+
+        for path in list(alltests.keys()):
+            uniq = path.split('/', cut)[-1]
+            alltests[path].outputdir = os.path.join(base, uniq)
 
     def setup_logging(self, options):
         """
@@ -1067,6 +1118,8 @@ def parse_args():
                       help='Specify tests to run via config files.')
     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
                       help='Dry run. Print tests, but take no other action.')
+    parser.add_option('-D', action='store_true', default=False, dest='debug',
+                      help='Write all test output to stdout as it arrives.')
     parser.add_option('-l', action='callback', callback=options_cb,
                       default=None, dest='logfile', metavar='logfile',
                       type='string',

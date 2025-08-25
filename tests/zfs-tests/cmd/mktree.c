@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -151,7 +152,7 @@ getfdname(char *pdir, char type, int level, int dir, int file)
 static void
 crtfile(char *pname)
 {
-	int fd = -1;
+	int fd;
 	int i, size;
 	const char *context = "0123456789ABCDF";
 	char *pbuf;

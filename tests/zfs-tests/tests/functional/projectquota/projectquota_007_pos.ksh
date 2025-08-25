@@ -1,4 +1,5 @@
 #!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
 #
@@ -52,7 +53,7 @@ log_assert "Check zfs get all will not print out project{obj}quota"
 log_must zfs set projectquota@$PRJID1=50m $QFS
 log_must zfs set projectobjquota@$PRJID2=100 $QFS
 
-log_mustnot eval "zfs get all $QFS | grep projectquota"
-log_mustnot eval "zfs get all $QFS | grep projectobjquota"
+log_mustnot eval "zfs get all $QFS | grep -w projectquota"
+log_mustnot eval "zfs get all $QFS | grep -w projectobjquota"
 
 log_pass "zfs get all will not print out project{obj}quota"
