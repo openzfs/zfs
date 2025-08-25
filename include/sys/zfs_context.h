@@ -90,7 +90,6 @@ extern "C" {
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <pthread.h>
 #include <setjmp.h>
 #include <assert.h>
 #include <umem.h>
@@ -123,6 +122,7 @@ extern "C" {
 #include <sys/rwlock.h>
 #include <sys/condvar.h>
 #include <sys/cmn_err.h>
+#include <sys/thread.h>
 #include <sys/zfs_delay.h>
 
 #include <sys/zfs_context_os.h>
@@ -175,53 +175,6 @@ extern "C" {
 #undef	DTRACE_PROBE4
 #endif	/* DTRACE_PROBE4 */
 #define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
-
-/*
- * Threads.
- */
-typedef pthread_t	kthread_t;
-
-#define	TS_RUN		0x00000002
-#define	TS_JOINABLE	0x00000004
-
-#define	curthread	((void *)(uintptr_t)pthread_self())
-#define	getcomm()	"unknown"
-
-#define	thread_create_named(name, stk, stksize, func, arg, len, \
-    pp, state, pri)	\
-	zk_thread_create(name, func, arg, stksize, state)
-#define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
-	zk_thread_create(#func, func, arg, stksize, state)
-#define	thread_exit()	pthread_exit(NULL)
-#define	thread_join(t)	pthread_join((pthread_t)(t), NULL)
-
-#define	newproc(f, a, cid, pri, ctp, pid)	(ENOSYS)
-/*
- * Check if the current thread is a memory reclaim thread.
- * Always returns false in userspace (no memory reclaim thread).
- */
-#define	current_is_reclaim_thread()	(0)
-
-/* in libzpool, p0 exists only to have its address taken */
-typedef struct proc {
-	uintptr_t	this_is_never_used_dont_dereference_it;
-} proc_t;
-
-extern struct proc p0;
-#define	curproc		(&p0)
-
-#define	PS_NONE		-1
-
-extern kthread_t *zk_thread_create(const char *name, void (*func)(void *),
-    void *arg, size_t stksize, int state);
-
-#define	issig()		(FALSE)
-
-#define	KPREEMPT_SYNC		(-1)
-
-#define	kpreempt(x)		sched_yield()
-#define	kpreempt_disable()	((void)0)
-#define	kpreempt_enable()	((void)0)
 
 /*
  * Credentials
