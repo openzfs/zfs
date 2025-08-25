@@ -148,6 +148,7 @@ dist_zpoolcompat_DATA = \
 	%D%/compatibility.d/openzfs-2.1-linux \
 	%D%/compatibility.d/openzfs-2.2 \
 	%D%/compatibility.d/openzfs-2.3 \
+	%D%/compatibility.d/openzfs-2.4 \
 	%D%/compatibility.d/openzfsonosx-1.7.0 \
 	%D%/compatibility.d/openzfsonosx-1.8.1 \
 	%D%/compatibility.d/openzfsonosx-1.9.3 \
@@ -187,7 +188,9 @@ zpoolcompatlinks = \
 	"openzfs-2.2		openzfs-2.2-linux" \
 	"openzfs-2.2		openzfs-2.2-freebsd" \
 	"openzfs-2.3		openzfs-2.3-linux" \
-	"openzfs-2.3		openzfs-2.3-freebsd"
+	"openzfs-2.3		openzfs-2.3-freebsd" \
+	"openzfs-2.4		openzfs-2.4-linux" \
+	"openzfs-2.4		openzfs-2.4-freebsd"
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 INSTALL_DATA_HOOKS += zpool-install-data-hook
