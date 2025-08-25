@@ -178,15 +178,6 @@ extern "C" {
 #define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
 
 /*
- * Credentials
- */
-extern uid_t crgetuid(cred_t *cr);
-extern uid_t crgetruid(cred_t *cr);
-extern gid_t crgetgid(cred_t *cr);
-extern int crgetngroups(cred_t *cr);
-extern gid_t *crgetgroups(cred_t *cr);
-
-/*
  * Thread-specific data
  */
 #define	tsd_get(k) pthread_getspecific(k)
@@ -370,12 +361,6 @@ typedef struct vsecattr {
 
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
 #define	CPU_SEQID_UNSTABLE	CPU_SEQID
-
-#define	kcred		NULL
-#define	CRED()		NULL
-
-#define	crhold(cr)	((void)cr)
-#define	crfree(cr)	((void)cr)
 
 #define	ptob(x)		((x) * PAGESIZE)
 
