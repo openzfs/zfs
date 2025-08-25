@@ -852,15 +852,12 @@ retry:
 
 			if (zio_wait(zio[l]) == 0 && nvlist_unpack(
 			    (char *)vp[l], VDEV_TOC_SIZE, &toc, 0) == 0) {
-				uint32_t bootconf_size;
-				if (nvlist_lookup_uint32(toc,
-				    VDEV_TOC_BOOT_REGION, &bootconf_size) != 0)
+				uint32_t off;
+				if (!vdev_toc_get_secinfo(toc,
+				    VDEV_TOC_VDEV_CONFIG,
+				    &vp_size[l], &off))
 					continue;
-				if (nvlist_lookup_uint32(toc,
-				    VDEV_TOC_VDEV_CONFIG, &vp_size[l]) != 0)
-					continue;
-				vp_off[l] = VDEV_LARGE_PAD_SIZE + toc_size +
-				    bootconf_size;
+				vp_off[l] = VDEV_LARGE_PAD_SIZE + off;
 				fnvlist_free(toc);
 			}
 		}
@@ -1321,9 +1318,14 @@ retry:
 		    NV_ENCODE_XDR, KM_SLEEP));
 		fnvlist_free(spa_config);
 		fnvlist_add_uint32(toc, VDEV_TOC_TOC_SIZE, writesize);
-		fnvlist_add_uint32(toc, VDEV_TOC_BOOT_REGION, 0);
-		fnvlist_add_uint32(toc, VDEV_TOC_VDEV_CONFIG, vp_size);
-		fnvlist_add_uint32(toc, VDEV_TOC_POOL_CONFIG, sc_buflen);
+
+		nvlist_t *sections = fnvlist_alloc();
+		vdev_toc_add_secinfo(sections, VDEV_TOC_VDEV_CONFIG, vp_size,
+		    writesize);
+		vdev_toc_add_secinfo(sections, VDEV_TOC_POOL_CONFIG, sc_buflen,
+		    writesize + vp_size);
+		fnvlist_add_nvlist(toc, VDEV_TOC_SECTIONS, sections);
+		fnvlist_free(sections);
 
 		if (ub_abd2 == NULL)
 			ub_abd2 = abd_alloc_linear(SPA_MAXBLOCKSIZE, B_TRUE);
@@ -1457,18 +1459,22 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 				continue;
 			}
 			nvlist_t *toc;
-			uint32_t bootenv_size;
 			if (!nvlist_unpack(abd_to_buf(toc_abds[l]), toc_size,
-			    &toc, KM_SLEEP) || !nvlist_lookup_uint32(toc,
-			    VDEV_TOC_BOOT_REGION, &bootenv_size)) {
+			    &toc, KM_SLEEP)) {
 				abd_free(toc_abds[l]);
 				continue;
 			}
 			abd_free(toc_abds[l]);
+			uint32_t bootenv_size, bootenv_offset;
+			if (!vdev_toc_get_secinfo(toc, VDEV_TOC_BOOT_REGION,
+			    &bootenv_size, &bootenv_offset)) {
+				fnvlist_free(toc);
+				continue;
+			}
 
 			vdev_label_read(zio, vd, l, B_FALSE,
 			    abd_alloc_linear(bootenv_size, B_FALSE),
-			    VDEV_LARGE_PAD_SIZE + toc_size, bootenv_size,
+			    VDEV_LARGE_PAD_SIZE + bootenv_offset, bootenv_size,
 			    vdev_label_read_bootenv_done, zio, flags);
 		}
 	} else {
@@ -1662,18 +1668,23 @@ retry:
 				continue;
 			}
 			nvlist_t *toc;
-			uint32_t bootenv_size;
+			uint32_t bootenv_size, bootenv_offset;
 			if (!(error = nvlist_unpack(abd_to_buf(toc_abds[l]),
-			    toc_size, &toc, KM_SLEEP)) ||
-			    (error = !nvlist_lookup_uint32(toc,
-			    VDEV_TOC_BOOT_REGION, &bootenv_size))) {
+			    toc_size, &toc, KM_SLEEP))) {
 				all_writeable = B_FALSE;
 				continue;
 			}
+			if (!vdev_toc_get_secinfo(toc, VDEV_TOC_BOOT_REGION,
+			    &bootenv_size, &bootenv_offset)) {
+				fnvlist_free(toc);
+				all_writeable = B_FALSE;
+				continue;
+			}
+			fnvlist_free(toc);
 
 			if (new_abd_size == bootenv_size) {
 				vdev_label_write(zio, vd, l, B_TRUE, abd,
-				    VDEV_LARGE_PAD_SIZE + toc_size,
+				    VDEV_LARGE_PAD_SIZE + bootenv_offset,
 				    new_abd_size, NULL, NULL, flags);
 			} else {
 				all_writeable = B_FALSE;
@@ -2170,9 +2181,18 @@ vdev_label_sync_large(vdev_t *vd, zio_t *zio, uint64_t *good_writes,
 	size_t writesize = P2ROUNDUP(toc_buflen, 1 << vd->vdev_ashift);
 	nvlist_t *toc = fnvlist_alloc();
 	fnvlist_add_uint32(toc, VDEV_TOC_TOC_SIZE, writesize);
-	fnvlist_add_uint32(toc, VDEV_TOC_BOOT_REGION, bootenv_size);
-	fnvlist_add_uint32(toc, VDEV_TOC_VDEV_CONFIG, vdev_config_size);
-	fnvlist_add_uint32(toc, VDEV_TOC_POOL_CONFIG, pool_config_size);
+
+	nvlist_t *sections = fnvlist_alloc();
+	if (bootenv_size != 0) {
+		vdev_toc_add_secinfo(sections, VDEV_TOC_BOOT_REGION,
+		    bootenv_size, writesize);
+	}
+	vdev_toc_add_secinfo(sections, VDEV_TOC_VDEV_CONFIG, vdev_config_size,
+	    writesize + bootenv_size);
+	vdev_toc_add_secinfo(sections, VDEV_TOC_POOL_CONFIG, pool_config_size,
+	    writesize + bootenv_size + vdev_config_size);
+	fnvlist_add_nvlist(toc, VDEV_TOC_SECTIONS, sections);
+	fnvlist_free(sections);
 
 	ASSERT3U(fnvlist_size(toc) + sizeof (zio_eck_t), <=, VDEV_TOC_SIZE);
 
