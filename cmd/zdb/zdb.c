@@ -2634,8 +2634,8 @@ print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
 		}
 		if (BP_GET_LEVEL(bp) != zb->zb_level) {
 			(void) printf(" (ERROR: Block pointer level "
-			    "(%llu) does not match bookmark level (%ld))",
-			    BP_GET_LEVEL(bp), zb->zb_level);
+			    "(%llu) does not match bookmark level (%lld))",
+			    BP_GET_LEVEL(bp), (longlong_t)zb->zb_level);
 			corruption_found = B_TRUE;
 		}
 	}
@@ -2688,8 +2688,8 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 			if (fill != BP_GET_FILL(bp)) {
 				(void) printf("%16llx: Block pointer "
 				    "fill (%llu) does not match calculated "
-				    "value (%lu)\n", offset, BP_GET_FILL(bp),
-				    fill);
+				    "value (%llu)\n", offset, BP_GET_FILL(bp),
+				    (u_longlong_t)fill);
 				corruption_found = B_TRUE;
 			}
 		}
