@@ -43,8 +43,8 @@ log_assert "Verify that mixed mirrors can exist and work correctly"
 log_onexit cleanup
 
 mntpnt="$TESTDIR1"
-log_must truncate --size=2T $mntpnt/big1
-log_must truncate --size=2G $mntpnt/small1
+log_must truncate -s 2T $mntpnt/big1
+log_must truncate -s 2G $mntpnt/small1
 
 log_must create_pool -f $TESTPOOL $mntpnt/small1
 log_must zfs create $TESTPOOL/fs
