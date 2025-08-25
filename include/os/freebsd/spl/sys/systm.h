@@ -40,5 +40,6 @@
 #define	PAGEMASK	(~PAGEOFFSET)
 
 #define	delay(x)	pause("soldelay", (x))
+#define	delay_sig(x)	(pause_sig("soldelay", (x)) != EAGAIN)
 
 #endif	/* _OPENSOLARIS_SYS_SYSTM_H_ */
