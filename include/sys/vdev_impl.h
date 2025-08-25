@@ -582,9 +582,10 @@ typedef struct vdev_label {
  * config, etc). The sub-nvlist contains relevant information, mostly offset
  * and size.
  *
- * Each sub-section is protected with an embedded checksum. In the event that a
- * sub-section is larger than 16MiB, it will be split in 16MiB - sizeof
- * (zio_eck_t) chunks, which will each have their own checksum.
+ * Currently, each sub-section is protected with an embedded checksum. In the
+ * event that a sub-section is larger than 16MiB, it will be split in
+ * 16MiB - sizeof (zio_eck_t) chunks, which will each have their own checksum.
+ * Future sub-sections may have their own checksum mechanisms (or none at all).
  */
 #define	VDEV_LARGE_PAD_SIZE	(1 << 24) // 16MiB
 #define	VDEV_LARGE_DATA_SIZE	((1 << 27) - VDEV_LARGE_PAD_SIZE)
@@ -595,7 +596,15 @@ typedef struct vdev_label {
 #define	VDEV_RESERVE_OFFSET	(VDEV_LARGE_LABEL_SIZE * 2)
 #define	VDEV_RESERVE_SIZE	(1 << 29) // 512MiB
 
-#define	VDEV_TOC_SIZE		(1 << 13)
+#define	VDEV_TOC_SIZE		(1 << 15)
+
+/*
+ * Each section in the label has its entry in the "sections" nvlist. This can
+ * store any necessary data, but will usually contain at least these two
+ * fields, representing the size and offset of the section.
+ */
+#define	VDEV_SECTION_SIZE	"section_size"
+#define	VDEV_SECTION_OFFSET	"section_offset"
 
 /*
  * While the data part of the TOC is always VDEV_TOC_SIZE, the actual write
@@ -603,14 +612,41 @@ typedef struct vdev_label {
  * when we need to read this info.
  */
 #define	VDEV_TOC_TOC_SIZE	"toc_size"
-/* The size of the section that stores the boot region */
+#define	VDEV_TOC_SECTIONS	"sections"
+
+/* The section that stores the boot region */
 #define	VDEV_TOC_BOOT_REGION	"boot_region"
-/* The size of the section that stores the vdev config */
+/* The section that stores the vdev config */
 #define	VDEV_TOC_VDEV_CONFIG	"vdev_config"
-/* The size of the section that stores the pool config */
+/* The section that stores the pool config */
 #define	VDEV_TOC_POOL_CONFIG	"pool_config"
-/* The size of the section that stores auxilliary uberblocks */
-#define	VDEV_TOC_AUX_UBERBLOCK	"aux_uberblock"
+
+static inline boolean_t
+vdev_toc_get_secinfo(nvlist_t *toc, const char *section, uint32_t *size,
+    uint32_t *offset)
+{
+	nvlist_t *sections, *secinfo;
+	if (nvlist_lookup_nvlist(toc, VDEV_TOC_SECTIONS, &sections) != 0)
+		return (B_FALSE);
+	if (nvlist_lookup_nvlist(sections, section, &secinfo) != 0)
+		return (B_FALSE);
+	if (nvlist_lookup_uint32(secinfo, VDEV_SECTION_SIZE, size) != 0)
+		return (B_FALSE);
+	if (nvlist_lookup_uint32(secinfo, VDEV_SECTION_OFFSET, offset) != 0)
+		return (B_FALSE);
+	return (B_TRUE);
+}
+
+static inline void
+vdev_toc_add_secinfo(nvlist_t *sections, const char *section, uint32_t size,
+    uint32_t offset)
+{
+	nvlist_t *secinfo = fnvlist_alloc();
+	fnvlist_add_uint32(secinfo, VDEV_SECTION_SIZE, size);
+	fnvlist_add_uint32(secinfo, VDEV_SECTION_OFFSET, offset);
+	fnvlist_add_nvlist(sections, section, secinfo);
+	fnvlist_free(secinfo);
+}
 
 /*
  * vdev_dirty() flags

@@ -43,7 +43,7 @@ log_assert "Verify that new label works for more advanced pool operations"
 log_onexit cleanup
 
 mntpnt="$TESTDIR1"
-log_must truncate --size=2T $mntpnt/dsk{0,1,2,3,4,5,6,7}
+log_must truncate -s 2T $mntpnt/dsk{0,1,2,3,4,5,6,7}
 
 DSK="$mntpnt/dsk"
 
