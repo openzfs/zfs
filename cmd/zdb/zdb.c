@@ -5639,37 +5639,21 @@ dump_label(const char *dev)
 			if (dump_opt['l'] > 2)
 				nvlist_print(stdout, toc);
 
-			uint32_t conf_size, toc_size, bootenv_size;
-			if (nvlist_lookup_uint32(toc, VDEV_TOC_TOC_SIZE,
-			    &toc_size) != 0) {
-				if (!dump_opt['q'])
-					(void) printf("failed to read size of "
-					    "TOC of label %d\n", l);
-				error = B_TRUE;
-				continue;
-			}
-			int err;
-			if ((err = nvlist_lookup_uint32(toc,
-			    VDEV_TOC_BOOT_REGION, &bootenv_size)) != 0) {
-				if (!dump_opt['q'])
-					(void) printf("failed to read size of "
-					    "bootenv of label %d %s\n", l,
-					    strerror(err));
-				error = B_TRUE;
-				continue;
-			}
-			if (nvlist_lookup_uint32(toc, VDEV_TOC_VDEV_CONFIG,
-			    &conf_size) != 0) {
+			uint32_t conf_size, conf_off;
+			if (!vdev_toc_get_secinfo(toc, VDEV_TOC_VDEV_CONFIG,
+			    &conf_size, &conf_off)) {
 				if (!dump_opt['q'])
 					(void) printf("failed to read size of "
 					    "vdev config of label %d\n", l);
 				error = B_TRUE;
+				fnvlist_free(toc);
 				continue;
 			}
+			fnvlist_free(toc);
 			buf = alloca(conf_size);
 			buflen = conf_size;
 			uint64_t phys_off = label->label_offset +
-			    VDEV_LARGE_PAD_SIZE + toc_size + bootenv_size;
+			    VDEV_LARGE_PAD_SIZE + conf_off;
 			if (pread64(fd, buf, conf_size, phys_off) !=
 			    conf_size) {
 				if (!dump_opt['q'])

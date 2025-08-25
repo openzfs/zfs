@@ -1169,14 +1169,18 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	}
 
 	uint32_t bootenv_size, vc_size, sc_size;
-	if ((err = nvlist_lookup_uint32(toc, VDEV_TOC_BOOT_REGION,
-	    &bootenv_size)) || (err = nvlist_lookup_uint32(toc,
-	    VDEV_TOC_VDEV_CONFIG, &vc_size)) || (err = nvlist_lookup_uint32(toc,
-	    VDEV_TOC_POOL_CONFIG, &sc_size))) {
+	uint32_t bootenv_offset, vc_offset, sc_offset;
+	if (!vdev_toc_get_secinfo(toc, VDEV_TOC_BOOT_REGION,
+	    &bootenv_size, &bootenv_offset) || !vdev_toc_get_secinfo(toc,
+	    VDEV_TOC_VDEV_CONFIG, &vc_size, &vc_offset) ||
+	    !vdev_toc_get_secinfo(toc, VDEV_TOC_POOL_CONFIG, &sc_size,
+	    &sc_offset)) {
+		fnvlist_free(toc);
 		(void) fprintf(stderr,
 		    "error: TOC missing core fields %d\n", l);
 		goto out;
 	}
+	fnvlist_free(toc);
 	bootenv = malloc(bootenv_size);
 	zio_eck_t *bootenv_eck = (zio_eck_t *)(bootenv + bootenv_size) - 1;
 	vdev_config = malloc(vc_size);
@@ -1184,10 +1188,10 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	spa_config = malloc(sc_size);
 	zio_eck_t *sc_eck = (zio_eck_t *)(spa_config + sc_size) - 1;
 
-	uint64_t offset = label_offset + VDEV_TOC_SIZE;
+	uint64_t base_offset = label_offset;
 	if (bootenv_size != 0) {
 		if ((err = zhack_repair_read(fd, bootenv,
-		    bootenv_size, offset, l)))
+		    bootenv_size, base_offset + bootenv_offset, l)))
 			goto out;
 		if (byteswap) {
 			byteswap_uint64_array(&bootenv_eck->zec_cksum,
@@ -1197,15 +1201,15 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 		}
 		if ((op & ZHACK_REPAIR_OP_CKSUM) == 0 &&
 		    zhack_repair_test_cksum(byteswap, bootenv, bootenv_size,
-		    bootenv_eck, offset, l) != 0) {
+		    bootenv_eck, base_offset + bootenv_offset, l) != 0) {
 			(void) fprintf(stderr, "It would appear checksums are "
 			    "corrupted. Try zhack repair label -c <device>\n");
 			goto out;
 		}
 	}
 
-	offset += bootenv_size;
-	if ((err = zhack_repair_read(fd, vdev_config, vc_size, offset, l)))
+	if ((err = zhack_repair_read(fd, vdev_config, vc_size,
+	    base_offset + vc_offset, l)))
 		goto out;
 
 	if (byteswap) {
@@ -1215,13 +1219,13 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	}
 	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0 &&
 	    zhack_repair_test_cksum(byteswap, vdev_config, vc_size,
-	    vc_eck, offset, l) != 0) {
+	    vc_eck, base_offset + vc_offset, l) != 0) {
 		(void) fprintf(stderr, "It would appear checksums are "
 		    "corrupted. Try zhack repair label -c <device>\n");
 		goto out;
 	}
-	offset += vc_size;
-	if ((err = zhack_repair_read(fd, spa_config, sc_size, offset, l)))
+	if ((err = zhack_repair_read(fd, spa_config, sc_size,
+	    base_offset + sc_offset, l)))
 		goto out;
 
 	if (byteswap) {
@@ -1231,7 +1235,7 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	}
 	if ((op & ZHACK_REPAIR_OP_CKSUM) == 0 &&
 	    zhack_repair_test_cksum(byteswap, spa_config, sc_size,
-	    sc_eck, offset, l) != 0) {
+	    sc_eck, base_offset + sc_offset, l) != 0) {
 		(void) fprintf(stderr, "It would appear checksums are "
 		    "corrupted. Try zhack repair label -c <device>\n");
 		goto out;
@@ -1251,11 +1255,8 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	if (err)
 		goto out;
 
-	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
-	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
-	nvlist_t *vdev_tree_cfg = NULL;
 	uint64_t ashift;
-	err = zhack_repair_get_ashift(cfg, l, cfg, &ashift);
+	err = zhack_repair_get_ashift(cfg, l, &ashift);
 	if (err)
 		return;
 
@@ -1279,21 +1280,17 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 		    label_offset, labels_repaired);
 	}
 
-	offset = label_offset;
 	if (zhack_repair_write_label(l, fd, byteswap, toc_data, toc_eck,
-	    offset, VDEV_TOC_SIZE))
+	    base_offset, VDEV_TOC_SIZE))
 		labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
-	offset += VDEV_TOC_SIZE;
 	if (zhack_repair_write_label(l, fd, byteswap, bootenv, bootenv_eck,
-	    offset, bootenv_size))
+	    base_offset + bootenv_offset, bootenv_size))
 		labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
-	offset += bootenv_size;
 	if (zhack_repair_write_label(l, fd, byteswap, vdev_config, vc_eck,
-	    offset, vc_size))
+	    base_offset + vc_offset, vc_size))
 		labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
-	offset += vc_size;
 	if (zhack_repair_write_label(l, fd, byteswap, spa_config, sc_eck,
-	    offset, sc_size))
+	    base_offset + sc_offset, sc_size))
 		labels_repaired[l] |= REPAIR_LABEL_STATUS_CKSUM;
 
 	fsync(fd);
