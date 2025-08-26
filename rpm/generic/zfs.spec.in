@@ -434,7 +434,7 @@ find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %if 0%{!?__brp_mangle_shebangs:1}
 find %{?buildroot}%{_bindir} \
     \( -name arc_summary -or -name arcstat -or -name dbufstat \
-    -or -name zilstat \) \
+    -or -name zilstat -or -name zleak \) \
     -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
 find %{?buildroot}%{_datadir} \
     \( -name test-runner.py -or -name zts-report.py \) \
@@ -512,6 +512,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/arcstat
 %{_bindir}/dbufstat
 %{_bindir}/zilstat
+%{_bindir}/zleak
 # Man pages
 %{_mandir}/man1/*
 %{_mandir}/man4/*
