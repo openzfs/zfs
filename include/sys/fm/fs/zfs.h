@@ -58,6 +58,7 @@ extern "C" {
 #define	FM_EREPORT_ZFS_PROBE_FAILURE		"probe_failure"
 #define	FM_EREPORT_ZFS_LOG_REPLAY		"log_replay"
 #define	FM_EREPORT_ZFS_CONFIG_CACHE_WRITE	"config_cache_write"
+#define	FM_EREPORT_ZFS_SITOUT			"sitout"
 
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL		"pool"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE	"pool_failmode"

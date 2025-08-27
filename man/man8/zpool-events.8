@@ -190,6 +190,16 @@ Issued when a scrub is resumed on a pool.
 .It Sy scrub.paused
 Issued when a scrub is paused on a pool.
 .It Sy bootfs.vdev.attach
+.It Sy sitout
+Issued when a
+.Sy RAIDZ
+or
+.Sy DRAID
+vdev triggers the
+.Sy autosit
+logic.
+This logic detects when a disk in such a vdev is significantly slower than its
+peers, and sits them out temporarily to preserve the performance of the pool.
 .El
 .
 .Sh PAYLOADS
