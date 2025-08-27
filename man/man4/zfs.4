@@ -4,6 +4,7 @@
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
+.\"
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
 .\" in compliance with the License. You can obtain a copy of the license at
@@ -600,6 +601,42 @@ new format when enabling the
 .Sy head_errlog
 feature.
 The default is to convert all log entries.
+.
+.It Sy vdev_read_sit_out_secs Ns = Ns Sy 600 Ns s Po 10 min Pc Pq ulong
+When a slow disk outlier is detected it is placed in a sit out state.
+While sitting out the disk will not participate in normal reads, instead its
+data will be reconstructed as needed from parity.
+Scrub operations will always read from a disk, even if it's sitting out.
+A number of disks in a RAID-Z or dRAID vdev may sit out at the same time, up
+to the number of parity devices.
+Writes will still be issued to a disk which is sitting out to maintain full
+redundancy.
+Defaults to 600 seconds and a value of zero disables disk sit-outs in general,
+including slow disk outlier detection.
+.
+.It Sy vdev_raidz_outlier_check_interval_ms Ns = Ns Sy 1000 Ns ms Po 1 sec Pc Pq ulong
+How often each RAID-Z and dRAID vdev will check for slow disk outliers.
+Increasing this interval will reduce the sensitivity of detection (since all
+I/Os since the last check are included in the statistics), but will slow the
+response to a disk developing a problem.
+Defaults to once per second; setting extremely small values may cause negative
+performance effects.
+.
+.It Sy vdev_raidz_outlier_insensitivity Ns = Ns Sy 50 Pq uint
+When performing slow outlier checks for RAID-Z and dRAID vdevs, this value is
+used to determine how far out an outlier must be before it counts as an event
+worth consdering.
+This is phrased as "insensitivity" because larger values result in fewer
+detections.
+Smaller values will result in more aggressive sitting out of disks that may have
+problems, but may significantly increase the rate of spurious sit-outs.
+.Pp
+To provide a more technical definition of this parameter, this is the multiple
+of the inter-quartile range (IQR) that is being used in a Tukey's Fence
+detection algorithm.
+This is much higher than a normal Tukey's Fence k-value, because the
+distribution under consideration is probably an extreme-value distribution,
+rather than a more typical Gaussian distribution.
 .
 .It Sy vdev_removal_max_span Ns = Ns Sy 32768 Ns B Po 32 KiB Pc Pq uint
 During top-level vdev removal, chunks of data are copied from the vdev

@@ -61,6 +61,9 @@ void vdev_raidz_checksum_error(zio_t *, struct raidz_col *, abd_t *);
 struct raidz_row *vdev_raidz_row_alloc(int, zio_t *);
 void vdev_raidz_reflow_copy_scratch(spa_t *);
 void raidz_dtl_reassessed(vdev_t *);
+boolean_t vdev_sit_out_reads(vdev_t *, zio_flag_t);
+void vdev_raidz_sit_child(vdev_t *, uint64_t);
+void vdev_raidz_unsit_child(vdev_t *);
 
 extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
 

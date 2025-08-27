@@ -80,6 +80,14 @@ gethrestime_sec(void)
 }
 
 static inline hrtime_t
+getlrtime(void)
+{
+	inode_timespec_t ts;
+	ktime_get_coarse_ts64(&ts);
+	return (((hrtime_t)ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec);
+}
+
+static inline hrtime_t
 gethrtime(void)
 {
 	struct timespec64 ts;
