@@ -32,7 +32,7 @@
 
 #ifdef HAVE_STATX
 #include <fcntl.h>
-#include <linux/stat.h>
+#include <sys/stat.h>
 #endif
 
 /*
