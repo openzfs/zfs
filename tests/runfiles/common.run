@@ -940,10 +940,11 @@ tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
-    'attach_resilver', 'detach', 'rebuild_disabled_feature',
-    'rebuild_multiple', 'rebuild_raidz', 'replace_import', 'replace_rebuild',
-    'replace_resilver', 'resilver_restart_001', 'resilver_restart_002',
-    'scrub_cancel']
+    'attach_resilver', 'attach_resilver_sit_out', 'detach',
+    'rebuild_disabled_feature', 'rebuild_multiple', 'rebuild_raidz',
+    'replace_import', 'replace_rebuild', 'replace_resilver',
+    'replace_resilver_sit_out', 'resilver_restart_001',
+    'resilver_restart_002', 'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]

@@ -29,7 +29,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
- * Copyright (c) 2021, Klara Inc.
+ * Copyright (c) 2021, 2025, Klara, Inc.
  * Copyright (c) 2021, 2023 Hewlett Packard Enterprise Development LP.
  */
 
@@ -1086,6 +1086,10 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		}
 	}
 
+	if (top_level && (ops == &vdev_raidz_ops || ops == &vdev_draid_ops))
+		vd->vdev_autosit =
+		    vdev_prop_default_numeric(VDEV_PROP_AUTOSIT);
+
 	/*
 	 * Add ourselves to the parent's list of children.
 	 */
@@ -1187,6 +1191,9 @@ vdev_free(vdev_t *vd)
 		spa_spare_remove(vd);
 	if (vd->vdev_isl2cache)
 		spa_l2cache_remove(vd);
+	if (vd->vdev_prev_histo)
+		kmem_free(vd->vdev_prev_histo,
+		    sizeof (uint64_t) * VDEV_L_HISTO_BUCKETS);
 
 	txg_list_destroy(&vd->vdev_ms_list);
 	txg_list_destroy(&vd->vdev_dtl_list);
@@ -3857,6 +3864,26 @@ vdev_load(vdev_t *vd)
 		}
 	}
 
+	if (vd == vd->vdev_top && vd->vdev_top_zap != 0) {
+		spa_t *spa = vd->vdev_spa;
+		uint64_t autosit;
+
+		error = zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
+		    vdev_prop_to_name(VDEV_PROP_AUTOSIT), sizeof (autosit),
+		    1, &autosit);
+		if (error == 0) {
+			vd->vdev_autosit = autosit == 1;
+		} else if (error == ENOENT) {
+			vd->vdev_autosit = vdev_prop_default_numeric(
+			    VDEV_PROP_AUTOSIT);
+		} else {
+			vdev_dbgmsg(vd,
+			    "vdev_load: zap_lookup(top_zap=%llu) "
+			    "failed [error=%d]",
+			    (u_longlong_t)vd->vdev_top_zap, error);
+		}
+	}
+
 	/*
 	 * Load any rebuild state from the top-level vdev zap.
 	 */
@@ -4616,6 +4643,8 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	vd->vdev_stat.vs_checksum_errors = 0;
 	vd->vdev_stat.vs_dio_verify_errors = 0;
 	vd->vdev_stat.vs_slow_ios = 0;
+	atomic_store_64(&vd->vdev_outlier_count, 0);
+	vd->vdev_read_sit_out_expire = 0;
 
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_clear(spa, vd->vdev_child[c]);
@@ -6107,6 +6136,56 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_failfast = intval & 1;
 			break;
+		case VDEV_PROP_SIT_OUT:
+			/* Only expose this for a draid or raidz leaf */
+			if (!vd->vdev_ops->vdev_op_leaf ||
+			    vd->vdev_top == NULL ||
+			    (vd->vdev_top->vdev_ops != &vdev_raidz_ops &&
+			    vd->vdev_top->vdev_ops != &vdev_draid_ops)) {
+				error = ENOTSUP;
+				break;
+			}
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			if (intval == 1) {
+				vdev_t *ancestor = vd;
+				while (ancestor->vdev_parent != vd->vdev_top)
+					ancestor = ancestor->vdev_parent;
+				vdev_t *pvd = vd->vdev_top;
+				uint_t sitouts = 0;
+				for (int i = 0; i < pvd->vdev_children; i++) {
+					if (pvd->vdev_child[i] == ancestor)
+						continue;
+					if (vdev_sit_out_reads(
+					    pvd->vdev_child[i], 0)) {
+						sitouts++;
+					}
+				}
+				if (sitouts >= vdev_get_nparity(pvd)) {
+					error = ZFS_ERR_TOO_MANY_SITOUTS;
+					break;
+				}
+				if (error == 0)
+					vdev_raidz_sit_child(vd,
+					    INT64_MAX - gethrestime_sec());
+			} else {
+				vdev_raidz_unsit_child(vd);
+			}
+			break;
+		case VDEV_PROP_AUTOSIT:
+			if (vd->vdev_ops != &vdev_raidz_ops &&
+			    vd->vdev_ops != &vdev_draid_ops) {
+				error = ENOTSUP;
+				break;
+			}
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_autosit = intval == 1;
+			break;
 		case VDEV_PROP_CHECKSUM_N:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
@@ -6456,6 +6535,19 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					    ZPROP_SRC_NONE);
 				}
 				continue;
+			case VDEV_PROP_SIT_OUT:
+				/* Only expose this for a draid or raidz leaf */
+				if (vd->vdev_ops->vdev_op_leaf &&
+				    vd->vdev_top != NULL &&
+				    (vd->vdev_top->vdev_ops ==
+				    &vdev_raidz_ops ||
+				    vd->vdev_top->vdev_ops ==
+				    &vdev_draid_ops)) {
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, vdev_sit_out_reads(vd, 0),
+					    ZPROP_SRC_NONE);
+				}
+				continue;
 			case VDEV_PROP_TRIM_SUPPORT:
 				/* only valid for leaf vdevs */
 				if (vd->vdev_ops->vdev_op_leaf) {
@@ -6506,6 +6598,29 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_prop_add_list(outnvl, propname, strval,
 				    intval, src);
 				break;
+			case VDEV_PROP_AUTOSIT:
+				/* Only raidz vdevs cannot have this property */
+				if (vd->vdev_ops != &vdev_raidz_ops &&
+				    vd->vdev_ops != &vdev_draid_ops) {
+					src = ZPROP_SRC_NONE;
+					intval = ZPROP_BOOLEAN_NA;
+				} else {
+					err = vdev_prop_get_int(vd, prop,
+					    &intval);
+					if (err && err != ENOENT)
+						break;
+
+					if (intval ==
+					    vdev_prop_default_numeric(prop))
+						src = ZPROP_SRC_DEFAULT;
+					else
+						src = ZPROP_SRC_LOCAL;
+				}
+
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    intval, src);
+				break;
+
 			case VDEV_PROP_CHECKSUM_N:
 			case VDEV_PROP_CHECKSUM_T:
 			case VDEV_PROP_IO_N:

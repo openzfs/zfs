@@ -1112,6 +1112,16 @@ function get_pool_prop # property pool
 	zpool get -Hpo value "$prop" "$pool" || log_fail "zpool get $prop $pool"
 }
 
+# Get the specified vdev property in parsable format or fail
+function get_vdev_prop
+{
+	typeset prop="$1"
+	typeset pool="$2"
+	typeset vdev="$3"
+
+	zpool get -Hpo value "$prop" "$pool" "$vdev" || log_fail "zpool get $prop $pool $vdev"
+}
+
 # Return 0 if a pool exists; $? otherwise
 #
 # $1 - pool name
@@ -1589,6 +1599,7 @@ function create_pool #pool devs_list
 
 	if is_global_zone ; then
 		[[ -d /$pool ]] && rm -rf /$pool
+		echo zpool create -f $pool $@
 		log_must zpool create -f $pool $@
 	fi
 
@@ -1965,6 +1976,28 @@ function wait_vdev_state # pool disk state timeout
 
 		i=$((i+1))
 		sleep 1
+	done
+
+	return 1
+}
+
+#
+# Wait for vdev 'sit_out' property to be cleared.
+#
+# $1 pool name
+# $2 vdev name
+# $3 timeout
+#
+function wait_sit_out #pool vdev timeout
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset vdev="$2"
+	typeset timeout=${3:-300}
+	for (( timer = 0; timer < $timeout; timer++ )); do
+		if [ "$(get_vdev_prop sit_out "$pool" "$vdev")" = "off" ]; then
+			return 0
+		fi
+		sleep 1;
 	done
 
 	return 1
