@@ -5549,6 +5549,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 			/* Only use if provided by the RAIDZ VDEV above */
 			if (prop == VDEV_PROP_RAIDZ_EXPANDING)
 				return (ENOENT);
+			if (prop == VDEV_PROP_SIT_OUT)
+				return (ENOENT);
 		}
 		if (vdev_prop_index_to_string(prop, intval,
 		    (const char **)&strval) != 0)
@@ -5718,8 +5720,16 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 	nvlist_free(nvl);
 	nvlist_free(outnvl);
 
-	if (ret)
-		(void) zpool_standard_error(zhp->zpool_hdl, errno, errbuf);
+	if (ret) {
+		if (errno == ENOTSUP) {
+			zfs_error_aux(zhp->zpool_hdl, dgettext(TEXT_DOMAIN,
+			    "property not supported for this vdev"));
+			(void) zfs_error(zhp->zpool_hdl, EZFS_PROPTYPE, errbuf);
+		} else {
+			(void) zpool_standard_error(zhp->zpool_hdl, errno,
+			    errbuf);
+		}
+	}
 
 	return (ret);
 }

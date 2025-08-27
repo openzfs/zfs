@@ -1525,6 +1525,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/events/events_001_pos.ksh \
 	functional/events/events_002_pos.ksh \
 	functional/events/setup.ksh \
+	functional/events/slow_vdev_degraded_sit_out.ksh \
+	functional/events/slow_vdev_sit_out.ksh \
+	functional/events/slow_vdev_sit_out_neg.ksh \
 	functional/events/zed_cksum_config.ksh \
 	functional/events/zed_cksum_reported.ksh \
 	functional/events/zed_diagnose_multiple.ksh \
@@ -1937,6 +1940,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/attach_multiple.ksh \
 	functional/replacement/attach_rebuild.ksh \
 	functional/replacement/attach_resilver.ksh \
+	functional/replacement/attach_resilver_sit_out.ksh \
 	functional/replacement/cleanup.ksh \
 	functional/replacement/detach.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
@@ -1945,6 +1949,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/replace_import.ksh \
 	functional/replacement/replace_rebuild.ksh \
 	functional/replacement/replace_resilver.ksh \
+	functional/replacement/replace_resilver_sit_out.ksh \
 	functional/replacement/resilver_restart_001.ksh \
 	functional/replacement/resilver_restart_002.ksh \
 	functional/replacement/scrub_cancel.ksh \
