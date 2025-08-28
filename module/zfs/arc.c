@@ -6985,7 +6985,7 @@ arc_write_done(zio_t *zio)
 			 * buffers from the hash table when we arc_free().
 			 */
 			if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
-				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
+				if (!BP_EQUAL(zio->io_bp_orig, zio->io_bp))
 					panic("bad overwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
 				ASSERT(zfs_refcount_is_zero(
@@ -6998,7 +6998,7 @@ arc_write_done(zio_t *zio)
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
 				/* nopwrite */
 				ASSERT(zio->io_prop.zp_nopwrite);
-				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
+				if (!BP_EQUAL(zio->io_bp_orig, zio->io_bp))
 					panic("bad nopwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
 			} else {
@@ -8964,8 +8964,7 @@ l2arc_read_done(zio_t *zio)
 	 */
 	ASSERT(zio->io_abd == hdr->b_l1hdr.b_pabd ||
 	    (HDR_HAS_RABD(hdr) && zio->io_abd == hdr->b_crypt_hdr.b_rabd));
-	zio->io_bp_copy = cb->l2rcb_bp;	/* XXX fix in L2ARC 2.0	*/
-	zio->io_bp = &zio->io_bp_copy;	/* XXX fix in L2ARC 2.0	*/
+	zio_force_bp(zio, &cb->l2rcb_bp);	/* XXX fix in L2ARC 2.0 */
 	zio->io_prop.zp_complevel = hdr->b_complevel;
 
 	valid_cksum = arc_cksum_is_equal(hdr, zio);
