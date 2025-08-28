@@ -1251,6 +1251,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_002_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_003_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_004_pos.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_decompress.ksh \
 	functional/cli_root/zpool_set/cleanup.ksh \
 	functional/cli_root/zpool_set/setup.ksh \
 	functional/cli_root/zpool/setup.ksh \
