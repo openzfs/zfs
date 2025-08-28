@@ -39,22 +39,3 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ARCH], [
 	AM_CONDITIONAL([TARGET_CPU_SPARC64], test $TARGET_CPU = sparc64)
 	AM_CONDITIONAL([TARGET_CPU_ARM],     test $TARGET_CPU = arm)
 ])
-dnl #
-dnl # Check for conflicting environment variables
-dnl #
-dnl # If ARCH env variable is set up, then kernel Makefile in the /usr/src/kernel can misbehave during the zfs ./configure test of the module compilation.
-dnl # The error message will be like this:
-dnl # checking for kernel config option compatibility... done
-dnl #
-dnl # checking whether CONFIG_MODULES is defined... no
-dnl #
-dnl # configure: error:
-dnl #
-dnl #                *** This kernel does not include the required loadable module
-dnl #
-dnl #                *** support!
-AC_MSG_CHECKING([for conflicting environment variables])
-if test -n "$ARCH"; then
-    AC_MSG_WARN([The ARCH environment variable is set. This can cause build kernel modules support check failure. Please unset it.])
-fi
-AC_MSG_RESULT([none found])
