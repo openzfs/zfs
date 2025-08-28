@@ -87,30 +87,6 @@ AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 ])
 
 dnl #
-dnl # Check for conflicting environment variables
-dnl #
-dnl # If ARCH env variable is set up, then kernel Makefile in the /usr/src/kernel can misbehave during the zfs ./configure test of the module compilation.
-dnl # The error message will be like this:
-dnl # checking for kernel config option compatibility... done
-dnl #
-dnl # checking whether CONFIG_MODULES is defined... no
-dnl #
-dnl # configure: error:
-dnl #
-dnl #                *** This kernel does not include the required loadable module
-dnl #
-dnl #                *** support!
-AC_DEFUN([ZFS_AC_CONFIG_CHECK_ARCH_VAR], [
-	AC_MSG_CHECKING([for conflicting environment variables])
-	if test -n "$ARCH"; then
-		AC_MSG_RESULT([warning])
-		AC_MSG_WARN([ARCH environment variable is set to "$ARCH". This can cause build kernel modules support check failure. Please unset it.])
-	else
-		AC_MSG_RESULT([done])
-	fi
-])
-
-dnl #
 dnl # Check CONFIG_MODULES
 dnl #
 dnl # Verify the kernel has CONFIG_MODULES support enabled.
