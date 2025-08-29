@@ -8563,7 +8563,9 @@ zpool_do_scrub(int argc, char **argv)
 	} scrub_exclusive_options[] = {
 		{&is_stop, &is_pause},
 		{&is_stop, &is_txg_continue},
+		{&is_stop, &is_error_scrub},
 		{&is_pause, &is_txg_continue},
+		{&is_pause, &is_error_scrub},
 		{&is_error_scrub, &is_txg_continue},
 	};
 
