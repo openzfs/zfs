@@ -1,7 +1,7 @@
 include $(srcdir)/%D%/include/Makefile.am
 
 libspl_assert_la_CFLAGS = $(AM_CFLAGS) $(LIBRARY_CFLAGS) $(LIBUNWIND_CFLAGS)
-libspl_la_CFLAGS        = $(libspl_assert_la_CFLAGS)
+libspl_la_CFLAGS        = $(libspl_assert_la_CFLAGS) -Wno-error=atomic-alignment
 
 noinst_LTLIBRARIES += libspl_assert.la libspl.la
 CPPCHECKTARGETS    += libspl_assert.la libspl.la

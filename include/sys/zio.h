@@ -82,7 +82,8 @@ gbh_nblkptrs(uint64_t size) {
 static inline zio_eck_t *
 gbh_eck(zio_gbh_phys_t *gbh, uint64_t size) {
 	ASSERT(IS_P2ALIGNED(size, sizeof (blkptr_t)));
-	return ((zio_eck_t *)((uintptr_t)gbh + size - sizeof (zio_eck_t)));
+	return ((zio_eck_t *)((uintptr_t)gbh + (size_t)size -
+	    sizeof (zio_eck_t)));
 }
 
 static inline blkptr_t *
