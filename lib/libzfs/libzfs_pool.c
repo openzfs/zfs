@@ -211,6 +211,8 @@ zpool_state_to_name(vdev_state_t state, vdev_aux_t aux)
 		return (gettext("DEGRADED"));
 	case VDEV_STATE_HEALTHY:
 		return (gettext("ONLINE"));
+	case VDEV_STATE_UNUSED:
+		return (gettext("UNUSED"));
 
 	default:
 		break;
