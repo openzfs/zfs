@@ -39,37 +39,49 @@
 # 5. Verify that initializing resumes and progress does not regress.
 # 6. Suspend initializing.
 # 7. Repeat steps 3-4 and verify that initializing does not resume.
+# 8. Repeat the scenario for other VDEVs
 #
 
 DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
+DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
-log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2
-log_must zpool initialize $TESTPOOL $DISK1
+for type in "mirror" "anyraid1"; do
 
-log_must zpool offline $TESTPOOL $DISK1
+	if [[ "$type" == "mirror" ]]; then
+		log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
+	else
+		log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
+	fi
+	log_must zpool initialize $TESTPOOL $DISK1
 
-progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$progress" ]] && log_fail "Initializing did not start"
+	log_must zpool offline $TESTPOOL $DISK1
 
-log_must zpool online $TESTPOOL $DISK1
+	progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$progress" ]] && log_fail "Initializing did not start"
 
-new_progress="$(initialize_progress $TESTPOOL $DISK1)"
-[[ -z "$new_progress" ]] && \
-    log_fail "Initializing did not restart after onlining"
-[[ "$progress" -le "$new_progress" ]] || \
-    log_fail "Initializing lost progress after onlining"
-log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	log_must zpool online $TESTPOOL $DISK1
 
-log_must zpool initialize -s $TESTPOOL $DISK1
-action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
-    sed 's/.*ed at \(.*\)).*/\1/g')"
-log_must zpool offline $TESTPOOL $DISK1
-log_must zpool online $TESTPOOL $DISK1
-new_action_date=$(initialize_prog_line $TESTPOOL $DISK1 | \
-    sed 's/.*ed at \(.*\)).*/\1/g')
-[[ "$action_date" != "$new_action_date" ]] && \
-    log_fail "Initializing action date did not persist across offline/online"
-log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+	new_progress="$(initialize_progress $TESTPOOL $DISK1)"
+	[[ -z "$new_progress" ]] && \
+	    log_fail "Initializing did not restart after onlining"
+	[[ "$progress" -le "$new_progress" ]] || \
+	    log_fail "Initializing lost progress after onlining"
+	log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+
+	log_must zpool initialize -s $TESTPOOL $DISK1
+	action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
+	    sed 's/.*ed at \(.*\)).*/\1/g')"
+	log_must zpool offline $TESTPOOL $DISK1
+	log_must zpool online $TESTPOOL $DISK1
+	new_action_date=$(initialize_prog_line $TESTPOOL $DISK1 | \
+	    sed 's/.*ed at \(.*\)).*/\1/g')
+	[[ "$action_date" != "$new_action_date" ]] && \
+	    log_fail "Initializing action date did not persist across offline/online"
+	log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+
+done
 
 log_pass "Initializing performs as expected across offline/online"
