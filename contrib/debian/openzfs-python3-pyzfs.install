@@ -1,1 +1,2 @@
-usr/lib/python3*
+usr/lib/python3*/site-packages/libzfs_core
+usr/lib/python3*/site-packages/pyzfs-*.egg-info
