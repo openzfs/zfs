@@ -101,6 +101,7 @@ function replace_test
 	typeset -i iters=2
 	typeset disk1=$1
 	typeset disk2=$2
+	typeset repl_type=$3
 
 	typeset i=0
 	while [[ $i -lt $iters ]]; do
@@ -114,9 +115,13 @@ function replace_test
 		((i = i + 1))
 	done
 
+	typeset repl_flag="-w"
+	if [[ "$repl_type" == "seq" ]]; then
+		repl_flag="-ws"
+	fi
 	# replace disk with a slow drive still present
 	SECONDS=0
-	log_must zpool replace -w $TESTPOOL1 $disk1 $disk2
+	log_must zpool replace $repl_flag $TESTPOOL1 $disk1 $disk2
 	log_note took $SECONDS seconds to replace disk
 
 	for wait_pid in $child_pids
@@ -178,7 +183,11 @@ for type in "raidz2" "raidz3" "draid2"; do
 	log_note took $SECONDS seconds to reach sit out reading ${size}M
 	log_must zpool status -s $TESTPOOL1
 
-	replace_test $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE
+	typeset repl_type="replace"
+	if [[ "$type" == "draid2" && $((RANDOM % 2)) -eq 0 ]]; then
+		repl_type="seq"
+	fi
+	replace_test $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE $repl_type
 
 	log_must eval "zpool iostat -v $TESTPOOL1 | grep \"$REPLACEFILE\""
 
