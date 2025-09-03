@@ -1145,19 +1145,33 @@ zvol_tag(zvol_state_t *zv)
 /*
  * Suspend the zvol for recv and rollback.
  */
-zvol_state_t *
-zvol_suspend(const char *name)
+int
+zvol_suspend(const char *name, zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 
 	zv = zvol_find_by_name(name, RW_WRITER);
 
 	if (zv == NULL)
-		return (NULL);
+		return (SET_ERROR(ENOENT));
 
 	/* block all I/O, release in zvol_resume. */
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
+
+	/*
+	 * If it's being removed, unlock and return error. It doesn't make any
+	 * sense to try to suspend a zvol being removed, but being here also
+	 * means that zvol_remove_minors_impl() is about to call zvol_remove()
+	 * and then destroy the zvol_state_t, so returning a pointer to it for
+	 * the caller to mess with would be a disaster anyway.
+	 */
+	if (zv->zv_flags & ZVOL_REMOVING) {
+		mutex_exit(&zv->zv_state_lock);
+		rw_exit(&zv->zv_suspend_lock);
+		/* NB: Returning EIO here to match zfsvfs_teardown() */
+		return (SET_ERROR(EIO));
+	}
 
 	atomic_inc(&zv->zv_suspend_ref);
 
@@ -1171,7 +1185,8 @@ zvol_suspend(const char *name)
 	mutex_exit(&zv->zv_state_lock);
 
 	/* zv_suspend_lock is released in zvol_resume() */
-	return (zv);
+	*zvp = zv;
+	return (0);
 }
 
 int
