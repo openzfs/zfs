@@ -1,6 +1,7 @@
 CLEANFILES =
 dist_noinst_DATA =
 INSTALL_DATA_HOOKS =
+INSTALL_EXEC_HOOKS =
 ALL_LOCAL =
 CLEAN_LOCAL =
 CHECKS = shellcheck checkbashisms
@@ -70,6 +71,9 @@ all: gitrev
 
 PHONY += install-data-hook $(INSTALL_DATA_HOOKS)
 install-data-hook: $(INSTALL_DATA_HOOKS)
+
+PHONY += install-exec-hook $(INSTALL_EXEC_HOOKS)
+install-exec-hook: $(INSTALL_EXEC_HOOKS)
 
 PHONY += maintainer-clean-local
 maintainer-clean-local:
