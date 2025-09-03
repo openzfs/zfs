@@ -39,3 +39,20 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ARCH], [
 	AM_CONDITIONAL([TARGET_CPU_SPARC64], test $TARGET_CPU = sparc64)
 	AM_CONDITIONAL([TARGET_CPU_ARM],     test $TARGET_CPU = arm)
 ])
+dnl #
+dnl # Check for conflicting environment variables
+dnl #
+dnl # If ARCH env variable is set up, then kernel Makefile in the /usr/src/kernel
+dnl # can misbehave during the zfs ./configure test of the module compilation.
+AC_DEFUN([ZFS_AC_CONFIG_CHECK_ARCH_VAR], [
+	AC_MSG_CHECKING([for conflicting environment variables])
+	if test -n "$ARCH"; then
+		AC_MSG_RESULT([warning])
+		AC_MSG_WARN(m4_normalize([ARCH environment variable is set to "$ARCH".
+    This can cause build kernel modules support check failure.
+    Please unset it.]))
+	else
+		AC_MSG_RESULT([done])
+	fi
+])
+
