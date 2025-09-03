@@ -56,6 +56,7 @@ import time
 import getopt
 import re
 import copy
+import os
 
 from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 
@@ -766,6 +767,14 @@ def calculate():
 
 
 def main():
+
+    # notify user for upcoming renaming in 2.4.0
+    abs_path = os.path.abspath(sys.argv[0].strip())
+    script_name = os.path.basename(abs_path)
+    if script_name != "zarcstat":
+        sys.stderr.write("Note: this script will be renamed to zarcstat in ")
+        sys.stderr.write("zfs 2.4.0. Please migrate ASAP.\n")
+
     global sint
     global count
     global hdr_intr
