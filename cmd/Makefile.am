@@ -107,8 +107,12 @@ $(call SUBST,dbufstat,%D%/)
 $(call SUBST,zilstat,%D%/)
 arc_summary: %D%/arc_summary
 	$(AM_V_at)cp $< $@
-endif
 
+cmd-rename-install-exec-hook:
+	$(LN_S) arcstat $(DESTDIR)$(bindir)/zarcstat
+	$(LN_S) arc_summary $(DESTDIR)$(bindir)/zarcsummary
+INSTALL_EXEC_HOOKS += cmd-rename-install-exec-hook
+endif
 
 PHONY += cmd
 cmd: $(bin_SCRIPTS) $(bin_PROGRAMS) $(sbin_SCRIPTS) $(sbin_PROGRAMS) $(dist_bin_SCRIPTS) $(zfsexec_PROGRAMS) $(mounthelper_PROGRAMS)
