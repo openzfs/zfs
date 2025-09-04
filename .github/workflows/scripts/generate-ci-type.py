@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
     # check last (HEAD) commit message
     last_commit_message_raw = subprocess.run([
-        'git', 'show', '-s', '--format=%B', 'HEAD'
+        'git', 'show', '-s', '--format=%B', head
     ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     for line in last_commit_message_raw.stdout.decode().splitlines():
