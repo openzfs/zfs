@@ -44,7 +44,7 @@ jobs:
             os_selection="$FULL_OS"
           fi
 
-          if [ ${{ github.event.inputs.fedora_kernel_ver }} != "" ] ; then
+          if ${{ github.event.inputs.fedora_kernel_ver != '' }}; then
               # They specified a custom kernel version for Fedora.  Use only
               # Fedora runners.
               os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
@@ -53,9 +53,8 @@ jobs:
               os_json=$(echo ${os_selection} | jq -c)
           fi
 
-          echo $os_json
-          echo "os=$os_json" >> $GITHUB_OUTPUT
-          echo "ci_type=$ci_type" >> $GITHUB_OUTPUT
+          echo "os=$os_json" | tee -a $GITHUB_OUTPUT
+          echo "ci_type=$ci_type" | tee -a $GITHUB_OUTPUT
 
   qemu-vm:
     name: qemu-x86
