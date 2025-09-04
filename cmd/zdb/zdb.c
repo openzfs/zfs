@@ -1768,7 +1768,7 @@ print_vdev_metaslab_header(vdev_t *vd)
 		}
 	}
 
-	(void) printf("\tvdev %10llu\t%s  metaslab shift %4lld",
+	(void) printf("\tvdev %10llu\t%s  metaslab shift %4llu",
 	    (u_longlong_t)vd->vdev_id, bias_str,
 	    (u_longlong_t)vd->vdev_ms_shift);
 
@@ -9405,7 +9405,7 @@ main(int argc, char **argv)
 		{"all-reconstruction",	no_argument,		NULL, 'Y'},
 		{"livelist",		no_argument,		NULL, 'y'},
 		{"zstd-headers",	no_argument,		NULL, 'Z'},
-		{"allocatable-map",	no_argument,		NULL,
+		{"allocated-map",	no_argument,		NULL,
 		    ALLOCATABLE_OPT},
 		{0, 0, 0, 0}
 	};

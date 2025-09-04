@@ -87,7 +87,6 @@ my $tagged_patterns = q(
 	cmd/arc_summary
 	cmd/dbufstat.in
 	cmd/zilstat.in
-	cmd/zleak
 	cmd/zpool/zpool.d/*
 	etc/init.d/zfs-import.in
 	etc/init.d/zfs-load-key.in
