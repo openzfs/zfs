@@ -555,7 +555,7 @@ zhack_do_metaslab_leak(int argc, char **argv)
 			if (sscanf(line,
 			    "\tvdev %10"PRIu64"\t%*s  metaslab shift %4"PRIu64,
 			    &vdev_id, &ms_shift) == 1) {
-				VERIFY3U(sscanf(line,"\tvdev %"PRIu64
+				VERIFY3U(sscanf(line, "\tvdev %"PRIu64
 				    "\t  metaslab shift %4"PRIu64,
 				    &vdev_id, &ms_shift), ==, 2);
 			}

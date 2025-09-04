@@ -1562,7 +1562,6 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
-	ZFS_IOC_RAW_ALLOC,			/* 0x5a5a */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

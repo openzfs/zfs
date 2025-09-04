@@ -2056,38 +2056,6 @@ def lzc_list_snaps(name):
     return iter(snaps)
 
 
-def lzc_raw_alloc(poolname, metaslab_size, metaslab_count, vdev_id,
-                  allocations, force):
-    '''
-    Allocate regions of the provided vdev directly; useful primarily for
-    performance analysis of fragmented pools. Results in space leakage that it
-    is not currently possible to reclaim.
-
-    :param bytes poolname: the name of the pool to allocate in
-    :param int metaslab_size: the size of a metaslab in this pool (for
-        validation)
-    :param int metaslab_count: the number of metaslabs in this top level
-        vdev (for validation)
-    :param int vdev_id: the id of the top-level vdev to perform allocations
-        from
-    :param allocations: pairs of offset and size to allocate
-    :type fromsnap: list of (int, int)
-
-    :raises TooManyArguments: if too many allocations are passed in
-    '''
-    if len(allocations) > 1000000:
-        raise exceptions.TooManyArguments()
-    allocs = _ffi.new(f"uint64_t[{2 * len(allocations)}]")
-    for i in range(len(allocations)):
-        (s, l) = allocations[i]
-        allocs[2 * i] = s
-        allocs[2 * i + 1] = l
-    ret = _lib.lzc_raw_alloc(poolname, uint64_t(metaslab_size),
-                             uint64_t(metaslab_count), uint64_t(vdev_id),
-                             allocs, 2 * len(allocations), force)
-    errors.lzc_raw_alloc_translate_errors(ret, poolname)
-
-
 # TODO: a better way to init and uninit the library
 def _initialize():
     class LazyInit(object):

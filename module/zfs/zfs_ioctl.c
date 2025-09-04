@@ -7326,78 +7326,6 @@ error:
 	return (ret);
 }
 
-static const zfs_ioc_key_t zfs_keys_raw_alloc[] = {
-	{"metaslab_size",	DATA_TYPE_UINT64,	0},
-	{"metaslab_count",	DATA_TYPE_UINT64,	0},
-	{"vdev_id",		DATA_TYPE_UINT64,	0},
-	{"allocations",		DATA_TYPE_UINT64_ARRAY,	0},
-	{"force",		DATA_TYPE_BOOLEAN_VALUE, 0},
-};
-
-static int
-zfs_ioc_raw_alloc(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
-{
-	(void) outnvl;
-	int error = 0;
-	spa_t *spa;
-
-	if ((error = spa_open(pool, &spa, FTAG)) != 0)
-		return (error);
-
-	uint64_t ms_size, ms_count, vdev_id;
-	uint_t alloc_count;
-	uint64_t *allocations;
-	boolean_t force;
-
-	if ((error = nvlist_lookup_uint64(innvl, "metaslab_size",
-	    &ms_size)) != 0) {
-		spa_close(spa, FTAG);
-		return (error);
-	}
-	if ((error = nvlist_lookup_uint64(innvl, "metaslab_count",
-	    &ms_count)) != 0) {
-		spa_close(spa, FTAG);
-		return (error);
-	}
-	if ((error = nvlist_lookup_uint64(innvl, "vdev_id", &vdev_id)) != 0) {
-		spa_close(spa, FTAG);
-		return (error);
-	}
-	if ((error = nvlist_lookup_boolean_value(innvl, "force", &force)) !=
-	    0) {
-		spa_close(spa, FTAG);
-		return (error);
-	}
-	spa_config_enter(spa, SCL_VDEV | SCL_ALLOC, FTAG, RW_READER);
-	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
-	if (vd == NULL) {
-		error = ENOENT;
-		goto out;
-	}
-
-	if ((1ULL << vd->vdev_ms_shift) != ms_size ||
-	    (!force && vd->vdev_ms_count != ms_count)) {
-		error = EINVAL;
-		goto out;
-	}
-
-	if ((error = nvlist_lookup_uint64_array(innvl, "allocations",
-	    &allocations, &alloc_count)) != 0) {
-		goto out;
-	}
-
-	if (alloc_count == 0 || alloc_count % 2 != 0) {
-		error = EINVAL;
-		goto out;
-	}
-
-	error = vdev_raw_alloc(vd, allocations, alloc_count);
-out:
-	spa_config_exit(spa, SCL_VDEV | SCL_ALLOC, FTAG);
-	spa_close(spa, FTAG);
-	return (error);
-}
-
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
 static void
@@ -7703,11 +7631,6 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
-
-	zfs_ioctl_register("raw_alloc", ZFS_IOC_RAW_ALLOC,
-	    zfs_ioc_raw_alloc, zfs_secpolicy_config, POOL_NAME,
-	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_FALSE,
-	    zfs_keys_raw_alloc, ARRAY_SIZE(zfs_keys_raw_alloc));
 
 	/* IOCTLS that use the legacy function signature */
 

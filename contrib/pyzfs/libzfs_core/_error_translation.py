@@ -696,12 +696,6 @@ def lzc_list_translate_error(ret, name, opts):
     raise _generic_exception(ret, name, "Error obtaining a list")
 
 
-def lzc_raw_alloc_translate_errors(ret, name):
-    if ret == 0:
-        return
-    raise _generic_exception(ret, name, "Error performing raw allocations")
-
-
 def _handle_err_list(ret, errlist, names, exception, mapper):
     '''
     Convert one or more errors from an operation into the requested exception.

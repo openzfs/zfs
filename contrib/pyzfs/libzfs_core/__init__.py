@@ -95,7 +95,6 @@ from ._libzfs_core import (
     lzc_set_props,
     lzc_list_children,
     lzc_list_snaps,
-    lzc_raw_alloc,
     receive_header,
 )
 
@@ -152,7 +151,6 @@ __all__ = [
     'lzc_set_props',
     'lzc_list_children',
     'lzc_list_snaps',
-    'lzc_raw_alloc',
     'receive_header',
 ]
 
