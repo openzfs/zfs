@@ -94,7 +94,10 @@ usage(void)
 	    "        -c repair corrupted label checksums\n"
 	    "        -u restore the label on a detached device\n"
 	    "\n"
-	    "    <device> : path to vdev\n");
+	    "    <device> : path to vdev\n"
+	    "\n"
+	    "    metaslab leak <pool>\n"
+	    "        apply allocation map from zdb to specified pool\n");
 	exit(1);
 }
 
@@ -515,13 +518,9 @@ zhack_do_metaslab_leak(int argc, char **argv)
 	spa_t *spa;
 
 	optind = 1;
-	int verbosity = 0;
 	boolean_t force = B_FALSE;
-	while ((c = getopt(argc, argv, "vf")) != -1) {
+	while ((c = getopt(argc, argv, "f")) != -1) {
 		switch (c) {
-		case 'v':
-			verbosity++;
-			break;
 		case 'f':
 			force = B_TRUE;
 			break;
