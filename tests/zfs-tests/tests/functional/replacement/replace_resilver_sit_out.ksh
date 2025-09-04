@@ -58,6 +58,7 @@ function cleanup
 	restore_tunable READ_SIT_OUT_SECS
 	restore_tunable SIT_OUT_CHECK_INTERVAL
 	log_must zinject -c all
+	log_must zpool events -c
 
 	if [[ -n "$child_pids" ]]; then
 		for wait_pid in $child_pids
