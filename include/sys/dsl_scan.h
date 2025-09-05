@@ -45,6 +45,9 @@ struct dsl_pool;
 struct dmu_tx;
 
 extern int zfs_scan_suspend_progress;
+extern uint64_t zfs_scrub_recent_time;
+extern uint64_t zfs_scrub_recent_time_hours;
+extern uint64_t zfs_scrub_recent_time_days;
 
 /*
  * All members of this structure must be uint64_t, for byteswap
@@ -221,6 +224,10 @@ boolean_t dsl_errorscrub_is_paused(const dsl_scan_t *scn);
 void dsl_scan_freed(spa_t *spa, const blkptr_t *bp);
 void dsl_scan_io_queue_destroy(dsl_scan_io_queue_t *queue);
 void dsl_scan_io_queue_vdev_xfer(vdev_t *svd, vdev_t *tvd);
+
+int scrub_param_set_recent_time(ZFS_MODULE_PARAM_ARGS);
+int scrub_param_set_recent_time_hours(ZFS_MODULE_PARAM_ARGS);
+int scrub_param_set_recent_time_days(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef	__cplusplus
 }

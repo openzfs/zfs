@@ -512,8 +512,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tinitialize [-c | -s | -u] [-w] <-a | <pool> "
 		    "[<device> ...]>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-e | -s | -p | -C | -E | -S] [-w] "
-		    "<-a | <pool> [<pool> ...]>\n"));
+		return (gettext("\tscrub [-e | -s | -p | -C | -E | -S | -R] "
+		    "[-w] <-a | <pool> [<pool> ...]>\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
@@ -8523,7 +8523,7 @@ struct zpool_scrub_option {
 };
 
 /*
- * zpool scrub [-e | -s | -p | -C | -E | -S] [-w] [-a | <pool> ...]
+ * zpool scrub [-e | -s | -p | -C | -E | -S | -R] [-w] [-a | <pool> ...]
  *
  *	-a	Scrub all pools.
  *	-e	Only scrub blocks in the error log.
@@ -8531,6 +8531,7 @@ struct zpool_scrub_option {
  *	-S	Start date of scrub.
  *	-s	Stop.  Stops any in-progress scrub.
  *	-p	Pause. Pause in-progress scrub.
+ *	-R	Scrub only recent data.
  *	-w	Wait.  Blocks until scrub has completed.
  *	-C	Scrub from last saved txg.
  */
@@ -8549,11 +8550,12 @@ zpool_do_scrub(int argc, char **argv)
 	struct zpool_scrub_option is_error_scrub = {'e', B_FALSE};
 	struct zpool_scrub_option is_pause = {'p', B_FALSE};
 	struct zpool_scrub_option is_stop = {'s', B_FALSE};
+	struct zpool_scrub_option is_recent = {'R', B_FALSE};
 	struct zpool_scrub_option is_txg_continue = {'C', B_FALSE};
 	struct zpool_scrub_option scrub_all = {'a', B_FALSE};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "aspweCE:S:")) != -1) {
+	while ((c = getopt(argc, argv, "aspweCE:S:R")) != -1) {
 		switch (c) {
 		case 'a':
 			scrub_all.enabled = B_TRUE;
@@ -8577,6 +8579,9 @@ zpool_do_scrub(int argc, char **argv)
 		case 'p':
 			is_pause.enabled = B_TRUE;
 			break;
+		case 'R':
+			is_recent.enabled = B_TRUE;
+			break;
 		case 'w':
 			wait.enabled = B_TRUE;
 			break;
@@ -8597,9 +8602,13 @@ zpool_do_scrub(int argc, char **argv)
 		{&is_stop, &is_pause},
 		{&is_stop, &is_txg_continue},
 		{&is_stop, &is_error_scrub},
+		{&is_stop, &is_recent},
 		{&is_pause, &is_txg_continue},
 		{&is_pause, &is_error_scrub},
+		{&is_pause, &is_recent},
 		{&is_error_scrub, &is_txg_continue},
+		{&is_error_scrub, &is_recent},
+		{&is_recent, &is_txg_continue},
 	};
 
 	for (int i = 0; i < sizeof (scrub_exclusive_options) /
@@ -8624,6 +8633,8 @@ zpool_do_scrub(int argc, char **argv)
 		cb.cb_type = POOL_SCAN_NONE;
 	} else if (is_txg_continue.enabled) {
 		cb.cb_scrub_cmd = POOL_SCRUB_FROM_LAST_TXG;
+	} else if (is_recent.enabled) {
+		cb.cb_scrub_cmd = POOL_SCRUB_RECENT;
 	} else {
 		cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 	}
