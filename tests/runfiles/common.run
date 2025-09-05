@@ -379,7 +379,7 @@ tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zhack]
 tests = ['zhack_label_repair_001', 'zhack_label_repair_002',
-    'zhack_label_repair_003', 'zhack_label_repair_004']
+    'zhack_label_repair_003', 'zhack_label_repair_004', 'zhack_metaslab_leak']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zhack']
