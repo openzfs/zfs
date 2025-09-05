@@ -78,7 +78,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Setup QEMU
-      timeout-minutes: 10
+      timeout-minutes: 15
       run: .github/workflows/scripts/qemu-1-setup.sh
 
     - name: Start build machine
