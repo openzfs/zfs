@@ -19,7 +19,7 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\" Copyright (c) 2021 Klara, Inc.
+.\" Copyright (c) 2021, 2025, Klara, Inc.
 .\"
 .Dd July 23, 2024
 .Dt VDEVPROPS 7
@@ -106,11 +106,17 @@ The number of children belonging to this vdev
 .It Sy read_errors , write_errors , checksum_errors , initialize_errors , trim_errors
 The number of errors of each type encountered by this vdev
 .It Sy slow_ios
-The number of slow I/Os encountered by this vdev,
-These represent I/O operations that didn't complete in
+This indicates the number of slow I/O operations encountered by this vdev.
+A slow I/O is defined as an operation that did not complete within the
 .Sy zio_slow_io_ms
-milliseconds
+threshold in milliseconds
 .Pq Sy 30000 No by default .
+For
+.Sy RAIDZ
+and
+.Sy DRAID
+configurations, this value also represents the number of times the vdev was
+identified as an outlier and excluded from participating in read I/O operations.
 .It Sy null_ops , read_ops , write_ops , free_ops , claim_ops , trim_ops
 The number of I/O operations of each type performed by this vdev
 .It Xo
@@ -150,6 +156,31 @@ The amount of space to reserve for the EFI system partition
 .It Sy failfast
 If this device should propagate BIO errors back to ZFS, used to disable
 failfast.
+.It Sy sit_out
+Only valid for
+.Sy RAIDZ
+and
+.Sy DRAID
+vdevs.
+True when a slow disk outlier was detected and the vdev is currently in a sit
+out state.
+This property can be manually set to cause vdevs to sit out.
+It will also be automatically set by the
+.Sy autosit
+logic if that is enabled.
+While sitting out, the vdev will not participate in normal reads, instead its
+data will be reconstructed as needed from parity.
+.It Sy autosit
+Only valid for
+.Sy RAIDZ
+and
+.Sy DRAID
+vdevs.
+If set, this enables the kernel-level slow disk detection logic.
+This logic automatically causes any vdevs that are significant negative
+performance outliers to sit out, as described in the
+.Sy sit_out
+property.
 .It Sy path
 The path to the device for this vdev
 .It Sy allocating
