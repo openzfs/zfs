@@ -4789,34 +4789,6 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
  * ==========================================================================
  */
 
-void
-metaslab_force_alloc(metaslab_t *msp, uint64_t start, uint64_t size,
-    dmu_tx_t *tx)
-{
-	ASSERT(msp->ms_disabled);
-	ASSERT(MUTEX_HELD(&msp->ms_lock));
-	uint64_t txg = dmu_tx_get_txg(tx);
-
-	for (uint64_t off = start; off < start + size; ) {
-		uint64_t ostart, osize;
-		boolean_t found = zfs_range_tree_find_in(msp->ms_allocatable,
-		    off, start + size - off, &ostart, &osize);
-		if (!found)
-			break;
-		zfs_range_tree_remove(msp->ms_allocatable, ostart,
-		    osize);
-
-		if (zfs_range_tree_is_empty(msp->ms_allocating[txg & TXG_MASK]))
-			vdev_dirty(msp->ms_group->mg_vd, VDD_METASLAB, msp,
-			    txg);
-
-		zfs_range_tree_add(msp->ms_allocating[txg & TXG_MASK], ostart,
-		    osize);
-		msp->ms_allocating_total += osize;
-		off = ostart + osize;
-	}
-}
-
 static void
 metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, int allocator,
     int flags, uint64_t psize, const void *tag)

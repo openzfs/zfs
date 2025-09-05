@@ -1464,7 +1464,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Core features - 90/128 numbers reserved.
+	 * Core features - 89/128 numbers reserved.
 	 */
 #ifdef __FreeBSD__
 	ZFS_IOC_FIRST =	0,

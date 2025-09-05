@@ -511,6 +511,34 @@ strstarts(const char *a, const char *b)
 }
 
 static void
+metaslab_force_alloc(metaslab_t *msp, uint64_t start, uint64_t size,
+    dmu_tx_t *tx)
+{
+	ASSERT(msp->ms_disabled);
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	uint64_t txg = dmu_tx_get_txg(tx);
+
+	uint64_t off = start;
+	while (off < start + size) {
+		uint64_t ostart, osize;
+		boolean_t found = zfs_range_tree_find_in(msp->ms_allocatable,
+		    off, start + size - off, &ostart, &osize);
+		if (!found)
+			break;
+		zfs_range_tree_remove(msp->ms_allocatable, ostart, osize);
+
+		if (zfs_range_tree_is_empty(msp->ms_allocating[txg & TXG_MASK]))
+			vdev_dirty(msp->ms_group->mg_vd, VDD_METASLAB, msp,
+			    txg);
+
+		zfs_range_tree_add(msp->ms_allocating[txg & TXG_MASK], ostart,
+		    osize);
+		msp->ms_allocating_total += osize;
+		off = ostart + osize;
+	}
+}
+
+static void
 zhack_do_metaslab_leak(int argc, char **argv)
 {
 	int c;

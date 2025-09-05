@@ -140,9 +140,6 @@ CDEF = """
     int lzc_inherit(const char *fsname, const char *name, nvlist_t *);
     int lzc_set_props(const char *, nvlist_t *, nvlist_t *, nvlist_t *);
     int lzc_list (const char *, nvlist_t *);
-
-    int lzc_raw_alloc(const char *, uint64_t, uint64_t, uint64_t,
-        uint64_t *, uint_t, boolean_t);
 """
 
 SOURCE = """
