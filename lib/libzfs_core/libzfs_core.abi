@@ -617,6 +617,7 @@
     <array-type-def dimensions='1' type-id='de572c22' size-in-bits='1472' id='6d3c2f42'>
       <subrange length='23' type-id='7359adad' id='fdd0f594'/>
     </array-type-def>
+    <type-decl name='long long int' size-in-bits='64' id='1eb56b1e'/>
     <array-type-def dimensions='1' type-id='3a47d82b' size-in-bits='256' id='a133ec23'>
       <subrange length='4' type-id='7359adad' id='16fe7105'/>
     </array-type-def>
@@ -988,13 +989,6 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/os/linux/getmntany.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='d315442e' size-in-bits='16' id='811205dc'>
-      <subrange length='1' type-id='7359adad' id='52f813b4'/>
-    </array-type-def>
-    <array-type-def dimensions='1' type-id='d3130597' size-in-bits='768' id='f63f23b9'>
-      <subrange length='12' type-id='7359adad' id='84827bdc'/>
-    </array-type-def>
-    <type-decl name='long long int' size-in-bits='64' id='1eb56b1e'/>
     <class-decl name='mnttab' size-in-bits='256' is-struct='yes' visibility='default' id='1b055409'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='mnt_special' type-id='26a90f95' visibility='default'/>
@@ -1027,93 +1021,6 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='288'>
         <var-decl name='mnt_minor' type-id='3502e3ff' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <typedef-decl name='__u16' type-id='8efea9e5' id='d315442e'/>
-    <typedef-decl name='__s32' type-id='95e97e5e' id='3158a266'/>
-    <typedef-decl name='__u32' type-id='f0981eeb' id='3f1a6b60'/>
-    <typedef-decl name='__s64' type-id='1eb56b1e' id='49659421'/>
-    <typedef-decl name='__u64' type-id='3a47d82b' id='d3130597'/>
-    <class-decl name='statx_timestamp' size-in-bits='128' is-struct='yes' visibility='default' id='94101016'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='tv_sec' type-id='49659421' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='tv_nsec' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='96'>
-        <var-decl name='__reserved' type-id='3158a266' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <class-decl name='statx' size-in-bits='2048' is-struct='yes' visibility='default' id='720b04c5'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='stx_mask' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='32'>
-        <var-decl name='stx_blksize' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='stx_attributes' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='stx_nlink' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='160'>
-        <var-decl name='stx_uid' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='stx_gid' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='224'>
-        <var-decl name='stx_mode' type-id='d315442e' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='240'>
-        <var-decl name='__spare0' type-id='811205dc' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='stx_ino' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='stx_size' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='stx_blocks' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='stx_attributes_mask' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='512'>
-        <var-decl name='stx_atime' type-id='94101016' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='640'>
-        <var-decl name='stx_btime' type-id='94101016' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='768'>
-        <var-decl name='stx_ctime' type-id='94101016' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='896'>
-        <var-decl name='stx_mtime' type-id='94101016' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1024'>
-        <var-decl name='stx_rdev_major' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1056'>
-        <var-decl name='stx_rdev_minor' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1088'>
-        <var-decl name='stx_dev_major' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1120'>
-        <var-decl name='stx_dev_minor' type-id='3f1a6b60' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1152'>
-        <var-decl name='stx_mnt_id' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='__spare2' type-id='d3130597' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='__spare3' type-id='f63f23b9' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='mntent' size-in-bits='320' is-struct='yes' visibility='default' id='56fe4a37'>
@@ -1191,8 +1098,6 @@
     <pointer-type-def type-id='1b055409' size-in-bits='64' id='9d424d31'/>
     <pointer-type-def type-id='0bbec9cd' size-in-bits='64' id='62f7a03d'/>
     <qualified-type-def type-id='62f7a03d' restrict='yes' id='f1cadedf'/>
-    <pointer-type-def type-id='720b04c5' size-in-bits='64' id='936b8e35'/>
-    <qualified-type-def type-id='936b8e35' restrict='yes' id='31d265b7'/>
     <function-decl name='getmntent_r' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='e75a27e9'/>
       <parameter type-id='3cad23cd'/>
@@ -1207,14 +1112,6 @@
     <function-decl name='strerror' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='95e97e5e'/>
       <return type-id='26a90f95'/>
-    </function-decl>
-    <function-decl name='statx' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='9d26089a'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='f0981eeb'/>
-      <parameter type-id='31d265b7'/>
-      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='stat64' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
