@@ -246,6 +246,14 @@ static int zfs_free_bpobj_enabled = 1;
 /* Error blocks to be scrubbed in one txg. */
 static uint_t zfs_scrub_error_blocks_per_txg = 1 << 12;
 
+/*
+ * The number of TXGs should be scrubbed while scrubbing recent data.
+ * Default: 4 hours.
+ */
+uint64_t zfs_scrub_recent_time = 14400;
+uint64_t zfs_scrub_recent_time_hours = 4;
+uint64_t zfs_scrub_recent_time_days = 0;
+
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
@@ -5362,3 +5370,20 @@ ZFS_MODULE_PARAM(zfs, zfs_, resilver_defer_percent, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_error_blocks_per_txg, UINT, ZMOD_RW,
 	"Error blocks to be scrubbed in one txg");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, scrub_recent_time, scrub_param_set_recent_time,
+	spl_param_get_u64, ZMOD_RW,
+	"Defines the time window for recent scrub in seconds. "
+	"Adjusting this value will also update the hours and days equivalents");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, scrub_recent_time_hours,
+	scrub_param_set_recent_time_hours, spl_param_get_u64, ZMOD_RW,
+	"Defines the time window for recent scrub in hours. "
+	"Adjusting this value will also update the seconds and days "
+	"equivalents");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, scrub_recent_time_days,
+	scrub_param_set_recent_time_days, spl_param_get_u64, ZMOD_RW,
+	"Defines the time window for recent scrub in days. "
+	"Adjusting this value will also update the seconds and hours "
+	"equivalents");
