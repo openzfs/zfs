@@ -160,6 +160,7 @@ typedef struct raidz_map {
  */
 typedef struct reflow_node {
 	uint64_t re_txg;
+	uint64_t re_children_attached;
 	uint64_t re_logical_width;
 	avl_node_t re_link;
 } reflow_node_t;

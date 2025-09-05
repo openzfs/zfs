@@ -86,7 +86,8 @@ run_gen_bench_impl(const char *impl)
 			if (rto_opts.rto_expand) {
 				rm_bench = vdev_raidz_map_alloc_expanded(
 				    &zio_bench,
-				    rto_opts.rto_ashift, ncols+1, ncols,
+				    rto_opts.rto_ashift, 1,
+				    ncols + rto_opts.rto_expand, ncols,
 				    fn+1, rto_opts.rto_expand_offset,
 				    0, B_FALSE);
 			} else {
@@ -174,7 +175,8 @@ run_rec_bench_impl(const char *impl)
 			if (rto_opts.rto_expand) {
 				rm_bench = vdev_raidz_map_alloc_expanded(
 				    &zio_bench,
-				    BENCH_ASHIFT, ncols+1, ncols,
+				    BENCH_ASHIFT, 1,
+				    ncols + rto_opts.rto_expand, ncols,
 				    PARITY_PQR,
 				    rto_opts.rto_expand_offset, 0, B_FALSE);
 			} else {
