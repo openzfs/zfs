@@ -176,11 +176,13 @@ ddt_log_update_stats(ddt_t *ddt)
 	 * that's reasonable to expect anyway.
 	 */
 	dmu_object_info_t doi;
-	uint64_t nblocks;
-	dmu_object_info(ddt->ddt_os, ddt->ddt_log_active->ddl_object, &doi);
-	nblocks = doi.doi_physical_blocks_512;
-	dmu_object_info(ddt->ddt_os, ddt->ddt_log_flushing->ddl_object, &doi);
-	nblocks += doi.doi_physical_blocks_512;
+	uint64_t nblocks = 0;
+	if (dmu_object_info(ddt->ddt_os, ddt->ddt_log_active->ddl_object,
+	    &doi) == 0)
+		nblocks += doi.doi_physical_blocks_512;
+	if (dmu_object_info(ddt->ddt_os, ddt->ddt_log_flushing->ddl_object,
+	    &doi) == 0)
+		nblocks += doi.doi_physical_blocks_512;
 
 	ddt_object_t *ddo = &ddt->ddt_log_stats;
 	ddo->ddo_count =
