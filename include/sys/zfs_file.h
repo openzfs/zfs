@@ -37,8 +37,10 @@ typedef struct file zfs_file_t;
 #endif
 
 typedef struct zfs_file_attr {
-	uint64_t	zfa_size;	/* file size */
-	mode_t		zfa_mode;	/* file type */
+	uint64_t	zfa_size;			/* file size */
+	mode_t		zfa_mode;			/* file type */
+	uint32_t	zfa_logical_block_size;		/* file logical bs */
+	uint32_t	zfa_physical_block_size;	/* file physical bs */
 } zfs_file_attr_t;
 
 int zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fp);
@@ -50,6 +52,9 @@ int zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t len, loff_t off,
 int zfs_file_read(zfs_file_t *fp, void *buf, size_t len, ssize_t *resid);
 int zfs_file_pread(zfs_file_t *fp, void *buf, size_t len, loff_t off,
     ssize_t *resid);
+
+void zfs_file_io_strategy(zfs_file_t *fp, void *arg);
+void zfs_file_io_strategy_done(zfs_file_t *fp, void *arg);
 
 int zfs_file_seek(zfs_file_t *fp, loff_t *offp, int whence);
 int zfs_file_getattr(zfs_file_t *fp, zfs_file_attr_t *zfattr);

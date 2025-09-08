@@ -35,6 +35,23 @@
 #include <sys/abd.h>
 #include <sys/stat.h>
 
+/* File device access types */
+typedef enum access_type {
+	ACCESS_REGULAR,
+	ACCESS_BLKDEV
+} access_type_t;
+
+/*
+ * This structure is used for adding indirection layer to provide
+ * ability to split access logic between regular files and special
+ * device files.
+ */
+typedef struct vdev_file_data
+{
+	access_type_t	type;
+	vdev_file_t	vf;
+} vdev_file_data_t;
+
 /*
  * Virtual device vector for files.
  */
@@ -99,8 +116,7 @@ static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
-	vdev_file_t *vf;
-	zfs_file_t *fp;
+	vdev_file_data_t *vfd;
 	zfs_file_attr_t zfa;
 	int error;
 
@@ -136,11 +152,11 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 */
 	if (vd->vdev_tsd != NULL) {
 		ASSERT(vd->vdev_reopening);
-		vf = vd->vdev_tsd;
+		vfd = vd->vdev_tsd;
 		goto skip_open;
 	}
 
-	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
+	vfd = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_data_t), KM_SLEEP);
 
 	/*
 	 * We always open the files from the root of the global zone, even if
@@ -152,38 +168,54 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	ASSERT3S(vd->vdev_path[0], ==, '/');
 
 	error = zfs_file_open(vd->vdev_path,
-	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
+	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &vfd->vf.vf_file);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
 	}
 
-	vf->vf_file = fp;
-
+	/*
+	 * Work with chr/blk devices same as regular files in userspace.
+	 * The different logic is used, if we are on FreeBSD kernel side.
+	 */
+	vfd->type = ACCESS_REGULAR;
 #ifdef _KERNEL
 	/*
 	 * Make sure it's a regular file.
 	 */
-	if (zfs_file_getattr(fp, &zfa)) {
+	if (zfs_file_getattr(vfd->vf.vf_file, &zfa)) {
 		return (SET_ERROR(ENODEV));
 	}
+#ifdef __linux__
 	if (!S_ISREG(zfa.zfa_mode)) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (SET_ERROR(ENODEV));
 	}
+#elif __FreeBSD__
+	if (S_ISCHR(zfa.zfa_mode) || S_ISBLK(zfa.zfa_mode)) {
+		vfd->type = ACCESS_BLKDEV;
+	} else if (!S_ISREG(zfa.zfa_mode)) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		return (SET_ERROR(ENODEV));
+	}
 #endif
+#endif // #ifdef _KERNEL
 
 skip_open:
 
-	error =  zfs_file_getattr(vf->vf_file, &zfa);
+	error =  zfs_file_getattr(vfd->vf.vf_file, &zfa);
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
 	}
 
 	*max_psize = *psize = zfa.zfa_size;
-	*logical_ashift = vdev_file_logical_ashift;
-	*physical_ashift = vdev_file_physical_ashift;
+	*logical_ashift = zfa.zfa_logical_block_size ?
+	    highbit64(zfa.zfa_logical_block_size) - 1 :
+	    vdev_file_logical_ashift;
+	*physical_ashift = zfa.zfa_physical_block_size ?
+	    highbit64(zfa.zfa_physical_block_size) - 1 :
+	    vdev_file_physical_ashift;
 
 	return (0);
 }
@@ -191,17 +223,17 @@ skip_open:
 static void
 vdev_file_close(vdev_t *vd)
 {
-	vdev_file_t *vf = vd->vdev_tsd;
+	vdev_file_data_t *vfd = vd->vdev_tsd;
 
-	if (vd->vdev_reopening || vf == NULL)
+	if (vd->vdev_reopening || vfd == NULL)
 		return;
 
-	if (vf->vf_file != NULL) {
-		(void) zfs_file_close(vf->vf_file);
+	if (vfd->vf.vf_file != NULL) {
+		(void) zfs_file_close(vfd->vf.vf_file);
 	}
 
 	vd->vdev_delayed_close = B_FALSE;
-	kmem_free(vf, sizeof (vdev_file_t));
+	kmem_free(vfd, sizeof (vdev_file_data_t));
 	vd->vdev_tsd = NULL;
 }
 
@@ -210,7 +242,7 @@ vdev_file_io_strategy(void *arg)
 {
 	zio_t *zio = (zio_t *)arg;
 	vdev_t *vd = zio->io_vd;
-	vdev_file_t *vf = vd->vdev_tsd;
+	vdev_file_data_t *vfd = vd->vdev_tsd;
 	void *buf;
 	ssize_t resid;
 	loff_t off;
@@ -221,14 +253,19 @@ vdev_file_io_strategy(void *arg)
 	size = zio->io_size;
 	resid = 0;
 
+	if (vfd->type == ACCESS_BLKDEV) {
+		zfs_file_io_strategy(vfd->vf.vf_file, arg);
+		return;
+	}
+
 	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 	if (zio->io_type == ZIO_TYPE_READ) {
 		buf = abd_borrow_buf(zio->io_abd, zio->io_size);
-		err = zfs_file_pread(vf->vf_file, buf, size, off, &resid);
+		err = zfs_file_pread(vfd->vf.vf_file, buf, size, off, &resid);
 		abd_return_buf_copy(zio->io_abd, buf, size);
 	} else {
 		buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
-		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
+		err = zfs_file_pwrite(vfd->vf.vf_file, buf, size, off, &resid);
 		abd_return_buf(zio->io_abd, buf, size);
 	}
 	zio->io_error = err;
@@ -242,9 +279,9 @@ static void
 vdev_file_io_fsync(void *arg)
 {
 	zio_t *zio = (zio_t *)arg;
-	vdev_file_t *vf = zio->io_vd->vdev_tsd;
+	vdev_file_data_t *vfd = zio->io_vd->vdev_tsd;
 
-	zio->io_error = zfs_file_fsync(vf->vf_file, O_SYNC | O_DSYNC);
+	zio->io_error = zfs_file_fsync(vfd->vf.vf_file, O_SYNC | O_DSYNC);
 
 	zio_interrupt(zio);
 }
@@ -253,9 +290,9 @@ static void
 vdev_file_io_deallocate(void *arg)
 {
 	zio_t *zio = (zio_t *)arg;
-	vdev_file_t *vf = zio->io_vd->vdev_tsd;
+	vdev_file_data_t *vfd = zio->io_vd->vdev_tsd;
 
-	zio->io_error = zfs_file_deallocate(vf->vf_file,
+	zio->io_error = zfs_file_deallocate(vfd->vf.vf_file,
 	    zio->io_offset, zio->io_size);
 
 	zio_interrupt(zio);
@@ -265,6 +302,7 @@ static void
 vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
+	vdev_file_data_t *vfd = vd->vdev_tsd;
 
 	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
@@ -279,9 +317,19 @@ vdev_file_io_start(zio_t *zio)
 			return;
 		}
 
-		VERIFY3U(taskq_dispatch(vdev_file_taskq,
-		    vdev_file_io_fsync, zio, TQ_SLEEP), !=, TASKQID_INVALID);
+		if (vfd->type == ACCESS_BLKDEV) {
+			vdev_file_io_strategy(zio);
+		} else {
+			VERIFY3U(taskq_dispatch(vdev_file_taskq,
+			    vdev_file_io_fsync, zio, TQ_SLEEP), !=,
+			    TASKQID_INVALID);
+		}
 
+		return;
+	}
+
+	if (vfd->type == ACCESS_BLKDEV) {
+		vdev_file_io_strategy(zio);
 		return;
 	}
 
@@ -305,7 +353,14 @@ vdev_file_io_start(zio_t *zio)
 static void
 vdev_file_io_done(zio_t *zio)
 {
-	(void) zio;
+	vdev_t *vd = zio->io_vd;
+	vdev_file_data_t *vfd = vd->vdev_tsd;
+
+	if (vfd && vfd->type == ACCESS_REGULAR) {
+		return;
+	}
+
+	zfs_file_io_strategy_done(NULL, zio);
 }
 
 vdev_ops_t vdev_file_ops = {
