@@ -216,6 +216,30 @@ typedef struct anyraid_map_entry {
 	} ame_u;
 } anyraid_map_entry_t;
 
+static inline void
+ame_byteswap(anyraid_map_entry_t *ame)
+{
+	uint8_t type = ame->ame_u.ame_amle.amle_type;
+	switch (type) {
+		case AMET_SKIP: {
+			anyraid_map_skip_entry_t *amse =
+			    &ame->ame_u.ame_amse;
+			amse->amse_u.amse_skip_count =
+			    BSWAP_32(amse_get_skip_count(amse)) >> NBBY;
+			amse->amse_u.amse_type = AMET_SKIP;
+			break;
+		}
+		case AMET_LOC: {
+			anyraid_map_loc_entry_t *amle =
+			    &ame->ame_u.ame_amle;
+			amle->amle_offset = BSWAP_16(amle->amle_offset);
+			break;
+		}
+		default:
+			PANIC("Invalid entry type %d", type);
+	}
+}
+
 #define	VDEV_ANYRAID_MAX_DISKS	(1 << 8)
 #define	VDEV_ANYRAID_MAX_TPD	(1 << 16)
 #define	VDEV_ANYRAID_MAX_TILES	(VDEV_ANYRAID_MAX_DISKS * VDEV_ANYRAID_MAX_TPD)
