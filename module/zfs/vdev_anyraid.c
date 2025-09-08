@@ -459,6 +459,16 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 	return (error);
 }
 
+#ifdef _ZFS_BIG_ENDIAN
+static void
+byteswap_map_buf(void *buf, uint32_t length)
+{
+	for (size_t i = 0; i < length; i += sizeof (anyraid_map_entry_t)) {
+		ame_byteswap((anyraid_map_entry_t *)((char *)buf + i));
+	}
+}
+#endif
+
 static int
 anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 {
@@ -596,8 +606,8 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 #ifdef _ZFS_BIG_ENDIAN
 			uint32_t length = map_length -
 			    next_map * SPA_MAXBLOCKSIZE;
-			byteswap_uint32_array(map_buf, length <
-			    SPA_MAXBLOCKSIZE ? length : SPA_MAXBLOCKSIZE);
+			byteswap_map_buf(map_buf, (uint32_t)(length <
+			    SPA_MAXBLOCKSIZE ? length : SPA_MAXBLOCKSIZE));
 #endif
 		}
 		anyraid_map_entry_t *entry =
@@ -1256,7 +1266,9 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
     int flags)
 {
 #ifdef _ZFS_BIG_ENDIAN
-	byteswap_uint32_array(abd, length);
+	void *buf = abd_borrow_buf(abd, SPA_MAXBLOCKSIZE);
+	byteswap_map_buf(buf, length);
+	abd_return_buf(abd, buf, SPA_MAXBLOCKSIZE);
 #else
 	(void) length;
 #endif
