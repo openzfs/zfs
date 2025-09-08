@@ -25,6 +25,10 @@
  * Use is subject to license terms.
  */
 
+#if defined(HAVE_ATOMIC_ALIGNMENT)
+#pragma GCC diagnostic ignored "-Watomic-alignment"
+#endif
+
 #include <atomic.h>
 
 /*
