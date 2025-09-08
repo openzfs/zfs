@@ -109,8 +109,8 @@ arc_summary: %D%/arc_summary
 	$(AM_V_at)cp $< $@
 
 cmd-rename-install-exec-hook:
-	$(LN_S) arcstat $(DESTDIR)$(bindir)/zarcstat
-	$(LN_S) arc_summary $(DESTDIR)$(bindir)/zarcsummary
+	$(LN_S) -f arcstat $(DESTDIR)$(bindir)/zarcstat
+	$(LN_S) -f arc_summary $(DESTDIR)$(bindir)/zarcsummary
 INSTALL_EXEC_HOOKS += cmd-rename-install-exec-hook
 endif
 
