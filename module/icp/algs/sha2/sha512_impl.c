@@ -38,11 +38,14 @@
 	kfpu_begin(); E(s, d, b); kfpu_end(); \
 }
 
+#if defined(__x86_64) || defined(__aarch64__) || defined(__arm__) || \
+    defined(__aarch64__) || defined(__arm__) || defined(__PPC64__)
 /* some implementation is always okay */
 static inline boolean_t sha2_is_supported(void)
 {
 	return (B_TRUE);
 }
+#endif
 
 #if defined(__x86_64)
 
