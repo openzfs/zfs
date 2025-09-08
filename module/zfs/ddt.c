@@ -1701,9 +1701,11 @@ ddt_load(spa_t *spa)
 			}
 		}
 
-		error = ddt_log_load(ddt);
-		if (error != 0 && error != ENOENT)
-			return (error);
+		if (ddt->ddt_flags & DDT_FLAG_LOG) {
+			error = ddt_log_load(ddt);
+			if (error != 0 && error != ENOENT)
+				return (error);
+		}
 
 		DDT_KSTAT_SET(ddt, dds_log_active_entries,
 		    avl_numnodes(&ddt->ddt_log_active->ddl_tree));
