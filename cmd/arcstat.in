@@ -172,7 +172,7 @@ cols = {
     "zactive":    [7, 1000, "zfetch prefetches active per second"],
 }
 
-# ARC structural breakdown from arc_summary
+# ARC structural breakdown from zarcsummary
 structfields = {
     "cmp":      ["compressed", "Compressed"],
     "ovh":      ["overhead", "Overhead"],
@@ -188,7 +188,7 @@ structstats = {                             # size stats
     "sz":       ["_size", "size"],
 }
 
-# ARC types breakdown from arc_summary
+# ARC types breakdown from zarcsummary
 typefields = {
     "data":     ["data", "ARC data"],
     "meta":     ["metadata", "ARC metadata"],
@@ -199,7 +199,7 @@ typestats = {                               # size stats
     "sz":       ["_size", "size"],
 }
 
-# ARC states breakdown from arc_summary
+# ARC states breakdown from zarcsummary
 statefields = {
     "ano":      ["anon", "Anonymous"],
     "mfu":      ["mfu", "MFU"],
@@ -367,7 +367,7 @@ def snap_stats():
 
     cur = kstat
 
-    # fill in additional values from arc_summary
+    # fill in additional values from zarcsummary
     cur["caches_size"] = caches_size = cur["anon_data"]+cur["anon_metadata"]+\
         cur["mfu_data"]+cur["mfu_metadata"]+cur["mru_data"]+cur["mru_metadata"]+\
         cur["uncached_data"]+cur["uncached_metadata"]

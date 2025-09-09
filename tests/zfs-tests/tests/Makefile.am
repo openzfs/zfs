@@ -1352,8 +1352,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool/zpool_003_pos.ksh \
 	functional/cli_root/zpool/zpool_colors.ksh \
 	functional/cli_user/misc/arcstat_001_pos.ksh \
-	functional/cli_user/misc/arc_summary_001_pos.ksh \
-	functional/cli_user/misc/arc_summary_002_neg.ksh \
+	functional/cli_user/misc/zarcsummary_001_pos.ksh \
+	functional/cli_user/misc/zarcsummary_002_neg.ksh \
 	functional/cli_user/misc/zilstat_001_pos.ksh \
 	functional/cli_user/misc/cleanup.ksh \
 	functional/cli_user/misc/setup.ksh \

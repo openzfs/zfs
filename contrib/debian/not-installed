@@ -1,4 +1,4 @@
-usr/bin/arc_summary.py
+usr/bin/zarcsummary.py
 usr/share/zfs/zfs-helpers.sh
 etc/default/zfs
 etc/init.d
