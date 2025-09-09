@@ -5,7 +5,7 @@
 
 PREREQ="udev"
 PREREQ_UDEV_RULES="60-zvol.rules 69-vdev.rules"
-COPY_EXEC_LIST="/lib/udev/zvol_id /lib/udev/vdev_id"
+COPY_EXEC_LIST="/usr/lib/udev/zvol_id /usr/lib/udev/vdev_id"
 
 # Generic result code.
 RC=0
