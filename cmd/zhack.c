@@ -70,7 +70,8 @@ static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: zhack [-c cachefile] [-d dir] <subcommand> <args> ...\n"
+	    "Usage: zhack [-o tunable] [-c cachefile] [-d dir] <subcommand> "
+	    "<args> ...\n"
 	    "where <subcommand> <args> is one of the following:\n"
 	    "\n");
 
@@ -1169,7 +1170,7 @@ main(int argc, char **argv)
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "+c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "+c:d:o:")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;
@@ -1177,6 +1178,10 @@ main(int argc, char **argv)
 		case 'd':
 			assert(g_importargs.paths < MAX_NUM_PATHS);
 			g_importargs.path[g_importargs.paths++] = optarg;
+			break;
+		case 'o':
+			if (handle_tunable_option(optarg, B_FALSE) != 0)
+				exit(1);
 			break;
 		default:
 			usage();
