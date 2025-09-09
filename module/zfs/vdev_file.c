@@ -228,7 +228,8 @@ vdev_file_io_strategy(void *arg)
 		abd_return_buf_copy(zio->io_abd, buf, size);
 	} else {
 		buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
-		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
+		err = zfs_file_pwrite(vf->vf_file, buf, size, off,
+		    vd->vdev_ashift, &resid);
 		abd_return_buf(zio->io_abd, buf, size);
 	}
 	zio->io_error = err;
