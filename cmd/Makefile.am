@@ -98,11 +98,11 @@ endif
 
 
 if USING_PYTHON
-bin_SCRIPTS      += zarcsummary     arcstat        dbufstat        zilstat
-CLEANFILES       += zarcsummary     arcstat        dbufstat        zilstat
-dist_noinst_DATA += %D%/zarcsummary %D%/arcstat.in %D%/dbufstat.in %D%/zilstat.in
+bin_SCRIPTS      += zarcsummary     zarcstat        dbufstat        zilstat
+CLEANFILES       += zarcsummary     zarcstat        dbufstat        zilstat
+dist_noinst_DATA += %D%/zarcsummary %D%/zarcstat.in %D%/dbufstat.in %D%/zilstat.in
 
-$(call SUBST,arcstat,%D%/)
+$(call SUBST,zarcstat,%D%/)
 $(call SUBST,dbufstat,%D%/)
 $(call SUBST,zilstat,%D%/)
 zarcsummary: %D%/zarcsummary

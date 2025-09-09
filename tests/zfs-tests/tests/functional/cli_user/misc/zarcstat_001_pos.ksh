@@ -37,7 +37,7 @@ log_assert "arcstat generates output and doesn't return an error code"
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arcstat ${args[i]} > /dev/null"
+        log_must eval "zarcstat ${args[i]} > /dev/null"
         ((i = i + 1))
 done
 log_pass "arcstat generates output and doesn't return an error code"

@@ -37,12 +37,12 @@ usr/lib/zfs-linux/zpool.d/
 usr/lib/zfs-linux/zpool_influxdb
 usr/lib/zfs-linux/zfs_prepare_disk
 usr/sbin/zarcsummary
-usr/sbin/arcstat
+usr/sbin/zarcstat
 usr/sbin/dbufstat
 usr/sbin/zilstat
 usr/share/zfs/compatibility.d/
 usr/share/bash-completion/completions
-usr/share/man/man1/arcstat.1
+usr/share/man/man1/zarcstat.1
 usr/share/man/man1/zhack.1
 usr/share/man/man1/zvol_wait.1
 usr/share/man/man5/
