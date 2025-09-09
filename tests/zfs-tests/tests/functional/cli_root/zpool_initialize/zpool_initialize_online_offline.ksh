@@ -23,6 +23,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2025 by Klara, Inc.
 #
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_initialize/zpool_initialize.kshlib
@@ -46,6 +47,8 @@ DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
+log_onexit_push zpool status -v
+
 for type in "mirror" "anyraid1"; do
 
 	if [[ "$type" == "mirror" ]]; then
@@ -57,6 +60,7 @@ for type in "mirror" "anyraid1"; do
 		log_must rm /$TESTPOOL/f1
 		log_must zpool sync
 	fi
+	log_must zinject -D 10:1 -d $DISK1 -T write $TESTPOOL
 	log_must zpool initialize $TESTPOOL $DISK1
 
 	log_must zpool offline $TESTPOOL $DISK1
@@ -74,6 +78,7 @@ for type in "mirror" "anyraid1"; do
 	log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
 
 	log_must zpool initialize -s $TESTPOOL $DISK1
+	log_must zinject -c all
 	action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
 	    sed 's/.*ed at \(.*\)).*/\1/g')"
 	log_must zpool offline $TESTPOOL $DISK1
