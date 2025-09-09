@@ -49,7 +49,8 @@ struct kernel_param {};
 struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
     uint64_t);
 struct raidz_map *vdev_raidz_map_alloc_expanded(struct zio *,
-    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, boolean_t);
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+    boolean_t);
 void vdev_raidz_map_free(struct raidz_map *);
 void vdev_raidz_free(struct vdev_raidz *);
 void vdev_raidz_generate_parity_row(struct raidz_map *, struct raidz_row *);
@@ -83,6 +84,11 @@ typedef struct vdev_raidz_expand {
 
 	kmutex_t vre_lock;
 	kcondvar_t vre_cv;
+
+	/*
+	 * Number of children attached during current expasnion.
+	 */
+	uint64_t vre_children_attached;
 
 	/*
 	 * How much i/o is outstanding (issued and not completed).

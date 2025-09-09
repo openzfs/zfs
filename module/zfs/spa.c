@@ -7676,13 +7676,17 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
  * should be performed instead of traditional healing reconstruction.  From
  * an administrators perspective these are both resilver operations.
  */
+
+/*
+ * XXX guid is raidz vdev guid in case of raidz expansion
+ */
 int
 spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
     int rebuild)
 {
 	uint64_t txg, dtl_max_txg;
 	vdev_t *rvd = spa->spa_root_vdev;
-	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
+	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd, *ivd, **rzcvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
 	int newvd_isspare = B_FALSE;
@@ -7726,6 +7730,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	boolean_t raidz = oldvd->vdev_ops == &vdev_raidz_ops;
 
+#if defined(_KERNEL) && defined(__linux__)
+	printk("====== spa_vdev_attach(+)");
+#else
+	printf("====== spa_vdev_attach(+):raidz=%d\n", raidz);
+#endif
+
 	if (raidz) {
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_EXPANSION))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
@@ -7734,6 +7744,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		 * Can't expand a raidz while prior expand is in progress.
 		 */
 		if (spa->spa_raidz_expand != NULL) {
+#ifndef _KERNEL
+	printf("====== spa_vdev_attach(-):ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS\n");
+#endif
 			return (spa_vdev_exit(spa, NULL, txg,
 			    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS));
 		}
@@ -7750,16 +7763,34 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	    VDEV_ALLOC_ATTACH) != 0)
 		return (spa_vdev_exit(spa, NULL, txg, EINVAL));
 
-	if (newrootvd->vdev_children != 1)
+	if (newrootvd->vdev_children != 1 && !raidz)
 		return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+
+#ifndef _KERNEL
+	printf("spa_vdev_attach():attach children=%ld\n",
+	    newrootvd->vdev_children);
+#endif
 
 	newvd = newrootvd->vdev_child[0];
 
-	if (!newvd->vdev_ops->vdev_op_leaf)
-		return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+	/// XXX: free it
+	rzcvd = kmem_zalloc((1 + newrootvd->vdev_children) * sizeof (vdev_t *), KM_SLEEP);
 
-	if ((error = vdev_create(newrootvd, txg, replacing)) != 0)
+	for (int i = 0; i < newrootvd->vdev_children; i++) {
+		ivd = newrootvd->vdev_child[i];
+		rzcvd[i] = ivd;
+		if (!ivd->vdev_ops->vdev_op_leaf)
+			return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+	}
+
+	if ((error = vdev_create(newrootvd, txg, replacing)) != 0) {
+#if defined(_KERNEL) && defined(__linux__)
+		printk("====== spa_vdev_attach():vdev_create(), err=%d", error);
+#else
+		printf("====== spa_vdev_attach():vdev_create(), err=%d\n", error);
+#endif
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
+	}
 
 	/*
 	 * log, dedup and special vdevs should not be replaced by spares.
@@ -7772,9 +7803,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	/*
 	 * A dRAID spare can only replace a child of its parent dRAID vdev.
 	 */
-	if (newvd->vdev_ops == &vdev_draid_spare_ops &&
-	    oldvd->vdev_top != vdev_draid_spare_get_parent(newvd)) {
-		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+	for (int i = 0; i < newrootvd->vdev_children; i++) {
+		ivd = newrootvd->vdev_child[i];
+		if (ivd->vdev_ops == &vdev_draid_spare_ops &&
+		    oldvd->vdev_top != vdev_draid_spare_get_parent(ivd)) {
+			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		}
 	}
 
 	if (rebuild) {
@@ -7807,6 +7841,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 		pvops = &vdev_mirror_ops;
 	} else {
+		newvd = newrootvd->vdev_child[0];
+		ASSERT(newrootvd->vdev_children == 1);
+
 		/*
 		 * Active hot spares can only be replaced by inactive hot
 		 * spares.
@@ -7847,25 +7884,38 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	/*
 	 * Make sure the new device is big enough.
 	 */
-	vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
-	if (newvd->vdev_asize < vdev_get_min_asize(min_vdev))
-		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
-
 	/*
 	 * The new device cannot have a higher alignment requirement
 	 * than the top-level vdev.
 	 */
-	if (newvd->vdev_ashift > oldvd->vdev_top->vdev_ashift) {
-		return (spa_vdev_exit(spa, newrootvd, txg,
-		    ZFS_ERR_ASHIFT_MISMATCH));
+	for (int i = 0; i < newrootvd->vdev_children; i++) {
+		ivd = newrootvd->vdev_child[i];
+		vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
+		if (ivd->vdev_asize < vdev_get_min_asize(min_vdev)) {
+#if defined(_KERNEL) && defined(__linux__)
+	printk("====== spa_vdev_attach() => EOVERFLOW, raidz=%d, %llu < %llu",
+			    raidz, ivd->vdev_asize, vdev_get_min_asize(min_vdev));
+#else
+	printf("====== spa_vdev_attach() => EOVERFLOW, raidz=%d, %lu < %lu\n",
+			    raidz, ivd->vdev_asize, vdev_get_min_asize(min_vdev));
+#endif
+			return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
+		}
+
+
+		if (ivd->vdev_ashift > oldvd->vdev_top->vdev_ashift)
+			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 	}
 
 	/*
 	 * RAIDZ-expansion-specific checks.
 	 */
 	if (raidz) {
-		if (vdev_raidz_attach_check(newvd) != 0)
-			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		for (int i = 0; i < newrootvd->vdev_children; i++) {
+			ivd = newrootvd->vdev_child[i];
+			if (vdev_raidz_attach_check(ivd) != 0)
+				return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		}
 
 		/*
 		 * Fail early if a child is not healthy or being replaced
@@ -7883,9 +7933,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 				    EADDRINUSE));
 			}
 		}
-	}
 
-	if (raidz) {
 		/*
 		 * Note: oldvdpath is freed by spa_strfree(),  but
 		 * kmem_asprintf() is freed by kmem_strfree(), so we have to
@@ -7931,23 +7979,28 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	ASSERT(pvd->vdev_top->vdev_parent == rvd);
 
 	/*
-	 * Extract the new device from its root and add it to pvd.
-	 */
-	vdev_remove_child(newrootvd, newvd);
-	newvd->vdev_id = pvd->vdev_children;
-	newvd->vdev_crtxg = oldvd->vdev_crtxg;
-	vdev_add_child(pvd, newvd);
-
-	/*
 	 * Reevaluate the parent vdev state.
 	 */
 	vdev_propagate_state(pvd);
 
-	tvd = newvd->vdev_top;
-	ASSERT(pvd->vdev_top == tvd);
-	ASSERT(tvd->vdev_parent == rvd);
+	/*
+	 * Extract the new device from its root and add it to pvd.
+	 */
+	tvd = newvd; // XXX prevent warning about uninitilized variable
+	for (int i = 0; i < newrootvd->vdev_children; i++) { /// XXX it is possible that children will be changed inside the lopp
+		ivd = newrootvd->vdev_child[i];
 
-	vdev_config_dirty(tvd);
+		vdev_remove_child(newrootvd, ivd);
+		ivd->vdev_id = pvd->vdev_children;
+		ivd->vdev_crtxg = oldvd->vdev_crtxg;
+		vdev_add_child(pvd, ivd);
+
+		tvd = ivd->vdev_top;
+		ASSERT(pvd->vdev_top == tvd);
+		ASSERT(tvd->vdev_parent == rvd);
+
+		vdev_config_dirty(tvd);
+	}
 
 	/*
 	 * Set newvd's DTL to [TXG_INITIAL, dtl_max_txg) so that we account
@@ -7978,7 +8031,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
 		    dtl_max_txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
-		    newvd, tx);
+		    rzcvd, tx); /// XXX pass attached childrent thru void *arg
 		dmu_tx_commit(tx);
 	} else {
 		vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
@@ -8020,15 +8073,22 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	}
 
 	if (spa->spa_bootfs)
-		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
+		for (int i = 0; i < newrootvd->vdev_children; i++) {
+			ivd = tvd->vdev_child[i];
+			spa_event_notify(spa, ivd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
+		}
 
-	spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_ATTACH);
+	for (int i = 0; i < newrootvd->vdev_children; i++) {
+		newvd = tvd->vdev_child[i];
+		spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_ATTACH);
+	}
 
 	/*
 	 * Commit the config
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
 
+	// XXX update spa history to support multiple devices attach
 	spa_history_log_internal(spa, "vdev attach", NULL,
 	    "%s vdev=%s %s vdev=%s",
 	    replacing && newvd_isspare ? "spare in" :

@@ -58,7 +58,7 @@ typedef struct raidz_test_opts {
 	size_t rto_sweep;
 	size_t rto_sweep_timeout;
 	size_t rto_benchmark;
-	size_t rto_expand;
+	uint64_t rto_expand;
 	uint64_t rto_expand_offset;
 	size_t rto_sanity;
 	size_t rto_gdb;
