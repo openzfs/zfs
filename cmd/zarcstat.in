@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: CDDL-1.0
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
-# For a definition of fields, or usage, use arcstat -v
+# For a definition of fields, or usage, use zarcstat -v
 #
 # This script was originally a fork of the original arcstat.pl (0.1)
 # by Neelakanth Nadgir, originally published on his Sun blog on
@@ -262,7 +262,7 @@ hdr_intr = 20          # Print header every 20 lines of output
 opfile = None
 sep = "  "              # Default separator is 2 spaces
 l2exist = False
-cmd = ("Usage: arcstat [-havxp] [-f fields] [-o file] [-s string] [interval "
+cmd = ("Usage: zarcstat [-havxp] [-f fields] [-o file] [-s string] [interval "
        "[count]]\n")
 cur = {}
 d = {}
@@ -349,10 +349,10 @@ def usage():
                      "character or string\n")
     sys.stderr.write("\t -p : Disable auto-scaling of numerical fields\n")
     sys.stderr.write("\nExamples:\n")
-    sys.stderr.write("\tarcstat -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat -s \",\" -o /tmp/a.log 2 10\n")
-    sys.stderr.write("\tarcstat -v\n")
-    sys.stderr.write("\tarcstat -f time,hit%,dh%,ph%,mh% 1\n")
+    sys.stderr.write("\tzarcstat -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tzarcstat -s \",\" -o /tmp/a.log 2 10\n")
+    sys.stderr.write("\tzarcstat -v\n")
+    sys.stderr.write("\tzarcstat -f time,hit%,dh%,ph%,mh% 1\n")
     sys.stderr.write("\n")
 
     sys.exit(1)
