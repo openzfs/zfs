@@ -222,9 +222,11 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_ATOMIC_ALIGNMENT], [
 		ATOMIC_ALIGNMENT=-Watomic-alignment
 		AC_DEFINE([HAVE_ATOMIC_ALIGNMENT], 1,
 			[Define if compiler supports -Watomic-alignment])
+		AM_CONDITIONAL([HAVE_ATOMIC_ALIGNMENT], [true])
 		AC_MSG_RESULT([yes])
 	], [
 		ATOMIC_ALIGNMENT=
+		AM_CONDITIONAL([HAVE_ATOMIC_ALIGNMENT], [false])
 		AC_MSG_RESULT([no])
 	])
 
