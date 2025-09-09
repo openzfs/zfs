@@ -84,7 +84,7 @@ my $tagged_patterns = q(
 
 	# Unsuffixed programs (or generated of same)
 	cmd/arcstat.in
-	cmd/arc_summary
+	cmd/zarcsummary
 	cmd/dbufstat.in
 	cmd/zilstat.in
 	cmd/zpool/zpool.d/*

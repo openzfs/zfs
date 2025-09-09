@@ -1,4 +1,4 @@
-#! /bin/ksh -p
+#!/bin/ksh -p
 # SPDX-License-Identifier: CDDL-1.0
 #
 # CDDL HEADER START
@@ -30,16 +30,10 @@
 
 is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
 
-log_assert "arc_summary generates output and doesn't return an error code"
+log_assert "zarcsummary generates an error code with invalid options"
 
-# Without this, the below checks aren't going to work the way we hope...
-set -o pipefail
-
-for arg in "" "-a" "-d" "-p 1" "-g" "-s arc" "-r"; do
-	log_must eval "arc_summary $arg > /dev/null"
+for arg in "-x" "-5" "-p 7" "--err" "-@"; do
+        log_mustnot eval "zarcsummary $arg > /dev/null"
 done
 
-log_must eval "arc_summary | head > /dev/null"
-log_must eval "arc_summary | head -1 > /dev/null"
-
-log_pass "arc_summary generates output and doesn't return an error code"
+log_pass "zarcsummary generates an error code with invalid options"
