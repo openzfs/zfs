@@ -192,8 +192,12 @@ USER_H = \
 	libzfs_core.h \
 	libzfsbootenv.h \
 	libzutil.h \
-	thread_pool.h
+	thread_pool.h \
+	zfsacl.h
 
+if BUILD_LINUX
+USER_H += sunacl.h
+endif
 
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs

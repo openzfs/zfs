@@ -61,11 +61,13 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg4=libzfs6-$${version}.$${arch}.rpm; \
 	pkg5=libzpool6-$${version}.$${arch}.rpm; \
 	pkg6=libzfs6-devel-$${version}.$${arch}.rpm; \
-	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
-	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
-	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
-	pkg10=`ls python3-pyzfs-$${version}.noarch.rpm 2>/dev/null`; \
-	pkg11=`ls pam_zfs_key-$${version}.$${arch}.rpm 2>/dev/null`; \
+	pkg7=libzfsacl1-$${version}.$${arch}.rpm; \
+	pkg8=$${name}-test-$${version}.$${arch}.rpm; \
+	pkg9=$${name}-dracut-$${version}.noarch.rpm; \
+	pkg10=$${name}-initramfs-$${version}.$${arch}.rpm; \
+	pkg11=`ls python3-pyzfs-$${version}.noarch.rpm 2>/dev/null`; \
+	pkg12=`ls pam_zfs_key-$${version}.$${arch}.rpm 2>/dev/null`; \
+	pkg13=`ls python3-libzfsacl-$${version}.$${arch}.rpm 2>/dev/null`; \
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
@@ -81,11 +83,11 @@ deb-utils: deb-local rpm-utils-initramfs
 	env "PATH=$${path_prepend}:$${PATH}" \
 	fakeroot $(ALIEN) --bump=0 --scripts --to-deb --target=$$debarch \
 	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
-	    $$pkg8 $$pkg9 $$pkg10 $$pkg11 || exit 1; \
+	    $$pkg8 $$pkg9 $$pkg10 $$pkg11 $$pkg12 $$pkg13 || exit 1; \
 	$(RM) $${path_prepend}/dh_shlibdeps; \
 	rmdir $${path_prepend}; \
 	$(RM) $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
-	    $$pkg8 $$pkg9 $$pkg10 $$pkg11;
+	    $$pkg8 $$pkg9 $$pkg10 $$pkg11 $$pkg12 $$pkg13;
 
 deb: deb-kmod deb-dkms deb-utils
 

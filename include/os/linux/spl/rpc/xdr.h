@@ -23,6 +23,7 @@
 #define	_SPL_RPC_XDR_H
 
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 /*
  * XDR enums and types.

@@ -1,0 +1,908 @@
+#!/usr/bin/env @PYTHON_SHEBANG@
+#
+# This script manipulates the NFSv4 ACLs for one or more files or
+# directories on a ZFS filesystem with acltype set to nfsv4.
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License, Version 1.0 only
+# (the "License").  You may not use this file except in compliance
+# with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# This script must remain compatible with Python 3.6+.
+#
+
+#
+# Copyright (c) 2023 by iXsystems, Inc. All rights reserved.
+#
+
+import sys
+import os
+import grp
+import pwd
+import argparse
+import json
+import libzfsacl
+from enum import Enum
+import re
+import stat
+import tempfile
+import subprocess
+
+class Action(Enum):
+	NO_ACTION = 0
+	MODIFY = 1
+	SUBSTITUTE = 2
+	REMOVE = 3
+	INSERT = 4
+	EDIT = 5
+	STRIP = 6
+	SET_FLAGS = 7
+	APPLY_JSON = 8
+
+class WalkType(Enum):
+	DEFAULT = 0	# Follow symbolic link args, skip links in sub-dirs
+	LOGICAL = 1	# Follow all symbolic links
+	PHYSICAL = 2	# Skip all symbolic links
+
+class HelpFormatter(argparse.HelpFormatter):
+	def add_usage(self, usage, actions, groups, prefix=None):
+		pass
+
+SUCCESSFUL_ACCESS_ACE_FLAG = 0x10
+FAILED_ACCESS_ACE_FLAG = 0x20
+
+NFS4_ACE_BASE_ALLOW_PSARC = libzfsacl.PERM_READ_ACL | \
+			libzfsacl.PERM_READ_ATTRIBUTES | \
+			libzfsacl.PERM_SYNCHRONIZE | \
+			libzfsacl.PERM_READ_NAMED_ATTRS
+
+NFS4_ACE_USER_ALLOW_PSARC = libzfsacl.PERM_WRITE_ACL | \
+			libzfsacl.PERM_WRITE_OWNER | \
+			libzfsacl.PERM_WRITE_ATTRIBUTES | \
+			libzfsacl.PERM_WRITE_NAMED_ATTRS
+
+NFS4_ACE_POSIX_WRITE =	libzfsacl.PERM_WRITE_DATA | \
+			libzfsacl.PERM_APPEND_DATA | \
+			libzfsacl.PERM_DELETE_CHILD
+
+def usage(ret):
+	info = \
+""" - Manipulate NFSv4 file/directory access control lists
+Usage: nfs4xdr_setfacl [OPTIONS] COMMAND file ...
+ .. where COMMAND is one of:
+   -a acl_spec[,index]	 add ACL entries in acl_spec at index (DEFAULT: 1)
+   -A file[,index]	 read ACL entries to add from file
+   -x acl_spec | index	 remove ACL entries or entry-at-index from ACL
+   -X file  		 read ACL entries to remove from file
+   -s acl_spec		 set ACL to acl_spec (replaces existing ACL)
+   -S file		 read ACL entries to set from file
+   -b file		 strip ACL entry from the file
+   -j <json>		 replace ACL with one represented in JSON
+   -p aclflags file	 set specified ACL flags on file
+   -e, --edit 		 edit ACL in $EDITOR (DEFAULT: vi); save on clean exit
+   -m from_ace to_ace	 modify in-place: replace 'from_ace' with 'to_ace'
+   --version		 print version and exit
+   -?, -h, --help 	 display this text and exit
+
+ .. and where OPTIONS is any (or none) of:
+   -R, --recursive	 recursively apply to all files and directories
+   -L, --logical	 logical walk, follow symbolic links
+   -P, --physical	 physical walk, do not follow symbolic links
+   --test	 	 print resulting ACL, do not save changes
+"""
+	print(sys.argv[0] + info, file=sys.stderr)
+	sys.exit(ret)
+
+def verify_optional_value(arg):
+	args = arg.split(',')
+	if len(args) == 0:
+		raise argparse.ArgumentTypeError('Atleast one value is required')
+	elif len(args) > 2:
+		raise argparse.ArgumentTypeError('Too many values')
+	elif len(args) == 2:
+		if args[1].isdecimal():
+			args[1] = int(args[1])
+			return args
+		else:
+			raise argparse.ArgumentTypeError('Integer index expected')
+	else:
+		return args
+
+def validate_action(act, action):
+	if act == Action.NO_ACTION:
+		return action
+	else:
+		print('More than one action specified', file=sys.stderr)
+		usage(1)
+
+def validate_walk_type(walk, walk_type, recursive):
+	if walk == WalkType.DEFAULT:
+		if recursive:
+			return walk_type
+		else:
+			print('Walk Type specified without recursive flag',
+				file=sys.stderr)
+			usage(1)
+	else:
+		print('More than one walk type specified', file=sys.stderr)
+		usage(1)
+
+def validate_filepath(f):
+	if not os.path.exists(f):
+		print(f'{sys.argv[0]}: File not found: {f}', file=sys.stderr)
+		sys.exit(1)
+
+def parse_args():
+	parser = argparse.ArgumentParser(
+		description='Manipulate NFSv4 file/directory access control lists',
+		add_help=False, formatter_class=HelpFormatter)
+
+	parser.add_argument('-a', '--add-spec', type=verify_optional_value)
+	parser.add_argument('-A', '--add-file', type=verify_optional_value)
+	parser.add_argument('-s', '--set-spec', type=str)
+	parser.add_argument('-S', '--set-file', type=str)
+	parser.add_argument('-x', '--remove-spec', type=str)
+	parser.add_argument('-X', '--remove-file', type=str)
+	parser.add_argument('-m', '--modify', nargs=2, type=str)
+	parser.add_argument('-p', '--set-flags', type=str)
+	parser.add_argument('-e', '--edit', action='store_true')
+	parser.add_argument('-b', '--strip', action='store_true')
+	parser.add_argument('-j', '--apply-json', type=str)
+	parser.add_argument('-t', '--test', action='store_true')
+	parser.add_argument('-R', '--recursive', action='store_true')
+	parser.add_argument('-P', '--physical', action='store_true')
+	parser.add_argument('-L', '--logical', action='store_true')
+	parser.add_argument('-h', '--help', action='store_true')
+	parser.add_argument('file', type=str)
+
+	try:
+		args, unknown = parser.parse_known_args()
+	except argparse.ArgumentTypeError as e:
+		print(e, file=sys.stderr)
+
+	if unknown:
+		usage(2)
+	if args.help:
+		usage(0)
+
+	action = Action.NO_ACTION
+	walk = WalkType.DEFAULT
+	spec_file = False
+	obj = None
+	if args.add_spec != None:
+		action = validate_action(action, Action.INSERT)
+		obj = args.add_spec
+	if args.add_file != None:
+		action = validate_action(action, Action.INSERT)
+		obj = args.add_file
+		spec_file = True
+	if args.set_spec != None:
+		action = validate_action(action, Action.SUBSTITUTE)
+		obj = [args.set_spec]
+	if args.set_file != None:
+		action = validate_action(action, Action.SUBSTITUTE)
+		obj = [args.set_file]
+		spec_file = True
+	if args.remove_spec != None:
+		action = validate_action(action, Action.REMOVE)
+		obj = [args.remove_spec]
+	if args.remove_file != None:
+		action = validate_action(action, Action.REMOVE)
+		obj = [args.remove_file]
+		spec_file = True
+	if args.modify != None:
+		action = validate_action(action, Action.MODIFY)
+		obj = args.modify
+	if args.set_flags != None:
+		action = validate_action(action, Action.SET_FLAGS)
+		obj = [args.set_flags]
+	if args.edit == True:
+		action = validate_action(action, Action.EDIT)
+	if args.strip == True:
+		action = validate_action(action, Action.STRIP)
+	if args.apply_json != None:
+		action = validate_action(action, Action.APPLY_JSON)
+		obj = [args.apply_json]
+
+	if args.physical:
+		walk = validate_walk_type(walk, WalkType.PHYSICAL, args.recursive)
+	if args.logical:
+		walk = validate_walk_type(walk, WalkType.LOGICAL, args.recursive)
+
+	if action == Action.NO_ACTION:
+		print('No action specified')
+		sys.exit(1)
+
+	data = {
+		'action' : action,
+		'specfile' : spec_file,
+		'object' : obj,
+		'recursive' : (args.recursive, walk),
+		'test' : args.test,
+		'file' : args.file
+	}
+
+	return data
+
+def read_acl_spec_from_file(filepath):
+	validate_filepath(filepath)
+	with open(filepath, 'r') as f:
+		lines = f.readlines()
+	lines = [line for line in lines if not line.startswith('#')]
+	return ''.join(lines)
+
+def format_who(who):
+	who_strs = {
+		libzfsacl.WHOTYPE_UNDEFINED : '',
+		libzfsacl.WHOTYPE_USER_OBJ : 'owner@',
+		libzfsacl.WHOTYPE_GROUP_OBJ : 'group@',
+		libzfsacl.WHOTYPE_EVERYONE : 'everyone@',
+		libzfsacl.WHOTYPE_USER : 'user',
+		libzfsacl.WHOTYPE_GROUP : 'group'
+	}
+
+	if who[0] == libzfsacl.WHOTYPE_GROUP:
+		name = grp.getgrgid(who[1])[0]
+	elif who[0] == libzfsacl.WHOTYPE_USER:
+		name = pwd.getpwuid(who[1])[0]
+
+	if who[0] == libzfsacl.WHOTYPE_GROUP or who[0] == libzfsacl.WHOTYPE_USER:
+		return who_strs[who[0]] + ':' + name
+	elif who[0] <= libzfsacl.WHOTYPE_EVERYONE:
+		return who_strs[who[0]]
+
+def format_to_text(field, to_text):
+	text = ''
+	seperator = ''
+	selector = 1
+	skip = '-'
+	for x in to_text:
+		if field & x != 0:
+			text += (to_text[x][selector] + seperator)
+		else:
+			text += skip
+	return text
+
+def format_perms(permset):
+	perms_to_text = {
+		libzfsacl.PERM_READ_DATA : ('read_data', 'r'),
+		libzfsacl.PERM_WRITE_DATA : ('write_data', 'w'),
+		libzfsacl.PERM_EXECUTE : ('execute', 'x'),
+		libzfsacl.PERM_APPEND_DATA : ('append_data', 'p'),
+		libzfsacl.PERM_DELETE_CHILD : ('delete_child', 'D'),
+		libzfsacl.PERM_DELETE : ('delete', 'd'),
+		libzfsacl.PERM_READ_ATTRIBUTES : ('read_attributes', 'a'),
+		libzfsacl.PERM_WRITE_ATTRIBUTES : ('write_attributes', 'A'),
+		libzfsacl.PERM_READ_NAMED_ATTRS : ('read_xattr', 'R'),
+		libzfsacl.PERM_WRITE_NAMED_ATTRS : ('write_xattr', 'W'),
+		libzfsacl.PERM_READ_ACL : ('read_acl', 'c'),
+		libzfsacl.PERM_WRITE_ACL : ('write_acl', 'C'),
+		libzfsacl.PERM_WRITE_OWNER : ('write_owner', 'o'),
+		libzfsacl.PERM_SYNCHRONIZE : ('synchronize', 's')
+	}
+	return format_to_text(permset, perms_to_text)
+
+def format_flagset(flagset):
+	flags_to_text = {
+		libzfsacl.FLAG_FILE_INHERIT : ('file_inherit', 'f'),
+		libzfsacl.FLAG_DIRECTORY_INHERIT : ('dir_inherit', 'd'),
+		libzfsacl.FLAG_INHERIT_ONLY : ('inherit_only', 'i'),
+		libzfsacl.FLAG_NO_PROPAGATE_INHERIT : ('no_propagate', 'n'),
+		SUCCESSFUL_ACCESS_ACE_FLAG : ('successful_access', 'S'),
+		FAILED_ACCESS_ACE_FLAG : ('failed_access', 'F'),
+		libzfsacl.FLAG_INHERITED : ('inherited', 'I'),
+	}
+	return format_to_text(flagset, flags_to_text)
+
+def format_type(etype):
+	if etype == libzfsacl.ENTRY_TYPE_ALLOW:
+		return 'allow'
+	elif etype == libzfsacl.ENTRY_TYPE_DENY:
+		return 'deny'
+
+def format_entry(entry):
+	return {
+		'who' : format_who(entry.who),
+		'permset' : format_perms(entry.permset),
+		'flagset' : format_flagset(entry.flagset),
+		'type' : format_type(entry.entry_type)
+	}
+
+def print_acl_text(acl, fp, fobj, test):
+	if test:
+		print(f'## Test mode only - the resulting ACL for "{fp}":', file=fobj)
+	else:
+		if os.path.isdir(fp):
+			print(f'## Editing NFSv4 ACL for directory: {fp}', file=fobj)
+		elif os.path.isfile(fp):
+			print(f'## Editing NFSv4 ACL for file: {fp}', file=fobj)
+	for i in range (acl.ace_count):
+		ace = format_entry(acl.get_entry(i))
+		print(f"{ace['who']:>18}:{ace['permset']}:{ace['flagset']}:{ace['type']}",
+			file=fobj)
+
+def parse_tag(tag):
+	need_id = False
+	whotype = -1
+	if tag == 'owner@':
+		whotype = libzfsacl.WHOTYPE_USER_OBJ
+	elif tag == 'group@':
+		whotype = libzfsacl.WHOTYPE_GROUP_OBJ
+	elif tag == 'everyone@':
+		whotype = libzfsacl.WHOTYPE_EVERYONE
+	elif tag == 'user' or tag == 'u':
+		whotype = libzfsacl.WHOTYPE_USER
+		need_id = True
+	elif tag == 'group' or tag == 'g':
+		whotype = libzfsacl.WHOTYPE_GROUP
+		need_id = True
+	elif whotype == -1:
+		print('Malformed ACL: invalid "tag" field', file=sys.stderr)
+		sys.exit(1)
+	return (whotype, need_id)
+
+def parse_id(wtype, name):
+	if wtype == libzfsacl.WHOTYPE_USER:
+		try:
+			id = pwd.getpwnam(name)[2]
+		except KeyError as e:
+			print('User ID not found with given user name', file=sys.stderr)
+			sys.exit(1)
+	elif wtype == libzfsacl.WHOTYPE_GROUP:
+		try:
+			id = grp.getgrnam(name)[2]
+		except KeyError as e:
+			print('Group ID not found with given user name', file=sys.stderr)
+			sys.exit(1)
+	return id
+
+def parse_flags(flags, verbose, compact, const):
+	ret = 0
+	if not flags:
+		return ret
+	if '/' in flags or flags in verbose:
+		flags = flags.split('/')
+		for flag in flags:
+			if not flag:
+				continue
+			if flag in verbose:
+				ind = verbose.index(flag)
+				ret |= const[ind]
+			else:
+				print(f'Malformed ACL: "{flags}" contains invalid flag "{flag}"',
+					file=sys.stderr)
+				sys.exit(1)
+	elif '-' in flags or list(flags)[0] in compact:
+		for flag in flags:
+			if flag == '-':
+				continue
+			elif flag in compact:
+				ind = compact.index(flag)
+				ret |= const[ind]
+			else:
+				print(f'Malformed ACL: "{flags}" contains invalid flag "{flag}"',
+					file=sys.stderr)
+				sys.exit(1)
+	return ret
+
+def parse_permset(perms):
+	verbose_perms = [
+		'read_data',
+		'write_data',
+		'execute',
+		'append_data',
+		'delete_child',
+		'delete',
+		'read_attributes',
+		'write_attributes',
+		'read_xattr',
+		'write_xattr',
+		'read_acl',
+		'write_acl',
+		'write_owner',
+		'synchronize'
+	]
+	compact_perms = ['r', 'w', 'x', 'p', 'D', 'd', 'a', 'A', 'R', 'W',
+		'c', 'C', 'o', 's']
+	const_perms = [
+		libzfsacl.PERM_READ_DATA,
+		libzfsacl.PERM_WRITE_DATA,
+		libzfsacl.PERM_EXECUTE,
+		libzfsacl.PERM_APPEND_DATA,
+		libzfsacl.PERM_DELETE_CHILD,
+		libzfsacl.PERM_DELETE,
+		libzfsacl.PERM_READ_ATTRIBUTES,
+		libzfsacl.PERM_WRITE_ATTRIBUTES,
+		libzfsacl.PERM_READ_NAMED_ATTRS,
+		libzfsacl.PERM_WRITE_NAMED_ATTRS,
+		libzfsacl.PERM_READ_ACL,
+		libzfsacl.PERM_WRITE_ACL,
+		libzfsacl.PERM_WRITE_OWNER,
+		libzfsacl.PERM_SYNCHRONIZE
+	]
+	return parse_flags(perms, verbose_perms, compact_perms, const_perms)
+
+def parse_flagset(flags):
+	verbose_flags = [
+		'file_inherit',
+		'dir_inherit',
+		'inherit_only',
+		'no_propagate',
+		'inherited'
+	]
+	compact_flags = ['f', 'd', 'i', 'n', 'I']
+	const_perms = [
+		libzfsacl.FLAG_FILE_INHERIT,
+		libzfsacl.FLAG_DIRECTORY_INHERIT,
+		libzfsacl.FLAG_INHERIT_ONLY,
+		libzfsacl.FLAG_NO_PROPAGATE_INHERIT,
+		libzfsacl.FLAG_INHERITED
+	]
+	return parse_flags(flags, verbose_flags, compact_flags, const_perms)
+
+def parse_entry_type(etype):
+	if etype == 'allow':
+		return libzfsacl.ENTRY_TYPE_ALLOW
+	elif etype == 'deny':
+		return libzfsacl.ENTRY_TYPE_DENY
+	else:
+		print(f'Invalid entry type: {etype}', file=sys.stderr)
+		sys.exit(1)
+
+def parse_json_perms(perms):
+	ret = 0
+	if perms['READ_DATA']:
+		ret |= libzfsacl.PERM_READ_DATA
+	if perms['WRITE_DATA']:
+		ret |= libzfsacl.PERM_WRITE_DATA
+	if perms['EXECUTE']:
+		ret |= libzfsacl.PERM_EXECUTE
+	if perms['APPEND_DATA']:
+		ret |= libzfsacl.PERM_APPEND_DATA
+	if perms['DELETE_CHILD']:
+		ret |= libzfsacl.PERM_DELETE_CHILD
+	if perms['DELETE']:
+		ret |= libzfsacl.PERM_DELETE
+	if perms['READ_ATTRIBUTES']:
+		ret |= libzfsacl.PERM_READ_ATTRIBUTES
+	if perms['WRITE_ATTRIBUTES']:
+		ret |= libzfsacl.PERM_WRITE_ATTRIBUTES
+	if perms['READ_NAMED_ATTRS']:
+		ret |= libzfsacl.PERM_READ_NAMED_ATTRS
+	if perms['WRITE_NAMED_ATTRS']:
+		ret |= libzfsacl.PERM_WRITE_NAMED_ATTRS
+	if perms['READ_ACL']:
+		ret |= libzfsacl.PERM_READ_ACL
+	if perms['WRITE_ACL']:
+		ret |= libzfsacl.PERM_WRITE_ACL
+	if perms['WRITE_OWNER']:
+		ret |= libzfsacl.PERM_WRITE_OWNER
+	if perms['SYNCHRONIZE']:
+		ret |= libzfsacl.PERM_SYNCHRONIZE
+	return ret
+
+def parse_json_flags(flags):
+	ret = 0
+	if 'BASIC' in flags:
+		if flags['BASIC'] == 'NOINHERIT':
+			return ret
+	if flags['FILE_INHERIT']:
+		ret |= libzfsacl.FLAG_FILE_INHERIT
+	if flags['DIR_INHERIT']:
+		ret |= libzfsacl.FLAG_DIRECTORY_INHERIT
+	if flags['INHERIT_ONLY']:
+		ret |= libzfsacl.FLAG_INHERIT_ONLY
+	if flags['NO_PROPAGATE']:
+		ret |= libzfsacl.FLAG_NO_PROPAGATE_INHERIT
+	if flags['INHERITED']:
+		ret |= libzfsacl.FLAG_INHERITED
+	return ret
+
+def parse_json_acl_flags(flags):
+	ret = 0
+	if flags['AUTOINHERIT']:
+		ret |= libzfsacl.ACL_AUTO_INHERIT
+	if flags['DEFAULTED']:
+		ret |= libzfsacl.ACL_DEFAULT
+	if flags['PROTECTED']:
+		ret |= libzfsacl.ACL_PROTECTED
+	return ret
+
+def find_ind_by_spec(acl, spec):
+	for i in range (acl.ace_count):
+		ace = format_entry(acl.get_entry(i))
+		fmt = f"{ace['who']}:{ace['permset']}:{ace['flagset']}:{ace['type']}"
+		if fmt == spec:
+			return i
+	return -1
+
+def nfs4acl_sync_mode(acl):
+	mode = 0
+	allow = 0
+	deny = 0
+	for i in range (acl.ace_count):
+		entry = acl.get_entry(i)
+		if entry.entry_type != libzfsacl.ENTRY_TYPE_ALLOW and \
+			entry.entry_type != libzfsacl.ENTRY_TYPE_DENY:
+			print(f'Invalid ACE type: {entry.entry_type}', file=sys.stderr)
+			continue
+
+		if entry.who[0] == libzfsacl.WHOTYPE_USER_OBJ:
+			if entry.permset & libzfsacl.PERM_READ_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IRUSR
+				else:
+					deny |= stat.S_IRUSR
+			if entry.permset & libzfsacl.PERM_WRITE_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IWUSR
+				else:
+					deny |= stat.S_IWUSR
+			if entry.permset & libzfsacl.PERM_EXECUTE:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IXUSR
+				else:
+					deny |= stat.S_IXUSR
+
+		elif entry.who[0] == libzfsacl.WHOTYPE_GROUP_OBJ:
+			if entry.permset & libzfsacl.PERM_READ_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IRGRP
+				else:
+					deny |= stat.S_IRGRP
+			if entry.permset & libzfsacl.PERM_WRITE_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IWGRP
+				else:
+					deny |= stat.S_IWGRP
+			if entry.permset & libzfsacl.PERM_EXECUTE:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= stat.S_IXGRP
+				else:
+					deny |= stat.S_IXGRP
+
+		elif entry.who[0] == libzfsacl.WHOTYPE_EVERYONE:
+			if entry.permset & libzfsacl.PERM_READ_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+				else:
+					deny |= (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+			if entry.permset & libzfsacl.PERM_WRITE_DATA:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+				else:
+					deny |= (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+			if entry.permset & libzfsacl.PERM_EXECUTE:
+				if entry.entry_type == libzfsacl.ENTRY_TYPE_ALLOW:
+					allow |= (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+				else:
+					deny |= (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+	mode = allow & ~deny
+	return mode
+
+def nfs4acl_from_mode(acl, mode):
+	user_allow_first = user_allow = user_deny = 0
+	group_allow = group_deny = 0
+	everyone_allow = 0
+
+	user_allow = group_allow = everyone_allow = NFS4_ACE_BASE_ALLOW_PSARC
+	user_allow |= NFS4_ACE_USER_ALLOW_PSARC
+	if mode & stat.S_IRUSR:
+		user_allow |= libzfsacl.PERM_READ_DATA
+	if mode & stat.S_IWUSR:
+		user_allow |= NFS4_ACE_POSIX_WRITE
+	if mode & stat.S_IXUSR:
+		user_allow |= libzfsacl.PERM_EXECUTE
+	if mode & stat.S_IRGRP:
+		group_allow |= libzfsacl.PERM_READ_DATA
+	if mode & stat.S_IWGRP:
+		group_allow |= NFS4_ACE_POSIX_WRITE
+	if mode & stat.S_IXGRP:
+		group_allow |= libzfsacl.PERM_EXECUTE
+	if mode & stat.S_IROTH:
+		everyone_allow |= libzfsacl.PERM_READ_DATA
+	if mode & stat.S_IWOTH:
+		everyone_allow |= NFS4_ACE_POSIX_WRITE
+	if mode & stat.S_IXOTH:
+		everyone_allow |= libzfsacl.PERM_EXECUTE
+
+	user_deny = ((group_allow | everyone_allow) & (~user_allow))
+	group_deny = (everyone_allow & (~group_allow))
+	user_allow_first = (group_deny & (~user_deny))
+
+	if user_allow_first != 0:
+		entry = acl.create_entry()
+		entry.entry_type = libzfsacl.ENTRY_TYPE_ALLOW
+		entry.permset = user_allow_first
+		entry.flagset = 0
+		entry.who = (libzfsacl.WHOTYPE_USER_OBJ, -1)
+
+	if user_deny != 0:
+		entry = acl.create_entry()
+		entry.entry_type = libzfsacl.ENTRY_TYPE_DENY
+		entry.permset = user_deny
+		entry.flagset = 0
+		entry.who = (libzfsacl.WHOTYPE_USER_OBJ, -1)
+
+	if group_deny != 0:
+		entry = acl.create_entry()
+		entry.entry_type = libzfsacl.ENTRY_TYPE_DENY
+		entry.permset = group_deny
+		entry.flagset = 0
+		entry.who = (libzfsacl.WHOTYPE_GROUP_OBJ, -1)
+
+	entry = acl.create_entry()
+	entry.entry_type = libzfsacl.ENTRY_TYPE_ALLOW
+	entry.permset = user_allow
+	entry.flagset = 0
+	entry.who = (libzfsacl.WHOTYPE_USER_OBJ, -1)
+
+	entry = acl.create_entry()
+	entry.entry_type = libzfsacl.ENTRY_TYPE_ALLOW
+	entry.permset = group_allow
+	entry.flagset = 0
+	entry.who = (libzfsacl.WHOTYPE_GROUP_OBJ, -1)
+
+	entry = acl.create_entry()
+	entry.entry_type = libzfsacl.ENTRY_TYPE_ALLOW
+	entry.permset = everyone_allow
+	entry.flagset = 0
+	entry.who = (libzfsacl.WHOTYPE_EVERYONE, -1)
+
+def insert_at(acl, ind, spec):
+	next = 0
+	parts = spec.split(':')
+	if len(parts) not in [4, 5]:
+		print(f'Invalid ACE provided: {spec}', file=sys.stderr)
+		return -1
+	if ind == acl.ace_count:
+		entry = acl.create_entry()
+	else:
+		entry = acl.create_entry(ind)
+	whotype, need_id = parse_tag(parts[next])
+	next += 1
+	whoid = -1
+	if need_id:
+		whoid = parse_id(whotype, parts[next])
+		next += 1
+	entry.who = (whotype, whoid)
+	entry.permset = parse_permset(parts[next])
+	next += 1
+	entry.flagset = parse_flagset(parts[next])
+	next +=1
+	entry.entry_type = parse_entry_type(parts[next])
+	return 0
+
+def insert(fp, spec, index, test):
+	print(f'ace_index: {index} mod_string: {spec}')
+	acl = libzfsacl.Acl(path=fp)
+	specs = re.split(r'\s|\t|,', spec)
+	i = 0
+	for s in specs:
+		if not s:
+			continue
+		if insert_at(acl, index + i, s) != 0:
+			return -1
+		i += 1
+	if test:
+		print_acl_text(acl, fp, sys.stdout, test)
+	else:
+		acl.setacl(path=fp)
+	return 0
+
+def substitute(fp, spec, test):
+	acl = libzfsacl.Acl(path=fp)
+	count = acl.ace_count
+	if count > 1:
+		for i in range (count - 1):
+			acl.delete_entry(0)
+	specs = re.split(r'\s|\t|,', spec)
+	for s in reversed(specs):
+		if not s:
+			continue
+		if insert_at(acl, 0, s) != 0:
+			return -1
+	acl.delete_entry(acl.ace_count - 1)
+	if test:
+		print_acl_text(acl, fp, sys.stdout, test)
+	else:
+		acl.setacl(path=fp)
+	return 0
+
+def remove(fp, spec, test):
+	acl = libzfsacl.Acl(path=fp)
+	indices = []
+	if spec.isdecimal():
+		ind = int(spec)
+		if ind >= acl.ace_count or ind < 0:
+			print(f'Index {ind} is out of range ({acl.ace_count} ACEs in ACL)',
+				file=sys.stderr)
+			return -1
+		indices.append(ind)
+	else:
+		specs = re.split(r'\s|\t|,', spec)
+		for s in specs:
+			if not s:
+				continue
+			ind = find_ind_by_spec(acl, s)
+			if ind == -1:
+				print(f'ACL spec: {s} not found', file=sys.stderr)
+				continue
+			indices.append(ind)
+	if len(indices) > 0:
+		for i in reversed(indices):
+			acl.delete_entry(i)
+		if test:
+			print_acl_text(acl, fp, sys.stdout, test)
+		else:
+			acl.setacl(path=fp)
+		return 0
+	else:
+		return -1
+
+def modify(fp, frm, to, test):
+	acl = libzfsacl.Acl(path=fp)
+	ind = find_ind_by_spec(acl, frm)
+	if ind == -1:
+		print(f'ACL spec: {frm} not found', file=sys.stderr)
+		return -1
+	acl.delete_entry(ind)
+	if insert_at(acl, ind, to) != 0:
+		return -1
+	if test:
+		print_acl_text(acl, fp, sys.stdout, test)
+	else:
+		acl.setacl(path=fp)
+	return 0
+
+def edit(fp, test):
+	mktmplt = '.nfs4_setfacl-tmp-'
+	editor = os.environ.get('EDITOR', 'vi')
+	tfd, tfname = tempfile.mkstemp(prefix=mktmplt, text=True)
+	print(tfname)
+	acl = libzfsacl.Acl(path=fp)
+	with os.fdopen(tfd, 'w+') as f:
+		print_acl_text(acl, fp, f, False)
+	res = subprocess.run([editor, tfname])
+	if res.returncode != 0:
+		print(f'Editor "{editor}" did not exit cleanly, changes will not be saved',
+			file=sys.stderr)
+		return -1
+	spec = read_acl_spec_from_file(tfname)
+	os.remove(tfname)
+	newacl = libzfsacl.Acl()
+	specs = re.split(r'\s|\t|,', spec)
+	for s in reversed(specs):
+		if not s:
+			continue
+		if insert_at(newacl, 0, s) != 0:
+			return -1
+	if test:
+		print_acl_text(newacl, fp, sys.stdout, test)
+	else:
+		newacl.setacl(path=fp)
+	return 0
+
+def strip(fp, test):
+	acl = libzfsacl.Acl(path=fp)
+	mode = nfs4acl_sync_mode(acl)
+	newacl = libzfsacl.Acl()
+	nfs4acl_from_mode(newacl, mode)
+	if test:
+		print_acl_text(newacl, fp, sys.stdout, test)
+	else:
+		newacl.setacl(path=fp)
+	return 0
+
+def apply_json(fp, jsobj, test):
+	data = json.loads(jsobj)
+	newacl = libzfsacl.Acl()
+	for ace in data['acl']:
+		entry = newacl.create_entry()
+		if ace['type'].lower() == 'allow':
+			entry.entry_type = libzfsacl.ENTRY_TYPE_ALLOW
+		elif ace['type'].lower() == 'deny':
+			entry.entry_type = libzfsacl.ENTRY_TYPE_DENY
+		else:
+			print(f'Invalid entry type: {ace["type"]}', file=sys.stderr)
+			return -1
+		whotype, need_id = parse_tag(ace['tag'])
+		if need_id:
+			entry.who = (whotype, int(ace['id']))
+		else:
+			entry.who = (whotype, -1)
+		entry.permset = parse_json_perms(ace['perms'])
+		entry.flagset = parse_json_flags(ace['flags'])
+	newacl.acl_flags = parse_json_acl_flags(data['nfs41_flags'])
+	if test:
+		print_acl_text(newacl, fp, sys.stdout, test)
+	else:
+		newacl.setacl(path=fp)
+	return 0
+
+def set_flags(fp, flags, test):
+	flags_to_const = {
+		'autoinherit' : libzfsacl.ACL_AUTO_INHERIT,
+		'protected' : libzfsacl.ACL_PROTECTED,
+		'defaulted' : libzfsacl.ACL_DEFAULT
+	}
+	flags = flags.split(',')
+	rflags = 0
+	for flag in flags:
+		if flag not in flags_to_const:
+			print(f'Invalid flag: {flag}', file=sys.stderr)
+			return -1
+		else:
+			rflags |= flags_to_const[flag]
+	acl = libzfsacl.Acl(path=fp)
+	acl.acl_flags = rflags
+	if test:
+		print_acl_text(acl, fp, sys.stdout, test)
+	else:
+		acl.setacl(path=fp)
+	return 0
+
+def operation(action, obj, fp, test):
+	if action == Action.INSERT:
+		if (len(obj) == 2):
+			ind = obj[1]
+		else:
+			ind = 0
+		return insert(fp, obj[0], ind, test)
+	elif action == Action.SUBSTITUTE:
+		return substitute(fp, obj[0], test)
+	elif action == Action.REMOVE:
+		return remove(fp, obj[0], test)
+	elif action == Action.MODIFY:
+		return modify(fp, obj[0], obj[1], test)
+	elif action == Action.SET_FLAGS:
+		return set_flags(fp, obj[0], test)
+	elif action == Action.EDIT:
+		return edit(fp, test)
+	elif action == Action.STRIP:
+		return strip(fp, test)
+	elif action == Action.APPLY_JSON:
+		return apply_json(fp, obj[0], test)
+	else:
+		return -1
+
+def perform_op(data):
+	if data['recursive'][0]:
+		if data['recursive'][1] == WalkType.LOGICAL:
+			fl = True
+		else:
+			fl = False
+		for (dirpath, subdirs, files) in os.walk(data['file'], followlinks=fl):
+			for subdir in subdirs:
+				operation(data['action'], data['object'], dirpath + '/' + subdir, data['test'])
+			for filename in files:
+				operation(data['action'], data['object'], dirpath + '/' + filename, data['test'])
+		operation(data['action'], data['object'], data['file'], data['test'])
+		return 0
+	return operation(data['action'], data['object'], data['file'], data['test'])
+
+def main():
+	data = parse_args()
+	validate_filepath(data['file'])
+	if data['specfile']:
+		data['object'][0] = read_acl_spec_from_file(data['object'][0])
+	if perform_op(data) != 0:
+		sys.exit(1)
+	sys.exit(0)
+
+if __name__ == '__main__':
+	main()
