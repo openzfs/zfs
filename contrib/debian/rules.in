@@ -37,18 +37,19 @@ override_dh_auto_configure:
 	@# Build the userland, but don't build the kernel modules.
 	dh_auto_configure -- @CFGOPTS@ \
 	  --bindir=/usr/bin \
-	  --sbindir=/sbin \
-	  --libdir=/lib/"$(DEB_HOST_MULTIARCH)" \
-	  --with-udevdir=/lib/udev \
+	  --sbindir=/usr/sbin \
+	  --with-mounthelperdir=/usr/sbin \
+	  --libdir=/usr/lib/"$(DEB_HOST_MULTIARCH)" \
+	  --with-udevdir=/usr/lib/udev \
 	  --with-zfsexecdir=/usr/lib/zfs-linux \
 	  --enable-systemd \
 	  --enable-pyzfs \
 	  --with-python=python3 \
-	  --with-pammoduledir='/lib/$(DEB_HOST_MULTIARCH)/security' \
+	  --with-pammoduledir='/usr/lib/$(DEB_HOST_MULTIARCH)/security' \
 	  --with-pkgconfigdir='/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig' \
-	  --with-systemdunitdir=/lib/systemd/system \
-	  --with-systemdpresetdir=/lib/systemd/system-preset \
-	  --with-systemdgeneratordir=/lib/systemd/system-generators \
+	  --with-systemdunitdir=/usr/lib/systemd/system \
+	  --with-systemdpresetdir=/usr/lib/systemd/system-preset \
+	  --with-systemdgeneratordir=/usr/lib/systemd/system-generators \
 	  --with-config=user
 
 	for i in $(wildcard $(CURDIR)/debian/*.install.in) ; do \
@@ -76,19 +77,6 @@ override_dh_auto_build:
 override_dh_auto_install:
 	@# Install the utilities.
 	$(MAKE) install DESTDIR='$(CURDIR)/debian/tmp'
-
-	# Move from bin_dir to /usr/sbin
-	# Remove suffix (.py) as per policy 10.4 - Scripts
-	# https://www.debian.org/doc/debian-policy/ch-files.html#s-scripts
-	mkdir -p '$(CURDIR)/debian/tmp/usr/sbin/'
-	mv '$(CURDIR)/debian/tmp/usr/bin/zarcsummary' '$(CURDIR)/debian/tmp/usr/sbin/zarcsummary'
-	mv '$(CURDIR)/debian/tmp/usr/bin/zarcstat' '$(CURDIR)/debian/tmp/usr/sbin/zarcstat'
-	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
-	mv '$(CURDIR)/debian/tmp/usr/bin/zilstat' '$(CURDIR)/debian/tmp/usr/sbin/zilstat'
-
-	@# Zed has dependencies outside of the system root.
-	mv '$(CURDIR)/debian/tmp/sbin/zed' '$(CURDIR)/debian/tmp/usr/sbin/zed'
-	sed -i 's|ExecStart=/sbin/|ExecStart=/usr/sbin/|g' '$(CURDIR)/debian/tmp/lib/systemd/system/zfs-zed.service'
 
 	@# Install the DKMS source.
 	@# We only want the files needed to build the modules
@@ -131,11 +119,6 @@ override_dh_auto_install:
 	cd '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)'; ./autogen.sh
 	rm -fr '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/autom4te.cache'
 
-	for i in `ls $(CURDIR)/debian/tmp/lib/$(DEB_HOST_MULTIARCH)/*.so`; do \
-		ln -s '/lib/$(DEB_HOST_MULTIARCH)/'`readlink $${i}` '$(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/'`basename $${i}`; \
-		rm $${i}; \
-	done
-
 	chmod a-x '$(CURDIR)/debian/tmp/etc/zfs/zfs-functions'
 	chmod a-x '$(CURDIR)/debian/tmp/etc/default/zfs'
 
@@ -159,7 +142,7 @@ override_dh_auto_clean:
 	@if test -e META.orig; then mv META.orig META; fi
 
 override_dh_install:
-	find debian/tmp/lib -name '*.la' -delete
+	find debian/tmp/usr/lib -name '*.la' -delete
 	dh_install
 
 override_dh_missing:
@@ -173,8 +156,8 @@ override_dh_installinit:
 	dh_installinit -R --name zfs-zed
 
 override_dh_installsystemd:
-	mkdir -p debian/openzfs-zfsutils/lib/systemd/system
-	ln -sr /dev/null debian/openzfs-zfsutils/lib/systemd/system/zfs-import.service
+	mkdir -p debian/openzfs-zfsutils/usr/lib/systemd/system
+	ln -sr /dev/null debian/openzfs-zfsutils/usr/lib/systemd/system/zfs-import.service
 	dh_installsystemd --no-stop-on-upgrade -X zfs-zed.service
 	dh_installsystemd --name zfs-zed
 
