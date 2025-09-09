@@ -61,6 +61,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/dbuf.h>
@@ -5729,6 +5730,9 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 {
 	ulong_t val;
 	int error;
+#ifdef _PC_CLONE_BLKSIZE
+	zfsvfs_t *zfsvfs;
+#endif
 
 	error = zfs_pathconf(ap->a_vp, ap->a_name, &val,
 	    curthread->td_ucred, NULL);
@@ -5773,6 +5777,21 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 #ifdef _PC_HAS_HIDDENSYSTEM
 	case _PC_HAS_HIDDENSYSTEM:
 		*ap->a_retval = 1;
+		return (0);
+#endif
+#ifdef _PC_CLONE_BLKSIZE
+	case _PC_CLONE_BLKSIZE:
+		zfsvfs = (zfsvfs_t *)ap->a_vp->v_mount->mnt_data;
+		if (zfs_bclone_enabled &&
+		    spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
+		    SPA_FEATURE_BLOCK_CLONING))
+			*ap->a_retval = dsl_dataset_feature_is_active(
+			    zfsvfs->z_os->os_dsl_dataset,
+			    SPA_FEATURE_LARGE_BLOCKS) ?
+			    SPA_MAXBLOCKSIZE :
+			    SPA_OLD_MAXBLOCKSIZE;
+		else
+			*ap->a_retval = 0;
 		return (0);
 #endif
 	default:
