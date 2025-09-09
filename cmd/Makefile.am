@@ -107,11 +107,6 @@ $(call SUBST,dbufstat,%D%/)
 $(call SUBST,zilstat,%D%/)
 arc_summary: %D%/arc_summary
 	$(AM_V_at)cp $< $@
-
-cmd-rename-install-exec-hook:
-	$(LN_S) -f arcstat $(DESTDIR)$(bindir)/zarcstat
-	$(LN_S) -f arc_summary $(DESTDIR)$(bindir)/zarcsummary
-INSTALL_EXEC_HOOKS += cmd-rename-install-exec-hook
 endif
 
 PHONY += cmd

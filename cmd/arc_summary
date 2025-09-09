@@ -1021,13 +1021,6 @@ def main():
     treated separately because they come with their own call.
     """
 
-    # notify user for upcoming renaming in 2.4.0
-    abs_path = os.path.abspath(sys.argv[0].strip())
-    script_name = os.path.basename(abs_path)
-    if script_name != "zarcsummary":
-        sys.stderr.write("Note: this script will be renamed to zarcsummary in ")
-        sys.stderr.write("zfs 2.4.0. Please migrate ASAP.\n")
-
     kstats = get_kstats()
 
     if ARGS.graph:

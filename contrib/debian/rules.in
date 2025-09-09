@@ -82,9 +82,7 @@ override_dh_auto_install:
 	# https://www.debian.org/doc/debian-policy/ch-files.html#s-scripts
 	mkdir -p '$(CURDIR)/debian/tmp/usr/sbin/'
 	mv '$(CURDIR)/debian/tmp/usr/bin/arc_summary' '$(CURDIR)/debian/tmp/usr/sbin/arc_summary'
-	mv '$(CURDIR)/debian/tmp/usr/bin/zarcsummary' '$(CURDIR)/debian/tmp/usr/sbin/zarcsummary'
 	mv '$(CURDIR)/debian/tmp/usr/bin/arcstat' '$(CURDIR)/debian/tmp/usr/sbin/arcstat'
-	mv '$(CURDIR)/debian/tmp/usr/bin/zarcstat' '$(CURDIR)/debian/tmp/usr/sbin/zarcstat'
 	mv '$(CURDIR)/debian/tmp/usr/bin/dbufstat' '$(CURDIR)/debian/tmp/usr/sbin/dbufstat'
 	mv '$(CURDIR)/debian/tmp/usr/bin/zilstat' '$(CURDIR)/debian/tmp/usr/sbin/zilstat'
 
