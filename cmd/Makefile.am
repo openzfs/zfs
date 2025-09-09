@@ -98,14 +98,14 @@ endif
 
 
 if USING_PYTHON
-bin_SCRIPTS      += arc_summary     arcstat        dbufstat        zilstat
-CLEANFILES       += arc_summary     arcstat        dbufstat        zilstat
-dist_noinst_DATA += %D%/arc_summary %D%/arcstat.in %D%/dbufstat.in %D%/zilstat.in
+bin_SCRIPTS      += zarcsummary     arcstat        dbufstat        zilstat
+CLEANFILES       += zarcsummary     arcstat        dbufstat        zilstat
+dist_noinst_DATA += %D%/zarcsummary %D%/arcstat.in %D%/dbufstat.in %D%/zilstat.in
 
 $(call SUBST,arcstat,%D%/)
 $(call SUBST,dbufstat,%D%/)
 $(call SUBST,zilstat,%D%/)
-arc_summary: %D%/arc_summary
+zarcsummary: %D%/zarcsummary
 	$(AM_V_at)cp $< $@
 endif
 

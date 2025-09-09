@@ -433,7 +433,7 @@ make install DESTDIR=%{?buildroot}
 find %{?buildroot}%{_libdir} -name '*.la' -exec rm -f {} \;
 %if 0%{!?__brp_mangle_shebangs:1}
 find %{?buildroot}%{_bindir} \
-    \( -name arc_summary -or -name arcstat -or -name dbufstat \
+    \( -name zarcsummary -or -name arcstat -or -name dbufstat \
     -or -name zilstat \) \
     -exec %{__sed} -i 's|^#!.*|#!%{__python}|' {} \;
 find %{?buildroot}%{_datadir} \
@@ -508,7 +508,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/raidz_test
 %{_bindir}/zvol_wait
 # Optional Python 3 scripts
-%{_bindir}/arc_summary
+%{_bindir}/zarcsummary
 %{_bindir}/arcstat
 %{_bindir}/dbufstat
 %{_bindir}/zilstat
