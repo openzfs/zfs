@@ -509,9 +509,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/zvol_wait
 # Optional Python 3 scripts
 %{_bindir}/arc_summary
-%{_bindir}/zarcsummary
 %{_bindir}/arcstat
-%{_bindir}/zarcstat
 %{_bindir}/dbufstat
 %{_bindir}/zilstat
 # Man pages
