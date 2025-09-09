@@ -83,7 +83,7 @@ my $tagged_patterns = q(
 	man/man?/*.?.in
 
 	# Unsuffixed programs (or generated of same)
-	cmd/arcstat.in
+	cmd/zarcstat.in
 	cmd/zarcsummary
 	cmd/dbufstat.in
 	cmd/zilstat.in
