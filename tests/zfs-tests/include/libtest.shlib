@@ -2881,6 +2881,28 @@ function user_run
 	log_note "user: $user"
 	log_note "cmd: $*"
 
+	if ! sudo -Eu $user test -x $PATH ; then
+		log_note "-------------------------------------------------"
+		log_note "Warning: $user doesn't have permissions on $PATH"
+		log_note ""
+		log_note "This usually happens when you're running ZTS locally"
+		log_note "from inside the ZFS source dir, and are attempting to"
+		log_note "run a test that calls user_run.  The ephemeral user"
+		log_note "($user) that ZTS is creating does not have permission"
+		log_note "to traverse to $PATH, or the binaries in $PATH are"
+		log_note "not the right permissions."
+		log_note ""
+		log_note "To get around this, copy your ZFS source directory"
+		log_note "to a world-accessible location (like /tmp), and "
+		log_note "change the permissions on your ZFS source dir "
+		log_note "to allow access."
+		log_note ""
+		log_note "Also, verify that /dev/zfs is RW for others:"
+		log_note ""
+		log_note "    sudo chmod o+rw /dev/zfs"
+		log_note "-------------------------------------------------"
+	fi
+
 	typeset out=$TEST_BASE_DIR/out
 	typeset err=$TEST_BASE_DIR/err
 
