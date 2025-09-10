@@ -130,7 +130,7 @@ RW_READ_HELD(krwlock_t *rwp)
 /*
  * The Linux rwsem implementation does not require a matching destroy.
  */
-#define	rw_destroy(rwp)		((void) 0)
+#define	rw_destroy(rwp)		ASSERT(!(RW_LOCK_HELD(rwp)))
 
 /*
  * Upgrading a rwsem from a reader to a writer is not supported by the
