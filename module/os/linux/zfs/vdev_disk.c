@@ -471,13 +471,17 @@ vdev_disk_close(vdev_t *v)
 	if (v->vdev_reopening || vd == NULL)
 		return;
 
+	rw_enter(&vd->vd_lock, RW_WRITER);
+
 	if (vd->vd_bdh != NULL)
 		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
 		    zfs_vdev_holder);
 
+	v->vdev_tsd = NULL;
+
+	rw_exit(&vd->vd_lock);
 	rw_destroy(&vd->vd_lock);
 	kmem_free(vd, sizeof (vdev_disk_t));
-	v->vdev_tsd = NULL;
 }
 
 /*
