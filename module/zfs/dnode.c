@@ -438,11 +438,10 @@ dnode_verify(dnode_t *dn)
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
 #ifdef DEBUG
 	if (dn->dn_dbuf != NULL) {
-		mutex_enter(&dn->dn_dbuf->db_mtx);
+		assert_db_data_addr_locked(dn->dn_dbuf);
 		ASSERT3P(dn->dn_phys, ==,
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
 		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
-		mutex_exit(&dn->dn_dbuf->db_mtx);
 	}
 #endif
 	if (drop_struct_lock)
@@ -1538,7 +1537,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		dnc->dnc_count = epb;
 		dnh = &dnc->dnc_children[0];
 
-		mutex_enter(&db->db_mtx);
+		assert_db_data_addr_locked(db);
 		dn_block = (dnode_phys_t *)db->db.db_data;
 
 		/* Initialize dnode slot status from dnode_phys_t */
@@ -1564,7 +1563,6 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			}
 		}
 		rw_exit(&db->db_rwlock);
-		mutex_exit(&db->db_mtx);
 
 		dmu_buf_init_user(&dnc->dnc_dbu, NULL,
 		    dnode_buf_evict_async, NULL);
@@ -1621,6 +1619,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 				dn = dnh->dnh_dnode;
 			} else {
 				rw_enter(&db->db_rwlock, RW_READER);
+				// TODO: try omitting the db_rwlock
 				dn = dnode_create(os, dn_block + idx, db,
 				    object, dnh);
 				rw_exit(&db->db_rwlock);
@@ -1701,6 +1700,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 			dn = dnh->dnh_dnode;
 		} else {
 			rw_enter(&db->db_rwlock, RW_READER);
+			// TODO: try omitting the db_rwlock
 			dn = dnode_create(os, dn_block + idx, db,
 			    object, dnh);
 			rw_exit(&db->db_rwlock);
@@ -2614,7 +2614,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
-		mutex_enter(&db->db_mtx);
+		assert_db_data_addr_locked(db);
 		data = db->db.db_data;
 		rw_enter(&db->db_rwlock, RW_READER);
 	}
@@ -2694,7 +2694,6 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 
 	if (db != NULL) {
 		rw_exit(&db->db_rwlock);
-		mutex_exit(&db->db_mtx);
 		dbuf_rele(db, FTAG);
 	} else {
 		if (dn->dn_dbuf != NULL)
