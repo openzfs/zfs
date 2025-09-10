@@ -874,6 +874,7 @@ typedef struct l2arc_data_free {
 	abd_t		*l2df_abd;
 	size_t		l2df_size;
 	arc_buf_contents_t l2df_type;
+	l2arc_dev_t	*l2df_dev;	/* L2ARC device that owns this ABD */
 	list_node_t	l2df_list_node;
 } l2arc_data_free_t;
 
@@ -926,7 +927,7 @@ static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
 static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
-static void l2arc_do_free_on_write(void);
+static void l2arc_do_free_on_write(l2arc_dev_t *dev);
 static void l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
     boolean_t state_only);
 
@@ -2938,13 +2939,15 @@ arc_loan_inuse_buf(arc_buf_t *buf, const void *tag)
 }
 
 static void
-l2arc_free_abd_on_write(abd_t *abd, size_t size, arc_buf_contents_t type)
+l2arc_free_abd_on_write(abd_t *abd, size_t size, arc_buf_contents_t type,
+    l2arc_dev_t *dev)
 {
 	l2arc_data_free_t *df = kmem_alloc(sizeof (*df), KM_SLEEP);
 
 	df->l2df_abd = abd;
 	df->l2df_size = size;
 	df->l2df_type = type;
+	df->l2df_dev = dev;
 	mutex_enter(&l2arc_free_on_write_mtx);
 	list_insert_head(l2arc_free_on_write, df);
 	mutex_exit(&l2arc_free_on_write_mtx);
@@ -2973,10 +2976,17 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 		arc_space_return(size, ARC_SPACE_DATA);
 	}
 
+	/*
+	 * L2HDR must exist since we're freeing an L2ARC-related ABD.
+	 */
+	ASSERT(HDR_HAS_L2HDR(hdr));
+
 	if (free_rdata) {
-		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd, size, type);
+		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd, size, type,
+		    hdr->b_l2hdr.b_dev);
 	} else {
-		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type);
+		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type,
+		    hdr->b_l2hdr.b_dev);
 	}
 }
 
@@ -8184,8 +8194,9 @@ arc_fini(void)
 	 * Free any buffers that were tagged for destruction.  This needs
 	 * to occur before arc_state_fini() runs and destroys the aggsum
 	 * values which are updated when freeing scatter ABDs.
+	 * Pass NULL to free all ABDs regardless of device.
 	 */
-	l2arc_do_free_on_write();
+	l2arc_do_free_on_write(NULL);
 
 	/*
 	 * buf_fini() must proceed arc_state_fini() because buf_fin() may
@@ -8610,15 +8621,22 @@ out:
  * Free buffers that were tagged for destruction.
  */
 static void
-l2arc_do_free_on_write(void)
+l2arc_do_free_on_write(l2arc_dev_t *dev)
 {
-	l2arc_data_free_t *df;
+	l2arc_data_free_t *df, *df_next;
+	boolean_t all = (dev == NULL);
 
 	mutex_enter(&l2arc_free_on_write_mtx);
-	while ((df = list_remove_head(l2arc_free_on_write)) != NULL) {
-		ASSERT3P(df->l2df_abd, !=, NULL);
-		abd_free(df->l2df_abd);
-		kmem_free(df, sizeof (l2arc_data_free_t));
+	df = list_head(l2arc_free_on_write);
+	while (df != NULL) {
+		df_next = list_next(l2arc_free_on_write, df);
+		if (all || df->l2df_dev == dev) {
+			list_remove(l2arc_free_on_write, df);
+			ASSERT3P(df->l2df_abd, !=, NULL);
+			abd_free(df->l2df_abd);
+			kmem_free(df, sizeof (l2arc_data_free_t));
+		}
+		df = df_next;
 	}
 	mutex_exit(&l2arc_free_on_write_mtx);
 }
@@ -8806,7 +8824,7 @@ top:
 	ASSERT(dev->l2ad_vdev != NULL);
 	vdev_space_update(dev->l2ad_vdev, -bytes_dropped, 0, 0);
 
-	l2arc_do_free_on_write();
+	l2arc_do_free_on_write(dev);
 
 	kmem_free(cb, sizeof (l2arc_write_callback_t));
 }
