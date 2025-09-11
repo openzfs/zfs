@@ -4790,41 +4790,55 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
  */
 
 static void
-metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, int allocator,
-    int flags, uint64_t psize, const void *tag)
+metaslab_group_alloc_increment(metaslab_class_t *mc, uint64_t vdev,
+    int allocator, int flags, uint64_t psize, const void *tag)
 {
+	spa_t *spa = mc->mc_spa;
 	if (!(flags & METASLAB_ASYNC_ALLOC) || tag == NULL)
 		return;
-
-	metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
-	if (!mg->mg_class->mc_alloc_throttle_enabled)
+	if (!mc->mc_alloc_throttle_enabled)
 		return;
+
+	vdev_t *vd = vdev_lookup_top(spa, vdev);
+	metaslab_group_t *mg;
+	if (mc == spa_embedded_log_class(spa) ||
+	    mc == spa_special_embedded_log_class(spa))
+		mg = vd->vdev_log_mg;
+	else
+		mg = vd->vdev_mg;
 
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 	(void) zfs_refcount_add_many(&mga->mga_queue_depth, psize, tag);
 }
 
 void
-metaslab_group_alloc_increment_all(spa_t *spa, blkptr_t *bp, int allocator,
-    int flags, uint64_t psize, const void *tag)
+metaslab_group_alloc_increment_all(metaslab_class_t *mc, blkptr_t *bp,
+    int allocator, int flags, uint64_t psize, const void *tag)
 {
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
 		uint64_t vdev = DVA_GET_VDEV(&bp->blk_dva[d]);
-		metaslab_group_alloc_increment(spa, vdev, allocator, flags,
+		metaslab_group_alloc_increment(mc, vdev, allocator, flags,
 		    psize, tag);
 	}
 }
 
 void
-metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, int allocator,
-    int flags, uint64_t psize, const void *tag)
+metaslab_group_alloc_decrement(metaslab_class_t *mc, uint64_t vdev,
+    int allocator, int flags, uint64_t psize, const void *tag)
 {
+	spa_t *spa = mc->mc_spa;
 	if (!(flags & METASLAB_ASYNC_ALLOC) || tag == NULL)
 		return;
-
-	metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
-	if (!mg->mg_class->mc_alloc_throttle_enabled)
+	if (!mc->mc_alloc_throttle_enabled)
 		return;
+
+	vdev_t *vd = vdev_lookup_top(spa, vdev);
+	metaslab_group_t *mg;
+	if (mc == spa_embedded_log_class(spa) ||
+	    mc == spa_special_embedded_log_class(spa))
+		mg = vd->vdev_log_mg;
+	else
+		mg = vd->vdev_mg;
 
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 	(void) zfs_refcount_remove_many(&mga->mga_queue_depth, psize, tag);
@@ -6010,7 +6024,7 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		if (error != 0) {
 			for (d--; d >= 0; d--) {
 				metaslab_unalloc_dva(spa, &dva[d], txg);
-				metaslab_group_alloc_decrement(spa,
+				metaslab_group_alloc_decrement(mc,
 				    DVA_GET_VDEV(&dva[d]), allocator, flags,
 				    psize, tag);
 				memset(&dva[d], 0, sizeof (dva_t));
@@ -6022,7 +6036,7 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 			 * Update the metaslab group's queue depth
 			 * based on the newly allocated dva.
 			 */
-			metaslab_group_alloc_increment(spa,
+			metaslab_group_alloc_increment(mc,
 			    DVA_GET_VDEV(&dva[d]), allocator, flags, psize,
 			    tag);
 			if (actual_psize)

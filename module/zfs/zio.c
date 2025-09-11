@@ -3288,7 +3288,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zio_gang_inherit_allocator(zio, cio);
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
-			metaslab_group_alloc_increment_all(spa,
+			metaslab_group_alloc_increment_all(mc,
 			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
 			    cio);
 		}
@@ -3743,7 +3743,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 	if (ddt_phys_is_gang(dde->dde_phys, v)) {
 		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
 			dva_t *d = &zio->io_bp->blk_dva[i];
-			metaslab_group_alloc_decrement(zio->io_spa,
+			metaslab_group_alloc_decrement(zio->io_metaslab_class,
 			    DVA_GET_VDEV(d), zio->io_allocator,
 			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
 		}
@@ -5418,7 +5418,7 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT(zio->io_metaslab_class != NULL);
 	ASSERT(zio->io_metaslab_class->mc_alloc_throttle_enabled);
 
-	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
+	metaslab_group_alloc_decrement(zio->io_metaslab_class, vd->vdev_id,
 	    pio->io_allocator, flags, size, tag);
 
 	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
