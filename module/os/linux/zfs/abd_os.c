@@ -22,6 +22,7 @@
  * Copyright (c) 2014 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2019 by Delphix. All rights reserved.
  * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 /*
@@ -921,6 +922,14 @@ abd_cache_reap_now(void)
 	(PageCompound(page) ? page_size(page) : PAGESIZE)
 #else
 #define	ABD_ITER_PAGE_SIZE(page)	(PAGESIZE)
+#endif
+
+#ifndef nth_page
+/*
+ * Since 6.18 nth_page() no longer exists, and is no longer required to iterate
+ * within a single SG entry, so we replace it with a simple addition.
+ */
+#define	nth_page(p, n)	((p)+(n))
 #endif
 
 void
