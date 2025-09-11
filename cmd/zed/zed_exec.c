@@ -196,37 +196,29 @@ _nop(int sig)
 	(void) sig;
 }
 
-static void *
-_reap_children(void *arg)
+static void
+wait_for_children(boolean_t do_pause, boolean_t wait)
 {
-	(void) arg;
-	struct launched_process_node node, *pnode;
 	pid_t pid;
-	int status;
 	struct rusage usage;
-	struct sigaction sa = {};
-
-	(void) sigfillset(&sa.sa_mask);
-	(void) sigdelset(&sa.sa_mask, SIGCHLD);
-	(void) pthread_sigmask(SIG_SETMASK, &sa.sa_mask, NULL);
-
-	(void) sigemptyset(&sa.sa_mask);
-	sa.sa_handler = _nop;
-	sa.sa_flags = SA_NOCLDSTOP;
-	(void) sigaction(SIGCHLD, &sa, NULL);
+	int status;
+	struct launched_process_node node, *pnode;
 
 	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
 		(void) pthread_mutex_lock(&_launched_processes_lock);
-		pid = wait4(0, &status, WNOHANG, &usage);
-
+		pid = wait4(0, &status, wait ? 0 : WNOHANG, &usage);
 		if (pid == 0 || pid == (pid_t)-1) {
 			(void) pthread_mutex_unlock(&_launched_processes_lock);
-			if (pid == 0 || errno == ECHILD)
-				pause();
-			else if (errno != EINTR)
+			if ((pid == 0) || (errno == ECHILD)) {
+				if (do_pause)
+					pause();
+			} else if (errno != EINTR)
 				zed_log_msg(LOG_WARNING,
 				    "Failed to wait for children: %s",
 				    strerror(errno));
+			if (!do_pause)
+				return;
+
 		} else {
 			memset(&node, 0, sizeof (node));
 			node.pid = pid;
@@ -278,6 +270,25 @@ _reap_children(void *arg)
 		}
 	}
 
+}
+
+static void *
+_reap_children(void *arg)
+{
+	(void) arg;
+	struct sigaction sa = {};
+
+	(void) sigfillset(&sa.sa_mask);
+	(void) sigdelset(&sa.sa_mask, SIGCHLD);
+	(void) pthread_sigmask(SIG_SETMASK, &sa.sa_mask, NULL);
+
+	(void) sigemptyset(&sa.sa_mask);
+	sa.sa_handler = _nop;
+	sa.sa_flags = SA_NOCLDSTOP;
+	(void) sigaction(SIGCHLD, &sa, NULL);
+
+	wait_for_children(B_TRUE, B_FALSE);
+
 	return (NULL);
 }
 
@@ -304,6 +315,45 @@ zed_exec_fini(void)
 	(void) pthread_mutex_init(&_launched_processes_lock, NULL);
 
 	_reap_children_tid = (pthread_t)-1;
+}
+
+/*
+ * Check if the zedlet name indicates if it is a synchronous zedlet
+ *
+ * Synchronous zedlets have a "-sync-" immediately following the event name in
+ * their zedlet filename, like:
+ *
+ * EVENT_NAME-sync-ZEDLETNAME.sh
+ *
+ * For example, if you wanted a synchronous statechange script:
+ *
+ * statechange-sync-myzedlet.sh
+ *
+ * Synchronous zedlets are guaranteed to be the only zedlet running.  No other
+ * zedlets may run in parallel with a synchronous zedlet.  A synchronous
+ * zedlet will wait for all previously spawned zedlets to finish before running.
+ * Users should be careful to only use synchronous zedlets when needed, since
+ * they decrease parallelism.
+ */
+static boolean_t
+zedlet_is_sync(const char *zedlet, const char *event)
+{
+	const char *sync_str = "-sync-";
+	size_t sync_str_len;
+	size_t zedlet_len;
+	size_t event_len;
+
+	sync_str_len = strlen(sync_str);
+	zedlet_len = strlen(zedlet);
+	event_len = strlen(event);
+
+	if (event_len + sync_str_len >= zedlet_len)
+		return (B_FALSE);
+
+	if (strncmp(&zedlet[event_len], sync_str, sync_str_len) == 0)
+		return (B_TRUE);
+
+	return (B_FALSE);
 }
 
 /*
@@ -368,9 +418,28 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 	    z = zed_strings_next(zcp->zedlets)) {
 		for (csp = class_strings; *csp; csp++) {
 			n = strlen(*csp);
-			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n]))
+			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n])) {
+				boolean_t is_sync = zedlet_is_sync(z, *csp);
+
+				if (is_sync) {
+					/*
+					 * Wait for previous zedlets to
+					 * finish
+					 */
+					wait_for_children(B_FALSE, B_TRUE);
+				}
+
 				_zed_exec_fork_child(eid, zcp->zedlet_dir,
 				    z, e, zcp->zevent_fd, zcp->do_foreground);
+
+				if (is_sync) {
+					/*
+					 * Wait for sync zedlet we just launched
+					 * to finish.
+					 */
+					wait_for_children(B_FALSE, B_TRUE);
+				}
+			}
 		}
 	}
 	free(e);
