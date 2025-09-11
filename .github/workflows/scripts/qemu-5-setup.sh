@@ -108,19 +108,30 @@ echo '*/5 * * * *  /root/cronjob.sh' > crontab.txt
 sudo crontab crontab.txt
 rm crontab.txt
 
-# check if the machines are okay
-echo "Waiting for vm's to come up...  (${VMs}x CPU=$CPU RAM=$RAM)"
-for ((i=1; i<=VMs; i++)); do
-  .github/workflows/scripts/qemu-wait-for-vm.sh vm$i
-done
-echo "All $VMs VMs are up now."
-
 # Save the VM's serial output (ttyS0) to /var/tmp/console.txt
 # - ttyS0 on the VM corresponds to a local /dev/pty/N entry
 # - use 'virsh ttyconsole' to lookup the /dev/pty/N entry
 for ((i=1; i<=VMs; i++)); do
   mkdir -p $RESPATH/vm$i
   read "pty" <<< $(sudo virsh ttyconsole vm$i)
+
+  # Create the file so we can tail it, even if there's no output.
+  touch $RESPATH/vm$i/console.txt
+
   sudo nohup bash -c "cat $pty > $RESPATH/vm$i/console.txt" &
+
+  # Write all VM boot lines to the console to aid in debugging failed boots.
+  # The boot lines from all the VMs will be munged together, so prepend each
+  # line with the vm hostname (like 'vm1:').
+  (while IFS=$'\n' read -r line; do echo "vm$i: $line" ; done < <(sudo tail -f $RESPATH/vm$i/console.txt)) &
+
 done
 echo "Console logging for ${VMs}x $OS started."
+
+
+# check if the machines are okay
+echo "Waiting for vm's to come up...  (${VMs}x CPU=$CPU RAM=$RAM)"
+for ((i=1; i<=VMs; i++)); do
+  .github/workflows/scripts/qemu-wait-for-vm.sh vm$i
+done
+echo "All $VMs VMs are up now."
