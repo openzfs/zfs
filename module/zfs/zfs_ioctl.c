@@ -7619,7 +7619,7 @@ zfs_ioctl_init(void)
 
 	zfs_ioctl_register("scrub", ZFS_IOC_POOL_SCRUB,
 	    zfs_ioc_pool_scrub, zfs_secpolicy_config, POOL_NAME,
-	    POOL_CHECK_NONE, B_TRUE, B_TRUE,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_scrub, ARRAY_SIZE(zfs_keys_pool_scrub));
 
 	zfs_ioctl_register("get_props", ZFS_IOC_POOL_GET_PROPS,
