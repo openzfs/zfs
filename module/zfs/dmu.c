@@ -759,6 +759,8 @@ dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 		 */
 		uint8_t ibps = ibs - SPA_BLKPTRSHIFT;
 		limit = P2ROUNDUP(dmu_prefetch_max, 1 << ibs) >> ibs;
+		if (limit == 0)
+			end2 = start2;
 		do {
 			level2++;
 			start2 = P2ROUNDUP(start2, 1 << ibps) >> ibps;
@@ -1689,8 +1691,8 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 
 	dmu_object_info_from_dnode(dn, &doi);
 
-	for (uint64_t off = 0; off < doi.doi_max_offset;
-	    off += dmu_prefetch_max) {
+	for (uint64_t off = 0; off < doi.doi_max_offset &&
+	    dmu_prefetch_max > 0; off += dmu_prefetch_max) {
 		/* dbuf_read doesn't prefetch L1 blocks. */
 		dmu_prefetch_by_dnode(dn, 1, off,
 		    dmu_prefetch_max, ZIO_PRIORITY_SYNC_READ);
