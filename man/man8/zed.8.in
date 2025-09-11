@@ -158,6 +158,8 @@ Multiple ZEDLETs may be invoked for a given zevent.
 ZEDLETs are executables invoked by the ZED in response to a given zevent.
 They should be written under the presumption they can be invoked concurrently,
 and they should use appropriate locking to access any shared resources.
+The one exception to this are "synchronous zedlets", which are described later
+in this page.
 Common variables used by ZEDLETs can be stored in the default rc file which
 is sourced by scripts; these variables should be prefixed with
 .Sy ZED_ .
@@ -232,6 +234,36 @@ variables:
 and
 .Sy ZPOOL .
 These variables may be overridden in the rc file.
+.
+.Sh Synchronous ZEDLETS
+ZED's normal behavior is to spawn off zedlets in parallel and ignore their
+completion order.
+This means that ZED can potentially
+have zedlets for event ID number 2 starting before zedlets for event ID number
+1 have finished.
+Most of the time this is fine, and it actually helps when the system is getting
+hammered with hundreds of events.
+.Pp
+However, there are times when you want your zedlets to be executed in sequence
+with the event ID.
+That is where synchronous zedlets come in.
+.Pp
+ZED will wait for all previously spawned zedlets to finish before running
+a synchronous zedlet.
+Synchronous zedlets are guaranteed to be the only
+zedlet running.
+No other zedlets may run in parallel with a synchronous zedlet.
+Users should be careful to only use synchronous zedlets when needed, since
+they decrease parallelism.
+.Pp
+To make a zedlet synchronous, simply add a "-sync-" immediately following the
+event name in the zedlet's file name:
+.Pp
+.Sy EVENT_NAME-sync-ZEDLETNAME.sh
+.Pp
+For example, if you wanted a synchronous statechange script:
+.Pp
+.Sy statechange-sync-myzedlet.sh
 .
 .Sh FILES
 .Bl -tag -width "-c"
