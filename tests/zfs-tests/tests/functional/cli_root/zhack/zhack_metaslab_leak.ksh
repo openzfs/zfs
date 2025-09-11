@@ -64,7 +64,7 @@ log_must zpool import $TESTPOOL
 
 alloc2=$(zpool get -Hpo value alloc $TESTPOOL)
 
-[[ $((alloc * 1.05)) -gt $alloc2 ]] && [[ $alloc -lt $alloc2 ]] || \
+[[ $((alloc * 1.02)) -gt $alloc2 ]] && [[ $alloc2 -gt $((alloc * 0.98)) ]] || \
 	log_fail "space usage changed too much: $alloc to $alloc2"
 
 log_pass "zhack metaslab leak behaved correctly"
