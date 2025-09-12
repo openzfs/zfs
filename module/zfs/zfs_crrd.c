@@ -162,9 +162,9 @@ dbrrd_add(dbrrd_t *db, hrtime_t time, uint64_t txg)
 	daydiff = time - rrd_tail(&db->dbr_days);
 	monthdiff = time - rrd_tail(&db->dbr_months);
 
-	if (monthdiff >= 0 && monthdiff >= SEC2NSEC(30 * 24 * 60 * 60))
+	if (monthdiff >= 0 && monthdiff >= 30 * 24 * 60 * 60)
 		rrd_add(&db->dbr_months, time, txg);
-	else if (daydiff >= 0 && daydiff >= SEC2NSEC(24 * 60 * 60))
+	else if (daydiff >= 0 && daydiff >= 24 * 60 * 60)
 		rrd_add(&db->dbr_days, time, txg);
 	else if (minutedif >= 0)
 		rrd_add(&db->dbr_minutes, time, txg);
