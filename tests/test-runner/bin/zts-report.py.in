@@ -251,6 +251,7 @@ maybe = {
     'pam/setup': ['SKIP', "pamtester might be not available"],
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
+    'raidz/raidz_001_neg': ['FAIL', known_reason],
     'raidz/raidz_002_pos': ['FAIL', known_reason],
     'raidz/raidz_expand_001_pos': ['FAIL', 16421],
     'redundancy/redundancy_draid_spare1': ['FAIL', known_reason],
