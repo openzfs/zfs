@@ -389,7 +389,9 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 		error = vn_lock(vp, LK_EXCLUSIVE);
 		if (error)
 			return (error);
+		vn_seqc_write_begin(vp);
 		error = zfs_ioctl_setxattr(vp, fsx, cred);
+		vn_seqc_write_end(vp);
 		VOP_UNLOCK(vp);
 		return (error);
 	}
@@ -2206,6 +2208,7 @@ zfs_setattr_dir(znode_t *dzp)
 		if (err)
 			break;
 
+		vn_seqc_write_begin(ZTOV(zp));
 		mutex_enter(&dzp->z_lock);
 
 		if (zp->z_uid != dzp->z_uid) {
@@ -2255,6 +2258,7 @@ sa_add_projid_err:
 			dmu_tx_abort(tx);
 		}
 		tx = NULL;
+		vn_seqc_write_end(ZTOV(zp));
 		if (err != 0 && err != ENOENT)
 			break;
 
