@@ -641,9 +641,9 @@ tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
 user =
 tags = ['functional', 'cli_user', 'zfs_list']
 
-[tests/functional/cli_root/zfs_send_delegation_user]
+[tests/functional/cli_user/zfs_send_delegation_user]
 tests = ['zfs_send_usertest']
-tags = ['functional', 'cli_root', 'zfs_send_delegation_user']
+tags = ['functional', 'cli_user', 'zfs_send_delegation_user']
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
