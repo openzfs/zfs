@@ -119,15 +119,49 @@ AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK], [
 	])
 ])
 
+dnl #
+dnl # 6.18 API change
+dnl # block_device_operation->getgeo takes struct gendisk* as first arg
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK], [
+	ZFS_LINUX_TEST_SRC([block_device_operations_getgeo_gendisk], [
+		#include <linux/blkdev.h>
+
+		static int blk_getgeo(struct gendisk *disk, struct hd_geometry *geo)
+		{
+			(void) disk, (void) geo;
+			return (0);
+		}
+
+		static const struct block_device_operations
+		    bops __attribute__ ((unused)) = {
+			.getgeo	= blk_getgeo,
+		};
+	], [], [])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK], [
+	AC_MSG_CHECKING([whether bops->getgeo() takes gendisk as first arg])
+	ZFS_LINUX_TEST_RESULT([block_device_operations_getgeo_gendisk], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE([HAVE_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK], [1],
+			[Define if getgeo() in block_device_operations takes struct gendisk * as its first arg])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS], [
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_RELEASE_1ARG
 	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
+	ZFS_AC_KERNEL_SRC_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS], [
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_CHECK_EVENTS
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_RELEASE_VOID
 	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
+	ZFS_AC_KERNEL_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK
 ])
