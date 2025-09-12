@@ -794,6 +794,10 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	(*zpp)->z_mode = mode;
 	(*zpp)->z_dnodesize = dnodesize;
 
+	vnode_t *vp = ZTOV(*zpp);
+	if (!(flag & IS_ROOT_NODE))
+		vn_seqc_write_begin(vp);
+
 	if (vap->va_mask & AT_XVATTR)
 		zfs_xvattr_set(*zpp, (xvattr_t *)vap, tx);
 
@@ -802,7 +806,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		VERIFY0(zfs_aclset_common(*zpp, acl_ids->z_aclp, cr, tx));
 	}
 	if (!(flag & IS_ROOT_NODE)) {
-		vnode_t *vp = ZTOV(*zpp);
+		vn_seqc_write_end(vp);
 		vp->v_vflag |= VV_FORCEINSMQ;
 		int err = insmntque(vp, zfsvfs->z_vfs);
 		vp->v_vflag &= ~VV_FORCEINSMQ;
