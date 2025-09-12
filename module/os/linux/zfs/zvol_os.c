@@ -21,7 +21,7 @@
  */
 /*
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
- * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2024, 2025, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2024, 2025, Klara, Inc.
  */
 
@@ -1500,7 +1500,7 @@ zvol_os_remove_minor(zvol_state_t *zv)
 	if (zso->use_blk_mq)
 		blk_mq_free_tag_set(&zso->tag_set);
 
-	ida_simple_remove(&zvol_ida, MINOR(zso->zvo_dev) >> ZVOL_MINOR_BITS);
+	ida_free(&zvol_ida, MINOR(zso->zvo_dev) >> ZVOL_MINOR_BITS);
 
 	kmem_free(zso, sizeof (struct zvol_state_os));
 
@@ -1655,7 +1655,7 @@ zvol_os_create_minor(const char *name)
 	if (zvol_inhibit_dev)
 		return (0);
 
-	idx = ida_simple_get(&zvol_ida, 0, 0, kmem_flags_convert(KM_SLEEP));
+	idx = ida_alloc(&zvol_ida, kmem_flags_convert(KM_SLEEP));
 	if (idx < 0)
 		return (SET_ERROR(-idx));
 	minor = idx << ZVOL_MINOR_BITS;
@@ -1663,7 +1663,7 @@ zvol_os_create_minor(const char *name)
 		/* too many partitions can cause an overflow */
 		zfs_dbgmsg("zvol: create minor overflow: %s, minor %u/%u",
 		    name, minor, MINOR(minor));
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1671,7 +1671,7 @@ zvol_os_create_minor(const char *name)
 	if (zv) {
 		ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 		mutex_exit(&zv->zv_state_lock);
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 		return (SET_ERROR(EEXIST));
 	}
 
@@ -1771,7 +1771,7 @@ out_doi:
 		rw_exit(&zvol_state_lock);
 		error = zvol_os_add_disk(zv->zv_zso->zvo_disk);
 	} else {
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 	}
 
 	return (error);
