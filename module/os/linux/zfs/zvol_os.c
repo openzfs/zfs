@@ -1066,12 +1066,13 @@ zvol_os_clear_private(zvol_state_t *zv)
  * tiny devices.  For devices over 1 Mib a standard head and sector count
  * is used to keep the cylinders count reasonable.
  */
-static int
-zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
+static inline int
+zvol_getgeo_impl(struct gendisk *disk, struct hd_geometry *geo)
 {
-	zvol_state_t *zv = bdev->bd_disk->private_data;
+	zvol_state_t *zv = disk->private_data;
 	sector_t sectors;
 
+	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
 
 	sectors = get_capacity(zv->zv_zso->zvo_disk);
@@ -1089,6 +1090,20 @@ zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 
 	return (0);
 }
+
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK
+static int
+zvol_getgeo(struct gendisk *disk, struct hd_geometry *geo)
+{
+	return (zvol_getgeo_impl(disk, geo));
+}
+#else
+static int
+zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
+{
+	return (zvol_getgeo_impl(bdev->bd_disk, geo));
+}
+#endif
 
 /*
  * Why have two separate block_device_operations structs?
