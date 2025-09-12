@@ -17,6 +17,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/refreserv/refreserv.cfg
+. $STF_SUITE/tests/functional/zvol/zvol_misc/zvol_misc_common.kshlib
 
 #
 # DESCRIPTION:
@@ -24,7 +25,7 @@
 #
 # STRATEGY:
 #	1. Create a pool with a single raidz vdev
-#	2. For each block size [512b, 1k, 128k] or [4k, 8k, 128k]
+#	2. For each block size [4k, 8k, 128k]
 #	    - create a volume
 #	    - fully overwrite it
 #	    - verify that referenced is less than or equal to reservation
@@ -38,6 +39,7 @@
 #	1. This test will use up to 14 disks but can cover the key concepts with
 #	   5 disks.
 #	2. If the disks are a mixture of 4Kn and 512n/512e, failures are likely.
+#	   Therefore, when creating the pool we specify 4Kn sectors.
 #
 
 verify_runnable "global"
@@ -60,29 +62,10 @@ log_onexit cleanup
 
 poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 
-# Testing tiny block sizes on ashift=12 pools causes so much size inflation
-# that small test disks may fill before creating small volumes.  However,
-# testing 512b and 1K blocks on ashift=9 pools is an ok approximation for
-# testing the problems that arise from 4K and 8K blocks on ashift=12 pools.
-if is_freebsd; then
-	bps=$(diskinfo -v ${alldisks[0]} | awk '/sectorsize/ { print $1 }')
-elif is_linux; then
-	bps=$(lsblk -nrdo min-io /dev/${alldisks[0]})
-fi
-log_must test "$bps" -eq 512 -o "$bps" -eq 4096
-case "$bps" in
-512)
-	allshifts=(9 10 17)
-	maxpct=151
-	;;
-4096)
-	allshifts=(12 13 17)
-	maxpct=110
-	;;
-*)
-	log_fail "bytes/sector: $bps != (512|4096)"
-	;;
-esac
+ashift=12
+allshifts=(12 13 17)
+maxpct=110
+
 log_note "Testing in ashift=${allshifts[0]} mode"
 
 # This loop handles all iterations of steps 1 through 4 described in strategy
@@ -99,18 +82,21 @@ for parity in 1 2 3; do
 			continue
 		fi
 
-		log_must zpool create -O compression=off "$TESTPOOL" "$raid" "${disks[@]}"
+		log_must zpool create -o ashift=$ashift "$TESTPOOL" "$raid" "${disks[@]}"
 
 		for bits in "${allshifts[@]}"; do
 			vbs=$((1 << bits))
 			log_note "Testing $raid-$ndisks volblocksize=$vbs"
 
-			vol=$TESTPOOL/$TESTVOL
+			vol=$TESTPOOL/$TESTVOL-$vbs
+			zdev=$ZVOL_DEVDIR/$vol
 			log_must zfs create -V ${volsize}m \
 			    -o volblocksize=$vbs "$vol"
-			block_device_wait "/dev/zvol/$vol"
-			log_must dd if=/dev/zero of=/dev/zvol/$vol \
-			    bs=1024k count=$volsize
+			block_device_wait $zdev
+			blockdev_exists $zdev
+
+			log_must timeout 120 dd if=/dev/urandom of=$zdev \
+			    bs=1024k count=$volsize status=progress
 			sync_pool $TESTPOOL
 
 			ref=$(zfs get -Hpo value referenced "$vol")
@@ -126,7 +112,7 @@ for parity in 1 2 3; do
 			log_must test "$deltapct" -le $maxpct
 
 			log_must_busy zfs destroy "$vol"
-			block_device_wait
+			blockdev_missing $zdev
 		done
 
 		log_must_busy zpool destroy "$TESTPOOL"
