@@ -22,22 +22,29 @@
 #
 
 #
-# Copyright (c) 2015 by Lawrence Livermore National Security, LLC.
-# All rights reserved.
+# Copyright (c) 2025, Klara Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
-is_freebsd && ! python3 -c 'import sysctl' 2>/dev/null && log_unsupported "python3 sysctl module missing"
+# Create staff group and add two user to it
+log_must add_group $STAFF_GROUP
+if ! id $STAFF1 > /dev/null 2>&1; then
+	log_must add_user $STAFF_GROUP $STAFF1
+fi
+if ! id $STAFF2 > /dev/null 2>&1; then
+	log_must add_user $STAFF_GROUP $STAFF2
+fi
 
-set -A args  "" "-s \",\"" "-x" "-v" \
-    "-f time,hit%,dh%,ph%,mh%"
+# Create other group and add two user to it
+log_must add_group $OTHER_GROUP
+if ! id $OTHER1 > /dev/null 2>&1; then
+	log_must add_user $OTHER_GROUP $OTHER1
+fi
+if ! id $OTHER2 > /dev/null 2>&1; then
+	log_must add_user $OTHER_GROUP $OTHER2
+fi
+DISK=${DISKS%% *}
 
-log_assert "arcstat generates output and doesn't return an error code"
-
-typeset -i i=0
-while [[ $i -lt ${#args[*]} ]]; do
-        log_must eval "arcstat ${args[i]} > /dev/null"
-        ((i = i + 1))
-done
-log_pass "arcstat generates output and doesn't return an error code"
+default_raidz_setup $DISKS

@@ -67,7 +67,7 @@ log_must zpool create -f ${TESTPOOL} raidz${PARITY} ${disks[1..$((VDEV_CNT - 1))
 # Add some data to the pool
 log_must zfs create $TESTPOOL/fs
 MNTPOINT="$(get_prop mountpoint $TESTPOOL/fs)"
-log_must fill_fs $MNTPOINT $PARITY 200 32768 1000 Z
+log_must fill_fs $MNTPOINT $PARITY 200 32768 100 R
 sync_pool $TESTPOOL
 
 # Replace the last child vdev to form a replacing vdev

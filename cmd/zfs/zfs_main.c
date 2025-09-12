@@ -5303,6 +5303,7 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_MOUNT		"mount"
 #define	ZFS_DELEG_PERM_SHARE		"share"
 #define	ZFS_DELEG_PERM_SEND		"send"
+#define	ZFS_DELEG_PERM_SEND_RAW		"send:raw"
 #define	ZFS_DELEG_PERM_RECEIVE		"receive"
 #define	ZFS_DELEG_PERM_RECEIVE_APPEND	"receive:append"
 #define	ZFS_DELEG_PERM_ALLOW		"allow"
@@ -5345,6 +5346,7 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_RENAME, ZFS_DELEG_NOTE_RENAME },
 	{ ZFS_DELEG_PERM_ROLLBACK, ZFS_DELEG_NOTE_ROLLBACK },
 	{ ZFS_DELEG_PERM_SEND, ZFS_DELEG_NOTE_SEND },
+	{ ZFS_DELEG_PERM_SEND_RAW, ZFS_DELEG_NOTE_SEND_RAW },
 	{ ZFS_DELEG_PERM_SHARE, ZFS_DELEG_NOTE_SHARE },
 	{ ZFS_DELEG_PERM_SNAPSHOT, ZFS_DELEG_NOTE_SNAPSHOT },
 	{ ZFS_DELEG_PERM_BOOKMARK, ZFS_DELEG_NOTE_BOOKMARK },
@@ -5928,6 +5930,10 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_SEND:
 		str = gettext("");
+		break;
+	case ZFS_DELEG_NOTE_SEND_RAW:
+		str = gettext("Allow sending ONLY encrypted (raw) replication"
+		    "\n\t\t\t\tstreams");
 		break;
 	case ZFS_DELEG_NOTE_SHARE:
 		str = gettext("Allows sharing file systems over NFS or SMB"

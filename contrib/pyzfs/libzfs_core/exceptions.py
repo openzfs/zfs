@@ -604,5 +604,4 @@ class RaidzExpansionRunning(ZFSError):
     errno = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS
     message = "A raidz device is currently expanding"
 
-
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

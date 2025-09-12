@@ -1,3 +1,5 @@
-lib/@DEB_HOST_MULTIARCH@/*.a usr/lib/@DEB_HOST_MULTIARCH@
+usr/lib/@DEB_HOST_MULTIARCH@/*.a
+usr/lib/@DEB_HOST_MULTIARCH@/*.so
+usr/lib/@DEB_HOST_MULTIARCH@/pkgconfig
 usr/include
-usr/lib/@DEB_HOST_MULTIARCH@
+
