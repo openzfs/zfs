@@ -4118,6 +4118,8 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 {
 	znode_t *zp;
 	zfsvfs_t *zfsvfs;
+	uint32_t blksize;
+	u_longlong_t nblocks;
 	int error;
 
 	switch (cmd) {
@@ -4129,8 +4131,17 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 		*valp = 64;
 		return (0);
 	case _PC_MIN_HOLE_SIZE:
-		*valp = (int)SPA_MINBLOCKSIZE;
-		return (0);
+		if (vp->v_type == VREG) {
+			zp = VTOZ(vp);
+			sa_object_size(zp->z_sa_hdl, &blksize, &nblocks);
+			*valp = (int)blksize;
+			return (0);
+		}
+		if (vp->v_type == VDIR) {
+			*valp = (int)vp->v_mount->mnt_stat.f_iosize;
+			return (0);
+		}
+		return (EINVAL);
 	case _PC_ACL_EXTENDED:
 #if 0		/* POSIX ACLs are not implemented for ZFS on FreeBSD yet. */
 		zp = VTOZ(vp);
