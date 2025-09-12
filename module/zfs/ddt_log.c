@@ -245,6 +245,13 @@ ddt_log_alloc_entry(ddt_t *ddt)
 }
 
 static void
+ddt_log_free_entry(ddt_t *ddt, ddt_log_entry_t *ddle)
+{
+	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
+	    ddt_log_entry_flat_cache : ddt_log_entry_trad_cache, ddle);
+}
+
+static void
 ddt_log_update_entry(ddt_t *ddt, ddt_log_t *ddl, ddt_lightweight_entry_t *ddlwe)
 {
 	/* Create the log tree entry from a live or stored entry */
@@ -349,8 +356,7 @@ ddt_log_take_first(ddt_t *ddt, ddt_log_t *ddl, ddt_lightweight_entry_t *ddlwe)
 	ddt_histogram_sub_entry(ddt, &ddt->ddt_log_histogram, ddlwe);
 
 	avl_remove(&ddl->ddl_tree, ddle);
-	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
-	    ddt_log_entry_flat_cache : ddt_log_entry_trad_cache, ddle);
+	ddt_log_free_entry(ddt, ddle);
 
 	return (B_TRUE);
 }
@@ -367,8 +373,7 @@ ddt_log_remove_key(ddt_t *ddt, ddt_log_t *ddl, const ddt_key_t *ddk)
 	ddt_histogram_sub_entry(ddt, &ddt->ddt_log_histogram, &ddlwe);
 
 	avl_remove(&ddl->ddl_tree, ddle);
-	kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
-	    ddt_log_entry_flat_cache : ddt_log_entry_trad_cache, ddle);
+	ddt_log_free_entry(ddt, ddle);
 
 	return (B_TRUE);
 }
@@ -529,8 +534,7 @@ ddt_log_empty(ddt_t *ddt, ddt_log_t *ddl)
 	IMPLY(ddt->ddt_version == UINT64_MAX, avl_is_empty(&ddl->ddl_tree));
 	while ((ddle =
 	    avl_destroy_nodes(&ddl->ddl_tree, &cookie)) != NULL) {
-		kmem_cache_free(ddt->ddt_flags & DDT_FLAG_FLAT ?
-		    ddt_log_entry_flat_cache : ddt_log_entry_trad_cache, ddle);
+		ddt_log_free_entry(ddt, ddle);
 	}
 	ASSERT(avl_is_empty(&ddl->ddl_tree));
 }
@@ -729,7 +733,7 @@ ddt_log_load(ddt_t *ddt)
 				ddle = fe;
 				fe = AVL_NEXT(fl, fe);
 				avl_remove(fl, ddle);
-
+				ddt_log_free_entry(ddt, ddle);
 				ddle = ae;
 				ae = AVL_NEXT(al, ae);
 			}
