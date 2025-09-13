@@ -218,6 +218,7 @@
     <elf-symbol name='libzfs_run_process' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_run_process_get_stdout' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_run_process_get_stdout_nopath' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='libzfs_set_lock_behavior' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='list_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='list_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='list_head' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2272,6 +2273,15 @@
       <enumerator name='ZPROP_SRC_RECEIVED' value='32'/>
     </enum-decl>
     <typedef-decl name='zprop_source_t' type-id='5903f80e' id='a2256d42'/>
+    <enum-decl name='zpool_lock_behavior_t' naming-typedef-id='8b691302' id='cdf5aa2e'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='ZPOOL_LOCK_BEHAVIOR_WAIT' value='0'/>
+      <enumerator name='ZPOOL_LOCK_BEHAVIOR_DEFAULT' value='0'/>
+      <enumerator name='ZPOOL_LOCK_BEHAVIOR_TRYLOCK' value='1'/>
+      <enumerator name='ZPOOL_LOCK_BEHAVIOR_LOCKLESS' value='2'/>
+      <enumerator name='ZPOOL_LOCK_BEHAVIOR_END' value='3'/>
+    </enum-decl>
+    <typedef-decl name='zpool_lock_behavior_t' type-id='cdf5aa2e' id='8b691302'/>
     <class-decl name='nvlist' size-in-bits='192' is-struct='yes' visibility='default' id='ac266fd9'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='nvl_version' type-id='3ff5601b' visibility='default'/>
@@ -2411,7 +2421,7 @@
     <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
     <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
     <typedef-decl name='size_t' type-id='7359adad' id='b59d7dce'/>
-    <class-decl name='libzfs_handle' size-in-bits='18240' is-struct='yes' visibility='default' id='c8a9d9d8'>
+    <class-decl name='libzfs_handle' size-in-bits='18304' is-struct='yes' visibility='default' id='c8a9d9d8'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='libzfs_error' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -2468,6 +2478,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='18176'>
         <var-decl name='libfetch_load_error' type-id='26a90f95' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='18240'>
+        <var-decl name='zpool_lock_behavior' type-id='8b691302' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' id='f6ee4445'>
@@ -3164,6 +3177,12 @@
       <parameter type-id='b65f7fd1'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='nvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='857bb57e'/>
+      <parameter type-id='3502e3ff'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nvlist_free' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
       <return type-id='48b5725f'/>
@@ -3172,6 +3191,12 @@
       <parameter type-id='22cce67b'/>
       <parameter type-id='857bb57e'/>
       <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='nvlist_add_uint64' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9c313c2d'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nvlist_lookup_nvlist' visibility='default' binding='global' size-in-bits='64'>
@@ -3267,6 +3292,12 @@
       <parameter type-id='b0382bb3'/>
       <parameter type-id='e4ec4540'/>
       <parameter type-id='b59d7dce'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='zcmd_write_src_nvlist' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='b0382bb3'/>
+      <parameter type-id='e4ec4540'/>
+      <parameter type-id='5ce45b60'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='zcmd_expand_dst_nvlist' visibility='default' binding='global' size-in-bits='64'>
@@ -3777,12 +3808,6 @@
     <function-decl name='zfs_name_to_prop' mangled-name='zfs_name_to_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_name_to_prop'>
       <parameter type-id='80f4b756'/>
       <return type-id='58603c44'/>
-    </function-decl>
-    <function-decl name='nvlist_add_uint64' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='5ce45b60'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9c313c2d'/>
-      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='nvlist_add_string' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
@@ -4542,12 +4567,6 @@
       <parameter type-id='c19b74c3'/>
       <return type-id='c19b74c3'/>
     </function-decl>
-    <function-decl name='nvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='857bb57e'/>
-      <parameter type-id='3502e3ff'/>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='nvlist_size' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='78c01427'/>
@@ -5159,12 +5178,6 @@
       <parameter type-id='e4378506'/>
       <parameter type-id='2e45de5d'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='zcmd_write_src_nvlist' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='b0382bb3'/>
-      <parameter type-id='e4ec4540'/>
-      <parameter type-id='5ce45b60'/>
-      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='changelist_prefix' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='0d41d328'/>
@@ -8803,6 +8816,11 @@
       <parameter type-id='c0563f85' name='lines'/>
       <parameter type-id='7292109c' name='lines_cnt'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='libzfs_set_lock_behavior' mangled-name='libzfs_set_lock_behavior' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_set_lock_behavior'>
+      <parameter type-id='b0382bb3' name='hdl'/>
+      <parameter type-id='8b691302' name='zpool_lock_behavior'/>
+      <return type-id='48b5725f'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_mount_os.c' language='LANG_C99'>

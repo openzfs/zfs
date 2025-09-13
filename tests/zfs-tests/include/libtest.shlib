@@ -3945,4 +3945,14 @@ function pop_coredump_pattern
 	esac
 }
 
+# Get the Unix timestamp as expressed in milliseconds.  This can be useful for
+# measuring how long something takes.  This works on both Linux and
+# FreeBSD.
+function get_unix_timestamp_in_ms
+{
+	# We can't just use 'date +%s%N' here since FreeBSD 'date' only supports
+	# one-second resolution.
+	python3 -c 'import time; print(round(time.time() * 1000))'
+}
+
 . ${STF_SUITE}/include/kstat.shlib
