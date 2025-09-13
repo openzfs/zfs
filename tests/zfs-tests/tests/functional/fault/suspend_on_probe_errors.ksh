@@ -101,7 +101,7 @@ sync_pool $TESTPOOL
 log_must zfs create $TESTPOOL/fs
 MNTPOINT="$(get_prop mountpoint $TESTPOOL/fs)"
 SECONDS=0
-log_must fill_fs $MNTPOINT 1 200 4096 10 Z
+log_must fill_fs $MNTPOINT 1 200 4096 10 R
 log_note "fill_fs took $SECONDS seconds"
 sync_pool $TESTPOOL
 
