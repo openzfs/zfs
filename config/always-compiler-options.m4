@@ -210,6 +210,31 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_CLOBBERED], [
 ])
 
 dnl #
+dnl # Check if cc supports -Watomic-alignment option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_ATOMIC_ALIGNMENT], [
+	AC_MSG_CHECKING([whether $CC supports -Watomic-alignment])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Watomic-alignment"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		NO_ATOMIC_ALIGNMENT=-Wno-atomic-alignment
+		AC_DEFINE([HAVE_NO_ATOMIC_ALIGNMENT], 1,
+			[Define if compiler supports -Watomic-alignment])
+		AM_CONDITIONAL([HAVE_NO_ATOMIC_ALIGNMENT], [true])
+		AC_MSG_RESULT([yes])
+	], [
+		NO_ATOMIC_ALIGNMENT=
+		AM_CONDITIONAL([HAVE_NO_ATOMIC_ALIGNMENT], [false])
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([NO_ATOMIC_ALIGNMENT])
+])
+
+dnl #
 dnl # Check if cc supports -Wimplicit-fallthrough option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [
