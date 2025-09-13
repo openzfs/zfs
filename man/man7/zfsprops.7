@@ -39,7 +39,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd August 6, 2025
+.Dd September 13, 2025
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1192,18 +1192,26 @@ keylocation can be with either
 .Nm zfs Cm set
 or
 .Nm zfs Cm change-key .
+.Pp
 If
 .Sy prompt
-is selected ZFS will ask for the key at the command prompt when it is required
-to access the encrypted data (see
+is selected, ZFS will expect the key to be provided when it is required to
+access the encrypted data (see
 .Nm zfs Cm load-key
 for details).
-This setting will also allow the key to be passed in via the standard input
-stream,
-but users should be careful not to place keys which should be kept secret on
-the command line.
-If a file URI is selected, the key will be loaded from the
+If stdin is a TTY, then ZFS will ask for the key to be provided.
+Otherwise, stdin is expected to be the key to use and will be processed as such.
+Users should be careful not to place keys which should be kept secret on the
+command line, as most operating systems may expose command line arguments to
+other processes.
+If the
+.Dq raw
+.Sy keyformat
+was used, then the key must be provided via stdin.
+.Pp
+If a file URL is selected, the key will be loaded from the
 specified absolute file path.
+.Pp
 If an HTTPS or HTTP URL is selected, it will be GETted using
 .Xr fetch 3 ,
 libcurl, or nothing, depending on compile-time configuration and run-time
