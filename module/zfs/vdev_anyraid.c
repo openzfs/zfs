@@ -238,8 +238,8 @@ static void
 create_tile_entry(vdev_anyraid_t *var, anyraid_map_loc_entry_t *amle,
     uint8_t *pat_cnt, anyraid_tile_t **out_ar, uint32_t *cur_tile)
 {
-	uint8_t disk = amle->amle_disk;
-	uint16_t offset = amle->amle_offset;
+	uint8_t disk = amle_get_disk(amle);
+	uint16_t offset = amle_get_offset(amle);
 	anyraid_tile_t *ar = *out_ar;
 
 	if (*pat_cnt == 0) {
@@ -459,16 +459,6 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 	return (error);
 }
 
-#ifdef _ZFS_BIG_ENDIAN
-static void
-byteswap_map_buf(void *buf, uint32_t length)
-{
-	for (size_t i = 0; i < length; i += sizeof (anyraid_map_entry_t)) {
-		ame_byteswap((anyraid_map_entry_t *)((char *)buf + i));
-	}
-}
-#endif
-
 static int
 anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 {
@@ -606,13 +596,13 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 #ifdef _ZFS_BIG_ENDIAN
 			uint32_t length = map_length -
 			    next_map * SPA_MAXBLOCKSIZE;
-			byteswap_map_buf(map_buf, (uint32_t)(length <
-			    SPA_MAXBLOCKSIZE ? length : SPA_MAXBLOCKSIZE));
+			byteswap_uint32_array(map_buf, MIN(length,
+			    SPA_MAXBLOCKSIZE));
 #endif
 		}
 		anyraid_map_entry_t *entry =
 		    (anyraid_map_entry_t *)(map_buf + (off % SPA_MAXBLOCKSIZE));
-		uint8_t type = entry->ame_u.ame_amle.amle_type;
+		uint8_t type = ame_get_type(entry);
 		switch (type) {
 			case AMET_SKIP: {
 				anyraid_map_skip_entry_t *amse =
@@ -1236,9 +1226,9 @@ static boolean_t
 map_write_loc_entry(anyraid_tile_node_t *arn, void *buf, uint32_t *offset)
 {
 	anyraid_map_loc_entry_t *entry = (void *)((char *)buf + *offset);
-	entry->amle_type = AMET_LOC;
-	entry->amle_disk = arn->atn_disk;
-	entry->amle_offset = arn->atn_offset;
+	amle_set_type(entry);
+	amle_set_disk(entry, arn->atn_disk);
+	amle_set_offset(entry, arn->atn_offset);
 	*offset += sizeof (*entry);
 	return (*offset == SPA_MAXBLOCKSIZE);
 }
@@ -1267,7 +1257,7 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
 {
 #ifdef _ZFS_BIG_ENDIAN
 	void *buf = abd_borrow_buf(abd, SPA_MAXBLOCKSIZE);
-	byteswap_map_buf(buf, length);
+	byteswap_uint32_array(buf, length);
 	abd_return_buf(abd, buf, SPA_MAXBLOCKSIZE);
 #else
 	(void) length;
