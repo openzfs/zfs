@@ -100,7 +100,7 @@ VIRTUAL_MIRROR_DEVICE=
 
 function cleanup_lo
 {
-	L_DEVICE="$1"
+	typeset L_DEVICE="$1"
 
 	if [[ -e $L_DEVICE ]]; then
 		if is_linux; then
@@ -136,9 +136,9 @@ function get_devsize
 
 function pick_logop
 {
-	L_SHOULD_SUCCEED="$1"
+	typeset L_SHOULD_SUCCEED="$1"
 
-	l_logop="log_mustnot"
+	typeset l_logop="log_mustnot"
 	if [ "$L_SHOULD_SUCCEED" == true ]; then
 		l_logop="log_must"
 	fi
@@ -148,7 +148,9 @@ function pick_logop
 
 function check_dataset
 {
-	L_SHOULD_SUCCEED="$1"
+	typeset L_SHOULD_SUCCEED="$1"
+
+	typeset L_LOGOP=
 	L_LOGOP="$(pick_logop "$L_SHOULD_SUCCEED")"
 
 	"$L_LOGOP" mounted "$TESTPOOL"/"$TESTFS"
@@ -175,7 +177,8 @@ function setup_dataset
 
 function force_transactions
 {
-	L_TIMES="$1"
+	typeset L_TIMES="$1"
+	typeset i=
 	for ((i=0; i < L_TIMES; i++))
 	do
 		touch "$TESTDIR"/"test" || return $?
@@ -186,7 +189,7 @@ function force_transactions
 
 function get_practical_size
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	if [ "$((L_SIZE % LABEL_SIZE))" -ne 0 ]; then
 		echo "$(((L_SIZE / LABEL_SIZE) * LABEL_SIZE))"
@@ -197,10 +200,11 @@ function get_practical_size
 
 function corrupt_sized_label_checksum
 {
-	L_SIZE="$1"
-	L_LABEL="$2"
-	L_DEVICE="$3"
+	typeset L_SIZE="$1"
+	typeset L_LABEL="$2"
+	typeset L_DEVICE="$3"
 
+	typeset L_PRACTICAL_SIZE=
 	L_PRACTICAL_SIZE="$(get_practical_size "$L_SIZE")"
 
 	typeset -a L_OFFSETS=("$LABEL_CKSUM_START" \
@@ -215,8 +219,8 @@ function corrupt_sized_label_checksum
 
 function corrupt_labels
 {
-	L_SIZE="$1"
-	L_DISK="$2"
+	typeset L_SIZE="$1"
+	typeset L_DISK="$2"
 
 	corrupt_sized_label_checksum "$L_SIZE" 0 "$L_DISK"
 	corrupt_sized_label_checksum "$L_SIZE" 1 "$L_DISK"
@@ -226,11 +230,14 @@ function corrupt_labels
 
 function try_import_and_repair
 {
-	L_REPAIR_SHOULD_SUCCEED="$1"
-	L_IMPORT_SHOULD_SUCCEED="$2"
-	L_OP="$3"
-	L_POOLDISK="$4"
+	typeset L_REPAIR_SHOULD_SUCCEED="$1"
+	typeset L_IMPORT_SHOULD_SUCCEED="$2"
+	typeset L_OP="$3"
+	typeset L_POOLDISK="$4"
+
+	typeset L_REPAIR_LOGOP=
 	L_REPAIR_LOGOP="$(pick_logop "$L_REPAIR_SHOULD_SUCCEED")"
+	typeset L_IMPORT_LOGOP=
 	L_IMPORT_LOGOP="$(pick_logop "$L_IMPORT_SHOULD_SUCCEED")"
 
 	log_mustnot zpool import "$TESTPOOL" -d "$L_POOLDISK"
@@ -244,10 +251,10 @@ function try_import_and_repair
 
 function prepare_vdev
 {
-	L_SIZE="$1"
-	L_BACKFILE="$2"
+	typeset L_SIZE="$1"
+	typeset L_BACKFILE="$2"
 
-	l_devname=
+	typeset l_devname=
 	if truncate -s "$L_SIZE" "$L_BACKFILE"; then
 		if is_linux; then
 			l_devname="$(losetup -f "$L_BACKFILE" --show)"
@@ -262,7 +269,7 @@ function prepare_vdev
 
 function run_test_one
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
 	log_must test -e "$VIRTUAL_DEVICE"
@@ -289,7 +296,7 @@ function run_test_one
 
 function make_mirrored_pool
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	VIRTUAL_DEVICE="$(prepare_vdev "$L_SIZE" "$VIRTUAL_DISK")"
 	log_must test -e "$VIRTUAL_DEVICE"
@@ -313,7 +320,7 @@ function export_and_cleanup_vdisk
 
 function run_test_two
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	make_mirrored_pool "$L_SIZE"
 
@@ -334,7 +341,7 @@ function run_test_two
 
 function run_test_three
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	make_mirrored_pool "$L_SIZE"
 
@@ -359,7 +366,7 @@ function run_test_three
 
 function run_test_four
 {
-	L_SIZE="$1"
+	typeset L_SIZE="$1"
 
 	make_mirrored_pool "$L_SIZE"
 
