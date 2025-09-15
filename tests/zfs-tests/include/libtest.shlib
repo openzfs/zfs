@@ -1085,7 +1085,7 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	typeset -i filenum=${3:-50}
 	typeset -i bytes=${4:-8192}
 	typeset -i num_writes=${5:-10240}
-	typeset data=${6:-0}
+	typeset data=${6:-"R"}
 
 	mkdir -p $destdir/{1..$dirnum}
 	for f in $destdir/{1..$dirnum}/$TESTFILE{1..$filenum}; do

@@ -86,7 +86,7 @@ log_must zpool set autoreplace=on $TESTPOOL
 
 # Add some data to the pool
 log_must zfs create $TESTPOOL/fs
-log_must fill_fs /$TESTPOOL/fs 4 100 4096 512 Z
+log_must fill_fs /$TESTPOOL/fs 4 100 4096 512 R
 log_must zpool export $TESTPOOL
 
 # Record the partition UUID for later comparison
