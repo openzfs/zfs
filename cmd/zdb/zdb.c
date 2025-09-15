@@ -9701,7 +9701,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 		uint32_t mo = off % SPA_MAXBLOCKSIZE;
 		anyraid_map_entry_t *entry =
 		    (anyraid_map_entry_t *)(map_buf + mo);
-		uint8_t type = entry->ame_u.ame_amle.amle_type;
+		uint8_t type = ame_get_type(entry);
 		uint8_t *buf;
 		boolean_t allocated = B_FALSE;
 		if (size > SPA_MAXBLOCKSIZE - mo) {
@@ -9739,8 +9739,8 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 					(void) printf("loc %u:", cur_tile);
 					cur_tile++;
 				}
-				(void) printf("\td%u o%u,", amle->amle_disk,
-				    amle->amle_offset);
+				(void) printf("\td%u o%u,", amle_get_disk(amle),
+				    amle_get_offset(amle));
 				par_cnt = (par_cnt + 1) % (var->vd_nparity + 1);
 				if (par_cnt == 0)
 					(void) printf("\n");
