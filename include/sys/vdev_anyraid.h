@@ -157,38 +157,33 @@ typedef enum anyraid_map_entry_type {
 	AMET_TYPES
 } anyraid_map_entry_type_t;
 
+#define	AME_TYPE_BITS	8
+
 /*
  * ==========================================================================
  * Skip entry definitions and functions
  * ==========================================================================
  */
-typedef struct anyraid_map_skip_entry {
-	union {
-		uint8_t amse_type;
-		uint32_t amse_skip_count; // tile count to skip ahead
-	} amse_u;
-} anyraid_map_skip_entry_t;
+typedef uint32_t anyraid_map_skip_entry_t;
 
 #define	AMSE_TILE_BITS	24
 
 static inline void
 amse_set_type(anyraid_map_skip_entry_t *amse)
 {
-	amse->amse_u.amse_type = AMET_SKIP;
-	ASSERT3U(amse->amse_u.amse_type, ==,
-	    BF32_GET(amse->amse_u.amse_type, 0, 8));
+	BF32_SET(*amse, 0, AME_TYPE_BITS, AMET_SKIP);
 }
 
 static inline void
 amse_set_skip_count(anyraid_map_skip_entry_t *amse, uint32_t skip_count)
 {
-	BF32_SET(amse->amse_u.amse_skip_count, 8, AMSE_TILE_BITS, skip_count);
+	BF32_SET(*amse, AME_TYPE_BITS, AMSE_TILE_BITS, skip_count);
 }
 
 static inline uint32_t
 amse_get_skip_count(anyraid_map_skip_entry_t *amse)
 {
-	return (BF32_GET(amse->amse_u.amse_skip_count, 8, AMSE_TILE_BITS));
+	return (BF32_GET(*amse, AME_TYPE_BITS, AMSE_TILE_BITS));
 }
 
 /*
@@ -196,12 +191,42 @@ amse_get_skip_count(anyraid_map_skip_entry_t *amse)
  * Location entry definitions and functions
  * ==========================================================================
  */
-typedef struct anyraid_map_loc_entry {
-	uint8_t amle_type;
-	uint8_t amle_disk;
-	uint16_t amle_offset;
-} anyraid_map_loc_entry_t;
-_Static_assert(sizeof (anyraid_map_loc_entry_t) == sizeof (uint32_t), "");
+typedef uint32_t anyraid_map_loc_entry_t;
+
+#define	AMLE_DISK_BITS		8
+#define	AMLE_OFFSET_BITS	16
+
+static inline void
+amle_set_type(anyraid_map_loc_entry_t *amle)
+{
+	BF32_SET(*amle, 0, AME_TYPE_BITS, AMET_LOC);
+}
+
+static inline void
+amle_set_disk(anyraid_map_loc_entry_t *amle, uint8_t disk)
+{
+	BF32_SET(*amle, AME_TYPE_BITS, AMLE_DISK_BITS, disk);
+}
+
+static inline uint32_t
+amle_get_disk(anyraid_map_loc_entry_t *amle)
+{
+	return (BF32_GET(*amle, AME_TYPE_BITS, AMLE_DISK_BITS));
+}
+
+static inline void
+amle_set_offset(anyraid_map_loc_entry_t *amle, uint8_t offset)
+{
+	BF32_SET(*amle, (AME_TYPE_BITS + AMLE_DISK_BITS), AMLE_OFFSET_BITS,
+	    offset);
+}
+
+static inline uint32_t
+amle_get_offset(anyraid_map_loc_entry_t *amle)
+{
+	return (BF32_GET(*amle, (AME_TYPE_BITS + AMLE_DISK_BITS),
+	    AMLE_OFFSET_BITS));
+}
 
 /*
  * ==========================================================================
@@ -216,28 +241,10 @@ typedef struct anyraid_map_entry {
 	} ame_u;
 } anyraid_map_entry_t;
 
-static inline void
-ame_byteswap(anyraid_map_entry_t *ame)
+static inline anyraid_map_entry_type_t
+ame_get_type(anyraid_map_entry_t *ame)
 {
-	uint8_t type = ame->ame_u.ame_amle.amle_type;
-	switch (type) {
-		case AMET_SKIP: {
-			anyraid_map_skip_entry_t *amse =
-			    &ame->ame_u.ame_amse;
-			amse->amse_u.amse_skip_count =
-			    BSWAP_32(amse_get_skip_count(amse)) >> NBBY;
-			amse->amse_u.amse_type = AMET_SKIP;
-			break;
-		}
-		case AMET_LOC: {
-			anyraid_map_loc_entry_t *amle =
-			    &ame->ame_u.ame_amle;
-			amle->amle_offset = BSWAP_16(amle->amle_offset);
-			break;
-		}
-		default:
-			PANIC("Invalid entry type %d", type);
-	}
+	return (BF32_GET(ame->ame_u.ame_amle, 0, AME_TYPE_BITS));
 }
 
 #define	VDEV_ANYRAID_MAX_DISKS	(1 << 8)
