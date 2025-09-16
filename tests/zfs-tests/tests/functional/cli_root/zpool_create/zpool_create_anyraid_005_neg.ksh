@@ -25,38 +25,32 @@
 # Copyright (c) 2025, Klara, Inc.
 #
 
-. $STF_SUITE/tests/functional/anyraid/anyraid_common.kshlib
+. $STF_SUITE/include/libtest.shlib
 
 #
 # DESCRIPTION:
-# AnyRAID mirror3 can survive having 1-3 failed disks.
+# Run negative tests relating to anyraid vdevs and pool creation
 #
 # STRATEGY:
-# 1. Write several files to the ZFS filesystem mirror.
-# 2. Override the selected disks of the mirror with zeroes.
-# 3. Verify that all the file contents are unchanged on the file system.
+# 1. Try to create a pool with an invalid parity string
+# 2. Try to create a pool with too large a parity
 #
 
 verify_runnable "global"
 
-log_assert "AnyRAID mirror3 can survive having 1-3 failed disks"
+function cleanup
+{
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+}
 
-log_must create_sparse_files "disk" 4 $DEVSIZE
+log_assert "anyraid vdev specifications detect problems correctly"
+log_onexit cleanup
 
-clean_mirror_spec_cases "anymirror3 $disk0 $disk1 $disk2 $disk3" \
-	"$disk0" \
-	"$disk1" \
-	"$disk2" \
-	"$disk3" \
-	"\"$disk0 $disk1\"" \
-	"\"$disk0 $disk2\"" \
-	"\"$disk0 $disk3\"" \
-	"\"$disk1 $disk2\"" \
-	"\"$disk1 $disk3\"" \
-	"\"$disk2 $disk3\"" \
-	"\"$disk0 $disk1 $disk2\"" \
-	"\"$disk0 $disk1 $disk3\"" \
-	"\"$disk0 $disk2 $disk3\"" \
-	"\"$disk1 $disk2 $disk3\""
+create_sparse_files "disk" 4 $MINVDEVSIZE2
 
-log_pass "AnyRAID mirror3 can survive having 1-3 failed disks"
+log_mustnot zpool create $TESTPOOL anymirrorq $disks
+log_mustnot zpool create $TESTPOOL anymirrorq1 $disks
+log_mustnot zpool create $TESTPOOL anymirror-1 $disks
+log_mustnot zpool create $TESTPOOL anymirror4 $disks
+
+log_pass "anyraid vdev specifications detect problems correctly"

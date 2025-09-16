@@ -36,9 +36,9 @@
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-for type in "mirror" "anyraid1"; do
+for type in "mirror" "anymirror1"; do
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
-	if [[ "$type" == "anyraid1" ]]; then
+	if [[ "$type" == "anymirror1" ]]; then
 		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1

@@ -59,7 +59,7 @@ fi
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 
-for type in "mirror" "raidz" "raidz2" "anyraid1" "anyraid2" "anyraid3"; do
+for type in "mirror" "raidz" "raidz2" "anymirror1" "anymirror2" "anymirror3"; do
         if [[ "$type" =~ "anyraid" ]]; then
                 export VDEVSIZE=1073741824
                 export TESTFILE_SIZE=268435456

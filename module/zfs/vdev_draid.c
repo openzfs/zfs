@@ -1175,6 +1175,13 @@ vdev_draid_min_asize(vdev_t *pvd, vdev_t *cvd)
 	    (pvd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
 }
 
+static uint64_t
+vdev_draid_min_attach_size(vdev_t *vd)
+{
+	ASSERT3U(vd->vdev_top, ==, vd);
+	return (vdev_draid_min_asize(vd, vd->vdev_child[0]));
+}
+
 /*
  * When using dRAID the minimum allocation size is determined by the number
  * of data disks in the redundancy group.  Full stripes are always used.
@@ -2344,6 +2351,7 @@ vdev_ops_t vdev_draid_ops = {
 	.vdev_op_psize_to_asize = vdev_draid_psize_to_asize,
 	.vdev_op_asize_to_psize = vdev_draid_asize_to_psize,
 	.vdev_op_min_asize = vdev_draid_min_asize,
+	.vdev_op_min_attach_size = vdev_draid_min_attach_size,
 	.vdev_op_min_alloc = vdev_draid_min_alloc,
 	.vdev_op_io_start = vdev_draid_io_start,
 	.vdev_op_io_done = vdev_draid_io_done,
@@ -2836,6 +2844,7 @@ vdev_ops_t vdev_draid_spare_ops = {
 	.vdev_op_psize_to_asize = vdev_default_asize,
 	.vdev_op_asize_to_psize = vdev_default_psize,
 	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_attach_size = vdev_default_min_attach_size,
 	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_draid_spare_io_start,
 	.vdev_op_io_done = vdev_draid_spare_io_done,

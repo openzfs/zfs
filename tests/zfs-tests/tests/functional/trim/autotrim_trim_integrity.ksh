@@ -62,7 +62,7 @@ log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 512
 typeset trim_txg_batch=$(get_tunable TRIM_TXG_BATCH)
 log_must set_tunable64 TRIM_TXG_BATCH 8
 
-for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz" "raidz2" "draid" "draid2"; do
+for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "raidz" "raidz2" "draid" "draid2"; do
 	log_must truncate -s 1G $TRIM_VDEVS
 
 	log_must zpool create -f $TESTPOOL $type $TRIM_VDEVS
