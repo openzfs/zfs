@@ -32,8 +32,8 @@
 # Create a variety of AnyRAID pools using the minimal vdev syntax.
 #
 # STRATEGY:
-# 1. Create the required number of allowed AnyRAID vdevs.
-# 2. Create few pools of various sizes using the anyraid* syntax.
+# 1. Create the required number of allowed vdevs.
+# 2. Create few pools of various sizes using the anymirror* syntax.
 #
 
 verify_runnable "global"
@@ -43,21 +43,21 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
-log_assert "'zpool create <pool> <anyraid|0|1|2|3> ...' can create a pool."
+log_assert "'zpool create <pool> <anymirror|0|1|2|3> ...' can create a pool."
 log_onexit cleanup
 
 create_sparse_files "disk" 4 $MINVDEVSIZE2
 
 # Verify the default parity
-log_must zpool create $TESTPOOL anyraid $disks
+log_must zpool create $TESTPOOL anymirror $disks
 log_must poolexists $TESTPOOL
 destroy_pool $TESTPOOL
 
 # Verify specified parity
 for parity in {0..3}; do
-	log_must zpool create $TESTPOOL anyraid$parity $disks
+	log_must zpool create $TESTPOOL anymirror$parity $disks
 	log_must poolexists $TESTPOOL
 	destroy_pool $TESTPOOL
 done
 
-log_pass "'zpool create <pool> <anyraid|0|1|2|3> ...' can create a pool."
+log_pass "'zpool create <pool> <anymirror|0|1|2|3> ...' can create a pool."

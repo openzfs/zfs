@@ -32,12 +32,12 @@
 # 'zpool attach' expands size correctly with anyraid vdevs.
 #
 # STRATEGY:
-# 1. Create an anyraid1 vdev with small disks
+# 1. Create an anymirror1 vdev with small disks
 # 2. Attach larger disk
 # 3. Verify that not all the new space can be used
 # 4. Attach another larger disk
 # 5. Verify that all space is now usable
-# 6. Repeat steps 1-5 with anyraid2
+# 6. Repeat steps 1-5 with anymirror2
 #
 
 verify_runnable "global"
@@ -57,40 +57,40 @@ set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
 
 log_assert "'zpool attach' expands size correctly with anyraid vdevs"
 
-log_must create_pool $TESTPOOL2 anyraid1 /$TESTPOOL/vdev_file.{0,1,2}
+log_must create_pool $TESTPOOL2 anymirror1 /$TESTPOOL/vdev_file.{0,1,2}
 
 cap=$(zpool get -Hp -o value size $TESTPOOL2)
-log_must zpool attach $TESTPOOL2 anyraid1-0 /$TESTPOOL/vdev_file.4
+log_must zpool attach $TESTPOOL2 anymirror1-0 /$TESTPOOL/vdev_file.4
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 
 [[ "$new_cap" -eq $((3 * 64 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
-log_must zpool attach $TESTPOOL2 anyraid1-0 /$TESTPOOL/vdev_file.5
+log_must zpool attach $TESTPOOL2 anymirror1-0 /$TESTPOOL/vdev_file.5
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 [[ "$new_cap" -eq $(((2048 - 256 - 64) * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
 log_must zpool destroy $TESTPOOL2
-log_must create_pool $TESTPOOL2 anyraid2 /$TESTPOOL/vdev_file.{0,1,2,3}
+log_must create_pool $TESTPOOL2 anymirror2 /$TESTPOOL/vdev_file.{0,1,2,3}
 
 cap=$(zpool get -Hp -o value size $TESTPOOL2)
-log_must zpool attach $TESTPOOL2 anyraid2-0 /$TESTPOOL/vdev_file.4
+log_must zpool attach $TESTPOOL2 anymirror2-0 /$TESTPOOL/vdev_file.4
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 
 [[ "$new_cap" -eq $((64 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
-log_must zpool attach $TESTPOOL2 anyraid2-0 /$TESTPOOL/vdev_file.5
+log_must zpool attach $TESTPOOL2 anymirror2-0 /$TESTPOOL/vdev_file.5
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 [[ "$new_cap" -eq $((256 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
-log_must zpool attach $TESTPOOL2 anyraid2-0 /$TESTPOOL/vdev_file.6
+log_must zpool attach $TESTPOOL2 anymirror2-0 /$TESTPOOL/vdev_file.6
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 [[ "$new_cap" -eq $(((2048 - 256 - 64) * 1024 * 1024)) ]] || \
