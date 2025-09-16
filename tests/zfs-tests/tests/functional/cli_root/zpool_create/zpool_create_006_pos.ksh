@@ -98,11 +98,12 @@ set -A valid_args \
 	"raidz2 $vdev0 $vdev1 $vdev2 spare $vdev3 raidz2 $vdev4 $vdev5 $vdev6" \
 	"raidz3 $vdev0 $vdev1 $vdev2 $vdev3 \
 		mirror $vdev4 $vdev5 $vdev6 $vdev7" \
-	"anyraid0 $vdev0" \
-	"anyraid0 $vdev0 $vdev1 anyraid0 $vdev2 $vdev3" \
-	"anyraid1 $vdev0 $vdev1 anyraid1 $vdev2 $vdev3" \
-	"anyraid2 $vdev0 $vdev1 $vdev2 anyraid2 $vdev3 $vdev4 $vdev5" \
-	"anyraid3 $vdev0 $vdev1 $vdev2 $vdev3 anyraid3 $vdev4 $vdev5 $vdev6 $vdev7" \
+	"anymirror0 $vdev0" \
+	"anymirror0 $vdev0 $vdev1 anymirror0 $vdev2 $vdev3" \
+	"anymirror1 $vdev0 $vdev1 anymirror1 $vdev2 $vdev3" \
+	"anymirror2 $vdev0 $vdev1 $vdev2 anymirror2 $vdev3 $vdev4 $vdev5" \
+	"anymirror2 $vdev0 $vdev1 $vdev2 $vdev3 anymirror2 $vdev4 $vdev5 $vdev6" \
+	"anymirror3 $vdev0 $vdev1 $vdev2 $vdev3 anymirror3 $vdev4 $vdev5 $vdev6 $vdev7" \
 	"draid $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4" \
 	"draid $vdev0 $vdev1 $vdev2 raidz1 $vdev3 $vdev4 $vdev5" \
 	"draid $vdev0 $vdev1 $vdev2 draid1 $vdev3 $vdev4 $vdev5" \
@@ -138,10 +139,9 @@ set -A forced_args \
 		spare $vdev4 raidz2 $vdev5 $vdev6 $vdev7" \
 	"mirror $vdev0 $vdev1 draid $vdev2 $vdev3 $vdev4 \
 		draid2 $vdev5 $vdev6 $vdev7 $vdev8 spare $vdev9" \
-	"anyraid0 $vdev0 anyraid $vdev1 $vdev2" \
-	"anyraid1 $vdev0 $vdev1 anyraid2 $vdev2 $vdev3 $vdev4" \
-	"anyraid2 $vdev0 $vdev1 $vdev2 $vdev3 anyraid2 $vdev4 $vdev5 $vdev6" \
-	"anyraid3 $vdev0 $vdev1 $vdev2 $vdev3 anyraid0 $vdev4" \
+	"anymirror0 $vdev0 anymirror $vdev1 $vdev2" \
+	"anymirror1 $vdev0 $vdev1 anymirror2 $vdev2 $vdev3 $vdev4" \
+	"anymirror3 $vdev0 $vdev1 $vdev2 $vdev3 anymirror0 $vdev4" \
 	"draid $vdev0 $vdev1 $vdev2 $vdev3 \
 		draid2 $vdev4 $vdev5 $vdev6 $vdev7 $vdev8" \
 	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 \

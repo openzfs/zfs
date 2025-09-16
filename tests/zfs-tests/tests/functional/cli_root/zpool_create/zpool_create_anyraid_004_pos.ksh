@@ -25,38 +25,33 @@
 # Copyright (c) 2025, Klara, Inc.
 #
 
-. $STF_SUITE/tests/functional/anyraid/anyraid_common.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
 #
 # DESCRIPTION:
-# AnyRAID mirror3 can survive having 1-3 failed disks.
+# Verify that AnyRAID vdevs of different sizes can be mixed in a pool
 #
 # STRATEGY:
-# 1. Write several files to the ZFS filesystem mirror.
-# 2. Override the selected disks of the mirror with zeroes.
-# 3. Verify that all the file contents are unchanged on the file system.
+# 1. Create a pool with two anyraid vdevs with different disk counts
+# 2. Verify the pool created successfully
 #
 
 verify_runnable "global"
 
-log_assert "AnyRAID mirror3 can survive having 1-3 failed disks"
+function cleanup
+{
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+}
 
-log_must create_sparse_files "disk" 4 $DEVSIZE
+log_assert "Pools can have multiple anyraid children with different disk counts"
+log_onexit cleanup
 
-clean_mirror_spec_cases "anymirror3 $disk0 $disk1 $disk2 $disk3" \
-	"$disk0" \
-	"$disk1" \
-	"$disk2" \
-	"$disk3" \
-	"\"$disk0 $disk1\"" \
-	"\"$disk0 $disk2\"" \
-	"\"$disk0 $disk3\"" \
-	"\"$disk1 $disk2\"" \
-	"\"$disk1 $disk3\"" \
-	"\"$disk2 $disk3\"" \
-	"\"$disk0 $disk1 $disk2\"" \
-	"\"$disk0 $disk1 $disk3\"" \
-	"\"$disk0 $disk2 $disk3\"" \
-	"\"$disk1 $disk2 $disk3\""
+create_sparse_files "disk" 5 $MINVDEVSIZE2
 
-log_pass "AnyRAID mirror3 can survive having 1-3 failed disks"
+# Verify the default parity
+log_must zpool create $TESTPOOL anymirror $disk0 $disk1 $disk2 anymirror $disk3 $disk4
+log_must poolexists $TESTPOOL
+destroy_pool $TESTPOOL
+
+log_pass "Pools can have multiple anyraid children with different disk counts."

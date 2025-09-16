@@ -68,7 +68,7 @@ create_sparse_files "file" 4 $MINVDEVSIZE2
 
 unset NOINUSE_CHECK
 typeset opt
-for opt in "" "mirror" "raidz" "anyraid" "draid"; do
+for opt in "" "mirror" "raidz" "anymirror" "draid"; do
 	if [[ $opt == "" ]]; then
 		typeset disks=$file0
 	else
