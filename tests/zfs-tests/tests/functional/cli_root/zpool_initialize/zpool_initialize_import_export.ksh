@@ -46,10 +46,10 @@
 DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-for type in "" "anyraid1"; do
+for type in "" "anymirror1"; do
 	if [[ "$type" = "" ]]; then
 		VDEVS="$DISK1"
-	elif [[ "$type" = "anyraid1" ]]; then
+	elif [[ "$type" = "anymirror1" ]]; then
 		VDEVS="$DISK1 $DISK2"
 	fi
 
