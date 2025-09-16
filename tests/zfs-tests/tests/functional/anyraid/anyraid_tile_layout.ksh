@@ -32,7 +32,7 @@
 # Anyraid disks intelligently select which tiles to use
 #
 # STRATEGY:
-# 1. Create an anyraid1 vdev with 1 large disk and 2 small disks
+# 1. Create an anymirror1 vdev with 1 large disk and 2 small disks
 # 2. Verify that the full space can be used
 #
 
@@ -54,7 +54,7 @@ set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
 
 log_assert "Anyraid disks intelligently select which tiles to use"
 
-log_must create_pool $TESTPOOL2 anyraid1 /$TESTPOOL/vdev_file.{0,1,2,3}
+log_must create_pool $TESTPOOL2 anymirror1 /$TESTPOOL/vdev_file.{0,1,2,3}
 
 cap=$(zpool get -Hp -o value size $TESTPOOL2)
 [[ "$cap" -eq $((9 * 64 * 1024 * 1024)) ]] || \
