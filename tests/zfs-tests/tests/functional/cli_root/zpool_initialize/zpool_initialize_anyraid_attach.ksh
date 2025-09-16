@@ -41,13 +41,13 @@ DISK1="$(echo $DISKS | cut -d' ' -f1)"
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
-log_must zpool create -f $TESTPOOL anyraid1 $DISK1 $DISK2
+log_must zpool create -f $TESTPOOL anymirror1 $DISK1 $DISK2
 
 log_must zpool initialize $TESTPOOL $DISK1
 progress="$(initialize_progress $TESTPOOL $DISK1)"
 [[ -z "$progress" ]] && log_fail "Initializing did not start"
 
-log_must zpool attach $TESTPOOL anyraid1-0 $DISK3
+log_must zpool attach $TESTPOOL anymirror1-0 $DISK3
 new_progress="$(initialize_progress $TESTPOOL $DISK1)"
 [[ "$progress" -le "$new_progress" ]] || \
         log_fail "Lost initializing progress on AnyRAID1 attach"

@@ -347,6 +347,21 @@ vdev_derive_alloc_bias(const char *bias)
 }
 
 uint64_t
+vdev_default_min_attach_size(vdev_t *vd)
+{
+	return (vdev_get_min_asize(vd));
+}
+
+uint64_t
+vdev_get_min_attach_size(vdev_t *vd)
+{
+	vdev_t *pvd = vd->vdev_parent;
+	if (vd == vd->vdev_top)
+		pvd = vd;
+	return (pvd->vdev_ops->vdev_op_min_attach_size(pvd));
+}
+
+uint64_t
 vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 {
 	ASSERT0(asize % (1ULL << vd->vdev_top->vdev_ashift));
@@ -6732,13 +6747,13 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					for (int i = 0; i < vd->vdev_children;
 					    i++) {
 						total += var->vd_children[i]
-						    ->van_capacity;
+						    ->van_capacity + 1;
 					}
 				} else if (pvd && pvd->vdev_ops ==
 				    &vdev_anyraid_ops) {
 					vdev_anyraid_t *var = pvd->vdev_tsd;
 					total = var->vd_children[vd->vdev_id]
-					    ->van_capacity;
+					    ->van_capacity + 1;
 				} else {
 					continue;
 				}

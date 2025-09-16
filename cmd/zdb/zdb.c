@@ -9505,7 +9505,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	// Create and populate table with all the values we need to print.
 	char ***table = malloc(sizeof (*table) * cols);
 	for (int i = 0; i < cols; i++) {
-		table[i] = calloc(var->vd_children[i]->van_capacity,
+		table[i] = calloc(var->vd_children[i]->van_capacity + 1,
 		    sizeof (**table));
 	}
 
@@ -9551,7 +9551,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		for (int v = 0; v < cols; v++) {
 			if (final[v]) {
 				ASSERT3U(i, >=,
-				    var->vd_children[v]->van_capacity);
+				    var->vd_children[v]->van_capacity + 1);
 				int extra_width = 0;
 				if (v == 0 || !printed[v - 1])
 					extra_width++;
@@ -9560,7 +9560,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 				printed[v] = B_FALSE;
 				continue;
 			}
-			if (i + 1 == var->vd_children[v]->van_capacity)
+			if (i + 1 == var->vd_children[v]->van_capacity + 1)
 				final[v] = B_TRUE;
 			if (v - 1 != last_printed)
 				(void) printf("│");
@@ -9577,7 +9577,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	}
 	(void) printf("\n");
 	for (int i = 0; i < cols; i++) {
-		for (int j = 0; j < var->vd_children[i]->van_capacity; j++)
+		for (int j = 0; j < var->vd_children[i]->van_capacity + 1; j++)
 			if (table[i][j])
 				free(table[i][j]);
 		free(table[i]);
@@ -9650,7 +9650,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 	    &disk_id) != 0)
 		(void) printf("No valid disk ID\n");
 
-	(void) printf("version:    %6d\ttile size: %8lx\ttxg: %lu\n",
+	(void) printf("version:    %6d\ttile size: %#8lx\ttxg: %lu\n",
 	    version, tile_size, written_txg);
 	(void) printf("map length: %6u\tdisk id: %3u\n", map_length, disk_id);
 
@@ -9833,12 +9833,18 @@ zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
 	vdev_anyraid_t *var = vd->vdev_tsd;
 
-	(void) printf("\t%-5s%11llu   %s %16llx\n",
+	(void) printf("\t%-5s%11llu   %s %#16llx\n",
 	    "vdev", (u_longlong_t)vd->vdev_id,
 	    "tile_size", (u_longlong_t)var->vd_tile_size);
-	(void) printf("\t%-8s%8llu   %-12s %10u\n", "tiles",
-	    (u_longlong_t)avl_numnodes(&var->vd_tile_map),
-	    "checkpoint tile", var->vd_checkpoint_tile);
+	(void) printf("\t%-8s%8llu", "tiles",
+	    (u_longlong_t)avl_numnodes(&var->vd_tile_map));
+	if (var->vd_checkpoint_tile != UINT32_MAX) {
+		(void) printf(".  %-12s %10u\n", "checkpoint tile",
+		    var->vd_checkpoint_tile);
+	} else {
+		(void) printf("\n");
+	}
+
 	(void) printf("\t%16s   %12s   %13s\n", "----------------",
 	    "------------", "-------------");
 
@@ -9870,8 +9876,6 @@ zdb_dump_anyraid_map(char *vdev_str, spa_t *spa, int verbosity)
 {
 	vdev_t *rvd, *vd;
 
-	(void) printf("\nAnyRAID tiles:\n");
-
 	/* A specific vdev. */
 	if (vdev_str != NULL) {
 		vd = zdb_vdev_lookup(spa->spa_root_vdev, vdev_str);
@@ -9879,14 +9883,19 @@ zdb_dump_anyraid_map(char *vdev_str, spa_t *spa, int verbosity)
 			(void) printf("Invalid vdev: %s\n", vdev_str);
 			return (EINVAL);
 		}
-		if (vd->vdev_ops != &vdev_anyraid_ops) {
+		if (vd->vdev_ops != &vdev_anyraid_ops &&
+		    (vd->vdev_parent == NULL ||
+		    (vd = vd->vdev_parent)->vdev_ops != &vdev_anyraid_ops)) {
 			(void) printf("Not an anyraid vdev: %s\n", vdev_str);
 			return (EINVAL);
 		}
+
+		(void) printf("\nAnyRAID tiles:\n");
 		zdb_dump_anyraid_map_vdev(vd, verbosity);
 		return (0);
 	}
 
+	(void) printf("\nAnyRAID tiles:\n");
 	/* All anyraid vdevs. */
 	rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {

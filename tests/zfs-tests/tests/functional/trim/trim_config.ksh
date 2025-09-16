@@ -71,19 +71,19 @@ log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 typeset VDEV_MAX_MB=$(( 4 * MINVDEVSIZE / 1024 / 1024 ))
 typeset VDEV_MIN_MB=0
 
-for type in "" "mirror" "anyraid0" "anyraid1" "anyraid2" "anyraid3" "raidz2" "draid"; do
+for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "raidz2" "draid"; do
 
 	if [[ "$type" = "" ]]; then
 		VDEVS="$TRIM_VDEV1"
 	elif [[ "$type" = "mirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
-	elif [[ "$type" = "anyraid0" ]]; then
+	elif [[ "$type" = "anymirror0" ]]; then
 		VDEVS="$TRIM_VDEV1"
-	elif [[ "$type" = "anyraid1" ]]; then
+	elif [[ "$type" = "anymirror1" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
-	elif [[ "$type" = "anyraid2" ]]; then
+	elif [[ "$type" = "anymirror2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
-	elif [[ "$type" = "anyraid3" ]]; then
+	elif [[ "$type" = "anymirror3" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 	elif [[ "$type" = "raidz2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"

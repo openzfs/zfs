@@ -437,13 +437,13 @@ vdev_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_VDEV, "<bytes>", "TRIMBYTE", B_FALSE,
 	    sfeatures);
 	zprop_register_number(VDEV_PROP_ANYRAID_CAP_TILES,
-	    "anyraid_region_capacity", 0, PROP_READONLY, ZFS_TYPE_VDEV,
+	    "anyraid_tile_capacity", 0, PROP_READONLY, ZFS_TYPE_VDEV,
 	    "<regions>", "TILECAP", B_FALSE, sfeatures);
 	zprop_register_number(VDEV_PROP_ANYRAID_NUM_TILES,
-	    "anyraid_region_count", 0, PROP_READONLY, ZFS_TYPE_VDEV,
+	    "anyraid_tile_count", 0, PROP_READONLY, ZFS_TYPE_VDEV,
 	    "<regions>", "NUMTILES", B_FALSE, sfeatures);
 	zprop_register_number(VDEV_PROP_ANYRAID_TILE_SIZE,
-	    "anyraid_region_size", 0, PROP_READONLY, ZFS_TYPE_VDEV,
+	    "anyraid_tile_size", 0, PROP_READONLY, ZFS_TYPE_VDEV,
 	    "<bytes>", "TILESIZE", B_FALSE, sfeatures);
 
 	/* default numeric properties */

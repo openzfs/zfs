@@ -433,7 +433,7 @@ is_raidz_mirror(replication_level_t *a, replication_level_t *b,
 	if ((strcmp(a->zprl_type, "raidz") == 0 ||
 	    strcmp(a->zprl_type, "draid") == 0) &&
 	    (strcmp(b->zprl_type, "mirror") == 0 ||
-	    strcmp(b->zprl_type, "anyraid") == 0)) {
+	    strcmp(b->zprl_type, "anymirror") == 0)) {
 		*raidz = a;
 		*mirror = b;
 		return (B_TRUE);
@@ -529,11 +529,11 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 			rep.zprl_children = 0;
 
 			if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
-			    strcmp(type, VDEV_TYPE_DRAID) == 0) {
+			    strcmp(type, VDEV_TYPE_DRAID) == 0 ||
+			    strcmp(type, VDEV_TYPE_ANYRAID) == 0) {
 				verify(nvlist_lookup_uint64(nv,
 				    ZPOOL_CONFIG_NPARITY,
 				    &rep.zprl_parity) == 0);
-				assert(rep.zprl_parity != 0);
 			} else {
 				rep.zprl_parity = 0;
 			}
@@ -745,7 +745,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					    rep.zprl_type);
 				else
 					return (NULL);
-			} else if (lastrep.zprl_children != rep.zprl_children) {
+			} else if (lastrep.zprl_children !=
+			    rep.zprl_children && strcmp(rep.zprl_type,
+			    VDEV_TYPE_ANYRAID) != 0) {
 				if (ret)
 					free(ret);
 				ret = NULL;
@@ -1232,7 +1234,7 @@ get_parity(const char *type)
 			parity = strtol(p, &end, 10);
 			if (errno != 0 || *end != '\0' ||
 			    parity < 0 || parity > VDEV_ANYRAID_MAXPARITY) {
-				return (0);
+				return (-1);
 			}
 		}
 	} else if (strncmp(type, VDEV_TYPE_DRAID,
@@ -1294,6 +1296,8 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 
 	if (strncmp(type, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0) {
 		nparity = get_parity(type);
+		if (nparity < 0)
+			return (NULL);
 		if (mindev != NULL)
 			*mindev = nparity + 1;
 		if (maxdev != NULL)

@@ -43,7 +43,7 @@ log_assert "AnyRAID mirror2 can survive having 1-2 failed disks"
 
 log_must create_sparse_files "disk" 4 $DEVSIZE
 
-clean_mirror_spec_cases "anyraid2 $disk0 $disk1 $disk2" \
+clean_mirror_spec_cases "anymirror2 $disk0 $disk1 $disk2" \
 	"$disk0" \
 	"$disk1" \
 	"$disk2" \
@@ -51,7 +51,7 @@ clean_mirror_spec_cases "anyraid2 $disk0 $disk1 $disk2" \
 	"\"$disk0 $disk2\"" \
 	"\"$disk1 $disk2\""
 
-clean_mirror_spec_cases "anyraid2 $disk0 $disk1 $disk2 $disk3" \
+clean_mirror_spec_cases "anymirror2 $disk0 $disk1 $disk2 $disk3" \
 	"$disk0" \
 	"$disk1" \
 	"$disk2" \

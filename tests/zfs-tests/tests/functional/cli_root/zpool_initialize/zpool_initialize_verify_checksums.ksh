@@ -42,7 +42,7 @@
 
 DISK1=${DISKS%% *}
 
-for type in "" "anyraid0"; do
+for type in "" "anymirror0"; do
 
 	log_must zpool create -f $TESTPOOL $type $DISK1
 	log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1M count=30

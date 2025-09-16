@@ -49,7 +49,7 @@ DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
 log_onexit_push zpool status -v
 
-for type in "mirror" "anyraid1"; do
+for type in "mirror" "anymirror1"; do
 
 	if [[ "$type" == "mirror" ]]; then
 		log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2

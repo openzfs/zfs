@@ -47,7 +47,7 @@ cleanup() {
 
 log_onexit cleanup
 
-log_must create_pool $TESTPOOL anyraid1 $DISKS
+log_must create_pool $TESTPOOL anymirror1 $DISKS
 
 log_assert "Anyraid works correctly with checkpoints"
 

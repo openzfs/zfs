@@ -194,6 +194,21 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 See
 .Xr zpool-remove 8 .
+.It anyraid_tile_capacity
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The number of physical tiles that the vdev can hold.
+.It anyraid_tile_count
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The number of physical tiles that are currently allocated on the vdev.
+.It anyraid_tile_size
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The size of the tiles in use on this vdev.
 .El
 .Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user

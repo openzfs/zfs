@@ -1088,6 +1088,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_create/zpool_create_anyraid_001_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_anyraid_002_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_anyraid_003_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_004_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_005_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_crypt_combos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_001_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_002_pos.ksh \

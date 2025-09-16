@@ -54,7 +54,8 @@ log_must create_sparse_files "sdisk" 4 $DEVSIZE
 typeset oldcksum
 typeset newcksum
 for parity in {0..3}; do
-	log_must zpool create $TESTPOOL anyraid$parity $disks special anyraid$parity $sdisks
+	log_must zpool create $TESTPOOL anymirror$parity $disks special \
+		 anymirror$parity $sdisks
 	log_must poolexists $TESTPOOL
 
 	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
