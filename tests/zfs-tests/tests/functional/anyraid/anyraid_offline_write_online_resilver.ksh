@@ -48,10 +48,10 @@ cleanup() {
 
 log_onexit cleanup
 
-# anyraid1
+# anymirror1
 
 log_must create_sparse_files "disk" 3 $DEVSIZE
-log_must zpool create -f $TESTPOOL anyraid1 $disks
+log_must zpool create -f $TESTPOOL anymirror1 $disks
 
 log_must zpool offline $TESTPOOL $disk0
 log_must check_state $TESTPOOL $disk0 "offline"
@@ -70,10 +70,10 @@ log_must check_state $TESTPOOL "" "online"
 log_must destroy_pool $TESTPOOL
 
 
-# anyraid2
+# anymirror2
 
 log_must create_sparse_files "disk" 5 $DEVSIZE
-log_must zpool create -f $TESTPOOL anyraid2 $disks
+log_must zpool create -f $TESTPOOL anymirror2 $disks
 
 log_must zpool offline $TESTPOOL $disk0
 log_must zpool offline $TESTPOOL $disk1
@@ -96,10 +96,10 @@ log_must check_state $TESTPOOL "" "online"
 log_must destroy_pool $TESTPOOL
 
 
-# anyraid3
+# anymirror3
 
 log_must create_sparse_files "disk" 7 $DEVSIZE
-log_must zpool create -f $TESTPOOL anyraid3 $disks
+log_must zpool create -f $TESTPOOL anymirror3 $disks
 
 log_must zpool offline $TESTPOOL $disk0
 log_must zpool offline $TESTPOOL $disk1

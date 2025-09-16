@@ -60,7 +60,7 @@ log_must set_tunable64 INITIALIZE_VALUE $(printf %llu 0x$PATTERN)
 log_must mkdir "$TESTDIR"
 log_must truncate -s $MINVDEVSIZE "$SMALLFILE"
 
-for type in "" "anyraid0"; do
+for type in "" "anymirror0"; do
 
 	log_must zpool create $TESTPOOL $type "$SMALLFILE"
 	log_must zpool initialize -w $TESTPOOL

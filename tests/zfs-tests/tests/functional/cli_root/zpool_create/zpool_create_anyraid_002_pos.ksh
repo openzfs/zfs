@@ -58,12 +58,12 @@ log_must truncate -s $MINVDEVSIZE2 $all_vdevs
 
 # Verify pool sizes from 254-255.
 for (( i=254; i<=255; i++ )); do
-	log_must zpool create $TESTPOOL anyraid3 \
+	log_must zpool create $TESTPOOL anymirror3 \
 	    $(echo $TESTDIR/file.{01..$i})
 	log_must destroy_pool $TESTPOOL
 done
 
 # Exceeds maximum AnyRAID vdev count (256).
-log_mustnot zpool create $TESTPOOL anyraid3 $(echo $TESTDIR/file.{01..256})
+log_mustnot zpool create $TESTPOOL anymirror3 $(echo $TESTDIR/file.{01..256})
 
 log_pass "'zpool create <pool> anyraid ...' can create a pool with maximum number of vdevs."

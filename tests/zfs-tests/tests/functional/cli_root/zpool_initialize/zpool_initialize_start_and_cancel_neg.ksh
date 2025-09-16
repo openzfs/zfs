@@ -44,11 +44,11 @@ DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
-for type in "" "anyraid2"; do
+for type in "" "anymirror2"; do
 
 	log_must zpool list -v
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
-	if [[ "$type" == "anyraid2" ]]; then
+	if [[ "$type" == "anymirror2" ]]; then
 		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
