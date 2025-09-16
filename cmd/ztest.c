@@ -190,7 +190,7 @@ typedef struct ztest_shared_opts {
 	int zo_raid_do_expand;
 	int zo_raid_children;
 	int zo_raid_parity;
-	char zo_raid_type[8];
+	char zo_raid_type[16];
 	int zo_draid_data;
 	int zo_draid_spares;
 	int zo_datasets;
@@ -774,7 +774,7 @@ static ztest_option_t option_table[] = {
 	    DEFAULT_RAID_CHILDREN, NULL},
 	{ 'R',	"raid-parity", "INTEGER", "Raid parity",
 	    DEFAULT_RAID_PARITY, NULL},
-	{ 'K',  "raid-kind", "raidz|eraidz|draid|anyraid|random", "Raid kind",
+	{ 'K',  "raid-kind", "raidz|eraidz|draid|anymirror|random", "Raid kind",
 	    NO_DEFAULT, "random"},
 	{ 'D',	"draid-data", "INTEGER", "Number of draid data drives",
 	    DEFAULT_DRAID_DATA, NULL},
@@ -1132,7 +1132,7 @@ process_options(int argc, char **argv)
 			raid_kind = "draid";
 			break;
 		case 3:
-			raid_kind = "anyraid";
+			raid_kind = "anymirror";
 			break;
 		}
 
@@ -1188,7 +1188,7 @@ process_options(int argc, char **argv)
 	} else if (strcmp(raid_kind, "raidz") == 0) {
 		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
 		    zo->zo_raid_children - 1);
-	} else if (strcmp(raid_kind, "anyraid") == 0) {
+	} else if (strcmp(raid_kind, "anymirror") == 0) {
 		uint64_t min_devsize;
 
 		/* With fewer disks use 1G, otherwise 512M is OK */
@@ -3813,7 +3813,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_raid_children > 1) {
 		if (strcmp(oldvd->vdev_ops->vdev_op_type, "raidz") == 0)
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_raidz_ops);
-		else if (strcmp(oldvd->vdev_ops->vdev_op_type, "anyraid") == 0)
+		else if (strcmp(oldvd->vdev_ops->vdev_op_type, "anymirror") ==
+		    0)
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_anyraid_ops);
 		else
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_draid_ops);
@@ -3837,11 +3838,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	}
 
 	oldguid = oldvd->vdev_guid;
-	if (oldvd->vdev_ops != &vdev_anyraid_ops)
-		oldsize = vdev_get_min_asize(oldvd);
-	else
-		oldsize = oldvd->vdev_child[
-		    ztest_random(oldvd->vdev_children)]->vdev_asize;
+	oldsize = vdev_get_min_attach_size(oldvd);
 	oldvd_is_log = oldvd->vdev_top->vdev_islog;
 	oldvd_is_special =
 	    oldvd->vdev_top->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||

@@ -44,6 +44,7 @@ typedef struct vdev_anyraid_node {
 	avl_node_t	van_node;
 	uint8_t		van_id;
 	uint16_t	van_next_offset;
+	// Note: store capacity - 1 for rollover reasons
 	uint16_t	van_capacity;
 } vdev_anyraid_node_t;
 
@@ -275,7 +276,6 @@ _Static_assert(VDEV_ANYRAID_MAP_SIZE % SPA_MAXBLOCKSIZE == 0, "");
 void vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
     uint64_t *good_writes, int flags, vdev_config_sync_status_t status);
 
-uint64_t vdev_anyraid_min_newsize(vdev_t *vd, uint64_t ashift);
 void vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd);
 boolean_t vdev_anyraid_mapped(vdev_t *vd, uint64_t offset);
 

@@ -40,7 +40,7 @@
 
 DISK1=${DISKS%% *}
 
-for type in "" "anyraid0"; do
+for type in "" "anymirror0"; do
 
 	log_must zpool create -f $TESTPOOL $type $DISK1
 	log_must zpool initialize $TESTPOOL

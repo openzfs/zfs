@@ -79,12 +79,12 @@ function status_check_all # pool disk-state
 	status_check "$pool" "$disk_state" "$disk_state" "$disk_state"
 }
 
-for type in "" "anyraid1"; do
+for type in "" "anymirror1"; do
 
 	# 1. Create a one-disk pool.
 	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
 	status_check_all $TESTPOOL "uninitialized"
-	if [[ "$type" == "anyraid1" ]]; then
+	if [[ "$type" == "anymirror1" ]]; then
 		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
