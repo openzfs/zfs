@@ -49,13 +49,13 @@ cleanup() {
 log_onexit cleanup
 
 
-# anyraid1
+# anymirror1
 
 for replace_flags in '' '-s'; do
 
 	log_must create_sparse_files "disk" 3 $DEVSIZE
 	log_must create_sparse_files "spare" 1 $DEVSIZE
-	log_must zpool create -f $TESTPOOL anyraid1 $disks
+	log_must zpool create -f $TESTPOOL anymirror1 $disks
 	log_must zfs set primarycache=none $TESTPOOL
 
 	# Write initial data
