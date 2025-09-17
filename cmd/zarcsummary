@@ -34,7 +34,7 @@ Provides basic information on the ARC, its efficiency, the L2ARC (if present),
 the Data Management Unit (DMU), Virtual Devices (VDEVs), and tunables. See
 the in-source documentation and code at
 https://github.com/openzfs/zfs/blob/master/module/zfs/arc.c for details.
-The original introduction to arc_summary can be found at
+The original introduction to zarcsummary can be found at
 http://cuddletech.com/?p=454
 """
 
@@ -161,7 +161,7 @@ elif sys.platform.startswith('linux'):
         return get_params(TUNABLES_PATH)
 
     def get_version_impl(request):
-        # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
+        # The original zarcsummary called /sbin/modinfo/{spl,zfs} to get
         # the version information. We switch to /sys/module/{spl,zfs}/version
         # to make sure we get what is really loaded in the kernel
         try:
@@ -439,7 +439,7 @@ def print_header():
     """
 
     # datetime is now recommended over time but we keep the exact formatting
-    # from the older version of arc_summary in case there are scripts
+    # from the older version of zarcsummary in case there are scripts
     # that expect it in this way
     daydate = time.strftime(DATE_FORMAT)
     spc_date = LINE_LENGTH-len(daydate)

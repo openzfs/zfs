@@ -54,6 +54,7 @@
 #include <sys/dmu_tx.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
+#include <sys/metaslab_impl.h>
 
 static importargs_t g_importargs;
 static char *g_pool;
@@ -69,7 +70,8 @@ static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: zhack [-c cachefile] [-d dir] <subcommand> <args> ...\n"
+	    "Usage: zhack [-o tunable] [-c cachefile] [-d dir] <subcommand> "
+	    "<args> ...\n"
 	    "where <subcommand> <args> is one of the following:\n"
 	    "\n");
 
@@ -93,7 +95,10 @@ usage(void)
 	    "        -c repair corrupted label checksums\n"
 	    "        -u restore the label on a detached device\n"
 	    "\n"
-	    "    <device> : path to vdev\n");
+	    "    <device> : path to vdev\n"
+	    "\n"
+	    "    metaslab leak <pool>\n"
+	    "        apply allocation map from zdb to specified pool\n");
 	exit(1);
 }
 
@@ -363,10 +368,12 @@ feature_incr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount + 1, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
@@ -376,10 +383,12 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount - 1, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
@@ -496,6 +505,186 @@ zhack_do_feature(int argc, char **argv)
 	return (0);
 }
 
+static boolean_t
+strstarts(const char *a, const char *b)
+{
+	return (strncmp(a, b, strlen(b)) == 0);
+}
+
+static void
+metaslab_force_alloc(metaslab_t *msp, uint64_t start, uint64_t size,
+    dmu_tx_t *tx)
+{
+	ASSERT(msp->ms_disabled);
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	uint64_t txg = dmu_tx_get_txg(tx);
+
+	uint64_t off = start;
+	while (off < start + size) {
+		uint64_t ostart, osize;
+		boolean_t found = zfs_range_tree_find_in(msp->ms_allocatable,
+		    off, start + size - off, &ostart, &osize);
+		if (!found)
+			break;
+		zfs_range_tree_remove(msp->ms_allocatable, ostart, osize);
+
+		if (zfs_range_tree_is_empty(msp->ms_allocating[txg & TXG_MASK]))
+			vdev_dirty(msp->ms_group->mg_vd, VDD_METASLAB, msp,
+			    txg);
+
+		zfs_range_tree_add(msp->ms_allocating[txg & TXG_MASK], ostart,
+		    osize);
+		msp->ms_allocating_total += osize;
+		off = ostart + osize;
+	}
+}
+
+static void
+zhack_do_metaslab_leak(int argc, char **argv)
+{
+	int c;
+	char *target;
+	spa_t *spa;
+
+	optind = 1;
+	boolean_t force = B_FALSE;
+	while ((c = getopt(argc, argv, "f")) != -1) {
+		switch (c) {
+		case 'f':
+			force = B_TRUE;
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+	spa_config_enter(spa, SCL_VDEV | SCL_ALLOC, FTAG, RW_READER);
+
+	char *line = NULL;
+	size_t cap = 0;
+
+	vdev_t *vd = NULL;
+	metaslab_t *prev = NULL;
+	dmu_tx_t *tx = NULL;
+	while (getline(&line, &cap, stdin) > 0) {
+		if (strstarts(line, "\tvdev ")) {
+			uint64_t vdev_id, ms_shift;
+			if (sscanf(line,
+			    "\tvdev %10"PRIu64"\t%*s  metaslab shift %4"PRIu64,
+			    &vdev_id, &ms_shift) == 1) {
+				VERIFY3U(sscanf(line, "\tvdev %"PRIu64
+				    "\t  metaslab shift %4"PRIu64,
+				    &vdev_id, &ms_shift), ==, 2);
+			}
+			vd = vdev_lookup_top(spa, vdev_id);
+			if (vd == NULL) {
+				fprintf(stderr, "error: no such vdev with "
+				    "id %"PRIu64"\n", vdev_id);
+				break;
+			}
+			if (tx) {
+				dmu_tx_commit(tx);
+				mutex_exit(&prev->ms_lock);
+				metaslab_enable(prev, B_FALSE, B_FALSE);
+				tx = NULL;
+				prev = NULL;
+			}
+			if (vd->vdev_ms_shift != ms_shift) {
+				fprintf(stderr, "error: ms_shift mismatch: %"
+				    PRIu64" != %"PRIu64"\n", vd->vdev_ms_shift,
+				    ms_shift);
+				break;
+			}
+		} else if (strstarts(line, "\tmetaslabs ")) {
+			uint64_t ms_count;
+			VERIFY3U(sscanf(line, "\tmetaslabs %"PRIu64, &ms_count),
+			    ==, 1);
+			ASSERT(vd);
+			if (!force && vd->vdev_ms_count != ms_count) {
+				fprintf(stderr, "error: ms_count mismatch: %"
+				    PRIu64" != %"PRIu64"\n", vd->vdev_ms_count,
+				    ms_count);
+				break;
+			}
+		} else if (strstarts(line, "ALLOC:")) {
+			uint64_t start, size;
+			VERIFY3U(sscanf(line, "ALLOC: %"PRIu64" %"PRIu64"\n",
+			    &start, &size), ==, 2);
+
+			ASSERT(vd);
+			metaslab_t *cur =
+			    vd->vdev_ms[start >> vd->vdev_ms_shift];
+			if (prev != cur) {
+				if (prev) {
+					dmu_tx_commit(tx);
+					mutex_exit(&prev->ms_lock);
+					metaslab_enable(prev, B_FALSE, B_FALSE);
+				}
+				ASSERT(cur);
+				metaslab_disable(cur);
+				mutex_enter(&cur->ms_lock);
+				metaslab_load(cur);
+				prev = cur;
+				tx = dmu_tx_create_dd(
+				    spa_get_dsl(vd->vdev_spa)->dp_root_dir);
+				dmu_tx_assign(tx, DMU_TX_WAIT);
+			}
+
+			metaslab_force_alloc(cur, start, size, tx);
+		} else {
+			continue;
+		}
+	}
+	if (tx) {
+		dmu_tx_commit(tx);
+		mutex_exit(&prev->ms_lock);
+		metaslab_enable(prev, B_FALSE, B_FALSE);
+		tx = NULL;
+		prev = NULL;
+	}
+	if (line)
+		free(line);
+
+	spa_config_exit(spa, SCL_VDEV | SCL_ALLOC, FTAG);
+	spa_close(spa, FTAG);
+}
+
+static int
+zhack_do_metaslab(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no metaslab operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "leak") == 0) {
+		zhack_do_metaslab_leak(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
+}
+
 #define	ASHIFT_UBERBLOCK_SHIFT(ashift)	\
 	MIN(MAX(ashift, UBERBLOCK_SHIFT), \
 	MAX_UBERBLOCK_SHIFT)
@@ -525,6 +714,23 @@ zhack_repair_read_label(const int fd, vdev_label_t *vl,
 	return (0);
 }
 
+static int
+zhack_repair_get_byteswap(const zio_eck_t *vdev_eck, const int l, int *byteswap)
+{
+	if (vdev_eck->zec_magic == ZEC_MAGIC) {
+		*byteswap = B_FALSE;
+	} else if (vdev_eck->zec_magic == BSWAP_64((uint64_t)ZEC_MAGIC)) {
+		*byteswap = B_TRUE;
+	} else {
+		(void) fprintf(stderr, "error: label %d: "
+		    "Expected the nvlist checksum magic number but instead got "
+		    "0x%" PRIx64 "\n",
+		    l, vdev_eck->zec_magic);
+		return (1);
+	}
+	return (0);
+}
+
 static void
 zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
     const uint64_t abdsize, zio_eck_t *eck, zio_cksum_t *cksum)
@@ -551,33 +757,10 @@ zhack_repair_calc_cksum(const int byteswap, void *data, const uint64_t offset,
 }
 
 static int
-zhack_repair_check_label(uberblock_t *ub, const int l, const char **cfg_keys,
-    const size_t cfg_keys_len, nvlist_t *cfg, nvlist_t *vdev_tree_cfg,
-    uint64_t *ashift)
+zhack_repair_get_ashift(nvlist_t *cfg, const int l, uint64_t *ashift)
 {
 	int err;
-
-	if (ub->ub_txg != 0) {
-		(void) fprintf(stderr,
-		    "error: label %d: UB TXG of 0 expected, but got %"
-		    PRIu64 "\n",
-		    l, ub->ub_txg);
-		(void) fprintf(stderr, "It would appear the device was not "
-		    "properly removed.\n");
-		return (1);
-	}
-
-	for (int i = 0; i < cfg_keys_len; i++) {
-		uint64_t val;
-		err = nvlist_lookup_uint64(cfg, cfg_keys[i], &val);
-		if (err) {
-			(void) fprintf(stderr,
-			    "error: label %d, %d: "
-			    "cannot find nvlist key %s\n",
-			    l, i, cfg_keys[i]);
-			return (err);
-		}
-	}
+	nvlist_t *vdev_tree_cfg;
 
 	err = nvlist_lookup_nvlist(cfg,
 	    ZPOOL_CONFIG_VDEV_TREE, &vdev_tree_cfg);
@@ -601,7 +784,7 @@ zhack_repair_check_label(uberblock_t *ub, const int l, const char **cfg_keys,
 		(void) fprintf(stderr,
 		    "error: label %d: nvlist key %s is zero\n",
 		    l, ZPOOL_CONFIG_ASHIFT);
-		return (err);
+		return (1);
 	}
 
 	return (0);
@@ -616,30 +799,35 @@ zhack_repair_undetach(uberblock_t *ub, nvlist_t *cfg, const int l)
 	 */
 	if (BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp) != 0) {
 		const uint64_t txg = BP_GET_LOGICAL_BIRTH(&ub->ub_rootbp);
+		int err;
+
 		ub->ub_txg = txg;
 
-		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_CREATE_TXG) != 0) {
+		err = nvlist_remove_all(cfg, ZPOOL_CONFIG_CREATE_TXG);
+		if (err) {
 			(void) fprintf(stderr,
 			    "error: label %d: "
 			    "Failed to remove pool creation TXG\n",
 			    l);
-			return (1);
+			return (err);
 		}
 
-		if (nvlist_remove_all(cfg, ZPOOL_CONFIG_POOL_TXG) != 0) {
+		err = nvlist_remove_all(cfg, ZPOOL_CONFIG_POOL_TXG);
+		if (err) {
 			(void) fprintf(stderr,
 			    "error: label %d: Failed to remove pool TXG to "
 			    "be replaced.\n",
 			    l);
-			return (1);
+			return (err);
 		}
 
-		if (nvlist_add_uint64(cfg, ZPOOL_CONFIG_POOL_TXG, txg) != 0) {
+		err = nvlist_add_uint64(cfg, ZPOOL_CONFIG_POOL_TXG, txg);
+		if (err) {
 			(void) fprintf(stderr,
 			    "error: label %d: "
 			    "Failed to add pool TXG of %" PRIu64 "\n",
 			    l, txg);
-			return (1);
+			return (err);
 		}
 	}
 
@@ -733,6 +921,7 @@ zhack_repair_test_cksum(const int byteswap, void *vdev_data,
 	    BSWAP_64(ZEC_MAGIC) : ZEC_MAGIC;
 	const uint64_t actual_magic = vdev_eck->zec_magic;
 	int err = 0;
+
 	if (actual_magic != expected_magic) {
 		(void) fprintf(stderr, "error: label %d: "
 		    "Expected "
@@ -754,6 +943,36 @@ zhack_repair_test_cksum(const int byteswap, void *vdev_data,
 	return (err);
 }
 
+static int
+zhack_repair_unpack_cfg(vdev_label_t *vl, const int l, nvlist_t **cfg)
+{
+	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
+	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
+	int err;
+
+	err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
+	    VDEV_PHYS_SIZE - sizeof (zio_eck_t), cfg, 0);
+	if (err) {
+		(void) fprintf(stderr,
+		    "error: cannot unpack nvlist label %d\n", l);
+		return (err);
+	}
+
+	for (int i = 0; i < ARRAY_SIZE(cfg_keys); i++) {
+		uint64_t val;
+		err = nvlist_lookup_uint64(*cfg, cfg_keys[i], &val);
+		if (err) {
+			(void) fprintf(stderr,
+			    "error: label %d, %d: "
+			    "cannot find nvlist key %s\n",
+			    l, i, cfg_keys[i]);
+			return (err);
+		}
+	}
+
+	return (0);
+}
+
 static void
 zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
     vdev_label_t *vl, const uint64_t label_offset, const int l,
@@ -767,10 +986,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 	    (zio_eck_t *)((char *)(vdev_data) + VDEV_PHYS_SIZE) - 1;
 	const uint64_t vdev_phys_offset =
 	    label_offset + offsetof(vdev_label_t, vl_vdev_phys);
-	const char *cfg_keys[] = { ZPOOL_CONFIG_VERSION,
-	    ZPOOL_CONFIG_POOL_STATE, ZPOOL_CONFIG_GUID };
 	nvlist_t *cfg;
-	nvlist_t *vdev_tree_cfg = NULL;
 	uint64_t ashift;
 	int byteswap;
 
@@ -778,18 +994,9 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 	if (err)
 		return;
 
-	if (vdev_eck->zec_magic == 0) {
-		(void) fprintf(stderr, "error: label %d: "
-		    "Expected the nvlist checksum magic number to not be zero"
-		    "\n",
-		    l);
-		(void) fprintf(stderr, "There should already be a checksum "
-		    "for the label.\n");
+	err = zhack_repair_get_byteswap(vdev_eck, l, &byteswap);
+	if (err)
 		return;
-	}
-
-	byteswap =
-	    (vdev_eck->zec_magic == BSWAP_64((uint64_t)ZEC_MAGIC));
 
 	if (byteswap) {
 		byteswap_uint64_array(&vdev_eck->zec_cksum,
@@ -805,22 +1012,26 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 		return;
 	}
 
-	err = nvlist_unpack(vl->vl_vdev_phys.vp_nvlist,
-	    VDEV_PHYS_SIZE - sizeof (zio_eck_t), &cfg, 0);
-	if (err) {
-		(void) fprintf(stderr,
-		    "error: cannot unpack nvlist label %d\n", l);
-		return;
-	}
-
-	err = zhack_repair_check_label(ub,
-	    l, cfg_keys, ARRAY_SIZE(cfg_keys), cfg, vdev_tree_cfg, &ashift);
+	err = zhack_repair_unpack_cfg(vl, l, &cfg);
 	if (err)
 		return;
 
 	if ((op & ZHACK_REPAIR_OP_UNDETACH) != 0) {
 		char *buf;
 		size_t buflen;
+
+		if (ub->ub_txg != 0) {
+			(void) fprintf(stderr,
+			    "error: label %d: UB TXG of 0 expected, but got %"
+			    PRIu64 "\n", l, ub->ub_txg);
+			(void) fprintf(stderr, "It would appear the device was "
+			    "not properly detached.\n");
+			return;
+		}
+
+		err = zhack_repair_get_ashift(cfg, l, &ashift);
+		if (err)
+			return;
 
 		err = zhack_repair_undetach(ub, cfg, l);
 		if (err)
@@ -981,7 +1192,7 @@ main(int argc, char **argv)
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "+c:d:")) != -1) {
+	while ((c = getopt(argc, argv, "+c:d:o:")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;
@@ -989,6 +1200,10 @@ main(int argc, char **argv)
 		case 'd':
 			assert(g_importargs.paths < MAX_NUM_PATHS);
 			g_importargs.path[g_importargs.paths++] = optarg;
+			break;
+		case 'o':
+			if (handle_tunable_option(optarg, B_FALSE) != 0)
+				exit(1);
 			break;
 		default:
 			usage();
@@ -1011,6 +1226,8 @@ main(int argc, char **argv)
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
+	} else if (strcmp(subcommand, "metaslab") == 0) {
+		rv = zhack_do_metaslab(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);

@@ -1556,6 +1556,12 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	sb->s_xattr = zpl_xattr_handlers;
 	sb->s_export_op = &zpl_export_operations;
 
+#ifdef HAVE_SET_DEFAULT_D_OP
+	set_default_d_op(sb, &zpl_dentry_operations);
+#else
+	sb->s_d_op = &zpl_dentry_operations;
+#endif
+
 	/* Set features for file system. */
 	zfs_set_fuid_feature(zfsvfs);
 

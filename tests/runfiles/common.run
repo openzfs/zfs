@@ -323,6 +323,10 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_raw', 'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
 tags = ['functional', 'cli_root', 'zfs_send']
 
+[tests/functional/cli_root/zfs_send_delegation]
+tests = ['zfs_send_test']
+tags = ['functional', 'cli_root', 'zfs_send_delegation']
+
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
@@ -379,7 +383,7 @@ tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zhack]
 tests = ['zhack_label_repair_001', 'zhack_label_repair_002',
-    'zhack_label_repair_003', 'zhack_label_repair_004']
+    'zhack_label_repair_003', 'zhack_label_repair_004', 'zhack_metaslab_leak']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zhack']
@@ -546,7 +550,7 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_multiple_pools',
     'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
     'zpool_error_scrub_003_pos', 'zpool_error_scrub_004_pos',
-    'zpool_scrub_date_range_001']
+    'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002']
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]
@@ -624,8 +628,8 @@ tests = ['zdb_001_neg', 'zfs_001_neg', 'zfs_allow_001_neg',
     'zpool_history_001_neg', 'zpool_import_001_neg', 'zpool_import_002_neg',
     'zpool_offline_001_neg', 'zpool_online_001_neg', 'zpool_remove_001_neg',
     'zpool_replace_001_neg', 'zpool_scrub_001_neg', 'zpool_set_001_neg',
-    'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'arcstat_001_pos',
-    'arc_summary_001_pos', 'arc_summary_002_neg', 'zpool_wait_privilege',
+    'zpool_status_001_neg', 'zpool_upgrade_001_neg', 'zarcstat_001_pos',
+    'zarcsummary_001_pos', 'zarcsummary_002_neg', 'zpool_wait_privilege',
     'zilstat_001_pos']
 user =
 tags = ['functional', 'cli_user', 'misc']
@@ -636,6 +640,10 @@ tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
     'zfs_list_008_neg']
 user =
 tags = ['functional', 'cli_user', 'zfs_list']
+
+[tests/functional/cli_user/zfs_send_delegation_user]
+tests = ['zfs_send_usertest']
+tags = ['functional', 'cli_user', 'zfs_send_delegation_user']
 
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
@@ -940,10 +948,11 @@ tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
-    'attach_resilver', 'detach', 'rebuild_disabled_feature',
-    'rebuild_multiple', 'rebuild_raidz', 'replace_import', 'replace_rebuild',
-    'replace_resilver', 'resilver_restart_001', 'resilver_restart_002',
-    'scrub_cancel']
+    'attach_resilver', 'attach_resilver_sit_out', 'detach',
+    'rebuild_disabled_feature', 'rebuild_multiple', 'rebuild_raidz',
+    'replace_import', 'replace_rebuild', 'replace_resilver',
+    'replace_resilver_sit_out', 'resilver_restart_001',
+    'resilver_restart_002', 'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]

@@ -683,6 +683,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	dsl_dataset_t *ds;
 	const char *cp;
 	int error;
+	boolean_t rawok = (zc->zc_flags & 0x8);
 
 	/*
 	 * Generate the current snapshot name from the given objsetid, then
@@ -705,6 +706,10 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
 	    ZFS_DELEG_PERM_SEND, cr);
+	if (error != 0 && rawok == B_TRUE) {
+		error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
+		    ZFS_DELEG_PERM_SEND_RAW, cr);
+	}
 	dsl_dataset_rele(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
@@ -714,9 +719,17 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
+	boolean_t rawok = nvlist_exists(innvl, "rawok");
+	int error;
+
 	(void) innvl;
-	return (zfs_secpolicy_write_perms(zc->zc_name,
-	    ZFS_DELEG_PERM_SEND, cr));
+	error = zfs_secpolicy_write_perms(zc->zc_name,
+	    ZFS_DELEG_PERM_SEND, cr);
+	if (error != 0 && rawok == B_TRUE) {
+		error = zfs_secpolicy_write_perms(zc->zc_name,
+		    ZFS_DELEG_PERM_SEND_RAW, cr);
+	}
+	return (error);
 }
 
 static int
@@ -4726,7 +4739,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			error = error ? error : resume_err;
 		}
 		zfs_vfs_rele(zfsvfs);
-	} else if ((zv = zvol_suspend(fsname)) != NULL) {
+	} else if (zvol_suspend(fsname, &zv) == 0) {
 		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
 		    outnvl);
 		zvol_resume(zv);
@@ -5448,7 +5461,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 			}
 			error = error ? error : end_err;
 			zfs_vfs_rele(zfsvfs);
-		} else if ((zv = zvol_suspend(tofs)) != NULL) {
+		} else if (zvol_suspend(tofs, &zv) == 0) {
 			error = dmu_recv_end(&drc, zvol_tag(zv));
 			zvol_resume(zv);
 		} else {
@@ -7619,7 +7632,7 @@ zfs_ioctl_init(void)
 
 	zfs_ioctl_register("scrub", ZFS_IOC_POOL_SCRUB,
 	    zfs_ioc_pool_scrub, zfs_secpolicy_config, POOL_NAME,
-	    POOL_CHECK_NONE, B_TRUE, B_TRUE,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_scrub, ARRAY_SIZE(zfs_keys_pool_scrub));
 
 	zfs_ioctl_register("get_props", ZFS_IOC_POOL_GET_PROPS,

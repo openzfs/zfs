@@ -232,7 +232,7 @@ maybe = {
     'cli_root/zpool_trim/zpool_trim_fault_export_import_online':
         ['FAIL', known_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', 6141],
-    'cli_user/misc/arc_summary_001_pos': ['FAIL', known_reason],
+    'cli_user/misc/zarcsummary_001_pos': ['FAIL', known_reason],
     'delegate/setup': ['SKIP', exec_reason],
     'events/zed_cksum_config': ['FAIL', known_reason],
     'fault/auto_replace_002_pos': ['FAIL', known_reason],

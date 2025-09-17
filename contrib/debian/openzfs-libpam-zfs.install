@@ -1,2 +1,2 @@
-lib/*/security/pam_zfs_key.so
+usr/lib/*/security/pam_zfs_key.so
 usr/share/pam-configs/zfs_key

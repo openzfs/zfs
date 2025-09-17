@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2023, Datto Inc. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 
@@ -33,6 +34,20 @@
 #include <linux/iversion.h>
 #include <linux/version.h>
 
+/*
+ * What to do when the last reference to an inode is released. If 0, the kernel
+ * will cache it on the superblock. If 1, the inode will be freed immediately.
+ * See zpl_drop_inode().
+ */
+int zfs_delete_inode = 0;
+
+/*
+ * What to do when the last reference to a dentry is released. If 0, the kernel
+ * will cache it until the entry (file) is destroyed. If 1, the dentry will be
+ * marked for cleanup, at which time its inode reference will be released. See
+ * zpl_dentry_delete().
+ */
+int zfs_delete_dentry = 0;
 
 static struct inode *
 zpl_inode_alloc(struct super_block *sb)
@@ -77,11 +92,36 @@ zpl_dirty_inode(struct inode *ip, int flags)
 }
 
 /*
- * When ->drop_inode() is called its return value indicates if the
- * inode should be evicted from the inode cache.  If the inode is
- * unhashed and has no links the default policy is to evict it
- * immediately.
+ * ->drop_inode() is called when the last reference to an inode is released.
+ * Its return value indicates if the inode should be destroyed immediately, or
+ * cached on the superblock structure.
  *
+ * By default (zfs_delete_inode=0), we call generic_drop_inode(), which returns
+ * "destroy immediately" if the inode is unhashed and has no links (roughly: no
+ * longer exists on disk). On datasets with millions of rarely-accessed files,
+ * this can cause a large amount of memory to be "pinned" by cached inodes,
+ * which in turn pin their associated dnodes and dbufs, until the kernel starts
+ * reporting memory pressure and requests OpenZFS release some memory (see
+ * zfs_prune()).
+ *
+ * When set to 1, we call generic_delete_node(), which always returns "destroy
+ * immediately", resulting in inodes being destroyed immediately, releasing
+ * their associated dnodes and dbufs to the dbuf cached and the ARC to be
+ * evicted as normal.
+ *
+ * Note that the "last reference" doesn't always mean the last _userspace_
+ * reference; the dentry cache also holds a reference, so "busy" inodes will
+ * still be kept alive that way (subject to dcache tuning).
+ */
+static int
+zpl_drop_inode(struct inode *ip)
+{
+	if (zfs_delete_inode)
+		return (generic_delete_inode(ip));
+	return (generic_drop_inode(ip));
+}
+
+/*
  * The ->evict_inode() callback must minimally truncate the inode pages,
  * and call clear_inode().  For 2.6.35 and later kernels this will
  * simply update the inode state, with the sync occurring before the
@@ -470,6 +510,7 @@ const struct super_operations zpl_super_operations = {
 	.destroy_inode		= zpl_inode_destroy,
 	.dirty_inode		= zpl_dirty_inode,
 	.write_inode		= NULL,
+	.drop_inode		= zpl_drop_inode,
 	.evict_inode		= zpl_evict_inode,
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
@@ -478,6 +519,35 @@ const struct super_operations zpl_super_operations = {
 	.show_devname		= zpl_show_devname,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
+};
+
+/*
+ * ->d_delete() is called when the last reference to a dentry is released. Its
+ *  return value indicates if the dentry should be destroyed immediately, or
+ *  retained in the dentry cache.
+ *
+ * By default (zfs_delete_dentry=0) the kernel will always cache unused
+ * entries.  Each dentry holds an inode reference, so cached dentries can hold
+ * the final inode reference indefinitely, leading to the inode and its related
+ * data being pinned (see zpl_drop_inode()).
+ *
+ * When set to 1, we signal that the dentry should be destroyed immediately and
+ * never cached. This reduces memory usage, at the cost of higher overheads to
+ * lookup a file, as the inode and its underlying data (dnode/dbuf) need to be
+ * reloaded and reinflated.
+ *
+ * Note that userspace does not have direct control over dentry references and
+ * reclaim; rather, this is part of the kernel's caching and reclaim subsystems
+ * (eg vm.vfs_cache_pressure).
+ */
+static int
+zpl_dentry_delete(const struct dentry *dentry)
+{
+	return (zfs_delete_dentry ? 1 : 0);
+}
+
+const struct dentry_operations zpl_dentry_operations = {
+	.d_delete = zpl_dentry_delete,
 };
 
 struct file_system_type zpl_fs_type = {
@@ -491,3 +561,10 @@ struct file_system_type zpl_fs_type = {
 	.mount			= zpl_mount,
 	.kill_sb		= zpl_kill_sb,
 };
+
+ZFS_MODULE_PARAM(zfs, zfs_, delete_inode, INT, ZMOD_RW,
+	"Delete inodes as soon as the last reference is released.");
+
+ZFS_MODULE_PARAM(zfs, zfs_, delete_dentry, INT, ZMOD_RW,
+	"Delete dentries from dentry cache as soon as the last reference is "
+	"released.");

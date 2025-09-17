@@ -776,6 +776,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_ASHIFT_MISMATCH:
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
+	case ZFS_ERR_TOO_MANY_SITOUTS:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "too many disks "
+		    "already sitting out"));
+		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);

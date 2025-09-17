@@ -46,7 +46,7 @@ void zfs_file_close(zfs_file_t *fp);
 
 int zfs_file_write(zfs_file_t *fp, const void *buf, size_t len, ssize_t *resid);
 int zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t len, loff_t off,
-    ssize_t *resid);
+    uint8_t ashift, ssize_t *resid);
 int zfs_file_read(zfs_file_t *fp, void *buf, size_t len, ssize_t *resid);
 int zfs_file_pread(zfs_file_t *fp, void *buf, size_t len, loff_t off,
     ssize_t *resid);

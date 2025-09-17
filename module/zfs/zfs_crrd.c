@@ -162,9 +162,9 @@ dbrrd_add(dbrrd_t *db, hrtime_t time, uint64_t txg)
 	daydiff = time - rrd_tail(&db->dbr_days);
 	monthdiff = time - rrd_tail(&db->dbr_months);
 
-	if (monthdiff >= 0 && monthdiff >= SEC2NSEC(30 * 24 * 60 * 60))
+	if (monthdiff >= 0 && monthdiff >= 30 * 24 * 60 * 60)
 		rrd_add(&db->dbr_months, time, txg);
-	else if (daydiff >= 0 && daydiff >= SEC2NSEC(24 * 60 * 60))
+	else if (daydiff >= 0 && daydiff >= 24 * 60 * 60)
 		rrd_add(&db->dbr_days, time, txg);
 	else if (minutedif >= 0)
 		rrd_add(&db->dbr_minutes, time, txg);
@@ -208,7 +208,8 @@ dbrrd_closest(hrtime_t tv, const rrd_data_t *r1, const rrd_data_t *r2)
 	if (r2 == NULL)
 		return (r1);
 
-	return (ABS(tv - r1->rrdd_time) < ABS(tv - r2->rrdd_time) ? r1 : r2);
+	return (ABS(tv - (hrtime_t)r1->rrdd_time) <
+	    ABS(tv - (hrtime_t)r2->rrdd_time) ? r1 : r2);
 }
 
 uint64_t
