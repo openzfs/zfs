@@ -4630,8 +4630,7 @@ dbuf_lightweight_ready(zio_t *zio)
 	}
 
 	assert_db_data_addr_locked(parent_db);
-	// TODO: consider getting RW_WRITER here instead of upgrading later.
-	rw_enter(&parent_db->db_rwlock, RW_READER);
+	rw_enter(&parent_db->db_rwlock, RW_WRITER);
 	blkptr_t *bp_orig = dbuf_lightweight_bp(dr);
 	spa_t *spa = dmu_objset_spa(dn->dn_objset);
 	int64_t delta = bp_get_dsize_sync(spa, bp) -
@@ -4651,10 +4650,6 @@ dbuf_lightweight_ready(zio_t *zio)
 		BP_SET_FILL(bp, fill);
 	}
 
-	if (!rw_tryupgrade(&parent_db->db_rwlock)) {
-		rw_exit(&parent_db->db_rwlock);
-		rw_enter(&parent_db->db_rwlock, RW_WRITER);
-	}
 	*bp_orig = *bp;
 	rw_exit(&parent_db->db_rwlock);
 }
