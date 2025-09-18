@@ -551,7 +551,9 @@ static inline int
 io_data_dir(struct bio *bio, struct request *rq)
 {
 	if (rq != NULL) {
-		if (op_is_write(req_op(rq))) {
+		/* Flush & trim operations go down the zvol_write codepath. */
+		if (op_is_write(rq->cmd_flags) || op_is_flush(rq->cmd_flags) ||
+		    op_is_discard(rq->cmd_flags)) {
 			return (WRITE);
 		} else {
 			return (READ);
