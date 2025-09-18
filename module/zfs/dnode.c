@@ -1613,11 +1613,9 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 				DNODE_STAT_BUMP(dnode_hold_alloc_lock_misses);
 				dn = dnh->dnh_dnode;
 			} else {
-				rw_enter(&db->db_rwlock, RW_READER);
-				// TODO: try omitting the db_rwlock
+				assert_db_data_contents_locked(db, FALSE);
 				dn = dnode_create(os, dn_block + idx, db,
 				    object, dnh);
-				rw_exit(&db->db_rwlock);
 				dmu_buf_add_user_size(&db->db,
 				    sizeof (dnode_t));
 			}
@@ -1689,11 +1687,9 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
 			dn = dnh->dnh_dnode;
 		} else {
-			rw_enter(&db->db_rwlock, RW_READER);
-			// TODO: try omitting the db_rwlock
+			assert_db_data_contents_locked(db, FALSE);
 			dn = dnode_create(os, dn_block + idx, db,
 			    object, dnh);
-			rw_exit(&db->db_rwlock);
 			dmu_buf_add_user_size(&db->db, sizeof (dnode_t));
 		}
 
