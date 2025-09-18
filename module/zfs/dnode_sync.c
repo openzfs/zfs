@@ -312,12 +312,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 
 	dbuf_release_bp(db);
-	/*
-	 * XXX db_mtx isn't held, but should be.  But locking it here causes a
-	 * recurse-on-non-recursive mutex panic many levels downstack:
-	 * free_verify->dbuf_hold_impl->dbuf_findbp->dbuf_hold_impl->dbuf_find
-	 */
-	/* mutex_enter(&db->db_mtx); */
+	assert_db_data_addr_locked(db);
 	bp = db->db.db_data;
 
 	DB_DNODE_ENTER(db);
@@ -346,10 +341,6 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		rw_exit(&db->db_rwlock);
 	} else {
 		for (uint64_t id = start; id <= end; id++, bp++) {
-			/*
-			 * XXX should really have db_rwlock here.  But we can't
-			 * hold it when we recurse into free_children.
-			 */
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
