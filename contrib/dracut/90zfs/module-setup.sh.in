@@ -16,7 +16,7 @@ depends() {
 }
 
 installkernel() {
-	instmods -c zfs
+	hostonly='' instmods -c zfs
 }
 
 install() {
