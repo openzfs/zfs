@@ -1906,7 +1906,7 @@ ztest_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t txg_how, const char *tag)
 			dmu_tx_wait(tx);
 		} else if (error == ENOSPC) {
 			ztest_record_enospc(tag);
-		} else {
+		} else if (!ZTEST_HFE_ACTIVE()) {
 			ASSERT(error == EDQUOT || error == EIO);
 		}
 		dmu_tx_abort(tx);
@@ -2687,12 +2687,14 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 		od->od_object = 0;
 		error = zap_lookup(zd->zd_os, od->od_dir, od->od_name,
 		    sizeof (uint64_t), 1, &od->od_object);
+		if (!(error == 0 || error == ENOENT) && ZTEST_HFE_ACTIVE())
+			return (missing + 1);
 		if (error) {
 			ASSERT3S(error, ==, ENOENT);
 			ASSERT0(od->od_object);
 			missing++;
 		} else {
-			dmu_buf_t *db;
+			dmu_buf_t *db = NULL;
 			ztest_block_tag_t *bbt;
 			dmu_object_info_t doi;
 
@@ -2700,16 +2702,27 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 			ASSERT0(missing);	/* there should be no gaps */
 
 			ztest_object_lock(zd, od->od_object, ZTRL_READER);
-			VERIFY0(dmu_bonus_hold(zd->zd_os, od->od_object,
-			    FTAG, &db));
+			error = dmu_bonus_hold(zd->zd_os, od->od_object, FTAG,
+			    &db);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto errout;
+			VERIFY0(error);
 			dmu_object_info_from_db(db, &doi);
 			bbt = ztest_bt_bonus(db);
+			if (bbt->bt_magic != BT_MAGIC && ZTEST_HFE_ACTIVE())
+				goto errout;
 			ASSERT3U(bbt->bt_magic, ==, BT_MAGIC);
 			od->od_type = doi.doi_type;
 			od->od_blocksize = doi.doi_data_block_size;
 			od->od_gen = bbt->bt_gen;
 			dmu_buf_rele(db, FTAG);
 			ztest_object_unlock(zd, od->od_object);
+			continue;
+errout:
+			if (db)
+				dmu_buf_rele(db, FTAG);
+			ztest_object_unlock(zd, od->od_object);
+			return (missing + 1);
 		}
 	}
 
@@ -2790,7 +2803,8 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 		lr->lr_doid = od->od_dir;
 
 		if ((error = ztest_replay_remove(zd, lr, B_FALSE)) != 0) {
-			ASSERT3U(error, ==, ENOSPC);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOSPC);
 			missing++;
 		} else {
 			od->od_object = 0;
@@ -5134,15 +5148,19 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	od = umem_alloc(size, UMEM_NOFAIL);
 	dmu_tx_t *tx;
 	int freeit, error;
-	uint64_t i, n, s, txg;
-	bufwad_t *packbuf, *bigbuf, *pack, *bigH, *bigT;
-	uint64_t packobj, packoff, packsize, bigobj, bigoff, bigsize;
+	uint64_t i, n, s, txg = 0;
+	bufwad_t *pack, *bigH, *bigT;
+	uint64_t packobj, packoff, bigobj, bigoff;
+	bufwad_t *packbuf = NULL, *bigbuf = NULL;
+	uint64_t packsize = 0, bigsize = 0;
 	uint64_t chunksize = (1000 + ztest_random(1000)) * sizeof (uint64_t);
 	uint64_t regions = 997;
 	uint64_t stride = 123456789ULL;
 	uint64_t width = 40;
 	int free_percent = 5;
 	dmu_flags_t dmu_read_flags = DMU_READ_PREFETCH;
+	void *packcheck = NULL;
+	void *bigcheck = NULL;
 
 	/*
 	 * We will randomly set when to do O_DIRECT on a read.
@@ -5181,10 +5199,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	ztest_od_init(od + 1, id, FTAG, 1, DMU_OT_UINT64_OTHER, 0, 0,
 	    chunksize);
 
-	if (ztest_object_init(zd, od, size, B_FALSE) != 0) {
-		umem_free(od, size);
-		return;
-	}
+	if (ztest_object_init(zd, od, size, B_FALSE) != 0)
+		goto out;
 
 	bigobj = od[0].od_object;
 	packobj = od[1].od_object;
@@ -5228,9 +5244,13 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 */
 	error = dmu_read(os, packobj, packoff, packsize, packbuf,
 	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 	error = dmu_read(os, bigobj, bigoff, bigsize, bigbuf,
 	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 
 	/*
@@ -5249,12 +5269,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_hold_bonus(tx, bigobj);
 
 	txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
-	if (txg == 0) {
-		umem_free(packbuf, packsize);
-		umem_free(bigbuf, bigsize);
-		umem_free(od, size);
-		return;
-	}
+	if (txg == 0)
+		goto out;
 
 	enum zio_checksum cksum;
 	do {
@@ -5277,6 +5293,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * with the new values we want to write out.
 	 */
 	for (i = 0; i < s; i++) {
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		/* LINTED */
 		pack = (bufwad_t *)((char *)packbuf + i * sizeof (bufwad_t));
 		/* LINTED */
@@ -5322,6 +5340,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 */
 	dmu_write(os, packobj, packoff, packsize, packbuf, tx,
 	    DMU_READ_PREFETCH);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
 
 	if (freeit) {
 		if (ztest_opts.zo_verbose >= 7) {
@@ -5329,7 +5349,10 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 			    " txg %"PRIx64"\n",
 			    bigoff, bigsize, txg);
 		}
-		VERIFY0(dmu_free_range(os, bigobj, bigoff, bigsize, tx));
+		error = dmu_free_range(os, bigobj, bigoff, bigsize, tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	} else {
 		if (ztest_opts.zo_verbose >= 7) {
 			(void) printf("writing offset %"PRIx64" size %"PRIx64""
@@ -5338,32 +5361,49 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		}
 		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx,
 		    DMU_READ_PREFETCH);
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 	}
 
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Sanity check the stuff we just wrote.
 	 */
-	{
-		void *packcheck = umem_alloc(packsize, UMEM_NOFAIL);
-		void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
+	packcheck = umem_alloc(packsize, UMEM_NOFAIL);
+	bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
-		VERIFY0(dmu_read(os, packobj, packoff,
-		    packsize, packcheck, dmu_read_flags));
-		VERIFY0(dmu_read(os, bigobj, bigoff,
-		    bigsize, bigcheck, dmu_read_flags));
+	error = dmu_read(os, packobj, packoff, packsize, packcheck,
+	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
+	error = dmu_read(os, bigobj, bigoff, bigsize, bigcheck,
+	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+
+	if (!ZTEST_HFE_ACTIVE()) {
 		ASSERT0(memcmp(packbuf, packcheck, packsize));
 		ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
-
-		umem_free(packcheck, packsize);
-		umem_free(bigcheck, bigsize);
 	}
 
-	umem_free(packbuf, packsize);
-	umem_free(bigbuf, bigsize);
-	umem_free(od, size);
+out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
+	if (bigcheck)
+		umem_free(bigcheck, bigsize);
+	if (packcheck)
+		umem_free(packcheck, packsize);
+	if (packbuf)
+		umem_free(packbuf, packsize);
+	if (bigbuf)
+		umem_free(bigbuf, bigsize);
+	if (od)
+		umem_free(od, size);
 }
 
 static void
