@@ -3219,9 +3219,12 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa;
 	nvlist_t *nvroot;
+	int err;
 
 	if (zo->zo_mmp_test)
 		return;
+
+	mutex_enter(&ztest_vdev_lock);
 
 	/*
 	 * Attempt to create using a bad file.
@@ -3260,15 +3263,21 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 *	For the case that there is another ztest thread doing
 	 *	an export concurrently.
 	 */
-	VERIFY0(spa_open(zo->zo_pool, &spa, FTAG));
+	err = spa_open(zo->zo_pool, &spa, FTAG);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 	int error = spa_destroy(zo->zo_pool, B_FALSE, B_FALSE);
-	if (error != EBUSY && error != ZFS_ERR_EXPORT_IN_PROGRESS) {
+	if (error != EBUSY && error != EAGAIN &&
+	    error != ZFS_ERR_EXPORT_IN_PROGRESS && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE, "spa_destroy(%s) returned unexpected value %d",
 		    spa->spa_name, error);
 	}
 	spa_close(spa, FTAG);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	mutex_exit(&ztest_vdev_lock);
 }
 
 /*
