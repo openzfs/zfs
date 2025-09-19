@@ -2031,7 +2031,7 @@ ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_CREATE, sizeof (*lr) + namesize);
@@ -2048,7 +2048,7 @@ ztest_log_remove(ztest_ds_t *zd, dmu_tx_t *tx, lr_remove_t *lr, uint64_t object)
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_REMOVE, sizeof (*lr) + namesize);
@@ -2065,7 +2065,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	itx_t *itx;
 	itx_wr_state_t write_state = ztest_random(WR_NUM_STATES);
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	if (lr->lr_length > zil_max_log_data(zd->zd_zilog, sizeof (lr_write_t)))
@@ -2097,7 +2097,7 @@ ztest_log_truncate(ztest_ds_t *zd, dmu_tx_t *tx, lr_truncate_t *lr)
 {
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_TRUNCATE, sizeof (*lr));
@@ -2113,7 +2113,7 @@ ztest_log_setattr(ztest_ds_t *zd, dmu_tx_t *tx, lr_setattr_t *lr)
 {
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_SETATTR, sizeof (*lr));
