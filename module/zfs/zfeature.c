@@ -309,8 +309,11 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 	ASSERT(MUTEX_HELD(&spa->spa_feat_stats_lock));
-	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
-	    sizeof (uint64_t), 1, &refcount, tx));
+	int err = zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
+	    sizeof (uint64_t), 1, &refcount, tx);
+	if (err != 0 && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 
 	/*
 	 * feature_sync is called directly from zhack, allowing the
