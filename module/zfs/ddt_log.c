@@ -100,8 +100,15 @@ static void
 ddt_log_update_header(ddt_t *ddt, ddt_log_t *ddl, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
-	VERIFY0(dmu_bonus_hold(ddt->ddt_os, ddl->ddl_object, FTAG, &db));
+	int err;
+
+	err = dmu_bonus_hold(ddt->ddt_os, ddl->ddl_object, FTAG, &db);
+	if (err && SPA_EXITING(ddt->ddt_spa))
+		return;
+	VERIFY0(err);
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(ddt->ddt_spa))
+		goto out;
 
 	ddt_log_header_t *hdr = (ddt_log_header_t *)db->db_data;
 	DLH_SET_VERSION(hdr, 1);
@@ -110,6 +117,7 @@ ddt_log_update_header(ddt_t *ddt, ddt_log_t *ddl, dmu_tx_t *tx)
 	hdr->dlh_first_txg = ddl->ddl_first_txg;
 	hdr->dlh_checkpoint = ddl->ddl_checkpoint;
 
+out:
 	dmu_buf_rele(db, FTAG);
 }
 
@@ -259,6 +267,7 @@ ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx, ddt_log_update_t *dlu)
 
 	dlu->dlu_tx = tx;
 	dlu->dlu_block = dlu->dlu_offset = 0;
+
 	return (err);
 }
 
