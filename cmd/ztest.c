@@ -5890,11 +5890,11 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
 	uint64_t object;
-	uint64_t txg, last_txg;
+	uint64_t txg = 0, last_txg;
 	uint64_t value[ZTEST_ZAP_MAX_INTS];
 	uint64_t zl_ints, zl_intsize, prop;
 	int i, ints;
-	dmu_tx_t *tx;
+	dmu_tx_t *tx = NULL;
 	char propname[100], txgname[100];
 	int error;
 	const char *const hc[2] = { "s.acl.h", ".s.open.h.hyLZlg" };
@@ -5919,21 +5919,35 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	for (i = 0; i < 2; i++) {
 		value[i] = i;
-		VERIFY0(zap_add(os, object, hc[i], sizeof (uint64_t),
-		    1, &value[i], tx));
+		error = zap_add(os, object, hc[i], sizeof (uint64_t),
+		    1, &value[i], tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	}
 	for (i = 0; i < 2; i++) {
-		VERIFY3U(EEXIST, ==, zap_add(os, object, hc[i],
-		    sizeof (uint64_t), 1, &value[i], tx));
-		VERIFY0(
-		    zap_length(os, object, hc[i], &zl_intsize, &zl_ints));
+		error = zap_add(os, object, hc[i],
+		    sizeof (uint64_t), 1, &value[i], tx);
+		if (!(error == EEXIST) && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY3U(error, ==, EEXIST);
+
+		error = zap_length(os, object, hc[i], &zl_intsize, &zl_ints);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
+
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, 1);
 	}
 	for (i = 0; i < 2; i++) {
-		VERIFY0(zap_remove(os, object, hc[i], tx));
+		error = zap_remove(os, object, hc[i], tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	}
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Generate a bunch of random entries.
@@ -5954,22 +5968,33 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, 1);
 
-		VERIFY0(zap_lookup(os, object, txgname, zl_intsize,
-		    zl_ints, &last_txg));
+		error = zap_lookup(os, object, txgname, zl_intsize,
+		    zl_ints, &last_txg);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
-		VERIFY0(zap_length(os, object, propname, &zl_intsize,
-		    &zl_ints));
+		error = zap_length(os, object, propname, &zl_intsize,
+		    &zl_ints);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, ints);
 
-		VERIFY0(zap_lookup(os, object, propname, zl_intsize,
-		    zl_ints, value));
+		error = zap_lookup(os, object, propname, zl_intsize,
+		    zl_ints, value);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
 		for (i = 0; i < ints; i++) {
 			ASSERT3U(value[i], ==, last_txg + object + i);
 		}
 	} else {
+		if (!(error == ENOENT) && ZTEST_HFE_ACTIVE())
+			goto out;
 		ASSERT3U(error, ==, ENOENT);
 	}
 
@@ -5993,12 +6018,19 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	for (i = 0; i < ints; i++)
 		value[i] = txg + object + i;
 
-	VERIFY0(zap_update(os, object, txgname, sizeof (uint64_t),
-	    1, &txg, tx));
-	VERIFY0(zap_update(os, object, propname, sizeof (uint64_t),
-	    ints, value, tx));
+	error = zap_update(os, object, txgname, sizeof (uint64_t),
+	    1, &txg, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+	error = zap_update(os, object, propname, sizeof (uint64_t),
+	    ints, value, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Remove a random pair of entries.
@@ -6011,7 +6043,8 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 
 	if (error == ENOENT)
 		goto out;
-
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 
 	tx = dmu_tx_create(os);
@@ -6019,10 +6052,18 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
 	if (txg == 0)
 		goto out;
-	VERIFY0(zap_remove(os, object, txgname, tx));
-	VERIFY0(zap_remove(os, object, propname, tx));
-	dmu_tx_commit(tx);
+	error = zap_remove(os, object, txgname, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+	error = zap_remove(os, object, propname, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+
 out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
 	umem_free(od, sizeof (ztest_od_t));
 }
 
@@ -6064,6 +6105,11 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 			goto out;
 		error = zap_add(os, object, name, sizeof (uint64_t), 1,
 		    &value, tx);
+		if (!(error == 0 || error == EEXIST) &&
+		    ZTEST_HFE_ACTIVE()) {
+			dmu_tx_commit(tx);
+			goto out;
+		}
 		ASSERT(error == 0 || error == EEXIST);
 		dmu_tx_commit(tx);
 	}
@@ -6078,7 +6124,7 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
 	uint64_t txg, object, count, wsize, wc, zl_wsize, zl_wc;
-	dmu_tx_t *tx;
+	dmu_tx_t *tx = NULL;
 	int i, namelen, error;
 	int micro = ztest_random(2);
 	char name[20], string_value[20];
@@ -6119,7 +6165,12 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 	}
 
 	count = -1ULL;
-	VERIFY0(zap_count(os, object, &count));
+	error = zap_count(os, object, &count);
+	if (error && ZTEST_HFE_ACTIVE()) {
+		umem_free(od, sizeof (ztest_od_t));
+		return;
+	}
+	VERIFY0(error);
 	ASSERT3S(count, !=, -1ULL);
 
 	/*
@@ -6150,7 +6201,8 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 			ASSERT3U(wsize, ==, zl_wsize);
 			ASSERT3U(wc, ==, zl_wc);
 		} else {
-			ASSERT3U(error, ==, ENOENT);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOENT);
 		}
 		break;
 
@@ -6162,22 +6214,27 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 				fatal(B_FALSE, "name '%s' != val '%s' len %d",
 				    name, (char *)data, namelen);
 		} else {
-			ASSERT3U(error, ==, ENOENT);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOENT);
 		}
 		break;
 
 	case 2:
 		error = zap_add(os, object, name, wsize, wc, data, tx);
-		ASSERT(error == 0 || error == EEXIST);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == EEXIST);
 		break;
 
 	case 3:
-		VERIFY0(zap_update(os, object, name, wsize, wc, data, tx));
+		error = zap_update(os, object, name, wsize, wc, data, tx);
+		if (!ZTEST_HFE_ACTIVE())
+			VERIFY0(error);
 		break;
 
 	case 4:
 		error = zap_remove(os, object, name, tx);
-		ASSERT(error == 0 || error == ENOENT);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == ENOENT);
 		break;
 	}
 
