@@ -4451,7 +4451,8 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	 */
 	error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
 	if (error == 0) {
-		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+		while (dsl_scan_scrubbing(spa_get_dsl(spa)) &&
+		    !ZTEST_HFE_ACTIVE())
 			txg_wait_synced(spa_get_dsl(spa), 0);
 	}
 
