@@ -8575,7 +8575,7 @@ ztest_dataset_open(int d)
 
 	ztest_dataset_name(name, ztest_opts.zo_pool, d);
 
-	if (ztest_opts.zo_verbose >= 6)
+	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("Opening %s\n", name);
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
