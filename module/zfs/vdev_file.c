@@ -43,6 +43,8 @@ static taskq_t *vdev_file_taskq;
 static uint_t vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
 static uint_t vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
+volatile int vdev_file_constant_error = 0;
+
 void
 vdev_file_init(void)
 {
@@ -212,6 +214,11 @@ vdev_file_io_strategy(void *arg)
 	ssize_t size;
 	int err;
 
+	if (vdev_file_constant_error) {
+		zio->io_error = SET_ERROR(vdev_file_constant_error);
+		goto out;
+	}
+
 	off = zio->io_offset;
 	size = zio->io_size;
 	resid = 0;
@@ -231,6 +238,7 @@ vdev_file_io_strategy(void *arg)
 	if (resid != 0 && zio->io_error == 0)
 		zio->io_error = SET_ERROR(ENOSPC);
 
+out:
 	zio_delay_interrupt(zio);
 }
 
@@ -240,8 +248,14 @@ vdev_file_io_fsync(void *arg)
 	zio_t *zio = (zio_t *)arg;
 	vdev_file_t *vf = zio->io_vd->vdev_tsd;
 
+	if (vdev_file_constant_error) {
+		zio->io_error = SET_ERROR(vdev_file_constant_error);
+		goto out;
+	}
+
 	zio->io_error = zfs_file_fsync(vf->vf_file, O_SYNC | O_DSYNC);
 
+out:
 	zio_interrupt(zio);
 }
 
@@ -251,9 +265,15 @@ vdev_file_io_deallocate(void *arg)
 	zio_t *zio = (zio_t *)arg;
 	vdev_file_t *vf = zio->io_vd->vdev_tsd;
 
+	if (vdev_file_constant_error) {
+		zio->io_error = SET_ERROR(vdev_file_constant_error);
+		goto out;
+	}
+
 	zio->io_error = zfs_file_deallocate(vf->vf_file,
 	    zio->io_offset, zio->io_size);
 
+out:
 	zio_interrupt(zio);
 }
 
