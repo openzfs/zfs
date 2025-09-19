@@ -479,7 +479,7 @@ int dsl_dataset_snap_lookup(dsl_dataset_t *ds, const char *name,
     uint64_t *value);
 int dsl_dataset_snap_remove(dsl_dataset_t *ds, const char *name, dmu_tx_t *tx,
     boolean_t adj_cnt);
-void dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
+int dsl_dataset_set_refreservation_sync_impl(dsl_dataset_t *ds,
     zprop_source_t source, uint64_t value, dmu_tx_t *tx);
 void dsl_dataset_zapify(dsl_dataset_t *ds, dmu_tx_t *tx);
 boolean_t dsl_dataset_is_zapified(dsl_dataset_t *ds);
@@ -493,8 +493,8 @@ int dsl_dataset_rollback(const char *fsname, const char *tosnap, void *owner,
 int dsl_dataset_rename_snapshot_check(void *arg, dmu_tx_t *tx);
 void dsl_dataset_rename_snapshot_sync(void *arg, dmu_tx_t *tx);
 
-uint64_t dsl_dataset_get_remap_deadlist_object(dsl_dataset_t *ds);
-void dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
+int dsl_dataset_get_remap_deadlist_object(dsl_dataset_t *ds, uint64_t *objectp);
+int dsl_dataset_create_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
 boolean_t dsl_dataset_remap_deadlist_exists(dsl_dataset_t *ds);
 void dsl_dataset_destroy_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx);
 
