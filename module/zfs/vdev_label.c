@@ -211,6 +211,14 @@ vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
 	    spa_config_held(zio->io_spa, SCL_STATE, RW_WRITER) == SCL_STATE);
 	ASSERT(flags & ZIO_FLAG_CONFIG_WRITER);
 
+	if (SPA_EXITING(zio->io_spa)) {
+		zio_t *nio = zio_null(zio, zio->io_spa, NULL, done, private,
+		    ZIO_FLAG_CANFAIL);
+		nio->io_error = SET_ERROR(EIO);
+		zio_nowait(nio);
+		return;
+	}
+
 	zio_nowait(zio_write_phys(zio, vd,
 	    vdev_label_offset(vd->vdev_psize, l, offset),
 	    size, buf, ZIO_CHECKSUM_LABEL, done, private,
@@ -2129,6 +2137,8 @@ retry:
 	 */
 	if (error != 0) {
 		if ((flags & ZIO_FLAG_IO_RETRY) != 0)
+			return (error);
+		if (SPA_EXITING(spa))
 			return (error);
 		flags |= ZIO_FLAG_IO_RETRY;
 	}
