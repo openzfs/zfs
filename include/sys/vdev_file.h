@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+extern volatile int vdev_file_constant_error;
+
 typedef struct vdev_file {
 	zfs_file_t	*vf_file;
 } vdev_file_t;
