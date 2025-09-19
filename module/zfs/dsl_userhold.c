@@ -158,7 +158,9 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
+	spa_t *spa = dp->dp_spa;
 	uint64_t zapobj;
+	int err;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
@@ -168,22 +170,30 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 		 * the userrefs zap object.
 		 */
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
-		VERIFY0(zap_create(mos, DMU_OT_USERREFS, DMU_OT_NONE, 0, tx,
-		    &dsl_dataset_phys(ds)->ds_userrefs_obj));
+		err = zap_create(mos, DMU_OT_USERREFS, DMU_OT_NONE, 0, tx,
+		    &dsl_dataset_phys(ds)->ds_userrefs_obj);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj;
 	} else {
 		zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj;
 	}
 	ds->ds_userrefs++;
 
-	VERIFY0(zap_add(mos, zapobj, htag, 8, 1, &now, tx));
+	err = zap_add(mos, zapobj, htag, 8, 1, &now, tx);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 
 	if (minor != 0) {
 		char name[MAXNAMELEN];
 		nvlist_t *tags;
 
-		VERIFY0(dsl_pool_user_hold(dp, ds->ds_object,
-		    htag, now, tx));
+		err = dsl_pool_user_hold(dp, ds->ds_object,
+		    htag, now, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 		(void) snprintf(name, sizeof (name), "%llx",
 		    (u_longlong_t)ds->ds_object);
 
@@ -253,8 +263,10 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 	    sizeof (ca->zhca_spaname));
 	ca->zhca_spa_load_guid = spa_load_guid(spa);
 	ca->zhca_holds = holds;
-	VERIFY0(zfs_onexit_add_cb(minor,
-	    dsl_dataset_user_release_onexit, ca, NULL));
+	int err = zfs_onexit_add_cb(minor,
+	    dsl_dataset_user_release_onexit, ca, NULL);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 void
@@ -276,8 +288,10 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_dataset_user_hold_arg_t *dduha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
 	nvlist_t *tmpholds;
 	uint64_t now = gethrestime_sec();
+	int err;
 
 	if (dduha->dduha_minor != 0)
 		tmpholds = fnvlist_alloc();
@@ -288,7 +302,10 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 	    pair = nvlist_next_nvpair(dduha->dduha_chkholds, pair)) {
 		dsl_dataset_t *ds;
 
-		VERIFY0(dsl_dataset_hold(dp, nvpair_name(pair), FTAG, &ds));
+		err = dsl_dataset_hold(dp, nvpair_name(pair), FTAG, &ds);
+		if (err && SPA_EXITING(spa))
+			break;
+		VERIFY0(err);
 		dsl_dataset_user_hold_sync_one_impl(tmpholds, ds,
 		    fnvpair_value_string(pair), dduha->dduha_minor, now, tx);
 		dsl_dataset_rele(ds, FTAG);
@@ -499,6 +516,7 @@ dsl_dataset_user_release_sync_one(dsl_dataset_t *ds, nvlist_t *holds,
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
+	spa_t *spa = dp->dp_spa;
 
 	for (nvpair_t *pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
@@ -507,10 +525,13 @@ dsl_dataset_user_release_sync_one(dsl_dataset_t *ds, nvlist_t *holds,
 
 		/* Remove temporary hold if one exists. */
 		error = dsl_pool_user_release(dp, ds->ds_object, holdname, tx);
-		VERIFY(error == 0 || error == ENOENT);
+		if (!SPA_EXITING(spa))
+			VERIFY(error == 0 || error == ENOENT);
 
-		VERIFY0(zap_remove(mos, dsl_dataset_phys(ds)->ds_userrefs_obj,
-		    holdname, tx));
+		error = zap_remove(mos, dsl_dataset_phys(ds)->ds_userrefs_obj,
+		    holdname, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(error);
 		ds->ds_userrefs--;
 
 		spa_history_log_internal_ds(ds, "release", tx,
@@ -524,6 +545,8 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_user_release_arg_t *ddura = arg;
 	dsl_holdfunc_t *holdfunc = ddura->ddura_holdfunc;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
+	int err;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
@@ -533,7 +556,10 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_t *ds;
 		const char *name = nvpair_name(pair);
 
-		VERIFY0(holdfunc(dp, name, FTAG, &ds));
+		err = holdfunc(dp, name, FTAG, &ds);
+		if (err && SPA_EXITING(spa))
+			break;
+		VERIFY0(err);
 
 		dsl_dataset_user_release_sync_one(ds,
 		    fnvpair_value_nvlist(pair), tx);
