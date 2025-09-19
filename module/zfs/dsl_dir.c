@@ -1595,6 +1595,8 @@ dsl_dir_diduse_space_impl(dsl_dir_t *dd, dd_used_t type,
 	ASSERT(type < DD_USED_NUM);
 
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
+	if (SPA_EXITING(tx->tx_pool->dp_spa))
+		return;
 
 	/*
 	 * dsl_dataset_set_refreservation_sync_impl() calls this with
@@ -1683,6 +1685,8 @@ dsl_dir_diduse_transfer_space_impl(dsl_dir_t *dd, int64_t used,
 	ASSERT(newtype < DD_USED_NUM);
 
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
+	if (SPA_EXITING(tx->tx_pool->dp_spa))
+		return;
 
 	dsl_dir_lock_enter(dd, nested);
 	dsl_dir_phys_t *ddp = dsl_dir_phys(dd);
@@ -2334,6 +2338,7 @@ dsl_dir_snap_cmtime(dsl_dir_t *dd)
 void
 dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx)
 {
+	int err;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	inode_timespec_t t;
 
@@ -2356,9 +2361,11 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx)
 	 * into space accounting, so do not call them with dd_lock held.
 	 */
 	dsl_dir_zapify(dd, tx);
-	VERIFY0(zap_update(mos, dd->dd_object, DD_FIELD_SNAPSHOTS_CHANGED,
+	err = zap_update(mos, dd->dd_object, DD_FIELD_SNAPSHOTS_CHANGED,
 	    sizeof (uint64_t),
-	    sizeof (inode_timespec_t) / sizeof (uint64_t), &t, tx));
+	    sizeof (inode_timespec_t) / sizeof (uint64_t), &t, tx);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 }
 
 void
