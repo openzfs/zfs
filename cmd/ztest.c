@@ -4724,8 +4724,10 @@ ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	/*
 	 * Create the objects common to all ztest datasets.
 	 */
-	VERIFY0(zap_create_claim(os, ZTEST_DIROBJ,
-	    DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx));
+	int err = zap_create_claim(os, ZTEST_DIROBJ,
+	    DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx);
+	if (!ZTEST_HFE_ACTIVE())
+		VERIFY0(err);
 }
 
 static int
@@ -4808,9 +4810,16 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	/*
 	 * Verify that the dataset contains a directory object.
 	 */
-	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
-	    B_TRUE, FTAG, &os));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
+	    B_TRUE, FTAG, &os);
+	if (error && ZTEST_HFE_ACTIVE())
+		return (error);
+	VERIFY0(error);
 	error = dmu_object_info(os, ZTEST_DIROBJ, &doi);
+	if (!(error == ENOENT || error == 0) && ZTEST_HFE_ACTIVE()) {
+		dmu_objset_disown(os, B_TRUE, FTAG);
+		return (EIO);
+	}
 	if (error != ENOENT) {
 		/* We could have crashed in the middle of destroying it */
 		ASSERT0(error);
@@ -4824,6 +4833,8 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	 */
 	if (strchr(name, '@') != NULL) {
 		error = dsl_destroy_snapshot(name, B_TRUE);
+		if (!(error == ECHRNG || error == 0) && ZTEST_HFE_ACTIVE())
+			return (EIO);
 		if (error != ECHRNG) {
 			/*
 			 * The program was executed, but encountered a runtime
@@ -4834,6 +4845,9 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 		}
 	} else {
 		error = dsl_destroy_head(name);
+		if (!(error == ENOSPC || error == EBUSY || error == 0) &&
+		    ZTEST_HFE_ACTIVE())
+			return (EIO);
 		if (error == ENOSPC) {
 			/* There could be checkpoint or insufficient slop */
 			ztest_record_enospc(FTAG);
@@ -4886,11 +4900,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd;
 	ztest_ds_t *zdtmp;
+	boolean_t zdtmp_inited = B_FALSE;
 	int iters;
 	int error;
-	objset_t *os, *os2;
+	objset_t *os = NULL, *os2;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
-	zilog_t *zilog;
+	zilog_t *zilog = NULL;
 	int i;
 
 	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
@@ -4912,6 +4927,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 		zil_replay(os, zdtmp, ztest_replay_vector);
 		ztest_zd_fini(zdtmp);
 		dmu_objset_disown(os, B_TRUE, FTAG);
+		os = NULL;
 	}
 
 	/*
@@ -4919,8 +4935,10 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 * create lying around from a previous run.  If so, destroy it
 	 * and all of its snapshots.
 	 */
-	(void) dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
+	error = dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
 	    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 
 	/*
 	 * Verify that the destroyed dataset is no longer in the namespace.
@@ -4929,10 +4947,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE,
 	    FTAG, &os);
 	if (error == 0) {
-		dmu_objset_disown(os, B_TRUE, FTAG);
 		ztest_record_enospc(FTAG);
 		goto out;
 	}
+	os = NULL;
+	if (error != ENOENT && ZTEST_HFE_ACTIVE())
+		goto out;
 	VERIFY3U(ENOENT, ==, error);
 
 	/*
@@ -4944,13 +4964,21 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", name, error);
 	}
 
-	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
-	    FTAG, &os));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os);
+	if (error && ZTEST_HFE_ACTIVE()) {
+		os = NULL;
+		goto out;
+	}
+	VERIFY0(error);
 
 	ztest_zd_init(zdtmp, NULL, os);
+	zdtmp_inited = B_TRUE;
 
 	/*
 	 * Open the intent log for it.
@@ -4964,34 +4992,45 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	iters = ztest_random(5);
 	for (i = 0; i < iters; i++) {
 		ztest_dmu_object_alloc_free(zdtmp, id);
-		if (ztest_random(iters) == 0)
+		if (ztest_random(iters) == 0) {
 			(void) ztest_snapshot_create(name, i);
+		}
 	}
 
 	/*
 	 * Verify that we cannot create an existing dataset.
 	 */
-	VERIFY3U(EEXIST, ==,
-	    dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL, NULL));
+	error = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL, NULL);
+	if (!(error == EEXIST) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3U(error, ==, EEXIST);
 
 	/*
 	 * Verify that we can hold an objset that is also owned.
 	 */
-	VERIFY0(dmu_objset_hold(name, FTAG, &os2));
+	error = dmu_objset_hold(name, FTAG, &os2);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	dmu_objset_rele(os2, FTAG);
 
 	/*
 	 * Verify that we cannot own an objset that is already owned.
 	 */
-	VERIFY3U(EBUSY, ==, ztest_dmu_objset_own(name, DMU_OST_OTHER,
-	    B_FALSE, B_TRUE, FTAG, &os2));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os2);
+	if (!(error == EBUSY) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3U(error, ==, EBUSY);
 
-	zil_close(zilog);
-	dmu_objset_disown(os, B_TRUE, FTAG);
-	ztest_zd_fini(zdtmp);
 out:
+	if (zilog)
+		zil_close(zilog);
+	if (os)
+		dmu_objset_disown(os, B_TRUE, FTAG);
+	if (zdtmp_inited)
+		ztest_zd_fini(zdtmp);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
-
 	umem_free(zdtmp, sizeof (ztest_ds_t));
 }
 
