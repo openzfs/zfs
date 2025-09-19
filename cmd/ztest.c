@@ -6211,7 +6211,7 @@ ztest_commit_callback(void *arg, int error)
 	VERIFY(!data->zcd_called);
 
 	synced_txg = spa_last_synced_txg(data->zcd_spa);
-	if (data->zcd_txg > synced_txg)
+	if (data->zcd_txg > synced_txg && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE,
 		    "commit callback of txg %"PRIu64" called prematurely, "
 		    "last synced txg = %"PRIu64"\n",
@@ -6333,8 +6333,11 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Read existing data to make sure there isn't a future leak.
 	 */
-	VERIFY0(dmu_read(os, od->od_object, 0, sizeof (uint64_t),
-	    &old_txg, DMU_READ_PREFETCH));
+	error = dmu_read(os, od->od_object, 0, sizeof (uint64_t),
+	    &old_txg, DMU_READ_PREFETCH);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto txout;
+	VERIFY0(error);
 
 	if (old_txg > txg)
 		fatal(B_FALSE,
@@ -6343,7 +6346,10 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 
 	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx,
 	    DMU_READ_PREFETCH);
+	if (ZTEST_HFE_ACTIVE())
+		goto txout;
 
+txout:
 	(void) mutex_enter(&zcl.zcl_callbacks_lock);
 
 	/*
@@ -9073,7 +9079,7 @@ ztest_run(ztest_shared_t *zs)
 	}
 
 	/* Verify that at least one commit cb was called in a timely fashion */
-	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG)
+	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG && ZTEST_HFE_NEVER_RUN())
 		VERIFY0(zc_min_txg_delay);
 
 	spa_close(spa, (const void *)ztest_run);
