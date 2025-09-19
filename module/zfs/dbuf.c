@@ -1122,11 +1122,12 @@ dbuf_verify(dmu_buf_impl_t *db)
 	uint32_t txg_prev;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(db->db_objset != NULL);
 
-	if (!(zfs_flags & ZFS_DEBUG_DBUF_VERIFY))
+	if (!(zfs_flags & ZFS_DEBUG_DBUF_VERIFY) ||
+	    SPA_EXITING(db->db_objset->os_spa))
 		return;
 
-	ASSERT(db->db_objset != NULL);
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	if (dn == NULL) {
@@ -2711,6 +2712,7 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	boolean_t undirty = B_FALSE;
+	int err;
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
@@ -2759,11 +2761,15 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 	 * not the uderlying block that is being replaced. dbuf_undirty() will
 	 * do brt_pending_remove() before removing the dirty record.
 	 */
-	(void) dbuf_read(db, NULL, flags | DB_RF_MUST_SUCCEED);
+	err = dbuf_read(db, NULL, flags | DB_RF_MUST_SUCCEED);
+	if (err && SPA_EXITING(db->db_objset->os_spa))
+		return;
 	if (undirty) {
 		mutex_enter(&db->db_mtx);
 		VERIFY(!dbuf_undirty(db, tx));
 		mutex_exit(&db->db_mtx);
+		if (SPA_EXITING(db->db_objset->os_spa))
+			return;
 	}
 	(void) dbuf_dirty(db, tx);
 }
@@ -4445,19 +4451,19 @@ dmu_buf_get_objset(dmu_buf_t *db)
 	return (dbi->db_objset);
 }
 
-static void
+static int
 dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 {
 	/* ASSERT(dmu_tx_is_syncing(tx) */
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
 	if (db->db_blkptr != NULL)
-		return;
+		return (0);
 
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		db->db_blkptr = DN_SPILL_BLKPTR(dn->dn_phys);
 		BP_ZERO(db->db_blkptr);
-		return;
+		return (0);
 	}
 	if (db->db_level == dn->dn_phys->dn_nlevels-1) {
 		/*
@@ -4482,12 +4488,18 @@ dbuf_check_blkptr(dnode_t *dn, dmu_buf_impl_t *db)
 			    db->db_blkid >> epbs, db);
 			rw_exit(&dn->dn_struct_rwlock);
 			mutex_enter(&db->db_mtx);
+			if (parent == NULL &&
+			    SPA_EXITING(dn->dn_objset->os_spa))
+				return (SET_ERROR(EIO));
+			VERIFY(parent);
 			db->db_parent = parent;
 		}
 		db->db_blkptr = (blkptr_t *)parent->db.db_data +
 		    (db->db_blkid & ((1ULL << epbs) - 1));
 		DBUF_VERIFY(db);
 	}
+
+	return (0);
 }
 
 static void
@@ -4559,11 +4571,12 @@ dbuf_prepare_encrypted_dnode_leaf(dbuf_dirty_record_t *dr)
  * is critical the we not allow the compiler to inline this function in to
  * dbuf_sync_list() thereby drastically bloating the stack usage.
  */
-noinline static void
+noinline static int
 dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 	dnode_t *dn = dr->dr_dnode;
+	int err = 0;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -4577,7 +4590,10 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	/* Read the block if it hasn't been read yet. */
 	if (db->db_buf == NULL) {
 		mutex_exit(&db->db_mtx);
-		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+		err = dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+		if (err && SPA_EXITING(dn->dn_objset->os_spa))
+			return (err);
+		VERIFY0(err);
 		mutex_enter(&db->db_mtx);
 	}
 	ASSERT3U(db->db_state, ==, DB_CACHED);
@@ -4585,7 +4601,12 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	/* Indirect block size must match what the dnode thinks it is. */
 	ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
-	dbuf_check_blkptr(dn, db);
+	err = dbuf_check_blkptr(dn, db);
+	if (err && SPA_EXITING(dn->dn_objset->os_spa)) {
+		mutex_exit(&db->db_mtx);
+		return (err);
+	}
+	VERIFY0(err);
 
 	/* Provide the pending dirty record to child dbufs */
 	db->db_data_pending = dr;
@@ -4596,10 +4617,12 @@ dbuf_sync_indirect(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 
 	zio_t *zio = dr->dr_zio;
 	mutex_enter(&dr->dt.di.dr_mtx);
-	dbuf_sync_list(&dr->dt.di.dr_children, db->db_level - 1, tx);
+	err = dbuf_sync_list(&dr->dt.di.dr_children, db->db_level - 1, tx);
 	ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
 	mutex_exit(&dr->dt.di.dr_mtx);
 	zio_nowait(zio);
+
+	return (err);
 }
 
 /*
@@ -4710,10 +4733,13 @@ dbuf_lightweight_done(zio_t *zio)
 {
 	dbuf_dirty_record_t *dr = zio->io_private;
 
-	VERIFY0(zio->io_error);
-
 	objset_t *os = dr->dr_dnode->dn_objset;
 	dmu_tx_t *tx = os->os_synctx;
+
+	if (zio->io_error && SPA_EXITING(zio->io_spa))
+		goto skip;
+
+	VERIFY0(zio->io_error);
 
 	if (zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)) {
 		ASSERT(BP_EQUAL(zio->io_bp, &zio->io_bp_orig));
@@ -4723,6 +4749,7 @@ dbuf_lightweight_done(zio_t *zio)
 		dsl_dataset_block_born(ds, zio->io_bp, tx);
 	}
 
+skip:
 	dsl_pool_undirty_space(dmu_objset_pool(os), dr->dr_accounted,
 	    zio->io_txg);
 
@@ -4769,7 +4796,7 @@ dbuf_sync_lightweight(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
  * critical the we not allow the compiler to inline this function in to
  * dbuf_sync_list() thereby drastically bloating the stack usage.
  */
-noinline static void
+noinline static int
 dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	arc_buf_t **datap = &dr->dt.dl.dr_data;
@@ -4777,6 +4804,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	dnode_t *dn = dr->dr_dnode;
 	objset_t *os;
 	uint64_t txg = tx->tx_txg;
+	int err = 0;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -4846,7 +4874,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	if (db->db_blkid == DMU_BONUS_BLKID) {
 		ASSERT(dr->dr_dbuf == db);
 		dbuf_sync_bonus(dr, tx);
-		return;
+		return (0);
 	}
 
 	os = dn->dn_objset;
@@ -4857,7 +4885,12 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 * don't check the dr_override_state until we have returned from
 	 * dbuf_check_blkptr.
 	 */
-	dbuf_check_blkptr(dn, db);
+	err = dbuf_check_blkptr(dn, db);
+	if (err && SPA_EXITING(os->os_spa)) {
+		mutex_exit(&db->db_mtx);
+		return (err);
+	}
+	VERIFY0(err);
 
 	/*
 	 * If this buffer is in the middle of an immediate write, wait for the
@@ -4931,18 +4964,21 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	} else {
 		zio_nowait(dr->dr_zio);
 	}
+
+	return (0);
 }
 
 /*
  * Syncs out a range of dirty records for indirect or leaf dbufs.  May be
  * called recursively from dbuf_sync_indirect().
  */
-void
+int
 dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx)
 {
 	dbuf_dirty_record_t *dr;
+	int err = 0;
 
-	while ((dr = list_head(list))) {
+	while (!err && (dr = list_head(list))) {
 		if (dr->dr_zio != NULL) {
 			/*
 			 * If we find an already initialized zio then we
@@ -4964,9 +5000,56 @@ dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx)
 				VERIFY3U(dr->dr_dbuf->db_level, ==, level);
 			}
 			if (dr->dr_dbuf->db_level > 0)
-				dbuf_sync_indirect(dr, tx);
+				err = dbuf_sync_indirect(dr, tx);
 			else
-				dbuf_sync_leaf(dr, tx);
+				err = dbuf_sync_leaf(dr, tx);
+		}
+		if (err)
+			list_insert_head(list, dr);
+	}
+
+	return (err);
+}
+
+static void
+dbuf_write_done(zio_t *, arc_buf_t *, void *);
+
+void
+dbuf_drain_list(list_t *list, dmu_tx_t *tx)
+{
+	dbuf_dirty_record_t *dr;
+
+	while ((dr = list_head(list))) {
+		list_remove(list, dr);
+		if (dr->dr_dbuf == NULL) {
+			/* dbuf_sync_lightweight() path */
+			dsl_pool_undirty_space(dmu_tx_pool(tx),
+			    dr->dr_accounted, dmu_tx_get_txg(tx));
+			abd_free(dr->dt.dll.dr_abd);
+			kmem_free(dr, sizeof (*dr));
+		} else if (dr->dr_dbuf->db_level > 0) {
+			/* dbuf_sync_indirect() path */
+			mutex_enter(&dr->dt.di.dr_mtx);
+			dbuf_drain_list(&dr->dt.di.dr_children, tx);
+			ASSERT(list_head(&dr->dt.di.dr_children) == NULL);
+			mutex_exit(&dr->dt.di.dr_mtx);
+
+			dbuf_write_done(NULL, NULL, dr->dr_dbuf);
+		} else {
+			/* dbuf_sync_leaf path */
+			dmu_buf_impl_t *db = dr->dr_dbuf;
+			mutex_enter(&db->db_mtx);
+			if (db->db_blkid == DMU_BONUS_BLKID) {
+				dbuf_sync_bonus(dr, tx);
+				continue;
+			}
+			while (dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC)
+				cv_wait(&db->db_changed, &db->db_mtx);
+			mutex_exit(&db->db_mtx);
+
+			dbuf_write_done(NULL, NULL, db);
+
+			ASSERT(!list_link_active(&dr->dr_dirty_node));
 		}
 	}
 }
@@ -5126,10 +5209,12 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 {
 	(void) buf;
 	dmu_buf_impl_t *db = vdb;
-	blkptr_t *bp_orig = &zio->io_bp_orig;
 	blkptr_t *bp = db->db_blkptr;
 	objset_t *os = db->db_objset;
 	dmu_tx_t *tx = os->os_synctx;
+
+	if ((zio->io_error && SPA_EXITING(os->os_spa)) || zio == NULL)
+		goto cleanup;
 
 	ASSERT0(zio->io_error);
 	ASSERT(db->db_blkptr == bp);
@@ -5138,6 +5223,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	 * For nopwrites and rewrites we ensure that the bp matches our
 	 * original and bypass all the accounting.
 	 */
+	blkptr_t *bp_orig = &zio->io_bp_orig;
 	if (zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)) {
 		ASSERT(BP_EQUAL(bp, bp_orig));
 	} else {
@@ -5146,6 +5232,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		dsl_dataset_block_born(ds, bp, tx);
 	}
 
+cleanup:
 	mutex_enter(&db->db_mtx);
 
 	DBUF_VERIFY(db);
@@ -5198,7 +5285,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	dbuf_rele_and_unlock(db, (void *)(uintptr_t)tx->tx_txg, B_FALSE);
 
 	dsl_pool_undirty_space(dmu_objset_pool(os), dr->dr_accounted,
-	    zio->io_txg);
+	    zio ? zio->io_txg : tx->tx_txg);
 
 	kmem_cache_free(dbuf_dirty_kmem_cache, dr);
 }
