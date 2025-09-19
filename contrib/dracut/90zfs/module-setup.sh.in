@@ -17,6 +17,7 @@ depends() {
 
 installkernel() {
 	hostonly='' instmods -c zfs
+	instmods mpt3sas virtio_blk
 }
 
 install() {
