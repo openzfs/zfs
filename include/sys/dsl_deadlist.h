@@ -99,9 +99,9 @@ int dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp,
     boolean_t free, dmu_tx_t *tx);
 int dsl_deadlist_insert_alloc_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 int dsl_deadlist_insert_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
-void dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx);
-void dsl_deadlist_remove_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx);
-void dsl_deadlist_remove_entry(dsl_deadlist_t *dl, uint64_t mintxg,
+int dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx);
+int dsl_deadlist_remove_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx);
+int dsl_deadlist_remove_entry(dsl_deadlist_t *dl, uint64_t mintxg,
 dmu_tx_t *tx);
 dsl_deadlist_entry_t *dsl_deadlist_first(dsl_deadlist_t *dl);
 dsl_deadlist_entry_t *dsl_deadlist_last(dsl_deadlist_t *dl);
@@ -112,8 +112,8 @@ void dsl_deadlist_space(dsl_deadlist_t *dl,
 void dsl_deadlist_space_range(dsl_deadlist_t *dl,
     uint64_t mintxg, uint64_t maxtxg,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
-void dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx);
-void dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
+int dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx);
+int dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
     dmu_tx_t *tx);
 boolean_t dsl_deadlist_is_open(dsl_deadlist_t *dl);
 int dsl_process_sub_livelist(bpobj_t *bpobj, struct bplist *to_free,
