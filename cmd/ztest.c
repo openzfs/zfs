@@ -7976,7 +7976,8 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_TRIM_FUNCS);
-	uint64_t rate = 1 << ztest_random(30);
+	/* Do not use very small rate not to slow the things down very much. */
+	uint64_t rate = (1 << 16) << ztest_random(30 - 16);
 	boolean_t partial = (ztest_random(5) > 0);
 	boolean_t secure = (ztest_random(5) > 0);
 
