@@ -1056,7 +1056,7 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 		    dsl_dataset_phys(ds)->ds_prev_snap_txg) {
 			dsl_dir_remove_clones_key(ds->ds_dir,
 			    dbn->dbn_phys.zbm_creation_txg, tx);
-			dsl_deadlist_remove_key(&ds->ds_deadlist,
+			(void) dsl_deadlist_remove_key(&ds->ds_deadlist,
 			    dbn->dbn_phys.zbm_creation_txg, tx);
 		}
 
@@ -1312,12 +1312,24 @@ boolean_t
 dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
+	int err;
 
 	dsl_dataset_t *head, *next;
-	VERIFY0(dsl_dataset_hold_obj(dp,
-	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &head));
-	VERIFY0(dsl_dataset_hold_obj(dp,
-	    dsl_dataset_phys(ds)->ds_next_snap_obj, FTAG, &next));
+
+	err = dsl_dataset_hold_obj(dp,
+	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &head);
+	if (err && SPA_EXITING(spa))
+		return (B_FALSE);
+	VERIFY0(err);
+
+	err = dsl_dataset_hold_obj(dp,
+	    dsl_dataset_phys(ds)->ds_next_snap_obj, FTAG, &next);
+	if (err && SPA_EXITING(spa)) {
+		dsl_dataset_rele(head, FTAG);
+		return (B_FALSE);
+	}
+	VERIFY0(err);
 
 	/*
 	 * Find the first bookmark that HAS_FBN at or after the
@@ -1365,10 +1377,12 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    compressed;
 		dbn->dbn_phys.zbm_uncompressed_freed_before_next_snap +=
 		    uncompressed;
-		VERIFY0(zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
+		err = zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
 		    dbn->dbn_name, sizeof (uint64_t),
 		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &dbn->dbn_phys, tx));
+		    &dbn->dbn_phys, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 	dsl_dataset_rele(next, FTAG);
 
@@ -1390,10 +1404,12 @@ dsl_bookmark_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 		}
 		ASSERT(dbn->dbn_phys.zbm_flags & ZBM_FLAG_SNAPSHOT_EXISTS);
 		dbn->dbn_phys.zbm_flags &= ~ZBM_FLAG_SNAPSHOT_EXISTS;
-		VERIFY0(zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
+		err = zap_update(dp->dp_meta_objset, head->ds_bookmarks_obj,
 		    dbn->dbn_name, sizeof (uint64_t),
 		    sizeof (zfs_bookmark_phys_t) / sizeof (uint64_t),
-		    &dbn->dbn_phys, tx));
+		    &dbn->dbn_phys, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		rv = B_TRUE;
 	}
 	dsl_dataset_rele(head, FTAG);
