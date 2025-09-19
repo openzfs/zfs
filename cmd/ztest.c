@@ -5093,21 +5093,21 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 	    clone1name, id);
 
 	error = dsl_destroy_head(clone2name);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_head(%s) = %d", clone2name, error);
 	error = dsl_destroy_snapshot(snap3name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap3name, error);
 	error = dsl_destroy_snapshot(snap2name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap2name, error);
 	error = dsl_destroy_head(clone1name);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_head(%s) = %d", clone1name, error);
 	error = dsl_destroy_snapshot(snap1name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap1name, error);
 
@@ -5160,6 +5160,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_take_snapshot(%s) = %d", snap1name, error);
 	}
 
@@ -5169,6 +5171,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", clone1name, error);
 	}
 
@@ -5178,6 +5182,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_open_snapshot(%s) = %d", snap2name, error);
 	}
 
@@ -5187,6 +5193,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_open_snapshot(%s) = %d", snap3name, error);
 	}
 
@@ -5196,27 +5204,32 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", clone2name, error);
 	}
 
 	error = ztest_dmu_objset_own(snap2name, DMU_OST_ANY, B_TRUE, B_TRUE,
 	    FTAG, &os);
-	if (error)
+	if (error) {
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_own(%s) = %d", snap2name, error);
+	}
 	error = dsl_dataset_promote(clone2name, NULL);
 	if (error == ENOSPC) {
 		dmu_objset_disown(os, B_TRUE, FTAG);
 		ztest_record_enospc(FTAG);
 		goto out;
 	}
-	if (error != EBUSY)
+	if (error != EBUSY && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_dataset_promote(%s), %d, not EBUSY",
 		    clone2name, error);
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
-out:
 	ztest_dsl_dataset_cleanup(osname, id);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 	umem_free(snap1name, ZFS_MAX_DATASET_NAME_LEN);
