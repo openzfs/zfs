@@ -500,7 +500,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	zstream_t *zs = NULL;
 	uint64_t blkid, nblks, i;
 	dmu_flags_t dbuf_flags;
-	int err;
+	int err = 0;
 	zio_t *zio = NULL;
 	boolean_t missed = B_FALSE;
 
@@ -579,7 +579,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 				else
 					dbuf_flags |= DMU_PARTIAL_MORE;
 			}
-			(void) dbuf_read(db, zio, dbuf_flags);
+			err = dbuf_read(db, zio, dbuf_flags) || err;
 			if (db->db_state != DB_CACHED)
 				missed = B_TRUE;
 		}
@@ -605,7 +605,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 
 	if (read) {
 		/* wait for async read i/o */
-		err = zio_wait(zio);
+		err = zio_wait(zio) || err;
 		if (err) {
 			dmu_buf_rele_array(dbp, nblks, tag);
 			return (err);
@@ -621,10 +621,10 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			if (db->db_state == DB_UNCACHED)
 				err = SET_ERROR(EIO);
 			mutex_exit(&db->db_mtx);
-			if (err) {
-				dmu_buf_rele_array(dbp, nblks, tag);
-				return (err);
-			}
+		}
+		if (err) {
+			dmu_buf_rele_array(dbp, nblks, tag);
+			return (err);
 		}
 	}
 
@@ -1486,12 +1486,14 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 			}
 			dmu_buf_will_dirty_flags(db, tx, flags);
 		}
+		if (!SPA_EXITING(dmu_tx_pool(tx)->dp_spa)) {
+			ASSERT(db->db_data != NULL);
+			(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		}
 
-		ASSERT(db->db_data != NULL);
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
-
-		if (tocpy == db->db_size)
+		if (tocpy == db->db_size) {
 			dmu_buf_fill_done(db, tx, B_FALSE);
+		}
 
 		offset += tocpy;
 		size -= tocpy;
@@ -1504,13 +1506,16 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx, dmu_flags_t flags)
 {
 	dmu_buf_t **dbp;
-	int numbufs;
+	int numbufs, err;
 
 	if (size == 0)
 		return;
 
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, flags));
+	err = dmu_buf_hold_array(os, object, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, flags);
+	if (err && SPA_EXITING(os->os_spa))
+		return;
+	VERIFY0(err);
 	dmu_write_impl(dbp, numbufs, offset, size, buf, tx, flags);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
@@ -1521,7 +1526,7 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 {
 	dmu_buf_t **dbp;
 	int numbufs;
-	int error;
+	int error = 0;
 
 	if (size == 0)
 		return (0);
@@ -1536,11 +1541,14 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	}
 	flags &= ~DMU_DIRECTIO;
 
-	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, flags));
+	error = dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, flags);
+	if (error && SPA_EXITING(dn->dn_objset->os_spa))
+		return (error);
+	VERIFY0(error);
 	dmu_write_impl(dbp, numbufs, offset, size, buf, tx, flags);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
-	return (0);
+	return (error);
 }
 
 void
