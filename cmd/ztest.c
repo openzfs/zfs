@@ -9244,6 +9244,8 @@ ztest_run(ztest_shared_t *zs)
 		ASSERT3U(ztest_opts.zo_raidz_expand_test, ==,
 		    RAIDZ_EXPAND_NONE);
 
+		(void) spa_checkpoint_discard(spa->spa_name);
+
 		int d, ndatasets;
 		ndatasets = MIN(ztest_opts.zo_datasets, ztest_opts.zo_threads);
 		d = ztest_random(ndatasets);
