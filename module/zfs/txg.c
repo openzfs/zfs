@@ -531,6 +531,8 @@ txg_sync_thread(void *arg)
 	start = delta = 0;
 	for (;;) {
 		clock_t timeout = zfs_txg_timeout * hz;
+		if (SPA_EXITING(spa))
+			timeout = 1 * hz;
 		clock_t timer;
 		uint64_t txg;
 
