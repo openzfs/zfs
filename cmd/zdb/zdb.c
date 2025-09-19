@@ -8925,9 +8925,10 @@ dump_mos_leaks(spa_t *spa)
 	mos_obj_refd(spa->spa_condensing_indirect_phys.
 	    scip_prev_obsolete_sm_object);
 	if (spa->spa_condensing_indirect_phys.scip_next_mapping_object != 0) {
-		vdev_indirect_mapping_t *vim =
-		    vdev_indirect_mapping_open(mos,
-		    spa->spa_condensing_indirect_phys.scip_next_mapping_object);
+		vdev_indirect_mapping_t *vim;
+		VERIFY0(vdev_indirect_mapping_open(mos,
+		    spa->spa_condensing_indirect_phys.scip_next_mapping_object,
+		    &vim));
 		mos_obj_refd(vim->vim_phys->vimp_counts_object);
 		vdev_indirect_mapping_close(vim);
 	}

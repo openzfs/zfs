@@ -21,6 +21,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_pool.h>
 #include <sys/vdev_indirect_births.h>
 
@@ -98,27 +99,45 @@ vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 	    tx, objectp));
 }
 
-vdev_indirect_births_t *
-vdev_indirect_births_open(objset_t *os, uint64_t births_object)
+int
+vdev_indirect_births_open(objset_t *os, uint64_t births_object,
+    vdev_indirect_births_t **vibp)
 {
+	spa_t *spa = os->os_spa;
+	int err = 0;
 	vdev_indirect_births_t *vib = kmem_zalloc(sizeof (*vib), KM_SLEEP);
 
 	vib->vib_objset = os;
 	vib->vib_object = births_object;
 
-	VERIFY0(dmu_bonus_hold(os, vib->vib_object, vib, &vib->vib_dbuf));
+	err = dmu_bonus_hold(os, vib->vib_object, vib, &vib->vib_dbuf);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 	vib->vib_phys = vib->vib_dbuf->db_data;
 
 	if (vib->vib_phys->vib_count > 0) {
 		uint64_t births_size = vdev_indirect_births_size_impl(vib);
 		vib->vib_entries = vmem_alloc(births_size, KM_SLEEP);
-		VERIFY0(dmu_read(vib->vib_objset, vib->vib_object, 0,
-		    births_size, vib->vib_entries, DMU_READ_PREFETCH));
+		err = dmu_read(vib->vib_objset, vib->vib_object, 0,
+		    births_size, vib->vib_entries, DMU_READ_PREFETCH);
+		if (err && SPA_EXITING(spa)) {
+			vmem_free(vib->vib_entries, births_size);
+			goto spa_exiting;
+		}
+		VERIFY0(err);
 	}
 
 	ASSERT(vdev_indirect_births_verify(vib));
+	*vibp = vib;
 
-	return (vib);
+	return (err);
+
+spa_exiting:
+	if (vib->vib_dbuf)
+		dmu_buf_rele(vib->vib_dbuf, vib);
+	kmem_free(vib, sizeof (*vib));
+	return (err);
 }
 
 void
