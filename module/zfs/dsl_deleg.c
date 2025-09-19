@@ -168,8 +168,10 @@ dsl_deleg_set_sync(void *arg, dmu_tx_t *tx)
 	zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	if (zapobj == 0) {
 		dmu_buf_will_dirty(dd->dd_dbuf, tx);
-		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj = zap_create(mos,
-		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos,
+		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx,
+		    &dsl_dir_phys(dd)->dd_deleg_zapobj));
+		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	}
 
 	while ((whopair = nvlist_next_nvpair(dda->dda_nvlist, whopair))) {
@@ -181,8 +183,8 @@ dsl_deleg_set_sync(void *arg, dmu_tx_t *tx)
 		perms = fnvpair_value_nvlist(whopair);
 
 		if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) != 0) {
-			jumpobj = zap_create_link(mos, DMU_OT_DSL_PERMS,
-			    zapobj, whokey, tx);
+			VERIFY0(zap_create_link(mos, DMU_OT_DSL_PERMS,
+			    zapobj, whokey, tx, &jumpobj));
 		}
 
 		while ((permpair = nvlist_next_nvpair(perms, permpair))) {
@@ -695,15 +697,18 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 
 	if (zapobj == 0) {
 		dmu_buf_will_dirty(dd->dd_dbuf, tx);
-		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj = zap_create(mos,
-		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos,
+		    DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx,
+		    &dsl_dir_phys(dd)->dd_deleg_zapobj));
+		zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	}
 
 	zfs_deleg_whokey(whokey,
 	    dosets ? ZFS_DELEG_USER_SETS : ZFS_DELEG_USER,
 	    ZFS_DELEG_LOCAL, &uid);
 	if (zap_lookup(mos, zapobj, whokey, 8, 1, &jumpobj) == ENOENT) {
-		jumpobj = zap_create(mos, DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos, DMU_OT_DSL_PERMS, DMU_OT_NONE, 0, tx,
+		    &jumpobj));
 		VERIFY0(zap_add(mos, zapobj, whokey, 8, 1, &jumpobj, tx));
 	}
 

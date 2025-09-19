@@ -814,8 +814,8 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 	zbookmark_phys_t zb;
 	uint64_t count;
 
-	*newobj = zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
-	    DMU_OT_NONE, 0, tx);
+	VERIFY0(zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
+	    DMU_OT_NONE, 0, tx, newobj));
 
 	/*
 	 * If we cannnot perform the upgrade we should clear the old on-disk
@@ -899,8 +899,8 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		    head_ds, &err_obj);
 
 		if (error == ENOENT) {
-			err_obj = zap_create(spa->spa_meta_objset,
-			    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx);
+			VERIFY0(zap_create(spa->spa_meta_objset,
+			    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx, &err_obj));
 
 			(void) zap_update_int_key(spa->spa_meta_objset,
 			    *newobj, head_ds, err_obj, tx);
@@ -1175,8 +1175,8 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 
 	/* create log if necessary */
 	if (*obj == 0)
-		*obj = zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
-		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
+		    DMU_OT_NONE, 0, tx, obj));
 
 	/* add errors to the current log */
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
@@ -1212,8 +1212,9 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			    *obj, head_ds, &err_obj);
 
 			if (error == ENOENT) {
-				err_obj = zap_create(spa->spa_meta_objset,
-				    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx);
+				VERIFY0(zap_create(spa->spa_meta_objset,
+				    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx,
+				    &err_obj));
 
 				(void) zap_update_int_key(spa->spa_meta_objset,
 				    *obj, head_ds, err_obj, tx);
@@ -1435,8 +1436,8 @@ swap_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t new_head, uint64_t
 	    &new_head_errlog);
 
 	if (error != 0) {
-		new_head_errlog = zap_create(spa->spa_meta_objset,
-		    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(spa->spa_meta_objset,
+		    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx, &new_head_errlog));
 
 		(void) zap_update_int_key(spa->spa_meta_objset, spa_err_obj,
 		    new_head, new_head_errlog, tx);

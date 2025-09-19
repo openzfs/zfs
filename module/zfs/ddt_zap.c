@@ -106,10 +106,10 @@ ddt_zap_create(objset_t *os, uint64_t *objectp, dmu_tx_t *tx, boolean_t prehash)
 	if (prehash)
 		flags |= ZAP_FLAG_PRE_HASHED_KEY;
 
-	*objectp = zap_create_flags(os, 0, flags, DMU_OT_DDT_ZAP,
+	int err = zap_create_flags(os, 0, flags, DMU_OT_DDT_ZAP,
 	    ddt_zap_default_bs, ddt_zap_default_ibs,
-	    DMU_OT_NONE, 0, tx);
-	if (*objectp == 0)
+	    DMU_OT_NONE, 0, tx, objectp);
+	if (err || *objectp == 0)
 		return (SET_ERROR(ENOTSUP));
 
 	return (0);

@@ -743,9 +743,9 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		if (dsl_dataset_phys(ds)->ds_props_obj == 0 &&
 		    (source & ZPROP_SRC_NONE) == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
-			dsl_dataset_phys(ds)->ds_props_obj =
-			    zap_create(mos,
-			    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx);
+			VERIFY0(zap_create(mos,
+			    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx,
+			    &dsl_dataset_phys(ds)->ds_props_obj));
 		}
 		zapobj = dsl_dataset_phys(ds)->ds_props_obj;
 	} else {

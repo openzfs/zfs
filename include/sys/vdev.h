@@ -88,8 +88,9 @@ extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);
 extern void vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj,
     dmu_tx_t *tx);
-extern uint64_t vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx);
-extern void vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx);
+extern int vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx,
+    uint64_t *objectp);
+extern int vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx);
 extern void vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset,
     uint64_t size);

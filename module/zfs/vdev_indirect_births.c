@@ -87,15 +87,15 @@ vdev_indirect_births_close(vdev_indirect_births_t *vib)
 	kmem_free(vib, sizeof (*vib));
 }
 
-uint64_t
-vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx)
+int
+vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
 
 	return (dmu_object_alloc(os,
 	    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
 	    DMU_OTN_UINT64_METADATA, sizeof (vdev_indirect_birth_phys_t),
-	    tx));
+	    tx, objectp));
 }
 
 vdev_indirect_births_t *

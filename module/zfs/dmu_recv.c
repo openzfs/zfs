@@ -888,9 +888,9 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 			VERIFY0(dsl_dataset_snap_lookup(ds, drc->drc_tosnap,
 			    &dsobj));
 		} else {
-			dsobj = dsl_dataset_create_sync(ds->ds_dir,
+			VERIFY0(dsl_dataset_create_sync(ds->ds_dir,
 			    recv_clone_name, snap, crflags, drba->drba_cred,
-			    dcp, tx);
+			    dcp, tx, &dsobj));
 		}
 		if (drba->drba_cookie->drc_fromsnapobj != 0)
 			dsl_dataset_rele(snap, FTAG);
@@ -909,8 +909,8 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		}
 
 		/* Create new dataset. */
-		dsobj = dsl_dataset_create_sync(dd, strrchr(tofs, '/') + 1,
-		    origin, crflags, drba->drba_cred, dcp, tx);
+		VERIFY0(dsl_dataset_create_sync(dd, strrchr(tofs, '/') + 1,
+		    origin, crflags, drba->drba_cred, dcp, tx, &dsobj));
 		if (origin != NULL)
 			dsl_dataset_rele(origin, FTAG);
 		dsl_dir_rele(dd, FTAG);
@@ -3678,9 +3678,12 @@ static void
 dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 {
 	dmu_recv_cookie_t *drc = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	boolean_t encrypted = drc->drc_ds->ds_dir->dd_crypto_obj != 0;
 	uint64_t newsnapobj = 0;
+	dsl_dataset_t *origin_head = NULL;
+	int err = 0;
 
 	spa_history_log_internal_ds(drc->drc_ds, "finish receiving",
 	    tx, "snap=%s", drc->drc_tosnap);
@@ -3692,10 +3695,11 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 			drc->drc_keynvl = NULL;
 		}
 	} else if (!drc->drc_newfs) {
-		dsl_dataset_t *origin_head;
-
-		VERIFY0(dsl_dataset_hold(dp, drc->drc_tofs, FTAG,
-		    &origin_head));
+		err = dsl_dataset_hold(dp, drc->drc_tofs, FTAG,
+		    &origin_head);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 
 		if (drc->drc_force) {
 			/*
@@ -3708,8 +3712,11 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 			while (obj !=
 			    dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj) {
 				dsl_dataset_t *snap;
-				VERIFY0(dsl_dataset_hold_obj(dp, obj, FTAG,
-				    &snap));
+				err = dsl_dataset_hold_obj(dp, obj, FTAG,
+				    &snap);
+				if (err && SPA_EXITING(spa))
+					goto spa_exiting;
+				VERIFY0(err);
 				ASSERT3P(snap->ds_dir, ==, origin_head->ds_dir);
 				obj = dsl_dataset_phys(snap)->ds_prev_snap_obj;
 				dsl_destroy_snapshot_sync_impl(snap,
@@ -3735,17 +3742,28 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		 */
 		drc->drc_os = NULL;
 
-		dsl_dataset_snapshot_sync_impl(origin_head,
+		err = dsl_dataset_snapshot_sync_impl(origin_head,
 		    drc->drc_tosnap, drc->drc_drrb->drr_creation_time, tx);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(err);
 
 		/* set snapshot's guid */
 		dmu_buf_will_dirty(origin_head->ds_prev->ds_dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			err = SET_ERROR(EIO);
+			goto spa_exiting;
+		}
 		dsl_dataset_phys(origin_head->ds_prev)->ds_guid =
 		    drc->drc_drrb->drr_toguid;
 		dsl_dataset_phys(origin_head->ds_prev)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
 		dmu_buf_will_dirty(origin_head->ds_dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			err = SET_ERROR(EIO);
+			goto spa_exiting;
+		}
 		dsl_dataset_phys(origin_head)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
@@ -3760,17 +3778,28 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	} else {
 		dsl_dataset_t *ds = drc->drc_ds;
 
-		dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap,
+		err = dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap,
 		    drc->drc_drrb->drr_creation_time, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 
 		/* set snapshot's guid */
 		dmu_buf_will_dirty(ds->ds_prev->ds_dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			err = SET_ERROR(EIO);
+			goto out;
+		}
 		dsl_dataset_phys(ds->ds_prev)->ds_guid =
 		    drc->drc_drrb->drr_toguid;
 		dsl_dataset_phys(ds->ds_prev)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			err = SET_ERROR(EIO);
+			goto out;
+		}
 		dsl_dataset_phys(ds)->ds_flags &= ~DS_FLAG_INCONSISTENT;
 		if (dsl_dataset_has_resume_receive_state(ds)) {
 			(void) zap_remove(dp->dp_meta_objset, ds->ds_object,
@@ -3805,9 +3834,11 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	if (!drc->drc_heal && drc->drc_raw && drc->drc_ivset_guid != 0) {
 		dmu_object_zapify(dp->dp_meta_objset, newsnapobj,
 		    DMU_OT_DSL_DATASET, tx);
-		VERIFY0(zap_update(dp->dp_meta_objset, newsnapobj,
+		err = zap_update(dp->dp_meta_objset, newsnapobj,
 		    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
-		    &drc->drc_ivset_guid, tx));
+		    &drc->drc_ivset_guid, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	/*
@@ -3822,6 +3853,15 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		(void) spa_keystore_remove_mapping(dmu_tx_pool(tx)->dp_spa,
 		    drc->drc_ds->ds_object, drc->drc_ds);
 	}
+
+out:
+	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
+	drc->drc_ds = NULL;
+	return;
+
+spa_exiting:
+	if (origin_head)
+		dsl_dataset_rele(origin_head, FTAG);
 	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
 	drc->drc_ds = NULL;
 }

@@ -1106,7 +1106,8 @@ spa_cleanup_old_sm_logs(spa_t *spa, dmu_tx_t *tx)
 		ASSERT(avl_is_empty(&spa->spa_sm_logs_by_txg));
 		return;
 	}
-	VERIFY0(error);
+	if (!SPA_EXITING(spa))
+		VERIFY0(error);
 
 	metaslab_t *oldest = avl_first(&spa->spa_metaslabs_by_flushed);
 	uint64_t oldest_flushed_txg = metaslab_unflushed_txg(oldest);
@@ -1118,7 +1119,9 @@ spa_cleanup_old_sm_logs(spa_t *spa, dmu_tx_t *tx)
 		ASSERT0(sls->sls_mscount);
 		avl_remove(&spa->spa_sm_logs_by_txg, sls);
 		space_map_free_obj(mos, sls->sls_sm_obj, tx);
-		VERIFY0(zap_remove_int(mos, spacemap_zap, sls->sls_txg, tx));
+		error = zap_remove_int(mos, spacemap_zap, sls->sls_txg, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(error);
 		spa_log_summary_decrement_blkcount(spa, sls->sls_nblocks);
 		spa->spa_unflushed_stats.sus_nblocks -= sls->sls_nblocks;
 		kmem_free(sls, sizeof (spa_log_sm_t));
@@ -1134,39 +1137,54 @@ spa_log_sm_alloc(uint64_t sm_obj, uint64_t txg)
 	return (sls);
 }
 
-void
+int
 spa_generate_syncing_log_sm(spa_t *spa, dmu_tx_t *tx)
 {
 	uint64_t txg = dmu_tx_get_txg(tx);
 	objset_t *mos = spa_meta_objset(spa);
+	int error = 0;
 
 	if (spa_syncing_log_sm(spa) != NULL)
-		return;
+		return (0);
 
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_LOG_SPACEMAP))
-		return;
+		return (0);
 
 	uint64_t spacemap_zap;
-	int error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_LOG_SPACEMAP_ZAP, sizeof (spacemap_zap), 1, &spacemap_zap);
 	if (error == ENOENT) {
 		ASSERT(avl_is_empty(&spa->spa_sm_logs_by_txg));
 
-		error = 0;
-		spacemap_zap = zap_create(mos,
-		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx);
-		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+		error = zap_create(mos,
+		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx, &spacemap_zap);
+		if (error && SPA_EXITING(spa))
+			return (error);
+		VERIFY0(error);
+		error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_LOG_SPACEMAP_ZAP, sizeof (spacemap_zap), 1,
-		    &spacemap_zap, tx));
+		    &spacemap_zap, tx);
+		if (error && SPA_EXITING(spa))
+			return (error);
 		spa_feature_incr(spa, SPA_FEATURE_LOG_SPACEMAP, tx);
 	}
+	if (error && SPA_EXITING(spa))
+		return (error);
 	VERIFY0(error);
 
 	uint64_t sm_obj;
-	ASSERT3U(zap_lookup_int_key(mos, spacemap_zap, txg, &sm_obj),
-	    ==, ENOENT);
-	sm_obj = space_map_alloc(mos, zfs_log_sm_blksz, tx);
-	VERIFY0(zap_add_int_key(mos, spacemap_zap, txg, sm_obj, tx));
+	error = zap_lookup_int_key(mos, spacemap_zap, txg, &sm_obj);
+	if (error && SPA_EXITING(spa))
+		return (error);
+	ASSERT3U(error, ==, ENOENT);
+	error = space_map_alloc(mos, zfs_log_sm_blksz, tx, &sm_obj);
+	if (error && SPA_EXITING(spa))
+		return (error);
+	VERIFY0(error);
+	error = zap_add_int_key(mos, spacemap_zap, txg, sm_obj, tx);
+	if (error && SPA_EXITING(spa))
+		return (error);
+	VERIFY0(error);
 	avl_add(&spa->spa_sm_logs_by_txg, spa_log_sm_alloc(sm_obj, txg));
 
 	/*
@@ -1176,10 +1194,15 @@ spa_generate_syncing_log_sm(spa_t *spa, dmu_tx_t *tx)
 	 * to being more restrictive (given that we're already going
 	 * to be using 2-word entries).
 	 */
-	VERIFY0(space_map_open(&spa->spa_syncing_log_sm, mos, sm_obj,
-	    0, UINT64_MAX, SPA_MINBLOCKSHIFT));
+	error = space_map_open(&spa->spa_syncing_log_sm, mos, sm_obj,
+	    0, UINT64_MAX, SPA_MINBLOCKSHIFT);
+	if (error && SPA_EXITING(spa))
+		return (error);
+	VERIFY0(error);
 
 	spa_log_sm_set_blocklimit(spa);
+
+	return (error);
 }
 
 /*

@@ -397,9 +397,9 @@ dsl_bookmark_node_add(dsl_dataset_t *hds, dsl_bookmark_node_t *dbn,
 	objset_t *mos = dp->dp_meta_objset;
 
 	if (hds->ds_bookmarks_obj == 0) {
-		hds->ds_bookmarks_obj = zap_create_norm(mos,
+		VERIFY0(zap_create_norm(mos,
 		    U8_TEXTPREP_TOUPPER, DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0,
-		    tx);
+		    tx, &hds->ds_bookmarks_obj));
 		spa_feature_incr(dp->dp_spa, SPA_FEATURE_BOOKMARKS, tx);
 
 		dsl_dataset_zapify(hds, tx);
@@ -470,9 +470,10 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    num_redact_snaps * sizeof (uint64_t);
 		if (bonuslen > dmu_bonus_max())
 			spill = B_TRUE;
-		dbn->dbn_phys.zbm_redaction_obj = dmu_object_alloc(mos,
+		VERIFY0(dmu_object_alloc(mos,
 		    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
-		    DMU_OTN_UINT64_METADATA, spill ? 0 : bonuslen, tx);
+		    DMU_OTN_UINT64_METADATA, spill ? 0 : bonuslen, tx,
+		    &dbn->dbn_phys.zbm_redaction_obj));
 		spa_feature_incr(dp->dp_spa,
 		    SPA_FEATURE_REDACTION_BOOKMARKS, tx);
 		if (spill) {

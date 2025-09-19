@@ -25,6 +25,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/avl.h>
 #include <sys/zap.h>
 #include <sys/nvpair.h>
@@ -211,20 +212,21 @@ zfs_fuid_init(zfsvfs_t *zfsvfs)
 /*
  * sync out AVL trees to persistent storage.
  */
-void
+int
 zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 {
+	spa_t *spa = zfsvfs->z_os->os_spa;
 	nvlist_t *nvp;
 	nvlist_t **fuids;
 	size_t nvsize = 0;
 	char *packed;
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	fuid_domain_t *domnode;
 	int numnodes;
-	int i;
+	int i, err = 0;
 
 	if (!zfsvfs->z_fuid_dirty) {
-		return;
+		return (err);
 	}
 
 	rw_enter(&zfsvfs->z_fuid_lock, RW_WRITER);
@@ -233,12 +235,18 @@ zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	 * First see if table needs to be created?
 	 */
 	if (zfsvfs->z_fuid_obj == 0) {
-		zfsvfs->z_fuid_obj = dmu_object_alloc(zfsvfs->z_os,
+		err = dmu_object_alloc(zfsvfs->z_os,
 		    DMU_OT_FUID, 1 << 14, DMU_OT_FUID_SIZE,
-		    sizeof (uint64_t), tx);
-		VERIFY(zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
+		    sizeof (uint64_t), tx, &zfsvfs->z_fuid_obj);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+		err = zap_add(zfsvfs->z_os, MASTER_NODE_OBJ,
 		    ZFS_FUID_TABLES, sizeof (uint64_t), 1,
-		    &zfsvfs->z_fuid_obj, tx) == 0);
+		    &zfsvfs->z_fuid_obj, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	}
 
 	VERIFY0(nvlist_alloc(&nvp, NV_UNIQUE_NAME, KM_SLEEP));
@@ -267,13 +275,24 @@ zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	dmu_write(zfsvfs->z_os, zfsvfs->z_fuid_obj, 0,
 	    zfsvfs->z_fuid_size, packed, tx, DMU_READ_NO_PREFETCH);
 	kmem_free(packed, zfsvfs->z_fuid_size);
-	VERIFY0(dmu_bonus_hold(zfsvfs->z_os, zfsvfs->z_fuid_obj, FTAG, &db));
+	err = dmu_bonus_hold(zfsvfs->z_os, zfsvfs->z_fuid_obj, FTAG, &db);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out;
+	}
 	*(uint64_t *)db->db_data = zfsvfs->z_fuid_size;
-	dmu_buf_rele(db, FTAG);
 
+out:
+	if (db)
+		dmu_buf_rele(db, FTAG);
 	zfsvfs->z_fuid_dirty = B_FALSE;
 	rw_exit(&zfsvfs->z_fuid_lock);
+
+	return (err);
 }
 
 /*

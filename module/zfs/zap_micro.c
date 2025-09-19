@@ -387,7 +387,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
  * The *_NF* (Normalization Form) flags are mutually exclusive; at most one
  * of them may be supplied.
  */
-void
+int
 mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
@@ -411,6 +411,8 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 	}
 
 	dmu_buf_rele(db, FTAG);
+
+	return (0);
 }
 
 /*

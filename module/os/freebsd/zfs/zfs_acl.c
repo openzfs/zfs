@@ -1247,12 +1247,14 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 				aoid = 0;
 			}
 			if (aoid == 0) {
-				aoid = dmu_object_alloc(zfsvfs->z_os,
+				error = dmu_object_alloc(zfsvfs->z_os,
 				    otype, aclp->z_acl_bytes,
 				    otype == DMU_OT_ACL ?
 				    DMU_OT_SYSACL : DMU_OT_NONE,
 				    otype == DMU_OT_ACL ?
-				    DN_OLD_MAX_BONUSLEN : 0, tx);
+				    DN_OLD_MAX_BONUSLEN : 0, tx, &aoid);
+				if (error)
+					return (error);
 			} else {
 				(void) dmu_object_set_blocksize(zfsvfs->z_os,
 				    aoid, aclp->z_acl_bytes, 0, tx);

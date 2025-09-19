@@ -307,37 +307,52 @@ vdev_indirect_mapping_close(vdev_indirect_mapping_t *vim)
 	kmem_free(vim, sizeof (*vim));
 }
 
-uint64_t
-vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx)
+int
+vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 {
-	uint64_t object;
 	ASSERT(dmu_tx_is_syncing(tx));
+	spa_t *spa = os->os_spa;
 	uint64_t bonus_size = VDEV_INDIRECT_MAPPING_SIZE_V0;
+	int err = 0;
 
 	if (spa_feature_is_enabled(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		bonus_size = sizeof (vdev_indirect_mapping_phys_t);
 	}
 
-	object = dmu_object_alloc(os,
+	err = dmu_object_alloc(os,
 	    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
 	    DMU_OTN_UINT64_METADATA, bonus_size,
-	    tx);
+	    tx, objectp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	if (spa_feature_is_enabled(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		dmu_buf_t *dbuf;
 		vdev_indirect_mapping_phys_t *vimp;
 
-		VERIFY0(dmu_bonus_hold(os, object, FTAG, &dbuf));
+		err = dmu_bonus_hold(os, *objectp, FTAG, &dbuf);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		dmu_buf_will_dirty(dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			dmu_buf_rele(dbuf, FTAG);
+			return (SET_ERROR(EIO));
+		}
 		vimp = dbuf->db_data;
-		vimp->vimp_counts_object = dmu_object_alloc(os,
+		err = dmu_object_alloc(os,
 		    DMU_OTN_UINT32_METADATA, SPA_OLD_MAXBLOCKSIZE,
-		    DMU_OT_NONE, 0, tx);
+		    DMU_OT_NONE, 0, tx, &vimp->vimp_counts_object);
+		if (err && SPA_EXITING(spa)) {
+			dmu_buf_rele(dbuf, FTAG);
+			return (err);
+		}
 		spa_feature_incr(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 		dmu_buf_rele(dbuf, FTAG);
 	}
 
-	return (object);
+	return (err);
 }
 
 

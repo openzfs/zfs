@@ -362,11 +362,12 @@ boolean_t dsl_dataset_tryown(dsl_dataset_t *ds, const void *tag,
     boolean_t override);
 int dsl_dataset_namelen(dsl_dataset_t *ds);
 boolean_t dsl_dataset_has_owner(dsl_dataset_t *ds);
-uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
+int dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     dsl_dataset_t *origin, uint64_t flags, cred_t *,
-    struct dsl_crypto_params *, dmu_tx_t *);
-uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
-    struct dsl_crypto_params *dcp, uint64_t flags, dmu_tx_t *tx);
+    struct dsl_crypto_params *, dmu_tx_t *, uint64_t *objectp);
+int dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
+    struct dsl_crypto_params *dcp, uint64_t flags, dmu_tx_t *tx,
+    uint64_t *objectp);
 void dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors);
@@ -467,7 +468,7 @@ void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
-void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
+int dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
     uint64_t crtime, dmu_tx_t *tx);
 
 void dsl_dataset_remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj,

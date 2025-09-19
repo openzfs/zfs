@@ -827,13 +827,17 @@ dsl_scan_is_thorough_scrub(const dsl_scan_t *scn)
 static void
 dsl_errorscrub_sync_state(dsl_scan_t *scn, dmu_tx_t *tx)
 {
+	spa_t *spa = scn->scn_dp->dp_spa;
+
 	scn->errorscrub_phys.dep_cursor =
 	    zap_cursor_serialize(&scn->errorscrub_cursor);
 
-	VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
+	int err = zap_update(scn->scn_dp->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_ERRORSCRUB, sizeof (uint64_t), ERRORSCRUB_PHYS_NUMINTS,
-	    &scn->errorscrub_phys, tx));
+	    &scn->errorscrub_phys, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 static void
@@ -977,6 +981,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dmu_object_type_t ot = 0;
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
+	int err;
 
 	ASSERT(!dsl_scan_is_running(scn));
 	ASSERT3U(setup_sync_arg->func, >, POOL_SCAN_NONE);
@@ -1074,8 +1079,11 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	if (spa_version(spa) < SPA_VERSION_DSL_SCRUB)
 		ot = DMU_OT_ZAP_OTHER;
 
-	scn->scn_phys.scn_queue_obj = zap_create(dp->dp_meta_objset,
-	    ot ? ot : DMU_OT_SCAN_QUEUE, DMU_OT_NONE, 0, tx);
+	err = zap_create(dp->dp_meta_objset,
+	    ot ? ot : DMU_OT_SCAN_QUEUE, DMU_OT_NONE, 0, tx,
+	    &scn->scn_phys.scn_queue_obj);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	memcpy(&scn->scn_phys_cached, &scn->scn_phys, sizeof (scn->scn_phys));
 
@@ -1565,7 +1573,12 @@ dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
-		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+		int err = dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND);
+		if (err && SPA_EXITING(dp->dp_spa)) {
+			dmu_tx_abort(tx);
+			return;
+		}
+		VERIFY0(err);
 
 		txg = dmu_tx_get_txg(tx);
 		dp->dp_scan->scn_restart_txg = txg;
@@ -1653,14 +1666,21 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 	spa_t *spa = dp->dp_spa;
 	dmu_object_type_t ot = (spa_version(spa) >= SPA_VERSION_DSL_SCRUB) ?
 	    DMU_OT_SCAN_QUEUE : DMU_OT_ZAP_OTHER;
+	int err;
 
 	ASSERT0(scn->scn_queues_pending);
 	ASSERT(scn->scn_phys.scn_queue_obj != 0);
 
-	VERIFY0(dmu_object_free(dp->dp_meta_objset,
-	    scn->scn_phys.scn_queue_obj, tx));
-	scn->scn_phys.scn_queue_obj = zap_create(dp->dp_meta_objset, ot,
-	    DMU_OT_NONE, 0, tx);
+	err = dmu_object_free(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
+	    tx);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
+	err = zap_create(dp->dp_meta_objset, ot,
+	    DMU_OT_NONE, 0, tx, &scn->scn_phys.scn_queue_obj);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 	for (scan_ds_t *sds = avl_first(&scn->scn_queue);
 	    sds != NULL; sds = AVL_NEXT(&scn->scn_queue, sds)) {
 		VERIFY0(zap_add_int_key(dp->dp_meta_objset,
@@ -3948,7 +3968,13 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    NULL, ZIO_FLAG_MUSTSUCCEED);
 		err = bpobj_iterate(&dp->dp_free_bpobj,
 		    bpobj_dsl_scan_free_block_cb, scn, tx);
-		VERIFY0(zio_wait(scn->scn_zio_root));
+		int zioerr = zio_wait(scn->scn_zio_root);
+		if (zioerr && SPA_EXITING(spa)) {
+			if (err == 0)
+				err = zioerr;
+		} else {
+			VERIFY0(zioerr);
+		}
 		scn->scn_zio_root = NULL;
 
 		if (err != 0 && err != ERESTART)
@@ -3962,7 +3988,13 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    NULL, ZIO_FLAG_MUSTSUCCEED);
 		err = bptree_iterate(dp->dp_meta_objset,
 		    dp->dp_bptree_obj, B_TRUE, dsl_scan_free_block_cb, scn, tx);
-		VERIFY0(zio_wait(scn->scn_zio_root));
+		int zioerr = zio_wait(scn->scn_zio_root);
+		if (zioerr && SPA_EXITING(spa)) {
+			if (err == 0)
+				err = zioerr;
+		} else {
+			VERIFY0(zioerr);
+		}
 		scn->scn_zio_root = NULL;
 
 		if (err == EIO || err == ECKSUM) {
@@ -4029,21 +4061,27 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		 * space to the dp_leak_dir.
 		 */
 		if (dp->dp_leak_dir == NULL) {
+			uint64_t object;
 			rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
-			(void) dsl_dir_create_sync(dp, dp->dp_root_dir,
-			    LEAK_DIR_NAME, tx);
-			VERIFY0(dsl_pool_open_special_dir(dp,
-			    LEAK_DIR_NAME, &dp->dp_leak_dir));
+			err = dsl_dir_create_sync(dp, dp->dp_root_dir,
+			    LEAK_DIR_NAME, tx, &object);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
+			if (!err)
+				err = dsl_pool_open_special_dir(dp,
+				    LEAK_DIR_NAME, &dp->dp_leak_dir);
 			rrw_exit(&dp->dp_config_rwlock, FTAG);
 		}
-		dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
-		    dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
-		dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
-		    -dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
+		if (!err) {
+			dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
+			    dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
+			    dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
+			    dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
+			dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
+			    -dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes,
+			    -dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes,
+			    -dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
+		}
 	}
 
 	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying &&
