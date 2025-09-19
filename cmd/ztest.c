@@ -2839,7 +2839,7 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 		lr->lr_gen = od->od_crgen;
 		lr->lr_crtime[0] = time(NULL);
 
-		if (ztest_replay_create(zd, lr, B_FALSE) != 0) {
+		if (ztest_replay_create(zd, lrc, B_FALSE) != 0) {
 			ASSERT0(missing);
 			od->od_object = 0;
 			missing++;
@@ -2851,7 +2851,7 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 			ASSERT3U(od->od_object, !=, 0);
 		}
 
-		ztest_lr_free(lr, sizeof (*lr), od->od_name);
+		ztest_lr_free(lrc, sizeof (*lrc), od->od_name);
 	}
 
 	return (missing);
