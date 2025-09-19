@@ -273,7 +273,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	nvlist_t	*nvl = arg;
 	spa_t		*spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t	*mos = spa->spa_meta_objset;
-	dmu_buf_t	*dbp;
+	dmu_buf_t	*dbp = NULL;
 	spa_history_phys_t *shpp;
 	size_t		reclen;
 	uint64_t	le_len;
@@ -287,10 +287,8 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	mutex_enter(&spa->spa_history_lock);
 	if (!spa->spa_history) {
 		ret = spa_history_create_obj(spa, tx);
-		if (ret && SPA_EXITING(spa)) {
-			mutex_exit(&spa->spa_history_lock);
-			return;
-		}
+		if (ret && SPA_EXITING(spa))
+			goto spa_exiting;
 		VERIFY0(ret);
 	}
 	mutex_exit(&spa->spa_history_lock);
@@ -299,10 +297,17 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	 * Get the offset of where we need to write via the bonus buffer.
 	 * Update the offset when the write completes.
 	 */
-	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
+	ret = dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp);
+	if (ret && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(ret);
 	shpp = dbp->db_data;
 
 	dmu_buf_will_dirty(dbp, tx);
+	if (SPA_EXITING(spa)) {
+		ret = SET_ERROR(EIO);
+		goto spa_exiting;
+	}
 
 #ifdef ZFS_DEBUG
 	{
@@ -374,7 +379,10 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 
 	mutex_exit(&spa->spa_history_lock);
 	fnvlist_pack_free(record_packed, reclen);
-	dmu_buf_rele(dbp, FTAG);
+
+spa_exiting:
+	if (dbp != NULL)
+		dmu_buf_rele(dbp, FTAG);
 	fnvlist_free(nvl);
 }
 
