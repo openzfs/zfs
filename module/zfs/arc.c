@@ -1501,8 +1501,10 @@ arc_cksum_verify(arc_buf_t *buf)
 	}
 
 	fletcher_2_native(buf->b_data, arc_buf_size(buf), NULL, &zc);
-	if (!ZIO_CHECKSUM_EQUAL(*hdr->b_l1hdr.b_freeze_cksum, zc))
-		panic("buffer modified while frozen!");
+	if (!ZIO_CHECKSUM_EQUAL(*hdr->b_l1hdr.b_freeze_cksum, zc)) {
+		if (hdr->b_spa != spa_exiting_guid) /* if !spa_exiting() */
+			panic("buffer modified while frozen!");
+	}
 	mutex_exit(&hdr->b_l1hdr.b_freeze_lock);
 #endif
 }
@@ -7004,6 +7006,12 @@ arc_write_done(zio_t *zio)
 
 	ASSERT0P(hdr->b_l1hdr.b_acb);
 
+	if (spa_exiting(zio->io_spa)) {
+		arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
+		VERIFY3S(remove_reference(hdr, hdr), >, 0);
+		goto finish;
+	}
+
 	if (zio->io_error == 0) {
 		arc_hdr_verify(hdr, zio->io_bp);
 
@@ -7075,6 +7083,7 @@ arc_write_done(zio_t *zio)
 		VERIFY3S(remove_reference(hdr, hdr), >, 0);
 	}
 
+finish:
 	callback->awcb_done(zio, buf, callback->awcb_private);
 
 	abd_free(zio->io_abd);
@@ -7096,7 +7105,7 @@ arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
 
 	ASSERT3P(ready, !=, NULL);
 	ASSERT3P(done, !=, NULL);
-	ASSERT(!HDR_IO_ERROR(hdr));
+	ASSERT(!HDR_IO_ERROR(hdr) || SPA_EXITING(spa));
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 	ASSERT0P(hdr->b_l1hdr.b_acb);
 	ASSERT3P(hdr->b_l1hdr.b_buf, !=, NULL);

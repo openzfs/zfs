@@ -787,6 +787,9 @@ extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
 extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce);
+#ifdef ZFS_DEBUG
+extern uint64_t spa_exiting_guid;
+#endif
 extern int spa_reset(const char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
