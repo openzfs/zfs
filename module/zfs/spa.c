@@ -347,6 +347,18 @@ static uint_t spa_note_txg_time = 10 * 60;
  */
 static uint_t spa_flush_txg_time = 10 * 60;
 
+#if ZFS_DEBUG
+/*
+ * The load guid of the spa which is forcibly exiting.
+ *
+ * Some functions do not have direct access to the spa_t reference, but they
+ * have spa load guid, e.g. ARC ones. And spa lookup by guid is not acceptable
+ * in many cases as it could be a deadlock waiting for spa_namespace_lock,
+ * while lockless lookup is dangerous.
+ */
+uint64_t spa_exiting_guid = 0;
+#endif
+
 /*
  * ==========================================================================
  * SPA properties routines
@@ -7728,6 +7740,9 @@ spa_initiate_forced_exit(spa_t *spa)
 	if (spa_suspended(spa) && spa->spa_forced_exit_required) {
 		if (!spa->spa_forcibly_exiting) {
 			spa->spa_forcibly_exiting = B_TRUE;
+#if ZFS_DEBUG
+			spa_exiting_guid = spa_load_guid(spa);
+#endif
 			cmn_err(CE_WARN, "Pool '%s' is now forcibly exiting",
 			    spa_name(spa));
 			zfs_dbgmsg("Pool '%s' is now forcibly exiting",
@@ -7989,6 +8004,14 @@ export_spa:
 		spa->spa_is_exporting = B_FALSE;
 		spa->spa_export_thread = NULL;
 	}
+
+#ifdef ZFS_DEBUG
+	/*
+	 * Now another spa can be marked for forced exit and be forcibly
+	 * exiting.
+	 */
+	spa_exiting_guid = 0;
+#endif
 
 	/*
 	 * Wake up any waiters in spa_lookup()
