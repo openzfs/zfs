@@ -4210,9 +4210,11 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		error = spa_vdev_detach(spa, oldguid, pguid, B_FALSE);
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP && error != ZFS_ERR_CHECKPOINT_EXISTS &&
-		    error != ZFS_ERR_DISCARDING_CHECKPOINT)
+		    error != ZFS_ERR_DISCARDING_CHECKPOINT &&
+		    !ZTEST_HFE_ACTIVE()) {
 			fatal(B_FALSE, "detach (%s) returned %d",
 			    oldpath, error);
+		}
 		goto out;
 	}
 
@@ -4327,7 +4329,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	    error == ZFS_ERR_REBUILD_IN_PROGRESS)
 		expected_error = error;
 
-	if (error != expected_error && expected_error != EBUSY) {
+	if (error != expected_error && expected_error != EBUSY &&
+	    !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE, "attach (%s %"PRIu64", %s %"PRIu64", %d) "
 		    "returned %d, expected %d",
 		    oldpath, oldsize, newpath,
