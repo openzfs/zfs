@@ -345,6 +345,8 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 	    (u_longlong_t)words_after);
 
 	if (error != EINTR) {
+		if (SPA_EXITING(vd->vdev_spa))
+			goto skip;
 		if (error != 0) {
 			zfs_panic_recover("zfs: error %lld was returned "
 			    "while incrementally destroying the checkpoint "
@@ -355,12 +357,15 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 		ASSERT0(space_map_allocated(vd->vdev_checkpoint_sm));
 		ASSERT0(space_map_length(vd->vdev_checkpoint_sm));
 
+skip:
 		space_map_free(vd->vdev_checkpoint_sm, tx);
 		space_map_close(vd->vdev_checkpoint_sm);
 		vd->vdev_checkpoint_sm = NULL;
 
-		VERIFY0(zap_remove(spa_meta_objset(vd->vdev_spa),
-		    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, tx));
+		error = zap_remove(spa_meta_objset(vd->vdev_spa),
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM, tx);
+		if (!SPA_EXITING(vd->vdev_spa))
+			VERIFY0(error);
 	}
 }
 
@@ -391,6 +396,9 @@ spa_checkpoint_discard_thread_check(void *arg, zthr_t *zthr)
 		return (B_FALSE);
 
 	if (spa_has_checkpoint(spa))
+		return (B_FALSE);
+
+	if (SPA_EXITING(spa))
 		return (B_FALSE);
 
 	return (B_TRUE);
@@ -429,15 +437,22 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 			    checkpoint_sm->sm_dbuf, offset, size,
 			    B_TRUE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
 			if (error != 0) {
+				if (SPA_EXITING(spa))
+					return;
 				zfs_panic_recover("zfs: error %d was returned "
 				    "while prefetching checkpoint space map "
 				    "entries of vdev %llu\n",
 				    error, vd->vdev_id);
 			}
 
-			VERIFY0(dsl_sync_task(spa->spa_name, NULL,
+			error = dsl_sync_task(spa->spa_name, NULL,
 			    spa_checkpoint_discard_thread_sync, vd,
-			    0, ZFS_SPACE_CHECK_NONE));
+			    0, ZFS_SPACE_CHECK_NONE);
+			if (error && SPA_EXITING(spa)) {
+				dmu_buf_rele_array(dbp, numbufs, FTAG);
+				return;
+			}
+			VERIFY0(error);
 
 			dmu_buf_rele_array(dbp, numbufs, FTAG);
 		}
@@ -485,12 +500,16 @@ spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_t *spa = dp->dp_spa;
 	uberblock_t checkpoint = spa->spa_ubsync;
+	int err;
 
 	/*
 	 * At this point, there should not be a checkpoint in the MOS.
 	 */
-	ASSERT3U(zap_contains(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_ZPOOL_CHECKPOINT), ==, ENOENT);
+	err = zap_contains(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_ZPOOL_CHECKPOINT);
+	if (!(err == ENOENT) && SPA_EXITING(spa))
+		return;
+	ASSERT3U(err, ==, ENOENT);
 
 	ASSERT0(spa->spa_checkpoint_info.sci_timestamp);
 	ASSERT0(spa->spa_checkpoint_info.sci_dspace);
@@ -516,10 +535,13 @@ spa_checkpoint_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_checkpoint_info.sci_timestamp = checkpoint.ub_timestamp;
 
 	checkpoint.ub_checkpoint_txg = checkpoint.ub_txg;
-	VERIFY0(zap_add(spa->spa_dsl_pool->dp_meta_objset,
+	err = zap_add(spa->spa_dsl_pool->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZPOOL_CHECKPOINT,
 	    sizeof (uint64_t), sizeof (uberblock_t) / sizeof (uint64_t),
-	    &checkpoint, tx));
+	    &checkpoint, tx);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 
 	/*
 	 * Increment the feature refcount and thus activate the feature.
@@ -580,6 +602,7 @@ spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 {
 	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int err = 0;
 
 	if (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
 		return (SET_ERROR(ZFS_ERR_NO_CHECKPOINT));
@@ -587,10 +610,12 @@ spa_checkpoint_discard_check(void *arg, dmu_tx_t *tx)
 	if (spa->spa_checkpoint_txg == 0)
 		return (SET_ERROR(ZFS_ERR_DISCARDING_CHECKPOINT));
 
-	VERIFY0(zap_contains(spa_meta_objset(spa),
-	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZPOOL_CHECKPOINT));
+	err = zap_contains(spa_meta_objset(spa),
+	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZPOOL_CHECKPOINT);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
-	return (0);
+	return (err);
 }
 
 static void
