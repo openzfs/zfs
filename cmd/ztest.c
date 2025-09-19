@@ -6635,7 +6635,9 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 			ztest_bt_verify(bt, os, obj, doi.doi_dnodesize,
 			    bt->bt_offset, bt->bt_gen, bt->bt_txg,
 			    bt->bt_crtxg);
-			ztest_verify_unused_bonus(db, bt, obj, os, bt->bt_gen);
+			if (!ZTEST_HFE_ACTIVE())
+				ztest_verify_unused_bonus(db, bt, obj, os,
+				    bt->bt_gen);
 		}
 
 		dmu_buf_rele(db, FTAG);
