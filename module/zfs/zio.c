@@ -146,6 +146,10 @@ static const int zio_buf_debug_limit = 16384;
 static const int zio_buf_debug_limit = 0;
 #endif
 
+#ifndef _KERNEL
+boolean_t zio_flush_err_propagation = B_FALSE;
+#endif
+
 typedef struct zio_stats {
 	kstat_named_t ziostat_total_allocations;
 	kstat_named_t ziostat_alloc_class_fallbacks;
@@ -1725,8 +1729,13 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 void
 zio_flush(zio_t *pio, vdev_t *vd)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+#ifdef _KERNEL
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY
+	    | ZIO_FLAG_DONT_PROPAGATE;
+#else
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY
+	    | (zio_flush_err_propagation ? 0 : ZIO_FLAG_DONT_PROPAGATE);
+#endif
 
 	if (vd->vdev_nowritecache)
 		return;

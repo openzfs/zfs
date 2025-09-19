@@ -9476,6 +9476,12 @@ main(int argc, char **argv)
 	 */
 	zfs_reconstruct_indirect_damage_fraction = 100;
 
+	/*
+	 * Ask zio_flush() to propagate errors. Required for zil testing
+	 * during the hardforced export scenario.
+	 */
+	zio_flush_err_propagation = B_TRUE;
+
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);
 	action.sa_flags = 0;
