@@ -356,18 +356,28 @@ vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 }
 
 
-vdev_indirect_mapping_t *
-vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
+int
+vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object,
+    vdev_indirect_mapping_t **vimp)
 {
+	spa_t *spa = os->os_spa;
 	vdev_indirect_mapping_t *vim = kmem_zalloc(sizeof (*vim), KM_SLEEP);
 	dmu_object_info_t doi;
-	VERIFY0(dmu_object_info(os, mapping_object, &doi));
+	int err = 0;
+
+	err = dmu_object_info(os, mapping_object, &doi);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 
 	vim->vim_objset = os;
 	vim->vim_object = mapping_object;
 
-	VERIFY0(dmu_bonus_hold(os, vim->vim_object, vim,
-	    &vim->vim_dbuf));
+	err = dmu_bonus_hold(os, vim->vim_object, vim,
+	    &vim->vim_dbuf);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 	vim->vim_phys = vim->vim_dbuf->db_data;
 
 	vim->vim_havecounts =
@@ -376,27 +386,49 @@ vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
 	if (vim->vim_phys->vimp_num_entries > 0) {
 		uint64_t map_size = vdev_indirect_mapping_size(vim);
 		vim->vim_entries = vmem_alloc(map_size, KM_SLEEP);
-		VERIFY0(dmu_read(os, vim->vim_object, 0, map_size,
-		    vim->vim_entries, DMU_READ_PREFETCH));
+		err = dmu_read(os, vim->vim_object, 0, map_size,
+		    vim->vim_entries, DMU_READ_PREFETCH);
+		if (err && SPA_EXITING(spa)) {
+			vmem_free(vim->vim_entries, map_size);
+			goto spa_exiting;
+		}
+		VERIFY0(err);
 	}
 
 	ASSERT(vdev_indirect_mapping_verify(vim));
+	*vimp = vim;
 
-	return (vim);
+	return (err);
+
+spa_exiting:
+	if (vim->vim_dbuf)
+		dmu_buf_rele(vim->vim_dbuf, vim);
+	kmem_free(vim, sizeof (*vim));
+	return (err);
 }
 
 void
 vdev_indirect_mapping_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 {
-	vdev_indirect_mapping_t *vim = vdev_indirect_mapping_open(os, object);
+	spa_t *spa = os->os_spa;
+	vdev_indirect_mapping_t *vim;
+	int err;
+
+	err = vdev_indirect_mapping_open(os, object, &vim);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	if (vim->vim_havecounts) {
-		VERIFY0(dmu_object_free(os, vim->vim_phys->vimp_counts_object,
-		    tx));
+		err = dmu_object_free(os, vim->vim_phys->vimp_counts_object,
+		    tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		spa_feature_decr(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 	}
 	vdev_indirect_mapping_close(vim);
 
-	VERIFY0(dmu_object_free(os, object, tx));
+	err = dmu_object_free(os, object, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 /*
