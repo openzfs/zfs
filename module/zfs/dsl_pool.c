@@ -601,13 +601,15 @@ dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	zio_t *zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	dmu_objset_sync(dp->dp_meta_objset, zio, tx);
-	VERIFY0(zio_wait(zio));
+	int err = zio_wait(zio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 	dmu_objset_sync_done(dp->dp_meta_objset, tx);
 	taskq_wait(dp->dp_sync_taskq);
 	multilist_destroy(&dp->dp_meta_objset->os_synced_dnodes);
 
 	dprintf_bp(&dp->dp_meta_rootbp, "meta objset rootbp is %s", "");
-	if (!spa_exiting(dp->dp_spa))
+	if (!err)
 		spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
 }
 
@@ -700,6 +702,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	dsl_dataset_t *ds;
 	objset_t *mos = dp->dp_meta_objset;
 	list_t synced_datasets;
+	int err;
 
 	list_create(&synced_datasets, sizeof (dsl_dataset_t),
 	    offsetof(dsl_dataset_t, ds_synced_link));
@@ -738,7 +741,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		list_insert_tail(&synced_datasets, ds);
 		dsl_dataset_sync(ds, rio, tx);
 	}
-	VERIFY0(zio_wait(rio));
+	err = zio_wait(rio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 
 	/*
 	 * Update the long range free counter after
@@ -788,7 +793,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 			key_mapping_rele(dp->dp_spa, ds->ds_key_mapping, ds);
 		}
 	}
-	VERIFY0(zio_wait(rio));
+	err = zio_wait(rio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 
 	/*
 	 * Now that the datasets have been completely synced, we can
