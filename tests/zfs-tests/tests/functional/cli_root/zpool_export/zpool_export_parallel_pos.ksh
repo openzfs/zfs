@@ -82,7 +82,7 @@ log_onexit cleanup
 #
 for i in {0..$(($MAX_NUM - 1))}; do
 	log_must truncate -s $MINVDEVSIZE ${DEVICE_DIR}/disk$i
-	log_must zpool create $POOLNAME-$i $DEVICE_DIR/disk$i
+	log_must zpool create -f $POOLNAME-$i $DEVICE_DIR/disk$i
 	log_must zinject -P export -s 8 $POOLNAME-$i
 done
 
