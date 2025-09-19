@@ -8493,7 +8493,9 @@ ztest_run(ztest_shared_t *zs)
 		ASSERT3U(ztest_opts.zo_raidz_expand_test, ==,
 		    RAIDZ_EXPAND_NONE);
 
-		int d = ztest_random(ztest_opts.zo_datasets);
+		int d, ndatasets;
+		ndatasets = MIN(ztest_opts.zo_datasets, ztest_opts.zo_threads);
+		d = ztest_random(ndatasets);
 		ztest_dataset_destroy(d);
 		txg_wait_synced(spa_get_dsl(spa), 0);
 	}
