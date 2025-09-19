@@ -7728,13 +7728,20 @@ ztest_pool_prefetch_ddt(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	spa_t *spa;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+
+	err = spa_open(ztest_opts.zo_pool, &spa, FTAG);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 
 	ddt_prefetch_all(spa);
 
 	spa_close(spa, FTAG);
+
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
