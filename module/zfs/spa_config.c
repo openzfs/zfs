@@ -166,6 +166,9 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent,
 	if (!(spa_mode_global & SPA_MODE_WRITE))
 		return;
 
+	if (spa_exiting(target))
+		return;
+
 	/*
 	 * Iterate over all cachefiles for the pool, past or present.  When the
 	 * cachefile is changed, the new one is pushed onto this list, allowing
