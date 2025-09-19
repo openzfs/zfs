@@ -402,7 +402,8 @@ void dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx);
 void dbuf_destroy(dmu_buf_impl_t *db);
 
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
-void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
+int dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
+void dbuf_drain_list(list_t *list, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
 db_lock_type_t dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw,
     const void *tag);
