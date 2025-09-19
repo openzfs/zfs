@@ -466,12 +466,16 @@ void
 dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
     dmu_tx_t *tx)
 {
+	spa_t *spa = mos->os_spa;
 	dnode_t *dn;
 	int err = 0;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
-	VERIFY0(dnode_hold(mos, object, FTAG, &dn));
+	err = dnode_hold(mos, object, FTAG, &dn);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 	if (dn->dn_type == DMU_OTN_ZAP_METADATA) {
 		dnode_rele(dn, FTAG);
 		return;
@@ -485,11 +489,11 @@ dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
 	 * the object has been completely zapified by checking the type.
 	 */
 	err = mzap_create_impl(dn, 0, 0, tx);
-	if (err && SPA_EXITING(dmu_objset_spa(mos))) {
+	if (err && SPA_EXITING(spa)) {
 		dnode_rele(dn, FTAG);
 		return;
 	}
-	VERIFY0(err);
+	VERIFY0(err); /* XXX: orig code had no assertion */
 
 	dn->dn_next_type[tx->tx_txg & TXG_MASK] = dn->dn_type =
 	    DMU_OTN_ZAP_METADATA;
@@ -503,12 +507,18 @@ dmu_object_zapify(objset_t *mos, uint64_t object, dmu_object_type_t old_type,
 void
 dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 {
+	spa_t *spa = mos->os_spa;
 	dnode_t *dn;
 	dmu_object_type_t t;
+	int err;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
-	VERIFY0(dnode_hold(mos, object, FTAG, &dn));
+	err = dnode_hold(mos, object, FTAG, &dn);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
+
 	t = dn->dn_type;
 	dnode_rele(dn, FTAG);
 
@@ -516,7 +526,9 @@ dmu_object_free_zapified(objset_t *mos, uint64_t object, dmu_tx_t *tx)
 		spa_feature_decr(dmu_objset_spa(mos),
 		    SPA_FEATURE_EXTENSIBLE_DATASET, tx);
 	}
-	VERIFY0(dmu_object_free(mos, object, tx));
+	err = dmu_object_free(mos, object, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 EXPORT_SYMBOL(dmu_object_alloc);
