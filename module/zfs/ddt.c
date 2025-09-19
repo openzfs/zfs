@@ -1499,8 +1499,9 @@ ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)
 	snprintf(name, DDT_NAMELEN, DMU_POOL_DDT_DIR,
 	    zio_checksum_table[ddt->ddt_checksum].ci_name);
 
-	ddt->ddt_dir_object = zap_create_link(ddt->ddt_os,
-	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT, name, tx);
+	VERIFY0(zap_create_link(ddt->ddt_os,
+	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT, name, tx,
+	    &ddt->ddt_dir_object));
 
 	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_VERSION,
 	    sizeof (uint64_t), 1, &ddt->ddt_version, tx));
@@ -2412,14 +2413,21 @@ housekeeping:
 	}
 }
 
-static void
+static int
 ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 {
+	int err = 0;
+
 	uint64_t count = avl_numnodes(&ddt->ddt_tree);
 
 	if (count > 0) {
 		ddt_log_update_t dlu = {0};
-		ddt_log_begin(ddt, count, tx, &dlu);
+		err = ddt_log_begin(ddt, count, tx, &dlu);
+		if (err && SPA_EXITING(ddt->ddt_spa)) {
+			dmu_buf_rele_array(dlu.dlu_dbp, dlu.dlu_ndbp, &dlu);
+			dnode_rele(dlu.dlu_dn, &dlu);
+			return (err);
+		}
 
 		ddt_entry_t *dde;
 		void *cookie = NULL;
@@ -2485,6 +2493,8 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 		DDT_KSTAT_SET(ddt, dds_log_ingest_rate,
 		    ddt->ddt_log_ingest_rate);
 	}
+
+	return (err);
 }
 
 static void
@@ -2535,9 +2545,9 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx)
 	}
 
 	if (spa->spa_ddt_stat_object == 0) {
-		spa->spa_ddt_stat_object = zap_create_link(ddt->ddt_os,
+		VERIFY0(zap_create_link(ddt->ddt_os,
 		    DMU_OT_DDT_STATS, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_DDT_STATS, tx);
+		    DMU_POOL_DDT_STATS, tx, &spa->spa_ddt_stat_object));
 	}
 
 	if (ddt->ddt_version == DDT_VERSION_FDT && ddt->ddt_dir_object == 0)

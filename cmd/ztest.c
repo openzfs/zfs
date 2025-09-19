@@ -2164,9 +2164,9 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	if (lr->lrz_type == DMU_OT_ZAP_OTHER) {
 		if (lr->lr_foid == 0) {
-			lr->lr_foid = zap_create_dnsize(os,
+			error = zap_create_dnsize(os,
 			    lr->lrz_type, lr->lrz_bonustype,
-			    bonuslen, lr->lrz_dnodesize, tx);
+			    bonuslen, lr->lrz_dnodesize, tx, &lr->lr_foid);
 		} else {
 			error = zap_create_claim_dnsize(os, lr->lr_foid,
 			    lr->lrz_type, lr->lrz_bonustype,
@@ -2174,9 +2174,9 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		}
 	} else {
 		if (lr->lr_foid == 0) {
-			lr->lr_foid = dmu_object_alloc_dnsize(os,
+			error = dmu_object_alloc_dnsize(os,
 			    lr->lrz_type, 0, lr->lrz_bonustype,
-			    bonuslen, lr->lrz_dnodesize, tx);
+			    bonuslen, lr->lrz_dnodesize, tx, &lr->lr_foid);
 		} else {
 			error = dmu_object_claim_dnsize(os, lr->lr_foid,
 			    lr->lrz_type, 0, lr->lrz_bonustype,

@@ -49,7 +49,7 @@ typedef struct bptree_entry_phys {
 
 typedef int bptree_itor_t(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 
-uint64_t bptree_alloc(objset_t *os, dmu_tx_t *tx);
+int bptree_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp);
 int bptree_free(objset_t *os, uint64_t obj, dmu_tx_t *tx);
 boolean_t bptree_is_empty(objset_t *os, uint64_t obj);
 

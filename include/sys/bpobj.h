@@ -73,8 +73,9 @@ typedef struct bpobj {
 typedef int bpobj_itor_t(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);
 
-uint64_t bpobj_alloc(objset_t *mos, int blocksize, dmu_tx_t *tx);
-uint64_t bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx);
+int bpobj_alloc(objset_t *mos, int blocksize, dmu_tx_t *tx, uint64_t *objectp);
+int bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx,
+    uint64_t *objectp);
 void bpobj_free(objset_t *os, uint64_t obj, dmu_tx_t *tx);
 void bpobj_decr_empty(objset_t *os, dmu_tx_t *tx);
 
@@ -87,7 +88,7 @@ int bpobj_iterate_nofree(bpobj_t *bpo, bpobj_itor_t func, void *, uint64_t *);
 int livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func,
     void *arg, int64_t start);
 
-void bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx);
+int bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx);
 void bpobj_prefetch_subobj(bpobj_t *bpo, uint64_t subobj);
 void bpobj_enqueue(bpobj_t *bpo, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx);

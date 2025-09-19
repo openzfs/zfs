@@ -28,6 +28,7 @@
 #include <sys/bpobj.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_refcount.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_pool.h>
 #include <sys/zfeature.h>
 #include <sys/zap.h>
@@ -35,27 +36,35 @@
 /*
  * Return an empty bpobj, preferably the empty dummy one (dp_empty_bpobj).
  */
-uint64_t
-bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx)
+int
+bpobj_alloc_empty(objset_t *os, int blocksize, dmu_tx_t *tx, uint64_t *objectp)
 {
 	spa_t *spa = dmu_objset_spa(os);
 	dsl_pool_t *dp = dmu_objset_pool(os);
+	int err = 0;
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 		if (!spa_feature_is_active(spa, SPA_FEATURE_EMPTY_BPOBJ)) {
 			ASSERT0(dp->dp_empty_bpobj);
-			dp->dp_empty_bpobj =
-			    bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx);
-			VERIFY(zap_add(os,
+			err = bpobj_alloc(os, SPA_OLD_MAXBLOCKSIZE, tx,
+			    &dp->dp_empty_bpobj);
+			if (err && SPA_EXITING(spa))
+				return (err);
+			VERIFY0(err);
+			err = zap_add(os,
 			    DMU_POOL_DIRECTORY_OBJECT,
 			    DMU_POOL_EMPTY_BPOBJ, sizeof (uint64_t), 1,
-			    &dp->dp_empty_bpobj, tx) == 0);
+			    &dp->dp_empty_bpobj, tx);
+			if (err && SPA_EXITING(spa))
+				return (err);
+			VERIFY0(err);
 		}
 		spa_feature_incr(spa, SPA_FEATURE_EMPTY_BPOBJ, tx);
 		ASSERT(dp->dp_empty_bpobj != 0);
-		return (dp->dp_empty_bpobj);
+		*objectp = dp->dp_empty_bpobj;
+		return (err);
 	} else {
-		return (bpobj_alloc(os, blocksize, tx));
+		return (bpobj_alloc(os, blocksize, tx, objectp));
 	}
 }
 
@@ -75,8 +84,8 @@ bpobj_decr_empty(objset_t *os, dmu_tx_t *tx)
 	}
 }
 
-uint64_t
-bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
+int
+bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx, uint64_t *objectp)
 {
 	int size;
 
@@ -91,7 +100,7 @@ bpobj_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		size = sizeof (bpobj_phys_t);
 
 	return (dmu_object_alloc(os, DMU_OT_BPOBJ, blocksize,
-	    DMU_OT_BPOBJ_HDR, size, tx));
+	    DMU_OT_BPOBJ_HDR, size, tx, objectp));
 }
 
 void
@@ -669,13 +678,15 @@ livelist_bpobj_iterate_from_nofree(bpobj_t *bpo, bpobj_itor_t func, void *arg,
  * | bp | bp | bp | bp |   ...   | bp |
  * +----+----+----+----+---------+----+
  */
-void
+int
 bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 {
+	spa_t *spa = bpo->bpo_os->os_spa;
 	bpobj_t subbpo;
 	uint64_t used, comp, uncomp, subsubobjs;
 	boolean_t copy_subsub = B_TRUE;
 	boolean_t copy_bps = B_TRUE;
+	int err = 0;
 
 	ASSERT(bpobj_is_open(bpo));
 	ASSERT(subobj != 0);
@@ -685,26 +696,39 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 
 	if (subobj == dmu_objset_pool(bpo->bpo_os)->dp_empty_bpobj) {
 		bpobj_decr_empty(bpo->bpo_os, tx);
-		return;
+		return (err);
 	}
 
-	VERIFY3U(0, ==, bpobj_open(&subbpo, bpo->bpo_os, subobj));
+	err = bpobj_open(&subbpo, bpo->bpo_os, subobj);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	if (bpobj_is_empty(&subbpo)) {
 		/* No point in having an empty subobj. */
 		bpobj_close(&subbpo);
 		bpobj_free(bpo->bpo_os, subobj, tx);
-		return;
+		return (err);
 	}
-	VERIFY3U(0, ==, bpobj_space(&subbpo, &used, &comp, &uncomp));
+	err = bpobj_space(&subbpo, &used, &comp, &uncomp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	mutex_enter(&bpo->bpo_lock);
 	dmu_buf_will_dirty(bpo->bpo_dbuf, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out;
+	}
 
 	dmu_object_info_t doi;
 
 	if (bpo->bpo_phys->bpo_subobjs != 0) {
-		ASSERT0(dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
-		    &doi));
+		err = dmu_object_info(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
+		    &doi);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ_SUBOBJ);
 	}
 
@@ -715,7 +739,10 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	 */
 	subsubobjs = subbpo.bpo_phys->bpo_subobjs;
 	if (subsubobjs != 0) {
-		VERIFY0(dmu_object_info(bpo->bpo_os, subsubobjs, &doi));
+		err = dmu_object_info(bpo->bpo_os, subsubobjs, &doi);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		if (doi.doi_max_offset > doi.doi_data_block_size) {
 			copy_subsub = B_FALSE;
 		}
@@ -727,7 +754,10 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	 * directly. This reduces recursion in bpobj_iterate due to nested
 	 * subobjs.
 	 */
-	VERIFY3U(0, ==, dmu_object_info(bpo->bpo_os, subobj, &doi));
+	err = dmu_object_info(bpo->bpo_os, subobj, &doi);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	if (doi.doi_max_offset > doi.doi_data_block_size || !copy_subsub) {
 		copy_bps = B_FALSE;
 	}
@@ -736,8 +766,10 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		dmu_buf_t *subdb;
 		uint64_t numsubsub = subbpo.bpo_phys->bpo_num_subobjs;
 
-		VERIFY0(dmu_buf_hold(bpo->bpo_os, subsubobjs,
-		    0, FTAG, &subdb, 0));
+		err = dmu_buf_hold(bpo->bpo_os, subsubobjs, 0, FTAG, &subdb, 0);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		/*
 		 * Make sure that we are not asking dmu_write()
 		 * to write more data than we have in our buffer.
@@ -745,10 +777,14 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		VERIFY3U(subdb->db_size, >=,
 		    numsubsub * sizeof (subobj));
 		if (bpo->bpo_phys->bpo_subobjs == 0) {
-			bpo->bpo_phys->bpo_subobjs =
-			    dmu_object_alloc(bpo->bpo_os,
+			err = dmu_object_alloc(bpo->bpo_os,
 			    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
-			    DMU_OT_NONE, 0, tx);
+			    DMU_OT_NONE, 0, tx, &bpo->bpo_phys->bpo_subobjs);
+			if (err && SPA_EXITING(spa)) {
+				dmu_buf_rele(subdb, FTAG);
+				goto out;
+			}
+			VERIFY0(err);
 		}
 		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
 		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
@@ -758,8 +794,15 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		bpo->bpo_phys->bpo_num_subobjs += numsubsub;
 
 		dmu_buf_will_dirty(subbpo.bpo_dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			err = SET_ERROR(EIO);
+			goto out;
+		}
 		subbpo.bpo_phys->bpo_subobjs = 0;
-		VERIFY0(dmu_object_free(bpo->bpo_os, subsubobjs, tx));
+		err = dmu_object_free(bpo->bpo_os, subsubobjs, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	}
 
 	if (copy_bps) {
@@ -767,8 +810,11 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		uint64_t numbps = subbpo.bpo_phys->bpo_num_blkptrs;
 
 		ASSERT(copy_subsub);
-		VERIFY0(dmu_buf_hold(bpo->bpo_os, subobj,
-		    0, FTAG, &bps, 0));
+		err = dmu_buf_hold(bpo->bpo_os, subobj,
+		    0, FTAG, &bps, 0);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 
 		/*
 		 * Make sure that we are not asking dmu_write()
@@ -783,14 +829,19 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		bpo->bpo_phys->bpo_num_blkptrs += numbps;
 
 		bpobj_close(&subbpo);
-		VERIFY0(dmu_object_free(bpo->bpo_os, subobj, tx));
+		err = dmu_object_free(bpo->bpo_os, subobj, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	} else {
 		bpobj_close(&subbpo);
 		if (bpo->bpo_phys->bpo_subobjs == 0) {
-			bpo->bpo_phys->bpo_subobjs =
-			    dmu_object_alloc(bpo->bpo_os,
+			err = dmu_object_alloc(bpo->bpo_os,
 			    DMU_OT_BPOBJ_SUBOBJ, SPA_OLD_MAXBLOCKSIZE,
-			    DMU_OT_NONE, 0, tx);
+			    DMU_OT_NONE, 0, tx, &bpo->bpo_phys->bpo_subobjs);
+			if (err && SPA_EXITING(spa))
+				goto out;
+			VERIFY0(err);
 		}
 
 		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
@@ -802,8 +853,11 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 	bpo->bpo_phys->bpo_bytes += used;
 	bpo->bpo_phys->bpo_comp += comp;
 	bpo->bpo_phys->bpo_uncomp += uncomp;
+
+out:
 	mutex_exit(&bpo->bpo_lock);
 
+	return (err);
 }
 
 /*
