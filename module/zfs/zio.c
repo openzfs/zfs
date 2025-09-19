@@ -4328,7 +4328,7 @@ zio_io_to_allocate(metaslab_class_allocator_t *mca, boolean_t *more)
 	 */
 	if (!metaslab_class_throttle_reserve(zio->io_metaslab_class,
 	    zio->io_allocator, zio->io_prop.zp_copies, zio->io_size,
-	    B_FALSE, more)) {
+	    B_FALSE || SPA_EXITING(zio->io_spa), more)) {
 		return (NULL);
 	}
 	zio->io_flags |= ZIO_FLAG_ALLOC_THROTTLED;
@@ -4484,7 +4484,8 @@ again:
 	/*
 	 * Fall back to some other class when this one is full.
 	 */
-	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc) {
+	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc &&
+	    !SPA_EXITING(spa)) {
 		/*
 		 * If we are holding old class reservation, drop it.
 		 * Dispatch the next ZIO(s) there if some are waiting.
@@ -4524,7 +4525,8 @@ again:
 		goto again;
 	}
 
-	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc) {
+	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc &&
+	    !SPA_EXITING(spa)) {
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
@@ -4545,6 +4547,8 @@ again:
 			    error);
 		}
 		zio->io_error = error;
+		if (error && SPA_EXITING(spa))
+			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 	} else if (zio->io_prop.zp_rewrite) {
 		/*
 		 * For rewrite operations, preserve the logical birth time
@@ -5598,7 +5602,8 @@ zio_dva_throttle_done(zio_t *zio)
 	const void *tag = pio;
 	uint64_t size = pio->io_size;
 
-	ASSERT3P(zio->io_bp, !=, NULL);
+	if (!SPA_EXITING(zio->io_spa))
+		ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 	ASSERT3U(zio->io_priority, ==, ZIO_PRIORITY_ASYNC_WRITE);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);

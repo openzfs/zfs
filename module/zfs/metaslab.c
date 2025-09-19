@@ -5929,7 +5929,7 @@ metaslab_class_throttle_unreserve(metaslab_class_t *mc, int allocator,
 	ASSERT(mc->mc_alloc_throttle_enabled);
 	int64_t delta = copies * io_size;
 	return (atomic_add_64_nv(&mca->mca_reserved, -delta) <=
-	    mc->mc_alloc_max);
+	    mc->mc_alloc_max || SPA_EXITING(mc->mc_spa));
 }
 
 static int
