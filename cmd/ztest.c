@@ -1899,6 +1899,8 @@ ztest_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t txg_how, const char *tag)
 	/*
 	 * Attempt to assign tx to some transaction group.
 	 */
+	if ((txg_how & DMU_TX_WAIT) && ztest_random(2) == 0)
+		txg_how |= DMU_TX_SUSPEND;
 	error = dmu_tx_assign(tx, txg_how);
 	if (error) {
 		if (error == ERESTART) {
