@@ -3366,6 +3366,9 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0)
 		return;
 
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
 	mutex_enter(&ztest_vdev_lock);
 	name = kmem_asprintf("%s_upgrade", ztest_opts.zo_pool);
 
@@ -3429,6 +3432,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 
 	kmem_strfree(name);
 	mutex_exit(&ztest_vdev_lock);
+	mutex_exit(&ztest_hfe_lock);
 }
 
 static void
