@@ -442,6 +442,7 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
+	spa_t *spa = dn->dn_objset->os_spa;
 	int err;
 
 	ASSERT0(tx->tx_txg);
@@ -461,15 +462,24 @@ dmu_tx_count_free(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	 * if they are blocksize-aligned.
 	 */
 	if (dn->dn_datablkshift == 0) {
-		if (off != 0 || len < dn->dn_datablksz)
+		if (off != 0 || len < dn->dn_datablksz) {
 			dmu_tx_count_write(txh, 0, dn->dn_datablksz);
+			if (SPA_EXITING(spa))
+				return;
+		}
 	} else {
 		/* first block will be modified if it is not aligned */
-		if (!IS_P2ALIGNED(off, 1 << dn->dn_datablkshift))
+		if (!IS_P2ALIGNED(off, 1 << dn->dn_datablkshift)) {
 			dmu_tx_count_write(txh, off, 1);
+			if (SPA_EXITING(spa))
+				return;
+		}
 		/* last block will be modified if it is not aligned */
-		if (!IS_P2ALIGNED(off + len, 1 << dn->dn_datablkshift))
+		if (!IS_P2ALIGNED(off + len, 1 << dn->dn_datablkshift)) {
 			dmu_tx_count_write(txh, off + len, 1);
+			if (SPA_EXITING(spa))
+				return;
+		}
 	}
 
 	/*
@@ -1058,7 +1068,7 @@ dmu_tx_try_assign(dmu_tx_t *tx)
 		return (SET_ERROR(EIO));
 	}
 
-	if (spa_suspended(spa)) {
+	if (spa_suspended(spa) && !SPA_EXITING(spa)) {
 		DMU_TX_STAT_BUMP(dmu_tx_suspended);
 
 		/*
@@ -1138,7 +1148,7 @@ dmu_tx_try_assign(dmu_tx_t *tx)
 	/* calculate memory footprint estimate */
 	uint64_t memory = towrite + tohold;
 
-	if (tx->tx_dir != NULL && asize != 0) {
+	if (tx->tx_dir != NULL && asize != 0 && !SPA_EXITING(spa)) {
 		int err = dsl_dir_tempreserve_space(tx->tx_dir, memory,
 		    asize, tx->tx_netfree, &tx->tx_tempreserve_cookie, tx);
 		if (err != 0)
