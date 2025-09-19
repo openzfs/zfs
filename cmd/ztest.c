@@ -5567,23 +5567,27 @@ void
 ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 {
 	objset_t *os = zd->zd_os;
-	ztest_od_t *od;
+	ztest_od_t *od = NULL;
 	dmu_tx_t *tx;
-	uint64_t i;
+	uint64_t i, j;
 	int error;
 	int size;
-	uint64_t n, s, txg;
-	bufwad_t *packbuf, *bigbuf;
+	uint64_t n, s, txg = 0;
+	bufwad_t *packbuf = NULL, *bigbuf = NULL;
 	uint64_t packobj, packoff, packsize, bigobj, bigoff, bigsize;
 	uint64_t blocksize = ztest_random_blocksize();
 	uint64_t chunksize = blocksize;
 	uint64_t regions = 997;
 	uint64_t stride = 123456789ULL;
 	uint64_t width = 9;
-	dmu_buf_t *bonus_db;
-	arc_buf_t **bigbuf_arcbufs;
+	dmu_buf_t *bonus_db = NULL;
+	arc_buf_t **bigbuf_arcbufs = NULL;
+	boolean_t *arcs_to_return = NULL;
 	dmu_object_info_t doi;
 	uint32_t dmu_read_flags = DMU_READ_PREFETCH;
+	void *packcheck = NULL;
+	void *bigcheck = NULL;
+	dmu_buf_t *dbt = NULL;
 
 	/*
 	 * We will randomly set when to do O_DIRECT on a read.
@@ -5629,7 +5633,10 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	chunksize = blocksize;
 	ASSERT3U(chunksize, ==, od[1].od_gen);
 
-	VERIFY0(dmu_object_info(os, bigobj, &doi));
+	error = dmu_object_info(os, bigobj, &doi);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	VERIFY(ISP2(doi.doi_data_block_size));
 	VERIFY3U(chunksize, ==, doi.doi_data_block_size);
 	VERIFY3U(chunksize, >=, 2 * sizeof (bufwad_t));
@@ -5649,9 +5656,13 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	packbuf = umem_zalloc(packsize, UMEM_NOFAIL);
 	bigbuf = umem_zalloc(bigsize, UMEM_NOFAIL);
 
-	VERIFY0(dmu_bonus_hold(os, bigobj, FTAG, &bonus_db));
+	error = dmu_bonus_hold(os, bigobj, FTAG, &bonus_db);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	bigbuf_arcbufs = umem_zalloc(2 * s * sizeof (arc_buf_t *), UMEM_NOFAIL);
+	arcs_to_return = umem_zalloc(2 * s * sizeof (boolean_t), UMEM_NOFAIL);
 
 	/*
 	 * Iteration 0 test zcopy for DB_UNCACHED dbufs.
@@ -5663,7 +5674,6 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	 * Iteration 6 one more zcopy write.
 	 */
 	for (i = 0; i < 7; i++) {
-		uint64_t j;
 		uint64_t off;
 
 		/*
@@ -5676,11 +5686,14 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				bigbuf_arcbufs[j] =
 				    dmu_request_arcbuf(bonus_db, chunksize);
+				arcs_to_return[j] = B_TRUE;
 			} else {
 				bigbuf_arcbufs[2 * j] =
 				    dmu_request_arcbuf(bonus_db, chunksize / 2);
+				arcs_to_return[2 * j] = B_TRUE;
 				bigbuf_arcbufs[2 * j + 1] =
 				    dmu_request_arcbuf(bonus_db, chunksize / 2);
+				arcs_to_return[2 * j + 1] = B_TRUE;
 			}
 		}
 
@@ -5693,25 +5706,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
 
 		txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
-		if (txg == 0) {
-			umem_free(packbuf, packsize);
-			umem_free(bigbuf, bigsize);
-			for (j = 0; j < s; j++) {
-				if (i != 5 ||
-				    chunksize < (SPA_MINBLOCKSIZE * 2)) {
-					dmu_return_arcbuf(bigbuf_arcbufs[j]);
-				} else {
-					dmu_return_arcbuf(
-					    bigbuf_arcbufs[2 * j]);
-					dmu_return_arcbuf(
-					    bigbuf_arcbufs[2 * j + 1]);
-				}
-			}
-			umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
-			umem_free(od, size);
-			dmu_buf_rele(bonus_db, FTAG);
-			return;
-		}
+		if (txg == 0)
+			goto out;
 
 		/*
 		 * 50% of the time don't read objects in the 1st iteration to
@@ -5721,13 +5717,18 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		if (i != 0 || ztest_random(2) != 0) {
 			error = dmu_read(os, packobj, packoff,
 			    packsize, packbuf, dmu_read_flags);
-			ASSERT0(error);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 			error = dmu_read(os, bigobj, bigoff, bigsize,
 			    bigbuf, dmu_read_flags);
-			ASSERT0(error);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 		}
-		compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
-		    n, chunksize, txg);
+		if (!ZTEST_HFE_ACTIVE())
+			compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
+			    n, chunksize, txg);
 
 		/*
 		 * We've verified all the old bufwads, and made new ones.
@@ -5741,7 +5742,6 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			    bigoff, bigsize, txg);
 		}
 		for (off = bigoff, j = 0; j < s; j++, off += chunksize) {
-			dmu_buf_t *dbt;
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				memcpy(bigbuf_arcbufs[j]->b_data,
 				    (caddr_t)bigbuf + (off - bigoff),
@@ -5757,42 +5757,71 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			}
 
 			if (i == 1) {
-				VERIFY0(dmu_buf_hold(os, bigobj, off,
-				    FTAG, &dbt, DMU_READ_NO_PREFETCH));
+				error = dmu_buf_hold(os, bigobj, off,
+				    FTAG, &dbt, DMU_READ_NO_PREFETCH);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
-				    off, bigbuf_arcbufs[j], tx, 0));
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[j], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[j] = B_FALSE;
 			} else {
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
-				    off, bigbuf_arcbufs[2 * j], tx, 0));
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[2 * j], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[2 * j] = B_FALSE;
+
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
 				    off + chunksize / 2,
-				    bigbuf_arcbufs[2 * j + 1], tx, 0));
+				    bigbuf_arcbufs[2 * j + 1], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[2 * j + 1] = B_FALSE;
 			}
 			if (i == 1) {
 				dmu_buf_rele(dbt, FTAG);
+				dbt = NULL;
 			}
 		}
 		dmu_tx_commit(tx);
+		txg = 0;
 
 		/*
 		 * Sanity check the stuff we just wrote.
 		 */
 		{
-			void *packcheck = umem_alloc(packsize, UMEM_NOFAIL);
-			void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
+			packcheck = umem_alloc(packsize, UMEM_NOFAIL);
+			bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
-			VERIFY0(dmu_read(os, packobj, packoff,
-			    packsize, packcheck, dmu_read_flags));
-			VERIFY0(dmu_read(os, bigobj, bigoff,
-			    bigsize, bigcheck, dmu_read_flags));
+			error = dmu_read(os, packobj, packoff,
+			    packsize, packcheck, dmu_read_flags);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 
-			ASSERT0(memcmp(packbuf, packcheck, packsize));
-			ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
+			error = dmu_read(os, bigobj, bigoff,
+			    bigsize, bigcheck, dmu_read_flags);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
+
+			if (!ZTEST_HFE_ACTIVE()) {
+				ASSERT0(memcmp(packbuf, packcheck, packsize));
+				ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
+			}
 
 			umem_free(packcheck, packsize);
+			packcheck = NULL;
 			umem_free(bigcheck, bigsize);
+			bigcheck = NULL;
 		}
 		if (i == 2) {
 			txg_wait_open(dmu_objset_pool(os), 0, B_TRUE);
@@ -5801,11 +5830,31 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		}
 	}
 
-	dmu_buf_rele(bonus_db, FTAG);
-	umem_free(packbuf, packsize);
-	umem_free(bigbuf, bigsize);
-	umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
-	umem_free(od, size);
+out:
+	if (arcs_to_return)
+		for (j = 0; j < 2 * s; j++)
+			if (arcs_to_return[j])
+				dmu_return_arcbuf(bigbuf_arcbufs[j]);
+	if (dbt)
+		dmu_buf_rele(dbt, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
+	if (packcheck)
+		umem_free(packcheck, packsize);
+	if (bigcheck)
+		umem_free(bigcheck, bigsize);
+	if (bonus_db)
+		dmu_buf_rele(bonus_db, FTAG);
+	if (packbuf)
+		umem_free(packbuf, packsize);
+	if (bigbuf)
+		umem_free(bigbuf, bigsize);
+	if (arcs_to_return)
+		umem_free(arcs_to_return, 2 * s * sizeof (boolean_t));
+	if (bigbuf_arcbufs)
+		umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
+	if (od)
+		umem_free(od, size);
 }
 
 void
