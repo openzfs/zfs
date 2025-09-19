@@ -388,7 +388,7 @@ static const ddt_kstats_t ddt_kstats_template = {
 #endif /* _KERNEL */
 
 
-static void
+static int
 ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
@@ -398,36 +398,56 @@ ddt_object_create(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	boolean_t prehash = zio_checksum_table[ddt->ddt_checksum].ci_flags &
 	    ZCHECKSUM_FLAG_DEDUP;
 	char name[DDT_NAMELEN];
+	int err = 0;
 
 	ASSERT3U(ddt->ddt_dir_object, >, 0);
 
 	ddt_object_name(ddt, type, class, name);
 
 	ASSERT0(*objectp);
-	VERIFY0(ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash));
+	err = ddt_ops[type]->ddt_op_create(os, objectp, tx, prehash);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	ASSERT3U(*objectp, !=, 0);
 
-	VERIFY0(dnode_hold(os, *objectp, ddt,
-	    &ddt->ddt_object_dnode[type][class]));
+	err = dnode_hold(os, *objectp, ddt,
+	    &ddt->ddt_object_dnode[type][class]);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
 
-	VERIFY0(zap_add(os, ddt->ddt_dir_object, name, sizeof (uint64_t), 1,
-	    objectp, tx));
+	err = zap_add(os, ddt->ddt_dir_object, name, sizeof (uint64_t), 1,
+	    objectp, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	VERIFY0(zap_add(os, spa->spa_ddt_stat_object, name,
+	err = zap_add(os, spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class], tx));
+	    &ddt->ddt_histogram[type][class], tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+
+	return (err);
 }
 
-static void
+static int
 ddt_object_destroy(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
 	spa_t *spa = ddt->ddt_spa;
 	objset_t *os = ddt->ddt_os;
+	uint64_t object;
 	uint64_t count;
 	char name[DDT_NAMELEN];
+	int err = 0;
+
+	if (SPA_EXITING(spa))
+		goto out;
 
 	ASSERT3U(ddt->ddt_dir_object, >, 0);
 
@@ -437,10 +457,19 @@ ddt_object_destroy(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 	ASSERT(ddt_histogram_empty(&ddt->ddt_histogram[type][class]));
 	VERIFY0(ddt_object_count(ddt, type, class, &count));
 	VERIFY0(count);
-	VERIFY0(zap_remove(os, ddt->ddt_dir_object, name, tx));
-	VERIFY0(zap_remove(os, spa->spa_ddt_stat_object, name, tx));
 
-	uint64_t object = ddt->ddt_object[type][class];
+	err = zap_remove(os, ddt->ddt_dir_object, name, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+	err = zap_remove(os, spa->spa_ddt_stat_object, name, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+out:
+	object = ddt->ddt_object[type][class];
 	dnode_t *dn = ddt->ddt_object_dnode[type][class];
 	rw_enter(&ddt->ddt_objects_lock, RW_WRITER);
 	ddt->ddt_object[type][class] = 0;
@@ -449,8 +478,12 @@ ddt_object_destroy(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
 
 	if (dn != NULL)
 		dnode_rele(dn, ddt);
-	VERIFY0(ddt_ops[type]->ddt_op_destroy(os, object, tx));
+	err = ddt_ops[type]->ddt_op_destroy(os, object, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	memset(&ddt->ddt_object_stats[type][class], 0, sizeof (ddt_object_t));
+
+	return (err);
 }
 
 static int
@@ -512,30 +545,43 @@ error:
 	return (error);
 }
 
-static void
+static int
 ddt_object_sync(ddt_t *ddt, ddt_type_t type, ddt_class_t class,
     dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
 	ddt_object_t *ddo = &ddt->ddt_object_stats[type][class];
 	dmu_object_info_t doi;
 	uint64_t count;
 	char name[DDT_NAMELEN];
+	int err = 0;
 
 	ddt_object_name(ddt, type, class, name);
 
-	VERIFY0(zap_update(ddt->ddt_os, ddt->ddt_spa->spa_ddt_stat_object, name,
+	err = zap_update(ddt->ddt_os, spa->spa_ddt_stat_object, name,
 	    sizeof (uint64_t), sizeof (ddt_histogram_t) / sizeof (uint64_t),
-	    &ddt->ddt_histogram[type][class], tx));
+	    &ddt->ddt_histogram[type][class], tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	/*
 	 * Cache DDT statistics; this is the only time they'll change.
 	 */
-	VERIFY0(ddt_object_info(ddt, type, class, &doi));
-	VERIFY0(ddt_object_count(ddt, type, class, &count));
+	err = ddt_object_info(ddt, type, class, &doi);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+	err = ddt_object_count(ddt, type, class, &count);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	ddo->ddo_count = count;
 	ddo->ddo_dspace = doi.doi_physical_blocks_512 << 9;
 	ddo->ddo_mspace = doi.doi_fill_count * doi.doi_data_block_size;
+
+	return (err);
 }
 
 static boolean_t
@@ -1245,7 +1291,10 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 		 * This is the first use of this DDT since the pool was
 		 * created; finish getting it ready for use.
 		 */
-		VERIFY0(ddt_configure(ddt, B_TRUE));
+		error = ddt_configure(ddt, B_TRUE);
+		if (error && SPA_EXITING(spa))
+			return (NULL);
+		VERIFY0(error);
 		ASSERT3U(ddt->ddt_version, !=, DDT_VERSION_UNCONFIGURED);
 	}
 
@@ -1356,7 +1405,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 		for (class = 0; class < DDT_CLASSES; class++) {
 			error = ddt_object_lookup(ddt, type, class, dde);
 			if (error != ENOENT) {
-				ASSERT0(error);
+				if (!SPA_EXITING(spa))
+					ASSERT0(error);
 				break;
 			}
 		}
@@ -1365,6 +1415,17 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 	}
 
 	ddt_enter(ddt);
+
+	if (!(error == 0 || error == ENOENT) && SPA_EXITING(spa)) {
+		if (dde->dde_waiters == 0) {
+			avl_remove(&ddt->ddt_tree, dde);
+			ddt_free(ddt, dde);
+		} else {
+			dde->dde_flags |= DDE_FLAG_LOADED | DDE_FLAG_OVERQUOTA;
+			cv_broadcast(&dde->dde_cv);
+		}
+		return (NULL);
+	}
 
 	ASSERT(!(dde->dde_flags & DDE_FLAG_LOADED));
 
@@ -1485,9 +1546,12 @@ ddt_key_compare(const void *x1, const void *x2)
 }
 
 /* Create the containing dir for this DDT and bump the feature count */
-static void
+static int
 ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
+	int err = 0;
+
 	ASSERT0(ddt->ddt_dir_object);
 	ASSERT3U(ddt->ddt_version, ==, DDT_VERSION_FDT);
 
@@ -1495,22 +1559,37 @@ ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)
 	snprintf(name, DDT_NAMELEN, DMU_POOL_DDT_DIR,
 	    zio_checksum_table[ddt->ddt_checksum].ci_name);
 
-	VERIFY0(zap_create_link(ddt->ddt_os,
+	err = zap_create_link(ddt->ddt_os,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT, name, tx,
-	    &ddt->ddt_dir_object));
+	    &ddt->ddt_dir_object);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_VERSION,
-	    sizeof (uint64_t), 1, &ddt->ddt_version, tx));
-	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS,
-	    sizeof (uint64_t), 1, &ddt->ddt_flags, tx));
+	err = zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_VERSION,
+	    sizeof (uint64_t), 1, &ddt->ddt_version, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+
+	err = zap_add(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS,
+	    sizeof (uint64_t), 1, &ddt->ddt_flags, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	spa_feature_incr(ddt->ddt_spa, SPA_FEATURE_FAST_DEDUP, tx);
+
+	return (err);
 }
 
 /* Destroy the containing dir and deactivate the feature */
-static void
+static int
 ddt_destroy_dir(ddt_t *ddt, dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
+	int err = 0;
+
 	ASSERT3U(ddt->ddt_dir_object, !=, 0);
 	ASSERT3U(ddt->ddt_dir_object, !=, DMU_POOL_DIRECTORY_OBJECT);
 	ASSERT3U(ddt->ddt_version, ==, DDT_VERSION_FDT);
@@ -1528,18 +1607,40 @@ ddt_destroy_dir(ddt_t *ddt, dmu_tx_t *tx)
 	ddt_log_destroy(ddt, tx);
 
 	uint64_t count;
-	ASSERT0(zap_count(ddt->ddt_os, ddt->ddt_dir_object, &count));
-	ASSERT0(zap_contains(ddt->ddt_os, ddt->ddt_dir_object,
-	    DDT_DIR_VERSION));
-	ASSERT0(zap_contains(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS));
+
+	err = zap_count(ddt->ddt_os, ddt->ddt_dir_object, &count);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	ASSERT0(err);
+
+	err = zap_contains(ddt->ddt_os, ddt->ddt_dir_object,
+	    DDT_DIR_VERSION);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	ASSERT0(err);
+
+	err = zap_contains(ddt->ddt_os, ddt->ddt_dir_object, DDT_DIR_FLAGS);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	ASSERT0(err);
+
 	ASSERT3U(count, ==, 2);
 
-	VERIFY0(zap_remove(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name, tx));
-	VERIFY0(zap_destroy(ddt->ddt_os, ddt->ddt_dir_object, tx));
+	err = zap_remove(ddt->ddt_os, DMU_POOL_DIRECTORY_OBJECT, name, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+
+	err = zap_destroy(ddt->ddt_os, ddt->ddt_dir_object, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	ddt->ddt_dir_object = 0;
 
 	spa_feature_decr(ddt->ddt_spa, SPA_FEATURE_FAST_DEDUP, tx);
+
+	return (err);
 }
 
 /*
@@ -1960,6 +2061,8 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 static void
 ddt_repair_entry_done(zio_t *zio)
 {
+	if (SPA_EXITING(zio->io_spa))
+		return;
 	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
 	ddt_entry_t *rdde = zio->io_private;
 
@@ -2036,6 +2139,9 @@ ddt_repair_table(ddt_t *ddt, zio_t *rio)
 static void
 ddt_sync_update_stats(ddt_t *ddt, dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
+	int err;
+
 	/*
 	 * Count all the entries stored for each type/class, and updates the
 	 * stats within (ddt_object_sync()). If there's no entries for the
@@ -2048,15 +2154,24 @@ ddt_sync_update_stats(ddt_t *ddt, dmu_tx_t *tx)
 		uint64_t add, tcount = 0;
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
 			if (ddt_object_exists(ddt, type, class)) {
-				ddt_object_sync(ddt, type, class, tx);
-				VERIFY0(ddt_object_count(ddt, type, class,
-				    &add));
-				tcount += add;
+				err = ddt_object_sync(ddt, type, class, tx);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
+				err = ddt_object_count(ddt, type, class,
+				    &add);
+				if (!SPA_EXITING(spa)) {
+					VERIFY0(err);
+					tcount += add;
+				}
 			}
 		}
 		for (ddt_class_t class = 0; class < DDT_CLASSES; class++) {
-			if (tcount == 0 && ddt_object_exists(ddt, type, class))
-				ddt_object_destroy(ddt, type, class, tx);
+			if (tcount == 0 &&
+			    ddt_object_exists(ddt, type, class)) {
+				err = ddt_object_destroy(ddt, type, class, tx);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
+			}
 		}
 		count += tcount;
 	}
@@ -2067,15 +2182,18 @@ ddt_sync_update_stats(ddt_t *ddt, dmu_tx_t *tx)
 		count += avl_numnodes(&ddt->ddt_log_flushing->ddl_tree);
 	}
 
-	if (count == 0) {
+	if (count == 0 && !SPA_EXITING(spa)) {
 		/*
 		 * No entries left on the DDT, so reset the version for next
 		 * time. This allows us to handle the feature being changed
 		 * since the DDT was originally created. New entries should get
 		 * whatever the feature currently demands.
 		 */
-		if (ddt->ddt_version == DDT_VERSION_FDT)
-			ddt_destroy_dir(ddt, tx);
+		if (ddt->ddt_version == DDT_VERSION_FDT) {
+			err = ddt_destroy_dir(ddt, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
+		}
 
 		ddt->ddt_version = DDT_VERSION_UNCONFIGURED;
 		ddt->ddt_flags = 0;
@@ -2083,8 +2201,8 @@ ddt_sync_update_stats(ddt_t *ddt, dmu_tx_t *tx)
 
 	memcpy(&ddt->ddt_histogram_cache, ddt->ddt_histogram,
 	    sizeof (ddt->ddt_histogram));
-	ddt->ddt_spa->spa_dedup_dspace = ~0ULL;
-	ddt->ddt_spa->spa_dedup_dsize = ~0ULL;
+	spa->spa_dedup_dspace = ~0ULL;
+	spa->spa_dedup_dsize = ~0ULL;
 }
 
 static void
@@ -2123,9 +2241,14 @@ static void
 ddt_sync_flush_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
     ddt_type_t otype, ddt_class_t oclass, dmu_tx_t *tx)
 {
+	spa_t *spa = ddt->ddt_spa;
 	ddt_key_t *ddk = &ddlwe->ddlwe_key;
 	ddt_type_t ntype = DDT_TYPE_DEFAULT;
 	uint64_t refcnt = 0;
+	int err;
+
+	if (SPA_EXITING(spa))
+		return;
 
 	/*
 	 * Compute the total refcnt. Along the way, issue frees for any DVAs
@@ -2137,7 +2260,8 @@ ddt_sync_flush_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
 		uint64_t phys_refcnt = ddt_phys_refcnt(ddp, v);
 
 		if (ddt_phys_birth(ddp, v) == 0) {
-			ASSERT0(phys_refcnt);
+			if (!SPA_EXITING(spa))
+				ASSERT0(phys_refcnt);
 			continue;
 		}
 		if (DDT_PHYS_IS_DITTO(ddt, p)) {
@@ -2165,7 +2289,10 @@ ddt_sync_flush_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
 	 */
 	if (otype != DDT_TYPES &&
 	    (otype != ntype || oclass != nclass || refcnt == 0)) {
-		VERIFY0(ddt_object_remove(ddt, otype, oclass, ddk, tx));
+		err = ddt_object_remove(ddt, otype, oclass, ddk, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 		ASSERT(ddt_object_contains(ddt, otype, oclass, ddk) == ENOENT);
 	}
 
@@ -2178,9 +2305,16 @@ ddt_sync_flush_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
 
 		ddt_histogram_add_entry(ddt, ddh, ddlwe);
 
-		if (!ddt_object_exists(ddt, ntype, nclass))
-			ddt_object_create(ddt, ntype, nclass, tx);
-		VERIFY0(ddt_object_update(ddt, ntype, nclass, ddlwe, tx));
+		if (!ddt_object_exists(ddt, ntype, nclass)) {
+			err = ddt_object_create(ddt, ntype, nclass, tx);
+			if (err && SPA_EXITING(spa))
+				return;
+			VERIFY0(err);
+		}
+		err = ddt_object_update(ddt, ntype, nclass, ddlwe, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 	}
 }
 
@@ -2419,11 +2553,8 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 	if (count > 0) {
 		ddt_log_update_t dlu = {0};
 		err = ddt_log_begin(ddt, count, tx, &dlu);
-		if (err && SPA_EXITING(ddt->ddt_spa)) {
-			dmu_buf_rele_array(dlu.dlu_dbp, dlu.dlu_ndbp, &dlu);
-			dnode_rele(dlu.dlu_dn, &dlu);
-			return (err);
-		}
+		if (!SPA_EXITING(ddt->ddt_spa))
+			VERIFY0(err);
 
 		ddt_entry_t *dde;
 		void *cookie = NULL;
@@ -2445,12 +2576,22 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 				    ddt_class_start();
 			}
 
-			ddt_log_entry(ddt, &ddlwe, &dlu);
-			ddt_sync_scan_entry(ddt, &ddlwe, tx);
+			if (!err) {
+				ddt_log_entry(ddt, &ddlwe, &dlu);
+				ddt_sync_scan_entry(ddt, &ddlwe, tx);
+			}
 			ddt_free(ddt, dde);
 		}
 
-		ddt_log_commit(ddt, &dlu);
+		if (err) {
+			if (dlu.dlu_dbp)
+				dmu_buf_rele_array(dlu.dlu_dbp, dlu.dlu_ndbp,
+				    &dlu);
+			if (dlu.dlu_dn)
+				dnode_rele(dlu.dlu_dn, &dlu);
+		} else {
+			ddt_log_commit(ddt, &dlu);
+		}
 
 		DDT_KSTAT_SET(ddt, dds_log_active_entries,
 		    avl_numnodes(&ddt->ddt_log_active->ddl_tree));
@@ -2531,6 +2672,7 @@ static void
 ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx)
 {
 	spa_t *spa = ddt->ddt_spa;
+	int err;
 
 	if (ddt->ddt_version == UINT64_MAX)
 		return;
@@ -2541,13 +2683,15 @@ ddt_sync_table(ddt_t *ddt, dmu_tx_t *tx)
 	}
 
 	if (spa->spa_ddt_stat_object == 0) {
-		VERIFY0(zap_create_link(ddt->ddt_os,
+		err = zap_create_link(ddt->ddt_os,
 		    DMU_OT_DDT_STATS, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_DDT_STATS, tx, &spa->spa_ddt_stat_object));
+		    DMU_POOL_DDT_STATS, tx, &spa->spa_ddt_stat_object);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	if (ddt->ddt_version == DDT_VERSION_FDT && ddt->ddt_dir_object == 0)
-		ddt_create_dir(ddt, tx);
+		(void) ddt_create_dir(ddt, tx);
 
 	if (ddt->ddt_flags & DDT_FLAG_LOG)
 		ddt_sync_table_log(ddt, tx);
@@ -2852,7 +2996,7 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		ddt_t *ddt = spa->spa_ddt[ddb.ddb_checksum];
 		VERIFY(ddt);
 
-		if (spa_shutting_down(spa) || issig())
+		if (spa_shutting_down(spa) || issig() || SPA_EXITING(spa))
 			break;
 
 		ASSERT(ddt->ddt_flags & DDT_FLAG_FLAT);
@@ -2872,9 +3016,12 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		if (pruning && class_start < cutoff) {
 			if (candidates++ >= zfs_ddt_prunes_per_txg) {
 				/* sync prune candidates in batches */
-				VERIFY0(dsl_sync_task(spa_name(spa),
+				error = dsl_sync_task(spa_name(spa),
 				    NULL, prune_candidates_sync,
-				    &dpi, 0, ZFS_SPACE_CHECK_NONE));
+				    &dpi, 0, ZFS_SPACE_CHECK_NONE);
+				if (error && SPA_EXITING(spa))
+					break;
+				VERIFY0(error);
 				candidates = 1;
 			}
 			ddt_prune_entry(&dpi.dpi_candidates, ddt,
@@ -2895,9 +3042,11 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 	if (pruning && valid > 0) {
 		if (!list_is_empty(&dpi.dpi_candidates)) {
 			/* sync out final batch of prune candidates */
-			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+			error = dsl_sync_task(spa_name(spa), NULL,
 			    prune_candidates_sync, &dpi, 0,
-			    ZFS_SPACE_CHECK_NONE));
+			    ZFS_SPACE_CHECK_NONE);
+			if (!SPA_EXITING(spa))
+				VERIFY0(error);
 		}
 		list_destroy(&dpi.dpi_candidates);
 
