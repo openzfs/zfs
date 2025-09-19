@@ -223,6 +223,8 @@ vdev_trim_zap_update_sync(void *arg, dmu_tx_t *tx)
 	 */
 	uint64_t guid = *(uint64_t *)arg;
 	uint64_t txg = dmu_tx_get_txg(tx);
+	int err;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	kmem_free(arg, sizeof (uint64_t));
 
 	vdev_t *vd = spa_lookup_by_guid(tx->tx_pool->dp_spa, guid, B_FALSE);
@@ -243,16 +245,20 @@ vdev_trim_zap_update_sync(void *arg, dmu_tx_t *tx)
 			last_offset = 0;
 
 		vd->vdev_trim_last_offset = last_offset;
-		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+		err = zap_update(mos, vd->vdev_leaf_zap,
 		    VDEV_LEAF_ZAP_TRIM_LAST_OFFSET,
-		    sizeof (last_offset), 1, &last_offset, tx));
+		    sizeof (last_offset), 1, &last_offset, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	if (vd->vdev_trim_action_time > 0) {
 		uint64_t val = (uint64_t)vd->vdev_trim_action_time;
-		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+		err = zap_update(mos, vd->vdev_leaf_zap,
 		    VDEV_LEAF_ZAP_TRIM_ACTION_TIME, sizeof (val),
-		    1, &val, tx));
+		    1, &val, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	if (vd->vdev_trim_rate > 0) {
@@ -261,28 +267,35 @@ vdev_trim_zap_update_sync(void *arg, dmu_tx_t *tx)
 		if (rate == UINT64_MAX)
 			rate = 0;
 
-		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
-		    VDEV_LEAF_ZAP_TRIM_RATE, sizeof (rate), 1, &rate, tx));
+		err = zap_update(mos, vd->vdev_leaf_zap,
+		    VDEV_LEAF_ZAP_TRIM_RATE, sizeof (rate), 1, &rate, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	uint64_t partial = vd->vdev_trim_partial;
 	if (partial == UINT64_MAX)
 		partial = 0;
 
-	VERIFY0(zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_PARTIAL,
-	    sizeof (partial), 1, &partial, tx));
+	err = zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_PARTIAL,
+	    sizeof (partial), 1, &partial, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	uint64_t secure = vd->vdev_trim_secure;
 	if (secure == UINT64_MAX)
 		secure = 0;
 
-	VERIFY0(zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_SECURE,
-	    sizeof (secure), 1, &secure, tx));
-
+	err = zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_SECURE,
+	    sizeof (secure), 1, &secure, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	uint64_t trim_state = vd->vdev_trim_state;
-	VERIFY0(zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_STATE,
-	    sizeof (trim_state), 1, &trim_state, tx));
+	err = zap_update(mos, vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_STATE,
+	    sizeof (trim_state), 1, &trim_state, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 /*
@@ -510,7 +523,8 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	 */
 	if (ta->trim_type == TRIM_TYPE_MANUAL) {
 		while (vd->vdev_trim_rate != 0 && !vdev_trim_should_stop(vd) &&
-		    vdev_trim_calculate_rate(ta) > vd->vdev_trim_rate) {
+		    vdev_trim_calculate_rate(ta) > vd->vdev_trim_rate &&
+		    !SPA_EXITING(spa)) {
 			cv_timedwait_idle(&vd->vdev_trim_io_cv,
 			    &vd->vdev_trim_io_lock, ddi_get_lbolt() +
 			    MSEC_TO_TICK(10));
@@ -677,6 +691,8 @@ vdev_trim_xlate_progress(void *arg, zfs_range_seg64_t *physical_rs)
 static void
 vdev_trim_calculate_progress(vdev_t *vd)
 {
+	int err;
+
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
 	ASSERT(vd->vdev_leaf_zap != 0);
@@ -728,7 +744,12 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		 * metaslab.  Load it and walk the free tree for more
 		 * accurate progress estimation.
 		 */
-		VERIFY0(metaslab_load(msp));
+		err = metaslab_load(msp);
+		if (err && SPA_EXITING(vd->vdev_spa)) {
+			mutex_exit(&msp->ms_lock);
+			return;
+		}
+		VERIFY0(err);
 
 		zfs_range_tree_t *rt = msp->ms_allocatable;
 		zfs_btree_t *bt = &rt->rt_root;
@@ -846,10 +867,11 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	trim_args_t *ta = arg;
 	vdev_t *vd = ta->trim_vdev;
+	spa_t *spa = vd->vdev_spa;
 	zfs_range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
-
+	int err;
 	/*
 	 * Every range to be trimmed must be part of ms_allocatable.
 	 * When ZFS_DEBUG_TRIM is set load the metaslab to verify this
@@ -857,7 +879,12 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 	 */
 	if (zfs_flags & ZFS_DEBUG_TRIM) {
 		metaslab_t *msp = ta->trim_msp;
-		VERIFY0(metaslab_load(msp));
+
+		err = metaslab_load(msp);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
+
 		VERIFY3B(msp->ms_loaded, ==, B_TRUE);
 		VERIFY(zfs_range_tree_contains(msp->ms_allocatable, start,
 		    size));
@@ -897,7 +924,12 @@ vdev_trim_thread(void *arg)
 	vd->vdev_trim_partial = 0;
 	vd->vdev_trim_secure = 0;
 
-	VERIFY0(vdev_trim_load(vd));
+	error = vdev_trim_load(vd);
+	if (error && SPA_EXITING(spa)) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		goto out;
+	}
+	VERIFY0(error);
 
 	ta.trim_vdev = vd;
 	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
@@ -935,7 +967,14 @@ vdev_trim_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
 		mutex_enter(&msp->ms_lock);
-		VERIFY0(metaslab_load(msp));
+		error = metaslab_load(msp);
+		if (error && SPA_EXITING(spa)) {
+			mutex_exit(&msp->ms_lock);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			break;
+		}
+		VERIFY0(error);
 
 		/*
 		 * If a partial TRIM was requested skip metaslabs which have
@@ -991,6 +1030,7 @@ vdev_trim_thread(void *arg)
 	 */
 	mutex_exit(&vd->vdev_trim_lock);
 	txg_wait_synced(spa_get_dsl(spa), 0);
+out:
 	mutex_enter(&vd->vdev_trim_lock);
 
 	vd->vdev_trim_thread = NULL;
@@ -1156,6 +1196,8 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 void
 vdev_trim_restart(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
+
 	ASSERT(spa_namespace_held() ||
 	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
@@ -1166,25 +1208,44 @@ vdev_trim_restart(vdev_t *vd)
 		int err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_STATE,
 		    sizeof (trim_state), 1, &trim_state);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa)) {
+			mutex_exit(&vd->vdev_trim_lock);
+			return;
+		}
 		ASSERT(err == 0 || err == ENOENT);
-		vd->vdev_trim_state = trim_state;
 
 		uint64_t timestamp = 0;
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa)) {
+			mutex_exit(&vd->vdev_trim_lock);
+			return;
+		}
 		ASSERT(err == 0 || err == ENOENT);
+
+		vd->vdev_trim_state = trim_state;
 		vd->vdev_trim_action_time = timestamp;
 
 		if ((vd->vdev_trim_state == VDEV_TRIM_SUSPENDED ||
 		    vd->vdev_offline) && !vd->vdev_top->vdev_rz_expanding) {
 			/* load progress for reporting, but don't resume */
-			VERIFY0(vdev_trim_load(vd));
+			err = vdev_trim_load(vd);
+			if (err && SPA_EXITING(spa)) {
+				mutex_exit(&vd->vdev_trim_lock);
+				return; // set back orig state & timestamp?
+			}
+			VERIFY0(err);
 		} else if (vd->vdev_trim_state == VDEV_TRIM_ACTIVE &&
 		    vdev_writeable(vd) && !vd->vdev_top->vdev_removing &&
 		    !vd->vdev_top->vdev_rz_expanding &&
 		    vd->vdev_trim_thread == NULL) {
-			VERIFY0(vdev_trim_load(vd));
+			err = vdev_trim_load(vd);
+			if (err && SPA_EXITING(spa)) {
+				mutex_exit(&vd->vdev_trim_lock);
+				return; // set back orig state & timestamp?
+			}
+			VERIFY0(err);
 			vdev_trim(vd, vd->vdev_trim_rate,
 			    vd->vdev_trim_partial, vd->vdev_trim_secure);
 		}
@@ -1225,6 +1286,7 @@ vdev_autotrim_thread(void *arg)
 	vdev_t *vd = arg;
 	spa_t *spa = vd->vdev_spa;
 	int shift = 0;
+	int err;
 
 	mutex_enter(&vd->vdev_autotrim_lock);
 	ASSERT3P(vd->vdev_top, ==, vd);
@@ -1413,10 +1475,13 @@ vdev_autotrim_thread(void *arg)
 			 */
 			if (zfs_flags & ZFS_DEBUG_TRIM) {
 				mutex_enter(&msp->ms_lock);
-				VERIFY0(metaslab_load(msp));
-				VERIFY3P(tap[0].trim_msp, ==, msp);
-				zfs_range_tree_walk(trim_tree,
-				    vdev_trim_range_verify, &tap[0]);
+				err = metaslab_load(msp);
+				if (!SPA_EXITING(spa)) {
+					VERIFY0(err);
+					VERIFY3P(tap[0].trim_msp, ==, msp);
+					zfs_range_tree_walk(trim_tree,
+					    vdev_trim_range_verify, &tap[0]);
+				}
 				mutex_exit(&msp->ms_lock);
 			}
 
