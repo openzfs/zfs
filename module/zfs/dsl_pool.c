@@ -601,13 +601,15 @@ dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	zio_t *zio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
 	dmu_objset_sync(dp->dp_meta_objset, zio, tx);
-	VERIFY0(zio_wait(zio));
+	int err = zio_wait(zio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 	dmu_objset_sync_done(dp->dp_meta_objset, tx);
 	taskq_wait(dp->dp_sync_taskq);
 	multilist_destroy(&dp->dp_meta_objset->os_synced_dnodes);
 
 	dprintf_bp(&dp->dp_meta_rootbp, "meta objset rootbp is %s", "");
-	if (!spa_exiting(dp->dp_spa))
+	if (!err)
 		spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
 }
 
@@ -700,6 +702,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	dsl_dataset_t *ds;
 	objset_t *mos = dp->dp_meta_objset;
 	list_t synced_datasets;
+	int err;
 
 	list_create(&synced_datasets, sizeof (dsl_dataset_t),
 	    offsetof(dsl_dataset_t, ds_synced_link));
@@ -738,7 +741,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 		list_insert_tail(&synced_datasets, ds);
 		dsl_dataset_sync(ds, rio, tx);
 	}
-	VERIFY0(zio_wait(rio));
+	err = zio_wait(rio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 
 	/*
 	 * Update the long range free counter after
@@ -788,7 +793,9 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 			key_mapping_rele(dp->dp_spa, ds->ds_key_mapping, ds);
 		}
 	}
-	VERIFY0(zio_wait(rio));
+	err = zio_wait(rio);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 
 	/*
 	 * Now that the datasets have been completely synced, we can
@@ -1096,9 +1103,11 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 
 		if (dsl_dataset_phys(ds)->ds_next_snap_obj == 0) {
 			ASSERT0P(ds->ds_prev);
-			VERIFY0(dsl_dataset_hold_obj(dp,
+			err = dsl_dataset_hold_obj(dp,
 			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
-			    ds, &ds->ds_prev));
+			    ds, &ds->ds_prev);
+			if (!SPA_EXITING(dp->dp_spa))
+				VERIFY0(err);
 		}
 	}
 
@@ -1107,12 +1116,16 @@ upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 
 	if (dsl_dataset_phys(prev)->ds_next_clones_obj == 0) {
 		dmu_buf_will_dirty(prev->ds_dbuf, tx);
-		VERIFY0(zap_create(dp->dp_meta_objset,
+		err = zap_create(dp->dp_meta_objset,
 		    DMU_OT_NEXT_CLONES, DMU_OT_NONE, 0, tx,
-		    &dsl_dataset_phys(prev)->ds_next_clones_obj));
+		    &dsl_dataset_phys(prev)->ds_next_clones_obj);
+		if (!SPA_EXITING(dp->dp_spa))
+			VERIFY0(err);
 	}
-	VERIFY0(zap_add_int(dp->dp_meta_objset,
-	    dsl_dataset_phys(prev)->ds_next_clones_obj, ds->ds_object, tx));
+	err = zap_add_int(dp->dp_meta_objset,
+	    dsl_dataset_phys(prev)->ds_next_clones_obj, ds->ds_object, tx);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 
 	dsl_dataset_rele(ds, FTAG);
 	if (prev != dp->dp_origin_snap)
@@ -1126,8 +1139,10 @@ dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dp->dp_origin_snap != NULL);
 
-	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj, upgrade_clones_cb,
-	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
+	int err = dmu_objset_find_dp(dp, dp->dp_root_dir_obj, upgrade_clones_cb,
+	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE);
+	if (!SPA_EXITING(dp->dp_spa))
+		VERIFY0(err);
 }
 
 static int
