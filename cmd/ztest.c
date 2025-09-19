@@ -7374,7 +7374,7 @@ ztest_scrub_impl(spa_t *spa)
 	if (error)
 		return (error);
 
-	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+	while (dsl_scan_scrubbing(spa_get_dsl(spa)) && !ZTEST_HFE_ACTIVE())
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
 	if (spa_approx_errlog_size(spa) > 0)
@@ -7410,7 +7410,8 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 	error = ztest_scrub_impl(spa);
 	if (error == EBUSY)
 		error = 0;
-	ASSERT0(error);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(error);
 }
 
 /*
