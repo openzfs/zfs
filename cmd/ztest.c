@@ -125,6 +125,7 @@
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
 #include <sys/blake3.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -142,6 +143,27 @@
 #include <sys/backtrace.h>
 #include <libzpool.h>
 #include <libspl.h>
+
+#if defined(__linux__)
+#ifdef HAVE_GETTID
+#define	libspl_gettid()		gettid()
+#else
+#include <sys/syscall.h>
+#define	libspl_gettid()		((pid_t)syscall(__NR_gettid))
+#endif
+#elif defined(__FreeBSD__)
+#include <pthread_np.h>
+#define	libspl_gettid()		pthread_getthreadid_np()
+#elif defined(__APPLE__)
+static inline uint64_t
+libspl_gettid(void)
+{
+	uint64_t tid;
+	if (pthread_threadid_np(NULL, &tid) != 0)
+		tid = 0;
+	return (tid);
+}
+#endif
 
 static int ztest_fd_data = -1;
 
@@ -453,6 +475,7 @@ ztest_func_t ztest_pool_prefetch_ddt;
 ztest_func_t ztest_ddt_prune;
 ztest_func_t ztest_spa_log_flushall_start;
 ztest_func_t ztest_spa_log_flushall_cancel;
+ztest_func_t ztest_hardforced_export;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -512,9 +535,18 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_ddt_prune, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
+	ZTI_INIT(ztest_hardforced_export, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
+
+static volatile uint64_t ztest_running_threads = 0;
+static struct {
+	const char *func;
+	pid_t pid;
+	uint64_t tid;
+	boolean_t onhold;
+} *ztest_threads;
 
 /*
  * The following struct is used to hold a list of uncalled commit callbacks.
@@ -560,6 +592,35 @@ static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
+
+/* Hardforced export test scenario state. */
+enum {
+	HFE_STAGE_DONE_ONCE,
+	HFE_STAGE_INACTIVE,
+	HFE_STAGE_STARTED,
+	HFE_STAGE_SUSPENDED,
+	HFE_STAGE_CANCELLING_IO,
+	HFE_STAGE_CLOSING_DATASETS,
+	HFE_STAGE_EXPORTING,
+	HFE_STAGE_REIMPORTING,
+};
+static atomic_uint ztest_hfe_stage = HFE_STAGE_INACTIVE;
+static uint64_t ztest_hfe_runs = 0;
+static kmutex_t ztest_hfe_lock;
+static volatile uint64_t ztest_hfe_reimport_waiters = 0;
+#define	ZTEST_HFE_SET_STAGE(stage) atomic_store(&ztest_hfe_stage, (stage))
+#define	ZTEST_HFE_STAGE() atomic_load(&ztest_hfe_stage)
+#define	ZTEST_HFE_ACTIVE() ((ZTEST_HFE_STAGE() >= HFE_STAGE_STARTED && \
+	ZTEST_HFE_STAGE() <= HFE_STAGE_EXPORTING) || \
+	vdev_file_constant_error != 0)
+#define	ZTEST_HFE_NEVER_RUN() (ZTEST_HFE_STAGE() == HFE_STAGE_INACTIVE && \
+	ztest_hfe_runs == 0)
+
+static int ztest_dataset_open(int);
+static void ztest_dataset_close(int);
+static void ztest_open_pool(ztest_shared_t *, spa_t **);
+static void ztest_get_zdb_bin(char *, int);
+static void ztest_run(ztest_shared_t *);
 
 /*
  * The ztest_name_lock protects the pool and dataset namespace used by
@@ -1223,6 +1284,17 @@ invalid:
 static void
 ztest_kill(ztest_shared_t *zs)
 {
+	/*
+	 * If the hardforced export scenario is running then spa is volatile.
+	 */
+	if (ZTEST_HFE_ACTIVE()) {
+		if (raidz_expand_pause_point != RAIDZ_EXPAND_PAUSE_NONE) {
+			raidz_expand_pause_point = RAIDZ_EXPAND_PAUSE_NONE;
+			return;
+		}
+		goto kill;
+	}
+
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(ztest_spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(ztest_spa));
 
@@ -1254,6 +1326,7 @@ ztest_kill(ztest_shared_t *zs)
 		spa_namespace_exit(FTAG);
 	}
 
+kill:
 	(void) raise(SIGKILL);
 }
 
@@ -6732,6 +6805,217 @@ out:
 
 	umem_free(path0, MAXPATHLEN);
 	umem_free(pathrand, MAXPATHLEN);
+
+}
+
+static uint64_t
+ztest_zdb_latest_txg(vdev_t *vd)
+{
+	FILE *fp;
+	const size_t bin_len = MAXPATHLEN + MAXNAMELEN + 20;
+	const size_t cmd_len = MAXPATHLEN + MAXNAMELEN + 20;
+	const size_t buf_len = 1024;
+	char *bin;
+	char *cmd;
+	char *buf;
+	char *endp;
+	uint64_t txg = 0;
+
+	if (vd->vdev_ops == &vdev_file_ops) {
+		bin = umem_alloc(bin_len, UMEM_NOFAIL);
+		cmd = umem_alloc(cmd_len, UMEM_NOFAIL);
+		buf = umem_zalloc(buf_len, UMEM_NOFAIL);
+		ztest_get_zdb_bin(bin, bin_len);
+		snprintf(cmd, cmd_len, "sh -c '%s -llll %s | "
+		    "sed -En s/^\\ +txg:\\ +\\([0-9]+\\)$/\\\\1/p | "
+		    "sort -r | head -n1'", bin, vd->vdev_path);
+		fp = popen(cmd, "r");
+		if (fgets(buf, buf_len, fp) != NULL &&
+		    strlen(buf) > 0) {
+			txg = strtoull(buf, &endp, 0);
+			if (*endp != '\n')
+				txg = 0;
+		}
+		pclose(fp);
+		umem_free(buf, buf_len);
+		umem_free(cmd, cmd_len);
+		umem_free(bin, bin_len);
+	}
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		uint64_t child_txg = ztest_zdb_latest_txg(vd->vdev_child[i]);
+		if (child_txg > txg)
+			txg = child_txg;
+	}
+
+	return (txg);
+}
+
+/*
+ * Suspend the pool, forcibly export, re-import.
+ */
+void
+ztest_hardforced_export(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_t *spa;
+	uint64_t pool_guid;
+	uint64_t last_actually_synced_txg;
+	ztest_shared_t *zs = ztest_shared;
+	uint64_t failmode_orig;
+	int i;
+	const uint_t timeout_sec = 60 +
+	    (2 + ztest_opts.zo_threads / boot_ncpus) * zfs_txg_timeout;
+
+	/*
+	 * We must not be an uncounted reimport_waiter stuck down here,
+	 * waiting for the lock. If someone else has started the scenario then
+	 * let's quit and run other ztest.
+	 */
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
+	/*
+	 * Let ztest_resume_thread() do its job.
+	 */
+	spa = ztest_spa;
+	if (spa_suspended(spa)) {
+		mutex_exit(&ztest_hfe_lock);
+		return;
+	}
+
+	/*
+	 * Intentionally fault disks.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_STARTED);
+	failmode_orig = spa->spa_failmode;
+	spa->spa_failmode = ZIO_FAILURE_MODE_WAIT;
+	pool_guid = spa_guid(spa);
+	vdev_file_constant_error = EIO;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: started\n", __func__);
+
+	/*
+	 * Wait for suspension state.
+	 *
+	 * The read/write ztest funcs, always running in parallel, are
+	 * expected to trigger it very quickly.
+	 */
+	for (i = 0; i < timeout_sec; i++) {
+		sleep(1);
+		if (spa_suspended(spa))
+			break;
+	}
+	if (!spa_suspended(spa)) {
+		/*
+		 * We expect that activity of other test threads would trigger
+		 * suspension, but there is no guarantee for that. It's better
+		 * to avoid false positives then.
+		 */
+		if (ztest_opts.zo_verbose >= 5)
+			(void) printf("%s: decided to suspend manually\n",
+			    __func__);
+		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
+	}
+	VERIFY(spa_suspended(spa));
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_SUSPENDED);
+	last_actually_synced_txg = ztest_zdb_latest_txg(spa->spa_root_vdev);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: suspended (spa_last_synced_txg=%lu, "
+		    "last_actually_synced_txg=%lu, spa_guid=%lu)\n", __func__,
+		    spa_last_synced_txg(spa), last_actually_synced_txg,
+		    spa_guid(spa));
+
+	/*
+	 * Cancel suspended I/O.
+	 *
+	 * From this point we want other threads not to start new tests as we
+	 * plan to drop the exiting spa and its datasets.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_CANCELLING_IO);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: cancelling suspended I/O...\n", __func__);
+	spa_set_forced_exit_required(spa);
+	VERIFY(spa_exiting(spa));
+
+	/*
+	 * Pause testing activity.
+	 */
+	uint64_t expected = atomic_load_64(&ztest_running_threads) - 1;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: waiting for other test threads to become "
+		    "idle...\n", __func__);
+	for (i = 0; i < timeout_sec; i++) {
+		sleep(1);
+		expected = atomic_load_64(&ztest_running_threads) - 1;
+		if (atomic_load_64(&ztest_hfe_reimport_waiters) == expected)
+			break;
+	}
+	const uint64_t actual = atomic_load_64(&ztest_hfe_reimport_waiters);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: all other test threads to be idle: "
+		    "expected=%lu, actual=%lu\n", __func__, expected, actual);
+	for (int t = 0; t < ztest_opts.zo_threads; t++) {
+		if (t == id || ztest_threads[t].onhold)
+			continue;
+		(void) printf("%s: still active thread: id=%d, func=%s, "
+		    "pid=%d, tid=%lu\n", __func__, t, ztest_threads[t].func,
+		    ztest_threads[t].pid, ztest_threads[t].tid);
+	}
+	VERIFY3U(actual, ==, expected);
+
+	/*
+	 * Close the datasets.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_CLOSING_DATASETS);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: closing datasets...\n", __func__);
+	for (i = 0; i < ztest_opts.zo_threads; i++) {
+		if (i < ztest_opts.zo_datasets)
+			ztest_dataset_close(i);
+	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	spa_close(spa, (const void *)ztest_run);
+
+	/*
+	 * Export with hardforce.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_EXPORTING);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: exporting with hardforce...\n", __func__);
+	VERIFY(spa_suspended(spa));
+	VERIFY0(spa_export(spa_name(spa), NULL, B_TRUE, B_TRUE));
+	VERIFY3U(spa_state(spa), ==, POOL_STATE_UNINITIALIZED);
+
+	/*
+	 * Import back.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_REIMPORTING);
+	vdev_file_constant_error = 0;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: re-importing...\n", __func__);
+	ztest_open_pool(zs, &spa);
+	VERIFY3U(pool_guid, ==, spa_guid(spa));
+	VERIFY3U(spa_first_txg(spa), >=, last_actually_synced_txg);
+	VERIFY3U(spa->spa_state, ==, POOL_STATE_ACTIVE);
+	for (i = 0; i < ztest_opts.zo_threads; i++) {
+		if (i < ztest_opts.zo_datasets)
+			VERIFY0(ztest_dataset_open(i));
+	}
+	spa->spa_failmode = failmode_orig;
+	ztest_spa = spa;
+
+	/*
+	 * Finish the scenario.
+	 */
+	ztest_hfe_runs++;
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_DONE_ONCE);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: finished (spa_first_txg=%lu, "
+		    "spa_guid=%lu)\n", __func__, spa_first_txg(spa),
+		    spa_guid(spa));
+
+	mutex_exit(&ztest_hfe_lock);
 }
 
 /*
@@ -7565,9 +7849,23 @@ ztest_resume_thread(void *arg)
 		ddt_dump_prune_histogram = B_TRUE;
 
 	while (!ztest_exiting) {
-		if (spa_suspended(spa))
-			ztest_resume(spa);
 		(void) poll(NULL, 0, 100);
+
+		/*
+		 * Resume only if the hardforced export test scenario is not
+		 * running, otherwise suspension is expected.
+		 */
+		if (mutex_tryenter(&ztest_hfe_lock)) {
+			/*
+			 * The hardforced export test changes the spa ref.
+			 */
+			spa = ztest_spa;
+
+			if (spa_suspended(spa))
+				ztest_resume(spa);
+
+			mutex_exit(&ztest_hfe_lock);
+		}
 
 		/*
 		 * Periodically change the zfs_compressed_arc_enabled setting.
@@ -7606,18 +7904,33 @@ ztest_deadman_thread(void *arg)
 		}
 
 		/*
-		 * If the pool is suspended then fail immediately. Otherwise,
-		 * check to see if the pool is making any progress. If
-		 * vdev_deadman() discovers that there hasn't been any recent
-		 * I/Os then it will end up aborting the tests.
+		 * Do not conflict with the hardforced export test scenario.
 		 */
-		if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
-			fatal(B_FALSE,
-			    "aborting test after %llu seconds because "
-			    "pool has transitioned to a suspended state.",
-			    (u_longlong_t)zfs_deadman_synctime_ms / 1000);
+		if (mutex_tryenter(&ztest_hfe_lock)) {
+			/*
+			 * The hardforced export test changes the spa ref.
+			 */
+			spa = ztest_spa;
+
+			/*
+			 * If the pool is suspended then fail immediately.
+			 * Otherwise, check to see if the pool is making any
+			 * progress. If vdev_deadman() discovers that there
+			 * hasn't been any recent I/Os then it will end up
+			 * aborting the tests.
+			 */
+			if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
+				fatal(B_FALSE,
+				    "aborting test after %llu seconds because "
+				    "pool has transitioned to a suspended "
+				    "state.",
+				    (u_longlong_t)zfs_deadman_synctime_ms
+				    / 1000);
+			}
+			vdev_deadman(spa->spa_root_vdev, FTAG);
+
+			mutex_exit(&ztest_hfe_lock);
 		}
-		vdev_deadman(spa->spa_root_vdev, FTAG);
 
 		/*
 		 * If the process doesn't complete within a grace period of
@@ -7634,6 +7947,15 @@ ztest_deadman_thread(void *arg)
 
 		(void) printf("ztest has been running for %lld seconds\n",
 		    (gethrtime() - zs->zs_proc_start) / NANOSEC);
+
+		for (int t = 0; t < ztest_opts.zo_threads; t++) {
+			if (ztest_threads[t].onhold)
+				continue;
+			(void) printf("%s: active thread: id=%d, func=%s, "
+			    "pid=%d, tid=%lu\n", __func__, t,
+			    ztest_threads[t].func, ztest_threads[t].pid,
+			    ztest_threads[t].tid);
+		}
 
 		last_run = gethrtime();
 		delay = MSEC2NSEC(zfs_deadman_checktime_ms);
@@ -7743,6 +8065,7 @@ ztest_thread(void *arg)
 	ztest_info_t *zi;
 	ztest_shared_callstate_t *zc;
 
+	atomic_inc_64(&ztest_running_threads);
 	while ((now = gethrtime()) < zs->zs_thread_stop) {
 		/*
 		 * See if it's time to force a crash.
@@ -7759,19 +8082,51 @@ ztest_thread(void *arg)
 			break;
 
 		/*
+		 * If hardforced export test scenario has reached the
+		 * pool suspended stage then it's time to stop running
+		 * anything, as the spa is going to be changed by exporting
+		 * and re-importing.
+		 */
+		if (ZTEST_HFE_STAGE() >= HFE_STAGE_SUSPENDED) {
+			atomic_inc_64(&ztest_hfe_reimport_waiters);
+			ztest_threads[id].onhold = B_TRUE;
+			mutex_enter(&ztest_hfe_lock);
+			atomic_dec_64(&ztest_hfe_reimport_waiters);
+			ztest_threads[id].onhold = B_FALSE;
+			mutex_exit(&ztest_hfe_lock);
+			continue;
+		}
+
+		/*
 		 * Pick a random function to execute.
 		 */
 		rand = ztest_random(ZTEST_FUNCS);
 		zi = &ztest_info[rand];
+		if (zi->zi_func == ztest_hardforced_export) {
+			/* all other threads have resumed, can repeat then */
+			if (atomic_load_64(&ztest_hfe_reimport_waiters) == 0)
+				ZTEST_HFE_SET_STAGE(HFE_STAGE_INACTIVE);
+			/* to soon to run another one */
+			if (ZTEST_HFE_STAGE() >= HFE_STAGE_STARTED)
+				continue;
+			/* we want other tests to resume first */
+			if (ZTEST_HFE_STAGE() == HFE_STAGE_DONE_ONCE)
+				continue;
+		}
 		zc = ZTEST_GET_SHARED_CALLSTATE(rand);
 		call_next = zc->zc_next;
 
 		if (now >= call_next &&
 		    atomic_cas_64(&zc->zc_next, call_next, call_next +
 		    ztest_random(2 * zi->zi_interval[0] + 1)) == call_next) {
+			ztest_threads[id].func = zi->zi_funcname;
+			ztest_threads[id].pid = getpid();
+			ztest_threads[id].tid = libspl_gettid();
 			ztest_execute(rand, zi, id);
 		}
 	}
+	atomic_dec_64(&ztest_running_threads);
+	ztest_threads[id].onhold = B_TRUE;
 
 	thread_exit();
 }
@@ -8339,6 +8694,8 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 
 	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    UMEM_NOFAIL);
+	ztest_threads = umem_zalloc(ztest_opts.zo_threads *
+	    sizeof (*ztest_threads), UMEM_NOFAIL);
 
 	/*
 	 * Actual number of datasets to be used.
@@ -8366,6 +8723,8 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	for (i = 0; i < ztest_opts.zo_threads; i++)
 		VERIFY0(thread_join(run_threads[i]));
 
+	spa = ztest_spa; /* hardforced export test re-imports the spa */
+
 	/*
 	 * Close all datasets. This must be done after all the threads
 	 * are joined so we can be sure none of the datasets are in-use
@@ -8379,7 +8738,25 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
 
+	umem_free(ztest_threads, ztest_opts.zo_threads *
+	    sizeof (*ztest_threads));
 	umem_free(run_threads, ztest_opts.zo_threads * sizeof (kthread_t *));
+}
+
+static void
+ztest_open_pool(ztest_shared_t *zs, spa_t **spap)
+{
+	int error;
+
+	error = spa_open(ztest_opts.zo_pool, spap, (const void *)ztest_run);
+	if (error) {
+		VERIFY3S(error, ==, ENOENT);
+		ztest_import_impl();
+		VERIFY0(spa_open(ztest_opts.zo_pool, spap,
+		    (const void *)ztest_run));
+		zs->zs_metaslab_sz = 1ULL << (*spap)->spa_root_vdev
+		    ->vdev_child[0]->vdev_ms_shift;
+	}
 }
 
 /*
@@ -8426,14 +8803,7 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
-	if (error) {
-		VERIFY3S(error, ==, ENOENT);
-		ztest_import_impl();
-		VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
-		zs->zs_metaslab_sz =
-		    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
-	}
+	ztest_open_pool(zs, &spa);
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
@@ -8548,6 +8918,7 @@ ztest_run(ztest_shared_t *zs)
 	ztest_exiting = B_TRUE;
 	VERIFY0(thread_join(resume_thread));
 	VERIFY0(thread_join(deadman_thread));
+	spa = ztest_spa; /* hardforced export test re-imports the spa */
 	ztest_resume(spa);
 
 	/*
@@ -8563,7 +8934,7 @@ ztest_run(ztest_shared_t *zs)
 	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG)
 		VERIFY0(zc_min_txg_delay);
 
-	spa_close(spa, FTAG);
+	spa_close(spa, (const void *)ztest_run);
 
 	/*
 	 * Verify that we can loop over all pools.
@@ -8654,6 +9025,7 @@ ztest_init(ztest_shared_t *zs)
 	nvlist_t *nvroot, *props;
 	int i;
 
+	mutex_init(&ztest_hfe_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
@@ -8729,6 +9101,7 @@ ztest_init(ztest_shared_t *zs)
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
 	mutex_destroy(&ztest_vdev_lock);
 	mutex_destroy(&ztest_checkpoint_lock);
+	mutex_destroy(&ztest_hfe_lock);
 }
 
 static void
