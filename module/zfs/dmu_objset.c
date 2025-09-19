@@ -1542,7 +1542,7 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
 		ASSERT(BP_EQUAL(bp, bp_orig));
-	} else {
+	} else if (!SPA_EXITING(os->os_spa)) {
 		dsl_dataset_t *ds = os->os_dsl_dataset;
 		dmu_tx_t *tx = os->os_synctx;
 
@@ -1857,8 +1857,10 @@ userquota_compare(const void *l, const void *r)
 static void
 do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 {
+	spa_t *spa = os->os_spa;
 	void *cookie;
 	userquota_node_t *uqn;
+	int err;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -1871,8 +1873,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 		 * is not thread-safe (i.e. not atomic).
 		 */
 		mutex_enter(&os->os_userused_lock);
-		VERIFY0(zap_increment(os, DMU_USERUSED_OBJECT,
-		    uqn->uqn_id, uqn->uqn_delta, tx));
+		err = zap_increment(os, DMU_USERUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		mutex_exit(&os->os_userused_lock);
 		kmem_free(uqn, sizeof (*uqn));
 	}
@@ -1882,8 +1886,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 	while ((uqn = avl_destroy_nodes(&cache->uqc_group_deltas,
 	    &cookie)) != NULL) {
 		mutex_enter(&os->os_userused_lock);
-		VERIFY0(zap_increment(os, DMU_GROUPUSED_OBJECT,
-		    uqn->uqn_id, uqn->uqn_delta, tx));
+		err = zap_increment(os, DMU_GROUPUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		mutex_exit(&os->os_userused_lock);
 		kmem_free(uqn, sizeof (*uqn));
 	}
@@ -1894,8 +1900,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 		while ((uqn = avl_destroy_nodes(&cache->uqc_project_deltas,
 		    &cookie)) != NULL) {
 			mutex_enter(&os->os_userused_lock);
-			VERIFY0(zap_increment(os, DMU_PROJECTUSED_OBJECT,
-			    uqn->uqn_id, uqn->uqn_delta, tx));
+			err = zap_increment(os, DMU_PROJECTUSED_OBJECT,
+			    uqn->uqn_id, uqn->uqn_delta, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 			mutex_exit(&os->os_userused_lock);
 			kmem_free(uqn, sizeof (*uqn));
 		}
@@ -2199,6 +2207,7 @@ void
 dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 {
 	objset_t *os = dn->dn_objset;
+	spa_t *spa = os->os_spa;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
 	int flags = dn->dn_id_flags;
@@ -2206,6 +2215,8 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	boolean_t have_spill = B_FALSE;
 
 	if (!dmu_objset_userused_enabled(dn->dn_objset))
+		return;
+	if (SPA_EXITING(spa))
 		return;
 
 	/*
@@ -2241,6 +2252,8 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 				rf |= DB_RF_HAVESTRUCT;
 			error = dmu_spill_hold_by_dnode(dn, rf,
 			    FTAG, (dmu_buf_t **)&db);
+			if (error && SPA_EXITING(spa))
+				return;
 			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
 			data = (before) ? db->db.db_data :
