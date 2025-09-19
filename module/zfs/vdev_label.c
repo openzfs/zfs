@@ -511,6 +511,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASHIFT, vd->vdev_ashift);
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE,
 		    vd->vdev_asize);
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_MIN_ALLOC,
+		    vdev_get_min_alloc(vd));
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_IS_LOG, vd->vdev_islog);
 		if (vd->vdev_noalloc) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_NONALLOCATING,
