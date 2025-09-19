@@ -1208,6 +1208,9 @@ vdev_free(vdev_t *vd)
 		vd->vdev_log_mg = NULL;
 	}
 
+	if (SPA_EXITING(spa))
+		vdev_clear_stats(vd);
+
 	ASSERT0(vd->vdev_stat.vs_space);
 	ASSERT0(vd->vdev_stat.vs_dspace);
 	ASSERT0(vd->vdev_stat.vs_alloc);
@@ -1270,6 +1273,8 @@ vdev_free(vdev_t *vd)
 		space_map_close(vd->vdev_obsolete_sm);
 		vd->vdev_obsolete_sm = NULL;
 	}
+	if (SPA_EXITING(spa))
+		zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 	zfs_range_tree_destroy(vd->vdev_obsolete_segments);
 	rw_destroy(&vd->vdev_indirect_rwlock);
 	mutex_destroy(&vd->vdev_obsolete_lock);
@@ -3630,10 +3635,18 @@ void
 vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
+	int err;
 
-	VERIFY0(zap_destroy(spa->spa_meta_objset, zapobj, tx));
-	VERIFY0(zap_remove_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
-	    zapobj, tx));
+	err = zap_destroy(spa->spa_meta_objset, zapobj, tx);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
+
+	err = zap_remove_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
+	    zapobj, tx);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 }
 
 int
@@ -4229,13 +4242,19 @@ vdev_destroy_ms_flush_data(vdev_t *vd, dmu_tx_t *tx)
 	uint64_t object = 0;
 	int err = zap_lookup(mos, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, sizeof (uint64_t), 1, &object);
+	if (!(err == ENOENT || err == 0) && SPA_EXITING(vd->vdev_spa))
+		return;
 	if (err == ENOENT)
 		return;
 	VERIFY0(err);
 
-	VERIFY0(dmu_object_free(mos, object, tx));
-	VERIFY0(zap_remove(mos, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, tx));
+	err = dmu_object_free(mos, object, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
+	err = zap_remove(mos, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
 }
 
 /*
@@ -4245,6 +4264,8 @@ vdev_destroy_ms_flush_data(vdev_t *vd, dmu_tx_t *tx)
 void
 vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 {
+	int err;
+
 	if (vd->vdev_ms_array == 0)
 		return;
 
@@ -4252,8 +4273,11 @@ vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 	uint64_t array_count = vd->vdev_asize >> vd->vdev_ms_shift;
 	size_t array_bytes = array_count * sizeof (uint64_t);
 	uint64_t *smobj_array = kmem_alloc(array_bytes, KM_SLEEP);
-	VERIFY0(dmu_read(mos, vd->vdev_ms_array, 0,
-	    array_bytes, smobj_array, 0));
+	err = dmu_read(mos, vd->vdev_ms_array, 0,
+	    array_bytes, smobj_array, 0);
+	if (err && SPA_EXITING(vd->vdev_spa))
+		goto skip;
+	VERIFY0(err);
 
 	for (uint64_t i = 0; i < array_count; i++) {
 		uint64_t smobj = smobj_array[i];
@@ -4263,8 +4287,11 @@ vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 		space_map_free_obj(mos, smobj, tx);
 	}
 
+skip:
 	kmem_free(smobj_array, array_bytes);
-	VERIFY0(dmu_object_free(mos, vd->vdev_ms_array, tx));
+	err = dmu_object_free(mos, vd->vdev_ms_array, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
 	vdev_destroy_ms_flush_data(vd, tx);
 	vd->vdev_ms_array = 0;
 }
