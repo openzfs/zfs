@@ -4455,7 +4455,8 @@ again:
 	/*
 	 * Fall back to some other class when this one is full.
 	 */
-	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc) {
+	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc &&
+	    !SPA_EXITING(spa)) {
 		/*
 		 * If we are holding old class reservation, drop it.
 		 * Dispatch the next ZIO(s) there if some are waiting.
@@ -4495,7 +4496,8 @@ again:
 		goto again;
 	}
 
-	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc) {
+	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc &&
+	    !SPA_EXITING(spa)) {
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
@@ -4516,6 +4518,8 @@ again:
 			    error);
 		}
 		zio->io_error = error;
+		if (error && SPA_EXITING(spa))
+			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 	} else if (zio->io_prop.zp_rewrite) {
 		/*
 		 * For rewrite operations, preserve the logical birth time
@@ -5516,8 +5520,10 @@ zio_ready(zio_t *zio)
 			if (metaslab_class_throttle_unreserve(
 			    zio->io_metaslab_class, zio->io_allocator,
 			    zio->io_prop.zp_copies, zio->io_size)) {
-				zio_allocate_dispatch(zio->io_metaslab_class,
-				    zio->io_allocator);
+				if (!SPA_EXITING(zio->io_spa))
+					zio_allocate_dispatch(
+					    zio->io_metaslab_class,
+					    zio->io_allocator);
 			}
 		}
 	}
@@ -5604,8 +5610,9 @@ zio_dva_throttle_done(zio_t *zio)
 
 	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
 	    pio->io_allocator, 1, pio->io_size)) {
-		zio_allocate_dispatch(zio->io_metaslab_class,
-		    pio->io_allocator);
+		if (!SPA_EXITING(zio->io_spa))
+			zio_allocate_dispatch(zio->io_metaslab_class,
+			    pio->io_allocator);
 	}
 }
 
