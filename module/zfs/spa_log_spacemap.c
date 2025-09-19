@@ -893,6 +893,9 @@ spa_flush_metaslabs(spa_t *spa, dmu_tx_t *tx)
 	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
 		return;
 
+	if (SPA_EXITING(spa))
+		return;
+
 	/*
 	 * If we don't have any metaslabs with unflushed changes
 	 * return immediately.
@@ -1074,10 +1077,12 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	 * in spa_metaslabs_by_flushed is loading and we were
 	 * not able to flush any metaslabs the current TXG.
 	 */
-	ASSERT(sls->sls_nblocks != 0);
+	if (!SPA_EXITING(spa)) {
+		ASSERT(sls->sls_nblocks != 0);
 
-	spa_log_summary_add_incoming_blocks(spa, sls->sls_nblocks);
-	spa_log_summary_verify_counts(spa);
+		spa_log_summary_add_incoming_blocks(spa, sls->sls_nblocks);
+		spa_log_summary_verify_counts(spa);
+	}
 
 	space_map_close(spa->spa_syncing_log_sm);
 	spa->spa_syncing_log_sm = NULL;
