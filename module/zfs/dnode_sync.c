@@ -79,6 +79,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
 	if (dn->dn_dbuf != NULL)
 		rw_enter(&dn->dn_dbuf->db_rwlock, RW_WRITER);
+	assert_db_data_addr_locked(db);
 	rw_enter(&db->db_rwlock, RW_WRITER);
 	ASSERT(db->db.db_data);
 	ASSERT(arc_released(db->db_buf));
@@ -102,7 +103,6 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 			ASSERT(child->db_parent->db_level == db->db_level);
 			ASSERT(child->db_blkptr !=
 			    &dn->dn_phys->dn_blkptr[child->db_blkid]);
-			mutex_exit(&child->db_mtx);
 			continue;
 		}
 		ASSERT(child->db_parent == NULL ||
@@ -123,6 +123,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	memset(dn->dn_phys->dn_blkptr, 0, sizeof (blkptr_t) * nblkptr);
 
 	rw_exit(&db->db_rwlock);
+	mutex_exit(&db->db_mtx);
 	if (dn->dn_dbuf != NULL)
 		rw_exit(&dn->dn_dbuf->db_rwlock);
 
@@ -233,6 +234,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		 * future txg.
 		 */
 		mutex_enter(&child->db_mtx);
+		assert_db_data_contents_locked(child, FALSE);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
 		    list_is_empty(&child->db_dirty_records)) {
@@ -310,6 +312,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 
 	dbuf_release_bp(db);
+	assert_db_data_addr_locked(db);
 	bp = db->db.db_data;
 
 	DB_DNODE_ENTER(db);
