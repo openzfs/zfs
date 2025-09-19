@@ -8053,7 +8053,7 @@ ztest_ddt_prune(ztest_ds_t *zd, uint64_t id)
  * Verify pool integrity by running zdb.
  */
 static void
-ztest_run_zdb(uint64_t guid)
+ztest_run_zdb(const char *pool_name)
 {
 	int status;
 	char *bin;
@@ -8077,13 +8077,13 @@ ztest_run_zdb(uint64_t guid)
 	free(set_gvars_args);
 
 	size_t would = snprintf(zdb, len,
-	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %"PRIu64,
+	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
 	    set_gvars_args_joined,
 	    ztest_opts.zo_dir,
-	    guid);
+	    pool_name);
 	ASSERT3U(would, <, len);
 
 	umem_free(set_gvars_args_joined, strlen(set_gvars_args_joined) + 1);
@@ -9097,9 +9097,9 @@ ztest_import(ztest_shared_t *zs)
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(spa->spa_name);
 		ztest_freeze();
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(spa->spa_name);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -9757,9 +9757,9 @@ ztest_init(ztest_shared_t *zs)
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(ztest_opts.zo_pool);
 		ztest_freeze();
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(ztest_opts.zo_pool);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -10194,7 +10194,7 @@ main(int argc, char **argv)
 		}
 
 		if (!ztest_opts.zo_mmp_test)
-			ztest_run_zdb(zs->zs_guid);
+			ztest_run_zdb(ztest_opts.zo_pool);
 		if (ztest_shared_opts->zo_raidz_expand_test ==
 		    RAIDZ_EXPAND_CHECKED)
 			break; /* raidz expand test complete */
