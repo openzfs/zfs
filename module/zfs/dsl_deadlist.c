@@ -335,11 +335,11 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 	ASSERT(!dsl_deadlist_is_open(dl));
 
 	mutex_init(&dl->dl_lock, NULL, MUTEX_DEFAULT, NULL);
-	dl->dl_os = os;
-	dl->dl_object = object;
 	err = dmu_bonus_hold(os, object, dl, &dl->dl_dbuf);
 	if (err != 0)
 		return (err);
+	dl->dl_os = os;
+	dl->dl_object = object;
 	dmu_object_info_from_db(dl->dl_dbuf, &doi);
 	if (doi.doi_type == DMU_OT_BPOBJ) {
 		dmu_buf_rele(dl->dl_dbuf, dl);
