@@ -3669,8 +3669,10 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 
 	if (error == ENOSPC)
 		ztest_record_enospc("spa_vdev_add");
-	else if (error != 0)
-		fatal(B_FALSE, "spa_vdev_add() = %d", error);
+	else if (error != 0 && !ZTEST_HFE_ACTIVE()) {
+		fatal(B_FALSE, "%s: spa_vdev_add() = %d", __func__,
+		    error);
+	}
 
 	/*
 	 * 50% of the time allow small blocks in the special class
@@ -3681,7 +3683,8 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 			(void) printf("Enabling special VDEV small blocks\n");
 		error = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_SPECIAL_SMALL_BLOCKS, 32768, B_FALSE);
-		ASSERT(error == 0 || error == ENOSPC);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == ENOSPC);
 	}
 
 	mutex_exit(&ztest_vdev_lock);
