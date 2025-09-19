@@ -1690,11 +1690,8 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
 
 	fnvlist_free(props);
 
-	if (error == ENOSPC) {
+	if (error == ENOSPC)
 		ztest_record_enospc(FTAG);
-		return (error);
-	}
-	ASSERT0(error);
 
 	return (error);
 }
@@ -6623,13 +6620,18 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 	for (int p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++) {
 		int error = ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
 		    ztest_random_dsl_prop(proplist[p]), (int)ztest_random(2));
+		if (!(error == 0 || error == ENOSPC) && ZTEST_HFE_ACTIVE())
+			goto out;
 		ASSERT(error == 0 || error == ENOSPC);
 	}
 
 	int error = ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_RECORDSIZE,
 	    ztest_random_blocksize(), (int)ztest_random(2));
+	if (!(error == 0 || error == ENOSPC) && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT(error == 0 || error == ENOSPC);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
@@ -6637,19 +6639,29 @@ void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
+	nvlist_t *props = NULL;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
-	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
+	err = ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
+	if (!(err == 0 || err == ENOSPC) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY(err == 0 || err == ENOSPC);
 
-	nvlist_t *props = fnvlist_alloc();
+	props = fnvlist_alloc();
 
-	VERIFY0(spa_prop_get(ztest_spa, props));
+	err = spa_prop_get(ztest_spa, props);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 
 	if (ztest_opts.zo_verbose >= 6)
 		dump_nvlist(props, 4);
 
-	fnvlist_free(props);
+out:
+	if (props)
+		fnvlist_free(props);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
