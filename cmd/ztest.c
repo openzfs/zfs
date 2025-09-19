@@ -3677,7 +3677,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	ztest_shared_t *zs = ztest_shared;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	uint64_t leaves;
 	uint64_t guid;
 	uint64_t raidz_children;
@@ -3689,6 +3689,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		return;
 
 	mutex_enter(&ztest_vdev_lock);
+	spa = ztest_spa;
 	raidz_children = ztest_get_raidz_children(spa);
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * raidz_children;
 
@@ -3734,6 +3735,8 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			fatal(B_FALSE, "spa_vdev_remove() = %d", error);
 		}
 	} else {
@@ -3757,7 +3760,10 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc("spa_vdev_add");
 			break;
 		default:
-			fatal(B_FALSE, "spa_vdev_add() = %d", error);
+			if (ZTEST_HFE_ACTIVE())
+				break;
+			fatal(B_FALSE, "%s: spa_vdev_add() = %d", __func__,
+			    error);
 		}
 	}
 
