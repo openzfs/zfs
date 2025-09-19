@@ -7874,10 +7874,12 @@ void
 ztest_initialize(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	int error = 0;
 
 	mutex_enter(&ztest_vdev_lock);
+
+	spa = ztest_spa;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
