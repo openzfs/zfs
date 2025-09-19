@@ -82,7 +82,7 @@ bptree_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 	VERIFY0(err);
 	dmu_buf_will_dirty(db, tx);
 	if (SPA_EXITING(spa)) {
-		err = SET_ERROR(err);
+		err = SET_ERROR(EIO);
 		goto out;
 	}
 	bt = db->db_data;
@@ -103,8 +103,12 @@ bptree_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
 	bptree_phys_t *bt;
+	int err;
 
-	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
+	err = dmu_bonus_hold(os, obj, FTAG, &db);
+	if (err && SPA_EXITING(os->os_spa))
+		return (SET_ERROR(EIO));
+	VERIFY0(err);
 	bt = db->db_data;
 	ASSERT3U(bt->bt_begin, ==, bt->bt_end);
 	ASSERT0(bt->bt_bytes);
@@ -115,18 +119,21 @@ bptree_free(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 	return (dmu_object_free(os, obj, tx));
 }
 
-boolean_t
-bptree_is_empty(objset_t *os, uint64_t obj)
+int
+bptree_is_empty(objset_t *os, uint64_t obj, boolean_t *rv)
 {
 	dmu_buf_t *db;
 	bptree_phys_t *bt;
-	boolean_t rv;
+	int err = 0;
 
-	VERIFY0(dmu_bonus_hold(os, obj, FTAG, &db));
+	err = dmu_bonus_hold(os, obj, FTAG, &db);
+	if (err && SPA_EXITING(os->os_spa))
+		return (err);
+	VERIFY0(err);
 	bt = db->db_data;
-	rv = (bt->bt_begin == bt->bt_end);
+	*rv = (bt->bt_begin == bt->bt_end);
 	dmu_buf_rele(db, FTAG);
-	return (rv);
+	return (err);
 }
 
 void
