@@ -3959,6 +3959,8 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		case 0:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			fatal(B_FALSE, "spa_vdev_add(%p) = %d", nvroot, error);
 		}
 		fnvlist_free(nvroot);
@@ -3980,6 +3982,8 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			if (error != ignore_err)
 				fatal(B_FALSE,
 				    "spa_vdev_remove(%"PRIu64") = %d",
