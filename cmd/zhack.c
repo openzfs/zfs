@@ -1196,12 +1196,12 @@ zhack_mos_leak_sync(void *arg, dmu_tx_t *tx)
 	objset_t *mos = spa->spa_meta_objset;
 
 	for (uint64_t i = 0; i < inject->zli_clone_count; i++) {
-		inject->zli_clone_objs[i] = zap_create(mos, DMU_OT_DSL_CLONES,
-		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos, DMU_OT_DSL_CLONES, DMU_OT_NONE, 0, tx,
+		    inject->zli_clone_objs + i));
 	}
 	for (uint64_t i = 0; i < inject->zli_spacemap_count; i++) {
-		inject->zli_spacemap_objs[i] = space_map_alloc(mos,
-		    SPA_MINBLOCKSIZE, tx);
+		VERIFY0(space_map_alloc(mos, SPA_MINBLOCKSIZE, tx,
+		    inject->zli_spacemap_objs + i));
 	}
 
 	spa_history_log_internal(spa, "zhack mos leak", tx,
