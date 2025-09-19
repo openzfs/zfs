@@ -8712,9 +8712,9 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (i = 0; i < ztest_opts.zo_threads; i++) {
-		run_threads[i] = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)i, 0, NULL, TS_RUN | TS_JOINABLE,
-		    defclsyspri);
+		run_threads[i] = thread_create_named("ztest_func", NULL, 0,
+		    ztest_thread, (void *)(uintptr_t)i, 0, NULL,
+		    TS_RUN | TS_JOINABLE, defclsyspri);
 	}
 
 	/*
