@@ -2136,9 +2136,9 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	char *name = (char *)&lrc->lr_data[0];		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	ztest_block_tag_t *bbt;
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	dmu_tx_t *tx;
-	uint64_t txg;
+	uint64_t txg = 0;
 	int error = 0;
 	int bonuslen;
 
@@ -2186,6 +2186,8 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 			    bonuslen, lr->lrz_dnodesize, tx);
 		}
 	}
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 
 	if (error) {
 		ASSERT3U(error, ==, EEXIST);
@@ -2196,26 +2198,45 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	ASSERT3U(lr->lr_foid, !=, 0);
 
-	if (lr->lrz_type != DMU_OT_ZAP_OTHER)
-		VERIFY0(dmu_object_set_blocksize(os, lr->lr_foid,
-		    lr->lrz_blocksize, lr->lrz_ibshift, tx));
+	if (lr->lrz_type != DMU_OT_ZAP_OTHER) {
+		error = dmu_object_set_blocksize(os, lr->lr_foid,
+		    lr->lrz_blocksize, lr->lrz_ibshift, tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
+	}
 
-	VERIFY0(dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
+	error = dmu_bonus_hold(os, lr->lr_foid, FTAG, &db);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	bbt = ztest_bt_bonus(db);
 	dmu_buf_will_dirty(db, tx);
+	if (ZTEST_HFE_ACTIVE()) {
+		error = EIO;
+		goto out;
+	}
 	ztest_bt_generate(bbt, os, lr->lr_foid, lr->lrz_dnodesize, -1ULL,
 	    lr->lr_gen, txg, txg);
 	ztest_fill_unused_bonus(db, bbt, lr->lr_foid, os, lr->lr_gen);
 	dmu_buf_rele(db, FTAG);
+	db = NULL;
 
-	VERIFY0(zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
-	    &lr->lr_foid, tx));
+	error = zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
+	    &lr->lr_foid, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	(void) ztest_log_create(zd, tx, lrc);
 
-	dmu_tx_commit(tx);
+out:
+	if (db)
+		dmu_buf_rele(db, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
-	return (0);
+	return (error);
 }
 
 static int
@@ -2227,7 +2248,8 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	objset_t *os = zd->zd_os;
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
-	uint64_t object, txg;
+	uint64_t object = 0, txg = 0;
+	int error = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -2235,13 +2257,18 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	ASSERT3U(lr->lr_doid, ==, ZTEST_DIROBJ);
 	ASSERT3S(name[0], !=, '\0');
 
-	VERIFY0(
-	    zap_lookup(os, lr->lr_doid, name, sizeof (object), 1, &object));
+	error = zap_lookup(os, lr->lr_doid, name, sizeof (object), 1, &object);
+	if (error && ZTEST_HFE_ACTIVE())
+		return (error);
+	VERIFY0(error);
 	ASSERT3U(object, !=, 0);
 
 	ztest_object_lock(zd, object, ZTRL_WRITER);
 
-	VERIFY0(dmu_object_info(os, object, &doi));
+	error = dmu_object_info(os, object, &doi);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	tx = dmu_tx_create(os);
 
@@ -2250,25 +2277,33 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 
 	txg = ztest_tx_assign(tx, DMU_TX_WAIT, FTAG);
 	if (txg == 0) {
-		ztest_object_unlock(zd, object);
-		return (ENOSPC);
+		error = ENOSPC;
+		goto out;
 	}
 
 	if (doi.doi_type == DMU_OT_ZAP_OTHER) {
-		VERIFY0(zap_destroy(os, object, tx));
+		error = zap_destroy(os, object, tx);
 	} else {
-		VERIFY0(dmu_object_free(os, object, tx));
+		error = dmu_object_free(os, object, tx);
 	}
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
-	VERIFY0(zap_remove(os, lr->lr_doid, name, tx));
+	error = zap_remove(os, lr->lr_doid, name, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	(void) ztest_log_remove(zd, tx, lr, object);
 
-	dmu_tx_commit(tx);
+out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
 	ztest_object_unlock(zd, object);
 
-	return (0);
+	return (error);
 }
 
 static int
@@ -2658,7 +2693,8 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 
 		error = dmu_read(os, object, offset, size, buf,
 		    DMU_READ_NO_PREFETCH | DMU_KEEP_CACHING);
-		ASSERT0(error);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT0(error);
 	} else {
 		ASSERT3P(zio, !=, NULL);
 		size = doi.doi_data_block_size;
@@ -3107,21 +3143,25 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 {
 	(void) id;
 	zilog_t *zilog = zd->zd_zilog;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&zd->zd_zilog_lock);
 
-	VERIFY0(zil_commit(zilog, ztest_random(ZTEST_OBJECTS)));
+	err = zil_commit(zilog, ztest_random(ZTEST_OBJECTS));
 
 	/*
 	 * Remember the committed values in zd, which is in parent/child
 	 * shared memory.  If we die, the next iteration of ztest_run()
 	 * will verify that the log really does contain this record.
 	 */
-	mutex_enter(&zilog->zl_lock);
-	ASSERT3P(zd->zd_shared, !=, NULL);
-	ASSERT3U(zd->zd_shared->zd_seq, <=, zilog->zl_commit_lr_seq);
-	zd->zd_shared->zd_seq = zilog->zl_commit_lr_seq;
-	mutex_exit(&zilog->zl_lock);
+	if (!err && !ZTEST_HFE_ACTIVE()) {
+		mutex_enter(&zilog->zl_lock);
+		ASSERT3P(zd->zd_shared, !=, NULL);
+		ASSERT3U(zd->zd_shared->zd_seq, <=, zilog->zl_commit_lr_seq);
+		if (zilog->zl_commit_lr_seq > zd->zd_shared->zd_seq)
+			zd->zd_shared->zd_seq = zilog->zl_commit_lr_seq;
+		mutex_exit(&zilog->zl_lock);
+	}
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 }
@@ -3136,6 +3176,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
 	(void) id;
 	objset_t *os = zd->zd_os;
+	zilog_t *ret;
 
 	/*
 	 * We hold the ztest_vdev_lock so we don't cause problems with
@@ -3154,11 +3195,17 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 
 	/* zfsvfs_teardown() */
 	zil_close(zd->zd_zilog);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
 
 	/* zfsvfs_setup() */
-	VERIFY3P(zil_open(os, ztest_get_data, NULL), ==, zd->zd_zilog);
+	ret = zil_open(os, ztest_get_data, NULL);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3P(ret, ==, zd->zd_zilog);
 	zil_replay(os, zd, ztest_replay_vector);
 
+out:
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 	mutex_exit(&zd->zd_dirobj_lock);
 	mutex_exit(&ztest_vdev_lock);
