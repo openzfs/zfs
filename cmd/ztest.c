@@ -7428,15 +7428,15 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	orig = spa_guid(spa);
 	load = spa_load_guid(spa);
-
-	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	error = spa_change_guid(spa, NULL);
-	zs->zs_guid = spa_guid(spa);
+	if (error == 0)
+		zs->zs_guid = spa_guid(spa);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
-	if (error != 0)
+	if (error != 0 || ZTEST_HFE_ACTIVE())
 		return;
 
 	if (ztest_opts.zo_verbose >= 4) {
