@@ -11049,6 +11049,32 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
+ * Set the zpool status lock behavior based off of the ZPOOL_LOCK_BEHAVIOR
+ * envvar.  If the var is not set, or an unknown value, then set the lock
+ * behavior to ZPOOL_LOCK_BEHAVIOR_DEFAULT.
+ */
+static void
+zpool_set_lock_behavior(void)
+{
+	char *str;
+	zpool_lock_behavior_t zpool_lock_behavior;
+
+	str = getenv("ZPOOL_LOCK_BEHAVIOR");
+	if (str == NULL)
+		zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_DEFAULT;
+	else if (strcmp(str, "wait") == 0)
+		zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_WAIT;
+	else if (strcmp(str, "trylock") == 0)
+		zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_TRYLOCK;
+	else if (strcmp(str, "lockless") == 0)
+		zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_LOCKLESS;
+	else
+		zpool_lock_behavior = ZPOOL_LOCK_BEHAVIOR_DEFAULT;
+
+	libzfs_set_lock_behavior(g_zfs, zpool_lock_behavior);
+}
+
+/*
  * zpool status [-dDegiLpPstvx] [-c [script1,script2,...]] ...
  * 				[-j|--json [--json-flat-vdevs] [--json-int] ...
  * 				[--json-pool-key-guid]] [--power] [-T d|u] ...
@@ -11222,6 +11248,8 @@ zpool_do_status(int argc, char **argv)
 		    " works with '-j' option\n"));
 		usage(B_FALSE);
 	}
+
+	zpool_set_lock_behavior();
 
 	for (;;) {
 		if (cb.cb_json) {

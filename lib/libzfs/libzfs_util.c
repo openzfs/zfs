@@ -1038,6 +1038,18 @@ libzfs_free_str_array(char **strs, int count)
 }
 
 /*
+ * Set spa_namespace locking behavior for zpools.  For example you may want to
+ * error out if you can't acquire the lock, or skip the lock entirely (which
+ * can be dangerous).
+ */
+void
+libzfs_set_lock_behavior(libzfs_handle_t *hdl,
+	zpool_lock_behavior_t zpool_lock_behavior)
+{
+	hdl->zpool_lock_behavior = zpool_lock_behavior;
+}
+
+/*
  * Returns 1 if environment variable is set to "YES", "yes", "ON", "on", or
  * a non-zero number.
  *
@@ -1122,6 +1134,7 @@ libzfs_init(void)
 		ftbl[SPA_FEATURE_LARGE_BLOCKS].fi_zfs_mod_supported = B_FALSE;
 	}
 
+	libzfs_set_lock_behavior(hdl, ZPOOL_LOCK_BEHAVIOR_DEFAULT);
 	return (hdl);
 }
 

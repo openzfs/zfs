@@ -2789,8 +2789,35 @@ Defines zvol block devices behavior when
 .It Sy zvol_enforce_quotas Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Enable strict ZVOL quota enforcement.
 The strict quota enforcement may have a performance impact.
+.It Sy zfs_debug_namespace_lock_delay
+WARNING, DEBUG USE ONLY!
+If set, add an artificial
+.Sy zfs_debug_namespace_lock_delay
+milliseconds delay after taking the spa_namespace lock.
+This is used to simulate a hung pool.
+If
+.Sy zfs_debug_namespace_lock_delay
+is set to -1 then crash the kernel on the next spa_namespace lock hold.
+If set to 0 (default) then take no action.
+This option is used by test suite.
+.It Sy spa_namespace_trylock_ms
+If the user has set
+.Sy ZPOOL_LOCK_BEHAIVOR=lockless|trylock
+then try for this many milliseconds to get the spa_namespace lock before
+moving on.
+.Sy zpool status
+This is the internal lock that synchronizes changes to the pool configuration.
+Note that
+.Sy zpool status
+will try to get the lock in multiple places (like getting the pool config,
+stats, props) before returning.
+That means the total wall clock time for
+.Sy zpool status
+could a multiple of
+.Sy spa_namespace_trylock_ms
+if the lock is already held.
+Default is 100 (milliseconds).
 .El
-.
 .Sh ZFS I/O SCHEDULER
 ZFS issues I/O operations to leaf vdevs to satisfy and complete I/O operations.
 The scheduler determines when and in what order those operations are issued.
