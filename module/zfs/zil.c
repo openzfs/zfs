@@ -869,8 +869,10 @@ static void
 zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
-	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
-	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+	ASSERTF(lwb->lwb_state == LWB_STATE_NEW ||
+	    lwb->lwb_state == LWB_STATE_FLUSH_DONE ||
+	    lwb->lwb_flags & LWB_FLAG_CRASHED,
+	    "lwb_state=%d", lwb->lwb_state);
 	ASSERT0P(lwb->lwb_child_zio);
 	ASSERT0P(lwb->lwb_write_zio);
 	ASSERT0P(lwb->lwb_root_zio);
@@ -1065,7 +1067,8 @@ zil_create(zilog_t *zilog)
 	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
 	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
 
-	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
+	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0 ||
+	    SPA_EXITING(zilog->zl_spa));
 	IMPLY(error == 0, lwb != NULL);
 
 	return (lwb);
@@ -1593,6 +1596,7 @@ zil_lwb_write_done(zio_t *zio)
 	void *cookie = NULL;
 	zil_vdev_node_t *zv;
 	lwb_t *nlwb = NULL;
+	zio_t *nio;
 
 	ASSERT3S(spa_config_held(spa, SCL_STATE, RW_READER), !=, 0);
 
@@ -1619,8 +1623,11 @@ zil_lwb_write_done(zio_t *zio)
 	}
 	mutex_exit(&zilog->zl_lock);
 
-	if (avl_numnodes(t) == 0)
+	if (avl_numnodes(t) == 0) {
+		if (SPA_EXITING(spa))
+			goto spa_exiting;
 		return;
+	}
 
 	/*
 	 * If there was an IO error, we're not going to call zio_flush()
@@ -1643,6 +1650,8 @@ zil_lwb_write_done(zio_t *zio)
 	if (zio->io_error != 0 || (lwb->lwb_flags & LWB_FLAG_CRASHED)) {
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
+		if (SPA_EXITING(spa))
+			goto spa_exiting;
 		return;
 	}
 
@@ -1681,6 +1690,14 @@ zil_lwb_write_done(zio_t *zio)
 		}
 		kmem_free(zv, sizeof (*zv));
 	}
+
+	return;
+
+spa_exiting:
+	nio = zio_null(lwb->lwb_root_zio, spa, NULL, NULL, NULL,
+	    ZIO_FLAG_CANFAIL);
+	nio->io_error = SET_ERROR(EIO);
+	zio_nowait(nio);
 }
 
 /*
@@ -2020,8 +2037,26 @@ next_lwb:
 		    zil_lwb_write_done, lwb, ZIO_FLAG_CANFAIL);
 		lwb->lwb_write_zio->io_error = lwb->lwb_error;
 	}
-	if (lwb->lwb_child_zio)
+	if (lwb->lwb_child_zio) {
 		zio_add_child(lwb->lwb_write_zio, lwb->lwb_child_zio);
+		/*
+		 * We are adding a child which is probably done already having
+		 * an error, which is not going to be absorbed by parent.
+		 * Here we ignore ZIO_FLAG_DONT_PROPAGATE.
+		 *
+		 * XXX: Should it be integrated into common zio_add_child()?
+		 */
+		zio_t *cio = lwb->lwb_child_zio;
+		int io_error = 0;
+		mutex_enter(&cio->io_lock);
+		io_error = cio->io_error;
+		mutex_exit(&cio->io_lock);
+		if (io_error) {
+			zio_t *nio = zio_null(lwb->lwb_write_zio, spa, NULL,
+			    NULL, NULL, ZIO_FLAG_CANFAIL);
+			nio->io_error = io_error;
+		}
+	}
 
 	/*
 	 * Open transaction to allocate the next block pointer.
@@ -2521,7 +2556,11 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 					 * immediately.
 					 */
 					zil_crash(zilog);
+					/* please zil_free_lwb() */
+					lwb->lwb_child_zio = NULL;
 					return (error);
+				} else if (SPA_EXITING(zilog->zl_spa)) {
+					lwb->lwb_error = SET_ERROR(EIO);
 				}
 				zfs_fallthrough;
 			}
@@ -3459,7 +3498,7 @@ out:
 	mutex_exit(&zilog->zl_issuer_lock);
 	int err = 0;
 	while ((lwb = list_remove_head(&ilwbs)) != NULL) {
-		if (err == 0)
+		if (err == 0 || SPA_EXITING(zilog->zl_spa))
 			err = zil_lwb_write_issue(zilog, lwb);
 	}
 	list_destroy(&ilwbs);
