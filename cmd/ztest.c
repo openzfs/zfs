@@ -3605,6 +3605,8 @@ ztest_spa_checkpoint(spa_t *spa)
 		ztest_record_enospc(FTAG);
 		break;
 	default:
+		if (ZTEST_HFE_ACTIVE())
+			break;
 		fatal(B_FALSE, "spa_checkpoint(%s) = %d", spa->spa_name, error);
 	}
 }
@@ -3622,6 +3624,8 @@ ztest_spa_discard_checkpoint(spa_t *spa)
 	case ZFS_ERR_NO_CHECKPOINT:
 		break;
 	default:
+		if (ZTEST_HFE_ACTIVE())
+			break;
 		fatal(B_FALSE, "spa_discard_checkpoint(%s) = %d",
 		    spa->spa_name, error);
 	}
