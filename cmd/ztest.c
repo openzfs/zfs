@@ -4856,40 +4856,43 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	return (0);
 }
 
-static boolean_t
+static int
 ztest_snapshot_create(char *osname, uint64_t id)
 {
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
-	int error;
+	int err = 0;
 
 	(void) snprintf(snapname, sizeof (snapname), "%"PRIu64"", id);
 
-	error = dmu_objset_snapshot_one(osname, snapname);
-	if (error == ENOSPC) {
+	err = dmu_objset_snapshot_one(osname, snapname);
+	if (err == ENOSPC) {
 		ztest_record_enospc(FTAG);
-		return (B_FALSE);
+		return (err);
 	}
-	if (error != 0 && error != EEXIST && error != ECHRNG) {
-		fatal(B_FALSE, "ztest_snapshot_create(%s@%s) = %d", osname,
-		    snapname, error);
+	if (err != 0 && err != EEXIST && err != ECHRNG) {
+		if (!ZTEST_HFE_ACTIVE())
+			fatal(B_FALSE, "ztest_snapshot_create(%s@%s) = %d",
+			    osname, snapname, err);
 	}
-	return (B_TRUE);
+	return (err);
 }
 
-static boolean_t
+static int
 ztest_snapshot_destroy(char *osname, uint64_t id)
 {
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
-	int error;
+	int error = 0;
 
 	(void) snprintf(snapname, sizeof (snapname), "%s@%"PRIu64"",
 	    osname, id);
 
 	error = dsl_destroy_snapshot(snapname, B_FALSE);
-	if (error != 0 && error != ENOENT && error != ECHRNG)
-		fatal(B_FALSE, "ztest_snapshot_destroy(%s) = %d",
-		    snapname, error);
-	return (B_TRUE);
+	if (error != 0 && error != ENOENT && error != ECHRNG) {
+		if (!ZTEST_HFE_ACTIVE())
+			fatal(B_FALSE, "ztest_snapshot_destroy(%s) = %d",
+			    snapname, error);
+	}
+	return (error);
 }
 
 void
@@ -5037,9 +5040,12 @@ out:
 void
 ztest_dmu_snapshot_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
+	int err;
+
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-	(void) ztest_snapshot_destroy(zd->zd_name, id);
-	(void) ztest_snapshot_create(zd->zd_name, id);
+	err = ztest_snapshot_destroy(zd->zd_name, id);
+	if (err == 0 || err == ENOENT)
+		err = ztest_snapshot_create(zd->zd_name, id);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
