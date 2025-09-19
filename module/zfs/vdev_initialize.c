@@ -78,25 +78,33 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY(vd->vdev_leaf_zap != 0);
 
+	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = vd->vdev_spa->spa_meta_objset;
+	int err;
 
 	if (last_offset > 0) {
 		vd->vdev_initialize_last_offset = last_offset;
-		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+		err = zap_update(mos, vd->vdev_leaf_zap,
 		    VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET,
-		    sizeof (last_offset), 1, &last_offset, tx));
+		    sizeof (last_offset), 1, &last_offset, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 	if (vd->vdev_initialize_action_time > 0) {
 		uint64_t val = (uint64_t)vd->vdev_initialize_action_time;
-		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+		err = zap_update(mos, vd->vdev_leaf_zap,
 		    VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME, sizeof (val),
-		    1, &val, tx));
+		    1, &val, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
 	uint64_t initialize_state = vd->vdev_initialize_state;
-	VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+	err = zap_update(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_STATE, sizeof (initialize_state), 1,
-	    &initialize_state, tx));
+	    &initialize_state, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 static void
@@ -116,30 +124,38 @@ vdev_initialize_zap_remove_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_initialize_last_offset = 0;
 	vd->vdev_initialize_action_time = 0;
 
+	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = vd->vdev_spa->spa_meta_objset;
 	int error;
 
 	error = zap_remove(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET, tx);
+	if (!(error == 0 || error == ENOENT) && SPA_EXITING(spa))
+		return;
 	VERIFY(error == 0 || error == ENOENT);
 
 	error = zap_remove(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_STATE, tx);
+	if (!(error == 0 || error == ENOENT) && SPA_EXITING(spa))
+		return;
 	VERIFY(error == 0 || error == ENOENT);
 
 	error = zap_remove(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME, tx);
+	if (!(error == 0 || error == ENOENT) && SPA_EXITING(spa))
+		return;
 	VERIFY(error == 0 || error == ENOENT);
 }
 
-static void
+static int
 vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 {
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	spa_t *spa = vd->vdev_spa;
+	int err = 0;
 
 	if (new_state == vd->vdev_initialize_state)
-		return;
+		return (0);
 
 	/*
 	 * Copy the vd's guid, this will be freed by the sync task.
@@ -158,7 +174,13 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	vd->vdev_initialize_state = new_state;
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+	err = dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND);
+	if (err && SPA_EXITING(spa)) {
+		dmu_tx_abort(tx);
+		kmem_free(guid, sizeof (uint64_t));
+		goto out;
+	}
+	VERIFY0(err);
 
 	if (new_state != VDEV_INITIALIZE_NONE) {
 		dsl_sync_task_nowait(spa_get_dsl(spa),
@@ -197,8 +219,11 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 
 	dmu_tx_commit(tx);
 
+out:
 	if (new_state != VDEV_INITIALIZE_ACTIVE)
 		spa_notify_waiters(spa);
+
+	return (err);
 }
 
 static void
@@ -239,6 +264,7 @@ static int
 vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 {
 	spa_t *spa = vd->vdev_spa;
+	int err = 0;
 
 	/* Limit inflight initializing I/Os */
 	mutex_enter(&vd->vdev_initialize_io_lock);
@@ -250,7 +276,17 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 	mutex_exit(&vd->vdev_initialize_io_lock);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+	err = dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND);
+	if (err && SPA_EXITING(spa)) {
+		dmu_tx_abort(tx);
+		mutex_enter(&vd->vdev_initialize_io_lock);
+		if (vd->vdev_initialize_inflight > 0)
+			vd->vdev_initialize_inflight--;
+		cv_broadcast(&vd->vdev_initialize_io_cv);
+		mutex_exit(&vd->vdev_initialize_io_lock);
+		return (err);
+	}
+	VERIFY0(err);
 	uint64_t txg = dmu_tx_get_txg(tx);
 
 	spa_config_enter(spa, SCL_STATE_ALL, vd, RW_READER);
@@ -289,7 +325,7 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 
 	dmu_tx_commit(tx);
 
-	return (0);
+	return (err);
 }
 
 /*
@@ -385,9 +421,10 @@ vdev_initialize_xlate_progress(void *arg, zfs_range_seg64_t *physical_rs)
 	}
 }
 
-static void
+static int
 vdev_initialize_calculate_progress(vdev_t *vd)
 {
+	int err = 0;
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER) ||
 	    spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_WRITER));
 	ASSERT(vd->vdev_leaf_zap != 0);
@@ -439,7 +476,12 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 * metaslab. Load it and walk the free tree for more accurate
 		 * progress estimation.
 		 */
-		VERIFY0(metaslab_load(msp));
+		err = metaslab_load(msp);
+		if (err && SPA_EXITING(vd->vdev_spa)) {
+			mutex_exit(&msp->ms_lock);
+			break;
+		}
+		VERIFY0(err);
 
 		zfs_btree_index_t where;
 		zfs_range_tree_t *rt = msp->ms_allocatable;
@@ -455,6 +497,8 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		}
 		mutex_exit(&msp->ms_lock);
 	}
+
+	return (err);
 }
 
 static int
@@ -477,7 +521,9 @@ vdev_initialize_load(vdev_t *vd)
 		}
 	}
 
-	vdev_initialize_calculate_progress(vd);
+	if (!err)
+		err = vdev_initialize_calculate_progress(vd);
+
 	return (err);
 }
 
@@ -537,7 +583,12 @@ vdev_initialize_thread(void *arg)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 	vd->vdev_initialize_last_offset = 0;
-	VERIFY0(vdev_initialize_load(vd));
+	error = vdev_initialize_load(vd);
+	if (error && SPA_EXITING(spa)) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		goto out;
+	}
+	VERIFY0(error);
 
 	abd_t *deadbeef = vdev_initialize_block_alloc();
 
@@ -548,6 +599,7 @@ vdev_initialize_thread(void *arg)
 	for (uint64_t i = 0; !vd->vdev_detached &&
 	    i < vd->vdev_top->vdev_ms_count; i++) {
 		metaslab_t *msp = vd->vdev_top->vdev_ms[i];
+		boolean_t sync = B_TRUE;
 		boolean_t unload_when_done = B_FALSE;
 
 		/*
@@ -555,7 +607,10 @@ vdev_initialize_thread(void *arg)
 		 * first pass, calculate our progress.
 		 */
 		if (vd->vdev_top->vdev_ms_count != ms_count) {
-			vdev_initialize_calculate_progress(vd);
+			error = vdev_initialize_calculate_progress(vd);
+			if (error && SPA_EXITING(spa))
+				break;
+			VERIFY0(error);
 			ms_count = vd->vdev_top->vdev_ms_count;
 		}
 
@@ -564,14 +619,20 @@ vdev_initialize_thread(void *arg)
 		mutex_enter(&msp->ms_lock);
 		if (!msp->ms_loaded && !msp->ms_loading)
 			unload_when_done = B_TRUE;
-		VERIFY0(metaslab_load(msp));
-
-		zfs_range_tree_walk(msp->ms_allocatable,
-		    vdev_initialize_range_add, vd);
+		error = metaslab_load(msp);
+		if (error && SPA_EXITING(spa)) {
+			sync = B_FALSE;
+			unload_when_done = B_FALSE;
+		} else {
+			VERIFY0(error);
+			zfs_range_tree_walk(msp->ms_allocatable,
+			    vdev_initialize_range_add, vd);
+		}
 		mutex_exit(&msp->ms_lock);
 
-		error = vdev_initialize_ranges(vd, deadbeef);
-		metaslab_enable(msp, B_TRUE, unload_when_done);
+		if (!error)
+			error = vdev_initialize_ranges(vd, deadbeef);
+		metaslab_enable(msp, sync, unload_when_done);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		zfs_range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);
@@ -594,10 +655,10 @@ vdev_initialize_thread(void *arg)
 	mutex_enter(&vd->vdev_initialize_lock);
 	if (!vd->vdev_initialize_exit_wanted) {
 		if (vdev_writeable(vd)) {
-			vdev_initialize_change_state(vd,
+			(void) vdev_initialize_change_state(vd,
 			    VDEV_INITIALIZE_COMPLETE);
 		} else if (vd->vdev_faulted) {
-			vdev_initialize_change_state(vd,
+			(void) vdev_initialize_change_state(vd,
 			    VDEV_INITIALIZE_CANCELED);
 		}
 	}
@@ -613,6 +674,7 @@ vdev_initialize_thread(void *arg)
 	 */
 	mutex_exit(&vd->vdev_initialize_lock);
 	txg_wait_synced(spa_get_dsl(spa), 0);
+out:
 	mutex_enter(&vd->vdev_initialize_lock);
 
 	vd->vdev_initialize_thread = NULL;
@@ -658,7 +720,7 @@ vdev_uninitialize(vdev_t *vd)
 	ASSERT(!vd->vdev_initialize_exit_wanted);
 	ASSERT(!vd->vdev_top->vdev_removing);
 
-	vdev_initialize_change_state(vd, VDEV_INITIALIZE_NONE);
+	(void) vdev_initialize_change_state(vd, VDEV_INITIALIZE_NONE);
 }
 
 /*
@@ -722,7 +784,7 @@ vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
 		return;
 	}
 
-	vdev_initialize_change_state(vd, tgt_state);
+	(void) vdev_initialize_change_state(vd, tgt_state);
 	vd->vdev_initialize_exit_wanted = B_TRUE;
 
 	if (vd_list == NULL) {
@@ -781,6 +843,7 @@ vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 void
 vdev_initialize_restart(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
 	ASSERT(spa_namespace_held() ||
 	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
@@ -791,20 +854,24 @@ vdev_initialize_restart(vdev_t *vd)
 		int err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_INITIALIZE_STATE,
 		    sizeof (initialize_state), 1, &initialize_state);
-		ASSERT(err == 0 || err == ENOENT);
+		if (!SPA_EXITING(spa))
+			ASSERT(err == 0 || err == ENOENT);
 		vd->vdev_initialize_state = initialize_state;
 
 		uint64_t timestamp = 0;
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
-		ASSERT(err == 0 || err == ENOENT);
+		if (!SPA_EXITING(spa))
+			ASSERT(err == 0 || err == ENOENT);
 		vd->vdev_initialize_action_time = timestamp;
 
 		if ((vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
 		    vd->vdev_offline) && !vd->vdev_top->vdev_rz_expanding) {
 			/* load progress for reporting, but don't resume */
-			VERIFY0(vdev_initialize_load(vd));
+			err = vdev_initialize_load(vd);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 		} else if (vd->vdev_initialize_state ==
 		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd) &&
 		    !vd->vdev_top->vdev_removing &&
