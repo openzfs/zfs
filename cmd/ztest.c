@@ -5156,7 +5156,7 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
-	while (ztest_random(4 * batchsize) != 0)
+	while (ztest_random(4 * batchsize) != 0 && !ZTEST_HFE_ACTIVE())
 		ztest_io(zd, od[ztest_random(batchsize)].od_object,
 		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
 
