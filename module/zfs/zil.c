@@ -857,6 +857,7 @@ zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, int min_sz, int sz,
 	lwb->lwb_issued_txg = 0;
 	lwb->lwb_alloc_txg = txg;
 	lwb->lwb_max_txg = 0;
+	lwb->lwb_max_lr_seq = 0;
 
 	mutex_enter(&zilog->zl_lock);
 	list_insert_tail(&zilog->zl_lwb_list, lwb);
@@ -1502,7 +1503,10 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * writes succeeded, because ztest wants to ASSERT that
 		 * it got the whole log chain.
 		 */
-		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
+		if (zio->io_error == 0 &&
+		    lwb->lwb_max_lr_seq > zilog->zl_commit_lr_seq &&
+		    !SPA_EXITING(zio->io_spa))
+			zilog->zl_commit_lr_seq = lwb->lwb_max_lr_seq;
 	}
 
 	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
@@ -2577,6 +2581,9 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 	lwb->lwb_nfilled += reclen + dlen;
 	ASSERT3S(lwb->lwb_nfilled, <=, lwb->lwb_nused);
 	ASSERT0(P2PHASE(lwb->lwb_nfilled, sizeof (uint64_t)));
+
+	if (lr->lrc_seq > lwb->lwb_max_lr_seq)
+		lwb->lwb_max_lr_seq = lr->lrc_seq;
 
 	return (0);
 }
