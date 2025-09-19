@@ -4004,7 +4004,13 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 			    "traverse_dataset_destroyed()", err);
 		}
 
-		if (bptree_is_empty(dp->dp_meta_objset, dp->dp_bptree_obj)) {
+		boolean_t empty;
+		err = bptree_is_empty(dp->dp_meta_objset, dp->dp_bptree_obj,
+		    &empty);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+		if (empty) {
 			/* finished; deactivate async destroy feature */
 			spa_feature_decr(spa, SPA_FEATURE_ASYNC_DESTROY, tx);
 			ASSERT(!spa_feature_is_active(spa,
