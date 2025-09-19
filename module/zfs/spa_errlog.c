@@ -192,7 +192,7 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t birth)
 	 * If we are trying to import a pool, ignore any errors, as we won't be
 	 * writing to the pool any time soon.
 	 */
-	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
+	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT || SPA_EXITING(spa))
 		return;
 
 	mutex_enter(&spa->spa_errlist_lock);
@@ -1169,14 +1169,22 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 	spa_error_entry_t *se;
 	char buf[NAME_MAX_LEN];
 	void *cookie;
+	int err;
 
 	if (avl_numnodes(t) == 0)
 		return;
 
+	if (SPA_EXITING(spa))
+		goto done;
+
 	/* create log if necessary */
-	if (*obj == 0)
-		VERIFY0(zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
-		    DMU_OT_NONE, 0, tx, obj));
+	if (*obj == 0) {
+		err = zap_create(spa->spa_meta_objset, DMU_OT_ERROR_LOG,
+		    DMU_OT_NONE, 0, tx, obj);
+		if (err && SPA_EXITING(spa))
+			goto done;
+		VERIFY0(err);
+	}
 
 	/* add errors to the current log */
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
@@ -1184,8 +1192,11 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			bookmark_to_name(&se->se_bookmark, buf, sizeof (buf));
 
 			const char *name = se->se_name ? se->se_name : "";
-			(void) zap_update(spa->spa_meta_objset, *obj, buf, 1,
+			err = zap_update(spa->spa_meta_objset, *obj, buf, 1,
 			    strlen(name) + 1, name, tx);
+			if (err && SPA_EXITING(spa))
+				goto done;
+			VERIFY0(err);
 		}
 	} else {
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
@@ -1196,7 +1207,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			zep.zb_birth = se->se_zep.zb_birth;
 
 			uint64_t head_ds = 0;
-			int error = get_head_ds(spa, se->se_bookmark.zb_objset,
+			err = get_head_ds(spa, se->se_bookmark.zb_objset,
 			    &head_ds);
 
 			/*
@@ -1204,28 +1215,41 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			 * to the filesystem stored in the bookmark of the
 			 * error block.
 			 */
-			if (error != 0)
+			if (err != 0)
 				head_ds = se->se_bookmark.zb_objset;
 
 			uint64_t err_obj;
-			error = zap_lookup_int_key(spa->spa_meta_objset,
+			err = zap_lookup_int_key(spa->spa_meta_objset,
 			    *obj, head_ds, &err_obj);
+			if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+				goto done;
 
-			if (error == ENOENT) {
-				VERIFY0(zap_create(spa->spa_meta_objset,
+			if (err == ENOENT) {
+				err = zap_create(spa->spa_meta_objset,
 				    DMU_OT_ERROR_LOG, DMU_OT_NONE, 0, tx,
-				    &err_obj));
+				    &err_obj);
+				if (err && SPA_EXITING(spa))
+					goto done;
+				VERIFY0(err);
 
-				(void) zap_update_int_key(spa->spa_meta_objset,
+				err = zap_update_int_key(spa->spa_meta_objset,
 				    *obj, head_ds, err_obj, tx);
+				if (err && SPA_EXITING(spa))
+					goto done;
+				VERIFY0(err);
 			}
 			errphys_to_name(&zep, buf, sizeof (buf));
 
 			const char *name = se->se_name ? se->se_name : "";
-			(void) zap_update(spa->spa_meta_objset,
+			err = zap_update(spa->spa_meta_objset,
 			    err_obj, buf, 1, strlen(name) + 1, name, tx);
+			if (err && SPA_EXITING(spa))
+				goto done;
+			VERIFY0(err);
 		}
 	}
+
+done:
 	/* purge the error list */
 	cookie = NULL;
 	while ((se = avl_destroy_nodes(t, &cookie)) != NULL)
@@ -1266,6 +1290,9 @@ spa_errlog_sync(spa_t *spa, uint64_t txg)
 	dmu_tx_t *tx;
 	avl_tree_t scrub, last;
 	int scrub_finished;
+
+	if (SPA_EXITING(spa))
+		return;
 
 	mutex_enter(&spa->spa_errlist_lock);
 
