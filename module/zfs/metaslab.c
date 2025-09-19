@@ -475,7 +475,9 @@ metaslab_class_destroy(metaslab_class_t *mc)
 		avl_destroy(&mca->mca_tree);
 		mutex_destroy(&mca->mca_lock);
 		ASSERT0P(mca->mca_rotor);
-		ASSERT0(mca->mca_reserved);
+		if (!SPA_EXITING(spa)) {
+			ASSERT0(mca->mca_reserved);
+		}
 	}
 	mutex_destroy(&mc->mc_lock);
 	multilist_destroy(&mc->mc_metaslab_txg_list);
@@ -488,6 +490,9 @@ metaslab_class_validate(metaslab_class_t *mc)
 {
 #ifdef ZFS_DEBUG
 	spa_t *spa = mc->mc_spa;
+
+	if (SPA_EXITING(spa))
+		return;
 
 	/*
 	 * Must hold one of the spa_config locks.
@@ -2148,6 +2153,9 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
 		return;
 
+	if (SPA_EXITING(spa))
+		return;
+
 	/*
 	 * We can only verify the metaslab space when we're called
 	 * from syncing context with a loaded metaslab that has an
@@ -2317,9 +2325,13 @@ metaslab_aux_histograms_update_done(metaslab_t *msp, boolean_t defer_allowed)
 static void
 metaslab_verify_weight_and_frag(metaslab_t *msp)
 {
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
+		return;
+	if (SPA_EXITING(spa))
 		return;
 
 	/*
@@ -2543,16 +2555,18 @@ metaslab_load_impl(metaslab_t *msp)
 		error = space_map_load_length(msp->ms_sm, msp->ms_allocatable,
 		    SM_FREE, length);
 
-		/* Now, populate the size-sorted tree. */
-		metaslab_rt_create(msp->ms_allocatable, mrap);
-		msp->ms_allocatable->rt_ops = &metaslab_rt_ops;
-		msp->ms_allocatable->rt_arg = mrap;
+		if (error == 0) {
+			/* Now, populate the size-sorted tree. */
+			metaslab_rt_create(msp->ms_allocatable, mrap);
+			msp->ms_allocatable->rt_ops = &metaslab_rt_ops;
+			msp->ms_allocatable->rt_arg = mrap;
 
-		struct mssa_arg arg = {0};
-		arg.rt = msp->ms_allocatable;
-		arg.mra = mrap;
-		zfs_range_tree_walk(msp->ms_allocatable,
-		    metaslab_size_sorted_add, &arg);
+			struct mssa_arg arg = {0};
+			arg.rt = msp->ms_allocatable;
+			arg.mra = mrap;
+			zfs_range_tree_walk(msp->ms_allocatable,
+			    metaslab_size_sorted_add, &arg);
+		}
 	} else {
 		/*
 		 * Add the size-sorted tree first, since we don't need to load
@@ -3055,6 +3069,19 @@ metaslab_fini(metaslab_t *msp)
 	metaslab_group_remove(mg, msp);
 
 	mutex_enter(&msp->ms_lock);
+	if (SPA_EXITING(mg->mg_vd->vdev_spa)) {
+		/* Catch-all cleanup as required for forced exit. */
+		zfs_range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+		zfs_range_tree_vacate(msp->ms_freeing, NULL, NULL);
+		zfs_range_tree_vacate(msp->ms_freed, NULL, NULL);
+		zfs_range_tree_vacate(msp->ms_checkpointing, NULL, NULL);
+		for (int t = 0; t < TXG_SIZE; t++)
+			zfs_range_tree_vacate(msp->ms_allocating[t], NULL,
+			    NULL);
+		for (int t = 0; t < TXG_DEFER_SIZE; t++)
+			zfs_range_tree_vacate(msp->ms_defer[t], NULL, NULL);
+		msp->ms_deferspace = 0;
+	}
 	VERIFY0P(msp->ms_group);
 
 	/*
@@ -3777,6 +3804,8 @@ metaslab_segment_may_passivate(metaslab_t *msp)
 static void
 metaslab_preload(void *arg)
 {
+	int err;
+
 	metaslab_t *msp = arg;
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 	spa_t *spa = mc->mc_spa;
@@ -3785,8 +3814,11 @@ metaslab_preload(void *arg)
 	ASSERT(!MUTEX_HELD(&msp->ms_group->mg_lock));
 
 	mutex_enter(&msp->ms_lock);
-	(void) metaslab_load(msp);
-	metaslab_set_selected_txg(msp, spa_syncing_txg(spa));
+	err = metaslab_load(msp);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
+	if (!err)
+		metaslab_set_selected_txg(msp, spa_syncing_txg(spa));
 	mutex_exit(&msp->ms_lock);
 	spl_fstrans_unmark(cookie);
 }
@@ -3799,7 +3831,8 @@ metaslab_group_preload(metaslab_group_t *mg)
 	avl_tree_t *t = &mg->mg_metaslab_tree;
 	int m = 0;
 
-	if (spa_shutting_down(spa) || !metaslab_preload_enabled)
+	if (spa_shutting_down(spa) || !metaslab_preload_enabled ||
+	    SPA_EXITING(spa))
 		return;
 
 	mutex_enter(&mg->mg_lock);
@@ -4289,6 +4322,12 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		ASSERT0(zfs_range_tree_space(msp->ms_trim));
 		return;
 	}
+
+	/*
+	 * The pool is forcibly exiting. Just discard everything.
+	 */
+	if (SPA_EXITING(spa))
+		goto spa_exiting;
 
 	/*
 	 * Normally, we don't want to process a metaslab if there are no
@@ -5004,6 +5043,9 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 	for (; msp != NULL; msp = AVL_NEXT(t, msp)) {
 		int i;
 
+		if (tries > 0 && SPA_EXITING(mg->mg_vd->vdev_spa))
+			return (NULL);
+
 		if (!try_hard && tries > zfs_metaslab_find_max_tries) {
 			METASLABSTAT_BUMP(metaslabstat_too_many_tries);
 			return (NULL);
@@ -5131,6 +5173,9 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 	search->ms_allocator = -1;
 	search->ms_primary = B_TRUE;
 	for (;;) {
+		if (SPA_EXITING(mg->mg_vd->vdev_spa))
+			break;
+
 		boolean_t was_active = B_FALSE;
 
 		mutex_enter(&mg->mg_lock);
@@ -5540,6 +5585,8 @@ top:
 			return (0);
 		}
 next:
+		if (SPA_EXITING(spa))
+			break;
 		metaslab_class_rotate(mg, allocator, psize, B_FALSE);
 	} while ((mg = mg->mg_next) != rotor);
 
@@ -5548,13 +5595,16 @@ next:
 	 */
 	if (!try_hard && (zfs_metaslab_try_hard_before_gang ||
 	    GANG_ALLOCATION(flags) || (flags & METASLAB_ZIL) != 0 ||
-	    psize <= spa->spa_min_alloc)) {
+	    psize <= spa->spa_min_alloc) && !SPA_EXITING(spa)) {
 		METASLABSTAT_BUMP(metaslabstat_try_hard);
 		try_hard = B_TRUE;
 		goto top;
 	}
 
 	memset(&dva[d], 0, sizeof (dva_t));
+
+	if (SPA_EXITING(spa))
+		return (SET_ERROR(EIO));
 
 	metaslab_trace_add(zal, rotor, NULL, psize, d, TRACE_ENOSPC, allocator);
 	return (SET_ERROR(ENOSPC));
@@ -5602,9 +5652,12 @@ metaslab_free_concrete(vdev_t *vd, uint64_t offset, uint64_t asize,
 
 	if (checkpoint) {
 		ASSERT(spa_has_checkpoint(spa));
-		zfs_range_tree_add(msp->ms_checkpointing, offset, asize);
+		if (!SPA_EXITING(spa))
+			zfs_range_tree_add(msp->ms_checkpointing, offset,
+			    asize);
 	} else {
-		zfs_range_tree_add(msp->ms_freeing, offset, asize);
+		if (!SPA_EXITING(spa))
+			zfs_range_tree_add(msp->ms_freeing, offset, asize);
 	}
 	mutex_exit(&msp->ms_lock);
 }
@@ -6258,6 +6311,8 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
+	if (SPA_EXITING(spa))
+		return; /* skip checks */
 	mutex_enter(&msp->ms_lock);
 	if (msp->ms_loaded) {
 		zfs_range_tree_verify_not_present(msp->ms_allocatable,
@@ -6290,7 +6345,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 {
 	if ((zfs_flags & ZFS_DEBUG_ZIO_FREE) == 0)
 		return;
-	if (spa_exiting(spa))
+	if (SPA_EXITING(spa))
 		return;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
