@@ -232,7 +232,8 @@ void space_map_write(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 uint64_t space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,
     uint64_t vdev_id);
 void space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx);
-uint64_t space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx);
+int space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx,
+    uint64_t *objectp);
 void space_map_free(space_map_t *sm, dmu_tx_t *tx);
 void space_map_free_obj(objset_t *os, uint64_t smobj, dmu_tx_t *tx);
 

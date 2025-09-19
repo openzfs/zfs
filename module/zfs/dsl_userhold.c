@@ -168,8 +168,9 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 		 * the userrefs zap object.
 		 */
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
-		zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj =
-		    zap_create(mos, DMU_OT_USERREFS, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos, DMU_OT_USERREFS, DMU_OT_NONE, 0, tx,
+		    &dsl_dataset_phys(ds)->ds_userrefs_obj));
+		zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj;
 	} else {
 		zapobj = dsl_dataset_phys(ds)->ds_userrefs_obj;
 	}

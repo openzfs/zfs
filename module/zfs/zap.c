@@ -31,6 +31,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dnode.h>
 #include <sys/btree.h>
 #include <sys/zap.h>
@@ -39,117 +40,141 @@
 
 /* zap_create */
 
-static uint64_t
+static int
 zap_create_impl(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
+    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx, uint64_t *objectp)
 {
-	uint64_t obj;
+	spa_t *spa = os->os_spa;
+	int err = 0;
 
 	ASSERT3U(DMU_OT_BYTESWAP(ot), ==, DMU_BSWAP_ZAP);
 
 	if (allocated_dnode == NULL) {
 		dnode_t *dn;
-		obj = dmu_object_alloc_hold(os, ot, 1ULL << leaf_blockshift,
+		err = dmu_object_alloc_hold(os, ot, 1ULL << leaf_blockshift,
 		    indirect_blockshift, bonustype, bonuslen, dnodesize,
-		    &dn, FTAG, tx);
-		mzap_create_impl(dn, normflags, flags, tx);
+		    &dn, FTAG, tx, objectp);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+		err = mzap_create_impl(dn, normflags, flags, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		dnode_rele(dn, FTAG);
 	} else {
-		obj = dmu_object_alloc_hold(os, ot, 1ULL << leaf_blockshift,
+		err = dmu_object_alloc_hold(os, ot, 1ULL << leaf_blockshift,
 		    indirect_blockshift, bonustype, bonuslen, dnodesize,
-		    allocated_dnode, tag, tx);
-		mzap_create_impl(*allocated_dnode, normflags, flags, tx);
+		    allocated_dnode, tag, tx, objectp);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+		err = mzap_create_impl(*allocated_dnode, normflags, flags, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
-	return (obj);
+	return (err);
 }
 
-uint64_t
+int
 zap_create(objset_t *os, dmu_object_type_t ot,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx, uint64_t *objectp)
 {
-	return (zap_create_norm(os, 0, ot, bonustype, bonuslen, tx));
+	return (zap_create_norm(os, 0, ot, bonustype, bonuslen, tx, objectp));
 }
 
-uint64_t
+int
 zap_create_dnsize(objset_t *os, dmu_object_type_t ot,
-    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx,
+    uint64_t *objectp)
 {
 	return (zap_create_norm_dnsize(os, 0, ot, bonustype, bonuslen,
-	    dnodesize, tx));
+	    dnodesize, tx, objectp));
 }
 
-uint64_t
+int
 zap_create_norm(objset_t *os, int normflags, dmu_object_type_t ot,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx, uint64_t *objectp)
 {
 	return (zap_create_norm_dnsize(os, normflags, ot, bonustype, bonuslen,
-	    0, tx));
+	    0, tx, objectp));
 }
 
-uint64_t
+int
 zap_create_norm_dnsize(objset_t *os, int normflags, dmu_object_type_t ot,
-    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx,
+    uint64_t *objectp)
 {
 	return (zap_create_impl(os, normflags, 0, ot, 0, 0,
-	    bonustype, bonuslen, dnodesize, NULL, NULL, tx));
+	    bonustype, bonuslen, dnodesize, NULL, NULL, tx, objectp));
 }
 
-uint64_t
+int
 zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx, uint64_t *objectp)
 {
 	return (zap_create_flags_dnsize(os, normflags, flags, ot,
-	    leaf_blockshift, indirect_blockshift, bonustype, bonuslen, 0, tx));
+	    leaf_blockshift, indirect_blockshift, bonustype, bonuslen, 0, tx,
+	    objectp));
 }
 
-uint64_t
+int
 zap_create_flags_dnsize(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
-    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx)
+    dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx,
+    uint64_t *objectp)
 {
 	return (zap_create_impl(os, normflags, flags, ot, leaf_blockshift,
 	    indirect_blockshift, bonustype, bonuslen, dnodesize, NULL, NULL,
-	    tx));
+	    tx, objectp));
 }
 
 /* zap_crate_hold */
 
-uint64_t
+int
 zap_create_hold(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
-    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx)
+    dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx,
+    uint64_t *objectp)
 {
 	return (zap_create_impl(os, normflags, flags, ot, leaf_blockshift,
 	    indirect_blockshift, bonustype, bonuslen, dnodesize,
-	    allocated_dnode, tag, tx));
+	    allocated_dnode, tag, tx, objectp));
 }
 
 /* zap_create_link */
 
-uint64_t
+int
 zap_create_link(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
-    const char *name, dmu_tx_t *tx)
+    const char *name, dmu_tx_t *tx, uint64_t *objectp)
 {
-	return (zap_create_link_dnsize(os, ot, parent_obj, name, 0, tx));
+	return (zap_create_link_dnsize(os, ot, parent_obj, name, 0, tx,
+	    objectp));
 }
 
-uint64_t
+int
 zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
-    const char *name, int dnodesize, dmu_tx_t *tx)
+    const char *name, int dnodesize, dmu_tx_t *tx, uint64_t *objectp)
 {
-	uint64_t new_obj;
+	int err = 0;
 
-	new_obj = zap_create_dnsize(os, ot, DMU_OT_NONE, 0, dnodesize, tx);
-	VERIFY(new_obj != 0);
-	VERIFY0(zap_add(os, parent_obj, name, sizeof (uint64_t), 1, &new_obj,
-	    tx));
+	err = zap_create_dnsize(os, ot, DMU_OT_NONE, 0, dnodesize, tx, objectp);
+	if (err && SPA_EXITING(os->os_spa))
+		return (err);
+	VERIFY0(err);
+	VERIFY(*objectp != 0);
 
-	return (new_obj);
+	err = zap_add(os, parent_obj, name, sizeof (uint64_t), 1, objectp,
+	    tx);
+	if (err && SPA_EXITING(os->os_spa))
+		return (err);
+	VERIFY0(err);
+
+	return (err);
 }
 
 /* zap_create_claim */
@@ -197,11 +222,11 @@ zap_create_claim_norm_dnsize(objset_t *os, uint64_t obj, int normflags,
 	if (error != 0)
 		return (error);
 
-	mzap_create_impl(dn, normflags, 0, tx);
+	error = mzap_create_impl(dn, normflags, 0, tx);
 
 	dnode_rele(dn, FTAG);
 
-	return (0);
+	return (error);
 }
 
 /* zap_destroy */

@@ -478,10 +478,10 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 		ASSERT3B(are_precise, ==, B_TRUE);
 	}
 
-	vic->vic_mapping_object = vdev_indirect_mapping_alloc(mos, tx);
+	VERIFY0(vdev_indirect_mapping_alloc(mos, tx, &vic->vic_mapping_object));
 	vd->vdev_indirect_mapping =
 	    vdev_indirect_mapping_open(mos, vic->vic_mapping_object);
-	vic->vic_births_object = vdev_indirect_births_alloc(mos, tx);
+	VERIFY0(vdev_indirect_births_alloc(mos, tx, &vic->vic_births_object));
 	vd->vdev_indirect_births =
 	    vdev_indirect_births_open(mos, vic->vic_births_object);
 	spa->spa_removing_phys.sr_removing_vdev = vd->vdev_id;

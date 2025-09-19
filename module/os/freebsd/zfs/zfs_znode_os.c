@@ -625,9 +625,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 			    zfsvfs->z_norm, DMU_OT_DIRECTORY_CONTENTS,
 			    obj_type, bonuslen, dnodesize, tx));
 		} else {
-			obj = zap_create_norm_dnsize(zfsvfs->z_os,
+			VERIFY0(zap_create_norm_dnsize(zfsvfs->z_os,
 			    zfsvfs->z_norm, DMU_OT_DIRECTORY_CONTENTS,
-			    obj_type, bonuslen, dnodesize, tx);
+			    obj_type, bonuslen, dnodesize, tx, &obj));
 		}
 	} else {
 		if (zfsvfs->z_replay) {
@@ -635,9 +635,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
 			    obj_type, bonuslen, dnodesize, tx));
 		} else {
-			obj = dmu_object_alloc_dnsize(zfsvfs->z_os,
+			VERIFY0(dmu_object_alloc_dnsize(zfsvfs->z_os,
 			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
-			    obj_type, bonuslen, dnodesize, tx);
+			    obj_type, bonuslen, dnodesize, tx, &obj));
 		}
 	}
 
@@ -1803,8 +1803,8 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	 */
 
 	if (version >= ZPL_VERSION_SA) {
-		sa_obj = zap_create(os, DMU_OT_SA_MASTER_NODE,
-		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(os, DMU_OT_SA_MASTER_NODE,
+		    DMU_OT_NONE, 0, tx, &sa_obj));
 		error = zap_add(os, moid, ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
 		ASSERT0(error);
 	} else {
@@ -1813,7 +1813,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	/*
 	 * Create a delete queue.
 	 */
-	obj = zap_create(os, DMU_OT_UNLINKED_SET, DMU_OT_NONE, 0, tx);
+	VERIFY0(zap_create(os, DMU_OT_UNLINKED_SET, DMU_OT_NONE, 0, tx, &obj));
 
 	error = zap_add(os, moid, ZFS_UNLINKED_SET, 8, 1, &obj, tx);
 	ASSERT0(error);

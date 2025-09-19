@@ -903,6 +903,7 @@ dsl_fs_ss_count_adjust(dsl_dir_t *dd, int64_t delta, const char *prop,
 {
 	int err;
 	objset_t *os = dd->dd_pool->dp_meta_objset;
+	spa_t *spa = os->os_spa;
 	uint64_t count;
 
 	ASSERT(dsl_pool_config_held(dd->dd_pool));
@@ -934,41 +935,62 @@ dsl_fs_ss_count_adjust(dsl_dir_t *dd, int64_t delta, const char *prop,
 	if (!dsl_dir_is_zapified(dd) || (err = zap_lookup(os, dd->dd_object,
 	    prop, sizeof (count), 1, &count)) == ENOENT)
 		return;
-	VERIFY0(err);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	count += delta;
 	/* Use a signed verify to make sure we're not neg. */
-	VERIFY3S(count, >=, 0);
+	if (!SPA_EXITING(spa))
+		VERIFY3S(count, >=, 0);
 
-	VERIFY0(zap_update(os, dd->dd_object, prop, sizeof (count), 1, &count,
-	    tx));
+	err = zap_update(os, dd->dd_object, prop, sizeof (count), 1, &count,
+	    tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	/* Roll up this additional count into our ancestors */
 	if (dd->dd_parent != NULL)
 		dsl_fs_ss_count_adjust(dd->dd_parent, delta, prop, tx);
 }
 
-uint64_t
+int
 dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
-    dmu_tx_t *tx)
+    dmu_tx_t *tx, uint64_t *objectp)
 {
+	spa_t *spa = dp->dp_spa;
 	objset_t *mos = dp->dp_meta_objset;
-	uint64_t ddobj;
 	dsl_dir_phys_t *ddphys;
-	dmu_buf_t *dbuf;
+	dmu_buf_t *dbuf = NULL;
+	int err = 0;
 
-	ddobj = dmu_object_alloc(mos, DMU_OT_DSL_DIR, 0,
-	    DMU_OT_DSL_DIR, sizeof (dsl_dir_phys_t), tx);
+	err = dmu_object_alloc(mos, DMU_OT_DSL_DIR, 0,
+	    DMU_OT_DSL_DIR, sizeof (dsl_dir_phys_t), tx, objectp);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	if (pds) {
-		VERIFY0(zap_add(mos, dsl_dir_phys(pds)->dd_child_dir_zapobj,
-		    name, sizeof (uint64_t), 1, &ddobj, tx));
+		err = zap_add(mos, dsl_dir_phys(pds)->dd_child_dir_zapobj,
+		    name, sizeof (uint64_t), 1, objectp, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	} else {
 		/* it's the root dir */
-		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_ROOT_DATASET, sizeof (uint64_t), 1, &ddobj, tx));
+		err = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_ROOT_DATASET, sizeof (uint64_t), 1, objectp, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	}
-	VERIFY0(dmu_bonus_hold(mos, ddobj, FTAG, &dbuf));
+	err = dmu_bonus_hold(mos, *objectp, FTAG, &dbuf);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	dmu_buf_will_dirty(dbuf, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out;
+	}
 	ddphys = dbuf->db_data;
 
 	ddphys->dd_creation_time = gethrestime_sec();
@@ -978,16 +1000,26 @@ dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds, const char *name,
 		/* update the filesystem counts */
 		dsl_fs_ss_count_adjust(pds, 1, DD_FIELD_FILESYSTEM_COUNT, tx);
 	}
-	ddphys->dd_props_zapobj = zap_create(mos,
-	    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx);
-	ddphys->dd_child_dir_zapobj = zap_create(mos,
-	    DMU_OT_DSL_DIR_CHILD_MAP, DMU_OT_NONE, 0, tx);
+	err = zap_create(mos,
+	    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx, &ddphys->dd_props_zapobj);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+	err = zap_create(mos,
+	    DMU_OT_DSL_DIR_CHILD_MAP, DMU_OT_NONE, 0, tx,
+	    &ddphys->dd_child_dir_zapobj);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	if (spa_version(dp->dp_spa) >= SPA_VERSION_USED_BREAKDOWN)
 		ddphys->dd_flags |= DD_FLAG_USED_BREAKDOWN;
 
-	dmu_buf_rele(dbuf, FTAG);
+out:
+	if (dbuf)
+		dmu_buf_rele(dbuf, FTAG);
 
-	return (ddobj);
+	return (err);
 }
 
 boolean_t

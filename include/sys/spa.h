@@ -1198,7 +1198,7 @@ extern uint64_t zfs_strtonum(const char *str, char **nptr);
 
 extern char *spa_his_ievent_table[];
 
-extern void spa_history_create_obj(spa_t *spa, dmu_tx_t *tx);
+extern int spa_history_create_obj(spa_t *spa, dmu_tx_t *tx);
 extern int spa_history_get(spa_t *spa, uint64_t *offset, uint64_t *len_read,
     char *his_buf);
 extern int spa_history_log(spa_t *spa, const char *his_buf);

@@ -33,6 +33,7 @@
 #include <sys/ddt.h>
 #include <sys/bitmap.h>
 #include <sys/zap.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/arc.h>
 #include <sys/dsl_pool.h>
@@ -439,22 +440,32 @@ brt_vdev(spa_t *spa, uint64_t vdevid, boolean_t alloc)
 	return (brtvd);
 }
 
-static void
+static int
 brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
 	char name[64];
+	int err = 0;
 
 	ASSERT(brtvd->bv_initiated);
 	ASSERT0(brtvd->bv_mos_brtvdev);
 	ASSERT0(brtvd->bv_mos_entries);
 
-	uint64_t mos_entries = zap_create_flags(spa->spa_meta_objset, 0,
+	uint64_t mos_entries;
+	err = zap_create_flags(spa->spa_meta_objset, 0,
 	    ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY, DMU_OTN_ZAP_METADATA,
-	    brt_zap_default_bs, brt_zap_default_ibs, DMU_OT_NONE, 0, tx);
+	    brt_zap_default_bs, brt_zap_default_ibs, DMU_OT_NONE, 0, tx,
+	    &mos_entries);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	VERIFY(mos_entries != 0);
-	VERIFY0(dnode_hold(spa->spa_meta_objset, mos_entries, brtvd,
-	    &brtvd->bv_mos_entries_dnode));
+	err = dnode_hold(spa->spa_meta_objset, mos_entries, brtvd,
+	    &brtvd->bv_mos_entries_dnode);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	dnode_set_storage_type(brtvd->bv_mos_entries_dnode, DMU_OT_DDT_ZAP);
+
 	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = mos_entries;
 	rw_exit(&brtvd->bv_mos_entries_lock);
@@ -466,17 +477,28 @@ brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	 * We will keep array size (bv_size) and cummulative count for all
 	 * bv_entcount[]s (bv_totalcount) in the bonus buffer.
 	 */
-	brtvd->bv_mos_brtvdev = dmu_object_alloc(spa->spa_meta_objset,
+	err = dmu_object_alloc(spa->spa_meta_objset,
 	    DMU_OTN_UINT64_METADATA, BRT_BLOCKSIZE,
-	    DMU_OTN_UINT64_METADATA, sizeof (brt_vdev_phys_t), tx);
+	    DMU_OTN_UINT64_METADATA, sizeof (brt_vdev_phys_t), tx,
+	    &brtvd->bv_mos_brtvdev);
+	if (err && SPA_EXITING(spa)) {
+		dnode_rele(brtvd->bv_mos_entries_dnode, brtvd);
+		return (err);
+	}
+	VERIFY0(err);
 	VERIFY(brtvd->bv_mos_brtvdev != 0);
 	BRT_DEBUG("MOS BRT VDEV created, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_brtvdev);
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
-	VERIFY0(zap_add(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT, name,
-	    sizeof (uint64_t), 1, &brtvd->bv_mos_brtvdev, tx));
+	err = zap_add(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT, name,
+	    sizeof (uint64_t), 1, &brtvd->bv_mos_brtvdev, tx);
+	if (err && SPA_EXITING(spa)) {
+		dnode_rele(brtvd->bv_mos_entries_dnode, brtvd);
+		return (err);
+	}
+	VERIFY0(err);
 	BRT_DEBUG("Pool directory object created, object=%s", name);
 
 	/*
@@ -492,6 +514,8 @@ brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	}
 
 	spa_feature_incr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
+
+	return (err);
 }
 
 static void
@@ -626,11 +650,12 @@ brt_vdev_dealloc(brt_vdev_t *brtvd)
 	BRT_DEBUG("BRT VDEV %llu deallocated.", (u_longlong_t)brtvd->bv_vdevid);
 }
 
-static void
+static int
 brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
 	char name[64];
 	uint64_t count;
+	int err = 0;
 
 	ASSERT(brtvd->bv_initiated);
 	ASSERT(brtvd->bv_mos_brtvdev != 0);
@@ -645,14 +670,21 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	rw_exit(&brtvd->bv_mos_entries_lock);
 	dnode_rele(brtvd->bv_mos_entries_dnode, brtvd);
 	brtvd->bv_mos_entries_dnode = NULL;
-	ASSERT0(zap_count(spa->spa_meta_objset, mos_entries, &count));
-	ASSERT0(count);
-	VERIFY0(zap_destroy(spa->spa_meta_objset, mos_entries, tx));
+	err = zap_count(spa->spa_meta_objset, mos_entries, &count);
+	if (!SPA_EXITING(spa)) {
+		ASSERT0(err);
+		ASSERT0(count);
+	}
+	err = zap_destroy(spa->spa_meta_objset, mos_entries, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	BRT_DEBUG("MOS entries destroyed, object=%llu",
 	    (u_longlong_t)mos_entries);
 
-	VERIFY0(dmu_object_free(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
-	    tx));
+	err = dmu_object_free(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+	    tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	BRT_DEBUG("MOS BRT VDEV destroyed, object=%llu",
 	    (u_longlong_t)brtvd->bv_mos_brtvdev);
 	brtvd->bv_mos_brtvdev = 0;
@@ -660,8 +692,10 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 
 	snprintf(name, sizeof (name), "%s%llu", BRT_OBJECT_VDEV_PREFIX,
 	    (u_longlong_t)brtvd->bv_vdevid);
-	VERIFY0(zap_remove(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
-	    name, tx));
+	err = zap_remove(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    name, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	BRT_DEBUG("Pool directory object removed, object=%s", name);
 
 	brtvd->bv_meta_dirty = FALSE;
@@ -673,6 +707,8 @@ brt_vdev_destroy(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	spa_feature_decr(spa, SPA_FEATURE_BLOCK_CLONING, tx);
 	if (spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN))
 		spa_feature_decr(spa, SPA_FEATURE_BLOCK_CLONING_ENDIAN, tx);
+
+	return (err);
 }
 
 static void
@@ -791,18 +827,22 @@ brt_vdev_decref(spa_t *spa, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	BT_SET(brtvd->bv_bitmap, idx);
 }
 
-static void
+static int
 brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 {
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	brt_vdev_phys_t *bvphys;
+	int err = 0;
 
 	ASSERT(brtvd->bv_meta_dirty);
 	ASSERT(brtvd->bv_mos_brtvdev != 0);
 	ASSERT(dmu_tx_is_syncing(tx));
 
-	VERIFY0(dmu_bonus_hold(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
-	    FTAG, &db));
+	err = dmu_bonus_hold(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+	    FTAG, &db);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
 	if (brtvd->bv_entcount_dirty) {
 		/*
@@ -817,6 +857,10 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	}
 
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out;
+	}
 	bvphys = db->db_data;
 	bvphys->bvp_mos_entries = brtvd->bv_mos_entries;
 	bvphys->bvp_size = brtvd->bv_size;
@@ -829,9 +873,16 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	bvphys->bvp_rangesize = spa->spa_brt_rangesize;
 	bvphys->bvp_usedspace = brtvd->bv_usedspace;
 	bvphys->bvp_savedspace = brtvd->bv_savedspace;
-	dmu_buf_rele(db, FTAG);
+
+out:
+	if (db)
+		dmu_buf_rele(db, FTAG);
+	if (SPA_EXITING(spa))
+		brtvd->bv_entcount_dirty = FALSE;
 
 	brtvd->bv_meta_dirty = FALSE;
+
+	return (err);
 }
 
 static void
@@ -1361,34 +1412,44 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 	brt_unlock(spa);
 }
 
-static void
+static int
 brt_sync_entry(spa_t *spa, dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 {
 	uint64_t off = BRE_OFFSET(bre);
+	int error = 0;
 
 	if (bre->bre_pcount == 0) {
 		/* The net change is zero, nothing to do in ZAP. */
 	} else if (bre->bre_count == 0) {
-		int error = zap_remove_uint64_by_dnode(dn, &off,
+		error = zap_remove_uint64_by_dnode(dn, &off,
 		    BRT_KEY_WORDS, tx);
+		if (!(error == 0 || error == ENOENT) && SPA_EXITING(spa))
+			return (error);
 		VERIFY(error == 0 || error == ENOENT);
 	} else {
 		if (brt_has_endian_fixed(spa)) {
-			VERIFY0(zap_update_uint64_by_dnode(dn, &off,
+			error = zap_update_uint64_by_dnode(dn, &off,
 			    BRT_KEY_WORDS, sizeof (bre->bre_count), 1,
-			    &bre->bre_count, tx));
+			    &bre->bre_count, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(error);
 		} else {
-			VERIFY0(zap_update_uint64_by_dnode(dn, &off,
+			error = zap_update_uint64_by_dnode(dn, &off,
 			    BRT_KEY_WORDS, 1, sizeof (bre->bre_count),
-			    &bre->bre_count, tx));
+			    &bre->bre_count, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(error);
 		}
 	}
+
+	return (error);
 }
 
 static void
 brt_sync_table(spa_t *spa, dmu_tx_t *tx)
 {
 	brt_entry_t *bre;
+	int err;
 
 	brt_rlock(spa);
 	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
@@ -1405,13 +1466,19 @@ brt_sync_table(spa_t *spa, dmu_tx_t *tx)
 		ASSERT(!brtvd->bv_entcount_dirty ||
 		    avl_numnodes(&brtvd->bv_tree) != 0);
 
-		if (brtvd->bv_mos_brtvdev == 0)
-			brt_vdev_create(spa, brtvd, tx);
+		if (brtvd->bv_mos_brtvdev == 0) {
+			err = brt_vdev_create(spa, brtvd, tx);
+			if (err && SPA_EXITING(spa)) {
+				brt_rlock(spa);
+				continue;
+			}
+			VERIFY0(err);
+		}
 
 		void *c = NULL;
 		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(spa, brtvd->bv_mos_entries_dnode, bre,
-			    tx);
+			(void) brt_sync_entry(spa, brtvd->bv_mos_entries_dnode,
+			    bre, tx);
 			kmem_cache_free(brt_entry_cache, bre);
 		}
 

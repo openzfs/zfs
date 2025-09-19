@@ -861,6 +861,7 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	objset_t *os = sm->sm_os;
 	spa_t *spa = dmu_objset_spa(os);
 	dmu_object_info_t doi;
+	int err = 0;
 
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	ASSERT(dmu_tx_is_syncing(tx));
@@ -890,10 +891,19 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 		space_map_free(sm, tx);
 		dmu_buf_rele(sm->sm_dbuf, sm);
 
-		sm->sm_object = space_map_alloc(sm->sm_os, blocksize, tx);
-		VERIFY0(space_map_open_impl(sm));
+		err = space_map_alloc(sm->sm_os, blocksize, tx, &sm->sm_object);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
+		err = space_map_open_impl(sm);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 	} else {
-		VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
+		err = dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 
 		/*
 		 * If the spacemap is reallocated, its histogram
@@ -909,11 +919,10 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	sm->sm_phys->smp_alloc = 0;
 }
 
-uint64_t
-space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
+int
+space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx, uint64_t *objectp)
 {
 	spa_t *spa = dmu_objset_spa(os);
-	uint64_t object;
 	int bonuslen;
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
@@ -924,10 +933,8 @@ space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		bonuslen = SPACE_MAP_SIZE_V0;
 	}
 
-	object = dmu_object_alloc_ibs(os, DMU_OT_SPACE_MAP, blocksize,
-	    space_map_ibs, DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
-
-	return (object);
+	return (dmu_object_alloc_ibs(os, DMU_OT_SPACE_MAP, blocksize,
+	    space_map_ibs, DMU_OT_SPACE_MAP_HEADER, bonuslen, tx, objectp));
 }
 
 void

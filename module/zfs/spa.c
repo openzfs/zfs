@@ -7297,7 +7297,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * Create the pool's history object.
 	 */
 	if (version >= SPA_VERSION_ZPOOL_HISTORY && !spa->spa_history)
-		spa_history_create_obj(spa, tx);
+		if (spa_history_create_obj(spa, tx) != 0) {
+			cmn_err(CE_PANIC, "failed to create history object");
+		}
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_CREATE);
 	spa_history_log_version(spa, "create", tx);
@@ -7305,9 +7307,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	/*
 	 * Create the pool config object.
 	 */
-	spa->spa_config_object = dmu_object_alloc(spa->spa_meta_objset,
+	if (dmu_object_alloc(spa->spa_meta_objset,
 	    DMU_OT_PACKED_NVLIST, SPA_CONFIG_BLOCKSIZE,
-	    DMU_OT_PACKED_NVLIST_SIZE, sizeof (uint64_t), tx);
+	    DMU_OT_PACKED_NVLIST_SIZE, sizeof (uint64_t), tx,
+	    &spa->spa_config_object) != 0) {
+		cmn_err(CE_PANIC, "failed to allocate object");
+	}
 
 	if (zap_add(spa->spa_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_CONFIG,
@@ -7335,7 +7340,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * because sync-to-convergence takes longer if the blocksize
 	 * keeps changing.
 	 */
-	obj = bpobj_alloc(spa->spa_meta_objset, 1 << 14, tx);
+	VERIFY0(bpobj_alloc(spa->spa_meta_objset, 1 << 14, tx, &obj));
 	dmu_object_set_compress(spa->spa_meta_objset, obj,
 	    ZIO_COMPRESS_OFF, tx);
 	if (zap_add(spa->spa_meta_objset,
@@ -10287,16 +10292,16 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	dmu_buf_rele(db, FTAG);
 }
 
-static void
+static int
 spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
     const char *config, const char *entry)
 {
 	nvlist_t *nvroot;
 	nvlist_t **list;
-	int i;
+	int i, err = 0;
 
 	if (!sav->sav_sync)
-		return;
+		return (0);
 
 	/*
 	 * Update the MOS nvlist describing the list of available devices.
@@ -10304,12 +10309,19 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	 * valid and the vdevs are labeled appropriately.
 	 */
 	if (sav->sav_object == 0) {
-		sav->sav_object = dmu_object_alloc(spa->spa_meta_objset,
+		err = dmu_object_alloc(spa->spa_meta_objset,
 		    DMU_OT_PACKED_NVLIST, 1 << 14, DMU_OT_PACKED_NVLIST_SIZE,
-		    sizeof (uint64_t), tx);
-		VERIFY(zap_update(spa->spa_meta_objset,
+		    sizeof (uint64_t), tx, &sav->sav_object);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+
+		err = zap_update(spa->spa_meta_objset,
 		    DMU_POOL_DIRECTORY_OBJECT, entry, sizeof (uint64_t), 1,
-		    &sav->sav_object, tx) == 0);
+		    &sav->sav_object, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	}
 
 	nvroot = fnvlist_alloc();
@@ -10331,7 +10343,10 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	spa_sync_nvlist(spa, sav->sav_object, nvroot, tx);
 	nvlist_free(nvroot);
 
+out:
 	sav->sav_sync = B_FALSE;
+
+	return (err);
 }
 
 /*
@@ -10384,8 +10399,10 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 
 	if (spa->spa_avz_action == AVZ_ACTION_REBUILD) {
 		/* Make and build the new AVZ */
-		uint64_t new_avz = zap_create(spa->spa_meta_objset,
-		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx);
+		uint64_t new_avz;
+		VERIFY0(zap_create(spa->spa_meta_objset,
+		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx,
+		    &new_avz));
 		spa_avz_build(spa->spa_root_vdev, new_avz, tx);
 
 		/* Diff old AVZ with new one */
@@ -10446,9 +10463,9 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 	}
 
 	if (spa->spa_all_vdev_zaps == 0) {
-		spa->spa_all_vdev_zaps = zap_create_link(spa->spa_meta_objset,
+		VERIFY0(zap_create_link(spa->spa_meta_objset,
 		    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_VDEV_ZAP_MAP, tx);
+		    DMU_POOL_VDEV_ZAP_MAP, tx, &spa->spa_all_vdev_zaps));
 	}
 	spa->spa_avz_action = AVZ_ACTION_NONE;
 
@@ -10598,10 +10615,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * Set pool property values in the poolprops mos object.
 			 */
 			if (spa->spa_pool_props_object == 0) {
-				spa->spa_pool_props_object =
-				    zap_create_link(mos, DMU_OT_POOL_PROPS,
+				VERIFY0(zap_create_link(mos, DMU_OT_POOL_PROPS,
 				    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_PROPS,
-				    tx);
+				    tx, &spa->spa_pool_props_object));
 			}
 
 			/* normalize the property name */
@@ -10715,7 +10731,7 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 
 	if (spa->spa_ubsync.ub_version < SPA_VERSION_DIR_CLONES &&
 	    spa->spa_uberblock.ub_version >= SPA_VERSION_DIR_CLONES) {
-		dsl_pool_upgrade_dir_clones(dp, tx);
+		(void) dsl_pool_upgrade_dir_clones(dp, tx);
 
 		/* Keeping the freedir open increases spa_minref */
 		spa->spa_minref += 3;
@@ -10758,11 +10774,13 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 	rrw_exit(&dp->dp_config_rwlock, FTAG);
 }
 
-static void
+static int
 vdev_indirect_state_sync_verify(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
 	vdev_indirect_mapping_t *vim __maybe_unused = vd->vdev_indirect_mapping;
 	vdev_indirect_births_t *vib __maybe_unused = vd->vdev_indirect_births;
+	int err = 0;
 
 	if (vd->vdev_ops == &vdev_indirect_ops) {
 		ASSERT(vim != NULL);
@@ -10770,7 +10788,10 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	}
 
 	uint64_t obsolete_sm_object = 0;
-	ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	ASSERT0(err);
 	if (obsolete_sm_object != 0) {
 		ASSERT(vd->vdev_obsolete_sm != NULL);
 		ASSERT(vd->vdev_removing ||
@@ -10790,6 +10811,8 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	 * tree must be empty when we start syncing.
 	 */
 	ASSERT0(zfs_range_tree_space(vd->vdev_obsolete_segments));
+
+	return (err);
 }
 
 /*
@@ -10807,21 +10830,27 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 	metaslab_class_balance(spa_dedup_class(spa), B_TRUE);
 }
 
-static void
+static int
 spa_sync_condense_indirect(spa_t *spa, dmu_tx_t *tx)
 {
 	ASSERT(spa_writeable(spa));
+	int err = 0;
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		vdev_indirect_state_sync_verify(vd);
+		err = vdev_indirect_state_sync_verify(vd);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 
 		if (vdev_indirect_should_condense(vd)) {
-			spa_condense_indirect_start_sync(vd, tx);
+			err = spa_condense_indirect_start_sync(vd, tx);
 			break;
 		}
 	}
+
+	return (err);
 }
 
 static void
@@ -10836,9 +10865,9 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		int pass = ++spa->spa_sync_pass;
 
 		spa_sync_config_object(spa, tx);
-		spa_sync_aux_dev(spa, &spa->spa_spares, tx,
+		(void) spa_sync_aux_dev(spa, &spa->spa_spares, tx,
 		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES);
-		spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
+		(void) spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
 		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE);
 		spa_errlog_sync(spa, txg);
 		dsl_pool_sync(dp, txg);
@@ -10862,7 +10891,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 			    &spa->spa_deferred_bpobj, tx);
 		}
 
-		brt_sync(spa, txg);
+		(void) brt_sync(spa, txg);
 		ddt_sync(spa, txg);
 		dsl_scan_sync(dp, tx);
 		dsl_errorscrub_sync(dp, tx);
@@ -10874,7 +10903,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		vdev_t *vd = NULL;
 		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
 		    != NULL)
-			vdev_sync(vd, txg);
+			(void) vdev_sync(vd, txg);
 
 		if (pass == 1) {
 			/*

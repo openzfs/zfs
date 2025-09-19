@@ -58,7 +58,8 @@ extern vdev_indirect_births_t *vdev_indirect_births_open(objset_t *os,
     uint64_t object);
 extern void vdev_indirect_births_close(vdev_indirect_births_t *vib);
 extern boolean_t vdev_indirect_births_is_open(vdev_indirect_births_t *vib);
-extern uint64_t vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx);
+extern int vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx,
+    uint64_t *objectp);
 extern void vdev_indirect_births_free(objset_t *os, uint64_t object,
     dmu_tx_t *tx);
 

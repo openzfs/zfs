@@ -130,12 +130,18 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
+	int err = 0;
 
 	ASSERT(!BP_IS_HOLE(bp));
 
 	if (BP_GET_BIRTH(bp) <=
 	    dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
-		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
+		err = dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed,
+		    tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		if (poa->ds_prev && !poa->after_branch_point &&
 		    BP_GET_BIRTH(bp) >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
@@ -148,7 +154,7 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 		poa->uncomp += BP_GET_UCSIZE(bp);
 		dsl_free_sync(poa->pio, dp, tx->tx_txg, bp);
 	}
-	return (0);
+	return (err);
 }
 
 static void
@@ -930,8 +936,8 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	int error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1, &zap_obj);
 	if (error == ENOENT) {
-		zap_obj = zap_create(mos, DMU_OTN_ZAP_METADATA,
-		    DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos, DMU_OTN_ZAP_METADATA,
+		    DMU_OT_NONE, 0, tx, &zap_obj));
 		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1,
 		    &(zap_obj), tx));
@@ -958,13 +964,18 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
  * Move the bptree into the pool's list of trees to clean up, update space
  * accounting information and destroy the zil.
  */
-static void
+static int
 dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	uint64_t used, comp, uncomp;
 	objset_t *os;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int err = 0;
 
-	VERIFY0(dmu_objset_from_ds(ds, &os));
+	err = dmu_objset_from_ds(ds, &os);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
 
@@ -979,11 +990,17 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		dsl_scan_t *scn = dp->dp_scan;
 		spa_feature_incr(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY,
 		    tx);
-		dp->dp_bptree_obj = bptree_alloc(mos, tx);
-		VERIFY0(zap_add(mos,
+		err = bptree_alloc(mos, tx, &dp->dp_bptree_obj);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+		err = zap_add(mos,
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
-		    &dp->dp_bptree_obj, tx));
+		    &dp->dp_bptree_obj, tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		ASSERT(!scn->scn_async_destroying);
 		scn->scn_async_destroying = B_TRUE;
 	}
@@ -1005,6 +1022,8 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    -used, -comp, -uncomp, tx);
 	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
 	    used, comp, uncomp, tx);
+
+	return (err);
 }
 
 void
@@ -1087,7 +1106,7 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		dsl_async_clone_destroy(ds, tx);
 	} else if (spa_feature_is_enabled(dp->dp_spa,
 	    SPA_FEATURE_ASYNC_DESTROY)) {
-		dsl_async_dataset_destroy(ds, tx);
+		(void) dsl_async_dataset_destroy(ds, tx);
 	} else {
 		old_synchronous_dataset_destroy(ds, tx);
 	}

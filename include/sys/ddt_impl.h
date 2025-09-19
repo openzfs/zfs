@@ -180,7 +180,7 @@ typedef struct {
 extern const ddt_ops_t ddt_zap_ops;
 
 /* Dedup log API */
-extern void ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx,
+extern int ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx,
     ddt_log_update_t *dlu);
 extern void ddt_log_entry(ddt_t *ddt, ddt_lightweight_entry_t *dde,
     ddt_log_update_t *dlu);

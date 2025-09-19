@@ -57,32 +57,45 @@ struct bptree_args {
 	dmu_tx_t *ba_tx;	/* caller supplied tx, NULL if not freeing */
 } bptree_args_t;
 
-uint64_t
-bptree_alloc(objset_t *os, dmu_tx_t *tx)
+int
+bptree_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 {
-	uint64_t obj;
+	spa_t *spa = os->os_spa;
 	dmu_buf_t *db;
 	bptree_phys_t *bt;
+	int err = 0;
 
-	obj = dmu_object_alloc(os, DMU_OTN_UINT64_METADATA,
+	err = dmu_object_alloc(os, DMU_OTN_UINT64_METADATA,
 	    SPA_OLD_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
-	    sizeof (bptree_phys_t), tx);
+	    sizeof (bptree_phys_t), tx, objectp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	/*
 	 * Bonus buffer contents are already initialized to 0, but for
 	 * readability we make it explicit.
 	 */
-	VERIFY3U(0, ==, dmu_bonus_hold(os, obj, FTAG, &db));
+	err = dmu_bonus_hold(os, *objectp, FTAG, &db);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(err);
+		goto out;
+	}
 	bt = db->db_data;
 	bt->bt_begin = 0;
 	bt->bt_end = 0;
 	bt->bt_bytes = 0;
 	bt->bt_comp = 0;
 	bt->bt_uncomp = 0;
+
+out:
 	dmu_buf_rele(db, FTAG);
 
-	return (obj);
+	return (err);
 }
 
 int
