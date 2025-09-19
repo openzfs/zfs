@@ -6713,6 +6713,9 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 	char osname[ZFS_MAX_DATASET_NAME_LEN];
 	nvlist_t *holds;
 
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
 	dmu_objset_name(os, osname);
@@ -6820,6 +6823,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	mutex_exit(&ztest_hfe_lock);
 }
 
 /*
