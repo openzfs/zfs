@@ -7017,7 +7017,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	ztest_shared_t *zs = ztest_shared;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	int fd;
 	uint64_t offset;
 	uint64_t leaves;
@@ -7036,10 +7036,15 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	boolean_t islog = B_FALSE;
 	boolean_t injected = B_FALSE;
 
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
 	path0 = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
+
+	spa = ztest_spa;
 
 	/*
 	 * Device removal is in progress, fault injection must be disabled
@@ -7313,6 +7318,7 @@ out:
 	umem_free(path0, MAXPATHLEN);
 	umem_free(pathrand, MAXPATHLEN);
 
+	mutex_exit(&ztest_hfe_lock);
 }
 
 static uint64_t
