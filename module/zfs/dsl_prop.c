@@ -685,13 +685,14 @@ dsl_prop_changed_notify(dsl_pool_t *dp, uint64_t ddobj,
  * versions and the default property value from the existing prop key is
  * used.
  */
-static void
+static int
 dsl_prop_set_iuv(objset_t *mos, uint64_t zapobj, const char *propname,
     int intsz, int numints, const void *value, dmu_tx_t *tx)
 {
 	char *iuvstr = kmem_asprintf("%s%s", propname, ZPROP_IUV_SUFFIX);
 	boolean_t iuv = B_FALSE;
 	zfs_prop_t prop = zfs_name_to_prop(propname);
+	int err = 0;
 
 	switch (prop) {
 	case ZFS_PROP_REDUNDANT_METADATA:
@@ -708,15 +709,24 @@ dsl_prop_set_iuv(objset_t *mos, uint64_t zapobj, const char *propname,
 	}
 
 	if (iuv) {
-		VERIFY0(zap_update(mos, zapobj, iuvstr, intsz, numints,
-		    value, tx));
+		err = zap_update(mos, zapobj, iuvstr, intsz, numints,
+		    value, tx);
+		if (err && SPA_EXITING(mos->os_spa))
+			goto out;
+		VERIFY0(err);
 		uint64_t val = zfs_prop_default_numeric(prop);
-		VERIFY0(zap_update(mos, zapobj, propname, intsz, numints,
-		    &val, tx));
+		err = zap_update(mos, zapobj, propname, intsz, numints,
+		    &val, tx);
+		if (err && SPA_EXITING(mos->os_spa))
+			goto out;
+		VERIFY0(err);
 	} else {
-		zap_remove(mos, zapobj, iuvstr, tx);
+		err = zap_remove(mos, zapobj, iuvstr, tx);
 	}
+out:
 	kmem_strfree(iuvstr);
+
+	return (err);
 }
 
 void
@@ -724,6 +734,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
     zprop_source_t source, int intsz, int numints, const void *value,
     dmu_tx_t *tx)
 {
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	uint64_t zapobj, intval, dummy, count;
 	int isint;
@@ -733,8 +744,8 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	char *recvdstr;
 	char *iuvstr;
 	char *tbuf = NULL;
-	int err;
-	uint64_t version = spa_version(ds->ds_dir->dd_pool->dp_spa);
+	int err = 0;
+	uint64_t version = spa_version(spa);
 
 	isint = (dodefault(zfs_name_to_prop(propname), 8, 1, &intval) == 0);
 
@@ -743,9 +754,14 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		if (dsl_dataset_phys(ds)->ds_props_obj == 0 &&
 		    (source & ZPROP_SRC_NONE) == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
-			VERIFY0(zap_create(mos,
+			if (SPA_EXITING(spa))
+				return;
+			err = zap_create(mos,
 			    DMU_OT_DSL_PROPS, DMU_OT_NONE, 0, tx,
-			    &dsl_dataset_phys(ds)->ds_props_obj));
+			    &dsl_dataset_phys(ds)->ds_props_obj);
+			if (err && SPA_EXITING(spa))
+				return;
+			VERIFY0(err);
 		}
 		zapobj = dsl_dataset_phys(ds)->ds_props_obj;
 	} else {
@@ -775,8 +791,12 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 * - remove propname$inherit
 		 */
 		err = zap_remove(mos, zapobj, propname, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		err = zap_remove(mos, zapobj, inheritstr, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		break;
 	case ZPROP_SRC_LOCAL:
@@ -786,10 +806,15 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 * set propname$iuv -> new property value
 		 */
 		err = zap_remove(mos, zapobj, inheritstr, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
-		VERIFY0(zap_update(mos, zapobj, propname,
-		    intsz, numints, value, tx));
-		(void) dsl_prop_set_iuv(mos, zapobj, propname, intsz,
+		err = zap_update(mos, zapobj, propname,
+		    intsz, numints, value, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+		err = dsl_prop_set_iuv(mos, zapobj, propname, intsz,
 		    numints, value, tx);
 		break;
 	case ZPROP_SRC_INHERITED:
@@ -799,14 +824,21 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 * - set propname$inherit
 		 */
 		err = zap_remove(mos, zapobj, propname, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		err = zap_remove(mos, zapobj, iuvstr, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		if (version >= SPA_VERSION_RECVD_PROPS &&
 		    dsl_prop_get_int_ds(ds, ZPROP_HAS_RECVD, &dummy) == 0) {
 			dummy = 0;
-			VERIFY0(zap_update(mos, zapobj, inheritstr,
-			    8, 1, &dummy, tx));
+			err = zap_update(mos, zapobj, inheritstr,
+			    8, 1, &dummy, tx);
+			if (err && SPA_EXITING(spa))
+				goto out;
+			VERIFY0(err);
 		}
 		break;
 	case ZPROP_SRC_RECEIVED:
@@ -815,6 +847,8 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 */
 		err = zap_update(mos, zapobj, recvdstr,
 		    intsz, numints, value, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
 		ASSERT0(err);
 		break;
 	case (ZPROP_SRC_NONE | ZPROP_SRC_LOCAL | ZPROP_SRC_RECEIVED):
@@ -825,8 +859,12 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 * - remove propname$recvd
 		 */
 		err = zap_remove(mos, zapobj, propname, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		err = zap_remove(mos, zapobj, inheritstr, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		zfs_fallthrough;
 	case (ZPROP_SRC_NONE | ZPROP_SRC_RECEIVED):
@@ -834,15 +872,13 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		 * remove propname$recvd
 		 */
 		err = zap_remove(mos, zapobj, recvdstr, tx);
+		if (!(err == 0 || err == ENOENT) && SPA_EXITING(spa))
+			goto out;
 		ASSERT(err == 0 || err == ENOENT);
 		break;
 	default:
 		cmn_err(CE_PANIC, "unexpected property source: %d", source);
 	}
-
-	kmem_strfree(inheritstr);
-	kmem_strfree(recvdstr);
-	kmem_strfree(iuvstr);
 
 	/*
 	 * If we are left with an empty snap zap we can destroy it.
@@ -857,7 +893,10 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	}
 
 	if (isint) {
-		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
+		err = dsl_prop_get_int_ds(ds, propname, &intval);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 
 		if (ds->ds_is_snapshot) {
 			dsl_prop_cb_record_t *cbr;
@@ -896,6 +935,11 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	spa_history_log_internal_ds(ds, (source == ZPROP_SRC_NONE ||
 	    source == ZPROP_SRC_INHERITED) ? "inherit" : "set", tx,
 	    "%s=%s", propname, (valstr == NULL ? "" : valstr));
+
+out:
+	kmem_strfree(inheritstr);
+	kmem_strfree(recvdstr);
+	kmem_strfree(iuvstr);
 
 	if (tbuf != NULL)
 		kmem_free(tbuf, ZAP_MAXVALUELEN);
@@ -1024,9 +1068,16 @@ dsl_props_set_sync(void *arg, dmu_tx_t *tx)
 	dsl_props_set_arg_t *dpsa = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds;
+	int err = 0;
 
-	VERIFY0(dsl_dataset_hold(dp, dpsa->dpsa_dsname, FTAG, &ds));
-	dsl_props_set_sync_impl(ds, dpsa->dpsa_source, dpsa->dpsa_props, tx);
+	err = dsl_dataset_hold(dp, dpsa->dpsa_dsname, FTAG, &ds);
+	if (err && SPA_EXITING(dp->dp_spa))
+		return;
+	VERIFY0(err);
+
+	dsl_props_set_sync_impl(ds, dpsa->dpsa_source, dpsa->dpsa_props,
+	    tx);
+
 	dsl_dataset_rele(ds, FTAG);
 }
 

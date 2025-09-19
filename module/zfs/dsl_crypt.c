@@ -2319,7 +2319,7 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		 * has been provided via the properties, this will be overridden
 		 * later.
 		 */
-		dsl_prop_set_sync_impl(ds,
+		(void) dsl_prop_set_sync_impl(ds,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
 		    ZPROP_SRC_LOCAL, 1, strlen(keylocation) + 1,
 		    keylocation, tx);

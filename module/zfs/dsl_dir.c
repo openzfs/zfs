@@ -1918,8 +1918,8 @@ dsl_dir_set_reservation_sync(void *arg, dmu_tx_t *tx)
 		    ddsqra->ddsqra_source, sizeof (ddsqra->ddsqra_value), 1,
 		    &ddsqra->ddsqra_value, tx);
 
-		VERIFY0(dsl_prop_get_int_ds(ds,
-		    zfs_prop_to_name(ZFS_PROP_RESERVATION), &newval));
+		dsl_prop_get_int_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_RESERVATION), &newval);
 	} else {
 		newval = ddsqra->ddsqra_value;
 		spa_history_log_internal_ds(ds, "set", tx, "%s=%lld",
