@@ -4697,7 +4697,7 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Make sure we were able to grow the vdev.
 	 */
-	if (new_ms_count <= old_ms_count) {
+	if (new_ms_count <= old_ms_count && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE,
 		    "LUN expansion failed: ms_count %"PRIu64" < %"PRIu64"\n",
 		    old_ms_count, new_ms_count);
@@ -4706,7 +4706,7 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Make sure we were able to grow the pool.
 	 */
-	if (new_class_space <= old_class_space) {
+	if (new_class_space <= old_class_space && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE,
 		    "LUN expansion failed: class_space %"PRIu64" < %"PRIu64"\n",
 		    old_class_space, new_class_space);
