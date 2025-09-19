@@ -95,8 +95,8 @@ typedef struct vdev_indirect_mapping {
 	vdev_indirect_mapping_phys_t	*vim_phys;
 } vdev_indirect_mapping_t;
 
-extern vdev_indirect_mapping_t *vdev_indirect_mapping_open(objset_t *os,
-    uint64_t object);
+extern int vdev_indirect_mapping_open(objset_t *os,
+    uint64_t object, vdev_indirect_mapping_t **vimp);
 extern void vdev_indirect_mapping_close(vdev_indirect_mapping_t *vim);
 extern int vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx,
     uint64_t *objectp);

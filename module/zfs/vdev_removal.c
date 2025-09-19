@@ -183,11 +183,13 @@ static int spa_vdev_remove_cancel_impl(spa_t *spa);
 static void
 spa_sync_removing_state(spa_t *spa, dmu_tx_t *tx)
 {
-	VERIFY0(zap_update(spa->spa_dsl_pool->dp_meta_objset,
+	int err = zap_update(spa->spa_dsl_pool->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_REMOVING, sizeof (uint64_t),
 	    sizeof (spa->spa_removing_phys) / sizeof (uint64_t),
-	    &spa->spa_removing_phys, tx));
+	    &spa->spa_removing_phys, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 static nvlist_t *
@@ -454,6 +456,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	objset_t *mos = spa->spa_dsl_pool->dp_meta_objset;
 	spa_vdev_removal_t *svr = NULL;
 	uint64_t txg __maybe_unused = dmu_tx_get_txg(tx);
+	int err;
 
 	ASSERT0(vdev_get_nparity(vd));
 	svr = spa_vdev_removal_create(vd);
@@ -470,20 +473,35 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 		 */
 		spa_feature_incr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 		uint64_t one = 1;
-		VERIFY0(zap_add(spa->spa_meta_objset, vd->vdev_top_zap,
+		err = zap_add(spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, sizeof (one), 1,
-		    &one, tx));
+		    &one, tx);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting1;
+		VERIFY0(err);
 		boolean_t are_precise __maybe_unused;
 		ASSERT0(vdev_obsolete_counts_are_precise(vd, &are_precise));
 		ASSERT3B(are_precise, ==, B_TRUE);
 	}
 
-	VERIFY0(vdev_indirect_mapping_alloc(mos, tx, &vic->vic_mapping_object));
-	vd->vdev_indirect_mapping =
-	    vdev_indirect_mapping_open(mos, vic->vic_mapping_object);
-	VERIFY0(vdev_indirect_births_alloc(mos, tx, &vic->vic_births_object));
-	vd->vdev_indirect_births =
-	    vdev_indirect_births_open(mos, vic->vic_births_object);
+	err = vdev_indirect_mapping_alloc(mos, tx, &vic->vic_mapping_object);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting1;
+	VERIFY0(err);
+	err = vdev_indirect_mapping_open(mos, vic->vic_mapping_object,
+	    &vd->vdev_indirect_mapping);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting1;
+	VERIFY0(err);
+	err = vdev_indirect_births_alloc(mos, tx, &vic->vic_births_object);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting1;
+	VERIFY0(err);
+	err = vdev_indirect_births_open(mos, vic->vic_births_object,
+	    &vd->vdev_indirect_births);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting1;
+	VERIFY0(err);
 	spa->spa_removing_phys.sr_removing_vdev = vd->vdev_id;
 	spa->spa_removing_phys.sr_start_time = gethrestime_sec();
 	spa->spa_removing_phys.sr_end_time = 0;
@@ -533,12 +551,22 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	 * modified all blocks of the object.)
 	 */
 	dmu_object_info_t doi;
-	VERIFY0(dmu_object_info(mos, DMU_POOL_DIRECTORY_OBJECT, &doi));
+	err = dmu_object_info(mos, DMU_POOL_DIRECTORY_OBJECT, &doi);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting2;
+	VERIFY0(err);
 	for (uint64_t offset = 0; offset < doi.doi_max_offset; ) {
 		dmu_buf_t *dbuf;
-		VERIFY0(dmu_buf_hold(mos, DMU_POOL_DIRECTORY_OBJECT,
-		    offset, FTAG, &dbuf, 0));
+		err = dmu_buf_hold(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    offset, FTAG, &dbuf, 0);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting2;
+		VERIFY0(err);
 		dmu_buf_will_dirty(dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			dmu_buf_rele(dbuf, FTAG);
+			goto spa_exiting2;
+		}
 		offset += dbuf->db_size;
 		dmu_buf_rele(dbuf, FTAG);
 	}
@@ -569,6 +597,13 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_vdev_removal = svr;
 	svr->svr_thread = thread_create(NULL, 0,
 	    spa_vdev_remove_thread, spa, 0, &p0, TS_RUN, minclsyspri);
+	return;
+
+spa_exiting2:
+	vdev_indirect_births_close(vd->vdev_indirect_births);
+
+spa_exiting1:
+	spa_vdev_removal_destroy(svr);
 }
 
 /*
@@ -623,10 +658,20 @@ spa_remove_init(spa_t *spa)
 		ASSERT3U(svr->svr_vdev_id, ==, vd->vdev_id);
 		ASSERT(vd->vdev_removing);
 
-		vd->vdev_indirect_mapping = vdev_indirect_mapping_open(
-		    spa->spa_meta_objset, vic->vic_mapping_object);
-		vd->vdev_indirect_births = vdev_indirect_births_open(
-		    spa->spa_meta_objset, vic->vic_births_object);
+		error = vdev_indirect_mapping_open(spa->spa_meta_objset,
+		    vic->vic_mapping_object, &vd->vdev_indirect_mapping);
+		if (error && SPA_EXITING(spa)) {
+spa_exiting1:
+			spa_vdev_removal_destroy(svr);
+			spa_config_exit(spa, SCL_STATE, FTAG);
+			return (error);
+		}
+		VERIFY0(error);
+		error = vdev_indirect_births_open(spa->spa_meta_objset,
+		    vic->vic_births_object, &vd->vdev_indirect_births);
+		if (error && SPA_EXITING(spa))
+			goto spa_exiting1;
+		VERIFY0(error);
 		spa_config_exit(spa, SCL_STATE, FTAG);
 
 		spa->spa_vdev_removal = svr;
@@ -640,10 +685,19 @@ spa_remove_init(spa_t *spa)
 		vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 
 		ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
-		vd->vdev_indirect_mapping = vdev_indirect_mapping_open(
-		    spa->spa_meta_objset, vic->vic_mapping_object);
-		vd->vdev_indirect_births = vdev_indirect_births_open(
-		    spa->spa_meta_objset, vic->vic_births_object);
+		error = vdev_indirect_mapping_open(spa->spa_meta_objset,
+		    vic->vic_mapping_object, &vd->vdev_indirect_mapping);
+		if (error && SPA_EXITING(spa)) {
+spa_exiting2:
+			spa_config_exit(spa, SCL_STATE, FTAG);
+			return (error);
+		}
+		VERIFY0(error);
+		error = vdev_indirect_births_open(spa->spa_meta_objset,
+		    vic->vic_births_object, &vd->vdev_indirect_births);
+		if (error && SPA_EXITING(spa))
+			goto spa_exiting2;
+		VERIFY0(error);
 
 		indirect_vdev_id = vic->vic_prev_indirect_vdev;
 	}
@@ -936,6 +990,9 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 	uint64_t txg = dmu_tx_get_txg(tx);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
+
+	if (SPA_EXITING(spa))
+		return;
 
 	ASSERT(vic->vic_mapping_object != 0);
 	ASSERT3U(txg, ==, spa_syncing_txg(spa));
@@ -1693,8 +1750,18 @@ again:
 		 * to finish loading the spacemap, and then take the
 		 * appropriate action (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL)
-			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
+		if (msp->ms_sm != NULL) {
+			int err = space_map_load(msp->ms_sm, segs, SM_ALLOC);
+			if (err && SPA_EXITING(spa)) {
+				mutex_exit(&msp->ms_lock);
+				mutex_exit(&msp->ms_sync_lock);
+				zfs_range_tree_vacate(segs, NULL, NULL);
+				mutex_enter(&svr->svr_lock);
+				svr->svr_thread_exit = B_TRUE;
+				break;
+			}
+			VERIFY0(err);
+		}
 
 		/*
 		 * We could not hold svr_lock while loading space map, or we
@@ -1827,7 +1894,10 @@ again:
 		 * error was encountered.  The removal process must be
 		 * cancelled or this damage may become permanent.
 		 */
-		if (zfs_removal_ignore_errors == 0 &&
+		if (SPA_EXITING(spa)) {
+			zfs_dbgmsg("canceling removal due to spa_exiting");
+			spa_vdev_remove_cancel_impl(spa);
+		} else if (zfs_removal_ignore_errors == 0 &&
 		    (vca.vca_read_error_bytes > 0 ||
 		    vca.vca_write_error_bytes > 0)) {
 			zfs_dbgmsg("canceling removal due to IO errors: "
@@ -1907,29 +1977,38 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	objset_t *mos = spa->spa_meta_objset;
+	int err;
 
 	ASSERT0P(svr->svr_thread);
 
 	spa_feature_decr(spa, SPA_FEATURE_DEVICE_REMOVAL, tx);
 
-	boolean_t are_precise;
-	VERIFY0(vdev_obsolete_counts_are_precise(vd, &are_precise));
+	boolean_t are_precise = B_FALSE;
+	err = vdev_obsolete_counts_are_precise(vd, &are_precise);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	if (are_precise) {
 		spa_feature_decr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
-		VERIFY0(zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
-		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, tx));
+		err = zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 
-	uint64_t obsolete_sm_object;
-	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	uint64_t obsolete_sm_object = 0;
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	if (obsolete_sm_object != 0) {
 		ASSERT(vd->vdev_obsolete_sm != NULL);
 		ASSERT3U(obsolete_sm_object, ==,
 		    space_map_object(vd->vdev_obsolete_sm));
 
 		space_map_free(vd->vdev_obsolete_sm, tx);
-		VERIFY0(zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
-		    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, tx));
+		err = zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		space_map_close(vd->vdev_obsolete_sm);
 		vd->vdev_obsolete_sm = NULL;
 		spa_feature_decr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
@@ -1957,13 +2036,21 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 		 * Assert nothing in flight -- ms_*tree is empty.
 		 */
 		for (int i = 0; i < TXG_SIZE; i++)
-			ASSERT0(zfs_range_tree_space(msp->ms_allocating[i]));
+			ASSERT0(zfs_range_tree_space(
+			    msp->ms_allocating[i]));
 		for (int i = 0; i < TXG_DEFER_SIZE; i++)
 			ASSERT0(zfs_range_tree_space(msp->ms_defer[i]));
 		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 
-		if (msp->ms_sm != NULL)
-			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
+		if (msp->ms_sm != NULL) {
+			err = space_map_load(msp->ms_sm, segs, SM_ALLOC);
+			if (err && SPA_EXITING(spa)) {
+				mutex_exit(&msp->ms_lock);
+				zfs_range_tree_vacate(segs, NULL, NULL);
+				break;
+			}
+			VERIFY0(err);
+		}
 
 		zfs_range_tree_walk(msp->ms_unflushed_allocs,
 		    zfs_range_tree_add, segs);
@@ -2195,6 +2282,8 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	ASSERT(spa_namespace_held());
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
+	if (SPA_EXITING(spa))
+		goto skip;
 	/* The top ZAP should have been destroyed by vdev_remove_empty. */
 	ASSERT0(vd->vdev_top_zap);
 	/* The leaf ZAP should have been destroyed by vdev_dtl_sync. */
@@ -2202,12 +2291,14 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	(void) vdev_label_init(vd, 0, VDEV_LABEL_REMOVE);
 
+skip:
 	if (list_link_active(&vd->vdev_state_dirty_node))
 		vdev_state_clean(vd);
 	if (list_link_active(&vd->vdev_config_dirty_node))
 		vdev_config_clean(vd);
 
-	ASSERT0(vd->vdev_stat.vs_alloc);
+	if (!SPA_EXITING(spa))
+		ASSERT0(vd->vdev_stat.vs_alloc);
 
 	/*
 	 * Clean up the vdev namespace.
