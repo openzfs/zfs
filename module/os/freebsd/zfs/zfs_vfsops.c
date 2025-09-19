@@ -2332,9 +2332,16 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 		error = zap_add(os, MASTER_NODE_OBJ,
 		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
-		ASSERT0(error);
+		if (error) {
+			dmu_tx_commit(tx);
+			return (error);
+		}
 
-		VERIFY0(sa_set_sa_object(os, sa_obj));
+		error = sa_set_sa_object(os, sa_obj);
+		if (error) {
+			dmu_tx_commit(tx);
+			return (error);
+		}
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 
