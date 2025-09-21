@@ -7,23 +7,23 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 
 	AC_ARG_WITH(systemdunitdir,
 		AS_HELP_STRING([--with-systemdunitdir=DIR],
-		[install systemd unit files in dir [[/usr/lib/systemd/system]]]),
-		systemdunitdir=$withval,systemdunitdir=/usr/lib/systemd/system)
+		[install systemd unit files in dir [[$libdir/systemd/system]]]),
+		systemdunitdir=$withval,systemdunitdir=$libdir/systemd/system)
 
 	AC_ARG_WITH(systemdpresetdir,
 		AS_HELP_STRING([--with-systemdpresetdir=DIR],
-		[install systemd preset files in dir [[/usr/lib/systemd/system-preset]]]),
-		systemdpresetdir=$withval,systemdpresetdir=/usr/lib/systemd/system-preset)
+		[install systemd preset files in dir [[$libdir/systemd/system-preset]]]),
+		systemdpresetdir=$withval,systemdpresetdir=$libdir/systemd/system-preset)
 
 	AC_ARG_WITH(systemdmodulesloaddir,
 		AS_HELP_STRING([--with-systemdmodulesloaddir=DIR],
-		[install systemd module load files into dir [[/usr/lib/modules-load.d]]]),
-		systemdmodulesloaddir=$withval,systemdmodulesloaddir=/usr/lib/modules-load.d)
+		[install systemd module load files into dir [[$libdir/modules-load.d]]]),
+		systemdmodulesloaddir=$withval,systemdmodulesloaddir=$libdir/modules-load.d)
 
 	AC_ARG_WITH(systemdgeneratordir,
 		AS_HELP_STRING([--with-systemdgeneratordir=DIR],
-		[install systemd generators in dir [[/usr/lib/systemd/system-generators]]]),
-		systemdgeneratordir=$withval,systemdgeneratordir=/usr/lib/systemd/system-generators)
+		[install systemd generators in dir [[$libdir/systemd/system-generators]]]),
+		systemdgeneratordir=$withval,systemdgeneratordir=$libdir/systemd/system-generators)
 
 	AS_IF([test "x$enable_systemd" = xcheck], [
 		AS_IF([systemctl --version >/dev/null 2>&1],
