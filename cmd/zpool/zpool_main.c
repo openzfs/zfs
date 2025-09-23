@@ -456,7 +456,7 @@ get_usage(zpool_help_t idx)
 		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
 		return (gettext("\tattach [-fsw] [-o property=value] "
-		    "<pool> <device> <new-device>\n"));
+		    "<pool> <vdev> <new-device>\n"));
 	case HELP_CLEAR:
 		return (gettext("\tclear [[--power]|[-nF]] <pool> [device]\n"));
 	case HELP_CREATE:
@@ -7644,7 +7644,7 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-fsw] [-o property=value] <pool> <device>|<vdev> <new_device>
+ * zpool attach [-fsw] [-o property=value] <pool> <vdev> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-s	Use sequential instead of healing reconstruction for resilver.
@@ -7652,9 +7652,9 @@ zpool_do_replace(int argc, char **argv)
  *	-w	Wait for resilvering (mirror) or expansion (raidz) to complete
  *		before returning.
  *
- * Attach <new_device> to a <device> or <vdev>, where the vdev can be of type
- * mirror or raidz. If <device> is not part of a mirror, then <device> will
- * be transformed into a mirror of <device> and <new_device>. When a mirror
+ * Attach <new_device> to a <vdev>, where the vdev can be of type
+ * device, mirror or raidz. If <vdev> is not part of a mirror, then <vdev> will
+ * be transformed into a mirror of <vdev> and <new_device>. When a mirror
  * is involved, <new_device> will begin life with a DTL of [0, now], and will
  * immediately begin to resilver itself. For the raidz case, a expansion will
  * commence and reflow the raidz data across all the disks including the

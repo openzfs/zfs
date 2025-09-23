@@ -39,24 +39,24 @@
 .Cm attach
 .Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
-.Ar pool device new_device
+.Ar pool vdev new_device
 .
 .Sh DESCRIPTION
 Attaches
 .Ar new_device
 to the existing
-.Ar device .
+.Ar vdev .
 The behavior differs depending on if the existing
-.Ar device
+.Ar vdev
 is a RAID-Z device, or a mirror/plain device.
 .Pp
-If the existing device is a mirror or plain device
+If the existing vdev is a mirror or plain device
 .Pq e.g. specified as Qo Li sda Qc or Qq Li mirror-7 ,
-the new device will be mirrored with the existing device, a resilver will be
+the new device will be mirrored with the existing vdev, a resilver will be
 initiated, and the new device will contribute to additional redundancy once the
 resilver completes.
 If
-.Ar device
+.Ar vdev
 is not currently part of a mirrored configuration,
 .Ar device
 automatically transforms into a two-way mirror of
@@ -64,7 +64,7 @@ automatically transforms into a two-way mirror of
 and
 .Ar new_device .
 If
-.Ar device
+.Ar vdev
 is part of a two-way mirror, attaching
 .Ar new_device
 creates a three-way mirror, and so on.
@@ -72,7 +72,7 @@ In either case,
 .Ar new_device
 begins to resilver immediately and any running scrub is canceled.
 .Pp
-If the existing device is a RAID-Z device
+If the existing vdev is a RAID-Z device
 .Pq e.g. specified as Qq Ar raidz2-0 ,
 the new device will become part of that RAID-Z group.
 A "raidz expansion" will be initiated, and once the expansion completes,
@@ -112,7 +112,7 @@ the checksums of all blocks which have been copied during the expansion.
 Forces use of
 .Ar new_device ,
 even if it appears to be in use.
-Not all devices can be overridden in this manner.
+Not all vdevs can be overridden in this manner.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties.
 See the
@@ -121,7 +121,7 @@ manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
 .It Fl s
-When attaching to a mirror or plain device, the
+When attaching to a mirror or plain vdev, the
 .Ar new_device
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
