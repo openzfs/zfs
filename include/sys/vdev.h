@@ -179,6 +179,7 @@ extern boolean_t vdev_writeable(vdev_t *vd);
 extern boolean_t vdev_allocatable(vdev_t *vd);
 extern boolean_t vdev_accessible(vdev_t *vd, zio_t *zio);
 extern boolean_t vdev_is_spacemap_addressable(vdev_t *vd);
+extern boolean_t vdev_is_anyraid(vdev_t *vd);
 
 extern void vdev_queue_init(vdev_t *vd);
 extern void vdev_queue_fini(vdev_t *vd);

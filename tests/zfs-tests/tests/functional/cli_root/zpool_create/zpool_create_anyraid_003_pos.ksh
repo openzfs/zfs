@@ -52,8 +52,8 @@ create_sparse_files "Bdisk" 2 $(( $MINVDEVSIZE2 * 2 ))
 create_sparse_files "Cdisk" 1 $(( $MINVDEVSIZE2 * 3 ))
 ls -lh $Adisks $Bdisks $Cdisks
 
-for parity in {0..3}; do
-	log_must zpool create $TESTPOOL anymirror$parity $Cdisks $Adisks $Bdisks
+for parity in mirror{0..3} raidz1:{1..3} raidz2:{1..3} raidz3:{1..3}; do
+	log_must zpool create $TESTPOOL any$parity $Cdisks $Adisks $Bdisks
 	log_must poolexists $TESTPOOL
 	destroy_pool $TESTPOOL
 done

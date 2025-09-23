@@ -47,19 +47,19 @@ cleanup() {
 
 log_onexit cleanup
 
-log_must create_pool $TESTPOOL anymirror1 $DISKS
-
 log_assert "Anyraid works correctly with checkpoints"
-log_must zdb --anyraid-map $TESTPOOL
+for vdev in "anymirror1" "anyraidz1:2"; do
+	log_must create_pool $TESTPOOL $vdev $DISKS
+	log_must zdb --anyraid-map $TESTPOOL
 
-map=$(zdb --anyraid-map $TESTPOOL)
-log_must zpool checkpoint $TESTPOOL
+	map=$(zdb --anyraid-map $TESTPOOL)
+	log_must zpool checkpoint $TESTPOOL
 
-log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c 2048 -d R
+	log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c 2048 -d R
 
-log_must zpool export $TESTPOOL
-log_must zpool import --rewind-to-checkpoint $TESTPOOL
-map2=$(zdb --anyraid-map $TESTPOOL)
-log_must test "$map" == "$map2"
-
+	log_must zpool export $TESTPOOL
+	log_must zpool import --rewind-to-checkpoint $TESTPOOL
+	map2=$(zdb --anyraid-map $TESTPOOL)
+	log_must test "$map" == "$map2"
+done
 log_pass "Anyraid works correctly with checkpoints"
