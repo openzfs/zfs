@@ -55,7 +55,7 @@ log_assert "'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' can create
 	"an alternate pool or a new pool mounted at the specified mountpoint."
 log_onexit cleanup
 
-set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2" "anymirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "draid" "draid2"
+set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2" "anymirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "anyraidz1:2" "anyraidz2:1" "anyraidz3:1" "draid" "draid2"
 
 #
 # cleanup the pools created in previous case if zpool_create_004_pos timedout

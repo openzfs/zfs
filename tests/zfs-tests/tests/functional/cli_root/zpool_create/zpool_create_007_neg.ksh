@@ -61,6 +61,11 @@ set -A args  "" "-?" "-n" "-f" "-nf" "-fn" "-f -n" "--f" "-e" "-s" \
 	"$TESTPOOL anymirror1 $DISK0" \
 	"$TESTPOOL anymirror2 $DISK0 $DISK1" \
 	"$TESTPOOL anymirror3 $DISK0 $DISK1 $DISK2" \
+	"$TESTPOOL anyraiz1:1 $DISK0" \
+	"$TESTPOOL anyraiz1:2 $DISK0" \
+	"$TESTPOOL anyraiz1:2 $DISK0 $DISK1" \
+	"$TESTPOOL anyraiz2:1 $DISK0 $DISK2" \
+	"$TESTPOOL anyraiz3:1 $DISK0 $DISK2 $DISK3" \
 	"$TESTPOOL mirror c?t?d?" "$TESTPOOL mirror $DISK0 c0t1d?" \
 	"$TESTPOOL RAIDZ $DISK0 $DISK1" \
 	"$TESTPOOL $DISK0 log $DISK1 log $DISK2" \

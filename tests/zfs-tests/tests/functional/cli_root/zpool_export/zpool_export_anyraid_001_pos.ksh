@@ -51,11 +51,13 @@ poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 create_sparse_files "disk" 4 $MINVDEVSIZE2
 
-log_must zpool create $TESTPOOL anymirror3 $disks
-log_must poolexists $TESTPOOL
-log_must zpool export $TESTPOOL
+for type in "anymirror3" "anyraidz1:2"; do
+	log_must zpool create $TESTPOOL $type $disks
+	log_must poolexists $TESTPOOL
+	log_must zpool export $TESTPOOL
 
-poolexists $TESTPOOL && \
-        log_fail "$TESTPOOL unexpectedly found in 'zpool list' output."
+	poolexists $TESTPOOL && \
+		log_fail "$TESTPOOL unexpectedly found in 'zpool list' output."
+done
 
 log_pass "Successfully exported an AnyRAID pool."

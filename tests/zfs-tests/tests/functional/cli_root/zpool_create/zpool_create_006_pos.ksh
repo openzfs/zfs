@@ -104,6 +104,12 @@ set -A valid_args \
 	"anymirror2 $vdev0 $vdev1 $vdev2 anymirror2 $vdev3 $vdev4 $vdev5" \
 	"anymirror2 $vdev0 $vdev1 $vdev2 $vdev3 anymirror2 $vdev4 $vdev5 $vdev6" \
 	"anymirror3 $vdev0 $vdev1 $vdev2 $vdev3 anymirror3 $vdev4 $vdev5 $vdev6 $vdev7" \
+	"anyraidz1:1 $vdev0 $vdev1 anyraidz1:1 $vdev2 $vdev3" \
+	"anyraidz1:2 $vdev0 $vdev1 $vdev2 anyraidz1:2 $vdev3 $vdev4 $vdev5" \
+	"anyraidz2:1 $vdev0 $vdev1 $vdev2 anyraidz2:1 $vdev3 $vdev4 $vdev5" \
+	"anyraidz3:1 $vdev0 $vdev1 $vdev2 $vdev3 anyraidz3:1 $vdev4 $vdev5 $vdev6 $vdev7" \
+	"anyraidz3:1 $vdev0 $vdev1 $vdev2 $vdev3 $vdev4 anyraidz3:1 $vdev5 $vdev6 $vdev7 $vdev8" \
+	"anyraidz3:2 $vdev0 $vdev1 $vdev2 $vdev3 $vdev4 anyraidz3:2 $vdev5 $vdev6 $vdev7 $vdev8 $vdev9" \
 	"draid $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4" \
 	"draid $vdev0 $vdev1 $vdev2 raidz1 $vdev3 $vdev4 $vdev5" \
 	"draid $vdev0 $vdev1 $vdev2 draid1 $vdev3 $vdev4 $vdev5" \

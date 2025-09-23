@@ -1202,6 +1202,20 @@ process_options(int argc, char **argv)
 
 		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_ANYMIRROR,
 		    sizeof (zo->zo_raid_type));
+	} else if (strcmp(raid_kind, "anyraidz") == 0) {
+		uint64_t min_devsize;
+
+		/* With fewer disks use 1G, otherwise 512M is OK */
+		min_devsize = (ztest_opts.zo_raid_children < 16) ?
+		    (1ULL << 30) : (512ULL << 20);
+		if (zo->zo_vdev_size < min_devsize)
+			zo->zo_vdev_size = min_devsize;
+
+		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
+		    zo->zo_raid_children - 1);
+
+		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_ANYRAIDZ,
+		    sizeof (zo->zo_raid_type));
 	} else {
 		fatal(B_FALSE, "invalid raid kind %s", raid_kind);
 	}
@@ -1395,8 +1409,15 @@ make_vdev_raid(const char *path, const char *aux, const char *pool, size_t size,
 		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NSPARES, nspares);
 		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NGROUPS, ngroups);
 	} else if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYMIRROR) == 0) {
+		enum vdev_anyraid_parity_type type = VAP_MIRROR;
 		fnvlist_add_uint8(raid, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE,
-		    VAP_MIRROR);
+		    type);
+	} else if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYRAIDZ) == 0) {
+		enum vdev_anyraid_parity_type type = VAP_RAIDZ;
+		uint64_t ndata = ztest_opts.zo_draid_data;
+		fnvlist_add_uint64(raid, ZPOOL_CONFIG_ANYRAID_NDATA, ndata);
+		fnvlist_add_uint8(raid, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE,
+		    type);
 	}
 
 	for (c = 0; c < r; c++)
@@ -3815,13 +3836,17 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_raidz_ops);
 		else if (strcmp(oldvd->vdev_ops->vdev_op_type, "anymirror") ==
 		    0)
-			ASSERT3P(oldvd->vdev_ops, ==, &vdev_anyraid_ops);
+			ASSERT3P(oldvd->vdev_ops, ==, &vdev_anymirror_ops);
+		else if (strcmp(oldvd->vdev_ops->vdev_op_type, "anyraidz") == 0)
+			ASSERT3P(oldvd->vdev_ops, ==, &vdev_anyraidz_ops);
 		else
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_draid_ops);
 		oldvd = oldvd->vdev_child[leaf % raidz_children];
 	}
 
-	if (!replacing && oldvd->vdev_parent->vdev_ops == &vdev_anyraid_ops) {
+	boolean_t anyraid = vdev_is_anyraid(oldvd->vdev_parent);
+
+	if (!replacing && anyraid) {
 		oldvd = oldvd->vdev_parent;
 	}
 
@@ -3830,8 +3855,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * mirror vdev -- in which case, pick a random child. For anyraid vdevs,
 	 * attachment occurs at the parent level.
 	 */
-	while (oldvd->vdev_children != 0 && oldvd->vdev_ops !=
-	    &vdev_anyraid_ops) {
+	while (oldvd->vdev_children != 0 && !anyraid) {
 		oldvd_has_siblings = B_TRUE;
 		ASSERT3U(oldvd->vdev_children, >=, 2);
 		oldvd = oldvd->vdev_child[ztest_random(oldvd->vdev_children)];
@@ -3844,7 +3868,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	    oldvd->vdev_top->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||
 	    oldvd->vdev_top->vdev_alloc_bias == VDEV_BIAS_DEDUP;
 	if (oldvd->vdev_path == NULL) {
-		ASSERT3P(oldvd->vdev_ops, ==, &vdev_anyraid_ops);
+		ASSERT(vdev_is_anyraid(oldvd));
 		snprintf(oldpath, MAXPATHLEN, "%s-%llu",
 		    oldvd->vdev_ops->vdev_op_type,
 		    (u_longlong_t)oldvd->vdev_id);
@@ -3859,8 +3883,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * to the detach the pool is scrubbed in order to prevent creating
 	 * unrepairable blocks as a result of the data corruption injection.
 	 */
-	if (oldvd_has_siblings && oldvd->vdev_ops != &vdev_anyraid_ops &&
-	    ztest_random(2) == 0) {
+	if (oldvd_has_siblings && !anyraid && ztest_random(2) == 0) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 
 		error = ztest_scrub_impl(spa);
@@ -3924,7 +3947,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * If newvd is a distributed spare and it's being attached to a
 	 * dRAID which is not its parent it should fail with ENOTSUP.
 	 */
-	if (oldvd->vdev_ops == &vdev_anyraid_ops)
+	if (anyraid)
 		expected_error = 0;
 	else if (pvd->vdev_ops != &vdev_mirror_ops &&
 	    pvd->vdev_ops != &vdev_root_ops && (!replacing ||
@@ -3939,7 +3962,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	else if (vdev_lookup_by_path(rvd, newpath) != NULL)
 		expected_error = EBUSY;
 	else if (newsize < oldsize && !(newvd_is_dspare ||
-	    (pvd->vdev_ops == &vdev_anyraid_ops &&
+	    (vdev_is_anyraid(pvd) &&
 	    newsize < pvd->vdev_ops->vdev_op_min_asize(pvd, oldvd))))
 		expected_error = EOVERFLOW;
 	else if (ashift > oldvd->vdev_top->vdev_ashift)
@@ -3961,7 +3984,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * When supported select either a healing or sequential resilver.
 	 */
 	boolean_t rebuilding = B_FALSE;
-	if (oldvd->vdev_ops != &vdev_anyraid_ops &&
+	if (oldvd->vdev_ops != &vdev_anyraidz_ops &&
 	    (pvd->vdev_ops == &vdev_mirror_ops ||
 	    pvd->vdev_ops == &vdev_root_ops)) {
 		rebuilding = !!ztest_random(2);

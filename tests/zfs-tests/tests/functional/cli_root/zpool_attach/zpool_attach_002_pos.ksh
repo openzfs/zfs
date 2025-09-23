@@ -67,4 +67,8 @@ log_must create_pool $TESTPOOL2 anymirror1 /$TESTPOOL/vdev_file.{0,1,2}
 log_must zpool attach $TESTPOOL2 anymirror-0 /$TESTPOOL/vdev_file.3
 log_must eval "zpool list -v $TESTPOOL2 | grep \"    .*_file.3\""
 
+log_must create_pool $TESTPOOL2 anyraidz1:2 /$TESTPOOL/vdev_file.{0,1,2}
+log_must zpool attach $TESTPOOL2 anyraidz1:2-0 /$TESTPOOL/vdev_file.3
+log_must eval "zpool list -v $TESTPOOL2 | grep \"    .*_file.3\""
+
 log_pass "'zpool attach' works to expand mirrors and anyraid vdevs"

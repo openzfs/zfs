@@ -9854,11 +9854,10 @@ print_separator_line(int cols, int colwidth, boolean_t *print, boolean_t *final)
 static void
 zdb_print_anyraid_tile_layout(vdev_t *vd)
 {
-	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
 	vdev_anyraid_t *var = vd->vdev_tsd;
 	int cols = vd->vdev_children;
 	int textwidth = MAX(8, numlen(avl_numnodes(&var->vd_tile_map)) +
-	    var->vd_nparity > 0 ? numlen(var->vd_nparity + 1) + 1 : 0);
+	    var->vd_nparity > 0 ? numlen(var->vd_width) + 1 : 0);
 	int colwidth = textwidth + 2;
 
 	// Create and populate table with all the values we need to print.
@@ -9885,7 +9884,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 			}
 			p++;
 		}
-		ASSERT3U(p, ==, var->vd_nparity + 1);
+		ASSERT3U(p, ==, var->vd_nparity + var->vd_ndata);
 		cur = AVL_NEXT(&var->vd_tile_map, cur);
 	}
 
@@ -10189,7 +10188,6 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 static void
 zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 {
-	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
 	vdev_anyraid_t *var = vd->vdev_tsd;
 
 	(void) printf("\t%-5s%11llu   %s %#16llx\n",
@@ -10242,11 +10240,13 @@ zdb_dump_anyraid_map(char *vdev_str, spa_t *spa, int verbosity)
 			(void) printf("Invalid vdev: %s\n", vdev_str);
 			return (EINVAL);
 		}
-		if (vd->vdev_ops != &vdev_anyraid_ops &&
-		    (vd->vdev_parent == NULL ||
-		    (vd = vd->vdev_parent)->vdev_ops != &vdev_anyraid_ops)) {
-			(void) printf("Not an anyraid vdev: %s\n", vdev_str);
-			return (EINVAL);
+		if (!vdev_is_anyraid(vd)) {
+			vd = vd->vdev_parent ? vd->vdev_parent : vd;
+			if (!vdev_is_anyraid(vd)) {
+				(void) printf("Not an anyraid vdev: %s\n",
+				    vdev_str);
+				return (EINVAL);
+			}
 		}
 
 		(void) printf("\nAnyRAID tiles:\n");
@@ -10259,7 +10259,8 @@ zdb_dump_anyraid_map(char *vdev_str, spa_t *spa, int verbosity)
 	rvd = spa->spa_root_vdev;
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		vd = rvd->vdev_child[c];
-		if (vd->vdev_ops == &vdev_anyraid_ops)
+		if (vd->vdev_ops == &vdev_anymirror_ops ||
+		    vd->vdev_ops == &vdev_anyraidz_ops)
 			zdb_dump_anyraid_map_vdev(vd, verbosity);
 	}
 	return (0);

@@ -406,6 +406,9 @@ gf_exp4(gf_log_t exp)
 	return ((gf_t)vdev_raidz_pow2[(2 * exp) % 255]);
 }
 
+void vdev_raidz_io_start_impl(zio_t *zio, raidz_map_t *rm,
+    uint64_t logical_width, uint64_t physical_width);
+
 #ifdef  __cplusplus
 }
 #endif

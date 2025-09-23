@@ -445,10 +445,15 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/anyraid/anyraid_clean_mirror_003_pos.ksh \
 	functional/anyraid/anyraid_clean_mirror_004_pos.ksh \
 	functional/anyraid/anyraid_encryption_001_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_001_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_002_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_003_pos.ksh \
 	functional/anyraid/anyraid_faildisk_write_replace_resilver.ksh \
 	functional/anyraid/anyraid_gang_blocks_001_pos.ksh \
 	functional/anyraid/anyraid_offline_anymirror_001_pos.ksh \
 	functional/anyraid/anyraid_offline_anymirror_002_neg.ksh \
+	functional/anyraid/anyraid_offline_anyraidz_001_pos.ksh \
+	functional/anyraid/anyraid_offline_anyraidz_002_neg.ksh \
 	functional/anyraid/anyraid_offline_write_online_resilver.ksh \
 	functional/anyraid/anyraid_properties_001_pos.ksh \
 	functional/anyraid/anyraid_scrub_001_pos.ksh \
@@ -458,6 +463,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/anyraid/anyraid_special_vdev_002_pos.ksh \
 	functional/anyraid/anyraid_tile_layout.ksh \
 	functional/anyraid/anyraid_write_verify_001_pos.ksh \
+	functional/anyraid/anyraid_write_verify_002_pos.ksh \
+	functional/anyraid/anyraid_write_verify_003_pos.ksh \
+	functional/anyraid/anyraid_write_verify_004_pos.ksh \
+	functional/anyraid/anyraid_write_verify_005_pos.ksh \
 	functional/anyraid/anyraid_write_verify_006_pos.ksh \
 	functional/anyraid/anyraid_write_verify_007_neg.ksh \
 	functional/anyraid/anyraid_write_verify_008_pos.ksh \
@@ -1067,7 +1076,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_add/zpool_add_008_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_009_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_anyraid_001_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_002_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_anyraid_003_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_004_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_create.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_degraded.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_removal.ksh \
@@ -1117,6 +1128,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_create/zpool_create_anyraid_004_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_anyraid_005_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_anyraid_006_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_007_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_008_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_009_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_010_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_011_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_crypt_combos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_001_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_002_pos.ksh \

@@ -1020,12 +1020,14 @@ typedef struct zpool_load_policy {
 
 /* ANYRAID configuration */
 #define	ZPOOL_CONFIG_ANYRAID_PARITY_TYPE	"anyraid_parity_type"
+#define	ZPOOL_CONFIG_ANYRAID_NDATA	"anyraid_ndata"
 
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"
 #define	VDEV_TYPE_REPLACING		"replacing"
 #define	VDEV_TYPE_RAIDZ			"raidz"
 #define	VDEV_TYPE_ANYMIRROR		"anymirror"
+#define	VDEV_TYPE_ANYRAIDZ		"anyraidz"
 #define	VDEV_TYPE_DRAID			"draid"
 #define	VDEV_TYPE_DRAID_SPARE		"dspare"
 #define	VDEV_TYPE_DISK			"disk"

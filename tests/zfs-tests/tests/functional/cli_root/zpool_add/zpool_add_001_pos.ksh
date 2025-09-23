@@ -55,7 +55,7 @@ log_assert "'zpool add <pool> <vdev> ...' can add devices to the pool."
 
 log_onexit cleanup
 
-set -A keywords "" "mirror" "raidz" "raidz1" "anymirror" "anymirror1" "anymirror2" "anymirror3" "draid:1s" "draid1:1s" "spare"
+set -A keywords "" "mirror" "raidz" "raidz1" "anymirror" "anymirror1" "anymirror2" "anymirror3" "draid:1s" "draid1:1s" "spare" "anyraidz1:2" "anyraidz2:1"
 
 create_sparse_files "disk" 4 $MINVDEVSIZE2
 create_sparse_files "extradisk" 4 $MINVDEVSIZE2
@@ -112,7 +112,7 @@ while (( $i < ${#keywords[*]} )); do
 		done
 
 		;;
-	anymirror*)
+	any*)
 		for vdev in "${anyraidarray[@]}"; do
 			create_pool "$TESTPOOL" "${keywords[i]}" $disks
 			log_must poolexists "$TESTPOOL"

@@ -48,26 +48,28 @@ cleanup() {
 
 log_onexit cleanup
 
-# anymirror1
+# 1-parity
 
-log_must create_sparse_files "disk" 3 $DEVSIZE
-log_must zpool create -f $TESTPOOL anymirror1 $disks
+for vdev in "anymirror1" "anyraidz1:1"; do
+	log_must create_sparse_files "disk" 3 $DEVSIZE
+	log_must zpool create -f $TESTPOOL $vdev $disks
 
-log_must zpool offline $TESTPOOL $disk0
-log_must check_state $TESTPOOL $disk0 "offline"
-log_must check_state $TESTPOOL "" "degraded"
+	log_must zpool offline $TESTPOOL $disk0
+	log_must check_state $TESTPOOL $disk0 "offline"
+	log_must check_state $TESTPOOL "" "degraded"
 
-log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128 -d R
-log_must zpool online $TESTPOOL $disk0
-log_must check_state $TESTPOOL $disk0 "online"
-for i in {1..60}; do
-	check_state $TESTPOOL "" "online" && break
-	sleep 1
+	log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128 -d R
+	log_must zpool online $TESTPOOL $disk0
+	log_must check_state $TESTPOOL $disk0 "online"
+	for i in {1..60}; do
+		check_state $TESTPOOL "" "online" && break
+		sleep 1
+	done
+	zpool status
+	log_must check_state $TESTPOOL "" "online"
+
+	log_must destroy_pool $TESTPOOL
 done
-zpool status
-log_must check_state $TESTPOOL "" "online"
-
-log_must destroy_pool $TESTPOOL
 
 
 # anymirror2

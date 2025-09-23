@@ -74,6 +74,7 @@ set -A args \
         "$TOOSMALL mirror $TESTDIR/file1 $TESTDIR/file2" \
 	"$TOOSMALL raidz $TESTDIR/file1 $TESTDIR/file2" \
 	"$TOOSMALL anymirror0 $TESTDIR/file1" \
+	"$TOOSMALL anyraidz1:1 $TESTDIR/file1 $TESTDIR/file2" \
 	"$TOOSMALL draid $TESTDIR/file1 $TESTDIR/file2 $TESTDIR/file3"
 
 typeset -i i=0

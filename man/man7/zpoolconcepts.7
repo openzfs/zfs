@@ -201,8 +201,6 @@ In addition, the device can be expanded by attaching new disks, and new tiles
 will be allocated from those disks.
 The vdev class as a whole is referred to as AnyRAID; anymirror vdevs
 specifically use mirror-style parity.
-Future work will also add anyraidz, which will use the same basic tile
-architecture, but use raidz-style parity.
 .Pp
 The desired parity value (N) is specified in the
 .Sy anymirrorN
@@ -220,6 +218,18 @@ is a 4-way mirror (3 parity tiles).
 The pattern continues in the expected way.
 .Sy anymirror0
 is striped (no parity tiles), and is primarily intended for testing.
+.It Sy anyraidz1:N , anyraidz2:N, anyraidz3:N
+A new device type that allows for raidz-parity redundancy while using devices
+of different sizes.
+These devices work in a similar way to .Sy anymirror devices, but use wider
+stripes to take advantage of raidz-style parity, rather than mirror parity.
+.Pp
+The desired parity value (X) and number of data disks (Y) is specified in the
+.Sy anyraidzX:Y
+string you pass when creating/adding the vdev group.
+This will store information in the same basic way, and with the same
+efficiency tradeoffs, as a .Sy raidzX device with X + Y disks.
+The total width (X + Y) cannot exceed the maximum number of vdevs in the group.
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
 For more information, see the
