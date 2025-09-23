@@ -51,6 +51,11 @@ create_sparse_files "disk" 4 $MINVDEVSIZE2
 log_mustnot zpool create $TESTPOOL anymirrorq $disks
 log_mustnot zpool create $TESTPOOL anymirrorq1 $disks
 log_mustnot zpool create $TESTPOOL anymirror-1 $disks
+log_mustnot zpool create $TESTPOOL anymirror4 $disks
+log_mustnot zpool create $TESTPOOL anyraidz $disks
+log_mustnot zpool create $TESTPOOL anyraidz1 $disks
+log_mustnot zpool create $TESTPOOL anyraidz1:0 $disks
+log_mustnot zpool create $TESTPOOL anyraidzz1:1 $disks
 
 #
 # vdev names should be reserved so they can't accidentally be used as a pool

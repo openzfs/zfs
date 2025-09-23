@@ -530,7 +530,8 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 			if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
 			    strcmp(type, VDEV_TYPE_DRAID) == 0 ||
-			    strcmp(type, VDEV_TYPE_ANYMIRROR) == 0) {
+			    strcmp(type, VDEV_TYPE_ANYMIRROR) == 0 ||
+			    strcmp(type, VDEV_TYPE_ANYRAIDZ) == 0) {
 				verify(nvlist_lookup_uint64(nv,
 				    ZPOOL_CONFIG_NPARITY,
 				    &rep.zprl_parity) == 0);
@@ -646,11 +647,12 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				 * they differ by a significant amount
 				 * (~16MB) then report an error.
 				 */
-				if (!dontreport &&
-				    (vdev_size != -1LL &&
+				if (!dontreport && (vdev_size != -1LL &&
 				    (llabs(size - vdev_size) >
-				    ZPOOL_FUZZ)) && strcmp(orig_type,
-				    VDEV_TYPE_ANYMIRROR) != 0) {
+				    ZPOOL_FUZZ)) && (strcmp(orig_type,
+				    VDEV_TYPE_ANYMIRROR) != 0 &&
+				    strcmp(orig_type, VDEV_TYPE_ANYRAIDZ) !=
+				    0)) {
 					if (ret != NULL)
 						free(ret);
 					ret = NULL;
@@ -746,8 +748,9 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				else
 					return (NULL);
 			} else if (lastrep.zprl_children !=
-			    rep.zprl_children && strcmp(rep.zprl_type,
-			    VDEV_TYPE_ANYMIRROR) != 0) {
+			    rep.zprl_children && (strcmp(rep.zprl_type,
+			    VDEV_TYPE_ANYMIRROR) != 0 && strcmp(rep.zprl_type,
+			    VDEV_TYPE_ANYRAIDZ) != 0)) {
 				if (ret)
 					free(ret);
 				ret = NULL;
@@ -934,6 +937,12 @@ lines_to_stderr(char *lines[], int lines_cnt)
 	}
 }
 
+static boolean_t
+strstarts(const char *str, const char *prefix)
+{
+	return (strncmp(str, prefix, strlen(prefix)) == 0);
+}
+
 /*
  * Go through and find any whole disks in the vdev specification, labelling them
  * as appropriate.  When constructing the vdev spec, we were unable to open this
@@ -1033,8 +1042,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv, boolean_t replacing)
 			char **lines = NULL;
 			int lines_cnt = 0;
 
-			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
-			if (ret == 0) {
+			if (strstarts(udevpath, UDISK_ROOT)) {
 				ret = lstat64(udevpath, &statbuf);
 				if (ret == 0 && S_ISLNK(statbuf.st_mode))
 					(void) unlink(udevpath);
@@ -1202,7 +1210,7 @@ get_parity(const char *type)
 	long parity = 0;
 	const char *p;
 
-	if (strncmp(type, VDEV_TYPE_RAIDZ, strlen(VDEV_TYPE_RAIDZ)) == 0) {
+	if (strstarts(type, VDEV_TYPE_RAIDZ)) {
 		p = type + strlen(VDEV_TYPE_RAIDZ);
 
 		if (*p == '\0') {
@@ -1221,8 +1229,7 @@ get_parity(const char *type)
 				return (0);
 			}
 		}
-	} else if (strncmp(type, VDEV_TYPE_ANYMIRROR,
-	    strlen(VDEV_TYPE_ANYMIRROR)) == 0) {
+	} else if (strstarts(type, VDEV_TYPE_ANYMIRROR)) {
 		p = type + strlen(VDEV_TYPE_ANYMIRROR);
 
 		if (*p == '\0') {
@@ -1232,13 +1239,25 @@ get_parity(const char *type)
 			char *end;
 			errno = 0;
 			parity = strtol(p, &end, 10);
-			if (errno != 0 || *end != '\0' ||
-			    parity < 0) {
+			if (errno != 0 || *end != '\0' || parity < 0)
+				return (-1);
+		}
+	} else if (strstarts(type, VDEV_TYPE_ANYRAIDZ)) {
+		p = type + strlen(VDEV_TYPE_ANYRAIDZ);
+
+		if (*p == '\0') {
+			/* when unspecified default to 1-parity mirror */
+			return (1);
+		} else {
+			char *end;
+			errno = 0;
+			parity = strtol(p, &end, 10);
+			if (errno != 0 || *end != ':' ||
+			    parity < 0 || parity > VDEV_RAIDZ_MAXPARITY) {
 				return (-1);
 			}
 		}
-	} else if (strncmp(type, VDEV_TYPE_DRAID,
-	    strlen(VDEV_TYPE_DRAID)) == 0) {
+	} else if (strstarts(type, VDEV_TYPE_DRAID)) {
 		p = type + strlen(VDEV_TYPE_DRAID);
 
 		if (*p == '\0' || *p == ':') {
@@ -1273,8 +1292,8 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 {
 	int nparity;
 
-	if (strncmp(type, VDEV_TYPE_RAIDZ, strlen(VDEV_TYPE_RAIDZ)) == 0 ||
-	    strncmp(type, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0) {
+	if (strstarts(type, VDEV_TYPE_RAIDZ)||
+	    strstarts(type, VDEV_TYPE_DRAID)) {
 		nparity = get_parity(type);
 		if (nparity == 0)
 			return (NULL);
@@ -1283,8 +1302,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 		if (maxdev != NULL)
 			*maxdev = 255;
 
-		if (strncmp(type, VDEV_TYPE_RAIDZ,
-		    strlen(VDEV_TYPE_RAIDZ)) == 0) {
+		if (strstarts(type, VDEV_TYPE_RAIDZ)) {
 			return (VDEV_TYPE_RAIDZ);
 		} else {
 			return (VDEV_TYPE_DRAID);
@@ -1294,8 +1312,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	if (maxdev != NULL)
 		*maxdev = INT_MAX;
 
-	if (strncmp(type, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) ==
-	    0) {
+	if (strstarts(type, VDEV_TYPE_ANYMIRROR)) {
 		nparity = get_parity(type);
 		if (nparity < 0)
 			return (NULL);
@@ -1304,6 +1321,17 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 		if (maxdev != NULL)
 			*maxdev = 255;
 		return (VDEV_TYPE_ANYMIRROR);
+	}
+
+	if (strstarts(type, VDEV_TYPE_ANYRAIDZ)) {
+		nparity = get_parity(type);
+		if (nparity < 0)
+			return (NULL);
+		if (mindev != NULL)
+			*mindev = nparity + 1;
+		if (maxdev != NULL)
+			*maxdev = 255;
+		return (VDEV_TYPE_ANYRAIDZ);
 	}
 
 	if (strcmp(type, "mirror") == 0) {
@@ -1341,15 +1369,82 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 }
 
 static int
+anyraidz_config_by_type(nvlist_t *nv, const char *type)
+{
+	uint64_t nparity;
+	uint64_t ndata = UINT64_MAX;
+
+	if (!strstarts(type, VDEV_TYPE_ANYRAIDZ))
+		return (EINVAL);
+
+	nparity = (uint64_t)get_parity(type);
+	if (nparity == 0 || nparity > VDEV_RAIDZ_MAXPARITY) {
+		fprintf(stderr,
+		    gettext("invalid anyraid parity level %llu; must be "
+		    "between 1 and %d\n"), (u_longlong_t)nparity,
+		    VDEV_RAIDZ_MAXPARITY);
+		return (EINVAL);
+	}
+
+	char *p = (char *)type;
+	if ((p = strchr(p, ':')) == NULL) {
+		fprintf(stderr, gettext("no anyraid data count detected\n"));
+		return (EINVAL);
+	}
+	char *end;
+
+	p = p + 1;
+	errno = 0;
+
+	if (!isdigit(p[0])) {
+		(void) fprintf(stderr, gettext("invalid anyraidz "
+		    "syntax; expected <number>:<number> not '%s'\n"),
+		    type);
+		return (EINVAL);
+	}
+
+	/* Expected non-zero value with c/d suffix */
+	ndata = strtol(p, &end, 10);
+	if (errno != 0) {
+		(void) fprintf(stderr, gettext("invalid anyraidz "
+		    "syntax; expected <number>:<number> not '%s'\n"),
+		    type);
+		return (EINVAL);
+	}
+
+	if (ndata + nparity > VDEV_ANYRAID_MAX_DISKS) {
+		fprintf(stderr, gettext("too many devices in anyraid group: "
+		    "%"PRIu64" data and %"PRIu64" parity"), ndata, nparity);
+		return (EINVAL);
+	}
+
+	if (ndata == 0 || nparity == 0) {
+		fprintf(stderr, gettext("invalid %s: must not be zero"),
+		    ndata == 0 ? "ndata" : "nparity");
+		return (EINVAL);
+	}
+
+	/* Store the basic anyraidz configuration. */
+	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE, VAP_RAIDZ);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, nparity);
+	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_NDATA, (uint8_t)ndata);
+
+	return (0);
+}
+
+static int
 anyraid_config_by_type(nvlist_t *nv, const char *type)
 {
 	uint64_t nparity = 0;
 
-	if (strncmp(type, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) !=
-	    0)
+	if (!(strstarts(type, VDEV_TYPE_ANYMIRROR) ||
+	    strstarts(type, VDEV_TYPE_ANYRAIDZ)))
 		return (EINVAL);
 
 	nparity = (uint64_t)get_parity(type);
+
+	if (strstarts(type, VDEV_TYPE_ANYRAIDZ))
+		return (anyraidz_config_by_type(nv, type));
 
 	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE, VAP_MIRROR);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, nparity);
@@ -1392,7 +1487,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width,
 	uint64_t children = 0;
 	long value;
 
-	if (strncmp(type, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) != 0)
+	if (!strstarts(type, VDEV_TYPE_DRAID))
 		return (EINVAL);
 
 	if (nfgroup && nfdomain) /* must be only one of two or none */
@@ -1703,10 +1798,6 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			}
 
 			if (is_log) {
-				/*
-				 * TODO: only AnyRAID mirror is expected to be
-				 * allowed.
-				 */
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0 &&
 				    strcmp(type, VDEV_TYPE_ANYMIRROR) != 0) {
 					(void) fprintf(stderr,
@@ -1908,7 +1999,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    ZPOOL_CONFIG_NPARITY,
 					    mindev - 1) == 0);
 				}
-				if (strcmp(type, VDEV_TYPE_ANYMIRROR) == 0) {
+				if (strcmp(type, VDEV_TYPE_ANYMIRROR) == 0 ||
+				    strcmp(type, VDEV_TYPE_ANYRAIDZ) == 0) {
 					if (anyraid_config_by_type(nv, fulltype)
 					    != 0) {
 						for (c = 0; c < children; c++)
