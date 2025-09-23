@@ -122,6 +122,13 @@ install() {
 	src=$1
 	dst=$2
 
+	# We may have an old symlink pointing to different ZFS workspace.
+	# Remove the old symlink if it doesn't point to our workspace.
+	if [ -h "$dst" ] && [ "$(readlink -f """$dst""")" != "$src" ] ; then
+		echo "Removing old symlink: $dst -> $(readlink """$dst""")"
+		rm "$dst"
+	fi
+
 	if [ -h "$dst" ]; then
 		echo "Symlink exists: $dst"
 	elif [ -e "$dst" ]; then
