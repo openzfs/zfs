@@ -103,7 +103,7 @@ typedef struct zfs_soft_state {
 #define	VTOZ(VP)	((struct znode *)(VP)->v_data)
 #define	VTOZ_SMR(VP)	((znode_t *)vn_load_v_data_smr(VP))
 #define	ITOZ(VP)	((struct znode *)(VP)->v_data)
-#define	zhold(zp)	vhold(ZTOV((zp)))
+#define	zhold(zp)	vref(ZTOV((zp)))
 #define	zrele(zp)	vrele(ZTOV((zp)))
 
 #define	ZTOZSB(zp) ((zp)->z_zfsvfs)
