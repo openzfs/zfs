@@ -2487,7 +2487,7 @@ ztest_get_done(zgd_t *zgd, int error)
 }
 
 static int
-ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
+ztest_get_data(void *arg, void *arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio)
 {
 	(void) arg2;
