@@ -197,6 +197,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_import/blockfiles/unclean_export.dat.bz2 \
 	functional/cli_root/zpool_import/zpool_import.cfg \
 	functional/cli_root/zpool_import/zpool_import.kshlib \
+	functional/cli_root/zpool_iostat/zpool_iostat.kshlib \
 	functional/cli_root/zpool_initialize/zpool_initialize.kshlib \
 	functional/cli_root/zpool_labelclear/labelclear.cfg \
 	functional/cli_root/zpool_remove/zpool_remove.cfg \
@@ -1178,6 +1179,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_parallel_admin.ksh \
 	functional/cli_root/zpool_import/zpool_import_parallel_neg.ksh \
 	functional/cli_root/zpool_import/zpool_import_parallel_pos.ksh \
+	functional/cli_root/zpool_iostat/setup.ksh \
+	functional/cli_root/zpool_iostat/cleanup.ksh \
+	functional/cli_root/zpool_iostat/zpool_iostat_interval_all.ksh \
+	functional/cli_root/zpool_iostat/zpool_iostat_interval_some.ksh \
 	functional/cli_root/zpool_initialize/cleanup.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_attach_detach_add_remove.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_fault_export_import_online.ksh \
