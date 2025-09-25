@@ -748,6 +748,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_METASLAB_SHIFT	"metaslab_shift"
 #define	ZPOOL_CONFIG_ASHIFT		"ashift"
 #define	ZPOOL_CONFIG_ASIZE		"asize"
+#define	ZPOOL_CONFIG_MIN_ALLOC		"min_alloc"
+#define	ZPOOL_CONFIG_MAX_ALLOC		"max_alloc"
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_REMOVAL_STATS	"removal_stats"	/* not stored on disk */
