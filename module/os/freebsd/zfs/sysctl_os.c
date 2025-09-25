@@ -164,6 +164,22 @@ param_set_arc_int(SYSCTL_HANDLER_ARGS)
 }
 
 int
+param_set_l2arc_dwpd_limit(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t old_val = l2arc_dwpd_limit;
+	int err;
+
+	err = sysctl_handle_64(oidp, arg1, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (l2arc_dwpd_limit != old_val)
+		l2arc_dwpd_bump_reset();
+
+	return (0);
+}
+
+int
 param_set_arc_max(SYSCTL_HANDLER_ARGS)
 {
 	unsigned long val;

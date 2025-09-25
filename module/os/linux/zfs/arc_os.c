@@ -410,6 +410,22 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 	return (0);
 }
 
+int
+param_set_l2arc_dwpd_limit(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t old_val = l2arc_dwpd_limit;
+	int error;
+
+	error = spl_param_set_u64(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (l2arc_dwpd_limit != old_val)
+		l2arc_dwpd_bump_reset();
+
+	return (0);
+}
+
 #ifdef CONFIG_MEMORY_HOTPLUG
 static int
 arc_hotplug_callback(struct notifier_block *self, unsigned long action,
