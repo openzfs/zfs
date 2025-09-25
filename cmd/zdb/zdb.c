@@ -3301,6 +3301,7 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 	uint64_t keyformat, salt, iters;
 	int i;
 	unsigned char c;
+	FILE *f;
 
 	VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset, dd->dd_crypto_obj,
 	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), sizeof (uint64_t),
@@ -3331,6 +3332,25 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 		    WRAPPING_KEY_LEN, key_out) != 1)
 			return (B_FALSE);
 
+		break;
+
+	case ZFS_KEYFORMAT_RAW:
+		if ((f = fopen(key_material, "r")) == NULL)
+			return (B_FALSE);
+
+		if (fread(key_out, 1, WRAPPING_KEY_LEN, f) !=
+		    WRAPPING_KEY_LEN) {
+			(void) fclose(f);
+			return (B_FALSE);
+		}
+
+		/* Check the key length */
+		if (fgetc(f) != EOF) {
+			(void) fclose(f);
+			return (B_FALSE);
+		}
+
+		(void) fclose(f);
 		break;
 
 	default:
