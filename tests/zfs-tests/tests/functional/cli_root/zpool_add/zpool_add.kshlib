@@ -26,6 +26,7 @@
 
 #
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright 2025 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -87,4 +88,45 @@ function save_dump_dev
 			awk '{print $1}'`
 	fi
 	echo $dumpdev
+}
+
+function zpool_create_add_setup
+{
+	typeset -i i=0
+
+	while ((i < 10)); do
+		log_must truncate -s $MINVDEVSIZE $TEST_BASE_DIR/vdev$i
+
+		eval vdev$i=$TEST_BASE_DIR/vdev$i
+		((i += 1))
+	done
+
+	if is_linux; then
+	        vdev_lo="$(losetup -f "$vdev4" --show)"
+	elif is_freebsd; then
+	        vdev_lo=/dev/"$(mdconfig -a -t vnode -f "$vdev4")"
+	else
+	        vdev_lo="$(lofiadm -a "$vdev4")"
+	fi
+}
+
+function zpool_create_add_cleanup
+{
+	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+
+	if [[ -e $vdev_lo ]]; then
+		if is_linux; then
+			log_must losetup -d "$vdev_lo"
+		elif is_freebsd; then
+			log_must mdconfig -d -u "$vdev_lo"
+		else
+			log_must lofiadm -d "$vdev_lo"
+		fi
+	fi
+
+	typeset -i i=0
+	while ((i < 10)); do
+		rm -f $TEST_BASE_DIR/vdev$i
+		((i += 1))
+	done
 }

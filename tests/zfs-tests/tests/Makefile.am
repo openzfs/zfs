@@ -1001,7 +1001,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_add/zpool_add_007_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_008_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_009_neg.ksh \
-	functional/cli_root/zpool_add/zpool_add_010_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_warn_create.ksh \
+	functional/cli_root/zpool_add/zpool_add_warn_degraded.ksh \
+	functional/cli_root/zpool_add/zpool_add_warn_removal.ksh \
 	functional/cli_root/zpool_add/zpool_add_dryrun_output.ksh \
 	functional/cli_root/zpool_attach/attach-o_ashift.ksh \
 	functional/cli_root/zpool_attach/cleanup.ksh \
