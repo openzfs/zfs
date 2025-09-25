@@ -23,67 +23,45 @@
 
 #
 # Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-#
-
-#
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright 2012, 2016 by Delphix. All rights reserved.
+# Copyright 2025 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
 #
 # DESCRIPTION:
-#	Verify zpool add succeed when adding vdevs with matching redundancy.
+#	Verify zpool add succeeds when adding vdevs with matching redundancy
+#	and warns with differing redundancy for a healthy pool.
 #
 # STRATEGY:
 #	1. Create several files == $MINVDEVSIZE.
 #	2. Verify 'zpool add' succeeds with matching redundancy.
 #	3. Verify 'zpool add' warns with differing redundancy.
-#	4. Verify 'zpool add' warns with differing redundancy after removal.
 #
 
 verify_runnable "global"
 
-function cleanup
-{
-	datasetexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+log_assert "Verify 'zpool add' warns for differing redundancy."
+log_onexit zpool_create_add_cleanup
 
-	typeset -i i=0
-	while ((i < 10)); do
-		rm -f $TEST_BASE_DIR/vdev$i
-		((i += 1))
-	done
-}
+zpool_create_add_setup
 
-
-log_assert "Verify 'zpool add' succeed with keywords combination."
-log_onexit cleanup
-
-# 1. Create several files == $MINVDEVSIZE.
 typeset -i i=0
-while ((i < 10)); do
-	log_must truncate -s $MINVDEVSIZE $TEST_BASE_DIR/vdev$i
-
-	eval vdev$i=$TEST_BASE_DIR/vdev$i
-	((i += 1))
-done
+typeset -i j=0
 
 set -A redundancy0_create_args \
 	"$vdev0"
 
 set -A redundancy1_create_args \
-	"mirror $vdev0 $vdev1" \
-	"raidz1 $vdev0 $vdev1"
+	"mirror $vdev0 $vdev1"
 
 set -A redundancy2_create_args \
-	"mirror $vdev0 $vdev1 $vdev2" \
-	"raidz2 $vdev0 $vdev1 $vdev2"
+	"mirror $vdev0 $vdev1 $vdev2"
 
 set -A redundancy3_create_args \
-	"mirror $vdev0 $vdev1 $vdev2 $vdev3" \
-	"raidz3 $vdev0 $vdev1 $vdev2 $vdev3"
+	"mirror $vdev0 $vdev1 $vdev2 $vdev3"
 
 set -A redundancy0_add_args \
 	"$vdev5" \
@@ -92,22 +70,13 @@ set -A redundancy0_add_args \
 set -A redundancy1_add_args \
 	"mirror $vdev5 $vdev6" \
 	"raidz1 $vdev5 $vdev6" \
-	"raidz1 $vdev5 $vdev6 mirror $vdev7 $vdev8" \
-	"mirror $vdev5 $vdev6 raidz1 $vdev7 $vdev8"
+	"raidz1 $vdev5 $vdev6 mirror $vdev7 $vdev8"
 
 set -A redundancy2_add_args \
-	"mirror $vdev5 $vdev6 $vdev7" \
-	"raidz2 $vdev5 $vdev6 $vdev7"
+	"mirror $vdev5 $vdev6 $vdev7"
 
 set -A redundancy3_add_args \
-	"mirror $vdev5 $vdev6 $vdev7 $vdev8" \
-	"raidz3 $vdev5 $vdev6 $vdev7 $vdev8"
-
-set -A log_args "log" "$vdev4"
-set -A cache_args "cache" "$vdev4"
-set -A spare_args "spare" "$vdev4"
-
-typeset -i j=0
+	"mirror $vdev5 $vdev6 $vdev7 $vdev8"
 
 function zpool_create_add
 {
@@ -148,30 +117,6 @@ function zpool_create_forced_add
 	done
 }
 
-function zpool_create_rm_add
-{
-	typeset -n create_args=$1
-	typeset -n add_args=$2
-	typeset -n rm_args=$3
-
-	i=0
-	while ((i < ${#create_args[@]})); do
-		j=0
-		while ((j < ${#add_args[@]})); do
-			log_must zpool create $TESTPOOL1 ${create_args[$i]}
-			log_must zpool add $TESTPOOL1 ${rm_args[0]} ${rm_args[1]}
-			log_must zpool add $TESTPOOL1 ${add_args[$j]}
-			log_must zpool remove $TESTPOOL1 ${rm_args[1]}
-			log_mustnot zpool add $TESTPOOL1 ${rm_args[1]}
-			log_must zpool add $TESTPOOL1 ${rm_args[0]} ${rm_args[1]}
-			log_must zpool destroy -f $TESTPOOL1
-
-			((j += 1))
-		done
-		((i += 1))
-	done
-}
-
 # 2. Verify 'zpool add' succeeds with matching redundancy.
 zpool_create_add redundancy0_create_args redundancy0_add_args
 zpool_create_add redundancy1_create_args redundancy1_add_args
@@ -195,17 +140,4 @@ zpool_create_forced_add redundancy3_create_args redundancy0_add_args
 zpool_create_forced_add redundancy3_create_args redundancy1_add_args
 zpool_create_forced_add redundancy3_create_args redundancy2_add_args
 
-# 4. Verify 'zpool add' warns with differing redundancy after removal.
-zpool_create_rm_add redundancy1_create_args redundancy1_add_args log_args
-zpool_create_rm_add redundancy2_create_args redundancy2_add_args log_args
-zpool_create_rm_add redundancy3_create_args redundancy3_add_args log_args
-
-zpool_create_rm_add redundancy1_create_args redundancy1_add_args cache_args
-zpool_create_rm_add redundancy2_create_args redundancy2_add_args cache_args
-zpool_create_rm_add redundancy3_create_args redundancy3_add_args cache_args
-
-zpool_create_rm_add redundancy1_create_args redundancy1_add_args spare_args
-zpool_create_rm_add redundancy2_create_args redundancy2_add_args spare_args
-zpool_create_rm_add redundancy3_create_args redundancy3_add_args spare_args
-
-log_pass "'zpool add' succeed with keywords combination."
+log_pass "Verify 'zpool add' warns for differing redundancy."

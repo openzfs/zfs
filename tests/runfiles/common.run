@@ -390,8 +390,9 @@ tags = ['functional', 'cli_root', 'zpool']
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
-    'zpool_add_008_neg', 'zpool_add_009_neg', 'zpool_add_010_pos',
-    'add-o_ashift', 'add_prop_ashift', 'zpool_add_dryrun_output']
+    'zpool_add_008_neg', 'zpool_add_009_neg', 'zpool_add_warn_create',
+    'zpool_add_warn_degraded', 'zpool_add_warn_removal', 'add-o_ashift',
+    'add_prop_ashift', 'zpool_add_dryrun_output']
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
