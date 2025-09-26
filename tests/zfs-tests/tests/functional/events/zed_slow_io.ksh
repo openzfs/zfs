@@ -23,6 +23,7 @@
 
 #
 # Copyright (c) 2023, Klara Inc.
+# Copyright (c) 2025, Mariusz Zaborski <oshogbo@FreeBSD.org>
 #
 
 # DESCRIPTION:
@@ -140,8 +141,8 @@ function slow_io_degrade
 {
 	do_setup
 
-	zpool set slow_io_n=5 $TESTPOOL $VDEV
-	zpool set slow_io_t=60 $TESTPOOL $VDEV
+	log_must zpool set slow_io_n=5 $TESTPOOL $VDEV
+	log_must zpool set slow_io_t=60 $TESTPOOL $VDEV
 
 	start_slow_io
 	for i in {1..16}; do
@@ -193,6 +194,44 @@ function slow_io_no_degrade
 	do_clean
 }
 
+# Change slow_io_n, slow_io_t to 5 events in 60 seconds
+# fire more than 5 events. Disable slow io events.
+# Should not degrade.
+function slow_io_degrade_disabled
+{
+	do_setup
+
+	log_must zpool set slow_io_n=5 $TESTPOOL $VDEV
+	log_must zpool set slow_io_t=60 $TESTPOOL $VDEV
+	log_must zpool set slow_io_events=off $TESTPOOL $VDEV
+
+	start_slow_io
+	for i in {1..16}; do
+		dd if=${FILEPATH}$i of=/dev/null count=1 bs=512 2>/dev/null
+		sleep 0.5
+	done
+	stop_slow_io
+	zpool sync
+
+	#
+	# wait 60 seconds to confirm that zfs.delay was not generated.
+	#
+	typeset -i i=0
+	typeset -i events=0
+	while [[ $i -lt 60 ]]; do
+		events=$(zpool events | grep "ereport\.fs\.zfs.delay" | wc -l)
+		i=$((i+1))
+		sleep 1
+	done
+	log_note "$events delay events found"
+
+	[ $events -eq "0" ] || \
+		log_fail "expecting no delay events, found $events"
+
+	log_mustnot wait_vdev_state $TESTPOOL $VDEV "DEGRADED" 45
+	do_clean
+}
+
 log_assert "Test ZED slow io configurability"
 log_onexit cleanup
 
@@ -202,5 +241,6 @@ log_must zed_start
 default_degrade
 slow_io_degrade
 slow_io_no_degrade
+slow_io_degrade_disabled
 
 log_pass "Test ZED slow io configurability"
