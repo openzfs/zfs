@@ -7835,7 +7835,8 @@ import_checkpointed_state(char *target, nvlist_t *cfg, boolean_t target_is_spa,
 
 	if (cfg == NULL) {
 		zdb_set_skip_mmp(poolname);
-		error = spa_get_stats(poolname, &cfg, NULL, 0);
+		error = spa_get_stats(poolname, &cfg, NULL, 0,
+		    ZPOOL_LOCK_BEHAVIOR_DEFAULT);
 		if (error != 0) {
 			fatal("Tried to read config of pool \"%s\" but "
 			    "spa_get_stats() failed with error %d\n",
