@@ -4222,7 +4222,7 @@ class _TempPool(object):
             self.getRoot().reset()
             return
 
-        # On the Buildbot builders this may fail with "pool is busy"
+        # On the CI builders this may fail with "pool is busy"
         # Retry 5 times before raising an error
         retry = 0
         while True:
