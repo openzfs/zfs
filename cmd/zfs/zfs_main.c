@@ -930,18 +930,14 @@ usage:
 }
 
 /*
- * Return a default volblocksize for the pool which always uses more than
- * half of the data sectors.  This primarily applies to dRAID which always
- * writes full stripe widths.
+ * Calculate the minimum allocation size based on the top-level vdevs.
  */
 static uint64_t
-default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+calculate_volblocksize(nvlist_t *config)
 {
-	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
+	uint64_t asize = SPA_MINBLOCKSIZE;
 	nvlist_t *tree, **vdevs;
 	uint_t nvdevs;
-
-	nvlist_t *config = zpool_get_config(zhp, NULL);
 
 	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &tree) != 0 ||
 	    nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
@@ -972,6 +968,24 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 			asize = MAX(asize, 1ULL << ashift);
 		}
 	}
+
+	return (asize);
+}
+
+/*
+ * Return a default volblocksize for the pool which always uses more than
+ * half of the data sectors.  This primarily applies to dRAID which always
+ * writes full stripe widths.
+ */
+static uint64_t
+default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+{
+	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
+
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_MAX_ALLOC, &asize) != 0)
+		asize = calculate_volblocksize(config);
 
 	/*
 	 * Calculate the target volblocksize such that more than half
@@ -5303,6 +5317,7 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_MOUNT		"mount"
 #define	ZFS_DELEG_PERM_SHARE		"share"
 #define	ZFS_DELEG_PERM_SEND		"send"
+#define	ZFS_DELEG_PERM_SEND_RAW		"send:raw"
 #define	ZFS_DELEG_PERM_RECEIVE		"receive"
 #define	ZFS_DELEG_PERM_RECEIVE_APPEND	"receive:append"
 #define	ZFS_DELEG_PERM_ALLOW		"allow"
@@ -5345,6 +5360,7 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_RENAME, ZFS_DELEG_NOTE_RENAME },
 	{ ZFS_DELEG_PERM_ROLLBACK, ZFS_DELEG_NOTE_ROLLBACK },
 	{ ZFS_DELEG_PERM_SEND, ZFS_DELEG_NOTE_SEND },
+	{ ZFS_DELEG_PERM_SEND_RAW, ZFS_DELEG_NOTE_SEND_RAW },
 	{ ZFS_DELEG_PERM_SHARE, ZFS_DELEG_NOTE_SHARE },
 	{ ZFS_DELEG_PERM_SNAPSHOT, ZFS_DELEG_NOTE_SNAPSHOT },
 	{ ZFS_DELEG_PERM_BOOKMARK, ZFS_DELEG_NOTE_BOOKMARK },
@@ -5928,6 +5944,10 @@ deleg_perm_comment(zfs_deleg_note_t note)
 		break;
 	case ZFS_DELEG_NOTE_SEND:
 		str = gettext("");
+		break;
+	case ZFS_DELEG_NOTE_SEND_RAW:
+		str = gettext("Allow sending ONLY encrypted (raw) replication"
+		    "\n\t\t\t\tstreams");
 		break;
 	case ZFS_DELEG_NOTE_SHARE:
 		str = gettext("Allows sharing file systems over NFS or SMB"
@@ -6858,17 +6878,17 @@ print_holds(boolean_t scripted, int nwidth, int tagwidth, nvlist_t *nvl,
 
 			if (scripted) {
 				if (parsable) {
-					(void) printf("%s\t%s\t%ld\n", zname,
-					    tagname, time);
+					(void) printf("%s\t%s\t%lld\n", zname,
+					    tagname, (long long)time);
 				} else {
 					(void) printf("%s\t%s\t%s\n", zname,
 					    tagname, tsbuf);
 				}
 			} else {
 				if (parsable) {
-					(void) printf("%-*s  %-*s  %ld\n",
+					(void) printf("%-*s  %-*s  %lld\n",
 					    nwidth, zname, tagwidth,
-					    tagname, time);
+					    tagname, (long long)time);
 				} else {
 					(void) printf("%-*s  %-*s  %s\n",
 					    nwidth, zname, tagwidth,

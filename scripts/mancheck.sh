@@ -11,12 +11,12 @@
 # AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
-# shellcheck disable=SC2086
+# shellcheck disable=SC2068,SC2086
 
 trap 'rm -f "$stdout_file" "$stderr_file" "$result_file"' EXIT
 
 if [ "$#" -eq 0 ]; then
-    echo "Usage: $0 manpage-directory..."
+    echo "Usage: $0 <manpage-directory|manpage-file>..."
     exit 1
 fi
 
@@ -27,7 +27,16 @@ fi
 
 IFS="
 "
-files="$(find "$@" -type f -name '*[1-9]*' -not -name '.*')" || exit 1
+files="$(
+  for path in $@ ; do
+    find -L $path -type f -name '*[1-9]*' -not -name '.*'
+  done | sort | uniq
+)"
+
+if [ "$files" = "" ] ; then
+    echo no files to process! 1>&2
+    exit 1
+fi
 
 add_excl="$(awk '
     /^.\\" lint-ok:/ {
@@ -48,6 +57,4 @@ grep -vhE -e 'mandoc: outdated mandoc.db' -e 'STYLE: referenced manual not found
 if [ -s "$result_file" ]; then
     cat "$result_file"
     exit 1
-else
-    echo "no errors found"
 fi

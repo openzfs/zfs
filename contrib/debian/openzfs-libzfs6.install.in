@@ -1,2 +1,2 @@
-lib/@DEB_HOST_MULTIARCH@/libzfs.so.*
-lib/@DEB_HOST_MULTIARCH@/libzfs_core.so.*
+usr/lib/@DEB_HOST_MULTIARCH@/libzfs.so.*
+usr/lib/@DEB_HOST_MULTIARCH@/libzfs_core.so.*

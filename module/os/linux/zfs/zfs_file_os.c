@@ -115,8 +115,9 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
  */
 int
 zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
-    ssize_t *resid)
+    uint8_t ashift, ssize_t *resid)
 {
+	(void) ashift;
 	ssize_t rc;
 
 	rc  = kernel_write(fp, buf, count, &off);

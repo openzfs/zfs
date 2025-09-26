@@ -109,7 +109,9 @@ tags = ['functional', 'direct']
 [tests/functional/events:Linux]
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
     'zed_cksum_reported', 'zed_cksum_config', 'zed_io_config',
-    'zed_slow_io', 'zed_slow_io_many_vdevs', 'zed_diagnose_multiple']
+    'zed_slow_io', 'zed_slow_io_many_vdevs', 'zed_diagnose_multiple',
+    'zed_synchronous_zedlet', 'slow_vdev_sit_out', 'slow_vdev_sit_out_neg',
+    'slow_vdev_degraded_sit_out']
 tags = ['functional', 'events']
 
 [tests/functional/fallocate:Linux]
@@ -161,7 +163,7 @@ tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
 tags = ['functional', 'mmp']
 
 [tests/functional/mount:Linux]
-tests = ['umount_unlinked_drain']
+tests = ['umount_unlinked_drain', 'mount_loopback']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]

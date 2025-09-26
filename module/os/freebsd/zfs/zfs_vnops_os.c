@@ -61,6 +61,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
 #include <sys/dbuf.h>
@@ -388,7 +389,9 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 		error = vn_lock(vp, LK_EXCLUSIVE);
 		if (error)
 			return (error);
+		vn_seqc_write_begin(vp);
 		error = zfs_ioctl_setxattr(vp, fsx, cred);
+		vn_seqc_write_end(vp);
 		VOP_UNLOCK(vp);
 		return (error);
 	}
@@ -2205,6 +2208,7 @@ zfs_setattr_dir(znode_t *dzp)
 		if (err)
 			break;
 
+		vn_seqc_write_begin(ZTOV(zp));
 		mutex_enter(&dzp->z_lock);
 
 		if (zp->z_uid != dzp->z_uid) {
@@ -2254,6 +2258,7 @@ sa_add_projid_err:
 			dmu_tx_abort(tx);
 		}
 		tx = NULL;
+		vn_seqc_write_end(ZTOV(zp));
 		if (err != 0 && err != ENOENT)
 			break;
 
@@ -5729,6 +5734,9 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 {
 	ulong_t val;
 	int error;
+#ifdef _PC_CLONE_BLKSIZE
+	zfsvfs_t *zfsvfs;
+#endif
 
 	error = zfs_pathconf(ap->a_vp, ap->a_name, &val,
 	    curthread->td_ucred, NULL);
@@ -5773,6 +5781,21 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 #ifdef _PC_HAS_HIDDENSYSTEM
 	case _PC_HAS_HIDDENSYSTEM:
 		*ap->a_retval = 1;
+		return (0);
+#endif
+#ifdef _PC_CLONE_BLKSIZE
+	case _PC_CLONE_BLKSIZE:
+		zfsvfs = (zfsvfs_t *)ap->a_vp->v_mount->mnt_data;
+		if (zfs_bclone_enabled &&
+		    spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
+		    SPA_FEATURE_BLOCK_CLONING))
+			*ap->a_retval = dsl_dataset_feature_is_active(
+			    zfsvfs->z_os->os_dsl_dataset,
+			    SPA_FEATURE_LARGE_BLOCKS) ?
+			    SPA_MAXBLOCKSIZE :
+			    SPA_OLD_MAXBLOCKSIZE;
+		else
+			*ap->a_retval = 0;
 		return (0);
 #endif
 	default:

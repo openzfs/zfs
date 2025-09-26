@@ -385,6 +385,8 @@ typedef enum {
 	VDEV_PROP_TRIM_SUPPORT,
 	VDEV_PROP_TRIM_ERRORS,
 	VDEV_PROP_SLOW_IOS,
+	VDEV_PROP_SIT_OUT,
+	VDEV_PROP_AUTOSIT,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -746,6 +748,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_METASLAB_SHIFT	"metaslab_shift"
 #define	ZPOOL_CONFIG_ASHIFT		"ashift"
 #define	ZPOOL_CONFIG_ASIZE		"asize"
+#define	ZPOOL_CONFIG_MIN_ALLOC		"min_alloc"
+#define	ZPOOL_CONFIG_MAX_ALLOC		"max_alloc"
 #define	ZPOOL_CONFIG_DTL		"DTL"
 #define	ZPOOL_CONFIG_SCAN_STATS		"scan_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_REMOVAL_STATS	"removal_stats"	/* not stored on disk */
@@ -1673,6 +1677,7 @@ typedef enum {
 	ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
 	ZFS_ERR_ASHIFT_MISMATCH,
 	ZFS_ERR_STREAM_LARGE_MICROZAP,
+	ZFS_ERR_TOO_MANY_SITOUTS,
 } zfs_errno_t;
 
 /*

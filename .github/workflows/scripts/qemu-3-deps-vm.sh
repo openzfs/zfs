@@ -104,7 +104,7 @@ function install_fedora_experimental_kernel {
   our_version="$1"
   sudo dnf -y copr enable @kernel-vanilla/stable
   sudo dnf -y copr enable @kernel-vanilla/mainline
-  all="$(sudo dnf list --showduplicates kernel-*)"
+  all="$(sudo dnf list --showduplicates kernel-* python3-perf* perf* bpftool*)"
   echo "Available versions:"
   echo "$all"
 

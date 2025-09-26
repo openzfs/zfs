@@ -1,4 +1,4 @@
-sbin/ztest
+usr/sbin/ztest
 usr/bin/raidz_test
 usr/share/man/man1/raidz_test.1
 usr/share/man/man1/test-runner.1

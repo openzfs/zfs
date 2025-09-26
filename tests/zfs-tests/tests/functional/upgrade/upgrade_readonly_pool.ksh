@@ -35,17 +35,19 @@
 
 verify_runnable "global"
 
-TESTFILE="$TESTDIR/file.bin"
-
 log_assert "User accounting upgrade should not be executed on readonly pool"
 log_onexit cleanup_upgrade
 
 # 1. Create a pool with the feature@userobj_accounting disabled to simulate
 #    a legacy pool from a previous ZFS version.
-log_must zpool create -d -m $TESTDIR $TESTPOOL $TMPDEV
+log_must zpool create -d $TESTPOOL $TMPDEV
+log_must zfs create $TESTPOOL/$TESTFS
+
+MNTPNT=$(get_prop mountpoint $TESTPOOL/$TESTFS)
+TESTFILE="$MNTPNT/file.bin"
 
 # 2. Create a file on the "legecy" dataset
-log_must touch $TESTDIR/file.bin
+log_must touch $TESTFILE
 
 # 3. Enable feature@userobj_accounting on the pool and verify it is only
 #    "enabled" and not "active": upgrading starts when the filesystem is mounted
@@ -54,12 +56,12 @@ log_must test "enabled" == "$(get_pool_prop 'feature@userobj_accounting' $TESTPO
 
 # 4. Export the pool and re-import is readonly, without mounting any filesystem
 log_must zpool export $TESTPOOL
-log_must zpool import -o readonly=on -N -d "$(dirname $TMPDEV)" $TESTPOOL
+log_must zpool import -o readonly=on -N -d $TEST_BASE_DIR $TESTPOOL
 
 # 5. Try to mount the root dataset manually without the "ro" option, then verify
 #    filesystem status and the pool feature status (not "active") to ensure the
 #    pool "readonly" status is enforced.
-log_must mount -t zfs -o zfsutil $TESTPOOL $TESTDIR
+log_must zfs mount -R $TESTPOOL
 log_must stat "$TESTFILE"
 log_mustnot touch "$TESTFILE"
 log_must test "enabled" == "$(get_pool_prop 'feature@userobj_accounting' $TESTPOOL)"

@@ -63,7 +63,7 @@ log_mustnot_expect 'no such tunable: 0' zdb -o show=0
 log_mustnot_expect 'no such tunable: 1' zdb -o info=1
 
 # can set multiple in same command
-log_must eval 'zdb -o zfs_recover=1 -o zfs_flags=512 | xargs | grep -qE "^zfs_recover: 0 -> 1 zfs_flags: 4294965758 -> 512$"'
+log_must eval 'zdb -o zfs_recover=1 -o zfs_flags=512 | xargs | grep -qE "^zfs_recover: 0 -> 1 zfs_flags: 4294932990 -> 512$"'
 
 # can set and show in same command
 log_must eval 'zdb -o zfs_recover=1 -o zfs_recover -o zfs_recover=0 | xargs | grep -qE "^zfs_recover: 0 -> 1 zfs_recover: 1 zfs_recover: 1 -> 0$"'

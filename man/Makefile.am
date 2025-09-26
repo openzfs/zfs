@@ -2,7 +2,7 @@ dist_noinst_man_MANS = \
 	%D%/man1/cstyle.1
 
 dist_man_MANS = \
-	%D%/man1/arcstat.1 \
+	%D%/man1/zarcstat.1 \
 	%D%/man1/raidz_test.1 \
 	%D%/man1/test-runner.1 \
 	%D%/man1/zhack.1 \
@@ -124,10 +124,21 @@ dist_noinst_DATA += $(dist_noinst_man_MANS) $(dist_man_MANS)
 
 SUBSTFILES += $(nodist_man_MANS)
 
-CHECKS += mancheck
-mancheck:
-	$(top_srcdir)/scripts/mancheck.sh $(srcdir)/%D%
+MANFILES = $(dist_noinst_man_MANS) $(dist_man_MANS) $(nodist_man_MANS)
 
+PHONY += mancheck
+
+mancheck_verbose = $(mancheck_verbose_@AM_V@)
+mancheck_verbose_ = $(mancheck_verbose_@AM_DEFAULT_V@)
+mancheck_verbose_0 = @echo MANCHECK $(_MTGT);
+
+_MTGT = $(subst ^,/,$(subst mancheck-,,$@))
+mancheck-%:
+	$(mancheck_verbose)scripts/mancheck.sh $(_MTGT)
+
+mancheck: $(foreach manfile, $(MANFILES), $(addprefix mancheck-,$(subst /,^,$(manfile))))
+
+CHECKS += mancheck
 
 if BUILD_LINUX
 # The manual pager in most Linux distros defaults to "BSD" when .Os is blank,

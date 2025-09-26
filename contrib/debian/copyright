@@ -4,7 +4,7 @@ The detailed contributor information can be found in [2][3].
 
 Files: contrib/debian/*
 Copyright:
- 2013-2016, Aron Xu <aron@debian.org>
+ 2013-2025, Aron Xu <aron@debian.org>
  2016, Petter Reinholdtsen <pere@hungry.com>
  2013, Carlos Alberto Lopez Perez <clopez@igalia.com>
  2013, Turbo Fredriksson <turbo@bayour.com>
@@ -12,6 +12,8 @@ Copyright:
  2011-2013, Darik Horn <dajhorn@vanadac.com>
  2018-2019, Mo Zhou <cdluminate@gmail.com>
  2018-2020, Mo Zhou <lumin@debian.org>
+ 2023-2024, Shengqi Chen <harry-chen@outlook.com>
+ 2024-2025, Shengqi Chen <harry@debian.org>
 License: GPL-2+
 
 [1] https://tracker.debian.org/pkg/zfs-linux
