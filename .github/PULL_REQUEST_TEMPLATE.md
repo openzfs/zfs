@@ -2,11 +2,6 @@
 
 <!--- Provide a general summary of your changes in the Title above -->
 
-<!---
-Documentation on ZFS Buildbot options can be found at
-https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html
--->
-
 ### Motivation and Context
 <!--- Why is this change required? What problem does it solve? -->
 <!--- If it fixes an open issue, please link to the issue here. -->
