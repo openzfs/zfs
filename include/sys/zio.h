@@ -718,6 +718,7 @@ extern void zio_handle_ignored_writes(zio_t *zio);
 extern hrtime_t zio_handle_io_delay(zio_t *zio);
 extern void zio_handle_import_delay(spa_t *spa, hrtime_t elapsed);
 extern void zio_handle_export_delay(spa_t *spa, hrtime_t elapsed);
+extern hrtime_t zio_handle_ready_delay(zio_t *zio);
 
 /*
  * Checksum ereport functions

@@ -138,6 +138,20 @@ This injector is automatically cleared after the import is finished.
 .
 .It Xo
 .Nm zinject
+.Fl E Ar delay
+.Op Fl a
+.Op Fl m
+.Op Fl f Ar freq
+.Op Fl l Ar level
+.Op Fl r Ar range
+.Op Fl T Ar iotype
+.Op Fl t Ar type Ns | Ns Fl b Ar bookmark
+.Xc
+Inject pipeline ready stage delays for the given object or bookmark.
+The delay is specified in milliseconds.
+.
+.It Xo
+.Nm zinject
 .Fl I
 .Op Fl s Ar seconds Ns | Ns Fl g Ar txgs
 .Ar pool

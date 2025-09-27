@@ -107,6 +107,8 @@
  * 	zinject
  * 	zinject <-a | -u pool>
  * 	zinject -c <id|all>
+ * 	zinject -E <delay> [-a] [-m] [-f freq] [-l level] [-r range]
+ *	    [-T iotype] [-t type object | -b bookmark pool]
  * 	zinject [-q] <-t type> [-f freq] [-u] [-a] [-m] [-e errno] [-l level]
  *	    [-r range] <object>
  * 	zinject [-f freq] [-a] [-m] [-u] -b objset:object:level:start:end pool
@@ -132,14 +134,18 @@
  * The '-f' flag controls the frequency of errors injected, expressed as a
  * real number percentage between 0.0001 and 100.  The default is 100.
  *
- * The this form is responsible for actually injecting the handler into the
+ * The <object> form is responsible for actually injecting the handler into the
  * framework.  It takes the arguments described above, translates them to the
  * internal tuple using libzpool, and then issues an ioctl() to register the
  * handler.
  *
- * The final form can target a specific bookmark, regardless of whether a
+ * The '-b' option can target a specific bookmark, regardless of whether a
  * human-readable interface has been designed.  It allows developers to specify
  * a particular block by number.
+ *
+ * The '-E' option injects pipeline ready stage delays for the given object or
+ * bookmark. The delay is specified in milliseconds, and it supports I/O type
+ * and range filters.
  */
 
 #include <errno.h>
@@ -345,6 +351,13 @@ usage(void)
 	    "\t\tAdd an artificial delay to a future pool import or export,\n"
 	    "\t\tsuch that the operation takes a minimum of supplied seconds\n"
 	    "\t\tto complete.\n"
+	    "\n"
+	    "\tzinject -E <delay> [-a] [-m] [-f freq] [-l level] [-r range]\n"
+	    "\t\t[-T iotype] [-t type object | -b bookmark pool]\n"
+	    "\n"
+	    "\t\tInject pipeline ready stage delays for the given object path\n"
+	    "\t\t(data or dnode) or raw bookmark. The delay is specified in\n"
+	    "\t\tmilliseconds.\n"
 	    "\n"
 	    "\tzinject -I [-s <seconds> | -g <txgs>] pool\n"
 	    "\t\tCause the pool to stop writing blocks yet not\n"
@@ -724,12 +737,15 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 	if (quiet) {
 		(void) printf("%llu\n", (u_longlong_t)zc.zc_guid);
 	} else {
+		boolean_t show_object = B_FALSE;
+		boolean_t show_iotype = B_FALSE;
 		(void) printf("Added handler %llu with the following "
 		    "properties:\n", (u_longlong_t)zc.zc_guid);
 		(void) printf("  pool: %s\n", pool);
 		if (record->zi_guid) {
 			(void) printf("  vdev: %llx\n",
 			    (u_longlong_t)record->zi_guid);
+			show_iotype = B_TRUE;
 		} else if (record->zi_func[0] != '\0') {
 			(void) printf("  panic function: %s\n",
 			    record->zi_func);
@@ -742,7 +758,18 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 		} else if (record->zi_timer > 0) {
 			(void) printf(" timer: %lld ms\n",
 			    (u_longlong_t)NSEC2MSEC(record->zi_timer));
+			if (record->zi_cmd == ZINJECT_DELAY_READY) {
+				show_object = B_TRUE;
+				show_iotype = B_TRUE;
+			}
 		} else {
+			show_object = B_TRUE;
+		}
+		if (show_iotype) {
+			(void) printf("iotype: %s\n",
+			    iotype_to_str(record->zi_iotype));
+		}
+		if (show_object) {
 			(void) printf("objset: %llu\n",
 			    (u_longlong_t)record->zi_objset);
 			(void) printf("object: %llu\n",
@@ -910,6 +937,7 @@ main(int argc, char **argv)
 	int ret;
 	int flags = 0;
 	uint32_t dvas = 0;
+	hrtime_t ready_delay = -1;
 
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
@@ -940,7 +968,7 @@ main(int argc, char **argv)
 	}
 
 	while ((c = getopt(argc, argv,
-	    ":aA:b:C:d:D:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:P:")) != -1) {
+	    ":aA:b:C:d:D:E:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:P:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
@@ -1113,6 +1141,18 @@ main(int argc, char **argv)
 		case 'u':
 			flags |= ZINJECT_UNLOAD_SPA;
 			break;
+		case 'E':
+			ready_delay = MSEC2NSEC(strtol(optarg, &end, 10));
+			if (ready_delay <= 0 || *end != '\0') {
+				(void) fprintf(stderr, "invalid delay '%s': "
+				    "must be a positive duration\n", optarg);
+				usage();
+				libzfs_fini(g_zfs);
+				return (1);
+			}
+			record.zi_cmd = ZINJECT_DELAY_READY;
+			record.zi_timer = ready_delay;
+			break;
 		case 'L':
 			if ((label = name_to_type(optarg)) == TYPE_INVAL &&
 			    !LABEL_TYPE(type)) {
@@ -1150,7 +1190,7 @@ main(int argc, char **argv)
 		 */
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || record.zi_cmd != ZINJECT_UNINITIALIZED ||
-		    record.zi_freq > 0 || dvas != 0) {
+		    record.zi_freq > 0 || dvas != 0 || ready_delay >= 0) {
 			(void) fprintf(stderr, "cancel (-c) incompatible with "
 			    "any other options\n");
 			usage();
@@ -1186,7 +1226,7 @@ main(int argc, char **argv)
 		 */
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || record.zi_cmd != ZINJECT_UNINITIALIZED ||
-		    dvas != 0) {
+		    dvas != 0 || ready_delay >= 0) {
 			(void) fprintf(stderr, "device (-d) incompatible with "
 			    "data error injection\n");
 			usage();
@@ -1276,13 +1316,23 @@ main(int argc, char **argv)
 			return (1);
 		}
 
-		record.zi_cmd = ZINJECT_DATA_FAULT;
+		if (record.zi_cmd == ZINJECT_UNINITIALIZED) {
+			record.zi_cmd = ZINJECT_DATA_FAULT;
+			if (!error)
+				error = EIO;
+		} else if (error != 0) {
+			(void) fprintf(stderr, "error type -e incompatible "
+			    "with delay injection\n");
+			libzfs_fini(g_zfs);
+			return (1);
+		} else {
+			record.zi_iotype = io_type;
+		}
+
 		if (translate_raw(raw, &record) != 0) {
 			libzfs_fini(g_zfs);
 			return (1);
 		}
-		if (!error)
-			error = EIO;
 	} else if (record.zi_cmd == ZINJECT_PANIC) {
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || device != NULL || record.zi_freq > 0 ||
@@ -1410,6 +1460,13 @@ main(int argc, char **argv)
 			record.zi_dvas = dvas;
 		}
 
+		if (record.zi_cmd != ZINJECT_UNINITIALIZED && error != 0) {
+			(void) fprintf(stderr, "error type -e incompatible "
+			    "with delay injection\n");
+			libzfs_fini(g_zfs);
+			return (1);
+		}
+
 		if (error == EACCES) {
 			if (type != TYPE_DATA) {
 				(void) fprintf(stderr, "decryption errors "
@@ -1425,8 +1482,12 @@ main(int argc, char **argv)
 			 * not found.
 			 */
 			error = ECKSUM;
-		} else {
+		} else if (record.zi_cmd == ZINJECT_UNINITIALIZED) {
 			record.zi_cmd = ZINJECT_DATA_FAULT;
+			if (!error)
+				error = EIO;
+		} else {
+			record.zi_iotype = io_type;
 		}
 
 		if (translate_record(type, argv[0], range, level, &record, pool,
@@ -1434,8 +1495,6 @@ main(int argc, char **argv)
 			libzfs_fini(g_zfs);
 			return (1);
 		}
-		if (!error)
-			error = EIO;
 	}
 
 	/*

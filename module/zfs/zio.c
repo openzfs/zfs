@@ -5305,6 +5305,16 @@ zio_ready(zio_t *zio)
 		return (NULL);
 	}
 
+	if (zio_injection_enabled) {
+		hrtime_t target = zio_handle_ready_delay(zio);
+		if (target != 0 && zio->io_target_timestamp == 0) {
+			zio->io_stage >>= 1;
+			zio->io_target_timestamp = target;
+			zio_delay_interrupt(zio);
+			return (NULL);
+		}
+	}
+
 	if (zio->io_ready) {
 		ASSERT(IO_IS_ALLOCATING(zio));
 		ASSERT(BP_GET_BIRTH(bp) == zio->io_txg ||
