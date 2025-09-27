@@ -2496,26 +2496,24 @@ dnode_diduse_space(dnode_t *dn, int64_t delta)
 }
 
 /*
- * Scans a block at the indicated "level" looking for a hole or data,
- * depending on 'flags'.
+ * Scans the block at the indicated "level" looking for a hole or data,
+ * depending on 'flags' starting from array position given by *index.
  *
- * If level > 0, then we are scanning an indirect block looking at its
- * pointers.  If level == 0, then we are looking at a block of dnodes.
+ * If lvl > 0, then we are scanning an indirect block looking at its
+ * pointers.  If lvl == 0, then we are looking at a block of dnodes.
  *
  * If we don't find what we are looking for in the block, we return ESRCH.
- * Otherwise, return with *offset pointing to the beginning (if searching
- * forwards) or end (if searching backwards) of the range covered by the
- * block pointer we matched on (or dnode).
+ * Otherwise, return with *index set to the matching array position.
  *
- * The basic search algorithm used below by dnode_next_offset() is to
- * use this function to search up the block tree (widen the search) until
- * we find something (i.e., we don't return ESRCH) and then search back
- * down the tree (narrow the search) until we reach our original search
- * level.
+ * The basic search algorithm used below by dnode_next_offset() uses this
+ * function to perform a block-order tree traversal. We search up the block
+ * tree (widen the search) until we find something (i.e., we don't return
+ * ESRCH) and then search back down the tree (narrow the search) until we
+ * reach our original search level or backtrack up because nothing matches.
  */
 static int
-dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
-    int lvl, uint64_t blkfill, uint64_t txg)
+dnode_next_offset_level(dnode_t *dn, int flags, int lvl, uint64_t blkid,
+    int *index, uint64_t blkfill, uint64_t txg)
 {
 	dmu_buf_impl_t *db = NULL;
 	void *data = NULL;
@@ -2523,7 +2521,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	uint64_t epb = 1ULL << epbs;
 	uint64_t minfill, maxfill;
 	boolean_t hole;
-	int i, inc, error, span;
+	int i = *index, inc, error;
 
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
@@ -2541,20 +2539,13 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			rrw_enter(&dmu_objset_ds(dn->dn_objset)->ds_bp_rwlock,
 			    RW_READER, FTAG);
 	} else {
-		uint64_t blkid = dbuf_whichblock(dn, lvl, *offset);
 		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE, FTAG, &db);
 		if (error) {
 			if (error != ENOENT)
 				return (error);
 			if (hole)
 				return (0);
-			/*
-			 * This can only happen when we are searching up
-			 * the block tree for data.  We don't really need to
-			 * adjust the offset, as we will just end up looking
-			 * at the pointer to this block in its parent, and its
-			 * going to be unallocated, so we will skip over it.
-			 */
+			/* Unallocated; see comment in dnode_next_offset. */
 			return (SET_ERROR(ESRCH));
 		}
 		error = dbuf_read(db, NULL,
@@ -2582,21 +2573,15 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		ASSERT(dn->dn_type == DMU_OT_DNODE);
 		ASSERT(!(flags & DNODE_FIND_BACKWARDS));
 
-		for (i = (*offset >> DNODE_SHIFT) & (blkfill - 1);
-		    i < blkfill; i += dnp[i].dn_extra_slots + 1) {
+		for (; i < blkfill; i += dnp[i].dn_extra_slots + 1) {
 			if ((dnp[i].dn_type == DMU_OT_NONE) == hole)
 				break;
 		}
 
-		if (i == blkfill)
+		if (i >= blkfill)
 			error = SET_ERROR(ESRCH);
-
-		*offset = (*offset & ~(DNODE_BLOCK_SIZE - 1)) +
-		    (i << DNODE_SHIFT);
 	} else {
 		blkptr_t *bp = data;
-		uint64_t start = *offset;
-		span = (lvl - 1) * epbs + dn->dn_datablkshift;
 		minfill = 0;
 		maxfill = blkfill << ((lvl - 1) * epbs);
 
@@ -2605,38 +2590,13 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		else
 			minfill++;
 
-		if (span >= 8 * sizeof (*offset)) {
-			/* This only happens on the highest indirection level */
-			ASSERT3U((lvl - 1), ==, dn->dn_phys->dn_nlevels - 1);
-			*offset = 0;
-		} else {
-			*offset = *offset >> span;
-		}
-
-		for (i = BF64_GET(*offset, 0, epbs);
-		    i >= 0 && i < epb; i += inc) {
+		for (; i >= 0 && i < epb; i += inc) {
 			if (BP_GET_FILL(&bp[i]) >= minfill &&
 			    BP_GET_FILL(&bp[i]) <= maxfill &&
 			    (hole || BP_GET_LOGICAL_BIRTH(&bp[i]) > txg))
 				break;
-			if (inc > 0 || *offset > 0)
-				*offset += inc;
 		}
 
-		if (span >= 8 * sizeof (*offset)) {
-			*offset = start;
-		} else {
-			*offset = *offset << span;
-		}
-
-		if (inc < 0) {
-			/* traversing backwards; position offset at the end */
-			if (span < 8 * sizeof (*offset))
-				*offset = MIN(*offset + (1ULL << span) - 1,
-				    start);
-		} else if (*offset < start) {
-			*offset = start;
-		}
 		if (i < 0 || i >= epb)
 			error = SET_ERROR(ESRCH);
 	}
@@ -2652,33 +2612,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 			    FTAG);
 	}
 
+	*index = i;
 	return (error);
-}
-
-/*
- * Adjust *offset to the next (or previous) block byte offset at lvl.
- * Returns FALSE if *offset would overflow or underflow.
- */
-static boolean_t
-dnode_next_block(dnode_t *dn, int flags, uint64_t *offset, int lvl)
-{
-	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
-	int span = lvl * epbs + dn->dn_datablkshift;
-	uint64_t blkid, maxblkid;
-
-	if (span >= 8 * sizeof (uint64_t))
-		return (B_FALSE);
-
-	blkid = *offset >> span;
-	maxblkid = 1ULL << (8 * sizeof (*offset) - span);
-	if (!(flags & DNODE_FIND_BACKWARDS) && blkid + 1 < maxblkid)
-		*offset = (blkid + 1) << span;
-	else if ((flags & DNODE_FIND_BACKWARDS) && blkid > 0)
-		*offset = (blkid << span) - 1;
-	else
-		return (B_FALSE);
-
-	return (B_TRUE);
 }
 
 /*
@@ -2708,9 +2643,11 @@ int
 dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
     int minlvl, uint64_t blkfill, uint64_t txg)
 {
-	uint64_t matched = *offset;
+	uint64_t blkid;
+	int index;
 	int lvl, maxlvl;
 	int error = 0;
+	int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 
 	if (!(flags & DNODE_FIND_HAVELOCK))
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -2730,18 +2667,29 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		goto out;
 	}
 
+	if (minlvl > 0) {
+		uint64_t n = dbuf_whichblock(dn, minlvl - 1, *offset);
+		blkid = n >> epbs;
+		index = BF64_GET(n, 0, epbs);
+	} else {
+		blkid = dbuf_whichblock(dn, 0, *offset);
+		index = (*offset >> DNODE_SHIFT) & (blkfill - 1);
+	}
+
 	maxlvl = dn->dn_phys->dn_nlevels;
 
 	for (lvl = minlvl; lvl <= maxlvl; ) {
 		error = dnode_next_offset_level(dn,
-		    flags, offset, lvl, blkfill, txg);
+		    flags, lvl, blkid, &index, blkfill, txg);
 		if (error == 0 && lvl > minlvl) {
+			/* Continue search at matched block in lvl-1. */
+			blkid = (blkid << epbs) + index;
+			index = 0;
 			--lvl;
-			matched = *offset;
-		} else if (error == ESRCH && lvl < maxlvl &&
-		    dnode_next_block(dn, flags, &matched, lvl)) {
+		} else if (error == ESRCH && lvl < maxlvl) {
 			/*
-			 * Continue search at next/prev offset in lvl+1 block.
+			 * Continue search at next/prev offset in lvl+1 block
+			 * but stop if blkid would underflow or overflow.
 			 *
 			 * Usually we only search upwards at the start of the
 			 * search as higher level blocks point at a matching
@@ -2751,14 +2699,19 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 			 * contains only BPs/dnodes freed at that txg. It also
 			 * happens if we are still syncing out the tree, and
 			 * some BP's at higher levels are not updated yet.
-			 *
-			 * We must adjust offset to avoid coming back to the
-			 * same offset and getting stuck looping forever. This
-			 * also deals with the case where offset is already at
-			 * the beginning or end of the object.
 			 */
+			if (flags & DNODE_FIND_BACKWARDS) {
+				if (blkid == 0)
+					break;
+				--blkid;
+			} else {
+				if (blkid == UINT64_MAX)
+					break;
+				++blkid;
+			}
+			index = BF64_GET(blkid, 0, epbs);
+			blkid = blkid >> epbs;
 			++lvl;
-			*offset = matched;
 		} else {
 			break;
 		}
@@ -2771,6 +2724,48 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 	if ((flags & DNODE_FIND_HOLE) && error == ESRCH && txg == 0 &&
 	    minlvl == 1 && blkfill == 1 && !(flags & DNODE_FIND_BACKWARDS)) {
 		error = 0;
+	}
+
+	if (lvl > 0) {
+		int span = (lvl - 1) * epbs + dn->dn_datablkshift;
+		uint64_t n;
+
+		/*
+		 * Calculate the range of L0 offsets for blkid n at lvl - 1.
+		 * Forward search:  Return the first offset in the range or
+		 *                  the initial offset, whichever is larger.
+		 * Backward search: Return the last offset (inclusive) or the
+		 *                  initial offset, whichever is smaller.
+		 */
+		n = (blkid << epbs) + index; /* -1 <= index <= (1<<epbs) */
+		if (index < 0 && blkid == 0) {
+			*offset = 0; /* Not found searching backwards */
+		} else if (span >= 8 * sizeof (uint64_t) ||
+		    (n >> (8 * sizeof (*offset) - span)) != 0) {
+			/*
+			 * Overflow cases:
+			 * n == 0: range starts at 0 and ends beyond UINT64_MAX
+			 * n > 0: range starts (and ends) beyond UINT64_MAX
+			 *
+			 * This leaves *offset unchanged in two cases:
+			 * 1. Searching forward, n == 0: the range starts at 0
+			 *    which is always <= any initial offset.
+			 * 2. Searching backward, any n: the range ends beyond
+			 *    UINT64_MAX which is always >= any initial offset.
+			 *
+			 * Searching forward, n > 0: the range start overflows,
+			 * so clamp *offset to UINT64_MAX upon return.
+			 */
+			if (n > 0 && !(flags & DNODE_FIND_BACKWARDS))
+				*offset = UINT64_MAX; /* Forward overflow */
+		} else if (flags & DNODE_FIND_BACKWARDS) {
+			*offset = MIN(*offset, ((n + 1) << span) - 1);
+		} else {
+			*offset = MAX(*offset, n << span);
+		}
+	} else {
+		*offset = (blkid << dn->dn_datablkshift) +
+		    (index << DNODE_SHIFT); /* 0 <= index <= blkfill */
 	}
 
 out:
