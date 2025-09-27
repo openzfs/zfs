@@ -4574,8 +4574,28 @@ zio_vdev_io_start(zio_t *zio)
 	ASSERT0(zio->io_child_error[ZIO_CHILD_VDEV]);
 
 	if (vd == NULL) {
-		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
-			spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
+		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER)) {
+			/*
+			 * A deadlock workaround. The ddt_prune_unique_entries()
+			 * -> prune_candidates_sync() code path takes SCL_ZIO
+			 * reader lock and may request it again here. If there
+			 * is another thread who wants SCL_ZIO writer lock,
+			 * then scl_write_wanted will be set. Thus, the
+			 * spa_config_enter_priority() is used to ignore
+			 * pending writer requests.
+			 *
+			 * XXX: Ideally, this should be applied only to the
+			 * zioS involved in the pruning process, as it changes
+			 * the I/O balance between reading and writing during
+			 * pruning time.
+			 */
+			if (spa->spa_active_ddt_prune)
+				spa_config_enter_priority(spa, SCL_ZIO, zio,
+				    RW_READER);
+			else
+				spa_config_enter(spa, SCL_ZIO, zio,
+				    RW_READER);
+		}
 
 		/*
 		 * The mirror_ops handle multiple DVAs in a single BP.
