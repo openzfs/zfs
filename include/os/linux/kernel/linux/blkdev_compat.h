@@ -551,7 +551,18 @@ static inline int
 io_data_dir(struct bio *bio, struct request *rq)
 {
 	if (rq != NULL) {
-		if (op_is_write(req_op(rq))) {
+		/*
+		 * Flush & trim requests go down the zvol_write codepath.  Or
+		 * more specifically:
+		 *
+		 * If request is a write, or if it's op_is_sync() and not a
+		 * read, or if it's a flush, or if it's a discard, then send the
+		 * request down the write path.
+		 */
+		if (op_is_write(rq->cmd_flags) ||
+		    (op_is_sync(rq->cmd_flags) && req_op(rq) != REQ_OP_READ) ||
+		    req_op(rq) == REQ_OP_FLUSH ||
+		    op_is_discard(rq->cmd_flags)) {
 			return (WRITE);
 		} else {
 			return (READ);
