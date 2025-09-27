@@ -2727,18 +2727,42 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 	}
 
 	if (lvl > 0) {
-		uint64_t n = blkid << epbs;
-		if (index > 0 || n > 0)
-			n += index; /* -1 <= index <= 1<<epbs */
-
 		int span = (lvl - 1) * epbs + dn->dn_datablkshift;
-		if (span >= 8 * sizeof (uint64_t))
-			*offset = 0;
-		else if (flags & DNODE_FIND_BACKWARDS)
-			/* traversing backwards; position at block end */
+		uint64_t n;
+
+		/*
+		 * Calculate the range of L0 offsets for blkid n at lvl - 1.
+		 * Forward search:  Return the first offset in the range or
+		 *                  the initial offset, whichever is larger.
+		 * Backward search: Return the last offset (inclusive) or the
+		 *                  initial offset, whichever is smaller.
+		 */
+		n = (blkid << epbs) + index; /* -1 <= index <= (1<<epbs) */
+		if (index < 0 && blkid == 0) {
+			*offset = 0; /* Not found searching backwards */
+		} else if (span >= 8 * sizeof (uint64_t) ||
+		    (n >> (8 * sizeof (*offset) - span)) != 0) {
+			/*
+			 * Overflow cases:
+			 * n == 0: range starts at 0 and ends beyond UINT64_MAX
+			 * n > 0: range starts (and ends) beyond UINT64_MAX
+			 *
+			 * This leaves *offset unchanged in two cases:
+			 * 1. Searching forward, n == 0: the range starts at 0
+			 *    which is always <= any initial offset.
+			 * 2. Searching backward, any n: the range ends beyond
+			 *    UINT64_MAX which is always >= any initial offset.
+			 *
+			 * Searching forward, n > 0: the range start overflows,
+			 * so clamp *offset to UINT64_MAX upon return.
+			 */
+			if (n > 0 && !(flags & DNODE_FIND_BACKWARDS))
+				*offset = UINT64_MAX; /* Forward overflow */
+		} else if (flags & DNODE_FIND_BACKWARDS) {
 			*offset = MIN(*offset, ((n + 1) << span) - 1);
-		else
+		} else {
 			*offset = MAX(*offset, n << span);
+		}
 	} else {
 		*offset = (blkid << dn->dn_datablkshift) +
 		    (index << DNODE_SHIFT); /* 0 <= index <= blkfill */
