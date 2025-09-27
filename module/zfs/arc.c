@@ -6624,6 +6624,39 @@ arc_release(arc_buf_t *buf, const void *tag)
 	mutex_enter(hash_lock);
 
 	/*
+	 * Wait for any other IO for this hdr, as additional
+	 * buf(s) could be about to appear, in which case
+	 * we would not want to transition hdr to arc_anon.
+	 */
+	while (HDR_IO_IN_PROGRESS(hdr)) {
+		arc_callback_t *acb;
+
+		DTRACE_PROBE1(arc_release__io, arc_buf_hdr_t *, hdr);
+
+		acb = kmem_zalloc(sizeof (arc_callback_t), KM_SLEEP);
+		acb->acb_wait = B_TRUE;
+		mutex_init(&acb->acb_wait_lock, NULL, MUTEX_DEFAULT, NULL);
+		cv_init(&acb->acb_wait_cv, NULL, CV_DEFAULT, NULL);
+
+		acb->acb_zio_head = hdr->b_l1hdr.b_acb->acb_zio_head;
+		acb->acb_next = hdr->b_l1hdr.b_acb;
+		hdr->b_l1hdr.b_acb->acb_prev = acb;
+		hdr->b_l1hdr.b_acb = acb;
+
+		mutex_exit(hash_lock);
+		mutex_enter(&acb->acb_wait_lock);
+		while (acb->acb_wait)
+			cv_wait(&acb->acb_wait_cv, &acb->acb_wait_lock);
+
+		mutex_exit(&acb->acb_wait_lock);
+		mutex_destroy(&acb->acb_wait_lock);
+		cv_destroy(&acb->acb_wait_cv);
+		kmem_free(acb, sizeof (arc_callback_t));
+
+		mutex_enter(hash_lock);
+	}
+
+	/*
 	 * This assignment is only valid as long as the hash_lock is
 	 * held, we must be careful not to reference state or the
 	 * b_state field after dropping the lock.
