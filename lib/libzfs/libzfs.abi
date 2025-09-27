@@ -2259,7 +2259,8 @@
       <enumerator name='ZFS_PROP_DEFAULTUSEROBJQUOTA' value='103'/>
       <enumerator name='ZFS_PROP_DEFAULTGROUPOBJQUOTA' value='104'/>
       <enumerator name='ZFS_PROP_DEFAULTPROJECTOBJQUOTA' value='105'/>
-      <enumerator name='ZFS_NUM_PROPS' value='106'/>
+      <enumerator name='ZFS_PROP_ZONE' value='106'/>
+      <enumerator name='ZFS_NUM_PROPS' value='107'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>

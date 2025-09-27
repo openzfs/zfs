@@ -2095,6 +2095,14 @@ for more information.
 Jails are a
 .Fx
 feature and this property is not available on other platforms.
+.It Sy jail
+This read-only property reports the name of the jail that mounted the jailed
+dataset.
+The "0" name is used for datasets that are not mounted or not jailed.
+If a jail is renamed, the property will still report its old name from
+the time the dataset was mounted.
+The reported jail may no longer exist, while the dataset remains mounted.
+The property is not revealed to jails, the "0" is reported instead.
 .It Sy zoned Ns = Ns Sy off Ns | Ns Sy on
 Controls whether the dataset is managed from a non-global zone or namespace.
 See
