@@ -121,7 +121,7 @@ case "$OS" in
     KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
     ;;
   freebsd15-0c)
-    FreeBSD="15.0-ALPHA2"
+    FreeBSD="15.0-ALPHA3"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
