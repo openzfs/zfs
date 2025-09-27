@@ -1,0 +1,235 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2025, Klara, Inc.
+#
+
+# Since we want to make sure that iostat responds correctly as pools appear and
+# disappear, we run it in the background and capture its output to a file.
+# Once we're done, we parse the output and ensure it matches what we'd expect
+# from the operations we performed.
+#
+# Because iostat is producing output every interval, it may produce the "same"
+# output for each step of the change; in fact, we want that to make sure we
+# don't miss anything. So, we describe what we expect as a series of "chunks".
+# Each chunk is a particular kind of output, which may repeat. Current known
+# chunk types are:
+#
+# NOPOOL: the text "no pools available"
+# HEADER: three lines, starting with "capacity", "pool" and "----" respectively.
+#         (the rough shape of the normal iostat header).
+# POOL1: a line starting with "pool1" (stats line for a pool of that name)
+# POOL2: a line starting with "pool2"
+# POOLBOTH: three lines, starting with "pool1", "pool2" (either order) and
+#           "-----" respectively. (the pool stat output for multiple pools)
+#
+# (the parser may produce other chunks in a failed parse to assist with
+#  debugging, but they should never be part of the "wanted" output See the
+#  parser commentary below).
+#
+# To help recognise the start of a new interval output, we run iostat with the
+# -T u option, which will output a numeric timestamp before each header or
+# second-or-later pool stat after the header.
+#
+# To keep the test run shorter, we use a subsecond interval, but to make sure
+# nothing is missed, we sleep for three intervals after each change.
+
+typeset _iostat_out=$(mktemp)
+typeset _iostat_pid=""
+
+function cleanup_iostat {
+	if [[ -n $_iostat_pid ]] ; then
+		kill -KILL $_iostat_pid || true
+	fi
+	rm -f $_iostat_out
+}
+
+function start_iostat {
+	zpool iostat -T u $@ 0.1 > $_iostat_out 2>&1 &
+	_iostat_pid=$!
+}
+
+function stop_iostat {
+	kill -TERM $_iostat_pid
+	wait $_iostat_pid
+	_iostat_pid=""
+}
+
+function delay_iostat {
+	sleep 0.3
+}
+
+typeset -a _iostat_expect
+function expect_iostat {
+	typeset chunk=$1
+	_iostat_expect+=($chunk)
+}
+
+# Parse the output The `state` var is used to track state across
+# multiple lines. The `last` var and the `_got_iostat` function are used
+# to record the completed chunks, and to collapse repetitions.
+typeset -a _iostat_got
+typeset _iostat_last=""
+typeset _iostat_state=""
+
+function _got_iostat {
+	typeset chunk=$1
+	if [[ -n $chunk && $_iostat_last != $chunk ]] ; then
+		_iostat_last=$chunk
+		_iostat_got+=($chunk)
+	fi
+	_iostat_state=""
+}
+
+function verify_iostat {
+
+	cat $_iostat_out | while read line ; do
+
+		# The "no pools available" text has no timestamp or other
+		# header, and should never appear in the middle of multiline
+		# chunk, so we can close any in-flight state.
+		if [[ $line = "no pools available" ]] ; then
+			_got_iostat $_iostat_state
+			_got_iostat "NOPOOL"
+			continue
+		fi
+
+		# A run of digits alone on the line is a timestamp (the `-T u`
+		# switch to `iostat`). It closes any in-flight state as a
+		# complete chunk, and indicates the start of a new chunk.
+		if [[ -z ${line/#+([0-9])/} ]] ; then
+			_got_iostat $_iostat_state
+			_iostat_state="TIMESTAMP"
+			continue
+		fi
+
+		# For this test, the first word of each line should be unique,
+		# so we extract it and use it for simplicity.
+		typeset first=${line%% *}
+
+		# Header is emitted whenever the pool list changes. It has
+		# three lines:
+		#
+		#                   capacity     operations     bandwidth
+		#     pool        alloc   free   read  write   read  write
+		#     ----------  -----  -----  -----  -----  -----  -----
+		#
+		# Each line moves the state; when we get to a run of dashes, we
+		# commit.  Note that we check for one-or-more dashes, because
+		# the width can vary depending on the length of pool name.
+		#
+		if [[ $_iostat_state = "TIMESTAMP" &&
+		    $first = "capacity" ]] ; then
+			_iostat_state="INHEADER1"
+			continue
+		fi
+		if [[ $_iostat_state = "INHEADER1" &&
+		    $first = "pool" ]] ; then
+			_iostat_state="INHEADER2"
+			continue
+		fi
+		if [[ $_iostat_state = "INHEADER2" &&
+		    -z ${first/#+(-)/} ]] ; then
+			# Headers never repeat, so if the last committed chunk
+			# was a header, we commit this one as EXTRAHEADER so we
+			# can see it in the error output.
+			if [[ $_iostat_last = "HEADER" ]] ; then
+				_got_iostat "EXTRAHEADER"
+			elif [[ $_iostat_last != "EXTRAHEADER" ]] ; then
+				_got_iostat "HEADER"
+			fi
+			_iostat_state="HEADER"
+			continue
+		fi
+
+		# A pool stat line looks like:
+		#
+		#     pool1        147K   240M      0      0      0      0
+		#
+		# If there are multiple pools, iostat follows them with a
+		# separator of dashed lines:
+		#
+		#     pool1        147K   240M      0      0      0      0
+		#     pool2        147K   240M      0      0      0      0
+		#     ----------  -----  -----  -----  -----  -----  -----
+		#
+		# Stats rows always start after a timestamp or a header. If the
+		# header was emitted, we won't see a timestamp here (it goes
+		# before the header).
+		#
+		# Because our test exercises both pools on their own and
+		# together, we allow pools in either order. In practice they
+		# are sorted, but that's a side-effect of the implementation
+		# (see zpool_compare()), so we're not going to rely on it here.
+		if [[ $first = "pool1" ]] || [[ $first = "pool2" ]] ; then
+
+			# First line, track which one we saw. If it's a
+			# standalone line, it will be committed by the next
+			# NOPOOL or TIMESTAMP above (or the `_got_iostat` after
+			# the loop if this is the last line).
+			if [[ $_iostat_state == "TIMESTAMP" ||
+			    $_iostat_state == "HEADER" ]] ; then
+				if [[ $first = "pool1" ]] ; then
+					_iostat_state="POOL1"
+				elif [[ $first = "pool2" ]] ; then
+					_iostat_state="POOL2"
+				fi
+				continue
+			fi
+
+			# If this is the second pool, we're in a multi-pool
+			# block, and need to look for the separator to close it
+			# out.
+			if [[ $_iostat_state = "POOL1" && $first = "pool2" ]] ||
+			    [[ $_iostat_state = "POOL2" && $first = "pool1" ]] ;
+			    then
+				_iostat_state="INPOOLBOTH"
+				continue
+			fi
+		fi
+
+		# Separator after the stats block.
+		if [[ $_iostat_state = "INPOOLBOTH" &&
+		    -z ${first/#+(-)/} ]] ; then
+			_got_iostat "POOLBOTH"
+			continue
+		fi
+
+		# Anything else will fall through to here. We commit any
+		# in-flight state, then "UNKNOWN", all to help with debugging..
+		if [[ $_iostat_state != "UNKNOWN" ]] ; then
+			_got_iostat $_iostat_state
+			_got_iostat "UNKNOWN"
+		fi
+	done
+
+	# Close out any remaining state.
+	_got_iostat $_iostat_state
+
+	# Compare what we wanted with what we got, and pass/fail the test!
+	if [[ "${_iostat_expect[*]}" != "${_iostat_got[*]}" ]] ; then
+		log_note "expected: ${_iostat_expect[*]}"
+		log_note "     got: ${_iostat_got[*]}"
+		log_fail "zpool iostat did not produce expected output"
+	fi
+}

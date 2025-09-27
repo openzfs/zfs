@@ -26,6 +26,7 @@
 
 /*
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <libintl.h>
@@ -52,7 +53,7 @@
 typedef struct zpool_node {
 	zpool_handle_t	*zn_handle;
 	uu_avl_node_t	zn_avlnode;
-	int		zn_mark;
+	hrtime_t	zn_last_refresh;
 } zpool_node_t;
 
 struct zpool_list {
@@ -62,6 +63,7 @@ struct zpool_list {
 	uu_avl_pool_t	*zl_pool;
 	zprop_list_t	**zl_proplist;
 	zfs_type_t	zl_type;
+	hrtime_t	zl_last_refresh;
 };
 
 static int
@@ -81,29 +83,44 @@ zpool_compare(const void *larg, const void *rarg, void *unused)
  * of known pools.
  */
 static int
-add_pool(zpool_handle_t *zhp, void *data)
+add_pool(zpool_handle_t *zhp, zpool_list_t *zlp)
 {
-	zpool_list_t *zlp = data;
-	zpool_node_t *node = safe_malloc(sizeof (zpool_node_t));
+	zpool_node_t *node, *new = safe_malloc(sizeof (zpool_node_t));
 	uu_avl_index_t idx;
 
-	node->zn_handle = zhp;
-	uu_avl_node_init(node, &node->zn_avlnode, zlp->zl_pool);
-	if (uu_avl_find(zlp->zl_avl, node, NULL, &idx) == NULL) {
+	new->zn_handle = zhp;
+	uu_avl_node_init(new, &new->zn_avlnode, zlp->zl_pool);
+
+	node = uu_avl_find(zlp->zl_avl, new, NULL, &idx);
+	if (node == NULL) {
 		if (zlp->zl_proplist &&
 		    zpool_expand_proplist(zhp, zlp->zl_proplist,
 		    zlp->zl_type, zlp->zl_literal) != 0) {
 			zpool_close(zhp);
-			free(node);
+			free(new);
 			return (-1);
 		}
-		uu_avl_insert(zlp->zl_avl, node, idx);
+		new->zn_last_refresh = zlp->zl_last_refresh;
+		uu_avl_insert(zlp->zl_avl, new, idx);
 	} else {
+		node->zn_last_refresh = zlp->zl_last_refresh;
 		zpool_close(zhp);
-		free(node);
+		free(new);
 		return (-1);
 	}
 
+	return (0);
+}
+
+/*
+ * add_pool(), but always returns 0. This allows zpool_iter() to continue
+ * even if a pool exists in the tree, or we fail to get the properties for
+ * a new one.
+ */
+static int
+add_pool_cb(zpool_handle_t *zhp, void *data)
+{
+	(void) add_pool(zhp, data);
 	return (0);
 }
 
@@ -135,9 +152,10 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, zfs_type_t type,
 	zlp->zl_type = type;
 
 	zlp->zl_literal = literal;
+	zlp->zl_last_refresh = gethrtime();
 
 	if (argc == 0) {
-		(void) zpool_iter(g_zfs, add_pool, zlp);
+		(void) zpool_iter(g_zfs, add_pool_cb, zlp);
 		zlp->zl_findall = B_TRUE;
 	} else {
 		int i;
@@ -159,15 +177,69 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, zfs_type_t type,
 }
 
 /*
- * Search for any new pools, adding them to the list.  We only add pools when no
- * options were given on the command line.  Otherwise, we keep the list fixed as
- * those that were explicitly specified.
+ * Refresh the state of all pools on the list. Additionally, if no options were
+ * given on the command line, add any new pools and remove any that are no
+ * longer available.
  */
-void
-pool_list_update(zpool_list_t *zlp)
+int
+pool_list_refresh(zpool_list_t *zlp)
 {
-	if (zlp->zl_findall)
-		(void) zpool_iter(g_zfs, add_pool, zlp);
+	zlp->zl_last_refresh = gethrtime();
+
+	if (!zlp->zl_findall) {
+		/*
+		 * This list is a fixed list of pools, so we must not add
+		 * or remove any. Just walk over them and refresh their
+		 * state.
+		 */
+		int navail = 0;
+		for (zpool_node_t *node = uu_avl_first(zlp->zl_avl);
+		    node != NULL; node = uu_avl_next(zlp->zl_avl, node)) {
+			boolean_t missing;
+			zpool_refresh_stats(node->zn_handle, &missing);
+			navail += !missing;
+			node->zn_last_refresh = zlp->zl_last_refresh;
+		}
+		return (navail);
+	}
+
+	/*
+	 * Search for any new pools and add them to the list. zpool_iter()
+	 * will call zpool_refresh_stats() as part of its work, so this has
+	 * the side effect of updating all active handles.
+	 */
+	(void) zpool_iter(g_zfs, add_pool_cb, zlp);
+
+	/*
+	 * Walk the list for any that weren't refreshed, and update and remove
+	 * them. It's not enough to just skip available ones, as zpool_iter()
+	 * won't update them, so they'll still appear active in our list.
+	 */
+	zpool_node_t *node, *next;
+	for (node = uu_avl_first(zlp->zl_avl); node != NULL; node = next) {
+		next = uu_avl_next(zlp->zl_avl, node);
+
+		/*
+		 * Skip any that were refreshed and are online; they're already
+		 * handled.
+		 */
+		if (node->zn_last_refresh == zlp->zl_last_refresh &&
+		    zpool_get_state(node->zn_handle) != POOL_STATE_UNAVAIL)
+			continue;
+
+		/* Do the refresh ourselves, just in case. */
+		boolean_t missing;
+		zpool_refresh_stats(node->zn_handle, &missing);
+		if (missing) {
+			uu_avl_remove(zlp->zl_avl, node);
+			zpool_close(node->zn_handle);
+			free(node);
+		} else {
+			node->zn_last_refresh = zlp->zl_last_refresh;
+		}
+	}
+
+	return (uu_avl_numnodes(zlp->zl_avl));
 }
 
 /*
@@ -188,23 +260,6 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
 	}
 
 	return (ret);
-}
-
-/*
- * Remove the given pool from the list.  When running iostat, we want to remove
- * those pools that no longer exist.
- */
-void
-pool_list_remove(zpool_list_t *zlp, zpool_handle_t *zhp)
-{
-	zpool_node_t search, *node;
-
-	search.zn_handle = zhp;
-	if ((node = uu_avl_find(zlp->zl_avl, &search, NULL, NULL)) != NULL) {
-		uu_avl_remove(zlp->zl_avl, node);
-		zpool_close(node->zn_handle);
-		free(node);
-	}
 }
 
 /*
