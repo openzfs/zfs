@@ -455,6 +455,7 @@ typedef enum zinject_type {
 	ZINJECT_DECRYPT_FAULT,
 	ZINJECT_DELAY_IMPORT,
 	ZINJECT_DELAY_EXPORT,
+	ZINJECT_DELAY_READY,
 } zinject_type_t;
 
 typedef enum zinject_iotype {
