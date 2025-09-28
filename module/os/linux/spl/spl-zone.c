@@ -24,6 +24,10 @@
  * SUCH DAMAGE.
  */
 
+/*
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ */
+
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
@@ -55,6 +59,19 @@ typedef struct zone_dataset {
 } zone_dataset_t;
 
 #ifdef CONFIG_USER_NS
+
+/*
+ * Linux 6.18 moved the generic namespace type away from ns->ops->type onto
+ * ns_common itself.
+ */
+#ifdef HAVE_NS_COMMON_TYPE
+#define	ns_is_newuser(ns)	\
+	((ns)->ns_type == CLONE_NEWUSER)
+#else
+#define	ns_is_newuser(ns)	\
+	((ns)->ops != NULL && (ns)->ops->type == CLONE_NEWUSER)
+#endif
+
 /*
  * Returns:
  * - 0 on success
@@ -83,7 +100,7 @@ user_ns_get(int fd, struct user_namespace **userns)
 		goto done;
 	}
 	ns = get_proc_ns(file_inode(nsfile));
-	if (ns->ops->type != CLONE_NEWUSER) {
+	if (!ns_is_newuser(ns)) {
 		error = ENOTTY;
 		goto done;
 	}
