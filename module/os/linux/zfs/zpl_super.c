@@ -23,6 +23,7 @@
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2023, Datto Inc. All rights reserved.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 
@@ -33,6 +34,7 @@
 #include <sys/zpl.h>
 #include <linux/iversion.h>
 #include <linux/version.h>
+#include <linux/vfs_compat.h>
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -104,7 +106,7 @@ zpl_dirty_inode(struct inode *ip, int flags)
  * reporting memory pressure and requests OpenZFS release some memory (see
  * zfs_prune()).
  *
- * When set to 1, we call generic_delete_node(), which always returns "destroy
+ * When set to 1, we call generic_delete_inode(), which always returns "destroy
  * immediately", resulting in inodes being destroyed immediately, releasing
  * their associated dnodes and dbufs to the dbuf cached and the ARC to be
  * evicted as normal.
