@@ -914,7 +914,11 @@ zfs_do_clone(int argc, char **argv)
 			log_history = B_FALSE;
 		}
 
-		ret = zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
+		/*
+		 * Dataset cloned successfully, mount/share failures are
+		 * non-fatal.
+		 */
+		(void) zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
 	}
 
 	zfs_close(zhp);
@@ -1333,7 +1337,9 @@ zfs_do_create(int argc, char **argv)
 		goto error;
 	}
 
-	ret = zfs_mount_and_share(g_zfs, argv[0], ZFS_TYPE_DATASET);
+	/* Dataset created successfully, mount/share failures are non-fatal */
+	ret = 0;
+	(void) zfs_mount_and_share(g_zfs, argv[0], ZFS_TYPE_DATASET);
 error:
 	nvlist_free(props);
 	return (ret);
