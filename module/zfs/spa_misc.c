@@ -510,7 +510,7 @@ spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 
 static void
 spa_config_enter_impl(spa_t *spa, int locks, const void *tag, krw_t rw,
-    int mmp_flag)
+    int priority_flag)
 {
 	(void) tag;
 	int wlocks_held = 0;
@@ -526,7 +526,7 @@ spa_config_enter_impl(spa_t *spa, int locks, const void *tag, krw_t rw,
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
 			while (scl->scl_writer ||
-			    (!mmp_flag && scl->scl_write_wanted)) {
+			    (!priority_flag && scl->scl_write_wanted)) {
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 			}
 		} else {
@@ -551,7 +551,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 }
 
 /*
- * The spa_config_enter_mmp() allows the mmp thread to cut in front of
+ * The spa_config_enter_priority() allows the mmp thread to cut in front of
  * outstanding write lock requests. This is needed since the mmp updates are
  * time sensitive and failure to service them promptly will result in a
  * suspended pool. This pool suspension has been seen in practice when there is
@@ -560,7 +560,7 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
  */
 
 void
-spa_config_enter_mmp(spa_t *spa, int locks, const void *tag, krw_t rw)
+spa_config_enter_priority(spa_t *spa, int locks, const void *tag, krw_t rw)
 {
 	spa_config_enter_impl(spa, locks, tag, rw, 1);
 }
