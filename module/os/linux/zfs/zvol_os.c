@@ -523,7 +523,28 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = io_offset(bio, rq);
 	uint64_t size = io_size(bio, rq);
-	int rw = io_data_dir(bio, rq);
+	int rw;
+
+	if (rq != NULL) {
+		/*
+		 * Flush & trim requests go down the zvol_write codepath.  Or
+		 * more specifically:
+		 *
+		 * If request is a write, or if it's op_is_sync() and not a
+		 * read, or if it's a flush, or if it's a discard, then send the
+		 * request down the write path.
+		 */
+		if (op_is_write(rq->cmd_flags) ||
+		    (op_is_sync(rq->cmd_flags) && req_op(rq) != REQ_OP_READ) ||
+		    req_op(rq) == REQ_OP_FLUSH ||
+		    op_is_discard(rq->cmd_flags)) {
+			rw = WRITE;
+		} else {
+			rw = READ;
+		}
+	} else {
+		rw = bio_data_dir(bio);
+	}
 
 	if (unlikely(zv->zv_flags & ZVOL_REMOVING)) {
 		zvol_end_io(bio, rq, -SET_ERROR(ENXIO));
