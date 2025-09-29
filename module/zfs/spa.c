@@ -311,6 +311,27 @@ static int zfs_livelist_condense_zthr_cancel = 0;
  */
 static int zfs_livelist_condense_new_alloc = 0;
 
+
+/*
+ * WARNING, FOR TEST USE ONLY!
+ *
+ * Wait zfs_debug_namespace_lock_delay milliseconds after taking the
+ * spa_namespace_lock to simulate lock contention.
+ * If set to -1, then *panic* to simulate a pool failure.
+ * If set to 0 then take no action (default)
+ */
+static int zfs_debug_namespace_lock_delay = 0;
+
+/*
+ * When zpool_lock_behavior is set to ZPOOL_LOCK_BEHAVIOR_TRYLOCK or
+ * ZPOOL_LOCK_BEHAVIOR_LOCKLESS, then try to acquire the the spa_namespace_ lock
+ * for this many milliseconds before moving on to the next step.
+ *
+ * Note that 'zpool status' will try to get the lock in multiple places (like
+ * getting the pool config, stats, props) before returning.
+ */
+unsigned int spa_namespace_trylock_ms = 100;
+
 /*
  * Time variable to decide how often the txg should be added into the
  * database (in seconds).
@@ -5943,8 +5964,9 @@ spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
  * ambiguous state.
  */
 static int
-spa_open_common(const char *pool, spa_t **spapp, const void *tag,
-    nvlist_t *nvpolicy, nvlist_t **config)
+spa_open_common_impl(const char *pool, spa_t **spapp, const void *tag,
+    nvlist_t *nvpolicy, nvlist_t **config,
+    zpool_lock_behavior_t zpool_lock_behavior)
 {
 	spa_t *spa;
 	spa_load_state_t state = SPA_LOAD_OPEN;
@@ -5961,14 +5983,64 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 	 * avoid dsl_dir_open() calling this in the first place.
 	 */
 	if (MUTEX_NOT_HELD(&spa_namespace_lock)) {
-		mutex_enter(&spa_namespace_lock);
-		locked = B_TRUE;
+
+		/*
+		 * Special debug case: we've selected a pool for lockless
+		 * operation
+		 */
+		if ((zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_LOCKLESS) ||
+		    (zpool_lock_behavior == ZPOOL_LOCK_BEHAVIOR_TRYLOCK)) {
+			/* Make a cursory effort to acquire the lock in 100ms */
+			if (mutex_enter_timeout(&spa_namespace_lock,
+			    MSEC2NSEC(spa_namespace_trylock_ms)) != 0) {
+				if (zpool_lock_behavior ==
+				    ZPOOL_LOCK_BEHAVIOR_LOCKLESS) {
+
+					/*
+					 * Danger: we're doing spa_lookup()
+					 * without holding the lock
+					 */
+					spa = spa_lookup_lockless(pool);
+					if (spa == NULL) {
+						return (SET_ERROR(ENOENT));
+					}
+
+					goto skip_the_locks;
+				} else {
+					/*
+					 * We had ZPOOL_LOCK_BEHAVIOR_TRYLOCK
+					 * set and cant get the lock in 100ms.
+					 */
+					return (SET_ERROR(EAGAIN));
+				}
+			} else {
+				/* We got the lock from mutex_enter_timeout() */
+				locked = B_TRUE;
+			}
+		} else {
+			/* Normal case of getting the lock */
+			mutex_enter(&spa_namespace_lock);
+			locked = B_TRUE;
+		}
 	}
 
 	if ((spa = spa_lookup(pool)) == NULL) {
 		if (locked)
 			mutex_exit(&spa_namespace_lock);
 		return (SET_ERROR(ENOENT));
+	}
+
+	/*
+	 * Simulate holding the spa_namespace lock for a long time, or forcing
+	 * a crash with the lock held. This is for testing purposes only.
+	 */
+	if (zfs_debug_namespace_lock_delay == -1) {
+#if _KERNEL && defined(__linux__)
+		BUG();
+#endif
+	} else if (zfs_debug_namespace_lock_delay > 0) {
+		zfs_sleep_until(gethrtime() +
+		    MSEC2NSEC(zfs_debug_namespace_lock_delay));
 	}
 
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
@@ -6030,10 +6102,12 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 		}
 	}
 
+skip_the_locks:
 	spa_open_ref(spa, tag);
 
 	if (config != NULL)
-		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+		*config = spa_config_generate_lock_behavior(spa, NULL, -1ULL,
+		    B_TRUE, zpool_lock_behavior);
 
 	/*
 	 * If we've recovered the pool, pass back any information we
@@ -6057,6 +6131,23 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 	*spapp = spa;
 
 	return (0);
+}
+
+static int
+spa_open_common(const char *pool, spa_t **spapp, const void *tag,
+    nvlist_t *nvpolicy, nvlist_t **config)
+{
+	return (spa_open_common_impl(pool, spapp, tag, nvpolicy, config,
+	    ZPOOL_LOCK_BEHAVIOR_DEFAULT));
+}
+
+int
+spa_open_common_lock_behavior(const char *pool, spa_t **spapp, const void *tag,
+    nvlist_t *nvpolicy, nvlist_t **config, zpool_lock_behavior_t
+    zpool_lock_behavior)
+{
+	return (spa_open_common_impl(pool, spapp, tag, nvpolicy, config,
+	    zpool_lock_behavior));
 }
 
 int
@@ -6292,13 +6383,18 @@ spa_add_feature_stats(spa_t *spa, nvlist_t *config)
 
 int
 spa_get_stats(const char *name, nvlist_t **config,
-    char *altroot, size_t buflen)
+    char *altroot, size_t buflen, zpool_lock_behavior_t zpool_lock_behavior)
 {
 	int error;
 	spa_t *spa;
 
 	*config = NULL;
-	error = spa_open_common(name, &spa, FTAG, NULL, config);
+
+	error = spa_open_common_lock_behavior(name, &spa, FTAG, NULL, config,
+	    zpool_lock_behavior);
+	if (error != 0) {
+		return (error);
+	}
 
 	if (spa != NULL) {
 		/*
@@ -11238,6 +11334,13 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, U64, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
 	"vdevs (in read-only mode)");
+
+ZFS_MODULE_PARAM(zfs, zfs_, debug_namespace_lock_delay, INT, ZMOD_RW,
+	"Do not use - for ZFS test suite only.");
+
+ZFS_MODULE_PARAM(zfs_spa, spa_, namespace_trylock_ms, UINT, ZMOD_RW,
+	"Try for this many milliseconds to get the spa_namespace lock when "
+	"running 'zpool status --trylock|--lockless'.");
 
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 	ZMOD_RW, "Set the livelist condense zthr to pause");

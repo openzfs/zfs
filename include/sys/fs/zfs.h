@@ -876,6 +876,9 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
 
+/* ZFS_IOC_POOL_STATS argument to for spa_namespace locking behavior */
+#define	ZPOOL_CONFIG_LOCK_BEHAVIOR	"lock_behavior"	/* not stored on disk */
+
 /*
  * The persistent vdev state is stored as separate values rather than a single
  * 'vdev_state' entry.  This is because a device can be in multiple states, such
@@ -2000,6 +2003,30 @@ enum zio_encrypt {
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_SYSTEM, name) || \
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_TRUSTED, name) || \
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_USER, name))
+
+/*
+ * Set locking behavior for zpool commands.
+ */
+typedef enum {
+	/* Wait to acquire the lock on the zpool config */
+	ZPOOL_LOCK_BEHAVIOR_WAIT = 0,
+	ZPOOL_LOCK_BEHAVIOR_DEFAULT = ZPOOL_LOCK_BEHAVIOR_WAIT,
+	/*
+	 * Return an error if it's taking an unnecessarily long time to
+	 * acquire the lock on the pool config (default 100ms)
+	 */
+	ZPOOL_LOCK_BEHAVIOR_TRYLOCK = 1,
+
+	/*
+	 * DANGER: THIS CAN CRASH YOUR SYSTEM
+	 *
+	 * If you can't acquire the pool config lock after 100ms then do a
+	 * a lockless lookup.  This should only be done in emergencies, as it
+	 * can crash the kernel module!
+	 */
+	ZPOOL_LOCK_BEHAVIOR_LOCKLESS = 2,
+	ZPOOL_LOCK_BEHAVIOR_END = 3	/* last entry marker */
+} zpool_lock_behavior_t;
 
 #ifdef	__cplusplus
 }

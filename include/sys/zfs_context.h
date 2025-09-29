@@ -270,6 +270,7 @@ extern void mutex_enter(kmutex_t *mp);
 extern int mutex_enter_check_return(kmutex_t *mp);
 extern void mutex_exit(kmutex_t *mp);
 extern int mutex_tryenter(kmutex_t *mp);
+extern int mutex_enter_timeout(kmutex_t *mp, uint64_t ns);
 
 #define	NESTED_SINGLE 1
 #define	mutex_enter_nested(mp, class) mutex_enter(mp)

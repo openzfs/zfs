@@ -772,10 +772,13 @@ typedef enum trim_type {
 
 /* state manipulation functions */
 extern int spa_open(const char *pool, spa_t **, const void *tag);
+extern int spa_open_common_lock_behavior(const char *pool, spa_t **spapp,
+    const void *tag, nvlist_t *nvpolicy, nvlist_t **config,
+    zpool_lock_behavior_t zpool_lock_behavior);
 extern int spa_open_rewind(const char *pool, spa_t **, const void *tag,
     nvlist_t *policy, nvlist_t **config);
 extern int spa_get_stats(const char *pool, nvlist_t **config, char *altroot,
-    size_t buflen);
+    size_t buflen, zpool_lock_behavior_t zpool_lock_behavior);
 extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
     nvlist_t *zplprops, struct dsl_crypto_params *dcp);
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
@@ -880,10 +883,13 @@ extern kcondvar_t spa_namespace_cv;
 #define	SPA_CONFIG_UPDATE_VDEVS	1
 
 extern void spa_write_cachefile(spa_t *, boolean_t, boolean_t, boolean_t);
-extern int spa_all_configs(uint64_t *generation, nvlist_t **pools);
+extern int spa_all_configs(uint64_t *generation, nvlist_t **pools,
+    zpool_lock_behavior_t zpool_lock_behavior);
 extern void spa_config_set(spa_t *spa, nvlist_t *config);
 extern nvlist_t *spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg,
     int getstats);
+extern nvlist_t *spa_config_generate_lock_behavior(spa_t *spa, vdev_t *vd,
+    uint64_t txg, int getstats, zpool_lock_behavior_t zpool_lock_behavior);
 extern void spa_config_update(spa_t *spa, int what);
 extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
     vdev_t *parent, uint_t id, int atype);
@@ -895,9 +901,11 @@ extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
 
 /* Namespace manipulation */
 extern spa_t *spa_lookup(const char *name);
+extern spa_t *spa_lookup_lockless(const char *name);
 extern spa_t *spa_add(const char *name, nvlist_t *config, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
+extern spa_t *spa_next_lockless(spa_t *prev);
 
 /* Refcount functions */
 extern void spa_open_ref(spa_t *spa, const void *tag);
