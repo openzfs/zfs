@@ -49,16 +49,52 @@ fi
 
 typeset datafile1="$(mktemp -t zvol_misc_fua1.XXXXXX)"
 typeset datafile2="$(mktemp -t zvol_misc_fua2.XXXXXX)"
+typeset datafile3="$(mktemp -t zvol_misc_fua3_log.XXXXXX)"
 typeset zvolpath=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 
+typeset DISK1=${DISKS%% *}
 function cleanup
 {
-       rm "$datafile1" "$datafile2"
+	log_must zpool remove $TESTPOOL $datafile3
+	rm "$datafile1" "$datafile2" "$datafile2"
+}
+
+# Prints the total number of sync writes for a vdev
+# $1: vdev
+function get_sync
+{
+	zpool iostat -p -H -v -r $TESTPOOL $1 | \
+	    awk '/[0-9]+$/{s+=$4+$5} END{print s}'
 }
 
 function do_test {
 	# Wait for udev to create symlinks to our zvol
 	block_device_wait $zvolpath
+
+	# Write using sync (creates FLUSH calls after writes, but not FUA)
+	old_vdev_writes=$(get_sync $DISK1)
+	old_log_writes=$(get_sync $datafile3)
+
+	log_must fio --name=write_iops --size=5M \
+		--ioengine=libaio --verify=0 --bs=4K \
+		--iodepth=1 --rw=randwrite --group_reporting=1 \
+		--filename=$zvolpath --sync=1
+
+	vdev_writes=$(( $(get_sync $DISK1) - $old_vdev_writes))
+	log_writes=$(( $(get_sync $datafile3) - $old_log_writes))
+
+	# When we're doing sync writes, we should see many more writes go to
+	# the log vs the first vdev.  Experiments show anywhere from a 160-320x
+	# ratio of writes to the log vs the first vdev (due to some straggler
+	# writes to the first vdev).
+	#
+	# Check that we have a large ratio (100x) of sync writes going to the
+	# log device
+	ratio=$(($log_writes / $vdev_writes))
+	log_note "Got $log_writes log writes, $vdev_writes vdev writes."
+	if [ $ratio -lt 100 ] ; then
+		log_fail "Expected > 100x more log writes than vdev writes. "
+	fi
 
 	# Create a data file
 	log_must dd if=/dev/urandom of="$datafile1" bs=1M count=5
@@ -80,6 +116,8 @@ log_assert "Verify that a ZFS volume can do Force Unit Access (FUA)"
 log_onexit cleanup
 
 log_must zfs set compression=off $TESTPOOL/$TESTVOL
+log_must truncate -s 100M $datafile3
+log_must zpool add $TESTPOOL log $datafile3
 
 log_note "Testing without blk-mq"
 
