@@ -585,7 +585,7 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 		 * the size, since we do not support removing partial segments
 		 * of range trees with gaps.
 		 */
-		zfs_zfs_rs_set_fill_raw(rs, rt, zfs_rs_get_end_raw(rs, rt) -
+		zfs_rs_set_fill_raw(rs, rt, zfs_rs_get_end_raw(rs, rt) -
 		    zfs_rs_get_start_raw(rs, rt));
 		zfs_range_tree_stat_incr(rt, &rs_tmp);
 

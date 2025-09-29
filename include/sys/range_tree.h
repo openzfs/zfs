@@ -238,8 +238,7 @@ zfs_rs_set_end_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt, uint64_t end)
 }
 
 static inline void
-zfs_zfs_rs_set_fill_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt,
-    uint64_t fill)
+zfs_rs_set_fill_raw(zfs_range_seg_t *rs, zfs_range_tree_t *rt, uint64_t fill)
 {
 	ASSERT3U(rt->rt_type, <=, ZFS_RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
@@ -277,7 +276,7 @@ static inline void
 zfs_rs_set_fill(zfs_range_seg_t *rs, zfs_range_tree_t *rt, uint64_t fill)
 {
 	ASSERT(IS_P2ALIGNED(fill, 1ULL << rt->rt_shift));
-	zfs_zfs_rs_set_fill_raw(rs, rt, fill >> rt->rt_shift);
+	zfs_rs_set_fill_raw(rs, rt, fill >> rt->rt_shift);
 }
 
 typedef void zfs_range_tree_func_t(void *arg, uint64_t start, uint64_t size);
