@@ -103,7 +103,6 @@ add_pool(zpool_handle_t *zhp, zpool_list_t *zlp)
 		new->zn_last_refresh = zlp->zl_last_refresh;
 		uu_avl_insert(zlp->zl_avl, new, idx);
 	} else {
-		node->zn_last_refresh = zlp->zl_last_refresh;
 		zpool_close(zhp);
 		free(new);
 		return (-1);
@@ -203,31 +202,23 @@ pool_list_refresh(zpool_list_t *zlp)
 		return (navail);
 	}
 
-	/*
-	 * Search for any new pools and add them to the list. zpool_iter()
-	 * will call zpool_refresh_stats() as part of its work, so this has
-	 * the side effect of updating all active handles.
-	 */
+	/* Search for any new pools and add them to the list. */
 	(void) zpool_iter(g_zfs, add_pool_cb, zlp);
 
-	/*
-	 * Walk the list for any that weren't refreshed, and update and remove
-	 * them. It's not enough to just skip available ones, as zpool_iter()
-	 * won't update them, so they'll still appear active in our list.
-	 */
+	/* Walk the list of existing pools, and update or remove them. */
 	zpool_node_t *node, *next;
 	for (node = uu_avl_first(zlp->zl_avl); node != NULL; node = next) {
 		next = uu_avl_next(zlp->zl_avl, node);
 
 		/*
-		 * Skip any that were refreshed and are online; they're already
-		 * handled.
+		 * Skip any that were refreshed and are online; they were added
+		 * by zpool_iter() and are already up to date.
 		 */
 		if (node->zn_last_refresh == zlp->zl_last_refresh &&
 		    zpool_get_state(node->zn_handle) != POOL_STATE_UNAVAIL)
 			continue;
 
-		/* Do the refresh ourselves, just in case. */
+		/* Refresh and remove if necessary. */
 		boolean_t missing;
 		zpool_refresh_stats(node->zn_handle, &missing);
 		if (missing) {
