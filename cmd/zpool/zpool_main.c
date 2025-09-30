@@ -6677,6 +6677,7 @@ zpool_do_iostat(int argc, char **argv)
 			if (skip) {
 				(void) fflush(stdout);
 				(void) fsleep(interval);
+				last_npools = npools;
 				continue;
 			}
 
