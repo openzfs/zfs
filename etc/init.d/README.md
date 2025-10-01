@@ -1,5 +1,5 @@
 DESCRIPTION
-  These script were written with the primary intention of being portable and
+  These scripts were written with the primary intention of being portable and
   usable on as many systems as possible.
 
   This is, in practice, usually not possible. But the intention is there.
