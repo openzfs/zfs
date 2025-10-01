@@ -308,6 +308,23 @@ zpool_refresh_stats(zpool_handle_t *zhp, boolean_t *missing)
 }
 
 /*
+ * Copies the pool config and state from szhp to dzhp. szhp and dzhp must
+ * represent the same pool. Used by pool_list_refresh() to avoid another
+ * round-trip into the kernel to get stats already collected earlier in the
+ * function.
+ */
+void
+zpool_refresh_stats_from_handle(zpool_handle_t *dzhp, zpool_handle_t *szhp)
+{
+	VERIFY0(strcmp(dzhp->zpool_name, szhp->zpool_name));
+	nvlist_free(dzhp->zpool_old_config);
+	dzhp->zpool_old_config = dzhp->zpool_config;
+	dzhp->zpool_config = fnvlist_dup(szhp->zpool_config);
+	dzhp->zpool_config_size = szhp->zpool_config_size;
+	dzhp->zpool_state = szhp->zpool_state;
+}
+
+/*
  * The following environment variables are undocumented
  * and should be used for testing purposes only:
  *

@@ -103,6 +103,8 @@ add_pool(zpool_handle_t *zhp, zpool_list_t *zlp)
 		new->zn_last_refresh = zlp->zl_last_refresh;
 		uu_avl_insert(zlp->zl_avl, new, idx);
 	} else {
+		zpool_refresh_stats_from_handle(node->zn_handle, zhp);
+		node->zn_last_refresh = zlp->zl_last_refresh;
 		zpool_close(zhp);
 		free(new);
 		return (-1);
