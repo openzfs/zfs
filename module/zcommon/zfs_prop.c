@@ -364,8 +364,8 @@ zfs_prop_init(void)
 
 	static const zprop_index_t xattr_table[] = {
 		{ "off",	ZFS_XATTR_OFF },
-		{ "on",		ZFS_XATTR_SA },
 		{ "sa",		ZFS_XATTR_SA },
+		{ "on",		ZFS_XATTR_SA },
 		{ "dir",	ZFS_XATTR_DIR },
 		{ NULL }
 	};

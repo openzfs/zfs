@@ -1234,10 +1234,10 @@ function verify_fs_aedsx
 	typeset oldval
 	set -A modes "on" "off"
 	oldval=$(get_prop $perm $fs)
-	if [[ $oldval == "on" ]]; then
-		n=1
-	elif [[ $oldval == "off" ]]; then
+	if [[ $oldval == "off" ]]; then
 		n=0
+	else
+		n=1
 	fi
 	log_note "$user zfs set $perm=${modes[$n]} $fs"
 	user_run $user zfs set $perm=${modes[$n]} $fs
