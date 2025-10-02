@@ -3319,7 +3319,8 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER) &&
 	    !spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
 		dmu_tx_t *tx =
-		    dmu_tx_create_assigned(spa->spa_dsl_pool, txg + 1);
+		    dmu_tx_create_assigned(spa->spa_dsl_pool, MIN(txg + 1,
+		    txg_cur_open(spa->spa_dsl_pool)));
 		dsl_sync_task_nowait(spa->spa_dsl_pool,
 		    zio_update_feature,
 		    (void *)SPA_FEATURE_DYNAMIC_GANG_HEADER, tx);

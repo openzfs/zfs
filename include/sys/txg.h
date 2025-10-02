@@ -137,6 +137,7 @@ extern boolean_t txg_stalled(struct dsl_pool *dp);
 
 /* returns TRUE if someone is waiting for the next txg to sync */
 extern boolean_t txg_sync_waiting(struct dsl_pool *dp);
+extern uint64_t txg_cur_open(struct dsl_pool *dp);
 
 extern void txg_verify(spa_t *spa, uint64_t txg);
 
