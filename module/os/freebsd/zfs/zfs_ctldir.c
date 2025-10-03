@@ -764,8 +764,7 @@ zfsctl_common_pathconf(struct vop_pathconf_args *ap)
 		return (0);
 
 	case _PC_MIN_HOLE_SIZE:
-		*ap->a_retval = (int)SPA_MINBLOCKSIZE;
-		return (0);
+		return (EINVAL);
 
 	case _PC_ACL_EXTENDED:
 		*ap->a_retval = 0;
