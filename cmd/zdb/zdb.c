@@ -9449,11 +9449,12 @@ static void
 print_separator_line(int cols, int colwidth, boolean_t *print, boolean_t *final)
 {
 	char buf[64];
-	ASSERT3U(colwidth, <, sizeof (buf) - 2);
-	int len = 0;
+	ASSERT3U(colwidth * strlen("─"), <, sizeof (buf) - 2);
+	int len = 0, off = 0;
 	// Create a buffer with the cell separator to make later code simpler.
 	while (len < colwidth) {
-		len += snprintf(buf + len, sizeof (buf) - len, "─");
+		len++;
+		off += snprintf(buf + off, sizeof (buf) - off, "─");
 	}
 
 	for (int i = 0; i < cols; i++) {
