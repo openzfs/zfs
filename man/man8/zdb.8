@@ -144,6 +144,20 @@ subcommand.
 Display statistics regarding the number, size
 .Pq logical, physical and allocated
 and deduplication of blocks.
+.It Fl -bin Ns = Ns ( Li lsize Ns | Ns Li psize Ns | Ns Li asize )
+When used with
+.Fl bb ,
+sort blocks into all three bins according to the given size (instead of binning
+a block for each size separately).
+.Pp
+For instance, with
+.Fl -bin Ns = Ns Li lsize ,
+a block with lsize of 16K and psize of 4K will be added to the 16K bin
+in all three columns.
+.It Fl -class Ns = Ns ( Li normal Ns | Ns Li special Ns | Ns Li dedup Ns | Ns Li other ) Ns Op , Ns …
+When used with
+.Fl bb ,
+only consider blocks from these allocation classes.
 .It Fl B , -backup
 Generate a backup stream, similar to
 .Nm zfs Cm send ,
