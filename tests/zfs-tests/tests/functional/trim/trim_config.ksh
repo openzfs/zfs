@@ -91,7 +91,7 @@ for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "rai
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 	fi
 
-	if [[ "$type" =~ "anyraid" ]]; then
+	if [[ "$type" =~ "anymirror" ]]; then
 		# The AnyRAID VDEV takes some space for the mapping itself
 		VDEV_MAX_MB=$(( floor(3 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
 		VDEV_MIN_MB=$(( floor(3 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
