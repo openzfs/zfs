@@ -57,7 +57,7 @@ zed_events_drain
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
 
 for type in "mirror" "raidz" "raidz2" "draid:1s" "anymirror1" "anymirror2" "anymirror3"; do
-        if [[ "$type" =~ "anyraid" ]]; then
+        if [[ "$type" =~ "anymirror" ]]; then
                 export VDEVSIZE=1073741824
                 export TESTFILE_SIZE=268435456
         else
