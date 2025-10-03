@@ -106,10 +106,12 @@ extern boolean_t spa_mode_readable_spacemaps;
 extern uint_t zfs_reconstruct_indirect_combinations_max;
 extern uint_t zfs_btree_verify_intensity;
 
+enum {
+	ARG_ALLOCATED = 256,
+};
+
 static const char cmdname[] = "zdb";
 uint8_t dump_opt[512];
-
-#define	ALLOCATED_OPT	256
 
 typedef void object_viewer_t(objset_t *, uint64_t, void *data, size_t size);
 
@@ -1694,7 +1696,7 @@ dump_metaslab(metaslab_t *msp)
 	    (u_longlong_t)msp->ms_id, (u_longlong_t)msp->ms_start,
 	    (u_longlong_t)space_map_object(sm), freebuf);
 
-	if (dump_opt[ALLOCATED_OPT] ||
+	if (dump_opt[ARG_ALLOCATED] ||
 	    (dump_opt['m'] > 2 && !dump_opt['L'])) {
 		mutex_enter(&msp->ms_lock);
 		VERIFY0(metaslab_load(msp));
@@ -1705,7 +1707,7 @@ dump_metaslab(metaslab_t *msp)
 		dump_metaslab_stats(msp);
 	}
 
-	if (dump_opt[ALLOCATED_OPT]) {
+	if (dump_opt[ARG_ALLOCATED]) {
 		uint64_t off = msp->ms_start;
 		zfs_range_tree_walk(msp->ms_allocatable, dump_allocated,
 		    &off);
@@ -1726,7 +1728,7 @@ dump_metaslab(metaslab_t *msp)
 		    SPACE_MAP_HISTOGRAM_SIZE, sm->sm_shift);
 	}
 
-	if (dump_opt[ALLOCATED_OPT] ||
+	if (dump_opt[ARG_ALLOCATED] ||
 	    (dump_opt['m'] > 2 && !dump_opt['L'])) {
 		metaslab_unload(msp);
 		mutex_exit(&msp->ms_lock);
@@ -9426,7 +9428,7 @@ main(int argc, char **argv)
 		{"livelist",		no_argument,		NULL, 'y'},
 		{"zstd-headers",	no_argument,		NULL, 'Z'},
 		{"allocated-map",	no_argument,		NULL,
-		    ALLOCATED_OPT},
+		    ARG_ALLOCATED},
 		{0, 0, 0, 0}
 	};
 
@@ -9457,7 +9459,7 @@ main(int argc, char **argv)
 		case 'u':
 		case 'y':
 		case 'Z':
-		case ALLOCATED_OPT:
+		case ARG_ALLOCATED:
 			dump_opt[c]++;
 			dump_all = 0;
 			break;
