@@ -48,6 +48,10 @@
 #include <sys/_types/_iovec_t.h>
 #endif
 
+#ifdef __linux__
+#include <os/linux/sys/sysmacros.h>
+#endif
+
 #include <stdint.h>
 typedef struct iovec iovec_t;
 
