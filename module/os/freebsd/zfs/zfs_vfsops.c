@@ -1598,6 +1598,29 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	znode_t	*zp;
 	dsl_dir_t *dd;
 
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+
+	if (!unmounting) {
+		/*
+		 * We purge the parent filesystem's vfsp as the parent
+		 * filesystem and all of its snapshots have their vnode's
+		 * v_vfsp set to the parent's filesystem's vfsp.  Note,
+		 * 'z_parent' is self referential for non-snapshots.
+		 */
+#ifdef FREEBSD_NAMECACHE
+		cache_purgevfs(zfsvfs->z_parent->z_vfs);
+#endif
+	}
+
+	/*
+	 * Close the zil. NB: Can't close the zil while zfs_inactive
+	 * threads are blocked as zil_close can call zfs_inactive.
+	 */
+	if (zfsvfs->z_log) {
+		zil_close(zfsvfs->z_log);
+		zfsvfs->z_log = NULL;
+	}
+
 	/*
 	 * If someone has not already unmounted this file system,
 	 * drain the zrele_taskq to ensure all active references to the
@@ -1623,28 +1646,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 			if (++round > 1 && !unmounting)
 				break;
 		}
-	}
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
-
-	if (!unmounting) {
-		/*
-		 * We purge the parent filesystem's vfsp as the parent
-		 * filesystem and all of its snapshots have their vnode's
-		 * v_vfsp set to the parent's filesystem's vfsp.  Note,
-		 * 'z_parent' is self referential for non-snapshots.
-		 */
-#ifdef FREEBSD_NAMECACHE
-		cache_purgevfs(zfsvfs->z_parent->z_vfs);
-#endif
-	}
-
-	/*
-	 * Close the zil. NB: Can't close the zil while zfs_inactive
-	 * threads are blocked as zil_close can call zfs_inactive.
-	 */
-	if (zfsvfs->z_log) {
-		zil_close(zfsvfs->z_log);
-		zfsvfs->z_log = NULL;
 	}
 
 	ZFS_TEARDOWN_INACTIVE_ENTER_WRITE(zfsvfs);
