@@ -623,6 +623,12 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 	case ZFS_PROP_QUOTA:
 	case ZFS_PROP_FILESYSTEM_LIMIT:
 	case ZFS_PROP_SNAPSHOT_LIMIT:
+	case ZFS_PROP_IOLIMIT_BW_READ:
+	case ZFS_PROP_IOLIMIT_BW_WRITE:
+	case ZFS_PROP_IOLIMIT_BW_TOTAL:
+	case ZFS_PROP_IOLIMIT_OP_READ:
+	case ZFS_PROP_IOLIMIT_OP_WRITE:
+	case ZFS_PROP_IOLIMIT_OP_TOTAL:
 		if (!INGLOBALZONE(curproc)) {
 			uint64_t zoned;
 			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
@@ -2581,6 +2587,16 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
 		 * default path to set the value in the nvlist.
 		 */
+		if (err == 0)
+			err = -1;
+		break;
+	case ZFS_PROP_IOLIMIT_BW_READ:
+	case ZFS_PROP_IOLIMIT_BW_WRITE:
+	case ZFS_PROP_IOLIMIT_BW_TOTAL:
+	case ZFS_PROP_IOLIMIT_OP_READ:
+	case ZFS_PROP_IOLIMIT_OP_WRITE:
+	case ZFS_PROP_IOLIMIT_OP_TOTAL:
+		err = dsl_dir_set_iolimit(dsname, prop, intval);
 		if (err == 0)
 			err = -1;
 		break;
