@@ -41,6 +41,7 @@
 # 5. TRIM the first 1MB and last 2MB of the 5MB block of data.
 # 6. Observe 2MB of used space on the zvol
 # 7. Verify the trimmed regions are zero'd on the zvol
+# 8. Verify Secure Erase does not work on zvols (Linux only)
 
 verify_runnable "global"
 
@@ -56,6 +57,7 @@ if is_linux ; then
 	else
 		trimcmd='blkdiscard'
 	fi
+	secure_trimcmd="$trimcmd --secure"
 else
 	# By default, FreeBSD 'trim' always does a dry-run.  '-f' makes
 	# it perform the actual operation.
@@ -114,6 +116,11 @@ function do_test {
 	log_must diff $datafile1 $datafile2
 
 	log_must rm $datafile1 $datafile2
+
+	# Secure erase should not work (Linux check only).
+	if [ -n "$secure_trimcmd" ] ; then
+		log_mustnot $secure_trimcmd $zvolpath
+	fi
 }
 
 log_assert "Verify that a ZFS volume can be TRIMed"
