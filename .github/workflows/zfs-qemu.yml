@@ -68,7 +68,7 @@ jobs:
         # FreeBSD variants of 2025-06:
         # FreeBSD Release: freebsd13-5r, freebsd14-2r, freebsd14-3r
         # FreeBSD Stable:  freebsd13-5s, freebsd14-3s
-        # FreeBSD Current: freebsd15-0c
+        # FreeBSD Current: freebsd15-0c, freebsd16-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:
