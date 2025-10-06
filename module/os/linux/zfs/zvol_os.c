@@ -337,16 +337,14 @@ zvol_discard(zv_request_t *zvr)
 	}
 
 	/*
-	 * Align the request to volume block boundaries when a secure erase is
-	 * not required.  This will prevent dnode_free_range() from zeroing out
-	 * the unaligned parts which is slow (read-modify-write) and useless
-	 * since we are not freeing any space by doing so.
+	 * Align the request to volume block boundaries. This will prevent
+	 * dnode_free_range() from zeroing out the unaligned parts which is
+	 * slow (read-modify-write) and useless since we are not freeing any
+	 * space by doing so.
 	 */
-	if (!io_is_secure_erase(bio, rq)) {
-		start = P2ROUNDUP(start, zv->zv_volblocksize);
-		end = P2ALIGN_TYPED(end, zv->zv_volblocksize, uint64_t);
-		size = end - start;
-	}
+	start = P2ROUNDUP(start, zv->zv_volblocksize);
+	end = P2ALIGN_TYPED(end, zv->zv_volblocksize, uint64_t);
+	size = end - start;
 
 	if (start >= end)
 		goto unlock;
@@ -467,6 +465,24 @@ zvol_read_task(void *arg)
 	zv_request_task_free(task);
 }
 
+/*
+ * Note:
+ *
+ * The kernel uses different enum names for the IO opcode, depending on the
+ * kernel version ('req_opf', 'req_op').  To sidestep this, use macros rather
+ * than inline functions for these checks.
+ */
+/* Should this IO go down the zvol write path? */
+#define	ZVOL_OP_IS_WRITE(op) \
+	(op == REQ_OP_WRITE || \
+	op == REQ_OP_FLUSH || \
+	op == REQ_OP_DISCARD)
+
+/* Is this IO type supported by zvols? */
+#define	ZVOL_OP_IS_SUPPORTED(op) (op == REQ_OP_READ || ZVOL_OP_IS_WRITE(op))
+
+/* Get the IO opcode */
+#define	ZVOL_OP(bio, rq) (bio != NULL ? bio_op(bio) : req_op(rq))
 
 /*
  * Process a BIO or request
@@ -486,26 +502,31 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	uint64_t size = io_size(bio, rq);
 	int rw;
 
-	if (rq != NULL) {
-		/*
-		 * Flush & trim requests go down the zvol_write codepath.  Or
-		 * more specifically:
-		 *
-		 * If request is a write, or if it's op_is_sync() and not a
-		 * read, or if it's a flush, or if it's a discard, then send the
-		 * request down the write path.
-		 */
-		if (op_is_write(rq->cmd_flags) ||
-		    (op_is_sync(rq->cmd_flags) && req_op(rq) != REQ_OP_READ) ||
-		    req_op(rq) == REQ_OP_FLUSH ||
-		    op_is_discard(rq->cmd_flags)) {
-			rw = WRITE;
-		} else {
-			rw = READ;
-		}
-	} else {
-		rw = bio_data_dir(bio);
+	if (unlikely(!ZVOL_OP_IS_SUPPORTED(ZVOL_OP(bio, rq)))) {
+		zfs_dbgmsg("Unsupported zvol %s, op=%d, flags=0x%x",
+		    rq != NULL ? "request" : "BIO",
+		    ZVOL_OP(bio, rq),
+		    rq != NULL ? rq->cmd_flags : bio->bi_opf);
+		ASSERT(ZVOL_OP_IS_SUPPORTED(ZVOL_OP(bio, rq)));
+		zvol_end_io(bio, rq, SET_ERROR(ENOTSUPP));
+		goto out;
 	}
+
+	if (ZVOL_OP_IS_WRITE(ZVOL_OP(bio, rq))) {
+		rw = WRITE;
+	} else {
+		rw = READ;
+	}
+
+	/*
+	 * Sanity check
+	 *
+	 * If we're a BIO, check our rw matches the kernel's
+	 * bio_data_dir(bio) rw.  We need to check because we support fewer
+	 * IO operations, and want to verify that what we think are reads and
+	 * writes from those operations match what the kernel thinks.
+	 */
+	ASSERT(rq != NULL || rw == bio_data_dir(bio));
 
 	if (unlikely(zv->zv_flags & ZVOL_REMOVING)) {
 		zvol_end_io(bio, rq, SET_ERROR(ENXIO));
@@ -610,7 +631,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		 * interfaces lack this functionality (they block waiting for
 		 * the i/o to complete).
 		 */
-		if (io_is_discard(bio, rq) || io_is_secure_erase(bio, rq)) {
+		if (io_is_discard(bio, rq)) {
 			if (force_sync) {
 				zvol_discard(&zvr);
 			} else {
