@@ -1392,6 +1392,7 @@ arc_get_complevel(arc_buf_t *buf)
 	return (buf->b_hdr->b_complevel);
 }
 
+__maybe_unused
 static inline boolean_t
 arc_buf_is_shared(arc_buf_t *buf)
 {
