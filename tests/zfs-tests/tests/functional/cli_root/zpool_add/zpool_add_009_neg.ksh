@@ -64,7 +64,7 @@ log_must poolexists $TESTPOOL
 
 log_mustnot zpool add -f $TESTPOOL $disk0
 
-for type in "" "mirror" "raidz" "anyraid" "draid" "spare" "log" "dedup" "special" "cache"
+for type in "" "mirror" "raidz" "anymirror" "draid" "spare" "log" "dedup" "special" "cache"
 do
 	log_mustnot zpool add -f $TESTPOOL $type $disk0 $disk1
 	log_mustnot zpool add --allow-in-use $TESTPOOL $type $disk0 $disk1
