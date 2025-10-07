@@ -45,7 +45,7 @@ DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
 for type in "mirror" "anymirror1"; do
 
-	if [[ "$type" =~ "anyraid" ]]; then
+	if [[ "$type" =~ "anymirror" ]]; then
 		export disks="$DISK1 $DISK2 $DISK3"
 	else
 		export disks="$DISK1 $DISK2"

@@ -55,18 +55,18 @@ for replace_flags in '' '-s'; do
 
 	log_must create_sparse_files "disk" 3 $DEVSIZE
 	log_must create_sparse_files "spare" 1 $DEVSIZE
-	log_must zpool create -f $TESTPOOL anymirror1 $disks
+	log_must zpool create -O compress=off -f $TESTPOOL anymirror1 $disks
 	log_must zfs set primarycache=none $TESTPOOL
 
 	# Write initial data
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file1.bin bs=1M count=$(( DEVSIZE / 2 / 1024 / 1024 ))
+	log_must file_write -o create -f /$TESTPOOL/file1.bin -b 1048576 -c 256 -d Z
 
 	# Fail one disk
 	log_must truncate -s0 $disk0
 
 	# Read initial data, write new data
-	dd if=/$TESTPOOL/file1.bin of=/dev/null bs=1M count=$(( DEVSIZE / 2 / 1024 / 1024 ))
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file1.bin bs=1M count=$(( DEVSIZE / 2 / 1024 / 1024 ))
+	log_must dd if=/$TESTPOOL/file1.bin of=/dev/null bs=1M count=256
+	log_must file_write -o create -f /$TESTPOOL/file1.bin -b 1048576 -c 256 -d Y
 
 	# Check that disk is faulted
 	zpool status
