@@ -82,10 +82,10 @@ function status_check_all # pool disk-state
 for type in "" "anymirror1"; do
 
 	# 1. Create a one-disk pool.
-	log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
+	log_must zpool create -O compress=off -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
 	status_check_all $TESTPOOL "uninitialized"
 	if [[ "$type" == "anymirror1" ]]; then
-		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
+		log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c 2000 -d Z
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
 	fi
