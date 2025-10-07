@@ -55,7 +55,7 @@ for type in "mirror" "anymirror1"; do
 		log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2
 	else
 		log_must zpool create -f $TESTPOOL $type $DISK1 $DISK2 $DISK3
-		log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=400
+		log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c 400 -d R
 		log_must zpool sync
 		log_must rm /$TESTPOOL/f1
 		log_must zpool sync
