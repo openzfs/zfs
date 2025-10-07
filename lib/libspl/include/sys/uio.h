@@ -41,6 +41,7 @@
 #ifndef	_LIBSPL_SYS_UIO_H
 #define	_LIBSPL_SYS_UIO_H
 
+#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include_next <sys/uio.h>
 
