@@ -9582,6 +9582,9 @@ main(int argc, char **argv)
 	 */
 	spa_mode_readable_spacemaps = B_TRUE;
 
+	libspl_set_assert_ok((dump_opt['A'] == 1) || (dump_opt['A'] > 2));
+	zfs_recover = (dump_opt['A'] > 1);
+
 	if (dump_all)
 		verbose = MAX(verbose, 1);
 
@@ -9591,9 +9594,6 @@ main(int argc, char **argv)
 		if (dump_opt[c])
 			dump_opt[c] += verbose;
 	}
-
-	libspl_set_assert_ok((dump_opt['A'] == 1) || (dump_opt['A'] > 2));
-	zfs_recover = (dump_opt['A'] > 1);
 
 	argc -= optind;
 	argv += optind;
