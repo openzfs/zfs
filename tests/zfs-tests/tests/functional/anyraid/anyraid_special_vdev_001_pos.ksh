@@ -56,15 +56,20 @@ typeset newcksum
 for parity in {0..3}; do
 	log_must zpool create -f $TESTPOOL anymirror$parity $disks special mirror $sdisks
 	log_must poolexists $TESTPOOL
+	log_must zfs set special_small_blocks=4k $TESTPOOL
 
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=1
+	log_must dd if=/dev/urandom of=/$TESTPOOL/small.bin bs=4k count=1
 	oldcksum=$(xxh128digest /$TESTPOOL/file.bin)
+	oldsmallcksum=$(xxh128digest /$TESTPOOL/small.bin)
 	log_must zpool export $TESTPOOL
 
 	log_must zpool import -d $(dirname $disk0) $TESTPOOL
 	newcksum=$(xxh128digest /$TESTPOOL/file.bin)
+	newsmallcksum=$(xxh128digest /$TESTPOOL/small.bin)
 
 	log_must test "$oldcksum" = "$newcksum"
+	log_must test "$oldsmallcksum" = "$newsmallcksum"
 
 	log_must destroy_pool $TESTPOOL
 done
