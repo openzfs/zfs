@@ -307,14 +307,13 @@ assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t writer)
 	 * db_rwlock protects indirect blocks and the data block of the meta
 	 * dnode.
 	 */
-	if (db->db_blkid == DMU_BONUS_BLKID || db->db_blkid == DMU_SPILL_BLKID)
-		return;
 	if (db->db_dirtycnt == 0)
 		return;
-	else if (db->db_level == 0)
+	if (db->db_level == 0 && db->db.db_object != DMU_META_DNODE_OBJECT)
 		return;
-	else if (db->db.db_object != DMU_META_DNODE_OBJECT)
-		return;
+	/* Bonus and Spill blocks should only exist at level 0 */
+	ASSERT(db->db_blkid != DMU_BONUS_BLKID);
+	ASSERT(db->db_blkid != DMU_SPILL_BLKID);
 	if (writer)
 		ASSERT(RW_WRITE_HELD(&db->db_rwlock));
 	else
