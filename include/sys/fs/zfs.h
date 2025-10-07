@@ -1019,7 +1019,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DRAID_NCHILDREN	"draid_nchildren"
 
 /* ANYRAID configuration */
-#define	ZPOOL_CONFIG_ANYRAID_PARITY_TYPE	"parity_type"
+#define	ZPOOL_CONFIG_ANYRAID_PARITY_TYPE	"anyraid_parity_type"
 
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"
