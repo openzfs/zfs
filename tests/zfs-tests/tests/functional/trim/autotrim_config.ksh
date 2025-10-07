@@ -77,7 +77,7 @@ for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "rai
 		VDEVS="$TRIM_VDEV1"
 	elif [[ "$type" = "mirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
-	elif [[ "$type" =~ "anyraid" ]]; then
+	elif [[ "$type" =~ "anymirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 	elif [[ "$type" = "raidz2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
