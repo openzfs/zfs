@@ -56,7 +56,7 @@ set -A args  "" "-?" "-n" "-f" "-nf" "-fn" "-f -n" "--f" "-e" "-s" \
 	"$TESTPOOL mirror" "$TESTPOOL raidz" "$TESTPOOL mirror raidz" \
 	"$TESTPOOL raidz1" "$TESTPOOL mirror raidz1" \
 	"$TESTPOOL draid1" "$TESTPOOL mirror draid1" \
-	"$TESTPOOL anyraid" "$TESTPOOL mirror anyraid" \
+	"$TESTPOOL anymirror" "$TESTPOOL mirror anymirror" \
 	"$TESTPOOL anymirror0" "$TESTPOOL mirror anymirror0" \
 	"$TESTPOOL anymirror1 $DISK0" \
 	"$TESTPOOL anymirror2 $DISK0 $DISK1" \

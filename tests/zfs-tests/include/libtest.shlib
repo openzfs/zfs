@@ -1856,7 +1856,7 @@ function verify_pool
 function get_disklist # pool
 {
 	echo $(zpool iostat -v $1 | awk '(NR > 4) {print $1}' | \
-	    grep -vEe '^-----' -e "^(mirror|raidz[1-3]|anyraid|draid[1-3]|spare|log|cache|special|dedup)|\-[0-9]$")
+	    grep -vEe '^-----' -e "^(mirror|raidz[1-3]|anymirror|draid[1-3]|spare|log|cache|special|dedup)|\-[0-9]$")
 }
 
 #

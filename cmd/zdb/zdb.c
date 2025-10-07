@@ -9439,7 +9439,7 @@ dummy_get_file_info(dmu_object_type_t bonustype, const void *data,
 }
 
 static int
-log_10(uint64_t v) {
+numlen(uint64_t v) {
 	char buf[32];
 	snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)v);
 	return (strlen(buf));
@@ -9499,8 +9499,8 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
 	vdev_anyraid_t *var = vd->vdev_tsd;
 	int cols = vd->vdev_children;
-	int textwidth = MAX(8, log_10(avl_numnodes(&var->vd_tile_map)) +
-	    var->vd_nparity > 0 ? log_10(var->vd_nparity + 1) + 1 : 0);
+	int textwidth = MAX(8, numlen(avl_numnodes(&var->vd_tile_map)) +
+	    var->vd_nparity > 0 ? numlen(var->vd_nparity + 1) + 1 : 0);
 	int colwidth = textwidth + 2;
 
 	// Create and populate table with all the values we need to print.

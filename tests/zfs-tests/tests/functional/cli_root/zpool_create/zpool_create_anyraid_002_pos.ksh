@@ -44,8 +44,8 @@ function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	rm -f $all_vdevs
-	rmdir $TESTDIR
+	log_pos rm -f $all_vdevs
+	log_pos rmdir $TESTDIR
 }
 
 log_assert "'zpool create <pool> anyraid ...' can create a pool with maximum number of vdevs."
