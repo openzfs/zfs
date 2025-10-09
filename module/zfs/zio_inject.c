@@ -104,6 +104,23 @@ static kmutex_t inject_delay_mtx;
 static int inject_next_id = 1;
 
 /*
+ * Lock for inject_event_cv and inject_event_count.
+ */
+static kmutex_t inject_event_mtx;
+
+/*
+ * Number of injection events so far.
+ */
+static uint64_t inject_event_count;
+
+/*
+ * Broadcasts injection events to waiters.
+ */
+static kcondvar_t inject_event_cv;
+
+static void zio_inject_notify(void);
+
+/*
  * Test if the requested frequency was triggered
  */
 static boolean_t
@@ -166,8 +183,10 @@ done:
 		injected = freq_triggered(record->zi_freq);
 	}
 
-	if (injected)
+	if (injected) {
 		record->zi_inject_count++;
+		zio_inject_notify();
+	}
 
 	return (injected);
 }
@@ -193,6 +212,7 @@ zio_handle_panic_injection(spa_t *spa, const char *tag, uint64_t type)
 		    strcmp(tag, handler->zi_record.zi_func) == 0) {
 			handler->zi_record.zi_match_count++;
 			handler->zi_record.zi_inject_count++;
+			zio_inject_notify();
 			panic("Panic requested in function %s\n", tag);
 		}
 	}
@@ -354,6 +374,7 @@ zio_handle_label_injection(zio_t *zio, int error)
 		    (offset >= start && offset <= end)) {
 			handler->zi_record.zi_match_count++;
 			handler->zi_record.zi_inject_count++;
+			zio_inject_notify();
 			ret = error;
 			break;
 		}
@@ -453,6 +474,7 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 					continue;
 
 				handler->zi_record.zi_inject_count++;
+				zio_inject_notify();
 
 				/*
 				 * For a failed open, pretend like the device
@@ -491,6 +513,7 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 			if (handler->zi_record.zi_error == ENXIO) {
 				handler->zi_record.zi_match_count++;
 				handler->zi_record.zi_inject_count++;
+				zio_inject_notify();
 				ret = SET_ERROR(EIO);
 				break;
 			}
@@ -549,6 +572,7 @@ zio_handle_ignored_writes(zio_t *zio)
 		/* Have a "problem" writing 60% of the time */
 		if (random_in_range(100) < 60) {
 			handler->zi_record.zi_inject_count++;
+			zio_inject_notify();
 			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
 		}
 		break;
@@ -576,6 +600,7 @@ spa_handle_ignored_writes(spa_t *spa)
 
 		handler->zi_record.zi_match_count++;
 		handler->zi_record.zi_inject_count++;
+		zio_inject_notify();
 
 		if (handler->zi_record.zi_duration > 0) {
 			VERIFY(handler->zi_record.zi_timer == 0 ||
@@ -759,7 +784,7 @@ zio_handle_io_delay(zio_t *zio)
 		    min_handler->zi_record.zi_nlanes;
 
 		min_handler->zi_record.zi_inject_count++;
-
+		zio_inject_notify();
 	}
 
 	mutex_exit(&inject_delay_mtx);
@@ -787,6 +812,7 @@ zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
 			    SEC2NSEC(handler->zi_record.zi_duration);
 			if (pause > elapsed) {
 				handler->zi_record.zi_inject_count++;
+				zio_inject_notify();
 				delay = pause - elapsed;
 			}
 			id = handler->zi_id;
@@ -1065,6 +1091,8 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 		list_insert_tail(&inject_handlers, handler);
 		atomic_inc_32(&zio_injection_enabled);
 
+		zio_inject_notify();
+
 		rw_exit(&inject_lock);
 	}
 
@@ -1123,6 +1151,52 @@ zio_inject_list_next(int *id, char *name, size_t buflen,
 }
 
 /*
+ * Waits on injection events (handler added, removed, or event injected).
+ * Callers set *state to 0 initially and should pass the updated value back to
+ * successive calls to ensure that no events are not lost between wait calls.
+ * If timeout != NULL, waits
+ * Returns 0 if an event occurred since *state was updated, EINTR if a signal is
+ * caught, or ETIMEDOUT if no event occurred within the timeout.
+ */
+int
+zio_inject_wait(uint64_t *state, hrtime_t timeout)
+{
+	int error;
+	int rc;
+
+	mutex_enter(&inject_event_mtx);
+	if (timeout > 0 && *state > inject_event_count) {
+		rc = cv_timedwait_sig_hires(&inject_event_cv, &inject_event_mtx,
+		    timeout, USEC2NSEC(1), 0);
+	} else {
+		rc = 1;
+	}
+	*state = inject_event_count + 1;
+	mutex_exit(&inject_event_mtx);
+
+	if (rc > 0)
+		error = 0;
+	else if (rc < 0)
+		error = ETIMEDOUT;
+	else
+		error = EINTR;
+
+	return (error);
+}
+
+/*
+ * Wakes up all calls to zio_inject_wait.
+ */
+static void
+zio_inject_notify(void)
+{
+	mutex_enter(&inject_event_mtx);
+	++inject_event_count;
+	cv_broadcast(&inject_event_cv);
+	mutex_exit(&inject_event_mtx);
+}
+
+/*
  * Clear the fault handler with the given identifier, or return ENOENT if none
  * exists.
  */
@@ -1152,6 +1226,8 @@ zio_clear_fault(int id)
 	list_remove(&inject_handlers, handler);
 	rw_exit(&inject_lock);
 
+	zio_inject_notify();
+
 	if (handler->zi_record.zi_cmd == ZINJECT_DELAY_IO) {
 		ASSERT3P(handler->zi_lanes, !=, NULL);
 		kmem_free(handler->zi_lanes, sizeof (*handler->zi_lanes) *
@@ -1176,6 +1252,8 @@ zio_inject_init(void)
 {
 	rw_init(&inject_lock, NULL, RW_DEFAULT, NULL);
 	mutex_init(&inject_delay_mtx, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&inject_event_mtx, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&inject_event_cv, NULL, CV_DEFAULT, NULL);
 	list_create(&inject_handlers, sizeof (inject_handler_t),
 	    offsetof(inject_handler_t, zi_link));
 }
@@ -1186,6 +1264,8 @@ zio_inject_fini(void)
 	list_destroy(&inject_handlers);
 	mutex_destroy(&inject_delay_mtx);
 	rw_destroy(&inject_lock);
+	mutex_destroy(&inject_event_mtx);
+	cv_destroy(&inject_event_cv);
 }
 
 #if defined(_KERNEL)

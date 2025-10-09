@@ -1994,3 +1994,29 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+/*
+ * Wait for injection events.
+ */
+int
+lzc_wait_inject(uint64_t *state, hrtime_t timeout)
+{
+	int error;
+
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	if (timeout != 0)
+		fnvlist_add_uint64(args, WAIT_INJECT_STATE, *state);
+	if (timeout > 0)
+		VERIFY0(nvlist_add_hrtime(args, WAIT_INJECT_TIMEOUT, timeout));
+
+	error = lzc_ioctl(ZFS_IOC_WAIT_INJECT, NULL, args, &result);
+	if (error == 0)
+		*state = fnvlist_lookup_uint64(result, WAIT_INJECT_STATE);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
