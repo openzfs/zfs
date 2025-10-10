@@ -47,6 +47,8 @@ function cleanup
 	# bring back removed disk online for further tests
 	insert_disk $REMOVED_DISK $scsi_host
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	# Since the disk was offline during destroy, remove the label
+	zpool labelclear $DISK2 -f
 }
 
 log_assert "Testing zpool reopen with pool name as argument"
