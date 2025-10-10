@@ -2457,7 +2457,7 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 			 * writing completion before the vdev cache flushing.
 			 */
 			error = zilog->zl_get_data(itx->itx_private,
-			    itx->itx_gen, lrwb, dbuf, lwb,
+			    itx->itx_znode, lrwb, dbuf, lwb,
 			    lwb->lwb_child_zio);
 			if (dbuf != NULL && error == 0) {
 				/* Zero any padding bytes in the last block. */
@@ -2565,6 +2565,7 @@ zil_itx_clone(itx_t *oitx)
 	memcpy(itx, oitx, oitx->itx_size);
 	itx->itx_callback = NULL;
 	itx->itx_callback_data = NULL;
+	itx->itx_zrele = NULL;
 	return (itx);
 }
 
@@ -2579,6 +2580,11 @@ zil_itx_destroy(itx_t *itx, int err)
 
 	if (itx->itx_callback != NULL)
 		itx->itx_callback(itx->itx_callback_data, err);
+
+	if (itx->itx_zrele) {
+		ASSERT3P(itx->itx_znode, !=, NULL);
+		itx->itx_zrele(itx->itx_znode);
+	}
 
 	zio_data_buf_free(itx, itx->itx_size);
 }
