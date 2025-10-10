@@ -270,14 +270,13 @@ is_spare(nvlist_t *config, const char *path)
  *	draid*		Virtual dRAID spare
  */
 static nvlist_t *
-make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
+make_leaf_vdev(const char *arg, boolean_t is_primary, uint64_t ashift)
 {
 	char path[MAXPATHLEN];
 	struct stat64 statbuf;
 	nvlist_t *vdev = NULL;
 	const char *type = NULL;
 	boolean_t wholedisk = B_FALSE;
-	uint64_t ashift = 0;
 	int err;
 
 	/*
@@ -380,31 +379,6 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
 		    (uint64_t)wholedisk) == 0);
-
-	/*
-	 * Override defaults if custom properties are provided.
-	 */
-	if (props != NULL) {
-		const char *value = NULL;
-
-		if (nvlist_lookup_string(props,
-		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0) {
-			if (zfs_nicestrtonum(NULL, value, &ashift) != 0) {
-				(void) fprintf(stderr,
-				    gettext("ashift must be a number.\n"));
-				return (NULL);
-			}
-			if (ashift != 0 &&
-			    (ashift < ASHIFT_MIN || ashift > ASHIFT_MAX)) {
-				(void) fprintf(stderr,
-				    gettext("invalid 'ashift=%" PRIu64 "' "
-				    "property: only values between %" PRId32 " "
-				    "and %" PRId32 " are allowed.\n"),
-				    ashift, ASHIFT_MIN, ASHIFT_MAX);
-				return (NULL);
-			}
-		}
-	}
 
 	/*
 	 * If the device is known to incorrectly report its physical sector
@@ -1513,6 +1487,29 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	const char *type, *fulltype;
 	boolean_t is_log, is_special, is_dedup, is_spare;
 	boolean_t seen_logs;
+	uint64_t ashift = 0;
+
+	if (props != NULL) {
+		const char *value = NULL;
+
+		if (nvlist_lookup_string(props,
+		    zpool_prop_to_name(ZPOOL_PROP_ASHIFT), &value) == 0) {
+			if (zfs_nicestrtonum(NULL, value, &ashift) != 0) {
+				(void) fprintf(stderr,
+				    gettext("ashift must be a number.\n"));
+				return (NULL);
+			}
+			if (ashift != 0 &&
+			    (ashift < ASHIFT_MIN || ashift > ASHIFT_MAX)) {
+				(void) fprintf(stderr,
+				    gettext("invalid 'ashift=%" PRIu64 "' "
+				    "property: only values between %" PRId32 " "
+				    "and %" PRId32 " are allowed.\n"),
+				    ashift, ASHIFT_MIN, ASHIFT_MAX);
+				return (NULL);
+			}
+		}
+	}
 
 	top = NULL;
 	toplevels = 0;
@@ -1618,9 +1615,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				    children * sizeof (nvlist_t *));
 				if (child == NULL)
 					zpool_no_memory();
-				if ((nv = make_leaf_vdev(props, argv[c],
+				if ((nv = make_leaf_vdev(argv[c],
 				    !(is_log || is_special || is_dedup ||
-				    is_spare))) == NULL) {
+				    is_spare), ashift)) == NULL) {
 					for (c = 0; c < children - 1; c++)
 						nvlist_free(child[c]);
 					free(child);
@@ -1684,6 +1681,10 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    ZPOOL_CONFIG_ALLOCATION_BIAS,
 					    VDEV_ALLOC_BIAS_DEDUP) == 0);
 				}
+				if (ashift > 0) {
+					fnvlist_add_uint64(nv,
+					    ZPOOL_CONFIG_ASHIFT, ashift);
+				}
 				if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 					verify(nvlist_add_uint64(nv,
 					    ZPOOL_CONFIG_NPARITY,
@@ -1711,8 +1712,9 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			 * We have a device.  Pass off to make_leaf_vdev() to
 			 * construct the appropriate nvlist describing the vdev.
 			 */
-			if ((nv = make_leaf_vdev(props, argv[0], !(is_log ||
-			    is_special || is_dedup || is_spare))) == NULL)
+			if ((nv = make_leaf_vdev(argv[0], !(is_log ||
+			    is_special || is_dedup || is_spare),
+			    ashift)) == NULL)
 				goto spec_out;
 
 			verify(nvlist_add_uint64(nv,
