@@ -530,7 +530,7 @@ mmp_write_uberblock(spa_t *spa)
 	    MMP_BLOCKS_PER_LABEL + random_in_range(MMP_BLOCKS_PER_LABEL));
 
 	label = random_in_range(VDEV_LABELS);
-	vdev_label_write(zio, vd, label, ub_abd, offset,
+	vdev_label_write(zio, vd, label, vd->vdev_large_label, ub_abd, offset,
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
 
