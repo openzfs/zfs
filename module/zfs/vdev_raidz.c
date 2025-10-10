@@ -5495,7 +5495,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"completes");
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, read_sit_out_secs, ULONG, ZMOD_RW,
 	"Raidz/draid slow disk sit out time period in seconds");
-ZFS_MODULE_PARAM(zfs_vdev, vdev_, raidz_outlier_check_interval_ms, ULONG,
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, raidz_outlier_check_interval_ms, U64,
 	ZMOD_RW, "Interval to check for slow raidz/draid children");
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, raidz_outlier_insensitivity, UINT,
 	ZMOD_RW, "How insensitive the slow raidz/draid child check should be");
