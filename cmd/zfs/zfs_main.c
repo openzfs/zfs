@@ -2519,15 +2519,25 @@ zfs_do_inherit(int argc, char **argv)
 		if (!zfs_prop_inheritable(prop) && !received) {
 			(void) fprintf(stderr, gettext("'%s' property cannot "
 			    "be inherited\n"), propname);
-			if (prop == ZFS_PROP_QUOTA ||
-			    prop == ZFS_PROP_RESERVATION ||
-			    prop == ZFS_PROP_REFQUOTA ||
-			    prop == ZFS_PROP_REFRESERVATION) {
+			switch (prop) {
+			case ZFS_PROP_QUOTA:
+			case ZFS_PROP_RESERVATION:
+			case ZFS_PROP_REFQUOTA:
+			case ZFS_PROP_REFRESERVATION:
+			case ZFS_PROP_IOLIMIT_BW_READ:
+			case ZFS_PROP_IOLIMIT_BW_WRITE:
+			case ZFS_PROP_IOLIMIT_BW_TOTAL:
+			case ZFS_PROP_IOLIMIT_OP_READ:
+			case ZFS_PROP_IOLIMIT_OP_WRITE:
+			case ZFS_PROP_IOLIMIT_OP_TOTAL:
 				(void) fprintf(stderr, gettext("use 'zfs set "
 				    "%s=none' to clear\n"), propname);
 				(void) fprintf(stderr, gettext("use 'zfs "
 				    "inherit -S %s' to revert to received "
 				    "value\n"), propname);
+				break;
+			default:
+				break;
 			}
 			return (1);
 		}
