@@ -230,7 +230,7 @@ enum iostat_type {
 
 /*
  * Lookup table for iostat flags to nvlist names.  Basically a list
- * of all the nvlists a flag requires.  Also specifies the order in
+ * of all the nvlists a flag requires.	Also specifies the order in
  * which data gets printed in zpool iostat.
  */
 static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
@@ -1221,7 +1221,7 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 				 * With a mirrored special device, the parent
 				 * "mirror" vdev will have
 				 * ZPOOL_CONFIG_ALLOCATION_BIAS set to "special"
-				 * not the leaf vdevs.  If we're a leaf vdev
+				 * not the leaf vdevs.	If we're a leaf vdev
 				 * in that case we need to look at our parent
 				 * to see if they're "special" to know if we
 				 * are "special" too.
@@ -1851,7 +1851,7 @@ zpool_do_labelclear(int argc, char **argv)
 	}
 
 	/*
-	 * Flush all dirty pages for the block device.  This should not be
+	 * Flush all dirty pages for the block device.	This should not be
 	 * fatal when the device does not support BLKFLSBUF as would be the
 	 * case for a file vdev.
 	 */
@@ -1951,8 +1951,8 @@ errout:
  *	-f	Force creation, even if devices appear in use
  *	-n	Do not create the pool, but display the resulting layout if it
  *		were to be created.
- *      -R	Create a pool under an alternate root
- *      -m	Set default mountpoint for the root dataset.  By default it's
+ *	-R	Create a pool under an alternate root
+ *	-m	Set default mountpoint for the root dataset.  By default it's
  *		'/<pool>'
  *	-o	Set property=value.
  *	-o	Set feature@feature=enabled|disabled.
@@ -2319,7 +2319,7 @@ badusage:
 /*
  * zpool destroy <pool>
  *
- * 	-f	Forcefully unmount any datasets
+ *	-f	Forcefully unmount any datasets
  *
  * Destroy the given pool.  Automatically unmounts any datasets in the pool.
  */
@@ -2921,7 +2921,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	}
 
 	printf_color(health_str_to_color(state),
-	    "\t%*s%-*s  %-8s", depth, "", cb->cb_namewidth - depth,
+	    "\t%*s%-*s	%-8s", depth, "", cb->cb_namewidth - depth,
 	    name, state);
 
 	if (!isspare) {
@@ -4111,13 +4111,13 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
 }
 /*
  * zpool checkpoint <pool>
- *       checkpoint --discard <pool>
+ *	 checkpoint --discard <pool>
  *
- *       -d         Discard the checkpoint from a checkpointed
- *       --discard  pool.
+ *	 -d	    Discard the checkpoint from a checkpointed
+ *	 --discard  pool.
  *
- *       -w         Wait for discarding a checkpoint to complete.
- *       --wait
+ *	 -w	    Wait for discarding a checkpoint to complete.
+ *	 --wait
  *
  * Checkpoints the specified pool, by taking a "snapshot" of its
  * current state. A pool can only have one checkpoint at a time.
@@ -4267,11 +4267,11 @@ zpool_do_prefetch(int argc, char **argv)
 
 /*
  * zpool import [-d dir] [-D]
- *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile | -s] [-f] -a
- *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile | -s] [-f] [-n] [-F] <pool | id>
- *              [newpool]
+ *	 import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
+ *		[-d dir | -c cachefile | -s] [-f] -a
+ *	 import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
+ *		[-d dir | -c cachefile | -s] [-f] [-n] [-F] <pool | id>
+ *		[newpool]
  *
  *	-c	Read pool information from a cachefile instead of searching
  *		devices. If importing from a cachefile config fails, then
@@ -4818,8 +4818,8 @@ default_column_width(iostat_cbdata_t *cb, enum iostat_type type)
 /*
  * Print the column labels, i.e:
  *
- *   capacity     operations     bandwidth
- * alloc   free   read  write   read  write  ...
+ *   capacity	  operations	 bandwidth
+ * alloc   free   read	write	read  write  ...
  *
  * If force_column_width is set, use it for the column width.  If not set, use
  * the default column width.
@@ -4883,17 +4883,17 @@ print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
  *
  * If the user specified the "zpool status|iostat -c" then print their custom
  * column titles in the header.  For example, print_cmd_columns() would print
- * the "  col1  col2" part of this:
+ * the "  col1	col2" part of this:
  *
  * $ zpool iostat -vc 'echo col1=val1; echo col2=val2'
  * ...
- *	      capacity     operations     bandwidth
+ *	      capacity	   operations	  bandwidth
  * pool        alloc   free   read  write   read  write  col1  col2
  * ----------  -----  -----  -----  -----  -----  -----  ----  ----
- * mypool       269K  1008M      0      0    107    946
- *   mirror     269K  1008M      0      0    107    946
- *     sdb         -      -      0      0    102    473  val1  val2
- *     sdc         -      -      0      0      5    473  val1  val2
+ * mypool	269K  1008M	 0	0    107    946
+ *   mirror	269K  1008M	 0	0    107    946
+ *     sdb	   -	  -	 0	0    102    473  val1  val2
+ *     sdc	   -	  -	 0	0      5    473  val1  val2
  * ----------  -----  -----  -----  -----  -----  -----  ----  ----
  */
 static void
@@ -4926,20 +4926,20 @@ print_cmd_columns(vdev_cmd_data_list_t *vcdl, int use_dashes)
 /*
  * Utility function to print out a line of dashes like:
  *
- * 	--------------------------------  -----  -----  -----  -----  -----
+ *	--------------------------------  -----  -----	-----  -----  -----
  *
  * ...or a dashed named-row line like:
  *
- * 	logs                                  -      -      -      -      -
+ *	logs				      -      -	    -	   -	  -
  *
  * @cb:				iostat data
  *
  * @force_column_width		If non-zero, use the value as the column width.
- * 				Otherwise use the default column widths.
+ *				Otherwise use the default column widths.
  *
  * @name:			Print a dashed named-row line starting
- * 				with @name.  Otherwise, print a regular
- * 				dashed line.
+ *				with @name.  Otherwise, print a regular
+ *				dashed line.
  */
 static void
 print_iostat_dashes(iostat_cbdata_t *cb, unsigned int force_column_width,
@@ -4958,7 +4958,7 @@ print_iostat_dashes(iostat_cbdata_t *cb, unsigned int force_column_width,
 		title = histo_to_title[IOS_HISTO_IDX(cb->cb_flags)];
 	} else if (cb->cb_vdevs.cb_names_count) {
 		title = "vdev";
-	} else  {
+	} else	{
 		title = "pool";
 	}
 
@@ -5020,7 +5020,7 @@ print_iostat_header_impl(iostat_cbdata_t *cb, unsigned int force_column_width,
 		title = histo_to_title[IOS_HISTO_IDX(cb->cb_flags)];
 	} else if (cb->cb_vdevs.cb_names_count) {
 		title = "vdev";
-	} else  {
+	} else	{
 		title = "pool";
 	}
 
@@ -5134,7 +5134,7 @@ calc_default_iostats(vdev_stat_t *oldvs, vdev_stat_t *newvs,
  *
  * The extended iostat stats are exported in nvlists as either uint64_t arrays
  * or single uint64_t's.  We make both look like arrays to make them easier
- * to process.  In order to make single uint64_t's look like arrays, we set
+ * to process.	In order to make single uint64_t's look like arrays, we set
  * __data to the stat data, and then set *data = &__data with count = 1.  Then,
  * we can just use *data and count.
  */
@@ -5379,9 +5379,9 @@ single_histo_average(uint64_t *histo, unsigned int buckets)
 		 * midpoint latency of each bucket to calculate the average.
 		 * For example:
 		 *
-		 * Bucket          Midpoint
-		 * 8ns-15ns:       12ns
-		 * 16ns-31ns:      24ns
+		 * Bucket	   Midpoint
+		 * 8ns-15ns:	   12ns
+		 * 16ns-31ns:	   24ns
 		 * ...
 		 */
 		if (histo[i] != 0) {
@@ -5969,7 +5969,7 @@ get_stat_flags_cb(zpool_handle_t *zhp, void *data)
 		for (i = 0; vsx_type_to_nvlist[j][i]; i++) {
 			if (!nvlist_exists(nvx, vsx_type_to_nvlist[j][i])) {
 				/* flag isn't supported */
-				flags = flags & ~(1ULL  << j);
+				flags = flags & ~(1ULL	<< j);
 				break;
 			}
 		}
@@ -6297,7 +6297,7 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
 	 * line up by justifying all lines to the same width.  If that max
 	 * width is larger than what's available, the name plus stats won't fit
 	 * on one line, and justifying to that width would cause every line to
-	 * wrap on the screen.  We only want lines with long names to wrap.
+	 * wrap on the screen.	We only want lines with long names to wrap.
 	 * Limit the padding to what won't wrap.
 	 */
 	if (width > available_width)
@@ -6319,17 +6319,17 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
 
 /*
  * zpool iostat [[-c [script1,script2,...]] [-lq]|[-rw]] [-ghHLpPvy] [-n name]
- *              [-T d|u] [[ pool ...]|[pool vdev ...]|[vdev ...]]
- *              [interval [count]]
+ *		[-T d|u] [[ pool ...]|[pool vdev ...]|[vdev ...]]
+ *		[interval [count]]
  *
- *	-c CMD  For each vdev, run command CMD
+ *	-c CMD	For each vdev, run command CMD
  *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
  *	-P	Display full path for vdev name.
  *	-v	Display statistics for individual vdevs
  *	-h	Display help
  *	-p	Display values in parsable (exact) format.
- *	-H	Scripted mode.  Don't display headers, and separate properties
+ *	-H	Scripted mode.	Don't display headers, and separate properties
  *		by a single tab.
  *	-l	Display average latency
  *	-q	Display queue depths
@@ -6339,7 +6339,7 @@ get_namewidth_iostat(zpool_handle_t *zhp, void *data)
  *	-n	Only print headers once
  *
  * This command can be tricky because we want to be able to deal with pool
- * creation/destruction as well as vdev configuration changes.  The bulk of this
+ * creation/destruction as well as vdev configuration changes.	The bulk of this
  * processing is handled by the pool_list_* routines in zpool_iter.c.  We rely
  * on pool_list_refresh() to detect the addition and removal of pools.
  * Configuration changes are all handled within libzfs.
@@ -6762,7 +6762,7 @@ print_header(list_cbdata_t *cb)
 		}
 
 		if (!first)
-			(void) fputs("  ", stdout);
+			(void) fputs("	", stdout);
 		else
 			first = B_FALSE;
 
@@ -6833,7 +6833,7 @@ collect_pool(zpool_handle_t *zhp, list_cbdata_t *cb)
 			if (cb->cb_scripted)
 				(void) fputc('\t', stdout);
 			else
-				(void) fputs("  ", stdout);
+				(void) fputs("	", stdout);
 		} else {
 			first = B_FALSE;
 		}
@@ -6975,7 +6975,6 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 
 /*
  * print static default line per vdev
- * not compatible with '-o' <proplist> option
  */
 static void
 collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
@@ -6989,8 +6988,8 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	uint64_t islog = B_FALSE;
 	nvlist_t *props, *ent, *ch, *obj, *l2c, *sp;
 	props = ent = ch = obj = sp = l2c = NULL;
-	const char *dashes = "%-*s      -      -      -        -         "
-	    "-      -      -      -         -\n";
+	const char *dashes = "%-*s	-      -      -        -	 "
+	    "-	    -	   -	  -	    -\n";
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
@@ -7031,55 +7030,107 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		 * 'toplevel' boolean value is passed to the print_one_column()
 		 * to indicate that the value is valid.
 		 */
-		if (VDEV_STAT_VALID(vs_pspace, c) && vs->vs_pspace) {
-			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_pspace, NULL,
-			    scripted, B_TRUE, format, cb->cb_json, props,
-			    cb->cb_json_as_int);
-		} else {
-			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_space, NULL,
-			    scripted, toplevel, format, cb->cb_json, props,
-			    cb->cb_json_as_int);
-		}
-		collect_vdev_prop(ZPOOL_PROP_ALLOCATED, vs->vs_alloc, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_FREE, vs->vs_space - vs->vs_alloc,
-		    NULL, scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_CHECKPOINT,
-		    vs->vs_checkpoint_space, NULL, scripted, toplevel, format,
-		    cb->cb_json, props, cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_EXPANDSZ, vs->vs_esize, NULL,
-		    scripted, B_TRUE, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_FRAGMENTATION,
-		    vs->vs_fragmentation, NULL, scripted,
-		    (vs->vs_fragmentation != ZFS_FRAG_INVALID && toplevel),
-		    format, cb->cb_json, props, cb->cb_json_as_int);
-		cap = (vs->vs_space == 0) ? 0 :
-		    (vs->vs_alloc * 10000 / vs->vs_space);
-		collect_vdev_prop(ZPOOL_PROP_CAPACITY, cap, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_DEDUPRATIO, 0, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		state = zpool_state_to_name(vs->vs_state, vs->vs_aux);
-		if (isspare) {
-			if (vs->vs_aux == VDEV_AUX_SPARED)
-				state = "INUSE";
-			else if (vs->vs_state == VDEV_STATE_HEALTHY)
-				state = "AVAIL";
-		}
-		collect_vdev_prop(ZPOOL_PROP_HEALTH, 0, state, scripted,
-		    B_TRUE, format, cb->cb_json, props, cb->cb_json_as_int);
+		for (zprop_list_t *pl = cb->cb_proplist; pl != NULL;
+		    pl = pl->pl_next) {
+			switch (pl->pl_prop) {
+			case ZPOOL_PROP_SIZE:
+				if (VDEV_STAT_VALID(vs_pspace, c) &&
+				    vs->vs_pspace) {
+					collect_vdev_prop(
+					    ZPOOL_PROP_SIZE, vs->vs_pspace,
+					    NULL, scripted, B_TRUE, format,
+					    cb->cb_json, props,
+					    cb->cb_json_as_int);
+				} else {
+					collect_vdev_prop(
+					    ZPOOL_PROP_SIZE, vs->vs_space, NULL,
+					    scripted, toplevel, format,
+					    cb->cb_json, props,
+					    cb->cb_json_as_int);
+				}
+				break;
 
-		if (cb->cb_json) {
-			fnvlist_add_nvlist(ent, "properties", props);
-			fnvlist_free(props);
-		} else
-			(void) fputc('\n', stdout);
-	}
+			case ZPOOL_PROP_ALLOCATED:
+				collect_vdev_prop(ZPOOL_PROP_ALLOCATED,
+				    vs->vs_alloc, NULL, scripted,
+				    toplevel, format, cb->cb_json,
+				    props, cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_FREE:
+				collect_vdev_prop(ZPOOL_PROP_FREE,
+				    vs->vs_space - vs->vs_alloc,
+				    NULL, scripted, toplevel,
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_CHECKPOINT:
+				collect_vdev_prop(ZPOOL_PROP_CHECKPOINT,
+				    vs->vs_checkpoint_space, NULL,
+				    scripted, toplevel, format,
+				    cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_EXPANDSZ:
+				collect_vdev_prop(ZPOOL_PROP_EXPANDSZ,
+				    vs->vs_esize, NULL, scripted,
+				    B_TRUE, format, cb->cb_json,
+				    props, cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_FRAGMENTATION:
+				collect_vdev_prop(
+				    ZPOOL_PROP_FRAGMENTATION,
+				    vs->vs_fragmentation, NULL, scripted,
+				    (vs->vs_fragmentation != ZFS_FRAG_INVALID &&
+				    toplevel),
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_CAPACITY:
+				cap =
+				    (vs->vs_space == 0)
+				    ?? 0
+				    : (vs->vs_alloc * 10000 / vs->vs_space);
+				collect_vdev_prop(ZPOOL_PROP_CAPACITY, cap,
+				    NULL, scripted, toplevel,
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_DEDUPRATIO:
+				collect_vdev_prop(ZPOOL_PROP_DEDUPRATIO, 0,
+				    NULL, scripted, toplevel,
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_HEALTH:
+				state = zpool_state_to_name(vs->vs_state,
+				    vs->vs_aux);
+				if (isspare) {
+					if (vs->vs_aux == VDEV_AUX_SPARED)
+						state = "INUSE";
+					else if (vs->vs_state ==
+					    VDEV_STATE_HEALTHY)
+						state = "AVAIL";
+				}
+				collect_vdev_prop(ZPOOL_PROP_HEALTH, 0, state,
+				    scripted, B_TRUE, format,
+				    cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+			}
+
+			if (cb->cb_json) {
+				fnvlist_add_nvlist(ent, "properties", props);
+				fnvlist_free(props);
+			} else
+				(void) fputc('\n', stdout);
+		}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0) {
@@ -7294,10 +7345,10 @@ get_namewidth_list(zpool_handle_t *zhp, void *data)
  * zpool list [-gHLpP] [-o prop[,prop]*] [-T d|u] [pool] ... [interval [count]]
  *
  *	-g	Display guid for individual vdev name.
- *	-H	Scripted mode.  Don't display headers, and separate properties
+ *	-H	Scripted mode.	Don't display headers, and separate properties
  *		by a single tab.
  *	-L	Follow links when resolving vdev path name.
- *	-o	List of properties to display.  Defaults to
+ *	-o	List of properties to display.	Defaults to
  *		"name,size,allocated,free,expandsize,fragmentation,capacity,"
  *		"dedupratio,health,altroot"
  *	-p	Display values in parsable (exact) format.
@@ -7716,7 +7767,7 @@ zpool_do_detach(int argc, char **argv)
  *		[-o mntopt] ...
  *		[-R altroot] <pool> <newpool> [<device> ...]
  *
- *	-g      Display guid for individual vdev name.
+ *	-g	Display guid for individual vdev name.
  *	-L	Follow links when resolving vdev path name.
  *	-n	Do not split the pool, but display the resulting layout if
  *		it were to be split.
@@ -10621,7 +10672,7 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 
 	case ZPOOL_STATUS_FAULTED_DEV_NR:
 		snprintf(status, ST_SIZE, gettext("One or more devices are "
-		    "faulted in response to persistent errors.  There are "
+		    "faulted in response to persistent errors.	There are "
 		    "insufficient replicas for the pool to\n\tcontinue "
 		    "functioning.\n"));
 		snprintf(action, AC_SIZE, gettext("Destroy and re-create the "
@@ -10862,14 +10913,14 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 /*
  * Display a summary of pool status.  Displays a summary such as:
  *
- *        pool: tank
+ *	  pool: tank
  *	status: DEGRADED
  *	reason: One or more devices ...
- *         see: https://openzfs.github.io/openzfs-docs/msg/ZFS-xxxx-01
+ *	   see: https://openzfs.github.io/openzfs-docs/msg/ZFS-xxxx-01
  *	config:
  *		mirror		DEGRADED
- *                c1t0d0	OK
- *                c2t0d0	UNAVAIL
+ *		  c1t0d0	OK
+ *		  c2t0d0	UNAVAIL
  *
  * When given the '-v' option, we print out the complete config.  If the '-e'
  * option is specified, then we print out error rate information as well.
@@ -11039,9 +11090,9 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 /*
  * zpool status [-dDegiLpPstvx] [-c [script1,script2,...]] ...
- * 				[-j|--json [--json-flat-vdevs] [--json-int] ...
- * 				[--json-pool-key-guid]] [--power] [-T d|u] ...
- * 				[pool] [interval [count]]
+ *				[-j|--json [--json-flat-vdevs] [--json-int] ...
+ *				[--json-pool-key-guid]] [--power] [-T d|u] ...
+ *				[pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
  *	-D	Display dedup status (undocumented)
@@ -11444,7 +11495,7 @@ upgrade_cb(zpool_handle_t *zhp, void *arg)
 
 		/*
 		 * If they did "zpool upgrade -a", then we could
-		 * be doing ioctls to different pools.  We need
+		 * be doing ioctls to different pools.	We need
 		 * to log this history once to each pool, and bypass
 		 * the normal history logging that happens in main().
 		 */
@@ -11489,7 +11540,7 @@ upgrade_list_older_cb(zpool_handle_t *zhp, void *arg)
 		if (cbp->cb_first) {
 			(void) printf(gettext("The following pools are "
 			    "formatted with legacy version numbers and can\n"
-			    "be upgraded to use feature flags.  After "
+			    "be upgraded to use feature flags.	After "
 			    "being upgraded, these pools\nwill no "
 			    "longer be accessible by software that does not "
 			    "support feature\nflags.\n\n"
@@ -11569,7 +11620,7 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 			}
 			/*
 			 * If they did "zpool upgrade -a", then we could
-			 * be doing ioctls to different pools.  We need
+			 * be doing ioctls to different pools.	We need
 			 * to log this history once to each pool, and bypass
 			 * the normal history logging that happens in main().
 			 */
@@ -12661,14 +12712,14 @@ get_callback(zpool_handle_t *zhp, void *data)
 /*
  * zpool get [-Hp] [-o "all" | field[,...]] <"all" | property[,...]> <pool> ...
  *
- *	-H	Scripted mode.  Don't display headers, and separate properties
+ *	-H	Scripted mode.	Don't display headers, and separate properties
  *		by a single tab.
  *	-o	List of columns to display.  Defaults to
  *		"name,property,value,source".
- * 	-p	Display values in parsable (exact) format.
- * 	-j	Display output in JSON format.
- * 	--json-int	Display numbers as integers instead of strings.
- * 	--json-pool-key-guid	Set pool GUID as key for pool objects.
+ *	-p	Display values in parsable (exact) format.
+ *	-j	Display output in JSON format.
+ *	--json-int	Display numbers as integers instead of strings.
+ *	--json-pool-key-guid	Set pool GUID as key for pool objects.
  *
  * Get properties of pools in the system. Output space statistics
  * for each one as well as other attributes.
@@ -13513,8 +13564,8 @@ found:;
 /*
  * zpool ddtprune -d|-p <amount> <pool>
  *
- *       -d <days>	Prune entries <days> old and older
- *       -p <percent>	Prune <percent> amount of entries
+ *	 -d <days>	Prune entries <days> old and older
+ *	 -p <percent>	Prune <percent> amount of entries
  *
  * Prune single reference entries from DDT to satisfy the amount specified.
  */
