@@ -6975,7 +6975,6 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 
 /*
  * print static default line per vdev
- * not compatible with '-o' <proplist> option
  */
 static void
 collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
@@ -7031,48 +7030,98 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		 * 'toplevel' boolean value is passed to the print_one_column()
 		 * to indicate that the value is valid.
 		 */
-		if (VDEV_STAT_VALID(vs_pspace, c) && vs->vs_pspace) {
-			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_pspace, NULL,
-			    scripted, B_TRUE, format, cb->cb_json, props,
-			    cb->cb_json_as_int);
-		} else {
-			collect_vdev_prop(ZPOOL_PROP_SIZE, vs->vs_space, NULL,
-			    scripted, toplevel, format, cb->cb_json, props,
-			    cb->cb_json_as_int);
+		for (zprop_list_t *pl = cb->cb_proplist; pl != NULL;
+		    pl = pl->pl_next) {
+			switch (pl->pl_prop) {
+			case ZPOOL_PROP_SIZE:
+				if (VDEV_STAT_VALID(vs_pspace, c) &&
+				    vs->vs_pspace) {
+					collect_vdev_prop(
+					    ZPOOL_PROP_SIZE, vs->vs_pspace,
+					    NULL, scripted, B_TRUE, format,
+					    cb->cb_json, props,
+					    cb->cb_json_as_int);
+				} else {
+					collect_vdev_prop(
+					    ZPOOL_PROP_SIZE, vs->vs_space, NULL,
+					    scripted, toplevel, format,
+					    cb->cb_json, props,
+					    cb->cb_json_as_int);
+				}
+				break;
+			case ZPOOL_PROP_ALLOCATED:
+				collect_vdev_prop(ZPOOL_PROP_ALLOCATED,
+				    vs->vs_alloc, NULL, scripted, toplevel,
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_FREE:
+				collect_vdev_prop(ZPOOL_PROP_FREE,
+				    vs->vs_space - vs->vs_alloc, NULL, scripted,
+				    toplevel, format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_CHECKPOINT:
+				collect_vdev_prop(ZPOOL_PROP_CHECKPOINT,
+				    vs->vs_checkpoint_space, NULL, scripted,
+				    toplevel, format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_EXPANDSZ:
+				collect_vdev_prop(ZPOOL_PROP_EXPANDSZ,
+				    vs->vs_esize, NULL, scripted, B_TRUE,
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_FRAGMENTATION:
+				collect_vdev_prop(
+				    ZPOOL_PROP_FRAGMENTATION,
+				    vs->vs_fragmentation, NULL, scripted,
+				    (vs->vs_fragmentation != ZFS_FRAG_INVALID &&
+				    toplevel),
+				    format, cb->cb_json, props,
+				    cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_CAPACITY:
+				cap = (vs->vs_space == 0) ?
+				    0 : (vs->vs_alloc * 10000 / vs->vs_space);
+				collect_vdev_prop(ZPOOL_PROP_CAPACITY, cap,
+				    NULL, scripted, toplevel, format,
+				    cb->cb_json, props, cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_HEALTH:
+				state = zpool_state_to_name(vs->vs_state,
+				    vs->vs_aux);
+				if (isspare) {
+					if (vs->vs_aux == VDEV_AUX_SPARED)
+						state = "INUSE";
+					else if (vs->vs_state ==
+					    VDEV_STATE_HEALTHY)
+						state = "AVAIL";
+				}
+				collect_vdev_prop(ZPOOL_PROP_HEALTH, 0, state,
+				    scripted, B_TRUE, format, cb->cb_json,
+				    props, cb->cb_json_as_int);
+				break;
+
+			case ZPOOL_PROP_NAME:
+				break;
+
+			default:
+				collect_vdev_prop(pl->pl_prop, 0,
+				    NULL, scripted, B_FALSE, format,
+				    cb->cb_json, props, cb->cb_json_as_int);
+
+			}
+
+
 		}
-		collect_vdev_prop(ZPOOL_PROP_ALLOCATED, vs->vs_alloc, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_FREE, vs->vs_space - vs->vs_alloc,
-		    NULL, scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_CHECKPOINT,
-		    vs->vs_checkpoint_space, NULL, scripted, toplevel, format,
-		    cb->cb_json, props, cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_EXPANDSZ, vs->vs_esize, NULL,
-		    scripted, B_TRUE, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_FRAGMENTATION,
-		    vs->vs_fragmentation, NULL, scripted,
-		    (vs->vs_fragmentation != ZFS_FRAG_INVALID && toplevel),
-		    format, cb->cb_json, props, cb->cb_json_as_int);
-		cap = (vs->vs_space == 0) ? 0 :
-		    (vs->vs_alloc * 10000 / vs->vs_space);
-		collect_vdev_prop(ZPOOL_PROP_CAPACITY, cap, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		collect_vdev_prop(ZPOOL_PROP_DEDUPRATIO, 0, NULL,
-		    scripted, toplevel, format, cb->cb_json, props,
-		    cb->cb_json_as_int);
-		state = zpool_state_to_name(vs->vs_state, vs->vs_aux);
-		if (isspare) {
-			if (vs->vs_aux == VDEV_AUX_SPARED)
-				state = "INUSE";
-			else if (vs->vs_state == VDEV_STATE_HEALTHY)
-				state = "AVAIL";
-		}
-		collect_vdev_prop(ZPOOL_PROP_HEALTH, 0, state, scripted,
-		    B_TRUE, format, cb->cb_json, props, cb->cb_json_as_int);
 
 		if (cb->cb_json) {
 			fnvlist_add_nvlist(ent, "properties", props);
