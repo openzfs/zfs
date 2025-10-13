@@ -1157,7 +1157,7 @@ buf_fini(void)
 #if defined(_KERNEL)
 	/*
 	 * Large allocations which do not require contiguous pages
-	 * should be using vmem_free() in the linux kernel\
+	 * should be using vmem_free() in the linux kernel.
 	 */
 	vmem_free(buf_hash_table.ht_table,
 	    (buf_hash_table.ht_mask + 1) * sizeof (void *));
@@ -4651,10 +4651,10 @@ arc_flush_task(void *arg)
 	arc_flush_impl(spa_guid, B_FALSE);
 	arc_async_flush_remove(spa_guid, af->af_cache_level);
 
-	uint64_t elaspsed = NSEC2MSEC(gethrtime() - start_time);
-	if (elaspsed > 0) {
+	uint64_t elapsed = NSEC2MSEC(gethrtime() - start_time);
+	if (elapsed > 0) {
 		zfs_dbgmsg("spa %llu arc flushed in %llu ms",
-		    (u_longlong_t)spa_guid, (u_longlong_t)elaspsed);
+		    (u_longlong_t)spa_guid, (u_longlong_t)elapsed);
 	}
 }
 
@@ -9152,7 +9152,7 @@ top:
 		if (dev->l2ad_first) {
 			/*
 			 * This is the first sweep through the device. There is
-			 * nothing to evict. We have already trimmmed the
+			 * nothing to evict. We have already trimmed the
 			 * whole device.
 			 */
 			goto out;
@@ -10086,12 +10086,12 @@ l2arc_device_teardown(void *arg)
 	kmem_free(remdev->l2ad_dev_hdr, remdev->l2ad_dev_hdr_asize);
 	vmem_free(remdev, sizeof (l2arc_dev_t));
 
-	uint64_t elaspsed = NSEC2MSEC(gethrtime() - start_time);
-	if (elaspsed > 0) {
+	uint64_t elapsed = NSEC2MSEC(gethrtime() - start_time);
+	if (elapsed > 0) {
 		zfs_dbgmsg("spa %llu, vdev %llu removed in %llu ms",
 		    (u_longlong_t)rva->rva_spa_gid,
 		    (u_longlong_t)rva->rva_vdev_gid,
-		    (u_longlong_t)elaspsed);
+		    (u_longlong_t)elapsed);
 	}
 
 	if (rva->rva_async)
