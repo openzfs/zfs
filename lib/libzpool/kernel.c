@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
 #include <assert.h>
@@ -645,39 +646,60 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
  * cmn_err() and panic()
  * =========================================================================
  */
-static char ce_prefix[CE_IGNORE][10] = { "", "NOTICE: ", "WARNING: ", "" };
-static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 
-__attribute__((noreturn)) void
-vpanic(const char *fmt, va_list adx)
+static __attribute__((noreturn)) void
+panic_stop_or_abort(void)
 {
-	(void) fprintf(stderr, "error: ");
-	(void) vfprintf(stderr, fmt, adx);
-	(void) fprintf(stderr, "\n");
+	const char *stopenv = getenv("LIBZPOOL_PANIC_STOP");
+	if (stopenv != NULL && atoi(stopenv)) {
+		fputs("libzpool: LIBZPOOL_PANIC_STOP is set, sending "
+		    "SIGSTOP to process group\n", stderr);
+		fflush(stderr);
+
+		kill(0, SIGSTOP);
+
+		fputs("libzpool: continued after panic stop, "
+		    "aborting\n", stderr);
+	}
 
 	abort();	/* think of it as a "user-level crash dump" */
 }
 
-__attribute__((noreturn)) void
-panic(const char *fmt, ...)
+static void
+vcmn_msg(int ce, const char *fmt, va_list adx)
 {
-	va_list adx;
+	switch (ce) {
+	case CE_IGNORE:
+		return;
+	case CE_CONT:
+		break;
+	case CE_NOTE:
+		fputs("libzpool: NOTICE: ", stderr);
+		break;
+	case CE_WARN:
+		fputs("libzpool: WARNING: ", stderr);
+		break;
+	case CE_PANIC:
+		fputs("libzpool: PANIC: ", stderr);
+		break;
+	default:
+		fputs("libzpool: [unknown severity %d]: ", stderr);
+		break;
+	}
 
-	va_start(adx, fmt);
-	vpanic(fmt, adx);
-	va_end(adx);
+	vfprintf(stderr, fmt, adx);
+	if (ce != CE_CONT)
+		fputc('\n', stderr);
+	fflush(stderr);
 }
 
 void
 vcmn_err(int ce, const char *fmt, va_list adx)
 {
+	vcmn_msg(ce, fmt, adx);
+
 	if (ce == CE_PANIC)
-		vpanic(fmt, adx);
-	if (ce != CE_NOTE) {	/* suppress noise in userland stress testing */
-		(void) fprintf(stderr, "%s", ce_prefix[ce]);
-		(void) vfprintf(stderr, fmt, adx);
-		(void) fprintf(stderr, "%s", ce_suffix[ce]);
-	}
+		panic_stop_or_abort();
 }
 
 void
@@ -688,6 +710,25 @@ cmn_err(int ce, const char *fmt, ...)
 	va_start(adx, fmt);
 	vcmn_err(ce, fmt, adx);
 	va_end(adx);
+}
+
+__attribute__((noreturn)) void
+panic(const char *fmt, ...)
+{
+	va_list adx;
+
+	va_start(adx, fmt);
+	vcmn_msg(CE_PANIC, fmt, adx);
+	va_end(adx);
+
+	panic_stop_or_abort();
+}
+
+__attribute__((noreturn)) void
+vpanic(const char *fmt, va_list adx)
+{
+	vcmn_msg(CE_PANIC, fmt, adx);
+	panic_stop_or_abort();
 }
 
 /*
