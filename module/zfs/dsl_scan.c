@@ -883,6 +883,11 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	scn->scn_phys.scn_func = setup_sync_arg->func;
 	scn->scn_phys.scn_state = DSS_SCANNING;
+	if (setup_sync_arg->txgstart == 0 && setup_sync_arg->txgend == 0) {
+		scn->scn_partial = 0;
+	} else {
+		scn->scn_partial = 1;
+	}
 	scn->scn_phys.scn_min_txg = setup_sync_arg->txgstart;
 	if (setup_sync_arg->txgend == 0) {
 		scn->scn_phys.scn_max_txg = tx->tx_txg;

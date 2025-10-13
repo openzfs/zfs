@@ -8922,11 +8922,21 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 	/* Scan is in progress. Resilvers can't be paused. */
 	if (is_scrub) {
 		if (pause == 0) {
-			(void) printf(gettext("scrub in progress since %s"),
-			    ctime(&start));
+			if (ps->pss_partial) {
+				(void) printf(gettext("partial scrub in "
+				    "progress since %s"), ctime(&start));
+			} else {
+				(void) printf(gettext("scrub in progress "
+				    "since %s"), ctime(&start));
+			}
 		} else {
-			(void) printf(gettext("scrub paused since %s"),
-			    ctime(&pause));
+			if (ps->pss_partial) {
+				(void) printf(gettext("partial scrub paused "
+				    "since %s"), ctime(&pause));
+			} else {
+				(void) printf(gettext("scrub paused since %s"),
+				    ctime(&pause));
+			}
 			(void) printf(gettext("\tscrub started on %s"),
 			    ctime(&start));
 		}
@@ -8940,7 +8950,11 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 	issued = ps->pss_issued;
 	pass_issued = ps->pss_pass_issued;
 	total_s = ps->pss_to_examine;
-	total_i = ps->pss_to_examine - ps->pss_skipped;
+	if (ps->pss_partial) {
+		total_i = scanned;
+	} else {
+		total_i = ps->pss_to_examine - ps->pss_skipped;
+	}
 
 	/* we are only done with a block once we have issued the IO for it */
 	fraction_done = (double)issued / total_i;

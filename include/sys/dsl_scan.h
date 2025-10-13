@@ -131,6 +131,7 @@ typedef struct dsl_scan {
 	uint64_t scn_done_txg;
 	uint64_t scn_sync_start_time;
 	uint64_t scn_issued_before_pass;
+	uint64_t scn_partial;
 
 	/* for freeing blocks */
 	boolean_t scn_is_bptree;

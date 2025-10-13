@@ -1180,6 +1180,7 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_pass_scrub_spent_paused;
 	uint64_t	pss_pass_issued; /* issued bytes per scan pass */
 	uint64_t	pss_issued;	/* total bytes checked by scanner */
+	uint64_t	pss_partial; /* whether it's a -C, -S, or -E scrub */
 
 	/* error scrub values stored on disk */
 	uint64_t	pss_error_scrub_func;	/* pool_scan_func_t */

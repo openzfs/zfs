@@ -2811,6 +2811,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_pass_issued = spa->spa_scan_pass_issued;
 	ps->pss_issued =
 	    scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
+	ps->pss_partial = scn->scn_partial;
 
 	/* error scrub data stored on disk */
 	ps->pss_error_scrub_func = scn->errorscrub_phys.dep_func;
