@@ -867,12 +867,6 @@ txg_verify(spa_t *spa, uint64_t txg)
 }
 #endif
 
-uint64_t
-txg_cur_open(dsl_pool_t *dp)
-{
-	return (dp->dp_tx.tx_open_txg);
-}
-
 /*
  * Per-txg object lists.
  */
