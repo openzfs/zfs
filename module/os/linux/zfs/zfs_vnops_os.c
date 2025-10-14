@@ -2033,10 +2033,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 		goto out3;
 	}
 
-	if ((mask & ATTR_SIZE) && (zp->z_pflags & ZFS_READONLY)) {
-		err = SET_ERROR(EPERM);
-		goto out3;
-	}
+	/* ZFS_READONLY will be handled in zfs_zaccess() */
 
 	/*
 	 * Verify timestamps doesn't overflow 32 bits.
