@@ -349,6 +349,8 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 		.func = POOL_SCAN_SCRUB,
 		.txgstart = 0,
 		.txgend = 0,
+		.done = NULL,
+		.done_arg = NULL,
 	};
 	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
 	    zfs_rebuild_scrub_enabled) {

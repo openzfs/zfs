@@ -173,7 +173,8 @@ _AVL_H void avl_create(avl_tree_t *tree,
  * node   - node that has the value being looked for
  * where  - position for use with avl_nearest() or avl_insert(), may be NULL
  */
-_AVL_H void *avl_find(avl_tree_t *tree, const void *node, avl_index_t *where);
+_AVL_H void *avl_find(const avl_tree_t *tree, const void *node,
+    avl_index_t *where);
 
 /*
  * Insert a node into the tree.
@@ -279,12 +280,12 @@ _AVL_H void avl_swap(avl_tree_t *tree1, avl_tree_t *tree2);
 /*
  * Return the number of nodes in the tree
  */
-_AVL_H ulong_t avl_numnodes(avl_tree_t *tree);
+_AVL_H ulong_t avl_numnodes(const avl_tree_t *tree);
 
 /*
  * Return B_TRUE if there are zero nodes in the tree, B_FALSE otherwise.
  */
-_AVL_H boolean_t avl_is_empty(avl_tree_t *tree);
+_AVL_H boolean_t avl_is_empty(const avl_tree_t *tree);
 
 /*
  * Used to destroy any remaining nodes in a tree. The cookie argument should

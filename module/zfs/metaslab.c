@@ -6282,16 +6282,17 @@ metaslab_group_disable_wait(metaslab_group_t *mg)
 }
 
 static void
-metaslab_group_disabled_increment(metaslab_group_t *mg)
+metaslab_group_disabled_increment(metaslab_group_t *mg, boolean_t wait)
 {
 	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
 	ASSERT(mg->mg_disabled_updating);
 
-	while (mg->mg_ms_disabled >= max_disabled_ms) {
+	while (wait && mg->mg_ms_disabled >= max_disabled_ms) {
 		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
 	}
 	mg->mg_ms_disabled++;
-	ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
+	if (wait)
+		ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
 }
 
 /*
@@ -6300,8 +6301,8 @@ metaslab_group_disabled_increment(metaslab_group_t *mg)
  * metaslab group and limit them to prevent allocation failures from
  * occurring because all metaslabs are disabled.
  */
-void
-metaslab_disable(metaslab_t *msp)
+static void
+metaslab_disable_impl(metaslab_t *msp, boolean_t wait)
 {
 	ASSERT(!MUTEX_HELD(&msp->ms_lock));
 	metaslab_group_t *mg = msp->ms_group;
@@ -6320,7 +6321,7 @@ metaslab_disable(metaslab_t *msp)
 	metaslab_group_disable_wait(mg);
 	mg->mg_disabled_updating = B_TRUE;
 	if (msp->ms_disabled == 0) {
-		metaslab_group_disabled_increment(mg);
+		metaslab_group_disabled_increment(mg, wait);
 	}
 	mutex_enter(&msp->ms_lock);
 	msp->ms_disabled++;
@@ -6329,6 +6330,18 @@ metaslab_disable(metaslab_t *msp)
 	mg->mg_disabled_updating = B_FALSE;
 	cv_broadcast(&mg->mg_ms_disabled_cv);
 	mutex_exit(&mg->mg_ms_disabled_lock);
+}
+
+void
+metaslab_disable(metaslab_t *msp)
+{
+	metaslab_disable_impl(msp, B_TRUE);
+}
+
+void
+metaslab_disable_nowait(metaslab_t *msp)
+{
+	metaslab_disable_impl(msp, B_FALSE);
 }
 
 void

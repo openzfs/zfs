@@ -95,6 +95,8 @@ typedef struct dsl_errorscrub_phys {
 #define	ERRORSCRUB_PHYS_NUMINTS (sizeof (dsl_errorscrub_phys_t) \
 	/ sizeof (uint64_t))
 
+typedef void dsl_scan_done_func_t(spa_t *, dmu_tx_t *, void *);
+
 /*
  * Every pool will have one dsl_scan_t and this structure will contain
  * in-memory information about the scan and a pointer to the on-disk
@@ -178,12 +180,17 @@ typedef struct dsl_scan {
 	uint64_t scn_queues_pending;	/* outstanding data to issue */
 	/* members needed for syncing error scrub status to disk */
 	dsl_errorscrub_phys_t errorscrub_phys;
+	/* Members to enable scan donefuncs */
+	dsl_scan_done_func_t *scn_done;
+	void *scn_done_arg;
 } dsl_scan_t;
 
 typedef struct {
 	pool_scan_func_t func;
 	uint64_t	 txgstart;
 	uint64_t	 txgend;
+	dsl_scan_done_func_t *done;
+	void		 *done_arg;
 } setup_sync_arg_t;
 
 typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;

@@ -134,6 +134,8 @@ static int zpool_do_wait(int, char **);
 
 static int zpool_do_ddt_prune(int, char **);
 
+static int zpool_do_rebalance(int, char **);
+
 static int zpool_do_help(int argc, char **argv);
 
 static zpool_compat_status_t zpool_do_load_compat(
@@ -202,6 +204,7 @@ typedef enum {
 	HELP_REGUID,
 	HELP_REOPEN,
 	HELP_VERSION,
+	HELP_REBALANCE,
 	HELP_WAIT
 } zpool_help_t;
 
@@ -433,6 +436,7 @@ static zpool_command_t command_table[] = {
 	{ "wait",	zpool_do_wait,		HELP_WAIT		},
 	{ NULL },
 	{ "ddtprune",	zpool_do_ddt_prune,	HELP_DDT_PRUNE		},
+	{ "rebalance",	zpool_do_rebalance,	HELP_REBALANCE		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -554,6 +558,8 @@ get_usage(zpool_help_t idx)
 		    "<pool> [interval]\n"));
 	case HELP_DDT_PRUNE:
 		return (gettext("\tddtprune -d|-p <amount> <pool>\n"));
+	case HELP_REBALANCE:
+		return (gettext("\trebalance <pool> [vdev]\n"));
 	default:
 		__builtin_unreachable();
 	}
@@ -10340,6 +10346,101 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 	}
 	free(vname);
 }
+
+/*
+ * Print out detailed anyraid rebalance status.
+ */
+static void
+print_anyraid_rebalance_status(zpool_handle_t *zhp,
+    pool_anyraid_relocate_stat_t *pars)
+{
+	char copied_buf[7];
+
+	if (pars == NULL || pars->pars_state == DSS_NONE)
+		return;
+
+	/*
+	 * Determine name of vdev.
+	 */
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE);
+	nvlist_t **child;
+	uint_t children;
+	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0);
+	assert(pars->pars_relocating_vdev < children);
+
+	printf("  ");
+	printf_color(ANSI_BOLD, gettext("rebalance:"));
+	printf(" ");
+
+	time_t start = pars->pars_start_time;
+	time_t end = pars->pars_end_time;
+	char *vname =
+	    zpool_vdev_name(g_zfs, zhp, child[pars->pars_relocating_vdev], 0);
+	zfs_nicenum(pars->pars_moved, copied_buf, sizeof (copied_buf));
+
+	/*
+	 * Expansion is finished or canceled.
+	 */
+	if (pars->pars_state == DSS_FINISHED) {
+		char time_buf[32];
+		secs_to_dhms(end - start, time_buf);
+
+		(void) printf(gettext("rebalanced %s-%u moved %s in %s, "
+		    "on %s"), vname, (int)pars->pars_relocating_vdev,
+		    copied_buf, time_buf, ctime((time_t *)&end));
+	} else {
+		char examined_buf[7], total_buf[7], rate_buf[7];
+		uint64_t copied, total, elapsed, rate, secs_left;
+		double fraction_done;
+
+		assert(pars->pars_state == DSS_SCANNING);
+
+		/*
+		 * Expansion is in progress.
+		 */
+		(void) printf(gettext(
+		    "rebalance of %s-%u in progress since %s"),
+		    vname, (int)pars->pars_relocating_vdev, ctime(&start));
+
+		copied = pars->pars_moved > 0 ? pars->pars_moved : 1;
+		total = pars->pars_to_move;
+		fraction_done = (double)copied / total;
+
+		/* elapsed time for this pass */
+		elapsed = time(NULL) - pars->pars_start_time;
+		elapsed = elapsed > 0 ? elapsed : 1;
+		rate = copied / elapsed;
+		rate = rate > 0 ? rate : 1;
+		secs_left = (total - copied) / rate;
+
+		zfs_nicenum(copied, examined_buf, sizeof (examined_buf));
+		zfs_nicenum(total, total_buf, sizeof (total_buf));
+		zfs_nicenum(rate, rate_buf, sizeof (rate_buf));
+
+		/*
+		 * do not print estimated time if hours_left is more than
+		 * 30 days
+		 */
+		(void) printf(gettext("\t%s / %s copied at %s/s, %.2f%% done"),
+		    examined_buf, total_buf, rate_buf, 100 * fraction_done);
+		if (pars->pars_waiting_for_resilver) {
+			(void) printf(gettext(", paused for resilver or "
+			    "clear\n"));
+		} else if (secs_left < (30 * 24 * 3600)) {
+			char time_buf[32];
+			secs_to_dhms(secs_left, time_buf);
+			(void) printf(gettext(", %s to go\n"), time_buf);
+		} else {
+			(void) printf(gettext(
+			    ", (copy is slow, no estimated time)\n"));
+		}
+	}
+	free(vname);
+}
+
 static void
 print_checkpoint_status(pool_checkpoint_stat_t *pcs)
 {
@@ -11098,6 +11199,12 @@ status_callback(zpool_handle_t *zhp, void *data)
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
 		print_raidz_expand_status(zhp, pres);
+
+		pool_anyraid_relocate_stat_t *pars = NULL;
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_ANYRAID_RELOCATE_STATS, (uint64_t **)&pars,
+		    &c);
+		print_anyraid_rebalance_status(zhp, pars);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
 		    cbp->cb_name_flags | VDEV_NAME_TYPE_ID);
@@ -13325,8 +13432,10 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
 	pool_raidz_expand_stat_t *pres = NULL;
+	pool_anyraid_relocate_stat_t *pars = NULL;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
-	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND"};
+	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND",
+	    "ANYRAID_REBALANCE"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -13393,6 +13502,13 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	if (pres != NULL && pres->pres_state == DSS_SCANNING) {
 		int64_t rem = pres->pres_to_reflow - pres->pres_reflowed;
 		bytes_rem[ZPOOL_WAIT_RAIDZ_EXPAND] = rem;
+	}
+
+	(void) nvlist_lookup_uint64_array(nvroot,
+	    ZPOOL_CONFIG_ANYRAID_RELOCATE_STATS, (uint64_t **)&pars, &c);
+	if (pars != NULL && pars->pars_state == DSS_SCANNING) {
+		int64_t rem = pars->pars_to_move - pars->pars_moved;
+		bytes_rem[ZPOOL_WAIT_ANYRAID_REBALANCE] = rem;
 	}
 
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
@@ -13533,7 +13649,7 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand" };
+				    "raidz_expand", "anyraid_rebalance"};
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {
@@ -13719,6 +13835,47 @@ zpool_do_ddt_prune(int argc, char **argv)
 		return (-1);
 
 	int error = zpool_ddt_prune(zhp, unit, amount);
+
+	zpool_close(zhp);
+
+	return (error);
+}
+
+/*
+ * zpool rebalance <pool> [vdev]
+ *
+ * Rebalance anyraid tiles on the specific vdev, or all anyraid vdevs.
+ */
+int
+zpool_do_rebalance(int argc, char **argv)
+{
+	zpool_handle_t *zhp;
+	int c;
+
+	while ((c = getopt(argc, argv, "")) != -1) {
+		switch (c) {
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc == 0) {
+		(void) fprintf(stderr, gettext("no pool provided\n"));
+		usage(B_FALSE);
+	}
+	char *poolname = argv[0];
+	argc--;
+	argv++;
+
+	zhp = zpool_open(g_zfs, poolname);
+	if (zhp == NULL)
+		return (-1);
+
+	int error = zpool_rebalance(zhp, argv, argc);
 
 	zpool_close(zhp);
 
