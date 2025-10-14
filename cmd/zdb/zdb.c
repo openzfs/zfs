@@ -59,6 +59,7 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_anyraid_impl.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
@@ -1104,6 +1105,64 @@ static void
 dump_uint8(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) os, (void) object, (void) data, (void) size;
+}
+
+static void
+dump_uint32(objset_t *os, uint64_t object, void *data, size_t size)
+{
+	uint32_t *arr;
+	uint64_t oursize;
+	if (dump_opt['d'] < 6)
+		return;
+
+	if (data == NULL) {
+		dmu_object_info_t doi;
+
+		VERIFY0(dmu_object_info(os, object, &doi));
+		size = doi.doi_max_offset;
+		/*
+		 * We cap the size at 1 mebibyte here to prevent
+		 * allocation failures and nigh-infinite printing if the
+		 * object is extremely large.
+		 */
+		oursize = MIN(size, 1 << 20);
+		arr = kmem_alloc(oursize, KM_SLEEP);
+
+		int err = dmu_read(os, object, 0, oursize, arr, 0);
+		if (err != 0) {
+			(void) printf("got error %u from dmu_read\n", err);
+			kmem_free(arr, oursize);
+			return;
+		}
+	} else {
+		/*
+		 * Even though the allocation is already done in this code path,
+		 * we still cap the size to prevent excessive printing.
+		 */
+		oursize = MIN(size, 1 << 20);
+		arr = data;
+	}
+
+	if (size == 0) {
+		if (data == NULL)
+			kmem_free(arr, oursize);
+		(void) printf("\t\t[]\n");
+		return;
+	}
+
+	(void) printf("\t\t[%0x", arr[0]);
+	for (size_t i = 1; i * sizeof (uint32_t) < oursize; i++) {
+		if (i % 4 != 0)
+			(void) printf(", %0x", arr[i]);
+		else
+			(void) printf(",\n\t\t%0x", (arr[i]));
+	}
+	if (oursize != size)
+		(void) printf(", ... ");
+	(void) printf("]\n");
+
+	if (data == NULL)
+		kmem_free(arr, oursize);
 }
 
 static void
@@ -4181,6 +4240,14 @@ static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
 	dump_unknown,		/* Unknown type, must be last	*/
 };
 
+static object_viewer_t *
+get_objview(dmu_object_type_t ot)
+{
+	if (ot == DMU_OTN_UINT32_DATA || ot == DMU_OTN_UINT32_METADATA)
+		return (dump_uint32);
+	return (object_viewer[ZDB_OT_TYPE(ot)]);
+}
+
 static boolean_t
 match_object_type(dmu_object_type_t obj_type, uint64_t flags)
 {
@@ -4355,7 +4422,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		    (longlong_t)dn->dn_phys->dn_maxblkid);
 
 		if (!dnode_held) {
-			object_viewer[ZDB_OT_TYPE(doi.doi_bonus_type)](os,
+			get_objview(doi.doi_bonus_type)(os,
 			    object, bonus, bsize);
 		} else {
 			(void) printf("\t\t(bonus encrypted)\n");
@@ -4363,7 +4430,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 
 		if (key_loaded ||
 		    (!os->os_encrypted || !DMU_OT_IS_ENCRYPTED(doi.doi_type))) {
-			object_viewer[ZDB_OT_TYPE(doi.doi_type)](os, object,
+			get_objview(doi.doi_type)(os, object,
 			    NULL, 0);
 		} else {
 			(void) printf("\t\t(object encrypted)\n");
@@ -8826,6 +8893,8 @@ dump_mos_leaks(spa_t *spa)
 		mos_obj_refd(vim->vim_phys->vimp_counts_object);
 		vdev_indirect_mapping_close(vim);
 	}
+	if (spa->spa_anyraid_relocate)
+		mos_obj_refd(spa->spa_anyraid_relocate->var_object);
 	deleted_livelists_dump_mos(spa);
 
 	if (dp->dp_origin_snap != NULL) {
@@ -9854,38 +9923,38 @@ print_separator_line(int cols, int colwidth, boolean_t *print, boolean_t *final)
 static void
 zdb_print_anyraid_tile_layout(vdev_t *vd)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	int cols = vd->vdev_children;
-	int textwidth = MAX(8, numlen(avl_numnodes(&var->vd_tile_map)) +
-	    var->vd_nparity > 0 ? numlen(var->vd_width) + 1 : 0);
+	int textwidth = MAX(8, numlen(avl_numnodes(&va->vd_tile_map)) +
+	    va->vd_nparity > 0 ? numlen(va->vd_width) + 1 : 0);
 	int colwidth = textwidth + 2;
 
 	// Create and populate table with all the values we need to print.
 	char ***table = malloc(sizeof (*table) * cols);
 	for (int i = 0; i < cols; i++) {
-		table[i] = calloc(var->vd_children[i]->van_capacity + 1,
+		table[i] = calloc(va->vd_children[i]->van_capacity + 1,
 		    sizeof (**table));
 	}
 
-	anyraid_tile_t *cur = avl_first(&var->vd_tile_map);
+	anyraid_tile_t *cur = avl_first(&va->vd_tile_map);
 	while (cur) {
 		int p = 0;
 		for (anyraid_tile_node_t *node = list_head(&cur->at_list);
 		    node; node = list_next(&cur->at_list, node)) {
-			ASSERT3U(p, <=, var->vd_nparity + 1);
+			ASSERT3U(p, <=, va->vd_nparity + 1);
 			char **next =
 			    &(table[node->atn_disk][node->atn_tile_idx]);
 			*next = malloc(textwidth + 1);
 			int len = snprintf(*next, textwidth, "%d",
 			    cur->at_tile_id);
-			if (var->vd_nparity > 0) {
+			if (va->vd_nparity > 0) {
 				(void) snprintf((*next) + len, textwidth - len,
 				    "-%d", p);
 			}
 			p++;
 		}
-		ASSERT3U(p, ==, var->vd_nparity + var->vd_ndata);
-		cur = AVL_NEXT(&var->vd_tile_map, cur);
+		ASSERT3U(p, ==, va->vd_nparity + va->vd_ndata);
+		cur = AVL_NEXT(&va->vd_tile_map, cur);
 	}
 
 	// These are needed to generate the separator lines
@@ -9909,7 +9978,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		for (int v = 0; v < cols; v++) {
 			if (final[v]) {
 				ASSERT3U(i, >=,
-				    var->vd_children[v]->van_capacity + 1);
+				    va->vd_children[v]->van_capacity + 1);
 				int extra_width = 0;
 				if (v == 0 || !printed[v - 1])
 					extra_width++;
@@ -9918,7 +9987,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 				printed[v] = B_FALSE;
 				continue;
 			}
-			if (i + 1 == var->vd_children[v]->van_capacity + 1)
+			if (i + 1 == va->vd_children[v]->van_capacity + 1)
 				final[v] = B_TRUE;
 			if (v - 1 != last_printed)
 				(void) printf("│");
@@ -9935,7 +10004,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	}
 	(void) printf("\n");
 	for (int i = 0; i < cols; i++) {
-		for (int j = 0; j < var->vd_children[i]->van_capacity + 1; j++)
+		for (int j = 0; j < va->vd_children[i]->van_capacity + 1; j++)
 			if (table[i][j])
 				free(table[i][j]);
 		free(table[i]);
@@ -9956,10 +10025,10 @@ free_header(anyraid_header_t *header, uint64_t header_size) {
  * which can be useful for debugging.
  */
 static void
-print_anyraid_mapping(vdev_t *vd, int child, int mapping,
+print_anyraid_mapping(vdev_t *vd, int child, int mapping, int verbosity,
     anyraid_header_t *header)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	vdev_t *cvd = vd->vdev_child[child];
 	uint64_t ashift = cvd->vdev_ashift;
 	spa_t *spa = vd->vdev_spa;
@@ -9972,7 +10041,11 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 	uint64_t map_offset = header_offset + header_size;
 
+
 	nvlist_t *hnvl = header->ah_nvl;
+
+	if (verbosity > 4)
+		nvlist_print(stdout, hnvl);
 	// Look up and print map metadata.
 	uint16_t version;
 	if (nvlist_lookup_uint16(hnvl, VDEV_ANYRAID_HEADER_VERSION,
@@ -10099,7 +10172,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 				}
 				(void) printf("\td%u o%u,", amle_get_disk(amle),
 				    amle_get_offset(amle));
-				par_cnt = (par_cnt + 1) % (var->vd_nparity + 1);
+				par_cnt = (par_cnt + 1) % (va->vd_nparity + 1);
 				if (par_cnt == 0)
 					(void) printf("\n");
 				break;
@@ -10115,7 +10188,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 	if (map_buf)
 		abd_return_buf(map_abds[map], map_buf, SPA_MAXBLOCKSIZE);
 
-	var->vd_tile_size = tile_size;
+	va->vd_tile_size = tile_size;
 
 	for (; i >= 0; i--)
 		abd_free(map_abds[i]);
@@ -10147,7 +10220,7 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 			return;
 		}
 		(void) printf("anyraid map %d:\n", mapping);
-		print_anyraid_mapping(vd, child, mapping, &header);
+		print_anyraid_mapping(vd, child, mapping, verbosity, &header);
 	} else if (verbosity == 3) {
 		for (int i = 0; i < VDEV_ANYRAID_MAP_COPIES; i++) {
 			(void) printf("anyraid map %d:\n", i);
@@ -10160,7 +10233,7 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 				spa_config_exit(spa, SCL_ZIO, FTAG);
 				return;
 			}
-			print_anyraid_mapping(vd, child, i, &header);
+			print_anyraid_mapping(vd, child, i, verbosity, &header);
 		}
 	} else {
 		for (; child < vd->vdev_children; child++) {
@@ -10174,7 +10247,8 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 					    "mapping: %s\n", strerror(error));
 					continue;
 				}
-				print_anyraid_mapping(vd, child, i, &header);
+				print_anyraid_mapping(vd, child, i, verbosity,
+				    &header);
 			}
 		}
 
@@ -10188,16 +10262,16 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 static void
 zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 
 	(void) printf("\t%-5s%11llu   %s %#16llx\n",
 	    "vdev", (u_longlong_t)vd->vdev_id,
-	    "tile_size", (u_longlong_t)var->vd_tile_size);
+	    "tile_size", (u_longlong_t)va->vd_tile_size);
 	(void) printf("\t%-8s%8llu", "tiles",
-	    (u_longlong_t)avl_numnodes(&var->vd_tile_map));
-	if (var->vd_checkpoint_tile != UINT32_MAX) {
+	    (u_longlong_t)avl_numnodes(&va->vd_tile_map));
+	if (va->vd_checkpoint_tile != UINT32_MAX) {
 		(void) printf(".  %-12s %10u\n", "checkpoint tile",
-		    var->vd_checkpoint_tile);
+		    va->vd_checkpoint_tile);
 	} else {
 		(void) printf("\n");
 	}
@@ -10205,7 +10279,7 @@ zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 	(void) printf("\t%16s   %12s   %13s\n", "----------------",
 	    "------------", "-------------");
 
-	anyraid_tile_t *cur = avl_first(&var->vd_tile_map);
+	anyraid_tile_t *cur = avl_first(&va->vd_tile_map);
 	anyraid_tile_node_t *curn = cur != NULL ?
 	    list_head(&cur->at_list) : NULL;
 	while (cur) {
@@ -10215,7 +10289,7 @@ zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 		    "disk", (u_longlong_t)curn->atn_disk);
 		curn = list_next(&cur->at_list, curn);
 		if (curn == NULL) {
-			cur = AVL_NEXT(&var->vd_tile_map, cur);
+			cur = AVL_NEXT(&va->vd_tile_map, cur);
 			curn = cur != NULL ? list_head(&cur->at_list) : NULL;
 		}
 	}

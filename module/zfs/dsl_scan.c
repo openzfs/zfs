@@ -893,6 +893,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	} else {
 		scn->scn_phys.scn_max_txg = setup_sync_arg->txgend;
 	}
+	scn->scn_done = setup_sync_arg->done;
+	scn->scn_done_arg = setup_sync_arg->done_arg;
 	scn->scn_phys.scn_ddt_class_max = DDT_CLASSES - 1; /* the entire DDT */
 	scn->scn_phys.scn_start_time = gethrestime_sec();
 	scn->scn_phys.scn_errors = 0;
@@ -1157,6 +1159,9 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			spa->spa_scrubbed_last_txg = scn->scn_phys.scn_max_txg;
 		}
 	}
+
+	if (scn->scn_done)
+		scn->scn_done(spa, tx, scn->scn_done_arg);
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_active = B_FALSE;
@@ -4393,6 +4398,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			.func = POOL_SCAN_SCRUB,
 			.txgstart = 0,
 			.txgend = 0,
+			.done = NULL,
+			.done_arg = NULL,
 		};
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))

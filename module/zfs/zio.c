@@ -4912,6 +4912,12 @@ zio_vdev_io_assess(zio_t *zio)
 		zio->io_vsd_ops->vsd_free(zio);
 		zio->io_vsd = NULL;
 	}
+	/*
+	 * The only VDEV types that use this should have handled their aux data
+	 * by now.
+	 */
+	ASSERT3PF(NULL, ==, zio->io_aux_vsd, "%d %x", zio->io_error,
+	    zio->io_pipeline_trace);
 
 	/*
 	 * If a Direct I/O operation has a checksum verify error then this I/O

@@ -7635,6 +7635,43 @@ error:
 	return (ret);
 }
 
+
+
+/*
+ * Rebalance tiles on the provided anyraid vdevs, or all anyraid vdevs if
+ * none are specified.
+ *
+ * innvl: {
+ *    "vdevs" (optional) -> raw uint64_t array of vdev guids
+ * }
+ *
+ * outnvl is unused
+ */
+static const zfs_ioc_key_t zfs_keys_pool_rebalance[] = {
+	{"vdevs",	DATA_TYPE_UINT64_ARRAY,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_pool_rebalance(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	(void) outnvl;
+	int err;
+	spa_t *spa;
+
+	if ((err = spa_open(pool, &spa, FTAG)) != 0)
+		return (err);
+
+	uint64_t *vdevs;
+	uint_t count;
+	if (nvlist_lookup_uint64_array(innvl, "vdevs", &vdevs, &count) == 0)
+		err = spa_rebalance_vdevs(spa, vdevs, count);
+	else
+		err = spa_rebalance_all(spa);
+	spa_close(spa, FTAG);
+
+	return (0);
+}
+
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
 static void
@@ -7940,6 +7977,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("zpool_rebalance", ZFS_IOC_POOL_REBALANCE,
+	    zfs_ioc_pool_rebalance, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_pool_rebalance, ARRAY_SIZE(zfs_keys_pool_rebalance));
 
 	/* IOCTLS that use the legacy function signature */
 

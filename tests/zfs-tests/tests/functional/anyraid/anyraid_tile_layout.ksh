@@ -65,7 +65,7 @@ cap=$(zpool get -Hp -o value size $TESTPOOL)
 log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c $((64 * 7 - 1)) -d R
 
 log_must destroy_pool $TESTPOOL
-log_must create_pool $TESTPOOL anyraidz1:2 /$TEST_BASE_DIR/vdev_file.{0,1,2,3}
+log_must create_pool $TESTPOOL anyraidz1:2 $TEST_BASE_DIR/vdev_file.{0,1,2,3}
 
 cap=$(zpool get -Hp -o value size $TESTPOOL)
 [[ "$cap" -eq $((12 * 64 * 1024 * 1024)) ]] || \

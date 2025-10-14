@@ -323,6 +323,8 @@ _LIBZFS_H int zpool_trim_one(zpool_handle_t *, void *);
 
 _LIBZFS_H int zpool_ddt_prune(zpool_handle_t *, zpool_ddt_prune_unit_t,
     uint64_t);
+_LIBZFS_H int zpool_rebalance(zpool_handle_t *zhp, char **vdev_names,
+    int count);
 
 _LIBZFS_H int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);

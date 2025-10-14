@@ -417,6 +417,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_TXG_LOG_TIME_MINUTES	"com.klarasystems:txg_log_time:minutes"
 #define	DMU_POOL_TXG_LOG_TIME_DAYS	"com.klarasystems:txg_log_time:days"
 #define	DMU_POOL_TXG_LOG_TIME_MONTHS	"com.klarasystems:txg_log_time:months"
+#define	DMU_POOL_REBALANCE_OBJ		"com.klarasystems:rebalance_obj"
 
 /*
  * Allocate an object from this objset.  The range of object numbers

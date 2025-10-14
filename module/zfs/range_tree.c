@@ -730,6 +730,7 @@ zfs_range_tree_clear(zfs_range_tree_t *rt, uint64_t start, uint64_t size)
 		ASSERT3U(start + size, >, start);
 
 	while ((rs = zfs_range_tree_find_impl(rt, start, size)) != NULL) {
+		ASSERT(zfs_range_tree_space(rs) != 0);
 		uint64_t free_start = MAX(zfs_rs_get_start(rs, rt), start);
 		uint64_t free_end = MIN(zfs_rs_get_end(rs, rt), start + size);
 		zfs_range_tree_remove(rt, free_start, free_end - free_start);

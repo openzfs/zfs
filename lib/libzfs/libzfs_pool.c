@@ -6030,3 +6030,71 @@ zpool_ddt_prune(zpool_handle_t *zhp, zpool_ddt_prune_unit_t unit,
 
 	return (0);
 }
+
+static boolean_t
+strstarts(const char *str, const char *prefix)
+{
+	return (strncmp(str, prefix, strlen(prefix)) == 0);
+}
+
+// TODO can't do multiple at once
+int
+zpool_rebalance(zpool_handle_t *zhp, char **vdev_names, int count)
+{
+	int ret = 0;
+	uint64_t *guids = NULL;
+	if (count != 0) {
+		guids = umem_alloc(sizeof (*guids) * count, UMEM_DEFAULT);
+		if (guids == NULL)
+			return (no_memory(zhp->zpool_hdl));
+	}
+	char errbuf[ERRBUFLEN];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot rebalance vdev(s) on '%s'"), zhp->zpool_name);
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	for (int i = 0; i < count; i++) {
+		if (!(strstarts(vdev_names[i], VDEV_TYPE_ANYMIRROR) ||
+		    strstarts(vdev_names[i], VDEV_TYPE_ANYRAIDZ))) {
+			zfs_error_fmt(hdl, EZFS_BADDEV, dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+		}
+		if ((ret = zpool_vdev_guid(zhp, vdev_names[i], &guids[i])) != 0)
+			break;
+	}
+
+	if (ret != 0) {
+		if (guids)
+			umem_free(guids, sizeof (*guids) * count);
+		return (ret);
+	}
+	ret = lzc_pool_rebalance(zpool_get_name(zhp), guids, count);
+	if (guids)
+		umem_free(guids, sizeof (*guids) * count);
+	switch (ret) {
+		case ENOENT:
+			zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "no anyraid vdevs found"));
+			break;
+		case EINVAL:
+			zfs_error_fmt(hdl, EZFS_BADDEV,
+			    dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+			break;
+		case EALREADY:
+			zfs_error_fmt(hdl, EZFS_BUSY,
+			    dgettext(TEXT_DOMAIN, "specified device already "
+			    "rebalancing"));
+			break;
+		case 0:
+			break;
+		default:
+		{
+			libzfs_handle_t *hdl = zhp->zpool_hdl;
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+	}
+	if (ret != 0)
+		return (-1);
+	return (0);
+}

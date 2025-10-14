@@ -107,12 +107,16 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/metaslab_impl.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_anyraid_impl.h>
 #include <sys/vdev_mirror.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
+#include <sys/dsl_scan.h>
 
 /*
  * The smallest allowable tile size. Shrinking this is mostly useful for
@@ -127,11 +131,144 @@ uint64_t zfs_anyraid_min_tile_size = (16ULL << 30);
  */
 int anyraid_disk_shift = 6;
 
+/*
+ * Maximum amount of copy io's outstanding at once.
+ */
+#ifdef _ILP32
+static unsigned long anyraid_relocate_max_move_bytes = SPA_MAXBLOCKSIZE;
+#else
+static unsigned long anyraid_relocate_max_move_bytes = SPA_MAXBLOCKSIZE;
+#endif
+
+/*
+ * Automatically start a pool scrub when a RAIDZ expansion completes in
+ * order to verify the checksums of all blocks which have been copied
+ * during the expansion.  Automatic scrubbing is enabled by default and
+ * is strongly recommended.
+ */
+static int zfs_scrub_after_relocate = 1;
+
+/*
+ * For testing only: pause the anyraid relocate operations after reflowing this
+ * amount (accessed by ZTS and ztest).
+ */
+#ifdef	_KERNEL
+static
+#endif	/* _KERNEL */
+unsigned long anyraid_relocate_max_bytes_pause = 0;
+
+static int tasklist_read(vdev_t *vd);
+
+static int
+af_compar(const void *p1, const void *p2)
+{
+	const anyraid_free_node_t *af1 = p1, *af2 = p2;
+
+	return (TREE_CMP(af2->afn_tile, af1->afn_tile));
+}
+
+void
+anyraid_freelist_create(anyraid_freelist_t *af, uint16_t off)
+{
+	avl_create(&af->af_list, af_compar,
+	    sizeof (anyraid_free_node_t),
+	    offsetof(anyraid_free_node_t, afn_node));
+	af->af_next_off = off;
+}
+
+void
+anyraid_freelist_destroy(anyraid_freelist_t *af)
+{
+	void *cookie = NULL;
+	anyraid_free_node_t *node;
+	while ((node = avl_destroy_nodes(&af->af_list, &cookie)) != NULL)
+		kmem_free(node, sizeof (*node));
+	avl_destroy(&af->af_list);
+}
+
+void
+anyraid_freelist_add(anyraid_freelist_t *af, uint16_t off)
+{
+	avl_tree_t *t = &af->af_list;
+	ASSERT3U(off, <, af->af_next_off);
+	if (off != af->af_next_off - 1) {
+		anyraid_free_node_t *new = kmem_alloc(sizeof (*new), KM_SLEEP);
+		new->afn_tile = off;
+		avl_add(t, new);
+		return;
+	}
+	af->af_next_off--;
+	for (anyraid_free_node_t *tail = avl_last(t);
+	    tail != NULL && tail->afn_tile == af->af_next_off - 1;
+	    tail = avl_last(t)) {
+		af->af_next_off--;
+		avl_remove(t, tail);
+		kmem_free(tail, sizeof (*tail));
+	}
+}
+
+void
+anyraid_freelist_remove(anyraid_freelist_t *af, uint16_t off)
+{
+	avl_tree_t *t = &af->af_list;
+	anyraid_free_node_t search;
+	search.afn_tile = off;
+	avl_index_t where;
+	anyraid_free_node_t *node = avl_find(t, &search, &where);
+	if (node) {
+		avl_remove(t, node);
+		kmem_free(node, sizeof (*node));
+		return;
+	}
+	ASSERT3U(off, >=, af->af_next_off);
+	while (off > af->af_next_off) {
+		node = kmem_alloc(sizeof (*node), KM_SLEEP);
+		node->afn_tile = af->af_next_off++;
+		avl_add(t, node);
+	}
+	af->af_next_off++;
+	return;
+
+}
+
+uint16_t
+anyraid_freelist_pop(anyraid_freelist_t *af)
+{
+	avl_tree_t *t = &af->af_list;
+	if (avl_numnodes(t) == 0) {
+		return (af->af_next_off++);
+	}
+
+	anyraid_free_node_t *head = avl_first(t);
+	avl_remove(t, head);
+	uint16_t ret = head->afn_tile;
+	kmem_free(head, sizeof (*head));
+	return (ret);
+}
+
+uint16_t
+anyraid_freelist_alloc(const anyraid_freelist_t *af)
+{
+	return (af->af_next_off - avl_numnodes(&af->af_list));
+}
+
+boolean_t
+anyraid_freelist_isfree(const anyraid_freelist_t *af, uint16_t off)
+{
+	if (off >= af->af_next_off)
+		return (B_TRUE);
+	anyraid_free_node_t search;
+	search.afn_tile = off;
+	avl_index_t where;
+	anyraid_free_node_t *node = avl_find(&af->af_list, &search, &where);
+	return (node != NULL);
+}
+
 static inline uint64_t
 vdev_anyraid_header_offset(vdev_t *vd, int id)
 {
 	uint64_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE(vd->vdev_ashift);
-	if (id < VDEV_ANYRAID_START_COPES)
+	if (id < VDEV_ANYRAID_START_COPIES)
 		return (VDEV_LABEL_START_SIZE + id * full_size);
 	else
 		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
@@ -151,8 +288,9 @@ anyraid_child_compare(const void *p1, const void *p2)
 {
 	const vdev_anyraid_node_t *van1 = p1, *van2 = p2;
 
-	int cmp = TREE_CMP(van2->van_capacity - van2->van_next_offset,
-	    van1->van_capacity - van1->van_next_offset);
+	int cmp = TREE_CMP(
+	    van2->van_capacity - anyraid_freelist_alloc(&van2->van_freelist),
+	    van1->van_capacity - anyraid_freelist_alloc(&van1->van_freelist));
 	if (cmp != 0)
 		return (cmp);
 
@@ -192,57 +330,79 @@ vdev_anyraid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		return (SET_ERROR(EINVAL));
 	}
 
-	vdev_anyraid_t *var = kmem_zalloc(sizeof (*var), KM_SLEEP);
-	var->vd_parity_type = parity_type;
-	var->vd_ndata = ndata;
-	var->vd_nparity = nparity;
+	vdev_anyraid_t *va = kmem_zalloc(sizeof (*va), KM_SLEEP);
+	va->vd_parity_type = parity_type;
+	va->vd_ndata = ndata;
+	va->vd_nparity = nparity;
 	switch (parity_type) {
 		case VAP_MIRROR:
-			var->vd_width = ndata;
+			va->vd_width = ndata;
 			break;
 		case VAP_RAIDZ:
-			var->vd_width = ndata + nparity;
+			va->vd_width = ndata + nparity;
 			break;
 		default:
 			PANIC("Invalid parity type %d", parity_type);
 	}
-	rw_init(&var->vd_lock, NULL, RW_DEFAULT, NULL);
-	avl_create(&var->vd_tile_map, anyraid_tile_compare,
+	rw_init(&va->vd_lock, NULL, RW_DEFAULT, NULL);
+	avl_create(&va->vd_tile_map, anyraid_tile_compare,
 	    sizeof (anyraid_tile_t), offsetof(anyraid_tile_t, at_node));
-	avl_create(&var->vd_children_tree, anyraid_child_compare,
+	avl_create(&va->vd_children_tree, anyraid_child_compare,
 	    sizeof (vdev_anyraid_node_t),
 	    offsetof(vdev_anyraid_node_t, van_node));
+	zfs_rangelock_init(&va->vd_rangelock, NULL, NULL);
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	var->var_offset = var->var_failed_offset = UINT64_MAX;
+	list_create(&var->var_list,
+	    sizeof (vdev_anyraid_relocate_task_t),
+	    offsetof(vdev_anyraid_relocate_task_t, vart_node));
+	list_create(&var->var_done_list,
+	    sizeof (vdev_anyraid_relocate_task_t),
+	    offsetof(vdev_anyraid_relocate_task_t, vart_node));
+	mutex_init(&var->var_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&var->var_cv, NULL, CV_DEFAULT, NULL);
 
-	var->vd_children = kmem_zalloc(sizeof (*var->vd_children) * children,
+	va->vd_children = kmem_zalloc(sizeof (*va->vd_children) * children,
 	    KM_SLEEP);
 	for (int c = 0; c < children; c++) {
 		vdev_anyraid_node_t *van = kmem_zalloc(sizeof (*van), KM_SLEEP);
 		van->van_id = c;
-		avl_add(&var->vd_children_tree, van);
-		var->vd_children[c] = van;
+		anyraid_freelist_create(&van->van_freelist, 0);
+		avl_add(&va->vd_children_tree, van);
+		va->vd_children[c] = van;
 	}
 
-	*tsd = var;
+	*tsd = va;
 	return (0);
 }
 
 static void
 vdev_anyraid_fini(vdev_t *vd)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	avl_destroy(&var->vd_tile_map);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	if (vd->vdev_spa->spa_anyraid_relocate == &va->vd_relocate)
+		vd->vdev_spa->spa_anyraid_relocate = NULL;
+	avl_destroy(&va->vd_tile_map);
 
 	vdev_anyraid_node_t *node;
 	void *cookie = NULL;
-	while ((node = avl_destroy_nodes(&var->vd_children_tree, &cookie))) {
+	while ((node = avl_destroy_nodes(&va->vd_children_tree, &cookie))) {
+		anyraid_freelist_destroy(&node->van_freelist);
 		kmem_free(node, sizeof (*node));
 	}
-	avl_destroy(&var->vd_children_tree);
+	avl_destroy(&va->vd_children_tree);
+	zfs_rangelock_fini(&va->vd_rangelock);
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	mutex_destroy(&var->var_lock);
+	cv_destroy(&var->var_cv);
+	list_destroy(&var->var_list);
+	list_destroy(&var->var_done_list);
 
-	rw_destroy(&var->vd_lock);
-	kmem_free(var->vd_children,
-	    sizeof (*var->vd_children) * vd->vdev_children);
-	kmem_free(var, sizeof (*var));
+	rw_destroy(&va->vd_lock);
+	kmem_free(va->vd_children,
+	    sizeof (*va->vd_children) * vd->vdev_children);
+	kmem_free(va, sizeof (*va));
 }
 
 /*
@@ -252,13 +412,13 @@ static void
 vdev_anyraid_config_generate(vdev_t *vd, nvlist_t *nv)
 {
 	ASSERT(vdev_is_anyraid(vd));
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 
-	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, var->vd_nparity);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, va->vd_nparity);
 	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE,
-	    (uint8_t)var->vd_parity_type);
+	    (uint8_t)va->vd_parity_type);
 	fnvlist_add_uint8(nv, ZPOOL_CONFIG_ANYRAID_NDATA,
-	    (uint8_t)var->vd_ndata);
+	    (uint8_t)va->vd_ndata);
 }
 
 /*
@@ -269,7 +429,7 @@ vdev_anyraid_config_generate(vdev_t *vd, nvlist_t *nv)
  * Add an entry to the tile map for the provided tile.
  */
 static void
-create_tile_entry(spa_t *spa, vdev_anyraid_t *var,
+create_tile_entry(spa_t *spa, vdev_anyraid_t *va,
     anyraid_map_loc_entry_t *amle, uint8_t *pat_cnt, anyraid_tile_t **out_at,
     uint32_t *cur_tile)
 {
@@ -281,7 +441,7 @@ create_tile_entry(spa_t *spa, vdev_anyraid_t *var,
 		at = kmem_alloc(sizeof (*at), KM_SLEEP);
 		at->at_tile_id = *cur_tile;
 		at->at_synced = spa_current_txg(spa);
-		avl_add(&var->vd_tile_map, at);
+		avl_add(&va->vd_tile_map, at);
 		list_create(&at->at_list,
 		    sizeof (anyraid_tile_node_t),
 		    offsetof(anyraid_tile_node_t, atn_node));
@@ -293,12 +453,13 @@ create_tile_entry(spa_t *spa, vdev_anyraid_t *var,
 	atn->atn_disk = disk;
 	atn->atn_tile_idx = offset;
 	list_insert_tail(&at->at_list, atn);
-	*pat_cnt = (*pat_cnt + 1) % (var->vd_nparity + var->vd_ndata);
+	*pat_cnt = (*pat_cnt + 1) % (va->vd_nparity + va->vd_ndata);
 
-	vdev_anyraid_node_t *van = var->vd_children[disk];
-	avl_remove(&var->vd_children_tree, van);
-	van->van_next_offset = MAX(van->van_next_offset, offset + 1);
-	avl_add(&var->vd_children_tree, van);
+	vdev_anyraid_node_t *van = va->vd_children[disk];
+	avl_remove(&va->vd_children_tree, van);
+
+	anyraid_freelist_remove(&van->van_freelist, offset);
+	avl_add(&va->vd_children_tree, van);
 	*out_at = at;
 }
 
@@ -497,7 +658,7 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 static int
 anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	vdev_t *cvd = vd->vdev_child[child];
 	uint64_t ashift = cvd->vdev_ashift;
 	spa_t *spa = vd->vdev_spa;
@@ -565,9 +726,47 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 		return (0);
 	}
 
-	var->vd_checkpoint_tile = UINT32_MAX;
+	nvlist_t *cur_task;
+	error = nvlist_lookup_nvlist(header.ah_nvl,
+	    VDEV_ANYRAID_HEADER_CUR_TASK, &cur_task);
+	if (error != 0 && error != ENOENT) {
+		zfs_dbgmsg("Error opening anyraid vdev %llu: Error opening "
+		    "relocate info %d", (u_longlong_t)vd->vdev_id, error);
+		free_header(&header, header_size);
+		return (error);
+	}
+	if (error == 0) {
+		vdev_anyraid_relocate_t *var = &va->vd_relocate;
+
+		var->var_state = DSS_SCANNING;
+		var->var_vd = vd->vdev_id;
+		var->var_failed_offset = UINT64_MAX;
+		var->var_failed_task = UINT64_MAX;
+
+		var->var_offset = var->var_synced_offset =
+		    fnvlist_lookup_uint64(cur_task, VART_OFFSET);
+		var->var_task = var->var_synced_task =
+		    fnvlist_lookup_uint32(cur_task, VART_TASK);
+		vdev_anyraid_relocate_task_t *vart =
+		    kmem_alloc(sizeof (*vart), KM_SLEEP);
+		vart->vart_source_disk = fnvlist_lookup_uint8(cur_task,
+		    VART_SOURCE_DISK);
+		vart->vart_source_idx = fnvlist_lookup_uint16(cur_task,
+		    VART_SOURCE_OFF);
+		vart->vart_dest_disk = fnvlist_lookup_uint8(cur_task,
+		    VART_DEST_DISK);
+		vart->vart_dest_idx = fnvlist_lookup_uint16(cur_task,
+		    VART_DEST_OFF);
+		vart->vart_tile = fnvlist_lookup_uint32(cur_task,
+		    VART_TILE);
+		vart->vart_task = var->var_task;
+		list_insert_head(&var->var_list, vart);
+		spa->spa_anyraid_relocate = var;
+	}
+
+	va->vd_checkpoint_tile = UINT32_MAX;
 	(void) nvlist_lookup_uint32(header.ah_nvl,
-	    VDEV_ANYRAID_HEADER_CHECKPOINT, &var->vd_checkpoint_tile);
+	    VDEV_ANYRAID_HEADER_CHECKPOINT, &va->vd_checkpoint_tile);
 
 	/*
 	 * Because the tile map is 64 MiB and the maximum IO size is 16MiB,
@@ -612,7 +811,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 	uint8_t pat_cnt = 0;
 	anyraid_tile_t *at = NULL;
 	for (uint32_t off = 0; off < map_length; off += size) {
-		if (checkpoint_rb && cur_tile > var->vd_checkpoint_tile &&
+		if (checkpoint_rb && cur_tile > va->vd_checkpoint_tile &&
 		    pat_cnt == 0)
 			break;
 
@@ -648,7 +847,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 			case AMET_LOC: {
 				anyraid_map_loc_entry_t *amle =
 				    &entry->ame_u.ame_amle;
-				create_tile_entry(vd->vdev_spa, var, amle,
+				create_tile_entry(vd->vdev_spa, va, amle,
 				    &pat_cnt, &at, &cur_tile);
 				break;
 			}
@@ -659,7 +858,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 	if (map_buf)
 		abd_return_buf(map_abds[map], map_buf, SPA_MAXBLOCKSIZE);
 
-	var->vd_tile_size = tile_size;
+	va->vd_tile_size = tile_size;
 
 	for (; i >= 0; i--)
 		abd_free(map_abds[i]);
@@ -685,7 +884,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 		}
 	}
 
-	if (numerrors > var->vd_nparity) {
+	if (numerrors > va->vd_nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
 		return (lasterror);
 	}
@@ -701,7 +900,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 static int
 anyraid_calculate_size(vdev_t *vd)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 
 	uint64_t smallest_disk_size = UINT64_MAX;
 	for (int c = 0; c < vd->vdev_children; c++) {
@@ -721,14 +920,14 @@ anyraid_calculate_size(vdev_t *vd)
 	ASSERT3U(smallest_disk_size, !=, UINT64_MAX);
 	uint64_t tile_size = smallest_disk_size >> disk_shift;
 	tile_size = MAX(tile_size, min_size);
-	var->vd_tile_size = 1ULL << (highbit64(tile_size - 1));
+	va->vd_tile_size = 1ULL << (highbit64(tile_size - 1));
 
 	/*
 	 * Later, we're going to cap the metaslab size at the tile
 	 * size, so we need a tile to hold at least enough to store a
 	 * max-size block, or we'll assert in that code.
 	 */
-	if (var->vd_tile_size * var->vd_ndata < SPA_MAXBLOCKSIZE)
+	if (va->vd_tile_size * va->vd_ndata < SPA_MAXBLOCKSIZE)
 		return (SET_ERROR(ENOSPC));
 	return (0);
 }
@@ -761,14 +960,14 @@ rc_compar(const void *a, const void *b)
 static uint64_t
 calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 
-	if (var->vd_nparity == 0) {
+	if (va->vd_nparity == 0) {
 		uint64_t count = 0;
 		for (int c = 0; c < vd->vdev_children; c++) {
 			count += num_tiles[c];
 		}
-		return (count * var->vd_tile_size);
+		return (count * va->vd_tile_size);
 	}
 
 	/*
@@ -785,12 +984,12 @@ calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 		struct tile_count *rc = kmem_alloc(sizeof (*rc), KM_SLEEP);
 		rc->disk = c;
 		rc->remaining = num_tiles[c] -
-		    var->vd_children[c]->van_next_offset;
+		    anyraid_freelist_alloc(&va->vd_children[c]->van_freelist);
 		avl_add(&t, rc);
 	}
 
-	uint32_t map_width = var->vd_nparity + var->vd_ndata;
-	uint64_t count = avl_numnodes(&var->vd_tile_map);
+	uint32_t map_width = va->vd_nparity + va->vd_ndata;
+	uint64_t count = avl_numnodes(&va->vd_tile_map);
 	struct tile_count **cur = kmem_alloc(sizeof (*cur) * map_width,
 	    KM_SLEEP);
 	for (;;) {
@@ -835,14 +1034,14 @@ calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 	while ((node = avl_destroy_nodes(&t, &cookie)) != NULL)
 		kmem_free(node, sizeof (*node));
 	avl_destroy(&t);
-	return (count * var->vd_width * var->vd_tile_size);
+	return (count * va->vd_width * va->vd_tile_size);
 }
 
 static int
 vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	int lasterror = 0;
 	int numerrors = 0;
 
@@ -861,7 +1060,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	/*
 	 * If we have more faulted disks than parity, we can't open the device.
 	 */
-	if (numerrors > var->vd_nparity) {
+	if (numerrors > va->vd_nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
 		return (lasterror);
 	}
@@ -871,7 +1070,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		child_capacities = kmem_alloc(sizeof (*child_capacities) *
 		    vd->vdev_children, KM_SLEEP);
 		for (uint64_t c = 0; c < vd->vdev_children; c++) {
-			child_capacities[c] = var->vd_children[c]->van_capacity;
+			child_capacities[c] = va->vd_children[c]->van_capacity;
 		}
 	} else if (spa_load_state(vd->vdev_spa) != SPA_LOAD_CREATE &&
 	    spa_load_state(vd->vdev_spa) != SPA_LOAD_ERROR &&
@@ -890,7 +1089,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		return (lasterror);
 	}
 
-	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
+	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * va->vd_tile_size;
 
 	/*
 	 * Calculate the number of tiles each child could fit, then use that
@@ -908,17 +1107,17 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 			    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
 		} else {
 			ASSERT(child_capacities);
-			casize = (child_capacities[c] + 1) * var->vd_tile_size;
+			casize = (child_capacities[c] + 1) * va->vd_tile_size;
 		}
 
-		num_tiles[c] = casize / var->vd_tile_size;
-		avl_remove(&var->vd_children_tree, var->vd_children[c]);
+		num_tiles[c] = casize / va->vd_tile_size;
+		avl_remove(&va->vd_children_tree, va->vd_children[c]);
 		/*
 		 * We store the capacity minus 1, since a vdev can never have 0
 		 * and they can have (which would overflow a uint16_t).
 		 */
-		var->vd_children[c]->van_capacity = num_tiles[c] - 1;
-		avl_add(&var->vd_children_tree, var->vd_children[c]);
+		va->vd_children[c]->van_capacity = num_tiles[c] - 1;
+		avl_add(&va->vd_children_tree, va->vd_children[c]);
 	}
 	*asize = calculate_asize(vd, num_tiles);
 
@@ -930,10 +1129,10 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 			cmasize = MIN(max_size, cvd->vdev_max_asize -
 			    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
 		} else {
-			cmasize = (child_capacities[c] + 1) * var->vd_tile_size;
+			cmasize = (child_capacities[c] + 1) * va->vd_tile_size;
 		}
 
-		num_tiles[c] = cmasize / var->vd_tile_size;
+		num_tiles[c] = cmasize / va->vd_tile_size;
 	}
 	*max_asize = calculate_asize(vd, num_tiles);
 
@@ -955,6 +1154,18 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	return (0);
 }
 
+int
+vdev_anyraid_load(vdev_t *vd)
+{
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	if (va->vd_relocate.var_state == DSS_NONE ||
+	    va->vd_relocate.var_state == DSS_FINISHED)
+		return (0);
+
+	return (tasklist_read(vd));
+}
+
 /*
  * We cap the metaslab size at the tile size. This prevents us from having to
  * split IOs across multiple tiles, which would be complex extra logic for
@@ -963,14 +1174,14 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 static void
 vdev_anyraid_metaslab_size(vdev_t *vd, uint64_t *shiftp)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	*shiftp = MIN(*shiftp, highbit64(var->vd_tile_size) - 1);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	*shiftp = MIN(*shiftp, highbit64(va->vd_tile_size) - 1);
 }
 
 static void
 vdev_anyraid_close(vdev_t *vd)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	for (int c = 0; c < vd->vdev_children; c++) {
 		if (vd->vdev_child[c] != NULL)
 			vdev_close(vd->vdev_child[c]);
@@ -979,8 +1190,8 @@ vdev_anyraid_close(vdev_t *vd)
 		return;
 	anyraid_tile_t *tile = NULL;
 	void *cookie = NULL;
-	while ((tile = avl_destroy_nodes(&var->vd_tile_map, &cookie))) {
-		if (var->vd_nparity != 0) {
+	while ((tile = avl_destroy_nodes(&va->vd_tile_map, &cookie))) {
+		if (va->vd_nparity != 0) {
 			anyraid_tile_node_t *atn = NULL;
 			while ((atn = list_remove_head(&tile->at_list))) {
 				kmem_free(atn, sizeof (*atn));
@@ -989,32 +1200,48 @@ vdev_anyraid_close(vdev_t *vd)
 		}
 		kmem_free(tile, sizeof (*tile));
 	}
-}
 
-/*
- * I/O related functions.
- */
+	if (vd->vdev_spa->spa_anyraid_relocate == &va->vd_relocate)
+		vd->vdev_spa->spa_anyraid_relocate = NULL;
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	vdev_anyraid_relocate_task_t *vart;
+	while ((vart = list_remove_head(&var->var_list)))
+		kmem_free(vart, sizeof (*vart));
+	while ((vart = list_remove_head(&var->var_done_list)))
+		kmem_free(vart, sizeof (*vart));
+	memset(var, 0, sizeof (*var));
+}
 
 /*
  * Configure the mirror_map and then hand the write off to the normal mirror
  * logic.
  */
 static void
-vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
+vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile,
+    vdev_anyraid_relocate_task_t *task, zfs_locked_range_t *lr)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	mirror_map_t *mm = vdev_mirror_map_alloc(var->vd_nparity + 1, B_FALSE,
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	mirror_map_t *mm = vdev_mirror_map_alloc(va->vd_nparity + 1, B_FALSE,
 	    B_FALSE);
-	uint64_t tsize = var->vd_tile_size;
+	uint64_t tsize = va->vd_tile_size;
 
 	anyraid_tile_node_t *atn = list_head(&tile->at_list);
 	for (int c = 0; c < mm->mm_children; c++) {
+		uint8_t disk;
+		uint16_t offset;
+		if (task && task->vart_source_disk == atn->atn_disk) {
+			disk = task->vart_dest_disk;
+			offset = task->vart_source_idx;
+		} else {
+			disk = atn->atn_disk;
+			offset = atn->atn_tile_idx;
+		}
 		ASSERT(atn);
 		mirror_child_t *mc = &mm->mm_child[c];
-		mc->mc_vd = vd->vdev_child[atn->atn_disk];
+		mc->mc_vd = vd->vdev_child[disk];
 		mc->mc_offset = VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift) +
-		    atn->atn_tile_idx * tsize + zio->io_offset % tsize;
+		    offset * tsize + zio->io_offset % tsize;
 		ASSERT3U(mc->mc_offset, <, mc->mc_vd->vdev_psize -
 		    VDEV_LABEL_END_SIZE);
 		mm->mm_rebuilding = mc->mc_rebuilding = B_FALSE;
@@ -1022,6 +1249,7 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 	}
 	ASSERT(atn == NULL);
 
+	zio->io_aux_vsd = lr;
 	zio->io_vsd = mm;
 	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
 
@@ -1034,32 +1262,41 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
  */
 static void
 vdev_anyraid_raidz_map_translate(vdev_t *vd, raidz_map_t *rm,
-    anyraid_tile_t *tile)
+    anyraid_tile_t *tile, vdev_anyraid_relocate_task_t *task)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	ASSERT3U(rm->rm_nrows, ==, 1);
 	raidz_row_t *rr = rm->rm_row[0];
 	anyraid_tile_node_t **mapping = kmem_zalloc(sizeof (*mapping) *
-	    var->vd_width, KM_SLEEP);
+	    va->vd_width, KM_SLEEP);
 	ASSERT(tile);
 	anyraid_tile_node_t *atn = list_head(&tile->at_list);
-	for (int i = 0; i < var->vd_width; i++) {
+	for (int i = 0; i < va->vd_width; i++) {
 		ASSERT(atn);
 		mapping[i] = atn;
 		atn = list_next(&tile->at_list, atn);
 	}
-	ASSERT3U(rr->rr_scols, <=, var->vd_width);
+	ASSERT3U(rr->rr_scols, <=, va->vd_width);
 	for (uint64_t c = 0; c < rr->rr_scols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 		atn = mapping[rc->rc_devidx];
-		uint64_t tile_off = rc->rc_offset % var->vd_tile_size;
+		uint8_t disk;
+		uint16_t offset;
+		if (task && task->vart_source_disk == atn->atn_disk) {
+			disk = task->vart_dest_disk;
+			offset = task->vart_source_idx;
+		} else {
+			disk = atn->atn_disk;
+			offset = atn->atn_tile_idx;
+		}
+		uint64_t tile_off = rc->rc_offset % va->vd_tile_size;
 		uint64_t disk_off = tile_off +
-		    atn->atn_tile_idx * var->vd_tile_size;
+		    offset * va->vd_tile_size;
 		rc->rc_offset = VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift) +
 		    disk_off;
-		rc->rc_devidx = atn->atn_disk;
+		rc->rc_devidx = disk;
 	}
-	kmem_free(mapping, sizeof (*mapping) * var->vd_width);
+	kmem_free(mapping, sizeof (*mapping) * va->vd_width);
 }
 
 /*
@@ -1067,22 +1304,33 @@ vdev_anyraid_raidz_map_translate(vdev_t *vd, raidz_map_t *rm,
  * logic.
  */
 static void
-vdev_anyraid_raidz_start(zio_t *zio, anyraid_tile_t *tile)
+vdev_anyraid_raidz_start(zio_t *zio, anyraid_tile_t *tile,
+    vdev_anyraid_relocate_task_t *task, zfs_locked_range_t *lr)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	raidz_map_t *rm = vdev_raidz_map_alloc(zio, vd->vdev_ashift,
-	    var->vd_width, var->vd_nparity);
-	vdev_anyraid_raidz_map_translate(vd, rm, tile);
+	    va->vd_width, va->vd_nparity);
+	vdev_anyraid_raidz_map_translate(vd, rm, tile, task);
 
 	zio->io_vsd = rm;
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
-	vdev_raidz_io_start_impl(zio, rm, var->vd_width, var->vd_width);
+	zio->io_aux_vsd = lr;
+	vdev_raidz_io_start_impl(zio, rm, va->vd_width, va->vd_width);
 }
 
 typedef struct anyraid_map {
 	abd_t *am_abd;
 } anyraid_map_t;
+
+static void
+vdev_anyraid_child_done(zio_t *zio)
+{
+	zio_t *pio = zio->io_private;
+	mutex_enter(&pio->io_lock);
+	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
+	mutex_exit(&pio->io_lock);
+}
 
 static void
 vdev_anyraid_map_free_vsd(zio_t *zio)
@@ -1098,25 +1346,18 @@ const zio_vsd_ops_t vdev_anyraid_vsd_ops = {
 };
 
 static void
-vdev_anyraid_child_done(zio_t *zio)
-{
-	zio_t *pio = zio->io_private;
-	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
-}
-
-static void
 vdev_anyraid_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	uint64_t tsize = var->vd_tile_size * var->vd_width;
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	uint64_t tsize = va->vd_tile_size * va->vd_width;
 
 	uint64_t start_tile_id = zio->io_offset / tsize;
 	anyraid_tile_t search;
 	search.at_tile_id = start_tile_id;
 	avl_index_t where;
-	rw_enter(&var->vd_lock, RW_READER);
-	anyraid_tile_t *tile = avl_find(&var->vd_tile_map, &search,
+	rw_enter(&va->vd_lock, RW_READER);
+	anyraid_tile_t *tile = avl_find(&va->vd_tile_map, &search,
 	    &where);
 
 	/*
@@ -1126,9 +1367,9 @@ vdev_anyraid_io_start(zio_t *zio)
 	 * beat us to it.
 	 */
 	if (tile == NULL) {
-		rw_exit(&var->vd_lock);
-		rw_enter(&var->vd_lock, RW_WRITER);
-		tile = avl_find(&var->vd_tile_map, &search, &where);
+		rw_exit(&va->vd_lock);
+		rw_enter(&va->vd_lock, RW_WRITER);
+		tile = avl_find(&va->vd_tile_map, &search, &where);
 	}
 	if (tile == NULL) {
 		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
@@ -1139,46 +1380,71 @@ vdev_anyraid_io_start(zio_t *zio)
 		list_create(&tile->at_list, sizeof (anyraid_tile_node_t),
 		    offsetof(anyraid_tile_node_t, atn_node));
 
-		uint_t width = var->vd_nparity + var->vd_ndata;
+		uint_t width = va->vd_nparity + va->vd_ndata;
 		vdev_anyraid_node_t **vans = kmem_alloc(sizeof (*vans) * width,
 		    KM_SLEEP);
 		for (int i = 0; i < width; i++) {
-			vans[i] = avl_first(&var->vd_children_tree);
-			avl_remove(&var->vd_children_tree, vans[i]);
+			vans[i] = avl_first(&va->vd_children_tree);
+			avl_remove(&va->vd_children_tree, vans[i]);
 
 			anyraid_tile_node_t *atn =
 			    kmem_alloc(sizeof (*atn), KM_SLEEP);
 			atn->atn_disk = vans[i]->van_id;
 			atn->atn_tile_idx =
-			    vans[i]->van_next_offset++;
+			    anyraid_freelist_pop(&vans[i]->van_freelist);
 			list_insert_tail(&tile->at_list, atn);
 		}
 		for (int i = 0; i < width; i++)
-			avl_add(&var->vd_children_tree, vans[i]);
+			avl_add(&va->vd_children_tree, vans[i]);
 
 		kmem_free(vans, sizeof (*vans) * width);
-		avl_insert(&var->vd_tile_map, tile, where);
+		avl_insert(&va->vd_tile_map, tile, where);
 	}
-	rw_exit(&var->vd_lock);
 
-	uint64_t end = zio->io_offset % tsize + zio->io_size;
-	ASSERT3U(end, <=, tsize);
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&va->vd_rangelock,
+	    zio->io_offset, zio->io_size, RL_READER);
 
-	switch (var->vd_parity_type) {
+	vdev_anyraid_relocate_task_t *task = NULL;
+	if (va->vd_relocate.var_state == DSS_SCANNING) {
+		vdev_anyraid_relocate_t *var = &va->vd_relocate;
+		mutex_enter(&var->var_lock);
+		vdev_anyraid_relocate_task_t *vart = list_head(&var->var_list);
+		if (vart && vart->vart_tile == tile->at_tile_id) {
+			ASSERTF(var->var_offset <= zio->io_offset ||
+			    var->var_offset >= zio->io_offset + zio->io_size,
+			    "var_offset %llx is in the middle of IO %llx/%llx "
+			    "%d %llx", (u_longlong_t)var->var_offset,
+			    (u_longlong_t)zio->io_offset,
+			    (u_longlong_t)zio->io_size, zio->io_type,
+			    (u_longlong_t)zio->io_flags);
+			if (var->var_offset >= zio->io_offset + zio->io_size) {
+				task = kmem_zalloc(sizeof (*vart), KM_SLEEP);
+				*task = *vart;
+			}
+		}
+		mutex_exit(&var->var_lock);
+	}
+	rw_exit(&va->vd_lock);
+
+	switch (va->vd_parity_type) {
 		case VAP_MIRROR:
-			if (var->vd_nparity > 0) {
-				vdev_anyraid_mirror_start(zio, tile);
+			if (va->vd_nparity > 0) {
+				vdev_anyraid_mirror_start(zio, tile, task, lr);
 				zio_execute(zio);
+				if (task)
+					kmem_free(task, sizeof (*task));
 				return;
 			}
 			break;
 		case VAP_RAIDZ:
-			vdev_anyraid_raidz_start(zio, tile);
+			vdev_anyraid_raidz_start(zio, tile, task, lr);
 			zio_execute(zio);
+			if (task)
+				kmem_free(task, sizeof (*task));
 			return;
 		default:
 			ASSERT0(1);
-			PANIC("Invalid parity type: %d", var->vd_parity_type);
+			PANIC("Invalid parity type: %d", va->vd_parity_type);
 	}
 
 
@@ -1188,45 +1454,54 @@ vdev_anyraid_io_start(zio_t *zio)
 	    zio->io_offset % tsize;
 	child_offset += VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift);
 
-	anyraid_map_t *am = kmem_alloc(sizeof (*am), KM_SLEEP);
-	am->am_abd = abd_get_offset(zio->io_abd, 0);
-	zio->io_vsd = am;
+	anyraid_map_t *mm = kmem_alloc(sizeof (*mm), KM_SLEEP);
+	mm->am_abd = abd_get_offset(zio->io_abd, 0);
+	zio->io_vsd = mm;
 	zio->io_vsd_ops = &vdev_anyraid_vsd_ops;
+	zio->io_aux_vsd = lr;
 
 	zio_t *cio = zio_vdev_child_io(zio, NULL, cvd, child_offset,
-	    am->am_abd, zio->io_size, zio->io_type, zio->io_priority, 0,
+	    mm->am_abd, zio->io_size, zio->io_type, zio->io_priority, 0,
 	    vdev_anyraid_child_done, zio);
 	zio_nowait(cio);
 
 	zio_execute(zio);
+	if (task)
+		kmem_free(task, sizeof (*task));
 }
 
 static void
 vdev_anyraid_io_done(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 
-	switch (var->vd_parity_type) {
+	switch (va->vd_parity_type) {
 		case VAP_MIRROR:
-			if (var->vd_nparity > 0) {
+			if (va->vd_nparity > 0) {
 				vdev_mirror_io_done(zio);
-				return;
+				break;
 			}
 			break;
 		case VAP_RAIDZ:
 			vdev_raidz_io_done(zio);
-			return;
+			break;
 		default:
-			panic("Invalid parity type: %d", var->vd_parity_type);
+			panic("Invalid parity type: %d", va->vd_parity_type);
 	}
+	if (zio->io_stage != ZIO_STAGE_VDEV_IO_DONE)
+		return;
+	zfs_locked_range_t *lr = zio->io_aux_vsd;
+	ASSERT(lr);
+	zfs_rangelock_exit(lr);
+	zio->io_aux_vsd = NULL;
 }
 
 static void
 vdev_anyraid_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	if (faulted > var->vd_nparity) {
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	if (faulted > va->vd_nparity) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
 	} else if (degraded + faulted != 0) {
@@ -1247,19 +1522,20 @@ vdev_anyraid_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
     uint64_t phys_birth)
 {
 	(void) psize;
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	// TODO should we always resilver if we're rebalancing/contracting?
 	if (!vdev_dtl_contains(vd, DTL_PARTIAL, phys_birth, 1))
 		return (B_FALSE);
 
-	uint64_t tsize = var->vd_tile_size * var->vd_width;
+	uint64_t tsize = va->vd_tile_size * va->vd_width;
 	uint64_t start_tile_id = DVA_GET_OFFSET(dva) / tsize;
 	anyraid_tile_t search;
 	search.at_tile_id = start_tile_id;
 	avl_index_t where;
-	rw_enter(&var->vd_lock, RW_READER);
-	anyraid_tile_t *tile = avl_find(&var->vd_tile_map, &search,
+	rw_enter(&va->vd_lock, RW_READER);
+	anyraid_tile_t *tile = avl_find(&va->vd_tile_map, &search,
 	    &where);
-	rw_exit(&var->vd_lock);
+	rw_exit(&va->vd_lock);
 	ASSERT(tile);
 
 	for (anyraid_tile_node_t *atn = list_head(&tile->at_list);
@@ -1286,19 +1562,20 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 {
 	vdev_t *anyraidvd = cvd->vdev_parent;
 	ASSERT(vdev_is_anyraid(anyraidvd));
-	vdev_anyraid_t *var = anyraidvd->vdev_tsd;
-	uint64_t ptsize = var->vd_tile_size;
-	uint64_t ltsize = ptsize * var->vd_width;
+	vdev_anyraid_t *va = anyraidvd->vdev_tsd;
+	uint64_t ptsize = va->vd_tile_size;
+	uint64_t ltsize = ptsize * va->vd_width;
+	// TODO should we always fail if we're rebalancing/contracting?
 
 	uint64_t start_tile_id = logical_rs->rs_start / ltsize;
 	ASSERT3U(start_tile_id, ==, (logical_rs->rs_end - 1) / ltsize);
 	anyraid_tile_t search;
 	search.at_tile_id = start_tile_id;
 	avl_index_t where;
-	rw_enter(&var->vd_lock, RW_READER);
-	anyraid_tile_t *tile = avl_find(&var->vd_tile_map, &search,
+	rw_enter(&va->vd_lock, RW_READER);
+	anyraid_tile_t *tile = avl_find(&va->vd_tile_map, &search,
 	    &where);
-	rw_exit(&var->vd_lock);
+	rw_exit(&va->vd_lock);
 	// This tile doesn't exist yet
 	if (tile == NULL) {
 		physical_rs->rs_start = physical_rs->rs_end = 0;
@@ -1315,7 +1592,7 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 		return;
 	}
 
-	switch (var->vd_parity_type) {
+	switch (va->vd_parity_type) {
 		case VAP_MIRROR:
 		{
 			uint64_t child_offset = atn->atn_tile_idx * ptsize +
@@ -1331,7 +1608,7 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 		}
 		case VAP_RAIDZ:
 		{
-			uint64_t width = var->vd_width;
+			uint64_t width = va->vd_width;
 			uint64_t tgt_col = idx;
 			uint64_t ashift = anyraidvd->vdev_ashift;
 			uint64_t tile_start = VDEV_ANYRAID_START_OFFSET(
@@ -1361,7 +1638,7 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 			break;
 		}
 		default:
-			panic("Invalid parity type: %d", var->vd_parity_type);
+			panic("Invalid parity type: %d", va->vd_parity_type);
 	}
 	remain_rs->rs_start = 0;
 	remain_rs->rs_end = 0;
@@ -1370,8 +1647,8 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 static uint64_t
 vdev_anyraid_nparity(vdev_t *vd)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	return (var->vd_nparity);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	return (va->vd_nparity);
 }
 
 static uint64_t
@@ -1447,7 +1724,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	vdev_t *anyraidvd = vd->vdev_parent;
 	ASSERT(vdev_is_anyraid(anyraidvd));
 	spa_t *spa = vd->vdev_spa;
-	vdev_anyraid_t *var = anyraidvd->vdev_tsd;
+	vdev_anyraid_t *va = anyraidvd->vdev_tsd;
 	uint32_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_ashift);
 	uint32_t nvl_bytes = VDEV_ANYRAID_NVL_BYTES(vd->vdev_ashift);
 	uint8_t update_target = txg % VDEV_ANYRAID_MAP_COPIES;
@@ -1463,8 +1740,8 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	uint8_t written = 0;
 	void *buf = abd_borrow_buf(map_abd, SPA_MAXBLOCKSIZE);
 
-	rw_enter(&var->vd_lock, RW_READER);
-	anyraid_tile_t *cur = avl_first(&var->vd_tile_map);
+	rw_enter(&va->vd_lock, RW_READER);
+	anyraid_tile_t *cur = avl_first(&va->vd_tile_map);
 	anyraid_tile_node_t *curn = cur != NULL ?
 	    list_head(&cur->at_list) : NULL;
 	uint32_t buf_offset = 0, prev_id = UINT32_MAX;
@@ -1472,10 +1749,10 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	/* Write out each sub-tile in turn */
 	while (cur) {
 		if (status == VDEV_CONFIG_REWINDING_CHECKPOINT &&
-		    cur->at_tile_id > var->vd_checkpoint_tile)
+		    cur->at_tile_id > va->vd_checkpoint_tile)
 			break;
 
-		anyraid_tile_t *next = AVL_NEXT(&var->vd_tile_map, cur);
+		anyraid_tile_t *next = AVL_NEXT(&va->vd_tile_map, cur);
 		IMPLY(prev_id != UINT32_MAX, cur->at_tile_id >= prev_id);
 		/*
 		 * Determine if we need to write a skip entry before the
@@ -1518,13 +1795,13 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 
 	if (status == VDEV_CONFIG_NO_CHECKPOINT ||
 	    status == VDEV_CONFIG_REWINDING_CHECKPOINT) {
-		var->vd_checkpoint_tile = UINT32_MAX;
+		va->vd_checkpoint_tile = UINT32_MAX;
 	} else if (status == VDEV_CONFIG_CREATING_CHECKPOINT) {
-		anyraid_tile_t *at = avl_last(&var->vd_tile_map);
+		anyraid_tile_t *at = avl_last(&va->vd_tile_map);
 		ASSERT(at);
-		var->vd_checkpoint_tile = at->at_tile_id;
+		va->vd_checkpoint_tile = at->at_tile_id;
 	}
-	rw_exit(&var->vd_lock);
+	rw_exit(&va->vd_lock);
 
 	abd_return_buf_copy(map_abd, buf, SPA_MAXBLOCKSIZE);
 	map_write_issue(zio, vd, base_offset, written, buf_offset, map_abd,
@@ -1540,7 +1817,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	for (uint64_t i = 0; i < anyraidvd->vdev_children; i++) {
 		if (anyraidvd->vdev_child[i] == vd)
 			disk_id = i;
-		sizes[i] = var->vd_children[i]->van_capacity;
+		sizes[i] = va->vd_children[i]->van_capacity;
 	}
 	ASSERT3U(disk_id, <, anyraidvd->vdev_children);
 	nvlist_t *header = fnvlist_alloc();
@@ -1549,16 +1826,50 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	fnvlist_add_uint64(header, VDEV_ANYRAID_HEADER_TXG, txg);
 	fnvlist_add_uint64(header, VDEV_ANYRAID_HEADER_GUID, spa_guid(spa));
 	fnvlist_add_uint64(header, VDEV_ANYRAID_HEADER_TILE_SIZE,
-	    var->vd_tile_size);
+	    va->vd_tile_size);
 	fnvlist_add_uint32(header, VDEV_ANYRAID_HEADER_LENGTH,
 	    written * SPA_MAXBLOCKSIZE + buf_offset);
 	fnvlist_add_uint16_array(header, VDEV_ANYRAID_HEADER_DISK_SIZES, sizes,
 	    anyraidvd->vdev_children);
 	kmem_free(sizes, sizeof (*sizes) * anyraidvd->vdev_children);
 
-	if (var->vd_checkpoint_tile != UINT32_MAX) {
+	if (va->vd_checkpoint_tile != UINT32_MAX) {
 		fnvlist_add_uint32(header, VDEV_ANYRAID_HEADER_CHECKPOINT,
-		    var->vd_checkpoint_tile);
+		    va->vd_checkpoint_tile);
+	}
+	if (va->vd_relocate.var_state == DSS_SCANNING) {
+		mutex_enter(&va->vd_relocate.var_lock);
+		uint64_t task = va->vd_relocate.var_synced_task;
+		list_t *l = &va->vd_relocate.var_done_list;
+		vdev_anyraid_relocate_task_t *vart = list_head(l);
+		for (;;) {
+			if (vart == NULL) {
+				l = &va->vd_relocate.var_list;
+				vart = list_head(l);
+			}
+			if (vart->vart_task == task)
+				break;
+			vart = list_next(l, vart);
+		}
+		ASSERT(vart);
+		nvlist_t *rebal_task = fnvlist_alloc();
+		fnvlist_add_uint32(rebal_task, VART_TILE,
+		    vart->vart_tile);
+		fnvlist_add_uint8(rebal_task, VART_SOURCE_DISK,
+		    vart->vart_source_disk);
+		fnvlist_add_uint8(rebal_task, VART_DEST_DISK,
+		    vart->vart_dest_disk);
+		fnvlist_add_uint16(rebal_task, VART_SOURCE_OFF,
+		    vart->vart_source_idx);
+		fnvlist_add_uint16(rebal_task, VART_DEST_OFF,
+		    vart->vart_dest_idx);
+		fnvlist_add_uint64(rebal_task, VART_OFFSET,
+		    va->vd_relocate.var_synced_offset);
+		fnvlist_add_uint32(rebal_task, VART_TASK, task);
+		fnvlist_add_nvlist(header,
+		    VDEV_ANYRAID_HEADER_CUR_TASK, rebal_task);
+		fnvlist_free(rebal_task);
+		mutex_exit(&va->vd_relocate.var_lock);
 	}
 	size_t packed_size;
 	char *packed = NULL;
@@ -1583,32 +1894,32 @@ vdev_anyraid_min_attach_size(vdev_t *vd)
 {
 	ASSERT(vdev_is_anyraid(vd));
 	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_ALL, RW_READER), !=, 0);
-	vdev_anyraid_t *var = vd->vdev_tsd;
-	ASSERT(var->vd_tile_size);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	ASSERT(va->vd_tile_size);
 	return (VDEV_ANYRAID_TOTAL_MAP_SIZE(vd->vdev_ashift) +
-	    var->vd_tile_size);
+	    va->vd_tile_size);
 }
 
 static uint64_t
 vdev_anyraid_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
 	ASSERT(vdev_is_anyraid(pvd));
-	vdev_anyraid_t *var = pvd->vdev_tsd;
-	if (var->vd_tile_size == 0)
+	vdev_anyraid_t *va = pvd->vdev_tsd;
+	if (va->vd_tile_size == 0)
 		return (VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
 
-	rw_enter(&var->vd_lock, RW_READER);
+	rw_enter(&va->vd_lock, RW_READER);
 	uint64_t size = VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift) +
-	    (var->vd_children[cvd->vdev_id]->van_capacity + 1) *
-	    var->vd_tile_size;
-	rw_exit(&var->vd_lock);
+	    (va->vd_children[cvd->vdev_id]->van_capacity + 1) *
+	    va->vd_tile_size;
+	rw_exit(&va->vd_lock);
 	return (size);
 }
 
 void
 vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd)
 {
-	vdev_anyraid_t *var = tvd->vdev_tsd;
+	vdev_anyraid_t *va = tvd->vdev_tsd;
 	uint64_t old_children = tvd->vdev_children - 1;
 
 	ASSERT3U(spa_config_held(tvd->vdev_spa, SCL_ALL, RW_WRITER), ==,
@@ -1618,32 +1929,32 @@ vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd)
 	vdev_anyraid_node_t *newchild = kmem_alloc(sizeof (*newchild),
 	    KM_SLEEP);
 	newchild->van_id = newvd->vdev_id;
-	newchild->van_next_offset = 0;
-	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
+	anyraid_freelist_create(&newchild->van_freelist, 0);
+	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * va->vd_tile_size;
 	newchild->van_capacity = (MIN(max_size, (newvd->vdev_asize -
 	    VDEV_ANYRAID_TOTAL_MAP_SIZE(newvd->vdev_ashift))) /
-	    var->vd_tile_size) - 1;
-	rw_enter(&var->vd_lock, RW_WRITER);
-	memcpy(nc, var->vd_children, old_children * sizeof (*nc));
-	kmem_free(var->vd_children, old_children * sizeof (*nc));
-	var->vd_children = nc;
-	var->vd_children[old_children] = newchild;
-	avl_add(&var->vd_children_tree, newchild);
-	rw_exit(&var->vd_lock);
+	    va->vd_tile_size) - 1;
+	rw_enter(&va->vd_lock, RW_WRITER);
+	memcpy(nc, va->vd_children, old_children * sizeof (*nc));
+	kmem_free(va->vd_children, old_children * sizeof (*nc));
+	va->vd_children = nc;
+	va->vd_children[old_children] = newchild;
+	avl_add(&va->vd_children_tree, newchild);
+	rw_exit(&va->vd_lock);
 }
 
 boolean_t
 vdev_anyraid_mapped(vdev_t *vd, uint64_t offset, uint64_t txg)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	anyraid_tile_t search;
-	search.at_tile_id = offset / var->vd_tile_size;
+	search.at_tile_id = offset / va->vd_tile_size;
 
-	rw_enter(&var->vd_lock, RW_READER);
-	anyraid_tile_t *tile = avl_find(&var->vd_tile_map, &search, NULL);
+	rw_enter(&va->vd_lock, RW_READER);
+	anyraid_tile_t *tile = avl_find(&va->vd_tile_map, &search, NULL);
 	boolean_t result = tile != NULL && tile->at_synced +
 	    VDEV_ANYRAID_MAP_COPIES <= txg;
-	rw_exit(&var->vd_lock);
+	rw_exit(&va->vd_lock);
 
 	return (result);
 }
@@ -1659,15 +1970,15 @@ static uint64_t
 vdev_anyraid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
     uint64_t max_segment)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	ASSERT(vdev_is_anyraid(vd));
 
 	uint64_t psize = MIN(P2ROUNDUP(max_segment, 1 << vd->vdev_ashift),
 	    SPA_MAXBLOCKSIZE);
 
-	if (start / var->vd_tile_size !=
-	    (start + psize) / var->vd_tile_size) {
-		psize = P2ROUNDUP(start, var->vd_tile_size) - start;
+	if (start / va->vd_tile_size !=
+	    (start + psize) / va->vd_tile_size) {
+		psize = P2ROUNDUP(start, va->vd_tile_size) - start;
 	}
 
 	return (MIN(asize, vdev_psize_to_asize(vd, psize)));
@@ -1676,14 +1987,14 @@ vdev_anyraid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
 static uint64_t
 vdev_anyraid_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 {
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	ASSERT(vdev_is_anyraid(vd));
-	if (var->vd_parity_type == VAP_MIRROR)
+	if (va->vd_parity_type == VAP_MIRROR)
 		return (vdev_default_asize(vd, psize, txg));
 
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t nparity = var->vd_nparity;
-	uint64_t cols = var->vd_width;
+	uint64_t nparity = va->vd_nparity;
+	uint64_t cols = va->vd_width;
 
 	uint64_t asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));
@@ -1705,13 +2016,13 @@ static uint64_t
 vdev_anyraid_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 {
 	(void) txg;
-	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_anyraid_t *va = vd->vdev_tsd;
 	ASSERT(vdev_is_anyraid(vd));
-	ASSERT3U(var->vd_parity_type, ==, VAP_RAIDZ);
+	ASSERT3U(va->vd_parity_type, ==, VAP_RAIDZ);
 
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t nparity = var->vd_nparity;
-	uint64_t cols = var->vd_width;
+	uint64_t nparity = va->vd_nparity;
+	uint64_t cols = va->vd_width;
 
 	ASSERT0(asize % (1 << ashift));
 
@@ -1728,6 +2039,48 @@ vdev_anyraid_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 	psize <<= ashift;
 
 	return (psize);
+}
+
+uint64_t
+vdev_anyraid_child_num_tiles(vdev_t *vd, vdev_t *cvd)
+{
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	ASSERT(vdev_is_anyraid(vd));
+
+	uint64_t total = 0;
+	rw_enter(&va->vd_lock, RW_READER);
+	if (cvd != NULL) {
+		vdev_anyraid_node_t *n = va->vd_children[cvd->vdev_id];
+		total = anyraid_freelist_alloc(&n->van_freelist);
+	} else {
+		for (int i = 0; i < vd->vdev_children; i++) {
+			vdev_anyraid_node_t *n = va->vd_children[i];
+			total += anyraid_freelist_alloc(&n->van_freelist);
+		}
+	}
+	rw_exit(&va->vd_lock);
+	return (total);
+}
+
+uint64_t
+vdev_anyraid_child_capacity(vdev_t *vd, vdev_t *cvd)
+{
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	ASSERT(vdev_is_anyraid(vd));
+
+	uint64_t total = 0;
+	rw_enter(&va->vd_lock, RW_READER);
+	if (cvd != NULL) {
+		vdev_anyraid_node_t *n = va->vd_children[cvd->vdev_id];
+		total = n->van_capacity + 1;
+	} else {
+		for (int i = 0; i < vd->vdev_children; i++) {
+			vdev_anyraid_node_t *n = va->vd_children[i];
+			total += n->van_capacity + 1;
+		}
+	}
+	rw_exit(&va->vd_lock);
+	return (total);
 }
 
 vdev_ops_t vdev_anymirror_ops = {
@@ -1787,5 +2140,1117 @@ vdev_ops_t vdev_anyraidz_ops = {
 };
 
 
+/*
+ * ==========================================================================
+ * TILE MOTION & REBALANCE LOGIC
+ * ==========================================================================
+ */
+
+vdev_anyraid_relocate_t *
+vdev_anyraid_relocate_status(vdev_t *vd)
+{
+	ASSERT(vdev_is_anyraid(vd));
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	return (&va->vd_relocate);
+}
+
+static void
+tasklist_write(spa_t *spa, vdev_anyraid_relocate_t *var, dmu_tx_t *tx)
+{
+	uint64_t obj = var->var_object;
+	objset_t *mos = spa->spa_meta_objset;
+	ASSERT(MUTEX_HELD(&var->var_lock));
+
+	size_t total_count = 0, done_count = 0;
+	for (vdev_anyraid_relocate_task_t *t = list_head(&var->var_done_list);
+	    t; t = list_next(&var->var_done_list, t)) {
+		done_count++;
+		total_count++;
+	}
+	for (vdev_anyraid_relocate_task_t *t = list_head(&var->var_list); t;
+	    t = list_next(&var->var_list, t))
+		total_count++;
+	size_t buflen = MIN(SPA_OLD_MAXBLOCKSIZE,
+	    total_count * sizeof (relocate_task_phys_t));
+	relocate_task_phys_t *buf = kmem_alloc(buflen, KM_SLEEP);
+
+	size_t count = 0;
+	size_t written = 0;
+	list_t *ls[2];
+	ls[0] = &var->var_done_list;
+	ls[1] = &var->var_list;
+	for (int i = 0; i < 2; i++) {
+		for (vdev_anyraid_relocate_task_t *t = list_head(ls[i]); t;
+		    t = list_next(ls[i], t)) {
+			if (count == SPA_OLD_MAXBLOCKSIZE / sizeof (*buf)) {
+				ASSERT3U(buflen, ==, SPA_OLD_MAXBLOCKSIZE);
+				dmu_write(mos, obj, written *
+				    SPA_OLD_MAXBLOCKSIZE, buflen, buf, tx,
+				    DMU_READ_NO_PREFETCH);
+
+				size_t next_buflen =  MIN(SPA_OLD_MAXBLOCKSIZE,
+				    (total_count - count) * sizeof (*buf));
+				if (next_buflen != buflen) {
+					kmem_free(buf, buflen);
+					buf = kmem_alloc(next_buflen, KM_SLEEP);
+					buflen = next_buflen;
+				}
+				count = 0;
+			}
+
+			ASSERT3U(count * sizeof (*buf), <, buflen);
+			relocate_task_phys_t *rtp = buf + count++;
+			rtp->rtp_source_disk = t->vart_source_disk;
+			rtp->rtp_dest_disk = t->vart_dest_disk;
+			rtp->rtp_source_idx = t->vart_source_idx;
+			rtp->rtp_dest_idx = t->vart_dest_idx;
+			rtp->rtp_tile = t->vart_tile;
+			rtp->rtp_task = t->vart_task;
+			rtp->rtp_pad2 = 0;
+		}
+	}
+	dmu_write(mos, obj, written * SPA_OLD_MAXBLOCKSIZE, buflen, buf, tx,
+	    DMU_READ_NO_PREFETCH);
+	kmem_free(buf, buflen);
+
+	dmu_buf_t *dbp;
+	VERIFY0(dmu_bonus_hold(mos, obj, FTAG, &dbp));
+	ASSERT3U(dbp->db_size, >=, sizeof (relocate_phys_t));
+	relocate_phys_t *rp = dbp->db_data;
+	dmu_buf_will_dirty(dbp, tx);
+	rp->rp_total = total_count;
+	rp->rp_done = done_count;
+	dmu_buf_rele(dbp, FTAG);
+}
+
+static int
+tasklist_read(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	vdev_anyraid_t *va = vd->vdev_tsd;
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	uint64_t object;
+	ASSERT3P(spa->spa_anyraid_relocate, ==, var);
+
+	objset_t *mos = spa->spa_meta_objset;
+	int error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_REBALANCE_OBJ, sizeof (uint64_t), 1, &object);
+	if (error) {
+		mutex_exit(&var->var_lock);
+		return (error);
+	}
+
+	dmu_buf_t *dbp;
+	if ((error = dmu_bonus_hold(mos, object, FTAG, &dbp)) != 0) {
+		mutex_exit(&var->var_lock);
+		return (error);
+	}
+	relocate_phys_t *rpp = dbp->db_data;
+	size_t done = rpp->rp_done;
+	size_t total = rpp->rp_total;
+	dmu_buf_rele(dbp, FTAG);
+
+	mutex_enter(&var->var_lock);
+	ASSERT0(var->var_object);
+	var->var_object = object;
+	mutex_exit(&var->var_lock);
+	size_t buflen = MIN(SPA_OLD_MAXBLOCKSIZE,
+	    total * sizeof (relocate_task_phys_t));
+	relocate_task_phys_t *buf = kmem_alloc(buflen, KM_SLEEP);
+	list_t *l = &var->var_list;
+	size_t i;
+	for (i = 0; i < total; i++) {
+		size_t idx = i % (SPA_OLD_MAXBLOCKSIZE / sizeof (*buf));
+		if (idx == 0) {
+			size_t next_buflen = MIN(SPA_OLD_MAXBLOCKSIZE,
+			    (total - i) * sizeof (relocate_task_phys_t));
+			if (next_buflen != buflen) {
+				kmem_free(buf, buflen);
+				buflen = next_buflen;
+				buf = kmem_alloc(buflen, KM_SLEEP);
+			}
+			error = dmu_read(mos, var->var_object,
+			    i * sizeof (*buf), buflen, buf, DMU_READ_PREFETCH);
+			if (error) {
+				kmem_free(buf, buflen);
+				goto out;
+			}
+		}
+		if (i == done && list_head(&var->var_list)) {
+			l = &var->var_list;
+			vdev_anyraid_relocate_task_t *vart =
+			    list_remove_head(l);
+			ASSERT(vart);
+			kmem_free(vart, sizeof (*vart));
+		}
+		vdev_anyraid_relocate_task_t *vart =
+		    kmem_alloc(sizeof (*vart), KM_SLEEP);
+		relocate_task_phys_t *rtp = buf + idx;
+		vart->vart_source_disk = rtp->rtp_source_disk;
+		vart->vart_dest_disk = rtp->rtp_dest_disk;
+		vart->vart_source_idx = rtp->rtp_source_idx;
+		vart->vart_dest_idx = rtp->rtp_dest_idx;
+		vart->vart_tile = rtp->rtp_tile;
+		vart->vart_task = rtp->rtp_task;
+
+		/*
+		 * We need to disable metaslabs here; any metaslabs that are
+		 * after the first done task but before or containing the
+		 * resume offset.
+		 */
+		if (i >= done && vart->vart_task <= var->var_task) {
+			uint64_t ms_per_tile = va->vd_tile_size >>
+			    vd->vdev_ms_shift;
+			uint64_t start = vart->vart_tile * ms_per_tile;
+			uint64_t end = start + ms_per_tile;
+			for (uint64_t m = start; m < end; m++) {
+				ASSERT(vd->vdev_ms);
+				metaslab_t *ms = vd->vdev_ms[m];
+				if (vart->vart_task == var->var_task) {
+					zfs_range_seg64_t log, phys, rem;
+					log.rs_start = ms->ms_start;
+					log.rs_end = ms->ms_start + ms->ms_size;
+					vdev_xlate(vd->vdev_child[
+					    vart->vart_source_disk], &log,
+					    &phys, &rem);
+					if (phys.rs_start == phys.rs_end ||
+					    phys.rs_start > var->var_offset)
+						continue;
+				}
+				metaslab_disable_nowait(ms);
+				vart->vart_dis_ms++;
+			}
+		}
+
+		rw_enter(&va->vd_lock, RW_WRITER);
+		anyraid_freelist_t *af =
+		    &va->vd_children[vart->vart_source_disk]->van_freelist;
+		boolean_t sourcefree = anyraid_freelist_isfree(af,
+		    vart->vart_source_idx);
+		if (sourcefree)
+			anyraid_freelist_remove(af, vart->vart_source_idx);
+
+		af = &va->vd_children[vart->vart_dest_disk]->van_freelist;
+		boolean_t destfree = anyraid_freelist_isfree(af,
+		    vart->vart_dest_idx);
+		if (destfree)
+			anyraid_freelist_remove(af, vart->vart_dest_idx);
+
+		// Either one or the other should be in the mapping already.
+		ASSERT3U(sourcefree, !=, destfree);
+		rw_exit(&va->vd_lock);
+
+		list_insert_tail(l, vart);
+	}
+	if (i == done) {
+		vdev_anyraid_relocate_task_t *vart =
+		    list_remove_head(&var->var_list);
+		ASSERT(vart);
+		kmem_free(vart, sizeof (*vart));
+	}
+	kmem_free(buf, buflen);
+out:
+	if (error) {
+		// TODO free tasklist
+	}
+	return (error);
+}
+
+static void
+anyraid_relocate_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = arg;
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+
+	mutex_enter(&var->var_lock);
+	/*
+	 * Ensure there are no i/os to the range that is being committed.
+	 */
+	uint64_t old_offset = var->var_synced_offset;
+	uint64_t old_task = var->var_synced_task;
+
+	ASSERT3U(var->var_task_pertxg[txgoff], >=, old_task);
+	ASSERT(var->var_task_pertxg[txgoff] > old_task ||
+	    var->var_offset_pertxg[txgoff] >= old_offset);
+
+	uint64_t new_offset =
+	    MIN(var->var_offset_pertxg[txgoff], var->var_failed_offset);
+	uint64_t new_task =
+	    MIN(var->var_task_pertxg[txgoff], var->var_failed_task);
+	/*
+	 * We should not have committed anything that failed.
+	 */
+	mutex_exit(&var->var_lock);
+
+	vdev_t *vd = vdev_lookup_top(spa, var->var_vd);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&va->vd_rangelock,
+	    old_offset, new_offset - old_offset,
+	    RL_WRITER);
+
+	var->var_synced_offset = new_offset;
+	var->var_synced_task = new_task;
+	var->var_offset_pertxg[txgoff] = 0;
+	var->var_task_pertxg[txgoff] = 0;
+	zfs_rangelock_exit(lr);
+
+	mutex_enter(&var->var_lock);
+	var->var_bytes_copied += var->var_bytes_copied_pertxg[txgoff];
+	var->var_bytes_copied_pertxg[txgoff] = 0;
+
+	tasklist_write(spa, var, tx);
+	mutex_exit(&var->var_lock);
+}
+
+struct anyraid_done_arg {
+	vdev_t *vd;
+};
+
+static void
+anyraid_scrub_done(spa_t *spa, dmu_tx_t *tx, void *arg)
+{
+	(void) tx;
+	struct anyraid_done_arg *ada = arg;
+	vdev_anyraid_t *va = ada->vd->vdev_tsd;
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	rw_enter(&va->vd_lock, RW_WRITER);
+	for (vdev_anyraid_relocate_task_t *task =
+	    list_head(&var->var_done_list); task;
+	    task = list_head(&var->var_done_list)) {
+		anyraid_freelist_add(
+		    &va->vd_children[task->vart_source_disk]->van_freelist,
+		    task->vart_source_idx);
+		list_remove(&var->var_done_list, task);
+		kmem_free(task, sizeof (*task));
+	}
+	/*
+	 * Usually there aren't any tasks left in the list, but this can happen
+	 * if we finish our relocate in just the right way, and then export the
+	 * pool and reimport during the scrub.
+	 */
+	for (vdev_anyraid_relocate_task_t *task =
+	    list_head(&var->var_list); task;
+	    task = list_head(&var->var_list)) {
+		anyraid_freelist_add(
+		    &va->vd_children[task->vart_source_disk]->van_freelist,
+		    task->vart_source_idx);
+		list_remove(&var->var_list, task);
+		kmem_free(task, sizeof (*task));
+	}
+
+	objset_t *mos = spa->spa_meta_objset;
+	VERIFY0(dmu_object_free(mos, var->var_object, tx));
+	VERIFY0(zap_remove(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_REBALANCE_OBJ, tx));
+	vdev_update_nonallocating_space(ada->vd, var->var_nonalloc, B_FALSE);
+	spa->spa_anyraid_relocate = NULL;
+	va->vd_relocate.var_state = DSS_FINISHED;
+	rw_exit(&va->vd_lock);
+
+	spa_config_enter(spa, SCL_STATE_ALL, FTAG, RW_WRITER);
+	ada->vd->vdev_expanding = B_TRUE;
+	vdev_reopen(ada->vd);
+	ada->vd->vdev_spa->spa_anyraid_relocate = NULL;
+	spa->spa_ccw_fail_time = 0;
+	spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
+	vdev_config_dirty(ada->vd);
+	kmem_free(ada, sizeof (*ada));
+}
+
+static void
+anyraid_relocate_complete_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = arg;
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+	vdev_t *vd = vdev_lookup_top(spa, var->var_vd);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	for (int i = 0; i < TXG_SIZE; i++) {
+		VERIFY0(var->var_offset_pertxg[i]);
+	}
+
+	rw_enter(&va->vd_lock, RW_WRITER);
+	/*
+	 * will get written (based on vd_expand_txgs). TODO
+	 */
+	vdev_config_dirty(vd);
+
+	var->var_end_time = gethrestime_sec();
+
+	spa_history_log_internal(spa, "anyraid relocate completed",  tx,
+	    "%s vdev %llu", spa_name(spa),
+	    (unsigned long long)vd->vdev_id);
+
+	rw_exit(&va->vd_lock);
+
+	spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
+	spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
+	spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);
+
+	spa_notify_waiters(spa);
+
+	/*
+	 * While we're in syncing context take the opportunity to
+	 * setup a scrub. All the data has been sucessfully copied
+	 * but we have not validated any checksums.
+	 */
+	struct anyraid_done_arg *ada = kmem_alloc(sizeof (*ada), KM_SLEEP);
+	ada->vd = vd;
+	setup_sync_arg_t setup_sync_arg = {
+		.func = POOL_SCAN_SCRUB,
+		.txgstart = 0,
+		.txgend = 0,
+		.done = anyraid_scrub_done,
+		.done_arg = ada,
+	};
+	if (zfs_scrub_after_relocate &&
+	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
+		dsl_scan_setup_sync(&setup_sync_arg, tx);
+	} else {
+		anyraid_scrub_done(spa, tx, ada);
+	}
+}
+
+struct rebal_node {
+	avl_node_t node1;
+	avl_node_t node2;
+	int cvd;
+	int free; // number of free tiles
+	int alloc; // number of allocated tiles
+	int64_t *arr;
+};
+
+static int
+rebal_cmp_free(const void *a, const void *b)
+{
+	const struct rebal_node *ra = a;
+	const struct rebal_node *rb = b;
+	int cmp = TREE_CMP(ra->free, rb->free);
+	if (likely(cmp != 0))
+		return (cmp);
+	return (TREE_CMP(rb->cvd, ra->cvd));
+}
+
+static int
+rebal_cmp_alloc(const void *a, const void *b)
+{
+	const struct rebal_node *ra = a;
+	const struct rebal_node *rb = b;
+	int cmp = TREE_CMP(ra->alloc, rb->alloc);
+	if (likely(cmp != 0))
+		return (cmp);
+	return (TREE_CMP(rb->cvd, ra->cvd));
+}
+
+static void
+populate_child_array(vdev_anyraid_t *va, int child, int64_t *arr, uint32_t cap)
+{
+	for (anyraid_tile_t *tile = avl_first(&va->vd_tile_map);
+	    tile; tile = AVL_NEXT(&va->vd_tile_map, tile)) {
+		for (anyraid_tile_node_t *atn = list_head(&tile->at_list);
+		    atn; atn = list_next(&tile->at_list, atn)) {
+			if (atn->atn_disk == child) {
+				ASSERT3U(atn->atn_tile_idx, <, cap);
+				arr[atn->atn_tile_idx] = tile->at_tile_id;
+			}
+		}
+	}
+}
+
+static boolean_t
+rebal_try_move_one(vdev_anyraid_t *va, struct rebal_node *donor,
+    struct rebal_node *receiver, uint32_t *tid)
+{
+	vdev_anyraid_node_t *dvan = va->vd_children[donor->cvd];
+	vdev_anyraid_node_t *rvan = va->vd_children[receiver->cvd];
+
+	for (int i = 0; i < dvan->van_freelist.af_next_off; i++) {
+		ASSERT3U(dvan->van_freelist.af_next_off, <=,
+		    dvan->van_capacity + 1);
+		if (donor->arr[i] == -1LL)
+			continue;
+		boolean_t found = B_FALSE;
+		for (int j = 0; j < rvan->van_freelist.af_next_off;
+		    j++) {
+			/*
+			 * TODO we need to check here if doing this move would
+			 * cause the total number of allocatable tiles to drop;
+			 * if so, we have to skip it.
+			 */
+			if (donor->arr[i] == receiver->arr[j]) {
+				found = B_TRUE;
+				break;
+			}
+		}
+		if (found)
+			continue;
+		vdev_anyraid_relocate_task_t *task =
+		    kmem_zalloc(sizeof (*task), KM_SLEEP);
+		task->vart_source_disk = (uint8_t)donor->cvd;
+		task->vart_dest_disk = (uint8_t)receiver->cvd;
+		task->vart_source_idx = i;
+		ASSERT(rvan->van_capacity -
+		    anyraid_freelist_alloc(&rvan->van_freelist));
+		task->vart_dest_idx = anyraid_freelist_pop(
+		    &rvan->van_freelist);
+		task->vart_tile = donor->arr[i];
+		task->vart_task = (*tid)++;
+		list_insert_tail(&va->vd_relocate.var_list, task);
+		receiver->arr[task->vart_dest_idx] = donor->arr[i];
+		donor->arr[i] = -1LL;
+		return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+void
+vdev_anyraid_setup_rebalance(vdev_t *vd, dmu_tx_t *tx)
+{
+	(void) tx;
+	ASSERT(vdev_is_anyraid(vd));
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	vdev_config_dirty(vd);
+
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	var->var_start_time = gethrestime_sec();
+	var->var_state = DSS_SCANNING;
+	var->var_vd = vd->vdev_id;
+	var->var_failed_offset = var->var_failed_task = UINT64_MAX;
+	var->var_offset = 0;
+
+	mutex_enter(&var->var_lock);
+	vd->vdev_spa->spa_anyraid_relocate = var;
+
+	rw_enter(&va->vd_lock, RW_WRITER);
+	avl_tree_t ft;
+	avl_create(&ft, rebal_cmp_free, sizeof (struct rebal_node),
+	    offsetof(struct rebal_node, node1));
+	avl_tree_t at;
+	avl_create(&at, rebal_cmp_alloc, sizeof (struct rebal_node),
+	    offsetof(struct rebal_node, node2));
+
+	uint64_t *num_tiles = kmem_zalloc(vd->vdev_children *
+	    sizeof (*num_tiles), KM_SLEEP);
+	for (int c = 0; c < vd->vdev_children; c++)
+		num_tiles[c] = (va->vd_children[c]->van_capacity + 1);
+
+	for (int i = 0; i < vd->vdev_children; i++) {
+		struct rebal_node *rn = kmem_zalloc(sizeof (*rn), KM_SLEEP);
+		rn->cvd = i;
+		vdev_anyraid_node_t *n = va->vd_children[i];
+		uint32_t cap = n->van_capacity + 1;
+		rn->alloc = anyraid_freelist_alloc(&n->van_freelist);
+		rn->free = cap - rn->alloc;
+		rn->arr = kmem_alloc(sizeof (*rn->arr) * cap, KM_SLEEP);
+		memset(rn->arr, -1, sizeof (*rn->arr) * cap);
+		populate_child_array(va, i, rn->arr, cap);
+		avl_add(&ft, rn);
+		avl_add(&at, rn);
+	}
+	uint32_t tid = 0;
+	for (;;) {
+		struct rebal_node *donor = avl_last(&at);
+		boolean_t moved = B_FALSE;
+		while (donor && donor->alloc > 0) {
+			struct rebal_node *prev_donor = AVL_PREV(&at, donor);
+			struct rebal_node *receiver = avl_last(&ft);
+			while (receiver && receiver->free > 0) {
+				struct rebal_node *prev_rec =
+				    AVL_PREV(&ft, receiver);
+				if (receiver->free <= donor->free + 1)
+					break;
+				moved = rebal_try_move_one(va,
+				    donor, receiver, &tid);
+				if (!moved) {
+					receiver = prev_rec;
+					continue;
+				}
+				avl_remove(&ft, receiver);
+				avl_remove(&at, receiver);
+				receiver->free--;
+				receiver->alloc++;
+				avl_add(&ft, receiver);
+				avl_add(&at, receiver);
+				num_tiles[receiver->cvd]--;
+				break;
+			}
+			if (moved)
+				break;
+			donor = prev_donor;
+		}
+		if (donor == NULL || donor->alloc == 0)
+			break;
+	}
+	uint64_t updated_asize = calculate_asize(vd, num_tiles);
+	rw_exit(&va->vd_lock);
+	kmem_free(num_tiles, vd->vdev_children * sizeof (*num_tiles));
+	ASSERT3U(vd->vdev_asize, >=, updated_asize);
+	var->var_nonalloc = vd->vdev_asize - updated_asize;
+	vdev_update_nonallocating_space(vd, var->var_nonalloc, B_TRUE);
+
+	objset_t *mos = vd->vdev_spa->spa_meta_objset;
+	var->var_object = dmu_object_alloc(mos, DMU_OTN_UINT32_METADATA,
+	    SPA_OLD_MAXBLOCKSIZE, DMU_OTN_UINT64_METADATA,
+	    sizeof (relocate_phys_t), tx);
+	VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_REBALANCE_OBJ,
+	    sizeof (uint64_t), 1, &var->var_object, tx));
+
+	tasklist_write(vd->vdev_spa, var, tx);
+	mutex_exit(&var->var_lock);
+	// TODO destroy tree
+	zthr_wakeup(vd->vdev_spa->spa_anyraid_relocate_zthr);
+}
+
+static boolean_t
+spa_anyraid_relocate_thread_check(void *arg, zthr_t *zthr)
+{
+	(void) zthr;
+	spa_t *spa = arg;
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+
+	return (var != NULL && var->var_state != DSS_FINISHED &&
+	    !var->var_waiting_for_resilver);
+}
+
+/*
+ * Write of the new location on one child is done.  Once all of them are done
+ * we can unlock and free everything.
+ */
+static void
+anyraid_relocate_write_done(zio_t *zio)
+{
+	anyraid_move_arg_t *ama = zio->io_private;
+	vdev_anyraid_relocate_t *var = ama->ama_var;
+
+	abd_free(zio->io_abd);
+
+	mutex_enter(&var->var_lock);
+	if (zio->io_error != 0) {
+		/* Force a relocate pause on errors */
+		var->var_failed_offset =
+		    MIN(var->var_failed_offset, ama->ama_lr->lr_offset);
+		var->var_failed_task = MIN(var->var_failed_task, ama->ama_tid);
+	}
+	ASSERT3U(var->var_outstanding_bytes, >=, zio->io_size);
+	var->var_outstanding_bytes -= zio->io_size;
+	if (ama->ama_lr->lr_offset + ama->ama_lr->lr_length <
+	    var->var_failed_offset) {
+		var->var_bytes_copied_pertxg[ama->ama_txg & TXG_MASK] +=
+		    zio->io_size;
+	}
+	cv_signal(&var->var_cv);
+	mutex_exit(&var->var_lock);
+
+	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
+	zfs_rangelock_exit(ama->ama_lr);
+	kmem_free(ama, sizeof (*ama));
+}
+
+/*
+ * Read of the old location on one child is done.  Once all of them are done
+ * writes should have all the data and we can issue them.
+ */
+static void
+anyraid_relocate_read_done(zio_t *zio)
+{
+	anyraid_move_arg_t *ama = zio->io_private;
+	vdev_anyraid_relocate_t *var = ama->ama_var;
+
+	/*
+	 * If the read failed, or if it was done on a vdev that is not fully
+	 * healthy (e.g. a child that has a resilver in progress), we may not
+	 * have the correct data.  Note that it's OK if the write proceeds.
+	 * It may write garbage but the location is otherwise unused and we
+	 * will retry later due to vre_failed_offset.
+	 */
+	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_MISSING)) {
+		zfs_dbgmsg("relocate read failed off=%llu size=%llu txg=%llu "
+		    "err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
+		    (long long)ama->ama_lr->lr_offset,
+		    (long long)ama->ama_lr->lr_length,
+		    (long long)ama->ama_txg,
+		    zio->io_error,
+		    vdev_dtl_empty(zio->io_vd, DTL_PARTIAL),
+		    vdev_dtl_empty(zio->io_vd, DTL_MISSING));
+		mutex_enter(&var->var_lock);
+		/* Force a relocate pause on errors */
+		var->var_failed_offset =
+		    MIN(var->var_failed_offset, ama->ama_lr->lr_offset);
+		mutex_exit(&var->var_lock);
+	}
+	zio_nowait(ama->ama_zio);
+}
+
+static void
+anyraid_relocate_record_progress(vdev_anyraid_relocate_t *var,
+    uint64_t offset, uint64_t task, dmu_tx_t *tx)
+{
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	if (offset == 0)
+		return;
+
+	mutex_enter(&var->var_lock);
+	var->var_offset = offset;
+
+	if (var->var_offset_pertxg[txgoff] == 0) {
+		dsl_sync_task_nowait(dmu_tx_pool(tx), anyraid_relocate_sync,
+		    spa, tx);
+	}
+	var->var_offset_pertxg[txgoff] = offset;
+	var->var_task_pertxg[txgoff] = task;
+	mutex_exit(&var->var_lock);
+}
+
+static boolean_t
+anyraid_relocate_impl(vdev_t *vd, vdev_anyraid_relocate_t *var,
+    zfs_range_tree_t *rt, dmu_tx_t *tx)
+{
+	spa_t *spa = vd->vdev_spa;
+	uint_t ashift = vd->vdev_top->vdev_ashift;
+	vdev_anyraid_relocate_task_t *vart = list_head(&var->var_list);
+	vdev_anyraid_t *va = vd->vdev_tsd;
+
+	zfs_range_seg_t *rs = zfs_range_tree_first(rt);
+	ASSERT(rs);
+	uint64_t offset = zfs_rs_get_start(rs, rt);
+	ASSERT(IS_P2ALIGNED(offset, 1 << ashift));
+	uint64_t size = zfs_rs_get_end(rs, rt) - offset;
+	ASSERT3U(size, >=, 1 << ashift);
+	ASSERT(IS_P2ALIGNED(size, 1 << ashift));
+
+	size = MIN(size, anyraid_relocate_max_move_bytes);
+	size = MAX(size, 1 << ashift);
+
+	zfs_range_tree_remove(rt, offset, size);
+
+	anyraid_move_arg_t *ama = kmem_zalloc(sizeof (*ama), KM_SLEEP);
+	ama->ama_var = var;
+	ama->ama_lr = zfs_rangelock_enter(&va->vd_rangelock,
+	    offset, size, RL_WRITER);
+	ama->ama_txg = dmu_tx_get_txg(tx);
+	ama->ama_size = size;
+	ama->ama_tid = vart->vart_task;
+
+	anyraid_relocate_record_progress(var, offset + size, vart->vart_task,
+	    tx);
+
+	/*
+	 * SCL_STATE will be released when the read and write are done,
+	 * by raidz_reflow_write_done().
+	 */
+	spa_config_enter(spa, SCL_STATE, spa, RW_READER);
+
+	mutex_enter(&var->var_lock);
+	var->var_outstanding_bytes += size;
+	mutex_exit(&var->var_lock);
+
+	/* Allocate ABD and ZIO for each child we write. */
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	zio_t *pio = spa->spa_txg_zio[txgoff];
+	abd_t *abd = abd_alloc_for_io(size, B_FALSE);
+	vdev_t *source_vd = vd->vdev_child[vart->vart_source_disk];
+	vdev_t *dest_vd = vd->vdev_child[vart->vart_dest_disk];
+	uint64_t source_header =
+	    VDEV_ANYRAID_START_OFFSET(source_vd->vdev_ashift);
+	uint64_t dest_header =
+	    VDEV_ANYRAID_START_OFFSET(dest_vd->vdev_ashift);
+	uint64_t dest_off = dest_header +
+	    vart->vart_dest_idx * va->vd_tile_size +
+	    ((offset - source_header) % va->vd_tile_size);
+	ama->ama_zio = zio_vdev_child_io(pio, NULL,
+	    dest_vd, dest_off, abd, size,
+	    ZIO_TYPE_WRITE, ZIO_PRIORITY_REMOVAL,
+	    ZIO_FLAG_CANFAIL, anyraid_relocate_write_done, ama);
+
+	zio_nowait(zio_vdev_child_io(pio, NULL,
+	    vd->vdev_child[vart->vart_source_disk],
+	    offset, abd, size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
+	    ZIO_FLAG_CANFAIL, anyraid_relocate_read_done, ama));
+	return (zfs_range_tree_numsegs(rt) == 0);
+}
+
+struct physify_arg {
+	zfs_range_tree_t *rt;
+	vdev_t *vd;
+};
+
+static void
+anyraid_rt_physify(void *arg, uint64_t start, uint64_t size)
+{
+	struct physify_arg *pa = (struct physify_arg *)arg;
+	zfs_range_tree_t *rt = pa->rt;
+	vdev_t *vd = pa->vd;
+	ASSERT3U(size, >, 0);
+
+	zfs_range_seg64_t logical, physical, remain;
+	logical.rs_start = start;
+	logical.rs_end = start + size;
+	vdev_xlate(vd, &logical, &physical, &remain);
+	ASSERT3U(remain.rs_end, ==, remain.rs_start);
+	/*
+	 * This can happen if the tile has actually already been moved,
+	 * but the synced state hasn't caught up.
+	 */
+	if (physical.rs_end == physical.rs_start)
+		return;
+	ASSERT(physical.rs_end - physical.rs_start);
+	zfs_range_tree_add(rt, physical.rs_start,
+	    physical.rs_end - physical.rs_start);
+}
+
+static vdev_t *
+process_one_metaslab(spa_t *spa, metaslab_t *msp, vdev_t *pvd,
+    vdev_anyraid_t *va, vdev_anyraid_relocate_task_t *vart, zthr_t *zthr)
+{
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+	vdev_t *source_vd = pvd->vdev_child[vart->vart_source_disk];
+	metaslab_disable_nowait(msp);
+	mutex_enter(&msp->ms_lock);
+
+	/*
+	 * The metaslab may be newly created (for the expanded space), in which
+	 * case its trees won't exist yet, so we need to bail out early.
+	 */
+	if (msp->ms_new) {
+		mutex_exit(&msp->ms_lock);
+		metaslab_enable(msp, B_FALSE, B_FALSE);
+		if (vart->vart_dis_ms > 0) {
+			vart->vart_dis_ms--;
+			metaslab_enable(msp, B_FALSE, B_FALSE);
+		}
+		return (pvd);
+	}
+
+	VERIFY0(metaslab_load(msp));
+
+	/*
+	 * We want to copy everything except the free (allocatable) space.
+	 * Note that there may be a little bit more free space (e.g. in
+	 * ms_defer), and it's fine to copy that too.
+	 */
+	uint64_t shift, start;
+	zfs_range_seg_type_t type = metaslab_calculate_range_tree_type(pvd,
+	    msp, &start, &shift);
+	zfs_range_tree_t *rt = zfs_range_tree_create_flags(NULL, type, NULL,
+	    start, shift, ZFS_RT_F_DYN_NAME, metaslab_rt_name(msp->ms_group,
+	    msp, "spa_anyraid_relocate_thread:rt"));
+	zfs_range_tree_add(rt, msp->ms_start, msp->ms_size);
+	zfs_range_tree_walk(msp->ms_allocatable, zfs_range_tree_remove, rt);
+	mutex_exit(&msp->ms_lock);
+
+	/*
+	 * Now we need to convert the logical offsets of the metaslab into the
+	 * physical offsets on disk. We also skip any extents that don't map to
+	 * to the source tile.
+	 */
+	zfs_range_tree_t *phys = zfs_range_tree_create_flags(NULL,
+	    ZFS_RANGE_SEG64, NULL, 0, pvd->vdev_ashift, ZFS_RT_F_DYN_NAME,
+	    metaslab_rt_name(msp->ms_group, msp,
+	    "spa_anyraid_relocate_thread2:rt"));
+	struct physify_arg pa;
+	pa.rt = phys;
+	pa.vd = source_vd;
+	zfs_range_tree_walk(rt, anyraid_rt_physify, &pa);
+	zfs_range_tree_vacate(rt, NULL, NULL);
+	zfs_range_tree_destroy(rt);
+
+	/*
+	 * When we are resuming from a paused relocate (i.e.
+	 * when importing a pool with a relocate in progress),
+	 * discard any state that we have already processed.
+	 */
+	if (vart->vart_task <= var->var_task) {
+		uint64_t end = vart->vart_task == var->var_task ?
+		    var->var_offset : P2ALIGN_TYPED(UINT64_MAX,
+		    (1 << pvd->vdev_ashift), uint64_t);
+		zfs_range_tree_clear(phys, 0, end);
+	}
+
+	while (!zthr_iscancelled(zthr) && !zfs_range_tree_is_empty(phys) &&
+	    var->var_failed_offset == UINT64_MAX) {
+		/*
+		 * We need to periodically drop the config lock so that writers
+		 * can get in.  Additionally, we can't wait for a txg to sync
+		 * while holding a config lock (since a waiting writer could
+		 * cause a 3-way deadlock with the sync thread, which also gets
+		 * a config lock for reader).  So we can't hold the config lock
+		 * while calling dmu_tx_assign().
+		 */
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		rw_exit(&va->vd_lock);
+
+		/*
+		 * If requested, pause the reflow when the amount specified by
+		 * anyraid_relocate_max_bytes_pause is reached.
+		 *
+		 * This pause is only used during testing or debugging.
+		 */
+		while (anyraid_relocate_max_bytes_pause != 0 &&
+		    anyraid_relocate_max_bytes_pause <= var->var_bytes_copied &&
+		    !zthr_iscancelled(zthr)) {
+			delay(hz);
+		}
+
+		mutex_enter(&var->var_lock);
+		while (var->var_outstanding_bytes >
+		    anyraid_relocate_max_move_bytes) {
+			cv_wait(&var->var_cv, &var->var_lock);
+		}
+		mutex_exit(&var->var_lock);
+
+		dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+
+		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+		uint64_t txg = dmu_tx_get_txg(tx);
+
+		/*
+		 * Reacquire the vdev_config lock. Theoretically, the vdev_t
+		 * that we're working on may have changed.
+		 */
+		rw_enter(&va->vd_lock, RW_READER);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		pvd = vdev_lookup_top(spa, var->var_vd);
+
+		boolean_t needsync = anyraid_relocate_impl(pvd, var, phys, tx);
+
+		dmu_tx_commit(tx);
+
+		if (needsync) {
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+			rw_exit(&va->vd_lock);
+			txg_wait_synced(spa->spa_dsl_pool, txg);
+			rw_enter(&va->vd_lock, RW_READER);
+			spa_config_enter(spa, SCL_CONFIG, FTAG,
+			    RW_READER);
+		}
+	}
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	metaslab_enable(msp, B_FALSE, B_FALSE);
+	if (vart->vart_dis_ms > 0) {
+		vart->vart_dis_ms--;
+		metaslab_enable(msp, B_FALSE, B_FALSE);
+	}
+	zfs_range_tree_vacate(phys, NULL, NULL);
+	zfs_range_tree_destroy(phys);
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	return (vdev_lookup_top(spa, var->var_vd));
+}
+
+/*
+ * AnyRAID relocate background thread
+ */
+static void
+spa_anyraid_relocate_thread(void *arg, zthr_t *zthr)
+{
+	spa_t *spa = arg;
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+	ASSERT(var);
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	vdev_t *pvd = vdev_lookup_top(spa, var->var_vd);
+	vdev_anyraid_t *va = pvd->vdev_tsd;
+
+	mutex_enter(&var->var_lock);
+	/* Iterate over all the tasks */
+	for (vdev_anyraid_relocate_task_t *vart =
+	    list_head(&var->var_list);
+	    vart != NULL && !zthr_iscancelled(zthr);
+	    vart = list_head(&var->var_list)) {
+		mutex_exit(&var->var_lock);
+		rw_enter(&va->vd_lock, RW_READER);
+		uint16_t ms_shift = pvd->vdev_ms_shift;
+		uint64_t start = (va->vd_width * vart->vart_tile *
+		    va->vd_tile_size) >> ms_shift;
+		uint64_t starting_offset = var->var_offset;
+		uint64_t end = start + ((va->vd_width * va->vd_tile_size) >>
+		    ms_shift);
+		for (uint64_t i = start; i < end && !zthr_iscancelled(zthr);
+		    i++) {
+			pvd = process_one_metaslab(spa, pvd->vdev_ms[i], pvd,
+			    va, vart, zthr);
+		}
+
+		if (zthr_iscancelled(zthr) ||
+		    var->var_failed_offset != UINT64_MAX) {
+			rw_exit(&va->vd_lock);
+			mutex_enter(&var->var_lock);
+			break;
+		}
+		rw_exit(&va->vd_lock);
+		rw_enter(&va->vd_lock, RW_WRITER);
+
+		anyraid_tile_t search;
+		search.at_tile_id = vart->vart_tile;
+		anyraid_tile_t *tile = avl_find(&va->vd_tile_map, &search,
+		    NULL);
+		boolean_t found = B_FALSE;
+		for (anyraid_tile_node_t *atn = list_head(&tile->at_list); atn;
+		    atn = list_next(&tile->at_list, atn)) {
+			ASSERT(atn);
+			if (atn->atn_disk != vart->vart_source_disk)
+				continue;
+			ASSERT3U(atn->atn_tile_idx, ==, vart->vart_source_idx);
+			atn->atn_disk = vart->vart_dest_disk;
+			atn->atn_tile_idx = vart->vart_dest_idx;
+			found = B_TRUE;
+			break;
+		}
+		IMPLY(!found, starting_offset >= end);
+		mutex_enter(&var->var_lock);
+		list_remove(&var->var_list, vart);
+		list_insert_tail(&var->var_done_list, vart);
+		rw_exit(&va->vd_lock);
+	}
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	mutex_exit(&var->var_lock);
+
+	/*
+	 * The txg_wait_synced() here ensures that all relocate zio's have
+	 * completed, and var_failed_offset has been set if necessary.  It
+	 * also ensures that the progress of the last anyraid_relocate_sync()
+	 * is written to disk before anyraid_relocate_complete_sync() changes
+	 * the in-memory var_state.  vdev_anyraid_io_start() uses var_state to
+	 * determine if a relocate is in progress, in which case we may need to
+	 * write to both old and new locations.  Therefore we can only change
+	 * var_state once this is not necessary, which is once the on-disk
+	 * progress (in spa_ubsync) has been set past any possible writes (to
+	 * the end of the last metaslab).
+	 */
+	txg_wait_synced(spa->spa_dsl_pool, 0);
+
+	if (!zthr_iscancelled(zthr) && list_head(&var->var_list) == NULL) {
+		/*
+		 * We are not being canceled or paused, so the reflow must be
+		 * complete. In that case also mark it as completed on disk.
+		 */
+		ASSERT3U(var->var_failed_offset, ==, UINT64_MAX);
+		ASSERT(spa->spa_anyraid_relocate);
+		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+		    anyraid_relocate_complete_sync, spa,
+		    0, ZFS_SPACE_CHECK_NONE));
+		var->var_state = DSS_FINISHED;
+	} else {
+		/*
+		 * Wait for all copy zio's to complete and for all the
+		 * raidz_reflow_sync() synctasks to be run.
+		 */
+		spa_history_log_internal(spa, "relocate pause",
+		    NULL, "offset=%llu failed_offset=%lld/%lld",
+		    (long long)var->var_offset,
+		    (long long)var->var_failed_task,
+		    (long long)var->var_failed_offset);
+		if (var->var_failed_offset != UINT64_MAX) {
+			/*
+			 * Reset progress so that we will retry everything
+			 * after the point that something failed.
+			 */
+			var->var_offset = var->var_failed_offset;
+			var->var_task = var->var_failed_task;
+			var->var_failed_offset = UINT64_MAX;
+			var->var_failed_task = UINT64_MAX;
+			var->var_waiting_for_resilver = B_TRUE;
+		}
+	}
+}
+
+void
+spa_start_anyraid_relocate_thread(spa_t *spa)
+{
+	ASSERT0P(spa->spa_anyraid_relocate_zthr);
+	spa->spa_anyraid_relocate_zthr = zthr_create("anyraid_relocate",
+	    spa_anyraid_relocate_thread_check, spa_anyraid_relocate_thread,
+	    spa, defclsyspri);
+}
+
+static boolean_t
+vdev_anyraid_expand_child_replacing(vdev_t *anyraid_vd)
+{
+	for (int i = 0; i < anyraid_vd->vdev_children; i++) {
+		/* Quick check if a child is being replaced */
+		if (!anyraid_vd->vdev_child[i]->vdev_ops->vdev_op_leaf)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+void
+anyraid_dtl_reassessed(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	if (spa->spa_anyraid_relocate != NULL) {
+		vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+		/*
+		 * we get called often from vdev_dtl_reassess() so make
+		 * sure it's our vdev and any replacing is complete
+		 */
+		if (vd->vdev_top->vdev_id == var->var_vd &&
+		    !vdev_anyraid_expand_child_replacing(vd->vdev_top)) {
+			mutex_enter(&var->var_lock);
+			if (var->var_waiting_for_resilver) {
+				vdev_dbgmsg(vd, "DTL reassessed, "
+				    "continuing anyraid relocate");
+				var->var_waiting_for_resilver = B_FALSE;
+				zthr_wakeup(spa->spa_anyraid_relocate_zthr);
+			}
+			mutex_exit(&var->var_lock);
+		}
+	}
+}
+
+int
+spa_anyraid_relocate_get_stats(spa_t *spa, pool_anyraid_relocate_stat_t *pars)
+{
+	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+
+	if (var == NULL) {
+		/* no removal in progress; find most recent completed */
+		for (int c = 0; c < spa->spa_root_vdev->vdev_children; c++) {
+			vdev_t *vd = spa->spa_root_vdev->vdev_child[c];
+			if (vdev_is_anyraid(vd)) {
+				vdev_anyraid_t *va = vd->vdev_tsd;
+
+				if (va->vd_relocate.var_end_time != 0 &&
+				    (var == NULL ||
+				    va->vd_relocate.var_end_time >
+				    var->var_end_time)) {
+					var = &va->vd_relocate;
+				}
+			}
+		}
+	}
+
+	if (var == NULL)
+		return (SET_ERROR(ENOENT));
+
+	pars->pars_state = var->var_state;
+	pars->pars_relocating_vdev = var->var_vd;
+
+	vdev_t *vd = vdev_lookup_top(spa, var->var_vd);
+	pars->pars_to_move = vd->vdev_stat.vs_alloc;
+
+	mutex_enter(&var->var_lock);
+	pars->pars_moved = var->var_bytes_copied;
+	for (int i = 0; i < TXG_SIZE; i++)
+		pars->pars_moved += var->var_bytes_copied_pertxg[i];
+	mutex_exit(&var->var_lock);
+
+	pars->pars_start_time = var->var_start_time;
+	pars->pars_end_time = var->var_end_time;
+	pars->pars_waiting_for_resilver = var->var_waiting_for_resilver;
+
+	return (0);
+}
+
 ZFS_MODULE_PARAM(zfs_anyraid, zfs_anyraid_, min_tile_size, U64, ZMOD_RW,
 	"Minimum tile size for anyraid");
+
+ZFS_MODULE_PARAM(zfs_vdev, anyraid_, relocate_max_bytes_pause, ULONG, ZMOD_RW,
+	"For testing, pause AnyRAID relocate after moving this many bytes");

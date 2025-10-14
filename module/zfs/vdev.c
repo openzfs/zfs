@@ -1621,16 +1621,16 @@ vdev_metaslab_group_create(vdev_t *vd)
 }
 
 void
-vdev_update_nonallocating_space(vdev_t *vd, boolean_t add)
+vdev_update_nonallocating_space(vdev_t *vd, uint64_t bytes, boolean_t add)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	if (vd->vdev_mg->mg_class != spa_normal_class(spa))
+	if (vd->vdev_mg->mg_class != spa_normal_class(spa) || bytes == 0)
 		return;
 
 	uint64_t raw_space = metaslab_group_get_space(vd->vdev_mg);
-	uint64_t dspace = spa_deflate(spa) ?
-	    vdev_deflated_space(vd, raw_space) : raw_space;
+	uint64_t dspace = bytes != -1ULL ? bytes : (spa_deflate(spa) ?
+	    vdev_deflated_space(vd, raw_space) : raw_space);
 	if (add) {
 		spa->spa_nonallocating_dspace += dspace;
 	} else {
@@ -1763,7 +1763,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 */
 	if (vd->vdev_noalloc) {
 		/* track non-allocating vdev space */
-		vdev_update_nonallocating_space(vd, B_TRUE);
+		vdev_update_nonallocating_space(vd, -1ULL, B_TRUE);
 	} else if (!expanding) {
 		metaslab_group_activate(vd->vdev_mg);
 		if (vd->vdev_log_mg != NULL)
@@ -2895,7 +2895,8 @@ vdev_reopen(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
 
 	/* set the reopening flag unless we're taking the vdev offline */
 	vd->vdev_reopening = !vd->vdev_offline;
@@ -3511,6 +3512,8 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 
 	if (vd->vdev_top->vdev_ops == &vdev_raidz_ops) {
 		raidz_dtl_reassessed(vd);
+	} else if (vdev_is_anyraid(vd)) {
+		anyraid_dtl_reassessed(vd);
 	}
 }
 
@@ -4063,6 +4066,11 @@ vdev_load(vdev_t *vd)
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_CORRUPT_DATA);
 			return (error);
+		}
+		if (vdev_is_anyraid(vd)) {
+			error = vdev_anyraid_load(vd);
+			if (error != 0)
+				return (error);
 		}
 
 		uint64_t checkpoint_sm_obj;
@@ -6833,16 +6841,11 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_t *pvd = vd->vdev_parent;
 				uint64_t total = 0;
 				if (vdev_is_anyraid(vd)) {
-					vdev_anyraid_t *var = vd->vdev_tsd;
-					for (int i = 0; i < vd->vdev_children;
-					    i++) {
-						total += var->vd_children[i]
-						    ->van_capacity + 1;
-					}
+					total = vdev_anyraid_child_capacity(vd,
+					    NULL);
 				} else if (pvd && vdev_is_anyraid(pvd)) {
-					vdev_anyraid_t *var = pvd->vdev_tsd;
-					total = var->vd_children[vd->vdev_id]
-					    ->van_capacity + 1;
+					total = vdev_anyraid_child_capacity(pvd,
+					    vd);
 				} else {
 					continue;
 				}
@@ -6855,16 +6858,11 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_t *pvd = vd->vdev_parent;
 				uint64_t total = 0;
 				if (vdev_is_anyraid(vd)) {
-					vdev_anyraid_t *var = vd->vdev_tsd;
-					for (int i = 0; i < vd->vdev_children;
-					    i++) {
-						total += var->vd_children[i]
-						    ->van_next_offset;
-					}
+					total = vdev_anyraid_child_num_tiles(
+					    vd, NULL);
 				} else if (pvd && vdev_is_anyraid(pvd)) {
-					vdev_anyraid_t *var = pvd->vdev_tsd;
-					total = var->vd_children[vd->vdev_id]
-					    ->van_next_offset;
+					total = vdev_anyraid_child_num_tiles(
+					    pvd, vd);
 				} else {
 					continue;
 				}
@@ -6875,16 +6873,16 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_ANYRAID_TILE_SIZE:
 			{
 				vdev_t *pvd = vd->vdev_parent;
-				vdev_anyraid_t *var = NULL;
+				vdev_anyraid_t *va = NULL;
 				if (vdev_is_anyraid(vd)) {
-					var = vd->vdev_tsd;
+					va = vd->vdev_tsd;
 				} else if (pvd && vdev_is_anyraid(pvd)) {
-					var = pvd->vdev_tsd;
+					va = pvd->vdev_tsd;
 				} else {
 					continue;
 				}
 				vdev_prop_add_list(outnvl, propname,
-				    NULL, var->vd_tile_size, ZPROP_SRC_NONE);
+				    NULL, va->vd_tile_size, ZPROP_SRC_NONE);
 				continue;
 			}
 			default:

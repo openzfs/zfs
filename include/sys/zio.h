@@ -515,6 +515,7 @@ struct zio {
 	vdev_t		*io_vd;
 	void		*io_vsd;
 	const zio_vsd_ops_t *io_vsd_ops;
+	void		*io_aux_vsd; // Used by anyraid
 	metaslab_class_t *io_metaslab_class;	/* dva throttle class */
 
 	enum zio_qstate	io_queue_state;	/* vdev queue state */
