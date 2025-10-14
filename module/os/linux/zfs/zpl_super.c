@@ -23,6 +23,7 @@
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2023, Datto Inc. All rights reserved.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 
@@ -104,7 +105,7 @@ zpl_dirty_inode(struct inode *ip, int flags)
  * reporting memory pressure and requests OpenZFS release some memory (see
  * zfs_prune()).
  *
- * When set to 1, we call generic_delete_node(), which always returns "destroy
+ * When set to 1, we call generic_delete_inode(), which always returns "destroy
  * immediately", resulting in inodes being destroyed immediately, releasing
  * their associated dnodes and dbufs to the dbuf cached and the ARC to be
  * evicted as normal.
@@ -113,6 +114,12 @@ zpl_dirty_inode(struct inode *ip, int flags)
  * reference; the dentry cache also holds a reference, so "busy" inodes will
  * still be kept alive that way (subject to dcache tuning).
  */
+#ifdef HAVE_INODE_GENERIC_DROP
+/* Linux 6.18 renamed these; define the old names to be the new. */
+#define	generic_delete_inode(ip)	inode_just_drop(ip)
+#define	generic_drop_inode(ip)		inode_generic_drop(ip)
+#endif
+
 static int
 zpl_drop_inode(struct inode *ip)
 {
