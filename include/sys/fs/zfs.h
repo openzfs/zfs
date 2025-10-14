@@ -882,6 +882,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_CONDENSE_STATS	"com.klarasystems:condense_stats"
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
+/* not on disk */
+#define	ZPOOL_CONFIG_ANYRAID_RELOCATE_STATS	"anyraid_rebalance_stats"
 
 /* container nvlist of extended stats */
 #define	ZPOOL_CONFIG_VDEV_STATS_EX	"vdev_stats_ex"
@@ -1371,6 +1373,16 @@ typedef struct pool_raidz_expand_stat {
 	uint64_t pres_waiting_for_resilver;
 } pool_raidz_expand_stat_t;
 
+typedef struct pool_anyraid_relocate_stat {
+	uint64_t pars_state; /* dsl_scan_state_t */
+	uint64_t pars_relocating_vdev;
+	uint64_t pars_start_time;
+	uint64_t pars_end_time;
+	uint64_t pars_to_move; /* bytes that need to be moved */
+	uint64_t pars_moved; /* bytes moved so far */
+	uint64_t pars_waiting_for_resilver;
+} pool_anyraid_relocate_stat_t;
+
 typedef enum dsl_scan_state {
 	DSS_NONE,
 	DSS_SCANNING,
@@ -1723,6 +1735,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_POOL_REBALANCE,			/* 0x5a5a */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1836,6 +1849,7 @@ typedef enum {
 	ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS,
 	ZFS_ERR_ASHIFT_MISMATCH,
 	ZFS_ERR_STREAM_LARGE_MICROZAP,
+	ZFS_ERR_ANYRAID_REBALANCE_IN_PROGRESS,
 	ZFS_ERR_TOO_MANY_SITOUTS,
 	ZFS_ERR_NO_USER_NS_SUPPORT,
 } zfs_errno_t;
@@ -1864,6 +1878,7 @@ typedef enum {
 	ZPOOL_WAIT_TRIM,
 	ZPOOL_WAIT_RAIDZ_EXPAND,
 	ZPOOL_WAIT_CONDENSE,
+	ZPOOL_WAIT_ANYRAID_REBALANCE,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
 

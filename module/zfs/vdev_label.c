@@ -485,6 +485,13 @@ root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 	}
 	fnvlist_add_nvlist(nvl, ZPOOL_CONFIG_CONDENSE_STATS, cnv);
 	fnvlist_free(cnv);
+
+	pool_anyraid_relocate_stat_t pars;
+	if (spa_anyraid_relocate_get_stats(spa, &pars) == 0) {
+		fnvlist_add_uint64_array(nvl,
+		    ZPOOL_CONFIG_ANYRAID_RELOCATE_STATS, (uint64_t *)&pars,
+		    sizeof (pars) / sizeof (uint64_t));
+	}
 }
 
 static void

@@ -180,8 +180,10 @@ avl_first(avl_tree_t *tree)
 	avl_node_t *prev = NULL;
 	size_t off = tree->avl_offset;
 
-	for (node = tree->avl_root; node != NULL; node = node->avl_child[0])
+	for (node = tree->avl_root; node != NULL; node = node->avl_child[0]) {
+		ASSERT(node == NULL || (uintptr_t)node > 64);
 		prev = node;
+	}
 
 	if (prev != NULL)
 		return (AVL_NODE2DATA(prev, off));
@@ -246,7 +248,7 @@ avl_nearest(avl_tree_t *tree, avl_index_t where, int direction)
  *	"void *"  of the found tree node
  */
 void *
-avl_find(avl_tree_t *tree, const void *value, avl_index_t *where)
+avl_find(const avl_tree_t *tree, const void *value, avl_index_t *where)
 {
 	avl_node_t *node;
 	avl_node_t *prev = NULL;
@@ -906,14 +908,14 @@ avl_destroy(avl_tree_t *tree)
  * Return the number of nodes in an AVL tree.
  */
 ulong_t
-avl_numnodes(avl_tree_t *tree)
+avl_numnodes(const avl_tree_t *tree)
 {
 	ASSERT(tree);
 	return (tree->avl_numnodes);
 }
 
 boolean_t
-avl_is_empty(avl_tree_t *tree)
+avl_is_empty(const avl_tree_t *tree)
 {
 	ASSERT(tree);
 	return (tree->avl_numnodes == 0);

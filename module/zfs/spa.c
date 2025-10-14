@@ -2195,6 +2195,10 @@ spa_destroy_aux_threads(spa_t *spa)
 		zthr_destroy(spa->spa_raidz_expand_zthr);
 		spa->spa_raidz_expand_zthr = NULL;
 	}
+	if (spa->spa_anyraid_relocate_zthr != NULL) {
+		zthr_destroy(spa->spa_anyraid_relocate_zthr);
+		spa->spa_anyraid_relocate_zthr = NULL;
+	}
 }
 
 static void
@@ -2476,6 +2480,7 @@ spa_unload(spa_t *spa)
 	}
 
 	spa->spa_raidz_expand = NULL;
+	spa->spa_anyraid_relocate = NULL;
 	spa->spa_checkpoint_txg = 0;
 
 	spa_config_exit(spa, SCL_ALL, spa);
@@ -3616,6 +3621,7 @@ spa_spawn_aux_threads(spa_t *spa)
 	ASSERT(spa_writeable(spa));
 
 	spa_start_raidz_expansion_thread(spa);
+	spa_start_anyraid_relocate_thread(spa);
 	spa_start_indirect_condensing_thread(spa);
 	spa_start_livelist_destroy_thread(spa);
 	spa_start_livelist_condensing_thread(spa);
@@ -10045,6 +10051,10 @@ spa_async_suspend(spa_t *spa)
 	if (raidz_expand_thread != NULL)
 		zthr_cancel(raidz_expand_thread);
 
+	zthr_t *anyraid_rebalance_thread = spa->spa_anyraid_relocate_zthr;
+	if (anyraid_rebalance_thread != NULL)
+		zthr_cancel(anyraid_rebalance_thread);
+
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
 		zthr_cancel(discard_thread);
@@ -11689,6 +11699,12 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		}
 		break;
 	}
+	case ZPOOL_WAIT_ANYRAID_REBALANCE:
+	{
+		vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+		*in_progress = (var != NULL && var->var_state == DSS_SCANNING);
+		break;
+	}
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
@@ -11949,6 +11965,88 @@ spa_condense_debug_cancel(spa_t *spa)
 	spa_close(spa, scns);
 }
 #endif
+
+static int
+spa_check_start_rebalance(void *arg, dmu_tx_t *tx) {
+	vdev_t *vd = (vdev_t *)arg;
+	spa_t *spa = vd->vdev_spa;
+	if (!vdev_is_anyraid(vd))
+		return (SET_ERROR(EINVAL));
+	if (vdev_anyraid_relocate_status(vd)->var_state == DSS_SCANNING)
+		return (SET_ERROR(EALREADY));
+	if (vd->vdev_spa->spa_anyraid_relocate != NULL)
+		return (SET_ERROR(EEXIST));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		int error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (SET_ERROR(error));
+	}
+
+	(void) tx;
+	return (0);
+}
+
+static void
+spa_sync_start_rebalance(void *arg, dmu_tx_t *tx) {
+	vdev_t *vd = (vdev_t *)arg;
+	ASSERT(vdev_is_anyraid(vd));
+	vdev_anyraid_setup_rebalance(vd, tx);
+}
+
+int
+spa_rebalance_vdevs(spa_t *spa, const uint64_t *guids, uint_t count)
+{
+	if (count == 0)
+		return (ENOENT);
+	ASSERT(guids);
+	uint_t lasterror = 0;
+	for (uint_t c = 0; c < count; c++) {
+		vdev_t *vd = spa_lookup_by_guid(spa, guids[c], B_FALSE);
+		if (vd == NULL) {
+			lasterror = SET_ERROR(ENOENT);
+			break;
+		}
+
+		lasterror = dsl_sync_task(spa->spa_name,
+		    spa_check_start_rebalance, spa_sync_start_rebalance,
+		    vd, 6, ZFS_SPACE_CHECK_NORMAL);
+		if (lasterror)
+			break;
+	}
+	return (lasterror);
+}
+
+int
+spa_rebalance_all(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint_t count = 0;
+	uint_t lasterror = 0;
+
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *cvd = rvd->vdev_child[c];
+		if (!vdev_is_anyraid(cvd))
+			continue;
+		count++;
+		/*
+		 * Theoretically, if every single tile was getting moved, we
+		 * could need vd->vdev_asize / va->vd_tile_size *
+		 * sizeof (relocate_task_phys_t) bytes to store all the tasks,
+		 * plus one.
+		 */
+		vdev_anyraid_t *va = cvd->vdev_tsd;
+		uint_t blocks = ((cvd->vdev_asize / va->vd_tile_size * 32) >>
+		    SPA_OLD_MAXBLOCKSHIFT) + 1;
+		lasterror = dsl_sync_task(spa->spa_name,
+		    spa_check_start_rebalance, spa_sync_start_rebalance,
+		    cvd, blocks, ZFS_SPACE_CHECK_NORMAL);
+		if (lasterror)
+			break;
+	}
+	if (count == 0)
+		return (ENOENT);
+	return (lasterror);
+}
 
 /* state manipulation functions */
 EXPORT_SYMBOL(spa_open);
