@@ -9968,7 +9968,11 @@ main(int argc, char **argv)
 		if (argc != 3)
 			usage();
 		dump_opt['v'] = verbose;
-		error = dump_path(argv[0], argv[1], &object);
+		if (zdb_numeric(argv[1])) {
+			object = strtoull(argv[1], NULL, 0);
+		} else {
+			error = dump_path(argv[0], argv[1], &object);
+		}
 		if (error != 0)
 			fatal("internal error: %s", strerror(error));
 	}
