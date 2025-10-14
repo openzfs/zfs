@@ -51,34 +51,70 @@
 #include <sys/trace_zfs.h>
 
 /*
- * This file contains the necessary logic to remove vdevs from a
- * storage pool.  Currently, the only devices that can be removed
- * are log, cache, and spare devices; and top level vdevs from a pool
- * w/o raidz or mirrors.  (Note that members of a mirror can be removed
- * by the detach operation.)
+ * This file contains the necessary logic to remove vdevs from a storage
+ * pool. Note that members of a mirror can be removed by the detach
+ * operation. Currently, the only devices that can be removed are:
  *
- * Log vdevs are removed by evacuating them and then turning the vdev
- * into a hole vdev while holding spa config locks.
+ * 1) Traditional hot spare and cache vdevs. Note that draid distributed
+ *    spares are fixed at creation time and cannot be removed.
  *
- * Top level vdevs are removed and converted into an indirect vdev via
- * a multi-step process:
+ * 2) Log vdevs are removed by evacuating them and then turning the vdev
+ *    into a hole vdev while holding spa config locks.
  *
- *  - Disable allocations from this device (spa_vdev_remove_top).
+ * 3) Top-level singleton and mirror vdevs, including dedup and special
+ *    vdevs, are removed and converted into an indirect vdev via a
+ *    multi-step process:
  *
- *  - From a new thread (spa_vdev_remove_thread), copy data from
- *    the removing vdev to a different vdev.  The copy happens in open
- *    context (spa_vdev_copy_impl) and issues a sync task
- *    (vdev_mapping_sync) so the sync thread can update the partial
- *    indirect mappings in core and on disk.
+ *    - Disable allocations from this device (spa_vdev_remove_top).
  *
- *  - If a free happens during a removal, it is freed from the
- *    removing vdev, and if it has already been copied, from the new
- *    location as well (free_from_removing_vdev).
+ *    - From a new thread (spa_vdev_remove_thread), copy data from the
+ *      removing vdev to a different vdev. The copy happens in open context
+ *      (spa_vdev_copy_impl) and issues a sync task (vdev_mapping_sync) so
+ *      the sync thread can update the partial indirect mappings in core
+ *      and on disk.
  *
- *  - After the removal is completed, the copy thread converts the vdev
- *    into an indirect vdev (vdev_remove_complete) before instructing
- *    the sync thread to destroy the space maps and finish the removal
- *    (spa_finish_removal).
+ *    - If a free happens during a removal, it is freed from the removing
+ *      vdev, and if it has already been copied, from the new location as
+ *      well (free_from_removing_vdev).
+ *
+ *    - After the removal is completed, the copy thread converts the vdev
+ *      into an indirect vdev (vdev_remove_complete) before instructing
+ *      the sync thread to destroy the space maps and finish the removal
+ *      (spa_finish_removal).
+ *
+ *   The following constraints currently apply primary device removal:
+ *
+ *     - All vdevs must be online, healthy, and not be missing any data
+ *       according to the DTLs.
+ *
+ *     - When removing a singleton or mirror vdev, regardless of it's a
+ *       special, dedup, or primary device, it must have the same ashift
+ *       as the devices in the normal allocation class. Furthermore, all
+ *       vdevs in the normal allocation class must have the same ashift to
+ *       ensure the new allocations never includes additional padding.
+ *
+ *     - The normal allocation class cannot contain any raidz or draid
+ *       top-level vdevs since segments are copied without regard for block
+ *       boundaries. This makes it impossible to calculate the required
+ *       parity columns when using these vdev types as the destination.
+ *
+ *     - The encryption keys must be loaded so the ZIL logs can be reset
+ *       in order to prevent writing to the device being removed.
+ *
+ * N.B. ashift and raidz/draid constraints for primary top-level device
+ * removal could be slightly relaxed if it were possible to request that
+ * DVAs from a mirror or singleton in the specified allocation class be
+ * used (metaslab_alloc_dva).
+ *
+ * This flexibility would be particularly useful for raidz/draid pools which
+ * often include a mirrored special device. If a mistakenly added top-level
+ * singleton were added it could then still be removed at the cost of some
+ * special device capacity. This may be a worthwhile tradeoff depending on
+ * the pool capacity and expense (cost, complexity, time) of creating a new
+ * pool and copying all of the data to correct the configuration.
+ *
+ * Furthermore, while not currently supported it should be possible to allow
+ * vdevs of any type to be removed as long as they've never been written to.
  */
 
 typedef struct vdev_copy_arg {
