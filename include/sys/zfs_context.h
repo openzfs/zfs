@@ -124,6 +124,7 @@ extern "C" {
 #include <sys/cmn_err.h>
 #include <sys/thread.h>
 #include <sys/taskq.h>
+#include <sys/tsd.h>
 #include <sys/zfs_delay.h>
 
 #include <sys/zfs_context_os.h>
@@ -177,13 +178,6 @@ extern "C" {
 #endif	/* DTRACE_PROBE4 */
 #define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
 
-/*
- * Thread-specific data
- */
-#define	tsd_get(k) pthread_getspecific(k)
-#define	tsd_set(k, v) pthread_setspecific(k, v)
-#define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
-#define	tsd_destroy(kp) /* nothing */
 #ifdef __FreeBSD__
 typedef off_t loff_t;
 #endif
