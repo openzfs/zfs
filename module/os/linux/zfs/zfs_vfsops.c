@@ -1349,6 +1349,28 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 
 	zfs_unlinked_drain_stop_wait(zfsvfs);
 
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+
+	if (!unmounting) {
+		/*
+		 * We purge the parent filesystem's super block as the
+		 * parent filesystem and all of its snapshots have their
+		 * inode's super block set to the parent's filesystem's
+		 * super block.  Note,  'z_parent' is self referential
+		 * for non-snapshots.
+		 */
+		shrink_dcache_sb(zfsvfs->z_parent->z_sb);
+	}
+
+	/*
+	 * Close the zil. NB: Can't close the zil while zfs_inactive
+	 * threads are blocked as zil_close can call zfs_inactive.
+	 */
+	if (zfsvfs->z_log) {
+		zil_close(zfsvfs->z_log);
+		zfsvfs->z_log = NULL;
+	}
+
 	/*
 	 * If someone has not already unmounted this file system,
 	 * drain the zrele_taskq to ensure all active references to the
@@ -1374,28 +1396,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 			if (++round > 1 && !unmounting)
 				break;
 		}
-	}
-
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
-
-	if (!unmounting) {
-		/*
-		 * We purge the parent filesystem's super block as the
-		 * parent filesystem and all of its snapshots have their
-		 * inode's super block set to the parent's filesystem's
-		 * super block.  Note,  'z_parent' is self referential
-		 * for non-snapshots.
-		 */
-		shrink_dcache_sb(zfsvfs->z_parent->z_sb);
-	}
-
-	/*
-	 * Close the zil. NB: Can't close the zil while zfs_inactive
-	 * threads are blocked as zil_close can call zfs_inactive.
-	 */
-	if (zfsvfs->z_log) {
-		zil_close(zfsvfs->z_log);
-		zfsvfs->z_log = NULL;
 	}
 
 	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_WRITER);

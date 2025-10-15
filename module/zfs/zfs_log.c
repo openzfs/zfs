@@ -47,6 +47,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
+#include <sys/zfs_vnops.h>
 
 /*
  * These zfs_log_* functions must be called within a dmu tx, in one
@@ -615,7 +616,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
-	uint64_t gen = 0, log_size = 0;
+	uint64_t log_size = 0;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
@@ -626,9 +627,6 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 	write_state = zil_write_state(zilog, resid, blocksize, o_direct,
 	    commit);
-
-	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
-	    sizeof (gen));
 
 	while (resid) {
 		itx_t *itx;
@@ -683,7 +681,9 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 		itx->itx_private = ZTOZSB(zp);
 		itx->itx_sync = (zp->z_sync_cnt != 0);
-		itx->itx_gen = gen;
+		zhold(zp);
+		itx->itx_znode = zp;
+		itx->itx_zrele = (itx_zrele_t)zfs_zrele_async;
 
 		if (resid == len) {
 			itx->itx_callback = callback;
