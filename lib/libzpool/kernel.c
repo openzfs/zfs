@@ -43,6 +43,7 @@
 #include <sys/stat.h>
 #include <sys/systeminfo.h>
 #include <sys/time.h>
+#include <sys/tsd.h>
 #include <sys/utsname.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
