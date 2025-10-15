@@ -62,6 +62,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/time.h \
 	%D%/sys/timer.h \
 	%D%/sys/trace_spl.h \
+	%D%/sys/tsd.h \
 	%D%/sys/tunables.h \
 	%D%/sys/types.h \
 	%D%/sys/types32.h \
