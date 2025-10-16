@@ -55,6 +55,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/sunddi.h \
 	%D%/sys/systeminfo.h \
 	%D%/sys/time.h \
+	%D%/sys/timer.h \
 	%D%/sys/trace_spl.h \
 	%D%/sys/tunables.h \
 	%D%/sys/types.h \
