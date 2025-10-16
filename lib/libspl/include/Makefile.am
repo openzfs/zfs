@@ -63,6 +63,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/thread.h \
 	%D%/sys/taskq.h \
 	%D%/sys/time.h \
+	%D%/sys/timer.h \
 	%D%/sys/trace_spl.h \
 	%D%/sys/trace_zfs.h \
 	%D%/sys/tsd.h \
