@@ -183,18 +183,6 @@ typedef off_t loff_t;
 #endif
 
 /*
- * kstat creation, installation and deletion
- */
-extern kstat_t *kstat_create(const char *, int,
-    const char *, const char *, uchar_t, ulong_t, uchar_t);
-extern void kstat_install(kstat_t *);
-extern void kstat_delete(kstat_t *);
-extern void kstat_set_raw_ops(kstat_t *ksp,
-    int (*headers)(char *buf, size_t size),
-    int (*data)(char *buf, size_t size, void *data),
-    void *(*addr)(kstat_t *ksp, loff_t index));
-
-/*
  * procfs list manipulation
  */
 
