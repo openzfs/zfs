@@ -1249,18 +1249,16 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * partially fill in a hole.
 		 */
 		if (db->db_dirtycnt == 0) {
+			rw_enter(&db->db_rwlock, FALSE);
 			if (db->db_level == 0) {
 				uint64_t *buf;
 				int i;
 
-				rw_enter(&db->db_rwlock, FALSE);
 				buf = db->db.db_data;
 				for (i = 0; i < db->db.db_size >> 3; i++) {
 					ASSERT0(buf[i]);
 				}
-				rw_exit(&db->db_rwlock);
 			} else {
-				assert_db_data_contents_locked(db, FALSE);
 				blkptr_t *bps = db->db.db_data;
 				ASSERT3U(1 << DB_DNODE(db)->dn_indblkshift, ==,
 				    db->db.db_size);
@@ -1287,6 +1285,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(BP_GET_RAW_PHYSICAL_BIRTH(bp));
 				}
 			}
+			rw_exit(&db->db_rwlock);
 		}
 	}
 	DB_DNODE_EXIT(db);
