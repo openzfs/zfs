@@ -23,7 +23,7 @@ failsafe = callbacks/zfs_failsafe
 tags = ['functional']
 
 [tests/functional/cli_root/zfs_jail:FreeBSD]
-tests = ['zfs_jail_001_pos']
+tests = ['zfs_jail_001_pos', 'zfs_jail_property']
 tags = ['functional', 'cli_root', 'zfs_jail']
 
 [tests/functional/pam:FreeBSD]

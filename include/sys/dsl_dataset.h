@@ -268,6 +268,10 @@ typedef struct dsl_dataset {
 
 	/* Protected by ds_lock; keep at end of struct for better locality */
 	char ds_snapname[ZFS_MAX_DATASET_NAME_LEN];
+
+#ifdef __FreeBSD__
+	char *ds_jailname;
+#endif
 } dsl_dataset_t;
 
 static inline dsl_dataset_phys_t *
