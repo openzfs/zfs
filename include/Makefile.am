@@ -131,6 +131,7 @@ COMMON_H = \
 	sys/zfs_file.h \
 	sys/zfs_fuid.h \
 	sys/zfs_impl.h \
+	sys/zfs_iolimit.h \
 	sys/zfs_project.h \
 	sys/zfs_quota.h \
 	sys/zfs_racct.h \
