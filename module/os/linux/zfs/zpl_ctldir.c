@@ -216,7 +216,8 @@ static const struct dentry_operations zpl_dops_snapdirs = {
  * .d_revalidate callbacks.
  */
 static void
-set_snapdir_dentry_ops(struct dentry *dentry, unsigned int extraflags) {
+set_snapdir_dentry_ops(struct dentry *dentry, unsigned int extraflags)
+{
 	static const unsigned int op_flags =
 	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
 	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE |
