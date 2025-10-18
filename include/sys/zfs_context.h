@@ -127,6 +127,7 @@ extern "C" {
 #include <sys/kmem.h>
 #include <sys/zfs_delay.h>
 #include <sys/vnode.h>
+#include <sys/random.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -212,23 +213,6 @@ extern const char *urandom_path;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
-extern int random_get_bytes(uint8_t *ptr, size_t len);
-extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
-
-static __inline__ uint32_t
-random_in_range(uint32_t range)
-{
-	uint32_t r;
-
-	ASSERT(range != 0);
-
-	if (range == 1)
-		return (0);
-
-	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
-
-	return (r % range);
-}
 
 extern void kernel_init(int mode);
 extern void kernel_fini(void);
