@@ -26,18 +26,25 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#ifndef _LIBSPL_SYS_MISC_H
-#define	_LIBSPL_SYS_MISC_H
+#ifndef _SYS_RANDOM_H
+#define	_SYS_RANDOM_H
 
-#include <sys/utsname.h>
+extern int random_get_bytes(uint8_t *ptr, size_t len);
+extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
-extern const char *random_path;
-extern const char *urandom_path;
+static __inline__ uint32_t
+random_in_range(uint32_t range)
+{
+	uint32_t r;
 
-/*
- * Hostname information
- */
-typedef struct utsname	utsname_t;
-extern utsname_t *utsname(void);
+	ASSERT(range != 0);
 
-#endif
+	if (range == 1)
+		return (0);
+
+	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
+
+	return (r % range);
+}
+
+#endif	/* _SYS_RANDOM_H */

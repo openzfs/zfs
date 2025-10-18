@@ -126,11 +126,11 @@ extern "C" {
 #include <sys/kmem.h>
 #include <sys/zfs_delay.h>
 #include <sys/vnode.h>
-#include <sys/random.h>
 #include <sys/callb.h>
 #include <sys/trace.h>
 #include <sys/systm.h>
 #include <sys/misc.h>
+#include <sys/random.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -208,31 +208,8 @@ typedef off_t loff_t;
 #define	NN_DIVISOR_1000	(1U << 0)
 #define	NN_NUMBUF_SZ	(6)
 
-extern const char *random_path;
-extern const char *urandom_path;
-
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
-extern int random_get_bytes(uint8_t *ptr, size_t len);
-extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
-
-static __inline__ uint32_t
-random_in_range(uint32_t range)
-{
-	uint32_t r;
-
-	ASSERT(range != 0);
-
-	if (range == 1)
-		return (0);
-
-	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
-
-	return (r % range);
-}
-
-extern void random_init(void);
-extern void random_fini(void);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;
