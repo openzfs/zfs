@@ -283,21 +283,6 @@ struct bootstat {
 	uint64_t st_size;
 };
 
-typedef struct ace_object {
-	uid_t		a_who;
-	uint32_t	a_access_mask;
-	uint16_t	a_flags;
-	uint16_t	a_type;
-	uint8_t		a_obj_type[16];
-	uint8_t		a_inherit_obj_type[16];
-} ace_object_t;
-
-
-#define	ACE_ACCESS_ALLOWED_OBJECT_ACE_TYPE	0x05
-#define	ACE_ACCESS_DENIED_OBJECT_ACE_TYPE	0x06
-#define	ACE_SYSTEM_AUDIT_OBJECT_ACE_TYPE	0x07
-#define	ACE_SYSTEM_ALARM_OBJECT_ACE_TYPE	0x08
-
 extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
 extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
     cred_t *cr);
