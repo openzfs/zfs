@@ -79,7 +79,6 @@ extern "C" {
 
 #define	_SYS_VFS_H
 #define	_SYS_SUNDDI_H
-#define	_SYS_CALLB_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,6 +130,7 @@ extern "C" {
 #include <sys/systm.h>
 #include <sys/misc.h>
 #include <sys/random.h>
+#include <sys/callb.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -210,27 +210,6 @@ typedef off_t loff_t;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
-
-typedef struct callb_cpr {
-	kmutex_t	*cc_lockp;
-} callb_cpr_t;
-
-#define	CALLB_CPR_INIT(cp, lockp, func, name)	{		\
-	(cp)->cc_lockp = lockp;					\
-}
-
-#define	CALLB_CPR_SAFE_BEGIN(cp) {				\
-	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
-}
-
-#define	CALLB_CPR_SAFE_END(cp, lockp) {				\
-	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
-}
-
-#define	CALLB_CPR_EXIT(cp) {					\
-	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
-	mutex_exit((cp)->cc_lockp);				\
-}
 
 #define	zone_dataset_visible(x, y)	(1)
 #define	INGLOBALZONE(z)			(1)
