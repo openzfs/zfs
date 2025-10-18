@@ -203,8 +203,6 @@ extern char *vn_dumpdir;
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
 #define	CPU_SEQID_UNSTABLE	CPU_SEQID
 
-#define	ptob(x)		((x) * PAGESIZE)
-
 #define	NN_DIVISOR_1000	(1U << 0)
 #define	NN_NUMBUF_SZ	(6)
 
