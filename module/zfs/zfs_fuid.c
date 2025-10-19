@@ -28,8 +28,8 @@
 #include <sys/avl.h>
 #include <sys/zap.h>
 #include <sys/nvpair.h>
-#ifdef _KERNEL
 #include <sys/sid.h>
+#ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 #endif

@@ -238,16 +238,6 @@ extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
 extern int secpolicy_zfs(const cred_t *cr);
 extern zoneid_t getzoneid(void);
 
-/* SID stuff */
-typedef struct ksiddomain {
-	uint_t	kd_ref;
-	uint_t	kd_len;
-	char	*kd_name;
-} ksiddomain_t;
-
-ksiddomain_t *ksid_lookupdomain(const char *);
-void ksiddomain_rele(ksiddomain_t *);
-
 #define	DDI_SLEEP	KM_SLEEP
 #define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
 	sysevent_post_event(_c, _d, _b, "libzpool", _e, _f)
