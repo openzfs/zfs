@@ -144,8 +144,6 @@ typedef off_t loff_t;
 
 extern char *vn_dumpdir;
 
-#define	NN_NUMBUF_SZ	(6)
-
 extern uint64_t physmem;
 extern const char *random_path;
 extern const char *urandom_path;
