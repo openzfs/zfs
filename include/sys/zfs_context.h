@@ -133,10 +133,6 @@ extern "C" {
 
 #include <sys/zfs_context_os.h>
 
-#ifdef __FreeBSD__
-typedef off_t loff_t;
-#endif
-
 #endif  /* _KERNEL || _STANDALONE */
 
 #ifdef __cplusplus
