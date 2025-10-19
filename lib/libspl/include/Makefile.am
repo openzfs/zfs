@@ -67,6 +67,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/taskq.h \
 	%D%/sys/time.h \
 	%D%/sys/timer.h \
+	%D%/sys/trace.h \
 	%D%/sys/trace_spl.h \
 	%D%/sys/tsd.h \
 	%D%/sys/tunables.h \

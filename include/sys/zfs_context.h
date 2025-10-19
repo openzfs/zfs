@@ -129,6 +129,7 @@ extern "C" {
 #include <sys/misc.h>
 #include <sys/random.h>
 #include <sys/callb.h>
+#include <sys/trace.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -139,47 +140,6 @@ extern "C" {
 #define	noinline	__attribute__((noinline))
 #define	likely(x)	__builtin_expect((x), 1)
 #define	unlikely(x)	__builtin_expect((x), 0)
-
-/*
- * DTrace SDT probes have different signatures in userland than they do in
- * the kernel.  If they're being used in kernel code, re-define them out of
- * existence for their counterparts in libzpool.
- *
- * Here's an example of how to use the set-error probes in userland:
- * zfs$target:::set-error /arg0 == EBUSY/ {stack();}
- *
- * Here's an example of how to use DTRACE_PROBE probes in userland:
- * If there is a probe declared as follows:
- * DTRACE_PROBE2(zfs__probe_name, uint64_t, blkid, dnode_t *, dn);
- * Then you can use it as follows:
- * zfs$target:::probe2 /copyinstr(arg0) == "zfs__probe_name"/
- *     {printf("%u %p\n", arg1, arg2);}
- */
-
-#ifdef DTRACE_PROBE
-#undef	DTRACE_PROBE
-#endif	/* DTRACE_PROBE */
-#define	DTRACE_PROBE(a)
-
-#ifdef DTRACE_PROBE1
-#undef	DTRACE_PROBE1
-#endif	/* DTRACE_PROBE1 */
-#define	DTRACE_PROBE1(a, b, c)
-
-#ifdef DTRACE_PROBE2
-#undef	DTRACE_PROBE2
-#endif	/* DTRACE_PROBE2 */
-#define	DTRACE_PROBE2(a, b, c, d, e)
-
-#ifdef DTRACE_PROBE3
-#undef	DTRACE_PROBE3
-#endif	/* DTRACE_PROBE3 */
-#define	DTRACE_PROBE3(a, b, c, d, e, f, g)
-
-#ifdef DTRACE_PROBE4
-#undef	DTRACE_PROBE4
-#endif	/* DTRACE_PROBE4 */
-#define	DTRACE_PROBE4(a, b, c, d, e, f, g, h, i)
 
 #ifdef __FreeBSD__
 typedef off_t loff_t;
