@@ -142,9 +142,6 @@ extern "C" {
 typedef off_t loff_t;
 #endif
 
-extern void random_init(void);
-extern void random_fini(void);
-
 /*
  * Kernel modules
  */

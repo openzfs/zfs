@@ -777,14 +777,14 @@ const char *random_path = "/dev/random";
 const char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
 
-void
+static void
 random_init(void)
 {
 	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
 	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
-void
+static void
 random_fini(void)
 {
 	close(random_fd);
