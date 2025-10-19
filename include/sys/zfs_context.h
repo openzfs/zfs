@@ -77,7 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_VFS_H
 #define	_SYS_SUNDDI_H
 
 #include <stdio.h>
@@ -205,7 +204,6 @@ extern char *vn_dumpdir;
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
 #define	CPU_SEQID_UNSTABLE	CPU_SEQID
 
-#define	NN_DIVISOR_1000	(1U << 0)
 #define	NN_NUMBUF_SZ	(6)
 
 extern uint64_t physmem;
@@ -232,20 +230,6 @@ extern int ddi_strtoull(const char *str, char **nptr, int base,
 
 typedef struct utsname	utsname_t;
 extern utsname_t *utsname(void);
-
-/* ZFS Boot Related stuff. */
-
-struct _buf {
-	intptr_t	_fd;
-};
-
-struct bootstat {
-	uint64_t st_size;
-};
-
-#define	DDI_SLEEP	KM_SLEEP
-#define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
-	sysevent_post_event(_c, _d, _b, "libzpool", _e, _f)
 
 /*
  * Kernel modules
