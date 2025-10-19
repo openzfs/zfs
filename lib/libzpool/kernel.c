@@ -1008,34 +1008,6 @@ crgetgroups(cred_t *cr)
 	return (NULL);
 }
 
-int
-zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
-{
-	(void) from, (void) to, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-secpolicy_zfs(const cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
 ksiddomain_t *
 ksid_lookupdomain(const char *dom)
 {
