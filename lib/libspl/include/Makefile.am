@@ -61,6 +61,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/stdtypes.h \
 	%D%/sys/string.h \
 	%D%/sys/sunddi.h \
+	%D%/sys/sysmacros.h \
 	%D%/sys/systeminfo.h \
 	%D%/sys/thread.h \
 	%D%/sys/taskq.h \
@@ -88,8 +89,7 @@ libspl_sys_HEADERS += \
 	%D%/os/linux/sys/mnttab.h \
 	%D%/os/linux/sys/mount.h \
 	%D%/os/linux/sys/param.h \
-	%D%/os/linux/sys/stat.h \
-	%D%/os/linux/sys/sysmacros.h
+	%D%/os/linux/sys/stat.h
 
 libspl_ia32_HEADERS = \
 	%D%/os/linux/sys/ia32/asm_linkage.h
@@ -104,7 +104,6 @@ libspl_sys_HEADERS += \
 	%D%/os/freebsd/sys/mount.h \
 	%D%/os/freebsd/sys/param.h \
 	%D%/os/freebsd/sys/stat.h \
-	%D%/os/freebsd/sys/sysmacros.h \
 	%D%/os/freebsd/sys/vfs.h
 
 libspl_ia32_HEADERS = \
