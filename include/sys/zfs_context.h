@@ -145,8 +145,6 @@ extern "C" {
 typedef off_t loff_t;
 #endif
 
-#define	NN_NUMBUF_SZ	(6)
-
 /*
  * Kernel modules
  */
