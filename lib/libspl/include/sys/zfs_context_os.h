@@ -53,4 +53,10 @@ extern int handle_tunable_option(const char *, boolean_t);
 extern void kernel_init(int mode);
 extern void kernel_fini(void);
 
+/*
+ * Kernel modules
+ */
+#define	__init
+#define	__exit
+
 #endif
