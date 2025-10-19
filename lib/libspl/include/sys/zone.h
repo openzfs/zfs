@@ -21,11 +21,19 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#ifndef _LIBSPL_SYS_ZONE_H
-#define	_LIBSPL_SYS_ZONE_H
+#ifndef _SYS_ZONE_H
+#define	_SYS_ZONE_H
 
-#endif
+#define	zone_dataset_visible(x, y)	(1)
+
+#define	INGLOBALZONE(z)			(1)
+
+extern uint32_t zone_get_hostid(void *zonep);
+
+#endif /* _SYS_ZONE_H */

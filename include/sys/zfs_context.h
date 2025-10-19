@@ -113,6 +113,7 @@ extern "C" {
 #include <sys/sunddi.h>
 #include <sys/debug.h>
 #include <sys/trace_zfs.h>
+#include <sys/zone.h>
 
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
@@ -211,10 +212,6 @@ typedef off_t loff_t;
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
 
-#define	zone_dataset_visible(x, y)	(1)
-#define	INGLOBALZONE(z)			(1)
-extern uint32_t zone_get_hostid(void *zonep);
-
 /*
  * Hostname information
  */
@@ -236,7 +233,6 @@ extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
     cred_t *cr);
 extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
 extern int secpolicy_zfs(const cred_t *cr);
-extern zoneid_t getzoneid(void);
 
 #define	DDI_SLEEP	KM_SLEEP
 #define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
