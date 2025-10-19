@@ -145,28 +145,7 @@ extern "C" {
 typedef off_t loff_t;
 #endif
 
-/*
- * Random stuff
- */
-#define	max_ncpus	64
-#define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))
-
-/*
- * Process priorities as defined by setpriority(2) and getpriority(2).
- */
-#define	minclsyspri	19
-#define	defclsyspri	0
-/* Write issue taskq priority. */
-#define	wtqclsyspri	-19
-#define	maxclsyspri	-20
-
-#define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
-#define	CPU_SEQID_UNSTABLE	CPU_SEQID
-
 #define	NN_NUMBUF_SZ	(6)
-
-extern int highbit64(uint64_t i);
-extern int lowbit64(uint64_t i);
 
 /*
  * Kernel modules
