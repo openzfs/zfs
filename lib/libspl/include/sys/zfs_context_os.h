@@ -31,4 +31,26 @@
 
 #define	HAVE_LARGE_STACKS	1
 
+extern char *vn_dumpdir;
+
+extern uint64_t physmem;
+extern const char *random_path;
+extern const char *urandom_path;
+
+/*
+ * Hostname information
+ */
+typedef struct utsname	utsname_t;
+extern utsname_t *utsname(void);
+
+extern void kernel_init(int mode);
+extern void kernel_fini(void);
+
+struct spa;
+extern void show_pool_stats(struct spa *);
+extern int handle_tunable_option(const char *, boolean_t);
+
+extern void kernel_init(int mode);
+extern void kernel_fini(void);
+
 #endif

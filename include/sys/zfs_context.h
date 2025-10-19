@@ -142,26 +142,8 @@ extern "C" {
 typedef off_t loff_t;
 #endif
 
-extern char *vn_dumpdir;
-
-extern uint64_t physmem;
-extern const char *random_path;
-extern const char *urandom_path;
-
-extern void kernel_init(int mode);
-extern void kernel_fini(void);
 extern void random_init(void);
 extern void random_fini(void);
-
-struct spa;
-extern void show_pool_stats(struct spa *);
-extern int handle_tunable_option(const char *, boolean_t);
-
-/*
- * Hostname information
- */
-typedef struct utsname	utsname_t;
-extern utsname_t *utsname(void);
 
 /*
  * Kernel modules
