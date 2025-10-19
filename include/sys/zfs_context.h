@@ -77,8 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_SUNDDI_H
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -209,12 +207,6 @@ typedef off_t loff_t;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
-
-/*
- * Hostname information
- */
-extern int ddi_strtoull(const char *str, char **nptr, int base,
-    u_longlong_t *result);
 
 /*
  * Kernel modules
