@@ -165,6 +165,7 @@ _LIBZUTIL_H void zfs_nicetime(uint64_t, char *, size_t);
 _LIBZUTIL_H void zfs_niceraw(uint64_t, char *, size_t);
 
 #define	nicenum(num, buf, size)	zfs_nicenum(num, buf, size)
+#define	NN_NUMBUF_SZ	(6)
 
 _LIBZUTIL_H void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
 _LIBZUTIL_H int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
