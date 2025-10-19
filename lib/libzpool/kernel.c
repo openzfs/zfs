@@ -40,6 +40,7 @@
 #include <sys/rrwlock.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
+#include <sys/sid.h>
 #include <sys/stat.h>
 #include <sys/systeminfo.h>
 #include <sys/time.h>
