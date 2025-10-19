@@ -133,14 +133,6 @@ extern "C" {
 
 #include <sys/zfs_context_os.h>
 
-/*
- * Stack
- */
-
-#define	noinline	__attribute__((noinline))
-#define	likely(x)	__builtin_expect((x), 1)
-#define	unlikely(x)	__builtin_expect((x), 0)
-
 #ifdef __FreeBSD__
 typedef off_t loff_t;
 #endif
