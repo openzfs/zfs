@@ -228,12 +228,6 @@ struct bootstat {
 	uint64_t st_size;
 };
 
-extern int zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr);
-extern int zfs_secpolicy_rename_perms(const char *from, const char *to,
-    cred_t *cr);
-extern int zfs_secpolicy_destroy_perms(const char *name, cred_t *cr);
-extern int secpolicy_zfs(const cred_t *cr);
-
 #define	DDI_SLEEP	KM_SLEEP
 #define	ddi_log_sysevent(_a, _b, _c, _d, _e, _f, _g) \
 	sysevent_post_event(_c, _d, _b, "libzpool", _e, _f)
