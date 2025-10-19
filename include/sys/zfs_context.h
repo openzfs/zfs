@@ -77,8 +77,6 @@ extern "C" {
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
-#define	_SYS_SUNDDI_H
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -225,9 +223,6 @@ extern int handle_tunable_option(const char *, boolean_t);
 /*
  * Hostname information
  */
-extern int ddi_strtoull(const char *str, char **nptr, int base,
-    u_longlong_t *result);
-
 typedef struct utsname	utsname_t;
 extern utsname_t *utsname(void);
 
