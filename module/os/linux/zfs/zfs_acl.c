@@ -2524,7 +2524,7 @@ zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
 	 * Also note: DOS R/O is ignored for directories.
 	 */
 	if ((v4_mode & WRITE_MASK_DATA) &&
-	    S_ISDIR(ZTOI(zp)->i_mode) &&
+	    !S_ISDIR(ZTOI(zp)->i_mode) &&
 	    (zp->z_pflags & ZFS_READONLY)) {
 		return (SET_ERROR(EPERM));
 	}
