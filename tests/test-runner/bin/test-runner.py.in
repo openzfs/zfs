@@ -25,6 +25,7 @@ import sys
 import ctypes
 import re
 import configparser
+import traceback
 
 from datetime import datetime
 from optparse import OptionParser
@@ -1138,7 +1139,7 @@ def filter_tests(testrun, options):
     testrun.filter(failed)
 
 
-def fail(retstr, ret=1):
+def fail(retstr, ret=255):
     print('%s: %s' % (sys.argv[0], retstr))
     exit(ret)
 
@@ -1247,23 +1248,27 @@ def parse_args():
 def main():
     options = parse_args()
 
-    testrun = TestRun(options)
+    try:
+        testrun = TestRun(options)
 
-    if options.runfiles:
-        testrun.read(options)
-    else:
-        find_tests(testrun, options)
+        if options.runfiles:
+            testrun.read(options)
+        else:
+            find_tests(testrun, options)
 
-    if options.logfile:
-        filter_tests(testrun, options)
+        if options.logfile:
+            filter_tests(testrun, options)
 
-    if options.template:
-        testrun.write(options)
-        exit(0)
+        if options.template:
+            testrun.write(options)
+            exit(0)
 
-    testrun.complete_outputdirs()
-    testrun.run(options)
-    exit(testrun.summary())
+        testrun.complete_outputdirs()
+        testrun.run(options)
+        exit(testrun.summary())
+
+    except Exception:
+        fail("Uncaught exception in test runner:\n" + traceback.format_exc())
 
 
 if __name__ == '__main__':
