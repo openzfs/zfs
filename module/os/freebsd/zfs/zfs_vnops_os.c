@@ -4225,8 +4225,20 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 
 			zfs_vmobject_wlock(object);
 			(void) vm_page_grab_pages(object, OFF_TO_IDX(start),
-			    VM_ALLOC_NORMAL | VM_ALLOC_WAITOK | VM_ALLOC_ZERO,
+			    VM_ALLOC_NORMAL | VM_ALLOC_WAITOK,
 			    ma, count);
+			if (!vm_page_all_valid(ma[count - 1])) {
+				/*
+				 * Later in this function, we copy DMU data to
+				 * invalid pages only. The last page may not be
+				 * entirely filled though, if the file does not
+				 * end on a page boundary. Therefore, we zero
+				 * that last page here to make sure it does not
+				 * contain garbage after the end of file.
+				 */
+				ASSERT(vm_page_none_valid(ma[count - 1]));
+				vm_page_zero_invalid(ma[count - 1], FALSE);
+			}
 			zfs_vmobject_wunlock(object);
 		}
 		if (blksz == zp->z_blksz)
