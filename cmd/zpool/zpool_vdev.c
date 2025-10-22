@@ -610,22 +610,28 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				    ZPOOL_CONFIG_PATH, &path) == 0);
 
 				/*
-				 * If we have a raidz/mirror that combines disks
-				 * with files, report it as an error.
+				 * Skip active spares they should never cause
+				 * the pool to be evaluated as inconsistent.
 				 */
-				if (!dontreport && type != NULL &&
+				if (is_spare(NULL, path))
+					continue;
+
+				/*
+				 * If we have a raidz/mirror that combines disks
+				 * with files, only report it as an error when
+				 * fatal is set to ensure all the replication
+				 * checks aren't skipped in check_replication().
+				 */
+				if (fatal && !dontreport && type != NULL &&
 				    strcmp(type, childtype) != 0) {
 					if (ret != NULL)
 						free(ret);
 					ret = NULL;
-					if (fatal)
-						vdev_error(gettext(
-						    "mismatched replication "
-						    "level: %s contains both "
-						    "files and devices\n"),
-						    rep.zprl_type);
-					else
-						return (NULL);
+					vdev_error(gettext(
+					    "mismatched replication "
+					    "level: %s contains both "
+					    "files and devices\n"),
+					    rep.zprl_type);
 					dontreport = B_TRUE;
 				}
 

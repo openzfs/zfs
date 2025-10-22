@@ -121,7 +121,14 @@ case "$OS" in
     KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
     ;;
   freebsd15-0c)
-    FreeBSD="15.0-PRERELEASE"
+    FreeBSD="15.0-ALPHA4"
+    OSNAME="FreeBSD $FreeBSD"
+    OSv="freebsd14.0"
+    URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
+    KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
+    ;;
+  freebsd16-0c)
+    FreeBSD="16.0-CURRENT"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
@@ -287,7 +294,7 @@ else
   while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
     ssh 2>/dev/null root@vm0 "uname -a" && break
   done
-  ssh root@vm0 "pkg install -y bash ca_root_nss git qemu-guest-agent python3 py311-cloud-init"
+  ssh root@vm0 "env IGNORE_OSVERSION=yes pkg install -y bash ca_root_nss git qemu-guest-agent python3 py311-cloud-init"
   ssh root@vm0 "chsh -s $BASH root"
   ssh root@vm0 'sysrc qemu_guest_agent_enable="YES"'
   ssh root@vm0 'sysrc cloudinit_enable="YES"'
