@@ -32,6 +32,7 @@ from select import select
 from subprocess import PIPE
 from subprocess import Popen
 from subprocess import check_output
+from subprocess import run
 from threading import Timer
 from time import time, CLOCK_MONOTONIC
 from os.path import exists
@@ -185,6 +186,63 @@ User: %s
 ''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user)
 
     def kill_cmd(self, proc, options, kmemleak, keyboard_interrupt=False):
+
+        """
+        We're about to kill a command due to a timeout.
+        If we're running with the -O option, then dump debug info about the
+        process with the highest CPU usage to /dev/kmsg (Linux only).  This can
+        help debug the timeout.
+
+        Debug info includes:
+        - 30 lines from 'top'
+        - /proc/<PID>/stack output of process with highest CPU usage
+        - Last lines strace-ing process with highest CPU usage
+        """
+        if exists("/dev/kmsg"):
+            c = """
+TOP_OUT="$(COLUMNS=160 top -b -n 1 | head -n 30)"
+read -r PID CMD <<< $(echo "$TOP_OUT" | /usr/bin/awk \
+"/COMMAND/{
+    print_next=1
+    next
+}
+{
+    if (print_next == 1) {
+        print \\$1\\" \\"\\$12
+        exit
+    }
+}")
+echo "##### ZTS timeout debug #####"
+echo "----- top -----"
+echo "$TOP_OUT"
+echo "----- /proc/$PID/stack ($CMD)) -----"
+cat /proc/$PID/stack
+echo "----- strace ($CMD) -----"
+TMPFILE="$(mktemp --suffix=ZTS)"
+/usr/bin/strace -k --stack-traces -p $PID &> "$TMPFILE" &
+sleep 0.1
+killall strace
+tail -n 30 $TMPFILE
+rm "$TMPFILE"
+echo "##### /proc/sysrq-trigger stack #####"
+"""
+            c = "sudo bash -c '" + c + "'"
+            data = run(c, capture_output=True, shell=True, text=True)
+            out = data.stdout
+            try:
+                kp = Popen([SUDO, "sh", "-c",
+                            "echo '" + out + "' > /dev/kmsg"])
+                kp.wait()
+
+                """
+                Trigger kernel stack traces
+                """
+                kp = Popen([SUDO, "sh", "-c",
+                            "echo l > /proc/sysrq-trigger"])
+                kp.wait()
+            except Exception:
+                pass
+
         """
         Kill a running command due to timeout, or ^C from the keyboard. If
         sudo is required, this user was verified previously.
@@ -1097,6 +1155,9 @@ def parse_args():
     parser.add_option('-o', action='callback', callback=options_cb,
                       default=BASEDIR, dest='outputdir', type='string',
                       metavar='outputdir', help='Specify an output directory.')
+    parser.add_option('-O', action='store_true', default=False,
+                      dest='timeout_debug',
+                      help='Dump debugging info to /dev/kmsg on test timeout')
     parser.add_option('-i', action='callback', callback=options_cb,
                       default=TESTDIR, dest='testdir', type='string',
                       metavar='testdir', help='Specify a test directory.')

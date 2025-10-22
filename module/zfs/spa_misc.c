@@ -775,6 +775,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_min_ashift = INT_MAX;
 	spa->spa_max_ashift = 0;
 	spa->spa_min_alloc = INT_MAX;
+	spa->spa_max_alloc = 0;
 	spa->spa_gcd_alloc = INT_MAX;
 
 	/* Reset cached value */
@@ -1794,6 +1795,19 @@ spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
 	if (lsize == 0)
 		return (0);	/* No inflation needed */
 	return (MAX(lsize, 1 << spa->spa_max_ashift) * spa_asize_inflation);
+}
+
+/*
+ * Return the range of minimum allocation sizes for the normal allocation
+ * class. This can be used by external consumers of the DMU to estimate
+ * potential wasted capacity when setting the recordsize for an object.
+ * This is mainly for dRAID pools which always pad to a full stripe width.
+ */
+void
+spa_get_min_alloc_range(spa_t *spa, uint64_t *min_alloc, uint64_t *max_alloc)
+{
+	*min_alloc = spa->spa_min_alloc;
+	*max_alloc = spa->spa_max_alloc;
 }
 
 /*
@@ -2980,6 +2994,7 @@ EXPORT_SYMBOL(spa_version);
 EXPORT_SYMBOL(spa_state);
 EXPORT_SYMBOL(spa_load_state);
 EXPORT_SYMBOL(spa_freeze_txg);
+EXPORT_SYMBOL(spa_get_min_alloc_range); /* for Lustre */
 EXPORT_SYMBOL(spa_get_dspace);
 EXPORT_SYMBOL(spa_update_dspace);
 EXPORT_SYMBOL(spa_deflate);
