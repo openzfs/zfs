@@ -62,4 +62,3 @@ crgetgroups(cred_t *cr)
 	(void) cr;
 	return (NULL);
 }
-

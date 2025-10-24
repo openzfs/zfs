@@ -35,6 +35,8 @@
 extern "C" {
 #endif
 
+extern char *vn_dumpdir;
+
 _LIBZPOOL_H void kernel_init(int mode);
 _LIBZPOOL_H void kernel_fini(void);
 
