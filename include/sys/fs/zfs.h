@@ -1100,6 +1100,7 @@ typedef enum pool_scrub_cmd {
 	POOL_SCRUB_NORMAL = 0,
 	POOL_SCRUB_PAUSE,
 	POOL_SCRUB_FROM_LAST_TXG,
+	POOL_SCRUB_RECENT,
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
