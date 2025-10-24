@@ -59,6 +59,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/string.h \
 	%D%/sys/sunddi.h \
 	%D%/sys/systeminfo.h \
+	%D%/sys/systm.h \
 	%D%/sys/thread.h \
 	%D%/sys/taskq.h \
 	%D%/sys/time.h \

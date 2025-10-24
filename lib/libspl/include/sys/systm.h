@@ -21,24 +21,14 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
- * Copyright (c) 2025, Klara, Inc.
- * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#include <libspl.h>
-#include <unistd.h>
+#ifndef _LIBSPL_SYS_SYSTM_H
+#define	_LIBSPL_SYS_SYSTM_H
 
-uint64_t physmem;
+extern uint64_t physmem;
 
-void
-libspl_init(void)
-{
-	physmem = sysconf(_SC_PHYS_PAGES);
-}
-
-void
-libspl_fini(void)
-{
-}
+#endif
