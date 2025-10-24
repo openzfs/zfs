@@ -505,6 +505,8 @@ kernel_init(int mode)
 {
 	extern uint_t rrw_tsd_key;
 
+	libspl_init();
+
 	umem_nofail_callback(umem_out_of_memory);
 
 	physmem = sysconf(_SC_PHYS_PAGES);
@@ -543,6 +545,8 @@ kernel_fini(void)
 	system_taskq_fini();
 
 	random_fini();
+
+	libspl_fini();
 }
 
 int
