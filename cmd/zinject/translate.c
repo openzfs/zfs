@@ -75,11 +75,24 @@ compress_slashes(const char *src, char *dest)
 	*dest = '\0';
 }
 
+static boolean_t
+path_is_zvol(const char *inpath)
+{
+	char buf[MAXPATHLEN];
+
+	/* Resolve symlinks to /dev/zd* device */
+	if (realpath(inpath, buf) != NULL)
+		if (strncmp(buf, "/dev/zd", 7) == 0)
+			return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 /*
- * Given a full path to a file, translate into a dataset name and a relative
- * path within the dataset.  'dataset' must be at least MAXNAMELEN characters,
- * and 'relpath' must be at least MAXPATHLEN characters.  We also pass a stat64
- * buffer, which we need later to get the object ID.
+ * Given a full path to a file or zvol device, translate into a dataset name and
+ * a relative path within the dataset.  'dataset' must be at least MAXNAMELEN
+ * characters, and 'relpath' must be at least MAXPATHLEN characters.  We also
+ * pass a stat64 buffer, which we need later to get the object ID.
  */
 static int
 parse_pathname(const char *inpath, char *dataset, char *relpath,
@@ -96,6 +109,47 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		    "path\n", fullpath);
 		usage();
 		return (-1);
+	}
+
+	/* special case: inject errors into zvol */
+	if (path_is_zvol(inpath)) {
+		int fd;
+		char *slash;
+		int rc;
+		if ((fd = open(inpath, O_RDONLY|O_CLOEXEC)) == -1 ||
+		    fstat64(fd, statbuf) != 0) {
+			return (-1);
+		}
+
+		/*
+		 * HACK: the zvol's inode will not contain its object number.
+		 * However, it has long been the case that the zvol data is
+		 * object number 1:
+		 *
+		 * Object  lvl   iblk   dblk  dsize  lsize   %full  type
+		 *      0    6   128K    16K    11K    16K    6.25  DMU dnode
+		 *      1    2   128K    16K  20.1M    20M  100.00  zvol object
+		 *      2    1   128K    512      0    512  100.00  zvol prop
+		 *
+		 * So we hardcode that in the statbuf inode field as workaround.
+		 */
+		statbuf->st_ino = 1;
+
+		rc = ioctl(fd, BLKZNAME, fullpath);
+		close(fd);
+		if (rc != 0)
+			return (-1);
+
+		(void) strcpy(dataset, fullpath);
+
+		/*
+		 * fullpath contains string like 'tank/zvol'.  Strip off the
+		 * 'tank' and 'zvol' parts.
+		 */
+		slash = strchr(fullpath, '/');
+		*slash = '\0';
+		(void) strcpy(relpath, slash + 1);
+		return (0);
 	}
 
 	if (getextmntent(fullpath, &mp, statbuf) != 0) {

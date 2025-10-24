@@ -46,7 +46,9 @@ nodist_libzpool_la_SOURCES = \
 	\
 	module/os/linux/zfs/zio_crypt.c \
 	\
+	module/zcommon/btree.c \
 	module/zcommon/cityhash.c \
+	module/zcommon/range_tree.c \
 	module/zcommon/simd_stat.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
@@ -73,7 +75,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/bpobj.c \
 	module/zfs/bptree.c \
 	module/zfs/bqueue.c \
-	module/zfs/btree.c \
 	module/zfs/brt.c \
 	module/zfs/dbuf.c \
 	module/zfs/dbuf_stats.c \
@@ -118,7 +119,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/multilist.c \
 	module/zfs/objlist.c \
 	module/zfs/pathname.c \
-	module/zfs/range_tree.c \
 	module/zfs/refcount.c \
 	module/zfs/rrwlock.c \
 	module/zfs/sa.c \

@@ -744,20 +744,6 @@ delay(clock_t ticks)
 }
 
 /*
- * Find highest one bit set.
- * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
- * The __builtin_clzll() function is supported by both GCC and Clang.
- */
-int
-highbit64(uint64_t i)
-{
-	if (i == 0)
-	return (0);
-
-	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
-}
-
-/*
  * Find lowest one bit set.
  * Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
  * The __builtin_ffsll() function is supported by both GCC and Clang.

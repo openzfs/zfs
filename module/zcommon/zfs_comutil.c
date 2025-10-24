@@ -39,6 +39,7 @@
 #include <sys/nvpair.h>
 #include "zfs_comutil.h"
 #include <sys/zfs_ratelimit.h>
+#include <sys/dmu.h>
 
 /*
  * Are there allocatable vdevs?
@@ -243,6 +244,83 @@ zfs_dataset_name_hidden(const char *name)
 	return (B_FALSE);
 }
 
+/*
+ * highbit64 is defined in sysmacros.h for the kernel side.  However, we need
+ * it on the libzfs side and zpool_main.c side, and there's no good place to
+ * put it but here.
+ */
+#ifndef highbit64
+/*
+ * Find highest one bit set.
+ * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
+ */
+int
+highbit64(uint64_t i)
+{
+	if (i == 0)
+		return (0);
+
+	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
+}
+#endif
+
+const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "unallocated"		},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "object directory"	},
+	{DMU_BSWAP_UINT64, TRUE,  TRUE,  FALSE, "object array"		},
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "packed nvlist"		},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "packed nvlist size"	},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "bpobj"			},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "bpobj header"		},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "SPA space map header"	},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "SPA space map"		},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, TRUE,  "ZIL intent log"	},
+	{DMU_BSWAP_DNODE,  TRUE,  FALSE, TRUE,  "DMU dnode"		},
+	{DMU_BSWAP_OBJSET, TRUE,  TRUE,  FALSE, "DMU objset"		},
+	{DMU_BSWAP_UINT64, TRUE,  TRUE,  FALSE, "DSL directory"		},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL directory child map"},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL dataset snap map"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL props"		},
+	{DMU_BSWAP_UINT64, TRUE,  TRUE,  FALSE, "DSL dataset"		},
+	{DMU_BSWAP_ZNODE,  TRUE,  FALSE, FALSE, "ZFS znode"		},
+	{DMU_BSWAP_OLDACL, TRUE,  FALSE, TRUE,  "ZFS V0 ACL"		},
+	{DMU_BSWAP_UINT8,  FALSE, FALSE, TRUE,  "ZFS plain file"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,  "ZFS directory"		},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "ZFS master node"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,  "ZFS delete queue"	},
+	{DMU_BSWAP_UINT8,  FALSE, FALSE, TRUE,  "zvol object"		},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "zvol prop"		},
+	{DMU_BSWAP_UINT8,  FALSE, FALSE, TRUE,  "other uint8[]"		},
+	{DMU_BSWAP_UINT64, FALSE, FALSE, TRUE,  "other uint64[]"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "other ZAP"		},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "persistent error log"	},
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, FALSE, "SPA history"		},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "SPA history offsets"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "Pool properties"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL permissions"	},
+	{DMU_BSWAP_ACL,    TRUE,  FALSE, TRUE,  "ZFS ACL"		},
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, TRUE,  "ZFS SYSACL"		},
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, TRUE,  "FUID table"		},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "FUID table size"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL dataset next clones"},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "scan work queue"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,  "ZFS user/group/project used" },
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,  "ZFS user/group/project quota"},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "snapshot refcount tags"},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "DDT ZAP algorithm"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "DDT statistics"	},
+	{DMU_BSWAP_UINT8,  TRUE,  FALSE, TRUE,	"System attributes"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,	"SA master node"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,	"SA attr registration"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, TRUE,	"SA attr layouts"	},
+	{DMU_BSWAP_ZAP,    TRUE,  FALSE, FALSE, "scan translations"	},
+	{DMU_BSWAP_UINT8,  FALSE, FALSE, TRUE,  "deduplicated block"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL deadlist map"	},
+	{DMU_BSWAP_UINT64, TRUE,  TRUE,  FALSE, "DSL deadlist map hdr"	},
+	{DMU_BSWAP_ZAP,    TRUE,  TRUE,  FALSE, "DSL dir clones"	},
+	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "bpobj subobj"		}
+};
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_allocatable_devs);
 EXPORT_SYMBOL(zfs_special_devs);
@@ -251,4 +329,5 @@ EXPORT_SYMBOL(zfs_zpl_version_map);
 EXPORT_SYMBOL(zfs_spa_version_map);
 EXPORT_SYMBOL(zfs_history_event_names);
 EXPORT_SYMBOL(zfs_dataset_name_hidden);
+EXPORT_SYMBOL(dmu_ot);
 #endif
