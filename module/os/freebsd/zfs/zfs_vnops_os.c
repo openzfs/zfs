@@ -278,7 +278,7 @@ zfs_ioctl_getxattr(vnode_t *vp, zfsxattr_t *fsx)
 
 	memset(fsx, 0, sizeof (*fsx));
 	fsx->fsx_xflags = (zp->z_pflags & ZFS_PROJINHERIT) ?
-	    ZFS_PROJINHERIT_FL : 0;
+	    FS_PROJINHERIT_FL : 0;
 	fsx->fsx_projid = zp->z_projid;
 
 	return (0);
@@ -290,7 +290,7 @@ zfs_ioctl_setflags(vnode_t *vp, uint32_t ioctl_flags, xvattr_t *xva)
 	uint64_t zfs_flags = VTOZ(vp)->z_pflags;
 	xoptattr_t *xoap;
 
-	if (ioctl_flags & ~(ZFS_PROJINHERIT_FL))
+	if (ioctl_flags & ~(FS_PROJINHERIT_FL))
 		return (SET_ERROR(EOPNOTSUPP));
 
 	xva_init(xva);
@@ -304,7 +304,7 @@ zfs_ioctl_setflags(vnode_t *vp, uint32_t ioctl_flags, xvattr_t *xva)
 	}								\
 } while (0)
 
-	FLAG_CHANGE(ZFS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	FLAG_CHANGE(FS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
 	    xoap->xoa_projinherit);
 
 #undef	FLAG_CHANGE
