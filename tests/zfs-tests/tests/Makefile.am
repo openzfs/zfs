@@ -341,6 +341,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/inheritance/state024.cfg \
 	functional/inuse/inuse.cfg \
 	functional/io/io.cfg \
+	functional/iolimit/iolimit_common.kshlib \
 	functional/l2arc/l2arc.cfg \
 	functional/largest_pool/largest_pool.cfg \
 	functional/migration/migration.cfg \
@@ -1855,6 +1856,30 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_006_neg.ksh \
 	functional/raidz/raidz_expand_007_neg.ksh \
 	functional/raidz/setup.ksh \
+	functional/iolimit/cleanup.ksh \
+	functional/iolimit/filesystem_bw_combined.ksh \
+	functional/iolimit/filesystem_bw_hierarchical_horizontal.ksh \
+	functional/iolimit/filesystem_bw_hierarchical_vertical_read.ksh \
+	functional/iolimit/filesystem_bw_hierarchical_vertical_total.ksh \
+	functional/iolimit/filesystem_bw_hierarchical_vertical_write.ksh \
+	functional/iolimit/filesystem_bw_multiple.ksh \
+	functional/iolimit/filesystem_bw_recv.ksh \
+	functional/iolimit/filesystem_bw_send.ksh \
+	functional/iolimit/filesystem_bw_single.ksh \
+	functional/iolimit/filesystem_op_multiple.ksh \
+	functional/iolimit/filesystem_op_single.ksh \
+	functional/iolimit/inheritance.ksh \
+	functional/iolimit/iolimit_random.ksh \
+	functional/iolimit/setup.ksh \
+	functional/iolimit/volume_bw_combined.ksh \
+	functional/iolimit/volume_bw_hierarchical_horizontal.ksh \
+	functional/iolimit/volume_bw_hierarchical_vertical_read.ksh \
+	functional/iolimit/volume_bw_hierarchical_vertical_total.ksh \
+	functional/iolimit/volume_bw_hierarchical_vertical_write.ksh \
+	functional/iolimit/volume_bw_multiple.ksh \
+	functional/iolimit/volume_bw_recv.ksh \
+	functional/iolimit/volume_bw_send.ksh \
+	functional/iolimit/volume_bw_single.ksh \
 	functional/redacted_send/cleanup.ksh \
 	functional/redacted_send/redacted_compressed.ksh \
 	functional/redacted_send/redacted_contents.ksh \

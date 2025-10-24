@@ -60,6 +60,7 @@
 #include <sys/spa.h>
 #include <sys/zap.h>
 #include <sys/dsl_crypt.h>
+#include <sys/zfs_iolimit.h>
 #include <libzfs.h>
 #include <libzutil.h>
 
@@ -2261,6 +2262,12 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_SNAPSHOT_LIMIT:
 	case ZFS_PROP_FILESYSTEM_COUNT:
 	case ZFS_PROP_SNAPSHOT_COUNT:
+	case ZFS_PROP_IOLIMIT_BW_READ:
+	case ZFS_PROP_IOLIMIT_BW_WRITE:
+	case ZFS_PROP_IOLIMIT_BW_TOTAL:
+	case ZFS_PROP_IOLIMIT_OP_READ:
+	case ZFS_PROP_IOLIMIT_OP_WRITE:
+	case ZFS_PROP_IOLIMIT_OP_TOTAL:
 		*val = getprop_uint64(zhp, prop, source);
 
 		if (*source == NULL) {
@@ -2791,12 +2798,15 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_REFQUOTA:
 	case ZFS_PROP_RESERVATION:
 	case ZFS_PROP_REFRESERVATION:
+	case ZFS_PROP_IOLIMIT_BW_READ:
+	case ZFS_PROP_IOLIMIT_BW_WRITE:
+	case ZFS_PROP_IOLIMIT_BW_TOTAL:
 
 		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
 			return (-1);
 		/*
-		 * If quota or reservation is 0, we translate this into 'none'
-		 * (unless literal is set), and indicate that it's the default
+		 * If the value is 0, we translate this into 'none' (unless
+		 * literal is set), and indicate that it's the default
 		 * value.  Otherwise, we print the number nicely and indicate
 		 * that its set locally.
 		 */
@@ -2811,6 +2821,25 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 				    (u_longlong_t)val);
 			else
 				zfs_nicebytes(val, propbuf, proplen);
+		}
+		zcp_check(zhp, prop, val, NULL);
+		break;
+
+	case ZFS_PROP_IOLIMIT_OP_READ:
+	case ZFS_PROP_IOLIMIT_OP_WRITE:
+	case ZFS_PROP_IOLIMIT_OP_TOTAL:
+
+		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
+			return (-1);
+		/*
+		 * If the value is 0, we translate this into 'none', unless
+		 * literal is set.
+		 */
+		if (val == 0 && !literal) {
+			(void) strlcpy(propbuf, "none", proplen);
+		} else {
+			(void) snprintf(propbuf, proplen, "%llu",
+			    (u_longlong_t)val);
 		}
 		zcp_check(zhp, prop, val, NULL);
 		break;
