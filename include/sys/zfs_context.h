@@ -113,7 +113,6 @@ extern "C" {
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sunddi.h>
 #include <sys/debug.h>
-#include <sys/utsname.h>
 #include <sys/trace_zfs.h>
 
 #include <sys/mutex.h>
@@ -131,6 +130,7 @@ extern "C" {
 #include <sys/callb.h>
 #include <sys/trace.h>
 #include <sys/systm.h>
+#include <sys/misc.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -266,9 +266,6 @@ extern uint32_t zone_get_hostid(void *zonep);
  */
 extern int ddi_strtoull(const char *str, char **nptr, int base,
     u_longlong_t *result);
-
-typedef struct utsname	utsname_t;
-extern utsname_t *utsname(void);
 
 /* ZFS Boot Related stuff. */
 

@@ -43,6 +43,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/kstat.h \
 	%D%/sys/list.h \
 	%D%/sys/list_impl.h \
+	%D%/sys/misc.h \
 	%D%/sys/mhd.h \
 	%D%/sys/mkdev.h \
 	%D%/sys/mod.h \
