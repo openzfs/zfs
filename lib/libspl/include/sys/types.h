@@ -50,4 +50,8 @@ typedef int		projid_t;
 
 #include <sys/param.h> /* for NBBY */
 
+#ifdef __FreeBSD__
+typedef off_t loff_t;
+#endif
+
 #endif

@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -27,13 +26,37 @@
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
-#ifndef _SYS_ZONE_H
-#define	_SYS_ZONE_H
+#ifndef ZFS_CONTEXT_OS_H_
+#define	ZFS_CONTEXT_OS_H_
 
-#define	zone_dataset_visible(x, y)	(1)
+#define	HAVE_LARGE_STACKS	1
 
-#define	INGLOBALZONE(z)			(1)
+extern char *vn_dumpdir;
 
-extern uint32_t zone_get_hostid(void *zonep);
+extern uint64_t physmem;
+extern const char *random_path;
+extern const char *urandom_path;
 
-#endif /* _SYS_ZONE_H */
+/*
+ * Hostname information
+ */
+typedef struct utsname	utsname_t;
+extern utsname_t *utsname(void);
+
+extern void kernel_init(int mode);
+extern void kernel_fini(void);
+
+struct spa;
+extern void show_pool_stats(struct spa *);
+extern int handle_tunable_option(const char *, boolean_t);
+
+extern void kernel_init(int mode);
+extern void kernel_fini(void);
+
+/*
+ * Kernel modules
+ */
+#define	__init
+#define	__exit
+
+#endif

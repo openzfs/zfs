@@ -40,9 +40,11 @@
 #include <sys/rrwlock.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
+#include <sys/sid.h>
 #include <sys/stat.h>
 #include <sys/systeminfo.h>
 #include <sys/time.h>
+#include <sys/tsd.h>
 #include <sys/utsname.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
@@ -775,14 +777,14 @@ const char *random_path = "/dev/random";
 const char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
 
-void
+static void
 random_init(void)
 {
 	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
 	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
-void
+static void
 random_fini(void)
 {
 	close(random_fd);
@@ -1004,34 +1006,6 @@ crgetgroups(cred_t *cr)
 {
 	(void) cr;
 	return (NULL);
-}
-
-int
-zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
-{
-	(void) from, (void) to, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-secpolicy_zfs(const cred_t *cr)
-{
-	(void) cr;
-	return (0);
 }
 
 ksiddomain_t *
