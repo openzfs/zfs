@@ -5569,9 +5569,12 @@ zio_done(zio_t *zio)
 				zio->io_vd->vdev_stat.vs_slow_ios++;
 				mutex_exit(&zio->io_vd->vdev_stat_lock);
 
-				(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
-				    zio->io_spa, zio->io_vd, &zio->io_bookmark,
-				    zio, 0);
+				if (zio->io_vd->vdev_slow_io_events) {
+					(void) zfs_ereport_post(
+					    FM_EREPORT_ZFS_DELAY,
+					    zio->io_spa, zio->io_vd,
+					    &zio->io_bookmark, zio, 0);
+				}
 			}
 		}
 	}
