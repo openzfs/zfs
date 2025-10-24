@@ -27,6 +27,7 @@ libspl_la_SOURCES = \
 	%D%/mutex.c \
 	%D%/page.c \
 	%D%/procfs_list.c \
+	%D%/random.c \
 	%D%/rwlock.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
