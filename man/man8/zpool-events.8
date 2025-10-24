@@ -113,17 +113,19 @@ See
 for more details on the
 .Sy zfs_vdev_direct_write_verify
 module parameter.
-.It Sy config
+.It Sy config_sync
 Issued every time a vdev change have been done to the pool.
 .It Sy zpool
 Issued when a pool cannot be imported.
-.It Sy zpool.destroy
+.It Sy pool_create
+Issued when a pool is created.
+.It Sy pool_destroy
 Issued when a pool is destroyed.
-.It Sy zpool.export
+.It Sy pool_export
 Issued when a pool is exported.
-.It Sy zpool.import
+.It Sy pool_import
 Issued when a pool is imported.
-.It Sy zpool.reguid
+.It Sy pool_reguid
 Issued when a REGUID (new unique identifier for the pool have been regenerated)
 have been detected.
 .It Sy vdev.unknown
@@ -150,21 +152,31 @@ event.
 Issued when the label is OK but invalid.
 .It Sy vdev.bad_ashift
 Issued when the ashift alignment requirement has increased.
-.It Sy vdev.remove
+.It Sy vdev_remove
 Issued when a vdev is detached from a mirror (or a spare detached from a
 vdev where it have been used to replace a failed drive - only works if
 the original drive have been re-added).
-.It Sy vdev.clear
+.It Sy vdev_remove_aux
+Issued when an auxiliary vdev is removed.
+.It Sy vdev_remove_dev
+Issued when a specific device is removed from a vdev.
+.It Sy vdev_clear
 Issued when clearing device errors in a pool.
 Such as running
 .Nm zpool Cm clear
 on a device in the pool.
-.It Sy vdev.check
+.It Sy vdev_check
 Issued when a check to see if a given vdev could be opened is started.
-.It Sy vdev.spare
+.It Sy vdev_spare
 Issued when a spare have kicked in to replace a failed device.
-.It Sy vdev.autoexpand
+.It Sy vdev_autoexpand
 Issued when a vdev can be automatically expanded.
+.It Sy vdev_add
+Issued when a vdev is added to a pool.
+.It Sy vdev_attach
+Issued when a vdev is attached to a mirror or raidz vdev type.
+.It Sy vdev_online
+Issued when an offline vdev is brought online
 .It Sy io_failure
 Issued when there is an I/O failure in a vdev in the pool.
 .It Sy probe_failure
@@ -175,21 +187,46 @@ have removed the device).
 .It Sy log_replay
 Issued when the intent log cannot be replayed.
 The can occur in the case of a missing or damaged log device.
-.It Sy resilver.start
+.It Sy resilver_start
 Issued when a resilver is started.
-.It Sy resilver.finish
+.It Sy resilver_finish
 Issued when the running resilver have finished.
-.It Sy scrub.start
+.It Sy scrub_start
 Issued when a scrub is started on a pool.
-.It Sy scrub.finish
+.It Sy scrub_finish
 Issued when a pool has finished scrubbing.
-.It Sy scrub.abort
+.It Sy scrub_abort
 Issued when a scrub is aborted on a pool.
-.It Sy scrub.resume
+.It Sy scrub_resume
 Issued when a scrub is resumed on a pool.
-.It Sy scrub.paused
+.It Sy scrub_paused
 Issued when a scrub is paused on a pool.
-.It Sy bootfs.vdev.attach
+.It Sy errorscrub_start
+Issued when a errorscrub is started on a pool.
+.It Sy errorscrub_finish
+Issued when a pool has finished errorscrubbing.
+.It Sy errorscrub_abort
+Issued when a errorscrub is aborted on a pool.
+.It Sy errorscrub_resume
+Issued when a errorscrub is resumed on a pool.
+.It Sy errorscrub_paused
+Issued when a errorscrub is paused on a pool.
+.It Sy trim_start
+Issued when a trim is started on a pool.
+.It Sy trim_finish
+Issued when a pool has finished trimbing.
+.It Sy trim_cancel
+Issued when a trim is canceled on a pool.
+.It Sy trim_resume
+Issued when a trim is resumed on a pool.
+.It Sy trim_suspend
+Issued when a trim is suspend on a pool.
+.It Sy authentication
+Issued when there is a decryption / authentication error.
+.It Sy config_cache_write
+Issued when the config cache file cannot be written.
+.It Sy bootfs_vdev_attach
+Issued when a vdev is attached to a root pool with the bootfs property set.
 .It Sy sitout
 Issued when a
 .Sy RAIDZ
