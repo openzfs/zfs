@@ -402,6 +402,21 @@ static int
 space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
+	
+	/* Validate space map entry bounds */
+	if (sme->sme_run == 0) {
+		return (0);
+	}
+	
+	if (sme->sme_offset + sme->sme_run > smla->smla_sm->sm_size) {
+		zfs_panic_recover("Skipping out-of-bounds space map entry "
+		    "(offset=%llu, size=%llu, sm_size=%llu)",
+		    (unsigned long long)sme->sme_offset,
+		    (unsigned long long)sme->sme_run,
+		    (unsigned long long)smla->smla_sm->sm_size);
+		return (0);
+	}
+	
 	if (sme->sme_type == smla->smla_type) {
 		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
