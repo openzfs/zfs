@@ -21,6 +21,7 @@ libspl_la_SOURCES = \
 	%D%/getexecname.c \
 	%D%/kmem.c \
 	%D%/kstat.c \
+	%D%/libspl.c \
 	%D%/list.c \
 	%D%/mkdirp.c \
 	%D%/mutex.c \
