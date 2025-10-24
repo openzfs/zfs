@@ -504,6 +504,18 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 	rend = zfs_rs_get_end(rs, rt);
 
 	/*
+	 * Defensive check: if we detect corrupted bounds, log the issue
+	 * and try to recover rather than panicking
+	 */
+	if (rstart > start) {
+		zfs_panic_recover("zfs: rt=%s: segment bounds invalid - "
+		    "existing start (%llx) > requested start (%llx), "
+		    "this may indicate corrupted space map data",
+		    ZFS_RT_NAME(rt), (longlong_t)rstart, (longlong_t)start);
+		return;
+	}
+
+	/*
 	 * Range trees with gap support must only remove complete segments
 	 * from the tree. This allows us to maintain accurate fill accounting
 	 * and to ensure that bridged sections are not leaked. If we need to
