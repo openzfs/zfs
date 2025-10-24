@@ -437,6 +437,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 
+	memset(&cuio_s, 0, sizeof (cuio_s));
 	zfs_uio_init(&cuio, &cuio_s);
 
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
@@ -519,6 +520,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
 
+	memset(&cuio_s, 0, sizeof (cuio_s));
 	zfs_uio_init(&cuio, &cuio_s);
 
 	/*
