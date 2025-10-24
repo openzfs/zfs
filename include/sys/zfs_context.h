@@ -187,8 +187,6 @@ extern "C" {
 typedef off_t loff_t;
 #endif
 
-extern char *vn_dumpdir;
-
 /*
  * Random stuff
  */
