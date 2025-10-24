@@ -24,37 +24,61 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2025, Klara, Inc.
- * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
-#include <libspl.h>
+#include <stdint.h>
+#include <fcntl.h>
 #include <assert.h>
-#include <unistd.h>
-#include <sys/misc.h>
-#include <sys/utsname.h>
+#include <sys/random.h>
 #include "libspl_impl.h"
 
-uint64_t physmem;
-struct utsname hw_utsname;
+const char *random_path = "/dev/random";
+const char *urandom_path = "/dev/urandom";
+static int random_fd = -1, urandom_fd = -1;
 
-utsname_t *
-utsname(void)
+void
+random_init(void)
 {
-	return (&hw_utsname);
+	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
 void
-libspl_init(void)
+random_fini(void)
 {
-	physmem = sysconf(_SC_PHYS_PAGES);
+	close(random_fd);
+	close(urandom_fd);
 
-	VERIFY0(uname(&hw_utsname));
-
-	random_init();
+	random_fd = -1;
+	urandom_fd = -1;
 }
 
-void
-libspl_fini(void)
+static int
+random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 {
-	random_fini();
+	size_t resid = len;
+	ssize_t bytes;
+
+	ASSERT(fd != -1);
+
+	while (resid != 0) {
+		bytes = read(fd, ptr, resid);
+		ASSERT3S(bytes, >=, 0);
+		ptr += bytes;
+		resid -= bytes;
+	}
+
+	return (0);
+}
+
+int
+random_get_bytes(uint8_t *ptr, size_t len)
+{
+	return (random_get_bytes_common(ptr, len, random_fd));
+}
+
+int
+random_get_pseudo_bytes(uint8_t *ptr, size_t len)
+{
+	return (random_get_bytes_common(ptr, len, urandom_fd));
 }
