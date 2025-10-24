@@ -60,7 +60,6 @@
  * Emulation of kernel services in userland.
  */
 
-uint64_t physmem;
 uint32_t hostid;
 struct utsname hw_utsname;
 
@@ -508,8 +507,6 @@ kernel_init(int mode)
 	libspl_init();
 
 	umem_nofail_callback(umem_out_of_memory);
-
-	physmem = sysconf(_SC_PHYS_PAGES);
 
 	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));

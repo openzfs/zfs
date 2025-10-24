@@ -127,6 +127,10 @@ extern "C" {
 #include <sys/kmem.h>
 #include <sys/zfs_delay.h>
 #include <sys/vnode.h>
+#include <sys/random.h>
+#include <sys/callb.h>
+#include <sys/trace.h>
+#include <sys/systm.h>
 
 #include <sys/zfs_context_os.h>
 
@@ -206,7 +210,6 @@ extern char *vn_dumpdir;
 #define	NN_DIVISOR_1000	(1U << 0)
 #define	NN_NUMBUF_SZ	(6)
 
-extern uint64_t physmem;
 extern const char *random_path;
 extern const char *urandom_path;
 
