@@ -44,7 +44,6 @@
 #include <sys/systeminfo.h>
 #include <sys/time.h>
 #include <sys/tsd.h>
-#include <sys/utsname.h>
 
 #include <libspl.h>
 #include <libzpool.h>
@@ -61,7 +60,6 @@
  */
 
 uint32_t hostid;
-struct utsname hw_utsname;
 
 /* If set, all blocks read will be copied to the specified directory. */
 char *vn_dumpdir = NULL;
@@ -405,12 +403,6 @@ ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 	return (0);
 }
 
-utsname_t *
-utsname(void)
-{
-	return (&hw_utsname);
-}
-
 /*
  * =========================================================================
  * kernel emulation setup & teardown
@@ -514,8 +506,6 @@ kernel_init(int mode)
 	hostid = (mode & SPA_MODE_WRITE) ? get_system_hostid() : 0;
 
 	random_init();
-
-	VERIFY0(uname(&hw_utsname));
 
 	system_taskq_init();
 	icp_init();
