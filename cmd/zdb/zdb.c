@@ -89,6 +89,7 @@
 #include <sys/zstd/zstd.h>
 #include <sys/backtrace.h>
 
+#include <libzpool.h>
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <libzfs_core.h>

@@ -45,6 +45,9 @@
 #include <sys/time.h>
 #include <sys/tsd.h>
 #include <sys/utsname.h>
+
+#include <libspl.h>
+#include <libzpool.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zfs_vfsops.h>

@@ -230,14 +230,8 @@ random_in_range(uint32_t range)
 	return (r % range);
 }
 
-extern void kernel_init(int mode);
-extern void kernel_fini(void);
 extern void random_init(void);
 extern void random_fini(void);
-
-struct spa;
-extern void show_pool_stats(struct spa *);
-extern int handle_tunable_option(const char *, boolean_t);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;
