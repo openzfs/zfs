@@ -9601,7 +9601,8 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	    KM_SLEEP));
 	memset(packed + nvsize, 0, bufsize - nvsize);
 
-	dmu_write(spa->spa_meta_objset, obj, 0, bufsize, packed, tx);
+	dmu_write(spa->spa_meta_objset, obj, 0, bufsize, packed, tx,
+	    DMU_READ_NO_PREFETCH);
 
 	vmem_free(packed, bufsize);
 
