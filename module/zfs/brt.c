@@ -508,8 +508,8 @@ brt_vdev_realloc(spa_t *spa, brt_vdev_t *brtvd)
 	size = (vdev_get_min_asize(vd) - 1) / spa->spa_brt_rangesize + 1;
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
-	entcount = vmem_zalloc(sizeof (entcount[0]) * size, KM_SLEEP);
 	nblocks = BRT_RANGESIZE_TO_NBLOCKS(size);
+	entcount = vmem_zalloc(nblocks * BRT_BLOCKSIZE, KM_SLEEP);
 	bitmap = kmem_zalloc(BT_SIZEOFMAP(nblocks), KM_SLEEP);
 
 	if (!brtvd->bv_initiated) {
@@ -530,9 +530,8 @@ brt_vdev_realloc(spa_t *spa, brt_vdev_t *brtvd)
 
 		memcpy(entcount, brtvd->bv_entcount,
 		    sizeof (entcount[0]) * MIN(size, brtvd->bv_size));
-		vmem_free(brtvd->bv_entcount,
-		    sizeof (entcount[0]) * brtvd->bv_size);
 		onblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		vmem_free(brtvd->bv_entcount, onblocks * BRT_BLOCKSIZE);
 		memcpy(bitmap, brtvd->bv_bitmap, MIN(BT_SIZEOFMAP(nblocks),
 		    BT_SIZEOFMAP(onblocks)));
 		kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(onblocks));
@@ -613,9 +612,9 @@ brt_vdev_dealloc(brt_vdev_t *brtvd)
 	ASSERT(brtvd->bv_initiated);
 	ASSERT0(avl_numnodes(&brtvd->bv_tree));
 
-	vmem_free(brtvd->bv_entcount, sizeof (uint16_t) * brtvd->bv_size);
-	brtvd->bv_entcount = NULL;
 	uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+	vmem_free(brtvd->bv_entcount, nblocks * BRT_BLOCKSIZE);
+	brtvd->bv_entcount = NULL;
 	kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(nblocks));
 	brtvd->bv_bitmap = NULL;
 
@@ -807,10 +806,10 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 		/*
 		 * TODO: Walk brtvd->bv_bitmap and write only the dirty blocks.
 		 */
-		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
-		    brtvd->bv_size * sizeof (brtvd->bv_entcount[0]),
-		    brtvd->bv_entcount, tx, DMU_READ_NO_PREFETCH);
 		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
+		    nblocks * BRT_BLOCKSIZE, brtvd->bv_entcount, tx,
+		    DMU_READ_NO_PREFETCH);
 		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;
 	}
