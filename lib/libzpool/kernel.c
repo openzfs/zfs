@@ -186,62 +186,6 @@ kstat_set_raw_ops(kstat_t *ksp,
 
 /*
  * =========================================================================
- * mutexes
- * =========================================================================
- */
-
-void
-mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
-{
-	(void) name, (void) type, (void) cookie;
-	VERIFY0(pthread_mutex_init(&mp->m_lock, NULL));
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-}
-
-void
-mutex_destroy(kmutex_t *mp)
-{
-	VERIFY0(pthread_mutex_destroy(&mp->m_lock));
-}
-
-void
-mutex_enter(kmutex_t *mp)
-{
-	VERIFY0(pthread_mutex_lock(&mp->m_lock));
-	mp->m_owner = pthread_self();
-}
-
-int
-mutex_enter_check_return(kmutex_t *mp)
-{
-	int error = pthread_mutex_lock(&mp->m_lock);
-	if (error == 0)
-		mp->m_owner = pthread_self();
-	return (error);
-}
-
-int
-mutex_tryenter(kmutex_t *mp)
-{
-	int error = pthread_mutex_trylock(&mp->m_lock);
-	if (error == 0) {
-		mp->m_owner = pthread_self();
-		return (1);
-	} else {
-		VERIFY3S(error, ==, EBUSY);
-		return (0);
-	}
-}
-
-void
-mutex_exit(kmutex_t *mp)
-{
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-	VERIFY0(pthread_mutex_unlock(&mp->m_lock));
-}
-
-/*
- * =========================================================================
  * rwlocks
  * =========================================================================
  */

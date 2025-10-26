@@ -19,6 +19,7 @@ libspl_la_SOURCES = \
 	%D%/getexecname.c \
 	%D%/list.c \
 	%D%/mkdirp.c \
+	%D%/mutex.c \
 	%D%/page.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
