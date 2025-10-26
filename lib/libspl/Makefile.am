@@ -21,6 +21,7 @@ libspl_la_SOURCES = \
 	%D%/mkdirp.c \
 	%D%/mutex.c \
 	%D%/page.c \
+	%D%/rwlock.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
 	%D%/timestamp.c \

@@ -184,74 +184,6 @@ kstat_set_raw_ops(kstat_t *ksp,
 	(void) ksp, (void) headers, (void) data, (void) addr;
 }
 
-/*
- * =========================================================================
- * rwlocks
- * =========================================================================
- */
-
-void
-rw_init(krwlock_t *rwlp, char *name, int type, void *arg)
-{
-	(void) name, (void) type, (void) arg;
-	VERIFY0(pthread_rwlock_init(&rwlp->rw_lock, NULL));
-	rwlp->rw_readers = 0;
-	rwlp->rw_owner = 0;
-}
-
-void
-rw_destroy(krwlock_t *rwlp)
-{
-	VERIFY0(pthread_rwlock_destroy(&rwlp->rw_lock));
-}
-
-void
-rw_enter(krwlock_t *rwlp, krw_t rw)
-{
-	if (rw == RW_READER) {
-		VERIFY0(pthread_rwlock_rdlock(&rwlp->rw_lock));
-		atomic_inc_uint(&rwlp->rw_readers);
-	} else {
-		VERIFY0(pthread_rwlock_wrlock(&rwlp->rw_lock));
-		rwlp->rw_owner = pthread_self();
-	}
-}
-
-void
-rw_exit(krwlock_t *rwlp)
-{
-	if (RW_READ_HELD(rwlp))
-		atomic_dec_uint(&rwlp->rw_readers);
-	else
-		rwlp->rw_owner = 0;
-
-	VERIFY0(pthread_rwlock_unlock(&rwlp->rw_lock));
-}
-
-int
-rw_tryenter(krwlock_t *rwlp, krw_t rw)
-{
-	int error;
-
-	if (rw == RW_READER)
-		error = pthread_rwlock_tryrdlock(&rwlp->rw_lock);
-	else
-		error = pthread_rwlock_trywrlock(&rwlp->rw_lock);
-
-	if (error == 0) {
-		if (rw == RW_READER)
-			atomic_inc_uint(&rwlp->rw_readers);
-		else
-			rwlp->rw_owner = pthread_self();
-
-		return (1);
-	}
-
-	VERIFY3S(error, ==, EBUSY);
-
-	return (0);
-}
-
 uint32_t
 zone_get_hostid(void *zonep)
 {
@@ -260,13 +192,6 @@ zone_get_hostid(void *zonep)
 	 */
 	(void) zonep;
 	return (hostid);
-}
-
-int
-rw_tryupgrade(krwlock_t *rwlp)
-{
-	(void) rwlp;
-	return (0);
 }
 
 /*
