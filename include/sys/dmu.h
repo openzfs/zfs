@@ -126,7 +126,7 @@ typedef enum dmu_object_byteswap {
 	(ot) < DMU_OT_NUMTYPES)
 
 #define	DMU_OT_IS_METADATA_CACHED(ot) (((ot) & DMU_OT_NEWTYPE) ? \
-	B_TRUE : dmu_ot[(ot)].ot_dbuf_metadata_cache)
+	((ot) & DMU_OT_METADATA) != 0 : dmu_ot[(ot)].ot_dbuf_metadata_cache)
 
 /*
  * MDB doesn't have dmu_ot; it defines these macros itself.

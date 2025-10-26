@@ -454,6 +454,7 @@ brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	VERIFY(mos_entries != 0);
 	VERIFY0(dnode_hold(spa->spa_meta_objset, mos_entries, brtvd,
 	    &brtvd->bv_mos_entries_dnode));
+	dnode_set_storage_type(brtvd->bv_mos_entries_dnode, DMU_OT_DDT_ZAP);
 	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = mos_entries;
 	rw_exit(&brtvd->bv_mos_entries_lock);
@@ -580,13 +581,14 @@ brt_vdev_load(spa_t *spa, brt_vdev_t *brtvd)
 	 */
 	error = dmu_read(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 	    MIN(brtvd->bv_size, bvphys->bvp_size) * sizeof (uint16_t),
-	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH);
+	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
 	if (error != 0)
 		return (error);
 
 	ASSERT(bvphys->bvp_mos_entries != 0);
 	VERIFY0(dnode_hold(spa->spa_meta_objset, bvphys->bvp_mos_entries, brtvd,
 	    &brtvd->bv_mos_entries_dnode));
+	dnode_set_storage_type(brtvd->bv_mos_entries_dnode, DMU_OT_DDT_ZAP);
 	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = bvphys->bvp_mos_entries;
 	rw_exit(&brtvd->bv_mos_entries_lock);
@@ -809,7 +811,7 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
 		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 		    nblocks * BRT_BLOCKSIZE, brtvd->bv_entcount, tx,
-		    DMU_READ_NO_PREFETCH);
+		    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
 		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;
 	}
