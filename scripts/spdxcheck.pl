@@ -130,8 +130,8 @@ my $untagged_patterns = q(
 	lib/libspl/include/os/freebsd/sys/sysmacros.h
 	lib/libspl/include/sys/string.h
 	lib/libspl/include/sys/trace_spl.h
-	lib/libspl/include/sys/trace_zfs.h
 	lib/libzdb/libzdb.c
+	lib/libzpool/include/sys/trace_zfs.h
 	module/lua/setjmp/setjmp.S
 	module/lua/setjmp/setjmp_ppc.S
 	module/zstd/include/sparc_compat.h
