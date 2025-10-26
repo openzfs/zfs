@@ -446,7 +446,10 @@ static boolean_t
 dbuf_include_in_metadata_cache(dmu_buf_impl_t *db)
 {
 	DB_DNODE_ENTER(db);
-	dmu_object_type_t type = DB_DNODE(db)->dn_type;
+	dnode_t *dn = DB_DNODE(db);
+	dmu_object_type_t type = dn->dn_storage_type;
+	if (type == DMU_OT_NONE)
+		type = dn->dn_type;
 	DB_DNODE_EXIT(db);
 
 	/* Check if this dbuf is one of the types we care about */
