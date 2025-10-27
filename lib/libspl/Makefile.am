@@ -25,6 +25,7 @@ libspl_la_SOURCES = \
 	%D%/rwlock.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
+	%D%/thread.c \
 	%D%/timestamp.c \
 	%D%/tunables.c \
 	%D%/include/sys/list.h \
