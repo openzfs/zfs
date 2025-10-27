@@ -635,41 +635,6 @@ kernel_fini(void)
 	random_fini();
 }
 
-uid_t
-crgetuid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-uid_t
-crgetruid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-gid_t
-crgetgid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-int
-crgetngroups(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-gid_t *
-crgetgroups(cred_t *cr)
-{
-	(void) cr;
-	return (NULL);
-}
-
 int
 zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
 {
