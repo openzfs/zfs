@@ -24,6 +24,7 @@ libspl_la_SOURCES = \
 	%D%/mkdirp.c \
 	%D%/mutex.c \
 	%D%/page.c \
+	%D%/procfs_list.c \
 	%D%/rwlock.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
