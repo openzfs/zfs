@@ -510,23 +510,6 @@ secpolicy_zfs(const cred_t *cr)
 	return (0);
 }
 
-ksiddomain_t *
-ksid_lookupdomain(const char *dom)
-{
-	ksiddomain_t *kd;
-
-	kd = umem_zalloc(sizeof (ksiddomain_t), UMEM_NOFAIL);
-	kd->kd_name = spa_strdup(dom);
-	return (kd);
-}
-
-void
-ksiddomain_rele(ksiddomain_t *ksid)
-{
-	spa_strfree(ksid->kd_name);
-	umem_free(ksid, sizeof (ksiddomain_t));
-}
-
 zfs_file_t *
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {

@@ -29,6 +29,7 @@ libspl_la_SOURCES = \
 	%D%/procfs_list.c \
 	%D%/random.c \
 	%D%/rwlock.c \
+	%D%/sid.c \
 	%D%/strlcat.c \
 	%D%/strlcpy.c \
 	%D%/taskq.c \
