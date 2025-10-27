@@ -64,41 +64,6 @@ struct utsname hw_utsname;
 /* If set, all blocks read will be copied to the specified directory. */
 char *vn_dumpdir = NULL;
 
-/*
- * =========================================================================
- * kstats
- * =========================================================================
- */
-kstat_t *
-kstat_create(const char *module, int instance, const char *name,
-    const char *class, uchar_t type, ulong_t ndata, uchar_t ks_flag)
-{
-	(void) module, (void) instance, (void) name, (void) class, (void) type,
-	    (void) ndata, (void) ks_flag;
-	return (NULL);
-}
-
-void
-kstat_install(kstat_t *ksp)
-{
-	(void) ksp;
-}
-
-void
-kstat_delete(kstat_t *ksp)
-{
-	(void) ksp;
-}
-
-void
-kstat_set_raw_ops(kstat_t *ksp,
-    int (*headers)(char *buf, size_t size),
-    int (*data)(char *buf, size_t size, void *data),
-    void *(*addr)(kstat_t *ksp, loff_t index))
-{
-	(void) ksp, (void) headers, (void) data, (void) addr;
-}
-
 uint32_t
 zone_get_hostid(void *zonep)
 {
