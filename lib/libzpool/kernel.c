@@ -587,61 +587,6 @@ ksiddomain_rele(ksiddomain_t *ksid)
 	umem_free(ksid, sizeof (ksiddomain_t));
 }
 
-char *
-kmem_vasprintf(const char *fmt, va_list adx)
-{
-	char *buf = NULL;
-	va_list adx_copy;
-
-	va_copy(adx_copy, adx);
-	VERIFY(vasprintf(&buf, fmt, adx_copy) != -1);
-	va_end(adx_copy);
-
-	return (buf);
-}
-
-char *
-kmem_asprintf(const char *fmt, ...)
-{
-	char *buf = NULL;
-	va_list adx;
-
-	va_start(adx, fmt);
-	VERIFY(vasprintf(&buf, fmt, adx) != -1);
-	va_end(adx);
-
-	return (buf);
-}
-
-/*
- * kmem_scnprintf() will return the number of characters that it would have
- * printed whenever it is limited by value of the size variable, rather than
- * the number of characters that it did print. This can cause misbehavior on
- * subsequent uses of the return value, so we define a safe version that will
- * return the number of characters actually printed, minus the NULL format
- * character.  Subsequent use of this by the safe string functions is safe
- * whether it is snprintf(), strlcat() or strlcpy().
- */
-int
-kmem_scnprintf(char *restrict str, size_t size, const char *restrict fmt, ...)
-{
-	int n;
-	va_list ap;
-
-	/* Make the 0 case a no-op so that we do not return -1 */
-	if (size == 0)
-		return (0);
-
-	va_start(ap, fmt);
-	n = vsnprintf(str, size, fmt, ap);
-	va_end(ap);
-
-	if (n >= size)
-		n = size - 1;
-
-	return (n);
-}
-
 zfs_file_t *
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
@@ -661,24 +606,6 @@ zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
     uintptr_t *action_handle)
 {
 	(void) minor, (void) func, (void) data, (void) action_handle;
-	return (0);
-}
-
-fstrans_cookie_t
-spl_fstrans_mark(void)
-{
-	return ((fstrans_cookie_t)0);
-}
-
-void
-spl_fstrans_unmark(fstrans_cookie_t cookie)
-{
-	(void) cookie;
-}
-
-int
-kmem_cache_reap_active(void)
-{
 	return (0);
 }
 

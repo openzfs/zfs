@@ -19,6 +19,7 @@ libspl_la_SOURCES = \
 	%D%/condvar.c \
 	%D%/cred.c \
 	%D%/getexecname.c \
+	%D%/kmem.c \
 	%D%/kstat.c \
 	%D%/list.c \
 	%D%/mkdirp.c \
