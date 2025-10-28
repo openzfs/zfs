@@ -35,6 +35,8 @@ endif
 
 nodist_libzfs_la_SOURCES = \
 	module/zcommon/cityhash.c \
+	module/zcommon/json.c \
+	module/zcommon/literals.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
 	module/zcommon/zfs_deleg.c \
