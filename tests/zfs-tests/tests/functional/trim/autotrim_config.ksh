@@ -88,7 +88,7 @@ for type in "" "mirror" "raidz2" "draid"; do
 	fi
 
 	log_must truncate -s $((4 * MINVDEVSIZE)) $VDEVS
-	log_must zpool create -f $TESTPOOL $VDEVS
+	log_must zpool create -f $TESTPOOL $type $VDEVS
 	log_must zpool set autotrim=on $TESTPOOL
 
 	typeset availspace=$(get_prop available $TESTPOOL)
