@@ -2306,7 +2306,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	}
 
 	if (abuf == NULL) {
-		dmu_write(os, lr->lr_foid, offset, length, data, tx);
+		dmu_write(os, lr->lr_foid, offset, length, data, tx,
+		    DMU_READ_PREFETCH);
 	} else {
 		memcpy(abuf->b_data, data, length);
 		VERIFY0(dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx, 0));
@@ -5243,7 +5244,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * We've verified all the old bufwads, and made new ones.
 	 * Now write them out.
 	 */
-	dmu_write(os, packobj, packoff, packsize, packbuf, tx);
+	dmu_write(os, packobj, packoff, packsize, packbuf, tx,
+	    DMU_READ_PREFETCH);
 
 	if (freeit) {
 		if (ztest_opts.zo_verbose >= 7) {
@@ -5258,7 +5260,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 			    " txg %"PRIx64"\n",
 			    bigoff, bigsize, txg);
 		}
-		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx);
+		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx,
+		    DMU_READ_PREFETCH);
 	}
 
 	dmu_tx_commit(tx);
@@ -5513,7 +5516,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		 * We've verified all the old bufwads, and made new ones.
 		 * Now write them out.
 		 */
-		dmu_write(os, packobj, packoff, packsize, packbuf, tx);
+		dmu_write(os, packobj, packoff, packsize, packbuf, tx,
+		    DMU_READ_PREFETCH);
 		if (ztest_opts.zo_verbose >= 7) {
 			(void) printf("writing offset %"PRIx64" size %"PRIx64""
 			    " txg %"PRIx64"\n",
@@ -6119,7 +6123,8 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 		    "future leak: got %"PRIu64", open txg is %"PRIu64"",
 		    old_txg, txg);
 
-	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx);
+	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx,
+	    DMU_READ_PREFETCH);
 
 	(void) mutex_enter(&zcl.zcl_callbacks_lock);
 

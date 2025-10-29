@@ -547,7 +547,8 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		dmu_write(os, ZVOL_OBJ, offset, length, data, tx);
+		dmu_write(os, ZVOL_OBJ, offset, length, data, tx,
+		    DMU_READ_PREFETCH);
 		(void) zil_replaying(zv->zv_zilog, tx);
 		dmu_tx_commit(tx);
 	}

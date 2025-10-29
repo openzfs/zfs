@@ -76,7 +76,7 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 		return (0);
 
 	err = dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp);
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
 	if (err)
 		return (err);
 
@@ -147,7 +147,8 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 	ASSERT3S(last_size, <=, PAGE_SIZE);
 
 	err = dmu_buf_hold_array(os, object, IDX_TO_OFF(ma[0]->pindex),
-	    IDX_TO_OFF(count - 1) + last_size, TRUE, FTAG, &numbufs, &dbp);
+	    IDX_TO_OFF(count - 1) + last_size, TRUE, FTAG, &numbufs, &dbp,
+	    DMU_READ_PREFETCH);
 	if (err != 0)
 		return (err);
 
