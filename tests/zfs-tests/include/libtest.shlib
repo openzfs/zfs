@@ -789,6 +789,23 @@ function assert
 	(($@)) || log_fail "$@"
 }
 
+function get_file_size
+{
+       typeset filename="$1"
+
+       if is_linux; then
+	       if [ -b "$filename" ] ; then
+		       filesize=$(blockdev --getsize64 $filename)
+	       else
+		       filesize=$(stat -c %s $filename)
+	       fi
+       else
+	       filesize=$(stat -s $filename | awk '{print $8}' | grep -o '[0-9]\+')
+       fi
+
+       echo $filesize
+}
+
 #
 # Function to format partition size of a disk
 # Given a disk cxtxdx reduces all partitions
@@ -1599,6 +1616,14 @@ function create_pool #pool devs_list
 
 	if is_global_zone ; then
 		[[ -d /$pool ]] && rm -rf /$pool
+
+		for vdev in "$@" ; do
+		       if [[ "$vdev" =~ "loop" ]] ; then
+			       # If the device is a loopback, remove previously
+			       # allocated data.
+			       punch_hole 0 $(get_file_size /dev/$vdev) /dev/$vdev
+		       fi
+	       done
 		log_must zpool create -f $pool $@
 	fi
 
