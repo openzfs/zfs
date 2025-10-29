@@ -195,7 +195,7 @@ is_shorthand_path(const char *arg, char *path, size_t path_size,
 			return (0);
 	}
 
-	strlcpy(path, arg, path_size);
+	(void) strlcpy(path, arg, path_size);
 	memset(statbuf, 0, sizeof (*statbuf));
 	*wholedisk = B_FALSE;
 
@@ -308,7 +308,7 @@ make_leaf_vdev(const char *arg, boolean_t is_primary, uint64_t ashift)
 		}
 
 		/* After whole disk check restore original passed path */
-		strlcpy(path, arg, sizeof (path));
+		(void) strlcpy(path, arg, sizeof (path));
 	} else if (zpool_is_draid_spare(arg)) {
 		if (!is_primary) {
 			(void) fprintf(stderr,
@@ -318,7 +318,7 @@ make_leaf_vdev(const char *arg, boolean_t is_primary, uint64_t ashift)
 		}
 
 		wholedisk = B_TRUE;
-		strlcpy(path, arg, sizeof (path));
+		(void) strlcpy(path, arg, sizeof (path));
 		type = VDEV_TYPE_DRAID_SPARE;
 	} else {
 		err = is_shorthand_path(arg, path, sizeof (path),
@@ -1010,7 +1010,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv, boolean_t replacing)
 		 * window between when udev deletes and recreates the link
 		 * during which access attempts will fail with ENOENT.
 		 */
-		strlcpy(udevpath, path, MAXPATHLEN);
+		(void) strlcpy(udevpath, path, MAXPATHLEN);
 		(void) zfs_append_partition(udevpath, MAXPATHLEN);
 
 		fd = open(devpath, O_RDWR|O_EXCL);
