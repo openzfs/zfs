@@ -10015,7 +10015,7 @@ main(int argc, char **argv)
 		    ARG_BLOCK_BIN_MODE},
 		{"class",		required_argument,	NULL,
 		    ARG_BLOCK_CLASSES},
-		{"anyraid-map",		required_argument,	NULL,
+		{"anyraid-map",		no_argument,		NULL,
 		    ARG_ANYRAID_MAP},
 		{0, 0, 0, 0}
 	};
