@@ -809,7 +809,7 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 		 */
 		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 		    brtvd->bv_size * sizeof (brtvd->bv_entcount[0]),
-		    brtvd->bv_entcount, tx);
+		    brtvd->bv_entcount, tx, DMU_READ_NO_PREFETCH);
 		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
 		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;

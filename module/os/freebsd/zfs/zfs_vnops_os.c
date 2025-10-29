@@ -4481,7 +4481,8 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		for (i = 0; wlen > 0; woff += tocopy, wlen -= tocopy, i++) {
 			tocopy = MIN(PAGE_SIZE, wlen);
 			va = zfs_map_page(ma[i], &sf);
-			dmu_write(zfsvfs->z_os, zp->z_id, woff, tocopy, va, tx);
+			dmu_write(zfsvfs->z_os, zp->z_id, woff, tocopy, va, tx,
+			    DMU_READ_PREFETCH);
 			zfs_unmap_page(sf);
 		}
 	} else {
