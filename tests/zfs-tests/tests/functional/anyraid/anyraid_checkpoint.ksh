@@ -50,11 +50,12 @@ log_onexit cleanup
 log_must create_pool $TESTPOOL anymirror1 $DISKS
 
 log_assert "Anyraid works correctly with checkpoints"
+log_must zdb --anyraid-map $TESTPOOL
 
 map=$(zdb --anyraid-map $TESTPOOL)
 log_must zpool checkpoint $TESTPOOL
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=2k
+log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c 2048 -d R
 
 log_must zpool export $TESTPOOL
 log_must zpool import --rewind-to-checkpoint $TESTPOOL
