@@ -46,8 +46,7 @@ function wipe_some_disks_and_verify_content_is_still_okay
 	done
 
 	for disk in $@; do
-		log_must dd if=/dev/zero of=$disk seek=8 bs=$DD_BLOCK \
-			count=$(( DD_COUNT - 128 )) conv=notrunc
+		log_must punch_hole $((DD_BLOCK * 8)) $((DD_BLOCK * (DD_COUNT - 128))) $disk
 	done
 
 	#
