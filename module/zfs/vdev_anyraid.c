@@ -125,6 +125,17 @@ uint64_t zfs_anyraid_min_tile_size = (16ULL << 30);
  */
 int anyraid_disk_shift = 6;
 
+static inline uint64_t
+vdev_anyraid_header_offset(vdev_t *vd, int id)
+{
+	uint64_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE(vd->vdev_ashift);
+	if (id < VDEV_ANYRAID_START_COPES)
+		return (VDEV_LABEL_START_SIZE + id * full_size);
+	else
+		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
+		    (VDEV_ANYRAID_MAP_COPIES - id) * full_size);
+}
+
 static inline int
 anyraid_tile_compare(const void *p1, const void *p2)
 {
@@ -311,8 +322,7 @@ vdev_anyraid_open_header(vdev_t *cvd, int header, anyraid_header_t *out_header)
 {
 	spa_t *spa = cvd->vdev_spa;
 	uint64_t ashift = cvd->vdev_ashift;
-	uint64_t header_offset = VDEV_LABEL_START_SIZE +
-	    header * VDEV_ANYRAID_SINGLE_MAP_SIZE(ashift);
+	uint64_t header_offset = vdev_anyraid_header_offset(cvd, header);
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
@@ -542,8 +552,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 	 */
 	zio_t *rio = zio_root(spa, NULL, NULL, flags);
 	abd_t *map_abds[VDEV_ANYRAID_MAP_COPIES] = {0};
-	uint64_t header_offset = VDEV_LABEL_START_SIZE +
-	    mapping * VDEV_ANYRAID_SINGLE_MAP_SIZE(ashift);
+	uint64_t header_offset = vdev_anyraid_header_offset(cvd, mapping);
 	uint64_t map_offset = header_offset + header_size;
 	int i;
 	for (i = 0; i <= (map_length / SPA_MAXBLOCKSIZE); i++) {
@@ -977,7 +986,7 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 		ASSERT(atn);
 		mirror_child_t *mc = &mm->mm_child[c];
 		mc->mc_vd = vd->vdev_child[atn->atn_disk];
-		mc->mc_offset = VDEV_ANYRAID_TOTAL_MAP_SIZE(vd->vdev_ashift) +
+		mc->mc_offset = VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift) +
 		    atn->atn_offset * rsize + zio->io_offset % rsize;
 		ASSERT3U(mc->mc_offset, <, mc->mc_vd->vdev_psize -
 		    VDEV_LABEL_END_SIZE);
@@ -1086,7 +1095,7 @@ vdev_anyraid_io_start(zio_t *zio)
 	vdev_t *cvd = vd->vdev_child[atn->atn_disk];
 	uint64_t child_offset = atn->atn_offset * rsize +
 	    zio->io_offset % rsize;
-	child_offset += VDEV_ANYRAID_TOTAL_MAP_SIZE(vd->vdev_ashift);
+	child_offset += VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift);
 
 	anyraid_map_t *mm = kmem_alloc(sizeof (*mm), KM_SLEEP);
 	mm->am_abd = abd_get_offset(zio->io_abd, 0);
@@ -1203,7 +1212,7 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 
 	uint64_t child_offset = atn->atn_offset * rsize +
 	    logical_rs->rs_start % rsize;
-	child_offset += VDEV_ANYRAID_TOTAL_MAP_SIZE(anyraidvd->vdev_ashift);
+	child_offset += VDEV_ANYRAID_START_OFFSET(anyraidvd->vdev_ashift);
 	uint64_t size = logical_rs->rs_end - logical_rs->rs_start;
 
 	physical_rs->rs_start = child_offset;
@@ -1294,11 +1303,9 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	spa_t *spa = vd->vdev_spa;
 	vdev_anyraid_t *var = anyraidvd->vdev_tsd;
 	uint32_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_ashift);
-	uint32_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE(vd->vdev_ashift);
 	uint32_t nvl_bytes = VDEV_ANYRAID_NVL_BYTES(vd->vdev_ashift);
 	uint8_t update_target = txg % VDEV_ANYRAID_MAP_COPIES;
-	uint64_t base_offset = VDEV_LABEL_START_SIZE +
-	    update_target * full_size;
+	uint64_t base_offset = vdev_anyraid_header_offset(vd, update_target);
 
 	abd_t *header_abd =
 	    abd_alloc_linear(header_size, B_TRUE);
