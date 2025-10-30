@@ -37,7 +37,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd July 11, 2022
+.Dd November 4, 2025
 .Dt ZFS-JAIL 8
 .Os
 .
@@ -53,9 +53,42 @@
 .Ar filesystem
 .
 .Sh DESCRIPTION
-.Bl -tag -width ""
+The
+.Nm
+functionality can be used to assign a dataset onto a running
+.Fx
+system
+.Xr jail 4 ,
+allowing
+.Xr zfs 8
+management utilities to be run inside of the
+.Xr jail 4 .
+.Pp
+To allow management of the dataset from within a jail, the
+.Sy jailed
+property should be set and the required
+.Xr devfs.conf 5
+entries to expose
+.Pa /dev/zfs
+device within the jail must be present.
+The
+.Sy quota
+property cannot be changed from within a jail.
+.Pp
+To use this functionality, the jail needs the
+.Sy allow.mount
+and
+.Sy allow.mount.zfs
+parameters set to
+.Sy 1
+and the
+.Sy enforce_statfs
+parameter set to a value lower than
+.Sy 2 .
+.Pp
+The subcommands are as follows:
+.Bl -tag -width indent
 .It Xo
-.Nm zfs
 .Cm jail
 .Ar jailid Ns | Ns Ar jailname
 .Ar filesystem
@@ -69,16 +102,6 @@ or name
 From now on this file system tree can be managed from within a jail if the
 .Sy jailed
 property has been set.
-To use this functionality, the jail needs the
-.Sy allow.mount
-and
-.Sy allow.mount.zfs
-parameters set to
-.Sy 1
-and the
-.Sy enforce_statfs
-parameter set to a value lower than
-.Sy 2 .
 .Pp
 You cannot attach a jailed dataset's children to another jail.
 You can also not attach the root file system
@@ -86,29 +109,12 @@ of the jail or any dataset which needs to be mounted before the zfs rc script
 is run inside the jail, as it would be attached unmounted until it is
 mounted from the rc script inside the jail.
 .Pp
-To allow management of the dataset from within a jail, the
-.Sy jailed
-property has to be set and the jail needs access to the
-.Pa /dev/zfs
-device.
-The
-.Sy quota
-property cannot be changed from within a jail.
-.Pp
 After a dataset is attached to a jail and the
 .Sy jailed
 property is set, a jailed file system cannot be mounted outside the jail,
 since the jail administrator might have set the mount point to an unacceptable
 value.
-.Pp
-See
-.Xr jail 8
-for more information on managing jails.
-Jails are a
-.Fx
-feature and are not relevant on other platforms.
 .It Xo
-.Nm zfs
 .Cm unjail
 .Ar jailid Ns | Ns Ar jailname
 .Ar filesystem
@@ -121,5 +127,18 @@ or name
 .Ar jailname .
 .El
 .Sh SEE ALSO
+.Xr devfs.conf 5 ,
 .Xr zfsprops 7 ,
 .Xr jail 8
+.Sh CAVEATS
+The root directory of jail can not be delegated to the jail with this
+utility because the jail must be running with a valid root directory.
+.Pp
+Jails are a
+.Fx
+feature and are not relevant on other platforms.
+See
+.Xr jail 8
+for more information on managing jails, or
+.Xr zfs-zone 8
+for the equivelant functionality on Linux.
