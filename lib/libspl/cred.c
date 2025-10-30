@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -20,10 +19,46 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
+ */
 
-#ifndef ZFS_CONTEXT_OS_H
-#define	ZFS_CONTEXT_OS_H
+#include <sys/cred.h>
 
-#define	HAVE_LARGE_STACKS	1
+uid_t
+crgetuid(cred_t *cr)
+{
+	(void) cr;
+	return (0);
+}
 
-#endif
+uid_t
+crgetruid(cred_t *cr)
+{
+	(void) cr;
+	return (0);
+}
+
+gid_t
+crgetgid(cred_t *cr)
+{
+	(void) cr;
+	return (0);
+}
+
+int
+crgetngroups(cred_t *cr)
+{
+	(void) cr;
+	return (0);
+}
+
+gid_t *
+crgetgroups(cred_t *cr)
+{
+	(void) cr;
+	return (NULL);
+}

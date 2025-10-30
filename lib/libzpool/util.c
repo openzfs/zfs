@@ -38,6 +38,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/tunables.h>
 #include <libzutil.h>
+#include <libzpool.h>
 
 /*
  * Routines needed by more than one client of libzpool.

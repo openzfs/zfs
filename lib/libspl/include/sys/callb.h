@@ -21,11 +21,36 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _SYS_CALLB_H
 #define	_SYS_CALLB_H
+
+#include <sys/mutex.h>
+
+typedef struct callb_cpr {
+	kmutex_t	*cc_lockp;
+} callb_cpr_t;
+
+#define	CALLB_CPR_INIT(cp, lockp, func, name)	{		\
+	(cp)->cc_lockp = lockp;					\
+}
+
+#define	CALLB_CPR_SAFE_BEGIN(cp) {				\
+	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
+}
+
+#define	CALLB_CPR_SAFE_END(cp, lockp) {				\
+	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
+}
+
+#define	CALLB_CPR_EXIT(cp) {					\
+	ASSERT(MUTEX_HELD((cp)->cc_lockp));			\
+	mutex_exit((cp)->cc_lockp);				\
+}
 
 #endif

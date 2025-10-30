@@ -33,6 +33,7 @@
 #include <sys/vdev_raidz_impl.h>
 #include <assert.h>
 #include <stdio.h>
+#include <libzpool.h>
 #include "raidz_test.h"
 
 static int *rand_data;

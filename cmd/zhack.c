@@ -55,6 +55,7 @@
 #include <zfeature_common.h>
 #include <libzutil.h>
 #include <sys/metaslab_impl.h>
+#include <libzpool.h>
 
 static importargs_t g_importargs;
 static char *g_pool;

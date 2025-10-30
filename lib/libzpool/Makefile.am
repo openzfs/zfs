@@ -12,7 +12,6 @@ dist_libzpool_la_SOURCES = \
 	%D%/abd_os.c \
 	%D%/arc_os.c \
 	%D%/kernel.c \
-	%D%/taskq.c \
 	%D%/util.c \
 	%D%/vdev_label_os.c \
 	%D%/zfs_racct.c \

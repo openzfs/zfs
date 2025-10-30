@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -21,14 +20,26 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
+ * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  */
 
 #ifndef _LIBSPL_SYS_SYSMACROS_H
 #define	_LIBSPL_SYS_SYSMACROS_H
 
+#include <stdint.h>
+
+#ifdef __linux__
+/*
+ * On Linux, we need the system-provided sysmacros.h to get the makedev(),
+ * major() and minor() definitions for makedevice() below. FreeBSD does not
+ * have this header, so include_next won't find it and will abort. So, we
+ * protect it with a platform check.
+ */
 #include_next <sys/sysmacros.h>
+#endif
 
 /* common macros */
 #ifndef MIN
@@ -94,10 +105,22 @@
 #define	P2SAMEHIGHBIT_TYPED(x, y, type)		\
 	(((type)(x) ^ (type)(y)) < ((type)(x) & (type)(y)))
 
+#define	max_ncpus	64
+#define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))
 
-/* avoid any possibility of clashing with <stddef.h> version */
-#if defined(_KERNEL) && !defined(_KMEMUSER) && !defined(offsetof)
-#define	offsetof(s, m)	((size_t)(&(((s *)0)->m)))
-#endif
+/*
+ * Process priorities as defined by setpriority(2) and getpriority(2).
+ */
+#define	minclsyspri	19
+#define	defclsyspri	0
+/* Write issue taskq priority. */
+#define	wtqclsyspri	-19
+#define	maxclsyspri	-20
 
-#endif /* _LIBSPL_SYS_SYSMACROS_H */
+#define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID_UNSTABLE	CPU_SEQID
+
+extern int lowbit64(uint64_t i);
+extern int highbit64(uint64_t i);
+
+#endif /* _SYS_SYSMACROS_H */

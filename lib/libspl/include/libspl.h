@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -21,19 +20,21 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
-#ifndef _SYS_ZONE_H
-#define	_SYS_ZONE_H
+#ifndef _LIBSPL_H
+#define	_LIBSPL_H extern __attribute__((visibility("default")))
 
-#define	zone_dataset_visible(x, y)	(1)
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define	INGLOBALZONE(z)			(1)
+_LIBSPL_H void libspl_init(void);
+_LIBSPL_H void libspl_fini(void);
 
-extern uint32_t zone_get_hostid(void *zonep);
+#ifdef __cplusplus
+};
+#endif
 
-#endif /* _SYS_ZONE_H */
+#endif /* _LIBSPL_H */

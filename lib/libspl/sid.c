@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -22,18 +21,27 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
  */
 
-#ifndef _SYS_ZONE_H
-#define	_SYS_ZONE_H
+#include <sys/sid.h>
+#include <umem.h>
 
-#define	zone_dataset_visible(x, y)	(1)
+ksiddomain_t *
+ksid_lookupdomain(const char *dom)
+{
+	ksiddomain_t *kd;
 
-#define	INGLOBALZONE(z)			(1)
+	kd = umem_zalloc(sizeof (ksiddomain_t), UMEM_NOFAIL);
+	kd->kd_name = strdup(dom);
+	return (kd);
+}
 
-extern uint32_t zone_get_hostid(void *zonep);
-
-#endif /* _SYS_ZONE_H */
+void
+ksiddomain_rele(ksiddomain_t *ksid)
+{
+	free(ksid->kd_name);
+	umem_free(ksid, sizeof (ksiddomain_t));
+}

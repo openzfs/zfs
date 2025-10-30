@@ -139,6 +139,7 @@
 #include <sys/crypto/icp.h>
 #include <sys/zfs_impl.h>
 #include <sys/backtrace.h>
+#include <libzpool.h>
 
 static int ztest_fd_data = -1;
 static int ztest_fd_rand = -1;

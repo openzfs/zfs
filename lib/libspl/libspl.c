@@ -3,9 +3,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or https://opensource.org/licenses/CDDL-1.0.
@@ -22,18 +21,40 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2012, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
-#ifndef _SYS_ZONE_H
-#define	_SYS_ZONE_H
+#include <libspl.h>
+#include <assert.h>
+#include <unistd.h>
+#include <sys/misc.h>
+#include <sys/utsname.h>
+#include "libspl_impl.h"
 
-#define	zone_dataset_visible(x, y)	(1)
+uint64_t physmem;
+struct utsname hw_utsname;
 
-#define	INGLOBALZONE(z)			(1)
+utsname_t *
+utsname(void)
+{
+	return (&hw_utsname);
+}
 
-extern uint32_t zone_get_hostid(void *zonep);
+void
+libspl_init(void)
+{
+	physmem = sysconf(_SC_PHYS_PAGES);
 
-#endif /* _SYS_ZONE_H */
+	VERIFY0(uname(&hw_utsname));
+
+	random_init();
+}
+
+void
+libspl_fini(void)
+{
+	random_fini();
+}
