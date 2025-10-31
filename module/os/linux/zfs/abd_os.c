@@ -888,6 +888,36 @@ abd_iter_advance(struct abd_iter *aiter, size_t amount)
 	}
 }
 
+/* Data in current linear chunk is always just offset to end of ABD */
+#define	ABD_ITER_LINEAR_SIZE(aiter) \
+	((aiter)->iter_abd->abd_size - (aiter)->iter_offset)
+
+/*
+ * Data in current scatter chunk is always distance to end of chunk, or in
+ * the last chunk, distance to end of ABD
+ */
+#define	ABD_ITER_SCATTER_SIZE(aiter)				\
+	(MIN((aiter)->iter_sg->length - (aiter)->iter_offset,	\
+	    (aiter)->iter_abd->abd_size - (aiter)->iter_pos))
+/*
+ * Return size of data in current chunk (_not_ underlying memory size).
+ */
+size_t
+abd_iter_size(struct abd_iter *aiter)
+{
+	/* If it's already mapped, just return that size. */
+	if (aiter->iter_mapsize > 0)
+		return (aiter->iter_mapsize);
+
+	/* There's no current chunk if the iterator is exhausted. */
+	if (abd_iter_at_end(aiter))
+		return (0);
+
+	if (abd_is_linear(aiter->iter_abd))
+		return (ABD_ITER_LINEAR_SIZE(aiter));
+	return (ABD_ITER_SCATTER_SIZE(aiter));
+}
+
 /*
  * Map the current chunk into aiter. This can be safely called when the aiter
  * has already exhausted, in which case this does nothing.
@@ -896,7 +926,6 @@ void
 abd_iter_map(struct abd_iter *aiter)
 {
 	void *paddr;
-	size_t offset = 0;
 
 	ASSERT0P(aiter->iter_mapaddr);
 	ASSERT0(aiter->iter_mapsize);
@@ -907,18 +936,14 @@ abd_iter_map(struct abd_iter *aiter)
 
 	if (abd_is_linear(aiter->iter_abd)) {
 		ASSERT3U(aiter->iter_pos, ==, aiter->iter_offset);
-		offset = aiter->iter_offset;
-		aiter->iter_mapsize = aiter->iter_abd->abd_size - offset;
+		aiter->iter_mapsize = ABD_ITER_LINEAR_SIZE(aiter);
 		paddr = ABD_LINEAR_BUF(aiter->iter_abd);
 	} else {
-		offset = aiter->iter_offset;
-		aiter->iter_mapsize = MIN(aiter->iter_sg->length - offset,
-		    aiter->iter_abd->abd_size - aiter->iter_pos);
-
+		aiter->iter_mapsize = ABD_ITER_SCATTER_SIZE(aiter);
 		paddr = zfs_kmap_local(sg_page(aiter->iter_sg));
 	}
 
-	aiter->iter_mapaddr = (char *)paddr + offset;
+	aiter->iter_mapaddr = (char *)paddr + aiter->iter_offset;
 }
 
 /*
