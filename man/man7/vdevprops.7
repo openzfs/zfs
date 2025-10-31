@@ -45,7 +45,7 @@ section, below.
 Every vdev has a set of properties that export statistics about the vdev
 as well as control various behaviors.
 Properties are not inherited from top-level vdevs, with the exception of
-checksum_n, checksum_t, io_n, io_t, slow_io_n, and slow_io_t.
+checksum_n, checksum_t, io_n, io_t, slow_io_events, slow_io_n, and slow_io_t.
 .Pp
 The values of numeric properties can be specified using human-readable suffixes
 .Po for example,
@@ -132,7 +132,8 @@ Indicates if a leaf device supports trim operations.
 .Pp
 The following native properties can be used to change the behavior of a vdev.
 .Bl -tag -width "allocating"
-.It Sy checksum_n , checksum_t , io_n , io_t , slow_io_n , slow_io_t
+.It Sy checksum_n , checksum_t , io_n , io_t , slow_io_n ,
+.It Sy slow_io_t
 Tune the fault management daemon by specifying checksum/io thresholds of <N>
 errors in <T> seconds, respectively.
 These properties can be set on leaf and top-level vdevs.
@@ -149,6 +150,11 @@ For
 .Sy OpenZFS on FreeBSD
 defaults see
 .Xr zfsd 8 .
+The
+.It Sy slow_io_events
+property controls whether slow I/O events are generated.
+When enabled, the fault management daemon (or another consumer) can process
+them.
 .It Sy comment
 A text comment up to 8192 characters long
 .It Sy bootsize
