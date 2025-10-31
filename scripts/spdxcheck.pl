@@ -128,7 +128,6 @@ my $untagged_patterns = q(
 	include/os/freebsd/zfs/sys/zpl.h
 	include/os/linux/kernel/linux/page_compat.h
 	lib/libspl/include/sys/string.h
-	lib/libspl/include/sys/trace_spl.h
 	lib/libzdb/libzdb.c
 	lib/libzpool/include/sys/trace_zfs.h
 	module/lua/setjmp/setjmp.S

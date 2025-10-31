@@ -238,7 +238,7 @@ zfs_uio_iov_step(struct iovec v, zfs_uio_t *uio, int *numpages)
 	    zfs_uio_rw(uio), &uio->uio_dio.pages[uio->uio_dio.npages]);
 
 	if (res != n)
-		return (SET_ERROR(EFAULT));
+		return (EFAULT);
 
 	ASSERT3U(len, ==, res * PAGE_SIZE);
 	*numpages = res;
