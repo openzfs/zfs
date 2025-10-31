@@ -145,11 +145,11 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 	switch (zpc->zpc_op) {
 	case ZFS_PROJECT_OP_LIST:
 		(void) printf("%5u %c %s\n", fsx.fsx_projid,
-		    (fsx.fsx_xflags & ZFS_PROJINHERIT_FL) ? 'P' : '-', name);
+		    (fsx.fsx_xflags & FS_XFLAG_PROJINHERIT) ? 'P' : '-', name);
 		goto out;
 	case ZFS_PROJECT_OP_CHECK:
 		if (fsx.fsx_projid == zpc->zpc_expected_projid &&
-		    fsx.fsx_xflags & ZFS_PROJINHERIT_FL)
+		    fsx.fsx_xflags & FS_XFLAG_PROJINHERIT)
 			goto out;
 
 		if (!zpc->zpc_newline) {
@@ -164,29 +164,30 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 			    "(%u/%u)\n", name, fsx.fsx_projid,
 			    (uint32_t)zpc->zpc_expected_projid);
 
-		if (!(fsx.fsx_xflags & ZFS_PROJINHERIT_FL))
+		if (!(fsx.fsx_xflags & FS_XFLAG_PROJINHERIT))
 			(void) printf("%s - project inherit flag is not set\n",
 			    name);
 
 		goto out;
 	case ZFS_PROJECT_OP_CLEAR:
-		if (!(fsx.fsx_xflags & ZFS_PROJINHERIT_FL) &&
+		if (!(fsx.fsx_xflags & FS_XFLAG_PROJINHERIT) &&
 		    (zpc->zpc_keep_projid ||
 		    fsx.fsx_projid == ZFS_DEFAULT_PROJID))
 			goto out;
 
-		fsx.fsx_xflags &= ~ZFS_PROJINHERIT_FL;
+		fsx.fsx_xflags &= ~FS_XFLAG_PROJINHERIT;
 		if (!zpc->zpc_keep_projid)
 			fsx.fsx_projid = ZFS_DEFAULT_PROJID;
 		break;
 	case ZFS_PROJECT_OP_SET:
 		if (fsx.fsx_projid == zpc->zpc_expected_projid &&
-		    (!zpc->zpc_set_flag || fsx.fsx_xflags & ZFS_PROJINHERIT_FL))
+		    (!zpc->zpc_set_flag ||
+		    fsx.fsx_xflags & FS_XFLAG_PROJINHERIT))
 			goto out;
 
 		fsx.fsx_projid = zpc->zpc_expected_projid;
 		if (zpc->zpc_set_flag)
-			fsx.fsx_xflags |= ZFS_PROJINHERIT_FL;
+			fsx.fsx_xflags |= FS_XFLAG_PROJINHERIT;
 		break;
 	default:
 		ASSERT(0);
