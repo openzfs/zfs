@@ -464,6 +464,8 @@ struct spa {
 	uint64_t	spa_leaf_list_gen;	/* track leaf_list changes */
 	uint32_t	spa_hostid;		/* cached system hostid */
 
+	rrmlock_t	spa_iolimit_lock;
+
 	/* synchronization for threads in spa_wait */
 	kmutex_t	spa_activities_lock;
 	kcondvar_t	spa_activities_cv;

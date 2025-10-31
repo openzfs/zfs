@@ -412,6 +412,7 @@ ZFS_OBJS := \
 	zfs_fuid.o \
 	zfs_impl.o \
 	zfs_ioctl.o \
+	zfs_iolimit.o \
 	zfs_log.o \
 	zfs_onexit.o \
 	zfs_quota.o \

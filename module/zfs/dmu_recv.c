@@ -69,6 +69,7 @@
 #include <sys/zfs_vfsops.h>
 #endif
 #include <sys/zfs_file.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/cred.h>
 
 static uint_t zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
@@ -2251,6 +2252,12 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 		abd_t *abd = rrd->abd;
 
 		ASSERT3U(drrw->drr_object, ==, rwa->last_object);
+
+		/*
+		 * zfs_iolimit_data_write_spin() will sleep in short periods
+		 * and return immediately when a signal is pending.
+		 */
+		zfs_iolimit_data_write_spin(rwa->os, 0, drrw->drr_logical_size);
 
 		if (drrw->drr_logical_size != dn->dn_datablksz) {
 			/*
