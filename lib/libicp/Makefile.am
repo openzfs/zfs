@@ -1,6 +1,9 @@
 libicp_la_CCASFLAGS = $(AM_CCASFLAGS)
 libicp_la_CFLAGS    = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 
+libicp_la_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+libicp_la_CPPFLAGS += -I$(top_srcdir)/module/icp/include
+
 noinst_LTLIBRARIES += libicp.la
 
 nodist_libicp_la_SOURCES = \
