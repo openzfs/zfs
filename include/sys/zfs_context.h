@@ -127,8 +127,6 @@ extern "C" {
 #include <sys/systm.h>
 #include <sys/misc.h>
 #include <sys/random.h>
-#include <sys/callb.h>
-#include <sys/trace.h>
 
 #include <sys/zfs_context_os.h>
 
