@@ -124,7 +124,7 @@ my $untagged_patterns = q(
 	include/os/freebsd/spl/sys/inttypes.h
 	include/os/freebsd/spl/sys/mode.h
 	include/os/freebsd/spl/sys/trace.h
-	include/os/freebsd/spl/sys/trace_zfs.h
+	include/os/freebsd/zfs/sys/trace_zfs.h
 	include/os/freebsd/zfs/sys/zpl.h
 	include/os/linux/kernel/linux/page_compat.h
 	lib/libspl/include/sys/string.h
