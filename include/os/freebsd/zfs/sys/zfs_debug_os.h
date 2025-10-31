@@ -27,10 +27,11 @@
  * $FreeBSD$
  */
 
-#ifndef _OPENSOLARIS_SYS_SDT_H_
-#define	_OPENSOLARIS_SYS_SDT_H_
+#ifndef _SYS_ZFS_DEBUG_OS_H
+#define	_SYS_ZFS_DEBUG_OS_H
 
-#include_next <sys/sdt.h>
+#include <sys/sdt.h>
+
 #ifdef KDTRACE_HOOKS
 SDT_PROBE_DECLARE(sdt, , , set__error);
 
@@ -44,4 +45,4 @@ SDT_PROBE_DECLARE(sdt, , , set__error);
 #define	SET_ERROR(err) (err)
 #endif
 
-#endif	/* _OPENSOLARIS_SYS_SDT_H_ */
+#endif	/* _SYS_ZFS_DEBUG_OS_H */

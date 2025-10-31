@@ -109,7 +109,6 @@ extern "C" {
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sunddi.h>
 #include <sys/debug.h>
-#include <sys/trace_zfs.h>
 #include <sys/zone.h>
 
 #include <sys/mutex.h>

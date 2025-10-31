@@ -32,7 +32,6 @@
 #include <sys/taskq.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
-#include <sys/trace_spl.h>
 #include <sys/time.h>
 #include <sys/atomic.h>
 #include <sys/kstat.h>
@@ -325,7 +324,6 @@ task_expire_impl(taskq_ent_t *t)
 	}
 
 	t->tqent_birth = jiffies;
-	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	/*
 	 * The priority list must be maintained in strict task id order
@@ -713,9 +711,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	t->tqent_taskq = tq;
 	t->tqent_timer.function = NULL;
 	t->tqent_timer.expires = 0;
-
 	t->tqent_birth = jiffies;
-	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
 
@@ -840,9 +836,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_taskq = tq;
-
 	t->tqent_birth = jiffies;
-	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	spin_unlock(&t->tqent_lock);
 
@@ -1054,11 +1048,6 @@ taskq_thread(void *args)
 			 * A TQENT_FLAG_PREALLOC task may be reused or freed
 			 * during the task function call. Store tqent_id and
 			 * tqent_flags here.
-			 *
-			 * Also use an on stack taskq_ent_t for tqt_task
-			 * assignment in this case; we want to make sure
-			 * to duplicate all fields, so the values are
-			 * correct when it's accessed via DTRACE_PROBE*.
 			 */
 			tqt->tqt_id = t->tqent_id;
 			tqt->tqt_flags = t->tqent_flags;
@@ -1074,12 +1063,9 @@ taskq_thread(void *args)
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 			TQSTAT_INC(tq, threads_active);
-			DTRACE_PROBE1(taskq_ent__start, taskq_ent_t *, t);
 
 			/* Perform the requested task */
 			t->tqent_func(t->tqent_arg);
-
-			DTRACE_PROBE1(taskq_ent__finish, taskq_ent_t *, t);
 
 			TQSTAT_DEC(tq, threads_active);
 			if ((t->tqent_flags & TQENT_LIST_MASK) ==

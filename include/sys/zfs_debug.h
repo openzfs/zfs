@@ -40,6 +40,7 @@ extern "C" {
 #endif
 
 #include <sys/nvpair.h>
+#include <sys/zfs_debug_os.h>
 
 extern int zfs_flags;
 extern int zfs_recover;

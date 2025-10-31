@@ -34,11 +34,6 @@
 #include <sys/signal.h>
 #include <asm/page.h>
 
-
-#ifndef _KERNEL
-#define	_KERNEL				__KERNEL__
-#endif
-
 #define	FALSE				0
 #define	TRUE				1
 
@@ -201,9 +196,6 @@ makedev(unsigned int major, unsigned int minor)
 	(((type)(x) ^ (type)(y)) > (type)(align) - 1)
 #define	P2SAMEHIGHBIT_TYPED(x, y, type) \
 	(((type)(x) ^ (type)(y)) < ((type)(x) & (type)(y)))
-
-#define	SET_ERROR(err) \
-	(__set_error(__FILE__, __func__, __LINE__, err), err)
 
 #include <linux/sort.h>
 #define	qsort(base, num, size, cmp)		\
