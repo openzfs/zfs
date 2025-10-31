@@ -1752,6 +1752,20 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	} else if (scan_cmd == POOL_SCRUB_FROM_LAST_TXG) {
 		error = spa_scan_range(spa, scan_type,
 		    spa_get_last_scrubbed_txg(spa), 0);
+	} else if (scan_cmd == POOL_SCRUB_RECENT) {
+		uint64_t txg_start;
+		hrtime_t lasttime;
+
+		txg_start = 0;
+		mutex_enter(&spa->spa_txg_log_time_lock);
+		lasttime = dbrrd_tail_time(&spa->spa_txg_log_time);
+		if (lasttime > zfs_scrub_recent_time) {
+			txg_start = dbrrd_query(&spa->spa_txg_log_time,
+			    lasttime - zfs_scrub_recent_time, DBRRD_FLOOR);
+		}
+		mutex_exit(&spa->spa_txg_log_time_lock);
+
+		error = spa_scan_range(spa, scan_type, txg_start, 0);
 	} else {
 		uint64_t txg_start, txg_end;
 
