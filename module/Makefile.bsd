@@ -246,6 +246,7 @@ SRCS+=	cityhash.c \
 	zfs_fletcher_superscalar.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
+	range_tree.c \
 	zfs_valstr.c \
 	zpool_prop.c \
 	zprop_common.c
@@ -305,7 +306,6 @@ SRCS+=	abd.c \
 	multilist.c \
 	objlist.c \
 	pathname.c \
-	range_tree.c \
 	refcount.c \
 	rrwlock.c \
 	sa.c \

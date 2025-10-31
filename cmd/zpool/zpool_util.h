@@ -45,7 +45,6 @@ void *safe_realloc(void *, size_t);
 void zpool_no_memory(void);
 uint_t num_logs(nvlist_t *nv);
 uint64_t array64_max(uint64_t array[], unsigned int len);
-int highbit64(uint64_t i);
 int lowbit64(uint64_t i);
 
 /*

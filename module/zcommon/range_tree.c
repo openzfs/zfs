@@ -35,6 +35,16 @@
 #include <sys/zio.h>
 #include <sys/range_tree.h>
 
+#ifndef _KERNEL
+#include <stdio.h>
+#include <stdlib.h>
+#define	panic(...) do {printf(__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
+#define	zfs_panic_recover(...) do {printf(__VA_ARGS__); } while (0)
+
+#undef zfs_dbgmsg
+#define	zfs_dbgmsg(...) do {} while (0)
+#endif
+
 /*
  * Range trees are tree-based data structures that can be used to
  * track free space or generally any space allocation information.

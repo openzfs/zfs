@@ -34,7 +34,9 @@ dist_libzfs_la_SOURCES += \
 endif
 
 nodist_libzfs_la_SOURCES = \
+	module/zcommon/btree.c \
 	module/zcommon/cityhash.c \
+	module/zcommon/range_tree.c \
 	module/zcommon/zfeature_common.c \
 	module/zcommon/zfs_comutil.c \
 	module/zcommon/zfs_deleg.c \

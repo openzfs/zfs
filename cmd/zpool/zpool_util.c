@@ -116,19 +116,6 @@ array64_max(uint64_t array[], unsigned int len)
 }
 
 /*
- * Find highest one bit set.
- * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
- */
-int
-highbit64(uint64_t i)
-{
-	if (i == 0)
-		return (0);
-
-	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
-}
-
-/*
  * Find lowest one bit set.
  * Returns bit number + 1 of lowest bit that is set, otherwise returns 0.
  */

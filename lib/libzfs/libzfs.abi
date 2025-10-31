@@ -7012,6 +7012,7 @@
     <function-decl name='zpool_get_errlog' mangled-name='zpool_get_errlog' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_errlog'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='857bb57e' name='nverrlistp'/>
+      <parameter type-id='95e97e5e' name='verbosity'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_upgrade' mangled-name='zpool_upgrade' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_upgrade'>

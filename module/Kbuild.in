@@ -43,7 +43,7 @@ ifeq ($(CONFIG_X86),y)
 ifeq ($(CONFIG_CC_IS_CLANG),y)
 CFLAGS_zfs/dsl_scan.o += -mllvm -x86-cmov-converter=false
 CFLAGS_zfs/metaslab.o += -mllvm -x86-cmov-converter=false
-CFLAGS_zfs/range_tree.o += -mllvm -x86-cmov-converter=false
+CFLAGS_zcommon/range_tree.o += -mllvm -x86-cmov-converter=false
 CFLAGS_zfs/zap_micro.o += -mllvm -x86-cmov-converter=false
 endif
 endif
@@ -223,6 +223,7 @@ zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
 
 
 ZCOMMON_OBJS := \
+	btree.o \
 	cityhash.o \
 	simd_stat.o \
 	zfeature_common.o \
@@ -233,6 +234,7 @@ ZCOMMON_OBJS := \
 	zfs_fletcher_superscalar4.o \
 	zfs_namecheck.o \
 	zfs_prop.o \
+	range_tree.o \
 	zfs_valstr.o \
 	zpool_prop.o \
 	zprop_common.o
@@ -311,7 +313,6 @@ ZFS_OBJS := \
 	bptree.o \
 	bqueue.o \
 	brt.o \
-	btree.o \
 	dataset_kstats.o \
 	dbuf.o \
 	dbuf_stats.o \
@@ -356,7 +357,6 @@ ZFS_OBJS := \
 	multilist.o \
 	objlist.o \
 	pathname.o \
-	range_tree.o \
 	refcount.o \
 	rrwlock.o \
 	sa.o \
