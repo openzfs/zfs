@@ -19,7 +19,6 @@
  * Copyright 2020 Joyent, Inc.
  */
 
-#include <sys/zfs_context.h>
 #include <sys/fs/zfs.h>
 #include <sys/dsl_crypt.h>
 #include <libintl.h>

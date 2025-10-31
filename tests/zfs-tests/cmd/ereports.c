@@ -22,10 +22,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <libzfs.h>
-#include <sys/zfs_ioctl.h>
 #include <sys/nvpair.h>
 #include <sys/fm/protocol.h>
 #include <sys/fm/fs/zfs.h>
+
+#define	ZEVENT_NONBLOCK	0x1
 
 /*
  * Command to output io and checksum ereport values, one per line.
