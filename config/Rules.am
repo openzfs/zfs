@@ -8,7 +8,6 @@ AM_CPPFLAGS = \
 	-include $(top_builddir)/zfs_config.h \
 	-I$(top_builddir)/include \
 	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/module/icp/include \
 	-I$(top_srcdir)/lib/libspl/include \
 	-I$(top_srcdir)/lib/libspl/include/os/@ac_system_l@ \
 	-I$(top_srcdir)/lib/libzpool/include

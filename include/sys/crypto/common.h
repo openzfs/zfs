@@ -38,6 +38,8 @@ extern "C" {
 #endif
 
 #include <sys/zfs_context.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 
 /* Cryptographic Mechanisms */
 
