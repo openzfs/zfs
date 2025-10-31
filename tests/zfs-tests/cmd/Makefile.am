@@ -60,7 +60,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc 
 
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
-%C%_libzfs_input_check_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include/os/@ac_system_l@/zfs
 %C%_libzfs_input_check_LDADD = \
 	libzfs_core.la \
 	libnvpair.la

@@ -4,7 +4,6 @@ libzpool_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libzpool_la_CFLAGS += $(ZLIB_CFLAGS)
 
 libzpool_la_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
-libzpool_la_CPPFLAGS += -I$(srcdir)/include/os/@ac_system_l@/zfs
 libzpool_la_CPPFLAGS += -DLIB_ZPOOL_BUILD
 
 lib_LTLIBRARIES += libzpool.la

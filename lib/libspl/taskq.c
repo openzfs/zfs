@@ -29,7 +29,12 @@
  * Copyright (c) 2014 by Delphix. All rights reserved.
  */
 
-#include <sys/zfs_context.h>
+#include <sys/sysmacros.h>
+#include <sys/timer.h>
+#include <sys/types.h>
+#include <sys/thread.h>
+#include <sys/taskq.h>
+#include <sys/kmem.h>
 
 int taskq_now;
 taskq_t *system_taskq;
