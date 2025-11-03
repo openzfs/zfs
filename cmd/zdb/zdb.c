@@ -9454,7 +9454,9 @@ print_separator_line(int cols, int colwidth, boolean_t *print, boolean_t *final)
 	// Create a buffer with the cell separator to make later code simpler.
 	while (len < colwidth) {
 		len++;
-		off += snprintf(buf + off, sizeof (buf) - off, "─");
+		int n = snprintf(buf + off, sizeof (buf) - off, "─");
+		ASSERT(n > 0 && n < sizeof (buf) - off);
+		off += n;
 	}
 
 	for (int i = 0; i < cols; i++) {
