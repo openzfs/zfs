@@ -4810,7 +4810,7 @@ print_label_header(zdb_label_t *label, boolean_t large_label, int l)
 		return;
 
 	(void) printf("------------------------------------\n");
-	(void) printf("LABEL(%s) %d %s\n", large_label ? "new" : "old", l,
+	(void) printf("LABEL(%s) %d %s\n", large_label ? "large" : "small", l,
 	    label->cksum_valid ? "" : "(Bad label cksum)");
 	(void) printf("------------------------------------\n");
 

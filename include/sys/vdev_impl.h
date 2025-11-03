@@ -494,6 +494,7 @@ struct vdev {
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
 #define	VDEV_LARGE_UBERBLOCK_RING	(128 << 20) // The last 128MiB
+#define	VDEV_UBERBLOCK_SMALL_RING	8
 
 /*
  * MMP blocks occupy the last MMP_BLOCKS_PER_LABEL slots in the uberblock
@@ -519,6 +520,7 @@ struct vdev {
 	((n) << VDEV_UBERBLOCK_SHIFT(vd))) : \
 	VDEV_UBERBLOCK_OFFSET_OLD(vd, n))
 #define	VDEV_UBERBLOCK_SIZE(vd)		(1ULL << VDEV_UBERBLOCK_SHIFT(vd))
+
 
 typedef struct vdev_phys {
 	char		vp_nvlist[VDEV_PHYS_SIZE - sizeof (zio_eck_t)];

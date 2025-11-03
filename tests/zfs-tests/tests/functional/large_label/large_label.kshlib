@@ -22,10 +22,10 @@ BASE_POOL="base"
 
 function uses_old_label
 {
-	zdb -l $1 | grep -q "LABEL(old)"
+	zdb -l $1 | grep -q "LABEL(small)"
 }
 
 function uses_large_label
 {
-	zdb -l $1 | grep -q "LABEL(new)"
+	zdb -l $1 | grep -q "LABEL(large)"
 }
