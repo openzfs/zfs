@@ -1809,16 +1809,23 @@ vdev_uberblock_load_done(zio_t *zio)
 
 static void
 vdev_uberblock_load_impl(zio_t **zio, vdev_t *vd, int flags,
-    struct ubl_cbdata *cbp, uint32_t *ios)
+    struct ubl_cbdata *cbp, uint32_t *ios, boolean_t try_hard)
 {
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_uberblock_load_impl(zio, vd->vdev_child[c], flags, cbp,
-		    ios);
+		    ios, try_hard);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd) &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		for (int l = 0; l < VDEV_LABELS; l++) {
-			for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
+			int n = 0, lim = VDEV_UBERBLOCK_COUNT(vd);
+			if (vd->vdev_large_label) {
+				if (!try_hard)
+					lim = VDEV_UBERBLOCK_SMALL_RING;
+				else
+					n = VDEV_UBERBLOCK_SMALL_RING;
+			}
+			for (; n < lim; n++) {
 				(*ios)++;
 				if (*ios > 1 << 16) {
 					(void) zio_wait(*zio);
@@ -1854,7 +1861,8 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 
 	ASSERT(ub);
 	ASSERT(config);
-
+	boolean_t try_hard = B_FALSE;
+retry:
 	memset(ub, 0, sizeof (uberblock_t));
 	memset(&cb, 0, sizeof (cb));
 	*config = NULL;
@@ -1864,7 +1872,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);
 	uint32_t ios = 0;
-	vdev_uberblock_load_impl(&zio, rvd, flags, &cb, &ios);
+	vdev_uberblock_load_impl(&zio, rvd, flags, &cb, &ios, try_hard);
 	(void) zio_wait(zio);
 
 	/*
@@ -1902,6 +1910,12 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 		if (*config == NULL) {
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
 		}
+	}
+	if (*config == NULL && rvd->vdev_large_label && !try_hard) {
+		vdev_dbgmsg(rvd, "failed to read label config. "
+		    "Trying again without full uberblock ring.");
+		try_hard = B_TRUE;
+		goto retry;
 	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
 }
@@ -2030,8 +2044,16 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	 * uberblock.
 	 */
 	int m = spa_multihost(vd->vdev_spa) ? MMP_BLOCKS_PER_LABEL : 0;
-	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID)) %
+	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID));
+	boolean_t update_archive = (n % VDEV_UBERBLOCK_SMALL_RING) == 0;
+	int n2 =
+	    ((n / VDEV_UBERBLOCK_SMALL_RING) + VDEV_UBERBLOCK_SMALL_RING) %
 	    (VDEV_UBERBLOCK_COUNT(vd) - m);
+	if (vd->vdev_large_label &&
+	    VDEV_UBERBLOCK_COUNT(vd) > VDEV_UBERBLOCK_SMALL_RING)
+		n %= VDEV_UBERBLOCK_SMALL_RING;
+	else
+		n %= VDEV_UBERBLOCK_COUNT(vd) - m;
 
 	/* Copy the uberblock_t into the ABD */
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
@@ -2053,6 +2075,12 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
 		    vdev_uberblock_sync_done, good_writes,
 		    flags | ZIO_FLAG_DONT_PROPAGATE);
+		if (vd->vdev_large_label && update_archive) {
+			vdev_label_write(zio, vd, l, vd->vdev_large_label,
+			    ub_abd, VDEV_UBERBLOCK_OFFSET(vd, n2),
+			    VDEV_UBERBLOCK_SIZE(vd), vdev_uberblock_sync_done,
+			    good_writes, flags | ZIO_FLAG_DONT_PROPAGATE);
+		}
 	}
 
 	abd_free(ub_abd);
@@ -2279,15 +2307,14 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	buflen = sizeof (vp->vp_nvlist);
 
 	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP)) {
-		vdev_label_sync_large(vd, zio, good_writes,
-		    l, flags, sc_abd, vp_abd);
+		vdev_label_sync_large(vd, zio, good_writes, l, flags, sc_abd,
+		    vp_abd);
 		for (; l < VDEV_LABELS &&
 		    !(vd->vdev_large_label && l >= (VDEV_LABELS / 2)); l += 2) {
 			vdev_label_write(zio, vd, l, B_FALSE, vp_abd,
 			    offsetof(vdev_label_t, vl_vdev_phys),
-			    sizeof (vdev_phys_t),
-			    vdev_label_sync_done, good_writes,
-			    flags | ZIO_FLAG_DONT_PROPAGATE);
+			    sizeof (vdev_phys_t), vdev_label_sync_done,
+			    good_writes, flags | ZIO_FLAG_DONT_PROPAGATE);
 		}
 	}
 
