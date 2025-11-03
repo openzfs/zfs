@@ -212,6 +212,8 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
+#include <sys/brt.h>
+#include <sys/ddt.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
@@ -4276,13 +4278,11 @@ zfs_ioc_pool_prefetch(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_t *spa;
 	int32_t type;
 
-	/*
-	 * Currently, only ZPOOL_PREFETCH_DDT is supported
-	 */
-	if (nvlist_lookup_int32(innvl, ZPOOL_PREFETCH_TYPE, &type) != 0 ||
-	    type != ZPOOL_PREFETCH_DDT) {
+	if (nvlist_lookup_int32(innvl, ZPOOL_PREFETCH_TYPE, &type) != 0)
 		return (EINVAL);
-	}
+
+	if (type != ZPOOL_PREFETCH_DDT && type != ZPOOL_PREFETCH_BRT)
+		return (EINVAL);
 
 	error = spa_open(poolname, &spa, FTAG);
 	if (error != 0)
@@ -4290,10 +4290,17 @@ zfs_ioc_pool_prefetch(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	hrtime_t start_time = gethrtime();
 
-	ddt_prefetch_all(spa);
-
-	zfs_dbgmsg("pool '%s': loaded ddt into ARC in %llu ms", spa->spa_name,
-	    (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
+	if (type == ZPOOL_PREFETCH_DDT) {
+		ddt_prefetch_all(spa);
+		zfs_dbgmsg("pool '%s': loaded ddt into ARC in %llu ms",
+		    spa->spa_name,
+		    (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
+	} else {
+		brt_prefetch_all(spa);
+		zfs_dbgmsg("pool '%s': loaded brt into ARC in %llu ms",
+		    spa->spa_name,
+		    (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
+	}
 
 	spa_close(spa, FTAG);
 

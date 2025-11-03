@@ -28,20 +28,25 @@
 .
 .Sh NAME
 .Nm zpool-prefetch
-.Nd Loads specific types of data for the given pool
+.Nd Prefetches pool metadata into ARC
 .Sh SYNOPSIS
 .Nm zpool
 .Cm prefetch
-.Fl t Ar type
+.Op Fl t Ar type
 .Ar pool
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm prefetch
-.Fl t Li ddt
-.Ar pool
-.Xc
-Prefetch data of a specific type for the given pool; specifically the DDT,
-which will improve write I/O performance when the DDT is resident in the ARC.
+Massively prefetch metadata of a specific type for the given pool into the ARC
+to reduce latency of some operations later.
+If no type is specified, all types are prefetched.
+.Pp
+The following types are supported:
+.Bl -tag -width "brt"
+.It Sy brt
+Prefetch the BRT (block reference table).
+This may improve performance for block cloning operations,
+and frees for earlier cloned blocks.
+.It Sy ddt
+Prefetch the DDT (deduplication table).
+This may improve performance of writes when deduplication is enabled,
+and frees for earlier deduplicated blocks.
 .El

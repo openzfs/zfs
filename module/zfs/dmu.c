@@ -850,12 +850,15 @@ dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset, uint64_t size)
 		return (err);
 
 	/*
-	 * Chunk the requests (16 indirects worth) so that we can be interrupted
+	 * Chunk the requests (16 indirects worth) so that we can be
+	 * interrupted.  Prefetch at least SPA_MAXBLOCKSIZE at a time
+	 * to better utilize pools with smaller block sizes.
 	 */
 	uint64_t chunksize;
 	if (dn->dn_indblkshift) {
 		uint64_t nbps = bp_span_in_blocks(dn->dn_indblkshift, 1);
 		chunksize = (nbps * 16) << dn->dn_datablkshift;
+		chunksize = MAX(chunksize, SPA_MAXBLOCKSIZE);
 	} else {
 		chunksize = dn->dn_datablksz;
 	}

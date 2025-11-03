@@ -1217,6 +1217,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_prefetch/cleanup.ksh \
 	functional/cli_root/zpool_prefetch/setup.ksh \
 	functional/cli_root/zpool_prefetch/zpool_prefetch_001_pos.ksh \
+	functional/cli_root/zpool_prefetch/zpool_prefetch_002_pos.ksh \
 	functional/cli_root/zpool_reguid/cleanup.ksh \
 	functional/cli_root/zpool_reguid/setup.ksh \
 	functional/cli_root/zpool_reguid/zpool_reguid_001_pos.ksh \
