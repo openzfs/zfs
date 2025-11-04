@@ -181,32 +181,33 @@ See
 .Xr systemd.mount 5
 for details.
 .Ss Deduplication
-Deduplication is the process for removing redundant data at the block level,
-reducing the total amount of data stored.
-If a file system has the
+Deduplication is the process of eliminating redundant data blocks at the storage
+level, so that only one copy of each unique block is kept. When the
 .Sy dedup
-property enabled, duplicate data blocks are removed synchronously.
-The result
-is that only unique data is stored and common components are shared among files.
+property is enabled on a dataset, ZFS compares new data to existing blocks and
+stores references instead of duplicate copies.
+
 .Pp
-Deduplicating data is a very resource-intensive operation.
-It is generally recommended that you have at least 1.25 GiB of RAM
-per 1 TiB of storage when you enable deduplication.
-Calculating the exact requirement depends heavily
-on the type of data stored in the pool.
+While this can reduce storage usage when large amounts of identical data exist,
+deduplication is a very resource-intensive feature. It maintains a
+deduplication table (DDT) in memory, which can grow significantly depending on
+the amount of stored data. As a general guideline, at least 1.25 GiB of RAM per
+1 TiB of pool storage is recommended, though the actual requirement varies with
+workload and data type.
+
 .Pp
-Enabling deduplication on an improperly-designed system can result in
-performance issues (slow I/O and administrative operations).
-It can potentially lead to problems importing a pool due to memory exhaustion.
-Deduplication can consume significant processing power (CPU) and memory as well
-as generate additional disk I/O.
+Enabling deduplication without sufficient system resources can lead to slow I/O,
+excessive memory and CPU use, and in extreme cases, difficulty importing the
+pool due to memory exhaustion. For these reasons, deduplication is not generally
+recommended unless there is a clear need for it—such as virtual machine images
+or backup datasets containing highly duplicated data.
+
 .Pp
-Before creating a pool with deduplication enabled, ensure that you have planned
-your hardware requirements appropriately and implemented appropriate recovery
-practices, such as regular backups.
-Consider using the
+For most users, the
 .Sy compression
-property as a less resource-intensive alternative.
+property offers a more efficient and safer way to save space with far less
+performance impact. Always test and verify system performance before enabling
+deduplication in a production environment.
 .Ss Block cloning
 Block cloning is a facility that allows a file (or parts of a file) to be
 .Qq cloned ,
