@@ -7,7 +7,7 @@ Prints "quick" if (explicity required by user):
 - the *last* commit message contains 'ZFS-CI-Type: quick'
 or if (heuristics):
 - the files changed are not in the list of specified directories, and
-- all commit messages do not contain 'ZFS-CI-Type: full'
+- all commit messages do not contain 'ZFS-CI-Type: (full|linux|freebsd)'
 
 Otherwise prints "full".
 """
@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     for line in last_commit_message_raw.stdout.decode().splitlines():
         if line.strip().lower() == 'zfs-ci-type: quick':
-            output_type('quick', f'explicitly requested by HEAD commit {head}')
+            output_type('quick', f'requested by HEAD commit {head}')
 
     # check all commit messages
     all_commit_message_raw = subprocess.run([
@@ -83,8 +83,12 @@ if __name__ == '__main__':
     for line in all_commit_message:
         if line.startswith('ZFS-CI-Commit:'):
             commit_ref = line.lstrip('ZFS-CI-Commit:').rstrip()
+        if line.strip().lower() == 'zfs-ci-type: freebsd':
+            output_type('freebsd', f'requested by commit {commit_ref}')
+        if line.strip().lower() == 'zfs-ci-type: linux':
+            output_type('linux', f'requested by commit {commit_ref}')
         if line.strip().lower() == 'zfs-ci-type: full':
-            output_type('full', f'explicitly requested by commit {commit_ref}')
+            output_type('full', f'requested by commit {commit_ref}')
 
     # check changed files
     changed_files_raw = subprocess.run([
