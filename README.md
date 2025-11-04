@@ -33,3 +33,12 @@ For more details see the NOTICE, LICENSE and COPYRIGHT files; `UCRL-CODE-235197`
 # Supported Kernels
   * The `META` file contains the officially recognized supported Linux kernel versions.
   * Supported FreeBSD versions are any supported branches and releases starting from 13.0-RELEASE.
+---
+
+### 🧠 Tip: Shallow Clone for Faster Setup
+
+If you're only interested in building or exploring the latest version of OpenZFS (without downloading its full history),  
+you can perform a shallow clone to save time and space:
+
+```bash
+git clone --depth=1 https://github.com/openzfs/zfs.git
