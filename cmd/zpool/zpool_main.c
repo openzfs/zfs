@@ -522,7 +522,7 @@ get_usage(zpool_help_t idx)
 		    "<-a | <pool> [<device> ...]>\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-DdegiLPpstvx] "
-		    "[-c script1[,script2,...]] ...\n"
+		    "[-E pool1[,pool2,...]] [-c script1[,script2,...]] ...\n"
 		    "\t    [-j|--json [--json-flat-vdevs] [--json-int] "
 		    "[--json-pool-key-guid]] ...\n"
 		    "\t    [-T d|u] [--power] [pool] [interval [count]]\n"));
@@ -2608,6 +2608,8 @@ typedef struct status_cbdata {
 	nvlist_t	*cb_jsobj;
 	boolean_t	cb_json_as_int;
 	boolean_t	cb_json_pool_key_guid;
+	char		**cb_exclude_pools;
+	int		cb_exclude_count;
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
@@ -10813,6 +10815,15 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 	zpool_status_t reason;
 	zpool_errata_t errata;
 	uint_t c;
+
+	/* Skip excluded pools */
+	if (cbp->cb_exclude_pools != NULL && cbp->cb_exclude_count > 0) {
+		const char *poolname = zpool_get_name(zhp);
+		for (int i = 0; i < cbp->cb_exclude_count; i++) {
+			if (strcmp(poolname, cbp->cb_exclude_pools[i]) == 0)
+				return (0);
+		}
+	}
 	vdev_stat_t *vs;
 	nvlist_t *item, *d, *load_info, *vds;
 
@@ -10934,6 +10945,15 @@ status_callback(zpool_handle_t *zhp, void *data)
 	const char *health;
 	uint_t c;
 	vdev_stat_t *vs;
+
+	/* Skip excluded pools */
+	if (cbp->cb_exclude_pools != NULL && cbp->cb_exclude_count > 0) {
+		const char *poolname = zpool_get_name(zhp);
+		for (int i = 0; i < cbp->cb_exclude_count; i++) {
+			if (strcmp(poolname, cbp->cb_exclude_pools[i]) == 0)
+				return (0);
+		}
+	}
 
 	/* If dedup stats were requested, also fetch dedupcached. */
 	if (cbp->cb_dedup_stats > 1)
@@ -11124,6 +11144,7 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 	nvlist_t *data;
 	char *cmd = NULL;
+	char *exclude_str = NULL;
 
 	struct option long_options[] = {
 		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
@@ -11137,7 +11158,7 @@ zpool_do_status(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:jdDegiLpPstT:vx", long_options,
+	while ((c = getopt_long(argc, argv, "c:jdDeE:giLpPstT:vx", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
@@ -11179,6 +11200,32 @@ zpool_do_status(int argc, char **argv)
 			break;
 		case 'i':
 			cb.cb_print_vdev_init = B_TRUE;
+			break;
+		case 'E':
+			/* Exclude comma-separated pools from output */
+			if (cb.cb_exclude_pools != NULL) {
+				(void) fprintf(stderr,
+				    gettext("Can't set -E flag twice\n"));
+				exit(1);
+			}
+			if (optarg[0] == '-') {
+				(void) fprintf(stderr, gettext("-E: invalid "
+				    "pool name '%s'\n"), optarg);
+				usage(B_FALSE);
+			}
+			int i = 0;
+			cb.cb_exclude_count = 1;
+			for (char *p = optarg; *p; p++)
+				cb.cb_exclude_count += (*p == ',');
+			cb.cb_exclude_pools =
+			    safe_malloc(cb.cb_exclude_count * sizeof (char *));
+			exclude_str = strdup(optarg);
+			char *arg_ptr = exclude_str;
+			for (char *pool; (pool = strsep(&arg_ptr, ",")); ) {
+				if (pool[0] != '\0')
+					cb.cb_exclude_pools[i++] = pool;
+			}
+			cb.cb_exclude_count = i;
 			break;
 		case 'L':
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
@@ -11224,6 +11271,10 @@ zpool_do_status(int argc, char **argv)
 			if (optopt == 'c') {
 				print_zpool_script_list("status");
 				exit(0);
+			} else if (optopt == 'E') {
+				(void) fprintf(stderr,
+				    gettext("-E requires pool names\n"));
+				usage(B_FALSE);
 			} else {
 				fprintf(stderr,
 				    gettext("invalid option '%c'\n"), optopt);
@@ -11317,8 +11368,13 @@ zpool_do_status(int argc, char **argv)
 			}
 		}
 
-		if (ret != 0)
+		if (ret != 0) {
+			if (exclude_str != NULL)
+				free(exclude_str);
+			if (cb.cb_exclude_pools != NULL)
+				free(cb.cb_exclude_pools);
 			return (ret);
+		}
 
 		if (interval == 0)
 			break;
@@ -11330,6 +11386,10 @@ zpool_do_status(int argc, char **argv)
 		(void) fsleep(interval);
 	}
 
+	if (exclude_str != NULL)
+		free(exclude_str);
+	if (cb.cb_exclude_pools != NULL)
+		free(cb.cb_exclude_pools);
 	return (0);
 }
 
