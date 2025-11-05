@@ -521,30 +521,6 @@ CFLAGS.zstd_ldm.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICA
 CFLAGS.zstd_opt.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
 
 .if ${MACHINE_ARCH} == "aarch64"
-__ZFS_ZSTD_AARCH64_FLAGS= -include ${SRCDIR}/zstd/include/aarch64_compat.h
-CFLAGS.zstd.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.entropy_common.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.error_private.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.fse_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.fse_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.hist.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.huf_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.huf_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.pool.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.xxhash.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_common.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_compress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_compress_literals.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_compress_sequences.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_compress_superblock.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_ddict.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_decompress.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_decompress_block.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_double_fast.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_fast.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_lazy.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_ldm.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
-CFLAGS.zstd_opt.c+= ${__ZFS_ZSTD_AARCH64_FLAGS}
 
 sha256-armv8.o: sha256-armv8.S
 	${CC} -c ${CFLAGS:N-mgeneral-regs-only} ${WERROR} ${.IMPSRC} \
