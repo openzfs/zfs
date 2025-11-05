@@ -494,8 +494,10 @@ struct vdev {
 #define	VDEV_PHYS_SIZE		(112 << 10)
 #define	VDEV_UBERBLOCK_RING	(128 << 10)
 #define	VDEV_LARGE_UBERBLOCK_RING	(128 << 20) // The last 128MiB
-#define	VDEV_UBERBLOCK_SMALL_RING	8
-
+#define	VDEV_UBERBLOCK_ACTIVE_RING	16
+#define	VDEV_UBERBLOCK_BACKUP_RING	16
+#define	VDEV_UBERBLOCK_RINGS		\
+	(VDEV_UBERBLOCK_ACTIVE_RING + VDEV_UBERBLOCK_BACKUP_RING)
 /*
  * MMP blocks occupy the last MMP_BLOCKS_PER_LABEL slots in the uberblock
  * ring when MMP is enabled.
