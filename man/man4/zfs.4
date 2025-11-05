@@ -2660,12 +2660,50 @@ Set value only applies to pools imported/created after that.
 Set the queue and thread configuration for the IO read queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
 Set values only apply to pools imported/created after that.
 .
 .It Sy zio_taskq_write Ns = Ns Sy sync null scale null Pq charp
 Set the queue and thread configuration for the IO write queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+Set values only apply to pools imported/created after that.
+.
+.It Sy zio_taskq_free Ns = Ns Sy scale,32 null null null Pq charp
+Set the queue and thread configuration for the IO free queues.
+This is an advanced debugging parameter.
+Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+The default uses a minimum of 32 threads to improve parallelism for
+DDT and BRT metadata operations during frees.
 Set values only apply to pools imported/created after that.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint

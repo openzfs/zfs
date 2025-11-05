@@ -141,7 +141,7 @@ typedef enum zti_modes {
 
 #define	ZTI_P(n, q)	{ ZTI_MODE_FIXED, (n), (q) }
 #define	ZTI_PCT(n)	{ ZTI_MODE_ONLINE_PERCENT, (n), 1 }
-#define	ZTI_SCALE	{ ZTI_MODE_SCALE, 0, 1 }
+#define	ZTI_SCALE(min)	{ ZTI_MODE_SCALE, (min), 1 }
 #define	ZTI_SYNC	{ ZTI_MODE_SYNC, 0, 1 }
 #define	ZTI_NULL	{ ZTI_MODE_NULL, 0, 0 }
 
@@ -180,13 +180,13 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
 static zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
-	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* READ */
+	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE(0),	ZTI_NULL }, /* READ */
 #ifdef illumos
-	{ ZTI_SYNC,	ZTI_N(5),	ZTI_SCALE,	ZTI_N(5) }, /* WRITE */
+	{ ZTI_SYNC,	ZTI_N(5),	ZTI_SCALE(0),	ZTI_N(5) }, /* WRITE */
 #else
-	{ ZTI_SYNC,	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* WRITE */
+	{ ZTI_SYNC,	ZTI_NULL,	ZTI_SCALE(0),	ZTI_NULL }, /* WRITE */
 #endif
-	{ ZTI_SCALE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
+	{ ZTI_SCALE(32), ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FLUSH */
 	{ ZTI_N(4),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* TRIM */
@@ -1170,7 +1170,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t value = ztip->zti_value;
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
-	uint_t cpus, flags = TASKQ_DYNAMIC;
+	uint_t cpus, threads, flags = TASKQ_DYNAMIC;
 
 	switch (mode) {
 	case ZTI_MODE_FIXED:
@@ -1183,8 +1183,8 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		 * Create one wr_iss taskq for every 'zio_taskq_write_tpq' CPUs,
 		 * not to exceed the number of spa allocators, and align to it.
 		 */
-		cpus = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
-		count = MAX(1, cpus / MAX(1, zio_taskq_write_tpq));
+		threads = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
+		count = MAX(1, threads / MAX(1, zio_taskq_write_tpq));
 		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
 		count = MIN(count, spa->spa_alloc_count);
 		while (spa->spa_alloc_count % count != 0 &&
@@ -1201,14 +1201,14 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		break;
 
 	case ZTI_MODE_SCALE:
-		flags |= TASKQ_THREADS_CPU_PCT;
 		/*
 		 * We want more taskqs to reduce lock contention, but we want
 		 * less for better request ordering and CPU utilization.
 		 */
-		cpus = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
+		threads = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
+		threads = MAX(threads, value);
 		if (zio_taskq_batch_tpq > 0) {
-			count = MAX(1, (cpus + zio_taskq_batch_tpq / 2) /
+			count = MAX(1, (threads + zio_taskq_batch_tpq / 2) /
 			    zio_taskq_batch_tpq);
 		} else {
 			/*
@@ -1228,13 +1228,23 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			 * 128     10      8%      10      100
 			 * 256     14      6%      15      210
 			 */
-			count = 1 + cpus / 6;
+			cpus = MIN(threads, boot_ncpus);
+			count = 1 + threads / 6;
 			while (count * count > cpus)
 				count--;
 		}
-		/* Limit each taskq within 100% to not trigger assertion. */
-		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
-		value = (zio_taskq_batch_pct + count / 2) / count;
+
+		/*
+		 * Try to represent the number of threads per taskq as percent
+		 * of online CPUs to allow scaling with later online/offline.
+		 * Fall back to absolute numbers if can't.
+		 */
+		value = (threads * 100 + boot_ncpus * count / 2) /
+		    (boot_ncpus * count);
+		if (value < 5 || value > 100)
+			value = MAX(1, (threads + count / 2) / count);
+		else
+			flags |= TASKQ_THREADS_CPU_PCT;
 		break;
 
 	case ZTI_MODE_NULL:
@@ -1433,8 +1443,30 @@ spa_taskq_param_set(zio_type_t t, char *cfg)
 			break;
 		}
 
+		/*
+		 * SCALE is optionally parameterised by minimum number of
+		 * threads.
+		 */
 		case ZTI_MODE_SCALE: {
-			const zio_taskq_info_t zti = ZTI_SCALE;
+			unsigned long long mint = 0;
+			if (c != NULL && *c != '\0') {
+				/* Need a number */
+				if (!(isdigit(*c)))
+					break;
+				tok = c;
+
+				/* Take digits */
+				err = ddi_strtoull(tok, &tok, 10, &mint);
+				/* Must succeed, and moved forward */
+				if (err != 0 || tok == c || *tok != '\0')
+					break;
+
+				/* Sanity check */
+				if (mint >= 16384)
+					break;
+			}
+
+			const zio_taskq_info_t zti = ZTI_SCALE(mint);
 			row[q] = zti;
 			break;
 		}
@@ -1501,6 +1533,9 @@ spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
 			pos += sprintf(&buf[pos], "%s%s,%u,%u", sep,
 			    modes[zti->zti_mode], zti->zti_count,
 			    zti->zti_value);
+		else if (zti->zti_mode == ZTI_MODE_SCALE && zti->zti_value > 0)
+			pos += sprintf(&buf[pos], "%s%s,%u", sep,
+			    modes[zti->zti_mode], zti->zti_value);
 		else
 			pos += sprintf(&buf[pos], "%s%s", sep,
 			    modes[zti->zti_mode]);
@@ -1520,9 +1555,10 @@ spa_taskq_read_param_set(const char *val, zfs_kernel_param_t *kp)
 {
 	char *cfg = kmem_strdup(val);
 	int err = spa_taskq_param_set(ZIO_TYPE_READ, cfg);
-	kmem_free(cfg, strlen(val)+1);
+	kmem_strfree(cfg);
 	return (-err);
 }
+
 static int
 spa_taskq_read_param_get(char *buf, zfs_kernel_param_t *kp)
 {
@@ -1534,13 +1570,29 @@ spa_taskq_write_param_set(const char *val, zfs_kernel_param_t *kp)
 {
 	char *cfg = kmem_strdup(val);
 	int err = spa_taskq_param_set(ZIO_TYPE_WRITE, cfg);
-	kmem_free(cfg, strlen(val)+1);
+	kmem_strfree(cfg);
 	return (-err);
 }
+
 static int
 spa_taskq_write_param_get(char *buf, zfs_kernel_param_t *kp)
 {
 	return (spa_taskq_param_get(ZIO_TYPE_WRITE, buf, TRUE));
+}
+
+static int
+spa_taskq_free_param_set(const char *val, zfs_kernel_param_t *kp)
+{
+	char *cfg = kmem_strdup(val);
+	int err = spa_taskq_param_set(ZIO_TYPE_FREE, cfg);
+	kmem_strfree(cfg);
+	return (-err);
+}
+
+static int
+spa_taskq_free_param_get(char *buf, zfs_kernel_param_t *kp)
+{
+	return (spa_taskq_param_get(ZIO_TYPE_FREE, buf, TRUE));
 }
 #else
 /*
@@ -1573,6 +1625,19 @@ spa_taskq_write_param(ZFS_MODULE_PARAM_ARGS)
 	if (err || req->newptr == NULL)
 		return (err);
 	return (spa_taskq_param_set(ZIO_TYPE_WRITE, buf));
+}
+
+static int
+spa_taskq_free_param(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[SPA_TASKQ_PARAM_MAX];
+	int err;
+
+	(void) spa_taskq_param_get(ZIO_TYPE_FREE, buf, FALSE);
+	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (err || req->newptr == NULL)
+		return (err);
+	return (spa_taskq_param_set(ZIO_TYPE_FREE, buf));
 }
 #endif
 #endif /* _KERNEL */
@@ -11273,6 +11338,9 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_read,
 ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_write,
 	spa_taskq_write_param_set, spa_taskq_write_param_get, ZMOD_RW,
 	"Configure IO queues for write IO");
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_free,
+	spa_taskq_free_param_set, spa_taskq_free_param_get, ZMOD_RW,
+	"Configure IO queues for free IO");
 #endif
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
