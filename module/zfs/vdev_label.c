@@ -1821,9 +1821,10 @@ vdev_uberblock_load_impl(zio_t **zio, vdev_t *vd, int flags,
 			int n = 0, lim = VDEV_UBERBLOCK_COUNT(vd);
 			if (vd->vdev_large_label) {
 				if (!try_hard)
-					lim = VDEV_UBERBLOCK_SMALL_RING;
+					lim = MIN(VDEV_UBERBLOCK_ACTIVE_RING,
+					    lim);
 				else
-					n = VDEV_UBERBLOCK_SMALL_RING;
+					n = VDEV_UBERBLOCK_ACTIVE_RING;
 			}
 			for (; n < lim; n++) {
 				(*ios)++;
@@ -2045,15 +2046,28 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	 */
 	int m = spa_multihost(vd->vdev_spa) ? MMP_BLOCKS_PER_LABEL : 0;
 	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID));
-	boolean_t update_archive = (n % VDEV_UBERBLOCK_SMALL_RING) == 0;
-	int n2 =
-	    ((n / VDEV_UBERBLOCK_SMALL_RING) + VDEV_UBERBLOCK_SMALL_RING) %
-	    (VDEV_UBERBLOCK_COUNT(vd) - m);
-	if (vd->vdev_large_label &&
-	    VDEV_UBERBLOCK_COUNT(vd) > VDEV_UBERBLOCK_SMALL_RING)
-		n %= VDEV_UBERBLOCK_SMALL_RING;
-	else
-		n %= VDEV_UBERBLOCK_COUNT(vd) - m;
+	boolean_t update_backup = (n % VDEV_UBERBLOCK_ACTIVE_RING) == 0;
+	int n2 = n / VDEV_UBERBLOCK_ACTIVE_RING;
+	boolean_t update_archive = update_backup &&
+	    ((n2 % VDEV_UBERBLOCK_BACKUP_RING) == 0);
+	int n3 = n2 / VDEV_UBERBLOCK_BACKUP_RING;
+	int ubc = VDEV_UBERBLOCK_COUNT(vd) - m;
+	if (vd->vdev_large_label && ubc > VDEV_UBERBLOCK_ACTIVE_RING) {
+		n %= VDEV_UBERBLOCK_ACTIVE_RING;
+		if (ubc > VDEV_UBERBLOCK_RINGS) {
+			n2 = (n2 % VDEV_UBERBLOCK_BACKUP_RING) +
+			    VDEV_UBERBLOCK_ACTIVE_RING;
+			n3 = n3 % (ubc - VDEV_UBERBLOCK_RINGS) +
+			    VDEV_UBERBLOCK_RINGS;
+		} else {
+			update_archive = B_FALSE;
+			n2 = (n2 % (ubc - VDEV_UBERBLOCK_ACTIVE_RING)) +
+			    VDEV_UBERBLOCK_ACTIVE_RING;
+		}
+	} else {
+		update_backup = update_archive = B_FALSE;
+		n %= ubc;
+	}
 
 	/* Copy the uberblock_t into the ABD */
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
@@ -2075,9 +2089,16 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
 		    vdev_uberblock_sync_done, good_writes,
 		    flags | ZIO_FLAG_DONT_PROPAGATE);
-		if (vd->vdev_large_label && update_archive) {
+		if (update_backup) {
 			vdev_label_write(zio, vd, l, vd->vdev_large_label,
 			    ub_abd, VDEV_UBERBLOCK_OFFSET(vd, n2),
+			    VDEV_UBERBLOCK_SIZE(vd), vdev_uberblock_sync_done,
+			    good_writes, flags | ZIO_FLAG_DONT_PROPAGATE);
+		}
+		if (update_archive) {
+			ASSERT(update_backup);
+			vdev_label_write(zio, vd, l, vd->vdev_large_label,
+			    ub_abd, VDEV_UBERBLOCK_OFFSET(vd, n3),
 			    VDEV_UBERBLOCK_SIZE(vd), vdev_uberblock_sync_done,
 			    good_writes, flags | ZIO_FLAG_DONT_PROPAGATE);
 		}
