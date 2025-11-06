@@ -811,28 +811,44 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	return (error);
 }
 
-#define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | ZFS_PROJINHERIT_FL)
-#define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | ZFS_PROJINHERIT_FL)
+#define	ZFS_FL_USER_VISIBLE	(FS_FL_USER_VISIBLE | FS_PROJINHERIT_FL)
+#define	ZFS_FL_USER_MODIFIABLE	(FS_FL_USER_MODIFIABLE | FS_PROJINHERIT_FL)
+
+
+static struct {
+	uint64_t zfs_flag;
+	uint32_t fs_flag;
+	uint32_t xflag;
+} flags_lookup[] = {
+	{ZFS_IMMUTABLE, FS_IMMUTABLE_FL, FS_XFLAG_IMMUTABLE},
+	{ZFS_APPENDONLY, FS_APPEND_FL, FS_XFLAG_APPEND},
+	{ZFS_NODUMP, FS_NODUMP_FL, FS_XFLAG_NODUMP},
+	{ZFS_PROJINHERIT, FS_PROJINHERIT_FL, FS_XFLAG_PROJINHERIT}
+};
 
 static uint32_t
 __zpl_ioctl_getflags(struct inode *ip)
 {
 	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
 	uint32_t ioctl_flags = 0;
+	for (int i = 0; i < ARRAY_SIZE(flags_lookup); i++)
+		if (zfs_flags & flags_lookup[i].zfs_flag)
+			ioctl_flags |= flags_lookup[i].fs_flag;
 
-	if (zfs_flags & ZFS_IMMUTABLE)
-		ioctl_flags |= FS_IMMUTABLE_FL;
+	return (ioctl_flags);
+}
 
-	if (zfs_flags & ZFS_APPENDONLY)
-		ioctl_flags |= FS_APPEND_FL;
+static uint32_t
+__zpl_ioctl_getxflags(struct inode *ip)
+{
+	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
+	uint32_t ioctl_flags = 0;
 
-	if (zfs_flags & ZFS_NODUMP)
-		ioctl_flags |= FS_NODUMP_FL;
+	for (int i = 0; i < ARRAY_SIZE(flags_lookup); i++)
+		if (zfs_flags & flags_lookup[i].zfs_flag)
+			ioctl_flags |= flags_lookup[i].xflag;
 
-	if (zfs_flags & ZFS_PROJINHERIT)
-		ioctl_flags |= ZFS_PROJINHERIT_FL;
-
-	return (ioctl_flags & ZFS_FL_USER_VISIBLE);
+	return (ioctl_flags);
 }
 
 /*
@@ -846,6 +862,7 @@ zpl_ioctl_getflags(struct file *filp, void __user *arg)
 	int err;
 
 	flags = __zpl_ioctl_getflags(file_inode(filp));
+	flags = flags & ZFS_FL_USER_VISIBLE;
 	err = copy_to_user(arg, &flags, sizeof (flags));
 
 	return (err);
@@ -869,7 +886,7 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	xoptattr_t *xoap;
 
 	if (ioctl_flags & ~(FS_IMMUTABLE_FL | FS_APPEND_FL | FS_NODUMP_FL |
-	    ZFS_PROJINHERIT_FL))
+	    FS_PROJINHERIT_FL))
 		return (-EOPNOTSUPP);
 
 	if (ioctl_flags & ~ZFS_FL_USER_MODIFIABLE)
@@ -900,7 +917,51 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	    xoap->xoa_appendonly);
 	FLAG_CHANGE(FS_NODUMP_FL, ZFS_NODUMP, XAT_NODUMP,
 	    xoap->xoa_nodump);
-	FLAG_CHANGE(ZFS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	FLAG_CHANGE(FS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	    xoap->xoa_projinherit);
+
+#undef	FLAG_CHANGE
+
+	return (0);
+}
+
+static int
+__zpl_ioctl_setxflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
+{
+	uint64_t zfs_flags = ITOZ(ip)->z_pflags;
+	xoptattr_t *xoap;
+
+	if (ioctl_flags & ~(FS_XFLAG_IMMUTABLE | FS_XFLAG_APPEND |
+	    FS_XFLAG_NODUMP | FS_XFLAG_PROJINHERIT))
+		return (-EOPNOTSUPP);
+
+	if ((fchange(ioctl_flags, zfs_flags, FS_XFLAG_IMMUTABLE,
+	    ZFS_IMMUTABLE) ||
+	    fchange(ioctl_flags, zfs_flags, FS_XFLAG_APPEND, ZFS_APPENDONLY)) &&
+	    !capable(CAP_LINUX_IMMUTABLE))
+		return (-EPERM);
+
+	if (!zpl_inode_owner_or_capable(zfs_init_idmap, ip))
+		return (-EACCES);
+
+	xva_init(xva);
+	xoap = xva_getxoptattr(xva);
+
+#define	FLAG_CHANGE(iflag, zflag, xflag, xfield)	do {	\
+	if (((ioctl_flags & (iflag)) && !(zfs_flags & (zflag))) ||	\
+	    ((zfs_flags & (zflag)) && !(ioctl_flags & (iflag)))) {	\
+		XVA_SET_REQ(xva, (xflag));	\
+		(xfield) = ((ioctl_flags & (iflag)) != 0);	\
+	}	\
+} while (0)
+
+	FLAG_CHANGE(FS_XFLAG_IMMUTABLE, ZFS_IMMUTABLE, XAT_IMMUTABLE,
+	    xoap->xoa_immutable);
+	FLAG_CHANGE(FS_XFLAG_APPEND, ZFS_APPENDONLY, XAT_APPENDONLY,
+	    xoap->xoa_appendonly);
+	FLAG_CHANGE(FS_XFLAG_NODUMP, ZFS_NODUMP, XAT_NODUMP,
+	    xoap->xoa_nodump);
+	FLAG_CHANGE(FS_XFLAG_PROJINHERIT, ZFS_PROJINHERIT, XAT_PROJINHERIT,
 	    xoap->xoa_projinherit);
 
 #undef	FLAG_CHANGE
@@ -941,7 +1002,7 @@ zpl_ioctl_getxattr(struct file *filp, void __user *arg)
 	struct inode *ip = file_inode(filp);
 	int err;
 
-	fsx.fsx_xflags = __zpl_ioctl_getflags(ip);
+	fsx.fsx_xflags = __zpl_ioctl_getxflags(ip);
 	fsx.fsx_projid = ITOZ(ip)->z_projid;
 	err = copy_to_user(arg, &fsx, sizeof (fsx));
 
@@ -965,7 +1026,7 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	if (!zpl_is_valid_projid(fsx.fsx_projid))
 		return (-EINVAL);
 
-	err = __zpl_ioctl_setflags(ip, fsx.fsx_xflags, &xva);
+	err = __zpl_ioctl_setxflags(ip, fsx.fsx_xflags, &xva);
 	if (err)
 		return (err);
 
