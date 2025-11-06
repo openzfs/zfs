@@ -4872,7 +4872,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 	else
 		vre->vre_offset = RRSS_GET_OFFSET(&spa->spa_ubsync);
 
-	/* Reflow the begining portion using the scratch area */
+	/* Reflow the beginning portion using the scratch area */
 	if (vre->vre_offset == 0) {
 		VERIFY0(dsl_sync_task(spa_name(spa),
 		    NULL, raidz_reflow_scratch_sync,
