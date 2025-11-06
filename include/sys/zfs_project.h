@@ -35,18 +35,16 @@
 
 #include <sys/vfs.h>
 
-#ifdef FS_PROJINHERIT_FL
-#define	ZFS_PROJINHERIT_FL	FS_PROJINHERIT_FL
-#else
-#define	ZFS_PROJINHERIT_FL	0x20000000
-#endif
-
 #ifdef FS_IOC_FSGETXATTR
 typedef struct fsxattr zfsxattr_t;
 
 #define	ZFS_IOC_FSGETXATTR	FS_IOC_FSGETXATTR
 #define	ZFS_IOC_FSSETXATTR	FS_IOC_FSSETXATTR
 #else
+/* Non-Linux OS */
+#define	FS_PROJINHERIT_FL	0x20000000
+#define	FS_XFLAG_PROJINHERIT	FS_PROJINHERIT_FL
+
 struct zfsxattr {
 	uint32_t	fsx_xflags;	/* xflags field value (get/set) */
 	uint32_t	fsx_extsize;	/* extsize field value (get/set) */
