@@ -903,7 +903,7 @@ spa_config_load(void)
 	 * Iterate over all elements in the nvlist, creating a new spa_t for
 	 * each one with the specified configuration.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	nvpair = NULL;
 	while ((nvpair = nvlist_next_nvpair(nvlist, nvpair)) != NULL) {
 		if (nvpair_type(nvpair) != DATA_TYPE_NVLIST)
@@ -915,7 +915,7 @@ spa_config_load(void)
 			continue;
 		(void) spa_add(nvpair_name(nvpair), child, NULL);
 	}
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	nvlist_free(nvlist);
 

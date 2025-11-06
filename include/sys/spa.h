@@ -29,7 +29,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Allan Jude
- * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, 2025, Klara, Inc.
  * Copyright (c) 2019, Datto Inc.
  */
 
@@ -867,10 +867,14 @@ uint_t spa_acq_allocator(spa_t *spa);
 void spa_rel_allocator(spa_t *spa, uint_t allocator);
 void spa_select_allocator(zio_t *zio);
 
-/* spa namespace global mutex */
-extern kmutex_t spa_namespace_lock;
-extern avl_tree_t spa_namespace_avl;
-extern kcondvar_t spa_namespace_cv;
+/* spa namespace global lock */
+extern void spa_namespace_enter(const void *tag);
+extern boolean_t spa_namespace_tryenter(const void *tag);
+extern int spa_namespace_enter_interruptible(const void *tag);
+extern void spa_namespace_exit(const void *tag);
+extern boolean_t spa_namespace_held(void);
+extern void spa_namespace_wait(void);
+extern void spa_namespace_broadcast(void);
 
 /*
  * SPA configuration functions in spa_config.c

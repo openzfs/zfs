@@ -309,12 +309,12 @@ spa_vdev_noalloc(spa_t *spa, uint64_t guid)
 	uint64_t txg;
 	int error = 0;
 
-	ASSERT(!MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(!spa_namespace_held());
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
@@ -342,12 +342,12 @@ spa_vdev_alloc(spa_t *spa, uint64_t guid)
 	uint64_t txg;
 	int error = 0;
 
-	ASSERT(!MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(!spa_namespace_held());
 	ASSERT(spa_writeable(spa));
 
 	txg = spa_vdev_enter(spa);
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
@@ -2085,7 +2085,7 @@ vdev_remove_make_hole_and_free(vdev_t *vd)
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	vdev_free(vd);
@@ -2113,7 +2113,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	ASSERT(vd->vdev_islog);
 	ASSERT(vd == vd->vdev_top);
 	ASSERT0P(vd->vdev_log_mg);
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 
 	/*
 	 * Stop allocating from this vdev.
@@ -2140,7 +2140,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	 * spa_namespace_lock held.  Once this completes the device
 	 * should no longer have any blocks allocated on it.
 	 */
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 	if (vd->vdev_stat.vs_alloc != 0)
 		error = spa_reset_logs(spa);
 
@@ -2189,7 +2189,7 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
 	    ESC_ZFS_VDEV_REMOVE_DEV);
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	/* The top ZAP should have been destroyed by vdev_remove_empty. */
@@ -2433,7 +2433,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	uint64_t txg = 0;
 	uint_t nspares, nl2cache;
 	int error = 0, error_log;
-	boolean_t locked = MUTEX_HELD(&spa_namespace_lock);
+	boolean_t locked = spa_namespace_held();
 	sysevent_t *ev = NULL;
 	const char *vd_type = NULL;
 	char *vd_path = NULL;
@@ -2443,7 +2443,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	if (!locked)
 		txg = spa_vdev_enter(spa);
 
-	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
 		error = (spa_has_checkpoint(spa)) ?
 		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;

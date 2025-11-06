@@ -1228,10 +1228,10 @@ ztest_kill(ztest_shared_t *zs)
 	 * See comment above spa_write_cachefile().
 	 */
 	if (raidz_expand_pause_point != RAIDZ_EXPAND_PAUSE_NONE) {
-		if (mutex_tryenter(&spa_namespace_lock)) {
+		if (spa_namespace_tryenter(FTAG)) {
 			spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE,
 			    B_FALSE);
-			mutex_exit(&spa_namespace_lock);
+			spa_namespace_exit(FTAG);
 
 			ztest_scratch_state->zs_raidz_scratch_verify_pause =
 			    raidz_expand_pause_point;
@@ -1246,9 +1246,9 @@ ztest_kill(ztest_shared_t *zs)
 			return;
 		}
 	} else {
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE, B_FALSE);
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 	}
 
 	(void) raise(SIGKILL);
@@ -3689,10 +3689,10 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 
 	if (error == 0) {
 		(void) printf("successful split - results:\n");
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		show_pool_stats(spa);
 		show_pool_stats(spa_lookup("splitp"));
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 		++zs->zs_splits;
 		--zs->zs_mirrors;
 	}
@@ -3976,11 +3976,11 @@ raidz_scratch_verify(void)
 
 	kernel_init(SPA_MODE_READ);
 
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	spa = spa_lookup(ztest_opts.zo_pool);
 	ASSERT(spa);
 	spa->spa_import_flags |= ZFS_IMPORT_SKIP_MMP;
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 
@@ -7427,11 +7427,11 @@ ztest_walk_pool_directory(const char *header)
 	if (ztest_opts.zo_verbose >= 6)
 		(void) puts(header);
 
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	while ((spa = spa_next(spa)) != NULL)
 		if (ztest_opts.zo_verbose >= 6)
 			(void) printf("\t%s\n", spa_name(spa));
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 }
 
 static void
@@ -8546,11 +8546,11 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Verify that we can loop over all pools.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	for (spa = spa_next(NULL); spa != NULL; spa = spa_next(spa))
 		if (ztest_opts.zo_verbose > 3)
 			(void) printf("spa_next: found %s\n", spa_name(spa));
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	/*
 	 * Verify that we can export the pool and reimport it under a

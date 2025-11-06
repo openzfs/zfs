@@ -1580,10 +1580,10 @@ zfs_ereport_zvol_post(const char *subclass, const char *name,
 	nvlist_t *aux;
 	char *r;
 
-	boolean_t locked = mutex_owned(&spa_namespace_lock);
-	if (!locked) mutex_enter(&spa_namespace_lock);
+	boolean_t locked = spa_namespace_held();
+	if (!locked) spa_namespace_enter(FTAG);
 	spa_t *spa = spa_lookup(name);
-	if (!locked) mutex_exit(&spa_namespace_lock);
+	if (!locked) spa_namespace_exit(FTAG);
 
 	if (spa == NULL)
 		return;

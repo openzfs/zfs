@@ -3122,12 +3122,12 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	if (pair != NULL && strcmp(nvpair_name(pair),
 	    zpool_prop_to_name(ZPOOL_PROP_CACHEFILE)) == 0 &&
 	    nvlist_next_nvpair(props, pair) == NULL) {
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		if ((spa = spa_lookup(zc->zc_name)) != NULL) {
 			spa_configfile_set(spa, props, B_FALSE);
 			spa_write_cachefile(spa, B_FALSE, B_TRUE, B_FALSE);
 		}
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 		if (spa != NULL) {
 			nvlist_free(props);
 			return (0);
@@ -3176,14 +3176,14 @@ zfs_ioc_pool_get_props(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 		 * get (such as altroot and cachefile), so attempt to get them
 		 * anyway.
 		 */
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		if ((spa = spa_lookup(pool)) != NULL) {
 			error = spa_prop_get(spa, outnvl);
 			if (error == 0 && props != NULL)
 				error = spa_prop_get_nvlist(spa, props, n_props,
 				    outnvl);
 		}
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 	} else {
 		error = spa_prop_get(spa, outnvl);
 		if (error == 0 && props != NULL)
@@ -6121,10 +6121,10 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	/*
 	 * On zpool clear we also fix up missing slogs
 	 */
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	spa = spa_lookup(zc->zc_name);
 	if (spa == NULL) {
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 		return (SET_ERROR(EIO));
 	}
 	if (spa_get_log_state(spa) == SPA_LOG_MISSING) {
@@ -6132,7 +6132,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		spa_set_log_state(spa, SPA_LOG_CLEAR);
 	}
 	spa->spa_last_open_failed = 0;
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	if (zc->zc_cookie & ZPOOL_NO_REWIND) {
 		error = spa_open(zc->zc_name, &spa, FTAG);
