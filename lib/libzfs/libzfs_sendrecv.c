@@ -1013,7 +1013,8 @@ send_progress_thread(void *arg)
 		    &blocks)) != 0) {
 			if (err == EINTR || err == ENOENT)
 				err = 0;
-			pthread_exit(((void *)(uintptr_t)err));
+			/* Use break to reach pthread_cleanup_pop() below. */
+			break;
 		}
 
 		(void) time(&t);
@@ -1055,7 +1056,7 @@ send_progress_thread(void *arg)
 		}
 	}
 	pthread_cleanup_pop(B_TRUE);
-	return (NULL);
+	pthread_exit(((void *)(uintptr_t)err));
 }
 
 static boolean_t
