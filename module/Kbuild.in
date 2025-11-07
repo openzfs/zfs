@@ -293,10 +293,9 @@ ZSTD_UPSTREAM_OBJS := \
 
 zfs-objs += $(addprefix zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS))
 
-# Disable aarch64 neon SIMD instructions for kernel mode
 $(addprefix $(obj)/zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -I$(zstd_include) $(ZFS_ZSTD_FLAGS)
 $(addprefix $(obj)/zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS)) : asflags-y += -I$(zstd_include)
-$(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_include)/aarch64_compat.h -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
+$(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
 $(obj)/zstd/zfs_zstd.o : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h
 
 
