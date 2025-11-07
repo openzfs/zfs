@@ -20,8 +20,9 @@
 .\" CDDL HEADER END
 .\"
 .\" Copyright (c) 2025 iXsystems, Inc.
+.\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd July 23, 2025
+.Dd November 5, 2025
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -39,9 +40,10 @@
 .Sh DESCRIPTION
 Rewrite blocks of specified
 .Ar file
-as is without modification at a new location and possibly with new
-properties, such as checksum, compression, dedup, copies, etc,
+as is without modification at a new location and possibly with new properties,
 as if they were atomically read and written back.
+.No See Sx NOTES .
+for more information about property changes that may be applied during rewrite.
 .Bl -tag -width "-r"
 .It Fl P
 Perform physical rewrite, preserving logical birth time of blocks.
@@ -64,6 +66,20 @@ Print names of all successfully rewritten files.
 Don't cross file system mount points when recursing.
 .El
 .Sh NOTES
+Rewrite works by replacing an existing block with a new block of the same
+logical size.
+Changed dataset properties that operate on the data or metadata without
+changing the logical size will be applied.
+These include
+.Sy checksum ,
+.Sy compression ,
+.Sy dedup
+and
+.Sy copies .
+Changes to properties that affect the size of a logical block, like
+.Sy recordsize ,
+will have no effect.
+.Pp
 Rewrite of cloned blocks and blocks that are part of any snapshots,
 same as some property changes may increase pool space usage.
 Holes that were never written or were previously zero-compressed are
