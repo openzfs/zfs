@@ -1813,6 +1813,42 @@ property is updated with
 , the property is set to desired value, but the operation to share, reshare
 or unshare the the dataset is not performed.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
+Controls whether the dataset is shared over NFS.
+
+Possible values:
+.Bl -tag -width Ds
+.It Sy off
+Disables NFS sharing for this dataset.
+.It Sy on
+Enables NFS sharing using default options equivalent to "rw,crossmnt".
+.It Ar opts
+A comma-separated list of NFS export options.
+
+Behavior:
+.Bl -bullet
+.It
+Host-specific options supported: ro, rw, and sec.
+.It
+Other options are applied globally across all exports.
+.It
+If multiple sec= options appear, the last one before ro/rw applies.
+.It
+Defaults to sec=sys if not specified.
+.It
+Host lists may be colon-separated (e.g., "rw=host1:host2").
+.It
+IPv6 address ranges are not supported due to ':' separator.
+.It
+A leading '@' is ignored for Solaris compatibility. Netgroups require '@@netgroup'.
+.El
+
+Example:
+.Bd -literal -offset indent
+zfs set sharenfs="rw=@host1,no_root_squash,sec=krb5p" pool1/dataset
+.Ed
+
+Unsupported options include "pnfs" and "security_label" for modern NFSv4.2.
+.El
 Controls whether the dataset is shared over NFS (Network File System).
 
 The value can be one of the following:
