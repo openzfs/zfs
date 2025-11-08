@@ -5760,7 +5760,7 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 {
 	ulong_t val;
 	int error;
-#ifdef _PC_CLONE_BLKSIZE
+#if defined(_PC_CLONE_BLKSIZE) || defined(_PC_CASE_INSENSITIVE)
 	zfsvfs_t *zfsvfs;
 #endif
 
@@ -5820,6 +5820,15 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 			    SPA_FEATURE_LARGE_BLOCKS) ?
 			    SPA_MAXBLOCKSIZE :
 			    SPA_OLD_MAXBLOCKSIZE;
+		else
+			*ap->a_retval = 0;
+		return (0);
+#endif
+#ifdef _PC_CASE_INSENSITIVE
+	case _PC_CASE_INSENSITIVE:
+		zfsvfs = (zfsvfs_t *)ap->a_vp->v_mount->mnt_data;
+		if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE)
+			*ap->a_retval = 1;
 		else
 			*ap->a_retval = 0;
 		return (0);
