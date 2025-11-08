@@ -1813,6 +1813,44 @@ property is updated with
 , the property is set to desired value, but the operation to share, reshare
 or unshare the the dataset is not performed.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
+Controls whether the dataset is shared over NFS (Network File System).
+
+The value can be one of the following:
+.Bl -tag -width Ds
+.It Sy off
+Disables NFS sharing for this dataset.
+.It Sy on
+Enables NFS sharing using default NFS options. The system NFS service must be enabled.
+.It Ar opts
+A comma-separated list of NFS share options, which are passed to the share(1M) command.
+Common options include:
+.Bl -bullet
+.It
+Sy rw Ns = Ns Ar host[:host] — allow read/write access from specific hosts or networks
+.It
+Sy ro Ns = Ns Ar host[:host] — read-only access
+.It
+Sy root Ns = Ns Ar host[:host] — hosts allowed root access
+.It
+Sy anon Ns = Ns Ar uid — user ID to use for anonymous requests
+.El
+.El
+
+Examples:
+.Bd -literal -offset indent
+# Enable default NFS sharing
+zfs set sharenfs=on tank/home
+
+# Share with read/write access to a subnet
+zfs set sharenfs="rw=@192.168.0.0/24,no_root_squash" tank/projects
+
+# Disable sharing
+zfs set sharenfs=off tank/data
+.Ed
+
+Note:
+The ZFS sharenfs property provides a convenient way to configure per-dataset NFS shares
+without directly editing /etc/exports. The NFS server must be running for shares to take effect.
 Controls whether the file system is shared via NFS, and what options are to be
 used.
 A file system with a
