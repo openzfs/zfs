@@ -10608,7 +10608,7 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		    "The pool can still be used, but some features are "
 		    "unavailable.\n"));
 		snprintf(action, AC_SIZE, gettext("Enable all features using "
-		    "'zpool upgrade'. Once this is done,\n\tthe pool may no "
+		    "'zpool upgrade <poolname>'. Once this is done,\n\tthe pool may no "
 		    "longer be accessible by software that does not support\n\t"
 		    "the features. See zpool-features(7) for details.\n"));
 		break;
