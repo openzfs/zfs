@@ -273,12 +273,12 @@ force this many of them to be gang blocks.
 .It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Controls prefetching BRT records for blocks which are going to be cloned.
 .
-.It Sy brt_zap_default_bs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+.It Sy brt_zap_default_bs Ns = Ns Sy 13 Po 8 KiB Pc Pq int
 Default BRT ZAP data block size as a power of 2. Note that changing this after
 creating a BRT on the pool will not affect existing BRTs, only newly created
 ones.
 .
-.It Sy brt_zap_default_ibs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+.It Sy brt_zap_default_ibs Ns = Ns Sy 13 Po 8 KiB Pc Pq int
 Default BRT ZAP indirect block size as a power of 2. Note that changing this
 after creating a BRT on the pool will not affect existing BRTs, only newly
 created ones.
