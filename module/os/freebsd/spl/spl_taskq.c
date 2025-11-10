@@ -351,7 +351,7 @@ taskq_free(taskq_ent_t *task)
 }
 
 int
-taskq_cancel_id(taskq_t *tq, taskqid_t tid)
+taskq_cancel_id(taskq_t *tq, taskqid_t tid, boolean_t wait)
 {
 	uint32_t pend;
 	int rc;
@@ -362,12 +362,12 @@ taskq_cancel_id(taskq_t *tq, taskqid_t tid)
 
 	if (ent->tqent_type == NORMAL_TASK) {
 		rc = taskqueue_cancel(tq->tq_queue, &ent->tqent_task, &pend);
-		if (rc == EBUSY)
+		if (rc == EBUSY && wait)
 			taskqueue_drain(tq->tq_queue, &ent->tqent_task);
 	} else {
 		rc = taskqueue_cancel_timeout(tq->tq_queue,
 		    &ent->tqent_timeout_task, &pend);
-		if (rc == EBUSY) {
+		if (rc == EBUSY && wait) {
 			taskqueue_drain_timeout(tq->tq_queue,
 			    &ent->tqent_timeout_task);
 		}
@@ -381,6 +381,13 @@ taskq_cancel_id(taskq_t *tq, taskqid_t tid)
 	}
 	/* Free the extra reference we added with taskq_lookup. */
 	taskq_free(ent);
+
+	/*
+	 * If task was running and we didn't wait, return EBUSY.
+	 * Otherwise return 0 if cancelled or ENOENT if not found.
+	 */
+	if (rc == EBUSY && !wait)
+		return (EBUSY);
 	return (pend ? 0 : ENOENT);
 }
 

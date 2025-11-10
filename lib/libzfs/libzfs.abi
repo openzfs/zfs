@@ -2279,6 +2279,7 @@
     <function-decl name='taskq_cancel_id' mangled-name='taskq_cancel_id' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='taskq_cancel_id'>
       <parameter type-id='4f8ed29a' name='tq'/>
       <parameter type-id='de0ea20e' name='id'/>
+      <parameter type-id='c19b74c3' name='wait'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='system_taskq_init' mangled-name='system_taskq_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='system_taskq_init'>
