@@ -260,8 +260,8 @@ static int brt_zap_prefetch = 1;
 #define	BRT_DEBUG(...)	do { } while (0)
 #endif
 
-static int brt_zap_default_bs = 12;
-static int brt_zap_default_ibs = 12;
+static int brt_zap_default_bs = 13;
+static int brt_zap_default_ibs = 13;
 
 static kstat_t	*brt_ksp;
 
