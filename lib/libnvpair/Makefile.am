@@ -17,6 +17,7 @@ dist_libnvpair_la_SOURCES = \
 nodist_libnvpair_la_SOURCES = \
 	module/nvpair/nvpair_alloc_fixed.c \
 	module/nvpair/nvpair.c \
+	module/nvpair/nvpair_json.c \
 	module/nvpair/fnvpair.c
 
 libnvpair_la_LIBADD = \
