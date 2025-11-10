@@ -65,7 +65,7 @@ _Static_assert(BRT_RANGESIZE / SPA_MINBLOCKSIZE <= UINT16_MAX,
  */
 #define	BRT_BLOCKSIZE	(32 * 1024)
 #define	BRT_RANGESIZE_TO_NBLOCKS(size)					\
-	(((size) - 1) / BRT_BLOCKSIZE / sizeof (uint16_t) + 1)
+	(((size) - 1) / (BRT_BLOCKSIZE / sizeof (uint16_t)) + 1)
 
 #define	BRT_LITTLE_ENDIAN	0
 #define	BRT_BIG_ENDIAN		1
