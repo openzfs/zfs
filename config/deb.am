@@ -58,9 +58,9 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
 	pkg3=libuutil3-$${version}.$${arch}.rpm; \
-	pkg4=libzfs6-$${version}.$${arch}.rpm; \
-	pkg5=libzpool6-$${version}.$${arch}.rpm; \
-	pkg6=libzfs6-devel-$${version}.$${arch}.rpm; \
+	pkg4=libzfs7-$${version}.$${arch}.rpm; \
+	pkg5=libzpool7-$${version}.$${arch}.rpm; \
+	pkg6=libzfs7-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
@@ -72,7 +72,7 @@ deb-utils: deb-local rpm-utils-initramfs
 	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#!$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs6linux -xlibzpool6linux" \
+	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs7linux -xlibzpool7linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,
