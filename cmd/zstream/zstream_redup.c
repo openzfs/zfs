@@ -191,9 +191,9 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 #ifdef _ILP32
 	uint64_t max_rde_size = SMALLEST_POSSIBLE_MAX_RDT_MB << 20;
 #else
-	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	uint64_t physbytes = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
 	uint64_t max_rde_size =
-	    MAX((physmem * MAX_RDT_PHYSMEM_PERCENT) / 100,
+	    MAX((physbytes * MAX_RDT_PHYSMEM_PERCENT) / 100,
 	    SMALLEST_POSSIBLE_MAX_RDT_MB << 20);
 #endif
 

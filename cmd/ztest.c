@@ -140,9 +140,9 @@
 #include <sys/zfs_impl.h>
 #include <sys/backtrace.h>
 #include <libzpool.h>
+#include <libspl.h>
 
 static int ztest_fd_data = -1;
-static int ztest_fd_rand = -1;
 
 typedef struct ztest_shared_hdr {
 	uint64_t	zh_hdr_size;
@@ -903,13 +903,10 @@ ztest_random(uint64_t range)
 {
 	uint64_t r;
 
-	ASSERT3S(ztest_fd_rand, >=, 0);
-
 	if (range == 0)
 		return (0);
 
-	if (read(ztest_fd_rand, &r, sizeof (r)) != sizeof (r))
-		fatal(B_TRUE, "short read from /dev/urandom");
+	random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
 
 	return (r % range);
 }
@@ -8146,10 +8143,8 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	/* Setup a 1 MiB buffer of random data */
 	uint64_t bufsize = 1024 * 1024;
 	void *buffer = umem_alloc(bufsize, UMEM_NOFAIL);
+	random_get_pseudo_bytes((uint8_t *)&buffer, bufsize);
 
-	if (read(ztest_fd_rand, buffer, bufsize) != bufsize) {
-		fatal(B_TRUE, "short read from /dev/urandom");
-	}
 	/*
 	 * Put some data in the pool and then attach a vdev to initiate
 	 * reflow.
@@ -8955,13 +8950,7 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	/*
-	 * Force random_get_bytes() to use /dev/urandom in order to prevent
-	 * ztest from needlessly depleting the system entropy pool.
-	 */
-	random_path = "/dev/urandom";
-	ztest_fd_rand = open(random_path, O_RDONLY | O_CLOEXEC);
-	ASSERT3S(ztest_fd_rand, >=, 0);
+	libspl_init();
 
 	if (!fd_data_str) {
 		process_options(argc, argv);

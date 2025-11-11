@@ -31,9 +31,6 @@
 
 #include <sys/utsname.h>
 
-extern const char *random_path;
-extern const char *urandom_path;
-
 /*
  * Hostname information
  */

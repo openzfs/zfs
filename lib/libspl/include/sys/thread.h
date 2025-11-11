@@ -58,11 +58,9 @@ typedef pthread_t	kthread_t;
 #define	current_is_reclaim_thread()	(0)
 
 /* in libzpool, p0 exists only to have its address taken */
-typedef struct proc {
-	uintptr_t	this_is_never_used_dont_dereference_it;
-} proc_t;
+typedef void (proc_t)(void);
+extern void p0(void);
 
-extern struct proc p0;
 #define	curproc		(&p0)
 
 #define	PS_NONE		-1

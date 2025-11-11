@@ -31,11 +31,18 @@
 #include <assert.h>
 #include <unistd.h>
 #include <sys/misc.h>
+#include <sys/systm.h>
 #include <sys/utsname.h>
 #include "libspl_impl.h"
 
-uint64_t physmem;
-struct utsname hw_utsname;
+static uint64_t hw_physmem = 0;
+static struct utsname hw_utsname = {};
+
+uint64_t
+libspl_physmem(void)
+{
+	return (hw_physmem);
+}
 
 utsname_t *
 utsname(void)
@@ -46,7 +53,7 @@ utsname(void)
 void
 libspl_init(void)
 {
-	physmem = sysconf(_SC_PHYS_PAGES);
+	hw_physmem = sysconf(_SC_PHYS_PAGES);
 
 	VERIFY0(uname(&hw_utsname));
 
