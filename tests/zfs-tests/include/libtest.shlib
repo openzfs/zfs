@@ -1617,13 +1617,14 @@ function create_pool #pool devs_list
 	if is_global_zone ; then
 		[[ -d /$pool ]] && rm -rf /$pool
 
-		for vdev in "$@" ; do
-		       if [[ "$vdev" =~ "loop" ]] ; then
-			       # If the device is a loopback, remove previously
-			       # allocated data.
-			       punch_hole 0 $(get_file_size /dev/$vdev) /dev/$vdev
-		       fi
-	       done
+		for internal_vd in "$@" ; do
+			if [[ "$internal_vd" =~ "loop" ]] ; then
+				# If the device is a loopback, remove previously
+				# allocated data.
+				punch_hole 0 $(get_file_size /dev/$internal_vd) \
+					/dev/$internal_vd
+			fi
+		done
 		log_must zpool create -f $pool $@
 	fi
 
