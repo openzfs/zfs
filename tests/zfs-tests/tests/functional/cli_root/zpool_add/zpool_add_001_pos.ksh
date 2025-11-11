@@ -68,6 +68,7 @@ raidzdevs="\"${DISK0} ${DISK1}\""
 anyraiddevs="\"${extradisks}\""
 draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
 
+
 typeset -i i=0
 typeset vdev
 eval set -A poolarray $pooldevs
