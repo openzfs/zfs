@@ -1713,7 +1713,8 @@ typedef enum {
 
 typedef enum {
 	ZPOOL_PREFETCH_NONE = 0,
-	ZPOOL_PREFETCH_DDT
+	ZPOOL_PREFETCH_DDT,
+	ZPOOL_PREFETCH_BRT
 } zpool_prefetch_type_t;
 
 typedef enum {
