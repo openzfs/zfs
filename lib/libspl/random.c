@@ -32,15 +32,22 @@
 #include <sys/random.h>
 #include "libspl_impl.h"
 
-const char *random_path = "/dev/random";
-const char *urandom_path = "/dev/urandom";
+#define	RANDOM_PATH	"/dev/random"
+#define	URANDOM_PATH	"/dev/urandom"
+
 static int random_fd = -1, urandom_fd = -1;
 
 void
 random_init(void)
 {
-	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
+	/* Handle multiple calls. */
+	if (random_fd != -1) {
+		ASSERT3U(urandom_fd, !=, -1);
+		return;
+	}
+
+	VERIFY((random_fd = open(RANDOM_PATH, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY((urandom_fd = open(URANDOM_PATH, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
 void

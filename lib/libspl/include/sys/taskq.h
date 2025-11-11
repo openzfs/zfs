@@ -86,8 +86,11 @@ typedef struct taskq {
 
 #define	TASKQID_INVALID		((taskqid_t)0)
 
-extern taskq_t *system_taskq;
-extern taskq_t *system_delay_taskq;
+extern taskq_t *_system_taskq(void);
+extern taskq_t *_system_delay_taskq(void);
+
+#define	system_taskq		_system_taskq()
+#define	system_delay_taskq	_system_delay_taskq()
 
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 extern taskq_t	*taskq_create_synced(const char *, int, pri_t, int, int, uint_t,

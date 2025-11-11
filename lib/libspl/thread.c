@@ -32,7 +32,7 @@
 #include <sys/thread.h>
 
 /* this only exists to have its address taken */
-struct proc p0;
+void p0(void) {}
 
 /*
  * =========================================================================

@@ -29,6 +29,8 @@
 #ifndef _LIBSPL_SYS_SYSTM_H
 #define	_LIBSPL_SYS_SYSTM_H
 
-extern uint64_t physmem;
+uint64_t libspl_physmem(void);
+
+#define	physmem	libspl_physmem()
 
 #endif
