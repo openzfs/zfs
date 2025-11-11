@@ -44,7 +44,6 @@ FILESIZE="4G"
 DEFAULT_RUNFILES="common.run,$(uname | tr '[:upper:]' '[:lower:]').run"
 RUNFILES=${RUNFILES:-$DEFAULT_RUNFILES}
 FILEDIR=${FILEDIR:-/var/tmp}
-DISKS="/dev/vtbd1 /dev/vtbd2 /dev/vtbd3 /dev/vtbd4 /dev/vtbd5"
 DISKS=${DISKS:-""}
 SINGLETEST=""
 SINGLETESTUSER="root"
