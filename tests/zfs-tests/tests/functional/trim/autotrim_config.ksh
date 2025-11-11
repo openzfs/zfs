@@ -70,6 +70,7 @@ log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 
 typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
 typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+typeset TXGS=64
 
 for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "raidz2" "draid"; do
 
@@ -79,6 +80,11 @@ for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "rai
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
 	elif [[ "$type" =~ "anymirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
+
+		# The per-vdev utilization is lower due to the capacity
+		# used by the tile map
+		VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.50 / 1024 / 1024) ))
+		TXGS=128
 	elif [[ "$type" = "raidz2" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3"
 	elif [[ "$type" = "draid" ]]; then
@@ -103,7 +109,7 @@ for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "rai
 
 	# Remove the file, wait for trim, verify the vdevs are now sparse.
 	log_must rm /$TESTPOOL/file
-	wait_trim_io $TESTPOOL "ind" 64
+	wait_trim_io $TESTPOOL "ind" $TXGS
 	verify_vdevs "-le" "$VDEV_MIN_MB" $VDEVS
 
 	log_must zpool destroy $TESTPOOL
