@@ -10491,7 +10491,7 @@ print_dedup_stats(zpool_handle_t *zhp, nvlist_t *config, boolean_t literal)
 	    (uint64_t **)&dds, &c) == 0);
 	verify(nvlist_lookup_uint64_array(config, ZPOOL_CONFIG_DDT_HISTOGRAM,
 	    (uint64_t **)&ddh, &c) == 0);
-	zpool_dump_ddt(dds, ddh);
+	zpool_dump_ddt(dds, ddh, literal);
 }
 
 #define	ST_SIZE	4096
