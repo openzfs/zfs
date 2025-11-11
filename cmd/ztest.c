@@ -8952,6 +8952,12 @@ main(int argc, char **argv)
 
 	libspl_init();
 
+	/*
+	 * Force random_get_bytes() to use /dev/urandom in order to prevent
+	 * ztest from needlessly depleting the system entropy pool.
+	 */
+	random_force_pseudo(B_TRUE);
+
 	if (!fd_data_str) {
 		process_options(argc, argv);
 

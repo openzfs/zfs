@@ -32,6 +32,8 @@
 extern int random_get_bytes(uint8_t *ptr, size_t len);
 extern int random_get_pseudo_bytes(uint8_t *ptr, size_t len);
 
+extern void random_force_pseudo(boolean_t onoff);
+
 static __inline__ uint32_t
 random_in_range(uint32_t range)
 {
