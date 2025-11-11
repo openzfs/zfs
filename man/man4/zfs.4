@@ -273,12 +273,12 @@ force this many of them to be gang blocks.
 .It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Controls prefetching BRT records for blocks which are going to be cloned.
 .
-.It Sy brt_zap_default_bs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+.It Sy brt_zap_default_bs Ns = Ns Sy 13 Po 8 KiB Pc Pq int
 Default BRT ZAP data block size as a power of 2. Note that changing this after
 creating a BRT on the pool will not affect existing BRTs, only newly created
 ones.
 .
-.It Sy brt_zap_default_ibs Ns = Ns Sy 12 Po 4 KiB Pc Pq int
+.It Sy brt_zap_default_ibs Ns = Ns Sy 13 Po 8 KiB Pc Pq int
 Default BRT ZAP indirect block size as a power of 2. Note that changing this
 after creating a BRT on the pool will not affect existing BRTs, only newly
 created ones.
@@ -2660,12 +2660,50 @@ Set value only applies to pools imported/created after that.
 Set the queue and thread configuration for the IO read queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
 Set values only apply to pools imported/created after that.
 .
 .It Sy zio_taskq_write Ns = Ns Sy sync null scale null Pq charp
 Set the queue and thread configuration for the IO write queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+Set values only apply to pools imported/created after that.
+.
+.It Sy zio_taskq_free Ns = Ns Sy scale,32 null null null Pq charp
+Set the queue and thread configuration for the IO free queues.
+This is an advanced debugging parameter.
+Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+The default uses a minimum of 32 threads to improve parallelism for
+DDT and BRT metadata operations during frees.
 Set values only apply to pools imported/created after that.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint

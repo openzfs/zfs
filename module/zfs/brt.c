@@ -260,8 +260,8 @@ static int brt_zap_prefetch = 1;
 #define	BRT_DEBUG(...)	do { } while (0)
 #endif
 
-static int brt_zap_default_bs = 12;
-static int brt_zap_default_ibs = 12;
+static int brt_zap_default_bs = 13;
+static int brt_zap_default_ibs = 13;
 
 static kstat_t	*brt_ksp;
 
@@ -1508,6 +1508,31 @@ brt_load(spa_t *spa)
 		spa->spa_brt_rangesize = BRT_RANGESIZE;
 	brt_unlock(spa);
 	return (error);
+}
+
+void
+brt_prefetch_all(spa_t *spa)
+{
+	/*
+	 * Load all BRT entries for each vdev. This is intended to perform
+	 * a prefetch on all such blocks. For the same reason that brt_prefetch
+	 * (called from brt_pending_add) isn't locked, this is also not locked.
+	 */
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		brt_unlock(spa);
+
+		rw_enter(&brtvd->bv_mos_entries_lock, RW_READER);
+		if (brtvd->bv_mos_entries != 0) {
+			(void) zap_prefetch_object(spa->spa_meta_objset,
+			    brtvd->bv_mos_entries);
+		}
+		rw_exit(&brtvd->bv_mos_entries_lock);
+
+		brt_rlock(spa);
+	}
+	brt_unlock(spa);
 }
 
 void
