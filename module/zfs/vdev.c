@@ -449,6 +449,23 @@ vdev_get_nparity(vdev_t *vd)
 }
 
 static int
+vdev_prop_get_objid(vdev_t *vd, uint64_t *objid)
+{
+
+	if (vd->vdev_root_zap != 0) {
+		*objid = vd->vdev_root_zap;
+	} else if (vd->vdev_top_zap != 0) {
+		*objid = vd->vdev_top_zap;
+	} else if (vd->vdev_leaf_zap != 0) {
+		*objid = vd->vdev_leaf_zap;
+	} else {
+		return (EINVAL);
+	}
+
+	return (0);
+}
+
+static int
 vdev_prop_get_int(vdev_t *vd, vdev_prop_t prop, uint64_t *value)
 {
 	spa_t *spa = vd->vdev_spa;
@@ -456,21 +473,25 @@ vdev_prop_get_int(vdev_t *vd, vdev_prop_t prop, uint64_t *value)
 	uint64_t objid;
 	int err;
 
-	if (vd->vdev_root_zap != 0) {
-		objid = vd->vdev_root_zap;
-	} else if (vd->vdev_top_zap != 0) {
-		objid = vd->vdev_top_zap;
-	} else if (vd->vdev_leaf_zap != 0) {
-		objid = vd->vdev_leaf_zap;
-	} else {
+	if (vdev_prop_get_objid(vd, &objid) != 0)
 		return (EINVAL);
-	}
 
 	err = zap_lookup(mos, objid, vdev_prop_to_name(prop),
 	    sizeof (uint64_t), 1, value);
-
 	if (err == ENOENT)
 		*value = vdev_prop_default_numeric(prop);
+
+	return (err);
+}
+
+static int
+vdev_prop_get_bool(vdev_t *vd, vdev_prop_t prop, boolean_t *bvalue)
+{
+	int err;
+	uint64_t ivalue;
+
+	err = vdev_prop_get_int(vd, prop, &ivalue);
+	*bvalue = ivalue != 0;
 
 	return (err);
 }
@@ -737,8 +758,12 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 */
 	vd->vdev_checksum_n = vdev_prop_default_numeric(VDEV_PROP_CHECKSUM_N);
 	vd->vdev_checksum_t = vdev_prop_default_numeric(VDEV_PROP_CHECKSUM_T);
+
 	vd->vdev_io_n = vdev_prop_default_numeric(VDEV_PROP_IO_N);
 	vd->vdev_io_t = vdev_prop_default_numeric(VDEV_PROP_IO_T);
+
+	vd->vdev_slow_io_events = vdev_prop_default_numeric(
+	    VDEV_PROP_SLOW_IO_EVENTS);
 	vd->vdev_slow_io_n = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_N);
 	vd->vdev_slow_io_t = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_T);
 
@@ -3931,6 +3956,11 @@ vdev_load(vdev_t *vd)
 			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
 			    "failed [error=%d]", (u_longlong_t)zapobj, error);
 
+		error = vdev_prop_get_bool(vd, VDEV_PROP_SLOW_IO_EVENTS,
+		    &vd->vdev_slow_io_events);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
 		error = vdev_prop_get_int(vd, VDEV_PROP_SLOW_IO_N,
 		    &vd->vdev_slow_io_n);
 		if (error && error != ENOENT)
@@ -5980,15 +6010,8 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Set vdev property values in the vdev props mos object.
 	 */
-	if (vd->vdev_root_zap != 0) {
-		objid = vd->vdev_root_zap;
-	} else if (vd->vdev_top_zap != 0) {
-		objid = vd->vdev_top_zap;
-	} else if (vd->vdev_leaf_zap != 0) {
-		objid = vd->vdev_leaf_zap;
-	} else {
+	if (vdev_prop_get_objid(vd, &objid) != 0)
 		panic("unexpected vdev type");
-	}
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -6215,6 +6238,13 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_io_t = intval;
 			break;
+		case VDEV_PROP_SLOW_IO_EVENTS:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_slow_io_events = intval != 0;
+			break;
 		case VDEV_PROP_SLOW_IO_N:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
@@ -6256,6 +6286,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	nvpair_t *elem = NULL;
 	nvlist_t *nvprops = NULL;
 	uint64_t intval = 0;
+	boolean_t boolval = 0;
 	char *strval = NULL;
 	const char *propname = NULL;
 	vdev_prop_t prop;
@@ -6269,15 +6300,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 
 	nvlist_lookup_nvlist(innvl, ZPOOL_VDEV_PROPS_GET_PROPS, &nvprops);
 
-	if (vd->vdev_root_zap != 0) {
-		objid = vd->vdev_root_zap;
-	} else if (vd->vdev_top_zap != 0) {
-		objid = vd->vdev_top_zap;
-	} else if (vd->vdev_leaf_zap != 0) {
-		objid = vd->vdev_leaf_zap;
-	} else {
+	if (vdev_prop_get_objid(vd, &objid) != 0)
 		return (SET_ERROR(EINVAL));
-	}
 	ASSERT(objid != 0);
 
 	mutex_enter(&spa->spa_props_lock);
@@ -6622,6 +6646,18 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				    intval, src);
 				break;
 
+			case VDEV_PROP_SLOW_IO_EVENTS:
+				err = vdev_prop_get_bool(vd, prop, &boolval);
+				if (err && err != ENOENT)
+					break;
+
+				src = ZPROP_SRC_LOCAL;
+				if (boolval == vdev_prop_default_numeric(prop))
+					src = ZPROP_SRC_DEFAULT;
+
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    boolval, src);
+				break;
 			case VDEV_PROP_CHECKSUM_N:
 			case VDEV_PROP_CHECKSUM_T:
 			case VDEV_PROP_IO_N:
