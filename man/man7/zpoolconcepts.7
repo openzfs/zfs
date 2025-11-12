@@ -469,6 +469,11 @@ then rewind it during import:
 .Dl # Nm zpool Cm export Ar pool
 .Dl # Nm zpool Cm import Fl -rewind-to-checkpoint Ar pool
 .Pp
+Note that rewinding to a checkpoint will
+.Sy permanently discard it.
+Once the pool has been successfully imported with the above rewind command,
+you cannot rewind to the same checkpoint.
+.Pp
 To discard the checkpoint from a pool:
 .Dl # Nm zpool Cm checkpoint Fl d Ar pool
 .Pp

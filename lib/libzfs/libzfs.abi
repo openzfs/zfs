@@ -1,4 +1,4 @@
-<abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfs.so.6'>
+<abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfs.so.7'>
   <elf-needed>
     <dependency name='libzfs_core.so.3'/>
     <dependency name='libnvpair.so.3'/>
@@ -451,10 +451,6 @@
     <elf-symbol name='zfs_strip_partition' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_strip_path' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_truncate_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zfs_tunable_get' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zfs_tunable_iter' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zfs_tunable_lookup' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zfs_tunable_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_type_to_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unmount' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unmountall' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1497,50 +1493,10 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/tunables.c' language='LANG_C99'>
-    <enum-decl name='zfs_tunable_type_t' naming-typedef-id='f50b1525' id='56905369'>
-      <underlying-type type-id='9cac1fee'/>
-      <enumerator name='ZFS_TUNABLE_TYPE_INT' value='0'/>
-      <enumerator name='ZFS_TUNABLE_TYPE_UINT' value='1'/>
-      <enumerator name='ZFS_TUNABLE_TYPE_ULONG' value='2'/>
-      <enumerator name='ZFS_TUNABLE_TYPE_U64' value='3'/>
-      <enumerator name='ZFS_TUNABLE_TYPE_STRING' value='4'/>
-    </enum-decl>
-    <typedef-decl name='zfs_tunable_type_t' type-id='56905369' id='f50b1525'/>
-    <enum-decl name='zfs_tunable_perm_t' naming-typedef-id='ada7336b' id='e80e6ebf'>
-      <underlying-type type-id='9cac1fee'/>
-      <enumerator name='ZFS_TUNABLE_PERM_ZMOD_RW' value='0'/>
-      <enumerator name='ZFS_TUNABLE_PERM_ZMOD_RD' value='1'/>
-    </enum-decl>
-    <typedef-decl name='zfs_tunable_perm_t' type-id='e80e6ebf' id='ada7336b'/>
-    <class-decl name='zfs_tunable' size-in-bits='320' is-struct='yes' visibility='default' id='1a97ee0e'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='zt_name' type-id='80f4b756' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='zt_varp' type-id='eaa32e2f' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='zt_varsz' type-id='b59d7dce' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='zt_type' type-id='f50b1525' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='224'>
-        <var-decl name='zt_perm' type-id='ada7336b' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='zt_desc' type-id='80f4b756' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <typedef-decl name='zfs_tunable_t' type-id='1a97ee0e' id='12bf5c5e'/>
-    <typedef-decl name='zfs_tunable_iter_t' type-id='7ef33f92' id='d8d5f4ab'/>
     <typedef-decl name='intmax_t' type-id='5b475db0' id='e104d842'/>
     <typedef-decl name='uintmax_t' type-id='04d82f4b' id='f8b828c9'/>
     <typedef-decl name='__intmax_t' type-id='bd54fe1a' id='5b475db0'/>
     <typedef-decl name='__uintmax_t' type-id='7359adad' id='04d82f4b'/>
-    <qualified-type-def type-id='12bf5c5e' const='yes' id='180e47ee'/>
-    <pointer-type-def type-id='180e47ee' size-in-bits='64' id='a27af98c'/>
-    <pointer-type-def type-id='92f86508' size-in-bits='64' id='7ef33f92'/>
     <function-decl name='strtoimax' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
       <parameter type-id='8c85230f'/>
@@ -1553,31 +1509,6 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='f8b828c9'/>
     </function-decl>
-    <function-decl name='zfs_tunable_lookup' mangled-name='zfs_tunable_lookup' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_lookup'>
-      <parameter type-id='80f4b756' name='name'/>
-      <return type-id='a27af98c'/>
-    </function-decl>
-    <function-decl name='zfs_tunable_iter' mangled-name='zfs_tunable_iter' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_iter'>
-      <parameter type-id='d8d5f4ab' name='cb'/>
-      <parameter type-id='eaa32e2f' name='arg'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
-    <function-decl name='zfs_tunable_set' mangled-name='zfs_tunable_set' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_set'>
-      <parameter type-id='a27af98c' name='zt'/>
-      <parameter type-id='80f4b756' name='val'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='zfs_tunable_get' mangled-name='zfs_tunable_get' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_tunable_get'>
-      <parameter type-id='a27af98c' name='zt'/>
-      <parameter type-id='26a90f95' name='val'/>
-      <parameter type-id='b59d7dce' name='valsz'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-type size-in-bits='64' id='92f86508'>
-      <parameter type-id='a27af98c'/>
-      <parameter type-id='eaa32e2f'/>
-      <return type-id='95e97e5e'/>
-    </function-type>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libtpool/thread_pool.c' language='LANG_C99'>
     <array-type-def dimensions='1' type-id='49ef3ffd' size-in-bits='1024' id='a14403f5'>
@@ -1807,10 +1738,6 @@
       <parameter type-id='95e97e5e'/>
       <parameter type-id='7292109c'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='__pthread_unregister_cancel' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='ba7c727c'/>
-      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='pthread_cond_init' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='2a468b41'/>
@@ -6026,7 +5953,8 @@
       <enumerator name='VDEV_PROP_SLOW_IOS' value='51'/>
       <enumerator name='VDEV_PROP_SIT_OUT' value='52'/>
       <enumerator name='VDEV_PROP_AUTOSIT' value='53'/>
-      <enumerator name='VDEV_NUM_PROPS' value='54'/>
+      <enumerator name='VDEV_PROP_SLOW_IO_EVENTS' value='54'/>
+      <enumerator name='VDEV_NUM_PROPS' value='55'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
@@ -6250,6 +6178,7 @@
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZPOOL_PREFETCH_NONE' value='0'/>
       <enumerator name='ZPOOL_PREFETCH_DDT' value='1'/>
+      <enumerator name='ZPOOL_PREFETCH_BRT' value='2'/>
     </enum-decl>
     <typedef-decl name='zpool_prefetch_type_t' type-id='0299ab50' id='e55ff6bc'/>
     <enum-decl name='zpool_ddt_prune_unit_t' naming-typedef-id='02e25ab0' id='509ae11c'>
@@ -7985,6 +7914,10 @@
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='__pthread_register_cancel' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='ba7c727c'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='__pthread_unregister_cancel' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='ba7c727c'/>
       <return type-id='48b5725f'/>
     </function-decl>

@@ -494,8 +494,7 @@ get_usage(zpool_help_t idx)
 		    "[--json-int, --json-pool-key-guid]] ...\n"
 		    "\t    [-T d|u] [pool] [interval [count]]\n"));
 	case HELP_PREFETCH:
-		return (gettext("\tprefetch -t <type> [<type opts>] <pool>\n"
-		    "\t    -t ddt <pool>\n"));
+		return (gettext("\tprefetch [-t <type>] <pool>\n"));
 	case HELP_OFFLINE:
 		return (gettext("\toffline [--power]|[[-f][-t]] <pool> "
 		    "<device> ...\n"));
@@ -4200,7 +4199,7 @@ zpool_do_checkpoint(int argc, char **argv)
 #define	CHECKPOINT_OPT	1024
 
 /*
- * zpool prefetch <type> [<type opts>] <pool>
+ * zpool prefetch [-t <type>] <pool>
  *
  * Prefetchs a particular type of data in the specified pool.
  */
@@ -4245,20 +4244,27 @@ zpool_do_prefetch(int argc, char **argv)
 
 	poolname = argv[0];
 
-	argc--;
-	argv++;
-
-	if (strcmp(typestr, "ddt") == 0) {
-		type = ZPOOL_PREFETCH_DDT;
-	} else {
-		(void) fprintf(stderr, gettext("unsupported prefetch type\n"));
-		usage(B_FALSE);
-	}
-
 	if ((zhp = zpool_open(g_zfs, poolname)) == NULL)
 		return (1);
 
-	err = zpool_prefetch(zhp, type);
+	if (typestr == NULL) {
+		/* Prefetch all types */
+		err = zpool_prefetch(zhp, ZPOOL_PREFETCH_DDT);
+		if (err == 0)
+			err = zpool_prefetch(zhp, ZPOOL_PREFETCH_BRT);
+	} else {
+		if (strcmp(typestr, "ddt") == 0) {
+			type = ZPOOL_PREFETCH_DDT;
+		} else if (strcmp(typestr, "brt") == 0) {
+			type = ZPOOL_PREFETCH_BRT;
+		} else {
+			(void) fprintf(stderr,
+			    gettext("unsupported prefetch type\n"));
+			zpool_close(zhp);
+			usage(B_FALSE);
+		}
+		err = zpool_prefetch(zhp, type);
+	}
 
 	zpool_close(zhp);
 

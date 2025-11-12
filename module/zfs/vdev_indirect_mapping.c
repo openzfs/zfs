@@ -459,13 +459,14 @@ vdev_indirect_mapping_add_entries(vdev_indirect_mapping_t *vim,
 		dmu_write(vim->vim_objset, vim->vim_object,
 		    vim->vim_phys->vimp_num_entries * sizeof (*mapbuf),
 		    i * sizeof (*mapbuf),
-		    mapbuf, tx);
+		    mapbuf, tx, DMU_READ_NO_PREFETCH);
 		if (vim->vim_havecounts) {
 			dmu_write(vim->vim_objset,
 			    vim->vim_phys->vimp_counts_object,
 			    vim->vim_phys->vimp_num_entries *
 			    sizeof (*countbuf),
-			    i * sizeof (*countbuf), countbuf, tx);
+			    i * sizeof (*countbuf), countbuf, tx,
+			    DMU_READ_NO_PREFETCH);
 		}
 		vim->vim_phys->vimp_num_entries += i;
 	}

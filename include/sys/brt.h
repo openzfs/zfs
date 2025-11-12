@@ -56,6 +56,7 @@ extern void brt_create(spa_t *spa);
 extern int brt_load(spa_t *spa);
 extern void brt_unload(spa_t *spa);
 extern void brt_sync(spa_t *spa, uint64_t txg);
+extern void brt_prefetch_all(spa_t *spa);
 
 #ifdef	__cplusplus
 }

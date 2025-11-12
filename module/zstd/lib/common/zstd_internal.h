@@ -12,6 +12,15 @@
 #ifndef ZSTD_CCOMMON_H_MODULE
 #define ZSTD_CCOMMON_H_MODULE
 
+/*
+ * Disable the aarch64 NEON SIMD intrinsics for kernel builds.  Safely
+ * using them in the kernel context requires saving/restoring the FPU
+ * registers which is not currently done.
+ */
+#ifdef _KERNEL
+#define ZSTD_NO_INTRINSICS
+#endif
+
 /* this module contains definitions which must be identical
  * across compression, decompression and dictBuilder.
  * It also contains a few functions useful to at least 2 of them

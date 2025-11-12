@@ -147,7 +147,7 @@ vdev_indirect_births_add_entry(vdev_indirect_births_t *vib,
 
 	old_size = vdev_indirect_births_size_impl(vib);
 	dmu_write(vib->vib_objset, vib->vib_object, old_size, sizeof (vibe),
-	    &vibe, tx);
+	    &vibe, tx, DMU_READ_NO_PREFETCH);
 	vib->vib_phys->vib_count++;
 	new_size = vdev_indirect_births_size_impl(vib);
 

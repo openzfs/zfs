@@ -3318,8 +3318,8 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	} else if (any_failed && candidate > SPA_OLD_GANGBLOCKSIZE &&
 	    spa_feature_is_enabled(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER) &&
 	    !spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
-		dmu_tx_t *tx =
-		    dmu_tx_create_assigned(spa->spa_dsl_pool, txg + 1);
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
+		    MAX(txg, spa_syncing_txg(spa) + 1));
 		dsl_sync_task_nowait(spa->spa_dsl_pool,
 		    zio_update_feature,
 		    (void *)SPA_FEATURE_DYNAMIC_GANG_HEADER, tx);
@@ -5569,9 +5569,12 @@ zio_done(zio_t *zio)
 				zio->io_vd->vdev_stat.vs_slow_ios++;
 				mutex_exit(&zio->io_vd->vdev_stat_lock);
 
-				(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
-				    zio->io_spa, zio->io_vd, &zio->io_bookmark,
-				    zio, 0);
+				if (zio->io_vd->vdev_slow_io_events) {
+					(void) zfs_ereport_post(
+					    FM_EREPORT_ZFS_DELAY,
+					    zio->io_spa, zio->io_vd,
+					    &zio->io_bookmark, zio, 0);
+				}
 			}
 		}
 	}

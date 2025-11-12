@@ -625,12 +625,10 @@ zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 	ASSERT0(db->db_offset);
 	objset_t *os = dmu_buf_get_objset(db);
 	uint64_t obj = db->db_object;
-	dmu_object_info_t doi;
 
 	*zapp = NULL;
 
-	dmu_object_info_from_dnode(dn, &doi);
-	if (DMU_OT_BYTESWAP(doi.doi_type) != DMU_BSWAP_ZAP)
+	if (DMU_OT_BYTESWAP(dn->dn_type) != DMU_BSWAP_ZAP)
 		return (SET_ERROR(EINVAL));
 
 	zap_t *zap = dmu_buf_get_user(db);

@@ -47,15 +47,14 @@ case "$OS" in
     OSNAME="Archlinux"
     URL="https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
     ;;
-  centos-stream10)
-    OSNAME="CentOS Stream 10"
-    # TODO: #16903 Overwrite OSv to stream9 for virt-install until it's added to osinfo
-    OSv="centos-stream9"
-    URL="https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2"
-    ;;
   centos-stream9)
     OSNAME="CentOS Stream 9"
     URL="https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9-latest.x86_64.qcow2"
+    ;;
+  centos-stream10)
+    OSNAME="CentOS Stream 10"
+    OSv="centos-stream9"
+    URL="https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-10-latest.x86_64.qcow2"
     ;;
   debian11)
     OSNAME="Debian 11"
@@ -83,6 +82,11 @@ case "$OS" in
     OSv="fedora-unknown"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
     ;;
+  fedora43)
+    OSNAME="Fedora 43"
+    OSv="fedora-unknown"
+    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/43/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-43-1.6.x86_64.qcow2"
+    ;;
   freebsd13-5r)
     FreeBSD="13.5-RELEASE"
     OSNAME="FreeBSD $FreeBSD"
@@ -95,8 +99,8 @@ case "$OS" in
     FreeBSD="14.2-RELEASE"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
-    KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
     URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI.raw.xz"
+    KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
     ;;
   freebsd14-3r)
     FreeBSD="14.3-RELEASE"
@@ -120,8 +124,8 @@ case "$OS" in
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
     KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
     ;;
-  freebsd15-0c)
-    FreeBSD="15.0-ALPHA4"
+  freebsd15-0s)
+    FreeBSD="15.0-STABLE"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"

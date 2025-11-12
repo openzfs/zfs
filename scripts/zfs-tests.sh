@@ -797,6 +797,10 @@ msg "${TEST_RUNNER}" \
     2>&1; echo $? >"$REPORT_FILE"; } | tee "$RESULTS_FILE"
 read -r RUNRESULT <"$REPORT_FILE"
 
+if [[ "$RUNRESULT" -eq "255" ]] ; then
+    fail "$TEST_RUNNER failed, test aborted."
+fi 
+
 #
 # Analyze the results.
 #

@@ -215,7 +215,7 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
 tags = ['functional', 'cli_root', 'zfs_create']
 
 [tests/functional/cli_root/zpool_prefetch]
-tests = ['zpool_prefetch_001_pos']
+tests = ['zpool_prefetch_001_pos', 'zpool_prefetch_002_pos']
 tags = ['functional', 'cli_root', 'zpool_prefetch']
 
 [tests/functional/cli_root/zfs_destroy]

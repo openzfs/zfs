@@ -78,6 +78,7 @@ libspl_sys_HEADERS += \
 	%D%/os/linux/sys/param.h \
 	%D%/os/linux/sys/stat.h \
 	%D%/os/linux/sys/sysmacros.h \
+	%D%/os/linux/sys/vfs.h \
 	%D%/os/linux/sys/zfs_context_os.h
 
 libspl_ia32_HEADERS = \

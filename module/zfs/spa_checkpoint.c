@@ -427,7 +427,7 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 			 */
 			int error = dmu_buf_hold_array_by_bonus(
 			    checkpoint_sm->sm_dbuf, offset, size,
-			    B_TRUE, FTAG, &numbufs, &dbp);
+			    B_TRUE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
 			if (error != 0) {
 				zfs_panic_recover("zfs: error %d was returned "
 				    "while prefetching checkpoint space map "

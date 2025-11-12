@@ -42,6 +42,15 @@ verify_runnable "both"
 
 log_assert "'zpool prefetch -t ddt <pool>' can successfully load the DDT for a pool."
 
+DATASET=$TESTPOOL/ddt
+
+function cleanup
+{
+	datasetexists $DATASET && destroy_dataset $DATASET -f
+}
+
+log_onexit cleanup
+
 function getddtstats
 {
 	typeset -n gds=$1
@@ -75,9 +84,8 @@ log_must zpool prefetch -t ddt $TESTPOOL
 # Build up the deduplicated dataset.  This consists of creating enough files
 # to generate a reasonable size DDT for testing purposes.
 
-DATASET=$TESTPOOL/ddt
 log_must zfs create -o compression=off -o dedup=on $DATASET
-MNTPOINT=$(get_prop mountpoint $TESTPOOL/ddt)
+MNTPOINT=$(get_prop mountpoint $DATASET)
 
 log_note "Generating dataset ..."
 typeset -i i=0

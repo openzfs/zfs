@@ -278,7 +278,7 @@ zfs_ioctl_getxattr(vnode_t *vp, zfsxattr_t *fsx)
 
 	memset(fsx, 0, sizeof (*fsx));
 	fsx->fsx_xflags = (zp->z_pflags & ZFS_PROJINHERIT) ?
-	    ZFS_PROJINHERIT_FL : 0;
+	    FS_PROJINHERIT_FL : 0;
 	fsx->fsx_projid = zp->z_projid;
 
 	return (0);
@@ -290,7 +290,7 @@ zfs_ioctl_setflags(vnode_t *vp, uint32_t ioctl_flags, xvattr_t *xva)
 	uint64_t zfs_flags = VTOZ(vp)->z_pflags;
 	xoptattr_t *xoap;
 
-	if (ioctl_flags & ~(ZFS_PROJINHERIT_FL))
+	if (ioctl_flags & ~(FS_PROJINHERIT_FL))
 		return (SET_ERROR(EOPNOTSUPP));
 
 	xva_init(xva);
@@ -304,7 +304,7 @@ zfs_ioctl_setflags(vnode_t *vp, uint32_t ioctl_flags, xvattr_t *xva)
 	}								\
 } while (0)
 
-	FLAG_CHANGE(ZFS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
+	FLAG_CHANGE(FS_PROJINHERIT_FL, ZFS_PROJINHERIT, XAT_PROJINHERIT,
 	    xoap->xoa_projinherit);
 
 #undef	FLAG_CHANGE
@@ -4481,7 +4481,8 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		for (i = 0; wlen > 0; woff += tocopy, wlen -= tocopy, i++) {
 			tocopy = MIN(PAGE_SIZE, wlen);
 			va = zfs_map_page(ma[i], &sf);
-			dmu_write(zfsvfs->z_os, zp->z_id, woff, tocopy, va, tx);
+			dmu_write(zfsvfs->z_os, zp->z_id, woff, tocopy, va, tx,
+			    DMU_READ_PREFETCH);
 			zfs_unmap_page(sf);
 		}
 	} else {
@@ -5759,7 +5760,7 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 {
 	ulong_t val;
 	int error;
-#ifdef _PC_CLONE_BLKSIZE
+#if defined(_PC_CLONE_BLKSIZE) || defined(_PC_CASE_INSENSITIVE)
 	zfsvfs_t *zfsvfs;
 #endif
 
@@ -5819,6 +5820,15 @@ zfs_freebsd_pathconf(struct vop_pathconf_args *ap)
 			    SPA_FEATURE_LARGE_BLOCKS) ?
 			    SPA_MAXBLOCKSIZE :
 			    SPA_OLD_MAXBLOCKSIZE;
+		else
+			*ap->a_retval = 0;
+		return (0);
+#endif
+#ifdef _PC_CASE_INSENSITIVE
+	case _PC_CASE_INSENSITIVE:
+		zfsvfs = (zfsvfs_t *)ap->a_vp->v_mount->mnt_data;
+		if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE)
+			*ap->a_retval = 1;
 		else
 			*ap->a_retval = 0;
 		return (0);

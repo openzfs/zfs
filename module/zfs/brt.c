@@ -260,8 +260,8 @@ static int brt_zap_prefetch = 1;
 #define	BRT_DEBUG(...)	do { } while (0)
 #endif
 
-static int brt_zap_default_bs = 12;
-static int brt_zap_default_ibs = 12;
+static int brt_zap_default_bs = 13;
+static int brt_zap_default_ibs = 13;
 
 static kstat_t	*brt_ksp;
 
@@ -454,6 +454,7 @@ brt_vdev_create(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	VERIFY(mos_entries != 0);
 	VERIFY0(dnode_hold(spa->spa_meta_objset, mos_entries, brtvd,
 	    &brtvd->bv_mos_entries_dnode));
+	dnode_set_storage_type(brtvd->bv_mos_entries_dnode, DMU_OT_DDT_ZAP);
 	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = mos_entries;
 	rw_exit(&brtvd->bv_mos_entries_lock);
@@ -508,8 +509,8 @@ brt_vdev_realloc(spa_t *spa, brt_vdev_t *brtvd)
 	size = (vdev_get_min_asize(vd) - 1) / spa->spa_brt_rangesize + 1;
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
-	entcount = vmem_zalloc(sizeof (entcount[0]) * size, KM_SLEEP);
 	nblocks = BRT_RANGESIZE_TO_NBLOCKS(size);
+	entcount = vmem_zalloc(nblocks * BRT_BLOCKSIZE, KM_SLEEP);
 	bitmap = kmem_zalloc(BT_SIZEOFMAP(nblocks), KM_SLEEP);
 
 	if (!brtvd->bv_initiated) {
@@ -530,9 +531,8 @@ brt_vdev_realloc(spa_t *spa, brt_vdev_t *brtvd)
 
 		memcpy(entcount, brtvd->bv_entcount,
 		    sizeof (entcount[0]) * MIN(size, brtvd->bv_size));
-		vmem_free(brtvd->bv_entcount,
-		    sizeof (entcount[0]) * brtvd->bv_size);
 		onblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		vmem_free(brtvd->bv_entcount, onblocks * BRT_BLOCKSIZE);
 		memcpy(bitmap, brtvd->bv_bitmap, MIN(BT_SIZEOFMAP(nblocks),
 		    BT_SIZEOFMAP(onblocks)));
 		kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(onblocks));
@@ -581,13 +581,14 @@ brt_vdev_load(spa_t *spa, brt_vdev_t *brtvd)
 	 */
 	error = dmu_read(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 	    MIN(brtvd->bv_size, bvphys->bvp_size) * sizeof (uint16_t),
-	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH);
+	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
 	if (error != 0)
 		return (error);
 
 	ASSERT(bvphys->bvp_mos_entries != 0);
 	VERIFY0(dnode_hold(spa->spa_meta_objset, bvphys->bvp_mos_entries, brtvd,
 	    &brtvd->bv_mos_entries_dnode));
+	dnode_set_storage_type(brtvd->bv_mos_entries_dnode, DMU_OT_DDT_ZAP);
 	rw_enter(&brtvd->bv_mos_entries_lock, RW_WRITER);
 	brtvd->bv_mos_entries = bvphys->bvp_mos_entries;
 	rw_exit(&brtvd->bv_mos_entries_lock);
@@ -613,9 +614,9 @@ brt_vdev_dealloc(brt_vdev_t *brtvd)
 	ASSERT(brtvd->bv_initiated);
 	ASSERT0(avl_numnodes(&brtvd->bv_tree));
 
-	vmem_free(brtvd->bv_entcount, sizeof (uint16_t) * brtvd->bv_size);
-	brtvd->bv_entcount = NULL;
 	uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+	vmem_free(brtvd->bv_entcount, nblocks * BRT_BLOCKSIZE);
+	brtvd->bv_entcount = NULL;
 	kmem_free(brtvd->bv_bitmap, BT_SIZEOFMAP(nblocks));
 	brtvd->bv_bitmap = NULL;
 
@@ -807,10 +808,10 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 		/*
 		 * TODO: Walk brtvd->bv_bitmap and write only the dirty blocks.
 		 */
-		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
-		    brtvd->bv_size * sizeof (brtvd->bv_entcount[0]),
-		    brtvd->bv_entcount, tx);
 		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
+		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
+		    nblocks * BRT_BLOCKSIZE, brtvd->bv_entcount, tx,
+		    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
 		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;
 	}
@@ -1507,6 +1508,31 @@ brt_load(spa_t *spa)
 		spa->spa_brt_rangesize = BRT_RANGESIZE;
 	brt_unlock(spa);
 	return (error);
+}
+
+void
+brt_prefetch_all(spa_t *spa)
+{
+	/*
+	 * Load all BRT entries for each vdev. This is intended to perform
+	 * a prefetch on all such blocks. For the same reason that brt_prefetch
+	 * (called from brt_pending_add) isn't locked, this is also not locked.
+	 */
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
+		brt_unlock(spa);
+
+		rw_enter(&brtvd->bv_mos_entries_lock, RW_READER);
+		if (brtvd->bv_mos_entries != 0) {
+			(void) zap_prefetch_object(spa->spa_meta_objset,
+			    brtvd->bv_mos_entries);
+		}
+		rw_exit(&brtvd->bv_mos_entries_lock);
+
+		brt_rlock(spa);
+	}
+	brt_unlock(spa);
 }
 
 void

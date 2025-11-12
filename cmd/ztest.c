@@ -1228,10 +1228,10 @@ ztest_kill(ztest_shared_t *zs)
 	 * See comment above spa_write_cachefile().
 	 */
 	if (raidz_expand_pause_point != RAIDZ_EXPAND_PAUSE_NONE) {
-		if (mutex_tryenter(&spa_namespace_lock)) {
+		if (spa_namespace_tryenter(FTAG)) {
 			spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE,
 			    B_FALSE);
-			mutex_exit(&spa_namespace_lock);
+			spa_namespace_exit(FTAG);
 
 			ztest_scratch_state->zs_raidz_scratch_verify_pause =
 			    raidz_expand_pause_point;
@@ -1246,9 +1246,9 @@ ztest_kill(ztest_shared_t *zs)
 			return;
 		}
 	} else {
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		spa_write_cachefile(ztest_spa, B_FALSE, B_FALSE, B_FALSE);
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 	}
 
 	(void) raise(SIGKILL);
@@ -2306,7 +2306,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	}
 
 	if (abuf == NULL) {
-		dmu_write(os, lr->lr_foid, offset, length, data, tx);
+		dmu_write(os, lr->lr_foid, offset, length, data, tx,
+		    DMU_READ_PREFETCH);
 	} else {
 		memcpy(abuf->b_data, data, length);
 		VERIFY0(dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx, 0));
@@ -3688,10 +3689,10 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 
 	if (error == 0) {
 		(void) printf("successful split - results:\n");
-		mutex_enter(&spa_namespace_lock);
+		spa_namespace_enter(FTAG);
 		show_pool_stats(spa);
 		show_pool_stats(spa_lookup("splitp"));
-		mutex_exit(&spa_namespace_lock);
+		spa_namespace_exit(FTAG);
 		++zs->zs_splits;
 		--zs->zs_mirrors;
 	}
@@ -3975,11 +3976,11 @@ raidz_scratch_verify(void)
 
 	kernel_init(SPA_MODE_READ);
 
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	spa = spa_lookup(ztest_opts.zo_pool);
 	ASSERT(spa);
 	spa->spa_import_flags |= ZFS_IMPORT_SKIP_MMP;
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 
@@ -5243,7 +5244,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * We've verified all the old bufwads, and made new ones.
 	 * Now write them out.
 	 */
-	dmu_write(os, packobj, packoff, packsize, packbuf, tx);
+	dmu_write(os, packobj, packoff, packsize, packbuf, tx,
+	    DMU_READ_PREFETCH);
 
 	if (freeit) {
 		if (ztest_opts.zo_verbose >= 7) {
@@ -5258,7 +5260,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 			    " txg %"PRIx64"\n",
 			    bigoff, bigsize, txg);
 		}
-		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx);
+		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx,
+		    DMU_READ_PREFETCH);
 	}
 
 	dmu_tx_commit(tx);
@@ -5513,7 +5516,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		 * We've verified all the old bufwads, and made new ones.
 		 * Now write them out.
 		 */
-		dmu_write(os, packobj, packoff, packsize, packbuf, tx);
+		dmu_write(os, packobj, packoff, packsize, packbuf, tx,
+		    DMU_READ_PREFETCH);
 		if (ztest_opts.zo_verbose >= 7) {
 			(void) printf("writing offset %"PRIx64" size %"PRIx64""
 			    " txg %"PRIx64"\n",
@@ -6119,7 +6123,8 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 		    "future leak: got %"PRIu64", open txg is %"PRIu64"",
 		    old_txg, txg);
 
-	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx);
+	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx,
+	    DMU_READ_PREFETCH);
 
 	(void) mutex_enter(&zcl.zcl_callbacks_lock);
 
@@ -7422,11 +7427,11 @@ ztest_walk_pool_directory(const char *header)
 	if (ztest_opts.zo_verbose >= 6)
 		(void) puts(header);
 
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	while ((spa = spa_next(spa)) != NULL)
 		if (ztest_opts.zo_verbose >= 6)
 			(void) printf("\t%s\n", spa_name(spa));
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 }
 
 static void
@@ -8541,11 +8546,11 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Verify that we can loop over all pools.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	for (spa = spa_next(NULL); spa != NULL; spa = spa_next(spa))
 		if (ztest_opts.zo_verbose > 3)
 			(void) printf("spa_next: found %s\n", spa_name(spa));
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	/*
 	 * Verify that we can export the pool and reimport it under a

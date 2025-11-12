@@ -30,6 +30,6 @@ if !ASAN_ENABLED
 libnvpair_la_LDFLAGS += -Wl,-z,defs
 endif
 
-libnvpair_la_LDFLAGS += -version-info 3:0:0
+libnvpair_la_LDFLAGS += -version-info 4:0:1
 
 dist_noinst_DATA += %D%/libnvpair.abi %D%/libnvpair.suppr

@@ -29,24 +29,34 @@ jobs:
       - name: Generate OS config and CI type
         id: os
         run: |
-          FULL_OS='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora41", "fedora42", "freebsd13-5r", "freebsd14-3s", "freebsd15-0c", "ubuntu22", "ubuntu24"]'
-          QUICK_OS='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd14-3s", "ubuntu24"]'
+          ci_type="default"
+
           # determine CI type when running on PR
-          ci_type="full"
           if ${{ github.event_name == 'pull_request' }}; then
             head=${{ github.event.pull_request.head.sha }}
             base=${{ github.event.pull_request.base.sha }}
             ci_type=$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)
           fi
-          if [ "$ci_type" == "quick" ]; then
-            os_selection="$QUICK_OS"
-          else
-            os_selection="$FULL_OS"
-          fi
+
+          case "$ci_type" in
+          quick)
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-0s", "ubuntu24"]'
+            ;;
+          linux)
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora41", "fedora42", "fedora43", "ubuntu22", "ubuntu24"]'
+            ;;
+          freebsd)
+            os_selection='["freebsd13-5r", "freebsd14-2r", "freebsd14-3r", "freebsd13-5s", "freebsd14-3s", "freebsd15-0s", "freebsd16-0c"]'
+            ;;
+          *)
+            # default list
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora42", "fedora43", "freebsd14-3r", "freebsd15-0s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
+            ;;
+          esac
 
           if ${{ github.event.inputs.fedora_kernel_ver != '' }}; then
-              # They specified a custom kernel version for Fedora.  Use only
-              # Fedora runners.
+              # They specified a custom kernel version for Fedora.
+              # Use only Fedora runners.
               os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
           else
               # Normal case
@@ -62,13 +72,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # rhl:     almalinux8, almalinux9, centos-stream9, fedora4x
+        # rhl:     almalinux8, almalinux9, centos-streamX, fedora4x
         # debian:  debian12, debian13, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
-        # FreeBSD variants of 2025-06:
+        # FreeBSD variants of november 2025:
         # FreeBSD Release: freebsd13-5r, freebsd14-2r, freebsd14-3r
-        # FreeBSD Stable:  freebsd13-5s, freebsd14-3s
-        # FreeBSD Current: freebsd15-0c, freebsd16-0c
+        # FreeBSD Stable:  freebsd13-5s, freebsd14-3s, freebsd15-0s
+        # FreeBSD Current: freebsd16-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:

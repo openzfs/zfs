@@ -387,6 +387,7 @@ typedef enum {
 	VDEV_PROP_SLOW_IOS,
 	VDEV_PROP_SIT_OUT,
 	VDEV_PROP_AUTOSIT,
+	VDEV_PROP_SLOW_IO_EVENTS,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -1713,7 +1714,8 @@ typedef enum {
 
 typedef enum {
 	ZPOOL_PREFETCH_NONE = 0,
-	ZPOOL_PREFETCH_DDT
+	ZPOOL_PREFETCH_DDT,
+	ZPOOL_PREFETCH_BRT
 } zpool_prefetch_type_t;
 
 typedef enum {
