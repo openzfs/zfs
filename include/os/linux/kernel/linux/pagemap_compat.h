@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -19,17 +20,17 @@
  * CDDL HEADER END
  */
 
-#ifndef _OS_LINUX_SPL_MISC_H
-#define	_OS_LINUX_SPL_MISC_H
-
-#include <linux/kobject.h>
-#include <linux/swap.h>
-
-extern void spl_signal_kobj_evt(struct block_device *bdev);
-
 /*
- * Check if the current thread is a memory reclaim thread.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
-extern int current_is_reclaim_thread(void);
+
+#ifndef _ZFS_PAGEMAP_COMPAT_H
+#define	_ZFS_PAGEMAP_COMPAT_H
+
+#include <linux/pagemap.h>
+
+#ifndef HAVE_PAGEMAP_READAHEAD_PAGE
+#define	readahead_page(ractl) (&(__readahead_folio(ractl)->page))
+#endif
 
 #endif

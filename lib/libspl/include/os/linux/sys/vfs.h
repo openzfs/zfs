@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: CDDL-1.0
 /*
  * CDDL HEADER START
  *
@@ -19,37 +20,14 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- */
+/* Copyright 2025 by Lawrence Livermore National Security, LLC. */
 
-#ifndef _LIBSPL_SYS_STAT_H
-#define	_LIBSPL_SYS_STAT_H
+/* This is the Linux userspace version of include/os/linux/spl/sys/vfs.h */
 
-#include_next <sys/stat.h>
+#ifndef	_LIBSPL_SYS_VFS_H
+#define	_LIBSPL_SYS_VFS_H
 
-#include <sys/mount.h> /* for BLKGETSIZE64 */
+#include <linux/fs.h>
+#include <sys/statfs.h>
 
-#ifdef HAVE_STATX
-#include <fcntl.h>
-#include <linux/stat.h>
 #endif
-
-/*
- * Emulate Solaris' behavior of returning the block device size in fstat64().
- */
-static inline int
-fstat64_blk(int fd, struct stat64 *st)
-{
-	if (fstat64(fd, st) == -1)
-		return (-1);
-
-	/* In Linux we need to use an ioctl to get the size of a block device */
-	if (S_ISBLK(st->st_mode)) {
-		if (ioctl(fd, BLKGETSIZE64, &st->st_size) != 0)
-			return (-1);
-	}
-
-	return (0);
-}
-#endif /* _LIBSPL_SYS_STAT_H */

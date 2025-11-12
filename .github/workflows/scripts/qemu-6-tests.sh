@@ -21,11 +21,13 @@ function prefix() {
   S=$((DIFF-(M*60)))
 
   CTR=$(cat /tmp/ctr)
-  echo $LINE| grep -q "^Test[: ]" && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr
+  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr
 
   BASE="$HOME/work/zfs/zfs"
   COLOR="$BASE/scripts/zfs-tests-color.sh"
-  CLINE=$(echo $LINE| grep "^Test[ :]" | sed -e 's|/usr/local|/usr|g' \
+  CLINE=$(echo $LINE| grep '^\[.*] Test[: ]' \
+    | sed -e 's|^\[.*] Test|Test|g' \
+    | sed -e 's|/usr/local|/usr|g' \
     | sed -e 's| /usr/share/zfs/zfs-tests/tests/| |g' | $COLOR)
   if [ -z "$CLINE" ]; then
     printf "vm${ID}: %s\n" "$LINE"
@@ -109,7 +111,7 @@ fi
 sudo dmesg -c > dmesg-prerun.txt
 mount > mount.txt
 df -h > df-prerun.txt
-$TDIR/zfs-tests.sh -vK -s 3GB -T $TAGS
+$TDIR/zfs-tests.sh -vKO -s 3GB -T $TAGS
 RV=$?
 df -h > df-postrun.txt
 echo $RV > tests-exitcode.txt

@@ -12,7 +12,8 @@ jobs:
   zloop:
     runs-on: ubuntu-24.04
     env:
-      TEST_DIR: /var/tmp/zloop
+      WORK_DIR: /mnt/zloop
+      CORE_DIR: /mnt/zloop/cores
     steps:
     - uses: actions/checkout@v4
       with:
@@ -40,38 +41,37 @@ jobs:
         sudo modprobe zfs
     - name: Tests
       run: |
-        sudo mkdir -p $TEST_DIR
-        # run for 10 minutes or at most 6 iterations for a maximum runner
-        # time of 60 minutes.
-        sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -- -T 120 -P 60
+        sudo truncate -s 256G /mnt/vdev
+        sudo zpool create cipool -m $WORK_DIR -O compression=on -o autotrim=on /mnt/vdev
+        sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -c $CORE_DIR -f $WORK_DIR -- -T 120 -P 60
     - name: Prepare artifacts
       if: failure()
       run: |
-        sudo chmod +r -R $TEST_DIR/
+        sudo chmod +r -R $WORK_DIR/
     - name: Ztest log
       if: failure()
       run: |
-        grep -B10 -A1000 'ASSERT' $TEST_DIR/*/ztest.out || tail -n 1000 $TEST_DIR/*/ztest.out
+        grep -B10 -A1000 'ASSERT' $CORE_DIR/*/ztest.out || tail -n 1000 $CORE_DIR/*/ztest.out
     - name: Gdb log
       if: failure()
       run: |
-        sed -n '/Backtraces (full)/q;p' $TEST_DIR/*/ztest.gdb
+        sed -n '/Backtraces (full)/q;p' $CORE_DIR/*/ztest.gdb
     - name: Zdb log
       if: failure()
       run: |
-        cat $TEST_DIR/*/ztest.zdb
+        cat $CORE_DIR/*/ztest.zdb
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Logs
         path: |
-          /var/tmp/zloop/*/
-          !/var/tmp/zloop/*/vdev/
+          /mnt/zloop/*/
+          !/mnt/zloop/cores/*/vdev/
         if-no-files-found: ignore
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: Pool files
         path: |
-          /var/tmp/zloop/*/vdev/
+          /mnt/zloop/cores/*/vdev/
         if-no-files-found: ignore

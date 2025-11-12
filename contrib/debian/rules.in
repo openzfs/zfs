@@ -93,7 +93,7 @@ override_dh_auto_install:
 	@# Install the DKMS source.
 	@# We only want the files needed to build the modules
 	install -D -t '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/scripts' \
-		'$(CURDIR)/scripts/dkms.postbuild'
+		'$(CURDIR)/scripts/dkms.postbuild' '$(CURDIR)/scripts/objtool-wrapper.in'
 	$(foreach file,$(DKMSFILES),mv '$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/$(file)' '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)' || exit 1;)
 
 	@# Only ever build Linux modules
@@ -108,8 +108,8 @@ override_dh_auto_install:
 	@#        - zfs.release$
 	@#  * Takes care of spaces and tabs
 	@#  * Remove reference to ZFS_AC_PACKAGE
-	awk '/^AC_CONFIG_FILES\(\[/,/^\]\)/ {\
-		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))/) \
+	awk '/^AC_CONFIG_FILES\(\[/,/\]\)/ {\
+		if ($$0 !~ /^(AC_CONFIG_FILES\(\[([ \t]+)?$$|\]\)([ \t]+)?$$|([ \t]+)?(include\/(Makefile|sys|os\/(Makefile|linux))|module\/|Makefile([ \t]+)?$$|zfs\.release([ \t]+)?$$))|scripts\/objtool-wrapper.*\]\)$$/) \
 		{next} } {print}' \
 		'$(CURDIR)/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac' | sed '/ZFS_AC_PACKAGE/d' > '$(CURDIR)/debian/tmp/usr/src/$(NAME)-$(DEB_VERSION_UPSTREAM)/configure.ac'
 	@# Set "SUBDIRS = module include" for CONFIG_KERNEL and remove SUBDIRS for all other configs.

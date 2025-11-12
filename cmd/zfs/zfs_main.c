@@ -912,18 +912,14 @@ usage:
 }
 
 /*
- * Return a default volblocksize for the pool which always uses more than
- * half of the data sectors.  This primarily applies to dRAID which always
- * writes full stripe widths.
+ * Calculate the minimum allocation size based on the top-level vdevs.
  */
 static uint64_t
-default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+calculate_volblocksize(nvlist_t *config)
 {
-	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
+	uint64_t asize = SPA_MINBLOCKSIZE;
 	nvlist_t *tree, **vdevs;
 	uint_t nvdevs;
-
-	nvlist_t *config = zpool_get_config(zhp, NULL);
 
 	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &tree) != 0 ||
 	    nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
@@ -954,6 +950,24 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 			asize = MAX(asize, 1ULL << ashift);
 		}
 	}
+
+	return (asize);
+}
+
+/*
+ * Return a default volblocksize for the pool which always uses more than
+ * half of the data sectors.  This primarily applies to dRAID which always
+ * writes full stripe widths.
+ */
+static uint64_t
+default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+{
+	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
+
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_MAX_ALLOC, &asize) != 0)
+		asize = calculate_volblocksize(config);
 
 	/*
 	 * Calculate the target volblocksize such that more than half
@@ -7416,6 +7430,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	struct extmnttab entry;
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	ino_t path_inode;
+	char *zfs_mntpnt, *entry_mntpnt;
 
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
@@ -7456,6 +7471,24 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		    "%s '%s': not a mountpoint\n"), cmdname, path);
 		goto out;
 	}
+
+	/*
+	 * If the filesystem is mounted, check that the mountpoint matches
+	 * the one in the mnttab entry w.r.t. provided path. If it doesn't,
+	 * then we should not proceed further.
+	 */
+	entry_mntpnt = strdup(entry.mnt_mountp);
+	if (zfs_is_mounted(zhp, &zfs_mntpnt)) {
+		if (strcmp(zfs_mntpnt, entry_mntpnt) != 0) {
+			(void) fprintf(stderr, gettext("cannot %s '%s': "
+			    "not an original mountpoint\n"), cmdname, path);
+			free(zfs_mntpnt);
+			free(entry_mntpnt);
+			goto out;
+		}
+		free(zfs_mntpnt);
+	}
+	free(entry_mntpnt);
 
 	if (op == OP_SHARE) {
 		char nfs_mnt_prop[ZFS_MAXPROPLEN];
