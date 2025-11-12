@@ -9,6 +9,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/cp_files
 scripts_zfs_tests_bin_PROGRAMS += %D%/ctime
 scripts_zfs_tests_bin_PROGRAMS += %D%/dir_rd_update
 scripts_zfs_tests_bin_PROGRAMS += %D%/dosmode_readonly_write
+scripts_zfs_tests_bin_PROGRAMS += %D%/fsop
 scripts_zfs_tests_bin_PROGRAMS += %D%/get_diff
 scripts_zfs_tests_bin_PROGRAMS += %D%/rename_dir
 scripts_zfs_tests_bin_PROGRAMS += %D%/suid_write_to_file

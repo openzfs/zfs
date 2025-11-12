@@ -1667,6 +1667,38 @@ function create_dataset #dataset dataset_options
 	return 0
 }
 
+# Return 0 if created successfully; $? otherwise
+#
+# $1 - dataset name
+# $2 - dataset size
+# $3-n - dataset options
+
+function create_volume #dataset size dataset_options
+{
+	typeset dataset=$1
+	typeset size=$2
+
+	shift 2
+
+	if [[ -z $dataset ]]; then
+		log_note "Missing dataset name."
+		return 1
+	fi
+	if [[ -z $size ]]; then
+		log_note "Missing dataset size."
+		return 1
+	fi
+
+	if datasetexists $dataset ; then
+		destroy_dataset $dataset
+	fi
+
+	log_must zfs create -V $size $@ $dataset
+	is_linux && zvol_wait
+
+	return 0
+}
+
 # Return 0 if destroy successfully or the dataset exists; $? otherwise
 # Note: In local zones, this function should return 0 silently.
 #

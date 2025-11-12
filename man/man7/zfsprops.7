@@ -1251,6 +1251,117 @@ and the minimum is
 .Sy 100000 .
 This property may be changed with
 .Nm zfs Cm change-key .
+.It Sy iolimit_bw_read Ns = Ns Ar size Ns | Ns Sy none
+.It Sy iolimit_bw_write Ns = Ns Ar size Ns | Ns Sy none
+.It Sy iolimit_bw_total Ns = Ns Ar size Ns | Ns Sy none
+Limits the read, write, or combined bandwidth, respectively, that a dataset and
+its descendants can consume.
+Limits are applied to file systems, volumes and their snapshots.
+Bandwidth limits are in bytes per second.
+.Pp
+The configured limits are hierarchical, just like quotas; i.e., even if a
+higher limit is configured on the child dataset, the parent's lower limit will
+be enforced.
+.Pp
+The limits are applied at the VFS level, not at the disk level.
+The dataset is charged for each operation even if no disk access is required
+(e.g., due to caching, compression, deduplication, or NOP writes) or if the
+operation will cause more traffic (due to the copies property, mirroring,
+or RAIDZ).
+.Pp
+Read bandwidth consumption is based on:
+.Bl -bullet
+.It
+read-like syscalls, eg.,
+.Xr aio_read 2 ,
+.Xr copy_file_range 2 ,
+.Xr pread 2 ,
+.Xr preadv 2 ,
+.Xr read 2 ,
+.Xr readv 2 ,
+.Xr sendfile 2
+.It
+syscalls like
+.Xr getdents 2
+and
+.Xr getdirentries 2
+.It
+reading via mmaped files
+.It
+.Nm zfs Cm send
+.El
+.Pp
+Write bandwidth consumption is based on:
+.Bl -bullet
+.It
+write-like syscalls, eg.,
+.Xr aio_write 2 ,
+.Xr copy_file_range 2 ,
+.Xr pwrite 2 ,
+.Xr pwritev 2 ,
+.Xr write 2 ,
+.Xr writev 2
+.It
+writing via mmaped files
+.It
+.Nm zfs Cm receive
+.El
+.It Sy iolimit_op_read Ns = Ns Ar count Ns | Ns Sy none
+.It Sy iolimit_op_write Ns = Ns Ar count Ns | Ns Sy none
+.It Sy iolimit_op_total Ns = Ns Ar count Ns | Ns Sy none
+Limits the read, write, or both metadata operations, respectively, that a
+dataset and its descendants can generate.
+Limits are number of operations per second.
+.Pp
+Read operations consumption is based on:
+.Bl -bullet
+.It
+read-like syscalls where the number of operations is equal to the number of
+blocks being read (never less than 1)
+.It
+reading via mmaped files, where the number of operations is equal to the
+number of pages being read (never less than 1)
+.It
+syscalls accessing metadata:
+.Xr readlink 2 ,
+.Xr stat 2
+.El
+.Pp
+Write operations consumption is based on:
+.Bl -bullet
+.It
+write-like syscalls where the number of operations is equal to the number of
+blocks being written (never less than 1)
+.It
+writing via mmaped files, where the number of operations is equal to the
+number of pages being written (never less than 1)
+.It
+syscalls modifing a directory's content:
+.Xr bind 2 (UNIX-domain sockets) ,
+.Xr link 2 ,
+.Xr mkdir 2 ,
+.Xr mkfifo 2 ,
+.Xr mknod 2 ,
+.Xr open 2 (file creation) ,
+.Xr rename 2 ,
+.Xr rmdir 2 ,
+.Xr symlink 2 ,
+.Xr unlink 2
+.It
+syscalls modifing metadata:
+.Xr chflags 2 ,
+.Xr chmod 2 ,
+.Xr chown 2 ,
+.Xr utimes 2
+.It
+updating the access time of a file when reading it
+.El
+.Pp
+Just like
+.Sy iolimit_bw
+limits, the
+.Sy iolimit_op
+limits are also hierarchical and applied at the VFS level.
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is

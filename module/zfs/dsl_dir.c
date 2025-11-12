@@ -49,6 +49,7 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #include <sys/policy.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
@@ -145,7 +146,7 @@ dsl_dir_evict_async(void *dbu)
 {
 	dsl_dir_t *dd = dbu;
 	int t;
-	dsl_pool_t *dp __maybe_unused = dd->dd_pool;
+	dsl_pool_t *dp = dd->dd_pool;
 
 	dd->dd_dbuf = NULL;
 
@@ -163,11 +164,94 @@ dsl_dir_evict_async(void *dbu)
 	if (dsl_deadlist_is_open(&dd->dd_livelist))
 		dsl_dir_livelist_close(dd);
 
+	rrm_enter_write(&dp->dp_spa->spa_iolimit_lock);
+	if (dd->dd_iolimit_root == dd) {
+		zfs_iolimit_free(dd->dd_iolimit);
+		dd->dd_iolimit = NULL;
+		dd->dd_iolimit_root = NULL;
+		/*
+		 * We don't have to recurse down, because there are no children.
+		 * If there were any, they will have a hold on us and we
+		 * couldn't be evicted.
+		 */
+	}
+	rrm_exit(&dp->dp_spa->spa_iolimit_lock, NULL);
+
 	dsl_prop_fini(dd);
 	cv_destroy(&dd->dd_activity_cv);
 	mutex_destroy(&dd->dd_activity_lock);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
+}
+
+static boolean_t
+dsl_dir_iolimit_read_properties(dsl_dir_t *dd, uint64_t *limits)
+{
+	char *myname, *setpoint;
+	boolean_t isset;
+	int type;
+
+	myname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+	dsl_dir_name(dd, myname);
+	setpoint = kmem_alloc(MAXNAMELEN, KM_SLEEP);
+
+	isset = B_FALSE;
+	for (type = ZFS_IOLIMIT_FIRST; type <= ZFS_IOLIMIT_LAST; type++) {
+		const char *propname;
+		uint64_t limit;
+
+		propname = zfs_prop_to_name(zfs_iolimit_type_to_prop(type));
+		if (dsl_prop_get_dd(dd, propname, 8, 1, &limit, setpoint,
+		    B_FALSE) != 0) {
+			/* Property doesn't exist or unable to read. */
+			continue;
+		}
+		if (strcmp(myname, setpoint) != 0) {
+			/* Property is not set here. */
+			continue;
+		}
+		if (limit == 0) {
+			/* Property is set to none, but we treat it as unset. */
+			continue;
+		}
+		limits[type] = limit;
+		isset = B_TRUE;
+	}
+
+	kmem_free(setpoint, MAXNAMELEN);
+	kmem_free(myname, ZFS_MAX_DATASET_NAME_LEN);
+
+	return (isset);
+}
+
+static void
+dsl_dir_iolimit_read(dsl_dir_t *dd)
+{
+	uint64_t limits[ZFS_IOLIMIT_NTYPES] = {0};
+	boolean_t isset, needlock;
+
+	isset = dsl_dir_iolimit_read_properties(dd, limits);
+	needlock = !RRM_WRITE_HELD(&dd->dd_pool->dp_spa->spa_iolimit_lock);
+
+	if (needlock) {
+		rrm_enter_write(&dd->dd_pool->dp_spa->spa_iolimit_lock);
+	}
+	ASSERT(dd->dd_iolimit == NULL);
+	ASSERT(dd->dd_iolimit_root == NULL);
+	if (isset) {
+		dd->dd_iolimit = zfs_iolimit_alloc(limits);
+		dd->dd_iolimit_root = dd;
+	} else {
+		dd->dd_iolimit = NULL;
+		if (dd->dd_parent == NULL) {
+			dd->dd_iolimit_root = NULL;
+		} else {
+			dd->dd_iolimit_root = dd->dd_parent->dd_iolimit_root;
+		}
+	}
+	if (needlock) {
+		rrm_exit(&dd->dd_pool->dp_spa->spa_iolimit_lock, NULL);
+	}
 }
 
 int
@@ -309,6 +393,10 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			dd = winner;
 		} else {
 			spa_open_ref(dp->dp_spa, dd);
+
+			if (dd->dd_myname[0] != '$') {
+				dsl_dir_iolimit_read(dd);
+			}
 		}
 	}
 
@@ -1907,6 +1995,124 @@ would_change(dsl_dir_t *dd, int64_t delta, dsl_dir_t *ancestor)
 	return (would_change(dd->dd_parent, delta, ancestor));
 }
 
+static void
+dsl_dir_iolimit_recurse(dsl_dir_t *dd)
+{
+	dsl_pool_t *dp = dd->dd_pool;
+	objset_t *os = dp->dp_meta_objset;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+
+	ASSERT(dsl_pool_config_held(dp));
+	ASSERT(RRM_WRITE_HELD(&dp->dp_spa->spa_iolimit_lock));
+
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = zap_attribute_alloc();
+
+	/* Iterate my child dirs */
+	for (zap_cursor_init(zc, os, dsl_dir_phys(dd)->dd_child_dir_zapobj);
+	    zap_cursor_retrieve(zc, za) == 0; zap_cursor_advance(zc)) {
+		dsl_dir_t *child_dd;
+
+		VERIFY0(dsl_dir_hold_obj(dp, za->za_first_integer, NULL, FTAG,
+		    &child_dd));
+
+		/*
+		 * Ignore hidden ($FREE, $MOS & $ORIGIN) objsets.
+		 */
+		if (child_dd->dd_myname[0] == '$') {
+			dsl_dir_rele(child_dd, FTAG);
+			continue;
+		}
+
+		/*
+		 * Ratelimit properties are also set here, don't overwrite.
+		 */
+		if (child_dd->dd_iolimit_root == child_dd) {
+			dsl_dir_rele(child_dd, FTAG);
+			continue;
+		}
+
+		ASSERT(child_dd->dd_iolimit == NULL);
+		child_dd->dd_iolimit_root = dd->dd_iolimit_root;
+
+		dsl_dir_iolimit_recurse(child_dd);
+
+		dsl_dir_rele(child_dd, FTAG);
+	}
+	zap_cursor_fini(zc);
+
+	kmem_free(zc, sizeof (zap_cursor_t));
+	zap_attribute_free(za);
+}
+
+int
+dsl_dir_set_iolimit(const char *dsname, zfs_prop_t prop, uint64_t limit)
+{
+	spa_t *spa;
+	dsl_pool_t *dp;
+	dsl_dir_t *dd;
+	int err;
+
+	mutex_enter(&spa_namespace_lock);
+
+	spa = spa_lookup(dsname);
+	if (spa == NULL) {
+		mutex_exit(&spa_namespace_lock);
+		return (ENOENT);
+	}
+
+	dp = spa->spa_dsl_pool;
+	dsl_pool_config_enter(dp, FTAG);
+
+	mutex_exit(&spa_namespace_lock);
+
+	err = dsl_dir_hold(spa->spa_dsl_pool, dsname, FTAG, &dd, NULL);
+	if (err != 0) {
+		dsl_pool_config_exit(dp, FTAG);
+		return (err);
+	}
+
+	rrm_enter_write(&spa->spa_iolimit_lock);
+
+	if (dd->dd_iolimit_root == dd) {
+		/* We are the root. */
+		ASSERT(dd->dd_iolimit != NULL);
+
+		dd->dd_iolimit = zfs_iolimit_set(dd->dd_iolimit, prop, limit);
+		if (dd->dd_iolimit == NULL) {
+			if (dd->dd_parent == NULL) {
+				dd->dd_iolimit_root = NULL;
+			} else {
+				dd->dd_iolimit_root =
+				    dd->dd_parent->dd_iolimit_root;
+			}
+			dsl_dir_iolimit_recurse(dd);
+		}
+	} else if (limit != 0) {
+		/*
+		 * No limits are currently configured or we are not the root.
+		 * Allocate new structure and set the limit.
+		 */
+		dd->dd_iolimit = zfs_iolimit_set(NULL, prop, limit);
+		dd->dd_iolimit_root = dd;
+		dsl_dir_iolimit_recurse(dd);
+	} else {
+		/*
+		 * We are not the root and limits is set to none,
+		 * so nothing to do.
+		 */
+	}
+
+	rrm_exit(&spa->spa_iolimit_lock, NULL);
+
+	dsl_dir_rele(dd, FTAG);
+
+	dsl_pool_config_exit(dp, FTAG);
+
+	return (0);
+}
+
 typedef struct dsl_dir_rename_arg {
 	const char *ddra_oldname;
 	const char *ddra_newname;
@@ -2103,6 +2309,22 @@ dsl_dir_rename_check(void *arg, dmu_tx_t *tx)
 }
 
 static void
+dsl_dir_iolimit_rename(dsl_dir_t *dd, dsl_dir_t *newparent)
+{
+
+	rrm_enter_write(&dd->dd_pool->dp_spa->spa_iolimit_lock);
+
+	if (dd->dd_iolimit_root != dd) {
+		ASSERT(dd->dd_iolimit == NULL);
+		dd->dd_iolimit_root = newparent->dd_iolimit_root;
+
+		dsl_dir_iolimit_recurse(dd);
+	}
+
+	rrm_exit(&dd->dd_pool->dp_spa->spa_iolimit_lock, NULL);
+}
+
+static void
 dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_dir_rename_arg_t *ddra = arg;
@@ -2152,6 +2374,8 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 		    DD_FIELD_SNAPSHOT_COUNT, tx);
 		dsl_fs_ss_count_adjust(newparent, ss_cnt,
 		    DD_FIELD_SNAPSHOT_COUNT, tx);
+
+		dsl_dir_iolimit_rename(dd, newparent);
 
 		dsl_dir_diduse_space(dd->dd_parent, DD_USED_CHILD,
 		    -dsl_dir_phys(dd)->dd_used_bytes,

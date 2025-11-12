@@ -36,6 +36,7 @@
 #include <sys/zil_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/zio.h>
+#include <sys/zfs_iolimit.h>
 #include <sys/zfs_rlock.h>
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
@@ -251,10 +252,20 @@ zvol_write(zv_request_t *zvr)
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 		uint64_t off = uio.uio_loffset;
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		if (bytes > volsize - off)	/* don't write past the end */
 			bytes = volsize - off;
+
+		error = zfs_iolimit_data_write(zv->zv_objset,
+		    zv->zv_volblocksize, bytes);
+		if (error != 0) {
+			/* XXX-PJD Is it safe to reset the error? */
+			if (error == EINTR && uio.uio_resid < start_resid)
+				error = 0;
+			break;
+		}
+
+		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
 
@@ -352,6 +363,13 @@ zvol_discard(zv_request_t *zvr)
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    start, size, RL_WRITER);
 
+	/* Should we account only for a single metadata write? */
+	error = zfs_iolimit_metadata_write(zv->zv_objset);
+	if (error != 0) {
+		zfs_rangelock_exit(lr);
+		goto unlock;
+	}
+
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
@@ -432,6 +450,15 @@ zvol_read(zv_request_t *zvr)
 		/* don't read past the end */
 		if (bytes > volsize - uio.uio_loffset)
 			bytes = volsize - uio.uio_loffset;
+
+		error = zfs_iolimit_data_read(zv->zv_objset,
+		    zv->zv_volblocksize, bytes);
+		if (error != 0) {
+			/* XXX-PJD Is it safe to reset the error? */
+			if (error == EINTR && uio.uio_resid < start_resid)
+				error = 0;
+			break;
+		}
 
 		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes,
 		    DMU_READ_PREFETCH);
