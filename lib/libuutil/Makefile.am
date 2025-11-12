@@ -5,14 +5,12 @@ CPPCHECKTARGETS += libuutil.la
 
 libuutil_la_SOURCES = \
 	%D%/uu_alloc.c \
-	%D%/uu_avl.c \
 	%D%/uu_ident.c \
 	%D%/uu_list.c \
 	%D%/uu_misc.c \
 	%D%/uu_string.c
 
 libuutil_la_LIBADD = \
-	libavl.la \
 	libspl.la
 
 libuutil_la_LIBADD += $(LTLIBINTL)

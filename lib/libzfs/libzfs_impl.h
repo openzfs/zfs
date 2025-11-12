@@ -36,7 +36,6 @@
 #include <sys/zfs_ioctl.h>
 #include <regex.h>
 
-#include <libuutil.h>
 #include <libzfs.h>
 #include <libshare.h>
 #include <libzfs_core.h>
@@ -51,8 +50,7 @@ struct libzfs_handle {
 	int libzfs_error;
 	int libzfs_fd;
 	zpool_handle_t *libzfs_pool_handles;
-	uu_avl_pool_t *libzfs_ns_avlpool;
-	uu_avl_t *libzfs_ns_avl;
+	avl_tree_t libzfs_ns_avl;
 	uint64_t libzfs_ns_gen;
 	int libzfs_desc_active;
 	char libzfs_action[1024];
