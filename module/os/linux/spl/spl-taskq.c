@@ -24,7 +24,7 @@
  *  Solaris Porting Layer (SPL) Task Queue Implementation.
  */
 /*
- * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  * Copyright (c) 2024, Syneto
  */
 
@@ -39,7 +39,14 @@
 #include <linux/cpuhotplug.h>
 #include <linux/mod_compat.h>
 
-/* Linux 6.2 renamed timer_delete_sync(); point it at its old name for those. */
+/*
+ * Linux 6.2 renamed del_timer()/del_timer_sync() to
+ * timer_delete()/timer_delete_sync(). For kernels before that, point the new
+ * names to the old.
+ */
+#ifndef HAVE_TIMER_DELETE
+#define	timer_delete(t)		del_timer(t)
+#endif
 #ifndef HAVE_TIMER_DELETE_SYNC
 #define	timer_delete_sync(t)	del_timer_sync(t)
 #endif
@@ -141,6 +148,11 @@ static uint_t spl_taskq_thread_sequential = 4;
 module_param(spl_taskq_thread_sequential, uint, 0644);
 MODULE_PARM_DESC(spl_taskq_thread_sequential,
 	"Create new taskq threads after N sequential tasks");
+
+static uint_t spl_taskq_deadman_timeout = 20;
+module_param(spl_taskq_deadman_timeout, uint, 0644);
+MODULE_PARM_DESC(spl_taskq_deadman_timeout,
+	"Log a warning if the taskq has not made progress in N seconds");
 
 /*
  * Global system-wide dynamic task queue available for all consumers. This
@@ -355,6 +367,34 @@ task_expire(struct timer_list *tl)
 	struct timer_list *tmr = (struct timer_list *)tl;
 	taskq_ent_t *t = from_timer(t, tmr, tqent_timer);
 	task_expire_impl(t);
+}
+
+static void
+taskq_deadman(struct timer_list *tl)
+{
+	unsigned long irqflags;
+	taskq_t *tq = container_of(tl, taskq_t, tq_deadman);
+
+	spin_lock_irqsave_nested(&tq->tq_lock, irqflags, tq->tq_lock_class);
+	if (tq->tq_nactive == 0 || spl_taskq_deadman_timeout == 0) {
+		spin_unlock_irqrestore(&tq->tq_lock, irqflags);
+		return;
+	}
+
+	unsigned long nqueued = 0;
+	struct list_head *pos;
+	list_for_each(pos, &tq->tq_pend_list)
+	    nqueued++;
+	list_for_each(pos, &tq->tq_prio_list)
+	    nqueued++;
+
+	printk(KERN_INFO "spl: taskq stuck for %us: %s.%d "
+	    "[%d/%d threads active, %lu tasks queued]\n",
+	    spl_taskq_deadman_timeout, tq->tq_name, tq->tq_instance,
+	    tq->tq_nthreads, tq->tq_nactive, nqueued);
+
+	tq->tq_deadman_at = jiffies;
+	spin_unlock_irqrestore(&tq->tq_lock, irqflags);
 }
 
 /*
@@ -1071,6 +1111,11 @@ taskq_thread(void *args)
 
 			taskq_insert_in_order(tq, tqt);
 			tq->tq_nactive++;
+
+			if (spl_taskq_deadman_timeout > 0)
+				mod_timer(&tq->tq_deadman,
+				    jiffies + spl_taskq_deadman_timeout * HZ);
+
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 			TQSTAT_INC(tq, threads_active);
@@ -1095,6 +1140,21 @@ taskq_thread(void *args)
 			tq->tq_nactive--;
 			list_del_init(&tqt->tqt_active_list);
 			tqt->tqt_task = NULL;
+
+			if (tq->tq_nactive == 0 ||
+			    spl_taskq_deadman_timeout == 0)
+				timer_delete(&tq->tq_deadman);
+
+			if (tq->tq_deadman_at > 0) {
+				unsigned long stuck_for =
+				    jiffies - tq->tq_deadman_at;
+				tq->tq_deadman_at = 0;
+
+				printk(KERN_INFO
+				    "spl: taskq resumed after %lus: %s.%d\n",
+				    stuck_for / HZ, tq->tq_name,
+				    tq->tq_instance);
+			}
 
 			/* For prealloc'd tasks, we don't free anything. */
 			if (!(tqt->tqt_flags & TQENT_FLAG_PREALLOC))
@@ -1375,6 +1435,9 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	tq->tq_next_id = TASKQID_INITIAL;
 	tq->tq_lowest_id = TASKQID_INITIAL;
 	tq->lastspawnstop = jiffies;
+	timer_setup(&tq->tq_deadman, NULL, 0);
+	tq->tq_deadman.function = taskq_deadman;
+	tq->tq_deadman_at = 0;
 	INIT_LIST_HEAD(&tq->tq_free_list);
 	INIT_LIST_HEAD(&tq->tq_pend_list);
 	INIT_LIST_HEAD(&tq->tq_prio_list);

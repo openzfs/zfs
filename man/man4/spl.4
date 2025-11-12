@@ -14,8 +14,9 @@
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
 .\" Copyright 2013 Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
+.\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd May 7, 2025
+.Dd November 12, 2025
 .Dt SPL 4
 .Os
 .
@@ -129,6 +130,14 @@ Cause a kernel panic on assertion failures.
 When not enabled, the thread is halted to facilitate further debugging.
 .Pp
 Set to a non-zero value to enable.
+.
+.It Sy spl_taskq_deadman_timeout Ns = Ns Sy 20 Pq uint
+Log a warning if a taskq has not made progress in N seconds.
+"Progress" here means a taskq thread has not picked up a new task in this
+time,
+or all threads have not completed in this time.
+This can be useful for deadlock debugging.
+Setting this value to 0 will disable this function.
 .
 .It Sy spl_taskq_kick Ns = Ns Sy 0 Pq uint
 Kick stuck taskq to spawn threads.
