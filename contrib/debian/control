@@ -55,42 +55,23 @@ Description: PAM module for managing encryption keys for ZFS
  This provides a Pluggable Authentication Module (PAM) that automatically
  unlocks encrypted ZFS datasets upon login.
 
-Package: openzfs-libuutil3
-Section: contrib/libs
-Architecture: linux-any
-Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: libuutil1, libuutil3
-Replaces: libuutil1, libuutil3, libuutil3linux
-Conflicts: libuutil3linux
-Description: Solaris userland utility library for Linux
- This library provides a variety of glue functions for ZFS on Linux:
-  * libspl: The Solaris Porting Layer userland library, which provides APIs
-    that make it possible to run Solaris user code in a Linux environment
-    with relatively minimal modification.
-  * libavl: The Adelson-Velskii Landis balanced binary tree manipulation
-    library.
-  * libefi: The Extensible Firmware Interface library for GUID disk
-    partitioning.
-  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
-
 Package: openzfs-libzfs-dev
 Section: contrib/libdevel
 Architecture: linux-any
 Depends: libssl-dev | libssl1.0-dev,
          openzfs-libnvpair3 (= ${binary:Version}),
-         openzfs-libuutil3 (= ${binary:Version}),
          openzfs-libzfs7 (= ${binary:Version}),
          openzfs-libzfsbootenv1 (= ${binary:Version}),
          openzfs-libzpool7 (= ${binary:Version}),
          ${misc:Depends}
 Replaces: libzfslinux-dev
 Conflicts: libzfslinux-dev
-Provides: libnvpair-dev, libuutil-dev
+Provides: libnvpair-dev
 Description: OpenZFS filesystem development files for Linux
  Header files and static libraries for compiling software against
  libraries of OpenZFS filesystem.
  .
- This package includes the development files of libnvpair3, libuutil3,
+ This package includes the development files of libnvpair3,
  libzpool7 and libzfs7.
 
 Package: openzfs-libzfs7
@@ -246,7 +227,6 @@ Section: contrib/admin
 Architecture: linux-any
 Pre-Depends: ${misc:Pre-Depends}
 Depends: openzfs-libnvpair3 (= ${binary:Version}),
-         openzfs-libuutil3 (= ${binary:Version}),
          openzfs-libzfs7 (= ${binary:Version}),
          openzfs-libzpool7 (= ${binary:Version}),
          python3,

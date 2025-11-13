@@ -57,22 +57,21 @@ deb-utils: deb-local rpm-utils-initramfs
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
-	pkg3=libuutil3-$${version}.$${arch}.rpm; \
-	pkg4=libzfs7-$${version}.$${arch}.rpm; \
-	pkg5=libzpool7-$${version}.$${arch}.rpm; \
-	pkg6=libzfs7-devel-$${version}.$${arch}.rpm; \
-	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
-	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
-	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
-	pkg10=`ls python3-pyzfs-$${version}.noarch.rpm 2>/dev/null`; \
-	pkg11=`ls pam_zfs_key-$${version}.$${arch}.rpm 2>/dev/null`; \
+	pkg3=libzfs7-$${version}.$${arch}.rpm; \
+	pkg4=libzpool7-$${version}.$${arch}.rpm; \
+	pkg5=libzfs7-devel-$${version}.$${arch}.rpm; \
+	pkg6=$${name}-test-$${version}.$${arch}.rpm; \
+	pkg7=$${name}-dracut-$${version}.noarch.rpm; \
+	pkg8=$${name}-initramfs-$${version}.$${arch}.rpm; \
+	pkg9=`ls python3-pyzfs-$${version}.noarch.rpm 2>/dev/null`; \
+	pkg10=`ls pam_zfs_key-$${version}.$${arch}.rpm 2>/dev/null`; \
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
 	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#!$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs7linux -xlibzpool7linux" \
+	 -xlibnvpair3linux -xlibzfs7linux -xlibzpool7linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,
