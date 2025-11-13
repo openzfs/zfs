@@ -8,7 +8,7 @@ This contrib contains community compatibility patches to get Intel QAT working o
 These patches are based on the following Intel QAT version:
 [1.7.l.4.10.0-00014](https://01.org/sites/default/files/downloads/qat1.7.l.4.10.0-00014.tar.gz)
 
-When using QAT with above kernels versions, the following patches needs to be applied using:
+When using QAT with the above kernel versions, the following patches need to be applied using:
 patch -p1 < _$PATCH_
 _Where $PATCH refers to the path of the patch in question_
 

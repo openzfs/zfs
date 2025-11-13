@@ -1175,7 +1175,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	int			count = 0;
 	zfs_acl_phys_t		acl_phys;
 
-	if (zp->z_zfsvfs->z_replay == B_FALSE) {
+	if (ZTOV(zp) != NULL && zp->z_zfsvfs->z_replay == B_FALSE) {
 		ASSERT_VOP_IN_SEQC(ZTOV(zp));
 	}
 

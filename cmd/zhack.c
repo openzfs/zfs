@@ -363,10 +363,12 @@ feature_incr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount + 1, tx);
 	spa_history_log_internal(spa, "zhack feature incr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
@@ -376,10 +378,12 @@ feature_decr_sync(void *arg, dmu_tx_t *tx)
 	zfeature_info_t *feature = arg;
 	uint64_t refcount;
 
+	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY0(feature_get_refcount_from_disk(spa, feature, &refcount));
 	feature_sync(spa, feature, refcount - 1, tx);
 	spa_history_log_internal(spa, "zhack feature decr", tx,
 	    "name=%s", feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
 }
 
 static void
