@@ -7,8 +7,8 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_DRACUT], [
 		[dracutdir=check])
 
 	AS_IF([test "x$dracutdir" = xcheck], [
-		path1=/usr/share/dracut
-		path2=/usr/lib/dracut
+		path1=$prefix/share/dracut
+		path2=$prefix/lib/dracut
 		default=$path2
 
 		AS_IF([test -d "$path1"], [dracutdir="$path1"], [
