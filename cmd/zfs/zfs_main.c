@@ -42,7 +42,6 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <libintl.h>
-#include <libuutil.h>
 #include <libnvpair.h>
 #include <locale.h>
 #include <stddef.h>
@@ -2851,7 +2850,7 @@ typedef struct us_node {
 	nvlist_t	*usn_nvl;
 	us_cbdata_t	*usn_cbdata;
 	avl_node_t	usn_avlnode;
-	uu_list_node_t	usn_listnode;
+	list_node_t	usn_listnode;
 } us_node_t;
 
 struct us_cbdata {
@@ -3365,10 +3364,8 @@ zfs_do_userspace(int argc, char **argv)
 	us_cbdata_t cb;
 	us_node_t *node;
 	us_node_t *rmnode;
-	uu_list_pool_t *listpool;
-	uu_list_t *list;
+	list_t list;
 	avl_index_t idx = 0;
-	uu_list_index_t idx2 = 0;
 
 	if (argc < 2)
 		usage(B_FALSE);
@@ -3543,28 +3540,25 @@ zfs_do_userspace(int argc, char **argv)
 
 	us_populated = B_TRUE;
 
-	listpool = uu_list_pool_create("tmplist", sizeof (us_node_t),
-	    offsetof(us_node_t, usn_listnode), NULL, UU_DEFAULT);
-	list = uu_list_create(listpool, NULL, UU_DEFAULT);
-	uu_list_node_init(node, &node->usn_listnode, listpool);
+	list_create(&list, sizeof (us_node_t),
+	    offsetof(us_node_t, usn_listnode));
+	list_link_init(&node->usn_listnode);
 
 	while (node != NULL) {
 		rmnode = node;
 		node = AVL_NEXT(&cb.cb_avl, node);
 		avl_remove(&cb.cb_avl, rmnode);
-		if (uu_list_find(list, rmnode, NULL, &idx2) == NULL)
-			uu_list_insert(list, rmnode, idx2);
+		list_insert_head(&list, rmnode);
 	}
 
-	for (node = uu_list_first(list); node != NULL;
-	    node = uu_list_next(list, node)) {
-
+	for (node = list_head(&list); node != NULL;
+	    node = list_next(&list, node)) {
 		if (avl_find(&cb.cb_avl, node, &idx) == NULL)
 			avl_insert(&cb.cb_avl, node, idx);
 	}
 
-	uu_list_destroy(list);
-	uu_list_pool_destroy(listpool);
+	while ((node = list_remove_head(&list)) != NULL) { }
+	list_destroy(&list);
 
 	/* Print and free node nvlist memory */
 	print_us(scripted, parsable, fields, types, cb.cb_width, B_TRUE,
@@ -5419,13 +5413,12 @@ typedef struct fs_perm_node {
 	fs_perm_t	fspn_fsperm;
 	avl_tree_t	fspn_avl;
 
-	uu_list_node_t	fspn_list_node;
+	list_node_t	fspn_list_node;
 } fs_perm_node_t;
 
 /* top level structure */
 struct fs_perm_set {
-	uu_list_pool_t	*fsps_list_pool;
-	uu_list_t	*fsps_list; /* list of fs_perms */
+	list_t		fsps_list; /* list of fs_perms */
 };
 
 static inline const char *
@@ -5516,14 +5509,8 @@ static inline void
 fs_perm_set_init(fs_perm_set_t *fspset)
 {
 	memset(fspset, 0, sizeof (fs_perm_set_t));
-
-	if ((fspset->fsps_list_pool = uu_list_pool_create("fsps_list_pool",
-	    sizeof (fs_perm_node_t), offsetof(fs_perm_node_t, fspn_list_node),
-	    NULL, UU_DEFAULT)) == NULL)
-		nomem();
-	if ((fspset->fsps_list = uu_list_create(fspset->fsps_list_pool, NULL,
-	    UU_DEFAULT)) == NULL)
-		nomem();
+	list_create(&fspset->fsps_list, sizeof (fs_perm_node_t),
+	    offsetof(fs_perm_node_t, fspn_list_node));
 }
 
 static inline void fs_perm_fini(fs_perm_t *);
@@ -5532,17 +5519,13 @@ static inline void who_perm_fini(who_perm_t *);
 static inline void
 fs_perm_set_fini(fs_perm_set_t *fspset)
 {
-	fs_perm_node_t *node = uu_list_first(fspset->fsps_list);
-
-	while (node != NULL) {
-		fs_perm_node_t *next_node =
-		    uu_list_next(fspset->fsps_list, node);
+	fs_perm_node_t *node;
+	while ((node = list_remove_head(&fspset->fsps_list)) != NULL) {
 		fs_perm_t *fsperm = &node->fspn_fsperm;
 		fs_perm_fini(fsperm);
-		uu_list_remove(fspset->fsps_list, node);
 		free(node);
-		node = next_node;
 	}
+	list_destroy(&fspset->fsps_list);
 }
 
 static inline void
@@ -5779,7 +5762,6 @@ static inline int
 parse_fs_perm_set(fs_perm_set_t *fspset, nvlist_t *nvl)
 {
 	nvpair_t *nvp = NULL;
-	avl_index_t idx = 0;
 
 	while ((nvp = nvlist_next_nvpair(nvl, nvp)) != NULL) {
 		nvlist_t *nvl2 = NULL;
@@ -5792,10 +5774,6 @@ parse_fs_perm_set(fs_perm_set_t *fspset, nvlist_t *nvl)
 
 		VERIFY(DATA_TYPE_NVLIST == type);
 
-		uu_list_node_init(node, &node->fspn_list_node,
-		    fspset->fsps_list_pool);
-
-		idx = uu_list_numnodes(fspset->fsps_list);
 		fs_perm_init(fsperm, fspset, fsname);
 
 		if (nvpair_value_nvlist(nvp, &nvl2) != 0)
@@ -5803,7 +5781,7 @@ parse_fs_perm_set(fs_perm_set_t *fspset, nvlist_t *nvl)
 
 		(void) parse_fs_perm(fsperm, nvl2);
 
-		uu_list_insert(fspset->fsps_list, node, idx);
+		list_insert_tail(&fspset->fsps_list, node);
 	}
 
 	return (0);
@@ -6476,8 +6454,8 @@ print_fs_perms(fs_perm_set_t *fspset)
 	char buf[MAXNAMELEN + 32];
 	const char *dsname = buf;
 
-	for (node = uu_list_first(fspset->fsps_list); node != NULL;
-	    node = uu_list_next(fspset->fsps_list, node)) {
+	for (node = list_head(&fspset->fsps_list); node != NULL;
+	    node = list_next(&fspset->fsps_list, node)) {
 		avl_tree_t *sc_avl = &node->fspn_fsperm.fsp_sc_avl;
 		avl_tree_t *uge_avl = &node->fspn_fsperm.fsp_uge_avl;
 		int left = 0;
