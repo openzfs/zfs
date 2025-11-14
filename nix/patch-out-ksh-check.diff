@@ -1,0 +1,31 @@
+diff --git a/scripts/zfs-tests.sh b/scripts/zfs-tests.sh
+index 09a15bafc..5fee41139 100755
+--- a/scripts/zfs-tests.sh
++++ b/scripts/zfs-tests.sh
+@@ -597,7 +597,7 @@ fi
+ #
+ # Constrain the available binaries to a known set.
+ #
+-constrain_path
++# constrain_path
+ 
+ #
+ # Check if ksh exists
+@@ -605,7 +605,7 @@ constrain_path
+ if [ "$UNAME" = "FreeBSD" ]; then
+ 	sudo ln -fs /usr/local/bin/ksh93 /bin/ksh
+ fi
+-[ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
++# [ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
+ [ -e "$STF_SUITE/include/default.cfg" ] || fail \
+     "Missing $STF_SUITE/include/default.cfg file."
+ 
+@@ -799,7 +799,7 @@ read -r RUNRESULT <"$REPORT_FILE"
+ 
+ if [[ "$RUNRESULT" -eq "255" ]] ; then
+     fail "$TEST_RUNNER failed, test aborted."
+-fi 
++fi
+ 
+ #
+ # Analyze the results.
