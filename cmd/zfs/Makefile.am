@@ -12,8 +12,7 @@ zfs_SOURCES = \
 zfs_LDADD = \
 	libzfs.la \
 	libzfs_core.la \
-	libnvpair.la \
-	libuutil.la
+	libnvpair.la
 
 zfs_LDADD += $(LTLIBINTL)
 
