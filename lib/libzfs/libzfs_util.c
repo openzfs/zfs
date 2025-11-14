@@ -2030,6 +2030,18 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 	return (0);
 }
 
+size_t
+zprop_count_list(zprop_list_t *pl)
+{
+	size_t size = 0;
+
+	for (; pl != NULL; pl = pl->pl_next) {
+		size++;
+	}
+
+	return (size);
+}
+
 void
 zprop_free_list(zprop_list_t *pl)
 {

@@ -655,6 +655,7 @@ _LIBZFS_H int zprop_iter(zprop_func func, void *cb, boolean_t show_all,
     boolean_t ordered, zfs_type_t type);
 _LIBZFS_H int zprop_get_list(libzfs_handle_t *, char *, zprop_list_t **,
     zfs_type_t);
+_LIBZFS_H size_t zprop_count_list(zprop_list_t *);
 _LIBZFS_H void zprop_free_list(zprop_list_t *);
 
 _LIBZFS_H void zcmd_print_json(nvlist_t *);
