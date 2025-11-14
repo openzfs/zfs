@@ -16,13 +16,13 @@
 #                |--libzdb--zdb             |                    |
 #                |                          |                    |
 #             libzpool                   libzfs* ----------------+
-#             | | |  \                  / | | |
-#    libicp --/ | |   \                /  | | \------- libshare
-#               | |    \              /   | |
-#    libzstd ---/ |     \            /    | \--------- libuutil
-#                 |      \          /     \              | |
-#    libunicode --/       \        /       \             | |
-#                          \      /         \            | |
+#             | | |  \                  / | | |\
+#    libicp --/ | |   \                /  | \ | \----- libshare
+#               | |    \              /   |  \ \
+#    libzstd ---/ |     \            /    |   \ \-------\
+#                 |      \          /     \    \         \
+#    libunicode --/       \        /       \    \-------\ \
+#                          \      /         \            \ |
 #                          libzutil        libzfs_core*  | |
 #                          | | | | \          |     |    | |
 #                          | | | | |          |     |    | |
@@ -41,8 +41,7 @@
 # when performing an ABI check the following options are applied:
 #
 # --no-unreferenced-symbols: Exclude symbols which are not referenced by
-# any debug information.  Without this _init() and _fini() are incorrectly
-# reported on CentOS7 for libuutil.so.
+# any debug information.
 #
 # --headers-dir1: Limit ABI checks to public OpenZFS headers, otherwise
 # changes in public system headers are also reported.
@@ -61,7 +60,6 @@ include $(srcdir)/%D%/libshare/Makefile.am
 include $(srcdir)/%D%/libspl/Makefile.am
 include $(srcdir)/%D%/libtpool/Makefile.am
 include $(srcdir)/%D%/libunicode/Makefile.am
-include $(srcdir)/%D%/libuutil/Makefile.am
 include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
 include $(srcdir)/%D%/libzfs/Makefile.am

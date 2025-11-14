@@ -45,7 +45,6 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <libintl.h>
-#include <libuutil.h>
 #include <locale.h>
 #include <pthread.h>
 #include <stdio.h>
