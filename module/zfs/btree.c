@@ -20,6 +20,13 @@
 #include	<sys/btree.h>
 #include	<sys/bitops.h>
 #include	<sys/zfs_context.h>
+#include <sys/sysmacros.h>
+
+#ifndef _KERNEL
+#include <stdio.h>
+#include <stdlib.h>
+#define	panic(...) PANIC(__VA_ARGS__)
+#endif
 
 kmem_cache_t *zfs_btree_leaf_cache;
 

@@ -28,7 +28,9 @@ endif
 
 libzfs_core_la_LIBADD = \
 	libnvpair.la \
-	libspl.la
+	libspl.la \
+	libbtree.la \
+	librange_tree.la
 
 libzfs_core_la_LIBADD += $(LTLIBINTL)
 

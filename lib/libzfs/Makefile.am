@@ -56,7 +56,9 @@ libzfs_la_LIBADD = \
 	libzfs_core.la \
 	libnvpair.la \
 	libzutil.la \
-	libuutil.la
+	libuutil.la \
+	librange_tree.la \
+	libbtree.la
 
 libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
