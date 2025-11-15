@@ -674,6 +674,7 @@
     <elf-symbol name='zpool_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_wait_status' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_collect_property' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zprop_count_list' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_free_list' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_get_list' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zprop_index_to_string' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -9416,6 +9417,10 @@
       <parameter type-id='e4378506' name='listp'/>
       <parameter type-id='2e45de5d' name='type'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zprop_count_list' mangled-name='zprop_count_list' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_count_list'>
+      <parameter type-id='3a9b2288' name='pl'/>
+      <return type-id='b59d7dce'/>
     </function-decl>
     <function-decl name='zprop_free_list' mangled-name='zprop_free_list' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_free_list'>
       <parameter type-id='3a9b2288' name='pl'/>

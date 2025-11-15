@@ -6981,6 +6981,19 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 }
 
 /*
+ * Print a line of dashes (along with a label) for vdev display
+ */
+static void
+print_vdev_dashes(int namewidth, size_t num_dashes, const char *label)
+{
+	printf("%-*s", namewidth, label);
+	for (size_t i = 0; i < num_dashes; i++) {
+		printf("      -");
+	}
+	printf("\n");
+}
+
+/*
  * print static default line per vdev
  */
 static void
@@ -6995,8 +7008,10 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	uint64_t islog = B_FALSE;
 	nvlist_t *props, *ent, *ch, *obj, *l2c, *sp;
 	props = ent = ch = obj = sp = l2c = NULL;
-	const char *dashes = "%-*s      -      -      -        -         "
-	    "-      -      -      -         -\n";
+
+	// The "- 1" is because the first column is the vdev name, so we don't
+	// want a dash there
+	size_t num_dashes = zprop_count_list(cb->cb_proplist) - 1;
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
@@ -7208,8 +7223,7 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 				continue;
 
 			if (!printed && !cb->cb_json) {
-				/* LINTED E_SEC_PRINTF_VAR_FMT */
-				(void) printf(dashes, cb->cb_namewidth,
+				print_vdev_dashes(cb->cb_namewidth, num_dashes,
 				    class_name[n]);
 				printed = B_TRUE;
 			}
@@ -7231,8 +7245,8 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			l2c = fnvlist_alloc();
 		} else {
-			/* LINTED E_SEC_PRINTF_VAR_FMT */
-			(void) printf(dashes, cb->cb_namewidth, "cache");
+			print_vdev_dashes(cb->cb_namewidth, num_dashes,
+			    "cache");
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
@@ -7253,8 +7267,8 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			sp = fnvlist_alloc();
 		} else {
-			/* LINTED E_SEC_PRINTF_VAR_FMT */
-			(void) printf(dashes, cb->cb_namewidth, "spare");
+			print_vdev_dashes(cb->cb_namewidth, num_dashes,
+			    "spare");
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
