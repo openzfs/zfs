@@ -27,6 +27,8 @@
       in
       {
         packages.default = openzfs;
+
+        checks.zts = pkgs.testers.runNixOSTest (import ./nix/test.nix { inherit openzfs; });
       }
     );
 }
