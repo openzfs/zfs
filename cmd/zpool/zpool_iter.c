@@ -30,7 +30,6 @@
  */
 
 #include <libintl.h>
-#include <libuutil.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,30 +51,28 @@
 
 typedef struct zpool_node {
 	zpool_handle_t	*zn_handle;
-	uu_avl_node_t	zn_avlnode;
+	avl_node_t	zn_avlnode;
 	hrtime_t	zn_last_refresh;
 } zpool_node_t;
 
 struct zpool_list {
 	boolean_t	zl_findall;
 	boolean_t	zl_literal;
-	uu_avl_t	*zl_avl;
-	uu_avl_pool_t	*zl_pool;
+	avl_tree_t	zl_avl;
 	zprop_list_t	**zl_proplist;
 	zfs_type_t	zl_type;
 	hrtime_t	zl_last_refresh;
 };
 
 static int
-zpool_compare(const void *larg, const void *rarg, void *unused)
+zpool_compare(const void *larg, const void *rarg)
 {
-	(void) unused;
 	zpool_handle_t *l = ((zpool_node_t *)larg)->zn_handle;
 	zpool_handle_t *r = ((zpool_node_t *)rarg)->zn_handle;
 	const char *lname = zpool_get_name(l);
 	const char *rname = zpool_get_name(r);
 
-	return (strcmp(lname, rname));
+	return (TREE_ISIGN(strcmp(lname, rname)));
 }
 
 /*
@@ -86,12 +83,11 @@ static int
 add_pool(zpool_handle_t *zhp, zpool_list_t *zlp)
 {
 	zpool_node_t *node, *new = safe_malloc(sizeof (zpool_node_t));
-	uu_avl_index_t idx;
+	avl_index_t idx;
 
 	new->zn_handle = zhp;
-	uu_avl_node_init(new, &new->zn_avlnode, zlp->zl_pool);
 
-	node = uu_avl_find(zlp->zl_avl, new, NULL, &idx);
+	node = avl_find(&zlp->zl_avl, new, &idx);
 	if (node == NULL) {
 		if (zlp->zl_proplist &&
 		    zpool_expand_proplist(zhp, zlp->zl_proplist,
@@ -101,7 +97,7 @@ add_pool(zpool_handle_t *zhp, zpool_list_t *zlp)
 			return (-1);
 		}
 		new->zn_last_refresh = zlp->zl_last_refresh;
-		uu_avl_insert(zlp->zl_avl, new, idx);
+		avl_insert(&zlp->zl_avl, new, idx);
 	} else {
 		zpool_refresh_stats_from_handle(node->zn_handle, zhp);
 		node->zn_last_refresh = zlp->zl_last_refresh;
@@ -139,15 +135,8 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, zfs_type_t type,
 
 	zlp = safe_malloc(sizeof (zpool_list_t));
 
-	zlp->zl_pool = uu_avl_pool_create("zfs_pool", sizeof (zpool_node_t),
-	    offsetof(zpool_node_t, zn_avlnode), zpool_compare, UU_DEFAULT);
-
-	if (zlp->zl_pool == NULL)
-		zpool_no_memory();
-
-	if ((zlp->zl_avl = uu_avl_create(zlp->zl_pool, NULL,
-	    UU_DEFAULT)) == NULL)
-		zpool_no_memory();
+	avl_create(&zlp->zl_avl, zpool_compare,
+	    sizeof (zpool_node_t), offsetof(zpool_node_t, zn_avlnode));
 
 	zlp->zl_proplist = proplist;
 	zlp->zl_type = type;
@@ -194,8 +183,8 @@ pool_list_refresh(zpool_list_t *zlp)
 		 * state.
 		 */
 		int navail = 0;
-		for (zpool_node_t *node = uu_avl_first(zlp->zl_avl);
-		    node != NULL; node = uu_avl_next(zlp->zl_avl, node)) {
+		for (zpool_node_t *node = avl_first(&zlp->zl_avl);
+		    node != NULL; node = AVL_NEXT(&zlp->zl_avl, node)) {
 			boolean_t missing;
 			zpool_refresh_stats(node->zn_handle, &missing);
 			navail += !missing;
@@ -209,8 +198,8 @@ pool_list_refresh(zpool_list_t *zlp)
 
 	/* Walk the list of existing pools, and update or remove them. */
 	zpool_node_t *node, *next;
-	for (node = uu_avl_first(zlp->zl_avl); node != NULL; node = next) {
-		next = uu_avl_next(zlp->zl_avl, node);
+	for (node = avl_first(&zlp->zl_avl); node != NULL; node = next) {
+		next = AVL_NEXT(&zlp->zl_avl, node);
 
 		/*
 		 * Skip any that were refreshed and are online; they were added
@@ -224,7 +213,7 @@ pool_list_refresh(zpool_list_t *zlp)
 		boolean_t missing;
 		zpool_refresh_stats(node->zn_handle, &missing);
 		if (missing) {
-			uu_avl_remove(zlp->zl_avl, node);
+			avl_remove(&zlp->zl_avl, node);
 			zpool_close(node->zn_handle);
 			free(node);
 		} else {
@@ -232,7 +221,7 @@ pool_list_refresh(zpool_list_t *zlp)
 		}
 	}
 
-	return (uu_avl_numnodes(zlp->zl_avl));
+	return (avl_numnodes(&zlp->zl_avl));
 }
 
 /*
@@ -245,8 +234,8 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
 	zpool_node_t *node, *next_node;
 	int ret = 0;
 
-	for (node = uu_avl_first(zlp->zl_avl); node != NULL; node = next_node) {
-		next_node = uu_avl_next(zlp->zl_avl, node);
+	for (node = avl_first(&zlp->zl_avl); node != NULL; node = next_node) {
+		next_node = AVL_NEXT(&zlp->zl_avl, node);
 		if (zpool_get_state(node->zn_handle) != POOL_STATE_UNAVAIL ||
 		    unavail)
 			ret |= func(node->zn_handle, data);
@@ -261,25 +250,15 @@ pool_list_iter(zpool_list_t *zlp, int unavail, zpool_iter_f func,
 void
 pool_list_free(zpool_list_t *zlp)
 {
-	uu_avl_walk_t *walk;
 	zpool_node_t *node;
+	void *cookie = NULL;
 
-	if ((walk = uu_avl_walk_start(zlp->zl_avl, UU_WALK_ROBUST)) == NULL) {
-		(void) fprintf(stderr,
-		    gettext("internal error: out of memory"));
-		exit(1);
-	}
-
-	while ((node = uu_avl_walk_next(walk)) != NULL) {
-		uu_avl_remove(zlp->zl_avl, node);
+	while ((node = avl_destroy_nodes(&zlp->zl_avl, &cookie)) != NULL) {
 		zpool_close(node->zn_handle);
 		free(node);
 	}
 
-	uu_avl_walk_end(walk);
-	uu_avl_destroy(zlp->zl_avl);
-	uu_avl_pool_destroy(zlp->zl_pool);
-
+	avl_destroy(&zlp->zl_avl);
 	free(zlp);
 }
 
@@ -289,7 +268,7 @@ pool_list_free(zpool_list_t *zlp)
 int
 pool_list_count(zpool_list_t *zlp)
 {
-	return (uu_avl_numnodes(zlp->zl_avl));
+	return (avl_numnodes(&zlp->zl_avl));
 }
 
 /*

@@ -29,7 +29,6 @@
 
 #include <stddef.h>
 #include <string.h>
-#include <libuutil.h>
 #include <libzfs.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -96,7 +95,7 @@ typedef struct zfs_case {
 	uint32_t	zc_version;
 	zfs_case_data_t	zc_data;
 	fmd_case_t	*zc_case;
-	uu_list_node_t	zc_node;
+	list_node_t	zc_node;
 	id_t		zc_remove_timer;
 	char		*zc_fru;
 	er_timeval_t	zc_when;
@@ -126,8 +125,7 @@ zfs_de_stats_t zfs_stats = {
 /* wait 15 seconds after a removal */
 static hrtime_t zfs_remove_timeout = SEC2NSEC(15);
 
-uu_list_pool_t *zfs_case_pool;
-uu_list_t *zfs_cases;
+static list_t zfs_cases;
 
 #define	ZFS_MAKE_RSRC(type)	\
     FM_RSRC_CLASS "." ZFS_ERROR_CLASS "." type
@@ -174,8 +172,8 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
 		zcp->zc_remove_timer = fmd_timer_install(hdl, zcp,
 		    NULL, zfs_remove_timeout);
 
-	uu_list_node_init(zcp, &zcp->zc_node, zfs_case_pool);
-	(void) uu_list_insert_before(zfs_cases, NULL, zcp);
+	list_link_init(&zcp->zc_node);
+	list_insert_head(&zfs_cases, zcp);
 
 	fmd_case_setspecific(hdl, cp, zcp);
 
@@ -206,8 +204,8 @@ zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
 		next_check = gethrestime_sec() + CASE_GC_TIMEOUT_SECS;
 	}
 
-	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-	    zcp = uu_list_next(zfs_cases, zcp)) {
+	for (zcp = list_head(&zfs_cases); zcp != NULL;
+	    zcp = list_next(&zfs_cases, zcp)) {
 		zfs_case_data_t *zcd = &zcp->zc_data;
 
 		/*
@@ -257,8 +255,8 @@ zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 	/*
 	 * Mark any cases associated with this (pool, vdev) pair.
 	 */
-	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-	    zcp = uu_list_next(zfs_cases, zcp)) {
+	for (zcp = list_head(&zfs_cases); zcp != NULL;
+	    zcp = list_next(&zfs_cases, zcp)) {
 		if (zcp->zc_data.zc_pool_guid == pool_guid &&
 		    zcp->zc_data.zc_vdev_guid == vdev_guid) {
 			zcp->zc_present = B_TRUE;
@@ -304,8 +302,8 @@ zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 	/*
 	 * Mark any cases associated with just this pool.
 	 */
-	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-	    zcp = uu_list_next(zfs_cases, zcp)) {
+	for (zcp = list_head(&zfs_cases); zcp != NULL;
+	    zcp = list_next(&zfs_cases, zcp)) {
 		if (zcp->zc_data.zc_pool_guid == pool_guid &&
 		    zcp->zc_data.zc_vdev_guid == 0)
 			zcp->zc_present = B_TRUE;
@@ -321,8 +319,8 @@ zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 	if (nelem == 2) {
 		loaded.ertv_sec = tod[0];
 		loaded.ertv_nsec = tod[1];
-		for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-		    zcp = uu_list_next(zfs_cases, zcp)) {
+		for (zcp = list_head(&zfs_cases); zcp != NULL;
+		    zcp = list_next(&zfs_cases, zcp)) {
 			if (zcp->zc_data.zc_pool_guid == pool_guid &&
 			    zcp->zc_data.zc_vdev_guid == 0) {
 				zcp->zc_when = loaded;
@@ -389,8 +387,7 @@ zpool_find_load_time(zpool_handle_t *zhp, void *arg)
 static void
 zfs_purge_cases(fmd_hdl_t *hdl)
 {
-	zfs_case_t *zcp;
-	uu_list_walk_t *walk;
+	zfs_case_t *zcp, *next;
 	libzfs_handle_t *zhdl = fmd_hdl_getspecific(hdl);
 
 	/*
@@ -410,8 +407,8 @@ zfs_purge_cases(fmd_hdl_t *hdl)
 	/*
 	 * Mark the cases as not present.
 	 */
-	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-	    zcp = uu_list_next(zfs_cases, zcp))
+	for (zcp = list_head(&zfs_cases); zcp != NULL;
+	    zcp = list_next(&zfs_cases, zcp))
 		zcp->zc_present = B_FALSE;
 
 	/*
@@ -425,12 +422,11 @@ zfs_purge_cases(fmd_hdl_t *hdl)
 	/*
 	 * Remove those cases which were not found.
 	 */
-	walk = uu_list_walk_start(zfs_cases, UU_WALK_ROBUST);
-	while ((zcp = uu_list_walk_next(walk)) != NULL) {
+	for (zcp = list_head(&zfs_cases); zcp != NULL; zcp = next) {
+		next = list_next(&zfs_cases, zcp);
 		if (!zcp->zc_present)
 			fmd_case_close(hdl, zcp->zc_case);
 	}
-	uu_list_walk_end(walk);
 }
 
 /*
@@ -660,8 +656,8 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 
 	zfs_ereport_when(hdl, nvl, &er_when);
 
-	for (zcp = uu_list_first(zfs_cases); zcp != NULL;
-	    zcp = uu_list_next(zfs_cases, zcp)) {
+	for (zcp = list_head(&zfs_cases); zcp != NULL;
+	    zcp = list_next(&zfs_cases, zcp)) {
 		if (zcp->zc_data.zc_pool_guid == pool_guid) {
 			pool_found = B_TRUE;
 			pool_load = zcp->zc_when;
@@ -867,8 +863,8 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		 * Pool level fault.  Before solving the case, go through and
 		 * close any open device cases that may be pending.
 		 */
-		for (dcp = uu_list_first(zfs_cases); dcp != NULL;
-		    dcp = uu_list_next(zfs_cases, dcp)) {
+		for (dcp = list_head(&zfs_cases); dcp != NULL;
+		    dcp = list_next(&zfs_cases, dcp)) {
 			if (dcp->zc_data.zc_pool_guid ==
 			    zcp->zc_data.zc_pool_guid &&
 			    dcp->zc_data.zc_vdev_guid != 0)
@@ -1088,8 +1084,7 @@ zfs_fm_close(fmd_hdl_t *hdl, fmd_case_t *cs)
 	if (zcp->zc_data.zc_has_remove_timer)
 		fmd_timer_remove(hdl, zcp->zc_remove_timer);
 
-	uu_list_remove(zfs_cases, zcp);
-	uu_list_node_fini(zcp, &zcp->zc_node, zfs_case_pool);
+	list_remove(&zfs_cases, zcp);
 	fmd_hdl_free(hdl, zcp, sizeof (zfs_case_t));
 }
 
@@ -1117,23 +1112,11 @@ _zfs_diagnosis_init(fmd_hdl_t *hdl)
 	if ((zhdl = libzfs_init()) == NULL)
 		return;
 
-	if ((zfs_case_pool = uu_list_pool_create("zfs_case_pool",
-	    sizeof (zfs_case_t), offsetof(zfs_case_t, zc_node),
-	    NULL, UU_LIST_POOL_DEBUG)) == NULL) {
-		libzfs_fini(zhdl);
-		return;
-	}
-
-	if ((zfs_cases = uu_list_create(zfs_case_pool, NULL,
-	    UU_LIST_DEBUG)) == NULL) {
-		uu_list_pool_destroy(zfs_case_pool);
-		libzfs_fini(zhdl);
-		return;
-	}
+	list_create(&zfs_cases,
+	    sizeof (zfs_case_t), offsetof(zfs_case_t, zc_node));
 
 	if (fmd_hdl_register(hdl, FMD_API_VERSION, &fmd_info) != 0) {
-		uu_list_destroy(zfs_cases);
-		uu_list_pool_destroy(zfs_case_pool);
+		list_destroy(&zfs_cases);
 		libzfs_fini(zhdl);
 		return;
 	}
@@ -1148,24 +1131,18 @@ void
 _zfs_diagnosis_fini(fmd_hdl_t *hdl)
 {
 	zfs_case_t *zcp;
-	uu_list_walk_t *walk;
 	libzfs_handle_t *zhdl;
 
 	/*
 	 * Remove all active cases.
 	 */
-	walk = uu_list_walk_start(zfs_cases, UU_WALK_ROBUST);
-	while ((zcp = uu_list_walk_next(walk)) != NULL) {
+	while ((zcp = list_remove_head(&zfs_cases)) != NULL) {
 		fmd_hdl_debug(hdl, "removing case ena %llu",
 		    (long long unsigned)zcp->zc_data.zc_ena);
-		uu_list_remove(zfs_cases, zcp);
-		uu_list_node_fini(zcp, &zcp->zc_node, zfs_case_pool);
 		fmd_hdl_free(hdl, zcp, sizeof (zfs_case_t));
 	}
-	uu_list_walk_end(walk);
 
-	uu_list_destroy(zfs_cases);
-	uu_list_pool_destroy(zfs_case_pool);
+	list_destroy(&zfs_cases);
 
 	zhdl = fmd_hdl_getspecific(hdl);
 	libzfs_fini(zhdl);

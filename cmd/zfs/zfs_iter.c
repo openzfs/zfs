@@ -28,7 +28,6 @@
  */
 
 #include <libintl.h>
-#include <libuutil.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,14 +49,16 @@
  * When finished, we have an AVL tree of ZFS handles.  We go through and execute
  * the provided callback for each one, passing whatever data the user supplied.
  */
+typedef struct callback_data callback_data_t;
 
 typedef struct zfs_node {
 	zfs_handle_t	*zn_handle;
-	uu_avl_node_t	zn_avlnode;
+	callback_data_t	*zn_callback;
+	avl_node_t	zn_avlnode;
 } zfs_node_t;
 
-typedef struct callback_data {
-	uu_avl_t		*cb_avl;
+struct callback_data {
+	avl_tree_t		cb_avl;
 	int			cb_flags;
 	zfs_type_t		cb_types;
 	zfs_sort_column_t	*cb_sortcol;
@@ -65,9 +66,7 @@ typedef struct callback_data {
 	int			cb_depth_limit;
 	int			cb_depth;
 	uint8_t			cb_props_table[ZFS_NUM_PROPS];
-} callback_data_t;
-
-uu_avl_pool_t *avl_pool;
+};
 
 /*
  * Include snaps if they were requested or if this a zfs list where types
@@ -99,13 +98,12 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 
 	if ((zfs_get_type(zhp) & cb->cb_types) ||
 	    ((zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) && include_snaps)) {
-		uu_avl_index_t idx;
+		avl_index_t idx;
 		zfs_node_t *node = safe_malloc(sizeof (zfs_node_t));
 
 		node->zn_handle = zhp;
-		uu_avl_node_init(node, &node->zn_avlnode, avl_pool);
-		if (uu_avl_find(cb->cb_avl, node, cb->cb_sortcol,
-		    &idx) == NULL) {
+		node->zn_callback = cb;
+		if (avl_find(&cb->cb_avl, node, &idx) == NULL) {
 			if (cb->cb_proplist) {
 				if ((*cb->cb_proplist) &&
 				    !(*cb->cb_proplist)->pl_all)
@@ -120,7 +118,7 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 					return (-1);
 				}
 			}
-			uu_avl_insert(cb->cb_avl, node, idx);
+			avl_insert(&cb->cb_avl, node, idx);
 			should_close = B_FALSE;
 		} else {
 			free(node);
@@ -286,7 +284,7 @@ zfs_compare(const void *larg, const void *rarg)
 	if (rat != NULL)
 		*rat = '\0';
 
-	ret = strcmp(lname, rname);
+	ret = TREE_ISIGN(strcmp(lname, rname));
 	if (ret == 0 && (lat != NULL || rat != NULL)) {
 		/*
 		 * If we're comparing a dataset to one of its snapshots, we
@@ -340,11 +338,11 @@ zfs_compare(const void *larg, const void *rarg)
  * with snapshots grouped under their parents.
  */
 static int
-zfs_sort(const void *larg, const void *rarg, void *data)
+zfs_sort(const void *larg, const void *rarg)
 {
 	zfs_handle_t *l = ((zfs_node_t *)larg)->zn_handle;
 	zfs_handle_t *r = ((zfs_node_t *)rarg)->zn_handle;
-	zfs_sort_column_t *sc = (zfs_sort_column_t *)data;
+	zfs_sort_column_t *sc = ((zfs_node_t *)larg)->zn_callback->cb_sortcol;
 	zfs_sort_column_t *psc;
 
 	for (psc = sc; psc != NULL; psc = psc->sc_next) {
@@ -414,7 +412,7 @@ zfs_sort(const void *larg, const void *rarg, void *data)
 			return (-1);
 
 		if (lstr)
-			ret = strcmp(lstr, rstr);
+			ret = TREE_ISIGN(strcmp(lstr, rstr));
 		else if (lnum < rnum)
 			ret = -1;
 		else if (lnum > rnum)
@@ -438,13 +436,6 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	callback_data_t cb = {0};
 	int ret = 0;
 	zfs_node_t *node;
-	uu_avl_walk_t *walk;
-
-	avl_pool = uu_avl_pool_create("zfs_pool", sizeof (zfs_node_t),
-	    offsetof(zfs_node_t, zn_avlnode), zfs_sort, UU_DEFAULT);
-
-	if (avl_pool == NULL)
-		nomem();
 
 	cb.cb_sortcol = sortcol;
 	cb.cb_flags = flags;
@@ -489,8 +480,8 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 		    sizeof (cb.cb_props_table));
 	}
 
-	if ((cb.cb_avl = uu_avl_create(avl_pool, NULL, UU_DEFAULT)) == NULL)
-		nomem();
+	avl_create(&cb.cb_avl, zfs_sort,
+	    sizeof (zfs_node_t), offsetof(zfs_node_t, zn_avlnode));
 
 	if (argc == 0) {
 		/*
@@ -531,25 +522,20 @@ zfs_for_each(int argc, char **argv, int flags, zfs_type_t types,
 	 * At this point we've got our AVL tree full of zfs handles, so iterate
 	 * over each one and execute the real user callback.
 	 */
-	for (node = uu_avl_first(cb.cb_avl); node != NULL;
-	    node = uu_avl_next(cb.cb_avl, node))
+	for (node = avl_first(&cb.cb_avl); node != NULL;
+	    node = AVL_NEXT(&cb.cb_avl, node))
 		ret |= callback(node->zn_handle, data);
 
 	/*
 	 * Finally, clean up the AVL tree.
 	 */
-	if ((walk = uu_avl_walk_start(cb.cb_avl, UU_WALK_ROBUST)) == NULL)
-		nomem();
-
-	while ((node = uu_avl_walk_next(walk)) != NULL) {
-		uu_avl_remove(cb.cb_avl, node);
+	void *cookie = NULL;
+	while ((node = avl_destroy_nodes(&cb.cb_avl, &cookie)) != NULL) {
 		zfs_close(node->zn_handle);
 		free(node);
 	}
 
-	uu_avl_walk_end(walk);
-	uu_avl_destroy(cb.cb_avl);
-	uu_avl_pool_destroy(avl_pool);
+	avl_destroy(&cb.cb_avl);
 
 	return (ret);
 }

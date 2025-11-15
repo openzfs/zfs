@@ -184,9 +184,6 @@ KERNEL_H = \
 
 USER_H = \
 	libnvpair.h \
-	libuutil.h \
-	libuutil_common.h \
-	libuutil_impl.h \
 	libzdb.h \
 	libzfs.h \
 	libzfs_core.h \
