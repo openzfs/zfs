@@ -2133,7 +2133,7 @@ dump_ddt_object(ddt_t *ddt, ddt_type_t type, ddt_class_t class)
 
 	(void) printf("%s: object=%llu\n", name,
 	    (u_longlong_t)ddt->ddt_object[type][class]);
-	zpool_dump_ddt(NULL, &ddt->ddt_histogram[type][class]);
+	zpool_dump_ddt(NULL, &ddt->ddt_histogram[type][class], B_TRUE);
 
 	if (dump_opt['D'] < 4)
 		return;
@@ -2210,7 +2210,7 @@ dump_all_ddts(spa_t *spa)
 	if (dump_opt['D'] > 1) {
 		(void) printf("DDT histogram (aggregated over all DDTs):\n");
 		ddt_get_dedup_histogram(spa, &ddh_total);
-		zpool_dump_ddt(&dds_total, &ddh_total);
+		zpool_dump_ddt(&dds_total, &ddh_total, B_TRUE);
 	}
 
 	dump_dedup_ratio(&dds_total);
@@ -7763,7 +7763,7 @@ dump_simulated_ddt(spa_t *spa)
 
 	(void) printf("Simulated DDT histogram:\n");
 
-	zpool_dump_ddt(&dds_total, &ddh_total);
+	zpool_dump_ddt(&dds_total, &ddh_total, B_TRUE);
 
 	dump_dedup_ratio(&dds_total);
 }
