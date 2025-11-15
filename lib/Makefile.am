@@ -122,3 +122,30 @@ else
 checkabi: allow_libabi_only_for_x86_64
 storeabi: allow_libabi_only_for_x86_64
 endif
+
+
+#
+# regenerate the .syms file for shared libraries (those listed in
+# lib_LTLIBRARIES, which libtool can generate true shared/static objects for,
+# vs those not listed which are "libtool convenience libraries"
+#
+# the use of define, eval and call below are to get around a limitation in GNU
+# Make, in that only the first instance of the % character is special in the
+# target part of a rule. below is producing what you intuitively expect to
+# happen if you wrote this rule:
+#
+#     $(srcdir)/lib/%/%.syms: %.la
+#
+define generate-syms-rule
+$$(srcdir)/lib/$(1)/$(1).syms: $(1).la
+	@echo '# generated file, do not edit. run `make syms` to regenerate' > $$@
+	$$(syms_verbose)nm -DUj $$(abs_top_builddir)/.libs/$(1).so | env LC_ALL=C sort >> $$@
+endef
+$(foreach libla, $(lib_LTLIBRARIES), $(eval $(call generate-syms-rule,$(basename $(libla)))))
+
+syms_verbose   = $(syms_verbose_@AM_V@)
+syms_verbose_  = $(syms_verbose_@AM_DEFAULT_V@)
+syms_verbose_0 = @echo "  SYMS     " $(patsubst %.la, %.so, $<);
+
+PHONY += syms
+syms: $(foreach libla, $(lib_LTLIBRARIES), $(srcdir)/lib/$(basename $(libla))/$(basename $(libla)).syms)
