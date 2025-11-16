@@ -108,6 +108,21 @@ static avl_tree_t zfs_snapshots_by_objsetid;
 static krwlock_t zfs_snapshot_lock;
 
 /*
+ * Per-snapshot mount locks to prevent duplicate concurrent automounts.
+ * Each unique snapshot name gets its own lock, allowing different snapshots
+ * to mount in parallel while serializing attempts to mount the same snapshot.
+ */
+typedef struct snapshot_mount_lock {
+	char		*sml_name;	/* snapshot name */
+	kmutex_t	sml_lock;	/* per-snapshot lock */
+	uint32_t	sml_refcount;	/* number of threads using this lock */
+	avl_node_t	sml_node;	/* AVL tree linkage */
+} snapshot_mount_lock_t;
+
+static avl_tree_t snapshot_mount_locks;
+static kmutex_t snapshot_mount_locks_mutex;
+
+/*
  * Control Directory Tunables (.zfs)
  */
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
@@ -299,6 +314,67 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
 		zfsctl_snapshot_hold(se);
 
 	return (se);
+}
+
+/*
+ * AVL comparator for snapshot_mount_lock_t, sorted by snapshot name.
+ */
+static int
+snapshot_mount_lock_compare(const void *l, const void *r)
+{
+	const snapshot_mount_lock_t *sml_l = l;
+	const snapshot_mount_lock_t *sml_r = r;
+	return (strcmp(sml_l->sml_name, sml_r->sml_name));
+}
+
+/*
+ * Acquire a per-snapshot mount lock. If this is the first request for this
+ * snapshot name, allocate and initialize a new lock. Returns with the
+ * per-snapshot lock held.
+ */
+static snapshot_mount_lock_t *
+snapshot_lock_acquire(const char *snapname)
+{
+	snapshot_mount_lock_t *sml, search;
+	search.sml_name = (char *)snapname;
+	mutex_enter(&snapshot_mount_locks_mutex);
+	sml = avl_find(&snapshot_mount_locks, &search, NULL);
+
+	if (sml == NULL) {
+		/* First thread for this snapshot - create new lock */
+		sml = kmem_zalloc(sizeof (snapshot_mount_lock_t), KM_SLEEP);
+		sml->sml_name = kmem_strdup(snapname);
+		mutex_init(&sml->sml_lock, NULL, MUTEX_DEFAULT, NULL);
+		sml->sml_refcount = 0;
+		avl_add(&snapshot_mount_locks, sml);
+	}
+
+	sml->sml_refcount++;
+	mutex_exit(&snapshot_mount_locks_mutex);
+	mutex_enter(&sml->sml_lock);
+
+	return (sml);
+}
+
+/*
+ * Release a per-snapshot mount lock. If this is the last thread using this
+ * lock, remove it from the AVL tree and free it.
+ */
+static void
+snapshot_lock_release(snapshot_mount_lock_t *sml)
+{
+	mutex_exit(&sml->sml_lock);
+	mutex_enter(&snapshot_mount_locks_mutex);
+	sml->sml_refcount--;
+
+	if (sml->sml_refcount == 0) {
+		avl_remove(&snapshot_mount_locks, sml);
+		mutex_destroy(&sml->sml_lock);
+		kmem_strfree(sml->sml_name);
+		kmem_free(sml, sizeof (snapshot_mount_lock_t));
+	}
+
+	mutex_exit(&snapshot_mount_locks_mutex);
 }
 
 /*
@@ -1162,6 +1238,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	zfsvfs_t *zfsvfs;
 	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
+	snapshot_mount_lock_t *sml = NULL;
 	char *full_name, *full_path, *options;
 	char *argv[] = { "/usr/bin/env", "mount", "-i", "-t", "zfs", "-n",
 	    "-o", NULL, NULL, NULL, NULL };
@@ -1234,10 +1311,19 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
 
 	/*
+	 * Acquire per-snapshot lock to serialize automount operations
+	 * for this specific snapshot. Different snapshots can mount in
+	 * parallel. This prevents the race where multiple threads try to
+	 * automount the same snapshot simultaneously.
+	 */
+	sml = snapshot_lock_acquire(full_name);
+
+	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
 	 * The snapshot may be manually mounted as many times as desired.
 	 */
 	if (zfsctl_snapshot_ismounted(full_name)) {
+		snapshot_lock_release(sml);
 		error = 0;
 		goto error;
 	}
@@ -1275,6 +1361,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 			 */
 			error = 0;
 		}
+		snapshot_lock_release(sml);
 		goto error;
 	}
 
@@ -1291,6 +1378,12 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
+		/*
+		 * With per-snapshot locking, no other thread can reach this
+		 * point for the same snapshot.
+		 */
+		se = zfsctl_snapshot_find_by_name(full_name);
+		ASSERT3P(se, ==, NULL);
 		se = zfsctl_snapshot_alloc(full_name, full_path,
 		    snap_zfsvfs->z_os->os_spa, dmu_objset_id(snap_zfsvfs->z_os),
 		    dentry);
@@ -1299,6 +1392,10 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		rw_exit(&zfs_snapshot_lock);
 	}
 	path_put(&spath);
+
+	if (sml != NULL)
+		snapshot_lock_release(sml);
+
 error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);
@@ -1399,6 +1496,10 @@ zfsctl_init(void)
 	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
 	    se_node_objsetid));
 	rw_init(&zfs_snapshot_lock, NULL, RW_DEFAULT, NULL);
+	avl_create(&snapshot_mount_locks, snapshot_mount_lock_compare,
+	    sizeof (snapshot_mount_lock_t), offsetof(snapshot_mount_lock_t,
+	    sml_node));
+	mutex_init(&snapshot_mount_locks_mutex, NULL, MUTEX_DEFAULT, NULL);
 }
 
 /*
@@ -1408,6 +1509,9 @@ zfsctl_init(void)
 void
 zfsctl_fini(void)
 {
+	ASSERT(avl_is_empty(&snapshot_mount_locks));
+	avl_destroy(&snapshot_mount_locks);
+	mutex_destroy(&snapshot_mount_locks_mutex);
 	avl_destroy(&zfs_snapshots_by_name);
 	avl_destroy(&zfs_snapshots_by_objsetid);
 	rw_destroy(&zfs_snapshot_lock);
