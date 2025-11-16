@@ -3892,7 +3892,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	va = kmap(pp);
 	ASSERT3U(pglen, <=, PAGE_SIZE);
-	dmu_write(zfsvfs->z_os, zp->z_id, pgoff, pglen, va, tx);
+	dmu_write(zfsvfs->z_os, zp->z_id, pgoff, pglen, va, tx,
+	    DMU_READ_PREFETCH);
 	kunmap(pp);
 
 	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);

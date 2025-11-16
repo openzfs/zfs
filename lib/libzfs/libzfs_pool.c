@@ -1745,9 +1745,13 @@ zpool_prefetch(zpool_handle_t *zhp, zpool_prefetch_type_t type)
 
 	error = lzc_pool_prefetch(zhp->zpool_name, type);
 	if (error != 0) {
+		const char *typename = "unknown";
+		if (type == ZPOOL_PREFETCH_DDT)
+			typename = "ddt";
+		else if (type == ZPOOL_PREFETCH_BRT)
+			typename = "brt";
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-		    "cannot prefetch %s in '%s'"),
-		    type == ZPOOL_PREFETCH_DDT ? "ddt" : "", zhp->zpool_name);
+		    "cannot prefetch %s in '%s'"), typename, zhp->zpool_name);
 		(void) zpool_standard_error(hdl, error, msg);
 		return (-1);
 	}

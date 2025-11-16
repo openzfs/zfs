@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 /*
- * Copyright (c) 2020 iXsystems, Inc.
+ * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,9 +27,22 @@
  * $FreeBSD$
  */
 
-#ifndef ZFS_CONTEXT_OS_H_
-#define	ZFS_CONTEXT_OS_H_
+#ifndef _SYS_ZFS_DEBUG_OS_H
+#define	_SYS_ZFS_DEBUG_OS_H
 
-#define	HAVE_LARGE_STACKS	1
+#include <sys/sdt.h>
 
+#ifdef KDTRACE_HOOKS
+SDT_PROBE_DECLARE(sdt, , , set__error);
+
+/* BEGIN CSTYLED */
+#define	SET_ERROR(err)	({ 					\
+	SDT_PROBE1(sdt, , , set__error, (uintptr_t)err);	\
+	err;							\
+})
+/* END CSTYLED */
+#else
+#define	SET_ERROR(err) (err)
 #endif
+
+#endif	/* _SYS_ZFS_DEBUG_OS_H */

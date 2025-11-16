@@ -58,6 +58,8 @@
 extern size_t spl_pagesize(void);
 #define	PAGESIZE	(spl_pagesize())
 
+#define	ptob(x)		((x) * PAGESIZE)
+
 #ifndef HAVE_EXECVPE
 extern int execvpe(const char *name, char * const argv[], char * const envp[]);
 #endif

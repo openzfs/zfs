@@ -752,7 +752,8 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		}
 		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
 		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
-		    numsubsub * sizeof (subobj), subdb->db_data, tx);
+		    numsubsub * sizeof (subobj), subdb->db_data, tx,
+		    DMU_READ_NO_PREFETCH);
 		dmu_buf_rele(subdb, FTAG);
 		bpo->bpo_phys->bpo_num_subobjs += numsubsub;
 
@@ -777,7 +778,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 		dmu_write(bpo->bpo_os, bpo->bpo_object,
 		    bpo->bpo_phys->bpo_num_blkptrs * sizeof (blkptr_t),
 		    numbps * sizeof (blkptr_t),
-		    bps->db_data, tx);
+		    bps->db_data, tx, DMU_READ_NO_PREFETCH);
 		dmu_buf_rele(bps, FTAG);
 		bpo->bpo_phys->bpo_num_blkptrs += numbps;
 
@@ -794,7 +795,7 @@ bpobj_enqueue_subobj(bpobj_t *bpo, uint64_t subobj, dmu_tx_t *tx)
 
 		dmu_write(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
 		    bpo->bpo_phys->bpo_num_subobjs * sizeof (subobj),
-		    sizeof (subobj), &subobj, tx);
+		    sizeof (subobj), &subobj, tx, DMU_READ_NO_PREFETCH);
 		bpo->bpo_phys->bpo_num_subobjs++;
 	}
 

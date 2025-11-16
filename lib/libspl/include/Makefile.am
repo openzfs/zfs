@@ -4,6 +4,7 @@ libspl_HEADERS = \
 	%D%/atomic.h \
 	%D%/libgen.h \
 	%D%/libshare.h \
+	%D%/libspl.h \
 	%D%/statcommon.h \
 	%D%/stdlib.h \
 	%D%/string.h \
@@ -24,14 +25,13 @@ libspl_rpc_HEADERS = \
 
 libspl_sysdir = $(libspldir)/sys
 libspl_sys_HEADERS = \
-	%D%/sys/abd_os.h \
-	%D%/sys/abd_impl_os.h \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
 	%D%/sys/asm_linkage.h \
 	%D%/sys/backtrace.h \
 	%D%/sys/callb.h \
 	%D%/sys/cmn_err.h \
+	%D%/sys/condvar.h \
 	%D%/sys/cred.h \
 	%D%/sys/debug.h \
 	%D%/sys/dkio.h \
@@ -43,22 +43,33 @@ libspl_sys_HEADERS = \
 	%D%/sys/kstat.h \
 	%D%/sys/list.h \
 	%D%/sys/list_impl.h \
+	%D%/sys/misc.h \
 	%D%/sys/mhd.h \
 	%D%/sys/mkdev.h \
 	%D%/sys/mod.h \
+	%D%/sys/mutex.h \
 	%D%/sys/policy.h \
 	%D%/sys/poll.h \
 	%D%/sys/priv.h \
 	%D%/sys/processor.h \
+	%D%/sys/procfs_list.h \
+	%D%/sys/random.h \
+	%D%/sys/rwlock.h \
+	%D%/sys/sid.h \
 	%D%/sys/simd.h \
 	%D%/sys/stack.h \
 	%D%/sys/stdtypes.h \
 	%D%/sys/string.h \
 	%D%/sys/sunddi.h \
+	%D%/sys/sysmacros.h \
 	%D%/sys/systeminfo.h \
+	%D%/sys/systm.h \
+	%D%/sys/thread.h \
+	%D%/sys/taskq.h \
 	%D%/sys/time.h \
-	%D%/sys/trace_spl.h \
-	%D%/sys/trace_zfs.h \
+	%D%/sys/timer.h \
+	%D%/sys/trace.h \
+	%D%/sys/tsd.h \
 	%D%/sys/tunables.h \
 	%D%/sys/types.h \
 	%D%/sys/types32.h \
@@ -77,8 +88,7 @@ libspl_sys_HEADERS += \
 	%D%/os/linux/sys/mount.h \
 	%D%/os/linux/sys/param.h \
 	%D%/os/linux/sys/stat.h \
-	%D%/os/linux/sys/sysmacros.h \
-	%D%/os/linux/sys/zfs_context_os.h
+	%D%/os/linux/sys/vfs.h
 
 libspl_ia32_HEADERS = \
 	%D%/os/linux/sys/ia32/asm_linkage.h
@@ -93,9 +103,7 @@ libspl_sys_HEADERS += \
 	%D%/os/freebsd/sys/mount.h \
 	%D%/os/freebsd/sys/param.h \
 	%D%/os/freebsd/sys/stat.h \
-	%D%/os/freebsd/sys/sysmacros.h \
-	%D%/os/freebsd/sys/vfs.h \
-	%D%/os/freebsd/sys/zfs_context_os.h
+	%D%/os/freebsd/sys/vfs.h
 
 libspl_ia32_HEADERS = \
 	%D%/os/freebsd/sys/ia32/asm_linkage.h

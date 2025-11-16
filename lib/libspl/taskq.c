@@ -29,11 +29,27 @@
  * Copyright (c) 2014 by Delphix. All rights reserved.
  */
 
-#include <sys/zfs_context.h>
+#include <sys/sysmacros.h>
+#include <sys/timer.h>
+#include <sys/types.h>
+#include <sys/thread.h>
+#include <sys/taskq.h>
+#include <sys/kmem.h>
 
-int taskq_now;
-taskq_t *system_taskq;
-taskq_t *system_delay_taskq;
+static taskq_t *__system_taskq = NULL;
+static taskq_t *__system_delay_taskq = NULL;
+
+taskq_t
+*_system_taskq(void)
+{
+	return (__system_taskq);
+}
+
+taskq_t
+*_system_delay_taskq(void)
+{
+	return (__system_delay_taskq);
+}
 
 static pthread_key_t taskq_tsd;
 
@@ -105,11 +121,6 @@ taskqid_t
 taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 {
 	taskq_ent_t *t;
-
-	if (taskq_now) {
-		func(arg);
-		return (1);
-	}
 
 	mutex_enter(&tq->tq_lock);
 	ASSERT(tq->tq_flags & TASKQ_ACTIVE);
@@ -373,9 +384,6 @@ taskq_member(taskq_t *tq, kthread_t *t)
 {
 	int i;
 
-	if (taskq_now)
-		return (1);
-
 	for (i = 0; i < tq->tq_nthreads; i++)
 		if (tq->tq_threadlist[i] == t)
 			return (1);
@@ -400,18 +408,18 @@ void
 system_taskq_init(void)
 {
 	VERIFY0(pthread_key_create(&taskq_tsd, NULL));
-	system_taskq = taskq_create("system_taskq", 64, maxclsyspri, 4, 512,
+	__system_taskq = taskq_create("system_taskq", 64, maxclsyspri, 4, 512,
 	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
-	system_delay_taskq = taskq_create("delay_taskq", 4, maxclsyspri, 4,
+	__system_delay_taskq = taskq_create("delay_taskq", 4, maxclsyspri, 4,
 	    512, TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
 }
 
 void
 system_taskq_fini(void)
 {
-	taskq_destroy(system_taskq);
-	system_taskq = NULL; /* defensive */
-	taskq_destroy(system_delay_taskq);
-	system_delay_taskq = NULL;
+	taskq_destroy(__system_taskq);
+	__system_taskq = NULL; /* defensive */
+	taskq_destroy(__system_delay_taskq);
+	__system_delay_taskq = NULL;
 	VERIFY0(pthread_key_delete(taskq_tsd));
 }

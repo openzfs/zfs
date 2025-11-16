@@ -41,6 +41,7 @@ kernel_sys_HEADERS = \
 	%D%/zfs/sys/zfs_bootenv_os.h \
 	%D%/zfs/sys/zfs_context_os.h \
 	%D%/zfs/sys/zfs_ctldir.h \
+	%D%/zfs/sys/zfs_debug_os.h \
 	%D%/zfs/sys/zfs_dir.h \
 	%D%/zfs/sys/zfs_vfsops_os.h \
 	%D%/zfs/sys/zfs_vnops_os.h \
@@ -97,7 +98,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/time.h \
 	%D%/spl/sys/timer.h \
 	%D%/spl/sys/trace.h \
-	%D%/spl/sys/trace_spl.h \
 	%D%/spl/sys/trace_taskq.h \
 	%D%/spl/sys/tsd.h \
 	%D%/spl/sys/types.h \

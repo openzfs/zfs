@@ -3966,7 +3966,8 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 		object = space_map_object(msp->ms_sm);
 		dmu_write(spa->spa_meta_objset,
 		    msp->ms_group->mg_vd->vdev_ms_array, sizeof (uint64_t) *
-		    msp->ms_id, sizeof (uint64_t), &object, tx);
+		    msp->ms_id, sizeof (uint64_t), &object, tx,
+		    DMU_READ_NO_PREFETCH);
 	}
 
 	/*
@@ -4292,7 +4293,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		VERIFY3U(new_object, !=, 0);
 
 		dmu_write(mos, vd->vdev_ms_array, sizeof (uint64_t) *
-		    msp->ms_id, sizeof (uint64_t), &new_object, tx);
+		    msp->ms_id, sizeof (uint64_t), &new_object, tx,
+		    DMU_READ_NO_PREFETCH);
 
 		VERIFY0(space_map_open(&msp->ms_sm, mos, new_object,
 		    msp->ms_start, msp->ms_size, vd->vdev_ashift));
@@ -6328,7 +6330,7 @@ metaslab_update_ondisk_flush_data(metaslab_t *ms, dmu_tx_t *tx)
 	}
 
 	dmu_write(spa_meta_objset(spa), object, entry_offset, entry_size,
-	    &entry, tx);
+	    &entry, tx, DMU_READ_NO_PREFETCH);
 }
 
 void

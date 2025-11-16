@@ -28,9 +28,7 @@ endif
 
 dist_noinst_DATA += \
 	%D%/cstyle.pl \
-	%D%/update_authors.pl \
-	%D%/zfs2zol-patch.sed \
-	%D%/zol2zfs-patch.sed
+	%D%/update_authors.pl
 
 SHELLCHECKSCRIPTS += $(dist_scripts_SCRIPTS) $(dist_noinst_SCRIPTS)
 

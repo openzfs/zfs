@@ -25,7 +25,7 @@
  */
 
 #ifndef _SYS_TUNABLES_H
-#define	_SYS_TUNABLES_H
+#define	_SYS_TUNABLES_H extern __attribute__((visibility("hidden")))
 
 typedef enum {
 	ZFS_TUNABLE_TYPE_INT,
@@ -49,12 +49,14 @@ typedef struct zfs_tunable {
 	const char		*zt_desc;
 } zfs_tunable_t;
 
-int zfs_tunable_set(const zfs_tunable_t *tunable, const char *val);
-int zfs_tunable_get(const zfs_tunable_t *tunable, char *val, size_t valsz);
+_SYS_TUNABLES_H int zfs_tunable_set(const zfs_tunable_t *tunable,
+    const char *val);
+_SYS_TUNABLES_H int zfs_tunable_get(const zfs_tunable_t *tunable, char *val,
+    size_t valsz);
 
-const zfs_tunable_t *zfs_tunable_lookup(const char *name);
+_SYS_TUNABLES_H const zfs_tunable_t *zfs_tunable_lookup(const char *name);
 
 typedef int (*zfs_tunable_iter_t)(const zfs_tunable_t *tunable, void *arg);
-void zfs_tunable_iter(zfs_tunable_iter_t cb, void *arg);
+_SYS_TUNABLES_H void zfs_tunable_iter(zfs_tunable_iter_t cb, void *arg);
 
 #endif

@@ -1,8 +1,9 @@
+include $(srcdir)/%D%/include/Makefile.am
+
 libzpool_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libzpool_la_CFLAGS += $(ZLIB_CFLAGS)
 
 libzpool_la_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
-libzpool_la_CPPFLAGS += -I$(srcdir)/include/os/@ac_system_l@/zfs
 libzpool_la_CPPFLAGS += -DLIB_ZPOOL_BUILD
 
 lib_LTLIBRARIES += libzpool.la
@@ -12,7 +13,6 @@ dist_libzpool_la_SOURCES = \
 	%D%/abd_os.c \
 	%D%/arc_os.c \
 	%D%/kernel.c \
-	%D%/taskq.c \
 	%D%/util.c \
 	%D%/vdev_label_os.c \
 	%D%/zfs_racct.c \
@@ -180,6 +180,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zfs_crrd.c \
 	module/zfs/zfs_fm.c \
 	module/zfs/zfs_fuid.c \
+	module/zfs/zfs_impl.c \
 	module/zfs/zfs_ratelimit.c \
 	module/zfs/zfs_rlock.c \
 	module/zfs/zfs_sa.c \
@@ -212,7 +213,7 @@ if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
 endif
 
-libzpool_la_LDFLAGS += -version-info 6:0:0
+libzpool_la_LDFLAGS += -version-info 7:0:0
 
 if TARGET_CPU_POWERPC
 module/zfs/libzpool_la-vdev_raidz_math_powerpc_altivec.$(OBJEXT) : CFLAGS += -maltivec

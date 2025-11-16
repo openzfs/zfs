@@ -169,13 +169,14 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 	phys_eof = spa_history_log_to_phys(shpp->sh_eof, shpp);
 	firstwrite = MIN(len, shpp->sh_phys_max_off - phys_eof);
 	shpp->sh_eof += len;
-	dmu_write(mos, spa->spa_history, phys_eof, firstwrite, buf, tx);
+	dmu_write(mos, spa->spa_history, phys_eof, firstwrite, buf, tx,
+	    DMU_READ_NO_PREFETCH);
 
 	len -= firstwrite;
 	if (len > 0) {
 		/* write out the rest at the beginning of physical file */
 		dmu_write(mos, spa->spa_history, shpp->sh_pool_create_len,
-		    len, (char *)buf + firstwrite, tx);
+		    len, (char *)buf + firstwrite, tx, DMU_READ_NO_PREFETCH);
 	}
 
 	return (0);

@@ -40,10 +40,14 @@
 #include <sys/rrwlock.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
+#include <sys/sid.h>
 #include <sys/stat.h>
 #include <sys/systeminfo.h>
 #include <sys/time.h>
-#include <sys/utsname.h>
+#include <sys/tsd.h>
+
+#include <libspl.h>
+#include <libzpool.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
 #include <sys/zfs_vfsops.h>
@@ -56,257 +60,10 @@
  * Emulation of kernel services in userland.
  */
 
-uint64_t physmem;
 uint32_t hostid;
-struct utsname hw_utsname;
 
 /* If set, all blocks read will be copied to the specified directory. */
 char *vn_dumpdir = NULL;
-
-/* this only exists to have its address taken */
-struct proc p0;
-
-/*
- * =========================================================================
- * threads
- * =========================================================================
- *
- * TS_STACK_MIN is dictated by the minimum allowed pthread stack size.  While
- * TS_STACK_MAX is somewhat arbitrary, it was selected to be large enough for
- * the expected stack depth while small enough to avoid exhausting address
- * space with high thread counts.
- */
-#define	TS_STACK_MIN	MAX(PTHREAD_STACK_MIN, 32768)
-#define	TS_STACK_MAX	(256 * 1024)
-
-struct zk_thread_wrapper {
-	void (*func)(void *);
-	void *arg;
-};
-
-static void *
-zk_thread_wrapper(void *arg)
-{
-	struct zk_thread_wrapper ztw;
-	memcpy(&ztw, arg, sizeof (ztw));
-	free(arg);
-	ztw.func(ztw.arg);
-	return (NULL);
-}
-
-kthread_t *
-zk_thread_create(const char *name, void (*func)(void *), void *arg,
-    size_t stksize, int state)
-{
-	pthread_attr_t attr;
-	pthread_t tid;
-	char *stkstr;
-	struct zk_thread_wrapper *ztw;
-	int detachstate = PTHREAD_CREATE_DETACHED;
-
-	VERIFY0(pthread_attr_init(&attr));
-
-	if (state & TS_JOINABLE)
-		detachstate = PTHREAD_CREATE_JOINABLE;
-
-	VERIFY0(pthread_attr_setdetachstate(&attr, detachstate));
-
-	/*
-	 * We allow the default stack size in user space to be specified by
-	 * setting the ZFS_STACK_SIZE environment variable.  This allows us
-	 * the convenience of observing and debugging stack overruns in
-	 * user space.  Explicitly specified stack sizes will be honored.
-	 * The usage of ZFS_STACK_SIZE is discussed further in the
-	 * ENVIRONMENT VARIABLES sections of the ztest(1) man page.
-	 */
-	if (stksize == 0) {
-		stkstr = getenv("ZFS_STACK_SIZE");
-
-		if (stkstr == NULL)
-			stksize = TS_STACK_MAX;
-		else
-			stksize = MAX(atoi(stkstr), TS_STACK_MIN);
-	}
-
-	VERIFY3S(stksize, >, 0);
-	stksize = P2ROUNDUP(MAX(stksize, TS_STACK_MIN), PAGESIZE);
-
-	/*
-	 * If this ever fails, it may be because the stack size is not a
-	 * multiple of system page size.
-	 */
-	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
-	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
-
-	VERIFY(ztw = malloc(sizeof (*ztw)));
-	ztw->func = func;
-	ztw->arg = arg;
-	VERIFY0(pthread_create(&tid, &attr, zk_thread_wrapper, ztw));
-	VERIFY0(pthread_attr_destroy(&attr));
-
-	pthread_setname_np(tid, name);
-
-	return ((void *)(uintptr_t)tid);
-}
-
-/*
- * =========================================================================
- * kstats
- * =========================================================================
- */
-kstat_t *
-kstat_create(const char *module, int instance, const char *name,
-    const char *class, uchar_t type, ulong_t ndata, uchar_t ks_flag)
-{
-	(void) module, (void) instance, (void) name, (void) class, (void) type,
-	    (void) ndata, (void) ks_flag;
-	return (NULL);
-}
-
-void
-kstat_install(kstat_t *ksp)
-{
-	(void) ksp;
-}
-
-void
-kstat_delete(kstat_t *ksp)
-{
-	(void) ksp;
-}
-
-void
-kstat_set_raw_ops(kstat_t *ksp,
-    int (*headers)(char *buf, size_t size),
-    int (*data)(char *buf, size_t size, void *data),
-    void *(*addr)(kstat_t *ksp, loff_t index))
-{
-	(void) ksp, (void) headers, (void) data, (void) addr;
-}
-
-/*
- * =========================================================================
- * mutexes
- * =========================================================================
- */
-
-void
-mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
-{
-	(void) name, (void) type, (void) cookie;
-	VERIFY0(pthread_mutex_init(&mp->m_lock, NULL));
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-}
-
-void
-mutex_destroy(kmutex_t *mp)
-{
-	VERIFY0(pthread_mutex_destroy(&mp->m_lock));
-}
-
-void
-mutex_enter(kmutex_t *mp)
-{
-	VERIFY0(pthread_mutex_lock(&mp->m_lock));
-	mp->m_owner = pthread_self();
-}
-
-int
-mutex_enter_check_return(kmutex_t *mp)
-{
-	int error = pthread_mutex_lock(&mp->m_lock);
-	if (error == 0)
-		mp->m_owner = pthread_self();
-	return (error);
-}
-
-int
-mutex_tryenter(kmutex_t *mp)
-{
-	int error = pthread_mutex_trylock(&mp->m_lock);
-	if (error == 0) {
-		mp->m_owner = pthread_self();
-		return (1);
-	} else {
-		VERIFY3S(error, ==, EBUSY);
-		return (0);
-	}
-}
-
-void
-mutex_exit(kmutex_t *mp)
-{
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-	VERIFY0(pthread_mutex_unlock(&mp->m_lock));
-}
-
-/*
- * =========================================================================
- * rwlocks
- * =========================================================================
- */
-
-void
-rw_init(krwlock_t *rwlp, char *name, int type, void *arg)
-{
-	(void) name, (void) type, (void) arg;
-	VERIFY0(pthread_rwlock_init(&rwlp->rw_lock, NULL));
-	rwlp->rw_readers = 0;
-	rwlp->rw_owner = 0;
-}
-
-void
-rw_destroy(krwlock_t *rwlp)
-{
-	VERIFY0(pthread_rwlock_destroy(&rwlp->rw_lock));
-}
-
-void
-rw_enter(krwlock_t *rwlp, krw_t rw)
-{
-	if (rw == RW_READER) {
-		VERIFY0(pthread_rwlock_rdlock(&rwlp->rw_lock));
-		atomic_inc_uint(&rwlp->rw_readers);
-	} else {
-		VERIFY0(pthread_rwlock_wrlock(&rwlp->rw_lock));
-		rwlp->rw_owner = pthread_self();
-	}
-}
-
-void
-rw_exit(krwlock_t *rwlp)
-{
-	if (RW_READ_HELD(rwlp))
-		atomic_dec_uint(&rwlp->rw_readers);
-	else
-		rwlp->rw_owner = 0;
-
-	VERIFY0(pthread_rwlock_unlock(&rwlp->rw_lock));
-}
-
-int
-rw_tryenter(krwlock_t *rwlp, krw_t rw)
-{
-	int error;
-
-	if (rw == RW_READER)
-		error = pthread_rwlock_tryrdlock(&rwlp->rw_lock);
-	else
-		error = pthread_rwlock_trywrlock(&rwlp->rw_lock);
-
-	if (error == 0) {
-		if (rw == RW_READER)
-			atomic_inc_uint(&rwlp->rw_readers);
-		else
-			rwlp->rw_owner = pthread_self();
-
-		return (1);
-	}
-
-	VERIFY3S(error, ==, EBUSY);
-
-	return (0);
-}
 
 uint32_t
 zone_get_hostid(void *zonep)
@@ -316,191 +73,6 @@ zone_get_hostid(void *zonep)
 	 */
 	(void) zonep;
 	return (hostid);
-}
-
-int
-rw_tryupgrade(krwlock_t *rwlp)
-{
-	(void) rwlp;
-	return (0);
-}
-
-/*
- * =========================================================================
- * condition variables
- * =========================================================================
- */
-
-void
-cv_init(kcondvar_t *cv, char *name, int type, void *arg)
-{
-	(void) name, (void) type, (void) arg;
-	VERIFY0(pthread_cond_init(cv, NULL));
-}
-
-void
-cv_destroy(kcondvar_t *cv)
-{
-	VERIFY0(pthread_cond_destroy(cv));
-}
-
-void
-cv_wait(kcondvar_t *cv, kmutex_t *mp)
-{
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-	VERIFY0(pthread_cond_wait(cv, &mp->m_lock));
-	mp->m_owner = pthread_self();
-}
-
-int
-cv_wait_sig(kcondvar_t *cv, kmutex_t *mp)
-{
-	cv_wait(cv, mp);
-	return (1);
-}
-
-int
-cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
-{
-	int error;
-	struct timeval tv;
-	struct timespec ts;
-	clock_t delta;
-
-	delta = abstime - ddi_get_lbolt();
-	if (delta <= 0)
-		return (-1);
-
-	VERIFY0(gettimeofday(&tv, NULL));
-
-	ts.tv_sec = tv.tv_sec + delta / hz;
-	ts.tv_nsec = tv.tv_usec * NSEC_PER_USEC + (delta % hz) * (NANOSEC / hz);
-	if (ts.tv_nsec >= NANOSEC) {
-		ts.tv_sec++;
-		ts.tv_nsec -= NANOSEC;
-	}
-
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
-
-	if (error == ETIMEDOUT)
-		return (-1);
-
-	VERIFY0(error);
-
-	return (1);
-}
-
-int
-cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
-    int flag)
-{
-	(void) res;
-	int error;
-	struct timeval tv;
-	struct timespec ts;
-	hrtime_t delta;
-
-	ASSERT(flag == 0 || flag == CALLOUT_FLAG_ABSOLUTE);
-
-	delta = tim;
-	if (flag & CALLOUT_FLAG_ABSOLUTE)
-		delta -= gethrtime();
-
-	if (delta <= 0)
-		return (-1);
-
-	VERIFY0(gettimeofday(&tv, NULL));
-
-	ts.tv_sec = tv.tv_sec + delta / NANOSEC;
-	ts.tv_nsec = tv.tv_usec * NSEC_PER_USEC + (delta % NANOSEC);
-	if (ts.tv_nsec >= NANOSEC) {
-		ts.tv_sec++;
-		ts.tv_nsec -= NANOSEC;
-	}
-
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
-	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
-
-	if (error == ETIMEDOUT)
-		return (-1);
-
-	VERIFY0(error);
-
-	return (1);
-}
-
-void
-cv_signal(kcondvar_t *cv)
-{
-	VERIFY0(pthread_cond_signal(cv));
-}
-
-void
-cv_broadcast(kcondvar_t *cv)
-{
-	VERIFY0(pthread_cond_broadcast(cv));
-}
-
-/*
- * =========================================================================
- * procfs list
- * =========================================================================
- */
-
-void
-seq_printf(struct seq_file *m, const char *fmt, ...)
-{
-	(void) m, (void) fmt;
-}
-
-void
-procfs_list_install(const char *module,
-    const char *submodule,
-    const char *name,
-    mode_t mode,
-    procfs_list_t *procfs_list,
-    int (*show)(struct seq_file *f, void *p),
-    int (*show_header)(struct seq_file *f),
-    int (*clear)(procfs_list_t *procfs_list),
-    size_t procfs_list_node_off)
-{
-	(void) module, (void) submodule, (void) name, (void) mode, (void) show,
-	    (void) show_header, (void) clear;
-	mutex_init(&procfs_list->pl_lock, NULL, MUTEX_DEFAULT, NULL);
-	list_create(&procfs_list->pl_list,
-	    procfs_list_node_off + sizeof (procfs_list_node_t),
-	    procfs_list_node_off + offsetof(procfs_list_node_t, pln_link));
-	procfs_list->pl_next_id = 1;
-	procfs_list->pl_node_offset = procfs_list_node_off;
-}
-
-void
-procfs_list_uninstall(procfs_list_t *procfs_list)
-{
-	(void) procfs_list;
-}
-
-void
-procfs_list_destroy(procfs_list_t *procfs_list)
-{
-	ASSERT(list_is_empty(&procfs_list->pl_list));
-	list_destroy(&procfs_list->pl_list);
-	mutex_destroy(&procfs_list->pl_lock);
-}
-
-#define	NODE_ID(procfs_list, obj) \
-		(((procfs_list_node_t *)(((char *)obj) + \
-		(procfs_list)->pl_node_offset))->pln_id)
-
-void
-procfs_list_add(procfs_list_t *procfs_list, void *p)
-{
-	ASSERT(MUTEX_HELD(&procfs_list->pl_lock));
-	NODE_ID(procfs_list, p) = procfs_list->pl_next_id++;
-	list_insert_tail(&procfs_list->pl_list, p);
 }
 
 /*
@@ -771,57 +343,6 @@ lowbit64(uint64_t i)
 	return (__builtin_ffsll(i));
 }
 
-const char *random_path = "/dev/random";
-const char *urandom_path = "/dev/urandom";
-static int random_fd = -1, urandom_fd = -1;
-
-void
-random_init(void)
-{
-	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
-}
-
-void
-random_fini(void)
-{
-	close(random_fd);
-	close(urandom_fd);
-
-	random_fd = -1;
-	urandom_fd = -1;
-}
-
-static int
-random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
-{
-	size_t resid = len;
-	ssize_t bytes;
-
-	ASSERT(fd != -1);
-
-	while (resid != 0) {
-		bytes = read(fd, ptr, resid);
-		ASSERT3S(bytes, >=, 0);
-		ptr += bytes;
-		resid -= bytes;
-	}
-
-	return (0);
-}
-
-int
-random_get_bytes(uint8_t *ptr, size_t len)
-{
-	return (random_get_bytes_common(ptr, len, random_fd));
-}
-
-int
-random_get_pseudo_bytes(uint8_t *ptr, size_t len)
-{
-	return (random_get_bytes_common(ptr, len, urandom_fd));
-}
-
 int
 ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 {
@@ -830,12 +351,6 @@ ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 	if (*result == 0)
 		return (errno);
 	return (0);
-}
-
-utsname_t *
-utsname(void)
-{
-	return (&hw_utsname);
 }
 
 /*
@@ -903,7 +418,7 @@ spa_config_load(void)
 	 * Iterate over all elements in the nvlist, creating a new spa_t for
 	 * each one with the specified configuration.
 	 */
-	mutex_enter(&spa_namespace_lock);
+	spa_namespace_enter(FTAG);
 	nvpair = NULL;
 	while ((nvpair = nvlist_next_nvpair(nvlist, nvpair)) != NULL) {
 		if (nvpair_type(nvpair) != DATA_TYPE_NVLIST)
@@ -915,7 +430,7 @@ spa_config_load(void)
 			continue;
 		(void) spa_add(nvpair_name(nvpair), child, NULL);
 	}
-	mutex_exit(&spa_namespace_lock);
+	spa_namespace_exit(FTAG);
 
 	nvlist_free(nvlist);
 
@@ -931,18 +446,14 @@ kernel_init(int mode)
 {
 	extern uint_t rrw_tsd_key;
 
-	umem_nofail_callback(umem_out_of_memory);
+	libspl_init();
 
-	physmem = sysconf(_SC_PHYS_PAGES);
+	umem_nofail_callback(umem_out_of_memory);
 
 	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
 
 	hostid = (mode & SPA_MODE_WRITE) ? get_system_hostid() : 0;
-
-	random_init();
-
-	VERIFY0(uname(&hw_utsname));
 
 	system_taskq_init();
 	icp_init();
@@ -968,142 +479,7 @@ kernel_fini(void)
 	icp_fini();
 	system_taskq_fini();
 
-	random_fini();
-}
-
-uid_t
-crgetuid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-uid_t
-crgetruid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-gid_t
-crgetgid(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-int
-crgetngroups(cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-gid_t *
-crgetgroups(cred_t *cr)
-{
-	(void) cr;
-	return (NULL);
-}
-
-int
-zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
-{
-	(void) from, (void) to, (void) cr;
-	return (0);
-}
-
-int
-zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
-{
-	(void) name, (void) cr;
-	return (0);
-}
-
-int
-secpolicy_zfs(const cred_t *cr)
-{
-	(void) cr;
-	return (0);
-}
-
-ksiddomain_t *
-ksid_lookupdomain(const char *dom)
-{
-	ksiddomain_t *kd;
-
-	kd = umem_zalloc(sizeof (ksiddomain_t), UMEM_NOFAIL);
-	kd->kd_name = spa_strdup(dom);
-	return (kd);
-}
-
-void
-ksiddomain_rele(ksiddomain_t *ksid)
-{
-	spa_strfree(ksid->kd_name);
-	umem_free(ksid, sizeof (ksiddomain_t));
-}
-
-char *
-kmem_vasprintf(const char *fmt, va_list adx)
-{
-	char *buf = NULL;
-	va_list adx_copy;
-
-	va_copy(adx_copy, adx);
-	VERIFY(vasprintf(&buf, fmt, adx_copy) != -1);
-	va_end(adx_copy);
-
-	return (buf);
-}
-
-char *
-kmem_asprintf(const char *fmt, ...)
-{
-	char *buf = NULL;
-	va_list adx;
-
-	va_start(adx, fmt);
-	VERIFY(vasprintf(&buf, fmt, adx) != -1);
-	va_end(adx);
-
-	return (buf);
-}
-
-/*
- * kmem_scnprintf() will return the number of characters that it would have
- * printed whenever it is limited by value of the size variable, rather than
- * the number of characters that it did print. This can cause misbehavior on
- * subsequent uses of the return value, so we define a safe version that will
- * return the number of characters actually printed, minus the NULL format
- * character.  Subsequent use of this by the safe string functions is safe
- * whether it is snprintf(), strlcat() or strlcpy().
- */
-int
-kmem_scnprintf(char *restrict str, size_t size, const char *restrict fmt, ...)
-{
-	int n;
-	va_list ap;
-
-	/* Make the 0 case a no-op so that we do not return -1 */
-	if (size == 0)
-		return (0);
-
-	va_start(ap, fmt);
-	n = vsnprintf(str, size, fmt, ap);
-	va_end(ap);
-
-	if (n >= size)
-		n = size - 1;
-
-	return (n);
+	libspl_fini();
 }
 
 zfs_file_t *
@@ -1125,24 +501,6 @@ zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
     uintptr_t *action_handle)
 {
 	(void) minor, (void) func, (void) data, (void) action_handle;
-	return (0);
-}
-
-fstrans_cookie_t
-spl_fstrans_mark(void)
-{
-	return ((fstrans_cookie_t)0);
-}
-
-void
-spl_fstrans_unmark(fstrans_cookie_t cookie)
-{
-	(void) cookie;
-}
-
-int
-kmem_cache_reap_active(void)
-{
 	return (0);
 }
 

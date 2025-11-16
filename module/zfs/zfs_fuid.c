@@ -28,8 +28,8 @@
 #include <sys/avl.h>
 #include <sys/zap.h>
 #include <sys/nvpair.h>
-#ifdef _KERNEL
 #include <sys/sid.h>
+#ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 #endif
@@ -268,7 +268,7 @@ zfs_fuid_sync(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	nvlist_free(nvp);
 	zfsvfs->z_fuid_size = nvsize;
 	dmu_write(zfsvfs->z_os, zfsvfs->z_fuid_obj, 0,
-	    zfsvfs->z_fuid_size, packed, tx);
+	    zfsvfs->z_fuid_size, packed, tx, DMU_READ_NO_PREFETCH);
 	kmem_free(packed, zfsvfs->z_fuid_size);
 	VERIFY0(dmu_bonus_hold(zfsvfs->z_os, zfsvfs->z_fuid_obj, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);

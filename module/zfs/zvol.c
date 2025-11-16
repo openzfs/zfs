@@ -547,7 +547,8 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (error) {
 		dmu_tx_abort(tx);
 	} else {
-		dmu_write(os, ZVOL_OBJ, offset, length, data, tx);
+		dmu_write(os, ZVOL_OBJ, offset, length, data, tx,
+		    DMU_READ_PREFETCH);
 		(void) zil_replaying(zv->zv_zilog, tx);
 		dmu_tx_commit(tx);
 	}
@@ -1232,7 +1233,7 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 
 	ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(mutex_owned(&spa_namespace_lock));
+	ASSERT(spa_namespace_held());
 
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
@@ -1302,7 +1303,7 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 	list_t *minors_list = j->list;
 	const char *name = j->name;
 
-	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT0(spa_namespace_held());
 
 	/* skip the designated dataset */
 	if (name && strcmp(dsname, name) == 0)
@@ -1402,7 +1403,7 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 	int error;
 	list_t *minors_list = arg;
 
-	ASSERT0(MUTEX_HELD(&spa_namespace_lock));
+	ASSERT0(spa_namespace_held());
 
 	error = dsl_prop_get_integer(dsname, "snapdev", &snapdev, NULL);
 	if (error)

@@ -470,6 +470,7 @@ struct vdev {
 	uint64_t	vdev_checksum_t;
 	uint64_t	vdev_io_n;
 	uint64_t	vdev_io_t;
+	boolean_t	vdev_slow_io_events;
 	uint64_t	vdev_slow_io_n;
 	uint64_t	vdev_slow_io_t;
 };
