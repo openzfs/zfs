@@ -65,8 +65,8 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
+#include <sys/taskq.h>
 
-#include <thread_pool.h>
 #include <libzutil.h>
 #include <libnvpair.h>
 
@@ -1457,7 +1457,7 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 	name_entry_t *ne, *nenext;
 	rdsk_node_t *slice;
 	void *cookie;
-	tpool_t *t;
+	taskq_t *tq;
 
 	verify(iarg->poolname == NULL || iarg->guid == 0);
 
@@ -1480,13 +1480,14 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 		threads = MIN(threads, am / VDEV_LABELS);
 #endif
 #endif
-	t = tpool_create(1, threads, 0, NULL);
+	tq = taskq_create("zpool_find_import", threads, minclsyspri, 1, INT_MAX,
+	    TASKQ_DYNAMIC);
 	for (slice = avl_first(cache); slice;
 	    (slice = avl_walk(cache, slice, AVL_AFTER)))
-		(void) tpool_dispatch(t, zpool_open_func, slice);
+		(void) taskq_dispatch(tq, zpool_open_func, slice, TQ_SLEEP);
 
-	tpool_wait(t);
-	tpool_destroy(t);
+	taskq_wait(tq);
+	taskq_destroy(tq);
 
 	/*
 	 * Process the cache, filtering out any entries which are not

@@ -30,7 +30,6 @@ endif
 
 libzutil_la_LIBADD = \
 	libavl.la \
-	libtpool.la \
 	libnvpair.la \
 	libspl.la
 
