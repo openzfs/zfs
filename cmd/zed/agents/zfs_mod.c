@@ -82,7 +82,7 @@
 #include <sys/sunddi.h>
 #include <sys/sysevent/eventdefs.h>
 #include <sys/sysevent/dev.h>
-#include <thread_pool.h>
+#include <sys/taskq.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <errno.h>
@@ -98,7 +98,7 @@ typedef void (*zfs_process_func_t)(zpool_handle_t *, nvlist_t *, boolean_t);
 libzfs_handle_t *g_zfshdl;
 list_t g_pool_list;	/* list of unavailable pools at initialization */
 list_t g_device_list;	/* list of disks with asynchronous label request */
-tpool_t *g_tpool;
+taskq_t *g_taskq;
 boolean_t g_enumeration_done;
 pthread_t g_zfs_tid;	/* zfs_enum_pools() thread */
 
@@ -749,8 +749,8 @@ zfs_iter_pool(zpool_handle_t *zhp, void *data)
 				continue;
 			if (zfs_toplevel_state(zhp) >= VDEV_STATE_DEGRADED) {
 				list_remove(&g_pool_list, pool);
-				(void) tpool_dispatch(g_tpool, zfs_enable_ds,
-				    pool);
+				(void) taskq_dispatch(g_taskq, zfs_enable_ds,
+				    pool, TQ_SLEEP);
 				break;
 			}
 		}
@@ -1347,9 +1347,9 @@ zfs_slm_fini(void)
 	/* wait for zfs_enum_pools thread to complete */
 	(void) pthread_join(g_zfs_tid, NULL);
 	/* destroy the thread pool */
-	if (g_tpool != NULL) {
-		tpool_wait(g_tpool);
-		tpool_destroy(g_tpool);
+	if (g_taskq != NULL) {
+		taskq_wait(g_taskq);
+		taskq_destroy(g_taskq);
 	}
 
 	while ((pool = list_remove_head(&g_pool_list)) != NULL) {

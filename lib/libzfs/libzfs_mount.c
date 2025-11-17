@@ -78,7 +78,6 @@
 #include <libzutil.h>
 
 #include "libzfs_impl.h"
-#include <thread_pool.h>
 
 #include <libshare.h>
 #include <sys/systeminfo.h>
@@ -1071,7 +1070,7 @@ non_descendant_idx(zfs_handle_t **handles, size_t num_handles, int idx)
 
 typedef struct mnt_param {
 	libzfs_handle_t	*mnt_hdl;
-	tpool_t		*mnt_tp;
+	taskq_t		*mnt_tq;
 	zfs_handle_t	**mnt_zhps; /* filesystems to mount */
 	size_t		mnt_num_handles;
 	int		mnt_idx;	/* Index of selected entry to mount */
@@ -1085,19 +1084,20 @@ typedef struct mnt_param {
  */
 static void
 zfs_dispatch_mount(libzfs_handle_t *hdl, zfs_handle_t **handles,
-    size_t num_handles, int idx, zfs_iter_f func, void *data, tpool_t *tp)
+    size_t num_handles, int idx, zfs_iter_f func, void *data, taskq_t *tq)
 {
 	mnt_param_t *mnt_param = zfs_alloc(hdl, sizeof (mnt_param_t));
 
 	mnt_param->mnt_hdl = hdl;
-	mnt_param->mnt_tp = tp;
+	mnt_param->mnt_tq = tq;
 	mnt_param->mnt_zhps = handles;
 	mnt_param->mnt_num_handles = num_handles;
 	mnt_param->mnt_idx = idx;
 	mnt_param->mnt_func = func;
 	mnt_param->mnt_data = data;
 
-	if (tpool_dispatch(tp, zfs_mount_task, (void*)mnt_param)) {
+	if (taskq_dispatch(tq, zfs_mount_task, (void*)mnt_param,
+	    TQ_SLEEP) == TASKQID_INVALID) {
 		/* Could not dispatch to thread pool; execute directly */
 		zfs_mount_task((void*)mnt_param);
 	}
@@ -1188,7 +1188,7 @@ zfs_mount_task(void *arg)
 		if (!libzfs_path_contains(mountpoint, child))
 			break; /* not a descendant, return */
 		zfs_dispatch_mount(mp->mnt_hdl, handles, num_handles, i,
-		    mp->mnt_func, mp->mnt_data, mp->mnt_tp);
+		    mp->mnt_func, mp->mnt_data, mp->mnt_tq);
 	}
 
 out:
@@ -1246,7 +1246,8 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 	 * Issue the callback function for each dataset using a parallel
 	 * algorithm that uses a thread pool to manage threads.
 	 */
-	tpool_t *tp = tpool_create(1, nthr, 0, NULL);
+	taskq_t *tq = taskq_create("zfs_foreach_mountpoint", nthr, minclsyspri,
+	    1, INT_MAX, TASKQ_DYNAMIC);
 
 	/*
 	 * There may be multiple "top level" mountpoints outside of the pool's
@@ -1264,11 +1265,11 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
 		    zfs_prop_get_int(handles[i], ZFS_PROP_ZONED))
 			break;
 		zfs_dispatch_mount(hdl, handles, num_handles, i, func, data,
-		    tp);
+		    tq);
 	}
 
-	tpool_wait(tp);	/* wait for all scheduled mounts to complete */
-	tpool_destroy(tp);
+	taskq_wait(tq);	/* wait for all scheduled mounts to complete */
+	taskq_destroy(tq);
 }
 
 /*

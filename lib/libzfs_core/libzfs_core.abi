@@ -2004,14 +2004,17 @@
     <typedef-decl name='kthread_t' type-id='4051f5e7' id='9bccee1a'/>
     <typedef-decl name='uintptr_t' type-id='7359adad' id='e475ab95'/>
     <typedef-decl name='pthread_key_t' type-id='f0981eeb' id='2de5383b'/>
+    <typedef-decl name='pthread_once_t' type-id='95e97e5e' id='2568d84b'/>
     <pointer-type-def type-id='9bccee1a' size-in-bits='64' id='6ae5a80d'/>
     <pointer-type-def type-id='6ae5a80d' size-in-bits='64' id='6e87b565'/>
     <pointer-type-def type-id='6e87b565' size-in-bits='64' id='4ea26b5d'/>
     <pointer-type-def type-id='2de5383b' size-in-bits='64' id='ce04b822'/>
+    <pointer-type-def type-id='2568d84b' size-in-bits='64' id='d9bab700'/>
     <pointer-type-def type-id='d8481e1f' size-in-bits='64' id='41cce5ce'/>
     <pointer-type-def type-id='cfda1b05' size-in-bits='64' id='67918d75'/>
     <pointer-type-def type-id='65d297d1' size-in-bits='64' id='3a4f23d4'/>
     <pointer-type-def type-id='ef507f03' size-in-bits='64' id='4f8ed29a'/>
+    <pointer-type-def type-id='ee076206' size-in-bits='64' id='953b12f8'/>
     <pointer-type-def type-id='c5c76c9c' size-in-bits='64' id='b7f9d8e6'/>
     <function-decl name='zk_thread_create' mangled-name='zk_thread_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zk_thread_create'>
       <parameter type-id='80f4b756'/>
@@ -2025,13 +2028,14 @@
       <parameter type-id='eaa32e2f'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='pthread_once' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='d9bab700'/>
+      <parameter type-id='953b12f8'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='pthread_key_create' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='ce04b822'/>
       <parameter type-id='b7f9d8e6'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='pthread_key_delete' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='2de5383b'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='pthread_getspecific' visibility='default' binding='global' size-in-bits='64'>
@@ -2131,6 +2135,9 @@
     <function-decl name='system_taskq_fini' mangled-name='system_taskq_fini' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='system_taskq_fini'>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-type size-in-bits='64' id='ee076206'>
+      <return type-id='48b5725f'/>
+    </function-type>
     <function-type size-in-bits='64' id='c5c76c9c'>
       <parameter type-id='eaa32e2f'/>
       <return type-id='48b5725f'/>

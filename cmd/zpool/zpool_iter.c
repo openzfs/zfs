@@ -34,7 +34,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <thread_pool.h>
 
 #include <libzfs.h>
 #include <libzutil.h>
@@ -653,21 +652,21 @@ all_pools_for_each_vdev_gather_cb(zpool_handle_t *zhp, void *cb_vcdl)
 static void
 all_pools_for_each_vdev_run_vcdl(vdev_cmd_data_list_t *vcdl)
 {
-	tpool_t *t;
-
-	t = tpool_create(1, 5 * sysconf(_SC_NPROCESSORS_ONLN), 0, NULL);
-	if (t == NULL)
+	taskq_t *tq = taskq_create("vdev_run_cmd",
+	    5 * sysconf(_SC_NPROCESSORS_ONLN), minclsyspri, 1, INT_MAX,
+	    TASKQ_DYNAMIC);
+	if (tq == NULL)
 		return;
 
 	/* Spawn off the command for each vdev */
 	for (int i = 0; i < vcdl->count; i++) {
-		(void) tpool_dispatch(t, vdev_run_cmd_thread,
-		    (void *) &vcdl->data[i]);
+		(void) taskq_dispatch(tq, vdev_run_cmd_thread,
+		    (void *) &vcdl->data[i], TQ_SLEEP);
 	}
 
 	/* Wait for threads to finish */
-	tpool_wait(t);
-	tpool_destroy(t);
+	taskq_wait(tq);
+	taskq_destroy(tq);
 }
 
 /*

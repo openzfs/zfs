@@ -62,7 +62,6 @@
 #include <fcntl.h>
 
 #include <sys/efi_partition.h>
-#include <thread_pool.h>
 #include <libgeom.h>
 
 #include <sys/vdev_impl.h>

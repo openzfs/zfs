@@ -31,6 +31,8 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <sys/kmem.h>
+#include <sys/thread.h>
 #include <sys/mutex.h>
 #include <sys/rwlock.h>
 #include <sys/condvar.h>

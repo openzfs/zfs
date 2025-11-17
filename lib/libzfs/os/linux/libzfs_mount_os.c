@@ -49,7 +49,6 @@
 #include <libzfs.h>
 
 #include "../../libzfs_impl.h"
-#include <thread_pool.h>
 
 #define	ZS_COMMENT	0x00000000	/* comment */
 #define	ZS_ZFSUTIL	0x00000001	/* caller is zfs(8) */

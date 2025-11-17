@@ -52,7 +52,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <termios.h>
-#include <thread_pool.h>
 #include <time.h>
 #include <unistd.h>
 #include <pwd.h>
@@ -2389,7 +2388,7 @@ zpool_do_destroy(int argc, char **argv)
 }
 
 typedef struct export_cbdata {
-	tpool_t *tpool;
+	taskq_t *taskq;
 	pthread_mutex_t mnttab_lock;
 	boolean_t force;
 	boolean_t hardforce;
@@ -2414,12 +2413,12 @@ zpool_export_one(zpool_handle_t *zhp, void *data)
 	 * zpool_disable_datasets() is not thread-safe for mnttab access.
 	 * So we serialize access here for 'zpool export -a' parallel case.
 	 */
-	if (cb->tpool != NULL)
+	if (cb->taskq != NULL)
 		(void) pthread_mutex_lock(&cb->mnttab_lock);
 
 	int retval = zpool_disable_datasets(zhp, cb->force);
 
-	if (cb->tpool != NULL)
+	if (cb->taskq != NULL)
 		(void) pthread_mutex_unlock(&cb->mnttab_lock);
 
 	if (retval)
@@ -2463,7 +2462,7 @@ zpool_export_task(void *arg)
 static int
 zpool_export_one_async(zpool_handle_t *zhp, void *data)
 {
-	tpool_t *tpool = ((export_cbdata_t *)data)->tpool;
+	taskq_t *tq = ((export_cbdata_t *)data)->taskq;
 	async_export_args_t *aea = safe_malloc(sizeof (async_export_args_t));
 
 	/* save pool name since zhp will go out of scope */
@@ -2471,7 +2470,8 @@ zpool_export_one_async(zpool_handle_t *zhp, void *data)
 	aea->aea_cbdata = data;
 
 	/* ship off actual export to another thread */
-	if (tpool_dispatch(tpool, zpool_export_task, (void *)aea) != 0)
+	if (taskq_dispatch(tq, zpool_export_task, (void *)aea,
+	    TQ_SLEEP) == TASKQID_INVALID)
 		return (errno);	/* unlikely */
 	else
 		return (0);
@@ -2517,7 +2517,7 @@ zpool_do_export(int argc, char **argv)
 
 	cb.force = force;
 	cb.hardforce = hardforce;
-	cb.tpool = NULL;
+	cb.taskq = NULL;
 	cb.retval = 0;
 	argc -= optind;
 	argv += optind;
@@ -2531,16 +2531,17 @@ zpool_do_export(int argc, char **argv)
 			usage(B_FALSE);
 		}
 
-		cb.tpool = tpool_create(1, 5 * sysconf(_SC_NPROCESSORS_ONLN),
-		    0, NULL);
+		cb.taskq = taskq_create("zpool_export",
+		    5 * sysconf(_SC_NPROCESSORS_ONLN), minclsyspri, 1, INT_MAX,
+		    TASKQ_DYNAMIC);
 		(void) pthread_mutex_init(&cb.mnttab_lock, NULL);
 
 		/* Asynchronously call zpool_export_one using thread pool */
 		ret = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
 		    B_FALSE, zpool_export_one_async, &cb);
 
-		tpool_wait(cb.tpool);
-		tpool_destroy(cb.tpool);
+		taskq_wait(cb.taskq);
+		taskq_destroy(cb.taskq);
 		(void) pthread_mutex_destroy(&cb.mnttab_lock);
 
 		return (ret | cb.retval);
@@ -3945,10 +3946,11 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	uint_t npools = 0;
 
 
-	tpool_t *tp = NULL;
+	taskq_t *tq = NULL;
 	if (import->do_all) {
-		tp = tpool_create(1, 5 * sysconf(_SC_NPROCESSORS_ONLN),
-		    0, NULL);
+		tq = taskq_create("zpool_import_all",
+		    5 * sysconf(_SC_NPROCESSORS_ONLN), minclsyspri, 1, INT_MAX,
+		    TASKQ_DYNAMIC);
 	}
 
 	/*
@@ -3997,8 +3999,8 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 				ip->ip_mntthreads = mount_tp_nthr / npools;
 				ip->ip_err = &err;
 
-				(void) tpool_dispatch(tp, do_import_task,
-				    (void *)ip);
+				(void) taskq_dispatch(tq, do_import_task,
+				    (void *)ip, TQ_SLEEP);
 			} else {
 				/*
 				 * If we're importing from cachefile, then
@@ -4047,8 +4049,8 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 		}
 	}
 	if (import->do_all) {
-		tpool_wait(tp);
-		tpool_destroy(tp);
+		taskq_wait(tq);
+		taskq_destroy(tq);
 	}
 
 	/*

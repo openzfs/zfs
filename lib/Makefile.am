@@ -24,10 +24,10 @@
 #    libunicode --/       \        /       \    \-------\ \
 #                          \      /         \            \ |
 #                          libzutil        libzfs_core*  | |
-#                          | | | | \          |     |    | |
-#                          | | | | |          |     |    | |
-#                          | | | | |          |     |    | |
-#    libtpool -------------/ | | | \---- libnvpair* |    | |
+#                            | | | \          |     |    | |
+#                            | | | |          |     |    | |
+#                            | | | |          |     |    | |
+#                            | | | \---- libnvpair* |    | |
 #                            | | |                  |    | |
 #    libefi -----------------/ | \------ libavl* --------/ |
 #                              |                    |      |
@@ -58,7 +58,6 @@ include $(srcdir)/%D%/libicp/Makefile.am
 include $(srcdir)/%D%/libnvpair/Makefile.am
 include $(srcdir)/%D%/libshare/Makefile.am
 include $(srcdir)/%D%/libspl/Makefile.am
-include $(srcdir)/%D%/libtpool/Makefile.am
 include $(srcdir)/%D%/libunicode/Makefile.am
 include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
