@@ -4776,11 +4776,12 @@ zfs_do_send(int argc, char **argv)
 		{"holds",	no_argument,		NULL, 'h'},
 		{"saved",	no_argument,		NULL, 'S'},
 		{"exclude",	required_argument,	NULL, 'X'},
+		{"props-dropenc", no_argument,		NULL, 'C'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:",
+	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:C",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'X':
@@ -4817,6 +4818,9 @@ zfs_do_send(int argc, char **argv)
 		case 'd':
 			redactbook = optarg;
 			break;
+		case 'C':
+			flags.dropenc = B_TRUE;
+			// fall through
 		case 'p':
 			flags.props = B_TRUE;
 			break;
@@ -4906,6 +4910,14 @@ zfs_do_send(int argc, char **argv)
 			free(excludes.list);
 			usage(B_FALSE);
 		}
+	}
+
+	if (flags.dropenc && flags.raw) {
+		free(excludes.list);
+		(void) fprintf(stderr,
+		    gettext("Cannot specify both --raw and "
+		    "--props-dropenc.\n"));
+		usage(B_FALSE);
 	}
 
 	if ((flags.parsable || flags.progressastitle) && flags.verbosity == 0)
