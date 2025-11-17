@@ -35,6 +35,10 @@
 #include <sys/thread.h>
 #include <sys/taskq.h>
 #include <sys/kmem.h>
+#include <pthread.h>
+
+static pthread_key_t taskq_tsd;
+static pthread_once_t taskq_tsd_once = PTHREAD_ONCE_INIT;
 
 static taskq_t *__system_taskq = NULL;
 static taskq_t *__system_delay_taskq = NULL;
@@ -50,8 +54,6 @@ taskq_t
 {
 	return (__system_delay_taskq);
 }
-
-static pthread_key_t taskq_tsd;
 
 #define	TASKQ_ACTIVE	0x00010000
 
@@ -223,6 +225,12 @@ taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
 	taskq_wait(tq);
 }
 
+static void
+taskq_tsd_init(void)
+{
+	VERIFY0(pthread_key_create(&taskq_tsd, NULL));
+}
+
 static __attribute__((noreturn)) void
 taskq_thread(void *arg)
 {
@@ -230,6 +238,7 @@ taskq_thread(void *arg)
 	taskq_ent_t *t;
 	boolean_t prealloc;
 
+	pthread_once(&taskq_tsd_once, taskq_tsd_init);
 	VERIFY0(pthread_setspecific(taskq_tsd, tq));
 
 	mutex_enter(&tq->tq_lock);
@@ -407,7 +416,6 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 void
 system_taskq_init(void)
 {
-	VERIFY0(pthread_key_create(&taskq_tsd, NULL));
 	__system_taskq = taskq_create("system_taskq", 64, maxclsyspri, 4, 512,
 	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
 	__system_delay_taskq = taskq_create("delay_taskq", 4, maxclsyspri, 4,
@@ -421,5 +429,4 @@ system_taskq_fini(void)
 	__system_taskq = NULL; /* defensive */
 	taskq_destroy(__system_delay_taskq);
 	__system_delay_taskq = NULL;
-	VERIFY0(pthread_key_delete(taskq_tsd));
 }
