@@ -1,0 +1,52 @@
+name: smatch
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  smatch:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout smatch
+      uses: actions/checkout@v4
+      with:
+        repository: error27/smatch
+        ref: master
+        path: smatch
+    - name: Install smatch dependencies
+      run: |
+        sudo apt-get install -y llvm gcc make sqlite3 libsqlite3-dev libdbd-sqlite3-perl libssl-dev libtry-tiny-perl
+    - name: Make smatch
+      run: |
+        cd $GITHUB_WORKSPACE/smatch
+        make -j$(nproc)
+    - name: Checkout OpenZFS
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        path: zfs
+    - name: Install OpenZFS dependencies
+      run: |
+        cd $GITHUB_WORKSPACE/zfs
+        sudo apt-get purge -y snapd google-chrome-stable firefox
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+    - name: Autogen.sh OpenZFS
+      run: |
+        cd $GITHUB_WORKSPACE/zfs
+        ./autogen.sh
+    - name: Configure OpenZFS
+      run: |
+        cd $GITHUB_WORKSPACE/zfs
+        ./configure --enable-debug
+    - name: Make OpenZFS
+      run: |
+        cd $GITHUB_WORKSPACE/zfs
+        make -j$(nproc) CHECK="$GITHUB_WORKSPACE/smatch/smatch" CC=$GITHUB_WORKSPACE/smatch/cgcc | tee $GITHUB_WORKSPACE/smatch.log
+    - name: Smatch results log
+      run: |
+        grep -E 'error:|warn:|warning:' $GITHUB_WORKSPACE/smatch.log
