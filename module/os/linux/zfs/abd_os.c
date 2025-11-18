@@ -911,11 +911,19 @@ abd_iter_map(struct abd_iter *aiter)
 		aiter->iter_mapsize = aiter->iter_abd->abd_size - offset;
 		paddr = ABD_LINEAR_BUF(aiter->iter_abd);
 	} else {
+		struct page *page;
+		
 		offset = aiter->iter_offset;
 		aiter->iter_mapsize = MIN(aiter->iter_sg->length - offset,
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
 
-		paddr = zfs_kmap_local(sg_page(aiter->iter_sg));
+		page = sg_page(aiter->iter_sg);
+		if (PageHighMem(page)) {
+			page = nth_page(page, offset / PAGE_SIZE);
+			offset &= ~PAGE_MASK;
+			aiter->iter_mapsize = MIN(aiter->iter_mapsize, PAGE_SIZE - offset);
+		}
+		paddr = zfs_kmap_local(page);
 	}
 
 	aiter->iter_mapaddr = (char *)paddr + offset;
@@ -933,8 +941,15 @@ abd_iter_unmap(struct abd_iter *aiter)
 		return;
 
 	if (!abd_is_linear(aiter->iter_abd)) {
+		struct page *page;
+		size_t offset = aiter->iter_offset;
+
+		page = sg_page(aiter->iter_sg);
+		if (PageHighMem(page))
+			offset &= ~PAGE_MASK;
+
 		/* LINTED E_FUNC_SET_NOT_USED */
-		zfs_kunmap_local(aiter->iter_mapaddr - aiter->iter_offset);
+		zfs_kunmap_local(aiter->iter_mapaddr - offset);
 	}
 
 	ASSERT3P(aiter->iter_mapaddr, !=, NULL);
