@@ -573,7 +573,8 @@ zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
 	if (zfsvfs->z_draining) {
 		zfsvfs->z_drain_cancel = B_TRUE;
 		taskq_cancel_id(dsl_pool_unlinked_drain_taskq(
-		    dmu_objset_pool(zfsvfs->z_os)), zfsvfs->z_drain_task);
+		    dmu_objset_pool(zfsvfs->z_os)), zfsvfs->z_drain_task,
+		    B_TRUE);
 		zfsvfs->z_drain_task = TASKQID_INVALID;
 		zfsvfs->z_draining = B_FALSE;
 	}

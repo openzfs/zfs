@@ -840,7 +840,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	id = skc->skc_taskqid;
 	spin_unlock(&skc->skc_lock);
 
-	taskq_cancel_id(spl_kmem_cache_taskq, id);
+	taskq_cancel_id(spl_kmem_cache_taskq, id, B_TRUE);
 
 	/*
 	 * Wait until all current callers complete, this is mainly
