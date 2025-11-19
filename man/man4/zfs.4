@@ -326,6 +326,14 @@ Prevent log spacemaps from being destroyed during pool exports and destroys.
 .It Sy zfs_metaslab_segment_weight_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable/disable segment-based metaslab selection.
 .
+.It Sy zfs_metaslab_space_weight_v2_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Enable/disable the new space-based metaslab selection.
+.Pp
+Note that this algorithm is only enabled if
+.Sy zfs_metaslab_segment_weight_enabled
+is set to false.
+It also requires space map histograms to be enabled.
+.
 .It Sy zfs_metaslab_switch_threshold Ns = Ns Sy 2 Pq int
 When using segment-based metaslab selection, continue allocating
 from the active metaslab until this option's
