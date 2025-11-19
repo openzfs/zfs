@@ -7,7 +7,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_KMAP_ATOMIC_ARGS], [
 	ZFS_LINUX_TEST_SRC([kmap_atomic], [
 		#include <linux/pagemap.h>
 	],[
-		struct page page;
+		struct page page = {};
 		kmap_atomic(&page);
 	])
 ])
