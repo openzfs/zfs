@@ -3100,7 +3100,7 @@ metaslab_space_weight_from_range_tree(metaslab_t *msp)
 
 	for (int i = ZFS_RANGE_TREE_HISTOGRAM_SIZE - 1; i >= vd_shift;
 	    i--) {
-		uint8_t seg_shift = 2 * (i - (vd_shift - 3));
+		uint8_t seg_shift = ((3 * (i - vd_shift)) / 2) + 6;
 		uint64_t segments = msp->ms_allocatable->rt_histogram[i];
 		if (segments == 0)
 			continue;
@@ -3150,13 +3150,13 @@ metaslab_space_weight_from_spacemap(metaslab_t *msp)
 
 	uint64_t weight = 0;
 	for (int i = SPACE_MAP_HISTOGRAM_SIZE - 1; i >= 0; i--) {
-		uint8_t seg_shift = 2 * (i + sm->sm_shift - vd_shift + 3);
+		uint8_t seg_shift = (3 * (i + sm->sm_shift - vd_shift) / 2) + 6;
 		uint64_t segments =
 		    sm->sm_phys->smp_histogram[i] - deferspace_histogram[i];
 		if (segments == 0)
 			continue;
 		if (weight == 0)
-			weight = i + sm->sm_shift;
+                	weight = i + sm->sm_shift;
 		// Prevent overflow using log_2 math
 		if (seg_shift + highbit64(segments) > METASLAB_WEIGHT_MAX_IDX)
 			return (METASLAB_WEIGHT_MAX);
