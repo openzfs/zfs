@@ -6747,10 +6747,12 @@ typedef struct list_cbdata {
 
 
 /*
- * Given a list of columns to display, output appropriate headers for each one.
+ * Given a list of columns to display, print an appropriate line. If
+ * `vdev_name` is not NULL, we print `vdev_name` followed by a line of dashes.
+ * If `vdev_name` is NULL, we print a line of the headers.
  */
 static void
-print_header(list_cbdata_t *cb)
+print_line(list_cbdata_t *cb, const char *vdev_name)
 {
 	zprop_list_t *pl = cb->cb_proplist;
 	char headerbuf[ZPOOL_MAXPROPLEN];
@@ -6758,6 +6760,8 @@ print_header(list_cbdata_t *cb)
 	boolean_t first = B_TRUE;
 	boolean_t right_justify;
 	size_t width = 0;
+
+	boolean_t print_header = (vdev_name == NULL);
 
 	for (; pl != NULL; pl = pl->pl_next) {
 		width = pl->pl_width;
@@ -6771,20 +6775,36 @@ print_header(list_cbdata_t *cb)
 
 		if (!first)
 			(void) fputs("  ", stdout);
-		else
-			first = B_FALSE;
 
-		right_justify = B_FALSE;
-		if (pl->pl_prop != ZPROP_USERPROP) {
-			header = zpool_prop_column_name(pl->pl_prop);
-			right_justify = zpool_prop_align_right(pl->pl_prop);
-		} else {
-			int i;
+		if (print_header) {
+			right_justify = B_FALSE;
+			if (pl->pl_prop != ZPROP_USERPROP) {
+				header = zpool_prop_column_name(pl->pl_prop);
+				right_justify = zpool_prop_align_right(
+				    pl->pl_prop);
+			} else {
+				int i;
 
-			for (i = 0; pl->pl_user_prop[i] != '\0'; i++)
-				headerbuf[i] = toupper(pl->pl_user_prop[i]);
-			headerbuf[i] = '\0';
-			header = headerbuf;
+				for (i = 0; pl->pl_user_prop[i] != '\0'; i++)
+					headerbuf[i] = toupper(
+					    pl->pl_user_prop[i]);
+				headerbuf[i] = '\0';
+				header = headerbuf;
+			}
+
+		}
+		/*
+		 * If `print_header` is false, we want to print a line of
+		 * dashes.
+		 */
+		else {
+			if (first) {
+				header = vdev_name;
+				right_justify = B_FALSE;
+			} else {
+				header = "-";
+				right_justify = B_TRUE;
+			}
 		}
 
 		if (pl->pl_next == NULL && !right_justify)
@@ -6793,6 +6813,9 @@ print_header(list_cbdata_t *cb)
 			(void) printf("%*s", (int)width, header);
 		else
 			(void) printf("%-*s", (int)width, header);
+
+		if (first)
+			first = B_FALSE;
 	}
 
 	(void) fputc('\n', stdout);
@@ -6996,8 +7019,6 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 	uint64_t islog = B_FALSE;
 	nvlist_t *props, *ent, *ch, *obj, *l2c, *sp;
 	props = ent = ch = obj = sp = l2c = NULL;
-	const char *dashes = "%-*s      -      -      -        -         "
-	    "-      -      -      -         -\n";
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
@@ -7209,9 +7230,7 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 				continue;
 
 			if (!printed && !cb->cb_json) {
-				/* LINTED E_SEC_PRINTF_VAR_FMT */
-				(void) printf(dashes, cb->cb_namewidth,
-				    class_name[n]);
+				print_line(cb, class_name[n]);
 				printed = B_TRUE;
 			}
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
@@ -7232,8 +7251,7 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			l2c = fnvlist_alloc();
 		} else {
-			/* LINTED E_SEC_PRINTF_VAR_FMT */
-			(void) printf(dashes, cb->cb_namewidth, "cache");
+			print_line(cb, "cache");
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
@@ -7254,8 +7272,7 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			sp = fnvlist_alloc();
 		} else {
-			/* LINTED E_SEC_PRINTF_VAR_FMT */
-			(void) printf(dashes, cb->cb_namewidth, "spare");
+			print_line(cb, "spare");
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
@@ -7498,7 +7515,7 @@ zpool_do_list(int argc, char **argv)
 
 		if (!cb.cb_scripted && (first || cb.cb_verbose) &&
 		    !cb.cb_json) {
-			print_header(&cb);
+			print_line(&cb, NULL);
 			first = B_FALSE;
 		}
 		ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
