@@ -67,7 +67,7 @@ main(int argc, const char *const *argv)
 		return (1);
 	}
 
-	char zvol_name[MAXNAMELEN + strlen("-part") + 10];
+	char zvol_name[MAXNAMELEN+15];
 	if (ioctl(fd, BLKZNAME, zvol_name) == -1) {
 		fprintf(stderr, "%s: BLKZNAME: %s\n",
 		    dev_name, strerror(errno));
