@@ -261,19 +261,6 @@ function check_read # pool file bs count skip flags buf_rd dio_rd
 	fi
 }
 
-function get_file_size
-{
-	typeset filename="$1"
-
-	if is_linux; then
-		filesize=$(stat -c %s $filename)
-	else
-		filesize=$(stat -s $filename | awk '{print $8}' | grep -o '[0-9]\+')
-	fi
-
-	echo $filesize
-}
-
 function do_truncate_reduce
 {
 	typeset filename=$1
