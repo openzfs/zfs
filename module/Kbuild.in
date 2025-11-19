@@ -2,7 +2,7 @@
 # first.  This ensures its module initialization function is run before
 # any of the other module initialization functions which depend on it.
 
-ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
+ZFS_MODULE_CFLAGS += -std=gnu11 -Wno-declaration-after-statement
 ZFS_MODULE_CFLAGS += -Wmissing-prototypes
 ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@ @KERNEL_NO_FORMAT_ZERO_LENGTH@
 
