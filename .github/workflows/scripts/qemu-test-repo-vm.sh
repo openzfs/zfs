@@ -42,7 +42,10 @@ function test_install {
 		sudo sed -i "s;baseurl=http://download.zfsonlinux.org;baseurl=$host;g" /etc/yum.repos.d/zfs.repo
 	fi
 
-	sudo dnf -y install $args zfs zfs-test
+	if ! sudo dnf -y install $args zfs zfs-test ; then
+		echo "$repo ${package}...[FAILED] $baseurl" >> $SUMMARY
+		return
+	fi
 
 	# Load modules and create a simple pool as a sanity test.
 	sudo /usr/share/zfs/zfs.sh -r
@@ -70,16 +73,19 @@ almalinux*)
 	name=$(curl -Ls $url | grep 'dnf install' | grep -Eo 'zfs-release-[0-9]+-[0-9]+')
 	sudo dnf -y install https://zfsonlinux.org/epel/$name$(rpm --eval "%{dist}").noarch.rpm 2>&1
 	sudo rpm -qi zfs-release
-	test_install zfs $ALTHOST
-	test_install zfs-kmod $ALTHOST
-	test_install zfs-testing $ALTHOST
-	test_install zfs-testing-kmod $ALTHOST
+	for i in zfs zfs-kmod zfs-testing zfs-testing-kmod zfs-latest \
+		zfs-latest-kmod zfs-legacy zfs-legacy-kmod zfs-2.2 \
+		zfs-2.2-kmod zfs-2.3 zfs-2.3-kmod ; do
+		test_install $i $ALTHOST
+	done
 	;;
 fedora*)
 	url='https://raw.githubusercontent.com/openzfs/openzfs-docs/refs/heads/master/docs/Getting%20Started/Fedora/index.rst'
 	name=$(curl -Ls $url | grep 'dnf install' | grep -Eo 'zfs-release-[0-9]+-[0-9]+')
 	sudo dnf -y install -y https://zfsonlinux.org/fedora/$name$(rpm --eval "%{dist}").noarch.rpm
-	test_install zfs $ALTHOST
+	for i in zfs zfs-latest zfs-legacy zfs-2.2 zfs-2.3 ; do
+		test_install $i $ALTHOST
+	done
 	;;
 esac
 echo "##[endgroup]"
