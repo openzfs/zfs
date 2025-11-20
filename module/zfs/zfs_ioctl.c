@@ -6101,6 +6101,43 @@ zfs_ioc_inject_list_next(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * Waits for an injection event to occur (event injected or handler add/remove).
+ * innvl: {
+ *   "state": wait state token
+ *   "timeout": how long to wait in nanoseconds (ignored unless "state" given)
+ * }
+ * outnvl: {
+ *   "state": wait state token
+ * }
+ * Returns 0, EINTR, or ETIMEDOUT.
+ */
+static const zfs_ioc_key_t zfs_keys_wait_inject[] = {
+	{"state",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"timeout",	DATA_TYPE_HRTIME,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_wait_inject(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	(void) name;
+	uint64_t state;
+	hrtime_t timeout;
+	int error;
+
+	if (nvlist_lookup_uint64(innvl, "state", &state) != 0) {
+		state = 0;
+		timeout = 0;
+	} else if (nvlist_lookup_hrtime(innvl, "timeout", &timeout) != 0) {
+		timeout = TIME_MAX;
+	}
+
+	error = zio_inject_wait(&state, timeout);
+	fnvlist_add_uint64(outnvl, "state", state);
+
+	return (error);
+}
+
 static int
 zfs_ioc_error_log(zfs_cmd_t *zc)
 {
@@ -7694,6 +7731,10 @@ zfs_ioctl_init(void)
 	    zfs_ioc_clear_fault, zfs_secpolicy_inject);
 	zfs_ioctl_register_pool_meta(ZFS_IOC_INJECT_LIST_NEXT,
 	    zfs_ioc_inject_list_next, zfs_secpolicy_inject);
+	zfs_ioctl_register("wait_inject", ZFS_IOC_WAIT_INJECT,
+	    zfs_ioc_wait_inject, zfs_secpolicy_inject,
+	    NO_NAME, POOL_CHECK_NONE, B_FALSE, B_FALSE,
+	    zfs_keys_wait_inject, ARRAY_SIZE(zfs_keys_wait_inject));
 
 	/*
 	 * pool destroy, and export don't log the history as part of
