@@ -486,6 +486,9 @@ Embedded checksums are onloaded, and will suffer a data movement penalty.
 Controls whether the pool should offload compression.
 Does not have any effect if the compression stage is disabled.
 Embedded data is onloaded, and will suffer a data movement penalty.
+After compression, ZFS pads data with 0's. Because of this, for data
+to remain offloaded, the provider must have zero_fill functionality.
+Otherwise, data will be onloaded before continuing.
 .It Sy zia_decompress Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the pool should offload decompression.
 .It Sy zia_disk_write Ns = Ns Sy on Ns | Ns Sy off
