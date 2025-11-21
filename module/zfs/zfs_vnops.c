@@ -1326,45 +1326,27 @@ static void zfs_get_done(zgd_t *zgd, int error);
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
+zfs_get_data(void *arg, void *arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
-	znode_t *zp;
+	znode_t *zp = arg2;
 	uint64_t object = lr->lr_foid;
 	uint64_t offset = lr->lr_offset;
 	uint64_t size = lr->lr_length;
 	zgd_t *zgd;
 	int error = 0;
-	uint64_t zp_gen;
 
+	ASSERT3P(zp, !=, NULL);
 	ASSERT3P(lwb, !=, NULL);
 	ASSERT3U(size, !=, 0);
 
-	/*
-	 * Nothing to do if the file has been removed
-	 */
-	if (zfs_zget(zfsvfs, object, &zp) != 0)
+	if (zp->z_unlinked)
 		return (SET_ERROR(ENOENT));
-	if (zp->z_unlinked) {
-		/*
-		 * Release the vnode asynchronously as we currently have the
-		 * txg stopped from syncing.
-		 */
-		zfs_zrele_async(zp);
-		return (SET_ERROR(ENOENT));
-	}
-	/* check if generation number matches */
-	if (sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &zp_gen,
-	    sizeof (zp_gen)) != 0) {
-		zfs_zrele_async(zp);
-		return (SET_ERROR(EIO));
-	}
-	if (zp_gen != gen) {
-		zfs_zrele_async(zp);
-		return (SET_ERROR(ENOENT));
-	}
+
+	/* Hold zp ref for ourselves */
+	zhold(zp);
 
 	zgd = kmem_zalloc(sizeof (zgd_t), KM_SLEEP);
 	zgd->zgd_lwb = lwb;
