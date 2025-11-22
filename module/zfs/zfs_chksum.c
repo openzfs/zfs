@@ -49,6 +49,9 @@ typedef struct {
 	zio_checksum_tmpl_free_t *(free);
 } chksum_stat_t;
 
+/* a state machine for the benchmark: AT_STARTUP -> AT_BENCHMARK -> AT_DONE
+   most likely, a blocking mechanism is needed in case of multiple requests */
+
 #define	AT_STARTUP	0
 #define	AT_BENCHMARK	1
 #define	AT_DONE		2
@@ -155,11 +158,11 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 	switch (round) {
 	case 1: /* 1k */
 		size = 1<<10; loops = 128; break;
-	case 2: /* 2k */
+	case 2: /* 4k */
 		size = 1<<12; loops = 64; break;
-	case 3: /* 4k */
+	case 3: /* 16k */
 		size = 1<<14; loops = 32; break;
-	case 4: /* 16k */
+	case 4: /* 64k */
 		size = 1<<16; loops = 16; break;
 	case 5: /* 256k */
 		size = 1<<18; loops = 8; break;
@@ -181,6 +184,7 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 	} while (run_time_ns < MSEC2NSEC(1));
 	kpreempt_enable();
 
+	/* will 64 bits always be enough to store the value? */
 	run_bw = size * run_count * NANOSEC;
 	run_bw /= run_time_ns; /* B/s */
 	*result = run_bw/1024/1024; /* MiB/s */
@@ -212,6 +216,9 @@ chksum_benchit(chksum_stat_t *cs)
 	chksum_run(cs, abd, ctx, 2, &cs->bs4k);
 	chksum_run(cs, abd, ctx, 3, &cs->bs16k);
 	chksum_run(cs, abd, ctx, 4, &cs->bs64k);
+	/* let us try it without fixing a cosmetic issue
+	chksum_run(cs, abd, ctx, 5, &cs->bs256k);
+	*/
 	chksum_run(cs, abd, ctx, 6, &cs->bs1m);
 	abd_free(abd);
 
@@ -249,15 +256,25 @@ chksum_benchmark(void)
 	if (chksum_stat_limit == AT_DONE)
 		return;
 
-
-	/* count implementations */
-	chksum_stat_cnt = 1;  /* edonr */
-	chksum_stat_cnt += 1; /* skein */
-	chksum_stat_cnt += sha256->getcnt();
-	chksum_stat_cnt += sha512->getcnt();
-	chksum_stat_cnt += blake3->getcnt();
-	chksum_stat_data = kmem_zalloc(
-	    sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
+/*
+ * Allocate the statistics array only once.
+ *
+ * The first call (AT_STARTUP) fills the 256 KiB benchmark for every
+ * implementation. The second call (AT_BENCHMARK) fills the remaining
+ * sizes.  If we allocate a new array on the second call we would lose
+ * the 256K results that were collected earlier – which is exactly why
+ * the column appears as zero.
+ */
+	if (chksum_stat_data == NULL) {
+		/* count implementations */
+		chksum_stat_cnt = 1;  /* edonr */
+		chksum_stat_cnt += 1; /* skein */
+		chksum_stat_cnt += sha256->getcnt();
+		chksum_stat_cnt += sha512->getcnt();
+		chksum_stat_cnt += blake3->getcnt();
+		chksum_stat_data = kmem_zalloc(
+			sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
+	}
 
 	/* edonr - needs to be the first one here (slow CPU check) */
 	cs = &chksum_stat_data[cbid++];
