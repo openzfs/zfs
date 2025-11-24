@@ -374,7 +374,7 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 
 	*zio = umem_zalloc(sizeof (zio_t), UMEM_NOFAIL);
 
-	(*zio)->io_offset = 0;
+	(*zio)->io_offset = opts->rto_offset;
 	(*zio)->io_size = alloc_dsize;
 	(*zio)->io_abd = raidz_alloc(alloc_dsize);
 	init_zio_abd(*zio);
