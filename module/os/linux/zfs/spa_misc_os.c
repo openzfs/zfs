@@ -112,8 +112,64 @@ param_set_active_allocator(const char *val, zfs_kernel_param_t *kp)
 	error = -param_set_active_allocator_common(val);
 	if (error == 0)
 		error = param_set_charp(val, kp);
+	error = spl_param_set_u64(val, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
 
 	return (error);
+}
+
+static void
+scrub_set_recent_time(uint64_t sec)
+{
+	zfs_scrub_recent_time = sec;
+	zfs_scrub_recent_time_hours = sec / 3600;
+	zfs_scrub_recent_time_days = sec / 86400;
+}
+
+int
+scrub_param_set_recent_time(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error)
+		return (SET_ERROR(error));
+
+	scrub_set_recent_time(val);
+
+	return (0);
+}
+
+int
+scrub_param_set_recent_time_hours(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error)
+		return (SET_ERROR(error));
+
+	scrub_set_recent_time(val * 3600);
+
+	return (0);
+}
+
+int
+scrub_param_set_recent_time_days(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error)
+		return (SET_ERROR(error));
+
+	scrub_set_recent_time(val * 86400);
+
+	return (0);
 }
 
 const char *

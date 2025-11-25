@@ -226,3 +226,22 @@ dbrrd_query(dbrrd_t *r, hrtime_t tv, dbrrd_rounding_t rounding)
 
 	return (data == NULL ? 0 : data->rrdd_txg);
 }
+
+hrtime_t
+dbrrd_tail_time(dbrrd_t *r)
+{
+	const rrd_data_t *data, *dd, *dy;
+
+	data = rrd_tail_entry(&r->dbr_minutes);
+	dd = rrd_tail_entry(&r->dbr_days);
+	dy = rrd_tail_entry(&r->dbr_months);
+
+	if (data == NULL || (dd != NULL && data->rrdd_time < dd->rrdd_time)) {
+		data = dd;
+	}
+	if (data == NULL || (dy != NULL && data->rrdd_time < dy->rrdd_time)) {
+		data = dy;
+	}
+
+	return (data == NULL ? 0 : data->rrdd_time);
+}

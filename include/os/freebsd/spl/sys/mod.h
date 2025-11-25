@@ -83,6 +83,15 @@
 #define	param_set_deadman_ziotime_args(var) \
     CTLTYPE_U64, NULL, 0, param_set_deadman_ziotime, "QU"
 
+#define	scrub_param_set_recent_time_args(var) \
+    CTLTYPE_U64, NULL, 0, scrub_param_set_recent_time, "QU"
+
+#define	scrub_param_set_recent_time_hours_args(var) \
+    CTLTYPE_U64, NULL, 0, scrub_param_set_recent_time_hours, "QU"
+
+#define	scrub_param_set_recent_time_days_args(var) \
+    CTLTYPE_U64, NULL, 0, scrub_param_set_recent_time_days, "QU"
+
 #define	param_set_multihost_interval_args(var) \
     CTLTYPE_U64, NULL, 0, param_set_multihost_interval, "QU"
 
