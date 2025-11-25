@@ -847,6 +847,8 @@ main(int argc, char **argv)
 		err = run_test(NULL);
 	}
 
+	mprotect(rand_data, SPA_MAXBLOCKSIZE, PROT_READ | PROT_WRITE);
+
 	umem_free(rand_data, SPA_MAXBLOCKSIZE);
 	kernel_fini();
 
