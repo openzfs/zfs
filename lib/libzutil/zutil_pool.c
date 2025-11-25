@@ -33,8 +33,27 @@
 
 #include <libzutil.h>
 
+
+static inline void
+fmt_num(boolean_t parsable, uint64_t val, char *buf, size_t buflen)
+{
+	if (parsable)
+		(void) snprintf(buf, buflen, "%llu", (u_longlong_t)val);
+	else
+		zfs_nicenum(val, buf, buflen);
+}
+
+static inline void
+fmt_bytes(boolean_t parsable, uint64_t val, char *buf, size_t buflen)
+{
+	if (parsable)
+		(void) snprintf(buf, buflen, "%llu", (u_longlong_t)val);
+	else
+		zfs_nicebytes(val, buf, buflen);
+}
+
 static void
-dump_ddt_stat(const ddt_stat_t *dds, int h)
+dump_ddt_stat(const ddt_stat_t *dds, int h, boolean_t parsable)
 {
 	char refcnt[6];
 	char blocks[6], lsize[6], psize[6], dsize[6];
@@ -48,14 +67,14 @@ dump_ddt_stat(const ddt_stat_t *dds, int h)
 	else
 		zfs_nicenum(1ULL << h, refcnt, sizeof (refcnt));
 
-	zfs_nicenum(dds->dds_blocks, blocks, sizeof (blocks));
-	zfs_nicebytes(dds->dds_lsize, lsize, sizeof (lsize));
-	zfs_nicebytes(dds->dds_psize, psize, sizeof (psize));
-	zfs_nicebytes(dds->dds_dsize, dsize, sizeof (dsize));
-	zfs_nicenum(dds->dds_ref_blocks, ref_blocks, sizeof (ref_blocks));
-	zfs_nicebytes(dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
-	zfs_nicebytes(dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
-	zfs_nicebytes(dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
+	fmt_num(parsable, dds->dds_blocks, blocks, sizeof (blocks));
+	fmt_bytes(parsable, dds->dds_lsize, lsize, sizeof (lsize));
+	fmt_bytes(parsable, dds->dds_psize, psize, sizeof (psize));
+	fmt_bytes(parsable, dds->dds_dsize, dsize, sizeof (dsize));
+	fmt_num(parsable, dds->dds_ref_blocks, ref_blocks, sizeof (ref_blocks));
+	fmt_bytes(parsable, dds->dds_ref_lsize, ref_lsize, sizeof (ref_lsize));
+	fmt_bytes(parsable, dds->dds_ref_psize, ref_psize, sizeof (ref_psize));
+	fmt_bytes(parsable, dds->dds_ref_dsize, ref_dsize, sizeof (ref_dsize));
 
 	(void) printf("%6s   %6s   %5s   %5s   %5s   %6s   %5s   %5s   %5s\n",
 	    refcnt,
@@ -67,7 +86,8 @@ dump_ddt_stat(const ddt_stat_t *dds, int h)
  * Print the DDT histogram and the column totals.
  */
 void
-zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh)
+zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh,
+    boolean_t parsable)
 {
 	int h;
 
@@ -91,9 +111,9 @@ zpool_dump_ddt(const ddt_stat_t *dds_total, const ddt_histogram_t *ddh)
 	    "------", "-----", "-----", "-----");
 
 	for (h = 0; h < 64; h++)
-		dump_ddt_stat(&ddh->ddh_stat[h], h);
+		dump_ddt_stat(&ddh->ddh_stat[h], h, parsable);
 
-	dump_ddt_stat(dds_total, -1);
+	dump_ddt_stat(dds_total, -1, parsable);
 
 	(void) printf("\n");
 }
