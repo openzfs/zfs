@@ -362,20 +362,26 @@ static const ddt_kstats_t ddt_kstats_template = {
 };
 
 #ifdef _KERNEL
+/*
+ * Hot-path lookup counters use wmsums to avoid cache line bouncing.
+ * DDT_KSTAT_BUMP: Increment a wmsum counter (lookup stats).
+ *
+ * Sync-only counters use direct kstat assignment (no atomics needed).
+ * DDT_KSTAT_SET: Set a value (log entry counts, rates).
+ * DDT_KSTAT_SUB: Subtract from a value (decrement log entry counts).
+ * DDT_KSTAT_ZERO: Zero a value (clear log entry counts).
+ */
 #define	_DDT_KSTAT_STAT(ddt, stat) \
 	&((ddt_kstats_t *)(ddt)->ddt_ksp->ks_data)->stat.value.ui64
 #define	DDT_KSTAT_BUMP(ddt, stat) \
-	do { atomic_inc_64(_DDT_KSTAT_STAT(ddt, stat)); } while (0)
-#define	DDT_KSTAT_ADD(ddt, stat, val) \
-	do { atomic_add_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+	wmsum_add(&(ddt)->ddt_kstat_##stat, 1)
 #define	DDT_KSTAT_SUB(ddt, stat, val) \
-	do { atomic_sub_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+	do { *_DDT_KSTAT_STAT(ddt, stat) -= (val); } while (0)
 #define	DDT_KSTAT_SET(ddt, stat, val) \
-	do { atomic_store_64(_DDT_KSTAT_STAT(ddt, stat), val); } while (0)
+	do { *_DDT_KSTAT_STAT(ddt, stat) = (val); } while (0)
 #define	DDT_KSTAT_ZERO(ddt, stat) DDT_KSTAT_SET(ddt, stat, 0)
 #else
 #define	DDT_KSTAT_BUMP(ddt, stat) do {} while (0)
-#define	DDT_KSTAT_ADD(ddt, stat, val) do {} while (0)
 #define	DDT_KSTAT_SUB(ddt, stat, val) do {} while (0)
 #define	DDT_KSTAT_SET(ddt, stat, val) do {} while (0)
 #define	DDT_KSTAT_ZERO(ddt, stat) do {} while (0)
@@ -783,7 +789,7 @@ ddt_class_start(void)
 {
 	uint64_t start = gethrestime_sec();
 
-	if (ddt_prune_artificial_age) {
+	if (unlikely(ddt_prune_artificial_age)) {
 		/*
 		 * debug aide -- simulate a wider distribution
 		 * so we don't have to wait for an aged DDT
@@ -1171,7 +1177,7 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
-	if (ddt->ddt_version == DDT_VERSION_UNCONFIGURED) {
+	if (unlikely(ddt->ddt_version == DDT_VERSION_UNCONFIGURED)) {
 		/*
 		 * This is the first use of this DDT since the pool was
 		 * created; finish getting it ready for use.
@@ -1594,6 +1600,46 @@ not_found:
 	return (0);
 }
 
+static int
+ddt_kstat_update(kstat_t *ksp, int rw)
+{
+	ddt_t *ddt = ksp->ks_private;
+	ddt_kstats_t *dds = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (SET_ERROR(EACCES));
+
+	/* Aggregate wmsum counters for lookup stats */
+	dds->dds_lookup.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup);
+	dds->dds_lookup_live_hit.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_live_hit);
+	dds->dds_lookup_live_wait.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_live_wait);
+	dds->dds_lookup_live_miss.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_live_miss);
+	dds->dds_lookup_existing.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_existing);
+	dds->dds_lookup_new.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_new);
+	dds->dds_lookup_log_hit.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_log_hit);
+	dds->dds_lookup_log_active_hit.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_log_active_hit);
+	dds->dds_lookup_log_flushing_hit.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_log_flushing_hit);
+	dds->dds_lookup_log_miss.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_log_miss);
+	dds->dds_lookup_stored_hit.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_stored_hit);
+	dds->dds_lookup_stored_miss.value.ui64 =
+	    wmsum_value(&ddt->ddt_kstat_dds_lookup_stored_miss);
+
+	/* Sync-only counters are already set directly in kstats */
+
+	return (0);
+}
+
 static void
 ddt_table_alloc_kstats(ddt_t *ddt)
 {
@@ -1601,12 +1647,28 @@ ddt_table_alloc_kstats(ddt_t *ddt)
 	char *name = kmem_asprintf("ddt_stats_%s",
 	    zio_checksum_table[ddt->ddt_checksum].ci_name);
 
+	/* Initialize wmsums for lookup counters */
+	wmsum_init(&ddt->ddt_kstat_dds_lookup, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_live_hit, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_live_wait, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_live_miss, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_existing, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_new, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_log_hit, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_log_active_hit, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_log_flushing_hit, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_log_miss, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_stored_hit, 0);
+	wmsum_init(&ddt->ddt_kstat_dds_lookup_stored_miss, 0);
+
 	ddt->ddt_ksp = kstat_create(mod, 0, name, "misc", KSTAT_TYPE_NAMED,
 	    sizeof (ddt_kstats_t) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 	if (ddt->ddt_ksp != NULL) {
 		ddt_kstats_t *dds = kmem_alloc(sizeof (ddt_kstats_t), KM_SLEEP);
 		memcpy(dds, &ddt_kstats_template, sizeof (ddt_kstats_t));
 		ddt->ddt_ksp->ks_data = dds;
+		ddt->ddt_ksp->ks_update = ddt_kstat_update;
+		ddt->ddt_ksp->ks_private = ddt;
 		kstat_install(ddt->ddt_ksp);
 	}
 
@@ -1647,6 +1709,20 @@ ddt_table_free(ddt_t *ddt)
 		ddt->ddt_ksp->ks_data = NULL;
 		kstat_delete(ddt->ddt_ksp);
 	}
+
+	/* Cleanup wmsums for lookup counters */
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_live_hit);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_live_wait);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_live_miss);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_existing);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_new);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_log_hit);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_log_active_hit);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_log_flushing_hit);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_log_miss);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_stored_hit);
+	wmsum_fini(&ddt->ddt_kstat_dds_lookup_stored_miss);
 
 	ddt_log_free(ddt);
 	ASSERT0(avl_numnodes(&ddt->ddt_tree));
