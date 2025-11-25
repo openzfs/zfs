@@ -406,8 +406,8 @@ uint_t		arc_no_grow_shift = 5;
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static uint_t		arc_min_prefetch_ms;
-static uint_t		arc_min_prescient_prefetch_ms;
+static uint_t		arc_min_prefetch;
+static uint_t		arc_min_prescient_prefetch;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -3766,8 +3766,6 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 {
 	arc_state_t *evicted_state, *state;
 	int64_t bytes_evicted = 0;
-	uint_t min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
-	    arc_min_prescient_prefetch_ms : arc_min_prefetch_ms;
 
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
 	ASSERT(HDR_HAS_L1HDR(hdr));
@@ -3824,9 +3822,10 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 	    ((state == arc_mru) ? arc_mru_ghost : arc_mfu_ghost);
 
 	/* prefetch buffers have a minimum lifespan */
+	uint_t min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
+	    arc_min_prescient_prefetch : arc_min_prefetch;
 	if ((hdr->b_flags & (ARC_FLAG_PREFETCH | ARC_FLAG_INDIRECT)) &&
-	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access <
-	    MSEC_TO_TICK(min_lifetime)) {
+	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access < min_lifetime) {
 		ARCSTAT_BUMP(arcstat_evict_skip);
 		return (bytes_evicted);
 	}
@@ -4838,8 +4837,7 @@ arc_evict_cb_check(void *arg, zthr_t *zthr)
 	 */
 	return ((zfs_refcount_count(&arc_uncached->arcs_esize[ARC_BUFC_DATA]) +
 	    zfs_refcount_count(&arc_uncached->arcs_esize[ARC_BUFC_METADATA]) &&
-	    ddi_get_lbolt() - arc_last_uncached_flush >
-	    MSEC_TO_TICK(arc_min_prefetch_ms / 2)));
+	    ddi_get_lbolt() - arc_last_uncached_flush > arc_min_prefetch / 2));
 }
 
 /*
@@ -7593,12 +7591,12 @@ arc_tuning_update(boolean_t verbose)
 
 	/* Valid range: 1 - N ms */
 	if (zfs_arc_min_prefetch_ms)
-		arc_min_prefetch_ms = zfs_arc_min_prefetch_ms;
+		arc_min_prefetch = MSEC_TO_TICK(zfs_arc_min_prefetch_ms);
 
 	/* Valid range: 1 - N ms */
 	if (zfs_arc_min_prescient_prefetch_ms) {
-		arc_min_prescient_prefetch_ms =
-		    zfs_arc_min_prescient_prefetch_ms;
+		arc_min_prescient_prefetch =
+		    MSEC_TO_TICK(zfs_arc_min_prescient_prefetch_ms);
 	}
 
 	/* Valid range: 0 - 100 */
@@ -7982,8 +7980,8 @@ arc_init(void)
 	list_create(&arc_evict_waiters, sizeof (arc_evict_waiter_t),
 	    offsetof(arc_evict_waiter_t, aew_node));
 
-	arc_min_prefetch_ms = 1000;
-	arc_min_prescient_prefetch_ms = 6000;
+	arc_min_prefetch = MSEC_TO_TICK(1000);
+	arc_min_prescient_prefetch = MSEC_TO_TICK(6000);
 
 #if defined(_KERNEL)
 	arc_lowmem_init();
