@@ -132,6 +132,7 @@ cstyle:
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -name 'zstd_compat_wrapper.h' \
+		! -name 'monocypher.[ch]' \
 		! -path './module/zstd/lib/*' \
 		! -path './include/sys/lua/*' \
 		! -path './module/lua/l*.[ch]' \
