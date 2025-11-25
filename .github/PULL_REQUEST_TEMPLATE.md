@@ -36,3 +36,23 @@
 - [ ] I have added [tests](https://github.com/openzfs/zfs/tree/master/tests) to cover my changes.
 - [ ] I have run the ZFS Test Suite with this change applied.
 - [ ] All commit messages are properly formatted and contain [`Signed-off-by`](https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#signed-off-by).
+## Pull Request Checklist
+
+- [ ] I have read the project's contributing guidelines.
+- [ ] My change is clear, minimal, and documented.
+- [ ] I have added tests if needed.
+- [ ] I ran the test suite and it passes.
+
+## Description
+Explain what this PR does and why it is needed.
+If it fixes an issue, write: Fixes #<issue-number>
+
+## Type of change
+- [ ] Bug fix
+- [ ] Feature
+- [ ] Documentation
+- [ ] Tests
+- [ ] Other
+
+## Testing
+Describe the commands you used to test your changes.
