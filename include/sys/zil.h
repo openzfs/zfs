@@ -457,6 +457,7 @@ typedef enum {
 } itx_wr_state_t;
 
 typedef void (*zil_callback_t)(void *data, int err);
+typedef void (*itx_zrele_t)(void *);
 
 typedef struct itx {
 	list_node_t	itx_node;	/* linkage on zl_itx_list */
@@ -467,7 +468,8 @@ typedef struct itx {
 	void		*itx_callback_data; /* User data for the callback */
 	size_t		itx_size;	/* allocated itx structure size */
 	uint64_t	itx_oid;	/* object id */
-	uint64_t	itx_gen;	/* gen number for zfs_get_data */
+	void		*itx_znode;	/* znode for zfs_get_data */
+	itx_zrele_t	itx_zrele;	/* cleanup for itx_znode */
 	lr_t		itx_lr;		/* common part of log record */
 	uint8_t		itx_lr_data[];	/* type-specific part of lr_xx_t */
 } itx_t;
@@ -605,7 +607,7 @@ typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
 typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
     uint64_t txg);
 typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
-typedef int zil_get_data_t(void *arg, uint64_t arg2, lr_write_t *lr, char *dbuf,
+typedef int zil_get_data_t(void *arg, void *arg2, lr_write_t *lr, char *dbuf,
     struct lwb *lwb, zio_t *zio);
 
 extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
