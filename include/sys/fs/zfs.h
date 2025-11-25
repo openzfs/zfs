@@ -876,6 +876,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
+#define	ZPOOL_CONFIG_LARGE_LABEL	"com.klarasystems:large_label"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
