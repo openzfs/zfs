@@ -107,7 +107,7 @@ extern void taskq_destroy(taskq_t *);
 extern void taskq_wait_id(taskq_t *, taskqid_t);
 extern void taskq_wait_outstanding(taskq_t *, taskqid_t);
 extern void taskq_wait(taskq_t *);
-extern int taskq_cancel_id(taskq_t *, taskqid_t);
+extern int taskq_cancel_id(taskq_t *, taskqid_t, boolean_t);
 extern int taskq_member(taskq_t *, kthread_t *);
 extern taskq_t *taskq_of_curthread(void);
 void	taskq_suspend(taskq_t *);

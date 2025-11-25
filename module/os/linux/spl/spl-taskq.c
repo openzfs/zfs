@@ -598,13 +598,22 @@ taskq_of_curthread(void)
 EXPORT_SYMBOL(taskq_of_curthread);
 
 /*
- * Cancel an already dispatched task given the task id.  Still pending tasks
- * will be immediately canceled, and if the task is active the function will
- * block until it completes.  Preallocated tasks which are canceled must be
- * freed by the caller.
+ * Cancel a dispatched task. Pending tasks are cancelled immediately.
+ * If the task is running, behavior depends on wait parameter:
+ *   - wait=B_TRUE: Block until task completes
+ *   - wait=B_FALSE: Return EBUSY immediately
+ *
+ * Return values:
+ *   0      - Cancelled before execution. Caller must release resources.
+ *   EBUSY  - Task running (wait=B_FALSE only). Will self-cleanup.
+ *   ENOENT - Not found, or completed after waiting. Already cleaned up.
+ *
+ * Note: wait=B_TRUE returns ENOENT (not EBUSY) after waiting because
+ * the task no longer exists. This distinguishes "cancelled before run"
+ * from "completed naturally" for proper resource management.
  */
 int
-taskq_cancel_id(taskq_t *tq, taskqid_t id)
+taskq_cancel_id(taskq_t *tq, taskqid_t id, boolean_t wait)
 {
 	taskq_ent_t *t;
 	int rc = ENOENT;
@@ -667,8 +676,12 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 	if (t == ERR_PTR(-EBUSY)) {
-		taskq_wait_id(tq, id);
-		rc = EBUSY;
+		if (wait) {
+			taskq_wait_id(tq, id);
+			rc = ENOENT;  /* Completed, no longer exists */
+		} else {
+			rc = EBUSY;   /* Still running */
+		}
 	}
 
 	return (rc);

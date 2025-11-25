@@ -1452,7 +1452,8 @@ dmu_objset_upgrade_stop(objset_t *os)
 		os->os_upgrade_id = 0;
 		mutex_exit(&os->os_upgrade_lock);
 
-		if ((taskq_cancel_id(os->os_spa->spa_upgrade_taskq, id)) == 0) {
+		if ((taskq_cancel_id(os->os_spa->spa_upgrade_taskq, id,
+		    B_TRUE)) == 0) {
 			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 		}
 		txg_wait_synced(os->os_spa->spa_dsl_pool, 0);
