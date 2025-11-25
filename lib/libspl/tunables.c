@@ -124,10 +124,12 @@ zfs_tunable_parse_int(const char *val, intmax_t *np,
 {
 	intmax_t n;
 	char *end;
+	int err;
+
 	errno = 0;
 	n = strtoimax(val, &end, 0);
-	if (errno != 0)
-		return (errno);
+	if ((err = errno) != 0)
+		return (err);
 	if (*end != '\0')
 		return (EINVAL);
 	if (n < min || n > max)
@@ -142,10 +144,12 @@ zfs_tunable_parse_uint(const char *val, uintmax_t *np,
 {
 	uintmax_t n;
 	char *end;
+	int err;
+
 	errno = 0;
 	n = strtoumax(val, &end, 0);
-	if (errno != 0)
-		return (errno);
+	if ((err = errno) != 0)
+		return (err);
 	if (*end != '\0')
 		return (EINVAL);
 	if (strchr(val, '-'))
