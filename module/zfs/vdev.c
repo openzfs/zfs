@@ -767,6 +767,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_slow_io_n = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_N);
 	vd->vdev_slow_io_t = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_T);
 
+	vd->vdev_scheduler = vdev_prop_default_numeric(VDEV_PROP_SCHEDULER);
+
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
 	list_link_init(&vd->vdev_initialize_node);
@@ -3972,6 +3974,12 @@ vdev_load(vdev_t *vd)
 		if (error && error != ENOENT)
 			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
 			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+
+		error = vdev_prop_get_int(vd, VDEV_PROP_SCHEDULER,
+		    &vd->vdev_scheduler);
+		if (error && error != ENOENT)
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
+			    "failed [error=%d]", (u_longlong_t)zapobj, error);
 	}
 
 	/*
@@ -4066,6 +4074,18 @@ vdev_load(vdev_t *vd)
 		vdev_dbgmsg(vd, "vdev_load: failed to retrieve obsolete "
 		    "space map object from vdev ZAP [error=%d]", error);
 		return (error);
+	}
+
+	if (vd == vd->vdev_top) {
+		for (int c = 0; c < vd->vdev_children; c++) {
+			vdev_t *cvd = vd->vdev_child[c];
+			if (!cvd->vdev_ops->vdev_op_leaf)
+				continue;
+			/*
+			 * Workaround: vdev props don't have inheritance.
+			 */
+			vdev_scheduler_set_inherited(cvd);
+		}
 	}
 
 	return (0);
@@ -6259,6 +6279,26 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_slow_io_t = intval;
 			break;
+		case VDEV_PROP_SCHEDULER:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			vd->vdev_scheduler = intval;
+			vd->vdev_scheduler_inherited = B_FALSE;
+			if (vd->vdev_ops->vdev_op_leaf)
+				break;
+			for (int c = 0; c < vd->vdev_children; c++) {
+				vdev_t *cvd = vd->vdev_child[c];
+				if (!cvd->vdev_ops->vdev_op_leaf)
+					continue;
+				/*
+				 * Workaround: vdev props don't have
+				 * inheritance.
+				 */
+				vdev_scheduler_set_inherited(cvd);
+			}
+			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
 			break;
@@ -6676,6 +6716,19 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_prop_add_list(outnvl, propname, NULL,
 				    intval, src);
 				break;
+			case VDEV_PROP_SCHEDULER:
+				intval = vd->vdev_scheduler;
+
+				if (intval == vdev_prop_default_numeric(prop))
+					src = ZPROP_SRC_DEFAULT;
+				else if (vd->vdev_scheduler_inherited)
+					src = ZPROP_SRC_INHERITED;
+				else
+					src = ZPROP_SRC_LOCAL;
+
+				vdev_prop_add_list(outnvl, propname, NULL,
+				    intval, src);
+				break;
 			/* Text Properties */
 			case VDEV_PROP_COMMENT:
 				/* Exists in the ZAP below */
@@ -6767,6 +6820,70 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	return (0);
+}
+
+/*
+ * workaround: vdev properties don't have inheritance
+ */
+uint64_t
+vdev_prop_get_inherited(vdev_t *vd, vdev_prop_t prop)
+{
+	uint64_t propdef, propval;
+
+	propdef = vdev_prop_default_numeric(prop);
+	switch (prop) {
+		case VDEV_PROP_CHECKSUM_N:
+			propval = vd->vdev_checksum_n;
+			break;
+		case VDEV_PROP_CHECKSUM_T:
+			propval = vd->vdev_checksum_t;
+			break;
+		case VDEV_PROP_IO_N:
+			propval = vd->vdev_io_n;
+			break;
+		case VDEV_PROP_IO_T:
+			propval = vd->vdev_io_t;
+			break;
+		case VDEV_PROP_SLOW_IO_EVENTS:
+			propval = vd->vdev_slow_io_events;
+			break;
+		case VDEV_PROP_SLOW_IO_N:
+			propval = vd->vdev_slow_io_n;
+			break;
+		case VDEV_PROP_SLOW_IO_T:
+			propval = vd->vdev_slow_io_t;
+			break;
+		case VDEV_PROP_SCHEDULER:
+			if (vd->vdev_scheduler_inherited) {
+				propval = propdef;
+				break;
+			}
+			propval = vd->vdev_scheduler;
+			break;
+		default:
+			propval = propdef;
+			break;
+	}
+
+	if (propval != propdef)
+		return (propval);
+
+	if (vd->vdev_parent == NULL)
+		return (propdef);
+
+	return (vdev_prop_get_inherited(vd->vdev_parent, prop));
+}
+
+void
+vdev_scheduler_set_inherited(vdev_t *vd)
+{
+	uint64_t vdev_scheduler_default =
+	    vdev_prop_default_numeric(VDEV_PROP_SCHEDULER);
+	vd->vdev_scheduler =
+	    vdev_prop_get_inherited(vd, VDEV_PROP_SCHEDULER);
+
+	if (vd->vdev_scheduler != vdev_scheduler_default)
+		vd->vdev_scheduler_inherited = B_TRUE;
 }
 
 EXPORT_SYMBOL(vdev_fault);

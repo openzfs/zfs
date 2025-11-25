@@ -243,6 +243,8 @@ extern int vdev_label_init(vdev_t *vd, uint64_t txg, vdev_labeltype_t reason);
 
 extern int vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl);
 extern int vdev_prop_get(vdev_t *vd, nvlist_t *nvprops, nvlist_t *outnvl);
+extern uint64_t vdev_prop_get_inherited(vdev_t *vd, vdev_prop_t prop);
+extern void vdev_scheduler_set_inherited(vdev_t *vd);
 
 #ifdef	__cplusplus
 }
