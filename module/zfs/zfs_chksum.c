@@ -155,11 +155,11 @@ chksum_run(chksum_stat_t *cs, abd_t *abd, void *ctx, int round,
 	switch (round) {
 	case 1: /* 1k */
 		size = 1<<10; loops = 128; break;
-	case 2: /* 2k */
+	case 2: /* 4k */
 		size = 1<<12; loops = 64; break;
-	case 3: /* 4k */
+	case 3: /* 16k */
 		size = 1<<14; loops = 32; break;
-	case 4: /* 16k */
+	case 4: /* 64k */
 		size = 1<<16; loops = 16; break;
 	case 5: /* 256k */
 		size = 1<<18; loops = 8; break;
@@ -212,6 +212,7 @@ chksum_benchit(chksum_stat_t *cs)
 	chksum_run(cs, abd, ctx, 2, &cs->bs4k);
 	chksum_run(cs, abd, ctx, 3, &cs->bs16k);
 	chksum_run(cs, abd, ctx, 4, &cs->bs64k);
+	chksum_run(cs, abd, ctx, 5, &cs->bs256k);
 	chksum_run(cs, abd, ctx, 6, &cs->bs1m);
 	abd_free(abd);
 
@@ -249,15 +250,16 @@ chksum_benchmark(void)
 	if (chksum_stat_limit == AT_DONE)
 		return;
 
-
 	/* count implementations */
-	chksum_stat_cnt = 1;  /* edonr */
-	chksum_stat_cnt += 1; /* skein */
-	chksum_stat_cnt += sha256->getcnt();
-	chksum_stat_cnt += sha512->getcnt();
-	chksum_stat_cnt += blake3->getcnt();
-	chksum_stat_data = kmem_zalloc(
-	    sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
+	if (chksum_stat_limit == AT_STARTUP) {
+		chksum_stat_cnt = 1;  /* edonr */
+		chksum_stat_cnt += 1; /* skein */
+		chksum_stat_cnt += sha256->getcnt();
+		chksum_stat_cnt += sha512->getcnt();
+		chksum_stat_cnt += blake3->getcnt();
+		chksum_stat_data = kmem_zalloc(
+		    sizeof (chksum_stat_t) * chksum_stat_cnt, KM_SLEEP);
+	}
 
 	/* edonr - needs to be the first one here (slow CPU check) */
 	cs = &chksum_stat_data[cbid++];
