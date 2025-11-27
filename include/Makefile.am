@@ -123,7 +123,6 @@ COMMON_H = \
 	sys/zcp_set.h \
 	sys/zfeature.h \
 	sys/zfs_acl.h \
-	sys/zfs_bootenv.h \
 	sys/zfs_chksum.h \
 	sys/zfs_context.h \
 	sys/zfs_debug.h \

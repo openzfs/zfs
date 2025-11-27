@@ -153,7 +153,6 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/byteorder.h>
-#include <sys/zfs_bootenv.h>
 
 /*
  * Basic routines to read and write from a vdev label.
@@ -1343,18 +1342,19 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 
 		vbe->vbe_version = ntohll(vbe->vbe_version);
 		switch (vbe->vbe_version) {
-		case VB_RAW:
+		case ZFS_BE_VERSION_GRUBENV:
 			/*
 			 * if we have textual data in vbe_bootenv, create nvlist
 			 * with key "envmap".
 			 */
-			fnvlist_add_uint64(bootenv, BOOTENV_VERSION, VB_RAW);
+			fnvlist_add_uint64(bootenv, ZFS_BE_VERSION,
+			    ZFS_BE_VERSION_GRUBENV);
 			vbe->vbe_bootenv[sizeof (vbe->vbe_bootenv) - 1] = '\0';
-			fnvlist_add_string(bootenv, GRUB_ENVMAP,
+			fnvlist_add_string(bootenv, ZFS_BE_GRUB_ENVMAP,
 			    vbe->vbe_bootenv);
 			break;
 
-		case VB_NVLIST:
+		case ZFS_BE_VERSION_NVLIST:
 			err = nvlist_unpack(vbe->vbe_bootenv,
 			    sizeof (vbe->vbe_bootenv), &config, 0);
 			if (err == 0) {
@@ -1367,11 +1367,12 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 			/* Check for FreeBSD zfs bootonce command string */
 			buf = abd_to_buf(abd);
 			if (*buf == '\0') {
-				fnvlist_add_uint64(bootenv, BOOTENV_VERSION,
-				    VB_NVLIST);
+				fnvlist_add_uint64(bootenv, ZFS_BE_VERSION,
+				    ZFS_BE_VERSION_NVLIST);
 				break;
 			}
-			fnvlist_add_string(bootenv, FREEBSD_BOOTONCE, buf);
+			fnvlist_add_string(bootenv,
+			    ZFS_BE_LOADER_FREEBSD ":" ZFS_BE_BOOTONCE, buf);
 		}
 
 		/*
@@ -1435,16 +1436,30 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 	nvbuf = bootenv->vbe_bootenv;
 	nvsize = sizeof (bootenv->vbe_bootenv);
 
-	bootenv->vbe_version = fnvlist_lookup_uint64(env, BOOTENV_VERSION);
+	bootenv->vbe_version = fnvlist_lookup_uint64(env, ZFS_BE_VERSION);
 	switch (bootenv->vbe_version) {
-	case VB_RAW:
-		if (nvlist_lookup_string(env, GRUB_ENVMAP, &tmp) == 0) {
+	case ZFS_BE_VERSION_GRUBENV:
+		/*
+		 * The bootenv file is stored as ascii text in the envblock.
+		 * It is used by the GRUB bootloader used on Linux to store the
+		 * contents of the grubenv file. The file is stored as raw
+		 * ASCII, and is protected by an embedded checksum. By default,
+		 * GRUB will check if the boot filesystem supports storing the
+		 * environment data in a special location, and if so, will
+		 * invoke filesystem specific logic to retrieve it. This can be
+		 * overridden by a variable, should the user so desire.
+		 */
+		if (nvlist_lookup_string(env, ZFS_BE_GRUB_ENVMAP, &tmp) == 0) {
 			(void) strlcpy(bootenv->vbe_bootenv, tmp, nvsize);
 		}
 		error = 0;
 		break;
 
-	case VB_NVLIST:
+	case ZFS_BE_VERSION_NVLIST:
+		/*
+		 * The bootenv file is converted to an nvlist and then packed
+		 * into the envblock.
+		 */
 		error = nvlist_pack(env, &nvbuf, &nvsize, NV_ENCODE_XDR,
 		    KM_SLEEP);
 		break;
