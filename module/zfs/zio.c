@@ -4111,6 +4111,9 @@ zio_ddt_free(zio_t *zio)
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		if (v != DDT_PHYS_NONE)
 			ddt_phys_decref(dde->dde_phys, v);
+		else
+			/* dde was pruned */
+			dde = NULL;
 	}
 	ddt_exit(ddt);
 
