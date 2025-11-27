@@ -41,7 +41,9 @@
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  * Copyright (c) 2019, 2021, 2023, 2024, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  * Copyright 2026 Oxide Computer Company
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -4167,8 +4169,9 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
  * The data is stored as nvlist data stream, and is protected by
  * an embedded checksum.
  * The version can have two possible values:
- * VB_RAW: nvlist should have key GRUB_ENVMAP, value DATA_TYPE_STRING.
- * VB_NVLIST: nvlist with arbitrary <key, value> pairs.
+ * ZFS_BE_VERSION_GRUBENV: nvlist should have key ZFS_BE_GRUB_ENVMAP,
+ *                         value DATA_TYPE_STRING.
+ * ZFS_BE_VERSION_NVLIST: nvlist with arbitrary <key, value> pairs.
  */
 static const zfs_ioc_key_t zfs_keys_set_bootenv[] = {
 	{"version",	DATA_TYPE_UINT64,	0},
