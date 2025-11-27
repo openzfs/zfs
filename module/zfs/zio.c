@@ -4111,6 +4111,17 @@ zio_ddt_free(zio_t *zio)
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		if (v != DDT_PHYS_NONE)
 			ddt_phys_decref(dde->dde_phys, v);
+		else
+			/*
+			 * If the entry was found but the phys was not, then
+			 * this block must have been pruned from the dedup
+			 * table, and the entry refers to a later version of
+			 * this data. Therefore, the caller is trying to delete
+			 * the only stored instance of this block, and so we
+			 * need to do a normal (not dedup) free. Clear dde so
+			 * we fall into the block below.
+			 */
+			dde = NULL;
 	}
 	ddt_exit(ddt);
 
