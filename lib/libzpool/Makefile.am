@@ -46,6 +46,8 @@ nodist_libzpool_la_SOURCES = \
 	\
 	module/os/linux/zfs/zio_crypt.c \
 	\
+	module/unicode/u8_textprep.c \
+	\
 	module/zcommon/cityhash.c \
 	module/zcommon/simd_stat.c \
 	module/zcommon/zfeature_common.c \
@@ -196,7 +198,6 @@ nodist_libzpool_la_SOURCES = \
 
 libzpool_la_LIBADD = \
 	libicp.la \
-	libunicode.la \
 	libnvpair.la \
 	libzstd.la \
 	libzutil.la
