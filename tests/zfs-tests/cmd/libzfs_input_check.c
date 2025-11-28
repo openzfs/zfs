@@ -27,7 +27,6 @@
 #include <sys/nvpair.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_bootenv.h>
 #include <sys/fs/zfs.h>
 
 /*
@@ -783,8 +782,8 @@ test_set_bootenv(const char *pool)
 {
 	nvlist_t *required = fnvlist_alloc();
 
-	fnvlist_add_uint64(required, "version", VB_RAW);
-	fnvlist_add_string(required, GRUB_ENVMAP, "test");
+	fnvlist_add_uint64(required, "version", ZFS_BE_VERSION_GRUBENV);
+	fnvlist_add_string(required, ZFS_BE_GRUB_ENVMAP, "test");
 
 	IOC_INPUT_TEST_WILD(ZFS_IOC_SET_BOOTENV, pool, required, NULL, 0);
 
