@@ -117,7 +117,7 @@ static int zfs_snapshot_no_setuid = 0;
 typedef struct {
 	char		*se_name;	/* full snapshot name */
 	char		*se_path;	/* full mount path */
-	spa_t		*se_spa;	/* pool spa */
+	spa_t		*se_spa;	/* pool spa (NULL if pending) */
 	uint64_t	se_objsetid;	/* snapshot objset id */
 	struct dentry   *se_root_dentry; /* snapshot root dentry */
 	krwlock_t	se_taskqid_lock;  /* scheduled unmount taskqid lock */
@@ -125,6 +125,7 @@ typedef struct {
 	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
 	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
 	zfs_refcount_t	se_refcount;	/* reference count */
+	kmutex_t	se_mtx;		/* serialize auto-mount/unmount */
 } zfs_snapentry_t;
 
 static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
@@ -148,6 +149,7 @@ zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
 	se->se_root_dentry = root_dentry;
 	se->se_taskqid = TASKQID_INVALID;
 	rw_init(&se->se_taskqid_lock, NULL, RW_DEFAULT, NULL);
+	mutex_init(&se->se_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	zfs_refcount_create(&se->se_refcount);
 
@@ -165,6 +167,7 @@ zfsctl_snapshot_free(zfs_snapentry_t *se)
 	kmem_strfree(se->se_name);
 	kmem_strfree(se->se_path);
 	rw_destroy(&se->se_taskqid_lock);
+	mutex_destroy(&se->se_mtx);
 
 	kmem_free(se, sizeof (zfs_snapentry_t));
 }
@@ -190,9 +193,9 @@ zfsctl_snapshot_rele(zfs_snapentry_t *se)
 }
 
 /*
- * Add a zfs_snapentry_t to both the zfs_snapshots_by_name and
- * zfs_snapshots_by_objsetid trees.  While the zfs_snapentry_t is part
- * of the trees a reference is held.
+ * Add a zfs_snapentry_t to the zfs_snapshots_by_name tree.  If the entry
+ * is not pending (se_spa != NULL), also add to zfs_snapshots_by_objsetid.
+ * While the zfs_snapentry_t is part of the trees a reference is held.
  */
 static void
 zfsctl_snapshot_add(zfs_snapentry_t *se)
@@ -200,22 +203,40 @@ zfsctl_snapshot_add(zfs_snapentry_t *se)
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	zfsctl_snapshot_hold(se);
 	avl_add(&zfs_snapshots_by_name, se);
-	avl_add(&zfs_snapshots_by_objsetid, se);
+	if (se->se_spa != NULL)
+		avl_add(&zfs_snapshots_by_objsetid, se);
 }
 
 /*
- * Remove a zfs_snapentry_t from both the zfs_snapshots_by_name and
- * zfs_snapshots_by_objsetid trees.  Upon removal a reference is dropped,
- * this can result in the structure being freed if that was the last
- * remaining reference.
+ * Remove a zfs_snapentry_t from the zfs_snapshots_by_name tree and
+ * zfs_snapshots_by_objsetid tree (if not pending).  Upon removal a
+ * reference is dropped, this can result in the structure being freed
+ * if that was the last remaining reference.
  */
 static void
 zfsctl_snapshot_remove(zfs_snapentry_t *se)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	avl_remove(&zfs_snapshots_by_name, se);
-	avl_remove(&zfs_snapshots_by_objsetid, se);
+	if (se->se_spa != NULL)
+		avl_remove(&zfs_snapshots_by_objsetid, se);
 	zfsctl_snapshot_rele(se);
+}
+
+/*
+ * Fill a pending zfs_snapentry_t after mount succeeds.  Fills in the
+ * remaining fields and adds the entry to the zfs_snapshots_by_objsetid tree.
+ */
+static void
+zfsctl_snapshot_fill(zfs_snapentry_t *se, spa_t *spa, uint64_t objsetid,
+    struct dentry *root_dentry)
+{
+	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
+	ASSERT3P(se->se_spa, ==, NULL);
+	se->se_spa = spa;
+	se->se_objsetid = objsetid;
+	se->se_root_dentry = root_dentry;
+	avl_add(&zfs_snapshots_by_objsetid, se);
 }
 
 /*
@@ -315,6 +336,11 @@ zfsctl_snapshot_rename(const char *old_snapname, const char *new_snapname)
 	se = zfsctl_snapshot_find_by_name(old_snapname);
 	if (se == NULL)
 		return (SET_ERROR(ENOENT));
+	if (se->se_spa == NULL) {
+		/* Snapshot mount is in progress */
+		zfsctl_snapshot_rele(se);
+		return (SET_ERROR(EBUSY));
+	}
 
 	zfsctl_snapshot_remove(se);
 	kmem_strfree(se->se_name);
@@ -435,26 +461,6 @@ zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
 	rw_exit(&zfs_snapshot_lock);
 
 	return (error);
-}
-
-/*
- * Check if snapname is currently mounted.  Returned non-zero when mounted
- * and zero when unmounted.
- */
-static boolean_t
-zfsctl_snapshot_ismounted(const char *snapname)
-{
-	zfs_snapentry_t *se;
-	boolean_t ismounted = B_FALSE;
-
-	rw_enter(&zfs_snapshot_lock, RW_READER);
-	if ((se = zfsctl_snapshot_find_by_name(snapname)) != NULL) {
-		zfsctl_snapshot_rele(se);
-		ismounted = B_TRUE;
-	}
-	rw_exit(&zfs_snapshot_lock);
-
-	return (ismounted);
 }
 
 /*
@@ -1133,6 +1139,13 @@ zfsctl_snapshot_unmount(const char *snapname, int flags)
 	}
 	rw_exit(&zfs_snapshot_lock);
 
+	/*
+	 * Hold se_mtx for the duration of unmount to serialize with
+	 * any in-progress mount on this snapshot entry. If auto-mount
+	 * is pending, this waits for it to complete.
+	 */
+	mutex_enter(&se->se_mtx);
+
 	exportfs_flush();
 
 	if (flags & MNT_FORCE)
@@ -1140,6 +1153,8 @@ zfsctl_snapshot_unmount(const char *snapname, int flags)
 	argv[5] = se->se_path;
 	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+
+	mutex_exit(&se->se_mtx);
 	zfsctl_snapshot_rele(se);
 
 
@@ -1234,13 +1249,30 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
 
 	/*
-	 * Multiple concurrent automounts of a snapshot are never allowed.
-	 * The snapshot may be manually mounted as many times as desired.
+	 * Create a pending AVL entry for the snapshot to prevent concurrent
+	 * automount attempts.  If an entry already exists, the snapshot is
+	 * either mounted or being mounted by another thread, so return
+	 * success without starting a duplicate mount operation. returning
+	 * EBUSY would mean that VFS would retry, which we do not want.
 	 */
-	if (zfsctl_snapshot_ismounted(full_name)) {
+	rw_enter(&zfs_snapshot_lock, RW_WRITER);
+	if ((se = zfsctl_snapshot_find_by_name(full_name)) != NULL) {
+		zfsctl_snapshot_rele(se);
+		rw_exit(&zfs_snapshot_lock);
 		error = 0;
 		goto error;
 	}
+
+	/*
+	 * Create pending entry (se_spa=NULL), add to AVL tree, and acquire
+	 * se_mtx to serialize with concurrent unmount operations. Release
+	 * global lock before long-running mount helper.
+	 */
+	se = zfsctl_snapshot_alloc(full_name, full_path, NULL, 0, NULL);
+	zfsctl_snapshot_add(se);
+	zfsctl_snapshot_hold(se);
+	mutex_enter(&se->se_mtx);
+	rw_exit(&zfs_snapshot_lock);
 
 	/*
 	 * Attempt to mount the snapshot from user space.  Normally this
@@ -1260,6 +1292,16 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	argv[9] = full_path;
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 	if (error) {
+		/*
+		 * Mount failed - remove pending entry from AVL, release mutex,
+		 * and drop mount operation reference.
+		 */
+		rw_enter(&zfs_snapshot_lock, RW_WRITER);
+		zfsctl_snapshot_remove(se);
+		rw_exit(&zfs_snapshot_lock);
+		mutex_exit(&se->se_mtx);
+		zfsctl_snapshot_rele(se);
+
 		if (!(error & MOUNT_BUSY << 8)) {
 			zfs_dbgmsg("Unable to automount %s error=%d",
 			    full_path, error);
@@ -1291,14 +1333,22 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		se = zfsctl_snapshot_alloc(full_name, full_path,
-		    snap_zfsvfs->z_os->os_spa, dmu_objset_id(snap_zfsvfs->z_os),
-		    dentry);
-		zfsctl_snapshot_add(se);
+		zfsctl_snapshot_fill(se, snap_zfsvfs->z_os->os_spa,
+		    dmu_objset_id(snap_zfsvfs->z_os), dentry);
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+		rw_exit(&zfs_snapshot_lock);
+	} else {
+		rw_enter(&zfs_snapshot_lock, RW_WRITER);
+		zfsctl_snapshot_remove(se);
 		rw_exit(&zfs_snapshot_lock);
 	}
 	path_put(&spath);
+
+	/*
+	 * Release mutex and drop mount operation reference.
+	 */
+	mutex_exit(&se->se_mtx);
+	zfsctl_snapshot_rele(se);
 error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);
