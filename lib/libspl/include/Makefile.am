@@ -3,7 +3,6 @@ libspl_HEADERS = \
 	%D%/assert.h \
 	%D%/atomic.h \
 	%D%/libgen.h \
-	%D%/libshare.h \
 	%D%/libspl.h \
 	%D%/statcommon.h \
 	%D%/stdlib.h \

@@ -58,9 +58,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <libzfs.h>
-#include <libshare.h>
-#include "libshare_impl.h"
-#include "smb.h"
+#include "../../libzfs_share.h"
 
 static boolean_t smb_available(void);
 
@@ -85,7 +83,7 @@ smb_retrieve_shares(void)
 	smb_share_t *shares, *new_shares = NULL;
 
 	/* opendir(), stat() */
-	shares_dir = opendir(SHARE_DIR);
+	shares_dir = opendir(SMB_SHARE_DIR);
 	if (shares_dir == NULL)
 		return (SA_SYSTEM_ERR);
 
@@ -97,7 +95,7 @@ smb_retrieve_shares(void)
 			continue;
 
 		snprintf(file_path, sizeof (file_path),
-		    "%s/%s", SHARE_DIR, directory->d_name);
+		    "%s/%s", SMB_SHARE_DIR, directory->d_name);
 
 		if ((fd = open(file_path, O_RDONLY | O_CLOEXEC)) == -1) {
 			rc = SA_SYSTEM_ERR;
@@ -242,15 +240,15 @@ smb_enable_share_one(const char *sharename, const char *sharepath)
 		}
 
 	/*
-	 * CMD: net -S NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
+	 * CMD: net -S SMB_NET_CMD_ARG_HOST usershare add Test1 /share/Test1 \
 	 *      "Comment" "Everyone:F"
 	 */
 	snprintf(comment, sizeof (comment), "Comment: %s", sharepath);
 
 	char *argv[] = {
-		(char *)NET_CMD_PATH,
+		(char *)SMB_NET_CMD_PATH,
 		(char *)"-S",
-		(char *)NET_CMD_ARG_HOST,
+		(char *)SMB_NET_CMD_ARG_HOST,
 		(char *)"usershare",
 		(char *)"add",
 		name,
@@ -298,11 +296,11 @@ smb_enable_share(sa_share_impl_t impl_share)
 static int
 smb_disable_share_one(const char *sharename)
 {
-	/* CMD: net -S NET_CMD_ARG_HOST usershare delete Test1 */
+	/* CMD: net -S SMB_NET_CMD_ARG_HOST usershare delete Test1 */
 	char *argv[] = {
-		(char *)NET_CMD_PATH,
+		(char *)SMB_NET_CMD_PATH,
 		(char *)"-S",
-		(char *)NET_CMD_ARG_HOST,
+		(char *)SMB_NET_CMD_ARG_HOST,
 		(char *)"usershare",
 		(char *)"delete",
 		(char *)sharename,
@@ -395,8 +393,8 @@ smb_available(void)
 	if (!avail) {
 		struct stat statbuf;
 
-		if (access(NET_CMD_PATH, F_OK) != 0 ||
-		    lstat(SHARE_DIR, &statbuf) != 0 ||
+		if (access(SMB_NET_CMD_PATH, F_OK) != 0 ||
+		    lstat(SMB_SHARE_DIR, &statbuf) != 0 ||
 		    !S_ISDIR(statbuf.st_mode))
 			avail = -1;
 		else

@@ -7,6 +7,7 @@ CPPCHECKTARGETS += libzfs.la
 
 dist_libzfs_la_SOURCES = \
 	%D%/libzfs_impl.h \
+	%D%/libzfs_share.h \
 	%D%/libzfs_changelist.c \
 	%D%/libzfs_config.c \
 	%D%/libzfs_crypto.c \
@@ -16,6 +17,8 @@ dist_libzfs_la_SOURCES = \
 	%D%/libzfs_iter.c \
 	%D%/libzfs_mount.c \
 	%D%/libzfs_pool.c \
+	%D%/libzfs_share.c \
+	%D%/libzfs_share_nfs.c \
 	%D%/libzfs_sendrecv.c \
 	%D%/libzfs_status.c \
 	%D%/libzfs_util.c
@@ -23,6 +26,8 @@ dist_libzfs_la_SOURCES = \
 if BUILD_FREEBSD
 dist_libzfs_la_SOURCES += \
 	%D%/os/freebsd/libzfs_compat.c \
+	%D%/os/freebsd/libzfs_share_nfs.c \
+	%D%/os/freebsd/libzfs_share_smb.c \
 	%D%/os/freebsd/libzfs_zmount.c
 endif
 
@@ -30,6 +35,8 @@ if BUILD_LINUX
 dist_libzfs_la_SOURCES += \
 	%D%/os/linux/libzfs_mount_os.c \
 	%D%/os/linux/libzfs_pool_os.c \
+	%D%/os/linux/libzfs_share_nfs.c \
+	%D%/os/linux/libzfs_share_smb.c \
 	%D%/os/linux/libzfs_util_os.c
 endif
 
@@ -52,7 +59,6 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zprop_common.c
 
 libzfs_la_LIBADD = \
-	libshare.la \
 	libzfs_core.la \
 	libnvpair.la \
 	libzutil.la

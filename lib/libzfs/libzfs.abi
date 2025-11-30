@@ -296,13 +296,6 @@
     <elf-symbol name='rw_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='rw_tryenter' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='rw_tryupgrade' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_commit_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_disable_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_enable_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_errorstr' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_is_shared' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_truncate_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_validate_shareopts' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='seq_printf' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='snapshot_namecheck' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spl_fstrans_mark' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -496,6 +489,7 @@
     <elf-symbol name='zfs_setproctitle' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_setproctitle_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_share_protocol_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_show_diffs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_smb_acl_add' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_smb_acl_purge' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -696,7 +690,6 @@
     <elf-symbol name='fletcher_4_superscalar4_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='sa_protocol_names' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spa_feature_table' size='2632' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='544' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -724,147 +717,6 @@
     <function-decl name='efi_err_check' mangled-name='efi_err_check' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_err_check'>
       <parameter type-id='0d8119a8' name='vtoc'/>
       <return type-id='48b5725f'/>
-    </function-decl>
-  </abi-instr>
-  <abi-instr address-size='64' path='lib/libshare/libshare.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='b99c00c9' size-in-bits='128' id='2d6895a3'>
-      <subrange length='2' type-id='7359adad' id='52efc4ef'/>
-    </array-type-def>
-    <var-decl name='sa_protocol_names' type-id='2d6895a3' mangled-name='sa_protocol_names' visibility='default' elf-symbol-id='sa_protocol_names'/>
-    <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
-  </abi-instr>
-  <abi-instr address-size='64' path='lib/libshare/nfs.c' language='LANG_C99'>
-    <function-decl name='rename' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='memchr' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='eaa32e2f'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='b59d7dce'/>
-      <return type-id='eaa32e2f'/>
-    </function-decl>
-    <function-decl name='flock' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='fchmod' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='e1c52942'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='mkdir' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='e1c52942'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-  </abi-instr>
-  <abi-instr address-size='64' path='lib/libshare/os/linux/nfs.c' language='LANG_C99'>
-    <class-decl name='sa_share_impl' size-in-bits='192' is-struct='yes' visibility='default' id='72b09bf8'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='sa_zfsname' type-id='80f4b756' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='sa_mountpoint' type-id='80f4b756' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='sa_shareopts' type-id='80f4b756' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <typedef-decl name='sa_share_impl_t' type-id='946a2c6b' id='a48b47d0'/>
-    <class-decl name='sa_fstype_t' size-in-bits='384' is-struct='yes' naming-typedef-id='639af739' visibility='default' id='944afa86'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='enable_share' type-id='2f78a9c1' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='disable_share' type-id='2f78a9c1' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='is_shared' type-id='81020bc2' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='validate_shareopts' type-id='f194a8fb' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='commit_shares' type-id='797ee7da' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='truncate_shares' type-id='5d51038b' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <typedef-decl name='sa_fstype_t' type-id='944afa86' id='639af739'/>
-    <qualified-type-def type-id='639af739' const='yes' id='d19dbca9'/>
-    <qualified-type-def type-id='72b09bf8' const='yes' id='484950e3'/>
-    <pointer-type-def type-id='484950e3' size-in-bits='64' id='946a2c6b'/>
-    <pointer-type-def type-id='276427e1' size-in-bits='64' id='1db260e5'/>
-    <qualified-type-def type-id='1db260e5' const='yes' id='797ee7da'/>
-    <pointer-type-def type-id='5113b296' size-in-bits='64' id='70487b28'/>
-    <qualified-type-def type-id='70487b28' const='yes' id='f194a8fb'/>
-    <pointer-type-def type-id='c13578bc' size-in-bits='64' id='fa1f29ce'/>
-    <qualified-type-def type-id='fa1f29ce' const='yes' id='2f78a9c1'/>
-    <pointer-type-def type-id='723e6cf2' size-in-bits='64' id='1d99e49c'/>
-    <pointer-type-def type-id='86373eb1' size-in-bits='64' id='f337456d'/>
-    <qualified-type-def type-id='f337456d' const='yes' id='81020bc2'/>
-    <qualified-type-def type-id='953b12f8' const='yes' id='5d51038b'/>
-    <var-decl name='libshare_nfs_type' type-id='d19dbca9' visibility='default'/>
-    <function-decl name='nfs_escape_mountpoint' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9b23c9ad'/>
-      <parameter type-id='37e3bd22'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='nfs_is_shared_impl' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='a48b47d0'/>
-      <return type-id='c19b74c3'/>
-    </function-decl>
-    <function-decl name='nfs_toggle_share' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='a48b47d0'/>
-      <parameter type-id='1d99e49c'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='nfs_reset_shares' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
-    <function-type size-in-bits='64' id='276427e1'>
-      <return type-id='95e97e5e'/>
-    </function-type>
-    <function-type size-in-bits='64' id='5113b296'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='95e97e5e'/>
-    </function-type>
-    <function-type size-in-bits='64' id='c13578bc'>
-      <parameter type-id='a48b47d0'/>
-      <return type-id='95e97e5e'/>
-    </function-type>
-    <function-type size-in-bits='64' id='723e6cf2'>
-      <parameter type-id='a48b47d0'/>
-      <parameter type-id='822cd80b'/>
-      <return type-id='95e97e5e'/>
-    </function-type>
-    <function-type size-in-bits='64' id='86373eb1'>
-      <parameter type-id='a48b47d0'/>
-      <return type-id='c19b74c3'/>
-    </function-type>
-    <function-type size-in-bits='64' id='ee076206'>
-      <return type-id='48b5725f'/>
-    </function-type>
-  </abi-instr>
-  <abi-instr address-size='64' path='lib/libshare/os/linux/smb.c' language='LANG_C99'>
-    <var-decl name='libshare_smb_type' type-id='d19dbca9' visibility='default'/>
-    <function-decl name='__fgets_chk' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='266fe297'/>
-      <parameter type-id='b59d7dce'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='e75a27e9'/>
-      <return type-id='26a90f95'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/assert.c' language='LANG_C99'>
@@ -1374,6 +1226,7 @@
       <parameter type-id='3e0601f0'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
     <type-decl name='unsigned short int' size-in-bits='16' id='8efea9e5'/>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/condvar.c' language='LANG_C99'>
@@ -1571,14 +1424,13 @@
     </class-decl>
     <typedef-decl name='kstat_t' type-id='5f5c9d88' id='dd12e024'/>
     <typedef-decl name='uchar_t' type-id='002ac4a6' id='d8bf0010'/>
-    <typedef-decl name='__loff_t' type-id='724e4de6' id='00c9d214'/>
-    <typedef-decl name='loff_t' type-id='00c9d214' id='69bf7bee'/>
+    <typedef-decl name='off_t' type-id='724e4de6' id='ad707ada'/>
     <pointer-type-def type-id='9d5d322a' size-in-bits='64' id='bbe97414'/>
     <pointer-type-def type-id='05b3c714' size-in-bits='64' id='27cc5c36'/>
     <pointer-type-def type-id='7a9ace65' size-in-bits='64' id='8cf7b7e1'/>
     <pointer-type-def type-id='5f5c9d88' size-in-bits='64' id='0e87f9be'/>
     <pointer-type-def type-id='dd12e024' size-in-bits='64' id='46e5e463'/>
-    <pointer-type-def type-id='527a97c5' size-in-bits='64' id='673f2af9'/>
+    <pointer-type-def type-id='56e84909' size-in-bits='64' id='874be675'/>
     <function-decl name='kstat_create' mangled-name='kstat_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='kstat_create'>
       <parameter type-id='80f4b756' name='module'/>
       <parameter type-id='95e97e5e' name='instance'/>
@@ -1597,7 +1449,7 @@
       <parameter type-id='46e5e463' name='ksp'/>
       <parameter type-id='bbe97414' name='headers'/>
       <parameter type-id='27cc5c36' name='data'/>
-      <parameter type-id='673f2af9' name='addr'/>
+      <parameter type-id='874be675' name='addr'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='9d5d322a'>
@@ -1616,9 +1468,9 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='95e97e5e'/>
     </function-type>
-    <function-type size-in-bits='64' id='527a97c5'>
+    <function-type size-in-bits='64' id='56e84909'>
       <parameter type-id='46e5e463'/>
-      <parameter type-id='69bf7bee'/>
+      <parameter type-id='ad707ada'/>
       <return type-id='eaa32e2f'/>
     </function-type>
   </abi-instr>
@@ -2146,6 +1998,9 @@
     <function-decl name='system_taskq_fini' mangled-name='system_taskq_fini' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='system_taskq_fini'>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-type size-in-bits='64' id='ee076206'>
+      <return type-id='48b5725f'/>
+    </function-type>
     <function-type size-in-bits='64' id='c5c76c9c'>
       <parameter type-id='eaa32e2f'/>
       <return type-id='48b5725f'/>
@@ -2260,6 +2115,12 @@
     <typedef-decl name='zpool_handle_t' type-id='67002a8a' id='b1efc708'/>
     <typedef-decl name='libzfs_handle_t' type-id='c8a9d9d8' id='95942d0c'/>
     <typedef-decl name='zfs_iter_f' type-id='5571cde4' id='d8e49ab9'/>
+    <enum-decl name='sa_protocol' id='9155d4b5'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='SA_PROTOCOL_NFS' value='0'/>
+      <enumerator name='SA_PROTOCOL_SMB' value='1'/>
+      <enumerator name='SA_PROTOCOL_COUNT' value='2'/>
+    </enum-decl>
     <typedef-decl name='avl_tree_t' type-id='b351119f' id='f20fbd51'/>
     <typedef-decl name='avl_index_t' type-id='e475ab95' id='fba6cb51'/>
     <class-decl name='avl_node' size-in-bits='192' is-struct='yes' visibility='default' id='428b67b3'>
@@ -2481,12 +2342,6 @@
       </data-member>
     </class-decl>
     <typedef-decl name='nvlist_t' type-id='ac266fd9' id='8e8d4be3'/>
-    <enum-decl name='sa_protocol' id='9155d4b5'>
-      <underlying-type type-id='9cac1fee'/>
-      <enumerator name='SA_PROTOCOL_NFS' value='0'/>
-      <enumerator name='SA_PROTOCOL_SMB' value='1'/>
-      <enumerator name='SA_PROTOCOL_COUNT' value='2'/>
-    </enum-decl>
     <enum-decl name='boolean_t' naming-typedef-id='c19b74c3' id='f58c8277'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='B_FALSE' value='0'/>
@@ -2908,10 +2763,6 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='eaa32e2f'/>
     </function-decl>
-    <function-decl name='sa_commit_shares' mangled-name='sa_commit_shares' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_commit_shares'>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
     <function-decl name='strlcat' mangled-name='strlcat' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
       <parameter type-id='26a90f95'/>
       <parameter type-id='80f4b756'/>
@@ -2953,6 +2804,10 @@
     </function-decl>
     <function-decl name='remove_mountpoint' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9200a744'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-decl name='sa_commit_shares' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9155d4b5'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='96ee24a5'>
@@ -4825,11 +4680,6 @@
       <parameter type-id='58603c44'/>
       <return type-id='31429eff'/>
     </function-decl>
-    <function-decl name='sa_validate_shareopts' mangled-name='sa_validate_shareopts' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_validate_shareopts'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='getmntany' mangled-name='getmntany' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getmntany'>
       <parameter type-id='822cd80b'/>
       <parameter type-id='9d424d31'/>
@@ -5330,6 +5180,11 @@
       <parameter type-id='c19b74c3'/>
       <parameter type-id='80f4b756'/>
       <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='sa_validate_shareopts' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9155d4b5'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-type size-in-bits='64' id='02362c02'>
       <parameter type-id='eaa32e2f'/>
@@ -6106,31 +5961,6 @@
       <parameter type-id='d50d396c'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='sa_errorstr' mangled-name='sa_errorstr' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_errorstr'>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='80f4b756'/>
-    </function-decl>
-    <function-decl name='sa_enable_share' mangled-name='sa_enable_share' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_enable_share'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='sa_disable_share' mangled-name='sa_disable_share' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_disable_share'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='sa_is_shared' mangled-name='sa_is_shared' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_is_shared'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='c19b74c3'/>
-    </function-decl>
-    <function-decl name='sa_truncate_shares' mangled-name='sa_truncate_shares' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_truncate_shares'>
-      <parameter type-id='9155d4b5'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
     <function-decl name='taskq_create' mangled-name='taskq_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='taskq_create'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='95e97e5e'/>
@@ -6214,6 +6044,10 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='zfs_share_protocol_name' mangled-name='zfs_share_protocol_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_share_protocol_name'>
+      <parameter type-id='9155d4b5' name='protocol'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
     <function-decl name='zfs_mount_at' mangled-name='zfs_mount_at' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_mount_at'>
       <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='80f4b756' name='options'/>
@@ -6260,6 +6094,31 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='c19b74c3' name='force'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='sa_errorstr' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='80f4b756'/>
+    </function-decl>
+    <function-decl name='sa_enable_share' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9155d4b5'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='sa_disable_share' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9155d4b5'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='sa_is_shared' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9155d4b5'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='sa_truncate_shares' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9155d4b5'/>
+      <return type-id='48b5725f'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_pool.c' language='LANG_C99'>
@@ -8498,6 +8357,45 @@
       <return type-id='48b5725f'/>
     </function-type>
   </abi-instr>
+  <abi-instr address-size='64' path='lib/libzfs/libzfs_share.c' language='LANG_C99'>
+    <array-type-def dimensions='1' type-id='b99c00c9' size-in-bits='128' id='2d6895a3'>
+      <subrange length='2' type-id='7359adad' id='52efc4ef'/>
+    </array-type-def>
+    <var-decl name='sa_protocol_names' type-id='2d6895a3' visibility='default'/>
+  </abi-instr>
+  <abi-instr address-size='64' path='lib/libzfs/libzfs_share_nfs.c' language='LANG_C99'>
+    <function-decl name='rename' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='memchr' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='b59d7dce'/>
+      <return type-id='eaa32e2f'/>
+    </function-decl>
+    <function-decl name='strpbrk' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='26a90f95'/>
+    </function-decl>
+    <function-decl name='flock' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='fchmod' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='e1c52942'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='mkdir' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='e1c52942'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+  </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_status.c' language='LANG_C99'>
     <function-decl name='zpool_import_status' mangled-name='zpool_import_status' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_import_status'>
       <parameter type-id='5ce45b60' name='config'/>
@@ -9270,6 +9168,131 @@
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
+  <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_share_nfs.c' language='LANG_C99'>
+    <class-decl name='sa_share_impl' size-in-bits='192' is-struct='yes' visibility='default' id='72b09bf8'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='sa_zfsname' type-id='80f4b756' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='sa_mountpoint' type-id='80f4b756' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='sa_shareopts' type-id='80f4b756' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='sa_share_impl_t' type-id='946a2c6b' id='a48b47d0'/>
+    <class-decl name='sa_fstype_t' size-in-bits='384' is-struct='yes' naming-typedef-id='639af739' visibility='default' id='944afa86'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='enable_share' type-id='2f78a9c1' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='disable_share' type-id='2f78a9c1' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='is_shared' type-id='81020bc2' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='validate_shareopts' type-id='f194a8fb' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='commit_shares' type-id='797ee7da' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='truncate_shares' type-id='5d51038b' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='sa_fstype_t' type-id='944afa86' id='639af739'/>
+    <qualified-type-def type-id='639af739' const='yes' id='d19dbca9'/>
+    <qualified-type-def type-id='72b09bf8' const='yes' id='484950e3'/>
+    <pointer-type-def type-id='484950e3' size-in-bits='64' id='946a2c6b'/>
+    <pointer-type-def type-id='276427e1' size-in-bits='64' id='1db260e5'/>
+    <qualified-type-def type-id='1db260e5' const='yes' id='797ee7da'/>
+    <pointer-type-def type-id='5113b296' size-in-bits='64' id='70487b28'/>
+    <qualified-type-def type-id='70487b28' const='yes' id='f194a8fb'/>
+    <pointer-type-def type-id='c13578bc' size-in-bits='64' id='fa1f29ce'/>
+    <qualified-type-def type-id='fa1f29ce' const='yes' id='2f78a9c1'/>
+    <pointer-type-def type-id='723e6cf2' size-in-bits='64' id='1d99e49c'/>
+    <pointer-type-def type-id='86373eb1' size-in-bits='64' id='f337456d'/>
+    <qualified-type-def type-id='f337456d' const='yes' id='81020bc2'/>
+    <qualified-type-def type-id='953b12f8' const='yes' id='5d51038b'/>
+    <var-decl name='libshare_nfs_type' type-id='d19dbca9' visibility='default'/>
+    <function-decl name='nfs_escape_mountpoint' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='9b23c9ad'/>
+      <parameter type-id='37e3bd22'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='nfs_is_shared_impl' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='a48b47d0'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='nfs_toggle_share' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='a48b47d0'/>
+      <parameter type-id='1d99e49c'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='nfs_reset_shares' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
+    <function-type size-in-bits='64' id='276427e1'>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <function-type size-in-bits='64' id='5113b296'>
+      <parameter type-id='80f4b756'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <function-type size-in-bits='64' id='c13578bc'>
+      <parameter type-id='a48b47d0'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <function-type size-in-bits='64' id='723e6cf2'>
+      <parameter type-id='a48b47d0'/>
+      <parameter type-id='822cd80b'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <function-type size-in-bits='64' id='86373eb1'>
+      <parameter type-id='a48b47d0'/>
+      <return type-id='c19b74c3'/>
+    </function-type>
+  </abi-instr>
+  <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_share_smb.c' language='LANG_C99'>
+    <class-decl name='dirent' size-in-bits='2240' is-struct='yes' visibility='default' id='611586a1'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='d_ino' type-id='71288a47' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='d_off' type-id='724e4de6' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='d_reclen' type-id='8efea9e5' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='144'>
+        <var-decl name='d_type' type-id='002ac4a6' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='152'>
+        <var-decl name='d_name' type-id='d1617432' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
+    <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <return type-id='f09217ba'/>
+    </function-decl>
+    <function-decl name='__fgets_chk' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='266fe297'/>
+      <parameter type-id='b59d7dce'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='e75a27e9'/>
+      <return type-id='26a90f95'/>
+    </function-decl>
+    <var-decl name='libshare_smb_type' type-id='d19dbca9' visibility='default'/>
+  </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_util_os.c' language='LANG_C99'>
     <typedef-decl name='nfds_t' type-id='7359adad' id='555eef66'/>
     <class-decl name='pollfd' size-in-bits='64' is-struct='yes' visibility='default' id='b440e872'>
@@ -9929,23 +9952,6 @@
     </class-decl>
     <typedef-decl name='zfeature_info_t' type-id='1178d146' id='83f29ca2'/>
     <typedef-decl name='__free_fn_t' type-id='b7f9d8e6' id='3ff5e51e'/>
-    <class-decl name='dirent' size-in-bits='2240' is-struct='yes' visibility='default' id='611586a1'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='d_ino' type-id='71288a47' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='d_off' type-id='724e4de6' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='d_reclen' type-id='8efea9e5' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='144'>
-        <var-decl name='d_type' type-id='002ac4a6' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='152'>
-        <var-decl name='d_name' type-id='d1617432' visibility='default'/>
-      </data-member>
-    </class-decl>
     <class-decl name='zfs_mod_supported_features' size-in-bits='128' is-struct='yes' visibility='default' id='3eee3342'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='tree' type-id='eaa32e2f' visibility='default'/>
@@ -9958,16 +9964,11 @@
     <pointer-type-def type-id='81a65028' size-in-bits='64' id='1acff326'/>
     <qualified-type-def type-id='3eee3342' const='yes' id='0c1d5bbb'/>
     <pointer-type-def type-id='0c1d5bbb' size-in-bits='64' id='a3372543'/>
-    <pointer-type-def type-id='611586a1' size-in-bits='64' id='2e243169'/>
     <pointer-type-def type-id='c5c76c9c' size-in-bits='64' id='b7f9d8e6'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
     <var-decl name='spa_feature_table' type-id='fd43354e' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
-    <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='f09217ba'/>
-    </function-decl>
     <function-decl name='tsearch' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>
       <parameter type-id='63e171df'/>
@@ -10012,11 +10013,6 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <var-decl name='zfs_history_event_names' type-id='5ce15418' mangled-name='zfs_history_event_names' visibility='default' elf-symbol-id='zfs_history_event_names'/>
-    <function-decl name='strpbrk' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='26a90f95'/>
-    </function-decl>
     <function-decl name='zfs_allocatable_devs' mangled-name='zfs_allocatable_devs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_allocatable_devs'>
       <parameter type-id='5ce45b60' name='nv'/>
       <return type-id='c19b74c3'/>

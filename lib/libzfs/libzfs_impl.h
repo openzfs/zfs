@@ -37,8 +37,9 @@
 #include <regex.h>
 
 #include <libzfs.h>
-#include <libshare.h>
 #include <libzfs_core.h>
+
+#include "libzfs_share.h"
 
 #ifdef	__cplusplus
 extern "C" {

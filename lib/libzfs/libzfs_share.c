@@ -37,8 +37,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <libzfs.h>
-#include <libshare.h>
-#include "libshare_impl.h"
+#include "libzfs_impl.h"
 
 #define	init_share(zfsname, path, shareopts) \
 	{ \

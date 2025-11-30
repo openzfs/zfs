@@ -40,9 +40,8 @@
 #include <unistd.h>
 #include <libintl.h>
 
-#include <libshare.h>
-#include "libshare_impl.h"
-#include "nfs.h"
+#include <libzfs.h>
+#include "../../libzfs_share.h"
 
 #define	_PATH_MOUNTDPID	"/var/run/mountd.pid"
 #define	ZFS_EXPORTS_FILE	"/etc/zfs/exports"

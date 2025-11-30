@@ -1152,14 +1152,13 @@
       </data-member>
     </class-decl>
     <typedef-decl name='kstat_t' type-id='5f5c9d88' id='dd12e024'/>
-    <typedef-decl name='__loff_t' type-id='724e4de6' id='00c9d214'/>
-    <typedef-decl name='loff_t' type-id='00c9d214' id='69bf7bee'/>
+    <typedef-decl name='off_t' type-id='724e4de6' id='ad707ada'/>
     <pointer-type-def type-id='9d5d322a' size-in-bits='64' id='bbe97414'/>
     <pointer-type-def type-id='05b3c714' size-in-bits='64' id='27cc5c36'/>
     <pointer-type-def type-id='7a9ace65' size-in-bits='64' id='8cf7b7e1'/>
     <pointer-type-def type-id='5f5c9d88' size-in-bits='64' id='0e87f9be'/>
     <pointer-type-def type-id='dd12e024' size-in-bits='64' id='46e5e463'/>
-    <pointer-type-def type-id='527a97c5' size-in-bits='64' id='673f2af9'/>
+    <pointer-type-def type-id='56e84909' size-in-bits='64' id='874be675'/>
     <function-decl name='kstat_create' mangled-name='kstat_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='kstat_create'>
       <parameter type-id='80f4b756' name='module'/>
       <parameter type-id='95e97e5e' name='instance'/>
@@ -1178,7 +1177,7 @@
       <parameter type-id='46e5e463' name='ksp'/>
       <parameter type-id='bbe97414' name='headers'/>
       <parameter type-id='27cc5c36' name='data'/>
-      <parameter type-id='673f2af9' name='addr'/>
+      <parameter type-id='874be675' name='addr'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-type size-in-bits='64' id='9d5d322a'>
@@ -1197,9 +1196,9 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='95e97e5e'/>
     </function-type>
-    <function-type size-in-bits='64' id='527a97c5'>
+    <function-type size-in-bits='64' id='56e84909'>
       <parameter type-id='46e5e463'/>
-      <parameter type-id='69bf7bee'/>
+      <parameter type-id='ad707ada'/>
       <return type-id='eaa32e2f'/>
     </function-type>
   </abi-instr>

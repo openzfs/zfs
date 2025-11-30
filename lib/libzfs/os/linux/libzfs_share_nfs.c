@@ -38,9 +38,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <libzfs.h>
-#include <libshare.h>
-#include "libshare_impl.h"
-#include "nfs.h"
+#include "../../libzfs_impl.h"
 
 #define	ZFS_EXPORTS_DIR		"/etc/exports.d"
 #define	ZFS_EXPORTS_FILE	ZFS_EXPORTS_DIR"/zfs.exports"
