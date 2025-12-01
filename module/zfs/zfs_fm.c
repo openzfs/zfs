@@ -1531,7 +1531,8 @@ zfs_ereport_taskq_fini(void)
 {
 	mutex_enter(&recent_events_lock);
 	if (recent_events_cleaner_tqid != 0) {
-		taskq_cancel_id(system_delay_taskq, recent_events_cleaner_tqid);
+		taskq_cancel_id(system_delay_taskq, recent_events_cleaner_tqid,
+		    B_TRUE);
 		recent_events_cleaner_tqid = 0;
 	}
 	mutex_exit(&recent_events_lock);

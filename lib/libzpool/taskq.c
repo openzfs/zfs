@@ -390,9 +390,9 @@ taskq_of_curthread(void)
 }
 
 int
-taskq_cancel_id(taskq_t *tq, taskqid_t id)
+taskq_cancel_id(taskq_t *tq, taskqid_t id, boolean_t wait)
 {
-	(void) tq, (void) id;
+	(void) tq, (void) id, (void) wait;
 	return (ENOENT);
 }
 
