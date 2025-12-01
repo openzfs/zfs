@@ -73,7 +73,7 @@ jobs:
         .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
 
     - name: Build modules or Test repo
-      timeout-minutes: 30
+      timeout-minutes: 60
       run: |
         set -e
         if [ "${{ github.event.inputs.test_type }}" == "Test repo" ] ; then
