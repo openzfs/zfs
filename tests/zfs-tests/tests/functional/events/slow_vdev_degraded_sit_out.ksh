@@ -60,7 +60,12 @@ set_tunable64 SIT_OUT_CHECK_INTERVAL 20
 
 log_must truncate -s 150M $TEST_BASE_DIR/vdev.$$.{0..9}
 
-for raidtype in raidz2 raidz3 draid2 draid3 ; do
+raidtypes=(raidz2 raidz3 draid2 draid3)
+retry=0
+
+for (( t=0; t<4; t++ )); do
+	raidtype="${raidtypes[$t]}"
+
 	log_must zpool create $TESTPOOL2 $raidtype $TEST_BASE_DIR/vdev.$$.{0..9}
 	log_must zpool set autosit=on $TESTPOOL2 "${raidtype}-0"
 	log_must dd if=/dev/urandom of=/$TESTPOOL2/bigfile bs=1M count=400
@@ -90,13 +95,24 @@ for raidtype in raidz2 raidz3 draid2 draid3 ; do
 		fi
 	done
 
-	log_must test "$(get_vdev_prop sit_out $TESTPOOL2 $SLOW_VDEV)" == "on"
-
 	# Clear fault injection
 	log_must zinject -c all
 
-	# Wait for us to exit our sit out period
-	log_must wait_sit_out $TESTPOOL2 $SLOW_VDEV 10
+	if test "$(get_vdev_prop sit_out $TESTPOOL2 $SLOW_VDEV)" == "on"; then
+		# Wait for us to exit our sit out period
+		log_must wait_sit_out $TESTPOOL2 $SLOW_VDEV 10
+	else
+		# Depending on exactly how the blocks are laid out and the
+		# I/O is issued we may not always trigger a sitout.  Allow
+		# up to 3 retries to avoid false positives.
+		if test $retry -lt 3; then
+			retry=$((retry + 1))
+			t=$(($t - 1))
+			log_note "Retrying $retry/3 $raidtype vdev type"
+		else
+			log_fail "Exceeded total allowed retries"
+		fi
+	fi
 
 	log_must test "$(get_vdev_prop sit_out $TESTPOOL2 $SLOW_VDEV)" == "off"
 	destroy_pool $TESTPOOL2
