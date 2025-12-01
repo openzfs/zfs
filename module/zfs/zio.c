@@ -3088,7 +3088,7 @@ zio_gang_issue(zio_t *zio)
 }
 
 static void
-zio_gang_inherit_allocator(zio_t *pio, zio_t *cio)
+zio_inherit_allocator(zio_t *pio, zio_t *cio)
 {
 	cio->io_allocator = pio->io_allocator;
 }
@@ -3223,7 +3223,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    zio_write_gang_done, NULL, pio->io_priority,
 	    ZIO_GANG_CHILD_FLAGS(pio), &pio->io_bookmark);
 
-	zio_gang_inherit_allocator(pio, zio);
+	zio_inherit_allocator(pio, zio);
 	if (pio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
 		boolean_t more;
 		VERIFY(metaslab_class_throttle_reserve(mc, zio->io_allocator,
@@ -3285,7 +3285,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		    (allocated ? ZIO_FLAG_PREALLOCATED : 0), &pio->io_bookmark);
 
 		resid -= psize;
-		zio_gang_inherit_allocator(zio, cio);
+		zio_inherit_allocator(zio, cio);
 		if (allocated) {
 			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
 			metaslab_group_alloc_increment_all(spa,
@@ -4062,6 +4062,7 @@ zio_ddt_write(zio_t *zio)
 	    zio_ddt_child_write_ready, NULL,
 	    zio_ddt_child_write_done, dde, zio->io_priority,
 	    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);
+	zio_inherit_allocator(zio, cio);
 
 	zio_push_transform(cio, zio->io_abd, zio->io_size, 0, NULL);
 
