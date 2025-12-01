@@ -3105,6 +3105,67 @@ errout:
 }
 
 static int
+zfs_projectquota_upgrade_cb(const char *dataset, void *arg)
+{
+	zfsvfs_t *zfsvfs;
+	int error;
+
+	(void) arg;
+
+	error = getzfsvfs(dataset, &zfsvfs);
+
+	if (error != 0)
+		return (0);
+
+	if (!dmu_objset_projectquota_enabled(zfsvfs->z_os)) {
+		/*
+		 * If projectquota is not enabled, it may be because the objset
+		 * needs to be closed & reopened (to grow the objset_phys_t).
+		 * Suspend/resume the fs will do that.
+		 */
+		dsl_dataset_t *ds, *newds;
+
+		ds = dmu_objset_ds(zfsvfs->z_os);
+		error = zfs_suspend_fs(zfsvfs);
+		if (error == 0) {
+			dmu_objset_refresh_ownership(ds, &newds,
+			    B_TRUE, zfsvfs);
+			error = zfs_resume_fs(zfsvfs, newds);
+		}
+	}
+
+	if (error == 0) {
+		mutex_enter(&zfsvfs->z_os->os_upgrade_lock);
+		if (zfsvfs->z_os->os_upgrade_id == 0) {
+			/* clear potential error code and retry */
+			zfsvfs->z_os->os_upgrade_status = 0;
+			mutex_exit(&zfsvfs->z_os->os_upgrade_lock);
+
+			dsl_pool_config_enter(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
+			dmu_objset_id_projectquota_upgrade(zfsvfs->z_os);
+			dsl_pool_config_exit(
+			    dmu_objset_pool(zfsvfs->z_os), FTAG);
+		} else {
+			mutex_exit(&zfsvfs->z_os->os_upgrade_lock);
+		}
+
+		taskq_wait_id(zfsvfs->z_os->os_spa->spa_upgrade_taskq,
+		    zfsvfs->z_os->os_upgrade_id);
+		error = zfsvfs->z_os->os_upgrade_status;
+	}
+
+	zfs_vfs_rele(zfsvfs);
+
+	if (error != 0)
+		cmn_err(CE_WARN,
+		    "Failed to activate the project quota feature on dataset "
+		    "%s (%d).", dataset, error);
+
+	return (0);
+}
+
+static int
 zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 {
 	nvlist_t *props;
@@ -3142,6 +3203,16 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	}
 
 	error = spa_prop_set(spa, props);
+
+	/*
+	 * If we are enabling the project quota feature, try to re-initialize
+	 * the active file systems on that pool and activate the feature -- all
+	 * in best effort.
+	 */
+	if ((error == 0) && nvlist_exists(props, "feature@project_quota"))
+		(void) dmu_objset_find(spa_name(spa),
+		    zfs_projectquota_upgrade_cb,
+		    NULL, DS_FIND_CHILDREN);
 
 	nvlist_free(props);
 	spa_close(spa, FTAG);
