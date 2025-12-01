@@ -269,4 +269,12 @@ zpl_is_32bit_api(void)
 #define	generic_drop_inode(ip)		inode_generic_drop(ip)
 #endif
 
+#ifndef HAVE_INODE_STATE_READ_ONCE
+/*
+ * 6.19 API change. We should no longer access i_state directly. If the new
+ * helper function doesn't exist, define our own.
+ */
+#define	inode_state_read_once(ip)	READ_ONCE(ip->i_state)
+#endif
+
 #endif /* _ZFS_VFS_H */
