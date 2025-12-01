@@ -3683,7 +3683,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 	ddt_univ_phys_t *ddp = dde->dde_phys;
 
-	ddt_enter(ddt);
+	mutex_enter(&dde->dde_io->dde_io_lock);
 
 	/* we're the lead, so once we're done there's no one else outstanding */
 	if (dde->dde_io->dde_lead_zio[p] == zio)
@@ -3700,19 +3700,22 @@ zio_ddt_child_write_done(zio_t *zio)
 		ddt_phys_unextend(ddp, orig, v);
 		ddt_phys_clear(orig, v);
 
+		mutex_exit(&dde->dde_io->dde_io_lock);
+
+		/*
+		 * Undo the optimistic refcount increments that were done in
+		 * zio_ddt_write() for all non-DDT-child parents. Since errors
+		 * are rare, taking the global lock here is acceptable.
+		 */
+		ddt_enter(ddt);
+		zio_t *pio;
+		zl = NULL;
+		while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
+			if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
+				ddt_phys_decref(ddp, v);
+		}
 		ddt_exit(ddt);
 		return;
-	}
-
-	/*
-	 * Add references for all dedup writes that were waiting on the
-	 * physical one, skipping any other physical writes that are waiting.
-	 */
-	zio_t *pio;
-	zl = NULL;
-	while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
-		if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
-			ddt_phys_addref(ddp, v);
 	}
 
 	/*
@@ -3725,7 +3728,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	else
 		ddt_phys_copy(orig, ddp, v);
 
-	ddt_exit(ddt);
+	mutex_exit(&dde->dde_io->dde_io_lock);
 }
 
 static void
@@ -3753,7 +3756,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 	if (zio->io_error != 0)
 		return;
 
-	ddt_enter(ddt);
+	mutex_enter(&dde->dde_io->dde_io_lock);
 
 	ddt_phys_extend(dde->dde_phys, v, zio->io_bp);
 
@@ -3764,7 +3767,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 			ddt_bp_fill(dde->dde_phys, v, pio->io_bp, zio->io_txg);
 	}
 
-	ddt_exit(ddt);
+	mutex_exit(&dde->dde_io->dde_io_lock);
 }
 
 static zio_t *
@@ -3799,11 +3802,11 @@ zio_ddt_write(zio_t *zio)
 	dde = ddt_lookup(ddt, bp, B_FALSE);
 	if (dde == NULL) {
 		/* DDT size is over its quota so no new entries */
+		ddt_exit(ddt);
 		zp->zp_dedup = B_FALSE;
 		BP_SET_DEDUP(bp, B_FALSE);
 		if (zio->io_bp_override == NULL)
 			zio->io_pipeline = ZIO_WRITE_PIPELINE;
-		ddt_exit(ddt);
 		return (zio);
 	}
 
@@ -3814,6 +3817,7 @@ zio_ddt_write(zio_t *zio)
 		 * we can't resolve it, so just convert to an ordinary write.
 		 * (And automatically e-mail a paper to Nature?)
 		 */
+		ddt_exit(ddt);
 		if (!(zio_checksum_table[zp->zp_checksum].ci_flags &
 		    ZCHECKSUM_FLAG_DEDUP)) {
 			zp->zp_checksum = spa_dedup_checksum(spa);
@@ -3826,7 +3830,6 @@ zio_ddt_write(zio_t *zio)
 		}
 		ASSERT(!BP_GET_DEDUP(bp));
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
-		ddt_exit(ddt);
 		return (zio);
 	}
 
@@ -3877,10 +3880,15 @@ zio_ddt_write(zio_t *zio)
 	uint8_t parent_dvas = 0;
 
 	/*
-	 * What we do next depends on whether or not there's IO outstanding that
-	 * will update this entry.
+	 * What we do next depends on whether or not there's IO outstanding
+	 * that will update this entry. If dde_io exists, we need to hold
+	 * its lock to safely check and use dde_lead_zio.
 	 */
-	if (dde->dde_io == NULL || dde->dde_io->dde_lead_zio[p] == NULL) {
+	ddt_entry_io_t *dde_io = dde->dde_io;
+	if (dde_io != NULL)
+		mutex_enter(&dde_io->dde_io_lock);
+
+	if (dde_io == NULL || dde_io->dde_lead_zio[p] == NULL) {
 		/*
 		 * No IO outstanding, so we only need to worry about ourselves.
 		 */
@@ -3895,6 +3903,8 @@ zio_ddt_write(zio_t *zio)
 			 * block and leave.
 			 */
 			if (have_dvas == 0) {
+				if (dde_io != NULL)
+					mutex_exit(&dde_io->dde_io_lock);
 				ASSERT(BP_GET_BIRTH(bp) == txg);
 				ASSERT(BP_EQUAL(bp, zio->io_bp_override));
 				ddt_phys_extend(ddp, v, bp);
@@ -3923,6 +3933,9 @@ zio_ddt_write(zio_t *zio)
 		 * then we can just use them as-is.
 		 */
 		if (have_dvas >= need_dvas) {
+			if (dde_io != NULL)
+				mutex_exit(&dde_io->dde_io_lock);
+
 			/*
 			 * For rewrite operations, try preserving the original
 			 * logical birth time.  If the result matches the
@@ -3934,8 +3947,8 @@ zio_ddt_write(zio_t *zio)
 				ddt_bp_fill(ddp, v, bp, orig_logical_birth);
 				if (BP_EQUAL(bp, &zio->io_bp_orig)) {
 					/* We can skip accounting. */
-					zio->io_flags |= ZIO_FLAG_NOPWRITE;
 					ddt_exit(ddt);
+					zio->io_flags |= ZIO_FLAG_NOPWRITE;
 					return (zio);
 				}
 			}
@@ -3997,7 +4010,16 @@ zio_ddt_write(zio_t *zio)
 			 * missed out.
 			 */
 			ddt_bp_fill(ddp, v, bp, txg);
-			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
+piggyback:
+			zio_add_child(zio, dde_io->dde_lead_zio[p]);
+
+			/*
+			 * Optimistically increment refcount for this parent.
+			 * If the write fails, zio_ddt_child_write_done() will
+			 * decrement for all non-DDT-child parents.
+			 */
+			ddt_phys_addref(ddp, v);
+			mutex_exit(&dde_io->dde_io_lock);
 			ddt_exit(ddt);
 			return (zio);
 		}
@@ -4023,11 +4045,8 @@ zio_ddt_write(zio_t *zio)
 		ASSERT(pio);
 		parent_dvas = pio->io_prop.zp_copies;
 
-		if (parent_dvas >= need_dvas) {
-			zio_add_child(zio, dde->dde_io->dde_lead_zio[p]);
-			ddt_exit(ddt);
-			return (zio);
-		}
+		if (parent_dvas >= need_dvas)
+			goto piggyback;
 
 		/*
 		 * Still not enough, so we will need to issue to get the
@@ -4037,10 +4056,12 @@ zio_ddt_write(zio_t *zio)
 	}
 
 	if (is_ganged) {
+		if (dde_io != NULL)
+			mutex_exit(&dde_io->dde_io_lock);
+		ddt_exit(ddt);
 		zp->zp_dedup = B_FALSE;
 		BP_SET_DEDUP(bp, B_FALSE);
 		zio->io_pipeline = ZIO_WRITE_PIPELINE;
-		ddt_exit(ddt);
 		return (zio);
 	}
 
@@ -4070,21 +4091,45 @@ zio_ddt_write(zio_t *zio)
 	 * We are the new lead zio, because our parent has the highest
 	 * zp_copies that has been requested for this entry so far.
 	 */
-	ddt_alloc_entry_io(dde);
-	if (dde->dde_io->dde_lead_zio[p] == NULL) {
+	if (dde_io == NULL) {
+		/*
+		 * New dde_io.  No lock needed since no other thread can have
+		 * a reference yet.
+		 */
+		ddt_alloc_entry_io(dde);
+		dde_io = dde->dde_io;
 		/*
 		 * First time out, take a copy of the stable entry to revert
 		 * to if there's an error (see zio_ddt_child_write_done())
 		 */
-		ddt_phys_copy(&dde->dde_io->dde_orig_phys, dde->dde_phys, v);
+		ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys, v);
+		dde_io->dde_lead_zio[p] = cio;
 	} else {
-		/*
-		 * Make the existing chain our child, because it cannot
-		 * complete until we have.
-		 */
-		zio_add_child(cio, dde->dde_io->dde_lead_zio[p]);
+		if (dde_io->dde_lead_zio[p] == NULL) {
+			/*
+			 * First time out, take a copy of the stable entry
+			 * to revert to if there's an error (see
+			 * zio_ddt_child_write_done())
+			 */
+			ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys,
+			    v);
+		} else {
+			/*
+			 * Make the existing chain our child, because it
+			 * cannot complete until we have.
+			 */
+			zio_add_child(cio, dde_io->dde_lead_zio[p]);
+		}
+		dde_io->dde_lead_zio[p] = cio;
+		mutex_exit(&dde_io->dde_io_lock);
 	}
-	dde->dde_io->dde_lead_zio[p] = cio;
+
+	/*
+	 * Optimistically increment the refcount for this dedup write.
+	 * If the write fails, zio_ddt_child_write_done() will decrement
+	 * for all non-DDT-child parents.
+	 */
+	ddt_phys_addref(ddp, v);
 
 	ddt_exit(ddt);
 
