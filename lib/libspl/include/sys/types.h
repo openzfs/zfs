@@ -54,4 +54,15 @@ typedef int		projid_t;
 typedef off_t loff_t;
 #endif
 
+/*
+ * On musl, loff_t is a macro within fcntl.h when _GNU_SOURCE is defined.
+ * If no macro is defined, a typedef fallback is provided.
+ */
+#if defined(__linux__) && !defined(__GLIBC__)
+#include <fcntl.h>
+#ifndef loff_t
+typedef off_t loff_t;
+#endif
+#endif
+
 #endif
