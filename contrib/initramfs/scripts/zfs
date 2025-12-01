@@ -336,7 +336,7 @@ mount_fs()
 
 	# Skip filesystems not set to canmount=on (i.e. off or noauto), except if set as bootfs.
 	# The bootfs should not have canmount=off (not be just a placehlder/inheritance provider),
-	# but we also ignore it for backwards compatibility just in case (top-level canmount=off
+	# but we also ignore 'off' for backwards compatibility just in case (top-level canmount=off
 	# boot pool).
 	if [ "$fs" != "${ZFS_BOOTFS}" ]
 	then
