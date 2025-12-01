@@ -60,10 +60,10 @@ disable_plymouth()
 # Get a ZFS filesystem property value.
 get_fs_value()
 {
-	fs="$1"
-	value=$2
+	get_fs="$1"
+	get_value=$2
 
-	"${ZFS}" get -H -ovalue "$value" "$fs" 2> /dev/null
+	"${ZFS}" get -H -ovalue "$get_value" "$get_fs" 2> /dev/null
 }
 
 # Find the 'bootfs' property on pool $1.
@@ -71,7 +71,7 @@ get_fs_value()
 # pool by exporting it again.
 find_rootfs()
 {
-	pool="$1"
+	find_rootfs_pool="$1"
 
 	# If 'POOL_IMPORTED' isn't set, no pool imported and therefore
 	# we won't be able to find a root fs.
@@ -85,7 +85,7 @@ find_rootfs()
 
 	# Not set, try to find it in the 'bootfs' property of the pool.
 	# NOTE: zpool does not support 'get -H -ovalue bootfs'...
-	ZFS_BOOTFS=$("${ZPOOL}" list -H -obootfs "$pool")
+	ZFS_BOOTFS=$("${ZPOOL}" list -H -obootfs "$find_rootfs_pool")
 
 	# Make sure it's not '-' and that it starts with /.
 	if [ "${ZFS_BOOTFS}" != "-" ] && \
@@ -97,7 +97,7 @@ find_rootfs()
 	fi
 
 	# Not boot fs here, export it and later try again..
-	"${ZPOOL}" export "$pool"
+	"${ZPOOL}" export "$find_rootfs_pool"
 	POOL_IMPORTED=
 	ZFS_BOOTFS=
 	return 1
@@ -106,11 +106,11 @@ find_rootfs()
 # Support function to get a list of all pools, separated with ';'
 find_pools()
 {
-	pools=$("$@" 2> /dev/null | \
+	find_pools=$("$@" 2> /dev/null | \
 		sed -Ee '/pool:|^[a-zA-Z0-9]/!d' -e 's@.*: @@' | \
 		tr '\n' ';')
 
-	echo "${pools%%;}" # Return without the last ';'.
+	echo "${find_pools%%;}" # Return without the last ';'.
 }
 
 # Get a list of all available pools
@@ -190,11 +190,11 @@ get_pools()
 # Import given pool $1
 import_pool()
 {
-	pool="$1"
+	import_pool="$1"
 
 	# Verify that the pool isn't already imported
 	# Make as sure as we can to not require '-f' to import.
-	"${ZPOOL}" get -H -o value name,guid 2>/dev/null | grep -Fxq "$pool" && return 0
+	"${ZPOOL}" get -H -o value name,guid 2>/dev/null | grep -Fxq "$import_pool" && return 0
 
 	# For backwards compatibility, make sure that ZPOOL_IMPORT_PATH is set
 	# to something we can use later with the real import(s). We want to
@@ -226,10 +226,10 @@ import_pool()
 
 
 	[ "$quiet" != "y" ] && zfs_log_begin_msg \
-		"Importing pool '${pool}' using defaults"
+		"Importing pool '${import_pool}' using defaults"
 
 	ZFS_CMD="${ZPOOL} import -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
-	ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
+	ZFS_STDERR="$($ZFS_CMD "$import_pool" 2>&1)"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
@@ -238,10 +238,10 @@ import_pool()
 		if [ -f "${ZPOOL_CACHE}" ]
 		then
 			[ "$quiet" != "y" ] && zfs_log_begin_msg \
-				"Importing pool '${pool}' using cachefile."
+				"Importing pool '${import_pool}' using cachefile."
 
 			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
-			ZFS_STDERR="$($ZFS_CMD "$pool" 2>&1)"
+			ZFS_STDERR="$($ZFS_CMD "$import_pool" 2>&1)"
 			ZFS_ERROR="$?"
 		fi
 
@@ -251,11 +251,11 @@ import_pool()
 
 			disable_plymouth
 			echo ""
-			echo "Command: ${ZFS_CMD} '$pool'"
+			echo "Command: ${ZFS_CMD} '$import_pool'"
 			echo "Message: $ZFS_STDERR"
 			echo "Error: $ZFS_ERROR"
 			echo ""
-			echo "Failed to import pool '$pool'."
+			echo "Failed to import pool '$import_pool'."
 			echo "Manually import the pool and exit."
 			shell
 		fi
@@ -329,32 +329,32 @@ load_module_initrd()
 # Mount a given filesystem
 mount_fs()
 {
-	fs="$1"
+	mount_fs="$1"
 
 	# Check that the filesystem exists
-	"${ZFS}" list -oname -tfilesystem -H "${fs}" > /dev/null 2>&1 ||  return 1
+	"${ZFS}" list -oname -tfilesystem -H "${mount_fs}" > /dev/null 2>&1 ||  return 1
 
 	# Skip filesystems with canmount=off.  The root fs should not have
 	# canmount=off, but ignore it for backwards compatibility just in case.
-	if [ "$fs" != "${ZFS_BOOTFS}" ]
+	if [ "$mount_fs" != "${ZFS_BOOTFS}" ]
 	then
-		canmount=$(get_fs_value "$fs" canmount)
+		canmount=$(get_fs_value "$mount_fs" canmount)
 		[ "$canmount" = "off" ] && return 0
 	fi
 
 	# Need the _original_ datasets mountpoint!
-	mountpoint=$(get_fs_value "$fs" mountpoint)
+	mountpoint=$(get_fs_value "$mount_fs" mountpoint)
 	ZFS_CMD="mount.zfs -o zfsutil"
 	if [ "$mountpoint" = "legacy" ] || [ "$mountpoint" = "none" ]; then
 		# Can't use the mountpoint property. Might be one of our
 		# clones. Check the 'org.zol:mountpoint' property set in
 		# clone_snap() if that's usable.
-		mountpoint1=$(get_fs_value "$fs" org.zol:mountpoint)
+		mountpoint1=$(get_fs_value "$mount_fs" org.zol:mountpoint)
 		if [ "$mountpoint1" = "legacy" ] ||
 		   [ "$mountpoint1" = "none" ] ||
 		   [ "$mountpoint1" = "-" ]
 		then
-			if [ "$fs" != "${ZFS_BOOTFS}" ]; then
+			if [ "$mount_fs" != "${ZFS_BOOTFS}" ]; then
 				# We don't have a proper mountpoint and this
 				# isn't the root fs.
 				return 0
@@ -370,14 +370,14 @@ mount_fs()
 	fi
 
 	# Possibly decrypt a filesystem using native encryption.
-	decrypt_fs "$fs"
+	decrypt_fs "$mount_fs"
 
 	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Mounting '${fs}' on '${rootmnt}/${mountpoint}'"
+	    zfs_log_begin_msg "Mounting '${mount_fs}' on '${rootmnt}/${mountpoint}'"
 	[ -n "${ZFS_DEBUG}" ] && \
-	    zfs_log_begin_msg "CMD: '$ZFS_CMD ${fs} ${rootmnt}/${mountpoint}'"
+	    zfs_log_begin_msg "CMD: '$ZFS_CMD ${mount_fs} ${rootmnt}/${mountpoint}'"
 
-	ZFS_STDERR=$(${ZFS_CMD} "${fs}" "${rootmnt}/${mountpoint}" 2>&1)
+	ZFS_STDERR=$(${ZFS_CMD} "${mount_fs}" "${rootmnt}/${mountpoint}" 2>&1)
 	ZFS_ERROR=$?
 	if [ "${ZFS_ERROR}" != 0 ]
 	then
@@ -385,11 +385,11 @@ mount_fs()
 
 		disable_plymouth
 		echo ""
-		echo "Command: ${ZFS_CMD} ${fs} ${rootmnt}/${mountpoint}"
+		echo "Command: ${ZFS_CMD} ${mount_fs} ${rootmnt}/${mountpoint}"
 		echo "Message: $ZFS_STDERR"
 		echo "Error: $ZFS_ERROR"
 		echo ""
-		echo "Failed to mount ${fs} on ${rootmnt}/${mountpoint}."
+		echo "Failed to mount ${mount_fs} on ${rootmnt}/${mountpoint}."
 		echo "Manually mount the filesystem and exit."
 		shell
 	else
@@ -402,13 +402,13 @@ mount_fs()
 # Unlock a ZFS native encrypted filesystem.
 decrypt_fs()
 {
-	fs="$1"
+	decrypt_fs="$1"
 
 	# If pool encryption is active and the zfs command understands '-o encryption'
-	if [ "$(zpool list -H -o feature@encryption "${fs%%/*}")" = 'active' ]; then
+	if [ "$(zpool list -H -o feature@encryption "${decrypt_fs%%/*}")" = 'active' ]; then
 
 		# Determine dataset that holds key for root dataset
-		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
+		ENCRYPTIONROOT="$(get_fs_value "${decrypt_fs}" encryptionroot)"
 		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
 
 		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
@@ -467,12 +467,12 @@ decrypt_fs()
 # Destroy a given filesystem.
 destroy_fs()
 {
-	fs="$1"
+	destroy_fs="$1"
 
 	[ "$quiet" != "y" ] && \
-	    zfs_log_begin_msg "Destroying '$fs'"
+	    zfs_log_begin_msg "Destroying '$destroy_fs'"
 
-	ZFS_CMD="${ZFS} destroy $fs"
+	ZFS_CMD="${ZFS} destroy $destroy_fs"
 	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
@@ -485,8 +485,8 @@ destroy_fs()
 		echo "Message: $ZFS_STDERR"
 		echo "Error: $ZFS_ERROR"
 		echo ""
-		echo "Failed to destroy '$fs'. Please make sure that '$fs' is not available."
-		echo "Hint: Try:  zfs destroy -Rfn $fs"
+		echo "Failed to destroy '$destroy_fs'. Please make sure that '$destroy_fs' is not available."
+		echo "Hint: Try:  zfs destroy -Rfn $destroy_fs"
 		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
 		shell
 	else
@@ -502,11 +502,11 @@ destroy_fs()
 # mounted with a 'zfs mount -a' in the init/systemd scripts).
 clone_snap()
 {
-	snap="$1"
-	destfs="$2"
-	mountpoint="$3"
+	clone_snap="$1"
+	clone_destfs="$2"
+	clone_mountpoint="$3"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$snap' to '$destfs'"
+	[ "$quiet" != "y" ] && zfs_log_begin_msg "Cloning '$clone_snap' to '$clone_destfs'"
 
 	# Clone the snapshot into a dataset we can boot from
 	# + We don't want this filesystem to be automatically mounted, we
@@ -514,8 +514,8 @@ clone_snap()
 	# + We don't need any mountpoint set for the same reason.
 	# We use the 'org.zol:mountpoint' property to remember the mountpoint.
 	ZFS_CMD="${ZFS} clone -o canmount=noauto -o mountpoint=none"
-	ZFS_CMD="${ZFS_CMD} -o org.zol:mountpoint=${mountpoint}"
-	ZFS_CMD="${ZFS_CMD} $snap $destfs"
+	ZFS_CMD="${ZFS_CMD} -o org.zol:mountpoint=${clone_mountpoint}"
+	ZFS_CMD="${ZFS_CMD} $clone_snap $clone_destfs"
 	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
@@ -530,7 +530,7 @@ clone_snap()
 		echo ""
 		echo "Failed to clone snapshot."
 		echo "Make sure that any problems are corrected and then make sure"
-		echo "that the dataset '$destfs' exists and is bootable."
+		echo "that the dataset '$clone_destfs' exists and is bootable."
 		shell
 	else
 		[ "$quiet" != "y" ] && zfs_log_end_msg
@@ -542,11 +542,11 @@ clone_snap()
 # Rollback a given snapshot.
 rollback_snap()
 {
-	snap="$1"
+	rollback_snap="$1"
 
-	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $snap"
+	[ "$quiet" != "y" ] && zfs_log_begin_msg "Rollback $rollback_snap"
 
-	ZFS_CMD="${ZFS} rollback -Rf $snap"
+	ZFS_CMD="${ZFS} rollback -Rf $rollback_snap"
 	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
 	ZFS_ERROR="$?"
 	if [ "${ZFS_ERROR}" != 0 ]
@@ -572,7 +572,7 @@ rollback_snap()
 # to the user to choose from.
 ask_user_snap()
 {
-	fs="$1"
+	ask_snap="$1"
 
 	# We need to temporarily disable debugging. Set 'debug' so we
 	# remember to enabled it again.
@@ -587,7 +587,7 @@ ask_user_snap()
 	echo "What snapshot do you want to boot from?" > /dev/stderr
 	# shellcheck disable=SC2046
 	IFS="
-" set -- $("${ZFS}" list -H -oname -tsnapshot -r "${fs}")
+" set -- $("${ZFS}" list -H -oname -tsnapshot -r "${ask_snap}")
 
 	i=1
 	for snap in "$@"; do
@@ -616,21 +616,21 @@ ask_user_snap()
 
 setup_snapshot_booting()
 {
-	snap="$1"
+	boot_snap="$1"
 	retval=0
 
 	# Make sure that the snapshot specified actually exists.
-	if [ -z "$(get_fs_value "${snap}" type)" ]
+	if [ -z "$(get_fs_value "${boot_snap}" type)" ]
 	then
 		# Snapshot does not exist (...@<null> ?)
 		# ask the user for a snapshot to use.
-		snap="$(ask_user_snap "${snap%%@*}")"
+		snap="$(ask_user_snap "${boot_snap%%@*}")"
 	fi
 
 	# Separate the full snapshot ('$snap') into it's filesystem and
 	# snapshot names. Would have been nice with a split() function..
-	rootfs="${snap%%@*}"
-	snapname="${snap##*@}"
+	rootfs="${boot_snap%%@*}"
+	snapname="${boot_snap##*@}"
 	ZFS_BOOTFS="${rootfs}_${snapname}"
 
 	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
@@ -642,7 +642,7 @@ setup_snapshot_booting()
 			filesystems=$("${ZFS}" list -oname -tfilesystem -H \
 			    -r -Sname "${ZFS_BOOTFS}")
 			for fs in $filesystems; do
-				destroy_fs "${fs}"
+				destroy_fs "${boot_snap}"
 			done
 		fi
 	fi
