@@ -1010,6 +1010,7 @@ ddt_alloc_entry_io(ddt_entry_t *dde)
 		return;
 
 	dde->dde_io = kmem_zalloc(sizeof (ddt_entry_io_t), KM_SLEEP);
+	mutex_init(&dde->dde_io->dde_io_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
 static void
@@ -1022,6 +1023,7 @@ ddt_free(const ddt_t *ddt, ddt_entry_t *dde)
 		if (dde->dde_io->dde_repair_abd != NULL)
 			abd_free(dde->dde_io->dde_repair_abd);
 
+		mutex_destroy(&dde->dde_io->dde_io_lock);
 		kmem_free(dde->dde_io, sizeof (ddt_entry_io_t));
 	}
 

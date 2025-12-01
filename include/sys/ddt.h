@@ -219,6 +219,9 @@ typedef enum {
  * because its relatively rarely used.
  */
 typedef struct {
+	/* protects dde_phys, dde_orig_phys and dde_lead_zio during I/O */
+	kmutex_t	dde_io_lock;
+
 	/* copy of data after a repair read, to be rewritten */
 	abd_t		*dde_repair_abd;
 
