@@ -704,6 +704,7 @@ extern int zio_inject_fault(char *name, int flags, int *id,
     struct zinject_record *record);
 extern int zio_inject_list_next(int *id, char *name, size_t buflen,
     struct zinject_record *record);
+extern int zio_inject_wait(uint64_t *state, hrtime_t timeout);
 extern int zio_clear_fault(int id);
 extern void zio_handle_panic_injection(spa_t *spa, const char *tag,
     uint64_t type);
