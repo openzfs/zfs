@@ -22,7 +22,7 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 /*
- * Copyright (c) 2024, Klara Inc.
+ * Copyright (c) 2024, 2025, Klara, Inc.
  * Copyright (c) 2024, Syneto
  */
 
@@ -134,6 +134,8 @@ typedef struct taskq {
 	wait_queue_head_t	tq_work_waitq;	/* new work waitq */
 	wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
+	struct timer_list	tq_deadman;	/* deadman timer */
+	unsigned long		tq_deadman_at;	/* time of last deadman trip */
 	/* list node for the cpu hotplug callback */
 	struct hlist_node	tq_hp_cb_node;
 	boolean_t		tq_hp_support;
