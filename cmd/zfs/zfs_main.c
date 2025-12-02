@@ -766,6 +766,26 @@ finish_progress(const char *done)
 	pt_header = NULL;
 }
 
+static void
+makeprops_parents(nvlist_t **ptr, boolean_t parents_nomount)
+{
+	nvlist_t *props = NULL;
+
+	if (parents_nomount) {
+		if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
+			nomem();
+
+		if (nvlist_add_string(props,
+		    zfs_prop_to_name(ZFS_PROP_CANMOUNT),
+		    "off") != 0) {
+			nvlist_free(props);
+			nomem();
+		}
+	}
+
+	*ptr = props;
+}
+
 static int
 zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 {
@@ -826,14 +846,17 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
  * the clone exists.
  *
  * The '-p' flag creates all the non-existing ancestors of the target first.
+ * If repeated twice, the ancestors are created with `canmount=off`.
  */
 static int
 zfs_do_clone(int argc, char **argv)
 {
 	zfs_handle_t *zhp = NULL;
 	boolean_t parents = B_FALSE;
+	boolean_t parents_nomount = B_FALSE;
 	nvlist_t *props;
-	int ret = 0;
+	nvlist_t *props_parents = NULL;
+	int ret = 1;
 	int c;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
@@ -849,7 +872,10 @@ zfs_do_clone(int argc, char **argv)
 			}
 			break;
 		case 'p':
-			parents = B_TRUE;
+			if (!parents)
+				parents = B_TRUE;
+			else
+				parents_nomount = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -879,8 +905,7 @@ zfs_do_clone(int argc, char **argv)
 
 	/* open the source dataset */
 	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
-		nvlist_free(props);
-		return (1);
+		goto error_open;
 	}
 
 	if (parents && zfs_name_valid(argv[1], ZFS_TYPE_FILESYSTEM |
@@ -892,15 +917,14 @@ zfs_do_clone(int argc, char **argv)
 		 */
 		if (zfs_dataset_exists(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
 		    ZFS_TYPE_VOLUME)) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (0);
+			ret = 0;
+			goto error;
 		}
-		if (zfs_create_ancestors(g_zfs, argv[1]) != 0) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (1);
-		}
+
+		makeprops_parents(&props_parents, parents_nomount);
+		if (zfs_create_ancestors(g_zfs, argv[1],
+		                         props_parents) != 0)
+			goto error;
 	}
 
 	/* pass to libzfs */
@@ -920,14 +944,17 @@ zfs_do_clone(int argc, char **argv)
 		(void) zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
 	}
 
+error:
 	zfs_close(zhp);
+error_open:
 	nvlist_free(props);
-
+	nvlist_free(props_parents);
 	return (!!ret);
 
 usage:
 	ASSERT0P(zhp);
 	nvlist_free(props);
+	nvlist_free(props_parents);
 	usage(B_FALSE);
 	return (-1);
 }
@@ -1048,7 +1075,7 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 }
 
 /*
- * zfs create [-Pnpv] [-o prop=value] ... fs
+ * zfs create [-Pnpuv] [-o prop=value] ... fs
  * zfs create [-Pnpsv] [-b blocksize] [-o prop=value] ... -V vol size
  *
  * Create a new dataset.  This command can be used to create filesystems
@@ -1061,6 +1088,7 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
  * SPA_VERSION_REFRESERVATION, we set a refreservation instead.
  *
  * The '-p' flag creates all the non-existing ancestors of the target first.
+ * If repeated twice, the ancestors are created with `canmount=off`.
  *
  * The '-n' flag is no-op (dry run) mode.  This will perform a user-space sanity
  * check of arguments and properties, but does not check for permissions,
@@ -1083,12 +1111,14 @@ zfs_do_create(int argc, char **argv)
 	boolean_t noreserve = B_FALSE;
 	boolean_t bflag = B_FALSE;
 	boolean_t parents = B_FALSE;
+	boolean_t parents_nomount = B_FALSE;
 	boolean_t dryrun = B_FALSE;
 	boolean_t nomount = B_FALSE;
 	boolean_t verbose = B_FALSE;
 	boolean_t parseable = B_FALSE;
 	int ret = 1;
 	nvlist_t *props;
+	nvlist_t *props_parents = NULL;
 	uint64_t intval;
 	const char *strval;
 
@@ -1117,7 +1147,10 @@ zfs_do_create(int argc, char **argv)
 			parseable = B_TRUE;
 			break;
 		case 'p':
-			parents = B_TRUE;
+			if (!parents)
+				parents = B_TRUE;
+			else
+				parents_nomount = B_TRUE;
 			break;
 		case 'b':
 			bflag = B_TRUE;
@@ -1267,6 +1300,8 @@ zfs_do_create(int argc, char **argv)
 	}
 
 	if (parents && zfs_name_valid(argv[0], type)) {
+		makeprops_parents(&props_parents, parents_nomount);
+
 		/*
 		 * Now create the ancestors of target dataset.  If the target
 		 * already exists and '-p' option was used we should not
@@ -1282,7 +1317,8 @@ zfs_do_create(int argc, char **argv)
 			    "create ancestors of %s\n", argv[0]);
 		}
 		if (!dryrun) {
-			if (zfs_create_ancestors(g_zfs, argv[0]) != 0) {
+			if (zfs_create_ancestors(g_zfs, argv[0],
+				                 props_parents) != 0) {
 				goto error;
 			}
 		}
@@ -1341,9 +1377,11 @@ zfs_do_create(int argc, char **argv)
 	(void) zfs_mount_and_share(g_zfs, argv[0], ZFS_TYPE_DATASET);
 error:
 	nvlist_free(props);
+	nvlist_free(props_parents);
 	return (ret);
 badusage:
 	nvlist_free(props);
+	nvlist_free(props_parents);
 	usage(B_FALSE);
 	return (2);
 }
@@ -4038,6 +4076,8 @@ found3:;
  * Renames the given dataset to another of the same type.
  *
  * The '-p' flag creates all the non-existing ancestors of the target first.
+ * If repeated twice, the ancestors are created with `canmount=off`.
+ *
  * The '-u' flag prevents file systems from being remounted during rename.
  */
 static int
@@ -4046,15 +4086,20 @@ zfs_do_rename(int argc, char **argv)
 	zfs_handle_t *zhp;
 	renameflags_t flags = { 0 };
 	int c;
-	int ret = 0;
+	int ret = 1;
 	int types;
 	boolean_t parents = B_FALSE;
+	boolean_t parents_nomount = B_FALSE;
+	nvlist_t *props_parents = NULL;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "pruf")) != -1) {
 		switch (c) {
 		case 'p':
-			parents = B_TRUE;
+			if (parents)
+				parents_nomount = B_TRUE;
+			else
+				parents = B_TRUE;
 			break;
 		case 'r':
 			flags.recursive = B_TRUE;
@@ -4118,18 +4163,24 @@ zfs_do_rename(int argc, char **argv)
 		types = ZFS_TYPE_DATASET;
 
 	if ((zhp = zfs_open(g_zfs, argv[0], types)) == NULL)
-		return (1);
+		goto error_open;
 
 	/* If we were asked and the name looks good, try to create ancestors. */
-	if (parents && zfs_name_valid(argv[1], zfs_get_type(zhp)) &&
-	    zfs_create_ancestors(g_zfs, argv[1]) != 0) {
-		zfs_close(zhp);
-		return (1);
+	if (parents && zfs_name_valid(argv[1], zfs_get_type(zhp))) {
+
+		makeprops_parents(&props_parents, parents_nomount);
+		if (zfs_create_ancestors(g_zfs, argv[1],
+		                         props_parents) != 0) {
+			goto error;
+		}
 	}
 
 	ret = (zfs_rename(zhp, argv[1], flags) != 0);
 
+error:
 	zfs_close(zhp);
+error_open:
+	nvlist_free(props_parents);
 	return (ret);
 }
 
