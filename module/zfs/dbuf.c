@@ -1248,7 +1248,6 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 * partially fill in a hole.
 		 */
 		if (db->db_dirtycnt == 0) {
-			rw_enter(&db->db_rwlock, RW_READER);
 			if (db->db_level == 0) {
 				uint64_t *buf;
 				int i;
@@ -1284,7 +1283,6 @@ dbuf_verify(dmu_buf_impl_t *db)
 					ASSERT0(BP_GET_RAW_PHYSICAL_BIRTH(bp));
 				}
 			}
-			rw_exit(&db->db_rwlock);
 		}
 	}
 	DB_DNODE_EXIT(db);
