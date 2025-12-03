@@ -2208,6 +2208,7 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	if (db == NULL)
 		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		if (db->db_level != 1 || db->db_blkid >= end_blkid)
 			break;
 		if (db->db_state != DB_EVICTING)
