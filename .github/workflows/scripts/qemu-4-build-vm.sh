@@ -181,7 +181,7 @@ function freebsd() {
   echo "##[endgroup]"
 
   echo "##[group]Build"
-  run gmake -j$(sysctl -n hw.ncpu)
+  run gmake -j$(nproc)
   echo "##[endgroup]"
 
   echo "##[group]Install"
