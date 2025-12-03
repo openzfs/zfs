@@ -308,6 +308,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
 	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 
@@ -562,6 +563,7 @@ dnode_undirty_dbufs(list_t *list)
 		ASSERT(list_head(&db->db_dirty_records) == dr);
 		list_remove_head(&db->db_dirty_records);
 		ASSERT(list_is_empty(&db->db_dirty_records));
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
