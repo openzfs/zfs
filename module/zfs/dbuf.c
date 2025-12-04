@@ -293,7 +293,7 @@ assert_db_data_contents_locked(dmu_buf_impl_t *db, boolean_t writer)
 assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t writer)
 #endif
 {
-	/* 
+	/*
 	 * db_rwlock protects indirect blocks and the data block of the meta
 	 * dnode.
 	 */
