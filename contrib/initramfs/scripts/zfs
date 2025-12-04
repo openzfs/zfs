@@ -709,10 +709,6 @@ mountroot()
 	pre_mountroot
 
 	# ------------
-	# Source the default setup variables.
-	[ -r '/etc/default/zfs' ] && . /etc/default/zfs
-
-	# ------------
 	# Support debug option
 	if grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|1)( |$)' /proc/cmdline
 	then
