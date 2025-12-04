@@ -17,7 +17,8 @@
 # See "4.5 Disable root prompt on the initramfs" of Securing Debian Manual:
 # https://www.debian.org/doc/manuals/securing-debian-howto/ch4.en.html
 shell() {
-	if command -v panic > /dev/null 2>&1; then
+	if command -v panic > /dev/null 2>&1
+	then
 		panic
 	else
 		/bin/sh
@@ -79,7 +80,8 @@ find_rootfs()
 
 	# If it's already specified, just keep it mounted and exit
 	# User (kernel command line) must be correct.
-	if [ -n "${ZFS_BOOTFS}" ] && [ "${ZFS_BOOTFS}" != "zfs:AUTO" ]; then
+	if [ -n "${ZFS_BOOTFS}" ] && [ "${ZFS_BOOTFS}" != "zfs:AUTO" ]
+	then
 		return 0
 	fi
 
@@ -116,7 +118,8 @@ find_pools()
 # Get a list of all available pools
 get_pools()
 {
-	if [ -n "${ZFS_POOL_IMPORT}" ]; then
+	if [ -n "${ZFS_POOL_IMPORT}" ]
+	then
 		echo "${ZFS_POOL_IMPORT}"
 		return 0
 	fi
@@ -224,7 +227,6 @@ import_pool()
 	# Needs to be exported for "zpool" to catch it.
 	[ -n "${ZPOOL_IMPORT_PATH}" ] && export ZPOOL_IMPORT_PATH
 
-
 	[ "${quiet}" != "y" ] && zfs_log_begin_msg \
 		"Importing pool '${_import_pool}' using defaults"
 
@@ -276,28 +278,30 @@ load_module_initrd()
 
 	ZFS_INITRD_PRE_MOUNTROOT_SLEEP=${ROOTDELAY:-0}
 
-	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]; then
+	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]
+	then
 		[ "${quiet}" != "y" ] && zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
 	fi
 
 	START="$(/bin/date -u +%s)"
 	END="$((START+ZFS_INITRD_PRE_MOUNTROOT_SLEEP))"
-	while true; do
+	while true
+	do
 		# Wait for all of the /dev/{hd,sd}[a-z] device nodes to appear.
-		if command -v wait_for_udev > /dev/null 2>&1 ; then
+		if command -v wait_for_udev > /dev/null 2>&1
+		then
 			wait_for_udev 10
-		elif command -v wait_for_dev > /dev/null 2>&1 ; then
+		elif command -v wait_for_dev > /dev/null 2>&1
+		then
 			wait_for_dev
 		fi
 
-		#
-		# zpool import refuse to import without a valid
-		# /proc/self/mounts
-		#
+		# zpool import refuse to import without a valid /proc/self/mounts
 		[ ! -f /proc/self/mounts ] && mount proc /proc
 
 		# Load the module
-		if load_module "zfs"; then
+		if load_module "zfs"
+		then
 			_retval=0
 			break
 		else
@@ -306,9 +310,10 @@ load_module_initrd()
 
 		[ "$(/bin/date -u +%s)" -gt "${END}" ] && break
 		sleep 1
-
 	done
-	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]; then
+
+	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]
+	then
 		[ "${quiet}" != "y" ] && zfs_log_end_msg
 	fi
 
@@ -316,7 +321,8 @@ load_module_initrd()
 
 	if [ "${ZFS_INITRD_POST_MODPROBE_SLEEP}" -gt 0 ] 2>/dev/null
 	then
-		if [ "${quiet}" != "y" ]; then
+		if [ "${quiet}" != "y" ]
+		then
 			zfs_log_begin_msg "Sleeping for" \
 				"${ZFS_INITRD_POST_MODPROBE_SLEEP} seconds..."
 		fi
@@ -346,7 +352,8 @@ mount_fs()
 	# Need the _original_ datasets mountpoint!
 	_mountpoint="$(get_fs_value "${_mount_fs}" mountpoint)"
 	ZFS_CMD="mount.zfs -o zfsutil"
-	if [ "${_mountpoint}" = "legacy" ] || [ "${_mountpoint}" = "none" ]; then
+	if [ "${_mountpoint}" = "legacy" ] || [ "${_mountpoint}" = "none" ]
+	then
 		# Can't use the mountpoint property. Might be one of our
 		# clones. Check the 'org.zol:mountpoint' property set in
 		# clone_snap() if that's usable.
@@ -355,12 +362,14 @@ mount_fs()
 		   [ "${_mountpoint1}" = "none" ] ||
 		   [ "${_mountpoint1}" = "-" ]
 		then
-			if [ "${_mount_fs}" != "${ZFS_BOOTFS}" ]; then
+			if [ "${_mount_fs}" != "${ZFS_BOOTFS}" ]
+			then
 				# We don't have a proper mountpoint and this
 				# isn't the root fs.
 				return 0
 			fi
-			if [ "${_mountpoint}" = "legacy" ]; then
+			if [ "${_mountpoint}" = "legacy" ]
+			then
 				ZFS_CMD="mount.zfs"
 			fi
 			# Last hail-mary: Hope 'rootmnt' is set!
@@ -406,8 +415,8 @@ decrypt_fs()
 	_decrypt_fs="${1}"
 
 	# If pool encryption is active and the zfs command understands '-o encryption'
-	if [ "$("${ZPOOL}" list -H -o feature@encryption "${_decrypt_fs%%/*}")" = 'active' ]; then
-
+	if [ "$("${ZPOOL}" list -H -o feature@encryption "${_decrypt_fs%%/*}")" = 'active' ]
+	then
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${_decrypt_fs}" encryptionroot)"
 		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
@@ -415,13 +424,15 @@ decrypt_fs()
 		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
 
 		# If root dataset is encrypted...
-		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
+		if ! [ "${ENCRYPTIONROOT}" = "-" ]
+		then
 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
 			[ "${KEYSTATUS}" = "unavailable" ] || return 0
 
 			# Try extensions first
-			for key in "/etc/zfs/initramfs-tools-load-key" "/etc/zfs/initramfs-tools-load-key.d/"*; do
+			for key in "/etc/zfs/initramfs-tools-load-key" "/etc/zfs/initramfs-tools-load-key.d/"*
+			do
 				[ -r "${key}" ] || continue
 				(. "${key}") && {
 					# Successful return and actually-loaded key: we're done
@@ -431,21 +442,26 @@ decrypt_fs()
 			done
 
 			# Do not prompt if key is stored noninteractively,
-			if ! [ "${KEYLOCATION}" = "prompt" ]; then
+			if ! [ "${KEYLOCATION}" = "prompt" ]
+			then
 				"${ZFS}" load-key "${ENCRYPTIONROOT}"
 
 			# Prompt with plymouth, if active
-			elif /bin/plymouth --ping 2>/dev/null; then
+			elif /bin/plymouth --ping 2>/dev/null
+			then
 				echo "plymouth" > /run/zfs_console_askpwd_cmd
-				for _ in 1 2 3; do
+				for _ in 1 2 3
+				do
 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						"${ZFS}" load-key "${ENCRYPTIONROOT}" && break
 				done
 
 			# Prompt with systemd, if active
-			elif [ -e /run/systemd/system ]; then
+			elif [ -e /run/systemd/system ]
+			then
 				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
-				for _ in 1 2 3; do
+				for _ in 1 2 3
+				do
 					systemd-ask-password --no-tty "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						"${ZFS}" load-key "${ENCRYPTIONROOT}" && break
 				done
@@ -577,7 +593,8 @@ ask_user_snap()
 
 	# We need to temporarily disable debugging. Set 'debug' so we
 	# remember to enabled it again.
-	if [ -n "${ZFS_DEBUG}" ]; then
+	if [ -n "${ZFS_DEBUG}" ]
+	then
 		unset ZFS_DEBUG
 		set +x
 		_debug=1
@@ -591,7 +608,8 @@ ask_user_snap()
 " set -- $("${ZFS}" list -H -oname -tsnapshot -r "${_ask_snap}")
 
 	i=1
-	for snap in "${@}"; do
+	for snap in "${@}"
+	do
 		echo "  ${i}: ${snap}"
 		i="$((i + 1))"
 	done > /dev/stderr
@@ -607,7 +625,8 @@ ask_user_snap()
 	done
 
 	# Re-enable debugging.
-	if [ -n "${_debug}" ]; then
+	if [ -n "${_debug}" ]
+	then
 		ZFS_DEBUG=1
 		set -x
 	fi
@@ -642,7 +661,8 @@ setup_snapshot_booting()
 		then
 			_filesystems="$("${ZFS}" list -oname -tfilesystem -H \
 			    -r -Sname "${ZFS_BOOTFS}")"
-			for fs in ${_filesystems}; do
+			for fs in ${_filesystems}
+			do
 				destroy_fs "${_boot_snap}"
 			done
 		fi
@@ -678,7 +698,8 @@ setup_snapshot_booting()
 			if [ "${_mountpoint}" = "legacy" ] || \
 			   [ "${_mountpoint}" = "none" ]
 			then
-				if [ -n "${_subfs}" ]; then
+				if [ -n "${_subfs}" ]
+				then
 					_mountpoint="${_subfs}"
 				else
 					_mountpoint="/"
@@ -720,7 +741,8 @@ mountroot()
 
 	# ------------
 	# Load ZFS module etc.
-	if ! load_module_initrd; then
+	if ! load_module_initrd
+	then
 		disable_plymouth
 		echo ""
 		echo "Failed to load ZFS modules."
@@ -911,7 +933,8 @@ mountroot()
 	# In case the pool was specified as guid, resolve guid to name
 	pool="$("${ZPOOL}" get -H -o name,value name,guid | \
 	    awk -v pool="${ZFS_RPOOL}" '$2 == pool { print $1 }')"
-	if [ -n "${pool}" ]; then
+	if [ -n "${pool}" ]
+	then
 		# If ${ZFS_BOOTFS} contains guid, replace the guid portion with ${pool}.
 		ZFS_BOOTFS="$(echo "${ZFS_BOOTFS}" | \
 			sed -e "s/$("${ZPOOL}" get -H -o value guid "${pool}")/${pool}/g")"
@@ -966,16 +989,19 @@ mountroot()
 	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")"
 	OLD_IFS="${IFS}" ; IFS="
 "
-	for fs in ${filesystems}; do
+	for fs in ${filesystems}
+	do
 		IFS="${OLD_IFS}" mount_fs "${fs}"
 	done
 	IFS="${OLD_IFS}"
-	for fs in ${ZFS_INITRD_ADDITIONAL_DATASETS}; do
+	for fs in ${ZFS_INITRD_ADDITIONAL_DATASETS}
+	do
 		mount_fs "${fs}"
 	done
 
 	touch /run/zfs_unlock_complete
-	if [ -e /run/zfs_unlock_complete_notify ]; then
+	if [ -e /run/zfs_unlock_complete_notify ]
+	then
 		# shellcheck disable=SC2034
 		read -r zfs_unlock_complete_notify < /run/zfs_unlock_complete_notify
 	fi
