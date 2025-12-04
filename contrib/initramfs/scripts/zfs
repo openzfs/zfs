@@ -334,6 +334,12 @@ load_module_initrd()
 }
 
 # Mount a given filesystem
+# Note: Filesystem must have either `canmount=on` or `canmount=noauto`.
+#       This script only deals with "important" file system, such as those
+#       that are relevant to the operation of the operating system.
+#       Therefor we need to mount even those that have `canmount=noauto`.
+#       However, if user have specifically specified `canmount=off`, then
+#       we will assume that user knows what they're doing and ignore it.
 mount_fs()
 {
 	_mount_fs="${1}"
@@ -986,6 +992,11 @@ mountroot()
 
 	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
+	# As in, nested filesystems:
+	#    pool/root
+	#    pool/root/usr
+	#    pool/root/var
+	#    [etc]
 	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")"
 	OLD_IFS="${IFS}" ; IFS="
 "
@@ -994,6 +1005,12 @@ mountroot()
 		IFS="${OLD_IFS}" mount_fs "${fs}"
 	done
 	IFS="${OLD_IFS}"
+
+	# Mount any extra filesystems specified in `/etc/default/zfs`.
+	# This should only be datasets *not* located nested below the root
+	# filesystem, *and* that are part of the operating system.
+	# I.e., /home isn't part of the OS, it will be mounted automatically
+	# later in the boot process.
 	for fs in ${ZFS_INITRD_ADDITIONAL_DATASETS}
 	do
 		mount_fs "${fs}"
