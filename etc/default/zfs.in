@@ -60,6 +60,10 @@ ZPOOL_IMPORT_ALL_VISIBLE='no'
 # This is a space separated list.
 #ZFS_POOL_EXCEPTIONS="test2"
 
+# Additional important (operating system) file systems to mount beside
+# the root file system.
+#ZFS_INITRD_ADDITIONAL_DATASETS="rpool/usr rpool/var rpool/var/spool"
+
 # Should the datasets be mounted verbosely?
 # A mount counter will be used when mounting if set to 'yes'.
 VERBOSE_MOUNT='no'
