@@ -25,6 +25,14 @@ shell() {
 	fi
 }
 
+get_cmdline()
+{
+	_option="${1}"
+
+	# shellcheck disable=SC2089
+	grep -qiE "(^|[^\\](\\\\)* )(${_option})=(on|yes|1)( |$)" /proc/cmdline
+}
+
 # This runs any scripts that should run before we start importing
 # pools and mounting any filesystems.
 pre_mountroot()
@@ -197,7 +205,8 @@ import_pool()
 
 	# Verify that the pool isn't already imported
 	# Make as sure as we can to not require '-f' to import.
-	"${ZPOOL}" get -H -o value name,guid 2>/dev/null | grep -Fxq "${_import_pool}" && return 0
+	"${ZPOOL}" get -H -o value name,guid 2>/dev/null | \
+		grep -Fxq "${_import_pool}" && return 0
 
 	# For backwards compatibility, make sure that ZPOOL_IMPORT_PATH is set
 	# to something we can use later with the real import(s). We want to
@@ -242,7 +251,8 @@ import_pool()
 			[ "${quiet}" != "y" ] && zfs_log_begin_msg \
 				"Importing pool '${_import_pool}' using cachefile."
 
-			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE} ${ZPOOL_IMPORT_OPTS}"
+			ZFS_CMD="${ZPOOL} import -c ${ZPOOL_CACHE} -N ${ZPOOL_FORCE}"
+			ZFS_CMD="${ZFS_CMD} ${ZPOOL_IMPORT_OPTS}"
 			ZFS_STDERR="$(${ZFS_CMD} "${_import_pool}" 2>&1)"
 			ZFS_ERROR="${?}"
 		fi
@@ -280,7 +290,8 @@ load_module_initrd()
 
 	if [ "${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}" -gt 0 ]
 	then
-		[ "${quiet}" != "y" ] && zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
+		[ "${quiet}" != "y" ] && \
+			zfs_log_begin_msg "Delaying for up to '${ZFS_INITRD_PRE_MOUNTROOT_SLEEP}' seconds."
 	fi
 
 	START="$(/bin/date -u +%s)"
@@ -345,7 +356,8 @@ mount_fs()
 	_mount_fs="${1}"
 
 	# Check that the filesystem exists
-	"${ZFS}" list -oname -tfilesystem -H "${_mount_fs}" > /dev/null 2>&1 ||  return 1
+	"${ZFS}" list -oname -tfilesystem -H "${_mount_fs}" \
+			 > /dev/null 2>&1 ||  return 1
 
 	# Skip filesystems with canmount=off.  The root fs should not have
 	# canmount=off, but ignore it for backwards compatibility just in case.
@@ -389,9 +401,11 @@ mount_fs()
 	decrypt_fs "${_mount_fs}"
 
 	[ "${quiet}" != "y" ] && \
-	    zfs_log_begin_msg "Mounting '${_mount_fs}' on '${rootmnt}/${_mountpoint}'"
+	    zfs_log_begin_msg \
+			"Mounting '${_mount_fs}' on '${rootmnt}/${_mountpoint}'"
 	[ -n "${ZFS_DEBUG}" ] && \
-	    zfs_log_begin_msg "CMD: '${ZFS_CMD} ${_mount_fs} ${rootmnt}/${_mountpoint}'"
+	    zfs_log_begin_msg \
+			"CMD: '${ZFS_CMD} ${_mount_fs} ${rootmnt}/${_mountpoint}'"
 
 	ZFS_STDERR="$(${ZFS_CMD} "${_mount_fs}" "${rootmnt}/${_mountpoint}" 2>&1)"
 	ZFS_ERROR="${?}"
@@ -420,8 +434,10 @@ decrypt_fs()
 {
 	_decrypt_fs="${1}"
 
-	# If pool encryption is active and the zfs command understands '-o encryption'
-	if [ "$("${ZPOOL}" list -H -o feature@encryption "${_decrypt_fs%%/*}")" = 'active' ]
+	# If pool encryption is active and the zfs command understands
+	# '-o encryption'.
+	_enc="$("${ZPOOL}" list -H -o feature@encryption "${_decrypt_fs%%/*}")"
+	if [ "${_enc}" = 'active' ]
 	then
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${_decrypt_fs}" encryptionroot)"
@@ -437,7 +453,8 @@ decrypt_fs()
 			[ "${KEYSTATUS}" = "unavailable" ] || return 0
 
 			# Try extensions first
-			for key in "/etc/zfs/initramfs-tools-load-key" "/etc/zfs/initramfs-tools-load-key.d/"*
+			for key in "/etc/zfs/initramfs-tools-load-key" \
+						   "/etc/zfs/initramfs-tools-load-key.d/"*
 			do
 				[ -r "${key}" ] || continue
 				(. "${key}") && {
@@ -458,7 +475,8 @@ decrypt_fs()
 				echo "plymouth" > /run/zfs_console_askpwd_cmd
 				for _ in 1 2 3
 				do
-					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
+					plymouth ask-for-password --prompt \
+							 "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						"${ZFS}" load-key "${ENCRYPTIONROOT}" && break
 				done
 
@@ -468,13 +486,16 @@ decrypt_fs()
 				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
 				for _ in 1 2 3
 				do
-					systemd-ask-password --no-tty "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
+					systemd-ask-password \
+						--no-tty \
+						"Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						"${ZFS}" load-key "${ENCRYPTIONROOT}" && break
 				done
 
 			# Prompt with ZFS tty, otherwise
 			else
-				# Temporarily setting "printk" to "7" allows the prompt to appear even when the "quiet" kernel option has been used
+				# Temporarily setting "printk" to "7" allows the prompt to
+				# appear even when the "quiet" kernel option has been used.
 				echo "load-key" > /run/zfs_console_askpwd_cmd
 				read -r storeprintk _ < /proc/sys/kernel/printk
 				echo 7 > /proc/sys/kernel/printk
@@ -508,9 +529,11 @@ destroy_fs()
 		echo "Message: ${ZFS_STDERR}"
 		echo "Error: ${ZFS_ERROR}"
 		echo ""
-		echo "Failed to destroy '${_destroy_fs}'. Please make sure that it is not available."
+		echo "Failed to destroy '${_destroy_fs}'."
+		echo "Please make sure that it is not available."
 		echo "Hint: Try:  zfs destroy -Rfn ${_destroy_fs}"
-		echo "If this dryrun looks good, then remove the 'n' from '-Rfn' and try again."
+		echo "If this dryrun looks good, then remove the 'n' from '-Rfn'" \
+			 "and try again."
 		shell
 	else
 		[ "${quiet}" != "y" ] && zfs_log_end_msg
@@ -529,7 +552,8 @@ clone_snap()
 	_clone_destfs="${2}"
 	_clone_mountpoint="${3}"
 
-	[ "${quiet}" != "y" ] && zfs_log_begin_msg "Cloning '${_clone_snap}' to '${_clone_destfs}'"
+	[ "${quiet}" != "y" ] && \
+		zfs_log_begin_msg "Cloning '${_clone_snap}' to '${_clone_destfs}'"
 
 	# Clone the snapshot into a dataset we can boot from
 	# + We don't want this filesystem to be automatically mounted, we
@@ -659,7 +683,7 @@ setup_snapshot_booting()
 	_snapname="${_boot_snap##*@}"
 	ZFS_BOOTFS="${_rootfs}_${_snapname}"
 
-	if ! grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
+	if ! get_cmdline 'rollback'
 	then
 		# If the destination dataset for the clone
 		# already exists, destroy it. Recursively
@@ -679,7 +703,7 @@ setup_snapshot_booting()
 	for s in $("${ZFS}" list -H -oname -tsnapshot -r "${_rootfs}" | \
 	    grep "${_snapname}")
 	do
-		if grep -qiE '(^|[^\\](\\\\)* )(rollback)=(on|yes|1)( |$)' /proc/cmdline
+		if get_cmdline 'rollback'
 		then
 			# Rollback snapshot
 			rollback_snap "${s}" || _retval="$((_retval + 1))"
@@ -687,10 +711,10 @@ setup_snapshot_booting()
 		else
 			# Setup a destination filesystem name.
 			# Ex: Called with 'rpool/ROOT/debian@snap2'
-			#       rpool/ROOT/debian@snap2		=> rpool/ROOT/debian_snap2
-			#       rpool/ROOT/debian/boot@snap2	=> rpool/ROOT/debian_snap2/boot
-			#       rpool/ROOT/debian/usr@snap2	=> rpool/ROOT/debian_snap2/usr
-			#       rpool/ROOT/debian/var@snap2	=> rpool/ROOT/debian_snap2/var
+			#       rpool/ROOT/debian@snap2      => rpool/ROOT/debian_snap2
+			#       rpool/ROOT/debian/boot@snap2 => rpool/ROOT/debian_snap2/boot
+			#       rpool/ROOT/debian/usr@snap2  => rpool/ROOT/debian_snap2/usr
+			#       rpool/ROOT/debian/var@snap2  => rpool/ROOT/debian_snap2/var
 			_subfs="${s##"${_rootfs}"}"
 			_subfs="${_subfs%%@"${_snapname}"}"
 
@@ -737,7 +761,7 @@ mountroot()
 
 	# ------------
 	# Support debug option
-	if grep -qiE '(^|[^\\](\\\\)* )(zfs_debug|zfs\.debug|zfsdebug)=(on|yes|1)( |$)' /proc/cmdline
+	if get_cmdline 'zfs_debug|zfs\.debug|zfsdebug'
 	then
 		ZFS_DEBUG=1
 		mkdir /var/log
@@ -794,22 +818,22 @@ mountroot()
 	# ----------------------------------------------------------------
 	# P A R S E   C O M M A N D   L I N E   O P T I O N S
 
-	# This part is the really ugly part - there's so many options and permutations
-	# 'out there', and if we should make this the 'primary' source for ZFS initrd
-	# scripting, we need/should support them all.
+	# This part is the really ugly part - there's so many options and
+	# permutations 'out there', and if we should make this the 'primary'
+	# source for ZFS initrd scripting, we need/should support them all.
 	#
 	# Supports the following kernel command line argument combinations
 	# (in this order - first match win):
 	#
-	#	rpool=<pool>			(tries to finds bootfs automatically)
-	#	bootfs=<pool>/<dataset>		(uses this for rpool - first part)
-	#	rpool=<pool> bootfs=<pool>/<dataset>
-	#	-B zfs-bootfs=<pool>/<fs>	(uses this for rpool - first part)
-	#	rpool=rpool			(default if none of the above is used)
-	#	root=<pool>/<dataset>		(uses this for rpool - first part)
-	#	root=ZFS=<pool>/<dataset>	(uses this for rpool - first part, without 'ZFS=')
-	#	root=zfs:AUTO			(tries to detect both pool and rootfs)
-	#	root=zfs:<pool>/<dataset>	(uses this for rpool - first part, without 'zfs:')
+	#   rpool=<pool>                (tries to finds bootfs automatically)
+	#   bootfs=<pool>/<dataset>		(uses this for rpool - first part)
+	#   rpool=<pool> bootfs=<pool>/<dataset>
+	#   -B zfs-bootfs=<pool>/<fs>   (uses this for rpool - first part)
+	#   rpool=rpool                 (default if none of the above is used)
+	#   root=<pool>/<dataset>       (uses this for rpool - first part)
+	#   root=ZFS=<pool>/<dataset>   (uses this for rpool - first part, without 'ZFS=')
+	#   root=zfs:AUTO               (tries to detect both pool and rootfs)
+	#   root=zfs:<pool>/<dataset>   (uses this for rpool - first part, without 'zfs:')
 	#
 	# Option <dataset> could also be <snapshot>
 	# Option <pool> could also be <guid>
@@ -821,7 +845,7 @@ mountroot()
 	# This should (almost) never be needed, but it's here for
 	# completeness.
 	ZPOOL_FORCE=""
-	if grep -qiE '(^|[^\\](\\\\)* )(zfs_force|zfs\.force|zfsforce)=(on|yes|1)( |$)' /proc/cmdline
+	if get_cmdline 'zfs_force|zfs\.force|zfsforce'
 	then
 		ZPOOL_FORCE="-f"
 	fi
@@ -969,7 +993,8 @@ mountroot()
 		echo "       not specified on the kernel command line."
 		echo ""
 		echo "Manually mount the root filesystem on ${rootmnt} and then exit."
-		echo "Hint: Try:  mount -o zfsutil -t zfs ${ZFS_RPOOL:-rpool}/ROOT/system ${rootmnt}"
+		echo "Hint: Try:  mount -o zfsutil -t zfs " \
+			 "${ZFS_RPOOL:-rpool}/ROOT/system ${rootmnt}"
 		shell
 	fi
 
