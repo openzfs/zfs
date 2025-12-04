@@ -35,7 +35,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_LDADD = libzpool.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_after_trunc
-%C%_clone_after_trunc_LDADD = -lpthread
 
 if WANT_DEVNAME2DEVID
 scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
@@ -71,7 +70,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 	libzfs.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
-%C%_manipulate_user_buffer_LDADD = -lpthread
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
 %C%_mkfile_LDADD = $(LTLIBINTL)
@@ -80,7 +78,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
 scripts_zfs_tests_bin_PROGRAMS += \
 	%D%/mmap_exec %D%/mmap_ftruncate %D%/mmap_seek \
 	%D%/mmap_sync %D%/mmapwrite %D%/readmmap %D%/mmap_write_sync
-%C%_mmapwrite_LDADD = -lpthread
 
 if WANT_MMAP_LIBAIO
 scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
@@ -95,7 +92,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
 	libnvpair.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
-%C%_rm_lnkcnt_zero_file_LDADD = -lpthread
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 %C%_send_doall_LDADD = \
@@ -107,7 +103,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
 %C%_stride_dd_LDADD = -lrt
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
-%C%_threadsappend_LDADD = -lpthread
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/ereports
 %C%_ereports_LDADD = \
