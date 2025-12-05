@@ -771,6 +771,12 @@ Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
 .
+.It Sy zfs_arc_evict_batches_limit Ns = Ns Sy 5 Pq uint
+Number of
+.Sy zfs_arc_evict_batch_limit
+batches to process per parallel eviction task under heavy load to reduce number
+of context switches.
+.
 .It Sy zfs_arc_evict_threads Ns = Ns Sy 0 Pq int
 Sets the number of ARC eviction threads to be used.
 .Pp
