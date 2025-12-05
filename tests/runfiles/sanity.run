@@ -495,6 +495,10 @@ tags = ['functional', 'mmap']
 tests = ['nestedfs_001_pos']
 tags = ['functional', 'nestedfs']
 
+[tests/functional/large_label]
+tests = ['large_label_001_pos']
+tags = ['functional', 'large_label']
+
 [tests/functional/nopwrite]
 tests = ['nopwrite_sync', 'nopwrite_volume']
 tags = ['functional', 'nopwrite']
