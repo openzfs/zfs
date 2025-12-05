@@ -148,6 +148,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/vdev_label.c \
 	module/zfs/vdev_mirror.c \
 	module/zfs/vdev_missing.c \
+	module/zfs/vdev_anyraid.c \
 	module/zfs/vdev_queue.c \
 	module/zfs/vdev_raidz.c \
 	module/zfs/vdev_raidz_math.c \

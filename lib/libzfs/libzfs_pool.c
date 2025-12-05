@@ -1223,7 +1223,8 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	    strncmp(pool, "raidz", 5) == 0 ||
 	    strncmp(pool, "draid", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
-	    strcmp(pool, "log") == 0)) {
+	    strcmp(pool, "log") == 0 ||
+	    strncmp(pool, "anymirror", 9) == 0)) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl,
 			    dgettext(TEXT_DOMAIN, "name is reserved"));
@@ -1614,6 +1615,18 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 				    "minimum size (%s)"), buf);
 			}
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more anyraid devices cannot store "
+			    "any tiles"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 
 		case ENOSPC:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1848,7 +1861,18 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			}
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
-
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more anyraid devices cannot store "
+			    "any tiles"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to add these vdevs"));
@@ -3197,7 +3221,8 @@ zpool_vdev_is_interior(const char *name)
 	    strncmp(name,
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_ROOT, strlen(VDEV_TYPE_ROOT)) == 0 ||
-	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
+	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0 ||
+	    strncmp(name, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0)
 		return (B_TRUE);
 
 	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
@@ -3773,6 +3798,15 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "option '-o ashift=N' to override the optimal size"));
 		(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 		break;
+
+	case ENOLCK:
+		/*
+		 * This occurs when one of the devices is an anyraid
+		 * device that can't hold a single tile.
+		 */
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "new device cannot store any tiles"));
+		return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 
 	case ENAMETOOLONG:
 		/*
@@ -4557,9 +4591,11 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		path = type;
 
 		/*
-		 * If it's a raidz device, we need to stick in the parity level.
+		 * If it's a raidz or anyraid device, we need to stick in the
+		 * parity level.
 		 */
-		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
+		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0 ||
+		    strcmp(path, VDEV_TYPE_ANYRAID) == 0) {
 			value = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY);
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
@@ -5446,6 +5482,10 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
 			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
 			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
+		} else if (prop == VDEV_PROP_ANYRAID_CAP_TILES ||
+		    prop == VDEV_PROP_ANYRAID_NUM_TILES ||
+		    prop == VDEV_PROP_ANYRAID_TILE_SIZE) {
+			return (ENOENT);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
@@ -5476,6 +5516,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_BYTES_FREE:
 		case VDEV_PROP_BYTES_CLAIM:
 		case VDEV_PROP_BYTES_TRIM:
+		case VDEV_PROP_ANYRAID_TILE_SIZE:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
