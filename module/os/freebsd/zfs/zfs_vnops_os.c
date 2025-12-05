@@ -5277,7 +5277,7 @@ zfs_freebsd_fsync(struct vop_fsync_args *ap)
 	 * Push any dirty mmap()'d data out to the DMU and ZIL, ready for
 	 * zil_commit() to be called in zfs_fsync().
 	 */
-	if (vm_object_mightbedirty(vp->v_object)) {
+	if (vp->v_object != NULL && vm_object_mightbedirty(vp->v_object)) {
 		zfs_vmobject_wlock(vp->v_object);
 		if (!vm_object_page_clean(vp->v_object, 0, 0, 0))
 			err = SET_ERROR(EIO);
