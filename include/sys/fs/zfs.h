@@ -32,6 +32,7 @@
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #ifndef	_SYS_FS_ZFS_H
@@ -2002,6 +2003,41 @@ enum zio_encrypt {
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_SYSTEM, name) || \
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_TRUSTED, name) || \
 	    ZFS_XA_NS_PREFIX_MATCH(LINUX_USER, name))
+
+
+/*
+ * Boot environment support. The vdev environment block is accessed with the
+ * ZFS_IOC_GET_BOOTENV and ZFS_IOC_SET_BOOTENV calls. libzfsbootenv uses these
+ * internally, and is the preferred way to work with boot environments, but
+ * these defines are provided here to assist bootloaders and tools that want to
+ * do their own thing.
+ */
+
+#define	ZFS_BE_VERSION		"version"
+enum zfs_bootenv_version {
+	ZFS_BE_VERSION_GRUBENV	= 0,	/* GRUB "grubenv" file */
+	ZFS_BE_VERSION_NVLIST	= 1,	/* arbitrary packed nvlist */
+};
+
+/* nvlist key for GRUB "grubenv" string */
+#define	ZFS_BE_GRUB_ENVMAP	"grub:envmap"
+
+/*
+ * Keys in NVLIST bootenvs should be prefixed with a loader-specific string,
+ * allowing the envblock to support multiple loaders.
+ *
+ * This is the list of known loader prefixes.
+ */
+#define	ZFS_BE_LOADER_FREEBSD	"freebsd"
+#define	ZFS_BE_LOADER_ILLUMOS	"illumos"
+
+/*
+ * Common bootenv keys, to be combined with the loader prefix. New loaders are
+ * encouraged to use these where appropriate to assist cross-platform interop.
+ */
+#define	ZFS_BE_BOOTONCE		"bootonce"
+#define	ZFS_BE_BOOTONCE_USED	"bootonce-used"
+#define	ZFS_BE_NVSTORE		"nvstore"
 
 #ifdef	__cplusplus
 }
