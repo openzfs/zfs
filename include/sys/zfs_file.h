@@ -25,6 +25,17 @@
 
 #include <sys/zfs_context.h>
 
+/*
+ * loff_t is a Linux kernel/VFS type. glibc and musl expose it to user
+ * space via <fcntl.h>, but FreeBSD libc does not. For FreeBSD user
+ * space we map loff_t to off_t so the shared interfaces that use the
+ * loff_t name still compile. The FreeBSD kernel gets loff_t from its
+ * own linux-compat headers.
+ */
+#if !defined(_KERNEL) && defined(__FreeBSD__)
+typedef off_t loff_t;
+#endif
+
 #ifndef _KERNEL
 typedef struct zfs_file {
 	int f_fd;
