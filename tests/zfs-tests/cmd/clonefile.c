@@ -59,16 +59,12 @@
 #endif
 #endif /* __NR_copy_file_range */
 
-#ifdef __FreeBSD__
-#define	loff_t	off_t
-#endif
-
 ssize_t
-copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int)
+copy_file_range(int, off_t *, int, off_t *, size_t, unsigned int)
     __attribute__((weak));
 
 static inline ssize_t
-cf_copy_file_range(int sfd, loff_t *soff, int dfd, loff_t *doff,
+cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
     size_t len, unsigned int flags)
 {
 	if (copy_file_range)
@@ -151,9 +147,9 @@ usage(void)
 }
 
 int do_clone(int sfd, int dfd);
-int do_clonerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len);
-int do_copyfilerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len);
-int do_deduperange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len);
+int do_clonerange(int sfd, int dfd, off_t soff, off_t doff, size_t len);
+int do_copyfilerange(int sfd, int dfd, off_t soff, off_t doff, size_t len);
+int do_deduperange(int sfd, int dfd, off_t soff, off_t doff, size_t len);
 
 int quiet = 0;
 
@@ -203,7 +199,7 @@ main(int argc, char **argv)
 			abort();
 	}
 
-	loff_t soff = 0, doff = 0;
+	off_t soff = 0, doff = 0;
 	size_t len = SSIZE_MAX;
 	unsigned long long len2;
 	if ((argc-optind) == 5) {
@@ -295,7 +291,7 @@ do_clone(int sfd, int dfd)
 }
 
 int
-do_clonerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
+do_clonerange(int sfd, int dfd, off_t soff, off_t doff, size_t len)
 {
 	if (!quiet)
 		fprintf(stderr, "using FICLONERANGE\n");
@@ -314,7 +310,7 @@ do_clonerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 }
 
 int
-do_copyfilerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
+do_copyfilerange(int sfd, int dfd, off_t soff, off_t doff, size_t len)
 {
 	if (!quiet)
 		fprintf(stderr, "using copy_file_range\n");
@@ -341,7 +337,7 @@ do_copyfilerange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
 }
 
 int
-do_deduperange(int sfd, int dfd, loff_t soff, loff_t doff, size_t len)
+do_deduperange(int sfd, int dfd, off_t soff, off_t doff, size_t len)
 {
 	if (!quiet)
 		fprintf(stderr, "using FIDEDUPERANGE\n");
