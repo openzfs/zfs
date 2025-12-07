@@ -912,7 +912,7 @@ abd_iter_map(struct abd_iter *aiter)
 		paddr = ABD_LINEAR_BUF(aiter->iter_abd);
 	} else {
 		struct page *page;
-		
+
 		offset = aiter->iter_offset;
 		aiter->iter_mapsize = MIN(aiter->iter_sg->length - offset,
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
@@ -921,7 +921,8 @@ abd_iter_map(struct abd_iter *aiter)
 		if (PageHighMem(page)) {
 			page = nth_page(page, offset / PAGE_SIZE);
 			offset &= ~PAGE_MASK;
-			aiter->iter_mapsize = MIN(aiter->iter_mapsize, PAGE_SIZE - offset);
+			aiter->iter_mapsize = MIN(aiter->iter_mapsize,
+			    PAGE_SIZE - offset);
 		}
 		paddr = zfs_kmap_local(page);
 	}

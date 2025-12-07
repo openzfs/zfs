@@ -101,7 +101,8 @@ zfs_uiomove_bvec_impl(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	while (n && uio->uio_resid) {
 		void *paddr;
 		size_t offset = bv->bv_offset + skip;
-		cnt = MIN(PAGE_SIZE - (offset & ~PAGE_MASK), MIN(bv->bv_len - skip, n));
+		cnt = MIN(PAGE_SIZE - (offset & ~PAGE_MASK),
+		    MIN(bv->bv_len - skip, n));
 
 		paddr = zfs_kmap_local(bv->bv_page + (offset >> PAGE_SHIFT));
 		if (rw == UIO_READ) {

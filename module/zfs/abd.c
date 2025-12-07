@@ -1125,7 +1125,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 			    abd_advance_abd_iter(cabds[i], c_cabds[i],
 			    &caiters[i], len);
 		}
-		
+
 		csize -= len;
 	}
 	abd_exit_critical(flags);
