@@ -920,7 +920,7 @@ abd_iter_map(struct abd_iter *aiter)
 		page = sg_page(aiter->iter_sg);
 		if (PageHighMem(page)) {
 			page = nth_page(page, offset / PAGE_SIZE);
-			offset &= ~PAGE_MASK;
+			offset &= PAGE_SIZE - 1;
 			aiter->iter_mapsize = MIN(aiter->iter_mapsize,
 			    PAGE_SIZE - offset);
 		}
@@ -947,7 +947,7 @@ abd_iter_unmap(struct abd_iter *aiter)
 
 		page = sg_page(aiter->iter_sg);
 		if (PageHighMem(page))
-			offset &= ~PAGE_MASK;
+			offset &= PAGE_SIZE - 1;
 
 		/* LINTED E_FUNC_SET_NOT_USED */
 		zfs_kunmap_local(aiter->iter_mapaddr - offset);
