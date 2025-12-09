@@ -3861,8 +3861,6 @@ function directory_diff # dir_a dir_b
 	# do not match there is a "c" entry in one of the columns).
 	if rsync --version | grep -q "[, ] crtimes"; then
 		args+=("--crtimes")
-	else
-		log_note "This rsync package does not support --crtimes (-N)."
 	fi
 
 	# If we are testing a ZIL replay, we need to ignore timestamp changes.
