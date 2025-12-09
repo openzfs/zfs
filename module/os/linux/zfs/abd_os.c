@@ -888,6 +888,14 @@ abd_iter_advance(struct abd_iter *aiter, size_t amount)
 	}
 }
 
+#ifndef nth_page
+/*
+ * Since 6.18 nth_page() no longer exists, and is no longer required to iterate
+ * within a single SG entry, so we replace it with a simple addition.
+ */
+#define	nth_page(p, n)	((p)+(n))
+#endif
+
 /*
  * Map the current chunk into aiter. This can be safely called when the aiter
  * has already exhausted, in which case this does nothing.
@@ -1121,14 +1129,6 @@ abd_return_buf_copy(abd_t *abd, void *buf, size_t n)
 	(PageCompound(page) ? page_size(page) : PAGESIZE)
 #else
 #define	ABD_ITER_PAGE_SIZE(page)	(PAGESIZE)
-#endif
-
-#ifndef nth_page
-/*
- * Since 6.18 nth_page() no longer exists, and is no longer required to iterate
- * within a single SG entry, so we replace it with a simple addition.
- */
-#define	nth_page(p, n)	((p)+(n))
 #endif
 
 void
