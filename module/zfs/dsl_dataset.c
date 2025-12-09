@@ -161,7 +161,8 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 
 	ASSERT3U(BP_GET_BIRTH(bp), >,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
-	dmu_buf_will_dirty(ds->ds_dbuf, tx);
+	/* ds_dbuf is pre-dirtied in dsl_dataset_sync(). */
+	ASSERT(dmu_buf_is_dirty(ds->ds_dbuf, tx));
 	mutex_enter(&ds->ds_lock);
 	delta = parent_delta(ds, used);
 	dsl_dataset_phys(ds)->ds_referenced_bytes += used;
@@ -274,7 +275,8 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	ASSERT3P(tx->tx_pool, ==, ds->ds_dir->dd_pool);
 
 	ASSERT(!ds->ds_is_snapshot);
-	dmu_buf_will_dirty(ds->ds_dbuf, tx);
+	/* ds_dbuf is pre-dirtied in dsl_dataset_sync(). */
+	ASSERT(dmu_buf_is_dirty(ds->ds_dbuf, tx));
 
 	/*
 	 * Track block for livelist, but ignore embedded blocks because
