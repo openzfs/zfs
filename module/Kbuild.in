@@ -433,6 +433,7 @@ ZFS_OBJS := \
 ZFS_OBJS_OS := \
 	abd_os.o \
 	arc_os.o \
+	kasan_compat.o \
 	mmp_os.o \
 	policy.o \
 	qat.o \
