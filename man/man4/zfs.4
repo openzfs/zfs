@@ -1767,6 +1767,16 @@ Blocks that go to the special vdevs are still written indirectly, as with
 .Sy logbias Ns = Ns Sy throughput .
 This parameter is ignored if an SLOG is present.
 .
+.It Sy zfs_import_defer_txgs Ns = Ns Sy 5 Pq uint
+Number of transaction groups to wait after pool import before starting
+background work such as asynchronous block freeing
+.Pq from snapshots, clones, and deduplication
+and scrub or resilver operations.
+This allows the pool import and filesystem mounting to complete more quickly
+without interference from background activities.
+The default value of 5 transaction groups typically provides sufficient time
+for import and mount operations to complete on most systems.
+.
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by
 .Xr zpool-initialize 8 .
