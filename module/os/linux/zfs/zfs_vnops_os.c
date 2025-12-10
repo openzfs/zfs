@@ -31,7 +31,6 @@
 /* Portions Copyright 2007 Jeremy Teo */
 /* Portions Copyright 2010 Robert Milkowski */
 
-
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
