@@ -73,7 +73,6 @@ function do_test {
 	block_device_wait $zvolpath
 
 	# Write using sync (creates FLUSH calls after writes, but not FUA)
-	old_vdev_writes=$(get_sync $DISK1)
 	old_log_writes=$(get_sync $datafile3)
 
 	log_must fio --name=write_iops --size=5M \
@@ -81,20 +80,13 @@ function do_test {
 		--iodepth=1 --rw=randwrite --group_reporting=1 \
 		--filename=$zvolpath --sync=1
 
-	vdev_writes=$(( $(get_sync $DISK1) - $old_vdev_writes))
 	log_writes=$(( $(get_sync $datafile3) - $old_log_writes))
 
-	# When we're doing sync writes, we should see many more writes go to
-	# the log vs the first vdev.  Experiments show anywhere from a 160-320x
-	# ratio of writes to the log vs the first vdev (due to some straggler
-	# writes to the first vdev).
-	#
-	# Check that we have a large ratio (100x) of sync writes going to the
-	# log device
-	ratio=$(($log_writes / $vdev_writes))
-	log_note "Got $log_writes log writes, $vdev_writes vdev writes."
-	if [ $ratio -lt 100 ] ; then
-		log_fail "Expected > 100x more log writes than vdev writes. "
+	# When doing sync writes, we should see at least one SLOG write per
+	# block (5MB / 4KB) == 1280.
+	log_note "Got $log_writes log writes."
+	if [ $log_writes -lt 1280 ] ; then
+		log_fail "Expected >= 1280 log writes. "
 	fi
 
 	# Create a data file
