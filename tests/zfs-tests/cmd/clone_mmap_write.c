@@ -42,12 +42,13 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#ifdef __FreeBSD__
-#define	loff_t	off_t
+#if defined(_GNU_SOURCE) && defined(__linux__)
+_Static_assert(sizeof (loff_t) == sizeof (off_t),
+	"loff_t and off_t must be the same size");
 #endif
 
 ssize_t
-copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int)
+copy_file_range(int, off_t *, int, off_t *, size_t, unsigned int)
     __attribute__((weak));
 
 static int
