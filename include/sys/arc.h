@@ -354,8 +354,6 @@ boolean_t l2arc_range_check_overlap(uint64_t bottom, uint64_t top,
     uint64_t check);
 void l2arc_init(void);
 void l2arc_fini(void);
-void l2arc_start(void);
-void l2arc_stop(void);
 void l2arc_spa_rebuild_start(spa_t *spa);
 void l2arc_spa_rebuild_stop(spa_t *spa);
 
