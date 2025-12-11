@@ -42,13 +42,24 @@ extern "C" {
 #endif
 
 /*
+ * We can feed L2ARC from two states of ARC buffers, mru and mfu,
+ * and each of the states has two types: data and metadata.
+ */
+#define	L2ARC_FEED_TYPES	4
+
+/*
  * L2ARC state and statistics for persistent marker management.
  */
 typedef struct l2arc_info {
-	arc_buf_hdr_t	***l2arc_markers;	/* persistent markers */
+	arc_buf_hdr_t	**l2arc_markers[L2ARC_FEED_TYPES];
 	uint64_t	l2arc_total_writes;	/* total writes for reset */
 	uint64_t	l2arc_total_capacity;	/* total L2ARC capacity */
 	uint64_t	l2arc_smallest_capacity; /* smallest device capacity */
+	/*
+	 * Per-device thread coordination for sublist processing
+	 */
+	boolean_t	*l2arc_sublist_busy[L2ARC_FEED_TYPES];
+	kmutex_t	l2arc_sublist_lock;	/* protects busy flags */
 } l2arc_info_t;
 
 /*
@@ -431,6 +442,13 @@ typedef struct l2arc_dev {
 	 */
 	zfs_refcount_t		l2ad_lb_count;
 	boolean_t		l2ad_trim_all; /* TRIM whole device */
+	/*
+	 * Per-device feed thread for parallel L2ARC writes
+	 */
+	kthread_t		*l2ad_feed_thread;	/* feed thread handle */
+	boolean_t		l2ad_thread_exit;	/* signal thread exit */
+	kmutex_t		l2ad_feed_thr_lock;	/* thread sleep/wake */
+	kcondvar_t		l2ad_feed_cv;		/* thread wakeup cv */
 } l2arc_dev_t;
 
 /*
