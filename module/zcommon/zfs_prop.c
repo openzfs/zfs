@@ -796,6 +796,12 @@ zfs_prop_init(void)
 	    ZFS_TYPE_VOLUME, "<date>", "SNAPSHOTS_CHANGED", B_FALSE, B_TRUE,
 	    B_TRUE, NULL, sfeatures);
 
+	zprop_register_impl(ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
+	    "snapshots_changed_nsecs", PROP_TYPE_NUMBER, 0, NULL,
+	    PROP_READONLY, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "<nsec>",
+	    "SNAPSHOTS_CHANGED_NSECS", B_FALSE, B_TRUE, B_TRUE, NULL,
+	    sfeatures);
+
 	zprop_register_index(ZFS_PROP_LONGNAME, "longname", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "LONGNAME", boolean_table,
 	    sfeatures);
