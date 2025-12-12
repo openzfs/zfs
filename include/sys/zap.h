@@ -226,6 +226,9 @@ int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
+int zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf,
+    uint64_t *actual_num_integers);
 int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 int zap_prefetch_object(objset_t *os, uint64_t zapobj);
@@ -288,6 +291,8 @@ int zap_length(objset_t *ds, uint64_t zapobj, const char *name,
     uint64_t *integer_size, uint64_t *num_integers);
 int zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t *integer_size, uint64_t *num_integers);
+int zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t *integer_size, uint64_t *num_integers);
 
 /*
  * Remove the specified attribute.
@@ -309,6 +314,7 @@ int zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * object.
  */
 int zap_count(objset_t *ds, uint64_t zapobj, uint64_t *count);
+int zap_count_by_dnode(dnode_t *dn, uint64_t *count);
 
 /*
  * Returns (in name) the name of the entry whose (value & mask)
