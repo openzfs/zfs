@@ -163,21 +163,18 @@ typedef struct {
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
-	int (*ddt_op_lookup)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, void *phys, size_t psize);
-	int (*ddt_op_contains)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk);
-	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk);
-	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
-	int (*ddt_op_update)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, const void *phys, size_t psize,
+	int (*ddt_op_lookup)(dnode_t *dn, const ddt_key_t *ddk,
+	    void *phys, size_t psize);
+	int (*ddt_op_contains)(dnode_t *dn, const ddt_key_t *ddk);
+	void (*ddt_op_prefetch)(dnode_t *dn, const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(dnode_t *dn);
+	int (*ddt_op_update)(dnode_t *dn, const ddt_key_t *ddk,
+	    const void *phys, size_t psize, dmu_tx_t *tx);
+	int (*ddt_op_remove)(dnode_t *dn, const ddt_key_t *ddk,
 	    dmu_tx_t *tx);
-	int (*ddt_op_remove)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, dmu_tx_t *tx);
-	int (*ddt_op_walk)(objset_t *os, uint64_t object, uint64_t *walk,
-	    ddt_key_t *ddk, void *phys, size_t psize);
-	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
+	int (*ddt_op_walk)(dnode_t *dn, uint64_t *walk, ddt_key_t *ddk,
+	    void *phys, size_t psize);
+	int (*ddt_op_count)(dnode_t *dn, uint64_t *count);
 } ddt_ops_t;
 
 extern const ddt_ops_t ddt_zap_ops;
