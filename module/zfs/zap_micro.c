@@ -1049,6 +1049,24 @@ zap_count(objset_t *os, uint64_t zapobj, uint64_t *count)
 	return (err);
 }
 
+int
+zap_count_by_dnode(dnode_t *dn, uint64_t *count)
+{
+	zap_t *zap;
+
+	int err = zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
+	    FTAG, &zap);
+	if (err != 0)
+		return (err);
+	if (!zap->zap_ismicro) {
+		err = fzap_count(zap, count);
+	} else {
+		*count = zap->zap_m.zap_num_entries;
+	}
+	zap_unlockdir(zap, FTAG);
+	return (err);
+}
+
 /*
  * zn may be NULL; if not specified, it will be computed if needed.
  * See also the comment above zap_entry_normalization_conflict().
@@ -1382,6 +1400,27 @@ zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 	int err =
 	    zap_lockdir(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
+	if (zn == NULL) {
+		zap_unlockdir(zap, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = fzap_length(zn, integer_size, num_integers);
+	zap_name_free(zn);
+	zap_unlockdir(zap, FTAG);
+	return (err);
+}
+
+int
+zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t *integer_size, uint64_t *num_integers)
+{
+	zap_t *zap;
+
+	int err = zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
+	    FTAG, &zap);
 	if (err != 0)
 		return (err);
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
@@ -2016,12 +2055,14 @@ EXPORT_SYMBOL(zap_update_uint64);
 EXPORT_SYMBOL(zap_update_uint64_by_dnode);
 EXPORT_SYMBOL(zap_length);
 EXPORT_SYMBOL(zap_length_uint64);
+EXPORT_SYMBOL(zap_length_uint64_by_dnode);
 EXPORT_SYMBOL(zap_remove);
 EXPORT_SYMBOL(zap_remove_by_dnode);
 EXPORT_SYMBOL(zap_remove_norm);
 EXPORT_SYMBOL(zap_remove_uint64);
 EXPORT_SYMBOL(zap_remove_uint64_by_dnode);
 EXPORT_SYMBOL(zap_count);
+EXPORT_SYMBOL(zap_count_by_dnode);
 EXPORT_SYMBOL(zap_value_search);
 EXPORT_SYMBOL(zap_join);
 EXPORT_SYMBOL(zap_join_increment);
