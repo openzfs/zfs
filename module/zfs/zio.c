@@ -4317,6 +4317,8 @@ zio_dva_allocate(zio_t *zio)
 		flags |= METASLAB_GANG_CHILD;
 	if (zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE)
 		flags |= METASLAB_ASYNC_ALLOC;
+	if (zio->io_flags & ZIO_FLAG_ZILWRITE)
+		flags |= METASLAB_ZIL;
 
 	/*
 	 * If not already chosen, choose an appropriate allocation class.
@@ -5194,7 +5196,9 @@ zio_checksum_generate(zio_t *zio)
 		if (checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
 
-		ASSERT(checksum == ZIO_CHECKSUM_LABEL);
+		ASSERTF(checksum == ZIO_CHECKSUM_LABEL ||
+		    checksum == ZIO_CHECKSUM_ANYRAID_MAP,
+		    "checksum not label: %px %d", zio, checksum);
 	} else {
 		if (BP_IS_GANG(bp) && zio->io_child_type == ZIO_CHILD_GANG) {
 			ASSERT(!IO_IS_ALLOCATING(zio));
@@ -5226,7 +5230,10 @@ zio_checksum_verify(zio_t *zio)
 		if (zio->io_prop.zp_checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
 
-		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
+		ASSERTF(zio->io_prop.zp_checksum == ZIO_CHECKSUM_LABEL ||
+		    zio->io_prop.zp_checksum == ZIO_CHECKSUM_ANYRAID_MAP,
+		    "checksum not label: %px %d", zio,
+		    zio->io_prop.zp_checksum);
 	}
 
 	ASSERT0(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR);
