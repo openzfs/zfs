@@ -446,7 +446,7 @@ decrypt_fs()
 		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
 
 		# If root dataset is encrypted...
-		if ! [ "${ENCRYPTIONROOT}" = "-" ]
+		if [ "${ENCRYPTIONROOT}" != "-" ]
 		then
 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
@@ -465,7 +465,7 @@ decrypt_fs()
 			done
 
 			# Do not prompt if key is stored noninteractively,
-			if ! [ "${KEYLOCATION}" = "prompt" ]
+			if [ "${KEYLOCATION}" != "prompt" ]
 			then
 				"${ZFS}" load-key "${ENCRYPTIONROOT}"
 
