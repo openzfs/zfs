@@ -1730,6 +1730,24 @@ typedef enum {
 #define	ZPOOL_ERR_LIST		"error list"
 #define	ZPOOL_ERR_DATASET	"dataset"
 #define	ZPOOL_ERR_OBJECT	"object"
+#define	ZPOOL_ERR_LEVEL		"level"
+#define	ZPOOL_ERR_BLKID		"blkid" /* NOT NEEDED */
+
+/* Additional nvpairs from zpool_get_errlog() nvlist */
+#define	ZPOOL_ERR_BLOCK_SIZE	"block_size"
+#define	ZPOOL_ERR_OBJECT_TYPE	"object_type"
+#define	ZPOOL_ERR_RANGES	"ranges"
+#define	ZPOOL_ERR_START_BYTE	"start_byte"
+#define	ZPOOL_ERR_END_BYTE	"end_byte"
+#define	ZPOOL_ERR_NAME		"name"
+
+/*
+ * For the zpool status JSON output, we collect all the error lists and put
+ * them in a seperate top level element so they're easier to iterate over.
+ * That way the error lists don't get interspersed with the zpool status
+ * objects.
+ */
+#define	ZPOOL_ERR_JSON		"errors"
 
 #define	HIS_MAX_RECORD_LEN	(MAXPATHLEN + MAXPATHLEN + 1)
 

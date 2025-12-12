@@ -20,8 +20,15 @@
 #include	<sys/btree.h>
 #include	<sys/bitops.h>
 #include	<sys/zfs_context.h>
+#include <sys/sysmacros.h>
 
-kmem_cache_t *zfs_btree_leaf_cache;
+#ifndef _KERNEL
+#include <stdio.h>
+#include <stdlib.h>
+#define	panic(...) PANIC(__VA_ARGS__)
+#endif
+
+kmem_cache_t *zfs_btree_leaf_cache = NULL;
 
 /*
  * Control the extent of the verification that occurs when zfs_btree_verify is
@@ -196,6 +203,9 @@ void
 zfs_btree_create(zfs_btree_t *tree, int (*compar) (const void *, const void *),
     bt_find_in_buf_f bt_find_in_buf, size_t size)
 {
+	/* Verify zfs_btree_init() was called before zfs_btree_create() */
+	ASSERT(zfs_btree_leaf_cache != NULL);
+
 	zfs_btree_create_custom(tree, compar, bt_find_in_buf, size,
 	    BTREE_LEAF_SIZE);
 }

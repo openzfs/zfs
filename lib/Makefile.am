@@ -54,8 +54,10 @@ noinst_LTLIBRARIES =
 lib_LTLIBRARIES =
 pkgconfig_DATA =
 include $(srcdir)/%D%/libavl/Makefile.am
+include $(srcdir)/%D%/libbtree/Makefile.am
 include $(srcdir)/%D%/libicp/Makefile.am
 include $(srcdir)/%D%/libnvpair/Makefile.am
+include $(srcdir)/%D%/librange_tree/Makefile.am
 include $(srcdir)/%D%/libshare/Makefile.am
 include $(srcdir)/%D%/libspl/Makefile.am
 include $(srcdir)/%D%/libunicode/Makefile.am
