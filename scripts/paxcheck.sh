@@ -10,7 +10,7 @@ RET=0
 # check for exec stacks
 OUT=$(scanelf -qyRAF '%e %p' "$1")
 
-if [ x"${OUT}" != x ]; then
+if [ "${OUT}" != "" ]; then
     RET=2
     echo "The following files contain writable and executable sections"
     echo " Files with such sections will not work properly (or at all!) on some"
@@ -26,7 +26,7 @@ fi
 # check for TEXTRELS
 OUT=$(scanelf -qyRAF '%T %p' "$1")
 
-if [ x"${OUT}" != x ]; then
+if [ "${OUT}" != "" ]; then
     RET=2
     echo "The following files contain runtime text relocations"
     echo " Text relocations force the dynamic linker to perform extra"
