@@ -195,7 +195,7 @@ static uint_t zfs_scrub_min_time_ms = 1000;
 static uint_t zfs_obsolete_min_time_ms = 500;
 
 /* minimum milliseconds to free per txg */
-static uint_t zfs_free_min_time_ms = 1000;
+static uint_t zfs_free_min_time_ms = 500;
 
 /* minimum milliseconds to resilver per txg */
 static uint_t zfs_resilver_min_time_ms = 3000;
@@ -208,7 +208,13 @@ static const ddt_class_t zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
 static uint64_t zfs_async_block_max_blocks = UINT64_MAX;
 /* max number of dedup blocks to free in a single TXG */
-static uint64_t zfs_max_async_dedup_frees = 100000;
+static uint64_t zfs_max_async_dedup_frees = 250000;
+
+/*
+ * After freeing this many async ZIOs (dedup, clone, gang blocks), wait for
+ * them to complete before continuing.  This prevents unbounded I/O queueing.
+ */
+static uint64_t zfs_async_free_zio_wait_interval = 2000;
 
 /* set to disable resilver deferring */
 static int zfs_resilver_disable_defer = B_FALSE;
@@ -3590,12 +3596,12 @@ dsl_scan_async_block_should_pause(dsl_scan_t *scn)
 	}
 
 	if (zfs_max_async_dedup_frees != 0 &&
-	    scn->scn_dedup_frees_this_txg >= zfs_max_async_dedup_frees) {
+	    scn->scn_async_frees_this_txg >= zfs_max_async_dedup_frees) {
 		return (B_TRUE);
 	}
 
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
-	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
+	return (elapsed_nanosecs / (NANOSEC / 2) > zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > scn->scn_async_block_min_time_ms &&
 	    txg_sync_waiting(scn->scn_dp)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa));
@@ -3612,14 +3618,32 @@ dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 			return (SET_ERROR(ERESTART));
 	}
 
-	zio_nowait(zio_free_sync(scn->scn_zio_root, scn->scn_dp->dp_spa,
-	    dmu_tx_get_txg(tx), bp, 0));
+	zio_t *zio = zio_free_sync(scn->scn_zio_root, scn->scn_dp->dp_spa,
+	    dmu_tx_get_txg(tx), bp, 0);
 	dsl_dir_diduse_space(tx->tx_pool->dp_free_dir, DD_USED_HEAD,
 	    -bp_get_dsize_sync(scn->scn_dp->dp_spa, bp),
 	    -BP_GET_PSIZE(bp), -BP_GET_UCSIZE(bp), tx);
 	scn->scn_visited_this_txg++;
-	if (BP_GET_DEDUP(bp))
-		scn->scn_dedup_frees_this_txg++;
+	if (zio != NULL) {
+		/*
+		 * zio_free_sync() returned a ZIO, meaning this is an
+		 * async I/O (dedup, clone or gang block).
+		 */
+		scn->scn_async_frees_this_txg++;
+		zio_nowait(zio);
+
+		/*
+		 * After issuing N async ZIOs, wait for them to complete.
+		 * This makes time limits work with actual I/O completion
+		 * times, not just queuing times.
+		 */
+		uint64_t i = zfs_async_free_zio_wait_interval;
+		if (i != 0 && (scn->scn_async_frees_this_txg % i) == 0) {
+			VERIFY0(zio_wait(scn->scn_zio_root));
+			scn->scn_zio_root = zio_root(scn->scn_dp->dp_spa, NULL,
+			    NULL, ZIO_FLAG_MUSTSUCCEED);
+		}
+	}
 	return (0);
 }
 
@@ -3866,7 +3890,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
 		    spa->spa_name, (longlong_t)tx->tx_txg, err);
 		scn->scn_visited_this_txg = 0;
-		scn->scn_dedup_frees_this_txg = 0;
+		scn->scn_async_frees_this_txg = 0;
 
 		/*
 		 * Write out changes to the DDT and the BRT that may be required
@@ -4408,7 +4432,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	/* reset scan statistics */
 	scn->scn_visited_this_txg = 0;
-	scn->scn_dedup_frees_this_txg = 0;
+	scn->scn_async_frees_this_txg = 0;
 	scn->scn_holes_this_txg = 0;
 	scn->scn_lt_min_this_txg = 0;
 	scn->scn_gt_max_this_txg = 0;
@@ -5318,7 +5342,10 @@ ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, U64, ZMOD_RW,
 	"Max number of blocks freed in one txg");
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_async_dedup_frees, U64, ZMOD_RW,
-	"Max number of dedup blocks freed in one txg");
+	"Max number of dedup, clone or gang blocks freed in one txg");
+
+ZFS_MODULE_PARAM(zfs, zfs_, async_free_zio_wait_interval, U64, ZMOD_RW,
+	"Wait for pending free I/Os after issuing this many asynchronously");
 
 ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
 	"Enable processing of the free_bpobj");

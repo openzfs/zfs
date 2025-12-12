@@ -157,7 +157,7 @@ typedef struct dsl_scan {
 
 	/* per txg statistics */
 	uint64_t scn_visited_this_txg;	/* total bps visited this txg */
-	uint64_t scn_dedup_frees_this_txg;	/* dedup bps freed this txg */
+	uint64_t scn_async_frees_this_txg; /* async frees (dedup/clone/gang) */
 	uint64_t scn_holes_this_txg;
 	uint64_t scn_lt_min_this_txg;
 	uint64_t scn_gt_max_this_txg;
