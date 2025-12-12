@@ -1037,13 +1037,6 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 {
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
 
-	/* Entry is still in the log, so charge the entry back to it */
-	if (dde->dde_flags & DDE_FLAG_LOGGED) {
-		ddt_lightweight_entry_t ddlwe;
-		DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
-		ddt_histogram_add_entry(ddt, &ddt->ddt_log_histogram, &ddlwe);
-	}
-
 	avl_remove(&ddt->ddt_tree, dde);
 	ddt_free(ddt, dde);
 }
@@ -1234,62 +1227,60 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 
 	/* Time to make a new entry. */
 	dde = ddt_alloc(ddt, &search);
-
-	/* Record the time this class was created (used by ddt prune) */
-	if (ddt->ddt_flags & DDT_FLAG_FLAT)
-		dde->dde_phys->ddp_flat.ddp_class_start = ddt_class_start();
-
 	avl_insert(&ddt->ddt_tree, dde, where);
 
-	/* If its in the log tree, we can "load" it from there */
+	/*
+	 * The entry in ddt_tree has no DDE_FLAG_LOADED, so other possible
+	 * threads will wait even while we drop the lock.
+	 */
+	ddt_exit(ddt);
+
+	/*
+	 * If there is a log, we should try to "load" from there first.
+	 */
 	if (ddt->ddt_flags & DDT_FLAG_LOG) {
 		ddt_lightweight_entry_t ddlwe;
+		boolean_t from_flushing;
 
-		if (ddt_log_find_key(ddt, &search, &ddlwe)) {
-			/*
-			 * See if we have the key first, and if so, set up
-			 * the entry.
-			 */
+		/* Read-only search, no locks needed (logs stable during I/O) */
+		if (ddt_log_find_key(ddt, &search, &ddlwe, &from_flushing)) {
 			dde->dde_type = ddlwe.ddlwe_type;
 			dde->dde_class = ddlwe.ddlwe_class;
 			memcpy(dde->dde_phys, &ddlwe.ddlwe_phys,
 			    DDT_PHYS_SIZE(ddt));
-			/* Whatever we found isn't valid for this BP, eject */
-			if (verify &&
-			    !ddt_entry_lookup_is_valid(ddt, bp, dde)) {
+
+			/*
+			 * Check validity. If invalid and no waiters, clean up
+			 * immediately. Otherwise continue setup for waiters.
+			 */
+			boolean_t valid = !verify ||
+			    ddt_entry_lookup_is_valid(ddt, bp, dde);
+			ddt_enter(ddt);
+			if (!valid && dde->dde_waiters == 0) {
 				avl_remove(&ddt->ddt_tree, dde);
 				ddt_free(ddt, dde);
 				return (NULL);
 			}
 
-			/* Remove it and count it */
-			if (ddt_log_remove_key(ddt,
-			    ddt->ddt_log_active, &search)) {
-				DDT_KSTAT_BUMP(ddt, dds_lookup_log_active_hit);
-			} else {
-				VERIFY(ddt_log_remove_key(ddt,
-				    ddt->ddt_log_flushing, &search));
+			dde->dde_flags = DDE_FLAG_LOADED | DDE_FLAG_LOGGED;
+			if (from_flushing) {
+				dde->dde_flags |= DDE_FLAG_FROM_FLUSHING;
 				DDT_KSTAT_BUMP(ddt,
 				    dds_lookup_log_flushing_hit);
+			} else {
+				DDT_KSTAT_BUMP(ddt, dds_lookup_log_active_hit);
 			}
-
-			dde->dde_flags = DDE_FLAG_LOADED | DDE_FLAG_LOGGED;
 
 			DDT_KSTAT_BUMP(ddt, dds_lookup_log_hit);
 			DDT_KSTAT_BUMP(ddt, dds_lookup_existing);
 
-			return (dde);
+			cv_broadcast(&dde->dde_cv);
+
+			return (valid ? dde : NULL);
 		}
 
 		DDT_KSTAT_BUMP(ddt, dds_lookup_log_miss);
 	}
-
-	/*
-	 * ddt_tree is now stable, so unlock and let everyone else keep moving.
-	 * Anyone landing on this entry will find it without DDE_FLAG_LOADED,
-	 * and go to sleep waiting for it above.
-	 */
-	ddt_exit(ddt);
 
 	/* Search all store objects for the entry. */
 	error = ENOENT;
@@ -2354,6 +2345,19 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 		    avl_destroy_nodes(&ddt->ddt_tree, &cookie)) != NULL) {
 			ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 			DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
+
+			/* If from flushing log, remove it. */
+			if (dde->dde_flags & DDE_FLAG_FROM_FLUSHING) {
+				VERIFY(ddt_log_remove_key(ddt,
+				    ddt->ddt_log_flushing, &ddlwe.ddlwe_key));
+			}
+
+			/* Update class_start to track last modification time */
+			if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+				ddlwe.ddlwe_phys.ddp_flat.ddp_class_start =
+				    ddt_class_start();
+			}
+
 			ddt_log_entry(ddt, &ddlwe, &dlu);
 			ddt_sync_scan_entry(ddt, &ddlwe, tx);
 			ddt_free(ddt, dde);
@@ -2414,6 +2418,13 @@ ddt_sync_table_flush(ddt_t *ddt, dmu_tx_t *tx)
 
 		ddt_lightweight_entry_t ddlwe;
 		DDT_ENTRY_TO_LIGHTWEIGHT(ddt, dde, &ddlwe);
+
+		/* Update class_start to track last modification time */
+		if (ddt->ddt_flags & DDT_FLAG_FLAT) {
+			ddlwe.ddlwe_phys.ddp_flat.ddp_class_start =
+			    ddt_class_start();
+		}
+
 		ddt_sync_flush_entry(ddt, &ddlwe,
 		    dde->dde_type, dde->dde_class, tx);
 		ddt_sync_scan_entry(ddt, &ddlwe, tx);
@@ -2765,7 +2776,7 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		 * If this entry is on the log, then the stored entry is stale
 		 * and we should skip it.
 		 */
-		if (ddt_log_find_key(ddt, &ddlwe.ddlwe_key, NULL))
+		if (ddt_log_find_key(ddt, &ddlwe.ddlwe_key, NULL, NULL))
 			continue;
 
 		/* prune older entries */

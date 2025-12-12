@@ -4067,19 +4067,21 @@ piggyback:
 
 	/*
 	 * We need to write. We will create a new write with the copies
-	 * property adjusted to match the number of DVAs we need to need to
-	 * grow the DDT entry by to satisfy the request.
+	 * property adjusted to match the number of DVAs we need to grow
+	 * the DDT entry by to satisfy the request.
 	 */
-	zio_prop_t czp = *zp;
+	zio_prop_t czp;
 	if (have_dvas > 0 || parent_dvas > 0) {
+		czp = *zp;
 		czp.zp_copies = need_dvas;
 		czp.zp_gang_copies = 0;
+		zp = &czp;
 	} else {
-		ASSERT3U(czp.zp_copies, ==, need_dvas);
+		ASSERT3U(zp->zp_copies, ==, need_dvas);
 	}
 
 	zio_t *cio = zio_write(zio, spa, txg, bp, zio->io_orig_abd,
-	    zio->io_orig_size, zio->io_orig_size, &czp,
+	    zio->io_orig_size, zio->io_orig_size, zp,
 	    zio_ddt_child_write_ready, NULL,
 	    zio_ddt_child_write_done, dde, zio->io_priority,
 	    ZIO_DDT_CHILD_FLAGS(zio), &zio->io_bookmark);

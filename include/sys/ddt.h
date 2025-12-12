@@ -213,6 +213,7 @@ typedef enum {
 #define	DDE_FLAG_LOADED		(1 << 0)	/* entry ready for use */
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 #define	DDE_FLAG_LOGGED		(1 << 2)	/* loaded from log */
+#define	DDE_FLAG_FROM_FLUSHING	(1 << 3)	/* loaded from flushing log */
 
 /*
  * Additional data to support entry update or repair. This is fixed size
@@ -280,13 +281,14 @@ typedef struct {
  */
 typedef struct {
 	kmutex_t	ddt_lock;	/* protects changes to all fields */
-
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
-	avl_tree_t	ddt_log_tree;	/* logged entries */
-
 	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
 
-	ddt_log_t	ddt_log[2];		/* active/flushing logs */
+	/*
+	 * Log trees are stable during I/O, and only modified during sync
+	 * with exclusive access.
+	 */
+	ddt_log_t	ddt_log[2] ____cacheline_aligned; /* logged entries */
 	ddt_log_t	*ddt_log_active;	/* pointers into ddt_log */
 	ddt_log_t	*ddt_log_flushing;	/* swapped when flush starts */
 
