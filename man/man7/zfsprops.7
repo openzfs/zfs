@@ -38,8 +38,9 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+.\" Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
 .\"
-.Dd September 13, 2025
+.Dd November 24, 2025
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1136,7 +1137,7 @@ This property can also be referred to by its shortened column name,
 .It Xo
 .Sy encryption Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy aes-128-ccm Ns | Ns
 .Sy aes-192-ccm Ns | Ns Sy aes-256-ccm Ns | Ns Sy aes-128-gcm Ns | Ns
-.Sy aes-192-gcm Ns | Ns Sy aes-256-gcm
+.Sy aes-192-gcm Ns | Ns Sy aes-256-gcm Ns | Ns Sy chacha20-poly1305
 .Xc
 Controls the encryption cipher suite (block cipher, key length, and mode) used
 for this dataset.
@@ -1154,6 +1155,12 @@ selected, which is currently
 .Sy aes-256-gcm .
 In order to provide consistent data protection, encryption must be specified at
 dataset creation time and it cannot be changed afterwards.
+.Pp
+On systems lacking hardware-accelerated AES (many non-x86 boards)
+.Sy chacha20-poly1305
+will usually offer better performance without compromising security.
+On x86, or when datasets may be mounted on on older versions of ZFS, an AES
+suite is the best choice.
 .Pp
 For more details and caveats about encryption see the
 .Sx Encryption

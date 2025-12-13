@@ -295,6 +295,17 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 			break;
 		}
 		break;
+	case ZC_TYPE_CHACHA20_POLY1305:
+		csp.csp_cipher_alg = CRYPTO_CHACHA20_POLY1305;
+		csp.csp_ivlen = CHACHA20_POLY1305_IV_LEN;
+		switch (key->ck_length/8) {
+		case CHACHA20_POLY1305_KEY:
+			break;
+		default:
+			error = EINVAL;
+			goto bad;
+		}
+		break;
 	default:
 		error = ENOTSUP;
 		goto bad;
