@@ -124,25 +124,19 @@ static int
 ddt_zap_lookup(dnode_t *dn, const ddt_key_t *ddk, void *phys, size_t psize)
 {
 	uchar_t *cbuf;
-	uint64_t one, csize;
+	uint64_t csize;
 	int error;
 
-	error = zap_length_uint64_by_dnode(dn, (uint64_t *)ddk,
-	    DDT_KEY_WORDS, &one, &csize);
-	if (error)
-		return (error);
+	cbuf = kmem_alloc(psize + 1, KM_SLEEP);
 
-	ASSERT3U(one, ==, 1);
-	ASSERT3U(csize, <=, psize + 1);
-
-	cbuf = kmem_alloc(csize, KM_SLEEP);
-
-	error = zap_lookup_uint64_by_dnode(dn, (uint64_t *)ddk,
-	    DDT_KEY_WORDS, 1, csize, cbuf);
-	if (error == 0)
+	error = zap_lookup_length_uint64_by_dnode(dn, (uint64_t *)ddk,
+	    DDT_KEY_WORDS, 1, psize + 1, cbuf, &csize);
+	if (error == 0) {
+		ASSERT3U(csize, <=, psize + 1);
 		ddt_zap_decompress(cbuf, phys, csize, psize);
+	}
 
-	kmem_free(cbuf, csize);
+	kmem_free(cbuf, psize + 1);
 
 	return (error);
 }
