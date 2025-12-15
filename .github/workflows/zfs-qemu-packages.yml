@@ -60,20 +60,16 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Setup QEMU
-      timeout-minutes: 10
       run: .github/workflows/scripts/qemu-1-setup.sh
 
     - name: Start build machine
-      timeout-minutes: 10
       run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
 
     - name: Install dependencies
-      timeout-minutes: 20
       run: |
         .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
 
     - name: Build modules or Test repo
-      timeout-minutes: 60
       run: |
         set -e
         if [ "${{ github.event.inputs.test_type }}" == "Test repo" ] ; then
@@ -94,7 +90,6 @@ jobs:
 
     - name: Prepare artifacts
       if: always()
-      timeout-minutes: 10
       run: |
         rsync -a zfs@vm0:/tmp/repo /tmp || true
         .github/workflows/scripts/replace-dupes-with-symlinks.sh /tmp/repo
