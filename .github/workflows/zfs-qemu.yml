@@ -87,7 +87,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
 
     - name: Setup QEMU
-      timeout-minutes: 10
+      timeout-minutes: 60
       run: .github/workflows/scripts/qemu-1-setup.sh
 
     - name: Start build machine
@@ -95,7 +95,7 @@ jobs:
       run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
 
     - name: Install dependencies
-      timeout-minutes: 20
+      timeout-minutes: 60
       run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }} ${{ github.event.inputs.fedora_kernel_ver }}
 
     - name: Build modules
