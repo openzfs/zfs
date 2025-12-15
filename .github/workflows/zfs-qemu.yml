@@ -46,7 +46,7 @@ jobs:
             os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora41", "fedora42", "fedora43", "ubuntu22", "ubuntu24"]'
             ;;
           freebsd)
-            os_selection='["freebsd13-5r", "freebsd14-2r", "freebsd14-3r", "freebsd13-5s", "freebsd14-3s", "freebsd15-0s", "freebsd16-0c"]'
+            os_selection='["freebsd13-5r", "freebsd14-3r", "freebsd13-5s", "freebsd14-3s", "freebsd15-0s", "freebsd16-0c"]'
             ;;
           *)
             # default list
@@ -76,7 +76,7 @@ jobs:
         # debian:  debian12, debian13, ubuntu22, ubuntu24
         # misc:    archlinux, tumbleweed
         # FreeBSD variants of november 2025:
-        # FreeBSD Release: freebsd13-5r, freebsd14-2r, freebsd14-3r
+        # FreeBSD Release: freebsd13-5r, freebsd14-3r, freebsd15-0r
         # FreeBSD Stable:  freebsd13-5s, freebsd14-3s, freebsd15-0s
         # FreeBSD Current: freebsd16-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
