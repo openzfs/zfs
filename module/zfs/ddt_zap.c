@@ -33,6 +33,7 @@
 #include <sys/ddt_impl.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/dnode.h>
 #include <sys/zio_compress.h>
 
 static unsigned int ddt_zap_default_bs = 15;
@@ -120,14 +121,13 @@ ddt_zap_destroy(objset_t *os, uint64_t object, dmu_tx_t *tx)
 }
 
 static int
-ddt_zap_lookup(objset_t *os, uint64_t object,
-    const ddt_key_t *ddk, void *phys, size_t psize)
+ddt_zap_lookup(dnode_t *dn, const ddt_key_t *ddk, void *phys, size_t psize)
 {
 	uchar_t *cbuf;
 	uint64_t one, csize;
 	int error;
 
-	error = zap_length_uint64(os, object, (uint64_t *)ddk,
+	error = zap_length_uint64_by_dnode(dn, (uint64_t *)ddk,
 	    DDT_KEY_WORDS, &one, &csize);
 	if (error)
 		return (error);
@@ -137,7 +137,7 @@ ddt_zap_lookup(objset_t *os, uint64_t object,
 
 	cbuf = kmem_alloc(csize, KM_SLEEP);
 
-	error = zap_lookup_uint64(os, object, (uint64_t *)ddk,
+	error = zap_lookup_uint64_by_dnode(dn, (uint64_t *)ddk,
 	    DDT_KEY_WORDS, 1, csize, cbuf);
 	if (error == 0)
 		ddt_zap_decompress(cbuf, phys, csize, psize);
@@ -148,26 +148,27 @@ ddt_zap_lookup(objset_t *os, uint64_t object,
 }
 
 static int
-ddt_zap_contains(objset_t *os, uint64_t object, const ddt_key_t *ddk)
+ddt_zap_contains(dnode_t *dn, const ddt_key_t *ddk)
 {
-	return (zap_length_uint64(os, object, (uint64_t *)ddk, DDT_KEY_WORDS,
-	    NULL, NULL));
+	return (zap_length_uint64_by_dnode(dn, (uint64_t *)ddk,
+	    DDT_KEY_WORDS, NULL, NULL));
 }
 
 static void
-ddt_zap_prefetch(objset_t *os, uint64_t object, const ddt_key_t *ddk)
+ddt_zap_prefetch(dnode_t *dn, const ddt_key_t *ddk)
 {
-	(void) zap_prefetch_uint64(os, object, (uint64_t *)ddk, DDT_KEY_WORDS);
+	(void) zap_prefetch_uint64_by_dnode(dn, (uint64_t *)ddk,
+	    DDT_KEY_WORDS);
 }
 
 static void
-ddt_zap_prefetch_all(objset_t *os, uint64_t object)
+ddt_zap_prefetch_all(dnode_t *dn)
 {
-	(void) zap_prefetch_object(os, object);
+	(void) zap_prefetch_object(dn->dn_objset, dn->dn_object);
 }
 
 static int
-ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
+ddt_zap_update(dnode_t *dn, const ddt_key_t *ddk,
     const void *phys, size_t psize, dmu_tx_t *tx)
 {
 	const size_t cbuf_size = psize + 1;
@@ -176,7 +177,7 @@ ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
 
 	uint64_t csize = ddt_zap_compress(phys, cbuf, psize, cbuf_size);
 
-	int error = zap_update_uint64(os, object, (uint64_t *)ddk,
+	int error = zap_update_uint64_by_dnode(dn, (uint64_t *)ddk,
 	    DDT_KEY_WORDS, 1, csize, cbuf, tx);
 
 	kmem_free(cbuf, cbuf_size);
@@ -185,15 +186,14 @@ ddt_zap_update(objset_t *os, uint64_t object, const ddt_key_t *ddk,
 }
 
 static int
-ddt_zap_remove(objset_t *os, uint64_t object, const ddt_key_t *ddk,
-    dmu_tx_t *tx)
+ddt_zap_remove(dnode_t *dn, const ddt_key_t *ddk, dmu_tx_t *tx)
 {
-	return (zap_remove_uint64(os, object, (uint64_t *)ddk,
+	return (zap_remove_uint64_by_dnode(dn, (uint64_t *)ddk,
 	    DDT_KEY_WORDS, tx));
 }
 
 static int
-ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
+ddt_zap_walk(dnode_t *dn, uint64_t *walk, ddt_key_t *ddk,
     void *phys, size_t psize)
 {
 	zap_cursor_t zc;
@@ -209,9 +209,10 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
 		 * scrub I/Os for each ZAP block that we read in, so
 		 * reading the ZAP is unlikely to be the bottleneck.
 		 */
-		zap_cursor_init_noprefetch(&zc, os, object);
+		zap_cursor_init_noprefetch(&zc, dn->dn_objset, dn->dn_object);
 	} else {
-		zap_cursor_init_serialized(&zc, os, object, *walk);
+		zap_cursor_init_serialized(&zc, dn->dn_objset, dn->dn_object,
+		    *walk);
 	}
 	if ((error = zap_cursor_retrieve(&zc, za)) == 0) {
 		uint64_t csize = za->za_num_integers;
@@ -221,7 +222,7 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
 
 		uchar_t *cbuf = kmem_alloc(csize, KM_SLEEP);
 
-		error = zap_lookup_uint64(os, object, (uint64_t *)za->za_name,
+		error = zap_lookup_uint64_by_dnode(dn, (uint64_t *)za->za_name,
 		    DDT_KEY_WORDS, 1, csize, cbuf);
 		ASSERT0(error);
 		if (error == 0) {
@@ -240,9 +241,9 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
 }
 
 static int
-ddt_zap_count(objset_t *os, uint64_t object, uint64_t *count)
+ddt_zap_count(dnode_t *dn, uint64_t *count)
 {
-	return (zap_count(os, object, count));
+	return (zap_count_by_dnode(dn, count));
 }
 
 const ddt_ops_t ddt_zap_ops = {

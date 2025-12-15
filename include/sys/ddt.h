@@ -326,6 +326,7 @@ typedef struct {
 
 	/* per-type/per-class entry store objects */
 	uint64_t	ddt_object[DDT_TYPES][DDT_CLASSES];
+	dnode_t		*ddt_object_dnode[DDT_TYPES][DDT_CLASSES];
 
 	/* object ids for stored, logged and per-type/per-class stats */
 	uint64_t	ddt_stat_object;
