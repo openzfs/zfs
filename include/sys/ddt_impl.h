@@ -69,8 +69,8 @@ extern "C" {
  * the live tree.
  */
 typedef struct {
-	ddt_key_t	ddle_key;	/* ddt_log_tree key */
-	avl_node_t	ddle_node;	/* ddt_log_tree node */
+	ddt_key_t	ddle_key;	/* ddl_tree key */
+	avl_node_t	ddle_node;	/* ddl_tree node */
 
 	ddt_type_t	ddle_type;	/* storage type */
 	ddt_class_t	ddle_class;	/* storage class */
@@ -193,7 +193,7 @@ extern boolean_t ddt_log_take_first(ddt_t *ddt, ddt_log_t *ddl,
     ddt_lightweight_entry_t *ddlwe);
 
 extern boolean_t ddt_log_find_key(ddt_t *ddt, const ddt_key_t *ddk,
-    ddt_lightweight_entry_t *ddlwe);
+    ddt_lightweight_entry_t *ddlwe, boolean_t *from_flushing);
 extern boolean_t ddt_log_remove_key(ddt_t *ddt, ddt_log_t *ddl,
     const ddt_key_t *ddk);
 
