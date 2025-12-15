@@ -57,7 +57,7 @@ ddt_zap_compress(const void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	/* Call compress function directly to avoid hole detection. */
 	abd_t sabd, dabd;
 	abd_get_from_buf_struct(&sabd, (void *)src, s_len);
-	abd_get_from_buf_struct(&dabd, dst, d_len);
+	abd_get_from_buf_struct(&dabd, dst, d_len - 1);
 	c_len = ci->ci_compress(&sabd, &dabd, s_len, d_len - 1, ci->ci_level);
 	abd_free(&dabd);
 	abd_free(&sabd);
@@ -86,9 +86,10 @@ ddt_zap_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 	}
 
 	abd_t sabd, dabd;
-	abd_get_from_buf_struct(&sabd, src, s_len);
+	size_t c_len = s_len - 1;
+	abd_get_from_buf_struct(&sabd, src, c_len);
 	abd_get_from_buf_struct(&dabd, dst, d_len);
-	VERIFY0(zio_decompress_data(cpfunc, &sabd, &dabd, s_len, d_len, NULL));
+	VERIFY0(zio_decompress_data(cpfunc, &sabd, &dabd, c_len, d_len, NULL));
 	abd_free(&dabd);
 	abd_free(&sabd);
 
