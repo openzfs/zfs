@@ -66,7 +66,10 @@ void *spl_kvmalloc(size_t size, gfp_t flags);
 static inline gfp_t
 kmem_flags_convert(int flags)
 {
-	gfp_t lflags = __GFP_NOWARN | __GFP_COMP;
+	gfp_t lflags = __GFP_NOWARN;
+
+	if (!(flags & KM_VMEM))
+		lflags |= __GFP_COMP;
 
 	if (flags & KM_NOSLEEP) {
 		lflags |= GFP_ATOMIC | __GFP_NORETRY;
