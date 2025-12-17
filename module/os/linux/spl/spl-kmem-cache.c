@@ -144,7 +144,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 
 	if (skc->skc_flags & KMC_RECLAIMABLE)
 		lflags |= __GFP_RECLAIMABLE;
-	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
+	ptr = spl_vmalloc(size, lflags);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
