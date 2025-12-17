@@ -139,7 +139,7 @@ static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
-	gfp_t lflags = kmem_flags_convert(flags);
+	gfp_t lflags = kmem_flags_convert(flags | KM_VMEM);
 	void *ptr;
 
 	if (skc->skc_flags & KMC_RECLAIMABLE)
