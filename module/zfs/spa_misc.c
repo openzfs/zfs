@@ -720,7 +720,7 @@ spa_deadman(void *arg)
 		return;
 
 	zfs_dbgmsg("slow spa_sync: started %llu seconds ago, calls %llu",
-	    (gethrtime() - spa->spa_sync_starttime) / NANOSEC,
+	    (getlrtime() - spa->spa_sync_starttime) / NANOSEC,
 	    (u_longlong_t)++spa->spa_deadman_calls);
 	if (zfs_deadman_enabled)
 		vdev_deadman(spa->spa_root_vdev, FTAG);
