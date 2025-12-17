@@ -188,7 +188,7 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 		return (ptr);
 	}
 
-	return (spl_vmalloc(size, lflags | __GFP_HIGHMEM));
+	return (spl_vmalloc(size, lflags));
 }
 
 /*
@@ -237,7 +237,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 */
 		if (size > spl_kmem_alloc_max) {
 			if (flags & KM_VMEM) {
-				ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
+				ptr = spl_vmalloc(size, lflags);
 			} else {
 				return (NULL);
 			}
