@@ -95,11 +95,12 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 	}
 
 	/*
-	 * If we need to grow the block size then lock the whole file range.
+	 * If we might grow the block size then lock the whole file range.
+	 * NB: this test should match the check in zfs_grow_blocksize
 	 */
 	uint64_t end_size = MAX(zp->z_size, new->lr_offset + new->lr_length);
-	if (end_size > zp->z_blksz && (!ISP2(zp->z_blksz) ||
-	    zp->z_blksz < ZTOZSB(zp)->z_max_blksz)) {
+	if (zp->z_size <= zp->z_blksz && end_size > zp->z_blksz &&
+	    (!ISP2(zp->z_blksz) || zp->z_blksz < ZTOZSB(zp)->z_max_blksz)) {
 		new->lr_offset = 0;
 		new->lr_length = UINT64_MAX;
 	}
