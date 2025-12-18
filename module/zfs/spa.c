@@ -10449,7 +10449,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
 
-	spa->spa_sync_starttime = gethrtime();
+	spa->spa_sync_starttime = getlrtime();
 
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid, B_TRUE);
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
