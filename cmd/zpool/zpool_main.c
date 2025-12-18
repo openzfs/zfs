@@ -7400,6 +7400,7 @@ zpool_do_list(int argc, char **argv)
 	boolean_t first = B_TRUE;
 	nvlist_t *data = NULL;
 	current_prop_type = ZFS_TYPE_POOL;
+	char full_props[1024];
 
 	struct option long_options[] = {
 		{"json", no_argument, NULL, 'j'},
@@ -7423,7 +7424,23 @@ zpool_do_list(int argc, char **argv)
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
 			break;
 		case 'o':
-			props = optarg;
+			if (optarg[0] == '+') {
+				/* +2 for the , and the null terminator */
+				if (strlen(props) + strlen(optarg + 1) + 2 <=
+				    1024) {
+					(void) snprintf(full_props,
+					    sizeof (full_props), "%s,%s",
+					    props, optarg + 1);
+				} else {
+					(void) fprintf(stderr, gettext(
+					    "argument too long for '-o'"
+					    " option.\n"));
+					usage(B_FALSE);
+				}
+				props = full_props;
+			} else {
+				props = optarg;
+			}
 			break;
 		case 'P':
 			cb.cb_name_flags |= VDEV_NAME_PATH;
