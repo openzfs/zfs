@@ -107,6 +107,13 @@ This is a shortcut for specifying
 .Sy usedds , Ns Sy usedrefreserv , Ns Sy usedchild
 .Fl t Sy filesystem , Ns Sy volume .
 .El
+.Pp
+The default list of properties can be extended by using
+.Sy +property
+instead of
+.Sy property .
+For example,
+.Sy zfs list -o +guid .
 .It Fl p
 Display numbers in parsable
 .Pq exact
