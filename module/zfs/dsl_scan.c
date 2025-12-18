@@ -189,7 +189,7 @@ static uint_t zfs_scan_mem_lim_fact = 20;
 static uint_t zfs_scan_mem_lim_soft_fact = 20;
 
 /* minimum milliseconds to scrub per txg */
-static uint_t zfs_scrub_min_time_ms = 1000;
+static uint_t zfs_scrub_min_time_ms = 750;
 
 /* minimum milliseconds to obsolete per txg */
 static uint_t zfs_obsolete_min_time_ms = 500;
@@ -198,7 +198,7 @@ static uint_t zfs_obsolete_min_time_ms = 500;
 static uint_t zfs_free_min_time_ms = 500;
 
 /* minimum milliseconds to resilver per txg */
-static uint_t zfs_resilver_min_time_ms = 3000;
+static uint_t zfs_resilver_min_time_ms = 1500;
 
 static uint_t zfs_scan_checkpoint_intval = 7200; /* in seconds */
 int zfs_scan_suspend_progress = 0; /* set to prevent scans from progressing */
