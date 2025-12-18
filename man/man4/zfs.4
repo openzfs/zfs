@@ -2116,7 +2116,7 @@ even if the
 .Sy resilver_defer
 feature is enabled.
 .
-.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq uint
+.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 1500 Ns ms Pq uint
 Resilvers are processed by the sync thread.
 While resilvering, it will spend at least this much time
 working on a resilver between TXG flushes.
@@ -2133,7 +2133,7 @@ in order to verify the checksums of all blocks which have been
 copied during the expansion.
 This is enabled by default and strongly recommended.
 .
-.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq uint
+.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 750 Ns ms Pq uint
 Scrubs are processed by the sync thread.
 While scrubbing, it will spend at least this much time
 working on a scrub between TXG flushes.
