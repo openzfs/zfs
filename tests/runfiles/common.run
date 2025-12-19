@@ -835,6 +835,10 @@ tags = ['functional', 'mv_files']
 tests = ['nestedfs_001_pos']
 tags = ['functional', 'nestedfs']
 
+[tests/functional/large_label]
+tests = ['large_label_001_pos', 'large_label_002_pos', 'large_label_mirror']
+tags = ['functional', 'large_label']
+
 [tests/functional/no_space]
 tests = ['enospc_001_pos', 'enospc_002_pos', 'enospc_003_pos',
     'enospc_df', 'enospc_ganging', 'enospc_rm']
