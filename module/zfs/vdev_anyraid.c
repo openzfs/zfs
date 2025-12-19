@@ -681,7 +681,8 @@ anyraid_calculate_size(vdev_t *vd)
 	uint64_t smallest_disk_size = UINT64_MAX;
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
-		smallest_disk_size = MIN(smallest_disk_size, cvd->vdev_asize);
+		smallest_disk_size = MIN(smallest_disk_size, cvd->vdev_asize -
+		    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
 	}
 
 	uint64_t disk_shift = anyraid_disk_shift;
