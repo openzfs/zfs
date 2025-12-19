@@ -810,6 +810,19 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	{
+		static const spa_feature_t chapoly_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_ENCRYPTION,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_CHACHA20_POLY1305,
+		    "com.despairlabs:chacha20_poly1305", "chacha20_poly1305",
+		    "Chacha20-Poly1305 encryption suite.",
+		    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
+		    chapoly_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
