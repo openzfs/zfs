@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libefi_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libefi_la_CFLAGS += $(LIBUUID_CFLAGS) $(ZLIB_CFLAGS)
 libefi_la_CFLAGS += -fvisibility=hidden

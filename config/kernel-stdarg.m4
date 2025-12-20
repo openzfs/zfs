@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.15 gets rid of -isystem and external <stdarg.h> inclusion
 dnl # and ships its own <linux/stdarg.h>. Check if this header file does

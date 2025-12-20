@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.3 API change
 dnl # The generic_fadvise() function is present since 4.19 kernel

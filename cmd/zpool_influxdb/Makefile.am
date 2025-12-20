@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 zfsexec_PROGRAMS += zpool_influxdb
 CPPCHECKTARGETS  += zpool_influxdb
 

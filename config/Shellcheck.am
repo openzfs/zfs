@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 # Global ShellCheck exclusions:
 #
 # ShellCheck can't follow non-constant source. Use a directive to specify location. [SC1090]

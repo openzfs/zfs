@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 SUBDIRS += %D%/tests
 
 include $(srcdir)/%D%/cmd/Makefile.am

@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.2 API change
 dnl # The security_inode_init_security() API has been changed to include

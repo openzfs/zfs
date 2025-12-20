@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 zstream_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 
 sbin_PROGRAMS   += zstream

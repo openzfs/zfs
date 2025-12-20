@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFAP
 # ===========================================================================
 #    https://www.gnu.org/software/autoconf-archive/ax_compare_version.html
 # ===========================================================================

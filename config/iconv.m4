@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # iconv.m4 serial 21
 dnl Copyright (C) 2000-2002, 2007-2014, 2016-2019 Free Software Foundation,
 dnl Inc.

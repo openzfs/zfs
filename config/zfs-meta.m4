@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # DESCRIPTION:
 dnl # Read meta data from the META file.  When building from a git repository

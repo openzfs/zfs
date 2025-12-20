@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libzfs_core_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzfs_core_la_CFLAGS += -fvisibility=hidden
 

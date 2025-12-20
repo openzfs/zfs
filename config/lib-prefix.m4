@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # lib-prefix.m4 serial 14
 dnl Copyright (C) 2001-2005, 2008-2019 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation

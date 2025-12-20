@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 

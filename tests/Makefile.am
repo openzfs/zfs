@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 include $(srcdir)/%D%/zfs-tests/Makefile.am
 
 

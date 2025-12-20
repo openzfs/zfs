@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # host-cpu-c-abi.m4 serial 11
 dnl Copyright (C) 2002-2019 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation

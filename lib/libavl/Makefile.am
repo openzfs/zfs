@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libavl_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libavl_la_CFLAGS += -fvisibility=hidden
 

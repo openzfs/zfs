@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.8 API change,
 dnl # User namespaces, use kuid_t in place of uid_t where available.

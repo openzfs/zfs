@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 # find_system_lib.m4 - Macros to search for a system library.   -*- Autoconf -*-
 
 dnl requires pkg.m4 from pkg-config

@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.10 kernel, check number of args of __assign_str() for trace:
 dnl

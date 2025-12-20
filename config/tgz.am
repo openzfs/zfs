@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 PHONY += tgz tgz-kmod tgz-utils tgz-local
 
 tgz-local:

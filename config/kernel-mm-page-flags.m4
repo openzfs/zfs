@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_KERNEL_SRC_MM_PAGE_FLAG_ERROR], [
 	ZFS_LINUX_TEST_SRC([mm_page_flag_error], [
 		#include <linux/page-flags.h>
