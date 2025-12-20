@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 dist_noinst_DATA += %D%/changelog.in
 dist_noinst_DATA += %D%/clean
 dist_noinst_DATA += %D%/control

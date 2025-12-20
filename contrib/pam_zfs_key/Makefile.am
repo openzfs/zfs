@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 %C%_pam_zfs_key_la_CFLAGS  = $(AM_CFLAGS)
 %C%_pam_zfs_key_la_CFLAGS += $(LIBCRYPTO_CFLAGS)
 

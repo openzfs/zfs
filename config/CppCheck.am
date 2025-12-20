@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # cppcheck for userspace – nodist_*_SOURCES are kernel code and cppcheck goes crazy on them.
 #

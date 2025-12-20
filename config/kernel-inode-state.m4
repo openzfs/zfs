@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.19 API change. inode->i_state no longer accessible directly; helper
 dnl # functions exist.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 bin_SCRIPTS =
 bin_PROGRAMS =
 sbin_SCRIPTS =

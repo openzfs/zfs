@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 	AC_ARG_ENABLE(systemd,
 		AS_HELP_STRING([--enable-systemd],

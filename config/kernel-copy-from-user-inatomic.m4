@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # On certain architectures `__copy_from_user_inatomic`
 dnl # is a GPL exported variable and cannot be used by OpenZFS.
