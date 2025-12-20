@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Shown below is a simplified dependency graph of the OpenZFS provided
 # libraries.  Administrative commands (`zfs`, `zpool`, etc) interface with

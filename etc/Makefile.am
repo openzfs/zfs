@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 sudoersddir = $(sysconfdir)/sudoers.d
 sudoersd_DATA = \
 	%D%/sudoers.d/zfs

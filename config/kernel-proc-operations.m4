@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.6 API Change
 dnl # The proc_ops structure was introduced to replace the use of

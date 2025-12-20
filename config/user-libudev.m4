@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check for libudev - needed for vdev auto-online and auto-replace
 dnl #

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 pkgdracut_02dir = $(dracutdir)/modules.d/02zfsexpandknowledge
 pkgdracut_02_SCRIPTS = \
 	%D%/02zfsexpandknowledge/module-setup.sh

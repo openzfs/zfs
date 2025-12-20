@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.11 API change
 dnl # kmap_atomic() was deprecated in favor of kmap_local_page()

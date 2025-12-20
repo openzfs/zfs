@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Certain kernel build options are not supported.  These must be
 dnl # detected at configure time and cause a build failure.  Otherwise

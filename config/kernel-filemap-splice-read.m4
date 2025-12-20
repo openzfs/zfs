@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_KERNEL_SRC_COPY_SPLICE_READ], [
 	dnl #
 	dnl # Kernel 6.5 - generic_file_splice_read was removed in favor

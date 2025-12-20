@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.35 API change,
 dnl # The 'struct xattr_handler' was constified in the generic

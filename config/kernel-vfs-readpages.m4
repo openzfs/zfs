@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.18 removes address_space_operations ->readpages in favour of
 dnl # ->readahead

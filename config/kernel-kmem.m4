@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Enabled by default it provides a minimal level of memory tracking.
 dnl # A total count of bytes allocated is kept for each alloc and free.

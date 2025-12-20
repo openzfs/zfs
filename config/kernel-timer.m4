@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.2: timer_delete_sync introduced, del_timer_sync deprecated and made
 dnl #      into a simple wrapper

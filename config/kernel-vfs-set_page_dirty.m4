@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.14 adds a change to require set_page_dirty to be manually
 dnl # wired up in struct address_space_operations. Determine if this needs

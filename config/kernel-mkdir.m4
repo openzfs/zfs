@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Supported mkdir() interfaces checked newest to oldest.
 dnl #

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 dist_noinst_man_MANS = \
 	%D%/man1/cstyle.1
 

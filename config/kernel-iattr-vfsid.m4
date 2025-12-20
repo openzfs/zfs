@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.0 API change
 dnl # struct iattr has two unions for the uid and gid

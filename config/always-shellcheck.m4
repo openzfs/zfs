@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check if shellcheck and/or checkbashisms are available.
 dnl #

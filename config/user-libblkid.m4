@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check for libblkid.  Basic support for detecting ZFS pools
 dnl # has existing in blkid since 2008.

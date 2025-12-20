@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # lib-ld.m4 serial 9
 dnl Copyright (C) 1996-2003, 2009-2019 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation

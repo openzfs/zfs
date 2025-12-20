@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Checks if host toolchain supports SIMD instructions
 dnl #

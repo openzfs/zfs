@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 if CONFIG_KERNEL
 kernel_linuxdir = $(kerneldir)/linux
 kernel_linux_HEADERS = \

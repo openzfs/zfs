@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Set the target cpu architecture.  This allows the
 dnl # following syntax to be used in a Makefile.am.

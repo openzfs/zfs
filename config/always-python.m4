@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # The majority of the python scripts are written to be compatible
 dnl # with Python 3.6. This option is intended to

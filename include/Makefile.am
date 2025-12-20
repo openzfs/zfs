@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 if BUILD_LINUX
 include $(srcdir)/%D%/os/linux/Makefile.am
 endif

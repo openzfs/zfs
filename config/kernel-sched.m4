@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.9 API change,
 dnl # Moved things from linux/sched.h to linux/sched/rt.h

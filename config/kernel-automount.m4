@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.37 API change
 dnl # The dops->d_automount() dentry operation was added as a clean

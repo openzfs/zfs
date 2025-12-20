@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl
 dnl Checks for libunwind, which usually does a better job than backtrace() when
 dnl resolving symbols in the stack backtrace. Newer versions have support for

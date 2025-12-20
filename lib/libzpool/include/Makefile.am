@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libzpool_sysdir = $(includedir)/libzpool/sys
 libzpool_sys_HEADERS = \
 	%D%/sys/abd_os.h \

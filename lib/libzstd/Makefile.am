@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libzstd_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzstd_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 

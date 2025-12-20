@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 6.5 removes register_sysctl_table
 dnl #

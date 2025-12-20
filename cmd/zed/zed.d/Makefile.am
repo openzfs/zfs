@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 zedconfdir = $(sysconfdir)/zfs/zed.d
 dist_zedconf_DATA = \
 	%D%/zed-functions.sh \

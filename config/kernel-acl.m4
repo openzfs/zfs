@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.1 API change,
 dnl # posix_acl_equiv_mode now wants an umode_t instead of a mode_t

@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.35 API change
 dnl # Added truncate_setsize() helper function.

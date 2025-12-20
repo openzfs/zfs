@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # ZERO_PAGE() is an alias for emtpy_zero_page. On certain architectures
 dnl # this is a GPL exported variable.

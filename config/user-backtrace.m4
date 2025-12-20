@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl
 dnl backtrace(), for userspace assertions. glibc has this directly in libc.
 dnl FreeBSD and (sometimes) musl have it in a separate -lexecinfo. It's assumed

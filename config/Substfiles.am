@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 subst_sed_cmd = \
 	-e 's|@abs_top_srcdir[@]|$(abs_top_srcdir)|g' \
 	-e 's|@bindir[@]|$(bindir)|g' \

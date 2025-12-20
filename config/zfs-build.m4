@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_LICENSE], [
 	AC_MSG_CHECKING([zfs author])
 	AC_MSG_RESULT([$ZFS_META_AUTHOR])

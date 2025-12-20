@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 include $(srcdir)/%D%/bash_completion.d/Makefile.am
 include $(srcdir)/%D%/debian/Makefile.am
 include $(srcdir)/%D%/pyzfs/Makefile.am

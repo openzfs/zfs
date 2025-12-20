@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 6.0 uses migrate_folio in lieu of migrate_page
 dnl #

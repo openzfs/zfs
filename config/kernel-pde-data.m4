@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.17 API: PDE_DATA() renamed to pde_data(),
 dnl # 359745d78351c6f5442435f81549f0207ece28aa ("proc: remove PDE_DATA() completely")

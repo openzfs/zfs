@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.39 API change,
 dnl # blk_start_plug() and blk_finish_plug()

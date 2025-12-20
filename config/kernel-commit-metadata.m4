@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.33 API change
 dnl # Added eops->commit_metadata() callback to allow the underlying
