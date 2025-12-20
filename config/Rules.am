@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Default build rules for all user space components, every Makefile.am
 # should include these rules and override or extend them as needed.

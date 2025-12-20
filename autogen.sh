@@ -1,4 +1,5 @@
 #!/bin/sh
+# SPDX-License-Identifier: CDDL-1.0
 [ "${0%/*}" = "$0" ] || cd "${0%/*}" || exit
 
 # %reldir%/%canon_reldir% (%D%/%C%) only appeared in automake 1.14, but RHEL/CentOS 7 has 1.13.4

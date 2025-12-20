@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libzfsbootenv_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzfsbootenv_la_CFLAGS += -fvisibility=hidden
 

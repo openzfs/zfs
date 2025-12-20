@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 PHONY += deb-kmod deb-dkms deb-utils deb deb-local native-deb-local \
 	native-deb-utils native-deb-kmod native-deb
 

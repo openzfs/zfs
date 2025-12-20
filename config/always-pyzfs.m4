@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # ZFS_AC_PYTHON_MODULE(module_name, [action-if-true], [action-if-false])
 dnl #

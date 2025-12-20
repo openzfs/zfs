@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 6.0 gets rid of address_space_operations.migratepage
 dnl #

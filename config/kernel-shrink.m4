@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.1 API change
 dnl # The super_block structure now stores a per-filesystem shrinker.
