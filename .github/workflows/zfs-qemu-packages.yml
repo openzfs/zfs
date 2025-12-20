@@ -42,6 +42,12 @@ on:
         required: false
         default: ""
         description: "(optional) repo URL (blank: use http://download.zfsonlinux.org)"
+      lookup:
+        type: boolean
+        required: false
+        default: false
+        description: "(optional) do version lookup only on repo test"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -77,7 +83,12 @@ jobs:
                 .github/workflows/scripts/qemu-prepare-for-build.sh
 
                 mkdir -p /tmp/repo
-                ssh zfs@vm0 '$HOME/zfs/.github/workflows/scripts/qemu-test-repo-vm.sh' ${{ github.event.inputs.repo_url }}
+                EXTRA=""
+                if [ "${{ github.event.inputs.lookup }}" == 'true' ] ; then
+                        EXTRA="--lookup"
+                fi
+
+                ssh zfs@vm0 '$HOME/zfs/.github/workflows/scripts/qemu-test-repo-vm.sh' $EXTRA ${{ github.event.inputs.repo_url }}
         else
                 EXTRA=""
                 if [ -n "${{ github.event.inputs.patch_level }}" ] ; then
