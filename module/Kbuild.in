@@ -216,12 +216,6 @@ NVPAIR_OBJS := \
 zfs-objs += $(addprefix nvpair/,$(NVPAIR_OBJS))
 
 
-UNICODE_OBJS := \
-	u8_textprep.o
-
-zfs-objs += $(addprefix unicode/,$(UNICODE_OBJS))
-
-
 ZCOMMON_OBJS := \
 	cityhash.o \
 	simd_stat.o \
@@ -372,6 +366,7 @@ ZFS_OBJS := \
 	space_map.o \
 	space_reftree.o \
 	txg.o \
+	u8_textprep.o \
 	uberblock.o \
 	unique.o \
 	vdev.o \

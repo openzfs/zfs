@@ -230,9 +230,6 @@ SRCS+=	abd_os.c \
 	zio_crypt.c \
 	zvol_os.c
 
-#unicode
-SRCS+= 	u8_textprep.c
-
 #zcommon
 SRCS+=	cityhash.c \
 	zfeature_common.c \
@@ -322,6 +319,7 @@ SRCS+=	abd.c \
 	spa_misc.c \
 	spa_stats.c \
 	txg.c \
+	u8_textprep.c \
 	uberblock.c \
 	unique.c \
 	vdev.c \
