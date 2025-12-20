@@ -7339,15 +7339,14 @@ append_options(char *mntopts, char *newopts)
 static enum sa_protocol
 sa_protocol_decode(const char *protocol)
 {
-	for (enum sa_protocol i = 0; i < ARRAY_SIZE(sa_protocol_names); ++i)
-		if (strcmp(protocol, sa_protocol_names[i]) == 0)
+	for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i)
+		if (strcmp(protocol, zfs_share_protocol_name(i)) == 0)
 			return (i);
 
 	(void) fputs(gettext("share type must be one of: "), stderr);
-	for (enum sa_protocol i = 0;
-	    i < ARRAY_SIZE(sa_protocol_names); ++i)
+	for (enum sa_protocol i = 0; i < SA_PROTOCOL_COUNT; ++i)
 		(void) fprintf(stderr, "%s%s",
-		    i != 0 ? ", " : "", sa_protocol_names[i]);
+		    i != 0 ? ", " : "", zfs_share_protocol_name(i));
 	(void) fputc('\n', stderr);
 	usage(B_FALSE);
 }

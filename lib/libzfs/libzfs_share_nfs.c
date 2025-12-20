@@ -28,10 +28,9 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <errno.h>
-#include <libshare.h>
 #include <unistd.h>
 #include <libzutil.h>
-#include "nfs.h"
+#include "libzfs_impl.h"
 
 
 /*
@@ -241,7 +240,7 @@ nfs_copy_entries_cb(void *userdata, char *line, boolean_t found_mountpoint)
 static int
 nfs_copy_entries(FILE *newfp, const char *exports, const char *mountpoint)
 {
-	fputs(FILE_HEADER, newfp);
+	fputs(NFS_FILE_HEADER, newfp);
 
 	int error = nfs_process_exports(
 	    exports, mountpoint, nfs_copy_entries_cb, newfp);

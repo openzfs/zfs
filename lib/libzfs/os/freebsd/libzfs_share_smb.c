@@ -25,8 +25,8 @@
  */
 
 #include <stdio.h>
-#include <libshare.h>
-#include "libshare_impl.h"
+#include <libzfs.h>
+#include "../../libzfs_share.h"
 
 /*
  * Enables SMB sharing for the specified share.

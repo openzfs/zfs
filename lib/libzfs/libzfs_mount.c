@@ -79,7 +79,6 @@
 
 #include "libzfs_impl.h"
 
-#include <libshare.h>
 #include <sys/systeminfo.h>
 #define	MAXISALEN	257	/* based on sysinfo(2) man page */
 
@@ -98,7 +97,11 @@ static const enum sa_protocol share_all_proto[SA_PROTOCOL_COUNT + 1] = {
 	SA_NO_PROTOCOL
 };
 
-
+const char *
+zfs_share_protocol_name(enum sa_protocol protocol)
+{
+	return (sa_protocol_names[protocol]);
+}
 
 static boolean_t
 dir_is_empty_stat(const char *dirname)
