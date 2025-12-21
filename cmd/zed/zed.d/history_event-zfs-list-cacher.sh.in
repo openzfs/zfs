@@ -21,6 +21,7 @@ zed_check_cmd "${ZFS}" sort diff
 
 # We lock the output file to avoid simultaneous writes.
 # If we run into trouble, log and drop the lock
+# shellcheck disable=SC2329
 abort_alter() {
   zed_log_msg "Error updating zfs-list.cache for ${ZEVENT_POOL}!"
   zed_unlock "${FSLIST}"
