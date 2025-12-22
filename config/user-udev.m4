@@ -1,5 +1,7 @@
 AC_DEFUN([ZFS_AC_CONFIG_USER_UDEV], [
-	AC_MSG_CHECKING(for udev directories)
+	PKG_CHECK_MODULES([UDEV], [udev], [have_udev=yes], [have_udev=no])
+
+	AC_MSG_CHECKING(for udev directories XXX $prefix XXX)
 	AC_ARG_WITH(udevdir,
 		AS_HELP_STRING([--with-udevdir=DIR],
 		[install udev helpers @<:@default=check@:>@]),
@@ -11,12 +13,15 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_UDEV], [
 		path2=$prefix/lib/udev
 		default=$path2
 
-		AS_IF([test "$prefix" = "/usr"], [
-			AS_IF([test -d "$path1"], [udevdir="$path1"], [
-				AS_IF([test -d "$path2"], [udevdir="$path2"],
-					[udevdir="$default"])
-			])
-		], [udevdir="$default"])
+		AS_IF([test "x${have_udev}" = xyes],
+			[udevdir=`$PKG_CONFIG --variable=udevdir udev`],
+			AS_IF([test "$prefix" = "/usr"], [
+				AS_IF([test -d "$path1"], [udevdir="$path1"], [
+					AS_IF([test -d "$path2"], [udevdir="$path2"],
+						[udevdir="$default"])
+				])
+			], [udevdir="$default"])
+		)
 	])
 
 	AC_ARG_WITH(udevruledir,
