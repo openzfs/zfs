@@ -31,7 +31,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_SYSTEMD], [
 			[enable_systemd=no])
 	])
 
-	AC_MSG_CHECKING(for systemd support)
+	AC_MSG_CHECKING(for systemd support XXX libdir=$libdir XXX)
 	AC_MSG_RESULT([$enable_systemd])
 
 	AS_IF([test "x$enable_systemd" = xyes], [
