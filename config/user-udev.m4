@@ -9,19 +9,18 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_UDEV], [
 		[udevdir=check])
 
 	AS_IF([test "x$udevdir" = xcheck], [
-		path1=/lib/udev
-		path2=$prefix/lib/udev
-		default=$path2
-
-		AS_IF([test "x${have_udev}" = xyes],
-			[udevdir=`$PKG_CONFIG --variable=udevdir udev`],
-			AS_IF([test "$prefix" = "/usr"], [
-				AS_IF([test -d "$path1"], [udevdir="$path1"], [
-					AS_IF([test -d "$path2"], [udevdir="$path2"],
-						[udevdir="$default"])
-				])
-			], [udevdir="$default"])
+		AS_IF([test "x$prefix" != "xNONE"],
+			[tprefix="$prefix"],
+			[tprefix="$ac_default_prefix"]
 		)
+
+		AS_IF([test "x$tprefix" = "x/usr"], [
+			AS_IF([test "x${have_udev}" = xyes],
+				[udevdir=`$PKG_CONFIG --variable=udevdir udev`],
+				AS_IF([test -d '/lib/udev' -a ! -L '/lib'],
+					[udevdir="/lib/udev"],
+					[udevdir="/usr/lib/udev"]))
+		], [udevdir='${prefix}/lib/udev'])
 	])
 
 	AC_ARG_WITH(udevruledir,
