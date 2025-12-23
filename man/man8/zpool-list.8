@@ -84,6 +84,13 @@ manual page for a list of valid properties.
 The default list is
 .Sy name , size , allocated , free , checkpoint, expandsize , fragmentation ,
 .Sy capacity , dedupratio , health , altroot .
+.Pp
+The default list of properties can be extended by using
+.Sy +property
+instead of
+.Sy property .
+For example,
+.Sy zpool list -o +guid .
 .It Fl L
 Display real paths for vdevs resolving all symbolic links.
 This can be used to look up the current block device name regardless of the
