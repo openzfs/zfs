@@ -365,6 +365,7 @@ mount_fs()
 	then
 		_canmount="$(get_fs_value "${_mount_fs}" canmount)"
 		[ "${_canmount}" = "off" ] && return 0
+		[ "${_canmount}" = "noauto" ] && return 0
 	fi
 
 	# Need the _original_ datasets mountpoint!
