@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Ensure the DECLARE_EVENT_CLASS macro is available to non-GPL modules.
 dnl #

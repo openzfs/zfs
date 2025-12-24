@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # If -latomic exists and atomic.c doesn't link without it,
 dnl # it's needed for __atomic intrinsics.

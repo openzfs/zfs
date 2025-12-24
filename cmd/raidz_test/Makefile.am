@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 raidz_test_CFLAGS   = $(AM_CFLAGS)   $(KERNEL_CFLAGS)
 raidz_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 

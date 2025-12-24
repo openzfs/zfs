@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_CONFIG_USER_DRACUT], [
 	AC_MSG_CHECKING(for dracut directory)
 	AC_ARG_WITH([dracutdir],

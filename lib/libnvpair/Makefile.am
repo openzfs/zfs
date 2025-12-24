@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 libnvpair_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libnvpair_la_CFLAGS += $(LIBTIRPC_CFLAGS)
 libnvpair_la_CFLAGS += -fvisibility=hidden

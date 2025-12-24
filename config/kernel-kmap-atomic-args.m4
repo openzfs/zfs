@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.37 API change
 dnl # kmap_atomic changed from assigning hard-coded named slot to using

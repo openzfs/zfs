@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.16 no longer allows directly calling wait_on_page_bit, and
 dnl # instead requires you to call folio-specific functions. In this case,

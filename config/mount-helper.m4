@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_CONFIG_USER_MOUNT_HELPER], [
 	AC_ARG_WITH(mounthelperdir,
 		AS_HELP_STRING([--with-mounthelperdir=DIR],
