@@ -754,6 +754,82 @@ zfs_key_config_get_dataset(pam_handle_t *pamh, zfs_key_config_t *config)
 	return (ret);
 }
 
+/*
+ * Callback type for foreach_dataset.
+ * Returns 0 on success, -1 on failure.
+ */
+typedef int (*dataset_callback_t)(pam_handle_t *, zfs_key_config_t *,
+    const char *, void *);
+
+/*
+ * Iterate over comma-separated homes prefixes and call callback for each
+ * existing dataset. Returns number of successful callbacks, or -1 if none
+ * succeeded.
+ */
+static int
+foreach_dataset(pam_handle_t *pamh, zfs_key_config_t *config,
+    dataset_callback_t callback, void *data)
+{
+	if (config->homes_prefix == NULL)
+		return (-1);
+
+	/* Check if this is a comma-separated list */
+	if (strchr(config->homes_prefix, ',') == NULL) {
+		/* Single home - use existing logic */
+		char *dataset = zfs_key_config_get_dataset(pamh, config);
+		if (dataset == NULL)
+			return (-1);
+		int ret = callback(pamh, config, dataset, data);
+		free(dataset);
+		return (ret == 0 ? 1 : -1);
+	}
+
+	/* Multiple homes - parse and iterate */
+	pam_syslog(pamh, LOG_DEBUG,
+	    "processing multiple home prefixes: %s", config->homes_prefix);
+
+	char *homes_copy = strdup(config->homes_prefix);
+	if (homes_copy == NULL)
+		return (-1);
+
+	char *saved_prefix = config->homes_prefix;
+	char *saveptr;
+	char *token = strtok_r(homes_copy, ",", &saveptr);
+	int success_count = 0;
+	boolean_t failed = B_FALSE;
+
+	while (token != NULL) {
+		/* Temporarily set homes_prefix to this single prefix */
+		config->homes_prefix = token;
+		char *dataset = zfs_key_config_get_dataset(pamh, config);
+		if (dataset != NULL) {
+			pam_syslog(pamh, LOG_DEBUG,
+			    "processing dataset '%s' for prefix '%s'",
+			    dataset, token);
+			if (callback(pamh, config, dataset, data) == 0) {
+				success_count++;
+			} else {
+				failed = B_TRUE;
+				pam_syslog(pamh, LOG_WARNING,
+				    "operation failed for dataset '%s'",
+				    dataset);
+			}
+			free(dataset);
+		} else {
+			pam_syslog(pamh, LOG_DEBUG,
+			    "no dataset found for prefix '%s', skip", token);
+		}
+		token = strtok_r(NULL, ",", &saveptr);
+	}
+
+	config->homes_prefix = saved_prefix;
+	free(homes_copy);
+	pam_syslog(pamh, LOG_DEBUG,
+	    "processed %d datasets, %s",
+	    success_count, failed ? "with failures" : "all successful");
+	return (!failed && success_count > 0 ? success_count : -1);
+}
+
 static int
 zfs_key_config_modify_session_counter(pam_handle_t *pamh,
     zfs_key_config_t *config, int delta)
@@ -825,6 +901,15 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	return (counter_value);
 }
 
+/* Callback for authentication - verify password works (noop mode) */
+static int
+auth_callback(pam_handle_t *pamh, zfs_key_config_t *config,
+    const char *dataset, void *data)
+{
+	const char *passphrase = data;
+	return (decrypt_mount(pamh, config, dataset, passphrase, B_TRUE));
+}
+
 __attribute__((visibility("default")))
 PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
@@ -857,21 +942,14 @@ pam_sm_authenticate(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	char *dataset = zfs_key_config_get_dataset(pamh, &config);
-	if (!dataset) {
-		pam_zfs_free();
-		zfs_key_config_free(&config);
-		return (PAM_SERVICE_ERR);
-	}
-	if (decrypt_mount(pamh, &config, dataset, token->value, B_TRUE) == -1) {
-		free(dataset);
-		pam_zfs_free();
-		zfs_key_config_free(&config);
-		return (PAM_AUTH_ERR);
-	}
-	free(dataset);
+
+	int ret = foreach_dataset(pamh, &config, auth_callback,
+	    (void *)token->value);
 	pam_zfs_free();
 	zfs_key_config_free(&config);
+	if (ret < 0) {
+		return (PAM_AUTH_ERR);
+	}
 	return (PAM_SUCCESS);
 }
 
@@ -882,6 +960,39 @@ pam_sm_setcred(pam_handle_t *pamh, int flags,
 {
 	(void) pamh, (void) flags, (void) argc, (void) argv;
 	return (PAM_SUCCESS);
+}
+
+/* Context for password change callback */
+typedef struct {
+	const char *old_pass;
+	const char *new_pass;
+} chauthtok_ctx_t;
+
+/* Callback for password change */
+static int
+chauthtok_callback(pam_handle_t *pamh, zfs_key_config_t *config,
+    const char *dataset, void *data)
+{
+	chauthtok_ctx_t *ctx = data;
+	int was_loaded = is_key_loaded(pamh, dataset);
+	if (!was_loaded) {
+		int ret = decrypt_mount(pamh, config, dataset,
+		    ctx->old_pass, B_FALSE);
+		if (ret == -1) {
+			pam_syslog(pamh, LOG_ERR,
+			    "failed to load key for '%s' during "
+			    "password change", dataset);
+			return (-1);
+		}
+	}
+	int ret = change_key(pamh, dataset, ctx->new_pass);
+	if (ret == -1) {
+		pam_syslog(pamh, LOG_ERR,
+		    "failed to change key for dataset '%s'", dataset);
+	}
+	if (!was_loaded)
+		unmount_unload(pamh, dataset, config);
+	return (ret);
 }
 
 __attribute__((visibility("default")))
@@ -904,34 +1015,27 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 	}
 	const pw_password_t *old_token = pw_get(pamh,
 	    PAM_OLDAUTHTOK, OLD_PASSWORD_VAR_NAME);
-	{
-		if (pam_zfs_init(pamh) != 0) {
-			zfs_key_config_free(&config);
-			return (PAM_SERVICE_ERR);
-		}
-		char *dataset = zfs_key_config_get_dataset(pamh, &config);
-		if (!dataset) {
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			return (PAM_SERVICE_ERR);
-		}
-		if (!old_token) {
-			pam_syslog(pamh, LOG_ERR,
-			    "old password from PAM stack is null");
-			free(dataset);
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			return (PAM_SERVICE_ERR);
-		}
-		if (decrypt_mount(pamh, &config, dataset,
-		    old_token->value, B_TRUE) == -1) {
-			pam_syslog(pamh, LOG_ERR,
-			    "old token mismatch");
-			free(dataset);
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			return (PAM_PERM_DENIED);
-		}
+
+	if (!old_token) {
+		pam_syslog(pamh, LOG_ERR,
+		    "old password from PAM stack is null");
+		zfs_key_config_free(&config);
+		return (PAM_SERVICE_ERR);
+	}
+
+	if (pam_zfs_init(pamh) != 0) {
+		zfs_key_config_free(&config);
+		return (PAM_SERVICE_ERR);
+	}
+
+	/* First verify old password works for all datasets */
+	int ret = foreach_dataset(pamh, &config, auth_callback,
+	    (void *)old_token->value);
+	if (ret < 0) {
+		pam_syslog(pamh, LOG_ERR, "old token mismatch");
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_PERM_DENIED);
 	}
 
 	if ((flags & PAM_UPDATE_AUTHTOK) != 0) {
@@ -944,39 +1048,49 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
 			return (PAM_SERVICE_ERR);
 		}
-		char *dataset = zfs_key_config_get_dataset(pamh, &config);
-		if (!dataset) {
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
-			pw_clear(pamh, PASSWORD_VAR_NAME);
-			return (PAM_SERVICE_ERR);
-		}
-		int was_loaded = is_key_loaded(pamh, dataset);
-		if (!was_loaded && decrypt_mount(pamh, &config, dataset,
-		    old_token->value, B_FALSE) == -1) {
-			free(dataset);
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
-			pw_clear(pamh, PASSWORD_VAR_NAME);
-			return (PAM_SERVICE_ERR);
-		}
-		int changed = change_key(pamh, dataset, token->value);
-		if (!was_loaded) {
-			unmount_unload(pamh, dataset, &config);
-		}
-		free(dataset);
+
+		chauthtok_ctx_t ctx = {
+			.old_pass = old_token->value,
+			.new_pass = token->value
+		};
+
+		ret = foreach_dataset(pamh, &config, chauthtok_callback, &ctx);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
+
+		if (ret < 0) {
+			pw_clear(pamh, OLD_PASSWORD_VAR_NAME);
+			pw_clear(pamh, PASSWORD_VAR_NAME);
+			return (PAM_SERVICE_ERR);
+		}
+
 		if (pw_clear(pamh, OLD_PASSWORD_VAR_NAME) == -1 ||
-		    pw_clear(pamh, PASSWORD_VAR_NAME) == -1 || changed == -1) {
+		    pw_clear(pamh, PASSWORD_VAR_NAME) == -1) {
 			return (PAM_SERVICE_ERR);
 		}
 	} else {
+		pam_zfs_free();
 		zfs_key_config_free(&config);
 	}
 	return (PAM_SUCCESS);
+}
+
+/* Callback for session open - decrypt and mount */
+static int
+open_session_callback(pam_handle_t *pamh, zfs_key_config_t *config,
+    const char *dataset, void *data)
+{
+	const char *passphrase = data;
+	return (decrypt_mount(pamh, config, dataset, passphrase, B_FALSE));
+}
+
+/* Callback for session close - unmount and unload */
+static int
+close_session_callback(pam_handle_t *pamh, zfs_key_config_t *config,
+    const char *dataset, void *data)
+{
+	(void) data;
+	return (unmount_unload(pamh, dataset, config));
 }
 
 PAM_EXTERN int
@@ -1016,22 +1130,15 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	char *dataset = zfs_key_config_get_dataset(pamh, &config);
-	if (!dataset) {
-		pam_zfs_free();
-		zfs_key_config_free(&config);
-		return (PAM_SERVICE_ERR);
-	}
-	if (decrypt_mount(pamh, &config, dataset,
-	    token->value, B_FALSE) == -1) {
-		free(dataset);
-		pam_zfs_free();
-		zfs_key_config_free(&config);
-		return (PAM_SERVICE_ERR);
-	}
-	free(dataset);
+
+	int ret = foreach_dataset(pamh, &config, open_session_callback,
+	    (void *)token->value);
 	pam_zfs_free();
 	zfs_key_config_free(&config);
+
+	if (ret < 0) {
+		return (PAM_SERVICE_ERR);
+	}
 	if (pw_clear(pamh, PASSWORD_VAR_NAME) == -1) {
 		return (PAM_SERVICE_ERR);
 	}
@@ -1071,20 +1178,15 @@ pam_sm_close_session(pam_handle_t *pamh, int flags,
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
-		char *dataset = zfs_key_config_get_dataset(pamh, &config);
-		if (!dataset) {
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			return (PAM_SESSION_ERR);
-		}
-		if (unmount_unload(pamh, dataset, &config) == -1) {
-			free(dataset);
-			pam_zfs_free();
-			zfs_key_config_free(&config);
-			return (PAM_SESSION_ERR);
-		}
-		free(dataset);
+
+		int ret = foreach_dataset(pamh, &config,
+		    close_session_callback, NULL);
 		pam_zfs_free();
+
+		if (ret < 0) {
+			zfs_key_config_free(&config);
+			return (PAM_SESSION_ERR);
+		}
 	}
 
 	zfs_key_config_free(&config);
