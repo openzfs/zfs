@@ -1,0 +1,221 @@
+.\" SPDX-License-Identifier: BSD-3-Clause
+.\"
+.\" Copyright (c) 2020, Felix Dörre
+.\" All rights reserved.
+.\"
+.Dd December 24, 2025
+.Dt PAM_ZFS_KEY 8
+.Os
+.
+.Sh NAME
+.Nm pam_zfs_key
+.Nd PAM module for ZFS encryption key management
+.Sh SYNOPSIS
+.Nm pam_zfs_key.so
+.Op Ar options
+.
+.Sh DESCRIPTION
+.Nm
+is a PAM module that automatically manages encryption keys for ZFS
+datasets during user authentication and session management.
+When a user logs in, the module uses their password to unlock their encrypted
+home directory.
+When the last session closes, the module unmounts the dataset and unloads
+the key.
+.Pp
+The module tracks active sessions using reference counting to support multiple
+simultaneous logins from the same user.
+.Ss Multiple Home Prefixes
+When configured with multiple home prefixes, the module attempts operations
+on all matching datasets.
+Operations that succeed are not rolled back if others fail.
+The module returns success only if all operations succeed.
+.Pp
+For example, with datasets 1, 2, 3 where dataset 2 fails:
+.Bl -bullet -compact
+.It
+Auth/session: datasets 1 and 3 are unlocked and mounted, dataset 2 is not.
+.It
+Password change: datasets 1 and 3 have the new password,
+dataset 2 retains the old.
+.El
+.Pp
+With
+.Sy required ,
+login fails even though datasets 1 and 3 succeeded.
+With
+.Sy optional ,
+login proceeds.
+For password changes, datasets 1 and 3 are updated while dataset 2
+retains the old password.
+With
+.Sy required ,
+the user sees an error.
+With
+.Sy optional ,
+the user sees success and may not notice the inconsistency.
+Either way, passwords are left out of sync.
+.Pp
+Errors are logged to syslog.
+Use
+.Xr zfs-change-key 8
+to resync passwords after partial failure.
+.
+.Sh OPTIONS
+.Bl -tag -width "mount_recursively"
+.It Sy homes Ns = Ns Ar path Ns Oo , Ns Ar path2 Ns ... Oc
+Comma-separated list of dataset prefixes where user home directories
+are located.
+The module constructs the full dataset path as
+.Ar prefix Ns / Ns Ar username .
+Default:
+.Sy zroot/home
+on
+.Fx ,
+.Sy rpool/home
+on Linux.
+.It Sy runstatedir Ns = Ns Ar path
+Directory for storing session reference counts.
+Default:
+.Pa /var/run/pam_zfs_key .
+.It Sy uid_min Ns = Ns Ar uid
+Minimum user ID for which the module will operate.
+Default: 1000.
+.It Sy uid_max Ns = Ns Ar uid
+Maximum user ID for which the module will operate.
+Default: MAXUID.
+.It Sy nounmount
+Do not unmount datasets or unload encryption keys when sessions close.
+Datasets remain mounted and keys remain loaded.
+.It Sy forceunmount
+Force unmount datasets even if busy
+.Pq Dv MS_FORCE .
+.It Sy recursive_homes
+Recursively search for encrypted datasets under the homes prefix.
+.It Sy mount_recursively
+Mount and unmount child datasets recursively.
+.It Sy prop_mountpoint
+Find the user's dataset by matching the dataset's
+.Sy mountpoint
+property to the user's home directory from
+.Pa /etc/passwd ,
+instead of constructing the dataset name as
+.Ar prefix Ns / Ns Ar username .
+.El
+.
+.Sh FILES
+.Bl -tag -width Pa
+.It Pa /var/run/pam_zfs_key/ Ns Ar uid
+Session reference count files tracking active logins per user.
+.El
+.
+.Sh EXAMPLES
+.Ss Example 1: Basic Configuration
+Add to
+.Pa /etc/pam.d/system-auth :
+.Bd -literal -offset indent
+auth     optional  pam_zfs_key.so
+password optional  pam_zfs_key.so
+session  optional  pam_zfs_key.so
+.Ed
+.Pp
+This configuration uses default settings.
+User home datasets are expected at
+.Sy zroot/home/ Ns Ar username
+on
+.Fx
+or
+.Sy rpool/home/ Ns Ar username
+on Linux.
+.
+.Ss Example 2: Custom Home Directory Prefix
+.Bd -literal -offset indent
+auth     optional  pam_zfs_key.so homes=tank/users
+password optional  pam_zfs_key.so homes=tank/users
+session  optional  pam_zfs_key.so homes=tank/users
+.Ed
+.Pp
+Looks for user datasets at
+.Sy tank/users/ Ns Ar username .
+.
+.Ss Example 3: Multiple Dataset Prefixes
+.Bd -literal -offset indent
+session  optional  pam_zfs_key.so homes=rpool/home,tank/users
+.Ed
+.Pp
+Searches for user datasets in both
+.Sy rpool/home
+and
+.Sy tank/users .
+.
+.Ss Example 4: Keep Datasets Mounted
+.Bd -literal -offset indent
+session  optional  pam_zfs_key.so nounmount
+.Ed
+.Pp
+Leaves datasets mounted and keys loaded when sessions close.
+Useful for systems with background processes accessing the home directory.
+.
+.Ss Example 5: Recursive Mounting
+.Bd -literal -offset indent
+session  optional  pam_zfs_key.so mount_recursively
+.Ed
+.Pp
+Mounts child datasets recursively, useful when user data is organized
+hierarchically like
+.Sy rpool/home/alice/documents
+and
+.Sy rpool/home/alice/photos .
+.
+.Ss Example 6: Creating an Encrypted Home Dataset
+.Bd -literal -offset indent
+# zfs create -o encryption=on \e
+    -o keyformat=passphrase \e
+    -o keylocation=prompt \e
+    -o canmount=on \e
+    -o mountpoint=/home/alice \e
+    rpool/home/alice
+.Ed
+.Pp
+The user's login password must match the dataset passphrase for automatic
+unlocking to work.
+The dataset must have a ZFS-managed mountpoint (not legacy) and
+.Sy canmount Ns = Ns Sy on
+for automatic mounting.
+.
+.Ss Example 7: Multiple Homes with Password Sync Check
+.Bd -literal -offset indent
+auth     optional  pam_zfs_key.so homes=rpool/home,tank/home
+password required  pam_zfs_key.so homes=rpool/home,tank/home
+session  optional  pam_zfs_key.so homes=rpool/home,tank/home
+.Ed
+.Pp
+Login proceeds even if some datasets are unavailable.
+Password changes fail if any dataset cannot be updated, ensuring
+the user is notified of sync issues.
+See
+.Sx Multiple Home Prefixes
+for failure behavior.
+.
+.Sh SEE ALSO
+.Xr pam 8 ,
+.Xr zfs-change-key 8 ,
+.Xr zfs-load-key 8 ,
+.Xr zfs-mount 8
+.
+.Sh NOTES
+.Bl -bullet -compact
+.It
+Only works with datasets using
+.Sy keyformat Ns = Ns Sy passphrase .
+.It
+Datasets must have
+.Sy keylocation Ns = Ns Sy prompt .
+.It
+Datasets with
+.Sy mountpoint Ns = Ns Sy legacy ,
+.Sy canmount Ns = Ns Sy off ,
+or
+.Sy canmount Ns = Ns Sy noauto
+will have keys loaded but not be automatically mounted.
+.El
