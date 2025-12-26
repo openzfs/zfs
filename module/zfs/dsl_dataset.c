@@ -2462,6 +2462,7 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 		    redact_snaps, num_redact_snaps);
 		kmem_free(redact_snaps, int_size * num_redact_snaps);
 	}
+	/* XXX: using XDR seems to cause performace problems */
 	packed = fnvlist_pack(token_nv, &packed_size);
 	fnvlist_free(token_nv);
 	compressed = kmem_alloc(packed_size, KM_SLEEP);
