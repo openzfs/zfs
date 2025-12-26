@@ -79,7 +79,7 @@ function do_test
 	imgfile=$1
 	log_note "Running test on $imgfile"
 	log_must losetup -f $imgfile
-	DEV=$(losetup --associated $imgfile | grep -Eo '^/dev/loop[0-9]+')
+	DEV=$(losetup --associated $imgfile | grep -Eo '^/dev/loop/?[0-9]+')
 	log_must mkfs.xfs $DEV
 	mkdir $TEST_BASE_DIR/mnt
 	log_must mount $DEV $TEST_BASE_DIR/mnt
