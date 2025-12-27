@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /* ******************************************************************
  * hist : Histogram functions
  * part of Finite State Entropy project
- * Copyright (c) 2013-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  *  You can contact the author at :
  *  - FSE source repository : https://github.com/Cyan4973/FiniteStateEntropy
@@ -15,7 +14,7 @@
 ****************************************************************** */
 
 /* --- dependencies --- */
-#include <stddef.h>   /* size_t */
+#include "../common/zstd_deps.h"   /* size_t */
 
 
 /* --- simple histogram functions --- */
@@ -74,3 +73,10 @@ size_t HIST_countFast_wksp(unsigned* count, unsigned* maxSymbolValuePtr,
  */
 unsigned HIST_count_simple(unsigned* count, unsigned* maxSymbolValuePtr,
                            const void* src, size_t srcSize);
+
+/*! HIST_add() :
+ *  Lowest level: just add nb of occurrences of characters from @src into @count.
+ *  @count is not reset. @count array is presumed large enough (i.e. 1 KB).
+ @  This function does not need any additional stack memory.
+ */
+void HIST_add(unsigned* count, const void* src, size_t srcSize);

@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /* ******************************************************************
  * debug
  * Part of FSE library
- * Copyright (c) 2013-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * You can contact the author at :
  * - Source repository : https://github.com/Cyan4973/FiniteStateEntropy
@@ -33,10 +32,6 @@
 #ifndef DEBUG_H_12987983217
 #define DEBUG_H_12987983217
 
-#if defined (__cplusplus)
-extern "C" {
-#endif
-
 
 /* static assert is triggered at compile time, leaving no runtime artefact.
  * static assert only works with compile-time constants.
@@ -49,15 +44,6 @@ extern "C" {
  * Value must be a number. */
 #ifndef DEBUGLEVEL
 #  define DEBUGLEVEL 0
-#endif
-
-
-/* DEBUGFILE can be defined externally,
- * typically through compiler command line.
- * note : currently useless.
- * Value must be stderr or stdout */
-#ifndef DEBUGFILE
-#  define DEBUGFILE stderr
 #endif
 
 
@@ -77,7 +63,8 @@ extern "C" {
  */
 
 #if (DEBUGLEVEL>=1)
-#  include <assert.h>
+#  define ZSTD_DEPS_NEED_ASSERT
+#  include "zstd_deps.h"
 #else
 #  ifndef assert   /* assert may be already defined, due to prior #include <assert.h> */
 #    define assert(condition) ((void)0)   /* disable assert (default) */
@@ -85,7 +72,8 @@ extern "C" {
 #endif
 
 #if (DEBUGLEVEL>=2)
-#  include <stdio.h>
+#  define ZSTD_DEPS_NEED_IO
+#  include "zstd_deps.h"
 extern int g_debuglevel; /* the variable is only declared,
                             it actually lives in debug.c,
                             and is shared by the whole process.
@@ -93,23 +81,27 @@ extern int g_debuglevel; /* the variable is only declared,
                             It's useful when enabling very verbose levels
                             on selective conditions (such as position in src) */
 
-#  define RAWLOG(l, ...) {                                      \
-                if (l<=g_debuglevel) {                          \
-                    fprintf(stderr, __VA_ARGS__);               \
-            }   }
-#  define DEBUGLOG(l, ...) {                                    \
-                if (l<=g_debuglevel) {                          \
-                    fprintf(stderr, __FILE__ ": " __VA_ARGS__); \
-                    fprintf(stderr, " \n");                     \
-            }   }
+#  define RAWLOG(l, ...)                   \
+    do {                                   \
+        if (l<=g_debuglevel) {             \
+            ZSTD_DEBUG_PRINT(__VA_ARGS__); \
+        }                                  \
+    } while (0)
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+#define LINE_AS_STRING TOSTRING(__LINE__)
+
+#  define DEBUGLOG(l, ...)                               \
+    do {                                                 \
+        if (l<=g_debuglevel) {                           \
+            ZSTD_DEBUG_PRINT(__FILE__ ":" LINE_AS_STRING ": " __VA_ARGS__); \
+            ZSTD_DEBUG_PRINT(" \n");                     \
+        }                                                \
+    } while (0)
 #else
-#  define RAWLOG(l, ...)      {}    /* disabled */
-#  define DEBUGLOG(l, ...)    {}    /* disabled */
-#endif
-
-
-#if defined (__cplusplus)
-}
+#  define RAWLOG(l, ...)   do { } while (0)    /* disabled */
+#  define DEBUGLOG(l, ...) do { } while (0)    /* disabled */
 #endif
 
 #endif /* DEBUG_H_12987983217 */
