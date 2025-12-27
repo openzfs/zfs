@@ -49,7 +49,7 @@
 
 #define	ZSTD_STATIC_LINKING_ONLY
 #include "lib/zstd.h"
-#include "lib/common/zstd_errors.h"
+#include "lib/zstd_errors.h"
 
 static uint_t zstd_earlyabort_pass = 1;
 static int zstd_cutoff_level = ZIO_ZSTD_LEVEL_3;
