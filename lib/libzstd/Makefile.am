@@ -26,10 +26,16 @@ nodist_libzstd_la_SOURCES = \
 	module/zstd/lib/compress/zstd_lazy.c \
 	module/zstd/lib/compress/zstd_ldm.c \
 	module/zstd/lib/compress/zstd_opt.c \
+	module/zstd/lib/compress/zstd_preSplit.c \
 	module/zstd/lib/decompress/huf_decompress.c \
 	module/zstd/lib/decompress/zstd_ddict.c \
 	module/zstd/lib/decompress/zstd_decompress.c \
 	module/zstd/lib/decompress/zstd_decompress_block.c \
 	module/zstd/zfs_zstd.c
+
+if TARGET_CPU_X86_64
+nodist_libzstd_la_SOURCES += \
+	module/zstd/lib/decompress/huf_decompress_amd64.S
+endif
 
 libzstd_la_CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h -fno-tree-vectorize -Wp,-w $(AM_CFLAGS)

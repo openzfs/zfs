@@ -133,6 +133,7 @@ cstyle:
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -name 'zstd_compat_wrapper.h' \
+		! -path './module/zstd/zstd-in.c' \
 		! -path './module/zstd/lib/*' \
 		! -path './include/sys/lua/*' \
 		! -path './module/lua/l*.[ch]' \
