@@ -33,6 +33,10 @@ function keystatus {
     log_must [ "$(get_prop keystatus "$TESTPOOL/pam/${username}")" = "$1" ]
 }
 
+function keystatus_mh {
+    log_must [ "$(get_prop keystatus "$TESTPOOL/pam-multi-home/${username}")" = "$1" ]
+}
+
 function genconfig {
     printf '%s\trequired\tpam_permit.so\n%s\toptional\t%s\t%s\n' \
         password password "$pammodule" "$1" \
