@@ -1,6 +1,5 @@
-// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -16,7 +15,7 @@
 /*-*******************************************************
  *  Dependencies
  *********************************************************/
-#include <stddef.h>   /* size_t */
+#include "../common/zstd_deps.h"   /* size_t */
 #include "../zstd.h"     /* ZSTD_DDict, and several public functions */
 
 
