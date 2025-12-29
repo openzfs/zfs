@@ -109,8 +109,7 @@ Seconds between L2ARC writing.
 .
 .It Sy l2arc_headroom Ns = Ns Sy 8 Pq u64
 How far through the ARC lists to search for L2ARC cacheable content,
-expressed as a multiplier of
-.Sy l2arc_write_max .
+expressed as a multiplier of the effective write size.
 ARC persistence across reboots can be achieved with persistent L2ARC
 by setting this parameter to
 .Sy 0 ,
@@ -124,6 +123,19 @@ before writing.
 A value of
 .Sy 100
 disables this feature.
+.
+.It Sy l2arc_dwpd_limit Ns = Ns Sy 100 Pq uint
+Drive Writes Per Day limit for L2ARC devices to protect SSD endurance,
+specified as a percentage where 100 equals 1.0 DWPD.
+A value of 100 means each L2ARC device can write its own capacity once per day.
+Lower values support fractional DWPD
+(50 = 0.5 DWPD, 30 = 0.3 DWPD for QLC SSDs).
+Higher values allow more writes (300 = 3.0 DWPD).
+The effective write rate is always bounded by
+.Sy l2arc_write_max .
+A value of 0 disables DWPD rate limiting entirely.
+DWPD limiting only applies after the initial fill pass completes and when
+total L2ARC capacity is at least twice arc_c_max.
 .
 .It Sy l2arc_exclude_special Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Controls whether buffers present on special vdevs are eligible for caching
@@ -179,9 +191,8 @@ can render it slow or unusable.
 This parameter limits L2ARC writes and rebuilds to achieve the target.
 .
 .It Sy l2arc_trim_ahead Ns = Ns Sy 0 Ns % Pq u64
-Trims ahead of the current write size
-.Pq Sy l2arc_write_max
-on L2ARC devices by this percentage of write size if we have filled the device.
+Trims ahead of the current write size on L2ARC devices by this percentage
+of write size if we have filled the device.
 If set to
 .Sy 100
 we TRIM twice the space required to accommodate upcoming writes.
@@ -216,13 +227,12 @@ to enable caching/reading prefetches to/from L2ARC.
 .It Sy l2arc_norw Ns = Ns Sy 0 Ns | Ns 1 Pq int
 No reads during writes.
 .
-.It Sy l2arc_write_boost Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
-Cold L2ARC devices will have
-.Sy l2arc_write_max
-increased by this amount while they remain cold.
-.
 .It Sy l2arc_write_max Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
-Max write bytes per interval.
+Maximum write rate in bytes per second for each L2ARC device.
+Used directly during initial fill, when DWPD limiting is disabled,
+or for non-persistent L2ARC.
+When DWPD limiting is active, writes are capped by this rate.
+Total L2ARC throughput scales with the number of cache devices in a pool.
 .
 .It Sy l2arc_rebuild_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Rebuild the L2ARC when importing a pool (persistent L2ARC).

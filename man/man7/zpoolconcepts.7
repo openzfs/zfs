@@ -426,10 +426,24 @@ This can be changed with
 The cache device header
 .Pq Em 512 B
 is updated even if no metadata structures are written.
+.Pp
+L2ARC operates in one of two modes depending on total cache capacity.
+When total L2ARC capacity is less than twice
+.Sy arc_c_max ,
+L2ARC uses exclusive caching,
+writing buffers to cache as they are evicted from ARC.
+When total capacity is at least twice
+.Sy arc_c_max ,
+L2ARC switches to inclusive caching with persistent markers
+that track scan positions,
+attempting to duplicate ARC contents as much as write throughput allows.
 Setting
 .Sy l2arc_headroom Ns = Ns Sy 0
 will result in scanning the full-length ARC lists for cacheable content to be
 written in L2ARC (persistent ARC).
+In inclusive mode, markers progress toward the head across iterations,
+naturally covering the full list.
+.Pp
 If a cache device is added with
 .Nm zpool Cm add ,
 its label and header will be overwritten and its contents will not be
