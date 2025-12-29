@@ -1130,7 +1130,8 @@ tags = ['functional', 'log_spacemap']
 
 [tests/functional/l2arc]
 tests = ['l2arc_arcstats_pos', 'l2arc_mfuonly_pos', 'l2arc_l2miss_pos',
-    'persist_l2arc_001_pos', 'persist_l2arc_002_pos',
+    'l2arc_dwpd_ratelimit_pos', 'l2arc_dwpd_reimport_pos', 'l2arc_multidev_scaling_pos',
+    'l2arc_multidev_throughput_pos', 'persist_l2arc_001_pos', 'persist_l2arc_002_pos',
     'persist_l2arc_003_neg', 'persist_l2arc_004_pos', 'persist_l2arc_005_pos']
 tags = ['functional', 'l2arc']
 
