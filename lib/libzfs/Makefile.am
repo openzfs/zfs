@@ -56,7 +56,9 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zfs_prop.c \
 	module/zcommon/zfs_valstr.c \
 	module/zcommon/zpool_prop.c \
-	module/zcommon/zprop_common.c
+	module/zcommon/zprop_common.c \
+	module/zfs/btree.c \
+	module/zfs/range_tree.c
 
 libzfs_la_LIBADD = \
 	libzfs_core.la \
@@ -65,6 +67,7 @@ libzfs_la_LIBADD = \
 
 libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
+# libzfs_la_LDFLAGS = -pthread -lrange_tree -lbtree
 libzfs_la_LDFLAGS = -pthread
 
 if !ASAN_ENABLED

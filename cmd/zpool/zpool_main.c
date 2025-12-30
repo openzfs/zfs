@@ -520,7 +520,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] "
 		    "<-a | <pool> [<device> ...]>\n"));
 	case HELP_STATUS:
-		return (gettext("\tstatus [-DdegiLPpstvx] "
+		return (gettext("\tstatus [-DdegiLPpstx] [-v|-vv] "
 		    "[-c script1[,script2,...]] ...\n"
 		    "\t    [-j|--json [--json-flat-vdevs] [--json-int] "
 		    "[--json-pool-key-guid]] ...\n"
@@ -1048,6 +1048,9 @@ nice_num_str_nvlist(nvlist_t *item, const char *key, uint64_t value,
 			break;
 		case ZFS_NICENUM_BYTES:
 			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_BYTES);
+			break;
+		case ZFS_NICENUM_RAW:
+			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_RAW);
 			break;
 		case ZFS_NICENUM_TIME:
 			zfs_nicenum_format(value, buf, 256, ZFS_NICENUM_TIME);
@@ -2591,7 +2594,7 @@ typedef struct status_cbdata {
 	int		cb_name_flags;
 	int		cb_namewidth;
 	boolean_t	cb_allpools;
-	boolean_t	cb_verbose;
+	int		cb_verbosity;
 	boolean_t	cb_literal;
 	boolean_t	cb_explain;
 	boolean_t	cb_first;
@@ -3323,7 +3326,7 @@ print_class_vdevs(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	nvlist_t **child;
 	boolean_t printed = B_FALSE;
 
-	assert(zhp != NULL || !cb->cb_verbose);
+	assert(zhp != NULL || cb->cb_verbosity == 0);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) != 0)
@@ -9539,7 +9542,7 @@ class_vdevs_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	if (!cb->cb_flat_vdevs)
 		class_obj = fnvlist_alloc();
 
-	assert(zhp != NULL || !cb->cb_verbose);
+	assert(zhp != NULL || cb->cb_verbosity == 0);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) != 0)
@@ -9643,57 +9646,96 @@ spares_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	}
 }
 
+/*
+ * Take a uint64 nvpair named 'name' from nverrlist, nicenum-ify it, and
+ * put it back in 'nverrlist', possibly as a string, with the same 'name'.
+ */
+static void
+convert_nvlist_uint64_to_nicenum(status_cbdata_t *cb, nvlist_t *parent,
+    const char *name, enum zfs_nicenum_format format)
+{
+	uint64_t val;
+	nvpair_t *nvp;
+
+	if (nvlist_lookup_nvpair(parent, name, &nvp) != 0)
+		return;	/* nothing by that name, ignore */
+
+	val = fnvpair_value_uint64(nvp);
+	nvlist_remove_nvpair(parent, nvp);
+	nice_num_str_nvlist(parent, name, val,
+	    cb->cb_literal, cb->cb_json_as_int, format);
+}
+
 static void
 errors_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 {
-	uint64_t nerr;
-	nvlist_t *config = zpool_get_config(zhp, NULL);
-	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
-	    &nerr) == 0) {
-		nice_num_str_nvlist(item, ZPOOL_CONFIG_ERRCOUNT, nerr,
-		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
-		if (nerr != 0 && cb->cb_verbose) {
-			nvlist_t *nverrlist = NULL;
-			if (zpool_get_errlog(zhp, &nverrlist) == 0) {
-				int i = 0;
-				int count = 0;
-				size_t len = MAXPATHLEN * 2;
-				nvpair_t *elem = NULL;
+	int verbosity = cb->cb_verbosity;
+	nvlist_t *nverrlist = NULL, *json;
+	nvpair_t *elem;
+	char *pathname;
+	size_t len = MAXPATHLEN * 2;
+	nvlist_t **ranges;
+	uint_t count;
 
-				for (nvpair_t *pair =
-				    nvlist_next_nvpair(nverrlist, NULL);
-				    pair != NULL;
-				    pair = nvlist_next_nvpair(nverrlist, pair))
-					count++;
-				char **errl = (char **)malloc(
-				    count * sizeof (char *));
+	if (zpool_get_errlog(zhp, &nverrlist) != 0)
+		return;
 
-				while ((elem = nvlist_next_nvpair(nverrlist,
-				    elem)) != NULL) {
-					nvlist_t *nv;
-					uint64_t dsobj, obj;
+	pathname = safe_malloc(len);
+	json = fnvlist_alloc();
 
-					verify(nvpair_value_nvlist(elem,
-					    &nv) == 0);
-					verify(nvlist_lookup_uint64(nv,
-					    ZPOOL_ERR_DATASET, &dsobj) == 0);
-					verify(nvlist_lookup_uint64(nv,
-					    ZPOOL_ERR_OBJECT, &obj) == 0);
-					errl[i] = safe_malloc(len);
-					zpool_obj_to_path(zhp, dsobj, obj,
-					    errl[i++], len);
-				}
-				nvlist_free(nverrlist);
-				fnvlist_add_string_array(item, "errlist",
-				    (const char **)errl, count);
-				for (int i = 0; i < count; ++i)
-					free(errl[i]);
-				free(errl);
-			} else
-				fnvlist_add_string(item, "errlist",
-				    strerror(errno));
+	elem = NULL;
+	while ((elem = nvlist_next_nvpair(nverrlist, elem)) != NULL) {
+		nvlist_t *nv;
+		uint64_t dsobj, obj;
+
+		verify(nvpair_value_nvlist(elem, &nv) == 0);
+
+		dsobj = fnvlist_lookup_uint64(nv, ZPOOL_ERR_DATASET);
+		obj = fnvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT);
+
+		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
+
+		/*
+		 * Each JSON entry is a different file/zvol.  If user has
+		 * verbosity = 1, then just make a simple object containing
+		 * the name.
+		 */
+		if (verbosity <= 1) {
+			nvlist_t *nameonly;
+			nameonly = fnvlist_alloc();
+			fnvlist_add_string(nameonly, ZPOOL_ERR_NAME, pathname);
+			fnvlist_add_nvlist(json, pathname, nameonly);
+			nvlist_free(nameonly);
+			continue;
 		}
+
+		fnvlist_add_string(nv, ZPOOL_ERR_NAME, pathname);
+
+		/* nicenum-ify our nvlist */
+		convert_nvlist_uint64_to_nicenum(cb, nv, ZPOOL_ERR_OBJECT,
+		    ZFS_NICENUM_RAW);
+		convert_nvlist_uint64_to_nicenum(cb, nv, ZPOOL_ERR_DATASET,
+		    ZFS_NICENUM_RAW);
+		convert_nvlist_uint64_to_nicenum(cb, nv, ZPOOL_ERR_BLOCK_SIZE,
+		    ZFS_NICENUM_1024);
+
+		if (nvlist_lookup_nvlist_array(nv, ZPOOL_ERR_RANGES, &ranges,
+		    &count) == 0) {
+			for (uint_t i = 0; i < count; i++) {
+				convert_nvlist_uint64_to_nicenum(cb, ranges[i],
+				    ZPOOL_ERR_START_BYTE, ZFS_NICENUM_1024);
+				convert_nvlist_uint64_to_nicenum(cb, ranges[i],
+				    ZPOOL_ERR_END_BYTE, ZFS_NICENUM_1024);
+			}
+		}
+
+		fnvlist_add_nvlist(json, pathname, nv);
 	}
+
+	/* Place our error list in a top level "errors" JSON object. */
+	fnvlist_add_nvlist(item, ZPOOL_ERR_JSON, json);
+	free(pathname);
+	nvlist_free(nverrlist);
 }
 
 static void
@@ -10365,12 +10407,14 @@ print_checkpoint_status(pool_checkpoint_stat_t *pcs)
 }
 
 static void
-print_error_log(zpool_handle_t *zhp)
+print_error_log(zpool_handle_t *zhp, int verbosity, boolean_t literal)
 {
 	nvlist_t *nverrlist = NULL;
 	nvpair_t *elem;
 	char *pathname;
 	size_t len = MAXPATHLEN * 2;
+	boolean_t started = B_FALSE;
+	char last_pathname[MAXPATHLEN] = "";
 
 	if (zpool_get_errlog(zhp, &nverrlist) != 0)
 		return;
@@ -10390,8 +10434,48 @@ print_error_log(zpool_handle_t *zhp)
 		verify(nvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT,
 		    &obj) == 0);
 		zpool_obj_to_path(zhp, dsobj, obj, pathname, len);
-		(void) printf("%7s %s\n", "", pathname);
+		if (last_pathname[0] == '\0' ||
+		    strncmp(pathname, last_pathname, len) != 0) {
+			strlcpy(last_pathname, pathname,
+			    sizeof (last_pathname));
+			if (started)
+				(void) printf("\n");
+			else
+				started = B_TRUE;
+			(void) printf("%7s %s ", "", pathname);
+		} else if (verbosity > 1) {
+			(void) printf(",");
+		}
+		if (verbosity > 1) {
+			nvlist_t **arr;
+			uint_t count;
+			if (nvlist_lookup_nvlist_array(nv, ZPOOL_ERR_RANGES,
+			    &arr, &count) != 0) {
+				(void) printf("(no ranges)");
+				continue;
+			}
+
+			for (uint_t i = 0; i < count; i++) {
+				uint64_t start;
+				uint64_t end;
+				start = fnvlist_lookup_uint64(arr[i],
+				    ZPOOL_ERR_START_BYTE);
+				end = fnvlist_lookup_uint64(arr[i],
+				    ZPOOL_ERR_END_BYTE);
+				if (literal) {
+					(void) printf("%lu-%lu", start, end);
+				} else {
+					char s1[32], s2[32];
+					zfs_nicenum(start, s1, sizeof (s1));
+					zfs_nicenum(end, s2, sizeof (s2));
+					(void) printf("%s-%s", s1, s2);
+				}
+				if (i != count - 1)
+					(void) printf(",");
+			}
+		}
 	}
+	(void) printf("\n");
 	free(pathname);
 	nvlist_free(nverrlist);
 }
@@ -11128,14 +11212,15 @@ status_callback(zpool_handle_t *zhp, void *data)
 			if (nerr == 0) {
 				(void) printf(gettext(
 				    "errors: No known data errors\n"));
-			} else if (!cbp->cb_verbose) {
+			} else if (cbp->cb_verbosity == 0) {
 				color_start(ANSI_RED);
 				(void) printf(gettext("errors: %llu data "
 				    "errors, use '-v' for a list\n"),
 				    (u_longlong_t)nerr);
 				color_end();
 			} else {
-				print_error_log(zhp);
+				print_error_log(zhp, cbp->cb_verbosity,
+				    cbp->cb_literal);
 			}
 		}
 
@@ -11262,7 +11347,7 @@ zpool_do_status(int argc, char **argv)
 			get_timestamp_arg(*optarg);
 			break;
 		case 'v':
-			cb.cb_verbose = B_TRUE;
+			cb.cb_verbosity++;
 			break;
 		case 'j':
 			cb.cb_json = B_TRUE;
