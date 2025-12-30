@@ -1657,6 +1657,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/l2arc/l2arc_arcstats_pos.ksh \
 	functional/l2arc/l2arc_l2miss_pos.ksh \
 	functional/l2arc/l2arc_mfuonly_pos.ksh \
+	functional/l2arc/l2arc_dwpd_pos.ksh \
+	functional/l2arc/l2arc_dwpd_multidev_pos.ksh \
+	functional/l2arc/l2arc_dwpd_persist_pos.ksh \
+	functional/l2arc/l2arc_parallel_writes_pos.ksh \
 	functional/l2arc/persist_l2arc_001_pos.ksh \
 	functional/l2arc/persist_l2arc_002_pos.ksh \
 	functional/l2arc/persist_l2arc_003_neg.ksh \
