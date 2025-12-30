@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /* ******************************************************************
  * Common functions of New Generation Entropy library
  * Copyright (c) Meta Platforms, Inc. and affiliates.
