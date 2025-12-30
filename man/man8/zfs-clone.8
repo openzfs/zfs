@@ -40,7 +40,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm clone
-.Op Fl p
+.Op Fl pu
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Ar snapshot Ar filesystem Ns | Ns Ar volume
 .
@@ -64,6 +64,8 @@ Datasets created in this manner are automatically mounted according to the
 property inherited from their parent.
 If the target filesystem or volume already exists, the operation completes
 successfully.
+.It Fl u
+Do not mount the newly created file system.
 .El
 .
 .Sh EXAMPLES
