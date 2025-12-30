@@ -95,10 +95,17 @@ case "$1" in
     ;;
 esac
 
-# enable io_uring on el9/el10
+# Distribution-specific settings.
 case "$1" in
   almalinux9|almalinux10|centos-stream*)
+    # Enable io_uring on Enterprise Linux 9 and 10.
     sudo sysctl kernel.io_uring_disabled=0 > /dev/null
+    ;;
+  alpine*)
+    # Ensure `/etc/zfs/zpool.cache` exists.
+    sudo mkdir -p /etc/zfs
+    sudo touch /etc/zfs/zpool.cache
+    sudo chmod 644 /etc/zfs/zpool.cache
     ;;
 esac
 

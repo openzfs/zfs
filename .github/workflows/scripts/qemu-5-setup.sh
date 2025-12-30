@@ -58,13 +58,21 @@ for ((i=1; i<=VMs; i++)); do
 fqdn: vm$i
 
 users:
-- name: root
-  shell: $BASH
-- name: zfs
-  sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: $BASH
-  ssh_authorized_keys:
-    - $PUBKEY
+  - name: root
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+  - name: zfs
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - $PUBKEY
+    # Workaround for Alpine Linux.
+    lock_passwd: false
+    passwd: '*'
+
+packages:
+  - sudo
+  - bash
 
 growpart:
   mode: auto

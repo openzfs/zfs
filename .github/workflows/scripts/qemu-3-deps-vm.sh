@@ -10,6 +10,32 @@
 
 set -eu
 
+function alpine() {
+  echo "##[group]Install Development Tools"
+  sudo apk add \
+    acl alpine-sdk attr autoconf automake bash build-base clang21 coreutils \
+    cpio cryptsetup curl curl-dev dhcpcd eudev eudev-dev eudev-libs findutils \
+    fio gawk gdb gettext-dev git grep jq libaio libaio-dev libcurl \
+    libtirpc-dev libtool libunwind libunwind-dev linux-headers linux-tools \
+    linux-virt linux-virt-dev lsscsi m4 make nfs-utils openssl-dev parted \
+    pax procps py3-cffi py3-distlib py3-packaging py3-setuptools python3 \
+    python3-dev qemu-guest-agent rng-tools rsync samba samba-server sed \
+    strace sysstat util-linux util-linux-dev wget words xfsprogs xxhash \
+    zlib-dev pamtester@testing
+  echo "##[endgroup]"
+
+  echo "##[group]Switch to eudev"
+  sudo setup-devd udev
+  echo "##[endgroup]"
+
+  echo "##[group]Install ksh93 from Source"
+  git clone --depth 1 https://github.com/ksh93/ksh.git /tmp/ksh
+  cd /tmp/ksh
+  ./bin/package make
+  sudo ./bin/package install /
+  echo "##[endgroup]"
+}
+
 function archlinux() {
   echo "##[group]Running pacman -Syu"
   sudo btrfs filesystem resize max /
@@ -26,6 +52,10 @@ function archlinux() {
 
 function debian() {
   export DEBIAN_FRONTEND="noninteractive"
+
+  echo "##[group]Wait for cloud-init to finish"
+  cloud-init status --wait
+  echo "##[endgroup]"
 
   echo "##[group]Running apt-get update+upgrade"
   sudo sed -i '/[[:alpha:]]-backports/d' /etc/apt/sources.list
@@ -140,6 +170,9 @@ case "$1" in
     sudo dnf install -y kernel-abi-stablelists
     echo "##[endgroup]"
     ;;
+  alpine*)
+    alpine
+    ;;
   archlinux)
     archlinux
     ;;
@@ -188,6 +221,16 @@ test -z "${ONLY_DEPS:-}" || exit 0
 # Start services
 echo "##[group]Enable services"
 case "$1" in
+  alpine*)
+    sudo -E rc-update add qemu-guest-agent
+    sudo -E rc-update add nfs
+    sudo -E rc-update add samba
+    sudo -E rc-update add dhcpcd
+    # Remove services related to cloud-init.
+    sudo -E rc-update del cloud-init default
+    sudo -E rc-update del cloud-final default
+    sudo -E rc-update del cloud-config default
+    ;;
   freebsd*)
     # add virtio things
     echo 'virtio_load="YES"' | sudo -E tee -a /boot/loader.conf
@@ -243,7 +286,7 @@ case "$1" in
 esac
 
 case "$1" in
-  archlinux|freebsd*)
+  alpine*|archlinux|freebsd*)
     true
     ;;
   *)
