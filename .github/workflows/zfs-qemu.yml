@@ -10,6 +10,11 @@ on:
         required: false
         default: ""
         description: "(optional) Experimental kernel version to install on Fedora (like '6.14' or '6.13.3-0.rc3')"
+      specific_os:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) Only run on this specific OS (like 'fedora42' or 'alpine3-23')"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -58,6 +63,9 @@ jobs:
               # They specified a custom kernel version for Fedora.
               # Use only Fedora runners.
               os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
+          elif ${{ github.event.inputs.specific_os != '' }}; then
+              # Use only the specified runner.
+              os_json=$(jq -cn --arg os "${{ github.event.inputs.specific_os }}" '[ $os ]')
           else
               # Normal case
               os_json=$(echo ${os_selection} | jq -c)
