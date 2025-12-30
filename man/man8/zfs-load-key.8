@@ -92,6 +92,9 @@ will ask for the key and mount the dataset
 see
 .Xr zfs-mount 8
 .Pc .
+For automated key management during user login,
+.Xr pam_zfs_key 8
+can load keys and mount encrypted home directories on systems with PAM support.
 Once the key is loaded the
 .Sy keystatus
 property will become
@@ -301,5 +304,6 @@ written.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,
+.Xr pam_zfs_key 8 ,
 .Xr zfs-create 8 ,
 .Xr zfs-set 8

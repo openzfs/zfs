@@ -110,6 +110,9 @@ on each encryption root before mounting it.
 Note that if a filesystem has
 .Sy keylocation Ns = Ns Sy prompt ,
 this will cause the terminal to interactively block after asking for the key.
+On systems with PAM support,
+.Xr pam_zfs_key 8
+can automate this process during user login.
 .It Fl v
 Report mount progress.
 .It Fl f
@@ -138,3 +141,6 @@ The command can also be given a path to a ZFS file system mount point on the
 system.
 .El
 .El
+.
+.Sh SEE ALSO
+.Xr pam_zfs_key 8
