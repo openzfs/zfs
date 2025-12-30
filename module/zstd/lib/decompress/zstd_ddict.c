@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: BSD-3-Clause OR GPL-2.0-only
 /*
  * Copyright (c) Meta Platforms, Inc. and affiliates.
  * All rights reserved.
