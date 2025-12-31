@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
-/**
+/*
  * \file zstd.c
  * Single-file Zstandard library.
  *
  * Generate using:
  * \code
- *	python combine.py -r ../../lib -x legacy/zstd_legacy.h -o zstd.c zstd-in.c
+ *  python combine.py -r ../../lib -x legacy/zstd_legacy.h -o zstd.c zstd-in.c
  * \endcode
  */
 /*
@@ -35,25 +35,25 @@
  *
  * Note: multithreading is enabled for all platforms apart from Emscripten.
  */
-#define DEBUGLEVEL 0
-#define MEM_MODULE
-#undef  XXH_NAMESPACE
-#define XXH_NAMESPACE ZSTD_
-#undef  XXH_PRIVATE_API
-#define XXH_PRIVATE_API
-#undef  XXH_INLINE_ALL
-#define XXH_INLINE_ALL
-#define ZSTD_LEGACY_SUPPORT 0
-#ifndef __EMSCRIPTEN__
-#define ZSTD_MULTITHREAD
+#define	DEBUGLEVEL 0
+#define	MEM_MODULE
+#undef	XXH_NAMESPACE
+#define	XXH_NAMESPACE ZSTD_
+#undef	XXH_PRIVATE_API
+#define	XXH_PRIVATE_API
+#undef	XXH_INLINE_ALL
+#define	XXH_INLINE_ALL
+#define	ZSTD_LEGACY_SUPPORT 0
+#ifndef	__EMSCRIPTEN__
+#define	ZSTD_MULTITHREAD
 #endif
-#define ZSTD_TRACE 0
+#define	ZSTD_TRACE 0
 /* TODO: Can't amalgamate ASM function */
-#define ZSTD_DISABLE_ASM 1
+#define	ZSTD_DISABLE_ASM 1
 
 /* Include zstd_deps.h first with all the options we need enabled. */
-#define ZSTD_DEPS_NEED_MALLOC
-#define ZSTD_DEPS_NEED_MATH64
+#define	ZSTD_DEPS_NEED_MALLOC
+#define	ZSTD_DEPS_NEED_MATH64
 #include "common/zstd_deps.h"
 
 #include "common/debug.c"
