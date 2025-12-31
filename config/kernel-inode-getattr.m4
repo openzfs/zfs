@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 	dnl #
 	dnl # Linux 6.3 API

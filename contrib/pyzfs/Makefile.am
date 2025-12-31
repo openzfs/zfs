@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 dist_noinst_DATA += %D%/libzfs_core %D%/README %D%/LICENSE %D%/docs
 SUBSTFILES += %D%/setup.py
 

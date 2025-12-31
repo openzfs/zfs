@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.18: some architectures and config option causes the kasan_ inline
 dnl #       functions to reference the GPL-only symbol 'kasan_flag_enabled',

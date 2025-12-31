@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Determine an available miscellaneous minor number which can be used
 dnl # for the /dev/zfs device.  This is needed because kernel module

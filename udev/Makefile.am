@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 udevrule_DATA = \
 	%D%/rules.d/69-vdev.rules \
 	%D%/rules.d/60-zvol.rules \

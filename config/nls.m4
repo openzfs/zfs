@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # nls.m4 serial 5 (gettext-0.18)
 dnl Copyright (C) 1995-2003, 2005-2006, 2008-2014, 2016, 2019 Free Software
 dnl Foundation, Inc.
