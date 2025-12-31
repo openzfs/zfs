@@ -69,7 +69,6 @@ ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 obj-$(CONFIG_ZFS) := spl.o zfs.o
 
 SPL_OBJS := \
-	spl-atomic.o \
 	spl-condvar.o \
 	spl-cred.o \
 	spl-err.o \
