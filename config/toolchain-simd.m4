@@ -29,6 +29,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEC
 			;;
 	esac
 ])
@@ -551,6 +552,27 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_XSAVES], 1, [Define if host toolchain supports XSAVES])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEC
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEC], [
+	AC_MSG_CHECKING([whether host toolchain supports XSAVEC])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+		  char b[4096] __attribute__ ((aligned (64)));
+		  __asm__ __volatile__("xsavec %[b]\n" : : [b] "m" (*b) : "memory");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_XSAVEC], 1, [Define if host toolchain supports XSAVEC])
 	], [
 		AC_MSG_RESULT([no])
 	])
