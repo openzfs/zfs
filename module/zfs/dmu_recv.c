@@ -1029,6 +1029,16 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	/*
+	 * Activate large block feature if received
+	 */
+	if (featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS &&
+	    !dsl_dataset_feature_is_active(newds, SPA_FEATURE_LARGE_BLOCKS)) {
+		dsl_dataset_activate_feature(newds->ds_object,
+		    SPA_FEATURE_LARGE_BLOCKS, (void *)B_TRUE, tx);
+		newds->ds_feature[SPA_FEATURE_LARGE_BLOCKS] = (void *)B_TRUE;
+	}
+
+	/*
 	 * If we actually created a non-clone, we need to create the objset
 	 * in our new dataset. If this is a raw send we postpone this until
 	 * dmu_recv_stream() so that we can allocate the metadnode with the
