@@ -55,9 +55,9 @@ MALLOC_DECLARE(M_SOLARIS);
 typedef struct vmem vmem_t;
 
 extern char	*kmem_asprintf(const char *, ...)
-    __attribute__((format(printf, 1, 2)));
+    __attribute__((format(__printf__, 1, 2)));
 extern char *kmem_vasprintf(const char *fmt, va_list ap)
-    __attribute__((format(printf, 1, 0)));
+    __attribute__((format(__printf__, 1, 0)));
 
 extern int kmem_scnprintf(char *restrict str, size_t size,
     const char *restrict fmt, ...);

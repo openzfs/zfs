@@ -52,28 +52,28 @@ extern "C" {
 #ifndef _ASM
 
 extern void cmn_err(int, const char *, ...)
-    __attribute__((format(printf, 2, 3)));
+    __attribute__((format(__printf__, 2, 3)));
 
 extern void vzcmn_err(zoneid_t, int, const char *, __va_list)
-    __attribute__((format(printf, 3, 0)));
+    __attribute__((format(__printf__, 3, 0)));
 
 extern void vcmn_err(int, const char *, __va_list)
-    __attribute__((format(printf, 2, 0)));
+    __attribute__((format(__printf__, 2, 0)));
 
 extern void zcmn_err(zoneid_t, int, const char *, ...)
-    __attribute__((format(printf, 3, 4)));
+    __attribute__((format(__printf__, 3, 4)));
 
 extern void vzprintf(zoneid_t, const char *, __va_list)
-    __attribute__((format(printf, 2, 0)));
+    __attribute__((format(__printf__, 2, 0)));
 
 extern void zprintf(zoneid_t, const char *, ...)
-    __attribute__((format(printf, 2, 3)));
+    __attribute__((format(__printf__, 2, 3)));
 
 extern void vuprintf(const char *, __va_list)
-    __attribute__((format(printf, 1, 0)));
+    __attribute__((format(__printf__, 1, 0)));
 
 extern void panic(const char *, ...)
-    __attribute__((format(printf, 1, 2), __noreturn__));
+    __attribute__((format(__printf__, 1, 2), __noreturn__));
 
 #define	cmn_err_once(ce, ...)				\
 do {							\
