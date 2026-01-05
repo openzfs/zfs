@@ -730,6 +730,19 @@ are destroyed.
 Large dnodes allow more data to be stored in the bonus buffer,
 thus potentially improving performance by avoiding the use of spill blocks.
 .
+.feature com.klarasystems large_label no large_blocks
+This feature enables a larger label size.
+Normally, vdevs start and end with 256 KiB labels, half of which is reserved for
+the uberblock ring.
+However, because uberblocks always take at least one disk sector, large disk
+sectors result in unacceptably small uberblock rings.
+The new label format is 256MiB in size, with 128KiB reserved for the expanded
+uberblock ring.
+When enabled, the new larger size will be used on sufficiently large disks.
+.Pp
+This feature becomes active when a large label is written to any of the disks
+in the pool.
+.
 .feature com.klarasystems large_microzap yes extensible_dataset large_blocks
 This feature allows "micro" ZAPs to grow larger than 128 KiB without being
 upgraded to "fat" ZAPs.
