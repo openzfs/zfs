@@ -1200,7 +1200,7 @@ process_options(int argc, char **argv)
 		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
 		    zo->zo_raid_children - 1);
 
-		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_ANYRAID,
+		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_ANYMIRROR,
 		    sizeof (zo->zo_raid_type));
 	} else {
 		fatal(B_FALSE, "invalid raid kind %s", raid_kind);
@@ -1394,7 +1394,7 @@ make_vdev_raid(const char *path, const char *aux, const char *pool, size_t size,
 		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NDATA, ndata);
 		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NSPARES, nspares);
 		fnvlist_add_uint64(raid, ZPOOL_CONFIG_DRAID_NGROUPS, ngroups);
-	} else if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYRAID) == 0) {
+	} else if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYMIRROR) == 0) {
 		fnvlist_add_uint8(raid, ZPOOL_CONFIG_ANYRAID_PARITY_TYPE,
 		    VAP_MIRROR);
 	}
@@ -3189,7 +3189,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 
 	/* dRAID added after feature flags, skip upgrade test. */
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0 ||
-	    strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYRAID) == 0)
+	    strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_ANYMIRROR) == 0)
 		return;
 
 	mutex_enter(&ztest_vdev_lock);
