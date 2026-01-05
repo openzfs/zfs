@@ -457,6 +457,11 @@ because user pages can be placed under write protection in
 .Fx
 before the Direct I/O write is issued.
 .
+.It Sy zfs_vdev_large_label_min_size Ns = Ns Sy 1000000000000 Pq uint
+Minimum device size to use the large label format, if the feature is enabled.
+Note that disks that are too small to store the large label (less than about
+1084MiB) will not use it, regardless of the value of this tunable.
+.
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq uint
 Minimum ashift used when creating new top-level vdevs.
 .

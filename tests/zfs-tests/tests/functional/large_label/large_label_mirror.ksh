@@ -48,7 +48,7 @@ log_must truncate -s 2G $mntpnt/small1
 
 log_must create_pool -f $TESTPOOL $mntpnt/small1
 log_must zfs create $TESTPOOL/fs
-log_must dd if=/dev/urandom of=/$TESTPOOL/fs/f1 bs=1M count=16
+log_must file_write -o create -d 'R' -f /$TESTPOOL/fs/f1 -b 1M -c 16
 log_must touch /$TESTPOOL/f2
 
 log_must sync_pool $TESTPOOL

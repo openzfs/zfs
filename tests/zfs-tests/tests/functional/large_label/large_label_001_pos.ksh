@@ -36,10 +36,13 @@
 function cleanup {
 	log_pos zpool destroy $TESTPOOL
 	log_must rm $mntpnt/dsk*
+	log_must restore_tunable LARGE_LABEL_MIN_SIZE
 }
 
 log_assert "Verify that new label works for basic pool operation"
 log_onexit cleanup
+
+log_must save_tunable LARGE_LABEL_MIN_SIZE
 
 mntpnt="$TESTDIR1"
 log_must truncate -s 2T $mntpnt/dsk0
@@ -51,5 +54,14 @@ log_must create_pool -f $TESTPOOL "$DSK"0
 log_must zdb -l "$DSK"0
 log_must uses_large_label "$DSK"0
 log_mustnot uses_old_label "$DSK"0
+log_must destroy_pool $TESTPOOL
+
+log_must set_tunable64 LARGE_LABEL_MIN_SIZE 1
+log_must truncate -s 64M $mntpnt/dsk1
+
+log_must create_pool -f $TESTPOOL "$DSK"1
+log_must zdb -l "$DSK"1
+log_mustnot uses_large_label "$DSK"1
+log_must uses_old_label "$DSK"1
 
 log_pass "New label works for basic pool operation"

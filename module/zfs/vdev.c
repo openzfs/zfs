@@ -100,7 +100,7 @@ static uint_t zfs_vdev_default_ms_shift = 29;
 /* upper limit for metaslab size (16G) */
 static uint_t zfs_vdev_max_ms_shift = 34;
 
-uint64_t zfs_vdev_large_label_min_size = 1ULL << 40;
+uint64_t zfs_vdev_large_label_min_size = 1000ULL * 1000 * 1000 * 1000;
 
 static int vdev_validate_skip = B_FALSE;
 
@@ -2289,7 +2289,9 @@ vdev_open(vdev_t *vd)
 	    spa->spa_create_large_label_ok))
 		large_label = B_FALSE;
 	else if (vd->vdev_asize == 0 && vd->vdev_ops->vdev_op_leaf)
-		large_label = osize > zfs_vdev_large_label_min_size;
+		large_label = (osize > zfs_vdev_large_label_min_size) &&
+		    (osize > SPA_MINDEVSIZE + (VDEV_LARGE_LABEL_SIZE -
+		    sizeof (vdev_label_t)) * VDEV_LABELS);
 	else
 		large_label = vd->vdev_large_label;
 	uint64_t align;
