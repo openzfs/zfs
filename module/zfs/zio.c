@@ -2162,7 +2162,8 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * interrupt threads may all be blocked waiting for the config lock.
 	 * In this case, select the otherwise-unused taskq for ZIO_TYPE_NULL.
 	 */
-	if (zio->io_flags & (ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_PROBE))
+	if (zio->io_flags & (ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_PROBE) &&
+	    !spa_is_initializing(spa))
 		t = ZIO_TYPE_NULL;
 
 	/*

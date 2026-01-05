@@ -1117,8 +1117,9 @@ vdev_aux_label_generate(vdev_t *vd, boolean_t reason_spare)
  * same leaf vdev in the vdev we're creating -- e.g. mirroring a disk with
  * itself.
  */
-int
-vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
+static int
+vdev_label_init_impl(vdev_t *vd, zio_t *pio, uint64_t crtxg,
+    vdev_labeltype_t reason)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
@@ -1130,7 +1131,6 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	abd_t *sc_abd = NULL;
 	abd_t *toc_abd = NULL;
 	abd_t *ub_abd2 = NULL;
-	zio_t *zio;
 	char *buf;
 	size_t buflen;
 	int error;
@@ -1145,8 +1145,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	for (int c = 0; c < vd->vdev_children; c++)
-		if ((error = vdev_label_init(vd->vdev_child[c],
-		    crtxg, reason)) != 0)
+		if ((error = vdev_label_init_impl(vd->vdev_child[c],
+		    pio, crtxg, reason)) != 0)
 			return (error);
 
 	/* Track the creation time for this vdev */
@@ -1279,9 +1279,9 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	abd_zero(bootenv, VDEV_PAD_SIZE);
 
 	/*
-	 * Write everything in parallel.
+	 * Write pieces that we need immediately in parallel.
 	 */
-	zio = zio_root(spa, NULL, NULL, flags);
+	zio_t *zio = zio_root(spa, NULL, NULL, flags);
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
 
@@ -1356,7 +1356,7 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 			for (int u = 0;
 			    u < VDEV_LARGE_UBERBLOCK_RING / SPA_MAXBLOCKSIZE;
 			    u++) {
-				vdev_label_write(zio, vd, l, B_TRUE, ub_abd2,
+				vdev_label_write(pio, vd, l, B_TRUE, ub_abd2,
 				    VDEV_LARGE_UBERBLOCK_RING +
 				    u * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE,
 				    NULL, NULL, flags);
@@ -1394,6 +1394,19 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	    spa_l2cache_exists(vd->vdev_guid, NULL)))
 		spa_l2cache_add(vd);
 
+	return (error);
+}
+
+int
+vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
+{
+	zio_t *zio = zio_root(vd->vdev_spa, NULL, NULL,
+	    ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL | ZIO_FLAG_TRYHARD);
+	int error = vdev_label_init_impl(vd, zio, crtxg, reason);
+
+	int ioerr = zio_wait(zio);
+	if (error == 0)
+		error = ioerr;
 	return (error);
 }
 
