@@ -2581,8 +2581,19 @@ top:
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	if (mask != 0)
+	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		/*
+		 * Ensure that the z_seq is always incremented on setattr
+		 * operation. This is required for change accounting for
+		 * NFS clients.
+		 *
+		 * ATTR_MODE already increments via zfs_acl_chmod_setattr.
+		 * ATTR_SIZE already increments via zfs_freesp.
+		 */
+		if (!(mask & (ATTR_MODE | ATTR_SIZE)))
+			zp->z_seq++;
+	}
 
 	mutex_exit(&zp->z_lock);
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
