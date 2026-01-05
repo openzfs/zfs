@@ -292,7 +292,7 @@ get_usage(zfs_help_t idx)
 {
 	switch (idx) {
 	case HELP_CLONE:
-		return (gettext("\tclone [-p] [-o property=value] ... "
+		return (gettext("\tclone [-pu] [-o property=value] ... "
 		    "<snapshot> <filesystem|volume>\n"));
 	case HELP_CREATE:
 		return (gettext("\tcreate [-Pnpuv] [-o property=value] ... "
@@ -818,7 +818,7 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 }
 
 /*
- * zfs clone [-p] [-o prop=value] ... <snap> <fs | vol>
+ * zfs clone [-pu] [-o prop=value] ... <snap> <fs | vol>
  *
  * Given an existing dataset, create a writable copy whose initial contents
  * are the same as the source.  The newly created dataset maintains a
@@ -826,21 +826,24 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
  * the clone exists.
  *
  * The '-p' flag creates all the non-existing ancestors of the target first.
+ *
+ * The '-u' flag prevents the newly created file system from being mounted.
  */
 static int
 zfs_do_clone(int argc, char **argv)
 {
 	zfs_handle_t *zhp = NULL;
 	boolean_t parents = B_FALSE;
+	boolean_t nomount = B_FALSE;
 	nvlist_t *props;
-	int ret = 0;
+	int ret = 1;
 	int c;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, "o:p")) != -1) {
+	while ((c = getopt(argc, argv, "o:pu")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -850,6 +853,9 @@ zfs_do_clone(int argc, char **argv)
 			break;
 		case 'p':
 			parents = B_TRUE;
+			break;
+		case 'u':
+			nomount = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -879,8 +885,7 @@ zfs_do_clone(int argc, char **argv)
 
 	/* open the source dataset */
 	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_SNAPSHOT)) == NULL) {
-		nvlist_free(props);
-		return (1);
+		goto error_open;
 	}
 
 	if (parents && zfs_name_valid(argv[1], ZFS_TYPE_FILESYSTEM |
@@ -892,37 +897,39 @@ zfs_do_clone(int argc, char **argv)
 		 */
 		if (zfs_dataset_exists(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM |
 		    ZFS_TYPE_VOLUME)) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (0);
+			ret = 0;
+			goto error;
 		}
 		if (zfs_create_ancestors(g_zfs, argv[1]) != 0) {
-			zfs_close(zhp);
-			nvlist_free(props);
-			return (1);
+			goto error;
 		}
 	}
 
 	/* pass to libzfs */
 	ret = zfs_clone(zhp, argv[1], props);
 
-	/* create the mountpoint if necessary */
-	if (ret == 0) {
-		if (log_history) {
-			(void) zpool_log_history(g_zfs, history_str);
-			log_history = B_FALSE;
-		}
+	if (ret != 0)
+		goto error;
 
-		/*
-		 * Dataset cloned successfully, mount/share failures are
-		 * non-fatal.
-		 */
-		(void) zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
+	/* create the mountpoint if necessary */
+	if (log_history) {
+		(void) zpool_log_history(g_zfs, history_str);
+		log_history = B_FALSE;
 	}
 
-	zfs_close(zhp);
-	nvlist_free(props);
+	if (nomount)
+		goto error;
 
+	/*
+	 * Dataset cloned successfully, mount/share failures are
+	 * non-fatal.
+	 */
+	(void) zfs_mount_and_share(g_zfs, argv[1], ZFS_TYPE_DATASET);
+
+error:
+	zfs_close(zhp);
+error_open:
+	nvlist_free(props);
 	return (!!ret);
 
 usage:
@@ -4046,7 +4053,7 @@ zfs_do_rename(int argc, char **argv)
 	zfs_handle_t *zhp;
 	renameflags_t flags = { 0 };
 	int c;
-	int ret = 0;
+	int ret = 1;
 	int types;
 	boolean_t parents = B_FALSE;
 
@@ -4118,18 +4125,19 @@ zfs_do_rename(int argc, char **argv)
 		types = ZFS_TYPE_DATASET;
 
 	if ((zhp = zfs_open(g_zfs, argv[0], types)) == NULL)
-		return (1);
+		goto error_open;
 
 	/* If we were asked and the name looks good, try to create ancestors. */
 	if (parents && zfs_name_valid(argv[1], zfs_get_type(zhp)) &&
 	    zfs_create_ancestors(g_zfs, argv[1]) != 0) {
-		zfs_close(zhp);
-		return (1);
+		goto error;
 	}
 
 	ret = (zfs_rename(zhp, argv[1], flags) != 0);
 
+error:
 	zfs_close(zhp);
+error_open:
 	return (ret);
 }
 
