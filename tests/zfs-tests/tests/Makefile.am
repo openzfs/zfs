@@ -677,6 +677,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_clone/zfs_clone_010_pos.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_deeply_nested.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_encrypted.ksh \
+	functional/cli_root/zfs_clone/zfs_clone_nomount.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_rm_nested.ksh \
 	functional/cli_root/zfs_copies/cleanup.ksh \
 	functional/cli_root/zfs_copies/setup.ksh \
