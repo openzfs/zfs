@@ -7998,7 +7998,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		oldvdpath = spa_strdup(tmp);
 		kmem_strfree(tmp);
 	} else if (anyraid) {
-		char *tmp = kmem_asprintf(VDEV_TYPE_ANYRAID "%u-%u",
+		char *tmp = kmem_asprintf(VDEV_TYPE_ANYMIRROR "%u-%u",
 		    (uint_t)vdev_get_nparity(oldvd), (uint_t)oldvd->vdev_id);
 		oldvdpath = spa_strdup(tmp);
 		kmem_strfree(tmp);

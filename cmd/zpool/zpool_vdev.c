@@ -530,7 +530,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 			if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 ||
 			    strcmp(type, VDEV_TYPE_DRAID) == 0 ||
-			    strcmp(type, VDEV_TYPE_ANYRAID) == 0) {
+			    strcmp(type, VDEV_TYPE_ANYMIRROR) == 0) {
 				verify(nvlist_lookup_uint64(nv,
 				    ZPOOL_CONFIG_NPARITY,
 				    &rep.zprl_parity) == 0);
@@ -650,7 +650,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 				    (vdev_size != -1LL &&
 				    (llabs(size - vdev_size) >
 				    ZPOOL_FUZZ)) && strcmp(orig_type,
-				    VDEV_TYPE_ANYRAID) != 0) {
+				    VDEV_TYPE_ANYMIRROR) != 0) {
 					if (ret != NULL)
 						free(ret);
 					ret = NULL;
@@ -747,7 +747,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 					return (NULL);
 			} else if (lastrep.zprl_children !=
 			    rep.zprl_children && strcmp(rep.zprl_type,
-			    VDEV_TYPE_ANYRAID) != 0) {
+			    VDEV_TYPE_ANYMIRROR) != 0) {
 				if (ret)
 					free(ret);
 				ret = NULL;
@@ -1221,9 +1221,9 @@ get_parity(const char *type)
 				return (0);
 			}
 		}
-	} else if (strncmp(type, VDEV_TYPE_ANYRAID,
-	    strlen(VDEV_TYPE_ANYRAID)) == 0) {
-		p = type + strlen(VDEV_TYPE_ANYRAID);
+	} else if (strncmp(type, VDEV_TYPE_ANYMIRROR,
+	    strlen(VDEV_TYPE_ANYMIRROR)) == 0) {
+		p = type + strlen(VDEV_TYPE_ANYMIRROR);
 
 		if (*p == '\0') {
 			/* when unspecified default to 1-parity mirror */
@@ -1294,7 +1294,8 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 	if (maxdev != NULL)
 		*maxdev = INT_MAX;
 
-	if (strncmp(type, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0) {
+	if (strncmp(type, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) ==
+	    0) {
 		nparity = get_parity(type);
 		if (nparity < 0)
 			return (NULL);
@@ -1302,7 +1303,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 			*mindev = nparity + 1;
 		if (maxdev != NULL)
 			*maxdev = 255;
-		return (VDEV_TYPE_ANYRAID);
+		return (VDEV_TYPE_ANYMIRROR);
 	}
 
 	if (strcmp(type, "mirror") == 0) {
@@ -1344,7 +1345,8 @@ anyraid_config_by_type(nvlist_t *nv, const char *type)
 {
 	uint64_t nparity = 0;
 
-	if (strncmp(type, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) != 0)
+	if (strncmp(type, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) !=
+	    0)
 		return (EINVAL);
 
 	nparity = (uint64_t)get_parity(type);
@@ -1637,7 +1639,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				 * allowed.
 				 */
 				if (strcmp(type, VDEV_TYPE_MIRROR) != 0 &&
-				    strcmp(type, VDEV_TYPE_ANYRAID) != 0) {
+				    strcmp(type, VDEV_TYPE_ANYMIRROR) != 0) {
 					(void) fprintf(stderr,
 					    gettext("invalid vdev "
 					    "specification: unsupported 'log' "
@@ -1731,7 +1733,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					    ZPOOL_CONFIG_NPARITY,
 					    mindev - 1) == 0);
 				}
-				if (strcmp(type, VDEV_TYPE_ANYRAID) == 0) {
+				if (strcmp(type, VDEV_TYPE_ANYMIRROR) == 0) {
 					if (anyraid_config_by_type(nv, fulltype)
 					    != 0) {
 						for (c = 0; c < children; c++)

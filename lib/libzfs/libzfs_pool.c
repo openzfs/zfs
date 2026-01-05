@@ -3222,7 +3222,8 @@ zpool_vdev_is_interior(const char *name)
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_ROOT, strlen(VDEV_TYPE_ROOT)) == 0 ||
 	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0 ||
-	    strncmp(name, VDEV_TYPE_ANYRAID, strlen(VDEV_TYPE_ANYRAID)) == 0)
+	    strncmp(name, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) ==
+	    0)
 		return (B_TRUE);
 
 	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
@@ -4615,7 +4616,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * parity level.
 		 */
 		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0 ||
-		    strcmp(path, VDEV_TYPE_ANYRAID) == 0) {
+		    strcmp(path, VDEV_TYPE_ANYMIRROR) == 0) {
 			value = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY);
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
