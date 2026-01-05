@@ -1625,7 +1625,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more anyraid devices cannot store "
-			    "any tiles"));
+			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 
 		case ENOSPC:
@@ -1871,7 +1871,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more anyraid devices cannot store "
-			    "any tiles"));
+			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -3702,6 +3702,22 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		free(newname);
 		return (zfs_error(hdl, EZFS_BADTARGET, errbuf));
 	}
+	uint64_t min_tile_size = 0;
+	if (strncmp(fnvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE), "any",
+	    3) == 0) {
+		char mts[32];
+		VERIFY0(zpool_get_vdev_prop(zhp, old_disk,
+		    VDEV_PROP_ANYRAID_TILE_SIZE, NULL, mts, 32, NULL, B_TRUE));
+		VERIFY3S(sscanf(mts, "%llu", (u_longlong_t *)&min_tile_size),
+		    ==, 1);
+		/*
+		 * Unfortunately it's difficult to get the definitions that
+		 * would allow us to do this cleanly into userland. We need
+		 * space for a tile (above) plus the mapping (256MiB) plus the
+		 * labels (4.5MiB).
+		 */
+		min_tile_size += 261 * 1024 * 1024;
+	}
 
 	free(newname);
 
@@ -3799,14 +3815,18 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 		break;
 
-	case ENOLCK:
+	case ENOLCK: {
 		/*
 		 * This occurs when one of the devices is an anyraid
 		 * device that can't hold a single tile.
 		 */
+		char buf[32];
+		ASSERT(min_tile_size != 0);
+		zfs_nicenum(min_tile_size, buf, 32);
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "new device cannot store any tiles"));
+		    "new device cannot store any tiles (min size %s)"), buf);
 		return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+	}
 
 	case ENAMETOOLONG:
 		/*

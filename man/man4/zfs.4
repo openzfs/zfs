@@ -663,6 +663,8 @@ Larger tile sizes allow for larger disks to be used in the future, since a given
 device can only store 16384 tiles.
 The minimum valid tile size is 16MiB, since a metaslab always needs to be able
 to fit in a single tile.
+Note that any disk that is smaller than the tile size plus the size of the
+anyraid map (256MiB) cannot be added to an anyraid vdev.
 .
 .It Sy zap_iterate_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
 If set, when we start iterating over a ZAP object,
