@@ -49,7 +49,7 @@ DSK="$mntpnt/dsk"
 
 log_must create_pool -f $TESTPOOL "$DSK"0 mirror "$DSK"1 "$DSK"2 raidz1 "$DSK"3 "$DSK"4 "$DSK"5 log "$DSK"6 special "$DSK"7
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/f1 bs=1M count=1k
+log_must file_write -o create -d 'R' -f /$TESTPOOL/f1 -b 1M -c 1k
 log_must sync_pool $TESTPOOL
 
 for i in `seq 0 7`; do
