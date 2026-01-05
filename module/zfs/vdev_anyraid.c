@@ -1550,7 +1550,7 @@ vdev_ops_t vdev_anyraid_ops = {
 	.vdev_op_nparity = vdev_anyraid_nparity,
 	.vdev_op_ndisks = vdev_anyraid_ndisks,
 	.vdev_op_metaslab_size = vdev_anyraid_metaslab_size,
-	.vdev_op_type = VDEV_TYPE_ANYRAID,	/* name of this vdev type */
+	.vdev_op_type = VDEV_TYPE_ANYMIRROR,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
