@@ -7210,8 +7210,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (error == 0 && !zfs_allocatable_devs(nvroot))
 		error = SET_ERROR(EINVAL);
 
+	if (error == 0) {
+		spa->spa_is_initializing = B_TRUE;
+		error = vdev_create(rvd, txg, B_FALSE);
+		spa->spa_is_initializing = B_FALSE;
+	}
 	if (error == 0 &&
-	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
 	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid,
 	    &draid_nfgroup, 0)) == 0 &&
 	    (ndraid == 0 || has_draid || (error = SET_ERROR(ENOTSUP))) &&
