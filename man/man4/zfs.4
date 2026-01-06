@@ -728,6 +728,25 @@ depends on kernel configuration.
 This is the minimum allocation size that will use scatter (page-based) ABDs.
 Smaller allocations will use linear ABDs.
 .
+.It Sy zfs_active_weightfunc Ns = Ns Sy auto Pq string
+Selects the metaslab weighting function to use.
+The weighting function can be one of auto, space, space_v2, and segment.
+This determines what weighting algorithm will be used to sort metaslabs for
+selection during the allocation process.
+The space_v2 and segment algorithms require the spacemap histogram feature to be
+enabled, and will fall back to the space algorithm if that feature is not
+enabled on the pool.
+.Pp
+The space algorithm combines the total free space in the metaslab with the
+fragmentation metric to balance toward metaslabs with more contiguous free
+space.
+The segment algorithm uses the spacemap histograms to calculate the weight from
+the largest free segment size, bucketed to powers of two, and the number of
+segments in that bucket.
+The space_v2 algorithm considers not only the largest free segment bucket, but
+the smaller ones as well, providing a higher weight to larger contiguous chunks.
+Auto provides the recommended algorithm (currently space_v2).
+.
 .It Sy zfs_arc_dnode_limit Ns = Ns Sy 0 Ns B Pq u64
 When the number of bytes consumed by dnodes in the ARC exceeds this number of
 bytes, try to unpin some of it in response to demand for non-metadata.
