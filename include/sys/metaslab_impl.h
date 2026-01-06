@@ -203,6 +203,7 @@ struct metaslab_class {
 	spa_t			*mc_spa;
 	const char		*mc_name;
 	const metaslab_ops_t	*mc_ops;
+	const metaslab_wfs_t	*mc_wfs;
 
 	/*
 	 * Track the number of metaslab groups that have been initialized

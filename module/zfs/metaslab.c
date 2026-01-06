@@ -254,21 +254,6 @@ static int metaslab_perf_bias = 1;
 static const boolean_t zfs_remap_blkptr_enable = B_TRUE;
 
 /*
- * Enable/disable segment-based metaslab selection.
- */
-static int zfs_metaslab_segment_weight_enabled = B_TRUE;
-
-/*
- * Enable/disable the new space-based metaslab selection algorithm.
- *
- * The new space-based algorithm attempts to take into account not only the
- * largest free segment, as the segment-based weight does, but other segments
- * that are almost as large. This can improve metaslab selection and reduce the
- * number of metaslab loads needed to satisfy a given set of allocations.
- */
-static int zfs_metaslab_space_weight_v2_enabled = B_TRUE;
-
-/*
  * When using segment-based metaslab selection, we will continue
  * allocating from the active metaslab until we have exhausted
  * zfs_metaslab_switch_threshold of its buckets.
@@ -433,7 +418,7 @@ metaslab_stat_fini(void)
  */
 metaslab_class_t *
 metaslab_class_create(spa_t *spa, const char *name,
-    const metaslab_ops_t *ops, boolean_t is_log)
+    const metaslab_ops_t *ops, const metaslab_wfs_t *wfs, boolean_t is_log)
 {
 	metaslab_class_t *mc;
 
@@ -443,6 +428,7 @@ metaslab_class_create(spa_t *spa, const char *name,
 	mc->mc_spa = spa;
 	mc->mc_name = name;
 	mc->mc_ops = ops;
+	mc->mc_wfs = wfs;
 	mc->mc_is_log = is_log;
 	mc->mc_alloc_io_size = SPA_OLD_MAXBLOCKSIZE;
 	mc->mc_alloc_max = UINT64_MAX;
@@ -3082,6 +3068,79 @@ metaslab_fini(metaslab_t *msp)
 	kmem_free(msp, sizeof (metaslab_t));
 }
 
+static uint64_t metaslab_space_weight(metaslab_t *msp);
+static uint64_t metaslab_segment_weight(metaslab_t *msp);
+static uint64_t metaslab_space_weight_v2(metaslab_t *msp);
+metaslab_wfs_t *metaslab_weightfunc(spa_t *spa);
+
+static metaslab_wfs_t metaslab_weightfuncs[] = {
+	{ "auto", metaslab_space_weight_v2 },
+	{ "space", metaslab_space_weight },
+	{ "space_v2", metaslab_space_weight_v2 },
+	{ "segment", metaslab_segment_weight },
+};
+
+static int
+spa_find_weightfunc_byname(const char *val)
+{
+	int a = ARRAY_SIZE(metaslab_weightfuncs) - 1;
+	for (; a >= 0; a--) {
+		if (strcmp(val, metaslab_weightfuncs[a].mswf_name) == 0)
+			return (a);
+	}
+	return (-1);
+}
+
+void
+spa_set_weightfunc(spa_t *spa, const char *weightfunc)
+{
+	int a = spa_find_weightfunc_byname(weightfunc);
+	if (a < 0) a = 0;
+	if (a != 1 && !spa_feature_is_enabled(spa,
+	    SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
+		zfs_dbgmsg("warning: weight function %s will not be used for "
+		    "pool %s since space map histograms are not enabled",
+		    weightfunc, spa_name(spa));
+	}
+	spa->spa_active_weightfunc = a;
+	zfs_dbgmsg("spa weight function: %s",
+	    metaslab_weightfuncs[a].mswf_name);
+}
+
+int
+spa_get_weightfunc(spa_t *spa)
+{
+	return (spa->spa_active_weightfunc);
+}
+
+#if defined(_KERNEL)
+int
+param_set_active_weightfunc_common(const char *val)
+{
+	char *p;
+
+	if (val == NULL)
+		return (SET_ERROR(EINVAL));
+
+	if ((p = strchr(val, '\n')) != NULL)
+		*p = '\0';
+
+	int a = spa_find_weightfunc_byname(val);
+	if (a < 0)
+		return (SET_ERROR(EINVAL));
+
+	zfs_active_weightfunc = metaslab_weightfuncs[a].mswf_name;
+	return (0);
+}
+#endif
+
+metaslab_wfs_t *
+metaslab_weightfunc(spa_t *spa)
+{
+	int weightfunc = spa_get_weightfunc(spa);
+	return (&metaslab_weightfuncs[weightfunc]);
+}
+
 /*
  * Return the weight of the specified metaslab, according to the new space-based
  * weighting algorithm. The metaslab must be loaded. This function can
@@ -3156,7 +3215,7 @@ metaslab_space_weight_from_spacemap(metaslab_t *msp)
 		if (segments == 0)
 			continue;
 		if (weight == 0)
-                	weight = i + sm->sm_shift;
+			weight = i + sm->sm_shift;
 		// Prevent overflow using log_2 math
 		if (seg_shift + highbit64(segments) > METASLAB_WEIGHT_MAX_IDX)
 			return (METASLAB_WEIGHT_MAX);
@@ -3186,8 +3245,16 @@ static uint64_t
 metaslab_space_weight_v2(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
+	spa_t *spa = mg->mg_vd->vdev_spa;
 	uint64_t weight = 0;
 	uint8_t shift = mg->mg_vd->vdev_ashift;
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) ||
+	    (msp->ms_sm != NULL && msp->ms_sm->sm_dbuf->db_size !=
+	    sizeof (space_map_phys_t))) {
+		return (metaslab_space_weight(msp));
+	}
+
 	if (metaslab_allocated_space(msp) == 0) {
 		int idx = highbit64(msp->ms_size) - shift - 1 + 3;
 		weight = 1ULL << MIN(METASLAB_WEIGHT_MAX_IDX, 2 * idx);
@@ -3365,17 +3432,9 @@ metaslab_space_weight(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
 	vdev_t *vd = mg->mg_vd;
-	spa_t *spa = vd->vdev_spa;
 	uint64_t weight, space;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
-
-	if (zfs_metaslab_space_weight_v2_enabled &&
-	    spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
-	    (msp->ms_sm == NULL || msp->ms_sm->sm_dbuf->db_size ==
-	    sizeof (space_map_phys_t))) {
-		return (metaslab_space_weight_v2(msp));
-	}
 
 	/*
 	 * The baseline weight is the metaslab's free space.
@@ -3532,10 +3591,17 @@ static uint64_t
 metaslab_segment_weight(metaslab_t *msp)
 {
 	metaslab_group_t *mg = msp->ms_group;
+	spa_t *spa = mg->mg_vd->vdev_spa;
 	uint64_t weight = 0;
 	uint8_t shift = mg->mg_vd->vdev_ashift;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) ||
+	    (msp->ms_sm != NULL && msp->ms_sm->sm_dbuf->db_size !=
+	    sizeof (space_map_phys_t))) {
+		return (metaslab_space_weight(msp));
+	}
 
 	/*
 	 * The metaslab is completely free.
@@ -3641,8 +3707,6 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 static uint64_t
 metaslab_weight(metaslab_t *msp, boolean_t nodirty)
 {
-	vdev_t *vd = msp->ms_group->mg_vd;
-	spa_t *spa = vd->vdev_spa;
 	uint64_t weight;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
@@ -3666,17 +3730,7 @@ metaslab_weight(metaslab_t *msp, boolean_t nodirty)
 		    metaslab_largest_unflushed_free(msp));
 	}
 
-	/*
-	 * Segment-based weighting requires space map histogram support.
-	 */
-	if (zfs_metaslab_segment_weight_enabled &&
-	    spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM) &&
-	    (msp->ms_sm == NULL || msp->ms_sm->sm_dbuf->db_size ==
-	    sizeof (space_map_phys_t))) {
-		weight = metaslab_segment_weight(msp);
-	} else {
-		weight = metaslab_space_weight(msp);
-	}
+	weight = msp->ms_group->mg_class->mc_wfs->mswf_func(msp);
 	return (weight);
 }
 
@@ -6566,12 +6620,6 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, bias_enabled, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, perf_bias, INT, ZMOD_RW,
 	"Enable performance-based metaslab group biasing");
 
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, segment_weight_enabled, INT,
-	ZMOD_RW, "Enable segment-based metaslab selection");
-
-ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, space_weight_v2_enabled, INT,
-	ZMOD_RW, "Enable new space-based metaslab selection");
-
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, switch_threshold, INT, ZMOD_RW,
 	"Segment-based metaslab selection maximum buckets before switching");
 
@@ -6602,3 +6650,7 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_allocator,
 	param_set_active_allocator, param_get_charp, ZMOD_RW,
 	"SPA active allocator");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_weightfunc,
+	param_set_active_weightfunc, param_get_charp, ZMOD_RW,
+	"SPA active weight function");
