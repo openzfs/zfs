@@ -242,8 +242,9 @@ zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 	 * Keep a count of the synchronous opens in the znode.  On first
 	 * synchronous open we must convert all previous async transactions
 	 * into sync to keep correct ordering.
+	 * Skip it for snapshot, as it won't have any transactions.
 	 */
-	if (flag & O_SYNC) {
+	if (!zfsvfs->z_issnap && (flag & O_SYNC)) {
 		if (atomic_inc_32_nv(&zp->z_sync_cnt) == 1)
 			zil_async_to_sync(zfsvfs->z_log, zp->z_id);
 	}
@@ -264,7 +265,7 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 		return (error);
 
 	/* Decrement the synchronous opens in the znode */
-	if ((flag & O_SYNC) && (count == 1))
+	if (!zfsvfs->z_issnap && (flag & O_SYNC) && (count == 1))
 		atomic_dec_32(&zp->z_sync_cnt);
 
 	zfs_exit(zfsvfs, FTAG);
