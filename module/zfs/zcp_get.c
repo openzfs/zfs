@@ -434,6 +434,14 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		numval = dsl_dir_snap_cmtime(ds->ds_dir).tv_sec;
 		break;
 
+	case ZFS_PROP_SNAPSHOTS_CHANGED_NSECS: {
+		inode_timespec_t snap_cmtime =
+		    dsl_dir_snap_cmtime(ds->ds_dir);
+		numval = ((uint64_t)snap_cmtime.tv_sec * NANOSEC) +
+		    snap_cmtime.tv_nsec;
+		break;
+	}
+
 	default:
 		/* Did not match these props, check in the dsl_dir */
 		error = get_dsl_dir_prop(ds, zfs_prop, &numval);

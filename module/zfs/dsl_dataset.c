@@ -2855,8 +2855,14 @@ dsl_dataset_stats(dsl_dataset_t *ds, nvlist_t *nv)
 	    dsl_get_userrefs(ds));
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_DEFER_DESTROY,
 	    dsl_get_defer_destroy(ds));
+	inode_timespec_t snap_cmtime = dsl_dir_snap_cmtime(ds->ds_dir);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_SNAPSHOTS_CHANGED,
-	    dsl_dir_snap_cmtime(ds->ds_dir).tv_sec);
+	    snap_cmtime.tv_sec);
+	uint64_t snap_cmtime_ns =
+	    ((uint64_t)snap_cmtime.tv_sec * NANOSEC) +
+	    snap_cmtime.tv_nsec;
+	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
+	    snap_cmtime_ns);
 	dsl_dataset_crypt_stats(ds, nv);
 
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
