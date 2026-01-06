@@ -516,9 +516,13 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_ZONED, "jailed", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "JAILED", boolean_table,
 	    sfeatures);
+	zprop_register_string(ZFS_PROP_ZONE, "jail", NULL, PROP_READONLY,
+	    ZFS_TYPE_FILESYSTEM, "<jailname> | 0", "JAIL", sfeatures);
 #else
 	zprop_register_index(ZFS_PROP_ZONED, "zoned", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "ZONED", boolean_table, sfeatures);
+	zprop_register_string(ZFS_PROP_ZONE, "zone", NULL, PROP_READONLY,
+	    ZFS_TYPE_FILESYSTEM, "<zonename>", "ZONE", sfeatures);
 #endif
 	zprop_register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN", boolean_table, sfeatures);

@@ -35,7 +35,7 @@
 # 1. Create a jail.
 # 2. Perform some basic ZFS operations on a dataset both in the host and
 #    in the jail to confirm the dataset is functional in the host
-#    and hidden in in the jail.
+#    and hidden in the jail.
 # 3. Run `zfs jail` to expose the dataset in the jail.
 # 4. Perform some basic ZFS operations on the dataset both in the host and
 #    in the jail to confirm the dataset is functional in the jail and host.
