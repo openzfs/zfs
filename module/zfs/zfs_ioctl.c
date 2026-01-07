@@ -8151,10 +8151,16 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	 * Can't use kmem_strdup() as we might truncate the string and
 	 * kmem_strfree() would then free with incorrect size.
 	 */
-	saved_poolname_len = strlen(zc->zc_name) + 1;
+	const char *spa_name = zc->zc_name;
+	const char *tname;
+	if (nvlist_lookup_string(innvl,
+	    zpool_prop_to_name(ZPOOL_PROP_TNAME), &tname) == 0) {
+		spa_name = tname;
+	}
+	saved_poolname_len = strlen(spa_name) + 1;
 	saved_poolname = kmem_alloc(saved_poolname_len, KM_SLEEP);
 
-	strlcpy(saved_poolname, zc->zc_name, saved_poolname_len);
+	strlcpy(saved_poolname, spa_name, saved_poolname_len);
 	saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
 
 	if (vec->zvec_func != NULL) {
