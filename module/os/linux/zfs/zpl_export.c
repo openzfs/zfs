@@ -37,8 +37,8 @@ zpl_encode_fh(struct inode *ip, __u32 *fh, int *max_len, struct inode *parent)
 {
 	fstrans_cookie_t cookie;
 	ushort_t empty_fid = 0;
-	fid_t *fid;
-	int len_bytes, rc;
+	fid_t *fid, *pfid;
+	int len_bytes, required_len, parent_len, rc, prc, fh_type;
 
 	len_bytes = *max_len * sizeof (__u32);
 
@@ -56,11 +56,44 @@ zpl_encode_fh(struct inode *ip, __u32 *fh, int *max_len, struct inode *parent)
 	else
 		rc = zfs_fid(ip, fid);
 
-	spl_fstrans_unmark(cookie);
-	len_bytes = offsetof(fid_t, fid_data) + fid->fid_len;
-	*max_len = roundup(len_bytes, sizeof (__u32)) / sizeof (__u32);
+	required_len = offsetof(fid_t, fid_data) + fid->fid_len;
 
-	return (rc == 0 ? FILEID_INO32_GEN : 255);
+	/*
+	 * Kernel has requested that the resulting file handle contain
+	 * a reference to the provided parent. This typically would happen
+	 * if the NFS export has subtree checking enabled.
+	 */
+	if (parent != NULL) {
+		if ((rc == 0) && (len_bytes >
+		    required_len + offsetof(fid_t, fid_data))) {
+			parent_len = len_bytes - required_len;
+			pfid = (fid_t *)((char *)fh + required_len);
+			pfid->fid_len = parent_len - offsetof(fid_t, fid_data);
+		} else {
+			empty_fid = 0;
+			pfid = (fid_t *)&empty_fid;
+		}
+
+		if (zfsctl_is_node(parent))
+			prc = zfsctl_fid(parent, pfid);
+		else
+			prc = zfs_fid(parent, pfid);
+
+		if (rc == 0 && prc != 0)
+			rc = prc;
+
+		required_len += offsetof(fid_t, fid_data) +
+		    pfid->fid_len;
+		fh_type = FILEID_INO32_GEN_PARENT;
+	} else {
+		fh_type = FILEID_INO32_GEN;
+	}
+
+	spl_fstrans_unmark(cookie);
+
+	*max_len = roundup(required_len, sizeof (__u32)) / sizeof (__u32);
+
+	return (rc == 0 ? fh_type : FILEID_INVALID);
 }
 
 static struct dentry *
@@ -74,7 +107,8 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 
 	len_bytes = fh_len * sizeof (__u32);
 
-	if (fh_type != FILEID_INO32_GEN ||
+	if ((fh_type != FILEID_INO32_GEN &&
+	    fh_type != FILEID_INO32_GEN_PARENT) ||
 	    len_bytes < offsetof(fid_t, fid_data) ||
 	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
 		return (ERR_PTR(-EINVAL));
@@ -102,6 +136,46 @@ zpl_fh_to_dentry(struct super_block *sb, struct fid *fh,
 	ASSERT((ip != NULL) && !IS_ERR(ip));
 
 	return (d_obtain_alias(ip));
+}
+
+static struct dentry *
+zpl_fh_to_parent(struct super_block *sb, struct fid *fh,
+    int fh_len, int fh_type)
+{
+	/*
+	 * Convert the provided struct fid to a dentry for the parent
+	 * This is possible only if it was created with the parent,
+	 * e.g. type is FILEID_INO32_GEN_PARENT. When this type of
+	 * filehandle is created we simply pack the parent fid_t
+	 * after the entry's fid_t. So this function will adjust
+	 * offset in the provided buffer to the begining of the
+	 * parent fid_t and call zpl_fh_to_dentry() on it.
+	 */
+	fid_t *fid = (fid_t *)fh;
+	fid_t *pfid;
+	int len_bytes, parent_len_bytes, child_fid_bytes, parent_fh_len;
+
+	len_bytes = fh_len * sizeof (__u32);
+
+	if ((fh_type != FILEID_INO32_GEN_PARENT) ||
+	    len_bytes < offsetof(fid_t, fid_data) ||
+	    len_bytes < offsetof(fid_t, fid_data) + fid->fid_len)
+		return (ERR_PTR(-EINVAL));
+
+	child_fid_bytes = offsetof(fid_t, fid_data) + fid->fid_len;
+	parent_len_bytes = len_bytes - child_fid_bytes;
+
+	if (parent_len_bytes < offsetof(fid_t, fid_data))
+		return (ERR_PTR(-EINVAL));
+
+	pfid = (fid_t *)((char *)fh + child_fid_bytes);
+
+	if (parent_len_bytes < offsetof(fid_t, fid_data) + pfid->fid_len)
+		return (ERR_PTR(-EINVAL));
+
+	parent_fh_len = parent_len_bytes / sizeof (__u32);
+	return (zpl_fh_to_dentry(sb, (struct fid *)pfid, parent_fh_len,
+	    FILEID_INO32_GEN));
 }
 
 /*
@@ -177,6 +251,7 @@ zpl_commit_metadata(struct inode *inode)
 const struct export_operations zpl_export_operations = {
 	.encode_fh		= zpl_encode_fh,
 	.fh_to_dentry		= zpl_fh_to_dentry,
+	.fh_to_parent		= zpl_fh_to_parent,
 	.get_name		= zpl_get_name,
 	.get_parent		= zpl_get_parent,
 	.commit_metadata	= zpl_commit_metadata,
