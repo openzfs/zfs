@@ -928,6 +928,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*physical_ashift = vdev_best_ashift(*logical_ashift,
 		    *physical_ashift, cvd->vdev_physical_ashift);
 	}
+	kmem_free(num_tiles, vd->vdev_children * sizeof (*num_tiles));
 	return (0);
 }
 
@@ -1411,6 +1412,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	    written * SPA_MAXBLOCKSIZE + buf_offset);
 	fnvlist_add_uint16_array(header, VDEV_ANYRAID_HEADER_DISK_SIZES, sizes,
 	    anyraidvd->vdev_children);
+	kmem_free(sizes, sizeof (*sizes) * anyraidvd->vdev_children);
 
 	if (var->vd_checkpoint_tile != UINT32_MAX) {
 		fnvlist_add_uint32(header, VDEV_ANYRAID_HEADER_CHECKPOINT,
@@ -1420,6 +1422,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	char *packed = NULL;
 	VERIFY0(nvlist_pack(header, &packed, &packed_size, NV_ENCODE_XDR,
 	    KM_SLEEP));
+	fnvlist_free(header);
 	ASSERT3U(packed_size, <, nvl_bytes);
 	memcpy(header_buf, packed, packed_size);
 	fnvlist_pack_free(packed, packed_size);

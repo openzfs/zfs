@@ -52,4 +52,10 @@ log_mustnot zpool create $TESTPOOL anymirrorq $disks
 log_mustnot zpool create $TESTPOOL anymirrorq1 $disks
 log_mustnot zpool create $TESTPOOL anymirror-1 $disks
 
+#
+# vdev names should be reserved so they can't accidentally be used as a pool
+# name.
+#
+log_mustnot zpool create anymirror $disks
+
 log_pass "anyraid vdev specifications detect problems correctly"
