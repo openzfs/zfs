@@ -58,8 +58,8 @@ for parity in {0..3}; do
 	log_must poolexists $TESTPOOL
 	log_must zfs set special_small_blocks=4k $TESTPOOL
 
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=1
-	log_must dd if=/dev/urandom of=/$TESTPOOL/small.bin bs=4k count=1
+	log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 1
+	log_must file_write -o create -f /$TESTPOOL/small.bin -b 4096 -c 1
 	oldcksum=$(xxh128digest /$TESTPOOL/file.bin)
 	oldsmallcksum=$(xxh128digest /$TESTPOOL/small.bin)
 	log_must zpool export $TESTPOOL

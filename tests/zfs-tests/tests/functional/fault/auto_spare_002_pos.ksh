@@ -77,7 +77,7 @@ for type in "mirror" "raidz" "raidz2" "anymirror1" "anymirror2" "anymirror3"; do
 	log_must zfs set recordsize=16k compression=off $TESTPOOL/$TESTFS
 
 	# 3. Write a file to the pool to be read back
-	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=$(( TESTFILE_SIZE / 1024 / 1024 ))
+	log_must file_write -o create -f $TESTFILE -b 1048576 -c $(( TESTFILE_SIZE / 1024 / 1024 )) -d R
 
 	# 4. Inject CHECKSUM ERRORS on read with a zinject error handler
 	log_must zinject -d $FAULT_FILE -e corrupt -f 100 -T read $TESTPOOL
