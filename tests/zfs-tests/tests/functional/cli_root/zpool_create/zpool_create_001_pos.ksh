@@ -56,7 +56,7 @@ log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
 
 log_onexit cleanup
 
-create_sparse_files "disk" 4 $MINVDEVSIZE2
+create_sparse_files "disk" 5 $MINVDEVSIZE2
 
 pooldevs="${DISK0} \
 	\"${DISK0} ${DISK1}\" \
@@ -65,7 +65,7 @@ pooldevs="${DISK0} \
 mirrordevs="\"${DISK0} ${DISK1}\" \
 	$raidzdevs \
 	\"$disk0 $disk1\""
-anyraiddevs="\"$disk0 $disk1 $disk2 $disk3\""
+anyraiddevs="\"$disk0 $disk1 $disk2 $disk3 $disk4\""
 raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
 draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
 
@@ -78,6 +78,7 @@ create_pool_test "$TESTPOOL" "anymirror0" "$anyraiddevs"
 create_pool_test "$TESTPOOL" "anymirror1" "$anyraiddevs"
 create_pool_test "$TESTPOOL" "anymirror2" "$anyraiddevs"
 create_pool_test "$TESTPOOL" "anymirror3" "$anyraiddevs"
+create_pool_test "$TESTPOOL" "anymirror4" "$anyraiddevs"
 create_pool_test "$TESTPOOL" "draid" "$draiddevs"
 
 log_pass "'zpool create <pool> <vspec> ...' success."
