@@ -1233,7 +1233,7 @@ get_parity(const char *type)
 			errno = 0;
 			parity = strtol(p, &end, 10);
 			if (errno != 0 || *end != '\0' ||
-			    parity < 0 || parity > VDEV_ANYRAID_MAXPARITY) {
+			    parity < 0) {
 				return (-1);
 			}
 		}
