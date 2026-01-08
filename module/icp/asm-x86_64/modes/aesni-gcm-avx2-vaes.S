@@ -1316,7 +1316,7 @@ SET_SIZE(aes_gcm_dec_update_vaes_avx2)
 #endif /* !_WIN32 || _KERNEL */
 
 /* Mark the stack non-executable. */
-#if defined(__linux__) && defined(__ELF__)
+#ifdef __ELF__
 .section .note.GNU-stack,"",%progbits
 #endif
 
