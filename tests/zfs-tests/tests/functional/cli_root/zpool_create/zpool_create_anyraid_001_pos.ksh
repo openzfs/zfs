@@ -46,7 +46,7 @@ function cleanup
 log_assert "'zpool create <pool> <anymirror|0|1|2|3> ...' can create a pool."
 log_onexit cleanup
 
-create_sparse_files "disk" 4 $MINVDEVSIZE2
+create_sparse_files "disk" 7 $MINVDEVSIZE2
 
 # Verify the default parity
 log_must zpool create $TESTPOOL anymirror $disks
@@ -54,7 +54,7 @@ log_must poolexists $TESTPOOL
 destroy_pool $TESTPOOL
 
 # Verify specified parity
-for parity in {0..3}; do
+for parity in {0..6}; do
 	log_must zpool create $TESTPOOL anymirror$parity $disks
 	log_must poolexists $TESTPOOL
 	destroy_pool $TESTPOOL
