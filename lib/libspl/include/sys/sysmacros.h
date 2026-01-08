@@ -30,7 +30,7 @@
 #define	_LIBSPL_SYS_SYSMACROS_H
 
 #include <stdint.h>
-
+#include <sys/param.h>
 #ifdef __linux__
 /*
  * On Linux, we need the system-provided sysmacros.h to get the makedev(),
@@ -121,6 +121,18 @@
 #define	CPU_SEQID_UNSTABLE	CPU_SEQID
 
 extern int lowbit64(uint64_t i);
-extern int highbit64(uint64_t i);
+
+/*
+ * Find highest one bit set.
+ * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
+ */
+static inline int
+highbit64(uint64_t i)
+{
+	if (i == 0)
+		return (0);
+
+	return (8 * sizeof (uint64_t) - __builtin_clzll(i));
+}
 
 #endif /* _SYS_SYSMACROS_H */

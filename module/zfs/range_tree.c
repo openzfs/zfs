@@ -34,6 +34,19 @@
 #include <sys/dnode.h>
 #include <sys/zio.h>
 #include <sys/range_tree.h>
+#include <sys/sysmacros.h>
+
+#ifndef _KERNEL
+#include <stdio.h>
+#include <stdlib.h>
+
+/*
+ * Need the extra 'abort()' here since is possible for PANIC() to return, and
+ * our panic() usage in this file assumes it's NORETURN.
+ */
+#define	panic(...) do {PANIC(__VA_ARGS__); abort(); } while (0);
+#define	zfs_panic_recover(...) panic(__VA_ARGS__)
+#endif
 
 /*
  * Range trees are tree-based data structures that can be used to
@@ -116,12 +129,10 @@ zfs_range_tree_stat_verify(zfs_range_tree_t *rt)
 	}
 
 	for (i = 0; i < ZFS_RANGE_TREE_HISTOGRAM_SIZE; i++) {
-		if (hist[i] != rt->rt_histogram[i]) {
-			zfs_dbgmsg("i=%d, hist=%px, hist=%llu, rt_hist=%llu",
-			    i, hist, (u_longlong_t)hist[i],
-			    (u_longlong_t)rt->rt_histogram[i]);
-		}
-		VERIFY3U(hist[i], ==, rt->rt_histogram[i]);
+		VERIFY3UF(hist[i], ==, rt->rt_histogram[i],
+		    "i=%d, hist=%px, hist=%llu, rt_hist=%llu",
+		    i, hist, (u_longlong_t)hist[i],
+		    (u_longlong_t)rt->rt_histogram[i]);
 	}
 }
 
