@@ -821,6 +821,8 @@ typedef struct arc_async_flush {
  */
 
 #define	L2ARC_WRITE_SIZE	(32 * 1024 * 1024)	/* initial write max */
+#define	L2ARC_MIN_WRITE_SIZE	(1 * 1024 * 1024)	/* minimal write rate */
+#define	L2ARC_BURST_SIZE_MAX	(50 * 1024 * 1024)	/* max burst size */
 #define	L2ARC_HEADROOM		8			/* num of writes */
 
 /*
@@ -832,14 +834,17 @@ typedef struct arc_async_flush {
 #define	L2ARC_FEED_MIN_MS	200		/* min caching interval ms */
 
 /*
- * We can feed L2ARC from two states of ARC buffers, mru and mfu,
- * and each of the state has two types: data and metadata.
+ * Min L2ARC capacity to enable persistent markers, adaptive intervals, and
+ * DWPD rate limiting. Markers reset after capacity/8 writes. With this
+ * threshold (arc_c_max/2), minimum progress per cycle is:
+ * (arc_c_max/2)/8 = arc_c_max/16 (~6% of ARC). Below this, marker
+ * overhead isn't justified by the limited progress made.
  */
-#define	L2ARC_FEED_TYPES	4
+#define	L2ARC_PERSIST_THRESHOLD	(arc_c_max / 2)
 
 /* L2ARC Performance Tunables */
 static uint64_t l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
-static uint64_t l2arc_write_boost = L2ARC_WRITE_SIZE;	/* extra warmup write */
+static uint64_t l2arc_dwpd_limit = 100;			/* 100 = 1.0 DWPD */
 static uint64_t l2arc_headroom = L2ARC_HEADROOM;	/* # of dev writes */
 static uint64_t l2arc_headroom_boost = L2ARC_HEADROOM_BOOST;
 static uint64_t l2arc_feed_secs = L2ARC_FEED_SECS;	/* interval seconds */
@@ -855,7 +860,6 @@ static uint_t l2arc_meta_percent = 33;	/* limit on headers size */
 static list_t L2ARC_dev_list;			/* device list */
 static list_t *l2arc_dev_list;			/* device list pointer */
 static kmutex_t l2arc_dev_mtx;			/* device list mutex */
-static l2arc_dev_t *l2arc_dev_last;		/* last device used */
 static list_t L2ARC_free_on_write;		/* free after write buf list */
 static list_t *l2arc_free_on_write;		/* free after write list ptr */
 static kmutex_t l2arc_free_on_write_mtx;	/* mutex for list */
@@ -874,6 +878,7 @@ typedef struct l2arc_data_free {
 	abd_t		*l2df_abd;
 	size_t		l2df_size;
 	arc_buf_contents_t l2df_type;
+	l2arc_dev_t	*l2df_dev;	/* L2ARC device that owns this ABD */
 	list_node_t	l2df_list_node;
 } l2arc_data_free_t;
 
@@ -890,10 +895,6 @@ typedef enum arc_ovf_level {
 	ARC_OVF_SOME,			/* ARC is slightly overflowed. */
 	ARC_OVF_SEVERE			/* ARC is severely overflowed. */
 } arc_ovf_level_t;
-
-static kmutex_t l2arc_feed_thr_lock;
-static kcondvar_t l2arc_feed_thr_cv;
-static uint8_t l2arc_thread_exit;
 
 static kmutex_t l2arc_rebuild_thr_lock;
 static kcondvar_t l2arc_rebuild_thr_cv;
@@ -926,9 +927,10 @@ static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
 static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
-static void l2arc_do_free_on_write(void);
+static void l2arc_do_free_on_write(l2arc_dev_t *dev);
 static void l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
     boolean_t state_only);
+static uint64_t l2arc_get_write_rate(l2arc_dev_t *dev);
 
 static void arc_prune_async(uint64_t adjust);
 
@@ -2938,13 +2940,15 @@ arc_loan_inuse_buf(arc_buf_t *buf, const void *tag)
 }
 
 static void
-l2arc_free_abd_on_write(abd_t *abd, size_t size, arc_buf_contents_t type)
+l2arc_free_abd_on_write(abd_t *abd, size_t size, arc_buf_contents_t type,
+    l2arc_dev_t *dev)
 {
 	l2arc_data_free_t *df = kmem_alloc(sizeof (*df), KM_SLEEP);
 
 	df->l2df_abd = abd;
 	df->l2df_size = size;
 	df->l2df_type = type;
+	df->l2df_dev = dev;
 	mutex_enter(&l2arc_free_on_write_mtx);
 	list_insert_head(l2arc_free_on_write, df);
 	mutex_exit(&l2arc_free_on_write_mtx);
@@ -2973,10 +2977,17 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 		arc_space_return(size, ARC_SPACE_DATA);
 	}
 
+	/*
+	 * L2HDR must exist since we're freeing an L2ARC-related ABD.
+	 */
+	ASSERT(HDR_HAS_L2HDR(hdr));
+
 	if (free_rdata) {
-		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd, size, type);
+		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd, size, type,
+		    hdr->b_l2hdr.b_dev);
 	} else {
-		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type);
+		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type,
+		    hdr->b_l2hdr.b_dev);
 	}
 }
 
@@ -3654,7 +3665,13 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 	}
 	ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 	ASSERT(!HDR_IN_HASH_TABLE(hdr));
+	boolean_t l1hdr_destroyed = B_FALSE;
 
+	/*
+	 * If L2_WRITING, destroy L1HDR before L2HDR (under mutex) so
+	 * arc_hdr_free_abd() can properly defer ABDs. Otherwise, destroy
+	 * L1HDR outside mutex to minimize contention.
+	 */
 	if (HDR_HAS_L2HDR(hdr)) {
 		l2arc_dev_t *dev = hdr->b_l2hdr.b_dev;
 		boolean_t buflist_held = MUTEX_HELD(&dev->l2ad_mtx);
@@ -3672,9 +3689,26 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		 * want to re-destroy the header's L2 portion.
 		 */
 		if (HDR_HAS_L2HDR(hdr)) {
+			if (HDR_L2_WRITING(hdr)) {
+				l1hdr_destroyed = B_TRUE;
 
-			if (!HDR_EMPTY(hdr))
-				buf_discard_identity(hdr);
+				if (!HDR_EMPTY(hdr))
+					buf_discard_identity(hdr);
+
+				if (HDR_HAS_L1HDR(hdr)) {
+					arc_cksum_free(hdr);
+
+					while (hdr->b_l1hdr.b_buf != NULL)
+						arc_buf_destroy_impl(
+						    hdr->b_l1hdr.b_buf);
+
+					if (hdr->b_l1hdr.b_pabd != NULL)
+						arc_hdr_free_abd(hdr, B_FALSE);
+
+					if (HDR_HAS_RABD(hdr))
+						arc_hdr_free_abd(hdr, B_TRUE);
+				}
+			}
 
 			arc_hdr_l2hdr_destroy(hdr);
 		}
@@ -3683,26 +3717,22 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			mutex_exit(&dev->l2ad_mtx);
 	}
 
-	/*
-	 * The header's identify can only be safely discarded once it is no
-	 * longer discoverable.  This requires removing it from the hash table
-	 * and the l2arc header list.  After this point the hash lock can not
-	 * be used to protect the header.
-	 */
-	if (!HDR_EMPTY(hdr))
-		buf_discard_identity(hdr);
+	if (!l1hdr_destroyed) {
+		if (!HDR_EMPTY(hdr))
+			buf_discard_identity(hdr);
 
-	if (HDR_HAS_L1HDR(hdr)) {
-		arc_cksum_free(hdr);
+		if (HDR_HAS_L1HDR(hdr)) {
+			arc_cksum_free(hdr);
 
-		while (hdr->b_l1hdr.b_buf != NULL)
-			arc_buf_destroy_impl(hdr->b_l1hdr.b_buf);
+			while (hdr->b_l1hdr.b_buf != NULL)
+				arc_buf_destroy_impl(hdr->b_l1hdr.b_buf);
 
-		if (hdr->b_l1hdr.b_pabd != NULL)
-			arc_hdr_free_abd(hdr, B_FALSE);
+			if (hdr->b_l1hdr.b_pabd != NULL)
+				arc_hdr_free_abd(hdr, B_FALSE);
 
-		if (HDR_HAS_RABD(hdr))
-			arc_hdr_free_abd(hdr, B_TRUE);
+			if (HDR_HAS_RABD(hdr))
+				arc_hdr_free_abd(hdr, B_TRUE);
+		}
 	}
 
 	ASSERT0P(hdr->b_hash_next);
@@ -6648,9 +6678,12 @@ arc_release(arc_buf_t *buf, const void *tag)
 	ASSERT3S(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt), >, 0);
 
 	/*
-	 * Do we have more than one buf?
+	 * Do we have more than one buf? Or L2_WRITING with unshared data?
+	 * Single-buf L2_WRITING with shared data can reuse the header since
+	 * L2ARC uses its own transformed copy.
 	 */
-	if (hdr->b_l1hdr.b_buf != buf || !ARC_BUF_LAST(buf)) {
+	if (hdr->b_l1hdr.b_buf != buf || !ARC_BUF_LAST(buf) ||
+	    (HDR_L2_WRITING(hdr) && !ARC_BUF_SHARED(buf))) {
 		arc_buf_hdr_t *nhdr;
 		uint64_t spa = hdr->b_spa;
 		uint64_t psize = HDR_GET_PSIZE(hdr);
@@ -6658,6 +6691,8 @@ arc_release(arc_buf_t *buf, const void *tag)
 		boolean_t protected = HDR_PROTECTED(hdr);
 		enum zio_compress compress = arc_hdr_get_compress(hdr);
 		arc_buf_contents_t type = arc_buf_type(hdr);
+		boolean_t single_buf_l2writing = (hdr->b_l1hdr.b_buf == buf &&
+		    ARC_BUF_LAST(buf) && HDR_L2_WRITING(hdr));
 
 		if (ARC_BUF_SHARED(buf) && !ARC_BUF_COMPRESSED(buf)) {
 			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
@@ -6667,49 +6702,61 @@ arc_release(arc_buf_t *buf, const void *tag)
 		/*
 		 * Pull the buffer off of this hdr and find the last buffer
 		 * in the hdr's buffer list.
+		 *
+		 * For single_buf_l2writing, remove the buffer first to ensure
+		 * evictable space accounting sees consistent state.
 		 */
-		VERIFY3S(remove_reference(hdr, tag), >, 0);
-		arc_buf_t *lastbuf = arc_buf_remove(hdr, buf);
-		ASSERT3P(lastbuf, !=, NULL);
+		arc_buf_t *lastbuf;
+		if (single_buf_l2writing) {
+			(void) arc_buf_remove(hdr, buf);
+		} else {
+			VERIFY3S(remove_reference(hdr, tag), >, 0);
+			lastbuf = arc_buf_remove(hdr, buf);
+			ASSERT3P(lastbuf, !=, NULL);
+		}
 
 		/*
 		 * If the current arc_buf_t and the hdr are sharing their data
 		 * buffer, then we must stop sharing that block.
 		 */
-		if (ARC_BUF_SHARED(buf)) {
-			ASSERT(!arc_buf_is_shared(lastbuf));
+		if (!single_buf_l2writing) {
+			if (ARC_BUF_SHARED(buf)) {
+				ASSERT(!arc_buf_is_shared(lastbuf));
 
-			/*
-			 * First, sever the block sharing relationship between
-			 * buf and the arc_buf_hdr_t.
-			 */
-			arc_unshare_buf(hdr, buf);
+				/*
+				 * First, sever the block sharing relationship
+				 * between buf and the arc_buf_hdr_t.
+				 */
+				arc_unshare_buf(hdr, buf);
 
-			/*
-			 * Now we need to recreate the hdr's b_pabd. Since we
-			 * have lastbuf handy, we try to share with it, but if
-			 * we can't then we allocate a new b_pabd and copy the
-			 * data from buf into it.
-			 */
-			if (arc_can_share(hdr, lastbuf)) {
-				arc_share_buf(hdr, lastbuf);
-			} else {
-				arc_hdr_alloc_abd(hdr, 0);
-				abd_copy_from_buf(hdr->b_l1hdr.b_pabd,
-				    buf->b_data, psize);
+				/*
+				 * Now we need to recreate the hdr's b_pabd.
+				 * Since we have lastbuf handy, we try to share
+				 * with it, but if we can't then we allocate a
+				 * new b_pabd and copy the data from buf into it
+				 */
+				if (arc_can_share(hdr, lastbuf)) {
+					arc_share_buf(hdr, lastbuf);
+				} else {
+					arc_hdr_alloc_abd(hdr, 0);
+					abd_copy_from_buf(hdr->b_l1hdr.b_pabd,
+					    buf->b_data, psize);
+				}
+			} else if (HDR_SHARED_DATA(hdr)) {
+				/*
+				 * Uncompressed shared buffers are always at the
+				 * end of the list. Compressed buffers don't
+				 * have the same requirements. This makes it
+				 * hard to simply assert that the lastbuf is
+				 * shared so we rely on the hdr's compression
+				 * flags to determine if we have a compressed,
+				 * shared buffer.
+				 */
+				ASSERT(arc_buf_is_shared(lastbuf) ||
+				    arc_hdr_get_compress(hdr) !=
+				    ZIO_COMPRESS_OFF);
+				ASSERT(!arc_buf_is_shared(buf));
 			}
-		} else if (HDR_SHARED_DATA(hdr)) {
-			/*
-			 * Uncompressed shared buffers are always at the end
-			 * of the list. Compressed buffers don't have the
-			 * same requirements. This makes it hard to
-			 * simply assert that the lastbuf is shared so
-			 * we rely on the hdr's compression flags to determine
-			 * if we have a compressed, shared buffer.
-			 */
-			ASSERT(arc_buf_is_shared(lastbuf) ||
-			    arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF);
-			ASSERT(!arc_buf_is_shared(buf));
 		}
 
 		ASSERT(hdr->b_l1hdr.b_pabd != NULL || HDR_HAS_RABD(hdr));
@@ -6739,6 +6786,12 @@ arc_release(arc_buf_t *buf, const void *tag)
 
 		(void) zfs_refcount_add_many(&arc_anon->arcs_size[type],
 		    arc_buf_size(buf), buf);
+
+		if (single_buf_l2writing) {
+			mutex_enter(hash_lock);
+			VERIFY3S(remove_reference(hdr, tag), ==, 0);
+			mutex_exit(hash_lock);
+		}
 	} else {
 		ASSERT(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) == 1);
 		/* protected by hash lock, or hdr is on arc_anon */
@@ -8184,8 +8237,9 @@ arc_fini(void)
 	 * Free any buffers that were tagged for destruction.  This needs
 	 * to occur before arc_state_fini() runs and destroys the aggsum
 	 * values which are updated when freeing scatter ABDs.
+	 * Pass NULL to free all ABDs regardless of device.
 	 */
-	l2arc_do_free_on_write();
+	l2arc_do_free_on_write(NULL);
 
 	/*
 	 * buf_fini() must proceed arc_state_fini() because buf_fin() may
@@ -8330,7 +8384,7 @@ arc_fini(void)
  * may be necessary for different workloads:
  *
  *	l2arc_write_max		max write bytes per interval
- *	l2arc_write_boost	extra write bytes during device warmup
+ *	l2arc_dwpd_limit	device write endurance limit (100 = 1.0 DWPD)
  *	l2arc_noprefetch	skip caching prefetched buffers
  *	l2arc_headroom		number of max device writes to precache
  *	l2arc_headroom_boost	when we find compressed buffers during ARC
@@ -8347,7 +8401,6 @@ arc_fini(void)
  *
  *	l2arc_write_eligible()	check if a buffer is eligible to cache
  *	l2arc_write_size()	calculate how much to write
- *	l2arc_write_interval()	calculate sleep delay between writes
  *
  * These three functions determine what to write, how much, and how quickly
  * to send writes.
@@ -8468,23 +8521,22 @@ l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *hdr)
 }
 
 static uint64_t
-l2arc_write_size(l2arc_dev_t *dev)
+l2arc_write_size(l2arc_dev_t *dev, clock_t *interval)
 {
 	uint64_t size;
+	uint64_t write_rate = l2arc_get_write_rate(dev);
 
-	/*
-	 * Make sure our globals have meaningful values in case the user
-	 * altered them.
-	 */
-	size = l2arc_write_max;
-	if (size == 0) {
-		cmn_err(CE_NOTE, "l2arc_write_max must be greater than zero, "
-		    "resetting it to the default (%d)", L2ARC_WRITE_SIZE);
-		size = l2arc_write_max = L2ARC_WRITE_SIZE;
+	if (write_rate > L2ARC_BURST_SIZE_MAX &&
+	    dev->l2ad_spa->spa_l2arc_info.l2arc_total_capacity >=
+	    L2ARC_PERSIST_THRESHOLD) {
+		/* Calculate interval to achieve desired rate with burst cap */
+		uint64_t feeds_per_sec = write_rate / L2ARC_BURST_SIZE_MAX;
+		*interval = hz / feeds_per_sec;
+		size = L2ARC_BURST_SIZE_MAX;
+	} else {
+		*interval = hz; /* 1 second default */
+		size = write_rate;
 	}
-
-	if (arc_warm == B_FALSE)
-		size += l2arc_write_boost;
 
 	/* We need to add in the worst case scenario of log block overhead. */
 	size += l2arc_log_blk_overhead(size, dev);
@@ -8510,115 +8562,26 @@ l2arc_write_size(l2arc_dev_t *dev)
 
 }
 
-static clock_t
-l2arc_write_interval(clock_t began, uint64_t wanted, uint64_t wrote)
-{
-	clock_t interval, next, now;
-
-	/*
-	 * If the ARC lists are busy, increase our write rate; if the
-	 * lists are stale, idle back.  This is achieved by checking
-	 * how much we previously wrote - if it was more than half of
-	 * what we wanted, schedule the next write much sooner.
-	 */
-	if (l2arc_feed_again && wrote > (wanted / 2))
-		interval = (hz * l2arc_feed_min_ms) / 1000;
-	else
-		interval = hz * l2arc_feed_secs;
-
-	now = ddi_get_lbolt();
-	next = MAX(now, MIN(now + interval, began + interval));
-
-	return (next);
-}
-
-static boolean_t
-l2arc_dev_invalid(const l2arc_dev_t *dev)
-{
-	/*
-	 * We want to skip devices that are being rebuilt, trimmed,
-	 * removed, or belong to a spa that is being exported.
-	 */
-	return (dev->l2ad_vdev == NULL || vdev_is_dead(dev->l2ad_vdev) ||
-	    dev->l2ad_rebuild || dev->l2ad_trim_all ||
-	    dev->l2ad_spa == NULL || dev->l2ad_spa->spa_is_exporting);
-}
-
-/*
- * Cycle through L2ARC devices.  This is how L2ARC load balances.
- * If a device is returned, this also returns holding the spa config lock.
- */
-static l2arc_dev_t *
-l2arc_dev_get_next(void)
-{
-	l2arc_dev_t *first, *next = NULL;
-
-	/*
-	 * Lock out the removal of spas (spa_namespace_lock), then removal
-	 * of cache devices (l2arc_dev_mtx).  Once a device has been selected,
-	 * both locks will be dropped and a spa config lock held instead.
-	 */
-	spa_namespace_enter(FTAG);
-	mutex_enter(&l2arc_dev_mtx);
-
-	/* if there are no vdevs, there is nothing to do */
-	if (l2arc_ndev == 0)
-		goto out;
-
-	first = NULL;
-	next = l2arc_dev_last;
-	do {
-		/* loop around the list looking for a non-faulted vdev */
-		if (next == NULL) {
-			next = list_head(l2arc_dev_list);
-		} else {
-			next = list_next(l2arc_dev_list, next);
-			if (next == NULL)
-				next = list_head(l2arc_dev_list);
-		}
-
-		/* if we have come back to the start, bail out */
-		if (first == NULL)
-			first = next;
-		else if (next == first)
-			break;
-
-		ASSERT3P(next, !=, NULL);
-	} while (l2arc_dev_invalid(next));
-
-	/* if we were unable to find any usable vdevs, return NULL */
-	if (l2arc_dev_invalid(next))
-		next = NULL;
-
-	l2arc_dev_last = next;
-
-out:
-	mutex_exit(&l2arc_dev_mtx);
-
-	/*
-	 * Grab the config lock to prevent the 'next' device from being
-	 * removed while we are writing to it.
-	 */
-	if (next != NULL)
-		spa_config_enter(next->l2ad_spa, SCL_L2ARC, next, RW_READER);
-	spa_namespace_exit(FTAG);
-
-	return (next);
-}
-
 /*
  * Free buffers that were tagged for destruction.
  */
 static void
-l2arc_do_free_on_write(void)
+l2arc_do_free_on_write(l2arc_dev_t *dev)
 {
-	l2arc_data_free_t *df;
+	l2arc_data_free_t *df, *df_next;
+	boolean_t all = (dev == NULL);
 
 	mutex_enter(&l2arc_free_on_write_mtx);
-	while ((df = list_remove_head(l2arc_free_on_write)) != NULL) {
-		ASSERT3P(df->l2df_abd, !=, NULL);
-		abd_free(df->l2df_abd);
-		kmem_free(df, sizeof (l2arc_data_free_t));
+	df = list_head(l2arc_free_on_write);
+	while (df != NULL) {
+		df_next = list_next(l2arc_free_on_write, df);
+		if (all || df->l2df_dev == dev) {
+			list_remove(l2arc_free_on_write, df);
+			ASSERT3P(df->l2df_abd, !=, NULL);
+			abd_free(df->l2df_abd);
+			kmem_free(df, sizeof (l2arc_data_free_t));
+		}
+		df = df_next;
 	}
 	mutex_exit(&l2arc_free_on_write_mtx);
 }
@@ -8806,7 +8769,7 @@ top:
 	ASSERT(dev->l2ad_vdev != NULL);
 	vdev_space_update(dev->l2ad_vdev, -bytes_dropped, 0, 0);
 
-	l2arc_do_free_on_write();
+	l2arc_do_free_on_write(dev);
 
 	kmem_free(cb, sizeof (l2arc_write_callback_t));
 }
@@ -9044,48 +9007,139 @@ l2arc_read_done(zio_t *zio)
 }
 
 /*
- * This is the list priority from which the L2ARC will search for pages to
- * cache.  This is used within loops (0..3) to cycle through lists in the
- * desired order.  This order can have a significant effect on cache
- * performance.
+ * Get the multilist for the given list number (0..3) to cycle through
+ * lists in the desired order.  This order can have a significant effect
+ * on cache performance.
  *
  * Currently the metadata lists are hit first, MFU then MRU, followed by
- * the data lists.  This function returns a locked list, and also returns
- * the lock pointer.
+ * the data lists.
  */
-static multilist_sublist_t *
-l2arc_sublist_lock(int list_num)
+static multilist_t *
+l2arc_get_list(int list_num)
 {
-	multilist_t *ml = NULL;
-	unsigned int idx;
-
 	ASSERT(list_num >= 0 && list_num < L2ARC_FEED_TYPES);
 
 	switch (list_num) {
 	case 0:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_METADATA];
-		break;
+		return (&arc_mfu->arcs_list[ARC_BUFC_METADATA]);
 	case 1:
-		ml = &arc_mru->arcs_list[ARC_BUFC_METADATA];
-		break;
+		return (&arc_mru->arcs_list[ARC_BUFC_METADATA]);
 	case 2:
-		ml = &arc_mfu->arcs_list[ARC_BUFC_DATA];
-		break;
+		return (&arc_mfu->arcs_list[ARC_BUFC_DATA]);
 	case 3:
-		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
-		break;
+		return (&arc_mru->arcs_list[ARC_BUFC_DATA]);
 	default:
 		return (NULL);
 	}
+}
 
-	/*
-	 * Return a randomly-selected sublist. This is acceptable
-	 * because the caller feeds only a little bit of data for each
-	 * call (8MB). Subsequent calls will result in different
-	 * sublists being selected.
-	 */
-	idx = multilist_get_random_index(ml);
-	return (multilist_sublist_lock_idx(ml, idx));
+
+/*
+ * Lock a specific sublist within the given list number.
+ */
+static multilist_sublist_t *
+l2arc_sublist_lock(int list_num, int sublist_idx)
+{
+	multilist_t *ml = l2arc_get_list(list_num);
+	if (ml == NULL)
+		return (NULL);
+
+	return (multilist_sublist_lock_idx(ml, sublist_idx));
+}
+
+/*
+ * Check if a pool has any L2ARC devices.
+ */
+static boolean_t
+l2arc_pool_has_devices(spa_t *target_spa)
+{
+	l2arc_dev_t *dev;
+
+	ASSERT(MUTEX_HELD(&l2arc_dev_mtx));
+
+	for (dev = list_head(l2arc_dev_list); dev != NULL;
+	    dev = list_next(l2arc_dev_list, dev)) {
+		if (dev->l2ad_spa == target_spa) {
+			return (B_TRUE);
+		}
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * Initialize pool-based markers for l2arc position saving.
+ */
+static void
+l2arc_pool_markers_init(spa_t *spa)
+{
+	mutex_init(&spa->spa_l2arc_info.l2arc_sublist_lock, NULL,
+	    MUTEX_DEFAULT, NULL);
+
+	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
+		multilist_t *ml = l2arc_get_list(pass);
+		if (ml == NULL)
+			continue;
+
+		int num_sublists = multilist_get_num_sublists(ml);
+
+		spa->spa_l2arc_info.l2arc_markers[pass] =
+		    arc_state_alloc_markers(num_sublists);
+		spa->spa_l2arc_info.l2arc_sublist_busy[pass] =
+		    kmem_zalloc(num_sublists * sizeof (boolean_t), KM_SLEEP);
+
+		for (int i = 0; i < num_sublists; i++) {
+			multilist_sublist_t *mls =
+			    multilist_sublist_lock_idx(ml, i);
+			multilist_sublist_insert_tail(mls,
+			    spa->spa_l2arc_info.l2arc_markers[pass][i]);
+			multilist_sublist_unlock(mls);
+		}
+	}
+}
+
+/*
+ * Free all allocated pool-based markers.
+ */
+static void
+l2arc_pool_markers_fini(spa_t *spa)
+{
+	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
+		if (spa->spa_l2arc_info.l2arc_markers[pass] == NULL)
+			continue;
+
+		multilist_t *ml = l2arc_get_list(pass);
+		if (ml == NULL)
+			continue;
+
+		int num_sublists = multilist_get_num_sublists(ml);
+
+		for (int i = 0; i < num_sublists; i++) {
+			ASSERT3P(spa->spa_l2arc_info.l2arc_markers[pass][i],
+			    !=, NULL);
+			multilist_sublist_t *mls =
+			    multilist_sublist_lock_idx(ml, i);
+			ASSERT(multilist_link_active(
+			    &spa->spa_l2arc_info.l2arc_markers[pass][i]->
+			    b_l1hdr.b_arc_node));
+			multilist_sublist_remove(mls,
+			    spa->spa_l2arc_info.l2arc_markers[pass][i]);
+			multilist_sublist_unlock(mls);
+		}
+
+		arc_state_free_markers(spa->spa_l2arc_info.l2arc_markers[pass],
+		    num_sublists);
+		spa->spa_l2arc_info.l2arc_markers[pass] = NULL;
+
+		/* Free sublist busy flags for this pass */
+		ASSERT3P(spa->spa_l2arc_info.l2arc_sublist_busy[pass], !=,
+		    NULL);
+		kmem_free(spa->spa_l2arc_info.l2arc_sublist_busy[pass],
+		    num_sublists * sizeof (boolean_t));
+		spa->spa_l2arc_info.l2arc_sublist_busy[pass] = NULL;
+	}
+
+	mutex_destroy(&spa->spa_l2arc_info.l2arc_sublist_lock);
 }
 
 /*
@@ -9111,6 +9165,67 @@ l2arc_log_blk_overhead(uint64_t write_sz, l2arc_dev_t *dev)
 		return (vdev_psize_to_asize(dev->l2ad_vdev,
 		    sizeof (l2arc_log_blk_phys_t)) * log_blocks);
 	}
+}
+
+/*
+ * Calculate DWPD rate limit for L2ARC device.
+ */
+static uint64_t
+l2arc_dwpd_rate_limit(l2arc_dev_t *dev)
+{
+	uint64_t device_size = dev->l2ad_end - dev->l2ad_start;
+	uint64_t daily_budget = (device_size * l2arc_dwpd_limit) / 100;
+	uint64_t now = gethrestime_sec();
+
+	/* Reset every 24 hours */
+	if ((now - dev->l2ad_dwpd_start) >= 24 * 3600) {
+		/* Save unused budget from previous period (max 1 day) */
+		dev->l2ad_dwpd_accumulated = MIN(daily_budget,
+		    daily_budget - dev->l2ad_dwpd_writes);
+		dev->l2ad_dwpd_writes = 0;
+		dev->l2ad_dwpd_start = now;
+	}
+
+	uint64_t elapsed = now - dev->l2ad_dwpd_start;
+	uint64_t dwpd_budget = daily_budget / (24 * 3600);
+	uint64_t expected_writes = elapsed * dwpd_budget;
+
+	uint64_t available_budget = dwpd_budget + dev->l2ad_dwpd_accumulated;
+	if (expected_writes > dev->l2ad_dwpd_writes) {
+		/* Add unused budget from current period */
+		available_budget += expected_writes - dev->l2ad_dwpd_writes;
+	}
+
+	return (available_budget);
+}
+
+/*
+ * Get write rate based on device state and DWPD configuration.
+ */
+static uint64_t
+l2arc_get_write_rate(l2arc_dev_t *dev)
+{
+	uint64_t write_max = l2arc_write_max;
+	spa_t *spa = dev->l2ad_spa;
+
+	/*
+	 * Make sure l2arc_write_max is valid in case user altered it.
+	 */
+	if (write_max == 0) {
+		cmn_err(CE_NOTE, "l2arc_write_max must be greater than zero, "
+		    "resetting it to the default (%d)", L2ARC_WRITE_SIZE);
+		write_max = l2arc_write_max = L2ARC_WRITE_SIZE;
+	}
+
+	/* Apply DWPD rate limit for persistent marker configurations */
+	if (!dev->l2ad_first && l2arc_dwpd_limit > 0 &&
+	    spa->spa_l2arc_info.l2arc_total_capacity >=
+	    L2ARC_PERSIST_THRESHOLD) {
+		uint64_t dwpd_rate = l2arc_dwpd_rate_limit(dev);
+		return (MIN(dwpd_rate, write_max));
+	}
+
+	return (write_max);
 }
 
 /*
@@ -9322,6 +9437,13 @@ out:
 		dev->l2ad_hand = dev->l2ad_start;
 		dev->l2ad_evict = dev->l2ad_start;
 		dev->l2ad_first = B_FALSE;
+		/*
+		 * Reset DWPD counters - first pass writes are free, start
+		 * fresh 24h budget period now that device is full.
+		 */
+		dev->l2ad_dwpd_writes = 0;
+		dev->l2ad_dwpd_start = gethrestime_sec();
+		dev->l2ad_dwpd_accumulated = 0;
 		goto top;
 	}
 
@@ -9457,6 +9579,245 @@ error:
 	return (ret);
 }
 
+/*
+ * Write buffers from a single sublist to L2ARC.
+ * Handles locking, marker determination, and buffer processing.
+ * Returns B_TRUE if target size reached, B_FALSE otherwise.
+ */
+static boolean_t
+l2arc_write_sublist(spa_t *spa, l2arc_dev_t *dev, int pass, int sublist_idx,
+    uint64_t target_sz, uint64_t *write_asize, uint64_t *write_psize,
+    zio_t **pio, l2arc_write_callback_t **cb, arc_buf_hdr_t *head,
+    uint64_t *consumed, uint64_t sublist_headroom, boolean_t save_position)
+{
+	multilist_sublist_t *mls;
+	arc_buf_hdr_t *hdr, *prev_hdr;
+	arc_buf_hdr_t *persistent_marker, *local_marker;
+	boolean_t full = B_FALSE;
+	boolean_t scan_from_head = B_FALSE;
+	uint64_t guid = spa_load_guid(spa);
+
+	mls = l2arc_sublist_lock(pass, sublist_idx);
+	ASSERT3P(mls, !=, NULL);
+
+	persistent_marker = spa->spa_l2arc_info.
+	    l2arc_markers[pass][sublist_idx];
+
+	if (save_position && persistent_marker == multilist_sublist_head(mls)) {
+		multilist_sublist_unlock(mls);
+		return (B_FALSE);
+	}
+
+	local_marker = arc_state_alloc_marker();
+
+	if (save_position) {
+		hdr = multilist_sublist_prev(mls, persistent_marker);
+		ASSERT3P(hdr, !=, NULL);
+		scan_from_head = B_FALSE;
+	} else {
+		if (arc_warm) {
+			hdr = multilist_sublist_tail(mls);
+			scan_from_head = B_FALSE;
+		} else {
+			hdr = multilist_sublist_head(mls);
+			scan_from_head = B_TRUE;
+		}
+		ASSERT3P(hdr, !=, NULL);
+	}
+
+	prev_hdr = hdr;
+
+	while (hdr != NULL) {
+		kmutex_t *hash_lock;
+		abd_t *to_write = NULL;
+		prev_hdr = hdr;
+
+		hash_lock = HDR_LOCK(hdr);
+		if (!mutex_tryenter(hash_lock)) {
+skip:
+			/* Skip this buffer rather than waiting. */
+			if (scan_from_head)
+				hdr = multilist_sublist_next(mls, hdr);
+			else
+				hdr = multilist_sublist_prev(mls, hdr);
+			continue;
+		}
+
+		if (l2arc_headroom != 0 &&
+		    *consumed + HDR_GET_LSIZE(hdr) >
+		    MAX(sublist_headroom, HDR_GET_LSIZE(hdr))) {
+			/*
+			 * Searched too far in this sublist.
+			 */
+			mutex_exit(hash_lock);
+			break;
+		}
+
+		*consumed += HDR_GET_LSIZE(hdr);
+
+		if (!l2arc_write_eligible(guid, hdr)) {
+			mutex_exit(hash_lock);
+			goto skip;
+		}
+
+		ASSERT(HDR_HAS_L1HDR(hdr));
+		ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
+		ASSERT3U(arc_hdr_size(hdr), >, 0);
+		ASSERT(hdr->b_l1hdr.b_pabd != NULL || HDR_HAS_RABD(hdr));
+		uint64_t psize = HDR_GET_PSIZE(hdr);
+		uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
+
+		/*
+		 * If the allocated size of this buffer plus the max
+		 * size for the pending log block exceeds the evicted
+		 * target size, terminate writing buffers for this run.
+		 */
+		if (*write_asize + asize +
+		    sizeof (l2arc_log_blk_phys_t) > target_sz) {
+			full = B_TRUE;
+			mutex_exit(hash_lock);
+			break;
+		}
+
+		/*
+		 * We should not sleep with sublist lock held or it
+		 * may block ARC eviction.  Insert a marker to save
+		 * the position and drop the lock.
+		 */
+		if (scan_from_head)
+			multilist_sublist_insert_after(mls, hdr, local_marker);
+		else
+			multilist_sublist_insert_before(mls, hdr, local_marker);
+		multilist_sublist_unlock(mls);
+
+		/*
+		 * If this header has b_rabd, we can use this since it
+		 * must always match the data exactly as it exists on
+		 * disk. Otherwise, the L2ARC can normally use the
+		 * hdr's data, but if we're sharing data between the
+		 * hdr and one of its bufs, L2ARC needs its own copy of
+		 * the data so that the ZIO below can't race with the
+		 * buf consumer. To ensure that this copy will be
+		 * available for the lifetime of the ZIO and be cleaned
+		 * up afterwards, we add it to the l2arc_free_on_write
+		 * queue. If we need to apply any transforms to the
+		 * data (compression, encryption) we will also need the
+		 * extra buffer.
+		 */
+		if (HDR_HAS_RABD(hdr) && psize == asize) {
+			to_write = hdr->b_crypt_hdr.b_rabd;
+		} else if ((HDR_COMPRESSION_ENABLED(hdr) ||
+		    HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) &&
+		    !HDR_ENCRYPTED(hdr) && !HDR_SHARED_DATA(hdr) &&
+		    psize == asize) {
+			to_write = hdr->b_l1hdr.b_pabd;
+		} else {
+			int ret;
+			arc_buf_contents_t type = arc_buf_type(hdr);
+
+			ret = l2arc_apply_transforms(spa, hdr, asize,
+			    &to_write);
+			if (ret != 0) {
+				arc_hdr_clear_flags(hdr, ARC_FLAG_L2CACHE);
+				mutex_exit(hash_lock);
+				goto next;
+			}
+
+			l2arc_free_abd_on_write(to_write, asize, type, dev);
+		}
+
+		hdr->b_l2hdr.b_dev = dev;
+		hdr->b_l2hdr.b_daddr = dev->l2ad_hand;
+		hdr->b_l2hdr.b_hits = 0;
+		hdr->b_l2hdr.b_arcs_state =
+		    hdr->b_l1hdr.b_state->arcs_state;
+		/* l2arc_hdr_arcstats_update() expects a valid asize */
+		HDR_SET_L2SIZE(hdr, asize);
+		arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
+		    ARC_FLAG_L2_WRITING);
+
+		(void) zfs_refcount_add_many(&dev->l2ad_alloc,
+		    arc_hdr_size(hdr), hdr);
+		l2arc_hdr_arcstats_increment(hdr);
+		vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
+
+		mutex_enter(&dev->l2ad_mtx);
+		if (*pio == NULL) {
+			/*
+			 * Insert a dummy header on the buflist so
+			 * l2arc_write_done() can find where the
+			 * write buffers begin without searching.
+			 */
+			list_insert_head(&dev->l2ad_buflist, head);
+		}
+		list_insert_head(&dev->l2ad_buflist, hdr);
+		mutex_exit(&dev->l2ad_mtx);
+
+		boolean_t commit = l2arc_log_blk_insert(dev, hdr);
+		mutex_exit(hash_lock);
+
+		if (*pio == NULL) {
+			*cb = kmem_alloc(sizeof (l2arc_write_callback_t),
+			    KM_SLEEP);
+			(*cb)->l2wcb_dev = dev;
+			(*cb)->l2wcb_head = head;
+			list_create(&(*cb)->l2wcb_abd_list,
+			    sizeof (l2arc_lb_abd_buf_t),
+			    offsetof(l2arc_lb_abd_buf_t, node));
+			*pio = zio_root(spa, l2arc_write_done, *cb,
+			    ZIO_FLAG_CANFAIL);
+		}
+
+		zio_t *wzio = zio_write_phys(*pio, dev->l2ad_vdev,
+		    dev->l2ad_hand, asize, to_write, ZIO_CHECKSUM_OFF,
+		    NULL, hdr, ZIO_PRIORITY_ASYNC_WRITE,
+		    ZIO_FLAG_CANFAIL, B_FALSE);
+
+		DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
+		    zio_t *, wzio);
+		zio_nowait(wzio);
+
+		*write_psize += psize;
+		*write_asize += asize;
+		dev->l2ad_hand += asize;
+
+		if (commit) {
+			/* l2ad_hand will be adjusted inside. */
+			*write_asize += l2arc_log_blk_commit(dev, *pio, *cb);
+		}
+
+next:
+		multilist_sublist_lock(mls);
+		if (scan_from_head)
+			hdr = multilist_sublist_next(mls, local_marker);
+		else
+			hdr = multilist_sublist_prev(mls, local_marker);
+		multilist_sublist_remove(mls, local_marker);
+	}
+
+	/*
+	 * Position persistent marker for next iteration. In case of
+	 * save_position, validate that prev_hdr still belongs to the current
+	 * sublist. The sublist lock is dropped during L2ARC write I/O, allowing
+	 * ARC eviction to potentially free prev_hdr. If freed, we can't do much
+	 * except to reset the marker.
+	 */
+	multilist_sublist_remove(mls, persistent_marker);
+	if (save_position &&
+	    multilist_link_active(&prev_hdr->b_l1hdr.b_arc_node)) {
+		multilist_sublist_insert_before(mls, prev_hdr,
+		    persistent_marker);
+	} else {
+		multilist_sublist_insert_tail(mls, persistent_marker);
+	}
+
+	multilist_sublist_unlock(mls);
+
+	arc_state_free_marker(local_marker);
+
+	return (full);
+}
+
 static void
 l2arc_blk_fetch_done(zio_t *zio)
 {
@@ -9466,6 +9827,46 @@ l2arc_blk_fetch_done(zio_t *zio)
 	if (cb->l2rcb_abd != NULL)
 		abd_free(cb->l2rcb_abd);
 	kmem_free(cb, sizeof (l2arc_read_callback_t));
+}
+
+/*
+ * Reset all L2ARC markers to tail position for the given spa.
+ */
+static void
+l2arc_reset_all_markers(spa_t *spa)
+{
+	ASSERT(spa->spa_l2arc_info.l2arc_markers != NULL);
+	ASSERT(MUTEX_HELD(&spa->spa_l2arc_info.l2arc_sublist_lock));
+
+	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
+		if (spa->spa_l2arc_info.l2arc_markers[pass] == NULL)
+			continue;
+
+		multilist_t *ml = l2arc_get_list(pass);
+		int num_sublists = multilist_get_num_sublists(ml);
+
+		for (int i = 0; i < num_sublists; i++) {
+			ASSERT3P(spa->spa_l2arc_info.l2arc_markers[pass][i],
+			    !=, NULL);
+			multilist_sublist_t *mls =
+			    multilist_sublist_lock_idx(ml, i);
+
+			/* Remove from current position */
+			ASSERT(multilist_link_active(&spa->spa_l2arc_info.
+			    l2arc_markers[pass][i]->b_l1hdr.b_arc_node));
+			multilist_sublist_remove(mls, spa->spa_l2arc_info.
+			    l2arc_markers[pass][i]);
+
+			/* Insert at tail (like initialization) */
+			multilist_sublist_insert_tail(mls,
+			    spa->spa_l2arc_info.l2arc_markers[pass][i]);
+
+			multilist_sublist_unlock(mls);
+		}
+	}
+
+	/* Reset write counter */
+	spa->spa_l2arc_info.l2arc_total_writes = 0;
 }
 
 /*
@@ -9483,12 +9884,11 @@ l2arc_blk_fetch_done(zio_t *zio)
 static uint64_t
 l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 {
-	arc_buf_hdr_t 		*hdr, *head, *marker;
+	arc_buf_hdr_t 		*head;
 	uint64_t 		write_asize, write_psize, headroom;
-	boolean_t		full, from_head = !arc_warm;
+	boolean_t		full;
 	l2arc_write_callback_t	*cb = NULL;
-	zio_t 			*pio, *wzio;
-	uint64_t 		guid = spa_load_guid(spa);
+	zio_t 			*pio;
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
@@ -9498,7 +9898,27 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	full = B_FALSE;
 	head = kmem_cache_alloc(hdr_l2only_cache, KM_PUSHPAGE);
 	arc_hdr_set_flags(head, ARC_FLAG_L2_WRITE_HEAD | ARC_FLAG_HAS_L2HDR);
-	marker = arc_state_alloc_marker();
+
+	/*
+	 * Determine L2ARC implementation based on total pool L2ARC capacity
+	 * vs ARC size. Use persistent markers for pools with significant
+	 * L2ARC investment, otherwise use simple HEAD/TAIL scanning.
+	 */
+	boolean_t save_position =
+	    (spa->spa_l2arc_info.l2arc_total_capacity >=
+	    L2ARC_PERSIST_THRESHOLD);
+
+	/*
+	 * Check if markers need reset based on smallest device threshold.
+	 * Reset when cumulative writes exceed 1/8th of smallest device.
+	 * Must be protected since multiple device threads may check/update.
+	 */
+	mutex_enter(&spa->spa_l2arc_info.l2arc_sublist_lock);
+	if (save_position && spa->spa_l2arc_info.l2arc_total_writes >=
+	    spa->spa_l2arc_info.l2arc_smallest_capacity / 8) {
+		l2arc_reset_all_markers(spa);
+	}
+	mutex_exit(&spa->spa_l2arc_info.l2arc_sublist_lock);
 
 	/*
 	 * Copy buffers for L2ARC writing.
@@ -9518,201 +9938,72 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 				continue;
 		}
 
-		uint64_t passed_sz = 0;
 		headroom = target_sz * l2arc_headroom;
 		if (zfs_compressed_arc_enabled)
 			headroom = (headroom * l2arc_headroom_boost) / 100;
 
-		/*
-		 * Until the ARC is warm and starts to evict, read from the
-		 * head of the ARC lists rather than the tail.
-		 */
-		multilist_sublist_t *mls = l2arc_sublist_lock(pass);
-		ASSERT3P(mls, !=, NULL);
-		if (from_head)
-			hdr = multilist_sublist_head(mls);
-		else
-			hdr = multilist_sublist_tail(mls);
+		multilist_t *ml = l2arc_get_list(pass);
+		ASSERT3P(ml, !=, NULL);
+		int num_sublists = multilist_get_num_sublists(ml);
+		int current_sublist = multilist_get_random_index(ml);
+		uint64_t consumed_headroom = 0;
 
-		while (hdr != NULL) {
-			kmutex_t *hash_lock;
-			abd_t *to_write = NULL;
+		int processed_sublists = 0;
+		while (processed_sublists < num_sublists && !full) {
+			uint64_t sublist_headroom;
 
-			hash_lock = HDR_LOCK(hdr);
-			if (!mutex_tryenter(hash_lock)) {
-skip:
-				/* Skip this buffer rather than waiting. */
-				if (from_head)
-					hdr = multilist_sublist_next(mls, hdr);
-				else
-					hdr = multilist_sublist_prev(mls, hdr);
+			if (consumed_headroom >= headroom)
+				break;
+
+			sublist_headroom = (headroom - consumed_headroom) /
+			    (num_sublists - processed_sublists);
+
+			if (sublist_headroom == 0)
+				break;
+
+			/*
+			 * Check if sublist is busy (being processed by another
+			 * L2ARC device thread). If so, skip to next sublist.
+			 */
+			mutex_enter(&spa->spa_l2arc_info.l2arc_sublist_lock);
+			if (spa->spa_l2arc_info.l2arc_sublist_busy[pass]
+			    [current_sublist]) {
+				mutex_exit(&spa->spa_l2arc_info.
+				    l2arc_sublist_lock);
+				current_sublist = (current_sublist + 1) %
+				    num_sublists;
+				processed_sublists++;
 				continue;
 			}
-
-			passed_sz += HDR_GET_LSIZE(hdr);
-			if (l2arc_headroom != 0 && passed_sz > headroom) {
-				/*
-				 * Searched too far.
-				 */
-				mutex_exit(hash_lock);
-				break;
-			}
-
-			if (!l2arc_write_eligible(guid, hdr)) {
-				mutex_exit(hash_lock);
-				goto skip;
-			}
-
-			ASSERT(HDR_HAS_L1HDR(hdr));
-			ASSERT3U(HDR_GET_PSIZE(hdr), >, 0);
-			ASSERT3U(arc_hdr_size(hdr), >, 0);
-			ASSERT(hdr->b_l1hdr.b_pabd != NULL ||
-			    HDR_HAS_RABD(hdr));
-			uint64_t psize = HDR_GET_PSIZE(hdr);
-			uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
-			    psize);
+			/* Mark sublist as busy */
+			spa->spa_l2arc_info.l2arc_sublist_busy[pass]
+			    [current_sublist] = B_TRUE;
+			mutex_exit(&spa->spa_l2arc_info.l2arc_sublist_lock);
 
 			/*
-			 * If the allocated size of this buffer plus the max
-			 * size for the pending log block exceeds the evicted
-			 * target size, terminate writing buffers for this run.
+			 * Write buffers from this sublist to L2ARC.
+			 * Function handles locking, marker management, and
+			 * buffer processing internally.
 			 */
-			if (write_asize + asize +
-			    sizeof (l2arc_log_blk_phys_t) > target_sz) {
-				full = B_TRUE;
-				mutex_exit(hash_lock);
-				break;
-			}
+			full = l2arc_write_sublist(spa, dev, pass,
+			    current_sublist, target_sz, &write_asize,
+			    &write_psize, &pio, &cb, head,
+			    &consumed_headroom, sublist_headroom,
+			    save_position);
 
-			/*
-			 * We should not sleep with sublist lock held or it
-			 * may block ARC eviction.  Insert a marker to save
-			 * the position and drop the lock.
-			 */
-			if (from_head) {
-				multilist_sublist_insert_after(mls, hdr,
-				    marker);
-			} else {
-				multilist_sublist_insert_before(mls, hdr,
-				    marker);
-			}
-			multilist_sublist_unlock(mls);
+			/* Clear busy flag for this sublist */
+			mutex_enter(&spa->spa_l2arc_info.l2arc_sublist_lock);
+			spa->spa_l2arc_info.l2arc_sublist_busy[pass]
+			    [current_sublist] = B_FALSE;
+			mutex_exit(&spa->spa_l2arc_info.l2arc_sublist_lock);
 
-			/*
-			 * If this header has b_rabd, we can use this since it
-			 * must always match the data exactly as it exists on
-			 * disk. Otherwise, the L2ARC can normally use the
-			 * hdr's data, but if we're sharing data between the
-			 * hdr and one of its bufs, L2ARC needs its own copy of
-			 * the data so that the ZIO below can't race with the
-			 * buf consumer. To ensure that this copy will be
-			 * available for the lifetime of the ZIO and be cleaned
-			 * up afterwards, we add it to the l2arc_free_on_write
-			 * queue. If we need to apply any transforms to the
-			 * data (compression, encryption) we will also need the
-			 * extra buffer.
-			 */
-			if (HDR_HAS_RABD(hdr) && psize == asize) {
-				to_write = hdr->b_crypt_hdr.b_rabd;
-			} else if ((HDR_COMPRESSION_ENABLED(hdr) ||
-			    HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF) &&
-			    !HDR_ENCRYPTED(hdr) && !HDR_SHARED_DATA(hdr) &&
-			    psize == asize) {
-				to_write = hdr->b_l1hdr.b_pabd;
-			} else {
-				int ret;
-				arc_buf_contents_t type = arc_buf_type(hdr);
-
-				ret = l2arc_apply_transforms(spa, hdr, asize,
-				    &to_write);
-				if (ret != 0) {
-					arc_hdr_clear_flags(hdr,
-					    ARC_FLAG_L2CACHE);
-					mutex_exit(hash_lock);
-					goto next;
-				}
-
-				l2arc_free_abd_on_write(to_write, asize, type);
-			}
-
-			hdr->b_l2hdr.b_dev = dev;
-			hdr->b_l2hdr.b_daddr = dev->l2ad_hand;
-			hdr->b_l2hdr.b_hits = 0;
-			hdr->b_l2hdr.b_arcs_state =
-			    hdr->b_l1hdr.b_state->arcs_state;
-			/* l2arc_hdr_arcstats_update() expects a valid asize */
-			HDR_SET_L2SIZE(hdr, asize);
-			arc_hdr_set_flags(hdr, ARC_FLAG_HAS_L2HDR |
-			    ARC_FLAG_L2_WRITING);
-
-			(void) zfs_refcount_add_many(&dev->l2ad_alloc,
-			    arc_hdr_size(hdr), hdr);
-			l2arc_hdr_arcstats_increment(hdr);
-			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
-
-			mutex_enter(&dev->l2ad_mtx);
-			if (pio == NULL) {
-				/*
-				 * Insert a dummy header on the buflist so
-				 * l2arc_write_done() can find where the
-				 * write buffers begin without searching.
-				 */
-				list_insert_head(&dev->l2ad_buflist, head);
-			}
-			list_insert_head(&dev->l2ad_buflist, hdr);
-			mutex_exit(&dev->l2ad_mtx);
-
-			boolean_t commit = l2arc_log_blk_insert(dev, hdr);
-			mutex_exit(hash_lock);
-
-			if (pio == NULL) {
-				cb = kmem_alloc(
-				    sizeof (l2arc_write_callback_t), KM_SLEEP);
-				cb->l2wcb_dev = dev;
-				cb->l2wcb_head = head;
-				list_create(&cb->l2wcb_abd_list,
-				    sizeof (l2arc_lb_abd_buf_t),
-				    offsetof(l2arc_lb_abd_buf_t, node));
-				pio = zio_root(spa, l2arc_write_done, cb,
-				    ZIO_FLAG_CANFAIL);
-			}
-
-			wzio = zio_write_phys(pio, dev->l2ad_vdev,
-			    dev->l2ad_hand, asize, to_write,
-			    ZIO_CHECKSUM_OFF, NULL, hdr,
-			    ZIO_PRIORITY_ASYNC_WRITE,
-			    ZIO_FLAG_CANFAIL, B_FALSE);
-
-			DTRACE_PROBE2(l2arc__write, vdev_t *, dev->l2ad_vdev,
-			    zio_t *, wzio);
-			zio_nowait(wzio);
-
-			write_psize += psize;
-			write_asize += asize;
-			dev->l2ad_hand += asize;
-
-			if (commit) {
-				/* l2ad_hand will be adjusted inside. */
-				write_asize +=
-				    l2arc_log_blk_commit(dev, pio, cb);
-			}
-
-next:
-			multilist_sublist_lock(mls);
-			if (from_head)
-				hdr = multilist_sublist_next(mls, marker);
-			else
-				hdr = multilist_sublist_prev(mls, marker);
-			multilist_sublist_remove(mls, marker);
+			current_sublist = (current_sublist + 1) % num_sublists;
+			processed_sublists++;
 		}
-
-		multilist_sublist_unlock(mls);
 
 		if (full == B_TRUE)
 			break;
 	}
-
-	arc_state_free_marker(marker);
 
 	/* No buffers selected for writing? */
 	if (pio == NULL) {
@@ -9742,6 +10033,17 @@ next:
 	dev->l2ad_writing = B_FALSE;
 
 	/*
+	 * Update cumulative write tracking for marker reset logic.
+	 * Protected for multi-device thread access.
+	 */
+	mutex_enter(&spa->spa_l2arc_info.l2arc_sublist_lock);
+	spa->spa_l2arc_info.l2arc_total_writes += write_asize;
+	mutex_exit(&spa->spa_l2arc_info.l2arc_sublist_lock);
+
+	/* Track writes for DWPD rate limiting */
+	dev->l2ad_dwpd_writes += write_asize;
+
+	/*
 	 * Update the device header after the zio completes as
 	 * l2arc_write_done() may have updated the memory holding the log block
 	 * pointers in the device header.
@@ -9761,58 +10063,56 @@ l2arc_hdr_limit_reached(void)
 }
 
 /*
- * This thread feeds the L2ARC at regular intervals.  This is the beating
- * heart of the L2ARC.
+ * Per-device L2ARC feed thread.  Each L2ARC device has its own thread
+ * to allow parallel writes to multiple devices.
  */
 static  __attribute__((noreturn)) void
-l2arc_feed_thread(void *unused)
+l2arc_feed_thread(void *arg)
 {
-	(void) unused;
+	l2arc_dev_t *dev = arg;
 	callb_cpr_t cpr;
-	l2arc_dev_t *dev;
 	spa_t *spa;
 	uint64_t size, wrote;
 	clock_t begin, next = ddi_get_lbolt();
 	fstrans_cookie_t cookie;
 
-	CALLB_CPR_INIT(&cpr, &l2arc_feed_thr_lock, callb_generic_cpr, FTAG);
+	ASSERT3P(dev, !=, NULL);
 
-	mutex_enter(&l2arc_feed_thr_lock);
+	CALLB_CPR_INIT(&cpr, &dev->l2ad_feed_thr_lock, callb_generic_cpr, FTAG);
+
+	mutex_enter(&dev->l2ad_feed_thr_lock);
 
 	cookie = spl_fstrans_mark();
-	while (l2arc_thread_exit == 0) {
+	while (dev->l2ad_thread_exit == B_FALSE) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_idle(&l2arc_feed_thr_cv,
-		    &l2arc_feed_thr_lock, next);
-		CALLB_CPR_SAFE_END(&cpr, &l2arc_feed_thr_lock);
+		(void) cv_timedwait_idle(&dev->l2ad_feed_cv,
+		    &dev->l2ad_feed_thr_lock, next);
+		CALLB_CPR_SAFE_END(&cpr, &dev->l2ad_feed_thr_lock);
 		next = ddi_get_lbolt() + hz;
 
 		/*
-		 * Quick check for L2ARC devices.
+		 * Check if thread should exit.
 		 */
-		mutex_enter(&l2arc_dev_mtx);
-		if (l2arc_ndev == 0) {
-			mutex_exit(&l2arc_dev_mtx);
-			continue;
-		}
-		mutex_exit(&l2arc_dev_mtx);
+		if (dev->l2ad_thread_exit)
+			break;
+
+		/*
+		 * Check if device is still valid.  If not, thread should exit.
+		 */
+		if (dev->l2ad_vdev == NULL || vdev_is_dead(dev->l2ad_vdev))
+			break;
 		begin = ddi_get_lbolt();
 
 		/*
-		 * This selects the next l2arc device to write to, and in
-		 * doing so the next spa to feed from: dev->l2ad_spa.   This
-		 * will return NULL if there are now no l2arc devices or if
-		 * they are all faulted.
-		 *
-		 * If a device is returned, its spa's config lock is also
-		 * held to prevent device removal.  l2arc_dev_get_next()
-		 * will grab and release l2arc_dev_mtx.
+		 * Try to acquire the spa config lock. If we can't get it,
+		 * skip this iteration as removal might be in progress.
+		 * The feed thread will exit naturally when it wakes up and
+		 * sees l2ad_thread_exit is set.
 		 */
-		if ((dev = l2arc_dev_get_next()) == NULL)
-			continue;
-
 		spa = dev->l2ad_spa;
 		ASSERT3P(spa, !=, NULL);
+		if (!spa_config_tryenter(spa, SCL_L2ARC, dev, RW_READER))
+			continue;
 
 		/*
 		 * If the pool is read-only then force the feed thread to
@@ -9835,7 +10135,16 @@ l2arc_feed_thread(void *unused)
 
 		ARCSTAT_BUMP(arcstat_l2_feeds);
 
-		size = l2arc_write_size(dev);
+		/*
+		 * Check if using adaptive intervals (persistent markers).
+		 */
+		boolean_t use_adaptive_interval =
+		    (spa->spa_l2arc_info.l2arc_total_capacity >=
+		    L2ARC_PERSIST_THRESHOLD);
+
+		clock_t interval;
+		boolean_t was_first = dev->l2ad_first;
+		size = l2arc_write_size(dev, &interval);
 
 		/*
 		 * Evict L2ARC buffers that will be overwritten.
@@ -9843,21 +10152,44 @@ l2arc_feed_thread(void *unused)
 		l2arc_evict(dev, size, B_FALSE);
 
 		/*
+		 * If first pass just completed during evict, the write size
+		 * was calculated without DWPD limiting. Recalculate now that
+		 * DWPD is active to avoid writing with unlimited budget.
+		 * Only applies to large devices where DWPD is active.
+		 */
+		if (was_first && !dev->l2ad_first && l2arc_dwpd_limit > 0 &&
+		    spa->spa_l2arc_info.l2arc_total_capacity >=
+		    L2ARC_PERSIST_THRESHOLD) {
+			size = l2arc_write_size(dev, &interval);
+		}
+
+		/*
 		 * Write ARC buffers.
 		 */
 		wrote = l2arc_write_buffers(spa, dev, size);
 
 		/*
-		 * Calculate interval between writes.
+		 * If smaller device, use legacy approach based on data written
 		 */
-		next = l2arc_write_interval(begin, size, wrote);
+		if (!use_adaptive_interval) {
+			if (l2arc_feed_again && wrote > (size / 2))
+				interval = (hz * l2arc_feed_min_ms) / 1000;
+			else
+				interval = hz * l2arc_feed_secs;
+		}
+
+		/*
+		 * Calculate next feed time.
+		 */
+		clock_t now = ddi_get_lbolt();
+		next = MAX(now, MIN(now + interval, begin + interval));
 		spa_config_exit(spa, SCL_L2ARC, dev);
 	}
 	spl_fstrans_unmark(cookie);
 
-	l2arc_thread_exit = 0;
-	cv_broadcast(&l2arc_feed_thr_cv);
-	CALLB_CPR_EXIT(&cpr);		/* drops l2arc_feed_thr_lock */
+	dev->l2ad_feed_thread = NULL;
+	cv_broadcast(&dev->l2ad_feed_cv);
+	CALLB_CPR_EXIT(&cpr);		/* drops dev->l2ad_feed_thr_lock */
 	thread_exit();
 }
 
@@ -9967,6 +10299,30 @@ l2arc_rebuild_dev(l2arc_dev_t *dev, boolean_t reopen)
 	}
 }
 
+
+/*
+ * Recalculate smallest L2ARC device capacity for the given spa.
+ * Must be called under l2arc_dev_mtx.
+ */
+static void
+l2arc_update_smallest_capacity(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&l2arc_dev_mtx));
+	l2arc_dev_t *dev;
+	uint64_t smallest = UINT64_MAX;
+
+	for (dev = list_head(l2arc_dev_list); dev != NULL;
+	    dev = list_next(l2arc_dev_list, dev)) {
+		if (dev->l2ad_spa == spa) {
+			uint64_t cap = dev->l2ad_end - dev->l2ad_start;
+			if (cap < smallest)
+				smallest = cap;
+		}
+	}
+
+	spa->spa_l2arc_info.l2arc_smallest_capacity = smallest;
+}
+
 /*
  * Add a vdev for use by the L2ARC.  By this point the spa has already
  * validated the vdev and opened it.
@@ -9996,6 +10352,9 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev->l2ad_first = B_TRUE;
 	adddev->l2ad_writing = B_FALSE;
 	adddev->l2ad_trim_all = B_FALSE;
+	adddev->l2ad_dwpd_writes = 0;
+	adddev->l2ad_dwpd_start = gethrestime_sec();
+	adddev->l2ad_dwpd_accumulated = 0;
 	list_link_init(&adddev->l2ad_node);
 	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
 
@@ -10016,6 +10375,14 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 
 	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
 	zfs_refcount_create(&adddev->l2ad_alloc);
+
+	/*
+	 * Initialize per-device thread fields
+	 */
+	adddev->l2ad_thread_exit = B_FALSE;
+	mutex_init(&adddev->l2ad_feed_thr_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&adddev->l2ad_feed_cv, NULL, CV_DEFAULT, NULL);
+
 	zfs_refcount_create(&adddev->l2ad_lb_asize);
 	zfs_refcount_create(&adddev->l2ad_lb_count);
 
@@ -10032,8 +10399,37 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	 * Add device to global list
 	 */
 	mutex_enter(&l2arc_dev_mtx);
+
+	/*
+	 * Initialize pool-based position saving markers if this is the first
+	 * L2ARC device for this pool
+	 */
+	if (!l2arc_pool_has_devices(spa)) {
+		l2arc_pool_markers_init(spa);
+	}
+
 	list_insert_head(l2arc_dev_list, adddev);
 	atomic_inc_64(&l2arc_ndev);
+	spa->spa_l2arc_info.l2arc_total_capacity += (adddev->l2ad_end -
+	    adddev->l2ad_start);
+	l2arc_update_smallest_capacity(spa);
+
+	/*
+	 * Create per-device feed thread only if spa is writable.
+	 * The thread name includes the spa name and device number
+	 * for easy identification.
+	 */
+	if (spa_writeable(spa)) {
+		char thread_name[MAXNAMELEN];
+		snprintf(thread_name, sizeof (thread_name), "l2arc_%s_%llu",
+		    spa_name(spa), (u_longlong_t)vd->vdev_id);
+		adddev->l2ad_feed_thread = thread_create_named(thread_name,
+		    NULL, 0, l2arc_feed_thread, adddev, 0, &p0, TS_RUN,
+		    minclsyspri);
+	} else {
+		adddev->l2ad_feed_thread = NULL;
+	}
+
 	mutex_exit(&l2arc_dev_mtx);
 }
 
@@ -10090,6 +10486,8 @@ l2arc_device_teardown(void *arg)
 	ASSERT(list_is_empty(&remdev->l2ad_lbptr_list));
 	list_destroy(&remdev->l2ad_lbptr_list);
 	mutex_destroy(&remdev->l2ad_mtx);
+	mutex_destroy(&remdev->l2ad_feed_thr_lock);
+	cv_destroy(&remdev->l2ad_feed_cv);
 	zfs_refcount_destroy(&remdev->l2ad_alloc);
 	zfs_refcount_destroy(&remdev->l2ad_lb_asize);
 	zfs_refcount_destroy(&remdev->l2ad_lb_count);
@@ -10144,6 +10542,21 @@ l2arc_remove_vdev(vdev_t *vd)
 			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
 	}
 	mutex_exit(&l2arc_rebuild_thr_lock);
+
+	/*
+	 * Signal per-device feed thread to exit and wait for it.
+	 * Thread only exists if pool was imported read-write.
+	 */
+	if (remdev->l2ad_feed_thread != NULL) {
+		mutex_enter(&remdev->l2ad_feed_thr_lock);
+		remdev->l2ad_thread_exit = B_TRUE;
+		cv_signal(&remdev->l2ad_feed_cv);
+		while (remdev->l2ad_feed_thread != NULL)
+			cv_wait(&remdev->l2ad_feed_cv,
+			    &remdev->l2ad_feed_thr_lock);
+		mutex_exit(&remdev->l2ad_feed_thr_lock);
+	}
+
 	rva->rva_async = asynchronous;
 
 	/*
@@ -10152,8 +10565,18 @@ l2arc_remove_vdev(vdev_t *vd)
 	ASSERT(spa_config_held(spa, SCL_L2ARC, RW_WRITER) & SCL_L2ARC);
 	mutex_enter(&l2arc_dev_mtx);
 	list_remove(l2arc_dev_list, remdev);
-	l2arc_dev_last = NULL;		/* may have been invalidated */
 	atomic_dec_64(&l2arc_ndev);
+	spa->spa_l2arc_info.l2arc_total_capacity -=
+	    (remdev->l2ad_end - remdev->l2ad_start);
+	l2arc_update_smallest_capacity(spa);
+
+	/*
+	 * Clean up pool-based markers if this was the last L2ARC device
+	 * for this pool
+	 */
+	if (!l2arc_pool_has_devices(spa)) {
+		l2arc_pool_markers_fini(spa);
+	}
 
 	/* During a pool export spa & vdev will no longer be valid */
 	if (asynchronous) {
@@ -10176,11 +10599,8 @@ l2arc_remove_vdev(vdev_t *vd)
 void
 l2arc_init(void)
 {
-	l2arc_thread_exit = 0;
 	l2arc_ndev = 0;
 
-	mutex_init(&l2arc_feed_thr_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&l2arc_feed_thr_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_rebuild_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_rebuild_thr_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_dev_mtx, NULL, MUTEX_DEFAULT, NULL);
@@ -10197,8 +10617,6 @@ l2arc_init(void)
 void
 l2arc_fini(void)
 {
-	mutex_destroy(&l2arc_feed_thr_lock);
-	cv_destroy(&l2arc_feed_thr_cv);
 	mutex_destroy(&l2arc_rebuild_thr_lock);
 	cv_destroy(&l2arc_rebuild_thr_cv);
 	mutex_destroy(&l2arc_dev_mtx);
@@ -10208,29 +10626,6 @@ l2arc_fini(void)
 	list_destroy(l2arc_free_on_write);
 }
 
-void
-l2arc_start(void)
-{
-	if (!(spa_mode_global & SPA_MODE_WRITE))
-		return;
-
-	(void) thread_create(NULL, 0, l2arc_feed_thread, NULL, 0, &p0,
-	    TS_RUN, defclsyspri);
-}
-
-void
-l2arc_stop(void)
-{
-	if (!(spa_mode_global & SPA_MODE_WRITE))
-		return;
-
-	mutex_enter(&l2arc_feed_thr_lock);
-	cv_signal(&l2arc_feed_thr_cv);	/* kick thread out of startup */
-	l2arc_thread_exit = 1;
-	while (l2arc_thread_exit != 0)
-		cv_wait(&l2arc_feed_thr_cv, &l2arc_feed_thr_lock);
-	mutex_exit(&l2arc_feed_thr_lock);
-}
 
 /*
  * Punches out rebuild threads for the L2ARC devices in a spa. This should
@@ -11236,8 +11631,8 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min_prescient_prefetch_ms,
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_max, U64, ZMOD_RW,
 	"Max write bytes per interval");
 
-ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, write_boost, U64, ZMOD_RW,
-	"Extra write bytes during device warmup");
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, dwpd_limit, U64, ZMOD_RW,
+	"L2ARC device endurance limit as percentage (100 = 1.0 DWPD)");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, headroom, U64, ZMOD_RW,
 	"Number of max device writes to precache");
