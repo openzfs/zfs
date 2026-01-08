@@ -25,31 +25,32 @@
 # Copyright (c) 2025, Klara, Inc.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/anyraid/anyraid_common.kshlib
 
 #
 # DESCRIPTION:
-# Run negative tests relating to anyraid vdevs and pool creation
+# AnyRAID mirror4 can survive having 1-4 failed disks.
 #
 # STRATEGY:
-# 1. Try to create a pool with an invalid parity string
-# 2. Try to create a pool with too large a parity
+# 1. Write several files to the ZFS filesystem mirror.
+# 2. Override the selected disks of the mirror with zeroes.
+# 4. Verify that all the file contents are unchanged on the file system.
 #
 
 verify_runnable "global"
 
-function cleanup
-{
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-}
+log_assert "AnyRAID mirror4 can survive having 1-4 failed disks"
 
-log_assert "anyraid vdev specifications detect problems correctly"
-log_onexit cleanup
+log_must create_sparse_files "disk" 5 $DEVSIZE
 
-create_sparse_files "disk" 4 $MINVDEVSIZE2
+clean_mirror_spec_cases "anymirror4 $disk0 $disk1 $disk2 $disk3 $disk4" \
+	"$disk0" \
+	"$disk4" \
+	"\"$disk0 $disk1\"" \
+	"\"$disk1 $disk4\"" \
+	"\"$disk0 $disk1 $disk3\"" \
+	"\"$disk2 $disk3 $disk4\"" \
+	"\"$disk0 $disk1 $disk2 $disk3\"" \
+	"\"$disk0 $disk2 $disk3 $disk4\""
 
-log_mustnot zpool create $TESTPOOL anymirrorq $disks
-log_mustnot zpool create $TESTPOOL anymirrorq1 $disks
-log_mustnot zpool create $TESTPOOL anymirror-1 $disks
-
-log_pass "anyraid vdev specifications detect problems correctly"
+log_pass "AnyRAID mirror4 can survive having 1-4 failed disks"

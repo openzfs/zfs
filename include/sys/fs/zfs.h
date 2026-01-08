@@ -929,8 +929,6 @@ typedef struct zpool_load_policy {
 #define	VDEV_TYPE_L2CACHE		"l2cache"
 #define	VDEV_TYPE_INDIRECT		"indirect"
 
-#define	VDEV_ANYRAID_MAXPARITY		3
-
 #define	VDEV_RAIDZ_MAXPARITY		3
 
 #define	VDEV_DRAID_MAXPARITY		3

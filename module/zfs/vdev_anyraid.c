@@ -181,6 +181,8 @@ vdev_anyraid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		return (SET_ERROR(EINVAL));
 	if (parity_type != VAP_MIRROR)
 		return (SET_ERROR(ENOTSUP));
+	if (children < nparity + 1)
+		return (SET_ERROR(EINVAL));
 
 	vdev_anyraid_t *var = kmem_zalloc(sizeof (*var), KM_SLEEP);
 	var->vd_parity_type = parity_type;
