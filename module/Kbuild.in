@@ -265,6 +265,15 @@ ZFS_ZSTD_FLAGS += -U__BMI__
 # Quiet warnings about frame size due to unused code in unmodified zstd lib
 ZFS_ZSTD_FLAGS += -Wframe-larger-than=20480
 
+# Disable assembly for kernel compatibility
+ZFS_ZSTD_FLAGS += -DZSTD_DISABLE_ASM
+
+# Disable intrinsics for EL10 x86_64-v3 baseline
+ZFS_ZSTD_FLAGS += -DZSTD_NO_INTRINSICS
+
+# Disable tracing for kernel builds
+ZFS_ZSTD_FLAGS += -DZSTD_TRACE=0
+
 ZSTD_OBJS := \
 	zfs_zstd.o \
 	zstd_sparc.o
@@ -287,6 +296,7 @@ ZSTD_UPSTREAM_OBJS := \
 	lib/compress/zstd_lazy.o \
 	lib/compress/zstd_ldm.o \
 	lib/compress/zstd_opt.o \
+	lib/compress/zstd_preSplit.o \
 	lib/decompress/huf_decompress.o \
 	lib/decompress/zstd_ddict.o \
 	lib/decompress/zstd_decompress.o \
