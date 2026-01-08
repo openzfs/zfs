@@ -274,9 +274,6 @@ typedef struct dmu_buf_impl {
 	 */
 	uint8_t db_pending_evict;
 
-	/* Number of TXGs in which this buffer is dirty. */
-	uint8_t db_dirtycnt;
-
 	/* The buffer was partially read.  More reads may follow. */
 	uint8_t db_partial_read;
 
@@ -298,6 +295,9 @@ typedef struct dmu_buf_impl {
 
 	/* db_mtx protects the members below */
 	kmutex_t db_mtx;
+
+	/* Number of TXGs in which this buffer is dirty. */
+	uint8_t db_dirtycnt;
 
 	/*
 	 * Current state of the buffer
@@ -328,6 +328,22 @@ typedef struct dmu_buf_impl {
 	/* User callback information. */
 	dmu_buf_user_t *db_user;
 } dmu_buf_impl_t;
+
+/*
+ * Assert that the value of db.db_data cannot currently be changed.  Either
+ * it's locked, or it's in an immutable state.
+ */
+void assert_db_data_addr_locked(const dmu_buf_impl_t *db);
+/*
+ * Assert that the provided dbuf's contents can only be accessed by the caller,
+ * and by no other thread.  Either it must be locked, or in a state where
+ * locking is not required.
+ */
+#ifdef __linux__
+void assert_db_data_contents_locked(dmu_buf_impl_t *db, boolean_t wr);
+#else
+void assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t wr);
+#endif
 
 #define	DBUF_HASH_MUTEX(h, idx) \
 	(&(h)->hash_mutexes[(idx) & ((h)->hash_mutex_mask)])
