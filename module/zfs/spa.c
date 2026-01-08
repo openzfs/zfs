@@ -2164,7 +2164,8 @@ spa_sync_time_logger(spa_t *spa, uint64_t txg)
 		mutex_exit(&spa->spa_txg_log_time_lock);
 	}
 
-	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
+	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time ||
+	    spa->spa_last_noted_txg_time <= spa->spa_last_flush_txg_time) {
 		return;
 	}
 	spa->spa_last_flush_txg_time = curtime;
