@@ -57,7 +57,7 @@ log_must zpool offline $TESTPOOL $disk0
 log_must check_state $TESTPOOL $disk0 "offline"
 log_must check_state $TESTPOOL "" "degraded"
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128 -d R
 log_must zpool online $TESTPOOL $disk0
 log_must check_state $TESTPOOL $disk0 "online"
 for i in {1..60}; do
@@ -81,7 +81,7 @@ log_must check_state $TESTPOOL $disk0 "offline"
 log_must check_state $TESTPOOL $disk1 "offline"
 log_must check_state $TESTPOOL "" "degraded"
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128 -d R
 log_must zpool online $TESTPOOL $disk0
 log_must zpool online $TESTPOOL $disk1
 log_must check_state $TESTPOOL $disk0 "online"
@@ -109,7 +109,7 @@ log_must check_state $TESTPOOL $disk1 "offline"
 log_must check_state $TESTPOOL $disk2 "offline"
 log_must check_state $TESTPOOL "" "degraded"
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128 -d R
 log_must zpool online $TESTPOOL $disk0
 log_must zpool online $TESTPOOL $disk1
 log_must zpool online $TESTPOOL $disk2

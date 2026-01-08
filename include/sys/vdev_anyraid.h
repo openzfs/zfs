@@ -276,11 +276,11 @@ _Static_assert(VDEV_ANYRAID_MAP_SIZE % SPA_MAXBLOCKSIZE == 0, "");
  * Externally-accessed function definitions
  * ==========================================================================
  */
-void vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
+extern void vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
     uint64_t *good_writes, int flags, vdev_config_sync_status_t status);
 
-void vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd);
-boolean_t vdev_anyraid_mapped(vdev_t *vd, uint64_t offset);
+extern void vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd);
+extern boolean_t vdev_anyraid_mapped(vdev_t *vd, uint64_t offset);
 
 /*
  * These functions are exposed for ZDB.
@@ -292,9 +292,9 @@ typedef struct anyraid_header {
 	nvlist_t *ah_nvl;
 } anyraid_header_t;
 
-int vdev_anyraid_pick_best_mapping(vdev_t *cvd,
+extern int vdev_anyraid_pick_best_mapping(vdev_t *cvd,
     uint64_t *out_txg, anyraid_header_t *out_header, int *out_mapping);
-int vdev_anyraid_open_header(vdev_t *cvd, int header,
+extern int vdev_anyraid_open_header(vdev_t *cvd, int header,
     anyraid_header_t *out_header);
 
 #ifdef	__cplusplus

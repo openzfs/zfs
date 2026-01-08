@@ -58,7 +58,7 @@ for parity in {0..3}; do
 		 anymirror$parity $sdisks
 	log_must poolexists $TESTPOOL
 
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file.bin bs=1M count=128
+	log_must file_write -o create -f /$TESTPOOL/file.bin -b 1048576 -c 128
 	oldcksum=$(xxh128digest /$TESTPOOL/file.bin)
 	log_must zpool export $TESTPOOL
 

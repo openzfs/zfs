@@ -112,7 +112,7 @@ while (( $i < ${#keywords[*]} )); do
 		done
 
 		;;
-	anyraid*)
+	anymirror*)
 		for vdev in "${anyraidarray[@]}"; do
 			create_pool "$TESTPOOL" "${keywords[i]}" $disks
 			log_must poolexists "$TESTPOOL"
