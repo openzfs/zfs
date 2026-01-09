@@ -24,6 +24,7 @@
 
 #include <zfs_prop.h>
 
+#include <sys/dsl_bookmark.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_dataset.h>
@@ -556,6 +557,110 @@ prop_valid_for_ds(dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 }
 
 /*
+ * Look up a given bookmark property. On success return 2, the number of
+ * values pushed to the lua stack (property value, and nil for source).
+ * On a fatal error, longjmp. On a non fatal error push nothing.
+ */
+static int
+zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
+    const char *dataset_name, zfs_prop_t zfs_prop) {
+	int result = (0);
+	const char *prop_name = zfs_prop_to_name(zfs_prop);
+	int error;
+	char *bmname = strchr(dataset_name, '#');
+	if (bmname == NULL) {
+		return (0);
+	}
+	// XXX this reimplements half of zfs_ioc_get_bookmark_props() and
+	// dsl_get_bookmark_props() just to avoid a panic
+	bmname++;
+	char fsname[ZFS_MAX_DATASET_NAME_LEN];
+	(void) strlcpy(fsname, dataset_name, sizeof (fsname));
+	*(strchr(fsname, '#')) = '\0';
+	dsl_dataset_t *ds;
+	error = dsl_dataset_hold(dp, fsname, FTAG, &ds);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out;
+	}
+	// XXX is it ok to use `fnvlist` operations here?
+	// seems bad to panic txg_sync unnecessarily?
+	nvlist_t *props = fnvlist_alloc();
+	if (!zfs_prop_valid_for_type(zfs_prop, ZFS_TYPE_BOOKMARK, B_FALSE)) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out_props;
+	}
+	fnvlist_add_boolean(props, prop_name);
+	nvlist_t *outnvl = fnvlist_alloc();
+	// XXX maybe it's better to call dsl_get_bookmark_props()? we would get
+	// all properties for one bookmark, which seems less bad than one
+	// property for all bookmarks (and requires one fewer nvlist_alloc())?
+	// i think we should add an API that gets one property for one bookmark.
+	error = dsl_get_bookmarks_impl(ds, props, outnvl);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out_outnvl;
+	}
+	nvlist_t *bookmark_props;
+	error = nvlist_lookup_nvlist(outnvl, bmname, &bookmark_props);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out_outnvl;
+	}
+	nvlist_t *prop;
+	error = nvlist_lookup_nvlist(bookmark_props, zfs_prop_to_name(zfs_prop),
+	    &prop);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out_outnvl;
+	}
+	// XXX this needs to be kept in sync with dsl_bookmark_fetch_props().
+	// is there any way to avoid the inevitable divergence?
+	switch (zfs_prop) {
+	case ZFS_PROP_GUID:
+	case ZFS_PROP_CREATETXG:
+	case ZFS_PROP_CREATION:
+	case ZFS_PROP_IVSET_GUID: {
+		uint64_t value;
+		error = nvlist_lookup_uint64(prop, ZPROP_VALUE, &value);
+		if (error != 0) {
+			result = zcp_handle_error(state, dataset_name,
+			    prop_name, error);
+			goto out_outnvl;
+		}
+		(void) lua_pushnumber(state, value);
+		(void) lua_pushnil(state);
+		result = (2);
+		break;
+	}
+	// XXX not sure how to convert this to a lua value. is it meant to be a
+	// table (since it’s an array in the docs for lzc_get_bookmarks() and
+	// the impl of dsl_bookmark_fetch_props()), or is it meant to be a
+	// string (since it’s a string in the zprop_desc_t’s pd_proptype)?
+	case ZFS_PROP_REDACT_SNAPS:
+	// XXX not sure how to deal with `redact_complete`, since it's not even
+	// registered (nor documented), so we can't write a `case` for it and we
+	// can't `zfs get redact_complete`. is that an oversight we should fix?
+	default:
+		error = EINVAL;
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+		goto out_outnvl;
+	}
+out_outnvl:
+	nvlist_free(outnvl);
+out_props:
+	nvlist_free(props);
+out:
+	return (result);
+}
+
+/*
  * Look up a given dataset property. On success return 2, the number of
  * values pushed to the lua stack (property value and source). On a fatal
  * error, longjmp. On a non fatal error push nothing.
@@ -827,8 +932,16 @@ zcp_get_prop(lua_State *state)
 	zfs_prop_t zfs_prop = zfs_name_to_prop(property_name);
 	/* Valid system property */
 	if (zfs_prop != ZPROP_INVAL) {
-		return (zcp_get_system_prop(state, dp, dataset_name,
-		    zfs_prop));
+		// XXX i have no idea why, but the zcp_get_system_prop() path
+		// stops returning a value (according to lua) if we instead do
+		// `return (zcp_get_bookmark_prop() || zcp_get_system_prop());`
+		if (strchr(dataset_name, '#') != NULL) {
+			return (zcp_get_bookmark_prop(state, dp, dataset_name,
+			    zfs_prop));
+		} else {
+			return (zcp_get_system_prop(state, dp, dataset_name,
+			    zfs_prop));
+		}
 	}
 
 	/* Invalid property name */
