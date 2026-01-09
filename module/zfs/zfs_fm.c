@@ -201,51 +201,6 @@ recent_events_compare(const void *a, const void *b)
 	return (0);
 }
 
-/*
- * workaround: vdev properties don't have inheritance
- */
-static uint64_t
-vdev_prop_get_inherited(vdev_t *vd, vdev_prop_t prop)
-{
-	uint64_t propdef, propval;
-
-	propdef = vdev_prop_default_numeric(prop);
-	switch (prop) {
-		case VDEV_PROP_CHECKSUM_N:
-			propval = vd->vdev_checksum_n;
-			break;
-		case VDEV_PROP_CHECKSUM_T:
-			propval = vd->vdev_checksum_t;
-			break;
-		case VDEV_PROP_IO_N:
-			propval = vd->vdev_io_n;
-			break;
-		case VDEV_PROP_IO_T:
-			propval = vd->vdev_io_t;
-			break;
-		case VDEV_PROP_SLOW_IO_EVENTS:
-			propval = vd->vdev_slow_io_events;
-			break;
-		case VDEV_PROP_SLOW_IO_N:
-			propval = vd->vdev_slow_io_n;
-			break;
-		case VDEV_PROP_SLOW_IO_T:
-			propval = vd->vdev_slow_io_t;
-			break;
-		default:
-			propval = propdef;
-			break;
-	}
-
-	if (propval != propdef)
-		return (propval);
-
-	if (vd->vdev_parent == NULL)
-		return (propdef);
-
-	return (vdev_prop_get_inherited(vd->vdev_parent, prop));
-}
-
 static void zfs_ereport_schedule_cleaner(void);
 
 /*
