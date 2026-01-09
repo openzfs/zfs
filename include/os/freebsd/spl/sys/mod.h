@@ -77,6 +77,9 @@
 #define	param_set_active_allocator_args(var) \
     CTLTYPE_STRING, NULL, 0, param_set_active_allocator, "A"
 
+#define	param_set_active_weightfunc_args(var) \
+    CTLTYPE_STRING, NULL, 0, param_set_active_weightfunc, "A"
+
 #define	param_set_deadman_synctime_args(var) \
     CTLTYPE_U64, NULL, 0, param_set_deadman_synctime, "QU"
 
