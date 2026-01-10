@@ -427,7 +427,8 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_features_005_pos', 'zpool_create_features_006_pos',
     'zpool_create_features_007_pos', 'zpool_create_features_008_pos',
     'zpool_create_features_009_pos', 'create-o_ashift',
-    'zpool_create_tempname', 'zpool_create_dryrun_output']
+    'zpool_create_tempname', 'zpool_create_dryrun_output',
+    'zpool_create_force_layout']
 tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]
