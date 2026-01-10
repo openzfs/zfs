@@ -697,6 +697,19 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
 	{
+		static const spa_feature_t draid_fdomain_deps[] = {
+			SPA_FEATURE_DRAID,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_DRAID_FAIL_DOMAINS,
+		    "com.seagate:draid_failure_domains",
+		    "draid_failure_domains",
+		    "Support for failure domains in dRAID",
+		    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN,
+		    draid_fdomain_deps, sfeatures);
+	}
+
+	{
 		static const spa_feature_t zilsaxattr_deps[] = {
 			SPA_FEATURE_EXTENSIBLE_DATASET,
 			SPA_FEATURE_NONE

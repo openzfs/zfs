@@ -443,6 +443,7 @@ typedef enum {
 	 * checksum errors) has been lost.
 	 */
 	ZPOOL_STATUS_FAULTED_DEV_R,	/* faulted device with replicas */
+	ZPOOL_STATUS_FAULTED_FDOM_R,	/* faulted fdomain with replicas */
 	ZPOOL_STATUS_FAULTED_DEV_NR,	/* faulted device with no replicas */
 
 	/*
