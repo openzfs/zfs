@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2026 Seagate Technology, LLC.
 .\"
 .Dd August 6, 2025
 .Dt ZPOOLCONCEPTS 7
@@ -142,7 +143,7 @@ A dRAID with
 .No parity level, and Em S No distributed hot spares can hold approximately
 .Em (N-S)*(D/(D+P))*X No bytes and can withstand Em P
 devices failing without losing data.
-.It Sy draid Ns Oo Ar parity Oc Ns Oo Sy \&: Ns Ar data Ns Sy d Oc Ns Oo Sy \&: Ns Ar children Ns Sy c Oc Ns Oo Sy \&: Ns Ar spares Ns Sy s Oc
+.It Sy draid Ns Oo Ar parity Oc Ns Oo Sy \&: Ns Ar data Ns Sy d Oc Ns Oo Sy \&: Ns Ar children Ns Sy c Oc Ns Oo Sy \&: Ns Ar spares Ns Sy s Oc Ns Oo Sy \&: Ns Ar width Ns Sy w Oc
 A non-default dRAID configuration can be specified by appending one or more
 of the following optional arguments to the
 .Sy draid
@@ -164,6 +165,15 @@ An error is returned when the provided number of children differs.
 .It Ar spares
 The number of distributed hot spares.
 Defaults to zero.
+.It Ar width
+You can have several groups of children in the same row, in which case
+width would be multiple of children.
+Such configurations allow to create failure groups/domains when disks
+in each children group are configured to be from different enclosures
+so that even if all disks from one enclosure fail, draid vdev still
+will be operational. In case of draid2, two enclosures can fail at the
+same time, in case of draid3 - three enclosures, for each group it will
+look as if only one, two or three disks are failed.
 .El
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.

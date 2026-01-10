@@ -3485,9 +3485,9 @@ vdev_raidz_combrec(zio_t *zio)
 	}
 
 	for (int num_failures = 1; num_failures <= nparity; num_failures++) {
-		int tstore[VDEV_RAIDZ_MAXPARITY + 2];
+		int *tstore = kmem_alloc(sizeof (*tstore) * nparity + 2,
+		    KM_SLEEP);
 		int *ltgts = &tstore[1]; /* value is logical child ID */
-
 
 		/*
 		 * Determine number of logical children, n.  See comment
@@ -3500,7 +3500,6 @@ vdev_raidz_combrec(zio_t *zio)
 		}
 
 		ASSERT3U(num_failures, <=, nparity);
-		ASSERT3U(num_failures, <=, VDEV_RAIDZ_MAXPARITY);
 
 		/* Handle corner cases in combrec logic */
 		ltgts[-1] = -1;
@@ -3518,8 +3517,11 @@ vdev_raidz_combrec(zio_t *zio)
 				 * failures; try more failures.
 				 */
 				break;
-			} else if (err == 0)
+			} else if (err == 0) {
+				kmem_free(tstore,
+				    sizeof (*tstore) * nparity + 2);
 				return (0);
+			}
 
 			/* Compute next targets to try */
 			for (int t = 0; ; t++) {
@@ -3561,6 +3563,7 @@ vdev_raidz_combrec(zio_t *zio)
 			if (ltgts[num_failures - 1] == n)
 				break;
 		}
+		kmem_free(tstore, sizeof (*tstore) * nparity + 2);
 	}
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT)
 		zfs_dbgmsg("reconstruction failed for all num_failures");

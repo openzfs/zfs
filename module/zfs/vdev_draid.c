@@ -23,6 +23,7 @@
  * Copyright (c) 2018 Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2026, Seagate Technology, LLC.
  */
 
 #include <sys/zfs_context.h>
@@ -537,6 +538,104 @@ vdev_draid_generate_perms(const draid_map_t *map, uint8_t **permsp)
 	return (0);
 }
 
+static void
+vdev_draid_swap_perms(uint8_t *perms, uint64_t i, uint64_t j)
+{
+	uint8_t val = perms[i];
+
+	perms[i] = perms[j];
+	perms[j] = val;
+}
+
+/*
+ * Shuffle every i-th permutations in slices that lie in the big width row,
+ * increasing disk indices in each next slice in the row accordingly.
+ * This would allow to create failure domains by putting disks from different
+ * enclosures/servers/racks into slices, and yet preserve fast sequential
+ * resilvering because any disk will be part of all slices in the big row.
+ * At the same time, no slice will have more than one disk from the same
+ * enclosure. For example:
+ *
+ *    Two slices, 7 C disks in each slice (1 P + 3 D groups + 1 S)
+ *      +===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+ *      | 1 | 7 | 3 | 9 | 11| 5 | 13| 6 | 10| 4 | 8 | 0 | 12| 2 | device map 0
+ *   s  +===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+ *   l  |    group 0    |  gr1..| S |    group 3    | gr4.. | S | row 0
+ *   c  +-------+-------+-------+---+-------+-------+-------+---+
+ *  0,1 | ..gr1 |    group 2    | S | ..gr4 |   group 5     | S | row 1
+ *      +===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+ *      | 2 | 10| 12| 7 | 8 | 13| 11| 1 | 5 | 4 | 6 | 3 | 9 | 0 | device map 1
+ *   s  +===+===+===+===+===+===+===+===+===+===+===+===+===+===+
+ *   l  |    group 6    |  gr7..| S |    group 9    |gr10.. | S | row 2
+ *   c  +-------+-------+-------+---+---------------+-------+---+
+ *  2,3 | ..gr7 |    group 8    | S |..gr10 |   group 11    | S | row 3
+ *      +-------+---------------+---+-------+---------------+---+
+ *
+ * If we configure each disk in the slice to be from different enclosure,
+ * we can tolerate the failure of any enclosure. And yet, when resilvering
+ * the failure of any disk, all enclosures will take part in it since all
+ * of them will have some amount of blocks from the parity groups this disk
+ * was part of, thus preserving fast sequential dRAID resilvering.
+ *
+ * However, the tricky part here is to make sure that we don't put more than
+ * one disk from any enclosure into the same slice during permutations. In
+ * the above example with two slices in the row, you won't find any tuple of
+ * (0, 7) or (1, 8) or (2, 9) or ... (6, 13) mapped to the same slice. To
+ * generate such mappings, we are using the existing permutations maps for
+ * each slice, putting them together in a row and just shuffling all i-th
+ * indexes in those maps between themselves.
+ *
+ * Note: the same Fisher-Yates shuffle algorithm is used as in
+ * vdev_draid_generate_perms().
+ */
+static void
+vdev_draid_shuffle_perms(const draid_map_t *map, uint8_t *perms, uint64_t width)
+{
+	uint64_t cn = map->dm_children;
+	uint64_t n = width / cn;
+	uint64_t nperms = map->dm_nperms / n * n;
+
+	if (width <= cn)
+		return;
+
+	VERIFY3U(width, >=, VDEV_DRAID_MIN_CHILDREN);
+	VERIFY3U(width, <=, VDEV_DRAID_MAX_CHILDREN);
+	VERIFY3U(width % cn, ==, 0);
+
+	uint64_t draid_seed[2] = { VDEV_DRAID_SEED, map->dm_seed };
+
+	uint8_t *cmap = kmem_alloc(n, KM_SLEEP);
+
+	for (int i = 0; i < nperms; i += n) {
+		for (int j = 0; j < cn; j++) {
+
+			/* locate position of the same child in other slices */
+			for (int k = n - 1; k > 0; k--)
+				for (int l = 0; l < cn; l++)
+					if (perms[(i+k) * cn + l] ==
+					    perms[(i+0) * cn + j])
+						cmap[k] = l;
+			cmap[0] = j;
+
+			/* increase index values for slices on the right */
+			for (int k = n - 1; k > 0; k--)
+				perms[(i+k) * cn + cmap[k]] += k * cn;
+
+			/* shuffle */
+			for (int k = n - 1; k > 0; k--) {
+				int l = vdev_draid_rand(draid_seed) % (k + 1);
+				if (k == l)
+					continue;
+				vdev_draid_swap_perms(perms,
+				    (i+k) * cn + cmap[k],
+				    (i+l) * cn + cmap[l]);
+			}
+		}
+	}
+
+	kmem_free(cmap, n);
+}
+
 /*
  * Lookup the fixed draid_map_t for the requested number of children.
  */
@@ -560,17 +659,26 @@ static void
 vdev_draid_get_perm(vdev_draid_config_t *vdc, uint64_t pindex,
     uint8_t **base, uint64_t *iter)
 {
+	uint64_t n = vdc->vdc_width / vdc->vdc_children;
 	uint64_t ncols = vdc->vdc_children;
-	uint64_t poff = pindex % (vdc->vdc_nperms * ncols);
+	uint64_t nperms = vdc->vdc_nperms / n * n;
+	uint64_t poff = pindex % (nperms * ncols * n);
 
-	*base = vdc->vdc_perms + (poff / ncols) * ncols;
-	*iter = poff % ncols;
+	ASSERT3P(nperms, >=, ncols * n);
+
+	*base = vdc->vdc_perms + (poff / ncols / n) * ncols * n;
+	*iter = (poff % ncols) + (pindex % n) * ncols;
 }
 
 static inline uint64_t
 vdev_draid_permute_id(vdev_draid_config_t *vdc,
     uint8_t *base, uint64_t iter, uint64_t index)
 {
+	if (vdc->vdc_width > vdc->vdc_children) {
+		uint64_t off = iter / vdc->vdc_children * vdc->vdc_children;
+		return (base[(index + iter) % vdc->vdc_children + off]);
+	}
+
 	return ((base[index] + iter) % vdc->vdc_children);
 }
 
@@ -949,7 +1057,8 @@ vdev_draid_logical_to_physical(vdev_t *vd, uint64_t logical_offset,
 	 * - so we need to find the row where this IO group target begins
 	 */
 	*perm = group / ngroups;
-	uint64_t row = (*perm * ((groupwidth * ngroups) / ndisks)) +
+	uint64_t n = vdc->vdc_width / vdc->vdc_children;
+	uint64_t row = (*perm / n * ((groupwidth * ngroups) / ndisks)) +
 	    (((group % ngroups) * groupwidth) / ndisks);
 
 	return (((rowheight_sectors * row) +
@@ -1170,8 +1279,10 @@ vdev_draid_min_asize(vdev_t *vd)
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
+	uint64_t ndisks = vdc->vdc_ndisks * vdc->vdc_width / vdc->vdc_children;
+
 	return (VDEV_DRAID_REFLOW_RESERVE +
-	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	    (vd->vdev_min_asize + ndisks - 1) / ndisks);
 }
 
 /*
@@ -1535,7 +1646,7 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	int open_errors = 0;
 
 	if (nparity > VDEV_DRAID_MAXPARITY ||
-	    vd->vdev_children < nparity + 1) {
+	    vdc->vdc_children < nparity + 1) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
 	}
@@ -1548,12 +1659,20 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	vdev_open_children_subset(vd, vdev_draid_open_children);
 	vdev_open_children_subset(vd, vdev_draid_open_spares);
 
-	/* Verify enough of the children are available to continue. */
-	for (int c = 0; c < vd->vdev_children; c++) {
-		if (vd->vdev_child[c]->vdev_open_error != 0) {
-			if ((++open_errors) > nparity) {
-				vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
-				return (SET_ERROR(ENXIO));
+	/*
+	 * Verify enough of the children are available to continue.
+	 * If several disks got failed on i-th position in each slice in the
+	 * big width row - they are counted as one failure only.
+	 */
+	for (int c = 0; c < vdc->vdc_children; c++) {
+		for (int i = c; i < vdc->vdc_width; i += vdc->vdc_children) {
+			if (vd->vdev_child[i]->vdev_open_error != 0) {
+				if ((++open_errors) > nparity) {
+					vd->vdev_stat.vs_aux =
+					    VDEV_AUX_NO_REPLICAS;
+					return (SET_ERROR(ENXIO));
+				}
+				break;
 			}
 		}
 	}
@@ -1583,10 +1702,10 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	child_max_asize = ((child_max_asize - VDEV_DRAID_REFLOW_RESERVE) /
 	    VDEV_DRAID_ROWHEIGHT) * VDEV_DRAID_ROWHEIGHT;
 
-	*asize = (((child_asize * vdc->vdc_ndisks) / vdc->vdc_groupsz) *
-	    vdc->vdc_groupsz);
-	*max_asize = (((child_max_asize * vdc->vdc_ndisks) / vdc->vdc_groupsz) *
-	    vdc->vdc_groupsz);
+	uint64_t ndisks = vdc->vdc_ndisks * vdc->vdc_width / vdc->vdc_children;
+	uint64_t groupsz = vdc->vdc_groupsz;
+	*asize = child_asize * ndisks / groupsz * groupsz;
+	*max_asize = child_max_asize * ndisks / groupsz * groupsz;
 
 	return (0);
 }
@@ -1685,7 +1804,8 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 
 		if (cvd->vdev_ops == &vdev_draid_ops) {
 			vdev_draid_config_t *vdc = cvd->vdev_tsd;
-			draid_nspares += vdc->vdc_nspares;
+			draid_nspares += vdc->vdc_nspares *
+			    vdc->vdc_width / vdc->vdc_children;
 			ndraid++;
 		}
 	}
@@ -1718,7 +1838,8 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 			continue;
 
 		vdev_draid_config_t *vdc = cvd->vdev_tsd;
-		uint64_t nspares = vdc->vdc_nspares;
+		uint64_t nspares = vdc->vdc_nspares *
+		    vdc->vdc_width / vdc->vdc_children;
 		uint64_t nparity = vdc->vdc_nparity;
 
 		for (uint64_t spare_id = 0; spare_id < nspares; spare_id++) {
@@ -2100,7 +2221,7 @@ vdev_draid_state_change(vdev_t *vd, int faulted, int degraded)
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 	ASSERT(vd->vdev_ops == &vdev_draid_ops);
 
-	if (faulted > vdc->vdc_nparity)
+	if (faulted > vdc->vdc_nparity * vdc->vdc_width / vdc->vdc_children)
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
 	else if (degraded + faulted != 0)
@@ -2217,6 +2338,7 @@ vdev_draid_config_generate(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NDATA, vdc->vdc_ndata);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSPARES, vdc->vdc_nspares);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NGROUPS, vdc->vdc_ngroups);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSLICE, vdc->vdc_children);
 }
 
 /*
@@ -2237,13 +2359,22 @@ vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		return (SET_ERROR(EINVAL));
 	}
 
-	uint_t children;
+	uint_t width;
+	uint64_t children;
 	nvlist_t **child;
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) != 0 || children == 0 ||
-	    children > VDEV_DRAID_MAX_CHILDREN) {
+	    &child, &width) != 0 || width == 0) {
 		return (SET_ERROR(EINVAL));
 	}
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DRAID_NSLICE, &children)) {
+		children = width;
+		if (children > VDEV_DRAID_MAX_CHILDREN)
+			return (SET_ERROR(EINVAL));
+	}
+
+	if (children == 0 || width % children != 0)
+		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DRAID_NSPARES, &nspares) ||
 	    nspares > 100 || nspares > (children - (ndata + nparity))) {
@@ -2279,6 +2410,7 @@ vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	vdc->vdc_nspares = nspares;
 	vdc->vdc_children = children;
 	vdc->vdc_ngroups = ngroups;
+	vdc->vdc_width = width;
 	vdc->vdc_nperms = map->dm_nperms;
 
 	error = vdev_draid_generate_perms(map, &vdc->vdc_perms);
@@ -2286,6 +2418,9 @@ vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		kmem_free(vdc, sizeof (*vdc));
 		return (SET_ERROR(EINVAL));
 	}
+
+	if (width > children)
+		vdev_draid_shuffle_perms(map, vdc->vdc_perms, width);
 
 	/*
 	 * Derived constants.
@@ -2324,7 +2459,7 @@ vdev_draid_nparity(vdev_t *vd)
 {
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 
-	return (vdc->vdc_nparity);
+	return (vdc->vdc_nparity * vdc->vdc_width / vdc->vdc_children);
 }
 
 static uint64_t
@@ -2332,7 +2467,7 @@ vdev_draid_ndisks(vdev_t *vd)
 {
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 
-	return (vdc->vdc_ndisks);
+	return (vdc->vdc_ndisks * vdc->vdc_width / vdc->vdc_children);
 }
 
 vdev_ops_t vdev_draid_ops = {
@@ -2436,17 +2571,25 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	vdev_t *tvd = vds->vds_draid_vdev;
 	vdev_draid_config_t *vdc = tvd->vdev_tsd;
 
+	uint64_t n = vdc->vdc_width / vdc->vdc_children;
+
 	ASSERT3P(tvd->vdev_ops, ==, &vdev_draid_ops);
-	ASSERT3U(vds->vds_spare_id, <, vdc->vdc_nspares);
+	ASSERT3U(vds->vds_spare_id, <, vdc->vdc_nspares * n);
 
 	uint8_t *base;
 	uint64_t iter;
-	uint64_t perm = physical_offset / vdc->vdc_devslicesz;
+	uint64_t perm = physical_offset / vdc->vdc_devslicesz * n;
+
+	/*
+	 * Adjust iter by vds_spare_id so that it points to the correct slice
+	 * in the big width row.
+	 */
+	perm += vds->vds_spare_id / vdc->vdc_nspares;
 
 	vdev_draid_get_perm(vdc, perm, &base, &iter);
 
 	uint64_t cid = vdev_draid_permute_id(vdc, base, iter,
-	    (tvd->vdev_children - 1) - vds->vds_spare_id);
+	    (vdc->vdc_children - 1) - vds->vds_spare_id % vdc->vdc_nspares);
 	vdev_t *cvd = tvd->vdev_child[cid];
 
 	if (cvd->vdev_ops == &vdev_draid_spare_ops)
@@ -2496,7 +2639,8 @@ vdev_draid_spare_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	if (tvd->vdev_ops != &vdev_draid_ops || vdc == NULL)
 		return (SET_ERROR(EINVAL));
 
-	if (vds->vds_spare_id >= vdc->vdc_nspares)
+	if (vds->vds_spare_id >=
+	    vdc->vdc_nspares * vdc->vdc_width / vdc->vdc_children)
 		return (SET_ERROR(EINVAL));
 
 	/*
