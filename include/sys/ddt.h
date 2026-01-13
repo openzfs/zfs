@@ -284,6 +284,9 @@ typedef struct {
 	avl_tree_t	ddt_tree;	/* "live" (changed) entries this txg */
 	avl_tree_t	ddt_repair_tree;	/* entries being repaired */
 
+	/* Protects ddt_object[] and ddt_object_dnode[]. */
+	krwlock_t	ddt_objects_lock ____cacheline_aligned;
+
 	/*
 	 * Log trees are stable during I/O, and only modified during sync
 	 * with exclusive access.
