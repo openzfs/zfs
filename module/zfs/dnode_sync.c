@@ -308,8 +308,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
 	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
-	ASSERT(MUTEX_HELD(&db->db_mtx));
+	mutex_enter(&db->db_mtx);
 	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
+	mutex_exit(&db->db_mtx);
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 
 	dbuf_release_bp(db);
