@@ -2208,11 +2208,14 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	if (db == NULL)
 		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
-		ASSERT(MUTEX_HELD(&db->db_mtx));
-		if (db->db_level != 1 || db->db_blkid >= end_blkid)
+		mutex_enter(&db->db_mtx);
+		if (db->db_level != 1 || db->db_blkid >= end_blkid) {
+			mutex_exit(&db->db_mtx);
 			break;
+		}
 		if (db->db_state != DB_EVICTING)
 			ASSERT(db->db_dirtycnt > 0);
+		mutex_exit(&db->db_mtx);
 	}
 #endif
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
