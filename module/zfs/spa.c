@@ -2142,20 +2142,21 @@ spa_destroy_aux_threads(spa_t *spa)
 }
 
 static void
-spa_sync_time_logger(spa_t *spa, uint64_t txg)
+spa_sync_time_logger(spa_t *spa, uint64_t txg, boolean_t force)
 {
-	uint64_t curtime;
+	uint64_t curtime, dirty;
 	dmu_tx_t *tx;
+	dsl_pool_t *dp = spa->spa_dsl_pool;
+	uint64_t idx = txg & TXG_MASK;
 
 	if (!spa_writeable(spa)) {
 		return;
 	}
-	curtime = gethrestime_sec();
-	if (curtime < spa->spa_last_noted_txg_time + spa_note_txg_time) {
-		return;
-	}
 
-	if (txg > spa->spa_last_noted_txg) {
+	curtime = gethrestime_sec();
+	if (txg > spa->spa_last_noted_txg &&
+	    (force ||
+	    curtime >= spa->spa_last_noted_txg_time + spa_note_txg_time)) {
 		spa->spa_last_noted_txg_time = curtime;
 		spa->spa_last_noted_txg = txg;
 
@@ -2164,7 +2165,8 @@ spa_sync_time_logger(spa_t *spa, uint64_t txg)
 		mutex_exit(&spa->spa_txg_log_time_lock);
 	}
 
-	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
+	if (!force &&
+	    curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
 		return;
 	}
 	if (txg > spa_final_dirty_txg(spa)) {
@@ -2172,6 +2174,14 @@ spa_sync_time_logger(spa_t *spa, uint64_t txg)
 	}
 	spa->spa_last_flush_txg_time = curtime;
 
+	mutex_enter(&dp->dp_lock);
+	dirty = dp->dp_dirty_pertxg[idx];
+	mutex_exit(&dp->dp_lock);
+	if (!force && dirty == 0) {
+		return;
+	}
+
+	spa->spa_last_flush_txg_time = curtime;
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
 	VERIFY0(zap_update(spa_meta_objset(spa), DMU_POOL_DIRECTORY_OBJECT,
@@ -2194,9 +2204,7 @@ spa_unload_sync_time_logger(spa_t *spa)
 	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
 
 	txg = dmu_tx_get_txg(tx);
-	spa->spa_last_noted_txg_time = 0;
-	spa->spa_last_flush_txg_time = 0;
-	spa_sync_time_logger(spa, txg);
+	spa_sync_time_logger(spa, txg, B_TRUE);
 
 	dmu_tx_commit(tx);
 }
@@ -10409,7 +10417,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 */
 	brt_pending_apply(spa, txg);
 
-	spa_sync_time_logger(spa, txg);
+	spa_sync_time_logger(spa, txg, B_FALSE);
 
 	/*
 	 * Lock out configuration changes.
