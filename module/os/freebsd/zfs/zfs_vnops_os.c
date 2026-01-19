@@ -100,14 +100,6 @@
 
 VFS_SMR_DECLARE;
 
-#ifdef DEBUG_VFS_LOCKS
-#define	VNCHECKREF(vp)				  \
-	VNASSERT((vp)->v_holdcnt > 0 && (vp)->v_usecount > 0, vp,	\
-	    ("%s: wrong ref counts", __func__));
-#else
-#define	VNCHECKREF(vp)
-#endif
-
 #if __FreeBSD_version >= 1400045
 typedef uint64_t cookie_t;
 #else
@@ -965,9 +957,6 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 	uint64_t	txtype;
-#ifdef DEBUG_VFS_LOCKS
-	vnode_t	*dvp = ZTOV(dzp);
-#endif
 
 	if (is_nametoolong(zfsvfs, name))
 		return (SET_ERROR(ENAMETOOLONG));
@@ -1097,7 +1086,8 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	getnewvnode_drop_reserve();
 
 out:
-	VNCHECKREF(dvp);
+	VNASSERT(ZTOV(dzp)->v_holdcnt > 0 && ZTOV(dzp)->v_usecount > 0,
+	    ZTOV(dzp), ("%s: wrong ref counts", __func__));
 	if (error == 0) {
 		*zpp = zp;
 	}
