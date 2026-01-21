@@ -258,6 +258,7 @@ typedef struct send_data {
 	boolean_t seento;
 	boolean_t holds;	/* were holds requested with send -h */
 	boolean_t props;
+	boolean_t dropenc;
 
 	/*
 	 * The header nvlist is of the following format:
@@ -286,7 +287,8 @@ typedef struct send_data {
 } send_data_t;
 
 static void
-send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv);
+send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, boolean_t dropenc,
+nvlist_t *nv);
 
 /*
  * Collect guid, valid props, optionally holds, etc. of a snapshot.
@@ -355,7 +357,7 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	}
 
 	nvlist_t *nv = fnvlist_alloc();
-	send_iterate_prop(zhp, sd->backup, nv);
+	send_iterate_prop(zhp, sd->backup, sd->dropenc, nv);
 	fnvlist_add_nvlist(sd->snapprops, snapname, nv);
 	fnvlist_free(nv);
 
@@ -375,7 +377,8 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
  * Collect all valid props from the handle snap into an nvlist.
  */
 static void
-send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
+send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, boolean_t dropenc,
+    nvlist_t *nv)
 {
 	nvlist_t *props;
 
@@ -412,6 +415,19 @@ send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 		    prop == ZFS_PROP_REFQUOTA ||
 		    prop == ZFS_PROP_REFRESERVATION);
 		if (isspacelimit && zhp->zfs_type == ZFS_TYPE_SNAPSHOT)
+			continue;
+
+		boolean_t isencprop = (prop == ZFS_PROP_IVSET_GUID ||
+		    prop == ZFS_PROP_ENCRYPTION ||
+		    prop == ZFS_PROP_KEYLOCATION ||
+		    prop == ZFS_PROP_KEYFORMAT ||
+		    prop == ZFS_PROP_PBKDF2_SALT ||
+		    prop == ZFS_PROP_PBKDF2_ITERS ||
+		    prop == ZFS_PROP_ENCRYPTION_ROOT ||
+		    prop == ZFS_PROP_KEY_GUID ||
+		    prop == ZFS_PROP_KEYSTATUS);
+
+		if (isencprop && dropenc)
 			continue;
 
 		const char *source;
@@ -571,10 +587,11 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	/* Iterate over props. */
 	if (sd->props || sd->backup || sd->recursive) {
 		nv = fnvlist_alloc();
-		send_iterate_prop(zhp, sd->backup, nv);
+		send_iterate_prop(zhp, sd->backup, sd->dropenc, nv);
 		fnvlist_add_nvlist(nvfs, "props", nv);
 	}
-	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
+	if ((zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) &&
+	    sd->dropenc == B_FALSE) {
 		boolean_t encroot;
 
 		/* Determine if this dataset is an encryption root. */
@@ -683,8 +700,8 @@ static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
     boolean_t replicate, boolean_t skipmissing, boolean_t verbose,
-    boolean_t backup, boolean_t holds, boolean_t props, nvlist_t **nvlp,
-    avl_tree_t **avlp)
+    boolean_t backup, boolean_t holds, boolean_t props, boolean_t dropenc,
+    nvlist_t **nvlp, avl_tree_t **avlp)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -707,6 +724,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.backup = backup;
 	sd.holds = holds;
 	sd.props = props;
+	sd.dropenc = dropenc;
 
 	if ((error = send_iterate_fs(zhp, &sd)) != 0) {
 		fnvlist_free(sd.fss);
@@ -2199,7 +2217,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
     boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t skipmissing,
     boolean_t backup, boolean_t holds, boolean_t props, boolean_t doall,
-    nvlist_t **fssp, avl_tree_t **fsavlp)
+    boolean_t dropenc, nvlist_t **fssp, avl_tree_t **fsavlp)
 {
 	int err = 0;
 	char *packbuf = NULL;
@@ -2245,7 +2263,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 
 		if (gather_nvlist(zhp->zfs_hdl, tofs,
 		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
-		    verbose, backup, holds, props, &fss, fsavlp) != 0) {
+		    verbose, backup, holds, props, dropenc,
+		    &fss, fsavlp) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2392,7 +2411,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
 		    flags->raw, flags->replicate, flags->skipmissing,
 		    flags->backup, flags->holds, flags->props, flags->doall,
-		    &fss, &fsavl);
+		    flags->dropenc, &fss, &fsavl);
 		zfs_close(tosnap);
 		if (err != 0)
 			goto err_out;
@@ -2735,7 +2754,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		err = send_prelim_records(zhp, NULL, fd, B_TRUE, B_FALSE,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
 		    flags->replicate, B_FALSE, flags->backup, flags->holds,
-		    flags->props, flags->doall, NULL, NULL);
+		    flags->props, flags->doall, flags->dropenc, NULL, NULL);
 		if (err != 0)
 			return (err);
 	}
@@ -3547,7 +3566,7 @@ again:
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, &local_nv, &local_avl)) != 0)
+	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
 		return (error);
 
 	/*
@@ -5138,7 +5157,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
 		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
-		    B_TRUE, &local_nv, &local_avl) == 0) {
+		    B_TRUE, B_FALSE, &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);
