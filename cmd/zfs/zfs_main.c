@@ -6726,6 +6726,7 @@ zfs_do_release(int argc, char **argv)
 
 typedef struct holds_cbdata {
 	boolean_t	cb_recursive;
+	boolean_t	cb_all;
 	const char	*cb_snapname;
 	nvlist_t	**cb_nvlp;
 	size_t		cb_max_namelen;
@@ -6818,7 +6819,7 @@ holds_callback(zfs_handle_t *zhp, void *data)
 			return (0);
 
 		snapname = delim + 1;
-		if (strcmp(cbp->cb_snapname, snapname))
+		if (!cbp->cb_all && strcmp(cbp->cb_snapname, snapname) != 0)
 			return (0);
 	}
 
@@ -6901,17 +6902,24 @@ zfs_do_holds(int argc, char **argv)
 
 		delim = strchr(snapshot, '@');
 		if (delim == NULL) {
-			(void) fprintf(stderr,
-			    gettext("'%s' is not a snapshot\n"), snapshot);
-			errors = B_TRUE;
-			continue;
+			if (!recursive) {
+				(void) fprintf(stderr,
+				    gettext("'%s' is not a snapshot\n"),
+				    snapshot);
+				errors = B_TRUE;
+				continue;
+			} else {
+				cb.cb_all = B_TRUE;
+				cb.cb_snapname = NULL;
+			}
+		} else {
+			snapname = delim + 1;
+			if (recursive)
+				snapshot[delim - snapshot] = '\0';
+			cb.cb_all = B_FALSE;
+			cb.cb_snapname = snapname;
 		}
-		snapname = delim + 1;
-		if (recursive)
-			snapshot[delim - snapshot] = '\0';
-
 		cb.cb_recursive = recursive;
-		cb.cb_snapname = snapname;
 		cb.cb_nvlp = &nvl;
 
 		/*
