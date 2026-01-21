@@ -944,6 +944,7 @@ typedef struct spa_stats {
 	spa_history_kstat_t	state;		/* pool state */
 	spa_history_kstat_t	guid;		/* pool guid */
 	spa_history_kstat_t	iostats;
+	spa_history_kstat_t	fragmentation[5];
 } spa_stats_t;
 
 typedef enum txg_state {
