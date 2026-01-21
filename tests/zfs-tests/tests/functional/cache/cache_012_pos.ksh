@@ -91,6 +91,8 @@ log_must zpool create -f $TESTPOOL $VDEV cache $VCACHE
 
 # Actually, this test relies on atime writes to force the L2 ARC discards
 log_must zfs set relatime=off $TESTPOOL
+# Disable compression to ensure predictable L2ARC fill
+log_must zfs set compression=off $TESTPOOL
 
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
