@@ -2548,7 +2548,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	}
 
 	if (!nvlist_empty(nvl)) {
-		payload = fnvlist_pack(nvl, &payload_len);
+		payload = fnvlist_pack_xdr(nvl, &payload_len);
 		drr->drr_payloadlen = payload_len;
 	}
 
