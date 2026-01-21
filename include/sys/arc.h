@@ -346,6 +346,7 @@ void arc_fini(void);
  * Level 2 ARC
  */
 
+#define ZFS_SHARED_L2ARC_POOL_NAME "NTNX-fsvm-local-l2arc"
 void l2arc_add_vdev(spa_t *spa, vdev_t *vd);
 void l2arc_remove_vdev(vdev_t *vd);
 boolean_t l2arc_vdev_present(vdev_t *vd);

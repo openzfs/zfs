@@ -3648,7 +3648,28 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		} else {
 			ASSERT3U(BP_GET_LSIZE(zio->io_bp), ==, zio->io_size);
 		}
-		ASSERT3P(zio->io_spa, ==, dpa->dpa_spa);
+		/* XXX: with shared l2arc, this ASSERT is incorrect.
+		 * After conversation with Paul Dagnelie, who added it,
+		 * we concluded that it's not necessary.
+		 * The stack trace was :
+		 *   VERIFY3(zio->io_spa == dpa->dpa_spa) failed
+		 *   (ffff8fc81ba6c000== ffff8fc9c4aa8000)
+		 *     ^ l2arc spa        ^primary spa
+		 *
+		 *   dump_stack+0x6d/0x8b
+		 *   spl_dumpstack+0x29/0x2b [spl]
+		 *   spl_panic+0xd1/0xd3 [spl]
+		 *   dbuf_prefetch_indirect_done+0xdd/0x420 [zfs]
+		 *   arc_read_done+0x3e6/0x990 [zfs]
+		 *   l2arc_read_done+0x5a9/0x9a0 [zfs]
+		 *   zio_done+0x54d/0x1680 [zfs]
+		 *   zio_execute+0xe9/0x2e0 [zfs]
+		 *   taskq_thread+0x2ec/0x650 [spl]
+		 *   kthread+0x128/0x140
+		 *   ret_from_fork+0x35/0x40
+		 *
+		 * ASSERT3P(zio->io_spa, ==, dpa->dpa_spa);
+		 */
 
 		dpa->dpa_dnode = NULL;
 	} else if (dpa->dpa_dnode != NULL) {

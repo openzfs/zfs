@@ -1023,6 +1023,7 @@ typedef enum vdev_state {
 	VDEV_STATE_REMOVED,	/* Explicitly removed from system	*/
 	VDEV_STATE_CANT_OPEN,	/* Tried to open, but failed		*/
 	VDEV_STATE_FAULTED,	/* External request to fault device	*/
+	VDEV_STATE_UNUSED,
 	VDEV_STATE_DEGRADED,	/* Replicated vdev with unhealthy kids	*/
 	VDEV_STATE_HEALTHY	/* Presumed good			*/
 } vdev_state_t;
@@ -1052,6 +1053,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_SPLIT_POOL,	/* vdev was split off into another pool	*/
 	VDEV_AUX_BAD_ASHIFT,	/* vdev ashift is invalid		*/
 	VDEV_AUX_EXTERNAL_PERSIST,	/* persistent forced fault	*/
+	VDEV_AUX_POOL_USES_SHARED_L2ARC,
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
 	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
 	VDEV_AUX_ASHIFT_TOO_BIG, /* vdev's min block size is too large   */

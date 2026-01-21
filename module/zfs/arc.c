@@ -867,6 +867,8 @@ typedef struct l2arc_read_callback {
 	zbookmark_phys_t	l2rcb_zb;		/* original bookmark */
 	int			l2rcb_flags;		/* original flags */
 	abd_t			*l2rcb_abd;		/* temporary buffer */
+	spa_t			*l2rcb_primary_spa;     /* original spa */
+	boolean_t               l2rcb_need_exit_scl_l2arc_primary_spa;
 } l2arc_read_callback_t;
 
 typedef struct l2arc_data_free {
@@ -924,7 +926,7 @@ static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
 static inline void arc_hdr_set_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
-static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
+static boolean_t l2arc_write_eligible(arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
 static void l2arc_do_free_on_write(void);
 static void l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
@@ -3839,7 +3841,7 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 	if (HDR_HAS_L2HDR(hdr)) {
 		ARCSTAT_INCR(arcstat_evict_l2_cached, HDR_GET_LSIZE(hdr));
 	} else {
-		if (l2arc_write_eligible(hdr->b_spa, hdr)) {
+		if (l2arc_write_eligible(hdr)) {
 			ARCSTAT_INCR(arcstat_evict_l2_eligible,
 			    HDR_GET_LSIZE(hdr));
 
@@ -5839,6 +5841,24 @@ arc_cached(spa_t *spa, const blkptr_t *bp)
 	return (flags);
 }
 
+static boolean_t
+arc_read_l2arc_scl_l2arc_tryenter(vdev_t *l2arc_vdev)
+{
+	ASSERT(l2arc_vdev);
+
+	/* we only use l2arc vdevs from the dedicated L2ARC pool */
+	ASSERT(l2arc_vdev->vdev_spa);
+	ASSERT(strcmp(spa_name(l2arc_vdev->vdev_spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
+
+	return spa_config_tryenter(l2arc_vdev->vdev_spa, SCL_L2ARC, l2arc_vdev, RW_READER);
+}
+
+static void
+arc_read_l2arc_scl_l2arc_exit(vdev_t *l2arc_vdev)
+{
+	spa_config_exit(l2arc_vdev->vdev_spa, SCL_L2ARC, l2arc_vdev);
+}
+
 /*
  * "Read" the block at the specified DVA (in bp) via the
  * cache.  If the block is found in the cache, invoke the provided
@@ -6255,7 +6275,7 @@ top:
 			 * Lock out L2ARC device removal.
 			 */
 			if (vdev_is_dead(vd) ||
-			    !spa_config_tryenter(spa, SCL_L2ARC, vd, RW_READER))
+			    !arc_read_l2arc_scl_l2arc_tryenter(vd))
 				vd = NULL;
 		}
 
@@ -6295,8 +6315,13 @@ top:
 		}
 
 		/* Check if the spa even has l2 configured */
-		const boolean_t spa_has_l2 = l2arc_ndev != 0 &&
-		    spa->spa_l2cache.sav_count > 0;
+		/* XXX shared l2arc: if this pool is supposed to use the shared
+		 * l2arc vdevs, the value should be the result of a check whether
+		 * shared l2arc vdevs are available.
+		 * On spa's that aren't supposed to use shared l2arc, bring back
+		 * the original check from OpenZFS commit 666aa69f.
+		 */
+		const boolean_t spa_has_l2 = B_TRUE;
 
 		if (vd != NULL && spa_has_l2 && !(l2arc_norw && devw)) {
 			/*
@@ -6313,16 +6338,15 @@ top:
 				abd_t *abd;
 				uint64_t asize;
 
-				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
-				ARCSTAT_BUMP(arcstat_l2_hits);
-				hdr->b_l2hdr.b_hits++;
-
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
 				    KM_SLEEP);
 				cb->l2rcb_hdr = hdr;
 				cb->l2rcb_bp = *bp;
 				cb->l2rcb_zb = *zb;
 				cb->l2rcb_flags = zio_flags;
+				cb->l2rcb_primary_spa = spa;
+				cb->l2rcb_need_exit_scl_l2arc_primary_spa =
+				    B_FALSE;
 
 				/*
 				 * When Compressed ARC is disabled, but the
@@ -6349,6 +6373,38 @@ top:
 				    VDEV_LABEL_END_SIZE);
 
 				/*
+				 * Make sure the primary spa is still around
+				 * for the fallback read that will be initiated
+				 * by l2arc_read_done if the read from the l2arc
+				 * vdev fails and it's ARC_FLAG_NOWAIT.
+				 * l2arc_read_done is responsible for releasing.
+				 * We use `cb` as the tag because unlike `vd`
+				 * or `rzio`, we control its lifetime.
+				 */
+				if (spa != vd->vdev_spa) {
+					/*
+					 * See comment in l2arc_read_done on how
+					 * we are careful to avoid recursive
+					 * calls to this function, which would
+					 * result in an error.
+					 */
+					int ok = spa_config_tryenter(spa,
+					    SCL_L2ARC, cb, RW_READER);
+					if (!ok) {
+						arc_read_l2arc_scl_l2arc_exit(vd);
+						/* XXX separate stat & probe?? */
+						DTRACE_PROBE1(l2arc__miss,
+						    arc_buf_hdr_t *, hdr);
+						ARCSTAT_BUMP(arcstat_l2_misses);
+						goto l2arc_read_error;
+					}
+				}
+
+				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
+				ARCSTAT_BUMP(arcstat_l2_hits);
+				hdr->b_l2hdr.b_hits++;
+
+				/*
 				 * l2arc read.  The SCL_L2ARC lock will be
 				 * released by l2arc_read_done().
 				 * Issue a null zio if the underlying buffer
@@ -6356,6 +6412,12 @@ top:
 				 */
 				ASSERT3U(arc_hdr_get_compress(hdr), !=,
 				    ZIO_COMPRESS_EMPTY);
+				/*
+				 * NB: if pio != NULL and spa != vd->vdev_spa,
+				 * then this zio tree spans across multiple spa's.
+				 * A manual code audit at the time of writing showed
+				 * that the zio code is fine with that.
+				 */
 				rzio = zio_read_phys(pio, vd, addr,
 				    asize, abd,
 				    ZIO_CHECKSUM_OFF,
@@ -6382,6 +6444,7 @@ top:
 				if (zio_wait(rzio) == 0)
 					goto out;
 
+l2arc_read_error:
 				/* l2arc read error; goto zio_read() */
 				if (hash_lock != NULL)
 					mutex_enter(hash_lock);
@@ -6391,11 +6454,11 @@ top:
 				ARCSTAT_BUMP(arcstat_l2_misses);
 				if (HDR_L2_WRITING(hdr))
 					ARCSTAT_BUMP(arcstat_l2_rw_clash);
-				spa_config_exit(spa, SCL_L2ARC, vd);
+				arc_read_l2arc_scl_l2arc_exit(vd);
 			}
 		} else {
 			if (vd != NULL)
-				spa_config_exit(spa, SCL_L2ARC, vd);
+				arc_read_l2arc_scl_l2arc_exit(vd);
 
 			/*
 			 * Only a spa with l2 should contribute to l2
@@ -8451,7 +8514,7 @@ arc_fini(void)
  */
 
 static boolean_t
-l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *hdr)
+l2arc_write_eligible(arc_buf_hdr_t *hdr)
 {
 	/*
 	 * A buffer is *not* eligible for the L2ARC if it:
@@ -8460,7 +8523,7 @@ l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *hdr)
 	 * 3. has an I/O in progress (it may be an incomplete read).
 	 * 4. is flagged not eligible (zfs property).
 	 */
-	if (hdr->b_spa != spa_guid || HDR_HAS_L2HDR(hdr) ||
+	if (HDR_HAS_L2HDR(hdr) ||
 	    HDR_IO_IN_PROGRESS(hdr) || !HDR_L2CACHE(hdr))
 		return (B_FALSE);
 
@@ -8900,9 +8963,31 @@ error:
 }
 
 
+static void
+l2arc_fallback_read_done(zio_t *zio)
+{
+	l2arc_read_callback_t *cb = zio->io_private;
+	ASSERT3P(zio->io_spa, ==, cb->l2rcb_primary_spa);
+	if (cb->l2rcb_need_exit_scl_l2arc_primary_spa) {
+		/*
+		 * Release SCL_L2ARC before arc_read_done to avoid recursively
+		 * spa_config_tryenter if arc_read_done calls arc_read again.
+		 */
+		spa_config_exit(cb->l2rcb_primary_spa, SCL_L2ARC, cb);
+	}
+	arc_buf_hdr_t *hdr = cb->l2rcb_hdr;
+	zio->io_private = hdr;
+	kmem_free(cb, sizeof (l2arc_read_callback_t));
+	arc_read_done(zio);
+}
+
 /*
  * A read to a cache device completed.  Validate buffer contents before
  * handing over to the regular ARC routines.
+ *
+ * We take care of cleaning up any L2ARC read resources before calling
+ * arc_read_done to minimize overhead if the arc_read callbacks issue arc_read
+ * themselves. Ideally, the compiler turns the arc_read_done call into a jump.
  */
 static void
 l2arc_read_done(zio_t *zio)
@@ -8918,11 +9003,39 @@ l2arc_read_done(zio_t *zio)
 	ASSERT3P(zio->io_vd, !=, NULL);
 	ASSERT(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE);
 
-	spa_config_exit(zio->io_spa, SCL_L2ARC, zio->io_vd);
+	ASSERT(strcmp(spa_name(zio->io_spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
 
 	ASSERT3P(cb, !=, NULL);
 	hdr = cb->l2rcb_hdr;
 	ASSERT3P(hdr, !=, NULL);
+	ASSERT(cb->l2rcb_primary_spa);
+
+	boolean_t primay_spa_is_not_l2arc_spa =
+	    zio->io_spa != cb->l2rcb_primary_spa;
+	/* Unblock L2ARC device removal. */
+	spa_config_exit(zio->io_spa, SCL_L2ARC, zio->io_vd);
+	if (primay_spa_is_not_l2arc_spa) {
+		/* We must keep holding SCL_L2ARC for l2rcb_primary_spa until
+		 * after we have issued the fallback read, in order to prevent
+		 * l2rcb_primary_spa from being exported (or worse, freed).
+
+		 * However, we must release it before we call the `done`
+		 * callback that was passed to the original arc_read. The
+		 * reason is that the callback could issue another arc_read,
+		 * resulting in a recursive call to spa_config_tryenter(primary
+		 * spa, SCL_L2ARC).  That call would fail if we still held
+		 * SCL_L2ARC, and the code
+		 * would treat is like an L2ARC miss, whereas it's most likely
+		 * a hit.
+		 */
+		/* XXX: we should actually use refcount_held to assert that `cb`
+		 *      still holds the config lock */
+		ASSERT(spa_config_held(cb->l2rcb_primary_spa, SCL_L2ARC,
+		    RW_READER));
+	} else {
+		/* XXX: assert that `cb` is not holding SCL_L2ARC */
+	}
+
 
 	hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
@@ -8975,9 +9088,26 @@ l2arc_read_done(zio_t *zio)
 	 */
 	ASSERT(zio->io_abd == hdr->b_l1hdr.b_pabd ||
 	    (HDR_HAS_RABD(hdr) && zio->io_abd == hdr->b_crypt_hdr.b_rabd));
+	/*
+	 * Set the zio's bp to the one we're trying to fill from L2ARC.
+	 * The bp contains the checksum, and both the arc_cksum_is_equal
+	 * and the fallback zio_read depend on it being set correctly.
+	 */
 	zio->io_bp_copy = cb->l2rcb_bp;	/* XXX fix in L2ARC 2.0	*/
 	zio->io_bp = &zio->io_bp_copy;	/* XXX fix in L2ARC 2.0	*/
 	zio->io_prop.zp_complevel = hdr->b_complevel;
+
+#ifdef _KERNEL
+	if (0) {
+		zio_t *tmp = zio_unique_parent(zio);
+		cmn_err(CE_WARN, "zio->io_waiter=%p zio->io_spa=%s "
+		    "zio_unique_parent(zio)=%p parent_is_godfather=%d "
+		    "zio_unique_parent(zio)->io_spa=%s ",
+		    zio->io_waiter, spa_name(zio->io_spa),
+		    tmp, tmp ? !!(tmp->io_flags & ZIO_FLAG_GODFATHER) : -1,
+		    tmp ? spa_name(tmp->io_spa) : "<NONE>");
+	}
+#endif
 
 	valid_cksum = arc_cksum_is_equal(hdr, zio);
 
@@ -8992,6 +9122,10 @@ l2arc_read_done(zio_t *zio)
 	if (valid_cksum && tfm_error == 0 && zio->io_error == 0 &&
 	    !HDR_L2_EVICTED(hdr)) {
 		mutex_exit(hash_lock);
+		if (primay_spa_is_not_l2arc_spa) {
+			spa_config_exit(cb->l2rcb_primary_spa, SCL_L2ARC, cb);
+		}
+		kmem_free(cb, sizeof (l2arc_read_callback_t));
 		zio->io_private = hdr;
 		arc_read_done(zio);
 	} else {
@@ -9002,6 +9136,10 @@ l2arc_read_done(zio_t *zio)
 		if (zio->io_error != 0) {
 			ARCSTAT_BUMP(arcstat_l2_io_error);
 		} else {
+			/*
+			 * IO error ensures that arc_read does the fallback
+			 * read for the case where zio->io_waiter != NULL.
+			 */
 			zio->io_error = SET_ERROR(EIO);
 		}
 		if (!valid_cksum || tfm_error != 0)
@@ -9009,20 +9147,62 @@ l2arc_read_done(zio_t *zio)
 
 		/*
 		 * If there's no waiter, issue an async i/o to the primary
-		 * storage now.  If there *is* a waiter, the caller must
-		 * issue the i/o in a context where it's OK to block.
+		 * storage now.  If there *is* a waiter, the caller must issue
+		 * the i/o in a context where it's OK to block.
+		 *
+		 * The above in more technical terms: If the arc_read was
+		 * ARC_FLAG_NOWAIT, we issued the zio_read_phys to read from
+		 * the l2arc vdev using zio_nowait and immediately returned
+		 * from arc_read. But arc_read is supposed to transparently
+		 * fall back to the primary storage. So, for the
+		 * ARC_FLAG_NOWAIT case, we do that here.  However, if there
+		 * *is* a waiter, it's the ARC_FLAG_WAIT case in which case
+		 * arc_read does the fallback read itself.
 		 */
 		if (zio->io_waiter == NULL) {
 			zio_t *pio = zio_unique_parent(zio);
 			void *abd = (using_rdata) ?
 			    hdr->b_crypt_hdr.b_rabd : hdr->b_l1hdr.b_pabd;
 
-			ASSERT(!pio || pio->io_child_type == ZIO_CHILD_LOGICAL);
+			/*
+			 * The `pio` is the one that was passed to arc_read.
+			 * We added `zio` as its (only) child.
+			 * But arc_read can also be called with pio==NULL.
+			 * In that case, zio_nowait sets zio's parent to
+			 * spa_async_zio_root (aka the grandfather zio).
+			 */
+			if (pio) {
+				ASSERT3S(pio->io_child_type, ==, ZIO_CHILD_LOGICAL);
+				/*
+				 * If we violated the follwoing assertion, we
+				 * would be reading from the wrong spa in the
+				 * fallback zio_read below.  The caller of
+				 * arc_read would likely observe an EIO due to
+				 * invalid checksum. It depends on the caller
+				 * what happens then. If the arc_read was for
+				 * ZFS metadata it's likely that they have a
+				 * VERIFY somewhere which would result in a
+				 * kernel panic higher up the stack.  If it's
+				 * for user data, it's likely that we bubble up
+				 * the error to userspace.
+				 *
+				 * Either way, the resulting behavior is
+				 * misleading and would likely spark
+				 * misdirected investigations into data
+				 * integrity issues.  So, just take the hit and
+				 * do a VERIFY here to get a precise panic in
+				 * case we have an implementation issue.
+				 */
+				VERIFY3P(pio->io_spa, ==, cb->l2rcb_primary_spa);
+			}
 
-			zio = zio_read(pio, zio->io_spa, zio->io_bp,
-			    abd, zio->io_size, arc_read_done,
-			    hdr, zio->io_priority, cb->l2rcb_flags,
-			    &cb->l2rcb_zb);
+			/* NB: io_bp has been copied from cb->l2rcb_bp above */
+			cb->l2rcb_need_exit_scl_l2arc_primary_spa =
+			    primay_spa_is_not_l2arc_spa;
+			zio_t *fallback_read = zio_read(pio,
+			    cb->l2rcb_primary_spa, zio->io_bp,
+			    abd, zio->io_size, l2arc_fallback_read_done, cb,
+			    zio->io_priority, cb->l2rcb_flags, &cb->l2rcb_zb);
 
 			/*
 			 * Original ZIO will be freed, so we need to update
@@ -9034,13 +9214,22 @@ l2arc_read_done(zio_t *zio)
 				acb->acb_zio_head = zio;
 
 			mutex_exit(hash_lock);
-			zio_nowait(zio);
+			zio_nowait(fallback_read);
+			/*
+			 * We release the SCL_L2ARC on l2rcb_primary_spa in
+			 * l2arc_fallback_read_done.  See comment in there, at
+			 * at the beginning of the function, for why we can't
+			 * release it here.
+			 */
 		} else {
 			mutex_exit(hash_lock);
+			if (primay_spa_is_not_l2arc_spa) {
+				spa_config_exit(cb->l2rcb_primary_spa, SCL_L2ARC, cb);
+			}
+			kmem_free(cb, sizeof (l2arc_read_callback_t));
+			/* arc_read will do the fallback read */
 		}
 	}
-
-	kmem_free(cb, sizeof (l2arc_read_callback_t));
 }
 
 /*
@@ -9282,7 +9471,7 @@ retry:
 		}
 
 		if (!HDR_HAS_L1HDR(hdr)) {
-			ASSERT(!HDR_L2_READING(hdr));
+			ASSERT(!HDR_L2_READING(hdr)); // why does this hold?
 			/*
 			 * This doesn't exist in the ARC.  Destroy.
 			 * arc_hdr_destroy() will call list_remove()
@@ -9488,7 +9677,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	boolean_t		full, from_head = !arc_warm;
 	l2arc_write_callback_t	*cb = NULL;
 	zio_t 			*pio, *wzio;
-	uint64_t 		guid = spa_load_guid(spa);
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
@@ -9558,7 +9746,7 @@ skip:
 				break;
 			}
 
-			if (!l2arc_write_eligible(guid, hdr)) {
+			if (!l2arc_write_eligible(hdr)) {
 				mutex_exit(hash_lock);
 				goto skip;
 			}
@@ -9815,6 +10003,12 @@ l2arc_feed_thread(void *unused)
 		ASSERT3P(spa, !=, NULL);
 
 		/*
+		 * We only allow add l2arc devices in pool NTNX_L2ARC_POOL_NAME
+		 * to l2arc_dev_list.
+		 */
+		ASSERT0(strcmp(spa_name(spa), ZFS_SHARED_L2ARC_POOL_NAME));
+
+		/*
 		 * If the pool is read-only then force the feed thread to
 		 * sleep a little longer.
 		 */
@@ -9978,6 +10172,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	uint64_t		l2dhdr_asize;
 
 	ASSERT(!l2arc_vdev_present(vd));
+
+	VERIFY(strcmp(spa_name(spa), ZFS_SHARED_L2ARC_POOL_NAME) == 0);
 
 	/*
 	 * Create a new l2arc device entry.
