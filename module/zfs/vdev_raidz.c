@@ -3485,7 +3485,7 @@ vdev_raidz_combrec(zio_t *zio)
 	}
 
 	for (int num_failures = 1; num_failures <= nparity; num_failures++) {
-		int *tstore = kmem_alloc(sizeof (*tstore) * nparity + 2,
+		int *tstore = kmem_alloc(sizeof (*tstore) * (nparity + 2),
 		    KM_SLEEP);
 		int *ltgts = &tstore[1]; /* value is logical child ID */
 
@@ -3519,7 +3519,7 @@ vdev_raidz_combrec(zio_t *zio)
 				break;
 			} else if (err == 0) {
 				kmem_free(tstore,
-				    sizeof (*tstore) * nparity + 2);
+				    sizeof (*tstore) * (nparity + 2));
 				return (0);
 			}
 
@@ -3563,7 +3563,7 @@ vdev_raidz_combrec(zio_t *zio)
 			if (ltgts[num_failures - 1] == n)
 				break;
 		}
-		kmem_free(tstore, sizeof (*tstore) * nparity + 2);
+		kmem_free(tstore, sizeof (*tstore) * (nparity + 2));
 	}
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT)
 		zfs_dbgmsg("reconstruction failed for all num_failures");
