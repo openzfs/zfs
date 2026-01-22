@@ -472,6 +472,8 @@ struct spa {
 	boolean_t	spa_waiters_cancel;	/* waiters should return */
 
 	char		*spa_compatibility;	/* compatibility file(s) */
+	char		*spa_newname;		/* pool name on next import */
+
 	uint64_t	spa_dedup_table_quota;	/* property DDT maximum size */
 	uint64_t	spa_dedup_dsize;	/* cached on-disk size of DDT */
 	uint64_t	spa_dedup_class_full_txg; /* txg dedup class was full */
