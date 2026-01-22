@@ -600,7 +600,7 @@ vdev_draid_shuffle_perms(const draid_map_t *map, uint8_t *perms, uint64_t width)
 
 	VERIFY3U(width, >=, VDEV_DRAID_MIN_CHILDREN);
 	VERIFY3U(width, <=, VDEV_DRAID_MAX_CHILDREN);
-	VERIFY3U(width % cn, ==, 0);
+	ASSERT0(width % cn);
 
 	uint64_t draid_seed[2] = { VDEV_DRAID_SEED, map->dm_seed };
 
