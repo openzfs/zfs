@@ -171,9 +171,10 @@ width would be multiple of children.
 Such configurations allow to create failure groups/domains when disks
 in each children group are configured to be from different enclosures
 so that even if all disks from one enclosure fail, draid vdev still
-will be operational. In case of draid2, two enclosures can fail at the
-same time, in case of draid3 - three enclosures, for each group it will
-look as if only one, two or three disks are failed.
+will be operational.
+In case of draid2, two enclosures can fail at the same time, in case of
+draid3 - three enclosures, for each group it will look as if only one,
+two or three disks are failed.
 .El
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
