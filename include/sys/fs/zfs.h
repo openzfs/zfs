@@ -873,6 +873,10 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_MMP_SEQ		"mmp_seq"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTNAME	"mmp_hostname"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MMP_HOSTID		"mmp_hostid"	/* not stored on disk */
+#define	ZPOOL_CONFIG_MMP_RESULT		"mmp_result"	/* not stored on disk */
+#define	ZPOOL_CONFIG_MMP_TRYIMPORT_NS	"mmp_tryimport_ns"	/* not stored */
+#define	ZPOOL_CONFIG_MMP_IMPORT_NS	"mmp_import_ns"	/* not stored on disk */
+#define	ZPOOL_CONFIG_MMP_CLAIM_NS	"mmp_claim_ns"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ALLOCATION_BIAS	"alloc_bias"	/* not stored on disk */
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"

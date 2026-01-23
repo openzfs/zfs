@@ -228,6 +228,8 @@ extern void vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t
 extern int vdev_label_read_bootenv(vdev_t *, nvlist_t *);
 extern int vdev_label_write_bootenv(vdev_t *, nvlist_t *);
 extern int vdev_uberblock_sync_list(vdev_t **, int, struct uberblock *, int);
+extern int vdev_uberblock_compare(const struct uberblock *,
+    const struct uberblock *);
 extern int vdev_check_boot_reserve(spa_t *, vdev_t *);
 
 typedef enum {
