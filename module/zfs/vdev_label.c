@@ -1623,7 +1623,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 */
 	if (cb.ubl_vd != NULL) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s. "
-		    "txg %llu", spa->spa_name, (u_longlong_t)ub->ub_txg);
+		    "txg %llu", spa_load_name(spa), (u_longlong_t)ub->ub_txg);
 
 		if (ub->ub_raidz_reflow_info !=
 		    cb.ubl_latest.ub_raidz_reflow_info) {
@@ -1631,7 +1631,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 			    "spa=%s best uberblock (txg=%llu info=0x%llx) "
 			    "has different raidz_reflow_info than latest "
 			    "uberblock (txg=%llu info=0x%llx)",
-			    spa->spa_name,
+			    spa_load_name(spa),
 			    (u_longlong_t)ub->ub_txg,
 			    (u_longlong_t)ub->ub_raidz_reflow_info,
 			    (u_longlong_t)cb.ubl_latest.ub_txg,

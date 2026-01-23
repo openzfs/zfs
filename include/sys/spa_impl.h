@@ -221,6 +221,7 @@ struct spa {
 	 * Fields protected by spa_namespace_lock.
 	 */
 	char		spa_name[ZFS_MAX_DATASET_NAME_LEN];	/* pool name */
+	char		*spa_load_name;		/* unmodified pool name */
 	char		*spa_comment;		/* comment */
 	avl_node_t	spa_avl;		/* node in spa_namespace_avl */
 	nvlist_t	*spa_config;		/* last synced config */
