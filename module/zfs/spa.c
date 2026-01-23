@@ -5757,10 +5757,11 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 * pool. If we are importing the pool in read-write mode, a few
 	 * additional steps must be performed to finish the import.
 	 */
-	spa_import_progress_set_notes(spa, "Starting import");
 	if (spa_writeable(spa) && (spa->spa_load_state == SPA_LOAD_RECOVER ||
 	    spa->spa_load_max_txg == UINT64_MAX)) {
 		uint64_t config_cache_txg = spa->spa_config_txg;
+
+		spa_import_progress_set_notes(spa, "Starting import");
 
 		ASSERT(spa->spa_load_state != SPA_LOAD_TRYIMPORT);
 
