@@ -296,6 +296,7 @@ struct spa {
 	void		*spa_cksum_tmpls[ZIO_CHECKSUM_FUNCTIONS];
 	uberblock_t	spa_ubsync;		/* last synced uberblock */
 	uberblock_t	spa_uberblock;		/* current uberblock */
+	boolean_t	spa_activity_check; 	/* activity check required */
 	boolean_t	spa_extreme_rewind;	/* rewind past deferred frees */
 	kmutex_t	spa_scrub_lock;		/* resilver/scrub lock */
 	uint64_t	spa_scrub_inflight;	/* in-flight scrub bytes */

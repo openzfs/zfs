@@ -3879,6 +3879,9 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 			    hostid, ctime(&timestamp));
 		}
 
+		if (getenv("ZFS_LOAD_INFO_DEBUG"))
+			dump_nvlist(nvinfo, 4);
+
 		return (1);
 	}
 
