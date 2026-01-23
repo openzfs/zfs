@@ -3751,7 +3751,7 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 	 */
 	if (spa->spa_import_flags & ZFS_IMPORT_SKIP_MMP) {
 		zfs_dbgmsg("mmp: skipping check ZFS_IMPORT_SKIP_MMP is set, "
-		    "spa=%s", spa_name(spa));
+		    "spa=%s", spa_load_name(spa));
 		return (B_FALSE);
 	}
 
@@ -3760,7 +3760,7 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 	 */
 	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay == 0) {
 		zfs_dbgmsg("mmp: skipping check: feature is disabled, "
-		    "spa=%s", spa_name(spa));
+		    "spa=%s", spa_load_name(spa));
 		return (B_FALSE);
 	}
 
@@ -3795,7 +3795,7 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 	    state == POOL_STATE_EXPORTED) {
 		zfs_dbgmsg("mmp: skipping check: hostid matches and pool is "
 		    "exported, spa=%s, hostid=%llx",
-		    spa_name(spa), (u_longlong_t)hostid);
+		    spa_load_name(spa), (u_longlong_t)hostid);
 		return (B_FALSE);
 	}
 
@@ -7144,6 +7144,8 @@ spa_tryimport(nvlist_t *tryconfig)
 	spa_activate(spa, SPA_MODE_READ);
 	kmem_free(name, MAXPATHLEN);
 
+	spa->spa_load_name = spa_strdup(poolname);
+
 	/*
 	 * Rewind pool if a max txg was provided.
 	 */
@@ -7152,9 +7154,9 @@ spa_tryimport(nvlist_t *tryconfig)
 		spa->spa_load_max_txg = policy.zlp_txg;
 		spa->spa_extreme_rewind = B_TRUE;
 		zfs_dbgmsg("spa_tryimport: importing %s, max_txg=%lld",
-		    poolname, (longlong_t)policy.zlp_txg);
+		    spa_load_name(spa), (longlong_t)policy.zlp_txg);
 	} else {
-		zfs_dbgmsg("spa_tryimport: importing %s", poolname);
+		zfs_dbgmsg("spa_tryimport: importing %s", spa_load_name(spa));
 	}
 
 	if (nvlist_lookup_string(tryconfig, ZPOOL_CONFIG_CACHEFILE, &cachefile)
@@ -7182,7 +7184,8 @@ spa_tryimport(nvlist_t *tryconfig)
 	 */
 	if (spa->spa_root_vdev != NULL) {
 		config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
-		fnvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME, poolname);
+		fnvlist_add_string(config, ZPOOL_CONFIG_POOL_NAME,
+		    spa_load_name(spa));
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_POOL_STATE, state);
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_TIMESTAMP,
 		    spa->spa_uberblock.ub_timestamp);
@@ -7216,7 +7219,7 @@ spa_tryimport(nvlist_t *tryconfig)
 					    MAXPATHLEN);
 				} else {
 					(void) snprintf(dsname, MAXPATHLEN,
-					    "%s/%s", poolname, ++cp);
+					    "%s/%s", spa_load_name(spa), ++cp);
 				}
 				fnvlist_add_string(config, ZPOOL_CONFIG_BOOTFS,
 				    dsname);
@@ -9560,7 +9563,7 @@ spa_async_dispatch(spa_t *spa)
 void
 spa_async_request(spa_t *spa, int task)
 {
-	zfs_dbgmsg("spa=%s async request task=%u", spa->spa_name, task);
+	zfs_dbgmsg("spa=%s async request task=%u", spa_load_name(spa), task);
 	mutex_enter(&spa->spa_async_lock);
 	spa->spa_async_tasks |= task;
 	mutex_exit(&spa->spa_async_lock);
