@@ -39,14 +39,11 @@
 verify_runnable "global"
 
 cleanup() {
-	zpool destroy $TESTPOOL2
 	zpool destroy $TESTPOOL
 	set_tunable64 ANYRAID_MIN_TILE_SIZE 1073741824
 }
 
 log_onexit cleanup
-
-log_must create_pool $TESTPOOL $DISKS
 
 log_must truncate -s 512M $TEST_BASE_DIR/vdev_file.{0,1,2}
 log_must truncate -s 1G $TEST_BASE_DIR/vdev_file.3
@@ -54,9 +51,9 @@ set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
 
 log_assert "Anyraid disks intelligently select which tiles to use"
 
-log_must create_pool $TESTPOOL2 anymirror1 $TEST_BASE_DIR/vdev_file.{0,1,2,3}
+log_must create_pool $TESTPOOL anymirror1 $TEST_BASE_DIR/vdev_file.{0,1,2,3}
 
-cap=$(zpool get -Hp -o value size $TESTPOOL2)
+cap=$(zpool get -Hp -o value size $TESTPOOL)
 [[ "$cap" -eq $((9 * 64 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space for anyraid vdev: $cap"
 
@@ -65,6 +62,6 @@ cap=$(zpool get -Hp -o value size $TESTPOOL2)
 # reserved slop space. If the space isn't being selected intelligently, we
 # would hit ENOSPC 64MiB early.
 #
-log_must file_write -o create -f /$TESTPOOL2/f1 -b 1048576 -c $((64 * 7 - 1)) -d R
+log_must file_write -o create -f /$TESTPOOL/f1 -b 1048576 -c $((64 * 7 - 1)) -d R
 
 log_pass "Anyraid disks intelligently select which tiles to use"
