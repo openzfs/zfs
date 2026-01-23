@@ -3728,7 +3728,7 @@ static boolean_t
 spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
     nvlist_t *config)
 {
-	uint64_t state = 0;
+	uint64_t state = POOL_STATE_ACTIVE;
 	uint64_t hostid = 0;
 	uint64_t tryconfig_txg = 0;
 	uint64_t tryconfig_timestamp = 0;
@@ -3745,20 +3745,24 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 		    &tryconfig_mmp_seq);
 	}
 
-	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE, &state);
-
 	/*
 	 * Disable the MMP activity check - This is used by zdb which
 	 * is intended to be used on potentially active pools.
 	 */
-	if (spa->spa_import_flags & ZFS_IMPORT_SKIP_MMP)
+	if (spa->spa_import_flags & ZFS_IMPORT_SKIP_MMP) {
+		zfs_dbgmsg("mmp: skipping check ZFS_IMPORT_SKIP_MMP is set, "
+		    "spa=%s", spa_name(spa));
 		return (B_FALSE);
+	}
 
 	/*
 	 * Skip the activity check when the MMP feature is disabled.
 	 */
-	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay == 0)
+	if (ub->ub_mmp_magic == MMP_MAGIC && ub->ub_mmp_delay == 0) {
+		zfs_dbgmsg("mmp: skipping check: feature is disabled, "
+		    "spa=%s", spa_name(spa));
 		return (B_FALSE);
+	}
 
 	/*
 	 * If the tryconfig_ values are nonzero, they are the results of an
@@ -3769,25 +3773,31 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label,
 	if (tryconfig_txg && tryconfig_txg == ub->ub_txg &&
 	    tryconfig_timestamp && tryconfig_timestamp == ub->ub_timestamp &&
 	    tryconfig_mmp_seq && tryconfig_mmp_seq ==
-	    (MMP_SEQ_VALID(ub) ? MMP_SEQ(ub) : 0))
+	    (MMP_SEQ_VALID(ub) ? MMP_SEQ(ub) : 0)) {
+		zfs_dbgmsg("mmp: skipping check: tryconfig values match, "
+		    "spa=%s", spa_name(spa));
 		return (B_FALSE);
+	}
 
 	/*
-	 * Allow the activity check to be skipped when importing the pool
-	 * on the same host which last imported it.  Since the hostid from
-	 * configuration may be stale use the one read from the label.
+	 * Allow the activity check to be skipped when importing a cleanly
+	 * exported pool on the same host which last imported it.  Since the
+	 * hostid from configuration may be stale use the one read from the
+	 * label.  Imports from other hostids must perform the activity check.
 	 */
 	if (nvlist_exists(label, ZPOOL_CONFIG_HOSTID))
 		hostid = fnvlist_lookup_uint64(label, ZPOOL_CONFIG_HOSTID);
 
-	if (hostid == spa_get_hostid(spa))
-		return (B_FALSE);
+	if (nvlist_exists(config, ZPOOL_CONFIG_POOL_STATE))
+		state = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE);
 
-	/*
-	 * Skip the activity test when the pool was cleanly exported.
-	 */
-	if (state != POOL_STATE_ACTIVE)
+	if (spa_get_hostid(spa) && hostid == spa_get_hostid(spa) &&
+	    state == POOL_STATE_EXPORTED) {
+		zfs_dbgmsg("mmp: skipping check: hostid matches and pool is "
+		    "exported, spa=%s, hostid=%llx",
+		    spa_name(spa), (u_longlong_t)hostid);
 		return (B_FALSE);
+	}
 
 	return (B_TRUE);
 }
