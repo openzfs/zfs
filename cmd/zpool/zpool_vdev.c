@@ -1381,12 +1381,12 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width)
 		/* Expected non-zero value with c/d/s/w suffix */
 		value = strtol(p, &end, 10);
 		char suffix = tolower(*end);
-		if (errno != 0 || value == 0 ||
+		if (errno != 0 ||
 		    (suffix != 'c' && suffix != 'd' && suffix != 's' &&
 		    suffix != 'w')) {
 			(void) fprintf(stderr, gettext("invalid dRAID "
-			    "syntax; expected [:<non-zero-number><c|d|s|w>], "
-			    "not '%llu%s'\n"), (u_longlong_t)value, type);
+			    "syntax; expected [:<number><c|d|s|w>], "
+			    "not '%s'\n"), type);
 			return (EINVAL);
 		}
 
