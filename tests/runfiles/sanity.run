@@ -48,7 +48,8 @@ tests = ['anyraid_offline_anymirror_001_pos',
     'anyraid_write_verify_004_pos', 'anyraid_encryption_001_pos',
     'anyraid_snapshot_001_pos', 'anyraid_send_recv_001_pos',
     'anyraid_scrub_001_pos', 'anyraid_properties_001_pos',
-    'anyraid_gang_blocks_001_pos']
+    'anyraid_gang_blocks_001_pos', 'anyraid_contract_001_pos',
+    'anyraid_contract_002_pos']
 tags = ['functional', 'anyraid']
 
 [tests/functional/arc]

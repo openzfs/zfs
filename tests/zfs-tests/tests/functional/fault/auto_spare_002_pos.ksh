@@ -58,9 +58,8 @@ if ! is_freebsd; then
 fi
 
 TESTFILE="/$TESTPOOL/$TESTFS/testfile"
-
-for type in "mirror" "raidz" "raidz2" "anymirror1" "anymirror2" "anymirror3"; do
-        if [[ "$type" =~ "anymirror" ]]; then
+for type in "mirror" "raidz" "raidz2" "anymirror1" "anymirror2" "anymirror3" "anyraidz2:2" ; do
+        if [[ "$type" =~ "any" ]]; then
                 export VDEVSIZE=1073741824
                 export TESTFILE_SIZE=268435456
         else

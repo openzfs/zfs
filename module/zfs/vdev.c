@@ -423,9 +423,30 @@ vdev_get_min_asize(vdev_t *vd)
 	 * The top-level vdev just returns the allocatable size rounded
 	 * to the nearest metaslab.
 	 */
-	if (vd == vd->vdev_top)
+	if (vd == vd->vdev_top) {
+		if (vd->vdev_shrinking || (vdev_is_anyraid(vd) &&
+		    ((vdev_anyraid_t *)vd->vdev_tsd)->vd_contracting_leaf !=
+		    -1 && vd->vdev_ms_count != 0)) {
+			/*
+			 * Find the last metaslab with anything in it, and
+			 * declare the end of that metaslab to be the smallest
+			 * size the disk can take on.
+			 */
+			for (uint64_t m = vd->vdev_ms_count - 1; m > 0; m--) {
+				metaslab_t *ms = vd->vdev_ms[m];
+				if (metaslab_allocated_space(ms) != 0) {
+					return ((m + 1) << vd->vdev_ms_shift);
+				}
+			}
+			/*
+			 * If the vdev is totally empty, we still probably
+			 * don't want to shrink it to size 0.
+			 */
+			return (1ULL << vd->vdev_ms_shift);
+		}
 		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
 		    uint64_t));
+	}
 
 	return (pvd->vdev_ops->vdev_op_min_asize(pvd, vd));
 }
@@ -1648,6 +1669,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	metaslab_t **mspp;
 	int error;
 	boolean_t expanding = (oldc != 0);
+	boolean_t shrinking = vd->vdev_shrinking;
 
 	ASSERT(txg == 0 || spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
@@ -1659,12 +1681,20 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(!vd->vdev_ishole);
 
-	ASSERT(oldc <= newc);
+	ASSERT(shrinking || oldc <= newc);
+	ASSERT(newc);
 
 	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
+	for (uint64_t m = newc; m < oldc; m++) {
+		ASSERT(shrinking);
+		metaslab_t *msp = vd->vdev_ms[m];
+		ASSERT(msp->ms_disabled);
+		metaslab_fini(msp);
+	}
+
 	if (expanding) {
-		memcpy(mspp, vd->vdev_ms, oldc * sizeof (*mspp));
+		memcpy(mspp, vd->vdev_ms, MIN(oldc, newc) * sizeof (*mspp));
 		vmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
 	}
 
@@ -1676,7 +1706,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 * vdev. In order to ensure that all weights are correct at all times,
 	 * we need to recalculate here.
 	 */
-	for (uint64_t m = 0; m < oldc; m++) {
+	for (uint64_t m = 0; m < MIN(oldc, newc); m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
 		mutex_enter(&msp->ms_lock);
 		metaslab_recalculate_weight_and_sort(msp);
@@ -2321,7 +2351,6 @@ vdev_open(vdev_t *vd)
 		vd->vdev_copy_uberblocks = B_TRUE;
 
 	vd->vdev_psize = psize;
-
 	/*
 	 * Make sure the allocatable size hasn't shrunk too much.
 	 */
@@ -2343,7 +2372,10 @@ vdev_open(vdev_t *vd)
 	vd->vdev_logical_ashift = MAX(logical_ashift,
 	    vd->vdev_logical_ashift);
 
-	if (vd->vdev_asize == 0) {
+	if (vd->vdev_shrinking) {
+		vd->vdev_asize = asize;
+		vd->vdev_max_asize = max_asize;
+	} else if (vd->vdev_asize == 0) {
 		/*
 		 * This is the first-ever open, so use the computed values.
 		 * For compatibility, a different ashift can be requested.

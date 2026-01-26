@@ -7635,8 +7635,6 @@ error:
 	return (ret);
 }
 
-
-
 /*
  * Rebalance tiles on the provided anyraid vdevs, or all anyraid vdevs if
  * none are specified.
@@ -7670,6 +7668,39 @@ zfs_ioc_pool_rebalance(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_close(spa, FTAG);
 
 	return (0);
+}
+
+/*
+ * Contract the specified anyraid vdev by removing the specified leaf vdev,
+ * moving that leaf's tiles to other children.
+ *
+ * innvl: {
+ * 	"anyraid_vdev" -> guid of the anyraid vdev
+ * 	"anyraid_vdev" -> guid of the leaf vdev
+ * }
+ *
+ * outnvl is unused
+ */
+static const zfs_ioc_key_t zfs_keys_pool_contract[] = {
+	{"anyraid_vdev",	DATA_TYPE_UINT64,	0},
+	{"leaf_vdev",		DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_pool_contract(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	(void) outnvl;
+	spa_t *spa;
+	int err;
+	if ((err = spa_open(pool, &spa, FTAG)) != 0)
+		return (err);
+
+	uint64_t anyraid_vdev = fnvlist_lookup_uint64(innvl, "anyraid_vdev");
+	uint64_t leaf_vdev = fnvlist_lookup_uint64(innvl, "leaf_vdev");
+	err = spa_contract_vdev(spa, anyraid_vdev, leaf_vdev);
+	spa_close(spa, FTAG);
+
+	return (err);
 }
 
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
@@ -7982,6 +8013,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_pool_rebalance, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_pool_rebalance, ARRAY_SIZE(zfs_keys_pool_rebalance));
+
+	zfs_ioctl_register("zpool_contract", ZFS_IOC_POOL_CONTRACT,
+	    zfs_ioc_pool_contract, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_pool_contract, ARRAY_SIZE(zfs_keys_pool_contract));
 
 	/* IOCTLS that use the legacy function signature */
 

@@ -72,13 +72,13 @@ typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
 typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
 typeset TXGS=64
 
-for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "raidz2" "draid"; do
+for type in "" "mirror" "anymirror0" "anymirror1" "anymirror2" "anymirror3" "anyraidz1:2" "raidz2" "draid"; do
 
 	if [[ "$type" = "" ]]; then
 		VDEVS="$TRIM_VDEV1"
 	elif [[ "$type" = "mirror" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2"
-	elif [[ "$type" =~ "anymirror" ]]; then
+	elif [[ "$type" =~ "any" ]]; then
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 
 		# The per-vdev utilization is lower due to the capacity

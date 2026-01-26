@@ -54,7 +54,24 @@ tests = [ 'anyraid_clean_mirror_001_pos', 'anyraid_clean_mirror_002_pos',
     'anyraid_rebalance_001', 'anyraid_rebalance_002', 'anyraid_rebalance_003',
     'anyraid_rebalance_004', 'anyraid_rebalance_005', 'anyraid_rebalance_006',
     'anyraid_rebalance_007', 'anyraid_rebalance_008', 'anyraid_rebalance_009',
-    'anyraid_rebalance_noop_neg',
+    'anyraid_rebalance_noop_neg', 'anyraid_contract_001_pos',
+    'anyraid_contract_002_pos', 'anyraid_contract_003_pos',
+    'anyraid_contract_004_pos', 'anyraid_contract_005_pos',
+    'anyraid_contract_006_pos', 'anyraid_contract_after_rebalance_pos',
+    'anyraid_contract_below_width_neg', 'anyraid_contract_checkpoint_neg',
+    'anyraid_contract_disk_fail_pos', 'anyraid_contract_during_rebalance_neg',
+    'anyraid_contract_enospc_neg', 'anyraid_contract_expand_lifecycle_pos',
+    'anyraid_contract_interrupt_pos', 'anyraid_contract_invalid_neg',
+    'anyraid_contract_noop_neg', 'anyraid_contract_offline_pos',
+    'anyraid_contract_raidz_below_width_neg', 'anyraid_contract_scrub_pos',
+    'anyraid_contract_write_verify_001_pos',
+    'anyraid_contract_write_verify_002_pos',
+    'anyraid_contract_write_verify_003_pos',
+    'anyraid_contract_write_verify_004_pos',
+    'anyraid_contract_write_verify_005_pos',
+    'anyraid_contract_write_verify_006_pos',
+    'anyraid_contract_write_verify_007_neg',
+    'anyraid_contract_write_verify_008_pos', 'anyraid_contract_wrong_leaf_neg',
     'anyraid_write_verify_001_pos', 'anyraid_write_verify_002_pos',
     'anyraid_write_verify_003_pos', 'anyraid_write_verify_004_pos',
     'anyraid_write_verify_005_pos', 'anyraid_write_verify_006_pos',
@@ -440,6 +457,15 @@ tags = ['functional', 'cli_root', 'zpool_attach']
 tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg',
     'zpool_clear_readonly']
 tags = ['functional', 'cli_root', 'zpool_clear']
+
+[tests/functional/cli_root/zpool_contract]
+tests = ['zpool_contract_001_pos', 'zpool_contract_002_neg',
+    'zpool_contract_003_neg', 'zpool_contract_004_neg',
+    'zpool_contract_005_neg', 'zpool_contract_006_pos',
+    'zpool_contract_007_pos', 'zpool_contract_008_neg',
+    'zpool_contract_009_neg', 'zpool_contract_010_neg',
+    'zpool_contract_011_neg']
+tags = ['functional', 'cli_root', 'zpool_contract']
 
 [tests/functional/cli_root/zpool_create]
 tests = ['zpool_create_001_pos', 'zpool_create_002_pos',

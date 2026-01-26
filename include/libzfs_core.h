@@ -166,6 +166,8 @@ _LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
     uint64_t);
 
 _LIBZFS_CORE_H int lzc_pool_rebalance(const char *, const uint64_t *, int);
+_LIBZFS_CORE_H int lzc_pool_contract(const char *zpool, uint64_t avd_guid,
+    uint64_t lvd_guid);
 
 #ifdef	__cplusplus
 }

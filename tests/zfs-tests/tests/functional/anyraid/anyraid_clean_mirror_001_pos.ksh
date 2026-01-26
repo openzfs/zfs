@@ -29,7 +29,7 @@
 
 #
 # DESCRIPTION:
-# AnyRAID mirror1 can survive having 1 failed disk.
+# AnyRAID 1-parity device can survive having 1 failed disk.
 #
 # STRATEGY:
 # 1. Write several files to the ZFS filesystem mirror.
@@ -39,9 +39,9 @@
 
 verify_runnable "global"
 
-log_assert "AnyRAID mirror1 can survive having 1 failed disk"
+log_assert "AnyRAID 1-parity can survive having 1 failed disk"
 
-log_must create_sparse_files "disk" 3 $DEVSIZE
+log_must create_sparse_files "disk" 4 $DEVSIZE
 
 clean_mirror_spec_cases "anymirror1 $disk0 $disk1" \
 	"$disk0" \
@@ -52,4 +52,15 @@ clean_mirror_spec_cases "anymirror1 $disk0 $disk1 $disk2" \
 	"$disk1" \
 	"$disk2"
 
-log_pass "AnyRAID mirror1 can survive having 1 failed disk"
+clean_mirror_spec_cases "anyraidz1:2 $disk0 $disk1 $disk2" \
+	"$disk0" \
+	"$disk1" \
+	"$disk2"
+
+clean_mirror_spec_cases "anyraidz1:2 $disk0 $disk1 $disk2 $disk3" \
+	"$disk0" \
+	"$disk1" \
+	"$disk2" \
+	"$disk3"
+
+log_pass "AnyRAID 1-parity can survive having 1 failed disk"

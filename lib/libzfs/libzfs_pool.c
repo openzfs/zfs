@@ -6098,3 +6098,87 @@ zpool_rebalance(zpool_handle_t *zhp, char **vdev_names, int count)
 		return (-1);
 	return (0);
 }
+
+int
+zpool_contract(zpool_handle_t *zhp, const char *anyraid_vdev_name,
+    const char *leaf_vdev_name)
+{
+	int ret = 0;
+	uint64_t avd_guid, lvd_guid;
+	char errbuf[ERRBUFLEN];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot perform contraction for vdev(s) on '%s'"), zhp->zpool_name);
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	if (!(strstarts(anyraid_vdev_name, VDEV_TYPE_ANYMIRROR) ||
+	    strstarts(anyraid_vdev_name, VDEV_TYPE_ANYRAIDZ))) {
+		zfs_error_fmt(hdl, EZFS_BADDEV, dgettext(TEXT_DOMAIN,
+		    "non-anyraid device specified"));
+	}
+
+	if ((ret = zpool_vdev_guid(zhp, anyraid_vdev_name, &avd_guid)) != 0)
+		return (ret);
+
+	if ((ret = zpool_vdev_guid(zhp, leaf_vdev_name, &lvd_guid)) != 0)
+		return (ret);
+
+	ret = lzc_pool_contract(zpool_get_name(zhp), avd_guid, lvd_guid);
+
+	switch (ret) {
+		case ENOENT:
+			zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "no anyraid vdev found"));
+			break;
+		case EINVAL:
+			zfs_error_fmt(hdl, EZFS_BADDEV,
+			    dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+			break;
+		case ENXIO:
+			zfs_error_fmt(hdl, EZFS_INVALCONFIG,
+			    dgettext(TEXT_DOMAIN,
+			    "%s is not a child of %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case ENOSPC:
+			zfs_error_fmt(hdl, EZFS_NOSPC,
+			    dgettext(TEXT_DOMAIN, "insufficient free tiles to "
+			    "remove %s from %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case EXFULL:
+			zfs_error_fmt(hdl, EZFS_NOSPC,
+			    dgettext(TEXT_DOMAIN, "could not find valid "
+			    "relocation target for all tiles when "
+			    "removing %s from %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case ZFS_ERR_DISCARDING_CHECKPOINT:
+		case ZFS_ERR_CHECKPOINT_EXISTS:
+			zfs_error_fmt(hdl, EZFS_CHECKPOINT_EXISTS,
+			    dgettext(TEXT_DOMAIN, "cannot perform contraction "
+			    "while a checkpoint exists"));
+			break;
+		case EALREADY:
+			zfs_error_fmt(hdl, EZFS_ANYRAID_RELOCATE_IN_PROGRESS,
+			    dgettext(TEXT_DOMAIN, "another anyraid relocate "
+			    "operation is already in progress"));
+			break;
+		case ENODEV:
+			zfs_error_fmt(hdl, EZFS_CONTRACT_BELOW_WIDTH,
+			    dgettext(TEXT_DOMAIN, "cannot contract %s because "
+			    "its child count is equal to its logical width"),
+			    anyraid_vdev_name);
+			break;
+		case 0:
+			break;
+		default:
+		{
+			libzfs_handle_t *hdl = zhp->zpool_hdl;
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+	}
+	if (ret != 0)
+		return (-1);
+	return (0);
+}
