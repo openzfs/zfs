@@ -12,6 +12,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <errno.h>
@@ -192,4 +193,50 @@ zfs_strcmp_pathname(const char *name, const char *cmp, int wholedisk)
 		return (ENOENT);
 
 	return (0);
+}
+
+/*
+ * "Flatten" a UNIX-style path by:
+ * - collapsing multiple '/' chars to just one
+ * - removing trailing '/' chars (one or more followed by '\0')
+ */
+void
+zfs_flatten_path(char *buf)
+{
+	char *s = buf, *d = buf;
+
+	while (*s != '\0') {
+		/* Copy src to dest unless we're at the same position */
+		if (s != d)
+			*d = *s;
+
+		/* Found a slash */
+		if (*s == '/') {
+			/* Move past additional slashes */
+			while (*s == '/')
+				s++;
+
+			/*
+			 * Found null after slash, abort. d still points
+			 * at the slash copied above, which will then be
+			 * nulled after the loop.
+			 */
+			if (*s == '\0')
+				break;
+		} else
+			/* Non-slash char copied, move source forward */
+			s++;
+
+		/* Copied char ok, move dest forward for next iteration */
+		d++;
+	}
+
+	/*
+	 * End of path. Set dest terminator unless we're at the same position
+	 * (no need to copy) or dest is still at start of buf; that's the
+	 * special-case of the root ("/", "///", etc) and we don't want to
+	 * remove the single "trailing" slash in that case.
+	 */
+	if (s != d && d != buf)
+		*d = '\0';
 }
