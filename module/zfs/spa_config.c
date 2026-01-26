@@ -508,7 +508,10 @@ spa_config_update(spa_t *spa, int what)
 			 * metaslab size nor call vdev_expand() on them.
 			 */
 			if (!vdev_is_concrete(tvd) ||
-			    (tvd->vdev_islog && tvd->vdev_removing))
+			    (tvd->vdev_islog && tvd->vdev_removing) ||
+			    (vdev_is_anyraid(tvd) &&
+			    ((vdev_anyraid_t *)tvd->vdev_tsd)
+			    ->vd_contracting_leaf != -1))
 				continue;
 
 			if (tvd->vdev_ms_array == 0)

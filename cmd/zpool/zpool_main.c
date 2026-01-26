@@ -137,6 +137,7 @@ static int zpool_do_wait(int, char **);
 static int zpool_do_ddt_prune(int, char **);
 
 static int zpool_do_rebalance(int, char **);
+static int zpool_do_contract(int, char **);
 
 static int zpool_do_help(int argc, char **argv);
 
@@ -209,6 +210,7 @@ typedef enum {
 	HELP_REOPEN,
 	HELP_VERSION,
 	HELP_REBALANCE,
+	HELP_CONTRACT,
 	HELP_WAIT
 } zpool_help_t;
 
@@ -453,6 +455,7 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "ddtprune",	zpool_do_ddt_prune,	HELP_DDT_PRUNE		},
 	{ "rebalance",	zpool_do_rebalance,	HELP_REBALANCE		},
+	{ "contract",	zpool_do_contract,	HELP_CONTRACT		},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -581,6 +584,9 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tddtprune -d|-p <amount> <pool>\n"));
 	case HELP_REBALANCE:
 		return (gettext("\trebalance <pool> [vdev]\n"));
+	case HELP_CONTRACT:
+		return (gettext("\tcontract <pool> <anyraid vdev> "
+		    "<leaf vdev>\n"));
 	default:
 		__builtin_unreachable();
 	}
@@ -10636,7 +10642,7 @@ print_anyraid_rebalance_status(zpool_handle_t *zhp,
 {
 	char copied_buf[7];
 
-	if (pars == NULL || pars->pars_state == DSS_NONE)
+	if (pars == NULL || pars->pars_state == ARS_NONE)
 		return;
 
 	/*
@@ -10664,7 +10670,7 @@ print_anyraid_rebalance_status(zpool_handle_t *zhp,
 	/*
 	 * Expansion is finished or canceled.
 	 */
-	if (pars->pars_state == DSS_FINISHED) {
+	if (pars->pars_state == ARS_FINISHED) {
 		char time_buf[32];
 		secs_to_dhms(end - start, time_buf);
 
@@ -10675,8 +10681,6 @@ print_anyraid_rebalance_status(zpool_handle_t *zhp,
 		char examined_buf[7], total_buf[7], rate_buf[7];
 		uint64_t copied, total, elapsed, rate, secs_left;
 		double fraction_done;
-
-		assert(pars->pars_state == DSS_SCANNING);
 
 		/*
 		 * Expansion is in progress.
@@ -10706,7 +10710,12 @@ print_anyraid_rebalance_status(zpool_handle_t *zhp,
 		 */
 		(void) printf(gettext("\t%s / %s copied at %s/s, %.2f%% done"),
 		    examined_buf, total_buf, rate_buf, 100 * fraction_done);
-		if (pars->pars_waiting_for_resilver) {
+		if (pars->pars_state == ARS_SCRUBBING) {
+			(void) printf(gettext(", waiting for scrub to "
+			    "complete\n"));
+		} else if (pars->pars_state == ARS_CONTRACTING) {
+			(void) printf(gettext(", removing vdev\n"));
+		} else if (pars->pars_waiting_for_resilver) {
 			(void) printf(gettext(", paused for resilver or "
 			    "clear\n"));
 		} else if (secs_left < (30 * 24 * 3600)) {
@@ -13852,9 +13861,9 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 
 	(void) nvlist_lookup_uint64_array(nvroot,
 	    ZPOOL_CONFIG_ANYRAID_RELOCATE_STATS, (uint64_t **)&pars, &c);
-	if (pars != NULL && pars->pars_state == DSS_SCANNING) {
+	if (pars != NULL && pars->pars_state == ARS_SCANNING) {
 		int64_t rem = pars->pars_to_move - pars->pars_moved;
-		bytes_rem[ZPOOL_WAIT_ANYRAID_REBALANCE] = rem;
+		bytes_rem[ZPOOL_WAIT_ANYRAID_RELOCATE] = rem;
 	}
 
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
@@ -13995,7 +14004,8 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand", "condense" , "anyraid_rebalance"};
+				    "raidz_expand", "condense",
+				    "anyraid_relocate"};
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {
@@ -14222,6 +14232,47 @@ zpool_do_rebalance(int argc, char **argv)
 		return (-1);
 
 	int error = zpool_rebalance(zhp, argv, argc);
+
+	zpool_close(zhp);
+
+	return (error);
+}
+
+/*
+ * zpool contract <pool> <anyraid vdev> <leaf vdev>
+ *
+ * Contract anyraid vdev by removing a specific leaf vdev.
+ */
+int
+zpool_do_contract(int argc, char **argv)
+{
+	zpool_handle_t *zhp;
+	int c;
+
+	while ((c = getopt(argc, argv, "")) != -1) {
+		switch (c) {
+		case '?':
+			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 3) {
+		(void) fprintf(stderr, gettext("incorrect arguments\n"));
+		usage(B_FALSE);
+	}
+	char *poolname = argv[0];
+	char *anyraid_vdev = argv[1];
+	char *leaf_vdev = argv[2];
+
+	zhp = zpool_open(g_zfs, poolname);
+	if (zhp == NULL)
+		return (-1);
+
+	int error = zpool_contract(zhp, anyraid_vdev, leaf_vdev);
 
 	zpool_close(zhp);
 

@@ -10040,8 +10040,14 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	// Create and populate table with all the values we need to print.
 	char ***table = malloc(sizeof (*table) * cols);
 	for (int i = 0; i < cols; i++) {
-		table[i] = calloc(va->vd_children[i]->van_capacity,
-		    sizeof (**table));
+		uint_t cap = va->vd_children[i]->van_capacity;
+		if (cap == 0) {
+			ASSERT3S(va->vd_contracting_leaf, ==, i);
+			cap = (vd->vdev_child[i]->vdev_asize -
+			    VDEV_ANYRAID_TOTAL_MAP_SIZE(vd->vdev_ashift)) /
+			    va->vd_tile_size;
+		}
+		table[i] = calloc(cap, sizeof (**table));
 	}
 
 	anyraid_tile_t *cur = avl_first(&va->vd_tile_map);
@@ -10084,9 +10090,15 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	for (int i = 0; ; i++) {
 		int last_printed = INT_MAX;
 		for (int v = 0; v < cols; v++) {
+			uint_t cap = va->vd_children[v]->van_capacity;
+			if (cap == 0) {
+				ASSERT3S(va->vd_contracting_leaf, ==, v);
+				cap = (vd->vdev_child[v]->vdev_asize -
+				    VDEV_ANYRAID_TOTAL_MAP_SIZE(
+				    vd->vdev_ashift)) / va->vd_tile_size;
+			}
 			if (final[v]) {
-				ASSERT3U(i, >=,
-				    va->vd_children[v]->van_capacity);
+				ASSERT3U(i, >=, cap);
 				int extra_width = 0;
 				if (v == 0 || !printed[v - 1])
 					extra_width++;
@@ -10095,7 +10107,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 				printed[v] = B_FALSE;
 				continue;
 			}
-			if (i + 1 == va->vd_children[v]->van_capacity)
+			if (i + 1 == cap)
 				final[v] = B_TRUE;
 			if (v - 1 != last_printed)
 				(void) printf("│");

@@ -85,7 +85,7 @@ log_must zpool import $TESTPOOL -d $TEST_BASE_DIR
 
 set_tunable64 ANYRAID_RELOCATE_MAX_BYTES_PAUSE 0
 
-log_must zpool wait -t anyraid_rebalance,scrub $TESTPOOL
+log_must zpool wait -t anyraid_relocate,scrub $TESTPOOL
 log_must zpool sync $TESTPOOL
 
 cap=$(zpool get -Hp -o value size $TESTPOOL)

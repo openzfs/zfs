@@ -29,7 +29,7 @@
 
 #
 # DESCRIPTION:
-# AnyRAID mirror2 can survive having 1-2 failed disks.
+# AnyRAID 2-parity can survive having 1-2 failed disks.
 #
 # STRATEGY:
 # 1. Write several files to the ZFS filesystem mirror.
@@ -39,9 +39,9 @@
 
 verify_runnable "global"
 
-log_assert "AnyRAID mirror2 can survive having 1-2 failed disks"
+log_assert "AnyRAID 2-parity can survive having 1-2 failed disks"
 
-log_must create_sparse_files "disk" 4 $DEVSIZE
+log_must create_sparse_files "disk" 5 $DEVSIZE
 
 clean_mirror_spec_cases "anymirror2 $disk0 $disk1 $disk2" \
 	"$disk0" \
@@ -63,4 +63,33 @@ clean_mirror_spec_cases "anymirror2 $disk0 $disk1 $disk2 $disk3" \
 	"\"$disk1 $disk3\"" \
 	"\"$disk2 $disk3\""
 
-log_pass "AnyRAID mirror2 can survive having 1-2 failed disks"
+clean_mirror_spec_cases "anyraidz2:2 $disk0 $disk1 $disk2 $disk3" \
+	"$disk0" \
+	"$disk1" \
+	"$disk2" \
+	"$disk3" \
+	"\"$disk0 $disk1\"" \
+	"\"$disk0 $disk2\"" \
+	"\"$disk0 $disk3\"" \
+	"\"$disk1 $disk2\"" \
+	"\"$disk1 $disk3\"" \
+	"\"$disk2 $disk3\""
+
+clean_mirror_spec_cases "anyraidz2:2 $disk0 $disk1 $disk2 $disk3 $disk4" \
+	"$disk0" \
+	"$disk1" \
+	"$disk2" \
+	"$disk3" \
+	"$disk4" \
+	"\"$disk0 $disk1\"" \
+	"\"$disk0 $disk2\"" \
+	"\"$disk0 $disk3\"" \
+	"\"$disk0 $disk4\"" \
+	"\"$disk1 $disk2\"" \
+	"\"$disk1 $disk3\"" \
+	"\"$disk1 $disk4\"" \
+	"\"$disk2 $disk3\"" \
+	"\"$disk2 $disk4\"" \
+	"\"$disk3 $disk4\""
+
+log_pass "AnyRAID 2-parity can survive having 1-2 failed disks"
