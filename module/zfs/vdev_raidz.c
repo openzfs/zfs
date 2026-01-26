@@ -3271,11 +3271,18 @@ raidz_simulate_failure(int physical_width, int original_width, int ashift,
 static int
 raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 {
+	vdev_t *vd = zio->io_vd;
 	raidz_map_t *rm = zio->io_vsd;
-	int physical_width = zio->io_vd->vdev_children;
+	int physical_width = vd->vdev_children;
+	int dbgmsg = zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT;
+
+	if (vd->vdev_ops == &vdev_draid_ops) {
+		vdev_draid_config_t *vdc = vd->vdev_tsd;
+		physical_width = vdc->vdc_children;
+	}
+
 	int original_width = (rm->rm_original_width != 0) ?
 	    rm->rm_original_width : physical_width;
-	int dbgmsg = zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT;
 
 	if (dbgmsg) {
 		zfs_dbgmsg("raidz_reconstruct_expanded(zio=%px ltgts=%u,%u,%u "
@@ -3465,9 +3472,17 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 static int
 vdev_raidz_combrec(zio_t *zio)
 {
-	int nparity = vdev_get_nparity(zio->io_vd);
+	vdev_t *vd = zio->io_vd;
+	int nparity = vdev_get_nparity(vd);
 	raidz_map_t *rm = zio->io_vsd;
 	int physical_width = zio->io_vd->vdev_children;
+
+	if (vd->vdev_ops == &vdev_draid_ops) {
+		vdev_draid_config_t *vdc = vd->vdev_tsd;
+		nparity = vdc->vdc_nparity;
+		physical_width = vdc->vdc_children;
+	}
+
 	int original_width = (rm->rm_original_width != 0) ?
 	    rm->rm_original_width : physical_width;
 
@@ -3485,9 +3500,9 @@ vdev_raidz_combrec(zio_t *zio)
 	}
 
 	for (int num_failures = 1; num_failures <= nparity; num_failures++) {
-		int *tstore = kmem_alloc(sizeof (*tstore) * (nparity + 2),
-		    KM_SLEEP);
+		int tstore[VDEV_RAIDZ_MAXPARITY + 2];
 		int *ltgts = &tstore[1]; /* value is logical child ID */
+
 
 		/*
 		 * Determine number of logical children, n.  See comment
@@ -3500,6 +3515,7 @@ vdev_raidz_combrec(zio_t *zio)
 		}
 
 		ASSERT3U(num_failures, <=, nparity);
+		ASSERT3U(num_failures, <=, VDEV_RAIDZ_MAXPARITY);
 
 		/* Handle corner cases in combrec logic */
 		ltgts[-1] = -1;
@@ -3517,11 +3533,8 @@ vdev_raidz_combrec(zio_t *zio)
 				 * failures; try more failures.
 				 */
 				break;
-			} else if (err == 0) {
-				kmem_free(tstore,
-				    sizeof (*tstore) * (nparity + 2));
+			} else if (err == 0)
 				return (0);
-			}
 
 			/* Compute next targets to try */
 			for (int t = 0; ; t++) {
@@ -3563,7 +3576,6 @@ vdev_raidz_combrec(zio_t *zio)
 			if (ltgts[num_failures - 1] == n)
 				break;
 		}
-		kmem_free(tstore, sizeof (*tstore) * (nparity + 2));
 	}
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT)
 		zfs_dbgmsg("reconstruction failed for all num_failures");
