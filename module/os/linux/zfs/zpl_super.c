@@ -24,6 +24,7 @@
  * Copyright (c) 2023, Datto Inc. All rights reserved.
  * Copyright (c) 2025, Klara, Inc.
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 
@@ -35,6 +36,10 @@
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
+
+#ifndef HAVE_FST_MOUNT
+#include <linux/fs_context.h>
+#endif
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -504,6 +509,61 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 #endif
 }
 
+#ifndef HAVE_FST_MOUNT
+/*
+ * In kernel 7.0, the file_system_type->mount() and
+ * super_operations->remount_fs() callbacks have been removed, requiring all
+ * users to convert to the "new" fs_context-based mount API introduced in 5.2.
+ *
+ * This is the simplest compatibility shim possible to adapt the fs_context
+ * interface to the old-style calls. Although this interface exists in almost
+ * all versions of Linux currently supported by OpenZFS, we only use it when
+ * the kernel-provided shims are unavailable, to avoid bugs in these new shims
+ * affecting all OpenZFS deployments.
+ */
+static int
+zpl_parse_monolithic(struct fs_context *fc, void *data)
+{
+	/*
+	 * We do options parsing in zfs_domount(); just stash the options blob
+	 * in the fs_context so we can pass it down later.
+	 */
+	fc->fs_private = data;
+	return (0);
+}
+
+static int
+zpl_get_tree(struct fs_context *fc)
+{
+	struct dentry *root =
+	    zpl_mount(fc->fs_type, fc->sb_flags, fc->source, fc->fs_private);
+	if (IS_ERR(root))
+		return (PTR_ERR(root));
+
+	fc->root = root;
+	return (0);
+}
+
+static int
+zpl_reconfigure(struct fs_context *fc)
+{
+	return (zpl_remount_fs(fc->root->d_sb, &fc->sb_flags, fc->fs_private));
+}
+
+const struct fs_context_operations zpl_fs_context_operations = {
+	.parse_monolithic	= zpl_parse_monolithic,
+	.get_tree		= zpl_get_tree,
+	.reconfigure		= zpl_reconfigure,
+};
+
+static int
+zpl_init_fs_context(struct fs_context *fc)
+{
+	fc->ops = &zpl_fs_context_operations;
+	return (0);
+}
+#endif
+
 const struct super_operations zpl_super_operations = {
 	.alloc_inode		= zpl_inode_alloc,
 #ifdef HAVE_SOPS_FREE_INODE
@@ -517,7 +577,9 @@ const struct super_operations zpl_super_operations = {
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
+#ifdef HAVE_FST_MOUNT
 	.remount_fs		= zpl_remount_fs,
+#endif
 	.show_devname		= zpl_show_devname,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
@@ -560,7 +622,11 @@ struct file_system_type zpl_fs_type = {
 #else
 	.fs_flags		= FS_USERNS_MOUNT,
 #endif
+#ifdef HAVE_FST_MOUNT
 	.mount			= zpl_mount,
+#else
+	.init_fs_context	= zpl_init_fs_context,
+#endif
 	.kill_sb		= zpl_kill_sb,
 };
 
