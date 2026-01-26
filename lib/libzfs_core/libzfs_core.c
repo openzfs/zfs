@@ -2046,3 +2046,22 @@ lzc_pool_rebalance(const char *zpool, const uint64_t *vdevs, int count)
 
 	return (error);
 }
+
+int
+lzc_pool_contract(const char *zpool, uint64_t avd_guid, uint64_t lvd_guid)
+{
+	int error;
+
+	nvlist_t *result = NULL;
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_uint64(args, "anyraid_vdev", avd_guid);
+	fnvlist_add_uint64(args, "leaf_vdev", lvd_guid);
+
+	error = lzc_ioctl(ZFS_IOC_POOL_CONTRACT, zpool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

@@ -815,6 +815,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_REBUILD_DONE			0x2000
 #define	SPA_ASYNC_DETACH_SPARE			0x4000
 #define	SPA_ASYNC_REMOVE_BY_USER		0x8000
+#define	SPA_ASYNC_CONTRACTION_DONE		0x10000
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t ashift_check);
@@ -835,6 +836,7 @@ extern int spa_vdev_split_mirror(spa_t *spa, const char *newname,
     nvlist_t *config, nvlist_t *props, boolean_t exp);
 int spa_rebalance_vdevs(spa_t *spa, const uint64_t *guids, uint_t count);
 int spa_rebalance_all(spa_t *spa);
+int spa_contract_vdev(spa_t *spa, uint64_t anyraid_vdev, uint64_t leaf_vdev);
 
 /* spare state (which is global across all pools) */
 extern void spa_spare_add(vdev_t *vd);

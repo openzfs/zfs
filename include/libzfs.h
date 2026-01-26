@@ -161,6 +161,9 @@ typedef enum zfs_error {
 	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
 	EZFS_ASHIFT_MISMATCH,   /* can't add vdevs with different ashifts */
 	EZFS_NO_USER_NS_SUPPORT, /* kernel built without CONFIG_USER_NS */
+	/* an anyraid vdev is already relocating */
+	EZFS_ANYRAID_RELOCATE_IN_PROGRESS,
+	EZFS_CONTRACT_BELOW_WIDTH, /* contraction reducing disk count too far */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -325,6 +328,8 @@ _LIBZFS_H int zpool_ddt_prune(zpool_handle_t *, zpool_ddt_prune_unit_t,
     uint64_t);
 _LIBZFS_H int zpool_rebalance(zpool_handle_t *zhp, char **vdev_names,
     int count);
+_LIBZFS_H int zpool_contract(zpool_handle_t *zhp, const char *anyraid_vdev_name,
+    const char *leaf_vdev_name);
 
 _LIBZFS_H int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);

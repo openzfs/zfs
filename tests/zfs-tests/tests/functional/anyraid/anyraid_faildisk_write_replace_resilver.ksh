@@ -52,7 +52,7 @@ log_onexit cleanup
 for vdev in "anymirror1" "anyraidz1:1"; do
 	for replace_flags in '' '-s'; do
 
-		[[ "$vdev" == "anyraidz1" && "replace_flags" == "-s" ]] && continue
+		[[ "$vdev" =~ "anyraidz1:1" && "$replace_flags" == "-s" ]] && continue
 		log_must create_sparse_files "disk" 3 $DEVSIZE
 		log_must create_sparse_files "spare" 1 $DEVSIZE
 		log_must zpool create -O compress=off -f $TESTPOOL $vdev $disks

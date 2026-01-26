@@ -8399,7 +8399,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 		if (tvd->vdev_ops != &vdev_mirror_ops &&
 		    tvd->vdev_ops != &vdev_root_ops &&
-		    !vdev_is_anyraid(tvd) &&
+		    tvd->vdev_ops != &vdev_anymirror_ops &&
 		    tvd->vdev_ops != &vdev_draid_ops) {
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 		}
@@ -9531,6 +9531,108 @@ out:
 	return (error);
 }
 
+static void
+spa_vdev_contraction_done(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *avd = NULL;
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		if (!vdev_is_anyraid(tvd))
+			continue;
+		vdev_anyraid_t *va = tvd->vdev_tsd;
+		if (va->vd_contracting_leaf == -1)
+			continue;
+		avd = tvd;
+		break;
+	}
+	ASSERT(avd);
+	vdev_anyraid_t *va = avd->vdev_tsd;
+	uint64_t avd_guid = avd->vdev_guid;
+	vdev_t *lvd = avd->vdev_child[va->vd_contracting_leaf];
+
+	uint64_t txg = spa_vdev_detach_enter(spa, lvd->vdev_guid);
+
+	/*
+	 * Erase the disk labels so the disk can be used for other things.
+	 * This must be done after all other error cases are handled,
+	 * but before we disembowel vd (so we can still do I/O to it).
+	 * But if we can't do it, don't treat the error as fatal --
+	 * it may be that the unwritability of the disk is the reason
+	 * it's being detached!
+	 */
+	(void) vdev_label_init(lvd, 0, VDEV_LABEL_REMOVE);
+
+	rw_enter(&va->vd_lock, RW_WRITER);
+
+	/*
+	 * Remove vd from its parent and compact the parent's children.
+	 */
+	vdev_remove_child(avd, lvd);
+	vdev_compact_children(avd);
+
+	ASSERT3S(va->vd_contracting_leaf, ==, lvd->vdev_id);
+	vdev_anyraid_compact_children(avd);
+	va->vd_contracting_leaf = -1;
+	spa->spa_anyraid_relocate = NULL;
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	var->var_state = ARS_FINISHED;
+	var->var_synced_offset = var->var_offset = 0;
+	var->var_synced_task = var->var_task = 0;
+	rw_exit(&va->vd_lock);
+
+	/*
+	 * Remember one of the remaining children so we can get tvd below.
+	 */
+	vdev_t *cvd = avd->vdev_child[avd->vdev_children - 1];
+
+	ASSERT3P(avd->vdev_parent, ==, spa->spa_root_vdev);
+
+	/*
+	 * Reevaluate the parent vdev state.
+	 */
+	vdev_propagate_state(cvd);
+
+	vdev_config_dirty(avd);
+
+	/*
+	 * Mark vd's DTL as dirty in this txg.  vdev_dtl_sync() will see that
+	 * vd->vdev_detached is set and free vd's DTL object in syncing context.
+	 * But first make sure we're not on any *other* txg's DTL list, to
+	 * prevent vd from being accessed after it's freed.
+	 */
+	char *vdpath = spa_strdup(lvd->vdev_path ? lvd->vdev_path : "none");
+	for (int t = 0; t < TXG_SIZE; t++)
+		(void) txg_list_remove_this(&avd->vdev_dtl_list, lvd, t);
+	lvd->vdev_detached = B_TRUE;
+	vdev_dirty(avd, VDD_DTL, lvd, txg);
+	vdev_config_dirty(avd);
+
+	spa_event_notify(spa, lvd, NULL, ESC_ZFS_VDEV_REMOVE);
+	spa_notify_waiters(spa);
+
+	/* hang on to the spa before we release the lock */
+	spa_open_ref(spa, FTAG);
+
+	avd->vdev_shrinking = B_TRUE;
+	vdev_reopen(avd);
+	vdev_metaslab_init(avd, txg);
+	avd->vdev_shrinking = B_FALSE;
+	VERIFY0(spa_vdev_exit(spa, lvd, txg, 0)); // TODO
+
+	spa_history_log_internal(spa, "detach", NULL,
+	    "vdev=%s", vdpath);
+	spa_strfree(vdpath);
+
+	txg_wait_synced(spa->spa_dsl_pool, txg);
+	avd = spa_lookup_by_guid(spa, avd_guid, B_FALSE);
+	va = avd->vdev_tsd;
+	/* all done with the spa; OK to release */
+	spa_namespace_enter(FTAG);
+	spa_close(spa, FTAG);
+	spa_namespace_exit(FTAG);
+}
+
 /*
  * Find any device that's done replacing, or a vdev marked 'unspare' that's
  * currently spared, so we can detach it.
@@ -9862,6 +9964,8 @@ spa_async_thread(void *arg)
 	spa->spa_async_tasks = 0;
 	mutex_exit(&spa->spa_async_lock);
 
+	if (tasks & SPA_ASYNC_CONTRACTION_DONE)
+		spa_vdev_contraction_done(spa);
 	/*
 	 * See if the config needs to be updated.
 	 */
@@ -10029,9 +10133,9 @@ spa_async_suspend(spa_t *spa)
 	if (raidz_expand_thread != NULL)
 		zthr_cancel(raidz_expand_thread);
 
-	zthr_t *anyraid_rebalance_thread = spa->spa_anyraid_relocate_zthr;
-	if (anyraid_rebalance_thread != NULL)
-		zthr_cancel(anyraid_rebalance_thread);
+	zthr_t *anyraid_relocate_thread = spa->spa_anyraid_relocate_zthr;
+	if (anyraid_relocate_thread != NULL)
+		zthr_cancel(anyraid_relocate_thread);
 
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
@@ -10062,6 +10166,10 @@ spa_async_resume(spa_t *spa)
 	zthr_t *raidz_expand_thread = spa->spa_raidz_expand_zthr;
 	if (raidz_expand_thread != NULL)
 		zthr_resume(raidz_expand_thread);
+
+	zthr_t *anyraid_relocate_thread = spa->spa_anyraid_relocate_zthr;
+	if (anyraid_relocate_thread != NULL)
+		zthr_resume(anyraid_relocate_thread);
 
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
@@ -11660,10 +11768,10 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
 		break;
 	}
-	case ZPOOL_WAIT_ANYRAID_REBALANCE:
+	case ZPOOL_WAIT_ANYRAID_RELOCATE:
 	{
 		vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
-		*in_progress = (var != NULL && var->var_state == DSS_SCANNING);
+		*in_progress = (var != NULL && var->var_state == ARS_SCANNING);
 		break;
 	}
 	default:
@@ -11807,7 +11915,7 @@ spa_check_start_rebalance(void *arg, dmu_tx_t *tx) {
 	spa_t *spa = vd->vdev_spa;
 	if (!vdev_is_anyraid(vd))
 		return (SET_ERROR(EINVAL));
-	if (vdev_anyraid_relocate_status(vd)->var_state == DSS_SCANNING)
+	if (vdev_anyraid_relocate_status(vd)->var_state == ARS_SCANNING)
 		return (SET_ERROR(EALREADY));
 	if (vd->vdev_spa->spa_anyraid_relocate != NULL)
 		return (SET_ERROR(EEXIST));
@@ -11867,11 +11975,11 @@ spa_rebalance_all(spa_t *spa)
 		 * Theoretically, if every single tile was getting moved, we
 		 * could need vd->vdev_asize / va->vd_tile_size *
 		 * sizeof (relocate_task_phys_t) bytes to store all the tasks,
-		 * plus one.
+		 * plus the dnode and indirect blocks.
 		 */
 		vdev_anyraid_t *va = cvd->vdev_tsd;
 		uint_t blocks = ((cvd->vdev_asize / va->vd_tile_size * 32) >>
-		    SPA_OLD_MAXBLOCKSHIFT) + 1;
+		    SPA_OLD_MAXBLOCKSHIFT) + 6;
 		lasterror = dsl_sync_task(spa->spa_name,
 		    spa_check_start_rebalance, spa_sync_start_rebalance,
 		    cvd, blocks, ZFS_SPACE_CHECK_NORMAL);
@@ -11881,6 +11989,57 @@ spa_rebalance_all(spa_t *spa)
 	if (count == 0)
 		return (ENOENT);
 	return (lasterror);
+}
+
+static int
+spa_check_start_contract(void *arg, dmu_tx_t *tx) {
+	vdev_t *lvd = (vdev_t *)arg;
+	vdev_t *tvd = lvd->vdev_top;
+	spa_t *spa = tvd->vdev_spa;
+	if (!vdev_is_anyraid(tvd))
+		return (SET_ERROR(EINVAL));
+	if (vdev_anyraid_relocate_status(tvd)->var_state == ARS_SCANNING ||
+	    vdev_anyraid_relocate_status(tvd)->var_state == ARS_SCRUBBING)
+		return (SET_ERROR(EALREADY));
+	if (spa->spa_anyraid_relocate != NULL)
+		return (SET_ERROR(EEXIST));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		int error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (SET_ERROR(error));
+	}
+
+	return (vdev_anyraid_check_contract(tvd, lvd, tx));
+}
+
+static void
+spa_sync_start_contract(void *arg, dmu_tx_t *tx) {
+	vdev_t *lvd = (vdev_t *)arg;
+	vdev_t *tvd = lvd->vdev_top;
+	ASSERT(vdev_is_anyraid(tvd));
+	vdev_anyraid_setup_contract(tvd, tx);
+}
+
+int
+spa_contract_vdev(spa_t *spa, uint64_t anyraid_vdev, uint64_t leaf_vdev)
+{
+	vdev_t *avd = spa_lookup_by_guid(spa, anyraid_vdev, B_FALSE);
+	vdev_t *lvd = spa_lookup_by_guid(spa, leaf_vdev, B_FALSE);
+	if (avd == NULL || lvd == NULL)
+		return (SET_ERROR(ENOENT));
+	if (!vdev_is_anyraid(avd))
+		return (SET_ERROR(EINVAL));
+	if (lvd->vdev_top != avd)
+		return (SET_ERROR(ENXIO));
+
+	/*
+	 * We need one relocate task per tile on the leaf vdev.
+	 * We also need additional blocks to store metadata.
+	 */
+	uint_t blocks = ((vdev_anyraid_child_num_tiles(avd, lvd) * 32) >>
+	    SPA_OLD_MAXBLOCKSHIFT) + 6;
+	return (dsl_sync_task(spa->spa_name, spa_check_start_contract,
+	    spa_sync_start_contract, lvd, blocks, ZFS_SPACE_CHECK_NORMAL));
 }
 
 /* state manipulation functions */

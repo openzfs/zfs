@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/vdev.h>
 #include <sys/zfs_rlock.h>
+#include <sys/dsl_scan.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -63,7 +64,7 @@ typedef struct vdev_anyraid_relocate {
 	uint64_t	var_synced_task;
 	uint64_t	var_vd;
 
-	dsl_scan_state_t var_state;
+	anyraid_relocate_state_t var_state;
 	uint64_t	var_start_time;
 	uint64_t	var_end_time;
 	uint64_t	var_bytes_copied;
@@ -99,6 +100,7 @@ typedef struct vdev_anyraid {
 	uint32_t	vd_checkpoint_tile;
 	vdev_anyraid_node_t **vd_children;
 	vdev_anyraid_relocate_t vd_relocate;
+	int32_t		vd_contracting_leaf;
 	zfs_rangelock_t	vd_rangelock;
 } vdev_anyraid_t;
 
@@ -118,12 +120,17 @@ uint64_t vdev_anyraid_child_num_tiles(vdev_t *vd, vdev_t *cvd);
 uint64_t vdev_anyraid_child_capacity(vdev_t *vd, vdev_t *cvd);
 int spa_anyraid_relocate_get_stats(spa_t *spa,
     pool_anyraid_relocate_stat_t *pars);
+int vdev_anyraid_check_contract(vdev_t *tvd, vdev_t *lvd, dmu_tx_t *tx);
+void vdev_anyraid_setup_contract(vdev_t *tvd, dmu_tx_t *tx);
+void vdev_anyraid_compact_children(vdev_t *vd);
 int vdev_anyraid_load(vdev_t *vd);
 void anyraid_dtl_reassessed(vdev_t *vd);
 
 vdev_anyraid_relocate_t *vdev_anyraid_relocate_status(vdev_t *vd);
 void vdev_anyraid_setup_rebalance(vdev_t *vd, dmu_tx_t *tx);
 void spa_start_anyraid_relocate_thread(spa_t *spa);
+dsl_scan_done_func_t *anyraid_setup_scan_done(spa_t *spa, uint64_t vd_id,
+    void **arg);
 
 #ifdef	__cplusplus
 }

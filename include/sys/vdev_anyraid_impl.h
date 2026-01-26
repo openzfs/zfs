@@ -62,8 +62,7 @@ typedef struct vdev_anyraid_node {
 	avl_node_t	van_node;
 	uint8_t		van_id;
 	anyraid_freelist_t	van_freelist;
-	// Note: store capacity - 1 for rollover reasons
-	uint16_t	van_capacity;
+	uint32_t	van_capacity;
 } vdev_anyraid_node_t;
 
 typedef struct anyraid_tile_node {
@@ -165,7 +164,9 @@ _Static_assert(sizeof (relocate_task_phys_t) == 32,
 #define	VDEV_ANYRAID_HEADER_LENGTH	"length"
 #define	VDEV_ANYRAID_HEADER_CHECKPOINT	"checkpoint_txg"
 #define	VDEV_ANYRAID_HEADER_DISK_SIZES	"sizes"
+#define	VDEV_ANYRAID_HEADER_RELOC_STATE	"state"
 #define	VDEV_ANYRAID_HEADER_CUR_TASK	"cur_task"
+#define	VDEV_ANYRAID_HEADER_CONTRACTING_LEAF	"contracting_leaf"
 
 #define	VART_TILE		"tile"
 #define	VART_SOURCE_DISK	"source_disk"

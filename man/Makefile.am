@@ -74,6 +74,7 @@ dist_man_MANS = \
 	%D%/man8/zpool-attach.8 \
 	%D%/man8/zpool-checkpoint.8 \
 	%D%/man8/zpool-clear.8 \
+	%D%/man8/zpool-contract.8 \
 	%D%/man8/zpool-create.8 \
 	%D%/man8/zpool-destroy.8 \
 	%D%/man8/zpool-detach.8 \

@@ -107,6 +107,7 @@
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_anyraid_impl.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
@@ -182,6 +183,15 @@ typedef enum {
 	ANYRAID_REBAL_CHECKED,		/* Pool scrub verification done	*/
 } anyraid_rebalance_test_state_t;
 
+/* Dedicated Anyraid contraction test states */
+typedef enum {
+	ANYRAID_CONTRACT_NONE,		/* Default is none, must opt-in	*/
+	ANYRAID_CONTRACT_REQUESTED,	/* The '-X' option was used	*/
+	ANYRAID_CONTRACT_STARTED,	/* Testing has commenced	*/
+	ANYRAID_CONTRACT_KILLED,	/* Reached the proccess kill	*/
+	ANYRAID_CONTRACT_CHECKED,	/* Pool scrub verification done	*/
+} anyraid_contraction_test_state_t;
+
 
 #define	ZO_GVARS_MAX_ARGLEN	((size_t)64)
 #define	ZO_GVARS_MAX_COUNT	((size_t)10)
@@ -213,6 +223,7 @@ typedef struct ztest_shared_opts {
 	uint64_t zo_metaslab_force_ganging;
 	raidz_expand_test_state_t zo_raidz_expand_test;
 	anyraid_rebalance_test_state_t zo_anyraid_rebal_test;
+	anyraid_contraction_test_state_t zo_anyraid_contract_test;
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
@@ -276,6 +287,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_gvars_count = 0,
 	.zo_raidz_expand_test = RAIDZ_EXPAND_NONE,
 	.zo_anyraid_rebal_test = ANYRAID_REBAL_NONE,
+	.zo_anyraid_contract_test = ANYRAID_CONTRACT_NONE,
 };
 
 extern uint64_t metaslab_force_ganging;
@@ -838,6 +850,8 @@ static ztest_option_t option_table[] = {
 	    NO_DEFAULT, NULL},
 	{ 'b', "anyraid-rebalance", NULL,
 	    "Perform a dedicated anyraid rebalance test", NO_DEFAULT, NULL},
+	{ 'c', "anyraid-contraction", NULL,
+	    "Perform a dedicated anyraid contraction test", NO_DEFAULT, NULL},
 	{0, 0, 0, 0, 0, 0}
 };
 
@@ -1072,11 +1086,19 @@ process_options(int argc, char **argv)
 			break;
 		case 'X':
 			zo->zo_raidz_expand_test = RAIDZ_EXPAND_REQUESTED;
+			zo->zo_anyraid_contract_test = ANYRAID_CONTRACT_NONE;
+			zo->zo_anyraid_rebal_test = ANYRAID_REBAL_NONE;
+			break;
+		case 'c':
+			zo->zo_anyraid_contract_test =
+			    ANYRAID_CONTRACT_REQUESTED;
+			zo->zo_raidz_expand_test = RAIDZ_EXPAND_NONE;
 			zo->zo_anyraid_rebal_test = ANYRAID_REBAL_NONE;
 			break;
 		case 'b':
 			zo->zo_anyraid_rebal_test = ANYRAID_REBAL_REQUESTED;
 			zo->zo_raidz_expand_test = RAIDZ_EXPAND_NONE;
+			zo->zo_anyraid_contract_test = ANYRAID_CONTRACT_NONE;
 			break;
 		case 'E':
 			zo->zo_init = 0;
@@ -1137,6 +1159,10 @@ process_options(int argc, char **argv)
 		zo->zo_vdev_size = DEFAULT_VDEV_SIZE * 2;
 		zo->zo_raid_do_expand = B_FALSE;
 		raid_kind = "raidz";
+	} else if (zo->zo_anyraid_contract_test == ANYRAID_CONTRACT_REQUESTED) {
+		zo->zo_mmp_test = 0;
+		zo->zo_mirrors = 0;
+		raid_kind = "anymirror";
 	} else if (zo->zo_anyraid_rebal_test == ANYRAID_REBAL_REQUESTED) {
 		zo->zo_mmp_test = 0;
 		zo->zo_mirrors = 0;
@@ -8655,6 +8681,184 @@ ztest_anyraid_rebal_run(ztest_shared_t *zs, spa_t *spa)
 }
 
 static void
+ztest_anyraid_contract_check(spa_t *spa)
+{
+	ASSERT3U(ztest_opts.zo_anyraid_contract_test, ==,
+	    ANYRAID_CONTRACT_KILLED);
+	/*
+	 * Set pool check done flag, main program will run a zdb check
+	 * of the pool when we exit.
+	 */
+	ztest_shared_opts->zo_anyraid_contract_test = ANYRAID_CONTRACT_CHECKED;
+
+	/* Wait for reflow to finish */
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("\nwaiting for contraction to finish ...\n");
+	}
+	pool_anyraid_relocate_stat_t arr_stats;
+	pool_anyraid_relocate_stat_t *pars = &arr_stats;
+	do {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		(void) poll(NULL, 0, 500); /* wait 1/2 second */
+
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) spa_anyraid_relocate_get_stats(spa, pars);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+	} while (pars->pars_state != ARS_FINISHED &&
+	    pars->pars_moved < pars->pars_to_move);
+
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("verifying an interrupted anyraid "
+		    "contraction using a pool scrub ...\n");
+	}
+
+	/* Will fail here if there is non-recoverable corruption detected */
+	VERIFY0(spa_approx_errlog_size(spa));
+
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("anyraid contraction scrub check complete\n");
+	}
+}
+
+static void
+ztest_anyraid_contract_run(ztest_shared_t *zs, spa_t *spa)
+{
+	nvlist_t *root;
+	pool_anyraid_relocate_stat_t arr_stats;
+	pool_anyraid_relocate_stat_t *pars = &arr_stats;
+	vdev_t *cvd, *arvd = spa->spa_root_vdev->vdev_child[0];
+	uint64_t csize;
+	int error;
+
+	ASSERT3U(ztest_opts.zo_anyraid_contract_test, !=,
+	    ANYRAID_CONTRACT_NONE);
+	ASSERT(vdev_is_anyraid(arvd));
+	ztest_opts.zo_anyraid_contract_test = ANYRAID_CONTRACT_STARTED;
+
+	ztest_write_some_data(zs, spa, 0);
+
+	/* Set our reflow target to 10%, 20% or 30% of allocated size */
+	uint_t multiple = ztest_random(3) + 1;
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("running anyraid_contraction test, killing when "
+		    "contraction reaches %u/10 of allocated space"
+		    "\n", multiple);
+	}
+
+	uint_t child = ztest_random(arvd->vdev_children);
+
+	/* XXX - do we want some I/O load during the contraction? */
+
+	cvd = arvd->vdev_child[child];
+	csize = vdev_get_min_asize(cvd) + VDEV_LABEL_START_SIZE +
+	    VDEV_LABEL_END_SIZE +
+	    VDEV_ANYRAID_TOTAL_MAP_SIZE(ztest_get_ashift());
+	/*
+	 * Path to vdev to be attached
+	 */
+	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	int i = 0;
+	do {
+		(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
+		    ztest_opts.zo_dir, ztest_opts.zo_pool, i);
+		i++;
+	} while (vdev_lookup_by_path(spa->spa_root_vdev, newpath) != NULL);
+	/*
+	 * Build the nvlist describing newpath.
+	 */
+	root = make_vdev_root(newpath, NULL, NULL, csize, ztest_get_ashift(),
+	    NULL, 0, 0, 1);
+	/*
+	 * Expand the anyraid vdev by attaching the new disk
+	 */
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("expanding anyraid: %d wide to %d wide with "
+		    "'%s'\n", (int)arvd->vdev_children,
+		    (int)arvd->vdev_children + 1, newpath);
+	}
+	error = spa_vdev_attach(spa, arvd->vdev_guid, root, B_FALSE, B_FALSE);
+	nvlist_free(root);
+	if (error != 0) {
+		fatal(0, "anyraid contraction: attach (%s %llu) returned %d",
+		    newpath, (long long)csize, error);
+	}
+
+	uint_t child_tiles = vdev_anyraid_child_num_tiles(arvd, cvd);
+	uint64_t used = arvd->vdev_stat.vs_alloc * child_tiles /
+	    vdev_anyraid_child_num_tiles(arvd, NULL);
+	uint64_t contract_max = (used * multiple) / 10;
+	anyraid_relocate_max_bytes_pause = contract_max;
+
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("contracting anyraid: %d wide to %d wide with "
+		    "%u (pausing at %llu bytes)\n", (int)arvd->vdev_children,
+		    (int)arvd->vdev_children - 1, child,
+		    (u_longlong_t)anyraid_relocate_max_bytes_pause);
+	}
+	int err = spa_contract_vdev(spa, arvd->vdev_guid,
+	    arvd->vdev_child[child]->vdev_guid);
+	if (err == ENOSPC)
+		return;
+	VERIFY0(err);
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	(void) spa_anyraid_relocate_get_stats(spa, pars);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	while (pars->pars_state < ARS_SCANNING) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		(void) poll(NULL, 0, 100); /* wait 1/10 second */
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) spa_anyraid_relocate_get_stats(spa, pars);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+	}
+	(void) poll(NULL, 0, 1000); /* wait 1 second */
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	(void) spa_anyraid_relocate_get_stats(spa, pars);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	if (pars->pars_state != ARS_SCANNING)
+		return;
+	ASSERT3U(pars->pars_to_move, !=, 0);
+	/*
+	 * Set so when we are killed we go to anyraid checking rather than
+	 * restarting test.
+	 */
+	ztest_shared_opts->zo_anyraid_contract_test = ANYRAID_CONTRACT_KILLED;
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("anyraid contraction movement started, waiting "
+		    "for %llu bytes to be copied\n",
+		    (u_longlong_t)contract_max);
+	}
+
+	/*
+	 * Wait for contract maximum to be reached and then kill the test
+	 */
+	while (pars->pars_moved < contract_max) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		(void) poll(NULL, 0, 100); /* wait 1/10 second */
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) spa_anyraid_relocate_get_stats(spa, pars);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+	}
+
+	/* Reset the contraction pause before killing */
+	anyraid_relocate_max_bytes_pause = 0;
+
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("killing anyraid contraction test after move "
+		    "reached %llu bytes\n", (u_longlong_t)pars->pars_moved);
+		dump_debug_buffer();
+	}
+
+	/*
+	 * Kill ourself to simulate a panic during a contraction.  Our parent
+	 * will restart the test and the changed flag value will drive the test
+	 * through the scrub/check code to verify the pool is not corrupted.
+	 */
+	ztest_kill(zs);
+}
+
+static void
 ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 {
 	kthread_t **run_threads;
@@ -8862,10 +9066,15 @@ ztest_run(ztest_shared_t *zs)
 		ztest_raidz_expand_run(zs, spa);
 	else if (ztest_opts.zo_anyraid_rebal_test == ANYRAID_REBAL_REQUESTED)
 		ztest_anyraid_rebal_run(zs, spa);
+	else if (ztest_opts.zo_anyraid_contract_test ==
+	    ANYRAID_CONTRACT_REQUESTED)
+		ztest_anyraid_contract_run(zs, spa);
 	else if (ztest_opts.zo_raidz_expand_test == RAIDZ_EXPAND_KILLED)
 		ztest_raidz_expand_check(spa);
 	else if (ztest_opts.zo_anyraid_rebal_test == ANYRAID_REBAL_KILLED)
 		ztest_anyraid_rebal_check(spa);
+	else if (ztest_opts.zo_anyraid_contract_test == ANYRAID_CONTRACT_KILLED)
+		ztest_anyraid_contract_check(spa);
 	else
 		ztest_generic_run(zs, spa);
 
@@ -9483,7 +9692,9 @@ main(int argc, char **argv)
 		if (ztest_shared_opts->zo_raidz_expand_test ==
 		    RAIDZ_EXPAND_CHECKED ||
 		    ztest_shared_opts->zo_anyraid_rebal_test ==
-		    ANYRAID_REBAL_CHECKED)
+		    ANYRAID_REBAL_CHECKED ||
+		    ztest_shared_opts->zo_anyraid_contract_test ==
+		    ANYRAID_CONTRACT_CHECKED)
 			break; /* raidz expand test complete */
 	}
 
