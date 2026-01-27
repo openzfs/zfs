@@ -28,9 +28,15 @@ runstatedir="${TESTDIR}_run"
 pammodule="@pammoduledir@/pam_zfs_key.so"
 pamservice="pam_zfs_key_test"
 pamconfig="/etc/pam.d/${pamservice}"
+PAM_MULTI_HOME_COUNT=20
 
 function keystatus {
     log_must [ "$(get_prop keystatus "$TESTPOOL/pam/${username}")" = "$1" ]
+}
+
+function keystatus_mh {
+    typeset suffix="${2:-}"
+    log_must [ "$(get_prop keystatus "$TESTPOOL/pam-multi-home${suffix}/${username}")" = "$1" ]
 }
 
 function genconfig {

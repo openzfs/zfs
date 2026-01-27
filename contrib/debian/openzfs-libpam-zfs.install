@@ -1,2 +1,3 @@
 usr/lib/*/security/pam_zfs_key.so
+usr/share/man/man8/pam_zfs_key.8
 usr/share/pam-configs/zfs_key
