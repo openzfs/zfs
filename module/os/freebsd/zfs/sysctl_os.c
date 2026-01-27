@@ -273,6 +273,24 @@ param_set_active_allocator(SYSCTL_HANDLER_ARGS)
 	return (param_set_active_allocator_common(buf));
 }
 
+int
+param_set_active_weightfunc(SYSCTL_HANDLER_ARGS)
+{
+	char buf[16];
+	int rc;
+
+	if (req->newptr == NULL)
+		strlcpy(buf, zfs_active_weightfunc, sizeof (buf));
+
+	rc = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (rc || req->newptr == NULL)
+		return (rc);
+	if (strcmp(buf, zfs_active_weightfunc) == 0)
+		return (0);
+
+	return (param_set_active_weightfunc_common(buf));
+}
+
 /*
  * In pools where the log space map feature is not enabled we touch
  * multiple metaslabs (and their respective space maps) with each

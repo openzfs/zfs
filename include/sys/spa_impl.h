@@ -275,6 +275,7 @@ struct spa {
 	spa_allocs_use_t *spa_allocs_use;
 	int		spa_alloc_count;
 	int		spa_active_allocator;	/* selectable allocator */
+	int		spa_active_weightfunc;	/* selectable weight function */
 
 	/* per-allocator sync thread taskqs */
 	taskq_t		*spa_sync_tq;
@@ -501,7 +502,9 @@ extern void spa_set_deadman_synctime(hrtime_t ns);
 extern void spa_set_deadman_ziotime(hrtime_t ns);
 extern const char *spa_history_zone(void);
 extern const char *zfs_active_allocator;
+extern const char *zfs_active_weightfunc;
 extern int param_set_active_allocator_common(const char *val);
+extern int param_set_active_weightfunc_common(const char *val);
 
 #ifdef	__cplusplus
 }
