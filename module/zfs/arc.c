@@ -877,8 +877,6 @@ typedef struct l2arc_read_callback {
 typedef struct l2arc_data_free {
 	/* protected by l2arc_free_on_write_mtx */
 	abd_t		*l2df_abd;
-	size_t		l2df_size;
-	arc_buf_contents_t l2df_type;
 	l2arc_dev_t	*l2df_dev;	/* L2ARC device that owns this ABD */
 	list_node_t	l2df_list_node;
 } l2arc_data_free_t;
@@ -2941,14 +2939,11 @@ arc_loan_inuse_buf(arc_buf_t *buf, const void *tag)
 }
 
 static void
-l2arc_free_abd_on_write(abd_t *abd, size_t size, arc_buf_contents_t type,
-    l2arc_dev_t *dev)
+l2arc_free_abd_on_write(abd_t *abd, l2arc_dev_t *dev)
 {
 	l2arc_data_free_t *df = kmem_alloc(sizeof (*df), KM_SLEEP);
 
 	df->l2df_abd = abd;
-	df->l2df_size = size;
-	df->l2df_type = type;
 	df->l2df_dev = dev;
 	mutex_enter(&l2arc_free_on_write_mtx);
 	list_insert_head(l2arc_free_on_write, df);
@@ -2984,10 +2979,10 @@ arc_hdr_free_on_write(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 	ASSERT(HDR_HAS_L2HDR(hdr));
 
 	if (free_rdata) {
-		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd, size, type,
+		l2arc_free_abd_on_write(hdr->b_crypt_hdr.b_rabd,
 		    hdr->b_l2hdr.b_dev);
 	} else {
-		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd, size, type,
+		l2arc_free_abd_on_write(hdr->b_l1hdr.b_pabd,
 		    hdr->b_l2hdr.b_dev);
 	}
 }
@@ -9722,10 +9717,7 @@ skip:
 		    psize == asize) {
 			to_write = hdr->b_l1hdr.b_pabd;
 		} else {
-			int ret;
-			arc_buf_contents_t type = arc_buf_type(hdr);
-
-			ret = l2arc_apply_transforms(spa, hdr, asize,
+			int ret = l2arc_apply_transforms(spa, hdr, asize,
 			    &to_write);
 			if (ret != 0) {
 				arc_hdr_clear_flags(hdr, ARC_FLAG_L2CACHE);
@@ -9733,7 +9725,7 @@ skip:
 				goto next;
 			}
 
-			l2arc_free_abd_on_write(to_write, asize, type, dev);
+			l2arc_free_abd_on_write(to_write, dev);
 		}
 
 		hdr->b_l2hdr.b_dev = dev;
