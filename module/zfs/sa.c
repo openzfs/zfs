@@ -1250,10 +1250,15 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 
 	db = SA_GET_DB(hdl, buftype);
 
-	if (buftype == SA_SPILL) {
+	/*
+	 * Acquire db_mtx to protect against concurrent access to the buffer
+	 * by dmu_objset_userquota_get_ids() while we perform byte-swapping.
+	 * We also need it for doing arc_release()/arc_buf_freeze().
+	 */
+	mutex_enter(&db->db_mtx);
+
+	if (buftype == SA_SPILL)
 		arc_release(db->db_buf, NULL);
-		arc_buf_thaw(db->db_buf);
-	}
 
 	sa_hdr_phys->sa_magic = BSWAP_32(sa_hdr_phys->sa_magic);
 	sa_hdr_phys->sa_layout_info = BSWAP_16(sa_hdr_phys->sa_layout_info);
@@ -1273,7 +1278,9 @@ sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 	    sa_byteswap_cb, NULL, hdl);
 
 	if (buftype == SA_SPILL)
-		arc_buf_freeze(((dmu_buf_impl_t *)hdl->sa_spill)->db_buf);
+		arc_buf_freeze(db->db_buf);
+
+	mutex_exit(&db->db_mtx);
 }
 
 static int
