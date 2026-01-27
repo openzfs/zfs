@@ -62,7 +62,7 @@ typeset -i width=$((children * fgroups))
 setup_test_env $TESTPOOL draid:${children}c:${width}w $width
 
 #
-# Inject data corruption error for draid pool
+# Inject data corruption errors for draid pool
 #
 for (( i=0; i<$fgroups; i=i+1 )); do
 	damage_devs_off $TESTPOOL 1 "$((ith + children*i))" "label"
@@ -71,7 +71,7 @@ log_must is_data_valid $TESTPOOL
 log_must clear_errors $TESTPOOL
 
 #
-# Inject bad device error for draid pool
+# Inject bad device errors for draid pool
 #
 for (( i=0; i<$fgroups; i=i+1 )); do
 	damage_devs_off $TESTPOOL 1 "$((ith + children*i))"
@@ -80,7 +80,7 @@ log_must is_data_valid $TESTPOOL
 log_must recover_bad_missing_devs $TESTPOOL 1
 
 #
-# Inject missing device error for draid pool
+# Inject missing device errors for draid pool
 #
 for (( i=0; i<$fgroups; i=i+1 )); do
 	remove_devs_off $TESTPOOL 1 "$((ith + children*i))"

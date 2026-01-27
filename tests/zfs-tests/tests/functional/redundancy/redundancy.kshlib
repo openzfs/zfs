@@ -215,9 +215,8 @@ function get_vdevs #pool cnt off
 	typeset -i off=$3
 
 	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}' | \
-		tail -n +"$((off + 1))" | \
 		grep -vEe "^pool$|^capacity$|^mirror\-[0-9]$|^raidz[1-3]\-[0-9]$|^draid[1-3].*\-[0-9]$|---" \
-		-e "/old$|^$pool$")
+		-e "/old$|^$pool$" | tail -n +"$((off + 1))")
 	typeset -i i=0
 	typeset vdevs
 	while ((i < cnt)); do
@@ -307,11 +306,13 @@ function damage_devs_off
 	typeset dev
 	if [[ -n $label ]]; then
 		for dev in $vdevs; do
+			log_note "damage $dev (keeping label)"
 			log_must dd if=/dev/zero of=$dev seek=512 bs=1024 \
 			    count=$bs_count conv=notrunc >/dev/null 2>&1
 		done
 	else
 		for dev in $vdevs; do
+			log_note "damage $dev"
 			log_must dd if=/dev/zero of=$dev bs=1024 \
 			    count=$bs_count conv=notrunc >/dev/null 2>&1
 		done
@@ -375,6 +376,7 @@ function remove_devs_off
 	typeset vdevs
 
 	vdevs=$(get_vdevs $pool $cnt $off)
+	log_note "remove $vdevs"
 	log_must rm -f $vdevs
 
 	sync_pool $pool
