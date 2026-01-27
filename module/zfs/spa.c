@@ -2167,6 +2167,9 @@ spa_sync_time_logger(spa_t *spa, uint64_t txg)
 	if (curtime < spa->spa_last_flush_txg_time + spa_flush_txg_time) {
 		return;
 	}
+	if (txg > spa_final_dirty_txg(spa)) {
+		return;
+	}
 	spa->spa_last_flush_txg_time = curtime;
 
 	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
