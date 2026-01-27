@@ -1124,10 +1124,17 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 	ssize_t err;
 	void *toc_data = NULL, *bootenv = NULL, *vdev_config = NULL;
 	void *spa_config = NULL, *ub = NULL;
+
 	/*
 	 * Note that currently, this can't handle disks with larger than 8k
 	 * sector sizes. That needs to be fixed eventually.
 	 */
+	int sector_size = 0;
+	if (ioctl(fd, BLKSSZGET, &sector_size) < 0 || sector_size > 8192) {
+		(void) fprintf(stderr, "error: sector size > 8k unsupported\n");
+		return;
+	}
+
 	toc_data = malloc(VDEV_TOC_SIZE);
 	err = zhack_repair_read(fd, toc_data, VDEV_TOC_SIZE, label_offset, l);
 	if (err)
