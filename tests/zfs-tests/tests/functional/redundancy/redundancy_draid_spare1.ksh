@@ -19,6 +19,7 @@
 #
 # Copyright (c) 2019, Datto Inc. All rights reserved.
 # Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2026 by Seagate Technology, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -31,8 +32,9 @@
 # STRATEGY:
 # 1. For resilvers:
 #    a. Create a semi-random dRAID pool configuration which can:
-#       - sustain N failures (1-3), and
-#       - has N distributed spares to replace all faulted vdevs
+#       - sustain N failures (1-3) * n, and
+#       - has N * n distributed spares to replace all faulted vdevs
+#       - n is the number of fail groups in the dRAID
 #    b. Fill the pool with data
 #    c. Systematically fault a vdev, then replace it with a spare
 #    d. Scrub the pool to verify no data was lost
@@ -65,14 +67,16 @@ for replace_mode in "healing" "sequential"; do
 
 	(( min_children = (data + parity + spares) ))
 	children=$(random_int_between $min_children 16)
+	n=$(random_int_between 1 4)
+	width=$((children * n))
 
-	draid="draid${parity}:${data}d:${children}c:${spares}s"
+	draid="draid${parity}:${data}d:${children}c:${spares}s:${width}w"
 
-	setup_test_env $TESTPOOL $draid $children
+	setup_test_env $TESTPOOL $draid $width
 
 	i=0
 	while [[ $i -lt $spares ]]; do
-		fault_vdev="$BASEDIR/vdev$i"
+		fault_vdev="$BASEDIR/vdev$((i / n + (i % n) * children))"
 		spare_vdev="draid${parity}-0-${i}"
 
 		log_must zpool offline -f $TESTPOOL $fault_vdev
