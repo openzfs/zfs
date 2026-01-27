@@ -447,6 +447,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	/* Inform the ZIO pipeline that we are non-rotational */
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(bdev));
 
+	/* Is backed by a block device. */
+	v->vdev_is_blkdev = B_TRUE;
+
 	/* Physical volume size in bytes for the partition */
 	*psize = bdev_capacity(bdev);
 
