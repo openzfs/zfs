@@ -1885,6 +1885,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redundancy/redundancy_draid1.ksh \
 	functional/redundancy/redundancy_draid2.ksh \
 	functional/redundancy/redundancy_draid3.ksh \
+	functional/redundancy/redundancy_draid_width.ksh \
 	functional/redundancy/redundancy_draid_damaged1.ksh \
 	functional/redundancy/redundancy_draid_damaged2.ksh \
 	functional/redundancy/redundancy_draid.ksh \
