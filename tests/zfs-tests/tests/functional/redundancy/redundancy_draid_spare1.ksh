@@ -35,6 +35,7 @@
 #       - sustain N failures (1-3) * n, and
 #       - has N * n distributed spares to replace all faulted vdevs
 #       - n is the number of fail groups in the dRAID
+#       - failures in the groups happen at the same time
 #    b. Fill the pool with data
 #    c. Systematically fault a vdev, then replace it with a spare
 #    d. Scrub the pool to verify no data was lost
@@ -74,24 +75,33 @@ for replace_mode in "healing" "sequential"; do
 
 	setup_test_env $TESTPOOL $draid $width
 
-	i=0
-	while [[ $i -lt $spares ]]; do
-		fault_vdev="$BASEDIR/vdev$((i / n + (i % n) * children))"
-		spare_vdev="draid${parity}-0-${i}"
+	for (( i=0; i < $spares; i++ )); do
 
-		log_must zpool offline -f $TESTPOOL $fault_vdev
-		log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
-		log_must zpool replace -w $flags $TESTPOOL \
-		    $fault_vdev $spare_vdev
-		log_must check_vdev_state spare-$i "DEGRADED"
-		log_must check_vdev_state $spare_vdev "ONLINE"
-		log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
-		log_must zpool detach $TESTPOOL $fault_vdev
+		for (( j=$i; j < $((i+n)); j++ )); do
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			log_must zpool offline -f $TESTPOOL $fault_vdev
+			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
+		done
+
+		for (( j=$i; j < $((i+n)); j++ )); do
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			spare_vdev="draid${parity}-0-${j}"
+			log_must zpool replace -w $flags $TESTPOOL \
+			    $fault_vdev $spare_vdev
+		done
+
+		for (( j=$i; j < $((i+n)); j++ )); do
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			spare_vdev="draid${parity}-0-${j}"
+			log_must check_vdev_state spare-$j "DEGRADED"
+			log_must check_vdev_state $spare_vdev "ONLINE"
+			log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
+			log_must zpool detach $TESTPOOL $fault_vdev
+		done
+
 		log_must verify_pool $TESTPOOL
 		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
 		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
-
-		(( i += 1 ))
 	done
 
 	log_must is_data_valid $TESTPOOL

@@ -123,7 +123,7 @@ function setup_test_env
 	log_note "Filling up the filesystem ..."
 	typeset -i i=0
 	typeset file=$TESTDIR/file
-	typeset -i limit
+	typeset -li limit
 	(( limit = $(get_prop available $pool) / 2 ))
 
 	while true ; do
