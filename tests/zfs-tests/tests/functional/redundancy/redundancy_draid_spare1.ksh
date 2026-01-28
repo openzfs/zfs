@@ -75,9 +75,9 @@ for replace_mode in "healing" "sequential"; do
 
 	setup_test_env $TESTPOOL $draid $width
 
-	off=$(random_int_between 0 $((children - (spares / n))))
+	off=$(random_int_between 0 $((children - spares)))
 
-	for (( i=0; i < $spares; i+=$n )); do
+	for (( i=0; i < $((spares * n)); i+=$n )); do
 
 		for (( j=$i; j < $((i+n)); j++ )); do
 			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
