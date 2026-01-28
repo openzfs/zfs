@@ -42,6 +42,27 @@ extern "C" {
 #endif
 
 /*
+ * We can feed L2ARC from two states of ARC buffers, mru and mfu,
+ * and each of the states has two types: data and metadata.
+ */
+#define	L2ARC_FEED_TYPES	4
+
+/*
+ * L2ARC state and statistics for persistent marker management.
+ */
+typedef struct l2arc_info {
+	arc_buf_hdr_t	**l2arc_markers[L2ARC_FEED_TYPES];
+	uint64_t	l2arc_total_writes;	/* total writes for reset */
+	uint64_t	l2arc_total_capacity;	/* total L2ARC capacity */
+	uint64_t	l2arc_smallest_capacity; /* smallest device capacity */
+	/*
+	 * Per-device thread coordination for sublist processing
+	 */
+	boolean_t	*l2arc_sublist_busy[L2ARC_FEED_TYPES];
+	kmutex_t	l2arc_sublist_lock;	/* protects busy flags */
+} l2arc_info_t;
+
+/*
  * Note that buffers can be in one of 6 states:
  *	ARC_anon	- anonymous (discussed below)
  *	ARC_mru		- recently used, currently cached
@@ -421,6 +442,20 @@ typedef struct l2arc_dev {
 	 */
 	zfs_refcount_t		l2ad_lb_count;
 	boolean_t		l2ad_trim_all; /* TRIM whole device */
+	/*
+	 * DWPD tracking with daily reset
+	 */
+	uint64_t		l2ad_dwpd_writes;	/* 24h bytes written */
+	uint64_t		l2ad_dwpd_start;	/* 24h period start */
+	uint64_t		l2ad_dwpd_accumulated;	/* Accumulated */
+	uint64_t		l2ad_dwpd_bump;		/* Reset trigger */
+	/*
+	 * Per-device feed thread for parallel L2ARC writes
+	 */
+	kthread_t		*l2ad_feed_thread;	/* feed thread handle */
+	boolean_t		l2ad_thread_exit;	/* signal thread exit */
+	kmutex_t		l2ad_feed_thr_lock;	/* thread sleep/wake */
+	kcondvar_t		l2ad_feed_cv;		/* thread wakeup cv */
 } l2arc_dev_t;
 
 /*
@@ -1059,6 +1094,7 @@ extern uint_t zfs_arc_pc_percent;
 extern uint_t arc_lotsfree_percent;
 extern uint64_t zfs_arc_min;
 extern uint64_t zfs_arc_max;
+extern uint64_t l2arc_dwpd_limit;
 
 extern uint64_t arc_reduce_target_size(uint64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
@@ -1078,6 +1114,8 @@ extern int param_set_arc_u64(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_min(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_max(ZFS_MODULE_PARAM_ARGS);
+extern int param_set_l2arc_dwpd_limit(ZFS_MODULE_PARAM_ARGS);
+extern void l2arc_dwpd_bump_reset(void);
 
 /* used in zdb.c */
 boolean_t l2arc_log_blkptr_valid(l2arc_dev_t *dev,

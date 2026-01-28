@@ -65,6 +65,9 @@
 #define	param_set_arc_max_args(var) \
     CTLTYPE_U64, NULL, 0, param_set_arc_max, "QU"
 
+#define	param_set_l2arc_dwpd_limit_args(var) \
+    CTLTYPE_U64, &var, 0, param_set_l2arc_dwpd_limit, "QU"
+
 #define	param_set_arc_free_target_args(var) \
     CTLTYPE_UINT, NULL, 0, param_set_arc_free_target, "IU"
 

@@ -55,12 +55,15 @@ function cleanup
 
 	log_must set_tunable32 L2ARC_WRITE_MAX $write_max
 	log_must set_tunable32 L2ARC_NOPREFETCH $noprefetch
+	log_must set_tunable32 L2ARC_DWPD_LIMIT $dwpd_limit
 }
 log_onexit cleanup
 
 typeset write_max=$(get_tunable L2ARC_WRITE_MAX)
 typeset noprefetch=$(get_tunable L2ARC_NOPREFETCH)
+typeset dwpd_limit=$(get_tunable L2ARC_DWPD_LIMIT)
 log_must set_tunable32 L2ARC_NOPREFETCH 0
+log_must set_tunable32 L2ARC_DWPD_LIMIT 0
 
 typeset VDEV="$VDIR/vdev.disk"
 typeset VDEV_SZ=$(( 4 * 1024 * 1024 * 1024 ))
@@ -88,6 +91,8 @@ log_must zpool create -f $TESTPOOL $VDEV cache $VCACHE
 
 # Actually, this test relies on atime writes to force the L2 ARC discards
 log_must zfs set relatime=off $TESTPOOL
+# Disable compression to ensure predictable L2ARC fill
+log_must zfs set compression=off $TESTPOOL
 
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
