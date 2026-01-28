@@ -75,23 +75,25 @@ for replace_mode in "healing" "sequential"; do
 
 	setup_test_env $TESTPOOL $draid $width
 
-	for (( i=0; i < $spares; i++ )); do
+	off=$(random_int_between 0 $((children - (spares / n))))
+
+	for (( i=0; i < $spares; i+=$n )); do
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
 			log_must zpool offline -f $TESTPOOL $fault_vdev
 			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
 		done
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
 			spare_vdev="draid${parity}-0-${j}"
 			log_must zpool replace -w $flags $TESTPOOL \
 			    $fault_vdev $spare_vdev
 		done
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children))"
+			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
 			spare_vdev="draid${parity}-0-${j}"
 			log_must check_vdev_state spare-$j "DEGRADED"
 			log_must check_vdev_state $spare_vdev "ONLINE"
