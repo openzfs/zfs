@@ -405,6 +405,16 @@ static unsigned long raidz_io_aggregate_rows = 4;
  */
 static int zfs_scrub_after_expand = 1;
 
+/*
+ * If there are errors when writing, but few enough that the data is
+ * recoverable, then ZFS used to silently move on, leaving the data not 100%
+ * redundant. If this tunable is set, we issue a read after that case occurs,
+ * allowing the normal error recovery process to handle it.
+ *
+ * NOTE: Currently applies only to raidz and draid.
+ */
+static int zfs_treat_partial_writes = 1;
+
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
 {
@@ -3640,6 +3650,9 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	    shadow_errors > rr->rr_firstdatacol) {
 		zio->io_error = zio_worst_error(zio->io_error,
 		    vdev_raidz_worst_error(rr));
+	} else if ((normal_errors || shadow_errors) &&
+	    zfs_treat_partial_writes) {
+		zio->io_flags |= ZIO_FLAG_POSTREAD;
 	}
 }
 
@@ -5492,6 +5505,9 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
+ZFS_MODULE_PARAM(zfs, zfs_, treat_partial_writes, INT, ZMOD_RW,
+	"Issue reads after writes with recoverable failures to ensure "
+	"integrity");
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, read_sit_out_secs, ULONG, ZMOD_RW,
 	"Raidz/draid slow disk sit out time period in seconds");
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, raidz_outlier_check_interval_ms, U64,

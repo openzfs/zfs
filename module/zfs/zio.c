@@ -5511,6 +5511,12 @@ zio_dva_throttle_done(zio_t *zio)
 	}
 }
 
+static void
+zio_done_postread_done(zio_t *zio)
+{
+	abd_free(zio->io_abd);
+}
+
 static zio_t *
 zio_done(zio_t *zio)
 {
@@ -5839,6 +5845,20 @@ zio_done(zio_t *zio)
 		zcr->zcr_next = NULL;
 		zcr->zcr_finish(zcr, NULL);
 		zfs_ereport_free_checksum(zcr);
+	}
+
+	if (zio->io_flags & ZIO_FLAG_POSTREAD) {
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
+		zl = NULL;
+		zio_t *pio = zio_walk_parents(zio, &zl);
+		blkptr_t *bp = zio->io_bp;
+		abd_t *abd = abd_alloc_for_io(BP_GET_PSIZE(bp), B_FALSE);
+		zio_nowait(zio_read(pio, zio->io_spa, zio->io_bp, abd,
+		    BP_GET_PSIZE(bp), zio_done_postread_done, NULL,
+		    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_SCRUB |
+		    ZIO_FLAG_RESILVER | ZIO_FLAG_RAW |
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE,
+		    &zio->io_bookmark));
 	}
 
 	/*
