@@ -445,14 +445,12 @@ dnode_verify(dnode_t *dn)
 	if (dn->dn_phys->dn_type != DMU_OT_NONE)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
-#ifdef DEBUG
 	if (dn->dn_dbuf != NULL) {
 		assert_db_data_addr_locked(dn->dn_dbuf);
 		ASSERT3P(dn->dn_phys, ==,
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
 		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
 	}
-#endif
 	if (drop_struct_lock)
 		rw_exit(&dn->dn_struct_rwlock);
 }
