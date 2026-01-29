@@ -30,10 +30,7 @@ rather than by integer error codes.
 from __future__ import absolute_import, division, print_function
 
 import errno
-import functools
-import fcntl
 import os
-import struct
 import threading
 from . import exceptions
 from . import _error_translation as errors
@@ -47,44 +44,8 @@ from ._constants import (  # noqa: F401
     zfs_keyformat,
     zio_encrypt
 )
-from .ctypes import (
-    int32_t,
-    uint64_t
-)
+from .ctypes import uint64_t
 from ._nvlist import nvlist_in, nvlist_out
-
-
-def _uncommitted(depends_on=None):
-    '''
-    Mark an API function as being an uncommitted extension that might not be
-    available.
-
-    :param function depends_on: the function that would be checked instead of
-        a decorated function. For example, if the decorated function uses
-        another uncommitted function.
-
-    This decorator transforms a decorated function to raise
-    :exc:`NotImplementedError` if the C libzfs_core library does not provide
-    a function with the same name as the decorated function.
-
-    The optional `depends_on` parameter can be provided if the decorated
-    function does not directly call the C function but instead calls another
-    Python function that follows the typical convention.
-    One example is :func:`lzc_list_snaps` that calls :func:`lzc_list` that
-    calls ``lzc_list`` in libzfs_core.
-
-    This decorator is implemented using :func:`is_supported`.
-    '''
-    def _uncommitted_decorator(func, depends_on=depends_on):
-        @functools.wraps(func)
-        def _f(*args, **kwargs):
-            if not is_supported(_f):
-                raise NotImplementedError(func.__name__)
-            return func(*args, **kwargs)
-        if depends_on is not None:
-            _f._check_func = depends_on
-        return _f
-    return _uncommitted_decorator
 
 
 def lzc_create(name, ds_type='zfs', props=None, key=None):
@@ -827,7 +788,6 @@ def lzc_exists(name):
     return bool(ret)
 
 
-@_uncommitted()
 def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
     '''
     Change encryption key on the specified dataset.
@@ -868,7 +828,6 @@ def lzc_change_key(fsname, crypt_cmd, props=None, key=None):
     errors.lzc_change_key_translate_error(ret, fsname)
 
 
-@_uncommitted()
 def lzc_load_key(fsname, noop, key):
     '''
     Load or verify encryption key on the specified dataset.
@@ -888,7 +847,6 @@ def lzc_load_key(fsname, noop, key):
     errors.lzc_load_key_translate_error(ret, fsname, noop)
 
 
-@_uncommitted()
 def lzc_unload_key(fsname):
     '''
     Unload encryption key from the specified dataset.
@@ -1200,7 +1158,6 @@ def receive_header(fd):
     return (header, record)
 
 
-@_uncommitted()
 def lzc_receive_one(
     snapname, fd, begin_record, force=False, resumable=False, raw=False,
     origin=None, props=None, cleanup_fd=-1, action_handle=0
@@ -1306,7 +1263,6 @@ def lzc_receive_one(
     return (int(c_read_bytes[0]), action_handle)
 
 
-@_uncommitted()
 def lzc_receive_with_cmdprops(
     snapname, fd, begin_record, force=False, resumable=False, raw=False,
     origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
@@ -1427,7 +1383,6 @@ def lzc_receive_with_cmdprops(
     return (int(c_read_bytes[0]), action_handle)
 
 
-@_uncommitted()
 def lzc_receive_with_heal(
     snapname, fd, begin_record, force=False, corrective=True, resumable=False,
     raw=False, origin=None, props=None, cmdprops=None, key=None, cleanup_fd=-1,
@@ -1556,7 +1511,6 @@ def lzc_receive_with_heal(
     return (int(c_read_bytes[0]), action_handle)
 
 
-@_uncommitted()
 def lzc_reopen(poolname, restart=True):
     '''
     Reopen a pool
@@ -1627,7 +1581,6 @@ def lzc_send_resume(
     errors.lzc_send_translate_error(ret, snapname, fromsnap, fd, flags)
 
 
-@_uncommitted()
 def lzc_sync(poolname, force=False):
     '''
     Forces all in-core dirty data to be written to the primary pool storage
@@ -1674,7 +1627,6 @@ def is_supported(func):
     return getattr(_lib, fname, None) is not None
 
 
-@_uncommitted()
 def lzc_promote(name):
     '''
     Promotes the ZFS dataset.
@@ -1693,7 +1645,6 @@ def lzc_promote(name):
     errors.lzc_promote_translate_error(ret, name)
 
 
-@_uncommitted()
 def lzc_pool_checkpoint(name):
     '''
     Creates a checkpoint for the specified pool.
@@ -1710,7 +1661,6 @@ def lzc_pool_checkpoint(name):
     errors.lzc_pool_checkpoint_translate_error(ret, name)
 
 
-@_uncommitted()
 def lzc_pool_checkpoint_discard(name):
     '''
     Discard the checkpoint from the specified pool.
@@ -1756,304 +1706,6 @@ def lzc_destroy(name):
     '''
     ret = _lib.lzc_destroy(name)
     errors.lzc_destroy_translate_error(ret, name)
-
-
-@_uncommitted()
-def lzc_inherit(name, prop):
-    '''
-    Inherit properties from a parent dataset of the given ZFS dataset.
-
-    :param bytes name: the name of the dataset.
-    :param bytes prop: the name of the property to inherit.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-    :raises PropertyInvalid: if one or more of the specified properties is
-        invalid or has an invalid type or value.
-
-    Inheriting a property actually resets it to its default value
-    or removes it if it's a user property, so that the property could be
-    inherited if it's inheritable.  If the property is not inheritable
-    then it would just have its default value.
-
-    This function can be used on snapshots to inherit user defined properties.
-    '''
-    ret = _lib.lzc_inherit(name, prop, _ffi.NULL)
-    errors.lzc_inherit_prop_translate_error(ret, name, prop)
-
-
-# As the extended API is not committed yet, the names of the new interfaces
-# are not settled down yet.
-# lzc_inherit_prop makes it clearer what is to be inherited.
-lzc_inherit_prop = lzc_inherit
-
-
-@_uncommitted()
-def lzc_set_props(name, prop, val):
-    '''
-    Set properties of the ZFS dataset.
-
-    :param bytes name: the name of the dataset.
-    :param bytes prop: the name of the property.
-    :param Any val: the value of the property.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-    :raises NoSpace: if the property controls a quota and the values is too
-        small for that quota.
-    :raises PropertyInvalid: if one or more of the specified properties is
-        invalid or has an invalid type or value.
-
-    This function can be used on snapshots to set user defined properties.
-
-    .. note::
-        An attempt to set a readonly / statistic property is ignored
-        without reporting any error.
-    '''
-    props = {prop: val}
-    props_nv = nvlist_in(props)
-    ret = _lib.lzc_set_props(name, props_nv, _ffi.NULL, _ffi.NULL)
-    errors.lzc_set_prop_translate_error(ret, name, prop, val)
-
-
-# As the extended API is not committed yet, the names of the new interfaces
-# are not settled down yet.
-# It's not clear if atomically setting multiple properties is an achievable
-# goal and an interface acting on multiple entities must do so atomically
-# by convention.
-# Being able to set a single property at a time is sufficient for ClusterHQ.
-lzc_set_prop = lzc_set_props
-
-
-@_uncommitted()
-def lzc_list(name, options):
-    '''
-    List subordinate elements of the given dataset.
-
-    This function can be used to list child datasets and snapshots of the given
-    dataset.  The listed elements can be filtered by their type and by their
-    depth relative to the starting dataset.
-
-    :param bytes name: the name of the dataset to be listed, could be a
-        snapshot or a dataset.
-    :param options: a `dict` of the options that control the listing behavior.
-    :type options: dict of bytes:Any
-    :return: a pair of file descriptors the first of which can be used to read
-        the listing.
-    :rtype: tuple of (int, int)
-    :raises DatasetNotFound: if the dataset does not exist.
-
-    Two options are currently available:
-
-    recurse : integer or None
-        specifies depth of the recursive listing. If ``None`` the depth is not
-        limited.
-        Absence of this option means that only the given dataset is listed.
-
-    type : dict of bytes:None
-        specifies dataset types to include into the listing.
-        Currently allowed keys are "filesystem", "volume", "snapshot".
-        Absence of this option implies all types.
-
-    The first of the returned file descriptors can be used to
-    read the listing in a binary encoded format.  The data is
-    a series of variable sized records each starting with a fixed
-    size header, the header is followed by a serialized ``nvlist``.
-    Each record describes a single element and contains the element's
-    name as well as its properties.
-    The file descriptor must be closed after reading from it.
-
-    The second file descriptor represents a pipe end to which the
-    kernel driver is writing information.  It should not be closed
-    until all interesting information has been read and it must
-    be explicitly closed afterwards.
-    '''
-    (rfd, wfd) = os.pipe()
-    fcntl.fcntl(rfd, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
-    fcntl.fcntl(wfd, fcntl.F_SETFD, fcntl.FD_CLOEXEC)
-    options = options.copy()
-    options['fd'] = int32_t(wfd)
-    opts_nv = nvlist_in(options)
-    ret = _lib.lzc_list(name, opts_nv)
-    if ret == errno.ESRCH:
-        return (None, None)
-    errors.lzc_list_translate_error(ret, name, options)
-    return (rfd, wfd)
-
-
-# Description of the binary format used to pass data from the kernel.
-_PIPE_RECORD_FORMAT = 'IBBBB'
-_PIPE_RECORD_SIZE = struct.calcsize(_PIPE_RECORD_FORMAT)
-
-
-def _list(name, recurse=None, types=None):
-    '''
-    A wrapper for :func:`lzc_list` that hides details of working
-    with the file descriptors and provides data in an easy to
-    consume format.
-
-    :param bytes name: the name of the dataset to be listed, could be a
-        snapshot, a volume or a filesystem.
-    :param recurse: specifies depth of the recursive listing. If ``None`` the
-        depth is not limited.
-    :param types: specifies dataset types to include into the listing.
-        Currently allowed keys are "filesystem", "volume", "snapshot". ``None``
-        is equivalent to specifying the type of the dataset named by `name`.
-    :type types: list of bytes or None
-    :type recurse: integer or None
-    :return: a list of dictionaries each describing a single listed element.
-    :rtype: list of dict
-    '''
-    options = {}
-
-    # Convert types to a dict suitable for mapping to an nvlist.
-    if types is not None:
-        types = {x: None for x in types}
-        options['type'] = types
-    if recurse is None or recurse > 0:
-        options['recurse'] = recurse
-
-    # Note that other_fd is used by the kernel side to write
-    # the data, so we have to keep that descriptor open until
-    # we are done.
-    # Also, we have to explicitly close the descriptor as the
-    # kernel doesn't do that.
-    (fd, other_fd) = lzc_list(name, options)
-    if fd is None:
-        return
-
-    try:
-        while True:
-            record_bytes = os.read(fd, _PIPE_RECORD_SIZE)
-            if not record_bytes:
-                break
-            (size, _, err, _, _) = struct.unpack(
-                _PIPE_RECORD_FORMAT, record_bytes)
-            if err == errno.ESRCH:
-                break
-            errors.lzc_list_translate_error(err, name, options)
-            if size == 0:
-                break
-            data_bytes = os.read(fd, size)
-            result = {}
-            with nvlist_out(result) as nvp:
-                ret = _lib.nvlist_unpack(data_bytes, size, nvp, 0)
-            if ret != 0:
-                raise exceptions.ZFSGenericError(
-                    ret, None, "Failed to unpack list data")
-            yield result
-    finally:
-        os.close(other_fd)
-        os.close(fd)
-
-
-@_uncommitted(lzc_list)
-def lzc_get_props(name):
-    '''
-    Get properties of the ZFS dataset.
-
-    :param bytes name: the name of the dataset.
-    :raises DatasetNotFound: if the dataset does not exist.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :return: a dictionary mapping the property names to their values.
-    :rtype: dict of bytes:Any
-
-    .. note::
-        The value of ``clones`` property is a `list` of clone names as byte
-        strings.
-
-    .. warning::
-        The returned dictionary does not contain entries for properties
-        with default values.  One exception is the ``mountpoint`` property
-        for which the default value is derived from the dataset name.
-    '''
-    result = next(_list(name, recurse=0))
-    is_snapshot = result['dmu_objset_stats']['dds_is_snapshot']
-    result = result['properties']
-    # In most cases the source of the property is uninteresting and the
-    # value alone is sufficient.  One exception is the 'mountpoint'
-    # property the final value of which is not the same as the inherited
-    # value.
-    mountpoint = result.get('mountpoint')
-    if mountpoint is not None:
-        mountpoint_src = mountpoint['source']
-        mountpoint_val = mountpoint['value']
-        # 'source' is the name of the dataset that has 'mountpoint' set
-        # to a non-default value and from which the current dataset inherits
-        # the property.  'source' can be the current dataset if its
-        # 'mountpoint' is explicitly set.
-        # 'source' can also be a special value like '$recvd', that case
-        # is equivalent to the property being set on the current dataset.
-        # Note that a normal mountpoint value should start with '/'
-        # unlike the special values "none" and "legacy".
-        if (mountpoint_val.startswith('/') and
-                not mountpoint_src.startswith('$')):
-            mountpoint_val = mountpoint_val + name[len(mountpoint_src):]
-    elif not is_snapshot:
-        mountpoint_val = '/' + name
-    else:
-        mountpoint_val = None
-    result = {k: result[k]['value'] for k in result}
-    if 'clones' in result:
-        result['clones'] = list(result['clones'].keys())
-    if mountpoint_val is not None:
-        result['mountpoint'] = mountpoint_val
-    return result
-
-
-@_uncommitted(lzc_list)
-def lzc_list_children(name):
-    '''
-    List the children of the ZFS dataset.
-
-    :param bytes name: the name of the dataset.
-    :return: an iterator that produces the names of the children.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-
-    .. warning::
-        If the dataset does not exist, then the returned iterator would produce
-        no results and no error is reported.
-        That case is indistinguishable from the dataset having no children.
-
-        An attempt to list children of a snapshot is silently ignored as well.
-    '''
-    children = []
-    for entry in _list(name, recurse=1, types=['filesystem', 'volume']):
-        child = entry['name']
-        if child != name:
-            children.append(child)
-
-    return iter(children)
-
-
-@_uncommitted(lzc_list)
-def lzc_list_snaps(name):
-    '''
-    List the snapshots of the ZFS dataset.
-
-    :param bytes name: the name of the dataset.
-    :return: an iterator that produces the names of the snapshots.
-    :raises NameInvalid: if the dataset name is invalid.
-    :raises NameTooLong: if the dataset name is too long.
-    :raises DatasetNotFound: if the dataset does not exist.
-
-    .. warning::
-        If the dataset does not exist, then the returned iterator would produce
-        no results and no error is reported.
-        That case is indistinguishable from the dataset having no snapshots.
-
-        An attempt to list snapshots of a snapshot is silently ignored as well.
-    '''
-    snaps = []
-    for entry in _list(name, recurse=1, types=['snapshot']):
-        snap = entry['name']
-        if snap != name:
-            snaps.append(snap)
-
-    return iter(snaps)
 
 
 # TODO: a better way to init and uninit the library

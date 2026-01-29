@@ -638,64 +638,6 @@ def lzc_destroy_translate_error(ret, name):
     raise _generic_exception(ret, name, "Failed to destroy dataset")
 
 
-def lzc_inherit_prop_translate_error(ret, name, prop):
-    if ret == 0:
-        return
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-        raise lzc_exc.PropertyInvalid(prop)
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    raise _generic_exception(ret, name, "Failed to inherit a property")
-
-
-def lzc_set_prop_translate_error(ret, name, prop, val):
-    if ret == 0:
-        return
-    if ret == errno.EINVAL:
-        _validate_fs_or_snap_name(name)
-        raise lzc_exc.PropertyInvalid(prop)
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    raise _generic_exception(ret, name, "Failed to set a property")
-
-
-def lzc_get_props_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.EINVAL:
-        _validate_fs_or_snap_name(name)
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    raise _generic_exception(ret, name, "Failed to get properties")
-
-
-def lzc_list_children_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-    raise _generic_exception(ret, name, "Error while iterating children")
-
-
-def lzc_list_snaps_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-    raise _generic_exception(ret, name, "Error while iterating snapshots")
-
-
-def lzc_list_translate_error(ret, name, opts):
-    if ret == 0:
-        return
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    if ret == errno.EINVAL:
-        _validate_fs_or_snap_name(name)
-    raise _generic_exception(ret, name, "Error obtaining a list")
-
-
 def _handle_err_list(ret, errlist, names, exception, mapper):
     '''
     Convert one or more errors from an operation into the requested exception.

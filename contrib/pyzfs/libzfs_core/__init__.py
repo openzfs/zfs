@@ -90,11 +90,6 @@ from ._libzfs_core import (
     lzc_snap,
     lzc_rename,
     lzc_destroy,
-    lzc_inherit_prop,
-    lzc_get_props,
-    lzc_set_props,
-    lzc_list_children,
-    lzc_list_snaps,
     receive_header,
 )
 
@@ -146,11 +141,6 @@ __all__ = [
     'lzc_snap',
     'lzc_rename',
     'lzc_destroy',
-    'lzc_inherit_prop',
-    'lzc_get_props',
-    'lzc_set_props',
-    'lzc_list_children',
-    'lzc_list_snaps',
     'receive_header',
 ]
 
