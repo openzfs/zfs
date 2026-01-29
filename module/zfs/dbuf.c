@@ -1249,10 +1249,9 @@ dbuf_verify(dmu_buf_impl_t *db)
 		 */
 		if (db->db_dirtycnt == 0) {
 			if (db->db_level == 0) {
-				uint64_t *buf;
+				uint64_t *buf = db->db.db_data;
 				int i;
 
-				buf = db->db.db_data;
 				for (i = 0; i < db->db.db_size >> 3; i++) {
 					ASSERT0(buf[i]);
 				}
