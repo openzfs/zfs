@@ -1451,11 +1451,16 @@ zpool_has_draid_vdev(nvlist_t *nvroot)
  */
 static char *
 zpool_draid_name(char *name, int len, uint64_t data, uint64_t parity,
-    uint64_t spares, uint64_t children)
+    uint64_t spares, uint64_t children, uint64_t width)
 {
-	snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
+	int off;
+
+	off = snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
 	    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
 	    (u_longlong_t)children, (u_longlong_t)spares);
+
+	if (children < width && off < len)
+		snprintf(name + off, len - off, ":%lluw", (u_longlong_t)width);
 
 	return (name);
 }
@@ -4570,21 +4575,23 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a dRAID device, we add parity, groups, and spares.
 		 */
 		if (strcmp(path, VDEV_TYPE_DRAID) == 0) {
-			uint64_t ndata, nparity, nspares;
+			uint64_t ndata, nparity, nspares, children;
 			nvlist_t **child;
-			uint_t children;
+			uint_t width;
 
 			verify(nvlist_lookup_nvlist_array(nv,
-			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+			    ZPOOL_CONFIG_CHILDREN, &child, &width) == 0);
 			nparity = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_NPARITY);
 			ndata = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_DRAID_NDATA);
 			nspares = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_DRAID_NSPARES);
+			children = fnvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NSLICE);
 
 			path = zpool_draid_name(buf, sizeof (buf), ndata,
-			    nparity, nspares, children);
+			    nparity, nspares, children, width);
 		}
 
 		/*
