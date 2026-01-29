@@ -1637,6 +1637,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, dmu_flags_t flags,
 		aflags |= ARC_FLAG_UNCACHED;
 	else if (dbuf_is_l2cacheable(db, bp))
 		aflags |= ARC_FLAG_L2CACHE;
+	if (flags & DMU_IS_PREFETCH)
+		aflags |= ARC_FLAG_PREFETCH | ARC_FLAG_PRESCIENT_PREFETCH;
 
 	dbuf_add_ref(db, NULL);
 
@@ -1769,7 +1771,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 	mutex_enter(&db->db_mtx);
 	if (!(flags & (DMU_UNCACHEDIO | DMU_KEEP_CACHING)))
 		db->db_pending_evict = B_FALSE;
-	if (flags & DMU_PARTIAL_FIRST)
+	if (flags & (DMU_PARTIAL_FIRST | DMU_IS_PREFETCH))
 		db->db_partial_read = B_TRUE;
 	else if (!(flags & (DMU_PARTIAL_MORE | DMU_KEEP_CACHING)))
 		db->db_partial_read = B_FALSE;

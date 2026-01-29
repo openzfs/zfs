@@ -573,6 +573,7 @@ typedef enum dmu_flags {
 	DMU_PARTIAL_FIRST	= 1 << 7, /* First partial access. */
 	DMU_PARTIAL_MORE	= 1 << 8, /* Following partial access. */
 	DMU_KEEP_CACHING	= 1 << 9, /* Don't affect caching. */
+	DMU_IS_PREFETCH		= 1 << 10, /* This read is a prefetch. */
 } dmu_flags_t;
 
 /*
