@@ -85,6 +85,10 @@ usage(void)
 	    "32-bit integer\n"
 	    "    -G               dump zfs_dbgmsg buffer before exiting\n"
 	    "\n"
+	    "    action idle <pool> [-f] [-t seconds]\n"
+	    "        import the pool for a set time then export it\n"
+	    "        -t <seconds> sets the time the pool is imported\n"
+	    "\n"
 	    "    feature stat <pool>\n"
 	    "        print information about enabled features\n"
 	    "    feature enable [-r] [-d desc] <pool> <feature>\n"
@@ -218,7 +222,7 @@ zhack_import(char *target, boolean_t readonly)
 
 	zfeature_checks_disable = B_TRUE;
 	error = spa_import(target, config, props,
-	    (readonly ?  ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
+	    (readonly ? ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
 	fnvlist_free(config);
 	zfeature_checks_disable = B_FALSE;
 	if (error == EEXIST)
@@ -548,6 +552,79 @@ zhack_do_feature(int argc, char **argv)
 
 	return (0);
 }
+
+static void
+zhack_do_action_idle(int argc, char **argv)
+{
+	spa_t *spa;
+	char *target, *tmp;
+	int idle_time = 0;
+	int c;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+t:")) != -1) {
+		switch (c) {
+		case 't':
+			idle_time = strtol(optarg, &tmp, 0);
+			if (*tmp) {
+				(void) fprintf(stderr, "error: time must "
+				    "be an integer in seconds: %s\n", tmp);
+				usage();
+			}
+			if (idle_time < 0) {
+				(void) fprintf(stderr, "error: time must "
+				    "not be negative: %d\n", idle_time);
+				usage();
+			}
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	fprintf(stdout, "Imported pool %s, idle for %d seconds\n",
+	    target, idle_time);
+	sleep(idle_time);
+
+	spa_close(spa, FTAG);
+}
+
+static int
+zhack_do_action(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no import operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "idle") == 0) {
+		zhack_do_action_idle(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
+}
+
 
 static boolean_t
 strstarts(const char *a, const char *b)
@@ -1287,7 +1364,9 @@ main(int argc, char **argv)
 
 	subcommand = argv[0];
 
-	if (strcmp(subcommand, "feature") == 0) {
+	if (strcmp(subcommand, "action") == 0) {
+		rv = zhack_do_action(argc, argv);
+	} else if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
