@@ -4099,8 +4099,8 @@ spa_activity_check_tryimport(spa_t *spa, uberblock_t *spa_ub,
 		hrtime_t extra_delay = MMP_IMPORT_VERIFY_ITERS *
 		    MSEC2NSEC(MMP_INTERVAL_VALID(spa_ub) ?
 		    MMP_INTERVAL(spa_ub) : MMP_MIN_INTERVAL);
-		cmn_err(CE_NOTE, "pool '%s' multihost activity check "
-		    "required, %llu seconds remaining", spa_load_name(spa),
+		cmn_err(CE_NOTE, "pool '%s' activity check required, "
+		    "%llu seconds remaining", spa_load_name(spa),
 		    (u_longlong_t)MAX(NSEC2SEC(import_delay + extra_delay), 1));
 		spa_import_progress_set_notes(spa, "Checking MMP activity, "
 		    "waiting %llu ms", (u_longlong_t)NSEC2MSEC(import_delay));
