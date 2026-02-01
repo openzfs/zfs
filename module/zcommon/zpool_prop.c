@@ -67,8 +67,8 @@ zpool_prop_init(void)
 	};
 
 	static const zprop_index_t raidz_expansion_accounting_table[] = {
-		{ "legacy",	0},
-		{ "current",	1},
+		{ "legacy",	0 },
+		{ "current",	1 },
 		{ NULL }
 	};
 
@@ -180,7 +180,7 @@ zpool_prop_init(void)
 	    "on | off", "AUTOTRIM", boolean_table, sfeatures);
 	zprop_register_index(ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING,
 	    "raidz_expansion_accounting", 0, PROP_DEFAULT, ZFS_TYPE_POOL,
-	    "legacy | current", "RAIDZ_EXPAND_ACCT",
+	    "legacy | current", "RAIDZ_EXPANSION_ACCOUNTING",
 	    raidz_expansion_accounting_table, sfeatures);
 
 	/* hidden properties */

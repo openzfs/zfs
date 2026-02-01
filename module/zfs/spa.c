@@ -10057,9 +10057,6 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					spa_async_request(spa,
 					    SPA_ASYNC_AUTOTRIM_RESTART);
 					break;
-				case ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING:
-					spa->spa_raidz_expansion_accounting = intval;
-					break;
 				case ZPOOL_PROP_AUTOEXPAND:
 					spa->spa_autoexpand = intval;
 					if (tx->tx_txg != TXG_INITIAL)
@@ -10071,6 +10068,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					break;
 				case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
 					spa->spa_dedup_table_quota = intval;
+					break;
+				case ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING:
+					spa->spa_raidz_expansion_accounting =
+					    intval;
 					break;
 				default:
 					break;
