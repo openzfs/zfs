@@ -1805,6 +1805,7 @@ typedef enum {
 #define	ZFS_IMPORT_SKIP_MMP	0x20
 #define	ZFS_IMPORT_LOAD_KEYS	0x40
 #define	ZFS_IMPORT_CHECKPOINT	0x80
+#define	ZFS_IMPORT_HEAL_ORPHANED_DTL	0x100
 
 /*
  * Channel program argument/return nvlist keys and defaults.

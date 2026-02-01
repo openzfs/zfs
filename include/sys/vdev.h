@@ -85,6 +85,7 @@ extern void vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 extern boolean_t vdev_dtl_required(vdev_t *vd);
 extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);
+extern int vdev_dtl_check_orphaned(vdev_t *vd, boolean_t heal, int *count);
 extern void vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj,
     dmu_tx_t *tx);
 extern uint64_t vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx);
