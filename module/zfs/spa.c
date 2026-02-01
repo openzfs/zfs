@@ -765,6 +765,7 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 		case ZPOOL_PROP_LISTSNAPS:
 		case ZPOOL_PROP_AUTOEXPAND:
 		case ZPOOL_PROP_AUTOTRIM:
+		case ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING:
 			error = nvpair_value_uint64(elem, &intval);
 			if (!error && intval > 1)
 				error = SET_ERROR(EINVAL);
@@ -5028,6 +5029,8 @@ spa_ld_get_props(spa_t *spa)
 		    &spa->spa_dedup_table_quota);
 		spa_prop_find(spa, ZPOOL_PROP_MULTIHOST, &spa->spa_multihost);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_autotrim);
+		spa_prop_find(spa, ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING,
+		    &spa->spa_raidz_expansion_accounting);
 		spa->spa_autoreplace = (autoreplace != 0);
 	}
 
@@ -6883,6 +6886,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_autoexpand = zpool_prop_default_numeric(ZPOOL_PROP_AUTOEXPAND);
 	spa->spa_multihost = zpool_prop_default_numeric(ZPOOL_PROP_MULTIHOST);
 	spa->spa_autotrim = zpool_prop_default_numeric(ZPOOL_PROP_AUTOTRIM);
+	spa->spa_raidz_expansion_accounting =
+	    zpool_prop_default_numeric(ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING);
 	spa->spa_dedup_table_quota =
 	    zpool_prop_default_numeric(ZPOOL_PROP_DEDUP_TABLE_QUOTA);
 
@@ -10051,6 +10056,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					spa->spa_autotrim = intval;
 					spa_async_request(spa,
 					    SPA_ASYNC_AUTOTRIM_RESTART);
+					break;
+				case ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING:
+					spa->spa_raidz_expansion_accounting = intval;
 					break;
 				case ZPOOL_PROP_AUTOEXPAND:
 					spa->spa_autoexpand = intval;
