@@ -2067,19 +2067,37 @@ vdev_open_children_subset(vdev_t *vd, vdev_open_children_func_t *open_func)
 }
 
 /*
+ /*
  * Compute the raidz-deflation ratio.  Note, we hard-code 128k (1 << 17)
  * because it is the "typical" blocksize.  Even though SPA_MAXBLOCKSIZE
  * changed, this algorithm can not change, otherwise it would inconsistently
- * account for existing bp's.  We also hard-code txg 0 for the same reason
- * since expanded RAIDZ vdevs can use a different asize for different birth
- * txg's.
+ * account for existing bp's.
+ *
+ * By default (legacy mode), we use txg 0 to get the original RAIDZ geometry,
+ * which ensures consistent accounting for pools with mixed block birth txgs.
+ *
+ * When raidz_expansion_accounting=current is set, we use UINT64_MAX to get
+ * the current geometry. This should only be enabled after all data has been
+ * rewritten to use the new parity layout (e.g., via 'zfs rewrite -rv').
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
 {
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
+		spa_t *spa = vd->vdev_spa;
+		uint64_t txg;
+
+		/*
+		 * Determine which geometry to use for space accounting.
+		 */
+		if (spa != NULL && spa->spa_raidz_expansion_accounting != 0) {
+			txg = UINT64_MAX;  /* Use current geometry */
+		} else {
+			txg = 0;  /* Use original geometry (default) */
+		}
+
 		vd->vdev_deflate_ratio = (1 << 17) /
-		    (vdev_psize_to_asize_txg(vd, 1 << 17, 0) >>
+		    (vdev_psize_to_asize_txg(vd, 1 << 17, txg) >>
 		    SPA_MINBLOCKSHIFT);
 	}
 }
