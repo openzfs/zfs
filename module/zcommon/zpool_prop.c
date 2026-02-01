@@ -66,6 +66,12 @@ zpool_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t raidz_expansion_accounting_table[] = {
+		{ "legacy",	0},
+		{ "current",	1},
+		{ NULL }
+	};
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_POOL_PROPERTIES);
 
@@ -172,6 +178,10 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_AUTOTRIM, "autotrim",
 	    SPA_AUTOTRIM_OFF, PROP_DEFAULT, ZFS_TYPE_POOL,
 	    "on | off", "AUTOTRIM", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING,
+	    "raidz_expansion_accounting", 0, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "legacy | current", "RAIDZ_EXPAND_ACCT",
+	    raidz_expansion_accounting_table, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,
