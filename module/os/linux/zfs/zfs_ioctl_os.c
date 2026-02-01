@@ -194,6 +194,30 @@ zfs_ioc_userns_detach(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * UID-based zoning: attach a dataset to all user namespaces owned by a UID.
+ * The UID is passed via zc_guid.
+ */
+static int
+zfs_ioc_userns_attach_uid(zfs_cmd_t *zc)
+{
+	if (zc == NULL)
+		return (SET_ERROR(EINVAL));
+
+	return (zone_dataset_attach_uid(CRED(), zc->zc_name,
+	    (uid_t)zc->zc_guid));
+}
+
+static int
+zfs_ioc_userns_detach_uid(zfs_cmd_t *zc)
+{
+	if (zc == NULL)
+		return (SET_ERROR(EINVAL));
+
+	return (zone_dataset_detach_uid(CRED(), zc->zc_name,
+	    (uid_t)zc->zc_guid));
+}
+
 uint64_t
 zfs_max_nvlist_src_size_os(void)
 {
@@ -216,6 +240,10 @@ zfs_ioctl_init_os(void)
 	    zfs_ioc_userns_attach, zfs_secpolicy_config, POOL_CHECK_NONE);
 	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERNS_DETACH,
 	    zfs_ioc_userns_detach, zfs_secpolicy_config, POOL_CHECK_NONE);
+	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERNS_ATTACH_UID,
+	    zfs_ioc_userns_attach_uid, zfs_secpolicy_config, POOL_CHECK_NONE);
+	zfs_ioctl_register_dataset_nolog(ZFS_IOC_USERNS_DETACH_UID,
+	    zfs_ioc_userns_detach_uid, zfs_secpolicy_config, POOL_CHECK_NONE);
 }
 
 #ifdef CONFIG_COMPAT

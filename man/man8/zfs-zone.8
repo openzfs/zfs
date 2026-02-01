@@ -114,4 +114,11 @@ dataset to a user namespace identified by user namespace file
 .Dl # Nm zfs Cm zone Ar /proc/1234/ns/user Ar tank/users
 .
 .Sh SEE ALSO
-.Xr zfsprops 7
+.Xr zfsprops 7 ,
+.Sy zoned_uid No property
+.Pp
+For rootless container use cases where the namespace is ephemeral,
+consider using the
+.Sy zoned_uid
+property instead, which delegates to all namespaces owned by a UID
+rather than requiring attachment to a specific namespace file.
