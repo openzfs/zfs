@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2026 Colin K. Williams / LINK ORG LLC / LI-NK.SOCIAL. All rights reserved.
+#
+
+# Supplement for standalone test runs
+
+function verify_runnable
+{
+    # For standalone runs, assume global zone
+    [[ "$1" == "global" ]] && return 0
+    [[ "$1" == "both" ]] && return 0
+    return 1
+}
+
+function default_setup
+{
+    # Create test filesystem on existing pool
+    log_must zfs create "$TESTPOOL/$TESTFS"
+}
+
+function default_cleanup
+{
+    zfs destroy -rf "$TESTPOOL/$TESTFS" 2>/dev/null || true
+}
+
+function is_linux
+{
+    [[ "$(uname)" == "Linux" ]]
+}
+
+function datasetexists
+{
+    zfs list -H "$1" &>/dev/null
+}
+
+function poolexists
+{
+    zpool list -H "$1" &>/dev/null
+}
+
+function get_prop
+{
+    typeset prop=$1
+    typeset dataset=$2
+    zfs get -H -o value "$prop" "$dataset"
+}
+
+function destroy_pool
+{
+    # SAFETY: Never destroy the test pool in manual runs!
+    echo "WARNING: destroy_pool called but ignored for safety (manual run)"
+    return 0
+}

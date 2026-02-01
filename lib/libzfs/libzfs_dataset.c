@@ -3550,9 +3550,13 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 
 	/* we are in a non-global zone, but parent is in the global zone */
 	if (getzoneid() != GLOBAL_ZONEID && !is_zoned) {
-		(void) zfs_standard_error(hdl, EPERM, errbuf);
-		zfs_close(zhp);
-		return (-1);
+		uint64_t zoned_uid = zfs_prop_get_int(zhp, ZFS_PROP_ZONED_UID);
+		if (zoned_uid == 0) {
+			(void) zfs_standard_error(hdl, EPERM, errbuf);
+			zfs_close(zhp);
+			return (-1);
+		}
+		/* zoned_uid set - let kernel decide */
 	}
 
 	/* make sure parent is a filesystem */

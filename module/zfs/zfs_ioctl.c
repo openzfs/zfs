@@ -286,6 +286,40 @@ static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
 static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
 
+/*
+ * Callback for SPL to look up zoned_uid property.
+ * Walks ancestors to find the delegation root with zoned_uid set.
+ * Returns the zoned_uid value if found, or 0 if not set.
+ */
+static uid_t
+zfs_get_zoned_uid(const char *dataset, char *root_out, size_t root_size)
+{
+	char path[ZFS_MAX_DATASET_NAME_LEN];
+	char *slash;
+	uint64_t zoned_uid_val = 0;
+	int error;
+
+	(void) strlcpy(path, dataset, sizeof (path));
+
+	while (path[0] != '\0') {
+		error = dsl_prop_get(path, "zoned_uid", 8, 1,
+		    &zoned_uid_val, NULL);
+
+		if (error == 0 && zoned_uid_val != 0) {
+			if (root_out != NULL)
+				(void) strlcpy(root_out, path, root_size);
+			return ((uid_t)zoned_uid_val);
+		}
+
+		slash = strrchr(path, '/');
+		if (slash == NULL)
+			break;
+		*slash = '\0';
+	}
+
+	return (0);
+}
+
 static void
 history_str_free(char *buf)
 {
@@ -607,6 +641,16 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
     cred_t *cr)
 {
 	const char *strval;
+	zone_admin_result_t zone_result;
+
+	/*
+	 * Check zoned_uid delegation first.
+	 */
+	zone_result = zone_dataset_admin_check(dsname, ZONE_OP_SETPROP, NULL);
+	if (zone_result == ZONE_ADMIN_ALLOWED)
+		return (0);
+	if (zone_result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
 
 	/*
 	 * Check permissions for special properties.
@@ -774,7 +818,16 @@ int
 zfs_secpolicy_destroy_perms(const char *name, cred_t *cr)
 {
 	int error;
+	zone_admin_result_t result;
 
+	/* Check zoned_uid delegation first */
+	result = zone_dataset_admin_check(name, ZONE_OP_DESTROY, NULL);
+	if (result == ZONE_ADMIN_ALLOWED)
+		return (0);
+	if (result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
+
+	/* NOT_APPLICABLE: continue with existing checks */
 	if ((error = zfs_secpolicy_write_perms(name,
 	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
 		return (error);
@@ -831,7 +884,16 @@ zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 {
 	char	parentname[ZFS_MAX_DATASET_NAME_LEN];
 	int	error;
+	zone_admin_result_t result;
 
+	/* Check zoned_uid delegation first */
+	result = zone_dataset_admin_check(from, ZONE_OP_RENAME, to);
+	if (result == ZONE_ADMIN_ALLOWED)
+		return (0);
+	if (result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
+
+	/* NOT_APPLICABLE: continue with existing checks */
 	if ((error = zfs_secpolicy_write_perms(from,
 	    ZFS_DELEG_PERM_RENAME, cr)) != 0)
 		return (error);
@@ -940,6 +1002,16 @@ zfs_secpolicy_recv(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 int
 zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
 {
+	zone_admin_result_t result;
+
+	/* Check zoned_uid delegation first */
+	result = zone_dataset_admin_check(name, ZONE_OP_SNAPSHOT, NULL);
+	if (result == ZONE_ADMIN_ALLOWED)
+		return (0);
+	if (result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
+
+	/* NOT_APPLICABLE: continue with existing checks */
 	return (zfs_secpolicy_write_perms(name,
 	    ZFS_DELEG_PERM_SNAPSHOT, cr));
 }
@@ -1062,13 +1134,25 @@ zfs_secpolicy_create_clone(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	char		parentname[ZFS_MAX_DATASET_NAME_LEN];
 	int		error;
-	const char	*origin;
+	const char	*origin = NULL;
+	zone_admin_result_t result;
 
 	if ((error = zfs_get_parent(zc->zc_name, parentname,
 	    sizeof (parentname))) != 0)
 		return (error);
 
-	if (nvlist_lookup_string(innvl, "origin", &origin) == 0 &&
+	(void) nvlist_lookup_string(innvl, "origin", &origin);
+
+	/* Check zoned_uid delegation first */
+	result = zone_dataset_admin_check(parentname,
+	    origin != NULL ? ZONE_OP_CLONE : ZONE_OP_CREATE, origin);
+	if (result == ZONE_ADMIN_ALLOWED)
+		return (0);
+	if (result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
+
+	/* NOT_APPLICABLE: continue with existing checks */
+	if (origin != NULL &&
 	    (error = zfs_secpolicy_write_perms(origin,
 	    ZFS_DELEG_PERM_CLONE, cr)) != 0)
 		return (error);
@@ -1131,6 +1215,13 @@ zfs_secpolicy_inherit_prop(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	if (prop == ZPROP_USERPROP) {
 		if (!zfs_prop_user(zc->zc_value))
 			return (SET_ERROR(EINVAL));
+		zone_admin_result_t zone_result;
+		zone_result = zone_dataset_admin_check(zc->zc_name,
+		    ZONE_OP_SETPROP, NULL);
+		if (zone_result == ZONE_ADMIN_ALLOWED)
+			return (0);
+		if (zone_result == ZONE_ADMIN_DENIED)
+			return (SET_ERROR(EPERM));
 		return (zfs_secpolicy_write_perms(zc->zc_name,
 		    ZFS_DELEG_PERM_USERPROP, cr));
 	} else {
@@ -2707,6 +2798,26 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		zfsvfs_rele(zfsvfs, FTAG);
 		break;
 	}
+	case ZFS_PROP_ZONED_UID:
+	{
+		uint64_t old_uid = 0;
+		(void) dsl_prop_get(dsname, "zoned_uid", 8, 1, &old_uid, NULL);
+		if (old_uid != 0)
+			(void) zone_dataset_detach_uid(CRED(), dsname,
+			    (uid_t)old_uid);
+		if (intval != 0) {
+			err = zone_dataset_attach_uid(CRED(), dsname,
+			    (uid_t)intval);
+			if (err != 0)
+				break;
+		}
+		/*
+		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
+		 * default path to set the value in the nvlist.
+		 */
+		err = -1;
+		break;
+	}
 	default:
 		err = -1;
 	}
@@ -3850,8 +3961,17 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		 */
 		if (!nvlist_empty(props)) {
 			*cp = '\0';
-			error = zfs_secpolicy_write_perms(name,
-			    ZFS_DELEG_PERM_USERPROP, CRED());
+			zone_admin_result_t zone_result;
+			zone_result = zone_dataset_admin_check(name,
+			    ZONE_OP_SETPROP, NULL);
+			if (zone_result == ZONE_ADMIN_DENIED) {
+				*cp = '@';
+				return (SET_ERROR(EPERM));
+			}
+			if (zone_result != ZONE_ADMIN_ALLOWED) {
+				error = zfs_secpolicy_write_perms(name,
+				    ZFS_DELEG_PERM_USERPROP, CRED());
+			}
 			*cp = '@';
 			if (error != 0)
 				return (error);
@@ -4333,6 +4453,14 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	if (strchr(zc->zc_name, '@')) {
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
 	} else {
+		/*
+		 * Save zoned_uid before destroying so we can clean up
+		 * kernel-side zone tracking after a successful destroy.
+		 */
+		uint64_t zoned_uid = 0;
+		(void) dsl_prop_get(zc->zc_name, "zoned_uid",
+		    8, 1, &zoned_uid, NULL);
+
 		err = dsl_destroy_head(zc->zc_name);
 		if (err == EEXIST) {
 			/*
@@ -4361,6 +4489,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 				err = dsl_destroy_head(zc->zc_name);
 			else if (err == ENOENT)
 				err = SET_ERROR(EEXIST);
+		}
+
+		if (err == 0 && zoned_uid != 0) {
+			(void) zone_dataset_detach_uid(CRED(),
+			    zc->zc_name, (uid_t)zoned_uid);
 		}
 	}
 
@@ -4859,7 +4992,24 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 
 		return (error);
 	} else {
-		return (dsl_dir_rename(zc->zc_name, zc->zc_value));
+		/*
+		 * For dataset renames, update kernel-side zone tracking
+		 * if the dataset has a zoned_uid delegation.  Read the
+		 * property before rename, then detach old / attach new.
+		 */
+		uint64_t zoned_uid = 0;
+		(void) dsl_prop_get(zc->zc_name, "zoned_uid",
+		    8, 1, &zoned_uid, NULL);
+
+		err = dsl_dir_rename(zc->zc_name, zc->zc_value);
+
+		if (err == 0 && zoned_uid != 0) {
+			(void) zone_dataset_detach_uid(CRED(),
+			    zc->zc_name, (uid_t)zoned_uid);
+			(void) zone_dataset_attach_uid(CRED(),
+			    zc->zc_value, (uid_t)zoned_uid);
+		}
+		return (err);
 	}
 }
 
@@ -4874,6 +5024,13 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 	if (prop == ZPROP_USERPROP) {
 		if (zfs_prop_user(propname)) {
+			zone_admin_result_t zone_result;
+			zone_result = zone_dataset_admin_check(dsname,
+			    ZONE_OP_SETPROP, NULL);
+			if (zone_result == ZONE_ADMIN_ALLOWED)
+				return (0);
+			if (zone_result == ZONE_ADMIN_DENIED)
+				return (SET_ERROR(EPERM));
 			if ((err = zfs_secpolicy_write_perms(dsname,
 			    ZFS_DELEG_PERM_USERPROP, cr)))
 				return (err);
@@ -4918,6 +5075,13 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (SET_ERROR(EINVAL));
 			}
 
+			zone_admin_result_t zone_result;
+			zone_result = zone_dataset_admin_check(dsname,
+			    ZONE_OP_SETPROP, NULL);
+			if (zone_result == ZONE_ADMIN_ALLOWED)
+				return (0);
+			if (zone_result == ZONE_ADMIN_DENIED)
+				return (SET_ERROR(EPERM));
 			if ((err = zfs_secpolicy_write_perms(dsname, perm, cr)))
 				return (err);
 			return (0);
@@ -8267,6 +8431,9 @@ zfs_kmod_init(void)
 
 	zfs_ioctl_init();
 
+	/* Register zoned_uid property lookup callback with SPL */
+	zone_register_zoned_uid_callback(zfs_get_zoned_uid);
+
 	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	zfsdev_state_listhead.zs_minor = -1;
 
@@ -8305,6 +8472,10 @@ zfs_kmod_fini(void)
 	}
 
 	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
+
+	/* Unregister zoned_uid callback before ZFS layer is torn down */
+	zone_unregister_zoned_uid_callback();
+
 	zfs_fini();
 	spa_fini();
 	zvol_fini();

@@ -520,6 +520,10 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_ZONED, "zoned", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "ZONED", boolean_table, sfeatures);
 #endif
+	/* UID-based zoning for rootless containers */
+	zprop_register_number(ZFS_PROP_ZONED_UID, "zoned_uid", 0,
+	    PROP_DEFAULT, ZFS_TYPE_FILESYSTEM, "<uid> | none", "ZONED_UID",
+	    B_FALSE, sfeatures);
 	zprop_register_index(ZFS_PROP_VSCAN, "vscan", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "VSCAN", boolean_table, sfeatures);
 	zprop_register_index(ZFS_PROP_NBMAND, "nbmand", 0, PROP_INHERIT,
