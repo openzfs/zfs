@@ -204,6 +204,37 @@ defaults to using
 though this may be overridden using an explicit setting.
 .El
 .Pp
+.It Sy raidz_expansion_accounting Ns = Ns Sy legacy Ns | Ns Sy current
+.Pp
+Controls which RAIDZ geometry is used for space accounting calculations
+after a RAIDZ expansion.
+.Bl -tag -compact -width "current"
+.It Sy legacy
+Use the original RAIDZ geometry from when the pool was created.
+This is the default and ensures consistent accounting for pools with
+blocks written before and after expansion.
+.It Sy current
+Use the current RAIDZ geometry after expansion.
+This provides accurate free space reporting but should
+.Sy only
+be enabled after all data has been rewritten to use the new parity layout
+.Po e.g., via
+.Nm zfs Cm rewrite Fl rv Ar pool
+.Pc .
+.El
+.Pp
+After changing this property, the pool must be exported and re-imported
+for the new accounting to take effect.
+.Pp
+.Sy WARNING :
+Setting this to
+.Sy current
+before all data has been rewritten may cause the pool to report more
+free space than is actually available, potentially leading to
+out-of-space conditions.
+See
+.Lk https://github.com/openzfs/zfs/issues/17784
+for details on the underlying issue.
 The following property can be set only at import time:
 .Bl -tag -width Ds
 .It Sy readonly Ns = Ns Sy on Ns | Ns Sy off
