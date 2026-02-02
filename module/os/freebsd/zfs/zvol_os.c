@@ -235,7 +235,7 @@ retry:
 
 	mutex_enter(&zv->zv_state_lock);
 	g_topology_unlock();
-	if (zv->zv_flags & ZVOL_REMOVING || zv->zv_zso->zso_dying)
+	if (zv->zv_flags & ZVOL_REMOVING || zv->zv_zso->zso_dying) {
 		err = SET_ERROR(ENXIO);
 		goto out_locked;
 	}
@@ -920,7 +920,7 @@ retry:
 		return (SET_ERROR(ENXIO));
 
 	mutex_enter(&zv->zv_state_lock);
-	if (zv->zv_zso->zso_dying || zv->zv_flags & ZVOL_REMOVING) {
+	if (zv->zv_flags & ZVOL_REMOVING || zv->zv_zso->zso_dying) {
 		err = SET_ERROR(ENXIO);
 		goto out_locked;
 	}
@@ -1427,6 +1427,7 @@ zvol_os_remove_minor(zvol_state_t *zv)
 		pp->private = NULL;
 		g_wither_geom(pp->geom, ENXIO);
 		g_topology_unlock();
+		g_waitidle(curthread);
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
@@ -1556,6 +1557,7 @@ out_dmu_objset_disown:
 		g_error_provider(zv->zv_zso->zso_geom.zsg_provider, 0);
 		/* geom was locked inside zvol_alloc() function */
 		g_topology_unlock();
+		g_waitidle(curthread);
 	}
 out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
