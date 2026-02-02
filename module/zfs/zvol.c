@@ -1999,6 +1999,10 @@ typedef struct zvol_set_prop_int_arg {
 	uint64_t zsda_value;
 	zprop_source_t zsda_source;
 	zfs_prop_t zsda_prop;
+	taskqid_t zsda_taskqid;
+	boolean_t zsda_dispatched;
+	kmutex_t zsda_lock;
+	kcondvar_t zsda_cv;
 } zvol_set_prop_int_arg_t;
 
 /*
@@ -2029,6 +2033,7 @@ zvol_set_common_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 	char dsname[ZFS_MAX_DATASET_NAME_LEN];
 	zvol_task_t *task;
 	uint64_t prop;
+	taskqid_t id;
 
 	const char *prop_name = zfs_prop_to_name(zsda->zsda_prop);
 	dsl_dataset_name(ds, dsname);
@@ -2047,8 +2052,12 @@ zvol_set_common_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 	}
 	task->zt_value = prop;
 	strlcpy(task->zt_name1, dsname, sizeof (task->zt_name1));
-	(void) taskq_dispatch(dp->dp_spa->spa_zvol_taskq, zvol_task_cb,
-	    task, TQ_SLEEP);
+	id = taskq_dispatch(dp->dp_spa->spa_zvol_taskq, zvol_task_cb, task,
+	    TQ_SLEEP);
+	mutex_enter(&zsda->zsda_lock);
+	if (id != TASKQID_INVALID && id > zsda->zsda_taskqid)
+		zsda->zsda_taskqid = id;
+	mutex_exit(&zsda->zsda_lock);
 	return (0);
 }
 
@@ -2081,6 +2090,11 @@ zvol_set_common_sync(void *arg, dmu_tx_t *tx)
 	dmu_objset_find_dp(dp, dd->dd_object, zvol_set_common_sync_cb,
 	    zsda, DS_FIND_CHILDREN);
 
+	mutex_enter(&zsda->zsda_lock);
+	zsda->zsda_dispatched = TRUE;
+	cv_broadcast(&zsda->zsda_cv);
+	mutex_exit(&zsda->zsda_lock);
+
 	dsl_dir_rele(dd, FTAG);
 }
 
@@ -2089,14 +2103,38 @@ zvol_set_common(const char *ddname, zfs_prop_t prop, zprop_source_t source,
     uint64_t val)
 {
 	zvol_set_prop_int_arg_t zsda;
+	spa_t *spa;
+	int error;
 
 	zsda.zsda_name = ddname;
 	zsda.zsda_source = source;
 	zsda.zsda_value = val;
 	zsda.zsda_prop = prop;
+	zsda.zsda_taskqid = TASKQID_INVALID;
+	zsda.zsda_dispatched = FALSE;
+	mutex_init(&zsda.zsda_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zsda.zsda_cv, NULL, CV_DEFAULT, NULL);
 
-	return (dsl_sync_task(ddname, zvol_set_common_check,
-	    zvol_set_common_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE));
+	error = spa_open(ddname, &spa, FTAG);
+	if (error != 0)
+		goto out;
+	error = dsl_sync_task(ddname, zvol_set_common_check,
+	    zvol_set_common_sync, &zsda, 0, ZFS_SPACE_CHECK_NONE);
+	if (error == 0) {
+		mutex_enter(&zsda.zsda_lock);
+		while (!zsda.zsda_dispatched)
+			cv_wait(&zsda.zsda_cv, &zsda.zsda_lock);
+		mutex_exit(&zsda.zsda_lock);
+
+		if (zsda.zsda_taskqid != TASKQID_INVALID)
+			taskq_wait_outstanding(spa->spa_zvol_taskq,
+			    zsda.zsda_taskqid);
+	}
+	spa_close(spa, FTAG);
+out:
+	cv_destroy(&zsda.zsda_cv);
+	mutex_destroy(&zsda.zsda_lock);
+	return (error);
 }
 
 void
