@@ -128,7 +128,8 @@ struct zvol_state_os {
 			struct g_provider *zsg_provider;
 		} _zso_geom;
 	} _zso_state;
-	int zso_dying;
+	boolean_t zso_opening;
+	boolean_t zso_dying;
 };
 
 static uint32_t zvol_minors;
@@ -225,12 +226,16 @@ zvol_geom_open(struct g_provider *pp, int flag, int count)
 	}
 
 retry:
-	zv = atomic_load_ptr(&pp->private);
-	if (zv == NULL)
+	g_topology_lock();
+	zv = pp->private;
+	if (zv == NULL) {
+		g_topology_unlock();
 		return (SET_ERROR(ENXIO));
+	}
 
 	mutex_enter(&zv->zv_state_lock);
-	if (zv->zv_zso->zso_dying || zv->zv_flags & ZVOL_REMOVING) {
+	g_topology_unlock();
+	if (zv->zv_flags & ZVOL_REMOVING || zv->zv_zso->zso_dying)
 		err = SET_ERROR(ENXIO);
 		goto out_locked;
 	}
@@ -244,18 +249,16 @@ retry:
 	if (zv->zv_open_count == 0) {
 		drop_suspend = B_TRUE;
 		if (!rw_tryenter(&zv->zv_suspend_lock, ZVOL_RW_READER)) {
-			mutex_exit(&zv->zv_state_lock);
-
 			/*
-			 * Removal may happen while the locks are down, so
-			 * we can't trust zv any longer; we have to start over.
+			 * Set a flag to interlock with zvol_os_remove_minor()
+			 * while locks are dropped.
 			 */
-			zv = atomic_load_ptr(&pp->private);
-			if (zv == NULL)
-				return (SET_ERROR(ENXIO));
-
+			zv->zv_zso->zso_opening = B_TRUE;
+			mutex_exit(&zv->zv_state_lock);
 			rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 			mutex_enter(&zv->zv_state_lock);
+			zv->zv_zso->zso_opening = B_FALSE;
+			cv_broadcast(&zv->zv_removing_cv);
 
 			if (zv->zv_zso->zso_dying ||
 			    zv->zv_flags & ZVOL_REMOVING) {
@@ -347,11 +350,15 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 	boolean_t drop_suspend = B_TRUE;
 	int new_open_count;
 
-	zv = atomic_load_ptr(&pp->private);
-	if (zv == NULL)
+	g_topology_lock();
+	zv = pp->private;
+	if (zv == NULL) {
+		g_topology_unlock();
 		return (SET_ERROR(ENXIO));
+	}
 
 	mutex_enter(&zv->zv_state_lock);
+	g_topology_unlock();
 	if (zv->zv_flags & ZVOL_EXCL) {
 		ASSERT3U(zv->zv_open_count, ==, 1);
 		zv->zv_flags &= ~ZVOL_EXCL;
@@ -447,7 +454,7 @@ zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace)
 	    ("Unsupported access request to %s (acr=%d, acw=%d, ace=%d).",
 	    pp->name, acr, acw, ace));
 
-	if (atomic_load_ptr(&pp->private) == NULL) {
+	if (pp->private == NULL) {
 		if (acr <= 0 && acw <= 0 && ace <= 0)
 			return (0);
 		return (pp->error);
@@ -484,12 +491,6 @@ zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace)
 static void
 zvol_geom_bio_start(struct bio *bp)
 {
-	zvol_state_t *zv = bp->bio_to->private;
-
-	if (zv == NULL) {
-		g_io_deliver(bp, ENXIO);
-		return;
-	}
 	if (bp->bio_cmd == BIO_GETATTR) {
 		if (zvol_geom_bio_getattr(bp))
 			g_io_deliver(bp, EOPNOTSUPP);
@@ -1257,17 +1258,25 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	zv->zv_hash = zvol_name_hash(newname);
 	hlist_del(&zv->zv_hlink);
 	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
+	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
+	dataset_kstats_rename(&zv->zv_kstat, newname);
 
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-		struct g_provider *pp = zsg->zsg_provider;
+		struct g_provider *pp;
 		struct g_geom *gp;
 
+		mutex_exit(&zv->zv_state_lock);
 		g_topology_lock();
+		pp = zsg->zsg_provider;
+		if (pp->private == NULL) {
+			g_topology_unlock();
+			mutex_enter(&zv->zv_state_lock);
+			return (SET_ERROR(ENXIO));
+		}
 		gp = pp->geom;
 		ASSERT3P(gp, !=, NULL);
 
-		zsg->zsg_provider = NULL;
 		g_wither_provider(pp, ENXIO);
 
 		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, newname);
@@ -1277,6 +1286,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 		pp->private = zv;
 		zsg->zsg_provider = pp;
 		g_error_provider(pp, 0);
+		mutex_enter(&zv->zv_state_lock);
 		g_topology_unlock();
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
@@ -1309,8 +1319,6 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 			zsd->zsd_cdev = dev;
 		}
 	}
-	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
-	dataset_kstats_rename(&zv->zv_kstat, newname);
 
 	return (error);
 }
@@ -1399,27 +1407,31 @@ zvol_alloc(const char *name, uint64_t volsize, uint64_t volblocksize,
 void
 zvol_os_remove_minor(zvol_state_t *zv)
 {
+	struct zvol_state_os *zso = zv->zv_zso;
+
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT0(zv->zv_open_count);
 	ASSERT0(atomic_read(&zv->zv_suspend_ref));
 	ASSERT(zv->zv_flags & ZVOL_REMOVING);
 
-	struct zvol_state_os *zso = zv->zv_zso;
-	zv->zv_zso = NULL;
-
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zso->zso_geom;
-		struct g_provider *pp = zsg->zsg_provider;
-		atomic_store_ptr(&pp->private, NULL);
-		mutex_exit(&zv->zv_state_lock);
+		struct g_provider *pp;
 
+		while (zso->zso_opening)
+			cv_wait(&zv->zv_removing_cv, &zv->zv_state_lock);
+		zv->zv_zso = NULL;
+		mutex_exit(&zv->zv_state_lock);
 		g_topology_lock();
+		pp = zsg->zsg_provider;
+		pp->private = NULL;
 		g_wither_geom(pp->geom, ENXIO);
 		g_topology_unlock();
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
 
+		zv->zv_zso = NULL;
 		if (dev != NULL)
 			atomic_store_ptr(&dev->si_drv2, NULL);
 		mutex_exit(&zv->zv_state_lock);
@@ -1564,10 +1576,10 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 	zv->zv_volsize = volsize;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
-		struct g_provider *pp = zsg->zsg_provider;
+		struct g_provider *pp;
 
 		g_topology_lock();
-
+		pp = zsg->zsg_provider;
 		if (pp->private == NULL) {
 			g_topology_unlock();
 			return (SET_ERROR(ENXIO));
