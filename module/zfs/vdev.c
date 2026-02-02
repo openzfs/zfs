@@ -2078,6 +2078,11 @@ vdev_open_children_subset(vdev_t *vd, vdev_open_children_func_t *open_func)
  * UINT64_MAX as the txg to compute the deflate ratio based on the current
  * geometry. This allows accurate space accounting after RAIDZ expansion
  * once all data has been rewritten with `zfs rewrite -rv`.
+ *
+ * Note: This function is only called at pool load/import time.  Changes to
+ * the raidz_expansion_accounting property require an export/import cycle
+ * to take effect, as recalculating the deflate ratio while the pool is
+ * active could cause inconsistencies in metaslab class accounting.
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
