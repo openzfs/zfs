@@ -3405,6 +3405,17 @@ function set_tunable32
 	set_tunable_impl "$1" "$2" W
 }
 
+#
+# Set a global system tunable (string value)
+#
+# $1 tunable name (use a NAME defined in tunables.cfg)
+# $2 tunable values
+#
+function set_tunable_string
+{
+	set_tunable_impl "$1" "$2" S
+}
+
 function set_tunable_impl
 {
 	typeset name="$1"
@@ -3455,6 +3466,16 @@ function restore_tunable
 		[[ ! -e $TEST_BASE_DIR/tunable-$1 ]] && return 1
 		val="$(cat $TEST_BASE_DIR/tunable-"""$1""")"
 		set_tunable64 "$1" "$val"
+		rm $TEST_BASE_DIR/tunable-$1
+	fi
+}
+
+function restore_tunable_string
+{
+	if tunable_exists $1 ; then
+		[[ ! -e $TEST_BASE_DIR/tunable-$1 ]] && return 1
+		val="$(cat $TEST_BASE_DIR/tunable-"""$1""")"
+		set_tunable_string "$1" "$val"
 		rm $TEST_BASE_DIR/tunable-$1
 	fi
 }
