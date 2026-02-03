@@ -663,7 +663,7 @@ vdev_toc_add_secinfo(nvlist_t *sections, const char *section, uint32_t size,
 /*
  * Size of embedded boot loader region on each label.
  * The total size of the first two labels plus the boot area is 4MB.
- * On RAIDZ, this space is overwritten durinvg RAIDZ expansion.
+ * On RAIDZ, this space is overwritten during RAIDZ expansion.
  */
 #define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M */
 
