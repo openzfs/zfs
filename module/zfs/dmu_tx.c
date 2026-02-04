@@ -220,11 +220,12 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	if (err != 0)
 		return (err);
 	/*
-	 * PARTIAL_FIRST allows caching for uncacheable blocks.  It will
-	 * be cleared after dmu_buf_will_dirty() call dbuf_read() again.
+	 * DMU_IS_PREFETCH keeps the buffer temporarily in DBUF cache and ARC
+	 * to avoid immediate eviction after the check.  It will be promoted
+	 * to demand access when dmu_buf_will_dirty() read it again.
 	 */
 	err = dbuf_read(db, zio, DB_RF_CANFAIL | DMU_READ_NO_PREFETCH |
-	    (level == 0 ? (DMU_UNCACHEDIO | DMU_PARTIAL_FIRST) : 0));
+	    (level == 0 ? (DMU_KEEP_CACHING | DMU_IS_PREFETCH) : 0));
 	dbuf_rele(db, FTAG);
 	return (err);
 }
