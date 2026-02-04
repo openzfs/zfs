@@ -30,6 +30,7 @@ DISK=${DISKS%% *}
 create_pool $TESTPOOL "$DISK"
 
 log_must zfs create -o mountpoint="$TESTDIR" "$TESTPOOL/pam"
+log_must zfs create -o mountpoint="$TESTDIR-multi-home" "$TESTPOOL/pam-multi-home"
 log_must add_group pamtestgroup
 log_must add_user pamtestgroup ${username}
 log_must mkdir -p "$runstatedir"
@@ -37,5 +38,15 @@ log_must mkdir -p "$runstatedir"
 echo "testpass" | zfs create -o encryption=aes-256-gcm -o keyformat=passphrase -o keylocation=prompt "$TESTPOOL/pam/${username}"
 log_must zfs unmount "$TESTPOOL/pam/${username}"
 log_must zfs unload-key "$TESTPOOL/pam/${username}"
+echo "testpass" | zfs create -o encryption=aes-256-gcm -o keyformat=passphrase -o keylocation=prompt "$TESTPOOL/pam-multi-home/${username}"
+log_must zfs unmount "$TESTPOOL/pam-multi-home/${username}"
+log_must zfs unload-key "$TESTPOOL/pam-multi-home/${username}"
+
+for i in {1..$PAM_MULTI_HOME_COUNT} ; do
+       log_must zfs create -o mountpoint="$TESTDIR-multi-home$i" "$TESTPOOL/pam-multi-home$i"
+       echo "testpass" | zfs create -o encryption=aes-256-gcm -o keyformat=passphrase -o keylocation=prompt "$TESTPOOL/pam-multi-home$i/${username}"
+       log_must zfs unmount "$TESTPOOL/pam-multi-home$i/${username}"
+       log_must zfs unload-key "$TESTPOOL/pam-multi-home$i/${username}"
+done
 
 log_pass
