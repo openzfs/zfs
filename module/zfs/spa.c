@@ -8007,6 +8007,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	vdev_add_child(pvd, newvd);
 
 	/*
+	 * Workaround: vdev props don't have inheritance.
+	 */
+	vdev_scheduler_set_inherited(newvd);
+
+	/*
 	 * Reevaluate the parent vdev state.
 	 */
 	vdev_propagate_state(pvd);
