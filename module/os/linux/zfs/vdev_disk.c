@@ -445,7 +445,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_has_securetrim = bdev_secure_discard_supported(bdev);
 
 	/* Inform the ZIO pipeline that we are non-rotational */
+#ifdef HAVE_BLK_QUEUE_ROT
+	v->vdev_nonrot = !blk_queue_rot(bdev_get_queue(bdev));
+#else
 	v->vdev_nonrot = blk_queue_nonrot(bdev_get_queue(bdev));
+#endif
 
 	/* Physical volume size in bytes for the partition */
 	*psize = bdev_capacity(bdev);
