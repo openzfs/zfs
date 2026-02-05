@@ -32,7 +32,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm rewrite
-.Oo Fl Prvx Ns Oc
+.Oo Fl CPSrvx Ns Oc
 .Op Fl l Ar length
 .Op Fl o Ar offset
 .Ar file Ns | Ns Ar directory Ns …
@@ -45,6 +45,11 @@ as if they were atomically read and written back.
 .No See Sx NOTES .
 for more information about property changes that may be applied during rewrite.
 .Bl -tag -width "-r"
+.It Fl C
+Skip blocks that are shared via block cloning (BRT).
+Cloned blocks are referenced by multiple files or datasets.
+Rewriting these blocks would create separate copies and increase space usage.
+This flag prevents such expansion by skipping cloned blocks.
 .It Fl P
 Perform physical rewrite, preserving logical birth time of blocks.
 By default, rewrite updates logical birth times, making blocks appear
@@ -54,6 +59,12 @@ inclusion in incremental streams.
 Physical rewrite requires the
 .Sy physical_rewrite
 feature to be enabled on the pool.
+.It Fl S
+Skip blocks that are shared with snapshots.
+Blocks created before the most recent snapshot are shared with that snapshot.
+Rewriting these blocks would create new copies, leaving the old copies for
+the snapshot and increasing space usage.
+This flag prevents such expansion by skipping snapshot-shared blocks.
 .It Fl l Ar length
 Rewrite at most this number of bytes.
 .It Fl o Ar offset
@@ -82,6 +93,12 @@ will have no effect.
 .Pp
 Rewrite of cloned blocks and blocks that are part of any snapshots,
 same as some property changes may increase pool space usage.
+Use the
+.Fl C
+and
+.Fl S
+flags to skip cloned and snapshot-shared blocks respectively to prevent
+this expansion.
 Holes that were never written or were previously zero-compressed are
 not rewritten and will remain holes even if compression is disabled.
 .Pp

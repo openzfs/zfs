@@ -53,6 +53,7 @@
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
+#include <sys/brt.h>
 #include <sys/dbuf.h>
 #include <sys/policy.h>
 #include <sys/zfeature.h>
@@ -1096,6 +1097,34 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 }
 
 /*
+ * Check if a block should be skipped during rewrite.
+ * Returns B_TRUE if block should be skipped.
+ */
+static boolean_t
+zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags)
+{
+	/*
+	 * This may be slightly stale and racy, but should be OK for
+	 * the advisory use.
+	 */
+	blkptr_t *bp = dmu_buf_get_blkptr(db);
+	if (bp == NULL)
+		return (B_TRUE);
+
+	if (flags & ZFS_REWRITE_SKIP_SNAPSHOT) {
+		if (dmu_objset_block_is_shared(os, bp))
+			return (B_TRUE);
+	}
+
+	if (flags & ZFS_REWRITE_SKIP_BRT) {
+		if (brt_maybe_exists(os->os_spa, bp))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
  * Rewrite a range of file as-is without modification.
  *
  *	IN:	zp	- znode of file to be rewritten.
@@ -1113,7 +1142,11 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 {
 	int error;
 
-	if ((flags & ~ZFS_REWRITE_PHYSICAL) != 0 || arg != 0)
+#define	ZFS_REWRITE_VALID_FLAGS \
+	(ZFS_REWRITE_PHYSICAL | ZFS_REWRITE_SKIP_SNAPSHOT | \
+	ZFS_REWRITE_SKIP_BRT)
+
+	if ((flags & ~ZFS_REWRITE_VALID_FLAGS) != 0 || arg != 0)
 		return (SET_ERROR(EINVAL));
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
@@ -1214,6 +1247,10 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 			nr += dbp[i]->db_size;
 			if (dmu_buf_is_dirty(dbp[i], tx))
 				continue;
+
+			if (zfs_rewrite_skip(dbp[i], zfsvfs->z_os, flags))
+				continue;
+
 			nw += dbp[i]->db_size;
 			if (flags & ZFS_REWRITE_PHYSICAL)
 				dmu_buf_will_rewrite(dbp[i], tx);
