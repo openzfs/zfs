@@ -314,6 +314,12 @@ kfpu_begin(void)
 	 * FPU state to be correctly preserved and restored.
 	 */
 	uint8_t *state = zfs_kfpu_fpregs[smp_processor_id()];
+#if defined(HAVE_XSAVEC)
+	if (static_cpu_has(X86_FEATURE_XSAVEC)) {
+		kfpu_do_xsave("xsavec", state, ~0);
+		return;
+	}
+#endif
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xsave("xsaves", state, ~XFEATURE_MASK_XTILE);
@@ -379,6 +385,13 @@ static inline void
 kfpu_end(void)
 {
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
+
+#if defined(HAVE_XSAVEC)
+	if (static_cpu_has(X86_FEATURE_XSAVEC)) {
+		kfpu_do_xrstor("xrstor", state, ~0);
+		goto out;
+	}
+#endif
 #if defined(HAVE_XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xrstor("xrstors", state, ~XFEATURE_MASK_XTILE);
