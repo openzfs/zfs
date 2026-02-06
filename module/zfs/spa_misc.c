@@ -404,6 +404,12 @@ static int spa_cpus_per_allocator = 4;
  */
 const char *zfs_active_allocator = "dynamic";
 
+/*
+ * Spa active weight function.
+ * Valid values are zfs_active_weightfunc=<auto|space|space_v2|segment>.
+ */
+const char *zfs_active_weightfunc = "auto";
+
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
 {
@@ -795,6 +801,7 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	spa->spa_deadman_ziotime = MSEC2NSEC(zfs_deadman_ziotime_ms);
 	spa_set_deadman_failmode(spa, zfs_deadman_failmode);
 	spa_set_allocator(spa, zfs_active_allocator);
+	spa_set_weightfunc(spa, zfs_active_weightfunc);
 
 	zfs_refcount_create(&spa->spa_refcount);
 	spa_config_lock_init(spa);
