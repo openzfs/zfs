@@ -907,6 +907,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DRAID_NDATA	"draid_ndata"
 #define	ZPOOL_CONFIG_DRAID_NSPARES	"draid_nspares"
 #define	ZPOOL_CONFIG_DRAID_NGROUPS	"draid_ngroups"
+#define	ZPOOL_CONFIG_DRAID_NSLICE	"draid_nslice"
 
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"

@@ -3423,23 +3423,44 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 				/* leaf vdevs only */
 				continue;
 			}
+			int children = vd->vdev_children;
+			int width = children;
 			if (t == DTL_PARTIAL) {
 				/* i.e. non-zero */
 				minref = 1;
 			} else if (vdev_get_nparity(vd) != 0) {
 				/* RAIDZ, DRAID */
 				minref = vdev_get_nparity(vd) + 1;
+				if (vd->vdev_ops == &vdev_draid_ops) {
+					vdev_draid_config_t *vdc = vd->vdev_tsd;
+					minref = vdc->vdc_nparity + 1;
+					children = vdc->vdc_children;
+				}
 			} else {
 				/* any kind of mirror */
 				minref = vd->vdev_children;
 			}
+			/*
+			 * For draid with failure groups/domains, count
+			 * failures only once for any i-th child failure
+			 * in each failure group.
+			 */
 			space_reftree_create(&reftree);
-			for (int c = 0; c < vd->vdev_children; c++) {
-				vdev_t *cvd = vd->vdev_child[c];
-				mutex_enter(&cvd->vdev_dtl_lock);
-				space_reftree_add_map(&reftree,
-				    cvd->vdev_dtl[s], 1);
-				mutex_exit(&cvd->vdev_dtl_lock);
+			for (int c = 0; c < children; c++) {
+				for (int i = c; i < width; i += children) {
+					vdev_t *cvd = vd->vdev_child[i];
+
+					mutex_enter(&cvd->vdev_dtl_lock);
+					space_reftree_add_map(&reftree,
+					    cvd->vdev_dtl[s], 1);
+					boolean_t empty =
+					    zfs_range_tree_is_empty(
+					    cvd->vdev_dtl[s]);
+					mutex_exit(&cvd->vdev_dtl_lock);
+
+					if (s == DTL_OUTAGE && !empty)
+						break;
+				}
 			}
 			space_reftree_generate_map(&reftree,
 			    vd->vdev_dtl[t], minref);
