@@ -59,6 +59,15 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zpool_prop.c \
 	module/zcommon/zprop_common.c
 
+# Special case:
+#
+# We need to include btree.c and range_tree.c as SOURCES rather than
+# LIBADD'ing them.  This is because  LIBADD'ing them will add their symbols to
+# the libzfs API, which we do not want at this time.
+nodist_libzfs_la_SOURCES += \
+	module/zfs/btree.c \
+	module/zfs/range_tree.c
+
 libzfs_la_LIBADD = \
 	libzfs_core.la \
 	libnvpair.la \
