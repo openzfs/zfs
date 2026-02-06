@@ -34,6 +34,15 @@ verify_runnable "both"
 
 verify_crossfs_block_cloning
 
+function cleanup
+{
+	log_must zfs inherit compress $TESTSRCFS
+	log_must zfs inherit compress $TESTDSTFS
+	log_must zfs inherit sync $TESTSRCFS
+	log_must zfs inherit sync $TESTDSTFS
+}
+log_onexit cleanup
+
 log_assert "Verify block cloning with all sync property settings"
 
 log_must zfs set compress=zle $TESTSRCFS
@@ -63,8 +72,5 @@ for srcprop in "${sync_prop_vals[@]}"; do
         bclone_test random $FILESIZE false $TESTSRCDIR $TESTDSTDIR
     done
 done
-
-log_must zfs inherit sync $TESTSRCFS
-log_must zfs inherit sync $TESTDSTFS
 
 log_pass
