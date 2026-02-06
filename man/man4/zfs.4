@@ -1448,6 +1448,10 @@ If this setting is 0, then even if feature@block_cloning is enabled,
 using functions and system calls that attempt to clone blocks will act as
 though the feature is disabled.
 .
+.It Sy zfs_bclone_strict_properties Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Restricts block cloning between datasets with different properties
+(checksum, compression, copies, dedup, or special_small_blocks).
+.
 .It Sy zfs_bclone_wait_dirty Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
 data to be written to disk before proceeding.

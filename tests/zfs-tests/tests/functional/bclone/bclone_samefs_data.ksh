@@ -30,6 +30,12 @@
 
 verify_runnable "both"
 
+function cleanup
+{
+	log_must zfs inherit compress $TESTSRCFS
+}
+log_onexit cleanup
+
 log_assert "Verify block cloning properly clones regular files within the same dataset"
 
 # Disable compression to make sure we won't use embedded blocks.

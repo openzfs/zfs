@@ -33,7 +33,26 @@ verify_runnable "both"
 
 verify_crossfs_block_cloning
 
+save_tunable BCLONE_STRICT_PROPERTIES
+
+function cleanup
+{
+	restore_tunable BCLONE_STRICT_PROPERTIES
+	log_must zfs inherit checksum $TESTSRCFS
+	log_must zfs inherit compress $TESTSRCFS
+	log_must zfs inherit copies $TESTSRCFS
+	log_must zfs inherit recordsize $TESTSRCFS
+	log_must zfs inherit checksum $TESTDSTFS
+	log_must zfs inherit compress $TESTDSTFS
+	log_must zfs inherit copies $TESTDSTFS
+	log_must zfs inherit recordsize $TESTDSTFS
+}
+log_onexit cleanup
+
 log_assert "Verify block cloning across datasets with different properties"
+
+# Disable strict property checking to allow cross-dataset cloning with different properties
+log_must set_tunable32 BCLONE_STRICT_PROPERTIES 0
 
 log_must zfs set checksum=off $TESTSRCFS
 log_must zfs set compress=off $TESTSRCFS
@@ -73,14 +92,5 @@ log_must zfs set recordsize=16384 $TESTDSTFS
 FILESIZE=$(random_int_between 2 32767)
 FILESIZE=$((FILESIZE * 64))
 bclone_test text $FILESIZE false $TESTSRCDIR $TESTDSTDIR
-
-log_must zfs inherit checksum $TESTSRCFS
-log_must zfs inherit compress $TESTSRCFS
-log_must zfs inherit copies $TESTSRCFS
-log_must zfs inherit recordsize $TESTSRCFS
-log_must zfs inherit checksum $TESTDSTFS
-log_must zfs inherit compress $TESTDSTFS
-log_must zfs inherit copies $TESTDSTFS
-log_must zfs inherit recordsize $TESTDSTFS
 
 log_pass
