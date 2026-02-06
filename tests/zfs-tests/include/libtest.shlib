@@ -3943,4 +3943,26 @@ function pop_coredump_pattern
 	esac
 }
 
+#
+# get_same_blocks dataset1 path/to/file1 dataset2 path/to/file2 [key]
+#
+# Returns a space-separated list of the indexes (starting at 0) of the L0
+# blocks that are shared between both files (by first DVA and checksum).
+#
+function get_same_blocks # dataset1 file1 dataset2 file2 [key]
+{
+	typeset KEY=$5
+	if [ ${#KEY} -gt 0 ]; then
+		KEY="--key=$KEY"
+	fi
+	typeset zdbout1=$(mktemp)
+	typeset zdbout2=$(mktemp)
+	zdb $KEY -vvvvv $1 -O $2 | \
+	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout1
+	zdb $KEY -vvvvv $3 -O $4 | \
+	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout2
+	echo $(sort -n $zdbout1 $zdbout2 | uniq -d | cut -f1 -d' ')
+	rm -f $zdbout1 $zdbout2
+}
+
 . ${STF_SUITE}/include/kstat.shlib

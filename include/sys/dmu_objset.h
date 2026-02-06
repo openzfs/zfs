@@ -236,6 +236,7 @@ int dmu_objset_find_dp(struct dsl_pool *dp, uint64_t ddobj,
     void *arg, int flags);
 void dmu_objset_evict_dbufs(objset_t *os);
 inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
+boolean_t dmu_objset_block_is_shared(objset_t *os, const blkptr_t *bp);
 
 /* called from dsl */
 void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);
