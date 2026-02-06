@@ -32,7 +32,7 @@ log_assert "Metaslab weight algorithm selection works correctly."
 function cleanup
 {
 	restore_tunable_string ACTIVE_WEIGHTFUNC
-	zpool destroy $TESTPOOL
+	poolexists $TESTPOOL && zpool destroy $TESTPOOL
 }
 log_onexit cleanup
 
@@ -40,8 +40,9 @@ save_tunable ACTIVE_WEIGHTFUNC
 
 for value in "auto" "space" "space_v2" "segment"
 do
-	set_tunable_string ACTIVE_WEIGHTFUNC
+	log_must set_tunable_string ACTIVE_WEIGHTFUNC $value
 	log_must zpool create -f $TESTPOOL $DISKS
+	log_must fill_fs /$TESTPOOL 1 100 1048576 R
 	log_must zpool destroy $TESTPOOL
 done
 
