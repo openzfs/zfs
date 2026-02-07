@@ -1632,6 +1632,11 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 				    errbuf));
 			}
 
+		case ENXIO:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more devices could not be opened"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+
 		default:
 			return (zpool_standard_error(hdl, errno, errbuf));
 		}
