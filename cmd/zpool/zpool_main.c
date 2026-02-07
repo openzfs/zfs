@@ -1247,6 +1247,50 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 }
 
 static boolean_t
+check_layout(nvlist_t *nv)
+{
+	boolean_t success = B_TRUE;
+
+	nvlist_t **child;
+	uint_t c, children = 0;
+
+	if (!nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0)
+		return (B_TRUE);
+
+	for (c = 0; c < children; c++) {
+		const char *type = NULL;
+		(void) nvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE, &type);
+		if (type == NULL)
+			continue;
+
+		if (strcmp(type, VDEV_TYPE_RAIDZ) != 0 &&
+		    strcmp(type, VDEV_TYPE_DRAID) != 0)
+			continue;
+
+		uint64_t nparity = 0;
+		(void) nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_NPARITY,
+		    &nparity);
+
+		nvlist_t **dev;
+		uint_t ndevs = 0;
+		(void) nvlist_lookup_nvlist_array(child[c],
+		    ZPOOL_CONFIG_CHILDREN, &dev, &ndevs);
+
+		if (ndevs == nparity + 1) {
+			(void) fprintf(stderr, gettext("suboptimal vdev "
+			    "specification: a '%s%lu' vdev with %u devices "
+			    "is inefficient; consider 'mirror' instead.\n"),
+			    type, nparity, ndevs);
+			success = B_FALSE;
+			continue;
+		}
+	}
+
+	return (success);
+}
+
+static boolean_t
 prop_list_contains_feature(nvlist_t *proplist)
 {
 	nvpair_t *nvp;
@@ -1967,9 +2011,11 @@ errout:
 int
 zpool_do_create(int argc, char **argv)
 {
-	boolean_t force = B_FALSE;
 	boolean_t dryrun = B_FALSE;
 	boolean_t enable_pool_features = B_TRUE;
+
+	int force_vdevs = 0;
+	int force_layout = 0;
 
 	int c;
 	nvlist_t *nvroot = NULL;
@@ -1983,11 +2029,32 @@ zpool_do_create(int argc, char **argv)
 	nvlist_t *props = NULL;
 	char *propval;
 
+	struct option long_options[] = {
+		{"force", required_argument, NULL, 'f'},
+		{0, 0, 0, 0}
+	};
+
+	struct zpool_option_flag force_flags[] = {
+		{"vdevs",	&force_vdevs},
+		{"layout",	&force_layout},
+		{0, 0},
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, ":fndR:m:o:O:t:")) != -1) {
+	while ((c = getopt_long(argc, argv, ":fndR:m:o:O:t:", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'f':
-			force = B_TRUE;
+			if (optarg) {
+				char *unk = zpool_option_flag_apply(
+				    optarg, force_flags);
+				if (unk) {
+					fprintf(stderr, gettext("unknown force "
+					    "flag: %s\n"), unk);
+					goto errout;
+				}
+			} else
+				force_vdevs = 1;
 			break;
 		case 'n':
 			dryrun = B_TRUE;
@@ -2122,10 +2189,16 @@ zpool_do_create(int argc, char **argv)
 	}
 
 	/* pass off to make_root_vdev for bulk processing */
-	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
-	    argc - 1, argv + 1);
+	nvroot = make_root_vdev(NULL, props, force_vdevs, !force_vdevs,
+	    B_FALSE, dryrun, argc - 1, argv + 1);
 	if (nvroot == NULL)
 		goto errout;
+
+	if (!force_layout && !check_layout(nvroot)) {
+		(void) fprintf(stderr, "use '--force=layout' to ignore "
+		    "this.\n");
+		goto errout;
+	}
 
 	/* make_root_vdev() allows 0 toplevel children if there are spares */
 	if (!zfs_allocatable_devs(nvroot)) {
