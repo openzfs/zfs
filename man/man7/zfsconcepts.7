@@ -190,8 +190,10 @@ The result
 is that only unique data is stored and common components are shared among files.
 .Pp
 Deduplicating data is a very resource-intensive operation.
-It is generally recommended that you have at least 1.25 GiB of RAM
-per 1 TiB of storage when you enable deduplication.
+Deduplication requires enough RAM to store the dedup table (DDT),
+whose size depends on the number of unique blocks in the pool,
+the block size in use, and the dedup algorithm selected.
+
 Calculating the exact requirement depends heavily
 on the type of data stored in the pool.
 .Pp
