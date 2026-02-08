@@ -1768,6 +1768,7 @@ zfs_prop_set_list(zfs_handle_t *zhp, nvlist_t *props)
 int
 zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 {
+	uint64_t old_zoned_uid = 0;
 	zfs_cmd_t zc = {"\0"};
 	int ret = -1;
 	prop_changelist_t **cls = NULL;
@@ -1861,6 +1862,18 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	assert(cl_idx == nvl_len);
 
 	/*
+	 * Capture old zoned_uid before setting properties.
+	 */
+	for (elem = nvlist_next_nvpair(nvl, NULL); elem != NULL;
+	    elem = nvlist_next_nvpair(nvl, elem)) {
+		zfs_prop_t prop = zfs_name_to_prop(nvpair_name(elem));
+		if (prop == ZFS_PROP_ZONED_UID) {
+			old_zoned_uid =
+			    zfs_prop_get_int(zhp, ZFS_PROP_ZONED_UID);
+		}
+	}
+
+	/*
 	 * Execute the corresponding ioctl() to set this list of properties.
 	 */
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -1928,6 +1941,34 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 			 */
 			if (nsprop && zfs_is_mounted(zhp, NULL))
 				ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
+		}
+
+		/*
+		 * Handle zoned_uid property: call attach/detach ioctl.
+		 */
+		for (elem = nvlist_next_nvpair(nvl, NULL); elem != NULL;
+		    elem = nvlist_next_nvpair(nvl, elem)) {
+			zfs_prop_t prop = zfs_name_to_prop(nvpair_name(elem));
+			uint64_t new_val;
+			zfs_cmd_t zc_zone = {"\0"};
+
+			if (prop != ZFS_PROP_ZONED_UID)
+				continue;
+
+			new_val = fnvpair_value_uint64(elem);
+			(void) strlcpy(zc_zone.zc_name, zhp->zfs_name,
+			    sizeof (zc_zone.zc_name));
+
+			if (old_zoned_uid != 0) {
+				zc_zone.zc_guid = old_zoned_uid;
+				(void) zfs_ioctl(hdl,
+				    ZFS_IOC_USERNS_DETACH_UID, &zc_zone);
+			}
+			if (new_val != 0) {
+				zc_zone.zc_guid = new_val;
+				(void) zfs_ioctl(hdl,
+				    ZFS_IOC_USERNS_ATTACH_UID, &zc_zone);
+			}
 		}
 	}
 
@@ -3550,9 +3591,13 @@ check_parents(libzfs_handle_t *hdl, const char *path, uint64_t *zoned,
 
 	/* we are in a non-global zone, but parent is in the global zone */
 	if (getzoneid() != GLOBAL_ZONEID && !is_zoned) {
-		(void) zfs_standard_error(hdl, EPERM, errbuf);
-		zfs_close(zhp);
-		return (-1);
+		uint64_t zoned_uid = zfs_prop_get_int(zhp, ZFS_PROP_ZONED_UID);
+		if (zoned_uid == 0) {
+			(void) zfs_standard_error(hdl, EPERM, errbuf);
+			zfs_close(zhp);
+			return (-1);
+		}
+		/* zoned_uid set - let kernel decide */
 	}
 
 	/* make sure parent is a filesystem */

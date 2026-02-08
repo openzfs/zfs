@@ -3,3 +3,9 @@
 
 [suppress_type]
 	name = pthread_cond_t
+
+[suppress_function]
+	name = strlcat
+
+[suppress_function]
+	name = strlcpy

@@ -11,3 +11,9 @@
 
 [suppress_variable]
 	name = zfs_deleg_perm_tab
+
+[suppress_function]
+	name = strlcat
+
+[suppress_function]
+	name = strlcpy

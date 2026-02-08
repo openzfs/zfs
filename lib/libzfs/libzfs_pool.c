@@ -69,6 +69,56 @@ typedef struct prop_flags {
 
 /*
  * ====================================================================
+ *   UID-based zoning restoration on pool import
+ * ====================================================================
+ */
+
+static int
+zpool_restore_zoned_cb(zfs_handle_t *zhp, void *data __maybe_unused)
+{
+	uint64_t zoned_uid;
+	libzfs_handle_t *hdl = zfs_get_handle(zhp);
+
+	zoned_uid = zfs_prop_get_int(zhp, ZFS_PROP_ZONED_UID);
+	if (zoned_uid != 0) {
+		zfs_cmd_t zc = {"\0"};
+
+		(void) strlcpy(zc.zc_name, zfs_get_name(zhp),
+		    sizeof (zc.zc_name));
+		zc.zc_guid = zoned_uid;
+
+		if (zfs_ioctl(hdl, ZFS_IOC_USERNS_ATTACH_UID, &zc) != 0 &&
+		    errno != EEXIST) {
+			(void) fprintf(stderr, "warning: failed to restore "
+			    "UID zoning for '%s' (uid %llu): %s\n",
+			    zfs_get_name(zhp), (unsigned long long)zoned_uid,
+			    strerror(errno));
+		}
+	}
+
+	/* Recurse into child filesystems */
+	(void) zfs_iter_filesystems_v2(zhp, 0, zpool_restore_zoned_cb, NULL);
+
+	zfs_close(zhp);
+	return (0);
+}
+
+static void
+zpool_restore_zoned(zpool_handle_t *zhp)
+{
+	zfs_handle_t *root_zhp;
+	libzfs_handle_t *hdl = zpool_get_handle(zhp);
+	const char *pool_name = zpool_get_name(zhp);
+
+	root_zhp = zfs_open(hdl, pool_name, ZFS_TYPE_FILESYSTEM);
+	if (root_zhp == NULL)
+		return;
+
+	(void) zpool_restore_zoned_cb(root_zhp, NULL);
+}
+
+/*
+ * ====================================================================
  *   zpool property functions
  * ====================================================================
  */
@@ -2360,8 +2410,11 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		 */
 		if (zpool_open_silent(hdl, thename, &zhp) != 0)
 			ret = -1;
-		else if (zhp != NULL)
+		else if (zhp != NULL) {
+			/* Restore UID-based zoning for datasets */
+			zpool_restore_zoned(zhp);
 			zpool_close(zhp);
+		}
 		if (policy.zlp_rewind &
 		    (ZPOOL_DO_REWIND | ZPOOL_TRY_REWIND)) {
 			zpool_rewind_exclaim(hdl, newname ? origname : thename,
