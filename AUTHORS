@@ -14,6 +14,7 @@ CONTRIBUTORS:
     Adam D. Moss <c@yotes.com>
     Adam Leventhal <ahl@delphix.com>
     Adam Stevko <adam.stevko@gmail.com>
+    Adi Gollamudi <adigollamudi@gmail.com>
     adisbladis <adis@blad.is>
     Adrian Chadd <adrian@freebsd.org>
     Ahelenia Ziemiańska <nabijaczleweli@nabijaczleweli.xyz>
@@ -32,8 +33,10 @@ CONTRIBUTORS:
     Alek Pinchuk <alek@nexenta.com>
     Aleksandr Liber <aleksandr.liber@perforce.com>
     Aleksa Sarai <cyphar@cyphar.com>
+    Alex <simplecodemaster@gmail.com>
     Alexander Eremin <a.eremin@nexenta.com>
     Alexander Lobakin <alobakin@pm.me>
+    Alexander Moch <mail@alexmoch.com>
     Alexander Motin <mav@freebsd.org>
     Alexander Pyhalov <apyhalov@gmail.com>
     Alexander Richardson <Alexander.Richardson@cl.cam.ac.uk>
@@ -46,6 +49,7 @@ CONTRIBUTORS:
     Alex McWhirter <alexmcwhirter@triadic.us>
     Alex Reece <alex@delphix.com>
     Alex Wilson <alex.wilson@joyent.com>
+    Alexx Saver <lzsaver.eth@ethermail.io>
     Alex Zhuravlev <alexey.zhuravlev@intel.com>
     Allan Jude <allanjude@freebsd.org>
     Allen Holl <allen.m.holl@gmail.com>
@@ -89,6 +93,7 @@ CONTRIBUTORS:
     Arun KV <arun.kv@datacore.com>
     Arvind Sankar <nivedita@alum.mit.edu>
     Attila Fülöp <attila@fueloep.org>
+    Austin Wise <AustinWise@gmail.com>
     Avatat <kontakt@avatat.pl>
     Bart Coddens <bart.coddens@gmail.com>
     Basil Crow <basil.crow@delphix.com>
@@ -110,6 +115,7 @@ CONTRIBUTORS:
     Boris Protopopov <boris.protopopov@nexenta.com>
     Brad Forschinger <github@bnjf.id.au>
     Brad Lewis <brad.lewis@delphix.com>
+    Brad Spengler <bspengler-oss@users.noreply.github.com>
     Brandon Thetford <brandon@dodecatec.com>
     Brian Atkinson <bwa@g.clemson.edu>
     Brian Behlendorf <behlendorf1@llnl.gov>
@@ -196,7 +202,9 @@ CONTRIBUTORS:
     David Quigley <david.quigley@intel.com>
     Debabrata Banerjee <dbanerje@akamai.com>
     D. Ebdrup <debdrup@freebsd.org>
+    delan azabani <dazabani@igalia.com>
     Dennis R. Friedrichsen <dennis.r.friedrichsen@gmail.com>
+    Dennis Vestergaard Værum <github@varum.dk>
     Denys Rtveliashvili <denys@rtveliashvili.name>
     Derek Dai <daiderek@gmail.com>
     Derek Schrock <dereks@lifeofadishwasher.com>
@@ -223,6 +231,7 @@ CONTRIBUTORS:
     Eric Desrochers <eric.desrochers@canonical.com>
     Eric Dillmann <eric@jave.fr>
     Eric Schrock <Eric.Schrock@delphix.com>
+    Erik Larsson <catacombae@gmail.com>
     Ethan Coe-Renner <coerenner1@llnl.gov>
     Etienne Dechamps <etienne@edechamps.fr>
     Evan Allrich <eallrich@gmail.com>
@@ -255,6 +264,7 @@ CONTRIBUTORS:
     George Diamantopoulos <georgediam@gmail.com>
     George Gaydarov <git@gg7.io>
     George Melikov <mail@gmelikov.ru>
+    George Shammas <george@shamm.as>
     George Wilson <gwilson@delphix.com>
     Georgy Yakovlev <ya@sysdump.net>
     Gerardwx <gerardw@alum.mit.edu>
@@ -343,6 +353,7 @@ CONTRIBUTORS:
     Joe Stein <joe.stein@delphix.com>
     John-Mark Gurney <jmg@funkthat.com>
     John Albietz <inthecloud247@gmail.com>
+    John Cabaj <john.cabaj@canonical.com>
     John Eismeier <john.eismeier@gmail.com>
     John Gallagher <john.gallagher@delphix.com>
     John Layman <jlayman@sagecloud.com>
@@ -358,6 +369,7 @@ CONTRIBUTORS:
     Jorgen Lundman <lundman@lundman.net>
     Josef 'Jeff' Sipek <josef.sipek@nexenta.com>
     Jose Luis Duran <jlduran@gmail.com>
+    Joseph Holsten <joseph@josephholsten.com>
     Josh Soref <jsoref@users.noreply.github.com>
     Joshua M. Clulow <josh@sysmgr.org>
     José Luis Salvador Rufo <salvador.joseluis@gmail.com>
@@ -622,6 +634,7 @@ CONTRIBUTORS:
     Simon Guest <simon.guest@tesujimath.org>
     Simon Howard <fraggle@soulsphere.org>
     Simon Klinkert <simon.klinkert@gmail.com>
+    Sivesh Kumar <siveshjami@gmail.com>
     Sowrabha Gopal <sowrabha.gopal@delphix.com>
     Spencer Kinny <spencerkinny1995@gmail.com>
     Srikanth N S <srikanth.nagasubbaraoseetharaman@hpe.com>
@@ -704,6 +717,7 @@ CONTRIBUTORS:
     Windel Bouwman <windel@windel.nl>
     Wojciech Małota-Wójcik <outofforest@users.noreply.github.com>
     Wolfgang Bumiller <w.bumiller@proxmox.com>
+    Wolfgang Hoschek <wolfgang.hoschek@mac.com>
     XDTG <click1799@163.com>
     Xin Li <delphij@FreeBSD.org>
     Xinliang Liu <xinliang.liu@linaro.org>
