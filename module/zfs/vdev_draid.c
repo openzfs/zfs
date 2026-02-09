@@ -1703,11 +1703,23 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	child_max_asize = ((child_max_asize - VDEV_DRAID_REFLOW_RESERVE) /
 	    VDEV_DRAID_ROWHEIGHT) * VDEV_DRAID_ROWHEIGHT;
 
-	uint64_t ndisks = vdc->vdc_ndisks *
-	    (vdc->vdc_width / vdc->vdc_children);
-	uint64_t groupsz = vdc->vdc_groupsz;
-	*asize = ((child_asize * ndisks) / groupsz) * groupsz;
-	*max_asize = ((child_max_asize * ndisks) / groupsz) * groupsz;
+	*asize = (((child_asize * vdc->vdc_ndisks) / vdc->vdc_groupsz) *
+	    vdc->vdc_groupsz);
+	*max_asize = (((child_max_asize * vdc->vdc_ndisks) / vdc->vdc_groupsz) *
+	    vdc->vdc_groupsz);
+
+	/*
+	 * For failure groups with multiple silices in the big width row,
+	 * round down to slice size and multiply on the number of slices
+	 * in the "big width row".
+	 */
+	if (vdc->vdc_width > vdc->vdc_children) {
+		uint64_t slicesz = VDEV_DRAID_ROWHEIGHT *
+		    (vdc->vdc_groupwidth * vdc->vdc_ngroups);
+		uint64_t n = (vdc->vdc_width / vdc->vdc_children);
+		*asize = (*asize / slicesz) * slicesz * n;
+		*max_asize = (*max_asize / slicesz) * slicesz * n;
+	}
 
 	return (0);
 }
