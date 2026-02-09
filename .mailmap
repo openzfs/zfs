@@ -53,6 +53,7 @@ Jason Harmening <jason.harmening@gmail.com>
 Jeremy Faulkner <gldisater@gmail.com>
 Jinshan Xiong <jinshan.xiong@gmail.com>
 John Poduska <jpoduska@datto.com>
+Joseph Holsten <joseph@josephholsten.com>
 Jo Zzsi <jozzsicsataban@gmail.com>
 Justin Scholz <git@justinscholz.de>
 Ka Ho Ng <khng300@gmail.com>
@@ -72,10 +73,12 @@ Roberto Ricci <io@r-ricci.it>
 Roberto Ricci <ricci@disroot.org>
 Rob Norris <robn@despairlabs.com>
 Rob Norris <rob.norris@klarasystems.com>
+Rob Norris <rob.norris@truenas.com>
 Sam Lunt <samuel.j.lunt@gmail.com>
 Sanjeev Bagewadi <sanjeev.bagewadi@gmail.com>
 Sebastian Wuerl <s.wuerl@mailbox.org>
 SHENGYI HONG <aokblast@FreeBSD.org>
+Sivesh Kumar <siveshjami@gmail.com>
 Stoiko Ivanov <github@nomore.at>
 Tamas TEVESZ <ice@extreme.hu>
 WHR <msl0000023508@gmail.com>
@@ -83,8 +86,12 @@ Yanping Gao <yanping.gao@xtaotech.com>
 Youzhong Yang <youzhong@gmail.com>
 
 # Signed-off-by: overriding Author:
+Alexander Moch <mail@alexmoch.com> <amoch@ernw.de>
+Alexander Moch <mail@alexmoch.com> <github@alexanderjulian.de>
 Alexander Ziaee <ziaee@FreeBSD.org> <concussious@runbox.com>
+delan azabani <dazabani@igalia.com> <delan@azabani.com>
 Felix Schmidt <felixschmidt20@aol.com> <f.sch.prototype@gmail.com>
+George Shammas <george@shamm.as> <georgyo@gmail.com>
 Jean-Sébastien Pédron <dumbbell@FreeBSD.org> <jean-sebastien.pedron@dumbbell.fr>
 Konstantin Belousov <kib@FreeBSD.org> <kib@kib.kiev.ua>
 Olivier Certner <olce@FreeBSD.org> <olce.freebsd@certner.fr>
@@ -108,6 +115,7 @@ Ned Bass <bass6@llnl.gov> <bass6@zeno1.(none)>
 Tulsi Jain <tulsi.jain@delphix.com> <tulsi.jain@Tulsi-Jains-MacBook-Pro.local>
 
 # Mappings from Github no-reply addresses
+Adi Gollamudi <adigollamudi@gmail.com> <68113680+Adi-Goll@users.noreply.github.com>
 ajs124 <git@ajs124.de> <ajs124@users.noreply.github.com>
 Alek Pinchuk <apinchuk@axcient.com> <alek-p@users.noreply.github.com>
 Aleksandr Liber <aleksandr.liber@perforce.com> <61714074+AleksandrLiber@users.noreply.github.com>
@@ -125,6 +133,7 @@ bernie1995 <bernie.pikes@gmail.com> <42413912+bernie1995@users.noreply.github.co
 Bojan Novković <bnovkov@FreeBSD.org> <72801811+bnovkov@users.noreply.github.com>
 Boris Protopopov <boris.protopopov@actifio.com> <bprotopopov@users.noreply.github.com>
 Brad Forschinger <github@bnjf.id.au> <bnjf@users.noreply.github.com>
+Brad Spengler <94915855+bspengler-oss@users.noreply.github.com>>
 Brandon Thetford <brandon@dodecatec.com> <dodexahedron@users.noreply.github.com>
 buzzingwires <buzzingwires@outlook.com> <131118055+buzzingwires@users.noreply.github.com>
 Cedric Maunoury <cedric.maunoury@gmail.com> <38213715+cedricmaunoury@users.noreply.github.com>
@@ -138,6 +147,7 @@ Daniel Kobras <d.kobras@science-computing.de> <sckobras@users.noreply.github.com
 Daniel Reichelt <hacking@nachtgeist.net> <nachtgeist@users.noreply.github.com>
 David Quigley <david.quigley@intel.com> <dpquigl@users.noreply.github.com>
 Dennis R. Friedrichsen <dennis.r.friedrichsen@gmail.com> <31087738+dennisfriedrichsen@users.noreply.github.com>
+Dennis Vestergaard Værum <github@varum.dk> <6872940+dvaerum@users.noreply.github.com>
 Dex Wood <slash2314@gmail.com> <slash2314@users.noreply.github.com>
 DHE <git@dehacked.net> <DeHackEd@users.noreply.github.com>
 Dmitri John Ledkov <dimitri.ledkov@canonical.com> <19779+xnox@users.noreply.github.com>
