@@ -1764,7 +1764,7 @@ zvol_rename_minors_impl(zvol_task_t *task)
 
 	oldnamelen = strlen(oldname);
 
-	rw_enter(&zvol_state_lock, RW_READER);
+	rw_enter(&zvol_state_lock, RW_WRITER);
 
 	for (zv = list_head(&zvol_state_list); zv != NULL; zv = zv_next) {
 		zv_next = list_next(&zvol_state_list, zv);

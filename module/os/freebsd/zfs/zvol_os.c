@@ -1251,7 +1251,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
 	int error = 0;
 
-	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
 	/* Move to a new hashtable entry.  */
