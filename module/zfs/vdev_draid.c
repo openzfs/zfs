@@ -1711,7 +1711,8 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	/*
 	 * For failure groups with multiple silices in the big width row,
 	 * round down to slice size and multiply on the number of slices
-	 * in the "big width row".
+	 * in the "big width row" so that each failure group would have
+	 * the same number of slices.
 	 */
 	if (vdc->vdc_width > vdc->vdc_children) {
 		uint64_t slicesz = VDEV_DRAID_ROWHEIGHT *

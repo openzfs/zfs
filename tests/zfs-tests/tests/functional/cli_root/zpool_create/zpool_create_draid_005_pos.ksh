@@ -58,11 +58,12 @@ mkdir $TESTDIR
 for (( i=0; i<10; i++ )); do
 	parity=$(random_int_between 1 3)
 	spares=$(random_int_between 0 3)
-	data=$(random_int_between 1 16)
-	n=$(random_int_between 2 7)
+	data=$(random_int_between 1 10)
+	n=$(random_int_between 2 4)
 
 	(( min_children = (data + parity + spares) ))
-	children=$(random_int_between $min_children 32)
+	(( max_children = 64 / n ))
+	children=$(random_int_between $min_children $max_children)
 	(( width = (children * n) ))
 	(( spares *= n ))
 
