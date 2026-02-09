@@ -260,6 +260,8 @@ typedef struct send_data {
 	boolean_t props;
 	boolean_t no_preserve_encryption;
 
+	snapfilter_cb_t *filter_cb;
+	void *filter_cb_arg;
 	/*
 	 * The header nvlist is of the following format:
 	 * {
@@ -512,6 +514,10 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	uint64_t fromsnap_txg_save = sd->fromsnap_txg;
 	uint64_t tosnap_txg_save = sd->tosnap_txg;
 
+	if (sd->filter_cb &&
+	    (sd->filter_cb(zhp, sd->filter_cb_arg) == 0))
+		return (0);
+
 	fromsnap_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name, sd->fromsnap);
 	if (fromsnap_txg != 0)
 		sd->fromsnap_txg = fromsnap_txg;
@@ -697,7 +703,8 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
     boolean_t replicate, boolean_t skipmissing, boolean_t verbose,
     boolean_t backup, boolean_t holds, boolean_t props,
-	boolean_t no_preserve_encryption, nvlist_t **nvlp, avl_tree_t **avlp)
+    boolean_t no_preserve_encryption, nvlist_t **nvlp, avl_tree_t **avlp,
+    snapfilter_cb_t *filter_cb, void *filter_cb_arg)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -721,6 +728,8 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.holds = holds;
 	sd.props = props;
 	sd.no_preserve_encryption = no_preserve_encryption;
+	sd.filter_cb = filter_cb;
+	sd.filter_cb_arg = filter_cb_arg;
 
 	if ((error = send_iterate_fs(zhp, &sd)) != 0) {
 		fnvlist_free(sd.fss);
@@ -2200,7 +2209,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
     boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t skipmissing,
     boolean_t backup, boolean_t holds, boolean_t props, boolean_t doall,
-    boolean_t no_preserve_encryption, nvlist_t **fssp, avl_tree_t **fsavlp)
+    boolean_t no_preserve_encryption, nvlist_t **fssp, avl_tree_t **fsavlp,
+    snapfilter_cb_t filter_func, void *cb_arg)
 {
 	int err = 0;
 	char *packbuf = NULL;
@@ -2247,7 +2257,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		if (gather_nvlist(zhp->zfs_hdl, tofs,
 		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
 		    verbose, backup, holds, props, no_preserve_encryption,
-		    &fss, fsavlp) != 0) {
+		    &fss, fsavlp, filter_func, cb_arg) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2394,7 +2404,8 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
 		    flags->raw, flags->replicate, flags->skipmissing,
 		    flags->backup, flags->holds, flags->props, flags->doall,
-		    flags->no_preserve_encryption, &fss, &fsavl);
+		    flags->no_preserve_encryption, &fss, &fsavl,
+		    filter_func, cb_arg);
 		zfs_close(tosnap);
 		if (err != 0)
 			goto err_out;
@@ -2738,7 +2749,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
 		    flags->replicate, B_FALSE, flags->backup, flags->holds,
 		    flags->props, flags->doall, flags->no_preserve_encryption,
-		    NULL, NULL);
+		    NULL, NULL, NULL, NULL);
 		if (err != 0)
 			return (err);
 	}
@@ -3395,7 +3406,8 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 	/* Using top_zfs, gather the nvlists for all local filesystems. */
 	if ((err = gather_nvlist(hdl, top_zfs, NULL, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
+	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
+	    NULL, NULL)) != 0)
 		return (err);
 
 	/*
@@ -3550,7 +3562,8 @@ again:
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
+	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
+	    NULL, NULL)) != 0)
 		return (error);
 
 	/*
@@ -5141,7 +5154,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
 		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
-		    B_TRUE, B_FALSE, &local_nv, &local_avl) == 0) {
+		    B_TRUE, B_FALSE, &local_nv, &local_avl,
+		    NULL, NULL) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);
