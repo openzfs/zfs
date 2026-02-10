@@ -4,7 +4,9 @@
 # 6) load openzfs module and run the tests
 #
 # called on runner:  qemu-6-tests.sh
-# called on qemu-vm: qemu-6-tests.sh $OS $2/$3
+# called on qemu-vm: qemu-6-tests.sh $OS $2 $3 [--lustre] [quick|default]
+#
+# --lustre: Test build lustre in addition to the normal tests
 ######################################################################
 
 set -eu
@@ -38,6 +40,16 @@ function prefix() {
   fi
 }
 
+function do_lustre_build() {
+  local rc=0
+  $HOME/zfs/.github/workflows/scripts/qemu-6-lustre-tests-vm.sh &> /var/tmp/lustre.txt || rc=$?
+  echo "$rc" > /var/tmp/lustre-exitcode.txt
+  if [ "$rc" != "0" ] ; then
+      echo "$rc" > /var/tmp/tests-exitcode.txt
+  fi
+}
+export -f do_lustre_build
+
 # called directly on the runner
 if [ -z ${1:-} ]; then
   cd "/var/tmp"
@@ -49,8 +61,18 @@ if [ -z ${1:-} ]; then
 
   for ((i=1; i<=VMs; i++)); do
     IP="192.168.122.1$i"
+
+    # We do an additional test build of Lustre against ZFS if we're vm2
+    # on almalinux*.  At the time of writing, the vm2 tests were
+    # completing roughly 15min before the vm1 tests, so it makes sense
+    # to have vm2 do the build.
+    extra=""
+    if [[ "$OS" == almalinux* ]] && [[ "$i" == "2" ]] ; then
+        extra="--lustre"
+    fi
+
     daemonize -c /var/tmp -p vm${i}.pid -o vm${i}log.txt -- \
-      $SSH zfs@$IP $TESTS $OS $i $VMs $CI_TYPE
+      $SSH zfs@$IP $TESTS $OS $i $VMs $extra $CI_TYPE
     # handly line by line and add info prefix
     stdbuf -oL tail -fq vm${i}log.txt \
       | while read -r line; do prefix "$i" "$line"; done &
@@ -70,9 +92,31 @@ if [ -z ${1:-} ]; then
   exit 0
 fi
 
-# this part runs inside qemu vm
+
+#############################################
+# Everything from here on runs inside qemu vm
+#############################################
+
+# Process cmd line args
+OS="$1"
+shift
+NUM="$1"
+shift
+DEN="$1"
+shift
+
+BUILD_LUSTRE=0
+if [ "$1" == "--lustre" ] ; then
+  BUILD_LUSTRE=1
+  shift
+fi
+
+if [ "$1" == "quick" ] ; then
+  export RUNFILES="sanity.run"
+fi
+
 export PATH="$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
-case "$1" in
+case "$OS" in
   freebsd*)
     TDIR="/usr/local/share/zfs"
     sudo kldstat -n zfs 2>/dev/null && sudo kldunload zfs
@@ -96,7 +140,7 @@ case "$1" in
 esac
 
 # Distribution-specific settings.
-case "$1" in
+case "$OS" in
   almalinux9|almalinux10|centos-stream*)
     # Enable io_uring on Enterprise Linux 9 and 10.
     sudo sysctl kernel.io_uring_disabled=0 > /dev/null
@@ -109,16 +153,25 @@ case "$1" in
     ;;
 esac
 
+# Lustre calls a number of exported ZFS module symbols.  To make sure we don't
+# change the symbols and break Lustre, do a quick Lustre build of the latest
+# released Lustre against ZFS.
+#
+# Note that we do the Lustre test build in parallel with ZTS.  ZTS isn't very
+# CPU intensive, so we can use idle CPU cycles "guilt free" for the build.
+# The Lustre build on its own takes ~15min.
+if [ "$BUILD_LUSTRE" == "1" ] ; then
+  do_lustre_build &
+fi
+
 # run functional testings and save exitcode
 cd /var/tmp
-TAGS=$2/$3
-if [ "$4" == "quick" ]; then
-  export RUNFILES="sanity.run"
-fi
+TAGS=$NUM/$DEN
 sudo dmesg -c > dmesg-prerun.txt
 mount > mount.txt
 df -h > df-prerun.txt
 $TDIR/zfs-tests.sh -vKO -s 3GB -T $TAGS
+
 RV=$?
 df -h > df-postrun.txt
 echo $RV > tests-exitcode.txt
