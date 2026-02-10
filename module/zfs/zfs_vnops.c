@@ -70,6 +70,12 @@
 int zfs_bclone_enabled = 1;
 
 /*
+ * Restricts block cloning between datasets with different properties
+ * (checksum, compression, copies, dedup, or special_small_blocks).
+ */
+int zfs_bclone_strict_properties = 1;
+
+/*
  * When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
  * data to be written to disk before proceeding. This ensures that the clone
  * operation reliably succeeds, even if a file is modified and then immediately
@@ -1677,6 +1683,21 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		return (SET_ERROR(EXDEV));
 	}
 
+	/*
+	 * Cloning between datasets with different properties is possible,
+	 * but it may cause confusions when copying data between them and
+	 * expecting new properties to apply.
+	 */
+	if (zfs_bclone_strict_properties && inos != outos &&
+	    !inzfsvfs->z_issnap &&
+	    (inos->os_checksum != outos->os_checksum ||
+	    inos->os_compress != outos->os_compress ||
+	    inos->os_copies != outos->os_copies ||
+	    inos->os_dedup_checksum != outos->os_dedup_checksum)) {
+		zfs_exit_two(inzfsvfs, outzfsvfs, FTAG);
+		return (SET_ERROR(EXDEV));
+	}
+
 	error = zfs_verify_zp(inzp);
 	if (error == 0)
 		error = zfs_verify_zp(outzp);
@@ -1757,6 +1778,26 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	}
 
 	inblksz = inzp->z_blksz;
+
+	/*
+	 * Cloning between datasets with different special_small_blocks would
+	 * bypass storage tier migration that would occur with a regular copy.
+	 */
+	if (zfs_bclone_strict_properties && inos != outos &&
+	    !inzfsvfs->z_issnap && spa_has_special(dmu_objset_spa(inos))) {
+		uint64_t in_smallblk = inos->os_zpl_special_smallblock;
+		uint64_t out_smallblk = outos->os_zpl_special_smallblock;
+		if (in_smallblk != out_smallblk) {
+			uint64_t min_smallblk = MIN(in_smallblk, out_smallblk);
+			uint64_t max_smallblk = MAX(in_smallblk, out_smallblk);
+			if (min_smallblk < inblksz &&
+			    (inos->os_compress != ZIO_COMPRESS_OFF ||
+			    max_smallblk >= inblksz)) {
+				error = SET_ERROR(EXDEV);
+				goto unlock;
+			}
+		}
+	}
 
 	/*
 	 * We cannot clone into a file with different block size if we can't
@@ -2115,6 +2156,9 @@ ZFS_MODULE_PARAM(zfs_vnops, zfs_vnops_, read_chunk_size, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, bclone_enabled, INT, ZMOD_RW,
 	"Enable block cloning");
+
+ZFS_MODULE_PARAM(zfs, zfs_, bclone_strict_properties, INT, ZMOD_RW,
+	"Restrict cross-dataset cloning with different properties");
 
 ZFS_MODULE_PARAM(zfs, zfs_, bclone_wait_dirty, INT, ZMOD_RW,
 	"Wait for dirty blocks when cloning");
