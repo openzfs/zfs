@@ -2983,9 +2983,6 @@ out:
 		ASSERT0(err2);
 	}
 
-	if (attrzp)
-		vput(ZTOV(attrzp));
-
 	if (aclp)
 		zfs_acl_free(aclp);
 
@@ -2996,12 +2993,15 @@ out:
 
 	if (err) {
 		dmu_tx_abort(tx);
+		if (attrzp)
+			vput(ZTOV(attrzp));
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
 		if (attrzp) {
 			if (err2 == 0 && handle_eadir)
 				err = zfs_setattr_dir(attrzp);
+			vput(ZTOV(attrzp));
 		}
 	}
 
