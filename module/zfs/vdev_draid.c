@@ -1715,8 +1715,7 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	 * the same number of slices.
 	 */
 	if (vdc->vdc_width > vdc->vdc_children) {
-		uint64_t slicesz = VDEV_DRAID_ROWHEIGHT *
-		    (vdc->vdc_groupwidth * vdc->vdc_ngroups);
+		uint64_t slicesz = vdc->vdc_devslicesz * vdc->vdc_ndisks;
 		uint64_t n = (vdc->vdc_width / vdc->vdc_children);
 		*asize = (*asize / slicesz) * slicesz * n;
 		*max_asize = (*max_asize / slicesz) * slicesz * n;
@@ -1830,7 +1829,7 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 
 	if (draid_nspares == 0) {
 		*ndraidp = ndraid;
-		*nfgroupp = nfgroup++;
+		*nfgroupp = nfgroup;
 		return (0);
 	}
 
@@ -2606,15 +2605,15 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	uint64_t perm = (physical_offset / vdc->vdc_devslicesz) * n;
 
 	/*
-	 * Adjust iter by vds_spare_id so that it points to the correct slice
-	 * in the big width row.
+	 * Adjust permutation so that it points to the correct slice in the
+	 * big width row.
 	 */
 	perm += vds->vds_spare_id / vdc->vdc_nspares;
 
 	vdev_draid_get_perm(vdc, perm, &base, &iter);
 
 	uint64_t cid = vdev_draid_permute_id(vdc, base, iter,
-	    (vdc->vdc_children - 1) - vds->vds_spare_id % vdc->vdc_nspares);
+	    (vdc->vdc_children - 1) - (vds->vds_spare_id % vdc->vdc_nspares));
 	vdev_t *cvd = tvd->vdev_child[cid];
 
 	if (cvd->vdev_ops == &vdev_draid_spare_ops)
