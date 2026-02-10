@@ -120,6 +120,11 @@ function rhel() {
     kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
     rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
     xxhash zlib-devel
+
+  # These are needed for building Lustre.  We only install these on EL VMs since
+  # we don't plan to test build Lustre on other platforms.
+  sudo dnf install -y libnl3-devel libyaml-devel libmount-devel
+
   echo "##[endgroup]"
 }
 
