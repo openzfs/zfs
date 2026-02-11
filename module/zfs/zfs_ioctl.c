@@ -685,7 +685,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	dsl_dataset_t *ds;
 	const char *cp;
 	int error;
-	boolean_t rawok = (zc->zc_flags & 0x8);
+	boolean_t rawok = !!(zc->zc_flags & 0x8);
 
 	/*
 	 * Generate the current snapshot name from the given objsetid, then
@@ -708,7 +708,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
 	    ZFS_DELEG_PERM_SEND, cr);
-	if (error != 0 && rawok == B_TRUE) {
+	if (error != 0 && rawok) {
 		error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
 		    ZFS_DELEG_PERM_SEND_RAW, cr);
 	}
@@ -727,7 +727,7 @@ zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	(void) innvl;
 	error = zfs_secpolicy_write_perms(zc->zc_name,
 	    ZFS_DELEG_PERM_SEND, cr);
-	if (error != 0 && rawok == B_TRUE) {
+	if (error != 0 && rawok) {
 		error = zfs_secpolicy_write_perms(zc->zc_name,
 		    ZFS_DELEG_PERM_SEND_RAW, cr);
 	}
