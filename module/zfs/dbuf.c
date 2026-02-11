@@ -2137,7 +2137,9 @@ dbuf_release_bp(dmu_buf_impl_t *db)
 	    list_link_active(&os->os_dsl_dataset->ds_synced_link));
 	ASSERT(db->db_parent == NULL || arc_released(db->db_parent->db_buf));
 
+	mutex_enter(&db->db_mtx);
 	(void) arc_release(db->db_buf, db);
+	mutex_exit(&db->db_mtx);
 }
 
 /*

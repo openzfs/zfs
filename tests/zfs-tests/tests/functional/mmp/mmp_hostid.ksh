@@ -40,7 +40,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	default_cleanup_noexit
+	datasetexists $MMP_POOL && destroy_pool $MMP_POOL
 	log_must rm $MMP_DIR/file.{0,1,2,3,4,5}
 	log_must rmdir $MMP_DIR
 	log_must mmp_clear_hostid
@@ -56,7 +56,7 @@ log_must mkdir -p $MMP_DIR
 log_must truncate -s $MINVDEVSIZE $MMP_DIR/file.{0,1,2,3,4,5}
 
 # 1. Create a non-redundant pool
-log_must zpool create $MMP_POOL $MMP_DIR/file.0
+log_must zpool create -f $MMP_POOL $MMP_DIR/file.0
 
 # 2. Create an 'etc' dataset containing a valid hostid file; caching is
 #    disabled on the dataset to force the hostid to be read from disk.
@@ -71,16 +71,19 @@ mntpnt_fs=$(get_prop mountpoint $MMP_POOL/fs)
 log_must mkfile 1M $mntpnt_fs/file
 
 # 4. Verify multihost cannot be enabled until the /etc/hostid is linked
+log_note "Verify multihost cannot be enabled until the /etc/hostid is linked"
 log_mustnot zpool set multihost=on $MMP_POOL
 log_mustnot ls -l $HOSTID_FILE
 log_must ln -s $mntpnt_etc/hostid $HOSTID_FILE
 log_must zpool set multihost=on $MMP_POOL
 
 # 5. Verify vdevs may be attached and detached
+log_note "Verify vdevs may be attached and detached"
 log_must zpool attach $MMP_POOL $MMP_DIR/file.0 $MMP_DIR/file.1
 log_must zpool detach $MMP_POOL $MMP_DIR/file.1
 
 # 6. Verify normal, cache, log and special vdevs can be added
+log_note "Verify normal, cache, log and special vdevs can be added"
 log_must zpool add $MMP_POOL $MMP_DIR/file.1
 log_must zpool add $MMP_POOL $MMP_DIR/file.2
 log_must zpool add $MMP_POOL cache $MMP_DIR/file.3
@@ -88,6 +91,7 @@ log_must zpool add $MMP_POOL log $MMP_DIR/file.4
 log_must zpool add $MMP_POOL special $MMP_DIR/file.5
 
 # 7. Verify normal, cache, and log vdevs can be removed
+log_note "Verify normal, cache, and log vdevs can be removed"
 log_must zpool remove $MMP_POOL $MMP_DIR/file.2
 log_must zpool remove $MMP_POOL $MMP_DIR/file.3
 log_must zpool remove $MMP_POOL $MMP_DIR/file.4

@@ -33,6 +33,7 @@ extern "C" {
 #define	MMP_DEFAULT_IMPORT_INTERVALS	20
 #define	MMP_DEFAULT_FAIL_INTERVALS	10
 #define	MMP_MIN_FAIL_INTERVALS		2	/* min if != 0 */
+#define	MMP_IMPORT_VERIFY_ITERS		10
 #define	MMP_IMPORT_SAFETY_FACTOR	200	/* pct */
 #define	MMP_INTERVAL_OK(interval)	MAX(interval, MMP_MIN_INTERVAL)
 #define	MMP_FAIL_INTVS_OK(fails)	(fails == 0 ? 0 : MAX(fails, \
@@ -53,6 +54,9 @@ typedef struct mmp_thread {
 	vdev_t		*mmp_last_leaf;	/* last mmp write sent here */
 	uint64_t	mmp_leaf_last_gen;	/* last mmp write sent here */
 	uint32_t	mmp_seq;	/* intra-second update counter */
+	uint64_t	mmp_tryimport_ns; /* tryimport activity check time */
+	uint64_t	mmp_import_ns;	/* import activity check time */
+	uint64_t	mmp_claim_ns;	/* claim activity check time */
 } mmp_thread_t;
 
 
@@ -62,6 +66,7 @@ extern void mmp_thread_start(struct spa *spa);
 extern void mmp_thread_stop(struct spa *spa);
 extern void mmp_update_uberblock(struct spa *spa, struct uberblock *ub);
 extern void mmp_signal_all_threads(void);
+extern int mmp_claim_uberblock(spa_t *spa, vdev_t *vd, uberblock_t *ub);
 
 /* Global tuning */
 extern int param_set_multihost_interval(ZFS_MODULE_PARAM_ARGS);

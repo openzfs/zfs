@@ -39,15 +39,16 @@
 verify_runnable "both"
 
 UBER_CHANGES=0
-EXPECTED=$(($(echo $DISKS | wc -w) * 10))
+DURATION=10
+EXPECTED=$((($(echo $DISKS | wc -w) * $DURATION * 1000) / $MMP_INTERVAL_DEFAULT))
 FUDGE=$((EXPECTED * 20 / 100))
 MIN_UB_WRITES=$((EXPECTED - FUDGE))
 MAX_UB_WRITES=$((EXPECTED + FUDGE))
-MIN_SEQ_VALUES=7
+MIN_SEQ_VALUES=10
 
 function cleanup
 {
-	default_cleanup_noexit
+	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 	set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_DEFAULT
 	log_must mmp_clear_hostid
@@ -56,13 +57,14 @@ function cleanup
 log_assert "Ensure MMP uberblocks update at the correct interval"
 log_onexit cleanup
 
+log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_LONG
 log_must mmp_set_hostid $HOSTID1
 
-default_setup_noexit "$DISKS"
+log_must zpool create -f $TESTPOOL $DISKS
 log_must zpool set multihost=on $TESTPOOL
 clear_mmp_history
-UBER_CHANGES=$(count_mmp_writes $TESTPOOL 10)
+UBER_CHANGES=$(count_mmp_writes $TESTPOOL $DURATION)
 
 log_note "Uberblock changed $UBER_CHANGES times"
 
@@ -76,7 +78,7 @@ fi
 
 log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
 SEQ_BEFORE=$(zdb -luuuu ${DISK[0]} | awk '/mmp_seq/ {if ($NF>max) max=$NF}; END {print max}')
-sleep 1
+sleep 5
 SEQ_AFTER=$(zdb  -luuuu ${DISK[0]} | awk '/mmp_seq/ {if ($NF>max) max=$NF}; END {print max}')
 if [ $((SEQ_AFTER - SEQ_BEFORE)) -lt $MIN_SEQ_VALUES ]; then
 	zdb -luuuu ${DISK[0]}

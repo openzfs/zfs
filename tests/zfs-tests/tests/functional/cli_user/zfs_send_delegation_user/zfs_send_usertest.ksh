@@ -103,12 +103,17 @@ log_must zfs unallow -u $OTHER1 send $TESTPOOL/$TESTFS1
 
 # test new sendraw abilities (send should fail, sendraw should pass)
 log_mustnot user_run $OTHER1 sh -c "'zfs send $TESTPOOL/$TESTFS1@snap1 | zfs receive -u $TESTPOOL/$TESTFS2/zfsrecv2_user_datastream.$$'"
- verify nothing went through
+# verify nothing went through
 if [ -s $TESTPOOL/$TESTFS2/zfsrecv2_user_datastream.$$ ]
 then
 	log_fail "A zfs recieve was completed in $TESTPOOL/$TESTFS2/zfsrecv2_user_datastream !"
 fi
 log_must user_run $OTHER1 sh -c "'zfs send -w $TESTPOOL/$TESTFS1@snap1 | zfs receive -u $TESTPOOL/$TESTFS2/zfsrecv2raw_user_datastream.$$'"
+
+# test incremental send with intermediates (should pass)
+log_must zfs allow $OTHER1 hold $TESTPOOL/$TESTFS1
+log_must zfs snapshot $TESTPOOL/$TESTFS1@snap2
+log_must user_run $OTHER1 sh -c "'zfs send -w -I $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS1@snap2 > /dev/null'"
 
 # disable raw delegation
 log_must zfs unallow -u $OTHER1 send:raw $TESTPOOL/$TESTFS1
@@ -123,13 +128,13 @@ log_must zfs unallow -u $OTHER1 send $TESTPOOL/$TESTFS1
 
 # verify original send abilities (should fail)
 log_mustnot user_run $OTHER1 sh -c "'zfs send $TESTPOOL/$TESTFS1@snap1 | zfs receive -u $TESTPOOL/$TESTFS2/zfsrecv4_user_datastream.$$'"
- verify nothing went through
+# verify nothing went through
 if [ -s $TESTPOOL/$TESTFS2/zfsrecv4_user_datastream.$$ ]
 then
         log_fail "A zfs recieve was completed in $TESTPOOL/$TESTFS2/zfsrecv4_user_datastream !"
 fi
 log_mustnot user_run $OTHER1 sh -c "'zfs send -w $TESTPOOL/$TESTFS1@snap1 | zfs receive -u $TESTPOOL/$TESTFS2/zfsrecv4raw_user_datastream.$$'"
- verify nothing went through
+# verify nothing went through
 if [ -s $TESTPOOL/$TESTFS2/zfsrecv4raw_user_datastream.$$ ]
 then
         log_fail "A zfs recieve was completed in $TESTPOOL/$TESTFS2/zfsrecv4raw_user_datastream !"

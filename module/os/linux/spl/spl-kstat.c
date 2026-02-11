@@ -531,7 +531,6 @@ kstat_proc_entry_init(kstat_proc_entry_t *kpep, const char *module,
 	strlcpy(kpep->kpe_module, module, sizeof (kpep->kpe_module));
 	strlcpy(kpep->kpe_name, name, sizeof (kpep->kpe_name));
 }
-EXPORT_SYMBOL(kstat_proc_entry_init);
 
 kstat_t *
 __kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
@@ -702,7 +701,6 @@ out:
 	mutex_exit(&kstat_module_lock);
 
 }
-EXPORT_SYMBOL(kstat_proc_entry_install);
 
 void
 __kstat_install(kstat_t *ksp)
@@ -739,7 +737,6 @@ kstat_proc_entry_delete(kstat_proc_entry_t *kpep)
 	mutex_exit(&kstat_module_lock);
 
 }
-EXPORT_SYMBOL(kstat_proc_entry_delete);
 
 void
 __kstat_delete(kstat_t *ksp)

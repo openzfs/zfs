@@ -559,7 +559,7 @@ function default_cleanup_noexit
 		# Here, we loop through the pools we're allowed to
 		# destroy, only destroying them if it's safe to do
 		# so.
-		while [ ! -z ${ALL_POOLS} ]
+		while [ -n "${ALL_POOLS}" ]
 		do
 			for pool in ${ALL_POOLS}
 			do

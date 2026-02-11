@@ -714,7 +714,7 @@ SET_OBJ(.Lrem_8bit)
 .balign	64
 
 /* Mark the stack non-executable. */
-#if defined(__linux__) && defined(__ELF__)
+#ifdef __ELF__
 .section .note.GNU-stack,"",%progbits
 #endif
 

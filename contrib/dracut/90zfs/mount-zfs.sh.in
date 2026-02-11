@@ -97,7 +97,7 @@ fi
 if [ "$(zpool get -Ho value feature@encryption "${ZFS_POOL}")" = 'active' ]; then
 	# if the root dataset has encryption enabled
 	ENCRYPTIONROOT="$(zfs get -Ho value encryptionroot "${ZFS_DATASET}")"
-	if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
+	if [ "${ENCRYPTIONROOT}" != "-" ]; then
 		KEYSTATUS="$(zfs get -Ho value keystatus "${ENCRYPTIONROOT}")"
 		# if the key needs to be loaded
 		if [ "$KEYSTATUS" = "unavailable" ]; then

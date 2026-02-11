@@ -84,6 +84,11 @@
 .Op Fl K Ar key
 .Ar dataset path destination
 .Nm
+.Fl r
+.Fl O
+.Op Fl K Ar key
+.Ar dataset object-id destination
+.Nm
 .Fl R
 .Op Fl A
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
@@ -376,6 +381,12 @@ Specified
 .Ar path
 must be relative to the root of
 .Ar dataset .
+When used with
+.Fl O ,
+the
+.Ar path
+argument is interpreted as an object identifier,
+not a path.
 This option can be combined with
 .Fl v
 for increasing verbosity.

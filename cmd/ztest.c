@@ -7146,6 +7146,7 @@ static void
 ztest_get_zdb_bin(char *bin, int len)
 {
 	char *zdb_path;
+	char *resolved;
 	/*
 	 * Try to use $ZDB and in-tree zdb path. If not successful, just
 	 * let popen to search through PATH.
@@ -7159,7 +7160,11 @@ ztest_get_zdb_bin(char *bin, int len)
 		return;
 	}
 
-	VERIFY3P(realpath(getexecname(), bin), !=, NULL);
+	resolved = realpath(getexecname(), NULL);
+	VERIFY3P(resolved, !=, NULL);
+	strlcpy(bin, resolved, len);
+	free(resolved);
+
 	if (strstr(bin, ".libs/ztest")) {
 		strstr(bin, ".libs/ztest")[0] = '\0'; /* In-tree */
 		strcat(bin, "zdb");

@@ -52,6 +52,7 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
+#include <sys/backtrace.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
 #include <sys/metaslab_impl.h>
@@ -59,6 +60,7 @@
 static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
+static boolean_t g_dump_dbgmsg;
 
 typedef enum {
 	ZHACK_REPAIR_OP_UNKNOWN  = 0,
@@ -70,12 +72,23 @@ static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage: zhack [-o tunable] [-c cachefile] [-d dir] <subcommand> "
-	    "<args> ...\n"
-	    "where <subcommand> <args> is one of the following:\n"
+	    "Usage: zhack [-o tunable] [-c cachefile] [-d dir] [-G] "
+	    "<subcommand> <args> ...\n"
+	    "       where <subcommand> <args> is one of the following:\n"
 	    "\n");
 
 	(void) fprintf(stderr,
+	    "    global options:\n"
+	    "    -c <cachefile>   reads config from the given cachefile\n"
+	    "    -d <dir>         directory with vdevs for import\n"
+	    "    -o var=value...  set global variable to an unsigned "
+	    "32-bit integer\n"
+	    "    -G               dump zfs_dbgmsg buffer before exiting\n"
+	    "\n"
+	    "    action idle <pool> [-f] [-t seconds]\n"
+	    "        import the pool for a set time then export it\n"
+	    "        -t <seconds> sets the time the pool is imported\n"
+	    "\n"
 	    "    feature stat <pool>\n"
 	    "        print information about enabled features\n"
 	    "    feature enable [-r] [-d desc] <pool> <feature>\n"
@@ -102,6 +115,39 @@ usage(void)
 	exit(1);
 }
 
+static void
+dump_debug_buffer(void)
+{
+	ssize_t ret __attribute__((unused));
+
+	if (!g_dump_dbgmsg)
+		return;
+
+	/*
+	 * We use write() instead of printf() so that this function
+	 * is safe to call from a signal handler.
+	 */
+	ret = write(STDERR_FILENO, "\n", 1);
+	zfs_dbgmsg_print(STDERR_FILENO, "zhack");
+}
+
+static void sig_handler(int signo)
+{
+	struct sigaction action;
+
+	libspl_backtrace(STDERR_FILENO);
+	dump_debug_buffer();
+
+	/*
+	 * Restore default action and re-raise signal so SIGSEGV and
+	 * SIGABRT can trigger a core dump.
+	 */
+	action.sa_handler = SIG_DFL;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	(void) sigaction(signo, &action, NULL);
+	raise(signo);
+}
 
 static __attribute__((format(printf, 3, 4))) __attribute__((noreturn)) void
 fatal(spa_t *spa, const void *tag, const char *fmt, ...)
@@ -118,6 +164,8 @@ fatal(spa_t *spa, const void *tag, const char *fmt, ...)
 	(void) vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	(void) fputc('\n', stderr);
+
+	dump_debug_buffer();
 
 	exit(1);
 }
@@ -174,7 +222,7 @@ zhack_import(char *target, boolean_t readonly)
 
 	zfeature_checks_disable = B_TRUE;
 	error = spa_import(target, config, props,
-	    (readonly ?  ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
+	    (readonly ? ZFS_IMPORT_SKIP_MMP : ZFS_IMPORT_NORMAL));
 	fnvlist_free(config);
 	zfeature_checks_disable = B_FALSE;
 	if (error == EEXIST)
@@ -504,6 +552,79 @@ zhack_do_feature(int argc, char **argv)
 
 	return (0);
 }
+
+static void
+zhack_do_action_idle(int argc, char **argv)
+{
+	spa_t *spa;
+	char *target, *tmp;
+	int idle_time = 0;
+	int c;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+t:")) != -1) {
+		switch (c) {
+		case 't':
+			idle_time = strtol(optarg, &tmp, 0);
+			if (*tmp) {
+				(void) fprintf(stderr, "error: time must "
+				    "be an integer in seconds: %s\n", tmp);
+				usage();
+			}
+			if (idle_time < 0) {
+				(void) fprintf(stderr, "error: time must "
+				    "not be negative: %d\n", idle_time);
+				usage();
+			}
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	fprintf(stdout, "Imported pool %s, idle for %d seconds\n",
+	    target, idle_time);
+	sleep(idle_time);
+
+	spa_close(spa, FTAG);
+}
+
+static int
+zhack_do_action(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no import operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "idle") == 0) {
+		zhack_do_action_idle(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
+}
+
 
 static boolean_t
 strstarts(const char *a, const char *b)
@@ -1182,17 +1303,35 @@ zhack_do_label(int argc, char **argv)
 int
 main(int argc, char **argv)
 {
+	struct sigaction action;
 	char *path[MAX_NUM_PATHS];
 	const char *subcommand;
 	int rv = 0;
 	int c;
+
+	/*
+	 * Set up signal handlers, so if we crash due to bad on-disk data we
+	 * can get more info. Unlike ztest, we don't bail out if we can't set
+	 * up signal handlers, because zhack is very useful without them.
+	 */
+	action.sa_handler = sig_handler;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if (sigaction(SIGSEGV, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zhack: cannot catch SIGSEGV: %s\n",
+		    strerror(errno));
+	}
+	if (sigaction(SIGABRT, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zhack: cannot catch SIGABRT: %s\n",
+		    strerror(errno));
+	}
 
 	g_importargs.path = path;
 
 	dprintf_setup(&argc, argv);
 	zfs_prop_init();
 
-	while ((c = getopt(argc, argv, "+c:d:o:")) != -1) {
+	while ((c = getopt(argc, argv, "+c:d:Go:")) != -1) {
 		switch (c) {
 		case 'c':
 			g_importargs.cachefile = optarg;
@@ -1200,6 +1339,9 @@ main(int argc, char **argv)
 		case 'd':
 			assert(g_importargs.paths < MAX_NUM_PATHS);
 			g_importargs.path[g_importargs.paths++] = optarg;
+			break;
+		case 'G':
+			g_dump_dbgmsg = B_TRUE;
 			break;
 		case 'o':
 			if (handle_tunable_option(optarg, B_FALSE) != 0)
@@ -1222,7 +1364,9 @@ main(int argc, char **argv)
 
 	subcommand = argv[0];
 
-	if (strcmp(subcommand, "feature") == 0) {
+	if (strcmp(subcommand, "action") == 0) {
+		rv = zhack_do_action(argc, argv);
+	} else if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
@@ -1238,6 +1382,9 @@ main(int argc, char **argv)
 		fatal(NULL, FTAG, "pool export failed; "
 		    "changes may not be committed to disk\n");
 	}
+
+	if (g_dump_dbgmsg)
+		dump_debug_buffer();
 
 	kernel_fini();
 

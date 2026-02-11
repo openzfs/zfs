@@ -433,13 +433,13 @@ zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	} else {
 		return (B_FALSE);
 	}
+	if (quotaobj == 0 && default_quota == 0)
+		return (B_FALSE);
 	if (zfsvfs->z_replay)
 		return (B_FALSE);
 
 	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	if (quotaobj == 0) {
-		if (default_quota == 0)
-			return (B_FALSE);
 		quota = default_quota;
 	} else {
 		err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
@@ -484,13 +484,13 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	} else {
 		return (B_FALSE);
 	}
+	if (quotaobj == 0 && default_quota == 0)
+		return (B_FALSE);
 	if (zfsvfs->z_replay)
 		return (B_FALSE);
 
 	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	if (quotaobj == 0) {
-		if (default_quota == 0)
-			return (B_FALSE);
 		quota = default_quota;
 	} else {
 		err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);

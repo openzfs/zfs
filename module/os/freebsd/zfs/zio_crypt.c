@@ -371,9 +371,6 @@ error:
 	return (ret);
 }
 
-void *failed_decrypt_buf;
-int failed_decrypt_size;
-
 /*
  * This function handles all encryption and decryption in zfs. When
  * encrypting it expects puio to reference the plaintext and cuio to
@@ -1665,9 +1662,6 @@ error:
 	return (ret);
 }
 
-void *failed_decrypt_buf;
-int faile_decrypt_size;
-
 /*
  * Primary encryption / decryption entrypoint for zio data.
  */
@@ -1760,13 +1754,6 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	return (0);
 
 error:
-	if (!encrypt) {
-		if (failed_decrypt_buf != NULL)
-			kmem_free(failed_decrypt_buf, failed_decrypt_size);
-		failed_decrypt_buf = kmem_alloc(datalen, KM_SLEEP);
-		failed_decrypt_size = datalen;
-		memcpy(failed_decrypt_buf, cipherbuf, datalen);
-	}
 	if (locked)
 		rw_exit(&key->zk_salt_lock);
 	if (authbuf != NULL)

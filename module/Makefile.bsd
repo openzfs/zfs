@@ -62,11 +62,6 @@ CFLAGS+= -DZFS_DEBUG -g
 CFLAGS += -DNDEBUG
 .endif
 
-.if defined(WITH_VFS_DEBUG) && ${WITH_VFS_DEBUG} == "true"
-# kernel must also be built with this option for this to work
-CFLAGS+= -DDEBUG_VFS_LOCKS
-.endif
-
 .if defined(WITH_GCOV) && ${WITH_GCOV} == "true"
 CFLAGS+=	 -fprofile-arcs -ftest-coverage
 .endif

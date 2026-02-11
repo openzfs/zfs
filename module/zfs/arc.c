@@ -371,6 +371,12 @@ static uint_t zfs_arc_eviction_pct = 200;
  */
 static uint_t zfs_arc_evict_batch_limit = 10;
 
+/*
+ * Number batches to process per parallel eviction task under heavy load to
+ * reduce number of context switches.
+ */
+static uint_t zfs_arc_evict_batches_limit = 5;
+
 /* number of seconds before growing cache again */
 uint_t arc_grow_retry = 5;
 
@@ -406,8 +412,8 @@ uint_t		arc_no_grow_shift = 5;
  * minimum lifespan of a prefetch block in clock ticks
  * (initialized in arc_init())
  */
-static uint_t		arc_min_prefetch_ms;
-static uint_t		arc_min_prescient_prefetch_ms;
+static uint_t		arc_min_prefetch;
+static uint_t		arc_min_prescient_prefetch;
 
 /*
  * If this percent of memory is free, don't throttle.
@@ -3766,8 +3772,6 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 {
 	arc_state_t *evicted_state, *state;
 	int64_t bytes_evicted = 0;
-	uint_t min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
-	    arc_min_prescient_prefetch_ms : arc_min_prefetch_ms;
 
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
 	ASSERT(HDR_HAS_L1HDR(hdr));
@@ -3824,9 +3828,10 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, uint64_t *real_evicted)
 	    ((state == arc_mru) ? arc_mru_ghost : arc_mfu_ghost);
 
 	/* prefetch buffers have a minimum lifespan */
+	uint_t min_lifetime = HDR_PRESCIENT_PREFETCH(hdr) ?
+	    arc_min_prescient_prefetch : arc_min_prefetch;
 	if ((hdr->b_flags & (ARC_FLAG_PREFETCH | ARC_FLAG_INDIRECT)) &&
-	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access <
-	    MSEC_TO_TICK(min_lifetime)) {
+	    ddi_get_lbolt() - hdr->b_l1hdr.b_arc_access < min_lifetime) {
 		ARCSTAT_BUMP(arcstat_evict_skip);
 		return (bytes_evicted);
 	}
@@ -3900,7 +3905,7 @@ arc_set_need_free(void)
 
 static uint64_t
 arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
-    uint64_t spa, uint64_t bytes)
+    uint64_t spa, uint64_t bytes, boolean_t *more)
 {
 	multilist_sublist_t *mls;
 	uint64_t bytes_evicted = 0, real_evicted = 0;
@@ -3984,6 +3989,10 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 
 	multilist_sublist_unlock(mls);
 
+	/* Indicate if another iteration may be productive. */
+	if (more)
+		*more = (hdr != NULL);
+
 	/*
 	 * Increment the count of evicted bytes, and wake up any threads that
 	 * are waiting for the count to reach this value.  Since the list is
@@ -4004,20 +4013,11 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 		while ((aw = list_head(&arc_evict_waiters)) != NULL &&
 		    aw->aew_count <= arc_evict_count) {
 			list_remove(&arc_evict_waiters, aw);
-			cv_broadcast(&aw->aew_cv);
+			cv_signal(&aw->aew_cv);
 		}
 	}
 	arc_set_need_free();
 	mutex_exit(&arc_evict_lock);
-
-	/*
-	 * If the ARC size is reduced from arc_c_max to arc_c_min (especially
-	 * if the average cached block is small), eviction can be on-CPU for
-	 * many seconds.  To ensure that other threads that may be bound to
-	 * this CPU are able to make progress, make a voluntary preemption
-	 * call here.
-	 */
-	kpreempt(KPREEMPT_SYNC);
 
 	return (bytes_evicted);
 }
@@ -4079,8 +4079,18 @@ static void
 arc_evict_task(void *arg)
 {
 	evict_arg_t *eva = arg;
-	eva->eva_evicted = arc_evict_state_impl(eva->eva_ml, eva->eva_idx,
-	    eva->eva_marker, eva->eva_spa, eva->eva_bytes);
+	uint64_t total_evicted = 0;
+	boolean_t more;
+	uint_t batches = zfs_arc_evict_batches_limit;
+
+	/* Process multiple batches to amortize taskq dispatch overhead. */
+	do {
+		total_evicted += arc_evict_state_impl(eva->eva_ml,
+		    eva->eva_idx, eva->eva_marker, eva->eva_spa,
+		    eva->eva_bytes - total_evicted, &more);
+	} while (total_evicted < eva->eva_bytes && --batches > 0 && more);
+
+	eva->eva_evicted = total_evicted;
 }
 
 static void
@@ -4221,18 +4231,19 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 
 			if (bytes == ARC_EVICT_ALL) {
 				evict = bytes;
-			} else if (left > ntasks * MIN_EVICT_SIZE) {
+			} else if (left >= ntasks * MIN_EVICT_SIZE) {
 				evict = DIV_ROUND_UP(left, ntasks);
 			} else {
-				ntasks = DIV_ROUND_UP(left, MIN_EVICT_SIZE);
-				if (ntasks == 1)
+				ntasks = left / MIN_EVICT_SIZE;
+				if (ntasks < 2)
 					use_evcttq = B_FALSE;
+				else
+					evict = DIV_ROUND_UP(left, ntasks);
 			}
 		}
 
 		for (int i = 0; sublists_left > 0; i++, sublist_idx++,
 		    sublists_left--) {
-			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
 
 			/* we've reached the end, wrap to the beginning */
@@ -4254,16 +4265,17 @@ arc_evict_state(arc_state_t *state, arc_buf_contents_t type, uint64_t spa,
 				continue;
 			}
 
-			if (total_evicted < bytes)
-				bytes_remaining = bytes - total_evicted;
-			else
-				break;
-
 			bytes_evicted = arc_evict_state_impl(ml, sublist_idx,
-			    markers[sublist_idx], spa, bytes_remaining);
+			    markers[sublist_idx], spa, bytes - total_evicted,
+			    NULL);
 
 			scan_evicted += bytes_evicted;
 			total_evicted += bytes_evicted;
+
+			if (total_evicted < bytes)
+				kpreempt(KPREEMPT_SYNC);
+			else
+				break;
 		}
 
 		if (use_evcttq) {
@@ -4838,8 +4850,7 @@ arc_evict_cb_check(void *arg, zthr_t *zthr)
 	 */
 	return ((zfs_refcount_count(&arc_uncached->arcs_esize[ARC_BUFC_DATA]) +
 	    zfs_refcount_count(&arc_uncached->arcs_esize[ARC_BUFC_METADATA]) &&
-	    ddi_get_lbolt() - arc_last_uncached_flush >
-	    MSEC_TO_TICK(arc_min_prefetch_ms / 2)));
+	    ddi_get_lbolt() - arc_last_uncached_flush > arc_min_prefetch / 2));
 }
 
 /*
@@ -4889,7 +4900,7 @@ arc_evict_cb(void *arg, zthr_t *zthr)
 		 */
 		arc_evict_waiter_t *aw;
 		while ((aw = list_remove_head(&arc_evict_waiters)) != NULL) {
-			cv_broadcast(&aw->aew_cv);
+			cv_signal(&aw->aew_cv);
 		}
 		arc_set_need_free();
 	}
@@ -5170,9 +5181,8 @@ arc_wait_for_eviction(uint64_t amount, boolean_t lax, boolean_t use_reserve)
 
 		uint64_t last_count = 0;
 		mutex_enter(&arc_evict_lock);
-		if (!list_is_empty(&arc_evict_waiters)) {
-			arc_evict_waiter_t *last =
-			    list_tail(&arc_evict_waiters);
+		arc_evict_waiter_t *last;
+		if ((last = list_tail(&arc_evict_waiters)) != NULL) {
 			last_count = last->aew_count;
 		} else if (!arc_evict_needed) {
 			arc_evict_needed = B_TRUE;
@@ -7593,12 +7603,12 @@ arc_tuning_update(boolean_t verbose)
 
 	/* Valid range: 1 - N ms */
 	if (zfs_arc_min_prefetch_ms)
-		arc_min_prefetch_ms = zfs_arc_min_prefetch_ms;
+		arc_min_prefetch = MSEC_TO_TICK(zfs_arc_min_prefetch_ms);
 
 	/* Valid range: 1 - N ms */
 	if (zfs_arc_min_prescient_prefetch_ms) {
-		arc_min_prescient_prefetch_ms =
-		    zfs_arc_min_prescient_prefetch_ms;
+		arc_min_prescient_prefetch =
+		    MSEC_TO_TICK(zfs_arc_min_prescient_prefetch_ms);
 	}
 
 	/* Valid range: 0 - 100 */
@@ -7982,8 +7992,8 @@ arc_init(void)
 	list_create(&arc_evict_waiters, sizeof (arc_evict_waiter_t),
 	    offsetof(arc_evict_waiter_t, aew_node));
 
-	arc_min_prefetch_ms = 1000;
-	arc_min_prescient_prefetch_ms = 6000;
+	arc_min_prefetch = MSEC_TO_TICK(1000);
+	arc_min_prescient_prefetch = MSEC_TO_TICK(6000);
 
 #if defined(_KERNEL)
 	arc_lowmem_init();
@@ -11289,6 +11299,9 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, UINT, ZMOD_RW,
 	"The number of headers to evict per sublist before moving to the next");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batches_limit, UINT, ZMOD_RW,
+	"The number of batches to run per parallel eviction task");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, prune_task_threads, INT, ZMOD_RW,
 	"Number of arc_prune threads");

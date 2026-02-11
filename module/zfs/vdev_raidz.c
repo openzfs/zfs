@@ -2703,16 +2703,6 @@ vdev_raidz_io_start(zio_t *zio)
 				next_offset = synced_offset;
 			}
 		}
-		if (use_scratch) {
-			zfs_dbgmsg("zio=%px %s io_offset=%llu offset_synced="
-			    "%lld next_offset=%lld use_scratch=%u",
-			    zio,
-			    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
-			    (long long)zio->io_offset,
-			    (long long)synced_offset,
-			    (long long)next_offset,
-			    use_scratch);
-		}
 
 		rm = vdev_raidz_map_alloc_expanded(zio,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
@@ -2851,8 +2841,6 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 			continue;
 
 		if (abd_cmp(orig[c], rc->rc_abd) != 0) {
-			zfs_dbgmsg("found error on col=%u devidx=%u off %llx",
-			    c, (int)rc->rc_devidx, (u_longlong_t)rc->rc_offset);
 			vdev_raidz_checksum_error(zio, rc, orig[c]);
 			rc->rc_error = SET_ERROR(ECKSUM);
 			ret++;
@@ -3174,10 +3162,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			 * See comment in vdev_raid_row_alloc().
 			 */
 			ASSERT0(zio->io_flags & ZIO_FLAG_DIO_READ);
-
-			zfs_dbgmsg("zio=%px repairing c=%u devidx=%u "
-			    "offset=%llx",
-			    zio, c, rc->rc_devidx, (long long)rc->rc_offset);
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,

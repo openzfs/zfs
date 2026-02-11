@@ -48,6 +48,13 @@ CFLAGS_zfs/zap_micro.o += -mllvm -x86-cmov-converter=false
 endif
 endif
 
+# These are internal functions for 64-bit math on 32-bit platforms. The
+# compiler will generate references to them if necessary, to be resolved at
+# link time. We don't need or provide prototypes for them, so we disable
+# warnings that would complain about them.
+CFLAGS_REMOVE_os/linux/spl/spl-math-compat.o += -Wmissing-prototypes
+CFLAGS_REMOVE_os/linux/spl/spl-math-compat.o += -Wmissing-declarations
+
 ifneq ($(KBUILD_EXTMOD),)
 @CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
 @CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
@@ -69,7 +76,6 @@ ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 obj-$(CONFIG_ZFS) := spl.o zfs.o
 
 SPL_OBJS := \
-	spl-atomic.o \
 	spl-condvar.o \
 	spl-cred.o \
 	spl-err.o \
@@ -77,6 +83,7 @@ SPL_OBJS := \
 	spl-kmem-cache.o \
 	spl-kmem.o \
 	spl-kstat.o \
+	spl-math-compat.o \
 	spl-proc.o \
 	spl-procfs-list.o \
 	spl-shrinker.o \

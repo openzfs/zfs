@@ -111,14 +111,14 @@ log_must zed_start
 # Do a scrub - it should be instantaneous.
 log_must zpool scrub -w $TESTPOOL2
 
-# Start off a trim immediately after scrubiung.  The trim should be
-# instantaneous and generate a trimp_start event.  This will happen in parallel
+# Start off a trim immediately after scrubbing.  The trim should be
+# instantaneous and generate a trim_start event.  This will happen in parallel
 # with the slow 'scrub_finish-sync-slow.sh' zedlet still running.
 log_must zpool trim -w $TESTPOOL2
 
 # Wait for scrub_finish event to happen for sanity. This is the *event*, not
 # the completion of zedlets for the event.
-log_must file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.trim_finish' 10
+log_must file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.scrub_finish' 10
 
 # At a minimum, scrub_start-slow.sh + scrub_finish-sync-slow.sh will take a
 # total of 6 seconds to run, so wait 7 sec to be sure.
