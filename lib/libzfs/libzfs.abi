@@ -3370,7 +3370,8 @@
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_QUOTA' value='37'/>
       <enumerator name='ZPOOL_PROP_DEDUPCACHED' value='38'/>
       <enumerator name='ZPOOL_PROP_LAST_SCRUBBED_TXG' value='39'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='40'/>
+      <enumerator name='ZPOOL_PROP_RAIDZ_EXPANSION_ACCOUNTING' value='40'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='41'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>

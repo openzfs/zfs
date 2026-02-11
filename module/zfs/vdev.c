@@ -2073,13 +2073,26 @@ vdev_open_children_subset(vdev_t *vd, vdev_open_children_func_t *open_func)
  * account for existing bp's.  We also hard-code txg 0 for the same reason
  * since expanded RAIDZ vdevs can use a different asize for different birth
  * txg's.
+ *
+ * If the raidz_expansion_accounting property is set to "current", we use
+ * UINT64_MAX as the txg to compute the deflate ratio based on the current
+ * geometry. This allows accurate space accounting after RAIDZ expansion
+ * once all data has been rewritten with `zfs rewrite -rv`.
+ *
+ * Note: This function is only called at pool load/import time.  Changes to
+ * the raidz_expansion_accounting property require an export/import cycle
+ * to take effect, as recalculating the deflate ratio while the pool is
+ * active could cause inconsistencies in metaslab class accounting.
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
 {
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
+		spa_t *spa = vd->vdev_spa;
+		uint64_t txg = spa->spa_raidz_expansion_accounting ?
+		    UINT64_MAX : 0;
 		vd->vdev_deflate_ratio = (1 << 17) /
-		    (vdev_psize_to_asize_txg(vd, 1 << 17, 0) >>
+		    (vdev_psize_to_asize_txg(vd, 1 << 17, txg) >>
 		    SPA_MINBLOCKSHIFT);
 	}
 }
