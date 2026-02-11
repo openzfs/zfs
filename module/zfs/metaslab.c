@@ -3096,8 +3096,8 @@ spa_set_weightfunc(spa_t *spa, const char *weightfunc)
 {
 	int a = spa_find_weightfunc_byname(weightfunc);
 	if (a < 0) a = 0;
-	if (a != 1 && !spa_feature_is_enabled(spa,
-	    SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
+	if (metaslab_weightfuncs[a].mswf_func != metaslab_space_weight &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		zfs_dbgmsg("warning: weight function %s will not be used for "
 		    "pool %s since space map histograms are not enabled",
 		    weightfunc, spa_name(spa));
@@ -3232,13 +3232,13 @@ metaslab_space_weight_from_spacemap(metaslab_t *msp)
  * actually use the number of segments in each bucket to determine the
  * weight. The weight is calculated as follows:
  *
- * sum from i = 0 to 29 of N(i) * 2^{2i}, where N(i) is the number of free
+ * sum from i = 0 to 29 of N(i) * 2^{3/2i}, where N(i) is the number of free
  * segments of size 2^{i + shift}
  *
  * N(i) * 2^i is just the space used by the segments in a bucket divided
- * by the shift, and the additional factor of 2^i weights the larger
+ * by the shift, and the additional factor of 2^{i/2} weights the larger
  * segments more heavily. If there are any segments of size larger than
- * (28 + shift), we just max out the weight. That metaslab is free enough
+ * (37 + shift), we just max out the weight. That metaslab is free enough
  * for any purpose.
  */
 static uint64_t
