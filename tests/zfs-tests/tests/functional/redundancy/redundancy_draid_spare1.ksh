@@ -81,21 +81,21 @@ for replace_mode in "healing" "sequential"; do
 	for (( i=0; i < $spares; i+=$n )); do
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
+			fault_vdev="$BASEDIR/vdev$((i / n + (j % n) * children + off))"
 			log_must zpool offline -f $TESTPOOL $fault_vdev
 			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
 		done
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
-			spare_vdev="draid${parity}-0-${j}"
+			fault_vdev="$BASEDIR/vdev$((i / n + (j % n) * children + off))"
+			spare_vdev="draid${parity}-0-$((i / n + (j % n) * spares / n))"
 			log_must zpool replace -w $flags $TESTPOOL \
 			    $fault_vdev $spare_vdev
 		done
 
 		for (( j=$i; j < $((i+n)); j++ )); do
-			fault_vdev="$BASEDIR/vdev$((j / n + (j % n) * children + off))"
-			spare_vdev="draid${parity}-0-${j}"
+			fault_vdev="$BASEDIR/vdev$((i / n + (j % n) * children + off))"
+			spare_vdev="draid${parity}-0-$((i / n + (j % n) * spares / n))"
 			log_must check_vdev_state spare-$j "DEGRADED"
 			log_must check_vdev_state $spare_vdev "ONLINE"
 			log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
