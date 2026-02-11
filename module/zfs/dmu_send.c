@@ -3027,15 +3027,20 @@ dmu_adjust_send_estimate_for_indirects(dsl_dataset_t *ds, uint64_t uncompressed,
 
 int
 dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
-    zfs_bookmark_phys_t *frombook, boolean_t stream_compressed,
+    zfs_bookmark_phys_t *frombook, boolean_t compressok, boolean_t rawok,
     boolean_t saved, uint64_t *sizep)
 {
 	int err;
 	dsl_dataset_t *ds = origds;
+	ds_hold_flags_t dsflags;
 	uint64_t uncomp, comp;
+	boolean_t owned = B_FALSE;
+	boolean_t stream_compressed = compressok || rawok;
 
 	ASSERT(dsl_pool_config_held(origds->ds_dir->dd_pool));
 	ASSERT(fromds == NULL || frombook == NULL);
+
+	dsflags = (rawok) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
 
 	/*
 	 * If this is a saved send we may actually be sending
@@ -3074,10 +3079,22 @@ dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
 		}
 	}
 
-	/* tosnap must be a snapshot or the target of a saved send */
-	if (!ds->ds_is_snapshot && ds == origds)
-		return (SET_ERROR(EINVAL));
+	/*
+	 * If we are sending a filesystem or volume, ensure
+	 * that it doesn't change by owning the dataset.
+	 */
+	if (!ds->ds_is_snapshot && ds == origds) {
+		char dsname[ZFS_MAX_DATASET_NAME_LEN];
 
+		dsl_dataset_name(ds, dsname);
+		err = dsl_dataset_own(ds->ds_dir->dd_pool, dsname, dsflags,
+		    FTAG, &ds);
+
+		if (err != 0)
+			return (err);
+
+		owned = B_TRUE;
+	}
 	if (fromds != NULL) {
 		uint64_t used;
 		if (!fromds->ds_is_snapshot) {
@@ -3115,6 +3132,10 @@ dmu_send_estimate_fast(dsl_dataset_t *origds, dsl_dataset_t *fromds,
 out:
 	if (ds != origds)
 		dsl_dataset_rele(ds, FTAG);
+
+	if (owned == B_TRUE)
+		dsl_dataset_disown(ds, dsflags, FTAG);
+
 	return (err);
 }
 

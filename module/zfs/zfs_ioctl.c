@@ -5986,7 +5986,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		}
 
 		error = dmu_send_estimate_fast(tosnap, fromsnap, NULL,
-		    compressok || rawok, savedok, &zc->zc_objset_type);
+		    compressok, rawok, savedok, &zc->zc_objset_type);
 
 		if (fromsnap != NULL)
 			dsl_dataset_rele(fromsnap, FTAG);
@@ -7157,7 +7157,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	} else {
 		error = dmu_send_estimate_fast(tosnap, fromsnap,
 		    (from && strchr(fromname, '#') != NULL ? &zbm : NULL),
-		    compressok || rawok, savedok, &space);
+		    compressok, rawok, savedok, &space);
 		space -= resume_bytes;
 		if (fromsnap != NULL)
 			dsl_dataset_rele(fromsnap, FTAG);
