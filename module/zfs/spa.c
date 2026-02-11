@@ -5594,6 +5594,8 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 		}
 	}
 
+	spa_set_weightfunc(spa, zfs_active_weightfunc);
+
 	/*
 	 * Load the vdev metadata such as metaslabs, DTLs, spacemap object, etc.
 	 */
