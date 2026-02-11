@@ -3441,10 +3441,16 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 				minref = vd->vdev_children;
 			}
 			/*
-			 * For draid with failure groups/domains, count
+			 * For dRAID with failure groups/domains, count
 			 * failures only once for any i-th child failure
-			 * in each failure group.
+			 * in each failure group, but only if groups don't
+			 * have hot spares from other groups attached or
+			 * replacing their faulted devices.
 			 */
+			boolean_t safe2skip = B_TRUE;
+			if (width > children && vdev_draid_has_alien_spare(vd))
+				safe2skip = B_FALSE;
+
 			space_reftree_create(&reftree);
 			for (int c = 0; c < children; c++) {
 				for (int i = c; i < width; i += children) {
@@ -3458,7 +3464,8 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 					    cvd->vdev_dtl[s]);
 					mutex_exit(&cvd->vdev_dtl_lock);
 
-					if (s == DTL_OUTAGE && !empty)
+					if (s == DTL_OUTAGE && !empty &&
+					    safe2skip)
 						break;
 				}
 			}

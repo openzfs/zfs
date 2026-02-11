@@ -1663,8 +1663,14 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	/*
 	 * Verify enough of the children are available to continue.
 	 * If several disks got failed on i-th position in each slice in the
-	 * big width row - they are counted as one failure only.
+	 * big width row (failure groups) - they are counted as one failure,
+	 * but only if failure groups don't have hot spares from other groups
+	 * attached or replacing their faulted devices.
 	 */
+	boolean_t safe2skip = B_TRUE;
+	if (vdc->vdc_width > vdc->vdc_children &&
+	    vdev_draid_has_alien_spare(vd))
+		safe2skip = B_FALSE;
 	for (int c = 0; c < vdc->vdc_children; c++) {
 		for (int i = c; i < vdc->vdc_width; i += vdc->vdc_children) {
 			if (vd->vdev_child[i]->vdev_open_error != 0) {
@@ -1673,7 +1679,8 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 					    VDEV_AUX_NO_REPLICAS;
 					return (SET_ERROR(ENXIO));
 				}
-				break;
+				if (safe2skip)
+					break;
 			}
 		}
 	}
@@ -2620,6 +2627,42 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 		return (vdev_draid_spare_get_child(cvd, physical_offset));
 
 	return (cvd);
+}
+
+static boolean_t
+vdev_draid_has_alien_spare_impl(vdev_t *vd, vdev_draid_config_t *vdc, int i)
+{
+	for (int c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (cvd->vdev_ops == &vdev_draid_spare_ops) {
+			vdev_draid_spare_t *vds = cvd->vdev_tsd;
+			if ((i >= 0 ? i : c) / vdc->vdc_children !=
+			    vds->vds_spare_id / vdc->vdc_nspares) {
+				return (B_TRUE);
+			}
+		}
+		if (cvd->vdev_ops == &vdev_spare_ops &&
+		    vdev_draid_has_alien_spare_impl(cvd, vdc, c))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * Returns true if any failure group has spare from another failure group.
+ */
+boolean_t
+vdev_draid_has_alien_spare(vdev_t *vd)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
+
+	vdev_draid_config_t *vdc = vd->vdev_tsd;
+	if (vdc->vdc_width == vdc->vdc_children)
+		return (B_FALSE);
+
+	return (vdev_draid_has_alien_spare_impl(vd, vdc, -1));
 }
 
 static void
