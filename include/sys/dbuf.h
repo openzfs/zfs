@@ -274,6 +274,9 @@ typedef struct dmu_buf_impl {
 	 */
 	uint8_t db_pending_evict;
 
+	/* Number of TXGs in which this buffer is dirty. */
+	uint8_t db_dirtycnt;
+
 	/* The buffer was partially read.  More reads may follow. */
 	uint8_t db_partial_read;
 
@@ -293,11 +296,8 @@ typedef struct dmu_buf_impl {
 	/* buffer holding our data */
 	arc_buf_t *db_buf;
 
-	/* db_mtx protects the members below */
+	/* db_mtx protects the members below, plus db_dirtycnt */
 	kmutex_t db_mtx;
-
-	/* Number of TXGs in which this buffer is dirty. */
-	uint8_t db_dirtycnt;
 
 	/*
 	 * Current state of the buffer

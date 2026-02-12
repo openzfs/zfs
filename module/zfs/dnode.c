@@ -1539,7 +1539,6 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		dnh = &dnc->dnc_children[0];
 
 		/* Initialize dnode slot status from dnode_phys_t */
-		rw_enter(&db->db_rwlock, RW_READER);
 		for (int i = 0; i < epb; i++) {
 			zrl_init(&dnh[i].dnh_zrlock);
 
@@ -1560,7 +1559,6 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 				skip = 0;
 			}
 		}
-		rw_exit(&db->db_rwlock);
 
 		dmu_buf_init_user(&dnc->dnc_dbu, NULL,
 		    dnode_buf_evict_async, NULL);
@@ -2206,11 +2204,9 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	if (db == NULL)
 		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
-		mutex_enter(&db->db_mtx);
-		if (db->db_level != 1 || db->db_blkid >= end_blkid) {
-			mutex_exit(&db->db_mtx);
+		if (db->db_level != 1 || db->db_blkid >= end_blkid)
 			break;
-		}
+		mutex_enter(&db->db_mtx);
 		if (db->db_state != DB_EVICTING)
 			ASSERT(db->db_dirtycnt > 0);
 		mutex_exit(&db->db_mtx);
