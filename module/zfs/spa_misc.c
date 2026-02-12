@@ -2116,6 +2116,12 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	boolean_t tried_special = (mc == spa_special_class(spa));
 	const zio_prop_t *zp = &zio->io_prop;
 
+	/* Gang children should always use the class of their parents. */
+	if (zio->io_flags & ZIO_FLAG_GANG_CHILD) {
+		ASSERT(mc != NULL);
+		return (mc);
+	}
+
 	/*
 	 * Override object type for the purposes of selecting a storage class.
 	 * Primarily for DMU_OTN_ types where we can't explicitly control their
@@ -2140,39 +2146,23 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 			return (spa_normal_class(spa));
 	}
 
-	/* Indirect blocks for user data can land in special if allowed */
-	if (zp->zp_level > 0 &&
-	    (DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL)) {
-		if (zfs_user_indirect_is_special && spa_has_special(spa) &&
-		    !tried_special)
-			return (spa_special_class(spa));
-		else
-			return (spa_normal_class(spa));
-	}
+	if (!spa_has_special(spa) || tried_special)
+		return (spa_normal_class(spa));
 
-	if (DMU_OT_IS_METADATA(objtype) || zp->zp_level > 0) {
-		if (spa_has_special(spa) && !tried_special)
-			return (spa_special_class(spa));
-		else
-			return (spa_normal_class(spa));
-	}
+	if (DMU_OT_IS_METADATA(objtype) ||
+	    (zfs_user_indirect_is_special && zp->zp_level > 0))
+		return (spa_special_class(spa));
 
 	/*
-	 * Allow small file or zvol blocks in special class if opted in by
-	 * the special_smallblk property. However, always leave a reserve of
+	 * Allow small blocks in special class.  However, leave a reserve of
 	 * zfs_special_class_metadata_reserve_pct exclusively for metadata.
 	 */
-	if ((DMU_OT_IS_FILE(objtype) || objtype == DMU_OT_ZVOL) &&
-	    spa_has_special(spa) && !tried_special &&
-	    zio->io_size <= zp->zp_zpl_smallblk) {
+	if (zio->io_size <= zp->zp_zpl_smallblk) {
 		metaslab_class_t *special = spa_special_class(spa);
-		uint64_t alloc = metaslab_class_get_alloc(special);
-		uint64_t space = metaslab_class_get_space(special);
-		uint64_t limit =
-		    (space * (100 - zfs_special_class_metadata_reserve_pct))
-		    / 100;
+		uint64_t limit = metaslab_class_get_space(special) *
+		    (100 - zfs_special_class_metadata_reserve_pct) / 100;
 
-		if (alloc < limit)
+		if (metaslab_class_get_alloc(special) < limit)
 			return (special);
 	}
 
