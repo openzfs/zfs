@@ -1664,12 +1664,11 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	 * Verify enough of the children are available to continue.
 	 * If several disks got failed on i-th position in each slice in the
 	 * big width row (failure groups) - they are counted as one failure,
-	 * but only if failure groups don't have hot spares from other groups
-	 * attached or replacing their faulted devices.
+	 * but only if the failures threshold is not reached in any group.
 	 */
 	boolean_t safe2skip = B_TRUE;
 	if (vdc->vdc_width > vdc->vdc_children &&
-	    vdev_draid_has_alien_spare(vd))
+	    vdev_draid_failures_threshold(vd))
 		safe2skip = B_FALSE;
 	for (int c = 0; c < vdc->vdc_children; c++) {
 		for (int i = c; i < vdc->vdc_width; i += vdc->vdc_children) {
@@ -2629,40 +2628,36 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	return (cvd);
 }
 
-static boolean_t
-vdev_draid_has_alien_spare_impl(vdev_t *vd, vdev_draid_config_t *vdc, int i)
-{
-	for (int c = 0; c < vd->vdev_children; c++) {
-		vdev_t *cvd = vd->vdev_child[c];
-
-		if (cvd->vdev_ops == &vdev_draid_spare_ops) {
-			vdev_draid_spare_t *vds = cvd->vdev_tsd;
-			if ((i >= 0 ? i : c) / vdc->vdc_children !=
-			    vds->vds_spare_id / vdc->vdc_nspares) {
-				return (B_TRUE);
-			}
-		}
-		if (cvd->vdev_ops == &vdev_spare_ops &&
-		    vdev_draid_has_alien_spare_impl(cvd, vdc, c))
-			return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
 /*
- * Returns true if any failure group has spare from another failure group.
+ * Returns true if any failure group reached failures threshold so that
+ * enclosure failure cannot be tolerated anymore. Used spares are counted
+ * as failures because in case of enclosure failure their blocks can belong
+ * to the disks from that failed enclosure and can be lost.
  */
 boolean_t
-vdev_draid_has_alien_spare(vdev_t *vd)
+vdev_draid_failures_threshold(vdev_t *vd)
 {
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
-	if (vdc->vdc_width == vdc->vdc_children)
-		return (B_FALSE);
+	int counter = 0;
 
-	return (vdev_draid_has_alien_spare_impl(vd, vdc, -1));
+	for (int c = 0; c < vdc->vdc_width; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if ((c % vdc->vdc_children) == 0)
+			counter = 0;
+
+		if (cvd->vdev_ops == &vdev_spare_ops ||
+		    cvd->vdev_ops == &vdev_draid_spare_ops ||
+		    !vdev_readable(cvd))
+			counter++;
+
+		if (counter > vdc->vdc_nparity)
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
 }
 
 static void

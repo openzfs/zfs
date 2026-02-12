@@ -3441,14 +3441,14 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 				minref = vd->vdev_children;
 			}
 			/*
-			 * For dRAID with failure groups/domains, count
-			 * failures only once for any i-th child failure
-			 * in each failure group, but only if groups don't
-			 * have hot spares from other groups attached or
-			 * replacing their faulted devices.
+			 * For dRAID with failure groups/domains, count failures
+			 * only once for any i-th child failure in each failure
+			 * group, but only if the failures threshold is not
+			 * reached in any of the groups.
 			 */
 			boolean_t safe2skip = B_TRUE;
-			if (width > children && vdev_draid_has_alien_spare(vd))
+			if (width > children &&
+			    vdev_draid_failures_threshold(vd))
 				safe2skip = B_FALSE;
 
 			space_reftree_create(&reftree);

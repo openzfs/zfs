@@ -63,20 +63,20 @@ for replace_mode in "healing" "sequential"; do
 	fi
 
 	parity=$(random_int_between 1 3)
-	spares=$(random_int_between $parity 3)
+	spares=$(random_int_between 1 $parity)
 	data=$(random_int_between 1 8)
 
 	(( min_children = (data + parity + spares) ))
 	children=$(random_int_between $min_children 16)
 	n=$(random_int_between 2 4)
 	(( width = children * n ))
+	off=$(random_int_between 0 $((children - parity - 1)))
+
 	(( spares *= n ))
 
 	draid="draid${parity}:${data}d:${children}c:${width}w:${spares}s"
 
 	setup_test_env $TESTPOOL $draid $width
-
-	off=$(random_int_between 0 $((children - spares/n)))
 
 	for (( i=0; i < $spares; i+=$n )); do
 
@@ -88,19 +88,53 @@ for replace_mode in "healing" "sequential"; do
 
 		for (( j=$i; j < $((i+n)); j++ )); do
 			fault_vdev="$BASEDIR/vdev$((i / n + (j % n) * children + off))"
-			spare_vdev="draid${parity}-0-$((i / n + (j % n) * spares / n))"
+			spare_vdev="draid${parity}-0-${j}"
 			log_must zpool replace -w $flags $TESTPOOL \
 			    $fault_vdev $spare_vdev
 		done
 
 		for (( j=$i; j < $((i+n)); j++ )); do
 			fault_vdev="$BASEDIR/vdev$((i / n + (j % n) * children + off))"
-			spare_vdev="draid${parity}-0-$((i / n + (j % n) * spares / n))"
+			spare_vdev="draid${parity}-0-${j}"
 			log_must check_vdev_state spare-$j "DEGRADED"
 			log_must check_vdev_state $spare_vdev "ONLINE"
 			log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
 			log_must zpool detach $TESTPOOL $fault_vdev
 		done
+
+		log_must verify_pool $TESTPOOL
+		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
+		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	done
+
+	# Fail remaining drives as long as parity permits.
+	faults_left=$parity
+	off=0
+	for (( failed=$((spares/n)); failed < $parity; failed++ )); do
+		# we can still fail disks
+		(( ++off ))
+		for (( i=0; i < $n; i++ )); do
+			fault_vdev="$BASEDIR/vdev$((i * children + children - 1 - off))"
+			log_must zpool offline -f $TESTPOOL $fault_vdev
+			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
+
+			log_must verify_pool $TESTPOOL
+			log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
+			log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+			(( faults_left > 0 && faults_left-- ))
+		done
+	done
+
+	# Make sure that faults_left failures are still allowed, but no more.
+	for (( i=0; i < $n; i++ )); do
+		fault_vdev="$BASEDIR/vdev$((i * children + children - 1))"
+		log_must zpool offline -f $TESTPOOL $fault_vdev
+		if (( $i < $faults_left)); then
+			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
+		else
+			log_must check_vdev_state $TESTPOOL $fault_vdev "DEGRADED"
+			break
+		fi
 
 		log_must verify_pool $TESTPOOL
 		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
