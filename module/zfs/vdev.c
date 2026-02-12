@@ -3454,10 +3454,10 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 			 * group, but only if the failures threshold is not
 			 * reached in any of the groups.
 			 */
-			boolean_t safe2skip = B_TRUE;
+			boolean_t safe2skip = B_FALSE;
 			if (width > children &&
-			    vdev_draid_failures_threshold(vd))
-				safe2skip = B_FALSE;
+			    vdev_draid_fail_domain_allowed(vd))
+				safe2skip = B_TRUE;
 
 			space_reftree_create(&reftree);
 			for (int c = 0; c < children; c++) {

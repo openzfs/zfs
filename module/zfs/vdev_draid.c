@@ -1666,10 +1666,10 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	 * big width row (failure groups) - they are counted as one failure,
 	 * but only if the failures threshold is not reached in any group.
 	 */
-	boolean_t safe2skip = B_TRUE;
+	boolean_t safe2skip = B_FALSE;
 	if (vdc->vdc_width > vdc->vdc_children &&
-	    vdev_draid_failures_threshold(vd))
-		safe2skip = B_FALSE;
+	    vdev_draid_fail_domain_allowed(vd))
+		safe2skip = B_TRUE;
 	for (int c = 0; c < vdc->vdc_children; c++) {
 		for (int i = c; i < vdc->vdc_width; i += vdc->vdc_children) {
 			if (vd->vdev_child[i]->vdev_open_error != 0) {
@@ -2629,17 +2629,19 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 }
 
 /*
- * Returns true if any failure group reached failures threshold so that
+ * Returns true if no failure group reached failures threshold so that
  * enclosure failure cannot be tolerated anymore. Used spares are counted
  * as failures because in case of enclosure failure their blocks can belong
- * to the disks from that failed enclosure and can be lost.
+ * to the disks from that enclosure and can be lost.
  */
 boolean_t
-vdev_draid_failures_threshold(vdev_t *vd)
+vdev_draid_fail_domain_allowed(vdev_t *vd)
 {
-	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
-
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
+	ASSERT3P(vdc->vdc_width, > ,vdc->vdc_children);
+
 	int counter = 0;
 
 	for (int c = 0; c < vdc->vdc_width; c++) {
@@ -2654,10 +2656,10 @@ vdev_draid_failures_threshold(vdev_t *vd)
 			counter++;
 
 		if (counter > vdc->vdc_nparity)
-			return (B_TRUE);
+			return (B_FALSE);
 	}
 
-	return (B_FALSE);
+	return (B_TRUE);
 }
 
 static void

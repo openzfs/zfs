@@ -106,7 +106,7 @@ extern vdev_t *vdev_draid_spare_get_child(vdev_t *, uint64_t);
 extern vdev_t *vdev_draid_spare_get_parent(vdev_t *);
 extern int vdev_draid_spare_create(nvlist_t *, vdev_t *, uint64_t *, uint64_t *,
     uint64_t);
-extern boolean_t vdev_draid_failures_threshold(vdev_t *);
+extern boolean_t vdev_draid_fail_domain_allowed(vdev_t *);
 
 #ifdef  __cplusplus
 }
