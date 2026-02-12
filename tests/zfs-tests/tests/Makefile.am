@@ -343,6 +343,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/inuse/inuse.cfg \
 	functional/io/io.cfg \
 	functional/l2arc/l2arc.cfg \
+	functional/large_label/large_label.kshlib \
 	functional/largest_pool/largest_pool.cfg \
 	functional/migration/migration.cfg \
 	functional/migration/migration.kshlib \
@@ -1750,6 +1751,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/nestedfs/cleanup.ksh \
 	functional/nestedfs/nestedfs_001_pos.ksh \
 	functional/nestedfs/setup.ksh \
+	functional/large_label/cleanup.ksh \
+	functional/large_label/large_label_001_pos.ksh \
+	functional/large_label/large_label_002_pos.ksh \
+	functional/large_label/large_label_mirror.ksh \
+	functional/large_label/setup.ksh \
 	functional/nopwrite/cleanup.ksh \
 	functional/nopwrite/nopwrite_copies.ksh \
 	functional/nopwrite/nopwrite_mtime.ksh \
