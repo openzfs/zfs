@@ -34,6 +34,17 @@
 
 #define	d_alias			d_u.d_alias
 
+#ifdef HAVE_MM_PAGE_FLAGS_STRUCT
+/*
+ * Starting from Linux 6.18, the 'flags' field in 'struct page' is defined
+ * to a struct ('memdesc_flags_t' typedef) instead of an unsigned long for
+ * improved typesafety.
+ */
+#define	page_flags flags.f
+#else
+#define	page_flags flags
+#endif
+
 /*
  * Starting from Linux 5.13, flush_dcache_page() becomes an inline function
  * and under some configurations, may indirectly referencing GPL-only
@@ -44,8 +55,8 @@
 #include <linux/simd_powerpc.h>
 #define	flush_dcache_page(page)	do {					\
 		if (!cpu_has_feature(CPU_FTR_COHERENT_ICACHE) &&	\
-		    test_bit(PG_dcache_clean, &(page)->flags))		\
-			clear_bit(PG_dcache_clean, &(page)->flags);	\
+		    test_bit(PG_dcache_clean, &(page)->page_flags))	\
+			clear_bit(PG_dcache_clean, &(page)->page_flags);\
 	} while (0)
 #endif
 /*
@@ -55,8 +66,8 @@
  */
 #if defined __riscv && defined HAVE_FLUSH_DCACHE_PAGE_GPL_ONLY
 #define	flush_dcache_page(page)	do {					\
-		if (test_bit(PG_dcache_clean, &(page)->flags))		\
-			clear_bit(PG_dcache_clean, &(page)->flags);	\
+		if (test_bit(PG_dcache_clean, &(page)->page_flags))	\
+			clear_bit(PG_dcache_clean, &(page)->page_flags);\
 	} while (0)
 #endif
 

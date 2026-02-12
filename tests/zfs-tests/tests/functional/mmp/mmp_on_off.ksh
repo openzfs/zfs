@@ -44,7 +44,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	default_cleanup_noexit
+	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_DEFAULT
 	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 	log_must rm -f $PREV_UBER $CURR_UBER
@@ -58,7 +58,7 @@ log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
 log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_LONG
 log_must mmp_set_hostid $HOSTID1
 
-default_setup_noexit $DISK
+log_must zpool create -f $TESTPOOL $DISK
 log_must zpool set multihost=off $TESTPOOL
 
 log_must eval "zdb -u $TESTPOOL > $PREV_UBER"

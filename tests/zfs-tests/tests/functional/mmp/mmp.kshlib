@@ -99,11 +99,11 @@ function mmp_pool_create_simple # pool dir
 	log_must zpool set multihost=on $pool
 }
 
-function mmp_pool_create # pool dir
+function mmp_pool_create_zhack # pool dir
 {
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
-	typeset opts="-VVVVV -T120 -M -k0 -f $dir -E -p $pool"
+	typeset opts="-d $dir action idle -t120 $pool"
 
 	mmp_pool_create_simple $pool $dir
 
@@ -112,11 +112,11 @@ function mmp_pool_create # pool dir
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
 
-	log_note "Starting ztest in the background as hostid $HOSTID1"
-	log_must eval "ZFS_HOSTID=$HOSTID1 ztest $opts >$MMP_ZTEST_LOG 2>&1 &"
+	log_note "Starting zhack in the background as hostid $HOSTID1"
+	log_must eval "ZFS_HOSTID=$HOSTID1 zhack $opts >$MMP_ZHACK_LOG 2>&1 &"
 
 	while ! is_pool_imported "$pool" "-d $dir"; do
-		log_must pgrep ztest
+		log_must pgrep zhack
 		log_must sleep 5
 	done
 }
@@ -126,10 +126,10 @@ function mmp_pool_destroy # pool dir
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
 
-	ZTESTPID=$(pgrep ztest)
-	if [ -n "$ZTESTPID" ]; then
-		log_must kill $ZTESTPID
-		wait $ZTESTPID
+	ZHACKPID=$(pgrep zhack)
+	if [ -n "$ZHACKPID" ]; then
+		log_must kill $ZHACKPID
+		wait $ZHACKPID
 	fi
 
 	if poolexists $pool; then
@@ -158,33 +158,34 @@ function import_no_activity_check # pool opts
 	typeset pool=$1
 	typeset opts=$2
 
-	typeset max_duration=$((MMP_TEST_DURATION_DEFAULT-1))
-
-	SECONDS=0
-	zpool import $opts $pool
+	RESULT=$(ZFS_LOAD_INFO_DEBUG=1 zpool import $opts $pool)
 	typeset rc=$?
 
-	if [[ $SECONDS -gt $max_duration ]]; then
-		log_fail "ERROR: import_no_activity_check unexpected activity \
-check (${SECONDS}s gt $max_duration)"
+	# mmp_result: 3 (ESRCH) no activity check was run not required
+	# mmp_result: 6 (ENXIO) no activity check was run hostid not set
+	if ! echo "$RESULT" | grep -q "mmp_result: 3" &&
+	   ! echo "$RESULT" | grep -q "mmp_result: 6"; then
+		log_note "ERROR: $RESULT"
+		log_fail "ERROR: import_no_activity_check unexpected activity check"
 	fi
 
 	return $rc
 }
 
-function import_activity_check # pool opts act_test_duration
+function import_activity_check # pool opts
 {
 	typeset pool=$1
 	typeset opts=$2
-	typeset min_duration=${3:-$MMP_TEST_DURATION_DEFAULT}
 
-	SECONDS=0
-	zpool import $opts $pool
+	RESULT=$(ZFS_LOAD_INFO_DEBUG=1 zpool import $opts $pool)
 	typeset rc=$?
 
-	if [[ $SECONDS -le $min_duration ]]; then
-		log_fail "ERROR: import_activity_check expected activity check \
-(${SECONDS}s le min_duration $min_duration)"
+	# mmp_result: 0 (Success) check was run no activity detected
+	# mmp_result: 121 (EREMOTEIO) check was run activity detected
+	# mmp_result: 4 (EINTR) check was run but interrupted by user
+	if ! echo "$RESULT" | grep -q "mmp_result: 0"; then
+		log_note "ERROR: $RESULT"
+		log_fail "ERROR: import_activity_check expected activity check"
 	fi
 
 	return $rc

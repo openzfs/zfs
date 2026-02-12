@@ -3516,7 +3516,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	boolean_t	is_tmpfile = 0;
 	uint64_t	txg;
 
-	is_tmpfile = (sip->i_nlink == 0 && (sip->i_state & I_LINKABLE));
+	is_tmpfile = (sip->i_nlink == 0 &&
+	    (inode_state_read_once(sip) & I_LINKABLE));
 
 	ASSERT(S_ISDIR(ZTOI(tdzp)->i_mode));
 

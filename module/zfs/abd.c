@@ -1111,19 +1111,19 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 
 		func_raidz_gen(caddrs, daddr, len, dlen);
 
-		for (i = parity-1; i >= 0; i--) {
-			abd_iter_unmap(&caiters[i]);
-			c_cabds[i] =
-			    abd_advance_abd_iter(cabds[i], c_cabds[i],
-			    &caiters[i], len);
-		}
-
 		if (dsize > 0) {
 			abd_iter_unmap(&daiter);
 			c_dabd =
 			    abd_advance_abd_iter(dabd, c_dabd, &daiter,
 			    dlen);
 			dsize -= dlen;
+		}
+
+		for (i = parity - 1; i >= 0; i--) {
+			abd_iter_unmap(&caiters[i]);
+			c_cabds[i] =
+			    abd_advance_abd_iter(cabds[i], c_cabds[i],
+			    &caiters[i], len);
 		}
 
 		csize -= len;
@@ -1194,7 +1194,7 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 
 		func_raidz_rec(xaddrs, len, caddrs, mul);
 
-		for (i = parity-1; i >= 0; i--) {
+		for (i = parity - 1; i >= 0; i--) {
 			abd_iter_unmap(&xiters[i]);
 			abd_iter_unmap(&citers[i]);
 			c_tabds[i] =

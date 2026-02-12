@@ -100,15 +100,17 @@ zfs_uiomove_bvec_impl(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 
 	while (n && uio->uio_resid) {
 		void *paddr;
-		cnt = MIN(bv->bv_len - skip, n);
+		size_t offset = bv->bv_offset + skip;
+		cnt = MIN(PAGE_SIZE - (offset & ~PAGE_MASK),
+		    MIN(bv->bv_len - skip, n));
 
-		paddr = zfs_kmap_local(bv->bv_page);
+		paddr = zfs_kmap_local(bv->bv_page + (offset >> PAGE_SHIFT));
 		if (rw == UIO_READ) {
 			/* Copy from buffer 'p' to the bvec data */
-			memcpy(paddr + bv->bv_offset + skip, p, cnt);
+			memcpy(paddr + (offset & ~PAGE_MASK), p, cnt);
 		} else {
 			/* Copy from bvec data to buffer 'p' */
-			memcpy(p, paddr + bv->bv_offset + skip, cnt);
+			memcpy(p, paddr + (offset & ~PAGE_MASK), cnt);
 		}
 		zfs_kunmap_local(paddr);
 

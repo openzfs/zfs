@@ -23,6 +23,7 @@
 /*
  * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
  * Copyright (C) 2015 Jörg Thalheim.
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  */
 
 #ifndef _ZFS_VFS_H
@@ -260,6 +261,20 @@ zpl_is_32bit_api(void)
     generic_fillattr(user_ns, ip, sp)
 #else
 #define	zpl_generic_fillattr(user_ns, ip, sp)	generic_fillattr(ip, sp)
+#endif
+
+#ifdef HAVE_INODE_GENERIC_DROP
+/* 6.18 API change. These were renamed, alias the old names to the new. */
+#define	generic_delete_inode(ip)	inode_just_drop(ip)
+#define	generic_drop_inode(ip)		inode_generic_drop(ip)
+#endif
+
+#ifndef HAVE_INODE_STATE_READ_ONCE
+/*
+ * 6.19 API change. We should no longer access i_state directly. If the new
+ * helper function doesn't exist, define our own.
+ */
+#define	inode_state_read_once(ip)	READ_ONCE(ip->i_state)
 #endif
 
 #endif /* _ZFS_VFS_H */

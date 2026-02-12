@@ -72,7 +72,7 @@ typedef struct raidz_test_opts {
 
 static const raidz_test_opts_t rto_opts_defaults = {
 	.rto_ashift = 9,
-	.rto_offset = 1ULL << 0,
+	.rto_offset = 0,
 	.rto_dcols = 8,
 	.rto_dsize = 1<<19,
 	.rto_v = D_ALL,
