@@ -145,6 +145,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -1854,6 +1855,75 @@ vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 }
 
 /*
+ * Write the extra data of the specified vdev.
+ */
+static void
+vdev_extra_sync(zio_t *zio, uint64_t *good_writes, vdev_t *vd, int flags,
+    uint64_t txg, vdev_config_sync_status_t status)
+{
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		vdev_extra_sync(zio, good_writes, vd->vdev_child[c], flags, txg,
+		    status);
+	}
+
+	if (!vd->vdev_ops->vdev_op_leaf)
+		return;
+
+	if (!vdev_writeable(vd))
+		return;
+
+	if (vd->vdev_parent->vdev_ops == &vdev_anyraid_ops) {
+		vdev_anyraid_write_map_sync(vd, zio, txg, good_writes, flags,
+		    status);
+	}
+}
+
+/* Sync the extra data of all vdevs in svd[] */
+static int
+vdev_extra_sync_list(vdev_t **svd, int svdcount, int flags, uint64_t txg,
+    vdev_config_sync_status_t status)
+{
+	spa_t *spa = svd[0]->vdev_spa;
+	zio_t *zio;
+	uint64_t good_writes = 0;
+
+	boolean_t have_extra = B_FALSE;
+
+	for (int i = 0; i < svdcount; i++) {
+		if (svd[i]->vdev_ops == &vdev_anyraid_ops) {
+			have_extra = B_TRUE;
+			break;
+		}
+	}
+	if (!have_extra)
+		return (0);
+
+	zio = zio_root(spa, NULL, NULL, flags);
+
+	for (int v = 0; v < svdcount; v++)
+		vdev_extra_sync(zio, &good_writes, svd[v], flags, txg, status);
+
+	(void) zio_wait(zio);
+
+	/*
+	 * Flush the extra data to disk.  This ensures that the odd labels
+	 * are no longer needed (because the new uberblocks and the even
+	 * labels are safely on disk), so it is safe to overwrite them.
+	 */
+	zio = zio_root(spa, NULL, NULL, flags);
+
+	for (int v = 0; v < svdcount; v++) {
+		if (vdev_writeable(svd[v])) {
+			zio_flush(zio, svd[v]);
+		}
+	}
+
+	(void) zio_wait(zio);
+
+	return (good_writes >= 1 ? 0 : EIO);
+}
+
+/*
  * On success, increment the count of good writes for our top-level vdev.
  */
 static void
@@ -2036,7 +2106,8 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
  * at any time, you can just call it again, and it will resume its work.
  */
 int
-vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
+vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg,
+    vdev_config_sync_status_t status)
 {
 	spa_t *spa = svd[0]->vdev_spa;
 	uberblock_t *ub = &spa->spa_uberblock;
@@ -2109,6 +2180,16 @@ retry:
 		if ((flags & ZIO_FLAG_IO_RETRY) != 0) {
 			zfs_dbgmsg("vdev_label_sync_list() returned error %d "
 			    "for pool '%s' when syncing out the even labels "
+			    "of dirty vdevs", error, spa_name(spa));
+		}
+		goto retry;
+	}
+
+	if ((error = vdev_extra_sync_list(svd, svdcount, flags, txg, status) !=
+	    0)) {
+		if ((flags & ZIO_FLAG_TRYHARD) != 0) {
+			zfs_dbgmsg("vdev_extra_sync_list() returned error %d "
+			    "for pool '%s' when syncing out the extra data "
 			    "of dirty vdevs", error, spa_name(spa));
 		}
 		goto retry;

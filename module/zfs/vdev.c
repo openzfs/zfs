@@ -55,11 +55,11 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
-#include <sys/vdev_raidz.h>
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 #include "zfs_prop.h"
@@ -279,6 +279,7 @@ static vdev_ops_t *const vdev_ops_table[] = {
 	&vdev_missing_ops,
 	&vdev_hole_ops,
 	&vdev_indirect_ops,
+	&vdev_anyraid_ops,
 	NULL
 };
 
@@ -346,6 +347,21 @@ vdev_derive_alloc_bias(const char *bias)
 }
 
 uint64_t
+vdev_default_min_attach_size(vdev_t *vd)
+{
+	return (vdev_get_min_asize(vd));
+}
+
+uint64_t
+vdev_get_min_attach_size(vdev_t *vd)
+{
+	vdev_t *pvd = vd->vdev_parent;
+	if (vd == vd->vdev_top)
+		pvd = vd;
+	return (pvd->vdev_ops->vdev_op_min_attach_size(pvd));
+}
+
+uint64_t
 vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 {
 	ASSERT0(asize % (1ULL << vd->vdev_top->vdev_ashift));
@@ -377,9 +393,10 @@ vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 }
 
 uint64_t
-vdev_default_min_asize(vdev_t *vd)
+vdev_default_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	return (vd->vdev_min_asize);
+	(void) cvd;
+	return (pvd->vdev_min_asize);
 }
 
 /*
@@ -408,7 +425,7 @@ vdev_get_min_asize(vdev_t *vd)
 		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
 		    uint64_t));
 
-	return (pvd->vdev_ops->vdev_op_min_asize(pvd));
+	return (pvd->vdev_ops->vdev_op_min_asize(pvd, vd));
 }
 
 void
@@ -901,6 +918,13 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		if (ops == &vdev_draid_ops &&
 		    spa->spa_load_state != SPA_LOAD_CREATE &&
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		/* spa_vdev_add() expects feature to be enabled */
+		if (ops == &vdev_anyraid_ops &&
+		    spa->spa_load_state != SPA_LOAD_CREATE &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_ANYRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
 	}
@@ -3013,6 +3037,8 @@ vdev_metaslab_set_size(vdev_t *vd)
 		if ((asize >> ms_shift) > zfs_vdev_ms_count_limit)
 			ms_shift = highbit64(asize / zfs_vdev_ms_count_limit);
 	}
+	if (vd->vdev_ops->vdev_op_metaslab_size)
+		vd->vdev_ops->vdev_op_metaslab_size(vd, &ms_shift);
 
 	vd->vdev_ms_shift = ms_shift;
 	ASSERT3U(vd->vdev_ms_shift, >=, SPA_MAXBLOCKSHIFT);
@@ -6712,6 +6738,68 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 					break;
 				}
 				break;
+			case VDEV_PROP_ANYRAID_CAP_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = vd->vdev_tsd;
+					for (int i = 0; i < vd->vdev_children;
+					    i++) {
+						total += var->vd_children[i]
+						    ->van_capacity + 1;
+					}
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = pvd->vdev_tsd;
+					total = var->vd_children[vd->vdev_id]
+					    ->van_capacity + 1;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_NUM_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = vd->vdev_tsd;
+					for (int i = 0; i < vd->vdev_children;
+					    i++) {
+						total += var->vd_children[i]
+						    ->van_next_offset;
+					}
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					vdev_anyraid_t *var = pvd->vdev_tsd;
+					total = var->vd_children[vd->vdev_id]
+					    ->van_next_offset;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_TILE_SIZE:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				vdev_anyraid_t *var = NULL;
+				if (vd->vdev_ops == &vdev_anyraid_ops) {
+					var = vd->vdev_tsd;
+				} else if (pvd && pvd->vdev_ops ==
+				    &vdev_anyraid_ops) {
+					var = pvd->vdev_tsd;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, var->vd_tile_size, ZPROP_SRC_NONE);
+				continue;
+			}
 			default:
 				err = ENOENT;
 				break;

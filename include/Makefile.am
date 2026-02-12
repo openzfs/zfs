@@ -101,6 +101,7 @@ COMMON_H = \
 	sys/unique.h \
 	sys/uuid.h \
 	sys/vdev.h \
+	sys/vdev_anyraid.h \
 	sys/vdev_disk.h \
 	sys/vdev_draid.h \
 	sys/vdev_file.h \
@@ -108,6 +109,7 @@ COMMON_H = \
 	sys/vdev_indirect_births.h \
 	sys/vdev_indirect_mapping.h \
 	sys/vdev_initialize.h \
+	sys/vdev_mirror.h \
 	sys/vdev_raidz.h \
 	sys/vdev_raidz_impl.h \
 	sys/vdev_rebuild.h \

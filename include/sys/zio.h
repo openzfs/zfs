@@ -107,6 +107,7 @@ enum zio_checksum {
 	ZIO_CHECKSUM_SKEIN,
 	ZIO_CHECKSUM_EDONR,
 	ZIO_CHECKSUM_BLAKE3,
+	ZIO_CHECKSUM_ANYRAID_MAP,
 	ZIO_CHECKSUM_FUNCTIONS
 };
 
@@ -213,6 +214,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_NODATA		(1ULL << 12)
 #define	ZIO_FLAG_INDUCE_DAMAGE	(1ULL << 13)
 #define	ZIO_FLAG_ALLOC_THROTTLED	(1ULL << 14)
+#define	ZIO_FLAG_ZILWRITE	(1ULL << 15)
 
 #define	ZIO_FLAG_DDT_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
 #define	ZIO_FLAG_GANG_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
@@ -220,29 +222,29 @@ typedef uint64_t zio_flag_t;
 	/*
 	 * Flags inherited by vdev children.
 	 */
-#define	ZIO_FLAG_IO_RETRY	(1ULL << 15)	/* must be first for INHERIT */
-#define	ZIO_FLAG_PROBE		(1ULL << 16)
-#define	ZIO_FLAG_TRYHARD	(1ULL << 17)
-#define	ZIO_FLAG_OPTIONAL	(1ULL << 18)
-#define	ZIO_FLAG_DIO_READ	(1ULL << 19)
+#define	ZIO_FLAG_IO_RETRY	(1ULL << 16)	/* must be first for INHERIT */
+#define	ZIO_FLAG_PROBE		(1ULL << 17)
+#define	ZIO_FLAG_TRYHARD	(1ULL << 18)
+#define	ZIO_FLAG_OPTIONAL	(1ULL << 19)
+#define	ZIO_FLAG_DIO_READ	(1ULL << 20)
 #define	ZIO_FLAG_VDEV_INHERIT	(ZIO_FLAG_DONT_QUEUE - 1)
 
 	/*
 	 * Flags not inherited by any children.
 	 */
-#define	ZIO_FLAG_DONT_QUEUE	(1ULL << 20)	/* must be first for INHERIT */
-#define	ZIO_FLAG_DONT_PROPAGATE	(1ULL << 21)
-#define	ZIO_FLAG_IO_BYPASS	(1ULL << 22)
-#define	ZIO_FLAG_IO_REWRITE	(1ULL << 23)
-#define	ZIO_FLAG_RAW_COMPRESS	(1ULL << 24)
-#define	ZIO_FLAG_RAW_ENCRYPT	(1ULL << 25)
-#define	ZIO_FLAG_GANG_CHILD	(1ULL << 26)
-#define	ZIO_FLAG_DDT_CHILD	(1ULL << 27)
-#define	ZIO_FLAG_GODFATHER	(1ULL << 28)
-#define	ZIO_FLAG_NOPWRITE	(1ULL << 29)
-#define	ZIO_FLAG_REEXECUTED	(1ULL << 30)
-#define	ZIO_FLAG_DELEGATED	(1ULL << 31)
-#define	ZIO_FLAG_PREALLOCATED	(1ULL << 32)
+#define	ZIO_FLAG_DONT_QUEUE	(1ULL << 21)	/* must be first for INHERIT */
+#define	ZIO_FLAG_DONT_PROPAGATE	(1ULL << 22)
+#define	ZIO_FLAG_IO_BYPASS	(1ULL << 23)
+#define	ZIO_FLAG_IO_REWRITE	(1ULL << 24)
+#define	ZIO_FLAG_RAW_COMPRESS	(1ULL << 25)
+#define	ZIO_FLAG_RAW_ENCRYPT	(1ULL << 26)
+#define	ZIO_FLAG_GANG_CHILD	(1ULL << 27)
+#define	ZIO_FLAG_DDT_CHILD	(1ULL << 28)
+#define	ZIO_FLAG_GODFATHER	(1ULL << 29)
+#define	ZIO_FLAG_NOPWRITE	(1ULL << 30)
+#define	ZIO_FLAG_REEXECUTED	(1ULL << 31)
+#define	ZIO_FLAG_DELEGATED	(1ULL << 32)
+#define	ZIO_FLAG_PREALLOCATED	(1ULL << 33)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)

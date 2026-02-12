@@ -40,6 +40,15 @@ tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
     'alloc_class_013_pos', 'alloc_class_016_pos']
 tags = ['functional', 'alloc_class']
 
+[tests/functional/anyraid]
+tests = [ 'anyraid_clean_mirror_001_pos', 'anyraid_clean_mirror_002_pos',
+    'anyraid_clean_mirror_003_pos', 'anyraid_clean_mirror_004_pos',
+    'anyraid_tile_layout', 'anyraid_checkpoint',
+    'anyraid_faildisk_write_replace_resilver',
+    'anyraid_offline_write_online_resilver',
+    'anyraid_special_vdev_001_pos', 'anyraid_special_vdev_002_pos']
+tags = ['functional', 'anyraid']
+
 [tests/functional/append]
 tests = ['file_append', 'threadsappend_001_pos']
 tags = ['functional', 'append']
@@ -403,7 +412,8 @@ tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
-tests = ['zpool_attach_001_neg', 'attach-o_ashift']
+tests = ['zpool_attach_001_neg', 'zpool_attach_002_pos', 'zpool_attach_003_pos',
+    'attach-o_ashift']
 tags = ['functional', 'cli_root', 'zpool_attach']
 
 [tests/functional/cli_root/zpool_clear]
@@ -420,7 +430,10 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_017_neg', 'zpool_create_018_pos', 'zpool_create_019_pos',
     'zpool_create_020_pos', 'zpool_create_021_pos', 'zpool_create_022_pos',
     'zpool_create_023_neg', 'zpool_create_024_pos',
-    'zpool_create_encrypted', 'zpool_create_crypt_combos',
+    'zpool_create_anyraid_001_pos', 'zpool_create_anyraid_002_pos',
+    'zpool_create_anyraid_003_pos', 'zpool_create_anyraid_004_pos',
+    'zpool_create_anyraid_005_neg', 'zpool_create_encrypted',
+    'zpool_create_crypt_combos',
     'zpool_create_draid_001_pos', 'zpool_create_draid_002_pos',
     'zpool_create_draid_003_pos', 'zpool_create_draid_004_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
@@ -451,6 +464,7 @@ tags = ['functional', 'cli_root', 'zpool_events']
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg', 'zpool_export_004_pos',
+    'zpool_export_anyraid_001_pos',
     'zpool_export_parallel_pos', 'zpool_export_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_export']
 
@@ -506,6 +520,7 @@ tags = ['functional', 'cli_root', 'zpool_labelclear']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_attach_detach_add_remove',
+    'zpool_initialize_anyraid_attach',
     'zpool_initialize_fault_export_import_online',
     'zpool_initialize_import_export',
     'zpool_initialize_multiple_pools',
@@ -519,7 +534,6 @@ tests = ['zpool_initialize_attach_detach_add_remove',
     'zpool_initialize_unsupported_vdevs',
     'zpool_initialize_verify_checksums',
     'zpool_initialize_verify_initialized']
-pre =
 tags = ['functional', 'cli_root', 'zpool_initialize']
 
 [tests/functional/cli_root/zpool_offline]
