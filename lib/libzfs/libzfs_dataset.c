@@ -3600,7 +3600,8 @@ zfs_dataset_exists(libzfs_handle_t *hdl, const char *path, zfs_type_t types)
  * Fail if the initial prefixlen-ancestor does not already exist.
  */
 int
-create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
+create_parents(libzfs_handle_t *hdl, char *target, int prefixlen,
+    nvlist_t *props)
 {
 	zfs_handle_t *h;
 	char *cp;
@@ -3636,8 +3637,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 			continue;
 		}
 
-		if (zfs_create(hdl, target, ZFS_TYPE_FILESYSTEM,
-		    NULL) != 0) {
+		if (zfs_create(hdl, target, ZFS_TYPE_FILESYSTEM, props) != 0) {
 			opname = dgettext(TEXT_DOMAIN, "create");
 			goto ancestorerr;
 		}
@@ -3676,6 +3676,17 @@ ancestorerr:
 int
 zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 {
+	return (zfs_create_ancestors_props(hdl, path, NULL));
+}
+
+/*
+ * Creates non-existing ancestors of the given path, applying extra
+ * properties provided in an nvlist.
+ */
+int
+zfs_create_ancestors_props(libzfs_handle_t *hdl, const char *path,
+    nvlist_t *props)
+{
 	int prefix;
 	char *path_copy;
 	char errbuf[ERRBUFLEN];
@@ -3698,7 +3709,7 @@ zfs_create_ancestors(libzfs_handle_t *hdl, const char *path)
 		return (-1);
 
 	if ((path_copy = strdup(path)) != NULL) {
-		rc = create_parents(hdl, path_copy, prefix);
+		rc = create_parents(hdl, path_copy, prefix, props);
 		free(path_copy);
 	}
 	if (path_copy == NULL || rc != 0)

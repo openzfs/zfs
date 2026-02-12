@@ -2628,9 +2628,14 @@ function verify_opt_p_ops
 	typeset datatype=$2
 	typeset dataset=$3
 	typeset newdataset=$4
+	typeset popt=$5
 
 	if [[ $datatype != "fs" && $datatype != "vol" ]]; then
 		log_fail "$datatype is not supported."
+	fi
+
+	if [[ -z "$popt" ]]; then
+		popt=-p
 	fi
 
 	# check parameters accordingly
@@ -2670,7 +2675,7 @@ function verify_opt_p_ops
 	log_mustnot datasetexists $newdataset ${newdataset%/*}
 
 	# with -p option, operation should succeed
-	log_must zfs $ops -p $dataset $newdataset
+	log_must zfs $ops $popt $dataset $newdataset
 	block_device_wait
 
 	if ! datasetexists $newdataset ; then
@@ -2679,7 +2684,7 @@ function verify_opt_p_ops
 
 	# when $ops is create or clone, redo the operation still return zero
 	if [[ $ops != "rename" ]]; then
-		log_must zfs $ops -p $dataset $newdataset
+		log_must zfs $ops $popt $dataset $newdataset
 	fi
 
 	return 0
