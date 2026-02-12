@@ -278,7 +278,7 @@ ddt_log_update_entry(ddt_t *ddt, ddt_log_t *ddl, ddt_lightweight_entry_t *ddlwe,
 void
 ddt_log_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, ddt_log_update_t *dlu)
 {
-	ASSERT3U(dlu->dlu_dbp, !=, NULL);
+	ASSERT3P(dlu->dlu_dbp, !=, NULL);
 
 	ddt_log_update_entry(ddt, ddt->ddt_log_active, ddlwe, B_TRUE);
 
@@ -328,7 +328,7 @@ ddt_log_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, ddt_log_update_t *dlu)
 void
 ddt_log_commit(ddt_t *ddt, ddt_log_update_t *dlu)
 {
-	ASSERT3U(dlu->dlu_dbp, !=, NULL);
+	ASSERT3P(dlu->dlu_dbp, !=, NULL);
 	ASSERT3U(dlu->dlu_block+1, ==, dlu->dlu_ndbp);
 	ASSERT3U(dlu->dlu_offset, >, 0);
 
