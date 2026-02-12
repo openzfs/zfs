@@ -855,6 +855,9 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_BOOTFS		"bootfs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_MISSING_DEVICES	"missing_vdevs"	/* not stored on disk */
 #define	ZPOOL_CONFIG_LOAD_INFO		"load_info"	/* not stored on disk */
+#define	ZPOOL_CONFIG_CREATE_INFO	"create_info"	/* not stored on disk */
+#define	ZPOOL_CREATE_INFO_VDEV		"create_err_vdev"
+#define	ZPOOL_CREATE_INFO_POOL		"create_err_pool"
 #define	ZPOOL_CONFIG_REWIND_INFO	"rewind_info"	/* not stored on disk */
 #define	ZPOOL_CONFIG_UNSUP_FEAT		"unsup_feat"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ENABLED_FEAT	"enabled_feat"	/* not stored on disk */
