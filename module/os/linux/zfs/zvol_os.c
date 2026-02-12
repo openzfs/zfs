@@ -1796,7 +1796,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
 	int readonly = get_disk_ro(zv->zv_zso->zvo_disk);
 
-	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
+	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
 	strlcpy(zv->zv_name, newname, sizeof (zv->zv_name));
