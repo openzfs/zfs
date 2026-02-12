@@ -35,7 +35,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
- * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2023-2026, Klara, Inc.
  */
 
 /*
@@ -2086,8 +2086,8 @@ spa_unload_log_sm_flush_all(spa_t *spa)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
-	ASSERT0(spa->spa_log_flushall_txg);
-	spa->spa_log_flushall_txg = dmu_tx_get_txg(tx);
+	spa_log_flushall_start(spa, SPA_LOG_FLUSHALL_EXPORT,
+	    dmu_tx_get_txg(tx));
 
 	dmu_tx_commit(tx);
 	txg_wait_synced(spa_get_dsl(spa), spa->spa_log_flushall_txg);
@@ -2114,6 +2114,8 @@ spa_unload_log_sm_metadata(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nblocks = 0;
 	spa->spa_unflushed_stats.sus_memused = 0;
 	spa->spa_unflushed_stats.sus_blocklimit = 0;
+
+	spa_log_sm_stats_update(spa);
 }
 
 static void
@@ -2289,6 +2291,8 @@ spa_unload(spa_t *spa)
 		 */
 		if (spa_should_flush_logs_on_unload(spa))
 			spa_unload_log_sm_flush_all(spa);
+		else
+			spa_log_flushall_done(spa);
 
 		/*
 		 * Stop async tasks.
@@ -10956,6 +10960,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_sync_close_syncing_log_sm(spa);
 
 	spa_update_dspace(spa);
+	spa_log_sm_stats_update(spa);
 
 	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
 		vdev_autotrim_kick(spa);
@@ -11497,6 +11502,20 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 	{
 		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
+		break;
+	}
+	case ZPOOL_WAIT_CONDENSE: {
+		pool_condense_stat_t *pcns;
+		*in_progress = B_FALSE;
+		for (pool_condense_type_t type = 0;
+		    type < POOL_CONDENSE_TYPES; type++) {
+			pcns = &spa->spa_condense_stats[type];
+			if (pcns->pcns_start_time > 0 &&
+			    pcns->pcns_end_time == 0) {
+				*in_progress = B_TRUE;
+				break;
+			}
+		}
 		break;
 	}
 	default:

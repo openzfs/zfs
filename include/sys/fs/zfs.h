@@ -758,6 +758,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_CHECKPOINT_STATS	"checkpoint_stats" /* not on disk */
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_STATS	"raidz_expand_stats" /* not on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
+#define	ZPOOL_CONFIG_CONDENSE_STATS	"com.klarasystems:condense_stats"
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
 
 /* container nvlist of extended stats */
@@ -1252,6 +1253,20 @@ typedef struct vdev_rebuild_stat {
 } vdev_rebuild_stat_t;
 
 /*
+ * "Condense" is a general concept for fully writing down an intermediate log,
+ * journal or cache to its final resting place. The stats for condense are
+ * counts of how many things need to be written down and how many have been
+ * done so far, so that 'zpool status' can show progress. How it shows that
+ * depends on what the thing is.
+ */
+typedef struct pool_condense_stat {
+	uint64_t pcns_start_time;	/* time_t */
+	uint64_t pcns_end_time;		/* time_t */
+	uint64_t pcns_processed;	/* items processed */
+	uint64_t pcns_total;		/* total items to process */
+} pool_condense_stat_t;
+
+/*
  * Errata described by https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-ER.
  * The ordering of this enum must be maintained to ensure the errata identifiers
  * map to the correct documentation.  New errata may only be appended to the
@@ -1392,6 +1407,20 @@ typedef enum pool_trim_func {
 	POOL_TRIM_SUSPEND,
 	POOL_TRIM_FUNCS
 } pool_trim_func_t;
+
+/*
+ * Condense functions.
+ */
+typedef enum pool_condense_func {
+	POOL_CONDENSE_START,
+	POOL_CONDENSE_CANCEL,
+	POOL_CONDENSE_FUNCS
+} pool_condense_func_t;
+
+typedef enum pool_condense_type {
+	POOL_CONDENSE_LOG_SPACEMAP,
+	POOL_CONDENSE_TYPES,
+} pool_condense_type_t;
 
 /*
  * DDT statistics.  Note: all fields should be 64-bit because this
@@ -1572,6 +1601,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_SCRUB,			/* 0x5a57 */
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
+	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1711,6 +1741,7 @@ typedef enum {
 	ZPOOL_WAIT_SCRUB,
 	ZPOOL_WAIT_TRIM,
 	ZPOOL_WAIT_RAIDZ_EXPAND,
+	ZPOOL_WAIT_CONDENSE,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
 
@@ -1798,6 +1829,12 @@ typedef enum {
 #define	ZPOOL_TRIM_VDEVS		"trim_vdevs"
 #define	ZPOOL_TRIM_RATE			"trim_rate"
 #define	ZPOOL_TRIM_SECURE		"trim_secure"
+
+/*
+ * The following are names used when invoking ZPOOL_IOC_POOL_CONDENSE.
+ */
+#define	ZPOOL_CONDENSE_COMMAND		"condense_command"
+#define	ZPOOL_CONDENSE_TYPE		"condense_type"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_WAIT.
