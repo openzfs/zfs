@@ -2640,7 +2640,7 @@ vdev_draid_fail_domain_allowed(vdev_t *vd)
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
-	ASSERT3P(vdc->vdc_width, > ,vdc->vdc_children);
+	ASSERT3P(vdc->vdc_width, >, vdc->vdc_children);
 
 	int counter = 0;
 
