@@ -671,8 +671,7 @@ dnode_level_is_l2cacheable(blkptr_t *bp, dnode_t *dn, int64_t level)
 {
 	if (dn->dn_objset->os_secondary_cache == ZFS_CACHE_ALL ||
 	    (dn->dn_objset->os_secondary_cache == ZFS_CACHE_METADATA &&
-	    (level > 0 ||
-	    DMU_OT_IS_METADATA(dn->dn_handle->dnh_dnode->dn_type)))) {
+	    (level > 0 || DMU_OT_IS_METADATA(dn->dn_type)))) {
 		if (l2arc_exclude_special == 0)
 			return (B_TRUE);
 
