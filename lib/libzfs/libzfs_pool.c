@@ -1477,6 +1477,55 @@ zpool_is_draid_spare(const char *name)
 	return (B_FALSE);
 }
 
+
+/*
+ * Extract device-specific error information from a failed pool creation.
+ * If the kernel returned ZPOOL_CONFIG_CREATE_INFO in the ioctl output,
+ * set an appropriate error aux message identifying the problematic device.
+ *
+ * Returns B_TRUE if device-specific info was found and the error aux
+ * message was set, B_FALSE otherwise.
+ */
+static boolean_t
+zpool_create_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+{
+	nvlist_t *outnv = NULL;
+	nvlist_t *errinfo = NULL;
+	const char *vdev = NULL;
+	const char *pname = NULL;
+	boolean_t found = B_FALSE;
+
+	if (zc->zc_nvlist_dst_size == 0)
+		return (B_FALSE);
+
+	if (nvlist_unpack((void *)(uintptr_t)zc->zc_nvlist_dst,
+	    zc->zc_nvlist_dst_size, &outnv, 0) != 0 || outnv == NULL)
+		return (B_FALSE);
+
+	if (nvlist_lookup_nvlist(outnv,
+	    ZPOOL_CONFIG_CREATE_INFO, &errinfo) != 0)
+		goto out;
+
+	if (nvlist_lookup_string(errinfo,
+	    ZPOOL_CREATE_INFO_VDEV, &vdev) != 0)
+		goto out;
+
+	if (nvlist_lookup_string(errinfo,
+	    ZPOOL_CREATE_INFO_POOL, &pname) == 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "device '%s' is part of active pool '%s'"),
+		    vdev, pname);
+	} else {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "device '%s' is in use"), vdev);
+	}
+	found = B_TRUE;
+
+out:
+	nvlist_free(outnv);
+	return (found);
+}
+
 /*
  * Create the named pool, using the provided vdev list.  It is assumed
  * that the consumer has already validated the contents of the nvlist, so we
@@ -1556,8 +1605,20 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 		zcmd_write_src_nvlist(hdl, &zc, zc_props);
 
 	(void) strlcpy(zc.zc_name, pool, sizeof (zc.zc_name));
+	zcmd_alloc_dst_nvlist(hdl, &zc, 4096);
 
 	if ((ret = zfs_ioctl(hdl, ZFS_IOC_POOL_CREATE, &zc)) != 0) {
+
+		if (zpool_create_info(hdl, &zc)) {
+			zcmd_free_nvlists(&zc);
+			nvlist_free(zc_props);
+			nvlist_free(zc_fsprops);
+			nvlist_free(hidden_args);
+			if (wkeydata != NULL)
+				free(wkeydata);
+			return (zfs_error(hdl,
+			    EZFS_BADDEV, errbuf));
+		}
 
 		zcmd_free_nvlists(&zc);
 		nvlist_free(zc_props);
