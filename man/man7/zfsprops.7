@@ -1822,68 +1822,30 @@ property is updated with
 , the property is set to desired value, but the operation to share, reshare
 or unshare the the dataset is not performed.
 .It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
-Controls whether the file system is shared via NFS, and what options are to be
-used.
-A file system with a
-.Sy sharenfs
-property of
-.Sy off
-is managed with the
-.Xr exportfs 8
-command and entries in the
-.Pa /etc/exports
-file.
-Otherwise, the file system is automatically shared and unshared with the
-.Nm zfs Cm share
-and
-.Nm zfs Cm unshare
-commands.
-If the property is set to
-.Sy on ,
-the dataset is shared using the default options:
-.Dl sec=sys,rw,crossmnt,no_subtree_check
-.Pp
-Please note that the options are comma-separated, unlike those found in
-.Xr exports 5 .
-This is done to negate the need for quoting, as well as to make parsing
-with scripts easier.
-.Pp
-For
-.Fx ,
-there may be multiple sets of options separated by semicolon(s).
-Each set of options must apply to different hosts or networks and each
-set of options will create a separate line for
-.Xr exports 5 .
-Any semicolon separated option set that consists entirely of whitespace
-will be ignored.
-This use of semicolons is only for
-.Fx
-at this time.
-.Pp
-See
-.Xr exports 5
-for the meaning of the default options.
-Otherwise, the
-.Xr exportfs 8
-command is invoked with options equivalent to the contents of this property.
-.Pp
-When the
-.Sy sharenfs
-property is changed for a dataset, the dataset and any children inheriting the
-property are re-shared with the new options, only if the property was previously
-.Sy off ,
-or if they were shared before the property was changed.
-If the new property is
-.Sy off ,
-the file systems are unshared.
-.Pp
-When the
-.Sy sharenfs
-property is updated with
-.Nm zfs Cm set Fl u
-, the property is set to desired value, but the operation to share, reshare
-or unshare the the dataset is not performed.
-.It Sy logbias Ns = Ns Sy latency Ns | Ns Sy throughput
+Controls whether the dataset is shared over NFS (Network File System).
+.sp
+Possible values:
+.Bl -tag -width Ds
+.It Sy off
+Disables NFS sharing for this dataset.
+.It Sy on
+Enables NFS sharing using default NFS options equivalent to "rw,crossmnt".
+.It Ar opts
+A comma-separated list of NFS export options.
+Each option is applied individually to the dataset.
+.El
+.sp
+Behavior:
+.Bl -bullet
+.It
+If set to Sy on , the dataset will be shared automatically when the ZFS
+service or the system NFS service starts.
+.It
+If set to Sy off , the dataset will not be shared over NFS.
+.It
+If set to Ar opts , the specified NFS options will be applied directly
+without editing the /etc/exports file.
+.El
 Provide a hint to ZFS about handling of synchronous write requests in this
 dataset.
 If
