@@ -4588,8 +4588,10 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			    ZPOOL_CONFIG_DRAID_NDATA);
 			nspares = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_DRAID_NSPARES);
-			children = fnvlist_lookup_uint64(nv,
-			    ZPOOL_CONFIG_DRAID_NSLICE);
+
+			if (nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NSLICE, &children) != 0)
+				children = width;
 
 			path = zpool_draid_name(buf, sizeof (buf), ndata,
 			    nparity, nspares, children, width);
