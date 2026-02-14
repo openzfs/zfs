@@ -1495,7 +1495,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width)
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NDATA, ndata);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSPARES, nspares * fgrps);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NGROUPS, ngroups);
-	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSLICE, children);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NCHILDREN, children);
 
 	return (0);
 }

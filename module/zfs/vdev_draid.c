@@ -2366,7 +2366,7 @@ vdev_draid_config_generate(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSPARES,
 	    vdc->vdc_nspares * fgrps);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NGROUPS, vdc->vdc_ngroups);
-	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NSLICE, vdc->vdc_children);
+	fnvlist_add_uint64(nv, ZPOOL_CONFIG_DRAID_NCHILDREN, vdc->vdc_children);
 }
 
 /*
@@ -2395,7 +2395,7 @@ vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DRAID_NSLICE, &children)) {
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DRAID_NCHILDREN, &children)) {
 		children = width;
 		if (children > VDEV_DRAID_MAX_CHILDREN)
 			return (SET_ERROR(EINVAL));
