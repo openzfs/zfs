@@ -2110,7 +2110,6 @@
     <type-decl name='unsigned char' size-in-bits='8' id='002ac4a6'/>
     <type-decl name='unsigned int' size-in-bits='32' id='f0981eeb'/>
     <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
-    <type-decl name='variadic parameter type' id='2c1145c5'/>
     <type-decl name='void' id='48b5725f'/>
     <typedef-decl name='zfs_handle_t' type-id='f6ee4445' id='775509eb'/>
     <typedef-decl name='zpool_handle_t' type-id='67002a8a' id='b1efc708'/>
@@ -2765,14 +2764,6 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='eaa32e2f'/>
     </function-decl>
-    <function-decl name='libspl_assertf' mangled-name='libspl_assertf' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libspl_assertf'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='80f4b756'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='48b5725f'/>
-    </function-decl>
     <function-decl name='strlcat' mangled-name='strlcat' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
       <parameter type-id='26a90f95'/>
       <parameter type-id='80f4b756'/>
@@ -2850,6 +2841,7 @@
     <array-type-def dimensions='1' type-id='b96825af' size-in-bits='24' id='d3490169'>
       <subrange length='3' type-id='7359adad' id='56f209d2'/>
     </array-type-def>
+    <type-decl name='variadic parameter type' id='2c1145c5'/>
     <typedef-decl name='zpool_iter_f' type-id='3aebb66f' id='fa476e62'/>
     <enum-decl name='data_type_t' naming-typedef-id='8d0687d2' id='aeeae136'>
       <underlying-type type-id='9cac1fee'/>
@@ -3205,6 +3197,14 @@
     <function-decl name='fnvpair_value_nvlist' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='3fa542f0'/>
       <return type-id='5ce45b60'/>
+    </function-decl>
+    <function-decl name='libspl_assertf' mangled-name='libspl_assertf' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libspl_assertf'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='80f4b756'/>
+      <parameter is-variadic='yes'/>
+      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='__errno_location' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='7292109c'/>
@@ -4691,13 +4691,6 @@
       <parameter type-id='822cd80b'/>
       <parameter type-id='9d424d31'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='__assert_fail' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='80f4b756'/>
-      <parameter type-id='f0981eeb'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='getgrnam_r' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
@@ -6732,10 +6725,6 @@
       <parameter type-id='80f4b756'/>
       <return type-id='c19b74c3'/>
     </function-decl>
-    <function-decl name='zpool_prop_unsupported' mangled-name='zpool_prop_unsupported' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_unsupported'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='c19b74c3'/>
-    </function-decl>
     <function-decl name='zpool_prop_index_to_string' mangled-name='zpool_prop_index_to_string' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_index_to_string'>
       <parameter type-id='5d0c23fb'/>
       <parameter type-id='9c313c2d'/>
@@ -8627,6 +8616,10 @@
     <function-decl name='zfs_get_underlying_path' mangled-name='zfs_get_underlying_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_get_underlying_path'>
       <parameter type-id='80f4b756'/>
       <return type-id='26a90f95'/>
+    </function-decl>
+    <function-decl name='zpool_prop_unsupported' mangled-name='zpool_prop_unsupported' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_unsupported'>
+      <parameter type-id='80f4b756'/>
+      <return type-id='c19b74c3'/>
     </function-decl>
     <function-decl name='zpool_feature_init' mangled-name='zpool_feature_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_feature_init'>
       <return type-id='48b5725f'/>
