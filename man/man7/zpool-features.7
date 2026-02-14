@@ -504,6 +504,27 @@ vdev type, or when adding a new
 .Sy draid
 vdev to an existing pool.
 .
+.feature com.seagate draid_failure_domains no draid
+This feature enables use of failure domains (or groups) in
+.Sy draid
+vdev type.
+Failure domains allow tolerating the failure of all devices by the same
+offset in each failure group.
+For example, on a setup with several enclosures, the user
+can arrange devices in draid vdev in groups in such a way that
+every n-th device in every group would belong to n-th enclosure.
+This allows tolerating the failure of the whole enclosure.
+The size of the failure group cannot be less than the size of the
+redundancy group.
+.Pp
+This feature becomes
+.Sy active
+when creating a pool which uses the
+.Sy draid
+vdev type with failure domains configured, or when adding a new
+.Sy draid
+vdev with failure domains to an existing pool.
+.
 .feature com.klarasystems dynamic_gang_header no
 This feature enables larger gang headers based on the sector size of the pool.
 When enabled, gang headers will use the entire space allocated for them, instead
