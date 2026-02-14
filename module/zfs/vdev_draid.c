@@ -550,7 +550,7 @@ vdev_draid_swap_perms(uint8_t *perms, uint64_t i, uint64_t j)
 /*
  * Shuffle every i-th permutations in slices that lie in the big width row,
  * increasing disk indices in each next slice in the row accordingly.
- * This would allow to create failure domains by putting disks from different
+ * This allows the creation of failure domains by putting disks from different
  * enclosures/servers/racks into slices, and yet preserve fast sequential
  * resilvering because any disk will be part of all slices in the big row.
  * At the same time, no slice will have more than one disk from the same
@@ -571,7 +571,7 @@ vdev_draid_swap_perms(uint8_t *perms, uint64_t i, uint64_t j)
  *  2,3 | ..gr7 |    group 8    | S |..gr10 |   group 11    | S | row 3
  *      +-------+---------------+---+-------+---------------+---+
  *
- * If we configure each disk in the slice to be from different enclosure,
+ * If we configure each disk in the slice to be from a different enclosure,
  * we can tolerate the failure of any enclosure. And yet, when resilvering
  * the failure of any disk, all enclosures will take part in it since all
  * of them will have some amount of blocks from the parity groups this disk
@@ -661,7 +661,7 @@ vdev_draid_get_perm(vdev_draid_config_t *vdc, uint64_t pindex,
 {
 	uint64_t n = vdc->vdc_width / vdc->vdc_children;
 	uint64_t ncols = vdc->vdc_children;
-	uint64_t nperms = vdc->vdc_nperms / n * n;
+	uint64_t nperms = (vdc->vdc_nperms / n) * n;
 	uint64_t poff = pindex % (nperms * ncols);
 
 	ASSERT3P(nperms, >=, ncols * n);
@@ -675,7 +675,7 @@ vdev_draid_permute_id(vdev_draid_config_t *vdc,
     uint8_t *base, uint64_t iter, uint64_t index)
 {
 	if (vdc->vdc_width > vdc->vdc_children) {
-		uint64_t off = iter / vdc->vdc_children * vdc->vdc_children;
+		uint64_t off = (iter / vdc->vdc_children) * vdc->vdc_children;
 		return (base[(index + iter) % vdc->vdc_children + off]);
 	}
 
