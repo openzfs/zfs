@@ -9830,6 +9830,7 @@
     <function-decl name='zpool_dump_ddt' mangled-name='zpool_dump_ddt' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_dump_ddt'>
       <parameter type-id='dfe59052' name='dds_total'/>
       <parameter type-id='932720f8' name='ddh'/>
+      <parameter type-id='c19b74c3' name='parsable'/>
       <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='fsleep' mangled-name='fsleep' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='fsleep'>
