@@ -6895,6 +6895,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
 
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DRAID_FAIL_DOMAINS) &&
+	    draid_nfgroup > 0)
+		return (SET_ERROR(ENOTSUP));
+
 	for (int i = 0; i < draid_nfgroup; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID_FAIL_DOMAINS, tx);
 
@@ -7642,6 +7646,10 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 
 		dsl_sync_task_nowait(spa->spa_dsl_pool, spa_draid_feature_incr,
 		    (void *)(uintptr_t)ndraid, tx);
+
+		if (!spa_feature_is_enabled(spa,
+		    SPA_FEATURE_DRAID_FAIL_DOMAINS) && draid_nfgroup > 0)
+			return (spa_vdev_exit(spa, vd, txg, ENOTSUP));
 
 		if (draid_nfgroup > 0)
 			dsl_sync_task_nowait(spa->spa_dsl_pool,
