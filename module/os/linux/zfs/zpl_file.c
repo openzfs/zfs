@@ -43,6 +43,9 @@
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 #include <linux/writeback.h>
 #endif
+#ifdef HAVE_FILELOCK_HEADER
+#include <linux/filelock.h>
+#endif
 
 /*
  * When using fallocate(2) to preallocate space, inflate the requested
