@@ -40,6 +40,7 @@
 #include <sys/zfs_project.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
+#include <linux/filelock.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
 #include <linux/writeback.h>
 #endif
@@ -1245,6 +1246,7 @@ const struct file_operations zpl_file_operations = {
 	.mmap		= zpl_mmap,
 	.fsync		= zpl_fsync,
 	.fallocate	= zpl_fallocate,
+	.setlease	= generic_setlease,
 	.copy_file_range	= zpl_copy_file_range,
 #ifdef HAVE_VFS_CLONE_FILE_RANGE
 	.clone_file_range	= zpl_clone_file_range,
