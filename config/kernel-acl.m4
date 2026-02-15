@@ -23,6 +23,35 @@ AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T], [
 ])
 
 dnl #
+dnl # 7.0 API change
+dnl # posix_acl_to_xattr() now allocates and returns the value.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_TO_XATTR_ALLOC], [
+	ZFS_LINUX_TEST_SRC([posix_acl_to_xattr_alloc], [
+		#include <linux/fs.h>
+		#include <linux/posix_acl_xattr.h>
+	], [
+		struct user_namespace *ns = NULL;
+		struct posix_acl *acl = NULL;
+		size_t size = 0;
+		gfp_t gfp = 0;
+		void *xattr = NULL;
+		xattr = posix_acl_to_xattr(ns, acl, &size, gfp);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_TO_XATTR_ALLOC], [
+	AC_MSG_CHECKING([whether posix_acl_to_xattr() allocates its result]);
+	ZFS_LINUX_TEST_RESULT([posix_acl_to_xattr_alloc], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_POSIX_ACL_TO_XATTR_ALLOC, 1,
+		    [posix_acl_to_xattr() allocates its result])
+	], [
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 3.1 API change,
 dnl # Check if inode_operations contains the function get_acl
 dnl #
@@ -174,12 +203,14 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ACL], [
 	ZFS_AC_KERNEL_SRC_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
+	ZFS_AC_KERNEL_SRC_POSIX_ACL_TO_XATTR_ALLOC
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_ACL], [
 	ZFS_AC_KERNEL_POSIX_ACL_EQUIV_MODE_WANTS_UMODE_T
+	ZFS_AC_KERNEL_POSIX_ACL_TO_XATTR_ALLOC
 	ZFS_AC_KERNEL_INODE_OPERATIONS_GET_ACL
 	ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL
 ])
