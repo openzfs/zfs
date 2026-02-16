@@ -1470,3 +1470,13 @@ out:
 
 	return (ret);
 }
+
+int
+zfs_mount_info(zfs_handle_t *zhp)
+{
+	prop_changelist_t *clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT,
+            CL_GATHER_ITER_MOUNTED, 0);
+        changelist_free(clp);
+
+	return (0);
+}

@@ -447,8 +447,10 @@ changelist_add_mounted(zfs_handle_t *zhp, void *data)
 		clp->cl_haszonedchild = B_TRUE;
 
 	if (avl_find(&clp->cl_tree, cn, &idx) == NULL) {
+		printf("changelist_add_mounted: adding %s\n", zfs_get_name(zhp));
 		avl_insert(&clp->cl_tree, cn, idx);
 	} else {
+		printf("changelist_add_mounted: already have %s, skipping\n", zfs_get_name(zhp));
 		free(cn);
 		zfs_close(zhp);
 	}

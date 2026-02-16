@@ -134,6 +134,8 @@ static int zfs_do_zone(int argc, char **argv);
 static int zfs_do_unzone(int argc, char **argv);
 #endif
 
+static int zfs_do_mountinfo(int argc, char **argv);
+
 static int zfs_do_help(int argc, char **argv);
 
 enum zfs_options {
@@ -200,6 +202,7 @@ typedef enum {
 	HELP_WAIT,
 	HELP_ZONE,
 	HELP_UNZONE,
+	HELP_MOUNTINFO,
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -279,6 +282,9 @@ static zfs_command_t command_table[] = {
 	{ "zone",	zfs_do_zone,		HELP_ZONE		},
 	{ "unzone",	zfs_do_unzone,		HELP_UNZONE		},
 #endif
+
+	{ NULL },
+	{ "mountinfo",	zfs_do_mountinfo,	HELP_MOUNTINFO		},
 };
 
 #define	NCOMMAND	(sizeof (command_table) / sizeof (command_table[0]))
@@ -451,6 +457,8 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tzone <nsfile> <filesystem>\n"));
 	case HELP_UNZONE:
 		return (gettext("\tunzone <nsfile> <filesystem>\n"));
+	case HELP_MOUNTINFO:
+		return (gettext("\tmountinfo <filesystem>\n"));
 	default:
 		__builtin_unreachable();
 	}
@@ -9513,3 +9521,36 @@ zfs_do_unjail(int argc, char **argv)
 	return (zfs_do_jail_impl(argc, argv, B_FALSE));
 }
 #endif
+
+static int
+zfs_do_mountinfo(int argc, char **argv)
+{
+	zfs_handle_t *zhp;
+	int ret = 0;
+
+	if (argc < 2) {
+		(void) fprintf(stderr, gettext("missing argument(s)\n"));
+		usage(B_FALSE);
+	}
+
+	zhp = zfs_open(g_zfs, argv[1], ZFS_TYPE_FILESYSTEM);
+	if (zhp == NULL)
+		return (1);
+
+	printf("dataset: %s\n", zfs_get_name(zhp));
+
+	char *where = NULL;
+	if (zfs_is_mounted(zhp, &where)) {
+		printf("mounted: yes\n");
+		printf("mounted at: %s\n", where);
+		free(where);
+	}
+	else {
+		printf("mounted: no\n");
+	}
+
+	zfs_mount_info(zhp);
+
+	zfs_close(zhp);
+	return (ret);
+}

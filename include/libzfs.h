@@ -965,6 +965,7 @@ _LIBZFS_H int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 _LIBZFS_H int zfs_unmount(zfs_handle_t *, const char *, int);
 _LIBZFS_H int zfs_unmountall(zfs_handle_t *, int);
 _LIBZFS_H int zfs_mount_delegation_check(void);
+_LIBZFS_H int zfs_mount_info(zfs_handle_t *);
 
 #if defined(__linux__) || defined(__APPLE__)
 _LIBZFS_H int zfs_parse_mount_options(const char *mntopts,
