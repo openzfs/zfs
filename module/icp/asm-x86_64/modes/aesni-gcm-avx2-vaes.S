@@ -159,42 +159,6 @@ ENDBR
 
 .cfi_endproc
 SET_SIZE(gcm_init_vpclmulqdq_avx2)
-ENTRY_ALIGN(gcm_gmult_vpclmulqdq_avx2, 32)
-.cfi_startproc
-
-ENDBR
-
-
-
-	vmovdqu	(%rdi),%xmm0
-	vmovdqu	.Lbswap_mask(%rip),%xmm1
-	vmovdqu	128-16(%rsi),%xmm2
-	vmovdqu	.Lgfpoly(%rip),%xmm3
-	vpshufb	%xmm1,%xmm0,%xmm0
-
-	vpclmulqdq	$0x00,%xmm2,%xmm0,%xmm4
-	vpclmulqdq	$0x01,%xmm2,%xmm0,%xmm5
-	vpclmulqdq	$0x10,%xmm2,%xmm0,%xmm6
-	vpxor	%xmm6,%xmm5,%xmm5
-	vpclmulqdq	$0x01,%xmm4,%xmm3,%xmm6
-	vpshufd	$0x4e,%xmm4,%xmm4
-	vpxor	%xmm4,%xmm5,%xmm5
-	vpxor	%xmm6,%xmm5,%xmm5
-	vpclmulqdq	$0x11,%xmm2,%xmm0,%xmm0
-	vpclmulqdq	$0x01,%xmm5,%xmm3,%xmm4
-	vpshufd	$0x4e,%xmm5,%xmm5
-	vpxor	%xmm5,%xmm0,%xmm0
-	vpxor	%xmm4,%xmm0,%xmm0
-
-
-	vpshufb	%xmm1,%xmm0,%xmm0
-	vmovdqu	%xmm0,(%rdi)
-
-
-	RET
-
-.cfi_endproc
-SET_SIZE(gcm_gmult_vpclmulqdq_avx2)
 ENTRY_ALIGN(gcm_ghash_vpclmulqdq_avx2, 32)
 .cfi_startproc
 
