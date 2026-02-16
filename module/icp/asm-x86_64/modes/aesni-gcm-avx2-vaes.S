@@ -7,6 +7,7 @@
 
 #define _ASM
 #include <sys/asm_linkage.h>
+#include <modes/gcm_asm_rename_funcs.h>
 
 /* Windows userland links with OpenSSL */
 #if !defined (_WIN32) || defined (_KERNEL)
