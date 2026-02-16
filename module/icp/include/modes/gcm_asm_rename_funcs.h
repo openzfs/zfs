@@ -33,7 +33,6 @@
 
 /* module/icp/asm-x86_64/modes/aesni-gcm-avx2-vaes.S */
 #define	gcm_init_vpclmulqdq_avx2	icp_gcm_init_vpclmulqdq_avx2
-#define	gcm_gmult_vpclmulqdq_avx2	icp_gcm_gmult_vpclmulqdq_avx2
 #define	gcm_ghash_vpclmulqdq_avx2	icp_gcm_ghash_vpclmulqdq_avx2
 #define	aes_gcm_enc_update_vaes_avx2	icp_aes_gcm_enc_update_vaes_avx2
 #define	aes_gcm_dec_update_vaes_avx2	icp_aes_gcm_dec_update_vaes_avx2
