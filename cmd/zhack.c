@@ -124,7 +124,12 @@ usage(void)
 	    "    mos scan <pool>\n"
 	    "        identify reclaimable leaked MOS objects\n"
 	    "    mos reclaim [-w] <pool>\n"
-	    "        reclaim safe leaked MOS objects; dry-run unless -w\n");
+	    "        reclaim safe leaked MOS objects; dry-run unless -w\n"
+	    "    mos leak [-w] [-c count] [-s count] <pool>\n"
+	    "        create leaked MOS objects for testing\n"
+	    "        -c <count> leaked DSL clone maps to create (default 1)\n"
+	    "        -s <count> leaked SPA space maps to create (default 1)\n"
+	    "        dry-run unless -w\n");
 	exit(1);
 }
 
@@ -1176,6 +1181,35 @@ zhack_leak_reclaim_sync(void *arg, dmu_tx_t *tx)
 	    (u_longlong_t)report->zlr_spacemaps.zv_len);
 }
 
+typedef struct zhack_mos_leak_arg {
+	uint64_t zli_clone_count;
+	uint64_t zli_spacemap_count;
+	uint64_t *zli_clone_objs;
+	uint64_t *zli_spacemap_objs;
+} zhack_mos_leak_arg_t;
+
+static void
+zhack_mos_leak_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_mos_leak_arg_t *inject = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = spa->spa_meta_objset;
+
+	for (uint64_t i = 0; i < inject->zli_clone_count; i++) {
+		inject->zli_clone_objs[i] = zap_create(mos, DMU_OT_DSL_CLONES,
+		    DMU_OT_NONE, 0, tx);
+	}
+	for (uint64_t i = 0; i < inject->zli_spacemap_count; i++) {
+		inject->zli_spacemap_objs[i] = space_map_alloc(mos,
+		    SPA_MINBLOCKSIZE, tx);
+	}
+
+	spa_history_log_internal(spa, "zhack mos leak", tx,
+	    "clones=%llu spacemaps=%llu",
+	    (u_longlong_t)inject->zli_clone_count,
+	    (u_longlong_t)inject->zli_spacemap_count);
+}
+
 static int
 zhack_do_mos_scan(int argc, char **argv)
 {
@@ -1271,6 +1305,123 @@ zhack_do_mos_reclaim(int argc, char **argv)
 }
 
 static int
+zhack_do_mos_leak(int argc, char **argv)
+{
+	zhack_mos_leak_arg_t inject = {
+		.zli_clone_count = 1,
+		.zli_spacemap_count = 1,
+		.zli_clone_objs = NULL,
+		.zli_spacemap_objs = NULL
+	};
+	spa_t *spa;
+	char *target, *tmp;
+	int c;
+	boolean_t do_write = B_FALSE;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+c:s:w")) != -1) {
+		switch (c) {
+		case 'c':
+			if (optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid clone "
+				    "count: %s\n", optarg);
+				usage();
+			}
+			inject.zli_clone_count = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0') {
+				(void) fprintf(stderr, "error: invalid clone "
+				    "count: %s\n", optarg);
+				usage();
+			}
+			break;
+		case 's':
+			if (optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid space "
+				    "map count: %s\n", optarg);
+				usage();
+			}
+			inject.zli_spacemap_count = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0') {
+				(void) fprintf(stderr, "error: invalid space "
+				    "map count: %s\n", optarg);
+				usage();
+			}
+			break;
+		case 'w':
+			do_write = B_TRUE;
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	if (inject.zli_clone_count == 0 && inject.zli_spacemap_count == 0) {
+		(void) printf("nothing requested to leak\n");
+		return (0);
+	}
+
+	if (!do_write) {
+		zhack_spa_open(target, B_TRUE, FTAG, &spa);
+		spa_close(spa, FTAG);
+		(void) printf("dry run: would create %llu leaked DSL clone "
+		    "map(s) and %llu leaked SPA space map(s)\n",
+		    (u_longlong_t)inject.zli_clone_count,
+		    (u_longlong_t)inject.zli_spacemap_count);
+		(void) printf("(re-run with -w to apply)\n");
+		return (0);
+	}
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	if (inject.zli_clone_count != 0) {
+		inject.zli_clone_objs = calloc(inject.zli_clone_count,
+		    sizeof (*inject.zli_clone_objs));
+		if (inject.zli_clone_objs == NULL)
+			fatal(spa, FTAG, "out of memory");
+	}
+	if (inject.zli_spacemap_count != 0) {
+		inject.zli_spacemap_objs = calloc(inject.zli_spacemap_count,
+		    sizeof (*inject.zli_spacemap_objs));
+		if (inject.zli_spacemap_objs == NULL)
+			fatal(spa, FTAG, "out of memory");
+	}
+
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_mos_leak_sync,
+	    &inject, 5, ZFS_SPACE_CHECK_NORMAL));
+
+	for (uint64_t i = 0; i < inject.zli_clone_count; i++) {
+		(void) printf("leaked: object %" PRIu64
+		    " type=DSL dir clones entries=0\n",
+		    inject.zli_clone_objs[i]);
+	}
+	for (uint64_t i = 0; i < inject.zli_spacemap_count; i++) {
+		(void) printf("leaked: object %" PRIu64
+		    " type=SPA space map smp_alloc=0x0 smp_length=0x0\n",
+		    inject.zli_spacemap_objs[i]);
+	}
+	(void) printf("leaked summary: clones=%llu spacemaps=%llu "
+	    "total=%llu\n",
+	    (u_longlong_t)inject.zli_clone_count,
+	    (u_longlong_t)inject.zli_spacemap_count,
+	    (u_longlong_t)(inject.zli_clone_count +
+	    inject.zli_spacemap_count));
+
+	free(inject.zli_clone_objs);
+	free(inject.zli_spacemap_objs);
+	spa_close(spa, FTAG);
+	return (0);
+}
+
+static int
 zhack_do_mos(int argc, char **argv)
 {
 	char *subcommand;
@@ -1288,6 +1439,8 @@ zhack_do_mos(int argc, char **argv)
 		return (zhack_do_mos_scan(argc, argv));
 	} else if (strcmp(subcommand, "reclaim") == 0) {
 		return (zhack_do_mos_reclaim(argc, argv));
+	} else if (strcmp(subcommand, "leak") == 0) {
+		return (zhack_do_mos_leak(argc, argv));
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
