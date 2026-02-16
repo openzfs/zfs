@@ -1449,7 +1449,7 @@ dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
 }
 
 static uint64_t
-get_dtl_refcount(vdev_t *vd)
+get_dtl_refcount(vdev_t *vd, zfs_range_tree_t *spacemap_objs)
 {
 	uint64_t refcount = 0;
 
@@ -1457,18 +1457,25 @@ get_dtl_refcount(vdev_t *vd)
 		space_map_t *sm = vd->vdev_dtl_sm;
 
 		if (sm != NULL &&
-		    sm->sm_dbuf->db_size == sizeof (space_map_phys_t))
+		    sm->sm_dbuf->db_size == sizeof (space_map_phys_t)) {
+			if (spacemap_objs != NULL &&
+			    !zfs_range_tree_contains(spacemap_objs,
+			    space_map_object(sm), 1)) {
+				zfs_range_tree_add(spacemap_objs,
+				    space_map_object(sm), 1);
+			}
 			return (1);
+		}
 		return (0);
 	}
 
 	for (unsigned c = 0; c < vd->vdev_children; c++)
-		refcount += get_dtl_refcount(vd->vdev_child[c]);
+		refcount += get_dtl_refcount(vd->vdev_child[c], spacemap_objs);
 	return (refcount);
 }
 
 static uint64_t
-get_metaslab_refcount(vdev_t *vd)
+get_metaslab_refcount(vdev_t *vd, zfs_range_tree_t *spacemap_objs)
 {
 	uint64_t refcount = 0;
 
@@ -1477,18 +1484,26 @@ get_metaslab_refcount(vdev_t *vd)
 			space_map_t *sm = vd->vdev_ms[m]->ms_sm;
 
 			if (sm != NULL &&
-			    sm->sm_dbuf->db_size == sizeof (space_map_phys_t))
+			    sm->sm_dbuf->db_size == sizeof (space_map_phys_t)) {
+				if (spacemap_objs != NULL &&
+				    !zfs_range_tree_contains(spacemap_objs,
+				    space_map_object(sm), 1)) {
+					zfs_range_tree_add(spacemap_objs,
+					    space_map_object(sm), 1);
+				}
 				refcount++;
+			}
 		}
 	}
 	for (unsigned c = 0; c < vd->vdev_children; c++)
-		refcount += get_metaslab_refcount(vd->vdev_child[c]);
+		refcount += get_metaslab_refcount(vd->vdev_child[c],
+		    spacemap_objs);
 
 	return (refcount);
 }
 
 static uint64_t
-get_obsolete_refcount(vdev_t *vd)
+get_obsolete_refcount(vdev_t *vd, zfs_range_tree_t *spacemap_objs)
 {
 	uint64_t obsolete_sm_object;
 	uint64_t refcount = 0;
@@ -1499,6 +1514,12 @@ get_obsolete_refcount(vdev_t *vd)
 		VERIFY0(dmu_object_info(vd->vdev_spa->spa_meta_objset,
 		    obsolete_sm_object, &doi));
 		if (doi.doi_bonus_size == sizeof (space_map_phys_t)) {
+			if (spacemap_objs != NULL &&
+			    !zfs_range_tree_contains(spacemap_objs,
+			    obsolete_sm_object, 1)) {
+				zfs_range_tree_add(spacemap_objs,
+				    obsolete_sm_object, 1);
+			}
 			refcount++;
 		}
 	} else {
@@ -1506,14 +1527,16 @@ get_obsolete_refcount(vdev_t *vd)
 		ASSERT0(obsolete_sm_object);
 	}
 	for (unsigned c = 0; c < vd->vdev_children; c++) {
-		refcount += get_obsolete_refcount(vd->vdev_child[c]);
+		refcount += get_obsolete_refcount(vd->vdev_child[c],
+		    spacemap_objs);
 	}
 
 	return (refcount);
 }
 
 static uint64_t
-get_prev_obsolete_spacemap_refcount(spa_t *spa)
+get_prev_obsolete_spacemap_refcount(spa_t *spa,
+    zfs_range_tree_t *spacemap_objs)
 {
 	uint64_t prev_obj =
 	    spa->spa_condensing_indirect_phys.scip_prev_obsolete_sm_object;
@@ -1521,6 +1544,12 @@ get_prev_obsolete_spacemap_refcount(spa_t *spa)
 		dmu_object_info_t doi;
 		VERIFY0(dmu_object_info(spa->spa_meta_objset, prev_obj, &doi));
 		if (doi.doi_bonus_size == sizeof (space_map_phys_t)) {
+			if (spacemap_objs != NULL &&
+			    !zfs_range_tree_contains(spacemap_objs,
+			    prev_obj, 1)) {
+				zfs_range_tree_add(spacemap_objs,
+				    prev_obj, 1);
+			}
 			return (1);
 		}
 	}
@@ -1528,25 +1557,117 @@ get_prev_obsolete_spacemap_refcount(spa_t *spa)
 }
 
 static uint64_t
-get_checkpoint_refcount(vdev_t *vd)
+get_checkpoint_refcount(vdev_t *vd, zfs_range_tree_t *spacemap_objs)
 {
 	uint64_t refcount = 0;
 
-	if (vd->vdev_top == vd && vd->vdev_top_zap != 0 &&
-	    zap_contains(spa_meta_objset(vd->vdev_spa),
-	    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM) == 0)
-		refcount++;
+	if (vd->vdev_top == vd && vd->vdev_top_zap != 0) {
+		uint64_t checkpoint_sm_obj;
+		int error = zap_lookup(spa_meta_objset(vd->vdev_spa),
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM,
+		    sizeof (checkpoint_sm_obj), 1, &checkpoint_sm_obj);
+		if (error == 0) {
+			if (spacemap_objs != NULL &&
+			    !zfs_range_tree_contains(spacemap_objs,
+			    checkpoint_sm_obj, 1)) {
+				zfs_range_tree_add(spacemap_objs,
+				    checkpoint_sm_obj, 1);
+			}
+			refcount++;
+		}
+	}
 
 	for (uint64_t c = 0; c < vd->vdev_children; c++)
-		refcount += get_checkpoint_refcount(vd->vdev_child[c]);
+		refcount += get_checkpoint_refcount(vd->vdev_child[c],
+		    spacemap_objs);
 
 	return (refcount);
 }
 
 static uint64_t
-get_log_spacemap_refcount(spa_t *spa)
+get_log_spacemap_refcount(spa_t *spa, zfs_range_tree_t *spacemap_objs)
 {
-	return (avl_numnodes(&spa->spa_sm_logs_by_txg));
+	uint64_t refcount = 0;
+
+	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
+	    sls != NULL;
+	    sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
+		if (spacemap_objs != NULL &&
+		    !zfs_range_tree_contains(spacemap_objs, sls->sls_sm_obj,
+		    1)) {
+			zfs_range_tree_add(spacemap_objs, sls->sls_sm_obj, 1);
+		}
+		refcount++;
+	}
+
+	return (refcount);
+}
+
+static void
+dump_spacemap_refcount_mismatch_details(spa_t *spa,
+    uint64_t expected_refcount, uint64_t actual_refcount,
+    zfs_range_tree_t *spacemap_objs)
+{
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t total_histogram_sm = 0;
+	uint64_t unreferenced_histogram_sm = 0;
+	uint64_t object = 0;
+	boolean_t printed_unreferenced_header = B_FALSE;
+
+	(void) printf("\tdelta(expected-actual)=%lld\n",
+	    (longlong_t)expected_refcount - (longlong_t)actual_refcount);
+
+	while (dmu_object_next(mos, &object, B_FALSE, 0) == 0) {
+		dmu_object_info_t doi;
+		VERIFY0(dmu_object_info(mos, object, &doi));
+		if (doi.doi_type != DMU_OT_SPACE_MAP ||
+		    doi.doi_bonus_size != sizeof (space_map_phys_t))
+			continue;
+
+		total_histogram_sm++;
+		if (zfs_range_tree_contains(spacemap_objs, object, 1))
+			continue;
+
+		unreferenced_histogram_sm++;
+		if (!printed_unreferenced_header) {
+			(void) printf(
+			    "\t  unreferenced histogram space maps:\n");
+			printed_unreferenced_header = B_TRUE;
+		}
+
+		dmu_buf_t *db = NULL;
+		int error = dmu_bonus_hold(mos, object, FTAG, &db);
+		if (error != 0) {
+			(void) printf("\t    object %llu "
+			    "(bonus hold error: %s)\n",
+			    (u_longlong_t)object, strerror(error));
+			continue;
+		}
+
+		space_map_phys_t *smp = db->db_data;
+		(void) printf("\t    object %llu smp_alloc=0x%llx "
+		    "smp_length=0x%llx\n", (u_longlong_t)object,
+		    (u_longlong_t)smp->smp_alloc,
+		    (u_longlong_t)smp->smp_length);
+		dmu_buf_rele(db, FTAG);
+	}
+
+	(void) printf("\t  allocated histogram space maps in MOS=%llu\n",
+	    (u_longlong_t)total_histogram_sm);
+	if (expected_refcount != total_histogram_sm) {
+		(void) printf("\t  WARNING: feature refcount disagrees "
+		    "with MOS scan by %lld\n",
+		    (longlong_t)expected_refcount -
+		    (longlong_t)total_histogram_sm);
+	}
+	if (unreferenced_histogram_sm == 0) {
+		(void) printf(
+		    "\t  no unreferenced histogram space maps found\n");
+	} else {
+		(void) printf("\t  total unreferenced histogram space "
+		    "maps=%llu\n",
+		    (u_longlong_t)unreferenced_histogram_sm);
+	}
 }
 
 static int
@@ -1556,16 +1677,23 @@ verify_spacemap_refcounts(spa_t *spa)
 	uint64_t actual_refcount = 0;
 	uint64_t dtl_refcount, metaslab_refcount, obsolete_refcount,
 	    prev_obsolete_refcount, checkpoint_refcount, log_spacemap_refcount;
+	zfs_range_tree_t *spacemap_objs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0, 0,
+	    "verify_spacemap_refcounts:spacemap_objs");
 
 	(void) feature_get_refcount(spa,
 	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM],
 	    &expected_refcount);
-	dtl_refcount = get_dtl_refcount(spa->spa_root_vdev);
-	metaslab_refcount = get_metaslab_refcount(spa->spa_root_vdev);
-	obsolete_refcount = get_obsolete_refcount(spa->spa_root_vdev);
-	prev_obsolete_refcount = get_prev_obsolete_spacemap_refcount(spa);
-	checkpoint_refcount = get_checkpoint_refcount(spa->spa_root_vdev);
-	log_spacemap_refcount = get_log_spacemap_refcount(spa);
+	dtl_refcount = get_dtl_refcount(spa->spa_root_vdev, spacemap_objs);
+	metaslab_refcount = get_metaslab_refcount(spa->spa_root_vdev,
+	    spacemap_objs);
+	obsolete_refcount = get_obsolete_refcount(spa->spa_root_vdev,
+	    spacemap_objs);
+	prev_obsolete_refcount = get_prev_obsolete_spacemap_refcount(spa,
+	    spacemap_objs);
+	checkpoint_refcount = get_checkpoint_refcount(spa->spa_root_vdev,
+	    spacemap_objs);
+	log_spacemap_refcount = get_log_spacemap_refcount(spa, spacemap_objs);
 	actual_refcount = dtl_refcount + metaslab_refcount +
 	    obsolete_refcount + prev_obsolete_refcount +
 	    checkpoint_refcount + log_spacemap_refcount;
@@ -1584,8 +1712,15 @@ verify_spacemap_refcounts(spa_t *spa)
 		    (u_longlong_t)prev_obsolete_refcount,
 		    (u_longlong_t)checkpoint_refcount,
 		    (u_longlong_t)log_spacemap_refcount);
+		dump_spacemap_refcount_mismatch_details(spa, expected_refcount,
+		    actual_refcount, spacemap_objs);
+		zfs_range_tree_vacate(spacemap_objs, NULL, NULL);
+		zfs_range_tree_destroy(spacemap_objs);
 		return (2);
 	}
+
+	zfs_range_tree_vacate(spacemap_objs, NULL, NULL);
+	zfs_range_tree_destroy(spacemap_objs);
 	return (0);
 }
 
@@ -8800,6 +8935,44 @@ mos_obj_refd_multiple(uint64_t obj)
 }
 
 static void
+dump_mos_leaked_object_details(objset_t *mos, uint64_t object,
+    const dmu_object_info_t *doi)
+{
+	if (dump_opt['d'] < 2)
+		return;
+
+	if (doi->doi_type == DMU_OT_DSL_CLONES) {
+		uint64_t entries = 0;
+		int error = zap_count(mos, object, &entries);
+		if (error == 0) {
+			(void) printf("\tleak detail: clone entries=%llu\n",
+			    (u_longlong_t)entries);
+		} else {
+			(void) printf("\tleak detail: clone entry count "
+			    "failed: %s\n", strerror(error));
+		}
+		return;
+	}
+
+	if (doi->doi_type == DMU_OT_SPACE_MAP &&
+	    doi->doi_bonus_size == sizeof (space_map_phys_t)) {
+		dmu_buf_t *db = NULL;
+		int error = dmu_bonus_hold(mos, object, FTAG, &db);
+		if (error != 0) {
+			(void) printf("\tleak detail: space map bonus hold "
+			    "failed: %s\n", strerror(error));
+			return;
+		}
+
+		space_map_phys_t *smp = db->db_data;
+		(void) printf("\tleak detail: smp_alloc=0x%llx "
+		    "smp_length=0x%llx\n", (u_longlong_t)smp->smp_alloc,
+		    (u_longlong_t)smp->smp_length);
+		dmu_buf_rele(db, FTAG);
+	}
+}
+
+static void
 mos_leak_vdev_top_zap(vdev_t *vd)
 {
 	uint64_t ms_flush_data_obj;
@@ -9009,6 +9182,8 @@ dump_mos_leaks(spa_t *spa)
 
 			(void) printf("MOS object %llu (%s) leaked\n",
 			    (u_longlong_t)object, name);
+			dump_mos_leaked_object_details(mos, object,
+			    &doi);
 			rv = 2;
 		}
 	}
