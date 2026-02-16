@@ -1135,6 +1135,7 @@ spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, const void *tag,
 	/* init the search key mapping */
 	search_km.km_dsobj = dsobj;
 
+	rw_enter(&spa->spa_keystore.sk_dk_lock, RW_READER);
 	rw_enter(&spa->spa_keystore.sk_km_lock, RW_READER);
 
 	/* remove the mapping from the tree */
@@ -1149,6 +1150,7 @@ spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, const void *tag,
 		zfs_refcount_add(&found_km->km_key->dck_holds, tag);
 
 	rw_exit(&spa->spa_keystore.sk_km_lock);
+	rw_exit(&spa->spa_keystore.sk_dk_lock);
 
 	if (dck_out != NULL)
 		*dck_out = found_km->km_key;
@@ -1156,6 +1158,7 @@ spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, const void *tag,
 
 error_unlock:
 	rw_exit(&spa->spa_keystore.sk_km_lock);
+	rw_exit(&spa->spa_keystore.sk_dk_lock);
 
 	if (dck_out != NULL)
 		*dck_out = NULL;
