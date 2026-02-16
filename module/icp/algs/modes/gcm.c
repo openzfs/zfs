@@ -34,6 +34,7 @@
 #include <modes/gcm_impl.h>
 #ifdef CAN_USE_GCM_ASM
 #include <aes/aes_impl.h>
+#include <modes/gcm_asm_rename_funcs.h>
 #endif
 
 #define	GHASH(c, d, t, o) \
