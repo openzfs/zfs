@@ -202,6 +202,30 @@ the candidate objects are freed in syncing context and the action is
 recorded in the pool history.
 The pool must be exported.
 .
+.It Xo
+.Nm zhack
+.Cm mosleak inject
+.Op Fl w
+.Op Fl c Ar count
+.Op Fl s Ar count
+.Ar pool
+.Xc
+Create synthetic leaked MOS objects for testing
+.Cm mosleak scan
+and
+.Cm mosleak reclaim
+on disposable pools.
+The
+.Fl c
+and
+.Fl s
+flags set the number of leaked DSL clone maps and leaked space maps to
+inject, one of each by default.
+Without
+.Fl w
+this is a dry run and no changes are made.
+The pool must be exported.
+.
 .El
 .
 .Sh GLOBAL OPTIONS
