@@ -13,7 +13,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd August 3, 2026
+.Dd August 9, 2026
 .Dt ZHACK 1
 .Os
 .
@@ -170,6 +170,37 @@ The
 flag forces the profile to apply even if the vdevs in the
 .Ar pool
 don't have the same number of metaslabs as the fragmentation profile.
+.
+.It Xo
+.Nm zhack
+.Cm mos scan
+.Ar pool
+.Xc
+Scan the pool MOS for leaked objects and report reclaim candidates.
+An object is a candidate only if it is both unreferenced and empty:
+a DSL dir clones ZAP with zero entries that no DSL directory references,
+or a space map object with no allocations that no DTL, metaslab,
+obsolete, checkpoint, or log space map consumer references.
+Unreferenced but non-empty objects are reported and skipped.
+This subcommand is read-only and works on imported pools.
+.
+.It Xo
+.Nm zhack
+.Cm mos reclaim
+.Op Fl w
+.Ar pool
+.Xc
+Reclaim the leaked MOS objects that
+.Cm mos scan
+identifies as candidates.
+Without
+.Fl w
+this is a dry run and no changes are made.
+With
+.Fl w
+the candidate objects are freed in syncing context and the action is
+recorded in the pool history.
+The pool must be exported.
 .
 .El
 .
