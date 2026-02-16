@@ -6370,9 +6370,9 @@ top:
 					abd = hdr_abd;
 				}
 
-				ASSERT(addr >= VDEV_LABEL_START_SIZE &&
+				ASSERT(addr >= VDEV_LABEL_START_SIZE(vd) &&
 				    addr + asize <= vd->vdev_psize -
-				    VDEV_LABEL_END_SIZE);
+				    VDEV_LABEL_END_SIZE(vd));
 
 				/*
 				 * l2arc read.  The SCL_L2ARC lock will be
@@ -9300,8 +9300,8 @@ top:
 				 * l2ad_evict.
 				 */
 				spa_config_exit(dev->l2ad_spa, SCL_L2ARC, dev);
-				vdev_trim_simple(vd,
-				    dev->l2ad_evict - VDEV_LABEL_START_SIZE,
+				vdev_trim_simple(vd, dev->l2ad_evict -
+				    VDEV_LABEL_START_SIZE(vd),
 				    taddr - dev->l2ad_evict);
 				spa_config_enter(dev->l2ad_spa, SCL_L2ARC, dev,
 				    RW_READER);
@@ -10327,8 +10327,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	/* leave extra size for an l2arc device header */
 	l2dhdr_asize = adddev->l2ad_dev_hdr_asize =
 	    MAX(sizeof (*adddev->l2ad_dev_hdr), 1 << vd->vdev_ashift);
-	adddev->l2ad_start = VDEV_LABEL_START_SIZE + l2dhdr_asize;
-	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
+	adddev->l2ad_start = VDEV_LABEL_START_SIZE(vd) + l2dhdr_asize;
+	adddev->l2ad_end = VDEV_LABEL_START_SIZE(vd) + vdev_get_min_asize(vd);
 	ASSERT3U(adddev->l2ad_start, <, adddev->l2ad_end);
 	adddev->l2ad_hand = adddev->l2ad_start;
 	adddev->l2ad_evict = adddev->l2ad_start;
@@ -10931,15 +10931,18 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 	const uint64_t		l2dhdr_asize = dev->l2ad_dev_hdr_asize;
 	abd_t 			*abd;
+	vdev_t			*vd = dev->l2ad_vdev;
+	uint64_t		offset = vd ? VDEV_LABEL_START_SIZE(vd) :
+	    VDEV_OLD_LABEL_START_SIZE;
 
 	guid = spa_guid(dev->l2ad_vdev->vdev_spa);
 
 	abd = abd_get_from_buf(l2dhdr, l2dhdr_asize);
 
-	err = zio_wait(zio_read_phys(NULL, dev->l2ad_vdev,
-	    VDEV_LABEL_START_SIZE, l2dhdr_asize, abd,
-	    ZIO_CHECKSUM_LABEL, NULL, NULL, ZIO_PRIORITY_SYNC_READ,
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
+	err = zio_wait(zio_read_phys(NULL, dev->l2ad_vdev, offset,
+	    l2dhdr_asize, abd, ZIO_CHECKSUM_LABEL, NULL, NULL,
+	    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
 	    ZIO_FLAG_SPECULATIVE, B_FALSE));
 
 	abd_free(abd);
@@ -11292,6 +11295,9 @@ l2arc_dev_hdr_update(l2arc_dev_t *dev)
 	const uint64_t		l2dhdr_asize = dev->l2ad_dev_hdr_asize;
 	abd_t			*abd;
 	int			err;
+	vdev_t			*vd = dev->l2ad_vdev;
+	uint64_t		offset = vd ? VDEV_LABEL_START_SIZE(vd) :
+	    VDEV_OLD_LABEL_START_SIZE;
 
 	VERIFY(spa_config_held(dev->l2ad_spa, SCL_STATE_ALL, RW_READER));
 
@@ -11314,8 +11320,8 @@ l2arc_dev_hdr_update(l2arc_dev_t *dev)
 	abd = abd_get_from_buf(l2dhdr, l2dhdr_asize);
 
 	err = zio_wait(zio_write_phys(NULL, dev->l2ad_vdev,
-	    VDEV_LABEL_START_SIZE, l2dhdr_asize, abd, ZIO_CHECKSUM_LABEL, NULL,
-	    NULL, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE));
+	    offset, l2dhdr_asize, abd, ZIO_CHECKSUM_LABEL, NULL, NULL,
+	    ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE));
 
 	abd_free(abd);
 
