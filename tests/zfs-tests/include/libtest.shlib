@@ -30,6 +30,7 @@
 # Copyright (c) 2017, Open-E Inc. All rights reserved.
 # Copyright (c) 2021, The FreeBSD Foundation.
 # Copyright (c) 2025, Klara, Inc.
+# Copyright (c) 2026, TrueNAS.
 # Use is subject to license terms.
 #
 
@@ -3951,18 +3952,45 @@ function pop_coredump_pattern
 #
 function get_same_blocks # dataset1 file1 dataset2 file2 [key]
 {
-	typeset KEY=$5
-	if [ ${#KEY} -gt 0 ]; then
-		KEY="--key=$KEY"
+	typeset ds1=$1
+	typeset file1=$2
+	typeset ds2=$3
+	typeset file2=$4
+
+	typeset key=$5
+	typeset keyarg=
+	if [ ${#key} -gt 0 ]; then
+		keyarg="--key=$key"
 	fi
+
+	# this is usually called as $(get_same_blocks ...), and so expected
+	# to put its result on stdout, and usually the caller is not watching
+	# for failure. this makes things a little tricky to fail properly if
+	# zdb fails or crashes, as we end up returning an empty string, which
+	# is a valid return (no blocks the same)
+	#
+	# to get around this, we check zdb's return and echo a dummy value
+	# before returning failure. this will not match whatever the caller
+	# is checking for. if they do call it with log_must, then they get
+	# a failure as expected.
+
 	typeset zdbout1=$(mktemp)
 	typeset zdbout2=$(mktemp)
-	zdb $KEY -vvvvv $1 -O $2 | \
-	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout1
-	zdb $KEY -vvvvv $3 -O $4 | \
-	    awk '/ L0 / { print l++ " " $3 " " $7 }' > $zdbout2
-	echo $(sort -n $zdbout1 $zdbout2 | uniq -d | cut -f1 -d' ')
-	rm -f $zdbout1 $zdbout2
+	typeset awkout1=$(mktemp)
+	typeset awkout2=$(mktemp)
+
+	zdb $keyarg -vvvvv $ds1 -O $file1 > $zdbout1
+	[[ $? -ne 0 ]] && echo "zdb $ds1 failed" && return 1
+
+	zdb $keyarg -vvvvv $ds2 -O $file2 > $zdbout2
+	[[ $? -ne 0 ]] && echo "zdb $ds2 failed" && return 1
+
+	awk '/ L0 / { print l++ " " $3 " " $7 }' < $zdbout1 > $awkout1
+	awk '/ L0 / { print l++ " " $3 " " $7 }' < $zdbout2 > $awkout2
+
+	echo $(sort -n $awkout1 $awkout2 | uniq -d | cut -f1 -d' ')
+
+	rm -f $zdbout1 $zdbout2 $awkout1 $awkout2
 }
 
 . ${STF_SUITE}/include/kstat.shlib
