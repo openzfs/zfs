@@ -3481,15 +3481,26 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 			    path, strerror(err));
 			return (err);
 		}
-		dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
-		dsl_pool_rele(dmu_objset_pool(*osp), tag);
 
-		/* succeeds or dies */
-		zdb_load_key(*osp);
+		/*
+		 * Only try to load the key and unlock the dataset if it is
+		 * actually encrypted; otherwise we'll just crash. Just
+		 * ignore the -K switch entirely otherwise; it's useful to be
+		 * able to provide even if it's not needed.
+		 */
+		if ((*osp)->os_encrypted) {
+			dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
+			dsl_pool_rele(dmu_objset_pool(*osp), tag);
 
-		/* release it all */
-		dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
-		dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+			/* succeeds or dies */
+			zdb_load_key(*osp);
+
+			/* release it all */
+			dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
+			dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+		} else {
+			dmu_objset_rele(*osp, tag);
+		}
 	}
 
 	int ds_hold_flags = key_loaded ? DS_HOLD_FLAG_DECRYPT : 0;
