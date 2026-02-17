@@ -34,6 +34,7 @@
 #include <sys/nvpair.h>
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/mutex.h>
 #include <regex.h>
 
 #include <libzfs.h>
@@ -64,7 +65,7 @@ struct libzfs_handle {
 	 * lock only protects the integrity of the avl tree, and does
 	 * not protect the contents of the mnttab entries themselves.
 	 */
-	pthread_mutex_t libzfs_mnttab_cache_lock;
+	kmutex_t libzfs_mnttab_cache_lock;
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
 	boolean_t libzfs_prop_debug;
