@@ -36,6 +36,7 @@
  * Copyright (c) 2021 Toomas Soome <tsoome@me.com>
  * Copyright (c) 2023, 2024, Klara Inc.
  * Copyright (c) 2023, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <stdio.h>
@@ -3390,14 +3391,14 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 static char encroot[ZFS_MAX_DATASET_NAME_LEN];
 static boolean_t key_loaded = B_FALSE;
 
-static void
+static int
 zdb_load_key(objset_t *os)
 {
 	dsl_pool_t *dp;
 	dsl_dir_t *dd, *rdd;
 	uint8_t key[WRAPPING_KEY_LEN];
 	uint64_t rddobj;
-	int err;
+	int err = 0;
 
 	dp = spa_get_dsl(os->os_spa);
 	dd = os->os_dsl_dataset->ds_dir;
@@ -3410,9 +3411,13 @@ zdb_load_key(objset_t *os)
 	dsl_dir_rele(rdd, FTAG);
 
 	if (!zdb_derive_key(dd, key))
-		fatal("couldn't derive encryption key");
-
+		err = EINVAL;
 	dsl_pool_config_exit(dp, FTAG);
+
+	if (err != 0) {
+		fprintf(stderr, "couldn't derive encryption key\n");
+		return (err);
+	}
 
 	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_UNAVAILABLE);
 
@@ -3429,16 +3434,20 @@ zdb_load_key(objset_t *os)
 	dsl_crypto_params_free(dcp, (err != 0));
 	fnvlist_free(crypto_args);
 
-	if (err != 0)
-		fatal(
-		    "couldn't load encryption key for %s: %s",
+	if (err != 0) {
+		fprintf(stderr,
+		    "couldn't load encryption key for %s: %s\n",
 		    encroot, err == ZFS_ERR_CRYPTO_NOTSUP ?
 		    "crypto params not supported" : strerror(err));
+		return (err);
+	}
 
 	ASSERT3U(dsl_dataset_get_keystatus(dd), ==, ZFS_KEYSTATUS_AVAILABLE);
 
 	printf("Unlocked encryption root: %s\n", encroot);
 	key_loaded = B_TRUE;
+
+	return (0);
 }
 
 static void
@@ -3492,12 +3501,16 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 			dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
 			dsl_pool_rele(dmu_objset_pool(*osp), tag);
 
-			/* succeeds or dies */
-			zdb_load_key(*osp);
+			err = zdb_load_key(*osp);
 
 			/* release it all */
 			dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
 			dsl_dataset_rele(dmu_objset_ds(*osp), tag);
+
+			if (err != 0) {
+				*osp = NULL;
+				return (err);
+			}
 		} else {
 			dmu_objset_rele(*osp, tag);
 		}
@@ -3509,6 +3522,7 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	if (err != 0) {
 		(void) fprintf(stderr, "failed to hold dataset '%s': %s\n",
 		    path, strerror(err));
+		*osp = NULL;
 		return (err);
 	}
 	dsl_dataset_long_hold(dmu_objset_ds(*osp), tag);
