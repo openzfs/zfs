@@ -21,6 +21,7 @@
  */
 /*
  * Copyright (C) 2016 Gvozden Neskovic <neskovic@compeng.uni-frankfurt.de>.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -618,6 +619,19 @@ zfs_vpclmulqdq_available(void)
 {
 #if defined(X86_FEATURE_VPCLMULQDQ)
 	return (!!boot_cpu_has(X86_FEATURE_VPCLMULQDQ));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if SHA512 instructions are available
+ */
+static inline boolean_t
+zfs_sha512ext_available(void)
+{
+#if defined(X86_FEATURE_SHA512)
+	return (!!boot_cpu_has(X86_FEATURE_SHA512));
 #else
 	return (B_FALSE);
 #endif

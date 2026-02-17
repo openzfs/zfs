@@ -23,6 +23,7 @@
 /*
  * Copyright (c) 2006 Sun Microsystems, Inc.  All rights reserved.
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _LIBSPL_SYS_SIMD_H
@@ -104,7 +105,8 @@ typedef enum cpuid_inst_sets {
 	MOVBE,
 	SHA_NI,
 	VAES,
-	VPCLMULQDQ
+	VPCLMULQDQ,
+	SHA512EXT,
 } cpuid_inst_sets_t;
 
 /*
@@ -132,6 +134,7 @@ typedef struct cpuid_feature_desc {
 #define	_VAES_BIT		(1U << 9)
 #define	_VPCLMULQDQ_BIT		(1U << 10)
 #define	_SHA_NI_BIT		(1U << 29)
+#define	_SHA512_BIT		(1U << 0)
 
 /*
  * Descriptions of supported instruction sets
@@ -163,6 +166,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[SHA_NI]	= {7U, 0U, _SHA_NI_BIT,		EBX	},
 	[VAES]		= {7U, 0U, _VAES_BIT,		ECX	},
 	[VPCLMULQDQ]	= {7U, 0U, _VPCLMULQDQ_BIT,	ECX	},
+	[SHA512EXT]	= {7U, 1U, _SHA512_BIT,		EAX	},
 };
 
 /*
@@ -239,6 +243,7 @@ CPUID_FEATURE_CHECK(movbe, MOVBE);
 CPUID_FEATURE_CHECK(shani, SHA_NI);
 CPUID_FEATURE_CHECK(vaes, VAES);
 CPUID_FEATURE_CHECK(vpclmulqdq, VPCLMULQDQ);
+CPUID_FEATURE_CHECK(sha512ext, SHA512EXT);
 
 /*
  * Detect register set support
@@ -405,6 +410,15 @@ static inline boolean_t
 zfs_vpclmulqdq_available(void)
 {
 	return (__cpuid_has_vpclmulqdq());
+}
+
+/*
+ * Check if SHA512 instructions are available
+ */
+static inline boolean_t
+zfs_sha512ext_available(void)
+{
+	return (__cpuid_has_sha512ext());
 }
 
 /*
