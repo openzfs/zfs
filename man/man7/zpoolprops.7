@@ -27,9 +27,9 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
-.\" Copyright (c) 2023, Klara Inc.
+.\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd December 4, 2024
+.Dd February 20, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -49,7 +49,7 @@ For more information about user properties, see the
 section.
 .Pp
 The following are read-only properties:
-.Bl -tag -width "unsupported@guid"
+.Bl -tag -width "last_scrubbed_txg"
 .It Sy allocated
 Amount of storage used within the pool.
 See
@@ -169,6 +169,21 @@ Information about unsupported features that are enabled on the pool.
 See
 .Xr zpool-features 7
 for details.
+.It Sy usable
+Estimate of total storage pool size, adjusted for raidz parity overhead.
+The adjustment assumes a fixed 128KiB record size to compute a data-to-parity
+ratio.
+.Sy usable
+is a heuristic for allocation and should not be interpreted as an exact measure
+of usable space.
+.It Sy used
+Estimate of storage used within the storage pool, adjusted for raidz parity
+overhead.
+The adjustment assumes a fixed 128KiB record size to compute a data-to-parity
+ratio.
+.Sy used
+is a heuristic for allocation and should not be interpreted as an exact measure
+of used space.
 .El
 .Pp
 The space usage properties report actual physical space available to the
@@ -185,6 +200,118 @@ command does not.
 For non-full pools of a reasonable size, these effects should be invisible.
 For small pools, or pools that are close to being completely full, these
 discrepancies may become more noticeable.
+.Pp
+The following properties are read-only metrics for allocation classes:
+.Bl -ohang
+.It Xo Sy dedup_allocated , dedup_available , dedup_capacity ,
+.Sy dedup_expandsize , dedup_fragmentation , dedup_free , dedup_size ,
+.Sy dedup_usable , dedup_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy dedup
+metaslab allocator class.
+.Ed
+.It Xo Sy embedded_log_allocated , embedded_log_available ,
+.Sy embedded_log_capacity , embedded_log_expandsize ,
+.Sy embedded_log_fragmentation , embedded_log_free , embedded_log_size ,
+.Sy embedded_log_usable , embedded_log_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy embedded_log
+metaslab allocator class.
+.Ed
+.It Xo Sy log_allocated , log_available , log_capacity , log_expandsize ,
+.Sy log_fragmentation , log_free , log_size , log_usable , log_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy log
+metaslab allocator class.
+.Ed
+.It Xo Sy normal_allocated , normal_available , normal_capacity ,
+.Sy normal_expandsize , normal_fragmentation , normal_free , normal_size ,
+.Sy normal_usable , normal_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy normal
+metaslab allocator class.
+.Ed
+.It Xo Sy special_allocated , special_available , special_capacity ,
+.Sy special_expandsize , special_fragmentation , special_free , special_size ,
+.Sy special_usable , special_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy special
+metaslab allocator class.
+.Ed
+.It Xo Sy special_embedded_log_allocated , special_embedded_log_available ,
+.Sy special_embedded_log_capacity , special_embedded_log_expandsize ,
+.Sy special_embedded_log_fragmentation , special_embedded_log_free ,
+.Sy special_embedded_size , special_embedded_usable , special_embedded_used
+.Xc
+.Bd -ragged -offset Ds -compact
+Space usage properties of the pool's
+.Sy special_embedded_log
+metaslab allocator class.
+.Ed
+.El
+.Pp
+Each allocation class is described by these values:
+.Bl -tag -width "fragmentation"
+.It Sy allocated
+Amount of storage used within the allocation class.
+.It Sy available
+Estimate of free space available in the allocation class, adjusted for raidz
+parity overhead.
+The adjustment assumes a fixed 128KiB record size to compute a data-to-parity
+ratio.
+.Sy available
+is a heuristic for allocation and should not be interpreted as an exact measure
+of usable space.
+Actual usable space depends on a variety of factors such as dataset record size
+and compression.
+.It Sy capacity
+Percentage of allocation class space used.
+.It Sy expandsize
+Amount of uninitialized space within the allocation class that can be used to
+increase the capacity of the allocator.
+See the pool-wide
+.Sy expandsize
+property.
+.It Sy fragmentation
+The amount of free space fragmentation in the allocation class.
+See the pool-wide
+.Sy fragmentation
+property.
+.It Sy free
+The amount of free space available in the allocation class.
+This value is not adjusted for factors such as dataset record size, compression,
+or raidz parity overhead.
+See the pool-wide
+.Sy free
+property.
+.It Sy size
+Total size of the allocation class.
+.It Sy usable
+Estimate of total allocation class size, adjusted for raidz parity overhead.
+The adjustment assumes a fixed 128KiB record size to compute a data-to-parity
+ratio.
+.Sy usable
+is a heuristic for allocation and should not be interpreted as an exact measure
+of usable space.
+.It Sy used
+Estimate of storage used within the allocation class, adjusted for raidz parity
+overhead.
+The adjustment assumes a fixed 128KiB record size to compute a data-to-parity
+ratio.
+.Sy used
+is a heuristic for allocation and should not be interpreted as an exact measure
+of used space.
+.El
 .Pp
 The following property can be set at creation time and import time:
 .Bl -tag -width Ds

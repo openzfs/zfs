@@ -50,6 +50,39 @@ zpool_prop_get_table(void)
 	return (zpool_prop_table);
 }
 
+/* BEGIN CSTYLED */
+#define	zpool_mc_props_init(uclass, lclass, sfeatures) ({ \
+	zpool_mc_props_t mcp = ZPOOL_MC_PROPS_##uclass; \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_SIZE, \
+	    #lclass "_size", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_SIZE", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_CAPACITY, \
+	    #lclass "_capacity", 0, PROP_READONLY, ZFS_TYPE_POOL, "<percent>", \
+	    #uclass "_CAP", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_FREE, \
+	    #lclass "_free", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_FREE", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_ALLOCATED, \
+	    #lclass "_allocated", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_ALLOC", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_AVAILABLE, \
+	    #lclass "_available", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_AVAIL", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_USABLE, \
+	    #lclass "_usable", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_USABLE", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_USED, \
+	    #lclass "_used", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_USED", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_EXPANDSZ, \
+	    #lclass "_expandsize", 0, PROP_READONLY, ZFS_TYPE_POOL, "<size>", \
+	    #uclass "_EXPANDSZ", B_FALSE, sfeatures); \
+	zprop_register_number(mcp + ZPOOL_MC_PROP_FRAGMENTATION, \
+	    #lclass "_fragmentation", 0, PROP_READONLY, ZFS_TYPE_POOL, \
+	    "<percent>", #uclass "_FRAG", B_FALSE, sfeatures); \
+})
+/* END CSTYLED */
+
 void
 zpool_prop_init(void)
 {
@@ -132,6 +165,17 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_LAST_SCRUBBED_TXG,
 	    "last_scrubbed_txg", 0, PROP_READONLY, ZFS_TYPE_POOL, "<txg>",
 	    "LAST_SCRUBBED_TXG", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_USABLE, "usable", 0, PROP_READONLY,
+	    ZFS_TYPE_POOL, "<size>", "USABLE", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_USED, "used", 0, PROP_READONLY,
+	    ZFS_TYPE_POOL, "<size>", "USED", B_FALSE, sfeatures);
+
+	zpool_mc_props_init(NORMAL, normal, sfeatures);
+	zpool_mc_props_init(SPECIAL, special, sfeatures);
+	zpool_mc_props_init(DEDUP, dedup, sfeatures);
+	zpool_mc_props_init(LOG, log, sfeatures);
+	zpool_mc_props_init(ELOG, embedded_log, sfeatures);
+	zpool_mc_props_init(SELOG, special_embedded_log, sfeatures);
 
 	/* default number properties */
 	zprop_register_number(ZPOOL_PROP_VERSION, "version", SPA_VERSION,

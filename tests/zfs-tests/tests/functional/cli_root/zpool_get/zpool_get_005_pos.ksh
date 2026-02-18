@@ -47,6 +47,8 @@ if ! is_global_zone ; then
 fi
 
 typeset -i i=0
+typeset class="@(normal|special|dedup|log|embedded_log|special_embedded_log)"
+typeset optclass="@(special|dedup|log|embedded_log|special_embedded_log)"
 
 while [[ $i -lt "${#properties[@]}" ]]; do
 	log_note "Checking for parsable ${properties[$i]} property"
@@ -61,10 +63,14 @@ while [[ $i -lt "${#properties[@]}" ]]; do
 
 	# All properties must be positive integers in order to be
 	# parsable (i.e. a return code of 0 or 1 from expr above).
-	# The only exception is "expandsize", which may be "-".
-	if [[ ! ($? -eq 0 || $? -eq 1 || \
-	    ("${properties[$i]}" = "expandsize" && "$v" = "-")) ]]; then
-		log_fail "${properties[$i]} is not parsable"
+	# The only exceptions are "expandsize", "<class>_expandsize",
+	# and "<optclass>_fragmentation", which may be "-".
+	if [[ ! ($? -eq 0 || $? -eq 1) ]]; then
+		case "${properties[$i]}" in
+		?(${class}_)expandsize) ;&
+		${optclass}_fragmentation) ;;
+		*) log_fail "${properties[$i]} is not parsable"
+		esac
 	fi
 
 	i=$(( $i + 1 ))
