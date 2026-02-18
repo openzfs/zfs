@@ -364,7 +364,7 @@ vdev_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_VDEV, "<percent>", "FRAG", B_FALSE,
 	    sfeatures);
 	zprop_register_number(VDEV_PROP_CAPACITY, "capacity", 0, PROP_READONLY,
-	    ZFS_TYPE_VDEV, "<size>", "CAP", B_FALSE, sfeatures);
+	    ZFS_TYPE_VDEV, "<percent>", "CAP", B_FALSE, sfeatures);
 	zprop_register_number(VDEV_PROP_GUID, "guid", 0, PROP_READONLY,
 	    ZFS_TYPE_VDEV, "<guid>", "GUID", B_TRUE, sfeatures);
 	zprop_register_number(VDEV_PROP_STATE, "state", 0, PROP_READONLY,
