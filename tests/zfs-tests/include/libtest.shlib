@@ -2896,7 +2896,7 @@ function is_mp
 function get_cpu_freq
 {
 	if is_linux; then
-		lscpu | awk '/CPU MHz/ { print $3 }'
+		lscpu | awk '/CPU( max)? MHz/ { print $NF }'
 	elif is_freebsd; then
 		sysctl -n hw.clockrate
 	else
