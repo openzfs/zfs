@@ -58,20 +58,14 @@ struct libzfs_handle {
 	char libzfs_action[1024];
 	char libzfs_desc[1024];
 	int libzfs_printerr;
-	/*
-	 * We need a lock to handle the case where parallel mount
-	 * threads are populating the mnttab cache simultaneously. The
-	 * lock only protects the integrity of the avl tree, and does
-	 * not protect the contents of the mnttab entries themselves.
-	 */
-	kmutex_t libzfs_mnttab_cache_lock;
-	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
 	uint64_t libzfs_max_nvlist;
 	void *libfetch;
 	char *libfetch_load_error;
+	kmutex_t zh_mnttab_lock;
+	avl_tree_t zh_mnttab;
 };
 
 struct zfs_handle {
