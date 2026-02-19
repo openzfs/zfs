@@ -491,6 +491,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_lwb_buffer_overflow.ksh \
 	functional/block_cloning/block_cloning_rlimit_fsize.ksh \
 	functional/block_cloning/block_cloning_large_offset.ksh \
+	functional/block_cloning/block_cloning_after_device_removal.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \
@@ -677,6 +678,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_clone/zfs_clone_010_pos.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_deeply_nested.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_encrypted.ksh \
+	functional/cli_root/zfs_clone/zfs_clone_nomount.ksh \
 	functional/cli_root/zfs_clone/zfs_clone_rm_nested.ksh \
 	functional/cli_root/zfs_copies/cleanup.ksh \
 	functional/cli_root/zfs_copies/setup.ksh \
@@ -1712,6 +1714,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mmap/setup.ksh \
 	functional/mmp/cleanup.ksh \
 	functional/mmp/mmp_active_import.ksh \
+	functional/mmp/mmp_concurrent_import.ksh \
 	functional/mmp/mmp_exported_import.ksh \
 	functional/mmp/mmp_hostid.ksh \
 	functional/mmp/mmp_inactive_import.ksh \
@@ -2058,6 +2061,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_holds.ksh \
 	functional/rsend/send_hole_birth.ksh \
 	functional/rsend/send_invalid.ksh \
+	functional/rsend/send_large_blocks_incremental.ksh \
+	functional/rsend/send_large_blocks_initial.ksh \
+	functional/rsend/send_large_microzap_incremental.ksh \
+	functional/rsend/send_large_microzap_transitive.ksh \
 	functional/rsend/send_leak_keymaps.ksh \
 	functional/rsend/send-L_toggle.ksh \
 	functional/rsend/send_mixed_raw.ksh \

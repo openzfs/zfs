@@ -1255,10 +1255,9 @@ out:
 		    zfs_range_tree_space(m->ms_unflushed_allocs) -
 		    zfs_range_tree_space(m->ms_unflushed_frees);
 
-		vdev_t *vd = m->ms_group->mg_vd;
-		metaslab_space_update(vd, m->ms_group->mg_class,
+		metaslab_space_update(m->ms_group,
 		    zfs_range_tree_space(m->ms_unflushed_allocs), 0, 0);
-		metaslab_space_update(vd, m->ms_group->mg_class,
+		metaslab_space_update(m->ms_group,
 		    -zfs_range_tree_space(m->ms_unflushed_frees), 0, 0);
 
 		ASSERT0(m->ms_weight & METASLAB_ACTIVE_MASK);

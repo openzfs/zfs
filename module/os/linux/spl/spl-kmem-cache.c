@@ -139,12 +139,10 @@ static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
-	gfp_t lflags = kmem_flags_convert(flags);
+	gfp_t lflags = kmem_flags_convert(flags | KM_VMEM);
 	void *ptr;
 
-	if (skc->skc_flags & KMC_RECLAIMABLE)
-		lflags |= __GFP_RECLAIMABLE;
-	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
+	ptr = spl_vmalloc(size, lflags);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
@@ -424,7 +422,7 @@ spl_emergency_alloc(spl_kmem_cache_t *skc, int flags, void **obj)
 	if (!empty)
 		return (-EEXIST);
 
-	if (skc->skc_flags & KMC_RECLAIMABLE)
+	if (skc->skc_flags & KMC_RECLAIMABLE && !(flags & KM_VMEM))
 		lflags |= __GFP_RECLAIMABLE;
 	ske = kmalloc(sizeof (*ske), lflags);
 	if (ske == NULL)

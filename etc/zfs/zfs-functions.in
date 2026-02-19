@@ -26,13 +26,13 @@ fi
 # Of course the functions we need are called differently
 # on different distributions - it would be way too easy
 # otherwise!!
-if type log_failure_msg > /dev/null 2>&1 ; then
+if command -v log_failure_msg > /dev/null 2>&1 ; then
 	# LSB functions - fall through
 	zfs_log_begin_msg() { log_begin_msg "$1"; }
 	zfs_log_end_msg() { log_end_msg "$1"; }
 	zfs_log_failure_msg() { log_failure_msg "$1"; }
 	zfs_log_progress_msg() { log_progress_msg "$1"; }
-elif type success > /dev/null 2>&1 ; then
+elif command -v success > /dev/null 2>&1 ; then
 	# Fedora/RedHat functions
 	zfs_set_ifs() {
 		# For some reason, the init function library have a problem
@@ -64,7 +64,7 @@ elif type success > /dev/null 2>&1 ; then
 		zfs_set_ifs "$TMP_IFS"
 	}
 	zfs_log_progress_msg() { printf "%s" "$""$1"; }
-elif type einfo > /dev/null 2>&1 ; then
+elif command -v einfo > /dev/null 2>&1 ; then
 	# Gentoo functions
 	zfs_log_begin_msg() { ebegin "$1"; }
 	zfs_log_end_msg() { eend "$1"; }
@@ -109,7 +109,7 @@ fi
 # ----------------------------------------------------
 
 export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_LOAD_KEY ZFS_UNLOAD_KEY ZFS_MOUNT ZFS_UNMOUNT \
-    ZFS_SHARE ZFS_UNSHARE
+    ZFS_SHARE ZFS_UNSHARE ZFS_POOL_EXCEPTIONS ZFS_INITRD_ADDITIONAL_DATASETS
 
 zfs_action()
 {
@@ -140,7 +140,7 @@ zfs_daemon_start()
 	local PIDFILE="$1";	shift
 	local DAEMON_BIN="$1";	shift
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if command -v start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
 		start-stop-daemon --start --quiet --pidfile "$PIDFILE" \
 		    --exec "$DAEMON_BIN" --test > /dev/null || return 1
@@ -157,7 +157,7 @@ zfs_daemon_start()
 		then
 			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
 		fi
-	elif type daemon > /dev/null 2>&1 ; then
+	elif command -v daemon > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		# shellcheck disable=SC2086
 		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" "$@"
@@ -182,7 +182,7 @@ zfs_daemon_stop()
 	local DAEMON_BIN="$2"
 	local DAEMON_NAME="$3"
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if command -v start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
 		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
 		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
@@ -190,7 +190,7 @@ zfs_daemon_stop()
 		[ "$ret" = 0 ] && rm -f "$PIDFILE"
 
 		return "$ret"
-	elif type killproc > /dev/null 2>&1 ; then
+	elif command -v killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		killproc -p "$PIDFILE" "$DAEMON_NAME"
 		ret="$?"
@@ -212,11 +212,11 @@ zfs_daemon_status()
 	local DAEMON_BIN="$2"
 	local DAEMON_NAME="$3"
 
-	if type status_of_proc > /dev/null 2>&1 ; then
+	if command -v status_of_proc > /dev/null 2>&1 ; then
 		# LSB functions
 		status_of_proc "$DAEMON_NAME" "$DAEMON_BIN"
 		return $?
-	elif type status > /dev/null 2>&1 ; then
+	elif command -v status > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		status -p "$PIDFILE" "$DAEMON_NAME"
 		return $?
@@ -233,12 +233,12 @@ zfs_daemon_reload()
 	local PIDFILE="$1"
 	local DAEMON_NAME="$2"
 
-	if type start-stop-daemon > /dev/null 2>&1 ; then
+	if command -v start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
 		start-stop-daemon --stop --signal 1 --quiet \
 		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
 		return $?
-	elif type killproc > /dev/null 2>&1 ; then
+	elif command -v killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
 		return $?

@@ -102,14 +102,6 @@
 
 VFS_SMR_DECLARE;
 
-#ifdef DEBUG_VFS_LOCKS
-#define	VNCHECKREF(vp)				  \
-	VNASSERT((vp)->v_holdcnt > 0 && (vp)->v_usecount > 0, vp,	\
-	    ("%s: wrong ref counts", __func__));
-#else
-#define	VNCHECKREF(vp)
-#endif
-
 #if __FreeBSD_version >= 1400045
 typedef uint64_t cookie_t;
 #else
@@ -242,8 +234,9 @@ zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 	 * Keep a count of the synchronous opens in the znode.  On first
 	 * synchronous open we must convert all previous async transactions
 	 * into sync to keep correct ordering.
+	 * Skip it for snapshot, as it won't have any transactions.
 	 */
-	if (flag & O_SYNC) {
+	if (!zfsvfs->z_issnap && (flag & O_SYNC)) {
 		if (atomic_inc_32_nv(&zp->z_sync_cnt) == 1)
 			zil_async_to_sync(zfsvfs->z_log, zp->z_id);
 	}
@@ -264,7 +257,7 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 		return (error);
 
 	/* Decrement the synchronous opens in the znode */
-	if ((flag & O_SYNC) && (count == 1))
+	if (!zfsvfs->z_issnap && (flag & O_SYNC) && (count == 1))
 		atomic_dec_32(&zp->z_sync_cnt);
 
 	zfs_exit(zfsvfs, FTAG);
@@ -1059,9 +1052,6 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 	uint64_t	txtype;
-#ifdef DEBUG_VFS_LOCKS
-	vnode_t	*dvp = ZTOV(dzp);
-#endif
 
 	if (is_nametoolong(zfsvfs, name))
 		return (SET_ERROR(ENAMETOOLONG));
@@ -1191,7 +1181,8 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	getnewvnode_drop_reserve();
 
 out:
-	VNCHECKREF(dvp);
+	VNASSERT(ZTOV(dzp)->v_holdcnt > 0 && ZTOV(dzp)->v_usecount > 0,
+	    ZTOV(dzp), ("%s: wrong ref counts", __func__));
 	if (error == 0) {
 		*zpp = zp;
 	}
@@ -2992,9 +2983,6 @@ out:
 		ASSERT0(err2);
 	}
 
-	if (attrzp)
-		vput(ZTOV(attrzp));
-
 	if (aclp)
 		zfs_acl_free(aclp);
 
@@ -3005,12 +2993,15 @@ out:
 
 	if (err) {
 		dmu_tx_abort(tx);
+		if (attrzp)
+			vput(ZTOV(attrzp));
 	} else {
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
 		if (attrzp) {
 			if (err2 == 0 && handle_eadir)
 				err = zfs_setattr_dir(attrzp);
+			vput(ZTOV(attrzp));
 		}
 	}
 

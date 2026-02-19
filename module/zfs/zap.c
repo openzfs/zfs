@@ -878,7 +878,8 @@ fzap_check(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers)
 int
 fzap_lookup(zap_name_t *zn,
     uint64_t integer_size, uint64_t num_integers, void *buf,
-    char *realname, int rn_len, boolean_t *ncp)
+    char *realname, int rn_len, boolean_t *ncp,
+    uint64_t *actual_num_integers)
 {
 	zap_leaf_t *l;
 	zap_entry_handle_t zeh;
@@ -898,6 +899,8 @@ fzap_lookup(zap_name_t *zn,
 		}
 
 		err = zap_entry_read(&zeh, integer_size, num_integers, buf);
+		if (err == 0 && actual_num_integers != NULL)
+			*actual_num_integers = zeh.zeh_num_integers;
 		(void) zap_entry_read_name(zn->zn_zap, &zeh, rn_len, realname);
 		if (ncp) {
 			*ncp = zap_entry_normalization_conflict(&zeh,

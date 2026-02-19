@@ -771,6 +771,12 @@ Number ARC headers to evict per sub-list before proceeding to another sub-list.
 This batch-style operation prevents entire sub-lists from being evicted at once
 but comes at a cost of additional unlocking and locking.
 .
+.It Sy zfs_arc_evict_batches_limit Ns = Ns Sy 5 Pq uint
+Number of
+.Sy zfs_arc_evict_batch_limit
+batches to process per parallel eviction task under heavy load to reduce number
+of context switches.
+.
 .It Sy zfs_arc_evict_threads Ns = Ns Sy 0 Pq int
 Sets the number of ARC eviction threads to be used.
 .Pp
@@ -1462,8 +1468,13 @@ Enable/disable the processing of the free_bpobj object.
 .It Sy zfs_async_block_max_blocks Ns = Ns Sy UINT64_MAX Po unlimited Pc Pq u64
 Maximum number of blocks freed in a single TXG.
 .
-.It Sy zfs_max_async_dedup_frees Ns = Ns Sy 100000 Po 10^5 Pc Pq u64
-Maximum number of dedup blocks freed in a single TXG.
+.It Sy zfs_max_async_dedup_frees Ns = Ns Sy 250000 Pq u64
+Maximum number of dedup, clone or gang blocks freed in a single TXG.
+These frees may require additional I/O, making them more expensive.
+.
+.It Sy zfs_async_free_zio_wait_interval Ns = Ns Sy 2000 Pq u64
+After freeing this many dedup, clone or gang blocks wait for all pending
+I/Os to complete before continuing.
 .
 .It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq uint
 Maximum asynchronous read I/O operations active to each device.
@@ -1733,7 +1744,7 @@ but we chose the more conservative approach of not setting it,
 so that there is no possibility of
 leaking space in the "partial temporary" failure case.
 .
-.It Sy zfs_free_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1s Pc Pq uint
+.It Sy zfs_free_min_time_ms Ns = Ns Sy 500 Ns ms Po 1s Pc Pq uint
 During a
 .Nm zfs Cm destroy
 operation using the
@@ -1760,6 +1771,16 @@ vdevs as SLOGs.
 Blocks that go to the special vdevs are still written indirectly, as with
 .Sy logbias Ns = Ns Sy throughput .
 This parameter is ignored if an SLOG is present.
+.
+.It Sy zfs_import_defer_txgs Ns = Ns Sy 5 Pq uint
+Number of transaction groups to wait after pool import before starting
+background work such as asynchronous block freeing
+.Pq from snapshots, clones, and deduplication
+and scrub or resilver operations.
+This allows the pool import and filesystem mounting to complete more quickly
+without interference from background activities.
+The default value of 5 transaction groups typically provides sufficient time
+for import and mount operations to complete on most systems.
 .
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
 Pattern written to vdev free space by
@@ -2095,7 +2116,7 @@ even if the
 .Sy resilver_defer
 feature is enabled.
 .
-.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 3000 Ns ms Po 3 s Pc Pq uint
+.It Sy zfs_resilver_min_time_ms Ns = Ns Sy 1500 Ns ms Pq uint
 Resilvers are processed by the sync thread.
 While resilvering, it will spend at least this much time
 working on a resilver between TXG flushes.
@@ -2112,7 +2133,7 @@ in order to verify the checksums of all blocks which have been
 copied during the expansion.
 This is enabled by default and strongly recommended.
 .
-.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 1000 Ns ms Po 1 s Pc Pq uint
+.It Sy zfs_scrub_min_time_ms Ns = Ns Sy 750 Ns ms Pq uint
 Scrubs are processed by the sync thread.
 While scrubbing, it will spend at least this much time
 working on a scrub between TXG flushes.

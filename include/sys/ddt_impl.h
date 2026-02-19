@@ -69,8 +69,8 @@ extern "C" {
  * the live tree.
  */
 typedef struct {
-	ddt_key_t	ddle_key;	/* ddt_log_tree key */
-	avl_node_t	ddle_node;	/* ddt_log_tree node */
+	ddt_key_t	ddle_key;	/* ddl_tree key */
+	avl_node_t	ddle_node;	/* ddl_tree node */
 
 	ddt_type_t	ddle_type;	/* storage type */
 	ddt_class_t	ddle_class;	/* storage class */
@@ -163,21 +163,18 @@ typedef struct {
 	int (*ddt_op_create)(objset_t *os, uint64_t *object, dmu_tx_t *tx,
 	    boolean_t prehash);
 	int (*ddt_op_destroy)(objset_t *os, uint64_t object, dmu_tx_t *tx);
-	int (*ddt_op_lookup)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, void *phys, size_t psize);
-	int (*ddt_op_contains)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk);
-	void (*ddt_op_prefetch)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk);
-	void (*ddt_op_prefetch_all)(objset_t *os, uint64_t object);
-	int (*ddt_op_update)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, const void *phys, size_t psize,
+	int (*ddt_op_lookup)(dnode_t *dn, const ddt_key_t *ddk,
+	    void *phys, size_t psize);
+	int (*ddt_op_contains)(dnode_t *dn, const ddt_key_t *ddk);
+	void (*ddt_op_prefetch)(dnode_t *dn, const ddt_key_t *ddk);
+	void (*ddt_op_prefetch_all)(dnode_t *dn);
+	int (*ddt_op_update)(dnode_t *dn, const ddt_key_t *ddk,
+	    const void *phys, size_t psize, dmu_tx_t *tx);
+	int (*ddt_op_remove)(dnode_t *dn, const ddt_key_t *ddk,
 	    dmu_tx_t *tx);
-	int (*ddt_op_remove)(objset_t *os, uint64_t object,
-	    const ddt_key_t *ddk, dmu_tx_t *tx);
-	int (*ddt_op_walk)(objset_t *os, uint64_t object, uint64_t *walk,
-	    ddt_key_t *ddk, void *phys, size_t psize);
-	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
+	int (*ddt_op_walk)(dnode_t *dn, uint64_t *walk, ddt_key_t *ddk,
+	    void *phys, size_t psize);
+	int (*ddt_op_count)(dnode_t *dn, uint64_t *count);
 } ddt_ops_t;
 
 extern const ddt_ops_t ddt_zap_ops;
@@ -193,7 +190,7 @@ extern boolean_t ddt_log_take_first(ddt_t *ddt, ddt_log_t *ddl,
     ddt_lightweight_entry_t *ddlwe);
 
 extern boolean_t ddt_log_find_key(ddt_t *ddt, const ddt_key_t *ddk,
-    ddt_lightweight_entry_t *ddlwe);
+    ddt_lightweight_entry_t *ddlwe, boolean_t *from_flushing);
 extern boolean_t ddt_log_remove_key(ddt_t *ddt, ddt_log_t *ddl,
     const ddt_key_t *ddk);
 

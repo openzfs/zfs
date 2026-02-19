@@ -7,6 +7,7 @@
 
 #define _ASM
 #include <sys/asm_linkage.h>
+#include <modes/gcm_asm_rename_funcs.h>
 
 /* Windows userland links with OpenSSL */
 #if !defined (_WIN32) || defined (_KERNEL)
@@ -1316,7 +1317,7 @@ SET_SIZE(aes_gcm_dec_update_vaes_avx2)
 #endif /* !_WIN32 || _KERNEL */
 
 /* Mark the stack non-executable. */
-#if defined(__linux__) && defined(__ELF__)
+#ifdef __ELF__
 .section .note.GNU-stack,"",%progbits
 #endif
 
