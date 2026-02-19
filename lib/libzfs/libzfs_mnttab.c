@@ -70,7 +70,7 @@ mnttab_node_free(libzfs_handle_t *hdl, mnttab_node_t *mtn)
 }
 
 static int
-libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
+mnttab_compare(const void *arg1, const void *arg2)
 {
 	const mnttab_node_t *mtn1 = (const mnttab_node_t *)arg1;
 	const mnttab_node_t *mtn2 = (const mnttab_node_t *)arg2;
@@ -84,19 +84,40 @@ libzfs_mnttab_cache_compare(const void *arg1, const void *arg2)
 void
 libzfs_mnttab_init(libzfs_handle_t *hdl)
 {
-	mutex_init(&hdl->libzfs_mnttab_cache_lock, NULL, MUTEX_DEFAULT, NULL);
-	assert(avl_numnodes(&hdl->libzfs_mnttab_cache) == 0);
-	avl_create(&hdl->libzfs_mnttab_cache, libzfs_mnttab_cache_compare,
+	mutex_init(&hdl->zh_mnttab_lock, NULL, MUTEX_DEFAULT, NULL);
+	assert(avl_numnodes(&hdl->zh_mnttab) == 0);
+	avl_create(&hdl->zh_mnttab, mnttab_compare,
 	    sizeof (mnttab_node_t), offsetof(mnttab_node_t, mtn_node));
 }
 
+void
+libzfs_mnttab_fini(libzfs_handle_t *hdl)
+{
+	void *cookie = NULL;
+	mnttab_node_t *mtn;
+
+	while ((mtn = avl_destroy_nodes(&hdl->zh_mnttab, &cookie))
+	    != NULL)
+		mnttab_node_free(hdl, mtn);
+
+	avl_destroy(&hdl->zh_mnttab);
+	(void) mutex_destroy(&hdl->zh_mnttab_lock);
+}
+
+void
+libzfs_mnttab_cache(libzfs_handle_t *hdl, boolean_t enable)
+{
+	/* This is a no-op to preserve ABI backward compatibility. */
+	(void) hdl, (void) enable;
+}
+
 static int
-libzfs_mnttab_update(libzfs_handle_t *hdl)
+mnttab_update(libzfs_handle_t *hdl)
 {
 	FILE *mnttab;
 	struct mnttab entry;
 
-	ASSERT(MUTEX_HELD(&hdl->libzfs_mnttab_cache_lock));
+	ASSERT(MUTEX_HELD(&hdl->zh_mnttab_lock));
 
 	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
@@ -112,37 +133,16 @@ libzfs_mnttab_update(libzfs_handle_t *hdl)
 		    entry.mnt_mountp, entry.mnt_mntopts);
 
 		/* Exclude duplicate mounts */
-		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, &where) != NULL) {
+		if (avl_find(&hdl->zh_mnttab, mtn, &where) != NULL) {
 			mnttab_node_free(hdl, mtn);
 			continue;
 		}
 
-		avl_add(&hdl->libzfs_mnttab_cache, mtn);
+		avl_add(&hdl->zh_mnttab, mtn);
 	}
 
 	(void) fclose(mnttab);
 	return (0);
-}
-
-void
-libzfs_mnttab_fini(libzfs_handle_t *hdl)
-{
-	void *cookie = NULL;
-	mnttab_node_t *mtn;
-
-	while ((mtn = avl_destroy_nodes(&hdl->libzfs_mnttab_cache, &cookie))
-	    != NULL)
-		mnttab_node_free(hdl, mtn);
-
-	avl_destroy(&hdl->libzfs_mnttab_cache);
-	(void) mutex_destroy(&hdl->libzfs_mnttab_cache_lock);
-}
-
-void
-libzfs_mnttab_cache(libzfs_handle_t *hdl, boolean_t enable)
-{
-	/* This is a no-op to preserve ABI backward compatibility. */
-	(void) hdl, (void) enable;
 }
 
 int
@@ -153,23 +153,23 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 	mnttab_node_t *mtn;
 	int ret = ENOENT;
 
-	mutex_enter(&hdl->libzfs_mnttab_cache_lock);
-	if (avl_numnodes(&hdl->libzfs_mnttab_cache) == 0) {
+	mutex_enter(&hdl->zh_mnttab_lock);
+	if (avl_numnodes(&hdl->zh_mnttab) == 0) {
 		int error;
 
-		if ((error = libzfs_mnttab_update(hdl)) != 0) {
-			mutex_exit(&hdl->libzfs_mnttab_cache_lock);
+		if ((error = mnttab_update(hdl)) != 0) {
+			mutex_exit(&hdl->zh_mnttab_lock);
 			return (error);
 		}
 	}
 
 	find.mtn_mt.mnt_special = (char *)fsname;
-	mtn = avl_find(&hdl->libzfs_mnttab_cache, &find, NULL);
+	mtn = avl_find(&hdl->zh_mnttab, &find, NULL);
 	if (mtn) {
 		*entry = mtn->mtn_mt;
 		ret = 0;
 	}
-	mutex_exit(&hdl->libzfs_mnttab_cache_lock);
+	mutex_exit(&hdl->zh_mnttab_lock);
 	return (ret);
 }
 
@@ -179,20 +179,20 @@ libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
 {
 	mnttab_node_t *mtn;
 
-	mutex_enter(&hdl->libzfs_mnttab_cache_lock);
+	mutex_enter(&hdl->zh_mnttab_lock);
 
 	mtn = mnttab_node_alloc(hdl, special, mountp, mntopts);
 
 	/*
 	 * Another thread may have already added this entry
-	 * via libzfs_mnttab_update. If so we should skip it.
+	 * via mnttab_update. If so we should skip it.
 	 */
-	if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL)
+	if (avl_find(&hdl->zh_mnttab, mtn, NULL) != NULL)
 		mnttab_node_free(hdl, mtn);
 	else
-		avl_add(&hdl->libzfs_mnttab_cache, mtn);
+		avl_add(&hdl->zh_mnttab, mtn);
 
-	mutex_exit(&hdl->libzfs_mnttab_cache_lock);
+	mutex_exit(&hdl->zh_mnttab_lock);
 }
 
 void
@@ -201,12 +201,11 @@ libzfs_mnttab_remove(libzfs_handle_t *hdl, const char *fsname)
 	mnttab_node_t find;
 	mnttab_node_t *ret;
 
-	mutex_enter(&hdl->libzfs_mnttab_cache_lock);
+	mutex_enter(&hdl->zh_mnttab_lock);
 	find.mtn_mt.mnt_special = (char *)fsname;
-	if ((ret = avl_find(&hdl->libzfs_mnttab_cache, (void *)&find, NULL))
-	    != NULL) {
-		avl_remove(&hdl->libzfs_mnttab_cache, ret);
+	if ((ret = avl_find(&hdl->zh_mnttab, (void *)&find, NULL)) != NULL) {
+		avl_remove(&hdl->zh_mnttab, ret);
 		mnttab_node_free(hdl, ret);
 	}
-	mutex_exit(&hdl->libzfs_mnttab_cache_lock);
+	mutex_exit(&hdl->zh_mnttab_lock);
 }
