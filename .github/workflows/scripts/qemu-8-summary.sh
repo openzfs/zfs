@@ -33,7 +33,7 @@ EOF
 
 function showfile_tail() {
   echo "##[group]$2 (final lines)"
-  tail -n 40 $1
+  tail -n 80 $1
   echo "##[endgroup]"
 }
 
@@ -64,6 +64,18 @@ for ((i=1; i<=VMs; i++)); do
     fi
     file="vm$i/lustre.txt"
     test -s "$file" && showfile_tail "$file" "$vm: Lustre build"
+  fi
+
+  if [ -f vm$i/builtin-exitcode.txt ] ; then
+    rv=$(< vm$i/builtin-exitcode.txt)
+    if [ $rv = 0 ]; then
+      vm="[92mvm$i[0m"
+    else
+      vm="[1;91mvm$i[0m"
+      touch /tmp/have_failed_tests
+    fi
+    file="vm$i/builtin.txt"
+    test -s "$file" && showfile_tail "$file" "$vm: Linux built-in build"
   fi
 
   rv=$(cat vm$i/tests-exitcode.txt)

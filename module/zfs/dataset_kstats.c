@@ -212,7 +212,7 @@ dataset_kstats_rename(dataset_kstats_t *dk, const char *name)
 	char *ds_name;
 
 	ds_name = KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name);
-	ASSERT3S(ds_name, !=, NULL);
+	ASSERT3P(ds_name, !=, NULL);
 	(void) strlcpy(ds_name, name,
 	    KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name));
 }

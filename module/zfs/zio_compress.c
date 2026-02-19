@@ -128,7 +128,7 @@ zio_compress_data(enum zio_compress c, abd_t *src, abd_t **dst, size_t s_len,
 	uint8_t complevel;
 	zio_compress_info_t *ci = &zio_compress_table[c];
 
-	ASSERT3U(ci->ci_compress, !=, NULL);
+	ASSERT3P(ci->ci_compress, !=, NULL);
 	ASSERT3U(s_len, >, 0);
 
 	complevel = ci->ci_level;

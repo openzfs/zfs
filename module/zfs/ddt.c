@@ -1508,7 +1508,7 @@ ddt_configure(ddt_t *ddt, boolean_t new)
 		    DMU_POOL_DIRECTORY_OBJECT, name, sizeof (uint64_t), 1,
 		    &ddt->ddt_dir_object);
 		if (error == 0) {
-			ASSERT3U(spa->spa_meta_objset, ==, ddt->ddt_os);
+			ASSERT3P(spa->spa_meta_objset, ==, ddt->ddt_os);
 
 			error = zap_lookup(ddt->ddt_os, ddt->ddt_dir_object,
 			    DDT_DIR_VERSION, sizeof (uint64_t), 1,

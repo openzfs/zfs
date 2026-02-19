@@ -1245,7 +1245,7 @@ spa_vdev_enter(spa_t *spa)
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
 
-	ASSERT0(spa->spa_export_thread);
+	ASSERT0P(spa->spa_export_thread);
 
 	vdev_autotrim_stop_all(spa);
 
@@ -1264,7 +1264,7 @@ spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
 	mutex_enter(&spa->spa_vdev_top_lock);
 	mutex_enter(&spa_namespace_lock);
 
-	ASSERT0(spa->spa_export_thread);
+	ASSERT0P(spa->spa_export_thread);
 
 	vdev_autotrim_stop_all(spa);
 
