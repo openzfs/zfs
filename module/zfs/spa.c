@@ -7120,6 +7120,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_removing_phys.sr_removing_vdev = -1;
 	spa->spa_removing_phys.sr_prev_indirect_vdev = -1;
 	spa->spa_indirect_vdevs_loaded = B_TRUE;
+	spa->spa_deflate = (version >= SPA_VERSION_RAIDZ_DEFLATE);
 
 	/*
 	 * Create "The Godfather" zio to hold all async IOs
@@ -7249,7 +7250,6 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	/* Newly created pools with the right version are always deflated. */
 	if (version >= SPA_VERSION_RAIDZ_DEFLATE) {
-		spa->spa_deflate = TRUE;
 		if (zap_add(spa->spa_meta_objset,
 		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_DEFLATE,
 		    sizeof (uint64_t), 1, &spa->spa_deflate, tx) != 0) {
