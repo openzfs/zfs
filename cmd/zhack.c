@@ -745,8 +745,11 @@ zhack_do_metaslab_leak(int argc, char **argv)
 			    &start, &size), ==, 2);
 
 			ASSERT(vd);
-			metaslab_t *cur =
-			    vd->vdev_ms[start >> vd->vdev_ms_shift];
+			size_t idx;
+			idx = start >> vd->vdev_ms_shift;
+			if (idx >= vd->vdev_ms_count)
+				continue;
+			metaslab_t *cur = vd->vdev_ms[idx];
 			if (prev != cur) {
 				if (prev) {
 					dmu_tx_commit(tx);
