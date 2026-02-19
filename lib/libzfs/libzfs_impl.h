@@ -58,7 +58,6 @@ struct libzfs_handle {
 	char libzfs_action[1024];
 	char libzfs_desc[1024];
 	int libzfs_printerr;
-	boolean_t libzfs_mnttab_enable;
 	/*
 	 * We need a lock to handle the case where parallel mount
 	 * threads are populating the mnttab cache simultaneously. The

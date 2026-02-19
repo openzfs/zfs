@@ -130,33 +130,17 @@ libzfs_mnttab_fini(libzfs_handle_t *hdl)
 void
 libzfs_mnttab_cache(libzfs_handle_t *hdl, boolean_t enable)
 {
-	hdl->libzfs_mnttab_enable = enable;
+	/* This is a no-op to preserve ABI backward compatibility. */
+	(void) hdl, (void) enable;
 }
 
 int
 libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
     struct mnttab *entry)
 {
-	FILE *mnttab;
 	mnttab_node_t find;
 	mnttab_node_t *mtn;
 	int ret = ENOENT;
-
-	if (!hdl->libzfs_mnttab_enable) {
-		struct mnttab srch = { 0 };
-
-		if (avl_numnodes(&hdl->libzfs_mnttab_cache))
-			libzfs_mnttab_fini(hdl);
-
-		if ((mnttab = fopen(MNTTAB, "re")) == NULL)
-			return (ENOENT);
-
-		srch.mnt_special = (char *)fsname;
-		srch.mnt_fstype = (char *)MNTTYPE_ZFS;
-		ret = getmntany(mnttab, entry, &srch) ? ENOENT : 0;
-		(void) fclose(mnttab);
-		return (ret);
-	}
 
 	mutex_enter(&hdl->libzfs_mnttab_cache_lock);
 	if (avl_numnodes(&hdl->libzfs_mnttab_cache) == 0) {
@@ -185,26 +169,27 @@ libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
 	mnttab_node_t *mtn;
 
 	mutex_enter(&hdl->libzfs_mnttab_cache_lock);
-	if (avl_numnodes(&hdl->libzfs_mnttab_cache) != 0) {
-		mtn = zfs_alloc(hdl, sizeof (mnttab_node_t));
-		mtn->mtn_mt.mnt_special = zfs_strdup(hdl, special);
-		mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, mountp);
-		mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, MNTTYPE_ZFS);
-		mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, mntopts);
-		/*
-		 * Another thread may have already added this entry
-		 * via libzfs_mnttab_update. If so we should skip it.
-		 */
-		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL) {
-			free(mtn->mtn_mt.mnt_special);
-			free(mtn->mtn_mt.mnt_mountp);
-			free(mtn->mtn_mt.mnt_fstype);
-			free(mtn->mtn_mt.mnt_mntopts);
-			free(mtn);
-		} else {
-			avl_add(&hdl->libzfs_mnttab_cache, mtn);
-		}
+
+	mtn = zfs_alloc(hdl, sizeof (mnttab_node_t));
+	mtn->mtn_mt.mnt_special = zfs_strdup(hdl, special);
+	mtn->mtn_mt.mnt_mountp = zfs_strdup(hdl, mountp);
+	mtn->mtn_mt.mnt_fstype = zfs_strdup(hdl, MNTTYPE_ZFS);
+	mtn->mtn_mt.mnt_mntopts = zfs_strdup(hdl, mntopts);
+
+	/*
+	 * Another thread may have already added this entry
+	 * via libzfs_mnttab_update. If so we should skip it.
+	 */
+	if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL) {
+		free(mtn->mtn_mt.mnt_special);
+		free(mtn->mtn_mt.mnt_mountp);
+		free(mtn->mtn_mt.mnt_fstype);
+		free(mtn->mtn_mt.mnt_mntopts);
+		free(mtn);
+	} else {
+		avl_add(&hdl->libzfs_mnttab_cache, mtn);
 	}
+
 	mutex_exit(&hdl->libzfs_mnttab_cache_lock);
 }
 
