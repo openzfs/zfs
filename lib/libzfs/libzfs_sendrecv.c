@@ -258,6 +258,7 @@ typedef struct send_data {
 	boolean_t seento;
 	boolean_t holds;	/* were holds requested with send -h */
 	boolean_t props;
+	boolean_t no_preserve_encryption;
 
 	/*
 	 * The header nvlist is of the following format:
@@ -587,18 +588,30 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 			fnvlist_add_boolean(nvfs, "is_encroot");
 
 		/*
-		 * Encrypted datasets can only be sent with properties if
-		 * the raw flag is specified because the receive side doesn't
-		 * currently have a mechanism for recursively asking the user
-		 * for new encryption parameters.
+		 * Encrypted datasets can only be sent with properties if the
+		 * raw flag or the no-preserve-encryption flag are specified
+		 * because the receive side doesn't currently have a mechanism
+		 * for recursively asking the user for new encryption
+		 * parameters.
+		 * We allow sending the dataset unencrypted only if the user
+		 * explicitly sets the no-preserve-encryption flag.
 		 */
-		if (!sd->raw) {
+		if (!sd->raw && !sd->no_preserve_encryption) {
 			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 			    "cannot send %s@%s: encrypted dataset %s may not "
-			    "be sent with properties without the raw flag\n"),
+			    "be sent with properties without the raw flag or "
+			    "no-preserve-encryption flag\n"),
 			    sd->fsname, sd->tosnap, zhp->zfs_name);
 			rv = -1;
 			goto out;
+		}
+
+		/* If no-preserve-encryption flag is set, warn the user again */
+		if (sd->no_preserve_encryption) {
+			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			    "WARNING: no-preserve-encryption flag set, sending "
+			    "dataset %s without encryption\n"),
+			    zhp->zfs_name);
 		}
 
 	}
@@ -683,8 +696,8 @@ static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
     boolean_t replicate, boolean_t skipmissing, boolean_t verbose,
-    boolean_t backup, boolean_t holds, boolean_t props, nvlist_t **nvlp,
-    avl_tree_t **avlp)
+    boolean_t backup, boolean_t holds, boolean_t props,
+	boolean_t no_preserve_encryption, nvlist_t **nvlp, avl_tree_t **avlp)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -707,6 +720,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.backup = backup;
 	sd.holds = holds;
 	sd.props = props;
+	sd.no_preserve_encryption = no_preserve_encryption;
 
 	if ((error = send_iterate_fs(zhp, &sd)) != 0) {
 		fnvlist_free(sd.fss);
@@ -2199,7 +2213,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
     boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t skipmissing,
     boolean_t backup, boolean_t holds, boolean_t props, boolean_t doall,
-    nvlist_t **fssp, avl_tree_t **fsavlp)
+    boolean_t no_preserve_encryption, nvlist_t **fssp, avl_tree_t **fsavlp)
 {
 	int err = 0;
 	char *packbuf = NULL;
@@ -2245,7 +2259,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 
 		if (gather_nvlist(zhp->zfs_hdl, tofs,
 		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
-		    verbose, backup, holds, props, &fss, fsavlp) != 0) {
+		    verbose, backup, holds, props, no_preserve_encryption,
+		    &fss, fsavlp) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2392,7 +2407,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
 		    flags->raw, flags->replicate, flags->skipmissing,
 		    flags->backup, flags->holds, flags->props, flags->doall,
-		    &fss, &fsavl);
+		    flags->no_preserve_encryption, &fss, &fsavl);
 		zfs_close(tosnap);
 		if (err != 0)
 			goto err_out;
@@ -2735,7 +2750,8 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		err = send_prelim_records(zhp, NULL, fd, B_TRUE, B_FALSE,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
 		    flags->replicate, B_FALSE, flags->backup, flags->holds,
-		    flags->props, flags->doall, NULL, NULL);
+		    flags->props, flags->doall, flags->no_preserve_encryption,
+		    NULL, NULL);
 		if (err != 0)
 			return (err);
 	}
@@ -3392,7 +3408,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 	/* Using top_zfs, gather the nvlists for all local filesystems. */
 	if ((err = gather_nvlist(hdl, top_zfs, NULL, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, &local_nv, &local_avl)) != 0)
+	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
 		return (err);
 
 	/*
@@ -3547,7 +3563,7 @@ again:
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, &local_nv, &local_avl)) != 0)
+	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl)) != 0)
 		return (error);
 
 	/*
@@ -5138,7 +5154,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
 		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
-		    B_TRUE, &local_nv, &local_avl) == 0) {
+		    B_TRUE, B_FALSE, &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);
