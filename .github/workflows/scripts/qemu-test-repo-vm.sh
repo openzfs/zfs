@@ -4,7 +4,11 @@
 #
 # USAGE:
 #
-# 	./qemu-test-repo-vm [URL]
+# 	./qemu-test-repo-vm [--install] [URL]
+#
+# --lookup:	When testing a repo, only lookup the latest package versions,
+#		don't try to install them.  Installing all of them takes over
+#		an hour, so this is much quicker.
 #
 # URL:		URL to use instead of http://download.zfsonlinux.org
 #		If blank, use the default repo from zfs-release RPM.
@@ -14,6 +18,13 @@ set -e
 source /etc/os-release
 OS="$ID"
 VERSION="$VERSION_ID"
+
+
+LOOKUP=""
+if [ -n "$1" ] && [ "$1" == "--lookup" ] ; then
+	LOOKUP=1
+	shift
+fi
 
 ALTHOST=""
 if [ -n "$1" ] ; then
@@ -42,7 +53,19 @@ function test_install {
 		sudo sed -i "s;baseurl=http://download.zfsonlinux.org;baseurl=$host;g" /etc/yum.repos.d/zfs.repo
 	fi
 
-	sudo dnf -y install $args zfs zfs-test
+	baseurl=$(grep -A 5 "\[$repo\]" /etc/yum.repos.d/zfs.repo  | awk -F'=' '/baseurl=/{print $2; exit}')
+
+	# Just do a version lookup - don't try to install any RPMs
+	if [ "$LOOKUP" == "1" ] ; then
+		 package="$(dnf list $args zfs | tail -n 1 | awk '{print $2}')"
+		 echo "$repo ${package} $baseurl" >> $SUMMARY
+		 return
+	fi
+
+	if ! sudo dnf -y install $args zfs zfs-test ; then
+		echo "$repo ${package}...[FAILED] $baseurl" >> $SUMMARY
+		return
+	fi
 
 	# Load modules and create a simple pool as a sanity test.
 	sudo /usr/share/zfs/zfs.sh -r
@@ -51,7 +74,6 @@ function test_install {
 	sudo zpool status
 
 	# Print out repo name, rpm installed (kmod or dkms), and repo URL
-	baseurl=$(grep -A 5 "\[$repo\]" /etc/yum.repos.d/zfs.repo  | awk -F'=' '/baseurl=/{print $2; exit}')
 	package=$(sudo rpm -qa | grep zfs | grep -E 'kmod|dkms')
 
 	echo "$repo $package $baseurl" >> $SUMMARY
@@ -70,16 +92,19 @@ almalinux*)
 	name=$(curl -Ls $url | grep 'dnf install' | grep -Eo 'zfs-release-[0-9]+-[0-9]+')
 	sudo dnf -y install https://zfsonlinux.org/epel/$name$(rpm --eval "%{dist}").noarch.rpm 2>&1
 	sudo rpm -qi zfs-release
-	test_install zfs $ALTHOST
-	test_install zfs-kmod $ALTHOST
-	test_install zfs-testing $ALTHOST
-	test_install zfs-testing-kmod $ALTHOST
+	for i in zfs zfs-kmod zfs-testing zfs-testing-kmod zfs-latest \
+		zfs-latest-kmod zfs-legacy zfs-legacy-kmod zfs-2.2 \
+		zfs-2.2-kmod zfs-2.3 zfs-2.3-kmod zfs-2.4 zfs-2.4-kmod; do
+		test_install $i $ALTHOST
+	done
 	;;
 fedora*)
 	url='https://raw.githubusercontent.com/openzfs/openzfs-docs/refs/heads/master/docs/Getting%20Started/Fedora/index.rst'
 	name=$(curl -Ls $url | grep 'dnf install' | grep -Eo 'zfs-release-[0-9]+-[0-9]+')
 	sudo dnf -y install -y https://zfsonlinux.org/fedora/$name$(rpm --eval "%{dist}").noarch.rpm
-	test_install zfs $ALTHOST
+	for i in zfs zfs-latest zfs-legacy zfs-2.2 zfs-2.3 zfs-2.4 ; do
+		test_install $i $ALTHOST
+	done
 	;;
 esac
 echo "##[endgroup]"

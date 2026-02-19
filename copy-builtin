@@ -8,7 +8,9 @@ usage()
 	exit 1
 }
 
-[ "$#" -eq 1 ] || usage
+if ! [ -d "$1" ] ; then
+	usage
+fi
 KERNEL_DIR="$1"
 
 if ! [ -e 'zfs_config.h' ]
@@ -31,6 +33,7 @@ cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<EOF
 config ZFS
 	tristate "ZFS filesystem support"
 	depends on EFI_PARTITION
+	depends on BLOCK
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
 	help

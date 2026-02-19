@@ -37,7 +37,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must zpool destroy $MMP_POOL
+	datasetexists $MMP_POOL && destroy_pool $MMP_POOL
 	log_must rm $MMP_DIR/file.{0..7}
 	log_must rm $MMP_HISTORY_TMP
 	log_must rmdir $MMP_DIR

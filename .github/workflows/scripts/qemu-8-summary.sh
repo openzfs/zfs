@@ -31,6 +31,12 @@ EOF
   rm -f tmp$$
 }
 
+function showfile_tail() {
+  echo "##[group]$2 (final lines)"
+  tail -n 80 $1
+  echo "##[endgroup]"
+}
+
 # overview
 cat /tmp/summary.txt
 echo ""
@@ -46,6 +52,32 @@ fi
 echo -e "\nFull logs for download:\n    $1\n"
 
 for ((i=1; i<=VMs; i++)); do
+
+  # Print Lustre build test results (the build is only done on vm2)
+  if [ -f vm$i/lustre-exitcode.txt ] ; then
+    rv=$(< vm$i/lustre-exitcode.txt)
+    if [ $rv = 0 ]; then
+      vm="[92mvm$i[0m"
+    else
+      vm="[1;91mvm$i[0m"
+      touch /tmp/have_failed_tests
+    fi
+    file="vm$i/lustre.txt"
+    test -s "$file" && showfile_tail "$file" "$vm: Lustre build"
+  fi
+
+  if [ -f vm$i/builtin-exitcode.txt ] ; then
+    rv=$(< vm$i/builtin-exitcode.txt)
+    if [ $rv = 0 ]; then
+      vm="[92mvm$i[0m"
+    else
+      vm="[1;91mvm$i[0m"
+      touch /tmp/have_failed_tests
+    fi
+    file="vm$i/builtin.txt"
+    test -s "$file" && showfile_tail "$file" "$vm: Linux built-in build"
+  fi
+
   rv=$(cat vm$i/tests-exitcode.txt)
 
   if [ $rv = 0 ]; then

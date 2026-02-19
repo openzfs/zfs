@@ -21,7 +21,7 @@
  */
 /*
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
- * Copyright (c) 2024, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2024, 2025, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2024, Klara, Inc.
  */
 
@@ -1066,12 +1066,13 @@ zvol_os_clear_private(zvol_state_t *zv)
  * tiny devices.  For devices over 1 Mib a standard head and sector count
  * is used to keep the cylinders count reasonable.
  */
-static int
-zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
+static inline int
+zvol_getgeo_impl(struct gendisk *disk, struct hd_geometry *geo)
 {
-	zvol_state_t *zv = bdev->bd_disk->private_data;
+	zvol_state_t *zv = disk->private_data;
 	sector_t sectors;
 
+	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
 
 	sectors = get_capacity(zv->zv_zso->zvo_disk);
@@ -1089,6 +1090,20 @@ zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 
 	return (0);
 }
+
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_GETGEO_GENDISK
+static int
+zvol_getgeo(struct gendisk *disk, struct hd_geometry *geo)
+{
+	return (zvol_getgeo_impl(disk, geo));
+}
+#else
+static int
+zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
+{
+	return (zvol_getgeo_impl(bdev->bd_disk, geo));
+}
+#endif
 
 /*
  * Why have two separate block_device_operations structs?
@@ -1531,7 +1546,7 @@ zvol_os_free(zvol_state_t *zv)
 	if (zv->zv_zso->use_blk_mq)
 		blk_mq_free_tag_set(&zv->zv_zso->tag_set);
 
-	ida_simple_remove(&zvol_ida,
+	ida_free(&zvol_ida,
 	    MINOR(zv->zv_zso->zvo_dev) >> ZVOL_MINOR_BITS);
 
 	cv_destroy(&zv->zv_removing_cv);
@@ -1665,7 +1680,7 @@ zvol_os_create_minor(const char *name)
 	if (zvol_inhibit_dev)
 		return (0);
 
-	idx = ida_simple_get(&zvol_ida, 0, 0, kmem_flags_convert(KM_SLEEP));
+	idx = ida_alloc(&zvol_ida, kmem_flags_convert(KM_SLEEP));
 	if (idx < 0)
 		return (SET_ERROR(-idx));
 	minor = idx << ZVOL_MINOR_BITS;
@@ -1673,7 +1688,7 @@ zvol_os_create_minor(const char *name)
 		/* too many partitions can cause an overflow */
 		zfs_dbgmsg("zvol: create minor overflow: %s, minor %u/%u",
 		    name, minor, MINOR(minor));
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -1681,7 +1696,7 @@ zvol_os_create_minor(const char *name)
 	if (zv) {
 		ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 		mutex_exit(&zv->zv_state_lock);
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 		return (SET_ERROR(EEXIST));
 	}
 
@@ -1783,7 +1798,7 @@ out_doi:
 		rw_exit(&zvol_state_lock);
 		error = zvol_os_add_disk(zv->zv_zso->zvo_disk);
 	} else {
-		ida_simple_remove(&zvol_ida, idx);
+		ida_free(&zvol_ida, idx);
 	}
 
 	return (error);

@@ -104,6 +104,9 @@
 #define	spa_taskq_write_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, spa_taskq_write_param, "A"
 
+#define	spa_taskq_free_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, spa_taskq_free_param, "A"
+
 #define	fletcher_4_param_set_args(var) \
     CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
 

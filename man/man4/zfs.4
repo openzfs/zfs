@@ -17,7 +17,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd May 24, 2025
+.Dd September 15, 2025
 .Dt ZFS 4
 .Os
 .
@@ -2551,6 +2551,49 @@ the xattr so as to not accumulate duplicates.
 .It Sy zio_requeue_io_start_cut_in_line Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Prioritize requeued I/O.
 .
+.It Sy zfs_delete_inode Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Sets whether the kernel should free an inode structure when the last reference
+is released, or cache it in memory.
+Intended for testing/debugging.
+.Pp
+A live inode structure "pins" versious internal OpenZFS structures in memory,
+which can result in large amounts of "unusable" memory on systems with lots of
+infrequently-accessed files, until the kernel's memory pressure mechanism
+asks OpenZFS to release them.
+.Pp
+The default value of
+.Sy 0
+always caches inodes that appear to still exist on disk.
+Setting it to
+.Sy 1
+will immediately release unused inodes and their associated memory back to the
+dbuf cache or the ARC for reuse, but may reduce performance if inodes are
+frequently evicted and reloaded.
+.Pp
+This parameter is only available on Linux.
+.
+.It Sy zfs_delete_dentry Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Sets whether the kernel should free a dentry structure when it is no longer
+required, or hold it in the dentry cache.
+Intended for testing/debugging.
+.
+Since a dentry structure holds an inode reference, a cached dentry can "pin"
+an inode in memory indefinitely, along with associated OpenZFS structures (See
+.Sy zfs_delete_inode ) .
+.Pp
+The default value of
+.Sy 0
+instructs the kernel to cache entries and their associated inodes when they
+are no longer directly referenced.
+They will be reclaimed as part of the kernel's normal cache management
+processes.
+Setting it to
+.Sy 1
+will instruct the kernel to release directory entries and their inodes as soon
+as they are no longer referenced by the filesystem.
+.Pp
+This parameter is only available on Linux.
+.
 .It Sy zio_taskq_batch_pct Ns = Ns Sy 80 Ns % Pq uint
 Percentage of online CPUs which will run a worker thread for I/O.
 These workers are responsible for I/O work such as compression, encryption,
@@ -2585,12 +2628,50 @@ Set value only applies to pools imported/created after that.
 Set the queue and thread configuration for the IO read queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
 Set values only apply to pools imported/created after that.
 .
 .It Sy zio_taskq_write Ns = Ns Sy sync null scale null Pq charp
 Set the queue and thread configuration for the IO write queues.
 This is an advanced debugging parameter.
 Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+Set values only apply to pools imported/created after that.
+.
+.It Sy zio_taskq_free Ns = Ns Sy scale,32 null null null Pq charp
+Set the queue and thread configuration for the IO free queues.
+This is an advanced debugging parameter.
+Don't change this unless you understand what it does.
+Each of the four values corresponds to the issue, issue high-priority,
+interrupt, and interrupt high-priority queues.
+Valid values are
+.Sy fixed,N,M
+(M queues with N threads each),
+.Sy scale[,MIN]
+(scale with CPUs, minimum MIN total threads),
+.Sy sync ,
+and
+.Sy null .
+The default uses a minimum of 32 threads to improve parallelism for
+DDT and BRT metadata operations during frees.
 Set values only apply to pools imported/created after that.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
