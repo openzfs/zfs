@@ -152,7 +152,7 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
  * Given an object number, return some zpl level statistics
  */
 static int
-zfs_obj_to_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
+zfs_obj_to_stats_legacy(sa_handle_t *hdl, sa_attr_type_t *sa_table,
     zfs_stat_t *sb)
 {
 	sa_bulk_attr_t bulk[4];
@@ -280,9 +280,54 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
 	return (error);
 }
 
+/* Taken from ZDB */
+static const char *
+zfs_obj_type_name(dmu_object_type_t type)
+{
+	if (type < DMU_OT_NUMTYPES)
+		return (dmu_ot[type].ot_name);
+	else if ((type & DMU_OT_NEWTYPE) &&
+	    ((type & DMU_OT_BYTESWAP_MASK) < DMU_BSWAP_NUMFUNCS))
+		return (dmu_ot_byteswap[type & DMU_OT_BYTESWAP_MASK].ob_name);
+	else
+		return ("UNKNOWN");
+}
+
+static void
+zfs_obj_to_stats_extended(sa_handle_t *hdl, nvlist_t *nv)
+{
+	dmu_object_info_t doi;
+	sa_object_info(hdl, &doi);
+
+	VERIFY0(nvlist_add_uint32(nv, ZFS_OBJ_STAT_DATA_BLOCK_SIZE,
+	    doi.doi_data_block_size));
+	VERIFY0(nvlist_add_uint32(nv, ZFS_OBJ_STAT_METADATA_BLOCK_SIZE,
+	    doi.doi_metadata_block_size));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_TYPE,
+	    doi.doi_type));
+	VERIFY0(nvlist_add_string(nv, ZFS_OBJ_STAT_TYPE_STR,
+	    zfs_obj_type_name(doi.doi_type)));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_BONUS_TYPE,
+	    doi.doi_bonus_type));
+	VERIFY0(nvlist_add_string(nv, ZFS_OBJ_STAT_BONUS_TYPE_STR,
+	    zfs_obj_type_name(doi.doi_bonus_type)));
+	VERIFY0(nvlist_add_uint8(nv, ZFS_OBJ_STAT_CHECKSUM,
+	    doi.doi_checksum));
+	VERIFY0(nvlist_add_uint8(nv, ZFS_OBJ_STAT_COMPRESS,
+	    doi.doi_compress));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_DNODE_SIZE,
+	    doi.doi_dnodesize));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_PHYSICAL_BLOCKS_512,
+	    doi.doi_physical_blocks_512));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_MAX_OFFSET,
+	    doi.doi_max_offset));
+	VERIFY0(nvlist_add_uint64(nv, ZFS_OBJ_STAT_FILL_COUNT,
+	    doi.doi_fill_count));
+}
+
 int
 zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
-    char *buf, int len)
+    char *buf, int len, nvlist_t *nv)
 {
 	char *path = buf + len - 1;
 	sa_attr_type_t *sa_table;
@@ -300,11 +345,15 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	if (error != 0)
 		return (error);
 
-	error = zfs_obj_to_stats_impl(hdl, sa_table, sb);
+	error = zfs_obj_to_stats_legacy(hdl, sa_table, sb);
+
 	if (error != 0) {
 		zfs_release_sa_handle(hdl, db, FTAG);
 		return (error);
 	}
+
+	if (nv != NULL)
+		zfs_obj_to_stats_extended(hdl, nv);
 
 	error = zfs_obj_to_path_impl(osp, obj, hdl, sa_table, buf, len);
 

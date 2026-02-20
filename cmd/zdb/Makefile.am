@@ -14,6 +14,8 @@ zdb_LDADD = \
 	libzdb.la \
 	libzpool.la \
 	libzfs_core.la \
-	libnvpair.la
+	libnvpair.la \
+	librange_tree.la \
+	libbtree.la
 
 zdb_LDADD += $(LIBCRYPTO_LIBS)

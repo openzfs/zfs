@@ -9459,6 +9459,7 @@ main(int argc, char **argv)
 	char pbuf[MAXPATHLEN];
 
 	dprintf_setup(&argc, argv);
+	zfs_btree_init();
 
 	/*
 	 * Set up signal handlers, so if we crash due to bad on-disk data we
@@ -10204,5 +10205,6 @@ fini:
 	if (corruption_found && error == 0)
 		error = 3;
 
+	zfs_btree_fini();
 	return (error);
 }
