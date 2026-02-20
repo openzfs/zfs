@@ -38,6 +38,7 @@
 .Nm zpool
 .Cm status
 .Op Fl DdegiLPpstvx
+.Op Fl E Ar pool1 Ns Oo , Ns Ar pool2 Ns ,… Oc
 .Op Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
 .Oo Fl j|--json
 .Oo Ns Fl -json-flat-vdevs Oc
@@ -95,6 +96,22 @@ Direct I/O reads checksum verify errors can also occur if the contents of the
 buffer are being manipulated after the I/O has been issued and is in flight.
 In the case of Direct I/O read checksum verify errors, the I/O will be reissued
 through the ARC.
+.It Fl E Ar pool Ns Oo , Ns Ar pool Oc Ns ...
+Exclude specified pools from output.
+Multiple pool names can be specified separated by commas.
+.Pp
+Examples:
+.Bl -bullet -compact
+.It
+.Ql zpool status -E tank
+shows all pools except tank.
+.It
+.Ql zpool status -E tank,backup
+shows all pools except tank and backup.
+.It
+.Ql zpool status pool1 pool2 -E pool1
+shows only pool2 (pool1 is excluded).
+.El
 .It Fl e
 Only show unhealthy vdevs (not-ONLINE or with errors).
 .It Fl g
