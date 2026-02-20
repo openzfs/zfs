@@ -117,6 +117,12 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_DEDUPRATIO, "dedupratio", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<1.00x or higher if deduped>",
 	    "DEDUP", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUPUSED, "dedupused", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<size>",
+	    "DEDUP_USED", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_DEDUPSAVED, "dedupsaved", 0,
+	    PROP_READONLY, ZFS_TYPE_POOL, "<size>",
+	    "DEDUP_SAVED", B_FALSE, sfeatures);
 	zprop_register_number(ZPOOL_PROP_BCLONEUSED, "bcloneused", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<size>",
 	    "BCLONE_USED", B_FALSE, sfeatures);
