@@ -298,6 +298,21 @@ ddt_get_dedup_dspace(spa_t *spa)
 }
 
 uint64_t
+ddt_get_dedup_used(spa_t *spa)
+{
+	ddt_stat_t dds_total = { 0 };
+
+	ddt_get_dedup_stats(spa, &dds_total);
+	return (dds_total.dds_dsize);
+}
+
+uint64_t
+ddt_get_dedup_saved(spa_t *spa)
+{
+	return (ddt_get_dedup_dspace(spa));
+}
+
+uint64_t
 ddt_get_pool_dedup_ratio(spa_t *spa)
 {
 	ddt_stat_t dds_total = { 0 };

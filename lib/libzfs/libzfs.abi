@@ -3370,7 +3370,9 @@
       <enumerator name='ZPOOL_PROP_DEDUP_TABLE_QUOTA' value='37'/>
       <enumerator name='ZPOOL_PROP_DEDUPCACHED' value='38'/>
       <enumerator name='ZPOOL_PROP_LAST_SCRUBBED_TXG' value='39'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='40'/>
+      <enumerator name='ZPOOL_PROP_DEDUPUSED' value='40'/>
+      <enumerator name='ZPOOL_PROP_DEDUPSAVED' value='41'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='42'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>
@@ -6554,6 +6556,11 @@
     <pointer-type-def type-id='35acf840' size-in-bits='64' id='17f3480d'/>
     <pointer-type-def type-id='688c495b' size-in-bits='64' id='cec6f2e4'/>
     <pointer-type-def type-id='d11b7617' size-in-bits='64' id='23432aaa'/>
+    <function-decl name='dump_nvlist' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='zpool_get_handle' mangled-name='zpool_get_handle' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_handle'>
       <parameter type-id='4c81de99'/>
       <return type-id='b0382bb3'/>

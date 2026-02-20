@@ -80,6 +80,21 @@ See
 .Xr zpool-prefetch 8 .
 .It Sy dedup_table_size
 Total on-disk size of the deduplication table.
+.It Sy dedupratio
+The ratio of the total amount of storage that would be required to store all
+the deduplicated blocks without deduplication to the actual storage used.
+The
+.Sy dedupratio
+property is calculated as:
+.Pp
+.Sy ( ( dedupsaved + dedupused ) * 100 ) / dedupused
+.It Sy dedupsaved
+The amount of additional storage that would be required if deduplication
+was not used.
+This represents the space saved by deduplication.
+.It Sy dedupused
+The amount of storage used by deduplicated blocks.
+This is the actual physical space occupied on disk after deduplication.
 .It Sy expandsize
 Amount of uninitialized space within the pool or device that can be used to
 increase the total capacity of the pool.
