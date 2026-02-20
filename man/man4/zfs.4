@@ -2002,6 +2002,24 @@ simply doing a metadata crawl of the pool instead.
 .It Sy zfs_no_scrub_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Set to disable block prefetching for scrubs.
 .
+.It Sy zfs_scrub_recent_time Ns = Ns Sy 14400 Pq uint
+.It Sy zfs_scrub_recent_time_hours Ns = Ns Sy 4 Pq uint
+.It Sy zfs_scrub_recent_time_days Ns = Ns Sy 0 Pq uint
+Set the time interval that defines which data is considered most recent.
+The interval is measured relative to the last known TXG in the TXG database.
+.Pp
+This setting can be specified using one of three properties: seconds, hours,
+or days.
+These properties are provided for user convenience.
+Each represents the same value, expressed in different units of time.
+For example, setting the
+.Sy zfs_scrub_recent_time_hours
+property to 1 will automatically set the
+.Sy zfs_scrub_recent_time
+to 3600 and
+.Sy zfs_scrub_recent_time_days
+to 0.
+.
 .It Sy zfs_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable cache flush operations on disks when writing.
 Setting this will cause pool corruption on power loss
