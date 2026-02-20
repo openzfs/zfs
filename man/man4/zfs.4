@@ -3,7 +3,7 @@
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
-.\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
+.\" Copyright (c) 2023-2026, Klara, Inc.
 .\"
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -18,7 +18,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd September 15, 2025
+.Dd January 5, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1887,6 +1887,10 @@ Normally disabled because these datasets may be missing key data.
 .
 .It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq u64
 Minimum number of metaslabs to flush per dirty TXG.
+.
+.It Sy zfs_min_metaslabs_to_flush_all Ns = Ns Sy 5 Pq u64
+Minimum number of metaslabs to flush per dirty TXG when condensing log
+spacemaps.
 .
 .It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 77 Ns % Pq uint
 Allow metaslabs to keep their active state as long as their fragmentation
