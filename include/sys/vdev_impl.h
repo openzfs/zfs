@@ -503,26 +503,6 @@ typedef struct vdev_phys {
 	zio_eck_t	vp_zbt;
 } vdev_phys_t;
 
-typedef enum vbe_vers {
-	/*
-	 * The bootenv file is stored as ascii text in the envblock.
-	 * It is used by the GRUB bootloader used on Linux to store the
-	 * contents of the grubenv file. The file is stored as raw ASCII,
-	 * and is protected by an embedded checksum. By default, GRUB will
-	 * check if the boot filesystem supports storing the environment data
-	 * in a special location, and if so, will invoke filesystem specific
-	 * logic to retrieve it. This can be overridden by a variable, should
-	 * the user so desire.
-	 */
-	VB_RAW = 0,
-
-	/*
-	 * The bootenv file is converted to an nvlist and then packed into the
-	 * envblock.
-	 */
-	VB_NVLIST = 1
-} vbe_vers_t;
-
 typedef struct vdev_boot_envblock {
 	uint64_t	vbe_version;
 	char		vbe_bootenv[VDEV_PAD_SIZE - sizeof (uint64_t) -
