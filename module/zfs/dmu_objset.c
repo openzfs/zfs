@@ -638,6 +638,14 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			}
 		}
 		if (err != 0) {
+			/*
+			 * Some property callbacks may have been registered
+			 * before the failure.  Remove them before freeing os
+			 * so later property-notify or dataset-eviction paths
+			 * cannot touch dangling callback records pointing at
+			 * the freed objset.
+			 */
+			dsl_prop_unregister_all(ds, os);
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			kmem_free(os, sizeof (objset_t));
 			return (err);
