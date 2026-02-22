@@ -141,6 +141,10 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/lease:Linux]
+tests = ['lease_setlease']
+tags = ['functional', 'lease']
+
 [tests/functional/longname:Linux]
 tests = ['longname_001_pos', 'longname_002_pos', 'longname_003_pos']
 tags = ['functional', 'longname']
