@@ -21,7 +21,11 @@
 #include	<sys/bitops.h>
 #include	<sys/zfs_context.h>
 
-kmem_cache_t *zfs_btree_leaf_cache;
+#ifndef _KERNEL
+#define	panic(...) PANIC(__VA_ARGS__)
+#endif
+
+kmem_cache_t *zfs_btree_leaf_cache = NULL;
 
 /*
  * Control the extent of the verification that occurs when zfs_btree_verify is
@@ -106,6 +110,8 @@ zfs_btree_poison_node(zfs_btree_t *tree, zfs_btree_hdr_t *hdr)
 		    tree->bt_leaf_size - offsetof(zfs_btree_leaf_t, btl_elems) -
 		    (hdr->bth_first + hdr->bth_count) * size);
 	}
+#else
+	(void) tree; (void) hdr;
 #endif
 }
 
@@ -132,6 +138,8 @@ zfs_btree_poison_node_at(zfs_btree_t *tree, zfs_btree_hdr_t *hdr,
 		(void) memset(leaf->btl_elems +
 		    (hdr->bth_first + idx) * size, 0x0f, count * size);
 	}
+#else
+	(void) tree; (void) hdr; (void) idx; (void) count;
 #endif
 }
 
@@ -158,6 +166,8 @@ zfs_btree_verify_poison_at(zfs_btree_t *tree, zfs_btree_hdr_t *hdr,
 			    * size + i], ==, 0x0f);
 		}
 	}
+#else
+	(void) tree; (void) hdr; (void) idx;
 #endif
 }
 
@@ -196,6 +206,9 @@ void
 zfs_btree_create(zfs_btree_t *tree, int (*compar) (const void *, const void *),
     bt_find_in_buf_f bt_find_in_buf, size_t size)
 {
+	/* Verify zfs_btree_init() was called before zfs_btree_create() */
+	ASSERT(zfs_btree_leaf_cache != NULL);
+
 	zfs_btree_create_custom(tree, compar, bt_find_in_buf, size,
 	    BTREE_LEAF_SIZE);
 }
@@ -2185,6 +2198,8 @@ zfs_btree_verify_poison(zfs_btree_t *tree)
 	if (tree->bt_height == -1)
 		return;
 	zfs_btree_verify_poison_helper(tree, tree->bt_root);
+#else
+	(void) tree;
 #endif
 }
 

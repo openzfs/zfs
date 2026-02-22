@@ -191,9 +191,11 @@ void zfs_btree_fini(void);
  * size   - the value of sizeof(struct my_type)
  * lsize  - custom leaf size
  */
-void zfs_btree_create(zfs_btree_t *, int (*) (const void *, const void *),
+void zfs_btree_create(zfs_btree_t *,
+    int (*) (const void *, const void *),
     bt_find_in_buf_f, size_t);
-void zfs_btree_create_custom(zfs_btree_t *, int (*)(const void *, const void *),
+void zfs_btree_create_custom(zfs_btree_t *,
+    int (*)(const void *, const void *),
     bt_find_in_buf_f, size_t, size_t);
 
 /*
@@ -213,7 +215,8 @@ void *zfs_btree_find(zfs_btree_t *, const void *, zfs_btree_index_t *);
  * node   - the node to insert
  * where  - position as returned from zfs_btree_find()
  */
-void zfs_btree_add_idx(zfs_btree_t *, const void *, const zfs_btree_index_t *);
+void zfs_btree_add_idx(zfs_btree_t *, const void *,
+    const zfs_btree_index_t *);
 
 /*
  * Return the first or last valued node in the tree. Will return NULL if the
