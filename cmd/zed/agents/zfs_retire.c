@@ -216,10 +216,11 @@ find_and_remove_spares(libzfs_handle_t *zhdl, uint64_t vdev_guid)
 }
 
 /*
- * Given a (pool, vdev) GUID pair, find the matching pool and vdev.
+ * Given a (pool, vdev) GUID pair, find the matching pool, vdev and
+ * its top_guid.
  */
 static zpool_handle_t *
-find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
+find_by_guid_impl(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
     nvlist_t **vdevp, uint64_t *top_guid)
 {
 	find_cbdata_t cb;
@@ -253,34 +254,54 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 }
 
 /*
+ * Given a (pool, vdev) GUID pair, find the matching pool and vdev.
+ */
+static zpool_handle_t *
+find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
+    nvlist_t **vdevp)
+{
+	return (find_by_guid_impl(zhdl, pool_guid, vdev_guid, vdevp, NULL));
+}
+
+/*
  * Given a (pool, vdev) GUID pair, count the number of faulted vdevs in
  * its top vdev and return TRUE if the number of failures > nparity.
  */
 static boolean_t
-is_domain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid)
+is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
+    uint64_t vdev_guid)
 {
-	nvlist_t *nvtop, *vdev;
 	uint64_t top_guid;
 	uint64_t nparity;
-	nvlist_t **child;
-	uint_t i, c, children;
+	uint64_t children;
+	nvlist_t *nvtop, *vdev, **child;
 	vdev_stat_t *vs;
+	uint_t i, c, width;
 
-	if (find_by_guid(zhdl, pool_guid, vdev_guid, &vdev, &top_guid) == NULL)
+	if (find_by_guid_impl(zhdl, pool_guid, vdev_guid, &vdev,
+	    &top_guid) == NULL)
 		return (B_FALSE);
 
-	if (find_by_guid(zhdl, pool_guid, top_guid, &nvtop, NULL) == NULL)
+	if (find_by_guid_impl(zhdl, pool_guid, top_guid, &nvtop,
+	    NULL) == NULL)
 		return (B_FALSE);
 
 	if (nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_NPARITY, &nparity) != 0)
 		return (B_FALSE);
 
 	if (nvlist_lookup_nvlist_array(nvtop, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) != 0)
+	    &child, &width) != 0)
+		return (B_FALSE);
+
+	if (nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_DRAID_NCHILDREN,
+	    &children) != 0) /* not dRAID */
+		return (B_FALSE);
+
+	if (width == children) /* not dRAID with failure domains */
 		return (B_FALSE);
 
 	int nfaults = 0;
-	for (c = 0; c < children; c++) {
+	for (c = 0; c < width; c++) {
 		nvlist_lookup_uint64_array(child[c], ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &i);
 
@@ -487,7 +508,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			return;
 
 		if ((zhp = find_by_guid(zhdl, pool_guid, vdev_guid,
-		    &vdev, NULL)) == NULL)
+		    &vdev)) == NULL)
 			return;
 
 		devname = zpool_vdev_name(NULL, zhp, vdev, B_FALSE);
@@ -499,13 +520,17 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			return;
 
 		/*
-		 * No need to hurry with starting resilver, it can be domain
+		 * No rush with starting resilver, it can be draid fdomain
 		 * failure, in which case we need to wait a little so that more
 		 * devices will get into faulted state and we could detect that
 		 * it's domain failure.
+		 *
+		 * Resilvering domain failures can take a lot of computing and
+		 * I/O bandwidth resources only to be wasted when the failed
+		 * domain component (for example enclosure) is replaced.
 		 */
 		sleep(5);
-		if (is_domain_failure(zhdl, pool_guid, vdev_guid))
+		if (is_draid_fdomain_failure(zhdl, pool_guid, vdev_guid))
 			return;
 
 		/*
@@ -640,7 +665,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			}
 
 			if ((zhp = find_by_guid(zhdl, pool_guid, vdev_guid,
-			    &vdev, NULL)) == NULL)
+			    &vdev)) == NULL)
 				continue;
 
 			aux = VDEV_AUX_ERR_EXCEEDED;
