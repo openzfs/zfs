@@ -227,6 +227,30 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS], [
 ])
 
 dnl #
+dnl # 7.0 API change
+dnl # blk_queue_rot() replaces blk_queue_nonrot() (inverted meaning)
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_ROT], [
+	ZFS_LINUX_TEST_SRC([blk_queue_rot], [
+		#include <linux/blkdev.h>
+	], [
+		struct request_queue *q __attribute__ ((unused)) = NULL;
+		(void) blk_queue_rot(q);
+	], [])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_ROT], [
+	AC_MSG_CHECKING([whether blk_queue_rot() is available])
+	ZFS_LINUX_TEST_RESULT([blk_queue_rot], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLK_QUEUE_ROT, 1,
+		    [blk_queue_rot() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 2.6.34 API change
 dnl # blk_queue_max_segments() consolidates blk_queue_max_hw_segments()
 dnl # and blk_queue_max_phys_segments().
@@ -279,6 +303,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE], [
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE_MAX_SEGMENTS
+	ZFS_AC_KERNEL_SRC_BLK_QUEUE_ROT
 	ZFS_AC_KERNEL_SRC_BLK_MQ_RQ_HCTX
 ])
 
@@ -291,5 +316,6 @@ AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE], [
 	ZFS_AC_KERNEL_BLK_QUEUE_SECURE_ERASE
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_HW_SECTORS
 	ZFS_AC_KERNEL_BLK_QUEUE_MAX_SEGMENTS
+	ZFS_AC_KERNEL_BLK_QUEUE_ROT
 	ZFS_AC_KERNEL_BLK_MQ_RQ_HCTX
 ])

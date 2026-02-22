@@ -130,10 +130,27 @@ zpl_acl_from_xattr(const void *value, int size)
 	return (posix_acl_from_xattr(kcred->user_ns, value, size));
 }
 
+/*
+ * Linux 7.0 API change. posix_acl_to_xattr() changed from filling the
+ * caller-provided buffer to allocating a buffer with enough space and
+ * returning it. We wrap this up by copying the result into the provided
+ * buffer and freeing the allocated buffer.
+ */
 static inline int
 zpl_acl_to_xattr(struct posix_acl *acl, void *value, int size)
 {
+#ifdef HAVE_POSIX_ACL_TO_XATTR_ALLOC
+	size_t s = 0;
+	void *v = posix_acl_to_xattr(kcred->user_ns, acl, &s,
+	    kmem_flags_convert(KM_SLEEP));
+	if (v == NULL)
+		return (-ENOMEM);
+	memcpy(value, v, MIN(size, s));
+	kfree(v);
+	return (0);
+#else
 	return (posix_acl_to_xattr(kcred->user_ns, acl, value, size));
+#endif
 }
 
 #endif /* _ZFS_XATTR_H */
