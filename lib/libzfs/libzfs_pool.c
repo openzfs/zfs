@@ -2053,7 +2053,9 @@ zpool_explain_recover(libzfs_handle_t *hdl, const char *name, int reason,
 
 no_info:
 	(void) strlcat(buf, dgettext(TEXT_DOMAIN,
-	    "Destroy and re-create the pool from\n\ta backup source.\n"), size);
+	    "Ensure all pool devices are present and accessible, then "
+	    "retry the import.\n\tIf the problem persists, destroy and "
+	    "re-create the pool from a backup source.\n"), size);
 }
 
 /*
