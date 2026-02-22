@@ -265,13 +265,15 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 
 /*
  * Given a (pool, vdev) GUID pair, count the number of faulted vdevs in
- * its top vdev and return TRUE if the number of failures > nparity.
+ * its top vdev and return TRUE if the number of failures > nparity, which
+ * means it's dRAID domain failure, and the faulted device belongs to that
+ * domain.
  */
 static boolean_t
 is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
     uint64_t vdev_guid)
 {
-	uint64_t top_guid;
+	uint64_t guid, top_guid;
 	uint64_t nparity;
 	uint64_t children;
 	nvlist_t *nvtop, *vdev, **child;
@@ -301,15 +303,21 @@ is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
 		return (B_FALSE);
 
 	int nfaults = 0;
+	boolean_t belongs = B_FALSE;
 	for (c = 0; c < width; c++) {
 		nvlist_lookup_uint64_array(child[c], ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &i);
 
-		if (vs->vs_state == VDEV_STATE_FAULTED)
+		if (vs->vs_state == VDEV_STATE_FAULTED) {
 			nfaults++;
+
+			if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID,
+			    &guid) == 0 && guid == vdev_guid)
+				belongs = B_TRUE;
+		}
 	}
 
-	return (nfaults > nparity);
+	return (nfaults > nparity && belongs);
 }
 
 /*
