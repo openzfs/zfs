@@ -1451,11 +1451,17 @@ zpool_has_draid_vdev(nvlist_t *nvroot)
  */
 static char *
 zpool_draid_name(char *name, int len, uint64_t data, uint64_t parity,
-    uint64_t spares, uint64_t children)
+    uint64_t spares, uint64_t children, uint64_t width)
 {
-	snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
-	    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
-	    (u_longlong_t)children, (u_longlong_t)spares);
+	if (children < width)
+		snprintf(name, len, "%s%llu:%llud:%lluc:%lluw:%llus",
+		    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
+		    (u_longlong_t)children, (u_longlong_t)width,
+		    (u_longlong_t)spares);
+	else
+		snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
+		    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
+		    (u_longlong_t)children, (u_longlong_t)spares);
 
 	return (name);
 }
@@ -4580,12 +4586,12 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		 * If it's a dRAID device, we add parity, groups, and spares.
 		 */
 		if (strcmp(path, VDEV_TYPE_DRAID) == 0) {
-			uint64_t ndata, nparity, nspares;
+			uint64_t ndata, nparity, nspares, children;
 			nvlist_t **child;
-			uint_t children;
+			uint_t width;
 
 			verify(nvlist_lookup_nvlist_array(nv,
-			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+			    ZPOOL_CONFIG_CHILDREN, &child, &width) == 0);
 			nparity = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_NPARITY);
 			ndata = fnvlist_lookup_uint64(nv,
@@ -4593,8 +4599,12 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			nspares = fnvlist_lookup_uint64(nv,
 			    ZPOOL_CONFIG_DRAID_NSPARES);
 
+			if (nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NCHILDREN, &children) != 0)
+				children = width;
+
 			path = zpool_draid_name(buf, sizeof (buf), ndata,
-			    nparity, nspares, children);
+			    nparity, nspares, children, width);
 		}
 
 		/*
@@ -5518,6 +5528,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_IO_T:
 		case VDEV_PROP_SLOW_IO_N:
 		case VDEV_PROP_SLOW_IO_T:
+		case VDEV_PROP_FDOMAIN:
+		case VDEV_PROP_FGROUP:
 			if (intval == UINT64_MAX) {
 				(void) strlcpy(buf, "-", len);
 			} else {

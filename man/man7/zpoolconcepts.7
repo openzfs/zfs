@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2026 Seagate Technology, LLC.
 .\"
 .Dd August 6, 2025
 .Dt ZPOOLCONCEPTS 7
@@ -142,7 +143,7 @@ A dRAID with
 .No parity level, and Em S No distributed hot spares can hold approximately
 .Em (N-S)*(D/(D+P))*X No bytes and can withstand Em P
 devices failing without losing data.
-.It Sy draid Ns Oo Ar parity Oc Ns Oo Sy \&: Ns Ar data Ns Sy d Oc Ns Oo Sy \&: Ns Ar children Ns Sy c Oc Ns Oo Sy \&: Ns Ar spares Ns Sy s Oc
+.It Sy draid Ns Oo Ar parity Oc Ns Oo Sy \&: Ns Ar data Ns Sy d Oc Ns Oo Sy \&: Ns Ar children Ns Sy c Oc Ns Oo Sy \&: Ns Ar spares Ns Sy s Oc Ns Oo Sy \&: Ns Ar width Ns Sy w Oc
 A non-default dRAID configuration can be specified by appending one or more
 of the following optional arguments to the
 .Sy draid
@@ -161,9 +162,34 @@ Defaults to
 The expected number of children.
 Useful as a cross-check when listing a large number of devices.
 An error is returned when the provided number of children differs.
+.It Ar width
+You can configure several groups of children in the same row, in which case
+.Em width No would be a multiple of Em children .
+Such configurations allow the creation of failure groups with every i-th device
+in each group being from different failure domain (for example an enclosure)
+so that if all devices in one domain fail, the
+.Em draid No vdev still will be operational with enough redundancy to
+rebuild the data.
+In case of
+.Em draid2 , No two domains can fail at a time, in case of
+.Em draid3 No \(em three domains (provided there are no other failures
+in any failure group).
+For each group, it will be only one, two or three failures.
 .It Ar spares
 The number of distributed hot spares.
+If failure domains are configured
+.Em ( width No > Em children ) , No it must be a
+multiple of the number of failure groups so that each group has the same
+number of spares.
+All spares are shared between failure groups.
 Defaults to zero.
+.Pp
+Note: to support domain failure, we cannot have more than
+.Em parity-1 No failures in any failure group, no matter if the failed
+devices are rebuilt to draid hot spares or not \(em the blocks of those
+spares can be mapped to the devices from the failed domain, and we cannot
+tolerate more than
+.Em parity No failures in any failure group .
 .El
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
@@ -202,6 +228,10 @@ A cache device cannot be configured as a mirror or raidz group.
 For more information, see the
 .Sx Cache Devices
 section.
+.It Sy fdomain No or Sy failure_domain
+Denotes the list of failure domain devices for dRAID vdev.
+.It Sy fgroup No or Sy failure_group
+Denotes the list of failure group devices for dRAID vdev.
 .El
 .Pp
 Virtual devices cannot be nested arbitrarily.
@@ -364,7 +394,13 @@ pools.
 The
 .Sy draid
 vdev type provides distributed hot spares.
-These hot spares are named after the dRAID vdev they're a part of
+These are virtual devices whose blocks are reserved and distributed among
+all real devices, which makes resilvering to them much faster because one
+device is not a bottleneck anymore.
+Fast resilvering is crucial for data durability, it decreases the time of
+having degraded data redundancy in the pool, thus decreasing the chance of
+losing more devices at a time than we can tolerate.
+dRAID hot spares are named after the draid vdev they're a part of
 .Po Sy draid1 Ns - Ns Ar 2 Ns - Ns Ar 3 No specifies spare Ar 3 No of vdev Ar 2 ,
 .No which is a single parity dRAID Pc
 and may only be used by that dRAID vdev.

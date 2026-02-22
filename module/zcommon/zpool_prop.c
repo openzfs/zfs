@@ -379,6 +379,12 @@ vdev_prop_init(void)
 	    ZFS_TYPE_VDEV, "<ashift>", "ASHIFT", B_FALSE, sfeatures);
 	zprop_register_number(VDEV_PROP_PARITY, "parity", 0, PROP_READONLY,
 	    ZFS_TYPE_VDEV, "<parity>", "PARITY", B_FALSE, sfeatures);
+	zprop_register_number(VDEV_PROP_FDOMAIN, "failure_domain", UINT64_MAX,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<fdomain>", "FDOM", B_FALSE,
+	    sfeatures);
+	zprop_register_number(VDEV_PROP_FGROUP, "failure_group", UINT64_MAX,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "<fgroup>", "FGRP", B_FALSE,
+	    sfeatures);
 	zprop_register_number(VDEV_PROP_NUMCHILDREN, "numchildren", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "<number-of-children>", "NUMCHILD",
 	    B_FALSE, sfeatures);

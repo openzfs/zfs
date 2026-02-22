@@ -239,6 +239,18 @@ The following command creates a ZFS storage pool consisting of two, two-way
 mirrors and mirrored log devices:
 .Dl # Nm zpool Cm create Ar pool Sy mirror Pa sda sdb Sy mirror Pa sdc sdd Sy log mirror Pa sde sdf
 .
+.Ss Example 7 : No Creating a ZFS Pool with dRAID vdev
+The following command creates a ZFS storage pool with dRAID vdev
+with one parity, four data and one spare devices, 6 devices in total:
+.Dl # Nm zpool Cm create Ar pool Sy draid1:4d:6c:1s Pa sda sdb sdc sdd sde sdf
+.
+.Ss Example 8 : No Creating a ZFS Pool with dRAID vdev with failure domains
+The following commands create a ZFS storage pool with dRAID vdev
+with two failure groups and three failure domains, they are equivalent:
+.Dl # Nm zpool Cm create Ar pool Sy draid1:1d:3c:6w:2s Pa enc0d0 enc1d0 enc2d0 enc0d1 enc1d1 enc2d1
+.Dl # Nm zpool Cm create Ar pool Sy draid1:2s fgroup Pa enc0d0 enc1d0 enc2d0 Sy fgroup Pa enc0d1 enc1d1 enc2d1
+.Dl # Nm zpool Cm create Ar pool Sy draid1:2s fdomain Pa enc0d0 enc0d1 Sy fdomain Pa enc1d0 enc1d1 Sy fdomain Pa enc2d0 enc2d1
+.
 .Sh SEE ALSO
 .Xr zpool-destroy 8 ,
 .Xr zpool-export 8 ,

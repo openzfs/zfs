@@ -64,7 +64,7 @@ The values of non-numeric properties are case sensitive and must be lowercase.
 The following native properties consist of read-only statistics about the
 vdev.
 These properties can not be changed.
-.Bl -tag -width "fragmentation"
+.Bl -tag -width "failure_domain"
 .It Sy capacity
 Percentage of vdev space used
 .It Sy state
@@ -89,6 +89,14 @@ How much this vdev can expand by
 Percent of fragmentation in this vdev
 .It Sy parity
 The level of parity for this vdev
+.It Sy failure_domain
+Failure domain id of this child vdev in
+.Sy dRAID
+vdev with failure domains feature
+.It Sy failure_group
+Failure group id of this child vdev in
+.Sy dRAID
+vdev with failure domains feature
 .It Sy devid
 The device id for this vdev
 .It Sy physpath
@@ -114,7 +122,7 @@ threshold in milliseconds
 For
 .Sy RAIDZ
 and
-.Sy DRAID
+.Sy dRAID
 configurations, this value also represents the number of times the vdev was
 identified as an outlier and excluded from participating in read I/O operations.
 .It Sy null_ops , read_ops , write_ops , free_ops , claim_ops , trim_ops
@@ -166,7 +174,7 @@ failfast.
 Only valid for
 .Sy RAIDZ
 and
-.Sy DRAID
+.Sy dRAID
 vdevs.
 True when a slow disk outlier was detected and the vdev is currently in a sit
 out state.
@@ -180,7 +188,7 @@ data will be reconstructed as needed from parity.
 Only valid for
 .Sy RAIDZ
 and
-.Sy DRAID
+.Sy dRAID
 vdevs.
 If set, this enables the kernel-level slow disk detection logic.
 This logic automatically causes any vdevs that are significant negative

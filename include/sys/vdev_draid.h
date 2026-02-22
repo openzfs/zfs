@@ -68,9 +68,10 @@ typedef struct vdev_draid_config {
 	 */
 	uint64_t vdc_ndata;		/* # of data devices in group */
 	uint64_t vdc_nparity;		/* # of parity devices in group */
-	uint64_t vdc_nspares;		/* # of distributed spares */
+	uint64_t vdc_nspares;		/* # of distributed spares in slice */
 	uint64_t vdc_children;		/* # of children */
 	uint64_t vdc_ngroups;		/* # groups per slice */
+	uint64_t vdc_width;		/* # multiple of children */
 
 	/*
 	 * Immutable derived constants.
@@ -103,7 +104,9 @@ extern nvlist_t *vdev_draid_read_config_spare(vdev_t *);
 /* Functions for dRAID distributed spares. */
 extern vdev_t *vdev_draid_spare_get_child(vdev_t *, uint64_t);
 extern vdev_t *vdev_draid_spare_get_parent(vdev_t *);
-extern int vdev_draid_spare_create(nvlist_t *, vdev_t *, uint64_t *, uint64_t);
+extern int vdev_draid_spare_create(nvlist_t *, vdev_t *, uint64_t *, uint64_t *,
+    uint64_t);
+extern boolean_t vdev_draid_fail_domain_allowed(vdev_t *);
 
 #ifdef  __cplusplus
 }

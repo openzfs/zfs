@@ -423,6 +423,7 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_encrypted', 'zpool_create_crypt_combos',
     'zpool_create_draid_001_pos', 'zpool_create_draid_002_pos',
     'zpool_create_draid_003_pos', 'zpool_create_draid_004_pos',
+    'zpool_create_draid_005_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
     'zpool_create_features_005_pos', 'zpool_create_features_006_pos',
@@ -913,9 +914,10 @@ timeout = 1200
 
 [tests/functional/redundancy]
 tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
-    'redundancy_draid3', 'redundancy_draid_damaged1',
+    'redundancy_draid3', 'redundancy_draid_width', 'redundancy_draid_damaged1',
     'redundancy_draid_damaged2', 'redundancy_draid_spare1',
-    'redundancy_draid_spare2', 'redundancy_draid_spare3', 'redundancy_mirror',
+    'redundancy_draid_spare2', 'redundancy_draid_spare3',
+    'redundancy_draid_spare4', 'redundancy_mirror',
     'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
     'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']

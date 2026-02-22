@@ -7024,7 +7024,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	uint64_t txg = TXG_INITIAL;
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
-	uint64_t version, obj, ndraid = 0;
+	uint64_t version, obj, ndraid = 0, draid_nfgroup = 0;
 	boolean_t has_features;
 	boolean_t has_encryption;
 	boolean_t has_allocclass;
@@ -7148,7 +7148,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	if (error == 0 &&
 	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
-	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid, 0)) == 0 &&
+	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid,
+	    &draid_nfgroup, 0)) == 0 &&
 	    (error = spa_validate_aux(spa, nvroot, txg, VDEV_ALLOC_ADD)) == 0) {
 		/*
 		 * instantiate the metaslab groups (this will dirty the vdevs)
@@ -7298,6 +7299,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
+
+	for (int i = 0; i < draid_nfgroup; i++)
+		spa_feature_incr(spa, SPA_FEATURE_DRAID_FAIL_DOMAINS, tx);
 
 	dmu_tx_commit(tx);
 
@@ -7896,12 +7900,25 @@ spa_draid_feature_incr(void *arg, dmu_tx_t *tx)
 }
 
 /*
+ * This is called as a synctask to increment the draid_fail_domains feature flag
+ */
+static void
+spa_draid_fdomains_feature_incr(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int nfgrp = (int)(uintptr_t)arg;
+
+	for (int c = 0; c < nfgrp; c++)
+		spa_feature_incr(spa, SPA_FEATURE_DRAID_FAIL_DOMAINS, tx);
+}
+
+/*
  * Add a device to a storage pool.
  */
 int
 spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 {
-	uint64_t txg, ndraid = 0;
+	uint64_t txg, ndraid = 0, draid_nfgroup = 0;
 	int error;
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *tvd;
@@ -7940,10 +7957,15 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 	 * dRAID is stored in the config and used when opening the spare.
 	 */
 	if ((error = vdev_draid_spare_create(nvroot, vd, &ndraid,
-	    rvd->vdev_children)) == 0) {
+	    &draid_nfgroup, rvd->vdev_children)) == 0) {
+
 		if (ndraid > 0 && nvlist_lookup_nvlist_array(nvroot,
 		    ZPOOL_CONFIG_SPARES, &spares, &nspares) != 0)
 			nspares = 0;
+
+		if (draid_nfgroup > 0 && !spa_feature_is_enabled(spa,
+		    SPA_FEATURE_DRAID_FAIL_DOMAINS))
+			return (spa_vdev_exit(spa, vd, txg, ENOTSUP));
 	} else {
 		return (spa_vdev_exit(spa, vd, txg, error));
 	}
@@ -8030,8 +8052,15 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 		dmu_tx_t *tx;
 
 		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+
 		dsl_sync_task_nowait(spa->spa_dsl_pool, spa_draid_feature_incr,
 		    (void *)(uintptr_t)ndraid, tx);
+
+		if (draid_nfgroup > 0)
+			dsl_sync_task_nowait(spa->spa_dsl_pool,
+			    spa_draid_fdomains_feature_incr,
+			    (void *)(uintptr_t)draid_nfgroup, tx);
+
 		dmu_tx_commit(tx);
 	}
 
