@@ -1468,6 +1468,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	dsl_crypto_params_t *dcp = NULL;
 	const char *spa_name = zc->zc_name;
 	boolean_t unload_wkey = B_TRUE;
+	nvlist_t *errinfo = NULL;
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
 	    zc->zc_iflags, &config)))
@@ -1519,7 +1520,16 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 			spa_name = tname;
 	}
 
-	error = spa_create(zc->zc_name, config, props, zplprops, dcp);
+	error = spa_create(zc->zc_name, config, props, zplprops, dcp,
+	    &errinfo);
+	if (errinfo != NULL) {
+		nvlist_t *outnv = fnvlist_alloc();
+		fnvlist_add_nvlist(outnv,
+		    ZPOOL_CONFIG_CREATE_INFO, errinfo);
+		(void) put_nvlist(zc, outnv);
+		nvlist_free(outnv);
+		nvlist_free(errinfo);
+	}
 
 	/*
 	 * Set the remaining root properties

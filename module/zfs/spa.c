@@ -1900,6 +1900,10 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 static void
 spa_deactivate(spa_t *spa)
 {
+	if (spa->spa_create_info != NULL) {
+		nvlist_free(spa->spa_create_info);
+		spa->spa_create_info = NULL;
+	}
 	ASSERT(spa->spa_sync_on == B_FALSE);
 	ASSERT0P(spa->spa_dsl_pool);
 	ASSERT0P(spa->spa_root_vdev);
@@ -7013,7 +7017,7 @@ spa_create_check_encryption_params(dsl_crypto_params_t *dcp,
  */
 int
 spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
-    nvlist_t *zplprops, dsl_crypto_params_t *dcp)
+    nvlist_t *zplprops, dsl_crypto_params_t *dcp, nvlist_t **errinfo)
 {
 	spa_t *spa;
 	const char *altroot = NULL;
@@ -7165,6 +7169,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	if (error != 0) {
+		if (errinfo != NULL) {
+			*errinfo = spa->spa_create_info;
+			spa->spa_create_info = NULL;
+		}
 		spa_unload(spa);
 		spa_deactivate(spa);
 		spa_remove(spa);

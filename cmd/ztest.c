@@ -3038,7 +3038,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
 	VERIFY3U(ENOENT, ==,
-	    spa_create("ztest_bad_file", nvroot, NULL, NULL, NULL));
+	    spa_create("ztest_bad_file", nvroot, NULL, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
 
 	/*
@@ -3046,7 +3046,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 */
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 2, 1);
 	VERIFY3U(ENOENT, ==,
-	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL, NULL));
+	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
 
 	/*
@@ -3056,7 +3056,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
 	VERIFY3U(EEXIST, ==,
-	    spa_create(zo->zo_pool, nvroot, NULL, NULL, NULL));
+	    spa_create(zo->zo_pool, nvroot, NULL, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
 
 	/*
@@ -3208,7 +3208,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	props = fnvlist_alloc();
 	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_VERSION), version);
-	VERIFY0(spa_create(name, nvroot, props, NULL, NULL));
+	VERIFY0(spa_create(name, nvroot, props, NULL, NULL, NULL));
 	fnvlist_free(nvroot);
 	fnvlist_free(props);
 
@@ -8686,7 +8686,8 @@ ztest_init(ztest_shared_t *zs)
 		free(buf);
 	}
 
-	VERIFY0(spa_create(ztest_opts.zo_pool, nvroot, props, NULL, NULL));
+	VERIFY0(spa_create(ztest_opts.zo_pool, nvroot, props,
+	    NULL, NULL, NULL));
 	fnvlist_free(nvroot);
 	fnvlist_free(props);
 
