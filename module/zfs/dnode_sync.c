@@ -440,24 +440,6 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 	}
 }
 
-typedef struct dnode_sync_free_range_arg {
-	dnode_t *dsfra_dnode;
-	dmu_tx_t *dsfra_tx;
-	boolean_t dsfra_free_indirects;
-} dnode_sync_free_range_arg_t;
-
-static void
-dnode_sync_free_range(void *arg, uint64_t blkid, uint64_t nblks)
-{
-	dnode_sync_free_range_arg_t *dsfra = arg;
-	dnode_t *dn = dsfra->dsfra_dnode;
-
-	mutex_exit(&dn->dn_mtx);
-	dnode_sync_free_range_impl(dn, blkid, nblks,
-	    dsfra->dsfra_free_indirects, dsfra->dsfra_tx);
-	mutex_enter(&dn->dn_mtx);
-}
-
 /*
  * Try to kick all the dnode's dbufs out of the cache...
  */
@@ -635,6 +617,64 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 }
 
 /*
+ * We cannot simply detach the range tree (set dn_free_ranges to NULL)
+ * before processing it because dnode_block_freed() relies on it to
+ * correctly identify blocks that have been freed in the current TXG
+ * (for dbuf_read() calls on holes). If we detached it early, a concurrent
+ * reader might see the block as valid on disk and return stale data
+ * instead of zeros.
+ *
+ * We also can't use zfs_range_tree_walk() nor zfs_range_tree_vacate()
+ * with a callback that drops dn_mtx (dnode_sync_free_range()). This is
+ * unsafe because another thread (spa_sync_deferred_frees() ->
+ * dnode_free_range()) could acquire dn_mtx and modify the tree while the
+ * walk or vacate was in progress. This leads to tree corruption or panic
+ * when we resume.
+ *
+ * To fix the race while maintaining visibility, we process the tree
+ * incrementally. We pick a segment, drop the lock to sync it, and
+ * re-acquire the lock to remove it. By always restarting from the head
+ * of the tree, we ensure we are never using an invalid iterator.
+ * We use zfs_range_tree_clear() instead of ..._remove() because the range
+ * might have already been removed while the lock was dropped (specifically
+ * in the dbuf_dirty path mentioned above). ..._clear() handles this
+ * gracefully, while ..._remove() would panic on a missing segment.
+ */
+static void
+dnode_sync_free_ranges(dnode_t *dn, dmu_tx_t *tx)
+{
+	int txgoff = tx->tx_txg & TXG_MASK;
+
+	mutex_enter(&dn->dn_mtx);
+	zfs_range_tree_t *rt = dn->dn_free_ranges[txgoff];
+	if (rt != NULL) {
+		boolean_t freeing_dnode = dn->dn_free_txg > 0 &&
+		    dn->dn_free_txg <= tx->tx_txg;
+		zfs_range_seg_t *rs;
+
+		if (freeing_dnode) {
+			ASSERT(zfs_range_tree_contains(rt, 0,
+			    dn->dn_maxblkid + 1));
+		}
+
+		while ((rs = zfs_range_tree_first(rt)) != NULL) {
+			uint64_t start = zfs_rs_get_start(rs, rt);
+			uint64_t size = zfs_rs_get_end(rs, rt) - start;
+
+			mutex_exit(&dn->dn_mtx);
+			dnode_sync_free_range_impl(dn, start, size,
+			    freeing_dnode, tx);
+			mutex_enter(&dn->dn_mtx);
+
+			zfs_range_tree_clear(rt, start, size);
+		}
+		zfs_range_tree_destroy(rt);
+		dn->dn_free_ranges[txgoff] = NULL;
+	}
+	mutex_exit(&dn->dn_mtx);
+}
+
+/*
  * Write out the dnode's dirty buffers.
  * Does not wait for zio completions.
  */
@@ -781,32 +821,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	/* process all the "freed" ranges in the file */
-	if (dn->dn_free_ranges[txgoff] != NULL) {
-		dnode_sync_free_range_arg_t dsfra;
-		dsfra.dsfra_dnode = dn;
-		dsfra.dsfra_tx = tx;
-		dsfra.dsfra_free_indirects = freeing_dnode;
-		mutex_enter(&dn->dn_mtx);
-		if (freeing_dnode) {
-			ASSERT(zfs_range_tree_contains(
-			    dn->dn_free_ranges[txgoff], 0,
-			    dn->dn_maxblkid + 1));
-		}
-		/*
-		 * Because dnode_sync_free_range() must drop dn_mtx during its
-		 * processing, using it as a callback to zfs_range_tree_vacate()
-		 * is not safe. No other operations (besides destroy) are
-		 * allowed once zfs_range_tree_vacate() has begun, and dropping
-		 * dn_mtx would leave a window open for another thread to
-		 * observe that invalid (and unsafe) state.
-		 */
-		zfs_range_tree_walk(dn->dn_free_ranges[txgoff],
-		    dnode_sync_free_range, &dsfra);
-		zfs_range_tree_vacate(dn->dn_free_ranges[txgoff], NULL, NULL);
-		zfs_range_tree_destroy(dn->dn_free_ranges[txgoff]);
-		dn->dn_free_ranges[txgoff] = NULL;
-		mutex_exit(&dn->dn_mtx);
-	}
+	dnode_sync_free_ranges(dn, tx);
 
 	if (freeing_dnode) {
 		dn->dn_objset->os_freed_dnodes++;
@@ -828,7 +843,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	/*
-	 * This must be done after dnode_sync_free_range()
+	 * This must be done after dnode_sync_free_range_impl()
 	 * and dnode_increase_indirection(). See dnode_new_blkid()
 	 * for an explanation of the high bit being set.
 	 */
