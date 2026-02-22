@@ -335,6 +335,8 @@ Prevent log spacemaps from being destroyed during pool exports and destroys.
 .
 .It Sy zfs_metaslab_segment_weight_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable/disable segment-based metaslab selection.
+Note that this tunable has been deprecated in favor of
+.Sy zfs_active_weightfunc .
 .
 .It Sy zfs_metaslab_switch_threshold Ns = Ns Sy 2 Pq int
 When using segment-based metaslab selection, continue allocating
@@ -729,6 +731,25 @@ depends on kernel configuration.
 .It Sy zfs_abd_scatter_min_size Ns = Ns Sy 1536 Ns B Po 1.5 KiB Pc Pq uint
 This is the minimum allocation size that will use scatter (page-based) ABDs.
 Smaller allocations will use linear ABDs.
+.
+.It Sy zfs_active_weightfunc Ns = Ns Sy auto Pq string
+Selects the metaslab weighting function to use.
+The weighting function can be one of auto, space, space_v2, and segment.
+This determines what weighting algorithm will be used to sort metaslabs for
+selection during the allocation process.
+The space_v2 and segment algorithms require the spacemap histogram feature to be
+enabled, and will fall back to the space algorithm if that feature is not
+enabled on the pool.
+.Pp
+The space algorithm combines the total free space in the metaslab with the
+fragmentation metric to balance toward metaslabs with more contiguous free
+space.
+The segment algorithm uses the spacemap histograms to calculate the weight from
+the largest free segment size, bucketed to powers of two, and the number of
+segments in that bucket.
+The space_v2 algorithm considers not only the largest free segment bucket, but
+the smaller ones as well, providing a higher weight to larger contiguous chunks.
+Auto provides the recommended algorithm (currently space_v2).
 .
 .It Sy zfs_arc_dnode_limit Ns = Ns Sy 0 Ns B Pq u64
 When the number of bytes consumed by dnodes in the ARC exceeds this number of

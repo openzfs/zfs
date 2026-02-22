@@ -44,8 +44,12 @@ typedef struct metaslab_ops {
 	uint64_t (*msop_alloc)(metaslab_t *, uint64_t, uint64_t, uint64_t *);
 } metaslab_ops_t;
 
-
 extern const metaslab_ops_t zfs_metaslab_ops;
+
+typedef struct metaslab_wfs {
+	const char *mswf_name;
+	uint64_t (*mswf_func)(metaslab_t *);
+} metaslab_wfs_t;
 
 int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
     metaslab_t **);
@@ -103,7 +107,7 @@ void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 
 metaslab_class_t *metaslab_class_create(spa_t *, const char *,
-    const metaslab_ops_t *, boolean_t);
+    const metaslab_ops_t *, const metaslab_wfs_t *, boolean_t);
 void metaslab_class_destroy(metaslab_class_t *);
 void metaslab_class_validate(metaslab_class_t *);
 void metaslab_class_balance(metaslab_class_t *mc, boolean_t onsync);
