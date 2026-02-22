@@ -267,8 +267,8 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
  * Given a (pool, vdev) GUID pair, count the number of faulted vdevs in
  * its top vdev and return TRUE if the number of failures at i-th device
  * index in each dRAID failure group, equals to the number of failure groups,
- * which means it's the domain failure, and the faulted device belongs to
- * that failed domain.
+ * which means it's the domain failure, and the vdev is one of those faults.
+ * Otherwise, return FALSE.
  */
 static boolean_t
 is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
@@ -326,11 +326,11 @@ is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
 		}
 	}
 
+	free(nfaults_map);
+
 	if (res)
 		fmd_hdl_debug(fmd_module_hdl("zfs-retire"),
 		    "vdev %llu belongs to draid fdomain failure", vdev_guid);
-
-	free(nfaults_map);
 
 	return (res);
 }
@@ -549,7 +549,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 * it's domain failure.
 		 *
 		 * Resilvering domain failures can take a lot of computing and
-		 * I/O bandwidth resources only to be wasted when the failed
+		 * I/O bandwidth resources, only to be wasted when the failed
 		 * domain component (for example enclosure) is replaced.
 		 */
 		sleep(5);
