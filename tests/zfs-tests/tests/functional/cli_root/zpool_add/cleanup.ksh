@@ -33,4 +33,6 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
+delete_sparse_files
+
 log_pass

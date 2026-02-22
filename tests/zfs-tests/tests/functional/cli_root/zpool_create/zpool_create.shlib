@@ -36,7 +36,7 @@
 # Given a pool vdevs list, create the pool,verify the created pool,
 # and destroy the pool
 # $1, pool name
-# $2, pool type, mirror, raidz, or none
+# $2, pool type, mirror, raidz, anyraid, draid or none
 # $3, vdevs list
 #
 function create_pool_test

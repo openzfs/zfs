@@ -165,6 +165,39 @@ An error is returned when the provided number of children differs.
 The number of distributed hot spares.
 Defaults to zero.
 .El
+.It Sy anymirror , anymirror0 , anymirror1 , anymirror2 , ... anyMirrorN
+A new device type that allows for mirror-parity redundancy while using devices
+of different sizes.
+An AnyRAID vdev works by dividing each of the underlying disks that make it up
+into
+.Sy tiles \.
+The tiles are then each mirrored at the desired parity level.
+This allows for full redundancy, since tiles are allocated from independent
+disks, while enabling maximum space usage by allocating more tiles from the
+disks with the most free space.
+In addition, the device can be expanded by attaching new disks, and new tiles
+will be allocated from those disks.
+The vdev class as a whole is referred to as AnyRAID; anymirror vdevs
+specifically use mirror-style parity.
+Future work will also add anyraidz, which will use the same basic tile
+architecture, but use raidz-style parity.
+.Pp
+The desired parity value (N) is specified in the
+.Sy anymirrorN
+string you pass when creating/adding the vdev group.
+The parity value cannot exceed the maximum number of vdevs in the group minus
+one.
+.Sy anymirror
+is a synonym for
+.Sy anymirror1
+, which is the 2-way mirror parity version (1 parity tile).
+.Sy anymirror2
+is a 3-way mirror (2 parity tiles).
+.Sy anymirror3
+is a 4-way mirror (3 parity tiles).
+The pattern continues in the expected way.
+.Sy anymirror0
+is striped (no parity tiles), and is primarily intended for testing.
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
 For more information, see the

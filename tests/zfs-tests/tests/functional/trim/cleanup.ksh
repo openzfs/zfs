@@ -46,4 +46,6 @@ TRIM_VDEVS="$TRIM_DIR/trim-vdev1 $TRIM_DIR/trim-vdev2 \
 
 rm -rf $TRIM_VDEVS
 
+restore_tunable ANYRAID_MIN_TILE_SIZE
+
 default_cleanup

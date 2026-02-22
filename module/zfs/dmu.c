@@ -2052,7 +2052,8 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	    abd_get_from_buf(zgd->zgd_db->db_data, zgd->zgd_db->db_size),
 	    zgd->zgd_db->db_size, zgd->zgd_db->db_size, zp,
 	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done,
-	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
+	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL | ZIO_FLAG_ZILWRITE,
+	    zb));
 
 	return (0);
 }
@@ -2220,8 +2221,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	zio_nowait(arc_write(pio, os->os_spa, txg, zgd->zgd_bp,
 	    dr->dt.dl.dr_data, !DBUF_IS_CACHEABLE(db),
 	    dbuf_is_l2cacheable(db, NULL), &zp, dmu_sync_ready, NULL,
-	    dmu_sync_done, dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL,
-	    &zb));
+	    dmu_sync_done, dsa, ZIO_PRIORITY_SYNC_WRITE,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_ZILWRITE, &zb));
 
 	return (0);
 }

@@ -2332,10 +2332,18 @@ vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
  * so each child must provide at least 1/Nth of its asize.
  */
 static uint64_t
-vdev_raidz_min_asize(vdev_t *vd)
+vdev_raidz_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	return ((vd->vdev_min_asize + vd->vdev_children - 1) /
-	    vd->vdev_children);
+	(void) cvd;
+	return ((pvd->vdev_min_asize + pvd->vdev_children - 1) /
+	    pvd->vdev_children);
+}
+
+static uint64_t
+vdev_raidz_min_attach_size(vdev_t *vd)
+{
+	ASSERT3U(vd->vdev_top, ==, vd);
+	return (vdev_raidz_min_asize(vd, vd->vdev_child[0]));
 }
 
 /*
@@ -5450,6 +5458,7 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_psize_to_asize = vdev_raidz_psize_to_asize,
 	.vdev_op_asize_to_psize = vdev_raidz_asize_to_psize,
 	.vdev_op_min_asize = vdev_raidz_min_asize,
+	.vdev_op_min_attach_size = vdev_raidz_min_attach_size,
 	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_raidz_io_start,
 	.vdev_op_io_done = vdev_raidz_io_done,

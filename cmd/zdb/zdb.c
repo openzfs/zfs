@@ -58,6 +58,7 @@
 #include <sys/sa_impl.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
@@ -112,6 +113,7 @@ enum {
 	ARG_ALLOCATED = 256,
 	ARG_BLOCK_BIN_MODE,
 	ARG_BLOCK_CLASSES,
+	ARG_ANYRAID_MAP,
 };
 
 static const char cmdname[] = "zdb";
@@ -745,9 +747,10 @@ usage(void)
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
 	    "\t%s -E [-A] word0:word1:...:word15\n"
 	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
-	    "<poolname>\n\n",
+	    "<poolname>\n"
+	    "\t%s --anyraid-map <poolname> [<vdev> ...]\n\n",
 	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
+	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -9338,7 +9341,8 @@ zdb_read_block(char *thing, spa_t *spa)
 
 			if ((zio_checksum_table[ck].ci_flags &
 			    ZCHECKSUM_FLAG_EMBEDDED) ||
-			    ck == ZIO_CHECKSUM_NOPARITY) {
+			    ck == ZIO_CHECKSUM_NOPARITY ||
+			    ck == ZIO_CHECKSUM_ANYRAID_MAP) {
 				continue;
 			}
 			BP_SET_CHECKSUM(bp, ck);
@@ -9459,10 +9463,482 @@ dummy_get_file_info(dmu_object_type_t bonustype, const void *data,
 	abort();
 }
 
+static int
+numlen(uint64_t v) {
+	char buf[32];
+	snprintf(buf, sizeof (buf), "%llu", (u_longlong_t)v);
+	return (strlen(buf));
+}
+
+static void
+print_separator_line(int cols, int colwidth, boolean_t *print, boolean_t *final)
+{
+	char buf[64];
+	ASSERT3U(colwidth * strlen("─"), <, sizeof (buf) - 2);
+	int len = 0, off = 0;
+	// Create a buffer with the cell separator to make later code simpler.
+	while (len < colwidth) {
+		len++;
+		int n = snprintf(buf + off, sizeof (buf) - off, "─");
+		ASSERT(n > 0 && n < sizeof (buf) - off);
+		off += n;
+	}
+
+	for (int i = 0; i < cols; i++) {
+		/*
+		 * Skip cells that we don't need to print. If the previous cell]
+		 * also wasn't printed, add an extra space for the separator
+		 * column.
+		 */
+		if (!print[i]) {
+			int extra_width = 0;
+			if (i == 0 || !print[i - 1])
+				extra_width++;
+			(void) printf("%*s", colwidth + extra_width, "");
+			continue;
+		}
+
+		// Calculate the right shape for the corner of the cells.
+		const char *left_c, *right_c;
+		if (i == 0 || !print[i - 1]) {
+			left_c = (final[i] && (i == 0 || final[i - 1])) ?
+			    "└" : "├";
+		} else {
+			left_c = "";
+		}
+		if (i == cols - 1 || !print[i + 1]) {
+			right_c =
+			    (final[i] && (i == cols - 1 || final[i + 1])) ?
+			    "┘" : "┤";
+		} else {
+			right_c =
+			    (final[i] && (i == cols - 1 || final[i + 1])) ?
+			    "┴" : "┼";
+		}
+		(void) printf("%s%s%s", left_c, buf, right_c);
+	}
+	(void) printf("\n");
+}
+
+static void
+zdb_print_anyraid_tile_layout(vdev_t *vd)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
+	vdev_anyraid_t *var = vd->vdev_tsd;
+	int cols = vd->vdev_children;
+	int textwidth = MAX(8, numlen(avl_numnodes(&var->vd_tile_map)) +
+	    var->vd_nparity > 0 ? numlen(var->vd_nparity + 1) + 1 : 0);
+	int colwidth = textwidth + 2;
+
+	// Create and populate table with all the values we need to print.
+	char ***table = malloc(sizeof (*table) * cols);
+	for (int i = 0; i < cols; i++) {
+		table[i] = calloc(var->vd_children[i]->van_capacity + 1,
+		    sizeof (**table));
+	}
+
+	anyraid_tile_t *cur = avl_first(&var->vd_tile_map);
+	while (cur) {
+		int p = 0;
+		for (anyraid_tile_node_t *node = list_head(&cur->at_list);
+		    node; node = list_next(&cur->at_list, node)) {
+			ASSERT3U(p, <=, var->vd_nparity + 1);
+			char **next =
+			    &(table[node->atn_disk][node->atn_offset]);
+			*next = malloc(textwidth + 1);
+			int len = snprintf(*next, textwidth, "%d",
+			    cur->at_tile_id);
+			if (var->vd_nparity > 0) {
+				(void) snprintf((*next) + len, textwidth - len,
+				    "-%d", p);
+			}
+			p++;
+		}
+		ASSERT3U(p, ==, var->vd_nparity + 1);
+		cur = AVL_NEXT(&var->vd_tile_map, cur);
+	}
+
+	// These are needed to generate the separator lines
+	boolean_t *printed = malloc(sizeof (*printed) * cols);
+	boolean_t *final = malloc(sizeof (*final) * cols);
+	// Print the header row
+	for (int i = 0; i < cols; i++) {
+		if (i == 0)
+			(void) printf("│");
+		(void) printf(" %*d ", textwidth, i);
+		(void) printf("│");
+		printed[i] = B_TRUE;
+		final[i] = B_FALSE;
+	}
+	(void) printf("\n");
+	print_separator_line(cols, colwidth, printed, final);
+
+	// Print out the actual tile map, one row at a time.
+	for (int i = 0; ; i++) {
+		int last_printed = INT_MAX;
+		for (int v = 0; v < cols; v++) {
+			if (final[v]) {
+				ASSERT3U(i, >=,
+				    var->vd_children[v]->van_capacity + 1);
+				int extra_width = 0;
+				if (v == 0 || !printed[v - 1])
+					extra_width++;
+				(void) printf("%*s",
+				    colwidth + extra_width, "");
+				printed[v] = B_FALSE;
+				continue;
+			}
+			if (i + 1 == var->vd_children[v]->van_capacity + 1)
+				final[v] = B_TRUE;
+			if (v - 1 != last_printed)
+				(void) printf("│");
+			char *value = table[v][i];
+			(void) printf(" %*s │", textwidth, value ? value :
+			    "");
+			last_printed = v;
+		}
+
+		if (last_printed == INT_MAX)
+			break;
+		(void) printf("\n");
+		print_separator_line(cols, colwidth, printed, final);
+	}
+	(void) printf("\n");
+	for (int i = 0; i < cols; i++) {
+		for (int j = 0; j < var->vd_children[i]->van_capacity + 1; j++)
+			if (table[i][j])
+				free(table[i][j]);
+		free(table[i]);
+	}
+	free(table);
+}
+
+static void
+free_header(anyraid_header_t *header, uint64_t header_size) {
+	fnvlist_free(header->ah_nvl);
+	abd_return_buf(header->ah_abd, header->ah_buf, header_size);
+	abd_free(header->ah_abd);
+}
+
+/*
+ * Print one of the anyraid maps from the given vdev child. This prints the
+ * mapping entries themselves, rather than the kernel's interpretation of them,
+ * which can be useful for debugging.
+ */
+static void
+print_anyraid_mapping(vdev_t *vd, int child, int mapping,
+    anyraid_header_t *header)
+{
+	vdev_anyraid_t *var = vd->vdev_tsd;
+	vdev_t *cvd = vd->vdev_child[child];
+	uint64_t ashift = cvd->vdev_ashift;
+	spa_t *spa = vd->vdev_spa;
+	int error = 0;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SPECULATIVE;
+
+	uint64_t header_offset = VDEV_LABEL_START_SIZE +
+	    mapping * VDEV_ANYRAID_SINGLE_MAP_SIZE(ashift);
+	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
+	uint64_t map_offset = header_offset + header_size;
+
+	nvlist_t *hnvl = header->ah_nvl;
+	// Look up and print map metadata.
+	uint16_t version;
+	if (nvlist_lookup_uint16(hnvl, VDEV_ANYRAID_HEADER_VERSION,
+	    &version) != 0) {
+		(void) printf("No version\n");
+		free_header(header, header_size);
+		return;
+	}
+
+	uint64_t tile_size;
+	if (nvlist_lookup_uint64(hnvl, VDEV_ANYRAID_HEADER_TILE_SIZE,
+	    &tile_size) != 0) {
+		(void) printf("No tile size\n");
+		free_header(header, header_size);
+		return;
+	}
+
+	uint32_t map_length;
+	if (nvlist_lookup_uint32(hnvl, VDEV_ANYRAID_HEADER_LENGTH,
+	    &map_length) != 0) {
+		(void) printf("No map length\n");
+		free_header(header, header_size);
+		return;
+	}
+
+	uint64_t written_txg = 0;
+	if (nvlist_lookup_uint64(hnvl, VDEV_ANYRAID_HEADER_TXG,
+	    &written_txg) != 0)
+		(void) printf("No valid TXG\n");
+
+	uint8_t disk_id = 0;
+	if (nvlist_lookup_uint8(hnvl, VDEV_ANYRAID_HEADER_DISK,
+	    &disk_id) != 0)
+		(void) printf("No valid disk ID\n");
+
+	(void) printf("version:    %6d\ttile size: %#8lx\ttxg: %lu\n",
+	    version, tile_size, written_txg);
+	(void) printf("map length: %6u\tdisk id: %3u\n", map_length, disk_id);
+
+	// Read in and print the actual mapping data
+	zio_t *rio = zio_root(spa, NULL, NULL, flags);
+	abd_t *map_abds[VDEV_ANYRAID_MAP_COPIES] = {0};
+	int i;
+	for (i = 0; i <= (map_length / SPA_MAXBLOCKSIZE); i++) {
+		zio_eck_t *cksum = (zio_eck_t *)
+		    &header->ah_buf[VDEV_ANYRAID_NVL_BYTES(ashift) +
+		    i * sizeof (*cksum)];
+		map_abds[i] = abd_alloc_linear(SPA_MAXBLOCKSIZE, B_TRUE);
+		zio_nowait(zio_read_phys(rio, cvd, map_offset +
+		    i * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE, map_abds[i],
+		    ZIO_CHECKSUM_ANYRAID_MAP, NULL, cksum,
+		    ZIO_PRIORITY_SYNC_READ, flags, B_FALSE));
+	}
+	i--;
+	if ((error = zio_wait(rio))) {
+		(void) printf("Could not read map: %s\n", strerror(error));
+		for (; i >= 0; i--)
+			abd_free(map_abds[i]);
+		free_header(header, header_size);
+		return;
+	}
+	free_header(header, header_size);
+
+	uint32_t map = -1, cur_tile = 0;
+	/*
+	 * For now, all entries are the size of a uint32_t. If that
+	 * ever changes, we need better logic here.
+	 */
+	uint32_t size = sizeof (uint32_t);
+	uint8_t *map_buf = NULL;
+	uint8_t par_cnt = 0;
+	for (uint32_t off = 0; off < map_length; off += size) {
+		int next_map = off / SPA_MAXBLOCKSIZE;
+		if (map != next_map) {
+			// switch maps
+			if (map != -1) {
+				abd_return_buf(map_abds[map], map_buf,
+				    SPA_MAXBLOCKSIZE);
+			}
+			map_buf = abd_borrow_buf(map_abds[next_map],
+			    SPA_MAXBLOCKSIZE);
+			map = next_map;
+		}
+		uint32_t mo = off % SPA_MAXBLOCKSIZE;
+		anyraid_map_entry_t *entry =
+		    (anyraid_map_entry_t *)(map_buf + mo);
+		uint8_t type = ame_get_type(entry);
+		uint8_t *buf;
+		boolean_t allocated = B_FALSE;
+		if (size > SPA_MAXBLOCKSIZE - mo) {
+			buf = kmem_alloc(size, KM_SLEEP);
+			uint8_t rem = SPA_MAXBLOCKSIZE - mo;
+			allocated = B_TRUE;
+			memcpy(buf, map_buf + mo, rem);
+			// switch maps
+			if (map != -1) {
+				abd_return_buf(map_abds[map], map_buf,
+				    SPA_MAXBLOCKSIZE);
+			}
+			map_buf = abd_borrow_buf(map_abds[next_map],
+			    SPA_MAXBLOCKSIZE);
+			map = next_map;
+			memcpy(buf + rem, map_buf, size - rem);
+		} else {
+			buf = map_buf + mo;
+		}
+		entry = (anyraid_map_entry_t *)buf;
+		switch (type) {
+			case AMET_SKIP: {
+				anyraid_map_skip_entry_t *amse =
+				    &entry->ame_u.ame_amse;
+				ASSERT0(par_cnt);
+				cur_tile += amse_get_skip_count(amse);
+				(void) printf("skip %u\n",
+				    amse_get_skip_count(amse));
+				break;
+			}
+			case AMET_LOC: {
+				anyraid_map_loc_entry_t *amle =
+				    &entry->ame_u.ame_amle;
+				if (par_cnt == 0) {
+					(void) printf("loc %u:", cur_tile);
+					cur_tile++;
+				}
+				(void) printf("\td%u o%u,", amle_get_disk(amle),
+				    amle_get_offset(amle));
+				par_cnt = (par_cnt + 1) % (var->vd_nparity + 1);
+				if (par_cnt == 0)
+					(void) printf("\n");
+				break;
+			}
+			default:
+				(void) printf("Invalid entry type %d, "
+				    "aborting\n", type);
+				break;
+		}
+		if (allocated)
+			kmem_free(buf, size);
+	}
+	if (map_buf)
+		abd_return_buf(map_abds[map], map_buf, SPA_MAXBLOCKSIZE);
+
+	var->vd_tile_size = tile_size;
+
+	for (; i >= 0; i--)
+		abd_free(map_abds[i]);
+
+	return;
+
+}
+
+/*
+ * Print the anyraid maps on disk. With verbosity == 2, we use the normal
+ * mapping-selection logic that we use during import; with higher verbosity, we
+ * print them all.
+ */
+static void
+zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
+{
+	int child = 0;
+	spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+	if (verbosity == 2) {
+		anyraid_header_t header;
+		int mapping;
+		uint64_t txg;
+		int error = vdev_anyraid_pick_best_mapping(
+		    vd->vdev_child[child], &txg, &header, &mapping);
+		if (error != 0) {
+			(void) printf("Could not print mapping: %s\n",
+			    strerror(error));
+			spa_config_exit(spa, SCL_ZIO, FTAG);
+			return;
+		}
+		(void) printf("anyraid map %d:\n", mapping);
+		print_anyraid_mapping(vd, child, mapping, &header);
+	} else if (verbosity == 3) {
+		for (int i = 0; i < VDEV_ANYRAID_MAP_COPIES; i++) {
+			(void) printf("anyraid map %d:\n", i);
+			anyraid_header_t header;
+			int error = vdev_anyraid_open_header(
+			    vd->vdev_child[child], i, &header);
+			if (error != 0) {
+				(void) printf("Could not print mapping: %s\n",
+				    strerror(error));
+				spa_config_exit(spa, SCL_ZIO, FTAG);
+				return;
+			}
+			print_anyraid_mapping(vd, child, i, &header);
+		}
+	} else {
+		for (; child < vd->vdev_children; child++) {
+			for (int i = 0; i < VDEV_ANYRAID_MAP_COPIES; i++) {
+				(void) printf("anyraid map %d %d:\n", child, i);
+				anyraid_header_t header;
+				int error = vdev_anyraid_open_header(
+				    vd->vdev_child[child], i, &header);
+				if (error != 0) {
+					(void) printf("Could not print "
+					    "mapping: %s\n", strerror(error));
+					continue;
+				}
+				print_anyraid_mapping(vd, child, i, &header);
+			}
+		}
+
+	}
+	spa_config_exit(spa, SCL_ZIO, FTAG);
+}
+
+/*
+ * Print the loaded version of the map for the provided anyraid vdev.
+ */
+static void
+zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_anyraid_ops);
+	vdev_anyraid_t *var = vd->vdev_tsd;
+
+	(void) printf("\t%-5s%11llu   %s %#16llx\n",
+	    "vdev", (u_longlong_t)vd->vdev_id,
+	    "tile_size", (u_longlong_t)var->vd_tile_size);
+	(void) printf("\t%-8s%8llu", "tiles",
+	    (u_longlong_t)avl_numnodes(&var->vd_tile_map));
+	if (var->vd_checkpoint_tile != UINT32_MAX) {
+		(void) printf(".  %-12s %10u\n", "checkpoint tile",
+		    var->vd_checkpoint_tile);
+	} else {
+		(void) printf("\n");
+	}
+
+	(void) printf("\t%16s   %12s   %13s\n", "----------------",
+	    "------------", "-------------");
+
+	anyraid_tile_t *cur = avl_first(&var->vd_tile_map);
+	anyraid_tile_node_t *curn = cur != NULL ?
+	    list_head(&cur->at_list) : NULL;
+	while (cur) {
+		(void) printf("\t%-8s%8llu   %-8s%04llx   %-11s%02llx\n",
+		    "tile", (u_longlong_t)cur->at_tile_id,
+		    "offset", (u_longlong_t)curn->atn_offset,
+		    "disk", (u_longlong_t)curn->atn_disk);
+		curn = list_next(&cur->at_list, curn);
+		if (curn == NULL) {
+			cur = AVL_NEXT(&var->vd_tile_map, cur);
+			curn = cur != NULL ? list_head(&cur->at_list) : NULL;
+		}
+	}
+
+	(void) printf("\n");
+	if (verbosity > 0)
+		zdb_print_anyraid_tile_layout(vd);
+
+	if (verbosity > 1)
+		zdb_print_anyraid_ondisk_maps(vd, verbosity);
+}
+
+static int
+zdb_dump_anyraid_map(char *vdev_str, spa_t *spa, int verbosity)
+{
+	vdev_t *rvd, *vd;
+
+	/* A specific vdev. */
+	if (vdev_str != NULL) {
+		vd = zdb_vdev_lookup(spa->spa_root_vdev, vdev_str);
+		if (vd == NULL) {
+			(void) printf("Invalid vdev: %s\n", vdev_str);
+			return (EINVAL);
+		}
+		if (vd->vdev_ops != &vdev_anyraid_ops &&
+		    (vd->vdev_parent == NULL ||
+		    (vd = vd->vdev_parent)->vdev_ops != &vdev_anyraid_ops)) {
+			(void) printf("Not an anyraid vdev: %s\n", vdev_str);
+			return (EINVAL);
+		}
+
+		(void) printf("\nAnyRAID tiles:\n");
+		zdb_dump_anyraid_map_vdev(vd, verbosity);
+		return (0);
+	}
+
+	(void) printf("\nAnyRAID tiles:\n");
+	/* All anyraid vdevs. */
+	rvd = spa->spa_root_vdev;
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vd = rvd->vdev_child[c];
+		if (vd->vdev_ops == &vdev_anyraid_ops)
+			zdb_dump_anyraid_map_vdev(vd, verbosity);
+	}
+	return (0);
+}
+
 int
 main(int argc, char **argv)
 {
-	int c;
+	int c, long_index;
+	boolean_t opt_anyraid_map = B_FALSE;
 	int dump_all = 1;
 	int verbose = 0;
 	int error = 0;
@@ -9566,12 +10042,14 @@ main(int argc, char **argv)
 		    ARG_BLOCK_BIN_MODE},
 		{"class",		required_argument,	NULL,
 		    ARG_BLOCK_CLASSES},
+		{"anyraid-map",		no_argument,		NULL,
+		    ARG_ANYRAID_MAP},
 		{0, 0, 0, 0}
 	};
 
 	while ((c = getopt_long(argc, argv,
 	    "AbBcCdDeEFGhiI:kK:lLmMNo:Op:PqrRsSt:TuU:vVx:XYyZ",
-	    long_options, NULL)) != -1) {
+	    long_options, &long_index)) != -1) {
 		switch (c) {
 		case 'b':
 		case 'B':
@@ -9732,6 +10210,10 @@ main(int argc, char **argv)
 			free(buf);
 			break;
 		}
+		case ARG_ANYRAID_MAP:
+			opt_anyraid_map = B_TRUE;
+			dump_all = 0;
+			break;
 		default:
 			usage();
 			break;
@@ -10146,6 +10628,16 @@ retry_lookup:
 	argc--;
 	if (dump_opt['r']) {
 		error = zdb_copy_object(os, object, argv[1]);
+	} else if (opt_anyraid_map) {
+		if (argc == 0)
+			error = zdb_dump_anyraid_map(NULL, spa, verbose);
+		else
+			for (int i = 0; i < argc; i++) {
+				error = zdb_dump_anyraid_map(argv[i], spa,
+				    verbose);
+				if (error != 0)
+					break;
+			}
 	} else if (!dump_opt['R']) {
 		flagbits['d'] = ZOR_FLAG_DIRECTORY;
 		flagbits['f'] = ZOR_FLAG_PLAIN_FILE;

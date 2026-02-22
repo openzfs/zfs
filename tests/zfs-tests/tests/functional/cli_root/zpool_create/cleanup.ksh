@@ -34,5 +34,7 @@
 . $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
 cleanup_devices $DISKS
+delete_sparse_files
+rm -rf $TESTDIR $TESTDIR1
 
 log_pass
