@@ -39,8 +39,10 @@
 #include <sys/dsl_prop.h>
 #include <sys/fm/util.h>
 #include <sys/dsl_scan.h>
+#include <sys/dmu.h>
 #include <sys/fs/zfs.h>
 #include <sys/kstat.h>
+#include <sys/zone.h>
 #include "zfs_prop.h"
 
 
@@ -122,10 +124,32 @@ spa_history_zone(void)
 	return ("linux");
 }
 
+static int
+spa_restore_zoned_uid_cb(const char *dsname, void *arg)
+{
+	(void) arg;
+	uint64_t zoned_uid = 0;
+
+	if (dsl_prop_get(dsname, "zoned_uid", 8, 1, &zoned_uid, NULL) != 0)
+		return (0);
+
+	if (zoned_uid != 0) {
+		int err = zone_dataset_attach_uid(kcred, dsname,
+		    (uid_t)zoned_uid);
+		if (err != 0 && err != EEXIST) {
+			cmn_err(CE_WARN, "failed to restore zoned_uid for "
+			    "'%s' (uid %llu): %d", dsname,
+			    (unsigned long long)zoned_uid, err);
+		}
+	}
+	return (0);
+}
+
 void
 spa_import_os(spa_t *spa)
 {
-	(void) spa;
+	(void) dmu_objset_find(spa_name(spa),
+	    spa_restore_zoned_uid_cb, NULL, DS_FIND_CHILDREN);
 }
 
 void

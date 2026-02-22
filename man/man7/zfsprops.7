@@ -2112,6 +2112,60 @@ for more information.
 Zoning is a
 Linux
 feature and this property is not available on other platforms.
+.It Sy zoned_uid Ns = Ns Ar uid
+Delegates dataset visibility and administration to all user namespaces
+owned by the specified UID.
+When set, any process running in a user namespace whose owner matches
+.Ar uid
+can see the dataset and its children via
+.Nm zfs Cm list ,
+and can perform administrative operations including
+.Nm zfs Cm create ,
+.Nm zfs Cm destroy ,
+.Nm zfs Cm snapshot ,
+.Nm zfs Cm clone ,
+.Nm zfs Cm rename
+.Pq within the delegation subtree ,
+and
+.Nm zfs Cm set .
+.Pp
+The delegation root dataset
+.Pq where zoned_uid is set
+cannot be destroyed from within the user namespace, protecting the
+parent dataset from unauthorized removal.
+Renames are also constrained to remain within the delegation subtree.
+.Pp
+This property enables rootless container support with native ZFS storage.
+For example, setting
+.Sy zoned_uid Ns = Ns 1000
+allows user 1000's rootless Podman containers to use ZFS for storage layers.
+.Pp
+The delegated user must have
+.Sy CAP_SYS_ADMIN
+within their user namespace.
+Set to
+.Sy 0
+.Pq or inherit
+to disable UID-based delegation.
+This is a Linux-only feature.
+.Pp
+Unlike
+.Nm zfs Cm zone
+which requires an existing namespace file,
+.Sy zoned_uid
+applies to any user namespace owned by the specified UID,
+making it suitable for container runtimes that create new namespaces
+on each invocation.
+See
+.Xr zfs-zone 8
+for namespace-specific delegation.
+.Pp
+Example setup for rootless Podman:
+.Bd -literal -offset indent
+# zfs create tank/containers
+# zfs set zoned_uid=1000 tank/containers
+# zfs set mountpoint=none tank/containers
+.Ed
 .El
 .Pp
 The following three properties cannot be changed after the file system is

@@ -393,6 +393,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/vdev_zaps/vdev_zaps.kshlib \
 	functional/xattr/xattr.cfg \
 	functional/xattr/xattr_common.kshlib \
+	functional/zoned_uid/zoned_uid.cfg \
+	functional/zoned_uid/zoned_uid_common.kshlib \
 	functional/zvol/zvol.cfg \
 	functional/zvol/zvol_cli/zvol_cli.cfg \
 	functional/zvol/zvol_common.shlib \
@@ -2256,6 +2258,21 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/xattr/xattr_013_pos.ksh \
 	functional/xattr/xattr_014_pos.ksh \
 	functional/xattr/xattr_compat.ksh \
+	functional/zoned_uid/cleanup.ksh \
+	functional/zoned_uid/setup.ksh \
+	functional/zoned_uid/zoned_uid_001_pos.ksh \
+	functional/zoned_uid/zoned_uid_002_pos.ksh \
+	functional/zoned_uid/zoned_uid_003_pos.ksh \
+	functional/zoned_uid/zoned_uid_004_pos.ksh \
+	functional/zoned_uid/zoned_uid_005_neg.ksh \
+	functional/zoned_uid/zoned_uid_006_pos.ksh \
+	functional/zoned_uid/zoned_uid_007_pos.ksh \
+	functional/zoned_uid/zoned_uid_008_pos.ksh \
+	functional/zoned_uid/zoned_uid_009_pos.ksh \
+	functional/zoned_uid/zoned_uid_010_pos.ksh \
+	functional/zoned_uid/zoned_uid_011_neg.ksh \
+	functional/zoned_uid/zoned_uid_012_pos.ksh \
+	functional/zoned_uid/zoned_uid_013_pos.ksh \
 	functional/zap_shrink/cleanup.ksh \
 	functional/zap_shrink/zap_shrink_001_pos.ksh \
 	functional/zap_shrink/setup.ksh \

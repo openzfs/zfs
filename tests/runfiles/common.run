@@ -1099,6 +1099,14 @@ tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
     'xattr_compat']
 tags = ['functional', 'xattr']
 
+[tests/functional/zoned_uid:Linux]
+tests = ['zoned_uid_001_pos', 'zoned_uid_002_pos', 'zoned_uid_003_pos',
+    'zoned_uid_004_pos', 'zoned_uid_005_neg', 'zoned_uid_006_pos',
+    'zoned_uid_007_pos', 'zoned_uid_008_pos', 'zoned_uid_009_pos',
+    'zoned_uid_010_pos', 'zoned_uid_011_neg', 'zoned_uid_012_pos',
+    'zoned_uid_013_pos']
+tags = ['functional', 'zoned_uid']
+
 [tests/functional/zvol/zvol_ENOSPC]
 tests = ['zvol_ENOSPC_001_pos']
 tags = ['functional', 'zvol', 'zvol_ENOSPC']
