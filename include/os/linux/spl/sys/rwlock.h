@@ -63,8 +63,8 @@ spl_rw_clear_owner(krwlock_t *rwp)
 	rwp->rw_owner = NULL;
 }
 
-static inline kthread_t *
-rw_owner(krwlock_t *rwp)
+static inline const kthread_t *
+rw_owner(const krwlock_t *rwp)
 {
 	return (rwp->rw_owner);
 }
@@ -100,7 +100,7 @@ RW_LOCK_HELD(krwlock_t *rwp)
 }
 
 static inline int
-RW_WRITE_HELD(krwlock_t *rwp)
+RW_WRITE_HELD(const krwlock_t *rwp)
 {
 	return (rw_owner(rwp) == current);
 }

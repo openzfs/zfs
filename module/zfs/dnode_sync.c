@@ -79,6 +79,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
 	if (dn->dn_dbuf != NULL)
 		rw_enter(&dn->dn_dbuf->db_rwlock, RW_WRITER);
+	assert_db_data_addr_locked(db);
 	rw_enter(&db->db_rwlock, RW_WRITER);
 	ASSERT(db->db.db_data);
 	ASSERT(arc_released(db->db_buf));
@@ -233,6 +234,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		 * future txg.
 		 */
 		mutex_enter(&child->db_mtx);
+		assert_db_data_contents_locked(child, FALSE);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
 		    list_is_empty(&child->db_dirty_records)) {
@@ -306,10 +308,13 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
 	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+	mutex_enter(&db->db_mtx);
 	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
+	mutex_exit(&db->db_mtx);
 	dmu_buf_unlock_parent(db, dblt, FTAG);
 
 	dbuf_release_bp(db);
+	assert_db_data_addr_locked(db);
 	bp = db->db.db_data;
 
 	DB_DNODE_ENTER(db);
@@ -559,6 +564,7 @@ dnode_undirty_dbufs(list_t *list)
 		ASSERT(list_head(&db->db_dirty_records) == dr);
 		list_remove_head(&db->db_dirty_records);
 		ASSERT(list_is_empty(&db->db_dirty_records));
+		ASSERT(MUTEX_HELD(&db->db_mtx));
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||

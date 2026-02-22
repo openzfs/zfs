@@ -296,7 +296,7 @@ typedef struct dmu_buf_impl {
 	/* buffer holding our data */
 	arc_buf_t *db_buf;
 
-	/* db_mtx protects the members below */
+	/* db_mtx protects the members below, plus db_dirtycnt */
 	kmutex_t db_mtx;
 
 	/*
@@ -328,6 +328,22 @@ typedef struct dmu_buf_impl {
 	/* User callback information. */
 	dmu_buf_user_t *db_user;
 } dmu_buf_impl_t;
+
+/*
+ * Assert that the value of db.db_data cannot currently be changed.  Either
+ * it's locked, or it's in an immutable state.
+ */
+void assert_db_data_addr_locked(const dmu_buf_impl_t *db);
+/*
+ * Assert that the provided dbuf's contents can only be accessed by the caller,
+ * and by no other thread.  Either it must be locked, or in a state where
+ * locking is not required.
+ */
+#ifdef __linux__
+void assert_db_data_contents_locked(dmu_buf_impl_t *db, boolean_t wr);
+#else
+void assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t wr);
+#endif
 
 #define	DBUF_HASH_MUTEX(h, idx) \
 	(&(h)->hash_mutexes[(idx) & ((h)->hash_mutex_mask)])

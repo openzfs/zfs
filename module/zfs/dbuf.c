@@ -286,6 +286,37 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
 static uint_t dbuf_cache_hiwater_pct = 10;
 static uint_t dbuf_cache_lowater_pct = 10;
 
+void
+assert_db_data_addr_locked(const dmu_buf_impl_t *db)
+{
+	if (db->db_level > 0)
+		return;
+	else if (db->db.db_object == DMU_META_DNODE_OBJECT)
+		return;
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+}
+
+void
+#ifdef __linux__
+assert_db_data_contents_locked(dmu_buf_impl_t *db, boolean_t writer)
+#else
+assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t writer)
+#endif
+{
+	/*
+	 * db_rwlock protects indirect blocks and the data block of the meta
+	 * dnode.
+	 */
+	if (db->db_level == 0 && db->db.db_object != DMU_META_DNODE_OBJECT)
+		return;
+	if (db->db_blkid == DMU_BONUS_BLKID || db->db_blkid == DMU_SPILL_BLKID)
+		return;
+	if (writer)
+		ASSERT(RW_WRITE_HELD(&db->db_rwlock));
+	else
+		ASSERT(RW_LOCK_HELD(&db->db_rwlock));
+}
+
 static int
 dbuf_cons(void *vdb, void *unused, int kmflag)
 {
@@ -1707,6 +1738,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 		int bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
 		dr->dt.dl.dr_data = kmem_alloc(bonuslen, KM_SLEEP);
 		arc_space_consume(bonuslen, ARC_SPACE_BONUS);
+		assert_db_data_contents_locked(db, FALSE);
 		memcpy(dr->dt.dl.dr_data, db->db.db_data, bonuslen);
 	} else if (zfs_refcount_count(&db->db_holds) > db->db_dirtycnt) {
 		dnode_t *dn = DB_DNODE(db);
@@ -1737,6 +1769,7 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 		} else {
 			dr->dt.dl.dr_data = arc_alloc_buf(spa, db, type, size);
 		}
+		assert_db_data_contents_locked(db, FALSE);
 		memcpy(dr->dt.dl.dr_data->b_data, db->db.db_data, size);
 	} else {
 		db->db_buf = NULL;
@@ -3029,6 +3062,7 @@ dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx, boolean_t failed)
 			ASSERT(db->db_blkid != DMU_BONUS_BLKID);
 			/* we were freed while filling */
 			/* XXX dbuf_undirty? */
+			assert_db_data_contents_locked(db, TRUE);
 			memset(db->db.db_data, 0, db->db.db_size);
 			db->db_freed_in_flight = FALSE;
 			db->db_state = DB_CACHED;
@@ -3161,6 +3195,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
 		ASSERT(!arc_is_encrypted(buf));
 		mutex_exit(&db->db_mtx);
 		(void) dbuf_dirty(db, tx);
+		assert_db_data_contents_locked(db, TRUE);
 		memcpy(db->db.db_data, buf->b_data, db->db.db_size);
 		arc_buf_destroy(buf, db);
 		return;
@@ -3404,6 +3439,7 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 			*parentp = NULL;
 			return (err);
 		}
+		assert_db_data_addr_locked(*parentp);
 		*bpp = ((blkptr_t *)(*parentp)->db.db_data) +
 		    (blkid & ((1ULL << epbs) - 1));
 		return (0);
@@ -4579,10 +4615,12 @@ dbuf_lightweight_bp(dbuf_dirty_record_t *dr)
 		return (&dn->dn_phys->dn_blkptr[dr->dt.dll.dr_blkid]);
 	} else {
 		dmu_buf_impl_t *parent_db = dr->dr_parent->dr_dbuf;
+		assert_db_data_addr_locked(parent_db);
 		int epbs = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
 		VERIFY3U(parent_db->db_level, ==, 1);
 		VERIFY3P(DB_DNODE(parent_db), ==, dn);
 		VERIFY3U(dr->dt.dll.dr_blkid >> epbs, ==, parent_db->db_blkid);
+		assert_db_data_contents_locked(parent_db, FALSE);
 		blkptr_t *bp = parent_db->db.db_data;
 		return (&bp[dr->dt.dll.dr_blkid & ((1 << epbs) - 1)]);
 	}
@@ -4593,12 +4631,22 @@ dbuf_lightweight_ready(zio_t *zio)
 {
 	dbuf_dirty_record_t *dr = zio->io_private;
 	blkptr_t *bp = zio->io_bp;
+	dmu_buf_impl_t *parent_db = NULL;
 
 	if (zio->io_error != 0)
 		return;
 
 	dnode_t *dn = dr->dr_dnode;
 
+	EQUIV(dr->dr_parent == NULL, dn->dn_phys->dn_nlevels == 1);
+	if (dr->dr_parent == NULL) {
+		parent_db = dn->dn_dbuf;
+	} else {
+		parent_db = dr->dr_parent->dr_dbuf;
+	}
+
+	assert_db_data_addr_locked(parent_db);
+	rw_enter(&parent_db->db_rwlock, RW_WRITER);
 	blkptr_t *bp_orig = dbuf_lightweight_bp(dr);
 	spa_t *spa = dmu_objset_spa(dn->dn_objset);
 	int64_t delta = bp_get_dsize_sync(spa, bp) -
@@ -4618,14 +4666,6 @@ dbuf_lightweight_ready(zio_t *zio)
 		BP_SET_FILL(bp, fill);
 	}
 
-	dmu_buf_impl_t *parent_db;
-	EQUIV(dr->dr_parent == NULL, dn->dn_phys->dn_nlevels == 1);
-	if (dr->dr_parent == NULL) {
-		parent_db = dn->dn_dbuf;
-	} else {
-		parent_db = dr->dr_parent->dr_dbuf;
-	}
-	rw_enter(&parent_db->db_rwlock, RW_WRITER);
 	*bp_orig = *bp;
 	rw_exit(&parent_db->db_rwlock);
 }
@@ -4659,6 +4699,7 @@ noinline static void
 dbuf_sync_lightweight(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	dnode_t *dn = dr->dr_dnode;
+	dmu_buf_impl_t *parent_db = NULL;
 	zio_t *pio;
 	if (dn->dn_phys->dn_nlevels == 1) {
 		pio = dn->dn_zio;
@@ -4677,6 +4718,11 @@ dbuf_sync_lightweight(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	 * See comment in dbuf_write().  This is so that zio->io_bp_orig
 	 * will have the old BP in dbuf_lightweight_done().
 	 */
+	if (dr->dr_dnode->dn_phys->dn_nlevels != 1) {
+		parent_db = dr->dr_parent->dr_dbuf;
+		assert_db_data_addr_locked(parent_db);
+		rw_enter(&parent_db->db_rwlock, RW_READER);
+	}
 	dr->dr_bp_copy = *dbuf_lightweight_bp(dr);
 
 	dr->dr_zio = zio_write(pio, dmu_objset_spa(dn->dn_objset),
@@ -4685,6 +4731,9 @@ dbuf_sync_lightweight(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 	    &dr->dt.dll.dr_props, dbuf_lightweight_ready, NULL,
 	    dbuf_lightweight_done, dr, ZIO_PRIORITY_ASYNC_WRITE,
 	    ZIO_FLAG_MUSTSUCCEED | dr->dt.dll.dr_flags, &zb);
+
+	if (parent_db)
+		rw_exit(&parent_db->db_rwlock);
 
 	zio_nowait(dr->dr_zio);
 }
@@ -4842,6 +4891,7 @@ dbuf_sync_leaf(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 		} else {
 			*datap = arc_alloc_buf(os->os_spa, db, type, psize);
 		}
+		assert_db_data_contents_locked(db, FALSE);
 		memcpy((*datap)->b_data, db->db.db_data, psize);
 	}
 	db->db_data_pending = dr;
@@ -4948,6 +4998,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 
 		if (dn->dn_type == DMU_OT_DNODE) {
 			i = 0;
+			rw_enter(&db->db_rwlock, RW_READER);
 			while (i < db->db.db_size) {
 				dnode_phys_t *dnp =
 				    (void *)(((char *)db->db.db_data) + i);
@@ -4973,6 +5024,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 					    DNODE_MIN_SIZE;
 				}
 			}
+			rw_exit(&db->db_rwlock);
 		} else {
 			if (BP_IS_HOLE(bp)) {
 				fill = 0;
@@ -4981,6 +5033,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 			}
 		}
 	} else {
+		rw_enter(&db->db_rwlock, RW_READER);
 		blkptr_t *ibp = db->db.db_data;
 		ASSERT3U(db->db.db_size, ==, 1<<dn->dn_phys->dn_indblkshift);
 		for (i = db->db.db_size >> SPA_BLKPTRSHIFT; i > 0; i--, ibp++) {
@@ -4990,6 +5043,7 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 			    BLK_CONFIG_SKIP, BLK_VERIFY_HALT);
 			fill += BP_GET_FILL(ibp);
 		}
+		rw_exit(&db->db_rwlock);
 	}
 	DB_DNODE_EXIT(db);
 
@@ -5024,6 +5078,8 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 	DB_DNODE_EXIT(db);
 	ASSERT3U(epbs, <, 31);
 
+	assert_db_data_addr_locked(db);
+	rw_enter(&db->db_rwlock, RW_READER);
 	/* Determine if all our children are holes */
 	for (i = 0, bp = db->db.db_data; i < 1ULL << epbs; i++, bp++) {
 		if (!BP_IS_HOLE(bp))
@@ -5040,10 +5096,13 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		 * anybody from reading the blocks we're about to
 		 * zero out.
 		 */
-		rw_enter(&db->db_rwlock, RW_WRITER);
+		if (!rw_tryupgrade(&db->db_rwlock)) {
+			rw_exit(&db->db_rwlock);
+			rw_enter(&db->db_rwlock, RW_WRITER);
+		}
 		memset(db->db.db_data, 0, db->db.db_size);
-		rw_exit(&db->db_rwlock);
 	}
+	rw_exit(&db->db_rwlock);
 }
 
 static void
@@ -5238,11 +5297,11 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 		 * avoid lock contention, only grab it when we are actually
 		 * changing the BP.
 		 */
-		if (rw != NULL)
-			rw_enter(rw, RW_WRITER);
-		*bp = bp_copy;
-		if (rw != NULL)
+		if (rw != NULL && !rw_tryupgrade(rw)) {
 			rw_exit(rw);
+			rw_enter(rw, RW_WRITER);
+		}
+		*bp = bp_copy;
 	}
 }
 
@@ -5258,6 +5317,8 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (!spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL))
 		return;
 
+	assert_db_data_addr_locked(db);
+	rw_enter(&db->db_rwlock, RW_READER);
 	if (db->db_level > 0) {
 		blkptr_t *bp = db->db.db_data;
 		for (int i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
@@ -5276,6 +5337,7 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 			}
 		}
 	}
+	rw_exit(&db->db_rwlock);
 }
 
 
