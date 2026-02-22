@@ -726,7 +726,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 		 */
 		if (isresource) {
 			zfs_stats.resource_drops.fmds_value.ui64++;
-			fmd_hdl_debug(hdl, "discarding '%s for vdev %llu",
+			fmd_hdl_debug(hdl, "discarding '%s' for vdev %llu",
 			    class, vdev_guid);
 			return;
 		}

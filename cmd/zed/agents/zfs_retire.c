@@ -100,12 +100,16 @@ find_pool(zpool_handle_t *zhp, void *data)
  * Find a vdev within a tree with a matching GUID.
  */
 static nvlist_t *
-find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid)
+find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid,
+    uint64_t *parent_guid)
 {
-	uint64_t guid;
+	uint64_t guid, saved_parent_guid;
 	nvlist_t **child;
 	uint_t c, children;
-	nvlist_t *ret;
+	nvlist_t *ret = NULL;
+
+	if (parent_guid != NULL)
+		saved_parent_guid = *parent_guid;
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0 &&
 	    guid == search_guid) {
@@ -119,8 +123,9 @@ find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid)
 		return (NULL);
 
 	for (c = 0; c < children; c++) {
-		if ((ret = find_vdev(zhdl, child[c], search_guid)) != NULL)
-			return (ret);
+		if ((ret = find_vdev(zhdl, child[c], search_guid,
+		    parent_guid)) != NULL)
+			goto out;
 	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_L2CACHE,
@@ -128,8 +133,9 @@ find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid)
 		return (NULL);
 
 	for (c = 0; c < children; c++) {
-		if ((ret = find_vdev(zhdl, child[c], search_guid)) != NULL)
-			return (ret);
+		if ((ret = find_vdev(zhdl, child[c], search_guid,
+		    parent_guid)) != NULL)
+			goto out;
 	}
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_SPARES,
@@ -137,11 +143,18 @@ find_vdev(libzfs_handle_t *zhdl, nvlist_t *nv, uint64_t search_guid)
 		return (NULL);
 
 	for (c = 0; c < children; c++) {
-		if ((ret = find_vdev(zhdl, child[c], search_guid)) != NULL)
-			return (ret);
+		if ((ret = find_vdev(zhdl, child[c], search_guid,
+		    parent_guid)) != NULL)
+			goto out;
 	}
 
 	return (NULL);
+out:
+	/* If parent_guid was set, don't reset it. */
+	if (ret != NULL && parent_guid != NULL &&
+	    saved_parent_guid == *parent_guid)
+		*parent_guid = guid;
+	return (ret);
 }
 
 static int
@@ -207,7 +220,7 @@ find_and_remove_spares(libzfs_handle_t *zhdl, uint64_t vdev_guid)
  */
 static zpool_handle_t *
 find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
-    nvlist_t **vdevp)
+    nvlist_t **vdevp, uint64_t *top_guid)
 {
 	find_cbdata_t cb;
 	zpool_handle_t *zhp;
@@ -229,13 +242,53 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 	}
 
 	if (vdev_guid != 0) {
-		if ((*vdevp = find_vdev(zhdl, nvroot, vdev_guid)) == NULL) {
+		if ((*vdevp = find_vdev(zhdl, nvroot, vdev_guid,
+		    top_guid)) == NULL) {
 			zpool_close(zhp);
 			return (NULL);
 		}
 	}
 
 	return (zhp);
+}
+
+/*
+ * Given a (pool, vdev) GUID pair, count the number of faulted vdevs in
+ * its top vdev and return TRUE if the number of failures > nparity.
+ */
+static boolean_t
+is_domain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid)
+{
+	nvlist_t *nvtop, *vdev;
+	uint64_t top_guid;
+	uint64_t nparity;
+	nvlist_t **child;
+	uint_t i, c, children;
+	vdev_stat_t *vs;
+
+	if (find_by_guid(zhdl, pool_guid, vdev_guid, &vdev, &top_guid) == NULL)
+		return (B_FALSE);
+
+	if (find_by_guid(zhdl, pool_guid, top_guid, &nvtop, NULL) == NULL)
+		return (B_FALSE);
+
+	if (nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_NPARITY, &nparity) != 0)
+		return (B_FALSE);
+
+	if (nvlist_lookup_nvlist_array(nvtop, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		return (B_FALSE);
+
+	int nfaults = 0;
+	for (c = 0; c < children; c++) {
+		nvlist_lookup_uint64_array(child[c], ZPOOL_CONFIG_VDEV_STATS,
+		    (uint64_t **)&vs, &i);
+
+		if (vs->vs_state == VDEV_STATE_FAULTED)
+			nfaults++;
+	}
+
+	return (nfaults > nparity);
 }
 
 /*
@@ -434,7 +487,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			return;
 
 		if ((zhp = find_by_guid(zhdl, pool_guid, vdev_guid,
-		    &vdev)) == NULL)
+		    &vdev, NULL)) == NULL)
 			return;
 
 		devname = zpool_vdev_name(NULL, zhp, vdev, B_FALSE);
@@ -443,6 +496,16 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		    (uint64_t **)&vs, &c);
 
 		if (vs->vs_state == VDEV_STATE_OFFLINE)
+			return;
+
+		/*
+		 * No need to hurry with starting resilver, it can be domain
+		 * failure, in which case we need to wait a little so that more
+		 * devices will get into faulted state and we could detect that
+		 * it's domain failure.
+		 */
+		sleep(5);
+		if (is_domain_failure(zhdl, pool_guid, vdev_guid))
 			return;
 
 		/*
@@ -577,7 +640,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			}
 
 			if ((zhp = find_by_guid(zhdl, pool_guid, vdev_guid,
-			    &vdev)) == NULL)
+			    &vdev, NULL)) == NULL)
 				continue;
 
 			aux = VDEV_AUX_ERR_EXCEEDED;
