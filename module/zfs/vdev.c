@@ -3772,6 +3772,82 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 }
 
 /*
+ * Check for orphaned DTL entries on non-concrete vdevs (holes, missing).
+ * These can occur when the system crashes during a vdev detach operation,
+ * leaving the vdev tree updated (device becomes a hole) but DTL entries
+ * still referencing the old device.
+ *
+ * If heal is B_TRUE, clear the orphaned entries and log the action.
+ * Returns 0 on success, or EINVAL if orphaned entries found and heal is B_FALSE.
+ * Sets *count to number of vdevs with orphaned DTL entries.
+ */
+int
+vdev_dtl_check_orphaned(vdev_t *vd, boolean_t heal, int *count)
+{
+	spa_t *spa = vd->vdev_spa;
+	int error = 0;
+	int local_count = 0;
+
+	/*
+	 * Recurse into children first
+	 */
+	for (int c = 0; c < vd->vdev_children; c++) {
+		int child_count = 0;
+		int child_error;
+
+		child_error = vdev_dtl_check_orphaned(vd->vdev_child[c],
+		    heal, &child_count);
+		local_count += child_count;
+
+		if (child_error != 0 && error == 0)
+			error = child_error;
+	}
+
+	/*
+	 * Check if this is a hole or missing vdev with DTL entries.
+	 * This indicates a crash during detach left orphaned state.
+	 */
+	if ((vd->vdev_ops == &vdev_hole_ops ||
+	    vd->vdev_ops == &vdev_missing_ops) &&
+	    vd->vdev_dtl_object != 0) {
+
+		local_count++;
+
+		zfs_dbgmsg("pool %s: orphaned DTL object %llu on %s vdev "
+		    "id %llu (guid %llu)",
+		    spa_name(spa),
+		    (u_longlong_t)vd->vdev_dtl_object,
+		    vd->vdev_ops->vdev_op_type,
+		    (u_longlong_t)vd->vdev_id,
+		    (u_longlong_t)vd->vdev_guid);
+
+		if (heal) {
+			cmn_err(CE_WARN, "pool '%s': clearing orphaned DTL "
+			    "entries on %s vdev (id=%llu), likely from "
+			    "crash during detach operation",
+			    spa_name(spa),
+			    vd->vdev_ops->vdev_op_type,
+			    (u_longlong_t)vd->vdev_id);
+
+			/*
+			 * Clear the DTL object reference. The actual space
+			 * map object will be leaked but is harmless and will
+			 * be reclaimed on next scrub/resilver completion.
+			 */
+			vd->vdev_dtl_object = 0;
+			vdev_config_dirty(vd->vdev_top);
+		} else {
+			error = SET_ERROR(EINVAL);
+		}
+	}
+
+	if (count != NULL)
+		*count = local_count;
+
+	return (error);
+}
+
+/*
  * Gets the checkpoint space map object from the vdev's ZAP.  On success sm_obj
  * will contain either the checkpoint spacemap object or zero if none exists.
  * All other errors are returned to the caller.

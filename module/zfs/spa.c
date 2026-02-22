@@ -6201,6 +6201,46 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		    update_config_cache);
 
 		/*
+		 * Check for orphaned DTL entries on hole/missing vdevs.
+		 * This can happen if the system crashed during a vdev detach
+		 * operation, leaving inconsistent on-disk state that would
+		 * otherwise trigger a phantom resilver with no valid target.
+		 */
+		spa_import_progress_set_notes(spa,
+		    "Checking for orphaned DTL entries");
+		{
+			int orphaned_count = 0;
+			boolean_t heal = !!(spa->spa_import_flags &
+			    ZFS_IMPORT_HEAL_ORPHANED_DTL);
+
+			error = vdev_dtl_check_orphaned(spa->spa_root_vdev,
+			    heal, &orphaned_count);
+
+			if (orphaned_count > 0 && !heal) {
+				spa_load_failed(spa, "pool has %d vdev(s) with "
+				    "orphaned DTL entries, likely from crash "
+				    "during detach operation. This can cause "
+				    "phantom resilvers with no target device. "
+				    "Re-import with: zpool import "
+				    "-o heal_orphaned_dtl=on %s",
+				    orphaned_count, spa_name(spa));
+				return (SET_ERROR(EINVAL));
+			}
+
+			if (orphaned_count > 0 && heal) {
+				spa_history_log_internal(spa,
+				    "heal orphaned dtl", NULL,
+				    "cleared orphaned DTL entries from %d "
+				    "hole/missing vdevs after detected crash "
+				    "during topology change", orphaned_count);
+
+				cmn_err(CE_NOTE, "pool '%s': cleared orphaned "
+				    "DTL entries from %d vdevs",
+				    spa_name(spa), orphaned_count);
+			}
+		}
+
+		/*
 		 * Check if a rebuild was in progress and if so resume it.
 		 * Then check all DTLs to see if anything needs resilvering.
 		 * The resilver will be deferred if a rebuild was started.
