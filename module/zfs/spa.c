@@ -483,6 +483,10 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 
 		spa_prop_add_list(nv, ZPOOL_PROP_DEDUPRATIO, NULL,
 		    ddt_get_pool_dedup_ratio(spa), src);
+		spa_prop_add_list(nv, ZPOOL_PROP_DEDUPUSED, NULL,
+		    ddt_get_dedup_used(spa), src);
+		spa_prop_add_list(nv, ZPOOL_PROP_DEDUPSAVED, NULL,
+		    ddt_get_dedup_saved(spa), src);
 		spa_prop_add_list(nv, ZPOOL_PROP_BCLONEUSED, NULL,
 		    brt_get_used(spa), src);
 		spa_prop_add_list(nv, ZPOOL_PROP_BCLONESAVED, NULL,
