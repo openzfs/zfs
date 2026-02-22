@@ -265,20 +265,20 @@ find_by_guid(libzfs_handle_t *zhdl, uint64_t pool_guid, uint64_t vdev_guid,
 
 /*
  * Given a (pool, vdev) GUID pair, count the number of faulted vdevs in
- * its top vdev and return TRUE if the number of failures > nparity, which
- * means it's dRAID domain failure, and the faulted device belongs to that
- * domain.
+ * its top vdev and return TRUE if the number of failures at i-th device
+ * index in each dRAID failure group, equals to the number of failure groups,
+ * which means it's the domain failure, and the faulted device belongs to
+ * that failed domain.
  */
 static boolean_t
 is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
     uint64_t vdev_guid)
 {
 	uint64_t guid, top_guid;
-	uint64_t nparity;
 	uint64_t children;
 	nvlist_t *nvtop, *vdev, **child;
 	vdev_stat_t *vs;
-	uint_t i, c, width;
+	uint_t i, c, vdev_i = UINT_MAX, width, *nfaults_map;
 
 	if (find_by_guid_impl(zhdl, pool_guid, vdev_guid, &vdev,
 	    &top_guid) == NULL)
@@ -286,9 +286,6 @@ is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
 
 	if (find_by_guid_impl(zhdl, pool_guid, top_guid, &nvtop,
 	    NULL) == NULL)
-		return (B_FALSE);
-
-	if (nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_NPARITY, &nparity) != 0)
 		return (B_FALSE);
 
 	if (nvlist_lookup_nvlist_array(nvtop, ZPOOL_CONFIG_CHILDREN,
@@ -299,25 +296,43 @@ is_draid_fdomain_failure(libzfs_handle_t *zhdl, uint64_t pool_guid,
 	    &children) != 0) /* not dRAID */
 		return (B_FALSE);
 
-	if (width == children) /* not dRAID with failure domains */
+	if (width == children) /* dRAID without failure domains */
 		return (B_FALSE);
 
-	int nfaults = 0;
-	boolean_t belongs = B_FALSE;
+	nfaults_map = calloc(children, sizeof (*nfaults_map));
+	if (nfaults_map == NULL) {
+		perror("malloc");
+		exit(EXIT_FAILURE);
+	}
+
 	for (c = 0; c < width; c++) {
 		nvlist_lookup_uint64_array(child[c], ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &i);
 
-		if (vs->vs_state == VDEV_STATE_FAULTED) {
-			nfaults++;
+		if (vs->vs_state == VDEV_STATE_FAULTED)
+			nfaults_map[c % children]++;
 
-			if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID,
-			    &guid) == 0 && guid == vdev_guid)
-				belongs = B_TRUE;
+		if (vs->vs_state == VDEV_STATE_FAULTED &&
+		    nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID,
+		    &guid) == 0 && guid == vdev_guid)
+			vdev_i = (c % children);
+	}
+
+	boolean_t res = B_FALSE;
+	for (c = 0; c < children; c++) {
+		if (c == vdev_i && nfaults_map[c] == (width / children)) {
+			res = B_TRUE;
+			break;
 		}
 	}
 
-	return (nfaults > nparity && belongs);
+	if (res)
+		fmd_hdl_debug(fmd_module_hdl("zfs-retire"),
+		    "vdev %llu belongs to draid fdomain failure", vdev_guid);
+
+	free(nfaults_map);
+
+	return (res);
 }
 
 /*
