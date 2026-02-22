@@ -418,6 +418,44 @@ spa_prop_get_nvlist(spa_t *spa, char **props, unsigned int n_props,
 }
 
 /*
+ * Add metaslab class properties to an nvlist.
+ */
+static void
+spa_prop_add_metaslab_class(nvlist_t *nv, metaslab_class_t *mc,
+    zpool_mc_props_t mcp, uint64_t *sizep, uint64_t *allocp, uint64_t *usablep,
+    uint64_t *usedp)
+{
+	uint64_t size = metaslab_class_get_space(mc);
+	uint64_t alloc = metaslab_class_get_alloc(mc);
+	uint64_t dsize = metaslab_class_get_dspace(mc);
+	uint64_t dalloc = metaslab_class_get_dalloc(mc);
+	uint64_t cap = (size == 0) ? 0 : (alloc * 100 / size);
+	const zprop_source_t src = ZPROP_SRC_NONE;
+
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_SIZE, NULL, size, src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_ALLOCATED, NULL, alloc, src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_AVAILABLE, NULL,
+	    dsize - dalloc, src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_USABLE, NULL, dsize, src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_USED, NULL, dalloc, src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_FRAGMENTATION, NULL,
+	    metaslab_class_fragmentation(mc), src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_EXPANDSZ, NULL,
+	    metaslab_class_expandable_space(mc), src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_FREE, NULL, size - alloc,
+	    src);
+	spa_prop_add_list(nv, mcp + ZPOOL_MC_PROP_CAPACITY, NULL, cap, src);
+	if (sizep != NULL)
+		*sizep += size;
+	if (allocp != NULL)
+		*allocp += alloc;
+	if (usablep != NULL)
+		*usablep += dsize;
+	if (usedp != NULL)
+		*usedp += dalloc;
+}
+
+/*
  * Add a user property (source=src, propname=propval) to an nvlist.
  */
 static void
@@ -441,7 +479,7 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *pool = spa->spa_dsl_pool;
-	uint64_t size, alloc, cap, version;
+	uint64_t size, alloc, usable, used, cap, version;
 	const zprop_source_t src = ZPROP_SRC_NONE;
 	spa_config_dirent_t *dp;
 	metaslab_class_t *mc = spa_normal_class(spa);
@@ -449,37 +487,40 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 	ASSERT(MUTEX_HELD(&spa->spa_props_lock));
 
 	if (rvd != NULL) {
-		alloc = metaslab_class_get_alloc(mc);
-		alloc += metaslab_class_get_alloc(spa_special_class(spa));
-		alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
-		alloc += metaslab_class_get_alloc(spa_embedded_log_class(spa));
-		alloc += metaslab_class_get_alloc(
-		    spa_special_embedded_log_class(spa));
-
-		size = metaslab_class_get_space(mc);
-		size += metaslab_class_get_space(spa_special_class(spa));
-		size += metaslab_class_get_space(spa_dedup_class(spa));
-		size += metaslab_class_get_space(spa_embedded_log_class(spa));
-		size += metaslab_class_get_space(
-		    spa_special_embedded_log_class(spa));
-
 		spa_prop_add_list(nv, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
+
+		size = alloc = usable = used = 0;
+		spa_prop_add_metaslab_class(nv, mc, ZPOOL_MC_PROPS_NORMAL,
+		    &size, &alloc, &usable, &used);
+		spa_prop_add_metaslab_class(nv, spa_special_class(spa),
+		    ZPOOL_MC_PROPS_SPECIAL, &size, &alloc, &usable, &used);
+		spa_prop_add_metaslab_class(nv, spa_dedup_class(spa),
+		    ZPOOL_MC_PROPS_DEDUP, &size, &alloc, &usable, &used);
+		spa_prop_add_metaslab_class(nv, spa_log_class(spa),
+		    ZPOOL_MC_PROPS_LOG, NULL, NULL, NULL, NULL);
+		spa_prop_add_metaslab_class(nv, spa_embedded_log_class(spa),
+		    ZPOOL_MC_PROPS_ELOG, &size, &alloc, &usable, &used);
+		spa_prop_add_metaslab_class(nv,
+		    spa_special_embedded_log_class(spa), ZPOOL_MC_PROPS_SELOG,
+		    &size, &alloc, &usable, &used);
+
 		spa_prop_add_list(nv, ZPOOL_PROP_SIZE, NULL, size, src);
 		spa_prop_add_list(nv, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
 		spa_prop_add_list(nv, ZPOOL_PROP_FREE, NULL,
 		    size - alloc, src);
-		spa_prop_add_list(nv, ZPOOL_PROP_CHECKPOINT, NULL,
-		    spa->spa_checkpoint_info.sci_dspace, src);
-
 		spa_prop_add_list(nv, ZPOOL_PROP_FRAGMENTATION, NULL,
 		    metaslab_class_fragmentation(mc), src);
 		spa_prop_add_list(nv, ZPOOL_PROP_EXPANDSZ, NULL,
 		    metaslab_class_expandable_space(mc), src);
-		spa_prop_add_list(nv, ZPOOL_PROP_READONLY, NULL,
-		    (spa_mode(spa) == SPA_MODE_READ), src);
-
 		cap = (size == 0) ? 0 : (alloc * 100 / size);
 		spa_prop_add_list(nv, ZPOOL_PROP_CAPACITY, NULL, cap, src);
+		spa_prop_add_list(nv, ZPOOL_PROP_USABLE, NULL, usable, src);
+		spa_prop_add_list(nv, ZPOOL_PROP_USED, NULL, used, src);
+
+		spa_prop_add_list(nv, ZPOOL_PROP_CHECKPOINT, NULL,
+		    spa->spa_checkpoint_info.sci_dspace, src);
+		spa_prop_add_list(nv, ZPOOL_PROP_READONLY, NULL,
+		    (spa_mode(spa) == SPA_MODE_READ), src);
 
 		spa_prop_add_list(nv, ZPOOL_PROP_DEDUPRATIO, NULL,
 		    ddt_get_pool_dedup_ratio(spa), src);

@@ -370,8 +370,46 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			zfs_fallthrough;
 
 		case ZPOOL_PROP_SIZE:
+		case ZPOOL_PROP_NORMAL_SIZE:
+		case ZPOOL_PROP_SPECIAL_SIZE:
+		case ZPOOL_PROP_DEDUP_SIZE:
+		case ZPOOL_PROP_LOG_SIZE:
+		case ZPOOL_PROP_ELOG_SIZE:
+		case ZPOOL_PROP_SELOG_SIZE:
 		case ZPOOL_PROP_ALLOCATED:
+		case ZPOOL_PROP_NORMAL_ALLOCATED:
+		case ZPOOL_PROP_SPECIAL_ALLOCATED:
+		case ZPOOL_PROP_DEDUP_ALLOCATED:
+		case ZPOOL_PROP_LOG_ALLOCATED:
+		case ZPOOL_PROP_ELOG_ALLOCATED:
+		case ZPOOL_PROP_SELOG_ALLOCATED:
+		case ZPOOL_PROP_NORMAL_AVAILABLE:
+		case ZPOOL_PROP_SPECIAL_AVAILABLE:
+		case ZPOOL_PROP_DEDUP_AVAILABLE:
+		case ZPOOL_PROP_LOG_AVAILABLE:
+		case ZPOOL_PROP_ELOG_AVAILABLE:
+		case ZPOOL_PROP_SELOG_AVAILABLE:
 		case ZPOOL_PROP_FREE:
+		case ZPOOL_PROP_NORMAL_FREE:
+		case ZPOOL_PROP_SPECIAL_FREE:
+		case ZPOOL_PROP_DEDUP_FREE:
+		case ZPOOL_PROP_LOG_FREE:
+		case ZPOOL_PROP_ELOG_FREE:
+		case ZPOOL_PROP_SELOG_FREE:
+		case ZPOOL_PROP_USABLE:
+		case ZPOOL_PROP_NORMAL_USABLE:
+		case ZPOOL_PROP_SPECIAL_USABLE:
+		case ZPOOL_PROP_DEDUP_USABLE:
+		case ZPOOL_PROP_LOG_USABLE:
+		case ZPOOL_PROP_ELOG_USABLE:
+		case ZPOOL_PROP_SELOG_USABLE:
+		case ZPOOL_PROP_USED:
+		case ZPOOL_PROP_NORMAL_USED:
+		case ZPOOL_PROP_SPECIAL_USED:
+		case ZPOOL_PROP_DEDUP_USED:
+		case ZPOOL_PROP_LOG_USED:
+		case ZPOOL_PROP_ELOG_USED:
+		case ZPOOL_PROP_SELOG_USED:
 		case ZPOOL_PROP_FREEING:
 		case ZPOOL_PROP_LEAKED:
 		case ZPOOL_PROP_ASHIFT:
@@ -389,6 +427,12 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_EXPANDSZ:
+		case ZPOOL_PROP_NORMAL_EXPANDSZ:
+		case ZPOOL_PROP_SPECIAL_EXPANDSZ:
+		case ZPOOL_PROP_DEDUP_EXPANDSZ:
+		case ZPOOL_PROP_LOG_EXPANDSZ:
+		case ZPOOL_PROP_ELOG_EXPANDSZ:
+		case ZPOOL_PROP_SELOG_EXPANDSZ:
 		case ZPOOL_PROP_CHECKPOINT:
 			if (intval == 0) {
 				(void) strlcpy(buf, "-", len);
@@ -401,6 +445,12 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_CAPACITY:
+		case ZPOOL_PROP_NORMAL_CAPACITY:
+		case ZPOOL_PROP_SPECIAL_CAPACITY:
+		case ZPOOL_PROP_DEDUP_CAPACITY:
+		case ZPOOL_PROP_LOG_CAPACITY:
+		case ZPOOL_PROP_ELOG_CAPACITY:
+		case ZPOOL_PROP_SELOG_CAPACITY:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -411,7 +461,13 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 			break;
 
 		case ZPOOL_PROP_FRAGMENTATION:
-			if (intval == UINT64_MAX) {
+		case ZPOOL_PROP_NORMAL_FRAGMENTATION:
+		case ZPOOL_PROP_SPECIAL_FRAGMENTATION:
+		case ZPOOL_PROP_DEDUP_FRAGMENTATION:
+		case ZPOOL_PROP_LOG_FRAGMENTATION:
+		case ZPOOL_PROP_ELOG_FRAGMENTATION:
+		case ZPOOL_PROP_SELOG_FRAGMENTATION:
+			if (intval == ZFS_FRAG_INVALID) {
 				(void) strlcpy(buf, "-", len);
 			} else if (literal) {
 				(void) snprintf(buf, len, "%llu",

@@ -6954,7 +6954,19 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 
 	switch (prop) {
 	case ZPOOL_PROP_SIZE:
+	case ZPOOL_PROP_NORMAL_SIZE:
+	case ZPOOL_PROP_SPECIAL_SIZE:
+	case ZPOOL_PROP_DEDUP_SIZE:
+	case ZPOOL_PROP_LOG_SIZE:
+	case ZPOOL_PROP_ELOG_SIZE:
+	case ZPOOL_PROP_SELOG_SIZE:
 	case ZPOOL_PROP_EXPANDSZ:
+	case ZPOOL_PROP_NORMAL_EXPANDSZ:
+	case ZPOOL_PROP_SPECIAL_EXPANDSZ:
+	case ZPOOL_PROP_DEDUP_EXPANDSZ:
+	case ZPOOL_PROP_LOG_EXPANDSZ:
+	case ZPOOL_PROP_ELOG_EXPANDSZ:
+	case ZPOOL_PROP_SELOG_EXPANDSZ:
 	case ZPOOL_PROP_CHECKPOINT:
 	case ZPOOL_PROP_DEDUPRATIO:
 	case ZPOOL_PROP_DEDUPCACHED:
@@ -6965,6 +6977,12 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 			    format);
 		break;
 	case ZPOOL_PROP_FRAGMENTATION:
+	case ZPOOL_PROP_NORMAL_FRAGMENTATION:
+	case ZPOOL_PROP_SPECIAL_FRAGMENTATION:
+	case ZPOOL_PROP_DEDUP_FRAGMENTATION:
+	case ZPOOL_PROP_LOG_FRAGMENTATION:
+	case ZPOOL_PROP_ELOG_FRAGMENTATION:
+	case ZPOOL_PROP_SELOG_FRAGMENTATION:
 		if (value == ZFS_FRAG_INVALID) {
 			(void) strlcpy(propval, "-", sizeof (propval));
 		} else if (format == ZFS_NICENUM_RAW) {
@@ -6976,6 +6994,12 @@ collect_vdev_prop(zpool_prop_t prop, uint64_t value, const char *str,
 		}
 		break;
 	case ZPOOL_PROP_CAPACITY:
+	case ZPOOL_PROP_NORMAL_CAPACITY:
+	case ZPOOL_PROP_SPECIAL_CAPACITY:
+	case ZPOOL_PROP_DEDUP_CAPACITY:
+	case ZPOOL_PROP_LOG_CAPACITY:
+	case ZPOOL_PROP_ELOG_CAPACITY:
+	case ZPOOL_PROP_SELOG_CAPACITY:
 		/* capacity value is in parts-per-10,000 (aka permyriad) */
 		if (format == ZFS_NICENUM_RAW)
 			(void) snprintf(propval, sizeof (propval), "%llu",
