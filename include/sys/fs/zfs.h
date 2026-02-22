@@ -389,8 +389,21 @@ typedef enum {
 	VDEV_PROP_SIT_OUT,
 	VDEV_PROP_AUTOSIT,
 	VDEV_PROP_SLOW_IO_EVENTS,
+	VDEV_PROP_SCHEDULER,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
+
+/*
+ * Different scheduling behaviors for vdev scheduler property.
+ * VDEV_SCHEDULER_AUTO = Let ZFS decide - currently use scheduler on HDDs only.
+ * VDEV_SCHEDULER_ON = Always queue.
+ * VDEV_SCHEDULER_OFF = Never queue.
+ */
+typedef enum {
+	VDEV_SCHEDULER_AUTO,
+	VDEV_SCHEDULER_ON,
+	VDEV_SCHEDULER_OFF
+} vdev_scheduler_type_t;
 
 /*
  * Dataset property functions shared between libzfs and kernel.

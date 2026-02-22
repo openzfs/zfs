@@ -879,6 +879,38 @@ again:
 	return (zio);
 }
 
+static boolean_t
+vdev_should_queue_io(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	boolean_t should_queue = B_TRUE;
+
+	/*
+	 * Add zio with ZIO_FLAG_NODATA to queue as bypass code
+	 * currently does not handle certain cases (gang abd, raidz
+	 * write aggregation).
+	 */
+	if (zio->io_flags & ZIO_FLAG_NODATA)
+		return (B_TRUE);
+
+	switch (vd->vdev_scheduler) {
+	case VDEV_SCHEDULER_AUTO:
+		if (vd->vdev_nonrot && vd->vdev_is_blkdev)
+			should_queue = B_FALSE;
+		break;
+	case VDEV_SCHEDULER_ON:
+		should_queue = B_TRUE;
+		break;
+	case VDEV_SCHEDULER_OFF:
+		should_queue = B_FALSE;
+		break;
+	default:
+		should_queue = B_TRUE;
+		break;
+	}
+	return (should_queue);
+}
+
 zio_t *
 vdev_queue_io(zio_t *zio)
 {
@@ -922,6 +954,11 @@ vdev_queue_io(zio_t *zio)
 	zio->io_flags |= ZIO_FLAG_DONT_QUEUE;
 	zio->io_timestamp = gethrtime();
 
+	if (!vdev_should_queue_io(zio)) {
+		zio->io_queue_state = ZIO_QS_NONE;
+		return (zio);
+	}
+
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_io_add(vq, zio);
 	nio = vdev_queue_io_to_issue(vq);
@@ -953,6 +990,9 @@ vdev_queue_io_done(zio_t *zio)
 	hrtime_t now = gethrtime();
 	vq->vq_io_complete_ts = now;
 	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
+
+	if (zio->io_queue_state == ZIO_QS_NONE)
+		return;
 
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_pending_remove(vq, zio);

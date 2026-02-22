@@ -326,6 +326,13 @@ vdev_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t vdevschedulertype_table[] = {
+		{ "auto",	VDEV_SCHEDULER_AUTO },
+		{ "on",		VDEV_SCHEDULER_ON },
+		{ "off",	VDEV_SCHEDULER_OFF },
+		{ NULL }
+	};
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_VDEV_PROPERTIES);
 
@@ -484,6 +491,10 @@ vdev_prop_init(void)
 	zprop_register_index(VDEV_PROP_SLOW_IO_EVENTS, "slow_io_events",
 	    B_TRUE, PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off",
 	    "SLOW_IO_EVENTS", boolean_table, sfeatures);
+	zprop_register_index(VDEV_PROP_SCHEDULER, "scheduler",
+	    VDEV_SCHEDULER_AUTO, PROP_DEFAULT, ZFS_TYPE_VDEV,
+	    "auto | on | off", "IO_SCHEDULER",
+	    vdevschedulertype_table, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,
