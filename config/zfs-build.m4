@@ -226,7 +226,7 @@ AC_DEFUN([ZFS_AC_OBJTOOL_WERROR], [
 		],[
 			AC_MSG_NOTICE([enable-objtool-werror undefined, disabling -Werror ])
 			OBJTOOL_DISABLE_WERROR=y
-			abs_objtool_binary=$kernelsrc/tools/objtool/objtool
+			abs_objtool_binary=$kernelbuild/tools/objtool/objtool
 			AS_IF([test -x $abs_objtool_binary],[],[
 				AC_MSG_ERROR([*** objtool binary $abs_objtool_binary not found])
 			])
