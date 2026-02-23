@@ -119,7 +119,6 @@ typedef struct {
 	char		*se_path;	/* full mount path */
 	spa_t		*se_spa;	/* pool spa (NULL if pending) */
 	uint64_t	se_objsetid;	/* snapshot objset id */
-	struct dentry   *se_root_dentry; /* snapshot root dentry */
 	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
 	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
 	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
@@ -138,7 +137,7 @@ static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
  */
 static zfs_snapentry_t *
 zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
-    uint64_t objsetid, struct dentry *root_dentry)
+    uint64_t objsetid)
 {
 	zfs_snapentry_t *se;
 
@@ -148,7 +147,6 @@ zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
 	se->se_path = kmem_strdup(full_path);
 	se->se_spa = spa;
 	se->se_objsetid = objsetid;
-	se->se_root_dentry = root_dentry;
 	se->se_taskqid = TASKQID_INVALID;
 	mutex_init(&se->se_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&se->se_cv, NULL, CV_DEFAULT, NULL);
@@ -232,14 +230,12 @@ zfsctl_snapshot_remove(zfs_snapentry_t *se)
  * remaining fields and adds the entry to the zfs_snapshots_by_objsetid tree.
  */
 static void
-zfsctl_snapshot_fill(zfs_snapentry_t *se, spa_t *spa, uint64_t objsetid,
-    struct dentry *root_dentry)
+zfsctl_snapshot_fill(zfs_snapentry_t *se, spa_t *spa, uint64_t objsetid)
 {
 	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
 	ASSERT3P(se->se_spa, ==, NULL);
 	se->se_spa = spa;
 	se->se_objsetid = objsetid;
-	se->se_root_dentry = root_dentry;
 	avl_add(&zfs_snapshots_by_objsetid, se);
 }
 
@@ -1306,7 +1302,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	/*
 	 * Create pending entry and mark mount in progress.
 	 */
-	se = zfsctl_snapshot_alloc(full_name, full_path, NULL, 0, NULL);
+	se = zfsctl_snapshot_alloc(full_name, full_path, NULL, 0);
 	se->se_mounting = B_TRUE;
 	zfsctl_snapshot_add(se);
 	zfsctl_snapshot_hold(se);
@@ -1375,7 +1371,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		zfsctl_snapshot_fill(se, snap_zfsvfs->z_os->os_spa,
-		    dmu_objset_id(snap_zfsvfs->z_os), dentry);
+		    dmu_objset_id(snap_zfsvfs->z_os));
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		rw_exit(&zfs_snapshot_lock);
 	} else {
