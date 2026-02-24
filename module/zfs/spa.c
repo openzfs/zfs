@@ -8484,7 +8484,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		if (rebuild) {
 			newvd->vdev_rebuild_txg = txg;
 
-			vdev_rebuild(tvd);
+			vdev_rebuild(tvd, txg);
 		} else {
 			newvd->vdev_resilver_txg = txg;
 
