@@ -251,16 +251,7 @@ snapentry_compare_by_name(const void *a, const void *b)
 {
 	const zfs_snapentry_t *se_a = a;
 	const zfs_snapentry_t *se_b = b;
-	int ret;
-
-	ret = strcmp(se_a->se_name, se_b->se_name);
-
-	if (ret < 0)
-		return (-1);
-	else if (ret > 0)
-		return (1);
-	else
-		return (0);
+	return (TREE_ISIGN(strcmp(se_a->se_name, se_b->se_name)));
 }
 
 /*
@@ -272,15 +263,10 @@ snapentry_compare_by_objsetid(const void *a, const void *b)
 	const zfs_snapentry_t *se_a = a;
 	const zfs_snapentry_t *se_b = b;
 
-	if (se_a->se_spa != se_b->se_spa)
-		return ((ulong_t)se_a->se_spa < (ulong_t)se_b->se_spa ? -1 : 1);
-
-	if (se_a->se_objsetid < se_b->se_objsetid)
-		return (-1);
-	else if (se_a->se_objsetid > se_b->se_objsetid)
-		return (1);
-	else
-		return (0);
+	int cmp = TREE_PCMP(se_a->se_spa, se_b->se_spa);
+	if (cmp != 0)
+		return (cmp);
+	return (TREE_CMP(se_a->se_objsetid, se_b->se_objsetid));
 }
 
 /*

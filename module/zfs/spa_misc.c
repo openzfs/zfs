@@ -2616,11 +2616,8 @@ spa_name_compare(const void *a1, const void *a2)
 {
 	const spa_t *s1 = a1;
 	const spa_t *s2 = a2;
-	int s;
 
-	s = strcmp(s1->spa_name, s2->spa_name);
-
-	return (TREE_ISIGN(s));
+	return (TREE_ISIGN(strcmp(s1->spa_name, s2->spa_name)));
 }
 
 void

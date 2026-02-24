@@ -395,11 +395,7 @@ perm_set_compare(const void *arg1, const void *arg2)
 {
 	const perm_set_t *node1 = (const perm_set_t *)arg1;
 	const perm_set_t *node2 = (const perm_set_t *)arg2;
-	int val;
-
-	val = strcmp(node1->p_setname, node2->p_setname);
-
-	return (TREE_ISIGN(val));
+	return (TREE_ISIGN(strcmp(node1->p_setname, node2->p_setname)));
 }
 
 /*

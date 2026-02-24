@@ -45,21 +45,10 @@ struct launched_process_node {
 static int
 _launched_process_node_compare(const void *x1, const void *x2)
 {
-	pid_t p1;
-	pid_t p2;
+	const struct launched_process_node *node1 = x1;
+	const struct launched_process_node *node2 = x2;
 
-	assert(x1 != NULL);
-	assert(x2 != NULL);
-
-	p1 = ((const struct launched_process_node *) x1)->pid;
-	p2 = ((const struct launched_process_node *) x2)->pid;
-
-	if (p1 < p2)
-		return (-1);
-	else if (p1 == p2)
-		return (0);
-	else
-		return (1);
+	return (TREE_CMP(node1->pid, node2->pid));
 }
 
 static pthread_t _reap_children_tid = (pthread_t)-1;

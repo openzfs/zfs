@@ -57,10 +57,12 @@ zfs_refcount_compare(const void *x1, const void *x2)
 	const reference_t *r1 = (const reference_t *)x1;
 	const reference_t *r2 = (const reference_t *)x2;
 
-	int cmp1 = TREE_CMP(r1->ref_holder, r2->ref_holder);
-	int cmp2 = TREE_CMP(r1->ref_number, r2->ref_number);
-	int cmp = cmp1 ? cmp1 : cmp2;
-	return ((cmp || r1->ref_search) ? cmp : TREE_PCMP(r1, r2));
+	int cmp = TREE_CMP(r1->ref_holder, r2->ref_holder);
+	if (cmp == 0)
+		cmp = TREE_CMP(r1->ref_number, r2->ref_number);
+	if (cmp | r1->ref_search)
+		return (cmp);
+	return (TREE_PCMP(r1, r2));
 }
 
 void

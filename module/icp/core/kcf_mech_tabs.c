@@ -90,8 +90,8 @@ static int
 kcf_mech_hash_compar(const void *lhs, const void *rhs)
 {
 	const kcf_mech_entry_t *l = lhs, *r = rhs;
-	int cmp = strncmp(l->me_name, r->me_name, CRYPTO_MAX_MECH_NAME);
-	return ((0 < cmp) - (cmp < 0));
+	return (TREE_ISIGN(strncmp(l->me_name, r->me_name,
+	    CRYPTO_MAX_MECH_NAME)));
 }
 
 void

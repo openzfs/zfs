@@ -226,10 +226,10 @@ vdev_queue_to_compare(const void *x1, const void *x2)
 	const zio_t *z1 = (const zio_t *)x1;
 	const zio_t *z2 = (const zio_t *)x2;
 
-	int tcmp = TREE_CMP(z1->io_timestamp >> VDQ_T_SHIFT,
+	int cmp = TREE_CMP(z1->io_timestamp >> VDQ_T_SHIFT,
 	    z2->io_timestamp >> VDQ_T_SHIFT);
-	int ocmp = TREE_CMP(z1->io_offset, z2->io_offset);
-	int cmp = tcmp ? tcmp : ocmp;
+	if (cmp == 0)
+		cmp = TREE_CMP(z1->io_offset, z2->io_offset);
 
 	if (likely(cmp | (z1->io_queue_state == ZIO_QS_NONE)))
 		return (cmp);

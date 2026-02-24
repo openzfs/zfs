@@ -837,8 +837,7 @@ dsl_bookmark_compare(const void *l, const void *r)
 	    (rdbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN));
 	if (likely(cmp))
 		return (cmp);
-	cmp = strcmp(ldbn->dbn_name, rdbn->dbn_name);
-	return (TREE_ISIGN(cmp));
+	return (TREE_ISIGN(strcmp(ldbn->dbn_name, rdbn->dbn_name)));
 }
 
 /*

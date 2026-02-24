@@ -68,35 +68,23 @@ livelist_compare(const void *larg, const void *rarg)
 {
 	const blkptr_t *l = larg;
 	const blkptr_t *r = rarg;
+	int cmp = 0;
 
 	/* Sort them according to dva[0] */
-	uint64_t l_dva0_vdev, r_dva0_vdev;
-	l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
-	r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
-	if (l_dva0_vdev < r_dva0_vdev)
-		return (-1);
-	else if (l_dva0_vdev > r_dva0_vdev)
-		return (+1);
+	cmp = TREE_CMP(DVA_GET_VDEV(&l->blk_dva[0]),
+	    DVA_GET_VDEV(&r->blk_dva[0]));
+	if (cmp != 0)
+		return (cmp);
 
 	/* if vdevs are equal, sort by offsets. */
-	uint64_t l_dva0_offset;
-	uint64_t r_dva0_offset;
-	l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
-	r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
-	if (l_dva0_offset < r_dva0_offset) {
-		return (-1);
-	} else if (l_dva0_offset > r_dva0_offset) {
-		return (+1);
-	}
+	cmp = TREE_CMP(DVA_GET_OFFSET(&l->blk_dva[0]),
+	    DVA_GET_OFFSET(&r->blk_dva[0]));
+	if (cmp != 0)
+		return (cmp);
 
 	/*
 	 * Since we're storing blkptrs without cancelling FREE/ALLOC pairs,
 	 * it's possible the offsets are equal. In that case, sort by txg
 	 */
-	if (BP_GET_BIRTH(l) < BP_GET_BIRTH(r)) {
-		return (-1);
-	} else if (BP_GET_BIRTH(l) > BP_GET_BIRTH(r)) {
-		return (+1);
-	}
-	return (0);
+	return (TREE_CMP(BP_GET_BIRTH(l), BP_GET_BIRTH(r)));
 }
