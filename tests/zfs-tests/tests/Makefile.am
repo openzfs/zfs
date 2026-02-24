@@ -1085,6 +1085,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_create/zpool_create_draid_002_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_003_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_004_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_draid_005_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_dryrun_output.ksh \
 	functional/cli_root/zpool_create/zpool_create_encrypted.ksh \
 	functional/cli_root/zpool_create/zpool_create_edom_neg.ksh \
@@ -1612,6 +1613,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/scrub_after_resilver.ksh \
 	functional/fault/suspend_on_probe_errors.ksh \
 	functional/fault/suspend_resume_single.ksh \
+	functional/fault/suspend_draid_fgroups.ksh \
 	functional/fault/setup.ksh \
 	functional/fault/zpool_status_-s.ksh \
 	functional/features/async_destroy/async_destroy_001_pos.ksh \
@@ -1905,6 +1907,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redundancy/redundancy_draid1.ksh \
 	functional/redundancy/redundancy_draid2.ksh \
 	functional/redundancy/redundancy_draid3.ksh \
+	functional/redundancy/redundancy_draid_width.ksh \
 	functional/redundancy/redundancy_draid_damaged1.ksh \
 	functional/redundancy/redundancy_draid_damaged2.ksh \
 	functional/redundancy/redundancy_draid_degraded1.ksh \
@@ -1912,6 +1915,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redundancy/redundancy_draid_spare1.ksh \
 	functional/redundancy/redundancy_draid_spare2.ksh \
 	functional/redundancy/redundancy_draid_spare3.ksh \
+	functional/redundancy/redundancy_draid_spare4.ksh \
 	functional/redundancy/redundancy_mirror.ksh \
 	functional/redundancy/redundancy_raidz1.ksh \
 	functional/redundancy/redundancy_raidz2.ksh \
