@@ -3494,7 +3494,7 @@ metaslab_segment_weight(metaslab_t *msp)
  */
 static boolean_t
 metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard,
-    boolean_t mapped)
+    uint64_t txg, boolean_t mapped)
 {
 	/*
 	 * This case will usually but not always get caught by the checks below;
@@ -3513,7 +3513,7 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard,
 	 */
 	if (mapped && msp->ms_group->mg_vd->vdev_ops == &vdev_anyraid_ops) {
 		return (vdev_anyraid_mapped(msp->ms_group->mg_vd,
-		    msp->ms_start));
+		    msp->ms_start, txg));
 	}
 
 	/*
@@ -4979,7 +4979,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 static metaslab_t *
 find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
     dva_t *dva, int d, uint64_t asize, int allocator,
-    boolean_t try_hard, boolean_t mapped, zio_alloc_list_t *zal,
+    boolean_t try_hard, uint64_t txg, boolean_t mapped, zio_alloc_list_t *zal,
     metaslab_t *search, boolean_t *was_active)
 {
 	avl_index_t idx;
@@ -4998,7 +4998,8 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 		}
 		tries++;
 
-		if (!metaslab_should_allocate(msp, asize, try_hard, mapped)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped)) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
 			continue;
@@ -5155,8 +5156,8 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
 		} else {
 			msp = find_valid_metaslab(mg, activation_weight, dva, d,
-			    asize, allocator, try_hard, mapped, zal, search,
-			    &was_active);
+			    asize, allocator, try_hard, txg, mapped, zal,
+			    search, &was_active);
 		}
 
 		mutex_exit(&mg->mg_lock);
@@ -5261,7 +5262,8 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * can accurately determine if the allocation attempt should
 		 * proceed.
 		 */
-		if (!metaslab_should_allocate(msp, asize, try_hard, mapped)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped)) {
 			/* Passivate this metaslab and select a new one. */
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
@@ -5355,7 +5357,8 @@ next:
 		 * we may end up in an infinite loop retrying the same
 		 * metaslab.
 		 */
-		ASSERT(!metaslab_should_allocate(msp, asize, try_hard, mapped));
+		ASSERT(!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped));
 
 		mutex_exit(&msp->ms_lock);
 	}
