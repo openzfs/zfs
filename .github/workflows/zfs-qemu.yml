@@ -48,7 +48,7 @@ jobs:
             os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-0s", "ubuntu24"]'
             ;;
           linux)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora41", "fedora42", "fedora43", "ubuntu22", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora42", "fedora43", "ubuntu22", "ubuntu24"]'
             ;;
           freebsd)
             os_selection='["freebsd13-5r", "freebsd14-3r", "freebsd13-5s", "freebsd14-3s", "freebsd15-0s", "freebsd16-0c"]'
