@@ -36,8 +36,7 @@
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
-
-#ifndef HAVE_FST_MOUNT
+#ifdef HAVE_FS_CONTEXT
 #include <linux/fs_context.h>
 #endif
 
@@ -509,17 +508,15 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 #endif
 }
 
-#ifndef HAVE_FST_MOUNT
+#ifdef HAVE_FS_CONTEXT
 /*
- * In kernel 7.0, the file_system_type->mount() and
- * super_operations->remount_fs() callbacks have been removed, requiring all
- * users to convert to the "new" fs_context-based mount API introduced in 5.2.
+ * Since kernel 5.2, the "new" fs_context-based mount API has been preferred
+ * over the traditional file_system_type->mount() and
+ * super_operations->remount_fs() callbacks, which were deprectate. In 7.0,
+ * those callbacks were removed.
  *
- * This is the simplest compatibility shim possible to adapt the fs_context
- * interface to the old-style calls. Although this interface exists in almost
- * all versions of Linux currently supported by OpenZFS, we only use it when
- * the kernel-provided shims are unavailable, to avoid bugs in these new shims
- * affecting all OpenZFS deployments.
+ * Currently, the old-style interface are the only ones we need, so this is
+ * a simple compatibility shim to adapt the new API to the old-style calls.
  */
 static int
 zpl_parse_monolithic(struct fs_context *fc, void *data)
@@ -577,7 +574,7 @@ const struct super_operations zpl_super_operations = {
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
-#ifdef HAVE_FST_MOUNT
+#ifndef HAVE_FS_CONTEXT
 	.remount_fs		= zpl_remount_fs,
 #endif
 	.show_devname		= zpl_show_devname,
@@ -622,10 +619,10 @@ struct file_system_type zpl_fs_type = {
 #else
 	.fs_flags		= FS_USERNS_MOUNT,
 #endif
-#ifdef HAVE_FST_MOUNT
-	.mount			= zpl_mount,
-#else
+#ifdef HAVE_FS_CONTEXT
 	.init_fs_context	= zpl_init_fs_context,
+#else
+	.mount			= zpl_mount,
 #endif
 	.kill_sb		= zpl_kill_sb,
 };
