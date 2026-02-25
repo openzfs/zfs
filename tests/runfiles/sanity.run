@@ -40,6 +40,14 @@ tests = ['alloc_class_003_pos', 'alloc_class_004_pos', 'alloc_class_005_pos',
     'alloc_class_011_neg']
 tags = ['functional', 'alloc_class']
 
+[tests/functional/anyraid]
+tests = ['anyraid_offline_anymirror_001_pos',
+    'anyraid_offline_anymirror_002_neg', 'anyraid_write_verify_001_pos',
+    'anyraid_encryption_001_pos', 'anyraid_snapshot_001_pos',
+    'anyraid_send_recv_001_pos', 'anyraid_scrub_001_pos',
+    'anyraid_properties_001_pos', 'anyraid_gang_blocks_001_pos']
+tags = ['functional', 'anyraid']
+
 [tests/functional/arc]
 tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'arcstats_runtime_tuning']
 tags = ['functional', 'arc']
@@ -253,7 +261,9 @@ tags = ['functional', 'cli_root', 'zpool']
 [tests/functional/cli_root/zpool_add]
 tests = ['zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
-    'zpool_add_008_neg', 'zpool_add_009_neg']
+    'zpool_add_008_neg', 'zpool_add_009_neg',
+    'zpool_add_anyraid_001_pos', 'zpool_add_anyraid_002_pos',
+    'zpool_add_anyraid_003_pos', 'zpool_add_anyraid_004_pos']
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
@@ -273,6 +283,9 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_020_pos', 'zpool_create_021_pos', 'zpool_create_022_pos',
     'zpool_create_anyraid_001_pos', 'zpool_create_anyraid_003_pos',
     'zpool_create_anyraid_004_pos', 'zpool_create_anyraid_005_neg',
+    'zpool_create_anyraid_006_neg','zpool_create_anyraid_007_neg',
+    'zpool_create_anyraid_008_neg', 'zpool_create_anyraid_009_neg',
+    'zpool_create_anyraid_010_neg', 'zpool_create_anyraid_011_neg',
     'zpool_create_encrypted', 'zpool_create_features_001_pos',
     'zpool_create_edom_neg',
     'zpool_create_features_002_pos', 'zpool_create_features_003_pos',

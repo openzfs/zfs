@@ -67,13 +67,14 @@ typedef struct vdev_anyraid {
 typedef struct anyraid_tile_node {
 	list_node_t	atn_node;
 	uint8_t		atn_disk;
-	uint16_t	atn_offset;
+	uint16_t	atn_tile_idx;
 } anyraid_tile_node_t;
 
 typedef struct anyraid_tile {
 	avl_node_t	at_node;
 	uint32_t	at_tile_id;
 	list_t		at_list;
+	uint64_t	at_synced;
 } anyraid_tile_t;
 
 /*
@@ -280,7 +281,7 @@ extern void vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
     uint64_t *good_writes, int flags, vdev_config_sync_status_t status);
 
 extern void vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd);
-extern boolean_t vdev_anyraid_mapped(vdev_t *vd, uint64_t offset);
+extern boolean_t vdev_anyraid_mapped(vdev_t *vd, uint64_t offset, uint64_t txg);
 
 /*
  * These functions are exposed for ZDB.

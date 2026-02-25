@@ -43,10 +43,16 @@ tags = ['functional', 'alloc_class']
 [tests/functional/anyraid]
 tests = [ 'anyraid_clean_mirror_001_pos', 'anyraid_clean_mirror_002_pos',
     'anyraid_clean_mirror_003_pos', 'anyraid_clean_mirror_004_pos',
+    'anyraid_offline_anymirror_001_pos', 'anyraid_offline_anymirror_002_neg',
     'anyraid_tile_layout', 'anyraid_checkpoint',
     'anyraid_faildisk_write_replace_resilver',
     'anyraid_offline_write_online_resilver',
-    'anyraid_special_vdev_001_pos', 'anyraid_special_vdev_002_pos']
+    'anyraid_special_vdev_001_pos', 'anyraid_special_vdev_002_pos',
+    'anyraid_write_verify_001_pos', 'anyraid_write_verify_006_pos',
+    'anyraid_write_verify_007_neg', 'anyraid_write_verify_008_pos',
+    'anyraid_encryption_001_pos', 'anyraid_snapshot_001_pos',
+    'anyraid_send_recv_001_pos', 'anyraid_scrub_001_pos',
+    'anyraid_properties_001_pos', 'anyraid_gang_blocks_001_pos']
 tags = ['functional', 'anyraid']
 
 [tests/functional/append]
@@ -411,7 +417,8 @@ tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
     'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
     'zpool_add_008_neg', 'zpool_add_009_neg', 'zpool_add_warn_create',
     'zpool_add_warn_degraded', 'zpool_add_warn_removal', 'add-o_ashift',
-    'add_prop_ashift', 'zpool_add_dryrun_output']
+    'add_prop_ashift', 'zpool_add_dryrun_output',
+    'zpool_add_anyraid_001_pos', 'zpool_add_anyraid_003_pos']
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
@@ -435,8 +442,9 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_023_neg', 'zpool_create_024_pos',
     'zpool_create_anyraid_001_pos', 'zpool_create_anyraid_002_pos',
     'zpool_create_anyraid_003_pos', 'zpool_create_anyraid_004_pos',
-    'zpool_create_anyraid_005_neg', 'zpool_create_encrypted',
-    'zpool_create_edom_neg', 'zpool_create_crypt_combos',
+    'zpool_create_anyraid_005_neg', zpool_create_anyraid_006_neg',
+    'zpool_create_encrypted', 'zpool_create_edom_neg',
+    'zpool_create_crypt_combos',
     'zpool_create_draid_001_pos', 'zpool_create_draid_002_pos',
     'zpool_create_draid_003_pos', 'zpool_create_draid_004_pos',
     'zpool_create_draid_005_pos',

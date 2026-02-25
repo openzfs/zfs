@@ -9875,7 +9875,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		    node; node = list_next(&cur->at_list, node)) {
 			ASSERT3U(p, <=, var->vd_nparity + 1);
 			char **next =
-			    &(table[node->atn_disk][node->atn_offset]);
+			    &(table[node->atn_disk][node->atn_tile_idx]);
 			*next = malloc(textwidth + 1);
 			int len = snprintf(*next, textwidth, "%d",
 			    cur->at_tile_id);
@@ -10213,7 +10213,7 @@ zdb_dump_anyraid_map_vdev(vdev_t *vd, int verbosity)
 	while (cur) {
 		(void) printf("\t%-8s%8llu   %-8s%04llx   %-11s%02llx\n",
 		    "tile", (u_longlong_t)cur->at_tile_id,
-		    "offset", (u_longlong_t)curn->atn_offset,
+		    "offset", (u_longlong_t)curn->atn_tile_idx,
 		    "disk", (u_longlong_t)curn->atn_disk);
 		curn = list_next(&cur->at_list, curn);
 		if (curn == NULL) {
