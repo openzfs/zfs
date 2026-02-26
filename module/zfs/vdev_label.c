@@ -1490,8 +1490,8 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 				continue;
 			}
 			nvlist_t *toc;
-			if (!nvlist_unpack(abd_to_buf(toc_abds[l]), toc_size,
-			    &toc, KM_SLEEP)) {
+			if (nvlist_unpack(abd_to_buf(toc_abds[l]), toc_size,
+			    &toc, KM_SLEEP) != 0) {
 				abd_free(toc_abds[l]);
 				continue;
 			}
@@ -1503,7 +1503,7 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 				continue;
 			}
 
-			vdev_label_read(zio, vd, l, B_FALSE,
+			vdev_label_read(zio, vd, l, B_TRUE,
 			    abd_alloc_linear(bootenv_size, B_FALSE),
 			    VDEV_LARGE_PAD_SIZE + bootenv_offset, bootenv_size,
 			    vdev_label_read_bootenv_done, zio, flags);
@@ -1700,8 +1700,8 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 			}
 			nvlist_t *toc;
 			uint32_t bootenv_size, bootenv_offset;
-			if (!(error = nvlist_unpack(abd_to_buf(toc_abds[l]),
-			    toc_size, &toc, KM_SLEEP))) {
+			if ((error = nvlist_unpack(abd_to_buf(toc_abds[l]),
+			    toc_size, &toc, KM_SLEEP)) != 0) {
 				all_writeable = B_FALSE;
 				continue;
 			}
