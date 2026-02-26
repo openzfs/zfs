@@ -43,9 +43,9 @@ typedef enum vdev_anyraid_parity_type {
 typedef struct vdev_anyraid_node {
 	avl_node_t	van_node;
 	uint8_t		van_id;
-	uint16_t	van_next_offset;
 	// Note: store capacity - 1 for rollover reasons
 	uint16_t	van_capacity;
+	uint32_t	van_next_offset;
 } vdev_anyraid_node_t;
 
 typedef struct vdev_anyraid {
