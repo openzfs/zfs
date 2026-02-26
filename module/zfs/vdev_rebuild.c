@@ -278,7 +278,7 @@ vdev_rebuild_log_notify(spa_t *spa, vdev_t *vd, const char *name)
  * active for the duration of the rebuild, then revert to the enabled state.
  */
 static void
-vdev_rebuild_initiate(vdev_t *vd)
+vdev_rebuild_initiate(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 
@@ -286,8 +286,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	ASSERT(MUTEX_HELD(&vd->vdev_rebuild_lock));
 	ASSERT(!vd->vdev_rebuilding);
 
-	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
 	vd->vdev_rebuilding = B_TRUE;
 
@@ -1015,7 +1014,7 @@ vdev_rebuild_active(vdev_t *vd)
  * top-level vdev is currently actively rebuilding.
  */
 void
-vdev_rebuild(vdev_t *vd)
+vdev_rebuild(vdev_t *vd, uint64_t txg)
 {
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp __maybe_unused = &vr->vr_rebuild_phys;
@@ -1039,7 +1038,7 @@ vdev_rebuild(vdev_t *vd)
 		if (!vd->vdev_rebuild_reset_wanted)
 			vd->vdev_rebuild_reset_wanted = B_TRUE;
 	} else {
-		vdev_rebuild_initiate(vd);
+		vdev_rebuild_initiate(vd, txg);
 	}
 	mutex_exit(&vd->vdev_rebuild_lock);
 }

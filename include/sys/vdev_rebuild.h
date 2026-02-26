@@ -90,7 +90,7 @@ typedef struct vdev_rebuild {
 boolean_t vdev_rebuild_active(vdev_t *);
 
 int vdev_rebuild_load(vdev_t *);
-void vdev_rebuild(vdev_t *);
+void vdev_rebuild(vdev_t *, uint64_t);
 void vdev_rebuild_stop_wait(vdev_t *);
 void vdev_rebuild_stop_all(spa_t *);
 void vdev_rebuild_restart(spa_t *);
