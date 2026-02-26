@@ -804,7 +804,7 @@ calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 		}
 	}
 	for (int c = 0; c < map_width; c++)
-		kmem_free(cur[c], sizeof (*cur));
+		kmem_free(cur[c], sizeof (*cur[c]));
 	kmem_free(cur, sizeof (*cur) * map_width);
 	void *cookie = NULL;
 	struct tile_count *node;
@@ -1500,7 +1500,7 @@ vdev_anyraid_mapped(vdev_t *vd, uint64_t offset)
 
 	rw_enter(&var->vd_lock, RW_READER);
 	anyraid_tile_t *tile = avl_find(&var->vd_tile_map, &search, NULL);
-	boolean_t result = tile == NULL;
+	boolean_t result = tile != NULL;
 	rw_exit(&var->vd_lock);
 
 	return (result);
