@@ -5516,6 +5516,11 @@ zfs_freebsd_rename(struct vop_rename_args *ap)
 	}
 #endif
 
+#ifdef AT_RENAME_NOREPLACE
+	if (error == 0 && ap->a_flags != 0)
+		error = EOPNOTSUPP;
+#endif
+
 	if (error == 0) {
 		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
 		    ap->a_tcnp, ap->a_fcnp->cn_cred);
