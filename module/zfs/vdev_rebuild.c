@@ -23,7 +23,7 @@
  *
  * Copyright (c) 2018, Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
- * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2022, 2026 Hewlett Packard Enterprise Development LP.
  * Copyright (c) 2024 by Delphix. All rights reserved.
  */
 
@@ -763,6 +763,7 @@ vdev_rebuild_thread(void *arg)
 	vdev_t *vd = arg;
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
+	dsl_pool_t *dp = spa_get_dsl(spa);
 	int error = 0;
 
 	/*
@@ -770,9 +771,8 @@ vdev_rebuild_thread(void *arg)
 	 * is not required for a correct rebuild, but we do want rebuilds to
 	 * emulate the resilver behavior as much as possible.
 	 */
-	dsl_pool_t *dsl = spa_get_dsl(spa);
-	if (dsl_scan_scrubbing(dsl))
-		dsl_scan_cancel(dsl);
+	if (dsl_scan_scrubbing(dp))
+		dsl_scan_cancel(dp);
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);
@@ -854,7 +854,7 @@ vdev_rebuild_thread(void *arg)
 			if (zfs_range_tree_space(msp->ms_allocating[j])) {
 				mutex_exit(&msp->ms_lock);
 				mutex_exit(&msp->ms_sync_lock);
-				txg_wait_synced(dsl, 0);
+				txg_wait_synced(dp, 0);
 				mutex_enter(&msp->ms_sync_lock);
 				mutex_enter(&msp->ms_lock);
 				break;
@@ -931,7 +931,6 @@ vdev_rebuild_thread(void *arg)
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
-	dsl_pool_t *dp = spa_get_dsl(spa);
 	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
