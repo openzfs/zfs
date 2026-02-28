@@ -65,6 +65,7 @@ typedef struct zfs_uio {
 #define	zfs_uio_segflg(u)	GET_UIO_STRUCT(u)->uio_segflg
 #define	zfs_uio_offset(u)	GET_UIO_STRUCT(u)->uio_offset
 #define	zfs_uio_resid(u)	GET_UIO_STRUCT(u)->uio_resid
+#define	zfs_uio_iov(u)		GET_UIO_STRUCT(u)->uio_iov
 #define	zfs_uio_iovcnt(u)	GET_UIO_STRUCT(u)->uio_iovcnt
 #define	zfs_uio_iovlen(u, idx)	GET_UIO_STRUCT(u)->uio_iov[(idx)].iov_len
 #define	zfs_uio_iovbase(u, idx)	GET_UIO_STRUCT(u)->uio_iov[(idx)].iov_base
