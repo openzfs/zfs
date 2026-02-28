@@ -1082,6 +1082,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_create/zpool_create_draid_004_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_dryrun_output.ksh \
 	functional/cli_root/zpool_create/zpool_create_encrypted.ksh \
+	functional/cli_root/zpool_create/zpool_create_edom_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_features_001_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_features_002_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_features_003_pos.ksh \

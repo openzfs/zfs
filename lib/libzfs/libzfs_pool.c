@@ -1639,6 +1639,11 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			    "one or more devices could not be opened"));
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 
+		case EDOM:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "block size out of range or does not match"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+
 		default:
 			return (zpool_standard_error(hdl, errno, errbuf));
 		}
