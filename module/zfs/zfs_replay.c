@@ -668,8 +668,13 @@ do_zfs_replay_rename(zfsvfs_t *zfsvfs, _lr_rename_t *lr, char *sname,
 	if (lr->lr_common.lrc_txtype & TX_CI)
 		vflg |= FIGNORECASE;
 
+#ifdef __linux__
 	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
 	    wo_vap);
+#else
+	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
+	    0, wo_vap);
+#endif
 
 	zrele(tdzp);
 	zrele(sdzp);
