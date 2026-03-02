@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd November 10, 2022
+.Dd February 20, 2026
 .Dt ZSTREAM 8
 .Os
 .
@@ -37,6 +37,10 @@
 .Cm decompress
 .Op Fl v
 .Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \&, Ns Ar type Ns ...
+.Nm
+.Cm drop_record
+.Op Fl v
+.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \& Ns ...
 .Nm
 .Cm redup
 .Op Fl v
@@ -127,6 +131,21 @@ Print summary of decompressed records.
 .El
 .It Xo
 .Nm
+.Cm drop_record
+.Op Fl v
+.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \& ...
+.Xc
+Drop selected records from a ZFS send stream provided on standard input,
+specified by object number and byte offset.
+Only WRITE and WRITE_EMBEDDED are records are supported, currently.
+The repaired stream will be written to standard output.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Print summary of dropped records.
+.El
+.It Xo
+.Nm
 .Cm redup
 .Op Fl v
 .Ar file
@@ -178,7 +197,7 @@ non-default level is desired).
 .El
 .
 .Sh EXAMPLES
-Heal a dataset that was corrupted due to OpenZFS bug #12762.
+.Ss Recovering from OpenZFS bug #12762
 First, determine which records are corrupt.
 That cannot be done automatically; it requires information beyond ZFS's
 metadata.
@@ -193,8 +212,24 @@ then run this command:
 .No # Nm zfs Ar send Fl c Ar … | Nm zstream decompress Ar 128,0,lz4 | \
 Nm zfs recv Ar …
 .Ed
+.
+.Ss Recovering from OpenZFS bug #18239
+The bogus records typically have an absurdly large offset, and can be seen with
+a command like
+.Nm zdb Fl ddddd Ar dataset Ar object
+or
+.Nm zstream Ar dump Fl v .
+To recover, send the dataset and use
+.Nm zstream
+to drop the bogus record, then receive into a new dataset.
+.Bd -literal
+.No # Nm zfs Ar send Ar ... | Nm zstream drop_record Ar 3545761,18446744073709486080 | \
+Nm zfs recv Ar ...
+.Ed
 .Sh SEE ALSO
+.Xr zdb 8 ,
 .Xr zfs 8 ,
 .Xr zfs-receive 8 ,
 .Xr zfs-send 8 ,
 .Lk https://github.com/openzfs/zfs/issues/12762
+.Lk https://github.com/openzfs/zfs/issues/18239
