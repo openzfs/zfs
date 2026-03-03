@@ -269,6 +269,64 @@ param_set_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
 	return (0);
 }
 
+/* dsl_scan.c */
+
+static void
+scrub_set_recent_time(uint64_t sec)
+{
+	zfs_scrub_recent_time = sec;
+	zfs_scrub_recent_time_hours = sec / 3600;
+	zfs_scrub_recent_time_days = sec / 86400;
+}
+
+int
+scrub_param_set_recent_time(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_scrub_recent_time;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	scrub_set_recent_time(val);
+
+	return (0);
+}
+
+int
+scrub_param_set_recent_time_hours(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_scrub_recent_time_hours;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	scrub_set_recent_time(val * 3600);
+
+	return (0);
+}
+
+int
+scrub_param_set_recent_time_days(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_scrub_recent_time_days;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	scrub_set_recent_time(val * 86400);
+
+	return (0);
+}
+
 /* metaslab.c */
 
 int
@@ -525,7 +583,6 @@ param_set_slop_shift(SYSCTL_HANDLER_ARGS)
 /* spacemap.c */
 
 extern int space_map_ibs;
-
 SYSCTL_INT(_vfs_zfs, OID_AUTO, space_map_ibs, CTLFLAG_RWTUN,
 	&space_map_ibs, 0, "Space map indirect block shift");
 
