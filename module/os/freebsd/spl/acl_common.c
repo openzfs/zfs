@@ -1213,15 +1213,7 @@ static int
 acevals_compare(const void *va, const void *vb)
 {
 	const acevals_t *a = va, *b = vb;
-
-	if (a->key == b->key)
-		return (0);
-
-	if (a->key > b->key)
-		return (1);
-
-	else
-		return (-1);
+	return (TREE_CMP(a->key, b->key));
 }
 
 /*

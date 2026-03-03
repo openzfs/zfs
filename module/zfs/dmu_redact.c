@@ -176,11 +176,7 @@ objnode_compare(const void *o1, const void *o2)
 {
 	const struct objnode *obj1 = o1;
 	const struct objnode *obj2 = o2;
-	if (obj1->obj < obj2->obj)
-		return (-1);
-	if (obj1->obj > obj2->obj)
-		return (1);
-	return (0);
+	return (TREE_CMP(obj1->obj, obj2->obj));
 }
 
 
@@ -425,11 +421,11 @@ redact_node_compare_start(const void *arg1, const void *arg2)
 	if (rr2->eos_marker)
 		return (-1);
 
-	int cmp = redact_range_compare(rr1->start_object, rr1->start_blkid,
-	    rr1->datablksz, rr2->start_object, rr2->start_blkid,
-	    rr2->datablksz);
+	int cmp = redact_range_compare(
+	    rr1->start_object, rr1->start_blkid, rr1->datablksz,
+	    rr2->start_object, rr2->start_blkid, rr2->datablksz);
 	if (cmp == 0)
-		cmp = (rn1->thread_num < rn2->thread_num ? -1 : 1);
+		cmp = TREE_CMP(rn1->thread_num, rn2->thread_num);
 	return (cmp);
 }
 
@@ -451,11 +447,11 @@ redact_node_compare_end(const void *arg1, const void *arg2)
 	if (srr2->eos_marker)
 		return (-1);
 
-	int cmp = redact_range_compare(srr1->end_object, srr1->end_blkid,
-	    srr1->datablksz, srr2->end_object, srr2->end_blkid,
-	    srr2->datablksz);
+	int cmp = redact_range_compare(
+	    srr1->end_object, srr1->end_blkid, srr1->datablksz,
+	    srr2->end_object, srr2->end_blkid, srr2->datablksz);
 	if (cmp == 0)
-		cmp = (rn1->thread_num < rn2->thread_num ? -1 : 1);
+		cmp = TREE_CMP(rn1->thread_num, rn2->thread_num);
 	return (cmp);
 }
 

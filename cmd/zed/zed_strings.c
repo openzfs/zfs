@@ -42,26 +42,10 @@ typedef struct zed_strings_node zed_strings_node_t;
 static int
 _zed_strings_node_compare(const void *x1, const void *x2)
 {
-	const char *s1;
-	const char *s2;
-	int rv;
+	const zed_strings_node_t *n1 = x1;
+	const zed_strings_node_t *n2 = x2;
 
-	assert(x1 != NULL);
-	assert(x2 != NULL);
-
-	s1 = ((const zed_strings_node_t *) x1)->key;
-	assert(s1 != NULL);
-	s2 = ((const zed_strings_node_t *) x2)->key;
-	assert(s2 != NULL);
-	rv = strcmp(s1, s2);
-
-	if (rv < 0)
-		return (-1);
-
-	if (rv > 0)
-		return (1);
-
-	return (0);
+	return (TREE_ISIGN(strcmp(n1->key, n2->key)));
 }
 
 /*

@@ -259,12 +259,7 @@ spa_crypto_key_compare(const void *a, const void *b)
 {
 	const dsl_crypto_key_t *dcka = a;
 	const dsl_crypto_key_t *dckb = b;
-
-	if (dcka->dck_obj < dckb->dck_obj)
-		return (-1);
-	if (dcka->dck_obj > dckb->dck_obj)
-		return (1);
-	return (0);
+	return (TREE_CMP(dcka->dck_obj, dckb->dck_obj));
 }
 
 /*
@@ -306,12 +301,7 @@ spa_key_mapping_compare(const void *a, const void *b)
 {
 	const dsl_key_mapping_t *kma = a;
 	const dsl_key_mapping_t *kmb = b;
-
-	if (kma->km_dsobj < kmb->km_dsobj)
-		return (-1);
-	if (kma->km_dsobj > kmb->km_dsobj)
-		return (1);
-	return (0);
+	return (TREE_CMP(kma->km_dsobj, kmb->km_dsobj));
 }
 
 static int
@@ -319,12 +309,7 @@ spa_wkey_compare(const void *a, const void *b)
 {
 	const dsl_wrapping_key_t *wka = a;
 	const dsl_wrapping_key_t *wkb = b;
-
-	if (wka->wk_ddobj < wkb->wk_ddobj)
-		return (-1);
-	if (wka->wk_ddobj > wkb->wk_ddobj)
-		return (1);
-	return (0);
+	return (TREE_CMP(wka->wk_ddobj, wkb->wk_ddobj));
 }
 
 void

@@ -1001,16 +1001,14 @@ livelist_compare(const void *larg, const void *rarg)
 	const blkptr_t *r = &((livelist_entry_t *)rarg)->le_bp;
 
 	/* Sort them according to dva[0] */
-	uint64_t l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
-	uint64_t r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
-
-	if (l_dva0_vdev != r_dva0_vdev)
-		return (TREE_CMP(l_dva0_vdev, r_dva0_vdev));
+	int cmp = TREE_CMP(DVA_GET_VDEV(&l->blk_dva[0]),
+	    DVA_GET_VDEV(&r->blk_dva[0]));
+	if (cmp != 0)
+		return (cmp);
 
 	/* if vdevs are equal, sort by offsets. */
-	uint64_t l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
-	uint64_t r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
-	return (TREE_CMP(l_dva0_offset, r_dva0_offset));
+	return (TREE_CMP(DVA_GET_OFFSET(&l->blk_dva[0]),
+	    DVA_GET_OFFSET(&r->blk_dva[0])));
 }
 
 struct livelist_iter_arg {

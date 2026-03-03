@@ -2905,15 +2905,13 @@ us_compare(const void *larg, const void *rarg)
 		uint64_t rv64 = 0;
 		zfs_prop_t prop = sortcol->sc_prop;
 		const char *propname = NULL;
-		boolean_t reverse = sortcol->sc_reverse;
 
 		switch (prop) {
 		case ZFS_PROP_TYPE:
 			propname = "type";
 			(void) nvlist_lookup_uint32(lnvl, propname, &lv32);
 			(void) nvlist_lookup_uint32(rnvl, propname, &rv32);
-			if (rv32 != lv32)
-				rc = (rv32 < lv32) ? 1 : -1;
+			rc = TREE_CMP(lv32, rv32);
 			break;
 		case ZFS_PROP_NAME:
 			propname = "name";
@@ -2923,8 +2921,7 @@ compare_nums:
 				    &lv64);
 				(void) nvlist_lookup_uint64(rnvl, propname,
 				    &rv64);
-				if (rv64 != lv64)
-					rc = (rv64 < lv64) ? 1 : -1;
+				rc = TREE_CMP(lv64, rv64);
 			} else {
 				if ((nvlist_lookup_string(lnvl, propname,
 				    &lvstr) == ENOENT) ||
@@ -2932,7 +2929,7 @@ compare_nums:
 				    &rvstr) == ENOENT)) {
 					goto compare_nums;
 				}
-				rc = strcmp(lvstr, rvstr);
+				rc = TREE_ISIGN(strcmp(lvstr, rvstr));
 			}
 			break;
 		case ZFS_PROP_USED:
@@ -2945,8 +2942,7 @@ compare_nums:
 				propname = "quota";
 			(void) nvlist_lookup_uint64(lnvl, propname, &lv64);
 			(void) nvlist_lookup_uint64(rnvl, propname, &rv64);
-			if (rv64 != lv64)
-				rc = (rv64 < lv64) ? 1 : -1;
+			rc = TREE_CMP(lv64, rv64);
 			break;
 
 		default:
@@ -2954,10 +2950,9 @@ compare_nums:
 		}
 
 		if (rc != 0) {
-			if (rc < 0)
-				return (reverse ? 1 : -1);
-			else
-				return (reverse ? -1 : 1);
+			if (sortcol->sc_reverse)
+				return (-rc);
+			return (rc);
 		}
 	}
 
@@ -2967,9 +2962,8 @@ compare_nums:
 	 * translation where we can have duplicate type/name combinations).
 	 */
 	if (nvlist_lookup_boolean_value(lnvl, "smbentity", &lvb) == 0 &&
-	    nvlist_lookup_boolean_value(rnvl, "smbentity", &rvb) == 0 &&
-	    lvb != rvb)
-		return (lvb < rvb ? -1 : 1);
+	    nvlist_lookup_boolean_value(rnvl, "smbentity", &rvb) == 0)
+		return (TREE_CMP(lvb, rvb));
 
 	return (0);
 }
@@ -5497,11 +5491,11 @@ who_perm_compare(const void *larg, const void *rarg)
 	zfs_deleg_who_type_t rtype = r->who_perm.who_type;
 	int lweight = who_type2weight(ltype);
 	int rweight = who_type2weight(rtype);
-	int res = lweight - rweight;
+	int res = TREE_CMP(lweight, rweight);
 	if (res == 0)
-		res = strncmp(l->who_perm.who_name, r->who_perm.who_name,
-		    ZFS_MAX_DELEG_NAME-1);
-	return (TREE_ISIGN(res));
+		res = TREE_ISIGN(strncmp(l->who_perm.who_name,
+		    r->who_perm.who_name, ZFS_MAX_DELEG_NAME-1));
+	return (res);
 }
 
 static int

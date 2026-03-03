@@ -413,14 +413,12 @@ zfs_sort(const void *larg, const void *rarg)
 
 		if (lstr)
 			ret = TREE_ISIGN(strcmp(lstr, rstr));
-		else if (lnum < rnum)
-			ret = -1;
-		else if (lnum > rnum)
-			ret = 1;
+		else
+			ret = TREE_CMP(lnum, rnum);
 
 		if (ret != 0) {
 			if (psc->sc_reverse == B_TRUE)
-				ret = (ret < 0) ? 1 : -1;
+				ret = -ret;
 			return (ret);
 		}
 	}

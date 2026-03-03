@@ -1473,12 +1473,7 @@ static int
 scan_ds_queue_compare(const void *a, const void *b)
 {
 	const scan_ds_t *sds_a = a, *sds_b = b;
-
-	if (sds_a->sds_dsobj < sds_b->sds_dsobj)
-		return (-1);
-	if (sds_a->sds_dsobj == sds_b->sds_dsobj)
-		return (0);
-	return (1);
+	return (TREE_CMP(sds_a->sds_dsobj, sds_b->sds_dsobj));
 }
 
 static void

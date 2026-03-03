@@ -910,33 +910,26 @@ zio_bookmark_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = x1;
 	const zio_t *z2 = x2;
+	const zbookmark_phys_t *zb1 = &z1->io_bookmark;
+	const zbookmark_phys_t *zb2 = &z2->io_bookmark;
 
-	if (z1->io_bookmark.zb_objset < z2->io_bookmark.zb_objset)
-		return (-1);
-	if (z1->io_bookmark.zb_objset > z2->io_bookmark.zb_objset)
-		return (1);
+	int cmp = TREE_CMP(zb1->zb_objset, zb2->zb_objset);
+	if (cmp != 0)
+		return (cmp);
 
-	if (z1->io_bookmark.zb_object < z2->io_bookmark.zb_object)
-		return (-1);
-	if (z1->io_bookmark.zb_object > z2->io_bookmark.zb_object)
-		return (1);
+	cmp = TREE_CMP(zb1->zb_object, zb2->zb_object);
+	if (cmp != 0)
+		return (cmp);
 
-	if (z1->io_bookmark.zb_level < z2->io_bookmark.zb_level)
-		return (-1);
-	if (z1->io_bookmark.zb_level > z2->io_bookmark.zb_level)
-		return (1);
+	cmp = TREE_CMP(zb1->zb_level, zb2->zb_level);
+	if (cmp != 0)
+		return (cmp);
 
-	if (z1->io_bookmark.zb_blkid < z2->io_bookmark.zb_blkid)
-		return (-1);
-	if (z1->io_bookmark.zb_blkid > z2->io_bookmark.zb_blkid)
-		return (1);
+	cmp = TREE_CMP(zb1->zb_blkid, zb2->zb_blkid);
+	if (cmp != 0)
+		return (cmp);
 
-	if (z1 < z2)
-		return (-1);
-	if (z1 > z2)
-		return (1);
-
-	return (0);
+	return (TREE_PCMP(z1, z2));
 }
 
 /*
