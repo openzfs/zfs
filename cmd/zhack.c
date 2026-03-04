@@ -1050,7 +1050,7 @@ zhack_repair_write_uberblock_new(void *ub_data, const int l,
 {
 	zio_eck_t *ub_eck =
 	    (zio_eck_t *)
-	    ((char *)(ub_data) + (ASHIFT_UBERBLOCK_SIZE(ashift, B_FALSE))) - 1;
+	    ((char *)(ub_data) + (ASHIFT_UBERBLOCK_SIZE(ashift, B_TRUE))) - 1;
 
 	if (ub_eck->zec_magic != 0) {
 		(void) fprintf(stderr,
@@ -1380,16 +1380,16 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 		return;
 	}
 
-	ub = malloc(UBERBLOCK_SHIFT);
-	err = zhack_repair_read(fd, ub, UBERBLOCK_SHIFT,
-	    label_offset + VDEV_LARGE_UBERBLOCK_RING, l);
-	if (err)
-		goto out;
-
 	uint64_t ashift;
 	err = zhack_repair_get_ashift(cfg, l, &ashift);
 	if (err)
 		return;
+
+	ub = malloc(ASHIFT_UBERBLOCK_SIZE(ashift, B_TRUE));
+	err = zhack_repair_read(fd, ub, UBERBLOCK_SHIFT,
+	    label_offset + VDEV_LARGE_UBERBLOCK_RING, l);
+	if (err)
+		goto out;
 
 	if ((op & ZHACK_REPAIR_OP_UNDETACH) != 0) {
 		char *buf;
