@@ -16,6 +16,7 @@ dist_libzpool_la_SOURCES = \
 	%D%/kernel.c \
 	%D%/util.c \
 	%D%/vdev_label_os.c \
+	%D%/zfs_file_os.c \
 	%D%/zfs_racct.c \
 	%D%/zfs_debug.c
 
