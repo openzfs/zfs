@@ -2151,7 +2151,6 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 		ASSERT0P(vd->vdev_log_mg);
 		return (error);
 	}
-	ASSERT0(vd->vdev_stat.vs_alloc);
 
 	/*
 	 * The evacuation succeeded.  Remove any remaining MOS metadata
