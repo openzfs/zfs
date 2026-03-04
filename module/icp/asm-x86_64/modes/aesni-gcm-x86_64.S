@@ -45,8 +45,8 @@
 # and modified for ICP. Modification are kept at a bare minimum to ease later
 # upstream merges.
 
-#if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64__) && HAVE_SIMD(AVX) && \
+    HAVE_SIMD(AES) && HAVE_SIMD(PCLMULQDQ)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -64,7 +64,7 @@
 
 .text
 
-#ifdef HAVE_MOVBE
+#if HAVE_SIMD(MOVBE)
 .balign 32
 FUNCTION(_aesni_ctr32_ghash_6x)
 .cfi_startproc
@@ -380,7 +380,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 .cfi_endproc
 SET_SIZE(_aesni_ctr32_ghash_6x)
 STACK_FRAME_NON_STANDARD _aesni_ctr32_ghash_6x
-#endif /* ifdef HAVE_MOVBE */
+#endif /* HAVE_SIMD(MOVBE) */
 
 .balign 32
 FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
@@ -781,7 +781,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 	vmovdqu	%xmm2,96(%rsp)
 	vmovdqu	%xmm3,112(%rsp)
 
-#ifdef HAVE_MOVBE
+#if HAVE_SIMD(MOVBE)
 #ifdef _KERNEL
 	testl	$1,gcm_avx_can_use_movbe(%rip)
 #else
@@ -992,7 +992,7 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 	movq	$192,%r10
 	vpshufb	%xmm0,%xmm8,%xmm8
 
-#ifdef HAVE_MOVBE
+#if HAVE_SIMD(MOVBE)
 #ifdef _KERNEL
 	testl	$1,gcm_avx_can_use_movbe(%rip)
 #else
@@ -1266,7 +1266,7 @@ SECTION_STATIC
 #if defined(__linux__) && defined(HAVE_STACK_FRAME_NON_STANDARD) && \
     ! defined(HAVE_STACK_FRAME_NON_STANDARD_ASM)
 .section .discard.func_stack_frame_non_standard, "aw"
-#ifdef HAVE_MOVBE
+#if HAVE_SIMD(MOVBE)
 	.long _aesni_ctr32_ghash_6x  - .
 #endif
 	.long _aesni_ctr32_ghash_no_movbe_6x - .
@@ -1279,4 +1279,4 @@ SECTION_STATIC
 .section .note.GNU-stack,"",%progbits
 #endif
 
-#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
+#endif /* defined(__x86_64__) && HAVE_SIMD(AVX) && HAVE_SIMD(AES) ... */

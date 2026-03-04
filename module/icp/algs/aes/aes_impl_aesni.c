@@ -23,7 +23,7 @@
  * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#if defined(__x86_64) && defined(HAVE_AES)
+#if defined(__x86_64) && HAVE_SIMD(AES)
 
 #include <sys/simd.h>
 #include <sys/types.h>
@@ -123,4 +123,4 @@ const aes_impl_ops_t aes_aesni_impl = {
 	.name = "aesni"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_AES) */
+#endif /* defined(__x86_64) && HAVE_SIMD(AES) */

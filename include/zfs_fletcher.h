@@ -97,13 +97,13 @@ typedef union fletcher_4_ctx {
 	zio_cksum_t scalar;
 	zfs_fletcher_superscalar_t superscalar[4];
 
-#if defined(HAVE_SSE2) || (defined(HAVE_SSE2) && defined(HAVE_SSSE3))
+#if HAVE_SIMD(SSE2) || (HAVE_SIMD(SSE2) && HAVE_SIMD(SSSE3))
 	zfs_fletcher_sse_t sse[4];
 #endif
-#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+#if HAVE_SIMD(AVX) && HAVE_SIMD(AVX2)
 	zfs_fletcher_avx_t avx[4];
 #endif
-#if defined(__x86_64) && defined(HAVE_AVX512F)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F)
 	zfs_fletcher_avx512_t avx512[4];
 #endif
 #if defined(__aarch64__)
@@ -134,23 +134,23 @@ typedef struct fletcher_4_func {
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;
 
-#if defined(HAVE_SSE2)
+#if HAVE_SIMD(SSE2)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_sse2_ops;
 #endif
 
-#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+#if HAVE_SIMD(SSE2) && HAVE_SIMD(SSSE3)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_ssse3_ops;
 #endif
 
-#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+#if HAVE_SIMD(AVX) && HAVE_SIMD(AVX2)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_avx2_ops;
 #endif
 
-#if defined(__x86_64) && defined(HAVE_AVX512F)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_avx512f_ops;
 #endif
 
-#if defined(__x86_64) && defined(HAVE_AVX512BW)
+#if defined(__x86_64) && HAVE_SIMD(AVX512BW)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_avx512bw_ops;
 #endif
 

@@ -40,9 +40,9 @@ extern "C" {
  * routines. AVX support should imply AES-NI and PCLMULQDQ, but make sure
  * anyhow.
  */
-#if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
-#define	CAN_USE_GCM_ASM (HAVE_VAES && HAVE_VPCLMULQDQ ? 2 : 1)
+#if defined(__x86_64__) && HAVE_SIMD(AVX) && \
+    HAVE_SIMD(AES) && HAVE_SIMD(PCLMULQDQ)
+#define	CAN_USE_GCM_ASM (HAVE_SIMD(VAES) && HAVE_SIMD(VPCLMULQDQ) ? 2 : 1)
 extern boolean_t gcm_avx_can_use_movbe;
 #endif
 

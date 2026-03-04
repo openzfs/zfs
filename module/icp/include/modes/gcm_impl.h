@@ -55,7 +55,7 @@ typedef struct gcm_impl_ops {
 } gcm_impl_ops_t;
 
 extern const gcm_impl_ops_t gcm_generic_impl;
-#if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
 extern const gcm_impl_ops_t gcm_pclmulqdq_impl;
 #endif
 

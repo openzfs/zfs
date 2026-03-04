@@ -315,19 +315,19 @@ kfpu_begin(void)
 	 * FPU state to be correctly preserved and restored.
 	 */
 	uint8_t *state = zfs_kfpu_fpregs[smp_processor_id()];
-#if defined(HAVE_XSAVES)
+#if HAVE_SIMD(XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xsave("xsaves", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
-#if defined(HAVE_XSAVEOPT)
+#if HAVE_SIMD(XSAVEOPT)
 	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
 		kfpu_do_xsave("xsaveopt", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
-#if defined(HAVE_XSAVE)
+#if HAVE_SIMD(XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xsave("xsave", state, ~XFEATURE_MASK_XTILE);
 		return;
@@ -380,13 +380,13 @@ static inline void
 kfpu_end(void)
 {
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
-#if defined(HAVE_XSAVES)
+#if HAVE_SIMD(XSAVES)
 	if (static_cpu_has(X86_FEATURE_XSAVES)) {
 		kfpu_do_xrstor("xrstors", state, ~XFEATURE_MASK_XTILE);
 		goto out;
 	}
 #endif
-#if defined(HAVE_XSAVE)
+#if HAVE_SIMD(XSAVE)
 	if (static_cpu_has(X86_FEATURE_XSAVE)) {
 		kfpu_do_xrstor("xrstor", state, ~XFEATURE_MASK_XTILE);
 		goto out;

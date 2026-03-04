@@ -26,7 +26,7 @@
 
 #include <sys/isa_defs.h>
 
-#if defined(__x86_64) && defined(HAVE_AVX512BW)
+#if defined(__x86_64) && HAVE_SIMD(AVX512BW)
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -411,4 +411,4 @@ const raidz_impl_ops_t vdev_raidz_avx512bw_impl = {
 	.name = "avx512bw"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_AVX512BW) */
+#endif /* defined(__x86_64) && HAVE_SIMD(AVX512BW) */

@@ -26,7 +26,7 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#if defined(HAVE_AVX2)
+#if HAVE_SIMD(AVX2)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -1822,7 +1822,7 @@ CMP_MSB_MASK:
         .long  0x80000000, 0x80000000, 0x80000000, 0x80000000
 BLAKE3_IV:
         .long  0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A
-#endif	/* HAVE_AVX2 */
+#endif	/* HAVE_SIMD(AVX2) */
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits

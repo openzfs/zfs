@@ -91,7 +91,7 @@ gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
 	(void) x_in, (void) y, (void) res;
 }
 
-#elif defined(HAVE_PCLMULQDQ)	/* guard by instruction set */
+#elif HAVE_SIMD(PCLMULQDQ)	/* guard by instruction set */
 
 #define _ASM
 #include <sys/asm_linkage.h>

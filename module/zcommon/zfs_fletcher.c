@@ -174,19 +174,19 @@ static const fletcher_4_ops_t *fletcher_4_impls[] = {
 	&fletcher_4_scalar_ops,
 	&fletcher_4_superscalar_ops,
 	&fletcher_4_superscalar4_ops,
-#if defined(HAVE_SSE2)
+#if HAVE_SIMD(SSE2)
 	&fletcher_4_sse2_ops,
 #endif
-#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+#if HAVE_SIMD(SSE2) && HAVE_SIMD(SSSE3)
 	&fletcher_4_ssse3_ops,
 #endif
-#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+#if HAVE_SIMD(AVX) && HAVE_SIMD(AVX2)
 	&fletcher_4_avx2_ops,
 #endif
-#if defined(__x86_64) && defined(HAVE_AVX512F)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F)
 	&fletcher_4_avx512f_ops,
 #endif
-#if defined(__x86_64) && defined(HAVE_AVX512BW)
+#if defined(__x86_64) && HAVE_SIMD(AVX512BW)
 	&fletcher_4_avx512bw_ops,
 #endif
 #if defined(__aarch64__) && !defined(__FreeBSD__)

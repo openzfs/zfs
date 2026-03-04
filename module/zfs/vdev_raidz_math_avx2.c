@@ -22,9 +22,10 @@
 /*
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
+
 #include <sys/isa_defs.h>
 
-#if defined(__x86_64) && defined(HAVE_AVX2)
+#if defined(__x86_64) && HAVE_SIMD(AVX2)
 
 #include <sys/types.h>
 #include <sys/simd.h>
@@ -411,4 +412,4 @@ const raidz_impl_ops_t vdev_raidz_avx2_impl = {
 	.name = "avx2"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_AVX2) */
+#endif /* defined(__x86_64) && HAVE_SIMD(AVX2) */

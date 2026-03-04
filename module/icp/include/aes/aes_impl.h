@@ -196,7 +196,7 @@ extern ASMABI void aes_encrypt_amd64(const uint32_t rk[], int Nr,
 extern ASMABI void aes_decrypt_amd64(const uint32_t rk[], int Nr,
 	const uint32_t ct[4], uint32_t pt[4]);
 #endif
-#if defined(__x86_64) && defined(HAVE_AES)
+#if defined(__x86_64) && HAVE_SIMD(AES)
 extern const aes_impl_ops_t aes_aesni_impl;
 #endif
 

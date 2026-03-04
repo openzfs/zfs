@@ -26,7 +26,7 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#if defined(HAVE_SSE4_1)
+#if HAVE_SIMD(SSE4_1)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -2031,7 +2031,7 @@ BLAKE3_BLOCK_LEN:
 CMP_MSB_MASK:
 	.long  0x80000000, 0x80000000, 0x80000000, 0x80000000
 
-#endif	/* HAVE_SSE4_1 */
+#endif	/* HAVE_SIMD(SSE4_1) */
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits

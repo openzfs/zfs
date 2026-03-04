@@ -32,7 +32,7 @@
 #include "blake3_impl.h"
 
 #if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE2)) || \
+	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
 extern void ASMABI zfs_blake3_compress_in_place_sse2(uint32_t cv[8],
@@ -98,7 +98,7 @@ const blake3_ops_t blake3_sse2_impl = {
 #endif
 
 #if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE2)) || \
+	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
 extern void ASMABI zfs_blake3_compress_in_place_sse41(uint32_t cv[8],
@@ -163,7 +163,7 @@ const blake3_ops_t blake3_sse41_impl = {
 };
 #endif
 
-#if defined(__x86_64) && defined(HAVE_SSE4_1) && defined(HAVE_AVX2)
+#if defined(__x86_64) && HAVE_SIMD(SSE4_1) && HAVE_SIMD(AVX2)
 extern void ASMABI zfs_blake3_hash_many_avx2(const uint8_t * const *inputs,
     size_t num_inputs, size_t blocks, const uint32_t key[8],
     uint64_t counter, boolean_t increment_counter, uint8_t flags,
@@ -196,7 +196,7 @@ blake3_avx2_impl = {
 };
 #endif
 
-#if defined(__x86_64) && defined(HAVE_AVX512F) && defined(HAVE_AVX512VL)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F) && HAVE_SIMD(AVX512VL)
 extern void ASMABI zfs_blake3_compress_in_place_avx512(uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags);
@@ -259,19 +259,19 @@ extern const blake3_ops_t blake3_generic_impl;
 static const blake3_ops_t *const blake3_impls[] = {
 	&blake3_generic_impl,
 #if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE2)) || \
+	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse2_impl,
 #endif
 #if defined(__aarch64__) || \
-	(defined(__x86_64) && defined(HAVE_SSE4_1)) || \
+	(defined(__x86_64) && HAVE_SIMD(SSE4_1)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse41_impl,
 #endif
-#if defined(__x86_64) && defined(HAVE_SSE4_1) && defined(HAVE_AVX2)
+#if defined(__x86_64) && HAVE_SIMD(SSE4_1) && HAVE_SIMD(AVX2)
 	&blake3_avx2_impl,
 #endif
-#if defined(__x86_64) && defined(HAVE_AVX512F) && defined(HAVE_AVX512VL)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F) && HAVE_SIMD(AVX512VL)
 	&blake3_avx512_impl,
 #endif
 };

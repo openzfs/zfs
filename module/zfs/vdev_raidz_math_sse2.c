@@ -25,7 +25,7 @@
 
 #include <sys/isa_defs.h>
 
-#if defined(__x86_64) && defined(HAVE_SSE2)
+#if defined(__x86_64) && HAVE_SIMD(SSE2)
 
 #include <sys/types.h>
 #include <sys/simd.h>
@@ -629,4 +629,4 @@ const raidz_impl_ops_t vdev_raidz_sse2_impl = {
 	.name = "sse2"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_SSE2) */
+#endif /* defined(__x86_64) && HAVE_SIMD(SSE2) */

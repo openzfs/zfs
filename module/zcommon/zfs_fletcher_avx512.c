@@ -23,7 +23,7 @@
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
-#if defined(__x86_64) && defined(HAVE_AVX512F)
+#if defined(__x86_64) && HAVE_SIMD(AVX512F)
 
 #include <sys/byteorder.h>
 #include <sys/frame.h>
@@ -167,7 +167,7 @@ const fletcher_4_ops_t fletcher_4_avx512f_ops = {
 	.name = "avx512f"
 };
 
-#if defined(HAVE_AVX512BW)
+#if HAVE_SIMD(AVX512BW)
 static void
 fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
     uint64_t size)
@@ -219,4 +219,4 @@ const fletcher_4_ops_t fletcher_4_avx512bw_ops = {
 };
 #endif
 
-#endif /* defined(__x86_64) && defined(HAVE_AVX512F) */
+#endif /* defined(__x86_64) && HAVE_SIMD(AVX512F) */

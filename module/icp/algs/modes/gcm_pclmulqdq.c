@@ -23,7 +23,7 @@
  * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
 
 #include <sys/types.h>
 #include <sys/simd.h>
@@ -63,4 +63,4 @@ const gcm_impl_ops_t gcm_pclmulqdq_impl = {
 	.name = "pclmulqdq"
 };
 
-#endif /* defined(__x86_64) && defined(HAVE_PCLMULQDQ) */
+#endif /* defined(__x86_64) && HAVE_SIMD(PCLMULQDQ) */
