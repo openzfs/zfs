@@ -714,7 +714,7 @@ static gcm_impl_ops_t gcm_fastest_impl = {
 /* All compiled in implementations */
 static const gcm_impl_ops_t *gcm_all_impl[] = {
 	&gcm_generic_impl,
-#if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
 	&gcm_pclmulqdq_impl,
 #endif
 };
@@ -801,7 +801,7 @@ gcm_impl_init(void)
 	 * Set the fastest implementation given the assumption that the
 	 * hardware accelerated version is the fastest.
 	 */
-#if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
 	if (gcm_pclmulqdq_impl.is_supported()) {
 		memcpy(&gcm_fastest_impl, &gcm_pclmulqdq_impl,
 		    sizeof (gcm_fastest_impl));
@@ -827,7 +827,7 @@ gcm_impl_init(void)
 	} else
 #endif
 	if (gcm_avx_will_work()) {
-#ifdef HAVE_MOVBE
+#if HAVE_SIMD(MOVBE)
 		if (zfs_movbe_available() == B_TRUE) {
 			atomic_swap_32(&gcm_avx_can_use_movbe, B_TRUE);
 		}

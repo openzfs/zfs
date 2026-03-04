@@ -179,7 +179,7 @@ rijndael_key_setup_dec_intel(uint32_t rk[], const uint32_t cipherKey[],
 }
 
 
-#elif defined(HAVE_AES)	/* guard by instruction set */
+#elif HAVE_SIMD(AES)	/* guard by instruction set */
 
 #define _ASM
 #include <sys/asm_linkage.h>

@@ -42,7 +42,7 @@
  * SOFTWARE.
  */
 
-#if defined(HAVE_SSE2)
+#if HAVE_SIMD(SSE2)
 
 #include <sys/simd.h>
 #include <sys/spa_checksum.h>
@@ -165,9 +165,9 @@ const fletcher_4_ops_t fletcher_4_sse2_ops = {
 	.name = "sse2"
 };
 
-#endif /* defined(HAVE_SSE2) */
+#endif /* HAVE_SIMD(SSE2) */
 
-#if defined(HAVE_SSE2) && defined(HAVE_SSSE3)
+#if HAVE_SIMD(SSE2) && HAVE_SIMD(SSSE3)
 static void
 fletcher_4_ssse3_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
@@ -220,4 +220,4 @@ const fletcher_4_ops_t fletcher_4_ssse3_ops = {
 	.name = "ssse3"
 };
 
-#endif /* defined(HAVE_SSE2) && defined(HAVE_SSSE3) */
+#endif /* HAVE_SIMD(SSE2) && HAVE_SIMD(SSSE3) */

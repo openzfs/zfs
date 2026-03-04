@@ -4054,7 +4054,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 SET_SIZE(zfs_sha512_transform_avx2)
 STACK_FRAME_NON_STANDARD zfs_sha512_transform_avx2
 
-#ifdef HAVE_SHA512EXT
+#if HAVE_SIMD(SHA512EXT)
 ENTRY_ALIGN(zfs_sha512_transform_sha512ext, 64)
 .cfi_startproc	
 	ENDBR
@@ -4324,7 +4324,7 @@ ENTRY_ALIGN(zfs_sha512_transform_sha512ext, 64)
 .cfi_endproc
 SET_SIZE(zfs_sha512_transform_sha512ext)
 STACK_FRAME_NON_STANDARD zfs_sha512_transform_sha512ext
-#endif /* HAVE_SHA512EXT */
+#endif /* HAVE_SIMD(SHA512EXT) */
 
 /* Workaround for missing asm macro in RHEL 8. */
 #if defined(__linux__) && defined(HAVE_STACK_FRAME_NON_STANDARD) && \
@@ -4333,7 +4333,7 @@ STACK_FRAME_NON_STANDARD zfs_sha512_transform_sha512ext
 	.long zfs_sha512_transform_x64 - .
 	.long zfs_sha512_transform_avx - .
 	.long zfs_sha512_transform_avx2 - .
-#ifdef HAVE_SHA512EXT
+#if HAVE_SIMD(SHA512EXT)
 	.long zfs_sha512_transform_sha512ext - .
 #endif
 #endif

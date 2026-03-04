@@ -5,8 +5,8 @@
 // perlasm source: https://github.com/google/boringssl/blob/d5440dd2c2c500ac2d3bba4afec47a054b4d99ae/crypto/fipsmodule/aes/asm/aes-gcm-avx2-x86_64.pl
 // generated source: https://github.com/google/boringssl/blob/d5440dd2c2c500ac2d3bba4afec47a054b4d99ae/gen/bcm/aes-gcm-avx2-x86_64-linux.S
 
-#if defined(__x86_64__) && defined(HAVE_AVX2) && \
-    defined(HAVE_VAES) && defined(HAVE_VPCLMULQDQ)
+#if defined(__x86_64__) && HAVE_SIMD(AVX2) && \
+    HAVE_SIMD(VAES) && HAVE_SIMD(VPCLMULQDQ)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -1288,4 +1288,4 @@ SET_SIZE(aes_gcm_dec_update_vaes_avx2)
 .section .note.GNU-stack,"",%progbits
 #endif
 
-#endif /* defined(__x86_64__) && defined(HAVE_AVX2) && defined(HAVE_VAES) ... */
+#endif /* defined(__x86_64__) && HAVE_SIMD(AVX2) && HAVE_SIMD(VAES) ... */

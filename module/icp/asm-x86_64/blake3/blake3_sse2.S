@@ -26,7 +26,7 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#if defined(HAVE_SSE2)
+#if HAVE_SIMD(SSE2)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -2293,7 +2293,7 @@ PBLENDW_0x3F_MASK:
 PBLENDW_0xC0_MASK:
 	.long  0x00000000, 0x00000000, 0x00000000, 0xFFFFFFFF
 
-#endif	/* HAVE_SSE2 */
+#endif	/* HAVE_SIMD(SSE2) */
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits

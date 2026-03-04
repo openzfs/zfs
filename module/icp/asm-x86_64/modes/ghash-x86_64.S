@@ -95,8 +95,8 @@
 # and modified for ICP. Modification are kept at a bare minimum to ease later
 # upstream merges.
 
-#if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
+#if defined(__x86_64__) && HAVE_SIMD(AVX) && \
+    HAVE_SIMD(AES) && HAVE_SIMD(PCLMULQDQ)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -654,4 +654,4 @@ SET_OBJ(.Lrem_8bit)
 .section .note.GNU-stack,"",%progbits
 #endif
 
-#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
+#endif /* defined(__x86_64__) && HAVE_SIMD(AVX) && HAVE_SIMD(AES) ... */

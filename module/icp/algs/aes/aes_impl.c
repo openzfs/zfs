@@ -231,7 +231,7 @@ static const aes_impl_ops_t *aes_all_impl[] = {
 #if defined(__x86_64)
 	&aes_x86_64_impl,
 #endif
-#if defined(__x86_64) && defined(HAVE_AES)
+#if defined(__x86_64) && HAVE_SIMD(AES)
 	&aes_aesni_impl,
 #endif
 };
@@ -315,7 +315,7 @@ aes_impl_init(void)
 	 * hardware accelerated version is the fastest.
 	 */
 #if defined(__x86_64)
-#if defined(HAVE_AES)
+#if HAVE_SIMD(AES)
 	if (aes_aesni_impl.is_supported()) {
 		memcpy(&aes_fastest_impl, &aes_aesni_impl,
 		    sizeof (aes_fastest_impl));

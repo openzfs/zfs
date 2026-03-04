@@ -41,7 +41,7 @@
  * SOFTWARE.
  */
 
-#if defined(HAVE_AVX) && defined(HAVE_AVX2)
+#if HAVE_SIMD(AVX) && HAVE_SIMD(AVX2)
 
 #include <sys/spa_checksum.h>
 #include <sys/string.h>
@@ -164,4 +164,4 @@ const fletcher_4_ops_t fletcher_4_avx2_ops = {
 	.name = "avx2"
 };
 
-#endif /* defined(HAVE_AVX) && defined(HAVE_AVX2) */
+#endif /* HAVE_SIMD(AVX) && HAVE_SIMD(AVX2) */

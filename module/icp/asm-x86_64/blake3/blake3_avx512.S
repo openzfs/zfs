@@ -26,7 +26,7 @@
  * Copyright (c) 2022 Tino Reichardt <milky-zfs@mcmilk.de>
  */
 
-#if defined(HAVE_AVX512F) && defined(HAVE_AVX512VL)
+#if HAVE_SIMD(AVX512F) && HAVE_SIMD(AVX512VL)
 
 #define _ASM
 #include <sys/asm_linkage.h>
@@ -2588,7 +2588,7 @@ BLAKE3_IV_2:
 BLAKE3_IV_3:
         .long   0xA54FF53A
 
-#endif	/* HAVE_AVX512 */
+#endif	/* HAVE_SIMD(AVX512) */
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits
