@@ -2,383 +2,55 @@ dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Checks if host toolchain supports SIMD instructions
 dnl #
-AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
-	case "$host_cpu" in
-		amd64 | x86_64 | x86 | i686)
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE2
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSSE3
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE4_1
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX2
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512F
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512BW
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VL
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA512EXT
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
-			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
-			;;
-	esac
-])
 
 dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE2
+dnl # Each invocation of ZFS_AC_TOOLCHAIN_SIMD_CHECK(name, asmsrc) creates
+dnl # a macro ZFS_AC_TOOLCHAIN_SIMD_<name>  that tries to compile
+dnl # the given <asmsrc> in a __asm__ directive to the C compiler. If the
+dnl # check passes, HAVE_TOOLCHAIN_<name> is defined.
 dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE2], [
-	AC_MSG_CHECKING([whether host toolchain supports SSE2])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		int main()
-		{
-			__asm__ __volatile__("pxor %xmm0, %xmm1");
-			return (0);
-		}
-	]])], [
-		AC_DEFINE([HAVE_SSE2], 1, [Define if host toolchain supports SSE2])
-		AC_MSG_RESULT([yes])
-	], [
-		AC_MSG_RESULT([no])
+AC_DEFUN([ZFS_AC_TOOLCHAIN_SIMD_CHECK], [
+	AC_DEFUN([ZFS_AC_TOOLCHAIN_SIMD_]m4_quote($1), [
+		AC_MSG_CHECKING([whether host toolchain supports $1])
+		AC_LINK_IFELSE([AC_LANG_SOURCE([[
+			int main () {
+				__asm__ __volatile__($2);
+				return (0);
+			}
+		]])], [
+			AC_DEFINE([HAVE_TOOLCHAIN_$1], 1,
+			    [Define if host toolchain supports $1])
+			AC_MSG_RESULT([yes])
+		], [
+			AC_MSG_RESULT([no])
+		])
 	])
+
+	dnl Stash name of new function so we can execute them later
+	m4_pushdef([_zfs_ac_toolchain_simd_checks],
+	    [ZFS_AC_TOOLCHAIN_SIMD_]m4_quote($1))
 ])
 
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSSE3
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSSE3], [
-	AC_MSG_CHECKING([whether host toolchain supports SSSE3])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		int main()
-		{
-			__asm__ __volatile__("pshufb %xmm0,%xmm1");
-			return (0);
-		}
-	]])], [
-		AC_DEFINE([HAVE_SSSE3], 1, [Define if host toolchain supports SSSE3])
-		AC_MSG_RESULT([yes])
-	], [
-		AC_MSG_RESULT([no])
-	])
+dnl # Invokes all macros created by ZFS_AC_TOOLCHAIN_SIMD_CHECK.
+AC_DEFUN([ZFS_AC_TOOLCHAIN_SIMD], [
+	m4_stack_foreach([_zfs_ac_toolchain_simd_checks], [m4_indir])
 ])
 
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE4_1
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE4_1], [
-	AC_MSG_CHECKING([whether host toolchain supports SSE4.1])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		int main()
-		{
-			__asm__ __volatile__("pmaxsb %xmm0,%xmm1");
-			return (0);
-		}
-	]])], [
-		AC_DEFINE([HAVE_SSE4_1], 1, [Define if host toolchain supports SSE4.1])
-		AC_MSG_RESULT([yes])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX], [
-	AC_MSG_CHECKING([whether host toolchain supports AVX])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([[
-		int main()
-		{
-			char v[32];
-			__asm__ __volatile__("vmovdqa %0,%%ymm0" :: "m"(v[0]));
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AVX], 1, [Define if host toolchain supports AVX])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX2
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX2], [
-	AC_MSG_CHECKING([whether host toolchain supports AVX2])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vpshufb %ymm0,%ymm1,%ymm2");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AVX2], 1, [Define if host toolchain supports AVX2])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512F
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512F], [
-	AC_MSG_CHECKING([whether host toolchain supports AVX512F])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vpandd %zmm0,%zmm1,%zmm2");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AVX512F], 1, [Define if host toolchain supports AVX512F])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512BW
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512BW], [
-	AC_MSG_CHECKING([whether host toolchain supports AVX512BW])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vpshufb %zmm0,%zmm1,%zmm2");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AVX512BW], 1, [Define if host toolchain supports AVX512BW])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VL
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AVX512VL], [
-	AC_MSG_CHECKING([whether host toolchain supports AVX512VL])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vpabsq %zmm0,%zmm1");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AVX512VL], 1, [Define if host toolchain supports AVX512VL])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES], [
-	AC_MSG_CHECKING([whether host toolchain supports AES])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("aesenc %xmm0, %xmm1");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_AES], 1, [Define if host toolchain supports AES])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ], [
-	AC_MSG_CHECKING([whether host toolchain supports PCLMULQDQ])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("pclmulqdq %0, %%xmm0, %%xmm1" :: "i"(0));
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_PCLMULQDQ], 1, [Define if host toolchain supports PCLMULQDQ])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
-	AC_MSG_CHECKING([whether host toolchain supports MOVBE])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("movbe 0(%eax), %eax");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VAES], [
-	AC_MSG_CHECKING([whether host toolchain supports VAES])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vaesenc %ymm0, %ymm1, %ymm0");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_VAES], 1, [Define if host toolchain supports VAES])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_VPCLMULQDQ], [
-	AC_MSG_CHECKING([whether host toolchain supports VPCLMULQDQ])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vpclmulqdq %0, %%ymm4, %%ymm3, %%ymm5" :: "i"(0));
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_VPCLMULQDQ], 1, [Define if host toolchain supports VPCLMULQDQ])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA512EXT
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA512EXT], [
-	AC_MSG_CHECKING([whether host toolchain supports SHA512])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-			__asm__ __volatile__("vsha512msg2 %ymm5, %ymm6");
-			return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_SHA512EXT], 1, [Define if host toolchain supports SHA512])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVE], [
-	AC_MSG_CHECKING([whether host toolchain supports XSAVE])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-		  char b[4096] __attribute__ ((aligned (64)));
-		  __asm__ __volatile__("xsave %[b]\n" : : [b] "m" (*b) : "memory");
-		  return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_XSAVE], 1, [Define if host toolchain supports XSAVE])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVEOPT], [
-	AC_MSG_CHECKING([whether host toolchain supports XSAVEOPT])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-		  char b[4096] __attribute__ ((aligned (64)));
-		  __asm__ __volatile__("xsaveopt %[b]\n" : : [b] "m" (*b) : "memory");
-		  return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_XSAVEOPT], 1, [Define if host toolchain supports XSAVEOPT])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
-
-dnl #
-dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES
-dnl #
-AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_XSAVES], [
-	AC_MSG_CHECKING([whether host toolchain supports XSAVES])
-
-	AC_LINK_IFELSE([AC_LANG_SOURCE([
-	[
-		int main()
-		{
-		  char b[4096] __attribute__ ((aligned (64)));
-		  __asm__ __volatile__("xsaves %[b]\n" : : [b] "m" (*b) : "memory");
-		  return (0);
-		}
-	]])], [
-		AC_MSG_RESULT([yes])
-		AC_DEFINE([HAVE_XSAVES], 1, [Define if host toolchain supports XSAVES])
-	], [
-		AC_MSG_RESULT([no])
-	])
-])
+dnl # Instruction sets to test
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([SSE2],       ["pxor %xmm0, %xmm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([SSSE3],      ["pshufb %xmm0, %xmm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([SSE4_1],     ["pmaxsb %xmm0, %xmm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AVX],        ["vmovdqa %ymm0, %ymm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AVX2],       ["vpshufb %ymm0, %ymm1, %ymm2"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AVX512F],    ["vpandd %zmm0, %zmm1, %zmm2"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AVX512BW],   ["vpshufb %zmm0, %zmm1, %zmm2"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AVX512VL],   ["vpabsq %zmm0,%zmm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([AES],        ["aesenc %xmm0, %xmm1"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([PCLMULQDQ],  ["pclmulqdq %0, %%xmm0, %%xmm1" :: "i"(0)])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([MOVBE],      ["movbe 0(%eax), %eax"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([VAES],       ["vaesenc %ymm0, %ymm1, %ymm0"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([VPCLMULQDQ], ["vpclmulqdq %0, %%ymm4, %%ymm3, %%ymm5" :: "i"(0)])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([SHA512EXT],  ["vsha512msg2 %ymm5, %ymm6"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([XSAVE],      ["xsave 0"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([XSAVEOPT],   ["xsaveopt 0"])
+ZFS_AC_TOOLCHAIN_SIMD_CHECK([XSAVES],     ["xsaves 0"])
