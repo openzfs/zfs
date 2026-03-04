@@ -1096,7 +1096,7 @@ zil_destroy(zilog_t *zilog, boolean_t keep_first)
 
 	zilog->zl_old_header = *zh;		/* debugging aid */
 
-	if (BP_IS_HOLE(&zh->zh_log))
+	if (BP_IS_HOLE(&zh->zh_log) && zh->zh_flags == 0)
 		return (B_FALSE);
 
 	tx = dmu_tx_create(zilog->zl_os);
@@ -1166,6 +1166,15 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	zilog = dmu_objset_zil(os);
 	zh = zil_header_in_syncing_context(zilog);
 	ASSERT3U(tx->tx_txg, ==, spa_first_txg(zilog->zl_spa));
+
+	/*
+	 * If the log is empty, then there is nothing to do here.
+	 */
+	if (BP_IS_HOLE(&zh->zh_log)) {
+		dmu_objset_disown(os, B_FALSE, FTAG);
+		return (0);
+	}
+
 	first_txg = spa_min_claim_txg(zilog->zl_spa);
 
 	/*
@@ -1198,11 +1207,14 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	if (spa_get_log_state(zilog->zl_spa) == SPA_LOG_CLEAR ||
 	    (zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
 	    zh->zh_claim_txg == 0)) {
-		if (!BP_IS_HOLE(&zh->zh_log)) {
+		if (zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
+		    BP_GET_BIRTH(&zh->zh_log) < first_txg) {
 			(void) zil_parse(zilog, zil_clear_log_block,
 			    zil_noop_log_record, tx, first_txg, B_FALSE);
+		} else {
+			zio_free(zilog->zl_spa, first_txg, &zh->zh_log);
 		}
-		BP_ZERO(&zh->zh_log);
+		memset(zh, 0, sizeof (zil_header_t));
 		if (os->os_encrypted)
 			os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
@@ -1224,7 +1236,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	 * or destroy beyond the last block we successfully claimed.
 	 */
 	ASSERT3U(zh->zh_claim_txg, <=, first_txg);
-	if (zh->zh_claim_txg == 0 && !BP_IS_HOLE(&zh->zh_log)) {
+	if (zh->zh_claim_txg == 0) {
 		(void) zil_parse(zilog, zil_claim_log_block,
 		    zil_claim_log_record, tx, first_txg, B_FALSE);
 		zh->zh_claim_txg = first_txg;
