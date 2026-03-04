@@ -166,9 +166,8 @@ do
 
 	mntpnt=$(get_prop mountpoint /$TESTPOOL)
 
-	# 2. Fault the spare device making it unavailable
-	log_must zpool offline -f $TESTPOOL $sparedev
-	log_must wait_hotspare_state $TESTPOOL $sparedev "FAULTED"
+	# 2. Remove the spare device making it unavailable
+	log_must zpool remove $TESTPOOL $sparedev
 
 	# 3. Simulate physical removal of one device
 	remove_disk $removedev
