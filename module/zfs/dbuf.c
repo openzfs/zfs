@@ -5297,7 +5297,7 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 		 * avoid lock contention, only grab it when we are actually
 		 * changing the BP.
 		 */
-		if (rw != NULL && !rw_tryupgrade(rw)) {
+		if (rw != NULL && !RW_WRITE_HELD(rw) && !rw_tryupgrade(rw)) {
 			rw_exit(rw);
 			rw_enter(rw, RW_WRITER);
 		}
