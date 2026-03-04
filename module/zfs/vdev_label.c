@@ -857,8 +857,10 @@ retry:
 				uint32_t off;
 				if (!vdev_toc_get_secinfo(toc,
 				    VDEV_TOC_VDEV_CONFIG,
-				    &vp_size[l], &off))
+				    &vp_size[l], &off)) {
+					fnvlist_free(toc);
 					continue;
+				}
 				vp_off[l] = VDEV_LARGE_PAD_SIZE + off;
 				fnvlist_free(toc);
 			}
@@ -1377,7 +1379,7 @@ vdev_label_init_impl(vdev_t *vd, zio_t *pio, uint64_t crtxg,
 			for (int u = 0;
 			    u < VDEV_LARGE_UBERBLOCK_RING / SPA_MAXBLOCKSIZE;
 			    u++) {
-				vdev_label_write(pio, vd, l, B_TRUE, ub_abd2,
+				vdev_label_write(zio, vd, l, B_TRUE, ub_abd2,
 				    VDEV_LARGE_UBERBLOCK_RING +
 				    u * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE,
 				    NULL, NULL, flags);

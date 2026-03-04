@@ -2476,7 +2476,7 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 
 			ASSERT3U(rc->rc_shadow_offset +
 			    abd_get_size(rc->rc_abd), <, cvd2->vdev_psize -
-			    VDEV_LABEL_END_SIZE(cvd));
+			    VDEV_LABEL_END_SIZE(cvd2));
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
 			    rc->rc_shadow_offset, rc->rc_abd,
