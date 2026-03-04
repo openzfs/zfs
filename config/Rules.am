@@ -7,6 +7,7 @@
 PHONY =
 AM_CPPFLAGS = \
 	-include $(top_builddir)/zfs_config.h \
+	-include $(top_srcdir)/include/sys/simd_config.h \
 	-I$(top_builddir)/include \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/lib/libspl/include \
