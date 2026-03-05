@@ -346,10 +346,10 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DLPbcehnpsVvw] "
+		return (gettext("\tsend [-DLPbcehnpsUVvw] "
 		    "[-i|-I snapshot]\n"
 		    "\t     [-R [-X dataset[,dataset]...]]     <snapshot>\n"
-		    "\tsend [-DnVvPLecw] [-i snapshot|bookmark] "
+		    "\tsend [-DnVvPLecwU] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-DnPpVvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"
@@ -4785,11 +4785,12 @@ zfs_do_send(int argc, char **argv)
 		{"holds",	no_argument,		NULL, 'h'},
 		{"saved",	no_argument,		NULL, 'S'},
 		{"exclude",	required_argument,	NULL, 'X'},
+		{"no-preserve-encryption",	no_argument,	NULL, 'U'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:",
+	while ((c = getopt_long(argc, argv, ":i:I:RsDpVvnPLeht:cwbd:SX:U",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'X':
@@ -4874,6 +4875,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'S':
 			flags.saved = B_TRUE;
+			break;
+		case 'U':
+			flags.no_preserve_encryption = B_TRUE;
 			break;
 		case ':':
 			/*

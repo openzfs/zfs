@@ -41,6 +41,7 @@
 #    encryption child
 # 10. Verify that an unencrypted recursive send can be received as an
 #     encryption child
+# 11. Verify an encrypted pool can be sent with props only when -U is set
 #
 
 verify_runnable "both"
@@ -117,6 +118,13 @@ log_mustnot eval "zfs send -i $esnap $esnap2 |" \
 	"zfs recv -o keyformat=hex $TESTPOOL/recv"
 log_mustnot eval "zfs send -i $esnap $esnap2 |" \
 	"zfs recv -o pbkdf2iters=100k $TESTPOOL/recv"
+log_must zfs destroy -r $TESTPOOL/recv
+
+# The user has to explicitly allow sending a dataset unecrypted when sending
+# an encrypted dataset with properties
+log_note "Must not be able to send an encrypted dataset with props unless the -U flag is set"
+log_mustnot eval "zfs send -p $esnap | zfs recv $TESTPOOL/recv"
+log_must eval "zfs send -p -U $esnap | zfs recv $TESTPOOL/recv"
 log_must zfs destroy -r $TESTPOOL/recv
 
 # Test that we can receive a simple stream as an encryption root.
