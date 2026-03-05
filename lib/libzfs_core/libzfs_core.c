@@ -1016,6 +1016,39 @@ lzc_send_space(const char *snapname, const char *from,
 	    NULL, -1, spacep));
 }
 
+/*
+ * Query the progress of a send stream identified by the snapshot name and
+ * the file descriptor the stream is being written to.
+ *
+ * snapname    name of the snapshot being sent
+ * fd          file descriptor of the active send stream
+ * bytes_written  on success, set to the number of bytes sent so far
+ * blocks_visited on success, set to the number of logical blocks traversed
+ *
+ * Returns 0 on success.  Returns ENOENT if no send stream matching the
+ * snapshot name and file descriptor was found in the current process.
+ */
+int
+lzc_send_progress(const char *snapname, int fd, uint64_t *bytes_written,
+    uint64_t *blocks_visited)
+{
+	zfs_cmd_t zc = {"\0"};
+
+	if (bytes_written != NULL)
+		*bytes_written = 0;
+	if (blocks_visited != NULL)
+		*blocks_visited = 0;
+	(void) strlcpy(zc.zc_name, snapname, sizeof (zc.zc_name));
+	zc.zc_cookie = fd;
+	if (lzc_ioctl_fd(g_fd, ZFS_IOC_SEND_PROGRESS, &zc) != 0)
+		return (errno);
+	if (bytes_written != NULL)
+		*bytes_written = zc.zc_cookie;
+	if (blocks_visited != NULL)
+		*blocks_visited = zc.zc_objset_type;
+	return (0);
+}
+
 static int
 recv_read(int fd, void *buf, int ilen)
 {
