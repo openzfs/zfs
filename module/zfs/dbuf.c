@@ -4653,14 +4653,6 @@ dbuf_lightweight_ready(zio_t *zio)
 	    bp_get_dsize_sync(spa, bp_orig);
 	dnode_diduse_space(dn, delta);
 
-	uint64_t blkid = dr->dt.dll.dr_blkid;
-	mutex_enter(&dn->dn_mtx);
-	if (blkid > dn->dn_phys->dn_maxblkid) {
-		ASSERT0(dn->dn_objset->os_raw_receive);
-		dn->dn_phys->dn_maxblkid = blkid;
-	}
-	mutex_exit(&dn->dn_mtx);
-
 	if (!BP_IS_EMBEDDED(bp)) {
 		uint64_t fill = BP_IS_HOLE(bp) ? 0 : 1;
 		BP_SET_FILL(bp, fill);
@@ -4668,6 +4660,14 @@ dbuf_lightweight_ready(zio_t *zio)
 
 	*bp_orig = *bp;
 	rw_exit(&parent_db->db_rwlock);
+
+	uint64_t blkid = dr->dt.dll.dr_blkid;
+	mutex_enter(&dn->dn_mtx);
+	if (blkid > dn->dn_phys->dn_maxblkid) {
+		ASSERT0(dn->dn_objset->os_raw_receive);
+		dn->dn_phys->dn_maxblkid = blkid;
+	}
+	mutex_exit(&dn->dn_mtx);
 }
 
 static void
