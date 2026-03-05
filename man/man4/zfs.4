@@ -233,6 +233,13 @@ resetting its markers to the tail.
 Lower values keep the marker closer to the tail under active workloads.
 Set to 0 to disable the depth cap.
 .
+.It Sy l2arc_meta_cycles Ns = Ns Sy 2 Pq u64
+How many consecutive cycles metadata may monopolize the write budget
+before being skipped to let data run.
+The default of 2 gives metadata roughly 67% and data 33% of L2ARC
+write bandwidth under sustained load.
+Higher values favor metadata; set to 0 to disable.
+.
 .It Sy l2arc_write_max Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Maximum write rate in bytes per second for each L2ARC device.
 Used directly during initial fill, when DWPD limiting is disabled,

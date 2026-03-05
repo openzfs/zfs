@@ -964,6 +964,15 @@ static int l2arc_mfuonly = 0;
 static uint64_t l2arc_ext_headroom_pct = 25;
 
 /*
+ * Metadata monopolization limit.  When metadata fills the write budget
+ * for this many consecutive cycles while data gets nothing, skip metadata
+ * for one cycle to let data run, then reset the counter.
+ * With N=2, the steady-state pattern under sustained monopolization is
+ * 2 metadata cycles followed by 1 data cycle (67%/33% split).
+ */
+static uint64_t l2arc_meta_cycles = 2;
+
+/*
  * L2ARC TRIM
  * l2arc_trim_ahead : A ZFS module parameter that controls how much ahead of
  * 		the current write size (l2arc_write_max) we should TRIM if we
@@ -9998,6 +10007,12 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
+	boolean_t skip_meta = (save_position &&
+	    l2arc_meta_cycles > 0 &&
+	    dev->l2ad_meta_cycles >= l2arc_meta_cycles);
+	if (skip_meta)
+		dev->l2ad_meta_cycles = 0;
+
 	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
 		/*
 		 * pass == 0: MFU meta
@@ -10012,6 +10027,9 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			if (pass == 3)
 				continue;
 		}
+
+		if (skip_meta && pass <= L2ARC_MRU_META)
+			continue;
 
 		headroom = target_sz * l2arc_headroom;
 		if (zfs_compressed_arc_enabled)
@@ -10081,6 +10099,14 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		    num_sublists;
 
 		/*
+		 * Count consecutive metadata monopolization toward
+		 * l2arc_meta_cycles.  Only count when metadata actually
+		 * filled the write budget, starving data passes.
+		 */
+		if (save_position && pass <= L2ARC_MRU_META && full)
+			dev->l2ad_meta_cycles++;
+
+		/*
 		 * Depth cap: track cumulative bytes scanned per pass
 		 * and reset markers when the scan cap is reached.
 		 * Keeps the marker near the tail where L2ARC adds
@@ -10108,6 +10134,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		if (full == B_TRUE)
 			break;
 	}
+
+	/*
+	 * If nothing was written at all, reset monopolization counter.
+	 * No point skipping metadata if data has nothing either.
+	 */
+	if (write_asize == 0)
+		dev->l2ad_meta_cycles = 0;
 
 	/* No buffers selected for writing? */
 	if (pio == NULL) {
@@ -11751,6 +11784,9 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, mfuonly, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, exclude_special, INT, ZMOD_RW,
 	"Exclude dbufs on special vdevs from being cached to L2ARC if set.");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_cycles, U64, ZMOD_RW,
+	"Consecutive metadata cycles before skipping to let data run");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, ext_headroom_pct, U64, ZMOD_RW,
 	"Depth cap as percentage of state size for marker reset");
