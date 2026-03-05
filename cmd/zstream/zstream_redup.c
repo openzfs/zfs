@@ -37,6 +37,7 @@
 #include <sys/zio_checksum.h>
 #include "zfs_fletcher.h"
 #include "zstream.h"
+#include "zstream_util.h"
 
 
 #define	MAX_RDT_PHYSMEM_PERCENT		20
@@ -57,34 +58,6 @@ typedef struct redup_table {
 	int		numhashbits;
 } redup_table_t;
 
-void *
-safe_calloc(size_t n)
-{
-	void *rv = calloc(1, n);
-	if (rv == NULL) {
-		fprintf(stderr,
-		    "Error: could not allocate %u bytes of memory\n",
-		    (int)n);
-		exit(1);
-	}
-	return (rv);
-}
-
-/*
- * Safe version of fread(), exits on error.
- */
-int
-sfread(void *buf, size_t size, FILE *fp)
-{
-	int rv = fread(buf, size, 1, fp);
-	if (rv == 0 && ferror(fp)) {
-		(void) fprintf(stderr, "Error while reading file: %s\n",
-		    strerror(errno));
-		exit(1);
-	}
-	return (rv);
-}
-
 /*
  * Safe version of pread(), exits on error.
  */
@@ -102,31 +75,6 @@ spread(int fd, void *buf, size_t count, off_t offset)
 		    "Error while reading file: short read\n");
 		exit(1);
 	}
-}
-
-static int
-dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
-    zio_cksum_t *zc, int outfd)
-{
-	assert(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum)
-	    == sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
-	fletcher_4_incremental_native(drr,
-	    offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum), zc);
-	if (drr->drr_type != DRR_BEGIN) {
-		assert(ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.
-		    drr_checksum.drr_checksum));
-		drr->drr_u.drr_checksum.drr_checksum = *zc;
-	}
-	fletcher_4_incremental_native(&drr->drr_u.drr_checksum.drr_checksum,
-	    sizeof (zio_cksum_t), zc);
-	if (write(outfd, drr, sizeof (*drr)) == -1)
-		return (errno);
-	if (payload_len != 0) {
-		fletcher_4_incremental_native(payload, payload_len, zc);
-		if (write(outfd, payload, payload_len) == -1)
-			return (errno);
-	}
-	return (0);
 }
 
 static void

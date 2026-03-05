@@ -44,6 +44,7 @@
 #include <sys/zio.h>
 #include <zfs_fletcher.h>
 #include "zstream.h"
+#include "zstream_util.h"
 
 /*
  * If dump mode is enabled, the number of bytes to print per line
@@ -59,18 +60,6 @@ static uint64_t total_stream_len = 0;
 static FILE *send_stream = 0;
 static boolean_t do_byteswap = B_FALSE;
 static boolean_t do_cksum = B_TRUE;
-
-void *
-safe_malloc(size_t size)
-{
-	void *rv = malloc(size);
-	if (rv == NULL) {
-		(void) fprintf(stderr, "ERROR; failed to allocate %zu bytes\n",
-		    size);
-		abort();
-	}
-	return (rv);
-}
 
 /*
  * ssread - send stream read.
