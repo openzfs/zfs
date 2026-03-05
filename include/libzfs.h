@@ -844,6 +844,9 @@ typedef struct sendflags {
 
 	/* stream represents a partially received dataset */
 	boolean_t saved;
+
+	/* allow sending datasets with props, without preserving encryption */
+	boolean_t no_preserve_encryption;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
