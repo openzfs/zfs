@@ -9960,20 +9960,20 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		multilist_t *ml = l2arc_get_list(pass);
 		ASSERT3P(ml, !=, NULL);
 		int num_sublists = multilist_get_num_sublists(ml);
-		int current_sublist = multilist_get_random_index(ml);
 		uint64_t consumed_headroom = 0;
 
+		/*
+		 * Equal per-sublist headroom prevents later
+		 * sublists from getting disproportionate shares
+		 * that would defeat the depth cap.
+		 */
+		uint64_t sublist_headroom = headroom / num_sublists;
+
+		int current_sublist = spa->spa_l2arc_info.
+		    l2arc_next_sublist[pass];
 		int processed_sublists = 0;
 		while (processed_sublists < num_sublists && !full) {
-			uint64_t sublist_headroom;
-
-			if (consumed_headroom >= headroom)
-				break;
-
-			sublist_headroom = (headroom - consumed_headroom) /
-			    (num_sublists - processed_sublists);
-
-			if (sublist_headroom == 0)
+			if (consumed_headroom + sublist_headroom > headroom)
 				break;
 
 			/*
@@ -10015,6 +10015,10 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			current_sublist = (current_sublist + 1) % num_sublists;
 			processed_sublists++;
 		}
+
+		spa->spa_l2arc_info.l2arc_next_sublist[pass] =
+		    (spa->spa_l2arc_info.l2arc_next_sublist[pass] + 1) %
+		    num_sublists;
 
 		if (full == B_TRUE)
 			break;
