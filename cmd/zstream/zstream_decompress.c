@@ -37,31 +37,7 @@
 #include <sys/zstd/zstd.h>
 #include "zfs_fletcher.h"
 #include "zstream.h"
-
-static int
-dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
-    zio_cksum_t *zc, int outfd)
-{
-	assert(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum)
-	    == sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
-	fletcher_4_incremental_native(drr,
-	    offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum), zc);
-	if (drr->drr_type != DRR_BEGIN) {
-		assert(ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.
-		    drr_checksum.drr_checksum));
-		drr->drr_u.drr_checksum.drr_checksum = *zc;
-	}
-	fletcher_4_incremental_native(&drr->drr_u.drr_checksum.drr_checksum,
-	    sizeof (zio_cksum_t), zc);
-	if (write(outfd, drr, sizeof (*drr)) == -1)
-		return (errno);
-	if (payload_len != 0) {
-		fletcher_4_incremental_native(payload, payload_len, zc);
-		if (write(outfd, payload, payload_len) == -1)
-			return (errno);
-	}
-	return (0);
-}
+#include "zstream_util.h"
 
 int
 zstream_do_decompress(int argc, char *argv[])
