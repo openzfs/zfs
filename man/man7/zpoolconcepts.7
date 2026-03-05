@@ -430,19 +430,15 @@ is updated even if no metadata structures are written.
 L2ARC operates in one of two modes depending on total cache capacity.
 When total L2ARC capacity is less than twice
 .Sy arc_c_max ,
-L2ARC uses exclusive caching,
-writing buffers to cache as they are evicted from ARC.
+L2ARC writes buffers to cache as they are evicted from ARC.
 When total capacity is at least twice
 .Sy arc_c_max ,
-L2ARC switches to inclusive caching with persistent markers
-that track scan positions,
-attempting to duplicate ARC contents as much as write throughput allows.
-Setting
-.Sy l2arc_headroom Ns = Ns Sy 0
-will result in scanning the full-length ARC lists for cacheable content to be
-written in L2ARC (persistent ARC).
-In inclusive mode, markers progress toward the head across iterations,
-naturally covering the full list.
+L2ARC uses persistent markers that track scan positions across iterations,
+writing cacheable content as write throughput allows.
+A depth cap
+.Pq Sy l2arc_ext_headroom_pct
+limits how far markers advance from the tail, keeping them focused on
+buffers soon to be evicted where caching adds the most value.
 .Pp
 If a cache device is added with
 .Nm zpool Cm add ,

@@ -108,12 +108,14 @@ and only applicable in related situations.
 Seconds between L2ARC writing.
 .
 .It Sy l2arc_headroom Ns = Ns Sy 8 Pq u64
-How far through the ARC lists to search for L2ARC cacheable content,
+How far through the ARC lists to search for L2ARC cacheable content per cycle,
 expressed as a multiplier of the effective write size.
-ARC persistence across reboots can be achieved with persistent L2ARC
-by setting this parameter to
-.Sy 0 ,
-allowing the full length of ARC lists to be searched for cacheable content.
+Setting to
+.Sy 0
+disables the per-cycle headroom limit.
+Scan depth is also bounded by
+.Sy l2arc_ext_headroom_pct
+when persistent markers are active.
 .
 .It Sy l2arc_headroom_boost Ns = Ns Sy 200 Ns % Pq u64
 Scales
