@@ -60,6 +60,7 @@ typedef struct l2arc_info {
 	 */
 	boolean_t	*l2arc_sublist_busy[L2ARC_FEED_TYPES];
 	kmutex_t	l2arc_sublist_lock;	/* protects busy flags */
+	int		l2arc_next_sublist[L2ARC_FEED_TYPES]; /* round-robin */
 } l2arc_info_t;
 
 /*
