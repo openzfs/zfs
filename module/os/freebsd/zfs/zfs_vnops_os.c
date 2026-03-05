@@ -5516,15 +5516,24 @@ zfs_freebsd_rename(struct vop_rename_args *ap)
 	}
 #endif
 
-	if (error == 0)
+	if (error == 0) {
 		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
 		    ap->a_tcnp, ap->a_fcnp->cn_cred);
-
-	vrele(fdvp);
-	vrele(fvp);
-	vrele(tdvp);
-	if (tvp != NULL)
-		vrele(tvp);
+		vrele(fdvp);
+		vrele(fvp);
+		vrele(tdvp);
+		if (tvp != NULL)
+			vrele(tvp);
+	} else {
+		if (tdvp == tvp)
+			vrele(tdvp);
+		else
+			vput(tdvp);
+		if (tvp != NULL)
+			vput(tvp);
+		vrele(fdvp);
+		vrele(fvp);
+	}
 
 	return (error);
 }
