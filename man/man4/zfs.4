@@ -227,6 +227,12 @@ to enable caching/reading prefetches to/from L2ARC.
 .It Sy l2arc_norw Ns = Ns Sy 0 Ns | Ns 1 Pq int
 No reads during writes.
 .
+.It Sy l2arc_ext_headroom_pct Ns = Ns Sy 25 Pq u64
+Percentage of each ARC state's size that a pass may scan before
+resetting its markers to the tail.
+Lower values keep the marker closer to the tail under active workloads.
+Set to 0 to disable the depth cap.
+.
 .It Sy l2arc_write_max Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq u64
 Maximum write rate in bytes per second for each L2ARC device.
 Used directly during initial fill, when DWPD limiting is disabled,

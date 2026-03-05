@@ -957,6 +957,13 @@ int l2arc_exclude_special = 0;
 static int l2arc_mfuonly = 0;
 
 /*
+ * Depth cap as percentage of state size.  Each pass resets its markers
+ * to tail after scanning this fraction of the state.  Keeps markers
+ * focused on the tail zone where L2ARC adds the most value.
+ */
+static uint64_t l2arc_ext_headroom_pct = 25;
+
+/*
  * L2ARC TRIM
  * l2arc_trim_ahead : A ZFS module parameter that controls how much ahead of
  * 		the current write size (l2arc_write_max) we should TRIM if we
@@ -9083,6 +9090,8 @@ l2arc_pool_markers_init(spa_t *spa)
 			    spa->spa_l2arc_info.l2arc_markers[pass][i]);
 			multilist_sublist_unlock(mls);
 		}
+
+		spa->spa_l2arc_info.l2arc_ext_scanned[pass] = 0;
 	}
 }
 
@@ -9876,6 +9885,31 @@ l2arc_blk_fetch_done(zio_t *zio)
 }
 
 /*
+ * Return the total size of the ARC state corresponding to the given
+ * L2ARC pass number (0..3).
+ */
+static uint64_t
+l2arc_get_state_size(int pass)
+{
+	switch (pass) {
+	case L2ARC_MFU_META:
+		return (zfs_refcount_count(
+		    &arc_mfu->arcs_size[ARC_BUFC_METADATA]));
+	case L2ARC_MRU_META:
+		return (zfs_refcount_count(
+		    &arc_mru->arcs_size[ARC_BUFC_METADATA]));
+	case L2ARC_MFU_DATA:
+		return (zfs_refcount_count(
+		    &arc_mfu->arcs_size[ARC_BUFC_DATA]));
+	case L2ARC_MRU_DATA:
+		return (zfs_refcount_count(
+		    &arc_mru->arcs_size[ARC_BUFC_DATA]));
+	default:
+		return (0);
+	}
+}
+
+/*
  * Flag all sublists for a single pass for lazy marker reset to tail.
  * Each sublist's marker will be reset when next visited by a feed thread.
  */
@@ -9892,6 +9926,8 @@ l2arc_flag_pass_reset(spa_t *spa, int pass)
 		spa->spa_l2arc_info.l2arc_sublist_reset[pass][i] = B_TRUE;
 		multilist_sublist_unlock(mls);
 	}
+
+	spa->spa_l2arc_info.l2arc_ext_scanned[pass] = 0;
 }
 
 /*
@@ -10043,6 +10079,31 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		spa->spa_l2arc_info.l2arc_next_sublist[pass] =
 		    (spa->spa_l2arc_info.l2arc_next_sublist[pass] + 1) %
 		    num_sublists;
+
+		/*
+		 * Depth cap: track cumulative bytes scanned per pass
+		 * and reset markers when the scan cap is reached.
+		 * Keeps the marker near the tail where L2ARC adds
+		 * the most value.
+		 */
+		if (save_position) {
+			mutex_enter(&spa->spa_l2arc_info.l2arc_sublist_lock);
+
+			spa->spa_l2arc_info.l2arc_ext_scanned[pass] +=
+			    consumed_headroom;
+
+			uint64_t state_sz = l2arc_get_state_size(pass);
+			uint64_t scan_cap =
+			    state_sz * l2arc_ext_headroom_pct / 100;
+
+			if (scan_cap > 0 &&
+			    spa->spa_l2arc_info.l2arc_ext_scanned[pass] >=
+			    scan_cap) {
+				l2arc_flag_pass_reset(spa, pass);
+			}
+
+			mutex_exit(&spa->spa_l2arc_info.l2arc_sublist_lock);
+		}
 
 		if (full == B_TRUE)
 			break;
@@ -11690,6 +11751,9 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, mfuonly, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, exclude_special, INT, ZMOD_RW,
 	"Exclude dbufs on special vdevs from being cached to L2ARC if set.");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, ext_headroom_pct, U64, ZMOD_RW,
+	"Depth cap as percentage of state size for marker reset");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, lotsfree_percent, param_set_arc_int,
 	param_get_uint, ZMOD_RW, "System free memory I/O throttle in bytes");
