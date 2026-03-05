@@ -46,6 +46,10 @@ extern "C" {
  * and each of the states has two types: data and metadata.
  */
 #define	L2ARC_FEED_TYPES	4
+#define	L2ARC_MFU_META		0
+#define	L2ARC_MRU_META		1
+#define	L2ARC_MFU_DATA		2
+#define	L2ARC_MRU_DATA		3
 
 /*
  * L2ARC state and statistics for persistent marker management.
@@ -62,6 +66,12 @@ typedef struct l2arc_info {
 	boolean_t	*l2arc_sublist_busy[L2ARC_FEED_TYPES];
 	boolean_t	*l2arc_sublist_reset[L2ARC_FEED_TYPES];
 	kmutex_t	l2arc_sublist_lock;	/* protects busy/reset flags */
+	/*
+	 * Cumulative bytes scanned per pass since marker reset.
+	 * Limits how far persistent markers advance from tail
+	 * before resetting, based on % of state size.
+	 */
+	uint64_t	l2arc_ext_scanned[L2ARC_FEED_TYPES];
 	int		l2arc_next_sublist[L2ARC_FEED_TYPES]; /* round-robin */
 } l2arc_info_t;
 
