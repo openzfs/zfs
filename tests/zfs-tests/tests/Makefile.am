@@ -2078,6 +2078,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_verify_ratio.ksh \
 	functional/rsend/send-c_volume.ksh \
 	functional/rsend/send-c_zstream_recompress.ksh \
+	functional/rsend/send-c_zstream_recompress_identity.ksh \
 	functional/rsend/send-c_zstreamdump.ksh \
 	functional/rsend/send-cpL_varied_recsize.ksh \
 	functional/rsend/send_doall.ksh \

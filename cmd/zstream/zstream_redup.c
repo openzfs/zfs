@@ -169,14 +169,6 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 	while (sfread(drr, sizeof (*drr), ofp) != 0) {
 		num_records++;
 
-		/*
-		 * We need to regenerate the checksum.
-		 */
-		if (drr->drr_type != DRR_BEGIN) {
-			memset(&drr->drr_u.drr_checksum.drr_checksum, 0,
-			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
-		}
-
 		uint64_t payload_size = 0;
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
@@ -336,15 +328,6 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 			exit(1);
 		}
 
-		/*
-		 * We need to recalculate the checksum, and it needs to be
-		 * initially zero to do that.  BEGIN records don't have
-		 * a checksum.
-		 */
-		if (drr->drr_type != DRR_BEGIN) {
-			memset(&drr->drr_u.drr_checksum.drr_checksum, 0,
-			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
-		}
 		if (dump_record(drr, buf, payload_size,
 		    &stream_cksum, outfd) != 0)
 			break;
