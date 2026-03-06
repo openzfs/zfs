@@ -9622,7 +9622,7 @@ l2arc_write_sublist(spa_t *spa, l2arc_dev_t *dev, int pass, int sublist_idx,
     uint64_t *consumed, uint64_t sublist_headroom, boolean_t save_position)
 {
 	multilist_sublist_t *mls;
-	arc_buf_hdr_t *hdr, *prev_hdr;
+	arc_buf_hdr_t *hdr;
 	arc_buf_hdr_t *persistent_marker, *local_marker;
 	boolean_t full = B_FALSE;
 	boolean_t scan_from_head = B_FALSE;
@@ -9669,12 +9669,9 @@ l2arc_write_sublist(spa_t *spa, l2arc_dev_t *dev, int pass, int sublist_idx,
 		ASSERT3P(hdr, !=, NULL);
 	}
 
-	prev_hdr = hdr;
-
 	while (hdr != NULL) {
 		kmutex_t *hash_lock;
 		abd_t *to_write = NULL;
-		prev_hdr = hdr;
 
 		hash_lock = HDR_LOCK(hdr);
 		if (!mutex_tryenter(hash_lock)) {
@@ -9836,42 +9833,25 @@ next:
 		multilist_sublist_remove(mls, local_marker);
 	}
 
-	/*
-	 * Position persistent marker for next iteration.
-	 *
-	 * If a reset was flagged during our scan (sublist lock was dropped
-	 * for I/O, allowing another thread to set the flag), honor it by
-	 * moving the marker to tail instead of advancing.
-	 *
-	 * Otherwise, validate that prev_hdr still belongs to the current
-	 * sublist.  The sublist lock is dropped during L2ARC write I/O,
-	 * allowing ARC eviction to potentially free prev_hdr.  If freed,
-	 * we can't do much except to reset the marker.
-	 */
+	/* Reposition persistent marker for next iteration. */
 	multilist_sublist_remove(mls, persistent_marker);
 	if (save_position &&
 	    spa->spa_l2arc_info.l2arc_sublist_reset[pass][sublist_idx]) {
+		/* Reset flagged during scan, restart from tail. */
 		multilist_sublist_insert_tail(mls, persistent_marker);
 		spa->spa_l2arc_info.l2arc_sublist_reset[pass][sublist_idx] =
 		    B_FALSE;
-	} else if (save_position &&
-	    multilist_link_active(&prev_hdr->b_l1hdr.b_arc_node)) {
-		if (hdr != NULL) {
-			/*
-			 * Break: prev_hdr not written, retry next time.
-			 * Scan is TAIL->HEAD, so insert_after = retry.
-			 */
-			multilist_sublist_insert_after(mls, prev_hdr,
-			    persistent_marker);
-		} else {
-			/*
-			 * List end: prev_hdr processed, move on.
-			 * insert_before = skip prev_hdr next scan.
-			 */
-			multilist_sublist_insert_before(mls, prev_hdr,
-			    persistent_marker);
-		}
+	} else if (save_position && hdr != NULL) {
+		/*
+		 * Write budget or sublist headroom exhausted, position
+		 * marker after hdr to retry it next time.
+		 */
+		multilist_sublist_insert_after(mls, hdr, persistent_marker);
+	} else if (save_position) {
+		/* End of sublist, position marker at head. */
+		multilist_sublist_insert_head(mls, persistent_marker);
 	} else {
+		/* Non-persistent, reset marker to tail. */
 		multilist_sublist_insert_tail(mls, persistent_marker);
 	}
 
@@ -10051,7 +10031,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		    l2arc_next_sublist[pass];
 		int processed_sublists = 0;
 		while (processed_sublists < num_sublists && !full) {
-			if (consumed_headroom + sublist_headroom > headroom)
+			if (consumed_headroom >= headroom)
 				break;
 
 			/*
