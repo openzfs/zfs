@@ -40,21 +40,21 @@ vcmn_err(int ce, const char *fmt, va_list adx)
 	prefix = NULL; /* silence unwitty compilers */
 	switch (ce) {
 	case CE_CONT:
-		prefix = "Solaris(cont): ";
+		prefix = "zfs(cont): ";
 		break;
 	case CE_NOTE:
-		prefix = "Solaris: NOTICE: ";
+		prefix = "zfs: NOTICE: ";
 		break;
 	case CE_WARN:
-		prefix = "Solaris: WARNING: ";
+		prefix = "zfs: WARNING: ";
 		break;
 	case CE_PANIC:
-		prefix = "Solaris(panic): ";
+		prefix = "zfs(panic): ";
 		break;
 	case CE_IGNORE:
 		break;
 	default:
-		panic("Solaris: unknown severity level");
+		panic("zfs: unknown severity level");
 	}
 	if (ce == CE_PANIC) {
 		vsnprintf(buf, sizeof (buf), fmt, adx);
