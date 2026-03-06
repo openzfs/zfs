@@ -227,6 +227,7 @@
     <elf-symbol name='lzc_send_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_resume' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_resume_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_send_progress' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_space' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_space_resume_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_wrapper' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -3995,6 +3996,13 @@
       <parameter type-id='80f4b756' name='redactbook'/>
       <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='5d6479ae' name='spacep'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_send_progress' mangled-name='lzc_send_progress' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_progress'>
+      <parameter type-id='80f4b756' name='snapname'/>
+      <parameter type-id='95e97e5e' name='fd'/>
+      <parameter type-id='5d6479ae' name='bytes_written'/>
+      <parameter type-id='5d6479ae' name='blocks_visited'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_send_space' mangled-name='lzc_send_space' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space'>

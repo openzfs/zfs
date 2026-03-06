@@ -125,7 +125,7 @@ _LIBZFS_CORE_H int lzc_send_space(const char *, const char *,
 _LIBZFS_CORE_H int lzc_send_space_resume_redacted(const char *, const char *,
     enum lzc_send_flags, uint64_t, uint64_t, uint64_t, const char *,
     int, uint64_t *);
-_LIBZFS_CORE_H uint64_t lzc_send_progress(int);
+_LIBZFS_CORE_H int lzc_send_progress(const char *, int, uint64_t *, uint64_t *);
 
 _LIBZFS_CORE_H boolean_t lzc_exists(const char *);
 

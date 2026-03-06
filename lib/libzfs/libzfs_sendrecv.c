@@ -927,21 +927,8 @@ int
 zfs_send_progress(zfs_handle_t *zhp, int fd, uint64_t *bytes_written,
     uint64_t *blocks_visited)
 {
-	zfs_cmd_t zc = {"\0"};
-
-	if (bytes_written != NULL)
-		*bytes_written = 0;
-	if (blocks_visited != NULL)
-		*blocks_visited = 0;
-	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
-	zc.zc_cookie = fd;
-	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND_PROGRESS, &zc) != 0)
-		return (errno);
-	if (bytes_written != NULL)
-		*bytes_written = zc.zc_cookie;
-	if (blocks_visited != NULL)
-		*blocks_visited = zc.zc_objset_type;
-	return (0);
+	return (lzc_send_progress(zhp->zfs_name, fd, bytes_written,
+	    blocks_visited));
 }
 
 static volatile boolean_t send_progress_thread_signal_duetotimer;
