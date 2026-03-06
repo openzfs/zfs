@@ -34,8 +34,8 @@
 
 #if defined(__aarch64__)
 
-/* make gcc <= 9 happy */
-#if !defined(LD_VERSION) || LD_VERSION >= 233010000
+/* check for .cfi_negate_ra_state assembler support */
+#if defined(HAVE_AS_CFI_PSEUDO_OP)
 #define CFI_NEGATE_RA_STATE .cfi_negate_ra_state
 #else
 #define CFI_NEGATE_RA_STATE
