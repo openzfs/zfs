@@ -1003,7 +1003,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'rsend_030_pos', 'rsend_031_pos', 'rsend-exclude_001_pos',
     'rsend-exclude_002_pos', 'send-c_verify_ratio',
     'send-c_verify_contents', 'send-c_props', 'send-c_incremental',
-    'send-c_volume', 'send-c_zstream_recompress', 'send-c_zstreamdump',
+    'send-c_volume',
     'send-c_lz4_disabled', 'send-c_recv_lz4_disabled',
     'send-c_mixed_compression', 'send-c_stream_size_estimate',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
@@ -1012,7 +1012,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'send_encrypted_props', 'send_encrypted_truncated_files',
     'send_freeobjects', 'send_realloc_files', 'send_realloc_encrypted_files',
     'send_spill_block', 'send_holds', 'send_hole_birth', 'send_mixed_raw',
-    'send-wR_encrypted_zvol', 'send-zstream_drop_record',
+    'send-wR_encrypted_zvol',
     'send_partial_dataset', 'send_invalid',
     'send_large_blocks_incremental', 'send_large_blocks_initial',
     'send_large_microzap_incremental', 'send_large_microzap_transitive',
@@ -1130,6 +1130,20 @@ tests = ['zoned_uid_001_pos', 'zoned_uid_002_pos', 'zoned_uid_003_pos',
     'zoned_uid_027_pos', 'zoned_uid_028_neg',
     'zoned_uid_029_neg', 'zoned_uid_031_pos']
 tags = ['functional', 'zoned_uid']
+
+[tests/functional/zstream]
+tests = ['zstream_checksum_001_pos',
+    'zstream_decompress_001_pos', 'zstream_decompress_002_pos',
+    'zstream_decompress_003_neg', 'zstream_decompress_004_pos',
+    'zstream_decompress_005_pos', 'zstream_decompress_006_neg',
+    'zstream_drop_record_001_pos',
+    'zstream_dump_001_pos', 'zstream_dump_002_pos',
+    'zstream_dump_003_pos', 'zstream_dump_004_neg',
+    'zstream_recompress_001_pos', 'zstream_recompress_002_pos',
+    'zstream_recompress_003_pos', 'zstream_recompress_004_pos',
+    'zstream_recompress_005_pos',
+    'zstream_redup_001_pos']
+tags = ['functional', 'zstream']
 
 [tests/functional/zvol/zvol_ENOSPC]
 tests = ['zvol_ENOSPC_001_pos']

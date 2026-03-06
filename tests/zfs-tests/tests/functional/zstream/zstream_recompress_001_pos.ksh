@@ -16,8 +16,7 @@
 # Copyright (c) 2022 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/rsend/rsend.kshlib
-. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/zstream/zstream.kshlib
 
 #
 # Description:
@@ -36,10 +35,10 @@
 verify_runnable "both"
 
 log_assert "Verify zstream recompress correctly modifies send streams."
-log_onexit cleanup_pool $POOL2
+log_onexit cleanup_pool $POOL
 
-typeset sendfs=$POOL2/fs
-typeset recvfs=$POOL2/fs2
+typeset sendfs=$POOL/fs
+typeset recvfs=$POOL/fs2
 
 log_must zfs create -o compress=lz4 $sendfs
 typeset dir=$(get_prop mountpoint $sendfs)
