@@ -196,10 +196,29 @@ print_cmn(FILE *fp, differ_info_t *di, const char *file)
 	}
 }
 
-static void
+static int
 print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
     zfs_stat_t *isb)
 {
+	if (di->di_cb != NULL) {
+		zfs_diff_entry_t entry = { 0 };
+
+		entry.de_type = ZFS_DIFF_RENAMED;
+		entry.de_ctime_from[0] = di->di_from_stat.zs_ctime[0];
+		entry.de_ctime_from[1] = di->di_from_stat.zs_ctime[1];
+		entry.de_ctime_to[0] = isb->zs_ctime[0];
+		entry.de_ctime_to[1] = isb->zs_ctime[1];
+		entry.de_mntpt = di->dsmnt;
+		entry.de_path = old;
+		entry.de_path2 = new;
+		entry.de_inode = di->di_current_obj;
+		entry.de_mode = isb->zs_mode;
+		entry.de_nlink = isb->zs_links;
+		entry.de_gen = isb->zs_gen;
+		di->di_cb_ret = di->di_cb(&entry, di->di_cb_arg);
+		return (di->di_cb_ret);
+	}
+
 	if (isatty(fileno(fp)))
 		color_start(ZDIFF_RENAMED_COLOR);
 	if (di->timestamped)
@@ -216,12 +235,32 @@ print_rename(FILE *fp, differ_info_t *di, const char *old, const char *new,
 
 	if (isatty(fileno(fp)))
 		color_end();
+	return (0);
 }
 
-static void
+static int
 print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
     zfs_stat_t *isb)
 {
+	if (di->di_cb != NULL) {
+		zfs_diff_entry_t entry = { 0 };
+
+		entry.de_type = ZFS_DIFF_MODIFIED;
+		entry.de_ctime_from[0] = di->di_from_stat.zs_ctime[0];
+		entry.de_ctime_from[1] = di->di_from_stat.zs_ctime[1];
+		entry.de_ctime_to[0] = isb->zs_ctime[0];
+		entry.de_ctime_to[1] = isb->zs_ctime[1];
+		entry.de_mntpt = di->dsmnt;
+		entry.de_path = file;
+		entry.de_inode = di->di_current_obj;
+		entry.de_mode = isb->zs_mode;
+		entry.de_nlink = isb->zs_links;
+		entry.de_gen = isb->zs_gen;
+		entry.de_nlink_from = isb->zs_links - delta;
+		di->di_cb_ret = di->di_cb(&entry, di->di_cb_arg);
+		return (di->di_cb_ret);
+	}
+
 	if (isatty(fileno(fp)))
 		color_start(ZDIFF_MODIFIED_COLOR);
 
@@ -236,12 +275,43 @@ print_link_change(FILE *fp, differ_info_t *di, int delta, const char *file,
 	(void) fprintf(fp, "\t(%+d)\n", delta);
 	if (isatty(fileno(fp)))
 		color_end();
+	return (0);
 }
 
-static void
+static int
 print_file(FILE *fp, differ_info_t *di, char type, const char *file,
     zfs_stat_t *isb)
 {
+	if (di->di_cb != NULL) {
+		zfs_diff_entry_t entry = { 0 };
+
+		entry.de_type = (zfs_diff_type_t)type;
+		if (type == ZDIFF_REMOVED) {
+			entry.de_ctime_from[0] = isb->zs_ctime[0];
+			entry.de_ctime_from[1] = isb->zs_ctime[1];
+		} else if (type == *ZDIFF_MODIFIED) {
+			entry.de_ctime_from[0] = di->di_from_stat.zs_ctime[0];
+			entry.de_ctime_from[1] = di->di_from_stat.zs_ctime[1];
+			entry.de_ctime_to[0] = isb->zs_ctime[0];
+			entry.de_ctime_to[1] = isb->zs_ctime[1];
+		} else {
+			/* ZDIFF_ADDED */
+			entry.de_ctime_to[0] = isb->zs_ctime[0];
+			entry.de_ctime_to[1] = isb->zs_ctime[1];
+		}
+		entry.de_mntpt = di->dsmnt;
+		entry.de_path = file;
+		entry.de_inode = di->di_current_obj;
+		entry.de_mode = isb->zs_mode;
+		entry.de_nlink = isb->zs_links;
+		entry.de_gen = isb->zs_gen;
+		if (type == *ZDIFF_MODIFIED &&
+		    di->di_from_stat.zs_mode != isb->zs_mode)
+			entry.de_mode_from = di->di_from_stat.zs_mode;
+		di->di_cb_ret = di->di_cb(&entry, di->di_cb_arg);
+		return (di->di_cb_ret);
+	}
+
 	if (isatty(fileno(fp)))
 		color_start(type_to_color(type));
 
@@ -257,6 +327,7 @@ print_file(FILE *fp, differ_info_t *di, char type, const char *file,
 
 	if (isatty(fileno(fp)))
 		color_end();
+	return (0);
 }
 
 static int
@@ -320,20 +391,21 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 	else
 		change = tsb.zs_links - fsb.zs_links;
 
+	di->di_current_obj = dobj;
+	di->di_from_stat = fsb;
+
 	if (fobjerr) {
 		if (change) {
-			print_link_change(fp, di, change, tobjname, &tsb);
-			return (0);
+			return (print_link_change(fp, di, change,
+			    tobjname, &tsb));
 		}
-		print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb);
-		return (0);
+		return (print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb));
 	} else if (tobjerr) {
 		if (change) {
-			print_link_change(fp, di, change, fobjname, &fsb);
-			return (0);
+			return (print_link_change(fp, di, change,
+			    fobjname, &fsb));
 		}
-		print_file(fp, di, ZDIFF_REMOVED, fobjname, &fsb);
-		return (0);
+		return (print_file(fp, di, ZDIFF_REMOVED, fobjname, &fsb));
 	}
 
 	if (fmode != tmode && fsb.zs_gen == tsb.zs_gen)
@@ -346,19 +418,21 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 		    fsb.zs_ctime[1] == tsb.zs_ctime[1])
 			return (0);
 		if (change) {
-			print_link_change(fp, di, change,
-			    change > 0 ? fobjname : tobjname, &tsb);
+			return (print_link_change(fp, di, change,
+			    change > 0 ? fobjname : tobjname, &tsb));
 		} else if (strcmp(fobjname, tobjname) == 0) {
-			print_file(fp, di, *ZDIFF_MODIFIED, fobjname, &tsb);
+			return (print_file(fp, di, *ZDIFF_MODIFIED,
+			    fobjname, &tsb));
 		} else {
-			print_rename(fp, di, fobjname, tobjname, &tsb);
+			return (print_rename(fp, di, fobjname, tobjname, &tsb));
 		}
-		return (0);
 	} else {
+		int ret;
 		/* file re-created or object re-used */
-		print_file(fp, di, ZDIFF_REMOVED, fobjname, &fsb);
-		print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb);
-		return (0);
+		if ((ret = print_file(fp, di, ZDIFF_REMOVED,
+		    fobjname, &fsb)) != 0)
+			return (ret);
+		return (print_file(fp, di, ZDIFF_ADDED, tobjname, &tsb));
 	}
 }
 
@@ -390,8 +464,8 @@ describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
 		return (0);
 	}
 
-	print_file(fp, di, ZDIFF_REMOVED, namebuf, &sb);
-	return (0);
+	di->di_current_obj = object;
+	return (print_file(fp, di, ZDIFF_REMOVED, namebuf, &sb));
 }
 
 static int
@@ -418,8 +492,10 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 			if (zc.zc_obj > dr->ddr_last) {
 				break;
 			}
-			(void) describe_free(fp, di, zc.zc_obj, fobjname,
-			    MAXPATHLEN);
+			int ferr;
+			if ((ferr = describe_free(fp, di, zc.zc_obj,
+			    fobjname, MAXPATHLEN)) != 0)
+				return (ferr);
 		} else if (errno == ESRCH) {
 			break;
 		} else {
@@ -441,14 +517,17 @@ differ(void *arg)
 {
 	differ_info_t *di = arg;
 	dmu_diff_record_t dr;
-	FILE *ofp;
+	FILE *ofp = NULL;
 	int err = 0;
 
-	if ((ofp = fdopen(di->outputfd, "w")) == NULL) {
-		di->zerr = errno;
-		strlcpy(di->errbuf, zfs_strerror(errno), sizeof (di->errbuf));
-		(void) close(di->datafd);
-		return ((void *)-1);
+	if (di->di_cb == NULL) {
+		if ((ofp = fdopen(di->outputfd, "w")) == NULL) {
+			di->zerr = errno;
+			strlcpy(di->errbuf, zfs_strerror(errno),
+			    sizeof (di->errbuf));
+			(void) close(di->datafd);
+			return ((void *)-1);
+		}
 	}
 
 	for (;;) {
@@ -486,7 +565,8 @@ differ(void *arg)
 			break;
 	}
 
-	(void) fclose(ofp);
+	if (ofp != NULL)
+		(void) fclose(ofp);
 	(void) close(di->datafd);
 	if (err)
 		return ((void *)-1);
@@ -743,13 +823,19 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 	return (0);
 }
 
-int
-zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
-    const char *tosnap, int flags)
+/*
+ * Core differ execution: create a pipe, spawn the differ thread as the
+ * consumer, then issue ZFS_IOC_DIFF with the write end of the pipe so the
+ * kernel streams dmu_diff_record_t ranges into it.  The differ thread reads
+ * those ranges and either writes formatted text to di->outputfd or invokes
+ * di->di_cb for each changed object, depending on which is set.  The two
+ * ends must run concurrently because the ioctl blocks until the pipe drains.
+ */
+static int
+run_differ(zfs_handle_t *zhp, differ_info_t *di)
 {
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[ERRBUFLEN];
-	differ_info_t di = { 0 };
 	pthread_t tid;
 	int pipefd[2];
 	int iocerr;
@@ -757,37 +843,23 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "zfs diff failed"));
 
-	if (setup_differ_info(zhp, fromsnap, tosnap, &di)) {
-		teardown_differ_info(&di);
-		return (-1);
-	}
-
 	if (pipe2(pipefd, O_CLOEXEC)) {
 		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(errno));
-		teardown_differ_info(&di);
 		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
 	}
 
-	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
-	di.classify = (flags & ZFS_DIFF_CLASSIFY);
-	di.timestamped = (flags & ZFS_DIFF_TIMESTAMP);
-	di.no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
+	di->datafd = pipefd[0];
 
-	di.outputfd = outfd;
-	di.datafd = pipefd[0];
-
-	if (pthread_create(&tid, NULL, differ, &di)) {
+	if (pthread_create(&tid, NULL, differ, di)) {
 		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(errno));
 		(void) close(pipefd[0]);
 		(void) close(pipefd[1]);
-		teardown_differ_info(&di);
 		return (zfs_error(zhp->zfs_hdl,
 		    EZFS_THREADCREATEFAILED, errbuf));
 	}
 
-	/* do the ioctl() */
-	(void) strlcpy(zc.zc_value, di.fromsnap, strlen(di.fromsnap) + 1);
-	(void) strlcpy(zc.zc_name, di.tosnap, strlen(di.tosnap) + 1);
+	(void) strlcpy(zc.zc_value, di->fromsnap, strlen(di->fromsnap) + 1);
+	(void) strlcpy(zc.zc_name, di->tosnap, strlen(di->tosnap) + 1);
 	zc.zc_cookie = pipefd[1];
 
 	iocerr = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DIFF, &zc);
@@ -802,17 +874,16 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		} else if (errno == EXDEV) {
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   Not an earlier snapshot from the same fs"));
-		} else if (errno != EPIPE || di.zerr == 0) {
+		} else if (errno != EPIPE || di->zerr == 0) {
 			zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(errno));
 		}
 		(void) close(pipefd[1]);
 		(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
-		teardown_differ_info(&di);
-		if (di.zerr != 0 && di.zerr != EPIPE) {
+		if (di->zerr != 0 && di->zerr != EPIPE) {
 			zfs_error_aux(zhp->zfs_hdl, "%s",
-			    zfs_strerror(di.zerr));
-			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+			    zfs_strerror(di->zerr));
+			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
 		} else {
 			return (zfs_error(zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
 		}
@@ -821,10 +892,66 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) close(pipefd[1]);
 	(void) pthread_join(tid, NULL);
 
-	if (di.zerr != 0) {
-		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(di.zerr));
-		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
+	if (di->di_cb_ret != 0)
+		return (di->di_cb_ret);
+	if (di->zerr != 0) {
+		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(di->zerr));
+		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
 	}
-	teardown_differ_info(&di);
 	return (0);
+}
+
+/*
+ * Display diff between two snapshots as formatted text written to outfd.
+ */
+int
+zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
+    const char *tosnap, int flags)
+{
+	differ_info_t di = { 0 };
+	int err;
+
+	if (setup_differ_info(zhp, fromsnap, tosnap, &di)) {
+		teardown_differ_info(&di);
+		return (-1);
+	}
+
+	di.scripted = (flags & ZFS_DIFF_PARSEABLE);
+	di.classify = (flags & ZFS_DIFF_CLASSIFY);
+	di.timestamped = (flags & ZFS_DIFF_TIMESTAMP);
+	di.no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
+	di.outputfd = outfd;
+
+	err = run_differ(zhp, &di);
+	teardown_differ_info(&di);
+	return (err);
+}
+
+/*
+ * Iterate over diff entries between two snapshots, invoking cb for each
+ * changed object with a structured zfs_diff_entry_t.  Returns non-zero if
+ * cb aborts early or if the diff operation fails.
+ */
+int
+zfs_iter_diffs(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
+    int flags, zfs_diff_cb_t cb, void *cbarg)
+{
+	differ_info_t di = { 0 };
+	int err;
+
+	if (setup_differ_info(zhp, fromsnap, tosnap, &di)) {
+		teardown_differ_info(&di);
+		return (-1);
+	}
+
+	di.classify = (flags & ZFS_DIFF_CLASSIFY);
+	di.timestamped = (flags & ZFS_DIFF_TIMESTAMP);
+	di.no_mangle = (flags & ZFS_DIFF_NO_MANGLE);
+	di.outputfd = -1;
+	di.di_cb = cb;
+	di.di_cb_arg = cbarg;
+
+	err = run_differ(zhp, &di);
+	teardown_differ_info(&di);
+	return (err);
 }

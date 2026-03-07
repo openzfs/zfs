@@ -413,7 +413,7 @@ get_usage(zfs_help_t idx)
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
 	case HELP_DIFF:
-		return (gettext("\tdiff [-FHth] <snapshot> "
+		return (gettext("\tdiff [-FHthj] <snapshot> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_BOOKMARK:
 		return (gettext("\tbookmark <snapshot|bookmark> "
@@ -8064,6 +8064,128 @@ find_command_idx(const char *command, int *idx)
 	return (1);
 }
 
+typedef struct diff_json_cbdata {
+	boolean_t	timestamped;
+} diff_json_cbdata_t;
+
+/*
+ * Populate the "changes" sub-object of a diff JSON entry with the specific
+ * attributes that changed: rename destination path, nlink {from,to},
+ * mode {from,to}, and ctime {from,to}.  The object is omitted entirely when
+ * there is nothing to report.
+ */
+static void
+diff_json_add_changes(nvlist_t *nvl, zfs_diff_entry_t *entry,
+    boolean_t timestamped)
+{
+	if (!timestamped && entry->de_type != ZFS_DIFF_RENAMED &&
+	    entry->de_nlink_from == 0 && entry->de_mode_from == 0)
+		return;
+
+	nvlist_t *changes = fnvlist_alloc();
+
+	if (entry->de_type == ZFS_DIFF_RENAMED)
+		fnvlist_add_string(changes, "path", entry->de_path);
+	if (entry->de_nlink_from != 0) {
+		nvlist_t *nlink = fnvlist_alloc();
+		fnvlist_add_uint64(nlink, "from", entry->de_nlink_from);
+		fnvlist_add_uint64(nlink, "to", entry->de_nlink);
+		fnvlist_add_nvlist(changes, "nlink", nlink);
+		fnvlist_free(nlink);
+	}
+	if (entry->de_mode_from != 0) {
+		nvlist_t *mode = fnvlist_alloc();
+		fnvlist_add_uint64(mode, "from", entry->de_mode_from);
+		fnvlist_add_uint64(mode, "to", entry->de_mode);
+		fnvlist_add_nvlist(changes, "mode", mode);
+		fnvlist_free(mode);
+	}
+	if (timestamped) {
+		nvlist_t *ctime = fnvlist_alloc();
+		if (entry->de_ctime_from[0] || entry->de_ctime_from[1])
+			fnvlist_add_uint64_array(ctime, "from",
+			    entry->de_ctime_from, 2);
+		if (entry->de_ctime_to[0] || entry->de_ctime_to[1])
+			fnvlist_add_uint64_array(ctime, "to",
+			    entry->de_ctime_to, 2);
+		fnvlist_add_nvlist(changes, "ctime", ctime);
+		fnvlist_free(ctime);
+	}
+
+	fnvlist_add_nvlist(nvl, "changes", changes);
+	fnvlist_free(changes);
+}
+
+static int
+diff_json_callback(zfs_diff_entry_t *entry, void *arg)
+{
+	diff_json_cbdata_t *cbd = arg;
+	nvlist_t *nvl;
+	const char *type_str;
+	const char *file_type;
+	mode_t m = (mode_t)entry->de_mode;
+
+	switch (entry->de_type) {
+	case ZFS_DIFF_ADDED:
+		type_str = "added";
+		break;
+	case ZFS_DIFF_REMOVED:
+		type_str = "removed";
+		break;
+	case ZFS_DIFF_MODIFIED:
+		type_str = "modified";
+		break;
+	case ZFS_DIFF_RENAMED:
+		type_str = "renamed";
+		break;
+	default:
+		type_str = "unknown";
+		break;
+	}
+
+	if (S_ISREG(m))
+		file_type = "regular";
+	else if (S_ISDIR(m))
+		file_type = "directory";
+	else if (S_ISLNK(m))
+		file_type = "symlink";
+	else if (S_ISBLK(m))
+		file_type = "block";
+	else if (S_ISCHR(m))
+		file_type = "char";
+	else if (S_ISFIFO(m))
+		file_type = "fifo";
+	else if (S_ISSOCK(m))
+		file_type = "socket";
+#ifdef S_IFDOOR
+	else if ((m & S_IFMT) == S_IFDOOR)
+		file_type = "door";
+#endif
+#ifdef S_IFPORT
+	else if ((m & S_IFMT) == S_IFPORT)
+		file_type = "port";
+#endif
+	else
+		file_type = "unknown";
+
+	nvl = fnvlist_alloc();
+	fnvlist_add_string(nvl, "change_type", type_str);
+	fnvlist_add_string(nvl, "mountpoint", entry->de_mntpt);
+	fnvlist_add_uint64(nvl, "inode", entry->de_inode);
+	fnvlist_add_uint64(nvl, "gen", entry->de_gen);
+	fnvlist_add_string(nvl, "file_type", file_type);
+	fnvlist_add_string(nvl, "path",
+	    entry->de_type == ZFS_DIFF_RENAMED ?
+	    entry->de_path2 : entry->de_path);
+
+	diff_json_add_changes(nvl, entry, cbd->timestamped);
+
+	(void) nvlist_print_json(stdout, nvl);
+	(void) fputc('\n', stdout);
+	fnvlist_free(nvl);
+	return (0);
+}
+
 static int
 zfs_do_diff(int argc, char **argv)
 {
@@ -8075,8 +8197,9 @@ zfs_do_diff(int argc, char **argv)
 	int err = 0;
 	int c;
 	struct sigaction sa;
+	boolean_t json = B_FALSE;
 
-	while ((c = getopt(argc, argv, "FHth")) != -1) {
+	while ((c = getopt(argc, argv, "FHthj")) != -1) {
 		switch (c) {
 		case 'F':
 			flags |= ZFS_DIFF_CLASSIFY;
@@ -8089,6 +8212,9 @@ zfs_do_diff(int argc, char **argv)
 			break;
 		case 'h':
 			flags |= ZFS_DIFF_NO_MANGLE;
+			break;
+		case 'j':
+			json = B_TRUE;
 			break;
 		default:
 			(void) fprintf(stderr,
@@ -8146,7 +8272,16 @@ zfs_do_diff(int argc, char **argv)
 		goto out;
 	}
 
-	err = zfs_show_diffs(zhp, STDOUT_FILENO, fromsnap, tosnap, flags);
+	if (json) {
+		diff_json_cbdata_t cbd = { 0 };
+		cbd.timestamped = (flags & ZFS_DIFF_TIMESTAMP) != 0;
+
+		err = zfs_iter_diffs(zhp, fromsnap, tosnap, flags,
+		    diff_json_callback, &cbd);
+	} else {
+		err = zfs_show_diffs(zhp, STDOUT_FILENO, fromsnap, tosnap,
+		    flags);
+	}
 out:
 	zfs_close(zhp);
 

@@ -408,6 +408,7 @@
     <elf-symbol name='zfs_iter_children_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_dependents' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_dependents_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_iter_diffs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_filesystems' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_filesystems_v2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_iter_mounted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -5404,6 +5405,74 @@
       <parameter type-id='eaa32e2f'/>
       <return type-id='eaa32e2f'/>
     </function-type>
+    <subrange-type id='zdf00001' length='2' type-id='7359adad'/>
+    <array-type-def dimensions='1' type-id='9c313c2d' size-in-bits='128' id='zdf00002'>
+      <subrange length='2' type-id='7359adad' id='zdf00001'/>
+    </array-type-def>
+    <enum-decl name='zfs_diff_type' id='zdf00003'>
+      <underlying-type type-id='95e97e5e'/>
+      <enumerator name='ZFS_DIFF_ADDED' value='43'/>
+      <enumerator name='ZFS_DIFF_MODIFIED' value='77'/>
+      <enumerator name='ZFS_DIFF_REMOVED' value='45'/>
+      <enumerator name='ZFS_DIFF_RENAMED' value='82'/>
+    </enum-decl>
+    <typedef-decl name='zfs_diff_type_t' type-id='zdf00003' id='zdf00004'/>
+    <class-decl name='zfs_diff_entry' size-in-bits='896' is-struct='yes' visibility='default' id='zdf00005'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='de_type' type-id='zdf00004' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='de_ctime_from' type-id='zdf00002' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='de_mntpt' type-id='80f4b756' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='de_path' type-id='80f4b756' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='de_path2' type-id='80f4b756' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='384'>
+        <var-decl name='de_inode' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='448'>
+        <var-decl name='de_gen' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='512'>
+        <var-decl name='de_mode' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='576'>
+        <var-decl name='de_nlink' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='640'>
+        <var-decl name='de_ctime_to' type-id='zdf00002' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='768'>
+        <var-decl name='de_nlink_from' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='832'>
+        <var-decl name='de_mode_from' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='zfs_diff_entry_t' type-id='zdf00005' id='zdf00006'/>
+    <pointer-type-def type-id='zdf00006' size-in-bits='64' id='zdf0000a'/>
+    <function-type size-in-bits='64' id='zdf00007'>
+      <parameter type-id='zdf0000a'/>
+      <parameter type-id='eaa32e2f'/>
+      <return type-id='95e97e5e'/>
+    </function-type>
+    <pointer-type-def type-id='zdf00007' size-in-bits='64' id='zdf00008'/>
+    <typedef-decl name='zfs_diff_cb_t' type-id='zdf00008' id='zdf00009'/>
+    <function-decl name='zfs_iter_diffs' mangled-name='zfs_iter_diffs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_diffs'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='80f4b756' name='fromsnap'/>
+      <parameter type-id='80f4b756' name='tosnap'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <parameter type-id='zdf00009' name='cb'/>
+      <parameter type-id='eaa32e2f' name='cbarg'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_import.c' language='LANG_C99'>
     <array-type-def dimensions='1' type-id='03085adc' size-in-bits='192' id='083f8d58'>
