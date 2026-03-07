@@ -31,6 +31,7 @@
  * Copyright (c) 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2021, 2025, Klara, Inc.
  * Copyright (c) 2021, 2023 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2026, Seagate Technology, LLC.
  */
 
 #include <sys/zfs_context.h>
@@ -3096,8 +3097,11 @@ vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 	ASSERT(spa_writeable(vd->vdev_spa));
 
 	mutex_enter(&vd->vdev_dtl_lock);
-	if (!zfs_range_tree_contains(rt, txg, size))
+	if (!zfs_range_tree_contains(rt, txg, size)) {
+		/* Clear whatever is there already. */
+		zfs_range_tree_clear(rt, txg, size);
 		zfs_range_tree_add(rt, txg, size);
+	}
 	mutex_exit(&vd->vdev_dtl_lock);
 }
 
@@ -5220,11 +5224,13 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	if (type == ZIO_TYPE_WRITE && txg != 0 &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
 	    (flags & ZIO_FLAG_SCAN_THREAD) ||
+	    zio->io_priority == ZIO_PRIORITY_REBUILD ||
 	    spa->spa_claiming)) {
 		/*
 		 * This is either a normal write (not a repair), or it's
 		 * a repair induced by the scrub thread, or it's a repair
-		 * made by zil_claim() during spa_load() in the first txg.
+		 * made by zil_claim() during spa_load() in the first txg,
+		 * or its repair induced by rebuild (sequential resilver).
 		 * In the normal case, we commit the DTL change in the same
 		 * txg as the block was born.  In the scrub-induced repair
 		 * case, we know that scrubs run in first-pass syncing context,
@@ -5235,27 +5241,38 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		 * self-healing writes triggered by normal (non-scrubbing)
 		 * reads, because we have no transactional context in which to
 		 * do so -- and it's not clear that it'd be desirable anyway.
+		 *
+		 * For rebuild, since we don't have any information about BPs
+		 * and txgs that are being rebuilt, we need to add all known
+		 * txgs (starting from TXG_INITIAL) to DTL so that during
+		 * healing resilver we would be able to check all txgs at
+		 * vdev_draid_need_resilver().
 		 */
+		uint64_t size = 1;
 		if (vd->vdev_ops->vdev_op_leaf) {
 			uint64_t commit_txg = txg;
 			if (flags & ZIO_FLAG_SCAN_THREAD) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				ASSERT(spa_sync_pass(spa) == 1);
-				vdev_dtl_dirty(vd, DTL_SCRUB, txg, 1);
+				vdev_dtl_dirty(vd, DTL_SCRUB, txg, size);
 				commit_txg = spa_syncing_txg(spa);
 			} else if (spa->spa_claiming) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				commit_txg = spa_first_txg(spa);
+			} else if (zio->io_priority == ZIO_PRIORITY_REBUILD) {
+				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
+				vdev_rebuild_txgs(vd->vdev_top, &txg, &size);
+				commit_txg = spa_open_txg(spa);
 			}
 			ASSERT(commit_txg >= spa_syncing_txg(spa));
-			if (vdev_dtl_contains(vd, DTL_MISSING, txg, 1))
+			if (vdev_dtl_contains(vd, DTL_MISSING, txg, size))
 				return;
 			for (pvd = vd; pvd != rvd; pvd = pvd->vdev_parent)
-				vdev_dtl_dirty(pvd, DTL_PARTIAL, txg, 1);
+				vdev_dtl_dirty(pvd, DTL_PARTIAL, txg, size);
 			vdev_dirty(vd->vdev_top, VDD_DTL, vd, commit_txg);
 		}
 		if (vd != rvd)
-			vdev_dtl_dirty(vd, DTL_MISSING, txg, 1);
+			vdev_dtl_dirty(vd, DTL_MISSING, txg, size);
 	}
 }
 
