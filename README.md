@@ -30,6 +30,42 @@ We have a [Code of Conduct](./CODE_OF_CONDUCT.md).
 OpenZFS is released under a CDDL license.
 For more details see the NOTICE, LICENSE and COPYRIGHT files; `UCRL-CODE-235197`
 
-# Supported Kernels
-  * The `META` file contains the officially recognized supported Linux kernel versions.
-  * Supported FreeBSD versions are any supported branches and releases starting from 13.0-RELEASE.
+# Supported Kernels and Distributions
+
+## Linux
+
+Given the wide variety of Linux environments, we prioritize development and testing on stable, supported kernels and distributions.
+
+### Kernel ([kernel.org](https://kernel.org))
+
+All **longterm** kernels from [kernel.org](https://kernel.org) are supported. **stable** kernels are usually supported in the next OpenZFS release.
+
+**Supported longterm kernels**: **6.18**, **6.12**, **6.6**, **6.1**, **5.15**, **5.10**.
+
+### Red Hat Enterprise Linux (RHEL)
+
+All RHEL (and compatible systems: AlmaLinux OS, Rocky Linux, etc) on the **full** or **maintenance** support tracks are supported.
+
+**Supported RHEL releases**: **8.10**, **9.7**, **10.1**.
+
+### Ubuntu
+
+All Ubuntu **LTS** releases are supported.
+
+**Supported Ubuntu releases**: **24.04 “Noble”**, **22.04 “Jammy”**.
+
+### Debian
+
+All Debian **stable** and **LTS** releases are supported.
+
+**Supported Debian releases**: **13 “Trixie”**, **12 “Bookworm”**, **11 “Bullseye”**.
+
+### Other Distributions
+
+Generally, if a distribution is following an LTS kernel, it should work well with OpenZFS.
+
+## FreeBSD
+
+All FreeBSD releases receiving **security support** are supported by OpenZFS.
+
+**Supported FreeBSD releases**: **15.0**, **14.3**, **13.5**.
