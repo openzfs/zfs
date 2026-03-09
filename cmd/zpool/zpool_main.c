@@ -458,7 +458,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tattach [-fsw] [-o property=value] "
 		    "<pool> <vdev> <new-device>\n"));
 	case HELP_CLEAR:
-		return (gettext("\tclear [[--power]|[-nF]] <pool> [device]\n"));
+		return (gettext("\tclear [--power] <pool> [device]\n"));
 	case HELP_CREATE:
 		return (gettext("\tcreate [-fnd] [-o property=value] ... \n"
 		    "\t    [-O file-system-property=value] ... \n"
@@ -8251,7 +8251,7 @@ zpool_do_offline(int argc, char **argv)
 }
 
 /*
- * zpool clear [-nF]|[--power] <pool> [device]
+ * zpool clear [--power] <pool> [device]
  *
  * Clear all errors associated with a pool or a particular device.
  */
@@ -8260,11 +8260,7 @@ zpool_do_clear(int argc, char **argv)
 {
 	int c;
 	int ret = 0;
-	boolean_t dryrun = B_FALSE;
-	boolean_t do_rewind = B_FALSE;
-	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t is_power_on = B_FALSE;
-	uint32_t rewind_policy = ZPOOL_NO_REWIND;
 	nvlist_t *policy = NULL;
 	zpool_handle_t *zhp;
 	char *pool, *device;
@@ -8275,18 +8271,9 @@ zpool_do_clear(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "FnX", long_options,
+	while ((c = getopt_long(argc, argv, "", long_options,
 	    NULL)) != -1) {
 		switch (c) {
-		case 'F':
-			do_rewind = B_TRUE;
-			break;
-		case 'n':
-			dryrun = B_TRUE;
-			break;
-		case 'X':
-			xtreme_rewind = B_TRUE;
-			break;
 		case ZPOOL_OPTION_POWER:
 			is_power_on = B_TRUE;
 			break;
@@ -8313,22 +8300,9 @@ zpool_do_clear(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	if ((dryrun || xtreme_rewind) && !do_rewind) {
-		(void) fprintf(stderr,
-		    gettext("-n or -X only meaningful with -F\n"));
-		usage(B_FALSE);
-	}
-	if (dryrun)
-		rewind_policy = ZPOOL_TRY_REWIND;
-	else if (do_rewind)
-		rewind_policy = ZPOOL_DO_REWIND;
-	if (xtreme_rewind)
-		rewind_policy |= ZPOOL_EXTREME_REWIND;
-
-	/* In future, further rewind policy choices can be passed along here */
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
 	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
-	    rewind_policy) != 0) {
+	    ZPOOL_NO_REWIND) != 0) {
 		return (1);
 	}
 
