@@ -61,6 +61,7 @@
 #include <sys/zpl.h>
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
+#include <sys/zfs_events.h>
 #include <linux/mm_compat.h>
 
 /*
@@ -782,6 +783,10 @@ top:
 			txtype |= TX_CI;
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
+		if (zfsvfs->z_events) {
+			zfs_events_log_create(os, tx, zp->z_id, dzp->z_id,
+			    name, vap->va_mode, crgetuid(cr), crgetgid(cr));
+		}
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
 	} else {
@@ -1201,6 +1206,9 @@ top:
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	if (zfsvfs->z_events) {
+		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name);
+	}
 
 	dmu_tx_commit(tx);
 out:
@@ -1403,6 +1411,10 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
+		    dirname, vap->va_mode, uid, gid);
+	}
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1543,6 +1555,10 @@ top:
 			txtype |= TX_CI;
 		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
 		    B_FALSE);
+		if (zfsvfs->z_events) {
+			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name);
+		}
 	}
 
 	dmu_tx_commit(tx);
@@ -2627,6 +2643,10 @@ top:
 
 	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		if (zfsvfs->z_events) {
+			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
+			    mask);
+		}
 		/*
 		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup;
 		 * ATTR_SIZE goes through zfs_freesp(log=FALSE) which does not.
@@ -3267,6 +3287,11 @@ top:
 		break;
 	}
 
+	if (zfsvfs->z_events) {
+		zfs_events_log_rename(zfsvfs->z_os, tx, szp->z_id,
+		    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name);
+	}
+
 commit:
 	dmu_tx_commit(tx);
 out:
@@ -3491,6 +3516,10 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		if (zfsvfs->z_events) {
+			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, link);
+		}
 
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
@@ -3738,6 +3767,10 @@ top:
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+			if (zfsvfs->z_events) {
+				zfs_events_log_link(zfsvfs->z_os, tx,
+				    szp->z_id, tdzp->z_id, name);
+			}
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */

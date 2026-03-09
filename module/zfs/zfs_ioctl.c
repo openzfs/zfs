@@ -183,6 +183,7 @@
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_onexit.h>
+#include <sys/zfs_events.h>
 #include <sys/zvol.h>
 #include <sys/dsl_scan.h>
 #include <sys/fm/util.h>
@@ -3100,6 +3101,16 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			err = -1;
 		}
 		zfsvfs_rele(zfsvfs, FTAG);
+		break;
+	}
+	case ZFS_PROP_EVENTS:
+	{
+		/*
+		 * When enabling events, we create the event log object.
+		 * When disabling events, we destroy it.
+		 * The actual property value is stored in the nvlist as usual.
+		 */
+		err = -1;  /* Force default handling */
 		break;
 	}
 	case ZFS_PROP_DEFAULTUSERQUOTA:

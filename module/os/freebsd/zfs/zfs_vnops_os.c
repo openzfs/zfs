@@ -76,6 +76,7 @@
 #include <vm/vm_param.h>
 #include <sys/zil.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_events.h>
 #include <sys/module.h>
 #include <sys/sysent.h>
 #include <sys/dmu_impl.h>
@@ -1162,6 +1163,10 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 	    vsecp, acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
+		    name, vap->va_mode, crgetuid(cr), crgetgid(cr));
+	}
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
@@ -1298,6 +1303,9 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	/* XXX check changes to linux vnops */
 	txtype = TX_REMOVE;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	if (zfsvfs->z_events) {
+		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name);
+	}
 
 	dmu_tx_commit(tx);
 out:
@@ -1528,6 +1536,10 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	txtype = zfs_log_create_txtype(Z_DIR, NULL, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
 	    acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
+		    dirname, vap->va_mode, uid, gid);
+	}
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1611,6 +1623,10 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		uint64_t txtype = TX_RMDIR;
 		zfs_log_remove(zilog, tx, txtype, dzp, name,
 		    ZFS_NO_OBJECT, B_FALSE);
+		if (zfsvfs->z_events) {
+			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name);
+		}
 	}
 
 	dmu_tx_commit(tx);
@@ -2956,8 +2972,13 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	if (mask != 0)
+	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		if (zfsvfs->z_events) {
+			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
+			    mask);
+		}
+	}
 
 	if (mask & (AT_UID|AT_GID|AT_MODE))
 		mutex_exit(&zp->z_acl_lock);
@@ -3502,6 +3523,11 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			if (error == 0) {
 				zfs_log_rename(zilog, tx, TX_RENAME, sdzp,
 				    snm, tdzp, tnm, szp);
+				if (zfsvfs->z_events) {
+					zfs_events_log_rename(zfsvfs->z_os, tx,
+					    szp->z_id, sdzp->z_id, snm,
+					    tdzp->z_id, tnm);
+				}
 			} else {
 				/*
 				 * At this point, we have successfully created
@@ -3715,6 +3741,10 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		zrele(zp);
 	} else {
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		if (zfsvfs->z_events) {
+			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, link);
+		}
 	}
 
 	zfs_acl_ids_free(&acl_ids);
@@ -3910,6 +3940,10 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
 		zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+		if (zfsvfs->z_events) {
+			zfs_events_log_link(zfsvfs->z_os, tx, szp->z_id,
+			    tdzp->z_id, name);
+		}
 	}
 
 	dmu_tx_commit(tx);

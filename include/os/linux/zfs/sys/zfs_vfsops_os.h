@@ -108,6 +108,7 @@ struct zfsvfs {
 	boolean_t	z_draining;	/* is true when drain is active */
 	boolean_t	z_drain_cancel; /* signal the unlinked drain to stop */
 	boolean_t	z_longname;	/* Dataset supports long names */
+	boolean_t	z_events;	/* Dataset events logging enabled */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	dataset_kstats_t	z_kstat;	/* fs kstats */

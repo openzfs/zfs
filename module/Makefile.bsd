@@ -319,6 +319,7 @@ SRCS+=	abd.c \
 	spa_errlog.c \
 	spa_history.c \
 	spa_log_spacemap.c \
+	zfs_events.c \
 	spa_misc.c \
 	spa_stats.c \
 	txg.c \
