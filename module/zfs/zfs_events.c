@@ -30,6 +30,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_prop.h>
 #include <sys/cmn_err.h>
 #include <sys/sunddi.h>
 #include <sys/cred.h>
@@ -140,13 +141,21 @@ zfs_events_write(objset_t *os, uint64_t obj, void *buf, uint64_t len,
 
 /*
  * Create the event log object for a dataset.
+ * max_size specifies the ring buffer size in bytes.
  */
 int
-zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t *objp)
+zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
+    uint64_t *objp)
 {
 	dmu_buf_t *dbp;
 	zfs_events_phys_t *zep;
 	uint64_t obj;
+
+	/* Clamp size to valid range */
+	if (max_size < ZFS_EVENTS_MIN_SIZE)
+		max_size = ZFS_EVENTS_MIN_SIZE;
+	if (max_size > ZFS_EVENTS_MAX_SIZE)
+		max_size = ZFS_EVENTS_MAX_SIZE;
 
 	/* Use DMU_OTN_UINT8_METADATA for the event log data */
 	obj = dmu_object_alloc(os, DMU_OTN_UINT8_METADATA,
@@ -160,11 +169,10 @@ zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t *objp)
 	dmu_buf_will_dirty(dbp, tx);
 
 	/*
-	 * Initialize the event log header.
-	 * Default size: 1MB, can be adjusted via property.
+	 * Initialize the event log header with the specified size.
 	 */
 	memset(zep, 0, sizeof (zfs_events_phys_t));
-	zep->zep_phys_max_off = 1 << 20;	/* 1 MB default */
+	zep->zep_phys_max_off = max_size;
 	zep->zep_version = ZFS_EVENTS_VERSION;
 
 	dmu_buf_rele(dbp, FTAG);
@@ -207,8 +215,18 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
 		/*
 		 * Event log object doesn't exist yet. Create it now.
 		 * This happens on the first event after events are enabled.
+		 * Look up the events_size property to determine the size.
 		 */
-		err = zfs_events_create_obj(os, tx, &obj);
+		uint64_t events_size = 1 << 20;	/* 1MB default */
+		dsl_dataset_t *ds = dmu_objset_ds(os);
+
+		if (ds != NULL) {
+			(void) dsl_prop_get_int_ds(ds,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS_SIZE),
+			    &events_size);
+		}
+
+		err = zfs_events_create_obj(os, tx, events_size, &obj);
 		if (err != 0)
 			return;
 

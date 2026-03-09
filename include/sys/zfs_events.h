@@ -108,7 +108,8 @@ typedef struct zfs_events_phys {
 /*
  * Core API functions
  */
-extern int zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t *objp);
+extern int zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
+    uint64_t *objp);
 extern int zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx);
 
 /*

@@ -809,6 +809,10 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM, "on | off", "EVENTS", boolean_table,
 	    sfeatures);
 
+	zprop_register_number(ZFS_PROP_EVENTS_SIZE, "events_size",
+	    1 << 20, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
+	    "128K to 1G", "EVENTSZ", B_FALSE, sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
