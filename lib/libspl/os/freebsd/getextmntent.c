@@ -40,7 +40,7 @@
 #include <libzutil.h>
 
 int
-getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
+getextmntent(const char *path, struct mnttab *entry, struct stat64 *statbuf)
 {
 	struct statfs sfs;
 
@@ -60,6 +60,6 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 		    zfs_strerror(errno));
 		return (-1);
 	}
-	statfs2mnttab(&sfs, (struct mnttab *)entry);
+	statfs2mnttab(&sfs, entry);
 	return (0);
 }

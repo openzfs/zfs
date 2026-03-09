@@ -1171,7 +1171,7 @@ zfs_handle_t *
 zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 {
 	struct stat64 statbuf;
-	struct extmnttab entry;
+	struct mnttab entry;
 
 	if (path[0] != '/' && strncmp(path, "./", strlen("./")) != 0) {
 		/*
