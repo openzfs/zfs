@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd April 29, 2024
+.Dd March 9, 2026
 .Dt ZPOOL-CLEAR 8
 .Os
 .
@@ -38,6 +38,7 @@
 .Nm zpool
 .Cm clear
 .Op Fl -power
+.Op Fl F Op Fl nX
 .Ar pool
 .Oo Ar device Oc Ns …
 .
@@ -56,6 +57,32 @@ that the pool was imported by another host.
 The same checks performed during an import will be applied before the clear
 proceeds.
 .Bl -tag -width Ds
+.It Fl F
+Recovery mode for a faulted or suspended pool.
+Attempt to return the pool to a usable state by discarding the last few
+transactions.
+Not all damaged pools can be recovered by using this option.
+If successful, the data from the discarded transactions is irretrievably lost.
+.It Fl n
+Used with the
+.Fl F
+recovery option.
+Determines whether the pool can be made usable again, but does not actually
+perform the pool recovery.
+.It Fl X
+Used with the
+.Fl F
+recovery option.
+Determines whether extreme measures to find a valid txg should take place.
+This allows the pool to
+be rolled back to a txg which is no longer guaranteed to be consistent.
+Pools recovered at an inconsistent txg may contain uncorrectable checksum
+errors.
+For more details about pool recovery mode, see the
+.Fl F
+option, above.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
 .It Fl -power
 Power on the devices's slot in the storage enclosure and wait for the device
 to show up before attempting to clear errors.
@@ -68,5 +95,6 @@ Note: This flag currently works on Linux only.
 .
 .Sh SEE ALSO
 .Xr zdb 8 ,
+.Xr zpool-import 8 ,
 .Xr zpool-reopen 8 ,
 .Xr zpool-status 8
