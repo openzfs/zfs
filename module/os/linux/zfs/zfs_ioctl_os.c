@@ -170,6 +170,8 @@ zfs_ioc_userns_attach(zfs_cmd_t *zc)
 	 */
 	if (error == ENOTTY)
 		error = ZFS_ERR_NOT_USER_NAMESPACE;
+	if (error == ENXIO)
+		error = ZFS_ERR_NO_USER_NS_SUPPORT;
 
 	return (error);
 }
@@ -190,6 +192,8 @@ zfs_ioc_userns_detach(zfs_cmd_t *zc)
 	 */
 	if (error == ENOTTY)
 		error = ZFS_ERR_NOT_USER_NAMESPACE;
+	if (error == ENXIO)
+		error = ZFS_ERR_NO_USER_NS_SUPPORT;
 
 	return (error);
 }
