@@ -37,6 +37,7 @@
 #include <sys/zfs_events.h>
 #include <sys/zfs_znode.h>
 #include <sys/byteorder.h>
+#include <sys/zfeature.h>
 
 /*
  * ZFS Events - File-level history tracking
@@ -183,11 +184,20 @@ zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
 
 /*
  * Destroy the event log object for a dataset.
+ * Also decrements the events feature counter.
  */
 int
 zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 {
-	return (dmu_object_free(os, obj, tx));
+	spa_t *spa = dmu_objset_spa(os);
+	int err;
+
+	err = dmu_object_free(os, obj, tx);
+	if (err == 0 && spa_feature_is_active(spa, SPA_FEATURE_EVENTS)) {
+		spa_feature_decr(spa, SPA_FEATURE_EVENTS, tx);
+	}
+
+	return (err);
 }
 
 /*
@@ -219,6 +229,14 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
 		 */
 		uint64_t events_size = 1 << 20;	/* 1MB default */
 		dsl_dataset_t *ds = dmu_objset_ds(os);
+		spa_t *spa = dmu_objset_spa(os);
+
+		/*
+		 * Check if the events feature is enabled on the pool.
+		 * If not enabled, silently skip event logging.
+		 */
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_EVENTS))
+			return;
 
 		if (ds != NULL) {
 			(void) dsl_prop_get_int_ds(ds,
@@ -230,11 +248,15 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
 		if (err != 0)
 			return;
 
+		/* Activate the events feature on first use */
+		spa_feature_incr(spa, SPA_FEATURE_EVENTS, tx);
+
 		/* Add the object to the master node ZAP */
 		err = zap_add(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 		    sizeof (uint64_t), 1, &obj, tx);
 		if (err != 0) {
 			/* Failed to add ZAP entry, clean up */
+			spa_feature_decr(spa, SPA_FEATURE_EVENTS, tx);
 			(void) dmu_object_free(os, obj, tx);
 			return;
 		}
