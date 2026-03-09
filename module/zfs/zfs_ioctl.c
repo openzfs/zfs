@@ -4616,6 +4616,206 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
 	return (error);
 }
 
+/*
+ * innvl (optional):
+ *     "object" -> uint64 (filter by object ID, 0 = all)
+ *     "offset" -> uint64 (logical offset for pagination)
+ *
+ * outnvl:
+ *     "events" -> nvlist array of event records
+ *     "next_offset" -> uint64 (offset for next read)
+ *     "records_lost" -> uint64 (count of overwritten records)
+ */
+static const zfs_ioc_key_t zfs_keys_get_events[] = {
+	{"object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	objset_t *os;
+	int error;
+	uint64_t offset = 0, object = 0;
+	char *buf;
+	uint64_t bufsize = 256 * 1024;	/* 256KB read buffer */
+	uint64_t read_len;
+	nvlist_t *events_list;
+
+	/* Get optional filter parameters */
+	if (innvl != NULL) {
+		(void) nvlist_lookup_uint64(innvl, "object", &object);
+		(void) nvlist_lookup_uint64(innvl, "offset", &offset);
+	}
+
+	error = dmu_objset_hold(dsname, FTAG, &os);
+	if (error != 0)
+		return (error);
+
+	buf = vmem_alloc(bufsize, KM_SLEEP);
+	read_len = bufsize;
+
+	error = zfs_events_get(os, &offset, &read_len, buf);
+	if (error != 0) {
+		vmem_free(buf, bufsize);
+		dmu_objset_rele(os, FTAG);
+		return (error);
+	}
+
+	/* Parse packed nvlists from buffer and add to output */
+	events_list = fnvlist_alloc();
+	if (read_len > 0) {
+		uint64_t pos = 0;
+		uint32_t idx = 0;
+
+		while (pos + sizeof (uint64_t) <= read_len) {
+			uint64_t reclen;
+			nvlist_t *rec;
+			char idxstr[16];
+
+			/* Read record length (little endian) */
+			reclen = LE_64(*((uint64_t *)(buf + pos)));
+			pos += sizeof (uint64_t);
+
+			if (reclen == 0 || pos + reclen > read_len)
+				break;
+
+			/* Unpack the nvlist record */
+			error = nvlist_unpack(buf + pos, reclen, &rec, 0);
+			if (error != 0) {
+				pos += reclen;
+				continue;
+			}
+
+			/* If filtering by object, check if it matches */
+			if (object != 0) {
+				uint64_t rec_obj = 0;
+				(void) nvlist_lookup_uint64(rec,
+				    ZFS_EV_OBJECT, &rec_obj);
+				if (rec_obj != object) {
+					nvlist_free(rec);
+					pos += reclen;
+					continue;
+				}
+			}
+
+			/* Add to events array */
+			(void) snprintf(idxstr, sizeof (idxstr), "%u", idx++);
+			fnvlist_add_nvlist(events_list, idxstr, rec);
+			nvlist_free(rec);
+			pos += reclen;
+		}
+	}
+
+	fnvlist_add_nvlist(outnvl, "events", events_list);
+	fnvlist_add_uint64(outnvl, "next_offset", offset);
+	nvlist_free(events_list);
+
+	vmem_free(buf, bufsize);
+	dmu_objset_rele(os, FTAG);
+	return (0);
+}
+
+/*
+ * innvl (optional):
+ *     "object" -> uint64 (filter by object ID, 0 = all)
+ *     "offset" -> uint64 (logical offset for pagination)
+ *
+ * outnvl:
+ *     "events" -> nvlist array of event records
+ *     "next_offset" -> uint64 (offset for next read)
+ *     "records_lost" -> uint64 (count of overwritten records)
+ */
+static const zfs_ioc_key_t zfs_keys_get_events[] = {
+	{"object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	objset_t *os;
+	int error;
+	uint64_t offset = 0, object = 0;
+	char *buf;
+	uint64_t bufsize = 256 * 1024;	/* 256KB read buffer */
+	uint64_t read_len;
+	nvlist_t *events_list;
+
+	/* Get optional filter parameters */
+	if (innvl != NULL) {
+		(void) nvlist_lookup_uint64(innvl, "object", &object);
+		(void) nvlist_lookup_uint64(innvl, "offset", &offset);
+	}
+
+	error = dmu_objset_hold(dsname, FTAG, &os);
+	if (error != 0)
+		return (error);
+
+	buf = vmem_alloc(bufsize, KM_SLEEP);
+	read_len = bufsize;
+
+	error = zfs_events_get(os, &offset, &read_len, buf);
+	if (error != 0) {
+		vmem_free(buf, bufsize);
+		dmu_objset_rele(os, FTAG);
+		return (error);
+	}
+
+	/* Parse packed nvlists from buffer and add to output */
+	events_list = fnvlist_alloc();
+	if (read_len > 0) {
+		uint64_t pos = 0;
+		uint32_t idx = 0;
+
+		while (pos + sizeof (uint64_t) <= read_len) {
+			uint64_t reclen;
+			nvlist_t *rec;
+			char idxstr[16];
+
+			/* Read record length (little endian) */
+			reclen = LE_64(*((uint64_t *)(buf + pos)));
+			pos += sizeof (uint64_t);
+
+			if (reclen == 0 || pos + reclen > read_len)
+				break;
+
+			/* Unpack the nvlist record */
+			error = nvlist_unpack(buf + pos, reclen, &rec, 0);
+			if (error != 0) {
+				pos += reclen;
+				continue;
+			}
+
+			/* If filtering by object, check if it matches */
+			if (object != 0) {
+				uint64_t rec_obj = 0;
+				(void) nvlist_lookup_uint64(rec,
+				    ZFS_EV_OBJECT, &rec_obj);
+				if (rec_obj != object) {
+					nvlist_free(rec);
+					pos += reclen;
+					continue;
+				}
+			}
+
+			/* Add to events array */
+			(void) snprintf(idxstr, sizeof (idxstr), "%u", idx++);
+			fnvlist_add_nvlist(events_list, idxstr, rec);
+			nvlist_free(rec);
+			pos += reclen;
+		}
+	}
+
+	fnvlist_add_nvlist(outnvl, "events", events_list);
+	fnvlist_add_uint64(outnvl, "next_offset", offset);
+	nvlist_free(events_list);
+
+	vmem_free(buf, bufsize);
+	dmu_objset_rele(os, FTAG);
+	return (0);
+}
+
 #if !defined(DISABLE_ZCP)
 static const zfs_ioc_key_t zfs_keys_channel_program[] = {
 	{"program",	DATA_TYPE_STRING,		0},
@@ -8252,6 +8452,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("get_events", ZFS_IOC_GET_EVENTS,
+	    zfs_ioc_get_events, zfs_secpolicy_read, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_get_events, ARRAY_SIZE(zfs_keys_get_events));
 
 	/* IOCTLS that use the legacy function signature */
 

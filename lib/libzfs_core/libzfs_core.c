@@ -2089,3 +2089,39 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+/*
+ * Retrieve file-level events from a dataset's event log.
+ *
+ * dsname: Dataset name (filesystem)
+ * object: Object ID to filter by (0 = all objects)
+ * offset: Logical offset for pagination (0 = from beginning)
+ * outnvl: On success, contains:
+ *         "events" -> nvlist array of event records
+ *         "next_offset" -> uint64 offset for next read
+ *         "records_lost" -> uint64 count of overwritten records
+ *
+ * Each event record contains:
+ *         "txg" -> uint64 transaction group
+ *         "time" -> uint64 hrtime timestamp
+ *         "object" -> uint64 object ID
+ *         "op" -> uint16 operation type (ZFS_EV_CREATE, etc.)
+ *         Additional fields depending on operation type
+ */
+int
+lzc_get_events(const char *dsname, uint64_t object, uint64_t offset,
+    nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+
+	if (object != 0)
+		fnvlist_add_uint64(args, "object", object);
+	if (offset != 0)
+		fnvlist_add_uint64(args, "offset", offset);
+
+	int error = lzc_ioctl(ZFS_IOC_GET_EVENTS, dsname, args, outnvl);
+
+	fnvlist_free(args);
+
+	return (error);
+}

@@ -56,6 +56,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <sys/zfs_project.h>
+#include <sys/zfs_events.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -102,6 +103,7 @@ static int zfs_do_hold(int argc, char **argv);
 static int zfs_do_holds(int argc, char **argv);
 static int zfs_do_release(int argc, char **argv);
 static int zfs_do_diff(int argc, char **argv);
+static int zfs_do_events(int argc, char **argv);
 static int zfs_do_bookmark(int argc, char **argv);
 static int zfs_do_channel_program(int argc, char **argv);
 static int zfs_do_load_key(int argc, char **argv);
@@ -158,6 +160,7 @@ typedef enum {
 	HELP_HOLDS,
 	HELP_RELEASE,
 	HELP_DIFF,
+	HELP_EVENTS,
 	HELP_BOOKMARK,
 	HELP_CHANNEL_PROGRAM,
 	HELP_LOAD_KEY,
@@ -201,6 +204,7 @@ static zfs_command_t command_table[] = {
 	{ "rename",	zfs_do_rename,		HELP_RENAME		},
 	{ "bookmark",	zfs_do_bookmark,	HELP_BOOKMARK		},
 	{ "diff",	zfs_do_diff,		HELP_DIFF		},
+	{ "events",	zfs_do_events,		HELP_EVENTS		},
 	{ NULL },
 	{ "list",	zfs_do_list,		HELP_LIST		},
 	{ NULL },
@@ -386,8 +390,11 @@ get_usage(zfs_help_t idx)
 	case HELP_RELEASE:
 		return ("\trelease [-r] <tag> <snapshot> ...\n");
 	case HELP_DIFF:
-		return ("\tdiff [-FHth] <snapshot> "
-		    "[snapshot|filesystem]\n");
+		return (gettext("	diff [-FHth] <snapshot> "
+		    "[snapshot|filesystem]\n"));
+	case HELP_EVENTS:
+		return (gettext("	events [-jn] [-o <object-id>] "
+		    "<filesystem> [path]\n"));
 	case HELP_BOOKMARK:
 		return ("\tbookmark [-r] <snapshot|bookmark> "
 		    "<newbookmark>\n");
@@ -8193,6 +8200,28 @@ typedef struct bookmark_cbdata {
 } bookmark_cbdata_t;
 
 /*
+ * Return the string name of an event operation type.
+ */
+static const char *
+zfs_event_op_name(uint16_t op)
+{
+	switch (op) {
+	case ZFS_EV_CREATE:
+		return ("CREATE");
+	case ZFS_EV_REMOVE:
+		return ("REMOVE");
+	case ZFS_EV_RENAME:
+		return ("RENAME");
+	case ZFS_EV_LINK:
+		return ("LINK");
+	case ZFS_EV_SYMLINK:
+		return ("SYMLINK");
+	case ZFS_EV_TRUNCATE:
+		return ("TRUNCATE");
+	case ZFS_EV_SETATTR:
+		return ("SETATTR");
+	default:
+		return ("UNKNOWN");
  * Recursively gather "<dataset>#bookname" -> "<dataset>@snapname" pairs for
  * every descendant that actually has the source snapshot, mirroring the way
  * "zfs snapshot -r" collects its targets.  Descendants that lack the snapshot
@@ -8263,6 +8292,233 @@ zfs_bookmark_perror(const char *bookname, int err)
 		(void) fprintf(stderr, "%s: %s\n", errbuf,
 		    err_msg);
 	}
+}
+
+/*
+ * Print a single event record.
+ */
+static void
+print_event(nvlist_t *event, boolean_t json, int count)
+{
+	uint64_t txg = 0, time = 0, object = 0, parent = 0;
+	uint16_t op = 0;
+	const char *name = NULL;
+
+	(void) nvlist_lookup_uint64(event, ZFS_EV_TXG, &txg);
+	(void) nvlist_lookup_uint64(event, ZFS_EV_TIME, &time);
+	(void) nvlist_lookup_uint64(event, ZFS_EV_OBJECT, &object);
+	(void) nvlist_lookup_uint16(event, ZFS_EV_OP, &op);
+	(void) nvlist_lookup_string(event, ZFS_EV_NAME, &name);
+	(void) nvlist_lookup_uint64(event, ZFS_EV_PARENT, &parent);
+
+	if (json) {
+		(void) printf("%s{\"txg\":%llu,\"object\":%llu,"
+		    "\"op\":\"%s\"",
+		    count > 0 ? ",\n" : "",
+		    (unsigned long long)txg,
+		    (unsigned long long)object,
+		    zfs_event_op_name(op));
+		if (name != NULL)
+			(void) printf(",\"name\":\"%s\"", name);
+		if (parent != 0)
+			(void) printf(",\"parent\":%llu",
+			    (unsigned long long)parent);
+
+		/* Operation-specific fields */
+		if (op == ZFS_EV_RENAME) {
+			const char *old_name = NULL;
+			uint64_t old_parent = 0;
+			(void) nvlist_lookup_string(event, ZFS_EV_OLD_NAME,
+			    &old_name);
+			(void) nvlist_lookup_uint64(event, ZFS_EV_OLD_PARENT,
+			    &old_parent);
+			if (old_name != NULL)
+				(void) printf(",\"old_name\":\"%s\"", old_name);
+			if (old_parent != 0)
+				(void) printf(",\"old_parent\":%llu",
+				    (unsigned long long)old_parent);
+		} else if (op == ZFS_EV_TRUNCATE) {
+			uint64_t old_size = 0, new_size = 0;
+			(void) nvlist_lookup_uint64(event, ZFS_EV_OLD_SIZE,
+			    &old_size);
+			(void) nvlist_lookup_uint64(event, ZFS_EV_NEW_SIZE,
+			    &new_size);
+			(void) printf(",\"old_size\":%llu,\"new_size\":%llu",
+			    (unsigned long long)old_size,
+			    (unsigned long long)new_size);
+		} else if (op == ZFS_EV_SYMLINK) {
+			const char *target = NULL;
+			(void) nvlist_lookup_string(event, ZFS_EV_TARGET,
+			    &target);
+			if (target != NULL)
+				(void) printf(",\"target\":\"%s\"", target);
+		}
+		(void) printf("}");
+	} else {
+		/* Human-readable format */
+		(void) printf("%-10llu %-8llu %-10s ",
+		    (unsigned long long)txg,
+		    (unsigned long long)object,
+		    zfs_event_op_name(op));
+		if (name != NULL)
+			(void) printf("%s", name);
+
+		if (op == ZFS_EV_RENAME) {
+			const char *old_name = NULL;
+			(void) nvlist_lookup_string(event, ZFS_EV_OLD_NAME,
+			    &old_name);
+			if (old_name != NULL)
+				(void) printf(" (from %s)", old_name);
+		}
+		(void) printf("\n");
+	}
+}
+
+/*
+ * zfs events [-jn] [-o <object-id>] <filesystem> [path]
+ *
+ * Display file-level events from a dataset's event log.
+ */
+static int
+zfs_do_events(int argc, char **argv)
+{
+	zfs_handle_t *zhp;
+	int c;
+	boolean_t json_output = B_FALSE;
+	boolean_t limit_output = B_FALSE;
+	uint64_t object_filter = 0;
+	uint64_t max_events = 0;
+	int ret = 0;
+
+	while ((c = getopt(argc, argv, "jn:o:")) != -1) {
+		switch (c) {
+		case 'j':
+			json_output = B_TRUE;
+			break;
+		case 'n':
+			max_events = strtoull(optarg, NULL, 10);
+			limit_output = B_TRUE;
+			break;
+		case 'o':
+			object_filter = strtoull(optarg, NULL, 10);
+			break;
+		case '?':
+		default:
+			(void) fprintf(stderr,
+			    gettext("invalid option '%c'\n"), optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr,
+		    gettext("missing filesystem argument\n"));
+		usage(B_FALSE);
+	}
+
+	/* Open the dataset */
+	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM)) == NULL)
+		return (1);
+
+	/* If a path was given, resolve it to an object ID */
+	if (argc > 1) {
+		struct stat st;
+		char fullpath[PATH_MAX];
+		char mountpoint[ZFS_MAXPROPLEN];
+
+		/* Get the mountpoint */
+		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+		    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
+			(void) fprintf(stderr,
+			    gettext("cannot get mountpoint for '%s'\n"),
+			    argv[0]);
+			zfs_close(zhp);
+			return (1);
+		}
+
+		/* Construct the full path */
+		(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
+		    mountpoint, argv[1]);
+
+		if (stat(fullpath, &st) != 0) {
+			(void) fprintf(stderr,
+			    gettext("cannot stat '%s': %s\n"),
+			    fullpath, strerror(errno));
+			zfs_close(zhp);
+			return (1);
+		}
+
+		/* The inode number is the object ID */
+		object_filter = st.st_ino;
+	}
+
+	/* Query the events */
+	nvlist_t *result = NULL;
+	int error = lzc_get_events(zfs_get_name(zhp), object_filter, 0,
+	    &result);
+
+	if (error != 0) {
+		if (error == ENOENT) {
+			(void) fprintf(stderr,
+			    gettext("no event log found for '%s'\n"
+			    "Enable events with: zfs set events=on %s\n"),
+			    argv[0], argv[0]);
+		} else {
+			(void) fprintf(stderr,
+			    gettext("cannot get events for '%s': %s\n"),
+			    argv[0], strerror(error));
+		}
+		zfs_close(zhp);
+		return (1);
+	}
+
+	/* Extract the events list */
+	nvlist_t *events = NULL;
+	if (nvlist_lookup_nvlist(result, "events", &events) != 0) {
+		(void) fprintf(stderr,
+		    gettext("no events found\n"));
+		nvlist_free(result);
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/* Print header or JSON opening */
+	if (json_output) {
+		(void) printf("[");
+	} else {
+		(void) printf("%-10s %-8s %-10s %s\n",
+		    "TXG", "OBJECT", "OPERATION", "NAME");
+		(void) printf("%-10s %-8s %-10s %s\n",
+		    "----------", "--------", "----------",
+		    "--------------------");
+	}
+
+	/* Iterate through events */
+	nvpair_t *pair = NULL;
+	int count = 0;
+	while ((pair = nvlist_next_nvpair(events, pair)) != NULL) {
+		nvlist_t *event;
+
+		if (nvpair_value_nvlist(pair, &event) != 0)
+			continue;
+
+		if (limit_output && (uint64_t)count >= max_events)
+			break;
+
+		print_event(event, json_output, count);
+		count++;
+	}
+
+	if (json_output) {
+		(void) printf("]\n");
+	}
+
+	nvlist_free(result);
+	zfs_close(zhp);
+	return (ret);
 }
 
 /*
