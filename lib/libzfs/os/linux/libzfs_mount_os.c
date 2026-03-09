@@ -409,6 +409,149 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 	return (rc ? EINVAL : 0);
 }
 
+#ifdef HAVE_MOUNT_SETATTR
+/*
+ * Build a struct mount_attr for the changed namespace properties.
+ * Parallel to zfs_add_options() but produces mount_setattr(2) input
+ * instead of a mount options string.
+ */
+static void
+zfs_add_options_setattr(zfs_handle_t *zhp, struct mount_attr *attr,
+    uint32_t nspflags)
+{
+	const char *source;
+
+	if (nspflags & ZFS_MNT_PROP_READONLY) {
+		if (getprop_uint64(zhp, ZFS_PROP_READONLY, &source))
+			attr->attr_set |= MOUNT_ATTR_RDONLY;
+		else
+			attr->attr_clr |= MOUNT_ATTR_RDONLY;
+	}
+	if (nspflags & ZFS_MNT_PROP_EXEC) {
+		if (getprop_uint64(zhp, ZFS_PROP_EXEC, &source))
+			attr->attr_clr |= MOUNT_ATTR_NOEXEC;
+		else
+			attr->attr_set |= MOUNT_ATTR_NOEXEC;
+	}
+	if (nspflags & ZFS_MNT_PROP_SETUID) {
+		if (getprop_uint64(zhp, ZFS_PROP_SETUID, &source))
+			attr->attr_clr |= MOUNT_ATTR_NOSUID;
+		else
+			attr->attr_set |= MOUNT_ATTR_NOSUID;
+	}
+	if (nspflags & ZFS_MNT_PROP_DEVICES) {
+		if (getprop_uint64(zhp, ZFS_PROP_DEVICES, &source))
+			attr->attr_clr |= MOUNT_ATTR_NODEV;
+		else
+			attr->attr_set |= MOUNT_ATTR_NODEV;
+	}
+	if (nspflags & (ZFS_MNT_PROP_ATIME | ZFS_MNT_PROP_RELATIME)) {
+		uint64_t atime = getprop_uint64(zhp, ZFS_PROP_ATIME, &source);
+		uint64_t relatime = getprop_uint64(zhp,
+		    ZFS_PROP_RELATIME, &source);
+
+		attr->attr_clr |= MOUNT_ATTR__ATIME;
+		if (!atime)
+			attr->attr_set |= MOUNT_ATTR_NOATIME;
+		else if (relatime)
+			attr->attr_set |= MOUNT_ATTR_RELATIME;
+		else
+			attr->attr_set |= MOUNT_ATTR_STRICTATIME;
+	}
+}
+#endif /* HAVE_MOUNT_SETATTR */
+
+/*
+ * Selectively update per-mount VFS flags for the changed namespace
+ * properties using mount_setattr(2).  Unlike a full remount via mount(2),
+ * this only modifies the specified flags without resetting others --
+ * avoiding clobbering temporary mount flags set by the administrator.
+ *
+ * For non-legacy datasets, the single known mountpoint is used.
+ * For legacy datasets, /proc/mounts is iterated since legacy datasets
+ * can be mounted at multiple locations.
+ *
+ * Falls back to a full remount via zfs_mount() when mount_setattr(2)
+ * is not available (ENOSYS), except for legacy mounts where a full
+ * remount would clobber temporary flags.
+ */
+int
+zfs_mount_setattr(zfs_handle_t *zhp, uint32_t nspflags)
+{
+#ifdef HAVE_MOUNT_SETATTR
+	struct mount_attr attr = { 0 };
+	char mntpt_prop[ZFS_MAXPROPLEN];
+	boolean_t legacy = B_FALSE;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	FILE *mnttab;
+	struct mnttab entry;
+	int ret = 0;
+
+	if (!zfs_is_mountable_internal(zhp))
+		return (0);
+
+	zfs_add_options_setattr(zhp, &attr, nspflags);
+	if (attr.attr_set == 0 && attr.attr_clr == 0)
+		return (0);
+
+	if (zfs_prop_valid_for_type(ZFS_PROP_MOUNTPOINT, zhp->zfs_type,
+	    B_FALSE)) {
+		verify(zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mntpt_prop,
+		    sizeof (mntpt_prop), NULL, NULL, 0, B_FALSE) == 0);
+		legacy = (strcmp(mntpt_prop, ZFS_MOUNTPOINT_LEGACY) == 0);
+	}
+
+	if (!legacy) {
+		char *mntpt = NULL;
+
+		if (!zfs_is_mounted(zhp, &mntpt))
+			return (0);
+
+		ret = mount_setattr(AT_FDCWD, mntpt, 0,
+		    &attr, sizeof (attr));
+		free(mntpt);
+		if (ret != 0) {
+			if (errno == ENOSYS)
+				return (zfs_mount(zhp, MNTOPT_REMOUNT, 0));
+			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot set mount "
+			    "attributes for '%s'"), zhp->zfs_name));
+		}
+		return (0);
+	}
+
+	/* Legacy: iterate /proc/mounts for all mountpoints. */
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
+		return (0);
+
+	while (getmntent(mnttab, &entry) == 0) {
+		if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
+			continue;
+		if (strcmp(entry.mnt_special, zhp->zfs_name) != 0)
+			continue;
+
+		ret = mount_setattr(AT_FDCWD, entry.mnt_mountp, 0,
+		    &attr, sizeof (attr));
+		if (ret != 0) {
+			if (errno == ENOSYS) {
+				ret = 0;
+				break;
+			}
+			ret = zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
+			    dgettext(TEXT_DOMAIN, "cannot set mount "
+			    "attributes for '%s'"), zhp->zfs_name);
+			break;
+		}
+	}
+
+	(void) fclose(mnttab);
+	return (ret);
+#else
+	(void) nspflags;
+	return (zfs_mount(zhp, MNTOPT_REMOUNT, 0));
+#endif
+}
+
 int
 zfs_mount_delegation_check(void)
 {
