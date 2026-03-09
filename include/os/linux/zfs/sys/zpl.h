@@ -149,6 +149,8 @@ enum {
 #define	SE_CLEAR(se, fl)	clear_bit((fl), &(se)->se_flags)
 
 extern void zfsctl_snapshot_timer_clear(zfs_snapentry_t *se);
+extern const struct file_operations zpl_fops_events;
+extern const struct inode_operations zpl_ops_events;
 
 /* zpl_file_range.c */
 
