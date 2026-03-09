@@ -116,6 +116,17 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 	return (0);
 }
 
+/*
+ * FreeBSD does not support mount_setattr(2).  Fall back to a full
+ * remount so that the updated namespace property takes effect.
+ */
+int
+zfs_mount_setattr(zfs_handle_t *zhp, uint32_t nspflags)
+{
+	(void) nspflags;
+	return (zfs_mount(zhp, MNTOPT_REMOUNT, 0));
+}
+
 int
 zfs_mount_delegation_check(void)
 {
