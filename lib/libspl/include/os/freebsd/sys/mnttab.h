@@ -75,7 +75,6 @@ struct extmnttab {
 struct stat64;
 struct statfs;
 
-extern int getmntany(FILE *fp, struct mnttab *mp, struct mnttab *mpref);
 extern int _sol_getmntent(FILE *fp, struct mnttab *mp);
 extern int getextmntent(const char *path, struct extmnttab *entry,
     struct stat64 *statbuf);

@@ -45,23 +45,6 @@
 
 static __thread char buf[BUFSIZE];
 
-#define	DIFF(xx)	( \
-	    (mrefp->xx != NULL) && \
-	    (mgetp->xx == NULL || strcmp(mrefp->xx, mgetp->xx) != 0))
-
-int
-getmntany(FILE *fp, struct mnttab *mgetp, struct mnttab *mrefp)
-{
-	int ret;
-
-	while (
-	    ((ret = _sol_getmntent(fp, mgetp)) == 0) && (
-	    DIFF(mnt_special) || DIFF(mnt_mountp) ||
-	    DIFF(mnt_fstype) || DIFF(mnt_mntopts))) { }
-
-	return (ret);
-}
-
 int
 _sol_getmntent(FILE *fp, struct mnttab *mgetp)
 {
