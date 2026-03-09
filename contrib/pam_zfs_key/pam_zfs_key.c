@@ -480,7 +480,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_DEBUG,
 		    "dataset is not filesystem: %s, skipping.",
 		    zfs_get_name(zhp));
-		return (0);
+		goto skip_mount;
 	}
 
 	/* Check if encryption key is available */
@@ -489,7 +489,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_WARNING,
 		    "key unavailable for: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0);
+		goto skip_mount;
 	}
 
 	/* Check if prop canmount is on */
@@ -497,7 +497,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_INFO,
 		    "canmount is not on for: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0);
+		goto skip_mount;
 	}
 
 	/* Get mountpoint prop for check */
@@ -515,14 +515,14 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		pam_syslog(pamh, LOG_INFO,
 		    "mountpoint is none or legacy for: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0);
+		goto skip_mount;
 	}
 
 	/* Don't mount the dataset if already mounted */
 	if (zfs_is_mounted(zhp, NULL)) {
-		pam_syslog(pamh, LOG_INFO, "already mounted: %s",
+		pam_syslog(pamh, LOG_INFO, "already mounted: %s, skipping",
 		    zfs_get_name(zhp));
-		return (0);
+		goto skip_mount;
 	}
 
 	/* Mount the dataset */
@@ -534,6 +534,7 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		return (ret);
 	}
 
+skip_mount:
 	/* Recursively mount children if the recursive flag is set */
 	if (target->mount_recursively) {
 		ret = zfs_iter_filesystems_v2(zhp, 0, mount_dataset, data);
