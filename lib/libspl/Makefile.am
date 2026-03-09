@@ -44,7 +44,7 @@ if BUILD_LINUX
 libspl_la_SOURCES += \
 	%D%/os/linux/getexecname.c \
 	%D%/os/linux/gethostid.c \
-	%D%/os/linux/getmntany.c \
+	%D%/os/linux/mnttab.c \
 	%D%/os/linux/zone.c
 endif
 
@@ -52,7 +52,7 @@ if BUILD_FREEBSD
 libspl_la_SOURCES += \
 	%D%/os/freebsd/getexecname.c \
 	%D%/os/freebsd/gethostid.c \
-	%D%/os/freebsd/getmntany.c \
+	%D%/os/freebsd/getextmntent.c \
 	%D%/os/freebsd/mnttab.c \
 	%D%/os/freebsd/zone.c
 endif
