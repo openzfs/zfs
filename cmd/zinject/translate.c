@@ -85,7 +85,7 @@ static int
 parse_pathname(const char *inpath, char *dataset, char *relpath,
     struct stat64 *statbuf)
 {
-	struct extmnttab mp;
+	struct mnttab mp;
 	const char *rel;
 	char fullpath[MAXPATHLEN];
 

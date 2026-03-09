@@ -7639,14 +7639,10 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	zfs_handle_t *zhp;
 	int ret = 0;
 	struct stat64 statbuf;
-	struct extmnttab entry;
+	struct mnttab entry;
 	const char *cmdname = (op == OP_SHARE) ? "unshare" : "unmount";
 	ino_t path_inode;
 	char *zfs_mntpnt, *entry_mntpnt;
-
-	/*
-	 * Search for the given (major,minor) pair in the mount table.
-	 */
 
 	if (getextmntent(path, &entry, &statbuf) != 0) {
 		if (op == OP_SHARE) {

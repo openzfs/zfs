@@ -54,25 +54,10 @@ struct mnttab {
 	char *mnt_mntopts;
 };
 
-/*
- * NOTE: fields in extmnttab should match struct mnttab till new fields
- * are encountered, this allows hasmntopt to work properly when its arg is
- * a pointer to an extmnttab struct cast to a mnttab struct pointer.
- */
-
-struct extmnttab {
-	char *mnt_special;
-	char *mnt_mountp;
-	char *mnt_fstype;
-	char *mnt_mntopts;
-	uint_t mnt_major;
-	uint_t mnt_minor;
-};
-
 struct statfs;
 
 extern int _sol_getmntent(FILE *fp, struct mnttab *mp);
-extern int getextmntent(const char *path, struct extmnttab *mp,
+extern int getextmntent(const char *path, struct mnttab *mp,
     struct stat64 *statbuf);
 static inline char *_sol_hasmntopt(struct mnttab *mnt, const char *opt)
 {
