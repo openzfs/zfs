@@ -101,6 +101,47 @@ static const enum sa_protocol share_all_proto[SA_PROTOCOL_COUNT + 1] = {
 
 
 
+/*
+ * Returns B_TRUE if the property is a namespace property that requires
+ * a remount to take effect.
+ */
+boolean_t
+zfs_is_namespace_prop(zfs_prop_t prop)
+{
+	switch (prop) {
+	case ZFS_PROP_ATIME:
+	case ZFS_PROP_RELATIME:
+	case ZFS_PROP_DEVICES:
+	case ZFS_PROP_EXEC:
+	case ZFS_PROP_SETUID:
+	case ZFS_PROP_READONLY:
+	case ZFS_PROP_XATTR:
+	case ZFS_PROP_NBMAND:
+		return (B_TRUE);
+	default:
+		return (B_FALSE);
+	}
+}
+
+/*
+ * Returns the ZFS_MNT_PROP_* flag for a namespace property.
+ */
+uint32_t
+zfs_namespace_prop_flag(zfs_prop_t prop)
+{
+	switch (prop) {
+	case ZFS_PROP_ATIME:	return (ZFS_MNT_PROP_ATIME);
+	case ZFS_PROP_RELATIME:	return (ZFS_MNT_PROP_RELATIME);
+	case ZFS_PROP_DEVICES:	return (ZFS_MNT_PROP_DEVICES);
+	case ZFS_PROP_EXEC:	return (ZFS_MNT_PROP_EXEC);
+	case ZFS_PROP_SETUID:	return (ZFS_MNT_PROP_SETUID);
+	case ZFS_PROP_READONLY:	return (ZFS_MNT_PROP_READONLY);
+	case ZFS_PROP_XATTR:	return (ZFS_MNT_PROP_XATTR);
+	case ZFS_PROP_NBMAND:	return (ZFS_MNT_PROP_NBMAND);
+	default:		return (0);
+	}
+}
+
 static boolean_t
 dir_is_empty_stat(const char *dirname)
 {
@@ -223,7 +264,7 @@ zfs_is_mounted(zfs_handle_t *zhp, char **where)
  * that the caller has verified the sanity of mounting the dataset at
  * its mountpoint to the extent the caller wants.
  */
-static boolean_t
+boolean_t
 zfs_is_mountable_internal(zfs_handle_t *zhp)
 {
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED) &&
