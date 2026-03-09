@@ -147,7 +147,6 @@
     <elf-symbol name='get_timestamp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getexecname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getextmntent' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='getmntany' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getzoneid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='kmem_asprintf' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='kmem_cache_reap_active' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -224,10 +223,10 @@
     <elf-symbol name='lzc_rollback_to' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_scrub' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_send_progress' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_resume' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_resume_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='lzc_send_progress' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_space' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_space_resume_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_wrapper' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1489,7 +1488,7 @@
       <return type-id='7359adad'/>
     </function-decl>
   </abi-instr>
-  <abi-instr address-size='64' path='lib/libspl/os/linux/getmntany.c' language='LANG_C99'>
+  <abi-instr address-size='64' path='lib/libspl/os/linux/mnttab.c' language='LANG_C99'>
     <class-decl name='mnttab' size-in-bits='256' is-struct='yes' visibility='default' id='1b055409'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='mnt_special' type-id='26a90f95' visibility='default'/>
@@ -1502,26 +1501,6 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
         <var-decl name='mnt_mntopts' type-id='26a90f95' visibility='default'/>
-      </data-member>
-    </class-decl>
-    <class-decl name='extmnttab' size-in-bits='320' is-struct='yes' visibility='default' id='0c544dc0'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='mnt_special' type-id='26a90f95' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='mnt_mountp' type-id='26a90f95' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='mnt_fstype' type-id='26a90f95' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='mnt_mntopts' type-id='26a90f95' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='mnt_major' type-id='3502e3ff' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='288'>
-        <var-decl name='mnt_minor' type-id='3502e3ff' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='mntent' size-in-bits='320' is-struct='yes' visibility='default' id='56fe4a37'>
@@ -1593,7 +1572,6 @@
     </class-decl>
     <typedef-decl name='__ino64_t' type-id='7359adad' id='71288a47'/>
     <typedef-decl name='__blkcnt64_t' type-id='bd54fe1a' id='4e711bf1'/>
-    <pointer-type-def type-id='0c544dc0' size-in-bits='64' id='394fc496'/>
     <pointer-type-def type-id='56fe4a37' size-in-bits='64' id='b6b61d2f'/>
     <qualified-type-def type-id='b6b61d2f' restrict='yes' id='3cad23cd'/>
     <pointer-type-def type-id='1b055409' size-in-bits='64' id='9d424d31'/>
@@ -1619,12 +1597,6 @@
       <parameter type-id='f1cadedf'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='getmntany' mangled-name='getmntany' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getmntany'>
-      <parameter type-id='822cd80b' name='fp'/>
-      <parameter type-id='9d424d31' name='mgetp'/>
-      <parameter type-id='9d424d31' name='mrefp'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='_sol_getmntent' mangled-name='_sol_getmntent' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='_sol_getmntent'>
       <parameter type-id='822cd80b' name='fp'/>
       <parameter type-id='9d424d31' name='mgetp'/>
@@ -1632,7 +1604,7 @@
     </function-decl>
     <function-decl name='getextmntent' mangled-name='getextmntent' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getextmntent'>
       <parameter type-id='80f4b756' name='path'/>
-      <parameter type-id='394fc496' name='entry'/>
+      <parameter type-id='9d424d31' name='entry'/>
       <parameter type-id='62f7a03d' name='statbuf'/>
       <return type-id='95e97e5e'/>
     </function-decl>
@@ -3998,18 +3970,18 @@
       <parameter type-id='5d6479ae' name='spacep'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='lzc_send_progress' mangled-name='lzc_send_progress' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_progress'>
-      <parameter type-id='80f4b756' name='snapname'/>
-      <parameter type-id='95e97e5e' name='fd'/>
-      <parameter type-id='5d6479ae' name='bytes_written'/>
-      <parameter type-id='5d6479ae' name='blocks_visited'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='lzc_send_space' mangled-name='lzc_send_space' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space'>
       <parameter type-id='80f4b756' name='snapname'/>
       <parameter type-id='80f4b756' name='from'/>
       <parameter type-id='bfbd3c8e' name='flags'/>
       <parameter type-id='5d6479ae' name='spacep'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_send_progress' mangled-name='lzc_send_progress' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_progress'>
+      <parameter type-id='80f4b756' name='snapname'/>
+      <parameter type-id='95e97e5e' name='fd'/>
+      <parameter type-id='5d6479ae' name='bytes_written'/>
+      <parameter type-id='5d6479ae' name='blocks_visited'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_receive' mangled-name='lzc_receive' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive'>
