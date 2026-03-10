@@ -181,7 +181,10 @@ zfs_btree_init(void)
 void
 zfs_btree_fini(void)
 {
-	kmem_cache_destroy(zfs_btree_leaf_cache);
+	if (zfs_btree_leaf_cache != NULL) {
+		kmem_cache_destroy(zfs_btree_leaf_cache);
+		zfs_btree_leaf_cache = NULL;
+	}
 }
 
 static void *
