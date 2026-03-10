@@ -75,6 +75,14 @@ zpl_root_iterate(struct file *filp, struct dir_context *ctx)
 
 		ctx->pos++;
 	}
+
+	if (ctx->pos == 4) {
+		if (!dir_emit(ctx, ZFS_EVENTSDIR_NAME,
+		    strlen(ZFS_EVENTSDIR_NAME), ZFSCTL_INO_EVENTSDIR, DT_DIR))
+			goto out;
+
+		ctx->pos++;
+	}
 out:
 	zpl_exit(zfsvfs, FTAG);
 
