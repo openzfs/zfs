@@ -40,7 +40,7 @@ function cleanup
 log_assert "'zfs diff' should only work with supported options."
 log_onexit cleanup
 
-typeset goodopts=("" "-h" "-t" "-th" "-H" "-Hh" "-Ht" "-Hth" "-F" "-Fh" "-Ft" "-Fth" "-FH" "-FHh" "-FHt" "-FHth")
+typeset goodopts=("" "-h" "-t" "-th" "-H" "-Hh" "-Ht" "-Hth" "-F" "-Fh" "-Ft" "-Fth" "-FH" "-FHh" "-FHt" "-FHth" "-j" "-jt" "-jF" "-jFt")
 typeset badopts=("-f" "-T" "-Fx" "-Ho" "-tT" "-")
 
 DATASET="$TESTPOOL/$TESTFS"

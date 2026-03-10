@@ -40,7 +40,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm diff
-.Op Fl FHth
+.Op Fl FHthj
 .Ar snapshot Ar snapshot Ns | Ns Ar filesystem
 .
 .Sh DESCRIPTION
@@ -97,6 +97,99 @@ Display the path's inode change time as the first column of output.
 Do not
 .Sy \e0 Ns Ar ooo Ns -escape
 non-ASCII paths.
+.It Fl j
+Output one JSON object per line
+.Pq NDJSON
+instead of the default text format.
+Each object contains the following fields:
+.Bl -tag -compact -offset 2n -width "change_type"
+.It Sy change_type
+One of
+.Sy added , removed , modified , renamed .
+.It Sy inode
+ZFS object number, equal to
+.Sy st_ino .
+.It Sy gen
+Transaction group (txg) in which the object was created.
+The lower 32 bits equal
+.Sy st_gen .
+The combination of
+.Sy inode
+and
+.Sy gen
+uniquely identifies a file across its lifetime, even if the inode number
+is later reused by a different object.
+.It Sy file_type
+One of
+.Sy regular , directory , symlink , block , char , fifo , socket , door , port , unknown .
+.It Sy mountpoint
+Mount point of the dataset.
+Prepend to
+.Sy path
+or
+.Sy changes.path
+to obtain the full filesystem path.
+.It Sy path
+Dataset-relative path of the object.
+For renamed entries this is the new path after the rename.
+.It Sy changes
+Object describing what changed.
+Present only for
+.Sy renamed
+and
+.Sy modified
+entries where a specific change is known.
+Contains one or more of:
+.Bl -tag -compact -offset 2n -width "nlink"
+.It Sy path
+Dataset-relative original path before rename.
+Present only for
+.Sy renamed
+entries.
+.It Sy nlink
+Object with
+.Sy from
+and
+.Sy to
+fields containing the old and new hard link counts.
+Present only for
+.Sy modified
+entries where the link count changed.
+.It Sy mode
+Object with
+.Sy from
+and
+.Sy to
+fields containing the old and new POSIX mode words.
+Present only for
+.Sy modified
+entries where the mode changed.
+.It Sy ctime
+Object with
+.Sy from
+and
+.Sy to
+fields, each an array of
+.Sy [seconds, nanoseconds] .
+.Sy from
+is absent for
+.Sy added
+entries;
+.Sy to
+is absent for
+.Sy removed
+entries.
+Present only when
+.Fl t
+is also specified.
+.El
+The absence of
+.Sy changes ,
+or the absence of a particular field within it, does not mean the object
+is otherwise unchanged.
+Data content, file size, timestamps, and extended attributes may have
+changed without being reflected here.
+.El
 .El
 .
 .Sh EXAMPLES
@@ -116,6 +209,19 @@ R       F       /tank/test/oldname -> /tank/test/newname
 -       F       /tank/test/deleted
 +       F       /tank/test/created
 M       F       /tank/test/modified
+.Ed
+.Ss Example 2 : No Showing the differences as JSON
+The following example shows the same changes in JSON format using the
+.Fl j
+option.
+One object is emitted per line.
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm diff Fl j Ar tank/test@before tank/test
+{"change_type":"modified","mountpoint":"/tank/test","inode":2,"gen":6215,"file_type":"directory","path":"/d1","changes":{"mode":{"from":16877,"to":16832}}}
+{"change_type":"modified","mountpoint":"/tank/test","inode":34,"gen":6213,"file_type":"directory","path":"/"}
+{"change_type":"modified","mountpoint":"/tank/test","inode":128,"gen":6216,"file_type":"regular","path":"/d1/f1"}
+{"change_type":"renamed","mountpoint":"/tank/test","inode":129,"gen":6218,"file_type":"regular","path":"/f3","changes":{"path":"/f2"}}
+{"change_type":"added","mountpoint":"/tank/test","inode":130,"gen":6254,"file_type":"regular","path":"/d1/f5"}
 .Ed
 .
 .Sh SEE ALSO
