@@ -821,10 +821,10 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) close(pipefd[1]);
 	(void) pthread_join(tid, NULL);
 
+	teardown_differ_info(&di);
 	if (di.zerr != 0) {
 		zfs_error_aux(zhp->zfs_hdl, "%s", zfs_strerror(di.zerr));
 		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
 	}
-	teardown_differ_info(&di);
 	return (0);
 }
