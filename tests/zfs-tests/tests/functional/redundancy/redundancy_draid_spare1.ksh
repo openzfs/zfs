@@ -19,6 +19,7 @@
 #
 # Copyright (c) 2019, Datto Inc. All rights reserved.
 # Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2026, Seagate Technology, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -82,7 +83,8 @@ for replace_mode in "healing" "sequential"; do
 		log_must check_vdev_state spare-$i "DEGRADED"
 		log_must check_vdev_state $spare_vdev "ONLINE"
 		log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
-		log_must zpool detach $TESTPOOL $fault_vdev
+		# Preserve the 1st faulted vdev for the next test.
+		[[ $i -eq 0 ]] || log_must zpool detach $TESTPOOL $fault_vdev
 		log_must verify_pool $TESTPOOL
 		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
 		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
@@ -92,6 +94,13 @@ for replace_mode in "healing" "sequential"; do
 
 	log_must is_data_valid $TESTPOOL
 	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
+
+	# Verify that after clearing the 1st faulted vdev, all is healed.
+	log_must zpool clear $TESTPOOL "$BASEDIR/vdev0"
+	log_must wait_resilvered $TESTPOOL
+	log_must verify_pool $TESTPOOL
+	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
+	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
 
 	cleanup
 done

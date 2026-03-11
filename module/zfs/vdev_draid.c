@@ -1452,13 +1452,6 @@ vdev_draid_group_missing(vdev_t *vd, uint64_t offset, uint64_t txg,
 		/* Transaction group is known to be partially replicated. */
 		if (vdev_draid_partial(cvd, physical_offset, txg, size))
 			return (B_TRUE);
-
-		/*
-		 * Always check groups with active distributed spares
-		 * because any vdev failure in the pool will affect them.
-		 */
-		if (vdev_draid_find_spare(cvd) != NULL)
-			return (B_TRUE);
 	}
 
 	return (B_FALSE);
