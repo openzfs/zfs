@@ -2868,8 +2868,11 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	nvlist_t *args = fnvlist_alloc();
 	fnvlist_add_uint64(args, "scan_type", (uint64_t)func);
 	fnvlist_add_uint64(args, "scan_command", (uint64_t)cmd);
-	fnvlist_add_uint64(args, "scan_date_start", (uint64_t)date_start);
-	fnvlist_add_uint64(args, "scan_date_end", (uint64_t)date_end);
+	if (date_start != 0 || date_end != 0) {
+		fnvlist_add_uint64(args, "scan_date_start",
+		    (uint64_t)date_start);
+		fnvlist_add_uint64(args, "scan_date_end", (uint64_t)date_end);
+	}
 
 	err = lzc_scrub(ZFS_IOC_POOL_SCRUB, zhp->zpool_name, args, NULL);
 	fnvlist_free(args);
