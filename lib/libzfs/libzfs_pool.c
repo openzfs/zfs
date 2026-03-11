@@ -4412,7 +4412,8 @@ zpool_clear(zpool_handle_t *zhp, const char *path, nvlist_t *rewindnvl)
 	zc.zc_cookie = policy.zlp_rewind;
 
 	zcmd_alloc_dst_nvlist(hdl, &zc, zhp->zpool_config_size * 2);
-	zcmd_write_src_nvlist(hdl, &zc, rewindnvl);
+	if (rewindnvl != NULL)
+		zcmd_write_src_nvlist(hdl, &zc, rewindnvl);
 
 	while ((error = zfs_ioctl(hdl, ZFS_IOC_CLEAR, &zc)) != 0 &&
 	    errno == ENOMEM)
