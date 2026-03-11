@@ -66,6 +66,6 @@ Generally, if a distribution is following an LTS kernel, it should work well wit
 
 ## FreeBSD
 
-All FreeBSD releases receiving **security support** are supported by OpenZFS.
+All FreeBSD releases receiving [security support](https://www.freebsd.org/security/#sup) are supported by OpenZFS.
 
 **Supported FreeBSD releases**: **15.0**, **14.4**, **13.5**.
