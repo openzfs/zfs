@@ -8300,11 +8300,8 @@ zpool_do_clear(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
-	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
-	    ZPOOL_NO_REWIND) != 0) {
+	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0)
 		return (1);
-	}
 
 	pool = argv[0];
 	device = argc == 2 ? argv[1] : NULL;
