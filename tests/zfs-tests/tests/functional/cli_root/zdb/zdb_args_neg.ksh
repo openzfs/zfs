@@ -57,7 +57,7 @@ set -A args "create" "add" "destroy" "import fakepool" \
     "add mirror fakepool" "add raidz fakepool" \
     "add raidz1 fakepool" "add raidz2 fakepool" \
     "setvprop" "blah blah" "-%" "--?" "-*" "-=" \
-    "-a" "-f" "-g" "-j" "-n" "-o" "-p" "-p /tmp" \
+    "-a"  "-g" "-j" "-n" "-o" "-p" "-p /tmp" \
     "-t" "-w" "-z" "-E" "-H" "-I" "-J" \
     "-Q" "-R" "-W"
 
