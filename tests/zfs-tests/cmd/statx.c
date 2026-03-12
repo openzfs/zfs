@@ -27,6 +27,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -54,9 +55,11 @@
 #endif /* __NR_statx */
 
 
+#ifndef HAVE_STATX
 int
 statx(int, const char *, int, unsigned int, void *)
     __attribute__((weak));
+#endif
 
 static inline int
 _statx(int fd, const char *path, int flags, unsigned int mask, void *stx)
