@@ -108,6 +108,7 @@ unsigned int zvol_request_sync = 0;
 struct hlist_head *zvol_htable;
 static list_t zvol_state_list;
 krwlock_t zvol_state_lock;
+extern int zfs_bclone_strict_properties;
 extern int zfs_bclone_wait_dirty;
 zv_taskq_t zvol_taskqs;
 
@@ -683,10 +684,47 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		goto out;
 	}
 
+	/*
+	 * Cloning between datasets with different properties is possible,
+	 * but it may cause confusions when copying data between them and
+	 * expecting new properties to apply.
+	 */
+	if (zfs_bclone_strict_properties && inos != outos &&
+	    !dmu_objset_is_snapshot(inos) &&
+	    (inos->os_checksum != outos->os_checksum ||
+	    inos->os_compress != outos->os_compress ||
+	    inos->os_copies != outos->os_copies ||
+	    inos->os_dedup_checksum != outos->os_dedup_checksum)) {
+		error = SET_ERROR(EXDEV);
+		goto out;
+	}
+
 	if (zv_src->zv_volblocksize != zv_dst->zv_volblocksize) {
 		error = SET_ERROR(EINVAL);
 		goto out;
 	}
+
+	/*
+	 * Cloning between datasets with different special_small_blocks would
+	 * bypass storage tier migration that would occur with a regular copy.
+	 */
+	if (zfs_bclone_strict_properties && inos != outos &&
+	    !dmu_objset_is_snapshot(inos) &&
+	    spa_has_special(dmu_objset_spa(inos))) {
+		uint64_t in_smallblk = inos->os_zpl_special_smallblock;
+		uint64_t out_smallblk = outos->os_zpl_special_smallblock;
+		if (in_smallblk != out_smallblk) {
+			uint64_t min_smallblk = MIN(in_smallblk, out_smallblk);
+			uint64_t max_smallblk = MAX(in_smallblk, out_smallblk);
+			if (min_smallblk < zv_src->zv_volblocksize &&
+			    (inos->os_compress != ZIO_COMPRESS_OFF ||
+			    max_smallblk >= zv_src->zv_volblocksize)) {
+				error = SET_ERROR(EXDEV);
+				goto out;
+			}
+		}
+	}
+
 	if (inoff >= zv_src->zv_volsize || outoff >= zv_dst->zv_volsize) {
 		goto out;
 	}
@@ -700,6 +738,15 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		len = zv_dst->zv_volsize - outoff;
 	if (len == 0)
 		goto out;
+
+	/*
+	 * Callers might not be able to detect properly that we are read-only,
+	 * so check it explicitly here.
+	 */
+	if (zv_dst->zv_flags & ZVOL_RDONLY) {
+		error = SET_ERROR(EROFS);
+		goto out;
+	}
 
 	/*
 	 * No overlapping if we are cloning within the same file
