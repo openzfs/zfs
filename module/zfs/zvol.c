@@ -663,10 +663,26 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		error = SET_ERROR(EXDEV);
 		goto out;
 	}
+
+	/*
+	 * Block cloning from an unencrypted dataset into an encrypted
+	 * dataset and vice versa is not supported.
+	 */
 	if (inos->os_encrypted != outos->os_encrypted) {
 		error = SET_ERROR(EXDEV);
 		goto out;
 	}
+
+	/*
+	 * Cloning across encrypted datasets is possible only if they
+	 * share the same master key.
+	 */
+	if (inos != outos && inos->os_encrypted &&
+	    !dmu_objset_crypto_key_equal(inos, outos)) {
+		error = SET_ERROR(EXDEV);
+		goto out;
+	}
+
 	if (zv_src->zv_volblocksize != zv_dst->zv_volblocksize) {
 		error = SET_ERROR(EINVAL);
 		goto out;
