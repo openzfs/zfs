@@ -64,7 +64,7 @@ statx(int, const char *, int, unsigned int, void *)
 static inline int
 _statx(int fd, const char *path, int flags, unsigned int mask, void *stx)
 {
-	if (statx)
+	if (&statx != NULL)
 		return (statx(fd, path, flags, mask, stx));
 	else
 		return (syscall(__NR_statx, fd, path, flags, mask, stx));
