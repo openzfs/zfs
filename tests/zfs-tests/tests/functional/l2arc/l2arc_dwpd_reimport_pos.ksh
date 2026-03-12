@@ -50,6 +50,7 @@ function cleanup
 	restore_tunable L2ARC_WRITE_MAX
 	restore_tunable L2ARC_NOPREFETCH
 	restore_tunable L2ARC_DWPD_LIMIT
+	restore_tunable L2ARC_EXT_HEADROOM_PCT
 	restore_tunable L2ARC_REBUILD_BLOCKS_MIN_L2SIZE
 	restore_tunable ARC_MIN
 	restore_tunable ARC_MAX
@@ -60,6 +61,7 @@ log_onexit cleanup
 save_tunable L2ARC_WRITE_MAX
 save_tunable L2ARC_NOPREFETCH
 save_tunable L2ARC_DWPD_LIMIT
+save_tunable L2ARC_EXT_HEADROOM_PCT
 save_tunable L2ARC_REBUILD_BLOCKS_MIN_L2SIZE
 save_tunable ARC_MIN
 save_tunable ARC_MAX
@@ -78,6 +80,7 @@ log_must set_tunable64 ARC_MAX $((400 * 1024 * 1024))
 log_must set_tunable64 ARC_MIN $((200 * 1024 * 1024))
 log_must set_tunable32 L2ARC_NOPREFETCH 0
 log_must set_tunable32 L2ARC_WRITE_MAX $((200 * 1024 * 1024))
+log_must set_tunable64 L2ARC_EXT_HEADROOM_PCT 0
 
 # Create larger main vdev to accommodate fill data
 log_must truncate -s 8G $VDEV
@@ -164,6 +167,6 @@ if [[ $writes_after -eq 0 ]]; then
 	log_fail "No writes after import - rate limiting may be broken"
 fi
 
-log_must zpool destroy $TESTPOOL
+destroy_pool $TESTPOOL
 
 log_pass "L2ARC DWPD rate limiting works after pool export/import."

@@ -27,14 +27,14 @@
 #	L2ARC parallel writes scale with number of cache devices.
 #
 # STRATEGY:
-#	1. Configure L2ARC write rate to 16MB/s per device.
-#	2. Disable DWPD rate limiting to test pure parallel throughput.
-#	3. Create pool with single 2100MB cache device.
-#	4. Generate continuous writes, wait for L2ARC activity, measure over 25s.
-#	5. Verify single-device throughput ~400MB (16MB/s × 25s).
-#	6. Recreate pool with dual 2100MB cache devices.
-#	7. Generate continuous writes, wait for L2ARC activity, measure over 25s.
-#	8. Verify dual-device throughput ~800MB (2×16MB/s × 25s).
+#	1. Configure L2ARC write rate to 4MB/s per device.
+#	2. Disable DWPD rate limiting and depth cap to test pure parallel throughput.
+#	3. Create pool with single 3072MB cache device.
+#	4. Generate continuous writes, wait for L2ARC activity, measure over 12s.
+#	5. Verify single-device throughput ~48MB (4MB/s × 12s).
+#	6. Recreate pool with dual 3072MB cache devices.
+#	7. Generate continuous writes, wait for L2ARC activity, measure over 12s.
+#	8. Verify dual-device throughput ~96MB (2×4MB/s × 12s).
 #
 
 verify_runnable "global"
@@ -50,6 +50,7 @@ function cleanup
 	restore_tunable L2ARC_WRITE_MAX
 	restore_tunable L2ARC_NOPREFETCH
 	restore_tunable L2ARC_DWPD_LIMIT
+	restore_tunable L2ARC_EXT_HEADROOM_PCT
 	restore_tunable ARC_MIN
 	restore_tunable ARC_MAX
 }
@@ -59,19 +60,23 @@ log_onexit cleanup
 save_tunable L2ARC_WRITE_MAX
 save_tunable L2ARC_NOPREFETCH
 save_tunable L2ARC_DWPD_LIMIT
+save_tunable L2ARC_EXT_HEADROOM_PCT
 save_tunable ARC_MIN
 save_tunable ARC_MAX
 
-# Test parameters
-typeset cache_sz=1000
+# Test parameters — cache_sz and write_max are chosen so that total writes
+# per phase stay below the global marker reset threshold
+# (smallest_capacity/8) to avoid throughput disruption from marker resets.
+typeset cache_sz=3072
 typeset fill_mb=2500   # 2.5GB initial data
-typeset test_time=12   # Measurement window: 16MB/s × 12s = ~200MB per device
+typeset test_time=12   # Measurement window: 4MB/s × 12s = ~48MB per device
 
-# Disable DWPD to test pure parallel throughput
+# Disable DWPD and depth cap to test pure parallel throughput
 log_must set_tunable32 L2ARC_DWPD_LIMIT 0
+log_must set_tunable64 L2ARC_EXT_HEADROOM_PCT 0
 
-# Set L2ARC_WRITE_MAX to 16MB/s to test parallel scaling
-log_must set_tunable32 L2ARC_WRITE_MAX $((16 * 1024 * 1024))
+# Set L2ARC_WRITE_MAX to 4MB/s to test parallel scaling
+log_must set_tunable32 L2ARC_WRITE_MAX $((4 * 1024 * 1024))
 log_must set_tunable32 L2ARC_NOPREFETCH 0
 
 # Configure arc_max so L2ARC >= arc_c_max * 2 threshold for persistent markers
@@ -107,12 +112,12 @@ kill $dd_pid 2>/dev/null
 wait $dd_pid 2>/dev/null
 typeset single_writes=$((end - start))
 
-# expected = 16MB/s * 1 device * 25s = 400MB
-typeset single_expected=$((16 * 1024 * 1024 * test_time))
+# expected = 4MB/s * 1 device * 12s = 48MB
+typeset single_expected=$((4 * 1024 * 1024 * test_time))
 log_note "Single-device writes: $((single_writes / 1024 / 1024))MB (expected ~$((single_expected / 1024 / 1024))MB)"
 
 # Dual device test
-log_must zpool destroy $TESTPOOL
+destroy_pool $TESTPOOL
 log_must truncate -s ${cache_sz}M $VDEV_CACHE
 log_must truncate -s ${cache_sz}M $VDEV_CACHE2
 
@@ -142,8 +147,8 @@ kill $dd_pid 2>/dev/null
 wait $dd_pid 2>/dev/null
 typeset dual_writes=$((end - start))
 
-# expected = 16MB/s * 2 devices * 25s = 800MB
-typeset dual_expected=$((16 * 1024 * 1024 * 2 * test_time))
+# expected = 4MB/s * 2 devices * 12s = 96MB
+typeset dual_expected=$((4 * 1024 * 1024 * 2 * test_time))
 log_note "Dual-device writes: $((dual_writes / 1024 / 1024))MB (expected ~$((dual_expected / 1024 / 1024))MB)"
 
 # Verify writes are within expected range (80-150%)
@@ -157,6 +162,6 @@ if [[ $dual_writes -lt $dual_min ]]; then
 	log_fail "Dual-device writes $((dual_writes / 1024 / 1024))MB below minimum $((dual_min / 1024 / 1024))MB"
 fi
 
-log_must zpool destroy $TESTPOOL
+destroy_pool $TESTPOOL
 
 log_pass "L2ARC parallel writes scale with number of cache devices."

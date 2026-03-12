@@ -51,6 +51,7 @@ function cleanup
 	restore_tunable L2ARC_WRITE_MAX
 	restore_tunable L2ARC_NOPREFETCH
 	restore_tunable L2ARC_DWPD_LIMIT
+	restore_tunable L2ARC_EXT_HEADROOM_PCT
 	restore_tunable ARC_MIN
 	restore_tunable ARC_MAX
 }
@@ -60,6 +61,7 @@ log_onexit cleanup
 save_tunable L2ARC_WRITE_MAX
 save_tunable L2ARC_NOPREFETCH
 save_tunable L2ARC_DWPD_LIMIT
+save_tunable L2ARC_EXT_HEADROOM_PCT
 save_tunable ARC_MIN
 save_tunable ARC_MAX
 
@@ -73,6 +75,7 @@ log_must set_tunable64 ARC_MAX $((400 * 1024 * 1024))
 log_must set_tunable64 ARC_MIN $((200 * 1024 * 1024))
 log_must set_tunable32 L2ARC_NOPREFETCH 0
 log_must set_tunable32 L2ARC_WRITE_MAX $((200 * 1024 * 1024))
+log_must set_tunable64 L2ARC_EXT_HEADROOM_PCT 0
 
 # Create larger main vdev to accommodate fill data
 log_must truncate -s 5G $VDEV
@@ -133,6 +136,6 @@ if [[ ${results[5000]} -le ${results[1800]} ]]; then
 	log_fail "DWPD=5000 should write more than DWPD=1800"
 fi
 
-log_must zpool destroy $TESTPOOL
+destroy_pool $TESTPOOL
 
 log_pass "L2ARC DWPD rate limiting correctly limits write rate."
