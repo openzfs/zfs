@@ -44,6 +44,7 @@ usr/share/zfs/compatibility.d/
 usr/share/bash-completion/completions
 usr/share/man/man1/zarcstat.1
 usr/share/man/man1/zhack.1
+usr/share/man/man1/zilstat.1
 usr/share/man/man1/zvol_wait.1
 usr/share/man/man5/
 usr/share/man/man8/fsck.zfs.8
