@@ -1439,8 +1439,7 @@ zfsvfs_hold(const char *name, const void *tag, zfsvfs_t **zfvp,
 			 * objset from the zfsvfs.
 			 */
 			ZFS_TEARDOWN_EXIT(*zfvp, tag);
-			if (zfs_vfs_held(*zfvp))
-				zfs_vfs_rele(*zfvp);
+			zfs_vfs_rele(*zfvp);
 			return (SET_ERROR(EBUSY));
 		}
 	}
