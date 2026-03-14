@@ -690,7 +690,7 @@
     <elf-symbol name='fletcher_4_superscalar4_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2688' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2744' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='544' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1668,8 +1668,103 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/os/linux/mnttab.c' language='LANG_C99'>
+    <array-type-def dimensions='1' type-id='d315442e' size-in-bits='16' id='811205dc'>
+      <subrange length='1' type-id='7359adad' id='52f813b4'/>
+    </array-type-def>
+    <array-type-def dimensions='1' type-id='d3130597' size-in-bits='768' id='f63f23b9'>
+      <subrange length='12' type-id='7359adad' id='84827bdc'/>
+    </array-type-def>
+    <typedef-decl name='__u16' type-id='8efea9e5' id='d315442e'/>
+    <typedef-decl name='__s32' type-id='95e97e5e' id='3158a266'/>
+    <typedef-decl name='__u32' type-id='f0981eeb' id='3f1a6b60'/>
+    <typedef-decl name='__s64' type-id='1eb56b1e' id='49659421'/>
+    <typedef-decl name='__u64' type-id='3a47d82b' id='d3130597'/>
+    <class-decl name='statx_timestamp' size-in-bits='128' is-struct='yes' visibility='default' id='94101016'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='tv_sec' type-id='49659421' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='tv_nsec' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='96'>
+        <var-decl name='__reserved' type-id='3158a266' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <class-decl name='statx' size-in-bits='2048' is-struct='yes' visibility='default' id='720b04c5'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='stx_mask' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='32'>
+        <var-decl name='stx_blksize' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='stx_attributes' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='stx_nlink' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='160'>
+        <var-decl name='stx_uid' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='stx_gid' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='224'>
+        <var-decl name='stx_mode' type-id='d315442e' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='240'>
+        <var-decl name='__spare0' type-id='811205dc' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='stx_ino' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='stx_size' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='384'>
+        <var-decl name='stx_blocks' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='448'>
+        <var-decl name='stx_attributes_mask' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='512'>
+        <var-decl name='stx_atime' type-id='94101016' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='640'>
+        <var-decl name='stx_btime' type-id='94101016' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='768'>
+        <var-decl name='stx_ctime' type-id='94101016' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='896'>
+        <var-decl name='stx_mtime' type-id='94101016' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1024'>
+        <var-decl name='stx_rdev_major' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1056'>
+        <var-decl name='stx_rdev_minor' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1088'>
+        <var-decl name='stx_dev_major' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1120'>
+        <var-decl name='stx_dev_minor' type-id='3f1a6b60' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1152'>
+        <var-decl name='stx_mnt_id' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1216'>
+        <var-decl name='__spare2' type-id='d3130597' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1280'>
+        <var-decl name='__spare3' type-id='f63f23b9' visibility='default'/>
+      </data-member>
+    </class-decl>
     <pointer-type-def type-id='56fe4a37' size-in-bits='64' id='b6b61d2f'/>
     <qualified-type-def type-id='b6b61d2f' restrict='yes' id='3cad23cd'/>
+    <pointer-type-def type-id='720b04c5' size-in-bits='64' id='936b8e35'/>
+    <qualified-type-def type-id='936b8e35' restrict='yes' id='31d265b7'/>
     <function-decl name='getmntent_r' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='e75a27e9'/>
       <parameter type-id='3cad23cd'/>
@@ -1679,6 +1774,14 @@
     </function-decl>
     <function-decl name='feof' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='822cd80b'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='statx' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='f0981eeb'/>
+      <parameter type-id='31d265b7'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
@@ -3830,6 +3933,10 @@
       <parameter type-id='80f4b756'/>
       <return type-id='58603c44'/>
     </function-decl>
+    <function-decl name='zfs_prop_user' mangled-name='zfs_prop_user' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_user'>
+      <parameter type-id='80f4b756'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
     <function-decl name='nvlist_add_uint64' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='80f4b756'/>
@@ -3853,9 +3960,6 @@
       <parameter type-id='80f4b756'/>
       <parameter type-id='7d3cd834'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='fnvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='5ce45b60'/>
     </function-decl>
     <function-decl name='__ctype_b_loc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='c59e1ef0'/>
@@ -4529,10 +4633,6 @@
       <parameter type-id='c19b74c3'/>
       <return type-id='c19b74c3'/>
     </function-decl>
-    <function-decl name='zfs_prop_user' mangled-name='zfs_prop_user' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_user'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='c19b74c3'/>
-    </function-decl>
     <function-decl name='zfs_prop_userquota' mangled-name='zfs_prop_userquota' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_userquota'>
       <parameter type-id='80f4b756'/>
       <return type-id='c19b74c3'/>
@@ -4641,6 +4741,9 @@
       <parameter type-id='dace003f'/>
       <parameter type-id='7d3cd834'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='fnvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='5ce45b60'/>
     </function-decl>
     <function-decl name='fnvlist_free' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
@@ -4909,6 +5012,12 @@
       <parameter type-id='80f4b756' name='path'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='zfs_create_ancestors_props' mangled-name='zfs_create_ancestors_props' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_create_ancestors_props'>
+      <parameter type-id='b0382bb3' name='hdl'/>
+      <parameter type-id='80f4b756' name='path'/>
+      <parameter type-id='5ce45b60' name='props'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='zfs_create' mangled-name='zfs_create' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_create'>
       <parameter type-id='b0382bb3' name='hdl'/>
       <parameter type-id='80f4b756' name='path'/>
@@ -5153,6 +5262,19 @@
     </function-decl>
     <function-decl name='changelist_haszonedchild' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='0d41d328'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_is_namespace_prop' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='58603c44'/>
+      <return type-id='c19b74c3'/>
+    </function-decl>
+    <function-decl name='zfs_namespace_prop_flag' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='58603c44'/>
+      <return type-id='8f92235e'/>
+    </function-decl>
+    <function-decl name='zfs_mount_setattr' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9200a744'/>
+      <parameter type-id='8f92235e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_name_valid' visibility='default' binding='global' size-in-bits='64'>
@@ -6567,14 +6689,15 @@
       <enumerator name='SPA_FEATURE_AVZ_V2' value='38'/>
       <enumerator name='SPA_FEATURE_REDACTION_LIST_SPILL' value='39'/>
       <enumerator name='SPA_FEATURE_RAIDZ_EXPANSION' value='40'/>
-      <enumerator name='SPA_FEATURE_FAST_DEDUP' value='41'/>
-      <enumerator name='SPA_FEATURE_LONGNAME' value='42'/>
-      <enumerator name='SPA_FEATURE_LARGE_MICROZAP' value='43'/>
-      <enumerator name='SPA_FEATURE_DYNAMIC_GANG_HEADER' value='44'/>
-      <enumerator name='SPA_FEATURE_BLOCK_CLONING_ENDIAN' value='45'/>
-      <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
-      <enumerator name='SPA_FEATURE_DRAID_FAIL_DOMAINS' value='47'/>
-      <enumerator name='SPA_FEATURES' value='48'/>
+      <enumerator name='SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING' value='41'/>
+      <enumerator name='SPA_FEATURE_FAST_DEDUP' value='42'/>
+      <enumerator name='SPA_FEATURE_LONGNAME' value='43'/>
+      <enumerator name='SPA_FEATURE_LARGE_MICROZAP' value='44'/>
+      <enumerator name='SPA_FEATURE_DYNAMIC_GANG_HEADER' value='45'/>
+      <enumerator name='SPA_FEATURE_BLOCK_CLONING_ENDIAN' value='46'/>
+      <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='47'/>
+      <enumerator name='SPA_FEATURE_DRAID_FAIL_DOMAINS' value='48'/>
+      <enumerator name='SPA_FEATURES' value='49'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
@@ -8337,6 +8460,7 @@
       <parameter type-id='b0382bb3'/>
       <parameter type-id='26a90f95'/>
       <parameter type-id='95e97e5e'/>
+      <parameter type-id='5ce45b60'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_send_progress' mangled-name='zfs_send_progress' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_send_progress'>
@@ -9953,8 +10077,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='21504' id='bd288d11'>
-      <subrange length='48' type-id='7359adad' id='8f6d2a81'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='21952' id='f92b2a1c'>
+      <subrange length='49' type-id='7359adad' id='8b6f62cc'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -10015,7 +10139,7 @@
     <pointer-type-def type-id='c5c76c9c' size-in-bits='64' id='b7f9d8e6'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='bd288d11' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='f92b2a1c' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='tsearch' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>

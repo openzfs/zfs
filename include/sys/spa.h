@@ -1150,7 +1150,8 @@ extern vdev_t *spa_lookup_by_guid(spa_t *spa, uint64_t guid,
     boolean_t l2cache);
 extern boolean_t spa_has_l2cache(spa_t *, uint64_t guid);
 extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
-extern uint64_t dva_get_dsize_sync(spa_t *spa, const dva_t *dva);
+extern uint64_t dva_get_dsize_sync(spa_t *spa, const dva_t *dva,
+    uint64_t birth_txg);
 extern uint64_t bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp);
 extern uint64_t bp_get_dsize(spa_t *spa, const blkptr_t *bp);
 extern boolean_t spa_has_dedup(spa_t *spa);

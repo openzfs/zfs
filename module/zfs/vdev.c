@@ -1390,7 +1390,9 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	}
 
 	tvd->vdev_deflate_ratio = svd->vdev_deflate_ratio;
+	tvd->vdev_deflate_ratio_current = svd->vdev_deflate_ratio_current;
 	svd->vdev_deflate_ratio = 0;
+	svd->vdev_deflate_ratio_current = 0;
 
 	tvd->vdev_islog = svd->vdev_islog;
 	svd->vdev_islog = 0;
@@ -2076,6 +2078,11 @@ vdev_open_children_subset(vdev_t *vd, vdev_open_children_func_t *open_func)
  * account for existing bp's.  We also hard-code txg 0 for the same reason
  * since expanded RAIDZ vdevs can use a different asize for different birth
  * txg's.
+ *
+ * We also compute vdev_deflate_ratio_current using UINT64_MAX (current
+ * geometry) for use in capacity reporting (vs_dspace).  This reflects
+ * the actual usable capacity for new writes after RAIDZ expansion.
+ * The txg-0-based ratio is preserved for persistent per-block accounting.
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
@@ -2083,6 +2090,9 @@ vdev_set_deflate_ratio(vdev_t *vd)
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
 		vd->vdev_deflate_ratio = (1 << 17) /
 		    (vdev_psize_to_asize_txg(vd, 1 << 17, 0) >>
+		    SPA_MINBLOCKSHIFT);
+		vd->vdev_deflate_ratio_current = (1 << 17) /
+		    (vdev_psize_to_asize_txg(vd, 1 << 17, UINT64_MAX) >>
 		    SPA_MINBLOCKSHIFT);
 	}
 }
@@ -5314,6 +5324,40 @@ vdev_deflated_space(vdev_t *vd, int64_t space)
 }
 
 /*
+ * Return the deflation ratio appropriate for a block born at the given txg.
+ * For vdevs that have never been expanded (or non-RAIDZ vdevs), this is
+ * simply the cached vdev_deflate_ratio (based on txg 0 geometry).
+ *
+ * For expanded RAIDZ vdevs, the ratio depends on the logical width at the
+ * time the block was written.  The ratio is computed from the block's birth
+ * txg so that a given block always produces the same deflated size,
+ * preserving the consistency of persistent accounting (DN_USED_BYTES).
+ *
+ * The raidz_expansion_accounting feature records the txg at which per-block
+ * ratio tracking was enabled.  Blocks born before that txg were accounted
+ * using the legacy fixed ratio, so we must continue using it for those
+ * blocks to prevent born/free mismatches.
+ */
+uint64_t
+vdev_get_deflate_ratio(vdev_t *vd, uint64_t birth_txg)
+{
+	/*
+	 * If the raidz_expansion_accounting feature is not active, or
+	 * this block was born before the feature was enabled, use the
+	 * legacy fixed ratio.  This ensures blocks that were accounted
+	 * under the old code are freed with the same ratio they were born
+	 * with.
+	 */
+	uint64_t acct_txg = vd->vdev_spa->spa_raidz_expand_acct_txg;
+	if (acct_txg == 0 || birth_txg < acct_txg)
+		return (vd->vdev_deflate_ratio);
+
+	uint64_t asize_at_birth = vdev_psize_to_asize_txg(vd, 1 << 17,
+	    birth_txg);
+	return ((1 << 17) / (asize_at_birth >> SPA_MINBLOCKSHIFT));
+}
+
+/*
  * Update the in-core space usage stats for this vdev, its metaslab class,
  * and the root vdev.
  */
@@ -6863,6 +6907,7 @@ EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
+EXPORT_SYMBOL(vdev_get_deflate_ratio);
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_count, UINT, ZMOD_RW,
 	"Target number of metaslabs per top-level vdev");
