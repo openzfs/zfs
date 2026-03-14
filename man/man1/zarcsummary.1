@@ -1,0 +1,179 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.\" Copyright (c) 2026 Christos Longros.  All rights reserved.
+.\"
+.Dd March 14, 2026
+.Dt ZARCSUMMARY 1
+.Os
+.
+.Sh NAME
+.Nm zarcsummary
+.Nd print ZFS ARC and subsystem statistics
+.Sh SYNOPSIS
+.Nm
+.Op Fl adghr
+.Op Fl p Ar page
+.Op Fl s Ar section
+.
+.Sh DESCRIPTION
+.Nm
+collects statistics from the running kernel and prints a human-readable
+report on the state of the ZFS Adaptive Replacement Cache
+.Pq ARC
+and several related subsystems.
+The output is a snapshot; for periodic sampling, use
+.Xr zarcstat 1
+instead.
+.Pp
+When invoked without arguments,
+.Nm
+prints all sections in sequence.
+A single section may be selected with the
+.Fl s
+option.
+.Pp
+The report is organized into the following sections:
+.Bl -tag -offset Ds -width "tunables"
+.It Sy arc
+Current and target ARC sizes, the split between the Most Recently Used
+.Pq MRU
+and Most Frequently Used
+.Pq MFU
+lists, overall hit and miss ratios, compression savings, and whether the
+ARC is experiencing memory pressure.
+.It Sy archits
+Breakdown of ARC hits and misses by demand reads versus prefetches
+and data versus metadata.
+.It Sy dmu
+Data Management Unit predictive prefetcher statistics, including stream
+hits, misses, and I/O issued ahead of and behind the current stream.
+.It Sy l2arc
+Level-2 ARC statistics for any cache devices attached to imported pools.
+This section only appears when an L2ARC device is present and covers
+bytes read and written, hit rates, and eviction activity.
+.It Sy spl
+Solaris Porting Layer memory allocator statistics.
+This section is only available on Linux.
+.It Sy tunables
+Current values of kernel tunables that govern ARC behavior, including
+.Va zfs_arc_max
+and
+.Va zfs_arc_min .
+Combining this section with
+.Fl d
+adds a brief explanation of each tunable.
+.It Sy zil
+ZFS Intent Log statistics: committed transaction counts, flush requests
+to stable storage, and the byte-level split between normal vdevs and
+any separate log
+.Pq SLOG
+device.
+.El
+.
+.Sh OPTIONS
+.Bl -tag -width "-s"
+.It Fl a , -alternate
+Use an alternate layout for the tunables and SPL sections.
+.It Fl d , -description
+Print a short description next to each tunable and SPL entry.
+.It Fl h , -help
+Display a help message.
+.It Fl g , -graph
+Print an ASCII graph of current ARC use and exit.
+.It Fl p Ar page , Fl -page Ar page
+Print a section by its legacy page number.
+.Sy Deprecated ;
+use
+.Fl s
+instead.
+.It Fl r , -raw
+Dump all available data with minimal formatting.
+.It Fl s Ar section , Fl -section Ar section
+Print only the named section.
+See
+.Sx DESCRIPTION
+for the list of valid section names.
+.El
+.
+.Sh ENVIRONMENT
+.Bl -tag -width "FreeBSD"
+.It Sy Linux
+Statistics are read from
+.Pa /proc/spl/kstat/zfs/ .
+.It Fx
+Statistics are read via
+.Xr sysctl 3
+from the
+.Va vfs.zfs
+and
+.Va kstat.zfs.misc
+trees.
+The
+.Pa py-sysctl
+package must be installed for
+.Nm
+to function.
+.El
+.
+.Sh EXIT STATUS
+.Ex -std
+.
+.Sh EXAMPLES
+Print the full report:
+.Dl # zarcsummary
+.Pp
+Display only ARC size and hit rate information:
+.Dl # zarcsummary -s arc
+.Pp
+Show a visual overview of ARC health:
+.Dl # zarcsummary -g
+.Pp
+Search for all statistics containing
+.Dq hit :
+.Dl # zarcsummary -r | grep hit
+.Pp
+Review all tunables with their descriptions:
+.Dl # zarcsummary -d -s tunables
+.
+.Sh SEE ALSO
+.Xr zarcstat 1 ,
+.Xr zpool-status 8
+.
+.Sh HISTORY
+.Nm
+originated as a Perl script called
+.Nm arc_summary ,
+written by
+.An Ben Rockwood
+in 2008 for Solaris.
+.An Martin Matuska
+ported it to
+.Fx
+in 2010, and
+.An Jason J. Hellenthal
+took over maintenance.
+.An Scot W. Stevenson
+contributed a full rewrite in Python 3 in 2017, introducing the
+.Fl g ,
+.Fl r ,
+and
+.Fl s
+options along with the section-based output layout.
+The tool was renamed from
+.Nm arc_summary
+to
+.Nm zarcsummary
+in 2025 to align with the OpenZFS command naming convention.
+.
+.Sh AUTHORS
+This manual page was written by
+.An Christos Longros Aq Mt chris.longros@gmail.com .
