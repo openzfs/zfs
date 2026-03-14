@@ -6039,6 +6039,29 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
 
+/*
+ * Update the RAID-Z expansion accounting excess (see
+ * vdev_acct_excess_update()) for every DVA of a block.  The size used must
+ * match the space actually allocated or freed for each DVA.
+ */
+static void
+metaslab_acct_excess(spa_t *spa, const blkptr_t *bp, int ndvas,
+    uint64_t birth_txg, uint64_t txg, boolean_t alloc)
+{
+	if (spa->spa_raidz_expand_acct_txg == 0)
+		return;
+
+	for (int d = 0; d < ndvas; d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
+		if (vd == NULL)
+			continue;
+		uint64_t size = DVA_GET_GANG(dva) ?
+		    vdev_gang_header_asize(vd) : DVA_GET_ASIZE(dva);
+		vdev_acct_excess_update(vd, size, birth_txg, txg, alloc);
+	}
+}
+
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     int ndvas, uint64_t txg, const blkptr_t *hintbp, int flags,
@@ -6106,6 +6129,8 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	if (actual_psize)
 		*actual_psize = smallest_psize;
 
+	metaslab_acct_excess(spa, bp, ndvas, txg, txg, B_TRUE);
+
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
 	BP_SET_BIRTH(bp, txg, 0);
@@ -6151,6 +6176,14 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 
 	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
 
+	/*
+	 * Checkpointed blocks stay allocated until the checkpoint is
+	 * discarded, but we drop their excess now: that only understates
+	 * the available space while the checkpoint exists.
+	 */
+	metaslab_acct_excess(spa, bp, ndvas, BP_GET_PHYSICAL_BIRTH(bp), txg,
+	    B_FALSE);
+
 	for (int d = 0; d < ndvas; d++) {
 		if (now) {
 			metaslab_unalloc_dva(spa, &dva[d], txg);
@@ -6187,6 +6220,11 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 		error = metaslab_claim_dva(spa, &dva[d], txg);
 		if (error != 0)
 			break;
+	}
+
+	if (error == 0 && txg != 0) {
+		metaslab_acct_excess(spa, bp, ndvas,
+		    BP_GET_PHYSICAL_BIRTH(bp), txg, B_TRUE);
 	}
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
