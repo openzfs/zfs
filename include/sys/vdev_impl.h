@@ -259,6 +259,16 @@ struct vdev {
 	list_node_t	vdev_config_dirty_node; /* config dirty list	*/
 	list_node_t	vdev_state_dirty_node; /* state dirty list	*/
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
+	uint64_t	vdev_deflate_ratio_current; /* current geometry	*/
+	/*
+	 * Deflated space charged for allocated blocks beyond what the
+	 * legacy vdev_deflate_ratio would charge for them: the sum of
+	 * (asize >> SPA_MINBLOCKSHIFT) * (birth ratio - legacy ratio).
+	 * vdev_acct_excess is the synced value; the per-txg deltas are
+	 * folded into it by vdev_sync().
+	 */
+	uint64_t	vdev_acct_excess;
+	uint64_t	vdev_acct_excess_delta[TXG_SIZE];
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_noalloc;	/* device is passivated?	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/

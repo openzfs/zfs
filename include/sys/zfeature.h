@@ -42,6 +42,8 @@ extern boolean_t spa_feature_is_enabled(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_is_active(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid,
     uint64_t *txg);
+extern void spa_feature_set_enabled_txg(spa_t *spa, spa_feature_t fid,
+    uint64_t txg, dmu_tx_t *tx);
 extern uint64_t spa_feature_refcount(spa_t *, spa_feature_t, uint64_t);
 extern boolean_t spa_features_check(spa_t *, boolean_t, nvlist_t *, nvlist_t *);
 
