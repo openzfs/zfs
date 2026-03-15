@@ -36,9 +36,7 @@
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
-#ifdef HAVE_FS_CONTEXT
 #include <linux/fs_context.h>
-#endif
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -508,7 +506,6 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 #endif
 }
 
-#ifdef HAVE_FS_CONTEXT
 /*
  * Since kernel 5.2, the "new" fs_context-based mount API has been preferred
  * over the traditional file_system_type->mount() and
@@ -559,7 +556,6 @@ zpl_init_fs_context(struct fs_context *fc)
 	fc->ops = &zpl_fs_context_operations;
 	return (0);
 }
-#endif
 
 const struct super_operations zpl_super_operations = {
 	.alloc_inode		= zpl_inode_alloc,
@@ -574,9 +570,6 @@ const struct super_operations zpl_super_operations = {
 	.put_super		= zpl_put_super,
 	.sync_fs		= zpl_sync_fs,
 	.statfs			= zpl_statfs,
-#ifndef HAVE_FS_CONTEXT
-	.remount_fs		= zpl_remount_fs,
-#endif
 	.show_devname		= zpl_show_devname,
 	.show_options		= zpl_show_options,
 	.show_stats		= NULL,
@@ -619,11 +612,7 @@ struct file_system_type zpl_fs_type = {
 #else
 	.fs_flags		= FS_USERNS_MOUNT,
 #endif
-#ifdef HAVE_FS_CONTEXT
 	.init_fs_context	= zpl_init_fs_context,
-#else
-	.mount			= zpl_mount,
-#endif
 	.kill_sb		= zpl_kill_sb,
 };
 
