@@ -267,21 +267,6 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 }
 
 static int
-zpl_remount_fs(struct super_block *sb, int *flags, char *data)
-{
-	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_data = data };
-	fstrans_cookie_t cookie;
-	int error;
-
-	cookie = spl_fstrans_mark();
-	error = -zfs_remount(sb, flags, &zm);
-	spl_fstrans_unmark(cookie);
-	ASSERT3S(error, <=, 0);
-
-	return (error);
-}
-
-static int
 __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
 	int error;
@@ -458,19 +443,6 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 	return (s);
 }
 
-static struct dentry *
-zpl_mount(struct file_system_type *fs_type, int flags,
-    const char *osname, void *data)
-{
-	zfs_mnt_t zm = { .mnt_osname = osname, .mnt_data = data };
-
-	struct super_block *sb = zpl_mount_impl(fs_type, flags, &zm);
-	if (IS_ERR(sb))
-		return (ERR_CAST(sb));
-
-	return (dget(sb->s_root));
-}
-
 static void
 zpl_kill_sb(struct super_block *sb)
 {
@@ -506,15 +478,6 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 #endif
 }
 
-/*
- * Since kernel 5.2, the "new" fs_context-based mount API has been preferred
- * over the traditional file_system_type->mount() and
- * super_operations->remount_fs() callbacks, which were deprectate. In 7.0,
- * those callbacks were removed.
- *
- * Currently, the old-style interface are the only ones we need, so this is
- * a simple compatibility shim to adapt the new API to the old-style calls.
- */
 static int
 zpl_parse_monolithic(struct fs_context *fc, void *data)
 {
@@ -529,8 +492,13 @@ zpl_parse_monolithic(struct fs_context *fc, void *data)
 static int
 zpl_get_tree(struct fs_context *fc)
 {
-	struct dentry *root =
-	    zpl_mount(fc->fs_type, fc->sb_flags, fc->source, fc->fs_private);
+	zfs_mnt_t zm = { .mnt_osname = fc->source, .mnt_data = fc->fs_private };
+
+	struct super_block *sb = zpl_mount_impl(fc->fs_type, fc->sb_flags, &zm);
+	if (IS_ERR(sb))
+		return (PTR_ERR(sb));
+
+	struct dentry *root = dget(sb->s_root);
 	if (IS_ERR(root))
 		return (PTR_ERR(root));
 
@@ -541,7 +509,16 @@ zpl_get_tree(struct fs_context *fc)
 static int
 zpl_reconfigure(struct fs_context *fc)
 {
-	return (zpl_remount_fs(fc->root->d_sb, &fc->sb_flags, fc->fs_private));
+	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_data = fc->fs_private };
+	fstrans_cookie_t cookie;
+	int error;
+
+	cookie = spl_fstrans_mark();
+	error = -zfs_remount(fc->root->d_sb, &fc->sb_flags, &zm);
+	spl_fstrans_unmark(cookie);
+	ASSERT3S(error, <=, 0);
+
+	return (error);
 }
 
 const struct fs_context_operations zpl_fs_context_operations = {
