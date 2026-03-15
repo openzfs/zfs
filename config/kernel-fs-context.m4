@@ -29,5 +29,8 @@ AC_DEFUN([ZFS_AC_KERNEL_FS_CONTEXT], [
 		AC_DEFINE(HAVE_FS_CONTEXT, 1, [fs_context exists])
         ],[
 		AC_MSG_RESULT(no)
+		AC_MSG_ERROR([
+	*** This kernel does not have `struct fs_context`. OpenZFS cannot be compiled.
+		])
         ])
 ])
