@@ -1780,15 +1780,6 @@ bail:
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
-
-	if (err != 0) {
-		/*
-		 * Since we couldn't setup the sa framework, try to force
-		 * unmount this file system.
-		 */
-		if (zfsvfs->z_os)
-			(void) zfs_umount(zfsvfs->z_sb);
-	}
 	return (err);
 }
 
