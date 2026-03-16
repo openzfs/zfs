@@ -341,21 +341,6 @@ zpl_show_options(struct seq_file *seq, struct dentry *root)
 }
 
 static int
-zpl_fill_super(struct super_block *sb, void *data, int silent)
-{
-	zfs_mnt_t *zm = (zfs_mnt_t *)data;
-	fstrans_cookie_t cookie;
-	int error;
-
-	cookie = spl_fstrans_mark();
-	error = -zfs_domount(sb, zm, silent);
-	spl_fstrans_unmark(cookie);
-	ASSERT3S(error, <=, 0);
-
-	return (error);
-}
-
-static int
 zpl_test_super(struct super_block *s, void *data)
 {
 	zfsvfs_t *zfsvfs = s->s_fs_info;
@@ -476,12 +461,16 @@ zpl_get_tree(struct fs_context *fc)
 		    .mnt_osname = fc->source,
 		    .mnt_data = fc->fs_private,
 		};
-		err = zpl_fill_super(sb, &zm,
-		    fc->sb_flags & SB_SILENT ? 1 : 0);
+
+		fstrans_cookie_t cookie = spl_fstrans_mark();
+		err = zfs_domount(sb, &zm, fc->sb_flags & SB_SILENT ? 1 : 0);
+		spl_fstrans_unmark(cookie);
+
 		if (err) {
 			deactivate_locked_super(sb);
 			return (-err);
 		}
+
 		sb->s_flags |= SB_ACTIVE;
 	} else if (!issnap && ((fc->sb_flags ^ sb->s_flags) & SB_RDONLY)) {
 		/*
