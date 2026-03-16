@@ -28,7 +28,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd August 6, 2025
+.Dd March 16, 2026
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -87,7 +87,7 @@ If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
 .Pp
 Note that, due to changes in pool data on a live system, it is possible for
-scrubs to progress slightly beyond 100% completion.
+scrubs and resilvers to progress beyond 100% completion.
 During this period, no completion time estimate will be provided.
 .
 .Sh OPTIONS
