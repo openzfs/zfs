@@ -245,7 +245,6 @@ maybe = {
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'l2arc/l2arc_l2miss_pos': ['FAIL', known_reason],
-    'l2arc/l2arc_multidev_throughput_pos': ['FAIL', 18272],
     'l2arc/persist_l2arc_005_pos': ['FAIL', known_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmap/mmap_sync_001_pos': ['FAIL', known_reason],
