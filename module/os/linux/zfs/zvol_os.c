@@ -479,7 +479,12 @@ zvol_read_task(void *arg)
 	op == REQ_OP_DISCARD)
 
 /* Is this IO type supported by zvols? */
+#ifdef HAVE_BLKDEV_COPY_OFFLOAD
+#define	ZVOL_OP_IS_SUPPORTED(op) \
+	(op == REQ_OP_READ || ZVOL_OP_IS_WRITE(op) || op_is_copy(op))
+#else
 #define	ZVOL_OP_IS_SUPPORTED(op) (op == REQ_OP_READ || ZVOL_OP_IS_WRITE(op))
+#endif
 
 /* Get the IO opcode */
 #define	ZVOL_OP(bio, rq) (bio != NULL ? bio_op(bio) : req_op(rq))
