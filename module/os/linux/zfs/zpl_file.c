@@ -1268,6 +1268,7 @@ const struct file_operations zpl_dir_file_operations = {
 	.read		= generic_read_dir,
 	.iterate_shared	= zpl_iterate,
 	.fsync		= zpl_fsync,
+	.setlease	= generic_setlease,
 	.unlocked_ioctl = zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl   = zpl_compat_ioctl,
