@@ -67,6 +67,7 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
 	DSF_SCRUB_THOROUGH = 1<<2,
+	DSF_SCRUB_METADATA = 1<<3,
 } dsl_scan_flags_t;
 
 typedef struct dsl_errorscrub_phys {
@@ -82,6 +83,27 @@ typedef struct dsl_errorscrub_phys {
 } dsl_errorscrub_phys_t;
 
 #define	ERRORSCRUB_PHYS_NUMINTS (sizeof (dsl_errorscrub_phys_t) \
+	/ sizeof (uint64_t))
+
+/*
+ * Summary of the most recent completed scan of a given type. dsl_scan_phys_t
+ * (scn_phys) only ever reflects the active or most recent scan of any type,
+ * so a later scan of a different type overwrites its start/end time and
+ * statistics. A summary is written at completion and stored under its own
+ * key (DMU_POOL_LAST_SCRUB for a full scrub, DMU_POOL_LAST_METASCRUB for
+ * a metadata-only scrub), so "zpool status" can report each one
+ * independently.
+ */
+typedef struct dsl_scan_summary_phys {
+	uint64_t ss_start_time;
+	uint64_t ss_end_time;
+	uint64_t ss_to_examine;
+	uint64_t ss_examined;
+	uint64_t ss_processed;
+	uint64_t ss_errors;
+} dsl_scan_summary_phys_t;
+
+#define	SCAN_SUMMARY_PHYS_NUMINTS (sizeof (dsl_scan_summary_phys_t) \
 	/ sizeof (uint64_t))
 
 /*
@@ -173,6 +195,13 @@ typedef struct dsl_scan {
 	uint64_t scn_queues_pending;	/* outstanding data to issue */
 	/* members needed for syncing error scrub status to disk */
 	dsl_errorscrub_phys_t errorscrub_phys;
+	/*
+	 * Summaries of the last completed full scrub and the last completed
+	 * metadata-only scrub. Written at completion in dsl_scan_done(),
+	 * loaded at pool import.
+	 */
+	dsl_scan_summary_phys_t scn_last_scrub;
+	dsl_scan_summary_phys_t scn_last_metascrub;
 } dsl_scan_t;
 
 typedef struct {
@@ -196,6 +225,7 @@ int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
     uint64_t txgend, dsl_scan_flags_t flags);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
+boolean_t dsl_scan_metascrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrub_active(dsl_scan_t *scn);
 void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);

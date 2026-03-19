@@ -295,9 +295,17 @@ check_status(nvlist_t *config, boolean_t isimport,
 		 */
 		if (rebuild_end_time > 0) {
 			if (ps != NULL) {
-				if ((ps->pss_state == DSS_FINISHED &&
-				    ps->pss_func == POOL_SCAN_SCRUB &&
-				    rebuild_end_time > ps->pss_end_time) ||
+				uint64_t scrub_end = UINT64_MAX;
+				if (ps->pss_state == DSS_FINISHED &&
+				    ps->pss_func == POOL_SCAN_SCRUB) {
+					scrub_end = ps->pss_end_time;
+				} else if (ps->pss_state == DSS_FINISHED &&
+				    ps->pss_func == POOL_SCAN_METASCRUB &&
+				    POOL_SCAN_STAT_VALID(pss_last_scrub_end,
+				    psc)) {
+					scrub_end = ps->pss_last_scrub_end;
+				}
+				if (rebuild_end_time > scrub_end ||
 				    ps->pss_state == DSS_NONE)
 					return (ZPOOL_STATUS_REBUILD_SCRUB);
 			} else {

@@ -1960,12 +1960,12 @@ zfs_scan_ioc_validate(uint64_t scan_type, uint64_t scan_cmd,
 		return (SET_ERROR(EINVAL));
 
 	/* If it's not a scrub the dates should not be set */
-	if (scan_type != POOL_SCAN_SCRUB &&
+	if (scan_type != POOL_SCAN_SCRUB && scan_type != POOL_SCAN_METASCRUB &&
 	    (date_start != 0 || date_end != 0))
 		return (SET_ERROR(EINVAL));
 
 	/* From last TXG scrub only valid for scrubs */
-	if (scan_type != POOL_SCAN_SCRUB &&
+	if (scan_type != POOL_SCAN_SCRUB && scan_type != POOL_SCAN_METASCRUB &&
 	    (scan_cmd & POOL_SCRUB_FROM_LAST_TXG))
 		return (SET_ERROR(EINVAL));
 
