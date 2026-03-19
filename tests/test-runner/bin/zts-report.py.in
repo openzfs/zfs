@@ -163,6 +163,7 @@ known = {
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', 6066],
+    'redacted_send/redacted_opposite_endian': ['FAIL', 18344],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
 }
 

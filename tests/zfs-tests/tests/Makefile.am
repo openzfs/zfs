@@ -359,6 +359,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/projectquota/projectquota_common.kshlib \
 	functional/quota/quota.cfg \
 	functional/quota/quota.kshlib \
+	functional/redacted_send/big-endian-redacted.zsend.bz2 \
+	functional/redacted_send/little-endian-redacted.zsend.bz2 \
 	functional/redacted_send/redacted.cfg \
 	functional/redacted_send/redacted.kshlib \
 	functional/redundancy/redundancy.cfg \
@@ -1897,6 +1899,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redacted_send/redacted_mixed_recsize.ksh \
 	functional/redacted_send/redacted_mounts.ksh \
 	functional/redacted_send/redacted_negative.ksh \
+	functional/redacted_send/redacted_opposite_endian.ksh \
 	functional/redacted_send/redacted_origin.ksh \
 	functional/redacted_send/redacted_panic.ksh \
 	functional/redacted_send/redacted_props.ksh \
