@@ -35,12 +35,13 @@ jobs:
         id: os
         run: |
           ci_type="default"
+          ci_source="auto"
 
           # determine CI type when running on PR
           if ${{ github.event_name == 'pull_request' }}; then
             head=${{ github.event.pull_request.head.sha }}
             base=${{ github.event.pull_request.base.sha }}
-            ci_type=$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)
+            read ci_type ci_source <<< "$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)"
           fi
 
           case "$ci_type" in
@@ -58,6 +59,19 @@ jobs:
             os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora42", "fedora43", "freebsd14-3r", "freebsd15-0s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
             ;;
           esac
+
+          # Repository-level override for OS selection.
+          # Set vars.ZTS_OS_OVERRIDE in repo settings to restrict targets
+          # (e.g. '["debian13"]' or '["debian13", "fedora42"]').
+          # Manual ZFS-CI-Type in commit messages bypasses the override.
+          if [ -n "${{ vars.ZTS_OS_OVERRIDE }}" ] && [ "$ci_source" != "manual" ]; then
+            override='${{ vars.ZTS_OS_OVERRIDE }}'
+            if echo "$override" | jq -e 'type == "array"' >/dev/null 2>&1; then
+              os_selection="$override"
+            else
+              echo "::warning::Invalid ZTS_OS_OVERRIDE, using default"
+            fi
+          fi
 
           if ${{ github.event.inputs.fedora_kernel_ver != '' }}; then
               # They specified a custom kernel version for Fedora.
