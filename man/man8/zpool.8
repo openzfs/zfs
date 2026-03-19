@@ -108,7 +108,9 @@ specified.
 Destroys the given pool, freeing up any devices for other use.
 .It Xr zpool-labelclear 8
 Removes ZFS label information from the specified
-.Ar device .
+.Ar device ,
+making all data inaccessible without specialized recovery tools.
+Cannot be undone with ZFS tooling.
 .El
 .
 .Ss Virtual Devices

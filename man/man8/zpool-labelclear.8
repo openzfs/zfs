@@ -50,6 +50,15 @@ is a cache device, it also removes the L2ARC header
 The
 .Ar device
 must not be part of an active pool configuration.
+.Pp
+This overwrites pool metadata, making all data on the
+.Ar device
+inaccessible without specialized recovery tools.
+Unlike
+.Nm zpool Cm destroy ,
+this cannot be undone by ZFS tooling.
+Only use this when you don't care about the data on the
+.Ar device .
 .Bl -tag -width Ds
 .It Fl f
 Treat exported or foreign devices as inactive.
