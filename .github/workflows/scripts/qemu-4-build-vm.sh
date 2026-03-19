@@ -350,7 +350,16 @@ fi
 # save some sysinfo
 uname -a > /var/tmp/uname.txt
 
-cd $HOME/zfs
+# Check if we're running this script from within a VM or on the runner itself.
+# Most of the time we will be running in a VM, but the ARM builder actually
+# runs this script on the runner.  If we happen to be running on the ARM
+# runner, we will start in the ZFS source directory.  If we're running on a VM
+# then we'll just start in our home directory, and will need to 'cd' into our
+# source directory.
+if [ ! -e META ] ; then
+  cd $HOME/zfs
+fi
+
 export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
 
 extra=""
