@@ -1,0 +1,40 @@
+name: zfs-arm
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  zfs-arm:
+    name: ZFS ARM build
+    runs-on: ubuntu-24.04-arm
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Install dependencies
+      timeout-minutes: 20
+      run: |
+        sudo apt-get -y remove firefox || true
+        .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+
+        # We're running the VM scripts locally on the runner, so need to fix
+        # up hostnames to make it work.
+        for ((i=0; i<=3; i++)); do
+          echo "127.0.0.1 vm$i" | sudo tee -a /etc/hosts
+        done
+    - name: Build modules
+      timeout-minutes: 30
+      run: |
+        .github/workflows/scripts/qemu-4-build-vm.sh --enable-debug ubuntu24
+
+        # Quick sanity test since we're not running the full ZTS
+        sudo modprobe zfs
+        sudo dmesg | grep -i zfs
+        truncate -s 100M file
+        sudo zpool create tank ./file
+        zpool status
+
+        echo "Built ZFS successfully on ARM"
