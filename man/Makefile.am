@@ -130,17 +130,18 @@ SUBSTFILES += $(nodist_man_MANS)
 
 MANFILES = $(dist_noinst_man_MANS) $(dist_man_MANS) $(nodist_man_MANS)
 
-PHONY += mancheck
-
 mancheck_verbose = $(mancheck_verbose_@AM_V@)
 mancheck_verbose_ = $(mancheck_verbose_@AM_DEFAULT_V@)
-mancheck_verbose_0 = @echo MANCHECK $(_MTGT);
+mancheck_verbose_0 = @echo MANCHECK $<;
 
-_MTGT = $(subst ^,/,$(subst mancheck-,,$@))
-mancheck-%:
-	$(mancheck_verbose)scripts/mancheck.sh $(_MTGT)
+MANCHECK_TARGETS = $(foreach manfile, $(MANFILES), $(addprefix mancheck-,$(manfile)))
 
-mancheck: $(foreach manfile, $(MANFILES), $(addprefix mancheck-,$(subst /,^,$(manfile))))
+PHONY += $(MANCHECK_TARGETS) mancheck
+
+$(MANCHECK_TARGETS): mancheck-%: %
+	$(mancheck_verbose)scripts/mancheck.sh $<
+
+mancheck: $(MANCHECK_TARGETS)
 
 CHECKS += mancheck
 
