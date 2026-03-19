@@ -118,7 +118,7 @@ jobs:
 
     - name: Install dependencies
       timeout-minutes: 60
-      run: .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }} ${{ github.event.inputs.fedora_kernel_ver }}
+      run: .github/workflows/scripts/qemu-3-deps.sh --poweroff ${{ matrix.os }} ${{ github.event.inputs.fedora_kernel_ver }}
 
     - name: Build modules
       timeout-minutes: 30
