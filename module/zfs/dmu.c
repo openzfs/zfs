@@ -779,6 +779,54 @@ dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 	rw_exit(&dn->dn_struct_rwlock);
 }
 
+/*
+ * Prime a prefetch for sequential accesses from offset for at least len bytes.
+ */
+void
+dmu_prefetch_stream(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t len, boolean_t start_now)
+{
+	dnode_t *dn;
+
+	if (dnode_hold(os, object, FTAG, &dn) != 0)
+		return;
+	dmu_prefetch_stream_by_dnode(dn, offset, len, start_now);
+	dnode_rele(dn, FTAG);
+}
+
+void
+dmu_prefetch_stream_by_dnode(dnode_t *dn, uint64_t offset, uint64_t len,
+    boolean_t start_now)
+{
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	if (dn->dn_datablkshift != 0) {
+		uint64_t start = dbuf_whichblock(dn, 0, offset);
+		if (len == 0) {
+			if (dmu_zfetch_prime(&dn->dn_zfetch, start, start) &&
+			    start_now) {
+				dmu_zfetch(&dn->dn_zfetch, start, 0, B_TRUE,
+				    B_TRUE, B_TRUE, B_FALSE);
+			}
+		} else {
+			uint64_t end = dbuf_whichblock(dn, 0, offset + len - 1);
+			if (start == end) {
+				if (start_now) {
+					dbuf_prefetch(dn, 0, start,
+					    ZIO_PRIORITY_ASYNC_READ, 0);
+				}
+			} else if (
+			    dmu_zfetch_prime(&dn->dn_zfetch, start, end + 1) &&
+			    start_now) {
+				dmu_zfetch(&dn->dn_zfetch, start, 0, B_TRUE,
+				    B_TRUE, B_TRUE, B_FALSE);
+			}
+		}
+	} else if (offset < dn->dn_datablksz && start_now) {
+		dbuf_prefetch(dn, 0, 0, ZIO_PRIORITY_ASYNC_READ, 0);
+	}
+	rw_exit(&dn->dn_struct_rwlock);
+}
+
 typedef struct {
 	kmutex_t	dpa_lock;
 	kcondvar_t	dpa_cv;
@@ -2943,6 +2991,8 @@ EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_prefetch_by_dnode);
 EXPORT_SYMBOL(dmu_prefetch_dnode);
+EXPORT_SYMBOL(dmu_prefetch_stream);
+EXPORT_SYMBOL(dmu_prefetch_stream_by_dnode);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);
 EXPORT_SYMBOL(dmu_free_long_object);

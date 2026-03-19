@@ -1160,7 +1160,7 @@ spa_ld_log_sm_data(spa_t *spa)
 	while (sls != NULL) {
 		/* Prefetch log spacemaps up to 16 TXGs or MBs ahead. */
 		if (psls != NULL && pn < 16 &&
-		    (pn < 2 || ps < 2 * dmu_prefetch_max)) {
+		    (pn < 2 || ps < dmu_prefetch_max)) {
 			error = space_map_open(&psls->sls_sm,
 			    spa_meta_objset(spa), psls->sls_sm_obj, 0,
 			    UINT64_MAX, SPA_MINBLOCKSHIFT);
@@ -1171,9 +1171,9 @@ spa_ld_log_sm_data(spa_t *spa)
 				    (u_longlong_t)sls->sls_sm_obj, error);
 				goto out;
 			}
-			dmu_prefetch(spa_meta_objset(spa), psls->sls_sm_obj,
-			    0, 0, space_map_length(psls->sls_sm),
-			    ZIO_PRIORITY_ASYNC_READ);
+			dmu_prefetch_stream(spa_meta_objset(spa),
+			    psls->sls_sm_obj, 0,
+			    space_map_length(psls->sls_sm), B_TRUE);
 			pn++;
 			ps += space_map_length(psls->sls_sm);
 			psls = AVL_NEXT(&spa->spa_sm_logs_by_txg, psls);

@@ -455,6 +455,61 @@ dmu_zfetch_future(zstream_t *zs, uint64_t blkid, uint64_t nblks)
 }
 
 /*
+ * Prime a zfetch stream at blkid, so that the first demand access triggered
+ * enough prefetch without ramp-up to sequentially read up to end_blkid.
+ */
+boolean_t
+dmu_zfetch_prime(zfetch_t *zf, uint64_t blkid, uint64_t end_blkid)
+{
+	zstream_t *zs;
+	dnode_t *dn = zf->zf_dnode;
+	spa_t *spa = dn->dn_objset->os_spa;
+
+	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+	if (zfs_prefetch_disable ||
+	    dn->dn_objset->os_prefetch == ZFS_PREFETCH_NONE)
+		return (B_FALSE);
+
+	if (!spa_indirect_vdevs_loaded(spa))
+		return (B_FALSE);
+
+	uint64_t maxblkid = dn->dn_maxblkid;
+	unsigned int dbs = dn->dn_datablkshift;
+
+	if (blkid >= maxblkid)
+		return (B_FALSE);
+	if (end_blkid > maxblkid + 1)
+		end_blkid = maxblkid + 1;
+
+	mutex_enter(&zf->zf_lock);
+
+	/* Skip if a nearby stream already covers this range. */
+	uint_t max_near = zfetch_max_reorder >> dbs;
+	for (zs = list_head(&zf->zf_stream); zs != NULL;
+	    zs = list_next(&zf->zf_stream, zs)) {
+		uint64_t diff = (blkid >= zs->zs_blkid) ?
+		    (blkid - zs->zs_blkid) : (zs->zs_blkid - blkid);
+		if (diff <= max_near) {
+			mutex_exit(&zf->zf_lock);
+			return (B_FALSE);
+		}
+	}
+
+	dmu_zfetch_stream_create(zf, blkid);
+	zs = list_head(&zf->zf_stream);
+	ASSERT(zs != NULL);
+	ASSERT3U(zs->zs_blkid, ==, blkid);
+
+	/* dmu_zfetch_prepare() will double the distances, so take a half. */
+	unsigned int nbytes = ((end_blkid - blkid) << dbs) / 2;
+	zs->zs_pf_dist = MIN(nbytes, zfetch_min_distance);
+	zs->zs_ipf_dist = MIN(nbytes, zfetch_max_idistance);
+
+	mutex_exit(&zf->zf_lock);
+	return (B_TRUE);
+}
+
+/*
  * This is the predictive prefetch entry point.  dmu_zfetch_prepare()
  * associates dnode access specified with blkid and nblks arguments with
  * prefetch stream, predicts further accesses based on that stats and returns
@@ -493,20 +548,21 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 
 	/*
 	 * As a fast path for small (single-block) files, ignore access
-	 * to the first block.
+	 * to the first block, unless some streams exist, since a prime
+	 * may be waiting.
 	 */
-	if (!have_lock && blkid == 0)
+	if (!have_lock && blkid == 0 && zf->zf_numstreams == 0)
 		return (NULL);
 
 	if (!have_lock)
 		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
 
 	/*
-	 * A fast path for small files for which no prefetch will
-	 * happen.
+	 * A fast path for small files for which no prefetch will happen,
+	 * unless streams exist, since a prime may be waiting.
 	 */
 	uint64_t maxblkid = zf->zf_dnode->dn_maxblkid;
-	if (maxblkid < 2) {
+	if (maxblkid < 2 && (maxblkid == 0 || zf->zf_numstreams == 0)) {
 		if (!have_lock)
 			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 		return (NULL);
@@ -589,7 +645,7 @@ future:
 	zs->zs_atime = gethrestime_sec();
 
 	/* Exit if we already prefetched for this position before. */
-	if (nblks == 0)
+	if (nblks == 0 && zs->zs_ipf_end > end_blkid)
 		goto out;
 
 	/* If the file is ending, remove the stream. */
@@ -643,6 +699,7 @@ out:
 	 * Do the same for indirects, starting where we will stop reading
 	 * data blocks (and the indirects that point to them).
 	 */
+	nbytes = MAX(nbytes, (1 << dbs));
 	if (unlikely(zs->zs_ipf_dist < nbytes))
 		zs->zs_ipf_dist = nbytes;
 	else

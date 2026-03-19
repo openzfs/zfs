@@ -604,8 +604,7 @@ ddt_log_load_one(ddt_t *ddt, uint_t n)
 	}
 
 	if (hdr.dlh_length > 0) {
-		dmu_prefetch_by_dnode(dn, 0, 0, hdr.dlh_length,
-		    ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_stream_by_dnode(dn, 0, hdr.dlh_length, B_FALSE);
 
 		for (uint64_t offset = 0; offset < hdr.dlh_length;
 		    offset += dn->dn_datablksz) {
