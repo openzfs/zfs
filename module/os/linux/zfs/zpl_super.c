@@ -37,6 +37,7 @@
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
 #include <linux/fs_context.h>
+#include <linux/fs_parser.h>
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -390,6 +391,309 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 #endif
 }
 
+/*
+ * Mount option parsing.
+ *
+ * The kernel receives a set of "stringy" mount options, typically a
+ * comma-separated list through mount(2) or fsconfig(2). These are split into a
+ * set of struct fs_parameter, and then vfs_parse_fs_param() is called for
+ * each. That function will handle (and consume) some options directly, and
+ * other subsystems (mainly security modules) are given the opportunity to
+ * consume them too. Any left over are passed to zpl_parse_param(). Our job is
+ * to use them to fill in the vfs_t we've attached previously to
+ * fc->fs_private, ready for the mount or remount call when it comes.
+ *
+ * Historically, mount options have been generated, removed, modified and
+ * otherwise complicated by multiple different actors over a long time: the
+ * kernel itself, the original mount(8) utility and later libmount,
+ * mount.zfs(8), libzfs and the ZFS tools that use it, and any program using
+ * the various mount APIs that have come and gone over the years. This is
+ * further complicated by cross-pollination between OpenSolaris/illumos, Linux
+ * and FreeBSD. Long story short: we could see all sorts of things, and we need
+ * to at least try not to break old userspace programs.
+ *
+ * At time of writing, this is my best understanding of all the options we
+ * might reasonably see, and where and how they're handled.
+ *
+ *
+ * These are common options for all filesystems that are processed by the
+ * kernel directly, without zpl_parse_param() being called. They're a bit of a
+ * mixed bag, but are ultimately all available to us via either sb->s_flags or
+ * fc->sb_flags:
+ *
+ *	dirsync:	set SB_DIRSYNC
+ *	lazytime:	set SB_LAZYTIME
+ *	mand:		set SB_MANDLOCK
+ *	ro:		set SB_RDONLY
+ *	sync:		set SB_SYNCHRONOUS
+ *
+ *	async:		clear SB_SYNCHRONOUS
+ *	nolazytime:	clear SB_LAZYTIME
+ *	nomand:		clear SB_MANDLOCK
+ *	rw:		clear SB_RDONLY
+ *
+ * Fortunately, almost all of these are handled directly by the kernel. 'mand'
+ * and 'nomand' are swallowed by the kernel ('mand' emits a warning in the
+ * kernel log), but it and the corresponding dataset property have been a no-op
+ * in OpenZFS for years, so there's nothing for us to do there.
+ *
+ * The only tricky one is SB_RDONLY ('ro'/'rw'), which can be both a mount and
+ * a superblock option. While we won't receive the "stringy" options, the
+ * kernel will set it for us in fc->sb_flags, and we've always had special
+ * handling for it at mount and remount time (eg handling snapshot mounts), so
+ * it's not a problem to do nothing here because we will sort it out later.
+ *
+ *
+ * These are options that we may receive as "stringy" options but also as mount
+ * flags.
+ *
+ *	exec:		clear MS_NOEXEC
+ *	noexec:		set MS_NOEXEC
+ *	suid:		clear MS_NOSUID
+ *	nosuid:		set MS_NOSUID
+ *	dev:		clear MS_NODEV
+ *	nodev:		set MS_NODEV
+ *	atime:		clear MS_NOATIME
+ *	noatime:	set MS_NOATIME
+ *	relatime:	set MS_RELATIME
+ *	norelatime:	clear MS_RELATIME
+ *
+ * In testing, it appears that recent libmount will convert them, but our own
+ * mount code (libzfs_mount) may not. We will be called for the stringy
+ * versions, but not for the flags. The flags will later be available on
+ * vfsmount->mnt_flags, not set on the vfs_t. This tends not to matter in
+ * practice, as almost all mounts come through libzfs (via zfs-mount(8) or
+ * mount.zfs(8)) and so as strings, and when they do come through flags, they
+ * will still be reported correctly via mountinfo and by zfs-get(8), which has
+ * special handling for "temporary" properties. Also, we never use these
+ * internally for any decisions; 'exec', 'suid' and 'dev' are handled in the
+ * kernel, and the kernel provides helpers for 'atime' and 'relatime'. The
+ * only place the difference is observable is through zfs_get_temporary_prop(),
+ * which is only used by the zfs.get_prop() Lua call.
+ *
+ * This is fixable by getting at vfsmount->mnt_flags, but this is not readily
+ * available until after the mount operation is completed, and with some
+ * effort. This is all very low impact, so it's left for future improvement.
+ *
+ *
+ * These are true OpenZFS-specific mount options. They give the equivalent
+ * of temporarily setting the pool properties as follows:
+ *
+ *	strictatime	atime=on, relatime=off
+ *
+ *	xattr:		xattr=sa
+ *	saxattr:	xattr=sa
+ *	dirxattr:	xattr=dir
+ *	noxattr:	xattr=off
+ *
+ *
+ * mntpoint= provides the canonical mount point for a snapshot mount. This
+ * is an assist for the snapshot automounter call out to userspace, to
+ * understand where the snapshot is mounted even when triggered from an
+ * alternate mount namespace (eg inside a chroot).
+ *
+ *	mntpoint=	vfs->vfs_mntpoint=...
+ *
+ *
+ * These are used for coordination inside libzfs, and should not make it
+ * to the kernel, but it does not strip them, so we handle them and ignore
+ * them.
+ *
+ *	defaults
+ *	zfsutil
+ *	remount
+ *
+ *
+ * These are specific to SELinux. When that security module is running, it
+ * will consume them, but if not, they will be passed through to us. libzfs
+ * adds them unconditionally, so we will always see them when SELinux is not
+ * running, and ignore them.
+ *
+ *	fscontext
+ *	defcontext
+ *	rootcontext
+ *	context
+ *
+ *
+ * When preparing a remount, libmount will read /proc/self/mountinfo and add
+ * any unrecognised flags it finds there to the options. So, we have to accept
+ * anything that __zpl_show_options() can produce.
+ *
+ *	posixacl
+ *	noacl
+ *	casesensitive
+ *	caseinsensitive
+ *	casemixed
+ *
+ *
+ * mount(8) has a notion of "sloppy" options. According to the documentation,
+ * when the -s switch is provided, unrecognised mount options will be ignored.
+ * Only the Linux NFS and SMB filesystems support it, and traditionally
+ * OpenZFS has too. however, it appears massively underspecified and
+ * inconsistent. Depending on the interplay between mount(8), the mount helper
+ * (eg mount.zfs(8)) and libmount, -s may cause unknown options to be filtered
+ * in userspace, _or_ an additional option 'sloppy' to be passed to the kernel
+ * either before or after the "unknown" option, _or_ nothing at all happens
+ * and the unknown option to be passed through to the kernel as-is. The
+ * kernel NFS and SMB filesystems both expect to see an explicit option
+ * 'sloppy' and use this to either ignore or reject unknown options, but as
+ * described, it's very easy for that option to not appear, or appear too late.
+ *
+ * OpenZFS has a test for this in the test suite, and it's documented in
+ * mount.zfs(8), so to support it we accept 'sloppy' and ignore it, and all
+ * other unknown options produce a notice in the kernel log, and are also
+ * ignored. This allows the "feature" to continue to work, while avoiding
+ * the additional housekeeping for the 'sloppy' option.
+ *
+ *	sloppy
+ *
+ *
+ * Finally, all filesystems get automatic handling for the 'source' option,
+ * that is, the "name" of the filesystem (the first column of df(1)'s output).
+ * However, this only happens if the handler does not otherwise handle
+ * the 'source' option. Since we handle _all_ options because of 'sloppy', we
+ * deal with this explicitly by calling into the kernel's helper for this,
+ * vfs_parse_fs_param_source(), which sets up fc->source.
+ *
+ *	source
+ *
+ *
+ * Thank you for reading this far. I hope you find what you are looking for,
+ * in this life or the next.
+ *
+ *   -- robn, 2026-03-26
+ */
+
+enum {
+	Opt_exec, Opt_suid, Opt_dev,
+	Opt_atime, Opt_relatime, Opt_strictatime,
+	Opt_saxattr, Opt_dirxattr, Opt_noxattr,
+	Opt_mntpoint,
+
+	Opt_ignore, Opt_warn,
+};
+
+static const struct fs_parameter_spec zpl_param_spec[] = {
+	fsparam_flag_no("exec",		Opt_exec),
+	fsparam_flag_no("suid",		Opt_suid),
+	fsparam_flag_no("dev",		Opt_dev),
+
+	fsparam_flag_no("atime",	Opt_atime),
+	fsparam_flag_no("relatime",	Opt_relatime),
+	fsparam_flag("strictatime",	Opt_strictatime),
+
+	fsparam_flag("xattr",		Opt_saxattr),
+	fsparam_flag("saxattr",		Opt_saxattr),
+	fsparam_flag("dirxattr",	Opt_dirxattr),
+	fsparam_flag("noxattr",		Opt_noxattr),
+
+	fsparam_string("mntpoint",	Opt_mntpoint),
+
+	fsparam_flag("defaults",	Opt_ignore),
+	fsparam_flag("zfsutil",		Opt_ignore),
+	fsparam_flag("remount",		Opt_ignore),
+
+	fsparam_string("fscontext",	Opt_ignore),
+	fsparam_string("defcontext",	Opt_ignore),
+	fsparam_string("rootcontext",	Opt_ignore),
+	fsparam_string("context",	Opt_ignore),
+
+	fsparam_flag("posixacl",	Opt_ignore),
+	fsparam_flag("noacl",		Opt_ignore),
+	fsparam_flag("casesensitive",	Opt_ignore),
+	fsparam_flag("caseinsensitive",	Opt_ignore),
+	fsparam_flag("casemixed",	Opt_ignore),
+
+	fsparam_flag("sloppy",		Opt_ignore),
+
+	{}
+};
+
+static int
+zpl_parse_param(struct fs_context *fc, struct fs_parameter *param)
+{
+	vfs_t *vfs = fc->fs_private;
+
+	/* Handle 'source' explicitly so we don't trip on it as an unknown. */
+	int opt = vfs_parse_fs_param_source(fc, param);
+	if (opt != -ENOPARAM)
+		return (opt);
+
+	struct fs_parse_result result;
+	opt = fs_parse(fc, zpl_param_spec, param, &result);
+	if (opt == -ENOPARAM) {
+		/*
+		 * Convert unknowns to warnings, to work around the whole
+		 * "sloppy option" mess.
+		 */
+		opt = Opt_warn;
+	}
+	if (opt < 0)
+		return (opt);
+
+	switch (opt) {
+	case Opt_exec:
+		vfs->vfs_exec = !result.negated;
+		vfs->vfs_do_exec = B_TRUE;
+		break;
+	case Opt_suid:
+		vfs->vfs_setuid = !result.negated;
+		vfs->vfs_do_setuid = B_TRUE;
+		break;
+	case Opt_dev:
+		vfs->vfs_devices = !result.negated;
+		vfs->vfs_do_devices = B_TRUE;
+		break;
+
+	case Opt_atime:
+		vfs->vfs_atime = !result.negated;
+		vfs->vfs_do_atime = B_TRUE;
+		break;
+	case Opt_relatime:
+		vfs->vfs_relatime = !result.negated;
+		vfs->vfs_do_relatime = B_TRUE;
+		break;
+	case Opt_strictatime:
+		vfs->vfs_atime = B_TRUE;
+		vfs->vfs_do_atime = B_TRUE;
+		vfs->vfs_relatime = B_FALSE;
+		vfs->vfs_do_relatime = B_TRUE;
+		break;
+
+	case Opt_saxattr:
+		vfs->vfs_xattr = ZFS_XATTR_SA;
+		vfs->vfs_do_xattr = B_TRUE;
+		break;
+	case Opt_dirxattr:
+		vfs->vfs_xattr = ZFS_XATTR_DIR;
+		vfs->vfs_do_xattr = B_TRUE;
+		break;
+	case Opt_noxattr:
+		vfs->vfs_xattr = ZFS_XATTR_OFF;
+		vfs->vfs_do_xattr = B_TRUE;
+		break;
+
+	case Opt_mntpoint:
+		if (vfs->vfs_mntpoint != NULL)
+			kmem_strfree(vfs->vfs_mntpoint);
+		vfs->vfs_mntpoint = kmem_strdup(param->string);
+		break;
+
+	case Opt_ignore:
+		break;
+
+	case Opt_warn:
+		cmn_err(CE_NOTE,
+		    "ZFS: ignoring unknown mount option: %s", param->key);
+		break;
+
+	default:
+		return (-SET_ERROR(EINVAL));
+	}
+
+	return (0);
+}
+
 static int
 zpl_get_tree(struct fs_context *fc)
 {
@@ -446,9 +750,17 @@ zpl_get_tree(struct fs_context *fc)
 	}
 
 	if (sb->s_root == NULL) {
+		vfs_t *vfs = fc->fs_private;
+
+		/* Apply readonly flag as mount option */
+		if (fc->sb_flags & SB_RDONLY) {
+			vfs->vfs_readonly = B_TRUE;
+			vfs->vfs_do_readonly = B_TRUE;
+		}
+
 		zfs_mnt_t zm = {
 		    .mnt_osname = fc->source,
-		    .mnt_opts = fc->fs_private,
+		    .mnt_opts = vfs,
 		};
 
 		fstrans_cookie_t cookie = spl_fstrans_mark();
@@ -555,6 +867,7 @@ zpl_free_fc(struct fs_context *fc)
 }
 
 const struct fs_context_operations zpl_fs_context_operations = {
+	.parse_param		= zpl_parse_param,
 	.get_tree		= zpl_get_tree,
 	.reconfigure		= zpl_reconfigure,
 	.dup			= zpl_dup_fc,
