@@ -65,52 +65,6 @@
 #include <linux/fs.h>
 #include "zfs_comutil.h"
 
-enum {
-	TOKEN_RO,
-	TOKEN_RW,
-	TOKEN_SETUID,
-	TOKEN_NOSETUID,
-	TOKEN_EXEC,
-	TOKEN_NOEXEC,
-	TOKEN_DEVICES,
-	TOKEN_NODEVICES,
-	TOKEN_DIRXATTR,
-	TOKEN_SAXATTR,
-	TOKEN_XATTR,
-	TOKEN_NOXATTR,
-	TOKEN_ATIME,
-	TOKEN_NOATIME,
-	TOKEN_RELATIME,
-	TOKEN_NORELATIME,
-	TOKEN_NBMAND,
-	TOKEN_NONBMAND,
-	TOKEN_MNTPOINT,
-	TOKEN_LAST,
-};
-
-static const match_table_t zpl_tokens = {
-	{ TOKEN_RO,		MNTOPT_RO },
-	{ TOKEN_RW,		MNTOPT_RW },
-	{ TOKEN_SETUID,		MNTOPT_SETUID },
-	{ TOKEN_NOSETUID,	MNTOPT_NOSETUID },
-	{ TOKEN_EXEC,		MNTOPT_EXEC },
-	{ TOKEN_NOEXEC,		MNTOPT_NOEXEC },
-	{ TOKEN_DEVICES,	MNTOPT_DEVICES },
-	{ TOKEN_NODEVICES,	MNTOPT_NODEVICES },
-	{ TOKEN_DIRXATTR,	MNTOPT_DIRXATTR },
-	{ TOKEN_SAXATTR,	MNTOPT_SAXATTR },
-	{ TOKEN_XATTR,		MNTOPT_XATTR },
-	{ TOKEN_NOXATTR,	MNTOPT_NOXATTR },
-	{ TOKEN_ATIME,		MNTOPT_ATIME },
-	{ TOKEN_NOATIME,	MNTOPT_NOATIME },
-	{ TOKEN_RELATIME,	MNTOPT_RELATIME },
-	{ TOKEN_NORELATIME,	MNTOPT_NORELATIME },
-	{ TOKEN_NBMAND,		MNTOPT_NBMAND },
-	{ TOKEN_NONBMAND,	MNTOPT_NONBMAND },
-	{ TOKEN_MNTPOINT,	MNTOPT_MNTPOINT "=%s" },
-	{ TOKEN_LAST,		NULL },
-};
-
 vfs_t *
 zfsvfs_vfs_alloc(void)
 {
@@ -128,138 +82,6 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 		mutex_destroy(&vfsp->vfs_mntpt_lock);
 		kmem_free(vfsp, sizeof (vfs_t));
 	}
-}
-
-static int
-zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
-{
-	switch (token) {
-	case TOKEN_RO:
-		vfsp->vfs_readonly = B_TRUE;
-		vfsp->vfs_do_readonly = B_TRUE;
-		break;
-	case TOKEN_RW:
-		vfsp->vfs_readonly = B_FALSE;
-		vfsp->vfs_do_readonly = B_TRUE;
-		break;
-	case TOKEN_SETUID:
-		vfsp->vfs_setuid = B_TRUE;
-		vfsp->vfs_do_setuid = B_TRUE;
-		break;
-	case TOKEN_NOSETUID:
-		vfsp->vfs_setuid = B_FALSE;
-		vfsp->vfs_do_setuid = B_TRUE;
-		break;
-	case TOKEN_EXEC:
-		vfsp->vfs_exec = B_TRUE;
-		vfsp->vfs_do_exec = B_TRUE;
-		break;
-	case TOKEN_NOEXEC:
-		vfsp->vfs_exec = B_FALSE;
-		vfsp->vfs_do_exec = B_TRUE;
-		break;
-	case TOKEN_DEVICES:
-		vfsp->vfs_devices = B_TRUE;
-		vfsp->vfs_do_devices = B_TRUE;
-		break;
-	case TOKEN_NODEVICES:
-		vfsp->vfs_devices = B_FALSE;
-		vfsp->vfs_do_devices = B_TRUE;
-		break;
-	case TOKEN_DIRXATTR:
-		vfsp->vfs_xattr = ZFS_XATTR_DIR;
-		vfsp->vfs_do_xattr = B_TRUE;
-		break;
-	case TOKEN_SAXATTR:
-		vfsp->vfs_xattr = ZFS_XATTR_SA;
-		vfsp->vfs_do_xattr = B_TRUE;
-		break;
-	case TOKEN_XATTR:
-		vfsp->vfs_xattr = ZFS_XATTR_SA;
-		vfsp->vfs_do_xattr = B_TRUE;
-		break;
-	case TOKEN_NOXATTR:
-		vfsp->vfs_xattr = ZFS_XATTR_OFF;
-		vfsp->vfs_do_xattr = B_TRUE;
-		break;
-	case TOKEN_ATIME:
-		vfsp->vfs_atime = B_TRUE;
-		vfsp->vfs_do_atime = B_TRUE;
-		break;
-	case TOKEN_NOATIME:
-		vfsp->vfs_atime = B_FALSE;
-		vfsp->vfs_do_atime = B_TRUE;
-		break;
-	case TOKEN_RELATIME:
-		vfsp->vfs_relatime = B_TRUE;
-		vfsp->vfs_do_relatime = B_TRUE;
-		break;
-	case TOKEN_NORELATIME:
-		vfsp->vfs_relatime = B_FALSE;
-		vfsp->vfs_do_relatime = B_TRUE;
-		break;
-	case TOKEN_NBMAND:
-		vfsp->vfs_nbmand = B_TRUE;
-		vfsp->vfs_do_nbmand = B_TRUE;
-		break;
-	case TOKEN_NONBMAND:
-		vfsp->vfs_nbmand = B_FALSE;
-		vfsp->vfs_do_nbmand = B_TRUE;
-		break;
-	case TOKEN_MNTPOINT:
-		if (vfsp->vfs_mntpoint != NULL)
-			kmem_strfree(vfsp->vfs_mntpoint);
-		vfsp->vfs_mntpoint = match_strdup(&args[0]);
-		if (vfsp->vfs_mntpoint == NULL)
-			return (SET_ERROR(ENOMEM));
-		break;
-	default:
-		break;
-	}
-
-	return (0);
-}
-
-/*
- * Parse the raw mntopts and return a vfs_t describing the options.
- */
-static int
-zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
-{
-	vfs_t *tmp_vfsp;
-	int error;
-
-	tmp_vfsp = zfsvfs_vfs_alloc();
-
-	if (mntopts != NULL) {
-		substring_t args[MAX_OPT_ARGS];
-		char *tmp_mntopts, *p, *t;
-		int token;
-
-		tmp_mntopts = t = kmem_strdup(mntopts);
-		if (tmp_mntopts == NULL)
-			return (SET_ERROR(ENOMEM));
-
-		while ((p = strsep(&t, ",")) != NULL) {
-			if (!*p)
-				continue;
-
-			args[0].to = args[0].from = NULL;
-			token = match_token(p, zpl_tokens, args);
-			error = zfsvfs_parse_option(p, token, args, tmp_vfsp);
-			if (error) {
-				kmem_strfree(tmp_mntopts);
-				zfsvfs_vfs_free(tmp_vfsp);
-				return (error);
-			}
-		}
-
-		kmem_strfree(tmp_mntopts);
-	}
-
-	*vfsp = tmp_vfsp;
-
-	return (0);
 }
 
 boolean_t
@@ -1484,9 +1306,8 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 		return (SET_ERROR(EPERM));
 	}
 
-	error = zfsvfs_parse_options(zm->mnt_data, &vfs);
-	if (error)
-		return (error);
+	/* XXX temp keep things working during params upgrade */
+	vfs = zfsvfs_vfs_alloc();
 
 	/*
 	 * If a non-writable filesystem is being mounted without the
@@ -1682,7 +1503,6 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	vfs_t *vfsp;
 	boolean_t issnap = dmu_objset_is_snapshot(zfsvfs->z_os);
-	int error;
 
 	if ((issnap || !spa_writeable(dmu_objset_spa(zfsvfs->z_os))) &&
 	    !(*flags & SB_RDONLY)) {
@@ -1690,9 +1510,8 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 		return (EROFS);
 	}
 
-	error = zfsvfs_parse_options(zm->mnt_data, &vfsp);
-	if (error)
-		return (error);
+	/* XXX temp keep things working during params upgrade */
+	vfsp = zfsvfs_vfs_alloc();
 
 	if (!zfs_is_readonly(zfsvfs) && (*flags & SB_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
@@ -1705,7 +1524,7 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 	if (!issnap)
 		(void) zfs_register_callbacks(vfsp);
 
-	return (error);
+	return (0);
 }
 
 int
