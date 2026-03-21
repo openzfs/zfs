@@ -253,6 +253,8 @@ maybe = {
     'renameat2/setup': ['SKIP', renameat2_reason],
     'reservation/reservation_008_pos': ['FAIL', 7741],
     'reservation/reservation_018_pos': ['FAIL', 5642],
+    'send_xdr_encoding/xdr_bookmark_raw_with_write': ['FAIL', 18491],
+    'send_xdr_encoding/xdr_resume_bookmark_raw_with_write': ['FAIL', 18491],
     'snapshot/clone_001_pos': ['FAIL', known_reason],
     'snapshot/snapshot_006_pos': ['FAIL', known_reason],
     'snapshot/snapshot_009_pos': ['FAIL', 7961],

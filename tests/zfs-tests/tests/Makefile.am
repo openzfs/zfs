@@ -376,6 +376,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/rsend.kshlib \
 	functional/scrub_mirror/default.cfg \
 	functional/scrub_mirror/scrub_mirror_common.kshlib \
+	functional/send_xdr_encoding/send_xdr_encoding.cfg \
+	functional/send_xdr_encoding/send_xdr_encoding.kshlib \
 	functional/slog/slog.cfg \
 	functional/slog/slog.kshlib \
 	functional/snapshot/snapshot.cfg \
@@ -2129,6 +2131,22 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/scrub_mirror/scrub_mirror_003_pos.ksh \
 	functional/scrub_mirror/scrub_mirror_004_pos.ksh \
 	functional/scrub_mirror/setup.ksh \
+	functional/send_xdr_encoding/cleanup.ksh \
+	functional/send_xdr_encoding/setup.ksh \
+	functional/send_xdr_encoding/xdr_bookmark_raw.ksh \
+	functional/send_xdr_encoding/xdr_bookmark_raw_with_write.ksh \
+	functional/send_xdr_encoding/xdr_incr_from_bookmark.ksh \
+	functional/send_xdr_encoding/xdr_incr_from_redacted.ksh \
+	functional/send_xdr_encoding/xdr_raw.ksh \
+	functional/send_xdr_encoding/xdr_redacted_full.ksh \
+	functional/send_xdr_encoding/xdr_redacted_received.ksh \
+	functional/send_xdr_encoding/xdr_redacted_received_raw.ksh \
+	functional/send_xdr_encoding/xdr_replication.ksh \
+	functional/send_xdr_encoding/xdr_resume.ksh \
+	functional/send_xdr_encoding/xdr_resume_bookmark_raw.ksh \
+	functional/send_xdr_encoding/xdr_resume_bookmark_raw_with_write.ksh \
+	functional/send_xdr_encoding/xdr_resume_raw.ksh \
+	functional/send_xdr_encoding/xdr_resume_redacted.ksh \
 	functional/slog/cleanup.ksh \
 	functional/slog/setup.ksh \
 	functional/slog/slog_001_pos.ksh \

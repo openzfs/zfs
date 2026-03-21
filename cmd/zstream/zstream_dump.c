@@ -385,6 +385,20 @@ zstream_do_dump(int argc, char *argv[])
 				(void) ssread(buf, sz, &zc);
 				if (ferror(send_stream))
 					perror("fread");
+
+				uint8_t *nv_header = (uint8_t *)buf;
+				boolean_t xdr = nv_header[0] == NV_ENCODE_XDR;
+				boolean_t big_endian = nv_header[1] == 0;
+				const char *nc;
+				if (xdr) {
+					nc = "NV_ENCODE_XDR";
+				} else if (big_endian) {
+					nc = "NV_ENCODE_NATIVE (big-endian)";
+				} else {
+					nc = "NV_ENCODE_NATIVE (little-endian)";
+				}
+				printf("nvlist encoding = %s\n", nc);
+
 				err = nvlist_unpack(buf, sz, &nv, 0);
 				if (err) {
 					perror(strerror(err));

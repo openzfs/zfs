@@ -2242,6 +2242,37 @@ setup_send_progress(struct dmu_send_params *dspp)
 }
 
 /*
+ * Payloads must be multiples of 8 bytes for historical compatibility, but
+ * XDR-encoded nvlists are sized in multiples of 4 bytes and may need padding.
+ *
+ * Here we do the simplest possible thing and copy the data to a separate
+ * buffer. Not ideal in terms of performance and memory use, but most BEGIN
+ * nvlists are small or absent, the allocation is momentary, and we'll need
+ * to do this at most once per dataset.
+ *
+ * It's OK if there is extra data after a packed nvlist on the receiving
+ * side because packed nvlists have an internal end-of-list marker.
+ *
+ * The new buffer is allocated with kmem_alloc() and can be freed with
+ * fnvlist_pack_free(), like the original.
+ */
+static inline void
+pad_packed_nvlist(char **buffer, size_t *size)
+{
+	size_t size_in = *size;
+	size_t extra_bytes = P2ROUNDUP(size_in, 8) - size_in;
+	if (extra_bytes != 0) {
+		size_t expanded_size = size_in + extra_bytes;
+		char *longbuf = kmem_alloc(expanded_size, KM_SLEEP);
+		memcpy(longbuf, *buffer, size_in);
+		memset(longbuf + size_in, 0, extra_bytes);
+		fnvlist_pack_free(*buffer, size_in);
+		*buffer = longbuf;
+		*size = expanded_size;
+	}
+}
+
+/*
  * Actually do the bulk of the work in a zfs send.
  *
  * The idea is that we want to do a send from ancestor_zb to to_ds.  We also
@@ -2474,7 +2505,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 
 	dsl_pool_rele(dp, tag);
 
-	void *payload = NULL;
+	char *payload = NULL;
 	size_t payload_len = 0;
 	nvlist_t *nvl = fnvlist_alloc();
 
@@ -2548,7 +2579,9 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	}
 
 	if (!nvlist_empty(nvl)) {
-		payload = fnvlist_pack(nvl, &payload_len);
+		VERIFY0(nvlist_pack(nvl, &payload, &payload_len,
+		    NV_ENCODE_XDR, KM_SLEEP));
+		pad_packed_nvlist(&payload, &payload_len);
 		drr->drr_payloadlen = payload_len;
 	}
 

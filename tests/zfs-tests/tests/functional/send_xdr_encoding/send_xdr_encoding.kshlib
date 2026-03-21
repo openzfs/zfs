@@ -1,0 +1,71 @@
+#!/bin/ksh
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2026 by Garth Snyder. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/send_xdr_encoding/send_xdr_encoding.cfg
+
+#
+# Verify that the DRR_BEGIN records in the given send stream encode their
+# nvlist payloads with NV_ENCODE_XDR (and not NV_ENCODE_NATIVE).
+#
+# DRR_BEGIN records that carry an nvlist payload (raw sends, redacted sends,
+# resumed sends, and combinations thereof) must encode that payload with
+# NV_ENCODE_XDR so the resulting stream can be portably consumed across
+# endianness. Encoding the payload with NV_ENCODE_NATIVE produces a stream
+# that is unreadable on a receiver of the opposite endianness.
+#
+# zstream dump prints a single "nvlist encoding = ..." line per DRR_BEGIN
+# record that carries an nvlist payload. The possible values are:
+#
+#     NV_ENCODE_XDR
+#     NV_ENCODE_NATIVE (big-endian)
+#     NV_ENCODE_NATIVE (little-endian)
+#
+# Every test in this suite generates a stream whose DRR_BEGIN record
+# carries an nvlist payload, so the pass criterion is:
+#
+#   - At least one NV_ENCODE_XDR line appears, AND
+#   - No NV_ENCODE_NATIVE line appears.
+#
+# Requiring at least one XDR line catches the case where zstream dump
+# itself fails before producing any encoding output. Asserting on dump
+# content rather than dump exit status means a partial dump can still
+# fail the test on an NV_ENCODE_NATIVE seen before the failure point.
+#
+function verify_xdr_nvlist_encoding
+{
+	typeset stream=$1
+	typeset out
+
+	[[ -f "$stream" ]] || \
+	    log_fail "verify_xdr_nvlist_encoding: stream not found: $stream"
+
+	out=$(zstream dump "$stream" 2>/dev/null)
+
+	if echo "$out" | grep -q 'NV_ENCODE_NATIVE'; then
+		log_fail "verify_xdr_nvlist_encoding: " \
+		    "NV_ENCODE_NATIVE found in $stream"
+	fi
+	if ! echo "$out" | grep -q 'NV_ENCODE_XDR'; then
+		log_fail "verify_xdr_nvlist_encoding: " \
+		    "no NV_ENCODE_XDR found in $stream"
+	fi
+}
