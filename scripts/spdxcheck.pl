@@ -147,7 +147,6 @@ my $untagged_patterns = q(
 	contrib/bpftrace/zfs-trace.sh
 	contrib/pyzfs/docs/source/conf.py
 	contrib/pyzfs/libzfs_core/test/__init__.py
-	contrib/pyzfs/setup.py.in
 	contrib/zcp/autosnap.lua
 	scripts/commitcheck.sh
 	scripts/man-dates.sh
