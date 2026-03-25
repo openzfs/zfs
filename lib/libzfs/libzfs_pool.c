@@ -3571,9 +3571,52 @@ zpool_vdev_fault(zpool_handle_t *zhp, uint64_t guid, vdev_aux_t aux)
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[ERRBUFLEN];
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	nvlist_t *vdev_nv;
+	boolean_t avail_spare, l2cache;
+	char *vdev_name;
+	char guid_str[21]; /* 64-bit num + '\0' */
+	boolean_t is_draid_spare = B_FALSE;
+	const char *vdev_type;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot fault %llu"), (u_longlong_t)guid);
+
+	snprintf(guid_str, sizeof (guid_str), "%llu", (u_longlong_t)guid);
+	if ((vdev_nv = zpool_find_vdev(zhp, guid_str, &avail_spare,
+	    &l2cache, NULL)) == NULL)
+		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
+
+	vdev_name = zpool_vdev_name(hdl, zhp, vdev_nv, 0);
+	if (vdev_name != NULL) {
+		/*
+		 * We have the actual vdev name, so use that instead of the GUID
+		 * in any error messages.
+		 */
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN, "cannot fault %s"), vdev_name);
+		free(vdev_name);
+	}
+
+	/*
+	 * Spares (traditional or draid) cannot be faulted by libzfs, except:
+	 *
+	 * - Any spare type that exceeds it's errors can be faulted (aux =
+	 *   VDEV_AUX_ERR_EXCEEDED).  This is only used by zed.
+	 *
+	 * - Traditional spares that are active can be force faulted.
+	 */
+	if (nvlist_lookup_string(vdev_nv, ZPOOL_CONFIG_TYPE, &vdev_type) == 0)
+		if (strcmp(vdev_type, VDEV_TYPE_DRAID_SPARE) == 0)
+			is_draid_spare = B_TRUE;
+
+	/*
+	 * If vdev is a spare that is not being used, or is a dRAID spare (in
+	 * use or not), then don't allow it to be force-faulted.  However, an
+	 * in-use dRAID spare can be faulted by ZED if see too many errors
+	 * (aux = VDEV_AUX_ERR_EXCEEDED).
+	 */
+	if (avail_spare || (is_draid_spare && aux != VDEV_AUX_ERR_EXCEEDED))
+		return (zfs_error(hdl, EZFS_ISSPARE, errbuf));
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_guid = guid;

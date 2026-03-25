@@ -525,7 +525,7 @@ tags = ['functional', 'cli_root', 'zpool_initialize']
 
 [tests/functional/cli_root/zpool_offline]
 tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg',
-    'zpool_offline_003_pos']
+    'zpool_offline_003_pos', 'zpool_offline_spare']
 tags = ['functional', 'cli_root', 'zpool_offline']
 
 [tests/functional/cli_root/zpool_online]

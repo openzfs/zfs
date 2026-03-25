@@ -56,11 +56,12 @@
 .Ar pool
 .Ar device Ns …
 .Xc
-Takes the specified physical device offline.
+Takes the specified physical device offline or force-fault it.
 While the
 .Ar device
-is offline, no attempt is made to read or write to the device.
-This command is not applicable to spares.
+is offline or force-faulted, no attempt is made to read or write to the device.
+dRAID spares can not be offlined or force faulted.
+Traditional spares can only be offlined or force-faulted when they are active.
 .Bl -tag -width Ds
 .It Fl -power
 Power off the device's slot in the storage enclosure.
