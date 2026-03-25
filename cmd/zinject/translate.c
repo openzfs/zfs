@@ -165,22 +165,28 @@ initialize_range(err_type_t type, int level, char *range,
 		record->zi_start = 0;
 		record->zi_end = -1ULL;
 	} else {
-		char *end;
+		char *comma;
+		int error;
 
-		/* XXX add support for suffixes */
-		record->zi_start = strtoull(range, &end, 10);
+		comma = strchr(range, ',');
+		if (comma != NULL)
+			*comma = '\0';
 
+		error = zfs_nicestrtonum(g_zfs, range,
+		    &record->zi_start);
 
-		if (*end == '\0')
+		if (comma != NULL)
+			*comma = ',';
+
+		if (error != 0)
+			goto bad_range;
+
+		if (comma != NULL) {
+			if (zfs_nicestrtonum(g_zfs, comma + 1,
+			    &record->zi_end) != 0)
+				goto bad_range;
+		} else {
 			record->zi_end = record->zi_start + 1;
-		else if (*end == ',')
-			record->zi_end = strtoull(end + 1, &end, 10);
-
-		if (*end != '\0') {
-			(void) fprintf(stderr, "invalid range '%s': must be "
-			    "a numeric range of the form 'start[,end]'\n",
-			    range);
-			return (-1);
 		}
 	}
 
@@ -213,6 +219,11 @@ initialize_range(err_type_t type, int level, char *range,
 	record->zi_level = level;
 
 	return (0);
+
+bad_range:
+	(void) fprintf(stderr, "invalid range '%s': must be of the form "
+	    "'start[,end]'\n", range);
+	return (-1);
 }
 
 int
