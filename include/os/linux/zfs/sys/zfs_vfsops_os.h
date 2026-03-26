@@ -76,7 +76,7 @@ typedef struct vfs {
 
 typedef struct zfs_mnt {
 	const char	*mnt_osname;	/* Objset name */
-	char		*mnt_data;	/* Raw mount options */
+	vfs_t		*mnt_opts;	/* Parsed options */
 } zfs_mnt_t;
 
 struct zfsvfs {

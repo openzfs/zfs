@@ -448,7 +448,7 @@ zpl_get_tree(struct fs_context *fc)
 	if (sb->s_root == NULL) {
 		zfs_mnt_t zm = {
 		    .mnt_osname = fc->source,
-		    .mnt_data = NULL,
+		    .mnt_opts = fc->fs_private,
 		};
 
 		fstrans_cookie_t cookie = spl_fstrans_mark();
@@ -459,6 +459,12 @@ zpl_get_tree(struct fs_context *fc)
 			deactivate_locked_super(sb);
 			return (-err);
 		}
+
+		/*
+		 * zfsvfs has taken ownership of the mount options, so we
+		 * need to ensure we don't free them.
+		 */
+		fc->fs_private = NULL;
 
 		sb->s_flags |= SB_ACTIVE;
 	} else if (!issnap && ((fc->sb_flags ^ sb->s_flags) & SB_RDONLY)) {
@@ -481,7 +487,7 @@ zpl_get_tree(struct fs_context *fc)
 static int
 zpl_reconfigure(struct fs_context *fc)
 {
-	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_data = NULL };
+	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_opts = fc->fs_private };
 	fstrans_cookie_t cookie;
 	int error;
 
@@ -490,18 +496,80 @@ zpl_reconfigure(struct fs_context *fc)
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
+	if (error == 0) {
+		/*
+		 * zfsvfs has taken ownership of the mount options, so we
+		 * need to ensure we don't free them.
+		 */
+		fc->fs_private = NULL;
+	}
+
 	return (error);
+}
+
+static int
+zpl_dup_fc(struct fs_context *fc, struct fs_context *src_fc)
+{
+	vfs_t *src_vfs = src_fc->fs_private;
+	if (src_vfs == NULL)
+		return (0);
+
+	vfs_t *vfs = zfsvfs_vfs_alloc();
+	if (vfs == NULL)
+		return (-SET_ERROR(ENOMEM));
+
+	/*
+	 * This is annoying, but a straight memcpy() would require us to
+	 * reinitialise the lock.
+	 */
+	vfs->vfs_xattr = src_vfs->vfs_xattr;
+	vfs->vfs_readonly = src_vfs->vfs_readonly;
+	vfs->vfs_do_readonly = src_vfs->vfs_do_readonly;
+	vfs->vfs_setuid = src_vfs->vfs_setuid;
+	vfs->vfs_do_setuid = src_vfs->vfs_do_setuid;
+	vfs->vfs_exec = src_vfs->vfs_exec;
+	vfs->vfs_do_exec = src_vfs->vfs_do_exec;
+	vfs->vfs_devices = src_vfs->vfs_devices;
+	vfs->vfs_do_devices = src_vfs->vfs_do_devices;
+	vfs->vfs_do_xattr = src_vfs->vfs_do_xattr;
+	vfs->vfs_atime = src_vfs->vfs_atime;
+	vfs->vfs_do_atime = src_vfs->vfs_do_atime;
+	vfs->vfs_relatime = src_vfs->vfs_relatime;
+	vfs->vfs_do_relatime = src_vfs->vfs_do_relatime;
+	vfs->vfs_nbmand = src_vfs->vfs_nbmand;
+	vfs->vfs_do_nbmand = src_vfs->vfs_do_nbmand;
+
+	mutex_enter(&src_vfs->vfs_mntpt_lock);
+	if (src_vfs->vfs_mntpoint != NULL)
+		vfs->vfs_mntpoint = kmem_strdup(src_vfs->vfs_mntpoint);
+	mutex_exit(&src_vfs->vfs_mntpt_lock);
+
+	fc->fs_private = vfs;
+	return (0);
+}
+
+static void
+zpl_free_fc(struct fs_context *fc)
+{
+	zfsvfs_vfs_free(fc->fs_private);
 }
 
 const struct fs_context_operations zpl_fs_context_operations = {
 	.get_tree		= zpl_get_tree,
 	.reconfigure		= zpl_reconfigure,
+	.dup			= zpl_dup_fc,
+	.free			= zpl_free_fc,
 };
 
 static int
 zpl_init_fs_context(struct fs_context *fc)
 {
+	fc->fs_private = zfsvfs_vfs_alloc();
+	if (fc->fs_private == NULL)
+		return (-SET_ERROR(ENOMEM));
+
 	fc->ops = &zpl_fs_context_operations;
+
 	return (0);
 }
 

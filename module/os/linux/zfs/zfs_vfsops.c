@@ -1288,7 +1288,7 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	uint64_t recordsize;
 	int error = 0;
 	zfsvfs_t *zfsvfs = NULL;
-	vfs_t *vfs = NULL;
+	vfs_t *vfs = zm->mnt_opts;
 	int canwrite;
 	int dataset_visible_zone;
 
@@ -1306,9 +1306,6 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 		return (SET_ERROR(EPERM));
 	}
 
-	/* XXX temp keep things working during params upgrade */
-	vfs = zfsvfs_vfs_alloc();
-
 	/*
 	 * If a non-writable filesystem is being mounted without the
 	 * read-only flag, pretend it was set, as done for snapshots.
@@ -1317,16 +1314,12 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 		vfs->vfs_readonly = B_TRUE;
 
 	error = zfsvfs_create(osname, vfs->vfs_readonly, &zfsvfs);
-	if (error) {
-		zfsvfs_vfs_free(vfs);
+	if (error)
 		goto out;
-	}
 
 	if ((error = dsl_prop_get_integer(osname, "recordsize",
-	    &recordsize, NULL))) {
-		zfsvfs_vfs_free(vfs);
+	    &recordsize, NULL)))
 		goto out;
-	}
 
 	vfs->vfs_data = zfsvfs;
 	zfsvfs->z_vfs = vfs;
@@ -1408,6 +1401,13 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 out:
 	if (error) {
 		if (zfsvfs != NULL) {
+			/*
+			 * We're returning error, so the caller still owns
+			 * the mount options vfs_t. Remove them from zfsvfs
+			 * so we don't try to free them.
+			 */
+			zfsvfs->z_vfs = NULL;
+
 			dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
 			zfsvfs_free(zfsvfs);
 		}
@@ -1501,7 +1501,7 @@ int
 zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 {
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
-	vfs_t *vfsp;
+	vfs_t *vfsp = zm->mnt_opts;
 	boolean_t issnap = dmu_objset_is_snapshot(zfsvfs->z_os);
 
 	if ((issnap || !spa_writeable(dmu_objset_spa(zfsvfs->z_os))) &&
@@ -1509,9 +1509,6 @@ zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
 		*flags |= SB_RDONLY;
 		return (EROFS);
 	}
-
-	/* XXX temp keep things working during params upgrade */
-	vfsp = zfsvfs_vfs_alloc();
 
 	if (!zfs_is_readonly(zfsvfs) && (*flags & SB_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
