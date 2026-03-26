@@ -391,30 +391,6 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 }
 
 static int
-zpl_parse_monolithic(struct fs_context *fc, void *data)
-{
-	if (data == NULL)
-		return (0);
-
-	/*
-	 * Because we supply a .parse_monolithic callback, the kernel does
-	 * no consideration of the options blob at all. Because of this, we
-	 * have to give LSMs a first look at it. They will remove any options
-	 * of interest to them (eg the SELinux *context= options).
-	 */
-	int err = security_sb_eat_lsm_opts((char *)data, &fc->security);
-	if (err)
-		return (err);
-
-	/*
-	 * Whatever is left we stash on in the fs_context so we can pass it
-	 * down to zfs_domount() or zfs_remount() later.
-	 */
-	fc->fs_private = data;
-	return (0);
-}
-
-static int
 zpl_get_tree(struct fs_context *fc)
 {
 	struct super_block *sb;
@@ -472,7 +448,7 @@ zpl_get_tree(struct fs_context *fc)
 	if (sb->s_root == NULL) {
 		zfs_mnt_t zm = {
 		    .mnt_osname = fc->source,
-		    .mnt_data = fc->fs_private,
+		    .mnt_data = NULL,
 		};
 
 		fstrans_cookie_t cookie = spl_fstrans_mark();
@@ -505,7 +481,7 @@ zpl_get_tree(struct fs_context *fc)
 static int
 zpl_reconfigure(struct fs_context *fc)
 {
-	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_data = fc->fs_private };
+	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_data = NULL };
 	fstrans_cookie_t cookie;
 	int error;
 
@@ -518,7 +494,6 @@ zpl_reconfigure(struct fs_context *fc)
 }
 
 const struct fs_context_operations zpl_fs_context_operations = {
-	.parse_monolithic	= zpl_parse_monolithic,
 	.get_tree		= zpl_get_tree,
 	.reconfigure		= zpl_reconfigure,
 };
