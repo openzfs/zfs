@@ -880,13 +880,9 @@ zpl_get_tree(struct fs_context *fc)
 			vfs->vfs_do_readonly = B_TRUE;
 		}
 
-		zfs_mnt_t zm = {
-		    .mnt_osname = fc->source,
-		    .mnt_opts = vfs,
-		};
-
 		fstrans_cookie_t cookie = spl_fstrans_mark();
-		err = zfs_domount(sb, &zm, fc->sb_flags & SB_SILENT ? 1 : 0);
+		err = zfs_domount(sb, fc->source, vfs,
+		    fc->sb_flags & SB_SILENT ? 1 : 0);
 		spl_fstrans_unmark(cookie);
 
 		if (err) {
@@ -921,12 +917,11 @@ zpl_get_tree(struct fs_context *fc)
 static int
 zpl_reconfigure(struct fs_context *fc)
 {
-	zfs_mnt_t zm = { .mnt_osname = NULL, .mnt_opts = fc->fs_private };
 	fstrans_cookie_t cookie;
 	int error;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_remount(fc->root->d_sb, &fc->sb_flags, &zm);
+	error = -zfs_remount(fc->root->d_sb, fc->fs_private, fc->sb_flags);
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
