@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -110,7 +111,15 @@ static const match_table_t zpl_tokens = {
 	{ TOKEN_LAST,		NULL },
 };
 
-static void
+vfs_t *
+zfsvfs_vfs_alloc(void)
+{
+	vfs_t *vfsp = kmem_zalloc(sizeof (vfs_t), KM_SLEEP);
+	mutex_init(&vfsp->vfs_mntpt_lock, NULL, MUTEX_DEFAULT, NULL);
+	return (vfsp);
+}
+
+void
 zfsvfs_vfs_free(vfs_t *vfsp)
 {
 	if (vfsp != NULL) {
@@ -220,8 +229,7 @@ zfsvfs_parse_options(char *mntopts, vfs_t **vfsp)
 	vfs_t *tmp_vfsp;
 	int error;
 
-	tmp_vfsp = kmem_zalloc(sizeof (vfs_t), KM_SLEEP);
-	mutex_init(&tmp_vfsp->vfs_mntpt_lock, NULL, MUTEX_DEFAULT, NULL);
+	tmp_vfsp = zfsvfs_vfs_alloc();
 
 	if (mntopts != NULL) {
 		substring_t args[MAX_OPT_ARGS];
