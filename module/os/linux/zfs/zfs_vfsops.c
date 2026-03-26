@@ -1281,19 +1281,15 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 static atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 
 int
-zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
+zfs_domount(struct super_block *sb, const char *osname,
+    vfs_t *vfs, int silent)
 {
-	const char *osname = zm->mnt_osname;
 	struct inode *root_inode = NULL;
 	uint64_t recordsize;
 	int error = 0;
 	zfsvfs_t *zfsvfs = NULL;
-	vfs_t *vfs = zm->mnt_opts;
 	int canwrite;
 	int dataset_visible_zone;
-
-	ASSERT(zm);
-	ASSERT(osname);
 
 	dataset_visible_zone = zone_dataset_visible(osname, &canwrite);
 
@@ -1498,19 +1494,16 @@ zfs_umount(struct super_block *sb)
 }
 
 int
-zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm)
+zfs_remount(struct super_block *sb, vfs_t *vfsp, int flags)
 {
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
-	vfs_t *vfsp = zm->mnt_opts;
 	boolean_t issnap = dmu_objset_is_snapshot(zfsvfs->z_os);
 
 	if ((issnap || !spa_writeable(dmu_objset_spa(zfsvfs->z_os))) &&
-	    !(*flags & SB_RDONLY)) {
-		*flags |= SB_RDONLY;
+	    !(flags & SB_RDONLY))
 		return (EROFS);
-	}
 
-	if (!zfs_is_readonly(zfsvfs) && (*flags & SB_RDONLY))
+	if (!zfs_is_readonly(zfsvfs) && (flags & SB_RDONLY))
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
 
 	zfs_unregister_callbacks(zfsvfs);
