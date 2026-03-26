@@ -3830,7 +3830,6 @@ zio_ddt_write(zio_t *zio)
 
 	int p = DDT_PHYS_FOR_COPIES(ddt, zp->zp_copies);
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
-	ddt_univ_phys_t *ddp = dde->dde_phys;
 
 	/*
 	 * In the common cases, at this point we have a regular BP with no
@@ -3861,14 +3860,6 @@ zio_ddt_write(zio_t *zio)
 	 * end of the chain and letting the sequence play out.
 	 */
 
-	/*
-	 * Number of DVAs in the DDT entry. If the BP is encrypted we ignore
-	 * the third one as normal.
-	 */
-	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
-	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
-	boolean_t is_ganged = ddt_phys_is_gang(ddp, v);
-
 	/* Number of DVAs requested by the IO. */
 	uint8_t need_dvas = zp->zp_copies;
 	/* Number of DVAs in outstanding writes for this dde. */
@@ -3882,6 +3873,21 @@ zio_ddt_write(zio_t *zio)
 	ddt_entry_io_t *dde_io = dde->dde_io;
 	if (dde_io != NULL)
 		mutex_enter(&dde_io->dde_io_lock);
+
+	/*
+	 * Number of DVAs in the DDT entry. If the BP is encrypted we ignore
+	 * the third one as normal.
+	 *
+	 * Must be computed after taking dde_io_lock (if held) to avoid
+	 * racing with ddt_phys_unextend() in zio_ddt_child_write_done()
+	 * error path, which can zero DVAs under dde_io_lock. Without the
+	 * lock, a stale have_dvas causes ddt_bp_fill() to copy a zeroed
+	 * DVA into the BP, producing a hole that reads back as zeros.
+	 */
+	ddt_univ_phys_t *ddp = dde->dde_phys;
+	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
+	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
+	boolean_t is_ganged = ddt_phys_is_gang(ddp, v);
 
 	if (dde_io == NULL || dde_io->dde_lead_zio[p] == NULL) {
 		/*
