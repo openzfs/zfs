@@ -74,11 +74,6 @@ typedef struct vfs {
 	kmutex_t	vfs_mntpt_lock;
 } vfs_t;
 
-typedef struct zfs_mnt {
-	const char	*mnt_osname;	/* Objset name */
-	vfs_t		*mnt_opts;	/* Parsed options */
-} zfs_mnt_t;
-
 struct zfsvfs {
 	vfs_t		*z_vfs;		/* generic fs struct */
 	struct super_block *z_sb;	/* generic super_block */
@@ -250,10 +245,11 @@ extern vfs_t *zfsvfs_vfs_alloc(void);
 extern void zfsvfs_vfs_free(vfs_t *vfsp);
 
 extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
-extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);
+extern int zfs_domount(struct super_block *sb, const char *osname,
+    vfs_t *mntopts, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
-extern int zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm);
+extern int zfs_remount(struct super_block *sb, vfs_t *mntopts, int flags);
 extern int zfs_statvfs(struct inode *ip, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
