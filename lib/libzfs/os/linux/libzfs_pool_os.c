@@ -264,10 +264,25 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 
+	/*
+	 * The disks of the same capacity may have different sector sizes
+	 * (512 or 4K). So to have the same start_block and slice_size on
+	 * such a disks, divide NEW_START_BLOCK and EFI_MIN_RESV_SIZE by
+	 * (efi_lbasize / DEV_BSIZE) coefficient.
+	 */
+	uint64_t coeff = vtoc->efi_lbasize / DEV_BSIZE;
+
+	/* This probably should never be the case, but who knows. */
+	if (((NEW_START_BLOCK * DEV_BSIZE) % vtoc->efi_lbasize) ||
+	    ((EFI_MIN_RESV_SIZE * DEV_BSIZE) % vtoc->efi_lbasize))
+		coeff = 1;
+
 	slice_size = vtoc->efi_last_u_lba + 1;
-	slice_size -= EFI_MIN_RESV_SIZE;
+	slice_size -= (EFI_MIN_RESV_SIZE / coeff);
 	if (start_block == MAXOFFSET_T)
 		start_block = NEW_START_BLOCK;
+	if (start_block == NEW_START_BLOCK)
+		start_block /= coeff;
 	slice_size -= start_block;
 	slice_size = P2ALIGN_TYPED(slice_size, PARTITION_END_ALIGNMENT,
 	    uint64_t);
@@ -298,7 +313,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	zpool_label_name(vtoc->efi_parts[0].p_name, EFI_PART_NAME_LEN);
 
 	vtoc->efi_parts[8].p_start = slice_size + start_block;
-	vtoc->efi_parts[8].p_size = resv;
+	vtoc->efi_parts[8].p_size = resv / coeff;
 	vtoc->efi_parts[8].p_tag = V_RESERVED;
 
 	rval = efi_write(fd, vtoc);
