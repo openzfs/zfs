@@ -495,6 +495,12 @@ atime_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+relatime_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_relatime = (newval != 0);
+}
+
+static void
 xattr_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
@@ -752,6 +758,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	 */
 	error = dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ATIME), atime_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_RELATIME), relatime_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_XATTR), xattr_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,

@@ -170,11 +170,13 @@ zfs_exit(zfsvfs_t *zfsvfs, const char *tag)
 	(tp)->tv_nsec = (long)(stmp)[1];		\
 }
 #define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp) \
-	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY)) \
+	if ((zfsvfs)->z_atime && !((zfsvfs)->z_vfs->vfs_flag & VFS_RDONLY) && \
+	    (!(zfsvfs)->z_relatime || zfs_relatime_need_update(zp))) \
 		zfs_tstamp_update_setup_ext(zp, ACCESSED, NULL, NULL, B_FALSE);
 
 extern void	zfs_tstamp_update_setup_ext(struct znode *,
     uint_t, uint64_t [2], uint64_t [2], boolean_t have_tx);
+extern boolean_t zfs_relatime_need_update(const struct znode *);
 extern void zfs_znode_free(struct znode *);
 
 extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
