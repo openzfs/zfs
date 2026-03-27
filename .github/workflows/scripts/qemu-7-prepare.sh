@@ -13,14 +13,27 @@ source env.txt
 
 mkdir -p $RESPATH
 
+TARNAME=qemu-$OS
+
 # check if building the module has failed
 if [ -z ${VMs:-} ]; then
   cd $RESPATH
   echo ":exclamation: ZFS module didn't build successfully :exclamation:" \
     | tee summary.txt | tee /tmp/summary.txt
   cp /var/tmp/*.txt .
-  tar cf /tmp/qemu-$OS.tar -C $RESPATH -h . || true
+
+  # rename /var/tmp/test_results to /var/tmp/qemu-$OS
+  mv $RESPATH $(dirname $RESPATH)/$TARNAME
+  tar cjf /tmp/$TARNAME.tar.bz2 -C $(dirname $RESPATH) -h $TARNAME || true
+  # move it back to /var/tmp/test_results (needed for next script)
+  mv $(dirname $RESPATH)/$TARNAME $RESPATH
+
   exit 0
+fi
+
+if ! grep -q vm /etc/hosts ; then
+        echo "No vm* hostnames, VMs probably didn't startup"
+        exit 0
 fi
 
 # build was okay
@@ -121,4 +134,9 @@ if [ ! -s uname.txt ]; then
 fi
 
 # artifact ready now
-tar cf /tmp/qemu-$OS.tar -C $RESPATH -h . || true
+#
+# rename /var/tmp/test_results to /var/tmp/qemu-$OS
+mv $RESPATH $(dirname $RESPATH)/$TARNAME
+tar cjf /tmp/$TARNAME.tar.bz2 -C $(dirname $RESPATH) -h $TARNAME || true
+# move it back to /var/tmp/test_results (needed for next script)
+mv $(dirname $RESPATH)/$TARNAME $RESPATH
