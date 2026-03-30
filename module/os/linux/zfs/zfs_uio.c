@@ -52,6 +52,7 @@
 #include <sys/zfs_refcount.h>
 #include <sys/zfs_debug.h>
 #include <linux/kmap_compat.h>
+#include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 #include <linux/pagemap.h>
 #include <linux/mman.h>
@@ -234,6 +235,18 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
     boolean_t revert)
 {
 	size_t cnt = MIN(n, uio->uio_resid);
+
+	/*
+	 * If the current task has a fatal signal pending (e.g. OOM killer
+	 * sent SIGKILL), the process address space may be in the process
+	 * of being torn down. Attempting to copy data to or from the
+	 * user buffer in this state can trigger a kernel BUG in the
+	 * hardened usercopy checks (__check_object_size), since the
+	 * destination pages may no longer be valid. Bail out early to
+	 * prevent a kernel panic. See openzfs/zfs#15918.
+	 */
+	if (fatal_signal_pending(current))
+		return (EINTR);
 
 	if (rw == UIO_READ)
 		cnt = copy_to_iter(p, cnt, uio->uio_iter);

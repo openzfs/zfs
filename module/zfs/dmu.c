@@ -1423,6 +1423,17 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 		bufoff = zfs_uio_offset(uio) - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
 
+		/*
+		 * Abort if a signal (e.g. SIGKILL from OOM killer) is
+		 * pending.  Continuing to copy data when the process is
+		 * dying can trigger a kernel panic in the hardened
+		 * usercopy checks.  See openzfs/zfs#15918.
+		 */
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+
 		ASSERT(db->db_data != NULL);
 		err = zfs_uio_fault_move((char *)db->db_data + bufoff, tocpy,
 		    UIO_READ, uio);
@@ -1542,6 +1553,17 @@ top:
 		dmu_buf_t *db = dbp[i];
 
 		ASSERT(write_size > 0);
+
+		/*
+		 * Abort if a signal (e.g. SIGKILL from OOM killer) is
+		 * pending.  Continuing to copy data when the process is
+		 * dying can trigger a kernel panic in the hardened
+		 * usercopy checks.  See openzfs/zfs#15918.
+		 */
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
 
 		offset_t off = zfs_uio_offset(uio);
 		bufoff = off - db->db_offset;
