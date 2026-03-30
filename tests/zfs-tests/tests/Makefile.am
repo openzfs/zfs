@@ -2105,6 +2105,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/scrub_mirror/scrub_mirror_003_pos.ksh \
 	functional/scrub_mirror/scrub_mirror_004_pos.ksh \
 	functional/scrub_mirror/setup.ksh \
+	functional/sigkill/cleanup.ksh \
+	functional/sigkill/setup.ksh \
+	functional/sigkill/sigkill_read_write.ksh \
 	functional/slog/cleanup.ksh \
 	functional/slog/setup.ksh \
 	functional/slog/slog_001_pos.ksh \

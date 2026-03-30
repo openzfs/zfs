@@ -97,6 +97,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 	libzfs.la \
 	libnvpair.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/sigkill_iothread
+%C%_sigkill_iothread_LDADD = -lpthread
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
 %C%_stride_dd_LDADD = -lrt
 

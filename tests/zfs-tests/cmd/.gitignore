@@ -39,6 +39,7 @@
 /rm_lnkcnt_zero_file
 /send_doall
 /statx
+/sigkill_iothread
 /stride_dd
 /threadsappend
 /user_ns_exec
