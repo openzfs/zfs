@@ -393,9 +393,22 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
 static int
 zpl_parse_monolithic(struct fs_context *fc, void *data)
 {
+	if (data == NULL)
+		return (0);
+
 	/*
-	 * We do options parsing in zfs_domount(); just stash the options blob
-	 * in the fs_context so we can pass it down later.
+	 * Because we supply a .parse_monolithic callback, the kernel does
+	 * no consideration of the options blob at all. Because of this, we
+	 * have to give LSMs a first look at it. They will remove any options
+	 * of interest to them (eg the SELinux *context= options).
+	 */
+	int err = security_sb_eat_lsm_opts((char *)data, &fc->security);
+	if (err)
+		return (err);
+
+	/*
+	 * Whatever is left we stash on in the fs_context so we can pass it
+	 * down to zfs_domount() or zfs_remount() later.
 	 */
 	fc->fs_private = data;
 	return (0);
