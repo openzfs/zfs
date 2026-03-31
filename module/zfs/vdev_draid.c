@@ -1159,7 +1159,7 @@ vdev_draid_get_astart(vdev_t *vd, const uint64_t start)
 /*
  * Allocatable space for dRAID is (children - nspares) * sizeof(smallest child)
  * rounded down to the last full slice.  So each child must provide at least
- * 1 / (children - nspares) of its asize.
+ * 1 / (children - nspares) of its asize rounded up to VDEV_DRAID_ROWHEIGHT.
  */
 static uint64_t
 vdev_draid_min_asize(vdev_t *vd)
@@ -1169,7 +1169,9 @@ vdev_draid_min_asize(vdev_t *vd)
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
 	return (VDEV_DRAID_REFLOW_RESERVE +
-	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	    ((vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks) +
+	    VDEV_DRAID_ROWHEIGHT - 1) / VDEV_DRAID_ROWHEIGHT *
+	    VDEV_DRAID_ROWHEIGHT);
 }
 
 /*
