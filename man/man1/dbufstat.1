@@ -1,0 +1,233 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.\" Copyright (C) 2013 Lawrence Livermore National Security, LLC.
+.\"
+.Dd March 19, 2026
+.Dt DBUFSTAT 1
+.Os
+.
+.Sh NAME
+.Nm dbufstat
+.Nd display statistics for DMU buffer cache
+.Sh SYNOPSIS
+.Nm
+.Op Fl bdhnrtvx
+.Op Fl f Ar field Ns Op , Ns Ar field Ns …
+.Op Fl F Ar field Ns = Ns Ar value Ns Op , Ns …
+.Op Fl i Ar file
+.Op Fl o Ar file
+.Op Fl s Ar separator
+.
+.Sh DESCRIPTION
+.Nm
+displays statistics about the DMU (Data Management Unit) buffer
+cache, also known as the dbuf cache.
+This information is read from the
+.Sy dbufs
+kstat
+.Po Pa /proc/spl/kstat/zfs/dbufs
+on Linux and
+.Sy kstat.zfs.misc.dbufs
+on FreeBSD
+.Pc .
+.Pp
+.Nm
+can display data in three modes:
+.Bl -tag -width "-b"
+.It Fl b
+Display a table of information for each individual dbuf
+(buffer).
+This is the most detailed view.
+.It Fl d
+Display a table of information for each dnode
+(the default mode).
+Multiple dbufs belonging to the same dnode are
+aggregated.
+.It Fl t
+Display a table of information for each dnode type.
+Multiple dnodes of the same type are aggregated.
+.El
+.Pp
+The following fields are available for display.
+Not all fields are compatible with all modes; use
+.Fl v
+to see which fields are incompatible with each mode.
+.Bl -tag -compact -offset Ds -width "indirect"
+.It Sy pool
+Pool name.
+.It Sy objset
+Dataset identification number.
+.It Sy object
+Object number.
+.It Sy level
+Indirection level of buffer.
+.It Sy blkid
+Block number of buffer.
+.It Sy offset
+Offset in object of buffer.
+.It Sy dbsize
+Size of buffer.
+.It Sy usize
+Size of attached user data.
+.It Sy meta
+Whether this buffer is metadata.
+.It Sy state
+State of buffer (read, cached, etc).
+.It Sy dbholds
+Number of holds on buffer.
+.It Sy dbc
+Whether this buffer is in the dbuf cache.
+.It Sy list
+Which ARC list contains this buffer.
+.It Sy atype
+ARC header type (data or metadata).
+.It Sy flags
+ARC read flags.
+.It Sy count
+ARC data count.
+.It Sy asize
+Size of this ARC buffer.
+.It Sy access
+Time this ARC buffer was last accessed.
+.It Sy mru
+Hits while on the ARC's MRU list.
+.It Sy gmru
+Hits while on the ARC's MRU ghost list.
+.It Sy mfu
+Hits while on the ARC's MFU list.
+.It Sy gmfu
+Hits while on the ARC's MFU ghost list.
+.It Sy l2
+Hits while on the L2ARC.
+.It Sy l2_dattr
+L2ARC disk address/offset.
+.It Sy l2_asize
+L2ARC allocated size (depends on compression).
+.It Sy l2_comp
+L2ARC compression algorithm for buffer.
+.It Sy aholds
+Number of holds on this ARC buffer.
+.It Sy dtype
+Dnode type.
+.It Sy btype
+Bonus buffer type.
+.It Sy data_bs
+Data block size.
+.It Sy meta_bs
+Metadata block size.
+.It Sy bsize
+Bonus buffer size.
+.It Sy lvls
+Number of indirection levels.
+.It Sy dholds
+Number of holds on dnode.
+.It Sy blocks
+Number of allocated blocks.
+.It Sy dsize
+Size of dnode.
+.It Sy cached
+Bytes cached for all blocks.
+.It Sy direct
+Bytes cached for direct blocks.
+.It Sy indirect
+Bytes cached for indirect blocks.
+.It Sy bonus
+Bytes cached for bonus buffer.
+.It Sy spill
+Bytes cached for spill block.
+.El
+.
+.Sh OPTIONS
+.Bl -tag -width "-F filter"
+.It Fl b
+Display information for each individual dbuf.
+.It Fl d
+Display information for each dnode (default).
+.It Fl f Ar field Ns Op , Ns Ar field Ns …
+Display only the specified fields.
+.It Fl F Ar field Ns = Ns Ar value Ns Op , Ns …
+Filter output by field value or regular expression.
+Multiple filters may be specified as a comma-separated list.
+.It Fl h
+Display a help message.
+.It Fl i Ar file
+Redirect input from the specified file instead of the
+.Sy dbufs
+kstat.
+.It Fl n
+Exclude the header from output.
+.It Fl o Ar file
+Redirect output to the specified file instead of standard output.
+.It Fl r
+Display raw values.
+Specify twice to also display numeric type and compression
+identifiers instead of names.
+.It Fl s Ar separator
+Override the default field separator (two spaces) with a
+custom character or string.
+.It Fl t
+Display information for each dnode type.
+.It Fl v
+List all possible field headers, definitions, and
+incompatibilities for each mode.
+.It Fl x
+Display extended statistics.
+.El
+.
+.Sh EXAMPLES
+Display per-dnode statistics (default mode):
+.Bd -literal -compact -offset Ds
+# dbufstat -d
+       pool  objset  object                      dtype  cached
+      zroot      30   34466  DMU_OT_DIRECTORY_CONTENTS    240K
+      zroot      30       0               DMU_OT_DNODE     14M
+      zroot      30   36343  DMU_OT_DIRECTORY_CONTENTS    1024
+      zroot      30   32921 DMU_OT_PLAIN_FILE_CONTENTS    2.5K
+.Ed
+.Pp
+Display per-type statistics:
+.Bd -literal -compact -offset Ds
+# dbufstat -t
+       pool  objset                      dtype  cached
+      zroot      30  DMU_OT_DIRECTORY_CONTENTS    1.9M
+      zroot      30               DMU_OT_DNODE     14M
+      zroot      30 DMU_OT_PLAIN_FILE_CONTENTS    8.4M
+      zroot       0           DMU_OT_DSL_PROPS    2.6M
+.Ed
+.Pp
+Display per-buffer statistics:
+.Bd -literal -compact -offset Ds
+# dbufstat -b
+       pool  objset  object  level  blkid  offset  dbsize
+      zroot      30   34466      1      0       0    128K
+      zroot      30       0      0    292    4.6M     16K
+      zroot      30   34466      0      8    128K     16K
+      zroot       0       4      0      0       0    128K
+.Ed
+.Pp
+Display specific fields per dnode:
+.Dl # Nm dbufstat Fl d Fl f Ar pool,object,objset,dsize,cached
+.Pp
+Display per-type statistics with comma-separated output:
+.Dl # Nm dbufstat Fl t Fl s Qq ,
+.Pp
+Display extended per-buffer statistics with filters:
+.Dl # Nm dbufstat Fl bx Fl F Ar dbc=1,pool=zroot
+.
+.Sh SEE ALSO
+.Xr zarcstat 1 ,
+.Xr zfs 8 ,
+.Xr zpool-iostat 8
+.
+.Sh AUTHORS
+This man page was written by
+.An Christos Longros Aq Mt chris.longros@gmail.com .

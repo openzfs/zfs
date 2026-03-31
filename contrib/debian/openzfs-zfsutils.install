@@ -42,6 +42,7 @@ usr/bin/dbufstat usr/sbin
 usr/bin/zilstat
 usr/share/zfs/compatibility.d/
 usr/share/bash-completion/completions
+usr/share/man/man1/dbufstat.1
 usr/share/man/man1/zarcsummary.1
 usr/share/man/man1/zarcstat.1
 usr/share/man/man1/zhack.1
