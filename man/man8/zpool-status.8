@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 20, 2025
+.Dd March 16, 2026
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -63,6 +63,8 @@ If a scrub or resilver is in progress, this command reports the percentage done
 and the estimated time to completion.
 Both of these are only approximate, because the amount of data in the pool and
 the other workloads on the system can change.
+Due to concurrent writes on a live system, it is possible for both scrubs and
+resilvers to progress beyond 100% completion.
 .Bl -tag -width Ds
 .It Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
 Run a script (or scripts) on each vdev and include the output as a new column

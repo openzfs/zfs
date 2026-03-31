@@ -48,6 +48,9 @@ resilver will be added to the new one.
 This requires the
 .Sy resilver_defer
 pool feature.
+.Pp
+Due to concurrent writes on a live system, it is possible for
+resilver to progress beyond 100% completion.
 .
 .Sh SEE ALSO
 .Xr zpool-iostat 8 ,
