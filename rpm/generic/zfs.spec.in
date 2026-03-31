@@ -1,4 +1,9 @@
+# Since Fedora 42, Fedora has unified /bin and /sbin. For this to
+# work, we must not override _sbindir
+%if 0%{?fedora} >= 42
+%else
 %global _sbindir    /sbin
+%endif
 %global _libdir     /%{_lib}
 
 # Set the default udev directory based on distribution.
@@ -393,6 +398,7 @@ support for unlocking datasets on user login.
     --with-pammoduledir=%{_libdir}/security \
     --with-python=%{__python} \
     --with-pkgconfigdir=%{_pkgconfigdir} \
+    --with-mounthelperdir=%{_sbindir} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
