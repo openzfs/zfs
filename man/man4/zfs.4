@@ -1008,6 +1008,17 @@ Value of 4 means parity with page cache.
 The target number of bytes the ARC should leave as free memory on the system.
 If zero, equivalent to the bigger of
 .Sy 512 KiB No and Sy all_system_memory/64 .
+.It Sy zfs_arc_free_target Pq uint
+Desired number of free pages below which the ARC
+triggers reclaim.
+Initialized at boot to the kernel's
+.Va vm.v_free_target
+value and can be adjusted at runtime.
+This parameter is
+.Fx Ns -specific
+and uses pages, unlike the Linux-specific
+.Sy zfs_arc_sys_free
+which is measured in bytes.
 .
 .It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
 Rate limit checksum events to this many per second.
