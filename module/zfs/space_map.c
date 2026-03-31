@@ -92,8 +92,7 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 	ASSERT3U(end, <=, space_map_length(sm));
 	ASSERT0(P2PHASE(end, sizeof (uint64_t)));
 
-	dmu_prefetch(sm->sm_os, space_map_object(sm), 0, 0, end,
-	    ZIO_PRIORITY_SYNC_READ);
+	dmu_prefetch_stream(sm->sm_os, space_map_object(sm), 0, end, B_FALSE);
 
 	int error = 0;
 	uint64_t txg = 0, sync_pass = 0;
