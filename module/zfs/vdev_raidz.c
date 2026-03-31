@@ -3615,6 +3615,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 {
 	int normal_errors = 0;
 	int shadow_errors = 0;
+	int retryable_errors = 0;
 
 	ASSERT3U(rr->rr_missingparity, <=, rr->rr_firstdatacol);
 	ASSERT3U(rr->rr_missingdata, <=, rr->rr_cols - rr->rr_firstdatacol);
@@ -3630,6 +3631,11 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_shadow_error != 0) {
 			ASSERT(rc->rc_shadow_error != ECKSUM);
 			shadow_errors++;
+		}
+		if (rc->rc_error || rc->rc_shadow_error) {
+			vdev_t *cvd = zio->io_vd->vdev_child[rc->rc_devidx];
+			if (!(vdev_is_dead(cvd) || cvd->vdev_cant_write))
+				retryable_errors++;
 		}
 	}
 
@@ -3650,8 +3656,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	    shadow_errors > rr->rr_firstdatacol) {
 		zio->io_error = zio_worst_error(zio->io_error,
 		    vdev_raidz_worst_error(rr));
-	} else if ((normal_errors || shadow_errors) &&
-	    zfs_treat_partial_writes) {
+	} else if (retryable_errors && zfs_treat_partial_writes) {
 		zio->io_flags |= ZIO_FLAG_POSTREAD;
 	}
 }

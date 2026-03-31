@@ -2393,7 +2393,7 @@ If a write to a multi-disk vdev fails, but the data is recoverable, the data is
 persisted on disk but may not be as redundant as the vdev usually ensures.
 If this tunable is set, we issue a read after such a write error to detect the
 full extent of the problem and attempt to recover from it.
-Note: This currently only works with RAID-Z.
+Note: This currently only works with RAID-Z and dRAID.
 .
 .It Sy zfs_trim_extent_bytes_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Maximum size of TRIM command.
