@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd October 12, 2024
+.Dd March 15, 2026
 .Dt ZFS-SET 8
 .Os
 .
@@ -114,9 +114,17 @@ Property value
 .It Sy source
 Property source
 .Sy local , default , inherited , temporary , received , No or Sy - Pq none .
+.It Sy received
+The received value of the property, if any.
+This column is not displayed by default.
 .El
 .Pp
-All columns are displayed by default, though this can be controlled by using the
+The
+.Sy name , property , value ,
+and
+.Sy source
+columns are displayed by default, though this can be
+controlled by using the
 .Fl o
 option.
 This command takes a comma-separated list of properties as described in the
@@ -147,7 +155,13 @@ A depth of
 .Sy 1
 will display only the dataset and its direct children.
 .It Fl o Ar field
-A comma-separated list of columns to display, defaults to
+A comma-separated list of columns to display.
+Supported fields are
+.Sy name , property , value , received , source ,
+or
+.Sy all
+to select all five columns.
+The default value is
 .Sy name , Ns Sy property , Ns Sy value , Ns Sy source .
 .It Fl p
 Display numbers in parsable
