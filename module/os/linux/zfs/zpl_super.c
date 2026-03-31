@@ -694,6 +694,128 @@ zpl_parse_param(struct fs_context *fc, struct fs_parameter *param)
 	return (0);
 }
 
+/*
+ * Before Linux 5.8, the kernel's individual parameter parsing had a list of
+ * "forbidden" options that would always be rejected early. These were options
+ * that should be specified by MS_* flags, to be set on the superblock
+ * directly. However, it was inconsistently applied (eg it had various "*atime"
+ * options but not "atime", and also caused problems when it was not in sync
+ * with the version of libmount in use. It was deemed needlessly restrictive
+ * and was dropped in torvalds/linux@9193ae87a8af.
+ *
+ * Unfortunately, some of the options on this list are used by OpenZFS, so
+ * we need to see them. These include the aforementioned "*atime", "dev",
+ * "exec" and "suid".
+ *
+ * There is no easy compile-time check available to detect this, so we use
+ * a simple version check that should make it available everywhere needed,
+ * most notably RHEL8's 4.18+extras, which has backported fs_context support
+ * but does not include the 5.8 commit.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+#define	HAVE_FORBIDDEN_SB_FLAGS	1
+#endif
+
+#ifdef HAVE_FORBIDDEN_SB_FLAGS
+/*
+ * The typical path for options parsing through mount(2) is:
+ *
+ *     ksys_mount
+ *     do_mount
+ *     generic_parse_monolithic
+ *     vfs_parse_fs_string
+ *     vfs_parse_fs_param
+ *     zpl_parse_param
+ *
+ * vfs_parse_fs_param() calls the internal vfs_parse_sb_flag(), which is
+ * where the "forbidden" flags are applied. If it makes it through there,
+ * it will later call fc->parse_param() ie zpl_parse_param(). We can't
+ * intercept this chain in the middle anywhere; the earliest thing we can
+ * override is generic_parse_monolithic(), substituting our own by setting
+ * fc->parse_monolithic and doing the parsing work ourselves.
+ *
+ * Fortunately, generic_parse_monolithic() is almost entirely splitting the
+ * incoming parameter string on comma and handing off to the rest of the
+ * pipeline. This is easily replaced (almost entirely by reviving a few bits
+ * of our old options parser).
+ *
+ * To keep the change as narrow as possible, we reuse zpl_param_spec and
+ * zpl_parse_param() as much as possible. Once we've parsed the option, we call
+ * fs_parse(zpl_param_spec) to find out if the option is actually one we
+ * explicitly care about. If it is, we call zpl_parse_param() directly,
+ * avoiding vfs_parse_fs_param() and so the risk of being rejected. If it is
+ * not one we explicitly care about, we call zpl_parse_param() as normal,
+ * letting the kernel reject it if it wishes. If it doesn't, it will end up
+ * back in zpl_parse_param() via fc->parse_param, and we can ignore or warn
+ * about it we normally would.
+ */
+static int
+zpl_parse_monolithic(struct fs_context *fc, void *data)
+{
+	char *mntopts = data;
+
+	if (mntopts == NULL)
+		return (0);
+
+	/*
+	 * Because we supply a .parse_monolithic callback, the kernel does
+	 * no consideration of the options blob at all. Because of this, we
+	 * have to give LSMs a first look at it. They will remove any options
+	 * of interest to them (eg the SELinux *context= options).
+	 */
+	int err = security_sb_eat_lsm_opts(mntopts, &fc->security);
+	if (err)
+		return (err);
+
+	char *key;
+	while ((key = strsep(&mntopts, ",")) != NULL) {
+		if (!*key)
+			continue;
+
+		struct fs_parameter param = {
+		    .key = key,
+		};
+
+		char *value = strchr(key, '=');
+		if (value != NULL) {
+			/* Key starts with '='. Kernel ignores, we will too. */
+			if (value == key)
+				continue;
+			*value++ = '\0';
+
+			/* key=value is a "string" type, set up for that */
+			param.string = value;
+			param.type = fs_value_is_string;
+			param.size = strlen(value);
+		} else {
+			/* unadorned key is a "flag" type */
+			param.type = fs_value_is_flag;
+		}
+
+		/* Check if this is one of our options. */
+		struct fs_parse_result result;
+		int opt = fs_parse(fc, zpl_param_spec, &param, &result);
+		if (opt >= 0) {
+			/*
+			 * We already know this one of our options, so a
+			 * failure here would be nonsensical.
+			 */
+			VERIFY0(zpl_parse_param(fc, &param));
+		} else {
+			/*
+			 * Not one of our option, send it through the kernel's
+			 * standard parameter handling.
+			 */
+			err = vfs_parse_fs_param(fc, &param);
+			if (err < 0)
+				return (err);
+		}
+	}
+
+	return (0);
+}
+#endif /* HAVE_FORBIDDEN_SB_FLAGS */
+
 static int
 zpl_get_tree(struct fs_context *fc)
 {
@@ -867,6 +989,9 @@ zpl_free_fc(struct fs_context *fc)
 }
 
 const struct fs_context_operations zpl_fs_context_operations = {
+#ifdef	HAVE_FORBIDDEN_SB_FLAGS
+	.parse_monolithic	= zpl_parse_monolithic,
+#endif
 	.parse_param		= zpl_parse_param,
 	.get_tree		= zpl_get_tree,
 	.reconfigure		= zpl_reconfigure,
