@@ -280,7 +280,8 @@ static void
 abd_free_scatter(abd_t *abd)
 {
 	abd_free_chunks(abd);
-	abd_update_scatter_stats(abd, ABDSTAT_DECR);
+	if (!abd_is_from_pages(abd))
+		abd_update_scatter_stats(abd, ABDSTAT_DECR);
 }
 
 /*
