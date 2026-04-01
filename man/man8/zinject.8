@@ -24,7 +24,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd January 14, 2025
+.Dd April 1, 2026
 .Dt ZINJECT 8
 .Os
 .
@@ -275,8 +275,12 @@ Automatically remount the underlying filesystem.
 Quiet mode.
 Only print the handler number added.
 .It Fl r Ar range
-Inject an error over a particular logical range of an object, which
-will be translated to the appropriate blkid range according to the
+Inject an error over a particular logical range of an object, specified as
+.Ar start Ns Op , Ns Ar end .
+Numeric suffixes
+.Pq K, M, G, T, P, E
+are accepted.
+The range will be translated to the appropriate blkid range according to the
 object's properties.
 .It Fl s Ar seconds
 Run for this many seconds before reporting failure.
