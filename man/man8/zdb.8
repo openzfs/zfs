@@ -284,10 +284,15 @@ Decode and display block from an embedded block pointer specified by the
 arguments.
 .It Fl f , -file-layout
 Display the file layout of an object for the disks of a raidz vdev.
+Numeric values in the disply are hexadecimal.
 With
 .Fl H ,
 the output is in scripted mode for easy parsing, with all values
-being presented as 512 byte blocks.
+being presented as 512 byte blocks in decimal; with
+.Fl v ,
+the block type (parity or data) is displayed; with
+.Fl vv ,
+the offset into the file for each block is also printed.
 Only a single top-level raidz vdev is supported.
 .It Fl h , -history
 Display pool history similar to

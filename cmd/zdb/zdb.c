@@ -2802,18 +2802,18 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 	    vd->vdev_children, vdrz->vd_nparity);
 	raidz_row_t *rr = rm->rm_row[0];
 
-	/*
-	 * Account for out of order disks in raidz1.
-	 * For now just reverse them back and adjust for it later.
-	 */
-	if (rr->rr_firstdatacol == 1 && (zio.io_offset & (1ULL << 20))) {
-		uint64_t devidx = rr->rr_col[0].rc_devidx;
-		rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
-		rr->rr_col[1].rc_devidx = devidx;
-	}
-
 	if (!dump_opt['H']) {
 		int last_disk = vd->vdev_children - 1;
+		/*
+		 * Account for out of order disks in raidz1.
+		 * For now just reverse them back and adjust for it later.
+		 */
+		if (rr->rr_firstdatacol == 1 &&
+		    (zio.io_offset & (1ULL << 20))) {
+			uint64_t devidx = rr->rr_col[0].rc_devidx;
+			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
+			rr->rr_col[1].rc_devidx = devidx;
+		}
 		int first_disk = rr->rr_col[0].rc_devidx;
 
 		(void) printf("%12llx", (u_longlong_t)file_offset);
@@ -2843,23 +2843,49 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 		static uint64_t next_offset = 0;
 
 		if (next_offset != file_offset) {
-			(void) printf("skip hole\t-\t%llx\n",
-			    (u_longlong_t)((file_offset - next_offset) >>
-			    vd->vdev_ashift));
+			(void) printf("skip hole\t-\t\t%lld\n",
+			    (u_longlong_t)((file_offset - next_offset) / 512));
 		}
 		next_offset = file_offset + BP_GET_LSIZE(bp);
+		uint64_t tmp_offset = file_offset;
+
 
 		for (int c = 0; c < rr->rr_cols; c++) {
+			boolean_t pcol = c < rr->rr_firstdatacol;
 			raidz_col_t *rc = &rr->rr_col[c];
 			char *path = vd->vdev_child[rc->rc_devidx]->vdev_path;
-			// c < rr->rr_firstdatacol
+
 			if (rc->rc_size == 0)
 				continue;
-			(void) printf("%s\t%llu\t%d\n",
+			(void) printf("%s\t\t%llu\t%d",
 			    zfs_basename(path),
 			    (u_longlong_t)(rc->rc_offset +
 			    VDEV_LABEL_START_SIZE)/512,
 			    (int)rc->rc_size/512);
+			if (dump_opt['v']) {
+				char label = pcol ? 'P' : 'D';
+				int num;
+
+				if (c < 2) {
+					num = 0;
+				} else {
+					num = pcol ? c :
+					    (c - rr->rr_firstdatacol);
+				}
+				printf("\t%c%d", label, num);
+				if (dump_opt['v'] > 1) {
+					unsigned long long off;
+					if (pcol)
+						off = file_offset;
+					else
+						off = tmp_offset;
+					off = off / 512ULL;
+					printf("\t%llu", off);
+				}
+			}
+			if (!pcol)
+				tmp_offset += rc->rc_size;
+			printf("\n");
 		}
 	}
 }
@@ -2989,7 +3015,12 @@ dump_indirect_layout(dnode_t *dn)
 	 * Start layout with a header
 	 */
 	if (dump_opt['H']) {
-		(void) printf("DISK\t\tLBA\t\tCOUNT\n");
+		(void) printf("DISK\t\t\tLBA\tCOUNT");
+		if (dump_opt['v'])
+			(void) printf("\tTYPE");
+		if (dump_opt['v'] > 1)
+			(void) printf("\tOFFSET");
+		printf("\n");
 	} else {
 		char diskhdr[16];
 
@@ -10519,6 +10550,7 @@ retry_lookup:
 		}
 
 		if (dump_opt['f'] && os != NULL) {
+			dump_opt['v'] = verbose;
 			dump_file_data_layout(os);
 		} else if (dump_opt['B']) {
 			dump_backup(target, objset_id,
