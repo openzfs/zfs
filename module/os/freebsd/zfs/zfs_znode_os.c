@@ -1325,6 +1325,49 @@ zfs_znode_free(znode_t *zp)
 	zfs_znode_free_kmem(zp);
 }
 
+/*
+ * Determine whether the znode's atime must be updated.  The logic mostly
+ * duplicates the Linux kernel's relatime_need_update() functionality.
+ * This function is only called if the underlying filesystem actually has
+ * atime updates enabled.
+ */
+boolean_t
+zfs_relatime_need_update(const znode_t *zp)
+{
+	uint64_t mtime[2], ctime[2];
+	sa_bulk_attr_t bulk[2];
+	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+	struct timespec now, tmp_atime, tmp_ts;
+	int count = 0;
+
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, ctime, 16);
+	if (sa_bulk_lookup(zp->z_sa_hdl, bulk, count) != 0)
+		return (B_TRUE);
+
+	ZFS_TIME_DECODE(&tmp_atime, zp->z_atime);
+	/*
+	 * In relatime mode, only update the atime if the previous atime
+	 * is earlier than either the ctime or mtime or if at least a day
+	 * has passed since the last update of atime.
+	 */
+	ZFS_TIME_DECODE(&tmp_ts, mtime);
+	/* CSTYLED */
+	if (timespeccmp(&tmp_ts, &tmp_atime, >=))
+		return (B_TRUE);
+
+	ZFS_TIME_DECODE(&tmp_ts, ctime);
+	/* CSTYLED */
+	if (timespeccmp(&tmp_ts, &tmp_atime, >=))
+		return (B_TRUE);
+
+	vfs_timestamp(&now);
+	if ((hrtime_t)now.tv_sec - (hrtime_t)tmp_atime.tv_sec >= 24*60*60)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 void
 zfs_tstamp_update_setup_ext(znode_t *zp, uint_t flag, uint64_t mtime[2],
     uint64_t ctime[2], boolean_t have_tx)
