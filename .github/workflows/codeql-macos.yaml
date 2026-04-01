@@ -1,0 +1,52 @@
+name: "CodeQL macOS"
+on:
+  push:
+  pull_request:
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: macos-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      #- name: csrutil disable
+      #  run: |
+      #    sudo csrutil disable
+      #- name: csrutil enable
+      #  run: |
+      #    sudo csrutil enable --without kext
+      #- name: spctl kext-consent disable
+      #  run: |
+      #    sudo spctl kext-consent disable
+      - name: install deps
+        run: |
+          brew install automake libtool gawk coreutils
+      #- name: install deps
+      #  run: |
+          #brew install openssl@1.1
+
+      # Initializes the CodeQL tools for scanning.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+          # Override language selection by uncommenting this and choosing your languages
+        with:
+            languages: cpp
+
+      - name: autogen
+        run: |
+          ./autogen.sh
+      - name: configure
+        run: |
+          #https://stackoverflow.com/a/62591864
+          ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib"
+      - name: build
+        run: |
+          make -j$(sysctl -n hw.ncpu)
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
