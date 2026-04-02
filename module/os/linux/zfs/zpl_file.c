@@ -779,38 +779,21 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	if ((error = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
-	switch (advice) {
-	case POSIX_FADV_SEQUENTIAL:
-	case POSIX_FADV_WILLNEED:
-#ifdef HAVE_GENERIC_FADVISE
-		if (zn_has_cached_data(zp, offset, offset + len - 1))
-			error = generic_fadvise(filp, offset, len, advice);
-#endif
-		/*
-		 * Pass on the caller's size directly, but note that
-		 * dmu_prefetch_max will effectively cap it.  If there
-		 * really is a larger sequential access pattern, perhaps
-		 * dmu_zfetch will detect it.
-		 */
-		if (len == 0)
-			len = i_size_read(ip) - offset;
-
-		dmu_prefetch(os, zp->z_id, 0, offset, len,
+	if (advice == POSIX_FADV_WILLNEED) {
+		loff_t rlen = len ? len : i_size_read(ip) - offset;
+		dmu_prefetch(os, zp->z_id, 0, offset, rlen,
 		    ZIO_PRIORITY_ASYNC_READ);
-		break;
-	case POSIX_FADV_NORMAL:
-	case POSIX_FADV_RANDOM:
-	case POSIX_FADV_DONTNEED:
-	case POSIX_FADV_NOREUSE:
-		/* ignored for now */
-		break;
-	default:
-		error = -EINVAL;
-		break;
+		if (!zn_has_cached_data(zp, offset, offset + rlen - 1)) {
+			zfs_exit(zfsvfs, FTAG);
+			return (error);
+		}
 	}
 
 	zfs_exit(zfsvfs, FTAG);
 
+#ifdef HAVE_GENERIC_FADVISE
+	error = generic_fadvise(filp, offset, len, advice);
+#endif
 	return (error);
 }
 
