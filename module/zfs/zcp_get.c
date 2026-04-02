@@ -592,14 +592,14 @@ zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
 	if (error != 0) {
 		result = zcp_handle_error(state, dataset_name, prop_name,
 		    error);
-		goto out;
+		goto out_props;
 	}
 	nvlist_t *outnvl;
 	error = nvlist_alloc(&outnvl, NV_UNIQUE_NAME, KM_SLEEP);
 	if (error != 0) {
 		result = zcp_handle_error(state, dataset_name, prop_name,
 		    error);
-		goto out;
+		goto out_props;
 	}
 	error = dsl_get_bookmark_props_impl(ds, bmname, props, outnvl);
 	if (error != 0) {
