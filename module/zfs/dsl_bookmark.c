@@ -956,7 +956,6 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
-	zfs_bookmark_phys_t bmark_phys = { 0 };
 	int err;
 
 	err = dsl_pool_hold(dsname, FTAG, &dp);
@@ -967,13 +966,8 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 		dsl_pool_rele(dp, FTAG);
 		return (err);
 	}
+	err = dsl_get_bookmark_props_impl(ds, bmname, NULL, props);
 
-	err = dsl_bookmark_lookup_impl(ds, bmname, &bmark_phys);
-	if (err != 0)
-		goto out;
-
-	dsl_bookmark_fetch_props(dp, &bmark_phys, NULL, props);
-out:
 	dsl_dataset_rele(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
 	return (err);
