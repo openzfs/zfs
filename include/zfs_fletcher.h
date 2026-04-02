@@ -60,6 +60,8 @@ _ZFS_FLETCHER_H int fletcher_2_incremental_native(void *, size_t, void *);
 _ZFS_FLETCHER_H int fletcher_2_incremental_byteswap(void *, size_t, void *);
 _ZFS_FLETCHER_H void fletcher_4_native_varsize(const void *, uint64_t,
     zio_cksum_t *);
+_ZFS_FLETCHER_H void fletcher_4_byteswap_varsize(const void *, uint64_t,
+    zio_cksum_t *);
 _ZFS_FLETCHER_H void fletcher_4_byteswap(const void *, uint64_t, const void *,
     zio_cksum_t *);
 _ZFS_FLETCHER_H int fletcher_4_incremental_native(void *, size_t, void *);
