@@ -650,6 +650,7 @@ out_outnvl:
 out_props:
 	nvlist_free(props);
 out:
+	dsl_dataset_rele(ds, FTAG);
 	return (result);
 }
 
