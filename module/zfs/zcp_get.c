@@ -570,11 +570,7 @@ zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
 	dsl_dataset_t *ds;
 	char *bmname;
 	error = dsl_bookmark_hold_ds(dp, dataset_name, &ds, FTAG, &bmname);
-	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
-		goto out;
-	}
+	(void) zcp_dataset_hold_error(state, dp, dataset_name, error);
 	nvlist_t *props;
 	error = nvlist_alloc(&props, NV_UNIQUE_NAME, KM_SLEEP);
 	if (error != 0) {
