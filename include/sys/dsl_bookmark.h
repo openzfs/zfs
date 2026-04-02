@@ -119,6 +119,8 @@ typedef struct dsl_bookmark_create_redacted_arg {
 	const void	*dbcra_tag;
 } dsl_bookmark_create_redacted_arg_t;
 
+int dsl_bookmark_hold_ds(dsl_pool_t *, const char *, dsl_dataset_t **,
+    const void *, char **);
 int dsl_bookmark_create(nvlist_t *, nvlist_t *);
 int dsl_bookmark_create_nvl_validate(nvlist_t *);
 int dsl_bookmark_create_check(void *arg, dmu_tx_t *tx);

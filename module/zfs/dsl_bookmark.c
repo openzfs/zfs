@@ -37,7 +37,12 @@
 #include <sys/dmu_send.h>
 #include <sys/dbuf.h>
 
-static int
+/*
+ * Given the full name of a dataset and bookmark (`fullname`), hold the dataset
+ * with the given tag (`tag`), returning the dataset in `dsp`, and returning the
+ * substring of `fullname` that represents the bookmark name in `shortnamep`.
+ */
+int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
     dsl_dataset_t **dsp, const void *tag, char **shortnamep)
 {
