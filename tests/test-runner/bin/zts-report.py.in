@@ -173,9 +173,6 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zpool_resilver/zpool_resilver_concurrent':
             ['SKIP', na_reason],
         'zoned_uid/setup': ['SKIP', na_reason],
-        'cli_root/zpool_wait/zpool_wait_trim_basic': ['SKIP', trim_reason],
-        'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
-        'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
         'cli_root/zfs_unshare/zfs_unshare_008_pos': ['SKIP', na_reason],
         'cp_files/cp_files_002_pos': ['SKIP', na_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
