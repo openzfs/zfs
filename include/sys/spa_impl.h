@@ -229,6 +229,7 @@ struct spa {
 	nvlist_t	*spa_config_syncing;	/* currently syncing config */
 	nvlist_t	*spa_config_splitting;	/* config for splitting */
 	nvlist_t	*spa_load_info;		/* info and errors from load */
+	nvlist_t	*spa_create_info;	/* info from create */
 	uint64_t	spa_config_txg;		/* txg of last config change */
 	uint32_t	spa_sync_pass;		/* iterate-to-convergence */
 	pool_state_t	spa_state;		/* pool state */
