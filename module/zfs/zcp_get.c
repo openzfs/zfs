@@ -574,47 +574,33 @@ zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
 	nvlist_t *props;
 	error = nvlist_alloc(&props, NV_UNIQUE_NAME, KM_SLEEP);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out;
 	}
 	if (!zfs_prop_valid_for_type(zfs_prop, ZFS_TYPE_BOOKMARK, B_FALSE)) {
 		error = EINVAL;
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_props;
 	}
 	error = nvlist_add_boolean(props, prop_name);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_props;
 	}
 	nvlist_t *outnvl;
 	error = nvlist_alloc(&outnvl, NV_UNIQUE_NAME, KM_SLEEP);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_props;
 	}
 	error = dsl_get_bookmark_props_impl(ds, bmname, props, outnvl);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_outnvl;
 	}
 	nvlist_t *prop;
 	error = nvlist_lookup_nvlist(outnvl, zfs_prop_to_name(zfs_prop), &prop);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_outnvl;
 	}
 	nvpair_t *value;
 	error = nvlist_lookup_nvpair(prop, ZPROP_VALUE, &value);
 	if (error != 0) {
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_outnvl;
 	}
 	uint64_t uint64_value;
@@ -641,8 +627,6 @@ zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
 		    " (property %s)", value->nvp_type,
 		    zfs_prop_to_name(zfs_prop));
 		error = EINVAL;
-		result = zcp_handle_error(state, dataset_name, prop_name,
-		    error);
 		goto out_outnvl;
 	}
 out_outnvl:
@@ -651,6 +635,10 @@ out_props:
 	nvlist_free(props);
 out:
 	dsl_dataset_rele(ds, FTAG);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+	}
 	return (result);
 }
 
