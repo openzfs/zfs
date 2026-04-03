@@ -576,10 +576,6 @@ zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
 	if (error != 0) {
 		goto out;
 	}
-	if (!zfs_prop_valid_for_type(zfs_prop, ZFS_TYPE_BOOKMARK, B_FALSE)) {
-		error = EINVAL;
-		goto out_props;
-	}
 	error = nvlist_add_boolean(props, prop_name);
 	if (error != 0) {
 		goto out_props;
