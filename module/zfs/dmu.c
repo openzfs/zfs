@@ -947,6 +947,35 @@ dmu_prefetch_dnode(objset_t *os, uint64_t object, zio_priority_t pri)
 }
 
 /*
+ * Advisory cache eviction for a byte range of an object.
+ */
+void
+dmu_evict_range(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
+{
+	dnode_t *dn;
+
+	if (len == 0)
+		return;
+	if (dnode_hold(os, object, FTAG, &dn) != 0)
+		return;
+
+	/*
+	 * Exclude the last block if the range end is not block-aligned:
+	 * a sequential access may continue into that block.  The first
+	 * block is included even when partially covered since backwards
+	 * access patterns are rare.
+	 */
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	uint64_t start = dbuf_whichblock(dn, 0, offset);
+	uint64_t end = dbuf_whichblock(dn, 0, offset + len);
+	if (end > start)
+		dbuf_evict_range(dn, start, end - 1);
+	rw_exit(&dn->dn_struct_rwlock);
+
+	dnode_rele(dn, FTAG);
+}
+
+/*
  * Get the next "chunk" of file data to free.  We traverse the file from
  * the end so that the file gets shorter over time (if we crash in the
  * middle, this will leave us in a better state).  We find allocated file

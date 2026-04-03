@@ -6748,10 +6748,12 @@ zfs_freebsd_advise(struct vop_advise_args *ap)
 		dmu_prefetch(os, zp->z_id, 0, start, len,
 		    ZIO_PRIORITY_ASYNC_READ);
 		break;
+	case POSIX_FADV_DONTNEED:
+		dmu_evict_range(os, zp->z_id, start, len);
+		break;
 	case POSIX_FADV_NORMAL:
 	case POSIX_FADV_RANDOM:
 	case POSIX_FADV_SEQUENTIAL:
-	case POSIX_FADV_DONTNEED:
 	case POSIX_FADV_NOREUSE:
 		/* ignored for now */
 		break;

@@ -411,6 +411,8 @@ void dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type,
 
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
     struct dmu_tx *);
+void dbuf_evict_range(struct dnode *dn, uint64_t start_blkid,
+    uint64_t end_blkid);
 
 void dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx);
 

@@ -967,6 +967,8 @@ void dmu_prefetch_stream(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t len, boolean_t start_now);
 void dmu_prefetch_stream_by_dnode(dnode_t *dn, uint64_t offset,
     uint64_t len, boolean_t start_now);
+void dmu_evict_range(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t len);
 
 typedef struct dmu_object_info {
 	/* All sizes are in bytes unless otherwise indicated. */

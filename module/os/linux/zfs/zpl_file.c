@@ -789,11 +789,17 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 		}
 	}
 
-	zfs_exit(zfsvfs, FTAG);
-
 #ifdef HAVE_GENERIC_FADVISE
 	error = generic_fadvise(filp, offset, len, advice);
 #endif
+
+	if (error == 0 && advice == POSIX_FADV_DONTNEED) {
+		loff_t rlen = len ? len : i_size_read(ip) - offset;
+		dmu_evict_range(os, zp->z_id, offset, rlen);
+	}
+
+	zfs_exit(zfsvfs, FTAG);
+
 	return (error);
 }
 

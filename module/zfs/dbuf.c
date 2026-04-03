@@ -2077,6 +2077,65 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 }
 
+/*
+ * Advisory eviction of level-0 dbufs in [start_blkid, end_blkid] for
+ * the given dnode.  Dirty dbufs carry a reference, so they will be
+ * evicted once their sync is completed.
+ */
+void
+dbuf_evict_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid)
+{
+	dmu_buf_impl_t *db_marker;
+	dmu_buf_impl_t *db, *db_next;
+	avl_index_t where;
+
+	db_marker = kmem_alloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
+	db_marker->db_level = 0;
+	db_marker->db_blkid = start_blkid;
+	db_marker->db_state = DB_SEARCH;
+
+	mutex_enter(&dn->dn_dbufs_mtx);
+	db = avl_find(&dn->dn_dbufs, db_marker, &where);
+	ASSERT0P(db);
+	db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
+
+	for (; db != NULL; db = db_next) {
+		if (db->db_level != 0 || db->db_blkid > end_blkid)
+			break;
+
+		mutex_enter(&db->db_mtx);
+		if (db->db_state != DB_EVICTING &&
+		    zfs_refcount_is_zero(&db->db_holds)) {
+			/*
+			 * Clean and unreferenced: evict immediately.
+			 * Use the marker pattern from dnode_evict_dbufs()
+			 * because dbuf_destroy() may recursively remove
+			 * the parent indirect dbuf from dn_dbufs, which
+			 * could be the node db_next would point to.
+			 */
+			db_marker->db_level = db->db_level;
+			db_marker->db_blkid = db->db_blkid;
+			db_marker->db_state = DB_MARKER;
+			db_marker->db_parent =
+			    (void *)((uintptr_t)db - 1);
+			avl_insert_here(&dn->dn_dbufs, db_marker,
+			    db, AVL_BEFORE);
+			dbuf_destroy(db);
+			db_next = AVL_NEXT(&dn->dn_dbufs, db_marker);
+			avl_remove(&dn->dn_dbufs, db_marker);
+		} else {
+			/* Referenced (possibly dirty): evict when released. */
+			db->db_pending_evict = TRUE;
+			db->db_partial_read = FALSE;
+			mutex_exit(&db->db_mtx);
+			db_next = AVL_NEXT(&dn->dn_dbufs, db);
+		}
+	}
+	mutex_exit(&dn->dn_dbufs_mtx);
+
+	kmem_free(db_marker, sizeof (dmu_buf_impl_t));
+}
+
 void
 dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 {
@@ -5446,6 +5505,7 @@ EXPORT_SYMBOL(dbuf_whichblock);
 EXPORT_SYMBOL(dbuf_read);
 EXPORT_SYMBOL(dbuf_unoverride);
 EXPORT_SYMBOL(dbuf_free_range);
+EXPORT_SYMBOL(dbuf_evict_range);
 EXPORT_SYMBOL(dbuf_new_size);
 EXPORT_SYMBOL(dbuf_release_bp);
 EXPORT_SYMBOL(dbuf_dirty);
