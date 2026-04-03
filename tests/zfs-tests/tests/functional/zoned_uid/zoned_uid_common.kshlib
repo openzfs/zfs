@@ -1,0 +1,237 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2026 Colin K. Williams / LINK ORG LLC / LI-NK.SOCIAL. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/zoned_uid/zoned_uid.cfg
+
+#
+# Check if the kernel supports zoned_uid property
+#
+function zoned_uid_supported
+{
+	zfs get zoned_uid "$TESTPOOL" >/dev/null 2>&1
+	return $?
+}
+
+#
+# Get the zoned_uid property value for a dataset
+# Use -p for parseable (raw numeric) output
+#
+function get_zoned_uid
+{
+	typeset dataset=$1
+	get_prop zoned_uid "$dataset"
+}
+
+#
+# Set the zoned_uid property on a dataset
+#
+function set_zoned_uid
+{
+	typeset dataset=$1
+	typeset uid=$2
+	zfs set zoned_uid="$uid" "$dataset"
+}
+
+#
+# Clear the zoned_uid property (set to 0/none)
+#
+function clear_zoned_uid
+{
+	typeset dataset=$1
+	zfs set zoned_uid=0 "$dataset"
+}
+
+#
+# Run a ZFS command inside a user namespace owned by the given UID.
+# Uses absolute path to zfs so the binary is found regardless of the
+# target user's PATH (e.g. when running from a source build).
+#
+# The namespace gets CAP_SYS_ADMIN via --map-root-user (default behavior,
+# equivalent to a container launched with --cap-add SYS_ADMIN).
+#
+# Usage: run_in_userns <uid> <zfs_args...>
+# Output is captured to stdout/stderr; return code is preserved.
+#
+function run_in_userns
+{
+	typeset uid=$1
+	shift
+	typeset zfs_cmd
+	zfs_cmd="$(which zfs)"
+
+	sudo -u \#"${uid}" unshare --user --mount --map-root-user \
+	    "$zfs_cmd" "$@"
+}
+
+#
+# Run a ZFS command inside a user namespace with specific capabilities.
+# Uses capsh --drop to remove capabilities from the bounding set after
+# creating the namespace via unshare --map-root-user.  The exec'd shell
+# (via capsh -- -c) inherits the restricted bounding set, so the ZFS
+# binary sees only the kept capabilities in effective/permitted.
+#
+# Usage: run_in_userns_caps <uid> <cap_spec> <zfs_args...>
+#   cap_spec:
+#     "all"               — keep all caps (same as run_in_userns)
+#     "none"              — drop all capabilities
+#     "drop_sys_admin"    — drop only CAP_SYS_ADMIN (keep FOWNER etc.)
+#     "cap_fowner"        — keep only CAP_FOWNER (drop everything else)
+#
+function run_in_userns_caps
+{
+	typeset uid=$1
+	typeset cap_spec=$2
+	shift 2
+	typeset zfs_cmd capsh_cmd
+	zfs_cmd="$(which zfs)"
+	capsh_cmd="$(which capsh)"
+
+	if [[ "$cap_spec" == "all" ]]; then
+		sudo -u \#"${uid}" unshare --user --mount --map-root-user \
+		    "$zfs_cmd" "$@"
+		return $?
+	fi
+
+	if [[ "$cap_spec" == "none" ]]; then
+		# Drop every capability from the bounding set
+		sudo -u \#"${uid}" unshare --user --mount --map-root-user \
+		    "$capsh_cmd" --drop=all -- -c "$zfs_cmd $*"
+		return $?
+	fi
+
+	if [[ "$cap_spec" == "drop_sys_admin" ]]; then
+		# Drop only CAP_SYS_ADMIN; all other caps (including
+		# CAP_FOWNER) remain.  This simulates a default Podman
+		# container (default caps, no --cap-add SYS_ADMIN).
+		sudo -u \#"${uid}" unshare --user --mount --map-root-user \
+		    "$capsh_cmd" --drop=cap_sys_admin -- -c "$zfs_cmd $*"
+		return $?
+	fi
+
+	# Generic: drop all caps except the ones listed.
+	# Build the drop list by enumerating all caps and excluding those
+	# the caller wants to keep.
+	typeset all_caps drop_list=""
+	all_caps=$("$capsh_cmd" --print 2>/dev/null | \
+	    grep "^Bounding set" | sed 's/.*=//;s/,/ /g')
+	if [[ -z "$all_caps" ]]; then
+		log_fail "capsh --print failed to enumerate capabilities"
+	fi
+	for cap in $all_caps; do
+		typeset keep=false
+		typeset IFS=","
+		for want in $cap_spec; do
+			if [[ "$cap" == "$want" ]]; then
+				keep=true
+				break
+			fi
+		done
+		unset IFS
+		if [[ "$keep" == "false" ]]; then
+			drop_list="$drop_list --drop=$cap"
+		fi
+	done
+
+	# shellcheck disable=SC2086
+	sudo -u \#"${uid}" unshare --user --mount --map-root-user \
+	    "$capsh_cmd" $drop_list -- -c "$zfs_cmd $*"
+}
+
+#
+# Verify that capability control via capsh works in user namespaces.
+# Returns 0 if the mechanism is functional, non-zero otherwise.
+# This should be called in setup.ksh to skip tests if capsh is broken.
+#
+function verify_capsh_works
+{
+	typeset capsh_cmd
+	capsh_cmd="$(which capsh)"
+	if [[ -z "$capsh_cmd" ]]; then
+		return 1
+	fi
+
+	# Test 1: after --drop=cap_sys_admin, cap should be absent
+	typeset result
+	result=$(unshare --user --map-root-user \
+	    "$capsh_cmd" --drop=cap_sys_admin -- \
+	    -c "$capsh_cmd --has-p=cap_sys_admin 2>&1 && echo YES || echo NO")
+	if [[ "$result" != *"NO"* ]]; then
+		return 1
+	fi
+
+	# Test 2: cap_fowner should still be present
+	result=$(unshare --user --map-root-user \
+	    "$capsh_cmd" --drop=cap_sys_admin -- \
+	    -c "$capsh_cmd --has-p=cap_fowner 2>&1 && echo YES || echo NO")
+	if [[ "$result" != *"YES"* ]]; then
+		return 1
+	fi
+
+	# Test 3: --drop=all should remove everything
+	result=$(unshare --user --map-root-user \
+	    "$capsh_cmd" --drop=all -- \
+	    -c "$capsh_cmd --has-p=cap_fowner 2>&1 && echo YES || echo NO")
+	if [[ "$result" != *"NO"* ]]; then
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Grant delegated permissions to a user on a dataset.
+# Wrapper around zfs allow.
+#
+# Usage: grant_deleg <dataset> <uid> <perms>
+#   perms: comma-separated list, e.g. "create,snapshot,mount"
+#
+function grant_deleg
+{
+	typeset dataset=$1
+	typeset uid=$2
+	typeset perms=$3
+	zfs allow -u "$uid" "$perms" "$dataset"
+}
+
+#
+# Revoke delegated permissions from a user on a dataset.
+# Wrapper around zfs unallow.
+#
+# Usage: revoke_deleg <dataset> <uid> [perms]
+#   perms: optional comma-separated list; if omitted, revokes all
+#
+function revoke_deleg
+{
+	typeset dataset=$1
+	typeset uid=$2
+	typeset perms=${3:-}
+	if [[ -n "$perms" ]]; then
+		zfs unallow -u "$uid" "$perms" "$dataset"
+	else
+		zfs unallow -u "$uid" "$dataset"
+	fi
+}

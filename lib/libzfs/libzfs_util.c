@@ -324,6 +324,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ASHIFT_MISMATCH:
 		return (dgettext(TEXT_DOMAIN, "adding devices with "
 		    "different physical sector sizes is not allowed"));
+	case EZFS_NO_USER_NS_SUPPORT:
+		return (dgettext(TEXT_DOMAIN, "kernel was built without "
+		    "user namespace support (CONFIG_USER_NS)"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -516,6 +519,9 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_NOT_USER_NAMESPACE:
 		zfs_verror(hdl, EZFS_NOT_USER_NAMESPACE, fmt, ap);
+		break;
+	case ZFS_ERR_NO_USER_NS_SUPPORT:
+		zfs_verror(hdl, EZFS_NO_USER_NS_SUPPORT, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));

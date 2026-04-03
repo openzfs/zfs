@@ -2112,6 +2112,98 @@ for more information.
 Zoning is a
 Linux
 feature and this property is not available on other platforms.
+.It Sy zoned_uid Ns = Ns Ar uid
+Delegates dataset visibility and administration to all user namespaces
+owned by the specified UID.
+This property enables rootless container support with native ZFS storage.
+For example, setting
+.Sy zoned_uid Ns = Ns 1000
+allows user 1000's rootless Podman containers to use ZFS for storage layers.
+This is a Linux-only feature.
+.Pp
+Authorization uses an additive three-layer model where all layers must pass:
+.Bl -tag -width "L2 (capability tier)" -compact
+.It Sy L0 (authentication)
+The user namespace owner UID must match the
+.Sy zoned_uid
+value.
+.It Sy L1 (dsl_deleg)
+The pool administrator must grant per-operation permissions on the
+delegation root using
+.Xr zfs-allow 8 .
+When pool delegation is OFF
+.Pq Nm zpool Cm set Sy delegation Ns = Ns Sy off ,
+all write operations are denied regardless of capabilities.
+.It Sy L2 (capability tier)
+Linux capabilities within the user namespace determine the permitted
+operation class:
+.Sy CAP_FOWNER
+for non-destructive operations
+.Pq create, snapshot, set property ,
+.Sy CAP_SYS_ADMIN
+for destructive operations
+.Pq destroy, rename, clone .
+Both are namespaced capabilities scoped to the user namespace,
+not the init namespace.
+.El
+.Pp
+Read-only operations
+.Pq Nm zfs Cm list , Nm zfs Cm get
+require no capabilities and no
+.Nm zfs Cm allow
+grants; visibility is controlled solely by the
+.Sy zoned_uid
+delegation scoping.
+.Pp
+Write operations that can be delegated include
+.Nm zfs Cm create ,
+.Nm zfs Cm destroy ,
+.Nm zfs Cm snapshot ,
+.Nm zfs Cm clone ,
+.Nm zfs Cm rename
+.Pq within the delegation subtree ,
+and
+.Nm zfs Cm set .
+.Pp
+The delegation root dataset
+.Pq where zoned_uid is locally set
+cannot be destroyed from within the user namespace, protecting the
+parent dataset from unauthorized removal.
+Renames are also constrained to remain within the delegation subtree.
+The namespace user cannot modify the
+.Sy zoned_uid
+or
+.Sy zoned
+properties, and cannot override
+.Sy filesystem_limit
+or
+.Sy snapshot_limit
+set by the administrator on the delegation root
+.Pq but can impose tighter sub-limits on child datasets .
+.Pp
+Set to
+.Sy 0
+.Pq or inherit
+to disable UID-based delegation.
+.Pp
+Unlike
+.Nm zfs Cm zone
+which requires an existing namespace file,
+.Sy zoned_uid
+applies to any user namespace owned by the specified UID,
+making it suitable for container runtimes that create new namespaces
+on each invocation.
+See
+.Xr zfs-zone 8
+for namespace-specific delegation.
+.Pp
+Example setup for rootless Podman:
+.Bd -literal -offset indent
+# zfs create tank/containers
+# zfs set zoned_uid=1000 tank/containers
+# zfs set mountpoint=none tank/containers
+# zfs allow -u 1000 create,destroy,mount,snapshot,rename,clone tank/containers
+.Ed
 .El
 .Pp
 The following three properties cannot be changed after the file system is
