@@ -48,6 +48,7 @@
 #include <libintl.h>
 #include <locale.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13867,6 +13868,8 @@ main(int argc, char **argv)
 	}
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
+
+	(void) signal(SIGPIPE, SIG_IGN);
 
 	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
