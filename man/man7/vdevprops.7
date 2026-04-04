@@ -142,7 +142,17 @@ If the property is only set on the top-level vdev, this value will be used.
 The value of these properties do not persist across vdev replacement.
 For this reason, it is advisable to set the property on the top-level vdev -
 not on the leaf vdev itself.
+The
+.Sy slow_io_n
+and
+.Sy slow_io_t
+properties must be manually set to enable slow I/O diagnosis;
+there are no built-in defaults.
 The default values for
+.Sy checksum_n , checksum_t , io_n ,
+and
+.Sy io_t
+on
 .Sy OpenZFS on Linux
 are 10 errors in 600 seconds.
 For
