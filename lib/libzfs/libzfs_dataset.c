@@ -5138,7 +5138,7 @@ zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 			err = zfs_error(hdl, EZFS_BADVERSION, errbuf);
 			break;
 		case EINVAL:
-			err = zfs_error(hdl, EZFS_BADTYPE, errbuf);
+			err = zfs_error(hdl, EZFS_BADPERM, errbuf);
 			break;
 		case ENOENT:
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
