@@ -6,6 +6,27 @@
 
 set -eu
 
+# The default runner has a bunch of development tools and other things
+# that we do not need.  Remove them here to free up a total of 35GB.
+#
+# First remove packages - this frees up ~10GB
+echo "Disk space before purge:"
+df -h /
+sudo docker image prune --all --force
+sudo docker builder prune -a
+unneeded="microsoft-edge-stable|azure-cli|google-cloud|google-chrome-stable|"\
+"temurin|llvm|firefox|mysql-server|snapd|android|dotnet|haskell|ghcup|"\
+"powershell|julia|swift|miniconda|chromium"
+sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
+sudo apt-get -y autoremove
+
+# Next, remove unneeded files in /usr.  This frees up an additional 25GB.
+sudo rm -fr /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup \
+        /usr/share/swift /usr/local/share/powershell /usr/local/julia* \
+        /usr/share/miniconda /usr/local/share/chromium
+echo "Disk space after:"
+df -h /
+
 # The default 'azure.archive.ubuntu.com' mirrors can be really slow.
 # Prioritize the official Ubuntu mirrors.
 #
