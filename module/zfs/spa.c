@@ -2166,6 +2166,7 @@ spa_unload_log_sm_metadata(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nblocks = 0;
 	spa->spa_unflushed_stats.sus_memused = 0;
 	spa->spa_unflushed_stats.sus_blocklimit = 0;
+	spa->spa_unflushed_stats.sus_nmetaslabs = 0;
 
 	spa_log_sm_stats_update(spa);
 }
