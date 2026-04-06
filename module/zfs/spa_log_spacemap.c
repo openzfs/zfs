@@ -747,6 +747,24 @@ spa_log_exceeds_memlimit(spa_t *spa)
 	return (B_FALSE);
 }
 
+uint64_t
+spa_log_sm_unflushed_metaslabs(spa_t *spa)
+{
+	return (spa->spa_unflushed_stats.sus_nmetaslabs);
+}
+
+void
+spa_log_sm_increment_unflushed_metaslabs(spa_t *spa)
+{
+	spa->spa_unflushed_stats.sus_nmetaslabs++;
+}
+
+void
+spa_log_sm_decrement_unflushed_metaslabs(spa_t *spa)
+{
+	spa->spa_unflushed_stats.sus_nmetaslabs--;
+}
+
 boolean_t
 spa_flush_all_logs_requested(spa_t *spa)
 {
