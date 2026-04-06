@@ -1401,9 +1401,16 @@ zfs_secpolicy_hold(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(holds, pair)) {
 		char fsname[ZFS_MAX_DATASET_NAME_LEN];
-		error = dmu_fsname(nvpair_name(pair), fsname);
-		if (error != 0)
-			return (error);
+		const char *name = nvpair_name(pair);
+		if (strchr(name, '@') != NULL) {
+			error = dmu_fsname(name, fsname);
+			if (error != 0)
+				return (error);
+		} else {
+			if (strlcpy(fsname, name, sizeof (fsname)) >=
+			    sizeof (fsname))
+				return (SET_ERROR(ENAMETOOLONG));
+		}
 		error = zfs_secpolicy_write_perms(fsname,
 		    ZFS_DELEG_PERM_HOLD, cr);
 		if (error != 0)
@@ -1422,9 +1429,16 @@ zfs_secpolicy_release(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	for (pair = nvlist_next_nvpair(innvl, NULL); pair != NULL;
 	    pair = nvlist_next_nvpair(innvl, pair)) {
 		char fsname[ZFS_MAX_DATASET_NAME_LEN];
-		error = dmu_fsname(nvpair_name(pair), fsname);
-		if (error != 0)
-			return (error);
+		const char *name = nvpair_name(pair);
+		if (strchr(name, '@') != NULL) {
+			error = dmu_fsname(name, fsname);
+			if (error != 0)
+				return (error);
+		} else {
+			if (strlcpy(fsname, name, sizeof (fsname)) >=
+			    sizeof (fsname))
+				return (SET_ERROR(ENAMETOOLONG));
+		}
 		error = zfs_secpolicy_write_perms(fsname,
 		    ZFS_DELEG_PERM_RELEASE, cr);
 		if (error != 0)
