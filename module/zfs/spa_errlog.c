@@ -468,7 +468,7 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	kmem_free(zc, sizeof (*zc));
 
 out:
-	kmem_free(snap_obj_array, sizeof (*snap_obj_array));
+	kmem_free(snap_obj_array, snap_count * sizeof (*snap_obj_array));
 	return (error);
 }
 
