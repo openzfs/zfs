@@ -48,8 +48,6 @@
 #define	DEFAULT_CHECKSUM_T	600	/* seconds */
 #define	DEFAULT_IO_N		10	/* events */
 #define	DEFAULT_IO_T		600	/* seconds */
-#define	DEFAULT_SLOW_IO_N	10	/* events */
-#define	DEFAULT_SLOW_IO_T	30	/* seconds */
 
 #define	CASE_GC_TIMEOUT_SECS	43200	/* 12 hours */
 
