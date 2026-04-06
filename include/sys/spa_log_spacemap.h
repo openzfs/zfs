@@ -42,6 +42,7 @@ typedef struct log_summary_entry {
 typedef struct spa_unflushed_stats  {
 	/* used for memory heuristic */
 	uint64_t sus_memused;	/* current memory used for unflushed trees */
+	uint64_t sus_nmetaslabs;	/* # metaslabs with unflushed trees */
 
 	/* used for block heuristic */
 	uint64_t sus_blocklimit;	/* max # of log blocks allowed */
@@ -69,6 +70,10 @@ uint64_t spa_log_sm_blocklimit(spa_t *);
 void spa_log_sm_set_blocklimit(spa_t *);
 uint64_t spa_log_sm_nblocks(spa_t *);
 uint64_t spa_log_sm_memused(spa_t *);
+
+uint64_t spa_log_sm_unflushed_metaslabs(spa_t *);
+void spa_log_sm_increment_unflushed_metaslabs(spa_t *);
+void spa_log_sm_decrement_unflushed_metaslabs(spa_t *);
 
 void spa_log_sm_decrement_mscount(spa_t *, uint64_t);
 void spa_log_sm_increment_current_mscount(spa_t *);

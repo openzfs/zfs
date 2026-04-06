@@ -1047,12 +1047,14 @@ spa_iostats_destroy(spa_t *spa)
  */
 typedef struct spa_log_sm_stats {
 	kstat_named_t	unflushed_memused;
+	kstat_named_t	unflushed_nmetaslabs;
 	kstat_named_t	unflushed_blocklimit;
 	kstat_named_t	unflushed_nblocks;
 } spa_log_sm_stats_t;
 
 static spa_log_sm_stats_t spa_log_sm_stats_template = {
 	{ "unflushed_memused",		KSTAT_DATA_UINT64 },
+	{ "unflushed_nmetaslabs",	KSTAT_DATA_UINT64 },
 	{ "unflushed_blocklimit",	KSTAT_DATA_UINT64 },
 	{ "unflushed_nblocks",		KSTAT_DATA_UINT64 }
 };
@@ -1073,6 +1075,8 @@ spa_log_sm_stats_update(spa_t *spa)
 
 	SPA_LOG_SM_STATS_SET(unflushed_memused,
 	    spa->spa_unflushed_stats.sus_memused);
+	SPA_LOG_SM_STATS_SET(unflushed_nmetaslabs,
+	    spa->spa_unflushed_stats.sus_nmetaslabs);
 	SPA_LOG_SM_STATS_SET(unflushed_blocklimit,
 	    spa->spa_unflushed_stats.sus_blocklimit);
 	SPA_LOG_SM_STATS_SET(unflushed_nblocks,
