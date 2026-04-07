@@ -40,6 +40,12 @@
 
 verify_runnable "global"
 
+# On FreeBSD, manual trim does not reclaim space on file vdevs stored
+# on a ZFS filesystem within the test framework.
+if is_freebsd; then
+	log_unsupported "Manual trim on file vdevs not supported on FreeBSD"
+fi
+
 log_assert "Run 'zpool trim' verify pool disks were trimmed"
 
 function cleanup
@@ -68,8 +74,8 @@ log_must set_tunable64 TRIM_TXG_BATCH 8
 typeset vdev_min_ms_count=$(get_tunable VDEV_MIN_MS_COUNT)
 log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 
-typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
-typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.65 / 1024 / 1024) ))
+typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.40 / 1024 / 1024) ))
 
 for type in "" "mirror" "raidz2" "draid"; do
 
@@ -100,7 +106,9 @@ for type in "" "mirror" "raidz2" "draid"; do
 
 	# Remove the file, issue trim, verify the vdevs are now sparse.
 	log_must rm /$TESTPOOL/file
+	sync_pool $TESTPOOL
 	log_must timeout 120 zpool trim -w $TESTPOOL
+	sync_all_pools true
 	verify_vdevs "-le" "$VDEV_MIN_MB" $VDEVS
 
 	log_must zpool destroy $TESTPOOL

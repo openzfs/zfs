@@ -23,7 +23,7 @@
 #
 function get_size_mb
 {
-	du --block-size 1048576 -s "$1" | cut -f1
+	du -m -s "$1" | cut -f1
 }
 
 #
