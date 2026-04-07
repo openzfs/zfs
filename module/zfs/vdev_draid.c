@@ -1191,7 +1191,7 @@ vdev_draid_min_alloc(vdev_t *vd)
 }
 
 /*
- * Returns true if the txg range does not exist on any leaf vdev.
+ * Returns false if the txg range exists on any leaf vdev, true otherwise.
  *
  * A dRAID spare does not fit into the DTL model. While it has child vdevs
  * there is no redundancy among them, and the effective child vdev is
@@ -1932,34 +1932,15 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			vdev_t *svd;
 
 			/*
-			 * Sequential rebuilds need to always consider the data
-			 * on the child being rebuilt to be stale.  This is
-			 * important when all columns are available to aid
-			 * known reconstruction in identifing which columns
-			 * contain incorrect data.
-			 *
-			 * Furthermore, all repairs need to be constrained to
-			 * the devices being rebuilt because without a checksum
-			 * we cannot verify the data is actually correct and
-			 * performing an incorrect repair could result in
-			 * locking in damage and making the data unrecoverable.
+			 * Repairs need to be constrained to the devices being
+			 * rebuilt since without a checksum we cannot verify the
+			 * data is actually correct and performing an incorrect
+			 * repair could result in locking in the damage and
+			 * making the data unrecoverable.
 			 */
-			if (zio->io_priority == ZIO_PRIORITY_REBUILD) {
-				if (vdev_draid_rebuilding(cvd)) {
-					if (c >= rr->rr_firstdatacol)
-						rr->rr_missingdata++;
-					else
-						rr->rr_missingparity++;
-					rc->rc_error = SET_ERROR(ESTALE);
-					rc->rc_skipped = 1;
-					rc->rc_allow_repair = 1;
-					continue;
-				} else {
-					rc->rc_allow_repair = 0;
-				}
-			} else {
-				rc->rc_allow_repair = 1;
-			}
+			if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+			    !vdev_draid_rebuilding(cvd))
+				rc->rc_allow_repair = 0;
 
 			/*
 			 * If this child is a distributed spare then the
