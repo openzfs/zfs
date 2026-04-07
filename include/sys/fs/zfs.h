@@ -363,6 +363,7 @@ typedef enum {
 /* Small enough to not hog a whole line of printout in zpool(8). */
 #define	ZPROP_MAX_COMMENT	32
 #define	ZPROP_BOOLEAN_NA	2
+#define	ZPROP_BOOLEAN_INHERIT	2
 
 #define	ZPROP_VALUE		"value"
 #define	ZPROP_SOURCE		"source"
