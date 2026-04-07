@@ -1701,6 +1701,14 @@ itself, it will be clamped.
 Setting it to zero will cause the kernel's ideal size to be used.
 This parameter only applies on Linux.
 .
+.It Sy zfs_vdev_disk_calling_thread_io Ns = Ns Sy 1 Ns | Ns 0 Pq uint
+Controls calling thread io, note that we only wait for the zio to
+complete if it bypassed the vdev queue, all this module parameter does
+is enable that capability.
+May lead to performance improvements when enabled if backing vdev devices
+are fast and low latency.
+This parameter currently only applies on Linux.
+.
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring
 .Pa .zfs/snapshot .
