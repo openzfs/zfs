@@ -31,6 +31,8 @@
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
+ * Copyright (c) 2024-2026, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_LIBZFS_H
@@ -311,6 +313,8 @@ _LIBZFS_H int zpool_initialize_wait(zpool_handle_t *, pool_initialize_func_t,
     nvlist_t *);
 _LIBZFS_H int zpool_trim(zpool_handle_t *, pool_trim_func_t, nvlist_t *,
     trimflags_t *);
+_LIBZFS_H int zpool_condense(zpool_handle_t *, pool_condense_func_t,
+    pool_condense_type_t);
 
 _LIBZFS_H int zpool_clear(zpool_handle_t *, const char *, nvlist_t *);
 _LIBZFS_H int zpool_reguid(zpool_handle_t *);

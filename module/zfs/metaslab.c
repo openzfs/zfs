@@ -4044,6 +4044,8 @@ metaslab_unflushed_add(metaslab_t *msp, dmu_tx_t *tx)
 
 	spa_log_sm_increment_current_mscount(spa);
 	spa_log_summary_add_flushed_metaslab(spa, B_TRUE);
+
+	spa_log_sm_increment_unflushed_metaslabs(spa);
 }
 
 void
@@ -4077,6 +4079,11 @@ metaslab_unflushed_bump(metaslab_t *msp, dmu_tx_t *tx, boolean_t dirty)
 	spa_log_summary_decrement_mscount(spa, ms_prev_flushed_txg,
 	    ms_prev_flushed_dirty);
 	spa_log_summary_add_flushed_metaslab(spa, dirty);
+
+	if (ms_prev_flushed_dirty && !dirty)
+		spa_log_sm_decrement_unflushed_metaslabs(spa);
+	else if (!ms_prev_flushed_dirty && dirty)
+		spa_log_sm_increment_unflushed_metaslabs(spa);
 
 	/* cleanup obsolete logs if any */
 	spa_cleanup_old_sm_logs(spa, tx);

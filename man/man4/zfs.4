@@ -4,6 +4,7 @@
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
+.\" Copyright (c) 2026, TrueNAS.
 .\"
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -18,7 +19,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd September 15, 2025
+.Dd April 6, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1913,6 +1914,12 @@ Normally disabled because these datasets may be missing key data.
 .
 .It Sy zfs_min_metaslabs_to_flush Ns = Ns Sy 1 Pq u64
 Minimum number of metaslabs to flush per dirty TXG.
+.
+.It Sy zfs_min_metaslabs_to_condense_pct Ns = Ns Sy 5 Pq u64
+Minimum number of metaslabs to flush every TXG when condensing log spacemaps,
+as a percentage of the number of unflushed metaslabs at the time the
+.Nm zpool Cm condense
+command was run.
 .
 .It Sy zfs_metaslab_fragmentation_threshold Ns = Ns Sy 77 Ns % Pq uint
 Allow metaslabs to keep their active state as long as their fragmentation
