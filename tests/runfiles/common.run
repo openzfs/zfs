@@ -739,7 +739,7 @@ tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
 
 [tests/functional/fadvise]
-tests = ['fadvise_willneed']
+tests = ['fadvise_dontneed', 'fadvise_willneed']
 tags = ['functional', 'fadvise']
 
 [tests/functional/failmode]
