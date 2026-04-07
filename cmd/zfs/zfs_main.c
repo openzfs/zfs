@@ -32,6 +32,7 @@
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright 2019 Joyent, Inc.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <assert.h>
@@ -8737,12 +8738,6 @@ zfs_do_change_key(int argc, char **argv)
 			    gettext("invalid option '%c'\n"), optopt);
 			usage(B_FALSE);
 		}
-	}
-
-	if (inheritkey && !nvlist_empty(props)) {
-		(void) fprintf(stderr,
-		    gettext("Properties not allowed for inheriting\n"));
-		usage(B_FALSE);
 	}
 
 	argc -= optind;
