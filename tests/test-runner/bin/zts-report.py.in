@@ -254,8 +254,6 @@ maybe = {
     'projectquota/setup': ['SKIP', exec_reason],
     'raidz/raidz_002_pos': ['FAIL', known_reason],
     'raidz/raidz_expand_001_pos': ['FAIL', 16421],
-    'redundancy/redundancy_draid_spare1': ['FAIL', 18307],
-    'redundancy/redundancy_draid_spare3': ['FAIL', 18319],
     'removal/removal_condense_export': ['FAIL', known_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
     'reservation/reservation_008_pos': ['FAIL', 7741],
