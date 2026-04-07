@@ -40,7 +40,7 @@
 DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2 -O recordsize=4k
+log_must zpool create -f -O recordsize=4k $TESTPOOL mirror $DISK1 $DISK2
 sync_and_rewrite_some_data_a_few_times $TESTPOOL
 
 log_must zpool trim -r 1 $TESTPOOL $DISK1

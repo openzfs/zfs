@@ -40,6 +40,12 @@
 
 verify_runnable "global"
 
+# On FreeBSD, autotrim does not reclaim space on file vdevs stored
+# on a ZFS filesystem within the test framework.
+if is_freebsd; then
+	log_unsupported "Autotrim on file vdevs not supported on FreeBSD"
+fi
+
 log_assert "Set 'autotrim=on' verify pool disks were trimmed"
 
 function cleanup
