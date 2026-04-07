@@ -1117,6 +1117,9 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (top_level && (ops == &vdev_raidz_ops || ops == &vdev_draid_ops))
 		vd->vdev_autosit =
 		    vdev_prop_default_numeric(VDEV_PROP_AUTOSIT);
+	if (top_level)
+		vd->vdev_failfast =
+		    vdev_prop_default_numeric(VDEV_PROP_FAILFAST);
 
 	/*
 	 * Add ourselves to the parent's list of children.
@@ -6207,6 +6210,10 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				error = spa_vdev_alloc(spa, vdev_guid);
 			break;
 		case VDEV_PROP_FAILFAST:
+			if (vd != vd->vdev_top) {
+				error = ENOTSUP;
+				break;
+			}
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
@@ -6694,19 +6701,26 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				break;
 			case VDEV_PROP_FAILFAST:
 				src = ZPROP_SRC_LOCAL;
-				strval = NULL;
 
-				err = zap_lookup(mos, objid, nvpair_name(elem),
-				    sizeof (uint64_t), 1, &intval);
-				if (err == ENOENT) {
-					intval = vdev_prop_default_numeric(
-					    prop);
-					err = 0;
-				} else if (err) {
-					break;
+				if (vd != vd->vdev_top) {
+					src = ZPROP_SRC_NONE;
+					intval = ZPROP_BOOLEAN_NA;
+				} else {
+					err = zap_lookup(mos, objid,
+					    nvpair_name(elem),
+					    sizeof (uint64_t), 1, &intval);
+					if (err == ENOENT) {
+						intval =
+						    vdev_prop_default_numeric(
+						    prop);
+						err = 0;
+					} else if (err) {
+						break;
+					}
+					if (intval ==
+					    vdev_prop_default_numeric(prop))
+						src = ZPROP_SRC_DEFAULT;
 				}
-				if (intval == vdev_prop_default_numeric(prop))
-					src = ZPROP_SRC_DEFAULT;
 
 				vdev_prop_add_list(outnvl, propname, strval,
 				    intval, src);
