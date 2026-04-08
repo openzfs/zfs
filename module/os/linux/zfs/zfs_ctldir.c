@@ -1187,8 +1187,10 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
 	    ZFS_MAX_DATASET_NAME_LEN, full_name);
-	if (error)
+	if (error) {
+		zfs_exit(zfsvfs, FTAG);
 		goto error;
+	}
 
 	if (is_current_chrooted() == 0) {
 		/*
@@ -1206,6 +1208,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		error = get_root_path(&mnt_path, m, MAXPATHLEN);
 		if (error != 0) {
 			kmem_free(m, MAXPATHLEN);
+			zfs_exit(zfsvfs, FTAG);
 			goto error;
 		}
 		mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
@@ -1237,6 +1240,33 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 
 	snprintf(options, 7, "%s",
 	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
+
+	/*
+	 * Release z_teardown_lock before potentially blocking operations
+	 * (cv_wait for concurrent mounts, call_usermodehelper for the mount
+	 * helper).  Holding z_teardown_lock(R) across call_usermodehelper
+	 * deadlocks with namespace_sem: the mount helper needs
+	 * namespace_sem(W) via move_mount, while /proc/self/mountinfo
+	 * readers hold namespace_sem(R) and need z_teardown_lock(R) via
+	 * zpl_show_devname.  A concurrent zfs_suspend_fs queuing
+	 * z_teardown_lock(W) blocks new readers, completing the cycle.
+	 * See https://github.com/openzfs/zfs/issues/18409
+	 *
+	 * Releasing the lock allows zfs_suspend_fs to proceed during
+	 * the mount, so dmu_objset_hold in zpl_get_tree can transiently
+	 * fail with ENOENT during the clone swap.  The mount helper
+	 * fails, this function returns EISDIR, and the VFS silently
+	 * falls back to the ctldir stub (empty directory).  The caller
+	 * gets the stub inode instead of the real snapshot root until
+	 * the next access retries the automount.
+	 *
+	 * Safe because everything below operates on local string copies
+	 * (full_name, full_path) or uses its own synchronization
+	 * (zfs_snapshot_lock, se_mtx).  The parent zfsvfs pointer
+	 * remains valid because we hold a path reference to the
+	 * automount trigger dentry.
+	 */
+	zfs_exit(zfsvfs, FTAG);
 
 	/*
 	 * Check if snapshot is already being mounted. If found, wait for
