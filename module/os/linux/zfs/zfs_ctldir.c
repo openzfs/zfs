@@ -1352,8 +1352,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);
-
-	zfs_exit(zfsvfs, FTAG);
+	kmem_free(options, 7);
 
 	return (error);
 }
