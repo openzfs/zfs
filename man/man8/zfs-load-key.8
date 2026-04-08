@@ -29,8 +29,9 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright 2026 Oxide Computer Company
 .\"
-.Dd July 11, 2022
+.Dd January 30, 2026
 .Dt ZFS-LOAD-KEY 8
 .Os
 .
@@ -53,6 +54,7 @@
 .Op Fl o Ar keylocation Ns = Ns Ar value
 .Op Fl o Ar keyformat Ns = Ns Ar value
 .Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Op Fl o Ar user:prop Ns = Ns Ar value
 .Ar filesystem
 .Nm zfs
 .Cm change-key
@@ -157,6 +159,7 @@ Unloads the keys for all encryption roots in all imported pools.
 .Op Fl o Ar keylocation Ns = Ns Ar value
 .Op Fl o Ar keyformat Ns = Ns Ar value
 .Op Fl o Ar pbkdf2iters Ns = Ns Ar value
+.Op Fl o Ar user:prop Ns = Ns Ar value
 .Ar filesystem
 .Xc
 .It Xo
@@ -173,7 +176,7 @@ This command may also be used to change the
 .Sy keyformat ,
 and
 .Sy pbkdf2iters
-properties as needed.
+properties as needed, as well as set user properties.
 If the dataset was not previously an encryption root it will become one.
 Alternatively, the
 .Fl i
@@ -209,7 +212,7 @@ This is effectively equivalent to running
 .It Fl o Ar property Ns = Ns Ar value
 Allows the user to set encryption key properties
 .Pq Sy keyformat , keylocation , No and Sy pbkdf2iters
-while changing the key.
+and user properties while changing the key.
 This is the only way to alter
 .Sy keyformat
 and

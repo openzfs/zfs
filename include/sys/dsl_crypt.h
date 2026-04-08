@@ -200,7 +200,8 @@ void dsl_crypto_recv_raw_key_sync(struct dsl_dataset *ds,
 int dsl_crypto_recv_raw(const char *poolname, uint64_t dsobj, uint64_t fromobj,
     dmu_objset_type_t ostype, nvlist_t *nvl, boolean_t do_key);
 
-int spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp);
+int spa_keystore_change_key(const char *dsname, dsl_crypto_params_t *dcp,
+    nvlist_t *userprops);
 int dsl_dir_rename_crypt_check(dsl_dir_t *dd, dsl_dir_t *newparent);
 int dsl_dataset_promote_crypt_check(dsl_dir_t *target, dsl_dir_t *origin);
 void dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,

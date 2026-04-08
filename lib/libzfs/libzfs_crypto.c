@@ -17,6 +17,7 @@
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
  * Copyright 2020 Joyent, Inc.
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <sys/fs/zfs.h>
@@ -1536,34 +1537,51 @@ error:
 
 static int
 zfs_crypto_verify_rewrap_nvlist(zfs_handle_t *zhp, nvlist_t *props,
-    nvlist_t **props_out, char *errbuf)
+    boolean_t inheritkey, nvlist_t **props_out, char *errbuf)
 {
 	int ret;
 	nvpair_t *elem = NULL;
-	zfs_prop_t prop;
 	nvlist_t *new_props = NULL;
-
-	new_props = fnvlist_alloc();
 
 	/*
 	 * loop through all provided properties, we should only have
-	 * keyformat, keylocation and pbkdf2iters. The actual validation of
-	 * values is done by zfs_valid_proplist().
+	 * keyformat, keylocation and pbkdf2iters, and user properties.
+	 * The actual validation of values is done by zfs_valid_proplist().
 	 */
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
 		const char *propname = nvpair_name(elem);
-		prop = zfs_name_to_prop(propname);
 
-		switch (prop) {
+		switch (zfs_name_to_prop(propname)) {
 		case ZFS_PROP_PBKDF2_ITERS:
 		case ZFS_PROP_KEYFORMAT:
 		case ZFS_PROP_KEYLOCATION:
+			if (inheritkey) {
+				ret = EINVAL;
+				zfs_error_aux(zhp->zfs_hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "Only user properties may be set with "
+				    "'zfs change-key -i'"));
+				goto error;
+			}
 			break;
+		case ZPROP_INVAL:
+			if (zfs_prop_user(propname))
+				break;
+			zfs_fallthrough;
 		default:
 			ret = EINVAL;
-			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
-			    "Only keyformat, keylocation and pbkdf2iters may "
-			    "be set with this command."));
+			if (inheritkey) {
+				zfs_error_aux(zhp->zfs_hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "Only user properties may be set with "
+				    "'zfs change-key -i'"));
+			} else {
+				zfs_error_aux(zhp->zfs_hdl,
+				    dgettext(TEXT_DOMAIN,
+				    "Only keyformat, keylocation, pbkdf2iters, "
+				    "and user properties may be set with this "
+				    "command."));
+			}
 			goto error;
 		}
 	}
@@ -1642,17 +1660,17 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 		goto error;
 	}
 
+	/* validate the provided properties */
+	ret = zfs_crypto_verify_rewrap_nvlist(zhp, raw_props, inheritkey,
+	    &props, errbuf);
+	if (ret != 0)
+		goto error;
+
 	/*
 	 * If the user wants to use the inheritkey variant of this function
 	 * we don't need to collect any crypto arguments.
 	 */
 	if (!inheritkey) {
-		/* validate the provided properties */
-		ret = zfs_crypto_verify_rewrap_nvlist(zhp, raw_props, &props,
-		    errbuf);
-		if (ret != 0)
-			goto error;
-
 		/*
 		 * Load keyformat and keylocation from the nvlist. Fetch from
 		 * the dataset properties if not specified.
