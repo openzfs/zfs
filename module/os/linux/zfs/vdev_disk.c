@@ -931,8 +931,14 @@ vdev_disk_io_rw(zio_t *zio)
 		return (SET_ERROR(EIO));
 	}
 
+	vdev_t *iter = v;
+	while (iter != NULL && iter->vdev_ops != &vdev_root_ops &&
+	    iter->vdev_failfast == 2)
+		iter = iter->vdev_parent;
+
+	boolean_t failfast = iter ? iter->vdev_failfast == 1 : B_TRUE;
 	if (!(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)) &&
-	    v->vdev_top->vdev_failfast == B_TRUE) {
+	    failfast) {
 		bio_set_flags_failfast(bdev, &flags, zfs_vdev_failfast_mask & 1,
 		    zfs_vdev_failfast_mask & 2, zfs_vdev_failfast_mask & 4);
 	}
