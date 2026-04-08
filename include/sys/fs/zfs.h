@@ -474,6 +474,8 @@ typedef enum {
 	VDEV_PROP_AUTOSIT,
 	VDEV_PROP_SLOW_IO_EVENTS,
 	VDEV_PROP_SCHEDULER,
+	VDEV_PROP_FDOMAIN,
+	VDEV_PROP_FGROUP,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -1011,6 +1013,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DRAID_NDATA	"draid_ndata"
 #define	ZPOOL_CONFIG_DRAID_NSPARES	"draid_nspares"
 #define	ZPOOL_CONFIG_DRAID_NGROUPS	"draid_ngroups"
+#define	ZPOOL_CONFIG_DRAID_NCHILDREN	"draid_nchildren"
 
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"

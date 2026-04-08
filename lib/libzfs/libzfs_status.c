@@ -154,8 +154,12 @@ vdev_non_native_ashift(vdev_stat_t *vs, uint_t vsc, void *arg)
 
 /*
  * Detect if any leaf devices that have seen errors or could not be opened.
+ * Returns:
+ *   - EDOM if a failure domain in dRAID vdev is down
+ *   - ENXIO if any device is problematic
+ *   - 0 (zero) otherwise
  */
-static boolean_t
+static int
 find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t, void *),
     void *arg, boolean_t ignore_replacing)
 {
@@ -172,22 +176,41 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t, void *),
 		const char *type = fnvlist_lookup_string(vdev,
 		    ZPOOL_CONFIG_TYPE);
 		if (strcmp(type, VDEV_TYPE_REPLACING) == 0)
-			return (B_FALSE);
+			return (0);
 	}
 
 	if (nvlist_lookup_nvlist_array(vdev, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0) {
+
+		uint64_t fgrp_children = 0;
+		(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_DRAID_NCHILDREN,
+		    &fgrp_children);
+
+		for (c = 0; c < fgrp_children; c++) {
+			int nfgrps = children / fgrp_children;
+			int nfaults = 0;
+			for (int g = 0; g < nfgrps; g++) {
+				if (find_vdev_problem(child[c +
+				    (g * fgrp_children)], func, arg,
+				    ignore_replacing))
+					nfaults++;
+			}
+			if (nfaults == nfgrps)
+				return (EDOM);
+		}
+
 		for (c = 0; c < children; c++) {
-			if (find_vdev_problem(child[c], func, arg,
-			    ignore_replacing))
-				return (B_TRUE);
+			int res;
+			if ((res = find_vdev_problem(child[c], func, arg,
+			    ignore_replacing)))
+				return (res);
 		}
 	} else {
 		uint_t vsc;
 		vdev_stat_t *vs = (vdev_stat_t *)fnvlist_lookup_uint64_array(
 		    vdev, ZPOOL_CONFIG_VDEV_STATS, &vsc);
 		if (func(vs, vsc, arg) != 0)
-			return (B_TRUE);
+			return (ENXIO);
 	}
 
 	/*
@@ -198,11 +221,11 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t, void *),
 		for (c = 0; c < children; c++) {
 			if (find_vdev_problem(child[c], func, arg,
 			    ignore_replacing))
-				return (B_TRUE);
+				return (ENXIO);
 		}
 	}
 
-	return (B_FALSE);
+	return (0);
 }
 
 /*
@@ -406,6 +429,10 @@ check_status(nvlist_t *config, boolean_t isimport,
 	/*
 	 * Missing devices in a replicated config.
 	 */
+	if (find_vdev_problem(nvroot, vdev_faulted, NULL, B_TRUE) == EDOM)
+		return (ZPOOL_STATUS_FAULTED_FDOM_R);
+	if (find_vdev_problem(nvroot, vdev_missing, NULL, B_TRUE) == EDOM)
+		return (ZPOOL_STATUS_FAULTED_FDOM_R);
 	if (find_vdev_problem(nvroot, vdev_faulted, NULL, B_TRUE))
 		return (ZPOOL_STATUS_FAULTED_DEV_R);
 	if (find_vdev_problem(nvroot, vdev_missing, NULL, B_TRUE))
