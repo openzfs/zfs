@@ -1674,10 +1674,10 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	 * have already processed the original allocating I/O.
 	 */
 	if (flags & ZIO_FLAG_ALLOC_THROTTLED &&
-	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
+	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY)) &&
+	    type == ZIO_TYPE_WRITE) {
 		ASSERT(pio->io_metaslab_class != NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
-		ASSERT(type == ZIO_TYPE_WRITE);
 		ASSERT(priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT(!(flags & ZIO_FLAG_IO_REPAIR));
 		ASSERT(!(pio->io_flags & ZIO_FLAG_IO_REWRITE) ||
@@ -4785,6 +4785,16 @@ zio_vdev_io_start(zio_t *zio)
 			zio_delay_interrupt(zio);
 			return (NULL);
 		}
+
+		if (zio_handle_device_injection(vd, zio, EIO) != 0) {
+			/*
+			 * "no-op" injections return success, but do no actual
+			 * work. Just return it.
+			 */
+			zio->io_error = EIO;
+			zio_delay_interrupt(zio);
+			return (NULL);
+		}
 	}
 
 	vd->vdev_ops->vdev_op_io_start(zio);
@@ -5853,12 +5863,13 @@ zio_done(zio_t *zio)
 		zio_t *pio = zio_walk_parents(zio, &zl);
 		blkptr_t *bp = zio->io_bp;
 		abd_t *abd = abd_alloc_for_io(BP_GET_PSIZE(bp), B_FALSE);
-		zio_nowait(zio_read(pio, zio->io_spa, zio->io_bp, abd,
-		    BP_GET_PSIZE(bp), zio_done_postread_done, NULL,
-		    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_SCRUB |
-		    ZIO_FLAG_RESILVER | ZIO_FLAG_RAW |
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE,
-		    &zio->io_bookmark));
+		zio_priority_t prio = zio->io_priority ==
+		    ZIO_PRIORITY_SYNC_WRITE ? ZIO_PRIORITY_SYNC_READ :
+		    ZIO_PRIORITY_SCRUB;
+		zio_nowait(zio_vdev_child_io(pio, zio->io_bp, zio->io_vd,
+		    zio->io_offset, abd, zio->io_size, ZIO_TYPE_READ, prio,
+		    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW |
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE, zio_done_postread_done, NULL));
 	}
 
 	/*

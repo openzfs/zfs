@@ -2388,7 +2388,7 @@ and may need to load new metaslabs to satisfy these allocations.
 .It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
 Rewrite new block pointers starting in this pass.
 .
-.It Sy zfs_treat_partial_writes Ns = Ns Sy 1 Ns | Ns 0 Pq int
+.It Sy zfs_scrub_partial_writes Ns = Ns Sy 1 Ns | Ns 0 Pq int
 If a write to a multi-disk vdev fails, but the data is recoverable, the data is
 persisted on disk but may not be as redundant as the vdev usually ensures.
 If this tunable is set, we issue a read after such a write error to detect the

@@ -413,7 +413,7 @@ static int zfs_scrub_after_expand = 1;
  *
  * NOTE: Currently applies only to raidz and draid.
  */
-static int zfs_treat_partial_writes = 1;
+static int zfs_scrub_partial_writes = 1;
 
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
@@ -3656,7 +3656,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	    shadow_errors > rr->rr_firstdatacol) {
 		zio->io_error = zio_worst_error(zio->io_error,
 		    vdev_raidz_worst_error(rr));
-	} else if (retryable_errors && zfs_treat_partial_writes) {
+	} else if (retryable_errors && zfs_scrub_partial_writes) {
 		zio->io_flags |= ZIO_FLAG_POSTREAD;
 	}
 }
@@ -5510,7 +5510,7 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_expand, INT, ZMOD_RW,
 	"For expanded RAIDZ, automatically start a pool scrub when expansion "
 	"completes");
-ZFS_MODULE_PARAM(zfs, zfs_, treat_partial_writes, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_partial_writes, INT, ZMOD_RW,
 	"Issue reads after writes with recoverable failures to ensure "
 	"integrity");
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, read_sit_out_secs, ULONG, ZMOD_RW,
