@@ -34,6 +34,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c
 %C%_crypto_test_LDADD = libzpool.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/clone_after_trunc
+%C%_clone_after_trunc_LDADD = -lpthread
 
 if WANT_DEVNAME2DEVID
 scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
