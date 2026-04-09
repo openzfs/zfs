@@ -5866,10 +5866,13 @@ zio_done(zio_t *zio)
 		zio_priority_t prio = zio->io_priority ==
 		    ZIO_PRIORITY_SYNC_WRITE ? ZIO_PRIORITY_SYNC_READ :
 		    ZIO_PRIORITY_SCRUB;
-		zio_nowait(zio_vdev_child_io(pio, zio->io_bp, zio->io_vd,
+		zio_t *cio = zio_vdev_child_io(pio, zio->io_bp, zio->io_vd,
 		    zio->io_offset, abd, zio->io_size, ZIO_TYPE_READ, prio,
-		    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW |
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE, zio_done_postread_done, NULL));
+		    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
+		    ZIO_FLAG_RESILVER | ZIO_FLAG_DONT_PROPAGATE,
+		    zio_done_postread_done, NULL);
+		cio->io_flags &= ~ZIO_FLAG_ALLOC_THROTTLED;
+		zio_nowait(cio);
 	}
 
 	/*
