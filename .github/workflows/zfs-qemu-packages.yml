@@ -61,7 +61,7 @@ jobs:
         os: ['almalinux8', 'almalinux9', 'almalinux10', 'fedora42', 'fedora43']
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
@@ -73,7 +73,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        .github/workflows/scripts/qemu-3-deps.sh ${{ matrix.os }}
+        .github/workflows/scripts/qemu-3-deps.sh --poweroff ${{ matrix.os }}
 
     - name: Build modules or Test repo
       run: |
@@ -104,17 +104,18 @@ jobs:
       run: |
         rsync -a zfs@vm0:/tmp/repo /tmp || true
         .github/workflows/scripts/replace-dupes-with-symlinks.sh /tmp/repo
-        tar -cf ${{ matrix.os }}-repo.tar -C /tmp repo
+        tar -cjf ${{ matrix.os }}-repo.tar.bz2 -C /tmp repo
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       id: artifact-upload
       if: always()
       with:
         name: ${{ matrix.os }}-repo
-        path: ${{ matrix.os }}-repo.tar
+        path: ${{ matrix.os }}-repo.tar.bz2
         compression-level: 0
         retention-days: 2
         if-no-files-found: ignore
+        archive: false
 
   combine_repos:
     if: always()
@@ -122,16 +123,16 @@ jobs:
     name: "Results"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
       id: artifact-download
       if: always()
     - name: Test Summary
       if: always()
       run: |
-        for i in $(find . -type f -iname "*.tar") ; do
+        for i in $(find . -type f -iname "*.tar.bz2") ; do
           tar -xf $i -C /tmp
         done
-        tar -cf all-repo.tar -C /tmp repo
+        tar -cjf all-repo.tar.bz2 -C /tmp repo
 
         # If we're installing from a repo, print out the summary of the versions
         # that got installed using Markdown.
@@ -146,12 +147,12 @@ jobs:
           done
         fi
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       id: artifact-upload2
       if: always()
       with:
         name: all-repo
-        path: all-repo.tar
-        compression-level: 0
+        path: all-repo.tar.bz2
         retention-days: 5
         if-no-files-found: ignore
+        archive: false
