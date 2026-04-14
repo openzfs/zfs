@@ -15,7 +15,7 @@ jobs:
       WORK_DIR: /mnt/zloop
       CORE_DIR: /mnt/zloop/cores
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
@@ -60,7 +60,7 @@ jobs:
       if: failure()
       run: |
         cat $CORE_DIR/*/ztest.zdb
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: Logs
@@ -68,7 +68,7 @@ jobs:
           /mnt/zloop/*/
           !/mnt/zloop/cores/*/vdev/
         if-no-files-found: ignore
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: Pool files
