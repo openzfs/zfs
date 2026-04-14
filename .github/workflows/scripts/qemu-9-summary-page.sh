@@ -33,7 +33,9 @@ function send2github() {
 # first call, generate all summaries
 if [ ! -f out-1.md ]; then
   logfile="1"
-  for tarfile in Logs-functional-*/qemu-*.tar; do
+  # The bz2 files are put into directories with the same name, like:
+  # "qemu-debian12.tar.bz2/qemu-debian12.tar.bz2"
+  for tarfile in qemu-*.tar.bz2/qemu-*.tar.bz2; do
     rm -rf vm* *.txt
     if [ ! -s "$tarfile" ]; then
       output "\n## Functional Tests: unknown\n"
