@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout smatch
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         repository: error27/smatch
         ref: master
@@ -26,7 +26,7 @@ jobs:
         cd $GITHUB_WORKSPACE/smatch
         make -j$(nproc)
     - name: Checkout OpenZFS
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
         path: zfs
