@@ -24,6 +24,7 @@
  * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
  * Copyright (C) 2015 Jörg Thalheim.
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _ZFS_VFS_H
@@ -261,6 +262,15 @@ zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
  * helper function doesn't exist, define our own.
  */
 #define	inode_state_read_once(ip)	READ_ONCE(ip->i_state)
+#endif
+
+/* 6.18 compat: 4th arg removed; function will do strlen() internally. */
+#ifdef HAVE_VFS_PARSE_FS_STRING_3ARGS
+#define	zpl_vfs_parse_fs_string(fc, key, val)   \
+	vfs_parse_fs_string((fc), (key), (val))
+#else
+#define	zpl_vfs_parse_fs_string(fc, key, val)   \
+	vfs_parse_fs_string((fc), (key), (val), (val != NULL) ? strlen(val) : 0)
 #endif
 
 #endif /* _ZFS_VFS_H */
