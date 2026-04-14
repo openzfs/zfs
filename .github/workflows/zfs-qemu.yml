@@ -28,7 +28,7 @@ jobs:
       test_os: ${{ steps.os.outputs.os }}
       ci_type: ${{ steps.os.outputs.ci_type }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Generate OS config and CI type
@@ -104,7 +104,7 @@ jobs:
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
@@ -139,12 +139,13 @@ jobs:
       timeout-minutes: 10
       run: .github/workflows/scripts/qemu-7-prepare.sh
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       id: artifact-upload
       if: always()
       with:
         name: Logs-functional-${{ matrix.os }}
-        path: /tmp/qemu-${{ matrix.os }}.tar
+        path: /tmp/qemu-${{ matrix.os }}.tar.bz2
+        archive: false
         if-no-files-found: ignore
 
     - name: Test Summary
@@ -158,10 +159,10 @@ jobs:
     needs: [ qemu-vm ]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v8
     - name: Generating summary
       run: .github/workflows/scripts/qemu-9-summary-page.sh
     - name: Generating summary...
@@ -200,7 +201,8 @@ jobs:
       run: .github/workflows/scripts/qemu-9-summary-page.sh 18
     - name: Generating summary...
       run: .github/workflows/scripts/qemu-9-summary-page.sh 19
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: Summary Files
         path: out-*
+        archive: true
