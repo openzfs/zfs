@@ -34,3 +34,28 @@ AC_DEFUN([ZFS_AC_KERNEL_FS_CONTEXT], [
 		])
         ])
 ])
+
+dnl #
+dnl # 6.18 API change
+dnl # vfs_parse_fs_string() 4th arg removed; length generated internally by
+dnl # strlen().
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_PARSE_FS_STRING_3ARGS], [
+	ZFS_LINUX_TEST_SRC([vfs_parse_fs_string_3args], [
+		#include <linux/fs.h>
+		#include <linux/fs_context.h>
+        ],[
+		vfs_parse_fs_string(NULL, NULL, NULL);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_VFS_PARSE_FS_STRING_3ARGS], [
+        AC_MSG_CHECKING([whether vfs_parse_fs_string() takes 3 args])
+        ZFS_LINUX_TEST_RESULT([vfs_parse_fs_string_3args], [
+                AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_VFS_PARSE_FS_STRING_3ARGS, 1,
+		    [vfs_parse_fs_string() takes 3 args])
+        ],[
+		AC_MSG_RESULT(no)
+        ])
+])
