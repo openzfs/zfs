@@ -669,23 +669,19 @@ vdev_mirror_io_start(zio_t *zio)
 	}
 
 	while (children--) {
-		mc = &mm->mm_child[c];
-		c++;
+		mc = &mm->mm_child[c++];
 
 		/*
-		 * When sequentially resilvering only issue write repair
-		 * IOs to the vdev which is being rebuilt for two reasons:
-		 * 1. The repair IO data calculated from parity has no checksum
-		 *    to validate and could be incorrect.  Existing data must
-		 *    never be overwritten with unconfirmed data to ensure we
-		 *    never lock in unrecoverable damage to the pool.
-		 * 2. Performance is limited by the slowest child device.  We
-		 *    don't want a slower device to limit the rebuild rate for
-		 *    faster replacement devices such as distributed spares.
+		 * When sequentially resilvering and the integrity of the data
+		 * is speculative (ZIO_FLAG_SPECULATIVE), issue write repair IOs
+		 * only to the vdev which is being rebuilt. Existing data on
+		 * other children must never be overwritten with unconfirmed
+		 * data to avoid unrecoverable damage to the pool.
 		 */
 		if ((zio->io_priority == ZIO_PRIORITY_REBUILD) &&
 		    (zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
 		    !(zio->io_flags & ZIO_FLAG_SCRUB) &&
+		    (zio->io_flags & ZIO_FLAG_SPECULATIVE) &&
 		    mm->mm_rebuilding && !mc->mc_rebuilding) {
 			continue;
 		}
