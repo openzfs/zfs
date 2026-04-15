@@ -1394,17 +1394,31 @@ int
 zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
     struct inode **ipp)
 {
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
 	int error;
 	struct path path;
 	char *mnt;
 	struct dentry *dentry;
+	zfs_snapentry_t *se;
 
 	mnt = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
-	error = zfsctl_snapshot_path_objset(sb->s_fs_info, objsetid,
-	    MAXPATHLEN, mnt);
-	if (error)
-		goto out;
+	/*
+	 * Try the in-memory AVL tree first for previously mounted
+	 * snapshots, falling back to the on-disk scan if not found.
+	 */
+	rw_enter(&zfs_snapshot_lock, RW_READER);
+	se = zfsctl_snapshot_find_by_objsetid(zfsvfs->z_os->os_spa, objsetid);
+	rw_exit(&zfs_snapshot_lock);
+	if (se != NULL) {
+		strlcpy(mnt, se->se_path, MAXPATHLEN);
+		zfsctl_snapshot_rele(se);
+	} else {
+		error = zfsctl_snapshot_path_objset(zfsvfs, objsetid,
+		    MAXPATHLEN, mnt);
+		if (error)
+			goto out;
+	}
 
 	/* Trigger automount */
 	error = -kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
