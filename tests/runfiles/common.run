@@ -83,7 +83,8 @@ tests = ['block_cloning_clone_mmap_cached',
     'block_cloning_replay', 'block_cloning_replay_encrypted',
     'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write',
     'block_cloning_rlimit_fsize', 'block_cloning_large_offset',
-    'block_cloning_after_device_removal']
+    'block_cloning_after_device_removal',
+    'block_cloning_after_trunc']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/bootfs]
