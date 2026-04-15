@@ -1507,8 +1507,12 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 	 * Recheck BP_IS_HOLE() after dnode_block_freed() in case dnode_sync()
 	 * processes the delete record and clears the bp while we are waiting
 	 * for the dn_mtx (resulting in a "no" from block_freed).
+	 *
+	 * If bp != db->db_blkptr, it means that it was overridden (by a block
+	 * clone or direct I/O write). We cannot rely on dnode_block_freed as
+	 * the range can be freed in an earlier TXG but overridden in later.
 	 */
-	if (!is_hole && db->db_level == 0)
+	if (!is_hole && db->db_level == 0 && bp == db->db_blkptr)
 		is_hole = dnode_block_freed(dn, db->db_blkid) || BP_IS_HOLE(bp);
 
 	if (is_hole) {
