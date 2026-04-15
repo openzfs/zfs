@@ -115,6 +115,7 @@ typedef struct raidz_col {
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
 	uint8_t rc_force_repair;	/* Write good data to this column */
 	uint8_t rc_allow_repair;	/* Allow repair I/O to this column */
+	uint8_t rc_tgt_is_dspare:1;	/* The target is draid spare vdev */
 } raidz_col_t;
 
 typedef struct raidz_row {
