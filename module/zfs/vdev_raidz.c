@@ -25,6 +25,7 @@
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2026, Wasabi Technologies, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -3104,6 +3105,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	int parity_errors = 0;
 	int parity_untried = 0;
 	int data_errors = 0;
+	zio_flag_t add_flags = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 
@@ -3134,10 +3136,30 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 * Note that we also regenerate parity when resilvering so we
 	 * can write it out to failed devices later.
 	 */
-	if (parity_errors + parity_untried <
-	    rr->rr_firstdatacol - data_errors ||
-	    (zio->io_flags & ZIO_FLAG_RESILVER)) {
+	boolean_t parity_verify = (parity_errors + parity_untried) <
+	    (rr->rr_firstdatacol - data_errors);
+	if (parity_verify || (zio->io_flags & ZIO_FLAG_RESILVER)) {
 		int n = raidz_parity_verify(zio, rr);
+		/*
+		 * In, Reed-Solomon encoding, if we have ndata+1 columns and
+		 * the parity doesn't match, it means the data integrity is
+		 * compromised. We shouldn't try to repair anything in this
+		 * case.
+		 */
+		if (parity_verify && n > 0 &&
+		    zio->io_priority == ZIO_PRIORITY_REBUILD)
+			return;
+		/*
+		 * If we have only ndata columns, the data integrity will
+		 * be checked by the checksums normally, but not in case
+		 * of rebuild when we don't have checksums. In this case,
+		 * we add ZIO_FLAG_SPECULATIVE and try to not spread
+		 * unverified data. For example, when the target vdev happens
+		 * to be the mirroring spare vdev, we would repair only that
+		 * child in it which is being rebuilt.
+		 */
+		if (!parity_verify && zio->io_priority == ZIO_PRIORITY_REBUILD)
+			add_flags |= ZIO_FLAG_SPECULATIVE;
 		unexpected_errors += n;
 	}
 
@@ -3163,13 +3185,27 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			 */
 			ASSERT0(zio->io_flags & ZIO_FLAG_DIO_READ);
 
+			/*
+			 * When the target vdev is draid spare, we should clear
+			 * ZIO_FLAG_SPECULATIVE. First, if that draid spare maps
+			 * to another spare having an online/degraded disk, that
+			 * disk must be repaired also. Otherwise, the scrub will
+			 * detect a lot of cksum errors later. Second, since it
+			 * is draid spare, there is no harm in updating its
+			 * content on any vdev it maps to because the space is
+			 * reserved as a spare anyway.
+			 */
+			zio_flag_t aflags = add_flags;
+			if (rc->rc_tgt_is_dspare)
+				aflags &= ~ZIO_FLAG_SPECULATIVE;
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE,
 			    zio->io_priority == ZIO_PRIORITY_REBUILD ?
 			    ZIO_PRIORITY_REBUILD : ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
-			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
+			    ZIO_FLAG_SELF_HEAL : 0) | aflags, NULL, NULL));
 		}
 	}
 
