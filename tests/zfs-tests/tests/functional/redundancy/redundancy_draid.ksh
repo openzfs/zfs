@@ -86,8 +86,7 @@ function test_selfheal # <pool> <parity> <dir>
 	# from the files which were read.  Before overwriting additional
 	# devices we need to repair all of the blocks in the pool.
 	#
-	log_must zpool scrub -w $pool
-	log_must check_pool_status $pool "errors" "No known data errors"
+	log_must verify_draid_pool $pool "damaged"
 
 	log_must zpool clear $pool
 
@@ -104,8 +103,7 @@ function test_selfheal # <pool> <parity> <dir>
 	log_must eval "find $mntpnt -type f -exec cksum {} + >> /dev/null 2>&1"
 	log_must check_pool_status $pool "errors" "No known data errors"
 
-	log_must zpool scrub -w $pool
-	log_must check_pool_status $pool "errors" "No known data errors"
+	log_must verify_draid_pool $pool "damaged"
 
 	log_must zpool clear $pool
 }
@@ -182,8 +180,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub -w $pool
-	log_must check_pool_status $pool "errors" "No known data errors"
+	log_must verify_draid_pool $pool "damaged"
 
 	log_must zpool clear $pool
 
@@ -196,8 +193,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub -w $pool
-	log_must check_pool_status $pool "errors" "No known data errors"
+	log_must verify_draid_pool $pool "damaged"
 
 	log_must zpool clear $pool
 }

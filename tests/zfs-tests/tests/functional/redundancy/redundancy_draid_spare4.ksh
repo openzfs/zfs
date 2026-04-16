@@ -102,9 +102,7 @@ for replace_mode in "healing" "sequential"; do
 			log_must zpool detach $TESTPOOL $fault_vdev
 		done
 
-		log_must verify_pool $TESTPOOL
-		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+		log_must verify_draid_pool $TESTPOOL $replace_mode
 	done
 
 	# Fail remaining drives as long as parity permits.
@@ -120,9 +118,7 @@ for replace_mode in "healing" "sequential"; do
 			log_must zpool offline -f $TESTPOOL $fault_vdev
 			log_must check_vdev_state $TESTPOOL $fault_vdev "FAULTED"
 
-			log_must verify_pool $TESTPOOL
-			log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-			log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+			log_must verify_draid_pool $TESTPOOL $replace_mode
 			(( faults_left > 0 && faults_left-- ))
 		done
 	done
@@ -138,9 +134,7 @@ for replace_mode in "healing" "sequential"; do
 			break
 		fi
 
-		log_must verify_pool $TESTPOOL
-		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+		log_must verify_draid_pool $TESTPOOL $replace_mode
 	done
 
 	log_must is_data_valid $TESTPOOL

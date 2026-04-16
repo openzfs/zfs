@@ -52,7 +52,7 @@ function cleanup
 #
 function cksum_pool
 {
-	typeset -i cksum=$(zpool status $1 | awk '
+	typeset -i cksum=$(zpool status -p $1 | awk '
 	    !NF { isvdev = 0 }
 	    isvdev { errors += $NF }
 	    /CKSUM$/ { isvdev = 1 }
@@ -407,4 +407,78 @@ function recover_bad_missing_devs
 	fi
 
 	return 0
+}
+
+#
+# Given a dRAID pool issue a scrub and verify the current pool status
+# aligns with the expected status based on the 'replace_mode' passed.
+# Valid modes are:
+#
+# 1. healing - The pool is perfectly intact.  No checksum errors have
+#    been reported and the scrub didn't make any repairs.  This is the
+#    expected state after a healing resilver of a healthy pool.
+#
+# 2. sequential - The pool is fully intact.  There should never be a
+#    checksum error, but the occasional checksum error does occur in
+#    practice.  Until the root cause is identified and resolved, tolerate
+#    a checksum error when scrubbing after a sequential resilver.
+#
+#    https://github.com/openzfs/zfs/issues/18307
+#    https://github.com/openzfs/zfs/issues/18319
+#
+# 3. damaged - The pool was intentionally silently damaged.  Checksum
+#    errors are expected to be reported as the damaged blocks are
+#    detected and repaired.
+#
+# In all of these cases a scrub must be able to successfully repair the
+# pool and result in no data loss.
+#
+function verify_draid_pool
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset replace_mode=${2:-healing}
+
+	log_note "verify_draid_pool $pool $replace_mode"
+	log_must zpool scrub -w $pool
+
+	typeset -i cksum=$(cksum_pool $pool)
+
+	if [[ "$replace_mode" = "healing" ]]; then
+		if [[ $cksum -gt 0 ]]; then
+			log_must zpool status -v $pool
+			log_fail "Unexpected CKSUM errors found for $pool ($cksum)"
+		fi
+
+		if ! check_pool_status $pool "scan" "repaired 0B"; then
+			log_must zpool status -v $pool
+			log_fail "Unexpected repair IO found for $pool ($cksum)"
+		fi
+	elif [[ "$replace_mode" = "sequential" ]]; then
+		if [[ $cksum -gt 3 ]]; then
+			log_must zpool status -v $pool
+			log_fail "Unexpected CKSUM errors found for $pool ($cksum)"
+		fi
+	elif [[ "$replace_mode" = "damaged" ]]; then
+		if [[ $cksum -lt 1 ]]; then
+			log_must zpool status -v $pool
+			log_fail "Expected CKSUM errors missing for $pool ($cksum)"
+		fi
+
+		if check_pool_status $pool "scan" "repaired 0B"; then
+			log_must zpool status -v $pool
+			log_fail "Expected repair IO missing for $pool ($cksum)"
+		fi
+	else
+		log_fail "Invalid replace_mode=$replace_mode"
+	fi
+
+	if ! check_pool_status $pool "scan" "with 0 errors"; then
+		log_must zpool status -v $pool
+		log_fail "Unexpected repair errors found for $pool"
+	fi
+
+	if ! check_pool_status $pool "errors" "No known data errors"; then
+		log_must zpool status -v $pool
+		log_fail "Unexpected data errors found for $pool"
+	fi
 }
