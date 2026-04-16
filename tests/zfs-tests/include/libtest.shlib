@@ -2021,6 +2021,26 @@ function wait_sit_out #pool vdev timeout
 
 #
 # Check the output of 'zpool status -v <pool>',
+# and to see if the counts of <device> contain the <regex> specified.
+#
+# Return 0 is contain, 1 otherwise
+#
+function check_pool_device # pool device regex <verbose>
+{
+	typeset pool=$1
+	typeset device=$2
+	typeset regex=$3
+	typeset verbose=${4:-false}
+
+	scan=$(zpool status -v "$pool" 2>/dev/null | grep $device)
+	if [[ $verbose == true ]]; then
+		log_note $scan
+	fi
+	echo $scan | grep -qi "$regex"
+}
+
+#
+# Check the output of 'zpool status -v <pool>',
 # and to see if the content of <token> contain the <keyword> specified.
 #
 # Return 0 is contain, 1 otherwise
