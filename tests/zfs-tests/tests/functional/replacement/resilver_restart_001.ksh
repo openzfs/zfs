@@ -46,6 +46,7 @@
 
 function cleanup
 {
+	log_must zpool events
 	log_must set_tunable32 RESILVER_MIN_TIME_MS $ORIG_RESILVER_MIN_TIME
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS \
 	    $ORIG_SCAN_SUSPEND_PROGRESS
@@ -53,11 +54,12 @@ function cleanup
 	    $ORIG_RESILVER_DEFER_PERCENT
 	log_must set_tunable32 ZEVENT_LEN_MAX $ORIG_ZFS_ZEVENT_LEN_MAX
 	log_must zinject -c all
+	log_must zpool events -c
 	destroy_pool $TESTPOOL1
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 }
 
-# count resilver events in zpool and number of deferred rsilvers on vdevs
+# count resilver events in zpool and number of deferred resilvers on vdevs
 function verify_restarts # <msg> <cnt> <defer>
 {
 	msg=$1
@@ -113,7 +115,7 @@ log_must set_tunable32 ZEVENT_LEN_MAX 512
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 
 log_must zpool create -f -o feature@resilver_defer=disabled $TESTPOOL1 \
-    raidz ${VDEV_FILES[@]}
+    raidz2 ${VDEV_FILES[@]}
 
 # create 4 filesystems
 for fs in fs{0..3}
@@ -157,8 +159,8 @@ do
 	log_must set_tunable32 RESILVER_MIN_TIME_MS 20
 
 	# initiate a resilver and suspend the scan as soon as possible
-	log_must zpool replace $TESTPOOL1 $VDEV_REPLACE
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+	log_must zpool replace $TESTPOOL1 $VDEV_REPLACE
 
 	# there should only be 1 resilver start
 	verify_restarts '' "${RESTARTS[0]}" "${VDEVS[0]}"
@@ -166,9 +168,12 @@ do
 	# offline then online a vdev to introduce a new DTL range after current
 	# scan, which should restart (or defer) the resilver
 	log_must zpool offline $TESTPOOL1 ${VDEV_FILES[2]}
-	sync_pool $TESTPOOL1
+	log_must wait_vdev_state $TESTPOOL1 ${VDEV_FILES[2]} "OFFLINE"
+	sync_pool $TESTPOOL1 true
+
 	log_must zpool online $TESTPOOL1 ${VDEV_FILES[2]}
-	sync_pool $TESTPOOL1
+	log_must wait_vdev_state $TESTPOOL1 ${VDEV_FILES[2]} "ONLINE"
+	sync_pool $TESTPOOL1 true
 
 	# there should now be 2 resilver starts w/o defer, 1 with defer
 	verify_restarts ' after offline/online' "${RESTARTS[1]}" "${VDEVS[1]}"
@@ -190,8 +195,8 @@ do
 	log_must is_pool_resilvered $TESTPOOL1
 
 	# wait for a few txg's to see if a resilver happens
-	sync_pool $TESTPOOL1
-	sync_pool $TESTPOOL1
+	sync_pool $TESTPOOL1 true
+	sync_pool $TESTPOOL1 true
 
 	# there should now be 2 resilver starts
 	verify_restarts ' after resilver' "${RESTARTS[3]}" "${VDEVS[3]}"
