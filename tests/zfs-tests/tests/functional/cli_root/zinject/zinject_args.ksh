@@ -48,7 +48,7 @@ function cleanup
 
 function test_device_fault
 {
-	typeset -a errno=("io" "decompress" "decrypt" "nxio" "dtl" "corrupt" "noop")
+	typeset -a errno=("io" "decompress" "decrypt" "nxio" "dtl" "corrupt" "noop" "io-prefail")
 	for e in ${errno[@]}; do
 		log_must eval \
 		    "zinject -d $DISK1 -e $e -T read -f 0.001 $TESTPOOL"

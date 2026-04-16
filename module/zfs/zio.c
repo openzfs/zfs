@@ -4777,21 +4777,17 @@ zio_vdev_io_start(zio_t *zio)
 		}
 		zio->io_delay = gethrtime();
 
-		if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
+		int error = zio_handle_device_injections(vd, zio, ENOSYS,
+		    EFAULT);
+		if (error == ENOSYS || (error == EFAULT &&
+		    !(zio->io_flags & ZIO_FLAG_IO_REPAIR))) {
 			/*
 			 * "no-op" injections return success, but do no actual
-			 * work. Just return it.
+			 * work. Just return it. "io-prefail" injections are
+			 * similar, but don't return success.
 			 */
-			zio_delay_interrupt(zio);
-			return (NULL);
-		}
-
-		if (zio_handle_device_injection(vd, zio, EIO) != 0) {
-			/*
-			 * "no-op" injections return success, but do no actual
-			 * work. Just return it.
-			 */
-			zio->io_error = EIO;
+			if (error == EFAULT)
+				zio->io_error = EIO;
 			zio_delay_interrupt(zio);
 			return (NULL);
 		}
