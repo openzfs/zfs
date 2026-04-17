@@ -149,8 +149,3 @@ echo 1 | sudo tee /sys/module/zfs/parameters/zvol_use_blk_mq
 sudo zpool create -f -o ashift=12 zpool $DISKS -O relatime=off \
   -O atime=off -O xattr=sa -O compression=lz4 -O sync=disabled \
   -O redundant_metadata=none -O mountpoint=/mnt/tests
-
-# no need for some scheduler
-for i in /sys/block/s*/queue/scheduler; do
-  echo "none" | sudo tee $i
-done
