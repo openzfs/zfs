@@ -674,11 +674,11 @@ setup_snapshot_booting()
 	then
 		# Snapshot does not exist (...@<null> ?)
 		# ask the user for a snapshot to use.
-		snap="$(ask_user_snap "${_boot_snap%%@*}")"
+		_boot_snap="$(ask_user_snap "${_boot_snap%%@*}")"
 	fi
 
-	# Separate the full snapshot ('${snap}') into it's filesystem and
-	# snapshot names. Would have been nice with a split() function..
+	# Separate the full snapshot ('${_boot_snap}') into its filesystem and
+	# snapshot names. Would have been nice with a split() function.
 	_rootfs="${_boot_snap%%@*}"
 	_snapname="${_boot_snap##*@}"
 	ZFS_BOOTFS="${_rootfs}_${_snapname}"
@@ -693,7 +693,7 @@ setup_snapshot_booting()
 			    -r -Sname "${ZFS_BOOTFS}")"
 			for fs in ${_filesystems}
 			do
-				destroy_fs "${_boot_snap}"
+				destroy_fs "${fs}"
 			done
 		fi
 	fi
