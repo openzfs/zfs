@@ -37,9 +37,11 @@ function showfile_tail() {
   echo "##[endgroup]"
 }
 
-# overview
-cat /tmp/summary.txt
-echo ""
+# overview if available
+if [ -f /tmp/summary.txt -a -s /tmp/summary.txt ]; then
+  cat /tmp/summary.txt
+  echo ""
+fi
 
 if [ -f /tmp/have_failed_tests -a -s /tmp/failed.txt ]; then
   echo "Debuginfo of failed tests:"
