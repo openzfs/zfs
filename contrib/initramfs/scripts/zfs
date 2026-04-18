@@ -514,9 +514,9 @@ destroy_fs()
 	_destroy_fs="${1}"
 
 	[ "${quiet}" != "y" ] && \
-	    zfs_log_begin_msg "Destroying '${destroy_fs}'"
+	    zfs_log_begin_msg "Destroying '${_destroy_fs}'"
 
-	ZFS_CMD="${ZFS} destroy ${destroy_fs}"
+	ZFS_CMD="${ZFS} destroy ${_destroy_fs}"
 	ZFS_STDERR="$(${ZFS_CMD} 2>&1)"
 	ZFS_ERROR="${?}"
 	if [ "${ZFS_ERROR}" != 0 ]
