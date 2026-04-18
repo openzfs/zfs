@@ -51,6 +51,11 @@ cd $RESPATH
 
 # prepare result files for summary
 for ((i=1; i<=VMs; i++)); do
+
+  # no results, VM either didn't start or was unreachable, create
+  # the missing directory which is expected by subsequent steps
+  test -d vm$i || mkdir -p vm$i
+
   file="vm$i/build-stderr.txt"
   test -s $file && mv -f $file build-stderr.txt
 
@@ -62,8 +67,6 @@ for ((i=1; i<=VMs; i++)); do
 
   file="vm$i/tests-exitcode.txt"
   if [ ! -s $file ]; then
-    # XXX - add some tests for kernel panic's here
-    # tail -n 80 vm$i/console.txt | grep XYZ
     echo 1 > $file
   fi
   rv=$(cat vm$i/tests-exitcode.txt)
