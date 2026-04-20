@@ -774,6 +774,19 @@ zpool_feature_init(void)
 	    "Support for raidz expansion",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	{
+		static const spa_feature_t raidz_expand_acct_deps[] = {
+			SPA_FEATURE_ENABLED_TXG,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING,
+		    "org.openzfs:raidz_expansion_accounting",
+		    "raidz_expansion_accounting",
+		    "Per-block deflation ratio after raidz expansion",
+		    ZFEATURE_FLAG_MOS,
+		    ZFEATURE_TYPE_BOOLEAN, raidz_expand_acct_deps, sfeatures);
+	}
+
 	zfeature_register(SPA_FEATURE_FAST_DEDUP,
 	    "com.klarasystems:fast_dedup", "fast_dedup",
 	    "Support for advanced deduplication",

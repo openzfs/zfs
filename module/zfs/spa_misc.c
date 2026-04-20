@@ -2015,6 +2015,55 @@ void
 spa_update_dspace(spa_t *spa)
 {
 	spa->spa_rdspace = metaslab_class_get_dspace(spa_normal_class(spa));
+
+	/*
+	 * For expanded RAIDZ vdevs, the metaslab class dspace was computed
+	 * using the original (txg 0) deflation ratio, which understates the
+	 * usable capacity.  Apply a correction using the current geometry
+	 * ratio, but only for the FREE portion of the vdev.
+	 *
+	 * The allocated portion must remain at the old ratio because
+	 * dd_used_bytes (tracked per-block via bp_get_dsize_sync) also
+	 * uses the old ratio for blocks born before the expansion
+	 * accounting feature was enabled.  Correcting only the free
+	 * portion keeps spa_rdspace - dd_used_bytes = true available.
+	 *
+	 * As old blocks are rewritten with the new geometry, vs_alloc
+	 * shrinks (less physical space per block) and the correction
+	 * automatically grows, converging to the full correction after
+	 * a complete rewrite.
+	 *
+	 * Only correct vdevs in the normal class, matching spa_rdspace's
+	 * derivation from spa_normal_class().  RAIDZ vdevs in the special
+	 * or dedup class contribute only allocated (not free) space to
+	 * spa_dspace via metaslab_class_get_dalloc(), so they do not need
+	 * a free-space correction.
+	 */
+	if (spa_deflate(spa)) {
+		metaslab_class_t *mc = spa_normal_class(spa);
+		vdev_t *rvd = spa->spa_root_vdev;
+		for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+			vdev_t *vd = rvd->vdev_child[c];
+			if (vd->vdev_mg == NULL ||
+			    vd->vdev_mg->mg_class != mc)
+				continue;
+			if (vd->vdev_deflate_ratio_current != 0 &&
+			    vd->vdev_deflate_ratio_current !=
+			    vd->vdev_deflate_ratio) {
+				uint64_t space = vd->vdev_stat.vs_space;
+				uint64_t aspace = vd->vdev_stat.vs_alloc;
+				uint64_t fspace = space - aspace;
+				int64_t old_fs = (fspace >>
+				    SPA_MINBLOCKSHIFT) *
+				    vd->vdev_deflate_ratio;
+				int64_t new_fs = (fspace >>
+				    SPA_MINBLOCKSHIFT) *
+				    vd->vdev_deflate_ratio_current;
+				spa->spa_rdspace += (new_fs - old_fs);
+			}
+		}
+	}
+
 	if (spa->spa_nonallocating_dspace > 0) {
 		/*
 		 * Subtract the space provided by all non-allocating vdevs that
@@ -2288,8 +2337,17 @@ spa_set_deadman_synctime(hrtime_t ns)
 	}
 }
 
+/*
+ * Compute the deflated size of a DVA.  The birth_txg parameter is used to
+ * determine the correct deflation ratio for RAIDZ vdevs that have been
+ * expanded.  Blocks born under an older (narrower) geometry used more
+ * physical space per unit of data; using the birth-txg-appropriate ratio
+ * ensures accurate per-block accounting.  For callers that do not have a
+ * birth txg (or for non-expanded vdevs), the cached vdev_deflate_ratio
+ * based on current geometry is used.
+ */
 uint64_t
-dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
+dva_get_dsize_sync(spa_t *spa, const dva_t *dva, uint64_t birth_txg)
 {
 	uint64_t asize = DVA_GET_ASIZE(dva);
 	uint64_t dsize = asize;
@@ -2298,9 +2356,10 @@ dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 
 	if (asize != 0 && spa->spa_deflate) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
-		if (vd != NULL)
-			dsize = (asize >> SPA_MINBLOCKSHIFT) *
-			    vd->vdev_deflate_ratio;
+		if (vd != NULL) {
+			uint64_t ratio = vdev_get_deflate_ratio(vd, birth_txg);
+			dsize = (asize >> SPA_MINBLOCKSHIFT) * ratio;
+		}
 	}
 
 	return (dsize);
@@ -2311,8 +2370,16 @@ bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
 
+	/*
+	 * Use physical birth: this reflects when the DVAs were actually
+	 * allocated, and thus which RAIDZ geometry was in effect.  For
+	 * dedup/clones the logical birth may differ, but the physical
+	 * birth matches the on-disk allocation geometry.
+	 */
+	uint64_t birth_txg = BP_GET_PHYSICAL_BIRTH(bp);
+
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
-		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
+		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d], birth_txg);
 
 	return (dsize);
 }
@@ -2321,11 +2388,12 @@ uint64_t
 bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
+	uint64_t birth_txg = BP_GET_PHYSICAL_BIRTH(bp);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
-		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
+		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d], birth_txg);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
