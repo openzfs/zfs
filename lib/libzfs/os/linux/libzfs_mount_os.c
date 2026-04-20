@@ -406,7 +406,11 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 	argv[count] = (char *)mntpt;
 	rc = libzfs_run_process(argv[0], argv, STDOUT_VERBOSE|STDERR_VERBOSE);
 
-	return (rc ? EINVAL : 0);
+	if (rc == 0)
+		return (0);
+	if (rc > 0 && geteuid() != 0)
+		return (EPERM);
+	return (EINVAL);
 }
 
 #ifdef HAVE_MOUNT_SETATTR
