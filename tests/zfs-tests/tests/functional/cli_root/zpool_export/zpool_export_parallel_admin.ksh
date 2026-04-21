@@ -64,7 +64,7 @@ log_must zpool create -f $TESTPOOL1 mirror ${DEVICE_DIR}/disk0 ${DEVICE_DIR}/dis
 
 log_must zinject -P export -s 10 $TESTPOOL1
 
-log_must zpool export $TESTPOOL1 &
+log_must_busy zpool export $TESTPOOL1 &
 
 zpool set comment=hello $TESTPOOL1
 zpool reguid $TESTPOOL1 &
