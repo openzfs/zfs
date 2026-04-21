@@ -3519,7 +3519,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 				    ZRENAMING, NULL));
 			}
 		}
-		if (error == 0) {
+		if (error == 0 && zfsvfs->z_use_namecache) {
 			cache_vop_rename(sdvp, *svpp, tdvp, *tvpp, scnp, tcnp);
 		}
 	}
