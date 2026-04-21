@@ -237,8 +237,10 @@ for an ECHILD error,
 for an EIO error where reopening the device will succeed,
 .It Sy nxio
 for an ENXIO error where reopening the device will fail, or
+.It Sy io-prefail
+to drop the IO without executing it and return failure, or
 .It Sy noop
-to drop the IO without executing it, and return success.
+to drop the IO without executing it and return success.
 .El
 .Pp
 For EIO and ENXIO, the "failed" reads or writes still occur.
