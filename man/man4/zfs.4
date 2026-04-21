@@ -2388,6 +2388,13 @@ and may need to load new metaslabs to satisfy these allocations.
 .It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
 Rewrite new block pointers starting in this pass.
 .
+.It Sy zfs_scrub_partial_writes Ns = Ns Sy 1 Ns | Ns 0 Pq int
+If a write to a multi-disk vdev fails, but the data is recoverable, the data is
+persisted on disk but may not be as redundant as the vdev usually ensures.
+If this tunable is set, we issue a read after such a write error to detect the
+full extent of the problem and attempt to recover from it.
+Note: This currently only works with RAID-Z and dRAID.
+.
 .It Sy zfs_trim_extent_bytes_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Maximum size of TRIM command.
 Larger ranges will be split into chunks no larger than this value before
