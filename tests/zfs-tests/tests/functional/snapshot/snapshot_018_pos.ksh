@@ -91,6 +91,7 @@ log_must eval "[[ $(stat_mtime $tfs_snapdir) == 0 ]]"
 
 # Create snapshots for filesystems and check snapshots_changed reports correct time
 curr_time=$(date '+%s')
+log_must sleep 1
 log_must zfs snapshot $snap_testpool
 snap_changed_testpool=$(zfs get -H -o value -p snapshots_changed $TESTPOOL)
 snap_changed_nsecs_testpool=$(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL)
@@ -103,6 +104,7 @@ log_must eval "[[ $list_changed_nsecs_testpool == $snap_changed_nsecs_testpool ]
 log_must eval "[[ $(stat_mtime $tpool_snapdir) ==  $snap_changed_testpool ]]"
 
 curr_time=$(date '+%s')
+log_must sleep 1
 log_must zfs snapshot $snap_testfsv1
 snap_changed_testfs=$(zfs get -H -o value -p snapshots_changed $TESTPOOL/$TESTFS)
 snap_changed_nsecs_testfs=$(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL/$TESTFS)
@@ -121,6 +123,7 @@ log_must eval "[[ $(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL/$TE
 
 # Create snapshot while unmounted
 curr_time=$(date '+%s')
+log_must sleep 1
 log_must zfs snapshot $snap_testfsv2
 snap_changed_testfs=$(zfs get -H -o value -p snapshots_changed $TESTPOOL/$TESTFS)
 snap_changed_nsecs_testfs=$(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL/$TESTFS)
@@ -144,6 +147,7 @@ log_must eval "[[ $(stat_mtime $tfs_snapdir) ==  $snap_changed_testfs ]]"
 
 # Destroy the snapshots and check snapshots_changed shows correct time
 curr_time=$(date '+%s')
+log_must sleep 1
 log_must zfs destroy $snap_testfsv1
 snap_changed_testfs=$(zfs get -H -o value -p snapshots_changed $TESTPOOL/$TESTFS)
 snap_changed_nsecs_testfs=$(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL/$TESTFS)
@@ -152,6 +156,7 @@ log_must eval "[[ $((snap_changed_nsecs_testfs / 1000000000)) == $snap_changed_t
 log_must eval "[[ $(stat_mtime $tfs_snapdir) ==  $snap_changed_testfs ]]"
 
 curr_time=$(date '+%s')
+log_must sleep 1
 log_must zfs destroy $snap_testpool
 snap_changed_testpool=$(zfs get -H -o value -p snapshots_changed $TESTPOOL)
 snap_changed_nsecs_testpool=$(zfs get -H -o value -p snapshots_changed_nsecs $TESTPOOL)
