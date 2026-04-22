@@ -2678,8 +2678,8 @@ inverse_text(boolean_t on)
 }
 
 static void
-print_file_layout_line(int line, int first_disk, int last_disk, int ashift,
-    raidz_row_t *rr)
+print_file_layout_line(vdev_t *vd, int line, int first_disk, int last_disk,
+    int ashift, raidz_row_t *rr)
 {
 	if (first_disk != 0) {
 		/* Account for empty columns */
@@ -2717,7 +2717,8 @@ print_file_layout_line(int line, int first_disk, int last_disk, int ashift,
 		} else {
 			(void) printf("%10llx",
 			    (u_longlong_t)((rc->rc_offset +
-			    VDEV_LABEL_START_SIZE) >> ashift));
+			    VDEV_LABEL_START_SIZE(vd->vdev_child[
+			    rc->rc_devidx])) >> ashift));
 		}
 		if (pcol)
 			inverse_text(B_FALSE);
@@ -2817,18 +2818,18 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 		int first_disk = rr->rr_col[0].rc_devidx;
 
 		(void) printf("%12llx", (u_longlong_t)file_offset);
-		print_file_layout_line(0, first_disk, last_disk,
+		print_file_layout_line(vd, 0, first_disk, last_disk,
 		    vd->vdev_ashift, rr);
 		(void) printf("%*c", 12, ' ');
-		print_file_layout_line(1, first_disk, last_disk,
+		print_file_layout_line(vd, 1, first_disk, last_disk,
 		    vd->vdev_ashift, rr);
 		/* Check for split row */
 		if (first_disk != 0) {
 			(void) printf("%*c", 12, ' ');
-			print_file_layout_line(0, 0, first_disk - 1,
+			print_file_layout_line(vd, 0, 0, first_disk - 1,
 			    vd->vdev_ashift, rr);
 			(void) printf("%*c", 12, ' ');
-			print_file_layout_line(1, 0, first_disk - 1,
+			print_file_layout_line(vd, 1, 0, first_disk - 1,
 			    vd->vdev_ashift, rr);
 		}
 		/* seperate rows with a line */
@@ -2858,7 +2859,8 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 			(void) printf("%s\t%llu\t%d\n",
 			    zfs_basename(path),
 			    (u_longlong_t)(rc->rc_offset +
-			    VDEV_LABEL_START_SIZE)/512,
+			    VDEV_LABEL_START_SIZE(vd->vdev_child[
+			    rc->rc_devidx]))/512,
 			    (int)rc->rc_size/512);
 		}
 	}
