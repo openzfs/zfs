@@ -499,6 +499,13 @@ fletcher_4_native_varsize(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
 }
 
+void
+fletcher_4_byteswap_varsize(const void *buf, uint64_t size, zio_cksum_t *zcp)
+{
+	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
+	fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp, buf, size);
+}
+
 static inline void
 fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {

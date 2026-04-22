@@ -505,7 +505,11 @@ verify_perms(uint8_t *perms, uint64_t children, uint64_t nperms,
 		int permssz = sizeof (uint8_t) * children * nperms;
 		zio_cksum_t cksum;
 
+#if defined(_ZFS_BIG_ENDIAN)
+		fletcher_4_byteswap_varsize(perms, permssz, &cksum);
+#else
 		fletcher_4_native_varsize(perms, permssz, &cksum);
+#endif
 
 		if (checksum != cksum.zc_word[0]) {
 			kmem_free(counts, countssz);
