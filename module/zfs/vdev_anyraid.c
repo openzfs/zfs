@@ -2880,7 +2880,7 @@ spa_anyraid_relocate_thread_check(void *arg, zthr_t *zthr)
 	spa_t *spa = arg;
 	vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
 
-	return (var != NULL && var->var_state != ARS_SCRUBBING &&
+	return (var != NULL && var->var_state < ARS_SCRUBBING &&
 	    !var->var_waiting_for_resilver);
 }
 
