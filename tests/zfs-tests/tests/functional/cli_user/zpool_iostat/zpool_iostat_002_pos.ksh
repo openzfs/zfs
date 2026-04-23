@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 # 1. Set the interval to 1 and count to 4.
-# 2. Sleep for 4 seconds.
+# 2. Sleep for 5 seconds.
 # 3. Verify that the output has 4 records.
 # 4. Set interval to 0.5 and count to 1 to test floating point intervals.
 
@@ -61,11 +61,12 @@ if ! is_global_zone ; then
 	TESTPOOL=${TESTPOOL%%/*}
 fi
 
-zpool iostat $TESTPOOL 1 4 > $tmpfile 2>&1 &
-sleep 4
+log_must eval "zpool iostat $TESTPOOL 1 4 > $tmpfile 2>&1 &"
+log_must sleep 5
 stat_count=$(grep -c $TESTPOOL $tmpfile)
 
 if [[ $stat_count -ne 4 ]]; then
+	cat $tmpfile
 	log_fail "zpool iostat [pool_name] [interval] [count] failed"
 fi
 
