@@ -7673,7 +7673,7 @@ zfs_ioc_pool_rebalance(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 		err = spa_rebalance_all(spa);
 	spa_close(spa, FTAG);
 
-	return (0);
+	return (err);
 }
 
 /*
@@ -7682,7 +7682,7 @@ zfs_ioc_pool_rebalance(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
  *
  * innvl: {
  * 	"anyraid_vdev" -> guid of the anyraid vdev
- * 	"anyraid_vdev" -> guid of the leaf vdev
+ * 	"leaf_vdev" -> guid of the leaf vdev
  * }
  *
  * outnvl is unused

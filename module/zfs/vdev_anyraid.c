@@ -1423,6 +1423,7 @@ vdev_anyraid_io_start(zio_t *zio)
 		    offsetof(anyraid_tile_node_t, atn_node));
 
 		uint_t width = va->vd_nparity + va->vd_ndata;
+		ASSERT3U(width, <=, avl_numnodes(&va->vd_children_tree));
 		vdev_anyraid_node_t **vans = kmem_alloc(sizeof (*vans) * width,
 		    KM_SLEEP);
 		for (int i = 0; i < width; i++) {
@@ -1435,6 +1436,7 @@ vdev_anyraid_io_start(zio_t *zio)
 			atn->atn_disk = vans[i]->van_id;
 			atn->atn_tile_idx =
 			    anyraid_freelist_pop(&vans[i]->van_freelist);
+			ASSERT3U(atn->atn_tile_idx, <, vans[i]->van_capacity);
 			list_insert_tail(&tile->at_list, atn);
 		}
 		for (int i = 0; i < width; i++)
@@ -2684,6 +2686,7 @@ create_reloc_task(vdev_anyraid_t *va, struct rebal_node *donor, uint16_t offset,
 	    anyraid_freelist_alloc(&rvan->van_freelist));
 	task->vart_dest_idx = anyraid_freelist_pop(
 	    &rvan->van_freelist);
+	ASSERT3U(task->vart_dest_idx, <, rvan->van_capacity);
 	task->vart_tile = donor->arr[offset];
 	task->vart_task = (*tid)++;
 		list_insert_tail(&va->vd_relocate.var_list, task);
@@ -3579,7 +3582,9 @@ vdev_anyraid_check_contract(vdev_t *tvd, vdev_t *lvd, dmu_tx_t *tx)
 		metaslab_disable_nowait(tvd->vdev_ms[m]);
 	}
 
+	avl_remove(&va->vd_children_tree, va->vd_children[lvd->vdev_id]);
 	va->vd_children[lvd->vdev_id]->van_capacity = 0;
+	avl_add(&va->vd_children_tree, va->vd_children[lvd->vdev_id]);
 	/*
 	 * At this point, the relocation plan has been generated and everything
 	 * else involved in setup is fail-proof. We leave the rest of the
@@ -3612,6 +3617,10 @@ out:
 		kmem_free(node, sizeof (*node));
 	}
 	avl_destroy(&ft);
+	/*
+	 * If error == 0 we're still holding the lock, which will be freed in
+	 * vdev_anyraid_setup_contract
+	 */
 	return (error);
 }
 
