@@ -164,6 +164,16 @@ my $untagged_patterns = q(
 	tests/zfs-tests/include/tunables.cfg
 	tests/zfs-tests/include/zpool_script.shlib
 	tests/zfs-tests/tests/functional/mv_files/random_creation.ksh
+
+	# These Makefiles are not present in master since they were merged
+	# into the larger libraries.  It was only after that big Makefile merge
+	# that they got their SPDX lines.  Since this branch does not include
+	# the big Makefile merge, we have to whitelist these older Makefile
+	# since they don't have SPDX lines.
+	lib/libshare/Makefile.am
+	lib/libtpool/Makefile.am
+	lib/libunicode/Makefile.am
+	lib/libuutil/Makefile.am
 );
 
 # For files expected to have a license tags, these are the acceptable tags by
