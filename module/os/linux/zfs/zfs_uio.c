@@ -234,6 +234,8 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
     boolean_t revert)
 {
 	size_t cnt = MIN(n, uio->uio_resid);
+	size_t oldcnt = cnt;
+	int error = 0;
 
 	if (rw == UIO_READ)
 		cnt = copy_to_iter(p, cnt, uio->uio_iter);
@@ -249,16 +251,21 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 		return (EFAULT);
 
 	/*
-	 * Revert advancing the uio_iter.  This is set by zfs_uiocopy()
-	 * to avoid consuming the uio and its iov_iter structure.
+	 * When revert is set this is a zfs_uiocopy() which should not
+	 * consume the uio and its iov_iter structure.  Otherwise, it's
+	 * a zfs_uiomove() which is expected to update the uio.  Partial
+	 * copies are allowed for both copy and move but EFAULT should
+	 * be returned for zfs_uiomove().
 	 */
 	if (revert)
 		iov_iter_revert(uio->uio_iter, cnt);
+	else if (cnt != oldcnt)
+		error = EFAULT;
 
 	uio->uio_resid -= cnt;
 	uio->uio_loffset += cnt;
 
-	return (0);
+	return (error);
 }
 
 int
