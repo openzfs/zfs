@@ -485,9 +485,26 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 #ifdef HAVE_WRITE_CACHE_PAGES
 #ifdef HAVE_WRITEPAGE_T_FOLIO
 static int
-zpl_putfolio(struct folio *pp, struct writeback_control *wbc, void *data)
+zpl_putfolio(struct folio *folio, struct writeback_control *wbc, void *data)
 {
-	return (zpl_putpage(&pp->page, wbc, data));
+	boolean_t *for_sync = data;
+	fstrans_cookie_t cookie;
+	int ret;
+
+	ASSERT(PageLocked(&folio->page));
+	/*
+	 * Call zfs_putpage() directly rather than via zpl_putpage() because
+	 * write_cache_pages() on Linux 6.12+ uses writeback_iter() which
+	 * calls folio_start_writeback() before invoking this callback, so
+	 * PG_writeback may already be set.  zpl_putpage() asserts otherwise
+	 * (correctly, for the old page-based callback contract).
+	 * zfs_putpage() detects this automatically via PageWriteback().
+	 */
+	cookie = spl_fstrans_mark();
+	ret = zfs_putpage(folio->mapping->host, &folio->page, wbc, *for_sync);
+	spl_fstrans_unmark(cookie);
+
+	return (ret);
 }
 #endif
 

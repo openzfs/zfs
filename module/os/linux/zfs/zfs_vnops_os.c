@@ -3777,6 +3777,14 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	ASSERT(PageLocked(pp));
 
+	/*
+	 * Since Linux 6.12, write_cache_pages() uses writeback_iter() which
+	 * calls folio_start_writeback() before invoking the filesystem
+	 * callback.  Detect this so we can skip our own set_page_writeback()
+	 * call and ensure folio_end_writeback() is called on every exit path.
+	 */
+	boolean_t writeback_started = PageWriteback(pp);
+
 	pgoff = page_offset(pp);	/* Page byte-offset in file */
 	offset = i_size_read(ip);	/* File length in bytes */
 	pglen = MIN(PAGE_SIZE,		/* Page length in bytes */
@@ -3784,6 +3792,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
+		if (writeback_started)
+			zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
@@ -3843,14 +3853,22 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	/* Page mapping changed or it was no longer dirty, we're done */
 	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
+		if (writeback_started)
+			zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
 	}
 
-	/* Another process started write block if required */
-	if (PageWriteback(pp)) {
+	/*
+	 * Another process started write block if required.  Skip this check
+	 * when writeback_started is set: PG_writeback was placed by the
+	 * kernel's writeback_iter() on our behalf before invoking this
+	 * callback, so it represents our own in-progress write, not a
+	 * concurrent one from another thread.
+	 */
+	if (!writeback_started && PageWriteback(pp)) {
 		unlock_page(pp);
 		zfs_rangelock_exit(lr);
 
@@ -3869,6 +3887,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	/* Clear the dirty flag the required locks are held */
 	if (!clear_page_dirty_for_io(pp)) {
+		if (writeback_started)
+			zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
@@ -3880,7 +3900,8 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	 * was in fact not skipped and should not be counted as if it were.
 	 */
 	wbc->pages_skipped--;
-	set_page_writeback(pp);
+	if (!writeback_started)
+		set_page_writeback(pp);
 	unlock_page(pp);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
