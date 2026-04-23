@@ -745,6 +745,13 @@ depends on kernel configuration.
 This is the minimum allocation size that will use scatter (page-based) ABDs.
 Smaller allocations will use linear ABDs.
 .
+.It Sy zfs_active_allocator Ns = Ns Sy dynamic Pq charp
+Select the SPA metaslab allocator.
+Valid values are
+.Sy dynamic
+and
+.Sy cursor .
+.
 .It Sy zfs_arc_dnode_limit Ns = Ns Sy 0 Ns B Pq u64
 When the number of bytes consumed by dnodes in the ARC exceeds this number of
 bytes, try to unpin some of it in response to demand for non-metadata.
@@ -937,6 +944,13 @@ If
 equivalent to the greater of the number of online CPUs and
 .Sy 4 .
 .
+.It Sy zfs_arc_no_grow_shift Ns = Ns Sy 5 Pq uint
+If less than
+.Sy arc_c No >> Sy zfs_arc_no_grow_shift
+free memory is available, the ARC is not allowed to grow.
+This parameter is
+.Fx Ns -specific .
+.
 .It Sy zfs_arc_overflow_shift Ns = Ns Sy 8 Pq int
 The ARC size is considered to be overflowing if it exceeds the current
 ARC target size
@@ -1033,6 +1047,11 @@ stable storage.
 The timeout is scaled based on a percentage of the last lwb
 latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
+.
+.It Sy zfs_compressed_arc_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Enables storing ARC buffers in their on-disk compressed form, reducing
+memory pressure.
+When disabled, buffers are decompressed before being cached.
 .
 .It Sy zfs_condense_indirect_commit_entry_delay_ms Ns = Ns Sy 0 Ns ms Pq int
 Vdev indirection layer (used for device removal) sleeps for this many
@@ -1690,6 +1709,11 @@ which have the
 .Em no_root_squash
 option set.
 .
+.It Sy zfs_snapshot_history_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Whether snapshot creation and destruction events are recorded in the pool
+history log, viewable with
+.Nm zpool Cm history .
+.
 .It Sy zfs_snapshot_no_setuid Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Whether to disable
 .Em setuid/setgid
@@ -2180,6 +2204,10 @@ working on a scrub between TXG flushes.
 .
 .It Sy zfs_scrub_error_blocks_per_txg Ns = Ns Sy 4096 Pq uint
 Error blocks to be scrubbed in one txg.
+.
+.It Sy zfs_scan_blkstats Ns = Ns Sy 0 Ns | Ns 1 Pq int
+When enabled, ZFS counts blocks by type and indirection level during a scrub.
+The counts are kept in memory for debugging and are not exposed to userspace.
 .
 .It Sy zfs_scan_checkpoint_intval Ns = Ns Sy 7200 Ns s Po 2 hour Pc Pq uint
 To preserve progress across reboots, the sequential scan algorithm periodically
