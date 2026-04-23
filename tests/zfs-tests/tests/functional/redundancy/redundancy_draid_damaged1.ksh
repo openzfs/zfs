@@ -89,12 +89,7 @@ function test_sequential_resilver # <pool> <parity> <dir>
 		log_must zpool replace -fsw $pool $dir/dev-$i $spare
 	done
 
-	log_must zpool scrub -w $pool
-	log_must zpool status $pool
-
-	log_mustnot check_pool_status $pool "scan" "repaired 0B"
-	log_must check_pool_status $pool "errors" "No known data errors"
-	log_must check_pool_status $pool "scan" "with 0 errors"
+	log_must verify_draid_pool $pool "damaged"
 }
 
 log_onexit cleanup

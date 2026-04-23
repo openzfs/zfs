@@ -85,9 +85,7 @@ for replace_mode in "healing" "sequential"; do
 		log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
 		# Preserve the 1st faulted vdev for the next test.
 		[[ $i -eq 0 ]] || log_must zpool detach $TESTPOOL $fault_vdev
-		log_must verify_pool $TESTPOOL
-		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+		log_must verify_draid_pool $TESTPOOL $replace_mode
 
 		(( i += 1 ))
 	done
@@ -98,9 +96,7 @@ for replace_mode in "healing" "sequential"; do
 	# Verify that after clearing the 1st faulted vdev, all is healed.
 	log_must zpool clear $TESTPOOL "$BASEDIR/vdev0"
 	log_must wait_resilvered $TESTPOOL
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	cleanup
 done

@@ -60,9 +60,9 @@ log_must zpool offline -f $TESTPOOL $BASEDIR/vdev9
 log_must zpool replace -w $TESTPOOL $BASEDIR/vdev9 draid1-0-2
 
 # Verify, refill and verify the pool contents.
-verify_pool $TESTPOOL
+log_must verify_draid_pool $TESTPOOL "healing"
 refill_test_env $TESTPOOL
-verify_pool $TESTPOOL
+log_must verify_draid_pool $TESTPOOL "healing"
 
 # Bring everything back online and check for errors.
 log_must zpool clear $TESTPOOL
@@ -72,9 +72,7 @@ log_must wait_hotspare_state $TESTPOOL draid1-0-0 "AVAIL"
 log_must wait_hotspare_state $TESTPOOL draid1-0-1 "AVAIL"
 log_must wait_hotspare_state $TESTPOOL draid1-0-2 "AVAIL"
 
-log_must zpool scrub -w $TESTPOOL
-log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+log_must verify_draid_pool $TESTPOOL "healing"
 
 log_must is_data_valid $TESTPOOL
 

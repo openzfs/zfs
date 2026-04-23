@@ -111,9 +111,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must zpool detach $TESTPOOL $BASEDIR/vdev7
 	log_must check_vdev_state $TESTPOOL draid1-0-0 "ONLINE"
 	log_must check_hotspare_state $TESTPOOL draid1-0-0 "INUSE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Distributed spare in mirror with original device faulted
 	log_must zpool offline -f $TESTPOOL $BASEDIR/vdev8
@@ -122,9 +120,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must check_vdev_state $TESTPOOL spare-8 "DEGRADED"
 	log_must check_vdev_state $TESTPOOL draid1-0-1 "ONLINE"
 	log_must check_hotspare_state $TESTPOOL draid1-0-1 "INUSE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Distributed spare in mirror with original device still online
 	log_must check_vdev_state $TESTPOOL $BASEDIR/vdev9 "ONLINE"
@@ -132,9 +128,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must check_vdev_state $TESTPOOL spare-9 "ONLINE"
 	log_must check_vdev_state $TESTPOOL draid1-0-2 "ONLINE"
 	log_must check_hotspare_state $TESTPOOL draid1-0-2 "INUSE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Normal faulted device replacement
 	new_vdev0="$BASEDIR/new_vdev0"
@@ -143,9 +137,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must check_vdev_state $TESTPOOL $BASEDIR/vdev0 "FAULTED"
 	log_must zpool replace -w $flags $TESTPOOL $BASEDIR/vdev0 $new_vdev0
 	log_must check_vdev_state $TESTPOOL $new_vdev0 "ONLINE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Distributed spare faulted device replacement
 	log_must zpool offline -f $TESTPOOL $BASEDIR/vdev2
@@ -154,9 +146,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must check_vdev_state $TESTPOOL spare-2 "DEGRADED"
 	log_must check_vdev_state $TESTPOOL draid1-0-3 "ONLINE"
 	log_must check_hotspare_state $TESTPOOL draid1-0-3 "INUSE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Normal online device replacement
 	new_vdev1="$BASEDIR/new_vdev1"
@@ -164,9 +154,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must check_vdev_state $TESTPOOL $BASEDIR/vdev1 "ONLINE"
 	log_must zpool replace -w $flags $TESTPOOL $BASEDIR/vdev1 $new_vdev1
 	log_must check_vdev_state $TESTPOOL $new_vdev1 "ONLINE"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Distributed spare online device replacement (then fault)
 	log_must zpool replace -w $flags $TESTPOOL $BASEDIR/vdev3 draid1-0-4
@@ -176,9 +164,7 @@ for replace_mode in "healing" "sequential"; do
 	log_must zpool offline -f $TESTPOOL $BASEDIR/vdev3
 	log_must check_vdev_state $TESTPOOL $BASEDIR/vdev3 "FAULTED"
 	log_must check_vdev_state $TESTPOOL spare-3 "DEGRADED"
-	log_must verify_pool $TESTPOOL
-	log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
-	log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
+	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	# Verify the original data is valid
 	log_must is_data_valid $TESTPOOL
