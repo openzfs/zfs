@@ -48,12 +48,44 @@ AC_DEFUN([ZFS_AC_KERNEL_WRITE_CACHE_PAGES], [
 	])
 ])
 
+AC_DEFUN([ZFS_AC_KERNEL_SRC_WRITEBACK_ITER], [
+	dnl #
+	dnl # 6.12 API change
+	dnl # write_cache_pages() was refactored to use writeback_iter()
+	dnl # internally, which calls folio_start_writeback() before
+	dnl # invoking the filesystem writepage callback.
+	dnl #
+	ZFS_LINUX_TEST_SRC([writeback_iter], [
+		#include <linux/writeback.h>
+	],[
+		struct address_space *mapping = NULL;
+		struct writeback_control *wbc = NULL;
+		struct folio *folio = NULL;
+		int error = 0;
+		folio = writeback_iter(mapping, wbc, folio, &error);
+		(void) folio;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_WRITEBACK_ITER], [
+	AC_MSG_CHECKING([whether writeback_iter() is available])
+	ZFS_LINUX_TEST_RESULT([writeback_iter], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_WRITEBACK_ITER, 1,
+		    [writeback_iter() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_WRITEBACK], [
 	ZFS_AC_KERNEL_SRC_WRITEPAGE_T
 	ZFS_AC_KERNEL_SRC_WRITE_CACHE_PAGES
+	ZFS_AC_KERNEL_SRC_WRITEBACK_ITER
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_WRITEBACK], [
 	ZFS_AC_KERNEL_WRITEPAGE_T
 	ZFS_AC_KERNEL_WRITE_CACHE_PAGES
+	ZFS_AC_KERNEL_WRITEBACK_ITER
 ])

@@ -3754,6 +3754,15 @@ zfs_putpage_commit_cb(void *arg, int err)
  * Timestamps:
  *	ip - ctime|mtime updated
  */
+#ifdef HAVE_WRITEBACK_ITER
+/*
+ * This version is used on Linux 6.12 and later kernels where
+ * write_cache_pages() uses writeback_iter() internally, which calls
+ * folio_start_writeback() before invoking the filesystem writepage
+ * callback.  As a result, PG_writeback is already set when this function
+ * is entered, and must be cleared (via zfs_page_writeback_done()) on
+ * every exit path.
+ */
 int
 zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
     boolean_t for_sync)
@@ -3776,14 +3785,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 		return (err);
 
 	ASSERT(PageLocked(pp));
-
-	/*
-	 * Since Linux 6.12, write_cache_pages() uses writeback_iter() which
-	 * calls folio_start_writeback() before invoking the filesystem
-	 * callback.  Detect this so we can skip our own set_page_writeback()
-	 * call and ensure folio_end_writeback() is called on every exit path.
-	 */
-	boolean_t writeback_started = PageWriteback(pp);
+	ASSERT(PageWriteback(pp));
 
 	pgoff = page_offset(pp);	/* Page byte-offset in file */
 	offset = i_size_read(ip);	/* File length in bytes */
@@ -3792,8 +3794,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	/* Page is beyond end of file */
 	if (pgoff >= offset) {
-		if (writeback_started)
-			zfs_page_writeback_done(pp, 0);
+		zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
@@ -3853,42 +3854,16 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 
 	/* Page mapping changed or it was no longer dirty, we're done */
 	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
-		if (writeback_started)
-			zfs_page_writeback_done(pp, 0);
+		zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_rangelock_exit(lr);
-		zfs_exit(zfsvfs, FTAG);
-		return (0);
-	}
-
-	/*
-	 * Another process started write block if required.  Skip this check
-	 * when writeback_started is set: PG_writeback was placed by the
-	 * kernel's writeback_iter() on our behalf before invoking this
-	 * callback, so it represents our own in-progress write, not a
-	 * concurrent one from another thread.
-	 */
-	if (!writeback_started && PageWriteback(pp)) {
-		unlock_page(pp);
-		zfs_rangelock_exit(lr);
-
-		if (wbc->sync_mode != WB_SYNC_NONE) {
-			if (PageWriteback(pp))
-#ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
-				folio_wait_bit(page_folio(pp), PG_writeback);
-#else
-				wait_on_page_bit(pp, PG_writeback);
-#endif
-		}
-
 		zfs_exit(zfsvfs, FTAG);
 		return (0);
 	}
 
 	/* Clear the dirty flag the required locks are held */
 	if (!clear_page_dirty_for_io(pp)) {
-		if (writeback_started)
-			zfs_page_writeback_done(pp, 0);
+		zfs_page_writeback_done(pp, 0);
 		unlock_page(pp);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
@@ -3900,8 +3875,6 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	 * was in fact not skipped and should not be counted as if it were.
 	 */
 	wbc->pages_skipped--;
-	if (!writeback_started)
-		set_page_writeback(pp);
 	unlock_page(pp);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
@@ -4014,6 +3987,258 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	zfs_exit(zfsvfs, FTAG);
 	return (err);
 }
+
+#else /* !HAVE_WRITEBACK_ITER */
+
+/*
+ * This version is used on Linux kernels older than 6.12 where
+ * write_cache_pages() does not pre-start writeback before invoking the
+ * filesystem callback.  PG_writeback is not set on entry; this function
+ * is responsible for calling set_page_writeback() itself after acquiring
+ * the necessary locks.
+ */
+int
+zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
+    boolean_t for_sync)
+{
+	znode_t		*zp = ITOZ(ip);
+	zfsvfs_t	*zfsvfs = ITOZSB(ip);
+	loff_t		offset;
+	loff_t		pgoff;
+	unsigned int	pglen;
+	dmu_tx_t	*tx;
+	caddr_t		va;
+	int		err = 0;
+	uint64_t	mtime[2], ctime[2];
+	inode_timespec_t tmp_ts;
+	sa_bulk_attr_t	bulk[3];
+	int		cnt = 0;
+	struct address_space *mapping;
+
+	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (err);
+
+	ASSERT(PageLocked(pp));
+	ASSERT(!PageWriteback(pp));
+
+	pgoff = page_offset(pp);	/* Page byte-offset in file */
+	offset = i_size_read(ip);	/* File length in bytes */
+	pglen = MIN(PAGE_SIZE,		/* Page length in bytes */
+	    P2ROUNDUP(offset, PAGE_SIZE)-pgoff);
+
+	/* Page is beyond end of file */
+	if (pgoff >= offset) {
+		unlock_page(pp);
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	/* Truncate page length to end of file */
+	if (pgoff + pglen > offset)
+		pglen = offset - pgoff;
+
+#if 0
+	/*
+	 * FIXME: Allow mmap writes past its quota.  The correct fix
+	 * is to register a page_mkwrite() handler to count the page
+	 * against its quota when it is about to be dirtied.
+	 */
+	if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT,
+	    KUID_TO_SUID(ip->i_uid)) ||
+	    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT,
+	    KGID_TO_SGID(ip->i_gid)) ||
+	    (zp->z_projid != ZFS_DEFAULT_PROJID &&
+	    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
+	    zp->z_projid))) {
+		err = EDQUOT;
+	}
+#endif
+
+	/*
+	 * The ordering here is critical and must adhere to the following
+	 * rules in order to avoid deadlocking in either zfs_read() or
+	 * zfs_free_range() due to a lock inversion.
+	 *
+	 * 1) The page must be unlocked prior to acquiring the range lock.
+	 *    This is critical because zfs_read() calls find_lock_page()
+	 *    which may block on the page lock while holding the range lock.
+	 *
+	 * 2) Before setting or clearing write back on a page the range lock
+	 *    must be held in order to prevent a lock inversion with the
+	 *    zfs_free_range() function.
+	 *
+	 * This presents a problem because upon entering this function the
+	 * page lock is already held.  To safely acquire the range lock the
+	 * page lock must be dropped.  This creates a window where another
+	 * process could truncate, invalidate, dirty, or write out the page.
+	 *
+	 * Therefore, after successfully reacquiring the range and page locks
+	 * the current page state is checked.  In the common case everything
+	 * will be as is expected and it can be written out.  However, if
+	 * the page state has changed it must be handled accordingly.
+	 */
+	mapping = pp->mapping;
+	redirty_page_for_writepage(wbc, pp);
+	unlock_page(pp);
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	    pgoff, pglen, RL_WRITER);
+	lock_page(pp);
+
+	/* Page mapping changed or it was no longer dirty, we're done */
+	if (unlikely((mapping != pp->mapping) || !PageDirty(pp))) {
+		unlock_page(pp);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	/* Another process started write block if required */
+	if (PageWriteback(pp)) {
+		unlock_page(pp);
+		zfs_rangelock_exit(lr);
+
+		if (wbc->sync_mode != WB_SYNC_NONE) {
+			if (PageWriteback(pp))
+#ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
+				folio_wait_bit(page_folio(pp), PG_writeback);
+#else
+				wait_on_page_bit(pp, PG_writeback);
+#endif
+		}
+
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	/* Clear the dirty flag the required locks are held */
+	if (!clear_page_dirty_for_io(pp)) {
+		unlock_page(pp);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	/*
+	 * Counterpart for redirty_page_for_writepage() above.  This page
+	 * was in fact not skipped and should not be counted as if it were.
+	 */
+	wbc->pages_skipped--;
+	set_page_writeback(pp);
+	unlock_page(pp);
+
+	tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_write(tx, zp->z_id, pgoff, pglen);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	zfs_sa_upgrade_txholds(tx, zp);
+
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		zfs_page_writeback_done(pp, err);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+
+		/*
+		 * Don't return error for an async writeback; we've re-dirtied
+		 * the page so it will be tried again some other time.
+		 */
+		return (for_sync ? err : 0);
+	}
+
+	va = kmap(pp);
+	ASSERT3U(pglen, <=, PAGE_SIZE);
+	dmu_write(zfsvfs->z_os, zp->z_id, pgoff, pglen, va, tx,
+	    DMU_READ_PREFETCH);
+	kunmap(pp);
+
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
+	SA_ADD_BULK_ATTR(bulk, cnt, SA_ZPL_FLAGS(zfsvfs), NULL,
+	    &zp->z_pflags, 8);
+
+	/* Preserve the mtime and ctime provided by the inode */
+	tmp_ts = zpl_inode_get_mtime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, mtime);
+	tmp_ts = zpl_inode_get_ctime(ip);
+	ZFS_TIME_ENCODE(&tmp_ts, ctime);
+	zp->z_atime_dirty = B_FALSE;
+	zp->z_seq++;
+
+	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
+
+	/*
+	 * A note about for_sync vs wbc->sync_mode.
+	 *
+	 * for_sync indicates that this is a syncing writeback, that is, kernel
+	 * caller expects the data to be durably stored before being notified.
+	 * Often, but not always, the call was triggered by a userspace syncing
+	 * op (eg fsync(), msync(MS_SYNC)). For our purposes, for_sync==TRUE
+	 * means that that page should remain "locked" (in the writeback state)
+	 * until it is definitely on disk (ie zil_commit() or spa_sync()).
+	 * Otherwise, we can unlock and return as soon as it is on the
+	 * in-memory ZIL.
+	 *
+	 * wbc->sync_mode has similar meaning. wbc is passed from the kernel to
+	 * zpl_writepages()/zpl_writepage(); wbc->sync_mode==WB_SYNC_NONE
+	 * indicates this a regular async writeback (eg a cache eviction) and
+	 * so does not need a durability guarantee, while WB_SYNC_ALL indicates
+	 * a syncing op that must be waited on (by convention, we test for
+	 * !WB_SYNC_NONE rather than WB_SYNC_ALL, to prefer durability over
+	 * performance should there ever be a new mode that we have not yet
+	 * added support for).
+	 *
+	 * So, why a separate for_sync field? This is because zpl_writepages()
+	 * calls zfs_putpage() multiple times for a single "logical" operation.
+	 * It wants all the individual pages to be for_sync==TRUE ie only
+	 * unlocked once durably stored, but it only wants one call to
+	 * zil_commit() at the very end, once all the pages are synced. So,
+	 * it repurposes sync_mode slightly to indicate who issue and wait for
+	 * the IO: for NONE, the caller to zfs_putpage() will do it, while for
+	 * ALL, zfs_putpage should do it.
+	 *
+	 * Summary:
+	 *   for_sync:  0=unlock immediately; 1=unlock once on disk
+	 *   sync_mode: NONE=caller will commit; ALL=we will commit
+	 */
+	boolean_t need_commit = (wbc->sync_mode != WB_SYNC_NONE);
+
+	/*
+	 * We use for_sync as the "commit" arg to zfs_log_write() (arg 7)
+	 * because it is a policy flag that indicates "someone will call
+	 * zil_commit() soon". for_sync=TRUE means exactly that; the only
+	 * question is whether it will be us, or zpl_writepages().
+	 */
+	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, for_sync,
+	    B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
+
+	if (!for_sync) {
+		/*
+		 * Async writeback is logged and written to the DMU, so page
+		 * can now be unlocked.
+		 */
+		zfs_page_writeback_done(pp, 0);
+	}
+
+	dmu_tx_commit(tx);
+
+	zfs_rangelock_exit(lr);
+
+	if (need_commit) {
+		err = zil_commit_flags(zfsvfs->z_log, zp->z_id, ZIL_COMMIT_NOW);
+		if (err != 0) {
+			zfs_exit(zfsvfs, FTAG);
+			return (err);
+		}
+	}
+
+	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, pglen);
+
+	zfs_exit(zfsvfs, FTAG);
+	return (err);
+}
+
+#endif /* HAVE_WRITEBACK_ITER */
 
 /*
  * Update the system attributes when the inode has been dirtied.  For the
