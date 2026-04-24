@@ -953,11 +953,29 @@ void
 dmu_evict_range(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 {
 	dnode_t *dn;
+	uint64_t end_offset;
 
 	if (len == 0)
 		return;
 	if (dnode_hold(os, object, FTAG, &dn) != 0)
 		return;
+
+	/*
+	 * The passed `len` may be equal to "offset + ~OFF_MAX", at least on
+	 * FreeBSD:
+	 *   1. `kern_posix_fadvise()` uses an end offset of OFF_MAX if the
+	 *      length passed to posix_fadvise(2) is 0. This end offset is
+	 *      passed to `zfs_freebsd_advise()`.
+	 *   2. `zfs_freebsd_advise()` computes a length from `end - start`, so
+	 *      possibly `OFF_MAX - start`. This length is passed to
+	 *      `dmu_evict_range()`.
+	 *   3. The `len` can't be passed as is to `dbuf_whichblock()` because
+	 *      it has an assertion that it does not go beyond the end of the
+	 *      file.
+	 * Therefore here, we take the minimum between the given `len` and the
+	 * last offset of the file.
+	 */
+	end_offset = MIN(offset + len, dn->dn_datablksz - 1);
 
 	/*
 	 * Exclude the last block if the range end is not block-aligned:
@@ -967,7 +985,7 @@ dmu_evict_range(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 	 */
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	uint64_t start = dbuf_whichblock(dn, 0, offset);
-	uint64_t end = dbuf_whichblock(dn, 0, offset + len);
+	uint64_t end = dbuf_whichblock(dn, 0, end_offset);
 	if (end > start)
 		dbuf_evict_range(dn, start, end - 1);
 	rw_exit(&dn->dn_struct_rwlock);
