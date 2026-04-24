@@ -404,6 +404,12 @@ static int spa_cpus_per_allocator = 4;
  */
 const char *zfs_active_allocator = "dynamic";
 
+/*
+ * Spa active weight function.
+ * Valid values are zfs_active_weightfunc=<auto|space|space_v2|segment>.
+ */
+const char *zfs_active_weightfunc = "auto";
+
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
 {

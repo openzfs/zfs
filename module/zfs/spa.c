@@ -1809,6 +1809,7 @@ spa_thread(void *arg)
 #endif
 
 extern metaslab_ops_t *metaslab_allocator(spa_t *spa);
+extern metaslab_wfs_t *metaslab_weightfunc(spa_t *spa);
 
 /*
  * Activate an uninitialized pool.
@@ -1816,7 +1817,8 @@ extern metaslab_ops_t *metaslab_allocator(spa_t *spa);
 static void
 spa_activate(spa_t *spa, spa_mode_t mode)
 {
-	metaslab_ops_t *msp = metaslab_allocator(spa);
+	metaslab_ops_t *mso = metaslab_allocator(spa);
+	metaslab_wfs_t *msw = metaslab_weightfunc(spa);
 	ASSERT(spa->spa_state == POOL_STATE_UNINITIALIZED);
 
 	spa->spa_state = POOL_STATE_ACTIVE;
@@ -1825,16 +1827,17 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	spa->spa_read_spacemaps = spa_mode_readable_spacemaps;
 
 	spa->spa_normal_class = metaslab_class_create(spa, "normal",
-	    msp, B_FALSE);
-	spa->spa_log_class = metaslab_class_create(spa, "log", msp, B_TRUE);
+	    mso, msw, B_FALSE);
+	spa->spa_log_class = metaslab_class_create(spa, "log", mso, msw,
+	    B_TRUE);
 	spa->spa_embedded_log_class = metaslab_class_create(spa,
-	    "embedded_log", msp, B_TRUE);
+	    "embedded_log", mso, msw, B_TRUE);
 	spa->spa_special_class = metaslab_class_create(spa, "special",
-	    msp, B_FALSE);
+	    mso, msw, B_FALSE);
 	spa->spa_special_embedded_log_class = metaslab_class_create(spa,
-	    "special_embedded_log", msp, B_TRUE);
+	    "special_embedded_log", mso, msw, B_TRUE);
 	spa->spa_dedup_class = metaslab_class_create(spa, "dedup",
-	    msp, B_FALSE);
+	    mso, msw, B_FALSE);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -5590,6 +5593,8 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 			spa_aux_check_removed(&spa->spa_l2cache);
 		}
 	}
+
+	spa_set_weightfunc(spa, zfs_active_weightfunc);
 
 	/*
 	 * Load the vdev metadata such as metaslabs, DTLs, spacemap object, etc.
