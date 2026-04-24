@@ -953,11 +953,12 @@ objs:
 int
 zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 {
+	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
 	int err = 0;
 
-	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (err);
 
 	dmu_objset_space(zfsvfs->z_os,
@@ -1013,8 +1014,6 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 
 	if (dmu_objset_projectquota_enabled(zfsvfs->z_os) &&
 	    dmu_objset_projectquota_present(zfsvfs->z_os)) {
-		znode_t *zp = ITOZ(ip);
-
 		if (zp->z_pflags & ZFS_PROJINHERIT && zp->z_projid &&
 		    zpl_is_valid_projid(zp->z_projid))
 			err = zfs_statfs_project(zfsvfs, zp, statp, bshift);
