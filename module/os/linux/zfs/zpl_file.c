@@ -673,6 +673,8 @@ static long
 zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 {
 	cred_t *cr = CRED();
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	loff_t olen;
 	fstrans_cookie_t cookie;
 	int error = 0;
@@ -706,10 +708,14 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 		bf.l_len = len;
 		bf.l_pid = 0;
 
-		error = -zfs_space(ITOZ(ip), F_FREESP, &bf, O_RDWR, offset, cr);
+		error = -zfs_space(zp, F_FREESP, &bf, O_RDWR, offset, cr);
 	} else if ((mode & ~FALLOC_FL_KEEP_SIZE) == 0) {
 		unsigned int percent = zfs_fallocate_reserve_percent;
 		struct kstatfs statfs;
+
+		error = -zfs_verify_zp(zp);
+		if (error)
+			goto out_unmark;
 
 		/* Legacy mode, disable fallocate compatibility. */
 		if (percent == 0) {
@@ -734,8 +740,14 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 			error = -ENOSPC;
 			goto out_unmark;
 		}
-		if (!(mode & FALLOC_FL_KEEP_SIZE) && offset + len > olen)
-			error = zfs_freesp(ITOZ(ip), offset + len, 0, 0, FALSE);
+		if (!(mode & FALLOC_FL_KEEP_SIZE) && offset + len > olen) {
+			error = zpl_enter_verify_zp(zfsvfs, zp, FTAG);
+			if (error)
+				goto out_unmark;
+
+			error = -zfs_freesp(zp, offset + len, 0, 0, FALSE);
+			zfs_exit(zfsvfs, FTAG);
+		}
 	}
 out_unmark:
 	spl_fstrans_unmark(cookie);
