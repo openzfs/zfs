@@ -410,6 +410,32 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 	return (0);
 }
 
+static int
+param_set_arc_no_grow_shift(const char *buf, zfs_kernel_param_t *kp)
+{
+	unsigned long val;
+	int error;
+
+	error = kstrtoul(buf, 0, &val);
+	if (error)
+		return (SET_ERROR(error));
+
+	if (val >= arc_shrink_shift)
+		return (SET_ERROR(-EINVAL));
+
+	arc_no_grow_shift = val;
+	arc_tuning_update(B_TRUE);
+
+	return (0);
+}
+
+static int
+param_get_arc_no_grow_shift(char *buffer, zfs_kernel_param_t *kp)
+{
+	(void) kp;
+	return (scnprintf(buffer, PAGE_SIZE, "%u\n", arc_no_grow_shift));
+}
+
 int
 param_set_l2arc_dwpd_limit(const char *buf, zfs_kernel_param_t *kp)
 {
@@ -476,3 +502,7 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
 	"Limit on number of pages that ARC shrinker can reclaim at once");
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_seeks, INT, ZMOD_RD,
 	"Relative cost of ARC eviction vs other kernel subsystems");
+
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_arc, zfs_arc_, no_grow_shift,
+	param_set_arc_no_grow_shift, param_get_arc_no_grow_shift, ZMOD_RW,
+	"log2(fraction of ARC which must be free to allow growing)");
