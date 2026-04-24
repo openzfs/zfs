@@ -93,8 +93,6 @@ _LIBZFS_CORE_H int lzc_send(const char *, const char *, int,
     enum lzc_send_flags);
 _LIBZFS_CORE_H int lzc_send_resume(const char *, const char *, int,
     enum lzc_send_flags, uint64_t, uint64_t);
-_LIBZFS_CORE_H int lzc_send_space(const char *, const char *,
-    enum lzc_send_flags, uint64_t *);
 
 struct dmu_replay_record;
 
