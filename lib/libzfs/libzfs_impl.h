@@ -66,6 +66,7 @@ struct libzfs_handle {
 	char *libfetch_load_error;
 	kmutex_t zh_mnttab_lock;
 	avl_tree_t zh_mnttab;
+	boolean_t zh_mnttab_cache_enabled;
 };
 
 struct zfs_handle {
