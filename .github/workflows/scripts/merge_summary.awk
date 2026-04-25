@@ -17,6 +17,7 @@ BEGIN {
 	pass=0
 	fail=0
 	skip=0
+	killed=0
 	state=""
 	cl=0
 	el=0
@@ -49,6 +50,37 @@ BEGIN {
 /PASS/{ if (state=="pass_count") {pass += $2}}
 /FAIL/{ if (state=="pass_count") {fail += $2}}
 /SKIP/{ if (state=="pass_count") {skip += $2}}
+
+# If the test was killed, you'll get a line like:
+#
+# [2026-04-22T03:34:17.694616] Test (Linux): /usr/share/zfs/zfs-tests/tests/functional/io/setup (run as root) [10:00] [KILLED]
+#
+# Parse out the test name minus the /usr/share/zfs/zfs-tests/tests/functional/'
+# part, and include the optional "(Linux): " line, as you can have the killed
+# tests in two categories, like:
+#
+#   KILLED (Linux): io/setup
+#   KILLED io/setup
+#
+/KILLED/{
+	extra=""
+	for(i=1; i<=NF; i++) {
+		# Look for optional "(Linux):" field
+		if ($i ~ "\\("){
+			extra=$i" "}
+
+		# Look for a field with a '/' in it.  It is the test name.
+		if($i ~ "/") {
+			testname=$i
+			# Remove /usr/share/zfs/zfs-test/test/functional string
+			sub(/\/usr\/share\/zfs\/zfs-tests\/tests\/functional\//,"",testname)
+			testname=extra""testname
+			killed_tests[killed] = testname
+			killed++
+			break
+		}
+	}
+}
 /Running Time/{
 	state="";
 	running[i]=$3;
@@ -106,4 +138,10 @@ END {
 	asort(unexpected_lines, sorted)
 	for (j in sorted)
 		print sorted[j]
+
+	# We don't want to sort killed tests, as the first test that was killed
+	# most likely caused the others to be killed.
+	print "\n\nTests that were killed:"
+	for (j in killed_tests)
+		print "    KILLED "killed_tests[j]
 }
