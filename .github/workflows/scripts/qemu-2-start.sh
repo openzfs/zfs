@@ -188,17 +188,49 @@ DISK="/dev/zvol/zpool/openzfs"
 sudo zfs create -ps -b 64k -V 80g zpool/openzfs
 while true; do test -b $DISK && break; sleep 1; done
 
-# we are downloading via axel, curl and wget are mostly slower and
-# require more return value checking
+# We first try to download with 'axel', which is faster than curl, but fallback
+# to curl if that doesn't work.  It is hoped that the curl fallback will get
+# around the occasional "ERROR 502: Bad Gateway" errors.
 IMG="/mnt/tests/cloud-image"
-if [ ! -z "$URLxz" ]; then
-  echo "Loading $URLxz ..."
-  time axel -q -o "$IMG" "$URLxz"
-  echo "Loading $KSRC ..."
-  time axel -q -o ~/src.txz $KSRC
-else
-  echo "Loading $URL ..."
-  time axel -q -o "$IMG" "$URL"
+for cmd in 'axel -q -o' 'curl --fail -LSs -o' ; do
+  if [ ! -z "$URLxz" ]; then
+    echo "Loading $URLxz with $cmd..."
+    time eval "$cmd $IMG $URLxz" || true
+
+    if [ ! -s ~/src.txz ] ; then
+      echo "Loading $KSRC with $cmd..."
+      time eval "$cmd ~/src.txz $KSRC" || true
+    fi
+  else
+    echo "Loading $URL with $cmd..."
+    time eval "$cmd $IMG $URL" || true
+  fi
+
+  if [ -s "$IMG" ] ; then
+    # Successful download
+    break
+  fi
+done
+
+# SPECIAL CASE
+# FreeBSD sometimes has broken links in their "current/" URL.  Go back up a
+# level and look for other images that might work.  For example:
+#
+# https://download.freebsd.org/snapshots/CI-IMAGES/16.0-CURRENT/amd64/:
+#
+# 20251110/
+# 20251209/
+# 20260420/
+# current/
+#
+# In this case let's say the raw.xz link in current/ is bad, so look though the
+# other snapshot links for the newest existing raw.xz file.
+if [ ! -z "$URLxz" ] && [ ! -s "$IMG" ] ; then
+  URLxz=$(wget --accept "*.raw.xz" --spider -np --recursive  --no-verbose \
+    $(dirname $(dirname $URLxz)) 2>&1  | awk '/200 OK/{print $(NF-2)}' | \
+    sort -n | tail -n 1)
+  echo "Couldn't download FreeBSD raw.xz.  Trying fallback snapshot $URLxz"
+  curl --fail -LSs -o $IMG $URLxz
 fi
 
 echo "Importing VM image to zvol..."
