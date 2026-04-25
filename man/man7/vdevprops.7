@@ -134,6 +134,12 @@ The number of I/O operations of each type performed by this vdev
 The cumulative size of all operations of each type performed by this vdev
 .It Sy removing
 If this device is currently being removed from the pool
+.It Sy raidz_expanding
+Set while a
+.Nm zpool Cm attach
+expansion is in progress on this RAID-Z vdev; cleared on completion.
+See
+.Xr zpool-attach 8 .
 .It Sy trim_support
 Indicates if a leaf device supports trim operations.
 .El
