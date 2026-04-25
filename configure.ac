@@ -41,7 +41,7 @@ AC_CONFIG_MACRO_DIR([config])
 AC_CANONICAL_TARGET
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
-AM_INIT_AUTOMAKE([subdir-objects foreign])
+AM_INIT_AUTOMAKE([subdir-objects foreign tar-pax])
 # Remove default macros from config.h:
 #   PACKAGE, PACKAGE_{BUGREPORT,NAME,STRING,TARNAME,VERSION}, STDC_HEADERS, VERSION
 AC_CONFIG_HEADERS([zfs_config.h], [
