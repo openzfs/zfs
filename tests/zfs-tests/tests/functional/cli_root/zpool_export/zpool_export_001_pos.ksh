@@ -30,7 +30,8 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
 
 #
 # DESCRIPTION:
@@ -39,16 +40,46 @@
 # be accessed.
 #
 # STRATEGY:
-# 1. Unmount the test directory.
-# 2. Export the pool.
-# 3. Verify the pool is no longer present in the list output.
+# 1. Create a pool and filesystem for testing.
+# 2. Unmount the test directory.
+# 3. Export the pool.
+# 4. Verify the pool is no longer present in the list output.
 #
 
 verify_runnable "global"
 
-log_onexit zpool_export_cleanup
+function cleanup
+{
+	if poolexists $TESTPOOL; then
+		destroy_pool $TESTPOOL
+	fi
+	[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+	[[ -d $TESTDIR ]] && rm -rf $TESTDIR
+}
+
+log_onexit cleanup
 
 log_assert "Verify a pool can be exported."
+
+# Set up the pool and filesystem manually
+DISK=${DISKS%% *}
+
+# Clean up any existing pool
+if poolexists $TESTPOOL; then
+	destroy_pool $TESTPOOL
+fi
+[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+
+# Create the pool
+log_must zpool create -f $TESTPOOL $DISK
+
+# Create test directory
+rm -rf $TESTDIR || log_unresolved "Could not remove $TESTDIR"
+mkdir -p $TESTDIR || log_unresolved "Could not create $TESTDIR"
+
+# Create filesystem with mountpoint
+log_must zfs create $TESTPOOL/$TESTFS
+log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 log_must zfs umount $TESTDIR
 log_must zpool export $TESTPOOL
