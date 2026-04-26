@@ -109,15 +109,6 @@ zstream_do_recompress(int argc, char *argv[])
 		struct drr_write *drrw;
 		uint64_t payload_size = 0;
 
-		/*
-		 * We need to regenerate the checksum.
-		 */
-		if (drr->drr_type != DRR_BEGIN) {
-			memset(&drr->drr_u.drr_checksum.drr_checksum, 0,
-			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
-		}
-
-
 		switch (drr->drr_type) {
 		case DRR_BEGIN:
 		{
@@ -324,15 +315,6 @@ zstream_do_recompress(int argc, char *argv[])
 			exit(1);
 		}
 
-		/*
-		 * We need to recalculate the checksum, and it needs to be
-		 * initially zero to do that.  BEGIN records don't have
-		 * a checksum.
-		 */
-		if (drr->drr_type != DRR_BEGIN) {
-			memset(&drr->drr_u.drr_checksum.drr_checksum, 0,
-			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
-		}
 		if (dump_record(drr, buf, payload_size,
 		    &stream_cksum, STDOUT_FILENO) != 0)
 			break;
