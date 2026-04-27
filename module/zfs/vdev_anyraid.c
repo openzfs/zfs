@@ -992,8 +992,8 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 		mc->mc_vd = vd->vdev_child[atn->atn_disk];
 		mc->mc_offset = VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift) +
 		    atn->atn_offset * rsize + zio->io_offset % rsize;
-		ASSERT3U(mc->mc_offset, <, mc->mc_vd->vdev_psize -
-		    VDEV_LABEL_END_SIZE);
+		ASSERT3UF(mc->mc_offset, <, mc->mc_vd->vdev_psize -
+		    VDEV_LABEL_END_SIZE, "%llu %llu %llu %llu", (u_longlong_t)VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift), (u_longlong_t)atn->atn_offset, (u_longlong_t)rsize, (u_longlong_t)zio->io_offset);
 		mm->mm_rebuilding = mc->mc_rebuilding = B_FALSE;
 		atn = list_next(&tile->at_list, atn);
 	}
