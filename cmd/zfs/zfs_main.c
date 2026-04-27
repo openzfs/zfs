@@ -3908,6 +3908,7 @@ zfs_do_list(int argc, char **argv)
 	zfs_sort_column_t *sortcol = NULL;
 	int flags = ZFS_ITER_PROP_LISTSNAPS | ZFS_ITER_ARGS_CAN_BE_PATHS;
 	nvlist_t *data = NULL;
+	char full_fields[1024];
 
 	struct option long_options[] = {
 		{"json", no_argument, NULL, 'j'},
@@ -3920,7 +3921,23 @@ zfs_do_list(int argc, char **argv)
 	    NULL)) != -1) {
 		switch (c) {
 		case 'o':
-			fields = optarg;
+			if (optarg[0] == '+') {
+				/* +2 for the , and the null terminator */
+				if (strlen(fields) + strlen(optarg + 1) + 2 <=
+				    1024) {
+					(void) snprintf(full_fields,
+					    sizeof (full_fields), "%s,%s",
+					    fields, optarg + 1);
+				} else {
+					(void) fprintf(stderr, gettext(
+					    "argument too long for '-o'"
+					    " option.\n"));
+					usage(B_FALSE);
+				}
+				fields = full_fields;
+			} else {
+				fields = optarg;
+			}
 			break;
 		case 'p':
 			cb.cb_literal = B_TRUE;
