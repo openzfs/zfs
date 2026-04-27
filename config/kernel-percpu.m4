@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.10 API change,
 dnl # The "count" was moved into ref->data, from ref

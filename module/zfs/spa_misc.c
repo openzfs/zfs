@@ -1891,6 +1891,12 @@ spa_syncing_txg(spa_t *spa)
 	return (spa->spa_syncing_txg);
 }
 
+uint64_t
+spa_open_txg(spa_t *spa)
+{
+	return (spa->spa_dsl_pool->dp_tx.tx_open_txg);
+}
+
 /*
  * Return the last txg where data can be dirtied. The final txgs
  * will be used to just clear out any deferred frees that remain.

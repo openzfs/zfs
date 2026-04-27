@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 # dnl
 # dnl 5.8 (735e4ae5ba28) introduced a superblock scoped errseq_t to use to
 # dnl record writeback errors for syncfs() to return. Up until 5.17, when

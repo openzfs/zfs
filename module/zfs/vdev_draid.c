@@ -23,6 +23,7 @@
  * Copyright (c) 2018 Intel Corporation.
  * Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2026, Wasabi Technologies, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -1161,7 +1162,7 @@ vdev_draid_get_astart(vdev_t *vd, const uint64_t start)
 /*
  * Allocatable space for dRAID is (children - nspares) * sizeof(smallest child)
  * rounded down to the last full slice.  So each child must provide at least
- * 1 / (children - nspares) of its asize.
+ * 1 / (children - nspares) of its asize rounded up to VDEV_DRAID_ROWHEIGHT.
  */
 static uint64_t
 vdev_draid_min_asize(vdev_t *vd)
@@ -1171,7 +1172,9 @@ vdev_draid_min_asize(vdev_t *vd)
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
 	return (VDEV_DRAID_REFLOW_RESERVE +
-	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	    ((vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks) +
+	    VDEV_DRAID_ROWHEIGHT - 1) / VDEV_DRAID_ROWHEIGHT *
+	    VDEV_DRAID_ROWHEIGHT);
 }
 
 /*
@@ -1189,7 +1192,7 @@ vdev_draid_min_alloc(vdev_t *vd)
 }
 
 /*
- * Returns true if the txg range does not exist on any leaf vdev.
+ * Returns false if the txg range exists on any leaf vdev, true otherwise.
  *
  * A dRAID spare does not fit into the DTL model. While it has child vdevs
  * there is no redundancy among them, and the effective child vdev is
@@ -1247,8 +1250,7 @@ vdev_draid_missing(vdev_t *vd, uint64_t physical_offset, uint64_t txg,
 		if (vd == NULL)
 			return (B_TRUE);
 
-		return (vdev_draid_missing(vd, physical_offset,
-		    txg, size));
+		return (vdev_draid_missing(vd, physical_offset, txg, size));
 	}
 
 	return (vdev_dtl_contains(vd, DTL_MISSING, txg, size));
@@ -1451,13 +1453,6 @@ vdev_draid_group_missing(vdev_t *vd, uint64_t offset, uint64_t txg,
 
 		/* Transaction group is known to be partially replicated. */
 		if (vdev_draid_partial(cvd, physical_offset, txg, size))
-			return (B_TRUE);
-
-		/*
-		 * Always check groups with active distributed spares
-		 * because any vdev failure in the pool will affect them.
-		 */
-		if (vdev_draid_find_spare(cvd) != NULL)
 			return (B_TRUE);
 	}
 
@@ -1914,12 +1909,34 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 		}
 
 		if (vdev_draid_missing(cvd, rc->rc_offset, zio->io_txg, 1)) {
+			vdev_t *svd;
+
 			if (c >= rr->rr_firstdatacol)
 				rr->rr_missingdata++;
 			else
 				rr->rr_missingparity++;
 			rc->rc_error = SET_ERROR(ESTALE);
 			rc->rc_skipped = 1;
+
+			/*
+			 * If this child has draid spare attached, and that
+			 * spare by rc_offset maps to another spare, the repair
+			 * would go to that spare, and we want all mirrored
+			 * children on it to be updated with the repaired data,
+			 * even when we cannot vouch for it during rebuilds
+			 * (which don't have checksums). Otherwise, we will have
+			 * a lot of checksum errors on that spares during scrub.
+			 * The worst thing that can happen in this case is that
+			 * we will update the reserved spare column on some
+			 * device with unverified data, which is harmless.
+			 */
+			if ((svd = vdev_draid_find_spare(cvd)) != NULL) {
+				svd = vdev_draid_spare_get_child(svd,
+				    rc->rc_offset);
+				if (svd && (svd->vdev_ops == &vdev_spare_ops ||
+				    svd->vdev_ops == &vdev_replacing_ops))
+					rc->rc_tgt_is_dspare = 1;
+			}
 			continue;
 		}
 
@@ -1937,34 +1954,15 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			vdev_t *svd;
 
 			/*
-			 * Sequential rebuilds need to always consider the data
-			 * on the child being rebuilt to be stale.  This is
-			 * important when all columns are available to aid
-			 * known reconstruction in identifing which columns
-			 * contain incorrect data.
-			 *
-			 * Furthermore, all repairs need to be constrained to
-			 * the devices being rebuilt because without a checksum
-			 * we cannot verify the data is actually correct and
-			 * performing an incorrect repair could result in
-			 * locking in damage and making the data unrecoverable.
+			 * Repairs need to be constrained to the devices being
+			 * rebuilt since without a checksum we cannot verify the
+			 * data is actually correct and performing an incorrect
+			 * repair could result in locking in the damage and
+			 * making the data unrecoverable.
 			 */
-			if (zio->io_priority == ZIO_PRIORITY_REBUILD) {
-				if (vdev_draid_rebuilding(cvd)) {
-					if (c >= rr->rr_firstdatacol)
-						rr->rr_missingdata++;
-					else
-						rr->rr_missingparity++;
-					rc->rc_error = SET_ERROR(ESTALE);
-					rc->rc_skipped = 1;
-					rc->rc_allow_repair = 1;
-					continue;
-				} else {
-					rc->rc_allow_repair = 0;
-				}
-			} else {
-				rc->rc_allow_repair = 1;
-			}
+			if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+			    !vdev_draid_rebuilding(cvd))
+				rc->rc_allow_repair = 0;
 
 			/*
 			 * If this child is a distributed spare then the

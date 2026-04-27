@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 4.20 API change
 dnl # Added kernel_siginfo_t

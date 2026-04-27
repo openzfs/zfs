@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check if librt is required for clock_gettime.
 dnl # clock_gettime is generally available in libc on modern systems.

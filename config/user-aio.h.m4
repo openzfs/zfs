@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # POSIX specifies <aio.h> as part of realtime extensions,
 dnl # and is missing from at least uClibc – force fallbacks there

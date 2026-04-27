@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
@@ -72,11 +73,6 @@ typedef struct vfs {
 	boolean_t	vfs_do_nbmand;
 	kmutex_t	vfs_mntpt_lock;
 } vfs_t;
-
-typedef struct zfs_mnt {
-	const char	*mnt_osname;	/* Objset name */
-	char		*mnt_data;	/* Raw mount options */
-} zfs_mnt_t;
 
 struct zfsvfs {
 	vfs_t		*z_vfs;		/* generic fs struct */
@@ -245,11 +241,15 @@ extern int zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
 
+extern vfs_t *zfsvfs_vfs_alloc(void);
+extern void zfsvfs_vfs_free(vfs_t *vfsp);
+
 extern boolean_t zfs_is_readonly(zfsvfs_t *zfsvfs);
-extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);
+extern int zfs_domount(struct super_block *sb, const char *osname,
+    vfs_t *mntopts, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
-extern int zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm);
+extern int zfs_remount(struct super_block *sb, vfs_t *mntopts, int flags);
 extern int zfs_statvfs(struct inode *ip, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,

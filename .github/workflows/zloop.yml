@@ -15,7 +15,7 @@ jobs:
       WORK_DIR: /mnt/zloop
       CORE_DIR: /mnt/zloop/cores
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - name: Install dependencies
@@ -41,6 +41,7 @@ jobs:
         sudo modprobe zfs
     - name: Tests
       run: |
+        [ -r /etc/hostid ] && [ -s /etc/hostid ] || sudo zgenhostid -f
         sudo truncate -s 256G /mnt/vdev
         sudo zpool create cipool -m $WORK_DIR -O compression=on -o autotrim=on /mnt/vdev
         sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -c $CORE_DIR -f $WORK_DIR -- -T 120 -P 60
@@ -60,7 +61,7 @@ jobs:
       if: failure()
       run: |
         cat $CORE_DIR/*/ztest.zdb
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: Logs
@@ -68,7 +69,7 @@ jobs:
           /mnt/zloop/*/
           !/mnt/zloop/cores/*/vdev/
         if-no-files-found: ignore
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       if: failure()
       with:
         name: Pool files

@@ -3,13 +3,16 @@
 """
 Determine the CI type based on the change list and commit message.
 
-Prints "quick" if (explicity required by user):
+Output format: "<type> <source>" where source is "manual" (from
+ZFS-CI-Type commit tag) or "auto" (from file change heuristics).
+
+Prints "quick manual" if:
 - the *last* commit message contains 'ZFS-CI-Type: quick'
-or if (heuristics):
+or "quick auto" if (heuristics):
 - the files changed are not in the list of specified directories, and
 - all commit messages do not contain 'ZFS-CI-Type: (full|linux|freebsd)'
 
-Otherwise prints "full".
+Otherwise prints "full auto" (or "<type> manual" if explicitly requested).
 """
 
 import sys
@@ -58,9 +61,10 @@ if __name__ == '__main__':
 
     head, base = sys.argv[1:3]
 
-    def output_type(type, reason):
-        print(f'{prog}: will run {type} CI: {reason}', file=sys.stderr)
-        print(type)
+    def output_type(type, source, reason):
+        print(f'{prog}: will run {type} CI ({source}): {reason}',
+              file=sys.stderr)
+        print(f'{type} {source}')
         sys.exit(0)
 
     # check last (HEAD) commit message
@@ -70,7 +74,8 @@ if __name__ == '__main__':
 
     for line in last_commit_message_raw.stdout.decode().splitlines():
         if line.strip().lower() == 'zfs-ci-type: quick':
-            output_type('quick', f'requested by HEAD commit {head}')
+            output_type('quick', 'manual',
+                        f'requested by HEAD commit {head}')
 
     # check all commit messages
     all_commit_message_raw = subprocess.run([
@@ -84,11 +89,14 @@ if __name__ == '__main__':
         if line.startswith('ZFS-CI-Commit:'):
             commit_ref = line.lstrip('ZFS-CI-Commit:').rstrip()
         if line.strip().lower() == 'zfs-ci-type: freebsd':
-            output_type('freebsd', f'requested by commit {commit_ref}')
+            output_type('freebsd', 'manual',
+                        f'requested by commit {commit_ref}')
         if line.strip().lower() == 'zfs-ci-type: linux':
-            output_type('linux', f'requested by commit {commit_ref}')
+            output_type('linux', 'manual',
+                        f'requested by commit {commit_ref}')
         if line.strip().lower() == 'zfs-ci-type: full':
-            output_type('full', f'requested by commit {commit_ref}')
+            output_type('full', 'manual',
+                        f'requested by commit {commit_ref}')
 
     # check changed files
     changed_files_raw = subprocess.run([
@@ -104,9 +112,10 @@ if __name__ == '__main__':
             for r in FULL_RUN_REGEX:
                 if r.match(f):
                     output_type(
-                        'full',
+                        'full', 'auto',
                         f'changed file "{f}" matches pattern "{r.pattern}"'
                         )
 
     # catch-all
-    output_type('quick', 'no changed file matches full CI patterns')
+    output_type('quick', 'auto',
+                'no changed file matches full CI patterns')

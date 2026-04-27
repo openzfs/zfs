@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later WITH Autoconf-exception-generic
 # pkg.m4 - Macros to locate and utilise pkg-config.   -*- Autoconf -*-
 # serial 12 (pkg-config-0.29.2)
 

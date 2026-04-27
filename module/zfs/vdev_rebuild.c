@@ -233,7 +233,7 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	mutex_enter(&vd->vdev_rebuild_lock);
 	memset(vrp, 0, sizeof (uint64_t) * REBUILD_PHYS_ENTRIES);
 	vrp->vrp_rebuild_state = VDEV_REBUILD_ACTIVE;
-	vrp->vrp_min_txg = 0;
+	vrp->vrp_min_txg = TXG_INITIAL;
 	vrp->vrp_max_txg = dmu_tx_get_txg(tx);
 	vrp->vrp_start_time = gethrestime_sec();
 	vrp->vrp_scan_time_ms = 0;
@@ -278,7 +278,7 @@ vdev_rebuild_log_notify(spa_t *spa, vdev_t *vd, const char *name)
  * active for the duration of the rebuild, then revert to the enabled state.
  */
 static void
-vdev_rebuild_initiate(vdev_t *vd)
+vdev_rebuild_initiate(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 
@@ -286,8 +286,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	ASSERT(MUTEX_HELD(&vd->vdev_rebuild_lock));
 	ASSERT(!vd->vdev_rebuilding);
 
-	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 
 	vd->vdev_rebuilding = B_TRUE;
 
@@ -416,7 +415,7 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	ASSERT0P(vd->vdev_rebuild_thread);
 
 	vrp->vrp_last_offset = 0;
-	vrp->vrp_min_txg = 0;
+	vrp->vrp_min_txg = TXG_INITIAL;
 	vrp->vrp_max_txg = dmu_tx_get_txg(tx);
 	vrp->vrp_bytes_scanned = 0;
 	vrp->vrp_bytes_issued = 0;
@@ -1015,7 +1014,7 @@ vdev_rebuild_active(vdev_t *vd)
  * top-level vdev is currently actively rebuilding.
  */
 void
-vdev_rebuild(vdev_t *vd)
+vdev_rebuild(vdev_t *vd, uint64_t txg)
 {
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp __maybe_unused = &vr->vr_rebuild_phys;
@@ -1039,7 +1038,7 @@ vdev_rebuild(vdev_t *vd)
 		if (!vd->vdev_rebuild_reset_wanted)
 			vd->vdev_rebuild_reset_wanted = B_TRUE;
 	} else {
-		vdev_rebuild_initiate(vd);
+		vdev_rebuild_initiate(vd, txg);
 	}
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
@@ -1125,6 +1124,22 @@ void
 vdev_rebuild_stop_all(spa_t *spa)
 {
 	vdev_rebuild_stop_wait(spa->spa_root_vdev);
+}
+
+/*
+ * Return rebuild transaction groups range.  It's used to populate DTLs
+ * of the non-writable devices during the rebuild so that they could be
+ * healed correctly, in case they are cleared, and not miss the data
+ * that was written to their spares during the rebuild.
+ */
+void
+vdev_rebuild_txgs(vdev_t *vd, uint64_t *min_txg, uint64_t *size)
+{
+	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
+	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+
+	*min_txg = vrp->vrp_min_txg;
+	*size = vrp->vrp_max_txg - vrp->vrp_min_txg;
 }
 
 /*

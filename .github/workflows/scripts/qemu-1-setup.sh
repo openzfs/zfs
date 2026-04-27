@@ -6,6 +6,27 @@
 
 set -eu
 
+# The default runner has a bunch of development tools and other things
+# that we do not need.  Remove them here to free up a total of 35GB.
+#
+# First remove packages - this frees up ~10GB
+echo "Disk space before purge:"
+df -h /
+sudo docker image prune --all --force
+sudo docker builder prune -a
+unneeded="microsoft-edge-stable|azure-cli|google-cloud|google-chrome-stable|"\
+"temurin|llvm|firefox|mysql-server|snapd|android|dotnet|haskell|ghcup|"\
+"powershell|julia|swift|miniconda|chromium"
+sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
+sudo apt-get -y autoremove
+
+# Next, remove unneeded files in /usr.  This frees up an additional 25GB.
+sudo rm -fr /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup \
+        /usr/share/swift /usr/local/share/powershell /usr/local/julia* \
+        /usr/share/miniconda /usr/local/share/chromium
+echo "Disk space after:"
+df -h /
+
 # The default 'azure.archive.ubuntu.com' mirrors can be really slow.
 # Prioritize the official Ubuntu mirrors.
 #
@@ -42,7 +63,7 @@ sudo swapoff -a
 # configurations.  On one config you get two 75GB block devices, and on the
 # other you get a single 150GB block device. Here's what both look like:
 #
-# --- Two 75GB block devices ---
+# --- One 150GB block device ---
 # NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 # sda       8:0    0  150G  0 disk
 # ├─sda1    8:1    0  149G  0 part /
@@ -56,7 +77,7 @@ sudo swapoff -a
 # lrwxrwxrwx 1 root root 11 Jan 29 18:07 azure_root-part15 -> ../../sda15
 # lrwxrwxrwx 1 root root 11 Jan 29 18:07 azure_root-part16 -> ../../sda16
 #
-# --- One 150GB block device ---
+# --- Two 75GB block devices ---
 # NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
 # sda       8:0    0   75G  0 disk
 # ├─sda1    8:1    0   74G  0 part /
@@ -118,18 +139,20 @@ fi
 sudo mkswap $SWAP
 sudo swapon $SWAP
 
+echo "Block devices:"
+lsblk
+
 # adjust zfs module parameter and create pool
-exec 1>/dev/null
 ARC_MIN=$((1024*1024*256))
 ARC_MAX=$((1024*1024*512))
-echo $ARC_MIN | sudo tee /sys/module/zfs/parameters/zfs_arc_min
-echo $ARC_MAX | sudo tee /sys/module/zfs/parameters/zfs_arc_max
-echo 1 | sudo tee /sys/module/zfs/parameters/zvol_use_blk_mq
+echo $ARC_MIN | sudo tee /sys/module/zfs/parameters/zfs_arc_min >/dev/null
+echo $ARC_MAX | sudo tee /sys/module/zfs/parameters/zfs_arc_max >/dev/null
+echo 1 | sudo tee /sys/module/zfs/parameters/zvol_use_blk_mq >/dev/null
 sudo zpool create -f -o ashift=12 zpool $DISKS -O relatime=off \
   -O atime=off -O xattr=sa -O compression=lz4 -O sync=disabled \
   -O redundant_metadata=none -O mountpoint=/mnt/tests
+echo "Status:"
+zpool status
 
-# no need for some scheduler
-for i in /sys/block/s*/queue/scheduler; do
-  echo "none" | sudo tee $i
-done
+echo "Last dmesg:"
+sudo dmesg | tail -n 10

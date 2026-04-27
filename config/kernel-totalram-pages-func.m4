@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.0: totalram_pages is no longer a global variable, and must be
 dnl # read via the totalram_pages() helper function.

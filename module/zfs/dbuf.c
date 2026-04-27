@@ -1481,8 +1481,12 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 	 * Recheck BP_IS_HOLE() after dnode_block_freed() in case dnode_sync()
 	 * processes the delete record and clears the bp while we are waiting
 	 * for the dn_mtx (resulting in a "no" from block_freed).
+	 *
+	 * If bp != db->db_blkptr, it means that it was overridden (by a block
+	 * clone or direct I/O write). We cannot rely on dnode_block_freed as
+	 * the range can be freed in an earlier TXG but overridden in later.
 	 */
-	if (!is_hole && db->db_level == 0)
+	if (!is_hole && db->db_level == 0 && bp == db->db_blkptr)
 		is_hole = dnode_block_freed(dn, db->db_blkid) || BP_IS_HOLE(bp);
 
 	if (is_hole) {
@@ -2202,6 +2206,17 @@ dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 
 	mutex_enter(&dn->dn_mtx);
 	int txgoff = tx->tx_txg & TXG_MASK;
+
+	/*
+	 * Assert that we are not modifying the range tree for the syncing
+	 * TXG from a non-syncing thread. We verify that the tx's
+	 * transaction group is strictly newer than the one currently
+	 * syncing (meaning we are in open context). If this triggers,
+	 * it indicates a race where syncing dn_free_range tree is
+	 * being modified while dnode_sync() may be iterating over it.
+	 */
+	ASSERT(tx->tx_txg > spa_syncing_txg(dn->dn_objset->os_spa));
+
 	if (dn->dn_free_ranges[txgoff] != NULL) {
 		zfs_range_tree_clear(dn->dn_free_ranges[txgoff], blkid, 1);
 	}
@@ -2389,6 +2404,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    db->db_blkid != DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
 		if (dn->dn_free_ranges[txgoff] != NULL) {
+			FREE_RANGE_VERIFY(tx, dn);
 			zfs_range_tree_clear(dn->dn_free_ranges[txgoff],
 			    db->db_blkid, 1);
 		}

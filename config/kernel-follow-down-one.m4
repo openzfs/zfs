@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.38 API change
 dnl # follow_down() renamed follow_down_one().  The original follow_down()

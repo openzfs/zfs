@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Starting from Linux 5.13, flush_dcache_page() becomes an inline
 dnl # function and may indirectly referencing GPL-only symbols:

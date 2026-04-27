@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 noinst_HEADERS = \
 	%D%/linux/compiler.h \
 	%D%/linux/types.h \
