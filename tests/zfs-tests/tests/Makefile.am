@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 CLEANFILES =
 dist_noinst_DATA =
 include $(top_srcdir)/config/Substfiles.am
@@ -489,6 +490,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_lwb_buffer_overflow.ksh \
 	functional/block_cloning/block_cloning_rlimit_fsize.ksh \
 	functional/block_cloning/block_cloning_large_offset.ksh \
+	functional/block_cloning/block_cloning_after_device_removal.ksh \
+	functional/block_cloning/block_cloning_after_trunc.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \
@@ -1608,6 +1611,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/io/psync.ksh \
 	functional/io/setup.ksh \
 	functional/io/sync.ksh \
+	functional/lease/cleanup.ksh \
+	functional/lease/lease_setlease.ksh \
+	functional/lease/setup.ksh \
 	functional/l2arc/cleanup.ksh \
 	functional/l2arc/l2arc_arcstats_pos.ksh \
 	functional/l2arc/l2arc_l2miss_pos.ksh \
@@ -1831,6 +1837,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redundancy/redundancy_draid3.ksh \
 	functional/redundancy/redundancy_draid_damaged1.ksh \
 	functional/redundancy/redundancy_draid_damaged2.ksh \
+	functional/redundancy/redundancy_draid_degraded1.ksh \
+	functional/redundancy/redundancy_draid_degraded2.ksh \
 	functional/redundancy/redundancy_draid.ksh \
 	functional/redundancy/redundancy_draid_spare1.ksh \
 	functional/redundancy/redundancy_draid_spare2.ksh \

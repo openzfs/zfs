@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 5.12 API change removes BIO_MAX_PAGES in favor of bio_max_segs()
 dnl # which will handle the logic of setting the upper-bound to a

@@ -226,6 +226,7 @@ maybe = {
         ['FAIL', 11948],
     'cli_root/zpool_initialize/zpool_initialize_suspend_resume':
         ['FAIL', known_reason],
+    'cli_root/zpool_iostat/zpool_iostat_interval_all': ['FAIL', 18273],
     'cli_root/zpool_labelclear/zpool_labelclear_removed':
         ['FAIL', known_reason],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
@@ -244,6 +245,7 @@ maybe = {
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'l2arc/l2arc_l2miss_pos': ['FAIL', known_reason],
+    'l2arc/l2arc_multidev_throughput_pos': ['FAIL', 18272],
     'l2arc/persist_l2arc_005_pos': ['FAIL', known_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmap/mmap_sync_001_pos': ['FAIL', known_reason],
@@ -252,8 +254,6 @@ maybe = {
     'projectquota/setup': ['SKIP', exec_reason],
     'raidz/raidz_002_pos': ['FAIL', known_reason],
     'raidz/raidz_expand_001_pos': ['FAIL', 16421],
-    'redundancy/redundancy_draid_spare1': ['FAIL', known_reason],
-    'redundancy/redundancy_draid_spare3': ['FAIL', known_reason],
     'removal/removal_condense_export': ['FAIL', known_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
     'reservation/reservation_008_pos': ['FAIL', 7741],
@@ -321,6 +321,7 @@ elif sys.platform.startswith('linux'):
         'bclone/bclone_samefs_data': ['SKIP', cfr_reason],
         'bclone/bclone_samefs_embedded': ['SKIP', cfr_reason],
         'bclone/bclone_samefs_hole': ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_after_trunc': ['SKIP', cfr_reason],
         'block_cloning/block_cloning_clone_mmap_cached': ['SKIP', cfr_reason],
         'block_cloning/block_cloning_clone_mmap_write':
             ['SKIP', cfr_reason],
@@ -351,6 +352,7 @@ elif sys.platform.startswith('linux'):
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'cp_files/cp_files_002_pos': ['SKIP', cfr_reason],
+        'events/events_002_pos': ['FAIL', 18271],
         'fault/auto_online_002_pos': ['FAIL', 11889],
         'fault/auto_replace_001_pos': ['FAIL', 14851],
         'fault/auto_spare_002_pos': ['FAIL', 11889],

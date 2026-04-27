@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_KERNEL_KTHREAD_COMPLETE_AND_EXIT], [
 	dnl #
 	dnl # 5.17 API,

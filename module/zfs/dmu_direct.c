@@ -91,6 +91,7 @@ dmu_write_direct_done(zio_t *zio)
 	dmu_sync_arg_t *dsa = zio->io_private;
 	dbuf_dirty_record_t *dr = dsa->dsa_dr;
 	dmu_buf_impl_t *db = dr->dr_dbuf;
+	dmu_tx_t *tx = dsa->dsa_tx;
 
 	abd_free(zio->io_abd);
 
@@ -101,6 +102,11 @@ dmu_write_direct_done(zio_t *zio)
 	db->db_state = DB_UNCACHED;
 	mutex_exit(&db->db_mtx);
 
+	/*
+	 * dmu_sync_done() owns dsa and frees it after publishing the final
+	 * override state.  The direct-I/O error path still needs the original
+	 * open-context tx to roll the dirty record back with dbuf_undirty().
+	 */
 	dmu_sync_done(zio, NULL, zio->io_private);
 
 	if (zio->io_error != 0) {
@@ -120,7 +126,7 @@ dmu_write_direct_done(zio_t *zio)
 		 * calling dbuf_undirty().
 		 */
 		mutex_enter(&db->db_mtx);
-		VERIFY3B(dbuf_undirty(db, dsa->dsa_tx), ==, B_FALSE);
+		VERIFY3B(dbuf_undirty(db, tx), ==, B_FALSE);
 		mutex_exit(&db->db_mtx);
 	}
 

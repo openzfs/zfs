@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.18 API change
 dnl # - generic_drop_inode() renamed to inode_generic_drop()

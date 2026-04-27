@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check for libcrypto. Used for userspace password derivation via PBKDF2.
 dnl #

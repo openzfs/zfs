@@ -2035,7 +2035,7 @@ static void
 spa_unload_log_sm_flush_all(spa_t *spa)
 {
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
 	ASSERT3U(spa->spa_log_flushall_txg, ==, 0);
 	spa->spa_log_flushall_txg = dmu_tx_get_txg(tx);
@@ -6949,6 +6949,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_removing_phys.sr_removing_vdev = -1;
 	spa->spa_removing_phys.sr_prev_indirect_vdev = -1;
 	spa->spa_indirect_vdevs_loaded = B_TRUE;
+	spa->spa_deflate = (version >= SPA_VERSION_RAIDZ_DEFLATE);
 
 	/*
 	 * Create "The Godfather" zio to hold all async IOs
@@ -7078,7 +7079,6 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 
 	/* Newly created pools with the right version are always deflated. */
 	if (version >= SPA_VERSION_RAIDZ_DEFLATE) {
-		spa->spa_deflate = TRUE;
 		if (zap_add(spa->spa_meta_objset,
 		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_DEFLATE,
 		    sizeof (uint64_t), 1, &spa->spa_deflate, tx) != 0) {
@@ -8306,7 +8306,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		if (rebuild) {
 			newvd->vdev_rebuild_txg = txg;
 
-			vdev_rebuild(tvd);
+			vdev_rebuild(tvd, txg);
 		} else {
 			newvd->vdev_resilver_txg = txg;
 

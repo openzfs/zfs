@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Enabled -fsanitize=address if supported by $CC.
 dnl #

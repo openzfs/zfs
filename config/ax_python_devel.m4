@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later WITH Autoconf-exception-macro
 # ===========================================================================
 #     https://www.gnu.org/software/autoconf-archive/ax_python_devel.html
 # ===========================================================================

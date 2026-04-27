@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.5 API change,
 dnl # Since usernamespaces were introduced in kernel version 3.5, it

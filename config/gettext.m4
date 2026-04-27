@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: FSFULLR
 # gettext.m4 serial 70 (gettext-0.20)
 dnl Copyright (C) 1995-2014, 2016, 2018 Free Software Foundation, Inc.
 dnl This file is free software; the Free Software Foundation

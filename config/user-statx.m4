@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check for statx() function and STATX_MNT_ID availability
 dnl #
@@ -14,6 +15,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_STATX], [
 			AC_MSG_CHECKING([for STATX_MNT_ID])
 			AC_COMPILE_IFELSE([
 				AC_LANG_PROGRAM([[
+					#define _GNU_SOURCE
 					#include <sys/stat.h>
 				]], [[
 					struct statx stx;

@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Linux 5.18 uses filemap_dirty_folio in lieu of
 dnl # ___set_page_dirty_nobuffers

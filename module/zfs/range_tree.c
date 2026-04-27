@@ -531,7 +531,7 @@ zfs_range_tree_remove_impl(zfs_range_tree_t *rt, uint64_t start, uint64_t size,
 	}
 
 	if (!(rstart <= start && rend >= end)) {
-		panic("zfs: rt=%s: removing segment "
+		zfs_panic_recover("zfs: rt=%s: removing segment "
 		    "(offset=%llx size=%llx) not completely overlapped by "
 		    "existing one (offset=%llx size=%llx)",
 		    ZFS_RT_NAME(rt),

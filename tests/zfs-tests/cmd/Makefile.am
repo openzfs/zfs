@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 
@@ -34,6 +35,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c
 %C%_crypto_test_LDADD = libzpool.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/clone_after_trunc
+%C%_clone_after_trunc_LDADD = -lpthread
 
 if WANT_DEVNAME2DEVID
 scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
@@ -132,6 +135,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/statx
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
+scripts_zfs_tests_bin_PROGRAMS += %D%/setlease
 
 %C%_idmap_util_LDADD = libspl.la
 

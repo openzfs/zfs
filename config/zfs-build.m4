@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_LICENSE], [
 	AC_MSG_CHECKING([zfs author])
 	AC_MSG_RESULT([$ZFS_META_AUTHOR])
@@ -225,7 +226,7 @@ AC_DEFUN([ZFS_AC_OBJTOOL_WERROR], [
 		],[
 			AC_MSG_NOTICE([enable-objtool-werror undefined, disabling -Werror ])
 			OBJTOOL_DISABLE_WERROR=y
-			abs_objtool_binary=$kernelsrc/tools/objtool/objtool
+			abs_objtool_binary=$kernelbuild/tools/objtool/objtool
 			AS_IF([test -x $abs_objtool_binary],[],[
 				AC_MSG_ERROR([*** objtool binary $abs_objtool_binary not found])
 			])
@@ -263,6 +264,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CC_ASAN
 	ZFS_AC_CONFIG_ALWAYS_CC_UBSAN
 	ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD
+	ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_CFI_PSEUDO_OP
 	ZFS_AC_CONFIG_ALWAYS_SYSTEM
 	ZFS_AC_CONFIG_ALWAYS_ARCH
 	ZFS_AC_CONFIG_ALWAYS_PYTHON

@@ -1688,9 +1688,11 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 
 	/*
 	 * If we've decided to do a repair, the write is not speculative --
-	 * even if the original read was.
+	 * even if the original read was. Rebuild is an exception since we
+	 * cannot always ensure its data integrity.
 	 */
-	if (flags & ZIO_FLAG_IO_REPAIR)
+	if ((flags & ZIO_FLAG_IO_REPAIR) &&
+	    pio->io_priority != ZIO_PRIORITY_REBUILD)
 		flags &= ~ZIO_FLAG_SPECULATIVE;
 
 	/*
@@ -2714,6 +2716,8 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 	}
 
 	mutex_exit(&spa->spa_suspend_lock);
+
+	txg_wait_kick(spa->spa_dsl_pool);
 }
 
 int

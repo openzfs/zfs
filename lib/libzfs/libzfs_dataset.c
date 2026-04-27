@@ -1728,26 +1728,6 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	return (1);
 }
 
-static boolean_t
-zfs_is_namespace_prop(zfs_prop_t prop)
-{
-	switch (prop) {
-
-	case ZFS_PROP_ATIME:
-	case ZFS_PROP_RELATIME:
-	case ZFS_PROP_DEVICES:
-	case ZFS_PROP_EXEC:
-	case ZFS_PROP_SETUID:
-	case ZFS_PROP_READONLY:
-	case ZFS_PROP_XATTR:
-	case ZFS_PROP_NBMAND:
-		return (B_TRUE);
-
-	default:
-		return (B_FALSE);
-	}
-}
-
 /*
  * Given a property name and value, set the property for the given dataset.
  */
@@ -1805,7 +1785,7 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	int nvl_len = 0;
 	int added_resv = 0;
 	zfs_prop_t prop;
-	boolean_t nsprop = B_FALSE;
+	uint32_t nspflags = 0;
 	nvpair_t *elem;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
@@ -1852,7 +1832,7 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	    elem = nvlist_next_nvpair(nvl, elem)) {
 
 		prop = zfs_name_to_prop(nvpair_name(elem));
-		nsprop |= zfs_is_namespace_prop(prop);
+		nspflags |= zfs_namespace_prop_flag(prop);
 
 		assert(cl_idx < nvl_len);
 		/*
@@ -1953,8 +1933,8 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 			 * if one of the options handled by the generic
 			 * Linux namespace layer has been modified.
 			 */
-			if (nsprop && zfs_is_mounted(zhp, NULL))
-				ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
+			if (nspflags && zfs_is_mounted(zhp, NULL))
+				ret = zfs_mount_setattr(zhp, nspflags);
 		}
 	}
 
@@ -2076,7 +2056,8 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		 */
 		if (zfs_is_namespace_prop(prop) &&
 		    zfs_is_mounted(zhp, NULL))
-			ret = zfs_mount(zhp, MNTOPT_REMOUNT, 0);
+			ret = zfs_mount_setattr(zhp,
+			    zfs_namespace_prop_flag(prop));
 	}
 
 error:

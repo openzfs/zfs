@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 3.11 API change
 dnl # Add support for i_op->tmpfile

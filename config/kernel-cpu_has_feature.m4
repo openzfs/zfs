@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # cpu_has_feature() may referencing GPL-only cpu_feature_keys on powerpc
 dnl #

@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 2.6.28 API change
 dnl # Added d_obtain_alias() helper function.

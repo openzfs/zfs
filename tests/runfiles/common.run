@@ -82,7 +82,9 @@ tests = ['block_cloning_clone_mmap_cached',
     'block_cloning_copyfilerange_fallback_same_txg',
     'block_cloning_replay', 'block_cloning_replay_encrypted',
     'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write',
-    'block_cloning_rlimit_fsize', 'block_cloning_large_offset']
+    'block_cloning_rlimit_fsize', 'block_cloning_large_offset',
+    'block_cloning_after_device_removal',
+    'block_cloning_after_trunc']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/bootfs]
@@ -872,8 +874,10 @@ timeout = 1200
 [tests/functional/redundancy]
 tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
     'redundancy_draid3', 'redundancy_draid_damaged1',
-    'redundancy_draid_damaged2', 'redundancy_draid_spare1',
-    'redundancy_draid_spare2', 'redundancy_draid_spare3', 'redundancy_mirror',
+    'redundancy_draid_damaged2', 'redundancy_draid_degraded1',
+    'redundancy_draid_degraded2',
+    'redundancy_draid_spare1', 'redundancy_draid_spare2',
+    'redundancy_draid_spare3', 'redundancy_mirror',
     'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
     'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']

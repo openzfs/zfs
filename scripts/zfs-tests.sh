@@ -294,6 +294,16 @@ constrain_path() {
 	SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"
 	SYSTEM_DIRS="$SYSTEM_DIRS /usr/bin /usr/sbin /bin /sbin $LIBEXEC_DIR"
 
+	SYSTEM_FILES="$SYSTEM_FILES_COMMON"
+	ZFSTEST_FILES="$ZFSTEST_FILES_COMMON"
+	if [ "$UNAME" = "FreeBSD" ] ; then
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_FREEBSD"
+		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_FREEBSD"
+	else
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_LINUX"
+		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_LINUX"
+	fi
+
 	if [ "$INTREE" = "yes" ]; then
 		# Constrained path set to $(top_builddir)/tests/zfs-tests/bin
 		STF_PATH="$BIN_DIR"
@@ -326,12 +336,6 @@ constrain_path() {
 	fi
 
 	# Standard system utilities
-	SYSTEM_FILES="$SYSTEM_FILES_COMMON"
-	if [ "$UNAME" = "FreeBSD" ] ; then
-		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_FREEBSD"
-	else
-		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_LINUX"
-	fi
 	create_links "$SYSTEM_DIRS" "$SYSTEM_FILES"
 
 	# Exceptions

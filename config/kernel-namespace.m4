@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # 6.18 API change
 dnl # ns->ops->type was moved to ns->ns.ns_type (struct ns_common)
