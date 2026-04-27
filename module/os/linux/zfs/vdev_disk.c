@@ -933,7 +933,7 @@ vdev_disk_io_rw(zio_t *zio)
 
 	vdev_t *iter = v;
 	while (iter != NULL && iter->vdev_ops != &vdev_root_ops &&
-	    iter->vdev_failfast == 2)
+	    iter->vdev_failfast == ZPROP_BOOLEAN_INHERIT)
 		iter = iter->vdev_parent;
 
 	boolean_t failfast = iter ? iter->vdev_failfast == 1 : B_TRUE;
