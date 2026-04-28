@@ -1166,7 +1166,7 @@ zfsctl_snapshot_unmount(const char *snapname)
 }
 
 int
-zfsctl_snapshot_mount(struct path *path, int flags)
+zfsctl_snapshot_mount(struct path *path)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
