@@ -4282,7 +4282,7 @@ zfs_unmount_snap(const char *snapname)
 	if (strchr(snapname, '@') == NULL)
 		return;
 
-	(void) zfsctl_snapshot_unmount(snapname, MNT_FORCE);
+	(void) zfsctl_snapshot_unmount(snapname);
 }
 
 static int

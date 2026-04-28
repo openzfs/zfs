@@ -349,7 +349,7 @@ snapentry_expire(void *data)
 		return;
 	}
 
-	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
+	(void) zfsctl_snapshot_unmount(se->se_name);
 
 	/*
 	 * Clear taskqid and reschedule if the snapshot wasn't removed.
@@ -973,7 +973,7 @@ zfsctl_snapdir_remove(struct inode *dip, const char *name, cred_t *cr,
 	if (error != 0)
 		goto out;
 
-	error = zfsctl_snapshot_unmount(snapname, MNT_FORCE);
+	error = zfsctl_snapshot_unmount(snapname);
 	if ((error == 0) || (error == ENOENT))
 		error = dsl_destroy_snapshot(snapname, B_FALSE);
 out:
@@ -1110,7 +1110,7 @@ is_current_chrooted(void)
  * it's in use, the unmount will fail harmlessly.
  */
 int
-zfsctl_snapshot_unmount(const char *snapname, int flags)
+zfsctl_snapshot_unmount(const char *snapname)
 {
 	char *argv[] = { "/usr/bin/env", "umount", "-t", "zfs", "-n", NULL,
 	    NULL };
@@ -1133,8 +1133,6 @@ zfsctl_snapshot_unmount(const char *snapname, int flags)
 		cv_wait(&se->se_cv, &se->se_mtx);
 	mutex_exit(&se->se_mtx);
 
-	if (flags & MNT_FORCE)
-		argv[4] = "-fn";
 	argv[5] = se->se_path;
 	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
