@@ -136,8 +136,7 @@ static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
  * the snapshot name and provided mount point.  No reference is taken.
  */
 static zfs_snapentry_t *
-zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
-    uint64_t objsetid)
+zfsctl_snapshot_alloc(const char *full_name, const char *full_path)
 {
 	zfs_snapentry_t *se;
 
@@ -145,8 +144,6 @@ zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
 
 	se->se_name = kmem_strdup(full_name);
 	se->se_path = kmem_strdup(full_path);
-	se->se_spa = spa;
-	se->se_objsetid = objsetid;
 	se->se_taskqid = TASKQID_INVALID;
 	mutex_init(&se->se_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&se->se_cv, NULL, CV_DEFAULT, NULL);
@@ -1302,7 +1299,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	/*
 	 * Create pending entry and mark mount in progress.
 	 */
-	se = zfsctl_snapshot_alloc(full_name, full_path, NULL, 0);
+	se = zfsctl_snapshot_alloc(full_name, full_path);
 	se->se_mounting = B_TRUE;
 	zfsctl_snapshot_add(se);
 	zfsctl_snapshot_hold(se);
