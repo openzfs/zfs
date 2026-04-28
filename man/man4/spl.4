@@ -130,6 +130,19 @@ When not enabled, the thread is halted to facilitate further debugging.
 .Pp
 Set to a non-zero value to enable.
 .
+.It Sy spl_schedule_hrtimeout_slack_us Ns = Ns Sy 0 Pq uint
+Slack value in microseconds passed to
+.Fn schedule_hrtimeout_range
+when a condition variable times out.
+A non-zero value lets the kernel coalesce the wakeup with other timers
+to reduce wakeup count, at the cost of some additional sleep duration.
+The maximum is
+.Sy 1000 ,
+as defined by
+.Sy MAX_HRTIMEOUT_SLACK_US .
+.Pp
+Linux-only.
+.
 .It Sy spl_taskq_kick Ns = Ns Sy 0 Pq uint
 Kick stuck taskq to spawn threads.
 When writing a non-zero value to it, it will scan all the taskqs.

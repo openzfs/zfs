@@ -1360,6 +1360,21 @@ This was only supported by Linux prior to 5.15, and was buggy there,
 and is not supported by
 .Fx .
 On Solaris it's used for SMB clients.
+.It Sy longname Ns = Ns Sy on Ns | Ns Sy off
+Controls support for filenames longer than 255 bytes, up to 1023 bytes.
+The default is
+.Sy off .
+Setting this property to
+.Sy on
+activates the
+.Sy longname
+pool feature, which must be enabled
+.Po see
+.Xr zpool-features 7
+.Pc .
+Once a file with a long name is created, the feature becomes active and
+the pool can no longer be imported by an OpenZFS implementation that does
+not support it.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
