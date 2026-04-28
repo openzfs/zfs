@@ -595,7 +595,7 @@ zfsctl_destroy(zfsvfs_t *zfsvfs)
 {
 	if (zfsvfs->z_issnap) {
 		zfs_snapentry_t *se;
-		spa_t *spa = zfsvfs->z_os->os_spa;
+		spa_t *spa = dmu_objset_spa(zfsvfs->z_os);
 		uint64_t objsetid = dmu_objset_id(zfsvfs->z_os);
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
@@ -1367,7 +1367,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
 
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		zfsctl_snapshot_fill(se, snap_zfsvfs->z_os->os_spa,
+		zfsctl_snapshot_fill(se, dmu_objset_spa(snap_zfsvfs->z_os),
 		    dmu_objset_id(snap_zfsvfs->z_os));
 		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
 		rw_exit(&zfs_snapshot_lock);
@@ -1415,7 +1415,8 @@ zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
 	 * snapshots, falling back to the on-disk scan if not found.
 	 */
 	rw_enter(&zfs_snapshot_lock, RW_READER);
-	se = zfsctl_snapshot_find_by_objsetid(zfsvfs->z_os->os_spa, objsetid);
+	se = zfsctl_snapshot_find_by_objsetid(
+	    dmu_objset_spa(zfsvfs->z_os), objsetid);
 	rw_exit(&zfs_snapshot_lock);
 	if (se != NULL) {
 		strlcpy(mnt, se->se_path, MAXPATHLEN);
