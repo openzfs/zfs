@@ -170,7 +170,7 @@ zpl_snapdir_automount(struct path *path)
 {
 	int error;
 
-	error = -zfsctl_snapshot_mount(path, 0);
+	error = -zfsctl_snapshot_mount(path);
 	if (error)
 		return (ERR_PTR(error));
 
