@@ -421,7 +421,7 @@ param_set_arc_no_grow_shift(const char *buf, zfs_kernel_param_t *kp)
 		return (SET_ERROR(error));
 
 	if (val >= arc_shrink_shift)
-		return (SET_ERROR(-EINVAL));
+		return (-SET_ERROR(EINVAL));
 
 	arc_no_grow_shift = val;
 	arc_tuning_update(B_TRUE);
