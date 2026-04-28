@@ -254,6 +254,10 @@ tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos',
     'zfs_inherit_mountpoint']
 tags = ['functional', 'cli_root', 'zfs_inherit']
 
+[tests/functional/cli_root/zfs_list]
+tests = ['zfs_list_009_pos']
+tags = ['functional', 'cli_root', 'zfs_list']
+
 [tests/functional/cli_root/zfs_load-key]
 tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
     'zfs_load-key_https', 'zfs_load-key_location', 'zfs_load-key_noop',

@@ -125,7 +125,14 @@ getextmntent(const char *path, struct mnttab *entry, struct stat64 *statbuf)
 	}
 
 #ifdef HAVE_STATX_MNT_ID
-	if (statx(AT_FDCWD, path, AT_STATX_SYNC_AS_STAT | AT_SYMLINK_NOFOLLOW,
+	/*
+	 * Use AT_STATX_SYNC_AS_STAT without AT_SYMLINK_NOFOLLOW so that
+	 * symlinks are followed, matching the behavior of stat64() above.
+	 * Without this, if path is a symlink crossing a mount boundary,
+	 * statx() returns the mnt_id of the symlink's location rather
+	 * than the symlink target's mount.
+	 */
+	if (statx(AT_FDCWD, path, AT_STATX_SYNC_AS_STAT,
 	    STATX_MNT_ID, &stx) == 0 && (stx.stx_mask & STATX_MNT_ID)) {
 		have_mnt_id = B_TRUE;
 		target_mnt_id = stx.stx_mnt_id;
