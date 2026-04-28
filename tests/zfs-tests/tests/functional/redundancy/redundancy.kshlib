@@ -419,12 +419,7 @@ function recover_bad_missing_devs
 #    expected state after a healing resilver of a healthy pool.
 #
 # 2. sequential - The pool is fully intact.  There should never be a
-#    checksum error, but the occasional checksum error does occur in
-#    practice.  Until the root cause is identified and resolved, tolerate
-#    a checksum error when scrubbing after a sequential resilver.
-#
-#    https://github.com/openzfs/zfs/issues/18307
-#    https://github.com/openzfs/zfs/issues/18319
+#    checksum error.
 #
 # 3. damaged - The pool was intentionally silently damaged.  Checksum
 #    errors are expected to be reported as the damaged blocks are
@@ -454,7 +449,7 @@ function verify_draid_pool
 			log_fail "Unexpected repair IO found for $pool ($cksum)"
 		fi
 	elif [[ "$replace_mode" = "sequential" ]]; then
-		if [[ $cksum -gt 3 ]]; then
+		if [[ $cksum -gt 0 ]]; then
 			log_must zpool status -v $pool
 			log_fail "Unexpected CKSUM errors found for $pool ($cksum)"
 		fi

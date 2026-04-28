@@ -593,6 +593,7 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 	uint64_t txg = dmu_tx_get_txg(tx);
+	vr->vr_last_txg = txg;
 
 	spa_config_enter(spa, SCL_STATE_ALL, vd, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);
@@ -910,8 +911,14 @@ vdev_rebuild_thread(void *arg)
 		error = vdev_rebuild_ranges(vr);
 		zfs_range_tree_vacate(vr->vr_scan_tree, NULL, NULL);
 
-		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		/*
+		 * Allow rebuilt ranges to be sync-ed before enabling metaslab
+		 * to avoid any interfering allocations. Otherwise, we might
+		 * see checksum errors after scrub.
+		 */
+		txg_wait_synced(dp, vr->vr_last_txg);
 		metaslab_enable(msp, B_FALSE, B_FALSE);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		if (error != 0)
 			break;
