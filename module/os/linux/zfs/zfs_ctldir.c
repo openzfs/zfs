@@ -129,7 +129,7 @@ typedef struct {
 	int		se_mount_error;	/* error from failed mount */
 } zfs_snapentry_t;
 
-static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
+static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se);
 
 /*
  * Allocate a new zfs_snapentry_t being careful to make a copy of the
@@ -359,7 +359,7 @@ snapentry_expire(void *data)
 	se->se_taskqid = TASKQID_INVALID;
 	zfsctl_snapshot_rele(se);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
-		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+		zfsctl_snapshot_unmount_delay_impl(se);
 		zfsctl_snapshot_rele(se);
 	}
 	rw_exit(&zfs_snapshot_lock);
@@ -393,11 +393,11 @@ zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
  * Dispatch the unmount task for delayed handling with a hold protecting it.
  */
 static void
-zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
+zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se)
 {
 	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
-	if (delay <= 0)
+	if (zfs_expire_snapshot <= 0)
 		return;
 
 	/*
@@ -415,7 +415,8 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 
 	zfsctl_snapshot_hold(se);
 	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
-	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
+	    snapentry_expire, se, TQ_SLEEP,
+	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
 }
 
 /*
@@ -425,7 +426,7 @@ zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
  * and held until the outstanding task is handled or cancelled.
  */
 int
-zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
+zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid)
 {
 	zfs_snapentry_t *se;
 	int error = ENOENT;
@@ -433,7 +434,7 @@ zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
 	rw_enter(&zfs_snapshot_lock, RW_WRITER);
 	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
 		zfsctl_snapshot_unmount_cancel(se);
-		zfsctl_snapshot_unmount_delay_impl(se, delay);
+		zfsctl_snapshot_unmount_delay_impl(se);
 		zfsctl_snapshot_rele(se);
 		error = 0;
 	}
@@ -1369,7 +1370,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);
 		zfsctl_snapshot_fill(se, dmu_objset_spa(snap_zfsvfs->z_os),
 		    dmu_objset_id(snap_zfsvfs->z_os));
-		zfsctl_snapshot_unmount_delay_impl(se, zfs_expire_snapshot);
+		zfsctl_snapshot_unmount_delay_impl(se);
 		rw_exit(&zfs_snapshot_lock);
 	} else {
 		rw_enter(&zfs_snapshot_lock, RW_WRITER);

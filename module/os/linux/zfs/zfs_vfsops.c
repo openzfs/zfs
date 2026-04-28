@@ -1893,7 +1893,7 @@ zfs_exit_fs(zfsvfs_t *zfsvfs)
 	    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
 		zfsvfs->z_snap_defer_time = jiffies;
 		zfsctl_snapshot_unmount_delay(dmu_objset_spa(zfsvfs->z_os),
-		    dmu_objset_id(zfsvfs->z_os), zfs_expire_snapshot);
+		    dmu_objset_id(zfsvfs->z_os));
 	}
 }
 
