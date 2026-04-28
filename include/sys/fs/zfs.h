@@ -1203,13 +1203,16 @@ typedef enum pool_scan_func {
 } pool_scan_func_t;
 
 /*
- * Used to control scrub pause and resume.
+ * Used to select scrub modes.  POOL_SCRUB_NORMAL and POOL_SCRUB_THOROUGH
+ * are mutually exclusive scrub kinds; POOL_SCRUB_FROM_LAST_TXG may be ORed
+ * with exactly one of them.
+ * POOL_SCRUB_PAUSE may only be set by itself.
  */
 typedef enum pool_scrub_cmd {
-	POOL_SCRUB_NORMAL = 0,
-	POOL_SCRUB_PAUSE,
-	POOL_SCRUB_FROM_LAST_TXG,
-	POOL_SCRUB_FLAGS_END
+	POOL_SCRUB_NORMAL = 1<<0,
+	POOL_SCRUB_PAUSE = 1<<1,
+	POOL_SCRUB_FROM_LAST_TXG = 1<<2,
+	POOL_SCRUB_THOROUGH = 1<<3,
 } pool_scrub_cmd_t;
 
 typedef enum {
@@ -1302,6 +1305,7 @@ typedef struct pool_scan_stat {
 	/* error scrub values not stored on disk */
 	/* error scrub pause time in milliseconds */
 	uint64_t	pss_pass_error_scrub_pause;
+	uint64_t	pss_pass_scrub_flags;
 
 } pool_scan_stat_t;
 

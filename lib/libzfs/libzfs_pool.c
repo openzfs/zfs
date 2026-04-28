@@ -2907,6 +2907,24 @@ out:
 }
 
 /*
+ * POOL_SCRUB_NORMAL and POOL_SCRUB_THOROUGH are mutually exclusive scrub
+ * modes; POOL_SCRUB_FROM_LAST_TXG may be combined with either.
+ */
+static boolean_t
+scrub_cmd_is_start(pool_scrub_cmd_t cmd)
+{
+	if (cmd & POOL_SCRUB_PAUSE)
+		return (B_FALSE);
+	if ((cmd & POOL_SCRUB_NORMAL) && (cmd & POOL_SCRUB_THOROUGH))
+		return (B_FALSE);
+	if (cmd & ~(POOL_SCRUB_NORMAL | POOL_SCRUB_THOROUGH |
+	    POOL_SCRUB_FROM_LAST_TXG))
+		return (B_FALSE);
+	return ((cmd & (POOL_SCRUB_NORMAL | POOL_SCRUB_THOROUGH |
+	    POOL_SCRUB_FROM_LAST_TXG)) != 0);
+}
+
+/*
  * Scan the pool.
  */
 int
@@ -2959,7 +2977,7 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	 * failures when an older kernel returns ECANCELED in those cases.
 	 */
 	if (err == ECANCELED && (func == POOL_SCAN_SCRUB ||
-	    func == POOL_SCAN_ERRORSCRUB) && cmd == POOL_SCRUB_NORMAL)
+	    func == POOL_SCAN_ERRORSCRUB) && scrub_cmd_is_start(cmd))
 		return (0);
 	/*
 	 * The following cases have been handled here:
@@ -2979,13 +2997,13 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 			    dgettext(TEXT_DOMAIN, "cannot pause scrubbing %s"),
 			    zhp->zpool_name);
 		} else {
-			assert(cmd == POOL_SCRUB_NORMAL);
+			ASSERT(scrub_cmd_is_start(cmd));
 			(void) snprintf(errbuf, sizeof (errbuf),
 			    dgettext(TEXT_DOMAIN, "cannot scrub %s"),
 			    zhp->zpool_name);
 		}
 	} else if (func == POOL_SCAN_RESILVER) {
-		assert(cmd == POOL_SCRUB_NORMAL);
+		ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot restart resilver on %s"), zhp->zpool_name);
 	} else if (func == POOL_SCAN_NONE) {
@@ -3019,13 +3037,13 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ps->pss_state == DSS_SCANNING) {
 			if (ps->pss_pass_scrub_pause == 0) {
 				/* handles case 1 */
-				assert(cmd == POOL_SCRUB_NORMAL);
+				ASSERT(scrub_cmd_is_start(cmd));
 				return (zfs_error(hdl, EZFS_SCRUBBING,
 				    errbuf));
 			} else {
 				if (func == POOL_SCAN_ERRORSCRUB) {
 					/* handles case 2 */
-					ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
+					ASSERT(scrub_cmd_is_start(cmd));
 					return (zfs_error(hdl,
 					    EZFS_SCRUB_PAUSED_TO_CANCEL,
 					    errbuf));
@@ -3042,7 +3060,7 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ps->pss_error_scrub_state == DSS_ERRORSCRUBBING) {
 			if (ps->pss_pass_error_scrub_pause == 0) {
 				/* handles case 4 */
-				ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
+				ASSERT(scrub_cmd_is_start(cmd));
 				return (zfs_error(hdl, EZFS_ERRORSCRUBBING,
 				    errbuf));
 			} else {
