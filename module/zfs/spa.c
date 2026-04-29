@@ -9681,16 +9681,21 @@ spa_scan_stop(spa_t *spa)
 }
 
 int
-spa_scan(spa_t *spa, pool_scan_func_t func)
+spa_scan(spa_t *spa, pool_scan_func_t func, uint64_t flags)
 {
-	return (spa_scan_range(spa, func, 0, 0));
+	return (spa_scan_range(spa, func, 0, 0, flags));
 }
 
 int
 spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
-    uint64_t txgend)
+    uint64_t txgend, uint64_t flags)
 {
+	uint64_t dsl_flags = 0;
+
 	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
+
+	if (flags & POOL_SCRUB_THOROUGH)
+		dsl_flags |= DSF_SCRUB_THOROUGH;
 
 	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
 		return (SET_ERROR(ENOTSUP));
@@ -9716,7 +9721,7 @@ spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG))
 		return (SET_ERROR(ENOTSUP));
 
-	return (dsl_scan(spa->spa_dsl_pool, func, txgstart, txgend));
+	return (dsl_scan(spa->spa_dsl_pool, func, txgstart, txgend, dsl_flags));
 }
 
 /*

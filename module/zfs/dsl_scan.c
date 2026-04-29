@@ -26,6 +26,7 @@
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  * Copyright 2019 Joyent, Inc.
+ * Copyright 2026 ConnectWise, Inc.
  */
 
 #include <sys/dsl_scan.h>
@@ -33,6 +34,7 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_crypt.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dnode.h>
 #include <sys/dmu_tx.h>
@@ -56,6 +58,7 @@
 #include <sys/abd.h>
 #include <sys/range_tree.h>
 #include <sys/dbuf.h>
+#include <sys/fm/fs/zfs.h>
 #ifdef _KERNEL
 #include <sys/zfs_vfsops.h>
 #endif
@@ -291,6 +294,10 @@ typedef struct scan_io {
 	uint64_t		sio_birth;
 	zio_cksum_t		sio_cksum;
 	uint32_t		sio_nr_dvas;
+	uint64_t		sio_salt;
+	uint64_t		sio_iv1;
+	uint64_t		sio_iv2;
+
 
 	/* fields from zio_t */
 	uint32_t		sio_flags;
@@ -446,6 +453,11 @@ sio2bp(const scan_io_t *sio, blkptr_t *bp)
 	BP_SET_PHYSICAL_BIRTH(bp, sio->sio_phys_birth);
 	BP_SET_LOGICAL_BIRTH(bp, sio->sio_birth);
 	bp->blk_fill = 1;	/* we always only work with data pointers */
+	if (BP_IS_ENCRYPTED(bp)) {
+		bp->blk_dva[2].dva_word[0] = sio->sio_salt;
+		bp->blk_dva[2].dva_word[1] = sio->sio_iv1;
+		BP_SET_IV2(bp, sio->sio_iv2);
+	}
 	bp->blk_cksum = sio->sio_cksum;
 
 	ASSERT3U(sio->sio_nr_dvas, >, 0);
@@ -462,6 +474,11 @@ bp2sio(const blkptr_t *bp, scan_io_t *sio, int dva_i)
 	sio->sio_birth = BP_GET_LOGICAL_BIRTH(bp);
 	sio->sio_cksum = bp->blk_cksum;
 	sio->sio_nr_dvas = BP_GET_NDVAS(bp);
+	if (BP_IS_ENCRYPTED(bp)) {
+		sio->sio_salt = bp->blk_dva[2].dva_word[0];
+		sio->sio_iv1 = bp->blk_dva[2].dva_word[1];
+		sio->sio_iv2 = BP_GET_IV2(bp);
+	}
 
 	/*
 	 * Copy the DVAs to the sio. We need all copies of the block so
@@ -719,6 +736,13 @@ dsl_scan_is_paused_scrub(const dsl_scan_t *scn)
 	    scn->scn_phys.scn_flags & DSF_SCRUB_PAUSED);
 }
 
+boolean_t
+dsl_scan_is_thorough_scrub(const dsl_scan_t *scn)
+{
+	return (dsl_scan_scrubbing(scn->scn_dp) &&
+	    scn->scn_phys.scn_flags & DSF_SCRUB_THOROUGH);
+}
+
 static void
 dsl_errorscrub_sync_state(dsl_scan_t *scn, dmu_tx_t *tx)
 {
@@ -886,6 +910,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dsl_errorscrub_sync_state(scn, tx);
 
 	scn->scn_phys.scn_func = setup_sync_arg->func;
+	scn->scn_phys.scn_flags = setup_sync_arg->flags;
 	scn->scn_phys.scn_state = DSS_SCANNING;
 	scn->scn_phys.scn_min_txg = setup_sync_arg->txgstart;
 	if (setup_sync_arg->txgend == 0) {
@@ -990,7 +1015,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
  */
 int
 dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
-    uint64_t txgend)
+    uint64_t txgend, dsl_scan_flags_t flags)
 {
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
@@ -1023,6 +1048,9 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 			/*
 			 * got error scrub start cmd, resume paused error scrub.
 			 */
+			if (flags != 0)
+				return (SET_ERROR(ENOTSUP));
+
 			int err = dsl_scrub_set_pause_resume(scn->scn_dp,
 			    POOL_SCRUB_NORMAL);
 			if (err == 0) {
@@ -1040,8 +1068,14 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 
 	if (func == POOL_SCAN_SCRUB && dsl_scan_is_paused_scrub(scn)) {
 		/* got scrub start cmd, resume paused scrub */
-		int err = dsl_scrub_set_pause_resume(scn->scn_dp,
-		    POOL_SCRUB_NORMAL);
+		if ((flags & DSF_SCRUB_THOROUGH) == 0 && flags != 0)
+			return (SET_ERROR(ENOTSUP));
+		pool_scrub_cmd_t scrub_cmd;
+		if (flags & DSF_SCRUB_THOROUGH)
+			scrub_cmd = POOL_SCRUB_THOROUGH;
+		else
+			scrub_cmd = POOL_SCRUB_NORMAL;
+		int err = dsl_scrub_set_pause_resume(scn->scn_dp, scrub_cmd);
 		if (err == 0) {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
 			return (0);
@@ -1052,6 +1086,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	setup_sync_arg.func = func;
 	setup_sync_arg.txgstart = txgstart;
 	setup_sync_arg.txgend = txgend;
+	setup_sync_arg.flags = flags;
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &setup_sync_arg, 0,
@@ -1378,7 +1413,7 @@ dsl_scrub_pause_resume_check(void *arg, dmu_tx_t *tx)
 		/* can't pause a paused scrub */
 		if (dsl_scan_is_paused_scrub(scn))
 			return (SET_ERROR(EBUSY));
-	} else if (*cmd != POOL_SCRUB_NORMAL) {
+	} else if (*cmd != POOL_SCRUB_NORMAL && *cmd != POOL_SCRUB_THOROUGH) {
 		return (SET_ERROR(ENOTSUP));
 	}
 
@@ -1402,7 +1437,6 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_PAUSED);
 		spa_notify_waiters(spa);
 	} else {
-		ASSERT3U(*cmd, ==, POOL_SCRUB_NORMAL);
 		if (dsl_scan_is_paused_scrub(scn)) {
 			/*
 			 * We need to keep track of how much time we spend
@@ -1414,6 +1448,17 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 			spa->spa_scan_pass_scrub_pause = 0;
 			scn->scn_phys.scn_flags &= ~DSF_SCRUB_PAUSED;
 			scn->scn_phys_cached.scn_flags &= ~DSF_SCRUB_PAUSED;
+			if (*cmd == POOL_SCRUB_NORMAL &&
+			    dsl_scan_is_thorough_scrub(scn)) {
+				scn->scn_phys.scn_flags &= ~DSF_SCRUB_THOROUGH;
+				scn->scn_phys_cached.scn_flags &=
+				    ~DSF_SCRUB_THOROUGH;
+			} else if (*cmd == POOL_SCRUB_THOROUGH &&
+			    !dsl_scan_is_thorough_scrub(scn)) {
+				scn->scn_phys.scn_flags |= DSF_SCRUB_THOROUGH;
+				scn->scn_phys_cached.scn_flags |=
+				    DSF_SCRUB_THOROUGH;
+			}
 			dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 		}
 	}
@@ -4030,8 +4075,11 @@ read_by_block_level(dsl_scan_t *scn, zbookmark_phys_t zb)
 		return;
 	}
 
-	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_RAW |
-	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SCRUB;
+	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_SCRUB;
+
+	if (!dsl_scan_is_thorough_scrub(scn))
+		zio_flags |= ZIO_FLAG_RAW;
 
 	/* If it's an intent log block, failure is expected. */
 	if (zb.zb_level == ZB_ZIL_LEVEL)
@@ -4832,7 +4880,10 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	uint64_t phys_birth = BP_GET_PHYSICAL_BIRTH(bp);
 	size_t psize = BP_GET_PSIZE(bp);
 	boolean_t needs_io = B_FALSE;
-	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL;
+	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_CANFAIL;
+
+	if (!dsl_scan_is_thorough_scrub(scn))
+		zio_flags |= ZIO_FLAG_RAW;
 
 	count_block(dp->dp_blkstats, bp);
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
@@ -4908,8 +4959,16 @@ dsl_scan_scrub_done(zio_t *zio)
 		mutex_exit(&queue->q_vd->vdev_scan_io_queue_lock);
 	}
 
+	/*
+	 * Similar to zio_done(), we ignore EACCES errors during scrub when the
+	 * encryption key is not loaded (see spa_do_crypt_abd() and the MAC
+	 * helpers). The block's checksum has already been verified, so we treat
+	 * the scrub as successful for this block as this (a normal scrub) is
+	 * as much as we can do when keys are not loaded.
+	 */
 	if (zio->io_error && (zio->io_error != ECKSUM ||
-	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE))) {
+	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) &&
+	    !(zio->io_error == EACCES && (zio->io_flags & ZIO_FLAG_SCRUB))) {
 		if (dsl_errorscrubbing(spa->spa_dsl_pool) &&
 		    !dsl_errorscrub_is_paused(spa->spa_dsl_pool->dp_scan)) {
 			atomic_inc_64(&spa->spa_dsl_pool->dp_scan
@@ -4934,7 +4993,9 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 {
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
-	size_t size = BP_GET_PSIZE(bp);
+
+	size_t size = (zio_flags & ZIO_FLAG_RAW) ?
+	    BP_GET_PSIZE(bp) : BP_GET_LSIZE(bp);
 	abd_t *data = abd_alloc_for_io(size, B_FALSE);
 	zio_t *pio;
 

@@ -38,7 +38,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
+.Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns | Fl t Ns
 .Op Fl w
 .Op Fl S Ar date
 .Op Fl E Ar date
@@ -123,10 +123,21 @@ The pool must have been scrubbed at least once with the
 feature enabled to use this option.
 Error scrubbing cannot be run simultaneously with regular scrubbing or
 resilvering, nor can it be run when a regular scrub is paused.
+It cannot be combined with thorough scrub.
+.Pq Fl t .
 .It Fl C
 Continue scrub from last saved txg (see zpool
 .Sy last_scrubbed_txg
 property).
+.It Fl t
+Thorough scrub.
+Will cause scrub to decrypt and decompress blocks it reads so that it will
+catch the rare type of corruption where the checksum matches the data, but
+decryption and/or decompression fails.
+For encrypted datasets keys have to be loaded in order to perform
+thorough scrub.
+If keys are not loaded or unloaded during a thorough scrub the scrub will revert
+to doing a normal scrub for the encrypted dataset blocks.
 .It Fl S Ar date , Fl E Ar date
 Allows specifying the date range for blocks created between these dates.
 .Bl -bullet -compact -offset indent

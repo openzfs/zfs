@@ -698,7 +698,7 @@ test_scrub(const char *pool)
 {
 	nvlist_t *required = fnvlist_alloc();
 	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_FUNCS + 1);
-	fnvlist_add_uint64(required, "scan_command", POOL_SCRUB_FLAGS_END + 1);
+	fnvlist_add_uint64(required, "scan_command", 0xDEADBEEF);
 	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, NULL, EINVAL);
 	nvlist_free(required);
 }

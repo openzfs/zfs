@@ -2885,6 +2885,7 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 
 	/* error scrub data not stored on disk */
 	ps->pss_pass_error_scrub_pause = spa->spa_scan_pass_errorscrub_pause;
+	ps->pss_pass_scrub_flags = scn->scn_phys.scn_flags;
 
 	return (0);
 }
