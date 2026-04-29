@@ -37,7 +37,12 @@
 #include <sys/dmu_send.h>
 #include <sys/dbuf.h>
 
-static int
+/*
+ * Given the full name of a dataset and bookmark (`fullname`), hold the dataset
+ * with the given tag (`tag`), returning the dataset in `dsp`, and returning the
+ * substring of `fullname` that represents the bookmark name in `shortnamep`.
+ */
+int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
     dsl_dataset_t **dsp, const void *tag, char **shortnamep)
 {
@@ -950,7 +955,6 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
-	zfs_bookmark_phys_t bmark_phys = { 0 };
 	int err;
 
 	err = dsl_pool_hold(dsname, FTAG, &dp);
@@ -961,15 +965,37 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 		dsl_pool_rele(dp, FTAG);
 		return (err);
 	}
+	err = dsl_get_bookmark_props_impl(ds, bmname, NULL, props);
 
-	err = dsl_bookmark_lookup_impl(ds, bmname, &bmark_phys);
-	if (err != 0)
-		goto out;
-
-	dsl_bookmark_fetch_props(dp, &bmark_phys, NULL, props);
-out:
 	dsl_dataset_rele(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
+	return (err);
+}
+
+/*
+ * Retrieve the given properties (`prop_names`) for the given bookmark
+ * (`bmname`) in the given dataset (`ds`), returning them in `out_props`.
+ *
+ * Only the names in `prop_names` are used, and the values are ignored. The
+ * convention is to use `nvlist_add_boolean()` to pass empty values.
+ *
+ * If `prop_names` is NULL, retrieve all properties.
+ *
+ * Panics if the pool config is not held.
+ */
+int
+dsl_get_bookmark_props_impl(dsl_dataset_t *ds, const char *bmname,
+    nvlist_t *prop_names, nvlist_t *out_props)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	ASSERT(dsl_pool_config_held(dp));
+
+	zfs_bookmark_phys_t bmark_phys = { 0 };
+	int err = dsl_bookmark_lookup_impl(ds, bmname, &bmark_phys);
+	if (err != 0)
+		return (err);
+
+	dsl_bookmark_fetch_props(dp, &bmark_phys, prop_names, out_props);
 	return (err);
 }
 

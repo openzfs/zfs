@@ -24,6 +24,7 @@
 
 #include <zfs_prop.h>
 
+#include <sys/dsl_bookmark.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_dataset.h>
@@ -556,6 +557,88 @@ prop_valid_for_ds(dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 }
 
 /*
+ * Look up a given bookmark property. On success return 2, the number of
+ * values pushed to the lua stack (property value, and nil for source).
+ * On a fatal error, longjmp. On a non fatal error push nothing.
+ */
+static int
+zcp_get_bookmark_prop(lua_State *state, dsl_pool_t *dp,
+    const char *dataset_name, zfs_prop_t zfs_prop) {
+	int result = (0);
+	const char *prop_name = zfs_prop_to_name(zfs_prop);
+	int error;
+	dsl_dataset_t *ds;
+	char *bmname;
+	error = dsl_bookmark_hold_ds(dp, dataset_name, &ds, FTAG, &bmname);
+	(void) zcp_dataset_hold_error(state, dp, dataset_name, error);
+	nvlist_t *props;
+	error = nvlist_alloc(&props, NV_UNIQUE_NAME, KM_SLEEP);
+	if (error != 0) {
+		goto out;
+	}
+	error = nvlist_add_boolean(props, prop_name);
+	if (error != 0) {
+		goto out_props;
+	}
+	nvlist_t *outnvl;
+	error = nvlist_alloc(&outnvl, NV_UNIQUE_NAME, KM_SLEEP);
+	if (error != 0) {
+		goto out_props;
+	}
+	error = dsl_get_bookmark_props_impl(ds, bmname, props, outnvl);
+	if (error != 0) {
+		goto out_outnvl;
+	}
+	nvlist_t *prop;
+	error = nvlist_lookup_nvlist(outnvl, zfs_prop_to_name(zfs_prop), &prop);
+	if (error != 0) {
+		goto out_outnvl;
+	}
+	nvpair_t *value;
+	error = nvlist_lookup_nvpair(prop, ZPROP_VALUE, &value);
+	if (error != 0) {
+		goto out_outnvl;
+	}
+	uint64_t uint64_value;
+	uint64_t *array_value;
+	uint_t value_len;
+	switch (value->nvp_type) {
+	case DATA_TYPE_UINT64:
+		nvpair_value_uint64(value, &uint64_value);
+		(void) lua_pushnumber(state, uint64_value);
+		(void) lua_pushnil(state);
+		result = 2;
+		break;
+	case DATA_TYPE_UINT64_ARRAY:
+		nvpair_value_uint64_array(value, &array_value, &value_len);
+		// XXX not sure how to convert ZFS_PROP_REDACT_SNAPS to a lua
+		// value. is it meant to be a table (since it's an array in the
+		// docs for lzc_get_bookmarks() and the impl of
+		// dsl_bookmark_fetch_props()), or is it meant to be a string
+		// (since it’s a string in the zprop_desc_t’s pd_proptype)?
+		// falling through to EINVAL for now...
+		zfs_fallthrough;
+	default:
+		zfs_dbgmsg("bookmark property value type %d not implemented"
+		    " (property %s)", value->nvp_type,
+		    zfs_prop_to_name(zfs_prop));
+		error = EINVAL;
+		goto out_outnvl;
+	}
+out_outnvl:
+	nvlist_free(outnvl);
+out_props:
+	nvlist_free(props);
+out:
+	dsl_dataset_rele(ds, FTAG);
+	if (error != 0) {
+		result = zcp_handle_error(state, dataset_name, prop_name,
+		    error);
+	}
+	return (result);
+}
+
+/*
  * Look up a given dataset property. On success return 2, the number of
  * values pushed to the lua stack (property value and source). On a fatal
  * error, longjmp. On a non fatal error push nothing.
@@ -826,9 +909,16 @@ zcp_get_prop(lua_State *state)
 
 	zfs_prop_t zfs_prop = zfs_name_to_prop(property_name);
 	/* Valid system property */
+	// FIXME: `redact_complete` is not accepted yet, because it is not even
+	// registered (nor is it documented)
 	if (zfs_prop != ZPROP_INVAL) {
-		return (zcp_get_system_prop(state, dp, dataset_name,
-		    zfs_prop));
+		if (strchr(dataset_name, '#') != NULL) {
+			return (zcp_get_bookmark_prop(state, dp, dataset_name,
+			    zfs_prop));
+		} else {
+			return (zcp_get_system_prop(state, dp, dataset_name,
+			    zfs_prop));
+		}
 	}
 
 	/* Invalid property name */
