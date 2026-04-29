@@ -1150,7 +1150,7 @@ tests = ['zvol_swap_001_pos', 'zvol_swap_002_pos', 'zvol_swap_004_pos']
 tags = ['functional', 'zvol', 'zvol_swap']
 
 [tests/functional/libzfs]
-tests = ['many_fds', 'libzfs_input']
+tests = ['many_fds', 'libzfs_input', 'libzfs_mnttab_cache']
 tags = ['functional', 'libzfs']
 
 [tests/functional/log_spacemap]

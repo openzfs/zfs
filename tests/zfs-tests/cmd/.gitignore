@@ -18,6 +18,7 @@
 /getversion
 /largest_file
 /libzfs_input_check
+/libzfs_mnttab_cache_check
 /manipulate_user_buffer
 /mkbusy
 /mkfile
