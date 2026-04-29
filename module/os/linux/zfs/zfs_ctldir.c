@@ -1138,15 +1138,28 @@ zfsctl_snapshot_unmount(const char *snapname, int flags)
 		cv_wait(&se->se_cv, &se->se_mtx);
 	mutex_exit(&se->se_mtx);
 
-	exportfs_flush();
-
 	if (flags & MNT_FORCE)
 		argv[4] = "-fn";
 	argv[5] = se->se_path;
 	dprintf("unmount; path=%s\n", se->se_path);
 	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	zfsctl_snapshot_rele(se);
 
+	/*
+	 * The kernel's NFS export cache can hold references to the
+	 * snapshot mountpoint and cause umount to fail.  ZFS cannot
+	 * invalidate individual entries because the relevant kernel
+	 * APIs are exported GPL-only, so we issue a global flush
+	 * instead.  To avoid impacting unrelated snapshots, the flush
+	 * runs only on umount failure.  Not perfect, but better than
+	 * flushing unconditionally.
+	 */
+	if (error) {
+		exportfs_flush();
+		error = call_usermodehelper(argv[0], argv, envp,
+		    UMH_WAIT_PROC);
+	}
+
+	zfsctl_snapshot_rele(se);
 
 	/*
 	 * The umount system utility will return 256 on error.  We must
