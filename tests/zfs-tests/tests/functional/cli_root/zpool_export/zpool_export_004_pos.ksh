@@ -30,7 +30,8 @@
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
 
 #
 # DESCRIPTION:
@@ -51,13 +52,18 @@
 
 verify_runnable "global"
 
+function cleanup
+{
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
+	[[ -d $mntpnt ]] && log_must rm -rf $mntpnt
+}
+
 log_assert "Verify zpool export succeed or fail with spare."
-log_onexit zpool_export_cleanup
+log_onexit cleanup
 
-mntpnt=$TESTDIR0
+mntpnt=$TEST_BASE_DIR/zpool_export_004
 log_must mkdir -p $mntpnt
-
-# mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0
 while ((i < 5)); do
@@ -84,4 +90,3 @@ log_must zpool export -f $TESTPOOL1
 log_must zpool import -d $mntpnt  $TESTPOOL1
 
 log_pass "Verify zpool export succeed or fail with spare."
-

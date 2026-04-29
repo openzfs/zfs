@@ -26,9 +26,6 @@
 # Use is subject to license terms.
 #
 
-. $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
-
-DISK=${DISKS%% *}
-
-default_setup $DISK
+#
+# No shared setup needed - each test creates its own pool
+#
