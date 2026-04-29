@@ -3521,7 +3521,20 @@
       <enumerator name='ZPOOL_PROP_SELOG_USED' value='96'/>
       <enumerator name='ZPOOL_PROP_SELOG_EXPANDSZ' value='97'/>
       <enumerator name='ZPOOL_PROP_SELOG_FRAGMENTATION' value='98'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='99'/>
+      <enumerator name='ZPOOL_PROP_ZIA_AVAILABLE' value='99'/>
+      <enumerator name='ZPOOL_PROP_ZIA_PROVIDER' value='100'/>
+      <enumerator name='ZPOOL_PROP_ZIA_COMPRESS' value='101'/>
+      <enumerator name='ZPOOL_PROP_ZIA_DECOMPRESS' value='102'/>
+      <enumerator name='ZPOOL_PROP_ZIA_CHECKSUM' value='103'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ1_GEN' value='104'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ2_GEN' value='105'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ3_GEN' value='106'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ1_REC' value='107'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ2_REC' value='108'/>
+      <enumerator name='ZPOOL_PROP_ZIA_RAIDZ3_REC' value='109'/>
+      <enumerator name='ZPOOL_PROP_ZIA_FILE_WRITE' value='110'/>
+      <enumerator name='ZPOOL_PROP_ZIA_DISK_WRITE' value='111'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='112'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>

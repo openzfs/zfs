@@ -245,6 +245,8 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_PREALLOCATED	(1ULL << 32)
 #define	ZIO_FLAG_POSTREAD	(1ULL << 33)
 
+#define	ZIO_FLAG_ZIA_REEXECUTE (1ULL << 32)
+
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)
 
@@ -558,6 +560,8 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	boolean_t io_can_offload;
 };
 
 enum blk_verify_flag {
@@ -651,6 +655,7 @@ extern void zio_data_buf_free(void *buf, size_t size);
 
 extern void zio_push_transform(zio_t *zio, struct abd *abd, uint64_t size,
     uint64_t bufsize, zio_transform_func_t *transform);
+extern zio_transform_t *zio_pop_transform(zio_t *zio);
 extern void zio_pop_transforms(zio_t *zio);
 
 extern void zio_resubmit_stage_async(void *);
