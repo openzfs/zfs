@@ -1117,6 +1117,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (top_level && (ops == &vdev_raidz_ops || ops == &vdev_draid_ops))
 		vd->vdev_autosit =
 		    vdev_prop_default_numeric(VDEV_PROP_AUTOSIT);
+	if (ops == &vdev_root_ops)
+		vd->vdev_failfast =
+		    vdev_prop_default_numeric(VDEV_PROP_FAILFAST);
+	else
+		vd->vdev_failfast = ZPROP_BOOLEAN_INHERIT;
 
 	/*
 	 * Add ourselves to the parent's list of children.
@@ -3912,10 +3917,10 @@ vdev_load(vdev_t *vd)
 		    vdev_prop_to_name(VDEV_PROP_FAILFAST), sizeof (failfast),
 		    1, &failfast);
 		if (error == 0) {
-			vd->vdev_failfast = failfast & 1;
+			vd->vdev_failfast = failfast;
 		} else if (error == ENOENT) {
-			vd->vdev_failfast = vdev_prop_default_numeric(
-			    VDEV_PROP_FAILFAST);
+			// We default to "inherit" for this property
+			vd->vdev_failfast = ZPROP_BOOLEAN_INHERIT;
 		} else {
 			vdev_dbgmsg(vd,
 			    "vdev_load: zap_lookup(top_zap=%llu) "
@@ -6207,11 +6212,13 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				error = spa_vdev_alloc(spa, vdev_guid);
 			break;
 		case VDEV_PROP_FAILFAST:
-			if (nvpair_value_uint64(elem, &intval) != 0) {
+			if (nvpair_value_uint64(elem, &intval) != 0 ||
+			    intval > 2 ||
+			    (intval == 2 && vd->vdev_ops == &vdev_root_ops)) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_failfast = intval & 1;
+			vd->vdev_failfast = intval;
 			break;
 		case VDEV_PROP_SIT_OUT:
 			/* Only expose this for a draid or raidz leaf */
@@ -6694,18 +6701,23 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				break;
 			case VDEV_PROP_FAILFAST:
 				src = ZPROP_SRC_LOCAL;
-				strval = NULL;
 
 				err = zap_lookup(mos, objid, nvpair_name(elem),
 				    sizeof (uint64_t), 1, &intval);
 				if (err == ENOENT) {
-					intval = vdev_prop_default_numeric(
-					    prop);
+					if (vd->vdev_ops == &vdev_root_ops)
+						intval =
+						    vdev_prop_default_numeric(
+						    prop);
+					else
+						intval = ZPROP_BOOLEAN_INHERIT;
 					err = 0;
 				} else if (err) {
 					break;
 				}
-				if (intval == vdev_prop_default_numeric(prop))
+				if (intval == ZPROP_BOOLEAN_INHERIT ||
+				    (vd->vdev_ops == &vdev_root_ops &&
+				    intval == 1))
 					src = ZPROP_SRC_DEFAULT;
 
 				vdev_prop_add_list(outnvl, propname, strval,
