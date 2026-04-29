@@ -1700,6 +1700,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/largest_pool/largest_pool_001_pos.ksh \
 	functional/libzfs/cleanup.ksh \
 	functional/libzfs/libzfs_input.ksh \
+	functional/libzfs/libzfs_mnttab_cache.ksh \
 	functional/libzfs/setup.ksh \
 	functional/limits/cleanup.ksh \
 	functional/limits/filesystem_count.ksh \

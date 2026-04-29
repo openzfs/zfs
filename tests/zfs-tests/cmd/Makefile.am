@@ -66,6 +66,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
 	libzfs_core.la \
 	libnvpair.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
+%C%_libzfs_mnttab_cache_check_LDADD = \
+	libzfs.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
 %C%_manipulate_user_buffer_LDADD = -lpthread
 

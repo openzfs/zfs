@@ -466,7 +466,7 @@ tests = ['large_files_001_pos', 'large_files_002_pos']
 tags = ['functional', 'large_files']
 
 [tests/functional/libzfs]
-tests = ['many_fds', 'libzfs_input']
+tests = ['many_fds', 'libzfs_input', 'libzfs_mnttab_cache']
 tags = ['functional', 'libzfs']
 
 [tests/functional/limits]
