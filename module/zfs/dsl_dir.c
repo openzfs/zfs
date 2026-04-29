@@ -2268,22 +2268,45 @@ dsl_dir_snap_cmtime_update(dsl_dir_t *dd, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	inode_timespec_t t;
+	objset_t *mos;
+	uint64_t ddobj;
 	gethrestime(&t);
 
 	mutex_enter(&dd->dd_lock);
 	dd->dd_snap_cmtime = t;
-	if (spa_feature_is_enabled(dp->dp_spa,
+	mutex_exit(&dd->dd_lock);
+
+	if (!spa_feature_is_enabled(dp->dp_spa,
 	    SPA_FEATURE_EXTENSIBLE_DATASET)) {
-		objset_t *mos = dd->dd_pool->dp_meta_objset;
-		uint64_t ddobj = dd->dd_object;
-		dsl_dir_zapify(dd, tx);
+		return;
+	}
+
+	mos = dd->dd_pool->dp_meta_objset;
+	ddobj = dd->dd_object;
+
+	/*
+	 * dsl_dir_zapify() and zap_update() may dirty buffers and recurse
+	 * into space accounting, so do not call them with dd_lock held.
+	 * If another updater advances dd_snap_cmtime while we are writing
+	 * the on-disk copy, retry with the newer value.
+	 */
+	dsl_dir_zapify(dd, tx);
+
+	do {
+		inode_timespec_t latest;
+
+		t = dsl_dir_snap_cmtime(dd);
 		VERIFY0(zap_update(mos, ddobj,
 		    DD_FIELD_SNAPSHOTS_CHANGED,
 		    sizeof (uint64_t),
 		    sizeof (inode_timespec_t) / sizeof (uint64_t),
 		    &t, tx));
-	}
-	mutex_exit(&dd->dd_lock);
+
+		latest = dsl_dir_snap_cmtime(dd);
+		if (latest.tv_sec == t.tv_sec &&
+		    latest.tv_nsec == t.tv_nsec)
+			break;
+	} while (B_TRUE);
 }
 
 void
