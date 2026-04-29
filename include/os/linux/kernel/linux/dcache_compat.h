@@ -32,7 +32,9 @@
 #define	dname(dentry)	((char *)((dentry)->d_name.name))
 #define	dlen(dentry)	((int)((dentry)->d_name.len))
 
+#ifdef HAVE_DENTRY_D_U_ALIASES
 #define	d_alias			d_u.d_alias
+#endif
 
 #ifdef HAVE_MM_PAGE_FLAGS_STRUCT
 /*
