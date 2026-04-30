@@ -10825,10 +10825,16 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
  * Rewrite the vdev configuration (which includes the uberblock) to
  * commit the transaction group.
  *
- * If there are no dirty vdevs, we sync the uberblock to a few random
- * top-level vdevs that are known to be visible in the config cache
- * (see spa_vdev_add() for a complete description). If there *are* dirty
- * vdevs, sync the uberblock to all vdevs.
+ * If there are no dirty vdevs, we sync the uberblock to (in this
+ * order of preference):
+ * - all vdevs touched by the current txg
+ * - special vdevs
+ * - a few random top-level vdevs that are known to be visible in
+ *   the config cache (see spa_vdev_add() for a complete description).
+ *
+ * This allows to keep rotational drives asleep if not used.
+ *
+ * If there *are* dirty vdevs, sync the uberblock to all vdevs.
  */
 static void
 spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
@@ -10846,29 +10852,69 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 
 		if (list_is_empty(&spa->spa_config_dirty_list)) {
-			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
-			int svdcount = 0;
-			int children = rvd->vdev_children;
-			int c0 = random_in_range(children);
+			uint64_t children = rvd->vdev_children;
+			vdev_t **svd = kmem_alloc(sizeof(vdev_t *) * children, KM_SLEEP);
+			uint64_t svdcount = 0;
 
-			for (int c = 0; c < children; c++) {
-				vdev_t *vd =
-				    rvd->vdev_child[(c0 + c) % children];
-
-				/* Stop when revisiting the first vdev */
-				if (c > 0 && svd[0] == vd)
-					break;
+			// Find all dirty top-level vdevs
+			for (uint64_t c = 0; c < children; c++) {
+				vdev_t *vd = rvd->vdev_child[c];
 
 				if (vd->vdev_ms_array == 0 ||
 				    vd->vdev_islog ||
 				    !vdev_is_concrete(vd))
 					continue;
 
-				svd[svdcount++] = vd;
-				if (svdcount == SPA_SYNC_MIN_VDEVS)
-					break;
+				if (txg_list_member(&spa->spa_vdev_txg_list,
+						    vd, TXG_CLEAN(txg)))
+					svd[svdcount++] = vd;
 			}
+
+			// If none were dirty but the pool has special
+			// vdevs, select those.
+			if (svdcount == 0 && spa_has_special(spa)) {
+				for (uint64_t c = 0; c < children; c++) {
+					vdev_t *vd = rvd->vdev_child[c];
+
+					if (vd->vdev_ms_array == 0 ||
+					    vd->vdev_islog ||
+					    !vdev_is_concrete(vd))
+						continue;
+
+					if (vd->vdev_alloc_bias == VDEV_BIAS_SPECIAL)
+						svd[svdcount++] = vd;
+				}
+			}
+
+			/*
+			* If none were dirty and pool does not have
+			* special vdevs: randomly select up to
+			* SPA_SYNC_MIN_VDEVS top-level vdevs.
+			*/
+			if (svdcount == 0) {
+				int c0 = random_in_range(children);
+
+				for (uint64_t c = 0; c < children; c++) {
+					vdev_t *vd = rvd->vdev_child[(c0 + c) % children];
+
+					// Stop when revisiting the first vdev
+					if (c > 0 && svd[0] == vd)
+						break;
+
+					if (vd->vdev_ms_array == 0 ||
+					    vd->vdev_islog ||
+					    !vdev_is_concrete(vd))
+						continue;
+
+					svd[svdcount++] = vd;
+
+					if (svdcount >= SPA_SYNC_MIN_VDEVS)
+						break;
+				}
+			}
+
 			error = vdev_config_sync(svd, svdcount, txg);
+			kmem_free(svd, sizeof(vdev_t *) * children);
 		} else {
 			error = vdev_config_sync(rvd->vdev_child,
 			    rvd->vdev_children, txg);
