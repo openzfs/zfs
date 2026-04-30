@@ -1843,8 +1843,14 @@ send_reader_thread(void *arg)
 				range = get_next_range(inq, range);
 				continue;
 			}
+			/*
+			 * dn_maxblkid is inclusive; range->end_blkid is
+			 * exclusive.  Use dn_maxblkid + 1 so file_max is
+			 * always an exclusive bound and the loop does not
+			 * skip the last block of the file.
+			 */
 			uint64_t file_max =
-			    MIN(dn->dn_maxblkid, range->end_blkid);
+			    MIN(dn->dn_maxblkid + 1, range->end_blkid);
 			/*
 			 * The object exists, so we need to try to find the
 			 * blkptr for each block in the range we're processing.
