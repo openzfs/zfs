@@ -40,7 +40,6 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <errno.h>
-#include <libzfs.h>
 
 /*
  * For debugging only.
@@ -72,7 +71,6 @@ static regex_t uri_regex;
 static const char *destdir = "/tmp";
 static int destdir_fd = -1;
 
-static void *known_pools = NULL; /* tsearch() of C strings */
 static void *noauto_files = NULL; /* tsearch() of C strings */
 
 
@@ -195,14 +193,38 @@ fopenat(int dirfd, const char *pathname, int flags,
 }
 
 static int
-line_worker(char *line, const char *cachefile)
+line_worker(char *line, const char *pool)
 {
 	int ret = 0;
 	void *tofree_all[8];
 	void **tofree = tofree_all;
 
+	/* Minimal pre-requisites to mount a ZFS dataset */
+	char *after = systemd_escape(pool, "zfs-import@", ".service");
+	if (after == NULL) {
+		fprintf(stderr, PROGNAME "[%d]: %s: "
+		    "out of memory to generate \"after=\"!\n",
+		    getpid(), pool);
+		ret = 1;
+		goto err_noafter;
+	}
+
+	char *wants = systemd_escape(pool, "zfs-import@", ".service");
+	if (wants == NULL) {
+		fprintf(stderr, PROGNAME "[%d]: %s: "
+		    "out of memory to generate \"wants=\"!\n",
+		    getpid(), pool);
+		ret = 1;
+		goto err_nowants;
+	}
+
+	const char *bindsto = NULL;
+	char *wantedby = NULL;
+	char *requiredby = NULL;
+	bool noauto = false;
+	bool wantedby_append = true;
+
 	char *toktmp;
-	const char *toktmp2;
 	/* BEGIN CSTYLED */
 	const char *dataset                     = strtok_r(line, "\t", &toktmp);
 	      char *p_mountpoint                = strtok_r(NULL, "\t", &toktmp);
@@ -226,39 +248,10 @@ line_worker(char *line, const char *cachefile)
 	const char *p_systemd_ignore            = strtok_r(NULL, "\t", &toktmp) ?: "-";
 	/* END CSTYLED */
 
-	size_t pool_len = strlen(dataset);
-	if ((toktmp2 = strchr(dataset, '/')) != NULL)
-		pool_len = toktmp2 - dataset;
-	const char *pool = *(tofree++) = strndup(dataset, pool_len);
-
 	if (p_nbmand == NULL) {
 		fprintf(stderr, PROGNAME "[%d]: %s: not enough tokens!\n",
 		    getpid(), dataset);
 		goto err;
-	}
-
-	/* Minimal pre-requisites to mount a ZFS dataset */
-	const char *after = "zfs-import.target";
-	const char *wants = "zfs-import.target";
-	const char *bindsto = NULL;
-	char *wantedby = NULL;
-	char *requiredby = NULL;
-	bool noauto = false;
-	bool wantedby_append = true;
-
-	/*
-	 * zfs-import.target is not needed if the pool is already imported.
-	 * This avoids a dependency loop on root-on-ZFS systems:
-	 *   systemd-random-seed.service After (via RequiresMountsFor)
-	 *   var-lib.mount After
-	 *   zfs-import.target After
-	 *   zfs-import-{cache,scan}.service After
-	 *   cryptsetup.service After
-	 *   systemd-random-seed.service
-	 */
-	if (tfind(pool, &known_pools, STRCMP)) {
-		after = "";
-		wants = "";
 	}
 
 	if (strcmp(p_systemd_after, "-") == 0)
@@ -328,7 +321,7 @@ line_worker(char *line, const char *cachefile)
 			    "DefaultDependencies=no\n"
 			    "Wants=%s\n"
 			    "After=%s\n",
-			    dataset, cachefile, wants, after);
+			    dataset, pool, wants, after);
 
 			if (need_network)
 				fprintf(keyloadunit_f,
@@ -387,11 +380,10 @@ line_worker(char *line, const char *cachefile)
 
 		/* Update dependencies for the mount file to want this */
 		bindsto = keyloadunit;
-		if (after[0] == '\0')
-			after = keyloadunit;
-		else if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1)
-			after = *(tofree++) = toktmp;
-		else {
+		if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1) {
+			free(after);
+			after = toktmp;
+		} else {
 			fprintf(stderr, PROGNAME "[%d]: %s: "
 			    "out of memory to generate after=\"%s %s\"!\n",
 			    getpid(), dataset, after, keyloadunit);
@@ -633,7 +625,7 @@ line_worker(char *line, const char *cachefile)
 	    "Documentation=man:zfs-mount-generator(8)\n"
 	    "\n"
 	    "Before=",
-	    cachefile);
+	    pool);
 
 	if (p_systemd_before)
 		fprintf(mountfile_f, "%s ", p_systemd_before);
@@ -734,6 +726,10 @@ line_worker(char *line, const char *cachefile)
 	}
 
 end:
+	free(wants);
+err_nowants:
+	free(after);
+err_noafter:
 	if (tofree >= tofree_all + nitems(tofree_all)) {
 		/*
 		 * This won't happen as-is:
@@ -751,26 +747,6 @@ end:
 err:
 	ret = 1;
 	goto end;
-}
-
-
-static int
-pool_enumerator(zpool_handle_t *pool, void *data __attribute__((unused)))
-{
-	int ret = 0;
-
-	/*
-	 * Pools are guaranteed-unique by the kernel,
-	 * no risk of leaking dupes here
-	 */
-	char *name = strdup(zpool_get_name(pool));
-	if (!name || !tsearch(name, &known_pools, STRCMP)) {
-		free(name);
-		ret = ENOMEM;
-	}
-
-	zpool_close(pool);
-	return (ret);
 }
 
 int
@@ -821,20 +797,6 @@ main(int argc, char **argv)
 			    PROGNAME "[%d]: couldn't open " FSLIST ": %s\n",
 			    getpid(), strerror(errno));
 		_exit(0);
-	}
-
-	{
-		libzfs_handle_t *libzfs = libzfs_init();
-		if (libzfs) {
-			if (zpool_iter(libzfs, pool_enumerator, NULL) != 0)
-				fprintf(stderr, PROGNAME "[%d]: "
-				    "error listing pools, ignoring\n",
-				    getpid());
-			libzfs_fini(libzfs);
-		} else
-			fprintf(stderr, PROGNAME "[%d]: "
-			    "couldn't start libzfs, ignoring\n",
-			    getpid());
 	}
 
 	{
@@ -895,8 +857,10 @@ main(int argc, char **argv)
 
 		const char *filename = FREE_STATICS ? "(elided)" : NULL;
 
+		// read in a block of lines.  an empty line indicates the end
+		// of the block of datasets
 		ssize_t read;
-		while ((read = getline(&line, &linelen, cachefile)) >= 0) {
+		while ((read = getline(&line, &linelen, cachefile)) >= 2) {
 			line[read - 1] = '\0'; /* newline */
 
 			char *canmount = line;
@@ -930,6 +894,108 @@ main(int argc, char **argv)
 			}
 		}
 
+		/* Generate the zfs-import .service drop-in */
+		char *dropdir = systemd_escape(cachent->d_name, "zfs-import@",
+		    ".service.d");
+		if (dropdir == NULL) {
+			fprintf(stderr, PROGNAME "[%d]: %s:"
+			    "out of memory for zfs-import@",
+			    getpid(), cachent->d_name);
+			continue;
+		}
+
+		(void) mkdirat(destdir_fd, dropdir, 0755);
+		int dropdir_fd = openat(destdir_fd, dropdir,
+		    O_PATH | O_DIRECTORY | O_CLOEXEC);
+		if (dropdir_fd < 0) {
+			fprintf(stderr, PROGNAME "[%d]: %s: "
+			    "couldn't open %s under %s: %s\n",
+			    getpid(), cachent->d_name, dropdir, destdir,
+			    strerror(errno));
+			free(dropdir);
+			continue;
+		}
+
+		FILE *dropin_f = fopenat(dropdir_fd, "members.conf",
+		    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, "w",
+		    0644);
+		if (!dropin_f) {
+			fprintf(stderr, PROGNAME "[%d]: %s: "
+			    "couldn't open members.conf under %s: %s\n",
+			    getpid(), cachent->d_name, dropdir,
+			    strerror(errno));
+			continue;
+		}
+
+		int size_now = 0;
+		char **members = NULL;
+		int members_len = 0;
+
+		while ((read = getline(&line, &linelen, cachefile)) >= 2) {
+			line[read - 1] = '\0'; /* newline */
+
+			if (size_now < members_len + 1) {
+				if (size_now == 0) {
+					size_now = 32 * sizeof (char *);
+				} else {
+					size_now *= 2;
+				}
+				members = realloc(members, size_now);
+				if (members == NULL) {
+					fprintf(stderr, PROGNAME "[%d]: %s:"
+					    "out of memory for zfs-import@",
+					    getpid(), cachent->d_name);
+					members_len = 0;
+					break;
+				}
+			}
+
+			members[members_len] = systemd_escape_path(
+			    line, "", ".device");
+			if (members[members_len++] == NULL) {
+				fprintf(stderr, PROGNAME "[%d]: %s:"
+				    "out of memory for zfs-import@",
+				    getpid(), cachent->d_name);
+				for (int i = 0; i < members_len; i++) {
+					free(members[i]);
+				}
+				members_len = 0;
+				break;
+			}
+		}
+
+		if (members_len == 0) {
+			fprintf(stderr, PROGNAME "[%d]: %s:"
+			    "no zpool members found for zfs-import@",
+			    getpid(), cachent->d_name);
+			free(members);
+			continue;
+		}
+
+		fprintf(dropin_f,
+		    OUTPUT_HEADER
+		    "[Unit]\n"
+		    "Wants=%s",
+		    members[0]);
+
+		for (int i = 1; i < members_len; i++) {
+			fprintf(dropin_f, " %s", members[i]);
+		}
+
+		fprintf(dropin_f, "\nAfter=%s", members[0]);
+		free(members[0]);
+
+		for (int i = 1; i < members_len; i++) {
+			fprintf(dropin_f, " %s", members[i]);
+			free(members[i]);
+		}
+		free(members);
+
+		fprintf(dropin_f, "\n");
+
+		// ignore additional blocks
+
+		fclose(dropin_f);
 		fclose(cachefile);
 	}
 	free(line);
@@ -999,7 +1065,6 @@ main(int argc, char **argv)
 	if (FREE_STATICS) {
 		closedir(fslist_dir);
 		tdestroy(noauto_files, free);
-		tdestroy(known_pools, free);
 		regfree(&uri_regex);
 	}
 	_exit(ret);

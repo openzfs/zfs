@@ -5,6 +5,7 @@ usr/lib/systemd/system-generators/
 usr/lib/systemd/system-preset/
 usr/lib/systemd/system/zfs-import-cache.service
 usr/lib/systemd/system/zfs-import-scan.service
+usr/lib/systemd/system/zfs-import@.service
 usr/lib/systemd/system/zfs-import.target
 usr/lib/systemd/system/zfs-load-key.service
 usr/lib/systemd/system/zfs-mount.service
