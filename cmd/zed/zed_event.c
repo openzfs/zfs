@@ -237,7 +237,7 @@ _zed_event_value_is_hex(const char *name)
 		NULL
 	};
 	const char **pp;
-	char *p;
+	const char *p;
 
 	if (!name)
 		return (0);

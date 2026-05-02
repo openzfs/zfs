@@ -86,7 +86,7 @@ usage(void)
 int
 main(int argc, char **argv)
 {
-	pthread_t tid;
+	pthread_t tid[2];
 	int	ret = 0;
 	long	ncpus = 0;
 	int	i;
@@ -119,7 +119,7 @@ main(int argc, char **argv)
 	}
 
 	for (i = 0; i < 2; i++) {
-		ret = pthread_create(&tid, NULL, go, (void *)&i);
+		ret = pthread_create(&tid[i], NULL, go, (void *)&i);
 		if (ret != 0) {
 			(void) fprintf(stderr,
 			    "zfs_threadsappend: thr_create(#%d) "
@@ -128,8 +128,8 @@ main(int argc, char **argv)
 		}
 	}
 
-	while (pthread_join(tid, NULL) == 0)
-		continue;
+	for (i = 0; i < 2; i++)
+		(void) pthread_join(tid[i], NULL);
 
 	return (0);
 }

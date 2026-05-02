@@ -2681,7 +2681,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		char bookname[ZFS_MAX_DATASET_NAME_LEN];
 		nvlist_t *redact_snaps;
 		zfs_handle_t *book_zhp;
-		char *at, *pound;
+		const char *at, *pound;
 		int dsnamelen;
 
 		pound = strchr(redactbook, '#');

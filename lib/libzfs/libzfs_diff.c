@@ -549,8 +549,8 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
     const char *tosnap)
 {
 	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
-	char *atptrf = NULL;
-	char *atptrt = NULL;
+	const char *atptrf = NULL;
+	const char *atptrt = NULL;
 	int fdslen, fsnlen;
 	int tdslen, tsnlen;
 

@@ -1922,8 +1922,9 @@ nvlist_lookup_nvpair_ei_sep(nvlist_t *nvl, const char *name, const char sep,
 {
 	nvpair_t	*nvp;
 	const char	*np;
-	char		*sepp = NULL;
-	char		*idxp, *idxep;
+	const char	*sepp = NULL;
+	const char	*idxp;
+	char		*idxep;
 	nvlist_t	**nva;
 	long		idx = 0;
 	int		n;

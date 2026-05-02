@@ -201,6 +201,7 @@ line_worker(char *line, const char *cachefile)
 	void **tofree = tofree_all;
 
 	char *toktmp;
+	const char *toktmp2;
 	/* BEGIN CSTYLED */
 	const char *dataset                     = strtok_r(line, "\t", &toktmp);
 	      char *p_mountpoint                = strtok_r(NULL, "\t", &toktmp);
@@ -225,8 +226,8 @@ line_worker(char *line, const char *cachefile)
 	/* END CSTYLED */
 
 	size_t pool_len = strlen(dataset);
-	if ((toktmp = strchr(dataset, '/')) != NULL)
-		pool_len = toktmp - dataset;
+	if ((toktmp2 = strchr(dataset, '/')) != NULL)
+		pool_len = toktmp2 - dataset;
 	const char *pool = *(tofree++) = strndup(dataset, pool_len);
 
 	if (p_nbmand == NULL) {

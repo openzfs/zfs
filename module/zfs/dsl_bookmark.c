@@ -37,10 +37,10 @@
 
 static int
 dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
-    dsl_dataset_t **dsp, const void *tag, char **shortnamep)
+    dsl_dataset_t **dsp, const void *tag, const char **shortnamep)
 {
 	char buf[ZFS_MAX_DATASET_NAME_LEN];
-	char *hashp;
+	const char *hashp;
 
 	if (strlen(fullname) >= ZFS_MAX_DATASET_NAME_LEN)
 		return (SET_ERROR(ENAMETOOLONG));
@@ -103,7 +103,7 @@ int
 dsl_bookmark_lookup(dsl_pool_t *dp, const char *fullname,
     dsl_dataset_t *later_ds, zfs_bookmark_phys_t *bmp)
 {
-	char *shortname;
+	const char *shortname;
 	dsl_dataset_t *ds;
 	int error;
 
@@ -217,7 +217,7 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 
 	int error;
 	dsl_dataset_t *newbm_ds;
-	char *newbm_short;
+	const char *newbm_short;
 	zfs_bookmark_phys_t bmark_phys;
 
 	error = dsl_bookmark_hold_ds(dp, newbm, &newbm_ds, FTAG, &newbm_short);
@@ -327,7 +327,7 @@ dsl_bookmark_create_check(void *arg, dmu_tx_t *tx)
 }
 
 static dsl_bookmark_node_t *
-dsl_bookmark_node_alloc(char *shortname)
+dsl_bookmark_node_alloc(const char *shortname)
 {
 	dsl_bookmark_node_t *dbn = kmem_alloc(sizeof (*dbn), KM_SLEEP);
 	dbn->dbn_name = spa_strdup(shortname);
@@ -443,7 +443,7 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
 	dsl_dataset_t *snapds, *bmark_fs;
-	char *shortname;
+	const char *shortname;
 	boolean_t bookmark_redacted;
 	uint64_t *dsredactsnaps;
 	uint64_t dsnumsnaps;
@@ -516,7 +516,7 @@ dsl_bookmark_create_sync_impl_book(
 {
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *bmark_fs_source, *bmark_fs_new;
-	char *source_shortname, *new_shortname;
+	const char *source_shortname, *new_shortname;
 	zfs_bookmark_phys_t source_phys;
 
 	VERIFY0(dsl_bookmark_hold_ds(dp, source_name, &bmark_fs_source, FTAG,
@@ -1073,7 +1073,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 		dsl_dataset_t *ds;
 		zfs_bookmark_phys_t bm;
 		int error;
-		char *shortname;
+		const char *shortname;
 
 		error = dsl_bookmark_hold_ds(dp, fullname, &ds,
 		    FTAG, &shortname);
@@ -1129,7 +1129,7 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 	for (nvpair_t *pair = nvlist_next_nvpair(dbda->dbda_success, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbda->dbda_success, pair)) {
 		dsl_dataset_t *ds;
-		char *shortname;
+		const char *shortname;
 		uint64_t zap_cnt;
 
 		VERIFY0(dsl_bookmark_hold_ds(dp, nvpair_name(pair),

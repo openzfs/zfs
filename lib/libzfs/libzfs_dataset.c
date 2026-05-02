@@ -703,7 +703,7 @@ zfs_open(libzfs_handle_t *hdl, const char *path, int types)
 {
 	zfs_handle_t *zhp;
 	char errbuf[ERRBUFLEN];
-	char *bookp;
+	const char *bookp;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    dgettext(TEXT_DOMAIN, "cannot open '%s'"), path);
@@ -3164,7 +3164,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
     zfs_userquota_prop_t *typep, char *domain, int domainlen, uint64_t *ridp)
 {
 	zfs_userquota_prop_t type;
-	char *cp;
+	const char *cp;
 	boolean_t isuser;
 	boolean_t isgroup;
 	boolean_t isproject;
@@ -4481,12 +4481,13 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 {
 	int ret = 0;
 	zfs_cmd_t zc = {"\0"};
-	char *delim;
 	prop_changelist_t *cl = NULL;
 	char parent[ZFS_MAX_DATASET_NAME_LEN];
 	char property[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[ERRBUFLEN];
+	const char *delim;
+	char *delim2;
 
 	/* if we have the same exact name, just return success */
 	if (strcmp(zhp->zfs_name, target) == 0)
@@ -4511,11 +4512,11 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 			 */
 			(void) strlcpy(parent, zhp->zfs_name,
 			    sizeof (parent));
-			delim = strchr(parent, '@');
+			delim2 = strchr(parent, '@');
 			if (strchr(target, '@') == NULL)
-				*(++delim) = '\0';
+				*(++delim2) = '\0';
 			else
-				*delim = '\0';
+				*delim2 = '\0';
 			(void) strlcat(parent, target, sizeof (parent));
 			target = parent;
 		} else {
@@ -4536,6 +4537,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 		if (!zfs_validate_name(hdl, target, zhp->zfs_type, B_TRUE))
 			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
 	} else {
+
 		if (flags.recursive) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "recursive rename must be a snapshot"));
@@ -4591,8 +4593,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 	}
 	if (flags.recursive) {
 		char *parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
-		delim = strchr(parentname, '@');
-		*delim = '\0';
+		delim2 = strchr(parentname, '@');
+		*delim2 = '\0';
 		zfs_handle_t *zhrp = zfs_open(zhp->zfs_hdl, parentname,
 		    ZFS_TYPE_DATASET);
 		free(parentname);
