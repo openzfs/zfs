@@ -5,6 +5,8 @@ libunit_la_CFLAGS = $(AM_CFLAGS)
 
 noinst_LTLIBRARIES += libunit.la
 libunit_la_SOURCES = \
+	%D%/mock_dmu.c \
+	%D%/mock_dmu.h \
 	%D%/munit.c \
 	%D%/munit.h \
 	%D%/unit.c \
