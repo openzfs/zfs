@@ -9,7 +9,9 @@
  * You may select, at your option, one of the above-listed licenses.
  */
 
-
+#ifdef _ZSTD_COMPAT_WRAPPER_H
+#undef ZSTD_isError   /* defined within zstd_internal.h */
+#endif
 
 /*-*************************************
 *  Dependencies
@@ -34,7 +36,9 @@ const char* ZSTD_versionString(void) { return ZSTD_VERSION_STRING; }
 /*! ZSTD_isError() :
  *  tells if a return value is an error code
  *  symbol is required for external callers */
-unsigned ZSTD_isError(size_t code) __asm__("zfs_ZSTD_isError");
+#ifdef _ZSTD_COMPAT_WRAPPER_H
+#define	ZSTD_isError zfs_ZSTD_isError
+#endif
 unsigned ZSTD_isError(size_t code) { return ERR_isError(code); }
 
 /*! ZSTD_getErrorName() :

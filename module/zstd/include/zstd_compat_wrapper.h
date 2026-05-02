@@ -33,6 +33,8 @@
  * Copyright (c) 2020, Sebastian Gottschall
  */
 
+#define	_ZSTD_COMPAT_WRAPPER_H
+
 /*
  * This wrapper fixes a problem, in case the ZFS filesystem driver, is compiled
  * statically into the kernel.
