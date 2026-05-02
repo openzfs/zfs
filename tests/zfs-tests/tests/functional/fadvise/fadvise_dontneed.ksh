@@ -32,11 +32,13 @@
 # 2. Record cache_count from dbufstats
 # 3. Call file_fadvise with POSIX_FADV_DONTNEED on the file
 # 4. Verify that cache_count decreased
+# 5. Sanity-check eviction for single-block files.
 #
 
 verify_runnable "global"
 
-FILE=$TESTDIR/$TESTFILE0
+FILE0=$TESTDIR/$TESTFILE0
+FILE1=$TESTDIR/$TESTFILE1
 BLKSZ=$(get_prop recordsize $TESTPOOL)
 
 function cleanup
@@ -48,16 +50,21 @@ log_assert "Ensure POSIX_FADV_DONTNEED evicts data from the dbuf cache"
 
 log_onexit cleanup
 
-log_must file_write -o create -f $FILE -b $BLKSZ -c 100
+log_must file_write -o create -f $FILE0 -b $BLKSZ -c 100
 sync_pool $TESTPOOL
 
 evicts1=$(kstat dbufstats.cache_count)
 
-log_must file_fadvise -f $FILE -a POSIX_FADV_DONTNEED
+log_must file_fadvise -f $FILE0 -a POSIX_FADV_DONTNEED
 
 evicts2=$(kstat dbufstats.cache_count)
 log_note "cache_count before=$evicts1 after=$evicts2"
 
 log_must [ $evicts1 -gt $evicts2 ]
+
+log_must file_write -o create -f $FILE1 -b 12000 -c 1
+sync_pool $TESTPOOL
+
+log_must file_fadvise -f $FILE1 -a POSIX_FADV_DONTNEED
 
 log_pass "POSIX_FADV_DONTNEED evicts data from the dbuf cache"

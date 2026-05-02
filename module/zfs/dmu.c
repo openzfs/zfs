@@ -966,8 +966,14 @@ dmu_evict_range(objset_t *os, uint64_t object, uint64_t offset, uint64_t len)
 	 * access patterns are rare.
 	 */
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	uint64_t start = dbuf_whichblock(dn, 0, offset);
-	uint64_t end = dbuf_whichblock(dn, 0, offset + len);
+	uint64_t start, end;
+	if (dn->dn_datablkshift != 0) {
+		start = dbuf_whichblock(dn, 0, offset);
+		end = dbuf_whichblock(dn, 0, offset + len);
+	} else {
+		start = (offset >= dn->dn_datablksz);
+		end = (offset + len >= dn->dn_datablksz);
+	}
 	if (end > start)
 		dbuf_evict_range(dn, start, end - 1);
 	rw_exit(&dn->dn_struct_rwlock);
