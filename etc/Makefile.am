@@ -49,6 +49,7 @@ dist_systemdpreset_DATA = \
 systemdunit_DATA = \
 	%D%/systemd/system/zfs-import-cache.service \
 	%D%/systemd/system/zfs-import-scan.service \
+	%D%/systemd/system/zfs-import@.service \
 	%D%/systemd/system/zfs-import.target \
 	%D%/systemd/system/zfs-mount.service \
 	%D%/systemd/system/zfs-mount@.service \

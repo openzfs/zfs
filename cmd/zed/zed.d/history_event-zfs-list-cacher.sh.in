@@ -6,6 +6,7 @@ set -ef
 
 FSLIST="@sysconfdir@/zfs/zfs-list.cache/${ZEVENT_POOL}"
 FSLIST_TMP="@runstatedir@/zfs-list.cache@${ZEVENT_POOL}"
+FSLIST_TMP2="@runstatedir@/zfs-list.cache@${ZEVENT_POOL}-2"
 
 # If the pool specific cache file is not writeable, abort
 [ -w "${FSLIST}" ] || exit 0
@@ -75,9 +76,14 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 ,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
 "${ZFS}" list -H -t filesystem -o "${PROPS}" -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
+"${ZPOOL}" status -P "${ZEVENT_POOL}" | sed -n '/^\t  *\//s/^\t *\([^ ]*\) .*/\1/p' > "${FSLIST_TMP2}"
 
 # Sort the output so that it is stable
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"
+sort "${FSLIST_TMP2}" -o "${FSLIST_TMP2}"
+
+echo >> "${FSLIST_TMP}"
+cat "${FSLIST_TMP2}" >> "${FSLIST_TMP}"
 
 # Don't modify the file if it hasn't changed
 diff -q "${FSLIST_TMP}" "${FSLIST}" || cat "${FSLIST_TMP}" > "${FSLIST}"
