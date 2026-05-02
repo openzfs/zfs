@@ -26,15 +26,17 @@ jobs:
     if: github.event_name == 'pull_request' || github.repository != 'openzfs/zfs'
     runs-on: ubuntu-24.04
     outputs:
-      test_os: ${{ steps.os.outputs.os }}
+      matrix: ${{ steps.os.outputs.matrix }}
       ci_type: ${{ steps.os.outputs.ci_type }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Generate OS config and CI type
+        timeout-minutes: 10
         id: os
         run: |
+          matrix='{"include":[]}'
           ci_type="default"
           ci_source="auto"
 
@@ -89,8 +91,19 @@ jobs:
               os_json=$(echo ${os_selection} | jq -c)
           fi
 
-          echo "os=$os_json" | tee -a $GITHUB_OUTPUT
-          echo "ci_type=$ci_type" | tee -a $GITHUB_OUTPUT
+          # Generate the test matrix, skip jobs with missing CI images
+          while IFS= read -r os; do
+              if .github/workflows/scripts/qemu-2-start.sh "$os" --check; then
+                  matrix=$(jq -c \
+                    --arg os "$os" \
+                    '.include += [{"os": $os}]' <<< "$matrix")
+              else
+                  echo -e "\033[1;31mDisabling $os job, CI image unavailable\033[0m"
+              fi
+          done < <(jq -r '.[]' <<< "$os_json")
+
+          echo "matrix=$matrix" | tee -a "$GITHUB_OUTPUT"
+          echo "ci_type=$ci_type" | tee -a "$GITHUB_OUTPUT"
 
   qemu-vm:
     name: qemu-x86
@@ -101,15 +114,7 @@ jobs:
       needs.test-config.outputs.ci_type != 'docs'
     strategy:
       fail-fast: false
-      matrix:
-        # rhl:     almalinux8, almalinux9, centos-streamX, fedora4x
-        # debian:  debian12, debian13, ubuntu22, ubuntu24, ubuntu26
-        # misc:    archlinux, tumbleweed
-        # FreeBSD variants of november 2025:
-        # FreeBSD Release: freebsd14-4r, freebsd15-0r
-        # FreeBSD Stable:  freebsd14-4s, freebsd15-1s
-        # FreeBSD Current: freebsd16-0c
-        os: ${{ fromJson(needs.test-config.outputs.test_os) }}
+      matrix: ${{ fromJson(needs.test-config.outputs.matrix) }}
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
