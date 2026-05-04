@@ -6093,6 +6093,29 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 				    strval);
 			}
 			break;
+		case VDEV_PROP_ALLOC_BIAS: {
+			intval = fnvpair_value_uint64(elem);
+			ASSERT3U(intval, !=, VDEV_BIAS_LOG);
+			const char *bias_str =
+			    (intval == VDEV_BIAS_SPECIAL) ?
+			    VDEV_ALLOC_BIAS_SPECIAL :
+			    (intval == VDEV_BIAS_DEDUP) ?
+			    VDEV_ALLOC_BIAS_DEDUP : NULL;
+			if (bias_str == NULL) {
+				(void) zap_remove(mos, objid,
+				    VDEV_TOP_ZAP_ALLOCATION_BIAS, tx);
+			} else {
+				VERIFY0(zap_update(mos, objid,
+				    VDEV_TOP_ZAP_ALLOCATION_BIAS,
+				    1, strlen(bias_str) + 1, bias_str, tx));
+				spa_activate_allocation_classes(spa, tx);
+			}
+			spa_history_log_internal(spa, "vdev set", tx,
+			    "vdev_guid=%llu: alloc_bias=%s",
+			    (u_longlong_t)vdev_guid,
+			    bias_str != NULL ? bias_str : "none");
+			break;
+		}
 		default:
 			/* normalize the property name */
 			propname = vdev_prop_to_name(prop);
@@ -6318,6 +6341,53 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				break;
 			}
 			vd->vdev_scheduler = intval;
+			break;
+		case VDEV_PROP_ALLOC_BIAS:
+			if (nvpair_value_uint64(elem, &intval) != 0) {
+				error = EINVAL;
+				break;
+			}
+			if (vd != vd->vdev_top || vd->vdev_top_zap == 0) {
+				error = ENOTSUP;
+				break;
+			}
+			/* Log vdevs are not supported: remove and re-add. */
+			if (vd->vdev_islog) {
+				error = ENOTSUP;
+				break;
+			}
+			/* special/dedup needs allocation_classes feature */
+			if (intval != VDEV_BIAS_NONE &&
+			    ((intval != VDEV_BIAS_SPECIAL &&
+			    intval != VDEV_BIAS_DEDUP) ||
+			    !spa_feature_is_enabled(spa,
+			    SPA_FEATURE_ALLOCATION_CLASSES))) {
+				error = ENOTSUP;
+				break;
+			}
+			/*
+			 * Disallow converting the last normal vdev to
+			 * avoid pool suspension on failed allocations.
+			 */
+			if (intval != VDEV_BIAS_NONE &&
+			    vd->vdev_alloc_bias == VDEV_BIAS_NONE) {
+				vdev_t *rvd = spa->spa_root_vdev;
+				int normal = 0;
+				for (uint64_t c = 0;
+				    c < rvd->vdev_children; c++) {
+					vdev_t *cvd = rvd->vdev_child[c];
+					if (vdev_is_concrete(cvd) &&
+					    cvd->vdev_alloc_bias ==
+					    VDEV_BIAS_NONE &&
+					    !cvd->vdev_noalloc)
+						normal++;
+				}
+				if (normal <= 1) {
+					error = ENOTSUP;
+					break;
+				}
+			}
+			vd->vdev_alloc_bias = (vdev_alloc_bias_t)intval;
 			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
@@ -6746,6 +6816,13 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				vdev_prop_add_list(outnvl, propname, NULL,
 				    boolval, src);
 				break;
+			case VDEV_PROP_ALLOC_BIAS:
+				if (vd == vd->vdev_top) {
+					vdev_prop_add_list(outnvl, propname,
+					    NULL, vd->vdev_alloc_bias,
+					    ZPROP_SRC_NONE);
+				}
+				continue;
 			case VDEV_PROP_CHECKSUM_N:
 			case VDEV_PROP_CHECKSUM_T:
 			case VDEV_PROP_IO_N:

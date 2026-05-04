@@ -476,6 +476,7 @@ typedef enum {
 	VDEV_PROP_SCHEDULER,
 	VDEV_PROP_FDOMAIN,
 	VDEV_PROP_FGROUP,
+	VDEV_PROP_ALLOC_BIAS,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -490,6 +491,16 @@ typedef enum {
 	VDEV_SCHEDULER_ON,
 	VDEV_SCHEDULER_OFF
 } vdev_scheduler_type_t;
+
+/*
+ * Allocation bias for top-level vdevs (alloc_bias property).
+ */
+typedef enum vdev_alloc_bias {
+	VDEV_BIAS_NONE,
+	VDEV_BIAS_LOG,		/* dedicated to ZIL data (SLOG) */
+	VDEV_BIAS_SPECIAL,	/* dedicated to ddt, metadata, and small blks */
+	VDEV_BIAS_DEDUP		/* dedicated to dedup metadata */
+} vdev_alloc_bias_t;
 
 /*
  * Dataset property functions shared between libzfs and kernel.

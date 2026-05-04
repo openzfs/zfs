@@ -155,14 +155,6 @@ struct vdev_queue {
 	kmutex_t	vq_lock;
 };
 
-typedef enum vdev_alloc_bias {
-	VDEV_BIAS_NONE,
-	VDEV_BIAS_LOG,		/* dedicated to ZIL data (SLOG) */
-	VDEV_BIAS_SPECIAL,	/* dedicated to ddt, metadata, and small blks */
-	VDEV_BIAS_DEDUP		/* dedicated to dedup metadata */
-} vdev_alloc_bias_t;
-
-
 /*
  * On-disk indirect vdev state.
  *

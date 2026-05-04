@@ -388,6 +388,14 @@ vdev_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t vdev_alloc_bias_table[] = {
+		{ "none",	VDEV_BIAS_NONE },
+		{ "log",	VDEV_BIAS_LOG },
+		{ "special",	VDEV_BIAS_SPECIAL },
+		{ "dedup",	VDEV_BIAS_DEDUP },
+		{ NULL }
+	};
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_VDEV_PROPERTIES);
 
@@ -556,6 +564,10 @@ vdev_prop_init(void)
 	    VDEV_SCHEDULER_AUTO, PROP_DEFAULT, ZFS_TYPE_VDEV,
 	    "auto | on | off", "IO_SCHEDULER",
 	    vdevschedulertype_table, sfeatures);
+	zprop_register_index(VDEV_PROP_ALLOC_BIAS, "alloc_bias",
+	    VDEV_BIAS_NONE, PROP_DEFAULT, ZFS_TYPE_VDEV,
+	    "none | log | special | dedup", "ALLOC_BIAS",
+	    vdev_alloc_bias_table, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,

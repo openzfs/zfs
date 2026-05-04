@@ -2553,7 +2553,7 @@
     <typedef-decl name='__uint32_t' type-id='f0981eeb' id='62f1140c'/>
     <typedef-decl name='__uint64_t' type-id='7359adad' id='8910171f'/>
     <typedef-decl name='size_t' type-id='7359adad' id='b59d7dce'/>
-    <class-decl name='libzfs_handle' size-in-bits='18432' is-struct='yes' visibility='default' id='c8a9d9d8'>
+    <class-decl name='libzfs_handle' size-in-bits='18496' is-struct='yes' visibility='default' id='c8a9d9d8'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='libzfs_error' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -2604,6 +2604,9 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='18112'>
         <var-decl name='zh_mnttab' type-id='f20fbd51' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='18432'>
+        <var-decl name='zh_mnttab_cache_enabled' type-id='c19b74c3' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' id='f6ee4445'>
@@ -6412,7 +6415,8 @@
       <enumerator name='VDEV_PROP_SCHEDULER' value='55'/>
       <enumerator name='VDEV_PROP_FDOMAIN' value='56'/>
       <enumerator name='VDEV_PROP_FGROUP' value='57'/>
-      <enumerator name='VDEV_NUM_PROPS' value='58'/>
+      <enumerator name='VDEV_PROP_ALLOC_BIAS' value='58'/>
+      <enumerator name='VDEV_NUM_PROPS' value='59'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>

@@ -218,6 +218,21 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 See
 .Xr zpool-remove 8 .
+.It Sy alloc_bias Ns = Ns Sy none Ns | Ns Sy log Ns | Ns Sy special Ns | Ns Sy dedup
+Controls the allocation class for a top-level vdev.
+Changes take effect after an export and import of the pool.
+Changing to/from log is not implemented, since it may lead to data loss in
+case of the log device failure.
+Setting to
+.Sy special
+and
+.Sy dedup
+requires
+.Sy feature@allocation_classes
+to be enabled.
+At least one top-level vdev must remain in the normal
+.Pq Sy none
+class.
 .It Sy scheduler Ns = Ns Sy auto Ns | Ns Sy on Ns | Ns Sy off
 Controls how I/O requests are added to the vdev queue when reading or
 writing to this vdev.

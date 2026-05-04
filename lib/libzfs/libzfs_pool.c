@@ -5741,6 +5741,9 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 				return (ENOENT);
 			if (prop == VDEV_PROP_SIT_OUT)
 				return (ENOENT);
+			/* Only valid for top-level vdevs */
+			if (prop == VDEV_PROP_ALLOC_BIAS)
+				return (ENOENT);
 		}
 		if (vdev_prop_index_to_string(prop, intval,
 		    (const char **)&strval) != 0)

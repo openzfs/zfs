@@ -3456,12 +3456,15 @@ zfs_ioc_vdev_set_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	ASSERT(spa_writeable(spa));
 
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		spa_close(spa, FTAG);
 		return (SET_ERROR(ENOENT));
 	}
 
 	error = vdev_prop_set(vd, innvl, outnvl);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	spa_close(spa, FTAG);
 
@@ -3500,12 +3503,15 @@ zfs_ioc_vdev_get_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
 		return (error);
 
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		spa_close(spa, FTAG);
 		return (SET_ERROR(ENOENT));
 	}
 
 	error = vdev_prop_get(vd, innvl, outnvl);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	spa_close(spa, FTAG);
 
