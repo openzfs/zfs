@@ -46,17 +46,17 @@ jobs:
 
           case "$ci_type" in
           quick)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-0s", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-1s", "ubuntu24"]'
             ;;
           linux)
             os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora42", "fedora43", "fedora44", "ubuntu22", "ubuntu24"]'
             ;;
           freebsd)
-            os_selection='["freebsd13-5r", "freebsd14-4r", "freebsd13-5s", "freebsd14-4s", "freebsd15-0s", "freebsd16-0c"]'
+            os_selection='["freebsd13-5r", "freebsd14-4r", "freebsd13-5s", "freebsd14-4s", "freebsd15-1s", "freebsd16-0c"]'
             ;;
           *)
             # default list
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora42", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-0s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora42", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
             ;;
           esac
 
@@ -99,7 +99,7 @@ jobs:
         # misc:    archlinux, tumbleweed
         # FreeBSD variants of november 2025:
         # FreeBSD Release: freebsd13-5r, freebsd14-4r, freebsd15-0r
-        # FreeBSD Stable:  freebsd13-5s, freebsd14-4s, freebsd15-0s
+        # FreeBSD Stable:  freebsd13-5s, freebsd14-4s, freebsd15-1s
         # FreeBSD Current: freebsd16-0c
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04

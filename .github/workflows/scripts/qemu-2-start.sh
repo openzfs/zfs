@@ -108,6 +108,13 @@ case "$OS" in
     URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI.raw.xz"
     KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
     ;;
+  freebsd15-0r)
+    FreeBSD="15.0-RELEASE"
+    OSNAME="FreeBSD $FreeBSD"
+    OSv="freebsd15.0"
+    URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
+    KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
+    ;;
   freebsd13-5s)
     FreeBSD="13.5-STABLE"
     OSNAME="FreeBSD $FreeBSD"
@@ -123,8 +130,8 @@ case "$OS" in
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
     KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
     ;;
-  freebsd15-0s)
-    FreeBSD="15.0-STABLE"
+  freebsd15-1s)
+    FreeBSD="15.1-PRERELEASE"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
