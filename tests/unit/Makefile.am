@@ -14,8 +14,30 @@ libunit_la_SOURCES = \
 
 
 # all test binaries
-UNIT_TESTS =
+UNIT_TESTS = \
+	%D%/test_zap
 noinst_PROGRAMS = $(UNIT_TESTS)
+
+
+%C%_test_zap_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_zap_SOURCES = \
+	module/zfs/zap.c \
+	module/zfs/zap_fat.c \
+	module/zfs/zap_impl.c \
+	module/zfs/zap_micro.c \
+	module/zfs/zap_leaf.c \
+	module/zfs/u8_textprep.c
+
+%C%_test_zap_SOURCES = \
+	%D%/test_zap.c
+
+%C%_test_zap_LDADD = \
+	libspl.la \
+	libbtree.la \
+	libunit.la
+
+%C%_test_zap_LDFLAGS = -pthread
 
 
 # test run and coverage targets below

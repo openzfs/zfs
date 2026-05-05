@@ -1,2 +1,4 @@
 /test_*.info
 /test_*_coverage
+
+/test_zap
