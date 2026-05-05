@@ -73,7 +73,7 @@ log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"
 log_must zpool create -O compression=off $TESTPOOL "$LARGEFILE"
 log_must mkfile $(( floor(LARGESIZE * 0.80) )) /$TESTPOOL/file
-sync_all_pools
+sync_pool $TESTPOOL
 
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -le $LARGESIZE
@@ -93,12 +93,8 @@ log_must test $new_size -gt $((4 * floor(LARGESIZE * 0.70) ))
 # Perform a partial trim, we expect it to skip most of the new metaslabs
 # which have never been used and therefore do not need be trimmed.
 log_must set_tunable64 TRIM_METASLAB_SKIP 1
-log_must zpool trim $TESTPOOL
-log_must set_tunable64 TRIM_METASLAB_SKIP 0
-
-while [[ "$(trim_progress $TESTPOOL $LARGEFILE)" -lt "100" ]]; do
-	sleep 0.5
-done
+log_must zpool trim -w $TESTPOOL
+sync_pool $TESTPOOL true
 
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -gt $LARGESIZE
@@ -106,11 +102,9 @@ log_must test $new_size -gt $LARGESIZE
 # Perform a full trim, all metaslabs will be trimmed the pool vdev
 # size will be reduced but not down to its original size due to the
 # space usage of the new metaslabs.
-log_must zpool trim $TESTPOOL
-
-while [[ "$(trim_progress $TESTPOOL $LARGEFILE)" -lt "100" ]]; do
-	sleep 0.5
-done
+log_must set_tunable64 TRIM_METASLAB_SKIP 0
+log_must zpool trim -w $TESTPOOL
+sync_pool $TESTPOOL true
 
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -le $(( 2 * LARGESIZE))
