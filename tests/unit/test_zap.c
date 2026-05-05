@@ -231,6 +231,290 @@ test_zap_basic(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/*
+ * "Core" ZAP API tests. Covers the most basic functionality upon which which
+ * everything else is built.
+ *
+ * Note that to avoid microzap upgrade here, we only short keys and
+ * single-uint64 values.
+ */
+
+/* zap_add: add new items. */
+static MunitResult
+test_zap_add(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* A key added can be found by that name. */
+	uint64_t va = 1, var = 0;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &va, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var));
+	unit_eq(var, 1);
+
+	/* Another key added can be found by that name. */
+	uint64_t vb = 2, vbr = 0;
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &vb, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "b", sizeof (uint64_t), 1, &vbr));
+	unit_eq(vbr, 2);
+
+	/* The first key is still findable with the right value. */
+	var = 0;
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var));
+	unit_eq(var, 1);
+
+	/* Adding the key again fails. */
+	unit_err(zap_add_by_dnode(dn, "a",
+	    sizeof (uint64_t), 1, &va, tx), EEXIST);
+
+	/* Adding the key with a different value still fails. */
+	va = 2;
+	unit_err(zap_add_by_dnode(dn, "a",
+	    sizeof (uint64_t), 1, &va, tx), EEXIST);
+
+	/* And is still findable with the original value. */
+	var = 0;
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var));
+	unit_eq(var, 1);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_update: add new or replace existing items. */
+static MunitResult
+test_zap_update(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Update on a non-existent key inserts it. */
+	uint64_t va = 1, var = 0;
+	unit_ok(zap_update_by_dnode(dn, "a", sizeof (uint64_t), 1, &va, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var));
+	unit_eq(var, 1);
+
+	/* Update on an existing key replaces it without error. */
+	va = 2;
+	unit_ok(zap_update_by_dnode(dn, "a", sizeof (uint64_t), 1, &va, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var));
+	unit_eq(var, 2);
+
+	/* Count should still be 1 (no duplicate was created). */
+	uint64_t count = 0;
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 1);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_remove: remove existing items. */
+static MunitResult
+test_zap_remove(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Removing a non-existing key fails. */
+	unit_err(zap_remove_by_dnode(dn, "a", tx), ENOENT);
+
+	/* Adding two keys. */
+	uint64_t va = 1, vb = 2;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &va, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &vb, tx));
+
+	/* Remove an existing key succeeds. */
+	unit_ok(zap_remove_by_dnode(dn, "a", tx));
+
+	/* After removing, looking up removed key fails. */
+	uint64_t var = 0;
+	unit_err(
+	    zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &var), ENOENT);
+
+	/* Looking up the other key succeeds, and has the correct value. */
+	uint64_t vbr = 0;
+	unit_ok(zap_lookup_by_dnode(dn, "b", sizeof (uint64_t), 1, &vbr));
+	unit_eq(vbr, 2);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_count: number of entries, typically without lookup or traversal. */
+static MunitResult
+test_zap_count(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* A new ZAP has zero entries. */
+	uint64_t count = 0;
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 0);
+
+	/* Adding two keys bumps the count to 2. */
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 2);
+
+	/* Removing a key reduces the count. */
+	unit_ok(zap_remove_by_dnode(dn, "a", tx));
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 1);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_contains: existence check without reading the value. */
+static MunitResult
+test_zap_contains(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_contains_by_dnode(dn, "a"));
+	unit_err(zap_contains_by_dnode(dn, "b"), ENOENT);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_length: item metadata without reading the value. */
+static MunitResult
+test_zap_length(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* uint64: integer_size=8, num_integers=1. */
+	uint64_t v = 42;
+	unit_ok(zap_add_by_dnode(dn, "u64",
+	    sizeof (uint64_t), 1, &v, tx));
+
+	uint64_t isz = 0, nint = 0;
+	unit_ok(zap_length_by_dnode(dn, "u64", &isz, &nint));
+	unit_eq(isz, 8);
+	unit_eq(nint, 1);
+
+	/* Missing key returns ENOENT. */
+	unit_err(zap_length_by_dnode(dn, "nope", &isz, &nint), ENOENT);
+
+	/* Either output pointer may be NULL. */
+	isz = 0; nint = 0;
+	unit_ok(zap_length_by_dnode(dn, "u64", NULL, &nint));
+	unit_ok(zap_length_by_dnode(dn, "u64", &isz, NULL));
+	unit_eq(isz, 8);
+	unit_eq(nint, 1);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
+/*
+ * Separate stats tests for each ZAP type, since they are about internals and
+ * so can and will produce different results.
+ */
+
+static MunitResult
+test_microzap_stats(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	dnode_t *dn = mock_zap_create_microzap();
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	zap_stats_t zs;
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_get_stats_by_dnode(dn, &zs));
+
+	/* We added two entries. */
+	unit_eq(zs.zs_num_entries, 2);
+
+	/* MicroZAP is always a single block. */
+	unit_eq(zs.zs_num_blocks, 1);
+
+	/* Blocksize matches what we passed to mock_dnode_create(). */
+	unit_eq(zs.zs_blocksize, 512);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_microzap(dn));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_fatzap_stats(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	dnode_t *dn = mock_zap_create_fatzap();
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	zap_stats_t zs;
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_get_stats_by_dnode(dn, &zs));
+
+	/* We added two entries. */
+	unit_eq(zs.zs_num_entries, 2);
+
+	/* One header block, one leaf block. */
+	unit_eq(zs.zs_num_blocks, 2);
+
+	/* FatZAP block size set by tuneable. */
+	unit_eq(zs.zs_blocksize, 1 << fzap_default_block_shift);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_fatzap(dn));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /* Test suite definition and boilerplate. */
 
 #define	UNIT_PARAM_ZAP_TYPES(p)	\
@@ -241,11 +525,24 @@ static const MunitParameterEnum zap_type_params[] = {
 	{ 0 },
 };
 
+#define	UNIT_TEST_ZAP_TYPES(name, func)	\
+	UNIT_TEST(name, func, zap_type_params)
+
 static const MunitTest zap_tests[] = {
 	UNIT_TEST("mock_microzap_sanity",	test_mock_microzap_sanity),
 	UNIT_TEST("mock_fatzap_sanity",		test_mock_fatzap_sanity),
 
-	UNIT_TEST("zap_basic",	test_zap_basic,	zap_type_params),
+	UNIT_TEST_ZAP_TYPES("zap_basic",	test_zap_basic),
+
+	UNIT_TEST_ZAP_TYPES("zap_add",		test_zap_add),
+	UNIT_TEST_ZAP_TYPES("zap_update",	test_zap_update),
+	UNIT_TEST_ZAP_TYPES("zap_remove",	test_zap_remove),
+	UNIT_TEST_ZAP_TYPES("zap_count",	test_zap_count),
+	UNIT_TEST_ZAP_TYPES("zap_contains",	test_zap_contains),
+	UNIT_TEST_ZAP_TYPES("zap_length",	test_zap_length),
+
+	UNIT_TEST("microzap_stats",		test_microzap_stats),
+	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
 
 	{ 0 },
 };
