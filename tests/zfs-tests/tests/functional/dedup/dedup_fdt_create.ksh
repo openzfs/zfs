@@ -104,4 +104,6 @@ log_must eval "zdb -D $TESTPOOL | grep -q 'All DDTs are empty'"
 # logical table now destroyed; containing object destroyed
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256 | wc -l) -eq 0
 
+log_must zdb -b $TESTPOOL
+
 log_pass "basic dedup (FDT) operations work"

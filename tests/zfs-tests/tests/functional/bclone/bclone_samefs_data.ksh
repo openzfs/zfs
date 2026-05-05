@@ -46,4 +46,7 @@ for filesize in 1 107 113 511 512 513 4095 4096 4097 131071 131072 131073 \
     bclone_test random $filesize false $TESTSRCDIR $TESTSRCDIR
 done
 
+sync_pool $TESTPOOL
+log_must zdb -b $TESTPOOL
+
 log_pass

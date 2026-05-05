@@ -45,4 +45,7 @@ log_must zfs set recordsize=$RECORDSIZE $TESTSRCFS
 
 bclone_corner_cases_test $TESTSRCDIR $TESTSRCDIR
 
+sync_pool $TESTPOOL
+log_must zdb -b $TESTPOOL
+
 log_pass
