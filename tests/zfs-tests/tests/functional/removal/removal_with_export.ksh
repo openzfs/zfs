@@ -29,7 +29,7 @@ log_onexit default_cleanup_noexit
 function callback
 {
 	test_removal_with_operation_kill
-	log_must zpool export $TESTPOOL
+	log_must_busy zpool export $TESTPOOL
 
 	#
 	# We are concurrently starting dd processes that will
