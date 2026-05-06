@@ -971,6 +971,128 @@ test_cursor_release_one(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/* zap_value_search: find key with given uint64 value. */
+static MunitResult
+test_zap_value_search(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Add some items. */
+	uint64_t v1 = 1, v2 = 2, v3 = 3;
+	unit_ok(zap_add_by_dnode(dn, "one", sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, "two", sizeof (uint64_t), 1, &v2, tx));
+	unit_ok(zap_add_by_dnode(dn, "three", sizeof (uint64_t), 1, &v3, tx));
+
+	char name[ZAP_MAXNAMELEN];
+
+	/* Find one of them. */
+	unit_ok(zap_value_search_by_dnode(dn, 2, 0, name, sizeof (name)));
+	unit_str_eq(name, "two");
+
+	/* Nonexistent value. */
+	unit_err(zap_value_search_by_dnode(dn, 10, 0,
+	    name, sizeof (name)), ENOENT);
+
+	/* Buffer too small for the key. */
+	unit_err(zap_value_search_by_dnode(dn, 3, 0, name, 2), ENAMETOOLONG);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_value_search: value masks */
+static MunitResult
+test_zap_value_search_mask(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/*
+	 * Add a set of values. These all have the same bottom 16 bits, with
+	 * different upper 48 bits, segmented so we can mask them in different
+	 * and interesting ways.
+	 */
+	uint64_t v1 = 0x000000000000f0f0ull;
+	uint64_t v2 = 0x00000000fffff0f0ull;
+	uint64_t v3 = 0x0000ffff0000f0f0ull;
+	uint64_t v4 = 0xffff00000000f0f0ull;
+
+	/*
+	 * Generate four random keys. We do this because zap_value_search() is
+	 * implemented with a simple cursor walk, so will always return the
+	 * first match in hash order, which with fixed keys will always give
+	 * exactly the same results. Using random keys ensures the test values
+	 * are encountered in different orders between test runs, giving us
+	 * better coverage when there are multiple matches.
+	 */
+
+	char k1[9], k2[9], k3[9], k4[9];
+	unit_rand_str(k1, sizeof (k1));
+	unit_rand_str(k2, sizeof (k2));
+	unit_rand_str(k3, sizeof (k3));
+	unit_rand_str(k4, sizeof (k4));
+
+	unit_ok(zap_add_by_dnode(dn, k1, sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, k2, sizeof (uint64_t), 1, &v2, tx));
+	unit_ok(zap_add_by_dnode(dn, k3, sizeof (uint64_t), 1, &v3, tx));
+	unit_ok(zap_add_by_dnode(dn, k4, sizeof (uint64_t), 1, &v4, tx));
+
+	char name[ZAP_MAXNAMELEN];
+
+	/* 0 mask is equivalent to all bits set in mask ie exact match. */
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xf0f0, 0, name, sizeof (name)));
+	unit_str_eq(name, k1);
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xf0f0, 0xffffffffffffffffull, name, sizeof (name)));
+	unit_str_eq(name, k1);
+
+	/* Low 16 bits could match any. */
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xf0f0, 0xffff, name, sizeof (name)));
+
+	/* Low 32 bits, 3/1 matches. */
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0x0000f0f0, 0xffffffff, name, sizeof (name)));
+	unit_true(strcmp(name, k1) == 0 || strcmp(name, k3) == 0 ||
+	    strcmp(name, k4) == 0);
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xfffff0f0, 0xffffffff, name, sizeof (name)));
+	unit_str_eq(name, k2);
+
+	/* Low 48 bits, 2/1/1 matches */
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0x00000000f0f0ull, 0xffffffffffffull, name, sizeof (name)));
+	unit_true(strcmp(name, k1) == 0 || strcmp(name, k4) == 0);
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0x0000fffff0f0ull, 0xffffffffffffull, name, sizeof (name)));
+	unit_str_eq(name, k2);
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xffff0000f0f0ull, 0xffffffffffffull, name, sizeof (name)));
+	unit_str_eq(name, k3);
+
+	/* Value doesn't exist directly, but matches when mask applied. */
+	unit_ok(zap_value_search_by_dnode(dn,
+	    0xffffffff, 0xffff0000, name, sizeof (name)));
+	unit_str_eq(name, k2);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /* Test suite definition and boilerplate. */
 
 #define	UNIT_PARAM_ZAP_TYPES(p)	\
@@ -1016,6 +1138,11 @@ static const MunitTest zap_tests[] = {
 	    "cursor_release_empty",	test_cursor_release_empty),
 	UNIT_TEST_ZAP_TYPES(
 	    "cursor_release_one",	test_cursor_release_one),
+
+	UNIT_TEST_ZAP_TYPES(
+	    "zap_value_search",		test_zap_value_search),
+	UNIT_TEST_ZAP_TYPES(
+	    "zap_value_search_mask",	test_zap_value_search_mask),
 
 	{ 0 },
 };
