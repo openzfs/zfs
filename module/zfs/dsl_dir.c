@@ -1541,7 +1541,10 @@ static void dsl_dir_diduse_transfer_space_impl(dsl_dir_t *dd, int64_t used,
 static void
 dsl_dir_lock_enter(dsl_dir_t *dd, boolean_t nested)
 {
-	/* lockdep needs an explicit subclass when a child dd_lock nests an ancestor */
+	/*
+	 * lockdep needs an explicit subclass when a child dd_lock
+	 * nests an ancestor.
+	 */
 	if (nested) {
 		mutex_enter_nested(&dd->dd_lock, NESTED_SINGLE);
 	} else {
@@ -1605,8 +1608,8 @@ dsl_dir_diduse_space_impl(dsl_dir_t *dd, dd_used_t type,
 }
 
 void
-dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
-    int64_t used, int64_t compressed, int64_t uncompressed, dmu_tx_t *tx)
+dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type, int64_t used,
+    int64_t compressed, int64_t uncompressed, dmu_tx_t *tx)
 {
 	dsl_dir_diduse_space_impl(dd, type, used, compressed, uncompressed,
 	    B_FALSE, tx);
