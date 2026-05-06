@@ -832,6 +832,8 @@ typedef struct arc_stats {
 	 * due to ARC_FLAG_UNCACHED being set.
 	 */
 	kstat_named_t arcstat_uncached_evictable_metadata;
+	/* Number of L2ARC devices currently attached across all pools. */
+	kstat_named_t arcstat_l2_ndev;
 	kstat_named_t arcstat_l2_hits;
 	kstat_named_t arcstat_l2_misses;
 	/*

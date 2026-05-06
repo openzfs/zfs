@@ -586,6 +586,7 @@ arc_stats_t arc_stats = {
 	{ "uncached_metadata",		KSTAT_DATA_UINT64 },
 	{ "uncached_evictable_data",	KSTAT_DATA_UINT64 },
 	{ "uncached_evictable_metadata", KSTAT_DATA_UINT64 },
+	{ "l2_ndev",			KSTAT_DATA_UINT64 },
 	{ "l2_hits",			KSTAT_DATA_UINT64 },
 	{ "l2_misses",			KSTAT_DATA_UINT64 },
 	{ "l2_prefetch_asize",		KSTAT_DATA_UINT64 },
@@ -7440,6 +7441,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    aggsum_value(&arc_sums.arcstat_dnode_size);
 	as->arcstat_bonus_size.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_bonus_size);
+	as->arcstat_l2_ndev.value.ui64 = l2arc_ndev;
 	as->arcstat_l2_hits.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_hits);
 	as->arcstat_l2_misses.value.ui64 =
