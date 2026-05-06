@@ -517,6 +517,216 @@ test_fatzap_stats(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/* Cursor tests. */
+
+/*
+ * Basic cursor test. Add a bunch of keys+values to a ZAP, read them back
+ * via cursor, confirm they're all there and nothing else is.
+ */
+static MunitResult
+test_cursor(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* For each ASCII letter as key, add a unique value to the ZAP. */
+	for (int i = 0; i < 26; i++) {
+		char c = (char)i + 'a';
+		char k[2] = { c, '\0' };
+		uint64_t v = (uint64_t)c * 11;
+		unit_ok(zap_add_by_dnode(dn, k, sizeof (uint64_t), 1, &v, tx));
+	}
+
+	/* Sanity check; confirm they're all there by count. */
+	uint64_t count = 0;
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 26);
+
+	zap_cursor_t zc;
+	zap_attribute_t *za = zap_attribute_alloc();
+
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+
+	/*
+	 * Cursors don't guarantee an order, so we run over them them all,
+	 * confirm the key matches the value, and then set a bit for each
+	 * one we've seen. By the end, we should have seen them all.
+	 */
+	uint64_t seen = 0;
+	for (int i = 0; i < 26; i++) {
+		unit_ok(zap_cursor_retrieve(&zc, za));
+
+		/* Confirm attribute has the right details for the value. */
+		unit_eq(za->za_integer_length, sizeof (uint64_t));
+		unit_eq(za->za_num_integers, 1);
+
+		/*
+		 * And the right key in za_name. Note that we don't check
+		 * za_name_len, which is the length of a buffer that can
+		 * definitely hold the key, not the key length itself.
+		 */
+		char c = za->za_name[0];
+		unit_true(c >= 'a' && c <= 'z');
+		unit_zero(za->za_name[1]);
+
+		/* Check the value in the attribute. */
+		uint64_t v = (uint64_t)c * 11;
+		unit_eq(za->za_first_integer, v);
+
+		/*
+		 * Also do a direct lookup and confirm the value matches
+		 * the value from the attribute.
+		 */
+		char k[2] = { c, '\0' };
+		uint64_t result = 0;
+		unit_ok(zap_lookup_by_dnode(dn, k,
+		    sizeof (uint64_t), 1, &result));
+		unit_eq(result, v);
+
+		/* This one is good, set the bit to remember this fact. */
+		seen |= 1 << (c-'a');
+
+		zap_cursor_advance(&zc);
+	}
+
+	/* There should be no more keys in the ZAP. */
+	unit_err(zap_cursor_retrieve(&zc, za), ENOENT);
+
+	/* Bits 0-25 should be set if we've seen them all. */
+	unit_eq(seen, (1 << 26) - 1);
+
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/*
+ * Cursor serialize test. Add a bunch of items, use the cursor to read half of
+ * them back, then serialize the cursor. Reload the cursor from the serialized
+ * state and confirm that we pick up where we left off. Then do it again to
+ * ensure it doesn't rely on any internal state.
+ */
+static MunitResult
+test_cursor_serialize(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* For each ASCII letter as key, add a unique value to the ZAP. */
+	for (int i = 0; i < 26; i++) {
+		char c = (char)i + 'a';
+		char k[2] = { c, '\0' };
+		uint64_t v = (uint64_t)c * 11;
+		unit_ok(zap_add_by_dnode(dn, k, sizeof (uint64_t), 1, &v, tx));
+	}
+
+	/* Sanity check; confirm they're all there by count. */
+	uint64_t count = 0;
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 26);
+
+	/*
+	 * Like test_cursor above, we'll walk over the ZAP and set bits
+	 * for each key we see.
+	 */
+	zap_cursor_t zc;
+	zap_attribute_t *za = zap_attribute_alloc();
+	uint64_t seen = 0;
+
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	for (int i = 0; i < 13; i++) {
+		unit_ok(zap_cursor_retrieve(&zc, za));
+
+		char c = za->za_name[0];
+		unit_true(c >= 'a' && c <= 'z');
+
+		/* This one is good, set the bit to remember this fact. */
+		seen |= 1 << (c-'a');
+
+		zap_cursor_advance(&zc);
+	}
+
+	/* Serialise the and terminate the cursor. */
+	uint64_t cookie = zap_cursor_serialize(&zc);
+	zap_cursor_fini(&zc);
+
+	/*
+	 * Record the bits we saw in the first iteration; we'll use this
+	 * when we reload the cursor a second time below.
+	 */
+	uint64_t orig_seen = seen;
+
+	/* Reinitialise the cursor from the cookie. */
+	unit_ok(zap_cursor_init_serialized_by_dnode(&zc, dn, cookie));
+
+	/* Loop over the remaining entries and track them. */
+	for (int i = 0; i < 13; i++) {
+		unit_ok(zap_cursor_retrieve(&zc, za));
+
+		char c = za->za_name[0];
+		unit_true(c >= 'a' && c <= 'z');
+
+		/* This one is good, set the bit to remember this fact. */
+		seen |= 1 << (c-'a');
+
+		zap_cursor_advance(&zc);
+	}
+
+	/* There should be no more keys in the ZAP. */
+	unit_err(zap_cursor_retrieve(&zc, za), ENOENT);
+
+	/* Bits 0-25 should be set if we've seen them all. */
+	unit_eq(seen, (1 << 26) - 1);
+
+	/* Cursor done. */
+	zap_cursor_fini(&zc);
+
+	/*
+	 * Restore the seen state to before when we reinitialised the saved
+	 * cursor.
+	 */
+	seen = orig_seen;
+
+	/*
+	 * Do it all again a second time. This is making sure that the saved
+	 * cursor is usable even after the its been "used".
+	 */
+	unit_ok(zap_cursor_init_serialized_by_dnode(&zc, dn, cookie));
+	for (int i = 0; i < 13; i++) {
+		unit_ok(zap_cursor_retrieve(&zc, za));
+
+		char c = za->za_name[0];
+		unit_true(c >= 'a' && c <= 'z');
+
+		seen |= 1 << (c-'a');
+
+		zap_cursor_advance(&zc);
+	}
+
+	unit_err(zap_cursor_retrieve(&zc, za), ENOENT);
+	unit_eq(seen, (1 << 26) - 1);
+
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /* Test suite definition and boilerplate. */
 
 #define	UNIT_PARAM_ZAP_TYPES(p)	\
@@ -545,6 +755,9 @@ static const MunitTest zap_tests[] = {
 
 	UNIT_TEST("microzap_stats",		test_microzap_stats),
 	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
+
+	UNIT_TEST_ZAP_TYPES("cursor",		test_cursor),
+	UNIT_TEST_ZAP_TYPES("cursor_serialize",	test_cursor_serialize),
 
 	{ 0 },
 };
