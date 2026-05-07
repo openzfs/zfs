@@ -2434,9 +2434,13 @@ top:
 	    &zp->z_pflags, sizeof (zp->z_pflags));
 
 	if (attrzp) {
+		/*
+		 * attrzp is zp's hidden xattr directory, so the second
+		 * znode lock acquisition is nested rather than recursive.
+		 */
 		if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
-			mutex_enter(&attrzp->z_acl_lock);
-		mutex_enter(&attrzp->z_lock);
+			mutex_enter_nested(&attrzp->z_acl_lock, NESTED_SINGLE);
+		mutex_enter_nested(&attrzp->z_lock, NESTED_SINGLE);
 		SA_ADD_BULK_ATTR(xattr_bulk, xattr_count,
 		    SA_ZPL_FLAGS(zfsvfs), NULL, &attrzp->z_pflags,
 		    sizeof (attrzp->z_pflags));
