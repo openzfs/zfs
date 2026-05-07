@@ -14,6 +14,7 @@
 
 #
 # Copyright (c) 2019 by Datto, Inc. All rights reserved.
+# Copyright (c) 2026, Klara Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -31,8 +32,8 @@
 
 function cleanup
 {
-        destroy_pool $TESTPOOL1
-	rm -f $TESTDIR/file1.bin
+    destroy_pool $TESTPOOL1
+    rm -f $TESTDIR/file1.bin
 }
 
 log_assert "Verify zdb -f fails on non-raidz pool"

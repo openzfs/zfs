@@ -14,6 +14,7 @@
 
 #
 # Copyright (c) 2019 by Datto, Inc. All rights reserved.
+# Copyright (c) 2026, Klara Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -36,8 +37,8 @@ COMPARE=/tmp/compare.$$
 
 function cleanup
 {
-        destroy_pool $TESTPOOL1
-        rm -f $TESTDIR/file?.bin $COMPARE
+    destroy_pool $TESTPOOL1
+    rm -f $TESTDIR/file?.bin $COMPARE
 }
 
 log_assert "Verify zdb -fHv displays correct offsets"
