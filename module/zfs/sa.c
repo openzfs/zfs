@@ -1605,8 +1605,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 
 	bulk = kmem_zalloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_SLEEP);
 	attrs = kmem_zalloc(sizeof (sa_bulk_attr_t) * ZPL_END, KM_SLEEP);
-	mutex_enter(&hdl->sa_lock);
 	mutex_enter(&zp->z_lock);
+	mutex_enter(&hdl->sa_lock);
 
 	err = sa_lookup_locked(hdl, SA_ZPL_PROJID(zfsvfs), &projid,
 	    sizeof (uint64_t));
@@ -1750,8 +1750,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	zp->z_is_sa = B_TRUE;
 
 out:
-	mutex_exit(&zp->z_lock);
 	mutex_exit(&hdl->sa_lock);
+	mutex_exit(&zp->z_lock);
 	kmem_free(attrs, sizeof (sa_bulk_attr_t) * ZPL_END);
 	kmem_free(bulk, sizeof (sa_bulk_attr_t) * ZPL_END);
 	if (dxattr_obj)
