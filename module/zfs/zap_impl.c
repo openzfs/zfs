@@ -413,22 +413,13 @@ zap_lock(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     zap_t **zapp)
 {
 	dnode_t *dn;
-	dmu_buf_t *db;
 	int err;
 
 	err = dnode_hold(os, obj, tag, &dn);
 	if (err != 0)
 		return (err);
-	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
-	if (err != 0) {
-		dnode_rele(dn, tag);
-		return (err);
-	}
-	err = zap_lock_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
-	if (err != 0) {
-		dmu_buf_rele(db, tag);
-		dnode_rele(dn, tag);
-	}
+	err = zap_lock_by_dnode(dn, tx, lti, fatreader, adding, tag, zapp);
+	dnode_rele(dn, tag);
 	return (err);
 }
 
