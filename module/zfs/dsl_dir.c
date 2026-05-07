@@ -1534,9 +1534,28 @@ dsl_dir_willuse_space(dsl_dir_t *dd, int64_t space, dmu_tx_t *tx)
 }
 
 /* call from syncing context when we actually write/free space for this dd */
-void
-dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
-    int64_t used, int64_t compressed, int64_t uncompressed, dmu_tx_t *tx)
+static void dsl_dir_diduse_transfer_space_impl(dsl_dir_t *dd, int64_t used,
+    int64_t compressed, int64_t uncompressed, int64_t tonew,
+    dd_used_t oldtype, dd_used_t newtype, boolean_t nested, dmu_tx_t *tx);
+
+static void
+dsl_dir_lock_enter(dsl_dir_t *dd, boolean_t nested)
+{
+	/*
+	 * lockdep needs an explicit subclass when a child dd_lock
+	 * nests an ancestor.
+	 */
+	if (nested) {
+		mutex_enter_nested(&dd->dd_lock, NESTED_SINGLE);
+	} else {
+		mutex_enter(&dd->dd_lock);
+	}
+}
+
+static void
+dsl_dir_diduse_space_impl(dsl_dir_t *dd, dd_used_t type,
+    int64_t used, int64_t compressed, int64_t uncompressed,
+    boolean_t nested, dmu_tx_t *tx)
 {
 	int64_t accounted_delta;
 
@@ -1554,7 +1573,7 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 	 */
 	boolean_t needlock = !MUTEX_HELD(&dd->dd_lock);
 	if (needlock)
-		mutex_enter(&dd->dd_lock);
+		dsl_dir_lock_enter(dd, nested);
 	dsl_dir_phys_t *ddp = dsl_dir_phys(dd);
 	accounted_delta = parent_delta(dd, ddp->dd_used_bytes, used);
 	ASSERT(used >= 0 || ddp->dd_used_bytes >= -used);
@@ -1582,10 +1601,18 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 		mutex_exit(&dd->dd_lock);
 
 	if (dd->dd_parent != NULL) {
-		dsl_dir_diduse_transfer_space(dd->dd_parent,
+		dsl_dir_diduse_transfer_space_impl(dd->dd_parent,
 		    accounted_delta, compressed, uncompressed,
-		    used, DD_USED_CHILD_RSRV, DD_USED_CHILD, tx);
+		    used, DD_USED_CHILD_RSRV, DD_USED_CHILD, nested, tx);
 	}
+}
+
+void
+dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type, int64_t used,
+    int64_t compressed, int64_t uncompressed, dmu_tx_t *tx)
+{
+	dsl_dir_diduse_space_impl(dd, type, used, compressed, uncompressed,
+	    B_FALSE, tx);
 }
 
 void
@@ -1612,10 +1639,10 @@ dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
 	mutex_exit(&dd->dd_lock);
 }
 
-void
-dsl_dir_diduse_transfer_space(dsl_dir_t *dd, int64_t used,
+static void
+dsl_dir_diduse_transfer_space_impl(dsl_dir_t *dd, int64_t used,
     int64_t compressed, int64_t uncompressed, int64_t tonew,
-    dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx)
+	dd_used_t oldtype, dd_used_t newtype, boolean_t nested, dmu_tx_t *tx)
 {
 	int64_t accounted_delta;
 
@@ -1625,7 +1652,7 @@ dsl_dir_diduse_transfer_space(dsl_dir_t *dd, int64_t used,
 
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
 
-	mutex_enter(&dd->dd_lock);
+	dsl_dir_lock_enter(dd, nested);
 	dsl_dir_phys_t *ddp = dsl_dir_phys(dd);
 	accounted_delta = parent_delta(dd, ddp->dd_used_bytes, used);
 	ASSERT(used >= 0 || ddp->dd_used_bytes >= -used);
@@ -1656,10 +1683,19 @@ dsl_dir_diduse_transfer_space(dsl_dir_t *dd, int64_t used,
 	mutex_exit(&dd->dd_lock);
 
 	if (dd->dd_parent != NULL) {
-		dsl_dir_diduse_transfer_space(dd->dd_parent,
+		dsl_dir_diduse_transfer_space_impl(dd->dd_parent,
 		    accounted_delta, compressed, uncompressed,
-		    used, DD_USED_CHILD_RSRV, DD_USED_CHILD, tx);
+		    used, DD_USED_CHILD_RSRV, DD_USED_CHILD, nested, tx);
 	}
+}
+
+void
+dsl_dir_diduse_transfer_space(dsl_dir_t *dd, int64_t used,
+    int64_t compressed, int64_t uncompressed, int64_t tonew,
+    dd_used_t oldtype, dd_used_t newtype, dmu_tx_t *tx)
+{
+	dsl_dir_diduse_transfer_space_impl(dd, used, compressed,
+	    uncompressed, tonew, oldtype, newtype, B_FALSE, tx);
 }
 
 typedef struct dsl_dir_set_qr_arg {
@@ -1828,8 +1864,8 @@ dsl_dir_set_reservation_sync_impl(dsl_dir_t *dd, uint64_t value, dmu_tx_t *tx)
 
 	if (dd->dd_parent != NULL) {
 		/* Roll up this additional usage into our ancestors */
-		dsl_dir_diduse_space(dd->dd_parent, DD_USED_CHILD_RSRV,
-		    delta, 0, 0, tx);
+		dsl_dir_diduse_space_impl(dd->dd_parent, DD_USED_CHILD_RSRV,
+		    delta, 0, 0, B_TRUE, tx);
 	}
 	mutex_exit(&dd->dd_lock);
 }
