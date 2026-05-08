@@ -565,10 +565,10 @@ def init():
 
     update_hdr_intr()
 
-    # check if L2ARC exists
+    # check if L2ARC exists; fall back to l2_size for older kernels that
+    # do not export l2_ndev
     snap_stats()
-    l2_size = cur.get("l2_size")
-    if l2_size:
+    if cur.get("l2_ndev") or cur.get("l2_size"):
         l2exist = True
 
     if desired_cols:
