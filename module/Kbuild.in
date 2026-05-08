@@ -408,6 +408,8 @@ ZFS_OBJS := \
 	vdev_root.o \
 	vdev_trim.o \
 	zap.o \
+	zap_fat.o \
+	zap_impl.o \
 	zap_leaf.o \
 	zap_micro.o \
 	zcp.o \
