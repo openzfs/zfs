@@ -102,4 +102,6 @@ log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique:.*entries=4'"
 # should be just one DDT ZAP in the MOS
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 1
 
+log_must zdb -b $TESTPOOL
+
 log_pass "dedup (legacy) retains version after import"

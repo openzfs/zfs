@@ -102,4 +102,6 @@ log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-blake3 | wc -l) -eq 1
 obj=$(zdb -dddd $TESTPOOL 1 | grep DDT-blake3 | awk '{ print $NF }')
 log_must test $(zdb -dddd $TESTPOOL $obj | grep DDT-.*-zap- | wc -l) -eq 1
 
+log_must zdb -b $TESTPOOL
+
 log_pass "legacy and FDT dedup tables on the same pool can happily coexist"

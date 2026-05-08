@@ -127,4 +127,6 @@ obj=$(zdb -dddd $TESTPOOL 1 | grep DDT-sha256 | awk '{ print $NF }')
 # with one ZAP inside
 log_must test $(zdb -dddd $TESTPOOL $obj | grep DDT-sha256-zap- | wc -l) -eq 1
 
+log_must zdb -b $TESTPOOL
+
 log_pass "legacy dedup tables work after upgrade; new dedup tables created as FDT"

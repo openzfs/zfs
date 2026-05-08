@@ -128,4 +128,7 @@ typeset blocks=$(get_same_blocks $TESTPOOL/$TESTFS file2 \
 # FreeBSD's seq(1) leaves a trailing space, remove it with sed(1).
 log_must [ "$blocks" = "$(seq -s " " 0 2047 | sed 's/ $//')" ]
 
+sync_pool $TESTPOOL
+log_must zdb -b $TESTPOOL
+
 log_pass $claim

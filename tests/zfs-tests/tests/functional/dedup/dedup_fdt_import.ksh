@@ -117,4 +117,6 @@ obj=$(zdb -dddd $TESTPOOL 1 | grep DDT-sha256 | awk '{ print $NF }')
 # with only one ZAP inside
 log_must test $(zdb -dddd $TESTPOOL $obj | grep DDT-sha256-zap- | wc -l) -eq 1
 
+log_must zdb -b $TESTPOOL
+
 log_pass "dedup (FDT) retains version after import"

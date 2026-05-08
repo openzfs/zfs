@@ -93,4 +93,6 @@ log_must eval "zdb -D $TESTPOOL | grep -q 'All DDTs are empty'"
 # logical table now destroyed; all DDT ZAPs removed
 log_must test $(zdb -dddd $TESTPOOL 1 | grep DDT-sha256-zap- | wc -l) -eq 0
 
+log_must zdb -b $TESTPOOL
+
 log_pass "basic dedup (legacy) operations work"
