@@ -856,7 +856,10 @@ def section_l2arc(kstats_dict):
     # The L2ARC statistics live in the same section as the normal ARC stuff
     arc_stats = isolate_section('arcstats', kstats_dict)
 
-    if arc_stats['l2_size'] == '0':
+    # Skip the section only when no cache device is attached. Fall back to
+    # l2_size for older kernels that do not export l2_ndev.
+    if arc_stats.get('l2_ndev', '0') == '0' and \
+            arc_stats['l2_size'] == '0':
         print('L2ARC not detected, skipping section\n')
         return
 
