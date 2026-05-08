@@ -4,6 +4,7 @@
 .\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" Copyright (c) 2023, 2024, 2025, Klara, Inc.
+.\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\"
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -18,7 +19,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd September 15, 2025
+.Dd May 8, 2026
 .Dt ZFS 4
 .Os
 .
@@ -768,9 +769,15 @@ See also
 which serves a similar purpose but has a higher priority if nonzero.
 .
 .It Sy zfs_arc_dnode_reduce_percent Ns = Ns Sy 10 Ns % Pq u64
-Percentage of ARC dnodes to try to scan in response to demand for non-metadata
-when the number of bytes consumed by dnodes exceeds
-.Sy zfs_arc_dnode_limit .
+Percentage used to size dnode prune requests.
+The request size is the larger of two values:
+.Sy zfs_arc_dnode_reduce_percent
+applied to the dnode count above
+.Sy zfs_arc_dnode_limit ,
+or
+.Sy zfs_arc_dnode_reduce_percent
+applied to the total dnode count
+when non-evictable metadata exceeds 3/4 of the metadata target.
 .
 .It Sy zfs_arc_average_blocksize Ns = Ns Sy 8192 Ns B Po 8 KiB Pc Pq uint
 The ARC's buffer hash table is sized based on the assumption of an average
