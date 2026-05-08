@@ -95,5 +95,6 @@ new_entries=$(ddt_entries)
 [[ "$((entries / 4))" -eq "$new_entries" ]] || \
 	log_fail "DDT entries did not shrink enough: $entries -> $new_entries"
 
+log_must zdb -b $TESTPOOL
 
 log_pass "DDT pruning correctly removes non-duplicate entries"

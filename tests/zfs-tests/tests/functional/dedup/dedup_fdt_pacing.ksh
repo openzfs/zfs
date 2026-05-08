@@ -107,4 +107,6 @@ log_entries3=$(get_ddt_log_entries)
 # Verify there are 256 entries in the unique table.
 log_must eval "zdb -D $TESTPOOL | grep -q 'DDT-sha256-zap-unique:.*entries=256'"
 
+log_must zdb -b $TESTPOOL
+
 log_pass "dedup (FDT) paces out log entries appropriately"

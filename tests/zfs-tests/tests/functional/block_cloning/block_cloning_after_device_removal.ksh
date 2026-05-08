@@ -57,5 +57,9 @@ log_must zfs create $TESTPOOL/$TESTFS
 log_must clonefile -f /$TESTPOOL/file /$TESTPOOL/$TESTFS/file
 log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=16M count=2
 log_must zfs destroy -r $TESTPOOL/$TESTFS
+wait_freeing $TESTPOOL
+sync_pool $TESTPOOL
+
+log_must zdb -b $TESTPOOL
 
 log_pass $claim

@@ -83,4 +83,6 @@ log_must zpool import $TESTPOOL
 nleafs=$(zdb -dddd $TESTPOOL "$zap_obj" | grep "Leaf blocks:" | awk -F\: '{print($2);}')
 log_must test $nleafs -lt $nleafs_old
 
+log_must zdb -b $TESTPOOL
+
 log_pass "ZAP object shrank after removing entries."

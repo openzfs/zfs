@@ -5855,21 +5855,14 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
     dmu_object_type_t type)
 {
 	int i;
+	boolean_t claimed = B_FALSE;
+	boolean_t ddt_block = B_FALSE;
+	boolean_t brt_block = B_FALSE;
 
 	ASSERT(type < ZDB_OT_TOTAL);
 
 	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
 		return;
-
-	/*
-	 * This flag controls if we will issue a claim for the block while
-	 * counting it, to ensure that all blocks are referenced in space maps.
-	 * We don't issue claims if we're not doing leak tracking, because it's
-	 * expensive if the user isn't interested. We also don't claim the
-	 * second or later occurences of cloned or dedup'd blocks, because we
-	 * already claimed them the first time.
-	 */
-	boolean_t do_claim = !dump_opt['L'];
 
 	spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -5901,20 +5894,29 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		ddt_entry_t *dde = ddt_lookup(ddt, bp, B_TRUE);
 
 		/*
-		 * ddt_lookup() can return NULL if this block didn't exist
-		 * in the DDT and creating it would take the DDT over its
-		 * quota. Since we got the block from disk, it must exist in
-		 * the DDT, so this can't happen. However, when unique entries
-		 * are pruned, the dedup bit can be set with no corresponding
-		 * entry in the DDT.
+		 * ddt_lookup() can return NULL when unique entries are pruned
+		 * from the DDT.
 		 */
 		if (dde == NULL) {
 			ddt_exit(ddt);
-			goto skipped;
+			goto ddt_done;
 		}
 
 		/* Get the phys for this variant */
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
+
+		/*
+		 * DDT_PHYS_NONE means the block has the dedup bit set but
+		 * its DVA doesn't match any phys in the entry.  This can
+		 * happen when a DVA was evicted from the DDT and re-added
+		 * on a hash collision.  The block may still have a BRT entry.
+		 */
+		if (v == DDT_PHYS_NONE) {
+			ddt_exit(ddt);
+			goto ddt_done;
+		}
+
+		ddt_block = B_TRUE;
 
 		/*
 		 * This entry may have multiple sets of DVAs. We must claim
@@ -5930,8 +5932,14 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 			dde->dde_io =
 			    (void *)(((uintptr_t)dde->dde_io) | (1 << v));
 
-		/* Consume a reference for this block. */
-		if (ddt_phys_total_refcnt(ddt, dde->dde_phys) > 0)
+		/*
+		 * Consume a reference.  If this variant's refcount is already
+		 * zero, the DDT tracking is exhausted — more filesystem
+		 * references exist than the DDT accounts for.
+		 */
+		boolean_t ddt_refcnt_exhausted =
+		    (ddt_phys_refcnt(dde->dde_phys, v) == 0);
+		if (!ddt_refcnt_exhausted)
 			ddt_phys_decref(dde->dde_phys, v);
 
 		/*
@@ -5960,20 +5968,21 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 			bp = &tempbp;
 		}
 
-		if (seen) {
+		if (seen && !ddt_refcnt_exhausted) {
 			/*
 			 * The second or later time we see this block,
 			 * it's a duplicate and we count it.
 			 */
 			zcb->zcb_dedup_asize += BP_GET_ASIZE(bp);
 			zcb->zcb_dedup_blocks++;
-
-			/* Already claimed, don't do it again. */
-			do_claim = B_FALSE;
+			claimed = B_TRUE;
 		}
 
 		ddt_exit(ddt);
-	} else if (zcb->zcb_brt_is_active &&
+	}
+
+ddt_done:
+	if (!claimed && zcb->zcb_brt_is_active &&
 	    brt_maybe_exists(zcb->zcb_spa, bp)) {
 		/*
 		 * Cloned blocks are special. We need to count them, so we can
@@ -5981,10 +5990,8 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		 * only claim them once.
 		 *
 		 * To do this, we keep our own in-memory BRT. For each block
-		 * we haven't seen before, we look it up in the real BRT and
-		 * if its there, we note it and its refcount then proceed as
-		 * normal. If we see the block again, we count it as a clone
-		 * and then give it no further consideration.
+		 * we haven't seen before, we look it up in the real BRT. If
+		 * we see the block again, we count it as a clone.
 		 */
 		zdb_brt_entry_t zbre_search, *zbre;
 		avl_index_t where;
@@ -5992,36 +5999,27 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		zbre_search.zbre_dva = bp->blk_dva[0];
 		zbre = avl_find(&zcb->zcb_brt, &zbre_search, &where);
 		if (zbre == NULL) {
-			/* Not seen before; track it */
 			uint64_t refcnt =
 			    brt_entry_get_refcount(zcb->zcb_spa, bp);
 			if (refcnt > 0) {
+				brt_block = B_TRUE;
 				zbre = umem_zalloc(sizeof (zdb_brt_entry_t),
 				    UMEM_NOFAIL);
 				zbre->zbre_dva = bp->blk_dva[0];
 				zbre->zbre_refcount = refcnt;
 				avl_insert(&zcb->zcb_brt, zbre, where);
 			}
-		} else  {
-			/*
-			 * Second or later occurrence, count it and take a
-			 * refcount.
-			 */
-			zcb->zcb_clone_asize += BP_GET_ASIZE(bp);
-			zcb->zcb_clone_blocks++;
-
-			zbre->zbre_refcount--;
-			if (zbre->zbre_refcount == 0) {
-				avl_remove(&zcb->zcb_brt, zbre);
-				umem_free(zbre, sizeof (zdb_brt_entry_t));
+		} else {
+			brt_block = B_TRUE;
+			if (zbre->zbre_refcount > 0) {
+				zcb->zcb_clone_asize += BP_GET_ASIZE(bp);
+				zcb->zcb_clone_blocks++;
+				zbre->zbre_refcount--;
+				claimed = B_TRUE;
 			}
-
-			/* Already claimed, don't do it again. */
-			do_claim = B_FALSE;
 		}
 	}
 
-skipped:
 	for (i = 0; i < 4; i++) {
 		int l = (i < 2) ? BP_GET_LEVEL(bp) : ZB_TOTAL;
 		int t = (i & 1) ? type : ZDB_OT_TOTAL;
@@ -6124,12 +6122,21 @@ skipped:
 	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
 	zcb->zcb_asize_total += BP_GET_ASIZE(bp);
 
-	if (!do_claim)
+	if (claimed || dump_opt['L'])
 		return;
 
-	VERIFY0(zio_wait(zio_claim(NULL, zcb->zcb_spa,
+	int claim_err = zio_wait(zio_claim(NULL, zcb->zcb_spa,
 	    spa_min_claim_txg(zcb->zcb_spa), bp, NULL, NULL,
-	    ZIO_FLAG_CANFAIL)));
+	    ZIO_FLAG_CANFAIL));
+	if (claim_err != 0) {
+		char blkbuf[BP_SPRINTF_LEN];
+		snprintf_blkptr(blkbuf, sizeof (blkbuf), bp);
+		(void) printf("block claim error %d%s%s: %s\n",
+		    claim_err, brt_block ? " (BRT)" : "",
+		    ddt_block ? " (DDT)" : "", blkbuf);
+		zcb->zcb_haderrors = 1;
+		zcb->zcb_errors[claim_err]++;
+	}
 }
 
 static void
@@ -6904,10 +6911,66 @@ zdb_check_for_obsolete_leaks(vdev_t *vd, zdb_cb_t *zcb)
 static boolean_t
 zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 {
-	if (dump_opt['L'])
-		return (B_FALSE);
-
 	boolean_t leaks = B_FALSE;
+
+	/*
+	 * Report leaked BRT entries whose refcount was not fully consumed by
+	 * the traversal.
+	 */
+	if (zcb->zcb_brt_is_active) {
+		void *cookie = NULL;
+		zdb_brt_entry_t *zbre;
+		while ((zbre = avl_destroy_nodes(
+		    &zcb->zcb_brt, &cookie)) != NULL) {
+			if (!dump_opt['L'] && zbre->zbre_refcount != 0) {
+				(void) printf("BRT leak: vdev %llu, "
+				    "offset 0x%llx, refcount %llu\n",
+				    (u_longlong_t)DVA_GET_VDEV(
+				    &zbre->zbre_dva),
+				    (u_longlong_t)DVA_GET_OFFSET(
+				    &zbre->zbre_dva),
+				    (u_longlong_t)zbre->zbre_refcount);
+				leaks = B_TRUE;
+			}
+			umem_free(zbre, sizeof (zdb_brt_entry_t));
+		}
+		avl_destroy(&zcb->zcb_brt);
+	}
+
+	if (dump_opt['L'])
+		return (leaks);
+
+	/*
+	 * Report leaked DDT entries whose refcount was not fully consumed by
+	 * the traversal.  Entries in the DDT ZAP that were never looked up
+	 * are not detected here.
+	 */
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL)
+			continue;
+		ddt_enter(ddt);
+		for (ddt_entry_t *dde = avl_first(&ddt->ddt_tree); dde != NULL;
+		    dde = AVL_NEXT(&ddt->ddt_tree, dde)) {
+			for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+				ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
+				uint64_t refcnt = ddt_phys_refcnt(dde->dde_phys,
+				    v);
+				if (refcnt == 0)
+					continue;
+				blkptr_t blk;
+				char blkbuf[BP_SPRINTF_LEN];
+				ddt_bp_create(ddt->ddt_checksum, &dde->dde_key,
+				    dde->dde_phys, v, &blk);
+				snprintf_blkptr(blkbuf, sizeof (blkbuf), &blk);
+				(void) printf("DDT leak: refcount %llu %s\n",
+				    (u_longlong_t)refcnt, blkbuf);
+				leaks = B_TRUE;
+			}
+		}
+		ddt_exit(ddt);
+	}
+
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (unsigned c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
