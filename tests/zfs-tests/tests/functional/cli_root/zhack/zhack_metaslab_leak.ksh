@@ -31,7 +31,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	zpool destroy $TESTPOOL
+	destroy_pool $TESTPOOL
 	rm $tmp
 }
 
@@ -58,7 +58,7 @@ log_must eval "zdb -m --allocated-map $TESTPOOL > $tmp"
 log_must zpool destroy $TESTPOOL
 
 log_must zpool create $TESTPOOL $DISKS
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must eval "zhack metaslab leak $TESTPOOL < $tmp"
 log_must zpool import $TESTPOOL
 
