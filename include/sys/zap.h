@@ -24,6 +24,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -121,13 +122,13 @@ typedef enum zap_flags {
 /*
  * Create a new zapobj with no attributes and return its object number.
  */
-uint64_t zap_create(objset_t *ds, dmu_object_type_t ot,
+uint64_t zap_create(objset_t *os, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-uint64_t zap_create_dnsize(objset_t *ds, dmu_object_type_t ot,
+uint64_t zap_create_dnsize(objset_t *os, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
-uint64_t zap_create_norm(objset_t *ds, int normflags, dmu_object_type_t ot,
+uint64_t zap_create_norm(objset_t *os, int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-uint64_t zap_create_norm_dnsize(objset_t *ds, int normflags,
+uint64_t zap_create_norm_dnsize(objset_t *os, int normflags,
     dmu_object_type_t ot, dmu_object_type_t bonustype, int bonuslen,
     int dnodesize, dmu_tx_t *tx);
 uint64_t zap_create_flags(objset_t *os, int normflags, zap_flags_t flags,
@@ -137,11 +138,22 @@ uint64_t zap_create_flags_dnsize(objset_t *os, int normflags,
     zap_flags_t flags, dmu_object_type_t ot, int leaf_blockshift,
     int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
     int dnodesize, dmu_tx_t *tx);
+
+/*
+ * Create a zap object and return a pointer to the newly allocated dnode via
+ * the allocated_dnode argument.  The returned dnode will be held and the
+ * caller is responsible for releasing the hold by calling dnode_rele().
+ */
 uint64_t zap_create_hold(objset_t *os, int normflags, zap_flags_t flags,
     dmu_object_type_t ot, int leaf_blockshift, int indirect_blockshift,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize,
     dnode_t **allocated_dnode, const void *tag, dmu_tx_t *tx);
 
+/*
+ * Create a new zapobj with no attributes, and add an entry to an existing
+ * zapobj with the given name as key and the object number of the new zapobj as
+ * the value. Returns the object number of the new zapobj.
+ */
 uint64_t zap_create_link(objset_t *os, dmu_object_type_t ot,
     uint64_t parent_obj, const char *name, dmu_tx_t *tx);
 uint64_t zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot,
@@ -157,20 +169,21 @@ void mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags,
  * Create a new zapobj with no attributes from the given (unallocated)
  * object number.
  */
-int zap_create_claim(objset_t *ds, uint64_t obj, dmu_object_type_t ot,
+int zap_create_claim(objset_t *os, uint64_t obj, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-int zap_create_claim_dnsize(objset_t *ds, uint64_t obj, dmu_object_type_t ot,
+int zap_create_claim_dnsize(objset_t *os, uint64_t obj, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
-int zap_create_claim_norm(objset_t *ds, uint64_t obj,
+int zap_create_claim_norm(objset_t *os, uint64_t obj,
     int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-int zap_create_claim_norm_dnsize(objset_t *ds, uint64_t obj,
+int zap_create_claim_norm_dnsize(objset_t *os, uint64_t obj,
     int normflags, dmu_object_type_t ot,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
 
 /*
- * The zapobj passed in must be a valid ZAP object for all of the
- * following routines.
+ * All operations on a zapobj take either the the objset/objectid pair
+ * that "names" the object, or an existing dnode_t for the object. The
+ * zapobj passed in must be a valid ZAP object.
  */
 
 /*
@@ -178,7 +191,7 @@ int zap_create_claim_norm_dnsize(objset_t *ds, uint64_t obj,
  *
  * Frees the object number using dmu_object_free.
  */
-int zap_destroy(objset_t *ds, uint64_t zapobj, dmu_tx_t *tx);
+int zap_destroy(objset_t *os, uint64_t zapobj, dmu_tx_t *tx);
 
 /*
  * Manipulate attributes.
@@ -207,21 +220,32 @@ int zap_destroy(objset_t *ds, uint64_t zapobj, dmu_tx_t *tx);
  * fit will be transferred to 'buf'.  If the entire attribute was not
  * transferred, the call will return EOVERFLOW.
  */
-int zap_lookup(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_lookup(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf);
+int zap_lookup_by_dnode(dnode_t *dn, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf);
 
 /*
  * If rn_len is nonzero, realname will be set to the name of the found
  * entry (which may be different from the requested name if matchtype is
- * not MT_EXACT).
+ * not zero).
  *
  * If normalization_conflictp is not NULL, it will be set if there is
  * another name with the same case/unicode normalized form.
  */
-int zap_lookup_norm(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_lookup_norm(objset_t *os, uint64_t zapobj, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *normalization_conflictp);
+int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
+    uint64_t integer_size, uint64_t num_integers, void *buf,
+    matchtype_t mt, char *realname, int rn_len,
+    boolean_t *ncp);
+
+/*
+ * The _uint64 variants take an array of uint64_t as the key. The ZAP must
+ * be created with ZAP_FLAG_UINT64_KEY.
+ */
 int zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf);
 int zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
@@ -229,20 +253,30 @@ int zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
 int zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf,
     uint64_t *actual_num_integers);
-int zap_contains(objset_t *ds, uint64_t zapobj, const char *name);
+
+/*
+ * Lookup the attribute with the given name. Returns ENOENT if it does not
+ * exist, 0 if it does. This is like zap_lookup(), but may be more efficient.
+ */
+int zap_contains(objset_t *os, uint64_t zapobj, const char *name);
+
+/*
+ * Prefetch the blocks within the ZAP where the given key is stored. The
+ * prefetch IO will occure in the background.
+ */
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
-int zap_prefetch_object(objset_t *os, uint64_t zapobj);
+
+/* Prefetch by uint64_t[] key. */
 int zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints);
 int zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints);
 
-int zap_lookup_by_dnode(dnode_t *dn, const char *name,
-    uint64_t integer_size, uint64_t num_integers, void *buf);
-int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
-    uint64_t integer_size, uint64_t num_integers, void *buf,
-    matchtype_t mt, char *realname, int rn_len,
-    boolean_t *ncp);
+/*
+ * Prefetch the entire ZAP object. Unlike zap_prefetch(), will block until
+ * the entire object is loaded into the ARC.
+ */
+int zap_prefetch_object(objset_t *os, uint64_t zapobj);
 
 /*
  * Create an attribute with the given name and value.
@@ -250,13 +284,15 @@ int zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
  * If an attribute with the given name already exists, the call will
  * fail and return EEXIST.
  */
-int zap_add(objset_t *ds, uint64_t zapobj, const char *key,
+int zap_add(objset_t *os, uint64_t zapobj, const char *key,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
 int zap_add_by_dnode(dnode_t *dn, const char *key,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
-int zap_add_uint64(objset_t *ds, uint64_t zapobj, const uint64_t *key,
+
+/* Add by uint64_t[] key. */
+int zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx);
 int zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
@@ -271,8 +307,10 @@ int zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * existing attribute's integer size, in which case the attribute's
  * integer size will be updated to the new value.
  */
-int zap_update(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_update(objset_t *os, uint64_t zapobj, const char *name,
     int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
+
+/* Update by uint64_t[] key. */
 int zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints,
     int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
@@ -287,8 +325,10 @@ int zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * If the requested attribute does not exist, the call will fail and
  * return ENOENT.
  */
-int zap_length(objset_t *ds, uint64_t zapobj, const char *name,
+int zap_length(objset_t *os, uint64_t zapobj, const char *name,
     uint64_t *integer_size, uint64_t *num_integers);
+
+/* Attribute length by uint64_t[] key. */
 int zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t *integer_size, uint64_t *num_integers);
 int zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
@@ -300,10 +340,12 @@ int zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * If the specified attribute does not exist, the call will fail and
  * return ENOENT.
  */
-int zap_remove(objset_t *ds, uint64_t zapobj, const char *name, dmu_tx_t *tx);
-int zap_remove_norm(objset_t *ds, uint64_t zapobj, const char *name,
-    matchtype_t mt, dmu_tx_t *tx);
+int zap_remove(objset_t *os, uint64_t zapobj, const char *name, dmu_tx_t *tx);
 int zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx);
+int zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
+    matchtype_t mt, dmu_tx_t *tx);
+
+/* Remove by uint64_t[] key. */
 int zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, dmu_tx_t *tx);
 int zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
@@ -313,8 +355,16 @@ int zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * Returns (in *count) the number of attributes in the specified zap
  * object.
  */
-int zap_count(objset_t *ds, uint64_t zapobj, uint64_t *count);
+int zap_count(objset_t *os, uint64_t zapobj, uint64_t *count);
 int zap_count_by_dnode(dnode_t *dn, uint64_t *count);
+
+/*
+ * Lookup an existing uint64 value, add the delta value to it, and store
+ * update it with the new value. If the new value is 0, removes the key
+ * entirely.
+ */
+int zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
+    dmu_tx_t *tx);
 
 /*
  * Returns (in name) the name of the entry whose (value & mask)
@@ -358,22 +408,12 @@ int zap_update_int_key(objset_t *os, uint64_t obj,
 int zap_lookup_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t *valuep);
 
-int zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
-    dmu_tx_t *tx);
-
-struct zap;
-struct zap_leaf;
-typedef struct zap_cursor {
-	/* This structure is opaque! */
-	objset_t *zc_objset;
-	struct zap *zc_zap;
-	struct zap_leaf *zc_leaf;
-	uint64_t zc_zapobj;
-	uint64_t zc_serialized;
-	uint64_t zc_hash;
-	uint32_t zc_cd;
-	boolean_t zc_prefetch;
-} zap_cursor_t;
+/*
+ * The interface for listing all the attributes of a zapobj can be
+ * thought of as cursor moving down a list of the attributes one by
+ * one.  The cookie returned by the zap_cursor_serialize routine is
+ * persistent across system calls (and across reboot, even).
+ */
 
 typedef struct {
 	int za_integer_length;
@@ -389,9 +429,6 @@ typedef struct {
 	char za_name[];
 } zap_attribute_t;
 
-void zap_init(void);
-void zap_fini(void);
-
 /*
  * Alloc and free zap_attribute_t.
  */
@@ -399,21 +436,44 @@ zap_attribute_t *zap_attribute_alloc(void);
 zap_attribute_t *zap_attribute_long_alloc(void);
 void zap_attribute_free(zap_attribute_t *attrp);
 
-/*
- * The interface for listing all the attributes of a zapobj can be
- * thought of as cursor moving down a list of the attributes one by
- * one.  The cookie returned by the zap_cursor_serialize routine is
- * persistent across system calls (and across reboot, even).
- */
+struct zap;
+struct zap_leaf;
+typedef struct zap_cursor {
+	/* This structure is opaque! */
+	objset_t *zc_objset;
+	struct zap *zc_zap;
+	struct zap_leaf *zc_leaf;
+	uint64_t zc_zapobj;
+	uint64_t zc_serialized;
+	uint64_t zc_hash;
+	uint32_t zc_cd;
+	boolean_t zc_prefetch;
+} zap_cursor_t;
 
 /*
- * Initialize a zap cursor, pointing to the "first" attribute of the
- * zapobj.  You must _fini the cursor when you are done with it.
+ * Initialize a zap cursor, pointing to the "first" attribute of the zapobj.
+ * The entire zapobj will be prefetched. You must call zap_cursor_fini the
+ * cursor when you are done with it.
  */
 void zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj);
+void zap_cursor_fini(zap_cursor_t *zc);
+
+/*
+ * Initialize a cursor at the beginning, but request that we not prefetch
+ * the entire ZAP object.
+ */
 void zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
     uint64_t zapobj);
-void zap_cursor_fini(zap_cursor_t *zc);
+
+/*
+ * Initialize a zap cursor pointing to the position recorded by
+ * zap_cursor_serialize (in the "serialized" argument).  You can also
+ * use a "serialized" argument of 0 to start at the beginning of the
+ * zapobj (ie.  zap_cursor_init_serialized(..., 0) is equivalent to
+ * zap_cursor_init(...).)
+ */
+void zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os,
+    uint64_t zapobj, uint64_t serialized);
 
 /*
  * Get the attribute currently pointed to by the cursor.  Returns
@@ -434,17 +494,6 @@ void zap_cursor_advance(zap_cursor_t *zc);
  * fewer than 2^22 (4.2 million) entries in the zap object.
  */
 uint64_t zap_cursor_serialize(zap_cursor_t *zc);
-
-/*
- * Initialize a zap cursor pointing to the position recorded by
- * zap_cursor_serialize (in the "serialized" argument).  You can also
- * use a "serialized" argument of 0 to start at the beginning of the
- * zapobj (ie.  zap_cursor_init_serialized(..., 0) is equivalent to
- * zap_cursor_init(...).)
- */
-void zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *ds,
-    uint64_t zapobj, uint64_t serialized);
-
 
 #define	ZAP_HISTOGRAM_SIZE 10
 
@@ -535,7 +584,11 @@ typedef struct zap_stats {
  * statistics.  This interface shouldn't be relied on unless you really
  * know what you're doing.
  */
-int zap_get_stats(objset_t *ds, uint64_t zapobj, zap_stats_t *zs);
+int zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs);
+
+/* ZAP subsystem setup/teardown */
+void zap_init(void);
+void zap_fini(void);
 
 #ifdef	__cplusplus
 }
