@@ -2031,12 +2031,21 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
 	return (0);
 }
 
+/*
+ * Export the pool from the system.  Setting force overrides the
+ * active-shared-spare check.  The caller must unmount all datasets
+ * in the pool first.
+ */
 int
 zpool_export(zpool_handle_t *zhp, boolean_t force, const char *log_str)
 {
 	return (zpool_export_common(zhp, force, B_FALSE, log_str));
 }
 
+/*
+ * Force-export the pool: bypasses the active-shared-spare check, and skips
+ * writing the exported-state labels and updating the cachefile.
+ */
 int
 zpool_export_force(zpool_handle_t *zhp, const char *log_str)
 {
@@ -2685,6 +2694,10 @@ out:
 	return (err == 0 ? 0 : -1);
 }
 
+/*
+ * Start (or cancel/suspend/uninit) the initialize operation on the listed
+ * vdevs.  Returns once the new state is committed.
+ */
 int
 zpool_initialize(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
     nvlist_t *vds)
@@ -2692,6 +2705,9 @@ zpool_initialize(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
 	return (zpool_initialize_impl(zhp, cmd_type, vds, B_FALSE));
 }
 
+/*
+ * Like zpool_initialize(), but waits for each listed vdev to finish.
+ */
 int
 zpool_initialize_wait(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
     nvlist_t *vds)
