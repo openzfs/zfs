@@ -1072,53 +1072,100 @@ zap_lookup_int_key(objset_t *os, uint64_t obj, uint64_t key, uint64_t *valuep)
 
 /* zap_cursor */
 
-static void
-zap_cursor_init_impl(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
+static int
+zap_cursor_init_by_dnode_impl(zap_cursor_t *zc, dnode_t *dn,
     uint64_t serialized, boolean_t prefetch)
 {
-	zc->zc_objset = os;
 	zc->zc_zap = NULL;
 	zc->zc_leaf = NULL;
-	zc->zc_zapobj = zapobj;
-	zc->zc_serialized = serialized;
-	zc->zc_hash = 0;
-	zc->zc_cd = 0;
+
+	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
+	    zc, &zc->zc_zap);
+	if (err != 0)
+		return (err);
+
 	zc->zc_prefetch = prefetch;
+	zc->zc_objset = dn->dn_objset;
+	zc->zc_zapobj = dn->dn_object;
+
+	int hb = zap_hashbits(zc->zc_zap);
+	zc->zc_hash = serialized << (64 - hb);
+	zc->zc_cd = serialized >> hb;
+	if (zc->zc_cd >= zap_maxcd(zc->zc_zap)) /* corrupt serialized */
+		zc->zc_cd = 0;
+
+	/*
+	 * Drop ZAP read lock, but keep the hold, so the holds on the
+	 * underlying dnode and header dbuf are maintained.
+	 */
+	rw_exit(&zc->zc_zap->zap_rwlock);
+
+	return (0);
 }
 
-void
+static int
+zap_cursor_init_impl(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
+    uint64_t serialized, uint32_t prefetch)
+{
+	dnode_t *dn = NULL;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0) {
+		zc->zc_zap = NULL;
+		zc->zc_leaf = NULL;
+		return (err);
+	}
+
+	err = zap_cursor_init_by_dnode_impl(zc, dn, serialized, prefetch);
+
+	dnode_rele(dn, FTAG);
+
+	return (err);
+}
+
+int
 zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj)
 {
-	zap_cursor_init_impl(zc, os, zapobj, 0, B_TRUE);
+	return (zap_cursor_init_impl(zc, os, zapobj, 0, B_TRUE));
 }
 
-void
+int
+zap_cursor_init_by_dnode(zap_cursor_t *zc, dnode_t *dn)
+{
+	return (zap_cursor_init_by_dnode_impl(zc, dn, 0, B_TRUE));
+}
+
+int
 zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os, uint64_t zapobj)
 {
-	zap_cursor_init_impl(zc, os, zapobj, 0, B_FALSE);
+	return (zap_cursor_init_impl(zc, os, zapobj, 0, B_FALSE));
 }
 
-void
+int
 zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
     uint64_t serialized)
 {
-	zap_cursor_init_impl(zc, os, zapobj, serialized, B_TRUE);
+	return (zap_cursor_init_impl(zc, os, zapobj, serialized, B_TRUE));
+}
+
+int
+zap_cursor_init_serialized_by_dnode(zap_cursor_t *zc, dnode_t *dn,
+    uint64_t serialized)
+{
+	return (zap_cursor_init_by_dnode_impl(zc, dn, serialized, B_TRUE));
 }
 
 void
 zap_cursor_fini(zap_cursor_t *zc)
 {
-	if (zc->zc_zap) {
-		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
-		zap_unlock(zc->zc_zap, NULL);
-		zc->zc_zap = NULL;
-	}
 	if (zc->zc_leaf) {
 		rw_enter(&zc->zc_leaf->l_rwlock, RW_READER);
 		zap_put_leaf(zc->zc_leaf);
-		zc->zc_leaf = NULL;
 	}
-	zc->zc_objset = NULL;
+	if (zc->zc_zap) {
+		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
+		zap_unlock(zc->zc_zap, zc);
+	}
+	memset(zc, 0, sizeof (zap_cursor_t));
 }
 
 int
@@ -1126,30 +1173,15 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 {
 	int err;
 
+	if (zc->zc_zap == NULL)
+		/* zap_cursor_init failed, cursor is invalid */
+		return (SET_ERROR(EIO));
+
 	if (zc->zc_hash == -1ULL)
 		return (SET_ERROR(ENOENT));
 
-	if (zc->zc_zap == NULL) {
-		int hb;
-		err = zap_lock(zc->zc_objset, zc->zc_zapobj, NULL,
-		    RW_READER, TRUE, FALSE, NULL, &zc->zc_zap);
-		if (err != 0)
-			return (err);
+	rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
 
-		/*
-		 * To support zap_cursor_init_serialized, advance, retrieve,
-		 * we must add to the existing zc_cd, which may already
-		 * be 1 due to the zap_cursor_advance.
-		 */
-		ASSERT0(zc->zc_hash);
-		hb = zap_hashbits(zc->zc_zap);
-		zc->zc_hash = zc->zc_serialized << (64 - hb);
-		zc->zc_cd += zc->zc_serialized >> hb;
-		if (zc->zc_cd >= zap_maxcd(zc->zc_zap)) /* corrupt serialized */
-			zc->zc_cd = 0;
-	} else {
-		rw_enter(&zc->zc_zap->zap_rwlock, RW_READER);
-	}
 	if (!zc->zc_zap->zap_ismicro) {
 		err = fzap_cursor_retrieve(zc->zc_zap, zc, za);
 	} else {
@@ -1184,6 +1216,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			err = SET_ERROR(ENOENT);
 		}
 	}
+
 	rw_exit(&zc->zc_zap->zap_rwlock);
 	return (err);
 }
@@ -1199,10 +1232,9 @@ zap_cursor_advance(zap_cursor_t *zc)
 uint64_t
 zap_cursor_serialize(zap_cursor_t *zc)
 {
-	if (zc->zc_hash == -1ULL)
+	if (zc->zc_zap == NULL || zc->zc_hash == -1ULL)
 		return (-1ULL);
-	if (zc->zc_zap == NULL)
-		return (zc->zc_serialized);
+
 	ASSERT0((zc->zc_hash & zap_maxcd(zc->zc_zap)));
 	ASSERT(zc->zc_cd < zap_maxcd(zc->zc_zap));
 
