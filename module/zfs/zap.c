@@ -906,29 +906,45 @@ zap_increment(objset_t *os, uint64_t zapobj, const char *name, int64_t delta,
 
 /* zap_value_search */
 
-int
-zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
+static int
+zap_value_search_impl(zap_cursor_t *zc, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	zap_cursor_t zc;
 	int err;
 
 	if (mask == 0)
 		mask = -1ULL;
 
 	zap_attribute_t *za = zap_attribute_long_alloc();
-	for (zap_cursor_init(&zc, os, zapobj);
-	    (err = zap_cursor_retrieve(&zc, za)) == 0;
-	    zap_cursor_advance(&zc)) {
+	for (; (err = zap_cursor_retrieve(zc, za)) == 0;
+	    zap_cursor_advance(zc)) {
 		if ((za->za_first_integer & mask) == (value & mask)) {
 			if (strlcpy(name, za->za_name, namelen) >= namelen)
 				err = SET_ERROR(ENAMETOOLONG);
 			break;
 		}
 	}
-	zap_cursor_fini(&zc);
+	zap_cursor_fini(zc);
 	zap_attribute_free(za);
 	return (err);
+}
+
+int
+zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
+    char *name, uint64_t namelen)
+{
+	zap_cursor_t zc;
+	zap_cursor_init(&zc, os, zapobj);
+	return (zap_value_search_impl(&zc, value, mask, name, namelen));
+}
+
+int
+zap_value_search_by_dnode(dnode_t *dn, uint64_t value, uint64_t mask,
+    char *name, uint64_t namelen)
+{
+	zap_cursor_t zc;
+	zap_cursor_init_by_dnode(&zc, dn);
+	return (zap_value_search_impl(&zc, value, mask, name, namelen));
 }
 
 /* zap_*_int */
