@@ -443,16 +443,20 @@ void zap_attribute_free(zap_attribute_t *attrp);
 
 struct zap;
 struct zap_leaf;
+
 typedef struct zap_cursor {
 	/* This structure is opaque! */
-	objset_t *zc_objset;
 	struct zap *zc_zap;
 	struct zap_leaf *zc_leaf;
-	uint64_t zc_zapobj;
-	uint64_t zc_serialized;
 	uint64_t zc_hash;
 	uint32_t zc_cd;
 	boolean_t zc_prefetch;
+	/*
+	 * Legacy fields to main source compat with Lustre, which accesses
+	 * them directly. Not to be used in new code!
+	 */
+	objset_t *zc_objset;
+	uint64_t zc_zapobj;
 } zap_cursor_t;
 
 /*
@@ -460,14 +464,15 @@ typedef struct zap_cursor {
  * The entire zapobj will be prefetched. You must call zap_cursor_fini the
  * cursor when you are done with it.
  */
-void zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj);
+int zap_cursor_init(zap_cursor_t *zc, objset_t *os, uint64_t zapobj);
+int zap_cursor_init_by_dnode(zap_cursor_t *zc, dnode_t *dn);
 void zap_cursor_fini(zap_cursor_t *zc);
 
 /*
  * Initialize a cursor at the beginning, but request that we not prefetch
  * the entire ZAP object.
  */
-void zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
+int zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
     uint64_t zapobj);
 
 /*
@@ -477,8 +482,10 @@ void zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
  * zapobj (ie.  zap_cursor_init_serialized(..., 0) is equivalent to
  * zap_cursor_init(...).)
  */
-void zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os,
+int zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os,
     uint64_t zapobj, uint64_t serialized);
+int zap_cursor_init_serialized_by_dnode(zap_cursor_t *zc, dnode_t *dn,
+    uint64_t serialized);
 
 /*
  * Get the attribute currently pointed to by the cursor.  Returns
