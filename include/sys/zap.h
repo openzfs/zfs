@@ -381,6 +381,8 @@ int zap_increment_by_dnode(dnode_t *dn, const char *name, int64_t delta,
  */
 int zap_value_search(objset_t *os, uint64_t zapobj,
     uint64_t value, uint64_t mask, char *name, uint64_t namelen);
+int zap_value_search_by_dnode(dnode_t *dn,
+    uint64_t value, uint64_t mask, char *name, uint64_t namelen);
 
 /*
  * Manipulate entries where the name + value are the "same" (the name is
