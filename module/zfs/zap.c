@@ -872,7 +872,7 @@ zap_count(objset_t *os, uint64_t zapobj, uint64_t *count)
 /* zap_increment */
 
 int
-zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
+zap_increment_by_dnode(dnode_t *dn, const char *name, int64_t delta,
     dmu_tx_t *tx)
 {
 	uint64_t value = 0;
@@ -880,14 +880,27 @@ zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
 	if (delta == 0)
 		return (0);
 
-	int err = zap_lookup(os, obj, name, 8, 1, &value);
+	int err = zap_lookup_by_dnode(dn, name, 8, 1, &value);
 	if (err != 0 && err != ENOENT)
 		return (err);
 	value += delta;
 	if (value == 0)
-		err = zap_remove(os, obj, name, tx);
+		err = zap_remove_by_dnode(dn, name, tx);
 	else
-		err = zap_update(os, obj, name, 8, 1, &value, tx);
+		err = zap_update_by_dnode(dn, name, 8, 1, &value, tx);
+	return (err);
+}
+
+int
+zap_increment(objset_t *os, uint64_t zapobj, const char *name, int64_t delta,
+    dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_increment_by_dnode(dn, name, delta, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
