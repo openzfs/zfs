@@ -933,31 +933,48 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 
 /* zap_*_int */
 
+#define	FORMAT_INT_KEY(name, value)	\
+	char name[20];			\
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+
 int
 zap_add_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	FORMAT_INT_KEY(name, value);
 	return (zap_add(os, obj, name, 8, 1, &value, tx));
+}
+int
+zap_add_int_by_dnode(dnode_t *dn, uint64_t value, dmu_tx_t *tx)
+{
+	FORMAT_INT_KEY(name, value);
+	return (zap_add_by_dnode(dn, name, 8, 1, &value, tx));
 }
 
 int
 zap_remove_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	FORMAT_INT_KEY(name, value);
 	return (zap_remove(os, obj, name, tx));
+}
+int
+zap_remove_int_by_dnode(dnode_t *dn, uint64_t value, dmu_tx_t *tx)
+{
+	FORMAT_INT_KEY(name, value);
+	return (zap_remove_by_dnode(dn, name, tx));
 }
 
 int
 zap_lookup_int(objset_t *os, uint64_t obj, uint64_t value)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)value);
+	FORMAT_INT_KEY(name, value);
 	return (zap_lookup(os, obj, name, 8, 1, &value));
+}
+
+int
+zap_lookup_int_by_dnode(dnode_t *dn, uint64_t value)
+{
+	FORMAT_INT_KEY(name, value);
+	return (zap_lookup_by_dnode(dn, name, 8, 1, &value));
 }
 
 /* zap_*_int_key */
@@ -966,29 +983,43 @@ int
 zap_add_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
+	FORMAT_INT_KEY(name, key);
 	return (zap_add(os, obj, name, 8, 1, &value, tx));
+}
+int
+zap_add_int_key_by_dnode(dnode_t *dn,
+    uint64_t key, uint64_t value, dmu_tx_t *tx)
+{
+	FORMAT_INT_KEY(name, key);
+	return (zap_add_by_dnode(dn, name, 8, 1, &value, tx));
 }
 
 int
 zap_update_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
+	FORMAT_INT_KEY(name, key);
 	return (zap_update(os, obj, name, 8, 1, &value, tx));
+}
+int
+zap_update_int_key_by_dnode(dnode_t *dn,
+    uint64_t key, uint64_t value, dmu_tx_t *tx)
+{
+	FORMAT_INT_KEY(name, key);
+	return (zap_update_by_dnode(dn, name, 8, 1, &value, tx));
 }
 
 int
 zap_lookup_int_key(objset_t *os, uint64_t obj, uint64_t key, uint64_t *valuep)
 {
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
+	FORMAT_INT_KEY(name, key);
 	return (zap_lookup(os, obj, name, 8, 1, valuep));
+}
+int
+zap_lookup_int_key_by_dnode(dnode_t *dn, uint64_t key, uint64_t *valuep)
+{
+	FORMAT_INT_KEY(name, key);
+	return (zap_lookup_by_dnode(dn, name, 8, 1, valuep));
 }
 
 /* zap_cursor */
