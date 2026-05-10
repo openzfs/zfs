@@ -259,6 +259,7 @@ int zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * exist, 0 if it does. This is like zap_lookup(), but may be more efficient.
  */
 int zap_contains(objset_t *os, uint64_t zapobj, const char *name);
+int zap_contains_by_dnode(dnode_t *dn, const char *name);
 
 /*
  * Prefetch the blocks within the ZAP where the given key is stored. The
@@ -309,6 +310,8 @@ int zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  */
 int zap_update(objset_t *os, uint64_t zapobj, const char *name,
     int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx);
+int zap_update_by_dnode(dnode_t *dn, const char *name, int integer_size,
+    uint64_t num_integers, const void *val, dmu_tx_t *tx);
 
 /* Update by uint64_t[] key. */
 int zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
@@ -326,6 +329,8 @@ int zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
  * return ENOENT.
  */
 int zap_length(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t *integer_size, uint64_t *num_integers);
+int zap_length_by_dnode(dnode_t *dn, const char *name,
     uint64_t *integer_size, uint64_t *num_integers);
 
 /* Attribute length by uint64_t[] key. */
@@ -585,6 +590,7 @@ typedef struct zap_stats {
  * know what you're doing.
  */
 int zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs);
+int zap_get_stats_by_dnode(dnode_t *dn, zap_stats_t *zs);
 
 /* ZAP subsystem setup/teardown */
 void zap_init(void);

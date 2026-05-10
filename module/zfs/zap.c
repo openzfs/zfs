@@ -354,12 +354,24 @@ zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
 /* zap_contains */
 
 int
-zap_contains(objset_t *os, uint64_t zapobj, const char *name)
+zap_contains_by_dnode(dnode_t *dn, const char *name)
 {
-	int err = zap_lookup_norm(os, zapobj, name, 0,
+	int err = zap_lookup_norm_by_dnode(dn, name, 0,
 	    0, NULL, 0, NULL, 0, NULL);
 	if (err == EOVERFLOW || err == EINVAL)
 		err = 0; /* found, but skipped reading the value */
+	return (err);
+}
+
+int
+zap_contains(objset_t *os, uint64_t zapobj, const char *name)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_contains_by_dnode(dn, name);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -550,7 +562,7 @@ zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 /* zap_update */
 
-static int
+int
 zap_update_by_dnode(dnode_t *dn, const char *name, int integer_size,
     uint64_t num_integers, const void *val, dmu_tx_t *tx)
 {
@@ -647,7 +659,7 @@ zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 /* zap_length */
 
-static int
+int
 zap_length_by_dnode(dnode_t *dn, const char *name, uint64_t *integer_size,
     uint64_t *num_integers)
 {
@@ -1208,7 +1220,7 @@ zap_cursor_serialize(zap_cursor_t *zc)
 
 /* zap_get_stats */
 
-static int
+int
 zap_get_stats_by_dnode(dnode_t *dn, zap_stats_t *zs)
 {
 	zap_t *zap;
