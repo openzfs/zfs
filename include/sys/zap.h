@@ -349,6 +349,8 @@ int zap_remove(objset_t *os, uint64_t zapobj, const char *name, dmu_tx_t *tx);
 int zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx);
 int zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
     matchtype_t mt, dmu_tx_t *tx);
+int zap_remove_norm_by_dnode(dnode_t *dn, const char *name,
+    matchtype_t mt, dmu_tx_t *tx);
 
 /* Remove by uint64_t[] key. */
 int zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
