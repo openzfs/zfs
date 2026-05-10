@@ -220,17 +220,24 @@ zap_destroy(objset_t *os, uint64_t zapobj, dmu_tx_t *tx)
 
 /* zap_lookup */
 
-static int
-zap_lookup_impl(zap_t *zap, const char *name,
+int
+zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
     uint64_t integer_size, uint64_t num_integers, void *buf,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *ncp)
 {
-	int err = 0;
+	zap_t *zap;
+
+	int err =
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	if (err != 0)
+		return (err);
 
 	zap_name_t *zn = zap_name_alloc_str(zap, name, mt);
-	if (zn == NULL)
+	if (zn == NULL) {
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
+	}
 
 	if (!zap->zap_ismicro) {
 		err = fzap_lookup(zn, integer_size, num_integers, buf,
@@ -260,6 +267,7 @@ zap_lookup_impl(zap_t *zap, const char *name,
 		}
 	}
 	zap_name_free(zn);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -285,87 +293,17 @@ zap_lookup_norm(objset_t *os, uint64_t zapobj, const char *name,
     matchtype_t mt, char *realname, int rn_len,
     boolean_t *ncp)
 {
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_lookup_impl(zap, name, integer_size,
+	err = zap_lookup_norm_by_dnode(dn, name, integer_size,
 	    num_integers, buf, mt, realname, rn_len, ncp);
-	zap_unlock(zap, FTAG);
-	return (err);
-}
-
-int
-zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
-    uint64_t integer_size, uint64_t num_integers, void *buf,
-    matchtype_t mt, char *realname, int rn_len,
-    boolean_t *ncp)
-{
-	zap_t *zap;
-
-	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
-	    FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_lookup_impl(zap, name, integer_size,
-	    num_integers, buf, mt, realname, rn_len, ncp);
-	zap_unlock(zap, FTAG);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 /* zap_lookup_uint64 */
-
-static int
-zap_lookup_length_uint64_impl(zap_t *zap, const uint64_t *key,
-    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf,
-    uint64_t *actual_num_integers, const void *tag)
-{
-	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
-	if (zn == NULL) {
-		zap_unlock(zap, tag);
-		return (SET_ERROR(ENOTSUP));
-	}
-
-	int err = fzap_lookup(zn, integer_size, num_integers, buf,
-	    NULL, 0, NULL, actual_num_integers);
-	zap_name_free(zn);
-	zap_unlock(zap, tag);
-	return (err);
-}
-
-int
-zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
-    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, NULL, FTAG);
-	/* zap_lookup_length_uint64_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
-    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, NULL, FTAG);
-	/* zap_lookup_length_uint64_impl() calls zap_unlock() */
-	return (err);
-}
 
 int
 zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
@@ -373,15 +311,44 @@ zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     uint64_t *actual_num_integers)
 {
 	zap_t *zap;
-
 	int err =
 	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, actual_num_integers, FTAG);
-	/* zap_lookup_length_uint64_impl() calls zap_unlock() */
+
+	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
+	if (zn == NULL) {
+		zap_unlock(zap, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	err = fzap_lookup(zn, integer_size, num_integers, buf,
+	    NULL, 0, NULL, actual_num_integers);
+	zap_name_free(zn);
+	zap_unlock(zap, FTAG);
 	return (err);
+}
+
+int
+zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
+    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_lookup_length_uint64_by_dnode(dn, key, key_numints,
+	    integer_size, num_integers, buf, NULL);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+int
+zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+    int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf)
+{
+	return (zap_lookup_length_uint64_by_dnode(dn, key, key_numints,
+	    integer_size, num_integers, buf, NULL));
 }
 
 /* zap_contains */
@@ -422,19 +389,24 @@ zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
 
 /* zap_prefetch_uint64 */
 
-static int
-zap_prefetch_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
-    const void *tag)
+int
+zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints)
 {
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	if (err != 0)
+		return (err);
+
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlock(zap, tag);
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 
 	fzap_prefetch(zn);
 	zap_name_free(zn);
-	zap_unlock(zap, tag);
+	zap_unlock(zap, FTAG);
 	return (0);
 }
 
@@ -442,28 +414,12 @@ int
 zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints)
 {
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_prefetch_uint64_impl(zap, key, key_numints, FTAG);
-	/* zap_prefetch_uint64_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_prefetch_uint64_impl(zap, key, key_numints, FTAG);
-	/* zap_prefetch_uint64_impl() calls zap_unlock() */
+	err = zap_prefetch_uint64_by_dnode(dn, key, key_numints);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -486,17 +442,21 @@ zap_prefetch_object(objset_t *os, uint64_t zapobj)
 
 /* zap_add */
 
-static int
-zap_add_impl(zap_t *zap, const char *key,
+int
+zap_add_by_dnode(dnode_t *dn, const char *key,
     int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx, const void *tag)
+    const void *val, dmu_tx_t *tx)
 {
-	const uint64_t *intval = val;
-	int err = 0;
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
 
+	const uint64_t *intval = val;
 	zap_name_t *zn = zap_name_alloc_str(zap, key, 0);
 	if (zn == NULL) {
-		zap_unlock(zap, tag);
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
@@ -518,7 +478,7 @@ zap_add_impl(zap_t *zap, const char *key,
 	}
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
-	zap_unlock(zap, tag);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -527,50 +487,38 @@ zap_add(objset_t *os, uint64_t zapobj, const char *key,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx)
 {
-	zap_t *zap;
-	int err;
-
-	err = zap_lock(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_add_impl(zap, key, integer_size, num_integers, val, tx, FTAG);
-	/* zap_add_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_add_by_dnode(dnode_t *dn, const char *key,
-    int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx)
-{
-	zap_t *zap;
-	int err;
-
-	err = zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_add_impl(zap, key, integer_size, num_integers, val, tx, FTAG);
-	/* zap_add_impl() calls zap_unlock() */
+	err = zap_add_by_dnode(dn, key, integer_size, num_integers, val, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 /* zap_add_uint64 */
 
-static int
-zap_add_uint64_impl(zap_t *zap, const uint64_t *key,
+int
+zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx, const void *tag)
+    const void *val, dmu_tx_t *tx)
 {
-	int err;
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
 
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlock(zap, tag);
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_add(zn, integer_size, num_integers, val, tx);
+	zap = zn->zn_zap;	/* fzap_add() may change zap */
 	zap_name_free(zn);
-	zap_unlock(zap, tag);
+	if (zap != NULL)	/* may be NULL if fzap_add() failed */
+		zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -579,32 +527,13 @@ zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx)
 {
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_add_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, val, tx, FTAG);
-	/* zap_add_uint64_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_add_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
-    int key_numints, int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_add_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, val, tx, FTAG);
-	/* zap_add_uint64_impl() calls zap_unlock() */
+	err = zap_add_uint64_by_dnode(dn, key, key_numints,
+	    integer_size, num_integers, val, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -655,21 +584,24 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 
 /* zap_update_uint64 */
 
-static int
-zap_update_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx,
-    const void *tag)
+int
+zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
+    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
 {
-	int err;
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	if (err != 0)
+		return (err);
 
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlock(zap, tag);
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_update(zn, integer_size, num_integers, val, tx);
 	zap_name_free(zn);
-	zap_unlock(zap, tag);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -678,31 +610,13 @@ zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, int integer_size, uint64_t num_integers, const void *val,
     dmu_tx_t *tx)
 {
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_update_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, val, tx, FTAG);
-	/* zap_update_uint64_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_update_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_update_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, val, tx, FTAG);
-	/* zap_update_uint64_impl() calls zap_unlock() */
+	err = zap_update_uint64_by_dnode(dn, key, key_numints,
+	    integer_size, num_integers, val, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -745,13 +659,12 @@ zap_length(objset_t *os, uint64_t zapobj, const char *name,
 /* zap_length_uint64 */
 
 int
-zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
+zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
     int key_numints, uint64_t *integer_size, uint64_t *num_integers)
 {
 	zap_t *zap;
-
 	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
@@ -766,37 +679,36 @@ zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 }
 
 int
-zap_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
+zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, uint64_t *integer_size, uint64_t *num_integers)
 {
-	zap_t *zap;
-
-	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
-	    FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
-	if (zn == NULL) {
-		zap_unlock(zap, FTAG);
-		return (SET_ERROR(ENOTSUP));
-	}
-	err = fzap_length(zn, integer_size, num_integers);
-	zap_name_free(zn);
-	zap_unlock(zap, FTAG);
+	err = zap_length_uint64_by_dnode(dn, key, key_numints,
+	    integer_size, num_integers);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 /* zap_remove */
 
 static int
-zap_remove_impl(zap_t *zap, const char *name,
-    matchtype_t mt, dmu_tx_t *tx)
+zap_remove_norm_by_dnode(dnode_t *dn, const char *name, matchtype_t mt,
+    dmu_tx_t *tx)
 {
-	int err = 0;
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	if (err)
+		return (err);
 
 	zap_name_t *zn = zap_name_alloc_str(zap, name, mt);
-	if (zn == NULL)
+	if (zn == NULL) {
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
+	}
 	if (!zap->zap_ismicro) {
 		err = fzap_remove(zn, tx);
 	} else {
@@ -811,6 +723,7 @@ zap_remove_impl(zap_t *zap, const char *name,
 		}
 	}
 	zap_name_free(zn);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -823,48 +736,42 @@ zap_remove(objset_t *os, uint64_t zapobj, const char *name, dmu_tx_t *tx)
 int
 zap_remove_by_dnode(dnode_t *dn, const char *name, dmu_tx_t *tx)
 {
-	zap_t *zap;
-	int err;
-
-	err = zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
-	if (err)
-		return (err);
-	err = zap_remove_impl(zap, name, 0, tx);
-	zap_unlock(zap, FTAG);
-	return (err);
+	return (zap_remove_norm_by_dnode(dn, name, 0, tx));
 }
 
 int
 zap_remove_norm(objset_t *os, uint64_t zapobj, const char *name,
     matchtype_t mt, dmu_tx_t *tx)
 {
-	zap_t *zap;
-	int err;
-
-	err = zap_lock(os, zapobj, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
-	if (err)
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
 		return (err);
-	err = zap_remove_impl(zap, name, mt, tx);
-	zap_unlock(zap, FTAG);
+	err = zap_remove_norm_by_dnode(dn, name, mt, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 /* zap_remove_uint64 */
 
-static int
-zap_remove_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
-    dmu_tx_t *tx, const void *tag)
+int
+zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
+    dmu_tx_t *tx)
 {
-	int err;
+	zap_t *zap;
+	int err =
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	if (err != 0)
+		return (err);
 
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlock(zap, tag);
+		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_remove(zn, tx);
 	zap_name_free(zn);
-	zap_unlock(zap, tag);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -872,41 +779,23 @@ int
 zap_remove_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
     int key_numints, dmu_tx_t *tx)
 {
-	zap_t *zap;
-
-	int err =
-	    zap_lock(os, zapobj, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	err = zap_remove_uint64_impl(zap, key, key_numints, tx, FTAG);
-	/* zap_remove_uint64_impl() calls zap_unlock() */
-	return (err);
-}
-
-int
-zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
-    dmu_tx_t *tx)
-{
-	zap_t *zap;
-
-	int err =
-	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, FALSE, FTAG, &zap);
-	if (err != 0)
-		return (err);
-	err = zap_remove_uint64_impl(zap, key, key_numints, tx, FTAG);
-	/* zap_remove_uint64_impl() calls zap_unlock() */
+	err = zap_remove_uint64_by_dnode(dn, key, key_numints, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
 /* zap_count */
 
 int
-zap_count(objset_t *os, uint64_t zapobj, uint64_t *count)
+zap_count_by_dnode(dnode_t *dn, uint64_t *count)
 {
 	zap_t *zap;
-
 	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
 	if (!zap->zap_ismicro) {
@@ -919,20 +808,14 @@ zap_count(objset_t *os, uint64_t zapobj, uint64_t *count)
 }
 
 int
-zap_count_by_dnode(dnode_t *dn, uint64_t *count)
+zap_count(objset_t *os, uint64_t zapobj, uint64_t *count)
 {
-	zap_t *zap;
-
-	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE,
-	    FTAG, &zap);
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
 	if (err != 0)
 		return (err);
-	if (!zap->zap_ismicro) {
-		err = fzap_count(zap, count);
-	} else {
-		*count = zap->zap_m.zap_num_entries;
-	}
-	zap_unlock(zap, FTAG);
+	err = zap_count_by_dnode(dn, count);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
