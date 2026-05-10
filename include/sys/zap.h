@@ -370,6 +370,8 @@ int zap_count_by_dnode(dnode_t *dn, uint64_t *count);
  */
 int zap_increment(objset_t *os, uint64_t obj, const char *name, int64_t delta,
     dmu_tx_t *tx);
+int zap_increment_by_dnode(dnode_t *dn, const char *name, int64_t delta,
+    dmu_tx_t *tx);
 
 /*
  * Returns (in name) the name of the entry whose (value & mask)
