@@ -390,12 +390,23 @@ int zap_add_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx);
 int zap_remove_int(objset_t *os, uint64_t obj, uint64_t value, dmu_tx_t *tx);
 int zap_lookup_int(objset_t *os, uint64_t obj, uint64_t value);
 
+int zap_add_int_by_dnode(dnode_t *dn, uint64_t value, dmu_tx_t *tx);
+int zap_remove_int_by_dnode(dnode_t *dn, uint64_t value, dmu_tx_t *tx);
+int zap_lookup_int_by_dnode(dnode_t *dn, uint64_t value);
+
 /* Here the key is an int and the value is a different int. */
 int zap_add_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx);
 int zap_update_int_key(objset_t *os, uint64_t obj,
     uint64_t key, uint64_t value, dmu_tx_t *tx);
 int zap_lookup_int_key(objset_t *os, uint64_t obj,
+    uint64_t key, uint64_t *valuep);
+
+int zap_add_int_key_by_dnode(dnode_t *dn,
+    uint64_t key, uint64_t value, dmu_tx_t *tx);
+int zap_update_int_key_by_dnode(dnode_t *dn,
+    uint64_t key, uint64_t value, dmu_tx_t *tx);
+int zap_lookup_int_key_by_dnode(dnode_t *dn,
     uint64_t key, uint64_t *valuep);
 
 /*
