@@ -744,7 +744,7 @@ zap_length_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 /* zap_remove */
 
-static int
+int
 zap_remove_norm_by_dnode(dnode_t *dn, const char *name, matchtype_t mt,
     dmu_tx_t *tx)
 {
