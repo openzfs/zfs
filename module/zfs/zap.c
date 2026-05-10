@@ -365,17 +365,16 @@ zap_contains(objset_t *os, uint64_t zapobj, const char *name)
 
 /* zap_prefetch */
 
-int
-zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
+static int
+zap_prefetch_by_dnode(dnode_t *dn, const char *name)
 {
 	zap_t *zap;
-	int err;
-	zap_name_t *zn;
-
-	err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	int err =
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err)
 		return (err);
-	zn = zap_name_alloc_str(zap, name, 0);
+
+	zap_name_t *zn = zap_name_alloc_str(zap, name, 0);
 	if (zn == NULL) {
 		zap_unlock(zap, FTAG);
 		return (SET_ERROR(ENOTSUP));
@@ -384,6 +383,18 @@ zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
 	fzap_prefetch(zn);
 	zap_name_free(zn);
 	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
+zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_prefetch_by_dnode(dn, name);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -539,17 +550,17 @@ zap_add_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 /* zap_update */
 
-int
-zap_update(objset_t *os, uint64_t zapobj, const char *name,
-    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
+static int
+zap_update_by_dnode(dnode_t *dn, const char *name, int integer_size,
+    uint64_t num_integers, const void *val, dmu_tx_t *tx)
 {
 	zap_t *zap;
-	const uint64_t *intval = val;
-
 	int err =
-	    zap_lock(os, zapobj, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
+	    zap_lock_by_dnode(dn, tx, RW_WRITER, TRUE, TRUE, FTAG, &zap);
 	if (err != 0)
 		return (err);
+
+	const uint64_t *intval = val;
 	zap_name_t *zn = zap_name_alloc_str(zap, name, 0);
 	if (zn == NULL) {
 		zap_unlock(zap, FTAG);
@@ -560,7 +571,7 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(name) >= MZAP_NAME_LEN) {
 		dprintf("upgrading obj %llu: intsz=%u numint=%llu name=%s\n",
-		    (u_longlong_t)zapobj, integer_size,
+		    (u_longlong_t)dn->dn_object, integer_size,
 		    (u_longlong_t)num_integers, name);
 		err = mzap_upgrade(&zn->zn_zap, tx, 0);
 		if (err == 0) {
@@ -579,6 +590,20 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
 	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
+zap_update(objset_t *os, uint64_t zapobj, const char *name,
+    int integer_size, uint64_t num_integers, const void *val, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_update_by_dnode(dn, name,
+	    integer_size, num_integers, val, tx);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -622,16 +647,16 @@ zap_update_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 
 /* zap_length */
 
-int
-zap_length(objset_t *os, uint64_t zapobj, const char *name,
-    uint64_t *integer_size, uint64_t *num_integers)
+static int
+zap_length_by_dnode(dnode_t *dn, const char *name, uint64_t *integer_size,
+    uint64_t *num_integers)
 {
 	zap_t *zap;
-
 	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
+
 	zap_name_t *zn = zap_name_alloc_str(zap, name, 0);
 	if (zn == NULL) {
 		zap_unlock(zap, FTAG);
@@ -653,6 +678,19 @@ zap_length(objset_t *os, uint64_t zapobj, const char *name,
 	}
 	zap_name_free(zn);
 	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
+zap_length(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t *integer_size, uint64_t *num_integers)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_length_by_dnode(dn, name, integer_size, num_integers);
+	dnode_rele(dn, FTAG);
 	return (err);
 }
 
@@ -1170,13 +1208,12 @@ zap_cursor_serialize(zap_cursor_t *zc)
 
 /* zap_get_stats */
 
-int
-zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
+static int
+zap_get_stats_by_dnode(dnode_t *dn, zap_stats_t *zs)
 {
 	zap_t *zap;
-
 	int err =
-	    zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
+	    zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
 
@@ -1191,6 +1228,18 @@ zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
 	}
 	zap_unlock(zap, FTAG);
 	return (0);
+}
+
+int
+zap_get_stats(objset_t *os, uint64_t zapobj, zap_stats_t *zs)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_get_stats_by_dnode(dn, zs);
+	dnode_rele(dn, FTAG);
+	return (err);
 }
 
 EXPORT_SYMBOL(zap_create);
