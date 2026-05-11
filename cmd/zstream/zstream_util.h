@@ -37,7 +37,10 @@ extern void *
 safe_malloc(size_t size);
 
 extern void *
-safe_calloc(size_t n);
+safe_calloc(size_t size);
+
+extern void *
+safe_realloc(void *from, size_t size);
 
 extern int
 sfread(void *buf, size_t size, FILE *fp);
