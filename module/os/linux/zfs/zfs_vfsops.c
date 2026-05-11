@@ -1690,6 +1690,24 @@ zfs_suspend_fs(zfsvfs_t *zfsvfs)
 }
 
 /*
+ * Return a referenced znode at or after zp.  The z_znodes_lock protects the
+ * list walk; the returned inode reference keeps the znode alive after the
+ * lock is dropped for zfs_rezget().
+ */
+static znode_t *
+zfs_resume_hold_next_znode(zfsvfs_t *zfsvfs, znode_t *zp)
+{
+	ASSERT(MUTEX_HELD(&zfsvfs->z_znodes_lock));
+
+	for (; zp != NULL; zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+		if (igrab(ZTOI(zp)) != NULL)
+			return (zp);
+	}
+
+	return (NULL);
+}
+
+/*
  * Rebuild SA and release VOPs.  Note that ownership of the underlying dataset
  * is an invariant across any of the operations that can be performed while the
  * filesystem was suspended.  Whether it succeeded or failed, the preconditions
@@ -1732,13 +1750,23 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
 	 * and mark it stale.  This prevents a collision if a new
 	 * inode/object is created which must use the same inode
-	 * number.  The stale inode will be be released when the
-	 * VFS prunes the dentry holding the remaining references
-	 * on the stale inode.
+	 * number.  The stale inode will be released when the VFS
+	 * prunes the dentry holding the remaining references on
+	 * the stale inode.
+	 *
+	 * zfs_rezget() takes the per-object znode hold lock.  Pin each znode
+	 * while holding z_znodes_lock, then drop the list lock before calling
+	 * zfs_rezget() to preserve the normal zh_lock -> z_znodes_lock order.
 	 */
 	mutex_enter(&zfsvfs->z_znodes_lock);
-	for (zp = list_head(&zfsvfs->z_all_znodes); zp;
-	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+	zp = zfs_resume_hold_next_znode(zfsvfs,
+	    list_head(&zfsvfs->z_all_znodes));
+	while (zp != NULL) {
+		znode_t *next = zfs_resume_hold_next_znode(zfsvfs,
+		    list_next(&zfsvfs->z_all_znodes, zp));
+
+		mutex_exit(&zfsvfs->z_znodes_lock);
+
 		err2 = zfs_rezget(zp);
 		if (err2) {
 			zpl_d_drop_aliases(ZTOI(zp));
@@ -1747,9 +1775,14 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 		/* see comment in zfs_suspend_fs() */
 		if (zp->z_suspended) {
-			zfs_zrele_async(zp);
 			zp->z_suspended = B_FALSE;
+			zfs_zrele_async(zp);
 		}
+
+		zfs_zrele_async(zp);
+
+		mutex_enter(&zfsvfs->z_znodes_lock);
+		zp = next;
 	}
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
