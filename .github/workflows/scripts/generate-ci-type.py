@@ -6,6 +6,9 @@ Determine the CI type based on the change list and commit message.
 Output format: "<type> <source>" where source is "manual" (from
 ZFS-CI-Type commit tag) or "auto" (from file change heuristics).
 
+Prints "docs auto" if every changed file is documentation; the qemu
+matrix is skipped in that case.
+
 Prints "quick manual" if:
 - the *last* commit message contains 'ZFS-CI-Type: quick'
 or "quick auto" if (heuristics):
@@ -26,6 +29,19 @@ Note: not using pathlib.Path.match() because it does not support '**'
 FULL_RUN_IGNORE_REGEX = list(map(re.compile, [
     r'.*\.md',
     r'.*\.gitignore'
+]))
+
+"""
+Patterns of files that are documentation only.
+"""
+DOCS_ONLY_REGEX = list(map(re.compile, [
+    r'man/.*',
+    r'.*\.md',
+    r'AUTHORS',
+    r'COPYRIGHT',
+    r'LICENSE',
+    r'NOTICE',
+    r'\.gitignore',
 ]))
 
 """
@@ -115,6 +131,12 @@ if __name__ == '__main__':
                         'full', 'auto',
                         f'changed file "{f}" matches pattern "{r.pattern}"'
                         )
+
+    if changed_files and all(
+            any(r.match(f) for r in DOCS_ONLY_REGEX)
+            for f in changed_files):
+        output_type('docs', 'auto',
+                    'all changed files are documentation')
 
     # catch-all
     output_type('quick', 'auto',

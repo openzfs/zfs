@@ -45,6 +45,9 @@ jobs:
           fi
 
           case "$ci_type" in
+          docs)
+            os_selection='[]'
+            ;;
           quick)
             os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-1s", "ubuntu24"]'
             ;;
@@ -91,6 +94,7 @@ jobs:
   qemu-vm:
     name: qemu-x86
     needs: [ test-config ]
+    if: needs.test-config.outputs.ci_type != 'docs'
     strategy:
       fail-fast: false
       matrix:
