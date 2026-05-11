@@ -45,7 +45,10 @@ zstream_usage(void)
 	    "\n"
 	    "\tzstream drop_record [-v] [OBJECT,OFFSET] ...\n"
 	    "\n"
-	    "\tzstream recompress [ -l level] TYPE\n"
+	    "\tzstream raw [-v] [-g guid] FILE|DEV FILE\n"
+	    "\t... | zstream raw [-v] [-g guid] FILE|DEV\n"
+	    "\n"
+	    "\tzstream recompress [-l level] TYPE\n"
 	    "\n"
 	    "\tzstream token resume_token\n"
 	    "\n"
@@ -72,6 +75,8 @@ main(int argc, char *argv[])
 		return (zstream_do_decompress(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "drop_record") == 0) {
 		return (zstream_do_drop_record(argc - 1, argv + 1));
+	} else if (strcmp(subcommand, "raw") == 0) {
+		return (zstream_do_raw(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "recompress") == 0) {
 		return (zstream_do_recompress(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "token") == 0) {

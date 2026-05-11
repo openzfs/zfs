@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd February 20, 2026
+.Dd May 12, 2026
 .Dt ZSTREAM 8
 .Os
 .
@@ -48,6 +48,11 @@
 .Nm
 .Cm token
 .Ar resume_token
+.Nm
+.Cm raw
+.Op Fl v
+.Op Fl g Ar fromguid
+.Ar image|device
 .Nm
 .Cm recompress
 .Op Fl l Ar level
@@ -175,6 +180,24 @@ Print summary of converted records.
 .El
 .It Xo
 .Nm
+.Cm raw
+.Op Fl v
+.Op Fl g Ar fromguid
+.Ar image|device
+.Xc
+Apply a zvol send stream to a raw image or device.
+When
+.Ar fromguid
+is provided, the initial fromguid of the stream will be checked to ensure it
+matches the given value.
+The final toguid of the stream is printed to stdout on completion.
+With
+.Fl v ,
+details of the records in the stream are printed in similar fashion to
+.Nm
+.Cm dump.
+.It Xo
+.Nm
 .Cm recompress
 .Op Fl l Ar level
 .Ar algorithm
@@ -225,6 +248,16 @@ to drop the bogus record, then receive into a new dataset.
 .Bd -literal
 .No # Nm zfs Ar send Ar ... | Nm zstream drop_record Ar 3545761,18446744073709486080 | \
 Nm zfs recv Ar ...
+.Ed
+.
+.Ss Migrating from a zvol to a physical disk
+Given a zvol tank/vol with snapshots @1 @2 and @3, and an adequately sized
+physical disk /dev/da4:
+.Bd -literal
+.No # Nm zfs Cm send Fl Lec Ar tank | Nm zstream Cm raw Ar /dev/da4
+16731506615198184313
+.No # Nm zfs Cm send Fl Lec Fl I Ar @1 Ar tank/vol@3 | Nm zstream Cm raw Fl g Ar 16731506615198184313 Ar /dev/da4
+10690368765373298656
 .Ed
 .Sh SEE ALSO
 .Xr zdb 8 ,

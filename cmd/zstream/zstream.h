@@ -31,6 +31,7 @@ extern int zstream_do_decompress(int argc, char *argv[]);
 extern int zstream_do_drop_record(int argc, char *argv[]);
 extern int zstream_do_recompress(int argc, char *argv[]);
 extern int zstream_do_token(int, char *[]);
+extern int zstream_do_raw(int, char *[]);
 extern void zstream_usage(void);
 
 #ifdef	__cplusplus

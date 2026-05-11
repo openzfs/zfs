@@ -10,6 +10,7 @@ zstream_SOURCES = \
 	%D%/zstream_decompress.c \
 	%D%/zstream_drop_record.c \
 	%D%/zstream_dump.c \
+	%D%/zstream_raw.c \
 	%D%/zstream_recompress.c \
 	%D%/zstream_redup.c \
 	%D%/zstream_token.c \
