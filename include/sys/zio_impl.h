@@ -139,12 +139,12 @@ enum zio_stage {
 
 	ZIO_STAGE_NOP_WRITE		= 1 << 8,	/* -W---- */
 
-	ZIO_STAGE_BRT_FREE		= 1 << 9,	/* --F--- */
+	ZIO_STAGE_DDT_READ_START	= 1 << 9,	/* R----- */
+	ZIO_STAGE_DDT_READ_DONE		= 1 << 10,	/* R----- */
+	ZIO_STAGE_DDT_WRITE		= 1 << 11,	/* -W---- */
+	ZIO_STAGE_DDT_FREE		= 1 << 12,	/* --F--- */
 
-	ZIO_STAGE_DDT_READ_START	= 1 << 10,	/* R----- */
-	ZIO_STAGE_DDT_READ_DONE		= 1 << 11,	/* R----- */
-	ZIO_STAGE_DDT_WRITE		= 1 << 12,	/* -W---- */
-	ZIO_STAGE_DDT_FREE		= 1 << 13,	/* --F--- */
+	ZIO_STAGE_BRT_FREE		= 1 << 13,	/* --F--- */
 
 	ZIO_STAGE_GANG_ASSEMBLE		= 1 << 14,	/* RWFC-- */
 	ZIO_STAGE_GANG_ISSUE		= 1 << 15,	/* RWFC-- */
@@ -259,8 +259,7 @@ enum zio_stage {
 	ZIO_STAGE_DVA_FREE)
 
 #define	ZIO_DDT_FREE_PIPELINE			\
-	(ZIO_INTERLOCK_STAGES |			\
-	ZIO_STAGE_FREE_BP_INIT |		\
+	(ZIO_FREE_PIPELINE |			\
 	ZIO_STAGE_ISSUE_ASYNC |			\
 	ZIO_STAGE_DDT_FREE)
 
