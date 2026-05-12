@@ -69,12 +69,12 @@ function ddt_entries
 
 log_onexit cleanup
 
-log_must zpool create -f -o feature@block_cloning=disabled $TESTPOOL $DISKS
+log_must zpool create -f $TESTPOOL $DISKS
 
 log_must zfs create -o recordsize=512 -o dedup=on $TESTPOOL/$TESTFS
 typeset mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 log_must dd if=/dev/urandom of=$mountpoint/f1 bs=512k count=1
-log_must cp $mountpoint/f1 $mountpoint/f2
+log_must dd if=$mountpoint/f1 of=$mountpoint/f2 bs=512k
 sync_pool $TESTPOOL
 entries=$(ddt_entries)
 log_note "ddt entries before: $entries"

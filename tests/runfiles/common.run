@@ -717,7 +717,8 @@ post =
 tags = ['functional', 'deadman']
 
 [tests/functional/dedup]
-tests = ['dedup_bclone_pruned', 'dedup_fdt_create', 'dedup_fdt_import',
+tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
+    'dedup_fdt_import',
     'dedup_fdt_pacing', 'dedup_legacy_create', 'dedup_legacy_import',
     'dedup_legacy_fdt_upgrade', 'dedup_legacy_fdt_mixed', 'dedup_quota',
     'dedup_prune', 'dedup_prune_leak', 'dedup_zap_shrink']

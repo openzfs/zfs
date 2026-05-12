@@ -45,14 +45,12 @@ function cleanup
 
 log_onexit cleanup
 
-# create a pool with legacy dedup enabled. we disable block cloning to ensure
-# it doesn't get in the way of dedup, and we disable compression so our writes
+# create a pool with legacy dedup enabled. we disable compression so our writes
 # create predictable results on disk
 # Use 'xattr=sa' to prevent selinux xattrs influencing our accounting
 log_must zpool create -f \
     -o feature@fast_dedup=disabled \
     -O dedup=on \
-    -o feature@block_cloning=disabled \
     -O compression=off \
     -O xattr=sa \
     $TESTPOOL $DISKS
@@ -84,7 +82,7 @@ log_must zpool set feature@fast_dedup=enabled $TESTPOOL
 log_must test $(get_pool_prop feature@fast_dedup $TESTPOOL) = "enabled"
 
 # copy the file
-log_must cp /$TESTPOOL/file1 /$TESTPOOL/file2
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k
 log_must zpool sync
 
 # feature should still be enabled
