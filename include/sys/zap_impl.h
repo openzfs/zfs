@@ -255,10 +255,6 @@ int zap_lock_by_dnode(dnode_t *dn, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp);
 
-/* Underlying implementation for above; do not use. */
-int zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
-    krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
-
 /* Unlock and release a zap_t. */
 void zap_unlock(zap_t *zap, const void *tag);
 

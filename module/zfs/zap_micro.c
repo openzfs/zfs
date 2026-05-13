@@ -405,14 +405,13 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 	if (flags != 0) {
 		zap_t *zap;
 		/* Only fat zap supports flags; upgrade immediately. */
-		VERIFY(dnode_add_ref(dn, FTAG));
-		VERIFY0(zap_lock_impl(dn, db, FTAG, tx, RW_WRITER,
-		    B_FALSE, B_FALSE, &zap));
+		VERIFY0(zap_lock_by_dnode(dn, tx,
+		    RW_WRITER, B_FALSE, B_FALSE, FTAG, &zap));
 		VERIFY0(mzap_upgrade(&zap, FTAG, tx, flags));
 		zap_unlock(zap, FTAG);
-	} else {
-		dmu_buf_rele(db, FTAG);
 	}
+
+	dmu_buf_rele(db, FTAG);
 }
 
 /*

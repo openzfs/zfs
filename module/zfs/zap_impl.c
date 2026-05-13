@@ -289,7 +289,7 @@ zap_hash(zap_name_t *zn)
  * This routine "consumes" the caller's hold on the dbuf, which must
  * have the specified tag.
  */
-int
+static int
 zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
