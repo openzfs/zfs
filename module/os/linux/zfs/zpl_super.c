@@ -550,10 +550,11 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
  *
  * Finally, all filesystems get automatic handling for the 'source' option,
  * that is, the "name" of the filesystem (the first column of df(1)'s output).
- * However, this only happens if the handler does not otherwise handle
- * the 'source' option. Since we handle _all_ options because of 'sloppy', we
- * deal with this explicitly by calling into the kernel's helper for this,
- * vfs_parse_fs_param_source(), which sets up fc->source.
+ * However, this only happens if the handler does not otherwise handle the
+ * 'source' option. Since we handle _all_ options because of 'sloppy', we have
+ * ot handle it ourselves. Normally we would call vfs_parse_fs_param_source()
+ * to deal with this, but that didn't appear until 5.14, and it's small enough
+ * that we can just handle it ourselves.
  *
  *	source
  *
@@ -565,6 +566,7 @@ zpl_prune_sb(uint64_t nr_to_scan, void *arg)
  */
 
 enum {
+	Opt_source,
 	Opt_exec, Opt_suid, Opt_dev,
 	Opt_atime, Opt_relatime, Opt_strictatime,
 	Opt_saxattr, Opt_dirxattr, Opt_noxattr,
@@ -574,6 +576,8 @@ enum {
 };
 
 static const struct fs_parameter_spec zpl_param_spec[] = {
+	fsparam_string("source",	Opt_source),
+
 	fsparam_flag_no("exec",		Opt_exec),
 	fsparam_flag_no("suid",		Opt_suid),
 	fsparam_flag_no("dev",		Opt_dev),
@@ -614,13 +618,8 @@ zpl_parse_param(struct fs_context *fc, struct fs_parameter *param)
 {
 	vfs_t *vfs = fc->fs_private;
 
-	/* Handle 'source' explicitly so we don't trip on it as an unknown. */
-	int opt = vfs_parse_fs_param_source(fc, param);
-	if (opt != -ENOPARAM)
-		return (opt);
-
 	struct fs_parse_result result;
-	opt = fs_parse(fc, zpl_param_spec, param, &result);
+	int opt = fs_parse(fc, zpl_param_spec, param, &result);
 	if (opt == -ENOPARAM) {
 		/*
 		 * Convert unknowns to warnings, to work around the whole
@@ -632,6 +631,16 @@ zpl_parse_param(struct fs_context *fc, struct fs_parameter *param)
 		return (opt);
 
 	switch (opt) {
+	case Opt_source:
+		if (fc->source != NULL) {
+			cmn_err(CE_NOTE,
+			    "ZFS: multiple 'source' options not supported");
+			return (-SET_ERROR(EINVAL));
+		}
+		fc->source = param->string;
+		param->string = NULL;
+		break;
+
 	case Opt_exec:
 		vfs->vfs_exec = !result.negated;
 		vfs->vfs_do_exec = B_TRUE;
