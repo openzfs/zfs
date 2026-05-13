@@ -5572,20 +5572,6 @@ arc_buf_access(arc_buf_t *buf)
 	    !HDR_ISTYPE_METADATA(hdr), data, metadata, hits);
 }
 
-/* a generic arc_read_done_func_t which you can use */
-void
-arc_bcopy_func(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
-    arc_buf_t *buf, void *arg)
-{
-	(void) zio, (void) zb, (void) bp;
-
-	if (buf == NULL)
-		return;
-
-	memcpy(arg, buf->b_data, arc_buf_size(buf));
-	arc_buf_destroy(buf, arg);
-}
-
 /* a generic arc_read_done_func_t */
 void
 arc_getbuf_func(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,

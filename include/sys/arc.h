@@ -95,8 +95,7 @@ typedef void arc_prune_func_t(uint64_t bytes, void *priv);
 extern uint_t zfs_arc_average_blocksize;
 extern int l2arc_exclude_special;
 
-/* generic arc_done_func_t's which you can use */
-arc_read_done_func_t arc_bcopy_func;
+/* generic arc_done_func_t which can be used */
 arc_read_done_func_t arc_getbuf_func;
 
 /* generic arc_prune_func_t wrapper for callbacks */
