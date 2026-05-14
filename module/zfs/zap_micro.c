@@ -255,9 +255,8 @@ mzap_open(dmu_buf_t *db)
 	}
 
 	/*
-	 * Make sure that zap_ismicro is set before we let others see
-	 * it, because zap_lockdir() checks zap_ismicro without the lock
-	 * held.
+	 * Make sure that zap_ismicro is set before we let others see it,
+	 * because zap_lock() checks zap_ismicro without the lock held.
 	 */
 	dmu_buf_init_user(&zap->zap_dbu, zap_evict_sync, NULL, &zap->zap_dbuf);
 	winner = dmu_buf_set_user(db, &zap->zap_dbu);
@@ -407,10 +406,10 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 		zap_t *zap;
 		/* Only fat zap supports flags; upgrade immediately. */
 		VERIFY(dnode_add_ref(dn, FTAG));
-		VERIFY0(zap_lockdir_impl(dn, db, FTAG, tx, RW_WRITER,
+		VERIFY0(zap_lock_impl(dn, db, FTAG, tx, RW_WRITER,
 		    B_FALSE, B_FALSE, &zap));
 		VERIFY0(mzap_upgrade(&zap, FTAG, tx, flags));
-		zap_unlockdir(zap, FTAG);
+		zap_unlock(zap, FTAG);
 	} else {
 		dmu_buf_rele(db, FTAG);
 	}

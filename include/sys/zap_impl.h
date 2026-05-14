@@ -248,19 +248,19 @@ uint64_t zap_hash(zap_name_t *zn);
  * Return a zap_t for the given on-disk object, locked and ready for use.
  * The zap_t will be allocated and loaded from disk if its not already loaded.
  */
-int zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
+int zap_lock(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp);
-int zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
+int zap_lock_by_dnode(dnode_t *dn, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp);
 
 /* Underlying implementation for above; do not use. */
-int zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
+int zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp);
 
 /* Unlock and release a zap_t. */
-void zap_unlockdir(zap_t *zap, const void *tag);
+void zap_unlock(zap_t *zap, const void *tag);
 
 /* zap_t release function for when associated dbuf is evicted. */
 void zap_evict_sync(void *dbu);

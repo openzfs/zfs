@@ -730,8 +730,8 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 
 		zap_put_leaf(l);
 		*lp = l = NULL;
-		zap_unlockdir(zap, tag);
-		err = zap_lockdir(os, object, tx, RW_WRITER,
+		zap_unlock(zap, tag);
+		err = zap_lock(os, object, tx, RW_WRITER,
 		    FALSE, FALSE, tag, &zn->zn_zap);
 		zap = zn->zn_zap;
 		if (err != 0)
@@ -817,8 +817,8 @@ zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
 			objset_t *os = zap->zap_objset;
 			uint64_t zapobj = zap->zap_object;
 
-			zap_unlockdir(zap, tag);
-			int err = zap_lockdir(os, zapobj, tx,
+			zap_unlock(zap, tag);
+			int err = zap_lock(os, zapobj, tx,
 			    RW_WRITER, FALSE, FALSE, tag, &zn->zn_zap);
 			zap = zn->zn_zap;
 			if (err != 0)
@@ -1401,8 +1401,8 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 
 			/*
 			 * Usually, the right way to upgrade from a READER lock
-			 * to a WRITER lock is to call zap_unlockdir() and
-			 * zap_lockdir(), but we do not have a tag. Instead,
+			 * to a WRITER lock is to call zap_unlock() and
+			 * zap_lock(), but we do not have a tag. Instead,
 			 * we do it in more sophisticated way.
 			 */
 			rw_exit(&zap->zap_rwlock);

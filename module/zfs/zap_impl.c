@@ -290,7 +290,7 @@ zap_hash(zap_name_t *zn)
  * have the specified tag.
  */
 int
-zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
+zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
 	ASSERT0(db->db_offset);
@@ -389,7 +389,7 @@ zap_lockdir_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 }
 
 int
-zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
+zap_lock_by_dnode(dnode_t *dn, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp)
 {
@@ -399,7 +399,7 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
-	err = zap_lockdir_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
+	err = zap_lock_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
 	if (err != 0)
 		dmu_buf_rele(db, tag);
 	else
@@ -408,7 +408,7 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 }
 
 int
-zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
+zap_lock(objset_t *os, uint64_t obj, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, const void *tag,
     zap_t **zapp)
 {
@@ -424,7 +424,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 		dnode_rele(dn, tag);
 		return (err);
 	}
-	err = zap_lockdir_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
+	err = zap_lock_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
 	if (err != 0) {
 		dmu_buf_rele(db, tag);
 		dnode_rele(dn, tag);
@@ -433,7 +433,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 }
 
 void
-zap_unlockdir(zap_t *zap, const void *tag)
+zap_unlock(zap_t *zap, const void *tag)
 {
 	rw_exit(&zap->zap_rwlock);
 	dnode_rele(zap->zap_dnode, tag);
