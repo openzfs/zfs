@@ -29,6 +29,8 @@
 #include <libintl.h>
 #include <stddef.h>
 #include <libzfs.h>
+#include <signal.h>
+#include <sys/backtrace.h>
 #include "zstream.h"
 
 void
@@ -53,9 +55,43 @@ zstream_usage(void)
 	exit(1);
 }
 
+static void sig_handler(int signo)
+{
+	struct sigaction action;
+	libspl_backtrace(STDERR_FILENO);
+
+	/*
+	 * Restore default action and re-raise signal so SIGSEGV and
+	 * SIGABRT can trigger a core dump.
+	 */
+	action.sa_handler = SIG_DFL;
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	(void) sigaction(signo, &action, NULL);
+	raise(signo);
+}
+
+
 int
 main(int argc, char *argv[])
 {
+	/*
+	 * Set up signal handlers, so if we crash due to bad data in the stream
+	 * we can get more info. Unlike ztest, we don't bail out if we can't
+	 * set up signal handlers, because zstream is very useful without them.
+	 */
+	struct sigaction action = { .sa_handler = sig_handler };
+	sigemptyset(&action.sa_mask);
+	action.sa_flags = 0;
+	if (sigaction(SIGSEGV, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zstream: cannot catch SIGSEGV: %s\n",
+		    strerror(errno));
+	}
+	if (sigaction(SIGABRT, &action, NULL) < 0) {
+		(void) fprintf(stderr, "zstream: cannot catch SIGABRT: %s\n",
+		    strerror(errno));
+	}
+
 	char *basename = strrchr(argv[0], '/');
 	basename = basename ? (basename + 1) : argv[0];
 	if (argc >= 1 && strcmp(basename, "zstreamdump") == 0)
