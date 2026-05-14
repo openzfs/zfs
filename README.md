@@ -52,7 +52,7 @@ All RHEL (and compatible systems: AlmaLinux OS, Rocky Linux, etc) on the **full*
 
 All Ubuntu **LTS** releases are supported.
 
-**Supported Ubuntu releases**: **24.04 “Noble”**, **22.04 “Jammy”**.
+**Supported Ubuntu releases**: **26.04 “Resolute”**, **24.04 “Noble”**, **22.04 “Jammy”**.
 
 ### Debian
 
