@@ -30,7 +30,6 @@
 #include <linux/sched.h>
 
 typedef enum {
-	RW_DRIVER	= 2,
 	RW_DEFAULT	= 4,
 	RW_NOLOCKDEP	= 5
 } krw_type_t;
@@ -75,20 +74,35 @@ spl_rw_set_type(krwlock_t *rwp, krw_type_t type)
 {
 	rwp->rw_type = type;
 }
+
+static inline void
+spl_rw_lockdep_off(void)
+{
+	lockdep_off();
+}
+
+static inline void
+spl_rw_lockdep_on(void)
+{
+	lockdep_on();
+}
+
 static inline void
 spl_rw_lockdep_off_maybe(krwlock_t *rwp)		\
 {							\
 	if (rwp && rwp->rw_type == RW_NOLOCKDEP)	\
-		lockdep_off();				\
+		spl_rw_lockdep_off();			\
 }
 static inline void
 spl_rw_lockdep_on_maybe(krwlock_t *rwp)			\
 {							\
 	if (rwp && rwp->rw_type == RW_NOLOCKDEP)	\
-		lockdep_on();				\
+		spl_rw_lockdep_on();			\
 }
 #else  /* CONFIG_LOCKDEP */
 #define	spl_rw_set_type(rwp, type)
+#define	spl_rw_lockdep_off()
+#define	spl_rw_lockdep_on()
 #define	spl_rw_lockdep_off_maybe(rwp)
 #define	spl_rw_lockdep_on_maybe(rwp)
 #endif /* CONFIG_LOCKDEP */
@@ -117,6 +131,56 @@ RW_READ_HELD(krwlock_t *rwp)
  * will be correctly located in the users code which is important
  * for the built in kernel lock analysis tools
  */
+#define	spl_rw_tryenter_impl(rwp, rw) /* CSTYLED */			\
+({									\
+	int _rc_ = 0;							\
+									\
+	switch (rw) {							\
+	case RW_READER:							\
+		_rc_ = down_read_trylock(SEM(rwp));			\
+		break;							\
+	case RW_WRITER:							\
+		if ((_rc_ = down_write_trylock(SEM(rwp))))		\
+			spl_rw_set_owner(rwp);				\
+		break;							\
+	default:							\
+		VERIFY(0);						\
+	}								\
+	_rc_;								\
+})
+
+#define	spl_rw_enter_impl(rwp, rw) /* CSTYLED */			\
+({									\
+	switch (rw) {							\
+	case RW_READER:							\
+		down_read(SEM(rwp));					\
+		break;							\
+	case RW_WRITER:							\
+		down_write(SEM(rwp));					\
+		spl_rw_set_owner(rwp);					\
+		break;							\
+	default:							\
+		VERIFY(0);						\
+	}								\
+})
+
+#define	spl_rw_exit_impl(rwp) /* CSTYLED */				\
+({									\
+	if (RW_WRITE_HELD(rwp)) {					\
+		spl_rw_clear_owner(rwp);				\
+		up_write(SEM(rwp));					\
+	} else {							\
+		ASSERT(RW_READ_HELD(rwp));				\
+		up_read(SEM(rwp));					\
+	}								\
+})
+
+#define	spl_rw_downgrade_impl(rwp) /* CSTYLED */			\
+({									\
+	spl_rw_clear_owner(rwp);					\
+	downgrade_write(SEM(rwp));					\
+})
+
 #define	rw_init(rwp, name, type, arg) /* CSTYLED */			\
 ({									\
 	static struct lock_class_key __key;				\
@@ -140,60 +204,60 @@ RW_READ_HELD(krwlock_t *rwp)
 
 #define	rw_tryenter(rwp, rw) /* CSTYLED */				\
 ({									\
-	int _rc_ = 0;							\
-									\
 	spl_rw_lockdep_off_maybe(rwp);					\
-	switch (rw) {							\
-	case RW_READER:							\
-		_rc_ = down_read_trylock(SEM(rwp));			\
-		break;							\
-	case RW_WRITER:							\
-		if ((_rc_ = down_write_trylock(SEM(rwp))))		\
-			spl_rw_set_owner(rwp);				\
-		break;							\
-	default:							\
-		VERIFY(0);						\
-	}								\
+	int _rc_ = spl_rw_tryenter_impl(rwp, rw);			\
 	spl_rw_lockdep_on_maybe(rwp);					\
+	_rc_;								\
+})
+
+#define	rw_tryenter_nolockdep(rwp, rw) /* CSTYLED */			\
+({									\
+	spl_rw_lockdep_off();						\
+	int _rc_ = spl_rw_tryenter_impl(rwp, rw);			\
+	spl_rw_lockdep_on();						\
 	_rc_;								\
 })
 
 #define	rw_enter(rwp, rw) /* CSTYLED */					\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
-	switch (rw) {							\
-	case RW_READER:							\
-		down_read(SEM(rwp));					\
-		break;							\
-	case RW_WRITER:							\
-		down_write(SEM(rwp));					\
-		spl_rw_set_owner(rwp);					\
-		break;							\
-	default:							\
-		VERIFY(0);						\
-	}								\
+	spl_rw_enter_impl(rwp, rw);					\
 	spl_rw_lockdep_on_maybe(rwp);					\
+})
+
+#define	rw_enter_nolockdep(rwp, rw) /* CSTYLED */			\
+({									\
+	spl_rw_lockdep_off();						\
+	spl_rw_enter_impl(rwp, rw);					\
+	spl_rw_lockdep_on();						\
 })
 
 #define	rw_exit(rwp) /* CSTYLED */					\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
-	if (RW_WRITE_HELD(rwp)) {					\
-		spl_rw_clear_owner(rwp);				\
-		up_write(SEM(rwp));					\
-	} else {							\
-		ASSERT(RW_READ_HELD(rwp));				\
-		up_read(SEM(rwp));					\
-	}								\
+	spl_rw_exit_impl(rwp);						\
 	spl_rw_lockdep_on_maybe(rwp);					\
+})
+
+#define	rw_exit_nolockdep(rwp) /* CSTYLED */				\
+({									\
+	spl_rw_lockdep_off();						\
+	spl_rw_exit_impl(rwp);						\
+	spl_rw_lockdep_on();						\
 })
 
 #define	rw_downgrade(rwp) /* CSTYLED */					\
 ({									\
 	spl_rw_lockdep_off_maybe(rwp);					\
-	spl_rw_clear_owner(rwp);					\
-	downgrade_write(SEM(rwp));					\
+	spl_rw_downgrade_impl(rwp);					\
 	spl_rw_lockdep_on_maybe(rwp);					\
+})
+
+#define	rw_downgrade_nolockdep(rwp) /* CSTYLED */			\
+({									\
+	spl_rw_lockdep_off();						\
+	spl_rw_downgrade_impl(rwp);					\
+	spl_rw_lockdep_on();						\
 })
 
 #endif /* _SPL_RWLOCK_H */
