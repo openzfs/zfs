@@ -410,12 +410,14 @@ get_usage(zfs_help_t idx)
 		    "\tproject -C [-k] [-r] <directory ...>\n"
 		    "\tproject [-p id] [-r] [-s] <directory ...>\n"));
 	case HELP_HOLD:
-		return (gettext("\thold [-r] <tag> <filesystem|volume|snapshot> ...\n"));
+		return (gettext("\thold [-r] <tag> "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_HOLDS:
-		return (gettext("\tholds [-rHp] <snapshot|dataset> ...\n"));
+		return (gettext("\tholds [-rHp] "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_RELEASE:
 		return (gettext("\trelease [-r] <tag> "
-		    "<snapshot|dataset> ...\n"));
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_DIFF:
 		return (gettext("\tdiff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
@@ -6958,9 +6960,9 @@ holds_callback(zfs_handle_t *zhp, void *data)
 }
 
 /*
- * zfs holds [-rHp] <snap> ...
+ * zfs holds [-rHp] <filesystem|volume|snapshot> ...
  *
- *	-r	Lists holds that are set on the named snapshots recursively.
+ *	-r	Lists holds that are set on the named datasets recursively.
  *	-H	Scripted mode; elide headers and separate columns by tabs.
  *	-p	Display values in parsable (literal) format.
  */

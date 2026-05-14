@@ -1389,19 +1389,17 @@ zfs_secpolicy_userspace_upgrade(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 }
 
 static int
-zfs_secpolicy_hold(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+zfs_secpolicy_hold_release(nvlist_t *nvl, cred_t *cr, const char *perm)
 {
-	(void) zc;
 	nvpair_t *pair;
-	nvlist_t *holds;
 	int error;
 
-	holds = fnvlist_lookup_nvlist(innvl, "holds");
-
-	for (pair = nvlist_next_nvpair(holds, NULL); pair != NULL;
-	    pair = nvlist_next_nvpair(holds, pair)) {
+	for (pair = nvlist_next_nvpair(nvl, NULL); pair != NULL;
+	    pair = nvlist_next_nvpair(nvl, pair)) {
 		char fsname[ZFS_MAX_DATASET_NAME_LEN];
 		const char *name = nvpair_name(pair);
+		if (dataset_namecheck(name, NULL, NULL) != 0)
+			return (SET_ERROR(EINVAL));
 		if (strchr(name, '@') != NULL) {
 			error = dmu_fsname(name, fsname);
 			if (error != 0)
@@ -1411,8 +1409,7 @@ zfs_secpolicy_hold(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 			    sizeof (fsname))
 				return (SET_ERROR(ENAMETOOLONG));
 		}
-		error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_HOLD, cr);
+		error = zfs_secpolicy_write_perms(fsname, perm, cr);
 		if (error != 0)
 			return (error);
 	}
@@ -1420,31 +1417,20 @@ zfs_secpolicy_hold(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 }
 
 static int
+zfs_secpolicy_hold(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+{
+	(void) zc;
+	nvlist_t *holds = fnvlist_lookup_nvlist(innvl, "holds");
+	return (zfs_secpolicy_hold_release(holds, cr,
+	    ZFS_DELEG_PERM_HOLD));
+}
+
+static int
 zfs_secpolicy_release(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	(void) zc;
-	nvpair_t *pair;
-	int error;
-
-	for (pair = nvlist_next_nvpair(innvl, NULL); pair != NULL;
-	    pair = nvlist_next_nvpair(innvl, pair)) {
-		char fsname[ZFS_MAX_DATASET_NAME_LEN];
-		const char *name = nvpair_name(pair);
-		if (strchr(name, '@') != NULL) {
-			error = dmu_fsname(name, fsname);
-			if (error != 0)
-				return (error);
-		} else {
-			if (strlcpy(fsname, name, sizeof (fsname)) >=
-			    sizeof (fsname))
-				return (SET_ERROR(ENAMETOOLONG));
-		}
-		error = zfs_secpolicy_write_perms(fsname,
-		    ZFS_DELEG_PERM_RELEASE, cr);
-		if (error != 0)
-			return (error);
-	}
-	return (0);
+	return (zfs_secpolicy_hold_release(innvl, cr,
+	    ZFS_DELEG_PERM_RELEASE));
 }
 
 /*

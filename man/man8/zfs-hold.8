@@ -36,20 +36,20 @@
 .
 .Sh NAME
 .Nm zfs-hold
-.Nd hold ZFS snapshots or datasets to prevent their removal
+.Nd hold datasets to prevent their removal
 .Sh SYNOPSIS
 .Nm zfs
 .Cm hold
 .Op Fl r
-.Ar tag Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
 .Cm holds
 .Op Fl rHp
-.Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
 .Cm release
 .Op Fl r
-.Ar tag Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .
 .Sh DESCRIPTION
 .Bl -tag -width ""
@@ -57,16 +57,15 @@
 .Nm zfs
 .Cm hold
 .Op Fl r
-.Ar tag Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
 Adds a single reference, named with the
 .Ar tag
-argument, to the specified snapshots or datasets
-.Pq filesystems and volumes .
+argument, to the specified datasets.
 Each target has its own tag namespace, and tags must be unique within that
 space.
 .Pp
-If a hold exists on a snapshot or dataset, attempts to destroy it with
+If a hold exists on a dataset, attempts to destroy it with
 .Nm zfs Cm destroy
 return
 .Sy EBUSY .
@@ -80,9 +79,9 @@ file systems
 .Nm zfs
 .Cm holds
 .Op Fl rHp
-.Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
-Lists all existing user references for the given snapshots or datasets.
+Lists all existing user references for the given datasets.
 .Bl -tag -width "-r"
 .It Fl r
 List holds set on the named target and on all descendent file systems.
@@ -95,13 +94,13 @@ Prints holds timestamps as Unix epoch timestamps.
 .Nm zfs
 .Cm release
 .Op Fl r
-.Ar tag Ar snapshot Ns | Ns Ar dataset Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
 Removes a single reference, named with the
 .Ar tag
-argument, from the specified snapshots or datasets.
+argument, from the specified datasets.
 The tag must already exist for each target.
-If a hold exists on a snapshot or dataset, attempts to destroy it with
+If a hold exists on a dataset, attempts to destroy it with
 .Nm zfs Cm destroy
 return
 .Sy EBUSY .

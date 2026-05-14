@@ -122,4 +122,11 @@ log_mustnot zfs destroy -r $TESTPOOL/$TESTFS1
 log_must zfs release rhold $TESTPOOL/$TESTFS1
 log_must zfs destroy -r $TESTPOOL/$TESTFS1
 
+# Bookmarks are not valid hold targets
+log_must zfs create $TESTPOOL/$TESTFS1
+log_must zfs snapshot $TESTPOOL/$TESTFS1@bmsnap
+log_must zfs bookmark $TESTPOOL/$TESTFS1@bmsnap $TESTPOOL/$TESTFS1#bm
+log_mustnot zfs hold bhold $TESTPOOL/$TESTFS1#bm
+log_must zfs destroy -r $TESTPOOL/$TESTFS1
+
 log_pass "User holds on datasets prevent destruction"
