@@ -139,6 +139,11 @@ case "$OS" in
     OSv="ubuntu24.04"
     URL="$UBMIRROR/noble/current/noble-server-cloudimg-amd64.img"
     ;;
+  ubuntu26)
+    OSNAME="Ubuntu 26.04"
+    OSv="ubuntu24.04"
+    URL="$UBMIRROR/resolute/current/resolute-server-cloudimg-amd64.img"
+    ;;
   *)
     echo "Wrong value for OS variable!"
     exit 111
