@@ -697,10 +697,8 @@ zap_deref_leaf(zap_t *zap, uint64_t h, dmu_tx_t *tx, krw_t lt, zap_leaf_t **lp)
 }
 
 static int
-zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
-    const void *tag, dmu_tx_t *tx, zap_leaf_t **lp)
+zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx, zap_leaf_t **lp)
 {
-	(void) tag;
 	zap_t *zap = zn->zn_zap;
 	uint64_t hash = zn->zn_hash;
 	int err;
@@ -780,10 +778,8 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 }
 
 static void
-zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
-    const void *tag, dmu_tx_t *tx)
+zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 {
-	(void) tag;
 	zap_t *zap = zn->zn_zap;
 	int shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 	int leaffull = (zap_leaf_phys(l)->l_hdr.lh_prefix_len == shift &&
@@ -887,9 +883,8 @@ fzap_lookup(zap_name_t *zn,
 }
 
 int
-fzap_add_cd(zap_name_t *zn,
-    uint64_t integer_size, uint64_t num_integers,
-    const void *val, uint32_t cd, const void *tag, dmu_tx_t *tx)
+fzap_add_cd(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
+    const void *val, uint32_t cd, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
 	int err;
@@ -918,7 +913,7 @@ retry:
 	if (err == 0) {
 		zap_increment_num_entries(zap, 1, tx);
 	} else if (err == EAGAIN) {
-		err = zap_expand_leaf(zn, l, tag, tx, &l);
+		err = zap_expand_leaf(zn, l, tx, &l);
 		if (err == 0)
 			goto retry;
 	}
@@ -928,28 +923,26 @@ out:
 		if (err == ENOSPC)
 			zap_put_leaf(l);
 		else
-			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tx);
 	}
 	return (err);
 }
 
 int
-fzap_add(zap_name_t *zn,
-    uint64_t integer_size, uint64_t num_integers,
-    const void *val, const void *tag, dmu_tx_t *tx)
+fzap_add(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
 {
 	int err = fzap_check(zn, integer_size, num_integers);
 	if (err != 0)
 		return (err);
 
 	return (fzap_add_cd(zn, integer_size, num_integers,
-	    val, ZAP_NEED_CD, tag, tx));
+	    val, ZAP_NEED_CD, tx));
 }
 
 int
-fzap_update(zap_name_t *zn,
-    int integer_size, uint64_t num_integers, const void *val,
-    const void *tag, dmu_tx_t *tx)
+fzap_update(zap_name_t *zn, int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
 {
 	zap_leaf_t *l;
 	int err;
@@ -980,7 +973,7 @@ retry:
 	}
 
 	if (err == EAGAIN) {
-		err = zap_expand_leaf(zn, l, tag, tx, &l);
+		err = zap_expand_leaf(zn, l, tx, &l);
 		if (err == 0)
 			goto retry;
 	}
@@ -989,7 +982,7 @@ retry:
 		if (err == ENOSPC)
 			zap_put_leaf(l);
 		else
-			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tag, tx);
+			zap_put_leaf_maybe_grow_ptrtbl(zn, l, tx);
 	}
 	return (err);
 }

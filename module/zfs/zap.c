@@ -500,14 +500,13 @@ zap_add_impl(zap_t *zap, const char *key,
 		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
-		err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
+		err = fzap_add(zn, integer_size, num_integers, val, tx);
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(key) >= MZAP_NAME_LEN ||
 	    !mze_canfit_fzap_leaf(zn, zn->zn_hash)) {
-		err = mzap_upgrade(&zn->zn_zap, tag, tx, 0);
+		err = mzap_upgrade(&zn->zn_zap, tx, 0);
 		if (err == 0) {
-			err = fzap_add(zn, integer_size, num_integers, val,
-			    tag, tx);
+			err = fzap_add(zn, integer_size, num_integers, val, tx);
 		}
 	} else {
 		zfs_btree_index_t idx;
@@ -569,7 +568,7 @@ zap_add_uint64_impl(zap_t *zap, const uint64_t *key,
 		zap_unlock(zap, tag);
 		return (SET_ERROR(ENOTSUP));
 	}
-	err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
+	err = fzap_add(zn, integer_size, num_integers, val, tx);
 	zap_name_free(zn);
 	zap_unlock(zap, tag);
 	return (err);
@@ -628,17 +627,16 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 		return (SET_ERROR(ENOTSUP));
 	}
 	if (!zap->zap_ismicro) {
-		err = fzap_update(zn, integer_size, num_integers, val,
-		    FTAG, tx);
+		err = fzap_update(zn, integer_size, num_integers, val, tx);
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(name) >= MZAP_NAME_LEN) {
 		dprintf("upgrading obj %llu: intsz=%u numint=%llu name=%s\n",
 		    (u_longlong_t)zapobj, integer_size,
 		    (u_longlong_t)num_integers, name);
-		err = mzap_upgrade(&zn->zn_zap, FTAG, tx, 0);
+		err = mzap_upgrade(&zn->zn_zap, tx, 0);
 		if (err == 0) {
 			err = fzap_update(zn, integer_size, num_integers,
-			    val, FTAG, tx);
+			    val, tx);
 		}
 	} else {
 		zfs_btree_index_t idx;
@@ -669,7 +667,7 @@ zap_update_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
 		zap_unlock(zap, tag);
 		return (SET_ERROR(ENOTSUP));
 	}
-	err = fzap_update(zn, integer_size, num_integers, val, tag, tx);
+	err = fzap_update(zn, integer_size, num_integers, val, tx);
 	zap_name_free(zn);
 	zap_unlock(zap, tag);
 	return (err);

@@ -285,12 +285,8 @@ zap_hash(zap_name_t *zn)
 	return (h);
 }
 
-/*
- * This routine "consumes" the caller's hold on the dbuf, which must
- * have the specified tag.
- */
 static int
-zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
+zap_lock_impl(dnode_t *dn, dmu_buf_t *db, dmu_tx_t *tx,
     krw_t lti, boolean_t fatreader, boolean_t adding, zap_t **zapp)
 {
 	ASSERT0(db->db_offset);
@@ -349,7 +345,7 @@ zap_lock_impl(dnode_t *dn, dmu_buf_t *db, const void *tag, dmu_tx_t *tx,
 			dprintf("upgrading obj %llu: num_entries=%u\n",
 			    (u_longlong_t)obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
-			int err = mzap_upgrade(zapp, tag, tx, 0);
+			int err = mzap_upgrade(zapp, tx, 0);
 			if (err != 0)
 				rw_exit(&zap->zap_rwlock);
 			return (err);
@@ -399,7 +395,7 @@ zap_lock_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 	err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
-	err = zap_lock_impl(dn, db, tag, tx, lti, fatreader, adding, zapp);
+	err = zap_lock_impl(dn, db, tx, lti, fatreader, adding, zapp);
 	if (err != 0)
 		dmu_buf_rele(db, tag);
 	else

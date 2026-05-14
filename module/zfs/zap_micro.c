@@ -324,7 +324,7 @@ handle_winner:
 }
 
 int
-mzap_upgrade(zap_t **zapp, const void *tag, dmu_tx_t *tx, zap_flags_t flags)
+mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 {
 	int err = 0;
 	zap_t *zap = *zapp;
@@ -362,7 +362,7 @@ mzap_upgrade(zap_t **zapp, const void *tag, dmu_tx_t *tx, zap_flags_t flags)
 		zap_name_init_str(zn, mze->mze_name, 0);
 		/* If we fail here, we would end up losing entries */
 		VERIFY0(fzap_add_cd(zn, 8, 1, &mze->mze_value, mze->mze_cd,
-		    tag, tx));
+		    tx));
 	}
 	zap_name_free(zn);
 	vmem_free(mzp, sz);
@@ -406,7 +406,7 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 		/* Only fat zap supports flags; upgrade immediately. */
 		VERIFY0(zap_lock_by_dnode(dn, tx,
 		    RW_WRITER, B_FALSE, B_FALSE, FTAG, &zap));
-		VERIFY0(mzap_upgrade(&zap, FTAG, tx, flags));
+		VERIFY0(mzap_upgrade(&zap, tx, flags));
 		zap_unlock(zap, FTAG);
 	}
 
