@@ -410,7 +410,7 @@ get_usage(zfs_help_t idx)
 		    "\tproject -C [-k] [-r] <directory ...>\n"
 		    "\tproject [-p id] [-r] [-s] <directory ...>\n"));
 	case HELP_HOLD:
-		return (gettext("\thold [-r] <tag> <snapshot|dataset> ...\n"));
+		return (gettext("\thold [-r] <tag> <filesystem|volume|snapshot> ...\n"));
 	case HELP_HOLDS:
 		return (gettext("\tholds [-rHp] <snapshot|dataset> ...\n"));
 	case HELP_RELEASE:
