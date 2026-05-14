@@ -25,6 +25,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2023 Alexander Stetsenko <alex.stetsenko@gmail.com>
  * Copyright (c) 2023, Klara Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -155,18 +156,6 @@ fzap_upgrade(zap_t *zap, dmu_tx_t *tx, zap_flags_t flags)
 
 	kmem_free(l, sizeof (zap_leaf_t));
 	dmu_buf_rele(db, FTAG);
-}
-
-static int
-zap_tryupgradedir(zap_t *zap, dmu_tx_t *tx)
-{
-	if (RW_WRITE_HELD(&zap->zap_rwlock))
-		return (1);
-	if (rw_tryupgrade(&zap->zap_rwlock)) {
-		dmu_buf_will_dirty(zap->zap_dbuf, tx);
-		return (1);
-	}
-	return (0);
 }
 
 /*
@@ -711,6 +700,7 @@ static int
 zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
     const void *tag, dmu_tx_t *tx, zap_leaf_t **lp)
 {
+	(void) tag;
 	zap_t *zap = zn->zn_zap;
 	uint64_t hash = zn->zn_hash;
 	int err;
@@ -722,21 +712,13 @@ zap_expand_leaf(zap_name_t *zn, zap_leaf_t *l,
 	ASSERT3U(ZAP_HASH_IDX(hash, old_prefix_len), ==,
 	    zap_leaf_phys(l)->l_hdr.lh_prefix);
 
-	if (zap_tryupgradedir(zap, tx) == 0 ||
+	if (zap_lock_try_upgrade(zap, tx) == 0 ||
 	    old_prefix_len == zap_f_phys(zap)->zap_ptrtbl.zt_shift) {
 		/* We failed to upgrade, or need to grow the pointer table */
-		objset_t *os = zap->zap_objset;
-		uint64_t object = zap->zap_object;
-
 		zap_put_leaf(l);
 		*lp = l = NULL;
-		zap_unlock(zap, tag);
-		err = zap_lock(os, object, tx, RW_WRITER,
-		    FALSE, FALSE, tag, &zn->zn_zap);
-		zap = zn->zn_zap;
-		if (err != 0)
-			return (err);
-		ASSERT(!zap->zap_ismicro);
+
+		zap_lock_upgrade(zap, tx);
 
 		while (old_prefix_len ==
 		    zap_f_phys(zap)->zap_ptrtbl.zt_shift) {
@@ -801,6 +783,7 @@ static void
 zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
     const void *tag, dmu_tx_t *tx)
 {
+	(void) tag;
 	zap_t *zap = zn->zn_zap;
 	int shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 	int leaffull = (zap_leaf_phys(l)->l_hdr.lh_prefix_len == shift &&
@@ -813,17 +796,7 @@ zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
 		 * We are in the middle of growing the pointer table, or
 		 * this leaf will soon make us grow it.
 		 */
-		if (zap_tryupgradedir(zap, tx) == 0) {
-			objset_t *os = zap->zap_objset;
-			uint64_t zapobj = zap->zap_object;
-
-			zap_unlock(zap, tag);
-			int err = zap_lock(os, zapobj, tx,
-			    RW_WRITER, FALSE, FALSE, tag, &zn->zn_zap);
-			zap = zn->zn_zap;
-			if (err != 0)
-				return;
-		}
+		zap_lock_upgrade(zap, tx);
 
 		/* could have finished growing while our locks were down */
 		if (zap_f_phys(zap)->zap_ptrtbl.zt_shift == shift)
@@ -946,7 +919,6 @@ retry:
 		zap_increment_num_entries(zap, 1, tx);
 	} else if (err == EAGAIN) {
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
-		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
 		if (err == 0)
 			goto retry;
 	}
@@ -1009,7 +981,6 @@ retry:
 
 	if (err == EAGAIN) {
 		err = zap_expand_leaf(zn, l, tag, tx, &l);
-		zap = zn->zn_zap;	/* zap_expand_leaf() may change zap */
 		if (err == 0)
 			goto retry;
 	}
@@ -1392,22 +1363,14 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 		 * If there two empty sibling, we have work to do, so
 		 * we need to lock ZAP ptrtbl as WRITER.
 		 */
-		if (!writer && (writer = zap_tryupgradedir(zap, tx)) == 0) {
+		if (!writer && (writer = zap_lock_try_upgrade(zap, tx)) == 0) {
 			/* We failed to upgrade */
 			if (l != NULL) {
 				zap_put_leaf(l);
 				l = NULL;
 			}
 
-			/*
-			 * Usually, the right way to upgrade from a READER lock
-			 * to a WRITER lock is to call zap_unlock() and
-			 * zap_lock(), but we do not have a tag. Instead,
-			 * we do it in more sophisticated way.
-			 */
-			rw_exit(&zap->zap_rwlock);
-			rw_enter(&zap->zap_rwlock, RW_WRITER);
-			dmu_buf_will_dirty(zap->zap_dbuf, tx);
+			zap_lock_upgrade(zap, tx);
 
 			zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 			writer = B_TRUE;

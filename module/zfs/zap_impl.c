@@ -431,6 +431,43 @@ zap_unlock(zap_t *zap, const void *tag)
 	dmu_buf_rele(zap->zap_dbuf, tag);
 }
 
+int
+zap_lock_try_upgrade(zap_t *zap, dmu_tx_t *tx)
+{
+	if (RW_WRITE_HELD(&zap->zap_rwlock))
+		/* Already have writer, nothing to do. */
+		return (1);
+
+	/* Try to upgrade the lock in-place. */
+	if (rw_tryupgrade(&zap->zap_rwlock)) {
+		/*
+		 * Got it, mark buffer dirty, since we only do that in
+		 * zap_lock_impl() for writer.
+		 */
+		dmu_buf_will_dirty(zap->zap_dbuf, tx);
+		return (1);
+	}
+
+	return (0);
+}
+
+void
+zap_lock_upgrade(zap_t *zap, dmu_tx_t *tx)
+{
+	if (zap_lock_try_upgrade(zap, tx))
+		return;
+
+	/*
+	 * It's safe to drop the lock here because we still have a hold on
+	 * zap_dbuf, which prevents the dbuf being evicted and the zap_t being
+	 * deallocated.
+	 */
+	rw_exit(&zap->zap_rwlock);
+
+	rw_enter(&zap->zap_rwlock, RW_WRITER);
+	dmu_buf_will_dirty(zap->zap_dbuf, tx);
+}
+
 void
 zap_evict_sync(void *dbu)
 {

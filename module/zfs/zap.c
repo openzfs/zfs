@@ -501,7 +501,6 @@ zap_add_impl(zap_t *zap, const char *key,
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
-		zap = zn->zn_zap;	/* fzap_add() may change zap */
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(key) >= MZAP_NAME_LEN ||
 	    !mze_canfit_fzap_leaf(zn, zn->zn_hash)) {
@@ -510,7 +509,6 @@ zap_add_impl(zap_t *zap, const char *key,
 			err = fzap_add(zn, integer_size, num_integers, val,
 			    tag, tx);
 		}
-		zap = zn->zn_zap;	/* fzap_add() may change zap */
 	} else {
 		zfs_btree_index_t idx;
 		if (mze_find(zn, &idx) != NULL) {
@@ -521,8 +519,7 @@ zap_add_impl(zap_t *zap, const char *key,
 	}
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_add() failed */
-		zap_unlock(zap, tag);
+	zap_unlock(zap, tag);
 	return (err);
 }
 
@@ -573,10 +570,8 @@ zap_add_uint64_impl(zap_t *zap, const uint64_t *key,
 		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_add(zn, integer_size, num_integers, val, tag, tx);
-	zap = zn->zn_zap;	/* fzap_add() may change zap */
 	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_add() failed */
-		zap_unlock(zap, tag);
+	zap_unlock(zap, tag);
 	return (err);
 }
 
@@ -635,7 +630,6 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	if (!zap->zap_ismicro) {
 		err = fzap_update(zn, integer_size, num_integers, val,
 		    FTAG, tx);
-		zap = zn->zn_zap;	/* fzap_update() may change zap */
 	} else if (integer_size != 8 || num_integers != 1 ||
 	    strlen(name) >= MZAP_NAME_LEN) {
 		dprintf("upgrading obj %llu: intsz=%u numint=%llu name=%s\n",
@@ -646,7 +640,6 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 			err = fzap_update(zn, integer_size, num_integers,
 			    val, FTAG, tx);
 		}
-		zap = zn->zn_zap;	/* fzap_update() may change zap */
 	} else {
 		zfs_btree_index_t idx;
 		mzap_ent_t *mze = mze_find(zn, &idx);
@@ -658,8 +651,7 @@ zap_update(objset_t *os, uint64_t zapobj, const char *name,
 	}
 	ASSERT(zap == zn->zn_zap);
 	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
-		zap_unlock(zap, FTAG);
+	zap_unlock(zap, FTAG);
 	return (err);
 }
 
@@ -678,10 +670,8 @@ zap_update_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
 		return (SET_ERROR(ENOTSUP));
 	}
 	err = fzap_update(zn, integer_size, num_integers, val, tag, tx);
-	zap = zn->zn_zap;	/* fzap_update() may change zap */
 	zap_name_free(zn);
-	if (zap != NULL)	/* may be NULL if fzap_upgrade() failed */
-		zap_unlock(zap, tag);
+	zap_unlock(zap, tag);
 	return (err);
 }
 

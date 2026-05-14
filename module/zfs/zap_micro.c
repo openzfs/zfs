@@ -363,7 +363,6 @@ mzap_upgrade(zap_t **zapp, const void *tag, dmu_tx_t *tx, zap_flags_t flags)
 		/* If we fail here, we would end up losing entries */
 		VERIFY0(fzap_add_cd(zn, 8, 1, &mze->mze_value, mze->mze_cd,
 		    tag, tx));
-		zap = zn->zn_zap;	/* fzap_add_cd() may change zap */
 	}
 	zap_name_free(zn);
 	vmem_free(mzp, sz);

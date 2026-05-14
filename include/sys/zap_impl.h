@@ -258,6 +258,18 @@ int zap_lock_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 /* Unlock and release a zap_t. */
 void zap_unlock(zap_t *zap, const void *tag);
 
+/*
+ * Try to upgrade a zap lock from READER to WRITER. If the upgrade is not
+ * possible without blocking, returns 0. If the upgrade happened, returns 1.
+ */
+int zap_lock_try_upgrade(zap_t *zap, dmu_tx_t *tx);
+
+/*
+ * Upgrade a zap lock from READER to WRITER. If it can't be upgraded
+ * immediately it will block.
+ */
+void zap_lock_upgrade(zap_t *zap, dmu_tx_t *tx);
+
 /* zap_t release function for when associated dbuf is evicted. */
 void zap_evict_sync(void *dbu);
 
