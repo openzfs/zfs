@@ -320,18 +320,18 @@ zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
 static int
 zap_lookup_length_uint64_impl(zap_t *zap, const uint64_t *key,
     int key_numints, uint64_t integer_size, uint64_t num_integers, void *buf,
-    uint64_t *actual_num_integers)
+    uint64_t *actual_num_integers, const void *tag)
 {
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
+		zap_unlockdir(zap, tag);
 		return (SET_ERROR(ENOTSUP));
 	}
 
 	int err = fzap_lookup(zn, integer_size, num_integers, buf,
 	    NULL, 0, NULL, actual_num_integers);
 	zap_name_free(zn);
-	zap_unlockdir(zap, FTAG);
+	zap_unlockdir(zap, tag);
 	return (err);
 }
 
@@ -346,7 +346,7 @@ zap_lookup_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	if (err != 0)
 		return (err);
 	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, NULL);
+	    integer_size, num_integers, buf, NULL, FTAG);
 	/* zap_lookup_length_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
@@ -362,7 +362,7 @@ zap_lookup_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
 	if (err != 0)
 		return (err);
 	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, NULL);
+	    integer_size, num_integers, buf, NULL, FTAG);
 	/* zap_lookup_length_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
@@ -379,7 +379,7 @@ zap_lookup_length_uint64_by_dnode(dnode_t *dn, const uint64_t *key,
 	if (err != 0)
 		return (err);
 	err = zap_lookup_length_uint64_impl(zap, key, key_numints,
-	    integer_size, num_integers, buf, actual_num_integers);
+	    integer_size, num_integers, buf, actual_num_integers, FTAG);
 	/* zap_lookup_length_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
@@ -423,17 +423,18 @@ zap_prefetch(objset_t *os, uint64_t zapobj, const char *name)
 /* zap_prefetch_uint64 */
 
 static int
-zap_prefetch_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints)
+zap_prefetch_uint64_impl(zap_t *zap, const uint64_t *key, int key_numints,
+    const void *tag)
 {
 	zap_name_t *zn = zap_name_alloc_uint64(zap, key, key_numints);
 	if (zn == NULL) {
-		zap_unlockdir(zap, FTAG);
+		zap_unlockdir(zap, tag);
 		return (SET_ERROR(ENOTSUP));
 	}
 
 	fzap_prefetch(zn);
 	zap_name_free(zn);
-	zap_unlockdir(zap, FTAG);
+	zap_unlockdir(zap, tag);
 	return (0);
 }
 
@@ -447,7 +448,7 @@ zap_prefetch_uint64(objset_t *os, uint64_t zapobj, const uint64_t *key,
 	    zap_lockdir(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	err = zap_prefetch_uint64_impl(zap, key, key_numints);
+	err = zap_prefetch_uint64_impl(zap, key, key_numints, FTAG);
 	/* zap_prefetch_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
@@ -461,7 +462,7 @@ zap_prefetch_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints)
 	    zap_lockdir_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG, &zap);
 	if (err != 0)
 		return (err);
-	err = zap_prefetch_uint64_impl(zap, key, key_numints);
+	err = zap_prefetch_uint64_impl(zap, key, key_numints, FTAG);
 	/* zap_prefetch_uint64_impl() calls zap_unlockdir() */
 	return (err);
 }
