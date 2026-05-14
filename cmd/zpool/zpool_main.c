@@ -13878,6 +13878,15 @@ main(int argc, char **argv)
 	if (strcmp(cmdname, "help") == 0)
 		return (zpool_do_help(argc, argv));
 
+	/*
+	 * Special case '<subcommand> --help|-h|-?'
+	 */
+	if (argc >= 3 && (strcmp(argv[2], "--help") == 0 ||
+	    strcmp(argv[2], "-h") == 0 || strcmp(argv[2], "-?") == 0)) {
+		char *help_argv[] = { argv[0], (char *)"help", argv[1], NULL };
+		return (zpool_do_help(3, help_argv));
+	}
+
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
