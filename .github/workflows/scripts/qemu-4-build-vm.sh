@@ -337,7 +337,7 @@ fi
 #
 # rhel8.10
 # almalinux9.5
-# fedora42
+# fedora44
 source /etc/os-release
  if which hostnamectl &> /dev/null ; then
   # Fedora 42+ use hostnamectl
