@@ -102,14 +102,14 @@
 
 #define	WVR(X) [w##X] "=w" (w##X)
 
-#define	UVR0_(REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR1_(_1, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR2_(_1, _2, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR3_(_1, _2, _3, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR4_(_1, _2, _3, _4, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR5_(_1, _2, _3, _4, _5, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR6_(_1, _2, _3, _4, _5, _6, REG, ...) [w##REG] "+&w" (w##REG)
-#define	UVR7_(_1, _2, _3, _4, _5, _6, _7, REG, ...) [w##REG] "+&w" (w##REG)
+#define	UVR0_(REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR1_(_1, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR2_(_1, _2, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR3_(_1, _2, _3, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR4_(_1, _2, _3, _4, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR5_(_1, _2, _3, _4, _5, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR6_(_1, _2, _3, _4, _5, _6, REG, ...) [w##REG] "+w" (w##REG)
+#define	UVR7_(_1, _2, _3, _4, _5, _6, _7, REG, ...) [w##REG] "+w" (w##REG)
 
 #define	UVR0(r...) UVR0_(r)
 #define	UVR1(r...) UVR1_(r)
@@ -120,7 +120,7 @@
 #define	UVR6(r...) UVR6_(r, 36, 35, 34, 33, 32, 31)
 #define	UVR7(r...) UVR7_(r, 36, 35, 34, 33, 32, 31, 30)
 
-#define	UVR(X) [w##X] "+&w" (w##X)
+#define	UVR(X) [w##X] "+w" (w##X)
 
 #define	R_01(REG1, REG2, ...) REG1, REG2
 #define	_R_23(_0, _1, REG2, REG3, ...) REG2, REG3
