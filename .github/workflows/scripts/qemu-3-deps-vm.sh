@@ -288,8 +288,16 @@ case "$1" in
     ;;
   debian*|ubuntu*)
     sudo -E systemctl enable nfs-kernel-server
-    sudo -E systemctl enable qemu-guest-agent
     sudo -E systemctl enable smbd
+
+    # add systemd drop-in to allow the service to be enabled
+    sudo -E mkdir -p /etc/systemd/system/qemu-guest-agent.service.d/
+    sudo -E tee /etc/systemd/system/qemu-guest-agent.service.d/override.conf <<EOF
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo -E systemctl daemon-reload
+    sudo -E systemctl enable qemu-guest-agent
     ;;
   *)
     # All other linux distros
