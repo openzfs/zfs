@@ -4,6 +4,12 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      gcc_ver:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) install specific GCC version, like '16'"
 
 jobs:
   zfs-arm:
@@ -18,6 +24,31 @@ jobs:
       timeout-minutes: 20
       run: |
         sudo apt-get -y remove firefox || true
+
+        # Do we want to test with a custom GCC version?
+        if [ "${{ github.event.inputs.gcc_ver }}" != "" ] ; then
+          ver="${{ github.event.inputs.gcc_ver }}"
+
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+
+          echo "GCCs available:"
+          awk '/Package: gcc-/{print $2}'  /var/lib/apt/lists/*ubuntu-toolchain-r*Packages
+
+          sudo apt-get -y install gcc g++ gcc-$ver g++-$ver
+
+          sudo update-alternatives --remove-all gcc || true 2>&1
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-$ver 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-$ver 100
+          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc 100
+          sudo update-alternatives --set cc /usr/bin/gcc
+          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 100
+          sudo update-alternatives --set c++ /usr/bin/g++
+
+          sudo update-alternatives --set gcc "/usr/bin/gcc-$ver"
+          sudo update-alternatives --set g++ "/usr/bin/g++-$ver"
+        fi
+
         .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
 
         # We're running the VM scripts locally on the runner, so need to fix
@@ -28,7 +59,12 @@ jobs:
     - name: Build modules
       timeout-minutes: 30
       run: |
-        .github/workflows/scripts/qemu-4-build-vm.sh --enable-debug ubuntu24
+        # Even though we may have installed a newer GCC, the kernel builds don't
+        # seem to honor it, and instead use the older GCC.  I assume this is
+        # to match up with whatever GCC version was used for the kernel.  Always
+        # specify KERNEL_CC to get around this.  This works when using the
+        # default GCC and with a custom GCC.
+        KERNEL_CC=/usr/bin/gcc .github/workflows/scripts/qemu-4-build-vm.sh --enable-debug ubuntu24
 
         # Quick sanity test since we're not running the full ZTS
         sudo modprobe zfs
