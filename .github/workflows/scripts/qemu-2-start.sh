@@ -78,11 +78,6 @@ case "$OS" in
     OPTS[0]="--boot"
     OPTS[1]="uefi=on"
     ;;
-  fedora42)
-    OSNAME="Fedora 42"
-    OSv="fedora-unknown"
-    URL="https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
-    ;;
   fedora43)
     OSNAME="Fedora 43"
     OSv="fedora-unknown"

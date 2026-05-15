@@ -14,7 +14,7 @@ on:
         type: string
         required: false
         default: ""
-        description: "(optional) Only run on this specific OS (like 'fedora42' or 'alpine3-23')"
+        description: "(optional) Only run on this specific OS (like 'fedora44' or 'alpine3-23')"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -49,23 +49,23 @@ jobs:
             os_selection='[]'
             ;;
           quick)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora42", "freebsd15-1s", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora44", "freebsd15-1s", "ubuntu24"]'
             ;;
           linux)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora42", "fedora43", "fedora44", "ubuntu22", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora43", "fedora44", "ubuntu22", "ubuntu24"]'
             ;;
           freebsd)
             os_selection='["freebsd13-5r", "freebsd14-4r", "freebsd13-5s", "freebsd14-4s", "freebsd15-1s", "freebsd16-0c"]'
             ;;
           *)
             # default list
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora42", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24"]'
             ;;
           esac
 
           # Repository-level override for OS selection.
           # Set vars.ZTS_OS_OVERRIDE in repo settings to restrict targets
-          # (e.g. '["debian13"]' or '["debian13", "fedora42"]').
+          # (e.g. '["debian13"]' or '["debian13", "fedora44"]').
           # Manual ZFS-CI-Type in commit messages bypasses the override.
           if [ -n "${{ vars.ZTS_OS_OVERRIDE }}" ] && [ "$ci_source" != "manual" ]; then
             override='${{ vars.ZTS_OS_OVERRIDE }}'
