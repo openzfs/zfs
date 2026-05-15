@@ -54,9 +54,9 @@ function create_dev_file
 			# %t - major device type in hex
 			# %T - minor device type in hex
 			#
-			major=$(stat --dereference --format="%t" "$devstr")
-			minor=$(stat --dereference --format="%T" "$devstr")
-			log_must mknod $filename b "0x${major}" "0x${minor}"
+			major=$(printf '%d' 0x$(stat -L -c "%t" "$devstr"))
+			minor=$(printf '%d' 0x$(stat -L -c "%T" "$devstr"))
+			log_must mknod $filename b "${major}" "${minor}"
 			;;
 		*)
 			#
@@ -83,9 +83,9 @@ function create_dev_file
 			# %t - major device type in hex
 			# %T - minor device type in hex
 			#
-			major=$(stat --format="%t" /dev/null)
-			minor=$(stat --format="%T" /dev/null)
-			log_must mknod $filename c "0x${major}" "0x${minor}"
+			major=$(printf '%d' 0x$(stat -c "%t" /dev/null))
+			minor=$(printf '%d' 0x$(stat -c "%T" /dev/null))
+			log_must mknod $filename c "${major}" "${minor}"
 			;;
 		FreeBSD)
 			#
