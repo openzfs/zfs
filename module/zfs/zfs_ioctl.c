@@ -3234,13 +3234,14 @@ zfs_ioc_set_prop(zfs_cmd_t *zc)
 			    origprops, nvl);
 			nvlist_free(origprops);
 		}
-
-		error = dsl_prop_set_hasrecvd(zc->zc_name);
 	}
 
 	errors = fnvlist_alloc();
 	if (error == 0)
 		error = zfs_set_prop_nvlist(zc->zc_name, source, nvl, errors);
+
+	if (error == 0 && received)
+		error = dsl_prop_set_hasrecvd(zc->zc_name);
 
 	if (zc->zc_nvlist_dst != 0 && errors != NULL) {
 		(void) put_nvlist(zc, errors);
