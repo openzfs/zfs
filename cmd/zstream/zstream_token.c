@@ -31,19 +31,12 @@
  * Copyright (c) 2020 by Datto Inc. All rights reserved.
  */
 
-#include <ctype.h>
+#include <errno.h>
 #include <libnvpair.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <stddef.h>
-
 #include <libzfs.h>
-#include <libzfs_core.h>
+#include <stdio.h>
+#include <sys/nvpair.h>
 
-#include <sys/dmu.h>
-#include <sys/zfs_ioctl.h>
 #include "zstream.h"
 
 int

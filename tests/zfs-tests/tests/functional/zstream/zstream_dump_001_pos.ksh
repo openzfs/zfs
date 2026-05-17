@@ -17,12 +17,11 @@
 # Copyright (c) 2020 by Datto, Inc. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/rsend/rsend.kshlib
-. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/zstream/zstream.kshlib
 
 #
 # Description:
-# Verify compression features show up in zstream dump
+# Verify that compression features show up in zstream dump
 #
 # Strategy:
 # 1. Create a full compressed send stream
@@ -36,11 +35,11 @@
 verify_runnable "both"
 
 log_assert "Verify zstream dump correctly interprets compressed send streams."
-log_onexit cleanup_pool $POOL2
+log_onexit cleanup_pool $POOL
 
-typeset sendfs=$POOL2/fs
-typeset streamfs=$POOL2/fs2
-typeset recvfs=$POOL2/fs3
+typeset sendfs=$POOL/fs
+typeset streamfs=$POOL/fs2
+typeset recvfs=$POOL/fs3
 
 log_must zfs create -o compress=lz4 $sendfs
 log_must zfs create -o compress=lz4 $streamfs

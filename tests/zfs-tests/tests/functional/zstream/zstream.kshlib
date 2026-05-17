@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2026 by ConnectWise. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/zstream/zstream.cfg
+
+#
+# Several zstream tests need functions defined in rsend.kshlib
+# (stream_has_features, get_resume_token, cleanup_pool).  Rather than
+# duplicate them, source the rsend library.  Note that rsend.kshlib
+# also sources rsend.cfg, which will define its own $BACKDIR, $POOL,
+# $POOL2, etc.  Our zstream.cfg is sourced first, and we reassert our
+# values afterward so that our tests use the zstream-specific paths
+# and pool names.
+#
+. $STF_SUITE/tests/functional/rsend/rsend.kshlib
+
+# Reassert our config over rsend's
+. $STF_SUITE/tests/functional/zstream/zstream.cfg
+
+ZSTREAM_DATADIR=$STF_SUITE/tests/functional/zstream
+
+#
+# Return "little" or "big" depending on the system's byte order.
+#
+function get_system_endian
+{
+	python3 -c "import sys; print(sys.byteorder)"
+}
+
+#
+# Map a stream filename stem to its dump-file abbreviation.
+# e.g. "big-endian-all-drr-types-base-NATIVE" -> "beadtbn"
+#
+function get_stream_abbrev
+{
+	typeset stem=$1
+	typeset -l abbrev=""
+	typeset IFS="-"
+
+	for part in $stem; do
+		abbrev="${abbrev}${part%"${part#?}"}"
+	done
+
+	echo "$abbrev"
+}
+
+#
+# Receive a stream into $POOL/recv, compute sorted xxhsum -H2 of all
+# regular files under the mountpoint, and write the result to $1.
+# Destroys $POOL/recv afterward if $3 is set to "cleanup".
+#
+function recv_and_hash
+{
+	typeset hashfile=$1
+	typeset stream=$2
+	typeset cleanup=${3:-""}
+
+	log_must zfs receive -F $POOL/recv < "$stream"
+	typeset mnt=$(get_prop mountpoint $POOL/recv)
+	( cd "$mnt" && find . -type f -print0 | sort -z | \
+	    xargs -0 xxh128sum ) > "$hashfile"
+	if [[ -n $cleanup ]]; then
+		log_must zfs destroy -r $POOL/recv
+	fi
+}
