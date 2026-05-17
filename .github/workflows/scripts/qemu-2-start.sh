@@ -88,14 +88,6 @@ case "$OS" in
     OSv="fedora-unknown"
     URL="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-44-1.7.x86_64.qcow2"
     ;;
-  freebsd13-5r)
-    FreeBSD="13.5-RELEASE"
-    OSNAME="FreeBSD $FreeBSD"
-    OSv="freebsd13.0"
-    URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI.raw.xz"
-    KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
-    NIC="rtl8139"
-    ;;
   freebsd14-4r)
     FreeBSD="14.4-RELEASE"
     OSNAME="FreeBSD $FreeBSD"
@@ -109,14 +101,6 @@ case "$OS" in
     OSv="freebsd15.0"
     URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
     KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
-    ;;
-  freebsd13-5s)
-    FreeBSD="13.5-STABLE"
-    OSNAME="FreeBSD $FreeBSD"
-    OSv="freebsd13.0"
-    URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI.raw.xz"
-    KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
-    NIC="rtl8139"
     ;;
   freebsd14-4s)
     FreeBSD="14.4-STABLE"
@@ -168,7 +152,6 @@ echo "ENV=$ENV" >> $ENV
 # result path
 echo 'RESPATH="/var/tmp/test_results"' >> $ENV
 
-# FreeBSD 13 has problems with: e1000 and virtio
 echo "NIC=$NIC" >> $ENV
 
 # freebsd15 -> used in zfs-qemu.yml
