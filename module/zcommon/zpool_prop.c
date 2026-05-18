@@ -374,10 +374,16 @@ vdev_prop_init(void)
 		{ "on",		1},
 		{ NULL }
 	};
+	static const zprop_index_t boolean_inherit_table[] = {
+		{ "off",	0},
+		{ "on",		1},
+		{ "inherit",	ZPROP_BOOLEAN_INHERIT},
+		{ NULL }
+	};
 	static const zprop_index_t boolean_na_table[] = {
 		{ "off",	0},
 		{ "on",		1},
-		{ "-",		2},	/* ZPROP_BOOLEAN_NA */
+		{ "-",		ZPROP_BOOLEAN_NA},
 		{ NULL }
 	};
 
@@ -555,8 +561,8 @@ vdev_prop_init(void)
 
 	/* default index properties */
 	zprop_register_index(VDEV_PROP_FAILFAST, "failfast", B_TRUE,
-	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off", "FAILFAST", boolean_table,
-	    sfeatures);
+	    PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off | inherit", "FAILFAST",
+	    boolean_inherit_table, sfeatures);
 	zprop_register_index(VDEV_PROP_SLOW_IO_EVENTS, "slow_io_events",
 	    B_TRUE, PROP_DEFAULT, ZFS_TYPE_VDEV, "on | off",
 	    "SLOW_IO_EVENTS", boolean_table, sfeatures);

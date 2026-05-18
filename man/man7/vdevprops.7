@@ -183,9 +183,12 @@ output.
 A text comment up to 8192 characters long
 .It Sy bootsize
 The amount of space to reserve for the EFI system partition
-.It Sy failfast
+.It Sy failfast Ns = Ns Sy inherit Ns | Ns Sy on Ns | Ns Sy off
 If this device should propagate BIO errors back to ZFS, used to disable
 failfast.
+.Sy inherit
+causes the vdev to adopt the behavior of its parent vdev,
+recursively up the tree.
 .It Sy sit_out
 Only valid for
 .Sy RAIDZ
