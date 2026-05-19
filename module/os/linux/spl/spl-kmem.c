@@ -188,6 +188,12 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 		return (ptr);
 	}
 
+	/*
+	 * vmalloc fallback. KM_VMEM may not have been requested originally if
+	 * we've come through spl_kmem_alloc_impl(), so we need to remove
+	 * __GFP_COMP, which is not a valid flag for vmalloc.
+	 */
+	lflags &= ~__GFP_COMP;
 	return (spl_vmalloc(size, lflags));
 }
 
