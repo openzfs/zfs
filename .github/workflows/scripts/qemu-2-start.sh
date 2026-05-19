@@ -112,7 +112,7 @@ case "$OS" in
   freebsd15-1s)
     FreeBSD="15.1-STABLE"
     OSNAME="FreeBSD $FreeBSD"
-    OSv="freebsd14.0"
+    OSv="freebsd15.0"
     URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
     KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
     ;;
