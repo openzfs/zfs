@@ -883,9 +883,14 @@ zpl_get_tree(struct fs_context *fc)
 	if (sb->s_root == NULL) {
 		vfs_t *vfs = fc->fs_private;
 
-		/* Apply readonly flag as mount option */
-		if (fc->sb_flags & SB_RDONLY) {
-			vfs->vfs_readonly = B_TRUE;
+		/*
+		 * If SB_RDONLY was set/cleared from mount options, update
+		 * them in the options struct so we set up the filesystem
+		 * in the proper state.
+		 */
+		if (fc->sb_flags_mask & SB_RDONLY) {
+			vfs->vfs_readonly =
+			    (fc->sb_flags & SB_RDONLY) ? B_TRUE : B_FALSE;
 			vfs->vfs_do_readonly = B_TRUE;
 		}
 
