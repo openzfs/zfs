@@ -27,6 +27,8 @@
 
 #
 # Copyright (c) 2017 by Delphix. All rights reserved.
+# Copyright 2017, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+# Copyright (c) 2026, TrueNAS.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -131,3 +133,129 @@ function verify_mount_display
 	done
 	return 0
 }
+
+# Helper functions to call the system mount(8) with various options
+function mount_default # <dataset mountpoint | mountpoint>
+{
+	typeset opts=
+	if is_freebsd; then
+		opts="-t zfs"
+	else
+		opts="-t zfs"
+	fi
+
+	mount $opts "$@"
+	return $?
+}
+
+function mount_ro # <dataset mountpoint | mountpoint>
+{
+	typeset opts=
+	if is_freebsd; then
+		opts="-t zfs -r"
+	else
+		opts="-t zfs -o ro"
+	fi
+
+	mount $opts "$@"
+	return $?
+}
+
+function mount_rw # <dataset mountpoint | mountpoint>
+{
+	typeset opts=
+	if is_freebsd; then
+		opts="-t zfs -w"
+	else
+		opts="-t zfs -o rw"
+	fi
+
+	mount $opts "$@"
+	return $?
+}
+
+function remount_ro # <dataset mountpoint | mountpoint>
+{
+	typeset opts=
+	if is_freebsd; then
+		opts="-t zfs -ur"
+	else
+		opts="-o remount,ro"
+	fi
+
+	mount $opts "$@"
+	return $?
+}
+
+function remount_rw # <dataset mountpoint | mountpoint>
+{
+	typeset opts=
+	if is_freebsd; then
+		opts="-t zfs -uw"
+	else
+		opts="-o remount,rw"
+	fi
+
+	mount $opts "$@"
+	return $?
+}
+
+#
+# Verify that $mountpoint is mounted readonly
+# This is preferred over "log_mustnot touch $fs" because we actually want to
+# verify the error returned is EROFS
+#
+function mount_is_ro # mountpoint
+{
+	typeset mountpoint="$1"
+
+	file_write -o create -f $mountpoint/file.dat
+	ret=$?
+	if [[ $ret != 30 ]]; then
+		log_fail "Writing to $mountpoint did not return EROFS ($ret)."
+	fi
+}
+
+function mount_is_rw # mountpoint
+{
+	typeset mountpoint="$1"
+	log_must touch $mountpoint/file.dat
+}
+
+# Get the read-only/read-write option for $mountpoint
+# Prints either "ro" or "rw", or nothing if $mountpoint is not in the mount
+# table, or is not a ZFS mount.
+function mount_get_ro_rw # mountpoint
+{
+	typeset mountpoint="$1"
+
+	if is_freebsd; then
+		# tank/hello  /tank/hello  zfs  rw,nfsv4acls  0 0
+		mount -p | \
+		awk -v mountpoint="$mountpoint" '
+		    $2 != mountpoint || $3 != "zfs" { next }
+		    $4 ~ /(^|,)ro(,|$)/ { print "ro" }
+		    $4 ~ /(^|,)rw(,|$)/ { print "rw" }'
+	else
+		# tank/hello  /tank/hello  zfs  rw,relatime,xattr,noacl,casesensitive  0 0
+		awk -v mountpoint="$mountpoint" '
+		    $2 != mountpoint || $3 != "zfs" { next }
+		    $4 ~ /(^|,)ro(,|$)/ { print "ro" }
+		    $4 ~ /(^|,)rw(,|$)/ { print "rw" }' /proc/mounts
+	fi
+}
+
+# Verify that $mountpoint is mounted with a "read-only" option
+function mount_has_ro_option # mountpoint
+{
+	typeset ropt=$(mount_get_ro_rw "$1")
+	log_must test $ropt == "ro"
+}
+
+# Verify that $mountpoint is mounted with a "read-write" option
+function mount_has_rw_option # mountpoint
+{
+	typeset ropt=$(mount_get_ro_rw "$1")
+	log_must test $ropt == "rw"
+}
+
