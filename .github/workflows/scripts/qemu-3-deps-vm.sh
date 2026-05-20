@@ -290,6 +290,9 @@ case "$1" in
     sudo -E systemctl enable nfs-kernel-server
     sudo -E systemctl enable smbd
 
+    # enable usershares (disabled by default on ubuntu 26.04)
+    sudo -E sed -i '/usershare max shares/s/^#//' /etc/samba/smb.conf
+
     # add systemd drop-in to allow the service to be enabled
     sudo -E mkdir -p /etc/systemd/system/qemu-guest-agent.service.d/
     sudo -E tee /etc/systemd/system/qemu-guest-agent.service.d/override.conf <<EOF
