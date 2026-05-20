@@ -7,6 +7,7 @@ noinst_LTLIBRARIES += libunit.la
 libunit_la_SOURCES = \
 	%D%/mock_dmu.c \
 	%D%/mock_dmu.h \
+	%D%/mock_spa.c \
 	%D%/munit.c \
 	%D%/munit.h \
 	%D%/unit.c \
@@ -28,6 +29,7 @@ nodist_%C%_test_zap_SOURCES = \
 	module/zfs/zap_impl.c \
 	module/zfs/zap_micro.c \
 	module/zfs/zap_leaf.c \
+	module/zfs/zap_tiny.c \
 	module/zfs/u8_textprep.c
 
 %C%_test_zap_SOURCES = \

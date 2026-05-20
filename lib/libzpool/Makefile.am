@@ -170,6 +170,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zap_impl.c \
 	module/zfs/zap_leaf.c \
 	module/zfs/zap_micro.c \
+	module/zfs/zap_tiny.c \
 	module/zfs/zcp.c \
 	module/zfs/zcp_get.c \
 	module/zfs/zcp_global.c \

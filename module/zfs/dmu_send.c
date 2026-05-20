@@ -29,6 +29,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/dmu.h>
@@ -2027,6 +2028,14 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 		if (!(*featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
 			return (SET_ERROR(ZFS_ERR_STREAM_LARGE_MICROZAP));
 		*featureflags |= DMU_BACKUP_FEATURE_LARGE_MICROZAP;
+	}
+
+	/*
+	 * TinyZAP is tracked at pool level (not per dataset), so tag
+	 * all sends from a pool that has TinyZAP objects active.
+	 */
+	if (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_TINYZAP)) {
+		*featureflags |= DMU_BACKUP_FEATURE_TINYZAP;
 	}
 
 	return (0);

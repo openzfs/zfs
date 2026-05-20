@@ -28,6 +28,7 @@
 #
 # Copyright (c) 2013, 2018 by Delphix. All rights reserved.
 # Copyright (c) 2020 by Datto Inc. All rights reserved.
+# Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -715,6 +716,7 @@ function stream_has_features
 	feature[redacted]="200000"
 	feature[compressed]="400000"
 	feature[longname]="10000000"
+	feature[tinyzap]="40000000"
 
 	typeset flag known derived=0
 	for flag in "$@"; do
