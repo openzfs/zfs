@@ -395,6 +395,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/vdev_zaps/vdev_zaps.kshlib \
 	functional/xattr/xattr.cfg \
 	functional/xattr/xattr_common.kshlib \
+	functional/zap/zap_common.kshlib \
 	functional/zoned_uid/zoned_uid.cfg \
 	functional/zoned_uid/zoned_uid_common.kshlib \
 	functional/zvol/zvol.cfg \
@@ -2351,6 +2352,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zap_shrink/cleanup.ksh \
 	functional/zap_shrink/zap_shrink_001_pos.ksh \
 	functional/zap_shrink/setup.ksh \
+	functional/zap/cleanup.ksh \
+	functional/zap/zap_tiny_feature_008.ksh \
+	functional/zap/zap_tiny_remount_007.ksh \
+	functional/zap/zap_tiny_update_006.ksh \
+	functional/zap/zap_tiny_add_remove_005.ksh \
+	functional/zap/zap_tiny_fat_004.ksh \
+	functional/zap/zap_tiny_chunk_upgrade_003.ksh \
+	functional/zap/zap_micro_fat_promote_002.ksh \
+	functional/zap/zap_micro_tiny_promote_001.ksh \
+	functional/zap/setup.ksh \
 	functional/zpool_influxdb/cleanup.ksh \
 	functional/zpool_influxdb/setup.ksh \
 	functional/zpool_influxdb/zpool_influxdb.ksh \

@@ -696,6 +696,13 @@ tags = ['functional', 'cp_files']
 tests = ['zap_shrink_001_pos']
 tags = ['functional', 'zap_shrink']
 
+[tests/functional/zap]
+tests = ['zap_micro_tiny_promote_001', 'zap_micro_fat_promote_002',
+    'zap_tiny_chunk_upgrade_003', 'zap_tiny_fat_004',
+    'zap_tiny_add_remove_005', 'zap_tiny_update_006',
+    'zap_tiny_remount_007', 'zap_tiny_feature_008']
+tags = ['functional', 'zap']
+
 [tests/functional/crtime]
 tests = ['crtime_001_pos' ]
 tags = ['functional', 'crtime']

@@ -24,6 +24,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
 #include <sys/dsl_dataset.h>
+#include <sys/dsl_synctask.h>
 #include <sys/spa.h>
 #include <sys/zfeature.h>
 
@@ -331,10 +332,24 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 	(void) ds; (void) tx;
 }
 
+/* Mock dsl_sync_task */
+int
+dsl_sync_task(const char *pool, dsl_checkfunc_t *checkfunc,
+    dsl_syncfunc_t *syncfunc, void *arg, int blocks_modified,
+    zfs_space_check_t space_check)
+{
+	(void) pool, (void) checkfunc, (void) syncfunc;
+	(void) arg, (void) blocks_modified, (void) space_check;
+	return (0);
+}
+
 boolean_t
 spa_feature_is_enabled(spa_t *spa, spa_feature_t f)
 {
-	(void) spa; (void) f;
+	(void) spa;
+	/* In unit tests, TINYZAP is always considered enabled. */
+	if (f == SPA_FEATURE_TINYZAP)
+		return (B_TRUE);
 	return (B_FALSE);
 }
 
@@ -406,4 +421,17 @@ dmu_prefetch_wait(objset_t *os, uint64_t object, uint64_t offset,
 {
 	(void) os; (void) object; (void) offset; (void) len;
 	return (EIO);
+}
+
+int
+dmu_tx_is_syncing(dmu_tx_t *tx)
+{
+	(void) tx;
+	return (B_FALSE);
+}
+
+void
+dmu_tx_callback_register(dmu_tx_t *tx, dmu_tx_callback_func_t *func, void *data)
+{
+	(void) tx, (void) func, (void) data;
 }

@@ -28,6 +28,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, 2024, Klara, Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #ifndef _KERNEL
@@ -822,6 +823,14 @@ zpool_feature_init(void)
 		    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET,
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
+
+	zfeature_register(SPA_FEATURE_TINYZAP,
+	    "com.hpe:tinyzap", "tinyzap",
+	    "Support for variable-stride, variable-chunk ZAP for "
+	    "multi-integer and long-name directory entries without "
+	    "FatZAP overhead.",
+	    ZFEATURE_FLAG_MOS | ZFEATURE_FLAG_NO_UPGRADE,
+	    ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }
