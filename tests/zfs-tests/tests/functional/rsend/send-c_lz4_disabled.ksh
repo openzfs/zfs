@@ -46,10 +46,10 @@ function cleanup
 log_onexit cleanup
 
 datasetexists $POOL2 && log_must zpool destroy $POOL2
-log_must zpool create -d $POOL2 $DISK2
+log_must zpool create -o feature@lz4_compress=disabled $POOL2 $DISK2
 
 for compress in off gzip; do
-	for pool_opt in '' -d; do
+	for pool_opt in '' '-o feature@lz4_compress=disabled'; do
 		poolexists $POOL3 && destroy_pool $POOL3
 		log_must zpool create $pool_opt $POOL3 $DISK3
 

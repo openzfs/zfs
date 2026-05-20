@@ -17,6 +17,7 @@
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/zfeature.h>
 
+#include "mock_dmu.h"
 #include "unit.h"
 
 /* ========== */
@@ -149,13 +150,6 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 uint64_t
 dmu_tx_get_txg(dmu_tx_t *tx)
-{
-	(void) tx;
-	return (0);
-}
-
-int
-dmu_tx_is_syncing(dmu_tx_t *tx)
 {
 	(void) tx;
 	return (0);

@@ -583,7 +583,7 @@
     <elf-symbol name='fletcher_4_superscalar4_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_superscalar_ops' size='128' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='spa_feature_table' size='2744' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='spa_feature_table' size='2800' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='560' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1422,14 +1422,6 @@
     </function-decl>
     <function-decl name='feof' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='822cd80b'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='statx' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='9d26089a'/>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='f0981eeb'/>
-      <parameter type-id='31d265b7'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='statx' visibility='default' binding='global' size-in-bits='64'>
@@ -3867,6 +3859,7 @@
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_dataset.c' language='LANG_C99'>
     <class-decl name='prop_changelist' is-struct='yes' visibility='default' is-declaration-only='yes' id='d86edc51'/>
+    <type-decl name='long long unsigned int' size-in-bits='64' id='3a47d82b'/>
     <class-decl name='zprop_list' size-in-bits='448' is-struct='yes' visibility='default' id='bd9b4291'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='pl_prop' type-id='95e97e5e' visibility='default'/>
@@ -4509,11 +4502,11 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='bd54fe1a'/>
     </function-decl>
-    <function-decl name='strtoul' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='strtoull' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
       <parameter type-id='8c85230f'/>
       <parameter type-id='95e97e5e'/>
-      <return type-id='7359adad'/>
+      <return type-id='3a47d82b'/>
     </function-decl>
     <function-decl name='abort' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='48b5725f'/>
@@ -5444,7 +5437,6 @@
     <array-type-def dimensions='1' type-id='95e97e5e' size-in-bits='64' id='e4266c7e'>
       <subrange length='2' type-id='7359adad' id='52efc4ef'/>
     </array-type-def>
-    <type-decl name='long long unsigned int' size-in-bits='64' id='3a47d82b'/>
     <array-type-def dimensions='1' type-id='002ac4a6' size-in-bits='56' id='08f7ce77'>
       <subrange length='7' type-id='7359adad' id='16fc326e'/>
     </array-type-def>
@@ -6553,9 +6545,11 @@
       <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
       <enumerator name='SPA_FEATURE_DRAID_FAIL_DOMAINS' value='47'/>
       <enumerator name='SPA_FEATURE_ANYRAID' value='48'/>
-      <enumerator name='SPA_FEATURES' value='49'/>
+      <enumerator name='SPA_FEATURE_TINYZAP' value='49'/>
+      <enumerator name='SPA_FEATURES' value='50'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
+    <pointer-type-def type-id='9b23c9ad' size-in-bits='64' id='c0563f85'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>
     <pointer-type-def type-id='b99c00c9' size-in-bits='64' id='13956559'/>
     <qualified-type-def type-id='22cce67b' const='yes' id='d2816df0'/>
@@ -6821,6 +6815,13 @@
       <parameter type-id='90421557'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='nvlist_lookup_string_array' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='5ce45b60'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='c0563f85'/>
+      <parameter type-id='4dd26a40'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nvpair_value_nvlist' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='3fa542f0'/>
       <parameter type-id='857bb57e'/>
@@ -6946,12 +6947,6 @@
     </function-decl>
     <function-decl name='get_system_hostid' mangled-name='get_system_hostid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_system_hostid'>
       <return type-id='7359adad'/>
-    </function-decl>
-    <function-decl name='strtoull' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='9d26089a'/>
-      <parameter type-id='8c85230f'/>
-      <parameter type-id='95e97e5e'/>
-      <return type-id='3a47d82b'/>
     </function-decl>
     <function-decl name='memcmp' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>
@@ -8722,7 +8717,6 @@
     <pointer-type-def type-id='d5027220' size-in-bits='64' id='b7f2d5e6'/>
     <qualified-type-def type-id='26a90f95' const='yes' id='57de658a'/>
     <pointer-type-def type-id='57de658a' size-in-bits='64' id='f319fae0'/>
-    <pointer-type-def type-id='9b23c9ad' size-in-bits='64' id='c0563f85'/>
     <qualified-type-def type-id='33f57a65' const='yes' id='21fd6035'/>
     <pointer-type-def type-id='21fd6035' size-in-bits='64' id='a0de50cd'/>
     <pointer-type-def type-id='a0de50cd' size-in-bits='64' id='24f95ba5'/>
@@ -8863,6 +8857,12 @@
       <parameter type-id='9d26089a'/>
       <parameter type-id='8c85230f'/>
       <return type-id='a0eb0f08'/>
+    </function-decl>
+    <function-decl name='strtoul' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='9d26089a'/>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='7359adad'/>
     </function-decl>
     <function-decl name='realloc' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>
@@ -10093,8 +10093,8 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='module/zcommon/zfeature_common.c' language='LANG_C99'>
-    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='21952' id='f92b2a1c'>
-      <subrange length='49' type-id='7359adad' id='8b6f62cc'/>
+    <array-type-def dimensions='1' type-id='83f29ca2' size-in-bits='22400' id='69d3c35e'>
+      <subrange length='50' type-id='7359adad' id='3c1860ce'/>
     </array-type-def>
     <enum-decl name='zfeature_flags' id='6db816a4'>
       <underlying-type type-id='9cac1fee'/>
@@ -10155,7 +10155,7 @@
     <pointer-type-def type-id='c5c76c9c' size-in-bits='64' id='b7f9d8e6'/>
     <qualified-type-def type-id='eaa32e2f' const='yes' id='83be723c'/>
     <pointer-type-def type-id='83be723c' size-in-bits='64' id='7acd98a2'/>
-    <var-decl name='spa_feature_table' type-id='f92b2a1c' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
+    <var-decl name='spa_feature_table' type-id='69d3c35e' mangled-name='spa_feature_table' visibility='default' elf-symbol-id='spa_feature_table'/>
     <var-decl name='zfeature_checks_disable' type-id='c19b74c3' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <function-decl name='tsearch' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>

@@ -48,7 +48,7 @@ function cleanup
 log_onexit cleanup
 
 datasetexists $POOL3 && log_must zpool destroy $POOL3
-log_must zpool create -d $POOL3 $DISK3
+log_must zpool create -o feature@lz4_compress=disabled $POOL3 $DISK3
 
 for compress in "${compress_prop_vals[@]}"; do
 	datasetexists $send_ds && destroy_dataset $send_ds -r
