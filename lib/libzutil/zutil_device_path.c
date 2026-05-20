@@ -22,6 +22,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Rob Norris <robn@despairlabs.com>
  */
 
 #include <errno.h>
@@ -200,6 +201,79 @@ zfs_strcmp_pathname(const char *name, const char *cmp, int wholedisk)
 
 	if ((path_len != cmp_len) || strcmp(path_name, cmp_name))
 		return (ENOENT);
+
+	return (0);
+}
+
+/*
+ * "Flatten" a UNIX-style path by:
+ * - collapsing multiple '/' chars to just one
+ * - removing trailing '/' chars (one or more followed by '\0')
+ *
+ * args:
+ * - src: source buffer
+ * - srclen: size of source buffer (>= strlen(in)+1)
+ * - dstp: pointer to destination buffer:
+ *   - if NULL, source buffer is modified in place
+ *   - if set and *dstp is set, output written to *dstp
+ *   - if set and *dstp is NULL, *dstp set to malloc(srclen)
+ *
+ * returns:
+ * - 0 on success. caller must free *dstp is it was allocated (above)
+ * - ENOMEM: alloc failed
+ */
+int
+zfs_flatten_path(char *src, size_t srclen, char **dstp)
+{
+	char *s, *d, *dstbuf = NULL;
+
+	s = src;
+	if (dstp == NULL)
+		/* Modify in-place */
+		d = src;
+	else if (*dstp != NULL)
+		/* Use provided dest buffer */
+		d = *dstp;
+	else {
+		/* Allocate dest buffer */
+		dstbuf = malloc(srclen);
+		if (dstbuf == NULL)
+			return (ENOMEM);
+		d = dstbuf;
+	}
+
+	while (*s != '\0') {
+		/* Copy char unless in-place and no change */
+		if (s != d)
+			*d = *s;
+
+		/* Found a slash */
+		if (*s == '/') {
+			/* Move past additional slashes */
+			while (*s == '/')
+				s++;
+
+			/*
+			 * Found null after slash, abort. d still points
+			 * at the slash copied above, which will then be
+			 * nulled after the loop.
+			 */
+			if (*s == '\0')
+				break;
+		} else
+			/* Non-slash char copied, move source forward. */
+			s++;
+
+		/* Copied char ok, move dest forward for next iteration */
+		d++;
+	}
+
+	/* End of path, set dest terminator unless in-place and no move. */
+	if (s != d)
+		*d = '\0';
+
+	if (dstp != NULL && *dstp == NULL)
+		*dstp = dstbuf;
 
 	return (0);
 }
