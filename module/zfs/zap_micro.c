@@ -26,6 +26,7 @@
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/zio.h>
@@ -39,6 +40,8 @@
 #include <sys/arc.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa_impl.h>
+#include <sys/zfeature.h>
+#include <sys/dmu_tx.h>
 
 #ifdef _KERNEL
 #include <sys/sunddi.h>
@@ -87,12 +90,40 @@ mzap_byteswap(mzap_phys_t *buf, size_t size)
 	buf->mz_block_type = BSWAP_64(buf->mz_block_type);
 	buf->mz_salt = BSWAP_64(buf->mz_salt);
 	buf->mz_normflags = BSWAP_64(buf->mz_normflags);
-	int max = (size / MZAP_ENT_LEN) - 1;
+	boolean_t tinyzap = MZAP_IS_TINYZAP(buf);
+	uint16_t stride = tinyzap ? MZAP_STRIDE(buf) : 0;
+	uint16_t chunk = MZAP_ENT_LEN; /* default: MicroZAP */
+
+	if (tinyzap && stride != 0) {
+		ASSERT3U(buf->mz_chunk_shift, >=, TZAP_MIN_CHUNK_LOG2);
+		ASSERT3U(buf->mz_chunk_shift, <=, TZAP_MAX_CHUNK_LOG2);
+		chunk = MZAP_CHUNK_SIZE(buf);
+		ASSERT3U(stride, >=, TZAP_MIN_STRIDE);
+		ASSERT3U(stride, <=, tzap_max_stride(chunk));
+	}
+
+	/* Number of entry slots after the 64-byte header. */
+	int max = (int)((size - MZAP_ENT_LEN) / chunk);
+
 	for (int i = 0; i < max; i++) {
-		buf->mz_chunk[i].mze_value =
-		    BSWAP_64(buf->mz_chunk[i].mze_value);
-		buf->mz_chunk[i].mze_cd =
-		    BSWAP_32(buf->mz_chunk[i].mze_cd);
+		if (tinyzap && stride != 0) {
+			tzap_ent_phys_t *tze = (tzap_ent_phys_t *)(
+			    (uint8_t *)buf->mz_chunk + (size_t)i * chunk);
+			/*
+			 * Byteswap each uint64 in the value blob, then the
+			 * cd (uint32).  The name (char array) needs no swap.
+			 */
+			uint64_t *val = (uint64_t *)tze_value(tze);
+			for (int j = 0; j < stride / sizeof (uint64_t); j++)
+				val[j] = BSWAP_64(val[j]);
+			*tze_cd_ptr(tze, stride) =
+			    BSWAP_32(*tze_cd_ptr(tze, stride));
+		} else {
+			buf->mz_chunk[i].mze_value =
+			    BSWAP_64(buf->mz_chunk[i].mze_value);
+			buf->mz_chunk[i].mze_cd =
+			    BSWAP_32(buf->mz_chunk[i].mze_cd);
+		}
 	}
 }
 
@@ -110,7 +141,7 @@ mze_compare(const void *arg1, const void *arg2)
 ZFS_BTREE_FIND_IN_BUF_FUNC(mze_find_in_buf, mzap_ent_t,
     mze_compare)
 
-static void
+void
 mze_insert(zap_t *zap, uint16_t chunkid, uint64_t hash)
 {
 	mzap_ent_t mze;
@@ -121,9 +152,18 @@ mze_insert(zap_t *zap, uint16_t chunkid, uint64_t hash)
 	mze.mze_chunkid = chunkid;
 	ASSERT0(hash & 0xffffffff);
 	mze.mze_hash = hash >> 32;
-	ASSERT3U(MZE_PHYS(zap, &mze)->mze_cd, <=, 0xffff);
-	mze.mze_cd = (uint16_t)MZE_PHYS(zap, &mze)->mze_cd;
-	ASSERT(MZE_PHYS(zap, &mze)->mze_name[0] != 0);
+
+	if (zap->zap_m.zap_stride != 0) {
+		tzap_ent_phys_t *tze = TZE_PHYS(zap, &mze);
+		uint16_t stride = zap->zap_m.zap_stride;
+		ASSERT3U(*tze_cd_ptr(tze, stride), <=, 0xffff);
+		mze.mze_cd = (uint16_t)*tze_cd_ptr(tze, stride);
+		ASSERT(tze_name_ptr(tze, stride)[0] != 0);
+	} else {
+		ASSERT3U(MZE_PHYS(zap, &mze)->mze_cd, <=, 0xffff);
+		mze.mze_cd = (uint16_t)MZE_PHYS(zap, &mze)->mze_cd;
+		ASSERT(MZE_PHYS(zap, &mze)->mze_name[0] != 0);
+	}
 	zfs_btree_add(&zap->zap_m.zap_tree, &mze);
 }
 
@@ -146,15 +186,27 @@ mze_find(zap_name_t *zn, zfs_btree_index_t *idx)
 		mze = zfs_btree_next(tree, idx, idx);
 	for (; mze && mze->mze_hash == mze_tofind.mze_hash;
 	    mze = zfs_btree_next(tree, idx, idx)) {
-		ASSERT3U(mze->mze_cd, ==, MZE_PHYS(zn->zn_zap, mze)->mze_cd);
-		if (zap_match(zn, MZE_PHYS(zn->zn_zap, mze)->mze_name))
+		zap_t *zap = zn->zn_zap;
+		const char *name;
+
+		if (zap->zap_m.zap_stride != 0) {
+			tzap_ent_phys_t *tze = TZE_PHYS(zap, mze);
+			name = tze_name_ptr(tze, zap->zap_m.zap_stride);
+			ASSERT3U(mze->mze_cd, ==,
+			    *tze_cd_ptr(tze, zap->zap_m.zap_stride));
+		} else {
+			ASSERT3U(mze->mze_cd, ==,
+			    MZE_PHYS(zn->zn_zap, mze)->mze_cd);
+			name = MZE_PHYS(zap, mze)->mze_name;
+		}
+		if (zap_match(zn, name))
 			return (mze);
 	}
 
 	return (NULL);
 }
 
-static uint32_t
+uint32_t
 mze_find_unused_cd(zap_t *zap, uint64_t hash)
 {
 	mzap_ent_t mze_tofind;
@@ -269,6 +321,42 @@ mzap_open(dmu_buf_t *db)
 		zap->zap_normflags = zap_m_phys(zap)->mz_normflags;
 		zap->zap_m.zap_num_chunks = db->db_size / MZAP_ENT_LEN - 1;
 
+		mzap_phys_t *mzp = zap_m_phys(zap);
+		if (MZAP_IS_TINYZAP(mzp)) {
+			/*
+			 * Validate entire TinyZAP geometry before touching
+			 * any field. mz_chunk_shift and mz_value_ints are
+			 * uint8_t.  No endian issue.
+			 */
+			if (!TZAP_VERIFY_PHYS(zap)) {
+				/*
+				 * DEBUG: Geometry is corrupt. return EIO.
+				 */
+				rw_exit(&zap->zap_rwlock);
+				rw_destroy(&zap->zap_rwlock);
+				if (!zap->zap_ismicro)
+					mutex_destroy(
+					    &zap->zap_f.zap_num_entries_mtx);
+				kmem_free(zap, sizeof (zap_t));
+				return (NULL); /* caller checks for NULL */
+			}
+			uint16_t stride = MZAP_STRIDE(mzp);
+			zap->zap_m.zap_stride = stride;
+			if (stride != 0) {
+				/*
+				 * Fully promoted TinyZAP: chunk geometry is
+				 * stamped. Restore chunk_size and num_chunks
+				 * so TZE_PHYS() computes correct byte offsets.
+				 */
+				uint16_t chunk = MZAP_CHUNK_SIZE(mzp);
+				ASSERT3U(chunk, >=, TZAP_MIN_CHUNK);
+				ASSERT3U(chunk, <=, TZAP_MAX_CHUNK);
+				zap->zap_m.zap_chunk_size = chunk;
+				zap->zap_m.zap_num_chunks =
+				    (int16_t)((db->db_size -
+				    MZAP_ENT_LEN) / chunk);
+			}
+		}
 		/*
 		 * Reduce B-tree leaf from 4KB to 512 bytes to reduce memmove()
 		 * overhead on massive inserts below.  It still allows to store
@@ -278,12 +366,27 @@ mzap_open(dmu_buf_t *db)
 		    mze_find_in_buf, sizeof (mzap_ent_t), 512);
 
 		zap_name_t *zn = zap_name_alloc(zap, B_FALSE);
+		uint16_t stride = zap->zap_m.zap_stride;
+		uint16_t chunk = stride != 0 ?
+		    zap->zap_m.zap_chunk_size : MZAP_ENT_LEN;
 		for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {
-			mzap_ent_phys_t *mze =
-			    &zap_m_phys(zap)->mz_chunk[i];
-			if (mze->mze_name[0]) {
+			const char *name;
+			if (stride != 0) {
+				/*
+				 * TinyZAP: slot offset = i * chunk bytes.
+				 * mz_chunk[i] would give wrong offsets for
+				 * chunk > 64 — must use byte arithmetic.
+				 */
+				tzap_ent_phys_t *tze = (tzap_ent_phys_t *)(
+				    (uint8_t *)zap_m_phys(zap)->mz_chunk +
+				    (size_t)i * chunk);
+				name = tze_name_ptr(tze, stride);
+			} else {
+				name = zap_m_phys(zap)->mz_chunk[i].mze_name;
+			}
+			if (name[0]) {
 				zap->zap_m.zap_num_entries++;
-				zap_name_init_str(zn, mze->mze_name, 0);
+				zap_name_init_str(zn, name, 0);
 				mze_insert(zap, i, zn->zn_hash);
 			}
 		}
@@ -353,17 +456,48 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 	fzap_upgrade(zap, tx, flags);
 
 	zap_name_t *zn = zap_name_alloc(zap, B_FALSE);
-	for (int i = 0; i < nchunks; i++) {
-		mzap_ent_phys_t *mze = &mzp->mz_chunk[i];
-		if (mze->mze_name[0] == 0)
-			continue;
-		dprintf("adding %s=%llu\n",
-		    mze->mze_name, (u_longlong_t)mze->mze_value);
-		zap_name_init_str(zn, mze->mze_name, 0);
-		/* If we fail here, we would end up losing entries */
-		VERIFY0(fzap_add_cd(zn, 8, 1, &mze->mze_value, mze->mze_cd,
-		    tx));
+
+	if (MZAP_IS_TINYZAP(mzp)) {
+		/*
+		 * spa_feature_decr() requires syncing context.
+		 */
+		spa_t *spa = dmu_objset_spa(zap->zap_objset);
+		if (dmu_tx_is_syncing(tx)) {
+			if (spa_feature_is_active(spa, SPA_FEATURE_TINYZAP))
+				spa_feature_decr(spa, SPA_FEATURE_TINYZAP, tx);
+		} else {
+			tzap_feature_arg_t *tfa =
+			    kmem_alloc(sizeof (*tfa), KM_SLEEP);
+			tfa->tfa_spa = spa;
+			dmu_tx_callback_register(tx,
+			    tzap_feature_decr_cb, tfa);
+		}
+		/*
+		 * TinyZAP: entries use tzap_ent_phys_t format,
+		 * tzap_upgrade_entries() handles the fzap_add_cd().
+		 */
+		err = tzap_upgrade_entries(mzp, sz, zn, tx);
+		if (err != 0) {
+			/* tzap_upgrade_entries() may change zap */
+			zap = zn->zn_zap;
+			zap_name_free(zn);
+			vmem_free(mzp, sz);
+			return (err);
+		}
+	} else {
+		for (int i = 0; i < nchunks; i++) {
+			mzap_ent_phys_t *mze = &mzp->mz_chunk[i];
+			if (mze->mze_name[0] == 0)
+				continue;
+			dprintf("adding %s=%llu\n",
+			    mze->mze_name, (u_longlong_t)mze->mze_value);
+			zap_name_init_str(zn, mze->mze_name, 0);
+			/* If we fail here, we would end up losing entries */
+			VERIFY0(fzap_add_cd(zn, 8, 1, &mze->mze_value,
+			    mze->mze_cd, tx));
+		}
 	}
+	zap = zn->zn_zap;	/* fzap_add_cd() may change zap */
 	zap_name_free(zn);
 	vmem_free(mzp, sz);
 	*zapp = zap;
@@ -432,12 +566,27 @@ mzap_normalization_conflict(zap_t *zap, zap_name_t *zn, mzap_ent_t *mze,
 	    other && other->mze_hash == mze->mze_hash;
 	    other = zfs_btree_prev(&zap->zap_m.zap_tree, &oidx, &oidx)) {
 
+		/* TinyZAP entries use tze_name_ptr */
+		const char *name;
+		if (zap->zap_m.zap_stride != 0) {
+			name = tze_name_ptr(TZE_PHYS(zap, other),
+			    zap->zap_m.zap_stride);
+		} else {
+			name = MZE_PHYS(zap, other)->mze_name;
+		}
+
 		if (zn == NULL) {
-			zn = zap_name_alloc_str(zap,
-			    MZE_PHYS(zap, mze)->mze_name, MT_NORMALIZE);
+			const char *mze_name;
+			if (zap->zap_m.zap_stride != 0) {
+				mze_name = tze_name_ptr(TZE_PHYS(zap, mze),
+				    zap->zap_m.zap_stride);
+			} else {
+				mze_name = MZE_PHYS(zap, mze)->mze_name;
+			}
+			zn = zap_name_alloc_str(zap, mze_name, MT_NORMALIZE);
 			allocdzn = B_TRUE;
 		}
-		if (zap_match(zn, MZE_PHYS(zap, other)->mze_name)) {
+		if (zap_match(zn, name)) {
 			if (allocdzn)
 				zap_name_free(zn);
 			return (B_TRUE);
@@ -448,12 +597,26 @@ mzap_normalization_conflict(zap_t *zap, zap_name_t *zn, mzap_ent_t *mze,
 	    other && other->mze_hash == mze->mze_hash;
 	    other = zfs_btree_next(&zap->zap_m.zap_tree, &oidx, &oidx)) {
 
+		const char *name;
+		if (zap->zap_m.zap_stride != 0) {
+			name = tze_name_ptr(TZE_PHYS(zap, other),
+			    zap->zap_m.zap_stride);
+		} else {
+			name = MZE_PHYS(zap, other)->mze_name;
+		}
+
 		if (zn == NULL) {
-			zn = zap_name_alloc_str(zap,
-			    MZE_PHYS(zap, mze)->mze_name, MT_NORMALIZE);
+			const char *mze_name;
+			if (zap->zap_m.zap_stride != 0) {
+				mze_name = tze_name_ptr(TZE_PHYS(zap, mze),
+				    zap->zap_m.zap_stride);
+			} else {
+				mze_name = MZE_PHYS(zap, mze)->mze_name;
+			}
+			zn = zap_name_alloc_str(zap, mze_name, MT_NORMALIZE);
 			allocdzn = B_TRUE;
 		}
-		if (zap_match(zn, MZE_PHYS(zap, other)->mze_name)) {
+		if (zap_match(zn, name)) {
 			if (allocdzn)
 				zap_name_free(zn);
 			return (B_TRUE);

@@ -25,6 +25,7 @@
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2024-2025, Klara, Inc.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -148,6 +149,7 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 #define	DMU_BACKUP_FEATURE_LONGNAME		(1 << 28)
 #define	DMU_BACKUP_FEATURE_LARGE_MICROZAP	(1 << 29)
+#define	DMU_BACKUP_FEATURE_TINYZAP		(1 << 30)
 
 /*
  * Mask of all supported backup features
@@ -159,7 +161,8 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
     DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_ZSTD | DMU_BACKUP_FEATURE_LONGNAME | \
-    DMU_BACKUP_FEATURE_LARGE_MICROZAP)
+    DMU_BACKUP_FEATURE_LARGE_MICROZAP | \
+    DMU_BACKUP_FEATURE_TINYZAP)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))

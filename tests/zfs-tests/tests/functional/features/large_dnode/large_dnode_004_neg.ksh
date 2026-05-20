@@ -66,7 +66,7 @@ log_must eval "zfs send $TEST_SNAP > $TEST_STREAM"
 LGCYPOOL=ldnpool
 LGCYFS=$LGCYPOOL/legacy
 log_must mkfile 64M  $TESTDIR/$LGCYPOOL
-log_must zpool create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
+log_must zpool create -o feature@large_dnode=disabled $LGCYPOOL $TESTDIR/$LGCYPOOL
 log_mustnot eval "zfs recv $LGCYFS < $TEST_STREAM"
 
 log_pass

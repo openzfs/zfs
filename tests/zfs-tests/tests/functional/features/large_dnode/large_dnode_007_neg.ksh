@@ -61,7 +61,7 @@ set -A prop_vals "auto" "1k" "2k" "4k" "8k" "16k"
 LGCYPOOL=lgcypool
 LGCYFS=$LGCYPOOL/legacy
 log_must mkfile 64M  $TESTDIR/$LGCYPOOL
-log_must zpool create -d $LGCYPOOL $TESTDIR/$LGCYPOOL
+log_must zpool create -o feature@large_dnode=disabled $LGCYPOOL $TESTDIR/$LGCYPOOL
 log_must zfs create $LGCYFS
 
 for val in ${prop_vals[@]} ; do
