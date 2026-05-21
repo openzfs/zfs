@@ -42,6 +42,11 @@ on:
         required: false
         default: ""
         description: "(optional) repo URL (blank: use http://download.zfsonlinux.org)"
+      custom_branch:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) custom tag/branch to build using current CI (like 'zfs-2.2.9')"
       lookup:
         type: boolean
         required: false
@@ -94,9 +99,16 @@ jobs:
                 if [ -n "${{ github.event.inputs.patch_level }}" ] ; then
                         EXTRA="--patch-level ${{ github.event.inputs.patch_level }}"
                 fi
+                if [ -n "${{ github.event.inputs.custom_branch }}" ] ; then
+                        EXTRA+=" --custom-branch ${{ github.event.inputs.custom_branch }}"
+                fi
 
                 .github/workflows/scripts/qemu-4-build.sh $EXTRA \
                         --repo --release --dkms --tarball ${{ matrix.os }}
+
+                if [ -n "${{ github.event.inputs.custom_branch }}" ] ; then
+                        echo "Built packages for ${{ github.event.inputs.custom_branch }}"
+                fi
         fi
 
     - name: Prepare artifacts
