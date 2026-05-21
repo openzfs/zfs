@@ -5,10 +5,12 @@
 #
 # Usage:
 #
-#       qemu-4-build-vm.sh OS [--enable-debug][--dkms][--patch-level NUM]
-#               [--poweroff][--release][--repo][--tarball]
+#       qemu-4-build-vm.sh OS [--custom-branch BRANCH][--enable-debug][--dkms]
+#               [--patch-level NUM][--poweroff][--release][--repo][--tarball]
 #
 # OS:           OS name like 'fedora41'
+# --custom-branch: When building packages, checkout this version of ZFS to
+#                  build, but use the current CI scripts to do it.
 # --enable-debug:  Build RPMs with '--enable-debug' (for testing)
 # --dkms:       Build DKMS RPMs as well
 # --patch-level NUM:    Use a custom patch level number for packages.
@@ -27,8 +29,27 @@ POWEROFF=""
 RELEASE=""
 REPO=""
 TARBALL=""
+CUSTOM_BRANCH=""
+PREV_BRANCH=""
+
+cleanup() {
+  if [ -n "$PREV_BRANCH" ] ; then
+    git checkout $PREV_BRANCH
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --custom-branch)
+      CUSTOM_BRANCH="$2"
+      # If the user specifies a custom tag/branch to build, and the build
+      # fails, we want to make sure our workflow scripts are restored to the
+      # current (more modern) versions so the subsequent CI steps use those.
+      shift
+      shift
+      PREV_BRANCH=$(git branch --show-current)
+      trap 'cleanup' ERR
+      ;;
     --enable-debug)
       ENABLE_DEBUG=1
       shift
@@ -367,6 +388,11 @@ if [ -n "$ENABLE_DEBUG" ] ; then
   extra="--enable-debug"
 fi
 
+if [ -n "$CUSTOM_BRANCH" ] ; then
+  git fetch --unshallow
+  git checkout $CUSTOM_BRANCH
+fi
+
 # build
 case "$OS" in
   freebsd*)
@@ -393,6 +419,8 @@ case "$OS" in
     ;;
 esac
 
+git checkout $PREV_BRANCH
+PREV_BRANCH=""
 
 # building the zfs module was ok
 echo 0 > /var/tmp/build-exitcode.txt
