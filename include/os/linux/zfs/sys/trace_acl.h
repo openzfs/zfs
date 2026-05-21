@@ -54,7 +54,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint8_t,		z_atime_dirty)
 	    __field(uint8_t,		z_zn_prefetch)
 	    __field(uint_t,		z_blksz)
-	    __field(uint_t,		z_seq)
+	    __field(uint64_t,		z_seq)
 	    __field(uint64_t,		z_mapcnt)
 	    __field(uint64_t,		z_size)
 	    __field(uint64_t,		z_pflags)
@@ -111,7 +111,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->mask_matched	= mask_matched;
 	),
 	TP_printk("zn { id %llu unlinked %u atime_dirty %u "
-	    "zn_prefetch %u blksz %u seq %u "
+	    "zn_prefetch %u blksz %u seq %llu "
 	    "mapcnt %llu size %llu pflags %llu "
 	    "sync_cnt %u "
 	    "mode 0x%x is_sa %d is_ctldir %d "
