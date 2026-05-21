@@ -38,7 +38,7 @@ tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
     'alloc_class_007_pos', 'alloc_class_008_pos', 'alloc_class_009_pos',
     'alloc_class_010_pos', 'alloc_class_011_neg', 'alloc_class_012_pos',
     'alloc_class_013_pos', 'alloc_class_014_pos', 'alloc_class_015_neg',
-    'alloc_class_016_pos']
+    'alloc_class_016_pos', 'alloc_class_017_pos', 'alloc_class_018_neg']
 tags = ['functional', 'alloc_class']
 
 [tests/functional/append]

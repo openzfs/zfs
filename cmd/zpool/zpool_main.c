@@ -1238,6 +1238,15 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 					    "normal");
 			}
 		}
+		if (!hole && !l2c) {
+			const char *ab = NULL;
+			(void) nvlist_lookup_string(nvdev,
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, &ab);
+			if (ab == NULL && log)
+				ab = VDEV_TYPE_LOG;
+			if (ab != NULL)
+				fnvlist_add_string(list, "alloc_bias", ab);
+		}
 		if (nvlist_lookup_uint64_array(nvdev, ZPOOL_CONFIG_VDEV_STATS,
 		    (uint64_t **)&vs, &c) == 0) {
 			fnvlist_add_string(list, "state",
@@ -3114,6 +3123,13 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		(void) printf(gettext("  (removing)"));
 	} else if (VDEV_STAT_VALID(vs_noalloc, vsc) && vs->vs_noalloc != 0) {
 		(void) printf(gettext("  (non-allocating)"));
+	}
+
+	if (isspare) {
+		const char *bias = NULL;
+		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &bias) == 0)
+			(void) printf(gettext("  (%s)"), bias);
 	}
 
 	/* The root vdev has the scrub/resilver stats */

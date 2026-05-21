@@ -439,6 +439,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/alloc_class_014_pos.ksh \
 	functional/alloc_class/alloc_class_015_neg.ksh \
 	functional/alloc_class/alloc_class_016_pos.ksh \
+	functional/alloc_class/alloc_class_017_pos.ksh \
+	functional/alloc_class/alloc_class_018_neg.ksh \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
 	functional/append/file_append.ksh \
@@ -1620,6 +1622,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/auto_spare_001_pos.ksh \
 	functional/fault/auto_spare_002_pos.ksh \
 	functional/fault/auto_spare_ashift.ksh \
+	functional/fault/auto_spare_bias.ksh \
 	functional/fault/auto_spare_double.ksh \
 	functional/fault/auto_spare_multiple.ksh \
 	functional/fault/auto_spare_shared.ksh \

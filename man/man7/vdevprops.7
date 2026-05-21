@@ -236,6 +236,12 @@ to be enabled.
 At least one top-level vdev must remain in the normal
 .Pq Sy none
 class.
+.Pp
+This property may also be set on spare vdevs; a biased spare will only
+activate for a failed vdev of the matching class.
+Unbiased spares
+.Pq Sy none
+are reserved for normal vdevs.
 .It Sy scheduler Ns = Ns Sy auto Ns | Ns Sy on Ns | Ns Sy off
 Controls how I/O requests are added to the vdev queue when reading or
 writing to this vdev.

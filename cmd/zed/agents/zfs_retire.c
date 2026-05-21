@@ -351,6 +351,54 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
 }
 
 /*
+ * Return B_TRUE if the vdev subtree rooted at 'vd' contains a vdev
+ * with 'target_guid' (including 'vd' itself).
+ */
+static boolean_t
+vdev_subtree_contains_guid(nvlist_t *vd, uint64_t target_guid)
+{
+	nvlist_t **children;
+	uint_t nchildren;
+	uint64_t guid;
+
+	if (nvlist_lookup_uint64(vd, ZPOOL_CONFIG_GUID, &guid) == 0 &&
+	    guid == target_guid)
+		return (B_TRUE);
+
+	if (nvlist_lookup_nvlist_array(vd, ZPOOL_CONFIG_CHILDREN,
+	    &children, &nchildren) != 0)
+		return (B_FALSE);
+
+	for (uint_t c = 0; c < nchildren; c++) {
+		if (vdev_subtree_contains_guid(children[c], target_guid))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Return the top-level vdev (direct child of nvroot) that contains the
+ * vdev with 'target_guid', or NULL if not found.
+ */
+static nvlist_t *
+find_top_vdev_by_guid(nvlist_t *nvroot, uint64_t target_guid)
+{
+	nvlist_t **top_children;
+	uint_t ntop;
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &top_children, &ntop) != 0)
+		return (NULL);
+
+	for (uint_t t = 0; t < ntop; t++) {
+		if (vdev_subtree_contains_guid(top_children[t], target_guid))
+			return (top_children[t]);
+	}
+
+	return (NULL);
+}
+
+/*
  * Given a vdev, attempt to replace it with every known spare until one
  * succeeds or we run out of devices to try.
  * Return whether we were successful or not in replacing the device.
@@ -358,12 +406,14 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
 static boolean_t
 replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 {
-	nvlist_t *config, *nvroot, *replacement;
+	nvlist_t *config, *nvroot, *replacement, *top_vdev;
 	nvlist_t **spares;
 	uint_t s, nspares;
 	char *dev_name;
 	zprop_source_t source;
 	int ashift;
+	uint64_t vdev_guid;
+	const char *target_bias = NULL;
 
 	config = zpool_get_config(zhp, NULL);
 	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
@@ -378,6 +428,17 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		return (B_FALSE);
 
 	/*
+	 * Determine the alloc_bias of the failed vdev's top-level vdev
+	 * so we can select only a spare with a matching bias.
+	 */
+	if (nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_GUID, &vdev_guid) == 0) {
+		top_vdev = find_top_vdev_by_guid(nvroot, vdev_guid);
+		if (top_vdev != NULL)
+			(void) nvlist_lookup_string(top_vdev,
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, &target_bias);
+	}
+
+	/*
 	 * lookup "ashift" pool property, we may need it for the replacement
 	 */
 	ashift = zpool_get_prop_int(zhp, ZPOOL_PROP_ASHIFT, &source);
@@ -390,15 +451,24 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	dev_name = zpool_vdev_name(NULL, zhp, vdev, B_FALSE);
 
 	/*
-	 * Try to replace each spare, ending when we successfully
-	 * replace it.
+	 * Try to replace with a spare that has a matching alloc_bias,
+	 * ending when we successfully replace it.
 	 */
 	for (s = 0; s < nspares; s++) {
 		boolean_t rebuild = B_FALSE;
-		const char *spare_name, *type;
+		const char *spare_name, *type, *spare_bias = NULL;
 
 		if (nvlist_lookup_string(spares[s], ZPOOL_CONFIG_PATH,
 		    &spare_name) != 0)
+			continue;
+
+		/* Skip spares with a mismatched alloc_bias. */
+		(void) nvlist_lookup_string(spares[s],
+		    ZPOOL_CONFIG_ALLOCATION_BIAS, &spare_bias);
+		if (target_bias == NULL && spare_bias != NULL)
+			continue;
+		if (target_bias != NULL && (spare_bias == NULL ||
+		    strcmp(target_bias, spare_bias) != 0))
 			continue;
 
 		/* prefer sequential resilvering for distributed spares */

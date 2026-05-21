@@ -906,6 +906,12 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
+	} else if (alloctype == VDEV_ALLOC_SPARE) {
+		const char *bias;
+
+		if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &bias) == 0)
+			alloc_bias = vdev_derive_alloc_bias(bias);
 	}
 
 	/*
@@ -924,9 +930,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vd->vdev_tsd = tsd;
 	vd->vdev_islog = islog;
-
-	if (top_level && alloc_bias != VDEV_BIAS_NONE)
-		vd->vdev_alloc_bias = alloc_bias;
+	vd->vdev_alloc_bias = alloc_bias;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &tmp) == 0)
 		vd->vdev_path = spa_strdup(tmp);
@@ -6053,7 +6057,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
 	uint64_t vdev_guid;
-	uint64_t objid;
+	uint64_t objid = 0;
 	nvlist_t *nvprops;
 
 	vdev_guid = fnvlist_lookup_uint64(nvp, ZPOOL_VDEV_PROPS_SET_VDEV);
@@ -6066,8 +6070,11 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 
 	/*
 	 * Set vdev property values in the vdev props mos object.
+	 * Spare vdevs have no ZAP; their alloc_bias is persisted via
+	 * spa_sync_aux_dev() triggered by sav_sync below.
 	 */
-	if (vdev_prop_get_objid(vd, &objid) != 0)
+	boolean_t have_objid = (vdev_prop_get_objid(vd, &objid) == 0);
+	if (!have_objid && !vd->vdev_isspare)
 		panic("unexpected vdev type");
 
 	mutex_enter(&spa->spa_props_lock);
@@ -6099,13 +6106,23 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 			break;
 		case VDEV_PROP_ALLOC_BIAS: {
 			intval = fnvpair_value_uint64(elem);
-			ASSERT3U(intval, !=, VDEV_BIAS_LOG);
+			/* LOG bias is only valid here for spare vdevs. */
+			ASSERT(intval != VDEV_BIAS_LOG || vd->vdev_isspare);
 			const char *bias_str =
+			    (intval == VDEV_BIAS_LOG) ?
+			    VDEV_ALLOC_BIAS_LOG :
 			    (intval == VDEV_BIAS_SPECIAL) ?
 			    VDEV_ALLOC_BIAS_SPECIAL :
 			    (intval == VDEV_BIAS_DEDUP) ?
 			    VDEV_ALLOC_BIAS_DEDUP : NULL;
-			if (bias_str == NULL) {
+			if (vd->vdev_isspare) {
+				/*
+				 * Spare vdevs have no vdev_top_zap.
+				 * Trigger spa_sync_aux_dev() to persist
+				 * the bias via the MOS spare list config.
+				 */
+				spa->spa_spares.sav_sync = B_TRUE;
+			} else if (bias_str == NULL) {
 				(void) zap_remove(mos, objid,
 				    VDEV_TOP_ZAP_ALLOCATION_BIAS, tx);
 			} else {
@@ -6170,10 +6187,14 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 
 	ASSERT(vd != NULL);
 
-	/* Check that vdev has a zap we can use */
+	/*
+	 * Check that vdev has a zap we can use, or is a spare vdev,
+	 * able to store alloc_bias without one.
+	 */
 	if (vd->vdev_root_zap == 0 &&
 	    vd->vdev_top_zap == 0 &&
-	    vd->vdev_leaf_zap == 0)
+	    vd->vdev_leaf_zap == 0 &&
+	    !vd->vdev_isspare)
 		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
@@ -6200,6 +6221,12 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 
 		if (prop != VDEV_PROP_USERPROP && vdev_prop_readonly(prop)) {
 			error = EROFS;
+			goto end;
+		}
+
+		/* Spare vdevs only support setting alloc_bias. */
+		if (vd->vdev_isspare && prop != VDEV_PROP_ALLOC_BIAS) {
+			error = ENOTSUP;
 			goto end;
 		}
 
@@ -6354,7 +6381,8 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
-			if (vd != vd->vdev_top || vd->vdev_top_zap == 0) {
+			if (vd != vd->vdev_top ||
+			    (vd->vdev_top_zap == 0 && !vd->vdev_isspare)) {
 				error = ENOTSUP;
 				break;
 			}
@@ -6363,12 +6391,16 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				error = ENOTSUP;
 				break;
 			}
+			/* Log bias only valid on spare vdevs. */
+			if (intval == VDEV_BIAS_LOG && !vd->vdev_isspare) {
+				error = ENOTSUP;
+				break;
+			}
 			/* special/dedup needs allocation_classes feature */
-			if (intval != VDEV_BIAS_NONE &&
-			    ((intval != VDEV_BIAS_SPECIAL &&
-			    intval != VDEV_BIAS_DEDUP) ||
+			if ((intval == VDEV_BIAS_SPECIAL ||
+			    intval == VDEV_BIAS_DEDUP) &&
 			    !spa_feature_is_enabled(spa,
-			    SPA_FEATURE_ALLOCATION_CLASSES))) {
+			    SPA_FEATURE_ALLOCATION_CLASSES)) {
 				error = ENOTSUP;
 				break;
 			}
@@ -6376,7 +6408,7 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			 * Disallow converting the last normal vdev to
 			 * avoid pool suspension on failed allocations.
 			 */
-			if (intval != VDEV_BIAS_NONE &&
+			if (!vd->vdev_isspare && intval != VDEV_BIAS_NONE &&
 			    vd->vdev_alloc_bias == VDEV_BIAS_NONE) {
 				vdev_t *rvd = spa->spa_root_vdev;
 				int normal = 0;
@@ -6446,9 +6478,11 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 
 	nvlist_lookup_nvlist(innvl, ZPOOL_VDEV_PROPS_GET_PROPS, &nvprops);
 
-	if (vdev_prop_get_objid(vd, &objid) != 0)
+	objid = 0;
+	boolean_t have_get_objid = (vdev_prop_get_objid(vd, &objid) == 0);
+	if (!have_get_objid && !vd->vdev_isspare)
 		return (SET_ERROR(EINVAL));
-	ASSERT(objid != 0);
+	ASSERT(!have_get_objid || objid != 0);
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -6770,6 +6804,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				    intval, src);
 				break;
 			case VDEV_PROP_FAILFAST:
+				if (!have_get_objid)
+					continue;
 				src = ZPROP_SRC_LOCAL;
 
 				err = zap_lookup(mos, objid, nvpair_name(elem),
@@ -6817,6 +6853,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				break;
 
 			case VDEV_PROP_SLOW_IO_EVENTS:
+				if (!have_get_objid)
+					continue;
 				err = vdev_prop_get_bool(vd, prop, &boolval);
 				if (err && err != ENOENT)
 					break;
@@ -6830,9 +6868,13 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				break;
 			case VDEV_PROP_ALLOC_BIAS:
 				if (vd == vd->vdev_top) {
+					zprop_source_t src =
+					    (vd->vdev_alloc_bias ==
+					    VDEV_BIAS_NONE) ?
+					    ZPROP_SRC_DEFAULT :
+					    ZPROP_SRC_LOCAL;
 					vdev_prop_add_list(outnvl, propname,
-					    NULL, vd->vdev_alloc_bias,
-					    ZPROP_SRC_NONE);
+					    NULL, vd->vdev_alloc_bias, src);
 				}
 				continue;
 			case VDEV_PROP_CHECKSUM_N:
@@ -6842,6 +6884,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_SLOW_IO_N:
 			case VDEV_PROP_SLOW_IO_T:
 			case VDEV_PROP_SCHEDULER:
+				if (!have_get_objid)
+					continue;
 				err = vdev_prop_get_int(vd, prop, &intval);
 				if (err && err != ENOENT)
 					break;
@@ -6860,6 +6904,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				/* FALLTHRU */
 			case VDEV_PROP_USERPROP:
 				/* User Properites */
+				if (!have_get_objid)
+					continue;
 				src = ZPROP_SRC_LOCAL;
 
 				err = zap_length(mos, objid, nvpair_name(elem),
@@ -6897,7 +6943,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			if (err)
 				break;
 		}
-	} else {
+	} else if (have_get_objid) {
 		/*
 		 * Get all properties from the MOS vdev property object.
 		 */

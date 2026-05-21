@@ -6644,34 +6644,31 @@ spa_add_spares(spa_t *spa, nvlist_t *config)
 		return;
 
 	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
-	VERIFY0(nvlist_lookup_nvlist_array(spa->spa_spares.sav_config,
-	    ZPOOL_CONFIG_SPARES, &spares, &nspares));
-	if (nspares != 0) {
-		fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    (const nvlist_t * const *)spares, nspares);
-		VERIFY0(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
-		    &spares, &nspares));
 
-		/*
-		 * Go through and find any spares which have since been
-		 * repurposed as an active spare.  If this is the case, update
-		 * their status appropriately.
-		 */
-		for (i = 0; i < nspares; i++) {
-			guid = fnvlist_lookup_uint64(spares[i],
-			    ZPOOL_CONFIG_GUID);
+	/*
+	 * Generate spare configs fresh from in-memory vdevs rather than
+	 * reading the cached sav_config.  This ensures that any property
+	 * changes made at runtime (e.g. alloc_bias) are reflected without
+	 * requiring a writer lock to update the cache.
+	 */
+	nspares = spa->spa_spares.sav_count;
+	spares = kmem_alloc(nspares * sizeof (void *), KM_SLEEP);
+	for (i = 0; i < nspares; i++) {
+		spares[i] = vdev_config_generate(spa,
+		    spa->spa_spares.sav_vdevs[i], B_TRUE, VDEV_CONFIG_SPARE);
+		guid = fnvlist_lookup_uint64(spares[i], ZPOOL_CONFIG_GUID);
+		if (spa_spare_exists(guid, &pool, NULL) && pool != 0ULL) {
 			VERIFY0(nvlist_lookup_uint64_array(spares[i],
 			    ZPOOL_CONFIG_VDEV_STATS, (uint64_t **)&vs, &vsc));
-			if (spa_spare_exists(guid, &pool, NULL) &&
-			    pool != 0ULL) {
-				vs->vs_state = VDEV_STATE_CANT_OPEN;
-				vs->vs_aux = VDEV_AUX_SPARED;
-			} else {
-				vs->vs_state =
-				    spa->spa_spares.sav_vdevs[i]->vdev_state;
-			}
+			vs->vs_state = VDEV_STATE_CANT_OPEN;
+			vs->vs_aux = VDEV_AUX_SPARED;
 		}
 	}
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
+	    (const nvlist_t * const *)spares, nspares);
+	for (i = 0; i < nspares; i++)
+		nvlist_free(spares[i]);
+	kmem_free(spares, nspares * sizeof (void *));
 }
 
 /*
@@ -8333,10 +8330,22 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
 
 	/*
-	 * log, dedup and special vdevs should not be replaced by spares.
+	 * A spare vdev is constructed fresh from the userland nvlist and does
+	 * not carry alloc_bias.  After vdev_create(), vdev_label_init() has
+	 * corrected newvd->vdev_guid to the real spare GUID; inherit the bias
+	 * from the registered spare now.
 	 */
-	if ((oldvd->vdev_top->vdev_alloc_bias != VDEV_BIAS_NONE ||
-	    oldvd->vdev_top->vdev_islog) && newvd->vdev_isspare) {
+	if (newvd->vdev_isspare) {
+		vdev_t *sv = spa_lookup_by_guid(spa, newvd->vdev_guid, B_TRUE);
+		if (sv != NULL)
+			newvd->vdev_alloc_bias = sv->vdev_alloc_bias;
+	}
+
+	/*
+	 * A spare can only replace a vdev with a matching alloc_bias.
+	 */
+	if (newvd->vdev_isspare &&
+	    newvd->vdev_alloc_bias != oldvd->vdev_top->vdev_alloc_bias) {
 		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 	}
 
@@ -10185,7 +10194,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 
 static void
 spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
-    const char *config, const char *entry)
+    const char *config, const char *entry, vdev_config_flag_t vdev_flags)
 {
 	nvlist_t *nvroot;
 	nvlist_t **list;
@@ -10216,7 +10225,7 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 		list = kmem_alloc(sav->sav_count*sizeof (void *), KM_SLEEP);
 		for (i = 0; i < sav->sav_count; i++)
 			list[i] = vdev_config_generate(spa, sav->sav_vdevs[i],
-			    B_FALSE, VDEV_CONFIG_L2CACHE);
+			    B_FALSE, vdev_flags);
 		fnvlist_add_nvlist_array(nvroot, config,
 		    (const nvlist_t * const *)list, sav->sav_count);
 		for (i = 0; i < sav->sav_count; i++)
@@ -10733,9 +10742,10 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 
 		spa_sync_config_object(spa, tx);
 		spa_sync_aux_dev(spa, &spa->spa_spares, tx,
-		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES);
+		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES, VDEV_CONFIG_SPARE);
 		spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
-		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE);
+		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE,
+		    VDEV_CONFIG_L2CACHE);
 		spa_errlog_sync(spa, txg);
 		dsl_pool_sync(dp, txg);
 

@@ -451,6 +451,21 @@ top_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 	}
 }
 
+static const char *
+vdev_alloc_bias_str(vdev_alloc_bias_t bias)
+{
+	switch (bias) {
+	case VDEV_BIAS_LOG:
+		return (VDEV_ALLOC_BIAS_LOG);
+	case VDEV_BIAS_SPECIAL:
+		return (VDEV_ALLOC_BIAS_SPECIAL);
+	case VDEV_BIAS_DEDUP:
+		return (VDEV_ALLOC_BIAS_DEDUP);
+	default:
+		return (NULL);
+	}
+}
+
 /*
  * Generate the nvlist representing this vdev's config.
  */
@@ -530,25 +545,27 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 		/* zpool command expects alloc class data */
 		if (getstats && vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
-			const char *bias = NULL;
-
-			switch (vd->vdev_alloc_bias) {
-			case VDEV_BIAS_LOG:
-				bias = VDEV_ALLOC_BIAS_LOG;
-				break;
-			case VDEV_BIAS_SPECIAL:
-				bias = VDEV_ALLOC_BIAS_SPECIAL;
-				break;
-			case VDEV_BIAS_DEDUP:
-				bias = VDEV_ALLOC_BIAS_DEDUP;
-				break;
-			default:
-				ASSERT3U(vd->vdev_alloc_bias, ==,
-				    VDEV_BIAS_NONE);
-			}
+			const char *bias =
+			    vdev_alloc_bias_str(vd->vdev_alloc_bias);
+			ASSERT(bias != NULL);
 			fnvlist_add_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
 			    bias);
 		}
+	}
+
+	/*
+	 * Include alloc_bias for spare vdevs when generating spare-list
+	 * config (aux-device context), not the main pool vdev tree.  Spare
+	 * vdevs inside a spare-N replacing group in the main tree must not
+	 * carry this key or the display code misidentifies them as
+	 * allocation-class group vdevs.
+	 */
+	if ((flags & VDEV_CONFIG_SPARE) &&
+	    vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
+		const char *bias = vdev_alloc_bias_str(vd->vdev_alloc_bias);
+		if (bias != NULL)
+			fnvlist_add_string(nv, ZPOOL_CONFIG_ALLOCATION_BIAS,
+			    bias);
 	}
 
 	if (vd->vdev_dtl_sm != NULL) {

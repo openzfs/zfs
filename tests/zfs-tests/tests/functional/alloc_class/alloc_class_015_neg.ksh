@@ -26,7 +26,7 @@
 # STRATEGY:
 #	1. Create a pool with a normal mirror and a log vdev.
 #	2. Verify setting alloc_bias on a leaf vdev fails.
-#	3. Verify setting alloc_bias=log fails.
+#	3. Verify setting alloc_bias=log on a non-spare vdev fails.
 #	4. Verify setting alloc_bias to an unknown value fails.
 #	5. Verify setting alloc_bias on a log vdev fails.
 #	6. Verify setting alloc_bias=special fails when allocation_classes
