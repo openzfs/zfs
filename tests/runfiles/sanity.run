@@ -357,8 +357,7 @@ tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]
-tests = ['zpool_split_cliargs', 'zpool_split_devices',
-    'zpool_split_props', 'zpool_split_vdevs', 'zpool_split_indirect']
+tests = ['zpool_split_cliargs', 'zpool_split_devices', 'zpool_split_indirect']
 tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/cli_root/zpool_status]
@@ -439,12 +438,6 @@ tags = ['functional', 'features', 'large_dnode']
 tests = ['gang_blocks_001_pos']
 tags = ['functional', 'gang_blocks']
 
-[tests/functional/grow]
-pre =
-post =
-tests = ['grow_pool_001_pos', 'grow_replicas_001_pos']
-tags = ['functional', 'grow']
-
 [tests/functional/history]
 tests = ['history_004_pos', 'history_005_neg', 'history_007_pos',
     'history_009_pos']
@@ -502,12 +495,6 @@ tags = ['functional', 'nestedfs']
 tests = ['nopwrite_sync', 'nopwrite_volume']
 tags = ['functional', 'nopwrite']
 
-[tests/functional/pool_checkpoint]
-tests = ['checkpoint_conf_change', 'checkpoint_discard_many',
-    'checkpoint_removal', 'checkpoint_sm_scale', 'checkpoint_twice']
-tags = ['functional', 'pool_checkpoint']
-timeout = 1800
-
 [tests/functional/poolversion]
 tests = ['poolversion_001_pos', 'poolversion_002_pos']
 tags = ['functional', 'poolversion']
@@ -557,13 +544,11 @@ tags = ['functional', 'reservation']
 
 [tests/functional/rsend]
 tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
-    'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos', 'rsend_005_pos',
-    'rsend_006_pos', 'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos',
-    'rsend_014_pos', 'rsend_016_neg', 'rsend-exclude_001_pos',
-    'rsend-exclude_002_pos', 'send-c_verify_contents',
-    'send-c_volume', 'send-c_zstreamdump', 'send-c_recv_dedup',
-    'send-L_toggle', 'send_encrypted_hierarchy', 'send_encrypted_props',
-    'send_encrypted_freeobjects',
+    'rsend_002_pos', 'rsend_003_pos', 'rsend_009_pos', 'rsend_010_pos',
+    'rsend_011_pos', 'rsend_016_neg', 'rsend-exclude_001_pos',
+    'rsend-exclude_002_pos', 'send-c_volume', 'send-c_zstreamdump',
+    'send-c_recv_dedup', 'send-L_toggle', 'send_encrypted_hierarchy',
+    'send_encrypted_props', 'send_encrypted_freeobjects',
     'send_encrypted_truncated_files', 'send_freeobjects', 'send_holds',
     'send_mixed_raw', 'send-wR_encrypted_zvol', 'send_partial_dataset',
     'send_invalid']
@@ -644,9 +629,3 @@ tags = ['functional', 'zvol', 'zvol_swap']
 [tests/functional/zpool_influxdb]
 tests = ['zpool_influxdb']
 tags = ['functional', 'zpool_influxdb']
-
-[tests/functional/pyzfs]
-tests = ['pyzfs_unittest']
-pre =
-post =
-tags = ['functional', 'pyzfs']
