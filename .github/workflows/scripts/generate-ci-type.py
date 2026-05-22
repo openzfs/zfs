@@ -48,6 +48,7 @@ DOCS_ONLY_REGEX = list(map(re.compile, [
 Patterns of files that are considered to trigger full CI.
 """
 FULL_RUN_REGEX = list(map(re.compile, [
+    r'\.github/workflows/.*\.ya?ml',
     r'\.github/workflows/scripts/.*',
     r'cmd.*',
     r'configs/.*',
