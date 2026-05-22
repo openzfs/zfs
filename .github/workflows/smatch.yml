@@ -10,6 +10,7 @@ concurrency:
 
 jobs:
   smatch:
+    if: github.event_name == 'pull_request' || github.repository != 'openzfs/zfs'
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout smatch
