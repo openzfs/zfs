@@ -98,7 +98,7 @@ case "$OS" in
   freebsd15-0r)
     FreeBSD="15.0-RELEASE"
     OSNAME="FreeBSD $FreeBSD"
-    OSv="freebsd15.0"
+    OSv="freebsd14.0"
     URLxz="$FREEBSD_REL/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
     KSRC="$FREEBSD_REL/../amd64/$FreeBSD/src.txz"
     ;;
