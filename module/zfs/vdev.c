@@ -56,6 +56,7 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_synctask.h>
 #include <sys/vdev_raidz.h>
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
@@ -3537,6 +3538,18 @@ vdev_dtl_load(vdev_t *vd)
 	int error = 0;
 
 	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
+		if (!vdev_is_concrete(vd)) {
+			/*
+			 * Non-concrete (hole or missing) vdev with an orphaned
+			 * DTL object reference. This can occur when the system
+			 * crashes during vdev detach after the vdev tree is
+			 * updated but before the DTL space map is freed. Preserve
+			 * vdev_dtl_object so the import path can detect and free
+			 * the orphaned MOS object; do not attempt to open or load
+			 * it here.
+			 */
+			return (0);
+		}
 		ASSERT(vdev_is_concrete(vd));
 
 		/*
@@ -3651,6 +3664,129 @@ vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 	for (uint64_t i = 0; i < vd->vdev_children; i++) {
 		vdev_construct_zaps(vd->vdev_child[i], tx);
 	}
+}
+
+/*
+ * Sync-task argument for freeing an orphaned DTL space map object.
+ */
+typedef struct {
+	spa_t		*dtof_spa;
+	uint64_t	dtof_object;
+	uint64_t	dtof_vdev_id;
+	const char	*dtof_vdev_type;
+} dtl_orphan_free_t;
+
+static void
+vdev_dtl_orphan_free_sync(void *arg, dmu_tx_t *tx)
+{
+	dtl_orphan_free_t *dtof = arg;
+	spa_t *spa = dtof->dtof_spa;
+	objset_t *mos = spa->spa_meta_objset;
+
+	/*
+	 * Guard against double-free: if a previous import attempt freed this
+	 * object but crashed before writing the updated vdev config, the
+	 * object may already be gone.
+	 */
+	dmu_object_info_t doi;
+	if (dmu_object_info(mos, dtof->dtof_object, &doi) != 0) {
+		zfs_dbgmsg("pool %s: orphaned DTL object %llu on %s vdev "
+		    "id %llu already freed, skipping",
+		    spa_name(spa), (u_longlong_t)dtof->dtof_object,
+		    dtof->dtof_vdev_type, (u_longlong_t)dtof->dtof_vdev_id);
+		return;
+	}
+
+	space_map_free_obj(mos, dtof->dtof_object, tx);
+
+	spa_history_log_internal(spa, "heal orphaned dtl", tx,
+	    "freed orphaned DTL object %llu from %s vdev id %llu",
+	    (u_longlong_t)dtof->dtof_object,
+	    dtof->dtof_vdev_type,
+	    (u_longlong_t)dtof->dtof_vdev_id);
+}
+
+/*
+ * Walk the vdev tree and heal any orphaned DTL entries found on
+ * non-concrete (hole or missing) vdevs. These arise when the system
+ * crashes during a vdev detach after the vdev tree is updated but
+ * before the DTL space map object is freed. Without healing, the
+ * orphaned space map object leaks permanently and, in debug builds,
+ * causes an assertion failure in vdev_dtl_load() on the next import.
+ *
+ * Called from spa_load_impl() after the sync thread is running and the
+ * pool is writable. Sets *count to the number of vdevs healed and
+ * returns 0 on success or the first error encountered.
+ */
+int
+vdev_dtl_check_orphaned(vdev_t *vd, int *count)
+{
+	spa_t *spa = vd->vdev_spa;
+	int error = 0;
+	int local_count = 0;
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		int child_count = 0;
+		int child_error = vdev_dtl_check_orphaned(
+		    vd->vdev_child[c], &child_count);
+		local_count += child_count;
+		if (child_error != 0 && error == 0)
+			error = child_error;
+	}
+
+	if ((vd->vdev_ops == &vdev_hole_ops ||
+	    vd->vdev_ops == &vdev_missing_ops) &&
+	    vd->vdev_dtl_object != 0) {
+
+		local_count++;
+
+		zfs_dbgmsg("pool %s: orphaned DTL object %llu on %s vdev "
+		    "id %llu (guid %llu), healing",
+		    spa_name(spa),
+		    (u_longlong_t)vd->vdev_dtl_object,
+		    vd->vdev_ops->vdev_op_type,
+		    (u_longlong_t)vd->vdev_id,
+		    (u_longlong_t)vd->vdev_guid);
+
+		cmn_err(CE_NOTE, "pool '%s': healing orphaned DTL on "
+		    "%s vdev id=%llu (crash during detach)",
+		    spa_name(spa), vd->vdev_ops->vdev_op_type,
+		    (u_longlong_t)vd->vdev_id);
+
+		dtl_orphan_free_t dtof = {
+		    .dtof_spa = spa,
+		    .dtof_object = vd->vdev_dtl_object,
+		    .dtof_vdev_id = vd->vdev_id,
+		    .dtof_vdev_type = vd->vdev_ops->vdev_op_type,
+		};
+		int err = dsl_sync_task(spa_name(spa), NULL,
+		    vdev_dtl_orphan_free_sync, &dtof,
+		    1, ZFS_SPACE_CHECK_NONE);
+		if (err != 0) {
+			cmn_err(CE_WARN, "pool '%s': failed to free orphaned "
+			    "DTL object %llu on %s vdev id=%llu [error=%d]",
+			    spa_name(spa), (u_longlong_t)vd->vdev_dtl_object,
+			    vd->vdev_ops->vdev_op_type,
+			    (u_longlong_t)vd->vdev_id, err);
+			if (error == 0)
+				error = err;
+		}
+
+		/*
+		 * Clear the in-memory reference regardless of whether the
+		 * sync task succeeded. If it failed the object remains in
+		 * the MOS but the import can proceed safely; vdev_dtl_load()
+		 * will skip it on this and future imports until the object
+		 * is eventually freed.
+		 */
+		vd->vdev_dtl_object = 0;
+		vdev_config_dirty(vd->vdev_top);
+	}
+
+	if (count != NULL)
+		*count = local_count;
+
+	return (error);
 }
 
 static void
@@ -3808,6 +3944,82 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 		*maxp = thismax;
 	}
 	return (needed);
+}
+
+/*
+ * Check for orphaned DTL entries on non-concrete vdevs (holes, missing).
+ * These can occur when the system crashes during a vdev detach operation,
+ * leaving the vdev tree updated (device becomes a hole) but DTL entries
+ * still referencing the old device.
+ *
+ * If heal is B_TRUE, clear the orphaned entries and log the action.
+ * Returns 0 on success, or EINVAL if orphaned entries found and heal is B_FALSE.
+ * Sets *count to number of vdevs with orphaned DTL entries.
+ */
+int
+vdev_dtl_check_orphaned(vdev_t *vd, boolean_t heal, int *count)
+{
+	spa_t *spa = vd->vdev_spa;
+	int error = 0;
+	int local_count = 0;
+
+	/*
+	 * Recurse into children first
+	 */
+	for (int c = 0; c < vd->vdev_children; c++) {
+		int child_count = 0;
+		int child_error;
+
+		child_error = vdev_dtl_check_orphaned(vd->vdev_child[c],
+		    heal, &child_count);
+		local_count += child_count;
+
+		if (child_error != 0 && error == 0)
+			error = child_error;
+	}
+
+	/*
+	 * Check if this is a hole or missing vdev with DTL entries.
+	 * This indicates a crash during detach left orphaned state.
+	 */
+	if ((vd->vdev_ops == &vdev_hole_ops ||
+	    vd->vdev_ops == &vdev_missing_ops) &&
+	    vd->vdev_dtl_object != 0) {
+
+		local_count++;
+
+		zfs_dbgmsg("pool %s: orphaned DTL object %llu on %s vdev "
+		    "id %llu (guid %llu)",
+		    spa_name(spa),
+		    (u_longlong_t)vd->vdev_dtl_object,
+		    vd->vdev_ops->vdev_op_type,
+		    (u_longlong_t)vd->vdev_id,
+		    (u_longlong_t)vd->vdev_guid);
+
+		if (heal) {
+			cmn_err(CE_WARN, "pool '%s': clearing orphaned DTL "
+			    "entries on %s vdev (id=%llu), likely from "
+			    "crash during detach operation",
+			    spa_name(spa),
+			    vd->vdev_ops->vdev_op_type,
+			    (u_longlong_t)vd->vdev_id);
+
+			/*
+			 * Clear the DTL object reference. The actual space
+			 * map object will be leaked but is harmless and will
+			 * be reclaimed on next scrub/resilver completion.
+			 */
+			vd->vdev_dtl_object = 0;
+			vdev_config_dirty(vd->vdev_top);
+		} else {
+			error = SET_ERROR(EINVAL);
+		}
+	}
+
+	if (count != NULL)
+		*count = local_count;
+
+	return (error);
 }
 
 /*
