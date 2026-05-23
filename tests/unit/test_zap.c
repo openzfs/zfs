@@ -448,6 +448,55 @@ test_zap_length(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/* zap_increment: add integer value to existing integer */
+static MunitResult
+test_zap_increment(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t r = 0;
+
+	/* Increment a missing key creates it with that value. */
+	unit_ok(zap_increment_by_dnode(dn, "a", 5, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_eq(r, 5);
+
+	/* Further increments accumulate. */
+	unit_ok(zap_increment_by_dnode(dn, "a", 3, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_eq(r, 8);
+
+	/* Decrement works. */
+	unit_ok(zap_increment_by_dnode(dn, "a", -2, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_eq(r, 6);
+
+	/* Zero delta leaves it unchanged. */
+	r = 0;
+	unit_ok(zap_increment_by_dnode(dn, "a", 0, tx));
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_eq(r, 6);
+
+	/* Decrementing to zero removes the entry. */
+	unit_ok(zap_increment_by_dnode(dn, "a", -6, tx));
+	unit_err(zap_lookup_by_dnode(dn, "a",
+	    sizeof (uint64_t), 1, &r), ENOENT);
+
+	/* Delta of zero is a no-op even for a missing key. */
+	unit_ok(zap_increment_by_dnode(dn, "a", 0, tx));
+	unit_err(zap_lookup_by_dnode(dn, "a",
+	    sizeof (uint64_t), 1, &r), ENOENT);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 /*
@@ -859,6 +908,8 @@ static const MunitTest zap_tests[] = {
 	UNIT_TEST_ZAP_TYPES("zap_count",	test_zap_count),
 	UNIT_TEST_ZAP_TYPES("zap_contains",	test_zap_contains),
 	UNIT_TEST_ZAP_TYPES("zap_length",	test_zap_length),
+
+	UNIT_TEST_ZAP_TYPES("zap_increment",	test_zap_increment),
 
 	UNIT_TEST("microzap_stats",		test_microzap_stats),
 	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
