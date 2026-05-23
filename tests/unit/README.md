@@ -45,6 +45,10 @@ Running test suite with seed 0x18e131ac...
 ...
 ```
 
+The test framework provides various options for controlling how the tests are
+run. Add the `--help` switch for more info. If using the make rule, options can
+be passed via the `TOPT=` param.
+
 ### Building just for tests
 
 Recommended “minimum” build for just the unit tests, with additional debug to

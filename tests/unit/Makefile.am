@@ -44,11 +44,11 @@ nodist_%C%_test_zap_SOURCES = \
 PHONY += unit unit-coverage
 
 _unit_run_%: %D%/%
-	@echo "  UNITTEST $<" ; $<
+	@echo "  UNITTEST $<" ; $< $(TOPT)
 
 _unit_coverage_%: %D%/%
 	@${LCOV} --quiet --zerocounters --directory $(top_srcdir) >/dev/null
-	@echo "  UNITTEST $<" ; $<
+	@echo "  UNITTEST $<" ; $< $(TOPT)
 	@${LCOV} --quiet --capture  \
 		--test-name $(subst _unit_coverage_, , $@) \
 		--directory $(top_srcdir) \
