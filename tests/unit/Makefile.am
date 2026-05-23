@@ -46,7 +46,9 @@ PHONY += unit unit-coverage
 _unit_run_%: %D%/%
 	@echo "  UNITTEST $<" ; $<
 
-_unit_coverage_%: _unit_run_%
+_unit_coverage_%: %D%/%
+	@${LCOV} --quiet --zerocounters --directory $(top_srcdir) >/dev/null
+	@echo "  UNITTEST $<" ; $<
 	@${LCOV} --quiet --capture  \
 		--test-name $(subst _unit_coverage_, , $@) \
 		--directory $(top_srcdir) \
