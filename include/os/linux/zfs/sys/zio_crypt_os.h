@@ -18,6 +18,7 @@
 #ifndef	_SYS_ZIO_CRYPT_OS_H
 #define	_SYS_ZIO_CRYPT_OS_H
 
-#include <sys/crypto/api.h>
+/* Linux always uses the ICP backend. */
+#include <sys/zio_crypt_os_icp.h>
 
 #endif
