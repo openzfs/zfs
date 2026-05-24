@@ -20,4 +20,12 @@
 
 #include <sys/freebsd_crypto.h>
 
+typedef struct zio_crypt_session {
+	freebsd_crypt_session_t	zs_sess;
+} zio_crypt_session_t;
+
+typedef struct zio_crypt_hmac {
+	struct hmac_ctx		zh_ctx;
+} zio_crypt_hmac_t;
+
 #endif
