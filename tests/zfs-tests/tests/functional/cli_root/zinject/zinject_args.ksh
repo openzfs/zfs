@@ -23,6 +23,7 @@
 
 #
 # Copyright (c) 2024, Klara Inc.
+# Copyright (c) 2026, Christos Longros <chris.longros@gmail.com>
 #
 
 #
