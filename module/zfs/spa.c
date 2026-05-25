@@ -11811,6 +11811,12 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, U64, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "
 	"vdevs (in read-only mode)");
 
+ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds_cachefile, U64, ZMOD_RW,
+	"Allow importing pools with missing top-level vdevs in cache file");
+
+ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds_scan, U64, ZMOD_RW,
+	"Allow importing pools with missing top-level vdevs during scan");
+
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_pause, INT,
 	ZMOD_RW, "Set the livelist condense zthr to pause");
 

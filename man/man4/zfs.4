@@ -918,6 +918,19 @@ but that was not proven to be useful.
 Number of missing top-level vdevs which will be allowed during
 pool import (only in read-only mode).
 .
+.It Sy zfs_max_missing_tvds_cachefile Ns = Ns Sy 2 Pq u64
+Number of missing top-level vdevs tolerated when importing a pool
+from a cachefile, before the trusted config is read from the MOS.
+A cachefile can fall out of sync with the on-disk config after a
+device removal that did not rewrite the cachefile, so the default
+of 2 still lets the import reach a copy of the MOS.
+.
+.It Sy zfs_max_missing_tvds_scan Ns = Ns Sy 0 Pq u64
+Number of missing top-level vdevs tolerated when importing a pool
+by scanning device paths, before the trusted config is read from
+the MOS.
+Defaults to 0 because a scan should detect every present device.
+.
 .It Sy zfs_max_nvlist_src_size Ns = Sy 0 Pq u64
 Maximum size in bytes allowed to be passed as
 .Sy zc_nvlist_src_size
