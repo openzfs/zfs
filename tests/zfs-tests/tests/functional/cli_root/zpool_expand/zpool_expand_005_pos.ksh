@@ -82,7 +82,7 @@ log_must zpool reopen $TESTPOOL1
 
 typeset expandsize=$(get_pool_prop expandsize $TESTPOOL1)
 log_note "pool expandsize: $expandsize"
-if [[ "$zpool_expandsize" = "-" ]]; then
+if [[ "$expandsize" = "-" ]]; then
 	log_fail "pool $TESTPOOL1 did not detect any " \
 	    "expandsize after reopen"
 fi
