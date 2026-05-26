@@ -417,6 +417,10 @@ tests = ['zpool_clear_001_pos', 'zpool_clear_002_neg', 'zpool_clear_003_neg',
     'zpool_clear_readonly']
 tags = ['functional', 'cli_root', 'zpool_clear']
 
+[tests/functional/cli_root/zpool_condense]
+tests = ['zpool_condense_neg', 'zpool_condense_basic']
+tags = ['functional', 'cli_root', 'zpool_condense']
+
 [tests/functional/cli_root/zpool_create]
 tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_003_pos', 'zpool_create_004_pos', 'zpool_create_005_pos',
@@ -615,7 +619,7 @@ tests = ['zpool_upgrade_001_pos', 'zpool_upgrade_002_pos',
 tags = ['functional', 'cli_root', 'zpool_upgrade']
 
 [tests/functional/cli_root/zpool_wait]
-tests = ['zpool_wait_discard', 'zpool_wait_freeing',
+tests = ['zpool_wait_discard', 'zpool_wait_freeing', 'zpool_wait_condense',
     'zpool_wait_initialize_basic', 'zpool_wait_initialize_cancel',
     'zpool_wait_initialize_flag', 'zpool_wait_multiple',
     'zpool_wait_no_activity', 'zpool_wait_remove', 'zpool_wait_remove_cancel',
