@@ -54,7 +54,6 @@ ztest_LDADD = \
 	libnvpair.la
 
 ztest_LDADD += -lm
-ztest_LDFLAGS = -pthread
 
 
 include $(srcdir)/%D%/raidz_test/Makefile.am

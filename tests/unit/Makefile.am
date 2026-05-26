@@ -37,8 +37,6 @@ nodist_%C%_test_zap_SOURCES = \
 	libbtree.la \
 	libunit.la
 
-%C%_test_zap_LDFLAGS = -pthread
-
 
 # test run and coverage targets below
 PHONY += unit unit-coverage

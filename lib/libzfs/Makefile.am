@@ -76,7 +76,7 @@ libzfs_la_LIBADD = \
 
 libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
-libzfs_la_LDFLAGS = -pthread
+libzfs_la_LDFLAGS = -version-info 7:0:0
 
 if !ASAN_ENABLED
 libzfs_la_LDFLAGS += -Wl,-z,defs
@@ -85,8 +85,6 @@ endif
 if BUILD_FREEBSD
 libzfs_la_LIBADD += -lutil -lgeom
 endif
-
-libzfs_la_LDFLAGS += -version-info 7:0:0
 
 pkgconfig_DATA += %D%/libzfs.pc
 

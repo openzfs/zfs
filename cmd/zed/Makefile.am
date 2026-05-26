@@ -41,6 +41,5 @@ zed_LDADD = \
 	libnvpair.la
 
 zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
-zed_LDFLAGS = -pthread
 
 dist_noinst_DATA += %D%/agents/README.md
