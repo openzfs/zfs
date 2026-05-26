@@ -181,6 +181,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_add/zpool_add.cfg \
 	functional/cli_root/zpool_add/zpool_add.kshlib \
 	functional/cli_root/zpool_clear/zpool_clear.cfg \
+	functional/cli_root/zpool_condense/zpool_condense.kshlib \
 	functional/cli_root/zpool_create/draidcfg.gz \
 	functional/cli_root/zpool_create/zpool_create.cfg \
 	functional/cli_root/zpool_create/zpool_create.shlib \
@@ -1068,6 +1069,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_clear/zpool_clear_002_neg.ksh \
 	functional/cli_root/zpool_clear/zpool_clear_003_neg.ksh \
 	functional/cli_root/zpool_clear/zpool_clear_readonly.ksh \
+	functional/cli_root/zpool_condense/cleanup.ksh \
+	functional/cli_root/zpool_condense/setup.ksh \
+	functional/cli_root/zpool_condense/zpool_condense_basic.ksh \
+	functional/cli_root/zpool_condense/zpool_condense_neg.ksh \
 	functional/cli_root/zpool_create/cleanup.ksh \
 	functional/cli_root/zpool_create/create-o_ashift.ksh \
 	functional/cli_root/zpool_create/setup.ksh \
@@ -1381,6 +1386,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_wait/scan/zpool_wait_scrub_cancel.ksh \
 	functional/cli_root/zpool_wait/scan/zpool_wait_scrub_flag.ksh \
 	functional/cli_root/zpool_wait/setup.ksh \
+	functional/cli_root/zpool_wait/zpool_wait_condense.ksh \
 	functional/cli_root/zpool_wait/zpool_wait_discard.ksh \
 	functional/cli_root/zpool_wait/zpool_wait_freeing.ksh \
 	functional/cli_root/zpool_wait/zpool_wait_initialize_basic.ksh \

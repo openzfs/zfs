@@ -264,6 +264,10 @@ tags = ['functional', 'cli_root', 'zpool_attach']
 tests = ['zpool_clear_002_neg']
 tags = ['functional', 'cli_root', 'zpool_clear']
 
+[tests/functional/cli_root/zpool_condense]
+tests = ['zpool_condense_neg', 'zpool_condense_basic']
+tags = ['functional', 'cli_root', 'zpool_condense']
+
 [tests/functional/cli_root/zpool_create]
 tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_003_pos', 'zpool_create_004_pos', 'zpool_create_007_neg',
