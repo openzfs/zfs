@@ -41,7 +41,7 @@ The steps inside one entry are:
 1) set up QEMU and boot the guest (~2-4m)
 2) install build dependencies in the guest (~2-4m)
 3) build zfs modules in the guest (~8-12m)
-4) run sanity + zloop + functional tests (~2-4h)
+4) run functional tests (~2-4h)
 5) package and upload per-OS test logs (~10s)
 
 A per-OS entry takes about 3 to 4 hours. Once all entries finish, the
