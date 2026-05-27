@@ -381,18 +381,6 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, ccw_retry_interval,
 	"Configuration cache file write, retry after failure, interval"
 	" (seconds)");
 
-extern uint64_t zfs_max_missing_tvds_cachefile;
-
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds_cachefile,
-	CTLFLAG_RWTUN, &zfs_max_missing_tvds_cachefile, 0,
-	"Allow importing pools with missing top-level vdevs in cache file");
-
-extern uint64_t zfs_max_missing_tvds_scan;
-
-SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, max_missing_tvds_scan,
-	CTLFLAG_RWTUN, &zfs_max_missing_tvds_scan, 0,
-	"Allow importing pools with missing top-level vdevs during scan");
-
 /* spa_misc.c */
 
 extern int zfs_flags;
