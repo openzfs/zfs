@@ -5984,6 +5984,31 @@ static zio_pipe_stage_t *zio_pipeline[] = {
  * equivalent, compare appropriately to bookmarks in other objects, and to
  * compare appropriately to other bookmarks in the meta-dnode.
  */
+static inline void
+zbookmark_compare_verify(uint8_t ibs, const zbookmark_phys_t *zb)
+{
+#ifdef ZFS_DEBUG
+	/* Sanity checks for the incoming indirect block shift. */
+	if (zb->zb_level > 0) {
+		/*
+		 * For level > 0, then ibs must be set to a valid block shift,
+		 * no exceptions.
+		 */
+		ASSERT3U(ibs, >=, SPA_MINBLOCKSHIFT);
+		ASSERT3U(ibs, <=, SPA_MAXBLOCKSHIFT);
+	} else if (ibs > 0) {
+		/*
+		 * For level == 0, ibs is optional and may be zero. If it is
+		 * set, then it may be the meta-dnode where "data" block is
+		 * more like an indirect block, full of block pointers. So ibs
+		 * must be at least SPA_BLKPTRSHIFT.
+		 */
+		ASSERT3U(ibs, >=, SPA_BLKPTRSHIFT);
+		ASSERT3U(ibs, <=, SPA_MAXBLOCKSHIFT);
+	}
+#endif
+}
+
 int
 zbookmark_compare(uint16_t dbss1, uint8_t ibs1, uint16_t dbss2, uint8_t ibs2,
     const zbookmark_phys_t *zb1, const zbookmark_phys_t *zb2)
@@ -6002,14 +6027,17 @@ zbookmark_compare(uint16_t dbss1, uint8_t ibs1, uint16_t dbss2, uint8_t ibs2,
 	    zb1->zb_blkid == zb2->zb_blkid)
 		return (0);
 
-	IMPLY(zb1->zb_level > 0, ibs1 >= SPA_MINBLOCKSHIFT);
-	IMPLY(zb2->zb_level > 0, ibs2 >= SPA_MINBLOCKSHIFT);
+	zbookmark_compare_verify(ibs1, zb1);
+	zbookmark_compare_verify(ibs2, zb2);
 
 	/*
-	 * BP_SPANB calculates the span in blocks.
+	 * BP_SPANB calculates the span in blocks. Zero for the indirect
+	 * shift means we're at level 0, so the span is just the blkid.
 	 */
-	zb1L0 = (zb1->zb_blkid) * BP_SPANB(ibs1, zb1->zb_level);
-	zb2L0 = (zb2->zb_blkid) * BP_SPANB(ibs2, zb2->zb_level);
+	zb1L0 = (ibs1 == 0) ? (zb1->zb_blkid) :
+	    (zb1->zb_blkid) * BP_SPANB(ibs1, zb1->zb_level);
+	zb2L0 = (ibs2 == 0) ? (zb2->zb_blkid) :
+	    (zb2->zb_blkid) * BP_SPANB(ibs2, zb2->zb_level);
 
 	if (zb1->zb_object == DMU_META_DNODE_OBJECT) {
 		zb1obj = zb1L0 * (dbss1 << (SPA_MINBLOCKSHIFT - DNODE_SHIFT));
