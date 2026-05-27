@@ -446,6 +446,32 @@ This improves performance, especially when there are many metaslabs per vdev
 and the allocation can't actually be satisfied
 (so we would otherwise iterate all metaslabs).
 .
+.It Sy zfs_metaslab_sm_blksz_no_log Ns = Ns Sy 16384 Ns B Po 16 KiB Pc Pq int
+Block size for the metaslab space maps in pools where the
+.Sy log_spacemap
+feature is disabled.
+Multiple metaslabs are modified per transaction group, so a smaller block size
+lets more, scattered I/O operations be issued.
+Must be a power of 2 greater than
+.Sy 4096 .
+This parameter can only be set at module load time.
+.
+.It Sy zfs_metaslab_sm_blksz_with_log Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+Block size for the metaslab space maps in pools where the
+.Sy log_spacemap
+feature is enabled.
+Changes are batched in the per-pool log spacemap and flushed to each metaslab's
+space map only occasionally, so a larger block size is more efficient.
+Must be a power of 2 greater than
+.Sy 4096 .
+This parameter can only be set at module load time.
+.
+.It Sy zfs_metaslab_condense_pct Ns = Ns Sy 200 Ns % Pq uint
+Condense an on-disk space map when its size exceeds this percentage of
+the in-memory representation.
+The minimum is
+.Sy 100 .
+.
 .It Sy zfs_vdev_default_ms_count Ns = Ns Sy 200 Pq uint
 When a vdev is added, target this number of metaslabs per top-level vdev.
 .
