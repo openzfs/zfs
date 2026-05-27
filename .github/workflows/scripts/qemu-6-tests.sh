@@ -79,6 +79,7 @@ function do_builtin_build() {
 
   cd $HOME/linux-$fullver
   ./scripts/config --enable ZFS
+  ./scripts/config --enable ZFS_DEBUG
   yes "" | make oldconfig
   make -j `nproc`
   ) &> /var/tmp/builtin.txt || rc=$?
