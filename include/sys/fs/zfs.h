@@ -478,6 +478,7 @@ typedef enum {
 	VDEV_PROP_FDOMAIN,
 	VDEV_PROP_FGROUP,
 	VDEV_PROP_ALLOC_BIAS,
+	VDEV_PROP_ROTATIONAL,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -931,6 +932,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH	"vdev_enc_sysfs_path"
 
 #define	ZPOOL_CONFIG_WHOLE_DISK		"whole_disk"
+#define	ZPOOL_CONFIG_VDEV_ROTATIONAL	"rotational"
 #define	ZPOOL_CONFIG_ERRCOUNT		"error_count"
 #define	ZPOOL_CONFIG_NOT_PRESENT	"not_present"
 #define	ZPOOL_CONFIG_SPARES		"spares"

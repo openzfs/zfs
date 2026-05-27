@@ -8333,12 +8333,20 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
 
 	/*
-	 * log, dedup and special vdevs should not be replaced by spares.
+	 * Spares can't replace logs
 	 */
-	if ((oldvd->vdev_top->vdev_alloc_bias != VDEV_BIAS_NONE ||
-	    oldvd->vdev_top->vdev_islog) && newvd->vdev_isspare) {
+	if (oldvd->vdev_top->vdev_islog && newvd->vdev_isspare)
 		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
-	}
+
+	/*
+	 * For special and dedup vdevs a spare must have matching rotational
+	 * characteristics.  A rotating spare replacing a non-rotating vdev
+	 * would silently degrade pool performance, so we reject the mismatch.
+	 */
+	if (newvd->vdev_isspare &&
+	    oldvd->vdev_top->vdev_alloc_bias != VDEV_BIAS_NONE &&
+	    newvd->vdev_nonrot != oldvd->vdev_nonrot)
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
 	/*
 	 * A dRAID spare can only replace a child of its parent dRAID vdev.
