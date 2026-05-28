@@ -6416,7 +6416,8 @@
       <enumerator name='VDEV_PROP_FDOMAIN' value='56'/>
       <enumerator name='VDEV_PROP_FGROUP' value='57'/>
       <enumerator name='VDEV_PROP_ALLOC_BIAS' value='58'/>
-      <enumerator name='VDEV_NUM_PROPS' value='59'/>
+      <enumerator name='VDEV_PROP_ROTATIONAL' value='59'/>
+      <enumerator name='VDEV_NUM_PROPS' value='60'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>

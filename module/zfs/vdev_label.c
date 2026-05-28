@@ -493,6 +493,11 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		    vd->vdev_wholedisk);
 	}
 
+	if (vd->vdev_ops->vdev_op_leaf) {
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_VDEV_ROTATIONAL,
+		    !vd->vdev_nonrot);
+	}
+
 	if (vd->vdev_not_present && !(flags & VDEV_CONFIG_MISSING))
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT, 1);
 
@@ -501,6 +506,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 	if (flags & VDEV_CONFIG_L2CACHE)
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASHIFT, vd->vdev_ashift);
+
+	if ((flags & VDEV_CONFIG_SPARE) && vd->vdev_asize != 0)
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ASIZE, vd->vdev_asize);
 
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)) &&
 	    vd == vd->vdev_top) {

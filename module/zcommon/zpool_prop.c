@@ -574,6 +574,9 @@ vdev_prop_init(void)
 	    VDEV_BIAS_NONE, PROP_DEFAULT, ZFS_TYPE_VDEV,
 	    "none | log | special | dedup", "ALLOC_BIAS",
 	    vdev_alloc_bias_table, sfeatures);
+	zprop_register_index(VDEV_PROP_ROTATIONAL, "rotational", 0,
+	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "ROTATIONAL",
+	    boolean_table, sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,
