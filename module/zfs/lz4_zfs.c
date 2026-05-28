@@ -88,17 +88,24 @@ zfs_lz4_decompress_buf(void *s_start, void *d_start, size_t s_len,
 	(void) n;
 	const char *src = s_start;
 	uint32_t bufsiz = BE_IN32(src);
+	int decoded;
 
 	/* invalid compressed buffer size encoded at start */
 	if (bufsiz + sizeof (bufsiz) > s_len)
 		return (1);
 
 	/*
-	 * Returns 0 on success (decompression function returned non-negative)
-	 * and non-zero on failure (decompression function returned negative).
+	 * LZ4_uncompress_unknownOutputSize returns the number of bytes decoded
+	 * on success, or a negative value on failure. An OpenZFS block must
+	 * expand to exactly d_len bytes
 	 */
-	return (LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
-	    d_start, bufsiz, d_len) < 0);
+	decoded = LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
+	    d_start, bufsiz, d_len);
+	if (decoded < 0)
+		return (1);
+	if (d_len != (size_t)decoded)
+		return (1);
+	return (0);
 }
 
 ZFS_COMPRESS_WRAP_DECL(zfs_lz4_compress)
