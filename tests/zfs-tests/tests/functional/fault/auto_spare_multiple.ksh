@@ -84,8 +84,8 @@ for type in "mirror" "raidz" "raidz2" "raidz3" "draid2:1s"; do
 		log_must zpool create -f $TESTPOOL $type $SAFE_DEV1 \
 		    $SAFE_DEV2 $FAULT_DEV1 $FAULT_DEV2 $SAFE_DEV3 $SAFE_DEV4 \
 		    spare $SPARE_DEV1
-		SPARE1=$SPARE_DEV1
-		SPARE2="draid2-0-0"
+		SPARE1="draid2-0-0"
+		SPARE2=$SPARE_DEV1
 	elif [ "$type" = "mirror" ]; then
 		# 1. Create a 3-way mirror pool with two hot spares
 		truncate -s $MINVDEVSIZE $DATA_DEVS $SPARE_DEVS
@@ -167,8 +167,8 @@ for type in "mirror" "raidz2" "raidz3" "draid2:1s"; do
 		log_must zpool create -f $TESTPOOL $type $SAFE_DEV1 \
 		    $SAFE_DEV2 $FAULT_DEV1 $FAULT_DEV2 $SAFE_DEV3 $SAFE_DEV4 \
 		    spare $SPARE_DEV1
-		SPARE1=$SPARE_DEV1
-		SPARE2="draid2-0-0"
+		SPARE1="draid2-0-0"
+		SPARE2=$SPARE_DEV1
 	elif [ "$type" = "mirror" ]; then
 		# 1. Create a 3-way mirror pool with two hot spares
 		truncate -s $MINVDEVSIZE $DATA_DEVS $SPARE_DEVS

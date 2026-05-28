@@ -355,18 +355,30 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
  * replacing a failed vdev with the given characteristics.
  *
  * Ordering criteria (most to least significant):
- *  1. Matching rotational is preferred over mismatching.
- *  2. Large enough is preferred over (potentially?) too small.
- *  3. Smaller size is preferred over bigger (best fit).
+ *  1. Distributed spare matching the failed vdev's dRAID is preferred
+ *     most (distributed spares rebuild faster than traditional spares).
+ *     Regular spares (no TOP_GUID) come next.  Non-matching distributed
+ *     spares are tried last, as the kernel will reject them anyway.
+ *  2. Matching rotational is preferred over mismatching.
+ *  3. Large enough is preferred over too small.
+ *  4. Smaller size is preferred over bigger (best fit).
  */
 static boolean_t
 spare_is_preferred(nvlist_t *a, nvlist_t *b, boolean_t have_rotational,
-    uint64_t vdev_rotational, uint64_t vdev_size)
+    uint64_t vdev_rotational, uint64_t vdev_size, uint64_t top_guid)
 {
-	uint64_t a_rotational = 0, b_rotational = 0;
-	uint64_t a_size = 0, b_size = 0;
+	uint64_t a_top = 0, b_top = 0;
+	(void) nvlist_lookup_uint64(a, ZPOOL_CONFIG_TOP_GUID, &a_top);
+	(void) nvlist_lookup_uint64(b, ZPOOL_CONFIG_TOP_GUID, &b_top);
+	int a_pri = (a_top == 0) ? 1 :
+	    (a_top == top_guid || top_guid == 0) ? 2 : 0;
+	int b_pri = (b_top == 0) ? 1 :
+	    (b_top == top_guid || top_guid == 0) ? 2 : 0;
+	if (a_pri != b_pri)
+		return (a_pri > b_pri);
 
 	if (have_rotational) {
+		uint64_t a_rotational = 0, b_rotational = 0;
 		(void) nvlist_lookup_uint64(a, ZPOOL_CONFIG_VDEV_ROTATIONAL,
 		    &a_rotational);
 		(void) nvlist_lookup_uint64(b, ZPOOL_CONFIG_VDEV_ROTATIONAL,
@@ -378,6 +390,7 @@ spare_is_preferred(nvlist_t *a, nvlist_t *b, boolean_t have_rotational,
 
 	vdev_stat_t *vs;
 	unsigned int c;
+	uint64_t a_size = 0, b_size = 0;
 	if (nvlist_lookup_uint64_array(a, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0)
 		a_size = vs->vs_rsize;
@@ -405,7 +418,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	char *dev_name;
 	zprop_source_t source;
 	int ashift;
-	uint64_t vdev_rotational = 0, vdev_size = 0;
+	uint64_t vdev_rotational = 0, vdev_size = 0, top_guid = 0;
 	boolean_t have_vdev_rotational;
 	vdev_stat_t *vs;
 	unsigned int c;
@@ -430,6 +443,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	if (nvlist_lookup_uint64_array(vdev, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0)
 		vdev_size = vs->vs_rsize;
+	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_TOP_GUID, &top_guid);
 
 	/*
 	 * Build a sorted index array over the spares, so that better
@@ -443,7 +457,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		int j = (int)s - 1;
 		while (j >= 0 && spare_is_preferred(spares[key],
 		    spares[order[j]], have_vdev_rotational, vdev_rotational,
-		    vdev_size)) {
+		    vdev_size, top_guid)) {
 			order[j + 1] = order[j];
 			j--;
 		}
