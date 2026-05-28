@@ -62,6 +62,12 @@ CFLAGS+= -DZFS_DEBUG -g
 CFLAGS += -DNDEBUG
 .endif
 
+.for _SAN in KASAN KMSAN KUBSAN
+.if defined(WITH_${_SAN}) && ${WITH_${_SAN}} == "true"
+KERN_OPTS_EXTRA+= ${_SAN}
+.endif
+.endfor
+
 .if defined(WITH_GCOV) && ${WITH_GCOV} == "true"
 CFLAGS+=	 -fprofile-arcs -ftest-coverage
 .endif
