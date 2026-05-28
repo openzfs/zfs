@@ -215,7 +215,7 @@ vdev_activate(vdev_t *vd)
 	metaslab_group_activate(mg);
 	metaslab_group_activate(vd->vdev_log_mg);
 
-	vdev_update_nonallocating_space(vd, B_FALSE);
+	vdev_update_nonallocating_space(vd, -1ULL, B_FALSE);
 
 	vd->vdev_noalloc = B_FALSE;
 }
@@ -287,7 +287,7 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 		return (error);
 	}
 
-	vdev_update_nonallocating_space(vd, B_TRUE);
+	vdev_update_nonallocating_space(vd, -1ULL, B_TRUE);
 	vd->vdev_noalloc = B_TRUE;
 
 	return (0);
@@ -1411,7 +1411,7 @@ vdev_remove_complete(spa_t *spa)
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)txg);
 
 	/* the vdev is no longer part of the dspace */
-	vdev_update_nonallocating_space(vd, B_FALSE);
+	vdev_update_nonallocating_space(vd, -1ULL, B_FALSE);
 
 	/*
 	 * Discard allocation state.

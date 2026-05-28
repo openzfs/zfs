@@ -37,6 +37,7 @@
 #include <sys/spa_checkpoint.h>
 #include <sys/spa_log_spacemap.h>
 #include <sys/vdev.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/vdev_raidz.h>
@@ -333,7 +334,7 @@ struct spa {
 	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
 	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
-	uint16_t	spa_async_tasks;	/* async task mask */
+	uint32_t	spa_async_tasks;	/* async task mask */
 	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
 	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
@@ -347,6 +348,9 @@ struct spa {
 
 	vdev_raidz_expand_t	*spa_raidz_expand;
 	zthr_t		*spa_raidz_expand_zthr;
+
+	vdev_anyraid_relocate_t *spa_anyraid_relocate;
+	zthr_t		*spa_anyraid_relocate_zthr;
 
 	uint64_t	spa_checkpoint_txg;	/* the txg of the checkpoint */
 	spa_checkpoint_info_t spa_checkpoint_info; /* checkpoint accounting */

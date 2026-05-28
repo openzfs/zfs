@@ -47,6 +47,7 @@
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_sysfs.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/vdev_disk.h>
 #include <sys/types.h>
 #include <dlfcn.h>
@@ -1282,7 +1283,8 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	    strncmp(pool, "raidz", 5) == 0 ||
 	    strncmp(pool, "draid", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
-	    strcmp(pool, "log") == 0)) {
+	    strcmp(pool, "log") == 0 ||
+	    strncmp(pool, "anymirror", 9) == 0)) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl,
 			    dgettext(TEXT_DOMAIN, "name is reserved"));
@@ -1721,6 +1723,20 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			}
 			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more anyraid devices cannot store "
+			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
+			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
+			break;
 
 		case ENOSPC:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1974,7 +1990,18 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			}
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
-
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more anyraid devices cannot store "
+			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to add these vdevs"));
@@ -3357,7 +3384,11 @@ zpool_vdev_is_interior(const char *name)
 	    strncmp(name,
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_ROOT, strlen(VDEV_TYPE_ROOT)) == 0 ||
-	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
+	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0 ||
+	    strncmp(name,
+	    VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) == 0 ||
+	    strncmp(name,
+	    VDEV_TYPE_ANYRAIDZ, strlen(VDEV_TYPE_ANYRAIDZ)) == 0)
 		return (B_TRUE);
 
 	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
@@ -3885,6 +3916,22 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		free(newname);
 		return (zfs_error(hdl, EZFS_BADTARGET, errbuf));
 	}
+	uint64_t min_tile_size = 0;
+	if (strncmp(fnvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE), "any",
+	    3) == 0) {
+		char mts[32];
+		VERIFY0(zpool_get_vdev_prop(zhp, old_disk,
+		    VDEV_PROP_ANYRAID_TILE_SIZE, NULL, mts, 32, NULL, B_TRUE));
+		VERIFY3S(sscanf(mts, "%llu", (u_longlong_t *)&min_tile_size),
+		    ==, 1);
+		/*
+		 * Unfortunately it's difficult to get the definitions that
+		 * would allow us to do this cleanly into userland. We need
+		 * space for a tile (above) plus the mapping (256MiB) plus the
+		 * labels (4.5MiB).
+		 */
+		min_tile_size += 261 * 1024 * 1024;
+	}
 
 	free(newname);
 
@@ -3981,6 +4028,19 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "option '-o ashift=N' to override the optimal size"));
 		(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 		break;
+
+	case ENOLCK: {
+		/*
+		 * This occurs when one of the devices is an anyraid
+		 * device that can't hold a single tile.
+		 */
+		char buf[32];
+		ASSERT(min_tile_size != 0);
+		zfs_nicenum(min_tile_size, buf, 32);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "new device cannot store any tiles (min size %s)"), buf);
+		return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+	}
 
 	case ENAMETOOLONG:
 		/*
@@ -4769,12 +4829,26 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		path = type;
 
 		/*
-		 * If it's a raidz device, we need to stick in the parity level.
+		 * If it's a raidz or anyraid device, we need to stick in the
+		 * parity level.
 		 */
-		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
+		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0 ||
+		    strcmp(path, VDEV_TYPE_ANYMIRROR) == 0 ||
+		    strcmp(path, VDEV_TYPE_ANYRAIDZ) == 0) {
 			value = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY);
-			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
-			    (u_longlong_t)value);
+			uint8_t type;
+			if (nvlist_lookup_uint8(nv,
+			    ZPOOL_CONFIG_ANYRAID_PARITY_TYPE, &type) == 0 &&
+			    type == VAP_RAIDZ) {
+				uint8_t ndata = fnvlist_lookup_uint8(nv,
+				    ZPOOL_CONFIG_ANYRAID_NDATA);
+				(void) snprintf(buf, sizeof (buf),
+				    "%s%llu:%u", path,
+				    (u_longlong_t)value, ndata);
+			} else {
+				(void) snprintf(buf, sizeof (buf), "%s%llu",
+				    path, (u_longlong_t)value);
+			}
 			path = buf;
 		}
 
@@ -5686,6 +5760,10 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
 			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
 			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
+		} else if (prop == VDEV_PROP_ANYRAID_CAP_TILES ||
+		    prop == VDEV_PROP_ANYRAID_NUM_TILES ||
+		    prop == VDEV_PROP_ANYRAID_TILE_SIZE) {
+			return (ENOENT);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
@@ -5716,6 +5794,7 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_BYTES_FREE:
 		case VDEV_PROP_BYTES_CLAIM:
 		case VDEV_PROP_BYTES_TRIM:
+		case VDEV_PROP_ANYRAID_TILE_SIZE:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);
@@ -6008,5 +6087,157 @@ zpool_ddt_prune(zpool_handle_t *zhp, zpool_ddt_prune_unit_t unit,
 		return (-1);
 	}
 
+	return (0);
+}
+
+static boolean_t
+strstarts(const char *str, const char *prefix)
+{
+	return (strncmp(str, prefix, strlen(prefix)) == 0);
+}
+
+// TODO can't do multiple at once
+int
+zpool_rebalance(zpool_handle_t *zhp, char **vdev_names, int count)
+{
+	int ret = 0;
+	uint64_t *guids = NULL;
+	if (count != 0) {
+		guids = umem_alloc(sizeof (*guids) * count, UMEM_DEFAULT);
+		if (guids == NULL)
+			return (no_memory(zhp->zpool_hdl));
+	}
+	char errbuf[ERRBUFLEN];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot rebalance vdev(s) on '%s'"), zhp->zpool_name);
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	for (int i = 0; i < count; i++) {
+		if (!(strstarts(vdev_names[i], VDEV_TYPE_ANYMIRROR) ||
+		    strstarts(vdev_names[i], VDEV_TYPE_ANYRAIDZ))) {
+			zfs_error_fmt(hdl, EZFS_BADDEV, dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+		}
+		if ((ret = zpool_vdev_guid(zhp, vdev_names[i], &guids[i])) != 0)
+			break;
+	}
+
+	if (ret != 0) {
+		if (guids)
+			umem_free(guids, sizeof (*guids) * count);
+		return (ret);
+	}
+	ret = lzc_pool_rebalance(zpool_get_name(zhp), guids, count);
+	if (guids)
+		umem_free(guids, sizeof (*guids) * count);
+	switch (ret) {
+		case ENOENT:
+			zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "no anyraid vdevs found"));
+			break;
+		case EINVAL:
+			zfs_error_fmt(hdl, EZFS_BADDEV,
+			    dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+			break;
+		case EALREADY:
+			zfs_error_fmt(hdl, EZFS_BUSY,
+			    dgettext(TEXT_DOMAIN, "specified device already "
+			    "rebalancing"));
+			break;
+		case 0:
+			break;
+		default:
+		{
+			libzfs_handle_t *hdl = zhp->zpool_hdl;
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+	}
+	if (ret != 0)
+		return (-1);
+	return (0);
+}
+
+int
+zpool_contract(zpool_handle_t *zhp, const char *anyraid_vdev_name,
+    const char *leaf_vdev_name)
+{
+	int ret = 0;
+	uint64_t avd_guid, lvd_guid;
+	char errbuf[ERRBUFLEN];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot perform contraction for vdev(s) on '%s'"), zhp->zpool_name);
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	if (!(strstarts(anyraid_vdev_name, VDEV_TYPE_ANYMIRROR) ||
+	    strstarts(anyraid_vdev_name, VDEV_TYPE_ANYRAIDZ))) {
+		zfs_error_fmt(hdl, EZFS_BADDEV, dgettext(TEXT_DOMAIN,
+		    "non-anyraid device specified"));
+	}
+
+	if ((ret = zpool_vdev_guid(zhp, anyraid_vdev_name, &avd_guid)) != 0)
+		return (ret);
+
+	if ((ret = zpool_vdev_guid(zhp, leaf_vdev_name, &lvd_guid)) != 0)
+		return (ret);
+
+	ret = lzc_pool_contract(zpool_get_name(zhp), avd_guid, lvd_guid);
+
+	switch (ret) {
+		case ENOENT:
+			zfs_error_fmt(hdl, EZFS_NOENT,
+			    dgettext(TEXT_DOMAIN, "no anyraid vdev found"));
+			break;
+		case EINVAL:
+			zfs_error_fmt(hdl, EZFS_BADDEV,
+			    dgettext(TEXT_DOMAIN,
+			    "non-anyraid device specified"));
+			break;
+		case ENXIO:
+			zfs_error_fmt(hdl, EZFS_INVALCONFIG,
+			    dgettext(TEXT_DOMAIN,
+			    "%s is not a child of %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case ENOSPC:
+			zfs_error_fmt(hdl, EZFS_NOSPC,
+			    dgettext(TEXT_DOMAIN, "insufficient free tiles to "
+			    "remove %s from %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case EXFULL:
+			zfs_error_fmt(hdl, EZFS_NOSPC,
+			    dgettext(TEXT_DOMAIN, "could not find valid "
+			    "relocation target for all tiles when "
+			    "removing %s from %s"), leaf_vdev_name,
+			    anyraid_vdev_name);
+			break;
+		case ZFS_ERR_DISCARDING_CHECKPOINT:
+		case ZFS_ERR_CHECKPOINT_EXISTS:
+			zfs_error_fmt(hdl, EZFS_CHECKPOINT_EXISTS,
+			    dgettext(TEXT_DOMAIN, "cannot perform contraction "
+			    "while a checkpoint exists"));
+			break;
+		case EALREADY:
+			zfs_error_fmt(hdl, EZFS_ANYRAID_RELOCATE_IN_PROGRESS,
+			    dgettext(TEXT_DOMAIN, "another anyraid relocate "
+			    "operation is already in progress"));
+			break;
+		case ENODEV:
+			zfs_error_fmt(hdl, EZFS_CONTRACT_BELOW_WIDTH,
+			    dgettext(TEXT_DOMAIN, "cannot contract %s because "
+			    "its child count is equal to its logical width"),
+			    anyraid_vdev_name);
+			break;
+		case 0:
+			break;
+		default:
+		{
+			libzfs_handle_t *hdl = zhp->zpool_hdl;
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+	}
+	if (ret != 0)
+		return (-1);
 	return (0);
 }

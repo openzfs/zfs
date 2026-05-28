@@ -1335,15 +1335,23 @@ vdev_draid_get_astart(vdev_t *vd, const uint64_t start)
  * 1 / (children - nspares) of its asize rounded up to VDEV_DRAID_ROWHEIGHT.
  */
 static uint64_t
-vdev_draid_min_asize(vdev_t *vd)
+vdev_draid_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	vdev_draid_config_t *vdc = vd->vdev_tsd;
+	(void) cvd;
+	vdev_draid_config_t *vdc = pvd->vdev_tsd;
 
-	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
+	ASSERT3P(pvd->vdev_ops, ==, &vdev_draid_ops);
 
 	return (VDEV_DRAID_REFLOW_RESERVE +
-	    DIV_ROUND_UP(DIV_ROUND_UP(vd->vdev_min_asize, vdc->vdc_ndisks),
+	    DIV_ROUND_UP(DIV_ROUND_UP(pvd->vdev_min_asize, vdc->vdc_ndisks),
 	    VDEV_DRAID_ROWHEIGHT) * VDEV_DRAID_ROWHEIGHT);
+}
+
+static uint64_t
+vdev_draid_min_attach_size(vdev_t *vd)
+{
+	ASSERT3U(vd->vdev_top, ==, vd);
+	return (vdev_draid_min_asize(vd, vd->vdev_child[0]));
 }
 
 /*
@@ -2561,6 +2569,7 @@ vdev_ops_t vdev_draid_ops = {
 	.vdev_op_psize_to_asize = vdev_draid_psize_to_asize,
 	.vdev_op_asize_to_psize = vdev_draid_asize_to_psize,
 	.vdev_op_min_asize = vdev_draid_min_asize,
+	.vdev_op_min_attach_size = vdev_draid_min_attach_size,
 	.vdev_op_min_alloc = vdev_draid_min_alloc,
 	.vdev_op_io_start = vdev_draid_io_start,
 	.vdev_op_io_done = vdev_draid_io_done,
@@ -3095,6 +3104,7 @@ vdev_ops_t vdev_draid_spare_ops = {
 	.vdev_op_psize_to_asize = vdev_default_asize,
 	.vdev_op_asize_to_psize = vdev_default_psize,
 	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_attach_size = vdev_default_min_attach_size,
 	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_draid_spare_io_start,
 	.vdev_op_io_done = vdev_draid_spare_io_done,

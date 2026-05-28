@@ -349,6 +349,8 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 		.func = POOL_SCAN_SCRUB,
 		.txgstart = 0,
 		.txgend = 0,
+		.done = NULL,
+		.done_arg = NULL,
 	};
 	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
 	    zfs_rebuild_scrub_enabled) {
@@ -524,6 +526,7 @@ vdev_rebuild_blkptr_init(blkptr_t *bp, vdev_t *vd, uint64_t start,
 {
 	ASSERT(vd->vdev_ops == &vdev_draid_ops ||
 	    vd->vdev_ops == &vdev_mirror_ops ||
+	    vdev_is_anyraid(vd) ||
 	    vd->vdev_ops == &vdev_replacing_ops ||
 	    vd->vdev_ops == &vdev_spare_ops);
 
