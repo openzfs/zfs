@@ -25,8 +25,14 @@ cd lustre-release
 
 # Include Lustre patches to build against master/zfs-2.4.x.  Once these
 # patches are merged we can remove these lines.
+#
+# LU-19539 osd-zfs: use osd_dmu_write() wrapper for xattrs
+# LU-19761 osd-zfs: Build against ZFS 2.4.0
+# LU-19249 build: Compatibility updates for kernel v6.16
+#
 patches=('https://review.whamcloud.com/changes/fs%2Flustre-release~62101/revisions/2/patch?download'
-	'https://review.whamcloud.com/changes/fs%2Flustre-release~63267/revisions/9/patch?download')
+	'https://review.whamcloud.com/changes/fs%2Flustre-release~63267/revisions/9/patch?download'
+	'https://review.whamcloud.com/changes/fs%2Flustre-release~60619/revisions/13/patch?download')
 
 for p in "${patches[@]}" ; do
 	curl $p | base64 -d > patch
