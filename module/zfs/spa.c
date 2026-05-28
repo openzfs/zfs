@@ -10827,8 +10827,15 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
  *
  * If there are no dirty vdevs, we sync the uberblock to a few random
  * top-level vdevs that are known to be visible in the config cache
- * (see spa_vdev_add() for a complete description). If there *are* dirty
- * vdevs, sync the uberblock to all vdevs.
+ * (see spa_vdev_add() for a complete description). In the presence 
+ * of special vdevs, prefer to update only the vdevs affected by 
+ * the current txg, this allows to keep rotational drives asleep if
+ * not used. Special vdevs will always be updated: given the special
+ * vdev is probably an SSD, there's no expensive head-seek penalty 
+ * when writing uberblocks, and they are an integral part of the pool.
+ *
+ * If there *are* dirty vdevs, sync the config (and uberblock) 
+ * to all vdevs.
  */
 static void
 spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
@@ -10850,6 +10857,7 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 			int svdcount = 0;
 			int children = rvd->vdev_children;
 			int c0 = random_in_range(children);
+			boolean_t has_special_class = spa_has_special(spa);
 
 			for (int c = 0; c < children; c++) {
 				vdev_t *vd =
@@ -10861,7 +10869,10 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 
 				if (vd->vdev_ms_array == 0 ||
 				    vd->vdev_islog ||
-				    !vdev_is_concrete(vd))
+				    !vdev_is_concrete(vd) ||
+				    (has_special_class && 
+					vd->vdev_alloc_bias != VDEV_BIAS_SPECIAL &&
+					!txg_list_member(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg))))
 					continue;
 
 				svd[svdcount++] = vd;
