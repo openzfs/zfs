@@ -1723,7 +1723,6 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			}
 			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
-			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOLCK:
 			/*
 			 * This occurs when one of the devices is an anyraid
@@ -1734,7 +1733,8 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more anyraid devices cannot store "
-			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
+			    "any tiles (see "
+			    "'zfs_vdev_anyraid_min_tile_size')"));
 			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
 
@@ -2000,7 +2000,8 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			 */
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more anyraid devices cannot store "
-			    "any tiles (see 'zfs_anyraid_min_tile_size')"));
+			    "any tiles (see "
+			    "'zfs_vdev_anyraid_min_tile_size')"));
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -5799,6 +5800,8 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_BYTES_FREE:
 		case VDEV_PROP_BYTES_CLAIM:
 		case VDEV_PROP_BYTES_TRIM:
+		case VDEV_PROP_ANYRAID_CAP_TILES:
+		case VDEV_PROP_ANYRAID_NUM_TILES:
 		case VDEV_PROP_ANYRAID_TILE_SIZE:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",

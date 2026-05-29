@@ -78,7 +78,9 @@ typedef struct anyraid_tile {
 /*
  * The ondisk structure of the anyraid tile map is VDEV_ANYRAID_MAP_COPIES
  * copies of the following layout. We store the tile map on every disk, and
- * each TXG we update a different copy (txg % VDEV_ANYRAID_MAP_COPIES).
+ * each TXG we update a different copy (txg % VDEV_ANYRAID_MAP_COPIES). The
+ * tile map is stored immediately after the boot loader region after the second
+ * label.
  *
  * First, we start with a MAX(8KiB, 1 << ashift) tile that stores a packed
  * nvlist containing the header. The header contains a version number, a disk
