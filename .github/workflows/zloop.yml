@@ -3,6 +3,14 @@ name: zloop
 on:
   push:
   pull_request:
+    paths-ignore:
+      - 'man/**'
+      - '**.md'
+      - 'AUTHORS'
+      - 'COPYRIGHT'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.gitignore'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
