@@ -500,6 +500,94 @@ test_zap_increment(const MunitParameter params[], void *data)
 /* ========== */
 
 /*
+ * zap_add_int/zap_remove_int/zap_lookup_int: single uint64_t value,
+ * stringified to form the key.
+ */
+static MunitResult
+test_zap_int(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Add some ints. */
+	unit_ok(zap_add_int_by_dnode(dn, 5, tx));
+	unit_ok(zap_add_int_by_dnode(dn, 17, tx));
+
+	/* Confirm they're there. */
+	unit_ok(zap_lookup_int_by_dnode(dn, 17));
+	unit_ok(zap_lookup_int_by_dnode(dn, 5));
+
+	/* But not something we didn't add. */
+	unit_err(zap_lookup_int_by_dnode(dn, 23), ENOENT);
+
+	/* Adding something that already exists fails. */
+	unit_err(zap_add_int_by_dnode(dn, 17, tx), EEXIST);
+
+	/* Removing it works, and then it can't be found. */
+	unit_ok(zap_remove_int_by_dnode(dn, 17, tx));
+	unit_err(zap_lookup_int_by_dnode(dn, 17), ENOENT);
+
+	/* Add it can be added back. */
+	unit_ok(zap_add_int_by_dnode(dn, 17, tx));
+	unit_ok(zap_lookup_int_by_dnode(dn, 17));
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* zap_*_int_key: like zap_*_int, but with separate value. */
+static MunitResult
+test_zap_int_keys(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Add some ints. */
+	unit_ok(zap_add_int_key_by_dnode(dn, 5, 17, tx));
+	unit_ok(zap_add_int_key_by_dnode(dn, 23, 35, tx));
+
+	/* Confirm they're there. */
+	uint64_t r = 0;
+	unit_ok(zap_lookup_int_key_by_dnode(dn, 5, &r));
+	unit_eq(r, 17);
+	unit_ok(zap_lookup_int_key_by_dnode(dn, 23, &r));
+	unit_eq(r, 35);
+
+	/* But not something we didn't add. */
+	unit_err(zap_lookup_int_key_by_dnode(dn, 79, &r), ENOENT);
+
+	/* Adding something that already exists fails. */
+	unit_err(zap_add_int_key_by_dnode(dn, 23, 51, tx), EEXIST);
+
+	/* Updating it works though. */
+	unit_ok(zap_update_int_key_by_dnode(dn, 23, 51, tx));
+
+	/* Removing it works, and then it can't be found. */
+	unit_ok(zap_remove_int_by_dnode(dn, 23, tx));
+	unit_err(zap_lookup_int_key_by_dnode(dn, 23, &r), ENOENT);
+
+	/* Add it can be added back. */
+	unit_ok(zap_add_int_key_by_dnode(dn, 23, 11, tx));
+	unit_ok(zap_lookup_int_key_by_dnode(dn, 23, &r));
+	unit_eq(r, 11);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
+/*
  * Separate stats tests for each ZAP type, since they are about internals and
  * so can and will produce different results.
  */
@@ -910,6 +998,9 @@ static const MunitTest zap_tests[] = {
 	UNIT_TEST_ZAP_TYPES("zap_length",	test_zap_length),
 
 	UNIT_TEST_ZAP_TYPES("zap_increment",	test_zap_increment),
+
+	UNIT_TEST_ZAP_TYPES("zap_int",		test_zap_int),
+	UNIT_TEST_ZAP_TYPES("zap_int_keys",	test_zap_int_keys),
 
 	UNIT_TEST("microzap_stats",		test_microzap_stats),
 	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
