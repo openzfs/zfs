@@ -28,6 +28,7 @@
 #include <sys/zfeature.h>
 
 #include "mock_dmu.h"
+#include "unit.h"
 
 /*
  * A mock dbuf. A real dmu_buf_t (first for casting) plus the attached user
@@ -48,6 +49,7 @@ typedef struct mock_dbuf mock_dbuf_t;
  */
 struct mock_dnode {
 	dnode_t			mdn_dn;
+	uint64_t		mdn_refcount;
 	size_t			mdn_blksize;
 	size_t			mdn_nblocks;
 	mock_dbuf_t		**mdn_blocks;
@@ -110,6 +112,7 @@ mock_dnode_create(size_t blksize, dmu_object_type_t type)
 	ASSERT(IS_P2ALIGNED(blksize, 512));
 
 	mock_dnode_t *mdn = kmem_zalloc(sizeof (mock_dnode_t), KM_SLEEP);
+	mdn->mdn_refcount = 1;
 	mdn->mdn_dn.dn_type = type;
 	mdn->mdn_dn.dn_object = 1;	/* arbitrary non-zero object number */
 	mdn->mdn_blksize = blksize;
@@ -154,6 +157,12 @@ mock_dnode_block_data(mock_dnode_t *mdn, uint64_t blkid)
 	if (blkid >= mdn->mdn_nblocks)
 		return (NULL);
 	return (mdn->mdn_blocks[blkid]->mdb_db.db_data);
+}
+
+uint64_t
+mock_dnode_refcount(mock_dnode_t *mdn)
+{
+	return (mdn->mdn_refcount);
 }
 
 /* Mock transaction */
@@ -258,14 +267,21 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
 boolean_t
 dnode_add_ref(dnode_t *dn, const void *tag)
 {
-	(void) dn; (void) tag;
+	(void) tag;
+	mock_dnode_t *mdn = (mock_dnode_t *)dn;
+	if (mdn->mdn_refcount == 0)
+		return (B_FALSE);
+	mdn->mdn_refcount++;
 	return (B_TRUE);
 }
 
 void
 dnode_rele(dnode_t *dn, const void *tag)
 {
-	(void) dn; (void) tag;
+	(void) tag;
+	mock_dnode_t *mdn = (mock_dnode_t *)dn;
+	unit_gt(mdn->mdn_refcount, 0);
+	mdn->mdn_refcount--;
 }
 
 /*
