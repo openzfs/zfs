@@ -4,9 +4,11 @@
 
 ZFS_MODULE_CFLAGS += -std=gnu11 -Wno-declaration-after-statement
 ZFS_MODULE_CFLAGS += -Wmissing-prototypes
-ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@ @KERNEL_NO_FORMAT_ZERO_LENGTH@
+ZFS_MODULE_CFLAGS += @KERNEL_NO_FORMAT_ZERO_LENGTH@
 
 ifneq ($(KBUILD_EXTMOD),)
+ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@
+ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 zfs_include = @abs_top_srcdir@/include
 icp_include = @abs_srcdir@/icp/include
 zstd_include = @abs_srcdir@/zstd/include
@@ -15,6 +17,12 @@ ZFS_MODULE_CFLAGS += -I@abs_top_builddir@/include
 src = @abs_srcdir@
 obj = @abs_builddir@
 else
+ifeq ($(CONFIG_ZFS_DEBUG),y)
+ZFS_MODULE_CFLAGS += -Werror
+ZFS_MODULE_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
+else
+ZFS_MODULE_CPPFLAGS += -UDEBUG -DNDEBUG
+endif
 zfs_include = $(srctree)/include/zfs
 icp_include = $(src)/icp/include
 zstd_include = $(src)/zstd/include
@@ -26,7 +34,6 @@ ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/spl
 ZFS_MODULE_CFLAGS += -I$(zfs_include)/os/linux/zfs
 ZFS_MODULE_CFLAGS += -I$(zfs_include)
 ZFS_MODULE_CPPFLAGS += -D_KERNEL
-ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
 
 # KASAN enables -Werror=frame-larger-than=1024, which
 # breaks oh so many parts of our build.

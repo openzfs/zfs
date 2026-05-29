@@ -39,6 +39,18 @@ dnl # (If INVARIANTS is detected, we need to force DEBUG, or strange panics
 dnl # can ensue.)
 dnl #
 AC_DEFUN([ZFS_AC_DEBUG], [
+	dnl #
+	dnl # In the Linux kernel copy-builtin build, assertion/debug support
+	dnl # is selected by CONFIG_ZFS_DEBUG (Kconfig).
+	dnl #
+	AH_BOTTOM([
+#ifdef CONFIG_ZFS
+#undef ZFS_DEBUG
+#ifdef CONFIG_ZFS_DEBUG
+#define ZFS_DEBUG 1
+#endif
+#endif])
+
 	AC_MSG_CHECKING([whether assertion support will be enabled])
 	AC_ARG_ENABLE([debug],
 		[AS_HELP_STRING([--enable-debug],

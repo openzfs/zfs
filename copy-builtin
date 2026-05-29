@@ -44,6 +44,17 @@ config ZFS
 	  To compile this file system support as a module, choose M here.
 
 	  If unsure, say N.
+
+config ZFS_DEBUG
+	bool "ZFS debugging"
+	depends on ZFS
+	help
+	  Enable ZFS debugging. This turns on all ASSERT() assertions,
+	  enables additional debug-only code paths, and promotes
+	  compiler warnings to errors. This should only be enabled for
+	  development or troubleshooting.
+
+	  If unsure, say N.
 EOF
 
 sed -i '/source "fs\/ext2\/Kconfig\"/i\source "fs/zfs/Kconfig"' "$KERNEL_DIR/fs/Kconfig"
