@@ -725,6 +725,113 @@ test_cursor_serialize(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * The following tests confirm that the cursor is properly cleaning up dnode
+ * holds taken (or not) across the lifetime of the cursor. The test is not
+ * about how or when it takes holds, only that the dnode refcount is the
+ * same before zap_cursor_init() as after zap_cursor_fini().
+ */
+static MunitResult
+test_cursor_release_unused(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+
+	uint64_t refcount = mock_dnode_refcount((mock_dnode_t *)dn);
+
+	zap_cursor_t zc;
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	zap_cursor_fini(&zc);
+
+	unit_eq(refcount, mock_dnode_refcount((mock_dnode_t *)dn));
+
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_cursor_release_advance(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+
+	uint64_t refcount = mock_dnode_refcount((mock_dnode_t *)dn);
+
+	zap_cursor_t zc;
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	zap_cursor_advance(&zc);
+	zap_cursor_fini(&zc);
+
+	unit_eq(refcount, mock_dnode_refcount((mock_dnode_t *)dn));
+
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_cursor_release_empty(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+
+	uint64_t refcount = mock_dnode_refcount((mock_dnode_t *)dn);
+
+	zap_cursor_t zc;
+	zap_attribute_t *za = zap_attribute_alloc();
+
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	unit_err(zap_cursor_retrieve(&zc, za), ENOENT);
+
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+
+	unit_eq(refcount, mock_dnode_refcount((mock_dnode_t *)dn));
+
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_cursor_release_one(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+
+	uint64_t refcount = mock_dnode_refcount((mock_dnode_t *)dn);
+
+	zap_cursor_t zc;
+	zap_attribute_t *za = zap_attribute_alloc();
+
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	unit_ok(zap_cursor_retrieve(&zc, za));
+
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+
+	unit_eq(refcount, mock_dnode_refcount((mock_dnode_t *)dn));
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 /* Test suite definition and boilerplate. */
@@ -758,6 +865,15 @@ static const MunitTest zap_tests[] = {
 
 	UNIT_TEST_ZAP_TYPES("cursor",		test_cursor),
 	UNIT_TEST_ZAP_TYPES("cursor_serialize",	test_cursor_serialize),
+
+	UNIT_TEST_ZAP_TYPES(
+	    "cursor_release_unused",	test_cursor_release_unused),
+	UNIT_TEST_ZAP_TYPES(
+	    "cursor_release_advance",	test_cursor_release_advance),
+	UNIT_TEST_ZAP_TYPES(
+	    "cursor_release_empty",	test_cursor_release_empty),
+	UNIT_TEST_ZAP_TYPES(
+	    "cursor_release_one",	test_cursor_release_one),
 
 	{ 0 },
 };
