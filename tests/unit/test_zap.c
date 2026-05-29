@@ -103,7 +103,9 @@ mock_zap_is_fatzap(dnode_t *dn)
 static void
 mock_zap_destroy(dnode_t *dn)
 {
-	mock_dnode_destroy((mock_dnode_t *)dn);
+	mock_dnode_t *mdn = (mock_dnode_t *)dn;
+	unit_eq(mock_dnode_refcount(mdn), 1);
+	mock_dnode_destroy(mdn);
 }
 
 /* Create a ZAP of the type named in the given test params. */
