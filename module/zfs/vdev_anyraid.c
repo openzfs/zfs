@@ -118,7 +118,7 @@
  * an array in the future, and want to be sure their full capacity will be
  * usable.
  */
-uint64_t zfs_anyraid_min_tile_size = (16ULL << 30);
+uint64_t zfs_vdev_anyraid_min_tile_size = (16ULL << 30);
 /*
  * This controls how many tiles we have per disk (based on the smallest disk
  * present at creation time)
@@ -688,7 +688,7 @@ anyraid_calculate_size(vdev_t *vd)
 	}
 
 	uint64_t disk_shift = anyraid_disk_shift;
-	uint64_t min_size = zfs_anyraid_min_tile_size;
+	uint64_t min_size = zfs_vdev_anyraid_min_tile_size;
 	if (smallest_disk_size < 1 << disk_shift ||
 	    smallest_disk_size < min_size) {
 		return (SET_ERROR(ENOLCK));
@@ -1560,5 +1560,5 @@ vdev_ops_t vdev_anyraid_ops = {
 };
 
 
-ZFS_MODULE_PARAM(zfs_anyraid, zfs_anyraid_, min_tile_size, U64, ZMOD_RW,
-	"Minimum tile size for anyraid");
+ZFS_MODULE_PARAM(zfs_vdev_anyraid, zfs_vdev_anyraid_, min_tile_size, U64,
+	ZMOD_RW, "Minimum tile size for anyraid");

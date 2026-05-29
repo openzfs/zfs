@@ -27,6 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\" Copyright (c) 2026 by Klara, Inc.
 .\"
 .Dd July 11, 2022
 .Dt ZPOOL-CREATE 8
@@ -67,13 +68,15 @@ The pool names
 .Sy mirror ,
 .Sy raidz ,
 .Sy draid ,
-.Sy spare
+.Sy spare ,
+.Sy anymirror ,
 and
 .Sy log
 are reserved, as are names beginning with
 .Sy mirror ,
 .Sy raidz ,
 .Sy draid ,
+.Sy anymirror ,
 and
 .Sy spare .
 The
@@ -273,6 +276,11 @@ The commands are equivalent:
     \fBfdomain\fP \fIenc4d0 enc4d1 enc4d2 enc4d3 enc4d4\fP \e
     \fBfdomain\fP \fIenc5d0 enc5d1 enc5d2 enc5d3 enc5d4\fP
 .Ed
+.
+.Ss Example 9 : No Creating a ZFS Pool with AnyRAID vdev
+The following command creates a ZFS storage pool with an AnyRAID vdev
+with two mirror-parity, using 4 devices:
+.Dl # Nm zpool Cm create Ar pool Sy anymirror2 Pa sda sdb sdc sdd sde sdf
 .
 .Sh SEE ALSO
 .Xr zpool-destroy 8 ,

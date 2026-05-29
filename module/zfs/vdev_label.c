@@ -134,6 +134,14 @@
  *	guid		Unique ID for the leaf vdev
  *
  * The 'vs' configuration follows the format described in 'spa_config.c'.
+ *
+ * Extra Configuration
+ * -------------------
+ *
+ * AnyRAID tile maps are also synced via this logic. Other special metadata
+ * that needs to be written out each TXG that is not part of the block tree can
+ * be updated in this phase as well. This phase occurs after the first label
+ * write and before the uberblocks are written.
  */
 
 #include <sys/zfs_context.h>

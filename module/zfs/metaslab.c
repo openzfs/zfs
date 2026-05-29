@@ -3277,6 +3277,14 @@ metaslab_space_weight(metaslab_t *msp)
 	 * higher weight to lower metaslabs (multiplier ranging from 2x to 1x).
 	 * In effect, this means that we'll select the metaslab with the most
 	 * free bandwidth rather than simply the one with the most free space.
+	 *
+	 * AnyRAID vdevs also have this weighting applied to encourage ZFS to
+	 * reuse earlier metaslabs rather than allocating from later ones.
+	 * Once later metaslabs (which reside in later physical tiles) have
+	 * been allocated from, we have to allocate physical tiles to back
+	 * them. The more tiles we end up allocating, the less flexible we are
+	 * later if disk are expanded or new disks are added. Thus, we try to
+	 * minimize allocation of tiles whenever possible.
 	 */
 	if ((!vd->vdev_nonrot && metaslab_lba_weighting_enabled) ||
 	    vd->vdev_ops == &vdev_anyraid_ops) {
@@ -3491,7 +3499,7 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard,
 	/*
 	 * This I/O needs to be written to a stable location and be retreivable
 	 * before the next TXG syncs. This is the case for ZIL writes. In that
-	 * case, if we're using an anyraid vdev, we can't use a tile that isn't\
+	 * case, if we're using an anyraid vdev, we can't use a tile that isn't
 	 * mapped yet.
 	 */
 	if (mapped && msp->ms_group->mg_vd->vdev_ops == &vdev_anyraid_ops) {
