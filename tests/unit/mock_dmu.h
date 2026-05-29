@@ -40,6 +40,9 @@ size_t mock_dnode_block_count(mock_dnode_t *mdn);
 /* Returns a pointer to the data under the given block id. */
 const void *mock_dnode_block_data(mock_dnode_t *mdn, uint64_t blkid);
 
+/* Returns the current dnode ref (hold) count. */
+uint64_t mock_dnode_refcount(mock_dnode_t *mdn);
+
 /* Create/destroy a mock transaction handle. */
 mock_dmu_tx_t *mock_tx_create(void);
 void mock_tx_destroy(mock_dmu_tx_t *tx);
