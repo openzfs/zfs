@@ -3,6 +3,14 @@ name: zfs-arm
 on:
   push:
   pull_request:
+    paths-ignore:
+      - 'man/**'
+      - '**.md'
+      - 'AUTHORS'
+      - 'COPYRIGHT'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '.gitignore'
   workflow_dispatch:
     inputs:
       gcc_ver:
