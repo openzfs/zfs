@@ -669,6 +669,15 @@ zfs_zstd_decompress_level_buf(void *s_start, void *d_start, size_t s_len,
 		return (1);
 	}
 
+	/*
+	 * An OpenZFS compressed block must expand to exactly d_len bytes.
+	 * ZSTD_decompressDCtx returns the decompressed size on success.
+	 */
+	if (result != d_len) {
+		ZSTDSTAT_BUMP(zstd_stat_dec_fail);
+		return (1);
+	}
+
 	if (level) {
 		*level = curlevel;
 	}
