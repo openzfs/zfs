@@ -96,12 +96,16 @@ zfs_gzip_decompress_buf(void *s_start, void *d_start, size_t s_len,
 	/* check if hardware accelerator can be used */
 	if (qat_dc_use_accel(d_len)) {
 		if (qat_compress(QAT_DECOMPRESS, s_start, s_len,
-		    d_start, d_len, &dstlen) == CPA_STATUS_SUCCESS)
-			return (0);
+		    d_start, d_len, &dstlen) == CPA_STATUS_SUCCESS) {
+			if ((size_t)dstlen == d_len)
+				return (0);
+		}
 		/* if hardware de-compress fail, do it again with software */
 	}
 
 	if (uncompress_func(d_start, &dstlen, s_start, s_len) != Z_OK)
+		return (-1);
+	if ((size_t)dstlen != d_len)
 		return (-1);
 
 	return (0);
