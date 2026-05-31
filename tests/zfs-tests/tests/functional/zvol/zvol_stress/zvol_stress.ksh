@@ -58,7 +58,7 @@ biggest_zvol_size_possible=$(largest_volsize_from_pool $TESTPOOL)
 typeset -f each_zvol_size=$(( floor($biggest_zvol_size_possible * 0.9 / \
 	$num_zvols )))
 
-typeset tmpdir="$(mktemp -t -d zvol_stress_fio_state.XXXXXX)"
+typeset tmpdir="$(mktemp -d "$TEST_BASE_DIR/zvol_stress_fio_state.XXXXXX")"
 
 log_must save_tunable VOL_USE_BLK_MQ
 log_must save_tunable VOL_REQUEST_SYNC
