@@ -3884,7 +3884,6 @@ static int
 zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	(void) unused, (void) outnvl;
-	const char *message;
 	char *poolname;
 	spa_t *spa;
 	int error;
@@ -3905,7 +3904,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error != 0)
 		return (error);
 
-	message = fnvlist_lookup_string(innvl, "message");
+	const char *message = fnvlist_lookup_string(innvl, "message");
 
 	if (spa_version(spa) < SPA_VERSION_ZPOOL_HISTORY) {
 		spa_close(spa, FTAG);
