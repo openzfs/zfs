@@ -1878,6 +1878,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/projectquota/projectspace_003_pos.ksh \
 	functional/projectquota/projectspace_004_pos.ksh \
 	functional/projectquota/projectspace_005_pos.ksh \
+	functional/projectquota/projectspace_006_pos.ksh \
 	functional/projectquota/projecttree_001_pos.ksh \
 	functional/projectquota/projecttree_002_pos.ksh \
 	functional/projectquota/projecttree_003_neg.ksh \
@@ -2250,6 +2251,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/groupspace_002_pos.ksh \
 	functional/userquota/groupspace_003_pos.ksh \
 	functional/userquota/groupspace_004_pos.ksh \
+	functional/userquota/groupspace_005_pos.ksh \
 	functional/userquota/setup.ksh \
 	functional/userquota/defaultuserquota_001_pos.ksh \
 	functional/userquota/defaultuserquota_002_pos.ksh \
@@ -2281,6 +2283,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/userspace_002_pos.ksh \
 	functional/userquota/userspace_003_pos.ksh \
 	functional/userquota/userspace_004_pos.ksh \
+	functional/userquota/userspace_005_pos.ksh \
 	functional/userquota/userspace_encrypted.ksh \
 	functional/userquota/userspace_send_encrypted.ksh \
 	functional/userquota/userspace_encrypted_13709.ksh \
