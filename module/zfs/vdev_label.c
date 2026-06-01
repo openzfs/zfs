@@ -467,6 +467,11 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)))
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_ID, vd->vdev_id);
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_GUID, vd->vdev_guid);
+	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)) &&
+	    vd->vdev_top != NULL) {
+		fnvlist_add_uint64(nv, ZPOOL_CONFIG_TOP_GUID,
+		    vd->vdev_top->vdev_guid);
+	}
 
 	if (vd->vdev_path != NULL)
 		fnvlist_add_string(nv, ZPOOL_CONFIG_PATH, vd->vdev_path);
