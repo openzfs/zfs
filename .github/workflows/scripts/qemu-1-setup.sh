@@ -17,6 +17,8 @@ sudo docker builder prune -a
 unneeded="microsoft-edge-stable|azure-cli|google-cloud|google-chrome-stable|"\
 "temurin|llvm|firefox|mysql-server|snapd|android|dotnet|haskell|ghcup|"\
 "powershell|julia|swift|miniconda|chromium"
+# refresh package index before removing packages
+sudo apt-get -y update
 sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
 sudo apt-get -y autoremove
 
