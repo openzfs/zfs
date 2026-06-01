@@ -1956,6 +1956,9 @@ dsl_scan_prefetch(scan_prefetch_ctx_t *spc, blkptr_t *bp, zbookmark_phys_t *zb)
 	    BP_GET_TYPE(bp) != DMU_OT_OBJSET))
 		return;
 
+	if (zb->zb_level == ZB_ROOT_LEVEL)
+		return;
+
 	if (dsl_scan_check_prefetch_resume(spc, zb))
 		return;
 
