@@ -1635,8 +1635,17 @@ zfsvfs_hold(const char *name, const void *tag, zfsvfs_t **zfvp,
 	int error = 0;
 
 	if (getzfsvfs(name, zfvp) != 0)
-		error = zfsvfs_create(name, B_FALSE, zfvp);
+		error = zfsvfs_create_hold(name, zfvp);
 	if (error == 0) {
+		/*
+		 * dmu_objset_hold() keeps the pool config read lock held.
+		 * Drop it before acquiring the teardown lock to avoid ABBA
+		 * deadlock with zfs_resume_fs(), which holds teardown write
+		 * then acquires the config lock.
+		 */
+		if ((*zfvp)->z_use_hold)
+			dsl_pool_config_exit(
+			    dmu_objset_pool((*zfvp)->z_os), *zfvp);
 		if (writer)
 			ZFS_TEARDOWN_ENTER_WRITE(*zfvp, tag);
 		else
@@ -1663,7 +1672,18 @@ zfsvfs_rele(zfsvfs_t *zfsvfs, const void *tag)
 	if (zfs_vfs_held(zfsvfs)) {
 		zfs_vfs_rele(zfsvfs);
 	} else {
-		dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
+		objset_t *os = zfsvfs->z_os;
+		if (zfsvfs->z_use_hold) {
+			/*
+			 * Opened via dmu_objset_hold(): re-acquire the pool
+			 * config lock (released in zfsvfs_hold() before the
+			 * teardown lock) so that dmu_objset_rele() can exit it.
+			 */
+			dsl_pool_config_enter(dmu_objset_pool(os), zfsvfs);
+			dmu_objset_rele(os, zfsvfs);
+		} else {
+			dmu_objset_disown(os, B_TRUE, zfsvfs);
+		}
 		zfsvfs_free(zfsvfs);
 	}
 }
