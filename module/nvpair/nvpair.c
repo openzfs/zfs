@@ -135,7 +135,8 @@
 #define	NVP_SIZE_CALC(name_len, data_len) \
 	(NV_ALIGN((sizeof (nvpair_t)) + name_len) + NV_ALIGN(data_len))
 
-static int i_get_value_size(data_type_t type, const void *data, uint_t nelem);
+static int i_get_value_size(data_type_t type, const void *data, uint_t nelem,
+    size_t max_size);
 static int nvlist_add_common(nvlist_t *nvl, const char *name, data_type_t type,
     uint_t nelem, const void *data);
 
@@ -810,8 +811,10 @@ i_validate_nvpair(nvpair_t *nvp)
 	 * verify nvp_type, nvp_value_elem, and also possibly
 	 * verify string values and get the value size.
 	 */
-	size2 = i_get_value_size(type, NVP_VALUE(nvp), NVP_NELEM(nvp));
 	size1 = nvp->nvp_size - NVP_VALOFF(nvp);
+	size2 = i_get_value_size(type, NVP_VALUE(nvp), NVP_NELEM(nvp),
+	    size1);
+
 	if (size2 < 0 || size1 != NV_ALIGN(size2))
 		return (EFAULT);
 
@@ -1002,11 +1005,20 @@ nvlist_remove_nvpair(nvlist_t *nvl, nvpair_t *nvp)
  * 	DATA_TYPE_STRING    	and
  *	DATA_TYPE_STRING_ARRAY
  * Is data == NULL then the size of the string(s) is excluded.
+ *
+ * If 'max_size' is non-zero, then don't look beyond 'max_size' number of
+ * bytes when calculating a value size. Note that 'max_size' should include
+ * the NULL terminator byte when calculating string size.  If 'max_size' is 0,
+ * it is ignored.
  */
 static int
-i_get_value_size(data_type_t type, const void *data, uint_t nelem)
+i_get_value_size(data_type_t type, const void *data, uint_t nelem,
+    size_t max_size)
 {
 	uint64_t value_sz;
+
+	if (max_size == 0)
+		max_size = INT32_MAX;
 
 	if (i_validate_type_nelem(type, nelem) != 0)
 		return (-1);
@@ -1052,10 +1064,15 @@ i_get_value_size(data_type_t type, const void *data, uint_t nelem)
 		break;
 #endif
 	case DATA_TYPE_STRING:
-		if (data == NULL)
+		if (data == NULL) {
 			value_sz = 0;
-		else
-			value_sz = strlen(data) + 1;
+		} else {
+			value_sz = strnlen(data, max_size);
+			if (value_sz >= max_size) {
+				return (-1);	/* string not terminated */
+			}
+			value_sz += 1;
+		}
 		break;
 	case DATA_TYPE_BOOLEAN_ARRAY:
 		value_sz = (uint64_t)nelem * sizeof (boolean_t);
@@ -1089,16 +1106,23 @@ i_get_value_size(data_type_t type, const void *data, uint_t nelem)
 		break;
 	case DATA_TYPE_STRING_ARRAY:
 		value_sz = (uint64_t)nelem * sizeof (uint64_t);
-
 		if (data != NULL) {
 			char *const *strs = data;
 			uint_t i;
+			size_t newsize;
 
 			/* no alignment requirement for strings */
 			for (i = 0; i < nelem; i++) {
 				if (strs[i] == NULL)
 					return (-1);
-				value_sz += strlen(strs[i]) + 1;
+
+				newsize = strnlen(strs[i], max_size);
+
+				if (newsize == max_size)
+					return (-1);	/* not terminated */
+
+				value_sz += newsize + 1; /* +1 for NULL */
+				max_size -= newsize + 1;
 			}
 		}
 		break;
@@ -1163,7 +1187,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 	 * In case of data types DATA_TYPE_STRING and DATA_TYPE_STRING_ARRAY
 	 * is the size of the string(s) included.
 	 */
-	if ((value_sz = i_get_value_size(type, data, nelem)) < 0)
+	if ((value_sz = i_get_value_size(type, data, nelem, 0)) < 0)
 		return (EINVAL);
 
 	if (i_validate_nvpair_value(type, nelem, data) != 0)
@@ -1588,7 +1612,7 @@ nvpair_value_common(const nvpair_t *nvp, data_type_t type, uint_t *nelem,
 #endif
 		if (data == NULL)
 			return (EINVAL);
-		if ((value_sz = i_get_value_size(type, NULL, 1)) < 0)
+		if ((value_sz = i_get_value_size(type, NULL, 1, 0)) < 0)
 			return (EINVAL);
 		memcpy(data, NVP_VALUE(nvp), (size_t)value_sz);
 		if (nelem != NULL)
@@ -3019,7 +3043,8 @@ nvs_native_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	 * In case of data types DATA_TYPE_STRING and DATA_TYPE_STRING_ARRAY
 	 * is the size of the string(s) excluded.
 	 */
-	if ((value_sz = i_get_value_size(type, NULL, NVP_NELEM(nvp))) < 0)
+	if ((value_sz = i_get_value_size(type, NULL, NVP_NELEM(nvp),
+	    NVP_SIZE(nvp))) < 0)
 		return (EFAULT);
 
 	if (NVP_SIZE_CALC(nvp->nvp_name_sz, value_sz) > nvp->nvp_size)
@@ -3333,7 +3358,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	 * In case of data types DATA_TYPE_STRING and DATA_TYPE_STRING_ARRAY
 	 * is the size of the string(s) excluded.
 	 */
-	if ((value_sz = i_get_value_size(type, NULL, nelem)) < 0)
+	if ((value_sz = i_get_value_size(type, NULL, nelem, NVP_SIZE(nvp)) < 0))
 		return (EFAULT);
 
 	/* if there is no data to extract then return */

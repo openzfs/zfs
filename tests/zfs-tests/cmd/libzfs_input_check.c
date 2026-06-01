@@ -85,7 +85,6 @@ static const zfs_ioc_t ioc_skip[] = {
 	ZFS_IOC_DSOBJ_TO_DSNAME,
 	ZFS_IOC_OBJ_TO_PATH,
 	ZFS_IOC_POOL_SET_PROPS,
-	ZFS_IOC_POOL_GET_PROPS,
 	ZFS_IOC_SET_FSACL,
 	ZFS_IOC_GET_FSACL,
 	ZFS_IOC_SHARE,
@@ -125,11 +124,136 @@ static const zfs_ioc_t ioc_skip[] = {
 		lzc_ioctl_test(ioc, name, req, opt, err, wild);	\
 	} while (0)
 
+#define	IOC_INPUT_TEST_INJECT(ioc, name, innvl)			\
+	do {							\
+		active_test = __func__ + 5;			\
+		lzc_ioctl_run_impl(ioc, name, innvl, 0, B_TRUE);	\
+	} while (0)
+
+/*
+ * Given a zfs_cmd_t containing an already packed nvlist in zc->zc_nvlist_src,
+ * and its original innvl, look in innvl for the last string nvpair, or last
+ * string array nvpair, and remove the string terminator.  The idea is to
+ * corrupt the nvlist string value so that anyone doing a strlen() on it will
+ * read past the end of the packed nvlist buffer and trigger a crash.
+ */
+static void
+do_bad_string(zfs_cmd_t *zc, nvlist_t *innvl)
+{
+	nvpair_t *elem = NULL;
+	nvpair_t *lastseen = NULL;
+	const char *str = NULL;
+	const char **arr;
+	uint_t n;
+	char *off;
+	char *packed;
+	uint64_t size, off_size;
+
+	while ((elem = nvlist_next_nvpair(innvl, elem)) != NULL) {
+		if ((nvpair_type(elem) == DATA_TYPE_STRING) ||
+		    (nvpair_type(elem) == DATA_TYPE_STRING_ARRAY))
+			lastseen = elem;
+	}
+
+	if (lastseen == NULL)
+		return;	/* No strings */
+
+	/*
+	 * Lookup either the last string, or the last string in the last
+	 * string array in the nvlist.  We will use this to corrupt from the
+	 * string to the end of the nvlist buffer.  Any attempts to strlen this
+	 * string should run pass the end of the packed buffer.
+	 */
+	if (nvpair_value_string(lastseen, &str) != 0) {
+		if (nvpair_value_string_array(lastseen, &arr, &n) == 0)
+			str = arr[n-1];
+	}
+
+	/*
+	 * We now have the last string.  Corrupt everything from the NULL
+	 * terminator byte for the last string to the end of the packed nvlist
+	 * buffer.
+	 */
+	packed = (char *)zc->zc_nvlist_src;
+	size = zc->zc_nvlist_src_size;
+
+	off = memmem(packed, size, str, strlen(str));
+	off_size = strlen(str);
+
+	memset(&off[off_size - 1], '!', (packed + size) -
+	    (&off[off_size - 1]));
+
+}
+
+/*
+ * For each byte in the packed nvlist list in zc, corrupt a single byte, then
+ * try doing the ioctl.  This tests how well the kernel handles fuzzed nvlists.
+ *
+ * NOTE - make sure you are doing this with a "safe" ioctl!  You don't want to
+ * run this on an ioctl that can potentially corrupt data (like a zpool create).
+ */
+static void
+do_fuzz(int zfs_fd, zfs_ioc_t ioc, zfs_cmd_t *zc)
+{
+	uint64_t size;
+	uint64_t i;
+	unsigned char old = 0;
+	unsigned char *pos;
+	zfs_cmd_t orig_zc = *zc;
+
+	pos = (unsigned char *) zc->zc_nvlist_src;
+	size = zc->zc_nvlist_src_size;
+
+	/*
+	 * Fuzz each byte in the packed nvlist, one byte at a time, and do the
+	 * ioctl.  If the kernel doesn't crash, then the test passed.
+	 */
+	for (i = 0; i < size; i++) {
+		/* Restore the previously corrupted byte */
+		if (i > 0)
+			pos[i-1] = old;
+
+		old = pos[i];
+
+		/* Corrupt the new byte */
+		pos[i]++;
+
+		/*
+		 * Do the ioctl and ignore the return code.  We just want to
+		 * see if the kernel panics.
+		 */
+		lzc_ioctl_fd(zfs_fd, ioc, zc);
+
+		/*
+		 * Restore 'zc' with original fields since the ioctl may
+		 * have modified them.
+		 */
+		*zc = orig_zc;
+	}
+	/* Restore last byte */
+	if (i > 0)
+		pos[i - 1] = old;
+
+	/*
+	 * Try fuzzing the packed nvlist size field.  Test it with one byte
+	 * bigger and one byte smaller than the current value.
+	 */
+	zc->zc_nvlist_src_size--;
+	lzc_ioctl_fd(zfs_fd, ioc, zc);
+
+	zc->zc_nvlist_src_size += 2;
+	lzc_ioctl_fd(zfs_fd, ioc, zc);
+
+	/* Restore to normal */
+	zc->zc_nvlist_src_size -= 1;
+}
+
 /*
  * run a zfs ioctl command, verify expected results and log failures
  */
 static void
-lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
+lzc_ioctl_run_impl(zfs_ioc_t ioc, const char *name, nvlist_t *innvl,
+    int expected, boolean_t do_corrupt)
 {
 	zfs_cmd_t zc = {"\0"};
 	char *packed = NULL;
@@ -160,10 +284,30 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 	zc.zc_nvlist_dst_size = MAX(size * 2, 128 * 1024);
 	zc.zc_nvlist_dst = (uint64_t)(uintptr_t)malloc(zc.zc_nvlist_dst_size);
 
+	if (do_corrupt) {
+		/*
+		 * Try changing bytes in the packed nvlist to see if it will
+		 * panic the kernel when you do the ioctl.
+		 */
+		do_fuzz(zfs_fd, ioc, &zc);
+
+		/*
+		 * Corrupt the last string in the packed nvlist so it has no
+		 * NULL terminator.
+		 */
+		do_bad_string(&zc, innvl);
+
+	}
+
 	if (lzc_ioctl_fd(zfs_fd, ioc, &zc) != 0)
 		error = errno;
 
-	if (error != expected) {
+	/*
+	 * If we're corrupting the nvlist we don't care about the specific
+	 * error code that gets returned, as it could be one of many.  We only
+	 * care if it panics the kernel.
+	 */
+	if (!do_corrupt && error != expected) {
 		unexpected_failures = B_TRUE;
 		(void) fprintf(stderr, "%s: Unexpected result with %s, "
 		    "error %d (expecting %d)\n",
@@ -172,6 +316,12 @@ lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
 
 	fnvlist_pack_free(packed, size);
 	free((void *)(uintptr_t)zc.zc_nvlist_dst);
+}
+
+static void
+lzc_ioctl_run(zfs_ioc_t ioc, const char *name, nvlist_t *innvl, int expected)
+{
+	return (lzc_ioctl_run_impl(ioc, name, innvl, expected, B_FALSE));
 }
 
 /*
@@ -310,6 +460,7 @@ test_log_history(const char *pool)
 	fnvlist_add_string(required, "message", "input check");
 
 	IOC_INPUT_TEST(ZFS_IOC_LOG_HISTORY, pool, required, NULL, 0);
+	IOC_INPUT_TEST_INJECT(ZFS_IOC_LOG_HISTORY, pool, required);
 
 	nvlist_free(required);
 }
@@ -792,6 +943,20 @@ test_set_bootenv(const char *pool)
 }
 
 static void
+test_zpool_get(const char *pool)
+{
+	const char *strs[] = {ZPOOL_DEDUPCACHED_PROP_NAME};
+	nvlist_t *optional = fnvlist_alloc();
+
+	fnvlist_add_string_array(optional, ZPOOL_GET_PROPS_NAMES, strs, 1);
+
+	IOC_INPUT_TEST(ZFS_IOC_POOL_GET_PROPS, pool, NULL, optional, 0);
+	IOC_INPUT_TEST_INJECT(ZFS_IOC_POOL_GET_PROPS, pool, optional);
+
+	nvlist_free(optional);
+}
+
+static void
 zfs_ioc_input_tests(const char *pool)
 {
 	char filepath[] = "/tmp/ioc_test_file_XXXXXX";
@@ -885,6 +1050,7 @@ zfs_ioc_input_tests(const char *pool)
 
 	test_scrub(pool);
 
+	test_zpool_get(pool);
 	/*
 	 * cleanup
 	 */
