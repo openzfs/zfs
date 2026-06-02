@@ -1280,6 +1280,7 @@ dsl_errorscrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		spa->spa_scan_pass_errorscrub_pause = gethrestime_sec();
 		scn->errorscrub_phys.dep_paused_flags = B_TRUE;
 		dsl_errorscrub_sync_state(scn, tx);
+		zap_cursor_fini(&scn->errorscrub_cursor);
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_ERRORSCRUB_PAUSED);
 	} else {
 		ASSERT3U(*cmd, ==, POOL_SCRUB_NORMAL);
