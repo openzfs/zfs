@@ -10230,7 +10230,7 @@ main(int argc, char **argv)
 	 * Automate cachefile
 	 */
 	if (!spa_config_path_env && !config_path_console && target &&
-	    libzfs_core_init() == 0) {
+	    !dump_opt['l'] && libzfs_core_init() == 0) {
 		char *pname = strdup(target);
 		const char *value;
 		nvlist_t *pnvl = NULL;
