@@ -82,11 +82,11 @@ int zfs_metaslab_sm_blksz_with_log = (1 << 17);
 
 /*
  * The in-core space map representation is more compact than its on-disk form.
- * The zfs_condense_pct determines how much more compact the in-core
+ * The zfs_metaslab_condense_pct determines how much more compact the in-core
  * space map representation must be before we compact it on-disk.
  * Values should be greater than or equal to 100.
  */
-uint_t zfs_condense_pct = 200;
+uint_t zfs_metaslab_condense_pct = 200;
 
 /*
  * Condensing a metaslab is not guaranteed to actually reduce the amount of
@@ -3826,8 +3826,8 @@ metaslab_group_preload(metaslab_group_t *mg)
  *    increase as a result of writing out the free space range tree.
  *
  * 2. Condense if the on on-disk space map representation is at least
- *    zfs_condense_pct/100 times the size of the optimal representation
- *    (i.e. zfs_condense_pct = 110 and in-core = 1MB, optimal = 1.1MB).
+ *    zfs_metaslab_condense_pct/100 times the size of the optimal representation
+ *    (i.e. zfs_metaslab_condense_pct = 110 and in-core = 1MB, optimal = 1.1MB).
  *
  * 3. Do not condense if the on-disk size of the space map does not actually
  *    decrease.
@@ -3863,7 +3863,8 @@ metaslab_should_condense(metaslab_t *msp)
 	uint64_t optimal_size = space_map_estimate_optimal_size(sm,
 	    msp->ms_allocatable, SM_NO_VDEVID);
 
-	return (object_size >= (optimal_size * zfs_condense_pct / 100) &&
+	return (object_size >=
+	    (optimal_size * zfs_metaslab_condense_pct / 100) &&
 	    object_size > zfs_metaslab_condense_block_threshold * record_size);
 }
 
@@ -6454,6 +6455,18 @@ ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, try_hard_before_gang, INT,
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, find_max_tries, UINT, ZMOD_RW,
 	"Normally only consider this many of the best metaslabs in each vdev");
 
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, sm_blksz_no_log, INT, ZMOD_RW,
+	"Block size for space map in pools with log space map disabled.  "
+	"Power of 2 greater than 4096.");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, sm_blksz_with_log, INT, ZMOD_RW,
+	"Block size for space map in pools with log space map enabled.  "
+	"Power of 2 greater than 4096.");
+
 ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_allocator,
 	param_set_active_allocator, param_get_charp, ZMOD_RW,
 	"SPA active allocator");
+
+ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, condense_pct, UINT, ZMOD_RW,
+	"Condense on-disk spacemap when it is more than this many percents "
+	"of in-memory counterpart");
