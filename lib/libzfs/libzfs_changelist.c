@@ -183,6 +183,7 @@ changelist_postfix(prop_changelist_t *clp)
 	char shareopts[ZFS_MAXPROPLEN];
 	boolean_t commit_smb_shares = B_FALSE;
 	boolean_t commit_nfs_shares = B_FALSE;
+	int rc = 0;
 
 	/*
 	 * If CL_GATHER_DONT_UNMOUNT is set, it means we don't want to (un)mount
@@ -275,7 +276,7 @@ changelist_postfix(prop_changelist_t *clp)
 		const enum sa_protocol nfs[] =
 		    {SA_PROTOCOL_NFS, SA_NO_PROTOCOL};
 		if (sharenfs && mounted) {
-			zfs_share(cn->cn_handle, nfs);
+			rc = zfs_share(cn->cn_handle, nfs);
 			commit_nfs_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
 			zfs_unshare(cn->cn_handle, NULL, nfs);
@@ -284,7 +285,7 @@ changelist_postfix(prop_changelist_t *clp)
 		const enum sa_protocol smb[] =
 		    {SA_PROTOCOL_SMB, SA_NO_PROTOCOL};
 		if (sharesmb && mounted) {
-			zfs_share(cn->cn_handle, smb);
+			rc = zfs_share(cn->cn_handle, smb);
 			commit_smb_shares = B_TRUE;
 		} else if (cn->cn_shared || clp->cl_waslegacy) {
 			zfs_unshare(cn->cn_handle, NULL, smb);
@@ -301,7 +302,15 @@ changelist_postfix(prop_changelist_t *clp)
 	zfs_commit_shares(proto);
 	uu_avl_walk_end(walk);
 
-	return (0);
+	/*
+	 * It's possible rc != 0 since we set a mountpoint or option while
+	 * SMB/NFS was not running.  This is fine, and we should not return
+	 * an error up the stack.
+	 *
+	 * At this point we only want to report mountpoint/shareops parsing
+	 * errors.
+	 */
+	return (rc == SA_SYNTAX_ERR ? rc : 0);
 }
 
 /*
