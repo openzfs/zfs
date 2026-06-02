@@ -108,6 +108,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_anyraid.h>
 #include <sys/vdev_mirror.h>
@@ -681,16 +682,52 @@ anyraid_calculate_size(vdev_t *vd)
 	vdev_anyraid_t *var = vd->vdev_tsd;
 
 	uint64_t smallest_disk_size = UINT64_MAX;
-	for (int c = 0; c < vd->vdev_children; c++) {
-		vdev_t *cvd = vd->vdev_child[c];
-		smallest_disk_size = MIN(smallest_disk_size, cvd->vdev_asize -
-		    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
-	}
-
 	uint64_t disk_shift = anyraid_disk_shift;
 	uint64_t min_size = zfs_vdev_anyraid_min_tile_size;
+	uint_t toosmall = 0;
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+		uint64_t disk_size = cvd->vdev_asize -
+		    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift);
+		if (disk_size < 1 << disk_shift || disk_size < min_size)
+			toosmall++;
+		smallest_disk_size = MIN(smallest_disk_size, disk_size);
+	}
+
 	if (smallest_disk_size < 1 << disk_shift ||
 	    smallest_disk_size < min_size) {
+		ASSERT(toosmall);
+		const char **vdevs = kmem_alloc(toosmall * sizeof (*vdevs),
+		    KM_SLEEP);
+		int idx = 0;
+		uint_t ashift = 0;
+		for (int c = 0; c < vd->vdev_children; c++) {
+			vdev_t *cvd = vd->vdev_child[c];
+			uint64_t disk_size = cvd->vdev_asize -
+			    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift);
+			if (disk_size < 1 << disk_shift ||
+			    disk_size < min_size) {
+				char *namebuf = kmem_zalloc(64, KM_SLEEP);
+				vdevs[idx++] = vdev_name(cvd, namebuf,
+				    64);
+				ashift = MAX(ashift, cvd->vdev_ashift);
+			}
+		}
+		ASSERT3U(idx, ==, toosmall);
+		spa_t *spa = vd->vdev_spa;
+		if (spa->spa_create_info == NULL) {
+			nvlist_t *nv = fnvlist_alloc();
+			fnvlist_add_string_array(nv, ZPOOL_CREATE_INFO_VDEV,
+			    vdevs, toosmall);
+			fnvlist_add_uint64(nv, ZPOOL_CREATE_INFO_SIZE,
+			    MAX(1 << disk_shift, min_size) +
+			    VDEV_ANYRAID_TOTAL_MAP_SIZE(ashift));
+			spa->spa_create_info = nv;
+		}
+		for (int i = 0; i < toosmall; i++)
+			kmem_free(vdevs[i], 64);
+		kmem_free(vdevs, toosmall * sizeof (*vdevs));
 		return (SET_ERROR(ENOLCK));
 	}
 

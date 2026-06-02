@@ -6020,7 +6020,7 @@ vdev_xlate_walk(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
 	}
 }
 
-static char *
+char *
 vdev_name(vdev_t *vd, char *buf, int buflen)
 {
 	if (vd->vdev_path == NULL) {
