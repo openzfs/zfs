@@ -64,6 +64,10 @@ sa_enable_share(const char *zfsname, const char *mountpoint,
 {
 	VALIDATE_PROTOCOL(protocol, SA_INVALID_PROTOCOL);
 
+	int error = sa_validate_shareopts(shareopts, protocol);
+	if (error != SA_OK)
+		return (error);
+
 	const struct sa_share_impl args =
 	    init_share(zfsname, mountpoint, shareopts);
 	return (fstypes[protocol]->enable_share(&args));
@@ -110,6 +114,10 @@ int
 sa_validate_shareopts(const char *options, enum sa_protocol protocol)
 {
 	VALIDATE_PROTOCOL(protocol, SA_INVALID_PROTOCOL);
+
+	/* error out on invalid characters */
+	if (strpbrk(options, "\a\b\f\n\r") != NULL)
+		return (SA_SYNTAX_ERR);
 
 	return (fstypes[protocol]->validate_shareopts(options));
 }
