@@ -128,6 +128,7 @@ extern void vdev_propagate_state(vdev_t *vd);
 extern void vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state,
     vdev_aux_t aux);
 extern boolean_t vdev_children_are_offline(vdev_t *vd);
+extern char *vdev_name(vdev_t *vd, char *buf, int buflen);
 
 extern void vdev_space_update(vdev_t *vd,
     int64_t alloc_delta, int64_t defer_delta, int64_t space_delta);

@@ -1547,31 +1547,45 @@ zpool_is_draid_spare(const char *name)
 
 /*
  * Extract device-specific error information from a failed pool creation.
- * If the kernel returned ZPOOL_CONFIG_CREATE_INFO in the ioctl output,
- * set an appropriate error aux message identifying the problematic device.
  */
 static int
-zpool_create_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+zpool_create_info(zfs_cmd_t *zc, nvlist_t **outnv)
 {
-	nvlist_t *outnv = NULL;
-	nvlist_t *info = NULL;
-	const char *vdev = NULL;
-	const char *pname = NULL;
-
+	nvlist_t *nv;
 	if (zc->zc_nvlist_dst_size == 0)
 		return (ENOENT);
 
 	if (nvlist_unpack((void *)(uintptr_t)zc->zc_nvlist_dst,
-	    zc->zc_nvlist_dst_size, &outnv, 0) != 0 || outnv == NULL)
+	    zc->zc_nvlist_dst_size, &nv, 0) != 0 || nv == NULL)
 		return (EINVAL);
 
-	if (nvlist_lookup_nvlist(outnv, ZPOOL_CONFIG_CREATE_INFO, &info) != 0) {
-		nvlist_free(outnv);
+	nvlist_t *tmp;
+	if (nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_CREATE_INFO, &tmp) != 0) {
+		nvlist_free(nv);
 		return (EINVAL);
+	}
+	*outnv = fnvlist_dup(tmp);
+	fnvlist_free(nv);
+	return (0);
+}
+
+/*
+ * If the kernel returned ZPOOL_CONFIG_CREATE_INFO in the ioctl output,
+ * set an appropriate error aux message identifying the problematic device.
+ */
+static int
+zpool_create_error_from_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+{
+	nvlist_t *info = NULL;
+	const char *vdev = NULL;
+	const char *pname = NULL;
+	int err = 0;
+	if ((err = zpool_create_info(zc, &info)) != 0) {
+		return (err);
 	}
 
 	if (nvlist_lookup_string(info, ZPOOL_CREATE_INFO_VDEV, &vdev) != 0) {
-		nvlist_free(outnv);
+		nvlist_free(info);
 		return (EINVAL);
 	}
 
@@ -1584,7 +1598,7 @@ zpool_create_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 		    "device '%s' is in use"), vdev);
 	}
 
-	nvlist_free(outnv);
+	nvlist_free(info);
 	return (0);
 }
 
@@ -1679,7 +1693,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 * label.  This can also happen under if the device is
 			 * part of an active md or lvm device.
 			 */
-			if (zpool_create_info(hdl, &zc) != 0) {
+			if (zpool_create_error_from_info(hdl, &zc) != 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "one or more vdevs refer to the same "
 				    "device, or one of\nthe devices is "
@@ -1731,10 +1745,37 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 * problem device since there's no reliable way to
 			 * determine device size from userland.
 			 */
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "one or more anyraid devices cannot store "
-			    "any tiles (see "
-			    "'zfs_vdev_anyraid_min_tile_size')"));
+			{
+				nvlist_t *errnv = NULL;
+				char **vdevs;
+				uint_t count;
+				uint64_t min_size;
+				if (zpool_create_info(&zc, &errnv) == 0 &&
+				    nvlist_lookup_string_array(errnv,
+				    ZPOOL_CREATE_INFO_VDEV, &vdevs, &count) ==
+				    0 && nvlist_lookup_uint64(errnv,
+				    ZPOOL_CREATE_INFO_SIZE, &min_size) == 0) {
+					char buf[900];
+					int off = 0;
+					for (int i = 0; i < count &&
+					    off < sizeof (buf); i++) {
+						off += snprintf(buf + off,
+						    sizeof (buf) - off,
+						    "\t%s\n", vdevs[i]);
+					}
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "the following devices cannot "
+					    "store any AnyRAID tiles (min "
+					    "device size %llu):\n%s"),
+					    (u_longlong_t)min_size, buf);
+				} else {
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "one or more AnyRAID devices "
+					    "cannot store any tiles (see "
+					    "'zfs_vdev_anyraid_min_tile_size"
+					    "')"));
+				}
+			}
 			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
 
@@ -1757,7 +1798,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			break;
 
 		case ENXIO:
-			if (zpool_create_info(hdl, &zc) == 0) {
+			if (zpool_create_error_from_info(hdl, &zc) == 0) {
 				ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			} else {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
