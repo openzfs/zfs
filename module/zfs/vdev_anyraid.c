@@ -564,7 +564,7 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 		    i * sizeof (*cksum)];
 		zio_t *nio = zio_null(rio, spa, cvd, NULL, &map_abds[i], flags);
 		child_read(nio, cvd, map_offset + i * SPA_MAXBLOCKSIZE,
-		    SPA_MAXBLOCKSIZE, ZIO_CHECKSUM_ANYRAID_MAP, cksum, flags);
+		    SPA_MAXBLOCKSIZE, ZIO_CHECKSUM_SHA256, cksum, flags);
 		zio_nowait(nio);
 	}
 	i--;
@@ -1322,7 +1322,7 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
 	zio_nowait(zio_write_phys(zio, vd, base_offset +
 	    idx * VDEV_ANYRAID_MAP_SIZE +
 	    VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_ashift), SPA_MAXBLOCKSIZE,
-	    abd, ZIO_CHECKSUM_ANYRAID_MAP, anyraid_map_write_done, cksum_out,
+	    abd, ZIO_CHECKSUM_SHA256, anyraid_map_write_done, cksum_out,
 	    ZIO_PRIORITY_SYNC_WRITE, flags, B_FALSE));
 }
 

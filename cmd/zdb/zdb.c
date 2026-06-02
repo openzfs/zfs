@@ -9781,8 +9781,7 @@ zdb_read_block(char *thing, spa_t *spa)
 
 			if ((zio_checksum_table[ck].ci_flags &
 			    ZCHECKSUM_FLAG_EMBEDDED) ||
-			    ck == ZIO_CHECKSUM_NOPARITY ||
-			    ck == ZIO_CHECKSUM_ANYRAID_MAP) {
+			    ck == ZIO_CHECKSUM_NOPARITY) {
 				continue;
 			}
 			BP_SET_CHECKSUM(bp, ck);
@@ -10133,7 +10132,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 		map_abds[i] = abd_alloc_linear(SPA_MAXBLOCKSIZE, B_TRUE);
 		zio_nowait(zio_read_phys(rio, cvd, map_offset +
 		    i * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE, map_abds[i],
-		    ZIO_CHECKSUM_ANYRAID_MAP, NULL, cksum,
+		    ZIO_CHECKSUM_SHA256, NULL, cksum,
 		    ZIO_PRIORITY_SYNC_READ, flags, B_FALSE));
 	}
 	i--;
