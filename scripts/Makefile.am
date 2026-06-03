@@ -28,6 +28,7 @@ dist_noinst_SCRIPTS += $(scripts_scripts)
 endif
 
 dist_noinst_DATA += \
+	%D%/coverage_report.pl \
 	%D%/cstyle.pl \
 	%D%/update_authors.pl
 
