@@ -922,6 +922,23 @@ zfs_secpolicy_recv(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	    ZFS_DELEG_PERM_CREATE, cr));
 }
 
+/*
+ * Policy for dataset set property operations.  Individual properties checked by
+ * zfs_check_settable(), additionally require zfs_secpolicy_recv() when setting
+ * properties as part of a receive.
+ */
+static int
+zfs_secpolicy_setprops(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+{
+	boolean_t received = zc->zc_cookie;
+	int error;
+
+	if (received && (error = zfs_secpolicy_recv(zc, innvl, cr)))
+		return (error);
+
+	return (zfs_secpolicy_read(zc, innvl, cr));
+}
+
 int
 zfs_secpolicy_snapshot_perms(const char *name, cred_t *cr)
 {
@@ -7637,7 +7654,7 @@ zfs_ioctl_init(void)
 	    zfs_ioc_send, zfs_secpolicy_send);
 
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_SET_PROP, zfs_ioc_set_prop,
-	    zfs_secpolicy_none);
+	    zfs_secpolicy_setprops);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_DESTROY, zfs_ioc_destroy,
 	    zfs_secpolicy_destroy);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RENAME, zfs_ioc_rename,
