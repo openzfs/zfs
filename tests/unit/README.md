@@ -62,46 +62,70 @@ assist with understanding issues.
 make -j$(nproc)
 ```
 
-TODO: add `--with-config=unit` that disables _everything_ not needed for the tests
+TODO: add `--with-config=unit` that disables _everything_ not needed for the
+tests
 
 ### Generating a coverage report
 
-If `configure` was run with `--enable-code-coverage`, then an additional
-`unit-coverage` target is available, which will run the requested tests, then
-run `lcov` and `genhtml` to produce a HTML coverage report:
+If `configure` was run with `--enable-code-coverage`, then two additional build
+targets are available that will run the requested tests and produce a report.
+
+The `unit-coverage` target runs `scripts/coverage_report.pl` to produce a
+coverage summary directly in text immediately after the test output, and is
+good for inclusion in log files and other build system output.
 
 ```
 $ make unit-coverage T=zap
   UNITTEST tests/unit/test_zap
-Running test suite with seed 0xe461208d...
-zap.mock_microzap_sanity             [ OK    ] [ 0.00000933 / 0.00000773 CPU ]
-zap.mock_fatzap_sanity               [ OK    ] [ 0.00004685 / 0.00004612 CPU ]
-zap.zap_basic
-  type=micro                         [ OK    ] [ 0.00002579 / 0.00002484 CPU ]
-  type=fat                           [ OK    ] [ 0.00004093 / 0.00004038 CPU ]
-4 of 4 (100%) tests successful, 0 (0%) test skipped.
-lcov: WARNING: (inconsistent) /home/robn/code/zfs-unit/module/zfs/u8_textprep.c:1104: unexecuted block on non-branch line with non-zero hit count.  Use "geninfo --rc geninfo_unexecuted_blocks=1 to set count to zero.
-	(use "lcov --ignore-errors inconsistent,inconsistent ..." to suppress this warning)
-Message summary:
-  1 warning message:
-    inconsistent: 1
-Overall coverage rate:
-  source files: 6
-  lines.......: 42.3% (1270 of 3002 lines)
-  functions...: 42.0% (76 of 181 functions)
-Message summary:
-  no messages were reported
-coverage results: file://tests/unit/test_zap_coverage/index.html
+Running test suite with seed 0xf51efca9...
+zap.mock_microzap_sanity             [ OK    ] [ 0.00000941 / 0.00000834 CPU ]
+zap.mock_fatzap_sanity               [ OK    ] [ 0.00005782 / 0.00005766 CPU ]
+...
+zap.cursor_release_one
+  type=micro                         [ OK    ] [ 0.00001705 / 0.00001681 CPU ]
+  type=fat                           [ OK    ] [ 0.00004748 / 0.00004738 CPU ]
+30 of 30 (100%) tests successful, 0 (0%) test skipped.
+Coverage: test_zap       | By line         | By branch       | By function
+                         | Rate% Total Hit | Rate% Total Hit | Rate% Total Hit
+module/zfs/u8_textprep.c |  0.0%   802   0 |  0.0%   510   0 |  0.0%    12   0
+module/zfs/zap.c         | 33.9%   610 207 | 31.1%   238  74 | 23.0%    74  17
+module/zfs/zap_fat.c     | 47.1%   665 313 | 29.8%   446 133 | 62.2%    37  23
+module/zfs/zap_impl.c    | 57.8%   232 134 | 39.7%   146  58 | 72.0%    25  18
+module/zfs/zap_leaf.c    | 60.9%   466 284 | 41.2%   216  89 | 78.3%    23  18
+module/zfs/zap_micro.c   | 68.9%   238 164 | 41.5%   142  59 | 92.9%    14  13
 ```
 
-TODO: improve the overall structure to make this less noisy.
+The `unit-coverage-html` will use `lcov` and `genhtml` to generate an
+interactive HTML report that also can show the specific source lines that are
+covered.
+
+```
+$ make unit-coverage-html T=zap
+  UNITTEST tests/unit/test_zap
+Running test suite with seed 0x485bf2e2...
+zap.mock_microzap_sanity             [ OK    ] [ 0.00000935 / 0.00000794 CPU ]
+zap.mock_fatzap_sanity               [ OK    ] [ 0.00006050 / 0.00006025 CPU ]
+...
+zap.cursor_release_one
+  type=micro                         [ OK    ] [ 0.00001785 / 0.00001767 CPU ]
+  type=fat                           [ OK    ] [ 0.00005262 / 0.00005250 CPU ]
+30 of 30 (100%) tests successful, 0 (0%) test skipped.
+coverage results:
+file:///home/robn/code/zfs-unit/tests/unit/tests/unit/test_zap_coverage/index.ht
+ml
+```
+
+Currently the coverage data will only be regenerated when the test binary
+itself changes. To force it, use `make unit-clean-local` to remove the coverage
+data.
 
 ## Guidance for test writers
 
 ### Top five
 
 * Only bring in the source files under test.
-* Use mocks to create the test scenario, then interrogate them to understand the result.
+* Use mocks to create the test scenario, then interrogate them to understand
+the result.
 * Prefer more smaller tests over fewer bigger ones.
 * Use coverage reports to guide test development.
 * Do the simplest possible thing.
