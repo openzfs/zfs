@@ -825,6 +825,17 @@ zfs_secpolicy_send_impl(const char *name, dsl_dataset_t *ds, cred_t *cr,
 		err = dsl_deleg_access_impl(ds, ZFS_DELEG_PERM_SEND_RAW, cr);
 		if (err == 0)
 			return (0);
+
+		if (ds->ds_dir->dd_crypto_obj != 0) {
+			/*
+			 * Dataset is encrypted; 'send:encrypted' permission
+			 * will allow a raw send.
+			 */
+			err = dsl_deleg_access_impl(ds,
+			    ZFS_DELEG_PERM_SEND_ENCRYPTED, cr);
+			if (err == 0)
+				return (err);
+		}
 	}
 
 	return (err);
