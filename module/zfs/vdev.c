@@ -4246,17 +4246,39 @@ vdev_remove_empty_log(vdev_t *vd, uint64_t txg)
 	dmu_tx_commit(tx);
 }
 
+static void
+metaslab_sync_done_task(void *arg)
+{
+	metaslab_t *msp = arg;
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	metaslab_sync_done(msp, spa_syncing_txg(spa));
+}
+
+void
+vdev_sync_dispatch(vdev_t *vd, uint64_t txg)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	ASSERT(vdev_is_concrete(vd));
+
+	for (metaslab_t *msp = txg_list_head(&vd->vdev_ms_list, TXG_CLEAN(txg));
+	    msp; msp = txg_list_next(&vd->vdev_ms_list, msp, TXG_CLEAN(txg))) {
+		(void) taskq_dispatch(spa->spa_sync_tq,
+		    metaslab_sync_done_task, msp, TQ_SLEEP);
+	}
+}
+
 void
 vdev_sync_done(vdev_t *vd, uint64_t txg)
 {
-	metaslab_t *msp;
 	boolean_t reassess = !txg_list_empty(&vd->vdev_ms_list, TXG_CLEAN(txg));
 
 	ASSERT(vdev_is_concrete(vd));
 
-	while ((msp = txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg)))
-	    != NULL)
-		metaslab_sync_done(msp, txg);
+	taskq_wait(vd->vdev_spa->spa_sync_tq);
+
+	while (txg_list_remove(&vd->vdev_ms_list, TXG_CLEAN(txg)) != NULL)
+		;
 
 	if (reassess) {
 		metaslab_sync_reassess(vd->vdev_mg);
