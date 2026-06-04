@@ -678,6 +678,36 @@ zfs_secpolicy_rollback(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 }
 
 static int
+zfs_secpolicy_send_impl(const char *name, dsl_dataset_t *ds, cred_t *cr,
+    boolean_t rawok)
+{
+	/* Can't send from within a zone that can't see the dataset */
+	int err = zfs_dozonecheck_ds(name, ds, cr);
+	if (err != 0)
+		return (err);
+
+	/* ZFS global admin (root) can do anything. */
+	err = secpolicy_zfs(cr);
+	if (err == 0)
+		return (0);
+
+	/* 'send' permission on this dataset is allowed to send. */
+	err = dsl_deleg_access_impl(ds, ZFS_DELEG_PERM_SEND, cr);
+	if (err == 0)
+		return (0);
+
+	/* Raw sends have extra perms that might work. */
+	if (rawok) {
+		/* 'send:raw' permission on this dataset can do raw sends. */
+		err = dsl_deleg_access_impl(ds, ZFS_DELEG_PERM_SEND_RAW, cr);
+		if (err == 0)
+			return (0);
+	}
+
+	return (err);
+}
+
+static int
 zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	(void) innvl;
@@ -706,12 +736,8 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	dsl_dataset_name(ds, zc->zc_name);
 
-	error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
-	    ZFS_DELEG_PERM_SEND, cr);
-	if (error != 0 && rawok) {
-		error = zfs_secpolicy_write_perms_ds(zc->zc_name, ds,
-		    ZFS_DELEG_PERM_SEND_RAW, cr);
-	}
+	error = zfs_secpolicy_send_impl(zc->zc_name, ds, cr, rawok);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
 
@@ -721,16 +747,29 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 static int
 zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
-	boolean_t rawok = nvlist_exists(innvl, "rawok");
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds;
 	int error;
+	boolean_t rawok = nvlist_exists(innvl, "rawok");
 
-	(void) innvl;
-	error = zfs_secpolicy_write_perms(zc->zc_name,
-	    ZFS_DELEG_PERM_SEND, cr);
-	if (error != 0 && rawok) {
-		error = zfs_secpolicy_write_perms(zc->zc_name,
-		    ZFS_DELEG_PERM_SEND_RAW, cr);
+	if (INGLOBALZONE(curproc) && secpolicy_zfs(cr) == 0)
+		return (0);
+
+	error = dsl_pool_hold(zc->zc_name, FTAG, &dp);
+	if (error != 0)
+		return (error);
+
+	error = dsl_dataset_hold(dp, zc->zc_name, FTAG, &ds);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
 	}
+
+	error = zfs_secpolicy_send_impl(zc->zc_name, ds, cr, rawok);
+
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
+
 	return (error);
 }
 
