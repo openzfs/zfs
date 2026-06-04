@@ -764,27 +764,41 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 		    errno);
 		return (-1);
 	}
-	if (chown(runtime_path, 0, 0) != 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't chown runtime path: %d",
-		    errno);
+	const int runtime_fd = open(runtime_path,
+	    O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_DIRECTORY);
+	if (runtime_fd < 0) {
+		pam_syslog(pamh, LOG_ERR, "Can't open runtime path: %d", errno);
 		return (-1);
 	}
-	if (chmod(runtime_path, S_IRWXU) != 0) {
+	if (fchown(runtime_fd, 0, 0) != 0) {
+		pam_syslog(pamh, LOG_ERR, "Can't chown runtime path: %d",
+		    errno);
+		close(runtime_fd);
+		return (-1);
+	}
+	if (fchmod(runtime_fd, S_IRWXU) != 0) {
 		pam_syslog(pamh, LOG_ERR, "Can't chmod runtime path: %d",
 		    errno);
+		close(runtime_fd);
 		return (-1);
 	}
 
 	char *counter_path;
-	if (asprintf(&counter_path, "%s/%u", runtime_path, config->uid) == -1)
+	if (asprintf(&counter_path, "%u", config->uid) == -1) {
+		close(runtime_fd);
 		return (-1);
+	}
 
-	const int fd = open(counter_path,
+	const int fd = openat(runtime_fd, counter_path,
 	    O_RDWR | O_CLOEXEC | O_CREAT | O_NOFOLLOW,
 	    S_IRUSR | S_IWUSR);
+	int ret = errno;
+
 	free(counter_path);
+	close(runtime_fd);
+
 	if (fd < 0) {
-		pam_syslog(pamh, LOG_ERR, "Can't open counter file: %d", errno);
+		pam_syslog(pamh, LOG_ERR, "Can't open counter file: %d", ret);
 		return (-1);
 	}
 	if (flock(fd, LOCK_EX) != 0) {
@@ -795,7 +809,6 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	char counter[20];
 	char *pos = counter;
 	int remaining = sizeof (counter) - 1;
-	int ret;
 	counter[sizeof (counter) - 1] = 0;
 	while (remaining > 0 && (ret = read(fd, pos, remaining)) > 0) {
 		remaining -= ret;
