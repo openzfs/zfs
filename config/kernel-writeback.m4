@@ -57,3 +57,26 @@ AC_DEFUN([ZFS_AC_KERNEL_WRITEBACK], [
 	ZFS_AC_KERNEL_WRITEPAGE_T
 	ZFS_AC_KERNEL_WRITE_CACHE_PAGES
 ])
+
+AC_DEFUN([ZFS_AC_KERNEL_SRC_WRITEBACK_ITER], [
+    ZFS_LINUX_TEST_SRC([writeback_iter], [
+        #include <linux/writeback.h>
+    ], [
+        struct address_space *mapping = NULL;
+        struct writeback_control wbc = { };
+        struct folio *folio = NULL;
+        int error = 0;
+        folio = writeback_iter(mapping, &wbc, folio, &error);
+    ])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_WRITEBACK_ITER], [
+    AC_MSG_CHECKING([whether writeback_iter() is available])
+    ZFS_LINUX_TEST_RESULT([writeback_iter], [
+        AC_MSG_RESULT(yes)
+        AC_DEFINE(HAVE_WRITEBACK_ITER, 1,
+            [writeback_iter() is available])
+    ],[
+        AC_MSG_RESULT(no)
+    ])
+])

@@ -482,7 +482,14 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	return (ret);
 }
 
-#ifdef HAVE_WRITE_CACHE_PAGES
+/*
+ * If both write_cache_pages and writeback_iter are avaliable,
+ * there maybe be a conflict between linux kernel and zfs,
+ * which will make PG_writeback left in set, and cause the page
+ * to be stuck in writeback state, and never get clean.
+ * Refer to issue 18454 in github.
+ */
+#if defined(HAVE_WRITE_CACHE_PAGES) && !defined(HAVE_WRITEBACK_ITER)
 #ifdef HAVE_WRITEPAGE_T_FOLIO
 static int
 zpl_putfolio(struct folio *pp, struct writeback_control *wbc, void *data)
