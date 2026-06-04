@@ -11019,6 +11019,10 @@ spa_sync(spa_t *spa, uint64_t txg)
 		ASSERT0(spa->spa_vdev_removal->svr_bytes_done[txg & TXG_MASK]);
 	}
 
+	for (vd = txg_list_head(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)); vd;
+	    vd = txg_list_next(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg)))
+		vdev_sync_dispatch(vd, txg);
+
 	spa_sync_rewrite_vdev_config(spa, tx);
 	dmu_tx_commit(tx);
 
@@ -11043,9 +11047,6 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	dsl_pool_sync_done(dp, txg);
 
-	/*
-	 * Update usable space statistics.
-	 */
 	while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, TXG_CLEAN(txg)))
 	    != NULL)
 		vdev_sync_done(vd, txg);
