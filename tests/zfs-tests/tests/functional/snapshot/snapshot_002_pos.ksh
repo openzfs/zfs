@@ -64,7 +64,7 @@ function cleanup
 log_assert "Verify an archive of a file system is identical to " \
     "an archive of its snapshot."
 
-SNAPSHOT_TARDIR="$(mktemp -t -d zfstests_snapshot_002.XXXXXX)"
+SNAPSHOT_TARDIR="$(mktemp -d "$TEST_BASE_DIR/zfstests_snapshot_002.XXXXXX")"
 log_onexit cleanup
 
 typeset -i COUNT=21
