@@ -1,10 +1,3 @@
-sudoersddir = $(sysconfdir)/sudoers.d
-sudoersd_DATA = \
-	%D%/sudoers.d/zfs
-
-dist_noinst_DATA += $(sudoersd_DATA)
-
-
 sysconf_zfsdir = $(sysconfdir)/zfs
 
 dist_sysconf_zfs_DATA = \
