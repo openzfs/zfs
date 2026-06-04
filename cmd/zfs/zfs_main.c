@@ -9399,6 +9399,18 @@ main(int argc, char **argv)
 		return (1);
 	}
 
+	/*
+	 * Special case '<subcommand> --help|-?'
+	 */
+	if (argc >= 3 && (strcmp(argv[2], "--help") == 0 ||
+	    strcmp(argv[2], "-?") == 0)) {
+		int idx;
+		if (find_command_idx(cmdname, &idx) == 0) {
+			current_command = &command_table[idx];
+			usage(B_FALSE);
+		}
+	}
+
 	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
