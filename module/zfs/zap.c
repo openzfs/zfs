@@ -1029,16 +1029,6 @@ zap_lookup_int(objset_t *os, uint64_t obj, uint64_t value)
 	return (zap_lookup(os, obj, name, 8, 1, &value));
 }
 
-int
-zap_increment_int(objset_t *os, uint64_t obj, uint64_t key, int64_t delta,
-    dmu_tx_t *tx)
-{
-	char name[20];
-
-	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)key);
-	return (zap_increment(os, obj, name, delta, tx));
-}
-
 /* zap_*_int_key */
 
 int
@@ -1329,7 +1319,6 @@ EXPORT_SYMBOL(zap_join_increment);
 EXPORT_SYMBOL(zap_add_int);
 EXPORT_SYMBOL(zap_remove_int);
 EXPORT_SYMBOL(zap_lookup_int);
-EXPORT_SYMBOL(zap_increment_int);
 EXPORT_SYMBOL(zap_add_int_key);
 EXPORT_SYMBOL(zap_lookup_int_key);
 EXPORT_SYMBOL(zap_increment);
