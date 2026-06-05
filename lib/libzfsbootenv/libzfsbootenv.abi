@@ -8,6 +8,8 @@
     <elf-symbol name='lzbe_add_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_bootenv_print' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_get_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_loader_get' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_loader_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_nvlist_free' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_nvlist_get' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_nvlist_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -225,6 +227,9 @@
       <parameter type-id='857bb57e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='lzbe_loader_get' mangled-name='lzbe_loader_get' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_loader_get'>
+      <return type-id='80f4b756'/>
+    </function-decl>
     <function-decl name='nvlist_free' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
       <return type-id='48b5725f'/>
@@ -311,6 +316,13 @@
     <function-decl name='lzbe_get_boot_device' mangled-name='lzbe_get_boot_device' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_get_boot_device'>
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='9b23c9ad' name='device'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr address-size='64' path='lib/libzfsbootenv/lzbe_loader.c' language='LANG_C99'>
+    <function-decl name='lzbe_loader_set' mangled-name='lzbe_loader_set' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_loader_set'>
+      <parameter type-id='80f4b756' name='loader'/>
+      <parameter type-id='b59d7dce' name='len'/>
       <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
