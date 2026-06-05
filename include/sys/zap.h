@@ -381,21 +381,6 @@ int zap_value_search(objset_t *os, uint64_t zapobj,
     uint64_t value, uint64_t mask, char *name, uint64_t namelen);
 
 /*
- * Transfer all the entries from fromobj into intoobj.  Only works on
- * int_size=8 num_integers=1 values.  Fails if there are any duplicated
- * entries.
- */
-int zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx);
-
-/* Same as zap_join, but set the values to 'value'. */
-int zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
-    uint64_t value, dmu_tx_t *tx);
-
-/* Same as zap_join, but add together any duplicated entries. */
-int zap_join_increment(objset_t *os, uint64_t fromobj, uint64_t intoobj,
-    dmu_tx_t *tx);
-
-/*
  * Manipulate entries where the name + value are the "same" (the name is
  * a stringified version of the value).
  */
