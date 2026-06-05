@@ -23,6 +23,8 @@ zstream_SOURCES = \
 	%D%/zstream_recompress.h \
 	%D%/zstream_redup.c \
 	%D%/zstream_token.c \
+	%D%/zstream_queue.c \
+	%D%/zstream_queue.h \
 	%D%/zstream_util.c \
 	%D%/zstream_util.h \
 	%D%/zstream_validate.c \

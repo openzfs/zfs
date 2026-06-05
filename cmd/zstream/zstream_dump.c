@@ -431,8 +431,11 @@ dump_redact_record(drr_packet_t *item)
 }
 
 static disposition_t
-chain_dump_record(drr_packet_t *item, record_type_t *context)
+chain_dump_record(void *item_in, void *context_in)
 {
+	drr_packet_t *item = (drr_packet_t *)item_in;
+	record_type_t *context = (record_type_t *)context_in;
+
 	if (item == NULL) {
 		return (D_OK);
 	}
@@ -463,7 +466,7 @@ serial_dump_records(record_type_t *context)
 		.cs_out_size = sizeof (drr_packet_t),
 		.cs_context = context,
 		.cs_serial = {
-			.process = (zc_serial_process_f *)chain_dump_record
+			.process = chain_dump_record
 		}
 	};
 	return (step);

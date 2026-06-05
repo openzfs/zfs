@@ -47,9 +47,11 @@
 #define	KEYSIZE 64
 
 static disposition_t
-chain_decompress_named_writes(drr_packet_t *item, void *context)
+chain_decompress_named_writes(void *item_in, void *context)
 {
 	(void) context;
+	drr_packet_t *item = (drr_packet_t *)item_in;
+
 	if (item == NULL) {
 		return (D_OK);
 	}
@@ -134,8 +136,7 @@ serial_decompress_named_writes(void)
 		.cs_out_size = sizeof (drr_packet_t),
 		.cs_context = NULL,
 		.cs_serial = {
-		    .process =
-			(zc_serial_process_f *)chain_decompress_named_writes
+		    .process = chain_decompress_named_writes
 		}
 	};
 	return (step);

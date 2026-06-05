@@ -40,8 +40,11 @@ static byteswap_context_t byteswap_contexts[MAX_BYTESWAP];
 static int next_context = 0;
 
 static disposition_t
-chain_byteswap(drr_packet_t *item, byteswap_context_t *context)
+chain_byteswap(void *item_in, void *context_in)
 {
+	drr_packet_t *item = (drr_packet_t *)item_in;
+	byteswap_context_t *context = (byteswap_context_t *)context_in;
+
 	if (item == NULL) {
 		return (D_OK);
 	}
@@ -191,7 +194,7 @@ serial_byteswap(byteswap_stage_t stage)
 		.cs_out_size = sizeof (drr_packet_t),
 		.cs_context = bsc,
 		.cs_serial = {
-			.process = (zc_serial_process_f *)chain_byteswap,
+			.process = chain_byteswap,
 		}
 	};
 	return (step);

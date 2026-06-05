@@ -39,7 +39,7 @@ zstream_usage(void)
 	    "\n"
 	    "\tzstream drop_record [-v] [OBJECT,OFFSET] ...\n"
 	    "\n"
-	    "\tzstream recompress [ -l level] TYPE\n"
+	    "\tzstream recompress [-t num_threads] [-l level] TYPE\n"
 	    "\n"
 	    "\tzstream token resume_token\n"
 	    "\n"
