@@ -1362,6 +1362,7 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 				    VB_NVLIST);
 				break;
 			}
+			vbe->vbe_bootenv[sizeof (vbe->vbe_bootenv) - 1] = '\0';
 			fnvlist_add_string(bootenv, FREEBSD_BOOTONCE, buf);
 		}
 

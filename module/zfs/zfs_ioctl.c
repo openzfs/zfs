@@ -6498,7 +6498,7 @@ zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
 	dsl_pool_t *dp;
 	dsl_dataset_t *new, *old;
 	const char *firstsnap;
-	uint64_t used, comp, uncomp;
+	uint64_t used = 0, comp = 0, uncomp = 0;
 
 	firstsnap = fnvlist_lookup_string(innvl, "firstsnap");
 
