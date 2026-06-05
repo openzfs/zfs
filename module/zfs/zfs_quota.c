@@ -86,10 +86,14 @@ zpl_get_file_info(dmu_object_type_t bonustype, const void *data,
 		sa.sa_layout_info = BSWAP_16(sa.sa_layout_info);
 		swap = B_TRUE;
 	}
-	VERIFY3U(sa.sa_magic, ==, SA_MAGIC);
+
+	if (unlikely(sa.sa_magic != SA_MAGIC))
+		return (SET_ERROR(EINVAL));
 
 	int hdrsize = sa_hdrsize(&sa);
-	VERIFY3U(hdrsize, >=, sizeof (sa_hdr_phys_t));
+
+	if (unlikely(hdrsize < sizeof (sa_hdr_phys_t)))
+		return (SET_ERROR(EINVAL));
 
 	uintptr_t data_after_hdr = (uintptr_t)data + hdrsize;
 	zoi->zfi_user = *((uint64_t *)(data_after_hdr + SA_UID_OFFSET));
