@@ -499,7 +499,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
 		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
 		int reclen;
-		char *lrp, *end;
+		char *lrp = NULL, *end = NULL;
 		arc_buf_t *abuf = NULL;
 
 		if (blk_seq > claim_blk_seq)
