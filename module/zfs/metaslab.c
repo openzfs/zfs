@@ -6443,6 +6443,14 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_use_largest_segment, INT, ZMOD_RW,
 	"When looking in size tree, use largest segment instead of exact fit");
 
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_alloc_threshold, U64, ZMOD_RW,
+	"Minimum size which forces the dynamic allocator to change its "
+	"allocation strategy");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_free_pct, UINT, ZMOD_RW,
+	"The minimum free space, in percent, to continue allocations in a "
+	"first-fit fashion");
+
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, max_size_cache_sec, U64,
 	ZMOD_RW, "How long to trust the cached max chunk size of a metaslab");
 

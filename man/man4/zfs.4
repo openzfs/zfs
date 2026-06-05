@@ -390,6 +390,18 @@ this is
 or
 .Em 2*1024 Pq with Sy ashift Ns = Ns Sy 12 .
 .
+.It Sy metaslab_df_alloc_threshold Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
+Minimum size which forces the dynamic allocator to change its allocation
+strategy.
+Once the space map cannot satisfy an allocation of this size, it switches to a
+more aggressive strategy (searching by size rather than offset).
+.
+.It Sy metaslab_df_free_pct Ns = Ns Sy 4 Ns % Pq uint
+The minimum free space, in percent, which must be available in a space map to
+continue allocations in a first-fit fashion.
+Once free space drops below this level, allocations switch to a best-fit
+strategy.
+.
 .It Sy metaslab_df_use_largest_segment Ns = Ns Sy 0 Ns | Ns 1 Pq int
 If not searching forward (due to
 .Sy metaslab_df_max_search , metaslab_df_free_pct ,

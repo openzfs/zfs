@@ -289,32 +289,6 @@ param_set_active_allocator(SYSCTL_HANDLER_ARGS)
 	return (param_set_active_allocator_common(buf));
 }
 
-/*
- * Minimum size which forces the dynamic allocator to change
- * it's allocation strategy.  Once the space map cannot satisfy
- * an allocation of this size then it switches to using more
- * aggressive strategy (i.e search by size rather than offset).
- */
-extern uint64_t metaslab_df_alloc_threshold;
-
-SYSCTL_QUAD(_vfs_zfs_metaslab, OID_AUTO, df_alloc_threshold,
-	CTLFLAG_RWTUN, &metaslab_df_alloc_threshold, 0,
-	"Minimum size which forces the dynamic allocator to change its"
-	" allocation strategy");
-
-/*
- * The minimum free space, in percent, which must be available
- * in a space map to continue allocations in a first-fit fashion.
- * Once the space map's free space drops below this level we dynamically
- * switch to using best-fit allocations.
- */
-extern uint_t metaslab_df_free_pct;
-
-SYSCTL_UINT(_vfs_zfs_metaslab, OID_AUTO, df_free_pct,
-	CTLFLAG_RWTUN, &metaslab_df_free_pct, 0,
-	"The minimum free space, in percent, which must be available in a"
-	" space map to continue allocations in a first-fit fashion");
-
 /* mmp.c */
 
 int
