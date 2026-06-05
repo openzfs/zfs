@@ -3473,15 +3473,26 @@ zfs_ioc_vdev_set_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	ASSERT(spa_writeable(spa));
 
+	/*
+	 * Hold SCL_CONFIG as a reader only across the guid lookup.  It must
+	 * NOT be held across vdev_prop_set(): setting the "allocating" property
+	 * calls spa_vdev_noalloc()/spa_vdev_alloc() -> spa_vdev_enter() ->
+	 * spa_config_enter(spa, SCL_ALL, RW_WRITER).  Acquiring SCL_CONFIG as a
+	 * writer while this same thread already holds it as a reader is a
+	 * self-deadlock: the writer waits for scl_count to drain to 0, but
+	 * scl_count is this thread's own reader, which is never released.
+	 * vdev_prop_set() re-resolves the vdev by guid under its own locking,
+	 * so the reader does not need to span it.
+	 */
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
+	vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	if (vd == NULL) {
 		spa_close(spa, FTAG);
 		return (SET_ERROR(ENOENT));
 	}
 
 	error = vdev_prop_set(vd, innvl, outnvl);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	spa_close(spa, FTAG);
 
