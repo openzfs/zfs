@@ -57,4 +57,8 @@
 #define	unit_ok(a)	munit_assert_int((a), ==, 0)
 #define	unit_err(a, e)	munit_assert_int((a), ==, (e))
 
+/* helpers to generate useful random data */
+extern uint64_t unit_rand_uint64(void);
+extern char *unit_rand_str(char *buf, size_t bufsz);
+
 #endif /* UNIT_H */

@@ -24,6 +24,7 @@
 #include <sys/zfs_debug.h>
 
 #include "munit.h"
+#include "unit.h"
 
 /*
  * SET_ERROR() expands to __set_error() in debug builds. It's an
@@ -82,4 +83,23 @@ cmn_err(int ce, const char *fmt, ...)
 		munit_logf_ex(MUNIT_LOG_INFO, NULL, 0, "%s", buf);
 		break;
 	}
+}
+
+/* helpers to generate useful random data */
+uint64_t
+unit_rand_uint64(void)
+{
+	uint64_t v =
+	    (((uint64_t)munit_rand_uint32()) << 32) |
+	    ((uint64_t)munit_rand_uint32());
+	return (v);
+}
+
+char *
+unit_rand_str(char *buf, size_t bufsz)
+{
+	for (int i = 0; i < bufsz-1; i++)
+		buf[i] = munit_rand_int_range('a', 'z');
+	buf[bufsz-1] = '\0';
+	return (buf);
 }
