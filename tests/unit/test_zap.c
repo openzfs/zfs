@@ -1093,6 +1093,75 @@ test_zap_value_search_mask(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/*
+ * Binary uint64-array keys (ZAP_FLAG_UINT64_KEY), as used by the dedup table
+ * and the block reference table.  Such a ZAP is always a fatzap.  Covers the
+ * uint64-key by-dnode operations: add, lookup, length, lookup_length, update
+ * and remove.
+ */
+static MunitResult
+test_zap_uint64_keys(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	mock_dnode_t *mdn = mock_dnode_create(512, DMU_OTN_ZAP_DATA);
+	dnode_t *dn = (dnode_t *)mdn;
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+	mzap_create_impl(dn, 0, ZAP_FLAG_HASH64 | ZAP_FLAG_UINT64_KEY, tx);
+	unit_true(mock_zap_is_fatzap(dn));
+
+	/* A two-word binary key, as used by the dedup and clone tables. */
+	uint64_t key[2] = { unit_rand_uint64(), unit_rand_uint64() };
+	uint64_t val = 1;
+
+	/* Store a value, then read it back by the same key. */
+	unit_ok(zap_add_uint64_by_dnode(dn, key, 2, sizeof (uint64_t), 1,
+	    &val, tx));
+	uint64_t out = 0;
+	unit_ok(zap_lookup_uint64_by_dnode(dn, key, 2, sizeof (uint64_t), 1,
+	    &out));
+	unit_eq(out, 1);
+
+	/* zap_length reports a value's size without reading it. */
+	uint64_t isz = 0, nint = 0;
+	unit_ok(zap_length_uint64_by_dnode(dn, key, 2, &isz, &nint));
+	unit_eq(isz, sizeof (uint64_t));
+	unit_eq(nint, 1);
+
+	/* zap_lookup_length: the value plus its real element count. */
+	out = 0;
+	uint64_t actual = 0;
+	unit_ok(zap_lookup_length_uint64_by_dnode(dn, key, 2,
+	    sizeof (uint64_t), 1, &out, &actual));
+	unit_eq(out, 1);
+	unit_eq(actual, 1);
+
+	/* zap_update replaces the value for an existing key. */
+	val = 2;
+	unit_ok(zap_update_uint64_by_dnode(dn, key, 2, sizeof (uint64_t), 1,
+	    &val, tx));
+	unit_ok(zap_lookup_uint64_by_dnode(dn, key, 2, sizeof (uint64_t), 1,
+	    &out));
+	unit_eq(out, 2);
+
+	/* A key that was never added is not found. */
+	uint64_t key2[2] = { unit_rand_uint64(), unit_rand_uint64() };
+	unit_err(zap_lookup_uint64_by_dnode(dn, key2, 2, sizeof (uint64_t), 1,
+	    &out), ENOENT);
+
+	/* After removal, the key can no longer be looked up. */
+	unit_ok(zap_remove_uint64_by_dnode(dn, key, 2, tx));
+	unit_err(zap_lookup_uint64_by_dnode(dn, key, 2, sizeof (uint64_t), 1,
+	    &out), ENOENT);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /* Test suite definition and boilerplate. */
 
 #define	UNIT_PARAM_ZAP_TYPES(p)	\
@@ -1126,6 +1195,8 @@ static const MunitTest zap_tests[] = {
 
 	UNIT_TEST("microzap_stats",		test_microzap_stats),
 	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
+
+	UNIT_TEST("uint64_keys",		test_zap_uint64_keys),
 
 	UNIT_TEST_ZAP_TYPES("cursor",		test_cursor),
 	UNIT_TEST_ZAP_TYPES("cursor_serialize",	test_cursor_serialize),
