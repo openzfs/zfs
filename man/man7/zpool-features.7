@@ -18,6 +18,7 @@
 .\" Copyright (c) 2019, 2023, 2024, Klara, Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\" Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
 .\"
 .Dd July 23, 2025
 .Dt ZPOOL-FEATURES 7
@@ -774,6 +775,39 @@ than 128 KiB without also changing the
 module parameter.
 See
 .Xr zfs 4 .
+.
+.feature com.hpe tinyzap no extensible_dataset
+This feature enables the
+.Sy TinyZAP
+on-disk format, a compact variant of MicroZAP that supports multi-word
+values and longer key names without upgrading to a FatZAP.
+.Pp
+Plain MicroZAP entries are limited to a single 8-byte value and a
+50-byte key name.
+TinyZAP extends this by packing entries into fixed-size chunks of 64, 128,
+or 256 bytes.
+The chunk size is chosen automatically the first time an entry is added to
+the ZAP object, based on the size of the value and the length of the key.
+Depending on the chunk size selected, TinyZAP supports values up to
+16 eight-byte words and key names up to 238 bytes.
+.Pp
+Once the chunk size is chosen for a ZAP object it remains fixed.
+A plain MicroZAP is automatically promoted to TinyZAP when the first entry
+does not fit the MicroZAP constraints
+.Pq e.g.\& a value wider than 8 bytes or a key name longer than 50 bytes .
+If a later entry has a different size than the original, the ZAP object is
+upgraded to a FatZAP to accommodate it.
+.Pp
+This feature is not read-only compatible.
+A pool that contains TinyZAP objects cannot be imported by software that
+does not support this feature, even in read-only mode.
+.Pp
+This feature becomes
+.Sy active
+the first time a TinyZAP object is created on the pool.
+It will return to being
+.Sy enabled
+when all TinyZAP objects have been removed or upgraded to FatZAP.
 .
 .feature com.delphix livelist yes extensible_dataset
 This feature allows clones to be deleted faster than the traditional method

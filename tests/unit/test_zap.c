@@ -12,6 +12,7 @@
 
 /*
  * Copyright (c) 2026, TrueNAS.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <stdbool.h>
@@ -67,6 +68,28 @@ mock_zap_create_microzap(void) {
 	return (dn);
 }
 
+/* Create a tinyzap backed by a mock dnode */
+static dnode_t *
+mock_zap_create_tinyzap(void) {
+	/*
+	 * Use a 4096-byte block: with stride=8 and chunk=128 this gives
+	 * (4096-64)/128 = 31 slots, enough for all generic tests (max 26
+	 * entries).  A 512-byte block only gives 3 slots.
+	 */
+	mock_dnode_t *mdn = mock_dnode_create(4096, DMU_OTN_ZAP_DATA);
+	dnode_t *dn = (dnode_t *)mdn;
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+	mzap_create_impl(dn, 0, 0, tx);
+	/* Add a key with long-name to trigger the TinyZAP upgrade path */
+	static const char longkey[] =
+	    "this_is_a_long_key_to_trigger_tiny_zap_upgrade_path";
+	uint64_t v = 0;
+	zap_add_by_dnode(dn, longkey, sizeof (uint64_t), 1, &v, tx);
+	zap_remove_by_dnode(dn, longkey, tx);
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	return (dn);
+}
+
 /* Create a fatzap backed by a mock dnode. */
 static dnode_t *
 mock_zap_create_fatzap(void)
@@ -93,6 +116,15 @@ mock_zap_is_microzap(dnode_t *dn)
 }
 
 static bool
+mock_zap_is_tinyzap(dnode_t *dn)
+{
+	/* check block 0 has a microzap header and tinyzap flag set */
+	const void *blk = mock_dnode_block_data((mock_dnode_t *)dn, 0);
+	return (rd64(blk, 0) == ZBT_MICRO &&
+	    MZAP_IS_TINYZAP((const mzap_phys_t *)blk));
+}
+
+static bool
 mock_zap_is_fatzap(dnode_t *dn)
 {
 	/* check block 0 has a fatzap header */
@@ -116,6 +148,8 @@ mock_zap_create_params(const MunitParameter params[], const char *key) {
 		munit_error("mock_zap_create_params: missing type param");
 	else if (strcmp(type, "micro") == 0)
 		return (mock_zap_create_microzap());
+	else if (strcmp(type, "tiny") == 0)
+		return (mock_zap_create_tinyzap());
 	else if (strcmp(type, "fat") == 0)
 		return (mock_zap_create_fatzap());
 	else
@@ -137,6 +171,8 @@ mock_zap_is_params(dnode_t *dn, const MunitParameter params[],
 		munit_error("mock_zap_is_params: missing type param");
 	else if (strcmp(type, "micro") == 0)
 		return (mock_zap_is_microzap(dn));
+	else if (strcmp(type, "tiny") == 0)
+		return (mock_zap_is_tinyzap(dn));
 	else if (strcmp(type, "fat") == 0)
 		return (mock_zap_is_fatzap(dn));
 	else
@@ -158,6 +194,18 @@ test_mock_microzap_sanity(const MunitParameter params[], void *data)
 
 	dnode_t *dn = mock_zap_create_microzap();
 	unit_true(mock_zap_is_microzap(dn));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_mock_tinyzap_sanity(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	dnode_t *dn = mock_zap_create_tinyzap();
+	unit_true(mock_zap_is_tinyzap(dn));
 	mock_zap_destroy(dn);
 
 	return (MUNIT_OK);
@@ -623,6 +671,45 @@ test_microzap_stats(const MunitParameter params[], void *data)
 }
 
 static MunitResult
+test_tinyzap_stats(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	dnode_t *dn = mock_zap_create_tinyzap();
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	zap_stats_t zs;
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_get_stats_by_dnode(dn, &zs));
+
+	/* We added two entries. */
+	unit_eq(zs.zs_num_entries, 2);
+
+	/* TinyZAP is always a single block. */
+	unit_eq(zs.zs_num_blocks, 1);
+
+	/* Blocksize matches what we passed to mock_dnode_create(). */
+	unit_eq(zs.zs_blocksize, 4096);
+
+	/* True, this is TinyZAP. */
+	unit_true(zs.zs_is_tinyzap);
+
+	/* 1 x uint64 */
+	unit_eq(zs.zs_tinyzap_stride, 8);
+
+	/* smallest chunk for stride=8 */
+	unit_eq(zs.zs_tinyzap_chunk, 128);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_tinyzap(dn));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
 test_fatzap_stats(const MunitParameter params[], void *data)
 {
 	(void) params; (void) data;
@@ -649,6 +736,196 @@ test_fatzap_stats(const MunitParameter params[], void *data)
 	unit_true(mock_zap_is_fatzap(dn));
 	mock_zap_destroy(dn);
 
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
+/* TinyZAP-specific behaviour tests. */
+
+/*
+ * Basic test to cover microzap to tinyzap encoding. Promote a non-empty
+ * MicroZAP (has short-name entries already) with a longname add.
+ */
+static MunitResult
+test_tinyzap_reencode(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	/* 4096-byte block needed for re-encode headroom */
+	mock_dnode_t *mdn = mock_dnode_create(4096, DMU_OTN_ZAP_DATA);
+	dnode_t *dn = (dnode_t *)mdn;
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+	mzap_create_impl(dn, 0, 0, tx);
+
+	/* Pre-populate with short-name MicroZAP entries */
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 1, &v, tx));
+	unit_true(mock_zap_is_microzap(dn));
+
+	/* Long-name add triggers tzap_reencode_micro_to_tiny */
+	static const char longkey[] =
+	    "this_is_a_long_key_to_trigger_tiny_zap_upgrade_path";
+	unit_ok(zap_add_by_dnode(dn, longkey, sizeof (uint64_t), 1, &v, tx));
+
+	/* ZAP must now be TinyZAP, all three entries preserved */
+	unit_true(mock_zap_is_tinyzap(dn));
+	uint64_t r = 0;
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_ok(zap_lookup_by_dnode(dn, "b", sizeof (uint64_t), 1, &r));
+	unit_ok(zap_lookup_by_dnode(dn, longkey, sizeof (uint64_t), 1, &r));
+
+	uint64_t count = 0;
+	unit_ok(zap_count_by_dnode(dn, &count));
+	unit_eq(count, 3);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	mock_zap_destroy(dn);
+	return (MUNIT_OK);
+}
+
+/*
+ * Test to cover the TinyZAP chunk upgrade path.
+ * Start with a small chunk and add a key that doesn't fit, which
+ * should trigger an upgrade to a larger chunk size.
+ */
+static MunitResult
+test_tinyzap_chunk_upgrade(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	/* stride=8, chunk=128 */
+	dnode_t *dn = mock_zap_create_tinyzap();
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Verify starting geometry */
+	zap_stats_t zs;
+	unit_ok(zap_get_stats_by_dnode(dn, &zs));
+	unit_eq(zs.zs_tinyzap_chunk, 128);
+
+	/*
+	 * Key that exceeds TZAP_NAME_LEN(128, 8) = 128-8-4-1 = 115 chars,
+	 * but fits TZAP_NAME_LEN(256, 8) = 256-8-4-1 = 243 chars.
+	 * Use 120-char key.
+	 */
+	char longkey[121];
+	memset(longkey, 'x', 120);
+	longkey[120] = '\0';
+
+	uint64_t v = 42;
+	unit_ok(zap_add_by_dnode(dn, longkey, sizeof (uint64_t), 1, &v, tx));
+
+	/* Chunk must have grown to 256 */
+	unit_ok(zap_get_stats_by_dnode(dn, &zs));
+	unit_eq(zs.zs_tinyzap_chunk, 256);
+	unit_true(mock_zap_is_tinyzap(dn));
+
+	/* Value must be readable back */
+	uint64_t r = 0;
+	unit_ok(zap_lookup_by_dnode(dn, longkey, sizeof (uint64_t), 1, &r));
+	unit_eq(r, 42);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	mock_zap_destroy(dn);
+	return (MUNIT_OK);
+}
+
+/*
+ * Test to cover TinyZAP to FatZAP upgrade path by forcing stride mismatch.
+ * Check if the entries are preserved and the ZAP is upgraded to FatZAP.
+ */
+static MunitResult
+test_tinyzap_to_fatzap(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	dnode_t *dn = mock_zap_create_tinyzap(); /* stamped stride=8 */
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t v = 1;
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 1, &v, tx));
+
+	/*
+	 * Adding num_integers=2 (stride=16) mismatches the stamped stride=8,
+	 * triggering mzap_upgrade() -> tzap_upgrade_entries() -> FatZAP.
+	 */
+	uint64_t val2[2] = { 10, 20 };
+	unit_ok(zap_add_by_dnode(dn, "b", sizeof (uint64_t), 2, val2, tx));
+
+	unit_true(mock_zap_is_fatzap(dn));
+
+	/* Both entries readable via FatZAP */
+	uint64_t r = 0;
+	unit_ok(zap_lookup_by_dnode(dn, "a", sizeof (uint64_t), 1, &r));
+	unit_eq(r, 1);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	mock_zap_destroy(dn);
+	return (MUNIT_OK);
+}
+
+/* Test to cover TinyZAP lookup errors */
+static MunitResult
+test_tinyzap_lookup_errors(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	dnode_t *dn = mock_zap_create_tinyzap();
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t v = 99;
+	unit_ok(zap_add_by_dnode(dn, "k", sizeof (uint64_t), 1, &v, tx));
+
+	/* Wrong integer_size -> EINVAL */
+	uint32_t buf32 = 0;
+	unit_err(zap_lookup_by_dnode(dn, "k",
+	    sizeof (uint32_t), 1, &buf32), EINVAL);
+
+	/* num_integers too small -> EOVERFLOW */
+	/* stride=8 means 1 uint64 stored, requesting 0 */
+	uint64_t buf64 = 0;
+	unit_err(zap_lookup_by_dnode(dn, "k",
+	    sizeof (uint64_t), 0, &buf64), EOVERFLOW);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_tinyzap(dn));
+	mock_zap_destroy(dn);
+	return (MUNIT_OK);
+}
+
+/*
+ * TinyZAP cursor with stride=16 (num_integers=2): confirms tzap_cursor_fill
+ * sets za_num_integers correctly for multi-integer entries.
+ */
+static MunitResult
+test_tinyzap_cursor_multi_int(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+
+	mock_dnode_t *mdn = mock_dnode_create(512, DMU_OTN_ZAP_DATA);
+	dnode_t *dn = (dnode_t *)mdn;
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+	mzap_create_impl(dn, 0, 0, tx);
+
+	/* stride=16: promotes to TinyZAP with num_integers=2 */
+	uint64_t val[2] = { 10, 20 };
+	unit_ok(zap_add_by_dnode(dn, "a", sizeof (uint64_t), 2, val, tx));
+	unit_true(mock_zap_is_tinyzap(dn));
+
+	zap_cursor_t zc;
+	zap_attribute_t *za = zap_attribute_alloc();
+	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
+	unit_ok(zap_cursor_retrieve(&zc, za));
+
+	unit_eq(za->za_integer_length, sizeof (uint64_t));
+	unit_eq(za->za_num_integers, 2);
+	unit_eq(za->za_first_integer, 10);
+
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	mock_zap_destroy(dn);
 	return (MUNIT_OK);
 }
 
@@ -1096,7 +1373,7 @@ test_zap_value_search_mask(const MunitParameter params[], void *data)
 /* Test suite definition and boilerplate. */
 
 #define	UNIT_PARAM_ZAP_TYPES(p)	\
-	UNIT_PARAM((p), "micro", "fat")
+	UNIT_PARAM((p), "micro", "tiny", "fat")
 
 static const MunitParameterEnum zap_type_params[] = {
 	UNIT_PARAM_ZAP_TYPES("type"),
@@ -1108,6 +1385,7 @@ static const MunitParameterEnum zap_type_params[] = {
 
 static const MunitTest zap_tests[] = {
 	UNIT_TEST("mock_microzap_sanity",	test_mock_microzap_sanity),
+	UNIT_TEST("mock_tinyzap_sanity",	test_mock_tinyzap_sanity),
 	UNIT_TEST("mock_fatzap_sanity",		test_mock_fatzap_sanity),
 
 	UNIT_TEST_ZAP_TYPES("zap_basic",	test_zap_basic),
@@ -1125,7 +1403,14 @@ static const MunitTest zap_tests[] = {
 	UNIT_TEST_ZAP_TYPES("zap_int_keys",	test_zap_int_keys),
 
 	UNIT_TEST("microzap_stats",		test_microzap_stats),
+	UNIT_TEST("tinyzap_stats",		test_tinyzap_stats),
 	UNIT_TEST("fatzap_stats",		test_fatzap_stats),
+
+	UNIT_TEST("tinyzap_reencode",		test_tinyzap_reencode),
+	UNIT_TEST("tinyzap_chunk_upgrade",	test_tinyzap_chunk_upgrade),
+	UNIT_TEST("tinyzap_to_fatzap",		test_tinyzap_to_fatzap),
+	UNIT_TEST("tinyzap_lookup_errors",	test_tinyzap_lookup_errors),
+	UNIT_TEST("tinyzap_cursor_multi_int",	test_tinyzap_cursor_multi_int),
 
 	UNIT_TEST_ZAP_TYPES("cursor",		test_cursor),
 	UNIT_TEST_ZAP_TYPES("cursor_serialize",	test_cursor_serialize),

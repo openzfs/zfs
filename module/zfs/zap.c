@@ -27,6 +27,7 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2024, Klara, Inc.
  * Copyright (c) 2026, TrueNAS.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/zfs_context.h>
@@ -36,6 +37,8 @@
 #include <sys/zap.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
+#include <sys/zfeature.h>
+#include <sys/dmu_tx.h>
 
 /* zap_create */
 
@@ -210,6 +213,31 @@ int
 zap_destroy(objset_t *os, uint64_t zapobj, dmu_tx_t *tx)
 {
 	/*
+	 * If this is a TinyZAP object, decrement the feature refcount
+	 * before freeing.  FatZAP upgrade (mzap_upgrade) already handles
+	 * the decrement on upgrade, this covers the direct delete path.
+	 */
+	zap_t *zap;
+	if (zap_lock(os, zapobj, NULL, RW_READER, FALSE, FALSE,
+	    FTAG, &zap) == 0) {
+		if (zap->zap_ismicro && MZAP_IS_TINYZAP(zap_m_phys(zap))) {
+			spa_t *spa = dmu_objset_spa(zap->zap_objset);
+			if (dmu_tx_is_syncing(tx)) {
+				if (spa_feature_is_active(spa,
+				    SPA_FEATURE_TINYZAP))
+					spa_feature_decr(spa,
+					    SPA_FEATURE_TINYZAP, tx);
+			} else {
+				tzap_feature_arg_t *tfa =
+				    kmem_alloc(sizeof (*tfa), KM_SLEEP);
+				tfa->tfa_spa = spa;
+				dmu_tx_callback_register(tx,
+				    tzap_feature_decr_cb, tfa);
+			}
+		}
+		zap_unlock(zap, FTAG);
+	}
+	/*
 	 * dmu_object_free will free the object number and free the
 	 * data.  Freeing the data will cause our pageout function to be
 	 * called, which will destroy our data (zap_leaf_t's and zap_t).
@@ -247,6 +275,10 @@ zap_lookup_norm_by_dnode(dnode_t *dn, const char *name,
 		mzap_ent_t *mze = mze_find(zn, &idx);
 		if (mze == NULL) {
 			err = SET_ERROR(ENOENT);
+		} else if (zap->zap_m.zap_stride != 0) {
+			/* TinyZAP: delegate to tzap_lookup() */
+			err = tzap_lookup(zap, mze, integer_size, num_integers,
+			    buf, realname, rn_len, ncp);
 		} else {
 			if (num_integers < 1) {
 				err = SET_ERROR(EOVERFLOW);
@@ -476,7 +508,12 @@ zap_add_by_dnode(dnode_t *dn, const char *key,
 	if (err != 0)
 		return (err);
 
-	const uint64_t *intval = val;
+	/* if stride is set, the TINY bit must be present on-disk */
+	if (zap->zap_ismicro && zap->zap_m.zap_stride != 0) {
+		ASSERT(MZAP_IS_TINYZAP(zap_m_phys(zap)));
+		ASSERT3U(MZAP_STRIDE(zap_m_phys(zap)), ==,
+		    zap->zap_m.zap_stride);
+	}
 	zap_name_t *zn = zap_name_alloc_str(zap, key, 0);
 	if (zn == NULL) {
 		zap_unlock(zap, FTAG);
@@ -484,19 +521,134 @@ zap_add_by_dnode(dnode_t *dn, const char *key,
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_add(zn, integer_size, num_integers, val, tx);
-	} else if (integer_size != 8 || num_integers != 1 ||
-	    strlen(key) >= MZAP_NAME_LEN ||
-	    !mze_canfit_fzap_leaf(zn, zn->zn_hash)) {
-		err = mzap_upgrade(&zn->zn_zap, tx, 0);
-		if (err == 0) {
-			err = fzap_add(zn, integer_size, num_integers, val, tx);
+		zap = zn->zn_zap;	/* fzap_add() may change zap */
+	} else if (zap->zap_m.zap_stride != 0) {
+		/*
+		 * TinyZAP: Entry must exactly match the stamped stride.
+		 * Any mismatch (different num_integers, key too
+		 * long, or leaf won't fit) forces FatZAP upgrade.
+		 */
+		uint16_t stride = zap->zap_m.zap_stride;
+		uint16_t chunk  = zap->zap_m.zap_chunk_size;
+
+		if (integer_size != 8 ||
+		    num_integers != stride / sizeof (uint64_t)) {
+			/* Stride mismatch or !re-encode upgrade to FatZAP */
+			dprintf("obj %llu: TinyZAP mismatch: "
+			    "intsz=%d numints=%llu keylen=%zu stride=%u "
+			    "chunk=%u upgrading to FatZAP\n",
+			    (u_longlong_t)zap->zap_object, integer_size,
+			    (u_longlong_t)num_integers, strlen(key),
+			    stride, chunk);
+			err = mzap_upgrade(&zn->zn_zap, tx, 0);
+			if (err == 0)
+				err = fzap_add(zn, integer_size, num_integers,
+				    val, tx);
+			zap = zn->zn_zap;	/* fzap_add() may change zap */
+		} else if (strlen(key) >= TZAP_NAME_LEN(chunk, stride)) {
+			if (!tzap_try_chunk_upgrade(zap, stride,
+			    strlen(key), tx)) {
+				/* name too long & no chunk fits, upgrade */
+				err = mzap_upgrade(&zn->zn_zap, tx, 0);
+				if (err == 0)
+					err = fzap_add(zn, integer_size,
+					    num_integers, val, tx);
+				zap = zn->zn_zap;
+			} else {
+				/*
+				 * Chunk upgrade succeeded.  Refresh chunk and
+				 * num_chunks from the updated zap_m fields.
+				 */
+				chunk = zap->zap_m.zap_chunk_size;
+				if (zap->zap_m.zap_num_entries >=
+				    zap->zap_m.zap_num_chunks) {
+					/* full after chunk upgrade, upgrade */
+					err = mzap_upgrade(&zn->zn_zap, tx, 0);
+					if (err == 0)
+						err = fzap_add(zn,
+						    integer_size,
+						    num_integers, val, tx);
+					zap = zn->zn_zap;
+				} else {
+					/* TinyZAP: delegate to tzap_add() */
+					zfs_btree_index_t idx;
+					if (mze_find(zn, &idx) != NULL)
+						err = SET_ERROR(EEXIST);
+					else
+						tzap_addent(zn, val);
+				}
+			}
+		} else if (zap->zap_m.zap_num_entries >=
+		    zap->zap_m.zap_num_chunks) {
+			/* full after possible chunk upgrade -> FatZAP */
+			err = mzap_upgrade(&zn->zn_zap, tx, 0);
+			if (err == 0)
+				err = fzap_add(zn, integer_size,
+				    num_integers, val, tx);
+			zap = zn->zn_zap;
+		} else {
+			/* TinyZAP: delegate to tzap_add() */
+			zfs_btree_index_t idx;
+			if (mze_find(zn, &idx) != NULL)
+				err = SET_ERROR(EEXIST);
+			else
+				tzap_addent(zn, val);
 		}
 	} else {
-		zfs_btree_index_t idx;
-		if (mze_find(zn, &idx) != NULL) {
-			err = SET_ERROR(EEXIST);
+		/*
+		 * Plain MicroZAP: no hint, no stride.
+		 * Fast path: entry fits plain MicroZAP constraints.
+		 *   - integer_size == 8, num_integers == 1
+		 *   - strlen(key) < MZAP_NAME_LEN
+		 *  - leaf can fit the new entry (mze_canfit_fzap_leaf())
+		 */
+		if (integer_size == 8 && num_integers == 1 &&
+		    strlen(key) < MZAP_NAME_LEN &&
+		    mze_canfit_fzap_leaf(zn, zn->zn_hash)) {
+			zfs_btree_index_t idx;
+			if (mze_find(zn, &idx) != NULL) {
+				err = SET_ERROR(EEXIST);
+			} else {
+				mzap_addent(zn, *(const uint64_t *)val);
+			}
 		} else {
-			mzap_addent(zn, *intval);
+			/*
+			 * Entry does not fit plain MicroZAP.
+			 *
+			 * Auto-promotion to TinyZAP:
+			 * stride=8 (long-name trigger): promote even on
+			 * populated ZAP, tzap_reencode_micro_to_tiny()
+			 * re-encodes existing entries.
+			 * tzap_try_promote() validates and stamps the stride
+			 * and chunk size based on the first add geometry.
+			 */
+			uint16_t stride =
+			    (uint16_t)(num_integers * sizeof (uint64_t));
+			boolean_t can_promote = (stride == 8 ||
+			    (zap->zap_m.zap_num_entries == 0));
+
+			if (can_promote &&
+			    tzap_try_promote(zap, integer_size,
+			    num_integers, key, tx)) {
+				zfs_btree_index_t idx;
+				if (mze_find(zn, &idx) != NULL) {
+					err = SET_ERROR(EEXIST);
+				} else {
+					tzap_addent(zn, val);
+				}
+			} else {
+				/*
+				 * tzap_try_promote() failed or ZAP already has
+				 * entries with different geometry.
+				 * Upgrade to FatZAP unconditionally.
+				 */
+				err = mzap_upgrade(&zn->zn_zap, tx, 0);
+				if (err == 0)
+					err = fzap_add(zn, integer_size,
+					    num_integers, val, tx);
+				/* fzap_add() may change zap */
+				zap = zn->zn_zap;
+			}
 		}
 	}
 	ASSERT(zap == zn->zn_zap);
@@ -580,17 +732,94 @@ zap_update_by_dnode(dnode_t *dn, const char *name, int integer_size,
 	}
 	if (!zap->zap_ismicro) {
 		err = fzap_update(zn, integer_size, num_integers, val, tx);
-	} else if (integer_size != 8 || num_integers != 1 ||
+	} else if (zap->zap_m.zap_stride != 0) {
+		/*
+		 * TinyZAP: Update must match the stamped geometry.
+		 * - integer_size must be 8
+		 * - num_integers must equal stride / 8
+		 * - key must fit in TZAP_NAME_LEN(chunk, stride)
+		 * Any mismatch forces a FatZAP upgrade.
+		 */
+		uint16_t stride = zap->zap_m.zap_stride;
+		uint16_t chunk  = zap->zap_m.zap_chunk_size;
+
+		if (integer_size != 8 ||
+		    num_integers != stride / sizeof (uint64_t)) {
+			dprintf("obj %llu: TinyZAP update mismatch: "
+			    "intsz=%d numints=%llu keylen=%zu stride=%u "
+			    "chunk=%u upgrading to FatZAP\n",
+			    (u_longlong_t)dn->dn_object, integer_size,
+			    (u_longlong_t)num_integers, strlen(name),
+			    stride, chunk);
+			err = mzap_upgrade(&zn->zn_zap, tx, 0);
+			if (err == 0)
+				err = fzap_update(zn, integer_size,
+				    num_integers, val, tx);
+			/* fzap_update() may change zap */
+			zap = zn->zn_zap;
+		} else if (strlen(name) >= TZAP_NAME_LEN(chunk, stride) &&
+		    !tzap_try_chunk_upgrade(zap, stride, strlen(name), tx)) {
+			/* name too long & no chunk fits, upgrade to FatZAP */
+			err = mzap_upgrade(&zn->zn_zap, tx, 0);
+			if (err == 0)
+				err = fzap_update(zn, integer_size,
+				    num_integers, val, tx);
+			zap = zn->zn_zap;
+		} else {
+			/* TinyZAP: delegate to tzap_update() */
+			zfs_btree_index_t idx;
+			mzap_ent_t *mze = mze_find(zn, &idx);
+			if (mze != NULL) {
+				/* Overwrite value at TZE slot */
+				memcpy(tze_value(TZE_PHYS(zap, mze)), val,
+				    stride);
+			} else if (zap->zap_m.zap_num_entries >=
+			    zap->zap_m.zap_num_chunks) {
+				/* full after possible chunk upgrade, upgrade */
+				err = mzap_upgrade(&zn->zn_zap, tx, 0);
+				if (err == 0)
+					err = fzap_update(zn, integer_size,
+					    num_integers, val, tx);
+				zap = zn->zn_zap;
+			} else {
+				/* Add new entry */
+				tzap_addent(zn, val);
+			}
+		}
+	} else if ((integer_size != 8 || num_integers != 1) ||
 	    strlen(name) >= MZAP_NAME_LEN) {
-		dprintf("upgrading obj %llu: intsz=%u numint=%llu name=%s\n",
-		    (u_longlong_t)dn->dn_object, integer_size,
-		    (u_longlong_t)num_integers, name);
-		err = mzap_upgrade(&zn->zn_zap, tx, 0);
-		if (err == 0) {
-			err = fzap_update(zn, integer_size, num_integers,
-			    val, tx);
+		uint16_t stride = (uint16_t)(num_integers * sizeof (uint64_t));
+		boolean_t can_promote = (stride == 8 ||
+		    (zap->zap_m.zap_num_entries == 0));
+		if (can_promote &&
+		    tzap_try_promote(zap, integer_size,
+		    num_integers, name, tx)) {
+			/* promote to TinyZAP and delegate to tzap_update() */
+			zfs_btree_index_t idx;
+			mzap_ent_t *mze = mze_find(zn, &idx);
+			if (mze != NULL) {
+				/* Overwrite value at TZE slot */
+				memcpy(tze_value(TZE_PHYS(zap, mze)), val,
+				    stride);
+			} else {
+				/* Add new entry */
+				tzap_addent(zn, val);
+			}
+			zap = zn->zn_zap;
+		} else {
+			/* MicroZAP: entry doesn't fit.  Upgrade to FatZAP */
+			dprintf("upgrading obj %llu: intsz=%d "
+			    "numints=%llu name=%s\n",
+			    (u_longlong_t)dn->dn_object, integer_size,
+			    (u_longlong_t)num_integers, name);
+			err = mzap_upgrade(&zn->zn_zap, tx, 0);
+			if (err == 0)
+				err = fzap_update(zn, integer_size,
+				    num_integers, val, tx);
+			zap = zn->zn_zap;
 		}
 	} else {
+		/* Plain MicroZAP: update/insert directly */
 		zfs_btree_index_t idx;
 		mzap_ent_t *mze = mze_find(zn, &idx);
 		if (mze != NULL) {
@@ -682,10 +911,19 @@ zap_length_by_dnode(dnode_t *dn, const char *name, uint64_t *integer_size,
 		if (mze == NULL) {
 			err = SET_ERROR(ENOENT);
 		} else {
-			if (integer_size)
+			if (integer_size != NULL)
 				*integer_size = 8;
-			if (num_integers)
-				*num_integers = 1;
+			if (num_integers != NULL) {
+				if (zap->zap_m.zap_stride != 0) {
+					/* TinyZAP: variable chunk size */
+					*num_integers =
+					    zap->zap_m.zap_stride /
+					    sizeof (uint64_t);
+				} else {
+					/* Plain MicroZAP: fixed chunk size */
+					*num_integers = 1;
+				}
+			}
 		}
 	}
 	zap_name_free(zn);
@@ -768,7 +1006,15 @@ zap_remove_norm_by_dnode(dnode_t *dn, const char *name, matchtype_t mt,
 			err = SET_ERROR(ENOENT);
 		} else {
 			zap->zap_m.zap_num_entries--;
-			memset(MZE_PHYS(zap, mze), 0, sizeof (mzap_ent_phys_t));
+			if (zap->zap_m.zap_stride != 0) {
+				/* TinyZAP: variable chunk size */
+				memset(TZE_PHYS(zap, mze), 0,
+				    zap->zap_m.zap_chunk_size);
+			} else {
+				/* Plain MicroZAP: fixed chunk size */
+				memset(MZE_PHYS(zap, mze), 0,
+				    sizeof (mzap_ent_phys_t));
+			}
 			zfs_btree_remove_idx(&zap->zap_m.zap_tree, &idx);
 		}
 	}
@@ -1166,16 +1412,26 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			    &idx, &idx);
 		}
 		if (mze) {
-			mzap_ent_phys_t *mzep = MZE_PHYS(zc->zc_zap, mze);
-			ASSERT3U(mze->mze_cd, ==, mzep->mze_cd);
-			za->za_normalization_conflict =
-			    mzap_normalization_conflict(zc->zc_zap, NULL,
-			    mze, &idx);
-			za->za_integer_length = 8;
-			za->za_num_integers = 1;
-			za->za_first_integer = mzep->mze_value;
-			(void) strlcpy(za->za_name, mzep->mze_name,
-			    za->za_name_len);
+			if (zc->zc_zap->zap_m.zap_stride != 0) {
+				/* TinyZAP: variable chunk size */
+				tzap_cursor_fill(zc, mze, za);
+				za->za_normalization_conflict =
+				    mzap_normalization_conflict(zc->zc_zap,
+				    NULL, mze, &idx);
+			} else {
+				/* Plain MicroZAP: fixed chunk size */
+				mzap_ent_phys_t *mzep =
+				    MZE_PHYS(zc->zc_zap, mze);
+				ASSERT3U(mze->mze_cd, ==, mzep->mze_cd);
+				za->za_normalization_conflict =
+				    mzap_normalization_conflict(zc->zc_zap,
+				    NULL, mze, &idx);
+				za->za_integer_length = 8;
+				za->za_num_integers = 1;
+				za->za_first_integer = mzep->mze_value;
+				(void) strlcpy(za->za_name, mzep->mze_name,
+				    za->za_name_len);
+			}
 			zc->zc_hash = (uint64_t)mze->mze_hash << 32;
 			zc->zc_cd = mze->mze_cd;
 			err = 0;
@@ -1235,6 +1491,8 @@ zap_get_stats_by_dnode(dnode_t *dn, zap_stats_t *zs)
 		zs->zs_blocksize = zap->zap_dbuf->db_size;
 		zs->zs_num_entries = zap->zap_m.zap_num_entries;
 		zs->zs_num_blocks = 1;
+		if (MZAP_IS_TINYZAP(zap_m_phys(zap)))
+			tzap_get_stats(zap, zs); /* Populate TinyZAP fields */
 	} else {
 		fzap_get_stats(zap, zs);
 	}
