@@ -34,7 +34,7 @@ jobs:
         sudo modprobe zfs
         sudo dmesg | grep -i zfs
         truncate -s 100M file
-        sudo zpool create tank ./file
+        sudo zpool create tank `pwd`/file
         zpool status
 
         echo "Built ZFS successfully on ARM"
