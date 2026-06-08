@@ -234,7 +234,7 @@ test_zap_basic(const MunitParameter params[], void *data)
 /* ========== */
 
 /*
- * "Core" ZAP API tests. Covers the most basic functionality upon which which
+ * "Core" ZAP API tests. Covers the most basic functionality upon which
  * everything else is built.
  *
  * Note that to avoid microzap upgrade here, we only short keys and
@@ -687,7 +687,7 @@ test_cursor(const MunitParameter params[], void *data)
 	unit_ok(zap_cursor_init_by_dnode(&zc, dn));
 
 	/*
-	 * Cursors don't guarantee an order, so we run over them them all,
+	 * Cursors don't guarantee an order, so we run over them all,
 	 * confirm the key matches the value, and then set a bit for each
 	 * one we've seen. By the end, we should have seen them all.
 	 */
