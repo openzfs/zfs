@@ -51,7 +51,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_deleg.h>
-#include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
@@ -1225,7 +1225,7 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 extern int zfs_xattr_compat;
 
 static int
-zfs_domount(vfs_t *vfsp, char *osname)
+zfs_domount(vfs_t *vfsp, char *osname, bool settime)
 {
 	uint64_t recordsize, fsid_guid;
 	int error = 0;
@@ -1324,6 +1324,16 @@ out:
 		zfsvfs_free(zfsvfs);
 	} else {
 		atomic_inc_32(&zfs_active_fs_count);
+
+		if (settime) {
+			/*
+			 * Update timestamp in mount structure for mountroot to
+			 * update the system clock if we don't have some other
+			 * reasonable notion of the time.
+			 */
+			vfsp->mnt_time = zfsvfs->z_os->os_spa->spa_load_txg_ts;
+		}
+
 	}
 
 	return (error);
@@ -1377,7 +1387,7 @@ zfs_mount(vfs_t *vfsp)
 	char		*osname;
 	int		error = 0;
 	int		canwrite;
-	bool		checkpointrewind, isctlsnap = false;
+	bool		checkpointrewind, isctlsnap = false, settime = false;
 
 	if (vfs_getopt(vfsp->mnt_optnew, "from", (void **)&osname, NULL))
 		return (SET_ERROR(EINVAL));
@@ -1497,9 +1507,11 @@ zfs_mount(vfs_t *vfsp)
 			error = spa_import_rootpool(pname, checkpointrewind);
 		if (error)
 			goto out;
+
+		settime = true;
 	}
 	DROP_GIANT();
-	error = zfs_domount(vfsp, osname);
+	error = zfs_domount(vfsp, osname, settime);
 	PICKUP_GIANT();
 
 out:
