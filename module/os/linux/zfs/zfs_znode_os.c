@@ -1625,9 +1625,13 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, off, len);
 
 	/*
-	 * Zero partial page cache entries.  This must be done under a
-	 * range lock in order to keep the ARC and page cache in sync.
+	 * Once freed in dmu, release the range lock, otherwise,
+	 * there may be dead lock if concurrent
+	 * unlink/fsync/ftruncate/msync happens.
 	 */
+	zfs_rangelock_exit(lr);
+	lr = NULL;
+
 	if (zn_has_cached_data(zp, off, off + len - 1)) {
 		loff_t first_page, last_page, page_len;
 		loff_t first_page_offset, last_page_offset;
@@ -1665,7 +1669,6 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 				    page_len);
 		}
 	}
-	zfs_rangelock_exit(lr);
 
 	return (error);
 }
