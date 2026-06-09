@@ -3457,13 +3457,6 @@ zfs_ioc_vdev_set_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	spa_t *spa;
 	int error;
-	vdev_t *vd;
-	uint64_t vdev_guid;
-
-	/* Early validation */
-	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
-	    &vdev_guid) != 0)
-		return (SET_ERROR(EINVAL));
 
 	if (outnvl == NULL)
 		return (SET_ERROR(EINVAL));
@@ -3473,15 +3466,7 @@ zfs_ioc_vdev_set_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	ASSERT(spa_writeable(spa));
 
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_close(spa, FTAG);
-		return (SET_ERROR(ENOENT));
-	}
-
-	error = vdev_prop_set(vd, innvl, outnvl);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	error = vdev_prop_set(spa, innvl, outnvl);
 
 	spa_close(spa, FTAG);
 
@@ -3506,13 +3491,6 @@ zfs_ioc_vdev_get_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	spa_t *spa;
 	int error;
-	vdev_t *vd;
-	uint64_t vdev_guid;
-
-	/* Early validation */
-	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_GET_VDEV,
-	    &vdev_guid) != 0)
-		return (SET_ERROR(EINVAL));
 
 	if (outnvl == NULL)
 		return (SET_ERROR(EINVAL));
@@ -3520,15 +3498,7 @@ zfs_ioc_vdev_get_props(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	if ((error = spa_open(poolname, &spa, FTAG)) != 0)
 		return (error);
 
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_close(spa, FTAG);
-		return (SET_ERROR(ENOENT));
-	}
-
-	error = vdev_prop_get(vd, innvl, outnvl);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	error = vdev_prop_get(spa, innvl, outnvl);
 
 	spa_close(spa, FTAG);
 
