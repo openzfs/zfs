@@ -6200,21 +6200,13 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 }
 
 int
-vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
+vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	spa_t *spa = vd->vdev_spa;
+	vdev_t *vd;
 	nvpair_t *elem = NULL;
 	uint64_t vdev_guid;
 	nvlist_t *nvprops;
 	int error = 0;
-
-	ASSERT(vd != NULL);
-
-	/* Check that vdev has a zap we can use */
-	if (vd->vdev_root_zap == 0 &&
-	    vd->vdev_top_zap == 0 &&
-	    vd->vdev_leaf_zap == 0)
-		return (SET_ERROR(EINVAL));
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
 	    &vdev_guid) != 0)
@@ -6224,8 +6216,31 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	    &nvprops) != 0)
 		return (SET_ERROR(EINVAL));
 
-	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL)
+	/*
+	 * Resolve the vdev by guid and hold SCL_CONFIG as a reader so the
+	 * vdev tree can't change beneath us while we touch vd.  The lock is
+	 * dropped around the "path" and "allocating" handlers below: those
+	 * descend into spa_vdev_enter() -> spa_config_enter(SCL_ALL,
+	 * RW_WRITER), and taking SCL_CONFIG as a writer while this same
+	 * thread already holds it as a reader is a self-deadlock (the writer
+	 * waits for scl_count to drain to 0, but scl_count is this thread's
+	 * own reader, which is never released).  Those handlers re-resolve
+	 * the vdev by guid under their own locking, so we re-resolve here
+	 * after each one in case the tree changed.
+	 */
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		return (SET_ERROR(ENOENT));
+	}
+
+	/* Check that vdev has a zap we can use */
+	if (vd->vdev_root_zap == 0 &&
+	    vd->vdev_top_zap == 0 &&
+	    vd->vdev_leaf_zap == 0) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		return (SET_ERROR(EINVAL));
+	}
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
 		const char *propname = nvpair_name(elem);
@@ -6259,7 +6274,17 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
+			/*
+			 * spa_vdev_setpath() takes SCL_ALL as a writer, so we
+			 * must not hold SCL_CONFIG across it (see above).  Drop
+			 * it, then re-resolve vd in case the tree changed.
+			 */
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
 			error = spa_vdev_setpath(spa, vdev_guid, strval);
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
+			if (vd == NULL && error == 0)
+				error = SET_ERROR(ENOENT);
 			break;
 		case VDEV_PROP_ALLOCATING:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
@@ -6268,10 +6293,19 @@ vdev_prop_set(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			if (intval != vd->vdev_noalloc)
 				break;
+			/*
+			 * spa_vdev_noalloc()/spa_vdev_alloc() take SCL_ALL as a
+			 * writer; same locking dance as VDEV_PROP_PATH above.
+			 */
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
 			if (intval == 0)
 				error = spa_vdev_noalloc(spa, vdev_guid);
 			else
 				error = spa_vdev_alloc(spa, vdev_guid);
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
+			if (vd == NULL && error == 0)
+				error = SET_ERROR(ENOENT);
 			break;
 		case VDEV_PROP_FAILFAST:
 			if (nvpair_value_uint64(elem, &intval) != 0 ||
@@ -6444,9 +6478,14 @@ end:
 		if (error != 0) {
 			intval = error;
 			vdev_prop_add_list(outnvl, propname, strval, intval, 0);
-			return (error);
+			break;
 		}
 	}
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	if (error != 0)
+		return (error);
 
 	return (dsl_sync_task(spa->spa_name, NULL, vdev_props_set_sync,
 	    innvl, 6, ZFS_SPACE_CHECK_EXTRA_RESERVED));
@@ -6462,10 +6501,10 @@ vdev_get_child_idx(vdev_t *vd, uint64_t c_guid)
 }
 
 int
-vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
+vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
+	vdev_t *vd;
 	int err = 0;
 	uint64_t objid = 0;
 	uint64_t vdev_guid;
@@ -6477,7 +6516,6 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	const char *propname = NULL;
 	vdev_prop_t prop;
 
-	ASSERT(vd != NULL);
 	ASSERT(mos != NULL);
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_GET_VDEV,
@@ -6485,6 +6523,18 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	nvlist_lookup_nvlist(innvl, ZPOOL_VDEV_PROPS_GET_PROPS, &nvprops);
+
+	/*
+	 * Resolve the vdev by guid and hold SCL_CONFIG as a reader across the
+	 * property fetch so the vdev tree can't change beneath us.  This path
+	 * is read-only and never takes SCL_CONFIG as a writer, so holding the
+	 * reader throughout is safe.
+	 */
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		return (SET_ERROR(ENOENT));
+	}
 
 	/*
 	 * A missing ZAP is normal for spare and L2ARC vdevs, which are
@@ -6997,6 +7047,8 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	mutex_exit(&spa->spa_props_lock);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
 	if (err && err != ENOENT) {
 		return (err);
 	}

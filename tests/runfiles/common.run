@@ -575,7 +575,8 @@ tags = ['functional', 'cli_root', 'zpool_scrub']
 tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
     'zpool_set_ashift', 'zpool_set_features', 'zpool_set_inherit',
     'vdev_set_001_pos', 'user_property_001_pos', 'user_property_002_neg',
-    'zpool_set_clear_userprop','vdev_set_scheduler']
+    'zpool_set_clear_userprop','vdev_set_scheduler', 'vdev_set_allocating',
+    'vdev_set_path']
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]
