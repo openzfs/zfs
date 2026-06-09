@@ -14,7 +14,6 @@
  * Copyright (c) 2026, Christos Longros.
  */
 
-#include <stdio.h>
 #include <string.h>
 
 #include <sys/fs/zfs.h>
@@ -56,14 +55,12 @@ check_invalid(namecheck_f fn, const char *name, namecheck_err_t expected)
 	unit_eq(why, expected);
 }
 
-/* A name longer than every namecheck length limit, for the TOOLONG checks. */
-static char *
-long_char(void)
+/* Confirm 'fn' rejects a lengthy name and returns NAME_ERR_TOOLONG. */
+static void
+check_longname_invalid(namecheck_f fn)
 {
-	static char buf[ZFS_MAX_DATASET_NAME_LEN + 16];
-	(void) memset(buf, 'a', sizeof (buf) - 1);
-	buf[sizeof (buf) - 1] = '\0';
-	return (buf);
+	char buf[ZFS_MAX_DATASET_NAME_LEN + 16];
+	check_invalid(fn, unit_rand_str(buf, sizeof (buf)), NAME_ERR_TOOLONG);
 }
 
 /* ========== */
@@ -95,7 +92,7 @@ test_pool_namecheck(const MunitParameter params[], void *data)
 	check_invalid(pool_namecheck, "tank/fs", NAME_ERR_INVALCHAR);
 	check_invalid(pool_namecheck, "tank@snap", NAME_ERR_INVALCHAR);
 
-	check_invalid(pool_namecheck, long_char(), NAME_ERR_TOOLONG);
+	check_longname_invalid(pool_namecheck);
 
 	return (MUNIT_OK);
 }
@@ -107,10 +104,9 @@ test_dataset_namecheck(const MunitParameter params[], void *data)
 	(void) params, (void) data;
 
 	/* A path of random, independently-valid components is accepted. */
-	char a[16], b[16], c[16], path[64];
-	(void) snprintf(path, sizeof (path), "%s/%s/%s",
-	    unit_rand_str(a, sizeof (a)), unit_rand_str(b, sizeof (b)),
-	    unit_rand_str(c, sizeof (c)));
+	char path[64];
+	unit_rand_str(path, sizeof (path));
+	path[20] = path[40] = '/';
 	check_valid(dataset_namecheck, path);
 
 	/* A trailing snapshot is still a valid dataset name. */
@@ -131,7 +127,7 @@ test_dataset_namecheck(const MunitParameter params[], void *data)
 	/* A bookmark delimiter does not belong in a dataset name. */
 	check_invalid(dataset_namecheck, "tank/fs#bm", NAME_ERR_INVALCHAR);
 
-	check_invalid(dataset_namecheck, long_char(), NAME_ERR_TOOLONG);
+	check_longname_invalid(dataset_namecheck);
 
 	return (MUNIT_OK);
 }
@@ -143,9 +139,9 @@ test_snapshot_namecheck(const MunitParameter params[], void *data)
 	(void) params, (void) data;
 
 	/* A random "filesystem@snapshot" pair is valid. */
-	char fs[16], snap[16], path[64];
-	(void) snprintf(path, sizeof (path), "%s@%s",
-	    unit_rand_str(fs, sizeof (fs)), unit_rand_str(snap, sizeof (snap)));
+	char path[64];
+	unit_rand_str(path, sizeof (path));
+	path[40] = '@';
 	check_valid(snapshot_namecheck, path);
 
 	/* Without an '@' it is not a snapshot. */
@@ -169,9 +165,9 @@ test_bookmark_namecheck(const MunitParameter params[], void *data)
 	(void) params, (void) data;
 
 	/* A random "filesystem#bookmark" pair is valid. */
-	char fs[16], mark[16], path[64];
-	(void) snprintf(path, sizeof (path), "%s#%s",
-	    unit_rand_str(fs, sizeof (fs)), unit_rand_str(mark, sizeof (mark)));
+	char path[64];
+	unit_rand_str(path, sizeof (path));
+	path[40] = '#';
 	check_valid(bookmark_namecheck, path);
 
 	/* Without a '#' it is not a bookmark. */
@@ -197,8 +193,7 @@ test_component_namecheck(const MunitParameter params[], void *data)
 	/* A single component cannot contain a path separator. */
 	check_invalid(zfs_component_namecheck, "a/b", NAME_ERR_INVALCHAR);
 
-	check_invalid(zfs_component_namecheck, long_char(),
-	    NAME_ERR_TOOLONG);
+	check_longname_invalid(zfs_component_namecheck);
 
 	return (MUNIT_OK);
 }
@@ -222,7 +217,7 @@ test_permset_namecheck(const MunitParameter params[], void *data)
 	check_invalid(permset_namecheck, "@bad/name", NAME_ERR_INVALCHAR);
 
 	/* The length upper limit is checked ahead of everything else. */
-	check_invalid(permset_namecheck, long_char(), NAME_ERR_TOOLONG);
+	check_longname_invalid(permset_namecheck);
 
 	return (MUNIT_OK);
 }
@@ -236,9 +231,9 @@ test_mountpoint_namecheck(const MunitParameter params[], void *data)
 	namecheck_err_t why = (namecheck_err_t)-1;
 
 	/* An absolute path with a random component is accepted. */
-	char comp[16], path[64];
-	(void) snprintf(path, sizeof (path), "/%s",
-	    unit_rand_str(comp, sizeof (comp)));
+	char path[64];
+	unit_rand_str(path, sizeof (path));
+	path[0] = '/';
 	unit_ok(mountpoint_namecheck(path, &why));
 
 	/* The root mountpoint is valid. */
@@ -280,14 +275,12 @@ test_dataset_depth(const MunitParameter params[], void *data)
 
 	/*
 	 * dataset_nestcheck() passes while the depth is under the limit and
-	 * fails once it reaches it.  We drop the limit to a small value so we
-	 * can test it and then restore it.
+	 * fails once it reaches it.  zfs_max_dataset_nesting is a tunable that
+	 * can be adjusted to the desired nesting.
 	 */
-	int limit = zfs_max_dataset_nesting;
 	zfs_max_dataset_nesting = 2;
 	unit_ok(dataset_nestcheck("a/b"));		/* depth 1, under 2 */
 	unit_err(dataset_nestcheck("a/b/c"), -1);	/* depth 2, at 2   */
-	zfs_max_dataset_nesting = limit;
 
 	return (MUNIT_OK);
 }
