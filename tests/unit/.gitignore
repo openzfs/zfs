@@ -2,3 +2,4 @@
 /test_*_coverage
 
 /test_zap
+/test_namecheck
