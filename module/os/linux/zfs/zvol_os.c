@@ -42,6 +42,9 @@
 #include <sys/zvol_impl.h>
 #include <cityhash.h>
 
+#include <sys/abd.h>
+#include <sys/dmu_impl.h>
+
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>
 #include <linux/workqueue.h>
@@ -60,6 +63,18 @@ static unsigned int zvol_open_timeout_ms = 1000;
 static unsigned int zvol_blk_mq_threads = 0;
 static unsigned int zvol_blk_mq_actual_threads;
 static boolean_t zvol_use_blk_mq = B_FALSE;
+
+/*
+ * Enable Direct I/O for zvols. When enabled, page-aligned reads and
+ * block-aligned writes will bypass the ARC and DMA directly into/from
+ * the bio_vec pages, avoiding the kmap+memcpy overhead.
+ *
+ * This is particularly beneficial for high-bandwidth NVMe-oF workloads
+ * where the CPU memcpy bottleneck limits throughput.
+ *
+ * Default: 0 (disabled) for safety. Set to 1 to enable.
+ */
+static unsigned int zvol_dio_enabled = 0;
 
 /*
  * The maximum number of volblocksize blocks to process per thread.  Typically,
@@ -188,6 +203,272 @@ zvol_os_is_zvol(const char *path)
 	return (B_FALSE);
 }
 
+/*
+ * Extract an array of struct page pointers from a bio or request's
+ * bio_vec entries for use with abd_alloc_from_pages().
+ *
+ * The caller must free the returned array with kmem_free().
+ * The individual pages are NOT refcounted here — they are owned by the
+ * bio/request and must remain valid for the duration of the I/O.
+ *
+ * Returns NULL on error, or a kmem_alloc'd array of npages_out pages.
+ * Sets *page_offset to the byte offset within the first page.
+ */
+static struct page **
+zvol_dio_get_pages(struct bio *bio, struct request *rq,
+    uint64_t offset, uint64_t size, uint_t *npages_out, size_t *page_offset)
+{
+	uint_t total_npages = DIV_ROUND_UP(size, PAGE_SIZE);
+	struct page **pages;
+	uint_t idx = 0;
+
+	pages = kmem_alloc(total_npages * sizeof (struct page *), KM_SLEEP);
+
+	*page_offset = offset & (PAGE_SIZE - 1);
+
+	if (bio) {
+		struct bio_vec bv;
+		struct bvec_iter iter;
+		uint64_t remaining = size;
+		uint64_t cur_off = io_offset(bio, NULL);
+
+		bio_for_each_segment(bv, bio, iter) {
+			if (remaining == 0)
+				break;
+
+			uint64_t seg_end = cur_off + bv.bv_len;
+
+			/* Skip segments before our range */
+			if (offset >= seg_end) {
+				cur_off = seg_end;
+				continue;
+			}
+
+			/* Calculate overlap between segment and our range */
+			uint64_t seg_offset = (offset > cur_off) ?
+			    (offset - cur_off) : 0;
+			uint64_t seg_len = MIN(bv.bv_len - seg_offset,
+			    remaining);
+
+			if (seg_len == 0) {
+				cur_off = seg_end;
+				continue;
+			}
+
+			uint_t poff = (bv.bv_offset + seg_offset) >>
+			    PAGE_SHIFT;
+			uint_t pcnt = DIV_ROUND_UP(
+			    ((bv.bv_offset + seg_offset) & (PAGE_SIZE - 1)) +
+			    seg_len, PAGE_SIZE);
+
+			for (uint_t j = 0; j < pcnt; j++) {
+				ASSERT3U(idx, <, total_npages);
+				pages[idx++] = bv.bv_page + poff + j;
+			}
+
+			remaining -= seg_len;
+			offset += seg_len;
+			cur_off = seg_end;
+		}
+	} else {
+		ASSERT3P(rq, !=, NULL);
+		struct bio_vec bv;
+		struct req_iterator iter;
+		uint64_t remaining = size;
+		uint64_t cur_off = io_offset(NULL, rq);
+
+		rq_for_each_segment(bv, rq, iter) {
+			if (remaining == 0)
+				break;
+
+			uint64_t seg_end = cur_off + bv.bv_len;
+
+			/* Skip segments before our range */
+			if (offset >= seg_end) {
+				cur_off = seg_end;
+				continue;
+			}
+
+			/* Calculate overlap between segment and our range */
+			uint64_t seg_offset = (offset > cur_off) ?
+			    (offset - cur_off) : 0;
+			uint64_t seg_len = MIN(bv.bv_len - seg_offset,
+			    remaining);
+
+			if (seg_len == 0) {
+				cur_off = seg_end;
+				continue;
+			}
+
+			uint_t poff = (bv.bv_offset + seg_offset) >>
+			    PAGE_SHIFT;
+			uint_t pcnt = DIV_ROUND_UP(
+			    ((bv.bv_offset + seg_offset) & (PAGE_SIZE - 1)) +
+			    seg_len, PAGE_SIZE);
+
+			for (uint_t j = 0; j < pcnt; j++) {
+				ASSERT3U(idx, <, total_npages);
+				pages[idx++] = bv.bv_page + poff + j;
+			}
+
+			remaining -= seg_len;
+			offset += seg_len;
+			cur_off = seg_end;
+		}
+	}
+
+	ASSERT3U(idx, ==, total_npages);
+	*npages_out = total_npages;
+	return (pages);
+}
+
+/*
+ * Perform a Direct I/O read on a zvol, bypassing the ARC.
+ *
+ * Extracts struct page pointers from the bio or request's bio_vec,
+ * creates an ABD that references them directly, and issues a DMA
+ * read from the vdevs straight into the bio pages.
+ *
+ * On success, the uio is advanced by 'bytes'.
+ */
+static int
+zvol_dio_read(zvol_state_t *zv, struct bio *bio, struct request *rq,
+    zfs_uio_t *uio, uint64_t bytes)
+{
+	uint64_t offset = zfs_uio_offset(uio);
+	uint_t npages;
+	size_t page_offset;
+	int error;
+
+	struct page **pages = zvol_dio_get_pages(bio, rq, offset, bytes,
+	    &npages, &page_offset);
+	if (pages == NULL)
+		return (SET_ERROR(ENOMEM));
+
+	abd_t *abd = abd_alloc_from_pages(pages, page_offset, bytes);
+	if (abd == NULL) {
+		kmem_free(pages, npages * sizeof (struct page *));
+		return (SET_ERROR(ENOMEM));
+	}
+
+	/*
+	 * dmu_read_abd() will DMA data directly into the ABD pages.
+	 * On ARC hit (cached data), it does a copy from the ARC buffer
+	 * into the ABD (abd_copy_from_buf_off). This is still faster
+	 * than the kmap+memcpy path because it operates on whole pages.
+	 */
+	error = dmu_read_abd(zv->zv_dn, offset, bytes, abd, DMU_DIRECTIO);
+
+	abd_free(abd);
+	kmem_free(pages, npages * sizeof (struct page *));
+
+	if (error == 0)
+		zfs_uioskip(uio, bytes);
+
+	return (error);
+}
+
+/*
+ * Perform a Direct I/O write on a zvol, bypassing the ARC.
+ *
+ * Extracts pages from the bio/request, creates an ABD, and writes
+ * the data directly to disk via dmu_write_abd(). This is a synchronous
+ * write — it waits for the I/O to complete before returning.
+ */
+static int
+zvol_dio_write(zvol_state_t *zv, struct bio *bio, struct request *rq,
+    zfs_uio_t *uio, uint64_t bytes, dmu_tx_t *tx)
+{
+	uint64_t offset = zfs_uio_offset(uio);
+	uint_t npages;
+	size_t page_offset;
+	int error;
+
+	struct page **pages = zvol_dio_get_pages(bio, rq, offset, bytes,
+	    &npages, &page_offset);
+	if (pages == NULL)
+		return (SET_ERROR(ENOMEM));
+
+	abd_t *abd = abd_alloc_from_pages(pages, page_offset, bytes);
+	if (abd == NULL) {
+		kmem_free(pages, npages * sizeof (struct page *));
+		return (SET_ERROR(ENOMEM));
+	}
+
+	error = dmu_write_abd(zv->zv_dn, offset, bytes, abd, DMU_DIRECTIO, tx);
+
+	abd_free(abd);
+	kmem_free(pages, npages * sizeof (struct page *));
+
+	if (error == 0)
+		zfs_uioskip(uio, bytes);
+
+	return (error);
+}
+
+/*
+ * Determine if a zvol read can use the Direct I/O path.
+ *
+ * Requirements:
+ * - Direct I/O must be enabled (zvol_dio_enabled)
+ * - The I/O must be page-aligned in memory (bio page alignment)
+ * - The I/O file offset must be page-aligned
+ * - The I/O size must be > 0
+ */
+static boolean_t
+zvol_dio_can_read(zvol_state_t *zv, zfs_uio_t *uio, uint64_t size)
+{
+	if (!zvol_dio_enabled)
+		return (B_FALSE);
+
+	if (size == 0)
+		return (B_FALSE);
+
+	/*
+	 * For Direct I/O reads, we require the I/O to be page-aligned
+	 * both in memory and in file offset.  While dmu_read_abd() can
+	 * handle unaligned file offsets internally, abd_alloc_from_pages()
+	 * on Linux requires a zero page_offset for multi-chunk scatter
+	 * ABDs, so we restrict to fully page-aligned I/O.
+	 */
+	if (!zfs_uio_page_aligned(uio))
+		return (B_FALSE);
+
+	if (!IS_P2ALIGNED(zfs_uio_offset(uio), PAGE_SIZE))
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
+/*
+ * Determine if a zvol write chunk can use the Direct I/O path.
+ *
+ * Requirements:
+ * - Direct I/O must be enabled
+ * - The write must be block-aligned (volblocksize)
+ * - The write must be at least one full volblocksize
+ */
+static boolean_t
+zvol_dio_can_write(zvol_state_t *zv, zfs_uio_t *uio, uint64_t size)
+{
+	if (!zvol_dio_enabled)
+		return (B_FALSE);
+
+	if (size < zv->zv_volblocksize)
+		return (B_FALSE);
+
+	if (!IS_P2ALIGNED(zfs_uio_offset(uio), zv->zv_volblocksize))
+		return (B_FALSE);
+
+	if (!IS_P2ALIGNED(size, zv->zv_volblocksize))
+		return (B_FALSE);
+
+	if (!zfs_uio_page_aligned(uio))
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
 static void
 zvol_write(zv_request_t *zvr)
 {
@@ -264,8 +545,20 @@ zvol_write(zv_request_t *zvr)
 			dmu_tx_abort(tx);
 			break;
 		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
-		    DMU_READ_PREFETCH);
+
+		/*
+		 * Try Direct I/O for block-aligned writes. This bypasses
+		 * the ARC and writes directly to disk, avoiding the
+		 * kmap+memcpy overhead of copying bio pages into ARC.
+		 */
+		if (zvol_dio_can_write(zv, &uio, bytes)) {
+			error = zvol_dio_write(zv, zvr->bio, zvr->rq,
+			    &uio, bytes, tx);
+		} else {
+			error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
+			    DMU_READ_PREFETCH);
+		}
+
 		if (error == 0) {
 			zvol_log_write(zv, tx, off, bytes, sync);
 		}
@@ -426,6 +719,46 @@ zvol_read(zv_request_t *zvr)
 
 	uint64_t volsize = zv->zv_volsize;
 
+	/*
+	 * Try Direct I/O first.  Process the request in DMU_MAX_ACCESS/2
+	 * chunks (same as the ARC path) because abd_alloc_from_pages()
+	 * limits size to DMU_MAX_ACCESS, and large single allocations
+	 * are wasteful.  On checksum error, fall back to the ARC path.
+	 *
+	 * Fall back to the ARC path if:
+	 * - Direct I/O is disabled (zvol_dio_enabled=0)
+	 * - The request is not page-aligned
+	 * - The Direct I/O read fails (e.g. checksum error)
+	 */
+	if (zvol_dio_can_read(zv, &uio, uio.uio_resid)) {
+		boolean_t dio_failed = B_FALSE;
+
+		while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
+			uint64_t bytes = MIN(uio.uio_resid,
+			    DMU_MAX_ACCESS >> 1);
+
+			if (bytes > volsize - uio.uio_loffset)
+				bytes = volsize - uio.uio_loffset;
+
+			error = zvol_dio_read(zv, zvr->bio, zvr->rq,
+			    &uio, bytes);
+			if (error != 0) {
+				dio_failed = B_TRUE;
+				break;
+			}
+		}
+
+		if (!dio_failed)
+			goto read_done;
+
+		/*
+		 * If Direct I/O failed, reset the uio and fall through
+		 * to the ARC path. For checksum errors, the ARC path
+		 * will retry safely.
+		 */
+		zfs_uio_bvec_init(&uio, bio, rq);
+	}
+
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 
@@ -442,6 +775,7 @@ zvol_read(zv_request_t *zvr)
 			break;
 		}
 	}
+read_done:
 	zfs_rangelock_exit(lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
@@ -1896,6 +2230,10 @@ MODULE_PARM_DESC(zvol_use_blk_mq, "Use the blk-mq API for zvols");
 module_param(zvol_blk_mq_blocks_per_thread, uint, 0644);
 MODULE_PARM_DESC(zvol_blk_mq_blocks_per_thread,
 	"Process volblocksize blocks per thread");
+
+module_param(zvol_dio_enabled, uint, 0644);
+MODULE_PARM_DESC(zvol_dio_enabled,
+	"Enable Direct I/O for zvols (bypass ARC for page-aligned I/O)");
 
 #ifndef HAVE_BLKDEV_GET_ERESTARTSYS
 module_param(zvol_open_timeout_ms, uint, 0644);

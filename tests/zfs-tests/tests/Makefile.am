@@ -2450,6 +2450,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_misc/zvol_misc_005_neg.ksh \
 	functional/zvol/zvol_misc/zvol_misc_006_pos.ksh \
 	functional/zvol/zvol_misc/zvol_misc_fua.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_unaligned.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_stress.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_zil.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_blk_mq.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_freebsd.ksh \
 	functional/zvol/zvol_misc/zvol_misc_hierarchy.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_inuse.ksh \
 	functional/zvol/zvol_misc/zvol_misc_snapdev.ksh \
