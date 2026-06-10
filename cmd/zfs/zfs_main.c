@@ -410,11 +410,14 @@ get_usage(zfs_help_t idx)
 		    "\tproject -C [-k] [-r] <directory ...>\n"
 		    "\tproject [-p id] [-r] [-s] <directory ...>\n"));
 	case HELP_HOLD:
-		return (gettext("\thold [-r] <tag> <snapshot> ...\n"));
+		return (gettext("\thold [-r] <tag> "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_HOLDS:
-		return (gettext("\tholds [-rHp] <snapshot> ...\n"));
+		return (gettext("\tholds [-rHp] "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_RELEASE:
-		return (gettext("\trelease [-r] <tag> <snapshot> ...\n"));
+		return (gettext("\trelease [-r] <tag> "
+		    "<filesystem|volume|snapshot> ...\n"));
 	case HELP_DIFF:
 		return (gettext("\tdiff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
@@ -6677,6 +6680,63 @@ zfs_do_unallow(int argc, char **argv)
 	return (zfs_do_allow_unallow_impl(argc, argv, B_TRUE));
 }
 
+typedef struct dataset_hold_arg {
+	nvlist_t	*nvl;
+	const char	*tag;
+	boolean_t	holding;
+	boolean_t	recursive;
+} dataset_hold_arg_t;
+
+static int
+zfs_dataset_hold_rele_one(zfs_handle_t *zhp, void *arg)
+{
+	dataset_hold_arg_t *ha = arg;
+	int rv = 0;
+	const char *name = zfs_get_name(zhp);
+
+	if (ha->holding) {
+		fnvlist_add_string(ha->nvl, name, ha->tag);
+	} else {
+		nvlist_t *torelease = fnvlist_alloc();
+		fnvlist_add_boolean(torelease, ha->tag);
+		fnvlist_add_nvlist(ha->nvl, name, torelease);
+		fnvlist_free(torelease);
+	}
+
+	if (ha->recursive)
+		rv = zfs_iter_filesystems_v2(zhp, 0,
+		    zfs_dataset_hold_rele_one, ha);
+	zfs_close(zhp);
+	return (rv);
+}
+
+static int
+zfs_dataset_hold_rele_recurse(zfs_handle_t *zhp, const char *tag,
+    boolean_t holding, boolean_t recursive)
+{
+	dataset_hold_arg_t ha = {
+		.nvl = fnvlist_alloc(),
+		.tag = tag,
+		.holding = holding,
+		.recursive = recursive,
+	};
+	int ret;
+
+	ret = zfs_dataset_hold_rele_one(zfs_handle_dup(zhp), &ha);
+	if (ret != 0) {
+		fnvlist_free(ha.nvl);
+		return (ret);
+	}
+
+	if (holding)
+		ret = zfs_hold_nvl(zhp, -1, ha.nvl);
+	else
+		ret = lzc_release(ha.nvl, NULL);
+
+	fnvlist_free(ha.nvl);
+	return (ret);
+}
+
 static int
 zfs_do_hold_rele_impl(int argc, char **argv, boolean_t holding)
 {
@@ -6725,9 +6785,16 @@ zfs_do_hold_rele_impl(int argc, char **argv, boolean_t holding)
 
 		delim = strchr(path, '@');
 		if (delim == NULL) {
-			(void) fprintf(stderr,
-			    gettext("'%s' is not a snapshot\n"), path);
-			++errors;
+			zhp = zfs_open(g_zfs, path,
+			    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+			if (zhp == NULL) {
+				++errors;
+				continue;
+			}
+			if (zfs_dataset_hold_rele_recurse(zhp, tag, holding,
+			    recursive) != 0)
+				++errors;
+			zfs_close(zhp);
 			continue;
 		}
 		(void) strlcpy(parent, path, MIN(sizeof (parent),
@@ -6865,7 +6932,7 @@ holds_callback(zfs_handle_t *zhp, void *data)
 	const char *zname = zfs_get_name(zhp);
 	size_t znamelen = strlen(zname);
 
-	if (cbp->cb_recursive) {
+	if (cbp->cb_recursive && cbp->cb_snapname != NULL) {
 		const char *snapname;
 		const char *delim  = strchr(zname, '@');
 		if (delim == NULL)
@@ -6893,9 +6960,9 @@ holds_callback(zfs_handle_t *zhp, void *data)
 }
 
 /*
- * zfs holds [-rHp] <snap> ...
+ * zfs holds [-rHp] <filesystem|volume|snapshot> ...
  *
- *	-r	Lists holds that are set on the named snapshots recursively.
+ *	-r	Lists holds that are set on the named datasets recursively.
  *	-H	Scripted mode; elide headers and separate columns by tabs.
  *	-p	Display values in parsable (literal) format.
  */
@@ -6955,9 +7022,14 @@ zfs_do_holds(int argc, char **argv)
 
 		delim = strchr(snapshot, '@');
 		if (delim == NULL) {
-			(void) fprintf(stderr,
-			    gettext("'%s' is not a snapshot\n"), snapshot);
-			errors = B_TRUE;
+			cb.cb_recursive = recursive;
+			cb.cb_snapname = NULL;
+			cb.cb_nvlp = &nvl;
+			ret = zfs_for_each(1, argv + i, flags,
+			    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+			    NULL, NULL, limit, holds_callback, &cb);
+			if (ret != 0)
+				errors = B_TRUE;
 			continue;
 		}
 		snapname = delim + 1;

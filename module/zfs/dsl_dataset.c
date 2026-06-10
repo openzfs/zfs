@@ -676,13 +676,14 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
 		} else {
 			if (zfs_flags & ZFS_DEBUG_SNAPNAMES)
 				err = dsl_dataset_get_snapname(ds);
-			if (err == 0 &&
-			    dsl_dataset_phys(ds)->ds_userrefs_obj != 0) {
-				err = zap_count(
-				    ds->ds_dir->dd_pool->dp_meta_objset,
-				    dsl_dataset_phys(ds)->ds_userrefs_obj,
-				    &ds->ds_userrefs);
-			}
+		}
+
+		if (err == 0 &&
+		    dsl_dataset_phys(ds)->ds_userrefs_obj != 0) {
+			err = zap_count(
+			    ds->ds_dir->dd_pool->dp_meta_objset,
+			    dsl_dataset_phys(ds)->ds_userrefs_obj,
+			    &ds->ds_userrefs);
 		}
 
 		if (err == 0 && !ds->ds_is_snapshot) {
