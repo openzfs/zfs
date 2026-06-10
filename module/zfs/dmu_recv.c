@@ -520,6 +520,14 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 			return (SET_ERROR(EEXIST));
 
 		/*
+		 * If we're about to destroy a dataset, then there must not be
+		 * any long holds on it. For a filesystem, that likely means it
+		 * is still mounted somewhere.
+		 */
+		if (dsl_dataset_long_held(ds))
+			return (SET_ERROR(EBUSY));
+
+		/*
 		 * We don't support using zfs recv -F to blow away
 		 * encrypted filesystems. This would require the
 		 * dsl dir to point to the old encryption key and
