@@ -112,6 +112,9 @@ fi
 sudo modprobe loop
 sudo modprobe zfs
 
+lsblk
+df -h
+
 if [ -e /dev/disk/cloud/azure_resource-part1 ] ; then
   echo "We have two 75GB block devices"
   # partition the disk as needed

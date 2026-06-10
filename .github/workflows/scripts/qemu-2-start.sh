@@ -8,6 +8,18 @@ set -eu
 
 # short name used in zfs-qemu.yml
 OS="$1"
+CHECK=0
+
+if [ "$#" -eq 2 ]; then
+  shift
+
+  if [ "$1" == "--check" ] ; then
+    CHECK=1
+  else
+    echo "Unknown option $1"
+    exit 1
+  fi
+fi
 
 # OS variant (virt-install --os-variant list)
 OSv=$OS
@@ -188,33 +200,37 @@ echo "VMs=\"$VMs\"" >> $ENV
 CPU=2
 echo "CPU=\"$CPU\"" >> $ENV
 
-sudo mkdir -p "/mnt/tests"
-sudo chown -R $(whoami) /mnt/tests
-
-DISK="/dev/zvol/zpool/openzfs"
-sudo zfs create -ps -b 64k -V 80g zpool/openzfs
-while true; do test -b $DISK && break; sleep 1; done
+# Check that the URL is valid by downloading the headers but
+# don't actually download the image.
+if [ $CHECK -eq 1 ]; then
+  cmds=("curl --fail --retry 3 --connect-timeout 5 --max-time 5 -ILSs -o")
+else
+  cmds=("axel -q -o" "curl --fail -LSs -o")
+fi
 
 # We first try to download with 'axel', which is faster than curl, but fallback
 # to curl if that doesn't work.  It is hoped that the curl fallback will get
 # around the occasional "ERROR 502: Bad Gateway" errors.
-IMG="/mnt/tests/cloud-image"
-for cmd in 'axel -q -o' 'curl --fail -LSs -o' ; do
-  if [ ! -z "$URLxz" ]; then
-    echo "Loading $URLxz with $cmd..."
-    time eval "$cmd $IMG $URLxz" || true
+IMG="/var/tmp/cloud-image"
+SRC="/var/tmp/src.txz"
 
-    if [ ! -s ~/src.txz ] ; then
-      echo "Loading $KSRC with $cmd..."
-      time eval "$cmd ~/src.txz $KSRC" || true
+for cmd in "${cmds[@]}" ; do
+  rm -f $IMG $SRC
+
+  if [ ! -z "$URLxz" ]; then
+    echo "$OS: $cmd $IMG $URLxz"
+    $cmd $IMG $URLxz || rm -f $IMG
+
+    if [ ! -s "$SRC" ] ; then
+      echo "$OS: $cmd $SRC $KSRC"
+      $cmd $SRC $KSRC || rm -f $SRC
     fi
   else
-    echo "Loading $URL with $cmd..."
-    time eval "$cmd $IMG $URL" || true
+    echo "$OS: $cmd $IMG $URL"
+    $cmd $IMG $URL || rm -f $IMG
   fi
 
   if [ -s "$IMG" ] ; then
-    # Successful download
     break
   else
     if [ -n "$ALT_URL" ] ; then
@@ -246,11 +262,41 @@ if [ ! -z "$URLxz" ] && [ ! -s "$IMG" ] ; then
   URLxz=$(wget --accept "*.raw.xz" --spider -np --recursive  --no-verbose \
     $(dirname $(dirname $URLxz)) 2>&1  | awk '/200 OK/{print $(NF-2)}' | \
     sort -n | tail -n 1)
-  echo "Couldn't download FreeBSD raw.xz.  Trying fallback snapshot $URLxz"
-  curl --fail -LSs -o $IMG $URLxz
+
+  if [ -n "$URLxz" ] ; then
+    echo "$OS: Couldn't download FreeBSD raw.xz. Trying fallback snapshot $URLxz"
+    if [ $CHECK -eq 1 ] ; then
+      ${cmds[0]} $IMG $URLxz || rm -f $IMG
+    else
+      ${cmds[1]} $IMG $URLxz || rm -f $IMG
+    fi
+  else
+    echo "$OS: Couldn't download FreeBSD raw.xz. No fallback snapshot found"
+    rm -f "$IMG"
+  fi
 fi
 
-echo "Importing VM image to zvol..."
+if [ -s "$IMG" ] ; then
+  echo "$OS: Downloaded CI image successfully"
+else
+  echo "$OS: Download of CI image failed"
+  rm -f $IMG $SRC
+  exit 1
+fi
+
+if [ $CHECK -eq 1 ] ; then
+  rm -f $IMG $SRC
+  exit 0
+fi
+
+sudo mkdir -p "/mnt/tests"
+sudo chown -R $(whoami) /mnt/tests
+
+DISK="/dev/zvol/zpool/openzfs"
+sudo zfs create -ps -b 64k -V 80g zpool/openzfs
+while true; do test -b $DISK && break; sleep 1; done
+
+echo "$OS: Importing VM image to zvol..."
 if [ ! -z "$URLxz" ]; then
   xzcat -T0 $IMG | sudo dd of=$DISK bs=4M
 else
@@ -360,7 +406,7 @@ else
   scp ~/.ssh/id_ed25519.pub "root@vm0:~zfs/.ssh/authorized_keys"
   ssh root@vm0 'chown -R zfs ~zfs'
   ssh root@vm0 'service sshd restart'
-  scp ~/src.txz "root@vm0:/tmp/src.txz"
+  scp $SRC "root@vm0:/tmp/src.txz"
   ssh root@vm0 'tar -C / -zxf /tmp/src.txz'
 fi
 
