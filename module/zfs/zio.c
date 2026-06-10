@@ -681,8 +681,10 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 	return;
 
 error:
-	/* assert that the key was found unless this was speculative */
-	ASSERT(ret != EACCES || (zio->io_flags & ZIO_FLAG_SPECULATIVE));
+	/* the key was found unless this was speculative or a thorough scrub */
+	ASSERT(ret != EACCES || (zio->io_flags & ZIO_FLAG_SPECULATIVE) ||
+	    ((zio->io_flags & ZIO_FLAG_SCRUB) &&
+	    !(zio->io_flags & ZIO_FLAG_RAW)));
 
 	/*
 	 * If there was a decryption / authentication error return EIO as
@@ -5658,7 +5660,17 @@ zio_done(zio_t *zio)
 		}
 	}
 
-	if (zio->io_error) {
+	/*
+	 * During thorough scrub, if the dataset key is not loaded, decryption
+	 * or MAC verification fails with EACCES (spa_do_crypt_abd() and the
+	 * MAC helpers). Since the block's checksum was already successfully
+	 * verified by zio_checksum_verify() before we got here, we can
+	 * safely ignore this error and move on as this (normal scrub) is as
+	 * much as we can do without the keys loaded.
+	 */
+	if (zio->io_error &&
+	    !(zio->io_error == EACCES && (zio->io_flags & ZIO_FLAG_SCRUB) &&
+	    !(zio->io_flags & ZIO_FLAG_RAW))) {
 		/*
 		 * If this I/O is attached to a particular vdev,
 		 * generate an error message describing the I/O failure
