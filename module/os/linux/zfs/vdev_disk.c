@@ -74,6 +74,9 @@ typedef void zfs_bdev_handle_t;
 typedef struct vdev_disk {
 	zfs_bdev_handle_t		*vd_bdh;
 	krwlock_t			vd_lock;
+	kmutex_t			vd_open_lock;
+	kcondvar_t			vd_open_cv;
+	boolean_t			vd_opening;
 } vdev_disk_t;
 
 /*
@@ -239,6 +242,21 @@ vdev_disk_error(zio_t *zio)
 }
 
 static void
+vdev_disk_handle_eio(zio_t *zio, struct block_device *bdev)
+{
+	vdev_t *v = zio->io_vd;
+
+	if (zio->io_error != EIO || bdev == NULL)
+		return;
+
+	if (!zfs_check_disk_status(bdev)) {
+		invalidate_bdev(bdev);
+		v->vdev_remove_wanted = B_TRUE;
+		spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
+	}
+}
+
+static void
 vdev_disk_kobj_evt_post(vdev_t *v)
 {
 	vdev_disk_t *vd = v->vdev_tsd;
@@ -280,6 +298,36 @@ vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t smode, void *holder)
 #endif
 }
 
+static void
+vdev_disk_set_opening(vdev_disk_t *vd, boolean_t opening)
+{
+	mutex_enter(&vd->vd_open_lock);
+	vd->vd_opening = opening;
+	if (!opening)
+		cv_broadcast(&vd->vd_open_cv);
+	mutex_exit(&vd->vd_open_lock);
+}
+
+static boolean_t
+vdev_disk_wait_open_done(vdev_disk_t *vd)
+{
+	boolean_t waited = B_FALSE;
+
+	/*
+	 * Return B_TRUE when a reopen was observed and waited for, so the
+	 * caller can retry vd_bdh.  B_FALSE means vd_bdh was already NULL
+	 * without an active reopen, which is a terminal closed-device state.
+	 */
+	mutex_enter(&vd->vd_open_lock);
+	while (vd->vd_opening) {
+		waited = B_TRUE;
+		cv_wait(&vd->vd_open_cv, &vd->vd_open_lock);
+	}
+	mutex_exit(&vd->vd_open_lock);
+
+	return (waited);
+}
+
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift)
@@ -288,6 +336,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	spa_mode_t smode = spa_mode(v->vdev_spa);
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
+	boolean_t reopening;
 
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
@@ -305,13 +354,16 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * open retry timeout before reporting the device as unavailable.
 	 */
 	vd = v->vdev_tsd;
-	if (vd) {
+	reopening = (vd != NULL);
+	if (reopening) {
 		char disk_name[BDEVNAME_SIZE + 6] = "/dev/";
 		boolean_t reread_part = B_FALSE;
 
 		rw_enter(&vd->vd_lock, RW_WRITER);
+		vdev_disk_set_opening(vd, B_TRUE);
 		bdh = vd->vd_bdh;
 		vd->vd_bdh = NULL;
+		rw_exit(&vd->vd_lock);
 
 		if (bdh) {
 			struct block_device *bdev = BDH_BDEV(bdh);
@@ -356,7 +408,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		vd = kmem_zalloc(sizeof (vdev_disk_t), KM_SLEEP);
 
 		rw_init(&vd->vd_lock, NULL, RW_DEFAULT, NULL);
-		rw_enter(&vd->vd_lock, RW_WRITER);
+		mutex_init(&vd->vd_open_lock, NULL, MUTEX_DEFAULT, NULL);
+		cv_init(&vd->vd_open_cv, NULL, CV_DEFAULT, NULL);
 	}
 
 	/*
@@ -414,17 +467,23 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		vdev_dbgmsg(v, "open error=%d timeout=%llu/%llu", error,
 		    (u_longlong_t)(gethrtime() - start),
 		    (u_longlong_t)timeout);
+		rw_enter(&vd->vd_lock, RW_WRITER);
 		vd->vd_bdh = NULL;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
+		if (reopening)
+			vdev_disk_set_opening(vd, B_FALSE);
 		return (SET_ERROR(error));
 	} else {
+		rw_enter(&vd->vd_lock, RW_WRITER);
 		vd->vd_bdh = bdh;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
+		if (reopening)
+			vdev_disk_set_opening(vd, B_FALSE);
 	}
 
-	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
+	struct block_device *bdev = BDH_BDEV(bdh);
 
 	/*  Determine the physical block size */
 	int physical_block_size = bdev_physical_block_size(bdev);
@@ -487,6 +546,8 @@ vdev_disk_close(vdev_t *v)
 	v->vdev_tsd = NULL;
 
 	rw_exit(&vd->vd_lock);
+	cv_destroy(&vd->vd_open_cv);
+	mutex_destroy(&vd->vd_open_lock);
 	rw_destroy(&vd->vd_lock);
 	kmem_free(vd, sizeof (vdev_disk_t));
 }
@@ -679,6 +740,36 @@ typedef struct {
 	struct bio	*vbio_bio;	/* pointer to the current bio */
 	int		vbio_flags;	/* bio flags */
 } vbio_t;
+
+typedef struct {
+	struct block_device	*vdb_bdev;
+} vdev_disk_io_bdev_t;
+
+static inline void
+vdev_disk_io_set_bdev(zio_t *zio, struct block_device *bdev)
+{
+	vdev_disk_io_bdev_t *io_bdev;
+
+	ASSERT3P(zio->io_bio, ==, NULL);
+
+	io_bdev = kmem_zalloc(sizeof (*io_bdev), KM_SLEEP);
+	io_bdev->vdb_bdev = bdev;
+	zio->io_bio = io_bdev;
+}
+
+static inline struct block_device *
+vdev_disk_io_clear_bdev(zio_t *zio)
+{
+	vdev_disk_io_bdev_t *io_bdev = zio->io_bio;
+	struct block_device *bdev;
+
+	ASSERT3P(io_bdev, !=, NULL);
+
+	bdev = io_bdev->vdb_bdev;
+	zio->io_bio = NULL;
+	kmem_free(io_bdev, sizeof (*io_bdev));
+	return (bdev);
+}
 
 static vbio_t *
 vbio_alloc(zio_t *zio, struct block_device *bdev, int flags)
@@ -1012,6 +1103,7 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	if (unlikely(bio == NULL))
 		return (SET_ERROR(ENOMEM));
 
+	vdev_disk_io_set_bdev(zio, bdev);
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
 	bio_set_flush(bio);
@@ -1098,8 +1190,11 @@ vdev_disk_io_trim(zio_t *zio)
 	struct bio *bio;
 
 	zfs_bdev_handle_t *bdh = ((vdev_disk_t *)zio->io_vd->vdev_tsd)->vd_bdh;
+	struct block_device *bdev = BDH_BDEV(bdh);
 	sector_t sector = zio->io_offset >> 9;
 	sector_t nsects = zio->io_size >> 9;
+
+	vdev_disk_io_set_bdev(zio, bdev);
 
 	if (zio->io_trim_flags & ZIO_TRIM_SECURE)
 		error = vdev_bdev_issue_secure_erase(bdh, sector, nsects, &bio);
@@ -1140,22 +1235,27 @@ vdev_disk_io_start(zio_t *zio)
 	 * Nothing to be done here but return failure.
 	 */
 	if (vd == NULL) {
-		zio->io_error = ENXIO;
+		zio->io_error = SET_ERROR(ENXIO);
 		zio_interrupt(zio);
 		return;
 	}
 
-	rw_enter(&vd->vd_lock, RW_READER);
-
-	/*
-	 * If the vdev is closed, it's likely due to a failed reopen and is
-	 * in the UNAVAIL state.  Nothing to be done here but return failure.
-	 */
-	if (vd->vd_bdh == NULL) {
+	for (;;) {
+		rw_enter(&vd->vd_lock, RW_READER);
+		if (vd->vd_bdh != NULL)
+			break;
 		rw_exit(&vd->vd_lock);
-		zio->io_error = ENXIO;
-		zio_interrupt(zio);
-		return;
+
+		/*
+		 * A reopen temporarily clears vd_bdh while the block layer open
+		 * runs outside vd_lock to avoid exporting vd_lock ordering into
+		 * unrelated kernel locks.
+		 */
+		if (!vdev_disk_wait_open_done(vd)) {
+			zio->io_error = SET_ERROR(ENXIO);
+			zio_interrupt(zio);
+			return;
+		}
 	}
 
 	switch (zio->io_type) {
@@ -1230,26 +1330,34 @@ vdev_disk_io_start(zio_t *zio)
 static void
 vdev_disk_io_done(zio_t *zio)
 {
-	/* If this was a read or write, we need to clean up the vbio */
+	/* Clean up any backend state attached while issuing the IO. */
+	struct block_device *io_bdev = NULL;
 	if (zio->io_bio != NULL) {
-		vbio_t *vbio = zio->io_bio;
-		zio->io_bio = NULL;
+		if (zio->io_type == ZIO_TYPE_READ ||
+		    zio->io_type == ZIO_TYPE_WRITE) {
+			vbio_t *vbio = zio->io_bio;
+			zio->io_bio = NULL;
+			io_bdev = vbio->vbio_bdev;
 
-		/*
-		 * If we copied the ABD before issuing it, clean up and return
-		 * the copy to the ADB, with changes if appropriate.
-		 */
-		if (vbio->vbio_abd != NULL) {
-			if (zio->io_type == ZIO_TYPE_READ)
-				abd_copy(zio->io_abd, vbio->vbio_abd,
-				    zio->io_size);
+			/*
+			 * If we copied the ABD before issuing it, clean up and
+			 * return the copy to the ADB, with changes if
+			 * appropriate.
+			 */
+			if (vbio->vbio_abd != NULL) {
+				if (zio->io_type == ZIO_TYPE_READ)
+					abd_copy(zio->io_abd, vbio->vbio_abd,
+					    zio->io_size);
 
-			abd_free(vbio->vbio_abd);
-			vbio->vbio_abd = NULL;
+				abd_free(vbio->vbio_abd);
+				vbio->vbio_abd = NULL;
+			}
+
+			/* Final cleanup */
+			kmem_free(vbio, sizeof (vbio_t));
+		} else {
+			io_bdev = vdev_disk_io_clear_bdev(zio);
 		}
-
-		/* Final cleanup */
-		kmem_free(vbio, sizeof (vbio_t));
 	}
 
 	/*
@@ -1258,14 +1366,7 @@ vdev_disk_io_done(zio_t *zio)
 	 * removal of the device from the configuration.
 	 */
 	if (zio->io_error == EIO) {
-		vdev_t *v = zio->io_vd;
-		vdev_disk_t *vd = v->vdev_tsd;
-
-		if (!zfs_check_disk_status(BDH_BDEV(vd->vd_bdh))) {
-			invalidate_bdev(BDH_BDEV(vd->vd_bdh));
-			v->vdev_remove_wanted = B_TRUE;
-			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
-		}
+		vdev_disk_handle_eio(zio, io_bdev);
 	}
 }
 
