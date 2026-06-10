@@ -236,7 +236,8 @@ tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
 tags = ['functional', 'userquota']
 
 [tests/functional/zvol/zvol_misc:Linux]
-tests = ['zvol_misc_fua']
+tests = ['zvol_misc_dio_blk_mq', 'zvol_misc_dio_stress', 'zvol_misc_dio_zil',
+    'zvol_misc_fua']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/idmap_mount:Linux]
