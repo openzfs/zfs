@@ -7558,7 +7558,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		/*
 		 * Update the config cache to include the newly-imported pool.
 		 */
-		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+		spa_config_update(spa);
 	}
 
 	/*
@@ -8131,22 +8131,16 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 	}
 
 	/*
-	 * We have to be careful when adding new vdevs to an existing pool.
-	 * If other threads start allocating from these vdevs before we
-	 * sync the config cache, and we lose power, then upon reboot we may
-	 * fail to open the pool because there are DVAs that the config cache
-	 * can't translate.  Therefore, we first add the vdevs without
-	 * initializing metaslabs; sync the config cache (via spa_vdev_exit());
-	 * and then let spa_config_update() initialize the new metaslabs.
-	 *
-	 * spa_load() checks for added-but-not-initialized vdevs, so that
-	 * if we lose power at any point in this sequence, the remaining
-	 * steps will be completed the next time we load the pool.
+	 * In spa_config_update, we will sync new vdevs, and write
+	 * to cache file. If sync fails, next sync may succeed,
+	 * if lose power, all will be fine, becuase txg commits
+	 * atomically. If lose power after txg commit, before
+	 * cache file update, the cache file is updated when importing.
 	 */
 	(void) spa_vdev_exit(spa, vd, txg, 0);
 
 	spa_namespace_enter(FTAG);
-	spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+	spa_config_update(spa);
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
 	spa_namespace_exit(FTAG);
 
@@ -9830,7 +9824,7 @@ spa_async_thread(void *arg)
 		old_space += metaslab_class_get_space(
 		    spa_special_embedded_log_class(spa));
 
-		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+		spa_config_update(spa);
 
 		new_space = metaslab_class_get_space(spa_normal_class(spa));
 		new_space += metaslab_class_get_space(spa_special_class(spa));

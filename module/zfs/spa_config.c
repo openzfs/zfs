@@ -477,63 +477,80 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
  * cache if this is a booting rootpool).
  */
 void
-spa_config_update(spa_t *spa, int what)
+spa_config_update(spa_t *spa)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t txg;
 	int c;
+	boolean_t ns_locked = spa_namespace_held();
+	boolean_t need_sync = B_FALSE;
 
-	ASSERT(spa_namespace_held());
-
+	/*
+	 * Regenerate and sync the MOS config.
+	 */
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	txg = spa_last_synced_txg(spa) + 1;
-	if (what == SPA_CONFIG_UPDATE_POOL) {
-		vdev_config_dirty(rvd);
-	} else {
-		/*
-		 * If we have top-level vdevs that were added but have
-		 * not yet been prepared for allocation, do that now.
-		 * (It's safe now because the config cache is up to date,
-		 * so it will be able to translate the new DVAs.)
-		 * See comments in spa_vdev_add() for full details.
-		 */
-		for (c = 0; c < rvd->vdev_children; c++) {
-			vdev_t *tvd = rvd->vdev_child[c];
+	vdev_config_dirty(rvd);
+	spa_config_exit(spa, SCL_ALL, FTAG);
 
-			/*
-			 * Explicitly skip vdevs that are indirect or
-			 * log vdevs that are being removed. The reason
-			 * is that both of those can have vdev_ms_array
-			 * set to 0 and we wouldn't want to change their
-			 * metaslab size nor call vdev_expand() on them.
-			 */
-			if (!vdev_is_concrete(tvd) ||
-			    (tvd->vdev_islog && tvd->vdev_removing))
-				continue;
+	if (ns_locked) {
+		spa_open_ref(spa, FTAG);
+		spa_namespace_exit(FTAG);
+	}
+	txg_wait_synced(spa->spa_dsl_pool, txg);
+	if (ns_locked) {
+		spa_namespace_enter(FTAG);
+		spa_close(spa, FTAG);
+	}
 
-			if (tvd->vdev_ms_array == 0)
-				vdev_metaslab_set_size(tvd);
-			vdev_expand(tvd, txg);
+	/*
+	 * Write the cache file to reflect the updated MOS config.
+	 * This must precede the vdev expansion below so that config
+	 * changes (e.g. property updates) are visible promptly.
+	 */
+	if (!spa->spa_is_root)
+		spa_write_cachefile(spa, B_FALSE, B_FALSE, B_FALSE);
+
+	/*
+	 * Prepare any new top-level vdevs for allocation in a separate
+	 * txg so that metaslab initialization does not interfere with
+	 * other operations in the same txg (e.g. DDT log flush during
+	 * pool import).
+	 */
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	txg = spa_last_synced_txg(spa) + 1;
+	for (c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+
+		if (!vdev_is_concrete(tvd) ||
+		    (tvd->vdev_islog && tvd->vdev_removing))
+			continue;
+
+		if (tvd->vdev_ms_array == 0) {
+			vdev_metaslab_set_size(tvd);
+			need_sync = B_TRUE;
+		} else if (tvd->vdev_ms_shift != 0 &&
+		    (tvd->vdev_asize >> tvd->vdev_ms_shift) >
+		    tvd->vdev_ms_count) {
+			need_sync = B_TRUE;
 		}
+		vdev_expand(tvd, txg);
 	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
-	/*
-	 * Wait for the mosconfig to be regenerated and synced.
-	 */
-	txg_wait_synced(spa->spa_dsl_pool, txg);
-
-	/*
-	 * Update the global config cache to reflect the new mosconfig.
-	 */
-	if (!spa->spa_is_root) {
-		spa_write_cachefile(spa, B_FALSE,
-		    what != SPA_CONFIG_UPDATE_POOL,
-		    what != SPA_CONFIG_UPDATE_POOL);
+	if (need_sync) {
+		if (ns_locked) {
+			spa_open_ref(spa, FTAG);
+			spa_namespace_exit(FTAG);
+		}
+		txg_wait_synced(spa->spa_dsl_pool, txg);
+		if (ns_locked) {
+			spa_namespace_enter(FTAG);
+			spa_close(spa, FTAG);
+		}
+		if (!spa->spa_is_root)
+			spa_write_cachefile(spa, B_FALSE, B_TRUE, B_TRUE);
 	}
-
-	if (what == SPA_CONFIG_UPDATE_POOL)
-		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
 }
 
 EXPORT_SYMBOL(spa_all_configs);
