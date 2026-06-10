@@ -40,3 +40,7 @@ tags = ['functional', 'pam']
 [tests/functional/direct:FreeBSD]
 tests = ['dio_write_stable_pages']
 tags = ['functional', 'direct']
+
+[tests/functional/zvol/zvol_misc:FreeBSD]
+tests = ['zvol_misc_dio_freebsd']
+tags = ['functional', 'zvol', 'zvol_misc']
