@@ -4663,7 +4663,7 @@ top:
 		 */
 		if (tvd->vdev_islog && mg != NULL && dtl_required) {
 			/*
-			 * Prevent any future allocations.
+			 * Prevent future allocations unless the log device is redundant.
 			 */
 			ASSERT0P(tvd->vdev_log_mg);
 			metaslab_group_passivate(mg);
