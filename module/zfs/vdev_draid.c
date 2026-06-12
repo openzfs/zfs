@@ -798,7 +798,8 @@ vdev_draid_map_alloc_write(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
 		if (rc->rc_size == 0) {
 			/* empty data column (small write), add a skip sector */
 			ASSERT3U(skip_size, ==, parity_size);
-			rc->rc_abd = abd_get_zeros(skip_size);
+			rc->rc_abd = abd_get_zeros_struct(&rc->rc_abdstruct,
+			    skip_size);
 		} else if (rc->rc_size == parity_size) {
 			/* this is a "big column" */
 			rc->rc_abd = abd_get_offset_struct(&rc->rc_abdstruct,
@@ -806,7 +807,7 @@ vdev_draid_map_alloc_write(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
 		} else {
 			/* short data column, add a skip sector */
 			ASSERT3U(rc->rc_size + skip_size, ==, parity_size);
-			rc->rc_abd = abd_alloc_gang();
+			rc->rc_abd = abd_alloc_gang_struct(&rc->rc_abdstruct);
 			abd_gang_add(rc->rc_abd, abd_get_offset_size(
 			    zio->io_abd, abd_off, rc->rc_size), B_TRUE);
 			abd_gang_add(rc->rc_abd, abd_get_zeros(skip_size),
@@ -863,7 +864,7 @@ vdev_draid_map_alloc_scrub(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
 			/* short data column, add a skip sector */
 			ASSERT3U(rc->rc_size + skip_size, ==, parity_size);
 			ASSERT3U(rr->rr_nempty, !=, 0);
-			rc->rc_abd = abd_alloc_gang();
+			rc->rc_abd = abd_alloc_gang_struct(&rc->rc_abdstruct);
 			abd_gang_add(rc->rc_abd, abd_get_offset_size(
 			    zio->io_abd, abd_off, rc->rc_size), B_TRUE);
 			abd_gang_add(rc->rc_abd, abd_get_offset_size(
@@ -1240,7 +1241,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	/* Allocate buffers for the parity columns */
 	for (uint64_t c = 0; c < rr->rr_firstdatacol; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
-		rc->rc_abd = abd_alloc_linear(rc->rc_size, B_FALSE);
+		rc->rc_abd = abd_alloc_linear_struct(&rc->rc_abdstruct,
+		    rc->rc_size, B_FALSE);
 	}
 
 	/*

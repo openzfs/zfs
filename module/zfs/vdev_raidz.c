@@ -546,12 +546,13 @@ vdev_raidz_map_alloc_write(zio_t *zio, raidz_map_t *rm, uint64_t ashift)
 		 * VDEV queue locks (vq_lock).
 		 */
 		if (c < nwrapped) {
-			rc->rc_abd = abd_alloc_linear(
+			rc->rc_abd = abd_alloc_linear_struct(&rc->rc_abdstruct,
 			    rc->rc_size + (1ULL << ashift), B_FALSE);
 			abd_zero_off(rc->rc_abd, rc->rc_size, 1ULL << ashift);
 			skipped++;
 		} else {
-			rc->rc_abd = abd_alloc_linear(rc->rc_size, B_FALSE);
+			rc->rc_abd = abd_alloc_linear_struct(&rc->rc_abdstruct,
+			    rc->rc_size, B_FALSE);
 		}
 	}
 
@@ -599,9 +600,11 @@ vdev_raidz_map_alloc_read(zio_t *zio, raidz_map_t *rm)
 	ASSERT3U(rm->rm_nrows, ==, 1);
 
 	/* Allocate buffers for the parity columns */
-	for (c = 0; c < rr->rr_firstdatacol; c++)
-		rr->rr_col[c].rc_abd =
-		    abd_alloc_linear(rr->rr_col[c].rc_size, B_FALSE);
+	for (c = 0; c < rr->rr_firstdatacol; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		rc->rc_abd = abd_alloc_linear_struct(&rc->rc_abdstruct,
+		    rc->rc_size, B_FALSE);
+	}
 
 	for (uint64_t off = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
@@ -1046,8 +1049,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 				continue;
 
 			prc->rc_abd =
-			    abd_alloc_linear(rm->rm_phys_col[i].rc_size,
-			    B_FALSE);
+			    abd_alloc_linear_struct(&prc->rc_abdstruct,
+			    prc->rc_size, B_FALSE);
 		}
 
 		/*
@@ -1075,8 +1078,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
 				rc->rc_abd =
-				    abd_alloc_linear(rc->rc_size,
-				    B_TRUE);
+				    abd_alloc_linear_struct(&rc->rc_abdstruct,
+				    rc->rc_size, B_TRUE);
 			}
 		}
 	}
