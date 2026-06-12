@@ -2379,6 +2379,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_misc/zvol_misc_dio_zil.ksh \
 	functional/zvol/zvol_misc/zvol_misc_dio_blk_mq.ksh \
 	functional/zvol/zvol_misc/zvol_misc_dio_freebsd.ksh \
+	functional/zvol/zvol_misc/zvol_misc_dio_coherency.ksh \
 	functional/zvol/zvol_misc/zvol_misc_hierarchy.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_inuse.ksh \
 	functional/zvol/zvol_misc/zvol_misc_snapdev.ksh \
