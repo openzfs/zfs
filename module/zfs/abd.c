@@ -212,11 +212,9 @@ abd_alloc(size_t size, boolean_t is_metadata)
  * buffer. Only use this when it would be very annoying to write your ABD
  * consumer with a scattered ABD.
  */
-abd_t *
-abd_alloc_linear(size_t size, boolean_t is_metadata)
+static abd_t *
+abd_alloc_linear_impl(abd_t *abd, size_t size, boolean_t is_metadata)
 {
-	abd_t *abd = abd_alloc_struct(0);
-
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
 
 	abd->abd_flags |= ABD_FLAG_LINEAR | ABD_FLAG_OWNER;
@@ -234,6 +232,19 @@ abd_alloc_linear(size_t size, boolean_t is_metadata)
 	abd_update_linear_stats(abd, ABDSTAT_INCR);
 
 	return (abd);
+}
+
+abd_t *
+abd_alloc_linear(size_t size, boolean_t is_metadata)
+{
+	return (abd_alloc_linear_impl(abd_alloc_struct(0), size, is_metadata));
+}
+
+abd_t *
+abd_alloc_linear_struct(abd_t *abd, size_t size, boolean_t is_metadata)
+{
+	abd_init_struct(abd);
+	return (abd_alloc_linear_impl(abd, size, is_metadata));
 }
 
 static void
@@ -349,14 +360,26 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
  * to "chain" scatter/gather lists together when constructing aggregated
  * IO's. To free this abd, abd_free() must be called.
  */
-abd_t *
-abd_alloc_gang(void)
+static abd_t *
+abd_alloc_gang_impl(abd_t *abd)
 {
-	abd_t *abd = abd_alloc_struct(0);
 	abd->abd_flags |= ABD_FLAG_GANG | ABD_FLAG_OWNER;
 	list_create(&ABD_GANG(abd).abd_gang_chain,
 	    sizeof (abd_t), offsetof(abd_t, abd_gang_link));
 	return (abd);
+}
+
+abd_t *
+abd_alloc_gang(void)
+{
+	return (abd_alloc_gang_impl(abd_alloc_struct(0)));
+}
+
+abd_t *
+abd_alloc_gang_struct(abd_t *abd)
+{
+	abd_init_struct(abd);
+	return (abd_alloc_gang_impl(abd));
 }
 
 /*
@@ -622,6 +645,14 @@ abd_get_zeros(size_t size)
 	ASSERT3P(abd_zero_scatter, !=, NULL);
 	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
 	return (abd_get_offset_size(abd_zero_scatter, 0, size));
+}
+
+abd_t *
+abd_get_zeros_struct(abd_t *abd, size_t size)
+{
+	ASSERT3P(abd_zero_scatter, !=, NULL);
+	ASSERT3U(size, <=, SPA_MAXBLOCKSIZE);
+	return (abd_get_offset_struct(abd, abd_zero_scatter, 0, size));
 }
 
 /*
