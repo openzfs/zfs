@@ -347,6 +347,7 @@ struct spa {
 
 	vdev_raidz_expand_t	*spa_raidz_expand;
 	zthr_t		*spa_raidz_expand_zthr;
+	uint64_t	spa_raidz_expand_acct_txg; /* txg variable deflate on */
 
 	uint64_t	spa_checkpoint_txg;	/* the txg of the checkpoint */
 	spa_checkpoint_info_t spa_checkpoint_info; /* checkpoint accounting */

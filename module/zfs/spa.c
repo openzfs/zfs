@@ -422,12 +422,12 @@ spa_prop_get_nvlist(spa_t *spa, char **props, unsigned int n_props,
  */
 static void
 spa_prop_add_metaslab_class(nvlist_t *nv, metaslab_class_t *mc,
-    zpool_mc_props_t mcp, uint64_t *sizep, uint64_t *allocp, uint64_t *usablep,
-    uint64_t *usedp)
+    zpool_mc_props_t mcp, int64_t dspace_correction,
+    uint64_t *sizep, uint64_t *allocp, uint64_t *usablep, uint64_t *usedp)
 {
 	uint64_t size = metaslab_class_get_space(mc);
 	uint64_t alloc = metaslab_class_get_alloc(mc);
-	uint64_t dsize = metaslab_class_get_dspace(mc);
+	uint64_t dsize = metaslab_class_get_dspace(mc) + dspace_correction;
 	uint64_t dalloc = metaslab_class_get_dalloc(mc);
 	uint64_t cap = (size == 0) ? 0 : (alloc * 100 / size);
 	const zprop_source_t src = ZPROP_SRC_NONE;
@@ -489,20 +489,55 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 	if (rvd != NULL) {
 		spa_prop_add_list(nv, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 
+		/*
+		 * For expanded RAIDZ vdevs, the metaslab class dspace
+		 * was computed using the original (txg 0) deflation
+		 * ratio, which understates usable capacity.  Compute
+		 * a correction for the normal class using only the
+		 * FREE portion of each vdev.  See spa_update_dspace()
+		 * for the rationale.
+		 */
+		int64_t normal_dspace_corr = 0;
+		if (spa_deflate(spa)) {
+			for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+				vdev_t *vd = rvd->vdev_child[c];
+				if (vd->vdev_mg == NULL ||
+				    vd->vdev_mg->mg_class != mc)
+					continue;
+				if (vd->vdev_deflate_ratio_current != 0 &&
+				    vd->vdev_deflate_ratio_current !=
+				    vd->vdev_deflate_ratio) {
+					uint64_t space =
+					    vd->vdev_stat.vs_space;
+					uint64_t aspace =
+					    vd->vdev_stat.vs_alloc;
+					uint64_t fspace = space - aspace;
+					int64_t old_fs = (fspace >>
+					    SPA_MINBLOCKSHIFT) *
+					    vd->vdev_deflate_ratio;
+					int64_t new_fs = (fspace >>
+					    SPA_MINBLOCKSHIFT) *
+					    vd->vdev_deflate_ratio_current;
+					normal_dspace_corr +=
+					    (new_fs - old_fs);
+				}
+			}
+		}
+
 		size = alloc = usable = used = 0;
 		spa_prop_add_metaslab_class(nv, mc, ZPOOL_MC_PROPS_NORMAL,
-		    &size, &alloc, &usable, &used);
+		    normal_dspace_corr, &size, &alloc, &usable, &used);
 		spa_prop_add_metaslab_class(nv, spa_special_class(spa),
-		    ZPOOL_MC_PROPS_SPECIAL, &size, &alloc, &usable, &used);
+		    ZPOOL_MC_PROPS_SPECIAL, 0, &size, &alloc, &usable, &used);
 		spa_prop_add_metaslab_class(nv, spa_dedup_class(spa),
-		    ZPOOL_MC_PROPS_DEDUP, &size, &alloc, &usable, &used);
+		    ZPOOL_MC_PROPS_DEDUP, 0, &size, &alloc, &usable, &used);
 		spa_prop_add_metaslab_class(nv, spa_log_class(spa),
-		    ZPOOL_MC_PROPS_LOG, NULL, NULL, NULL, NULL);
+		    ZPOOL_MC_PROPS_LOG, 0, NULL, NULL, NULL, NULL);
 		spa_prop_add_metaslab_class(nv, spa_embedded_log_class(spa),
-		    ZPOOL_MC_PROPS_ELOG, &size, &alloc, &usable, &used);
+		    ZPOOL_MC_PROPS_ELOG, 0, &size, &alloc, &usable, &used);
 		spa_prop_add_metaslab_class(nv,
 		    spa_special_embedded_log_class(spa), ZPOOL_MC_PROPS_SELOG,
-		    &size, &alloc, &usable, &used);
+		    0, &size, &alloc, &usable, &used);
 
 		spa_prop_add_list(nv, ZPOOL_PROP_SIZE, NULL, size, src);
 		spa_prop_add_list(nv, ZPOOL_PROP_ALLOCATED, NULL, alloc, src);
@@ -5299,6 +5334,18 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 		if (spa_dir_prop(spa, DMU_POOL_FEATURE_ENABLED_TXG,
 		    &spa->spa_feat_enabled_txg_obj, B_TRUE) != 0)
 			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
+
+	/*
+	 * Cache the txg at which per-block deflate ratio accounting was
+	 * enabled.  Blocks born before this txg use the legacy fixed ratio;
+	 * blocks born at or after this txg use per-birth-txg ratios.
+	 */
+	if (spa_feature_is_active(spa,
+	    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING)) {
+		(void) spa_feature_enabled_txg(spa,
+		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING,
+		    &spa->spa_raidz_expand_acct_txg);
 	}
 
 	/*
