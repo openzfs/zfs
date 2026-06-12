@@ -1,8 +1,11 @@
 dnl # SPDX-License-Identifier: CDDL-1.0
-AC_DEFUN([ZFS_AC_CONFIG_USER_ZCP], [
+dnl #
+dnl # Determine whether to enable zfs channel program support
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ZCP], [
 	AC_ARG_ENABLE(zcp,
 		AS_HELP_STRING([--enable-zcp],
-		[Enable zfs channel program support [[default: yes]]]),
+		[Enable zfs channel program support @<:@default=yes@:>@]),
 		[enable_zcp=$enableval],
 		[enable_zcp=yes])
 
