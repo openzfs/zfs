@@ -4622,6 +4622,7 @@ vdev_offline_locked(spa_t *spa, uint64_t guid, uint64_t flags)
 	int error = 0;
 	uint64_t generation;
 	metaslab_group_t *mg;
+	boolean_t dtl_required;
 
 top:
 	spa_vdev_state_enter(spa, SCL_ALLOC);
@@ -4643,13 +4644,14 @@ top:
 	 * If the device isn't already offline, try to offline it.
 	 */
 	if (!vd->vdev_offline) {
+		dtl_required = vdev_dtl_required(vd);
+
 		/*
 		 * If this device has the only valid copy of some data,
 		 * don't allow it to be offlined. Log devices are always
 		 * expendable.
 		 */
-		if (!tvd->vdev_islog && vd->vdev_aux == NULL &&
-		    vdev_dtl_required(vd))
+		if (!tvd->vdev_islog && vd->vdev_aux == NULL && dtl_required)
 			return (spa_vdev_state_exit(spa, NULL,
 			    SET_ERROR(EBUSY)));
 
@@ -4659,7 +4661,7 @@ top:
 		 * is not NULL since it's possible that we may have just
 		 * added this vdev but not yet initialized its metaslabs.
 		 */
-		if (tvd->vdev_islog && mg != NULL) {
+		if (tvd->vdev_islog && mg != NULL && dtl_required) {
 			/*
 			 * Prevent any future allocations.
 			 */
@@ -4717,7 +4719,7 @@ top:
 		 * Add the device back into the metaslab rotor so that
 		 * once we online the device it's open for business.
 		 */
-		if (tvd->vdev_islog && mg != NULL)
+		if (tvd->vdev_islog && mg != NULL && dtl_required)
 			metaslab_group_activate(mg);
 	}
 
