@@ -88,6 +88,7 @@ __attribute__((__noreturn__))
 #endif
 extern void spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...);
+
 extern void spl_dumpstack(void);
 
 static inline int
