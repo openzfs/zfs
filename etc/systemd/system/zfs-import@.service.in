@@ -1,0 +1,15 @@
+[Unit]
+Description=Import ZFS pool %i by zfs-list.cache
+Documentation=man:zfs-mount-generator(8)
+DefaultDependencies=no
+Before=zfs-import.target
+ConditionPathIsDirectory=/sys/module/zfs
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-@initconfdir@/zfs
+ExecStart=@sbindir@/zpool import -N $ZPOOL_IMPORT_OPTS %i
+
+[Install]
+WantedBy=zfs-import.target
