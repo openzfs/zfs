@@ -80,12 +80,14 @@ log_must file_write -o create -f"$TESTDIR/1_file" \
 
 log_must zinject -t data -e checksum -f 100 $TESTDIR/0_file
 log_must zpool scrub $TESTPOOL
+log_must wait_scrubbed $TESTPOOL
 log_must eval "zpool status -v $TESTPOOL | grep '0_file'"
 log_mustnot eval "zpool status -v $TESTPOOL | grep '1_file'"
 
 log_must zinject -t data -e checksum -f 100 $TESTDIR/1_file
 log_must zpool clear $TESTPOOL
 log_must zpool scrub -R $TESTPOOL
+log_must wait_scrubbed $TESTPOOL
 log_mustnot eval "zpool status -v $TESTPOOL | grep '0_file'"
 log_must eval "zpool status -v $TESTPOOL | grep '1_file'"
 

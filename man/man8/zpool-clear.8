@@ -55,6 +55,13 @@ enabled which have been suspended cannot be resumed when there is evidence
 that the pool was imported by another host.
 The same checks performed during an import will be applied before the clear
 proceeds.
+.Pp
+When a suspended pool is resumed, a scrub of the most recently written data is
+automatically started.
+This scrub can be disabled with the
+.Sy zfs_scrub_after_resume
+module parameter; see
+.Xr zfs 4 .
 .Bl -tag -width Ds
 .It Fl -power
 Power on the devices's slot in the storage enclosure and wait for the device

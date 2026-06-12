@@ -9727,6 +9727,23 @@ spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
 	return (dsl_scan(spa->spa_dsl_pool, func, txgstart, txgend));
 }
 
+int
+spa_scan_recent(spa_t *spa)
+{
+	uint64_t txg_start = 0;
+	hrtime_t lasttime;
+
+	mutex_enter(&spa->spa_txg_log_time_lock);
+	lasttime = dbrrd_tail_time(&spa->spa_txg_log_time);
+	if (lasttime > zfs_scrub_recent_time) {
+		txg_start = dbrrd_query(&spa->spa_txg_log_time,
+		    lasttime - zfs_scrub_recent_time, DBRRD_FLOOR);
+	}
+	mutex_exit(&spa->spa_txg_log_time_lock);
+
+	return (spa_scan_range(spa, POOL_SCAN_SCRUB, txg_start, 0));
+}
+
 /*
  * ==========================================================================
  * SPA async task processing
@@ -11780,6 +11797,7 @@ EXPORT_SYMBOL(spa_l2cache_drop);
 /* scanning */
 EXPORT_SYMBOL(spa_scan);
 EXPORT_SYMBOL(spa_scan_range);
+EXPORT_SYMBOL(spa_scan_recent);
 EXPORT_SYMBOL(spa_scan_stop);
 
 /* spa syncing */

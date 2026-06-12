@@ -45,6 +45,7 @@ struct dsl_pool;
 struct dmu_tx;
 
 extern int zfs_scan_suspend_progress;
+extern int zfs_scrub_after_resume;
 extern uint64_t zfs_scrub_recent_time;
 extern uint64_t zfs_scrub_recent_time_hours;
 extern uint64_t zfs_scrub_recent_time_days;

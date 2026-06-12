@@ -2126,6 +2126,16 @@ to 3600 and
 .Sy zfs_scrub_recent_time_days
 to 0.
 .
+.It Sy zfs_scrub_after_resume Ns = Ns Sy 1 Ns | Ns 0 Pq int
+When a
+.Nm zpool Cm clear
+command resumes a pool that was suspended, automatically start a scrub of the
+most recently written data
+.Pq see Sy zfs_scrub_recent_time .
+Set to
+.Sy 0
+to disable this behavior.
+.
 .It Sy zfs_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable cache flush operations on disks when writing.
 Setting this will cause pool corruption on power loss

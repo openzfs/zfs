@@ -258,6 +258,12 @@ uint64_t zfs_scrub_recent_time = 14400;
 uint64_t zfs_scrub_recent_time_hours = 4;
 uint64_t zfs_scrub_recent_time_days = 0;
 
+/*
+ * Automatically scrub recent data when 'zpool clear' resumes a pool that
+ * was suspended.
+ */
+int zfs_scrub_after_resume = 1;
+
 /* the order has to match pool_scan_type */
 static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
@@ -5412,3 +5418,6 @@ ZFS_MODULE_PARAM_CALL(zfs, zfs_, scrub_recent_time_days,
 	"Defines the time window for recent scrub in days. "
 	"Adjusting this value will also update the seconds and hours "
 	"equivalents");
+
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_after_resume, INT, ZMOD_RW,
+	"Scrub recent data when 'zpool clear' resumes a suspended pool");
