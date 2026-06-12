@@ -100,6 +100,7 @@ struct zfsvfs {
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_relatime;	/* enable relatime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
+	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
@@ -237,6 +238,7 @@ extern int zfs_end_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
 extern void zfs_exit_fs(zfsvfs_t *zfsvfs);
 extern int zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers);
 extern int zfsvfs_create(const char *name, boolean_t readony, zfsvfs_t **zfvp);
+extern int zfsvfs_create_hold(const char *name, zfsvfs_t **zfvp);
 extern int zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os);
 extern void zfsvfs_free(zfsvfs_t *zfsvfs);
 extern int zfs_check_global_label(const char *dsname, const char *hexsl);
