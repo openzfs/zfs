@@ -1282,7 +1282,8 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	    strncmp(pool, "raidz", 5) == 0 ||
 	    strncmp(pool, "draid", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
-	    strcmp(pool, "log") == 0)) {
+	    strcmp(pool, "log") == 0 ||
+	    strncmp(pool, "anymirror", 9) == 0)) {
 		if (hdl != NULL)
 			zfs_error_aux(hdl,
 			    dgettext(TEXT_DOMAIN, "name is reserved"));
@@ -1545,31 +1546,45 @@ zpool_is_draid_spare(const char *name)
 
 /*
  * Extract device-specific error information from a failed pool creation.
- * If the kernel returned ZPOOL_CONFIG_CREATE_INFO in the ioctl output,
- * set an appropriate error aux message identifying the problematic device.
  */
 static int
-zpool_create_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+zpool_create_info(zfs_cmd_t *zc, nvlist_t **outnv)
 {
-	nvlist_t *outnv = NULL;
-	nvlist_t *info = NULL;
-	const char *vdev = NULL;
-	const char *pname = NULL;
-
+	nvlist_t *nv;
 	if (zc->zc_nvlist_dst_size == 0)
 		return (ENOENT);
 
 	if (nvlist_unpack((void *)(uintptr_t)zc->zc_nvlist_dst,
-	    zc->zc_nvlist_dst_size, &outnv, 0) != 0 || outnv == NULL)
+	    zc->zc_nvlist_dst_size, &nv, 0) != 0 || nv == NULL)
 		return (EINVAL);
 
-	if (nvlist_lookup_nvlist(outnv, ZPOOL_CONFIG_CREATE_INFO, &info) != 0) {
-		nvlist_free(outnv);
+	nvlist_t *tmp;
+	if (nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_CREATE_INFO, &tmp) != 0) {
+		nvlist_free(nv);
 		return (EINVAL);
+	}
+	*outnv = fnvlist_dup(tmp);
+	fnvlist_free(nv);
+	return (0);
+}
+
+/*
+ * If the kernel returned ZPOOL_CONFIG_CREATE_INFO in the ioctl output,
+ * set an appropriate error aux message identifying the problematic device.
+ */
+static int
+zpool_create_error_from_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
+{
+	nvlist_t *info = NULL;
+	const char *vdev = NULL;
+	const char *pname = NULL;
+	int err = 0;
+	if ((err = zpool_create_info(zc, &info)) != 0) {
+		return (err);
 	}
 
 	if (nvlist_lookup_string(info, ZPOOL_CREATE_INFO_VDEV, &vdev) != 0) {
-		nvlist_free(outnv);
+		nvlist_free(info);
 		return (EINVAL);
 	}
 
@@ -1582,7 +1597,7 @@ zpool_create_info(libzfs_handle_t *hdl, zfs_cmd_t *zc)
 		    "device '%s' is in use"), vdev);
 	}
 
-	nvlist_free(outnv);
+	nvlist_free(info);
 	return (0);
 }
 
@@ -1677,7 +1692,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			 * label.  This can also happen under if the device is
 			 * part of an active md or lvm device.
 			 */
-			if (zpool_create_info(hdl, &zc) != 0) {
+			if (zpool_create_error_from_info(hdl, &zc) != 0) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "one or more vdevs refer to the same "
 				    "device, or one of\nthe devices is "
@@ -1721,6 +1736,47 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			}
 			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			{
+				nvlist_t *errnv = NULL;
+				char **vdevs;
+				uint_t count;
+				uint64_t min_size;
+				if (zpool_create_info(&zc, &errnv) == 0 &&
+				    nvlist_lookup_string_array(errnv,
+				    ZPOOL_CREATE_INFO_VDEV, &vdevs, &count) ==
+				    0 && nvlist_lookup_uint64(errnv,
+				    ZPOOL_CREATE_INFO_SIZE, &min_size) == 0) {
+					char buf[900];
+					int off = 0;
+					for (int i = 0; i < count &&
+					    off < sizeof (buf); i++) {
+						off += snprintf(buf + off,
+						    sizeof (buf) - off,
+						    "\t%s\n", vdevs[i]);
+					}
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "the following devices cannot "
+					    "store any AnyRAID tiles (min "
+					    "device size %llu):\n%s"),
+					    (u_longlong_t)min_size, buf);
+				} else {
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "one or more AnyRAID devices "
+					    "cannot store any tiles (see "
+					    "'zfs_vdev_anyraid_min_tile_size"
+					    "')"));
+				}
+			}
+			ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
+			break;
 
 		case ENOSPC:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1741,7 +1797,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			break;
 
 		case ENXIO:
-			if (zpool_create_info(hdl, &zc) == 0) {
+			if (zpool_create_error_from_info(hdl, &zc) == 0) {
 				ret = zfs_error(hdl, EZFS_BADDEV, errbuf);
 			} else {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1974,7 +2030,19 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			}
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
-
+		case ENOLCK:
+			/*
+			 * This occurs when one of the devices is an anyraid
+			 * device that can't hold a single tile.
+			 * Unfortunately, we can't detect which device was the
+			 * problem device since there's no reliable way to
+			 * determine device size from userland.
+			 */
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "one or more anyraid devices cannot store "
+			    "any tiles (see "
+			    "'zfs_vdev_anyraid_min_tile_size')"));
+			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to add these vdevs"));
@@ -3357,7 +3425,9 @@ zpool_vdev_is_interior(const char *name)
 	    strncmp(name,
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_ROOT, strlen(VDEV_TYPE_ROOT)) == 0 ||
-	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
+	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0 ||
+	    strncmp(name, VDEV_TYPE_ANYMIRROR, strlen(VDEV_TYPE_ANYMIRROR)) ==
+	    0)
 		return (B_TRUE);
 
 	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
@@ -3885,6 +3955,22 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		free(newname);
 		return (zfs_error(hdl, EZFS_BADTARGET, errbuf));
 	}
+	uint64_t min_tile_size = 0;
+	if (strncmp(fnvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE), "any",
+	    3) == 0) {
+		char mts[32];
+		VERIFY0(zpool_get_vdev_prop(zhp, old_disk,
+		    VDEV_PROP_ANYRAID_TILE_SIZE, NULL, mts, 32, NULL, B_TRUE));
+		VERIFY3S(sscanf(mts, "%llu", (u_longlong_t *)&min_tile_size),
+		    ==, 1);
+		/*
+		 * Unfortunately it's difficult to get the definitions that
+		 * would allow us to do this cleanly into userland. We need
+		 * space for a tile (above) plus the mapping (256MiB) plus the
+		 * labels (4.5MiB).
+		 */
+		min_tile_size += 261 * 1024 * 1024;
+	}
 
 	free(newname);
 
@@ -3981,6 +4067,19 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "option '-o ashift=N' to override the optimal size"));
 		(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 		break;
+
+	case ENOLCK: {
+		/*
+		 * This occurs when one of the devices is an anyraid
+		 * device that can't hold a single tile.
+		 */
+		char buf[32];
+		ASSERT(min_tile_size != 0);
+		zfs_nicenum(min_tile_size, buf, 32);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "new device cannot store any tiles (min size %s)"), buf);
+		return (zfs_error(hdl, EZFS_BADDEV, errbuf));
+	}
 
 	case ENAMETOOLONG:
 		/*
@@ -4769,9 +4868,11 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		path = type;
 
 		/*
-		 * If it's a raidz device, we need to stick in the parity level.
+		 * If it's a raidz or anyraid device, we need to stick in the
+		 * parity level.
 		 */
-		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0) {
+		if (strcmp(path, VDEV_TYPE_RAIDZ) == 0 ||
+		    strcmp(path, VDEV_TYPE_ANYMIRROR) == 0) {
 			value = fnvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY);
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
@@ -5686,6 +5787,10 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		if (nvlist_lookup_nvlist(nvprop, prop_name, &nv) == 0) {
 			src = fnvlist_lookup_uint64(nv, ZPROP_SOURCE);
 			intval = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
+		} else if (prop == VDEV_PROP_ANYRAID_CAP_TILES ||
+		    prop == VDEV_PROP_ANYRAID_NUM_TILES ||
+		    prop == VDEV_PROP_ANYRAID_TILE_SIZE) {
+			return (ENOENT);
 		} else {
 			src = ZPROP_SRC_DEFAULT;
 			intval = vdev_prop_default_numeric(prop);
@@ -5716,6 +5821,9 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 		case VDEV_PROP_BYTES_FREE:
 		case VDEV_PROP_BYTES_CLAIM:
 		case VDEV_PROP_BYTES_TRIM:
+		case VDEV_PROP_ANYRAID_CAP_TILES:
+		case VDEV_PROP_ANYRAID_NUM_TILES:
+		case VDEV_PROP_ANYRAID_TILE_SIZE:
 			if (literal) {
 				(void) snprintf(buf, len, "%llu",
 				    (u_longlong_t)intval);

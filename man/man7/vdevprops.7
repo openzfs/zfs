@@ -144,6 +144,21 @@ See
 Indicates if a leaf device supports trim operations.
 .It Sy rotational
 Indicates whether the device backing this vdev uses rotating media.
+.It anyraid_tile_capacity
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The number of physical tiles that the vdev can hold.
+.It anyraid_tile_count
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The number of physical tiles that are currently allocated on the vdev.
+.It anyraid_tile_size
+Only valid for
+.Sy AnyRAID
+vdevs and their leaf vdevs.
+The size of the tiles in use on this vdev.
 .El
 .Pp
 The following native properties can be used to change the behavior of a vdev.
