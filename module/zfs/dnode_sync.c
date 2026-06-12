@@ -305,9 +305,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * ancestor of the first or last block to be freed.  The first and
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
-	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
-	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
-	dmu_buf_unlock_parent(db, dblt, FTAG);
+	if (!free_indirects) {
+		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		VERIFY_IMPLY(BP_GET_FILL(db->db_blkptr) > 0,
+		    db->db_dirtycnt > 0);
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+	}
 
 	dbuf_release_bp(db);
 	bp = db->db.db_data;
