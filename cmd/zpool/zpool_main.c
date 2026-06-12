@@ -512,8 +512,9 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tinitialize [-c | -s | -u] [-w] <-a | <pool> "
 		    "[<device> ...]>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-e | -s | -p | -C | -E | -S] [-w] "
-		    "<-a | <pool> [<pool> ...]>\n"));
+		return (gettext("\tscrub [-e | -s | -p | -t | -C [-t] | "
+		    "[-S date] [-E date] [-t]] [-w]\n"
+		    "\t    < -a | <pool> [<pool> ...] >\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
@@ -8518,7 +8519,7 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
 }
 
 /*
- * zpool scrub [-e | -s | -p | -C | -E | -S] [-w] [-a | <pool> ...]
+ * zpool scrub [-e | -s | -p | -C | -E | -S | -t] [-w] [-a | <pool> ...]
  *
  *	-a	Scrub all pools.
  *	-e	Only scrub blocks in the error log.
@@ -8527,6 +8528,7 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
  *	-s	Stop.  Stops any in-progress scrub.
  *	-p	Pause. Pause in-progress scrub.
  *	-w	Wait.  Blocks until scrub has completed.
+ *	-t	Decompress and decrypt (if key is loaded) scrubbed blocks.
  *	-C	Scrub from last saved txg.
  */
 int
@@ -8538,23 +8540,25 @@ zpool_do_scrub(int argc, char **argv)
 	int error;
 
 	cb.cb_type = POOL_SCAN_SCRUB;
-	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
+	cb.cb_scrub_cmd = 0;
 	cb.cb_date_start = cb.cb_date_end = 0;
 
 	boolean_t is_error_scrub = B_FALSE;
 	boolean_t is_pause = B_FALSE;
 	boolean_t is_stop = B_FALSE;
-	boolean_t is_txg_continue = B_FALSE;
 	boolean_t scrub_all = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "aspweCE:S:")) != -1) {
+	while ((c = getopt(argc, argv, "aspweCE:S:t")) != -1) {
 		switch (c) {
 		case 'a':
 			scrub_all = B_TRUE;
 			break;
 		case 'e':
 			is_error_scrub = B_TRUE;
+			break;
+		case 't':
+			cb.cb_scrub_cmd |= POOL_SCRUB_THOROUGH;
 			break;
 		case 'E':
 			/*
@@ -8576,7 +8580,7 @@ zpool_do_scrub(int argc, char **argv)
 			wait = B_TRUE;
 			break;
 		case 'C':
-			is_txg_continue = B_TRUE;
+			cb.cb_scrub_cmd |= POOL_SCRUB_FROM_LAST_TXG;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -8589,17 +8593,38 @@ zpool_do_scrub(int argc, char **argv)
 		(void) fprintf(stderr, gettext("invalid option "
 		    "combination: -s and -p are mutually exclusive\n"));
 		usage(B_FALSE);
-	} else if (is_pause && is_txg_continue) {
+	} else if (is_error_scrub && is_pause) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -e and -p are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_error_scrub && is_stop) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -e and -s are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_error_scrub &&
+	    (cb.cb_scrub_cmd & POOL_SCRUB_FROM_LAST_TXG)) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -e and -C are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_error_scrub && (cb.cb_scrub_cmd & POOL_SCRUB_THOROUGH)) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -e and -t are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_pause && (cb.cb_scrub_cmd & POOL_SCRUB_FROM_LAST_TXG)) {
 		(void) fprintf(stderr, gettext("invalid option "
 		    "combination: -p and -C are mutually exclusive\n"));
 		usage(B_FALSE);
-	} else if (is_stop && is_txg_continue) {
+	} else if (is_pause && (cb.cb_scrub_cmd & POOL_SCRUB_THOROUGH)) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -p and -t are mutually exclusive\n"));
+		usage(B_FALSE);
+	} else if (is_stop && (cb.cb_scrub_cmd & POOL_SCRUB_FROM_LAST_TXG)) {
 		(void) fprintf(stderr, gettext("invalid option "
 		    "combination: -s and -C are mutually exclusive\n"));
 		usage(B_FALSE);
-	} else if (is_error_scrub && is_txg_continue) {
+	} else if (is_stop && (cb.cb_scrub_cmd & POOL_SCRUB_THOROUGH)) {
 		(void) fprintf(stderr, gettext("invalid option "
-		    "combination: -e and -C are mutually exclusive\n"));
+		    "combination: -s and -t are mutually exclusive\n"));
 		usage(B_FALSE);
 	} else {
 		if (is_error_scrub)
@@ -8609,19 +8634,28 @@ zpool_do_scrub(int argc, char **argv)
 			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
 		} else if (is_stop) {
 			cb.cb_type = POOL_SCAN_NONE;
-		} else if (is_txg_continue) {
-			cb.cb_scrub_cmd = POOL_SCRUB_FROM_LAST_TXG;
-		} else {
-			cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 		}
 	}
 
+	uint64_t scrub_kind = cb.cb_scrub_cmd & POOL_SCRUB_THOROUGH;
+	if (scrub_kind == 0)
+		scrub_kind = POOL_SCRUB_NORMAL;
 	if ((cb.cb_date_start != 0 || cb.cb_date_end != 0) &&
-	    cb.cb_scrub_cmd != POOL_SCRUB_NORMAL) {
-		(void) fprintf(stderr, gettext("invalid option combination: "
-		    "start/end date is available only with normal scrub\n"));
+	    (cb.cb_scrub_cmd & POOL_SCRUB_FROM_LAST_TXG)) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: -C and -S/-E date are mutually "
+		    "exclusive\n"));
+		usage(B_FALSE);
+	} else if ((cb.cb_date_start != 0 || cb.cb_date_end != 0) &&
+	    (is_error_scrub || is_stop || is_pause ||
+	    (scrub_kind != POOL_SCRUB_NORMAL &&
+	    scrub_kind != POOL_SCRUB_THOROUGH))) {
+		(void) fprintf(stderr, gettext("invalid option "
+		    "combination: start/end date is available only "
+		    "with normal or thorough scrub\n"));
 		usage(B_FALSE);
 	}
+
 	if (cb.cb_date_start != 0 && cb.cb_date_end != 0 &&
 	    cb.cb_date_start > cb.cb_date_end) {
 		(void) fprintf(stderr, gettext("invalid arguments: "
@@ -8941,7 +8975,7 @@ print_err_scrub_status(pool_scan_stat_t *ps)
  * Print out detailed scrub status.
  */
 static void
-print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
+print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 {
 	time_t start, end, pause;
 	uint64_t pass_scanned, scanned, pass_issued, issued, total_s, total_i;
@@ -8976,10 +9010,11 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 		secs_to_dhms(end - start, time_buf);
 
 		if (is_scrub) {
-			(void) printf(gettext("scrub repaired %s "
-			    "in %s with %llu errors on %s"), processed_buf,
-			    time_buf, (u_longlong_t)ps->pss_errors,
-			    ctime(&end));
+			(void) printf(gettext("%sscrub repaired %s "
+			    "in %s with %llu errors on %s"),
+			    is_thorough ? gettext("thorough ") : "",
+			    processed_buf, time_buf,
+			    (u_longlong_t)ps->pss_errors, ctime(&end));
 		} else if (is_resilver) {
 			(void) printf(gettext("resilvered %s "
 			    "in %s with %llu errors on %s"), processed_buf,
@@ -8989,7 +9024,8 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 		return;
 	} else if (ps->pss_state == DSS_CANCELED) {
 		if (is_scrub) {
-			(void) printf(gettext("scrub canceled on %s"),
+			(void) printf(gettext("%sscrub canceled on %s"),
+			    is_thorough ? gettext("thorough ") : "",
 			    ctime(&end));
 		} else if (is_resilver) {
 			(void) printf(gettext("resilver canceled on %s"),
@@ -9003,12 +9039,15 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps)
 	/* Scan is in progress. Resilvers can't be paused. */
 	if (is_scrub) {
 		if (pause == 0) {
-			(void) printf(gettext("scrub in progress since %s"),
+			(void) printf(gettext("%sscrub in progress since %s"),
+			    is_thorough ? gettext("thorough ") : "",
 			    ctime(&start));
 		} else {
-			(void) printf(gettext("scrub paused since %s"),
+			(void) printf(gettext("%sscrub paused since %s"),
+			    is_thorough ? gettext("thorough ") : "",
 			    ctime(&pause));
-			(void) printf(gettext("\tscrub started on %s"),
+			(void) printf(gettext("\t%sscrub started on %s"),
+			    is_thorough ? gettext("thorough ") : "",
 			    ctime(&start));
 		}
 	} else if (is_resilver) {
@@ -10099,6 +10138,7 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *ps = NULL;
 	uint_t c;
+	boolean_t is_thorough = B_FALSE;
 	time_t scrub_start = 0, errorscrub_start = 0;
 
 	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
@@ -10111,8 +10151,10 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 		have_resilver = (ps->pss_func == POOL_SCAN_RESILVER);
 		have_scrub = (ps->pss_func == POOL_SCAN_SCRUB);
 		scrub_start = ps->pss_start_time;
-		if (c > offsetof(pool_scan_stat_t,
-		    pss_pass_error_scrub_pause) / 8) {
+		if (POOL_SCAN_STAT_VALID(pss_pass_scrub_flags, c) &&
+		    (ps->pss_pass_scrub_flags & POOL_SCRUB_THOROUGH) != 0)
+			is_thorough = B_TRUE;
+		if (POOL_SCAN_STAT_VALID(pss_pass_error_scrub_pause, c)) {
 			have_errorscrub = (ps->pss_error_scrub_func ==
 			    POOL_SCAN_ERRORSCRUB);
 			errorscrub_start = ps->pss_error_scrub_start;
@@ -10124,7 +10166,7 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 
 	/* Always print the scrub status when available. */
 	if (have_scrub && scrub_start > errorscrub_start)
-		print_scan_scrub_resilver_status(ps);
+		print_scan_scrub_resilver_status(ps, is_thorough);
 	else if (have_errorscrub && errorscrub_start >= scrub_start)
 		print_err_scrub_status(ps);
 
@@ -10134,7 +10176,7 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	 */
 	if (active_resilver || (!active_rebuild && have_resilver &&
 	    resilver_end_time && resilver_end_time > rebuild_end_time)) {
-		print_scan_scrub_resilver_status(ps);
+		print_scan_scrub_resilver_status(ps, is_thorough);
 	} else if (active_rebuild || (!active_resilver && have_rebuild &&
 	    rebuild_end_time && rebuild_end_time > resilver_end_time)) {
 		print_rebuild_status(zhp, nvroot);

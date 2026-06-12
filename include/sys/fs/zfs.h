@@ -1217,13 +1217,22 @@ typedef enum pool_scan_func {
 } pool_scan_func_t;
 
 /*
- * Used to control scrub pause and resume.
+ * POOL_SCRUB_NORMAL, POOL_SCRUB_PAUSE, and POOL_SCRUB_FROM_LAST_TXG have
+ * their historical integer values (0, 1, 2) for user/kernel ABI
+ * compatibility.
+ *
+ * POOL_SCRUB_THOROUGH uses a non-colliding value so it can be combined with
+ * POOL_SCRUB_FROM_LAST_TXG. "Normal" scrub is implied when the thorough
+ * bit is clear (command 0, 2, or date-scrub with command 0).
+ *
+ * POOL_SCRUB_PAUSE must appear alone (scan_command == 1).
  */
 typedef enum pool_scrub_cmd {
 	POOL_SCRUB_NORMAL = 0,
-	POOL_SCRUB_PAUSE,
-	POOL_SCRUB_FROM_LAST_TXG,
-	POOL_SCRUB_FLAGS_END
+	POOL_SCRUB_PAUSE = 1,
+	POOL_SCRUB_FROM_LAST_TXG = 2,
+	POOL_SCRUB_FLAGS_END = 3,
+	POOL_SCRUB_THOROUGH = 8,
 } pool_scrub_cmd_t;
 
 typedef enum {
@@ -1316,8 +1325,14 @@ typedef struct pool_scan_stat {
 	/* error scrub values not stored on disk */
 	/* error scrub pause time in milliseconds */
 	uint64_t	pss_pass_error_scrub_pause;
+	uint64_t	pss_pass_scrub_flags;
 
 } pool_scan_stat_t;
+
+#define	POOL_SCAN_STAT_VALID(field, uint64_t_field_count) \
+	((uint64_t_field_count * sizeof (uint64_t)) >= \
+	(offsetof(pool_scan_stat_t, field) + \
+	sizeof (((pool_scan_stat_t *)NULL)->field)))
 
 typedef struct pool_removal_stat {
 	uint64_t prs_state; /* dsl_scan_state_t */
