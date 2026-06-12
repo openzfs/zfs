@@ -1812,17 +1812,6 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 
 			if (is_same_gen) {
 				/*
-				 * This is the same logical file, and
-				 * the block size must be increasing.
-				 * It could only decrease if
-				 * --large-block was changed to be
-				 * off, which is checked in
-				 * recv_check_large_blocks().
-				 */
-				if (drro->drr_blksz <=
-				    doi->doi_data_block_size)
-					return (SET_ERROR(EINVAL));
-				/*
 				 * We keep the existing blocksize and
 				 * contents.
 				 */
