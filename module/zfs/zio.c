@@ -6002,6 +6002,67 @@ zbookmark_compare(uint16_t dbss1, uint8_t ibs1, uint16_t dbss2, uint8_t ibs2,
 	    zb1->zb_blkid == zb2->zb_blkid)
 		return (0);
 
+	if (zb1->zb_level < 0 || zb2->zb_level < 0) {
+		/*
+		 * "Negative" levels are ZB_ROOT_LEVEL, ZB_ZIL_LEVEL or
+		 * ZB_DNODE_LEVEL, and represent some sort of auxiliary dataset
+		 * block or object. In this case, we're usually being called
+		 * from dsl_scan or dmu_traverse.
+		 *
+		 * These "levels" are more like a "type" signal, not directly
+		 * comparable, but we have to do something. So we order them in
+		 * the order we would see them during a typical scan or
+		 * traverse:
+		 *
+		 * - ZB_ROOT_LEVEL: the "top" block carrying the dataset head
+		 * - ZB_ZIL_LEVEL: the head ZIL block attached to the dataset
+		 * - ZB_DNODE_LEVEL: "virtual" position representing an
+		 *                   entire object. Sorts ahead of the true
+		 *                   data blocks for the object.
+		 * - level >= 0: data blocks
+		 *
+		 * We work through these cases from top to bottom, with
+		 * appropriate tiebreaks for each kind.
+		 */
+
+		/*
+		 * Root level wins. It shouldn't be possible for both to be the
+		 * root level in this per-dataset tree, and there's no obvious
+		 * tiebreaker, but we handle it as a defensive measure.
+		 */
+		if (zb1->zb_level == ZB_ROOT_LEVEL &&
+		    zb2->zb_level == ZB_ROOT_LEVEL)
+			return (TREE_PCMP(zb1, zb2));
+		if (zb1->zb_level == ZB_ROOT_LEVEL)
+			return (-1);
+		if (zb2->zb_level == ZB_ROOT_LEVEL)
+			return (1);
+
+		/* ZIL bookmarks have valid blkid, so the earlier one wins. */
+		if (zb1->zb_level == ZB_ZIL_LEVEL &&
+		    zb2->zb_level == ZB_ZIL_LEVEL)
+			return (TREE_CMP(zb1->zb_blkid, zb2->zb_blkid));
+		if (zb1->zb_level == ZB_ZIL_LEVEL)
+			return (-1);
+		if (zb2->zb_level == ZB_ZIL_LEVEL)
+			return (1);
+
+		/*
+		 * If we get this far, then at least one is ZB_DNODE_LEVEL, and
+		 * the other is either ZB_DNODE_LEVEL or a data block.
+		 * Regardless, the one with the lower-numbered object wins -
+		 * earler ZB_DNODE_LEVEL beats later, but data block on earlier
+		 * objects beats the virtual marker on later objects.
+		 */
+		int cmp = TREE_CMP(zb1->zb_object, zb2->zb_object);
+		if (cmp != 0)
+			return (cmp);
+
+		if (zb1->zb_level == ZB_DNODE_LEVEL)
+			return (-1);
+		return (1);
+	}
+
 	IMPLY(zb1->zb_level > 0, ibs1 >= SPA_MINBLOCKSHIFT);
 	IMPLY(zb2->zb_level > 0, ibs2 >= SPA_MINBLOCKSHIFT);
 
