@@ -400,13 +400,12 @@ case "$OS" in
     ;;
   alma*|centos*)
     rpm_build_and_install "--with-spec=redhat $extra"
+    if [ -n "$TARBALL" ] ; then
+        build_tarball
+    fi
     ;;
   fedora*)
     rpm_build_and_install "$extra"
-
-    # Historically, we've always built the release tarballs on Fedora, since
-    # there was one instance long ago where we built them on CentOS 7, and they
-    # didn't work correctly for everyone.
     if [ -n "$TARBALL" ] ; then
         build_tarball
     fi
