@@ -976,7 +976,7 @@ tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
     'rebuild_disabled_feature', 'rebuild_multiple', 'rebuild_raidz',
     'replace_import', 'replace_rebuild', 'replace_resilver',
     'replace_resilver_sit_out', 'resilver_restart_001',
-    'resilver_restart_002', 'scrub_cancel']
+    'resilver_restart_002', 'resilver_restart_003', 'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]
