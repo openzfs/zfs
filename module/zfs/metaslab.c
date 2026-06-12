@@ -2854,6 +2854,9 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 {
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	metaslab_class_t *mc = msp->ms_group->mg_class;
+	if (msp->ms_selected_txg == txg &&
+	    multilist_link_active(&msp->ms_class_txg_node))
+		return;
 	multilist_sublist_t *mls =
 	    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 	if (multilist_link_active(&msp->ms_class_txg_node))
