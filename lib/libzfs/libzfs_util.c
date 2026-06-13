@@ -327,6 +327,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_NO_USER_NS_SUPPORT:
 		return (dgettext(TEXT_DOMAIN, "kernel was built without "
 		    "user namespace support (CONFIG_USER_NS)"));
+	case EZFS_ZIA_NONEXISTENT_PROVIDER:
+		return (dgettext(TEXT_DOMAIN, "given provider does not exist"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -786,6 +788,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "too many disks "
 		    "already sitting out"));
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
+		break;
+	case ZFS_ERR_ZIA_NONEXISTENT_PROVIDER:
+		zfs_verror(hdl, EZFS_ZIA_NONEXISTENT_PROVIDER, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, "%s", zfs_strerror(error));
