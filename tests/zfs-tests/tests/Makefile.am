@@ -1534,6 +1534,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/delegate/zfs_allow_010_pos.ksh \
 	functional/delegate/zfs_allow_011_neg.ksh \
 	functional/delegate/zfs_allow_012_neg.ksh \
+	functional/delegate/zfs_allow_send.ksh \
 	functional/delegate/zfs_unallow_001_pos.ksh \
 	functional/delegate/zfs_unallow_002_pos.ksh \
 	functional/delegate/zfs_unallow_003_pos.ksh \
