@@ -29,8 +29,9 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Allan Jude
- * Copyright (c) 2019, 2025, Klara, Inc.
+ * Copyright (c) 2019, 2024-2026, Klara, Inc.
  * Copyright (c) 2019, Datto Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _SYS_SPA_H
@@ -944,6 +945,7 @@ typedef struct spa_stats {
 	spa_history_kstat_t	state;		/* pool state */
 	spa_history_kstat_t	guid;		/* pool guid */
 	spa_history_kstat_t	iostats;
+	spa_history_kstat_t	log_spacemaps;
 } spa_stats_t;
 
 typedef enum txg_state {
@@ -1062,6 +1064,7 @@ typedef enum spa_log_state {
 extern spa_log_state_t spa_get_log_state(spa_t *spa);
 extern void spa_set_log_state(spa_t *spa, spa_log_state_t state);
 extern int spa_reset_logs(spa_t *spa);
+extern void spa_log_sm_stats_update(spa_t *spa);
 
 /* Log claim callback */
 extern void spa_claim_notify(zio_t *zio);
@@ -1272,6 +1275,12 @@ extern int spa_wait_tag(const char *name, zpool_wait_activity_t activity,
     uint64_t tag, boolean_t *waited);
 extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
+
+/* a no-op condense op for test & debug */
+#ifdef ZFS_DEBUG
+extern void spa_condense_debug_start(spa_t *spa);
+extern void spa_condense_debug_cancel(spa_t *spa);
+#endif
 
 extern void spa_import_os(spa_t *spa);
 extern void spa_export_os(spa_t *spa);

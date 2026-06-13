@@ -35,7 +35,8 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
- * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2023-2026, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -2137,8 +2138,8 @@ spa_unload_log_sm_flush_all(spa_t *spa)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
-	ASSERT0(spa->spa_log_flushall_txg);
-	spa->spa_log_flushall_txg = dmu_tx_get_txg(tx);
+	spa_log_flushall_start(spa, SPA_LOG_FLUSHALL_EXPORT,
+	    dmu_tx_get_txg(tx));
 
 	dmu_tx_commit(tx);
 	txg_wait_synced(spa_get_dsl(spa), spa->spa_log_flushall_txg);
@@ -2165,6 +2166,9 @@ spa_unload_log_sm_metadata(spa_t *spa)
 	spa->spa_unflushed_stats.sus_nblocks = 0;
 	spa->spa_unflushed_stats.sus_memused = 0;
 	spa->spa_unflushed_stats.sus_blocklimit = 0;
+	spa->spa_unflushed_stats.sus_nmetaslabs = 0;
+
+	spa_log_sm_stats_update(spa);
 }
 
 static void
@@ -2340,6 +2344,8 @@ spa_unload(spa_t *spa)
 		 */
 		if (spa_should_flush_logs_on_unload(spa))
 			spa_unload_log_sm_flush_all(spa);
+		else
+			spa_log_flushall_done(spa);
 
 		/*
 		 * Stop async tasks.
@@ -7751,6 +7757,9 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 */
 	spa_open_ref(spa, FTAG);
 	spa_namespace_exit(FTAG);
+#ifdef ZFS_DEBUG
+	spa_condense_debug_cancel(spa);
+#endif
 	spa_async_suspend(spa);
 	if (spa->spa_zvol_taskq) {
 		zvol_remove_minors(spa, spa_name(spa), B_TRUE);
@@ -11060,6 +11069,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_sync_close_syncing_log_sm(spa);
 
 	spa_update_dspace(spa);
+	spa_log_sm_stats_update(spa);
 
 	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
 		vdev_autotrim_kick(spa);
@@ -11603,6 +11613,21 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
 		break;
 	}
+	case ZPOOL_WAIT_CONDENSE: {
+		*in_progress = B_FALSE;
+		spa_condense_stat_t *scns;
+
+		for (spa_condense_type_t type = 0;
+		    type < SPA_CONDENSE_TYPES; type++) {
+			scns = &spa->spa_condense_stats[type];
+			if (scns->scns_start_time > 0 &&
+			    scns->scns_end_time == 0) {
+				*in_progress = B_TRUE;
+				break;
+			}
+		}
+		break;
+	}
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
@@ -11737,6 +11762,132 @@ spa_event_notify(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
 {
 	spa_event_post(spa_event_create(spa, vd, hist_nvl, name));
 }
+
+#ifdef ZFS_DEBUG
+/*
+ * This runs the "debug" condense type, which does nothing, just updates the
+ * condense counters every second for ten seconds. This exists entirely for
+ * testing and debugging the condense system itself, which is why it is
+ * compiled out of production builds.
+ */
+#define	SPA_CONDENSE_DEBUG_STEP	(10)
+
+static void
+spa_condense_debug_task(void *arg)
+{
+	spa_t *spa = arg;
+	spa_condense_stat_t *scns =
+	    &spa->spa_condense_stats[SPA_CONDENSE_DEBUG];
+
+	mutex_enter(&spa->spa_condense_stats_lock);
+
+	if (spa->spa_condense_debug_tqid == TASKQID_INVALID) {
+		/*
+		 * Task no longer required, probably cancelled by
+		 * spa_condense_debug_cancel(). Just exit.
+		 */
+		mutex_exit(&spa->spa_condense_stats_lock);
+		return;
+	}
+
+	spa->spa_condense_debug_tqid = TASKQID_INVALID;
+
+	/* Move the condense progress along a bit. */
+	scns->scns_processed = MIN(scns->scns_total, scns->scns_processed +
+	    (scns->scns_total / SPA_CONDENSE_DEBUG_STEP));
+	if (scns->scns_processed == scns->scns_total) {
+		/*
+		 * Reached the end. Set the end time to "complete" the
+		 * condense, signal waiters, release resources and we're done.
+		 */
+		scns->scns_end_time = gethrestime_sec();
+		mutex_exit(&spa->spa_condense_stats_lock);
+		spa_notify_waiters(spa);
+		spa_close(spa, scns);
+		return;
+	}
+
+	/* More to do, re-arm the timer for another round. */
+	spa->spa_condense_debug_tqid = taskq_dispatch_delay(system_delay_taskq,
+	    spa_condense_debug_task, spa, TQ_SLEEP,
+	    ddi_get_lbolt() + SEC_TO_TICK(1));
+	mutex_exit(&spa->spa_condense_stats_lock);
+}
+
+void
+spa_condense_debug_start(spa_t *spa)
+{
+	uint32_t nitems = 10 + random_in_range(90) * SPA_CONDENSE_DEBUG_STEP;
+
+	spa_condense_stat_t *scns =
+	    &spa->spa_condense_stats[SPA_CONDENSE_DEBUG];
+
+	mutex_enter(&spa->spa_condense_stats_lock);
+
+	if (scns->scns_start_time == 0 || scns->scns_end_time > 0) {
+		/* Previous run finished, or no previous run. Start fresh. */
+		scns->scns_start_time = gethrestime_sec();
+		scns->scns_end_time = 0;
+		scns->scns_processed = 0;
+		scns->scns_total = nitems;
+	} else {
+		/* In progress, just add some more work. */
+		scns->scns_total += nitems;
+	}
+
+	if (spa->spa_condense_debug_tqid == TASKQID_INVALID) {
+		spa_open_ref(spa, scns);
+		spa->spa_condense_debug_tqid = taskq_dispatch_delay(
+		    system_delay_taskq, spa_condense_debug_task, spa, TQ_SLEEP,
+		    ddi_get_lbolt() + SEC_TO_TICK(1));
+	}
+
+	mutex_exit(&spa->spa_condense_stats_lock);
+}
+
+void
+spa_condense_debug_cancel(spa_t *spa)
+{
+	spa_condense_stat_t *scns =
+	    &spa->spa_condense_stats[SPA_CONDENSE_DEBUG];
+
+	mutex_enter(&spa->spa_condense_stats_lock);
+
+	/* "Cancel" by just setting the end time. */
+	if (scns->scns_end_time == 0)
+		scns->scns_end_time = gethrestime_sec();
+
+	if (spa->spa_condense_debug_tqid == TASKQID_INVALID) {
+		/* No task, so nothing else to do. */
+		mutex_exit(&spa->spa_condense_stats_lock);
+		spa_notify_waiters(spa);
+		return;
+	}
+
+	/*
+	 * Task is either waiting to run, or running and waiting to take
+	 * spa_condense_stats_lock. Clear the tqid, so if it does run after we
+	 * drop the lock, it will immediately exit.
+	 */
+	taskqid_t tqid = spa->spa_condense_debug_tqid;
+	spa->spa_condense_debug_tqid = TASKQID_INVALID;
+
+	mutex_exit(&spa->spa_condense_stats_lock);
+
+	/*
+	 * Cancel the task. If its running, wait for it to complete (ie do
+	 * nothing, per above).
+	 */
+	taskq_cancel_id(system_delay_taskq, tqid, B_TRUE);
+
+	/*
+	 * Task didn't run or aborted, so it never cleaned up. We do it on its
+	 * behalf.
+	 */
+	spa_notify_waiters(spa);
+	spa_close(spa, scns);
+}
+#endif
 
 /* state manipulation functions */
 EXPORT_SYMBOL(spa_open);
