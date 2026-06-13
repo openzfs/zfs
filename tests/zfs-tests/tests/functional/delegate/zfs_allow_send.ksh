@@ -38,6 +38,18 @@ for dtst in $DATASETS; do
 		log_must verify_perm $dtst "send_raw" $STAFF1
 	done
 
+	# 'send:encrypted' cannot do anything on unencrypted datasets
+	log_must restore_root_datasets
+	log_must zfs allow $STAFF1 "send:encrypted" $dtst
+	log_must verify_noperm $dtst "send" $STAFF1
+	log_must verify_noperm $dtst "send_raw" $STAFF1
+
+	# 'send:encrypted' can do raw send only on encrypted datasets
+	log_must restore_root_datasets 'y'
+	log_must zfs allow $STAFF1 "send:encrypted" $dtst
+	log_must verify_noperm $dtst "send" $STAFF1
+	log_must verify_perm $dtst "send_raw" $STAFF1
+
 done
 
 log_must restore_root_datasets
