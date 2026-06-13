@@ -335,10 +335,6 @@ tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_raw', 'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
 tags = ['functional', 'cli_root', 'zfs_send']
 
-[tests/functional/cli_root/zfs_send_delegation]
-tests = ['zfs_send_test']
-tags = ['functional', 'cli_root', 'zfs_send_delegation']
-
 [tests/functional/cli_root/zfs_set]
 tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
@@ -660,10 +656,6 @@ tests = ['zfs_list_001_pos', 'zfs_list_002_pos', 'zfs_list_003_pos',
 user =
 tags = ['functional', 'cli_user', 'zfs_list']
 
-[tests/functional/cli_user/zfs_send_delegation_user]
-tests = ['zfs_send_usertest']
-tags = ['functional', 'cli_user', 'zfs_send_delegation_user']
-
 [tests/functional/cli_user/zpool_iostat]
 tests = ['zpool_iostat_001_neg', 'zpool_iostat_002_pos',
     'zpool_iostat_003_neg', 'zpool_iostat_004_pos',
@@ -732,9 +724,9 @@ tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
     'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
     'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
-    'zfs_unallow_001_pos', 'zfs_unallow_002_pos', 'zfs_unallow_003_pos',
-    'zfs_unallow_004_pos', 'zfs_unallow_005_pos', 'zfs_unallow_006_pos',
-    'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
+    'zfs_allow_send', 'zfs_unallow_001_pos', 'zfs_unallow_002_pos',
+    'zfs_unallow_003_pos', 'zfs_unallow_004_pos', 'zfs_unallow_005_pos',
+    'zfs_unallow_006_pos', 'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
 tags = ['functional', 'delegate']
 
 [tests/functional/direct]
