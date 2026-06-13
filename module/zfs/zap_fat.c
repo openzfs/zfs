@@ -486,6 +486,7 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 	l->l_blkid = blkid;
 	l->l_bs = highbit64(db->db_size) - 1;
 	l->l_dbuf = db;
+	l->l_chunk_count = ZAP_LEAF_NUMCHUNKS(l);
 
 	dmu_buf_init_user(&l->l_dbu, zap_leaf_evict_sync, NULL, &l->l_dbuf);
 	zap_leaf_t *winner = dmu_buf_set_user(db, &l->l_dbu);
@@ -508,14 +509,14 @@ zap_open_leaf(uint64_t blkid, dmu_buf_t *db)
 	 * There should be more hash entries than there can be
 	 * chunks to put in the hash table
 	 */
-	ASSERT3U(ZAP_LEAF_HASH_NUMENTRIES(l), >, ZAP_LEAF_NUMCHUNKS(l) / 3);
+	ASSERT3U(ZAP_LEAF_HASH_NUMENTRIES(l), >, l->l_chunk_count / 3);
 
 	/* The chunks should begin at the end of the hash table */
 	ASSERT3P(&ZAP_LEAF_CHUNK(l, 0), ==, (zap_leaf_chunk_t *)
 	    &zap_leaf_phys(l)->l_hash[ZAP_LEAF_HASH_NUMENTRIES(l)]);
 
 	/* The chunks should end at the end of the block */
-	ASSERT3U((uintptr_t)&ZAP_LEAF_CHUNK(l, ZAP_LEAF_NUMCHUNKS(l)) -
+	ASSERT3U((uintptr_t)&ZAP_LEAF_CHUNK(l, l->l_chunk_count) -
 	    (uintptr_t)zap_leaf_phys(l), ==, l->l_dbuf->db_size);
 
 	return (l);

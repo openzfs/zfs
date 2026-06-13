@@ -166,6 +166,7 @@ typedef struct zap_leaf {
 	uint64_t l_blkid;		/* 1<<ZAP_BLOCK_SHIFT byte block off */
 	uint_t l_bs;			/* block size shift */
 	dmu_buf_t *l_dbuf;
+	uint16_t l_chunk_count; /* for bound checking */
 } zap_leaf_t;
 
 static inline zap_leaf_phys_t *
