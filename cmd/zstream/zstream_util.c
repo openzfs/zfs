@@ -90,6 +90,19 @@ safe_calloc(size_t size)
 	return (rv);
 }
 
+void *
+safe_realloc(void *from, size_t size)
+{
+	void *data;
+
+	if ((data = realloc(from, size)) == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (data);
+}
+
 /*
  * Safe version of fread(), exits on error.
  */
