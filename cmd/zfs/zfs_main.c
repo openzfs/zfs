@@ -648,26 +648,58 @@ usage(boolean_t requested)
 /*
  * Take a property=value argument string and add it to the given nvlist.
  * Modifies the argument inplace.
+ *
+ * Supports relative (incremental) syntax: property+=value or property-=value.
+ * In that case the value is stored with a leading '+' or '-' sentinel so that
+ * set_callback() can later resolve it against the dataset's current value.
  */
 static boolean_t
 parseprop(nvlist_t *props, char *propname)
 {
 	char *propval;
+	char op = '\0';
 
 	if ((propval = strchr(propname, '=')) == NULL) {
 		(void) fprintf(stderr, gettext("missing "
 		    "'=' for property=value argument\n"));
 		return (B_FALSE);
 	}
-	*propval = '\0';
+
+	/*
+	 * Detect += or -= immediately before the '='.
+	 * Back up the pointer and null-terminate the property name there.
+	 */
+	if (propval > propname &&
+	    (*(propval - 1) == '+' || *(propval - 1) == '-')) {
+		op = *(propval - 1);
+		*(propval - 1) = '\0';
+	} else {
+		*propval = '\0';
+	}
 	propval++;
+
 	if (nvlist_exists(props, propname)) {
 		(void) fprintf(stderr, gettext("property '%s' "
 		    "specified multiple times\n"), propname);
 		return (B_FALSE);
 	}
-	if (nvlist_add_string(props, propname, propval) != 0)
-		nomem();
+
+	if (op != '\0') {
+		/*
+		 * Store value with leading op char as a sentinel (e.g. "+100G"
+		 * or "-50G"). No existing ZFS value starts with '+' or '-', so
+		 * this is unambiguous and requires no extra struct fields.
+		 */
+		char *stored;
+		if (asprintf(&stored, "%c%s", op, propval) < 0)
+			nomem();
+		if (nvlist_add_string(props, propname, stored) != 0)
+			nomem();
+		free(stored);
+	} else {
+		if (nvlist_add_string(props, propname, propval) != 0)
+			nomem();
+	}
 	return (B_TRUE);
 }
 
@@ -4534,10 +4566,114 @@ out:
  * Sets the given properties for all datasets specified on the command line.
  */
 
+/*
+ * Scan props for any relative (+/-) values stored by parseprop(). For each,
+ * fetch the current value from zhp, compute the new absolute value, and
+ * replace the nvlist entry with a decimal string. Returns 0 on success, -1
+ * on error (message already printed to stderr).
+ */
+static int
+resolve_relative_props(zfs_handle_t *zhp, nvlist_t *props)
+{
+	nvpair_t *elem = NULL;
+
+	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
+		const char *propname = nvpair_name(elem);
+		const char *valstr;
+
+		if (nvpair_value_string(elem, &valstr) != 0)
+			continue;
+
+		if (valstr[0] != '+' && valstr[0] != '-')
+			continue;
+
+		char op = valstr[0];
+		const char *deltastr = valstr + 1;
+
+		/* Must be a known property. */
+		zfs_prop_t prop = zfs_name_to_prop(propname);
+		if (prop == ZPROP_INVAL) {
+			(void) fprintf(stderr, gettext("cannot use '%c=' "
+			    "on property '%s': unknown property\n"),
+			    op, propname);
+			return (-1);
+		}
+
+		/* Must be a numeric property. */
+		if (zfs_prop_get_type(prop) != PROP_TYPE_NUMBER) {
+			(void) fprintf(stderr, gettext("cannot use '%c=' "
+			    "on property '%s': not a numeric property\n"),
+			    op, propname);
+			return (-1);
+		}
+
+		/* Must be writable (not readonly or one-time). */
+		zprop_attr_t attr = zfs_prop_get_table()[prop].pd_attr;
+		if (attr == PROP_READONLY || attr == PROP_ONETIME ||
+		    attr == PROP_ONETIME_DEFAULT) {
+			(void) fprintf(stderr, gettext("cannot use '%c=' "
+			    "on property '%s': read-only property\n"),
+			    op, propname);
+			return (-1);
+		}
+
+		/* Parse the delta value (e.g. "100G" -> bytes). */
+		uint64_t delta;
+		if (zfs_nicestrtonum(g_zfs, deltastr, &delta) != 0) {
+			(void) fprintf(stderr, gettext("invalid value for "
+			    "'%s%c=': '%s'\n"), propname, op, deltastr);
+			return (-1);
+		}
+
+		/* Fetch the current value from the dataset. */
+		uint64_t current = zfs_prop_get_int(zhp, prop);
+
+		/* Compute and range-check the new value. */
+		uint64_t newval;
+		if (op == '+') {
+			if (current > UINT64_MAX - delta) {
+				(void) fprintf(stderr, gettext("'%s+=%s': "
+				    "result overflows\n"), propname, deltastr);
+				return (-1);
+			}
+			newval = current + delta;
+		} else {
+			if (delta > current) {
+				(void) fprintf(stderr, gettext("'%s-=%s': "
+				    "result would be negative\n"),
+				    propname, deltastr);
+				return (-1);
+			}
+			newval = current - delta;
+			if (newval == 0) {
+				(void) fprintf(stderr, gettext("'%s-=%s': "
+				    "result is zero; use '%s=none' to "
+				    "disable\n"), propname, deltastr, propname);
+				return (-1);
+			}
+		}
+
+		/* Replace the nvlist entry with the resolved decimal string. */
+		char newvalstr[32];
+		(void) snprintf(newvalstr, sizeof (newvalstr), "%llu",
+		    (unsigned long long)newval);
+		if (nvlist_add_string(props, propname, newvalstr) != 0)
+			nomem();
+
+		/* Restart iteration: nvlist_add_string may have reordered. */
+		elem = NULL;
+	}
+	return (0);
+}
+
 static int
 set_callback(zfs_handle_t *zhp, void *data)
 {
 	zprop_set_cbdata_t *cb = data;
+
+	if (resolve_relative_props(zhp, cb->cb_proplist) != 0)
+		return (-1);
+
 	int ret = zfs_prop_set_list_flags(zhp, cb->cb_proplist, cb->cb_flags);
 
 	if (ret != 0 || libzfs_errno(g_zfs) != EZFS_SUCCESS) {
