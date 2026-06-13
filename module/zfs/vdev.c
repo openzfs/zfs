@@ -4525,6 +4525,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	vdev_t *vd, *tvd, *pvd, *rvd = spa->spa_root_vdev;
 	boolean_t wasoffline;
 	vdev_state_t oldstate;
+	boolean_t do_expand = B_FALSE;
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -4570,7 +4571,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		if (vd->vdev_aux)
 			return (spa_vdev_state_exit(spa, vd, ENOTSUP));
 		spa->spa_ccw_fail_time = 0;
-		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+		do_expand = B_TRUE;
 	}
 
 	/* Restart initializing if necessary */
@@ -4612,7 +4613,57 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		    !vdev_rebuild_active(tvd))
 			spa_async_request(spa, SPA_ASYNC_DETACH_SPARE);
 	}
-	return (spa_vdev_state_exit(spa, vd, 0));
+
+	int error = spa_vdev_state_exit(spa, vd, 0);
+
+	/*
+	 * Perform the config update synchronously so that the pool
+	 * expansion is visible to userspace as soon as zpool online -e
+	 * returns.  We do this outside of spa_vdev_state_enter/exit to
+	 * avoid lock ordering issues, and without the spa_namespace lock
+	 * held to avoid deadlocking the namespace when txg_wait_synced()
+	 * blocks.
+	 */
+	if (do_expand) {
+		uint64_t old_space, new_space;
+
+		old_space = metaslab_class_get_space(
+		    spa_normal_class(spa));
+		old_space += metaslab_class_get_space(
+		    spa_special_class(spa));
+		old_space += metaslab_class_get_space(
+		    spa_dedup_class(spa));
+		old_space += metaslab_class_get_space(
+		    spa_embedded_log_class(spa));
+		old_space += metaslab_class_get_space(
+		    spa_special_embedded_log_class(spa));
+
+		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+
+		new_space = metaslab_class_get_space(
+		    spa_normal_class(spa));
+		new_space += metaslab_class_get_space(
+		    spa_special_class(spa));
+		new_space += metaslab_class_get_space(
+		    spa_dedup_class(spa));
+		new_space += metaslab_class_get_space(
+		    spa_embedded_log_class(spa));
+		new_space += metaslab_class_get_space(
+		    spa_special_embedded_log_class(spa));
+
+		/*
+		 * If the pool grew as a result of the config update,
+		 * then log an internal history event.
+		 */
+		if (new_space != old_space) {
+			spa_history_log_internal(spa, "vdev online", NULL,
+			    "pool '%s' size: %llu(+%llu)",
+			    spa_name(spa), (u_longlong_t)new_space,
+			    (u_longlong_t)(new_space - old_space));
+		}
+	}
+
+	return (error);
 }
 
 static int

@@ -483,7 +483,7 @@ spa_config_update(spa_t *spa, int what)
 	uint64_t txg;
 	int c;
 
-	ASSERT(spa_namespace_held());
+	ASSERT(!spa_namespace_held());
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	txg = spa_last_synced_txg(spa) + 1;
@@ -527,9 +527,11 @@ spa_config_update(spa_t *spa, int what)
 	 * Update the global config cache to reflect the new mosconfig.
 	 */
 	if (!spa->spa_is_root) {
+		spa_namespace_enter(FTAG);
 		spa_write_cachefile(spa, B_FALSE,
 		    what != SPA_CONFIG_UPDATE_POOL,
 		    what != SPA_CONFIG_UPDATE_POOL);
+		spa_namespace_exit(FTAG);
 	}
 
 	if (what == SPA_CONFIG_UPDATE_POOL)
