@@ -24,17 +24,19 @@ log_onexit restore_root_datasets
 
 for dtst in $DATASETS; do
 
-	# full 'send' permission can do it all
-	log_must restore_root_datasets
-	log_must zfs allow $STAFF1 "send" $dtst
-	log_must verify_perm $dtst "send" $STAFF1
-	log_must verify_perm $dtst "send_raw" $STAFF1
+	for enc in '' 'y' ; do
+		# full 'send' permission can do it all
+		log_must restore_root_datasets $enc
+		log_must zfs allow $STAFF1 "send" $dtst
+		log_must verify_perm $dtst "send" $STAFF1
+		log_must verify_perm $dtst "send_raw" $STAFF1
 
-	# 'send:raw' can only do raw send
-	log_must restore_root_datasets
-	log_must zfs allow $STAFF1 "send:raw" $dtst
-	log_must verify_noperm $dtst "send" $STAFF1
-	log_must verify_perm $dtst "send_raw" $STAFF1
+		# 'send:raw' can only do raw send
+		log_must restore_root_datasets $enc
+		log_must zfs allow $STAFF1 "send:raw" $dtst
+		log_must verify_noperm $dtst "send" $STAFF1
+		log_must verify_perm $dtst "send_raw" $STAFF1
+	done
 
 done
 
