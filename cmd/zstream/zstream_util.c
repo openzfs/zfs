@@ -39,7 +39,21 @@
 #include "zstream_util.h"
 
 /*
- * From libzfs_sendrecv.c
+ * Originally from libzfs_sendrecv.c. In that context, some DRR_END records
+ * are emitted by send_conclusion_record(), which does not fill out the
+ * record-end checksum. In zstream, all records will typically exit through
+ * dump_record(), so we need to take special note of those no-checksum
+ * DRR_END records and leave their checksums alone. That more closely
+ * emulates the output of zfs send and avoids unnecessary stream changes.
+ *
+ * We can do this because 1) zfs receive doesn't actually validate those
+ * checksums, and 2) being the checksums of DRR_END conclusion records, they
+ * are always followed by a stream checksum reset. Downstream records'
+ * checksums are not affected by changes here.
+ *
+ * DRR_BEGIN records have no checksums. Their drr_u.drr_checksum must be
+ * left alone because drr_u.drr_begin extends into the region that would
+ * normally contain the checksum.
  */
 int
 dump_record(dmu_replay_record_t *drr, void *payload, size_t payload_len,
@@ -49,9 +63,11 @@ dump_record(dmu_replay_record_t *drr, void *payload, size_t payload_len,
 	    ==, sizeof (dmu_replay_record_t) - sizeof (zio_cksum_t));
 	fletcher_4_incremental_native(drr,
 	    offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum), zc);
-	if (drr->drr_type != DRR_BEGIN) {
-		ASSERT(ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.
-		    drr_checksum.drr_checksum));
+	boolean_t is_conclusion_record =
+	    drr->drr_type == DRR_END &&
+	    drr->drr_u.drr_end.drr_toguid == 0 &&
+	    ZIO_CHECKSUM_IS_ZERO(&drr->drr_u.drr_checksum.drr_checksum);
+	if (!is_conclusion_record && drr->drr_type != DRR_BEGIN) {
 		drr->drr_u.drr_checksum.drr_checksum = *zc;
 	}
 	fletcher_4_incremental_native(&drr->drr_u.drr_checksum.drr_checksum,
