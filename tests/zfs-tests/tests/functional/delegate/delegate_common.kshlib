@@ -53,14 +53,23 @@ function cleanup_user_group
 #
 # Restore test file system to the original status.
 #
-function restore_root_datasets
+function restore_root_datasets # do_encrypt
 {
+	typeset do_encrypt=${1:-}
+
+	typeset enc_args=""
+	typeset password=""
+	if [[ -n "$do_encrypt" ]] ; then
+		enc_args="-o encryption=on -o keyformat=passphrase -o keylocation=prompt"
+		password="password"
+	fi
+
 	destroy_dataset "$ROOT_TESTFS" "-Rf"
-	log_must zfs create $ROOT_TESTFS
+	log_must eval "echo $password | zfs create $enc_args $ROOT_TESTFS"
 
 	if is_global_zone ; then
 		destroy_dataset "$ROOT_TESTVOL" "-Rf"
-		log_must zfs create -V $VOLSIZE $ROOT_TESTVOL
+		log_must eval "echo $password | zfs create -V $VOLSIZE $enc_args $ROOT_TESTVOL"
 		block_device_wait
 	fi
 
