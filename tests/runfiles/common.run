@@ -723,9 +723,9 @@ tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
     'zfs_allow_007_pos', 'zfs_allow_008_pos', 'zfs_allow_009_neg',
     'zfs_allow_010_pos', 'zfs_allow_011_neg', 'zfs_allow_012_neg',
-    'zfs_unallow_001_pos', 'zfs_unallow_002_pos', 'zfs_unallow_003_pos',
-    'zfs_unallow_004_pos', 'zfs_unallow_005_pos', 'zfs_unallow_006_pos',
-    'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
+    'zfs_allow_send', 'zfs_unallow_001_pos', 'zfs_unallow_002_pos',
+    'zfs_unallow_003_pos', 'zfs_unallow_004_pos', 'zfs_unallow_005_pos',
+    'zfs_unallow_006_pos', 'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
 tags = ['functional', 'delegate']
 
 [tests/functional/direct]
