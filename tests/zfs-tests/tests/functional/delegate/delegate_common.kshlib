@@ -53,14 +53,23 @@ function cleanup_user_group
 #
 # Restore test file system to the original status.
 #
-function restore_root_datasets
+function restore_root_datasets # do_encrypt
 {
+	typeset do_encrypt=${1:-}
+
+	typeset enc_args=""
+	typeset password=""
+	if [[ -n "$do_encrypt" ]] ; then
+		enc_args="-o encryption=on -o keyformat=passphrase -o keylocation=prompt"
+		password="password"
+	fi
+
 	destroy_dataset "$ROOT_TESTFS" "-Rf"
-	log_must zfs create $ROOT_TESTFS
+	log_must eval "echo $password | zfs create $enc_args $ROOT_TESTFS"
 
 	if is_global_zone ; then
 		destroy_dataset "$ROOT_TESTVOL" "-Rf"
-		log_must zfs create -V $VOLSIZE $ROOT_TESTVOL
+		log_must eval "echo $password | zfs create -V $VOLSIZE $enc_args $ROOT_TESTVOL"
 		block_device_wait
 	fi
 
@@ -165,6 +174,9 @@ function common_perm
 	case $perm in
 		send)
 			verify_send $user $perm $dtst
+			;;
+		send_raw)   # not a true permission
+			verify_send_raw $user $perm $dtst
 			;;
 		allow)
 			verify_allow $user $perm $dtst
@@ -347,6 +359,40 @@ function verify_send
 
 	user_run $user eval "zfs send $snap > $bak_user"
 	log_must eval "zfs send $snap > $bak_root"
+
+	if [ "$(cksum < $bak_user)" = "$(cksum < $bak_root)" ]; then
+		ret=0
+	fi
+
+	rm -rf $bak_user $bak_root
+
+	return $ret
+}
+
+#
+# Verify permission send for specified user on the dataset
+# $1 user
+# $2 permission
+# $3 dataset
+#
+function verify_send_raw
+{
+	typeset user=$1
+	typeset perm=$2
+	typeset dtst=$3
+
+	typeset oldval
+	typeset stamp=${perm}.${user}.$RANDOM
+	typeset snap=$dtst@snap.$stamp
+
+	typeset -i ret=1
+
+	log_must zfs snapshot $snap
+	typeset bak_user=$TEST_BASE_DIR/bak.$user.$stamp
+	typeset bak_root=$TEST_BASE_DIR/bak.root.$stamp
+
+	user_run $user eval "zfs send -w $snap > $bak_user"
+	log_must eval "zfs send -w $snap > $bak_root"
 
 	if [ "$(cksum < $bak_user)" = "$(cksum < $bak_root)" ]; then
 		ret=0
