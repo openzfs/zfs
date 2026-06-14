@@ -18,6 +18,7 @@ arg = ...
 fs = arg["argv"][1]
 snap = arg["argv"][2]
 vol = arg["argv"][3]
+bookmark = arg["argv"][4]
 
 props = {}
 
@@ -25,46 +26,48 @@ props = {}
 -- not the value of the property. A better approach might be to compare
 -- their values to the output of 'zfs get <prop>'
 
--- prop                          filesystem         snapshot     volume
-props['used']                 = {{true,       nil}, {true, nil}, {true,       nil}}
-props['available']            = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['referenced']           = {{true,       nil}, {true, nil}, {true,       nil}}
-props['compressratio']        = {{true,       nil}, {true, nil}, {true,       nil}}
-props['refcompressratio']     = {{true,       nil}, {true, nil}, {true,       nil}}
-props['volblocksize']         = {{nil,        nil}, {nil,  nil}, {true,       nil}}
-props['usedbysnapshots']      = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['usedbydataset']        = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['usedbychildren']       = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['usedbyrefreservation'] = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['userrefs']             = {{nil,        nil}, {true, nil}, {nil,        nil}}
-props['written']              = {{true,       nil}, {true, nil}, {true,       nil}}
-props['logicalused']          = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['logicalreferenced']    = {{true,       nil}, {true, nil}, {true,       nil}}
-props['quota']                = {{true, 'default'}, {nil,  nil}, {nil,        nil}}
-props['reservation']          = {{true, 'default'}, {nil,  nil}, {true, 'default'}}
+-- prop                          filesystem         snapshot     volume             bookmark
+props['used']                 = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['available']            = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['referenced']           = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['compressratio']        = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['refcompressratio']     = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['volblocksize']         = {{nil,        nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['usedbysnapshots']      = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['usedbydataset']        = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['usedbychildren']       = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['usedbyrefreservation'] = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['userrefs']             = {{nil,        nil}, {true, nil}, {nil,        nil}, {nil, nil}}
+props['written']              = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['logicalused']          = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['logicalreferenced']    = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['quota']                = {{true, 'default'}, {nil,  nil}, {nil,        nil}, {nil, nil}}
+props['reservation']          = {{true, 'default'}, {nil,  nil}, {true, 'default'}, {nil, nil}}
 -- Note that OpenZFS allows volsize for snapshot
--- props['volsize']           = {{nil,        nil}, {nil,  nil}, {true,       vol}}
-props['refquota']             = {{true, 'default'}, {nil,  nil}, {nil,        nil}}
-props['refreservation']       = {{true, 'default'}, {nil,  nil}, {true,       vol}}
-props['filesystem_limit']     = {{true,        fs}, {nil,  nil}, {nil,        nil}}
-props['snapshot_limit']       = {{true,        fs}, {nil,  nil}, {true,       vol}}
-props['filesystem_count']     = {{true,       nil}, {nil,  nil}, {nil,        nil}}
-props['snapshot_count']       = {{true,       nil}, {nil,  nil}, {true,       nil}}
-props['recordsize']           = {{true, 'default'}, {nil,  nil}, {nil,        nil}}
-props['creation']             = {{true,       nil}, {true, nil}, {true,       nil}}
+-- props['volsize']           = {{nil,        nil}, {nil,  nil}, {true,       vol}, {nil, nil}}
+props['refquota']             = {{true, 'default'}, {nil,  nil}, {nil,        nil}, {nil, nil}}
+props['refreservation']       = {{true, 'default'}, {nil,  nil}, {true,       vol}, {nil, nil}}
+props['filesystem_limit']     = {{true,        fs}, {nil,  nil}, {nil,        nil}, {nil, nil}}
+props['snapshot_limit']       = {{true,        fs}, {nil,  nil}, {true,       vol}, {nil, nil}}
+props['filesystem_count']     = {{true,       nil}, {nil,  nil}, {nil,        nil}, {nil, nil}}
+props['snapshot_count']       = {{true,       nil}, {nil,  nil}, {true,       nil}, {nil, nil}}
+props['recordsize']           = {{true, 'default'}, {nil,  nil}, {nil,        nil}, {nil, nil}}
+props['creation']             = {{true,       nil}, {true, nil}, {true,       nil}, {true, nil}}
 -- hidden props
-props['createtxg']            = {{true,       nil}, {true, nil}, {true,       nil}}
-props['numclones']            = {{nil,        nil}, {true, nil}, {nil,        nil}}
-props['guid']                 = {{true,       nil}, {true, nil}, {true,       nil}}
-props['useraccounting']       = {{true,       nil}, {true, nil}, {true,       nil}}
-props['unique']               = {{true,       nil}, {true, nil}, {true,       nil}}
-props['objsetid']             = {{true,       nil}, {true, nil}, {true,       nil}}
-props['inconsistent']         = {{true,       nil}, {true, nil}, {true,       nil}}
+props['createtxg']            = {{true,       nil}, {true, nil}, {true,       nil}, {true, nil}}
+props['numclones']            = {{nil,        nil}, {true, nil}, {nil,        nil}, {nil, nil}}
+props['guid']                 = {{true,       nil}, {true, nil}, {true,       nil}, {true, nil}}
+props['useraccounting']       = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['unique']               = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['objsetid']             = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['inconsistent']         = {{true,       nil}, {true, nil}, {true,       nil}, {nil, nil}}
+props['ivsetguid']            = {{true,       nil}, {true, nil}, {true,       nil}, {true, nil}}
 
 
 fs_fails = {}
 snap_fails = {}
 vol_fails = {}
+bookmark_fails = {}
 
 function match(n, ans, src, expected)
     if ((expected[n][1] == nil) and (ans ~= nil)) then
@@ -97,6 +100,11 @@ for prop, expected in pairs(props) do
 	if not (match(3, ans, src, expected)) then
 		vol_fails[prop] = {ans, src}
 	end
+
+	ans, src = zfs.get_prop(bookmark, prop)
+	if not (match(4, ans, src, expected)) then
+		bookmark_fails[prop] = {ans, src}
+	end
 end
 
-return {fs_fails, snap_fails, vol_fails}
+return {fs_fails, snap_fails, vol_fails, bookmark_fails}
