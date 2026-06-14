@@ -460,30 +460,83 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 typedef struct {
 	pam_handle_t *pamh;
 	zfs_key_config_t *target;
+	get_all_cb_t cb;
+	int mntstatus;
 } mount_umount_dataset_data_t;
+
+
+/*
+ * Copied from lib/libzfs/libzfs_mount.c with adjustments.
+ *
+ * This has less checks than the original mount_dataset
+ * because down the stack zfs_is_mountable will be called by the libzfs
+ * which does all the checks from local mount_dataset and more.
+ *
+ * If this patch should go to the upstream we need to choose:
+ * - we want consistent behavior between libzfs/zfs mount -a/pam_zfs_key;
+ * - or we want users of pam_zfs_key to be able to troubleshoot via pam log
+ */
+static int
+zfs_iter_cb(zfs_handle_t *zhp, void *data)
+{
+	mount_umount_dataset_data_t *mount_umount_dataset_data = data;
+	get_all_cb_t *cbp = &mount_umount_dataset_data->cb;
+	pam_handle_t *pamh = mount_umount_dataset_data->pamh;
+
+	if (!(zfs_get_type(zhp) & ZFS_TYPE_FILESYSTEM)) {
+		pam_syslog(pamh, LOG_DEBUG,
+		    "dataset is not filesystem: %s, skipping.",
+		    zfs_get_name(zhp));
+		zfs_close(zhp);
+		return (0);
+	}
+
+	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) != ZFS_CANMOUNT_ON) {
+		pam_syslog(pamh, LOG_INFO,
+		    "canmount is not on for: %s, skipping",
+		    zfs_get_name(zhp));
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/*
+	 * Checking it here, because libzfs would attempt to prompt the user for the key.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
+	    ZFS_KEYSTATUS_UNAVAILABLE) {
+		pam_syslog(pamh, LOG_WARNING,
+		    "key unavailable for: %s, skipping",
+		    zfs_get_name(zhp));
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/*
+	 * If this filesystem is inconsistent and has a receive resume
+	 * token, we can not mount it.
+	 */
+	if (zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) &&
+	    zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	    NULL, 0, NULL, NULL, 0, B_TRUE) == 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	libzfs_add_handle(cbp, zhp);
+	if (zfs_iter_filesystems_v2(zhp, 0, zfs_iter_cb, data) != 0) {
+		zfs_close(zhp);
+		return (-1);
+	}
+	return (0);
+}
 
 static int
 mount_dataset(zfs_handle_t *zhp, void *data)
 {
 	mount_umount_dataset_data_t *mount_umount_dataset_data = data;
 
-	zfs_key_config_t *target = mount_umount_dataset_data->target;
 	pam_handle_t *pamh = mount_umount_dataset_data->pamh;
 
-	/* Refresh properties to get the latest key status */
-	zfs_refresh_properties(zhp);
-
-	int ret = 0;
-
-	/* Check if dataset type is filesystem */
-	if (zhp->zfs_type != ZFS_TYPE_FILESYSTEM) {
-		pam_syslog(pamh, LOG_DEBUG,
-		    "dataset is not filesystem: %s, skipping.",
-		    zfs_get_name(zhp));
-		return (0);
-	}
-
-	/* Check if encryption key is available */
 	if (zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS) ==
 	    ZFS_KEYSTATUS_UNAVAILABLE) {
 		pam_syslog(pamh, LOG_WARNING,
@@ -492,59 +545,15 @@ mount_dataset(zfs_handle_t *zhp, void *data)
 		return (0);
 	}
 
-	/* Check if prop canmount is on */
-	if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) != ZFS_CANMOUNT_ON) {
-		pam_syslog(pamh, LOG_INFO,
-		    "canmount is not on for: %s, skipping",
-		    zfs_get_name(zhp));
-		return (0);
-	}
-
-	/* Get mountpoint prop for check */
-	char mountpoint[ZFS_MAXPROPLEN];
-	if ((ret = zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, 1)) != 0) {
-		pam_syslog(pamh, LOG_ERR,
-		    "failed to get mountpoint prop: %d", ret);
-		return (-1);
-	}
-
-	/* Check if mountpoint isn't none or legacy */
-	if (strcmp(mountpoint, ZFS_MOUNTPOINT_NONE) == 0 ||
-	    strcmp(mountpoint, ZFS_MOUNTPOINT_LEGACY) == 0) {
-		pam_syslog(pamh, LOG_INFO,
-		    "mountpoint is none or legacy for: %s, skipping",
-		    zfs_get_name(zhp));
-		return (0);
-	}
-
-	/* Don't mount the dataset if already mounted */
-	if (zfs_is_mounted(zhp, NULL)) {
-		pam_syslog(pamh, LOG_INFO, "already mounted: %s",
-		    zfs_get_name(zhp));
-		return (0);
-	}
-
-	/* Mount the dataset */
-	ret = zfs_mount(zhp, NULL, 0);
-	if (ret) {
+	int ret;
+	if ((ret = zfs_mount(zhp, NULL, 0)) != 0) {
 		pam_syslog(pamh, LOG_ERR,
 		    "zfs_mount failed for %s with: %d", zfs_get_name(zhp),
 		    ret);
-		return (ret);
+		return (mount_umount_dataset_data->mntstatus = -1);
 	}
 
-	/* Recursively mount children if the recursive flag is set */
-	if (target->mount_recursively) {
-		ret = zfs_iter_filesystems_v2(zhp, 0, mount_dataset, data);
-		if (ret != 0) {
-			pam_syslog(pamh, LOG_ERR,
-			    "child iteration failed: %d", ret);
-			return (-1);
-		}
-	}
-
-	return (ret);
+	return (0);
 }
 
 static int
@@ -621,19 +630,39 @@ decrypt_mount(pam_handle_t *pamh, zfs_key_config_t *config, const char *ds_name,
 		return (0);
 	}
 
-	mount_umount_dataset_data_t data;
-	data.pamh = pamh;
-	data.target = config;
+	ret = 0;
+	mount_umount_dataset_data_t data = {
+		.pamh = pamh,
+		.target = config,
+		.mntstatus = 0,
+		.cb = { 0 }
+	};
 
-	ret = mount_dataset(ds, &data);
-	if (ret != 0) {
-		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
+	// lzc_load_key has changed the state of the dataset so we refresh the handle
+	zfs_refresh_properties(ds);
+
+	libzfs_add_handle(&data.cb, ds);
+	if (zfs_iter_filesystems_v2(ds, 0, zfs_iter_cb, &data) != 0) {
+		pam_syslog(pamh, LOG_ERR,
+		    "child iteration failed: %d", ret);
+		ret = -1;
+		goto out;
 	}
 
-	zfs_close(ds);
-	return (0);
+	uint_t nthr = 0; // disable: i am not sure if threading is allowed inside pam modules
+	zfs_foreach_mountpoint(g_zfs, data.cb.cb_handles, data.cb.cb_used, mount_dataset, &data, nthr);
+	if (data.mntstatus != 0) {
+		pam_syslog(pamh, LOG_ERR, "mount failed: %d", data.mntstatus);
+		ret = -1;
+		goto out;
+	}
+
+out:
+	for (int i = 0; i < data.cb.cb_used; i++)
+		zfs_close(data.cb.cb_handles[i]);
+	free(data.cb.cb_handles);
+
+	return (ret);
 }
 
 static int
