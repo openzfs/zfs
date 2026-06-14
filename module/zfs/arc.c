@@ -5152,8 +5152,25 @@ arc_is_overflowing(boolean_t lax, boolean_t use_reserve)
 
 	/* We are not under pressure, so be more or less relaxed. */
 	int64_t overflow = (arc_c >> zfs_arc_overflow_shift) / 2;
-	if (use_reserve)
+	if (use_reserve) {
 		overflow *= 3;
+
+		/*
+		 * Add anon_size to the overflow tolerance: dirty
+		 * anonymous data is unevictable until txg_sync
+		 * completes, so the portion of overflow caused by
+		 * anon data cannot be resolved by eviction.  Without
+		 * this, when the shrinker pushes arc_c down while
+		 * anon_size is large, sync-context writes block
+		 * waiting for eviction that can never free enough
+		 * space — a self-sustaining deadlock with txg_sync.
+		 * Refer to issue #18426 in github.
+		 */
+		uint64_t anon =
+		    zfs_refcount_count(&arc_anon->arcs_size[ARC_BUFC_DATA]) +
+		    zfs_refcount_count(&arc_anon->arcs_size[ARC_BUFC_METADATA]);
+		overflow += anon;
+	}
 	return (arc_over < overflow ? ARC_OVF_SOME : ARC_OVF_SEVERE);
 }
 
