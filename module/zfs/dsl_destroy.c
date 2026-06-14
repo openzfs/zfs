@@ -45,7 +45,11 @@
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_impl.h>
 #include <sys/zvol.h>
+
+#if !defined(DISABLE_ZCP)
 #include <sys/zcp.h>
+#endif
+
 #include <sys/dsl_deadlist.h>
 #include <sys/zthr.h>
 #include <sys/spa_impl.h>
@@ -606,6 +610,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	if (nvlist_next_nvpair(snaps, NULL) == NULL)
 		return (0);
 
+#if !defined(DISABLE_ZCP)
 	/*
 	 * lzc_destroy_snaps() is documented to take an nvlist whose
 	 * values "don't matter".  We need to convert that nvlist to
@@ -687,6 +692,30 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	}
 	fnvlist_free(result);
 	return (rv);
+#else
+	/* zfs channel program support has been disabled */
+	const char *pool = nvpair_name(nvlist_next_nvpair(snaps, NULL));
+
+	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
+		dsl_destroy_snapshot_arg_t ddsa = {
+			.ddsa_name = nvpair_name(pair),
+			.ddsa_defer = defer
+		};
+
+		int error = dsl_sync_task(pool, dsl_destroy_snapshot_check,
+		    dsl_destroy_snapshot_sync, &ddsa, 0,
+		    ZFS_SPACE_CHECK_DESTROY);
+
+		if (error != 0) {
+			fnvlist_add_int32(errlist, ddsa.ddsa_name,
+			    (int32_t)error);
+			return (error);
+		}
+	}
+
+	return (0);
+#endif
 }
 
 int

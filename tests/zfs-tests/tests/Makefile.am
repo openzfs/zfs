@@ -85,23 +85,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/luks/luks_sanity.ksh
 endif
 
-nobase_dist_datadir_zfs_tests_tests_DATA += \
-	functional/acl/acl.cfg \
-	functional/acl/acl_common.kshlib \
-	functional/alloc_class/alloc_class.cfg \
-	functional/alloc_class/alloc_class.kshlib \
-	functional/atime/atime.cfg \
-	functional/atime/atime_common.kshlib \
-	functional/bclone/bclone.cfg \
-	functional/bclone/bclone_common.kshlib \
-	functional/bclone/bclone_corner_cases.kshlib \
-	functional/block_cloning/block_cloning.kshlib \
-	functional/cache/cache.cfg \
-	functional/cache/cache.kshlib \
-	functional/cachefile/cachefile.cfg \
-	functional/cachefile/cachefile.kshlib \
-	functional/casenorm/casenorm.cfg \
-	functional/casenorm/casenorm.kshlib \
+if DISABLE_ZCP
+zcp_tests = \
 	functional/channel_program/channel_common.kshlib \
 	functional/channel_program/lua_core/tst.args_to_lua.out \
 	functional/channel_program/lua_core/tst.args_to_lua.zcp \
@@ -138,7 +123,26 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/channel_program/synctask_core/tst.snapshot_neg.zcp \
 	functional/channel_program/synctask_core/tst.snapshot_recursive.zcp \
 	functional/channel_program/synctask_core/tst.snapshot_rename.zcp \
-	functional/channel_program/synctask_core/tst.snapshot_simple.zcp \
+	functional/channel_program/synctask_core/tst.snapshot_simple.zcp
+endif
+
+nobase_dist_datadir_zfs_tests_tests_DATA += \
+	functional/acl/acl.cfg \
+	functional/acl/acl_common.kshlib \
+	functional/alloc_class/alloc_class.cfg \
+	functional/alloc_class/alloc_class.kshlib \
+	functional/atime/atime.cfg \
+	functional/atime/atime_common.kshlib \
+	functional/bclone/bclone.cfg \
+	functional/bclone/bclone_common.kshlib \
+	functional/bclone/bclone_corner_cases.kshlib \
+	functional/block_cloning/block_cloning.kshlib \
+	functional/cache/cache.cfg \
+	functional/cache/cache.kshlib \
+	functional/cachefile/cachefile.cfg \
+	functional/cachefile/cachefile.kshlib \
+	functional/casenorm/casenorm.cfg \
+	functional/casenorm/casenorm.kshlib \
 	functional/checksum/default.cfg \
 	functional/clean_mirror/clean_mirror_common.kshlib \
 	functional/clean_mirror/default.cfg \
@@ -406,6 +410,76 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/idmap_mount/idmap_mount.cfg \
 	functional/idmap_mount/idmap_mount_common.kshlib
 
+
+nobase_dist_datadir_zfs_tests_tests_DATA += \
+	$(zcp_tests)
+
+if DISABLE_ZCP
+zcp_tests_scripts = \
+	functional/channel_program/lua_core/cleanup.ksh \
+	functional/channel_program/lua_core/setup.ksh \
+	functional/channel_program/lua_core/tst.args_to_lua.ksh \
+	functional/channel_program/lua_core/tst.divide_by_zero.ksh \
+	functional/channel_program/lua_core/tst.encryption.ksh \
+	functional/channel_program/lua_core/tst.exists.ksh \
+	functional/channel_program/lua_core/tst.integer_illegal.ksh \
+	functional/channel_program/lua_core/tst.integer_overflow.ksh \
+	functional/channel_program/lua_core/tst.language_functions_neg.ksh \
+	functional/channel_program/lua_core/tst.language_functions_pos.ksh \
+	functional/channel_program/lua_core/tst.large_prog.ksh \
+	functional/channel_program/lua_core/tst.libraries.ksh \
+	functional/channel_program/lua_core/tst.memory_limit.ksh \
+	functional/channel_program/lua_core/tst.nested_neg.ksh \
+	functional/channel_program/lua_core/tst.nested_pos.ksh \
+	functional/channel_program/lua_core/tst.nvlist_to_lua.ksh \
+	functional/channel_program/lua_core/tst.recursive_neg.ksh \
+	functional/channel_program/lua_core/tst.recursive_pos.ksh \
+	functional/channel_program/lua_core/tst.return_large.ksh \
+	functional/channel_program/lua_core/tst.return_nvlist_neg.ksh \
+	functional/channel_program/lua_core/tst.return_nvlist_pos.ksh \
+	functional/channel_program/lua_core/tst.return_recursive_table.ksh \
+	functional/channel_program/lua_core/tst.stack_gsub.ksh \
+	functional/channel_program/lua_core/tst.timeout.ksh \
+	functional/channel_program/synctask_core/cleanup.ksh \
+	functional/channel_program/synctask_core/setup.ksh \
+	functional/channel_program/synctask_core/tst.bookmark.copy.ksh \
+	functional/channel_program/synctask_core/tst.bookmark.create.ksh \
+	functional/channel_program/synctask_core/tst.clone.ksh \
+	functional/channel_program/synctask_core/tst.destroy_fs.ksh \
+	functional/channel_program/synctask_core/tst.destroy_snap.ksh \
+	functional/channel_program/synctask_core/tst.get_count_and_limit.ksh \
+	functional/channel_program/synctask_core/tst.get_index_props.ksh \
+	functional/channel_program/synctask_core/tst.get_mountpoint.ksh \
+	functional/channel_program/synctask_core/tst.get_neg.ksh \
+	functional/channel_program/synctask_core/tst.get_number_props.ksh \
+	functional/channel_program/synctask_core/tst.get_string_props.ksh \
+	functional/channel_program/synctask_core/tst.get_type.ksh \
+	functional/channel_program/synctask_core/tst.get_userquota.ksh \
+	functional/channel_program/synctask_core/tst.get_written.ksh \
+	functional/channel_program/synctask_core/tst.inherit.ksh \
+	functional/channel_program/synctask_core/tst.list_bookmarks.ksh \
+	functional/channel_program/synctask_core/tst.list_children.ksh \
+	functional/channel_program/synctask_core/tst.list_clones.ksh \
+	functional/channel_program/synctask_core/tst.list_holds.ksh \
+	functional/channel_program/synctask_core/tst.list_snapshots.ksh \
+	functional/channel_program/synctask_core/tst.list_system_props.ksh \
+	functional/channel_program/synctask_core/tst.list_user_props.ksh \
+	functional/channel_program/synctask_core/tst.parse_args_neg.ksh \
+	functional/channel_program/synctask_core/tst.promote_conflict.ksh \
+	functional/channel_program/synctask_core/tst.promote_multiple.ksh \
+	functional/channel_program/synctask_core/tst.promote_simple.ksh \
+	functional/channel_program/synctask_core/tst.rollback_mult.ksh \
+	functional/channel_program/synctask_core/tst.rollback_one.ksh \
+	functional/channel_program/synctask_core/tst.set_props.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_destroy.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_neg.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_recursive.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_rename.ksh \
+	functional/channel_program/synctask_core/tst.snapshot_simple.ksh \
+	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh
+endif
+
+
 nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/off/cleanup.ksh \
 	functional/acl/off/dosmode.ksh \
@@ -551,67 +625,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/casenorm/sensitive_none_delete.ksh \
 	functional/casenorm/sensitive_none_lookup.ksh \
 	functional/casenorm/setup.ksh \
-	functional/channel_program/lua_core/cleanup.ksh \
-	functional/channel_program/lua_core/setup.ksh \
-	functional/channel_program/lua_core/tst.args_to_lua.ksh \
-	functional/channel_program/lua_core/tst.divide_by_zero.ksh \
-	functional/channel_program/lua_core/tst.encryption.ksh \
-	functional/channel_program/lua_core/tst.exists.ksh \
-	functional/channel_program/lua_core/tst.integer_illegal.ksh \
-	functional/channel_program/lua_core/tst.integer_overflow.ksh \
-	functional/channel_program/lua_core/tst.language_functions_neg.ksh \
-	functional/channel_program/lua_core/tst.language_functions_pos.ksh \
-	functional/channel_program/lua_core/tst.large_prog.ksh \
-	functional/channel_program/lua_core/tst.libraries.ksh \
-	functional/channel_program/lua_core/tst.memory_limit.ksh \
-	functional/channel_program/lua_core/tst.nested_neg.ksh \
-	functional/channel_program/lua_core/tst.nested_pos.ksh \
-	functional/channel_program/lua_core/tst.nvlist_to_lua.ksh \
-	functional/channel_program/lua_core/tst.recursive_neg.ksh \
-	functional/channel_program/lua_core/tst.recursive_pos.ksh \
-	functional/channel_program/lua_core/tst.return_large.ksh \
-	functional/channel_program/lua_core/tst.return_nvlist_neg.ksh \
-	functional/channel_program/lua_core/tst.return_nvlist_pos.ksh \
-	functional/channel_program/lua_core/tst.return_recursive_table.ksh \
-	functional/channel_program/lua_core/tst.stack_gsub.ksh \
-	functional/channel_program/lua_core/tst.timeout.ksh \
-	functional/channel_program/synctask_core/cleanup.ksh \
-	functional/channel_program/synctask_core/setup.ksh \
-	functional/channel_program/synctask_core/tst.bookmark.copy.ksh \
-	functional/channel_program/synctask_core/tst.bookmark.create.ksh \
-	functional/channel_program/synctask_core/tst.clone.ksh \
-	functional/channel_program/synctask_core/tst.destroy_fs.ksh \
-	functional/channel_program/synctask_core/tst.destroy_snap.ksh \
-	functional/channel_program/synctask_core/tst.get_count_and_limit.ksh \
-	functional/channel_program/synctask_core/tst.get_index_props.ksh \
-	functional/channel_program/synctask_core/tst.get_mountpoint.ksh \
-	functional/channel_program/synctask_core/tst.get_neg.ksh \
-	functional/channel_program/synctask_core/tst.get_number_props.ksh \
-	functional/channel_program/synctask_core/tst.get_string_props.ksh \
-	functional/channel_program/synctask_core/tst.get_type.ksh \
-	functional/channel_program/synctask_core/tst.get_userquota.ksh \
-	functional/channel_program/synctask_core/tst.get_written.ksh \
-	functional/channel_program/synctask_core/tst.inherit.ksh \
-	functional/channel_program/synctask_core/tst.list_bookmarks.ksh \
-	functional/channel_program/synctask_core/tst.list_children.ksh \
-	functional/channel_program/synctask_core/tst.list_clones.ksh \
-	functional/channel_program/synctask_core/tst.list_holds.ksh \
-	functional/channel_program/synctask_core/tst.list_snapshots.ksh \
-	functional/channel_program/synctask_core/tst.list_system_props.ksh \
-	functional/channel_program/synctask_core/tst.list_user_props.ksh \
-	functional/channel_program/synctask_core/tst.parse_args_neg.ksh \
-	functional/channel_program/synctask_core/tst.promote_conflict.ksh \
-	functional/channel_program/synctask_core/tst.promote_multiple.ksh \
-	functional/channel_program/synctask_core/tst.promote_simple.ksh \
-	functional/channel_program/synctask_core/tst.rollback_mult.ksh \
-	functional/channel_program/synctask_core/tst.rollback_one.ksh \
-	functional/channel_program/synctask_core/tst.set_props.ksh \
-	functional/channel_program/synctask_core/tst.snapshot_destroy.ksh \
-	functional/channel_program/synctask_core/tst.snapshot_neg.ksh \
-	functional/channel_program/synctask_core/tst.snapshot_recursive.ksh \
-	functional/channel_program/synctask_core/tst.snapshot_rename.ksh \
-	functional/channel_program/synctask_core/tst.snapshot_simple.ksh \
-	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh \
 	functional/chattr/chattr_001_pos.ksh \
 	functional/chattr/chattr_002_neg.ksh \
 	functional/chattr/cleanup.ksh \
@@ -2398,3 +2411,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_003.ksh \
 	functional/idmap_mount/idmap_mount_004.ksh \
 	functional/idmap_mount/idmap_mount_005.ksh
+
+nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
+	$(zcp_tests_scripts)

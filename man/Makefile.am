@@ -2,6 +2,11 @@
 dist_noinst_man_MANS = \
 	%D%/man1/cstyle.1
 
+if DISABLE_ZCP
+zcp_manpg = \
+	%D%/man8/zfs-program.8
+endif
+
 dist_man_MANS = \
 	%D%/man1/dbufstat.1 \
 	%D%/man1/zilstat.1 \
@@ -45,7 +50,6 @@ dist_man_MANS = \
 	%D%/man8/zfs-list.8 \
 	%D%/man8/zfs-load-key.8 \
 	%D%/man8/zfs-mount.8 \
-	%D%/man8/zfs-program.8 \
 	%D%/man8/zfs-project.8 \
 	%D%/man8/zfs-projectspace.8 \
 	%D%/man8/zfs-promote.8 \
@@ -106,6 +110,9 @@ dist_man_MANS = \
 	%D%/man8/zstream.8 \
 	%D%/man8/zstreamdump.8 \
 	%D%/man8/zpool_influxdb.8
+
+dist_man_MANS += \
+	$(zcp_manpg)
 
 if BUILD_FREEBSD
 dist_man_MANS += \
