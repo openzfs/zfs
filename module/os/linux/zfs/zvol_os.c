@@ -719,52 +719,30 @@ zvol_read(zv_request_t *zvr)
 
 	uint64_t volsize = zv->zv_volsize;
 
-	/*
-	 * Try Direct I/O first.  Process the request in DMU_MAX_ACCESS/2
-	 * chunks (same as the ARC path) because abd_alloc_from_pages()
-	 * limits size to DMU_MAX_ACCESS, and large single allocations
-	 * are wasteful.  On checksum error, fall back to the ARC path.
-	 *
-	 * Fall back to the ARC path if:
-	 * - Direct I/O is disabled (zvol_dio_enabled=0)
-	 * - The request is not page-aligned
-	 * - The Direct I/O read fails (e.g. checksum error)
-	 */
-	if (zvol_dio_can_read(zv, &uio, uio.uio_resid)) {
-		boolean_t dio_failed = B_FALSE;
-
-		while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
-			uint64_t bytes = MIN(uio.uio_resid,
-			    DMU_MAX_ACCESS >> 1);
-
-			if (bytes > volsize - uio.uio_loffset)
-				bytes = volsize - uio.uio_loffset;
-
-			error = zvol_dio_read(zv, zvr->bio, zvr->rq,
-			    &uio, bytes);
-			if (error != 0) {
-				dio_failed = B_TRUE;
-				break;
-			}
-		}
-
-		if (!dio_failed)
-			goto read_done;
-
-		/*
-		 * If Direct I/O failed, reset the uio and fall through
-		 * to the ARC path. For checksum errors, the ARC path
-		 * will retry safely.
-		 */
-		zfs_uio_bvec_init(&uio, bio, rq);
-	}
-
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
 
 		/* don't read past the end */
 		if (bytes > volsize - uio.uio_loffset)
 			bytes = volsize - uio.uio_loffset;
+
+		/*
+		 * Try Direct I/O for page-aligned reads. This bypasses
+		 * the ARC and DMAs data directly into the bio pages,
+		 * avoiding the kmap+memcpy overhead.
+		 *
+		 * On DIO failure (e.g. checksum error), fall back to
+		 * the ARC path which has more robust error recovery
+		 * (mirror reads, parity reconstruction).  The uio is
+		 * not advanced on DIO error, so we retry the same bytes
+		 * via ARC before reporting an error.
+		 */
+		if (zvol_dio_can_read(zv, &uio, bytes)) {
+			error = zvol_dio_read(zv, zvr->bio, zvr->rq,
+			    &uio, bytes);
+			if (error == 0)
+				continue;
+		}
 
 		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes,
 		    DMU_READ_PREFETCH);
@@ -775,7 +753,6 @@ zvol_read(zv_request_t *zvr)
 			break;
 		}
 	}
-read_done:
 	zfs_rangelock_exit(lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
