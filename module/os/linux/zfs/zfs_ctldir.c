@@ -1180,8 +1180,7 @@ zfsctl_snapshot_mount(struct path *path)
 	int error;
 	struct path spath;
 
-	if (ip == NULL)
-		return (SET_ERROR(EISDIR));
+	ASSERT3P(ip, !=, NULL);
 
 	zfsvfs = ITOZSB(ip);
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
