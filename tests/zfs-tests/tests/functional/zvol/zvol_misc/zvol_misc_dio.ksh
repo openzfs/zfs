@@ -227,7 +227,50 @@ function test_dio_fio_verify
 }
 
 #
-# Test 5: With primarycache=all, verify DIO enabled vs disabled ARC behavior.
+# Test 5: Verify large I/O (> DMU_MAX_ACCESS) is correctly chunked.
+#   DMU_MAX_ACCESS is 64MB; the DIO loop processes data in
+#   DMU_MAX_ACCESS/2 (32MB) chunks.  I/O of 128MB exercises at least
+#   4 chunks per request, covering the while-loop iteration path and
+#   ensuring that partial advances in the uio are correctly handled.
+#
+function test_dio_large_io
+{
+	log_note "Testing large I/O (> DMU_MAX_ACCESS) with DIO"
+
+	log_must set_tunable32 VOL_DIO_ENABLED 1
+	block_device_wait $zvolpath
+
+	# 128MB = 2 * DMU_MAX_ACCESS, processed as 4 x 32MB chunks
+	typeset size_mb=128
+	typeset count=$size_mb
+
+	log_must dd if=/dev/urandom of="$datafile1" bs=1M count=$count
+
+	# Write 128MB with DIO — exercises the multi-chunk loop in zvol_write
+	log_must dd if=$datafile1 of=$zvolpath bs=1M count=$count \
+	    conv=fsync
+
+	# Read back 128MB with DIO — exercises the multi-chunk loop in zvol_read
+	log_must dd if=$zvolpath of="$datafile2" bs=1M count=$count
+
+	log_must diff $datafile1 $datafile2
+	log_must rm -f "$datafile1" "$datafile2"
+
+	# Also test with bs=PAGE_SIZE (4k) to exercise many small chunks.
+	# 4M / 4k = 1024 iterations, which stress-tests the per-chunk
+	# DIO-capable check inside the while loop.
+	log_must dd if=/dev/urandom of="$datafile1" bs=4k count=1024
+	log_must dd if=$datafile1 of=$zvolpath bs=4k count=1024 \
+	    conv=fsync
+	log_must dd if=$zvolpath of="$datafile2" bs=4k count=1024
+	log_must diff $datafile1 $datafile2
+	log_must rm -f "$datafile1" "$datafile2"
+
+	log_note "Large I/O chunking test passed"
+}
+
+#
+# Test 6: With primarycache=all, verify DIO enabled vs disabled ARC behavior.
 #   - DIO disabled: ARC should cache data (data_size grows after read).
 #   - DIO enabled:  ARC should NOT cache data (data_size stays flat).
 # This is the definitive test proving DIO bypasses ARC regardless of cache policy.
@@ -329,6 +372,9 @@ test_dio_disabled_fallback 128k 2048
 
 # Test fio verify
 test_dio_fio_verify
+
+# Test large I/O chunking (> DMU_MAX_ACCESS)
+test_dio_large_io
 
 # Test ARC behavior: primarycache=all, DIO on vs off
 test_dio_arc_controlled
