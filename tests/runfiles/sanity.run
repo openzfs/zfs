@@ -546,7 +546,7 @@ tags = ['functional', 'reservation']
 tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'rsend_002_pos', 'rsend_003_pos', 'rsend_009_pos', 'rsend_010_pos',
     'rsend_011_pos', 'rsend_016_neg', 'rsend-exclude_001_pos',
-    'rsend-exclude_002_pos', 'send-c_volume', 'send-c_zstreamdump',
+    'rsend-exclude_002_pos', 'send-c_volume',
     'send-c_recv_dedup', 'send-L_toggle', 'send_encrypted_hierarchy',
     'send_encrypted_props', 'send_encrypted_freeobjects',
     'send_encrypted_truncated_files', 'send_freeobjects', 'send_holds',
@@ -613,6 +613,11 @@ tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
     'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg',
     'xattr_011_pos', 'xattr_013_pos', 'xattr_014_pos', 'xattr_compat']
 tags = ['functional', 'xattr']
+
+[tests/functional/zstream]
+tests = ['zstream_dump_001_pos', 'zstream_dump_002_pos',
+    'zstream_redup_001_pos']
+tags = ['functional', 'zstream']
 
 [tests/functional/zvol/zvol_ENOSPC]
 tests = ['zvol_ENOSPC_001_pos']

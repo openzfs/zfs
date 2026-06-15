@@ -1,0 +1,19 @@
+The scripts in this directory were used to generate most of the static
+test streams used by the zstream test suite. They're not really
+intended to be run again and are here more as documentation than as
+code.
+
+Some of the python scripts use the 'lorem' pip module, so you need to
+run the make-venv.sh to set up before running them. The venv is created
+in /tmp and the scripts hard-code that path for python.
+
+The "all-drr-types" streams have to be generated in two pieces because
+of the way redaction works. A *base* stream and an *incr* stream
+collectively include every possible type of record, but neither
+substream is complete on its own.
+
+Many test streams are big-endian, so given hardware's convergence on
+little-endian order, you will probably need to create big-endian
+streams under emulation with, e.g., QEMU. As of mid-2026, the easiest
+target for big-endian emulation is an IBM s390x CPU, which is supported
+by both QEMU and Ubuntu.

@@ -403,6 +403,42 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/zvol/zvol_ENOSPC/zvol_ENOSPC.cfg \
 	functional/zvol/zvol_misc/zvol_misc_common.kshlib \
 	functional/zvol/zvol_swap/zvol_swap.cfg \
+	functional/zstream/zstream.cfg \
+	functional/zstream/zstream.kshlib \
+	functional/zstream/big-endian-all-drr-types-base-NATIVE.zsend.bz2 \
+	functional/zstream/big-endian-all-drr-types-base-XDR.zsend.bz2 \
+	functional/zstream/big-endian-all-drr-types-incr-NATIVE.zsend.bz2 \
+	functional/zstream/big-endian-all-drr-types-incr-XDR.zsend.bz2 \
+	functional/zstream/little-endian-all-drr-types-base-NATIVE.zsend.bz2 \
+	functional/zstream/little-endian-all-drr-types-base-XDR.zsend.bz2 \
+	functional/zstream/little-endian-all-drr-types-incr-NATIVE.zsend.bz2 \
+	functional/zstream/little-endian-all-drr-types-incr-XDR.zsend.bz2 \
+	functional/zstream/decompress.zsend.bz2 \
+	functional/zstream/decompress-crypt.zsend.bz2 \
+	functional/zstream/big-endian-long-payloads.zsend.bz2 \
+	functional/zstream/little-endian-long-payloads.zsend.bz2 \
+	functional/zstream/beadtbn-new.dump.bz2 \
+	functional/zstream/beadtbn-old.dump.bz2 \
+	functional/zstream/beadtbx-new.dump.bz2 \
+	functional/zstream/beadtbx-old.dump.bz2 \
+	functional/zstream/beadtin-new.dump.bz2 \
+	functional/zstream/beadtin-old.dump.bz2 \
+	functional/zstream/beadtix-new.dump.bz2 \
+	functional/zstream/beadtix-old.dump.bz2 \
+	functional/zstream/belp-new.dump.bz2 \
+	functional/zstream/belp-old.dump.bz2 \
+	functional/zstream/d-new.dump.bz2 \
+	functional/zstream/dc-new.dump.bz2 \
+	functional/zstream/leadtbn-new.dump.bz2 \
+	functional/zstream/leadtbn-old.dump.bz2 \
+	functional/zstream/leadtbx-new.dump.bz2 \
+	functional/zstream/leadtbx-old.dump.bz2 \
+	functional/zstream/leadtin-new.dump.bz2 \
+	functional/zstream/leadtin-old.dump.bz2 \
+	functional/zstream/leadtix-new.dump.bz2 \
+	functional/zstream/leadtix-old.dump.bz2 \
+	functional/zstream/lelp-new.dump.bz2 \
+	functional/zstream/lelp-old.dump.bz2 \
 	functional/idmap_mount/idmap_mount.cfg \
 	functional/idmap_mount/idmap_mount_common.kshlib
 
@@ -2100,8 +2136,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_verify_contents.ksh \
 	functional/rsend/send-c_verify_ratio.ksh \
 	functional/rsend/send-c_volume.ksh \
-	functional/rsend/send-c_zstream_recompress.ksh \
-	functional/rsend/send-c_zstreamdump.ksh \
 	functional/rsend/send-cpL_varied_recsize.ksh \
 	functional/rsend/send_doall.ksh \
 	functional/rsend/send_encrypted_incremental.ksh \
@@ -2130,7 +2164,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_realloc_files.ksh \
 	functional/rsend/send_spill_block.ksh \
 	functional/rsend/send-wR_encrypted_zvol.ksh \
-	functional/rsend/send-zstream_drop_record.ksh \
 	functional/rsend/setup.ksh \
 	functional/scrub_mirror/cleanup.ksh \
 	functional/scrub_mirror/scrub_mirror_001_pos.ksh \
@@ -2356,6 +2389,26 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zpool_influxdb/cleanup.ksh \
 	functional/zpool_influxdb/setup.ksh \
 	functional/zpool_influxdb/zpool_influxdb.ksh \
+	functional/zstream/setup.ksh \
+	functional/zstream/cleanup.ksh \
+	functional/zstream/zstream_checksum_001_pos.ksh \
+	functional/zstream/zstream_decompress_001_pos.ksh \
+	functional/zstream/zstream_decompress_002_pos.ksh \
+	functional/zstream/zstream_decompress_003_neg.ksh \
+	functional/zstream/zstream_decompress_004_pos.ksh \
+	functional/zstream/zstream_decompress_005_pos.ksh \
+	functional/zstream/zstream_decompress_006_neg.ksh \
+	functional/zstream/zstream_drop_record_001_pos.ksh \
+	functional/zstream/zstream_dump_001_pos.ksh \
+	functional/zstream/zstream_dump_002_pos.ksh \
+	functional/zstream/zstream_dump_003_pos.ksh \
+	functional/zstream/zstream_dump_004_neg.ksh \
+	functional/zstream/zstream_recompress_001_pos.ksh \
+	functional/zstream/zstream_recompress_002_pos.ksh \
+	functional/zstream/zstream_recompress_003_pos.ksh \
+	functional/zstream/zstream_recompress_004_pos.ksh \
+	functional/zstream/zstream_recompress_005_pos.ksh \
+	functional/zstream/zstream_redup_001_pos.ksh \
 	functional/zvol/zvol_cli/cleanup.ksh \
 	functional/zvol/zvol_cli/setup.ksh \
 	functional/zvol/zvol_cli/zvol_cli_001_pos.ksh \
