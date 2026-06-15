@@ -1151,7 +1151,9 @@ tests = ['zvol_cli_001_pos', 'zvol_cli_002_pos', 'zvol_cli_003_neg']
 tags = ['functional', 'zvol', 'zvol_cli']
 
 [tests/functional/zvol/zvol_misc]
-tests = ['zvol_misc_002_pos', 'zvol_misc_hierarchy', 'zvol_misc_rename_inuse',
+tests = ['zvol_misc_002_pos', 'zvol_misc_dio', 'zvol_misc_dio_coherency',
+    'zvol_misc_dio_unaligned',
+    'zvol_misc_hierarchy', 'zvol_misc_rename_inuse',
     'zvol_misc_snapdev', 'zvol_misc_trim', 'zvol_misc_volmode', 'zvol_misc_zil']
 tags = ['functional', 'zvol', 'zvol_misc']
 
