@@ -943,6 +943,29 @@ int dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx, dmu_flags_t flags);
+/*
+ * Async Direct I/O completion callback type (shared by read and write).
+ */
+typedef void (dmu_abd_done_func_t)(void *arg, int error);
+
+/*
+ * Async Direct I/O read.  Submits reads via the ZIO pipeline and returns
+ * immediately.  The completion callback fires from ZIO taskq context when
+ * all reads finish.  Caller retains ownership of 'data' until callback.
+ */
+int dmu_read_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags,
+    dmu_abd_done_func_t *done, void *done_arg);
+
+/*
+ * Async Direct I/O write.  Submits writes via the ZIO pipeline and returns
+ * immediately.  The completion callback fires from ZIO taskq context when
+ * all writes finish.  Caller retains ownership of 'data' until callback
+ * and must commit the transaction (tx) from the callback.
+ */
+int dmu_write_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx,
+    dmu_abd_done_func_t *done, void *done_arg);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
