@@ -75,7 +75,7 @@ Auto-selected:
 
 - Linux: almalinux 8/9/10, centos-stream 9/10, debian 11/12/13,
   fedora 43/44, ubuntu 22/24/26
-- FreeBSD: 14.4-RELEASE/STABLE, 15.0-RELEASE, 15.1-STABLE, 16.0-CURRENT
+- FreeBSD: 14.4-RELEASE/STABLE, 15.1-RELEASE/STABLE, 16.0-CURRENT
 
 Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 
