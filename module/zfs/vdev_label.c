@@ -1497,8 +1497,6 @@ vdev_label_read_bootenv_done(zio_t *zio)
 	zio_t *rio = zio->io_private;
 	abd_t **cbp = rio->io_private;
 
-	ASSERT3U(zio->io_size, ==, VDEV_PAD_SIZE);
-
 	if (zio->io_error == 0) {
 		mutex_enter(&rio->io_lock);
 		if (*cbp == NULL) {

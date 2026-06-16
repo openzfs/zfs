@@ -1227,7 +1227,7 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 
 		zhack_repair_write_uberblock(vl,
 		    l, ashift, fd, byteswap, label_offset, labels_repaired);
-		if (large_label) {
+		if (*large_label) {
 			zhack_repair_write_uberblock_new(ub, l, ashift,
 			    fd, byteswap, vdev_label_offset(filesize, l, 0,
 			    B_TRUE), labels_repaired);
@@ -1301,8 +1301,7 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 
 	uint32_t bootenv_size, vc_size, sc_size;
 	uint32_t bootenv_offset, vc_offset, sc_offset;
-	if (!vdev_toc_get_secinfo(toc, VDEV_TOC_BOOT_REGION,
-	    &bootenv_size, &bootenv_offset) || !vdev_toc_get_secinfo(toc,
+	if (!vdev_toc_get_secinfo(toc,
 	    VDEV_TOC_VDEV_CONFIG, &vc_size, &vc_offset) ||
 	    !vdev_toc_get_secinfo(toc, VDEV_TOC_POOL_CONFIG, &sc_size,
 	    &sc_offset)) {
@@ -1311,6 +1310,9 @@ zhack_repair_one_label_large(const zhack_repair_op_t op, const int fd,
 		    "error: TOC missing core fields %d\n", l);
 		goto out;
 	}
+	if (!vdev_toc_get_secinfo(toc, VDEV_TOC_BOOT_REGION,
+	    &bootenv_size, &bootenv_offset))
+		bootenv_size = bootenv_offset = 0;
 	fnvlist_free(toc);
 	bootenv = malloc(bootenv_size);
 	zio_eck_t *bootenv_eck = (zio_eck_t *)(bootenv + bootenv_size) - 1;
@@ -1488,7 +1490,8 @@ zhack_label_repair(const zhack_repair_op_t op, const int argc, char **argv)
 	if (large_label) {
 		for (int l = 0; l < VDEV_LABELS; l++) {
 			zhack_repair_one_label_large(op, fd,
-			    filesize, l, labels_repaired);
+			    vdev_label_offset(filesize, l, 0, B_TRUE), l,
+			    labels_repaired);
 		}
 	}
 
