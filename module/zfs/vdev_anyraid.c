@@ -554,11 +554,12 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 	 * the 4 separate buffers.
 	 */
 	zio_t *rio = zio_root(spa, NULL, NULL, flags);
-	abd_t *map_abds[VDEV_ANYRAID_MAP_COPIES] = {0};
+	abd_t *map_abds[VDEV_ANYRAID_MAP_SIZE / SPA_MAXBLOCKSIZE] = {0};
 	uint64_t header_offset = vdev_anyraid_header_offset(cvd, mapping);
 	uint64_t map_offset = header_offset + header_size;
 	int i;
-	for (i = 0; i <= (map_length / SPA_MAXBLOCKSIZE); i++) {
+	uint_t num_maps = (((int64_t)map_length - 1) / SPA_MAXBLOCKSIZE) + 1;
+	for (i = 0; i < num_maps; i++) {
 		zio_eck_t *cksum = (zio_eck_t *)
 		    &header.ah_buf[VDEV_ANYRAID_NVL_BYTES(ashift) +
 		    i * sizeof (*cksum)];

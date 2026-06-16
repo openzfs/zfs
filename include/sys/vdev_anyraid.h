@@ -217,7 +217,7 @@ amle_get_disk(anyraid_map_loc_entry_t *amle)
 }
 
 static inline void
-amle_set_offset(anyraid_map_loc_entry_t *amle, uint8_t offset)
+amle_set_offset(anyraid_map_loc_entry_t *amle, uint16_t offset)
 {
 	BF32_SET(*amle, (AME_TYPE_BITS + AMLE_DISK_BITS), AMLE_OFFSET_BITS,
 	    offset);
