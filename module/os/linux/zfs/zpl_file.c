@@ -211,6 +211,27 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
+#ifndef EIOCBQUEUED
+#define	EIOCBQUEUED	(-EIOCBRETRY)
+#endif
+
+/*
+ * Module parameter to enable/disable async Direct I/O reads.
+ * When enabled, O_DIRECT reads on async kiocbs (libaio/io_uring) use
+ * zfs_read_async() → dmu_read_abd_async() which submits reads to the
+ * ZIO pipeline and returns -EIOCBQUEUED to the VFS.  Completion is
+ * signalled via kiocb->ki_complete() from ZIO taskq context.
+ *
+ * Default: 0 (disabled)
+ */
+static unsigned int zfs_async_dio_enabled = 0;
+
+#ifdef CONFIG_SYSFS
+module_param(zfs_async_dio_enabled, uint, 0644);
+MODULE_PARM_DESC(zfs_async_dio_enabled,
+	"Enable async Direct I/O reads via -EIOCBQUEUED");
+#endif
+
 static ssize_t
 zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 {
@@ -221,6 +242,32 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zfs_uio_t uio;
 
 	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
+
+	/*
+	 * If async DIO is enabled and this is an async kiocb (libaio or
+	 * io_uring), dispatch the read via zfs_read_async() which submits
+	 * I/O to the ZIO pipeline and returns immediately.  We then return
+	 * -EIOCBQUEUED to tell the VFS we'll complete later.
+	 *
+	 * If zfs_read_async() returns an error (e.g. DIO not possible),
+	 * fall through to the synchronous path.
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb)) {
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+
+		ssize_t ret = -zfs_read_async(
+		    ITOZ(filp->f_mapping->host), &uio,
+		    filp->f_flags | zfs_io_flags(kiocb), cr, kiocb);
+
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (ret == 0)
+			return ((ssize_t)-EIOCBQUEUED);
+
+		/* Fall through to sync path on error */
+	}
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -271,6 +318,31 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 		return (ret);
 
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
+
+	/*
+	 * If async DIO is enabled and this is an async kiocb (libaio or
+	 * io_uring), dispatch the write via zfs_write_async() which
+	 * submits I/O to the ZIO pipeline and returns immediately.
+	 * We then return -EIOCBQUEUED to tell the VFS we'll complete
+	 * later.  If zfs_write_async() returns an error, fall through
+	 * to the synchronous path.
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb)) {
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+
+		ssize_t async_ret = -zfs_write_async(
+		    ITOZ(ip), &uio,
+		    filp->f_flags | zfs_io_flags(kiocb), cr, kiocb);
+
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (async_ret == 0)
+			return ((ssize_t)-EIOCBQUEUED);
+
+		/* Fall through to sync path on error */
+	}
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();

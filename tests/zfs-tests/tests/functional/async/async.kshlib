@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2026, tiehexue <tiehexue@hotmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/async/async.cfg
+
+#
+# Run an async Direct I/O fio benchmark and log the read IOPS.
+#
+# Usage: async_dio_read_iops <mountpoint> <ioengine> <iodepth> <runtime> [label]
+#
+# Returns the read IOPS value on stdout.
+#
+function async_dio_read_iops
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset iodepth=$3
+	typeset runtime=${4:-10}
+	typeset label=${5:-"read"}
+	typeset testfile="$mntpnt/async_testfile"
+
+	# Create the test file with buffered writes first
+	# Use dd directly (not log_must) to avoid polluting stdout captured by $()
+	typeset count=$((ASYNC_FILESIZE / ASYNC_BS))
+	dd if=/dev/urandom of="$testfile" bs="$ASYNC_BS_HR" \
+	    count=$count 2>/dev/null
+
+	# Run async DIO reads, capture IOPS from fio's minimal output
+	# fio --minimal format: fields separated by ';'
+	# Field 8 (0-indexed) = read IOPS
+	typeset iops
+	iops=$(fio --filename="$testfile" --name="$label" \
+	    --rw=randread --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --group_reporting --minimal --runtime=$runtime --time_based 2>/dev/null | \
+	    cut -d';' -f8)
+
+	# Use rm directly (not log_must) to avoid polluting stdout captured by $()
+	rm -f "$testfile"
+	echo "$iops"
+}
+
+#
+# Run an async Direct I/O fio read workload with data verification.
+# First writes with verify headers, then reads back and verifies.
+#
+# Usage: async_dio_read_verify <mountpoint> <ioengine> <iodepth> [extra_args]
+#
+function async_dio_read_verify
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset iodepth=$3
+	typeset extra_args=${4:-""}
+	typeset testfile="$mntpnt/async_verify_testfile"
+
+	# Write phase: DIO writes with sha1 verification headers
+	log_must fio --filename="$testfile" --name=async-verify-write \
+	    --rw=write --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --group_reporting --minimal $extra_args
+
+	# Read phase: DIO reads, verify against written headers
+	log_must fio --filename="$testfile" --name=async-verify-read \
+	    --rw=read --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --do_verify=1 \
+	    --group_reporting --minimal $extra_args
+
+	log_must rm -f "$testfile"
+}
+
+#
+# Run an async Direct I/O fio benchmark and log the write IOPS.
+#
+# Usage: async_dio_write_iops <mountpoint> <ioengine> <iodepth> <runtime> [label]
+#
+# Returns the write IOPS value on stdout.
+#
+function async_dio_write_iops
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset iodepth=$3
+	typeset runtime=${4:-10}
+	typeset label=${5:-"write"}
+	typeset testfile="$mntpnt/async_write_testfile"
+
+	# Run async DIO writes, capture IOPS from fio's minimal output
+	# fio --minimal format: fields separated by ';'
+	# Field 49 (0-indexed) = write IOPS
+	typeset iops
+	iops=$(fio --filename="$testfile" --name="$label" \
+	    --rw=randwrite --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --group_reporting --minimal --runtime=$runtime --time_based 2>/dev/null | \
+	    cut -d';' -f49)
+
+	rm -f "$testfile"
+	echo "$iops"
+}
+
+#
+# Run an async Direct I/O fio write workload with data verification.
+# First writes with verify headers, then reads back and verifies.
+#
+# Usage: async_dio_write_verify <mountpoint> <ioengine> <iodepth> [extra_args]
+#
+function async_dio_write_verify
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset iodepth=$3
+	typeset extra_args=${4:-""}
+	typeset testfile="$mntpnt/async_write_verify"
+
+	# Write phase: DIO writes with sha1 verification headers
+	log_must fio --filename="$testfile" --name=async-verify-write \
+	    --rw=write --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --do_verify=0 \
+	    --group_reporting --minimal $extra_args
+
+	# Read phase: DIO reads, verify against written headers
+	log_must fio --filename="$testfile" --name=async-verify-read \
+	    --rw=read --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --do_verify=1 \
+	    --group_reporting --minimal $extra_args
+
+	log_must rm -f "$testfile"
+}
+
+#
+# Check if an fio ioengine is available
+#
+function fio_ioengine_available
+{
+	typeset ioengine=$1
+	fio --ioengine=$ioengine --parse-only > /dev/null 2>&1
+	return $?
+}
+
+#
+# Check if the kernel supports io_uring
+#
+function kernel_supports_io_uring
+{
+	grep -q "CONFIG_IO_URING=y" /boot/config-$(uname -r) 2>/dev/null
+	return $?
+}

@@ -34,6 +34,25 @@ extern int zfs_bclone_enabled;
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_write(znode_t *, zfs_uio_t *, int, cred_t *);
+
+#ifdef __linux__
+/*
+ * Async Direct I/O read.  Must be called from a context with valid
+ * current->mm (e.g. the kworker servicing an io_submit call).
+ * On success, returns 0 and the caller should return -EIOCBQUEUED.
+ * On I/O completion, kiocb->ki_complete() is called from ZIO taskq.
+ *
+ * Linux-only: relies on struct kiocb and the VFS async kiocb mechanism.
+ */
+struct kiocb;
+int zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb);
+int zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb);
+void zfs_async_dio_init(void);
+void zfs_async_dio_fini(void);
+#endif /* __linux__ */
+
 extern int zfs_holey(znode_t *, ulong_t, loff_t *);
 extern int zfs_access(znode_t *, int, int, cred_t *);
 extern int zfs_clone_range(znode_t *, uint64_t *, znode_t *, uint64_t *,

@@ -170,6 +170,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 #include <sys/zap.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -8792,6 +8793,9 @@ zfs_kmod_init(void)
 
 	spa_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	zfs_init();
+#ifdef __linux__
+	zfs_async_dio_init();
+#endif
 
 	zfs_ioctl_init();
 
@@ -8836,6 +8840,9 @@ zfs_kmod_fini(void)
 	}
 
 	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
+#ifdef __linux__
+	zfs_async_dio_fini();
+#endif
 
 	/* Unregister zoned_uid callback before ZFS layer is torn down */
 	zone_unregister_zoned_uid_callback();
