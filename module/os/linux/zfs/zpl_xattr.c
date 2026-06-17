@@ -381,6 +381,12 @@ __zpl_xattr_get(struct inode *ip, const char *name, void *value, size_t size,
 			goto out;
 	}
 
+	/* Known to have no xattr directory; skip the directory lookup. */
+	if (zp->z_xattr_dir_absent) {
+		error = -ENOENT;
+		goto out;
+	}
+
 	error = zpl_xattr_get_dir(ip, name, value, size, cr);
 out:
 	if (error == -ENOENT)

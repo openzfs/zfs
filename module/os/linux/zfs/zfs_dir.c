@@ -1178,6 +1178,9 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
+	/* Record that the file now has an xattr directory. */
+	zp->z_xattr_dir_absent = B_FALSE;
+
 	*xzpp = xzp;
 
 	return (0);
@@ -1204,6 +1207,17 @@ zfs_get_xattrdir(znode_t *zp, znode_t **xzpp, cred_t *cr, int flags)
 	zfs_dirlock_t	*dl;
 	vattr_t		va;
 	int		error;
+
+	/*
+	 * Fast path for a file already known to have no xattr directory.  When
+	 * the caller is not creating one, return ENOENT without taking the ""
+	 * ZXATTR dirlock or doing the SA_ZPL_XATTR lookup below, which is pure
+	 * overhead when an absent xattr such as security.capability is looked
+	 * up on every open.  z_xattr_dir_absent tracks this: it is set when the
+	 * lookup finds no directory and cleared when one is found or created.
+	 */
+	if (!(flags & CREATE_XATTR_DIR) && zp->z_xattr_dir_absent)
+		return (SET_ERROR(ENOENT));
 top:
 	error = zfs_dirent_lock(&dl, zp, "", &xzp, ZXATTR, NULL, NULL);
 	if (error)
@@ -1211,11 +1225,13 @@ top:
 
 	if (xzp != NULL) {
 		*xzpp = xzp;
+		zp->z_xattr_dir_absent = B_FALSE;
 		zfs_dirent_unlock(dl);
 		return (0);
 	}
 
 	if (!(flags & CREATE_XATTR_DIR)) {
+		zp->z_xattr_dir_absent = B_TRUE;
 		zfs_dirent_unlock(dl);
 		return (SET_ERROR(ENOENT));
 	}
