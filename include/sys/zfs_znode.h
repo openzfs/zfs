@@ -194,6 +194,7 @@ typedef struct znode {
 	boolean_t	z_is_sa;	/* are we native sa? */
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
 	boolean_t	z_suspended;	/* extra ref from a suspend? */
+	boolean_t	z_xattr_dir_absent;	/* no xattr dir (cached) */
 	uint_t		z_blksz;	/* block size in bytes */
 	uint_t		z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
