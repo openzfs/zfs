@@ -7036,13 +7036,13 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 					for (int i = 0; i < vd->vdev_children;
 					    i++) {
 						total += var->vd_children[i]
-						    ->van_capacity + 1;
+						    ->van_capacity;
 					}
 				} else if (pvd && pvd->vdev_ops ==
 				    &vdev_anyraid_ops) {
 					vdev_anyraid_t *var = pvd->vdev_tsd;
 					total = var->vd_children[vd->vdev_id]
-					    ->van_capacity + 1;
+					    ->van_capacity;
 				} else {
 					continue;
 				}

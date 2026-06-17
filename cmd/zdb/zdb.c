@@ -9972,7 +9972,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	// Create and populate table with all the values we need to print.
 	char ***table = malloc(sizeof (*table) * cols);
 	for (int i = 0; i < cols; i++) {
-		table[i] = calloc(var->vd_children[i]->van_capacity + 1,
+		table[i] = calloc(var->vd_children[i]->van_capacity,
 		    sizeof (**table));
 	}
 
@@ -10018,7 +10018,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		for (int v = 0; v < cols; v++) {
 			if (final[v]) {
 				ASSERT3U(i, >=,
-				    var->vd_children[v]->van_capacity + 1);
+				    var->vd_children[v]->van_capacity);
 				int extra_width = 0;
 				if (v == 0 || !printed[v - 1])
 					extra_width++;
@@ -10027,7 +10027,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 				printed[v] = B_FALSE;
 				continue;
 			}
-			if (i + 1 == var->vd_children[v]->van_capacity + 1)
+			if (i + 1 == var->vd_children[v]->van_capacity)
 				final[v] = B_TRUE;
 			if (v - 1 != last_printed)
 				(void) printf("│");
@@ -10044,7 +10044,7 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 	}
 	(void) printf("\n");
 	for (int i = 0; i < cols; i++) {
-		for (int j = 0; j < var->vd_children[i]->van_capacity + 1; j++)
+		for (int j = 0; j < var->vd_children[i]->van_capacity; j++)
 			if (table[i][j])
 				free(table[i][j]);
 		free(table[i]);

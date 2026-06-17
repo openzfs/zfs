@@ -473,7 +473,7 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 }
 
 static int
-anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
+anyraid_open_existing(vdev_t *vd, uint64_t child, int32_t **child_capacities)
 {
 	vdev_anyraid_t *var = vd->vdev_tsd;
 	vdev_t *cvd = vd->vdev_child[child];
@@ -536,8 +536,10 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, uint16_t **child_capacities)
 		return (SET_ERROR(EINVAL));
 	}
 
-	*child_capacities = kmem_alloc(sizeof (*caps) * count, KM_SLEEP);
-	memcpy(*child_capacities, caps, sizeof (*caps) * count);
+	*child_capacities = kmem_alloc(sizeof (**child_capacities) * count,
+	    KM_SLEEP);
+	for (int i = 0; i < count; i++)
+		(*child_capacities)[i] = caps[i] + 1;
 	if (vd->vdev_reopening) {
 		free_header(&header, header_size);
 		return (0);
@@ -881,7 +883,7 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		return (lasterror);
 	}
 
-	uint16_t *child_capacities = NULL;
+	int32_t *child_capacities = NULL;
 	if (vd->vdev_reopening) {
 		child_capacities = kmem_alloc(sizeof (*child_capacities) *
 		    vd->vdev_children, KM_SLEEP);
@@ -923,16 +925,12 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 			    VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift));
 		} else {
 			ASSERT(child_capacities);
-			casize = (child_capacities[c] + 1) * var->vd_tile_size;
+			casize = child_capacities[c] * var->vd_tile_size;
 		}
 
 		num_tiles[c] = casize / var->vd_tile_size;
 		avl_remove(&var->vd_children_tree, var->vd_children[c]);
-		/*
-		 * We store the capacity minus 1, since a vdev can never have 0
-		 * and they can have (which would overflow a uint16_t).
-		 */
-		var->vd_children[c]->van_capacity = num_tiles[c] - 1;
+		var->vd_children[c]->van_capacity = num_tiles[c];
 		avl_add(&var->vd_children_tree, var->vd_children[c]);
 	}
 	*asize = calculate_asize(vd, num_tiles);
@@ -1436,7 +1434,9 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	for (uint64_t i = 0; i < anyraidvd->vdev_children; i++) {
 		if (anyraidvd->vdev_child[i] == vd)
 			disk_id = i;
-		sizes[i] = var->vd_children[i]->van_capacity;
+		ASSERT(0 < var->vd_children[i]->van_capacity &&
+		    var->vd_children[i]->van_capacity <= UINT16_MAX);
+		sizes[i] = var->vd_children[i]->van_capacity - 1;
 	}
 	ASSERT3U(disk_id, <, anyraidvd->vdev_children);
 	nvlist_t *header = fnvlist_alloc();
@@ -1496,7 +1496,7 @@ vdev_anyraid_min_asize(vdev_t *pvd, vdev_t *cvd)
 
 	rw_enter(&var->vd_lock, RW_READER);
 	uint64_t size = VDEV_ANYRAID_TOTAL_MAP_SIZE(cvd->vdev_ashift) +
-	    (var->vd_children[cvd->vdev_id]->van_capacity + 1) *
+	    (var->vd_children[cvd->vdev_id]->van_capacity) *
 	    var->vd_tile_size;
 	rw_exit(&var->vd_lock);
 	return (size);
@@ -1519,7 +1519,7 @@ vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd)
 	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
 	newchild->van_capacity = (MIN(max_size, (newvd->vdev_asize -
 	    VDEV_ANYRAID_TOTAL_MAP_SIZE(newvd->vdev_ashift))) /
-	    var->vd_tile_size) - 1;
+	    var->vd_tile_size);
 	rw_enter(&var->vd_lock, RW_WRITER);
 	memcpy(nc, var->vd_children, old_children * sizeof (*nc));
 	kmem_free(var->vd_children, old_children * sizeof (*nc));
