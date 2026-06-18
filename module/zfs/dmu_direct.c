@@ -472,10 +472,12 @@ dmu_read_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 
 async_error:
 	/*
-	 * The root zio is dispatched; dmu_read_abd_async_done() will call
-	 * the caller's callback with the error.  Return 0 so the caller
-	 * knows the callback owns cleanup — do NOT free resources here.
+	 * Set the error on the root zio and dispatch it.
+	 * The done callback delivers the error and frees
+	 * the state, so return 0 to tell the caller the callback owns
+	 * cleanup.
 	 */
+	rio->io_error = err;
 	zio_nowait(rio);
 	return (0);
 }
