@@ -1698,9 +1698,125 @@ receive_object_is_same_generation(objset_t *os, uint64_t object,
 	return (0);
 }
 
+typedef struct check_free_range_arg {
+	uint64_t object;
+	uint64_t max_offset;
+	uint64_t offset;
+} check_free_range_arg_t;
+
+static boolean_t
+check_free_range_cb(void *data, void *arg)
+{
+	check_free_range_arg_t *cfarg = (check_free_range_arg_t *)arg;
+	struct receive_record_arg *rrd = data;
+	boolean_t ret = B_TRUE;
+	uint64_t offset = 0, length = 0;
+
+	if (rrd->eos_marker)
+		return (B_FALSE);
+
+	/* Check all records that would modify current object */
+	switch (rrd->header.drr_type) {
+	case DRR_WRITE:
+	{
+		struct drr_write *drrw = &rrd->header.drr_u.drr_write;
+		if (drrw->drr_object != cfarg->object)
+			return (B_FALSE);
+		offset = drrw->drr_offset;
+		length = drrw->drr_logical_size;
+		break;
+	}
+	case DRR_WRITE_EMBEDDED:
+	{
+		struct drr_write_embedded *drrwe =
+		    &rrd->header.drr_u.drr_write_embedded;
+		if (drrwe->drr_object != cfarg->object)
+			return (B_FALSE);
+		offset = drrwe->drr_offset;
+		length = drrwe->drr_length;
+		break;
+	}
+	case DRR_FREE:
+	{
+		struct drr_free *drrf = &rrd->header.drr_u.drr_free;
+		if (drrf->drr_object != cfarg->object)
+			return (B_FALSE);
+		offset = drrf->drr_offset;
+		length = drrf->drr_length;
+		break;
+	}
+	case DRR_REDACT:
+	{
+		struct drr_redact *drrr = &rrd->header.drr_u.drr_redact;
+		if (drrr->drr_object != cfarg->object)
+			return (B_FALSE);
+		offset = drrr->drr_offset;
+		length = drrr->drr_length;
+		break;
+	}
+	case DRR_SPILL:
+	{
+		struct drr_spill *drrs = &rrd->header.drr_u.drr_spill;
+		if (drrs->drr_object != cfarg->object)
+			return (B_FALSE);
+		return (B_TRUE);
+	}
+	default:
+		/* Anything else means we are done with the object */
+		return (B_FALSE);
+	}
+
+	if (length == DMU_OBJECT_END) {
+		/*
+		 * Everthing is freed after offset. Note this always happens
+		 * after OBJECT, so this doesn't indicate a gap even if offset
+		 * is larger than cfarg->offset.
+		 */
+		cfarg->max_offset = MIN(offset, cfarg->max_offset);
+	} else if (offset > cfarg->offset) {
+		/* We encounter a gap */
+		ret = B_FALSE;
+	} else {
+		cfarg->offset = offset + length;
+	}
+
+	/* If everything is covered, we can exit */
+	if (cfarg->offset >= cfarg->max_offset)
+		ret = B_FALSE;
+
+	return (ret);
+}
+
+/*
+ * Check if following receive records will overwrite/free everthing under
+ * max_offset.
+ */
+static boolean_t
+check_free_range(struct receive_writer_arg *rwa, uint64_t object,
+    uint64_t max_offset)
+{
+	if (max_offset == 0)
+		return (B_TRUE);
+
+	/*
+	 * Assuming records are in-order, when ever we encounter a record
+	 * starting from offset, we can moving offset to the end of record
+	 * until we hit max_offset, in which case we know everything is
+	 * covered. However, if we encounter a recard starting after offset,
+	 * that means we have a gap not covered.
+	 */
+	check_free_range_arg_t cfarg = {
+		.object = object,
+		.max_offset = max_offset,
+		.offset = 0,
+	};
+	bqueue_peek_into(&rwa->q, check_free_range_cb, &cfarg);
+	return (cfarg.offset >= cfarg.max_offset);
+}
+
 static int
-receive_handle_existing_object(const struct receive_writer_arg *rwa,
-    const struct drr_object *drro, const dmu_object_info_t *doi,
+receive_handle_existing_object(struct receive_writer_arg *rwa,
+    const struct drr_object *drro, dmu_object_info_t *doi,
     const void *bonus_data,
     uint64_t *object_to_hold, uint32_t *new_blksz)
 {
@@ -1711,6 +1827,7 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
 	    drro->drr_dn_slots : DNODE_MIN_SLOTS;
 	boolean_t do_free_range = B_FALSE;
+	boolean_t do_grow_blksz = B_FALSE;
 	int err;
 
 	*object_to_hold = drro->drr_object;
@@ -1788,20 +1905,6 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 			 * only increasing.
 			 */
 			do_free_range = B_TRUE;
-		} else if (doi->doi_max_offset <=
-		    doi->doi_data_block_size) {
-			/*
-			 * There is only one block.  We can free it,
-			 * because its contents will be replaced by a
-			 * WRITE record.  This can not be the no-L ->
-			 * -L case, because the no-L case would have
-			 * resulted in multiple blocks.  If we
-			 * supported -L -> no-L, it would not be safe
-			 * to free the file's contents.  Fortunately,
-			 * that is not allowed (see
-			 * recv_check_large_blocks()).
-			 */
-			do_free_range = B_TRUE;
 		} else {
 			boolean_t is_same_gen;
 			err = receive_object_is_same_generation(rwa->os,
@@ -1810,30 +1913,45 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 			if (err != 0)
 				return (SET_ERROR(EINVAL));
 
-			if (is_same_gen) {
-				/*
-				 * This is the same logical file, and
-				 * the block size must be increasing.
-				 * It could only decrease if
-				 * --large-block was changed to be
-				 * off, which is checked in
-				 * recv_check_large_blocks().
-				 */
-				if (drro->drr_blksz <=
-				    doi->doi_data_block_size)
-					return (SET_ERROR(EINVAL));
-				/*
-				 * We keep the existing blocksize and
-				 * contents.
-				 */
-				*new_blksz =
-				    doi->doi_data_block_size;
-			} else {
+			if (!is_same_gen) {
 				do_free_range = B_TRUE;
+				goto skip;
+			}
+			/*
+			 * If same gen, we try to do free range and take on
+			 * the new blksz. However we need to check if it's
+			 * safe to do so first by checking if everthing in the
+			 * file will be overwritten in the following records.
+			 * We only do this for small files so we don't end up
+			 * having to check unlimited amount of records (at
+			 * most 16 records).
+			 *
+			 * We need to do this because after the previous fix
+			 * for -L that introduced this function, we can end up
+			 * with same file having different block size if two
+			 * sides have different recordsize setting.
+			 */
+			if (doi->doi_max_offset <= drro->drr_blksz * 16 &&
+			    doi->doi_max_offset <= SPA_MAXBLOCKSIZE) {
+				do_free_range = check_free_range(rwa,
+				    drro->drr_object, doi->doi_max_offset);
+			}
+			if (!do_free_range) {
+				*new_blksz = doi->doi_data_block_size;
+				/*
+				 * We can't do truncate but our block size
+				 * isn't power of 2. In the case where WRITE
+				 * grows beyond current blksz, we must grow our
+				 * blksz. Grow to the next power of 2.
+				 */
+				if (!ISP2(*new_blksz)) {
+					*new_blksz = 1 << highbit64(*new_blksz);
+					do_grow_blksz = B_TRUE;
+				}
 			}
 		}
 	}
-
+skip:
 	/* nblkptr can only decrease if the object was reallocated */
 	if (nblkptr < doi->doi_nblkptr)
 		do_free_range = B_TRUE;
@@ -1860,6 +1978,26 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 		err = dmu_free_long_range(rwa->os, drro->drr_object,
 		    0, DMU_OBJECT_END);
 		if (err != 0)
+			return (SET_ERROR(EINVAL));
+	} else if (do_grow_blksz) {
+		dmu_tx_t *tx = dmu_tx_create(rwa->os);
+		dmu_tx_hold_bonus(tx, drro->drr_object);
+		dmu_tx_hold_write(tx, drro->drr_object, 0, *new_blksz);
+		err = dmu_tx_assign(tx, DMU_TX_WAIT);
+		if (err != 0) {
+			dmu_tx_abort(tx);
+			return (err);
+		}
+		err = dmu_object_set_blocksize(rwa->os, drro->drr_object,
+		    *new_blksz, 0, tx);
+		dmu_tx_commit(tx);
+		if (err != 0)
+			return (err);
+		/* Refresh doi */
+		err = dmu_object_info(rwa->os, drro->drr_object, doi);
+		if (err != 0)
+			return (err);
+		if (doi->doi_data_block_size != *new_blksz)
 			return (SET_ERROR(EINVAL));
 	}
 
@@ -2272,14 +2410,11 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 
 		if (drrw->drr_logical_size != dn->dn_datablksz) {
 			/*
-			 * The WRITE record is larger than the object's block
-			 * size.  We must be receiving an incremental
-			 * large-block stream into a dataset that previously did
-			 * a non-large-block receive.  Lightweight writes must
-			 * be exactly one block, so we need to decompress the
-			 * data (if compressed) and do a normal dmu_write().
+			 * The WRITE record is different than the object's block
+			 * size.  Lightweight writes must be exactly one block,
+			 * so we need to decompress the data (if compressed) and
+			 * do a normal dmu_write().
 			 */
-			ASSERT3U(drrw->drr_logical_size, >, dn->dn_datablksz);
 			if (DRR_WRITE_COMPRESSED(drrw)) {
 				abd_t *decomp_abd =
 				    abd_alloc_linear(drrw->drr_logical_size,
