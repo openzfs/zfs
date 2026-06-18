@@ -105,7 +105,7 @@ struct zfsvfs {
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
-	unsigned long	z_snap_defer_time; /* last snapshot unmount deferral */
+	uint64_t	z_snap_atime;	/* last snapshot access time */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
 	arc_prune_t	*z_arc_prune;	/* called by ARC to prune caches */
 	struct inode	*z_ctldir;	/* .zfs directory inode */

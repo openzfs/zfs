@@ -33,6 +33,7 @@
  * Copyright (c) 2018 George Melikov. All Rights Reserved.
  * Copyright (c) 2019 Datto, Inc. All rights reserved.
  * Copyright (c) 2020 The MathWorks, Inc. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -42,34 +43,275 @@
  * Currently, this is only the 'snapshot' and 'shares' directory, but this may
  * expand in the future.  The elements are built dynamically, as the hierarchy
  * does not actually exist on disk.
+ */
+
+/*
+ * # Snapdir overview
  *
- * For 'snapshot', we don't want to have all snapshots always mounted, because
- * this would take up a huge amount of space in /etc/mnttab.  We have three
- * types of objects:
+ * The bulk of this file is the "snapdir" system, that manages automatically
+ * mounting snapshots when accessed through the .zfs/snapshot/<snapname>
+ * virtual directories.
  *
- *	ctldir ------> snapshotdir -------> snapshot
- *                                             |
- *                                             |
- *                                             V
- *                                         mounted fs
+ * This on-demand system exists so we don't have all snapshots mounted at all
+ * times, which both uses memory and makes the mount table (read: `df` output)
+ * enormous.
  *
- * The 'snapshot' node contains just enough information to lookup '..' and act
- * as a mountpoint for the snapshot.  Whenever we lookup a specific snapshot, we
- * perform an automount of the underlying filesystem and return the
- * corresponding inode.
+ * Instead, we create some virtual inodes and directory entries in the root of
+ * each dataset (subject to the `snapdir` property):
  *
- * All mounts are handled automatically by an user mode helper which invokes
- * the mount procedure.  Unmounts are handled by allowing the mount
- * point to expire so the kernel may automatically unmount it.
+ * .zfs/
+ *   snapshot/
+ *     snapshot_1/
+ *     snapshot_2/
+ *     snapshot_3/
+ *     ...
  *
- * The '.zfs', '.zfs/snapshot', and all directories created under
- * '.zfs/snapshot' (ie: '.zfs/snapshot/<snapname>') all share the same
- * zfsvfs_t as the head filesystem (what '.zfs' lives under).
+ * The dentries for the named snapshot nodes have a custom set of operations
+ * attached, most importantly d_automount = zpl_snapdir_automount(). When the
+ * kernel attempts a path walk through one of these nodes, the automount
+ * function is called, which in turn calls into zfsctl_snapshot_mount(). That
+ * function creates the mount and returns it, and the VFS splices it into the
+ * global filesystem tree, then retries the path walk, enters the new mount and
+ * continues as normal.
  *
- * File systems mounted on top of the '.zfs/snapshot/<snapname>' paths
- * (ie: snapshots) are complete ZFS filesystems and have their own unique
- * zfsvfs_t.  However, the fsid reported by these mounts will be the same
- * as that used by the parent zfsvfs_t to make NFS happy.
+ * When setting up the mount, we also set up the "expiry timer" task. After
+ * `zfs_expire_snapshot` seconds (default: 300), the task checks the if the
+ * mount has been idle for the entire interval. If it has, it is unmounted; if
+ * not, the timer is reset and will try again later. This is done to keep
+ * memory usage and the mount table tidy, by only keeping snapshot mounts
+ * around for the time they're in use.
+ *
+ * This overview is good enough for basic understanding of the system, but the
+ * details are rather more complex.
+ *
+ * ## Source location
+ *
+ * This description covers functions in three separate files:
+ *
+ * - zpl.h: zfs_snapentry_t, related enums and macros
+ * - zpl_ctldir.c: inode and dentry operations and utility functions
+ * - zfs_ctldir.c: mount creation, expiry task, unmount coordination
+ *
+ * This is fairly standard for the Linux ZPL, however the coupling between
+ * the two "sides" is rather tighter than other subsystems, since almost all
+ * of this is about manipulating the snapdir dentry in the right way.
+ *
+ * ## State: zfs_snapentry_t
+ *
+ * We manage the current state for each snapdir in a zfs_snapentry_t. This
+ * struct is allocated in zpl_snapdir_init_snapentry() when the dentry is first
+ * initialised, and destroyed in zpl_snapdir_release() when the kernel destroys
+ * the dentry. The two refer to each other; the snapentry is in
+ * dentry->d_fsdata, while the dentry is in se->se_dentry.
+ *
+ * The dentry and the snapentry have the same lifetime, and are entirely
+ * managed by the kernel from the dentry side. As such, there is no separate
+ * hold for the snapentry; to pin it when we need it, we use the a normal
+ * dget/dput pair.
+ *
+ * # Mounting: d_manage and d_automount
+ *
+ * The dentry_operations has two functions that are wired in to the kernel's
+ * mount traversal loop (__traverse_mounts()) for the automount system.
+ *
+ * Our d_automount is zpl_snapdir_automount(). On its own, it is almost
+ * entirely what you'd expect - it calls zfsctl_snapshot_mount(), and on
+ * success, passes the vfsmount back to the VFS.
+ *
+ * Our d_manage, zpl_snapdir_manage(), is rather more complicated. d_manage is
+ * also known as MANAGE_TRANSIT. It's a place where the filesystem can hold
+ * (block) callers while d_automount is in progress, since d_automount's
+ * purpose is to actually prepare and return the mount. d_manage has two
+ * different ways it can be called ("RCU-walk" and "REF-walk"), and a bunch of
+ * different returns to signal different things back to the kernel. Ultimately
+ * though we're checking if a mount or unmount is in progress by waiting for
+ * the SE_BUSY flag to clear, or we're return success to allow the thread to
+ * proceed into either the mount or d_automount, or we're returning some error
+ * code to request a different behaviour. This is exactly what this callback is
+ * for, so there's not much more to say here that isn't covered in the kernel
+ * docs and the comments.
+ *
+ * There is however one special feature we have that needs a bit more work to
+ * enable and so a bit more explanation. The `zfs_snapshot_no_setuid` tunable
+ * when enabled causes automounted snapshots to receive the `nosuid` mount
+ * option, preventing setuid executables on the snapshot to be run.
+ *
+ * The VFS unfortunately overwrites the options on the vfsmount returned by
+ * d_automount with those of the parent mount, without exception. So setting
+ * MNT_NOSUID on the mount has no effect, nor do superblock options like
+ * SB_NOSUID that would be transferred to the mount in a conventional mount.
+ *
+ * To work around this, when the first mount request arrives in
+ * zpl_snapdir_manage(), we note its task pointer in se_mount_task, then
+ * initiate a new path walk directly into the snapdir dentry via
+ * zpl_follow_down(). This arrives back in zpl_snapdir_manage(), where we
+ * recognise it as the se_mount_task and immediately let it proceed into
+ * zpl_snapdir_automount(). The mount happens and we return it and the VFS
+ * grafts it into the tree, overwriting the mount flags. zpl_follow_down()
+ * returns into zpl_snapdir_manage() with a reference to the vfsmount that
+ * was grafted. The mount is live, but not yet accessed because all threads
+ * are blocked in zpl_snapdir_manage(), waiting on SE_BUSY before they can be
+ * released into the mount. We have unfettered access to the vfsmount _after_
+ * the VFS has trampled it, and we call zfsctl_snapshot_finish_mount() to
+ * apply MNT_NOSUID if necessary.
+ *
+ * This workaround causes another problem, which we also have to work around.
+ * Normally a path walk comes with an "intent" via a set of LOOKUP_ flags
+ * describing what the path walk is for. Normally, the automount will only be
+ * triggered for functions that need to properly "enter" the mount. Since
+ * it's not the original calling thread that is triggering the automount,
+ * these flags are not honoured, resulting in even a simple stat() call on
+ * the unmounted snapdir to trigger the mount. To work around this, we check
+ * the lookup intent flags in zpl_snapdir_lookup() and zpl_snapdir_revalidate()
+ * and set the SE_WANT_MOUNT flag if anything wants the mount, and then decide
+ * whether or not to trigger it based on that flag.
+ *
+ * This explainer is longer than the code. I feel ok about that.
+ *
+ * ## Unmounting: invalidating the mountpoint
+ *
+ * Linux mounts are somewhat ephemeral. Technically, they're a separate
+ * object that binds a "lower" dentry (the "mountpoint") to an "upper" dentry
+ * (the "mount root", typically the root of a different filesystem). From
+ * there, they act as a "transit" point, controlling traversal from one
+ * filesystem to another, possibly applying changes to the operation along
+ * the way (eg changing namespaces). Ordinarily, the mountpoint dentry holds
+ * a reference to the mount, and the mount holds a reference to the root
+ * dentry. When files are opened, they also take references to the mount, which
+ * are released when the file is closed.
+ *
+ * It's these refcounts that keep the entire mount alive. The traditional
+ * umount(2) checks the refcount on the mount, and if it is 1 (ie just the
+ * mountpoint), it can be detached from the mountpoint, which lowers its
+ * refcount to 0, which release the root dentry, triggering a cascade of
+ * reference drops which tears down the entire filesystem structure. If the
+ * mount refcount is >1, then the filesystem is still in use, and umount
+ * fails with EBUSY.
+ *
+ * These refcounts are also what allow the myriad mount options. A "lazy"
+ * umount (MS_DETACH) omits the refcount check, it just detaches the mount
+ * from the mountpoint dentry. If there are no other references (ie its not
+ * in use), the cascade happens and we get a full unmount, otherwise it will
+ * remain alive until all references are released (eg files closed). This is
+ * the same mechanism allows "anonymous" mounts.
+ *
+ * Bind (MS_BIND) mounts follow from this: they create a new mount, with an
+ * existing dentry as the "root" (not even necessarily a filesytem root!).
+ * MS_MOVE meanwhile is just taking an existing mount and atomically detaching
+ * it from its mountpoint and attaching it to another.
+ *
+ * These are all fundamental features of the Linux VFS, and put us in an
+ * interesting position. While we can create a mount and attach it to a known
+ * dentry that we can control, we have no say in what happens after that.
+ * The mount we created might be unmounted by someone else, moved away, or
+ * a bind mount created. There could be a totally unrelated mount on the
+ * snapdir dentry, even for a non-ZFS filesystem. Or a whole stack of mounts.
+ * And, we will not know anything about them, and possibly have no way to
+ * control them.
+ *
+ * So, we instead focus on what we can control: the snapdir dentry (mountpoint)
+ * itself. Regardless of what might be "on top", we can always invalidate
+ * the dentry, reducing the refcount of any mount that might be attached to it.
+ * If there are no other references, then we get the reference drop cascade
+ * and effectively get an "unmount". If there are, then we have done the
+ * equivalent of a MS_DETACH unmount; the mount lives on "somewhere" until
+ * its users are finished, but the ctldir is clear.
+ *
+ * In all cases we care about, this is acceptable. If the mount is the one we
+ * mounted, then if its still in use, the next thing (eg dataset destruction)
+ * will fail with EBUSY, but that is correct anyway; it's not the snapdir's
+ * job to throw off users or things like that. If the operator has unmounted
+ * or moved the snapshot mount away, invalidating the dentry will do nothing,
+ * but that's fine too - the operator has done something strange, it's on them
+ * to sort it out. The same is true of mounting something weird on the snapdir;
+ * we don't know what's happening, but the operator has done something very
+ * odd and it's not up to us to second guess that.
+ *
+ * ## Multiple mounts
+ *
+ * The same dataset can be mounted in several places at once, sharing one
+ * superblock and so one control dentry per snapshot. A mount is keyed on
+ * (parent vfsmount, mountpoint dentry), so each place the dataset is mounted
+ * gets its own snapshot mount grafted onto that single shared control dentry.
+ * This is why zpl_snapdir_manage() tests for an existing mount with
+ * follow_down_one() (this parent) and not d_mountpoint() (true if _any_ parent
+ * has one) - getting that wrong loops the walk into automount retries (ELOOP).
+ * Conversely d_invalidate() tears down _every_ mount on the dentry regardless
+ * of parent, so one invalidate cleans up all of them at once.
+ *
+ * ## Mount expiry
+ *
+ * In zfsctl_snapshot_finish_mount(), we call zfsctl_snapshot_timer_set() to
+ * queue a delay task. When it fires, zfsctl_snapshot_timer_task() is called,
+ * which simply calls zfsctl_snapshot_invalidate(). If it's busy, the
+ * timer is re-armed and we try again next time.
+ *
+ * "Busy-ness" is determined by two timestmaps that are updated to the jiffy
+ * clock value when certain events occur:
+ *
+ * - se_atime is updated in zpl_snapdir_revalidate() and in
+ *   zfsctl_snapdir_vget(), which are both places where the snapdir is crossed,
+ *   ie something did a lookup inside the mounted snapshot.
+ *
+ * - z_snap_atime is updated in zfs_exit()->zfs_exit_fs() when a data access
+ *   inside the snapshot completes.
+ *
+ * The snapshot is considered "busy" if the most recent of these timestamps
+ * is more recent than the expiry timout (zfs_expire_snapshot, 300s by
+ * default). Tracking both is necessary as lookups do not imply data access
+ * and vice-versa, especially for NFS which maintains direct object
+ * references and may never actually do a lookup.
+ *
+ * As above, "expiry" means invalidating the dentry, which simply remove the
+ * mount from view; if its still in use "on the inside" it will continue to
+ * work, and a new mount will be created on next lookup.
+ *
+ * ## Unmount by name
+ *
+ * Unmounting is a side-effect for many ZFS ioctls eg `zfs destroy`,
+ * `zfs rollback`, etc. zfsctl_snapshot_unmount() needs to find a mounted
+ * snapshot entirely by name. It does this by finding the zfsvfs for the
+ * containing dataset, then walking down through the control dir to find
+ * the snapdir dentry, retrieve the zfs_snapentry_t from it, and attempt
+ * an unmount. This is involved; see that function for details.
+ *
+ * ## NFS flush
+ *
+ * The in-kernel NFS server can pin dentries, blocking an unmount. We don't
+ * care about this in the expiry case, since the NFS cache will drop unused
+ * entries after a while.
+ *
+ * However, if we are trying to unmount a snapshot as part of some admin
+ * operation, we don't want the NFS cache being the only thing holding the
+ * snapshot alive, preventing the operation. We try to detect this possibilty
+ * in zfsctl_snapshot_unmount() by seeing if the snapshot is still alive
+ * somewhere, and in those cases call zfsctl_snapshot_unmount_nfs_flush()
+ * to flush the cache in the hopes it will release the mount. See those two
+ * functions for more info.
+ *
+ * ## Note for future spelunkers
+ *
+ * Much of the complexity here is due to ZFS wanting a lot more control over
+ * mounts (both snapshot and the more conventional kind) than the kernel wants
+ * or expects, while some of it is working around "missing" functionality that
+ * the kernel doesn't provide or expose (eg direct access to mount objects).
+ *
+ * There are two "obvious" shortcuts that appear to make the code a lot
+ * simpler but you should avoid, because they both induce use-after-frees:
+ *
+ * - Keeping a pointer to the snapshot's or the parent's vfsmount. You cannot
+ *   mntget() either of these, as the kernel will consider a mount "busy" and
+ *   not even consider releasing it if its refcount > 1 (ie the mountpoint
+ *   only). Holding a snapshot ref would cause an operator unmount to EBUSY;
+ *   Holding a parent ref would block the entire parent dataset's teardown.
+ *   We only ever touch the mount transiently via follow_down_one(), and never
+ *   store one.
+ *
+ * - Holding a backpointer from the snapshot's zfsvfs to the snapentry (to
+ *   bump se_atime on data access). The snapshot superblock is shared across
+ *   every mount of that snapshot, including container binds and manual mounts.
+ *   Since it outlives the control dentry and its snapentry, its pointer would
+ *   dangle. This is why se_atime is only ever bumped from the control side.
  */
 
 #include <sys/types.h>
@@ -89,23 +331,10 @@
 #include <sys/dsl_deleg.h>
 #include <sys/zpl.h>
 #include <sys/mntent.h>
+#include <sys/zfs_ioctl_impl.h>
+#include <linux/fs_context.h>
+#include <linux/workqueue_compat.h>
 #include "zfs_namecheck.h"
-
-/*
- * Two AVL trees are maintained which contain all currently automounted
- * snapshots.  Every automounted snapshots maps to a single zfs_snapentry_t
- * entry which MUST:
- *
- *   - be attached to both trees, and
- *   - be unique, no duplicate entries are allowed.
- *
- * The zfs_snapshots_by_name tree is indexed by the full dataset name
- * while the zfs_snapshots_by_objsetid tree is indexed by the unique
- * objsetid.  This allows for fast lookups either by name or objsetid.
- */
-static avl_tree_t zfs_snapshots_by_name;
-static avl_tree_t zfs_snapshots_by_objsetid;
-static krwlock_t zfs_snapshot_lock;
 
 /*
  * Control Directory Tunables (.zfs)
@@ -114,333 +343,152 @@ int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
 static int zfs_admin_snapshot = 0;
 static int zfs_snapshot_no_setuid = 0;
 
-typedef struct {
-	char		*se_name;	/* full snapshot name */
-	char		*se_path;	/* full mount path */
-	spa_t		*se_spa;	/* pool spa (NULL if pending) */
-	uint64_t	se_objsetid;	/* snapshot objset id */
-	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
-	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
-	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
-	zfs_refcount_t	se_refcount;	/* reference count */
-	kmutex_t	se_mtx;		/* protects se_mounting and se_cv */
-	kcondvar_t	se_cv;		/* signal mount completion */
-	boolean_t	se_mounting;	/* mount operation in progress */
-	int		se_mount_error;	/* error from failed mount */
-} zfs_snapentry_t;
-
-static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se);
-
-/*
- * Allocate a new zfs_snapentry_t being careful to make a copy of the
- * the snapshot name and provided mount point.  No reference is taken.
- */
-static zfs_snapentry_t *
-zfsctl_snapshot_alloc(const char *full_name, const char *full_path)
-{
-	zfs_snapentry_t *se;
-
-	se = kmem_zalloc(sizeof (zfs_snapentry_t), KM_SLEEP);
-
-	se->se_name = kmem_strdup(full_name);
-	se->se_path = kmem_strdup(full_path);
-	se->se_taskqid = TASKQID_INVALID;
-	mutex_init(&se->se_mtx, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&se->se_cv, NULL, CV_DEFAULT, NULL);
-	se->se_mounting = B_FALSE;
-	se->se_mount_error = 0;
-
-	zfs_refcount_create(&se->se_refcount);
-
-	return (se);
-}
-
-/*
- * Free a zfs_snapentry_t the caller must ensure there are no active
- * references.
- */
-static void
-zfsctl_snapshot_free(zfs_snapentry_t *se)
-{
-	zfs_refcount_destroy(&se->se_refcount);
-	kmem_strfree(se->se_name);
-	kmem_strfree(se->se_path);
-	mutex_destroy(&se->se_mtx);
-	cv_destroy(&se->se_cv);
-
-	kmem_free(se, sizeof (zfs_snapentry_t));
-}
-
-/*
- * Hold a reference on the zfs_snapentry_t.
- */
-static void
-zfsctl_snapshot_hold(zfs_snapentry_t *se)
-{
-	zfs_refcount_add(&se->se_refcount, NULL);
-}
-
-/*
- * Release a reference on the zfs_snapentry_t.  When the number of
- * references drops to zero the structure will be freed.
- */
-static void
-zfsctl_snapshot_rele(zfs_snapentry_t *se)
-{
-	if (zfs_refcount_remove(&se->se_refcount, NULL) == 0)
-		zfsctl_snapshot_free(se);
-}
-
-/*
- * Add a zfs_snapentry_t to the zfs_snapshots_by_name tree.  If the entry
- * is not pending (se_spa != NULL), also add to zfs_snapshots_by_objsetid.
- * While the zfs_snapentry_t is part of the trees a reference is held.
- */
-static void
-zfsctl_snapshot_add(zfs_snapentry_t *se)
-{
-	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	zfsctl_snapshot_hold(se);
-	avl_add(&zfs_snapshots_by_name, se);
-	if (se->se_spa != NULL)
-		avl_add(&zfs_snapshots_by_objsetid, se);
-}
-
-/*
- * Remove a zfs_snapentry_t from the zfs_snapshots_by_name tree and
- * zfs_snapshots_by_objsetid tree (if not pending).  Upon removal a
- * reference is dropped, this can result in the structure being freed
- * if that was the last remaining reference.
- */
-static void
-zfsctl_snapshot_remove(zfs_snapentry_t *se)
-{
-	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	avl_remove(&zfs_snapshots_by_name, se);
-	if (se->se_spa != NULL)
-		avl_remove(&zfs_snapshots_by_objsetid, se);
-	zfsctl_snapshot_rele(se);
-}
-
-/*
- * Fill a pending zfs_snapentry_t after mount succeeds.  Fills in the
- * remaining fields and adds the entry to the zfs_snapshots_by_objsetid tree.
- */
-static void
-zfsctl_snapshot_fill(zfs_snapentry_t *se, spa_t *spa, uint64_t objsetid)
-{
-	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-	ASSERT3P(se->se_spa, ==, NULL);
-	se->se_spa = spa;
-	se->se_objsetid = objsetid;
-	avl_add(&zfs_snapshots_by_objsetid, se);
-}
-
-/*
- * Snapshot name comparison function for the zfs_snapshots_by_name.
- */
-static int
-snapentry_compare_by_name(const void *a, const void *b)
-{
-	const zfs_snapentry_t *se_a = a;
-	const zfs_snapentry_t *se_b = b;
-	return (TREE_ISIGN(strcmp(se_a->se_name, se_b->se_name)));
-}
-
-/*
- * Snapshot name comparison function for the zfs_snapshots_by_objsetid.
- */
-static int
-snapentry_compare_by_objsetid(const void *a, const void *b)
-{
-	const zfs_snapentry_t *se_a = a;
-	const zfs_snapentry_t *se_b = b;
-
-	int cmp = TREE_PCMP(se_a->se_spa, se_b->se_spa);
-	if (cmp != 0)
-		return (cmp);
-	return (TREE_CMP(se_a->se_objsetid, se_b->se_objsetid));
-}
-
-/*
- * Find a zfs_snapentry_t in zfs_snapshots_by_name.  If the snapname
- * is found a pointer to the zfs_snapentry_t is returned and a reference
- * taken on the structure.  The caller is responsible for dropping the
- * reference with zfsctl_snapshot_rele().  If the snapname is not found
- * NULL will be returned.
- */
-static zfs_snapentry_t *
-zfsctl_snapshot_find_by_name(const char *snapname)
-{
-	zfs_snapentry_t *se, search;
-
-	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
-
-	search.se_name = (char *)snapname;
-	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
-	if (se)
-		zfsctl_snapshot_hold(se);
-
-	return (se);
-}
-
-/*
- * Find a zfs_snapentry_t in zfs_snapshots_by_objsetid given the objset id
- * rather than the snapname.  In all other respects it behaves the same
- * as zfsctl_snapshot_find_by_name().
- */
-static zfs_snapentry_t *
-zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
-{
-	zfs_snapentry_t *se, search;
-
-	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
-
-	search.se_spa = spa;
-	search.se_objsetid = objsetid;
-	se = avl_find(&zfs_snapshots_by_objsetid, &search, NULL);
-	if (se)
-		zfsctl_snapshot_hold(se);
-
-	return (se);
-}
-
-/*
- * Rename a zfs_snapentry_t in the zfs_snapshots_by_name.  The structure is
- * removed, renamed, and added back to the new correct location in the tree.
- */
-static int
-zfsctl_snapshot_rename(const char *old_snapname, const char *new_snapname)
-{
-	zfs_snapentry_t *se;
-
-	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-
-	se = zfsctl_snapshot_find_by_name(old_snapname);
-	if (se == NULL)
-		return (SET_ERROR(ENOENT));
-	if (se->se_spa == NULL) {
-		/* Snapshot mount is in progress */
-		zfsctl_snapshot_rele(se);
-		return (SET_ERROR(EBUSY));
-	}
-
-	zfsctl_snapshot_remove(se);
-	kmem_strfree(se->se_name);
-	se->se_name = kmem_strdup(new_snapname);
-	zfsctl_snapshot_add(se);
-	zfsctl_snapshot_rele(se);
-
-	return (0);
-}
+static void zfsctl_snapshot_timer_set(zfs_snapentry_t *se, unsigned long delay);
+static int zfsctl_snapshot_invalidate(zfs_snapentry_t *se,
+    unsigned long *delay);
 
 /*
  * Delayed task responsible for unmounting an expired automounted snapshot.
  */
 static void
-snapentry_expire(void *data)
+zfsctl_snapshot_timer_task(void *data)
 {
 	zfs_snapentry_t *se = (zfs_snapentry_t *)data;
-	spa_t *spa = se->se_spa;
-	uint64_t objsetid = se->se_objsetid;
 
-	if (zfs_expire_snapshot <= 0) {
-		zfsctl_snapshot_rele(se);
+	/*
+	 * We need to protect against a tricky race here.
+	 *
+	 * The dentry manages the lifetime for the snapentry, and this async
+	 * timer task has a pointer to the snapentry. If the dentry was to
+	 * be destroyed while the timer is still queued or active, the
+	 * snapentry would be destroyed out from under it.
+	 *
+	 * The obvious solution is to take an additional dentry reference when
+	 * the timer is armed, and release it when it is canceled, but then
+	 * the timer has effectively "pinned" the dentry - it can't be released
+	 * until the timer runs to completion.
+	 *
+	 * So, in zpl_snapdir_release(), we move to cancel the timer in
+	 * blocking mode, before the dentry is deallocated. This keeps the
+	 * dentry (and so the snapentry) allocated.
+	 *
+	 * However, there is a gap. This timer task may run _after_ the last
+	 * call to dput() (from anywhere) but before zpl_snapdir_release()
+	 * calls in to cancel the timer. If that happens, we then end up in
+	 * zfsctl_snapshot_invalidate() performing all manner of dentry
+	 * tests on a dentry with zero references. We can't take a new
+	 * reference at that point, the dentry is already "dead" from the
+	 * perspective of any callers, and taking a reference on a dentry with
+	 * zero references is invalid.
+	 *
+	 * To get around this, we make use of the fact that we can test if
+	 * a dentry is hashed (visible & active) holding only the dentry
+	 * lock, and if necessary we can take a dentry reference without
+	 * dropping the lock. The dentry is unhashed by both d_invalidate()
+	 * (our "unmount" stand-in) and if necessary before d_release() is
+	 * called.
+	 *
+	 * However, while unhashed implies refcount 0, it's not true that
+	 * refcount 0 implies unhashed. A still-hashed entry can have refcount
+	 * 0 while also being "alive", waiting on the dcache LRU to be freed
+	 * or reused. For this case, we also check if the dentry is a
+	 * mountpoint. If it is, then its refcount can't be 0, and if it isn't,
+	 * we don't care because we're only here to unmount things.
+	 *
+	 * (simply checking if its a mountpoint is not enough in the other
+	 * direction; the dentry can be unhashed but still a mountpoint if
+	 * we invalidated it but it is still in use, for example in
+	 * zfsctl_snapdir_rename()).
+	 */
+	spin_lock(&se->se_dentry->d_lock);
+	if (d_unhashed(se->se_dentry) || !d_mountpoint(se->se_dentry)) {
+		/* No longer visible, so just "finish" the task and eject. */
+		mutex_enter(&se->se_mtx);
+		se->se_taskqid = TASKQID_INVALID;
+		mutex_exit(&se->se_mtx);
+		spin_unlock(&se->se_dentry->d_lock);
 		return;
 	}
 
-	(void) zfsctl_snapshot_unmount(se->se_name);
+	/* Take dentry hold while we do the unmount work. */
+	dget_dlock(se->se_dentry);
+	spin_unlock(&se->se_dentry->d_lock);
 
-	/*
-	 * Clear taskqid and reschedule if the snapshot wasn't removed.
-	 * This can occur when the snapshot is busy.
-	 */
-	rw_enter(&zfs_snapshot_lock, RW_WRITER);
-	se->se_taskqid = TASKQID_INVALID;
-	zfsctl_snapshot_rele(se);
-	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
-		zfsctl_snapshot_unmount_delay_impl(se);
-		zfsctl_snapshot_rele(se);
-	}
-	rw_exit(&zfs_snapshot_lock);
-}
-
-/*
- * Cancel an automatic unmount of a snapname.  This callback is responsible
- * for dropping the reference on the zfs_snapentry_t which was taken when
- * during dispatch.
- */
-static void
-zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
-{
 	int err = 0;
-
-	ASSERT(RW_WRITE_HELD(&zfs_snapshot_lock));
-
-	err = taskq_cancel_id(system_delay_taskq, se->se_taskqid, B_FALSE);
-	/*
-	 * Clear taskqid only if we successfully cancelled before execution.
-	 * For ENOENT, task already cleared it. For EBUSY, task will clear
-	 * it when done.
-	 */
-	if (err == 0) {
-		se->se_taskqid = TASKQID_INVALID;
-		zfsctl_snapshot_rele(se);
-	}
-}
-
-/*
- * Dispatch the unmount task for delayed handling with a hold protecting it.
- */
-static void
-zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se)
-{
-	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
+	unsigned long delay = 0;
 
 	if (zfs_expire_snapshot <= 0)
+		/* Expiry was disabled by the admin, do nothing. */
+		goto out;
+
+	err = zfsctl_snapshot_invalidate(se, &delay);
+
+out:
+	mutex_enter(&se->se_mtx);
+	se->se_taskqid = TASKQID_INVALID;
+	mutex_exit(&se->se_mtx);
+
+	if (err != 0) {
+		ASSERT3U(err, ==, EAGAIN);
+		/*
+		 * Snapdir was used within the expiry time, re-arm it for the
+		 * next possible time it could expire.
+		 */
+		zfsctl_snapshot_timer_set(se, delay);
+	}
+
+	dput(se->se_dentry);
+}
+
+/* Safely cancel the snapentry expiry timer. */
+void
+zfsctl_snapshot_timer_clear(zfs_snapentry_t *se)
+{
+	taskqid_t tqid;
+
+	mutex_enter(&se->se_mtx);
+	tqid = se->se_taskqid;
+	mutex_exit(&se->se_mtx);
+
+	if (tqid == TASKQID_INVALID)
 		return;
 
-	/*
-	 * If this condition happens, we managed to:
-	 * - dispatch once
-	 * - want to dispatch _again_ before it returned
-	 *
-	 * So let's just return - if that task fails at unmounting,
-	 * we'll eventually dispatch again, and if it succeeds,
-	 * no problem.
-	 */
-	if (se->se_taskqid != TASKQID_INVALID) {
+	if (taskq_cancel_id(system_delay_taskq, tqid, B_TRUE) != 0) {
+		/*
+		 * Cancellation failed, so either the task already cleared
+		 * it (and we won a race on se_mtx above), or the task is
+		 * running right now and will clear it when done.
+		 */
 		return;
 	}
 
-	zfsctl_snapshot_hold(se);
-	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
-	    snapentry_expire, se, TQ_SLEEP,
-	    ddi_get_lbolt() + zfs_expire_snapshot * HZ);
+	mutex_enter(&se->se_mtx);
+	if (se->se_taskqid == tqid)
+		se->se_taskqid = TASKQID_INVALID;
+	mutex_exit(&se->se_mtx);
 }
 
 /*
- * Schedule an automatic unmount of objset id to occur in delay seconds from
- * now.  Any previous delayed unmount will be cancelled in favor of the
- * updated deadline.  A reference is taken by zfsctl_snapshot_find_by_name()
- * and held until the outstanding task is handled or cancelled.
+ * Arm the snapentry expire timer to fire in `delay` ticks. If already armed,
+ * do nothing.
  */
-int
-zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid)
+static void
+zfsctl_snapshot_timer_set(zfs_snapentry_t *se, unsigned long delay)
 {
-	zfs_snapentry_t *se;
-	int error = ENOENT;
+	/* Do nothing if the expire timer has been disabled. */
+	if (delay == 0)
+		return;
 
-	rw_enter(&zfs_snapshot_lock, RW_WRITER);
-	if ((se = zfsctl_snapshot_find_by_objsetid(spa, objsetid)) != NULL) {
-		zfsctl_snapshot_unmount_cancel(se);
-		zfsctl_snapshot_unmount_delay_impl(se);
-		zfsctl_snapshot_rele(se);
-		error = 0;
+	mutex_enter(&se->se_mtx);
+	if (se->se_taskqid != TASKQID_INVALID) {
+		/* Already armed, do nothing. */
+		mutex_exit(&se->se_mtx);
+		return;
 	}
-	rw_exit(&zfs_snapshot_lock);
 
-	return (error);
+	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
+	    zfsctl_snapshot_timer_task, se, TQ_SLEEP, ddi_get_lbolt() + delay);
+	mutex_exit(&se->se_mtx);
 }
 
 /*
@@ -594,26 +642,7 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 void
 zfsctl_destroy(zfsvfs_t *zfsvfs)
 {
-	if (zfsvfs->z_issnap) {
-		zfs_snapentry_t *se;
-		spa_t *spa = dmu_objset_spa(zfsvfs->z_os);
-		uint64_t objsetid = dmu_objset_id(zfsvfs->z_os);
-
-		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		se = zfsctl_snapshot_find_by_objsetid(spa, objsetid);
-		if (se != NULL) {
-			zfsctl_snapshot_remove(se);
-			/*
-			 * Don't wait if snapentry_expire task is calling
-			 * umount, which may have resulted in this destroy
-			 * call. Waiting would deadlock: snapentry_expire
-			 * waits for umount while umount waits for task.
-			 */
-			zfsctl_snapshot_unmount_cancel(se);
-			zfsctl_snapshot_rele(se);
-		}
-		rw_exit(&zfs_snapshot_lock);
-	} else if (zfsvfs->z_ctldir) {
+	if (zfsvfs->z_ctldir) {
 		iput(zfsvfs->z_ctldir);
 		zfsvfs->z_ctldir = NULL;
 	}
@@ -861,10 +890,12 @@ zfsctl_snapdir_lookup(struct inode *dip, const char *name, struct inode **ipp,
  * to the '.zfs/snapshot' directory snapshots cannot be moved elsewhere.
  */
 int
-zfsctl_snapdir_rename(struct inode *sdip, const char *snm,
-    struct inode *tdip, const char *tnm, cred_t *cr, int flags)
+zfsctl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
+    struct inode *tdip, struct dentry *tdentry, cred_t *cr)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(sdip);
+	const char *snm = dname(sdentry);
+	const char *tnm = dname(tdentry);
 	char *to, *from, *real, *fsname;
 	int error;
 
@@ -917,13 +948,17 @@ zfsctl_snapdir_rename(struct inode *sdip, const char *snm,
 		goto out;
 	}
 
-	rw_enter(&zfs_snapshot_lock, RW_WRITER);
+	zfs_snapentry_t *se = sdentry->d_fsdata;
+	ASSERT3P(se, !=, NULL);
+
+	/*
+	 * Snapshots can be renamed while mounted, so we do not need the
+	 * full unmount check; detaching from the control dir is enough.
+	 */
+	zfsctl_snapshot_invalidate(se, NULL);
 
 	error = dsl_dataset_rename_snapshot(fsname, snm, tnm, B_FALSE);
-	if (error == 0)
-		(void) zfsctl_snapshot_rename(snm, tnm);
 
-	rw_exit(&zfs_snapshot_lock);
 out:
 	kmem_free(from, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(to, ZFS_MAX_DATASET_NAME_LEN);
@@ -940,10 +975,10 @@ out:
  * the removal of the snapshot with the given name.
  */
 int
-zfsctl_snapdir_remove(struct inode *dip, const char *name, cred_t *cr,
-    int flags)
+zfsctl_snapdir_remove(struct inode *dip, struct dentry *dentry, cred_t *cr)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
+	const char *name = dname(dentry);
 	char *snapname, *real;
 	int error;
 
@@ -973,14 +1008,25 @@ zfsctl_snapdir_remove(struct inode *dip, const char *name, cred_t *cr,
 	if (error != 0)
 		goto out;
 
-	error = zfsctl_snapshot_unmount(snapname);
-	if ((error == 0) || (error == ENOENT))
-		error = dsl_destroy_snapshot(snapname, B_FALSE);
 out:
+	zfs_exit(zfsvfs, FTAG);
+
+	if (error == 0) {
+		/*
+		 * We have the dentry here so could pass it down to an "inner"
+		 * version of zfsctl_snapshot_unmount(), but we'd still have
+		 * to pass the name down for the locking there.
+		 *
+		 * Snapshot delete through admin snapdir operation should be
+		 * rare enough that any gain isn't worth the extra code
+		 * complexity, but the option is there for the future.
+		 */
+		zfsctl_snapshot_unmount(snapname);
+		error = dsl_destroy_snapshot(snapname, B_FALSE);
+	}
+
 	kmem_free(snapname, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(real, ZFS_MAX_DATASET_NAME_LEN);
-
-	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
 }
@@ -1028,368 +1074,508 @@ out:
 }
 
 /*
- * Flush everything out of the kernel's export table and such.
- * This is needed as once the snapshot is used over NFS, its
- * entries in svc_export and svc_expkey caches hold reference
- * to the snapshot mount point. There is no known way of flushing
- * only the entries related to the snapshot.
+ * Invalidate a snapdir
+ *
+ * As described elsewhere, we can't perform a true unmount; all we can do is
+ * detach it from the parent and trust other mechanisms to drain it, or handle
+ * it being in use. We also must be prepared for something unexpected being
+ * mounted on the snapdir, or nothing at all.
+ *
+ * Most of this function is studying the current situation and trying to
+ * decide if we do detach it, the "unmount" (ie filesystem teardown) will
+ * happen immediately after.
+ *
+ * In the very common cases where the admin is not doing any additional mount
+ * manipulation and there's nothing currently using the dataset, this will
+ * usually succeed, which should be good enough.
+ */
+typedef struct {
+	zfs_snapentry_t	*sba_snapentry;
+	uint64_t	sba_atime;
+} zfsctl_snapshot_sb_atime_cb_args_t;
+
+static void
+zfsctl_snapshot_sb_atime_cb(struct super_block *sb, void *sbap)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	if (zfsvfs == NULL)
+		return;
+
+	zfsctl_snapshot_sb_atime_cb_args_t *sba = sbap;
+	if (dmu_objset_spa(zfsvfs->z_os) != sba->sba_snapentry->se_spa ||
+	    dmu_objset_id(zfsvfs->z_os) != sba->sba_snapentry->se_objsetid)
+		return;
+
+	sba->sba_atime = atomic_load_64(&zfsvfs->z_snap_atime);
+}
+
+static int
+zfsctl_snapshot_invalidate(zfs_snapentry_t *se, unsigned long *delay)
+{
+	/*
+	 * Wait for any pending automount or unmount to complete before
+	 * attempting unmount.
+	 */
+	mutex_enter(&se->se_mtx);
+	while (SE_TEST(se, SE_BUSY))
+		cv_wait(&se->se_cv, &se->se_mtx);
+	if (d_unhashed(se->se_dentry)) {
+		/* Someone else invalidated it while we were waiting. */
+		mutex_exit(&se->se_mtx);
+		return (0);
+	}
+	SE_SET(se, SE_BUSY);
+	mutex_exit(&se->se_mtx);
+
+	if (delay != NULL && d_mountpoint(se->se_dentry)) {
+		/*
+		 * This is the expiry task. Consider if the snapdir dentry
+		 * or the snapshot data has been accessed within the expiry
+		 * period and defer if so.
+		 */
+
+		unsigned long atime = atomic_load_64(&se->se_atime);
+
+		/*
+		 * Search for the superblock for the dataset we mounted, and
+		 * grab its access time. We have to search because we can't
+		 * hold a reference back to the zfsvfs or superblock, because
+		 * that would pin it and prevent it being destroyed. We will
+		 * never outlive our reference spa though, so there's no risk
+		 * of the spa pointer being invalid.
+		 */
+		zfsctl_snapshot_sb_atime_cb_args_t sba = {
+			.sba_snapentry = se,
+			.sba_atime = 0,
+		};
+		iterate_supers_type(&zpl_fs_type,
+		    zfsctl_snapshot_sb_atime_cb, &sba);
+
+		atime = MAX(atime, sba.sba_atime);
+
+		unsigned long expiry = atime +
+		    (MAX(zfs_expire_snapshot, 0) * HZ);
+		unsigned long now = jiffies;
+
+		if (time_before(now, expiry)) {
+			/*
+			 * It was used more recently than the expiry time. Pass
+			 * the remaining time back to the caller for rearming.
+			 */
+			*delay = expiry - now;
+
+			mutex_enter(&se->se_mtx);
+			SE_CLEAR(se, SE_BUSY);
+			cv_broadcast(&se->se_cv);
+			mutex_exit(&se->se_mtx);
+
+			return (SET_ERROR(EAGAIN));
+		}
+	}
+
+	/*
+	 * Take a hold to keep the dentry+snapentry alive after invalidate
+	 * so we can signal if necessary.
+	 */
+	dget(se->se_dentry);
+
+	/* Detach the control dentry from the parent dataset. */
+	d_invalidate(se->se_dentry);
+
+	/* Signal any waiters in zpl_snapdir_manage(). */
+	mutex_enter(&se->se_mtx);
+	SE_CLEAR(se, SE_BUSY);
+	cv_broadcast(&se->se_cv);
+	mutex_exit(&se->se_mtx);
+
+	/*
+	 * Release our hold, which may be the last one. If so, the snapentry
+	 * may be destroyed immediately, so must not be used after this.
+	 */
+	dput(se->se_dentry);
+
+	return (0);
+}
+
+/*
+ * Unmount snapshot by name.
+ *
+ * Some admin ops (eg `zfs destroy`) request an unmount before they begin
+ * their work. We have no way to know at any given moment if the snapshot is
+ * definitely mounted - on our snapdir or anywhere else - because some other
+ * task may in the process of mounting or unmounting it. As such, this is
+ * always best effort.
+ */
+
+/*
+ * Check if the named snapshot is definitely unmounted. Returns true if it
+ * is, false if its not or we're unsure.
+ *
+ * We check long holds here, rather than using getzfsvfs(), because there is
+ * a significant timing gap between "filesystem unmounted" and "owning long
+ * hold released". That does mean that other long holds (`zfs send`,
+ * `zfs diff`, etc) can cause a false return here, but that's ok - it will
+ * just mean we try some different things, and if it turns out the hold is
+ * unrelated, the next operation (eg `dsl_destroy_snapshot()`) will return
+ * `EBUSY` anyway, which is correct.
+ */
+static bool
+zfsctl_snapshot_unmount_check(const char *snapname)
+{
+	dsl_pool_t *dp;
+	if (dsl_pool_hold(snapname, FTAG, &dp) != 0)
+		return (true);
+
+	dsl_dataset_t *ds;
+	if (dsl_dataset_hold(dp, snapname, FTAG, &ds) != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (true);
+	}
+
+	bool held = dsl_dataset_long_held(ds);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
+
+	return (!held);
+}
+
+/*
+ * Wait for the named snapshot to be unmounted. tqid is the task that is trying
+ * to force the unmount. Returns true when the snapshot is unmounted, false if
+ * still in use at the deadline.
+ *
+ * Despite setting MNT_INTERNAL, the final dput()/mntput() may still put on a
+ * delay queue if there is associated teardown to be done (eg alt namespaces
+ * for mount propagation). zfsctl_snapshot_unmount() is usually called from a
+ * user thread (an ioctl), which uses a per-task workqueue for this purpose,
+ * and empties it on return to userspace. This too late for an operation like
+ * `zfs destroy` that does the unmount in preparation for the real operation.
+ *
+ * When the final dput()/mntput() is done from a kernel thread, then it is
+ * queued onto a system workqueue instead. So, we put those possible "last put"
+ * calls on system_taskq and wait for them, and then call here to wait for the
+ * unmount to occur, if it is going to occur.
+ *
+ * Delayed work queueing runs on a jiffy timer, so the mntput() may not be on
+ * the queue yet when we call zpl_flush_delay_workqueue(). So, we sleep for one
+ * jiffy each iteration, and flush the queue each time, for 20 milliseconds.
+ * Most of the time we'll see the task within 2-3 jiffies so this is quite a
+ * generous timeout. Worst case, we pause a while, timeout, and eventually
+ * return EBUSY.
+ *
+ * if tqid is TASKQID_INVALID, this does a single check unmount check then
+ * returns, as there's no point waiting if no task was dispatched.
+ */
+static bool
+zfsctl_snapshot_unmount_wait(const char *snapname, taskqid_t tqid)
+{
+	if (tqid == TASKQID_INVALID)
+		return (zfsctl_snapshot_unmount_check(snapname));
+
+	taskq_wait_id(system_taskq, tqid);
+
+	unsigned long deadline = jiffies + MSEC_TO_TICK(20);
+
+	while (!zfsctl_snapshot_unmount_check(snapname)) {
+		if (time_after_eq(jiffies, deadline))
+			return (false);
+
+		schedule_timeout_idle(1);
+		zpl_flush_delay_workqueue();
+	}
+
+	return (true);
+}
+
+/*
+ * Invalidate task. Note that the `dput()` is what will actually trigger
+ * the (delayed-)unmount, so it has to be in the task too.
  */
 static void
-exportfs_flush(void)
+zfsctl_snapshot_unmount_invalidate_task(void *arg)
 {
-	char *argv[] = { "/usr/sbin/exportfs", "-f", NULL };
+	struct dentry *dentry = arg;
+	zfs_snapentry_t *se = dentry->d_fsdata;
+
+	zfsctl_snapshot_invalidate(se, NULL);
+	dput(dentry);
+}
+
+/*
+ * Flush the kernel's NFS export table.
+ *
+ * If the snapshot dir has been used over NFS, the relevant entries in the
+ * svc_expkey_cache and svc_export_cache caches hold references to the snapshot
+ * mount point.
+ *
+ * A full flush is aggressive (flushes everything), but easy to implement. The
+ * alternative is to use the channel endpoints to find and evict the specific
+ * paths related to the path we're unmounting, but that's a lot more involved
+ * for minimal gain.
+ */
+static void
+zfsctl_snapshot_unmount_nfs_flush(void)
+{
+	/*
+	 * We use a userspace callout for this, as there are no kernel APIs
+	 * available to do this from outside the NFS server, and simulating
+	 * access to sunrpc cache file endpoints from within the kernel
+	 * requires userspace-mapped data buffer, which we do not have.
+	 *
+	 * `exportfs -f` would do what we need here, however that flushes all
+	 * nfsd caches, not just the ones with pinned dentries, but also may
+	 * not be installed or on a consistent path (unlikely on a NFS-using
+	 * machine, but still). The shell is guaranteed to be at /bin/sh, so
+	 * we can rely on it.
+	 *
+	 * Userspace callouts are always called with root privileges in the
+	 * init namespaces, so the only thing that prevents this from working
+	 * is if /proc is not mounted. That's the most unlikely thing of all,
+	 * and since this is best-effort, it will have to do.
+	 */
+	char *argv[] = {
+	    "/bin/sh", "-c",
+	    "echo 1 > /proc/net/rpc/nfsd.h/flush ; "
+	    "echo 1 > /proc/net/rpc/nfsd.export/flush", NULL };
 	char *envp[] = { NULL };
 
-	(void) call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 }
 
 /*
- * Returns the path in char format for given struct path. Uses
- * d_path exported by kernel to convert struct path to char
- * format. Returns the correct path for mountpoints and chroot
- * environments.
+ * The public entry point. Try to unmount the snapshot with the given name.
+ * We only consider the snapdir; additional mounts elsewhere will not be
+ * touched.
  *
- * If chroot environment has directories that are mounted with
- * --bind or --rbind flag, d_path returns the complete path inside
- * chroot environment but does not return the absolute path, i.e.
- * the path to chroot environment is missing.
- */
-static int
-get_root_path(struct path *path, char *buff, int len)
-{
-	char *path_buffer, *path_ptr;
-	int error = 0;
-
-	path_get(path);
-	path_buffer = kmem_zalloc(len, KM_SLEEP);
-	path_ptr = d_path(path, path_buffer, len);
-	if (IS_ERR(path_ptr))
-		error = SET_ERROR(-PTR_ERR(path_ptr));
-	else
-		strcpy(buff, path_ptr);
-
-	kmem_free(path_buffer, len);
-	path_put(path);
-	return (error);
-}
-
-/*
- * Returns if the current process root is chrooted or not. Linux
- * kernel exposes the task_struct for current process and init.
- * Since init process root points to actual root filesystem when
- * Linux runtime is reached, we can compare the current process
- * root with init process root to determine if root of the current
- * process is different from init, which can reliably determine if
- * current process is in chroot context or not.
- */
-static int
-is_current_chrooted(void)
-{
-	struct task_struct *curr = current, *global = &init_task;
-	struct path cr_root, gl_root;
-
-	task_lock(curr);
-	get_fs_root(curr->fs, &cr_root);
-	task_unlock(curr);
-
-	task_lock(global);
-	get_fs_root(global->fs, &gl_root);
-	task_unlock(global);
-
-	int chrooted = !path_equal(&cr_root, &gl_root);
-	path_put(&gl_root);
-	path_put(&cr_root);
-
-	return (chrooted);
-}
-
-/*
- * Attempt to unmount a snapshot by making a call to user space.
- * There is no assurance that this can or will succeed, is just a
- * best effort.  In the case where it does fail, perhaps because
- * it's in use, the unmount will fail harmlessly.
+ * Since this is best-effort, always returns 0.
  */
 int
 zfsctl_snapshot_unmount(const char *snapname)
 {
-	char *argv[] = { "/usr/bin/env", "umount", "-t", "zfs", "-n", NULL,
-	    NULL };
-	char *envp[] = { NULL };
-	zfs_snapentry_t *se;
-	int error;
+	taskqid_t tqid = TASKQID_INVALID;
 
-	rw_enter(&zfs_snapshot_lock, RW_READER);
-	if ((se = zfsctl_snapshot_find_by_name(snapname)) == NULL) {
-		rw_exit(&zfs_snapshot_lock);
-		return (SET_ERROR(ENOENT));
+	/* Incoming snapname is 'pool/dataset@snap'. Split on the '@' */
+	char *ds = kmem_strdup(snapname);
+	char *snap = strchr(ds, '@');
+	if (snap == NULL) {
+		kmem_strfree(ds);
+		return (0);
 	}
-	rw_exit(&zfs_snapshot_lock);
+	*snap++ = '\0';
 
-	/*
-	 * Wait for any pending auto-mount to complete before unmounting.
-	 */
-	mutex_enter(&se->se_mtx);
-	while (se->se_mounting)
-		cv_wait(&se->se_cv, &se->se_mtx);
-	mutex_exit(&se->se_mtx);
-
-	argv[5] = se->se_path;
-	dprintf("unmount; path=%s\n", se->se_path);
-	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-
-	/*
-	 * The kernel's NFS export cache can hold references to the
-	 * snapshot mountpoint and cause umount to fail.  ZFS cannot
-	 * invalidate individual entries because the relevant kernel
-	 * APIs are exported GPL-only, so we issue a global flush
-	 * instead.  To avoid impacting unrelated snapshots, the flush
-	 * runs only on umount failure.  Not perfect, but better than
-	 * flushing unconditionally.
-	 */
-	if (error) {
-		exportfs_flush();
-		error = call_usermodehelper(argv[0], argv, envp,
-		    UMH_WAIT_PROC);
+	/* Get a handle on the dataset itself, which holds the control dir. */
+	zfsvfs_t *zfsvfs = NULL;
+	int err = getzfsvfs(ds, &zfsvfs);
+	if (err != 0) {
+		ASSERT0P(zfsvfs);
+		kmem_strfree(ds);
+		return (0);
 	}
 
-	zfsctl_snapshot_rele(se);
+	/* Find the virtual inode for the `.zfs/snapshot` dir. */
+	struct inode *snapdir_ip = ilookup(zfsvfs->z_sb, ZFSCTL_INO_SNAPDIR);
+	if (snapdir_ip == NULL) {
+		zfs_vfs_rele(zfsvfs);
+		kmem_strfree(ds);
+		return (0);
+	}
 
 	/*
-	 * The umount system utility will return 256 on error.  We must
-	 * assume this error is because the file system is busy so it is
-	 * converted to the more sensible EBUSY.
+	 * And its associated dentry.
+	 *
+	 * Note that from this point, we always proceed into the "wait" step
+	 * even if we don't find what we're looking for in the ctldir, because
+	 * once the ctldir inode structure is established we might not be
+	 * finding things because we're racing against setup or teardown
+	 * elsewhere in the system, and so there still might be a leftover
+	 * mount that we should try to force out if we can.
 	 */
-	if (error)
-		error = SET_ERROR(EBUSY);
+	struct dentry *snapdir_dentry = d_find_alias(snapdir_ip);
+	iput(snapdir_ip);
+	if (snapdir_dentry == NULL) {
+		zfs_vfs_rele(zfsvfs);
+		kmem_strfree(ds);
+		goto wait;
+	}
 
-	return (error);
+	/*
+	 * Now hash the snapshot name, and use it to lookup the snapdir
+	 * of the same name.
+	 */
+	struct qstr qname = QSTR_INIT(snap, strlen(snap));
+	qname.hash = full_name_hash(snapdir_dentry, snap, qname.len);
+	struct dentry *dentry = d_lookup(snapdir_dentry, &qname);
+
+	dput(snapdir_dentry);
+	kmem_strfree(ds);
+	zfs_vfs_rele(zfsvfs);
+
+	/*
+	 * Sanity; we should always have a dentry with an attached snapentry,
+	 * but if we don't, we can't do anything else except try to push a
+	 * background expiry along.
+	 */
+	if (dentry == NULL)
+		goto wait;
+	if (dentry->d_fsdata == NULL) {
+		dput(dentry);
+		goto wait;
+	}
+
+	/*
+	 * If there's nothing mounted on this dentry, then we don't need to
+	 * invalidate it, but we should still try to wait for our snapshot
+	 * to expire and try to force it along.
+	 *
+	 * We continue to invalidate if anything is mounted here, because
+	 * the operator may have mounted an unrelated filesystem here, and
+	 * this is the only way it will be detached during an admin operation.
+	 */
+	if (!d_mountpoint(dentry)) {
+		dput(dentry);
+		goto wait;
+	}
+
+	/*
+	 * Do invalidate + dput on system_taskq thread to force delayed mntput
+	 * (if required) onto system_wq. If dispatch fails for some reason,
+	 * call it directly and we'll just have to live with a possible EBUSY
+	 * down the line.
+	 */
+	tqid = taskq_dispatch(system_taskq,
+	    zfsctl_snapshot_unmount_invalidate_task, dentry, TQ_SLEEP|TQ_FRONT);
+	if (tqid == TASKQID_INVALID)
+		zfsctl_snapshot_unmount_invalidate_task(dentry);
+
+wait:
+	/*
+	 * Wait for unmount. We do this regardless of whether or not we
+	 * found the snapdir dentry above; it might have been expired out
+	 * elsewhere in the system while the mount was still in use.
+	 */
+	if (zfsctl_snapshot_unmount_wait(snapname, tqid))
+		return (0);
+
+	/*
+	 * Still mounted. NFS caches might be pinning it. If so, then flushing
+	 * them will release the mount. Note that we do this after trying our
+	 * best to force the unmount in other ways, because the NFS cache
+	 * flush is global, and if the dataset and the whole system is
+	 * actually busy, then overdoing this is going to hurt NFS performance.
+	 */
+	zfsctl_snapshot_unmount_nfs_flush();
+
+	/*
+	 * No wait required after NFS flush; if it resulted in unmount, it
+	 * happened on the return to userspace and so there's nothing to wait
+	 * for.
+	 */
+
+	return (0);
 }
 
+/*
+ * Mount. This is the actual work behind the d_automount endpoint. On success,
+ * the mount is returned in *mntp, and the manage->automount->manage ceremony
+ * will get it all properly wired into the tree and any waiters released.
+ */
 int
-zfsctl_snapshot_mount(struct path *path)
+zfsctl_snapshot_mount(struct path *path, struct vfsmount **mntp)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
 	zfsvfs_t *zfsvfs;
 	zfsvfs_t *snap_zfsvfs;
 	zfs_snapentry_t *se;
-	char *full_name, *full_path, *options;
-	char *argv[] = { "/usr/bin/env", "mount", "-i", "-t", "zfs", "-n",
-	    "-o", NULL, NULL, NULL, NULL };
-	char *envp[] = { NULL };
+	char snapname[ZFS_MAX_DATASET_NAME_LEN];
 	int error;
-	struct path spath;
 
 	ASSERT3P(ip, !=, NULL);
 
+	/*
+	 * ip is the snapdir inode itself, so zfsvfs is the parent (real)
+	 * dataset. We only need to take the hold in order to compute the
+	 * snapshot name; the calling dentry is what's actually holding it
+	 * alive.
+	 */
 	zfsvfs = ITOZSB(ip);
 	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
-	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-	options = kmem_zalloc(7, KM_SLEEP);
-
 	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
-	    ZFS_MAX_DATASET_NAME_LEN, full_name);
-	if (error) {
-		zfs_exit(zfsvfs, FTAG);
-		goto error;
-	}
+	    sizeof (snapname), snapname);
 
-	if (is_current_chrooted() == 0) {
-		/*
-		 * Current process is not in chroot context
-		 */
-
-		char *m = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-		struct path mnt_path;
-		mnt_path.mnt = path->mnt;
-		mnt_path.dentry = path->mnt->mnt_root;
-
-		/*
-		 * Get path to current mountpoint
-		 */
-		error = get_root_path(&mnt_path, m, MAXPATHLEN);
-		if (error != 0) {
-			kmem_free(m, MAXPATHLEN);
-			zfs_exit(zfsvfs, FTAG);
-			goto error;
-		}
-		mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
-		if (zfsvfs->z_vfs->vfs_mntpoint != NULL) {
-			/*
-			 * If current mnountpoint and vfs_mntpoint are not same,
-			 * store current mountpoint in vfs_mntpoint.
-			 */
-			if (strcmp(zfsvfs->z_vfs->vfs_mntpoint, m) != 0) {
-				kmem_strfree(zfsvfs->z_vfs->vfs_mntpoint);
-				zfsvfs->z_vfs->vfs_mntpoint = kmem_strdup(m);
-			}
-		} else
-			zfsvfs->z_vfs->vfs_mntpoint = kmem_strdup(m);
-		mutex_exit(&zfsvfs->z_vfs->vfs_mntpt_lock);
-		kmem_free(m, MAXPATHLEN);
-	}
-
-	/*
-	 * Construct a mount point path from sb of the ctldir inode and dirent
-	 * name, instead of from d_path(), so that chroot'd process doesn't fail
-	 * on mount.zfs(8).
-	 */
-	mutex_enter(&zfsvfs->z_vfs->vfs_mntpt_lock);
-	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
-	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
-	    dname(dentry));
-	mutex_exit(&zfsvfs->z_vfs->vfs_mntpt_lock);
-
-	snprintf(options, 7, "%s",
-	    zfs_snapshot_no_setuid ? "nosuid" : "suid");
-
-	/*
-	 * Release z_teardown_lock before potentially blocking operations
-	 * (cv_wait for concurrent mounts, call_usermodehelper for the mount
-	 * helper).  Holding z_teardown_lock(R) across call_usermodehelper
-	 * deadlocks with namespace_sem: the mount helper needs
-	 * namespace_sem(W) via move_mount, while /proc/self/mountinfo
-	 * readers hold namespace_sem(R) and need z_teardown_lock(R) via
-	 * zpl_show_devname.  A concurrent zfs_suspend_fs queuing
-	 * z_teardown_lock(W) blocks new readers, completing the cycle.
-	 * See https://github.com/openzfs/zfs/issues/18409
-	 *
-	 * Releasing the lock allows zfs_suspend_fs to proceed during
-	 * the mount, so dmu_objset_hold in zpl_get_tree can transiently
-	 * fail with ENOENT during the clone swap.  The mount helper
-	 * fails, this function returns EISDIR, and the VFS silently
-	 * falls back to the ctldir stub (empty directory).  The caller
-	 * gets the stub inode instead of the real snapshot root until
-	 * the next access retries the automount.
-	 *
-	 * Safe because everything below operates on local string copies
-	 * (full_name, full_path) or uses its own synchronization
-	 * (zfs_snapshot_lock, se_mtx).  The parent zfsvfs pointer
-	 * remains valid because we hold a path reference to the
-	 * automount trigger dentry.
-	 */
 	zfs_exit(zfsvfs, FTAG);
+	if (error)
+		return (error);
 
 	/*
-	 * Check if snapshot is already being mounted. If found, wait for
-	 * pending mount to complete before returning success.
+	 * A "submount" inherits its options, propagation group, namespaces,
+	 * etc from the reference dentry.
 	 */
-	rw_enter(&zfs_snapshot_lock, RW_WRITER);
-	if ((se = zfsctl_snapshot_find_by_name(full_name)) != NULL) {
-		rw_exit(&zfs_snapshot_lock);
-		mutex_enter(&se->se_mtx);
-		while (se->se_mounting)
-			cv_wait(&se->se_cv, &se->se_mtx);
+	struct fs_context *fc =
+	    fs_context_for_submount(dentry->d_sb->s_type, dentry);
+	if (IS_ERR(fc))
+		return (-PTR_ERR(fc));
 
-		/*
-		 * Return the same error as the first mount attempt (0 if
-		 * succeeded, error code if failed).
-		 */
-		error = se->se_mount_error;
-		mutex_exit(&se->se_mtx);
-		zfsctl_snapshot_rele(se);
-		goto error;
+	/* The full snapshot name is the "source" (see zpl_get_tree()) */
+	error = -zpl_vfs_parse_fs_string(fc, "source", snapname);
+	if (error != 0) {
+		put_fs_context(fc);
+		return (error);
 	}
 
-	/*
-	 * Create pending entry and mark mount in progress.
-	 */
-	se = zfsctl_snapshot_alloc(full_name, full_path);
-	se->se_mounting = B_TRUE;
-	zfsctl_snapshot_add(se);
-	zfsctl_snapshot_hold(se);
-	rw_exit(&zfs_snapshot_lock);
+	/* Create the mount! */
+	struct vfsmount *mnt = fc_mount(fc);
+	put_fs_context(fc);
 
-	/*
-	 * Attempt to mount the snapshot from user space.  Normally this
-	 * would be done using the vfs_kern_mount() function, however that
-	 * function is marked GPL-only and cannot be used.  On error we
-	 * careful to log the real error to the console and return EISDIR
-	 * to safely abort the automount.  This should be very rare.
-	 *
-	 * If the user mode helper happens to return EBUSY, a concurrent
-	 * mount is already in progress in which case the error is ignored.
-	 * Take note that if the program was executed successfully the return
-	 * value from call_usermodehelper() will be (exitcode << 8 + signal).
-	 */
-	dprintf("mount; name=%s path=%s\n", full_name, full_path);
-	argv[7] = options;
-	argv[8] = full_name;
-	argv[9] = full_path;
-	error = call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
-	if (error) {
-		/*
-		 * Mount failed - cleanup pending entry and signal waiters.
-		 */
-		if (!(error & MOUNT_BUSY << 8)) {
-			zfs_dbgmsg("Unable to automount %s error=%d",
-			    full_path, error);
-			error = SET_ERROR(EISDIR);
-		} else {
-			/*
-			 * EBUSY, this could mean a concurrent mount, or the
-			 * snapshot has already been mounted at completely
-			 * different place. We return 0 so VFS will retry. For
-			 * the latter case the VFS will retry several times
-			 * and return ELOOP, which is probably not a very good
-			 * behavior.
-			 */
-			error = 0;
-		}
+	if (IS_ERR(mnt))
+		return (-PTR_ERR(mnt));
 
-		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		zfsctl_snapshot_remove(se);
-		rw_exit(&zfs_snapshot_lock);
-		mutex_enter(&se->se_mtx);
-		se->se_mount_error = error;
-		se->se_mounting = B_FALSE;
-		cv_broadcast(&se->se_cv);
-		mutex_exit(&se->se_mtx);
-		zfsctl_snapshot_rele(se);
-		goto error;
-	}
+	snap_zfsvfs = ITOZSB(mnt->mnt_root->d_inode);
+	snap_zfsvfs->z_parent = zfsvfs;
+
+	se = dentry->d_fsdata;
+
+	/* Clear any leftover timer from previous iteration. */
+	zfsctl_snapshot_timer_clear(se);
+
+	/* Fill out the snapentry with lookup helpers */
+	se->se_spa = dmu_objset_spa(snap_zfsvfs->z_os);
+	se->se_objsetid = dmu_objset_id(snap_zfsvfs->z_os);
+
+	*mntp = mnt;
+
+	return (0);
+}
+
+/*
+ * Called after the mount is spliced into the filesystem tree but before path
+ * walks are allowed to proceed into it. See zpl_ctldir.c for more info.
+ */
+void
+zfsctl_snapshot_finish_mount(zfs_snapentry_t *se, struct vfsmount *mnt)
+{
+	/*
+	 * MNT_INTERNAL makes the mount "internal", and so give more chance
+	 * that it will unmounted when the last reference is dropped rather
+	 * than being put on a delay queue. It's not foolproof (some
+	 * mount-propagation configurations will still see it deferred) but
+	 * when it works it reduces the work we need to do in
+	 * zfsctl_snapshot_unmount(), and when it doesn't it's harmless.
+	 */
+	mnt->mnt_flags |= MNT_INTERNAL;
 
 	/*
-	 * Follow down in to the mounted snapshot and set MNT_SHRINKABLE
-	 * to identify this as an automounted filesystem.
+	 * Add any additional user flags which would have been swallowed if we
+	 * set them when the mount was created.
 	 */
-	spath = *path;
-	path_get(&spath);
-	if (follow_down_one(&spath)) {
-		snap_zfsvfs = ITOZSB(spath.dentry->d_inode);
-		snap_zfsvfs->z_parent = zfsvfs;
-		dentry = spath.dentry;
-		spath.mnt->mnt_flags |= MNT_SHRINKABLE;
+	if (zfs_snapshot_no_setuid)
+		mnt->mnt_flags |= MNT_NOSUID;
 
-		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		zfsctl_snapshot_fill(se, dmu_objset_spa(snap_zfsvfs->z_os),
-		    dmu_objset_id(snap_zfsvfs->z_os));
-		zfsctl_snapshot_unmount_delay_impl(se);
-		rw_exit(&zfs_snapshot_lock);
-	} else {
-		rw_enter(&zfs_snapshot_lock, RW_WRITER);
-		zfsctl_snapshot_remove(se);
-		rw_exit(&zfs_snapshot_lock);
-	}
-	path_put(&spath);
-
-	/*
-	 * Signal mount completion and cleanup.
-	 */
-	mutex_enter(&se->se_mtx);
-	se->se_mounting = B_FALSE;
-	cv_broadcast(&se->se_cv);
-	mutex_exit(&se->se_mtx);
-	zfsctl_snapshot_rele(se);
-error:
-	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
-	kmem_free(full_path, MAXPATHLEN);
-	kmem_free(options, 7);
-
-	return (error);
+	/* Start the expiry timer. */
+	se->se_atime = jiffies;
+	zfsctl_snapshot_timer_set(se, zfs_expire_snapshot * HZ);
 }
 
 /*
@@ -1404,27 +1590,12 @@ zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
 	struct path path;
 	char *mnt;
 	struct dentry *dentry;
-	zfs_snapentry_t *se;
 
 	mnt = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
-	/*
-	 * Try the in-memory AVL tree first for previously mounted
-	 * snapshots, falling back to the on-disk scan if not found.
-	 */
-	rw_enter(&zfs_snapshot_lock, RW_READER);
-	se = zfsctl_snapshot_find_by_objsetid(
-	    dmu_objset_spa(zfsvfs->z_os), objsetid);
-	rw_exit(&zfs_snapshot_lock);
-	if (se != NULL) {
-		strlcpy(mnt, se->se_path, MAXPATHLEN);
-		zfsctl_snapshot_rele(se);
-	} else {
-		error = zfsctl_snapshot_path_objset(zfsvfs, objsetid,
-		    MAXPATHLEN, mnt);
-		if (error)
-			goto out;
-	}
+	error = zfsctl_snapshot_path_objset(zfsvfs, objsetid, MAXPATHLEN, mnt);
+	if (error)
+		goto out;
 
 	/* Trigger automount */
 	error = -kern_path(mnt, LOOKUP_FOLLOW|LOOKUP_DIRECTORY, &path);
@@ -1450,8 +1621,18 @@ zfsctl_snapdir_vget(struct super_block *sb, uint64_t objsetid, int gen,
 		*ipp = NULL;
 		error = SET_ERROR(ENOENT);
 	}
-	if (!IS_ERR(dentry))
+	if (!IS_ERR(dentry)) {
+		/*
+		 * Cold-open via NFS will have a disconnected dentry here,
+		 * don't assume there's an associated snapentry here.
+		 */
+		if (error == 0 && dentry->d_fsdata != NULL) {
+			zfs_snapentry_t *se = dentry->d_fsdata;
+			atomic_store_64(&se->se_atime, jiffies);
+		}
 		dput(dentry);
+	}
+
 out:
 	kmem_free(mnt, MAXPATHLEN);
 	return (error);
@@ -1482,34 +1663,6 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
-}
-
-/*
- * Initialize the various pieces we'll need to create and manipulate .zfs
- * directories.  Currently this is unused but available.
- */
-void
-zfsctl_init(void)
-{
-	avl_create(&zfs_snapshots_by_name, snapentry_compare_by_name,
-	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
-	    se_node_name));
-	avl_create(&zfs_snapshots_by_objsetid, snapentry_compare_by_objsetid,
-	    sizeof (zfs_snapentry_t), offsetof(zfs_snapentry_t,
-	    se_node_objsetid));
-	rw_init(&zfs_snapshot_lock, NULL, RW_DEFAULT, NULL);
-}
-
-/*
- * Cleanup the various pieces we needed for .zfs directories.  In particular
- * ensure the expiry timer is canceled safely.
- */
-void
-zfsctl_fini(void)
-{
-	avl_destroy(&zfs_snapshots_by_name);
-	avl_destroy(&zfs_snapshots_by_objsetid);
-	rw_destroy(&zfs_snapshot_lock);
 }
 
 module_param(zfs_admin_snapshot, int, 0644);

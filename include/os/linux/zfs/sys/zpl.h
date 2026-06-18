@@ -21,11 +21,14 @@
  */
 /*
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_ZPL_H
 #define	_SYS_ZPL_H
 
+#include <sys/zfs_context.h>
+#include <sys/spa.h>
 #include <sys/mntent.h>
 #include <sys/vfs.h>
 #include <linux/aio.h>
@@ -95,6 +98,65 @@ extern const struct inode_operations zpl_ops_snapdir;
 
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
+
+/*
+ * Snapentry. Held on the snapdir dentry, coordinates mount, unmount and
+ * access through the snapdir mountpoint.
+ */
+typedef struct zfs_snapentry {
+	/* The snapdir dentry itself, that owns this snapentry (via d_fsdata) */
+	struct dentry	*se_dentry;
+
+	/*
+	 * State flags, see below. Early in struct to be in first cacheline,
+	 * for unlocked RCU-walk check in zpl_snapdir_manage().
+	 */
+	unsigned long	se_flags;
+
+	/* Time of last transit through this snapdir. */
+	uint64_t	se_atime;
+
+	/* se_mtx protects se_flags, se_taskqid, se_mount_task and se_cv */
+	kmutex_t	se_mtx;
+
+	/* ID of expiry timer. */
+	taskqid_t	se_taskqid;
+
+	/* Mount task, see zpl_snapdir_manage(). */
+	struct task_struct *se_mount_task;
+
+	/* Pool & snapshot objset that we mounted */
+	spa_t		*se_spa;
+	uint64_t	se_objsetid;
+
+	/* Signal state transition completed, SE_BUSY clear. */
+	kcondvar_t	se_cv;
+} zfs_snapentry_t;
+
+/*
+ * Snapentry flags.
+ *
+ * Bit 0 indicates that something currently adding a mount or invalidating the
+ * dentry.
+ *
+ * Bit 1 indicates an in-flight VFS op wants to traverse into the mount if
+ * it exists; see zpl_snapdir_manage().
+ */
+enum {
+	SE_BUSY,	/* mounting or unmounting, should wait */
+	SE_WANT_MOUNT,	/* next VFS op should attempt automount */
+};
+
+/*
+ * We use atomic bitops for se_flags because we need to test SE_BUSY without
+ * holding se_mtx in zpl_snapdir_manage(). Beyond that, they are always
+ * protected by se_mtx.
+ */
+#define	SE_TEST(se, fl)		test_bit((fl), &(se)->se_flags)
+#define	SE_SET(se, fl)		set_bit((fl), &(se)->se_flags)
+#define	SE_CLEAR(se, fl)	clear_bit((fl), &(se)->se_flags)
+
+extern void zfsctl_snapshot_timer_clear(zfs_snapentry_t *se);
 
 /* zpl_file_range.c */
 
