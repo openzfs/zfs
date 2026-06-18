@@ -1426,7 +1426,7 @@ zfs_domount(struct super_block *sb, const char *osname,
 		acltype_changed_cb(zfsvfs, pval);
 		zfsvfs->z_issnap = B_TRUE;
 		zfsvfs->z_os->os_sync = ZFS_SYNC_DISABLED;
-		zfsvfs->z_snap_defer_time = jiffies;
+		zfsvfs->z_snap_atime = jiffies;
 
 		mutex_enter(&zfsvfs->z_os->os_user_ptr_lock);
 		dmu_objset_set_user(zfsvfs->z_os, zfsvfs);
@@ -1879,22 +1879,16 @@ zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 }
 
 /*
- * Automounted snapshots rely on periodic revalidation
- * to defer snapshots from being automatically unmounted.
+ * Bump data access time on automounted snapshots to stop them being expired
+ * out too early.
  */
-
 inline void
 zfs_exit_fs(zfsvfs_t *zfsvfs)
 {
 	if (!zfsvfs->z_issnap)
 		return;
 
-	if (time_after(jiffies, zfsvfs->z_snap_defer_time +
-	    MAX(zfs_expire_snapshot * HZ / 2, HZ))) {
-		zfsvfs->z_snap_defer_time = jiffies;
-		zfsctl_snapshot_unmount_delay(dmu_objset_spa(zfsvfs->z_os),
-		    dmu_objset_id(zfsvfs->z_os));
-	}
+	atomic_store_64(&zfsvfs->z_snap_atime, jiffies);
 }
 
 int
@@ -2055,7 +2049,6 @@ zfsvfs_update_fromname(const char *oldname, const char *newname)
 void
 zfs_init(void)
 {
-	zfsctl_init();
 	zfs_znode_init();
 	dmu_objset_register_type(DMU_OST_ZFS, zpl_get_file_info);
 	register_filesystem(&zpl_fs_type);
@@ -2071,7 +2064,6 @@ zfs_fini(void)
 	taskq_wait(system_taskq);
 	unregister_filesystem(&zpl_fs_type);
 	zfs_znode_fini();
-	zfsctl_fini();
 }
 
 #if defined(_KERNEL)
