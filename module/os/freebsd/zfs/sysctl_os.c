@@ -306,15 +306,6 @@ param_set_multihost_interval(SYSCTL_HANDLER_ARGS)
 	return (0);
 }
 
-/* spa.c */
-
-extern int zfs_ccw_retry_interval;
-
-SYSCTL_INT(_vfs_zfs, OID_AUTO, ccw_retry_interval,
-	CTLFLAG_RWTUN, &zfs_ccw_retry_interval, 0,
-	"Configuration cache file write, retry after failure, interval"
-	" (seconds)");
-
 /* spa_misc.c */
 
 extern int zfs_flags;

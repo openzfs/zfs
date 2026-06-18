@@ -11866,3 +11866,7 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_free,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
 	"Number of CPUs per write issue taskq");
+
+ZFS_MODULE_PARAM(zfs, zfs_, ccw_retry_interval, INT, ZMOD_RW,
+	"Configuration cache file write, retry after failure, interval "
+	"(seconds)");

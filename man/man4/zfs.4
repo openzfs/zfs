@@ -1090,6 +1090,10 @@ and uses pages, unlike the Linux-specific
 .Sy zfs_arc_sys_free
 which is measured in bytes.
 .
+.It Sy zfs_ccw_retry_interval Ns = Ns Sy 300 Ns s Pq int
+Interval, in seconds, at which a failed write of the configuration cache file
+is retried.
+.
 .It Sy zfs_checksum_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
 Rate limit checksum events to this many per second.
 Note that this should not be set below the ZED thresholds
