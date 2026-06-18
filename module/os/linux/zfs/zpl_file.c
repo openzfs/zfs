@@ -244,15 +244,15 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
 
 	/*
-	 * If async DIO is enabled and this is an async kiocb (libaio or
-	 * io_uring), dispatch the read via zfs_read_async() which submits
-	 * I/O to the ZIO pipeline and returns immediately.  We then return
-	 * -EIOCBQUEUED to tell the VFS we'll complete later.
-	 *
-	 * If zfs_read_async() returns an error (e.g. DIO not possible),
-	 * fall through to the synchronous path.
+	 * If async DIO is enabled, the file is opened O_DIRECT, and
+	 * this is an async kiocb, dispatch the read via zfs_read_async().
+	 * On success we return -EIOCBQUEUED; on error fall through to
+	 * the synchronous path.  Without O_DIRECT, reads go through the
+	 * ARC — the data copy is synchronous and the async path adds no
+	 * benefit.
 	 */
-	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb)) {
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    (filp->f_flags & O_DIRECT)) {
 		crhold(cr);
 		cookie = spl_fstrans_mark();
 
@@ -320,14 +320,14 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
 
 	/*
-	 * If async DIO is enabled and this is an async kiocb (libaio or
-	 * io_uring), dispatch the write via zfs_write_async() which
-	 * submits I/O to the ZIO pipeline and returns immediately.
-	 * We then return -EIOCBQUEUED to tell the VFS we'll complete
-	 * later.  If zfs_write_async() returns an error, fall through
-	 * to the synchronous path.
+	 * If async DIO is enabled, the file is opened O_DIRECT, and
+	 * this is an async kiocb, dispatch the write via zfs_write_async().
+	 * On success we return -EIOCBQUEUED; on error fall through to
+	 * the synchronous path.  Without O_DIRECT, buffered writes go
+	 * through the ARC and the disk write is already async (txg sync).
 	 */
-	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb)) {
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    (filp->f_flags & O_DIRECT)) {
 		crhold(cr);
 		cookie = spl_fstrans_mark();
 
