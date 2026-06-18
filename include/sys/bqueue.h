@@ -26,6 +26,8 @@ extern "C" {
 
 #include	<sys/zfs_context.h>
 
+typedef boolean_t (bqueue_peek_cb_t)(void *data, void *arg);
+
 typedef struct bqueue {
 	list_t bq_list;
 	size_t bq_size;
@@ -52,6 +54,7 @@ void bqueue_destroy(bqueue_t *);
 void bqueue_enqueue(bqueue_t *, void *, size_t);
 void bqueue_enqueue_flush(bqueue_t *, void *, size_t);
 void *bqueue_dequeue(bqueue_t *);
+void bqueue_peek_into(bqueue_t *q, bqueue_peek_cb_t *cb, void *cb_arg);
 
 #ifdef	__cplusplus
 }
