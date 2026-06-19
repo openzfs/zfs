@@ -193,34 +193,34 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 	$(ICP_OBJS_ARM64) $(ICP_OBJS_PPC_PPC64)) : ccflags-y += -I$(icp_include) -I$(zfs_include)/os/linux/spl -I$(zfs_include)
 
-LUA_OBJS := \
-	lapi.o \
-	lauxlib.o \
-	lbaselib.o \
-	lcode.o \
-	lcompat.o \
-	lcorolib.o \
-	lctype.o \
-	ldebug.o \
-	ldo.o \
-	lfunc.o \
-	lgc.o \
-	llex.o \
-	lmem.o \
-	lobject.o \
-	lopcodes.o \
-	lparser.o \
-	lstate.o \
-	lstring.o \
-	lstrlib.o \
-	ltable.o \
-	ltablib.o \
-	ltm.o \
-	lvm.o \
-	lzio.o \
-	setjmp/setjmp.o
+@DISABLE_ZCP_TRUE@LUA_OBJS := \
+@DISABLE_ZCP_TRUE@	lapi.o \
+@DISABLE_ZCP_TRUE@	lauxlib.o \
+@DISABLE_ZCP_TRUE@	lbaselib.o \
+@DISABLE_ZCP_TRUE@	lcode.o \
+@DISABLE_ZCP_TRUE@	lcompat.o \
+@DISABLE_ZCP_TRUE@	lcorolib.o \
+@DISABLE_ZCP_TRUE@	lctype.o \
+@DISABLE_ZCP_TRUE@	ldebug.o \
+@DISABLE_ZCP_TRUE@	ldo.o \
+@DISABLE_ZCP_TRUE@	lfunc.o \
+@DISABLE_ZCP_TRUE@	lgc.o \
+@DISABLE_ZCP_TRUE@	llex.o \
+@DISABLE_ZCP_TRUE@	lmem.o \
+@DISABLE_ZCP_TRUE@	lobject.o \
+@DISABLE_ZCP_TRUE@	lopcodes.o \
+@DISABLE_ZCP_TRUE@	lparser.o \
+@DISABLE_ZCP_TRUE@	lstate.o \
+@DISABLE_ZCP_TRUE@	lstring.o \
+@DISABLE_ZCP_TRUE@	lstrlib.o \
+@DISABLE_ZCP_TRUE@	ltable.o \
+@DISABLE_ZCP_TRUE@	ltablib.o \
+@DISABLE_ZCP_TRUE@	ltm.o \
+@DISABLE_ZCP_TRUE@	lvm.o \
+@DISABLE_ZCP_TRUE@	lzio.o \
+@DISABLE_ZCP_TRUE@	setjmp/setjmp.o
 
-zfs-objs += $(addprefix lua/,$(LUA_OBJS))
+@DISABLE_ZCP_TRUE@zfs-objs += $(addprefix lua/,$(LUA_OBJS))
 
 
 NVPAIR_OBJS := \
@@ -318,6 +318,14 @@ $(addprefix $(obj)/zstd/,$(ZSTD_OBJS) $(ZSTD_UPSTREAM_OBJS)) : asflags-y += -I$(
 $(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
 $(obj)/zstd/zfs_zstd.o : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h
 
+
+@DISABLE_ZCP_TRUE@ZCP_OBJS := \
+@DISABLE_ZCP_TRUE@	zcp.o \
+@DISABLE_ZCP_TRUE@	zcp_get.o \
+@DISABLE_ZCP_TRUE@	zcp_global.o \
+@DISABLE_ZCP_TRUE@	zcp_iter.o \
+@DISABLE_ZCP_TRUE@	zcp_set.o \
+@DISABLE_ZCP_TRUE@	zcp_synctask.o
 
 ZFS_OBJS := \
 	abd.o \
@@ -419,12 +427,6 @@ ZFS_OBJS := \
 	zap_impl.o \
 	zap_leaf.o \
 	zap_micro.o \
-	zcp.o \
-	zcp_get.o \
-	zcp_global.o \
-	zcp_iter.o \
-	zcp_set.o \
-	zcp_synctask.o \
 	zfeature.o \
 	zfs_byteswap.o \
 	zfs_chksum.o \
@@ -451,7 +453,7 @@ ZFS_OBJS := \
 	zle.o \
 	zrlock.o \
 	zthr.o \
-	zvol.o
+	zvol.o $(ZCP_OBJS)
 
 ZFS_OBJS_OS := \
 	abd_os.o \
@@ -527,11 +529,12 @@ zobjdirs = $(dir $(zfs-objs)) $(dir $(spl-objs))                                
   $(dir $(zfs-$(CONFIG_X86))) $(dir $(zfs-$(CONFIG_UML_X86))) $(dir $(zfs-$(CONFIG_ARM64)))  \
   $(dir $(zfs-$(CONFIG_PPC64))) $(dir $(zfs-$(CONFIG_PPC)))
 
-z_cdirs = $(sort $(filter-out lua/setjmp/ $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/) \
+@DISABLE_ZCP_TRUE@luajmp = lua/setjmp/
+z_cdirs = $(sort $(filter-out $(luajmp) $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/) \
   $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
   $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
   $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))
-z_sdirs = $(sort $(filter lua/setjmp/ $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/)     \
+z_sdirs = $(sort $(filter $(luajmp) $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/)     \
   $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
   $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
   $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))
