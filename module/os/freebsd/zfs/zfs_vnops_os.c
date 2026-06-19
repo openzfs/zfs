@@ -6021,7 +6021,7 @@ zfs_getextattr_impl(struct vop_getextattr_args *ap, boolean_t compat)
 	error = ENOENT;
 	if (zfsvfs->z_use_sa && zp->z_is_sa)
 		error = zfs_getextattr_sa(ap, attrname);
-	if (error == ENOENT)
+	if (error == ENOENT && !zp->z_xattr_dir_absent)
 		error = zfs_getextattr_dir(ap, attrname);
 	return (error);
 }
