@@ -828,6 +828,9 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	boolean_t fuid_dirtied;
 	uint64_t parent __maybe_unused;
 
+	if (zfsvfs->z_replay == B_FALSE)
+		ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
+
 	*xvpp = NULL;
 
 	if ((error = zfs_acl_ids_create(zp, IS_XATTR, vap, cr, NULL,
@@ -875,6 +878,9 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 
 	getnewvnode_drop_reserve();
 
+	/* Record that the file now has an xattr directory. */
+	zp->z_xattr_dir_absent = B_FALSE;
+
 	*xvpp = xzp;
 
 	return (0);
@@ -900,6 +906,19 @@ zfs_get_xattrdir(znode_t *zp, znode_t **xzpp, cred_t *cr, int flags)
 	znode_t		*xzp;
 	vattr_t		va;
 	int		error;
+
+	if (zfsvfs->z_replay == B_FALSE)
+		ASSERT_VOP_LOCKED(ZTOV(zp), __func__);
+
+	/*
+	 * Fast path: a file already known to have no xattr directory, when not
+	 * creating one, returns without taking the "" ZXATTR dirlock or doing
+	 * the SA_ZPL_XATTR lookup below.  z_xattr_dir_absent tracks this: it is
+	 * set when the lookup finds no directory and cleared when one is found
+	 * or created.
+	 */
+	if (!(flags & CREATE_XATTR_DIR) && zp->z_xattr_dir_absent)
+		return (SET_ERROR(ENOATTR));
 top:
 	error = zfs_dirent_lookup(zp, "", &xzp, ZXATTR);
 	if (error)
@@ -907,12 +926,19 @@ top:
 
 	if (xzp != NULL) {
 		*xzpp = xzp;
+		zp->z_xattr_dir_absent = B_FALSE;
 		return (0);
 	}
 
 
-	if (!(flags & CREATE_XATTR_DIR))
+	if (!(flags & CREATE_XATTR_DIR)) {
+		/*
+		 * z_xattr_dir_absent is serialized by the base vnode lock,
+		 * which the creator holds exclusive and readers hold shared.
+		 */
+		zp->z_xattr_dir_absent = B_TRUE;
 		return (SET_ERROR(ENOATTR));
+	}
 
 	if (zfsvfs->z_vfs->vfs_flag & VFS_RDONLY) {
 		return (SET_ERROR(EROFS));

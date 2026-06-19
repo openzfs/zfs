@@ -287,6 +287,7 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 	ASSERT(!POINTER_IS_VALID(sharezp->z_zfsvfs));
 	sharezp->z_unlinked = 0;
 	sharezp->z_atime_dirty = 0;
+	sharezp->z_xattr_dir_absent = B_FALSE;
 	sharezp->z_zfsvfs = zfsvfs;
 	sharezp->z_is_sa = zfsvfs->z_use_sa;
 	sharezp->z_pflags = 0;
@@ -447,6 +448,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
 	zp->z_atime_dirty = 0;
+	zp->z_xattr_dir_absent = B_FALSE;
 	zp->z_mapcnt = 0;
 	zp->z_id = db->db_object;
 	zp->z_blksz = blksz;
@@ -1130,6 +1132,7 @@ zfs_rezget(znode_t *zp)
 		nvlist_free(zp->z_xattr_cached);
 		zp->z_xattr_cached = NULL;
 	}
+	zp->z_xattr_dir_absent = B_FALSE;
 	rw_exit(&zp->z_xattr_lock);
 
 	ASSERT0P(zp->z_sa_hdl);
@@ -1810,6 +1813,7 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	ASSERT(!POINTER_IS_VALID(rootzp->z_zfsvfs));
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
+	rootzp->z_xattr_dir_absent = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
 
