@@ -99,14 +99,14 @@ rrd_tail(rrd_t *rrd)
  * rrd_get works from 0..rrd_len()-1.
  */
 size_t
-rrd_len(rrd_t *rrd)
+rrd_len(const rrd_t *rrd)
 {
 
 	return (rrd->rrd_length);
 }
 
 const rrd_data_t *
-rrd_entry(rrd_t *rrd, size_t i)
+rrd_entry(const rrd_t *rrd, size_t i)
 {
 	size_t n;
 
@@ -119,7 +119,7 @@ rrd_entry(rrd_t *rrd, size_t i)
 }
 
 uint64_t
-rrd_get(rrd_t *rrd, size_t i)
+rrd_get(const rrd_t *rrd, size_t i)
 {
 	const rrd_data_t *data = rrd_entry(rrd, i);
 
