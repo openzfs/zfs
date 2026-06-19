@@ -226,3 +226,19 @@ dbrrd_query(dbrrd_t *r, hrtime_t tv, dbrrd_rounding_t rounding)
 
 	return (data == NULL ? 0 : data->rrdd_txg);
 }
+
+hrtime_t
+dbrrd_latest_time(dbrrd_t *r)
+{
+	const rrd_data_t *head;
+	const rrd_t *curdb;
+	size_t dblen;
+
+	curdb = &r->dbr_minutes;
+	dblen = rrd_len(curdb);
+	if (dblen == 0)
+		return (0);
+
+	head = rrd_entry(curdb, dblen - 1);
+	return (head->rrdd_time);
+}
