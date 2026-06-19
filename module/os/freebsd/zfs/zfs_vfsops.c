@@ -51,7 +51,7 @@
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_deleg.h>
-#include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
@@ -69,6 +69,7 @@
 #include <sys/zfs_quota.h>
 
 #include "zfs_comutil.h"
+#include "zfs_crrd.h"
 
 #ifndef	MNTK_VMSETSIZE_BUG
 #define	MNTK_VMSETSIZE_BUG	0
@@ -1315,7 +1316,12 @@ out:
 		dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
 		zfsvfs_free(zfsvfs);
 	} else {
+		spa_t *spa = zfsvfs->z_os->os_spa;
+
 		atomic_inc_32(&zfs_active_fs_count);
+
+		vfsp->mnt_time = dbrrd_latest_time(&spa->spa_txg_log_time);
+		vfsp->mnt_time = MAX(vfsp->mnt_time, spa->spa_load_txg_ts);
 	}
 
 	return (error);
