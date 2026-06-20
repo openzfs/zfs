@@ -99,6 +99,7 @@ struct zfsvfs {
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_relatime;	/* enable relatime mount option */
+	boolean_t	z_lazytime;	/* enable lazytime mount option */
 	boolean_t	z_unmounted;	/* unmounted */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;

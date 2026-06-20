@@ -57,7 +57,7 @@ Encryption roots always generate
 even if
 .Sy off .
 .
-.It Sy atime Ns = , Sy relatime Ns = , Sy devices Ns = , Sy exec Ns = , Sy readonly Ns = , Sy setuid Ns = , Sy nbmand Ns =
+.It Sy atime Ns = , Sy relatime Ns = , Sy lazytime Ns = , Sy devices Ns = , Sy exec Ns = , Sy readonly Ns = , Sy setuid Ns = , Sy nbmand Ns =
 Used to generate mount options equivalent to
 .Nm zfs Cm mount .
 .
@@ -163,6 +163,8 @@ inject one to ensure the ZEDLET runs to refresh the cache file
 by setting a monitored property somewhere on the pool:
 .Dl # Nm zfs Cm set Sy relatime Ns = Ns Sy off Ar poolname/dset
 .Dl # Nm zfs Cm inherit Sy relatime Ar poolname/dset
+.Dl # Nm zfs Cm set Sy lazytime Ns = Ns Sy on Ar poolname/dset
+.Dl # Nm zfs Cm inherit Sy lazytime Ar poolname/dset
 .Pp
 To test the generator output:
 .Dl $ Nm mkdir Pa /tmp/zfs-mount-generator
