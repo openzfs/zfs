@@ -953,6 +953,35 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	/*
+	 * Replicate all DIO eligibility checks from zfs_setup_direct().
+	 * Any condition that would skip DIO in the sync path returns
+	 * EOPNOTSUPP so the caller falls back to zfs_write().
+	 */
+	if (zfsvfs->z_os->os_direct == ZFS_DIRECT_ALWAYS)
+		ioflag |= O_DIRECT;
+
+	if (!zfs_dio_enabled ||
+	    zfsvfs->z_os->os_direct == ZFS_DIRECT_DISABLED) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	if (!zfs_uio_page_aligned(uio) ||
+	    !zfs_uio_aligned(uio, PAGE_SIZE)) {
+		if (zfs_dio_strict)
+			return (SET_ERROR(EINVAL));
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	if (n < zp->z_blksz ||
+	    zn_has_cached_data(zp, zfs_uio_offset(uio),
+	    zfs_uio_offset(uio) + n - 1)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
 	zfs_locked_range_t *lr;
 	if (ioflag & O_APPEND) {
 		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);

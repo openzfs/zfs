@@ -252,7 +252,9 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	 * benefit.
 	 */
 	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
-	    (filp->f_flags & O_DIRECT)) {
+	    ((filp->f_flags & O_DIRECT) ||
+	    ITOZSB(filp->f_mapping->host)->z_os->os_direct ==
+	    ZFS_DIRECT_ALWAYS)) {
 		crhold(cr);
 		cookie = spl_fstrans_mark();
 
@@ -327,7 +329,8 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	 * through the ARC and the disk write is already async (txg sync).
 	 */
 	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
-	    (filp->f_flags & O_DIRECT)) {
+	    ((filp->f_flags & O_DIRECT) ||
+	    ITOZSB(ip)->z_os->os_direct == ZFS_DIRECT_ALWAYS)) {
 		crhold(cr);
 		cookie = spl_fstrans_mark();
 
