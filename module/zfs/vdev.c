@@ -1739,11 +1739,12 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 		/*
 		 * The metaslab was marked as dirty at the end of
 		 * metaslab_init(). Remove it from the dirty list so that we
-		 * can uninitialize and reinitialize it to the new class.
+		 * can uninitialize and reinitialize it to the new class. It
+		 * may be dirty in any txg slot, so clear them all.
 		 */
-		if (txg != 0) {
+		for (int t = 0; t < TXG_SIZE; t++) {
 			(void) txg_list_remove_this(&vd->vdev_ms_list,
-			    slog_ms, txg);
+			    slog_ms, t);
 		}
 		uint64_t sm_obj = space_map_object(slog_ms->ms_sm);
 		metaslab_fini(slog_ms);
