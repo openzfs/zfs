@@ -9394,6 +9394,21 @@ main(int argc, char **argv)
 	if (strcmp(cmdname, "help") == 0)
 		return (zfs_do_help(argc, argv));
 
+	/*
+	 * Special case 'upgrade -v' — userspace only, no kernel needed.
+	 */
+	if (strcmp(cmdname, "upgrade") == 0) {
+		for (int i = 2; i < argc; i++) {
+			if (strcmp(argv[i], "-v") == 0) {
+				int idx;
+				if (find_command_idx("upgrade", &idx) == 0)
+					current_command = &command_table[idx];
+				return (zfs_do_upgrade(argc - 1,
+				    argv + 1));
+			}
+		}
+	}
+
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);

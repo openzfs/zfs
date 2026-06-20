@@ -13890,6 +13890,26 @@ main(int argc, char **argv)
 		}
 	}
 
+	/*
+	 * Special case 'upgrade -v' — userspace only on FreeBSD,
+	 * no kernel needed.  On Linux, zpool_feature_init() needs
+	 * /sys/module/zfs/features.pool, so keep the normal path.
+	 */
+#ifdef __FreeBSD__
+	if (strcmp(cmdname, "upgrade") == 0) {
+		for (int i = 2; i < argc; i++) {
+			if (strcmp(argv[i], "-v") == 0) {
+				int idx;
+				if (find_command_idx("upgrade", &idx) == 0)
+					current_command = &command_table[idx];
+				zpool_feature_init();
+				return (zpool_do_upgrade(argc - 1,
+				    argv + 1));
+			}
+		}
+	}
+#endif
+
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
