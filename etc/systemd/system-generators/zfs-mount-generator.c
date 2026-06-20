@@ -209,6 +209,7 @@ line_worker(char *line, const char *cachefile)
 	const char *p_canmount                  = strtok_r(NULL, "\t", &toktmp);
 	const char *p_atime                     = strtok_r(NULL, "\t", &toktmp);
 	const char *p_relatime                  = strtok_r(NULL, "\t", &toktmp);
+	const char *p_lazytime                  = strtok_r(NULL, "\t", &toktmp);
 	const char *p_devices                   = strtok_r(NULL, "\t", &toktmp);
 	const char *p_exec                      = strtok_r(NULL, "\t", &toktmp);
 	const char *p_readonly                  = strtok_r(NULL, "\t", &toktmp);
@@ -466,6 +467,15 @@ line_worker(char *line, const char *cachefile)
 			fprintf(stderr,
 			    PROGNAME "[%d]: %s: invalid relatime=%s\n",
 			    getpid(), dataset, p_relatime);
+		/* lazytime */
+		if (p_lazytime != NULL &&
+		    strcmp(p_lazytime, "on") == 0)
+			strcat(opts, ",lazytime");
+		else if (p_lazytime != NULL &&
+		    strcmp(p_lazytime, "off") != 0)
+			fprintf(stderr,
+			    PROGNAME "[%d]: %s: invalid lazytime=%s\n",
+			    getpid(), dataset, p_lazytime);
 	} else if (strcmp(p_atime, "off") == 0) {
 		strcat(opts, ",noatime");
 	} else

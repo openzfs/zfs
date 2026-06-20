@@ -1738,6 +1738,25 @@ are equivalent to the
 and
 .Sy norelatime
 mount options.
+.It Sy lazytime Ns = Ns Sy on Ns | Ns Sy off
+Controls the manner in which the access time is updated when
+.Sy atime Ns = Ns Sy on
+is set.
+Turning this property on causes the access time to be written to disk
+only when the file is modified, evicted, or after a filesystem sync.
+This reduces the number of disk writes and can improve performance for
+workloads with frequent small reads.
+The default value is
+.Sy off .
+The values
+.Sy on
+and
+.Sy off
+are equivalent to the
+.Sy lazytime
+and
+.Sy nolazytime
+mount options.
 .It Sy reservation Ns = Ns Ar size Ns | Ns Sy none
 The minimum amount of space guaranteed to a dataset and its descendants.
 When the amount of space used is below this value, the dataset is treated as if
@@ -2326,6 +2345,8 @@ exec/noexec
 ro/rw
 .It Sy relatime
 relatime/norelatime
+.It Sy lazytime
+lazytime/nolazytime
 .It Sy setuid
 suid/nosuid
 .It Sy xattr

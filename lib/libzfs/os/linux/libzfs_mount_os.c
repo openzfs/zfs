@@ -109,6 +109,7 @@ static const option_map_t option_map[] = {
 #endif
 #ifdef MS_LAZYTIME
 	{ MNTOPT_LAZYTIME,	MS_LAZYTIME,	ZS_COMMENT	},
+	{ MNTOPT_NOLAZYTIME,	MS_COMMENT,	ZS_COMMENT	},
 #endif
 	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_COMMENT	},
 	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
@@ -462,6 +463,14 @@ zfs_add_options_setattr(zfs_handle_t *zhp, struct mount_attr *attr,
 		else
 			attr->attr_set |= MOUNT_ATTR_STRICTATIME;
 	}
+#ifdef MOUNT_ATTR_LAZYTIME
+	if (nspflags & ZFS_MNT_PROP_LAZYTIME) {
+		if (getprop_uint64(zhp, ZFS_PROP_LAZYTIME, &source))
+			attr->attr_set |= MOUNT_ATTR_LAZYTIME;
+		else
+			attr->attr_clr |= MOUNT_ATTR_LAZYTIME;
+	}
+#endif
 }
 #endif /* HAVE_MOUNT_SETATTR */
 

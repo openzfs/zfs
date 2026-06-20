@@ -146,6 +146,25 @@ relatime_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+lazytime_changed_cb(void *arg, uint64_t newval)
+{
+	zfsvfs_t *zfsvfs = arg;
+	struct super_block *sb = zfsvfs->z_sb;
+
+	if (sb == NULL)
+		return;
+
+#ifdef SB_LAZYTIME
+	if (newval)
+		sb->s_flags |= SB_LAZYTIME;
+	else
+		sb->s_flags &= ~SB_LAZYTIME;
+#endif
+
+	zfsvfs->z_lazytime = newval;
+}
+
+static void
 xattr_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
@@ -307,6 +326,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_RELATIME), relatime_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_LAZYTIME), lazytime_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_XATTR), xattr_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), blksz_changed_cb, zfsvfs);
@@ -401,6 +422,9 @@ zfs_get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
 	case ZFS_PROP_RELATIME:
 		if (vfsp->vfs_do_relatime)
 			tmp = vfsp->vfs_relatime;
+		break;
+	case ZFS_PROP_LAZYTIME:
+		tmp = zfvp->z_lazytime;
 		break;
 	case ZFS_PROP_DEVICES:
 		if (vfsp->vfs_do_devices)

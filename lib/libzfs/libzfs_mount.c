@@ -134,6 +134,7 @@ zfs_namespace_prop_flag(zfs_prop_t prop)
 	switch (prop) {
 	case ZFS_PROP_ATIME:	return (ZFS_MNT_PROP_ATIME);
 	case ZFS_PROP_RELATIME:	return (ZFS_MNT_PROP_RELATIME);
+	case ZFS_PROP_LAZYTIME:	return (ZFS_MNT_PROP_LAZYTIME);
 	case ZFS_PROP_DEVICES:	return (ZFS_MNT_PROP_DEVICES);
 	case ZFS_PROP_EXEC:	return (ZFS_MNT_PROP_EXEC);
 	case ZFS_PROP_SETUID:	return (ZFS_MNT_PROP_SETUID);
@@ -368,6 +369,8 @@ zfs_add_options(zfs_handle_t *zhp, char *options, int len)
 		error = zfs_add_option(zhp, options, len,
 		    ZFS_PROP_RELATIME, MNTOPT_RELATIME, MNTOPT_STRICTATIME);
 	}
+	error = error ? error : zfs_add_option(zhp, options, len,
+	    ZFS_PROP_LAZYTIME, MNTOPT_LAZYTIME, MNTOPT_NOLAZYTIME);
 	error = error ? error : zfs_add_option(zhp, options, len,
 	    ZFS_PROP_DEVICES, MNTOPT_DEVICES, MNTOPT_NODEVICES);
 	error = error ? error : zfs_add_option(zhp, options, len,

@@ -96,6 +96,7 @@ struct zfs_handle {
 #define	ZFS_MNT_PROP_READONLY	(1U << 5)
 #define	ZFS_MNT_PROP_XATTR	(1U << 6)
 #define	ZFS_MNT_PROP_NBMAND	(1U << 7)
+#define	ZFS_MNT_PROP_LAZYTIME	(1U << 8)
 
 /*
  * This is different from checking zfs_type, because it will also catch
