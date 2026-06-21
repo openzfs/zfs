@@ -636,15 +636,10 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 {
 	int error = 0;
 	long npages = DIV_ROUND_UP(uio->uio_resid, PAGE_SIZE);
-	/*
-	 * Kernel may pin more pages than ceil(resid/PAGE_SIZE).
-	 * Allocate 2x so we have headroom, then unpin any excess below.
-	 */
-	long alloc_pages = npages * 2;
-	size_t alloc_size = alloc_pages * sizeof (struct page *);
+	size_t size = npages * sizeof (struct page *);
 
 	if (uio->uio_segflg == UIO_ITER) {
-		uio->uio_dio.pages = vmem_alloc(alloc_size, KM_SLEEP);
+		uio->uio_dio.pages = vmem_alloc(size, KM_SLEEP);
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
 		if (zfs_user_backed_iov_iter(uio->uio_iter))
 			error = zfs_uio_pin_user_pages(uio, rw);
@@ -670,19 +665,8 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 				put_page(uio->uio_dio.pages[i]);
 		}
 
-		vmem_free(uio->uio_dio.pages, alloc_size);
+		vmem_free(uio->uio_dio.pages, size);
 		return (error);
-	}
-
-	/*
-	 * Kernel may pin more pages than requested (2x allocated
-	 * headroom prevents overflow).  Unpin the extras so the caller
-	 * only operates on the original npages — matching the byte count.
-	 */
-	if (uio->uio_dio.npages > npages) {
-		unpin_user_pages(&uio->uio_dio.pages[npages],
-		    uio->uio_dio.npages - npages);
-		uio->uio_dio.npages = npages;
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);
 	}
