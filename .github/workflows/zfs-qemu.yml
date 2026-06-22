@@ -23,7 +23,7 @@ concurrency:
 jobs:
   test-config:
     name: Setup
-    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'|| github.repository != 'openzfs/zfs'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository != 'openzfs/zfs'
     runs-on: ubuntu-24.04
     outputs:
       test_os: ${{ steps.os.outputs.os }}
