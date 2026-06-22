@@ -209,7 +209,7 @@ tags = ['functional', 'simd']
 [tests/functional/snapdir:Linux]
 tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy',
     'snapdir_admin_disabled', 'snapdir_mount_expire_idle',
-    'snapdir_mount_expire_busy']
+    'snapdir_mount_expire_busy', 'snapdir_mount_no_setuid']
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
