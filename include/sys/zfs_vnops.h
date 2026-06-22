@@ -31,27 +31,32 @@
 
 extern int zfs_bclone_enabled;
 
+/*
+ * Direct I/O tunables.  zfs_dio_enabled can be set to 0 to force all
+ * I/O through the ARC; zfs_dio_strict returns EINVAL for unaligned
+ * DIO instead of falling back.
+ */
+extern int zfs_dio_enabled;
+extern int zfs_dio_strict;
+
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_write(znode_t *, zfs_uio_t *, int, cred_t *);
 
-#ifdef __linux__
 /*
- * Async Direct I/O read.  Must be called from a context with valid
- * current->mm (e.g. the kworker servicing an io_submit call).
- * On success, returns 0 and the caller should return -EIOCBQUEUED.
- * On I/O completion, kiocb->ki_complete() is called from ZIO taskq.
- *
- * Linux-only: relies on struct kiocb and the VFS async kiocb mechanism.
+ * Direct I/O page-pinning setup.  Pins user pages for O_DIRECT reads,
+ * enforces alignment, and skips DIO for mmap'd or encrypted ranges.
+ * Returns 0 and sets UIO_DIRECT in uio->uio_extflg on success.
  */
-struct kiocb;
-int zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
-    struct kiocb *kiocb);
-int zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
-    struct kiocb *kiocb);
-void zfs_async_dio_init(void);
-void zfs_async_dio_fini(void);
-#endif /* __linux__ */
+extern int zfs_setup_direct(struct znode *, zfs_uio_t *, zfs_uio_rw_t, int *);
+
+/*
+ * Clear the SUID/SGID bits after a write by non-owner.
+ * Called from the async write completion path (zfs_vnops_os.c on Linux)
+ * as well as from the synchronous zfs_write().
+ */
+extern void zfs_clear_setid_bits_if_necessary(zfsvfs_t *, znode_t *, cred_t *,
+    uint64_t *, dmu_tx_t *);
 
 extern int zfs_holey(znode_t *, ulong_t, loff_t *);
 extern int zfs_access(znode_t *, int, int, cred_t *);

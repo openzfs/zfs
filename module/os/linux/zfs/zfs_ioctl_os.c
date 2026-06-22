@@ -66,6 +66,7 @@
 #include <sys/zfs_ioctl_impl.h>
 
 #include <sys/zfs_sysfs.h>
+#include <sys/zfs_vnops.h>
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
 
@@ -302,6 +303,7 @@ openzfs_init_os(void)
 		return (-error);
 	}
 
+	zfs_async_dio_init();
 	zfs_sysfs_init();
 
 	printk(KERN_NOTICE "ZFS: Loaded module v%s-%s%s, "
@@ -327,6 +329,7 @@ static void
 openzfs_fini_os(void)
 {
 	zfs_sysfs_fini();
+	zfs_async_dio_fini();
 	zfs_kmod_fini();
 
 	printk(KERN_NOTICE "ZFS: Unloaded module v%s-%s%s\n",

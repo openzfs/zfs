@@ -455,6 +455,7 @@ ZFS_OBJS := \
 
 ZFS_OBJS_OS := \
 	abd_os.o \
+	dmu_direct_os.o \
 	arc_os.o \
 	kasan_compat.o \
 	mmp_os.o \
