@@ -2224,6 +2224,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapdir/snapdir_mount_no_setuid.ksh \
 	functional/snapdir/snapdir_mount_parallel.ksh \
 	functional/snapdir/snapdir_mount_unmount.ksh \
+	functional/snapdir/snapdir_stat_no_mount.ksh \
 	functional/snapshot/cleanup.ksh \
 	functional/snapshot/clone_001_pos.ksh \
 	functional/snapshot/rollback_001_pos.ksh \
