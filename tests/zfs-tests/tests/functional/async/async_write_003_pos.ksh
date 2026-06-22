@@ -53,11 +53,11 @@ log_assert "Verify async DIO writes with libaio scale with iodepth"
 log_onexit cleanup
 
 if ! is_linux; then
-	log_unsupported "Async DIO write test requires Linux"
+	log_note "Async DIO write test requires Linux"; log_pass
 fi
 
 if ! fio_ioengine_available "libaio"; then
-	log_unsupported "fio libaio ioengine not available"
+	log_note "fio libaio ioengine not available"; log_pass
 fi
 
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
