@@ -622,6 +622,32 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 }
 
 int
+zfsvfs_create_hold(const char *osname, zfsvfs_t **zfvp)
+{
+	objset_t *os;
+	zfsvfs_t *zfsvfs;
+	int error;
+
+	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
+
+	error = dmu_objset_hold(osname, zfsvfs, &os);
+	if (error != 0) {
+		kmem_free(zfsvfs, sizeof (zfsvfs_t));
+		return (error);
+	}
+
+	if (dmu_objset_type(os) != DMU_OST_ZFS) {
+		dmu_objset_rele(os, zfsvfs);
+		kmem_free(zfsvfs, sizeof (zfsvfs_t));
+		return (EINVAL);
+	}
+
+	zfsvfs->z_use_hold = B_TRUE;
+	error = zfsvfs_create_impl(zfvp, zfsvfs, os);
+	return (error);
+}
+
+int
 zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 {
 	objset_t *os;
@@ -678,7 +704,10 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
-		dmu_objset_disown(os, B_TRUE, zfsvfs);
+		if (zfsvfs->z_use_hold)
+			dmu_objset_rele(os, zfsvfs);
+		else
+			dmu_objset_disown(os, B_TRUE, zfsvfs);
 		*zfvp = NULL;
 		zfsvfs_free(zfsvfs);
 		return (error);
