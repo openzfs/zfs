@@ -1,0 +1,29 @@
+name: unit-tests
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Install dependencies
+      run: |
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+    - name: Autogen
+      run: |
+        ./autogen.sh
+    - name: Configure
+      run: |
+        ./configure --with-config=user --enable-debug --enable-debuginfo
+    - name: Unit tests
+      run: |
+        make -j$(nproc) unit
