@@ -2221,6 +2221,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapdir/snapdir_admin_rename_destroy.ksh \
 	functional/snapdir/snapdir_mount_expire_busy.ksh \
 	functional/snapdir/snapdir_mount_expire_idle.ksh \
+	functional/snapdir/snapdir_mount_no_setuid.ksh \
 	functional/snapdir/snapdir_mount_parallel.ksh \
 	functional/snapdir/snapdir_mount_unmount.ksh \
 	functional/snapshot/cleanup.ksh \
