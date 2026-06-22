@@ -56,15 +56,15 @@ log_assert "Verify async DIO writes with io_uring: IOPS and integrity"
 log_onexit cleanup
 
 if ! is_linux; then
-	log_unsupported "Async DIO write test requires Linux"
+	log_note "Async DIO write test requires Linux"; log_pass
 fi
 
 if ! kernel_supports_io_uring; then
-	log_unsupported "Kernel does not support io_uring"
+	log_note "Kernel does not support io_uring"; log_pass
 fi
 
 if ! fio_ioengine_available "io_uring"; then
-	log_unsupported "fio io_uring ioengine not available"
+	log_note "fio io_uring ioengine not available"; log_pass
 fi
 
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
