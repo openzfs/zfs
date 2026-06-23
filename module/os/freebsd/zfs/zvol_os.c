@@ -672,10 +672,12 @@ zvol_dio_can_write(zvol_state_t *zv, struct bio *bp,
  * Perform a Direct I/O read on a zvol, bypassing the ARC.
  *
  * For unmapped (scattered) BIOs, creates a scattered ABD from the
- * bio_ma page array for true zero-copy DMA into the consumer's pages.
- * For mapped (linear) BIOs, allocates a new ABD, reads into it, then
- * copies the result back to the bio_data kernel buffer.  This avoids
- * DMA issues with non-physically-contiguous kernel buffers.
+ * bio_ma page array for zero-copy DMA directly into consumer pages.
+ *
+ * For mapped (linear) BIOs, wraps the existing bio_data buffer in a
+ * linear ABD via abd_get_from_buf() so dmu_read_abd() DMAs straight
+ * into the consumer's buffer — no intermediate allocation or copy.
+ * The vdev_geom layer handles physical contiguity internally.
  */
 static int
 zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
@@ -688,10 +690,8 @@ zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
 		error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
 		abd_free(abd);
 	} else {
-		abd = abd_alloc_for_io(size, B_FALSE);
+		abd = abd_get_from_buf(bp->bio_data, size);
 		error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
-		if (error == 0)
-			abd_copy_to_buf(bp->bio_data, abd, size);
 		abd_free(abd);
 	}
 	return (error);
@@ -701,11 +701,13 @@ zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
  * Perform a Direct I/O write on a zvol, bypassing the ARC.
  *
  * For unmapped (scattered) BIOs, creates a scattered ABD from the
- * bio_ma page array for true zero-copy DMA from the consumer's pages.
- * For mapped (linear) BIOs, allocates a new ABD and copies the data
- * from the bio_data kernel buffer.  This avoids issues with wrapping
- * non-physically-contiguous kernel buffers in a linear ABD, which can
- * break DMA when the buffer spans page boundaries.
+ * bio_ma page array for zero-copy DMA directly from consumer pages.
+ *
+ * For mapped (linear) BIOs, wraps the existing bio_data buffer via
+ * abd_get_from_buf() so the ZIO pipeline reads data straight from the
+ * consumer's buffer.  The vdev_geom layer handles physical contiguity
+ * by transparently converting to an unmapped BIO when necessary.
+ *
  * This is a synchronous write — it waits for the I/O to complete.
  */
 static int
@@ -718,8 +720,7 @@ zvol_dio_write(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size,
 	if (bp->bio_flags & BIO_UNMAPPED) {
 		abd = abd_alloc_from_pages(bp->bio_ma, bp->bio_ma_offset, size);
 	} else {
-		abd = abd_alloc_for_io(size, B_FALSE);
-		abd_copy_from_buf(abd, bp->bio_data, size);
+		abd = abd_get_from_buf(bp->bio_data, size);
 	}
 	error = dmu_write_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO, tx);
 	abd_free(abd);
@@ -823,33 +824,13 @@ zvol_strategy_impl(zv_request_t *zvr)
 			 * into the bio_data/bio_ma buffer. On checksum
 			 * error, fall back to the ARC path for safety.
 			 */
-			if (zvol_dio_can_read(bp, off, size)) {
+			boolean_t dio_read_now =
+			    zvol_dio_can_read(bp, off, size);
+			if (dio_read_now) {
 				error = zvol_dio_read(zv, bp, off, size);
-				if (error == ECKSUM) {
-					/*
-					 * For unmapped BIOs with ECKSUM,
-					 * create a temp ABD, borrow/copy
-					 * the linear buffer for ARC retry,
-					 * then copy results back to pages.
-					 */
-					abd_t *tmp = NULL;
-					if (bp->bio_flags & BIO_UNMAPPED) {
-						tmp = abd_alloc_from_pages(
-						    bp->bio_ma,
-						    bp->bio_ma_offset, size);
-						addr = abd_borrow_buf_copy(
-						    tmp, size);
-					}
-					error = dmu_read_by_dnode(zv->zv_dn,
-					    off, size, addr,
-					    DMU_READ_PREFETCH);
-					if (bp->bio_flags & BIO_UNMAPPED) {
-						abd_return_buf_copy(
-						    tmp, addr, size);
-						abd_free(tmp);
-					}
-				}
-			} else {
+			}
+
+			if (!dio_read_now || error == ECKSUM) {
 				abd_t *tmp = NULL;
 				if (bp->bio_flags & BIO_UNMAPPED) {
 					tmp = abd_alloc_from_pages(

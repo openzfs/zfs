@@ -466,20 +466,18 @@ abd_alloc_from_pages(vm_page_t *pages, unsigned long offset, uint64_t size)
 	} else {
 		/*
 		 * Multi-page scatter ABD.  The first page may have a
-		 * non-zero byte offset (bio_ma_offset), so allocate
-		 * enough chunk slots to cover the full range from the
-		 * offset through the end of the data.
+		 * non-zero byte offset (bio_ma_offset).  Allocate enough
+		 * chunk slots by passing the full span (offset + size)
+		 * to abd_alloc_struct(); it internally converts bytes to
+		 * the required chunk count.
 		 */
 		uint_t chunkcnt = abd_chunkcnt_for_bytes(offset + size);
 
-		abd = abd_alloc_struct(chunkcnt << PAGE_SHIFT);
+		abd = abd_alloc_struct(offset + size);
 		abd->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_FROM_PAGES;
 		abd->abd_size = size;
 		ABD_SCATTER(abd).abd_offset = offset;
 
-		/*
-		 * Setting the ABD's abd_chunks to point to the user pages.
-		 */
 		for (int i = 0; i < chunkcnt; i++)
 			ABD_SCATTER(abd).abd_chunks[i] = pages[i];
 	}
