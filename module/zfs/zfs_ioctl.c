@@ -2178,14 +2178,17 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 	}
 
 	if (zc->zc_nvlist_dst != 0 && zc->zc_nvlist_dst_size != 0)
-		VERIFY0(nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
+		nv = fnvlist_alloc();
 
 	error = zfs_obj_to_stats(os, zc->zc_obj, &zc->zc_stat, zc->zc_value,
 	    sizeof (zc->zc_value), nv);
 	dmu_objset_rele_flags(os, B_TRUE, FTAG);
 
 	if (nv != NULL) {
-		error = put_nvlist(zc, nv);
+		int tmp = put_nvlist(zc, nv);
+		if (error == 0)
+			error = tmp;
+
 		nvlist_free(nv);
 	}
 

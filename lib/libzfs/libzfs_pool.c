@@ -4962,12 +4962,12 @@ zpool_get_errlog_process_file(zpool_handle_t *zhp,
 	}
 
 	fnvlist_add_string(nv, ZPOOL_ERR_OBJECT_TYPE, type_str);
-	free(type_str);
 	fnvlist_add_uint64(nv, ZPOOL_ERR_BLOCK_SIZE, data_block_size);
+	free(type_str);
 
 	zfs_range_tree_t *range_tree;
 	range_tree = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64, NULL, 0,  0);
-	if (!range_tree)
+	if (range_tree == NULL)
 		goto end;
 
 	do {
@@ -5443,6 +5443,7 @@ zpool_get_extended_obj_stat_impl(zpool_handle_t *zhp, uint64_t dsobj,
 		if (errno == ENOMEM) {
 			zcmd_expand_dst_nvlist(zhp->zpool_hdl, &zc);
 		} else {
+			zcmd_free_nvlists(&zc);
 			return (NULL);
 		}
 	}

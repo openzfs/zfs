@@ -2593,8 +2593,8 @@ typedef struct status_cbdata {
 	int		cb_count;
 	int		cb_name_flags;
 	int		cb_namewidth;
-	boolean_t	cb_allpools;
 	int		cb_verbosity;
+	boolean_t	cb_allpools;
 	boolean_t	cb_literal;
 	boolean_t	cb_explain;
 	boolean_t	cb_first;
@@ -9721,7 +9721,7 @@ errors_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 		uint64_t dsobj, obj;
 		elem = nvlist_next_nvpair(nverrlist, elem);
 
-		verify(nvpair_value_nvlist(elem, &nv) == 0);
+		nv = fnvpair_value_nvlist(elem);
 
 		dsobj = fnvlist_lookup_uint64(nv, ZPOOL_ERR_DATASET);
 		obj = fnvlist_lookup_uint64(nv, ZPOOL_ERR_OBJECT);

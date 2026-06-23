@@ -85,14 +85,16 @@ compress_slashes(const char *src, char *dest)
 static boolean_t
 get_zvol_dataset(const char *inpath, char *ds)
 {
-	char buf[MAXPATHLEN];
-	int fd;
 	boolean_t rc = B_FALSE;
 
-	if (realpath(inpath, buf) == NULL)
+	char *buf = realpath(inpath, NULL);
+	if (buf == NULL)
 		return (B_FALSE);
 
-	if ((fd = open(buf, O_RDONLY|O_CLOEXEC)) == -1)
+	int fd = open(buf, O_RDONLY | O_CLOEXEC);
+	free(buf);
+
+	if (fd == -1)
 		return (B_FALSE);
 
 	/*
@@ -162,8 +164,8 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 			(void) fprintf(stderr, "invalid volume name: '%s'\n",
 			    fullpath);
 			return (-1);
-		};
-		(void) strcpy(relpath, slash + 1);
+		}
+		(void) strlcpy(relpath, slash + 1, MAXPATHLEN);
 		return (0);
 	}
 
