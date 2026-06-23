@@ -649,10 +649,12 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, int32_t **child_capacities)
 	 * Now that we have the tile map read in, we have to reopen the
 	 * children to properly set and handle the min_asize
 	 */
-	for (; i < vd->vdev_children; i++) {
+	spa_vdev_state_enter(spa, SCL_NONE);
+	for (i = 0; i < vd->vdev_children; i++) {
 		vdev_t *cvd = vd->vdev_child[i];
 		vdev_reopen(cvd);
 	}
+	spa_vdev_state_exit(spa, NULL, SCL_NONE);
 
 	int lasterror = 0;
 	int numerrors = 0;
@@ -1025,10 +1027,11 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 	for (int c = 0; c < mm->mm_children; c++) {
 		ASSERT(atn);
 		mirror_child_t *mc = &mm->mm_child[c];
-		mc->mc_vd = vd->vdev_child[atn->atn_disk];
-		mc->mc_offset = VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift) +
+		vdev_t *cvd = vd->vdev_child[atn->atn_disk];
+		mc->mc_vd = cvd;
+		mc->mc_offset = VDEV_ANYRAID_START_OFFSET(cvd->vdev_ashift) +
 		    atn->atn_offset * rsize + zio->io_offset % rsize;
-		ASSERT3U(mc->mc_offset, <, mc->mc_vd->vdev_psize -
+		ASSERT3U(mc->mc_offset, <, cvd->vdev_psize -
 		    VDEV_LABEL_END_SIZE);
 		mm->mm_rebuilding = mc->mc_rebuilding = B_FALSE;
 		atn = list_next(&tile->at_list, atn);
@@ -1135,7 +1138,7 @@ vdev_anyraid_io_start(zio_t *zio)
 	vdev_t *cvd = vd->vdev_child[atn->atn_disk];
 	uint64_t child_offset = atn->atn_offset * rsize +
 	    zio->io_offset % rsize;
-	child_offset += VDEV_ANYRAID_START_OFFSET(vd->vdev_ashift);
+	child_offset += VDEV_ANYRAID_START_OFFSET(cvd->vdev_ashift);
 
 	anyraid_map_t *mm = kmem_alloc(sizeof (*mm), KM_SLEEP);
 	mm->am_abd = abd_get_offset(zio->io_abd, 0);
@@ -1252,7 +1255,7 @@ vdev_anyraid_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 
 	uint64_t child_offset = atn->atn_offset * rsize +
 	    logical_rs->rs_start % rsize;
-	child_offset += VDEV_ANYRAID_START_OFFSET(anyraidvd->vdev_ashift);
+	child_offset += VDEV_ANYRAID_START_OFFSET(cvd->vdev_ashift);
 	uint64_t size = logical_rs->rs_end - logical_rs->rs_start;
 
 	physical_rs->rs_start = child_offset;
@@ -1319,7 +1322,7 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
 #endif
 
 	zio_nowait(zio_write_phys(zio, vd, base_offset +
-	    idx * VDEV_ANYRAID_MAP_SIZE +
+	    idx * SPA_MAXBLOCKSIZE +
 	    VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_ashift), SPA_MAXBLOCKSIZE,
 	    abd, ZIO_CHECKSUM_SHA256, anyraid_map_write_done, cksum_out,
 	    ZIO_PRIORITY_SYNC_WRITE, flags, B_FALSE));
@@ -1562,7 +1565,7 @@ vdev_anyraid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
 	    SPA_MAXBLOCKSIZE);
 
 	if (start / var->vd_tile_size !=
-	    (start + psize) / var->vd_tile_size) {
+	    (start + psize - 1) / var->vd_tile_size) {
 		psize = P2ROUNDUP(start, var->vd_tile_size) - start;
 	}
 
