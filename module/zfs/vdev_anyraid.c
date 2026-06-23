@@ -649,12 +649,10 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, int32_t **child_capacities)
 	 * Now that we have the tile map read in, we have to reopen the
 	 * children to properly set and handle the min_asize
 	 */
-	spa_vdev_state_enter(spa, SCL_NONE);
 	for (i = 0; i < vd->vdev_children; i++) {
 		vdev_t *cvd = vd->vdev_child[i];
-		vdev_reopen(cvd);
+		cvd->vdev_min_asize = vdev_get_min_asize(cvd);
 	}
-	spa_vdev_state_exit(spa, NULL, SCL_NONE);
 
 	int lasterror = 0;
 	int numerrors = 0;
