@@ -40,7 +40,7 @@ function file_wait_event # file event timeout
 
 	SECONDS=0
 
-	until grep -q "^ZEVENT_CLASS=$event" $ZED_DEBUG_LOG ; do
+	until grep -q "^ZEVENT_CLASS=$event" "$file" ; do
 		if [[ $SECONDS -gt $timeout ]]; then
 			echo file_wait_event exceeded $SECONDS seconds
 			return 1
