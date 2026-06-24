@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2026, TrueNAS.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+# produce a space-separated string of all the places where the given dataset is
+# mounted. sorted for ease of comparison
+function get_mount_paths #ds
+{
+	if is_linux ; then
+		# testpool/testfs@snap /var/tmp/testdir/fs/.zfs/snapshot/snap zfs ro,relatime,xattr,noacl,casesensitive 0 0
+		awk -v ds=$1 '$1 == ds { print $2 }' /proc/mounts | sort | xargs
+	elif is_freebsd ; then
+		# uses mount -v because snapmounts on FreeBSD are marked
+		# "internal" and so invisible by default.
+
+		# testpool/testfs@snap on /zts/tmp/testdir/fs/.zfs/snapshot/snap (zfs, local, noatime, nosuid, read-only, nfsv4acls, fsid de9c877ddee12ef7, vnodes: count 1 )
+		mount -v | awk -v ds=$1 '$1 == ds { print $3 }' | sort | xargs
+	else
+		log_fail "get_mount_paths: no support for this platform"
+	fi
+}

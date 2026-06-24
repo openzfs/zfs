@@ -382,6 +382,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/slog/slog.cfg \
 	functional/slog/slog.kshlib \
 	functional/snapdir/snapdir.cfg \
+	functional/snapdir/snapdir.kshlib \
 	functional/snapshot/snapshot.cfg \
 	functional/snapused/snapused.kshlib \
 	functional/sparse/sparse.cfg \
@@ -2219,6 +2220,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapdir/snapdir_admin_disabled.ksh \
 	functional/snapdir/snapdir_admin_rename_destroy.ksh \
 	functional/snapdir/snapdir_mount_parallel.ksh \
+	functional/snapdir/snapdir_mount_unmount.ksh \
 	functional/snapshot/cleanup.ksh \
 	functional/snapshot/clone_001_pos.ksh \
 	functional/snapshot/rollback_001_pos.ksh \
