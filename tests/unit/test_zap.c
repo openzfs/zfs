@@ -1156,6 +1156,47 @@ test_norm_toupper(const MunitParameter params[], void *data)
 }
 
 /*
+ * MT_MATCH_CASE forces an exact-case match on a normalizing (TOUPPER) ZAP.
+ */
+static MunitResult
+test_norm_match_case(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn =
+	    mock_zap_create_norm_params(params, "type", U8_TEXTPREP_TOUPPER);
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	uint64_t val = 42;
+	unit_ok(zap_add_by_dnode(dn, "Hello",
+	    sizeof (uint64_t), 1, &val, tx));
+
+	/* MT_NORMALIZE alone matches any casing. */
+	uint64_t result = 0;
+	unit_ok(zap_lookup_norm_by_dnode(dn, "hello",
+	    sizeof (uint64_t), 1, &result, MT_NORMALIZE, NULL, 0, NULL));
+	unit_eq(result, 42);
+
+	/* Adding MT_MATCH_CASE rejects a case variant name. */
+	unit_err(zap_lookup_norm_by_dnode(dn, "hello",
+	    sizeof (uint64_t), 1, &result, MT_NORMALIZE | MT_MATCH_CASE,
+	    NULL, 0, NULL), ENOENT);
+
+	/* The exact-case name still matches under MT_MATCH_CASE. */
+	result = 0;
+	unit_ok(zap_lookup_norm_by_dnode(dn, "Hello",
+	    sizeof (uint64_t), 1, &result, MT_NORMALIZE | MT_MATCH_CASE,
+	    NULL, 0, NULL));
+	unit_eq(result, 42);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
+/*
  * NFC: canonical decomposition + canonical recomposition.
  *
  * NFC-normalized keys are stored in their original encoding but match but
@@ -1516,6 +1557,7 @@ static const MunitTest zap_tests[] = {
 	    "zap_value_search_mask",	test_zap_value_search_mask),
 
 	UNIT_TEST("norm_toupper",	test_norm_toupper, zap_type_params),
+	UNIT_TEST("norm_match_case",	test_norm_match_case, zap_type_params),
 	UNIT_TEST("norm_nfc",		test_norm_nfc, zap_type_params),
 	UNIT_TEST("norm_nfd",		test_norm_nfd, zap_type_params),
 	UNIT_TEST("norm_nfkc",		test_norm_nfkc, zap_type_params),
