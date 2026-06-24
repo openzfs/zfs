@@ -449,7 +449,11 @@ abd_alloc_from_pages(vm_page_t *pages, unsigned long offset, uint64_t size)
 	ASSERT3U(offset, <, PAGE_SIZE);
 	ASSERT3P(pages, !=, NULL);
 
-	abd_t *abd;
+	// offset may not always be zero, especially for unmapped BIOs.
+	abd_t *abd = abd_alloc_struct(offset + size);
+
+	abd->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_FROM_PAGES;
+	abd->abd_size = size;
 
 	if ((offset + size) <= PAGE_SIZE) {
 		/*
@@ -457,28 +461,15 @@ abd_alloc_from_pages(vm_page_t *pages, unsigned long offset, uint64_t size)
 		 * use a linear ABD. We have to make sure to take into account
 		 * the offset though.
 		 */
-		abd = abd_alloc_struct(size);
-		abd->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_FROM_PAGES;
-		abd->abd_size = size;
 		abd->abd_flags |= ABD_FLAG_LINEAR | ABD_FLAG_LINEAR_PAGE;
 		ABD_LINEAR_BUF(abd) = (char *)zfs_map_page(pages[0],
 		    &abd->abd_u.abd_linear.sf) + offset;
 	} else {
-		/*
-		 * Multi-page scatter ABD.  The first page may have a
-		 * non-zero byte offset (bio_ma_offset).  Allocate enough
-		 * chunk slots by passing the full span (offset + size)
-		 * to abd_alloc_struct(); it internally converts bytes to
-		 * the required chunk count.
-		 */
-		uint_t chunkcnt = abd_chunkcnt_for_bytes(offset + size);
-
-		abd = abd_alloc_struct(offset + size);
-		abd->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_FROM_PAGES;
-		abd->abd_size = size;
 		ABD_SCATTER(abd).abd_offset = offset;
-
-		for (int i = 0; i < chunkcnt; i++)
+		/*
+		 * Setting the ABD's abd_chunks to point to the user pages.
+		 */
+		for (int i = 0; i < abd_chunkcnt_for_bytes(offset + size); i++)
 			ABD_SCATTER(abd).abd_chunks[i] = pages[i];
 	}
 
