@@ -26,8 +26,15 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio_checksum.h>
+#include <sys/zio_compress.h>
+
+typedef struct {
+	enum zio_compress	cs_type;
+	int			cs_level;
+} compression_spec_t;
 
 /*
  * The safe_ versions of the functions below terminate the process if the
@@ -39,19 +46,46 @@ safe_malloc(size_t size);
 extern void *
 safe_calloc(size_t n);
 
-extern int
-sfread(void *buf, size_t size, FILE *fp);
+extern char *
+checksum_str(zio_cksum_t *cksum, char *buff, size_t buff_size);
 
 /*
- * 1) Update checksum with the record header up to drr_checksum.
- * 2) Update checksum field in the record header.
- * 3) Update checksum with the checksum field in the record header.
- * 4) Update checksum with the contents of the payload.
- * 5) Write header and payload to fd.
+ * Prints an error message if checksums don't match. Returns B_TRUE for
+ * a match, B_FALSE otherwise.
  */
-extern int
-dump_record(dmu_replay_record_t *drr, void *payload, size_t payload_len,
-	zio_cksum_t *zc, int outfd);
+boolean_t
+validate_checksum(zio_cksum_t *expect, zio_cksum_t *actual, boolean_t swap,
+    const char *where, off_t stream_offset);
+
+static inline void
+validate_or_exit(zio_cksum_t *expect, zio_cksum_t *actual, boolean_t swap,
+    const char *where, off_t stream_offset)
+{
+	if (!validate_checksum(expect, actual, swap, where, stream_offset)) {
+		exit(1);
+	}
+}
+
+/*
+ * Determine whether a compression type indicates no compression
+ */
+static inline boolean_t
+ctype_is_uncompressed(enum zio_compress ct)
+{
+	VERIFY3U((int)ct, <, (int)ZIO_COMPRESS_FUNCTIONS);
+	return (zio_compress_table[(int)(ct)].ci_compress == NULL);
+}
+
+boolean_t
+write_is_encrypted(struct drr_write *drrw);
+
+uint8_t *
+decompress_buffer(uint8_t *inbuff, size_t inbuff_size, size_t logical_size,
+	enum zio_compress compress_type);
+
+uint8_t *
+compress_buffer(uint8_t *inbuff, size_t inbuff_size,
+    compression_spec_t compress_type, size_t *compressed_size);
 
 #ifdef __cplusplus
 }

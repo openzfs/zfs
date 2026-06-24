@@ -16,8 +16,7 @@
 # Copyright (c) 2026 by ConnectWise. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/rsend/rsend.kshlib
-. $STF_SUITE/include/math.shlib
+. $STF_SUITE/tests/functional/zstream/zstream.kshlib
 
 #
 # Description:
@@ -32,10 +31,10 @@
 verify_runnable "both"
 
 log_assert "Verify zstream drop_record correctly drops records."
-log_onexit cleanup_pool $POOL2
+log_onexit cleanup_pool $POOL
 
-typeset sendfs=$POOL2/fs
-typeset recvfs=$POOL2/fs2
+typeset sendfs=$POOL/fs
+typeset recvfs=$POOL/fs2
 typeset stream=$BACKDIR/stream
 typeset filtered=$BACKDIR/filtered
 typeset dump=$BACKDIR/dump
