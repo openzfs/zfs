@@ -52,7 +52,7 @@ poolexists $TESTPOOL && destroy_pool $TESTPOOL
 create_sparse_files "disk" 4 $MINVDEVSIZE2
 
 for type in "anymirror3" "anyraidz1:2"; do
-	log_must zpool create $TESTPOOL $type $disks
+	log_must zpool create -f $TESTPOOL $type $disks
 	log_must poolexists $TESTPOOL
 	log_must zpool export $TESTPOOL
 
