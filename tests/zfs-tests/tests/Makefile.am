@@ -1541,6 +1541,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fadvise/fadvise_sequential.ksh \
 	functional/fadvise/setup.ksh \
 	functional/fallocate/cleanup.ksh \
+	functional/fallocate/fallocate_extend_timestamps.ksh \
 	functional/fallocate/fallocate_prealloc.ksh \
 	functional/fallocate/fallocate_punch-hole.ksh \
 	functional/fallocate/fallocate_zero-range.ksh \
