@@ -419,7 +419,16 @@ static int zfs_scrub_partial_writes = 1;
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
 {
-	for (int c = 0; c < rr->rr_cols; c++) {
+	abd_t *dabd = rr->rr_col[rr->rr_firstdatacol].rc_abd;
+	for (int c = 0; c < rr->rr_firstdatacol; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+
+		if (rc->rc_size != 0 && rc->rc_abd != dabd)
+			abd_free(rc->rc_abd);
+		if (rc->rc_orig_data != NULL)
+			abd_free(rc->rc_orig_data);
+	}
+	for (int c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 
 		if (rc->rc_size != 0)
@@ -531,6 +540,22 @@ vdev_raidz_map_alloc_write(zio_t *zio, raidz_map_t *rm, uint64_t ashift)
 	 * vdev_raidz_io_start_write().
 	 */
 	int skipped = rr->rr_scols - rr->rr_cols;
+
+	/*
+	 * When there is only a single data column the parity is a copy of
+	 * it, so point all parity columns at the data ABD directly to avoid
+	 * allocating buffers and computing parity.
+	 */
+	if (rr->rr_cols == rr->rr_firstdatacol + 1) {
+		ASSERT0(nwrapped);
+		ASSERT0(rm->rm_nskip);
+		raidz_col_t *dc = &rr->rr_col[rr->rr_firstdatacol];
+		dc->rc_abd = abd_get_offset_struct(&dc->rc_abdstruct,
+		    zio->io_abd, 0, dc->rc_size);
+		for (c = 0; c < rr->rr_firstdatacol; c++)
+			rr->rr_col[c].rc_abd = dc->rc_abd;
+		return;
+	}
 
 	/* Allocate buffers for the parity columns */
 	for (c = 0; c < rr->rr_firstdatacol; c++) {
@@ -1271,6 +1296,13 @@ vdev_raidz_generate_parity_row(raidz_map_t *rm, raidz_row_t *rr)
 		 */
 		return;
 	}
+
+	/*
+	 * Single data column: parity is the data itself.
+	 */
+	if (rr->rr_col[VDEV_RAIDZ_P].rc_abd ==
+	    rr->rr_col[rr->rr_firstdatacol].rc_abd)
+		return;
 
 	/* Generate using the new math implementation */
 	if (vdev_raidz_math_generate(rm, rr) != RAIDZ_ORIGINAL_IMPL)
