@@ -512,8 +512,8 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tinitialize [-c | -s | -u] [-w] <-a | <pool> "
 		    "[<device> ...]>\n"));
 	case HELP_SCRUB:
-		return (gettext("\tscrub [-e | -s | -p | -C | -E | -S] [-w] "
-		    "<-a | <pool> [<pool> ...]>\n"));
+		return (gettext("\tscrub [-e | -s | -p | -C | -E | -S | -R] "
+		    "[-w] <-a | <pool> [<pool> ...]>\n"));
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
@@ -8517,8 +8517,13 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
 	return (mktime(&tm) + adjustment);
 }
 
+struct zpool_scrub_option {
+	char name;
+	boolean_t enabled;
+};
+
 /*
- * zpool scrub [-e | -s | -p | -C | -E | -S] [-w] [-a | <pool> ...]
+ * zpool scrub [-e | -s | -p | -C | -E | -S | -R] [-w] [-a | <pool> ...]
  *
  *	-a	Scrub all pools.
  *	-e	Only scrub blocks in the error log.
@@ -8526,6 +8531,7 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
  *	-S	Start date of scrub.
  *	-s	Stop.  Stops any in-progress scrub.
  *	-p	Pause. Pause in-progress scrub.
+ *	-R	Scrub only recent data.
  *	-w	Wait.  Blocks until scrub has completed.
  *	-C	Scrub from last saved txg.
  */
@@ -8534,27 +8540,28 @@ zpool_do_scrub(int argc, char **argv)
 {
 	int c;
 	scrub_cbdata_t cb;
-	boolean_t wait = B_FALSE;
 	int error;
 
 	cb.cb_type = POOL_SCAN_SCRUB;
 	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 	cb.cb_date_start = cb.cb_date_end = 0;
 
-	boolean_t is_error_scrub = B_FALSE;
-	boolean_t is_pause = B_FALSE;
-	boolean_t is_stop = B_FALSE;
-	boolean_t is_txg_continue = B_FALSE;
-	boolean_t scrub_all = B_FALSE;
+	struct zpool_scrub_option wait = {'w', B_FALSE};
+	struct zpool_scrub_option is_error_scrub = {'e', B_FALSE};
+	struct zpool_scrub_option is_pause = {'p', B_FALSE};
+	struct zpool_scrub_option is_stop = {'s', B_FALSE};
+	struct zpool_scrub_option is_recent = {'R', B_FALSE};
+	struct zpool_scrub_option is_txg_continue = {'C', B_FALSE};
+	struct zpool_scrub_option scrub_all = {'a', B_FALSE};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "aspweCE:S:")) != -1) {
+	while ((c = getopt(argc, argv, "aspweCE:S:R")) != -1) {
 		switch (c) {
 		case 'a':
-			scrub_all = B_TRUE;
+			scrub_all.enabled = B_TRUE;
 			break;
 		case 'e':
-			is_error_scrub = B_TRUE;
+			is_error_scrub.enabled = B_TRUE;
 			break;
 		case 'E':
 			/*
@@ -8564,19 +8571,22 @@ zpool_do_scrub(int argc, char **argv)
 			cb.cb_date_end = date_string_to_sec(optarg, B_TRUE);
 			break;
 		case 's':
-			is_stop = B_TRUE;
+			is_stop.enabled = B_TRUE;
 			break;
 		case 'S':
 			cb.cb_date_start = date_string_to_sec(optarg, B_FALSE);
 			break;
 		case 'p':
-			is_pause = B_TRUE;
+			is_pause.enabled = B_TRUE;
+			break;
+		case 'R':
+			is_recent.enabled = B_TRUE;
 			break;
 		case 'w':
-			wait = B_TRUE;
+			wait.enabled = B_TRUE;
 			break;
 		case 'C':
-			is_txg_continue = B_TRUE;
+			is_txg_continue.enabled = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -8585,35 +8595,48 @@ zpool_do_scrub(int argc, char **argv)
 		}
 	}
 
-	if (is_pause && is_stop) {
-		(void) fprintf(stderr, gettext("invalid option "
-		    "combination: -s and -p are mutually exclusive\n"));
-		usage(B_FALSE);
-	} else if (is_pause && is_txg_continue) {
-		(void) fprintf(stderr, gettext("invalid option "
-		    "combination: -p and -C are mutually exclusive\n"));
-		usage(B_FALSE);
-	} else if (is_stop && is_txg_continue) {
-		(void) fprintf(stderr, gettext("invalid option "
-		    "combination: -s and -C are mutually exclusive\n"));
-		usage(B_FALSE);
-	} else if (is_error_scrub && is_txg_continue) {
-		(void) fprintf(stderr, gettext("invalid option "
-		    "combination: -e and -C are mutually exclusive\n"));
-		usage(B_FALSE);
-	} else {
-		if (is_error_scrub)
-			cb.cb_type = POOL_SCAN_ERRORSCRUB;
+	struct {
+		struct zpool_scrub_option *op1;
+		struct zpool_scrub_option *op2;
+	} scrub_exclusive_options[] = {
+		{&is_stop, &is_pause},
+		{&is_stop, &is_txg_continue},
+		{&is_stop, &is_error_scrub},
+		{&is_stop, &is_recent},
+		{&is_pause, &is_txg_continue},
+		{&is_pause, &is_error_scrub},
+		{&is_pause, &is_recent},
+		{&is_error_scrub, &is_txg_continue},
+		{&is_error_scrub, &is_recent},
+		{&is_recent, &is_txg_continue},
+	};
 
-		if (is_pause) {
-			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
-		} else if (is_stop) {
-			cb.cb_type = POOL_SCAN_NONE;
-		} else if (is_txg_continue) {
-			cb.cb_scrub_cmd = POOL_SCRUB_FROM_LAST_TXG;
-		} else {
-			cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
+	for (int i = 0; i < sizeof (scrub_exclusive_options) /
+	    sizeof (scrub_exclusive_options[0]); i++) {
+		if (scrub_exclusive_options[i].op1->enabled &&
+		    scrub_exclusive_options[i].op2->enabled) {
+			(void) fprintf(stderr, gettext("invalid option "
+			    "combination: -%c and -%c are mutually "
+			    "exclusive\n"),
+			    scrub_exclusive_options[i].op1->name,
+			    scrub_exclusive_options[i].op2->name);
+			usage(B_FALSE);
 		}
+	}
+
+	if (is_error_scrub.enabled)
+		cb.cb_type = POOL_SCAN_ERRORSCRUB;
+
+	if (is_pause.enabled) {
+		cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
+	} else if (is_stop.enabled) {
+		cb.cb_type = POOL_SCAN_NONE;
+	} else if (is_txg_continue.enabled) {
+		cb.cb_scrub_cmd = POOL_SCRUB_FROM_LAST_TXG;
+	} else if (is_recent.enabled) {
+		cb.cb_scrub_cmd = POOL_SCRUB_RECENT;
+	} else {
+		cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
 	}
 
 	if ((cb.cb_date_start != 0 || cb.cb_date_end != 0) &&
@@ -8629,7 +8652,7 @@ zpool_do_scrub(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	if (wait && (cb.cb_type == POOL_SCAN_NONE ||
+	if (wait.enabled && (cb.cb_type == POOL_SCAN_NONE ||
 	    cb.cb_scrub_cmd == POOL_SCRUB_PAUSE)) {
 		(void) fprintf(stderr, gettext("invalid option combination: "
 		    "-w cannot be used with -p or -s\n"));
@@ -8639,7 +8662,7 @@ zpool_do_scrub(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 1 && !scrub_all) {
+	if (argc < 1 && !scrub_all.enabled) {
 		(void) fprintf(stderr, gettext("missing pool name argument\n"));
 		usage(B_FALSE);
 	}
@@ -8647,7 +8670,7 @@ zpool_do_scrub(int argc, char **argv)
 	error = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
 	    B_FALSE, scrub_callback, &cb);
 
-	if (wait && !error) {
+	if (wait.enabled && !error) {
 		zpool_wait_activity_t act = ZPOOL_WAIT_SCRUB;
 		error = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
 		    B_FALSE, wait_callback, &act);

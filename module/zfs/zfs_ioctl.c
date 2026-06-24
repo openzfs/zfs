@@ -2044,6 +2044,8 @@ zfs_ioc_pool_scrub(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	} else if (scan_cmd == POOL_SCRUB_FROM_LAST_TXG) {
 		error = spa_scan_range(spa, scan_type,
 		    spa_get_last_scrubbed_txg(spa), 0);
+	} else if (scan_cmd == POOL_SCRUB_RECENT) {
+		error = spa_scan_recent(spa);
 	} else {
 		uint64_t txg_start, txg_end;
 
@@ -6469,6 +6471,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	spa_t *spa;
 	vdev_t *vd;
 	int error;
+	boolean_t resume_scrub;
 
 	/*
 	 * On zpool clear we also fix up missing slogs
@@ -6523,6 +6526,7 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		return (SET_ERROR(EREMOTEIO));
 	}
 
+	resume_scrub = spa_suspended(spa);
 	spa_vdev_state_enter(spa, SCL_NONE);
 
 	if (zc->zc_guid == 0) {
@@ -6547,6 +6551,13 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	 */
 	if (zio_resume(spa) != 0)
 		error = SET_ERROR(EIO);
+
+	/*
+	 * If we successfully resumed a previously suspended pool, scrub the
+	 * recently written data.
+	 */
+	if (error == 0 && resume_scrub && zfs_scrub_after_resume)
+		(void) spa_scan_recent(spa);
 
 	spa_close(spa, FTAG);
 
