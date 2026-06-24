@@ -767,7 +767,12 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 			if (error)
 				goto out_unmark;
 
-			error = -zfs_freesp(zp, offset + len, 0, 0, FALSE);
+			/*
+			 * extend file: log=TRUE drives z_seq bump,
+			 * mtime/ctime advance, and TX_TRUNCATE ZIL
+			 * record; matches zfs_space().
+			 */
+			error = -zfs_freesp(zp, offset + len, 0, 0, TRUE);
 			zfs_exit(zfsvfs, FTAG);
 		}
 	}
