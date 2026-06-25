@@ -54,8 +54,7 @@ function cleanup
 	if snapexists $SNAPFS; then
 		log_must zfs destroy $SNAPFS
 	fi
-
-	log_must rm -rf $SNAPDIR $TESTDIR/*
+	log_must rm -rf $TESTDIR/*
 }
 
 log_assert "Verify a file system snapshot is identical to original."
