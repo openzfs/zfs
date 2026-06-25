@@ -56,7 +56,6 @@ function cleanup
 
 	snapexists $SNAPFS && log_must zfs destroy $SNAPFS
 
-	[ -e $SNAPDIR ] && log_must rm -rf $SNAPDIR
 	[ -e $TESTDIR ] && log_must rm -rf $TESTDIR/*
 	[ -d "$SNAPSHOT_TARDIR" ] && log_must rm -rf $SNAPSHOT_TARDIR
 }

@@ -51,11 +51,6 @@ function cleanup
 	typeset -i i=1
 	while [ $i -lt $COUNT ]; do
 		snapexists $SNAPFS.$i && log_must zfs destroy $SNAPFS.$i
-
-		if [ -e $SNAPDIR.$i ]; then
-			log_must rm -rf $SNAPDIR.$i
-		fi
-
 		(( i = i + 1 ))
 	done
 

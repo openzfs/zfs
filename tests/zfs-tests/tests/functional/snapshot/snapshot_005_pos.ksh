@@ -52,10 +52,6 @@ function cleanup
 {
 	snapexists $SNAPCTR && log_must zfs destroy $SNAPCTR
 
-	if [ -e $SNAPDIR1 ]; then
-		log_must rm -rf $SNAPDIR1
-	fi
-
 	if [ -e $TESTDIR ]; then
 		log_must rm -rf $TESTDIR/*
 	fi
