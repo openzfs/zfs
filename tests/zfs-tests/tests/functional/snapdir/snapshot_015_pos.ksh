@@ -32,7 +32,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/snapshot/snapshot.cfg
+. $STF_SUITE/tests/functional/snapdir/snapdir.cfg
 . $STF_SUITE/tests/functional/cli_root/zfs_rollback/zfs_rollback_common.kshlib
 
 #

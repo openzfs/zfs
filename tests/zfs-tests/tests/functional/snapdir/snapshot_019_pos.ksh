@@ -26,7 +26,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/snapshot/snapshot.cfg
+. $STF_SUITE/tests/functional/snapdir/snapdir.cfg
 
 #
 # DESCRIPTION:

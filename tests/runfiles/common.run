@@ -1036,6 +1036,10 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_replay_fs_002', 'slog_replay_volume', 'slog_016_pos']
 tags = ['functional', 'slog']
 
+[tests/functional/snapdir]
+tests = ['snapshot_019_pos']
+tags = ['functional', 'snapdir']
+
 [tests/functional/snapshot]
 tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'rollback_003_pos', 'snapshot_001_pos', 'snapshot_002_pos',
@@ -1043,7 +1047,7 @@ tests = ['clone_001_pos', 'rollback_001_pos', 'rollback_002_pos',
     'snapshot_006_pos', 'snapshot_007_pos', 'snapshot_008_pos',
     'snapshot_009_pos', 'snapshot_010_pos', 'snapshot_011_pos',
     'snapshot_012_pos', 'snapshot_013_pos', 'snapshot_014_pos',
-    'snapshot_017_pos', 'snapshot_018_pos', 'snapshot_019_pos']
+    'snapshot_017_pos', 'snapshot_018_pos']
 tags = ['functional', 'snapshot']
 
 [tests/functional/snapused]
