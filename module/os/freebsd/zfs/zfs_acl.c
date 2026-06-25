@@ -1317,6 +1317,7 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 
 	zfs_tstamp_update_setup(zp, STATE_CHANGED, NULL, ctime);
 	ZFS_PERSIST_SEQ(zp, bulk, count);
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	return (sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 }
 

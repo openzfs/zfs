@@ -2321,7 +2321,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	boolean_t	fuid_dirtied = B_FALSE;
 	boolean_t	handle_eadir = B_FALSE;
-	sa_bulk_attr_t	bulk[9], xattr_bulk[7];
+	sa_bulk_attr_t	bulk[9], xattr_bulk[6];
 	int		count = 0, xattr_count = 0;
 
 	if (mask == 0)
@@ -2985,6 +2985,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
 	}
 out:
 	if (err == 0 && attrzp) {
+		ASSERT3S(xattr_count, <=, ARRAY_SIZE(xattr_bulk));
 		err2 = sa_bulk_update(attrzp->z_sa_hdl, xattr_bulk,
 		    xattr_count, tx);
 		ASSERT0(err2);
@@ -3003,6 +3004,7 @@ out:
 		if (attrzp)
 			vput(ZTOV(attrzp));
 	} else {
+		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 		err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		dmu_tx_commit(tx);
 		if (attrzp) {
@@ -4501,6 +4503,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		    &zp->z_pflags, 8);
 		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime, ctime);
 		ZFS_PERSIST_SEQ(zp, bulk, count);
+		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 		err = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 		ASSERT0(err);
 
