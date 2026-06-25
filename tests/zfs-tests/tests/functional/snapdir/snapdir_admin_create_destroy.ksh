@@ -50,6 +50,12 @@
 
 verify_runnable "both"
 
+if ! is_linux ; then
+	log_unsupported "ADMIN_SNAPSHOT tunable not available on this platform."
+fi
+
+save_tunable ADMIN_SNAPSHOT
+
 function cleanup
 {
 	typeset -i i=0
@@ -59,6 +65,8 @@ function cleanup
 
 		((i += 1))
 	done
+
+	restore_tunable ADMIN_SNAPSHOT
 }
 
 zfs 2>&1 | grep "allow" > /dev/null
@@ -66,6 +74,8 @@ zfs 2>&1 | grep "allow" > /dev/null
 
 log_assert "Verify snapshot can be created via mkdir in .zfs/snapshot."
 log_onexit cleanup
+
+log_must set_tunable64 ADMIN_SNAPSHOT 1
 
 fs=$TESTPOOL/$TESTFS
 # Verify all the other directories are readonly.

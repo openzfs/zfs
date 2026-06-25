@@ -46,6 +46,12 @@
 
 verify_runnable "both"
 
+if ! is_linux ; then
+	log_unsupported "ADMIN_SNAPSHOT tunable not available on this platform."
+fi
+
+save_tunable ADMIN_SNAPSHOT
+
 function cleanup
 {
 	datasetexists $SNAPFS && destroy_dataset $SNAPFS -Rf
@@ -57,10 +63,14 @@ function cleanup
 
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
+
+	restore_tunable ADMIN_SNAPSHOT
 }
 
 log_assert "Verify renamed snapshots via mv can be destroyed."
 log_onexit cleanup
+
+log_must set_tunable64 ADMIN_SNAPSHOT 1
 
 # scenario 1
 
