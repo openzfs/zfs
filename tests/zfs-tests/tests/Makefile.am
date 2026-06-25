@@ -2216,6 +2216,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapdir/cleanup.ksh \
 	functional/snapdir/setup.ksh \
 	functional/snapdir/snapdir_admin_create_destroy.ksh \
+	functional/snapdir/snapdir_admin_disabled.ksh \
 	functional/snapdir/snapdir_admin_rename_destroy.ksh \
 	functional/snapdir/snapdir_mount_parallel.ksh \
 	functional/snapshot/cleanup.ksh \
