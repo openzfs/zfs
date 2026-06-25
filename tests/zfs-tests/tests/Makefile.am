@@ -381,6 +381,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/send_xdr_encoding/send_xdr_encoding.kshlib \
 	functional/slog/slog.cfg \
 	functional/slog/slog.kshlib \
+	functional/snapdir/snapdir.cfg \
 	functional/snapshot/snapshot.cfg \
 	functional/snapused/snapused.kshlib \
 	functional/sparse/sparse.cfg \
@@ -2212,6 +2213,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/slog/slog_replay_fs_001.ksh \
 	functional/slog/slog_replay_fs_002.ksh \
 	functional/slog/slog_replay_volume.ksh \
+	functional/snapdir/cleanup.ksh \
+	functional/snapdir/setup.ksh \
+	functional/snapdir/snapshot_015_pos.ksh \
+	functional/snapdir/snapshot_016_pos.ksh \
+	functional/snapdir/snapshot_019_pos.ksh \
 	functional/snapshot/cleanup.ksh \
 	functional/snapshot/clone_001_pos.ksh \
 	functional/snapshot/rollback_001_pos.ksh \
@@ -2232,11 +2238,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapshot/snapshot_012_pos.ksh \
 	functional/snapshot/snapshot_013_pos.ksh \
 	functional/snapshot/snapshot_014_pos.ksh \
-	functional/snapshot/snapshot_015_pos.ksh \
-	functional/snapshot/snapshot_016_pos.ksh \
 	functional/snapshot/snapshot_017_pos.ksh \
 	functional/snapshot/snapshot_018_pos.ksh \
-	functional/snapshot/snapshot_019_pos.ksh \
 	functional/snapused/cleanup.ksh \
 	functional/snapused/setup.ksh \
 	functional/snapused/snapused_001_pos.ksh \

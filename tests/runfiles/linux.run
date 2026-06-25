@@ -206,9 +206,9 @@ post =
 tests = ['simd_supported']
 tags = ['functional', 'simd']
 
-[tests/functional/snapshot:Linux]
+[tests/functional/snapdir:Linux]
 tests = ['snapshot_015_pos', 'snapshot_016_pos']
-tags = ['functional', 'snapshot']
+tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
 tests = ['syncfs_suspend']
