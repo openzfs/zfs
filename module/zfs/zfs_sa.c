@@ -284,6 +284,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
 		    NULL, &ctime, 16);
 		ZFS_PERSIST_SEQ(zp, bulk, count);
+		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 		VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 
 		dmu_tx_commit(tx);

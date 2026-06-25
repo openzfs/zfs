@@ -873,6 +873,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 		    ctime);
 		ZFS_PERSIST_SEQ(zp, bulk, count);
 	}
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
@@ -896,6 +897,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	    &dzp->z_pflags, sizeof (dzp->z_pflags));
 	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	ZFS_PERSIST_SEQ(dzp, bulk, count);
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 	mutex_exit(&dzp->z_lock);
@@ -995,6 +997,7 @@ zfs_drop_nlink_locked(znode_t *zp, dmu_tx_t *tx, boolean_t *unlinkedp)
 	links = ZTOI(zp)->i_nlink;
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_LINKS(zfsvfs),
 	    NULL, &links, sizeof (links));
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
@@ -1093,6 +1096,7 @@ zfs_link_destroy(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag,
 	    NULL, &dzp->z_pflags, sizeof (dzp->z_pflags));
 	zfs_tstamp_update_setup(dzp, CONTENT_MODIFIED, mtime, ctime);
 	ZFS_PERSIST_SEQ(dzp, bulk, count);
+	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(dzp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 	mutex_exit(&dzp->z_lock);
