@@ -34,8 +34,4 @@
 
 DISK=${DISKS%% *}
 
-if is_linux; then
-	log_must set_tunable64 ADMIN_SNAPSHOT 1
-fi
-
 default_container_volume_setup ${DISK}
