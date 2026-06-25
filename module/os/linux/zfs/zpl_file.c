@@ -372,6 +372,31 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
  * helpful to move the ARC buffers to a scatter-gather lists
  * rather than a vmalloc'ed region.
  */
+/*
+ * Bump z_seq when a clean page first transitions to dirty via an mmap store.
+ * The default generic_file_vm_ops.page_mkwrite (filemap_page_mkwrite) updates
+ * mtime/ctime via file_update_time -> __mark_inode_dirty, but never tells the
+ * filesystem that the change cookie should advance. Without this hook NFSv4
+ * GETATTR between an mmap store and writeback returns a stale change_cookie
+ * alongside the newer mtime, violating monotonicity. zfs_dirty_inode persists
+ * the new value on the same dirty path.
+ */
+static vm_fault_t
+zpl_page_mkwrite(struct vm_fault *vmf)
+{
+	znode_t *zp = ITOZ(file_inode(vmf->vma->vm_file));
+
+	atomic_inc_64(&zp->z_seq);
+
+	return (filemap_page_mkwrite(vmf));
+}
+
+static const struct vm_operations_struct zpl_vm_ops = {
+	.fault		= filemap_fault,
+	.map_pages	= filemap_map_pages,
+	.page_mkwrite	= zpl_page_mkwrite,
+};
+
 static int
 zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 {
@@ -391,6 +416,7 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
 	if (error)
 		return (error);
 
+	vma->vm_ops = &zpl_vm_ops;
 	return (error);
 }
 
