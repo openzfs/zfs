@@ -517,16 +517,18 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 		 * ZFS uses a coarse timer to set them, which may cause
 		 * clients to fail to detect changes and invalidate cache.
 		 *
-		 * ZFS always increments znode z_seq number, but this is
-		 * uint_t and so we mask in ctime to upper bits.
+		 * z_seq is a per-file 64-bit counter bumped on every change
+		 * and persisted across znode eviction, so it is presented
+		 * directly as a monotonic change cookie. Files that predate
+		 * persistence are seeded from ctime on load so the cookie
+		 * never moves backward across the upgrade.
 		 *
 		 * STATX_ATTR_CHANGE_MONOTONIC is advertised
 		 * to prevent knfsd from generating the change cookie
 		 * based on ctime. C.f. nfsd4_change_attribute in
 		 * fs/nfsd/nfsfh.c.
 		 */
-		stat->change_cookie =
-		    ((u64)stat->ctime.tv_sec << 32) | zp->z_seq;
+		stat->change_cookie = atomic_load_64(&zp->z_seq);
 		stat->attributes |= STATX_ATTR_CHANGE_MONOTONIC;
 		stat->result_mask |= STATX_CHANGE_COOKIE;
 	}

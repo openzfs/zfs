@@ -112,6 +112,30 @@ extern "C" {
 #define	SA_ZPL_DXATTR(z)	z->z_attr_table[ZPL_DXATTR]
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
 #define	SA_ZPL_PROJID(z)	z->z_attr_table[ZPL_PROJID]
+#define	SA_ZPL_SEQ(z)		z->z_attr_table[ZPL_SEQ]
+
+/*
+ * may_grow for a dmu_tx_hold_sa() that may persist z_seq: the SA layout
+ * grows the first time SA_ZPL_SEQ is added, so grow until z_has_seq is
+ * set. z_has_seq is an in-core only marker (see znode_t) and is never
+ * persisted, so no global pflag bit is consumed.
+ */
+#define	ZFS_SEQ_MAY_GROW(zp)	\
+	((zp)->z_has_seq ? B_FALSE : B_TRUE)
+
+/*
+ * Persist zp->z_seq: mark z_has_seq and add SA_ZPL_SEQ to the caller's
+ * bulk. No-op for legacy (non-SA-native) znodes. Chunked writers add
+ * SA_ZPL_SEQ once before their loop and set z_has_seq per chunk instead.
+ */
+#define	ZFS_PERSIST_SEQ(zp, bulk, count) \
+{ \
+	if ((zp)->z_is_sa) { \
+		(zp)->z_has_seq = B_TRUE; \
+		SA_ADD_BULK_ATTR((bulk), (count), SA_ZPL_SEQ(ZTOZSB(zp)), \
+		    NULL, &(zp)->z_seq, 8); \
+	} \
+}
 
 /*
  * Is ID ephemeral?
@@ -195,8 +219,9 @@ typedef struct znode {
 	boolean_t	z_is_ctldir;	/* are we .zfs entry */
 	boolean_t	z_suspended;	/* extra ref from a suspend? */
 	boolean_t	z_xattr_dir_absent;	/* no xattr dir (cached) */
+	boolean_t	z_has_seq;	/* SA_ZPL_SEQ present (in-core only) */
 	uint_t		z_blksz;	/* block size in bytes */
-	uint_t		z_seq;		/* modification sequence number */
+	uint64_t	z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
 	uint64_t	z_dnodesize;	/* dnode size */
 	uint64_t	z_size;		/* file size (cached) */

@@ -68,6 +68,7 @@ const sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_DACL_ACES", 0, SA_ACL, 0},
 	{"ZPL_DXATTR", 0, SA_UINT8_ARRAY, 0},
 	{"ZPL_PROJID", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
+	{"ZPL_SEQ", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -270,7 +271,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 		dmu_tx_abort(tx);
 	} else {
 		int count = 0;
-		sa_bulk_attr_t bulk[2];
+		sa_bulk_attr_t bulk[3];
 		uint64_t ctime[2];
 
 		if (logsaxattr)
@@ -282,6 +283,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 		    NULL, obj, size);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
 		    NULL, &ctime, 16);
+		ZFS_PERSIST_SEQ(zp, bulk, count);
 		VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 
 		dmu_tx_commit(tx);
