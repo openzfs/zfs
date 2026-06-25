@@ -81,8 +81,10 @@ __attribute__((malloc))
 abd_t *abd_alloc(size_t, boolean_t);
 __attribute__((malloc))
 abd_t *abd_alloc_linear(size_t, boolean_t);
+abd_t *abd_alloc_linear_struct(abd_t *, size_t, boolean_t);
 __attribute__((malloc))
 abd_t *abd_alloc_gang(void);
+abd_t *abd_alloc_gang_struct(abd_t *);
 __attribute__((malloc))
 abd_t *abd_alloc_for_io(size_t, boolean_t);
 __attribute__((malloc))
@@ -94,6 +96,7 @@ abd_t *abd_get_offset(abd_t *, size_t);
 abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
 abd_t *abd_get_offset_struct(abd_t *, abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
+abd_t *abd_get_zeros_struct(abd_t *, size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 abd_t *abd_get_from_buf_struct(abd_t *, void *, size_t);
 void abd_cache_reap_now(void);
