@@ -2215,9 +2215,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/slog/slog_replay_volume.ksh \
 	functional/snapdir/cleanup.ksh \
 	functional/snapdir/setup.ksh \
-	functional/snapdir/snapshot_015_pos.ksh \
-	functional/snapdir/snapshot_016_pos.ksh \
-	functional/snapdir/snapshot_019_pos.ksh \
+	functional/snapdir/snapdir_admin_create_destroy.ksh \
+	functional/snapdir/snapdir_admin_rename_destroy.ksh \
+	functional/snapdir/snapdir_mount_parallel.ksh \
 	functional/snapshot/cleanup.ksh \
 	functional/snapshot/clone_001_pos.ksh \
 	functional/snapshot/rollback_001_pos.ksh \

@@ -567,7 +567,7 @@ tests = ['slog_008_neg', 'slog_009_neg', 'slog_010_neg']
 tags = ['functional', 'slog']
 
 [tests/functional/snapdir]
-tests = ['snapshot_019_pos']
+tests = ['snapdir_mount_parallel']
 tags = ['functional', 'snapdir']
 
 [tests/functional/snapshot]

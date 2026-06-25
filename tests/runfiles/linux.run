@@ -207,7 +207,7 @@ tests = ['simd_supported']
 tags = ['functional', 'simd']
 
 [tests/functional/snapdir:Linux]
-tests = ['snapshot_015_pos', 'snapshot_016_pos']
+tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy']
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
