@@ -3153,6 +3153,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	zio_flag_t add_flags = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
+	ASSERT0(zio->io_error);
 
 	for (int c = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
@@ -3178,12 +3179,19 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 * reconstruction, confirm that the other parity disks produced
 	 * correct data.
 	 *
-	 * Note that we also regenerate parity when resilvering so we
-	 * can write it out to failed devices later.
+	 * We also regenerate parity to write it back to any failed parity
+	 * columns.  However, if all available parity was consumed by
+	 * reconstruction (parity_verify is false), regenerating parity is
+	 * a mathematical identity -- the result is guaranteed to equal the
+	 * input that was used for reconstruction, whether correct or
+	 * corrupted.  In that case the only reason to regenerate is to
+	 * write back a failed parity column, so skip regeneration when no
+	 * parity column failed or the pool is read-only.
 	 */
 	boolean_t parity_verify = (parity_errors + parity_untried) <
 	    (rr->rr_firstdatacol - data_errors);
-	if (parity_verify || (zio->io_flags & ZIO_FLAG_RESILVER)) {
+	if (parity_verify || (parity_errors > 0 &&
+	    spa_writeable(zio->io_spa))) {
 		int n = raidz_parity_verify(zio, rr);
 		/*
 		 * In, Reed-Solomon encoding, if we have ndata+1 columns and
@@ -3208,7 +3216,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		unexpected_errors += n;
 	}
 
-	if (zio->io_error == 0 && spa_writeable(zio->io_spa) &&
+	if (spa_writeable(zio->io_spa) &&
 	    (unexpected_errors > 0 || (zio->io_flags & ZIO_FLAG_RESILVER))) {
 		/*
 		 * Use the good data we have in hand to repair damaged children.
@@ -3261,7 +3269,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 * necessary, but since expansion is paused during scrub/resilver, at
 	 * most a single row will have a shadow location.
 	 */
-	if (zio->io_error == 0 && spa_writeable(zio->io_spa) &&
+	if (spa_writeable(zio->io_spa) &&
 	    (zio->io_flags & (ZIO_FLAG_RESILVER | ZIO_FLAG_SCRUB))) {
 		for (int c = 0; c < rr->rr_cols; c++) {
 			raidz_col_t *rc = &rr->rr_col[c];
