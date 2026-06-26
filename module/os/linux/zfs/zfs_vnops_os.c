@@ -4155,7 +4155,18 @@ zfs_fillpage(struct inode *ip, struct page *pp)
 	u_offset_t io_off = page_offset(pp);
 	size_t io_len = PAGE_SIZE;
 
-	ASSERT3U(io_off, <, i_size);
+	/*
+	 * The page may be faulted in after the file has been truncated.
+	 * There is no data to read; just zero-fill the page.
+	 */
+	if (io_off >= i_size) {
+		void *zva = kmap(pp);
+		memset(zva, 0, PAGE_SIZE);
+		kunmap(pp);
+		ClearPageError(pp);
+		SetPageUptodate(pp);
+		return (0);
+	}
 
 	if (io_off + io_len > i_size)
 		io_len = i_size - io_off;
@@ -4206,9 +4217,14 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
-	ASSERT3U(io_off, <, i_size);
-
-	if (io_off + io_len > i_size)
+	/*
+	 * If the page lies entirely at or beyond EOF (e.g. it raced a
+	 * truncate) just lock the page and let zfs_fillpage() re-check
+	 * i_size under the range lock and zero-fill it.
+	 */
+	if (io_off >= i_size)
+		io_len = PAGE_SIZE;
+	else if (io_off + io_len > i_size)
 		io_len = i_size - io_off;
 
 	/*
