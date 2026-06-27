@@ -14,11 +14,16 @@
  * Copyright (c) 2026, Christos Longros.
  */
 
+#include <stddef.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
+#include <sys/avl.h>
 #include <sys/btree.h>
 
 #include "unit.h"
+
+#define	DRAIN_COUNT	(64 * 1024)
 
 /* ========== */
 
@@ -33,11 +38,7 @@ u64_compare(const void *a, const void *b)
 	const uint64_t x = *(const uint64_t *)a;
 	const uint64_t y = *(const uint64_t *)b;
 
-	if (x < y)
-		return (-1);
-	if (x > y)
-		return (1);
-    return (TREE_CMP(x, y));
+	return (TREE_CMP(x, y));
 }
 
 /*
@@ -47,6 +48,24 @@ static void
 btree_create_u64(zfs_btree_t *bt)
 {
 	zfs_btree_create(bt, u64_compare, NULL, sizeof (uint64_t));
+}
+
+/*
+ * Cross-check the B-Tree against an AVL tree holding the same
+ * values, used as reference.
+ */
+typedef struct int_node {
+	avl_node_t node;
+	uint64_t data;
+} int_node_t;
+
+static int
+avl_u64_compare(const void *v1, const void *v2)
+{
+	const int_node_t *n1 = v1;
+	const int_node_t *n2 = v2;
+
+	return (TREE_CMP(n1->data, n2->data));
 }
 
 /* ========== */
@@ -63,6 +82,7 @@ test_btree_empty(const MunitParameter params[], void *data)
 	btree_create_u64(&bt);
 	unit_zero(zfs_btree_numnodes(&bt));
 	unit_true(zfs_btree_first(&bt, &idx) == NULL);
+	zfs_btree_clear(&bt);
 	zfs_btree_destroy(&bt);
 
 	return (MUNIT_OK);
@@ -96,6 +116,7 @@ test_btree_add_find(const MunitParameter params[], void *data)
 	uint64_t absent = 99;
 	unit_true(zfs_btree_find(&bt, &absent, &idx) == NULL);
 
+	zfs_btree_clear(&bt);
 	zfs_btree_destroy(&bt);
 	return (MUNIT_OK);
 }
@@ -125,6 +146,7 @@ test_btree_remove(const MunitParameter params[], void *data)
 	unit_true(zfs_btree_find(&bt, &keep1, &idx) != NULL);
 	unit_true(zfs_btree_find(&bt, &keep2, &idx) != NULL);
 
+	zfs_btree_clear(&bt);
 	zfs_btree_destroy(&bt);
 	return (MUNIT_OK);
 }
@@ -154,6 +176,102 @@ test_btree_walk(const MunitParameter params[], void *data)
 	}
 	unit_eq(count, ARRAY_SIZE(vals));
 
+	zfs_btree_clear(&bt);
+	zfs_btree_destroy(&bt);
+	return (MUNIT_OK);
+}
+
+/* Verify that zfs_btree_find() works correctly when passed a NULL index. */
+static MunitResult
+test_btree_find_without_index(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	zfs_btree_t bt;
+	btree_create_u64(&bt);
+
+	uint64_t i = 12345;
+	zfs_btree_add(&bt, &i);
+
+	uint64_t *p = zfs_btree_find(&bt, &i, NULL);
+	unit_true(p != NULL);
+	unit_eq(*p, i);
+
+	uint64_t absent = i + 1;
+	unit_true(zfs_btree_find(&bt, &absent, NULL) == NULL);
+
+	zfs_btree_clear(&bt);
+	zfs_btree_destroy(&bt);
+	return (MUNIT_OK);
+}
+
+/*
+ * Fill a B-Tree and an AVL tree with the same random values, then drain
+ * both from alternating ends, checking they stay identical at every step.
+ */
+static MunitResult
+test_btree_drain(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	zfs_btree_t bt;
+	avl_tree_t avl;
+	zfs_btree_index_t bt_idx = {0};
+	avl_index_t avl_idx = {0};
+	int_node_t *node;
+
+	btree_create_u64(&bt);
+	avl_create(&avl, avl_u64_compare, sizeof (int_node_t),
+	    offsetof(int_node_t, node));
+
+	/* Fill both trees with the same data. */
+	for (int i = 0; i < DRAIN_COUNT; i++) {
+		uint64_t randval = unit_rand_uint64();
+		if (zfs_btree_find(&bt, &randval, &bt_idx) != NULL)
+			continue;
+		zfs_btree_add_idx(&bt, &randval, &bt_idx);
+
+		node = malloc(sizeof (int_node_t));
+		unit_true(node != NULL);
+		node->data = randval;
+
+		/* New to the btree, so the avl must not have it either. */
+		unit_true(avl_find(&avl, node, &avl_idx) == NULL);
+		avl_insert(&avl, node, avl_idx);
+	}
+
+	/* Remove from alternating ends, comparing the trees as we go. */
+	while (avl_numnodes(&avl) != 0) {
+		uint64_t *bt_data;
+
+		unit_eq(zfs_btree_numnodes(&bt), avl_numnodes(&avl));
+		if (avl_numnodes(&avl) % 2 == 0) {
+			node = avl_first(&avl);
+			bt_data = zfs_btree_first(&bt, &bt_idx);
+		} else {
+			node = avl_last(&avl);
+			bt_data = zfs_btree_last(&bt, &bt_idx);
+		}
+		unit_eq(*bt_data, node->data);
+		zfs_btree_remove_idx(&bt, &bt_idx);
+		avl_remove(&avl, node);
+		free(node);
+
+		if (avl_numnodes(&avl) == 0)
+			break;
+
+		/* Both ends still agree after the removal. */
+		uint64_t *bt_lo = zfs_btree_first(&bt, NULL);
+		uint64_t *bt_hi = zfs_btree_last(&bt, NULL);
+		int_node_t *avl_lo = avl_first(&avl);
+		int_node_t *avl_hi = avl_last(&avl);
+		unit_eq(*bt_lo, avl_lo->data);
+		unit_eq(*bt_hi, avl_hi->data);
+	}
+	unit_zero(zfs_btree_numnodes(&bt));
+
+	avl_destroy(&avl);
+	zfs_btree_clear(&bt);
 	zfs_btree_destroy(&bt);
 	return (MUNIT_OK);
 }
@@ -161,10 +279,12 @@ test_btree_walk(const MunitParameter params[], void *data)
 /* ========== */
 
 static const MunitTest btree_tests[] = {
-	UNIT_TEST("empty",	test_btree_empty),
-	UNIT_TEST("add_find",	test_btree_add_find),
-	UNIT_TEST("remove",	test_btree_remove),
-	UNIT_TEST("walk",	test_btree_walk),
+	UNIT_TEST("empty",		test_btree_empty),
+	UNIT_TEST("add_find",		test_btree_add_find),
+	UNIT_TEST("remove",		test_btree_remove),
+	UNIT_TEST("walk",		test_btree_walk),
+	UNIT_TEST("find_without_index",	test_btree_find_without_index),
+	UNIT_TEST("drain",		test_btree_drain),
 	{ 0 },
 };
 

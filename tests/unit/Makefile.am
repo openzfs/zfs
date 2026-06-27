@@ -56,6 +56,7 @@ nodist_%C%_test_namecheck_SOURCES = \
 %C%_test_btree_CFLAGS = $(AM_CFLAGS)
 
 nodist_%C%_test_btree_SOURCES = \
+	module/avl/avl.c \
 	module/zfs/btree.c
 
 %C%_test_btree_SOURCES = \
