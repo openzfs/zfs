@@ -861,10 +861,11 @@ zvol_strategy_impl(zv_request_t *zvr)
 				if (zvol_dio_can_write(zv, bp, off, size)) {
 					error = zvol_dio_write(zv, bp, off,
 					    size, tx);
-					if (error == 0)
-						zvol_log_write(zv, tx, off,
-						    size, commit);
 				} else {
+					error = SET_ERROR(ENOTSUP);
+				}
+
+				if (error != 0) {
 					/*
 					 * For unmapped BIOs falling back
 					 * to ARC, create a temp ABD from
@@ -879,18 +880,23 @@ zvol_strategy_impl(zv_request_t *zvr)
 						addr = abd_borrow_buf_copy(
 						    tmp, size);
 					}
-					dmu_write_by_dnode(zv->zv_dn, off,
-					    size, addr, tx,
+					dmu_write_by_dnode(zv->zv_dn,
+					    off, size, addr, tx,
 					    DMU_READ_PREFETCH);
 					if (bp->bio_flags & BIO_UNMAPPED) {
 						abd_return_buf(tmp, addr,
 						    size);
 						abd_free(tmp);
 					}
-					zvol_log_write(zv, tx, off, size,
-					    commit);
 				}
+
+				zvol_log_write(zv, tx, off, size,
+				    commit);
 				dmu_tx_commit(tx);
+				// clean the error value, ARC is
+				// always correct. dmu_write_by_dnode
+				// returns 0.
+				error = 0;
 			}
 		}
 		if (error) {
