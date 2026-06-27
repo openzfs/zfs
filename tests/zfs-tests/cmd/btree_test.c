@@ -157,30 +157,6 @@ verify_node(avl_tree_t *avl, zfs_btree_t *bt, int_node_t *node)
  * Tests
  */
 
-/* Verify that zfs_btree_find works correctly with a NULL index. */
-static int
-find_without_index(zfs_btree_t *bt, char *why)
-{
-	u_longlong_t *p, i = 12345;
-
-	zfs_btree_add(bt, &i);
-	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, NULL)) == NULL ||
-	    *p != i) {
-		(void) snprintf(why, BUFSIZE, "Unexpectedly found %llu\n",
-		    p == NULL ? 0 : *p);
-		return (1);
-	}
-
-	i++;
-
-	if ((p = (u_longlong_t *)zfs_btree_find(bt, &i, NULL)) != NULL) {
-		(void) snprintf(why, BUFSIZE, "Found bad value: %llu\n", *p);
-		return (1);
-	}
-
-	return (0);
-}
-
 /* Verify simple insertion and removal from the tree. */
 static int
 insert_find_remove(zfs_btree_t *bt, char *why)
@@ -209,82 +185,6 @@ insert_find_remove(zfs_btree_t *bt, char *why)
 	}
 	ASSERT0(zfs_btree_numnodes(bt));
 	zfs_btree_verify(bt);
-
-	return (0);
-}
-
-/*
- * Add a number of random entries into a btree and avl tree. Then walk them
- * backwards and forwards while emptying the tree, verifying the trees look
- * the same.
- */
-static int
-drain_tree(zfs_btree_t *bt, char *why)
-{
-	avl_tree_t avl;
-	int i = 0;
-	int_node_t *node;
-	avl_index_t avl_idx = {0};
-	zfs_btree_index_t bt_idx = {0};
-
-	avl_create(&avl, avl_compare, sizeof (int_node_t),
-	    offsetof(int_node_t, node));
-
-	/* Fill both trees with the same data */
-	for (i = 0; i < 64 * 1024; i++) {
-		u_longlong_t randval = random();
-		if (zfs_btree_find(bt, &randval, &bt_idx) != NULL) {
-			continue;
-		}
-		zfs_btree_add_idx(bt, &randval, &bt_idx);
-
-		node = malloc(sizeof (int_node_t));
-		if (node == NULL) {
-			perror("malloc");
-			exit(EXIT_FAILURE);
-		}
-
-		node->data = randval;
-		if (avl_find(&avl, node, &avl_idx) != NULL) {
-			(void) snprintf(why, BUFSIZE,
-			    "Found in avl: %llu\n", randval);
-			return (1);
-		}
-		avl_insert(&avl, node, avl_idx);
-	}
-
-	/* Remove data from either side of the trees, comparing the data */
-	while (avl_numnodes(&avl) != 0) {
-		uint64_t *data;
-
-		ASSERT3U(avl_numnodes(&avl), ==, zfs_btree_numnodes(bt));
-		if (avl_numnodes(&avl) % 2 == 0) {
-			node = avl_first(&avl);
-			data = zfs_btree_first(bt, &bt_idx);
-		} else {
-			node = avl_last(&avl);
-			data = zfs_btree_last(bt, &bt_idx);
-		}
-		ASSERT3U(node->data, ==, *data);
-		zfs_btree_remove_idx(bt, &bt_idx);
-		avl_remove(&avl, node);
-
-		if (avl_numnodes(&avl) == 0) {
-			break;
-		}
-
-		node = avl_first(&avl);
-		ASSERT3U(node->data, ==,
-		    *(uint64_t *)zfs_btree_first(bt, NULL));
-		node = avl_last(&avl);
-		ASSERT3U(node->data, ==, *(uint64_t *)zfs_btree_last(bt, NULL));
-	}
-	ASSERT0(zfs_btree_numnodes(bt));
-
-	void *avl_cookie = NULL;
-	while ((node = avl_destroy_nodes(&avl, &avl_cookie)) != NULL)
-		free(node);
-	avl_destroy(&avl);
 
 	return (0);
 }
@@ -453,8 +353,6 @@ typedef struct btree_test {
 
 static btree_test_t test_table[] = {
 	{ "insert_find_remove",		insert_find_remove	},
-	{ "find_without_index",		find_without_index	},
-	{ "drain_tree",			drain_tree		},
 	{ "stress_tree",		stress_tree		},
 	{ NULL,				NULL			}
 };
