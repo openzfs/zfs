@@ -187,11 +187,15 @@ case "$OS" in
     sudo chmod 1777 /var/tmp
     sudo mv -f /tmp/*.txt /var/tmp
 
-    # Allow for longer RCU timeouts due to the heavily virtualized and
-    # potentially oversubscribed nature of the CI environment.
+    # Allow for longer RCU and watchdog timeouts due to the heavily virtualized
+    # and potentially over-subscribed nature of the CI environment.
     rcu_cpu_stall_timeout="/sys/module/rcupdate/parameters/rcu_cpu_stall_timeout"
     if test -f $rcu_cpu_stall_timeout; then
         echo 120 | sudo sh -c "cat > '$rcu_cpu_stall_timeout'"
+    fi
+
+    if test -c /dev/watchdog; then
+        sudo wdctl --settimeout 120 >/dev/null
     fi
     ;;
 esac
