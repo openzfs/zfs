@@ -37,7 +37,7 @@ u64_compare(const void *a, const void *b)
 		return (-1);
 	if (x > y)
 		return (1);
-	return (0);
+    return (TREE_CMP(x, y));
 }
 
 /*
