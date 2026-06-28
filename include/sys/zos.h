@@ -39,6 +39,8 @@ extern "C" {
 #endif
 
 #define DEFAULT_ZOS_PREFIX "zos"
+#define ZOS_BUCKET_META_OBJ 1ULL // Bucket metadata ZAP
+#define ZOS_BUCKET_DATA_OBJ 2ULL // Bucket data ZAP (key -> object)
 
 // TODO: figure out where to source this ...
 #ifndef MAXNAMELEN
@@ -59,6 +61,7 @@ int upsert_object(const struct zos_object *object, void *object_data,
                   size_t object_data_size);
 int read_object(struct zos_object *object);
 int delete_object(struct zos_object *object);
+static int zos_get_root_zap(spa_t *spa, dmu_tx_t *tx, uint64_t *root_zap_obj);
 
 #ifdef __cplusplus
 }

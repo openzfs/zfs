@@ -65,25 +65,17 @@ const char *ROOT_ZAP = "zos:_meta";
 // object lookup table
 static void create_bucket_cb(objset_t *os, void *arg, cred_t *cr,
                              dmu_tx_t *tx) {
-  // if (!tx) {
-  //   tx = dmu_tx_create(os);
-  // }
-  // if (!cr) {
-  //   cr = CRED();
-  //   crhold(cr);
-  // }
   int error = 0;
   uint64_t zap_id = 0;
 
-  // dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, object_data_size);
-  // error = dmu_tx_assign(tx, DMU_TX_NOWAIT);
-  // if (error) {
-  //   dmu_tx_abort(tx);
-  // }
-  dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, FALSE, NULL);
-
   // TODO: what do with this?
   zap_id = zap_create(os, DMU_OT_OBJECT_DIRECTORY, DMU_OT_NONE, 0, tx);
+  if (zap_id == 0) {
+    // TODO: handle error
+    // SET_ERROR?
+    // This is a callback, so we need to look at how other callbacks handle
+    // errors
+  }
 
   dsl_dataset_t *ds = os->os_dsl_dataset;
 
@@ -331,4 +323,24 @@ int delete_object(struct zos_object *object) {
   dmu_objset_rele(os, FTAG);
 
   return 0;
+}
+
+static int zos_get_root_zap(spa_t *spa, dmu_tx_t *tx, uint64_t *root_zap_obj) {
+  objset_t *mos = spa->spa_meta_objset;
+  int error;
+
+  // Check if root ZAP exists
+  error = dmu_object_info(mos, DMU_POOL_ZOS_ROOT, NULL);
+  if (error == ENOENT) {
+    // Create root ZAP
+    *root_zap_obj = zap_create(mos, DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx);
+    // Add to pool directory
+    error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
+                    root_zap_obj, tx);
+  } else if (error == 0) {
+    // Read existing root ZAP
+    error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
+                       root_zap_obj);
+  }
+  return error;
 }
