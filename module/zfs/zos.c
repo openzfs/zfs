@@ -235,7 +235,6 @@ static int get_dmu_data(objset_t *os, struct zos_object *object,
 
 int read_object(struct zos_object *object) {
   objset_t *os = NULL;
-  dmu_tx_t *tx = NULL;
   uint64_t obj = 0;
   int error = 0;
 
@@ -243,10 +242,6 @@ int read_object(struct zos_object *object) {
   if (error) {
     return error;
   }
-
-  tx = dmu_tx_create(os);
-  // TODO: FIgure this out
-  dmu_tx_hold_zap(tx, DMU_NEW_OBJECT, FALSE, NULL);
 
   // uint64_t root_zap_id = 0;
   // error = zap_lookup(os, os->os_dsl_dataset->ds_object, ROOT_ZAP, 8, 1,
@@ -274,20 +269,15 @@ int read_object(struct zos_object *object) {
   // }
   error = get_dmu_data(os, object, &dmu_obj_id, &doi);
   if (error) {
-    dmu_tx_abort(tx);
     dmu_objset_rele(os, FTAG);
     return error;
   }
 
   error = dmu_read(os, dmu_obj_id, 0, doi.doi_max_offset, object->data, 0);
   if (error) {
-    dmu_tx_abort(tx);
     dmu_objset_rele(os, FTAG);
     return error;
   }
-
-  // Commit
-  dmu_tx_commit(tx);
 
   // Cleanup
   dmu_objset_rele(os, FTAG);
