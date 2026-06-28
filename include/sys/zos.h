@@ -54,14 +54,13 @@ struct zos_object {
   size_t data_size;
 };
 
-int create_bucket(const char *bucket);
-int delete_bucket(const char *bucket);
+int create_bucket(const char *pool, const char *bucket);
+int delete_bucket(const char *pool, const char *bucket);
 
 int upsert_object(const struct zos_object *object, void *object_data,
                   size_t object_data_size);
 int read_object(struct zos_object *object);
 int delete_object(struct zos_object *object);
-static int zos_get_root_zap(spa_t *spa, dmu_tx_t *tx, uint64_t *root_zap_obj);
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_pool.h>
 #include <sys/fs/zfs.h>
+#include <sys/param.h>
 #include <sys/spa.h>
 #include <sys/types.h>
 #include <sys/zap.h>
@@ -61,52 +62,128 @@
 
 const char *ROOT_ZAP = "zos:_meta";
 
+static int zos_get_root_zap(spa_t *spa, dmu_tx_t *tx, uint64_t *root_zap_obj) {
+  objset_t *mos = spa_meta_objset(spa);
+  int error;
+
+  // Check if root ZAP exists in pool directory
+  error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
+                     root_zap_obj);
+  if (error == ENOENT) {
+    // Create root ZAP
+    *root_zap_obj = zap_create(mos, DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx);
+    if (*root_zap_obj == 0) {
+      return EIO;
+    }
+
+    // Add to pool directory
+    error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
+                    root_zap_obj, tx);
+  }
+
+  return error;
+}
+
 // This gets called after creating the objset and creates the ZAP to store the
 // object lookup table
+// TODO: handle error
 static void create_bucket_cb(objset_t *os, void *arg, cred_t *cr,
                              dmu_tx_t *tx) {
   int error = 0;
-  uint64_t zap_id = 0;
 
-  // TODO: what do with this?
-  zap_id = zap_create(os, DMU_OT_OBJECT_DIRECTORY, DMU_OT_NONE, 0, tx);
-  if (zap_id == 0) {
-    // TODO: handle error
-    // SET_ERROR?
-    // This is a callback, so we need to look at how other callbacks handle
-    // errors
+  // Create bucket metadata ZAP at well-known obj id
+  error = zap_create_claim(os, ZOS_BUCKET_META_OBJ, DMU_OT_ZOS_BUCKET_META,
+                           DMU_OT_NONE, 0, tx);
+  if (error) {
+    panic("Failed to create ZOS bucket metadata ZAP: %d", error);
   }
 
-  dsl_dataset_t *ds = os->os_dsl_dataset;
+  error = zap_create_claim(os, ZOS_BUCKET_DATA_OBJ, DMU_OT_ZOS_BUCKET_DATA,
+                           DMU_OT_NONE, 0, tx);
+  if (error) {
+    panic("Failed to create ZOS bucket data ZAP: %d", error);
+  }
 
-  // TODO: check size
-  zap_add(os, ds->ds_object, ROOT_ZAP, 8, 1, &zap_id, tx);
+  // TODO:
+  // uint64_t created_time = dmu_tx_get_txg(tx);
+  uint64_t created_time = 0;
 
-  // dmu_tx_commit(tx);
+  error =
+      zap_update(os, ZOS_BUCKET_META_OBJ, "created", 8, 1, &created_time, tx);
+  if (error) {
+    panic("Failed to initialize ZOS bucket metadata: %d", error);
+  }
 }
 
-int create_bucket(const char *bucket) {
-
-  // Create dataset = prefix + bucket_name
-  // If default prefix is taken, use UUID?
-  // bucket->bucket_prefix = DEFAULT_ZOS_PREFIX;
-
-  // create a root ZAP object
-
-  // Store key -> obj mapping
-  // zap_update(os, root_zap, key_str, sizeof(uint64_t), 1, &obj_id);
-
+int create_bucket(const char *pool, const char *bucket) {
   int error = 0;
 
-  // TODO: Is this ok to pass as NULL?
-  error = dmu_objset_create(bucket, DMU_OST_BUCKET, 0, NULL, create_bucket_cb,
-                            NULL);
+  spa_t *spa;
+
+  // Open the pool
+  error = spa_open(pool, &spa, FTAG);
   if (error) {
     return error;
   }
 
-  // error = zap_create()
+  // Construct full path: pool/bucket
+  char *path = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+  snprintf(path, sizeof(path), "%s/%s", pool, bucket);
 
+  // Create a transaction for the root ZAP operations
+  dmu_tx_t *tx = dmu_tx_create(spa_meta_objset(spa));
+  dmu_tx_hold_zap(tx, DMU_POOL_DIRECTORY_OBJECT, B_TRUE, DMU_POOL_ZOS_ROOT);
+  error = dmu_tx_assign(tx, DMU_TX_WAIT);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Ensure root ZAP exists
+  uint64_t root_zap_obj;
+  error = zos_get_root_zap(spa, tx, &root_zap_obj);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Check if bucket already exists
+  error = zap_lookup(spa_meta_objset(spa), root_zap_obj, bucket, 1, 0, NULL);
+  if (error == 0) {
+    // Bucket already exists
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return EEXIST;
+  }
+
+  // Create the bucket objset
+  error =
+      dmu_objset_create(path, DMU_OST_BUCKET, 0, NULL, create_bucket_cb, NULL);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Add entry to root ZAP: name -> path
+  error = zap_add(spa_meta_objset(spa), root_zap_obj, bucket, 1,
+                  strlen(path) + 1, path, tx);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  kmem_free(path, MAXPATHLEN);
+  dmu_tx_commit(tx);
+  spa_close(spa, FTAG);
   return 0;
 }
 
@@ -114,7 +191,63 @@ int create_bucket(const char *bucket) {
 //   return create_bucket(arg->name);
 // }
 
-int delete_bucket(const char *bucket) { return dsl_destroy_head(bucket); }
+int delete_bucket(const char *pool, const char *bucket) {
+  int error = 0;
+
+  spa_t *spa;
+
+  // Open the pool
+  error = spa_open(pool, &spa, FTAG);
+  if (error) {
+    return error;
+  }
+
+  // Create transaction
+  dmu_tx_t *tx = dmu_tx_create(spa_meta_objset(spa));
+  dmu_tx_hold_zap(tx, DMU_POOL_DIRECTORY_OBJECT, B_FALSE, DMU_POOL_ZOS_ROOT);
+  error = dmu_tx_assign(tx, DMU_TX_WAIT);
+  if (error) {
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Get root ZAP
+  uint64_t root_zap_obj;
+  error = zos_get_root_zap(spa, tx, &root_zap_obj);
+  if (error) {
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Lookup path
+  char *path = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+  error = zap_lookup(spa_meta_objset(spa), root_zap_obj, bucket, 1,
+                     sizeof(path), path);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  // Remove from root ZAP
+  error = zap_remove(spa_meta_objset(spa), root_zap_obj, bucket, tx);
+  if (error) {
+    kmem_free(path, MAXPATHLEN);
+    dmu_tx_abort(tx);
+    spa_close(spa, FTAG);
+    return error;
+  }
+
+  kmem_free(path, MAXPATHLEN);
+  dmu_tx_commit(tx);
+  spa_close(spa, FTAG);
+
+  // TODO: Verify this destroys children
+  return dsl_destroy_head(path);
+}
 
 int upsert_object(const struct zos_object *object, void *object_data,
                   size_t object_data_size) {
@@ -323,24 +456,4 @@ int delete_object(struct zos_object *object) {
   dmu_objset_rele(os, FTAG);
 
   return 0;
-}
-
-static int zos_get_root_zap(spa_t *spa, dmu_tx_t *tx, uint64_t *root_zap_obj) {
-  objset_t *mos = spa->spa_meta_objset;
-  int error;
-
-  // Check if root ZAP exists
-  error = dmu_object_info(mos, DMU_POOL_ZOS_ROOT, NULL);
-  if (error == ENOENT) {
-    // Create root ZAP
-    *root_zap_obj = zap_create(mos, DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx);
-    // Add to pool directory
-    error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
-                    root_zap_obj, tx);
-  } else if (error == 0) {
-    // Read existing root ZAP
-    error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_ZOS_ROOT, 8, 1,
-                       root_zap_obj);
-  }
-  return error;
 }
