@@ -555,6 +555,10 @@ zvol_write(zv_request_t *zvr)
 			error = zvol_dio_write(zv, zvr->bio, zvr->rq,
 			    &uio, bytes, tx);
 		} else {
+			error = SET_ERROR(ENOTSUP);
+		}
+
+		if (error != 0) {
 			error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
 			    DMU_READ_PREFETCH);
 		}
