@@ -7715,6 +7715,8 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 		}
 		(void) fprintf(stderr, gettext("warning: %s not in"
 		    "/proc/self/mounts\n"), path);
+		/* libzfs-internal flags; umount2(2) rejects them */
+		flags &= ~(MS_CRYPT | MS_OVERLAY);
 		if ((ret = umount2(path, flags)) != 0)
 			(void) fprintf(stderr, gettext("%s: %s\n"), path,
 			    strerror(errno));

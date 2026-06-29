@@ -83,17 +83,13 @@
 #endif /* MNT_DETACH */
 
 /*
- * Overlay mount is default in Linux, but for solaris/zfs
- * compatibility, MS_OVERLAY is defined to explicitly have the user
- * provide a flag (-O) to mount over a non empty directory.
+ * MS_OVERLAY (-O: allow mounting over a non-empty directory) and MS_CRYPT
+ * (load/unload encryption keys with the (un)mount) are libzfs-internal flags,
+ * never passed to the kernel.  They use high bits because the old 0x4/0x8
+ * aliased the umount2(2) flags MNT_EXPIRE/UMOUNT_NOFOLLOW; do_unmount() masks
+ * them off before the syscall.
  */
-#define	MS_OVERLAY	0x00000004
-
-/*
- * MS_CRYPT indicates that encryption keys should be loaded if they are not
- * already available. This is not defined in glibc, but it is never seen by
- * the kernel so it will not cause any problems.
- */
-#define	MS_CRYPT	0x00000008
+#define	MS_OVERLAY	0x20000000
+#define	MS_CRYPT	0x40000000
 
 #endif /* _LIBSPL_SYS_MOUNT_H */

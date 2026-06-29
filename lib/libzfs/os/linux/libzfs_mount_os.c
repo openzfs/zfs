@@ -385,6 +385,13 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 {
 	(void) zhp;
 
+	/*
+	 * MS_CRYPT and MS_OVERLAY are libzfs-internal flags; strip them so they
+	 * are never passed to umount2(2), which rejects unknown flag bits with
+	 * EINVAL. MS_FORCE/MS_DETACH are real umount2(2) flags and kept.
+	 */
+	flags &= ~(MS_CRYPT | MS_OVERLAY);
+
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
 		int rv = umount2(mntpt, flags);
 
