@@ -24,11 +24,11 @@
 # without arguments.
 #
 # insert_find_remove - Basic functionality test
-# find_without_index - Using the find function with a NULL argument
-# drain_tree         - Fill the tree then empty it using the first and last
-#                      functions
 # stress_tree        - Allow the tree to have items added and removed for a
 #                      given amount of time
+#
+# The find_without_index and drain_tree tests have been migrated to the
+# tests/unit/test_btree.c unit test.
 #
 
 log_must btree_test

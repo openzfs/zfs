@@ -16,7 +16,8 @@ libunit_la_SOURCES = \
 # all test binaries
 UNIT_TESTS = \
 	%D%/test_zap \
-	%D%/test_namecheck
+	%D%/test_namecheck \
+	%D%/test_btree
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -48,6 +49,20 @@ nodist_%C%_test_namecheck_SOURCES = \
 	%D%/test_namecheck.c
 
 %C%_test_namecheck_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_btree_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_btree_SOURCES = \
+	module/avl/avl.c \
+	module/zfs/btree.c
+
+%C%_test_btree_SOURCES = \
+	%D%/test_btree.c
+
+%C%_test_btree_LDADD = \
 	libspl.la \
 	libunit.la
 
