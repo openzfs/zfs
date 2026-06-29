@@ -687,13 +687,12 @@ zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
 
 	if (bp->bio_flags & BIO_UNMAPPED) {
 		abd = abd_alloc_from_pages(bp->bio_ma, bp->bio_ma_offset, size);
-		error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
-		abd_free(abd);
 	} else {
 		abd = abd_get_from_buf(bp->bio_data, size);
-		error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
-		abd_free(abd);
 	}
+
+	error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
+	abd_free(abd);
 	return (error);
 }
 
@@ -719,6 +718,25 @@ zvol_dio_write(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size,
 
 	if (bp->bio_flags & BIO_UNMAPPED) {
 		abd = abd_alloc_from_pages(bp->bio_ma, bp->bio_ma_offset, size);
+
+		// For RAID-Z vdevs, we need to copy the data into a new ABD,
+		// unless refreserve_raidz always failed in ZTS freebsd distros.
+		spa_t *spa = dmu_objset_spa(zv->zv_objset);
+		boolean_t has_raidz = B_FALSE;
+		for (int i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
+			if (spa->spa_root_vdev->vdev_child[i]->vdev_ops ==
+			    &vdev_raidz_ops) {
+				has_raidz = B_TRUE;
+				break;
+			}
+		}
+
+		if (has_raidz) {
+			abd_t *src = abd;
+			abd = abd_alloc_for_io(size, B_FALSE);
+			abd_copy(abd, src, size);
+			abd_free(src);
+		}
 	} else {
 		abd = abd_get_from_buf(bp->bio_data, size);
 	}
