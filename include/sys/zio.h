@@ -457,10 +457,18 @@ enum trim_flag {
 	ZIO_TRIM_SECURE		= 1U << 0,
 };
 
+#ifdef METASLAB_TRACE
 typedef struct zio_alloc_list {
 	list_t  zal_list;
 	uint64_t zal_size;
 } zio_alloc_list_t;
+#define	ZIO_ALLOC_LIST(zio)	(&(zio)->io_alloc_list)
+#else
+typedef struct zio_alloc_list {
+	uint8_t	zal_pad;
+} zio_alloc_list_t;
+#define	ZIO_ALLOC_LIST(zio)	NULL
+#endif
 
 typedef struct zio_link {
 	zio_t		*zl_parent;
@@ -530,7 +538,9 @@ struct zio {
 	hrtime_t	io_delta;	/* vdev queue service delta */
 	hrtime_t	io_delay;	/* Device access time (disk or */
 					/* file). */
+#ifdef METASLAB_TRACE
 	zio_alloc_list_t 	io_alloc_list;
+#endif
 
 	/* Internal pipeline state */
 	zio_flag_t	io_flags;
