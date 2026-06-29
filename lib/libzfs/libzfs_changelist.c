@@ -87,6 +87,68 @@ struct prop_changelist {
 };
 
 /*
+ * Deferred key unload for "zfs unmount -u". A wrapping key is shared by an
+ * encryption root and the children inheriting it, and unloads only once all
+ * of them are unmounted. The mountpoint-ordered pass 1 can unmount the root
+ * before such a child, so an inline unload would EBUSY; defer it so pass 1
+ * tears down the whole subtree (MS_CRYPT stripped) first, then unload each
+ * encryption root's key here. Returns -1 on failure so the caller re-mounts.
+ */
+static int
+changelist_unload_keys(prop_changelist_t *clp)
+{
+	prop_changenode_t *cn;
+	boolean_t encroot;
+	int ret = 0;
+
+	for (cn = avl_first(&clp->cl_tree); cn != NULL && ret == 0;
+	    cn = AVL_NEXT(&clp->cl_tree, cn)) {
+		if (getzoneid() == GLOBAL_ZONEID && cn->cn_zoned)
+			continue;
+		if (ZFS_IS_VOLUME(cn->cn_handle))
+			continue;
+		zfs_refresh_properties(cn->cn_handle);
+		if (zfs_crypto_get_encryption_root(cn->cn_handle, &encroot,
+		    NULL) != 0) {
+			ret = -1;
+		} else if (encroot && zfs_prop_get_int(cn->cn_handle,
+		    ZFS_PROP_KEYSTATUS) == ZFS_KEYSTATUS_AVAILABLE &&
+		    zfs_crypto_unload_key(cn->cn_handle) != 0) {
+			ret = -1;
+		}
+	}
+
+	return (ret);
+}
+
+/*
+ * Called when changelist_unload_keys() could not unload a key, typically
+ * because a dataset using it is still in use (e.g. a bind or second mount).
+ * The "zfs unmount -u" cannot complete, so undo it by re-mounting the
+ * datasets we just unmounted, parent-first so a parent is never mounted over
+ * a child. We re-mount each node unconditionally rather than rely on
+ * changelist_postfix(), which only re-mounts a node it finds unmounted: a
+ * bind or second mount can leave a dataset looking mounted while its own
+ * mountpoint is gone, so postfix would skip it. A node whose key was already
+ * unloaded is skipped, since it cannot be mounted without its key.
+ */
+static void
+changelist_remount_subtree(prop_changelist_t *clp)
+{
+	prop_changenode_t *cn;
+
+	for (cn = avl_last(&clp->cl_tree); cn != NULL;
+	    cn = AVL_PREV(&clp->cl_tree, cn)) {
+		if (!cn->cn_needpost || !cn->cn_mounted)
+			continue;
+		zfs_refresh_properties(cn->cn_handle);
+		if (zfs_prop_get_int(cn->cn_handle, ZFS_PROP_KEYSTATUS) !=
+		    ZFS_KEYSTATUS_UNAVAILABLE)
+			(void) zfs_mount(cn->cn_handle, NULL, 0);
+	}
+}
+
+/*
  * If the property is 'mountpoint', go through and unmount filesystems as
  * necessary.  We don't do the same for 'sharenfs', because we can just re-share
  * with different options without interrupting service. We do handle 'sharesmb'
@@ -136,7 +198,7 @@ changelist_prefix(prop_changelist_t *clp)
 			switch (clp->cl_prop) {
 			case ZFS_PROP_MOUNTPOINT:
 				if (zfs_unmount(cn->cn_handle, NULL,
-				    clp->cl_mflags) != 0) {
+				    clp->cl_mflags & ~MS_CRYPT) != 0) {
 					ret = -1;
 					cn->cn_needpost = B_FALSE;
 				}
@@ -155,6 +217,12 @@ changelist_prefix(prop_changelist_t *clp)
 
 	if (commit_smb_shares)
 		zfs_commit_shares(smb);
+
+	if (ret == 0 && (clp->cl_mflags & MS_CRYPT)) {
+		ret = changelist_unload_keys(clp);
+		if (ret == -1)
+			changelist_remount_subtree(clp);
+	}
 
 	if (ret == -1)
 		(void) changelist_postfix(clp);
