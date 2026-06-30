@@ -2282,6 +2282,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/truncate/truncate_001_pos.ksh \
 	functional/truncate/truncate_002_pos.ksh \
 	functional/truncate/truncate_timestamps.ksh \
+	functional/unlink/cleanup.ksh \
+	functional/unlink/setup.ksh \
+	functional/unlink/unlinked_fh_accessible.ksh \
 	functional/upgrade/cleanup.ksh \
 	functional/upgrade/setup.ksh \
 	functional/upgrade/upgrade_projectquota_001_pos.ksh \

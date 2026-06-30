@@ -1081,6 +1081,10 @@ tags = ['functional', 'trim']
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
+[tests/functional/unlink]
+tests = ['unlinked_fh_accessible']
+tags = ['functional', 'unlink']
+
 [tests/functional/upgrade]
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']
 tags = ['functional', 'upgrade']
