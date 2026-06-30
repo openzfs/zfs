@@ -1005,18 +1005,14 @@ again:
 		 */
 		ASSERT3P(zp, !=, NULL);
 		ASSERT3U(zp->z_id, ==, obj_num);
-		if (zp->z_unlinked) {
-			err = SET_ERROR(ENOENT);
-		} else {
-			vp = ZTOV(zp);
-			/*
-			 * Don't let the vnode disappear after
-			 * ZFS_OBJ_HOLD_EXIT.
-			 */
-			VN_HOLD(vp);
-			*zpp = zp;
-			err = 0;
-		}
+		vp = ZTOV(zp);
+		/*
+		 * Don't let the vnode disappear after
+		 * ZFS_OBJ_HOLD_EXIT.
+		 */
+		VN_HOLD(vp);
+		*zpp = zp;
+		err = 0;
 
 		sa_buf_rele(db, NULL);
 		ZFS_OBJ_HOLD_EXIT(zfsvfs, obj_num);
