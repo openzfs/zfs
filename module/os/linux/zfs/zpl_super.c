@@ -342,10 +342,10 @@ zpl_show_options(struct seq_file *seq, struct dentry *root)
 }
 
 static int
-zpl_test_super(struct super_block *s, void *data)
+zpl_test_super(struct super_block *s, struct fs_context *fc)
 {
 	zfsvfs_t *zfsvfs = s->s_fs_info;
-	objset_t *os = data;
+	objset_t *os = fc->sget_key;
 	/*
 	 * If the os doesn't match the z_os in the super_block, assume it is
 	 * not a match. Matching would imply a multimount of a dataset. It is
@@ -859,8 +859,8 @@ zpl_get_tree(struct fs_context *fc)
 		return (-err);
 
 	/*
-	 * The dsl pool lock must be released prior to calling sget().
-	 * It is possible sget() may block on the lock in grab_super()
+	 * The dsl pool lock must be released prior to calling sget_fc().
+	 * It is possible sget_fc() may block on the lock in grab_super()
 	 * while deactivate_super() holds that same lock and waits for
 	 * a txg sync.  If the dsl_pool lock is held over sget()
 	 * this can prevent the pool sync and cause a deadlock.
@@ -868,8 +868,9 @@ zpl_get_tree(struct fs_context *fc)
 	dsl_dataset_long_hold(dmu_objset_ds(os), FTAG);
 	dsl_pool_rele(dmu_objset_pool(os), FTAG);
 
-	sb = sget(fc->fs_type, zpl_test_super, set_anon_super,
-	    fc->sb_flags, os);
+	fc->sget_key = os;
+	sb = sget_fc(fc, zpl_test_super, set_anon_super_fc);
+	fc->sget_key = NULL;
 
 	/*
 	 * Recheck with the lock held to prevent mounting the wrong dataset
