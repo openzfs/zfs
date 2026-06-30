@@ -48,14 +48,6 @@ typedef int abd_iter_page_func_t(struct page *, size_t, size_t, void *);
 int abd_iterate_page_func(struct abd *, size_t, size_t, abd_iter_page_func_t *,
     void *);
 
-/*
- * Linux ABD bio functions
- * Note: these are only needed to support vdev_classic. See comment in
- * vdev_disk.c.
- */
-unsigned int abd_bio_map_off(struct bio *, struct abd *, unsigned int, size_t);
-unsigned long abd_nr_pages_off(struct abd *, unsigned int, size_t);
-
 __attribute__((malloc))
 struct abd *abd_alloc_from_pages(struct page **, unsigned long, uint64_t);
 
