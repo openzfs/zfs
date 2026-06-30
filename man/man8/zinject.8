@@ -61,6 +61,21 @@ Cancel injection records.
 .
 .It Xo
 .Nm zinject
+.Fl w Ar state Ns | Ns Sy 0
+.Op Fl W Ar delay
+.Xc
+Wait until an injection event occurs.
+The
+.Ar state
+parameter synchronizes with kernel state and
+should be set to 0 for first call which gets the current state value,
+then the value printed to stdout after each wait.
+.Fl W Ar delay
+sets an optional timeout in milliseconds.
+If omitted, waits forever.
+.
+.It Xo
+.Nm zinject
 .Fl d Ar vdev
 .Fl A Sy degrade Ns | Ns Sy fault
 .Ar pool
