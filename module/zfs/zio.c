@@ -3587,16 +3587,26 @@ zio_ddt_collision(zio_t *zio, ddt_t *ddt, ddt_entry_t *dde)
 		if (dde->dde_io == NULL)
 			continue;
 
+		/*
+		 * Lock dde_io to prevent the lead zio from completing
+		 * and freeing its ABD while we compare against it.
+		 */
+		mutex_enter(&dde->dde_io->dde_io_lock);
 		zio_t *lio = dde->dde_io->dde_lead_zio[p];
-		if (lio == NULL)
+		if (lio == NULL) {
+			mutex_exit(&dde->dde_io->dde_io_lock);
 			continue;
-
-		if (do_raw)
-			return (lio->io_size != zio->io_size ||
-			    abd_cmp(zio->io_abd, lio->io_abd) != 0);
-
-		return (lio->io_orig_size != zio->io_orig_size ||
-		    abd_cmp(zio->io_orig_abd, lio->io_orig_abd) != 0);
+		}
+		boolean_t collision;
+		if (do_raw) {
+			collision = lio->io_size != zio->io_size ||
+			    abd_cmp(zio->io_abd, lio->io_abd) != 0;
+		} else {
+			collision = lio->io_orig_size != zio->io_orig_size ||
+			    abd_cmp(zio->io_orig_abd, lio->io_orig_abd) != 0;
+		}
+		mutex_exit(&dde->dde_io->dde_io_lock);
+		return (collision);
 	}
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
