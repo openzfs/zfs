@@ -91,6 +91,7 @@ function freebsd() {
   sudo pkg install -xy \
     '^samba4[[:digit:]]+$' \
     '^py3[[:digit:]]+-cffi$' \
+    '^py3[[:digit:]]+-pip$' \
     '^py3[[:digit:]]+-sysctl$' \
     '^py3[[:digit:]]+-setuptools$' \
     '^py3[[:digit:]]+-packaging$'
