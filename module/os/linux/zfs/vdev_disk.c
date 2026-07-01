@@ -107,6 +107,15 @@ static uint_t zfs_vdev_open_timeout_ms = 1000;
 static unsigned int zfs_vdev_failfast_mask = 1;
 
 /*
+ * Whether we wait for bio to complete. Also requires that
+ * zio has bypassed the vdev queue. May lead to performance
+ * improvements when backing vdev devices are fast and low
+ * latency. May impact performance with certain workloads
+ * when enabled on raidz or draid zpool configurations.
+ */
+static unsigned int zfs_vdev_disk_calling_thread_io = 0;
+
+/*
  * Convert SPA mode flags into bdev open mode flags.
  */
 #ifdef HAVE_BLK_MODE_T
@@ -604,6 +613,15 @@ vdev_submit_bio(struct bio *bio)
 	current->bio_list = bio_list;
 }
 
+static inline void
+vdev_submit_bio_wait(struct bio *bio)
+{
+	struct bio_list *bio_list = current->bio_list;
+	current->bio_list = NULL;
+	(void) submit_bio_wait(bio);
+	current->bio_list = bio_list;
+}
+
 static inline struct bio *
 vdev_bio_alloc(struct block_device *bdev, gfp_t gfp_mask,
     unsigned short nr_vecs)
@@ -678,6 +696,7 @@ typedef struct {
 
 	struct bio	*vbio_bio;	/* pointer to the current bio */
 	int		vbio_flags;	/* bio flags */
+	boolean_t	vbio_wait;	/* wait for completion */
 } vbio_t;
 
 static vbio_t *
@@ -694,6 +713,7 @@ vbio_alloc(zio_t *zio, struct block_device *bdev, int flags)
 	vbio->vbio_offset = zio->io_offset;
 	vbio->vbio_bio = NULL;
 	vbio->vbio_flags = flags;
+	vbio->vbio_wait = B_FALSE;
 
 	return (vbio);
 }
@@ -779,16 +799,20 @@ vbio_submit(vbio_t *vbio, abd_t *abd, uint64_t size)
 	(void) abd_iterate_page_func(abd, 0, size, vbio_fill_cb, vbio);
 	ASSERT(vbio->vbio_bio);
 
-	vbio->vbio_bio->bi_end_io = vbio_completion;
-	vbio->vbio_bio->bi_private = vbio;
-
 	/*
 	 * Once submitted, vbio_bio now owns vbio (through bi_private) and we
 	 * can't touch it again. The bio may complete and vbio_completion() be
 	 * called and free the vbio before this task is run again, so we must
 	 * consider it invalid from this point.
 	 */
-	vdev_submit_bio(vbio->vbio_bio);
+
+	if (vbio->vbio_wait) {
+		vdev_submit_bio_wait(vbio->vbio_bio);
+	} else {
+		vbio->vbio_bio->bi_end_io = vbio_completion;
+		vbio->vbio_bio->bi_private = vbio;
+		vdev_submit_bio(vbio->vbio_bio);
+	}
 
 	blk_finish_plug(&plug);
 }
@@ -820,7 +844,12 @@ vbio_completion(struct bio *bio)
 	ASSERT0P(zio->io_bio);
 	zio->io_bio = vbio;
 
-	zio_delay_interrupt(zio);
+	/* Using calling thread io, don't dispatch zio. */
+	if (vbio->vbio_wait)
+		zio_execute(zio);
+	else
+		zio_delay_interrupt(zio);
+
 }
 
 /*
@@ -978,8 +1007,19 @@ vdev_disk_io_rw(zio_t *zio)
 	if (abd != zio->io_abd)
 		vbio->vbio_abd = abd;
 
+	boolean_t bio_wait = B_FALSE;
+	if (zfs_vdev_disk_calling_thread_io &&
+	    (zio->io_flags & ZIO_FLAG_BYPASSED_QUEUE)) {
+		vbio->vbio_wait = bio_wait = B_TRUE;
+	}
 	/* Fill it with data pages and submit it to the kernel */
 	vbio_submit(vbio, abd, zio->io_size);
+
+	if (bio_wait) {
+		vbio->vbio_bio->bi_private = vbio;
+		vbio_completion(vbio->vbio_bio);
+	}
+
 	return (0);
 }
 
@@ -1370,3 +1410,6 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, failfast_mask, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, max_segs, UINT, ZMOD_RW,
 	"Maximum number of data segments to add to an IO request (min 4)");
+
+ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, calling_thread_io, UINT,
+	ZMOD_RW, "Enable calling thread io");

@@ -956,6 +956,7 @@ vdev_queue_io(zio_t *zio)
 
 	if (!vdev_should_queue_io(zio)) {
 		zio->io_queue_state = ZIO_QS_NONE;
+		zio->io_flags |= ZIO_FLAG_BYPASSED_QUEUE;
 		return (zio);
 	}
 
