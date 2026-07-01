@@ -40,6 +40,8 @@
 # 3. Test that 'zfs unmount -u' unloads keys as it unmounts multiple datasets
 # 4. Test that 'zfs unmount -u' returns an error if the key is still in
 #    use by a clone.
+# 5. Test that 'zfs unmount -u' unloads the key when a key-inheriting child's
+#    mountpoint sorts before its encryption root's.
 #
 
 verify_runnable "both"
@@ -76,5 +78,18 @@ log_must zfs clone $TESTPOOL/$TESTFS2/newroot@1 $TESTPOOL/$TESTFS2/clone
 log_mustnot zfs umount -u $TESTPOOL/$TESTFS2/newroot
 log_must key_available $TESTPOOL/$TESTFS2/newroot
 log_must mounted $TESTPOOL/$TESTFS2/newroot
+
+# The changelist unmounts mountpoints in reverse alphabetical order, so
+# z_root (which sorts after a_child) is unmounted first, before its
+# key-inheriting child. The root comes down while the child still holds the
+# shared key, so the key must unload only after the whole subtree is down.
+log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passphrase -o mountpoint=/$TESTPOOL/z_root $TESTPOOL/$TESTFS2/encroot"
+log_must zfs create -o mountpoint=/$TESTPOOL/a_child $TESTPOOL/$TESTFS2/encroot/child
+log_must mounted $TESTPOOL/$TESTFS2/encroot
+log_must mounted $TESTPOOL/$TESTFS2/encroot/child
+log_must zfs umount -u $TESTPOOL/$TESTFS2/encroot
+log_must key_unavailable $TESTPOOL/$TESTFS2/encroot
+log_must unmounted $TESTPOOL/$TESTFS2/encroot
+log_must unmounted $TESTPOOL/$TESTFS2/encroot/child
 
 log_pass "'zfs unmount -u' unloads keys for datasets as they are unmounted"
