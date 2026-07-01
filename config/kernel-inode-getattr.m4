@@ -40,24 +40,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_GETATTR], [
 			.getattr = test_getattr,
 		};
 	],[])
-
-	dnl #
-	dnl # Linux 4.11 API
-	dnl # See torvalds/linux@a528d35
-	dnl #
-	ZFS_LINUX_TEST_SRC([inode_operations_getattr_path], [
-		#include <linux/fs.h>
-
-		static int test_getattr(
-		    const struct path *p, struct kstat *k,
-		    u32 request_mask, unsigned int query_flags)
-		    { return 0; }
-
-		static const struct inode_operations
-		    iops __attribute__ ((unused)) = {
-			.getattr = test_getattr,
-		};
-	],[])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_GETATTR], [
@@ -81,18 +63,6 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_GETATTR], [
 			    [iops->getattr() takes struct user_namespace*])
 		],[
 			AC_MSG_RESULT(no)
-
-			dnl #
-			dnl # Kernel 4.11 test
-			dnl #
-			AC_MSG_CHECKING([whether iops->getattr() takes a path])
-			ZFS_LINUX_TEST_RESULT([inode_operations_getattr_path], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_PATH_IOPS_GETATTR, 1,
-					[iops->getattr() takes a path])
-			],[
-				AC_MSG_RESULT(no)
-			])
 		])
 	])
 ])
