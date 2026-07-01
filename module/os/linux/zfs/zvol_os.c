@@ -265,7 +265,7 @@ zvol_write(zv_request_t *zvr)
 			break;
 		}
 		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
-		    DMU_READ_PREFETCH);
+		    DMU_READ_PREFETCH, B_FALSE);
 		if (error == 0) {
 			zvol_log_write(zv, tx, off, bytes, sync);
 		}

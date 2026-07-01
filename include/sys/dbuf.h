@@ -385,7 +385,8 @@ void dmu_buf_will_fill_flags(dmu_buf_t *db, dmu_tx_t *tx, boolean_t canfail,
 boolean_t dmu_buf_fill_done(dmu_buf_t *db, dmu_tx_t *tx, boolean_t failed);
 void dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
     dmu_flags_t flags);
-dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
+dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx,
+    boolean_t recount);
 dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
     dmu_tx_t *tx);
 boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
