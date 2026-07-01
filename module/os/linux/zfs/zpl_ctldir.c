@@ -192,10 +192,10 @@ zpl_snapdir_automount(struct path *path)
 }
 
 /*
- * Negative dentries must always be revalidated so newly created snapshots
- * can be detected and automounted.  Normal dentries should be kept because
- * as of the 3.18 kernel revaliding the mountpoint dentry will result in
- * the snapshot being immediately unmounted.
+ * Negative dentries must always be revalidated so newly created snapshots can
+ * be detected and automounted.  Normal dentries should be kept because
+ * revalidating the mountpoint dentry will result in the snapshot being
+ * immediately unmounted.
  */
 #ifdef HAVE_D_REVALIDATE_4ARGS
 static int
@@ -210,14 +210,6 @@ zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 }
 
 static const struct dentry_operations zpl_dops_snapdirs = {
-/*
- * Auto mounting of snapshots is only supported for 2.6.37 and
- * newer kernels.  Prior to this kernel the ops->follow_link()
- * callback was used as a hack to trigger the mount.  The
- * resulting vfsmount was then explicitly grafted in to the
- * name space.  While it might be possible to add compatibility
- * code to accomplish this it would require considerable care.
- */
 	.d_automount	= zpl_snapdir_automount,
 	.d_revalidate	= zpl_snapdir_revalidate,
 };
