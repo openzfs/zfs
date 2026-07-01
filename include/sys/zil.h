@@ -468,6 +468,7 @@ typedef struct itx {
 	size_t		itx_size;	/* allocated itx structure size */
 	uint64_t	itx_oid;	/* object id */
 	uint64_t	itx_gen;	/* gen number for zfs_get_data */
+	uint64_t	itx_coalesce_align;
 	lr_t		itx_lr;		/* common part of log record */
 	uint8_t		itx_lr_data[];	/* type-specific part of lr_xx_t */
 } itx_t;

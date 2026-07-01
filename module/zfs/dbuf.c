@@ -2183,11 +2183,13 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	if (db->db_level == 0)
 		dr->dt.dl.dr_data = buf;
 	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
-	ASSERT3U(dr->dr_accounted, ==, osize);
-	dr->dr_accounted = size;
+	uint64_t count = dr->dr_accounted / osize;
+	uint64_t oaccounted = dr->dr_accounted;
+	dr->dr_accounted = size * count;
 	mutex_exit(&db->db_mtx);
 
-	dmu_objset_willuse_space(dn->dn_objset, size - osize, tx);
+	dmu_objset_willuse_space(dn->dn_objset, dr->dr_accounted - oaccounted,
+	    tx);
 	DB_DNODE_EXIT(db);
 }
 
@@ -2211,11 +2213,12 @@ dbuf_release_bp(dmu_buf_impl_t *db)
  * dirtied again.
  */
 static void
-dbuf_redirty(dbuf_dirty_record_t *dr)
+dbuf_redirty(dbuf_dirty_record_t *dr, dmu_tx_t *recount_tx)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(DB_DNODE_HELD(db));
 
 	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID) {
 		/*
@@ -2235,6 +2238,12 @@ dbuf_redirty(dbuf_dirty_record_t *dr)
 		 * modification.
 		 */
 		dr->dt.dl.dr_rewrite = B_FALSE;
+	}
+	if (recount_tx) { // TODO elseif?
+		dnode_t *dn = DB_DNODE(db);
+		dr->dr_accounted += db->db.db_size;
+		dmu_objset_willuse_space(dn->dn_objset, db->db.db_size,
+		    recount_tx);
 	}
 }
 
@@ -2304,7 +2313,8 @@ dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 			return (NULL);
 		}
 
-		dbuf_dirty_record_t *parent_dr = dbuf_dirty(parent_db, tx);
+		dbuf_dirty_record_t *parent_dr = dbuf_dirty(parent_db, tx,
+		    B_FALSE);
 		dbuf_rele(parent_db, FTAG);
 		mutex_enter(&parent_dr->dt.di.dr_mtx);
 		ASSERT3U(parent_dr->dr_txg, ==, tx->tx_txg);
@@ -2319,7 +2329,7 @@ dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 }
 
 dbuf_dirty_record_t *
-dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
+dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx, boolean_t recount)
 {
 	dnode_t *dn;
 	objset_t *os;
@@ -2372,9 +2382,9 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    db->db.db_object == DMU_META_DNODE_OBJECT);
 	dr_next = dbuf_find_dirty_lte(db, tx->tx_txg);
 	if (dr_next && dr_next->dr_txg == tx->tx_txg) {
-		DB_DNODE_EXIT(db);
 
-		dbuf_redirty(dr_next);
+		dbuf_redirty(dr_next, recount ? tx : NULL);
+		DB_DNODE_EXIT(db);
 		mutex_exit(&db->db_mtx);
 		return (dr_next);
 	}
@@ -2541,7 +2551,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		if (drop_struct_rwlock)
 			rw_exit(&dn->dn_struct_rwlock);
 		ASSERT3U(db->db_level + 1, ==, parent->db_level);
-		di = dbuf_dirty(parent, tx);
+		di = dbuf_dirty(parent, tx, B_FALSE);
 		if (parent_held)
 			dbuf_rele(parent, FTAG);
 
@@ -2707,7 +2717,8 @@ dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 }
 
 void
-dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
+dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags,
+    boolean_t recount)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	boolean_t undirty = B_FALSE;
@@ -2740,7 +2751,9 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 				undirty = B_TRUE;
 			} else {
 				/* This dbuf is already dirty and cached. */
-				dbuf_redirty(dr);
+				DB_DNODE_ENTER(db);
+				dbuf_redirty(dr, recount ? tx : NULL);
+	DB_DNODE_EXIT(db);
 				mutex_exit(&db->db_mtx);
 				return;
 			}
@@ -2765,13 +2778,13 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 		VERIFY(!dbuf_undirty(db, tx));
 		mutex_exit(&db->db_mtx);
 	}
-	(void) dbuf_dirty(db, tx);
+	(void) dbuf_dirty(db, tx, recount);
 }
 
 void
 dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
-	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH, B_FALSE);
 }
 
 void
@@ -2797,7 +2810,7 @@ dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	 * The dbuf is not dirty, so we need to make it dirty and
 	 * mark it for rewrite (preserve logical birth time).
 	 */
-	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH, B_FALSE);
 
 	mutex_enter(&db->db_mtx);
 	dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
@@ -2968,7 +2981,7 @@ dmu_buf_will_clone_or_dio(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	mutex_exit(&db->db_mtx);
 
 	dbuf_noread(db, DMU_KEEP_CACHING);
-	(void) dbuf_dirty(db, tx);
+	(void) dbuf_dirty(db, tx, B_FALSE);
 }
 
 void
@@ -2982,7 +2995,7 @@ dmu_buf_will_not_fill(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	mutex_exit(&db->db_mtx);
 
 	dbuf_noread(db, DMU_KEEP_CACHING);
-	(void) dbuf_dirty(db, tx);
+	(void) dbuf_dirty(db, tx, B_FALSE);
 }
 
 void
@@ -3009,7 +3022,7 @@ dmu_buf_will_fill_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t canfail,
 		 */
 		if (canfail && dr) {
 			mutex_exit(&db->db_mtx);
-			dmu_buf_will_dirty_flags(db_fake, tx, flags);
+			dmu_buf_will_dirty_flags(db_fake, tx, flags, B_FALSE);
 			return;
 		}
 		/*
@@ -3026,7 +3039,7 @@ dmu_buf_will_fill_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t canfail,
 	mutex_exit(&db->db_mtx);
 
 	dbuf_noread(db, flags);
-	(void) dbuf_dirty(db, tx);
+	(void) dbuf_dirty(db, tx, B_FALSE);
 }
 
 void
@@ -3058,7 +3071,7 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	ASSERT(db->db_objset->os_raw_receive);
 
 	dmu_buf_will_dirty_flags(db_fake, tx,
-	    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
+	    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT, B_FALSE);
 
 	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 
@@ -3235,7 +3248,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
 		 */
 		ASSERT(!arc_is_encrypted(buf));
 		mutex_exit(&db->db_mtx);
-		(void) dbuf_dirty(db, tx);
+		(void) dbuf_dirty(db, tx, B_FALSE);
 		memcpy(db->db.db_data, buf->b_data, db->db.db_size);
 		arc_buf_destroy(buf, db);
 		return;
@@ -3275,7 +3288,7 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx,
 	db->db_state = DB_FILL;
 	DTRACE_SET_STATE(db, "filling assigned arcbuf");
 	mutex_exit(&db->db_mtx);
-	(void) dbuf_dirty(db, tx);
+	(void) dbuf_dirty(db, tx, B_FALSE);
 	dmu_buf_fill_done(&db->db, tx, B_FALSE);
 }
 

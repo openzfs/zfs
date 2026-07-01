@@ -820,7 +820,7 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 
 	/*
 	 * We have written all of the accounted dirty data, so our
-	 * dp_space_towrite should now be zero. However, some seldom-used
+	 * dp_dirty_pertxg should now be zero. However, some seldom-used
 	 * code paths do not adhere to this (e.g. dbuf_undirty()). Shore up
 	 * the accounting of any dirtied space now.
 	 *

@@ -670,6 +670,14 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 			}
 		}
 
+		if (wr_state == WR_NEED_COPY || wr_state == WR_INDIRECT) {
+			DB_DNODE_ENTER(db);
+			uint64_t maxblkid = DB_DNODE(db)->dn_maxblkid;
+			DB_DNODE_EXIT(db);
+			if (maxblkid > 0)
+				itx->itx_coalesce_align = blocksize;
+		}
+
 		log_size += itx->itx_size;
 		if (wr_state == WR_NEED_COPY)
 			log_size += len;

@@ -1362,7 +1362,7 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 				else
 					flags |= DMU_PARTIAL_MORE;
 			}
-			dmu_buf_will_dirty_flags(db, tx, flags);
+			dmu_buf_will_dirty_flags(db, tx, flags, B_FALSE);
 		}
 
 		ASSERT(db->db_data != NULL);
@@ -1574,7 +1574,7 @@ dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 
 int
 dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx,
-    dmu_flags_t flags)
+    dmu_flags_t flags, boolean_t recount)
 {
 	dmu_buf_t **dbp;
 	int numbufs;
@@ -1641,7 +1641,7 @@ top:
 				else
 					flags |= DMU_PARTIAL_MORE;
 			}
-			dmu_buf_will_dirty_flags(db, tx, flags);
+			dmu_buf_will_dirty_flags(db, tx, flags, recount);
 		}
 
 		ASSERT(db->db_data != NULL);
@@ -1694,7 +1694,7 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 		return (0);
 
 	DB_DNODE_ENTER(db);
-	err = dmu_write_uio_dnode(DB_DNODE(db), uio, size, tx, flags);
+	err = dmu_write_uio_dnode(DB_DNODE(db), uio, size, tx, flags, B_TRUE);
 	DB_DNODE_EXIT(db);
 
 	return (err);
@@ -1719,7 +1719,7 @@ dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 	if (err)
 		return (err);
 
-	err = dmu_write_uio_dnode(dn, uio, size, tx, flags);
+	err = dmu_write_uio_dnode(dn, uio, size, tx, flags, B_FALSE);
 
 	dnode_rele(dn, FTAG);
 

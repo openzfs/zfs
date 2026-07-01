@@ -1905,7 +1905,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT3U(dn->dn_dirtycnt, <=, 3);
 	mutex_exit(&dn->dn_mtx);
 
-	(void) dbuf_dirty(dn->dn_dbuf, tx);
+	(void) dbuf_dirty(dn->dn_dbuf, tx, B_FALSE);
 
 	dsl_dataset_dirty(os->os_dsl_dataset, tx);
 }
@@ -2014,7 +2014,7 @@ dnode_set_nlevels_impl(dnode_t *dn, int new_nlevels, dmu_tx_t *tx)
 	/* dirty the left indirects */
 	db = dbuf_hold_level(dn, old_nlevels, 0, FTAG);
 	ASSERT(db != NULL);
-	new = dbuf_dirty(db, tx);
+	new = dbuf_dirty(db, tx, B_FALSE);
 	dbuf_rele(db, FTAG);
 
 	/* transfer the dirty records to the new indirect */

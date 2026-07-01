@@ -825,7 +825,8 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
-void dmu_buf_will_dirty_flags(dmu_buf_t *db, dmu_tx_t *tx, dmu_flags_t flags);
+void dmu_buf_will_dirty_flags(dmu_buf_t *db, dmu_tx_t *tx, dmu_flags_t flags,
+    boolean_t recount);
 void dmu_buf_will_rewrite(dmu_buf_t *db, dmu_tx_t *tx);
 boolean_t dmu_buf_is_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
@@ -942,7 +943,7 @@ int dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 int dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
-	dmu_tx_t *tx, dmu_flags_t flags);
+	dmu_tx_t *tx, dmu_flags_t flags, boolean_t recount);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
