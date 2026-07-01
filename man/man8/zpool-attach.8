@@ -37,7 +37,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm attach
-.Op Fl fsw
+.Op Fl fsSw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool vdev new_device
 .
@@ -126,6 +126,16 @@ When attaching to a mirror or plain vdev, the
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
+.It Fl S
+Attaches the
+.Ar new_device
+as a shadow device.
+Shadow devices are read from in all read operations, but the results are
+only checked for correctness and then discarded.
+They are written to by all write operations as normal.
+The goal of this feature is to provide an environment where the shadow device
+can be stressed and checked for correctness but not relied on to behave
+correctly.
 .It Fl w
 Waits until
 .Ar new_device

@@ -1558,7 +1558,7 @@ zpool_do_add(int argc, char **argv)
 
 	/* pass off to make_root_vdev for processing */
 	nvroot = make_root_vdev(zhp, props, !check_inuse,
-	    check_replication, B_FALSE, dryrun, argc, argv);
+	    check_replication, B_FALSE, dryrun, B_FALSE, argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		return (1);
@@ -2159,7 +2159,7 @@ zpool_do_create(int argc, char **argv)
 
 	/* pass off to make_root_vdev for bulk processing */
 	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
-	    argc - 1, argv + 1);
+	    B_FALSE, argc - 1, argv + 1);
 	if (nvroot == NULL)
 		goto errout;
 
@@ -7628,6 +7628,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	boolean_t force = B_FALSE;
 	boolean_t rebuild = B_FALSE;
 	boolean_t wait = B_FALSE;
+	boolean_t shadow = B_FALSE;
 	int c;
 	nvlist_t *nvroot;
 	char *poolname, *old_disk, *new_disk;
@@ -7637,7 +7638,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fo:sw")) != -1) {
+	while ((c = getopt(argc, argv, "fo:sSw")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -7657,6 +7658,9 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 			break;
 		case 's':
 			rebuild = B_TRUE;
+			break;
+		case 'S':
+			shadow = B_TRUE;
 			break;
 		case 'w':
 			wait = B_TRUE;
@@ -7735,7 +7739,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	}
 
 	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,
-	    argc, argv);
+	    shadow, argc, argv);
 	if (nvroot == NULL) {
 		zpool_close(zhp);
 		nvlist_free(props);

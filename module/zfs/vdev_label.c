@@ -657,6 +657,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 	}
 
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_shadow)
+		fnvlist_add_boolean(nv, ZPOOL_VDEV_CONFIG_SHADOW);
+
 	if (getstats) {
 		vdev_config_generate_stats(vd, nv);
 

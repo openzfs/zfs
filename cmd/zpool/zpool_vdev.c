@@ -1549,7 +1549,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width,
  * because the program is just going to exit anyway.
  */
 static nvlist_t *
-construct_spec(nvlist_t *props, int argc, char **argv)
+construct_spec(nvlist_t *props, boolean_t shadow, int argc, char **argv)
 {
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
@@ -1895,6 +1895,10 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 			verify(nvlist_add_uint64(nv,
 			    ZPOOL_CONFIG_IS_LOG, is_log) == 0);
+			if (shadow) {
+				fnvlist_add_boolean(nv,
+				    ZPOOL_VDEV_CONFIG_SHADOW);
+			}
 			if (is_log) {
 				verify(nvlist_add_string(nv,
 				    ZPOOL_CONFIG_ALLOCATION_BIAS,
@@ -1974,7 +1978,8 @@ split_mirror_vdev(zpool_handle_t *zhp, char *newname, nvlist_t *props,
 	uint_t c, children;
 
 	if (argc > 0) {
-		if ((newroot = construct_spec(props, argc, argv)) == NULL) {
+		if ((newroot = construct_spec(props, B_FALSE, argc, argv)) ==
+		    NULL) {
 			(void) fprintf(stderr, gettext("Unable to build a "
 			    "pool from the specified devices\n"));
 			return (NULL);
@@ -2048,7 +2053,8 @@ num_normal_vdevs(nvlist_t *nvroot)
  */
 nvlist_t *
 make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
-    boolean_t replacing, boolean_t dryrun, int argc, char **argv)
+    boolean_t replacing, boolean_t dryrun, boolean_t shadow, int argc,
+    char **argv)
 {
 	nvlist_t *newroot;
 	nvlist_t *poolconfig = NULL;
@@ -2059,7 +2065,7 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	 * that we have a valid specification, and that all devices can be
 	 * opened.
 	 */
-	if ((newroot = construct_spec(props, argc, argv)) == NULL)
+	if ((newroot = construct_spec(props, shadow, argc, argv)) == NULL)
 		return (NULL);
 
 	if (zhp && ((poolconfig = zpool_get_config(zhp, NULL)) == NULL)) {

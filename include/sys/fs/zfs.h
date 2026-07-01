@@ -486,6 +486,7 @@ typedef enum {
 	VDEV_PROP_FGROUP,
 	VDEV_PROP_ALLOC_BIAS,
 	VDEV_PROP_ROTATIONAL,
+	VDEV_PROP_SHADOW,
 	VDEV_NUM_PROPS
 } vdev_prop_t;
 
@@ -879,6 +880,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_CONDENSE_STATS	"com.klarasystems:condense_stats"
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
+#define	ZPOOL_VDEV_CONFIG_SHADOW	"com.klarasystems:shadow_vdev"
 
 /* container nvlist of extended stats */
 #define	ZPOOL_CONFIG_VDEV_STATS_EX	"vdev_stats_ex"
