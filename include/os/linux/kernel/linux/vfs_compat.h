@@ -162,19 +162,6 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 #endif
 
 /*
- * 4.9 API change
- */
-#if !(defined(HAVE_SETATTR_PREPARE_NO_USERNS) || \
-    defined(HAVE_SETATTR_PREPARE_USERNS) || \
-    defined(HAVE_SETATTR_PREPARE_IDMAP))
-static inline int
-setattr_prepare(struct dentry *dentry, struct iattr *ia)
-{
-	return (inode_change_ok(dentry->d_inode, ia));
-}
-#endif
-
-/*
  * 4.11 API change
  * These macros are defined by kernel 4.11.  We define them so that the same
  * code builds under kernels < 4.11 and >= 4.11.  The macros are set to 0 so
