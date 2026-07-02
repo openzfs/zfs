@@ -165,25 +165,14 @@ is_nametoolong(struct dentry *dentry)
 	    dlen >= ZAP_MAXNAMELEN_NEW);
 }
 
-static int
-#ifdef HAVE_IOPS_CREATE_USERNS
-zpl_create(struct user_namespace *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode, bool flag)
-#elif defined(HAVE_IOPS_CREATE_IDMAP)
-zpl_create(struct mnt_idmap *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode, bool flag)
-#else
-zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode, bool, flag)
 {
 	cred_t *cr = CRED();
 	znode_t *zp;
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_IOPS_CREATE_USERNS) || defined(HAVE_IOPS_CREATE_IDMAP))
-	zidmap_t *idmap = kcred->user_ns;
-#endif
 
 	if (is_nametoolong(dentry)) {
 		return (-ENAMETOOLONG);
@@ -218,26 +207,14 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	return (error);
 }
 
-static int
-#ifdef HAVE_IOPS_MKNOD_USERNS
-zpl_mknod(struct user_namespace *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode,
-#elif defined(HAVE_IOPS_MKNOD_IDMAP)
-zpl_mknod(struct mnt_idmap *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode,
-#else
-zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
-#endif
-    dev_t rdev)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode, dev_t, rdev)
 {
 	cred_t *cr = CRED();
 	znode_t *zp;
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_IOPS_MKNOD_USERNS) || defined(HAVE_IOPS_MKNOD_IDMAP))
-	zidmap_t *idmap = kcred->idmap;
-#endif
 
 	if (is_nametoolong(dentry)) {
 		return (-ENAMETOOLONG);
@@ -280,20 +257,12 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	return (error);
 }
 
-static int
-#ifdef HAVE_TMPFILE_IDMAP
-zpl_tmpfile(struct mnt_idmap *idmap, struct inode *dir,
-    struct file *file, umode_t mode)
-#elif !defined(HAVE_TMPFILE_DENTRY)
-zpl_tmpfile(struct user_namespace *idmap, struct inode *dir,
-    struct file *file, umode_t mode)
+#if defined(HAVE_TMPFILE_DENTRY)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
 #else
-#ifdef HAVE_TMPFILE_USERNS
-zpl_tmpfile(struct user_namespace *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode)
-#else
-zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
+    struct inode *, dir, struct file *, file, umode_t, mode)
 #endif
 {
 	cred_t *cr = CRED();
@@ -301,9 +270,6 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	vattr_t *vap;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_TMPFILE_USERNS) || defined(HAVE_TMPFILE_IDMAP))
-	zidmap_t *idmap = kcred->user_ns;
-#endif
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
@@ -375,21 +341,12 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 	return (error);
 }
 
-#if defined(HAVE_IOPS_MKDIR_USERNS)
-static int
-zpl_mkdir(struct user_namespace *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_IDMAP)
-static int
-zpl_mkdir(struct mnt_idmap *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_DENTRY)
-static struct dentry *
-zpl_mkdir(struct mnt_idmap *idmap, struct inode *dir,
-    struct dentry *dentry, umode_t mode)
+#if defined(HAVE_IOPS_MKDIR_DENTRY)
+ZPL_IDMAP_IOP_DEFINE(struct dentry *, zpl_mkdir, 3,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
 #else
-static int
-zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
 #endif
 {
 	cred_t *cr = CRED();
@@ -397,10 +354,6 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	znode_t *zp;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_IOPS_MKDIR_USERNS) || \
-	defined(HAVE_IOPS_MKDIR_IDMAP) || defined(HAVE_IOPS_MKDIR_DENTRY))
-	zidmap_t *user_ns = kcred->user_ns;
-#endif
 
 	if (is_nametoolong(dentry)) {
 		error = -ENAMETOOLONG;
@@ -644,27 +597,14 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	return (error);
 }
 
-static int
-#ifdef HAVE_IOPS_RENAME_USERNS
-zpl_rename(struct user_namespace *idmap, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int rflags)
-#elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_rename(struct mnt_idmap *idmap, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int rflags)
-#else
-zpl_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry, unsigned int rflags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_rename, 5,
+    struct inode *, sdip, struct dentry *, sdentry,
+    struct inode *, tdip, struct dentry *, tdentry, unsigned int, rflags)
 {
 	cred_t *cr = CRED();
 	vattr_t *wo_vap = NULL;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_IOPS_RENAME_USERNS) || defined(HAVE_IOPS_RENAME_IDMAP))
-	zidmap_t *idmap = kcred->user_ns;
-#endif
 
 	if (is_nametoolong(tdentry)) {
 		return (-ENAMETOOLONG);
@@ -689,25 +629,14 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-static int
-#ifdef HAVE_IOPS_SYMLINK_USERNS
-zpl_symlink(struct user_namespace *idmap, struct inode *dir,
-    struct dentry *dentry, const char *name)
-#elif defined(HAVE_IOPS_SYMLINK_IDMAP)
-zpl_symlink(struct mnt_idmap *idmap, struct inode *dir,
-    struct dentry *dentry, const char *name)
-#else
-zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_symlink, 3,
+    struct inode *, dir, struct dentry *, dentry, const char *, name)
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
 	znode_t *zp;
 	int error;
 	fstrans_cookie_t cookie;
-#if !(defined(HAVE_IOPS_SYMLINK_USERNS) || defined(HAVE_IOPS_SYMLINK_IDMAP))
-	zidmap_t *idmap = kcred->user_ns;
-#endif
 
 	if (is_nametoolong(dentry)) {
 		return (-ENAMETOOLONG);
@@ -830,30 +759,23 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_SET_ACL_USERNS
-zpl_set_acl(struct user_namespace *userns, struct inode *ip,
-    struct posix_acl *acl, int type)
-#elif defined(HAVE_SET_ACL_IDMAP_DENTRY)
-zpl_set_acl(struct mnt_idmap *userns, struct dentry *dentry,
-    struct posix_acl *acl, int type)
-#elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
-zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
-    struct posix_acl *acl, int type)
-#else
-zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
-#endif /* HAVE_SET_ACL_USERNS */
-{
-#ifdef HAVE_SET_ACL_USERNS_DENTRY_ARG2
-	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
-#elif defined(HAVE_SET_ACL_IDMAP_DENTRY)
-	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
-#else
-	return (zpl_set_posix_acl(ip, acl, type));
-#endif /* HAVE_SET_ACL_USERNS_DENTRY_ARG2 */
-}
+#if defined(CONFIG_FS_POSIX_ACL)
 
-#if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
+#if defined(HAVE_SET_ACL_IDMAP_DENTRY) || defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
+    struct dentry *, dentry, struct posix_acl *, acl, int, type)
+{
+	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
+}
+#else
+ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
+    struct inode *, ip, struct posix_acl *, acl, int, type)
+{
+	return (zpl_set_posix_acl(ip, acl, type));
+}
+#endif
+
+#if defined(HAVE_GET_INODE_ACL) || defined(HAVE_GET_ACL_RCU)
 static struct posix_acl *
 zpl_get_acl(struct inode *ip, int type, bool rcu)
 {
@@ -862,15 +784,15 @@ zpl_get_acl(struct inode *ip, int type, bool rcu)
 
 	return (zpl_get_posix_acl(ip, type));
 }
-#elif defined(HAVE_GET_ACL)
+#else
 static struct posix_acl *
 zpl_get_acl(struct inode *ip, int type)
 {
 	return (zpl_get_posix_acl(ip, type));
 }
-#else
-#error "Unsupported iops->get_acl() implementation"
-#endif /* HAVE_GET_ACL_RCU */
+#endif
+
+#endif
 
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,

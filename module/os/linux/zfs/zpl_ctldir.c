@@ -327,19 +327,9 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_IOPS_RENAME_USERNS
-zpl_snapdir_rename(struct user_namespace *idmap, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
-#elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_snapdir_rename(struct mnt_idmap *idmap, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
-#else
-zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_rename, 5,
+    struct inode *, sdip, struct dentry *, sdentry,
+    struct inode *, tdip, struct dentry *, tdentry, unsigned int, flags)
 {
 	cred_t *cr = CRED();
 	int error;
@@ -371,21 +361,12 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 	return (error);
 }
 
-#if defined(HAVE_IOPS_MKDIR_USERNS)
-static int
-zpl_snapdir_mkdir(struct user_namespace *idmap, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_IDMAP)
-static int
-zpl_snapdir_mkdir(struct mnt_idmap *idmap, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_DENTRY)
-static struct dentry *
-zpl_snapdir_mkdir(struct mnt_idmap *idmap, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
+#if defined(HAVE_IOPS_MKDIR_DENTRY)
+ZPL_IDMAP_IOP_DEFINE(struct dentry *, zpl_snapdir_mkdir, 3,
+    struct inode *, dip, struct dentry *, dentry, umode_t, mode)
 #else
-static int
-zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_mkdir, 3,
+    struct inode *, dip, struct dentry *, dentry, umode_t, mode)
 #endif
 {
 	cred_t *cr = CRED();
@@ -395,11 +376,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-#if (defined(HAVE_IOPS_MKDIR_USERNS) || defined(HAVE_IOPS_MKDIR_IDMAP))
 	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, idmap);
-#else
-	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, zfs_init_idmap);
-#endif
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {
