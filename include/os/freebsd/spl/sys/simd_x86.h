@@ -192,6 +192,20 @@ zfs_shani_available(void)
 }
 
 /*
+ * Check if SHA-512 extension is available
+ */
+static inline boolean_t
+zfs_sha512ext_available(void)
+{
+#if defined(CPUID_STDEXT4_SHA512)
+	return ((cpu_stdext_feature4 & CPUID_STDEXT4_SHA512) != 0 &&
+	    __ymm_enabled());
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation
