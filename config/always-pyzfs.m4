@@ -58,21 +58,6 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	])
 
 	dnl #
-	dnl # Python "packaging" (or, failing that, "distlib") module is required to build and install pyzfs
-	dnl #
-	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
-		ZFS_AC_PYTHON_MODULE([packaging], [], [
-			ZFS_AC_PYTHON_MODULE([distlib], [], [
-				AS_IF([test "x$enable_pyzfs" = xyes], [
-					AC_MSG_ERROR("Python $PYTHON_VERSION packaging and distlib modules are not installed")
-				], [test "x$enable_pyzfs" != xno], [
-					enable_pyzfs=no
-				])
-			])
-		])
-	])
-
-	dnl #
 	dnl # Require python3-devel libraries
 	dnl #
 	AS_IF([test "x$enable_pyzfs" = xcheck  -o "x$enable_pyzfs" = xyes], [
@@ -86,6 +71,19 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 		], [
 			AX_PYTHON_DEVEL([$PYTHON_REQUIRED_VERSION], [true])
 			AS_IF([test "x$ax_python_devel_found" = xno], [
+				enable_pyzfs=no
+			])
+		])
+	])
+
+	dnl #
+	dnl # Python "pip" module is required to build and install pyzfs
+	dnl #
+	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
+		ZFS_AC_PYTHON_MODULE([pip], [], [
+			AS_IF([test "x$enable_pyzfs" = xyes], [
+				AC_MSG_ERROR("Python $PYTHON_VERSION pip is not installed")
+			], [test "x$enable_pyzfs" != xno], [
 				enable_pyzfs=no
 			])
 		])
