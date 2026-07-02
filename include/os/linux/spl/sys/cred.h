@@ -50,6 +50,27 @@ extern struct task_struct init_task;
 #define	SGID_TO_KGID(x)		(KGIDT_INIT(x))
 #define	KGIDP_TO_SGIDP(x)	(&(x)->val)
 
+#ifdef HAVE_IDMAP_MNTIDMAP
+#include <linux/refcount.h>
+#ifdef HAVE_IDMAP_NO_USERNS
+#include <linux/user_namespace.h>
+struct mnt_idmap {
+	struct uid_gid_map uid_map;
+	struct uid_gid_map gid_map;
+	refcount_t count;
+};
+#define	idmap_owner(p)	(NULL)
+#else
+struct mnt_idmap {
+	struct user_namespace *owner;
+	refcount_t count;
+};
+#define	idmap_owner(p)	(((struct mnt_idmap *)p)->owner)
+#endif
+#else
+#define	idmap_owner(p)	((struct user_namespace *)p)
+#endif
+
 extern zidmap_t *zfs_get_init_idmap(void);
 
 /* Check if the user ns is the initial one */
@@ -79,7 +100,7 @@ static inline uid_t zfs_uid_to_vfsuid(zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
-#ifdef HAVE_IOPS_CREATE_IDMAP
+#ifdef HAVE_IDMAP_MNTIDMAP
 	if (idmap == zfs_init_idmap)
 		return (uid);
 #endif
@@ -103,7 +124,7 @@ static inline gid_t zfs_gid_to_vfsgid(zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
-#ifdef HAVE_IOPS_CREATE_IDMAP
+#ifdef HAVE_IDMAP_MNTIDMAP
 	if (idmap == zfs_init_idmap)
 		return (gid);
 #endif
@@ -127,7 +148,7 @@ static inline uid_t zfs_vfsuid_to_uid(zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
-#ifdef HAVE_IOPS_CREATE_IDMAP
+#ifdef HAVE_IDMAP_MNTIDMAP
 	if (idmap == zfs_init_idmap)
 		return (uid);
 #endif
@@ -152,7 +173,7 @@ static inline gid_t zfs_vfsgid_to_gid(zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
-#ifdef HAVE_IOPS_CREATE_IDMAP
+#ifdef HAVE_IDMAP_MNTIDMAP
 	if (idmap == zfs_init_idmap)
 		return (gid);
 #endif
