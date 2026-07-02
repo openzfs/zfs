@@ -329,15 +329,15 @@ out:
 
 static int
 #ifdef HAVE_IOPS_RENAME_USERNS
-zpl_snapdir_rename2(struct user_namespace *user_ns, struct inode *sdip,
+zpl_snapdir_rename(struct user_namespace *user_ns, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int flags)
 #elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_snapdir_rename2(struct mnt_idmap *user_ns, struct inode *sdip,
+zpl_snapdir_rename(struct mnt_idmap *user_ns, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int flags)
 #else
-zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
+zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry, unsigned int flags)
 #endif
 {
@@ -356,17 +356,6 @@ zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
 
 	return (error);
 }
-
-#if (!defined(HAVE_RENAME_WANTS_FLAGS) && \
-	!defined(HAVE_IOPS_RENAME_USERNS) && \
-	!defined(HAVE_IOPS_RENAME_IDMAP))
-static int
-zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry)
-{
-	return (zpl_snapdir_rename2(sdip, sdentry, tdip, tdentry, 0));
-}
-#endif
 
 static int
 zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
@@ -511,13 +500,7 @@ const struct file_operations zpl_fops_snapdir = {
 const struct inode_operations zpl_ops_snapdir = {
 	.lookup		= zpl_snapdir_lookup,
 	.getattr	= zpl_snapdir_getattr,
-#if (defined(HAVE_RENAME_WANTS_FLAGS) || \
-	defined(HAVE_IOPS_RENAME_USERNS) || \
-	defined(HAVE_IOPS_RENAME_IDMAP))
-	.rename		= zpl_snapdir_rename2,
-#else
 	.rename		= zpl_snapdir_rename,
-#endif
 	.rmdir		= zpl_snapdir_rmdir,
 	.mkdir		= zpl_snapdir_mkdir,
 };
