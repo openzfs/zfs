@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
