@@ -42,9 +42,11 @@
 #define	KEYSIZE 64
 
 static disposition_t
-chain_drop_records(drr_packet_t *item, void *context)
+chain_drop_records(void *item_in, void *context)
 {
 	(void) context;
+	drr_packet_t *item = (drr_packet_t *)item_in;
+
 	if (item == NULL)
 		return (D_OK);
 
@@ -105,7 +107,7 @@ serial_drop_records(void)
 		.cs_out_size = sizeof (drr_packet_t),
 		.cs_context = NULL,
 		.cs_serial = {
-			.process = (zc_serial_process_f *)chain_drop_records
+			.process = chain_drop_records
 		}
 	};
 	return (step);

@@ -43,8 +43,11 @@ static validate_context_t 	contexts[MAX_VALIDATIONS];
 static int			next_context = 0;
 
 static disposition_t
-chain_validate_records(drr_packet_t *item, validate_context_t *context)
+chain_validate_records(void *item_in, void *context_in)
 {
+	drr_packet_t *item = (drr_packet_t *)item_in;
+	validate_context_t *context = (validate_context_t *)context_in;
+
 	if (item == NULL)
 		return (D_OK);
 
@@ -122,7 +125,7 @@ serial_validate_records(void)
 		.cs_out_size = sizeof (drr_packet_t),
 		.cs_context = context,
 		.cs_serial = {
-		    .process = (zc_serial_process_f *)chain_validate_records,
+		    .process = chain_validate_records,
 		}
 	};
 	return (step);

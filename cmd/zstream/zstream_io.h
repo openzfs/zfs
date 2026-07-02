@@ -24,6 +24,8 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/zfs_ioctl.h>
 
@@ -66,6 +68,14 @@ serial_checkpoint(const char *name);
  */
 chain_step_t
 serial_null_output(void);
+
+/* Off-the-shelf zstream_queue cost functions */
+
+size_t
+constant_cost_of_one(queue_item_t *packet, void *context);
+
+size_t
+payload_size_as_cost(queue_item_t *packet, void *context);
 
 #ifdef __cplusplus
 }

@@ -50,6 +50,7 @@
 .Ar resume_token
 .Nm
 .Cm recompress
+.Op Fl t Ar num_threads
 .Op Fl l Ar level
 .Ar algorithm
 .
@@ -176,17 +177,37 @@ Print summary of converted records.
 .It Xo
 .Nm
 .Cm recompress
+.Op Fl t Ar num_threads
 .Op Fl l Ar level
 .Ar algorithm
 .Xc
-Recompresses a send stream, provided on standard input, using the provided
-algorithm and optional level, and writes the modified stream to standard output.
-All WRITE records in the send stream will be recompressed, unless they fail
-to result in size reduction compared to being left uncompressed.
-The provided algorithm can be any valid value to the
+Recompresses a send stream from standard input using the specified compression
+.Ar algorithm
+and optional
+.Ar level ,
+and writes the modified stream to standard output.
+All WRITE records in the send stream will be compressed unless compression
+fails to reduce their size compared to being left uncompressed.
+The
+.Ar algorithm
+can be any valid value to the
 .Nm compress
 property.
 Note that encrypted send streams cannot be recompressed.
+.Bl -tag -width "-t"
+.It Fl t Ar num_threads
+Specifies the number of compression worker threads.
+By default,
+.Nm zstream Cm recompress
+creates a thread for every CPU core.
+It's generally unproductive to raise
+.Ar num_threads
+above this default.
+On some architectures, contention for resources such as memory caches can
+reduce efficiency when many threads are active.
+On those systems, it may be helpful to run with fewer threads,
+particularly when automating operations on shared servers.
+.El
 .Bl -tag -width "-l"
 .It Fl l Ar level
 Specifies compression level.
