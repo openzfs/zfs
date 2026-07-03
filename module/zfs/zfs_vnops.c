@@ -218,18 +218,9 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
 		return (error);
 
 	if (flag & V_ACE_MASK)
-#if defined(__linux__)
-		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr,
-		    zfs_init_idmap);
-#else
 		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr);
-#endif
 	else
-#if defined(__linux__)
-		error = zfs_zaccess_rwx(zp, mode, flag, cr, zfs_init_idmap);
-#else
 		error = zfs_zaccess_rwx(zp, mode, flag, cr);
-#endif
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
