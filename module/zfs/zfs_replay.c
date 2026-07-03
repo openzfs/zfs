@@ -24,6 +24,7 @@
  * Copyright (c) 2012 Cyril Plisko. All rights reserved.
  * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/types.h>
@@ -395,7 +396,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		    0, 0, &zp, kcred, vflg, &vsec, zfs_init_idmap);
 #else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, &vsec, NULL);
+		    0, 0, &zp, kcred, vflg, &vsec);
 #endif
 		break;
 	case TX_MKDIR_ACL:
@@ -429,7 +430,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		    &zp, kcred, vflg, &vsec, zfs_init_idmap);
 #else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, &vsec, NULL);
+		    &zp, kcred, vflg, &vsec);
 #endif
 		break;
 	default:
@@ -547,7 +548,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    0, 0, &zp, kcred, vflg, NULL, zfs_init_idmap);
 #else
 		error = zfs_create(dzp, name, &xva.xva_vattr,
-		    0, 0, &zp, kcred, vflg, NULL, NULL);
+		    0, 0, &zp, kcred, vflg, NULL);
 #endif
 		break;
 	case TX_MKDIR_ATTR:
@@ -570,7 +571,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    &zp, kcred, vflg, NULL, zfs_init_idmap);
 #else
 		error = zfs_mkdir(dzp, name, &xva.xva_vattr,
-		    &zp, kcred, vflg, NULL, NULL);
+		    &zp, kcred, vflg, NULL);
 #endif
 
 		break;
@@ -585,7 +586,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    link, &zp, kcred, vflg, zfs_init_idmap);
 #else
 		error = zfs_symlink(dzp, name, &xva.xva_vattr,
-		    link, &zp, kcred, vflg, NULL);
+		    link, &zp, kcred, vflg);
 #endif
 		break;
 	default:
@@ -710,7 +711,7 @@ do_zfs_replay_rename(zfsvfs_t *zfsvfs, _lr_rename_t *lr, char *sname,
 	    wo_vap, zfs_init_idmap);
 #else
 	error = zfs_rename(sdzp, sname, tdzp, tname, kcred, vflg, rflags,
-	    wo_vap, NULL);
+	    wo_vap);
 #endif
 
 	zrele(tdzp);
@@ -1007,7 +1008,7 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 #if defined(__linux__)
 	error = zfs_setattr(zp, vap, 0, kcred, zfs_init_idmap);
 #else
-	error = zfs_setattr(zp, vap, 0, kcred, NULL);
+	error = zfs_setattr(zp, vap, 0, kcred);
 #endif
 
 	zfs_fuid_info_free(zfsvfs->z_fuid_replay);
