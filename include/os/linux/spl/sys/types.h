@@ -67,22 +67,17 @@ struct mnt_idmap {
 	struct uid_gid_map gid_map;
 	refcount_t count;
 };
-typedef struct mnt_idmap	zidmap_t;
 #define	idmap_owner(p)	(NULL)
 #else
 struct mnt_idmap {
 	struct user_namespace *owner;
 	refcount_t count;
 };
-typedef struct mnt_idmap	zidmap_t;
 #define	idmap_owner(p)	(((struct mnt_idmap *)p)->owner)
 #endif
 #else
-typedef struct user_namespace	zidmap_t;
 #define	idmap_owner(p)	((struct user_namespace *)p)
 #endif
-
-extern zidmap_t *zfs_init_idmap;
 
 #ifdef HAVE_1ARG_ASSIGN_STR
 #define	__assign_str_impl(a, b)		__assign_str(a)
