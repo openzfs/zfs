@@ -83,6 +83,7 @@ noinst_HEADERS = \
 	%D%/zfs/sys/freebsd_event.h \
 	%D%/zfs/sys/trace_zfs.h \
 	%D%/zfs/sys/vdev_os.h \
+	%D%/zfs/sys/zfs_acl_impl.h \
 	%D%/zfs/sys/zfs_bootenv_os.h \
 	%D%/zfs/sys/zfs_context_os.h \
 	%D%/zfs/sys/zfs_ctldir.h \

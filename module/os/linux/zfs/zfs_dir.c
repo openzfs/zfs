@@ -43,7 +43,7 @@
 #include <sys/random.h>
 #include <sys/policy.h>
 #include <sys/zfs_dir.h>
-#include <sys/zfs_acl.h>
+#include <sys/zfs_acl_impl.h>
 #include <sys/zfs_vnops.h>
 #include <sys/fs/zfs.h>
 #include <sys/zap.h>
