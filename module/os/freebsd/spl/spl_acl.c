@@ -30,7 +30,7 @@
 #include <sys/types.h>
 #include <sys/malloc.h>
 #include <sys/errno.h>
-#include <sys/zfs_acl.h>
+#include <sys/zfs_acl_impl.h>
 #include <sys/acl.h>
 
 struct zfs2bsd {

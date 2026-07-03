@@ -37,7 +37,7 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <sys/zfs_rlock.h>
-#include <sys/zfs_acl.h>
+#include <sys/zfs_acl_impl.h>
 #include <sys/zil.h>
 #include <sys/zfs_project.h>
 #include <vm/vm_object.h>

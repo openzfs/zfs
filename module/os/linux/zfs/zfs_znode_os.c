@@ -40,7 +40,7 @@
 #include <sys/errno.h>
 #include <sys/atomic.h>
 #include <sys/zfs_dir.h>
-#include <sys/zfs_acl.h>
+#include <sys/zfs_acl_impl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_rlock.h>
 #include <sys/zfs_fuid.h>
