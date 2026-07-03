@@ -212,7 +212,6 @@ void zfs_acl_ids_free(zfs_acl_ids_t *);
 boolean_t zfs_acl_ids_overquota(struct zfsvfs *, zfs_acl_ids_t *, uint64_t);
 int zfs_getacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 int zfs_setacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
-void zfs_acl_rele(void *);
 void zfs_oldace_byteswap(ace_t *, int);
 void zfs_ace_byteswap(void *, size_t, boolean_t);
 extern boolean_t zfs_has_access(struct znode *zp, cred_t *cr);
@@ -221,7 +220,6 @@ extern int zfs_zaccess(struct znode *, int, int, boolean_t, cred_t *,
 int zfs_fastaccesschk_execute(struct znode *, cred_t *);
 extern int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *, zidmap_t *);
 extern int zfs_zaccess_unix(void *, int, cred_t *);
-extern int zfs_acl_access(struct znode *, int, cred_t *);
 int zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
 int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *, zidmap_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
@@ -232,7 +230,6 @@ int zfs_vsec_2_aclp(struct zfsvfs *, umode_t, vsecattr_t *, cred_t *,
 int zfs_aclset_common(struct znode *, zfs_acl_t *, cred_t *, dmu_tx_t *);
 uint64_t zfs_external_acl(struct znode *);
 int zfs_znode_acl_version(struct znode *);
-int zfs_acl_size(struct znode *, int *);
 zfs_acl_t *zfs_acl_alloc(int);
 zfs_acl_node_t *zfs_acl_node_alloc(size_t);
 void zfs_acl_xform(struct znode *, zfs_acl_t *, cred_t *);
