@@ -1019,7 +1019,7 @@ zpl_ioctl_setflags(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -1067,7 +1067,7 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
@@ -1155,7 +1155,7 @@ zpl_ioctl_setdosflags(struct file *filp, void __user *arg)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr, zfs_init_idmap);
+	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 

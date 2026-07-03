@@ -23,6 +23,7 @@
  * Copyright (c) 2011, Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 
@@ -193,7 +194,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	zpl_vap_init(vap, dir, mode, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
+	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
@@ -255,7 +256,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	vap->va_rdev = rdev;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_create(ITOZ(dir), dname(dentry), vap, 0,
+	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
 	    mode, &zp, cr, 0, NULL, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
@@ -315,7 +316,7 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	zpl_vap_init(vap, dir, mode, cr, userns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_tmpfile(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
+	error = -zfs_tmpfile_idmap(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
 	if (error == 0) {
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
@@ -411,8 +412,8 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 	zpl_vap_init(vap, dir, mode | S_IFDIR, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_mkdir(ITOZ(dir), dname(dentry), vap, &zp, cr, 0, NULL,
-	    user_ns);
+	error = -zfs_mkdir_idmap(ITOZ(dir), dname(dentry), vap, &zp, cr, 0,
+	    NULL, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -626,11 +627,11 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 
 	cookie = spl_fstrans_mark();
 #ifdef HAVE_USERNS_IOPS_SETATTR
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, user_ns);
+	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, user_ns);
 #elif defined(HAVE_IDMAP_IOPS_SETATTR)
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, user_ns);
+	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, user_ns);
 #else
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr, zfs_init_idmap);
+	error = -zfs_setattr(ITOZ(ip), vap, 0, cr);
 #endif
 	if (!error && (ia->ia_valid & ATTR_MODE))
 		error = zpl_chmod_acl(ip);
@@ -677,7 +678,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	}
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_rename(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
+	error = -zfs_rename_idmap(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
 	    dname(tdentry), cr, 0, rflags, wo_vap, user_ns);
 	spl_fstrans_unmark(cookie);
 	if (wo_vap)
@@ -728,7 +729,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr, user_ns);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_symlink(ITOZ(dir), dname(dentry), vap,
+	error = -zfs_symlink_idmap(ITOZ(dir), dname(dentry), vap,
 	    (char *)name, &zp, cr, 0, user_ns);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);

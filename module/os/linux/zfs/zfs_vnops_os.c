@@ -600,7 +600,7 @@ zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
  *	 zp - ctime|mtime always, atime if new
  */
 int
-zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
+zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
     zidmap_t *mnt_ns)
 {
@@ -844,9 +844,16 @@ out:
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
+int
+zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
+    int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp)
+{
+	return (zfs_create_idmap(dzp, name, vap, excl, mode, zpp, cr, flag,
+	    vsecp, zfs_init_idmap));
+}
 
 int
-zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
+zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
     zidmap_t *mnt_ns)
 {
@@ -966,6 +973,13 @@ out:
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
+}
+int
+zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
+    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp)
+{
+	return (zfs_tmpfile_idmap(dip, vap, excl, mode, ipp, cr, flag, vsecp,
+	    zfs_init_idmap));
 }
 
 /*
@@ -1231,7 +1245,7 @@ out:
  *	zpp - ctime|mtime|atime updated
  */
 int
-zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
+zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
     cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *mnt_ns)
 {
 	znode_t		*zp;
@@ -1404,6 +1418,13 @@ out:
 	}
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
+}
+int
+zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
+    cred_t *cr, int flags, vsecattr_t *vsecp)
+{
+	return (zfs_mkdir_idmap(dzp, dirname, vap, zpp, cr, flags, vsecp,
+	    zfs_init_idmap));
 }
 
 /*
@@ -1920,7 +1941,8 @@ next:
  *	ip - ctime updated, mtime updated if size changed.
  */
 int
-zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr, zidmap_t *mnt_ns)
+zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
+    zidmap_t *mnt_ns)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -2654,6 +2676,11 @@ out3:
 	zfs_exit(zfsvfs, FTAG);
 	return (err);
 }
+int
+zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
+{
+	return (zfs_setattr_idmap(zp, vap, flags, cr, zfs_init_idmap));
+}
 
 typedef struct zfs_zlock {
 	krwlock_t	*zl_rwlock;	/* lock we acquired */
@@ -2772,7 +2799,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *	sdzp,tdzp - ctime|mtime updated
  */
 int
-zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
+zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
     cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap, zidmap_t *mnt_ns)
 {
 	znode_t		*szp, *tzp;
@@ -3287,6 +3314,13 @@ commit_link_szp:
 		VERIFY0(zfs_drop_nlink(szp, tx, NULL));
 	goto commit;
 }
+int
+zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
+    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap)
+{
+	return (zfs_rename_idmap(sdzp, snm, tdzp, tnm, cr, flags, rflags,
+	    wo_vap, zfs_init_idmap));
+}
 
 /*
  * Insert the indicated symbolic reference entry into the directory.
@@ -3307,7 +3341,7 @@ commit_link_szp:
  *	dip - ctime|mtime updated
  */
 int
-zfs_symlink(znode_t *dzp, char *name, vattr_t *vap, char *link,
+zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap, char *link,
     znode_t **zpp, cred_t *cr, int flags, zidmap_t *mnt_ns)
 {
 	znode_t		*zp;
@@ -3459,6 +3493,13 @@ top:
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
+}
+int
+zfs_symlink(znode_t *dzp, char *name, vattr_t *vap, char *link,
+    znode_t **zpp, cred_t *cr, int flags)
+{
+	return (zfs_symlink_idmap(dzp, name, vap, link, zpp, cr, flags,
+	    zfs_init_idmap));
 }
 
 /*
