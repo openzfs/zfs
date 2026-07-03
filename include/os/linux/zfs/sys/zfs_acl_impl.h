@@ -42,6 +42,9 @@ boolean_t zfs_acl_ids_overquota(struct zfsvfs *, zfs_acl_ids_t *, uint64_t);
 int zfs_fastaccesschk_execute(struct znode *, cred_t *);
 int zfs_zaccess_unix(void *, int, cred_t *);
 int zfs_acl_chmod_setattr(struct znode *, zfs_acl_t **, uint64_t);
+int zfs_zaccess_idmap(struct znode *, int, int, boolean_t, cred_t *,
+    zidmap_t *);
+int zfs_zaccess_rwx_idmap(struct znode *, mode_t, int, cred_t *, zidmap_t *);
 int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *, zidmap_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
     struct znode *, struct znode *, cred_t *cr, zidmap_t *mnt_ns);

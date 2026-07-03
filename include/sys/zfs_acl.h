@@ -211,14 +211,8 @@ struct zfsvfs;
 /* Platform-specific implementations called by core. */
 int zfs_getacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
 int zfs_setacl(struct znode *, vsecattr_t *, boolean_t, cred_t *);
-#ifdef __linux__
-int zfs_zaccess(struct znode *, int, int, boolean_t, cred_t *,
-    zidmap_t *);
-int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *, zidmap_t *);
-#else
 int zfs_zaccess(struct znode *, int, int, boolean_t, cred_t *);
 int zfs_zaccess_rwx(struct znode *, mode_t, int, cred_t *);
-#endif
 uint64_t zfs_external_acl(struct znode *);
 void zfs_acl_xform(struct znode *, zfs_acl_t *, cred_t *);
 void zfs_acl_data_locator(void **, uint32_t *, uint32_t, boolean_t, void *);

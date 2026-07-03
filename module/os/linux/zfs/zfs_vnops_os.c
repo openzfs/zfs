@@ -26,6 +26,7 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -498,8 +499,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 		 * Do we have permission to get into attribute directory?
 		 */
 
-		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0,
-		    B_TRUE, cr, zfs_init_idmap))) {
+		if ((error = zfs_zaccess(*zpp, ACE_EXECUTE, 0, B_TRUE, cr))) {
 			zrele(*zpp);
 			*zpp = NULL;
 		}
@@ -517,8 +517,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags, cred_t *cr,
 	 * Check accessibility of directory.
 	 */
 
-	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr,
-	    zfs_init_idmap))) {
+	if ((error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -691,8 +690,8 @@ top:
 		 * Create a new file object and update the directory
 		 * to reference it.
 		 */
-		if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, skip_acl, cr,
-		    mnt_ns))) {
+		if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, skip_acl,
+		    cr, mnt_ns))) {
 			if (have_acl)
 				zfs_acl_ids_free(&acl_ids);
 			goto out;
@@ -805,8 +804,8 @@ top:
 		/*
 		 * Verify requested access to file.
 		 */
-		if (mode && (error = zfs_zaccess_rwx(zp, mode, aflags, cr,
-		    mnt_ns))) {
+		if (mode && (error = zfs_zaccess_rwx_idmap(zp, mode, aflags,
+		    cr, mnt_ns))) {
 			goto out;
 		}
 
@@ -896,7 +895,8 @@ top:
 	 * Create a new file object and update the directory
 	 * to reference it.
 	 */
-	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns))) {
+	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, B_FALSE,
+	    cr, mnt_ns))) {
 		if (have_acl)
 			zfs_acl_ids_free(&acl_ids);
 		goto out;
@@ -1310,8 +1310,8 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE, cr,
-	    mnt_ns))) {
+	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE,
+	    cr, mnt_ns))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -2067,8 +2067,8 @@ top:
 	 */
 
 	if (mask & ATTR_SIZE) {
-		err = zfs_zaccess(zp, ACE_WRITE_DATA, 0, skipaclchk, cr,
-		    mnt_ns);
+		err = zfs_zaccess_idmap(zp, ACE_WRITE_DATA, 0, skipaclchk,
+		    cr, mnt_ns);
 		if (err)
 			goto out3;
 
@@ -2092,7 +2092,7 @@ top:
 	    XVA_ISSET_REQ(xvap, XAT_SPARSE) ||
 	    XVA_ISSET_REQ(xvap, XAT_CREATETIME) ||
 	    XVA_ISSET_REQ(xvap, XAT_SYSTEM)))) {
-		need_policy = zfs_zaccess(zp, ACE_WRITE_ATTRIBUTES, 0,
+		need_policy = zfs_zaccess_idmap(zp, ACE_WRITE_ATTRIBUTES, 0,
 		    skipaclchk, cr, mnt_ns);
 	}
 
@@ -2136,7 +2136,7 @@ top:
 		    take_owner && take_group) ||
 		    ((idmask == ATTR_UID) && take_owner) ||
 		    ((idmask == ATTR_GID) && take_group)) {
-			if (zfs_zaccess(zp, ACE_WRITE_OWNER, 0,
+			if (zfs_zaccess_idmap(zp, ACE_WRITE_OWNER, 0,
 			    skipaclchk, cr, mnt_ns) == 0) {
 				/*
 				 * Remove setuid/setgid for non-privileged users
@@ -2250,7 +2250,7 @@ top:
 	mutex_exit(&zp->z_lock);
 
 	if (mask & ATTR_MODE) {
-		if (zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
+		if (zfs_zaccess_idmap(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
 		    mnt_ns) == 0) {
 			err = secpolicy_setid_setsticky_clear(ip, vap,
 			    &oldva, cr, mnt_ns, zfs_i_user_ns(ip));
@@ -3043,7 +3043,8 @@ top:
 		 */
 		uint64_t wo_projid = ZFS_DEFAULT_PROJID;
 
-		error = zfs_zaccess(sdzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns);
+		error = zfs_zaccess_idmap(sdzp, ACE_ADD_FILE, 0, B_FALSE,
+		    cr, mnt_ns);
 		if (error)
 			goto out;
 
@@ -3362,7 +3363,8 @@ top:
 		return (error);
 	}
 
-	if ((error = zfs_zaccess(dzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns))) {
+	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, B_FALSE,
+	    cr, mnt_ns))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -3616,8 +3618,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 		return (SET_ERROR(EPERM));
 	}
 
-	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr,
-	    zfs_init_idmap))) {
+	if ((error = zfs_zaccess(tdzp, ACE_ADD_FILE, 0, B_FALSE, cr))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -4366,8 +4367,7 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 	 * On Linux we can get here through truncate_range() which
 	 * operates directly on inodes, so we need to check access rights.
 	 */
-	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr,
-	    zfs_init_idmap))) {
+	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE, cr))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}

@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2013 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 
@@ -1982,8 +1983,7 @@ zfs_getacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (mask == 0)
 		return (SET_ERROR(ENOSYS));
 
-	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr,
-	    zfs_init_idmap)))
+	if ((error = zfs_zaccess(zp, ACE_READ_ACL, 0, skipaclchk, cr)))
 		return (error);
 
 	mutex_enter(&zp->z_acl_lock);
@@ -2142,8 +2142,7 @@ zfs_setacl(znode_t *zp, vsecattr_t *vsecp, boolean_t skipaclchk, cred_t *cr)
 	if (zp->z_pflags & ZFS_IMMUTABLE)
 		return (SET_ERROR(EPERM));
 
-	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
-	    zfs_init_idmap)))
+	if ((error = zfs_zaccess(zp, ACE_WRITE_ACL, 0, skipaclchk, cr)))
 		return (error);
 
 	error = zfs_vsec_2_aclp(zfsvfs, ZTOI(zp)->i_mode, vsecp, cr, &fuidp,
@@ -2591,8 +2590,7 @@ slow:
 	DTRACE_PROBE(zfs__fastpath__execute__access__miss);
 	if ((error = zfs_enter(ZTOZSB(zdp), FTAG)) != 0)
 		return (error);
-	error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr,
-	    zfs_init_idmap);
+	error = zfs_zaccess(zdp, ACE_EXECUTE, 0, B_FALSE, cr);
 	zfs_exit(ZTOZSB(zdp), FTAG);
 	return (error);
 }
@@ -2604,8 +2602,8 @@ slow:
  * can define any form of access.
  */
 int
-zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
-    zidmap_t *mnt_ns)
+zfs_zaccess_idmap(znode_t *zp, int mode, int flags, boolean_t skipaclchk,
+    cred_t *cr, zidmap_t *mnt_ns)
 {
 	uint32_t	working_mode;
 	int		error;
@@ -2748,16 +2746,30 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr,
 	return (error);
 }
 
+int
+zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk,
+    cred_t *cr)
+{
+	return (zfs_zaccess_idmap(zp, mode, flags, skipaclchk, cr,
+	    zfs_init_idmap));
+}
+
 /*
  * Translate traditional unix S_IRUSR/S_IWUSR/S_IXUSR mode into
  * NFSv4-style ZFS ACL format and call zfs_zaccess()
  */
 int
-zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr,
+zfs_zaccess_rwx_idmap(znode_t *zp, mode_t mode, int flags, cred_t *cr,
     zidmap_t *mnt_ns)
 {
-	return (zfs_zaccess(zp, zfs_unix_to_v4(mode >> 6), flags, B_FALSE, cr,
-	    mnt_ns));
+	return (zfs_zaccess_idmap(zp, zfs_unix_to_v4(mode >> 6), flags,
+	    B_FALSE, cr, mnt_ns));
+}
+
+int
+zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr)
+{
+	return (zfs_zaccess_rwx_idmap(zp, mode, flags, cr, zfs_init_idmap));
 }
 
 /*
@@ -2768,7 +2780,7 @@ zfs_zaccess_unix(void *zp, int mode, cred_t *cr)
 {
 	int v4_mode = zfs_unix_to_v4(mode >> 6);
 
-	return (zfs_zaccess(zp, v4_mode, 0, B_FALSE, cr, zfs_init_idmap));
+	return (zfs_zaccess(zp, v4_mode, 0, B_FALSE, cr));
 }
 
 /* See zfs_zaccess_delete() */
@@ -3012,7 +3024,7 @@ zfs_zaccess_rename(znode_t *sdzp, znode_t *szp, znode_t *tdzp,
 	/*
 	 * Now check for add permissions
 	 */
-	error = zfs_zaccess(tdzp, add_perm, 0, B_FALSE, cr, mnt_ns);
+	error = zfs_zaccess_idmap(tdzp, add_perm, 0, B_FALSE, cr, mnt_ns);
 
 	return (error);
 }
