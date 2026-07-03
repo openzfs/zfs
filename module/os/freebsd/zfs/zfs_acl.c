@@ -2220,24 +2220,6 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 	return (0);
 }
 
-/*
- * Return true if any access whatsoever granted, we don't actually
- * care what access is granted.
- */
-boolean_t
-zfs_has_access(znode_t *zp, cred_t *cr)
-{
-	uint32_t have = ACE_ALL_PERMS;
-
-	if (zfs_zaccess_aces_check(zp, &have, B_TRUE, cr) != 0) {
-		uid_t owner;
-
-		owner = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
-		return (secpolicy_vnode_any_access(cr, ZTOV(zp), owner) == 0);
-	}
-	return (B_TRUE);
-}
-
 static int
 zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
     boolean_t *check_privs, boolean_t skipaclchk, cred_t *cr)
