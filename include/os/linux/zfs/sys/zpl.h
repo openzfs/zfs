@@ -35,6 +35,7 @@
 #include <linux/parser.h>
 #include <linux/vfs_compat.h>
 #include <linux/writeback.h>
+#include <linux/idmap_compat.h>
 #include <linux/xattr_compat.h>
 
 /* zpl_inode.c */
