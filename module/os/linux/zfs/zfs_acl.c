@@ -2413,26 +2413,6 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 }
 
 /*
- * Return true if any access whatsoever granted, we don't actually
- * care what access is granted.
- */
-boolean_t
-zfs_has_access(znode_t *zp, cred_t *cr)
-{
-	uint32_t have = ACE_ALL_PERMS;
-
-	if (zfs_zaccess_aces_check(zp, &have, B_TRUE, cr,
-	    zfs_init_idmap) != 0) {
-		uid_t owner;
-
-		owner = zfs_fuid_map_id(ZTOZSB(zp),
-		    KUID_TO_SUID(ZTOI(zp)->i_uid), cr, ZFS_OWNER);
-		return (secpolicy_vnode_any_access(cr, ZTOI(zp), owner) == 0);
-	}
-	return (B_TRUE);
-}
-
-/*
  * Simplified access check for case where ACL is known to not contain
  * information beyond what is defined in the mode. In this case, we
  * can pass along to the kernel / vfs generic_permission() check, which
