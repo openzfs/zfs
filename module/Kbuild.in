@@ -165,6 +165,8 @@ ICP_OBJS_ARM := \
 	asm-arm/sha2/sha512-armv7.o
 
 ICP_OBJS_ARM64 := \
+	algs/aes/aes_impl_armv8.o \
+	asm-aarch64/aes/aesv8-armx.o \
 	asm-aarch64/blake3/b3_aarch64_sse2.o \
 	asm-aarch64/blake3/b3_aarch64_sse41.o \
 	asm-aarch64/sha2/sha256-armv8.o \
