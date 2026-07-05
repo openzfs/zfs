@@ -719,24 +719,25 @@ zvol_dio_write(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size,
 	if (bp->bio_flags & BIO_UNMAPPED) {
 		abd = abd_alloc_from_pages(bp->bio_ma, bp->bio_ma_offset, size);
 
-		// For RAID-Z vdevs, we need to copy the data into a new ABD,
-		// unless refreserve_raidz always failed in ZTS freebsd distros.
-		spa_t *spa = dmu_objset_spa(zv->zv_objset);
-		boolean_t has_raidz = B_FALSE;
-		for (int i = 0; i < spa->spa_root_vdev->vdev_children; i++) {
-			if (spa->spa_root_vdev->vdev_child[i]->vdev_ops ==
-			    &vdev_raidz_ops) {
-				has_raidz = B_TRUE;
-				break;
-			}
-		}
-
-		if (has_raidz) {
-			abd_t *src = abd;
-			abd = abd_alloc_for_io(size, B_FALSE);
-			abd_copy(abd, src, size);
-			abd_free(src);
-		}
+		/*
+		 * On amd64 the ZIO pipeline (checksum, RAIDZ AVX2 parity
+		 * generation via abd_iterate_func2) may write to buffer
+		 * pages that share the from_pages ABD's vm_page_t chunks.
+		 * The sf_buf temporary mappings used by abd_iter_map for
+		 * from_pages chunks can fault when the AVX2 parity code
+		 * accesses them.  Copy to a kernel-owned ABD to isolate
+		 * the pipeline from bio page lifetimes.  Other
+		 * architectures do not use the AVX2 RAIDZ math path and
+		 * handle from_pages without faulting. Without this copy,
+		 * refreserv_raidz always panics in abd_return_buf,
+		 * abd_iterate_func2, etc.
+		 */
+#ifdef __amd64__
+		abd_t *src = abd;
+		abd = abd_alloc_for_io(size, B_FALSE);
+		abd_copy(abd, src, size);
+		abd_free(src);
+#endif
 	} else {
 		abd = abd_get_from_buf(bp->bio_data, size);
 	}
