@@ -2210,11 +2210,25 @@ zil_max_copied_data(zilog_t *zilog)
  * pool configuration, data placement, write size, and logbias settings.
  */
 itx_wr_state_t
-zil_write_state(zilog_t *zilog, uint64_t size, uint32_t blocksize,
-    boolean_t o_direct, boolean_t commit)
+zil_write_state(zilog_t *zilog, uint64_t offset, uint64_t size,
+    uint32_t blocksize, boolean_t blk_fixed, boolean_t o_direct,
+    boolean_t commit)
 {
 	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT || o_direct)
 		return (WR_INDIRECT);
+
+	/*
+	 * A write that exactly covers one or more aligned blocks whose size
+	 * can no longer change is always safe to store indirectly, even when
+	 * it is smaller than zfs_immediate_write_sz: dmu_sync() performs no
+	 * read-modify-write, the block is not rewritten at TXG commit, and a
+	 * later rewrite of the same block cannot inflate it.  Storing it in
+	 * the ZIL instead (WR_COPIED) would write the data twice, once into
+	 * the log and again at commit.  This is the zvol write amplification
+	 * case: a full-block sync write to a small-volblocksize volume.
+	 */
+	boolean_t full_block = (blk_fixed && size >= blocksize &&
+	    P2PHASE(offset, blocksize) == 0 && P2PHASE(size, blocksize) == 0);
 
 	/*
 	 * Don't use indirect for too small writes to reduce overhead.
@@ -2224,7 +2238,7 @@ zil_write_state(zilog_t *zilog, uint64_t size, uint32_t blocksize,
 	 * is not planned, then next writes might coalesce, and so the
 	 * indirect may be perfect.
 	 */
-	boolean_t indirect = (size >= zfs_immediate_write_sz &&
+	boolean_t indirect = full_block || (size >= zfs_immediate_write_sz &&
 	    (size >= blocksize / 2 || !commit));
 
 	if (spa_has_slogs(zilog->zl_spa)) {

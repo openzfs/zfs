@@ -1897,6 +1897,9 @@ Largest write size to store the data directly into the ZIL if
 .Sy logbias Ns = Ns Sy latency .
 Larger writes may be written indirectly similar to
 .Sy logbias Ns = Ns Sy throughput .
+Writes that exactly cover one or more aligned blocks whose size cannot change
+are always written indirectly regardless of this threshold, since they can be
+written to the pool only once and never inflate a later rewrite.
 In presence of SLOG this parameter is ignored, as if it was set to infinity,
 storing all written data into ZIL to not depend on regular vdev latency.
 .
