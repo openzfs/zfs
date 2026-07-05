@@ -14,7 +14,7 @@
 .\" reserved.
 .\" Copyright (c) 2017, Intel Corporation.
 .\"
-.Dd July 12, 2025
+.Dd July 5, 2026
 .Dt ZTEST 1
 .Os
 .
@@ -187,6 +187,9 @@ The vdev allocation class state.
 Set the given tunable to the provided value.
 .It Fl G , -dump-debug
 Dump zfs_dbgmsg buffer before exiting due to an error.
+.It Fl J , -fishing Ns = Ns Ar seed
+Specify a 64-digit hexadecimal seed to reproduce the same sequence of random
+numbers, or pass a single 0 to disable this feature.
 .It Fl V , -verbose
 Verbose (use multiple times for ever more verbosity).
 .It Fl X , -raidz-expansion
