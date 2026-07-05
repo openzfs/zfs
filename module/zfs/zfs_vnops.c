@@ -1674,11 +1674,16 @@ zfs_clone_range_precheck(znode_t *inzp, znode_t *outzp)
  * The number of bytes cloned is returned via donep; the caller is responsible
  * for the trailing accounting (access time, zil_commit) and for dropping the
  * range locks.
+ *
+ * When dedup is set the caller is implementing FIDEDUPERANGE, where the file
+ * content is unchanged: in that case we must not update the destination's
+ * mtime/ctime or strip its setid bits, matching the Linux convention that
+ * REMAP_FILE_DEDUP skips file_modified().
  */
 static int
 zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
     uint64_t outoff, uint64_t len, cred_t *cr, zfs_locked_range_t *outlr,
-    uint64_t *donep)
+    boolean_t dedup, uint64_t *donep)
 {
 	zfsvfs_t	*inzfsvfs = ZTOZSB(inzp);
 	zfsvfs_t	*outzfsvfs = ZTOZSB(outzp);
@@ -1773,10 +1778,17 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	if (inoff >= MAXOFFSET_T || outoff >= MAXOFFSET_T)
 		return (SET_ERROR(EFBIG));
 
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(outzfsvfs), NULL,
-	    &mtime, 16);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(outzfsvfs), NULL,
-	    &ctime, 16);
+	/*
+	 * A dedupe leaves the file content unchanged, so it must not touch the
+	 * modification/change times.  Everything else (size, flags, seq) is
+	 * still written back unchanged.
+	 */
+	if (!dedup) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(outzfsvfs), NULL,
+		    &mtime, 16);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(outzfsvfs), NULL,
+		    &ctime, 16);
+	}
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(outzfsvfs), NULL,
 	    &outzp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(outzfsvfs), NULL,
@@ -1897,10 +1909,13 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 			update_pages(outzp, outoff, size, outos);
 		}
 
-		zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
-		    &clear_setid_bits_txg, tx);
+		if (!dedup) {
+			zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
+			    &clear_setid_bits_txg, tx);
 
-		zfs_tstamp_update_setup(outzp, CONTENT_MODIFIED, mtime, ctime);
+			zfs_tstamp_update_setup(outzp, CONTENT_MODIFIED, mtime,
+			    ctime);
+		}
 		if (outzp->z_is_sa)
 			outzp->z_has_seq = B_TRUE;
 
@@ -1969,7 +1984,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	zfsvfs_t	*inzfsvfs = ZTOZSB(inzp);
 	zfsvfs_t	*outzfsvfs = ZTOZSB(outzp);
 	zfs_locked_range_t *inlr, *outlr;
-	zilog_t		*zilog = outzfsvfs->z_log;
+	zilog_t		*zilog;
 	uint64_t	inoff = *inoffp;
 	uint64_t	outoff = *outoffp;
 	uint64_t	len = *lenp;
@@ -1983,6 +1998,12 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
 	if (error != 0)
 		return (error);
+
+	/*
+	 * Read z_log only after entering, so a suspend/resume (rollback,
+	 * zfs receive -F) cannot leave us with a stale or freed zilog.
+	 */
+	zilog = outzfsvfs->z_log;
 
 	error = zfs_clone_range_precheck(inzp, outzp);
 	if (error != 0)
@@ -2052,7 +2073,7 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	}
 
 	error = zfs_clone_range_locked(inzp, inoff, outzp, outoff, len, cr,
-	    outlr, &done);
+	    outlr, B_FALSE, &done);
 
 	zfs_rangelock_exit(outlr);
 	zfs_rangelock_exit(inlr);
@@ -2162,7 +2183,7 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	zfsvfs_t	*inzfsvfs = ZTOZSB(inzp);
 	zfsvfs_t	*outzfsvfs = ZTOZSB(outzp);
 	zfs_locked_range_t *inlr = NULL, *outlr = NULL;
-	zilog_t		*zilog = outzfsvfs->z_log;
+	zilog_t		*zilog;
 	uint64_t	len = *lenp;
 	uint64_t	done = 0;
 	uint_t		inblksz;
@@ -2173,6 +2194,12 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
 	if (error != 0)
 		return (error);
+
+	/*
+	 * Read z_log only after entering, so a suspend/resume (rollback,
+	 * zfs receive -F) cannot leave us with a stale or freed zilog.
+	 */
+	zilog = outzfsvfs->z_log;
 
 	error = zfs_clone_range_precheck(inzp, outzp);
 	if (error != 0)
@@ -2258,9 +2285,9 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	}
 
 	/*
-	 * The clone step requires block-aligned offsets and length.  Offsets
-	 * cannot be shortened; a trailing partial block that does not reach the
-	 * end of both files is aligned away when the caller permits it.
+	 * The clone step requires block-aligned offsets; those can never be
+	 * shortened away.  A trailing partial block is handled after the
+	 * comparison below.
 	 */
 	inblksz = inzp->z_blksz;
 	if ((inoff % inblksz) != 0 || (outoff % inblksz) != 0) {
@@ -2268,30 +2295,37 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 		goto unlock;
 	}
 	if ((len % inblksz) != 0 &&
-	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff)) {
-		if (!can_shorten) {
-			error = SET_ERROR(EINVAL);
-			goto unlock;
-		}
-		len = P2ALIGN_TYPED(len, inblksz, uint64_t);
-		if (len == 0) {
-			*samep = B_TRUE;
-			goto unlock;
-		}
+	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff) &&
+	    !can_shorten) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
 	}
 
 	/*
-	 * Compare the two ranges under the locks.  If they differ there is
-	 * nothing to do; if they match, clone the source blocks over the
-	 * destination without dropping the locks.
+	 * Compare the whole requested range under the locks, before aligning
+	 * it down for the clone.  Comparing the full range is what makes a
+	 * differing trailing sub-block report DIFFERS rather than being
+	 * silently dropped by the alignment below (which, with a large
+	 * recordsize, can round the whole request away to nothing).
 	 */
 	error = zfs_dedupe_range_compare(inzp, inoff, outzp, outoff, len,
 	    samep);
 	if (error != 0 || !*samep)
 		goto unlock;
 
+	/*
+	 * The ranges are identical.  Align a trailing partial block away for
+	 * the clone step; the ranges still compared equal, so *samep stays
+	 * set even if this leaves nothing to share.
+	 */
+	if ((len % inblksz) != 0 &&
+	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff))
+		len = P2ALIGN_TYPED(len, inblksz, uint64_t);
+	if (len == 0)
+		goto unlock;
+
 	error = zfs_clone_range_locked(inzp, inoff, outzp, outoff, len, cr,
-	    outlr, &done);
+	    outlr, B_TRUE, &done);
 
 unlock:
 	zfs_rangelock_exit(outlr);
