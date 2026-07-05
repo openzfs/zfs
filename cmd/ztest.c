@@ -176,6 +176,7 @@ typedef struct ztest_shared_hdr {
 	uint64_t	zh_ds_size;
 	uint64_t	zh_ds_count;
 	uint64_t	zh_scratch_state_size;
+	uint64_t	zh_prng_state_size;
 } ztest_shared_hdr_t;
 
 static ztest_shared_hdr_t *ztest_shared_hdr;
@@ -228,6 +229,8 @@ typedef struct ztest_shared_opts {
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
+	int zo_fishing;
+	uint64_t zo_fishing_seed[4];
 	int zo_gvars_count;
 	char zo_gvars[ZO_GVARS_MAX_COUNT][ZO_GVARS_MAX_ARGLEN];
 } ztest_shared_opts_t;
@@ -320,6 +323,13 @@ typedef struct ztest_scratch_state {
 } ztest_shared_scratch_state_t;
 
 static ztest_shared_scratch_state_t *ztest_scratch_state;
+
+typedef struct ztest_prng_state {
+	uint64_t		zs_primary_seed[4];
+	volatile uint64_t	zs_jumps;
+} ztest_shared_prng_state_t;
+
+static ztest_shared_prng_state_t *ztest_prng_state;
 
 #define	BT_MAGIC	0x123456789abcdefULL
 #define	MAXFAULTS(zs) \
@@ -881,6 +891,9 @@ static ztest_option_t option_table[] = {
 	{ 'G',	"dump-debug-msg", NULL,
 	    "Dump zfs_dbgmsg buffer before exiting due to an error",
 	    NO_DEFAULT, NULL},
+	{ 'J',	"fishing", "seed",
+	    "Use repeatable random sequences",
+	    NO_DEFAULT, NULL},
 	{ 'V',	"verbose", NULL,
 	    "Verbose (use multiple times for ever more verbosity)",
 	    NO_DEFAULT, NULL},
@@ -964,18 +977,193 @@ usage(boolean_t requested)
 	exit(requested ? 0 : 1);
 }
 
+/*
+ * xoshiro256++ 1.0 PRNG by David Blackman and Sebastiano Vigna
+ *
+ * xoshiro256plusplus_* functions are copied and adopted from the following
+ * CC-0 licensed file:
+ *
+ * https://prng.di.unimi.it/xoshiro256plusplus.c
+ */
+
+static inline uint64_t xoshiro256plusplus_rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+static uint64_t xoshiro256plusplus_next(uint64_t *s) {
+	const uint64_t result = xoshiro256plusplus_rotl(s[0] + s[3], 23) + s[0];
+
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = xoshiro256plusplus_rotl(s[3], 45);
+
+	return (result);
+}
+
+static void xoshiro256plusplus_jump(uint64_t *s) {
+	static const uint64_t JUMP[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
+	    0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+	uint64_t s0 = 0;
+	uint64_t s1 = 0;
+	uint64_t s2 = 0;
+	uint64_t s3 = 0;
+	for (int i = 0; i < sizeof (JUMP) / sizeof (*JUMP); i++)
+		for (int b = 0; b < 64; b++) {
+			if (JUMP[i] & UINT64_C(1) << b) {
+				s0 ^= s[0];
+				s1 ^= s[1];
+				s2 ^= s[2];
+				s3 ^= s[3];
+			}
+			xoshiro256plusplus_next(s);
+		}
+
+	s[0] = s0;
+	s[1] = s1;
+	s[2] = s2;
+	s[3] = s3;
+}
+
+static __thread volatile uint64_t seeded;
+static __thread uint64_t seed[4];
+
 static uint64_t
-ztest_random(uint64_t range)
+ztest_random_flags(uint64_t range, boolean_t fishing)
 {
 	uint64_t r;
 
 	if (range == 0)
 		return (0);
 
+	if (fishing)
+		goto fishing;
+
 	random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
 
 	return (r % range);
+
+fishing:
+	if (atomic_load_64(&ztest_prng_state->zs_jumps) == 0) {
+		memcpy(ztest_prng_state->zs_primary_seed,
+		    ztest_opts.zo_fishing_seed,
+		    sizeof (ztest_opts.zo_fishing_seed));
+		if (ztest_prng_state->zs_primary_seed[0] == 0 &&
+		    ztest_prng_state->zs_primary_seed[1] == 0 &&
+		    ztest_prng_state->zs_primary_seed[2] == 0 &&
+		    ztest_prng_state->zs_primary_seed[3] == 0) {
+			random_force_pseudo(B_FALSE);
+			random_get_pseudo_bytes(
+			    (uint8_t *)ztest_prng_state->zs_primary_seed,
+			    sizeof (ztest_prng_state->zs_primary_seed));
+		}
+		printf("primary_prng_seed=%016lx%016lx%016lx%016lx\n",
+		    ztest_prng_state->zs_primary_seed[0],
+		    ztest_prng_state->zs_primary_seed[1],
+		    ztest_prng_state->zs_primary_seed[2],
+		    ztest_prng_state->zs_primary_seed[3]);
+	}
+	if (atomic_load_64(&seeded) == 0) {
+		memcpy(seed, ztest_prng_state->zs_primary_seed,
+		    sizeof (ztest_prng_state->zs_primary_seed));
+		uint64_t jumps = atomic_inc_64_nv(
+		    &ztest_prng_state->zs_jumps);
+		for (uint64_t i = 0; i < jumps; i++)
+			xoshiro256plusplus_jump(seed);
+		atomic_inc_64(&seeded);
+		if (ztest_opts.zo_verbose >= 5) {
+			printf("thread=%u prng_seed=%016lx%016lx%016lx%016lx\n",
+			    libspl_gettid(),
+			    seed[0], seed[1], seed[2], seed[3]);
+		}
+	}
+	r = xoshiro256plusplus_next(seed);
+
+	return (r % range);
 }
+
+static uint64_t
+ztest_random(uint64_t range)
+{
+	return (ztest_random_flags(range, ztest_opts.zo_fishing));
+}
+
+static void
+ztest_random_bytes(uint8_t *buf, size_t len)
+{
+	uint64_t rnd;
+	size_t cnt;
+
+	while (len > 0) {
+		rnd = ztest_random(UINT64_MAX);
+		cnt = (len > sizeof (rnd)) ? sizeof (rnd) : len;
+		memcpy(buf, &rnd, cnt);
+		buf += cnt;
+		len -= cnt;
+	}
+}
+
+typedef struct ztest_fishing_thread_arg {
+	void (*func)(void *);
+	void *arg;
+} ztest_fishing_thread_arg_t;
+
+static __attribute__((noreturn)) void
+ztest_fishing_thread(void *arg)
+{
+	(void) ztest_random(1); /* trigger seed lazy init for this thread */
+
+	ztest_fishing_thread_arg_t ftarg = *(ztest_fishing_thread_arg_t *)arg;
+	umem_free(arg, sizeof (ztest_fishing_thread_arg_t));
+
+	ftarg.func(ftarg.arg);
+
+	thread_exit();
+}
+
+static kthread_t *
+ztest_thread_create(const char *name,
+    void *stk, size_t stksize, void (*func)(void *), void *arg,
+    size_t len, proc_t *pp, int state, pri_t pri)
+{
+	(void) stk, (void) len, (void) pp, (void) pri;
+	kthread_t *result;
+	ztest_fishing_thread_arg_t *ftargp;
+	uint64_t jumps;
+
+	if (ztest_opts.zo_fishing)
+		goto fishing;
+
+	return (thread_create_named(name, stk, stksize, func, arg, len, pp,
+	    state, pri));
+
+fishing:
+	ftargp = umem_alloc(sizeof (ztest_fishing_thread_arg_t), UMEM_NOFAIL);
+	ftargp->func = func;
+	ftargp->arg = arg;
+
+	jumps = atomic_load_64(&ztest_prng_state->zs_jumps);
+	result = thread_create_named(name, stk, stksize,
+	    ztest_fishing_thread, ftargp, len, pp, state, pri);
+	while (atomic_load_64(&ztest_prng_state->zs_jumps) == jumps) {
+		/* let this thread initialize its seed */
+	}
+
+	return (result);
+}
+
+#define	_thread_create_named(name, stk, stksize, func, arg, len, \
+    pp, state, pri)	\
+	ztest_thread_create(name, stk, stksize, func, arg, len, pp, state, pri)
+#define	_thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	ztest_thread_create(#func, stk, stksize, func, arg, len, pp, state, pri)
 
 static void
 ztest_parse_name_value(const char *input, ztest_shared_opts_t *zo)
@@ -1160,6 +1348,32 @@ process_options(int argc, char **argv)
 		case 'G':
 			zo->zo_dump_dbgmsg = 1;
 			break;
+		case 'J':
+			zo->zo_fishing = 1;
+			if (strlen(optarg) == 0 || strcmp(optarg, "0") == 0) {
+				/* ok, no seed provided */
+				break;
+			} else if (strlen(optarg) != 64) {
+				(void) fprintf(stderr,
+				    "fishing seed must be 64 hex digits: %s\n",
+				    optarg);
+				usage(B_FALSE);
+			}
+			for (int i = 0; i < 4; i++) {
+				char s[17];
+				char *end = NULL;
+				memcpy(s, optarg + i * 16, 16);
+				s[16] = '\0';
+				errno = 0;
+				zo->zo_fishing_seed[i] = strtoull(s, &end, 16);
+				if (errno != 0 || end != s + 16) {
+					(void) fprintf(stderr,
+					    "invalid fishing seed: %s\n",
+					    optarg);
+					usage(B_FALSE);
+				}
+			}
+			break;
 		case 'h':
 			usage(B_TRUE);
 			break;
@@ -1183,7 +1397,7 @@ process_options(int argc, char **argv)
 	}
 
 	if (strcmp(raid_kind, "random") == 0) {
-		switch (ztest_random(3)) {
+		switch (ztest_random_flags(3, B_FALSE)) {
 		case 0:
 			raid_kind = "raidz";
 			break;
@@ -4367,7 +4581,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	if (ztest_random(2) == 0 && expected_error == 0) {
 		raidz_expand_pause_point =
 		    ztest_random(RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2) + 1;
-		scratch_thread = thread_create(NULL, 0, ztest_scratch_thread,
+		scratch_thread = _thread_create(NULL, 0, ztest_scratch_thread,
 		    ztest_shared, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 	}
 
@@ -8903,7 +9117,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	/* Setup a 1 MiB buffer of random data */
 	uint64_t bufsize = 1024 * 1024;
 	void *buffer = umem_alloc(bufsize, UMEM_NOFAIL);
-	random_get_pseudo_bytes((uint8_t *)buffer, bufsize);
+	ztest_random_bytes((uint8_t *)buffer, bufsize);
 
 	/*
 	 * Put some data in the pool and then attach a vdev to initiate
@@ -8935,7 +9149,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 		thread_args[t].rzx_buffer = buffer;
 		thread_args[t].rzx_alloc_max = alloc_goal;
 		thread_args[t].rzx_spa = spa;
-		run_threads[t] = thread_create(NULL, 0, ztest_rzx_thread,
+		run_threads[t] = _thread_create(NULL, 0, ztest_rzx_thread,
 		    &thread_args[t], 0, NULL, TS_RUN | TS_JOINABLE,
 		    defclsyspri);
 	}
@@ -9093,7 +9307,7 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (i = 0; i < ztest_opts.zo_threads; i++) {
-		run_threads[i] = thread_create_named("ztest_func", NULL, 0,
+		run_threads[i] = _thread_create_named("ztest_func", NULL, 0,
 		    ztest_thread, (void *)(uintptr_t)i, 0, NULL,
 		    TS_RUN | TS_JOINABLE, defclsyspri);
 	}
@@ -9210,13 +9424,13 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
+	resume_thread = _thread_create(NULL, 0, ztest_resume_thread,
 	    spa, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 	/*
 	 * Create a deadman thread and set to panic if we hang.
 	 */
-	deadman_thread = thread_create(NULL, 0, ztest_deadman_thread,
+	deadman_thread = _thread_create(NULL, 0, ztest_deadman_thread,
 	    zs, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 	spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
@@ -9508,6 +9722,7 @@ shared_data_size(ztest_shared_hdr_t *hdr)
 	size += hdr->zh_stats_size * hdr->zh_stats_count;
 	size += hdr->zh_ds_size * hdr->zh_ds_count;
 	size += hdr->zh_scratch_state_size;
+	size += hdr->zh_prng_state_size;
 
 	return (size);
 }
@@ -9532,6 +9747,7 @@ setup_hdr(void)
 	hdr->zh_ds_size = sizeof (ztest_shared_ds_t);
 	hdr->zh_ds_count = ztest_opts.zo_datasets;
 	hdr->zh_scratch_state_size = sizeof (ztest_shared_scratch_state_t);
+	hdr->zh_prng_state_size = sizeof (ztest_shared_prng_state_t);
 
 	size = shared_data_size(hdr);
 	VERIFY0(ftruncate(ztest_fd_data, size));
@@ -9568,6 +9784,8 @@ setup_data(void)
 	ztest_shared_ds = (void *)&buf[offset];
 	offset += hdr->zh_ds_size * hdr->zh_ds_count;
 	ztest_scratch_state = (void *)&buf[offset];
+	offset += hdr->zh_scratch_state_size;
+	ztest_prng_state = (void *)&buf[offset];
 }
 
 static boolean_t
