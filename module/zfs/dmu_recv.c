@@ -3729,7 +3729,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		drc->drc_os = NULL;
 
 		dsl_dataset_snapshot_sync_impl(origin_head,
-		    drc->drc_tosnap, tx);
+		    drc->drc_tosnap, gethrestime_sec(), tx);
 
 		/* set snapshot's creation time and guid */
 		dmu_buf_will_dirty(origin_head->ds_prev->ds_dbuf, tx);
@@ -3755,7 +3755,8 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	} else {
 		dsl_dataset_t *ds = drc->drc_ds;
 
-		dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap, tx);
+		dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap,
+		    gethrestime_sec(), tx);
 
 		/* set snapshot's creation time and guid */
 		dmu_buf_will_dirty(ds->ds_prev->ds_dbuf, tx);

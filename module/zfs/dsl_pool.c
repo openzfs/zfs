@@ -1180,7 +1180,8 @@ dsl_pool_create_origin(dsl_pool_t *dp, dmu_tx_t *tx)
 	dsobj = dsl_dataset_create_sync(dp->dp_root_dir, ORIGIN_DIR_NAME,
 	    NULL, 0, kcred, NULL, tx);
 	VERIFY0(dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
-	dsl_dataset_snapshot_sync_impl(ds, ORIGIN_DIR_NAME, tx);
+	dsl_dataset_snapshot_sync_impl(ds, ORIGIN_DIR_NAME, gethrestime_sec(),
+	    tx);
 	VERIFY0(dsl_dataset_hold_obj(dp, dsl_dataset_phys(ds)->ds_prev_snap_obj,
 	    dp, &dp->dp_origin_snap));
 	dsl_dataset_rele(ds, FTAG);

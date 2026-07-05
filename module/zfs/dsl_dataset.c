@@ -1723,7 +1723,7 @@ dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx)
 
 void
 dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx)
+    uint64_t crtime, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	dmu_buf_t *dbuf;
@@ -1771,7 +1771,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsphys->ds_prev_snap_txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
 	dsphys->ds_next_snap_obj = ds->ds_object;
 	dsphys->ds_num_children = 1;
-	dsphys->ds_creation_time = gethrestime_sec();
+	dsphys->ds_creation_time = crtime;
 	dsphys->ds_creation_txg = crtxg;
 	dsphys->ds_deadlist_obj = dsl_dataset_phys(ds)->ds_deadlist_obj;
 	dsphys->ds_referenced_bytes = dsl_dataset_phys(ds)->ds_referenced_bytes;
@@ -1909,6 +1909,14 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	nvpair_t *pair;
 
+	/*
+	 * All snapshots created by one request are taken atomically in a
+	 * single txg, so give them a single creation time; sampling the
+	 * clock per snapshot could otherwise straddle a second boundary and
+	 * report different creation times for snapshots of the same txg.
+	 */
+	uint64_t crtime = gethrestime_sec();
+
 	for (pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
 		dsl_dataset_t *ds;
@@ -1920,7 +1928,7 @@ dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx)
 		(void) strlcpy(dsname, name, atp - name + 1);
 		VERIFY0(dsl_dataset_hold(dp, dsname, FTAG, &ds));
 
-		dsl_dataset_snapshot_sync_impl(ds, atp + 1, tx);
+		dsl_dataset_snapshot_sync_impl(ds, atp + 1, crtime, tx);
 		if (ddsa->ddsa_props != NULL) {
 			dsl_props_set_sync_impl(ds->ds_prev,
 			    ZPROP_SRC_LOCAL, ddsa->ddsa_props, tx);
@@ -2065,7 +2073,8 @@ dsl_dataset_snapshot_tmp_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY0(dsl_dataset_hold(dp, ddsta->ddsta_fsname, FTAG, &ds));
 
-	dsl_dataset_snapshot_sync_impl(ds, ddsta->ddsta_snapname, tx);
+	dsl_dataset_snapshot_sync_impl(ds, ddsta->ddsta_snapname,
+	    gethrestime_sec(), tx);
 	dsl_dataset_user_hold_sync_one(ds->ds_prev, ddsta->ddsta_htag,
 	    ddsta->ddsta_cleanup_minor, gethrestime_sec(), tx);
 	dsl_destroy_snapshot_sync_impl(ds->ds_prev, B_TRUE, tx);
