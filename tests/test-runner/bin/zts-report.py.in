@@ -279,6 +279,7 @@ if sys.platform.startswith('freebsd'):
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', 16668],
+        'zvol/zvol_misc/zvol_misc_fullblock': ['SKIP', na_reason],
         'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
         'bclone/bclone_crossfs_corner_cases_limited':
             ['SKIP', cfr_cross_reason],
