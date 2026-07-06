@@ -52,6 +52,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
+#include <sys/zio_checksum.h>
 #include <sys/txg.h>
 #include <sys/brt.h>
 #include <sys/dbuf.h>
@@ -2107,14 +2108,17 @@ out:
 }
 
 /*
- * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp,
+ * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp by
  * reading the committed on-disk data through the DMU (the same data
- * zfs_clone_range_locked() will clone).  Both files must be range locked by
- * the caller.  On return *samep is set if the ranges are byte-for-byte equal.
+ * zfs_clone_range_locked() will clone) and byte-comparing it.  Both files must
+ * be range locked by the caller.  On return *eqp is set if the ranges are
+ * byte-for-byte equal.  This is the authoritative (and always-correct) path;
+ * dmu_read() serves holes as zeros and transparently decrypts, so it needs no
+ * special-casing for encryption, holes or embedded blocks.
  */
 static int
-zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
-    uint64_t outoff, uint64_t len, boolean_t *samep)
+zfs_dedupe_range_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
+    uint64_t outoff, uint64_t len, boolean_t *eqp)
 {
 	objset_t	*inos = ZTOZSB(inzp)->z_os;
 	objset_t	*outos = ZTOZSB(outzp)->z_os;
@@ -2122,7 +2126,7 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	char		*inbuf, *outbuf;
 	int		error = 0;
 
-	*samep = B_FALSE;
+	*eqp = B_FALSE;
 
 	inbuf = vmem_alloc(chunk, KM_SLEEP);
 	outbuf = vmem_alloc(chunk, KM_SLEEP);
@@ -2148,10 +2152,170 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	}
 
 	if (error == 0 && len == 0)
-		*samep = B_TRUE;
+		*eqp = B_TRUE;
 
 	vmem_free(inbuf, chunk);
 	vmem_free(outbuf, chunk);
+
+	return (error);
+}
+
+/*
+ * Decide, from the two L0 block pointers alone, whether the blocks provably
+ * hold identical logical data.  Modeled on the nopwrite guard set in
+ * zio_nop_write(): a match of a cryptographically strong (dedup-grade)
+ * checksum is trusted to imply data equality, exactly as ZFS dedup relies on
+ * it.  This can only ever prove equality; a mismatch (or any non-provable
+ * case) is inconclusive and the caller must fall back to reading the data.
+ *
+ * All of the following must hold for a checksum match to be trusted:
+ *   - neither BP is embedded, a hole, or redacted (no usable blk_cksum);
+ *   - neither BP is encrypted (per-block IV/salt make the checksum data-
+ *     independent, so equal plaintext yields different checksums);
+ *   - both BPs use the same checksum function and it carries the DEDUP flag
+ *     (sha256/sha512/skein/blake3; fletcher and edonr are excluded);
+ *   - compression, PSIZE, LSIZE and byteorder match, since blk_cksum is
+ *     computed over the physical (post-compression) bytes.
+ * Salted checksums (skein/blake3) are safe here because block cloning is
+ * always intra-pool (zfs_clone_range_precheck() returns EXDEV otherwise) and
+ * the salt is per-pool, so identical data yields identical checksums.
+ */
+static boolean_t
+zfs_dedupe_bp_provably_equal(const blkptr_t *bi, const blkptr_t *bo)
+{
+	enum zio_checksum ck;
+
+	if (BP_IS_EMBEDDED(bi) || BP_IS_EMBEDDED(bo) ||
+	    BP_IS_HOLE(bi) || BP_IS_HOLE(bo) ||
+	    BP_IS_REDACTED(bi) || BP_IS_REDACTED(bo) ||
+	    BP_IS_ENCRYPTED(bi) || BP_IS_ENCRYPTED(bo))
+		return (B_FALSE);
+
+	ck = BP_GET_CHECKSUM(bi);
+	if (ck != BP_GET_CHECKSUM(bo))
+		return (B_FALSE);
+	if ((zio_checksum_table[ck].ci_flags & ZCHECKSUM_FLAG_DEDUP) == 0)
+		return (B_FALSE);
+
+	if (BP_GET_COMPRESS(bi) != BP_GET_COMPRESS(bo) ||
+	    BP_GET_PSIZE(bi) != BP_GET_PSIZE(bo) ||
+	    BP_GET_LSIZE(bi) != BP_GET_LSIZE(bo) ||
+	    BP_GET_BYTEORDER(bi) != BP_GET_BYTEORDER(bo))
+		return (B_FALSE);
+
+	return (ZIO_CHECKSUM_EQUAL(bi->blk_cksum, bo->blk_cksum));
+}
+
+/*
+ * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp,
+ * setting *samep if the ranges are byte-for-byte equal.  Both files must be
+ * range locked by the caller.
+ *
+ * As a fast path, whole aligned blocks are compared by their block-pointer
+ * checksums (see zfs_dedupe_bp_provably_equal()); with a strong checksum this
+ * avoids reading the data at all, mirroring how ZFS dedup trusts checksums.
+ * Any block not provably equal that way - a weak or mismatched checksum,
+ * encryption, a hole, differing compression, a dirty (not yet synced) block,
+ * etc. - and the unaligned trailing sub-block (whose partial content a
+ * whole-block checksum cannot validate) fall back to reading and byte-
+ * comparing the data.  The fast path can only confirm equality; every
+ * inequality is decided by the data comparison, so the result is identical to
+ * a full byte compare.
+ */
+static int
+zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
+    uint64_t outoff, uint64_t len, boolean_t *samep)
+{
+	objset_t	*inos = ZTOZSB(inzp)->z_os;
+	objset_t	*outos = ZTOZSB(outzp)->z_os;
+	uint_t		blksz = inzp->z_blksz;
+	blkptr_t	*bps_in = NULL, *bps_out = NULL;
+	size_t		maxblocks;
+	uint64_t	aligned, off = 0;
+	boolean_t	eq;
+	int		error = 0;
+
+	*samep = B_FALSE;
+
+	/*
+	 * The checksum fast path needs the two files' blocks to line up one to
+	 * one: same block size and block-aligned offsets.  Otherwise compare
+	 * the whole range by reading the data.
+	 */
+	if (outzp->z_blksz != blksz ||
+	    (inoff % blksz) != 0 || (outoff % blksz) != 0)
+		return (zfs_dedupe_range_memcmp(inzp, inoff, outzp, outoff, len,
+		    samep));
+
+	/*
+	 * Bound the block-pointer batch so the temporary arrays stay small and
+	 * each dmu_read_l0_bps() stays within DMU_MAX_ACCESS.
+	 */
+	maxblocks = MAX(1, MIN((uint64_t)16, (DMU_MAX_ACCESS >> 1) / blksz));
+	bps_in = kmem_alloc(sizeof (blkptr_t) * maxblocks, KM_SLEEP);
+	bps_out = kmem_alloc(sizeof (blkptr_t) * maxblocks, KM_SLEEP);
+
+	/* Whole aligned blocks are eligible for the checksum fast path. */
+	aligned = P2ALIGN_TYPED(len, blksz, uint64_t);
+
+	while (off < aligned) {
+		uint64_t span = MIN(aligned - off, (uint64_t)maxblocks * blksz);
+		size_t nin = maxblocks, nout = maxblocks;
+		int e1, e2;
+
+		e1 = dmu_read_l0_bps(inos, inzp->z_id, inoff + off, span,
+		    bps_in, &nin);
+		e2 = dmu_read_l0_bps(outos, outzp->z_id, outoff + off, span,
+		    bps_out, &nout);
+
+		if (e1 != 0 || e2 != 0 || nin != nout) {
+			/*
+			 * A block created in the current txg (EAGAIN), or any
+			 * other reason we could not get stable BPs, just means
+			 * we compare this span by reading it; the data path is
+			 * always correct, including for dirty blocks.
+			 */
+			error = zfs_dedupe_range_memcmp(inzp, inoff + off,
+			    outzp, outoff + off, span, &eq);
+			if (error != 0 || !eq)
+				goto out;
+			off += span;
+			continue;
+		}
+
+		for (size_t i = 0; i < nin; i++) {
+			if (zfs_dedupe_bp_provably_equal(&bps_in[i],
+			    &bps_out[i]))
+				continue;
+
+			/* Not provable from BPs: compare just this block. */
+			error = zfs_dedupe_range_memcmp(inzp,
+			    inoff + off + (uint64_t)i * blksz, outzp,
+			    outoff + off + (uint64_t)i * blksz, blksz, &eq);
+			if (error != 0 || !eq)
+				goto out;
+		}
+
+		off += span;
+	}
+
+	/*
+	 * The unaligned trailing sub-block (and, when they were not eligible
+	 * above, unaligned leading bytes) must always be read: a whole-block
+	 * checksum cannot vouch for a partial block.
+	 */
+	if (off < len) {
+		error = zfs_dedupe_range_memcmp(inzp, inoff + off, outzp,
+		    outoff + off, len - off, &eq);
+		if (error != 0 || !eq)
+			goto out;
+	}
+
+	*samep = B_TRUE;
+
+out:
+	kmem_free(bps_in, sizeof (blkptr_t) * maxblocks);
+	kmem_free(bps_out, sizeof (blkptr_t) * maxblocks);
 
 	return (error);
 }
