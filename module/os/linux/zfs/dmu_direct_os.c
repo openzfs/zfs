@@ -46,9 +46,9 @@
 #include <sys/dmu_objset.h>
 
 /*
- * Async state for dmu_read_abd_async().
+ * Shared async state for dmu_read_abd_async() and dmu_write_abd_async().
  */
-struct dmu_read_abd_async_state {
+struct dmu_abd_async_state {
 	dmu_buf_t	**ds_dbp;
 	int		ds_numbufs;
 	dmu_abd_done_func_t *ds_done;
@@ -56,10 +56,10 @@ struct dmu_read_abd_async_state {
 };
 
 static void
-dmu_read_abd_async_done(zio_t *rio)
+dmu_abd_async_done(zio_t *zio)
 {
-	struct dmu_read_abd_async_state *ds = rio->io_private;
-	int error = rio->io_error;
+	struct dmu_abd_async_state *ds = zio->io_private;
+	int error = zio->io_error;
 
 	dmu_buf_rele_array(ds->ds_dbp, ds->ds_numbufs, FTAG);
 	ds->ds_done(ds->ds_done_arg, error);
@@ -89,14 +89,14 @@ dmu_read_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 	if (err)
 		return (err);
 
-	struct dmu_read_abd_async_state *ds =
+	struct dmu_abd_async_state *ds =
 	    kmem_alloc(sizeof (*ds), KM_SLEEP);
 	ds->ds_dbp = dbp;
 	ds->ds_numbufs = numbufs;
 	ds->ds_done = done;
 	ds->ds_done_arg = done_arg;
 
-	zio_t *rio = zio_root(spa, dmu_read_abd_async_done, ds,
+	zio_t *rio = zio_root(spa, dmu_abd_async_done, ds,
 	    ZIO_FLAG_CANFAIL);
 
 	for (int i = 0; i < numbufs; i++) {
@@ -171,26 +171,7 @@ async_error:
 	return (0);
 }
 
-/*
- * Async state for dmu_write_abd_async().
- */
-struct dmu_write_abd_async_state {
-	dmu_buf_t	**ds_dbp;
-	int		ds_numbufs;
-	dmu_abd_done_func_t *ds_done;
-	void		*ds_done_arg;
-};
 
-static void
-dmu_write_abd_async_done(zio_t *pio)
-{
-	struct dmu_write_abd_async_state *ds = pio->io_private;
-	int error = pio->io_error;
-
-	dmu_buf_rele_array(ds->ds_dbp, ds->ds_numbufs, FTAG);
-	ds->ds_done(ds->ds_done_arg, error);
-	kmem_free(ds, sizeof (*ds));
-}
 
 /*
  * Asynchronous variant of dmu_write_abd().  Dispatches child zios and
@@ -215,14 +196,14 @@ dmu_write_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 	if (err)
 		return (err);
 
-	struct dmu_write_abd_async_state *ds =
+	struct dmu_abd_async_state *ds =
 	    kmem_alloc(sizeof (*ds), KM_SLEEP);
 	ds->ds_dbp = dbp;
 	ds->ds_numbufs = numbufs;
 	ds->ds_done = done;
 	ds->ds_done_arg = done_arg;
 
-	zio_t *pio = zio_root(spa, dmu_write_abd_async_done, ds,
+	zio_t *pio = zio_root(spa, dmu_abd_async_done, ds,
 	    ZIO_FLAG_CANFAIL);
 
 	for (int i = 0; i < numbufs && err == 0; i++) {
