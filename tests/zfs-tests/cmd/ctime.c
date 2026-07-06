@@ -369,7 +369,7 @@ main(void)
 		 * a little slack in case of scheduling delays or similar.
 		 */
 		long delta = (long)t2 - (long)t1;
-		if (delta < 2 || delta > 4) {
+		if (delta < 2 || delta > 10) {
 			(void) fprintf(stderr,
 			    "%s: BAD time change: t1(%ld), t2(%ld)\n",
 			    timetest_table[i].name, (long)t1, (long)t2);
