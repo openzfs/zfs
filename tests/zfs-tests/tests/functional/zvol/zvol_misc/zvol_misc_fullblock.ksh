@@ -73,6 +73,7 @@ function cleanup
 	fi
 	poolexists $rpool && destroy_pool $rpool
 	rm -f "$slog" "$rvdev"
+	restore_tunable VOL_IMMEDIATE_WRITE_SZ
 	block_device_wait
 }
 
@@ -85,12 +86,31 @@ function indirect_count
 log_assert "Full aligned block sync writes to a ZVOL are stored indirectly"
 log_onexit cleanup
 
+save_tunable VOL_IMMEDIATE_WRITE_SZ
+
 log_must zfs create -V $VOLSIZE -b $VOLBS -o sync=always \
     -o compression=off -o volmode=dev $ZVOL
 block_device_wait $ZDEV
 
-# 1. Full aligned block sync writes: expect indirect writes.
+# 0. With the promotion disabled (the default), full block sync writes must be
+#    copied into the ZIL, not stored indirectly.
+log_must set_tunable64 VOL_IMMEDIATE_WRITE_SZ 0
 typeset before=$(indirect_count)
+log_must dd if=/dev/urandom of=$ZDEV bs=$VOLBS count=$COUNT \
+    oflag=direct conv=fdatasync
+typeset after=$(indirect_count)
+typeset delta=$((after - before))
+log_note "promotion off: indirect_count delta=$delta (expected 0)"
+if [[ $delta -ne 0 ]] ; then
+	log_fail "Full block writes used indirect with the promotion disabled " \
+	    "($delta != 0)"
+fi
+
+# Enable the promotion (minimum block size = volblocksize) for the rest.
+log_must set_tunable64 VOL_IMMEDIATE_WRITE_SZ $VOLBS
+
+# 1. Full aligned block sync writes: expect indirect writes.
+before=$(indirect_count)
 log_must dd if=/dev/urandom of=$ZDEV bs=$VOLBS count=$COUNT \
     oflag=direct conv=fdatasync
 typeset after=$(indirect_count)
