@@ -218,6 +218,21 @@ AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS], [
 	AC_MSG_RESULT([$enable_invariants])
 ])
 
+AC_DEFUN([ZFS_AC_METASLAB_TRACING], [
+	AC_MSG_CHECKING([whether metaslab tracing is enabled])
+	AC_ARG_ENABLE([metaslab-tracing],
+		[AS_HELP_STRING([--enable-metaslab-tracing],
+		[Enable metaslab tracing @<:@default=no@:>@])],
+		[],
+		[enable_metaslab_tracing=no])
+
+	AS_IF([test "x$enable_metaslab_tracing" = xyes], [
+		AC_DEFINE(METASLAB_TRACE, 1, [metaslab tracing enabled])
+	])
+
+	AC_MSG_RESULT([$enable_metaslab_tracing])
+])
+
 dnl # Disabled by default. If enabled allows a configured "turn objtools
 dnl # warnings into errors" (CONFIG_OBJTOOL_WERROR) behavior to take effect.
 dnl # If disabled, objtool warnings are never turned into errors. It can't

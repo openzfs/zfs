@@ -265,11 +265,11 @@ static int zfs_metaslab_segment_weight_enabled = B_TRUE;
  */
 static int zfs_metaslab_switch_threshold = 2;
 
+#ifdef METASLAB_TRACE
 /*
- * Internal switch to enable/disable the metaslab allocation tracing
- * facility.
+ * Switch to enable/disable the metaslab allocation tracing facility.
  */
-static const boolean_t metaslab_trace_enabled = B_FALSE;
+static int metaslab_trace_enabled = B_FALSE;
 
 /*
  * Maximum entries that the metaslab allocation tracing facility will keep
@@ -279,7 +279,8 @@ static const boolean_t metaslab_trace_enabled = B_FALSE;
  * to every exceed this value. In debug mode, the system will panic if this
  * limit is ever reached allowing for further investigation.
  */
-static const uint64_t metaslab_trace_max_entries = 5000;
+static uint64_t metaslab_trace_max_entries = 5000;
+#endif
 
 /*
  * Maximum number of metaslabs per group that can be disabled
@@ -356,7 +357,9 @@ static unsigned int metaslab_idx_func(multilist_t *, void *);
 static void metaslab_evict(metaslab_t *, uint64_t);
 static void metaslab_rt_add(zfs_range_tree_t *rt, zfs_range_seg_t *rs,
     void *arg);
+#ifdef METASLAB_TRACE
 kmem_cache_t *metaslab_alloc_trace_cache;
+#endif
 
 typedef struct metaslab_stats {
 	kstat_named_t metaslabstat_trace_over_limit;
@@ -391,10 +394,12 @@ static kstat_t *metaslab_ksp;
 void
 metaslab_stat_init(void)
 {
+#ifdef METASLAB_TRACE
 	ASSERT0P(metaslab_alloc_trace_cache);
 	metaslab_alloc_trace_cache = kmem_cache_create(
 	    "metaslab_alloc_trace_cache", sizeof (metaslab_alloc_trace_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
+#endif
 	metaslab_ksp = kstat_create("zfs", 0, "metaslab_stats",
 	    "misc", KSTAT_TYPE_NAMED, sizeof (metaslab_stats) /
 	    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -412,8 +417,10 @@ metaslab_stat_fini(void)
 		metaslab_ksp = NULL;
 	}
 
+#ifdef METASLAB_TRACE
 	kmem_cache_destroy(metaslab_alloc_trace_cache);
 	metaslab_alloc_trace_cache = NULL;
+#endif
 }
 
 /*
@@ -4743,10 +4750,13 @@ metaslab_is_unique(metaslab_t *msp, dva_t *dva)
  * Add an allocation trace element to the allocation tracing list.
  */
 static void
-metaslab_trace_add(zio_alloc_list_t *zal, metaslab_group_t *mg,
-    metaslab_t *msp, uint64_t psize, uint32_t dva_id, uint64_t offset,
-    int allocator)
+metaslab_trace_add(zio_alloc_list_t *zal __maybe_unused,
+    metaslab_group_t *mg __maybe_unused,
+    metaslab_t *msp __maybe_unused, uint64_t psize __maybe_unused,
+    uint32_t dva_id __maybe_unused, uint64_t offset __maybe_unused,
+    int allocator __maybe_unused)
 {
+#ifdef METASLAB_TRACE
 	metaslab_alloc_trace_t *mat;
 
 	if (!metaslab_trace_enabled)
@@ -4792,8 +4802,10 @@ metaslab_trace_add(zio_alloc_list_t *zal, metaslab_group_t *mg,
 	zal->zal_size++;
 
 	ASSERT3U(zal->zal_size, <=, metaslab_trace_max_entries);
+#endif
 }
 
+#ifdef METASLAB_TRACE
 void
 metaslab_trace_move(zio_alloc_list_t *old, zio_alloc_list_t *new)
 {
@@ -4821,6 +4833,7 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
 	list_destroy(&zal->zal_list);
 	zal->zal_size = 0;
 }
+#endif
 
 /*
  * ==========================================================================
@@ -6038,7 +6051,6 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	ASSERT(ndvas > 0 && ndvas <= spa_max_replication(spa));
 	ASSERT0(BP_GET_NDVAS(bp));
 	ASSERT(hintbp == NULL || ndvas <= BP_GET_NDVAS(hintbp));
-	ASSERT3P(zal, !=, NULL);
 
 	uint64_t smallest_psize = UINT64_MAX;
 	for (int d = 0; d < ndvas; d++) {
@@ -6488,3 +6500,11 @@ ZFS_MODULE_PARAM_CALL(zfs, zfs_, active_allocator,
 ZFS_MODULE_PARAM(zfs_metaslab, zfs_metaslab_, condense_pct, UINT, ZMOD_RW,
 	"Condense on-disk spacemap when it is more than this many percents "
 	"of in-memory counterpart");
+
+#ifdef METASLAB_TRACE
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, trace_enabled, INT, ZMOD_RW,
+	"Enable metaslab allocation tracing");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, trace_max_entries, U64, ZMOD_RW,
+	"Maximum entries for metaslab allocation tracing");
+#endif

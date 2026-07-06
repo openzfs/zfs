@@ -98,9 +98,19 @@ void metaslab_check_free(spa_t *, const blkptr_t *);
 
 void metaslab_stat_init(void);
 void metaslab_stat_fini(void);
+#ifdef METASLAB_TRACE
 void metaslab_trace_move(zio_alloc_list_t *, zio_alloc_list_t *);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
+#else
+static inline void
+metaslab_trace_move(zio_alloc_list_t *old __maybe_unused,
+    zio_alloc_list_t *dst __maybe_unused) {}
+static inline void
+metaslab_trace_init(zio_alloc_list_t *zal __maybe_unused) {}
+static inline void
+metaslab_trace_fini(zio_alloc_list_t *zal __maybe_unused) {}
+#endif
 
 metaslab_class_t *metaslab_class_create(spa_t *, const char *,
     const metaslab_ops_t *, boolean_t);

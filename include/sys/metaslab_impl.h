@@ -43,6 +43,7 @@
 extern "C" {
 #endif
 
+#ifdef METASLAB_TRACE
 /*
  * Metaslab allocation tracing record.
  */
@@ -56,6 +57,7 @@ typedef struct metaslab_alloc_trace {
 	uint64_t			mat_offset;
 	int					mat_allocator;
 } metaslab_alloc_trace_t;
+#endif
 
 /*
  * Used by the metaslab allocation tracing facility to indicate

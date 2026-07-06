@@ -967,7 +967,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	    offsetof(zio_link_t, zl_parent_node));
 	list_create(&zio->io_child_list, sizeof (zio_link_t),
 	    offsetof(zio_link_t, zl_child_node));
-	metaslab_trace_init(&zio->io_alloc_list);
+	metaslab_trace_init(ZIO_ALLOC_LIST(zio));
 
 	if (vd != NULL)
 		zio->io_child_type = ZIO_CHILD_VDEV;
@@ -1038,7 +1038,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 void
 zio_destroy(zio_t *zio)
 {
-	metaslab_trace_fini(&zio->io_alloc_list);
+	metaslab_trace_fini(ZIO_ALLOC_LIST(zio));
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
 	mutex_destroy(&zio->io_lock);
@@ -3191,7 +3191,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	uint64_t candidate = gangblocksize;
 	error = metaslab_alloc_range(spa, mc, gangblocksize, gangblocksize,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
-	    &pio->io_alloc_list, pio->io_allocator, pio, &candidate);
+	    ZIO_ALLOC_LIST(pio), pio->io_allocator, pio, &candidate);
 	if (error) {
 		pio->io_error = error;
 		return (pio);
@@ -3282,7 +3282,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		resid -= psize;
 		zio_inherit_allocator(zio, cio);
 		if (allocated) {
-			metaslab_trace_move(&cio_list, &cio->io_alloc_list);
+			metaslab_trace_move(&cio_list, ZIO_ALLOC_LIST(cio));
 			metaslab_group_alloc_increment_all(spa,
 			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
 			    cio);
@@ -4363,7 +4363,7 @@ again:
 	ASSERT(ZIO_HAS_ALLOCATOR(zio));
 	error = metaslab_alloc(spa, mc, zio->io_size, bp,
 	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
-	    &zio->io_alloc_list, zio->io_allocator, zio);
+	    ZIO_ALLOC_LIST(zio), zio->io_allocator, zio);
 
 	/*
 	 * When the dedup or special class is spilling into the normal class,
