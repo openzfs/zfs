@@ -52,7 +52,7 @@ extern "C" {
  *		serial_validate_fletcher4(),
  *		serial_byteswap(BS_INCOMING),
  *		serial_validate_records(),
- *		serial_dump_records(&dump_args),
+ *		serial_dump_records(),
  *		serial_null_output(),
  *		chain_terminator()
  *	}
@@ -61,7 +61,7 @@ extern "C" {
  *
  *	zstream_chain_t dump_chain = {
  *		STANDARD_INPUT_STACK(infile),
- *		serial_dump_records(&dump_args),
+ *		serial_dump_records(),
  *		NULL_OUTPUT_STACK()
  *	};
  *
@@ -103,17 +103,19 @@ extern "C" {
 #define	CA_LITTLE_ENDIAN_INPUT		(1ULL << 2)
 
 #define	CA_VERBOSE			(1ULL << 0)	/* ca_command_opts */
-#define	CA_VERY_VERBOSE			(1ULL << 1)
-#define	CA_DUMP_DATA			(1ULL << 2)
-#define	CA_IGNORE_CKSUMS		(1ULL << 3)
-#define	CA_DO_NOT_VALIDATE		(1ULL << 4)
-#define	CA_FORBID_DEDUP			(1ULL << 5)
-#define	CA_REQUIRE_DEDUP		(1ULL << 6)
-#define	CA_REQUIRE_NATIVE_ENDIAN	(1ULL << 7)
-#define	CA_BYTESWAP_ON_OUTPUT		(1ULL << 8)
-#define	CA_BIG_ENDIAN_OUT		(1ULL << 9)
-#define	CA_LITTLE_ENDIAN_OUT		(1ULL << 10)
-#define	CA_OPPOSITE_ENDIAN_OUT		(1ULL << 11)
+#define	CA_DUMP_BEGIN_AND_END		(1ULL << 1)
+#define	CA_DUMP_ALL_RECORDS		(1ULL << 2)
+#define	CA_DUMP_CHECKSUMS		(1ULL << 3)
+#define	CA_DUMP_DATA			(1ULL << 4)
+#define	CA_IGNORE_CKSUMS		(1ULL << 5)
+#define	CA_DO_NOT_VALIDATE		(1ULL << 6)
+#define	CA_FORBID_DEDUP			(1ULL << 7)
+#define	CA_REQUIRE_DEDUP		(1ULL << 8)
+#define	CA_REQUIRE_NATIVE_ENDIAN	(1ULL << 9)
+#define	CA_BYTESWAP_ON_OUTPUT		(1ULL << 10)
+#define	CA_BIG_ENDIAN_OUT		(1ULL << 11)
+#define	CA_LITTLE_ENDIAN_OUT		(1ULL << 12)
+#define	CA_OPPOSITE_ENDIAN_OUT		(1ULL << 13)
 
 #define	OPTION_ENABLED(option) (!!(chain_attrs->ca_command_opts & (option)))
 #define	STREAM_HAS_FEATURE(feat) (!!(chain_attrs->ca_feature_flags & (feat)))

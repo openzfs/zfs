@@ -14,6 +14,7 @@ zstream_SOURCES = \
 	%D%/zstream_decompress.c \
 	%D%/zstream_drop_record.c \
 	%D%/zstream_dump.c \
+	%D%/zstream_dump.h \
 	%D%/zstream_fletcher4.c \
 	%D%/zstream_fletcher4.h \
 	%D%/zstream_io.c \
