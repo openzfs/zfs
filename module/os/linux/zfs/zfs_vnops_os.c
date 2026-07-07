@@ -4573,32 +4573,23 @@ zfs_async_read_complete(void *arg, int error)
 	/*
 	 * For the DIO (ABD) path, dmu_read_abd_async() writes data directly
 	 * to the user pages via DMA, so uio_resid is never decremented.
-	 * Report the full requested size as the bytes read.  On ECKSUM
-	 * retry via the ARC, uio_resid is decremented by zfs_uiomove, so
-	 * the subtraction works normally.
+	 * On success, report the full requested size as the bytes read.
+	 * On checksum error we report the error to the caller via
 	 */
-	if (cb->dio && error == 0)
+	if (error == 0)
 		read = cb->start_resid;
 	else
-		read = cb->start_resid - cb->uio.uio_resid;
-
-	/* ECKSUM retry via ARC */
-	if (error == ECKSUM && cb->dio) {
-		cb->uio.uio_extflg &= ~UIO_DIRECT;
-		cb->dio = B_FALSE;
-		dmu_buf_t *db = sa_get_db(cb->zp->z_sa_hdl);
-		error = dmu_read_uio_dnode(DB_DNODE((dmu_buf_impl_t *)db),
-		    &cb->uio, cb->start_resid, DMU_READ_PREFETCH);
-		if (error == 0)
-			read = cb->start_resid - cb->uio.uio_resid;
-		else
-			read = 0;
-	}
+		read = 0;
 
 	dataset_kstats_update_read_kstats(&cb->zfsvfs->z_kstat, read);
 	zfs_rangelock_exit(cb->lr);
+
+	/*
+	 * Unpin DIO pages — DMA is complete (or failed).
+	 */
 	if (cb->uio.uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(&cb->uio, UIO_READ);
+
 	ZFS_ACCESSTIME_STAMP(cb->zfsvfs, cb->zp);
 
 	/*
