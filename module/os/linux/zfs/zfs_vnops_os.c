@@ -5018,9 +5018,14 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	 * Copy user data into the kernel ABD.  Must be done AFTER
 	 * dmu_tx_assign so uio stays intact on assign failure for
 	 * the sync fallback.
+	 *
+	 * Save the full uio before the copy for restore if errors.
 	 */
+	zfs_uio_t saved_uio = *uio;
+
 	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
 	if (error) {
+		*uio = saved_uio;
 		dmu_tx_abort(tx);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
@@ -5069,6 +5074,11 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	error = dmu_write_abd_async(DB_DNODE(db), offset, n, data, dflags,
 	    tx, zfs_async_write_complete, cb);
 	if (error) {
+		/*
+		 * Restore the uio so the sync fallback in
+		 * zpl_iter_write() retries the full write.
+		 */
+		*uio = saved_uio;
 		crfree(cr);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
