@@ -164,12 +164,3 @@ function fio_ioengine_available
 	fio --ioengine=$ioengine --parse-only > /dev/null 2>&1
 	return $?
 }
-
-#
-# Check if the kernel supports io_uring
-#
-function kernel_supports_io_uring
-{
-	grep -q "CONFIG_IO_URING=y" /boot/config-$(uname -r) 2>/dev/null
-	return $?
-}
