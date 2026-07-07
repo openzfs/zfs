@@ -40,7 +40,7 @@ classifiers = [
     "Topic :: System :: Filesystems",
     "Topic :: Software Development :: Libraries",
 ]
-requires-python = ">=3.6,<4"
+requires-python = ">=3.11,<4"
 dependencies = [
     "cffi",
 ]
