@@ -271,8 +271,19 @@ int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *);
 int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t);
 int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t,
     dmu_tx_t *);
-abd_t *make_abd_for_dbuf(dmu_buf_impl_t *, abd_t *, uint64_t, uint64_t);
-void dmu_read_abd_done(zio_t *);
+
+/*
+ * Shared helpers used by both synchronous and asynchronous DMU I/O paths.
+ * These dispatch per-dbuf ZIOs into a caller-provided root zio; the caller
+ * decides whether to zio_wait() (sync) or zio_nowait() + callback (async).
+ */
+int dmu_read_abd_dispatch(zio_t *rio, dnode_t *dn, uint64_t offset,
+    uint64_t size, abd_t *data, dmu_flags_t flags,
+    dmu_buf_t **dbp, int numbufs);
+int dmu_write_abd_dispatch(zio_t *pio, dnode_t *dn, uint64_t offset,
+    uint64_t size, abd_t *data, dmu_flags_t flags, dmu_tx_t *tx,
+    dmu_buf_t **dbp, int numbufs);
+
 #if defined(_KERNEL)
 int dmu_read_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t);
 int dmu_write_uio_direct(dnode_t *, zfs_uio_t *, uint64_t, dmu_flags_t,

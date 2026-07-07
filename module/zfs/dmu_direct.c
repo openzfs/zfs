@@ -30,7 +30,7 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dmu_objset.h>
 
-abd_t *
+static abd_t *
 make_abd_for_dbuf(dmu_buf_impl_t *db, abd_t *data, uint64_t offset,
     uint64_t size)
 {
@@ -73,10 +73,114 @@ make_abd_for_dbuf(dmu_buf_impl_t *db, abd_t *data, uint64_t offset,
 	return (mbuf);
 }
 
-void
+static void
 dmu_read_abd_done(zio_t *zio)
 {
 	abd_free(zio->io_abd);
+}
+
+/*
+ * Dispatch reads for all dbufs covering [offset, offset+size) under rio.
+ * dbp and numbufs are from dmu_buf_hold_array_by_dnode().  On error, sets
+ * rio->io_error and returns the error code.  Caller must not release dbp
+ * until after zio completion.
+ */
+int
+dmu_read_abd_dispatch(zio_t *rio, dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_buf_t **dbp, int numbufs)
+{
+	objset_t *os = dn->dn_objset;
+	spa_t *spa = os->os_spa;
+
+	for (int i = 0; i < numbufs; i++) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
+		abd_t *mbuf;
+		zbookmark_phys_t zb;
+		blkptr_t *bp;
+		int err;
+
+		mutex_enter(&db->db_mtx);
+
+		SET_BOOKMARK(&zb, dmu_objset_ds(os)->ds_object,
+		    db->db.db_object, db->db_level, db->db_blkid);
+
+		while (db->db_state == DB_READ)
+			cv_wait(&db->db_changed, &db->db_mtx);
+
+		err = dmu_buf_get_bp_from_dbuf(db, &bp);
+		if (err) {
+			mutex_exit(&db->db_mtx);
+			rio->io_error = err;
+			return (err);
+		}
+
+		if (bp == NULL || BP_IS_HOLE(bp) ||
+		    db->db_state == DB_CACHED) {
+			size_t aoff = offset < db->db.db_offset ?
+			    db->db.db_offset - offset : 0;
+			size_t boff = offset > db->db.db_offset ?
+			    offset - db->db.db_offset : 0;
+			size_t len = MIN(size - aoff,
+			    db->db.db_size - boff);
+
+			if (db->db_state == DB_CACHED) {
+				err = dmu_buf_untransform_direct(db, spa);
+				if (err) {
+					mutex_exit(&db->db_mtx);
+					rio->io_error = err;
+					return (err);
+				}
+				abd_copy_from_buf_off(data,
+				    (char *)db->db.db_data + boff,
+				    aoff, len);
+			} else {
+				abd_zero_off(data, aoff, len);
+			}
+			mutex_exit(&db->db_mtx);
+			continue;
+		}
+
+		mbuf = make_abd_for_dbuf(db, data, offset, size);
+		ASSERT3P(mbuf, !=, NULL);
+
+		zio_t *cio = zio_read(rio, spa, bp, mbuf, db->db.db_size,
+		    dmu_read_abd_done, NULL, ZIO_PRIORITY_SYNC_READ,
+		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DIO_READ, &zb);
+		mutex_exit(&db->db_mtx);
+
+		zfs_racct_read(spa, db->db.db_size, 1, flags);
+		zio_nowait(cio);
+	}
+
+	return (0);
+}
+
+/*
+ * Dispatch writes for all dbufs covering [offset, offset+size) under pio.
+ * dbp and numbufs are from dmu_buf_hold_array_by_dnode().
+ */
+int
+dmu_write_abd_dispatch(zio_t *pio, dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx,
+    dmu_buf_t **dbp, int numbufs)
+{
+	spa_t *spa = dn->dn_objset->os_spa;
+	int err = 0;
+
+	(void) size;
+
+	for (int i = 0; i < numbufs && err == 0; i++) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
+
+		abd_t *abd = abd_get_offset_size(data,
+		    db->db.db_offset - offset, dn->dn_datablksz);
+
+		zfs_racct_write(spa, db->db.db_size, 1, flags);
+		err = dmu_write_direct(pio, db, abd, tx);
+		ASSERT0(err);
+	}
+
+	return (err);
 }
 
 static void
@@ -216,8 +320,8 @@ int
 dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
     abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
 	spa_t *spa = dn->dn_objset->os_spa;
+	dmu_buf_t **dbp;
 	int numbufs, err;
 
 	ASSERT(flags & DMU_DIRECTIO);
@@ -229,16 +333,8 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 
 	zio_t *pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
-	for (int i = 0; i < numbufs && err == 0; i++) {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-
-		abd_t *abd = abd_get_offset_size(data,
-		    db->db.db_offset - offset, dn->dn_datablksz);
-
-		zfs_racct_write(spa, db->db.db_size, 1, flags);
-		err = dmu_write_direct(pio, db, abd, tx);
-		ASSERT0(err);
-	}
+	err = dmu_write_abd_dispatch(pio, dn, offset, size, data, flags, tx,
+	    dbp, numbufs);
 
 	err = zio_wait(pio);
 
@@ -255,8 +351,7 @@ int
 dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
     abd_t *data, dmu_flags_t flags)
 {
-	objset_t *os = dn->dn_objset;
-	spa_t *spa = os->os_spa;
+	spa_t *spa = dn->dn_objset->os_spa;
 	dmu_buf_t **dbp;
 	int numbufs, err;
 
@@ -269,90 +364,17 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 
 	zio_t *rio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 
-	for (int i = 0; i < numbufs; i++) {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-		abd_t *mbuf;
-		zbookmark_phys_t zb;
-		blkptr_t *bp;
+	err = dmu_read_abd_dispatch(rio, dn, offset, size, data, flags,
+	    dbp, numbufs);
 
-		mutex_enter(&db->db_mtx);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
-		SET_BOOKMARK(&zb, dmu_objset_ds(os)->ds_object,
-		    db->db.db_object, db->db_level, db->db_blkid);
-
-		/*
-		 * If there is another read for this dbuf, we will wait for
-		 * that to complete first before checking the db_state below.
-		 */
-		while (db->db_state == DB_READ)
-			cv_wait(&db->db_changed, &db->db_mtx);
-
-		err = dmu_buf_get_bp_from_dbuf(db, &bp);
-		if (err) {
-			mutex_exit(&db->db_mtx);
-			goto error;
-		}
-
-		/*
-		 * There is no need to read if this is a hole or the data is
-		 * cached. This will not be considered a direct read for IO
-		 * accounting in the same way that an ARC hit is not counted.
-		 */
-		if (bp == NULL || BP_IS_HOLE(bp) || db->db_state == DB_CACHED) {
-			size_t aoff = offset < db->db.db_offset ?
-			    db->db.db_offset - offset : 0;
-			size_t boff = offset > db->db.db_offset ?
-			    offset - db->db.db_offset : 0;
-			size_t len = MIN(size - aoff, db->db.db_size - boff);
-
-			if (db->db_state == DB_CACHED) {
-				/*
-				 * We need to untransformed the ARC buf data
-				 * before we copy it over.
-				 */
-				err = dmu_buf_untransform_direct(db, spa);
-				ASSERT0(err);
-				abd_copy_from_buf_off(data,
-				    (char *)db->db.db_data + boff, aoff, len);
-			} else {
-				abd_zero_off(data, aoff, len);
-			}
-
-			mutex_exit(&db->db_mtx);
-			continue;
-		}
-
-		mbuf = make_abd_for_dbuf(db, data, offset, size);
-		ASSERT3P(mbuf, !=, NULL);
-
-		/*
-		 * The dbuf mutex (db_mtx) must be held when creating the ZIO
-		 * for the read. The BP returned from
-		 * dmu_buf_get_bp_from_dbuf() could be from a pending block
-		 * clone or a yet to be synced Direct I/O write that is in the
-		 * dbuf's dirty record. When zio_read() is called, zio_create()
-		 * will make a copy of the BP. However, if zio_read() is called
-		 * without the mutex being held then the dirty record from the
-		 * dbuf could be freed in dbuf_write_done() resulting in garbage
-		 * being set for the zio BP.
-		 */
-		zio_t *cio = zio_read(rio, spa, bp, mbuf, db->db.db_size,
-		    dmu_read_abd_done, NULL, ZIO_PRIORITY_SYNC_READ,
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DIO_READ, &zb);
-		mutex_exit(&db->db_mtx);
-
-		zfs_racct_read(spa, db->db.db_size, 1, flags);
-		zio_nowait(cio);
+	if (err) {
+		(void) zio_wait(rio);
+		return (err);
 	}
 
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-
 	return (zio_wait(rio));
-
-error:
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-	(void) zio_wait(rio);
-	return (err);
 }
 
 #ifdef _KERNEL
