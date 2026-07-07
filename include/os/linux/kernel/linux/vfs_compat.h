@@ -177,34 +177,6 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 #define	AT_STATX_SYNC_AS_STAT	0
 #endif
 
-#if defined(HAVE_USERNS_IOPS_GETATTR)
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(struct user_namespace *user_ns, const struct path *path,	\
-    struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
-{									\
-	return (func##_impl(user_ns, path, stat, request_mask, \
-	    query_flags));	\
-}
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(struct mnt_idmap *user_ns, const struct path *path,	\
-    struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
-{									\
-	return (func##_impl(user_ns, path, stat, request_mask,	\
-	    query_flags));	\
-}
-#else
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(const struct path *path, struct kstat *stat, u32 request_mask,	\
-    unsigned int query_flags)						\
-{									\
-	return (func##_impl(path, stat, request_mask, query_flags));	\
-}
-#endif
-
 /*
  * Returns true when called in the context of a 32-bit system call.
  */

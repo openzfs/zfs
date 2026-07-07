@@ -92,19 +92,9 @@ out:
 /*
  * Get root directory attributes.
  */
-static int
-#ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_root_getattr_impl(struct mnt_idmap *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_root_getattr_impl(struct user_namespace *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
@@ -126,7 +116,6 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
 
 	return (0);
 }
-ZPL_GETATTR_WRAPPER(zpl_root_getattr);
 
 static struct dentry *
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
@@ -398,19 +387,9 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_mkdir, 3,
 /*
  * Get snapshot directory attributes.
  */
-static int
-#ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_snapdir_getattr_impl(struct mnt_idmap *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_snapdir_getattr_impl(struct user_namespace *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
@@ -454,7 +433,6 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 
 	return (0);
 }
-ZPL_GETATTR_WRAPPER(zpl_snapdir_getattr);
 
 /*
  * The '.zfs/snapshot' directory file operations.  These mainly control
@@ -544,19 +522,9 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_shares_getattr_impl(struct user_namespace *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_shares_getattr_impl(struct mnt_idmap *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
@@ -605,7 +573,6 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	return (error);
 }
-ZPL_GETATTR_WRAPPER(zpl_shares_getattr);
 
 /*
  * The '.zfs/shares' directory file operations.
