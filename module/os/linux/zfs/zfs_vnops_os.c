@@ -4601,7 +4601,8 @@ zfs_async_read_complete(void *arg, int error)
 	 * count and causes zfsvfs_teardown to hang forever.
 	 */
 	zfs_exit_fs(cb->zfsvfs);
-	rrw_exit(&cb->zfsvfs->z_teardown_lock.locks[cb->lock_idx], cb->tag);
+	rrw_exit(rrm_lock_by_idx(&cb->zfsvfs->z_teardown_lock,
+	    cb->lock_idx), cb->tag);
 
 	/*
 	 * Free the ABD that wraps the user pages.  The data is now in the
@@ -4714,7 +4715,7 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	 * thread), so we must release the SAME sublock, not the one that
 	 * would be chosen by the callback's curthread.
 	 */
-	cb->lock_idx = ((uint32_t)(uintptr_t)(curthread)) % RRM_NUM_LOCKS;
+	cb->lock_idx = rrm_td_lock_idx();
 	cb->data = data;
 
 	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
@@ -4810,7 +4811,8 @@ zfs_async_write_task(void *arg)
 	}
 
 	zfs_exit_fs(cb->zfsvfs);
-	rrw_exit(&cb->zfsvfs->z_teardown_lock.locks[cb->lock_idx], cb->tag);
+	rrw_exit(rrm_lock_by_idx(&cb->zfsvfs->z_teardown_lock,
+	    cb->lock_idx), cb->tag);
 
 	if (cb->data != NULL)
 		abd_free(cb->data);
@@ -5047,7 +5049,7 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->start_resid = n;
 	cb->dio = B_FALSE;
 	cb->tag = FTAG;
-	cb->lock_idx = ((uint32_t)(uintptr_t)(curthread)) % RRM_NUM_LOCKS;
+	cb->lock_idx = rrm_td_lock_idx();
 	cb->data = data;
 	cb->tx = tx;
 	cb->dflags = dflags;

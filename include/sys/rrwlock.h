@@ -108,6 +108,32 @@ boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
 
 #define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)
 #define	RRM_WRITE_HELD(x)	rrm_held(x, RW_WRITER)
+
+/*
+ * When a thread acquires an rrmlock reader and then exits on a
+ * DIFFERENT thread (e.g. async I/O callback from ZIO taskq),
+ * rrm_exit() will pick the wrong sublock because it hashes by
+ * curthread.  Use these helpers to save and restore the correct
+ * sublock across the thread handoff:
+ *
+ *   // submitter thread (e.g. kworker):
+ *   rrm_enter_read(&lock, tag);
+ *   idx = rrm_td_lock_idx();
+ *
+ *   // callback thread (e.g. ZIO taskq):
+ *   rrw_exit(rrm_lock_by_idx(&lock, idx), tag);
+ */
+static inline uint32_t
+rrm_td_lock_idx(void)
+{
+	return (((uint32_t)(uintptr_t)(curthread)) % RRM_NUM_LOCKS);
+}
+
+static inline rrwlock_t *
+rrm_lock_by_idx(rrmlock_t *rrl, uint32_t idx)
+{
+	return (&rrl->locks[idx]);
+}
 #define	RRM_LOCK_HELD(x) \
 	(rrm_held(x, RW_WRITER) || rrm_held(x, RW_READER))
 
