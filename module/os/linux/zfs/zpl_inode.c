@@ -516,13 +516,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_setattr, 2,
 	int error;
 	fstrans_cookie_t cookie;
 
-#ifdef HAVE_SETATTR_PREPARE_USERNS
 	error = zpl_setattr_prepare(idmap, dentry, ia);
-#elif defined(HAVE_SETATTR_PREPARE_IDMAP)
-	error = zpl_setattr_prepare(idmap, dentry, ia);
-#else
-	error = zpl_setattr_prepare(zfs_init_idmap, dentry, ia);
-#endif
 	if (error)
 		return (error);
 
