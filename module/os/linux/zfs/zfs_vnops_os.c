@@ -4996,19 +4996,17 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	}
 
 	/*
-	 * Copy user data into a kernel ABD.  This avoids the FOLL_LONGTERM
-	 * pinning issues that plague the pin_user_pages*() family across
-	 * RHEL/mainline kernel versions.
+	 * Allocate a kernel ABD to hold the user data.  The actual
+	 * copy (zfs_uiomove) is deferred until after dmu_tx_assign
+	 * succeeds: if the assign fails we must return to the caller
+	 * with uio untouched so the sync fallback in zpl_iter_write()
+	 * can retry the full write.
+	 *
+	 * We copy rather than pin user pages to avoid FOLL_LONGTERM
+	 * issues on RHEL and mainline >= 6.0.
 	 */
 	offset_t offset = zfs_uio_offset(uio);
 	abd_t *data = abd_alloc_linear(n, B_FALSE);
-	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
-	if (error) {
-		abd_free(data);
-		zfs_rangelock_exit(lr);
-		zfs_exit(zfsvfs, FTAG);
-		return (error);
-	}
 
 	boolean_t do_commit = (ioflag & (O_SYNC | O_DSYNC)) ||
 	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
@@ -5020,6 +5018,20 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	DB_DNODE_EXIT(db);
 	zfs_sa_upgrade_txholds(tx, zp);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		abd_free(data);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	/*
+	 * Copy user data into the kernel ABD.  Must be done AFTER
+	 * dmu_tx_assign so uio stays intact on assign failure for
+	 * the sync fallback.
+	 */
+	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
 	if (error) {
 		dmu_tx_abort(tx);
 		abd_free(data);
