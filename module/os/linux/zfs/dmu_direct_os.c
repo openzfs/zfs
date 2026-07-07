@@ -67,17 +67,17 @@ dmu_abd_async_done(zio_t *zio)
 }
 
 /*
- * Asynchronous variant of dmu_read_abd().  Same logic but returns
- * immediately after dispatching child zios.  The caller's callback
- * fires from ZIO taskq context when all children complete.
+ * Asynchronous variant of dmu_read_abd().  Uses the shared
+ * dmu_read_abd_dispatch() helper (common code) for the per-dbuf ZIO
+ * submission loop; only the async plumbing (root zio callback, state
+ * allocation, zio_nowait) lives here in the Linux-specific layer.
  */
 int
 dmu_read_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
     abd_t *data, dmu_flags_t flags,
     dmu_abd_done_func_t *done, void *done_arg)
 {
-	objset_t *os = dn->dn_objset;
-	spa_t *spa = os->os_spa;
+	spa_t *spa = dn->dn_objset->os_spa;
 	dmu_buf_t **dbp;
 	int numbufs, err;
 
@@ -99,74 +99,14 @@ dmu_read_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 	zio_t *rio = zio_root(spa, dmu_abd_async_done, ds,
 	    ZIO_FLAG_CANFAIL);
 
-	for (int i = 0; i < numbufs; i++) {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-		abd_t *mbuf;
-		zbookmark_phys_t zb;
-		blkptr_t *bp;
-
-		mutex_enter(&db->db_mtx);
-		SET_BOOKMARK(&zb, dmu_objset_ds(os)->ds_object,
-		    db->db.db_object, db->db_level, db->db_blkid);
-
-		while (db->db_state == DB_READ)
-			cv_wait(&db->db_changed, &db->db_mtx);
-
-		err = dmu_buf_get_bp_from_dbuf(db, &bp);
-		if (err) {
-			mutex_exit(&db->db_mtx);
-			goto async_error;
-		}
-
-		if (bp == NULL || BP_IS_HOLE(bp) || db->db_state == DB_CACHED) {
-			size_t aoff = offset < db->db.db_offset ?
-			    db->db.db_offset - offset : 0;
-			size_t boff = offset > db->db.db_offset ?
-			    offset - db->db.db_offset : 0;
-			size_t len = MIN(size - aoff, db->db.db_size - boff);
-
-			if (db->db_state == DB_CACHED) {
-				err = dmu_buf_untransform_direct(db, spa);
-				if (err) {
-					mutex_exit(&db->db_mtx);
-					goto async_error;
-				}
-				abd_copy_from_buf_off(data,
-				    (char *)db->db.db_data + boff, aoff, len);
-			} else {
-				abd_zero_off(data, aoff, len);
-			}
-			mutex_exit(&db->db_mtx);
-			continue;
-		}
-
-		mbuf = make_abd_for_dbuf(db, data, offset, size);
-		ASSERT3P(mbuf, !=, NULL);
-
-		zio_t *cio = zio_read(rio, spa, bp, mbuf, db->db.db_size,
-		    dmu_read_abd_done, NULL, ZIO_PRIORITY_SYNC_READ,
-		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DIO_READ, &zb);
-		mutex_exit(&db->db_mtx);
-
-		zfs_racct_read(spa, db->db.db_size, 1, flags);
-		zio_nowait(cio);
-	}
+	err = dmu_read_abd_dispatch(rio, dn, offset, size, data, flags,
+	    dbp, numbufs);
 
 	/*
-	 * Dispatch the root zio to kick off its ZIO_ROOT_PIPELINE.
-	 * Without this, the done callback never fires (hang).
+	 * Dispatch the root zio.  On error, dmu_read_abd_dispatch() has
+	 * already set rio->io_error; the async done callback will release
+	 * dbp and signal the caller.
 	 */
-	zio_nowait(rio);
-	return (0);
-
-async_error:
-	/*
-	 * Set the error on the root zio and dispatch it.
-	 * The done callback delivers the error and frees
-	 * the state, so return 0 to tell the caller the callback owns
-	 * cleanup.
-	 */
-	rio->io_error = err;
 	zio_nowait(rio);
 	return (0);
 }
@@ -174,18 +114,17 @@ async_error:
 
 
 /*
- * Asynchronous variant of dmu_write_abd().  Dispatches child zios and
- * returns immediately.  The done callback fires from ZIO taskq context
- * when all children complete.  The caller's transaction (tx) is carried
- * through and must be committed by the caller's callback.
+ * Asynchronous variant of dmu_write_abd().  Uses the shared
+ * dmu_write_abd_dispatch() helper (common code) for the per-dbuf
+ * ZIO submission loop; only the async plumbing lives here.
  */
 int
 dmu_write_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
     abd_t *data, dmu_flags_t flags, dmu_tx_t *tx,
     dmu_abd_done_func_t *done, void *done_arg)
 {
-	dmu_buf_t **dbp;
 	spa_t *spa = dn->dn_objset->os_spa;
+	dmu_buf_t **dbp;
 	int numbufs, err;
 
 	ASSERT(flags & DMU_DIRECTIO);
@@ -206,16 +145,8 @@ dmu_write_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 	zio_t *pio = zio_root(spa, dmu_abd_async_done, ds,
 	    ZIO_FLAG_CANFAIL);
 
-	for (int i = 0; i < numbufs && err == 0; i++) {
-		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-
-		abd_t *abd = abd_get_offset_size(data,
-		    db->db.db_offset - offset, dn->dn_datablksz);
-
-		zfs_racct_write(spa, db->db.db_size, 1, flags);
-		err = dmu_write_direct(pio, db, abd, tx);
-		ASSERT0(err);
-	}
+	(void) dmu_write_abd_dispatch(pio, dn, offset, size, data, flags, tx,
+	    dbp, numbufs);
 
 	zio_nowait(pio);
 	return (0);
