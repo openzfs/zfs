@@ -5032,7 +5032,7 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (error);
 	}
 
-	dmu_flags_t dflags = DMU_READ_PREFETCH | DMU_DIRECTIO;
+	dmu_flags_t dflags = DMU_DIRECTIO;
 	if (ioflag & O_DIRECT)
 		dflags |= DMU_UNCACHEDIO;
 
