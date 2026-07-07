@@ -31,7 +31,24 @@ extern "C" {
 
 #include "zstream_chain.h"
 
-#define	MAX_IO_STREAMS 4
+#define	MAX_IO_STREAMS		4
+#define	MAX_DROP_FILTERS	4
+
+/*
+ * Masks for serial_drop_record_types()
+ */
+
+#define	DROP_BEGIN		(UINT32_C(1) << DRR_BEGIN)
+#define	DROP_OBJECT		(UINT32_C(1) << DRR_OBJECT)
+#define	DROP_FREEOBJECTS	(UINT32_C(1) << DRR_FREEOBJECTS)
+#define	DROP_WRITE		(UINT32_C(1) << DRR_WRITE)
+#define	DROP_FREE		(UINT32_C(1) << DRR_FREE)
+#define	DROP_END		(UINT32_C(1) << DRR_END)
+#define	DROP_WRITE_BYREF	(UINT32_C(1) << DRR_WRITE_BYREF)
+#define	DROP_SPILL		(UINT32_C(1) << DRR_SPILL)
+#define	DROP_WRITE_EMBEDDED	(UINT32_C(1) << DRR_WRITE_EMBEDDED)
+#define	DROP_OBJECT_RANGE	(UINT32_C(1) << DRR_OBJECT_RANGE)
+#define	DROP_REDACT		(UINT32_C(1) << DRR_REDACT)
 
 /*
  * The stream offset is the offset within the original source stream.
@@ -57,9 +74,29 @@ serial_read_stream(const char *filename);
 chain_step_t
 serial_write_stream(const char *filename);
 
-/* Report throughput periodically */
+/*
+ * Report throughput periodically
+ */
 chain_step_t
 serial_checkpoint(const char *name);
+
+/*
+ * Winnow the stream by dropping records of the given types. This frees up
+ * payload memory used by records you won't be inspecting. If there are
+ * parallel operations downstream of the filter, removing records allows the
+ * parallel queues to be used more efficiently.
+ *
+ * Use the DROP_* defines to construct a mask of the records you want to
+ * remove. If you want to remove most records, it's fine to pass an inverted
+ * mask formed by enumerating only the records you want to keep, e.g.:
+ *
+ * serial_drop_record_types((uint32_t)~(DROP_WRITE | DROP_WRITE_EMBEDDED))
+ *
+ * This step should be placed downstream of byteswapping, since it relies on
+ * being able to read drr->drr_type.
+ */
+chain_step_t
+serial_drop_record_types(uint32_t drop_mask);
 
 /*
  * Usually the output step is responsible for freeing payloads. Subcommands
