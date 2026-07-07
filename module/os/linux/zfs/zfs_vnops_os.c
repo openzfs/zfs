@@ -4931,9 +4931,10 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	}
 
 	/*
-	 * Replicate all DIO eligibility checks from zfs_setup_direct().
+	 * Replicate DIO eligibility checks from zfs_setup_direct().
 	 * Any condition that would skip DIO in the sync path returns
-	 * EOPNOTSUPP so the caller falls back to zfs_write().
+	 * EOPNOTSUPP so the caller falls back to zfs_write().  The
+	 * sync path will then re-check everything including zfs_dio_strict.
 	 */
 	if (zfsvfs->z_os->os_direct == ZFS_DIRECT_ALWAYS)
 		ioflag |= O_DIRECT;
@@ -4946,8 +4947,6 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 
 	if (!zfs_uio_page_aligned(uio) ||
 	    !zfs_uio_aligned(uio, PAGE_SIZE)) {
-		if (zfs_dio_strict)
-			return (SET_ERROR(EINVAL));
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
 	}
