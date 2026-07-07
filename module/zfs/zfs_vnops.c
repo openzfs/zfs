@@ -929,7 +929,15 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				 * error, and we may break the loop early.
 				 */
 				n -= tx_bytes - zfs_uio_resid(uio);
-				pfbytes -= tx_bytes - zfs_uio_resid(uio);
+				/*
+				 * The prefaulted pages still faulted, so force
+				 * a re-prefault on the next pass.  If they can
+				 * no longer be faulted in (e.g. the calling
+				 * process is exiting), zfs_uio_prefaultpages()
+				 * fails and the loop breaks with EFAULT instead
+				 * of spinning on them forever.
+				 */
+				pfbytes = 0;
 				continue;
 			}
 #endif
