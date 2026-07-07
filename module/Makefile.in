@@ -166,7 +166,8 @@ cppcheck-FreeBSD:
 cppcheck: cppcheck-@ac_system@
 
 distdir:
-	cd @srcdir@ && find . -name '*.[chS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
+	( cd @srcdir@ && find . -name '*.[chS]' ) | \
+	  while read f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done
 	cp @srcdir@/Makefile.bsd $$distdir/Makefile.bsd
 
 gen-zstd-symbols:
