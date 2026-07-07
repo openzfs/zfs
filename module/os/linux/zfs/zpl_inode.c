@@ -420,19 +420,9 @@ zpl_rmdir(struct inode *dir, struct dentry *dentry)
 	return (error);
 }
 
-static int
-#ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_getattr_impl(struct user_namespace *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_getattr_impl(struct mnt_idmap *idmap,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	int error;
 	fstrans_cookie_t cookie;
@@ -522,18 +512,9 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 
 	return (error);
 }
-ZPL_GETATTR_WRAPPER(zpl_getattr);
 
-static int
-#ifdef HAVE_USERNS_IOPS_SETATTR
-zpl_setattr(struct user_namespace *idmap, struct dentry *dentry,
-    struct iattr *ia)
-#elif defined(HAVE_IDMAP_IOPS_SETATTR)
-zpl_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
-    struct iattr *ia)
-#else
-zpl_setattr(struct dentry *dentry, struct iattr *ia)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_setattr, 2,
+    struct dentry *, dentry, struct iattr *, ia)
 {
 	struct inode *ip = dentry->d_inode;
 	cred_t *cr = CRED();
