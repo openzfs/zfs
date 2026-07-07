@@ -1765,11 +1765,8 @@ zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
 
 	mutex_enter(&zp->z_lock);
 
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
 	zpl_generic_fillattr(idmap, request_mask, ip, sp);
-#else
-	zpl_generic_fillattr(idmap, ip, sp);
-#endif
+
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */

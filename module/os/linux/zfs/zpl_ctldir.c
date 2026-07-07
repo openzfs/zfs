@@ -98,20 +98,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
-
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(idmap, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(idmap, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(idmap, request_mask, ip, stat);
-#else
-	(void) idmap;
-#endif
-#else
-	generic_fillattr(ip, stat);
-#endif
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->atime = current_time(ip);
 
 	return (0);
@@ -398,20 +385,8 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_getattr, 4,
 
 	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
 		return (error);
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(idmap, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(idmap, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(idmap, request_mask, ip, stat);
-#else
-	(void) idmap;
-#endif
-#else
-	generic_fillattr(ip, stat);
-#endif
 
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->nlink = stat->size = 2;
 
 	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
@@ -536,19 +511,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
 		return (error);
 
 	if (zfsvfs->z_shares_dir == 0) {
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-		generic_fillattr(idmap, path->dentry->d_inode, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-		generic_fillattr(idmap, path->dentry->d_inode, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(idmap, request_mask, ip, stat);
-#else
-		(void) idmap;
-#endif
-#else
-		generic_fillattr(path->dentry->d_inode, stat);
-#endif
+		zpl_generic_fillattr(idmap, request_mask, ip, stat);
 		stat->nlink = stat->size = 2;
 		stat->atime = current_time(ip);
 		zpl_exit(zfsvfs, FTAG);

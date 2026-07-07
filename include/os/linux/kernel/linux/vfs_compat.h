@@ -190,30 +190,25 @@ zpl_is_32bit_api(void)
 #endif
 }
 
-/*
- * 5.12 API change
- * To support id-mapped mounts, generic_fillattr() was modified to
- * accept a new struct user_namespace* as its first arg.
- *
- * 6.3 API change
- * generic_fillattr() first arg is changed to struct mnt_idmap *
- *
- * 6.6 API change
- * generic_fillattr() gets new second arg request_mask, a u32 type
- *
- */
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP
-#define	zpl_generic_fillattr(idmap, ip, sp)	\
-    generic_fillattr(idmap, ip, sp)
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-#define	zpl_generic_fillattr(idmap, rqm, ip, sp)	\
-    generic_fillattr(idmap, rqm, ip, sp)
-#elif defined(HAVE_GENERIC_FILLATTR_USERNS)
-#define	zpl_generic_fillattr(user_ns, ip, sp)	\
-    generic_fillattr(user_ns, ip, sp)
+static inline void
+zpl_generic_fillattr(zidmap_t *idmap, u32 request_mask, struct inode *ip,
+    struct kstat *stat)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+#if defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+	generic_fillattr((struct mnt_idmap *)idmap, request_mask, ip, stat);
 #else
-#define	zpl_generic_fillattr(user_ns, ip, sp)	generic_fillattr(ip, sp)
+	(void) request_mask;
+	generic_fillattr((struct mnt_idmap *)idmap, ip, stat);
+#endif /* HAVE_GENERIC_FILLATTR_IDMAP_REQMASK */
+#elif defined(HAVE_IDMAP_USERNS)
+	(void) request_mask;
+	generic_fillattr((struct user_namespace *)idmap, ip, stat);
+#else
+	(void) idmap, (void) request_mask;
+	generic_fillattr(ip, stat);
 #endif
+}
 
 #ifdef HAVE_INODE_GENERIC_DROP
 /* 6.18 API change. These were renamed, alias the old names to the new. */
