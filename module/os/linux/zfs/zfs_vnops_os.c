@@ -4660,10 +4660,6 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EISDIR));
 	}
-	if (zfs_uio_offset(uio) < 0 || zfs_uio_resid(uio) == 0) {
-		zfs_exit(zfsvfs, FTAG);
-		return (zfs_uio_resid(uio) == 0 ? 0 : SET_ERROR(EINVAL));
-	}
 
 	/* Pin user pages for DIO — requires current->mm (we're in kworker) */
 	error = zfs_setup_direct(zp, uio, UIO_READ, &ioflag);
@@ -4676,11 +4672,17 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
 	if (zfs_uio_offset(uio) >= zp->z_size) {
+		/*
+		 * File truncated between caller's i_size_read() guard
+		 * and our range lock.  No data to read and no ZIO
+		 * queued, so return an error — the caller falls
+		 * through to sync rather than returning -EIOCBQUEUED.
+		 */
 		zfs_rangelock_exit(lr);
 		zfs_uio_free_dio_pages(uio, UIO_READ);
 		ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 		zfs_exit(zfsvfs, FTAG);
-		return (0);
+		return (SET_ERROR(EOPNOTSUPP));
 	}
 
 	n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
