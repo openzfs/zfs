@@ -1751,12 +1751,8 @@ out:
  *	RETURN:	0 (always succeeds)
  */
 int
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
 zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
     struct kstat *sp)
-#else
-zfs_getattr_fast(zidmap_t *idmap, struct inode *ip, struct kstat *sp)
-#endif
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
