@@ -4558,7 +4558,6 @@ struct zfs_async_read_cb
 	zfs_locked_range_t *lr;
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
-	boolean_t	dio;
 	const void	*tag;	/* saved FTAG for zfs_exit() */
 	int		lock_idx; /* saved sublock for teardown rrm */
 	abd_t		*data;	/* ABD wrapping user pages; freed in cb */
@@ -4574,7 +4573,7 @@ zfs_async_read_complete(void *arg, int error)
 	 * For the DIO (ABD) path, dmu_read_abd_async() writes data directly
 	 * to the user pages via DMA, so uio_resid is never decremented.
 	 * On success, report the full requested size as the bytes read.
-	 * On checksum error we report the error to the caller via
+	 * On checksum error we report the error to the caller.
 	 */
 	if (error == 0)
 		read = cb->start_resid;
@@ -4706,7 +4705,6 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio = *uio;
 	cb->uio.uio_resid = aligned_n;
 	cb->start_resid = aligned_n;
-	cb->dio = B_TRUE;
 	cb->tag = FTAG;		/* saved for matching zfs_exit() in callback */
 	/*
 	 * Save the rrm sublock index.  zfs_enter_verify_zp() above took a
@@ -4750,7 +4748,6 @@ struct zfs_async_write_cb {
 	int		lock_idx;
 	abd_t		*data;
 	dmu_tx_t	*tx;
-	dmu_flags_t	dflags;
 	offset_t	woff;
 	ssize_t		tx_bytes;
 	sa_bulk_attr_t	bulk[4];
@@ -4840,10 +4837,7 @@ zfs_async_write_complete(void *arg, int error)
 {
 	struct zfs_async_write_cb *cb = arg;
 
-	if (cb->dio && error == 0)
-		cb->wrote = cb->tx_bytes;
-	else
-		cb->wrote = cb->start_resid - cb->uio.uio_resid;
+	cb->wrote = cb->start_resid - cb->uio.uio_resid;
 	cb->error = error;
 
 	taskqid_t tid = taskq_dispatch(system_taskq,
@@ -5052,7 +5046,6 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->lock_idx = rrm_td_lock_idx();
 	cb->data = data;
 	cb->tx = tx;
-	cb->dflags = dflags;
 	cb->woff = woff;
 	cb->tx_bytes = n;
 	cb->cr = cr;

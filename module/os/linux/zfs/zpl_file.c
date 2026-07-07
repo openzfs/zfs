@@ -211,10 +211,6 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
-#ifndef EIOCBQUEUED
-#define	EIOCBQUEUED	(-EIOCBRETRY)
-#endif
-
 /*
  * Module parameter to enable/disable async Direct I/O reads.
  * When enabled, O_DIRECT reads on async kiocbs (libaio/io_uring) use
@@ -335,6 +331,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	 * through the ARC and the disk write is already async (txg sync).
 	 */
 	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    count > 0 &&
 	    ((filp->f_flags & O_DIRECT) ||
 	    ITOZSB(ip)->z_os->os_direct == ZFS_DIRECT_ALWAYS)) {
 		crhold(cr);
