@@ -126,16 +126,6 @@ extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
 #error "Unsupported kernel"
 #endif
 
-#if defined(HAVE_SETATTR_PREPARE_USERNS) || defined(HAVE_SETATTR_PREPARE_IDMAP)
-#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
-#else
-/*
- * Use kernel-provided version, or our own from
- * linux/vfs_compat.h
- */
-#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
-#endif
-
 #ifdef HAVE_INODE_GET_CTIME
 #define	zpl_inode_get_ctime(ip)	inode_get_ctime(ip)
 #else

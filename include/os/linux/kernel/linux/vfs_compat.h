@@ -210,6 +210,19 @@ zpl_generic_fillattr(zidmap_t *idmap, u32 request_mask, struct inode *ip,
 #endif
 }
 
+static inline int
+zpl_setattr_prepare(zidmap_t *idmap, struct dentry *dentry, struct iattr *ia)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (setattr_prepare((struct mnt_idmap *)idmap, dentry, ia));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (setattr_prepare((struct user_namespace *)idmap, dentry, ia));
+#else
+	(void) idmap;
+	return (setattr_prepare(dentry, ia));
+#endif
+}
+
 #ifdef HAVE_INODE_GENERIC_DROP
 /* 6.18 API change. These were renamed, alias the old names to the new. */
 #define	generic_delete_inode(ip)	inode_just_drop(ip)
