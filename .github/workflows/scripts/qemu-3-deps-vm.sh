@@ -22,9 +22,9 @@ function alpine() {
     libtirpc-dev libtool libunwind libunwind-dev linux-headers linux-tools \
     linux-virt linux-virt-dev lsscsi m4 make nfs-utils openssl-dev parted \
     pax procps py3-cffi py3-distlib py3-packaging py3-setuptools python3 \
-    python3-dev qemu-guest-agent rng-tools rsync samba samba-server sed \
-    strace sysstat util-linux util-linux-dev wget words xfsprogs xxhash \
-    zlib-dev pamtester@testing
+    python3-dev py3-pip py3-wheel qemu-guest-agent rng-tools rsync samba \
+    samba-server sed strace sysstat util-linux util-linux-dev wget words \
+    xfsprogs xxhash zlib-dev pamtester@testing
   echo "##[endgroup]"
 
   echo "##[group]Switch to eudev"
@@ -48,8 +48,9 @@ function archlinux() {
   echo "##[group]Install Development Tools"
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
-    parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
-    samba strace sysstat rng-tools rsync wget xxhash
+    parted pax perf python-packaging python-setuptools python3-pip \
+    python3-wheel qemu-guest-agent ksh samba strace sysstat rng-tools rsync \
+    wget xxhash
   echo "##[endgroup]"
 }
 
@@ -94,7 +95,8 @@ function freebsd() {
     '^py3[[:digit:]]+-pip$' \
     '^py3[[:digit:]]+-sysctl$' \
     '^py3[[:digit:]]+-setuptools$' \
-    '^py3[[:digit:]]+-packaging$'
+    '^py3[[:digit:]]+-packaging$' \
+    '^py3[[:digit:]]+-wheel$'
   echo "##[endgroup]"
 }
 
@@ -121,9 +123,9 @@ function rhel() {
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
-    kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
-    rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
-    xxhash zlib-devel
+    kernel-devel python3-pip python3-setuptools python3-wheel qemu-guest-agent \
+    rng-tools rpcgen rpm-build rsync samba strace sysstat systemd watchdog \
+    wget xfsprogs-devel xxhash zlib-devel
 
   # These are needed for building Lustre.  We only install these on EL VMs since
   # we don't plan to test build Lustre on other platforms.
