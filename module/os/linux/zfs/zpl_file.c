@@ -250,8 +250,14 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	 * the synchronous path.  Without O_DIRECT, reads go through the
 	 * ARC — the data copy is synchronous and the async path adds no
 	 * benefit.
+	 *
+	 * Skip async dispatch when there is nothing to read: count == 0
+	 * or the file position is already at/past EOF.  Both are handled
+	 * correctly by the synchronous zfs_read() below.
 	 */
 	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    count > 0 &&
+	    kiocb->ki_pos < i_size_read(filp->f_mapping->host) &&
 	    ((filp->f_flags & O_DIRECT) ||
 	    ITOZSB(filp->f_mapping->host)->z_os->os_direct ==
 	    ZFS_DIRECT_ALWAYS)) {
