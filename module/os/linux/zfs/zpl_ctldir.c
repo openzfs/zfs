@@ -557,14 +557,8 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
 
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
 		error = -zfs_getattr_fast(idmap, request_mask, ZTOI(dzp),
 		    stat);
-#elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-		error = -zfs_getattr_fast(idmap, ZTOI(dzp), stat);
-#else
-		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
-#endif
 		iput(ZTOI(dzp));
 	}
 
