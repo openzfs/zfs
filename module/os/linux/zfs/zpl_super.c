@@ -1092,7 +1092,7 @@ const struct dentry_operations zpl_dentry_operations = {
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
 	.name			= ZFS_DRIVER,
-#if defined(HAVE_IDMAP_MNT_API)
+#if defined(FS_ALLOW_IDMAP)
 	.fs_flags		= FS_USERNS_MOUNT | FS_ALLOW_IDMAP,
 #else
 	.fs_flags		= FS_USERNS_MOUNT,
