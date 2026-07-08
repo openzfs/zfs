@@ -1017,6 +1017,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_007_neg.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_008_neg.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh \
+	functional/cli_root/zfs_snapshot/zfs_snapshot_010_pos.ksh \
 	functional/cli_root/zfs_sysfs/cleanup.ksh \
 	functional/cli_root/zfs_sysfs/setup.ksh \
 	functional/cli_root/zfs_sysfs/zfeature_set_unsupported.ksh \

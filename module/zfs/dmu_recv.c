@@ -3729,12 +3729,10 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		drc->drc_os = NULL;
 
 		dsl_dataset_snapshot_sync_impl(origin_head,
-		    drc->drc_tosnap, tx);
+		    drc->drc_tosnap, drc->drc_drrb->drr_creation_time, tx);
 
-		/* set snapshot's creation time and guid */
+		/* set snapshot's guid */
 		dmu_buf_will_dirty(origin_head->ds_prev->ds_dbuf, tx);
-		dsl_dataset_phys(origin_head->ds_prev)->ds_creation_time =
-		    drc->drc_drrb->drr_creation_time;
 		dsl_dataset_phys(origin_head->ds_prev)->ds_guid =
 		    drc->drc_drrb->drr_toguid;
 		dsl_dataset_phys(origin_head->ds_prev)->ds_flags &=
@@ -3755,12 +3753,11 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	} else {
 		dsl_dataset_t *ds = drc->drc_ds;
 
-		dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap, tx);
+		dsl_dataset_snapshot_sync_impl(ds, drc->drc_tosnap,
+		    drc->drc_drrb->drr_creation_time, tx);
 
-		/* set snapshot's creation time and guid */
+		/* set snapshot's guid */
 		dmu_buf_will_dirty(ds->ds_prev->ds_dbuf, tx);
-		dsl_dataset_phys(ds->ds_prev)->ds_creation_time =
-		    drc->drc_drrb->drr_creation_time;
 		dsl_dataset_phys(ds->ds_prev)->ds_guid =
 		    drc->drc_drrb->drr_toguid;
 		dsl_dataset_phys(ds->ds_prev)->ds_flags &=
