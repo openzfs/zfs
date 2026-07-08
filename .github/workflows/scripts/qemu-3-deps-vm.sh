@@ -48,7 +48,7 @@ function archlinux() {
   echo "##[group]Install Development Tools"
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
-    parted pax perf python-packaging python-setuptools python-build \
+    parted pax perf python-packaging python-setuptools python-build python-pip \
     python-wheel qemu-guest-agent ksh samba strace sysstat rng-tools rsync \
     wget xxhash
   echo "##[endgroup]"
@@ -76,7 +76,7 @@ function debian() {
     libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
     python3-cffi python3-dev python3-distlib python3-packaging python3-build \
-    libtirpc-dev python3-setuptools python3-sphinx python3-wheel \
+    libtirpc-dev python3-pip python3-setuptools python3-sphinx python3-wheel \
     qemu-guest-agent rng-tools rpm2cpio  rsync samba strace sysstat uuid-dev \
     watchdog wget xfslibs-dev xxhash  zlib1g-dev
   echo "##[endgroup]"
@@ -96,6 +96,7 @@ function freebsd() {
     '^py3[[:digit:]]+-sysctl$' \
     '^py3[[:digit:]]+-setuptools$' \
     '^py3[[:digit:]]+-packaging$' \
+    '^py3[[:digit:]]+-pip$' \
     '^py3[[:digit:]]+-wheel$'
   echo "##[endgroup]"
 }
@@ -123,7 +124,7 @@ function rhel() {
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
-    kernel-devel python3-build python3-setuptools python3-wheel \
+    kernel-devel python3-build python3-pip python3-setuptools python3-wheel \
     qemu-guest-agent  rng-tools rpcgen rpm-build rsync samba strace sysstat \
     systemd watchdog wget xfsprogs-devel xxhash zlib-devel
 
