@@ -341,7 +341,7 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 	return (error);
 }
 
-#if defined(HAVE_IOPS_MKDIR_DENTRY)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
 ZPL_IDMAP_IOP_DEFINE(struct dentry *, zpl_mkdir, 3,
     struct inode *, dir, struct dentry *, dentry, umode_t, mode)
 #else
@@ -387,7 +387,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 
 err:
 	ASSERT3S(error, <=, 0);
-#if defined(HAVE_IOPS_MKDIR_DENTRY)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
 	return (error != 0 ? ERR_PTR(error) : NULL);
 #else
 	return (error);
