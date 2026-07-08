@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "http://pyzfs.readthedocs.org"
+Homepage = "https://pyzfs.readthedocs.org"
 
 [tool.setuptools]
 zip-safe = false
