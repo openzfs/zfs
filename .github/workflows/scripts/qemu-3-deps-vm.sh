@@ -48,8 +48,8 @@ function archlinux() {
   echo "##[group]Install Development Tools"
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
-    parted pax perf python-packaging python-setuptools python3-build \
-    python3-wheel qemu-guest-agent ksh samba strace sysstat rng-tools rsync \
+    parted pax perf python-packaging python-setuptools python-build \
+    python-wheel qemu-guest-agent ksh samba strace sysstat rng-tools rsync \
     wget xxhash
   echo "##[endgroup]"
 }
