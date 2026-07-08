@@ -71,13 +71,7 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 }
 #endif
 
-/*
- * 6.3 API change,
- * The xattr_handler->set() callback was changed to take the
- * struct mnt_idmap* as the first arg, to support idmapped
- * mounts.
- */
-#if defined(HAVE_XATTR_SET_IDMAP)
+#if defined(HAVE_IDMAP_MNTIDMAP)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct mnt_idmap *user_ns,	\
@@ -86,13 +80,7 @@ fn(const struct xattr_handler *handler, struct mnt_idmap *user_ns,	\
 {									\
 	return (__ ## fn(user_ns, inode, name, buffer, size, flags));	\
 }
-/*
- * 5.12 API change,
- * The xattr_handler->set() callback was changed to take the
- * struct user_namespace* as the first arg, to support idmapped
- * mounts.
- */
-#elif defined(HAVE_XATTR_SET_USERNS)
+#elif defined(HAVE_IDMAP_USERNS)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct user_namespace *user_ns, \
@@ -101,12 +89,7 @@ fn(const struct xattr_handler *handler, struct user_namespace *user_ns, \
 {									\
 	return (__ ## fn(user_ns, inode, name, buffer, size, flags));	\
 }
-/*
- * 4.7 API change,
- * The xattr_handler->set() callback was changed to take a both dentry and
- * inode, because the dentry might not be attached to an inode yet.
- */
-#elif defined(HAVE_XATTR_SET_DENTRY_INODE)
+#else
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\
@@ -115,8 +98,6 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 {									\
 	return (__ ## fn(kcred->user_ns, inode, name, buffer, size, flags));\
 }
-#else
-#error "Unsupported kernel"
 #endif
 
 /*
