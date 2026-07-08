@@ -560,13 +560,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_setattr, 2,
 		    zpl_inode_timestamp_truncate(ia->ia_atime, ip));
 
 	cookie = spl_fstrans_mark();
-#ifdef HAVE_USERNS_IOPS_SETATTR
 	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, idmap);
-#elif defined(HAVE_IDMAP_IOPS_SETATTR)
-	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, idmap);
-#else
-	error = -zfs_setattr(ITOZ(ip), vap, 0, cr);
-#endif
 	if (!error && (ia->ia_valid & ATTR_MODE))
 		error = zpl_chmod_acl(ip);
 
