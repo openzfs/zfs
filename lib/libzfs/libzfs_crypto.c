@@ -584,45 +584,31 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 		goto end;
 	}
 
-	int kfd;
-#ifdef O_TMPFILE
-	kfd = open(getenv("TMPDIR") ?: "/tmp",
-	    O_RDWR | O_TMPFILE | O_EXCL | O_CLOEXEC, 0600);
-	if (kfd != -1)
-		goto kfdok;
-#endif
+	/* max len + optional newline + terminator */
+	char keybuf[MAX_PASSPHRASE_LEN+2];
+	memset(keybuf, 0, sizeof (keybuf));
 
-	char *path;
-	if (asprintf(&path,
-	    "%s/libzfs-XXXXXXXX.https", getenv("TMPDIR") ?: "/tmp") == -1) {
-		ret = ENOMEM;
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s"),
-		    zfs_strerror(ret));
-		goto end;
-	}
-
-	kfd = mkostemps(path, strlen(".https"), O_CLOEXEC);
-	if (kfd == -1) {
+	/*
+	 * Open a stream over keybuf. The "length" of the stream is
+	 * WRAPPING_KEY_LEN for raw keys, which is checked and enforced in
+	 * get_key_material_stream() and validate_key(). For "line" formats,
+	 * the entire buffer is allowed, which has enough room for the
+	 * longest possible passphrase, newline and terminator.
+	 */
+	if ((stream = fmemopen(keybuf,
+	    keyformat == ZFS_KEYFORMAT_RAW ?
+	    WRAPPING_KEY_LEN : sizeof (keybuf), "r+")) == NULL) {
 		ret = errno;
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Couldn't create temporary file %s: %s"),
-		    path, zfs_strerror(ret));
-		free(path);
+		    "Couldn't open memory stream: %s"), zfs_strerror(ret));
 		goto end;
 	}
-	(void) unlink(path);
-	free(path);
 
-#ifdef O_TMPFILE
-kfdok:
-#endif
-	if ((stream = fdopen(kfd, "r+")) == NULL) {
-		ret = errno;
-		(void) close(kfd);
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Couldn't reopen temporary file: %s"), zfs_strerror(ret));
-		goto end;
-	}
+	/*
+	 * Disable buffering on in-memory stream, so that curl sees errors
+	 * (eg writing past the end) immediately.
+	 */
+	setbuf(stream, NULL);
 
 	char errbuf[CURL_ERROR_SIZE] = "";
 	char *cainfo = getenv("SSL_CA_CERT_FILE"); /* matches fetch(3) */
