@@ -321,6 +321,9 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 			dsl_free(tx->tx_pool, tx->tx_txg, bp);
 		}
 
+		if (SPA_EXITING(spa))
+			return (0);
+
 		mutex_enter(&ds->ds_lock);
 		ASSERT(dsl_dataset_phys(ds)->ds_unique_bytes >= used ||
 		    !DS_UNIQUE_IS_ACCURATE(ds));
