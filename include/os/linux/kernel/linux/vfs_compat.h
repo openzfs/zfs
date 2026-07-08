@@ -223,6 +223,19 @@ zpl_setattr_prepare(zidmap_t *idmap, struct dentry *dentry, struct iattr *ia)
 #endif
 }
 
+static inline bool
+zpl_inode_owner_or_capable(zidmap_t *idmap, struct inode *ip)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (inode_owner_or_capable((struct mnt_idmap *)idmap, ip));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (inode_owner_or_capable((struct user_namespace *)idmap, ip));
+#else
+	(void) idmap;
+	return (inode_owner_or_capable(ip));
+#endif
+}
+
 #ifdef HAVE_INODE_GENERIC_DROP
 /* 6.18 API change. These were renamed, alias the old names to the new. */
 #define	generic_delete_inode(ip)	inode_just_drop(ip)

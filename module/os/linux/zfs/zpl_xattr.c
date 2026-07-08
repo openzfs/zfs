@@ -1270,14 +1270,8 @@ __zpl_xattr_acl_set_access(zidmap_t *idmap,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-#if defined(HAVE_XATTR_SET_USERNS) || defined(HAVE_XATTR_SET_IDMAP)
 	if (!zpl_inode_owner_or_capable(idmap, ip))
 		return (-EPERM);
-#else
-	(void) idmap;
-	if (!zpl_inode_owner_or_capable(zfs_init_idmap, ip))
-		return (-EPERM);
-#endif
 
 	if (value) {
 		acl = zpl_acl_from_xattr(value, size);
@@ -1312,14 +1306,8 @@ __zpl_xattr_acl_set_default(zidmap_t *idmap,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-#if defined(HAVE_XATTR_SET_USERNS) || defined(HAVE_XATTR_SET_IDMAP)
 	if (!zpl_inode_owner_or_capable(idmap, ip))
 		return (-EPERM);
-#else
-	(void) idmap;
-	if (!zpl_inode_owner_or_capable(zfs_init_idmap, ip))
-		return (-EPERM);
-#endif
 
 	if (value) {
 		acl = zpl_acl_from_xattr(value, size);

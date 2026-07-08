@@ -116,16 +116,6 @@ extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
 	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
 #endif
 
-#if defined(HAVE_INODE_OWNER_OR_CAPABLE)
-#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_USERNS)
-#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAP)
-#define	zpl_inode_owner_or_capable(idmap, ip) inode_owner_or_capable(idmap, ip)
-#else
-#error "Unsupported kernel"
-#endif
-
 #ifdef HAVE_INODE_GET_CTIME
 #define	zpl_inode_get_ctime(ip)	inode_get_ctime(ip)
 #else
