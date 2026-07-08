@@ -27,5 +27,5 @@ install-exec-local:
 
 CLEAN_LOCAL += pyzfs-clean-local
 pyzfs-clean-local:
-	-$(RM) -r %D%/build/ %D%/pyzfs.egg-info/
+	-$(RM) -r %D%/build/ %D%/dist/ %D%/pyzfs.egg-info/
 endif
