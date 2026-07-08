@@ -156,7 +156,6 @@ zstream_do_decompress(int argc, char *argv[])
 		case '?':
 			fprintf(stderr, "invalid option '%c'\n", optopt);
 			zstream_usage();
-			break;
 		}
 	}
 
@@ -177,10 +176,8 @@ zstream_do_decompress(int argc, char *argv[])
 		enum zio_compress type = ZIO_COMPRESS_INHERIT;
 
 		obj_str = strsep(&argv[i], ",");
-		if (argv[i] == NULL) {
+		if (argv[i] == NULL)
 			zstream_usage();
-			exit(2);
-		}
 		errno = 0;
 		object = strtoull(obj_str, &end, 0);
 		if (errno || *end != '\0')

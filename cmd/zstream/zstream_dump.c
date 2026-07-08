@@ -535,11 +535,9 @@ zstream_do_dump(int argc, char *argv[])
 		case ':':
 			warnx("missing argument for '%c' option\n", optopt);
 			zstream_usage();
-			break;
 		case '?':
 			warnx("invalid option '%c'\n", optopt);
 			zstream_usage();
-			break;
 		}
 	}
 

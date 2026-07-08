@@ -127,7 +127,6 @@ zstream_do_drop_record(int argc, char *argv[])
 		case '?':
 			warnx("invalid option '%c'\n", optopt);
 			zstream_usage();
-			break;
 		}
 	}
 
@@ -148,10 +147,8 @@ zstream_do_drop_record(int argc, char *argv[])
 		char *end;
 
 		obj_str = strsep(&argv[i], ",");
-		if (argv[i] == NULL) {
+		if (argv[i] == NULL)
 			zstream_usage();
-			exit(2);
-		}
 		errno = 0;
 		object = strtoull(obj_str, &end, 0);
 		if (errno || *end != '\0')
