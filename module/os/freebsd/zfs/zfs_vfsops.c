@@ -1853,10 +1853,6 @@ zfs_vget(vfs_t *vfsp, ino_t ino, int flags, vnode_t **vpp)
 	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (err);
 	err = zfs_zget(zfsvfs, ino, &zp);
-	if (err == 0 && zp->z_unlinked) {
-		vrele(ZTOV(zp));
-		err = EINVAL;
-	}
 	if (err == 0)
 		*vpp = ZTOV(zp);
 	zfs_exit(zfsvfs, FTAG);
@@ -2013,7 +2009,7 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 	zp_gen = zp_gen & gen_mask;
 	if (zp_gen == 0)
 		zp_gen = 1;
-	if (zp->z_unlinked || zp_gen != fid_gen) {
+	if (zp_gen != fid_gen) {
 		dprintf("znode gen (%llu) != fid gen (%llu)\n",
 		    (u_longlong_t)zp_gen, (u_longlong_t)fid_gen);
 		vrele(ZTOV(zp));
