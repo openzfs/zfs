@@ -257,12 +257,12 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 	return (error);
 }
 
-#if defined(HAVE_TMPFILE_DENTRY)
-ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
-    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
-#else
+#if defined(HAVE_TMPFILE_FILE)
 ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
     struct inode *, dir, struct file *, file, umode_t, mode)
+#else
+ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
 #endif
 {
 	cred_t *cr = CRED();
@@ -286,7 +286,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 	if (error == 0) {
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
-#ifndef HAVE_TMPFILE_DENTRY
+#ifdef HAVE_TMPFILE_FILE
 		d_tmpfile(file, ip);
 
 		error = zpl_xattr_security_init(ip, dir,
@@ -298,7 +298,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 #endif
 		if (error == 0)
 			error = zpl_init_acl(ip, dir);
-#ifndef HAVE_TMPFILE_DENTRY
+#ifdef HAVE_TMPFILE_FILE
 		error = finish_open_simple(file, error);
 #endif
 		/*
