@@ -77,12 +77,25 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	])
 
 	dnl #
-	dnl # Python "pip" module is required to build and install pyzfs
+	dnl # Python "build" module is required to build and install pyzfs
 	dnl #
 	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
-		ZFS_AC_PYTHON_MODULE([pip], [], [
+		ZFS_AC_PYTHON_MODULE([build], [], [
 			AS_IF([test "x$enable_pyzfs" = xyes], [
-				AC_MSG_ERROR("Python $PYTHON_VERSION pip is not installed")
+				AC_MSG_ERROR("Python $PYTHON_VERSION build is not installed")
+			], [test "x$enable_pyzfs" != xno], [
+				enable_pyzfs=no
+			])
+		])
+	])
+
+	dnl #
+	dnl # Python "wheel" module is required to wheel and install pyzfs
+	dnl #
+	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
+		ZFS_AC_PYTHON_MODULE([wheel], [], [
+			AS_IF([test "x$enable_pyzfs" = xyes], [
+				AC_MSG_ERROR("Python $PYTHON_VERSION wheel is not installed")
 			], [test "x$enable_pyzfs" != xno], [
 				enable_pyzfs=no
 			])

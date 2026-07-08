@@ -7,8 +7,7 @@ ALL_LOCAL += pyzfs-all-local
 pyzfs_V_1 = -v
 
 pyzfs-all-local: %D%/pyproject.toml
-	cd %D% && $(PYTHON) -m pip install --no-build-isolation --no-deps \
-	  $(pyzfs_V_$(V)) -t build .
+	cd %D% && $(PYTHON) -m build --no-isolation --wheel
 
 #
 # On Debian (Ubuntu, and other downstream distros) the install location of
