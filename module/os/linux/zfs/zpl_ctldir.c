@@ -337,7 +337,7 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 	return (error);
 }
 
-#if defined(HAVE_IOPS_MKDIR_DENTRY)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
 ZPL_IDMAP_IOP_DEFINE(struct dentry *, zpl_snapdir_mkdir, 3,
     struct inode *, dip, struct dentry *, dentry, umode_t, mode)
 #else
@@ -364,7 +364,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_mkdir, 3,
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
-#if defined(HAVE_IOPS_MKDIR_DENTRY)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
 	return (ERR_PTR(error));
 #else
 	return (error);
