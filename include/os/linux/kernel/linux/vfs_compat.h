@@ -236,6 +236,19 @@ zpl_inode_owner_or_capable(zidmap_t *idmap, struct inode *ip)
 #endif
 }
 
+static inline int
+zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (generic_permission((struct mnt_idmap *)idmap, ip, mask));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (generic_permission((struct user_namespace *)idmap, ip, mask));
+#else
+	(void) idmap;
+	return (generic_permission(ip, mask));
+#endif
+}
+
 #ifdef HAVE_INODE_GENERIC_DROP
 /* 6.18 API change. These were renamed, alias the old names to the new. */
 #define	generic_delete_inode(ip)	inode_just_drop(ip)

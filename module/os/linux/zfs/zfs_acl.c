@@ -2445,12 +2445,7 @@ zfs_zaccess_trivial(znode_t *zp, uint32_t *working_mode, cred_t *cr,
 		return (unmapped ? SET_ERROR(EPERM) : 0);
 	}
 
-#if (defined(HAVE_IOPS_PERMISSION_USERNS) || \
-	defined(HAVE_IOPS_PERMISSION_IDMAP))
-	err = generic_permission(idmap, ZTOI(zp), mask);
-#else
-	err = generic_permission(ZTOI(zp), mask);
-#endif
+	err = zpl_generic_permission(idmap, ZTOI(zp), mask);
 	if (err != 0) {
 		return (SET_ERROR(EPERM));
 	}
