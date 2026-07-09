@@ -161,6 +161,20 @@ function async_dio_write_verify
 function fio_ioengine_available
 {
 	typeset ioengine=$1
-	fio --ioengine=$ioengine --parse-only > /dev/null 2>&1
-	return $?
+	typeset tmpfile="/tmp/fio_probe_$$"
+
+	fio --name=probe --ioengine=$ioengine --size=4K --bs=4K \
+	    --rw=read --filename="$tmpfile" --direct=0 \
+	    > /dev/null 2>&1
+	typeset ret=$?
+
+	rm -f "$tmpfile"
+
+	if (( ret == 0 )); then
+		log_note "fio ioengine '$ioengine' is available"
+	else
+		log_note "fio ioengine '$ioengine' is not available"
+	fi
+
+	return $ret
 }
