@@ -830,6 +830,48 @@ out:
 	return (error);
 }
 
+static int
+#ifdef HAVE_SET_ACL_USERNS
+zpl_set_acl(struct user_namespace *userns, struct inode *ip,
+    struct posix_acl *acl, int type)
+#elif defined(HAVE_SET_ACL_IDMAP_DENTRY)
+zpl_set_acl(struct mnt_idmap *userns, struct dentry *dentry,
+    struct posix_acl *acl, int type)
+#elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
+zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
+    struct posix_acl *acl, int type)
+#else
+zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
+#endif /* HAVE_SET_ACL_USERNS */
+{
+#ifdef HAVE_SET_ACL_USERNS_DENTRY_ARG2
+	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
+#elif defined(HAVE_SET_ACL_IDMAP_DENTRY)
+	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
+#else
+	return (zpl_set_posix_acl(ip, acl, type));
+#endif /* HAVE_SET_ACL_USERNS_DENTRY_ARG2 */
+}
+
+#if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
+static struct posix_acl *
+zpl_get_acl(struct inode *ip, int type, bool rcu)
+{
+	if (rcu)
+		return (ERR_PTR(-ECHILD));
+
+	return (zpl_get_posix_acl(ip, type));
+}
+#elif defined(HAVE_GET_ACL)
+static struct posix_acl *
+zpl_get_acl(struct inode *ip, int type)
+{
+	return (zpl_get_posix_acl(ip, type));
+}
+#else
+#error "Unsupported iops->get_acl() implementation"
+#endif /* HAVE_GET_ACL_RCU */
+
 const struct inode_operations zpl_inode_operations = {
 	.setattr	= zpl_setattr,
 	.getattr	= zpl_getattr,
