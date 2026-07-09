@@ -279,7 +279,7 @@ This package contains a dracut module used to construct an initramfs
 image which is ZFS aware.
 
 %if %{with pyzfs}
-# Enforce `python36-` package prefix for CentOS 7
+# Enforce `python311-` package prefix for CentOS 7
 # since dependencies come from EPEL and are named this way
 %package -n python%{__python_pkg_version}-pyzfs
 Summary:        Python %{python_version} wrapper for libzfs_core
@@ -292,17 +292,17 @@ Requires:       libffi
 Requires:       python%{__python_pkg_version}
 
 %if 0%{?centos} == 7
-Requires:       python36-cffi
+Requires:       python311-cffi
 %else
 Requires:       python%{__python_pkg_version}-cffi
 %endif
 
 %if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 %if 0%{?centos} == 7
-BuildRequires:  python36-packaging
-BuildRequires:  python36-devel
-BuildRequires:  python36-cffi
-BuildRequires:  python36-setuptools
+BuildRequires:  python311-packaging
+BuildRequires:  python311-devel
+BuildRequires:  python311-cffi
+BuildRequires:  python311-setuptools
 %else
 BuildRequires:  python%{__python_pkg_version}-packaging
 BuildRequires:  python%{__python_pkg_version}-devel
