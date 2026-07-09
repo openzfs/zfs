@@ -315,7 +315,6 @@ function deb_build_and_install() {
   echo "##[group]Configure"
   run ./configure \
     --prefix=/usr \
-    --enable-pyzfs \
     --enable-debuginfo $extra
   echo "##[endgroup]"
 
