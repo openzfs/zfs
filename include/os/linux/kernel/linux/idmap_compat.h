@@ -75,4 +75,87 @@ typedef struct user_namespace	zidmap_t;
  */
 extern zidmap_t *zfs_init_idmap;
 
+/*
+ * Below is a macro system for defining inode_operations function callbacks
+ * that always receive a zidmap_t in their params, regardless of how they were
+ * called.
+ *
+ * Typical use:
+ *
+ *   ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
+ *     struct inode *, dir, struct dentry *, dentry, umode_t, mode, bool, flag)
+ *   {
+ *     ...
+ *   }
+ *
+ * This emits a trampoline function for the inode_operations table, with
+ * first arg appropriate to the idmap type, one of:
+ *
+ *   static int zpl_create(struct mnt_idmap *, [args...])
+ *   static int zpl_create(struct user_namespace *, [args...])
+ *   static int zpl_create([args...])
+ *
+ * and the header for the implementing function:
+ *
+ * static int __zpl_create(zidmap_t *idmap, struct inode * dir,
+ *   struct dentry * dentry, umode_t mode, bool flag)
+ *
+ * The trampoline function calls the implementing function with the first arg
+ * filled in appropriately for the type & method. Since it's a zidmap_t, it
+ * can be passed safely back to the kernel through the matching wrappers (eg
+ * zpl_setattr_prepare(idmap, ...).
+ */
+
+/* Helper: expand (type, name) pairs into "type name" for function prototypes */
+#define	__ZPL_ARGS_1(t, n)	t n
+#define	__ZPL_ARGS_2(t, n, ...)	t n, __ZPL_ARGS_1(__VA_ARGS__)
+#define	__ZPL_ARGS_3(t, n, ...)	t n, __ZPL_ARGS_2(__VA_ARGS__)
+#define	__ZPL_ARGS_4(t, n, ...)	t n, __ZPL_ARGS_3(__VA_ARGS__)
+#define	__ZPL_ARGS_5(t, n, ...)	t n, __ZPL_ARGS_4(__VA_ARGS__)
+#define	__ZPL_ARGS_6(t, n, ...)	t n, __ZPL_ARGS_5(__VA_ARGS__)
+
+/* Helper: expend (type, name) pairs into "name" for function calls */
+#define	__ZPL_ARGNAMES_1(t, n)		n
+#define	__ZPL_ARGNAMES_2(t, n, ...)	n, __ZPL_ARGNAMES_1(__VA_ARGS__)
+#define	__ZPL_ARGNAMES_3(t, n, ...)	n, __ZPL_ARGNAMES_2(__VA_ARGS__)
+#define	__ZPL_ARGNAMES_4(t, n, ...)	n, __ZPL_ARGNAMES_3(__VA_ARGS__)
+#define	__ZPL_ARGNAMES_5(t, n, ...)	n, __ZPL_ARGNAMES_4(__VA_ARGS__)
+#define	__ZPL_ARGNAMES_6(t, n, ...)	n, __ZPL_ARGNAMES_5(__VA_ARGS__)
+
+/* Define the appropriate wrapper by the configure checks. */
+#if defined(HAVE_IDMAP_MNTIDMAP)
+#define	_ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, ...)				\
+static rty fn(struct mnt_idmap *idmap, __ZPL_ARGS_##n(__VA_ARGS__))	\
+{									\
+	return (__##fn(idmap, __ZPL_ARGNAMES_##n(__VA_ARGS__)));	\
+}
+#elif defined(HAVE_IDMAP_USERNS)
+#define	_ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, ...)				\
+static rty fn(struct user_namespace *user_ns, __ZPL_ARGS_##n(__VA_ARGS__)) \
+{									\
+	return (__##fn(user_ns, __ZPL_ARGNAMES_##n(__VA_ARGS__)));	\
+}
+#else
+#define	_ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, ...)				\
+static rty fn(__ZPL_ARGS_##n(__VA_ARGS__))				\
+{									\
+	return (__##fn(kcred->user_ns, __ZPL_ARGNAMES_##n(__VA_ARGS__))); \
+}
+#endif
+
+/*
+ * Declare the implementing function, then fill in the wrapper, then emit the
+ * header for the implementation to follow.
+ *
+ * Note that idmap __maybe_unused, to avoid needing every function not using it
+ * (most of them) to have to silence the compiler warning.
+ */
+#define	_ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ...)				\
+static rty __##fn(zidmap_t *idmap, __ZPL_ARGS_##n(__VA_ARGS__));	\
+_ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, __VA_ARGS__)				\
+static rty __##fn(zidmap_t *idmap __maybe_unused, __ZPL_ARGS_##n(__VA_ARGS__))
+
+#define	ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ...)	\
+	_ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ##__VA_ARGS__)
+
 #endif
