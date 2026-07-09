@@ -704,6 +704,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_bookmark/cleanup.ksh \
 	functional/cli_root/zfs_bookmark/setup.ksh \
 	functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh \
+	functional/cli_root/zfs_bookmark/zfs_bookmark_recursive.ksh \
 	functional/cli_root/zfs_change-key/cleanup.ksh \
 	functional/cli_root/zfs_change-key/setup.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_child.ksh \
