@@ -896,6 +896,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_-e.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_encrypted.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_zstd.ksh \
+	functional/cli_root/zfs_receive/zfs_receive-x_props_alternation.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_new_props.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_-d.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_incremental.ksh \

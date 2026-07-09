@@ -4337,7 +4337,7 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 				    newname);
 				if (nvlist_lookup_string(attrs,
 				    ZPROP_SOURCE, &source) == 0 &&
-				    strcmp(source, ZPROP_SOURCE_VAL_RECVD) != 0)
+				    strcmp(source, fsname) == 0)
 					continue;
 			}
 			/*
