@@ -724,7 +724,7 @@ out:
 
 #if defined(CONFIG_FS_POSIX_ACL)
 
-#if defined(HAVE_SET_ACL_IDMAP_DENTRY) || defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
+#if defined(HAVE_SET_ACL_DENTRY)
 ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
     struct dentry *, dentry, struct posix_acl *, acl, int, type)
 {
