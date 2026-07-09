@@ -47,7 +47,7 @@ int zfs_zaccess_idmap(struct znode *, int, int, boolean_t, cred_t *,
 int zfs_zaccess_rwx_idmap(struct znode *, mode_t, int, cred_t *, zidmap_t *);
 int zfs_zaccess_delete(struct znode *, struct znode *, cred_t *, zidmap_t *);
 int zfs_zaccess_rename(struct znode *, struct znode *,
-    struct znode *, struct znode *, cred_t *cr, zidmap_t *mnt_ns);
+    struct znode *, struct znode *, cred_t *cr, zidmap_t *idmap);
 void zfs_acl_free(zfs_acl_t *);
 int zfs_vsec_2_aclp(struct zfsvfs *, umode_t, vsecattr_t *, cred_t *,
     struct zfs_fuid_info **, zfs_acl_t **);

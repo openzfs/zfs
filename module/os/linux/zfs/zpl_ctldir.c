@@ -94,11 +94,11 @@ out:
  */
 static int
 #ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_root_getattr_impl(struct mnt_idmap *user_ns,
+zpl_root_getattr_impl(struct mnt_idmap *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_root_getattr_impl(struct user_namespace *user_ns,
+zpl_root_getattr_impl(struct user_namespace *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #else
@@ -111,13 +111,13 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
 
 #if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 #ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, stat);
+	generic_fillattr(idmap, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(user_ns, ip, stat);
+	generic_fillattr(idmap, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
+	generic_fillattr(idmap, request_mask, ip, stat);
 #else
-	(void) user_ns;
+	(void) idmap;
 #endif
 #else
 	generic_fillattr(ip, stat);
@@ -329,11 +329,11 @@ out:
 
 static int
 #ifdef HAVE_IOPS_RENAME_USERNS
-zpl_snapdir_rename(struct user_namespace *user_ns, struct inode *sdip,
+zpl_snapdir_rename(struct user_namespace *idmap, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int flags)
 #elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_snapdir_rename(struct mnt_idmap *user_ns, struct inode *sdip,
+zpl_snapdir_rename(struct mnt_idmap *idmap, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int flags)
 #else
@@ -373,15 +373,15 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 
 #if defined(HAVE_IOPS_MKDIR_USERNS)
 static int
-zpl_snapdir_mkdir(struct user_namespace *user_ns, struct inode *dip,
+zpl_snapdir_mkdir(struct user_namespace *idmap, struct inode *dip,
     struct dentry *dentry, umode_t mode)
 #elif defined(HAVE_IOPS_MKDIR_IDMAP)
 static int
-zpl_snapdir_mkdir(struct mnt_idmap *user_ns, struct inode *dip,
+zpl_snapdir_mkdir(struct mnt_idmap *idmap, struct inode *dip,
     struct dentry *dentry, umode_t mode)
 #elif defined(HAVE_IOPS_MKDIR_DENTRY)
 static struct dentry *
-zpl_snapdir_mkdir(struct mnt_idmap *user_ns, struct inode *dip,
+zpl_snapdir_mkdir(struct mnt_idmap *idmap, struct inode *dip,
     struct dentry *dentry, umode_t mode)
 #else
 static int
@@ -396,7 +396,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
 #if (defined(HAVE_IOPS_MKDIR_USERNS) || defined(HAVE_IOPS_MKDIR_IDMAP))
-	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, user_ns);
+	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, idmap);
 #else
 	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, zfs_init_idmap);
 #endif
@@ -423,11 +423,11 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
  */
 static int
 #ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_snapdir_getattr_impl(struct mnt_idmap *user_ns,
+zpl_snapdir_getattr_impl(struct mnt_idmap *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
+zpl_snapdir_getattr_impl(struct user_namespace *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #else
@@ -444,13 +444,13 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 		return (error);
 #if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 #ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, stat);
+	generic_fillattr(idmap, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(user_ns, ip, stat);
+	generic_fillattr(idmap, ip, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
+	generic_fillattr(idmap, request_mask, ip, stat);
 #else
-	(void) user_ns;
+	(void) idmap;
 #endif
 #else
 	generic_fillattr(ip, stat);
@@ -569,11 +569,11 @@ out:
 
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_shares_getattr_impl(struct user_namespace *user_ns,
+zpl_shares_getattr_impl(struct user_namespace *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_shares_getattr_impl(struct mnt_idmap *user_ns,
+zpl_shares_getattr_impl(struct mnt_idmap *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #else
@@ -593,13 +593,13 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 	if (zfsvfs->z_shares_dir == 0) {
 #if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
 #ifdef HAVE_GENERIC_FILLATTR_USERNS
-		generic_fillattr(user_ns, path->dentry->d_inode, stat);
+		generic_fillattr(idmap, path->dentry->d_inode, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-		generic_fillattr(user_ns, path->dentry->d_inode, stat);
+		generic_fillattr(idmap, path->dentry->d_inode, stat);
 #elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
+	generic_fillattr(idmap, request_mask, ip, stat);
 #else
-		(void) user_ns;
+		(void) idmap;
 #endif
 #else
 		generic_fillattr(path->dentry->d_inode, stat);
@@ -613,10 +613,10 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
 #ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
-		error = -zfs_getattr_fast(user_ns, request_mask, ZTOI(dzp),
+		error = -zfs_getattr_fast(idmap, request_mask, ZTOI(dzp),
 		    stat);
 #elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
+		error = -zfs_getattr_fast(idmap, ZTOI(dzp), stat);
 #else
 		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
 #endif
