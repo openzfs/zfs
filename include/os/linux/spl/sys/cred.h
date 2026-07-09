@@ -75,20 +75,20 @@ static inline boolean_t zfs_no_idmapping(struct user_namespace *mnt_userns,
 	    mnt_userns == fs_userns);
 }
 
-static inline uid_t zfs_uid_to_vfsuid(zidmap_t *mnt_userns,
+static inline uid_t zfs_uid_to_vfsuid(zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
 #ifdef HAVE_IOPS_CREATE_IDMAP
-	if (mnt_userns == zfs_init_idmap)
+	if (idmap == zfs_init_idmap)
 		return (uid);
 #endif
 #ifdef HAVE_IDMAP_NO_USERNS
 	struct user_namespace ns;
-	ns.uid_map = mnt_userns->uid_map;
+	ns.uid_map = idmap->uid_map;
 	owner = &ns;
 #else
-	owner = idmap_owner(mnt_userns);
+	owner = idmap_owner(idmap);
 #endif
 	if (zfs_no_idmapping(owner, fs_userns))
 		return (uid);
@@ -99,20 +99,20 @@ static inline uid_t zfs_uid_to_vfsuid(zidmap_t *mnt_userns,
 	return (__kuid_val(make_kuid(owner, uid)));
 }
 
-static inline gid_t zfs_gid_to_vfsgid(zidmap_t *mnt_userns,
+static inline gid_t zfs_gid_to_vfsgid(zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
 #ifdef HAVE_IOPS_CREATE_IDMAP
-	if (mnt_userns == zfs_init_idmap)
+	if (idmap == zfs_init_idmap)
 		return (gid);
 #endif
 #ifdef HAVE_IDMAP_NO_USERNS
 	struct user_namespace ns;
-	ns.gid_map = mnt_userns->gid_map;
+	ns.gid_map = idmap->gid_map;
 	owner = &ns;
 #else
-	owner = idmap_owner(mnt_userns);
+	owner = idmap_owner(idmap);
 #endif
 	if (zfs_no_idmapping(owner, fs_userns))
 		return (gid);
@@ -123,20 +123,20 @@ static inline gid_t zfs_gid_to_vfsgid(zidmap_t *mnt_userns,
 	return (__kgid_val(make_kgid(owner, gid)));
 }
 
-static inline uid_t zfs_vfsuid_to_uid(zidmap_t *mnt_userns,
+static inline uid_t zfs_vfsuid_to_uid(zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
 #ifdef HAVE_IOPS_CREATE_IDMAP
-	if (mnt_userns == zfs_init_idmap)
+	if (idmap == zfs_init_idmap)
 		return (uid);
 #endif
 #ifdef HAVE_IDMAP_NO_USERNS
 	struct user_namespace ns;
-	ns.uid_map = mnt_userns->uid_map;
+	ns.uid_map = idmap->uid_map;
 	owner = &ns;
 #else
-	owner = idmap_owner(mnt_userns);
+	owner = idmap_owner(idmap);
 #endif
 	if (zfs_no_idmapping(owner, fs_userns))
 		return (uid);
@@ -148,20 +148,20 @@ static inline uid_t zfs_vfsuid_to_uid(zidmap_t *mnt_userns,
 	return (__kuid_val(make_kuid(fs_userns, uid)));
 }
 
-static inline gid_t zfs_vfsgid_to_gid(zidmap_t *mnt_userns,
+static inline gid_t zfs_vfsgid_to_gid(zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
 #ifdef HAVE_IOPS_CREATE_IDMAP
-	if (mnt_userns == zfs_init_idmap)
+	if (idmap == zfs_init_idmap)
 		return (gid);
 #endif
 #ifdef HAVE_IDMAP_NO_USERNS
 	struct user_namespace ns;
-	ns.gid_map = mnt_userns->gid_map;
+	ns.gid_map = idmap->gid_map;
 	owner = &ns;
 #else
-	owner = idmap_owner(mnt_userns);
+	owner = idmap_owner(idmap);
 #endif
 	if (zfs_no_idmapping(owner, fs_userns))
 		return (gid);

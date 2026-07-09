@@ -137,12 +137,12 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 void
 zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr,
-    zidmap_t *mnt_ns)
+    zidmap_t *idmap)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
 
-	vap->va_uid = zfs_vfsuid_to_uid(mnt_ns,
+	vap->va_uid = zfs_vfsuid_to_uid(idmap,
 	    zfs_i_user_ns(dir), crgetuid(cr));
 
 	if (dir->i_mode & S_ISGID) {
@@ -150,7 +150,7 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr,
 		if (S_ISDIR(mode))
 			vap->va_mode |= S_ISGID;
 	} else {
-		vap->va_gid = zfs_vfsgid_to_gid(mnt_ns,
+		vap->va_gid = zfs_vfsgid_to_gid(idmap,
 		    zfs_i_user_ns(dir), crgetgid(cr));
 	}
 }
@@ -167,10 +167,10 @@ is_nametoolong(struct dentry *dentry)
 
 static int
 #ifdef HAVE_IOPS_CREATE_USERNS
-zpl_create(struct user_namespace *user_ns, struct inode *dir,
+zpl_create(struct user_namespace *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode, bool flag)
 #elif defined(HAVE_IOPS_CREATE_IDMAP)
-zpl_create(struct mnt_idmap *user_ns, struct inode *dir,
+zpl_create(struct mnt_idmap *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode, bool flag)
 #else
 zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
@@ -182,7 +182,7 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 	int error;
 	fstrans_cookie_t cookie;
 #if !(defined(HAVE_IOPS_CREATE_USERNS) || defined(HAVE_IOPS_CREATE_IDMAP))
-	zidmap_t *user_ns = kcred->user_ns;
+	zidmap_t *idmap = kcred->user_ns;
 #endif
 
 	if (is_nametoolong(dentry)) {
@@ -191,11 +191,11 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr, user_ns);
+	zpl_vap_init(vap, dir, mode, cr, idmap);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL, user_ns);
+	    mode, &zp, cr, 0, NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -220,10 +220,10 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 
 static int
 #ifdef HAVE_IOPS_MKNOD_USERNS
-zpl_mknod(struct user_namespace *user_ns, struct inode *dir,
+zpl_mknod(struct user_namespace *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode,
 #elif defined(HAVE_IOPS_MKNOD_IDMAP)
-zpl_mknod(struct mnt_idmap *user_ns, struct inode *dir,
+zpl_mknod(struct mnt_idmap *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode,
 #else
 zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
@@ -236,7 +236,7 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 	int error;
 	fstrans_cookie_t cookie;
 #if !(defined(HAVE_IOPS_MKNOD_USERNS) || defined(HAVE_IOPS_MKNOD_IDMAP))
-	zidmap_t *user_ns = kcred->user_ns;
+	zidmap_t *idmap = kcred->idmap;
 #endif
 
 	if (is_nametoolong(dentry)) {
@@ -252,12 +252,12 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr, user_ns);
+	zpl_vap_init(vap, dir, mode, cr, idmap);
 	vap->va_rdev = rdev;
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL, user_ns);
+	    mode, &zp, cr, 0, NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -282,14 +282,14 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 static int
 #ifdef HAVE_TMPFILE_IDMAP
-zpl_tmpfile(struct mnt_idmap *userns, struct inode *dir,
+zpl_tmpfile(struct mnt_idmap *idmap, struct inode *dir,
     struct file *file, umode_t mode)
 #elif !defined(HAVE_TMPFILE_DENTRY)
-zpl_tmpfile(struct user_namespace *userns, struct inode *dir,
+zpl_tmpfile(struct user_namespace *idmap, struct inode *dir,
     struct file *file, umode_t mode)
 #else
 #ifdef HAVE_TMPFILE_USERNS
-zpl_tmpfile(struct user_namespace *userns, struct inode *dir,
+zpl_tmpfile(struct user_namespace *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode)
 #else
 zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
@@ -302,7 +302,7 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	int error;
 	fstrans_cookie_t cookie;
 #if !(defined(HAVE_TMPFILE_USERNS) || defined(HAVE_TMPFILE_IDMAP))
-	zidmap_t *userns = kcred->user_ns;
+	zidmap_t *idmap = kcred->user_ns;
 #endif
 
 	crhold(cr);
@@ -313,10 +313,10 @@ zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
 	 */
 	if (!IS_POSIXACL(dir))
 		mode &= ~current_umask();
-	zpl_vap_init(vap, dir, mode, cr, userns);
+	zpl_vap_init(vap, dir, mode, cr, idmap);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_tmpfile_idmap(dir, vap, 0, mode, &ip, cr, 0, NULL, userns);
+	error = -zfs_tmpfile_idmap(dir, vap, 0, mode, &ip, cr, 0, NULL, idmap);
 	if (error == 0) {
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
@@ -377,15 +377,15 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 
 #if defined(HAVE_IOPS_MKDIR_USERNS)
 static int
-zpl_mkdir(struct user_namespace *user_ns, struct inode *dir,
+zpl_mkdir(struct user_namespace *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode)
 #elif defined(HAVE_IOPS_MKDIR_IDMAP)
 static int
-zpl_mkdir(struct mnt_idmap *user_ns, struct inode *dir,
+zpl_mkdir(struct mnt_idmap *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode)
 #elif defined(HAVE_IOPS_MKDIR_DENTRY)
 static struct dentry *
-zpl_mkdir(struct mnt_idmap *user_ns, struct inode *dir,
+zpl_mkdir(struct mnt_idmap *idmap, struct inode *dir,
     struct dentry *dentry, umode_t mode)
 #else
 static int
@@ -409,11 +409,11 @@ zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode | S_IFDIR, cr, user_ns);
+	zpl_vap_init(vap, dir, mode | S_IFDIR, cr, idmap);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_mkdir_idmap(ITOZ(dir), dname(dentry), vap, &zp, cr, 0,
-	    NULL, user_ns);
+	    NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
@@ -469,11 +469,11 @@ zpl_rmdir(struct inode *dir, struct dentry *dentry)
 
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_getattr_impl(struct user_namespace *user_ns,
+zpl_getattr_impl(struct user_namespace *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_getattr_impl(struct mnt_idmap *user_ns,
+zpl_getattr_impl(struct mnt_idmap *idmap,
     const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
 #else
@@ -493,9 +493,9 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 */
 
 #ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
-	error = -zfs_getattr_fast(user_ns, request_mask, ip, stat);
+	error = -zfs_getattr_fast(idmap, request_mask, ip, stat);
 #elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-	error = -zfs_getattr_fast(user_ns, ip, stat);
+	error = -zfs_getattr_fast(idmap, ip, stat);
 #else
 	error = -zfs_getattr_fast(kcred->user_ns, ip, stat);
 #endif
@@ -573,10 +573,10 @@ ZPL_GETATTR_WRAPPER(zpl_getattr);
 
 static int
 #ifdef HAVE_USERNS_IOPS_SETATTR
-zpl_setattr(struct user_namespace *user_ns, struct dentry *dentry,
+zpl_setattr(struct user_namespace *idmap, struct dentry *dentry,
     struct iattr *ia)
 #elif defined(HAVE_IDMAP_IOPS_SETATTR)
-zpl_setattr(struct mnt_idmap *user_ns, struct dentry *dentry,
+zpl_setattr(struct mnt_idmap *idmap, struct dentry *dentry,
     struct iattr *ia)
 #else
 zpl_setattr(struct dentry *dentry, struct iattr *ia)
@@ -589,9 +589,9 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	fstrans_cookie_t cookie;
 
 #ifdef HAVE_SETATTR_PREPARE_USERNS
-	error = zpl_setattr_prepare(user_ns, dentry, ia);
+	error = zpl_setattr_prepare(idmap, dentry, ia);
 #elif defined(HAVE_SETATTR_PREPARE_IDMAP)
-	error = zpl_setattr_prepare(user_ns, dentry, ia);
+	error = zpl_setattr_prepare(idmap, dentry, ia);
 #else
 	error = zpl_setattr_prepare(zfs_init_idmap, dentry, ia);
 #endif
@@ -604,14 +604,14 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	vap->va_mode = ia->ia_mode;
 	if (ia->ia_valid & ATTR_UID)
 #ifdef HAVE_IATTR_VFSID
-		vap->va_uid = zfs_vfsuid_to_uid(user_ns, zfs_i_user_ns(ip),
+		vap->va_uid = zfs_vfsuid_to_uid(idmap, zfs_i_user_ns(ip),
 		    __vfsuid_val(ia->ia_vfsuid));
 #else
 		vap->va_uid = KUID_TO_SUID(ia->ia_uid);
 #endif
 	if (ia->ia_valid & ATTR_GID)
 #ifdef HAVE_IATTR_VFSID
-		vap->va_gid = zfs_vfsgid_to_gid(user_ns, zfs_i_user_ns(ip),
+		vap->va_gid = zfs_vfsgid_to_gid(idmap, zfs_i_user_ns(ip),
 		    __vfsgid_val(ia->ia_vfsgid));
 #else
 		vap->va_gid = KGID_TO_SGID(ia->ia_gid);
@@ -627,9 +627,9 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 
 	cookie = spl_fstrans_mark();
 #ifdef HAVE_USERNS_IOPS_SETATTR
-	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, user_ns);
+	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, idmap);
 #elif defined(HAVE_IDMAP_IOPS_SETATTR)
-	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, user_ns);
+	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, idmap);
 #else
 	error = -zfs_setattr(ITOZ(ip), vap, 0, cr);
 #endif
@@ -646,11 +646,11 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 
 static int
 #ifdef HAVE_IOPS_RENAME_USERNS
-zpl_rename(struct user_namespace *user_ns, struct inode *sdip,
+zpl_rename(struct user_namespace *idmap, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int rflags)
 #elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_rename(struct mnt_idmap *user_ns, struct inode *sdip,
+zpl_rename(struct mnt_idmap *idmap, struct inode *sdip,
     struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
     unsigned int rflags)
 #else
@@ -663,7 +663,7 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 	int error;
 	fstrans_cookie_t cookie;
 #if !(defined(HAVE_IOPS_RENAME_USERNS) || defined(HAVE_IOPS_RENAME_IDMAP))
-	zidmap_t *user_ns = kcred->user_ns;
+	zidmap_t *idmap = kcred->user_ns;
 #endif
 
 	if (is_nametoolong(tdentry)) {
@@ -673,13 +673,13 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 	crhold(cr);
 	if (rflags & RENAME_WHITEOUT) {
 		wo_vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-		zpl_vap_init(wo_vap, sdip, S_IFCHR, cr, user_ns);
+		zpl_vap_init(wo_vap, sdip, S_IFCHR, cr, idmap);
 		wo_vap->va_rdev = makedevice(0, 0);
 	}
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_rename_idmap(ITOZ(sdip), dname(sdentry), ITOZ(tdip),
-	    dname(tdentry), cr, 0, rflags, wo_vap, user_ns);
+	    dname(tdentry), cr, 0, rflags, wo_vap, idmap);
 	spl_fstrans_unmark(cookie);
 	if (wo_vap)
 		kmem_free(wo_vap, sizeof (vattr_t));
@@ -691,10 +691,10 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 
 static int
 #ifdef HAVE_IOPS_SYMLINK_USERNS
-zpl_symlink(struct user_namespace *user_ns, struct inode *dir,
+zpl_symlink(struct user_namespace *idmap, struct inode *dir,
     struct dentry *dentry, const char *name)
 #elif defined(HAVE_IOPS_SYMLINK_IDMAP)
-zpl_symlink(struct mnt_idmap *user_ns, struct inode *dir,
+zpl_symlink(struct mnt_idmap *idmap, struct inode *dir,
     struct dentry *dentry, const char *name)
 #else
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
@@ -706,7 +706,7 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 	int error;
 	fstrans_cookie_t cookie;
 #if !(defined(HAVE_IOPS_SYMLINK_USERNS) || defined(HAVE_IOPS_SYMLINK_IDMAP))
-	zidmap_t *user_ns = kcred->user_ns;
+	zidmap_t *idmap = kcred->user_ns;
 #endif
 
 	if (is_nametoolong(dentry)) {
@@ -715,11 +715,11 @@ zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr, user_ns);
+	zpl_vap_init(vap, dir, S_IFLNK | S_IRWXUGO, cr, idmap);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_symlink_idmap(ITOZ(dir), dname(dentry), vap,
-	    (char *)name, &zp, cr, 0, user_ns);
+	    (char *)name, &zp, cr, 0, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error) {

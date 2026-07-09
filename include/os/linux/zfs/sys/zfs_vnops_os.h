@@ -85,19 +85,19 @@ extern void zfs_zrele_async(znode_t *zp);
 
 extern int zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *mnt_ns);
+    zidmap_t *idmap);
 extern int zfs_tmpfile_idmap(struct inode *dip, vattr_t *vapzfs, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *mnt_ns);
+    zidmap_t *idmap);
 extern int zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap,
-    znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *mnt_ns);
+    znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *idmap);
 extern int zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flag, cred_t *cr,
-    zidmap_t *mnt_ns);
+    zidmap_t *idmap);
 extern int zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp,
     char *tnm, cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
-    zidmap_t *mnt_ns);
+    zidmap_t *idmap);
 extern int zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap,
-    char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *mnt_ns);
+    char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap);
 
 #ifdef	__cplusplus
 }
