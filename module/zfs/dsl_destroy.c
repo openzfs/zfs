@@ -45,11 +45,6 @@
 #include <sys/dsl_deleg.h>
 #include <sys/dmu_impl.h>
 #include <sys/zvol.h>
-
-#if !defined(DISABLE_ZCP)
-#include <sys/zcp.h>
-#endif
-
 #include <sys/dsl_deadlist.h>
 #include <sys/zthr.h>
 #include <sys/spa_impl.h>
@@ -610,90 +605,6 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	if (nvlist_next_nvpair(snaps, NULL) == NULL)
 		return (0);
 
-#if !defined(DISABLE_ZCP)
-	/*
-	 * lzc_destroy_snaps() is documented to take an nvlist whose
-	 * values "don't matter".  We need to convert that nvlist to
-	 * one that we know can be converted to LUA.
-	 */
-	nvlist_t *snaps_normalized = fnvlist_alloc();
-	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
-		fnvlist_add_boolean_value(snaps_normalized,
-		    nvpair_name(pair), B_TRUE);
-	}
-
-	nvlist_t *arg = fnvlist_alloc();
-	fnvlist_add_nvlist(arg, "snaps", snaps_normalized);
-	fnvlist_free(snaps_normalized);
-	fnvlist_add_boolean_value(arg, "defer", defer);
-
-	nvlist_t *wrapper = fnvlist_alloc();
-	fnvlist_add_nvlist(wrapper, ZCP_ARG_ARGLIST, arg);
-	fnvlist_free(arg);
-
-	const char *program =
-	    "arg = ...\n"
-	    "snaps = arg['snaps']\n"
-	    "defer = arg['defer']\n"
-	    "errors = { }\n"
-	    "has_errors = false\n"
-	    "for snap, v in pairs(snaps) do\n"
-	    "    errno = zfs.check.destroy{snap, defer=defer}\n"
-	    "    zfs.debug('snap: ' .. snap .. ' errno: ' .. errno)\n"
-	    "    if errno == ENOENT then\n"
-	    "        snaps[snap] = nil\n"
-	    "    elseif errno ~= 0 then\n"
-	    "        errors[snap] = errno\n"
-	    "        has_errors = true\n"
-	    "    end\n"
-	    "end\n"
-	    "if has_errors then\n"
-	    "    return errors\n"
-	    "end\n"
-	    "for snap, v in pairs(snaps) do\n"
-	    "    errno = zfs.sync.destroy{snap, defer=defer}\n"
-	    "    assert(errno == 0)\n"
-	    "end\n"
-	    "return { }\n";
-
-	nvlist_t *result = fnvlist_alloc();
-	int error = zcp_eval(nvpair_name(nvlist_next_nvpair(snaps, NULL)),
-	    program,
-	    B_TRUE,
-	    0,
-	    zfs_lua_max_memlimit,
-	    fnvlist_lookup_nvpair(wrapper, ZCP_ARG_ARGLIST), result);
-	if (error != 0) {
-		const char *errorstr = NULL;
-		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
-		if (errorstr != NULL) {
-			zfs_dbgmsg("%s", errorstr);
-		}
-		fnvlist_free(wrapper);
-		fnvlist_free(result);
-		return (error);
-	}
-	fnvlist_free(wrapper);
-
-	/*
-	 * lzc_destroy_snaps() is documented to fill the errlist with
-	 * int32 values, so we need to convert the int64 values that are
-	 * returned from LUA.
-	 */
-	int rv = 0;
-	nvlist_t *errlist_raw = fnvlist_lookup_nvlist(result, ZCP_RET_RETURN);
-	for (nvpair_t *pair = nvlist_next_nvpair(errlist_raw, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(errlist_raw, pair)) {
-		int32_t val = (int32_t)fnvpair_value_int64(pair);
-		if (rv == 0)
-			rv = val;
-		fnvlist_add_int32(errlist, nvpair_name(pair), val);
-	}
-	fnvlist_free(result);
-	return (rv);
-#else
-	/* zfs channel program support has been disabled */
 	const char *pool = nvpair_name(nvlist_next_nvpair(snaps, NULL));
 
 	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
@@ -707,6 +618,10 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		    dsl_destroy_snapshot_sync, &ddsa, 0,
 		    ZFS_SPACE_CHECK_DESTROY);
 
+		/*
+		 * lzc_destroy_snaps() is documented to fill the errlist with
+		 * int32 values.
+		 */
 		if (error != 0) {
 			fnvlist_add_int32(errlist, ddsa.ddsa_name,
 			    (int32_t)error);
@@ -715,7 +630,6 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 	}
 
 	return (0);
-#endif
 }
 
 int
