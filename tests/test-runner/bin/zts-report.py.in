@@ -218,10 +218,6 @@ maybe = {
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', 6145],
     'cli_root/zpool_import/import_devices_missing': ['FAIL', 16669],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', 6839],
-    'cli_root/zpool_initialize/zpool_initialize_import_export':
-        ['FAIL', 11948],
-    'cli_root/zpool_initialize/zpool_initialize_suspend_resume':
-        ['FAIL', known_reason],
     'cli_root/zpool_iostat/zpool_iostat_interval_all': ['FAIL', 18273],
     'cli_root/zpool_labelclear/zpool_labelclear_removed':
         ['FAIL', known_reason],
