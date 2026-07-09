@@ -377,6 +377,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/rsend.kshlib \
 	functional/scrub_mirror/default.cfg \
 	functional/scrub_mirror/scrub_mirror_common.kshlib \
+	functional/scheduler/scheduler.cfg \
 	functional/send_xdr_encoding/send_xdr_encoding.cfg \
 	functional/send_xdr_encoding/send_xdr_encoding.kshlib \
 	functional/slog/slog.cfg \
@@ -2178,6 +2179,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/scrub_mirror/scrub_mirror_003_pos.ksh \
 	functional/scrub_mirror/scrub_mirror_004_pos.ksh \
 	functional/scrub_mirror/setup.ksh \
+	functional/scheduler/cleanup.ksh \
+	functional/scheduler/scheduler_001_pos.ksh \
+	functional/scheduler/setup.ksh \
 	functional/send_xdr_encoding/cleanup.ksh \
 	functional/send_xdr_encoding/setup.ksh \
 	functional/send_xdr_encoding/xdr_bookmark_raw.ksh \

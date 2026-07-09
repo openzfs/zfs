@@ -391,6 +391,7 @@ vdev_prop_init(void)
 		{ "auto",	VDEV_SCHEDULER_AUTO },
 		{ "on",		VDEV_SCHEDULER_ON },
 		{ "off",	VDEV_SCHEDULER_OFF },
+		{ "wronly",	VDEV_SCHEDULER_WRONLY },
 		{ NULL }
 	};
 
@@ -568,7 +569,7 @@ vdev_prop_init(void)
 	    "SLOW_IO_EVENTS", boolean_table, sfeatures);
 	zprop_register_index(VDEV_PROP_SCHEDULER, "scheduler",
 	    VDEV_SCHEDULER_AUTO, PROP_DEFAULT, ZFS_TYPE_VDEV,
-	    "auto | on | off", "IO_SCHEDULER",
+	    "auto | on | off | wronly", "IO_SCHEDULER",
 	    vdevschedulertype_table, sfeatures);
 	zprop_register_index(VDEV_PROP_ALLOC_BIAS, "alloc_bias",
 	    VDEV_BIAS_NONE, PROP_DEFAULT, ZFS_TYPE_VDEV,

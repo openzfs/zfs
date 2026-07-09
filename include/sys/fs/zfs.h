@@ -487,11 +487,13 @@ typedef enum {
  * VDEV_SCHEDULER_AUTO = Let ZFS decide - currently use scheduler on HDDs only.
  * VDEV_SCHEDULER_ON = Always queue.
  * VDEV_SCHEDULER_OFF = Never queue.
+ * VDEV_SCHEDULER_WRONLY = Queue writes, bypass others.
  */
 typedef enum {
 	VDEV_SCHEDULER_AUTO,
 	VDEV_SCHEDULER_ON,
-	VDEV_SCHEDULER_OFF
+	VDEV_SCHEDULER_OFF,
+	VDEV_SCHEDULER_WRONLY
 } vdev_scheduler_type_t;
 
 /*
