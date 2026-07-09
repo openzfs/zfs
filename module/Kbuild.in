@@ -193,34 +193,34 @@ $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 $(addprefix $(obj)/icp/,$(ICP_OBJS) $(ICP_OBJS_X86) $(ICP_OBJS_X86_64) \
 	$(ICP_OBJS_ARM64) $(ICP_OBJS_PPC_PPC64)) : ccflags-y += -I$(icp_include) -I$(zfs_include)/os/linux/spl -I$(zfs_include)
 
-@DISABLE_ZCP_TRUE@LUA_OBJS := \
-@DISABLE_ZCP_TRUE@	lapi.o \
-@DISABLE_ZCP_TRUE@	lauxlib.o \
-@DISABLE_ZCP_TRUE@	lbaselib.o \
-@DISABLE_ZCP_TRUE@	lcode.o \
-@DISABLE_ZCP_TRUE@	lcompat.o \
-@DISABLE_ZCP_TRUE@	lcorolib.o \
-@DISABLE_ZCP_TRUE@	lctype.o \
-@DISABLE_ZCP_TRUE@	ldebug.o \
-@DISABLE_ZCP_TRUE@	ldo.o \
-@DISABLE_ZCP_TRUE@	lfunc.o \
-@DISABLE_ZCP_TRUE@	lgc.o \
-@DISABLE_ZCP_TRUE@	llex.o \
-@DISABLE_ZCP_TRUE@	lmem.o \
-@DISABLE_ZCP_TRUE@	lobject.o \
-@DISABLE_ZCP_TRUE@	lopcodes.o \
-@DISABLE_ZCP_TRUE@	lparser.o \
-@DISABLE_ZCP_TRUE@	lstate.o \
-@DISABLE_ZCP_TRUE@	lstring.o \
-@DISABLE_ZCP_TRUE@	lstrlib.o \
-@DISABLE_ZCP_TRUE@	ltable.o \
-@DISABLE_ZCP_TRUE@	ltablib.o \
-@DISABLE_ZCP_TRUE@	ltm.o \
-@DISABLE_ZCP_TRUE@	lvm.o \
-@DISABLE_ZCP_TRUE@	lzio.o \
-@DISABLE_ZCP_TRUE@	setjmp/setjmp.o
+@ZCP_ENABLED_TRUE@LUA_OBJS := \
+@ZCP_ENABLED_TRUE@	lapi.o \
+@ZCP_ENABLED_TRUE@	lauxlib.o \
+@ZCP_ENABLED_TRUE@	lbaselib.o \
+@ZCP_ENABLED_TRUE@	lcode.o \
+@ZCP_ENABLED_TRUE@	lcompat.o \
+@ZCP_ENABLED_TRUE@	lcorolib.o \
+@ZCP_ENABLED_TRUE@	lctype.o \
+@ZCP_ENABLED_TRUE@	ldebug.o \
+@ZCP_ENABLED_TRUE@	ldo.o \
+@ZCP_ENABLED_TRUE@	lfunc.o \
+@ZCP_ENABLED_TRUE@	lgc.o \
+@ZCP_ENABLED_TRUE@	llex.o \
+@ZCP_ENABLED_TRUE@	lmem.o \
+@ZCP_ENABLED_TRUE@	lobject.o \
+@ZCP_ENABLED_TRUE@	lopcodes.o \
+@ZCP_ENABLED_TRUE@	lparser.o \
+@ZCP_ENABLED_TRUE@	lstate.o \
+@ZCP_ENABLED_TRUE@	lstring.o \
+@ZCP_ENABLED_TRUE@	lstrlib.o \
+@ZCP_ENABLED_TRUE@	ltable.o \
+@ZCP_ENABLED_TRUE@	ltablib.o \
+@ZCP_ENABLED_TRUE@	ltm.o \
+@ZCP_ENABLED_TRUE@	lvm.o \
+@ZCP_ENABLED_TRUE@	lzio.o \
+@ZCP_ENABLED_TRUE@	setjmp/setjmp.o
 
-@DISABLE_ZCP_TRUE@zfs-objs += $(addprefix lua/,$(LUA_OBJS))
+@ZCP_ENABLED_TRUE@zfs-objs += $(addprefix lua/,$(LUA_OBJS))
 
 
 NVPAIR_OBJS := \
@@ -319,13 +319,13 @@ $(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_i
 $(obj)/zstd/zfs_zstd.o : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h
 
 
-@DISABLE_ZCP_TRUE@ZCP_OBJS := \
-@DISABLE_ZCP_TRUE@	zcp.o \
-@DISABLE_ZCP_TRUE@	zcp_get.o \
-@DISABLE_ZCP_TRUE@	zcp_global.o \
-@DISABLE_ZCP_TRUE@	zcp_iter.o \
-@DISABLE_ZCP_TRUE@	zcp_set.o \
-@DISABLE_ZCP_TRUE@	zcp_synctask.o
+@ZCP_ENABLED_TRUE@ZCP_OBJS := \
+@ZCP_ENABLED_TRUE@	zcp.o \
+@ZCP_ENABLED_TRUE@	zcp_get.o \
+@ZCP_ENABLED_TRUE@	zcp_global.o \
+@ZCP_ENABLED_TRUE@	zcp_iter.o \
+@ZCP_ENABLED_TRUE@	zcp_set.o \
+@ZCP_ENABLED_TRUE@	zcp_synctask.o
 
 ZFS_OBJS := \
 	abd.o \

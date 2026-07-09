@@ -20,7 +20,6 @@ dist_libzpool_la_SOURCES = \
 	%D%/zfs_racct.c \
 	%D%/zfs_debug.c
 
-if DISABLE_ZCP
 ZCP_SOURCES = \
 	module/lua/lapi.c \
 	module/lua/lauxlib.c \
@@ -53,7 +52,6 @@ ZCP_SOURCES = \
 	module/zfs/zcp_iter.c \
 	module/zfs/zcp_set.c \
 	module/zfs/zcp_synctask.c
-endif
 
 nodist_libzpool_la_SOURCES = \
 	module/os/linux/zfs/zio_crypt.c \
@@ -201,8 +199,10 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zrlock.c \
 	module/zfs/zthr.c
 
+if ZCP_ENABLED
 nodist_libzpool_la_SOURCES += \
 	$(ZCP_SOURCES)
+endif
 
 # Special case:
 #

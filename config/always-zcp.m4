@@ -11,17 +11,12 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ZCP], [
 
 
 	AS_IF([test "x$enable_zcp" = xno], [
-		KERNELCPPFLAGS="${KERNELCPPFLAGS} -DDISABLE_ZCP"
-		DISABLE_ZCP="yes"
 		AC_DEFINE([DISABLE_ZCP], [1],
 		[Define to 1 to disable ZFS channel program support])
-	],[
-		DISABLE_ZCP="no"
 	])
 
-	ZFS_DISABLE_ZCP=$enable_zcp
-
-	AC_SUBST(DISABLE_ZCP)
+	AM_CONDITIONAL([ZCP_ENABLED], [test "x$enable_zcp" = "xyes"])
+	AC_SUBST([ZCP_ENABLED], [$enable_zcp])
 	AC_MSG_CHECKING(for zfs channel program support)
 	AC_MSG_RESULT([$enable_zcp])
 ])

@@ -83,7 +83,7 @@ clean-FreeBSD:
 clean: clean-@ac_system@
 
 .PHONY: modules_uninstall-Linux-legacy
-@DISABLE_ZCP_TRUE@lua_dir = lua/
+@ZCP_ENABLED_TRUE@lua_dir = lua/
 modules_uninstall-Linux-legacy:
 	$(RM) -r $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,spl/ avl/ icp/ $(lua_dir) nvpair/ unicode/ zcommon/ zfs/ zstd/)
 

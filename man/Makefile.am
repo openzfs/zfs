@@ -2,10 +2,6 @@
 dist_noinst_man_MANS = \
 	%D%/man1/cstyle.1
 
-if DISABLE_ZCP
-zcp_manpg = \
-	%D%/man8/zfs-program.8
-endif
 
 dist_man_MANS = \
 	%D%/man1/dbufstat.1 \
@@ -112,8 +108,10 @@ dist_man_MANS = \
 	%D%/man8/zstreamdump.8 \
 	%D%/man8/zpool_influxdb.8
 
+if ZCP_ENABLED
 dist_man_MANS += \
-	$(zcp_manpg)
+	%D%/man8/zfs-program.8
+endif
 
 if BUILD_FREEBSD
 dist_man_MANS += \

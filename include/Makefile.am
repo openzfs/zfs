@@ -183,7 +183,7 @@ USER_H = \
 	libzpool.h \
 	libzutil.h
 
-if DISABLE_ZCP
+if ZCP_ENABLED
 ZCP_H = \
 	sys/zcp.h \
 	sys/zcp_global.h \

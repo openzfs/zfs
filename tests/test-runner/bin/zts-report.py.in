@@ -202,6 +202,8 @@ elif sys.platform.startswith('linux'):
 #
 maybe = {
     'chattr/setup': ['SKIP', exec_reason],
+    'channel_program/lua_core/setup': ['SKIP', na_reason],
+    'channel_program/synctask_core/setup': ['SKIP', na_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_copies/zfs_copies_006_pos': ['FAIL', known_reason],
