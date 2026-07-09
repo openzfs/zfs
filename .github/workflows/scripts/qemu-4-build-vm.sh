@@ -220,7 +220,6 @@ function linux() {
   echo "##[group]Configure"
   run ./configure \
     --prefix=/usr \
-    --enable-pyzfs \
     --enable-debuginfo $extra
   echo "##[endgroup]"
 
