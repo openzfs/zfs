@@ -174,3 +174,44 @@ bqueue_dequeue(bqueue_t *q)
 	q->bq_dequeuing_size -= obj2node(q, ret)->bqn_size;
 	return (ret);
 }
+
+/*
+ * Iterate over objects in the queue without removing them.
+ * Callback is called for each object.
+ * Iterate until callback returns B_FALSE.
+ * The caller must ensure no race with bqueue_dequeue,
+ * for example, only call this from the same thread as bqueue_dequeue.
+ */
+void
+bqueue_peek_into(bqueue_t *q, bqueue_peek_cb_t *cb, void *cb_arg)
+{
+	void *next = NULL;
+	void *data = list_head(&q->bq_dequeuing_list);
+
+retry:
+	while (data != NULL) {
+		if (!cb(data, cb_arg))
+			return;
+		next = list_next(&q->bq_dequeuing_list, data);
+		if (next == NULL)
+			break;
+		data = next;
+	}
+	/* data point to the last node in the dequeuing list */
+
+	/* append bq_list to bq_dequeuing_list */
+	mutex_enter(&q->bq_lock);
+	while (q->bq_size == 0) {
+		cv_wait_sig(&q->bq_pop_cv, &q->bq_lock);
+	}
+	list_move_tail(&q->bq_dequeuing_list, &q->bq_list);
+	q->bq_dequeuing_size += q->bq_size;
+	q->bq_size = 0;
+	cv_broadcast(&q->bq_add_cv);
+	mutex_exit(&q->bq_lock);
+	if (data == NULL)
+		data = list_head(&q->bq_dequeuing_list);
+	else
+		data = list_next(&q->bq_dequeuing_list, data);
+	goto retry;
+}

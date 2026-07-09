@@ -375,6 +375,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/fs.tar.gz \
 	functional/rsend/rsend.cfg \
 	functional/rsend/rsend.kshlib \
+	functional/rsend/testpool_recv_blksz.gz \
 	functional/scrub_mirror/default.cfg \
 	functional/scrub_mirror/scrub_mirror_common.kshlib \
 	functional/send_xdr_encoding/send_xdr_encoding.cfg \
@@ -2169,6 +2170,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_realloc_dnode_size.ksh \
 	functional/rsend/send_realloc_encrypted_files.ksh \
 	functional/rsend/send_realloc_files.ksh \
+	functional/rsend/send_recv_blksz.ksh \
 	functional/rsend/send_spill_block.ksh \
 	functional/rsend/send-wR_encrypted_zvol.ksh \
 	functional/rsend/setup.ksh \
