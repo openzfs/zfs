@@ -2272,14 +2272,21 @@ flush_write_batch_impl(struct receive_writer_arg *rwa)
 
 		if (drrw->drr_logical_size != dn->dn_datablksz) {
 			/*
-			 * The WRITE record is larger than the object's block
-			 * size.  We must be receiving an incremental
-			 * large-block stream into a dataset that previously did
-			 * a non-large-block receive.  Lightweight writes must
-			 * be exactly one block, so we need to decompress the
-			 * data (if compressed) and do a normal dmu_write().
+			 * The WRITE record size does not match the
+			 * object's block size.  This happens when the
+			 * record is larger than the block size (an
+			 * incremental large-block stream received into a
+			 * dataset that previously did a non-large-block
+			 * receive), and also when it is a smaller trailing
+			 * chunk from splitting a large block for a stream
+			 * sent without large blocks: a single-block object
+			 * can have a non-power-of-2 block size, so its final
+			 * SPA_OLD_MAXBLOCKSIZE-sized chunk may be shorter
+			 * than the block size.  Either way a lightweight
+			 * write is not possible (those must cover exactly
+			 * one block), so we decompress the data (if
+			 * compressed) and do a normal dmu_write().
 			 */
-			ASSERT3U(drrw->drr_logical_size, >, dn->dn_datablksz);
 			if (DRR_WRITE_COMPRESSED(drrw)) {
 				abd_t *decomp_abd =
 				    abd_alloc_linear(drrw->drr_logical_size,
