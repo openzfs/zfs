@@ -4805,7 +4805,16 @@ zfs_async_write_task(void *arg)
 
 		dmu_tx_commit(cb->tx);
 	} else {
-		dmu_tx_abort(cb->tx);
+		/*
+		 * The tx was assigned at submit time and must be committed
+		 * even though the write failed: dmu_tx_abort() VERIFYs
+		 * tx_txg == 0 and panics on an assigned tx.  The
+		 * synchronous path likewise commits on a post-assign write
+		 * error (see zfs_write()); committing with no changes is
+		 * legal, and metadata updates and zfs_log_write are
+		 * correctly skipped above.
+		 */
+		dmu_tx_commit(cb->tx);
 		cb->wrote = 0;
 	}
 
@@ -4855,14 +4864,18 @@ zfs_async_write_complete(void *arg, int error)
 	cb->wrote = cb->start_resid - cb->uio.uio_resid;
 	cb->error = error;
 
-	taskqid_t tid = taskq_dispatch(system_taskq,
-	    zfs_async_write_task,
-	    cb, TQ_SLEEP);
-	if (tid == TASKQID_INVALID) {
-		/* Fallback: complete with error in current context */
-		cb->error = (error != 0) ? error : ENOMEM;
-		zfs_async_write_task(cb);
-	}
+	/*
+	 * TQ_SLEEP dispatch sleeps for memory rather than failing
+	 * (task_alloc() falls through to kmem_alloc(KM_SLEEP)); the only
+	 * TASKQID_INVALID return is from a taskq being destroyed, which
+	 * cannot happen to system_taskq while this module is loaded.
+	 * Do not fall back to running the task inline: this is ZIO
+	 * completion context, where zil_commit() can self-deadlock, and
+	 * clobbering the error code of a successful write would report
+	 * failure for data that is already on disk.
+	 */
+	VERIFY3U(taskq_dispatch(system_taskq, zfs_async_write_task,
+	    cb, TQ_SLEEP), !=, TASKQID_INVALID);
 }
 
 /*
