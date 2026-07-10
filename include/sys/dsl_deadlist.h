@@ -53,6 +53,7 @@ typedef struct dsl_deadlist {
 	avl_tree_t dl_cache; /* contains dsl_deadlist_cache_entry_t */
 	boolean_t dl_havetree;
 	boolean_t dl_havecache;
+	boolean_t dl_needrepair; /* stray names to delete (#16685) */
 	struct dmu_buf *dl_dbuf;
 	dsl_deadlist_phys_t *dl_phys;
 	kmutex_t dl_lock;

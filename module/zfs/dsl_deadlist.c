@@ -130,6 +130,108 @@ dsl_deadlist_cache_compare(const void *arg1, const void *arg2)
 	return (TREE_CMP(dlce1->dlce_mintxg, dlce2->dlce_mintxg));
 }
 
+/*
+ * Set of mintxgs already folded in, used by dsl_deadlist_merge() to skip a
+ * second entry decoding to an already-merged mintxg when the source deadlist
+ * is damaged (see #16685).
+ */
+typedef struct dsl_deadlist_seen {
+	uint64_t	dds_mintxg;
+	avl_node_t	dds_node;
+} dsl_deadlist_seen_t;
+
+static int
+dsl_deadlist_seen_compare(const void *arg1, const void *arg2)
+{
+	const dsl_deadlist_seen_t *s1 = arg1;
+	const dsl_deadlist_seen_t *s2 = arg2;
+
+	return (TREE_CMP(s1->dds_mintxg, s2->dds_mintxg));
+}
+
+/*
+ * A deadlist entry is keyed by the canonical "%llx" rendering of its mintxg;
+ * that is the only form zap_add_int_key() ever writes.  zfs_strtonum() also
+ * decodes variant spellings (e.g. with a redundant leading '0') to the same
+ * mintxg, but those can only appear through on-disk damage (#16685).
+ */
+static boolean_t
+dsl_deadlist_name_canonical(const char *zapname, uint64_t mintxg)
+{
+	char name[20];
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)mintxg);
+	return (strcmp(name, zapname) == 0);
+}
+
+/*
+ * A "stray" deadlist entry is a damage artifact: its ZAP name is a
+ * non-canonical rendering of a mintxg whose canonical entry also exists.
+ * Since a ZAP cannot hold two entries with the same name, when a canonical
+ * entry is present the other entry(ies) decoding to that mintxg are strays
+ * (#16685).  If the canonical name itself was damaged there may be no
+ * canonical entry; we conservatively treat none as stray in that case and
+ * leave the duplicate for the merge/free paths, which tolerate it directly.
+ */
+static boolean_t
+dsl_deadlist_entry_is_stray(objset_t *os, uint64_t dlobj,
+    const zap_attribute_t *za)
+{
+	char name[20];
+	uint64_t mintxg = zfs_strtonum(za->za_name, NULL);
+
+	(void) snprintf(name, sizeof (name), "%llx", (longlong_t)mintxg);
+	if (strcmp(name, za->za_name) == 0)
+		return (B_FALSE);
+	return (zap_contains(os, dlobj, name) == 0);
+}
+
+/*
+ * Delete from the deadlist ZAP the stray names found (and tolerated) by
+ * dsl_deadlist_load_tree(), which keeps only the canonically-named entry
+ * in-core and sets dl_needrepair.  Called from the first subsequent
+ * tx-carrying operation, this makes the damage self-healing; left on disk,
+ * a stray would end up pointing at a dangling object once an operation
+ * moves or frees the bpobj of its canonical twin.  Restart the scan after
+ * each removal rather than removing entries behind a live ZAP cursor.
+ */
+static void
+dsl_deadlist_repair(dsl_deadlist_t *dl, dmu_tx_t *tx)
+{
+	zap_attribute_t *za = zap_attribute_alloc();
+	boolean_t removed = B_TRUE;
+
+	ASSERT(MUTEX_HELD(&dl->dl_lock));
+
+	while (removed) {
+		zap_cursor_t zc;
+		int error;
+
+		removed = B_FALSE;
+		for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
+		    (error = zap_cursor_retrieve(&zc, za)) == 0;
+		    zap_cursor_advance(&zc)) {
+			if (!dsl_deadlist_entry_is_stray(dl->dl_os,
+			    dl->dl_object, za))
+				continue;
+			zfs_dbgmsg("removing stray entry '%s' (mintxg %llu, "
+			    "bpobj %llu) from deadlist %llu", za->za_name,
+			    (u_longlong_t)zfs_strtonum(za->za_name, NULL),
+			    (u_longlong_t)za->za_first_integer,
+			    (u_longlong_t)dl->dl_object);
+			VERIFY0(zap_remove(dl->dl_os, dl->dl_object,
+			    za->za_name, tx));
+			removed = B_TRUE;
+			break;
+		}
+		if (!removed)
+			VERIFY3U(error, ==, ENOENT);
+		zap_cursor_fini(&zc);
+	}
+	zap_attribute_free(za);
+	dl->dl_needrepair = B_FALSE;
+}
+
 static void
 dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 {
@@ -171,6 +273,45 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 		dle->dle_mintxg = zfs_strtonum(za->za_name, NULL);
 
 		/*
+		 * A well-formed deadlist has exactly one entry per mintxg.
+		 * A duplicate means the on-disk deadlist ZAP is damaged: two
+		 * entries decode to the same mintxg, which the AVL tree can't
+		 * hold.  Historically avl_add() then tripped its assertion and
+		 * panicked the syncing thread on every load, wedging the whole
+		 * pool (#16685).  Report it instead, and when recovery is
+		 * enabled keep only the canonically-named entry (the one ZFS
+		 * really wrote) and mark the deadlist for repair, so that the
+		 * next tx-carrying operation deletes the stray name from disk.
+		 */
+		avl_index_t where;
+		dsl_deadlist_entry_t *found =
+		    avl_find(&dl->dl_tree, dle, &where);
+		if (found != NULL) {
+			zfs_panic_recover("zfs: duplicate mintxg %llu in "
+			    "deadlist %llu (bpobj %llu)",
+			    (u_longlong_t)dle->dle_mintxg,
+			    (u_longlong_t)dl->dl_object,
+			    (u_longlong_t)za->za_first_integer);
+			if (dsl_deadlist_name_canonical(za->za_name,
+			    dle->dle_mintxg)) {
+				/*
+				 * This entry is the canonical one, so the one
+				 * already in the tree is the stray; repoint
+				 * the kept node at this entry's bpobj (it is
+				 * opened in the second pass below).
+				 */
+				found->dle_bpobj.bpo_object =
+				    za->za_first_integer;
+				dmu_prefetch_dnode(dl->dl_os,
+				    found->dle_bpobj.bpo_object,
+				    ZIO_PRIORITY_SYNC_READ);
+			}
+			dl->dl_needrepair = B_TRUE;
+			kmem_free(dle, sizeof (*dle));
+			continue;
+		}
+
+		/*
 		 * Prefetch all the bpobj's so that we do that i/o
 		 * in parallel.  Then open them all in a second pass.
 		 */
@@ -178,7 +319,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 		dmu_prefetch_dnode(dl->dl_os, dle->dle_bpobj.bpo_object,
 		    ZIO_PRIORITY_SYNC_READ);
 
-		avl_add(&dl->dl_tree, dle);
+		avl_insert(&dl->dl_tree, dle, where);
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
@@ -235,13 +376,39 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 		dlce->dlce_mintxg = zfs_strtonum(za->za_name, NULL);
 
 		/*
+		 * See the duplicate-mintxg handling in load_tree (#16685).
+		 * The cache is only used for space statistics and is
+		 * rebuilt on demand, so just keep the canonically-named
+		 * entry; the repair is left to load_tree.
+		 */
+		avl_index_t where;
+		dsl_deadlist_cache_entry_t *found =
+		    avl_find(&dl->dl_cache, dlce, &where);
+		if (found != NULL) {
+			zfs_panic_recover("zfs: duplicate mintxg %llu in "
+			    "deadlist %llu (bpobj %llu)",
+			    (u_longlong_t)dlce->dlce_mintxg,
+			    (u_longlong_t)dl->dl_object,
+			    (u_longlong_t)za->za_first_integer);
+			if (dsl_deadlist_name_canonical(za->za_name,
+			    dlce->dlce_mintxg)) {
+				found->dlce_bpobj = za->za_first_integer;
+				dmu_prefetch_dnode(dl->dl_os,
+				    found->dlce_bpobj,
+				    ZIO_PRIORITY_SYNC_READ);
+			}
+			kmem_free(dlce, sizeof (*dlce));
+			continue;
+		}
+
+		/*
 		 * Prefetch all the bpobj's so that we do that i/o
 		 * in parallel.  Then open them all in a second pass.
 		 */
 		dlce->dlce_bpobj = za->za_first_integer;
 		dmu_prefetch_dnode(dl->dl_os, dlce->dlce_bpobj,
 		    ZIO_PRIORITY_SYNC_READ);
-		avl_add(&dl->dl_cache, dlce);
+		avl_insert(&dl->dl_cache, dlce, where);
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
@@ -326,6 +493,7 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 	dl->dl_phys = dl->dl_dbuf->db_data;
 	dl->dl_havetree = B_FALSE;
 	dl->dl_havecache = B_FALSE;
+	dl->dl_needrepair = B_FALSE;
 	return (0);
 }
 
@@ -403,6 +571,25 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t obj = za->za_first_integer;
+
+		/*
+		 * A stray entry (#16685) typically references the same bpobj
+		 * as its canonical twin; freeing it here as well would
+		 * double-free that bpobj (or, had it referenced the empty
+		 * bpobj, over-decrement the feature refcount).  Skip it: the
+		 * ZAP entry goes away with the object freed below, and if the
+		 * stray referenced a distinct bpobj that object is
+		 * intentionally leaked rather than risk a double free (per
+		 * zfs_recover semantics).
+		 */
+		if (zfs_recover &&
+		    dsl_deadlist_entry_is_stray(os, dlobj, za)) {
+			zfs_panic_recover("zfs: duplicate mintxg %llu in "
+			    "deadlist %llu (bpobj %llu)",
+			    (u_longlong_t)zfs_strtonum(za->za_name, NULL),
+			    (u_longlong_t)dlobj, (u_longlong_t)obj);
+			continue;
+		}
 		if (obj == dmu_objset_pool(os)->dp_empty_bpobj)
 			bpobj_decr_empty(os, tx);
 		else
@@ -475,6 +662,8 @@ dsl_deadlist_insert(dsl_deadlist_t *dl, const blkptr_t *bp, boolean_t bp_freed,
 
 	mutex_enter(&dl->dl_lock);
 	dsl_deadlist_load_tree(dl);
+	if (dl->dl_needrepair)
+		dsl_deadlist_repair(dl, tx);
 
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 
@@ -536,6 +725,8 @@ dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	mutex_enter(&dl->dl_lock);
 	dsl_deadlist_load_tree(dl);
+	if (dl->dl_needrepair)
+		dsl_deadlist_repair(dl, tx);
 
 	obj = bpobj_alloc_empty(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
 	VERIFY0(bpobj_open(&dle->dle_bpobj, dl->dl_os, obj));
@@ -559,6 +750,8 @@ dsl_deadlist_remove_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 		return;
 	mutex_enter(&dl->dl_lock);
 	dsl_deadlist_load_tree(dl);
+	if (dl->dl_needrepair)
+		dsl_deadlist_repair(dl, tx);
 
 	dle_tofind.dle_mintxg = mintxg;
 	dle = avl_find(&dl->dl_tree, &dle_tofind, NULL);
@@ -594,6 +787,8 @@ dsl_deadlist_remove_entry(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	mutex_enter(&dl->dl_lock);
 	dsl_deadlist_load_tree(dl);
+	if (dl->dl_needrepair)
+		dsl_deadlist_repair(dl, tx);
 
 	dle_tofind.dle_mintxg = mintxg;
 	dle = avl_find(&dl->dl_tree, &dle_tofind, NULL);
@@ -814,6 +1009,25 @@ dsl_deadlist_insert_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth,
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
+	/*
+	 * A damaged deadlist can hold a stray entry pointing at a bpobj that
+	 * no longer exists or that is no longer a bpobj -- e.g. a duplicate
+	 * whose twin was already consumed by an earlier operation and whose
+	 * object number has possibly been reused since.  Skip it under
+	 * recovery rather than tripping the assertions in bpobj_open()
+	 * (#16685).
+	 */
+	if (zfs_recover) {
+		dmu_object_info_t doi;
+		if (dmu_object_info(dl->dl_os, obj, &doi) != 0 ||
+		    doi.doi_type != DMU_OT_BPOBJ) {
+			zfs_panic_recover("zfs: deadlist %llu references "
+			    "invalid bpobj %llu", (u_longlong_t)dl->dl_object,
+			    (u_longlong_t)obj);
+			return;
+		}
+	}
+
 	VERIFY0(bpobj_open(&bpo, dl->dl_os, obj));
 	VERIFY0(bpobj_space(&bpo, &used, &comp, &uncomp));
 	bpobj_close(&bpo);
@@ -888,7 +1102,38 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	za = zap_attribute_alloc();
 	pza = zap_attribute_alloc();
 
+	/*
+	 * A damaged source deadlist can hold two entries that decode to the
+	 * same mintxg (#16685): the canonically-named one that ZFS really
+	 * wrote and a stray (see dsl_deadlist_entry_is_stray()).  Folding
+	 * both in would double-count and, since they typically reference the
+	 * same bpobj, double-free that bpobj.  Under recovery, fold in only
+	 * one entry per mintxg -- the canonical one, whichever order the ZAP
+	 * cursor returns them in -- and just delete the other name.  A healthy
+	 * source has exactly one entry per mintxg, so this would never skip
+	 * anything (in particular it must not dedup by bpobj: many healthy
+	 * entries share dp_empty_bpobj, and each fold of one must decrement
+	 * the SPA_FEATURE_EMPTY_BPOBJ refcount).  Without recovery none of
+	 * this machinery runs, so a healthy merge is bit-identical to the
+	 * historical code.
+	 */
+	boolean_t recover = zfs_recover;
+	avl_tree_t seen;
+	if (recover) {
+		avl_create(&seen, dsl_deadlist_seen_compare,
+		    sizeof (dsl_deadlist_seen_t),
+		    offsetof(dsl_deadlist_seen_t, dds_node));
+	}
+
 	mutex_enter(&dl->dl_lock);
+
+	/* If the target deadlist itself is damaged, repair it first. */
+	if (recover) {
+		dsl_deadlist_load_tree(dl);
+		if (dl->dl_needrepair)
+			dsl_deadlist_repair(dl, tx);
+	}
+
 	/*
 	 * Prefetch up to 128 deadlists first and then more as we progress.
 	 * The limit is a balance between ARC use and diminishing returns.
@@ -902,8 +1147,40 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
 	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		dsl_deadlist_insert_bpobj(dl, za->za_first_integer,
-		    zfs_strtonum(za->za_name, NULL), tx);
+		uint64_t mintxg = zfs_strtonum(za->za_name, NULL);
+		boolean_t fold = B_TRUE;
+
+		if (recover) {
+			dsl_deadlist_seen_t seek = { .dds_mintxg = mintxg };
+			avl_index_t where;
+
+			if (dsl_deadlist_entry_is_stray(dl->dl_os, obj, za)) {
+				/* The stray precedes its canonical twin. */
+				fold = B_FALSE;
+			} else if (avl_find(&seen, &seek, &where) != NULL) {
+				/*
+				 * The canonical entry for this mintxg was
+				 * already folded in (and removed from the ZAP,
+				 * which is why the stray check above cannot
+				 * see it).
+				 */
+				fold = B_FALSE;
+			} else {
+				dsl_deadlist_seen_t *s = kmem_alloc(
+				    sizeof (*s), KM_SLEEP);
+				s->dds_mintxg = mintxg;
+				avl_insert(&seen, s, where);
+			}
+		}
+		if (fold) {
+			dsl_deadlist_insert_bpobj(dl, za->za_first_integer,
+			    mintxg, tx);
+		} else {
+			zfs_panic_recover("zfs: duplicate mintxg %llu in "
+			    "deadlist %llu (bpobj %llu)",
+			    (u_longlong_t)mintxg, (u_longlong_t)obj,
+			    (u_longlong_t)za->za_first_integer);
+		}
 		VERIFY0(zap_remove(dl->dl_os, obj, za->za_name, tx));
 		if (perror == 0) {
 			dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
@@ -915,6 +1192,14 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
 	zap_cursor_fini(&pzc);
+
+	if (recover) {
+		void *cookie = NULL;
+		dsl_deadlist_seen_t *s;
+		while ((s = avl_destroy_nodes(&seen, &cookie)) != NULL)
+			kmem_free(s, sizeof (*s));
+		avl_destroy(&seen);
+	}
 
 	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
 	dlp = bonus->db_data;
@@ -944,6 +1229,8 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 	mutex_enter(&dl->dl_lock);
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 	dsl_deadlist_load_tree(dl);
+	if (dl->dl_needrepair)
+		dsl_deadlist_repair(dl, tx);
 
 	dle_tofind.dle_mintxg = mintxg;
 	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
