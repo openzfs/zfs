@@ -5044,8 +5044,20 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 
 	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
 	if (error) {
+		/*
+		 * The copy faulted partway.  zfs_uiomove() advanced the
+		 * underlying iov_iter by the bytes consumed; rewind it
+		 * before restoring the saved uio so the sync fallback in
+		 * zpl_iter_write() retries from the original position (a
+		 * bare struct restore leaves the shared iov_iter advanced).
+		 * The tx is already assigned, so it must be committed, not
+		 * aborted -- dmu_tx_abort() VERIFYs tx_txg == 0 and would
+		 * panic; the synchronous path likewise commits on EFAULT.
+		 */
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
 		*uio = saved_uio;
-		dmu_tx_abort(tx);
+		dmu_tx_commit(tx);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
@@ -5094,14 +5106,21 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	    tx, zfs_async_write_complete, cb);
 	if (error) {
 		/*
-		 * Restore the uio so the sync fallback in
-		 * zpl_iter_write() retries the full write.
+		 * Restore the uio so the sync fallback in zpl_iter_write()
+		 * retries the full write.  zfs_uiomove() already consumed
+		 * the user data into the ABD, so rewind the shared iov_iter
+		 * before the struct restore; otherwise the fallback sees an
+		 * exhausted iterator and fails a write whose data was fine.
+		 * The tx is assigned -- commit, don't abort (abort VERIFYs
+		 * tx_txg == 0).
 		 */
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
 		*uio = saved_uio;
 		crfree(cr);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
-		dmu_tx_abort(tx);
+		dmu_tx_commit(tx);
 		zfs_exit(zfsvfs, FTAG);
 		kmem_cache_free(zfs_async_write_cb_cache, cb);
 		return (error);
