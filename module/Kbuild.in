@@ -453,7 +453,8 @@ ZFS_OBJS := \
 	zle.o \
 	zrlock.o \
 	zthr.o \
-	zvol.o $(ZCP_OBJS)
+	zvol.o \
+	$(ZCP_OBJS)
 
 ZFS_OBJS_OS := \
 	abd_os.o \
@@ -529,7 +530,7 @@ zobjdirs = $(dir $(zfs-objs)) $(dir $(spl-objs))                                
   $(dir $(zfs-$(CONFIG_X86))) $(dir $(zfs-$(CONFIG_UML_X86))) $(dir $(zfs-$(CONFIG_ARM64)))  \
   $(dir $(zfs-$(CONFIG_PPC64))) $(dir $(zfs-$(CONFIG_PPC)))
 
-@DISABLE_ZCP_TRUE@luajmp = lua/setjmp/
+@ZCP_ENABLED_TRUE@luajmp = lua/setjmp/
 z_cdirs = $(sort $(filter-out $(luajmp) $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/) \
   $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
   $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
