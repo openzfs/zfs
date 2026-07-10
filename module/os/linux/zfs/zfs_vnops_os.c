@@ -4558,10 +4558,41 @@ struct zfs_async_read_cb
 	zfs_locked_range_t *lr;
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
-	const void	*tag;	/* saved FTAG for zfs_exit() */
-	int		lock_idx; /* saved sublock for teardown rrm */
 	abd_t		*data;	/* ABD wrapping user pages; freed in cb */
 };
+
+/*
+ * Async DIO in-flight accounting.  The submitting thread holds the
+ * teardown lock (zfs_enter) only across submission; completions run in
+ * ZIO/system taskq threads, which must NOT release a teardown reader
+ * lock acquired by another thread: once a teardown writer is waiting
+ * (rr_writer_wanted -- umount, export, rollback, recv -F), rrwlock
+ * tracks new readers on the submitting thread's rrn list, and a
+ * cross-thread rrw_exit() misses that node and corrupts the anon/linked
+ * reader counts (refcount VERIFY panic, or the teardown writer waits
+ * forever).  Instead, each submitted async operation holds
+ * z_async_dio_inflight until its completion has made its last touch of
+ * the zfsvfs/znode, and zfsvfs_teardown() drains the counter right
+ * after taking the teardown lock as writer -- at which point no new
+ * async I/O can be submitted.
+ */
+static void
+zfs_async_dio_hold(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_inflight++;
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
+static void
+zfs_async_dio_rele(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	ASSERT3U(zfsvfs->z_async_dio_inflight, >, 0);
+	if (--zfsvfs->z_async_dio_inflight == 0)
+		cv_broadcast(&zfsvfs->z_async_dio_cv);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
 
 static void
 zfs_async_read_complete(void *arg, int error)
@@ -4607,16 +4638,12 @@ zfs_async_read_complete(void *arg, int error)
 	ZFS_ACCESSTIME_STAMP(cb->zfsvfs, cb->zp);
 
 	/*
-	 * Release the teardown reader lock on the SAME sublock that was
-	 * acquired in zfs_read_async().  We cannot use zfs_exit() because
-	 * rrm_exit() hashes by curthread, and we are now running in ZIO
-	 * taskq context (different thread than the kworker that called
-	 * zfs_read_async).  Using the wrong sublock leaks the reader
-	 * count and causes zfsvfs_teardown to hang forever.
+	 * Last touch of the zfsvfs/znode: drop the in-flight hold that
+	 * has kept zfsvfs_teardown() at bay since submission (the
+	 * teardown reader lock itself was released by the submitting
+	 * thread; see zfs_async_dio_hold()).
 	 */
-	zfs_exit_fs(cb->zfsvfs);
-	rrw_exit(rrm_lock_by_idx(&cb->zfsvfs->z_teardown_lock,
-	    cb->lock_idx), cb->tag);
+	zfs_async_dio_rele(cb->zfsvfs);
 
 	/*
 	 * Free the ABD that wraps the user pages.  The data is now in the
@@ -4720,22 +4747,22 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio = *uio;
 	cb->uio.uio_resid = aligned_n;
 	cb->start_resid = aligned_n;
-	cb->tag = FTAG;		/* saved for matching zfs_exit() in callback */
-	/*
-	 * Save the rrm sublock index.  zfs_enter_verify_zp() above took a
-	 * reader lock on z_teardown_lock using the kworker thread's pointer
-	 * for hashing.  The callback runs in ZIO taskq context (different
-	 * thread), so we must release the SAME sublock, not the one that
-	 * would be chosen by the callback's curthread.
-	 */
-	cb->lock_idx = rrm_td_lock_idx();
 	cb->data = data;
+
+	/*
+	 * Held until the completion's last touch of the zfsvfs; taken
+	 * before submission because the completion may fire (and rele)
+	 * before dmu_read_abd_async() returns.  A nonzero return means
+	 * the callback will never run, so the error path must rele.
+	 */
+	zfs_async_dio_hold(zfsvfs);
 
 	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
 	error = dmu_read_abd_async(DB_DNODE((dmu_buf_impl_t *)db),
 	    offset, aligned_n, data, dflags, zfs_async_read_complete, cb);
 
 	if (error) {
+		zfs_async_dio_rele(zfsvfs);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
 		zfs_uio_free_dio_pages(uio, UIO_READ);
@@ -4744,6 +4771,11 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (error);
 	}
 
+	/*
+	 * The in-flight hold now stands in for the teardown reader lock,
+	 * which must be released here, on the thread that acquired it.
+	 */
+	zfs_exit(zfsvfs, FTAG);
 	return (0);
 }
 
@@ -4759,8 +4791,6 @@ struct zfs_async_write_cb {
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
 	boolean_t	dio;
-	const void	*tag;
-	int		lock_idx;
 	abd_t		*data;
 	dmu_tx_t	*tx;
 	offset_t	woff;
@@ -4831,9 +4861,14 @@ zfs_async_write_task(void *arg)
 			cb->error = zil_err;
 	}
 
-	zfs_exit_fs(cb->zfsvfs);
-	rrw_exit(rrm_lock_by_idx(&cb->zfsvfs->z_teardown_lock,
-	    cb->lock_idx), cb->tag);
+	/*
+	 * Last touch of the zfsvfs/znode: drop the in-flight hold that
+	 * has kept zfsvfs_teardown() at bay since submission (the
+	 * teardown reader lock itself was released by the submitting
+	 * thread; see zfs_async_dio_hold()).  Must come after the
+	 * zil_commit above so teardown's zil_close() cannot race it.
+	 */
+	zfs_async_dio_rele(cb->zfsvfs);
 
 	if (cb->data != NULL)
 		abd_free(cb->data);
@@ -5106,8 +5141,6 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio.uio_resid = 0;		/* all data already copied to ABD */
 	cb->start_resid = n;
 	cb->dio = B_FALSE;
-	cb->tag = FTAG;
-	cb->lock_idx = rrm_td_lock_idx();
 	cb->data = data;
 	cb->tx = tx;
 	cb->woff = woff;
@@ -5130,6 +5163,14 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->error = 0;
 	cb->wrote = 0;
 
+	/*
+	 * Held until the completion's last touch of the zfsvfs; taken
+	 * before submission because the completion may fire (and rele)
+	 * before dmu_write_abd_async() returns.  A nonzero return means
+	 * the callback will never run, so the error path must rele.
+	 */
+	zfs_async_dio_hold(zfsvfs);
+
 	error = dmu_write_abd_async(DB_DNODE(db), offset, n, data, dflags,
 	    tx, zfs_async_write_complete, cb);
 	if (error) {
@@ -5142,6 +5183,7 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		 * The tx is assigned -- commit, don't abort (abort VERIFYs
 		 * tx_txg == 0).
 		 */
+		zfs_async_dio_rele(zfsvfs);
 		zfs_uio_iov_iter_revert(uio,
 		    saved_uio.uio_resid - uio->uio_resid);
 		*uio = saved_uio;
@@ -5154,6 +5196,11 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (error);
 	}
 
+	/*
+	 * The in-flight hold now stands in for the teardown reader lock,
+	 * which must be released here, on the thread that acquired it.
+	 */
+	zfs_exit(zfsvfs, FTAG);
 	return (0);
 }
 

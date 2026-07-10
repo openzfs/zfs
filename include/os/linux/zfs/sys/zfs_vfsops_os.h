@@ -103,6 +103,9 @@ struct zfsvfs {
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
+	kmutex_t	z_async_dio_lock; /* protects z_async_dio_inflight */
+	kcondvar_t	z_async_dio_cv;	/* signals drain to teardown */
+	uint64_t	z_async_dio_inflight; /* submitted, not yet completed */
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	unsigned long	z_snap_defer_time; /* last snapshot unmount deferral */
