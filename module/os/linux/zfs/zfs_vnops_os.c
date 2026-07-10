@@ -4580,6 +4580,21 @@ zfs_async_read_complete(void *arg, int error)
 	else
 		read = 0;
 
+	/*
+	 * A Direct I/O read that fails checksum verification is suspect:
+	 * a concurrent writer may have modified the buffer in flight. The
+	 * synchronous path reissues the read through the ARC and, if that
+	 * also fails, returns EIO (see zfs_read()). This completion runs in
+	 * ZIO taskq context without the submitter's mm and cannot re-copy
+	 * ARC data into the pinned user pages, so it cannot retry; convert
+	 * ECKSUM to EIO so the internal error code never leaks to userspace
+	 * and the result matches the sync path for genuinely corrupt data.
+	 * (Transient races the sync path would recover via the ARC retry
+	 * are not recovered here -- see harness tests/b4-arc-fallback.)
+	 */
+	if (error == ECKSUM)
+		error = SET_ERROR(EIO);
+
 	dataset_kstats_update_read_kstats(&cb->zfsvfs->z_kstat, read);
 	zfs_rangelock_exit(cb->lr);
 
