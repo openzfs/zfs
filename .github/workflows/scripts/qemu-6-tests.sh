@@ -23,8 +23,8 @@ function prefix() {
   M=$((DIFF/60))
   S=$((DIFF-(M*60)))
 
-  CTR=$(cat /tmp/ctr)
-  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr
+  CTR=$(cat /tmp/ctr-vm${ID})
+  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr-vm${ID}
 
   BASE="$HOME/work/zfs/zfs"
   COLOR="$BASE/scripts/zfs-tests-color.sh"
@@ -96,10 +96,10 @@ if [ -z ${1:-} ]; then
   source env.txt
   SSH=$(which ssh)
   TESTS='$HOME/zfs/.github/workflows/scripts/qemu-6-tests.sh'
-  echo 0 > /tmp/ctr
   date "+%s" > /tmp/tsstart
 
   for ((i=1; i<=VMs; i++)); do
+    echo 0 > /tmp/ctr-vm${i}
     IP="192.168.122.1$i"
 
     # We do an additional test build of Lustre against ZFS if we're vm2
