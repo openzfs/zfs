@@ -41,6 +41,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm bookmark
+.Op Fl r
 .Ar snapshot Ns | Ns Ar bookmark
 .Ar newbookmark
 .
@@ -49,6 +50,14 @@ Creates a new bookmark of the given snapshot or bookmark.
 Bookmarks mark the point in time when the snapshot was created, and can be used
 as the incremental source for a
 .Nm zfs Cm send .
+.Bl -tag -width Ds
+.It Fl r
+Recursively create bookmarks for the given source snapshot of all descendent
+datasets.
+The source must be a snapshot, and a bookmark is created only for the
+descendants that have a snapshot of that name; descendants without it are
+skipped.
+.El
 .Pp
 When creating a bookmark from an existing redaction bookmark, the resulting
 bookmark is

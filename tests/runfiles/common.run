@@ -187,7 +187,7 @@ tests = ['zfs_001_neg', 'zfs_002_pos']
 tags = ['functional', 'cli_root', 'zfs']
 
 [tests/functional/cli_root/zfs_bookmark]
-tests = ['zfs_bookmark_cliargs']
+tests = ['zfs_bookmark_cliargs', 'zfs_bookmark_recursive']
 tags = ['functional', 'cli_root', 'zfs_bookmark']
 
 [tests/functional/cli_root/zfs_change-key]

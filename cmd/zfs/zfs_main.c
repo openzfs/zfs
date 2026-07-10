@@ -420,7 +420,7 @@ get_usage(zfs_help_t idx)
 		return (gettext("\tdiff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_BOOKMARK:
-		return (gettext("\tbookmark <snapshot|bookmark> "
+		return (gettext("\tbookmark [-r] <snapshot|bookmark> "
 		    "<newbookmark>\n"));
 	case HELP_CHANNEL_PROGRAM:
 		return (gettext("\tprogram [-jn] [-t <instruction limit>] "
@@ -8214,11 +8214,92 @@ out:
 	return (err != 0);
 }
 
+typedef struct bookmark_cbdata {
+	nvlist_t	*cb_nvl;
+	const char	*cb_snapname;	/* source snapshot name (after '@') */
+	const char	*cb_bookname;	/* new bookmark name (after '#') */
+} bookmark_cbdata_t;
+
 /*
- * zfs bookmark <fs@source>|<fs#source> <fs#bookmark>
+ * Recursively gather "<dataset>#bookname" -> "<dataset>@snapname" pairs for
+ * every descendant that actually has the source snapshot, mirroring the way
+ * "zfs snapshot -r" collects its targets.  Descendants that lack the snapshot
+ * (or whose name is too long to form the pair) are skipped rather than failing
+ * the whole request.  Unlike snapshotting, bookmarking only needs the snapshot
+ * to exist, so an inconsistent (e.g. mid-receive) dataset is not skipped.
+ */
+static int
+zfs_bookmark_cb(zfs_handle_t *zhp, void *arg)
+{
+	bookmark_cbdata_t *cb = arg;
+	char snap[ZFS_MAX_DATASET_NAME_LEN];
+	char book[ZFS_MAX_DATASET_NAME_LEN];
+	int rv = 0;
+	int n;
+
+	n = snprintf(snap, sizeof (snap), "%s@%s", zfs_get_name(zhp),
+	    cb->cb_snapname);
+	if (n >= 0 && (size_t)n < sizeof (snap) && lzc_exists(snap)) {
+		n = snprintf(book, sizeof (book), "%s#%s",
+		    zfs_get_name(zhp), cb->cb_bookname);
+		if (n >= 0 && (size_t)n < sizeof (book))
+			fnvlist_add_string(cb->cb_nvl, book, snap);
+	}
+
+	rv = zfs_iter_filesystems_v2(zhp, 0, zfs_bookmark_cb, cb);
+	zfs_close(zhp);
+	return (rv);
+}
+
+static void
+zfs_bookmark_perror(const char *bookname, int err)
+{
+	const char *err_msg = NULL;
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    dgettext(TEXT_DOMAIN, "cannot create bookmark '%s'"), bookname);
+
+	switch (err) {
+	case EXDEV:
+		err_msg = "bookmark is in a different pool";
+		break;
+	case ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR:
+		err_msg = "source is not an ancestor of the "
+		    "new bookmark's dataset";
+		break;
+	case EEXIST:
+		err_msg = "bookmark exists";
+		break;
+	case EINVAL:
+		err_msg = "invalid argument";
+		break;
+	case ENOTSUP:
+		err_msg = "bookmark feature not enabled";
+		break;
+	case ENOSPC:
+		err_msg = "out of space";
+		break;
+	case ENOENT:
+		err_msg = "dataset does not exist";
+		break;
+	default:
+		(void) zfs_standard_error(g_zfs, err, errbuf);
+		break;
+	}
+	if (err_msg != NULL) {
+		(void) fprintf(stderr, "%s: %s\n", errbuf,
+		    dgettext(TEXT_DOMAIN, err_msg));
+	}
+}
+
+/*
+ * zfs bookmark [-r] <fs@source>|<fs#source> <fs#bookmark>
  *
  * Creates a bookmark with the given name from the source snapshot
- * or creates a copy of an existing source bookmark.
+ * or creates a copy of an existing source bookmark.  With -r, a bookmark
+ * is created for the source snapshot of every descendant dataset that has
+ * one.
  */
 static int
 zfs_do_bookmark(int argc, char **argv)
@@ -8227,12 +8308,17 @@ zfs_do_bookmark(int argc, char **argv)
 	char expbuf[ZFS_MAX_DATASET_NAME_LEN];
 	int source_type;
 	nvlist_t *nvl;
+	nvlist_t *errlist = NULL;
+	boolean_t recursive = B_FALSE;
 	int ret = 0;
 	int c;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "")) != -1) {
+	while ((c = getopt(argc, argv, "r")) != -1) {
 		switch (c) {
+		case 'r':
+			recursive = B_TRUE;
+			break;
 		case '?':
 			(void) fprintf(stderr,
 			    gettext("invalid option '%c'\n"), optopt);
@@ -8310,6 +8396,12 @@ zfs_do_bookmark(int argc, char **argv)
 		default: abort();
 	}
 
+	if (recursive && source_type != ZFS_TYPE_SNAPSHOT) {
+		(void) fprintf(stderr, gettext("recursive bookmarks (-r) can "
+		    "only be created from a snapshot source\n"));
+		goto usage;
+	}
+
 	/* test the source exists */
 	zfs_handle_t *zhp;
 	zhp = zfs_open(g_zfs, source, source_type);
@@ -8318,50 +8410,52 @@ zfs_do_bookmark(int argc, char **argv)
 	zfs_close(zhp);
 
 	nvl = fnvlist_alloc();
-	fnvlist_add_string(nvl, bookname, source);
-	ret = lzc_bookmark(nvl, NULL);
-	fnvlist_free(nvl);
+
+	if (recursive) {
+		bookmark_cbdata_t cb = { 0 };
+		char dsname[ZFS_MAX_DATASET_NAME_LEN];
+
+		/* recurse from the dataset the source snapshot belongs to */
+		(void) strlcpy(dsname, source, sizeof (dsname));
+		*strchr(dsname, '@') = '\0';
+
+		cb.cb_nvl = nvl;
+		cb.cb_snapname = strchr(source, '@') + 1;
+		cb.cb_bookname = strchr(bookname, '#') + 1;
+
+		zhp = zfs_open(g_zfs, dsname,
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
+		if (zhp == NULL) {
+			fnvlist_free(nvl);
+			goto usage;
+		}
+		/* zfs_bookmark_cb() closes zhp */
+		if (zfs_bookmark_cb(zhp, &cb) != 0) {
+			fnvlist_free(nvl);
+			return (1);
+		}
+	} else {
+		fnvlist_add_string(nvl, bookname, source);
+	}
+
+	ret = lzc_bookmark(nvl, &errlist);
 
 	if (ret != 0) {
-		const char *err_msg = NULL;
-		char errbuf[1024];
+		boolean_t reported = B_FALSE;
 
-		(void) snprintf(errbuf, sizeof (errbuf),
-		    dgettext(TEXT_DOMAIN,
-		    "cannot create bookmark '%s'"), bookname);
-
-		switch (ret) {
-		case EXDEV:
-			err_msg = "bookmark is in a different pool";
-			break;
-		case ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR:
-			err_msg = "source is not an ancestor of the "
-			    "new bookmark's dataset";
-			break;
-		case EEXIST:
-			err_msg = "bookmark exists";
-			break;
-		case EINVAL:
-			err_msg = "invalid argument";
-			break;
-		case ENOTSUP:
-			err_msg = "bookmark feature not enabled";
-			break;
-		case ENOSPC:
-			err_msg = "out of space";
-			break;
-		case ENOENT:
-			err_msg = "dataset does not exist";
-			break;
-		default:
-			(void) zfs_standard_error(g_zfs, ret, errbuf);
-			break;
+		for (nvpair_t *pair = nvlist_next_nvpair(errlist, NULL);
+		    pair != NULL; pair = nvlist_next_nvpair(errlist, pair)) {
+			zfs_bookmark_perror(nvpair_name(pair),
+			    fnvpair_value_int32(pair));
+			reported = B_TRUE;
 		}
-		if (err_msg != NULL) {
-			(void) fprintf(stderr, "%s: %s\n", errbuf,
-			    dgettext(TEXT_DOMAIN, err_msg));
-		}
+		/* fall back to the overall error if none was itemized */
+		if (!reported)
+			zfs_bookmark_perror(bookname, ret);
 	}
+
+	fnvlist_free(nvl);
+	nvlist_free(errlist);
 
 	return (ret != 0);
 
