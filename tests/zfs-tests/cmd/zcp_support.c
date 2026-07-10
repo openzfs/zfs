@@ -38,7 +38,6 @@ main(int argc, const char *const *argv)
 	if (fd == -1)
 		err(EXIT_FAILURE, "%s", ZFS_DEV);
 
-
 	nvlist_t *zc_args = fnvlist_alloc();
 	fnvlist_add_string(zc_args, ZCP_ARG_PROGRAM, prog);
 
@@ -47,23 +46,10 @@ main(int argc, const char *const *argv)
 	zc.zc_nvlist_src = (uint64_t)(uintptr_t)packed_nvl;
 	zc.zc_nvlist_src_size = sz;
 
-	int rc = 0;
+	int rc = EXIT_SUCCESS;
 
-#if defined(DISABLE_ZCP)
-	/*
-	 * EXIT_FAILURE so channel program tests can be skipped
-	 * but make sure the correct error code was returned
-	 */
 	if (ioctl(fd, ZFS_IOC_CHANNEL_PROGRAM, &zc) == ZFS_ERR_IOC_CMD_UNAVAIL)
 		rc = EXIT_FAILURE;
-#else
-	/*
-	 * Depending on zone, disks might not been prepared yet.
-	 * Channel program may return any value other than CMD_UNAVAIL
-	 */
-	if (ioctl(fd, ZFS_IOC_CHANNEL_PROGRAM, &zc) != ZFS_ERR_IOC_CMD_UNAVAIL)
-		rc = EXIT_SUCCESS;
-#endif
 
 	close(fd);
 	fnvlist_free(zc_args);
