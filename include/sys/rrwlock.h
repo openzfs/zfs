@@ -109,16 +109,6 @@ boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
 #define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)
 #define	RRM_WRITE_HELD(x)	rrm_held(x, RW_WRITER)
 
-/*
- * NOTE: an rrmlock reader acquired on one thread must NOT be released
- * from another.  Picking the right sublock cross-thread is not enough:
- * once a writer is waiting (rr_writer_wanted), rrw_enter_read() tracks
- * the reader on the acquiring thread's rrn list, and a cross-thread
- * rrw_exit() cannot find that node -- it decrements the anonymous
- * count instead and corrupts the lock accounting.  Async consumers
- * must hold the lock only across submission and use their own
- * drain mechanism (see z_async_dio_inflight in zfs_vfsops_os.h).
- */
 #define	RRM_LOCK_HELD(x) \
 	(rrm_held(x, RW_WRITER) || rrm_held(x, RW_READER))
 
