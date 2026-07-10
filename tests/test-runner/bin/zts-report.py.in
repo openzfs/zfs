@@ -84,6 +84,13 @@ project_id_reason = 'lsattr with set/show project ID required'
 #
 user_ns_reason = 'Kernel user namespace support required'
 
+
+#
+# Channel program support disabled at build time
+#
+zcp_reason = 'channel program support required'
+
+
 #
 # Some rewind tests can fail since nothing guarantees that old MOS blocks
 # are not overwritten.  Snapshots protect datasets and data files but not
@@ -202,8 +209,8 @@ elif sys.platform.startswith('linux'):
 #
 maybe = {
     'chattr/setup': ['SKIP', exec_reason],
-    'channel_program/lua_core/setup': ['SKIP', na_reason],
-    'channel_program/synctask_core/setup': ['SKIP', na_reason],
+    'channel_program/lua_core/setup': ['SKIP', zcp_reason],
+    'channel_program/synctask_core/setup': ['SKIP', zcp_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_copies/zfs_copies_006_pos': ['FAIL', known_reason],

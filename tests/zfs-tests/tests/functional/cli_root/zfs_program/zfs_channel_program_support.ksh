@@ -19,9 +19,11 @@
 
 #
 # DESCRIPTION:
+# 	Verify zfs channel program support
 #
 # STRATEGY:
-#	1. Verify zfs channel program support is disabled
+#	1. Verify whether zfs channel program support
+#	   has been enabled or disabled
 #
 
 verify_runnable "both"
@@ -32,14 +34,11 @@ function cleanup
 }
 log_onexit cleanup
 
-log_assert "Channel programs are disabled"
-
-TESTZCP="/$TESTPOOL/nosupp.zcp"
-cat > "$TESTZCP" << EOF
-	zfs.exists("$TESTPOOL")
-EOF
-
 # 1. Verify zfs channel program support is disabled
-log_mustnot zfs program $TESTPOOL $TESTZCP 2>&1
-
-log_pass "Channel programs are disabled"
+if zcp_support $TESTPOOL; then
+	log_must zfs program $TESTPOOL - <<<"zfs.exists(\"$TESTPOOL\")" 2>&1
+	log_pass "Channel programs are enabled"
+else
+	log_mustnot zfs program $TESTPOOL - <<<"zfs.exists(\"$TESTPOOL\")" 2>&1
+	log_pass "Channel programs are disabled"
+fi
