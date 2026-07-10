@@ -60,8 +60,19 @@ expect_iostat "POOLBOTH"
 log_must zpool create pool2 $vdev2
 delay_iostat
 
+# Export the pools one at a time rather than with a single "zpool export -a".
+# iostat samples every 0.1s and "export -a" tears the pools down
+# sequentially, so it would sometimes catch the intermediate one-pool state
+# and emit an extra chunk that is not in the expected output. Exporting each
+# pool explicitly makes that transition deterministic, mirroring the
+# one-pool-at-a-time imports below.
+expect_iostat "HEADER"
+expect_iostat "POOL2"
+log_must zpool export pool1
+delay_iostat
+
 expect_iostat "NOPOOL"
-log_must zpool export -a
+log_must zpool export pool2
 delay_iostat
 
 expect_iostat "HEADER"
