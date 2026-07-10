@@ -1227,6 +1227,10 @@ typedef enum pool_scrub_cmd {
 	POOL_SCRUB_FLAGS_END
 } pool_scrub_cmd_t;
 
+typedef enum pool_scrub_flags {
+	POOL_SCRUB_THOROUGH = 1 << 0,
+} pool_scrub_flags_t;
+
 typedef enum {
 	CS_NONE,
 	CS_CHECKPOINT_EXISTS,
@@ -1317,8 +1321,14 @@ typedef struct pool_scan_stat {
 	/* error scrub values not stored on disk */
 	/* error scrub pause time in milliseconds */
 	uint64_t	pss_pass_error_scrub_pause;
+	uint64_t	pss_pass_scrub_flags;
 
 } pool_scan_stat_t;
+
+#define	POOL_SCAN_STAT_VALID(field, uint64_t_field_count) \
+	((uint64_t_field_count * sizeof (uint64_t)) >= \
+	(offsetof(pool_scan_stat_t, field) + \
+	sizeof (((pool_scan_stat_t *)NULL)->field)))
 
 typedef struct pool_removal_stat {
 	uint64_t prs_state; /* dsl_scan_state_t */
