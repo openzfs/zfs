@@ -189,6 +189,22 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 	memset(&uio->uio_dio, 0, sizeof (zfs_uio_dio_t));
 }
 
+/*
+ * Rewind an iter-backed uio's underlying iov_iter by nbytes.  zfs_uiomove()
+ * advances the VFS iov_iter that uio_iter points at; a caller that saves and
+ * restores the zfs_uio_t struct on error (e.g. zfs_write_async()) restores
+ * only the scalar resid/offset, not the iterator position, since both structs
+ * share one iov_iter.  Use this to undo the advance before handing the
+ * iterator to a fallback path.  Only valid for UIO_ITER uios.
+ */
+static inline void
+zfs_uio_iov_iter_revert(zfs_uio_t *uio, size_t nbytes)
+{
+	ASSERT3S(uio->uio_segflg, ==, UIO_ITER);
+	if (nbytes > 0)
+		iov_iter_revert(uio->uio_iter, nbytes);
+}
+
 #if defined(HAVE_ITER_IOV)
 #define	zfs_uio_iter_iov(iter)	iter_iov((iter))
 #else
