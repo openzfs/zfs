@@ -44,6 +44,25 @@
 
 DISK1=${DISKS%% *}
 
+function cleanup
+{
+	# Destroy the pool (stopping the initialize thread) before restoring
+	# the chunk size, so the running thread never issues a write larger
+	# than the buffer it allocated at the smaller size.
+	if poolexists $TESTPOOL; then
+		log_must zpool destroy -f $TESTPOOL
+	fi
+	[[ "$default_chunk_sz" ]] && \
+	    log_must set_tunable64 INITIALIZE_CHUNK_SIZE $default_chunk_sz
+}
+log_onexit cleanup
+
+# Make initializing slow enough that it is still running after the pool has
+# been exported and re-imported below, rather than racing to completion on a
+# small or fast vdev (see zpool_wait_initialize_*).
+default_chunk_sz=$(get_tunable INITIALIZE_CHUNK_SIZE)
+log_must set_tunable64 INITIALIZE_CHUNK_SIZE 512
+
 log_must zpool create -f $TESTPOOL $DISK1
 log_must zpool initialize $TESTPOOL
 
