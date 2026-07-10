@@ -674,13 +674,16 @@ zvol_dio_can_write(zvol_state_t *zv, struct bio *bp,
  * For unmapped (scattered) BIOs, creates a scattered ABD from the
  * bio_ma page array for zero-copy DMA directly into consumer pages.
  *
- * For mapped (linear) BIOs, wraps the existing bio_data buffer in a
- * linear ABD via abd_get_from_buf() so dmu_read_abd() DMAs straight
- * into the consumer's buffer — no intermediate allocation or copy.
- * The vdev_geom layer handles physical contiguity internally.
+ * For mapped (linear) BIOs, 'buf' points to the current position
+ * within bio_data (advanced by the caller's chunking loop).
+ * Wraps buf in a linear ABD via abd_get_from_buf() so dmu_read_abd()
+ * DMAs straight into the consumer's buffer — no intermediate
+ * allocation or copy.  The vdev_geom layer handles physical
+ * contiguity internally.
  */
 static int
-zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
+zvol_dio_read(zvol_state_t *zv, struct bio *bp, void *buf, uint64_t off,
+    size_t size)
 {
 	abd_t *abd;
 	int error;
@@ -688,7 +691,7 @@ zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
 	if (bp->bio_flags & BIO_UNMAPPED) {
 		abd = abd_alloc_from_pages(bp->bio_ma, bp->bio_ma_offset, size);
 	} else {
-		abd = abd_get_from_buf(bp->bio_data, size);
+		abd = abd_get_from_buf(buf, size);
 	}
 
 	error = dmu_read_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO);
@@ -702,16 +705,18 @@ zvol_dio_read(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size)
  * For unmapped (scattered) BIOs, creates a scattered ABD from the
  * bio_ma page array for zero-copy DMA directly from consumer pages.
  *
- * For mapped (linear) BIOs, wraps the existing bio_data buffer via
- * abd_get_from_buf() so the ZIO pipeline reads data straight from the
- * consumer's buffer.  The vdev_geom layer handles physical contiguity
- * by transparently converting to an unmapped BIO when necessary.
+ * For mapped (linear) BIOs, 'buf' points to the current position
+ * within bio_data (advanced by the caller's chunking loop).
+ * Wraps buf in a linear ABD via abd_get_from_buf() so the ZIO
+ * pipeline reads data straight from the consumer's buffer.  The
+ * vdev_geom layer handles physical contiguity by transparently
+ * converting to an unmapped BIO when necessary.
  *
  * This is a synchronous write — it waits for the I/O to complete.
  */
 static int
-zvol_dio_write(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size,
-    dmu_tx_t *tx)
+zvol_dio_write(zvol_state_t *zv, struct bio *bp, void *buf, uint64_t off,
+    size_t size, dmu_tx_t *tx)
 {
 	abd_t *abd;
 	int error;
@@ -739,7 +744,7 @@ zvol_dio_write(zvol_state_t *zv, struct bio *bp, uint64_t off, size_t size,
 		abd_free(src);
 #endif
 	} else {
-		abd = abd_get_from_buf(bp->bio_data, size);
+		abd = abd_get_from_buf(buf, size);
 	}
 	error = dmu_write_abd(zv->zv_dn, off, size, abd, DMU_DIRECTIO, tx);
 	abd_free(abd);
@@ -846,7 +851,7 @@ zvol_strategy_impl(zv_request_t *zvr)
 			boolean_t dio_read_now =
 			    zvol_dio_can_read(bp, off, size);
 			if (dio_read_now) {
-				error = zvol_dio_read(zv, bp, off, size);
+				error = zvol_dio_read(zv, bp, addr, off, size);
 			}
 
 			if (!dio_read_now || error == ECKSUM) {
@@ -878,8 +883,8 @@ zvol_strategy_impl(zv_request_t *zvr)
 				 * to disk, avoiding the data copy overhead.
 				 */
 				if (zvol_dio_can_write(zv, bp, off, size)) {
-					error = zvol_dio_write(zv, bp, off,
-					    size, tx);
+				error = zvol_dio_write(zv, bp, addr, off,
+				    size, tx);
 				} else {
 					error = SET_ERROR(ENOTSUP);
 				}

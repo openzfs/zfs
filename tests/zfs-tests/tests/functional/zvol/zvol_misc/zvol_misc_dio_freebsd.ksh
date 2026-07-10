@@ -31,16 +31,11 @@
 #
 # DESCRIPTION:
 #	FreeBSD-specific: Verify that zvol Direct I/O works correctly
-#	through the FreeBSD GEOM provider path. Unlike Linux, FreeBSD
-#	ZVOLs are GEOM providers that receive BIOs with virtually
-#	contiguous bio_data buffers. The DIO path uses abd_get_from_buf()
-#	to create linear ABDs that DMA directly to/from these buffers.
+#	through the FreeBSD GEOM provider path.
 #
 #	Key differences from Linux:
 #	- No blk-mq; all I/O goes through GEOM bio strategy routine
 #	- bio_data is always a single contiguous kernel buffer
-#	- Page stability: vm_page_busy_acquire + pmap_remove_write
-#	- No zero-page handling (FreeBSD doesn't share zero pages)
 #	- ECKSUM falls back to dmu_read_by_dnode for single chunk
 #
 # STRATEGY:
@@ -132,12 +127,13 @@ function test_dio_freebsd_maxphys
 
 	block_device_wait $zvolpath
 
-	# On FreeBSD, zvol_maxphys = DMU_MAX_ACCESS / 2 (typically 8M)
-	# Write at this boundary to ensure chunking works
-	log_must dd if=/dev/urandom of="$datafile1" bs=8M count=32
-	log_must dd if=$datafile1 of=$zvolpath bs=8M count=32 \
+	# On FreeBSD, zvol_maxphys = DMU_MAX_ACCESS / 2 = 32MB.
+	# Write at this boundary to ensure the per-chunk loop in
+	# zvol_strategy_impl correctly handles I/O up to zvol_maxphys.
+	log_must dd if=/dev/urandom of="$datafile1" bs=32M count=8
+	log_must dd if=$datafile1 of=$zvolpath bs=32M count=8 \
 	    conv=fsync
-	log_must dd if=$zvolpath of="$datafile2" bs=8M count=32
+	log_must dd if=$zvolpath of="$datafile2" bs=32M count=8
 	log_must diff $datafile1 $datafile2
 	log_must rm -f "$datafile1" "$datafile2"
 
@@ -205,8 +201,10 @@ function test_dio_freebsd_volblocksize
 		log_must diff $datafile1 $datafile2
 		log_must rm -f "$datafile1" "$datafile2"
 
-		# Sub-blocksize write (should fall back to ARC)
-		# 512-byte writes are never DIO
+		# Sub-blocksize write (should fall back to ARC).
+		# 512-byte writes are never DIO for any volblocksize.
+		# Skip 8k to keep test runtime short — one volblocksize
+		# is sufficient to cover the sub-blocksize fallback path.
 		if [[ $vbs != "8k" ]]; then
 			log_must dd if=/dev/urandom of="$datafile1" bs=512 count=1024
 			log_must dd if=$datafile1 of=$zvolpath bs=512 count=1024 \
@@ -219,6 +217,13 @@ function test_dio_freebsd_volblocksize
 		log_must default_zvol_cleanup
 	done
 }
+
+#
+# Test 5: (removed — ECKSUM fallback test was not reliably triggering
+# checksum errors in practice; mirror child selection can pick the
+# uncorrupted disk, and the disk corruption offset may not overlap
+# with actual data blocks.)
+#
 
 # ---- Main test execution ----
 

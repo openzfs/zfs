@@ -103,19 +103,22 @@ function test_dio_unaligned
 	log_must diff $datafile1 $datafile2
 	log_must rm -f "$datafile1" "$datafile2"
 
-	# Test misaligned writes (offset not a multiple of volblocksize)
-	# First write some data so we can do an offset write
-	log_note "  Offset-misaligned writes"
-	log_must dd if=/dev/zero of=$zvolpath bs=$volblocksize count=2 \
-	    conv=fsync
-	log_must dd if=/dev/urandom of="$datafile1" bs=$volblocksize count=1
-	# Write at offset = volblocksize + 512 (misaligned)
-	log_must dd if=$datafile1 of=$zvolpath bs=$volblocksize count=1 \
-	    seek=1 conv=fsync
+	# Test misaligned writes (offset not a multiple of volblocksize).
+	# Use 512-byte blocks to place the write at a non-block-aligned
+	# byte offset (volblocksize + 512).  DIO must reject this and
+	# fall back to the ARC path.
+	log_note "  Offset-misaligned writes (at offset volblocksize+512)"
+	typeset misalign_off=$((volblocksize + 512))
+	typeset seek_512=$((misalign_off / 512))
+	typeset cnt_512=$((volblocksize / 512))
 
-	# Read back the misaligned region
-	log_must dd if=$zvolpath of="$datafile2" bs=$volblocksize count=1 \
-	    skip=1
+	log_must dd if=/dev/urandom of="$datafile1" bs=$volblocksize count=1
+	log_must dd if=$datafile1 of=$zvolpath bs=512 count=$cnt_512 \
+	    seek=$seek_512 conv=fsync
+
+	# Read back from the same misaligned offset
+	log_must dd if=$zvolpath of="$datafile2" bs=512 count=$cnt_512 \
+	    skip=$seek_512
 	log_must diff $datafile1 $datafile2
 	log_must rm -f "$datafile1" "$datafile2"
 
