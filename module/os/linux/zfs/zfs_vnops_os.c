@@ -4984,6 +4984,25 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	}
 
 	/*
+	 * Direct I/O writes are dispatched per-dbuf by
+	 * dmu_write_abd_dispatch(), which slices the source ABD at
+	 * (db_offset - offset) assuming every covered dbuf lies fully
+	 * within [offset, offset+n).  That only holds for a write that
+	 * is block-aligned in both offset and length.  The synchronous
+	 * path enforces this in dmu_write_uio_dnode() via
+	 * zfs_dio_aligned() and routes any unaligned span through the
+	 * ARC.  Mirror that gate here: for a block-misaligned write,
+	 * fall back to the sync path (EOPNOTSUPP) rather than dispatch
+	 * a slice whose per-dbuf offset math underflows and trips the
+	 * VERIFY in abd_get_offset_size().
+	 */
+	if (!zfs_dio_aligned(woff, n, zp->z_blksz)) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/*
 	 * Allocate a kernel ABD to hold the user data.  The actual
 	 * copy (zfs_uiomove) is deferred until after dmu_tx_assign
 	 * succeeds: if the assign fails we must return to the caller
