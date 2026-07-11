@@ -6490,6 +6490,11 @@
       <enumerator name='POOL_SCRUB_FLAGS_END' value='3'/>
     </enum-decl>
     <typedef-decl name='pool_scrub_cmd_t' type-id='a1474cbd' id='b51cf3c2'/>
+    <enum-decl name='pool_scrub_flags' id='f8a2c1d0'>
+      <underlying-type type-id='9cac1fee'/>
+      <enumerator name='POOL_SCRUB_THOROUGH' value='1'/>
+    </enum-decl>
+    <typedef-decl name='pool_scrub_flags_t' type-id='f8a2c1d0' id='e3b7a901'/>
     <enum-decl name='zpool_errata' id='d9abbf54'>
       <underlying-type type-id='9cac1fee'/>
       <enumerator name='ZPOOL_ERRATA_NONE' value='0'/>
@@ -7268,6 +7273,7 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7313fbe2' name='func'/>
       <parameter type-id='b51cf3c2' name='cmd'/>
+      <parameter type-id='e3b7a901' name='flags'/>
       <parameter type-id='c9d12d66' name='date_start'/>
       <parameter type-id='c9d12d66' name='date_end'/>
       <return type-id='95e97e5e'/>

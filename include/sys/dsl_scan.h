@@ -76,9 +76,8 @@ typedef struct dsl_scan_phys {
 typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
+	DSF_SCRUB_THOROUGH = 1<<2,
 } dsl_scan_flags_t;
-
-#define	DSL_SCAN_FLAGS_MASK (DSF_VISIT_DS_AGAIN)
 
 typedef struct dsl_errorscrub_phys {
 	uint64_t dep_func; /* pool_scan_func_t */
@@ -184,6 +183,7 @@ typedef struct {
 	pool_scan_func_t func;
 	uint64_t	 txgstart;
 	uint64_t	 txgend;
+	dsl_scan_flags_t flags;
 } setup_sync_arg_t;
 
 typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;
@@ -197,7 +197,7 @@ void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
-    uint64_t txgend);
+    uint64_t txgend, dsl_scan_flags_t flags);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);

@@ -92,41 +92,17 @@ out:
 /*
  * Get root directory attributes.
  */
-static int
-#ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_root_getattr_impl(struct mnt_idmap *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_root_getattr_impl(struct user_namespace *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
-
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
-#else
-	(void) user_ns;
-#endif
-#else
-	generic_fillattr(ip, stat);
-#endif
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->atime = current_time(ip);
 
 	return (0);
 }
-ZPL_GETATTR_WRAPPER(zpl_root_getattr);
 
 static struct dentry *
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
@@ -327,19 +303,9 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_IOPS_RENAME_USERNS
-zpl_snapdir_rename2(struct user_namespace *user_ns, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
-#elif defined(HAVE_IOPS_RENAME_IDMAP)
-zpl_snapdir_rename2(struct mnt_idmap *user_ns, struct inode *sdip,
-    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
-    unsigned int flags)
-#else
-zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry, unsigned int flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_rename, 5,
+    struct inode *, sdip, struct dentry *, sdentry,
+    struct inode *, tdip, struct dentry *, tdentry, unsigned int, flags)
 {
 	cred_t *cr = CRED();
 	int error;
@@ -357,17 +323,6 @@ zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#if (!defined(HAVE_RENAME_WANTS_FLAGS) && \
-	!defined(HAVE_IOPS_RENAME_USERNS) && \
-	!defined(HAVE_IOPS_RENAME_IDMAP))
-static int
-zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
-    struct inode *tdip, struct dentry *tdentry)
-{
-	return (zpl_snapdir_rename2(sdip, sdentry, tdip, tdentry, 0));
-}
-#endif
-
 static int
 zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 {
@@ -382,21 +337,12 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 	return (error);
 }
 
-#if defined(HAVE_IOPS_MKDIR_USERNS)
-static int
-zpl_snapdir_mkdir(struct user_namespace *user_ns, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_IDMAP)
-static int
-zpl_snapdir_mkdir(struct mnt_idmap *user_ns, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
-#elif defined(HAVE_IOPS_MKDIR_DENTRY)
-static struct dentry *
-zpl_snapdir_mkdir(struct mnt_idmap *user_ns, struct inode *dip,
-    struct dentry *dentry, umode_t mode)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
+ZPL_IDMAP_IOP_DEFINE(struct dentry *, zpl_snapdir_mkdir, 3,
+    struct inode *, dip, struct dentry *, dentry, umode_t, mode)
 #else
-static int
-zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_mkdir, 3,
+    struct inode *, dip, struct dentry *, dentry, umode_t, mode)
 #endif
 {
 	cred_t *cr = CRED();
@@ -406,11 +352,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-#if (defined(HAVE_IOPS_MKDIR_USERNS) || defined(HAVE_IOPS_MKDIR_IDMAP))
-	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, user_ns);
-#else
-	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, zfs_init_idmap);
-#endif
+	zpl_vap_init(vap, dip, mode | S_IFDIR, cr, idmap);
 
 	error = -zfsctl_snapdir_mkdir(dip, dname(dentry), vap, &ip, cr, 0);
 	if (error == 0) {
@@ -422,7 +364,7 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
-#if defined(HAVE_IOPS_MKDIR_DENTRY)
+#if defined(HAVE_MKDIR_DENTRY_RETURN)
 	return (ERR_PTR(error));
 #else
 	return (error);
@@ -432,19 +374,9 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 /*
  * Get snapshot directory attributes.
  */
-static int
-#ifdef HAVE_IDMAP_IOPS_GETATTR
-zpl_snapdir_getattr_impl(struct mnt_idmap *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_USERNS_IOPS_GETATTR)
-zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
@@ -453,20 +385,8 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 
 	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
 		return (error);
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
-#else
-	(void) user_ns;
-#endif
-#else
-	generic_fillattr(ip, stat);
-#endif
 
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->nlink = stat->size = 2;
 
 	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
@@ -488,7 +408,6 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 
 	return (0);
 }
-ZPL_GETATTR_WRAPPER(zpl_snapdir_getattr);
 
 /*
  * The '.zfs/snapshot' directory file operations.  These mainly control
@@ -511,13 +430,7 @@ const struct file_operations zpl_fops_snapdir = {
 const struct inode_operations zpl_ops_snapdir = {
 	.lookup		= zpl_snapdir_lookup,
 	.getattr	= zpl_snapdir_getattr,
-#if (defined(HAVE_RENAME_WANTS_FLAGS) || \
-	defined(HAVE_IOPS_RENAME_USERNS) || \
-	defined(HAVE_IOPS_RENAME_IDMAP))
-	.rename		= zpl_snapdir_rename2,
-#else
 	.rename		= zpl_snapdir_rename,
-#endif
 	.rmdir		= zpl_snapdir_rmdir,
 	.mkdir		= zpl_snapdir_mkdir,
 };
@@ -584,19 +497,9 @@ out:
 	return (error);
 }
 
-static int
-#ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_shares_getattr_impl(struct user_namespace *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_shares_getattr_impl(struct mnt_idmap *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
 	(void) request_mask, (void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
@@ -608,19 +511,7 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 		return (error);
 
 	if (zfsvfs->z_shares_dir == 0) {
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-		generic_fillattr(user_ns, path->dentry->d_inode, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-		generic_fillattr(user_ns, path->dentry->d_inode, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
-#else
-		(void) user_ns;
-#endif
-#else
-		generic_fillattr(path->dentry->d_inode, stat);
-#endif
+		zpl_generic_fillattr(idmap, request_mask, ip, stat);
 		stat->nlink = stat->size = 2;
 		stat->atime = current_time(ip);
 		zpl_exit(zfsvfs, FTAG);
@@ -629,14 +520,8 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
-		error = -zfs_getattr_fast(user_ns, request_mask, ZTOI(dzp),
+		error = -zfs_getattr_fast(idmap, request_mask, ZTOI(dzp),
 		    stat);
-#elif (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
-#else
-		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
-#endif
 		iput(ZTOI(dzp));
 	}
 
@@ -645,7 +530,6 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	return (error);
 }
-ZPL_GETATTR_WRAPPER(zpl_shares_getattr);
 
 /*
  * The '.zfs/shares' directory file operations.

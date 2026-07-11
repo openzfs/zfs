@@ -2067,6 +2067,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrubbed - to check if the pool scrub is completed
 #	is_pool_scrub_stopped - to check if the pool scrub is stopped
 #	is_pool_scrub_paused - to check if the pool scrub has paused
+#	pause_scrub - start and pause a scrub without racing completion
 #	is_pool_removing - to check if the pool removing is a vdev
 #	is_pool_removed - to check if the pool remove is completed
 #	is_pool_discarding - to check if the pool checkpoint is being discarded
@@ -2119,6 +2120,24 @@ function is_pool_error_scrub_paused #pool <verbose>
 {
 	check_pool_status "$1" "scrub" "error scrub paused since " $2
 	return $?
+}
+
+#
+# Start a scrub and pause it without racing completion. Pins
+# SCAN_SUSPEND_PROGRESS until the scrub is paused, then clears it so a
+# later resume/wait can finish. Extra args are passed to `zpool scrub`
+# (e.g. -t). Callers should still reset SCAN_SUSPEND_PROGRESS in cleanup.
+#
+function pause_scrub # pool [scrub-args...]
+{
+	typeset pool=$1
+	shift
+
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+	log_must zpool scrub "$@" $pool
+	log_must zpool scrub -p $pool
+	log_must is_pool_scrub_paused $pool true
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 }
 
 function is_pool_removing #pool

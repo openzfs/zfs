@@ -162,19 +162,6 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 #endif
 
 /*
- * 4.9 API change
- */
-#if !(defined(HAVE_SETATTR_PREPARE_NO_USERNS) || \
-    defined(HAVE_SETATTR_PREPARE_USERNS) || \
-    defined(HAVE_SETATTR_PREPARE_IDMAP))
-static inline int
-setattr_prepare(struct dentry *dentry, struct iattr *ia)
-{
-	return (inode_change_ok(dentry->d_inode, ia));
-}
-#endif
-
-/*
  * 4.11 API change
  * These macros are defined by kernel 4.11.  We define them so that the same
  * code builds under kernels < 4.11 and >= 4.11.  The macros are set to 0 so
@@ -191,41 +178,6 @@ setattr_prepare(struct dentry *dentry, struct iattr *ia)
 #endif
 
 /*
- * 4.11 API change
- * 4.11 takes struct path *, < 4.11 takes vfsmount *
- */
-
-#if defined(HAVE_PATH_IOPS_GETATTR)
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(const struct path *path, struct kstat *stat, u32 request_mask,	\
-    unsigned int query_flags)						\
-{									\
-	return (func##_impl(path, stat, request_mask, query_flags));	\
-}
-#elif defined(HAVE_USERNS_IOPS_GETATTR)
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(struct user_namespace *user_ns, const struct path *path,	\
-    struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
-{									\
-	return (func##_impl(user_ns, path, stat, request_mask, \
-	    query_flags));	\
-}
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-#define	ZPL_GETATTR_WRAPPER(func)					\
-static int								\
-func(struct mnt_idmap *user_ns, const struct path *path,	\
-    struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
-{									\
-	return (func##_impl(user_ns, path, stat, request_mask,	\
-	    query_flags));	\
-}
-#else
-#error
-#endif
-
-/*
  * Returns true when called in the context of a 32-bit system call.
  */
 static inline int
@@ -238,30 +190,64 @@ zpl_is_32bit_api(void)
 #endif
 }
 
-/*
- * 5.12 API change
- * To support id-mapped mounts, generic_fillattr() was modified to
- * accept a new struct user_namespace* as its first arg.
- *
- * 6.3 API change
- * generic_fillattr() first arg is changed to struct mnt_idmap *
- *
- * 6.6 API change
- * generic_fillattr() gets new second arg request_mask, a u32 type
- *
- */
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP
-#define	zpl_generic_fillattr(idmap, ip, sp)	\
-    generic_fillattr(idmap, ip, sp)
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-#define	zpl_generic_fillattr(idmap, rqm, ip, sp)	\
-    generic_fillattr(idmap, rqm, ip, sp)
-#elif defined(HAVE_GENERIC_FILLATTR_USERNS)
-#define	zpl_generic_fillattr(user_ns, ip, sp)	\
-    generic_fillattr(user_ns, ip, sp)
+static inline void
+zpl_generic_fillattr(zidmap_t *idmap, u32 request_mask, struct inode *ip,
+    struct kstat *stat)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+#if defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
+	generic_fillattr((struct mnt_idmap *)idmap, request_mask, ip, stat);
 #else
-#define	zpl_generic_fillattr(user_ns, ip, sp)	generic_fillattr(ip, sp)
+	(void) request_mask;
+	generic_fillattr((struct mnt_idmap *)idmap, ip, stat);
+#endif /* HAVE_GENERIC_FILLATTR_IDMAP_REQMASK */
+#elif defined(HAVE_IDMAP_USERNS)
+	(void) request_mask;
+	generic_fillattr((struct user_namespace *)idmap, ip, stat);
+#else
+	(void) idmap, (void) request_mask;
+	generic_fillattr(ip, stat);
 #endif
+}
+
+static inline int
+zpl_setattr_prepare(zidmap_t *idmap, struct dentry *dentry, struct iattr *ia)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (setattr_prepare((struct mnt_idmap *)idmap, dentry, ia));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (setattr_prepare((struct user_namespace *)idmap, dentry, ia));
+#else
+	(void) idmap;
+	return (setattr_prepare(dentry, ia));
+#endif
+}
+
+static inline bool
+zpl_inode_owner_or_capable(zidmap_t *idmap, struct inode *ip)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (inode_owner_or_capable((struct mnt_idmap *)idmap, ip));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (inode_owner_or_capable((struct user_namespace *)idmap, ip));
+#else
+	(void) idmap;
+	return (inode_owner_or_capable(ip));
+#endif
+}
+
+static inline int
+zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (generic_permission((struct mnt_idmap *)idmap, ip, mask));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (generic_permission((struct user_namespace *)idmap, ip, mask));
+#else
+	(void) idmap;
+	return (generic_permission(ip, mask));
+#endif
+}
 
 #ifdef HAVE_INODE_GENERIC_DROP
 /* 6.18 API change. These were renamed, alias the old names to the new. */

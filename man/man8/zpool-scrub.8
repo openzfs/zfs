@@ -28,7 +28,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd March 16, 2026
+.Dd May 1, 2026
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -38,16 +38,36 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Ns Fl e | Ns Fl p | Fl s Ns | Fl C Ns
 .Op Fl w
+.Op Fl t
+.Oo
+.Fl C |
+.Xo
 .Op Fl S Ar date
 .Op Fl E Ar date
+.Xc
+.Oc
+.Fl a Ns | Ns Ar pool Ns …
+.Nm zpool
+.Cm scrub
+.Fl e
+.Op Fl w
+.Fl a Ns | Ns Ar pool Ns …
+.Nm zpool
+.Cm scrub
+.Fl p
+.Fl a Ns | Ns Ar pool Ns …
+.Nm zpool
+.Cm scrub
+.Fl s
 .Fl a Ns | Ns Ar pool Ns …
 .
 .Sh DESCRIPTION
 Begins a scrub or resumes a paused scrub.
-The scrub examines all data in the specified pools to verify that it checksums
-correctly.
+A normal scrub examines all data in the specified pools and verifies each
+block's checksum.
+A thorough scrub additionally decrypts and/or decompresses blocks as they are
+read.
 For replicated
 .Pq mirror, raidz, or draid
 devices, ZFS automatically repairs any damage discovered during the scrub.
@@ -67,8 +87,11 @@ whereas scrubbing examines all data to discover silent errors due to hardware
 faults or disk failure.
 .Pp
 When scrubbing a pool with encrypted filesystems the keys do not need to be
-loaded.
-However, if the keys are not loaded and an unrepairable checksum error is
+loaded for ordinary checksum verification but are needed for thorough scrub
+.Pq see Fl t
+below.
+.Pp
+If the keys are not loaded and an unrepairable checksum error is
 detected the file name cannot be included in the
 .Nm zpool Cm status Fl v
 verbose error report.
@@ -93,26 +116,33 @@ During this period, no completion time estimate will be provided.
 .Sh OPTIONS
 .Bl -tag -width "-s"
 .It Fl a , -all
-Begin, pause, stop scrub on
-all
-pools.
+Begin, pause
+.Fl p ,
+or stop
+.Fl s ,
+scrub on all pools.
 Initiating scrubs on multiple pools can put considerable load and memory
 pressure on the system, so this operation should be performed with caution.
 .It Fl s
 Stop scrubbing.
+Cannot be combined with other options except
+.Fl a .
 .It Fl p
 Pause scrubbing.
+Cannot be combined with other options except
+.Fl a .
 Scrub pause state and progress are periodically synced to disk.
 If the system is restarted or pool is exported during a paused scrub,
 even after import, scrub will remain paused until it is resumed.
 Once resumed the scrub will pick up from the place where it was last
 checkpointed to disk.
 To resume a paused scrub issue
-.Nm zpool Cm scrub
-or
-.Nm zpool Cm scrub
-.Fl e
-again.
+.Nm zpool Cm scrub .
+The scrub resumes in the same mode
+.Pq normal or thorough
+it had when it started.
+To resume paused error scrub, issue
+.Nm zpool Cm scrub Fl e .
 .It Fl w
 Wait until scrub has completed before returning.
 .It Fl e
@@ -121,12 +151,60 @@ Only scrub files with known data errors as reported by
 The pool must have been scrubbed at least once with the
 .Sy head_errlog
 feature enabled to use this option.
-Error scrubbing cannot be run simultaneously with regular scrubbing or
-resilvering, nor can it be run when a regular scrub is paused.
+Error scrubbing cannot be run simultaneously with other scrubbing or
+resilvering, nor can it be run when a scrub is paused.
+This option cannot be combined with
+.Fl C ,
+.Fl p ,
+.Fl s ,
+or
+.Fl t .
 .It Fl C
 Continue scrub from last saved txg (see zpool
 .Sy last_scrubbed_txg
 property).
+Cannot be combined with
+.Fl S ,
+.Fl E ,
+.Fl e ,
+.Fl p ,
+or
+.Fl s .
+May be combined with thorough scrub
+.Pq Fl t .
+.It Fl t
+Thorough scrub.
+Will cause scrub to decrypt and decompress blocks it reads so that it will
+catch the rare type of corruption where the checksum matches the data, but
+decryption and/or decompression fails.
+For encrypted datasets keys have to be loaded in order to perform
+thorough scrub.
+If keys are not loaded or unloaded during a thorough scrub the scrub will revert
+to doing a normal scrub for the encrypted blocks with key(s) unloaded.
+Cannot be combined with
+.Fl e ,
+.Fl p ,
+or
+.Fl s .
+May be combined with
+.Fl a ,
+.Fl w ,
+.Fl C
+or
+start/end date options
+.Pq Fl S / Fl E .
+.Pp
+If a thorough scrub is paused, resuming with
+.Nm zpool Cm scrub
+.Pq with or without
+.Fl t
+continues as a thorough scrub.
+Resuming a paused normal scrub with
+.Fl t
+will fail; use
+.Nm zpool Cm scrub
+without
+.Fl t .
 .It Fl S Ar date , Fl E Ar date
 Allows specifying the date range for blocks created between these dates.
 .Bl -bullet -compact -offset indent
@@ -164,7 +242,12 @@ The hour and minutes parameters can be omitted.
 The time should be provided in machine local time zone.
 Specifying dates prior to enabling this feature will result in scrubbing
 starting from the date the pool was created.
-If the time was moved backward manually the data range may become inaccurate.
+Large or discontinuous changes to the system clock (forward or backward)
+can skew how the start and/or end dates map to pool transaction groups.
+As a result, the scrub may not cover the intended dates.
+.Pp
+Cannot be combined with
+.Fl C .
 .El
 .Sh EXAMPLES
 .Ss Example 1

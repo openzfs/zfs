@@ -187,7 +187,7 @@ tests = ['zfs_001_neg', 'zfs_002_pos']
 tags = ['functional', 'cli_root', 'zfs']
 
 [tests/functional/cli_root/zfs_bookmark]
-tests = ['zfs_bookmark_cliargs']
+tests = ['zfs_bookmark_cliargs', 'zfs_bookmark_recursive']
 tags = ['functional', 'cli_root', 'zfs_bookmark']
 
 [tests/functional/cli_root/zfs_change-key]
@@ -300,6 +300,7 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_from_encrypted', 'zfs_receive_to_encrypted',
     'zfs_receive_raw', 'zfs_receive_raw_incremental', 'zfs_receive_-e',
     'zfs_receive_raw_-d', 'zfs_receive_from_zstd', 'zfs_receive_new_props',
+    'zfs_receive-x_props_alternation',
     'zfs_receive_-wR-encrypted-mix', 'zfs_receive_corrective',
     'zfs_receive_compressed_corrective', 'zfs_receive_large_block_corrective']
 tags = ['functional', 'cli_root', 'zfs_receive']
@@ -359,7 +360,7 @@ tags = ['functional', 'cli_root', 'zfs_share']
 tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
     'zfs_snapshot_003_neg', 'zfs_snapshot_004_neg', 'zfs_snapshot_005_neg',
     'zfs_snapshot_006_pos', 'zfs_snapshot_007_neg', 'zfs_snapshot_008_neg',
-    'zfs_snapshot_009_pos']
+    'zfs_snapshot_009_pos', 'zfs_snapshot_010_pos']
 tags = ['functional', 'cli_root', 'zfs_snapshot']
 
 [tests/functional/cli_root/zfs_unload-key]
@@ -568,7 +569,8 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_multiple_pools',
     'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
     'zpool_error_scrub_003_pos', 'zpool_error_scrub_004_pos',
-    'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002']
+    'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002',
+    'zpool_scrub_thorough']
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]
@@ -1009,7 +1011,8 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'send_encrypted_freeobjects', 'send_encrypted_hierarchy',
     'send_encrypted_props', 'send_encrypted_truncated_files',
     'send_freeobjects', 'send_realloc_files', 'send_realloc_encrypted_files',
-    'send_spill_block', 'send_holds', 'send_hole_birth', 'send_mixed_raw',
+    'send_spill_block', 'send_split_large_block', 'send_holds',
+    'send_hole_birth', 'send_mixed_raw',
     'send-wR_encrypted_zvol',
     'send_partial_dataset', 'send_invalid',
     'send_large_blocks_incremental', 'send_large_blocks_initial',
@@ -1080,6 +1083,10 @@ tags = ['functional', 'trim']
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
+
+[tests/functional/unlink]
+tests = ['unlinked_fh_accessible']
+tags = ['functional', 'unlink']
 
 [tests/functional/upgrade]
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']

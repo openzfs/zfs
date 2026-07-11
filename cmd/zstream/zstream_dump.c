@@ -67,7 +67,7 @@ typedef void dumper_f(drr_packet_t *item);
 typedef struct {
 	const char	*rt_typename;
 	dumper_f	*rt_dumper;
-} record_type_t;
+} record_dumper_t;
 
 static int stream_error;
 
@@ -183,6 +183,10 @@ dump_begin_record(drr_packet_t *item)
 	dmu_replay_record_t *drr = &item->dp_drr;
 	struct drr_begin *drrb = &item->dp_drr.drr_u.drr_begin;
 
+	if (!OPTION_ENABLED(CA_DUMP_BEGIN_AND_END) &&
+	    !OPTION_ENABLED(CA_DUMP_ALL_RECORDS))
+		return;
+
 	printf("BEGIN record\n");
 	printf("\thdrtype = %llu\n",
 	    DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo));
@@ -240,6 +244,10 @@ dump_end_record(drr_packet_t *item)
 {
 	struct drr_end *drre = &item->dp_drr.drr_u.drr_end;
 
+	if (!OPTION_ENABLED(CA_DUMP_BEGIN_AND_END) &&
+	    !OPTION_ENABLED(CA_DUMP_ALL_RECORDS))
+		return;
+
 	printf("END checksum = %llx/%llx/%llx/%llx\n",
 	    (u_longlong_t)drre->drr_checksum.zc_word[0],
 	    (u_longlong_t)drre->drr_checksum.zc_word[1],
@@ -252,7 +260,7 @@ dump_object_record(drr_packet_t *item)
 {
 	struct drr_object *drro = &item->dp_drr.drr_u.drr_object;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("OBJECT object = %llu type = %u "
 		    "bonustype = %u blksz = %u bonuslen = %u "
 		    "dn_slots = %u raw_bonuslen = %u "
@@ -282,7 +290,7 @@ dump_freeobjects_record(drr_packet_t *item)
 {
 	struct drr_freeobjects *drrfo = &item->dp_drr.drr_u.drr_freeobjects;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("FREEOBJECTS firstobj = %llu numobjs = %llu\n",
 		    (u_longlong_t)drrfo->drr_firstobj,
 		    (u_longlong_t)drrfo->drr_numobjs);
@@ -294,7 +302,7 @@ dump_write_record(drr_packet_t *item)
 {
 	struct drr_write *drrw = &item->dp_drr.drr_u.drr_write;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("WRITE object = %llu type = %u "
 		    "checksum type = %u compression type = %u "
 		    "flags = %u offset = %llu "
@@ -322,7 +330,7 @@ dump_write_byref_record(drr_packet_t *item)
 {
 	struct drr_write_byref *drrwbr = &item->dp_drr.drr_u.drr_write_byref;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("WRITE_BYREF object = %llu "
 		    "checksum type = %u props = %llx "
 		    "offset = %llu length = %llu "
@@ -345,7 +353,7 @@ dump_free_record(drr_packet_t *item)
 {
 	struct drr_free *drrf = &item->dp_drr.drr_u.drr_free;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("FREE object = %llu "
 		    "offset = %llu length = %lld\n",
 		    (u_longlong_t)drrf->drr_object,
@@ -359,7 +367,7 @@ dump_spill_record(drr_packet_t *item)
 {
 	struct drr_spill *drrs = &item->dp_drr.drr_u.drr_spill;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("SPILL block for object = %llu "
 		    "length = %llu flags = %u "
 		    "compression type = %u "
@@ -383,7 +391,7 @@ dump_write_embedded_record(drr_packet_t *item)
 	struct drr_write_embedded *drrwe =
 	    &item->dp_drr.drr_u.drr_write_embedded;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("WRITE_EMBEDDED object = %llu "
 		    "offset = %llu length = %llu "
 		    "toguid = %llx comp = %u etype = %u "
@@ -405,7 +413,7 @@ dump_object_range_record(drr_packet_t *item)
 {
 	struct drr_object_range *drror = &item->dp_drr.drr_u.drr_object_range;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("OBJECT_RANGE firstobj = %llu "
 		    "numslots = %llu flags = %u "
 		    "%s\n",
@@ -421,7 +429,7 @@ dump_redact_record(drr_packet_t *item)
 {
 	struct drr_redact *drrr = &item->dp_drr.drr_u.drr_redact;
 
-	if (OPTION_ENABLED(CA_VERBOSE)) {
+	if (OPTION_ENABLED(CA_DUMP_ALL_RECORDS)) {
 		printf("REDACT object = %llu offset = "
 		    "%llu length = %llu\n",
 		    (u_longlong_t)drrr->drr_object,
@@ -430,11 +438,25 @@ dump_redact_record(drr_packet_t *item)
 	}
 }
 
+static const record_dumper_t record_dumpers[] = {
+	{ "DRR_BEGIN", 		dump_begin_record },
+	{ "DRR_OBJECT", 	dump_object_record },
+	{ "DRR_FREEOBJECTS", 	dump_freeobjects_record },
+	{ "DRR_WRITE", 		dump_write_record },
+	{ "DRR_FREE", 		dump_free_record },
+	{ "DRR_END", 		dump_end_record },
+	{ "DRR_WRITE_BYREF", 	dump_write_byref_record },
+	{ "DRR_SPILL", 		dump_spill_record },
+	{ "DRR_WRITE_EMBEDDED",	dump_write_embedded_record },
+	{ "DRR_OBJECT_RANGE",	dump_object_range_record },
+	{ "DRR_REDACT",		dump_redact_record }
+};
+
 static disposition_t
-chain_dump_record(void *item_in, void *context_in)
+chain_dump_records(void *item_in, void *context)
 {
+	(void) context;
 	drr_packet_t *item = (drr_packet_t *)item_in;
-	record_type_t *context = (record_type_t *)context_in;
 
 	if (item == NULL) {
 		return (D_OK);
@@ -444,9 +466,12 @@ chain_dump_record(void *item_in, void *context_in)
 	zio_cksum_t *cksum = &drr->drr_u.drr_checksum.drr_checksum;
 	int type = (int)drr->drr_type;
 
-	context[type].rt_dumper(item);
+	if (type < 0 || type >= DRR_NUMTYPES)
+		errx(1, "unknown record type: %d", type);
 
-	if (type != DRR_BEGIN && OPTION_ENABLED(CA_VERY_VERBOSE)) {
+	record_dumpers[type].rt_dumper(item);
+
+	if (type != DRR_BEGIN && OPTION_ENABLED(CA_DUMP_CHECKSUMS)) {
 		printf("    checksum = %llx/%llx/%llx/%llx\n",
 		    (u_longlong_t)cksum->zc_word[0],
 		    (u_longlong_t)cksum->zc_word[1],
@@ -457,16 +482,23 @@ chain_dump_record(void *item_in, void *context_in)
 	return (D_OK);
 }
 
-static chain_step_t
-serial_dump_records(record_type_t *context)
+chain_step_t
+serial_dump_records(void)
 {
+	size_t all_dumpers = sizeof (record_dumpers);
+	size_t one_dumper = sizeof (record_dumpers[0]);
+
+	if (all_dumpers / one_dumper != DRR_NUMTYPES) {
+		errx(1, "number of record_dumpers must match DRR_NUMTYPES");
+	}
+
 	chain_step_t step = {
 		.cs_type = CS_SERIAL,
 		.cs_in_size = sizeof (drr_packet_t),
 		.cs_out_size = sizeof (drr_packet_t),
-		.cs_context = context,
+		.cs_context = NULL,
 		.cs_serial = {
-			.process = chain_dump_record
+			.process = chain_dump_records
 		}
 	};
 	return (step);
@@ -479,19 +511,7 @@ zstream_do_dump(int argc, char *argv[])
 	const char *input_file = NULL;
 	int c;
 
-	record_type_t record_types[] = {
-		{ "DRR_BEGIN", 		dump_begin_record },
-		{ "DRR_OBJECT", 	dump_object_record },
-		{ "DRR_FREEOBJECTS", 	dump_freeobjects_record },
-		{ "DRR_WRITE", 		dump_write_record },
-		{ "DRR_FREE", 		dump_free_record },
-		{ "DRR_END", 		dump_end_record },
-		{ "DRR_WRITE_BYREF", 	dump_write_byref_record },
-		{ "DRR_SPILL", 		dump_spill_record },
-		{ "DRR_WRITE_EMBEDDED",	dump_write_embedded_record },
-		{ "DRR_OBJECT_RANGE",	dump_object_range_record },
-		{ "DRR_REDACT",		dump_redact_record }
-	};
+	ENABLE_OPTION(&attrs, CA_DUMP_BEGIN_AND_END);
 
 	while ((c = getopt(argc, argv, ":vCd")) != -1) {
 		switch (c) {
@@ -500,14 +520,16 @@ zstream_do_dump(int argc, char *argv[])
 			break;
 		case 'v':
 			if (attrs.ca_command_opts & CA_VERBOSE) {
-				ENABLE_OPTION(&attrs, CA_VERY_VERBOSE);
+				ENABLE_OPTION(&attrs, CA_DUMP_CHECKSUMS);
 			} else {
 				ENABLE_OPTION(&attrs, CA_VERBOSE);
+				ENABLE_OPTION(&attrs, CA_DUMP_ALL_RECORDS);
 			}
 			break;
 		case 'd':
 			ENABLE_OPTION(&attrs, CA_VERBOSE);
-			ENABLE_OPTION(&attrs, CA_VERY_VERBOSE);
+			ENABLE_OPTION(&attrs, CA_DUMP_ALL_RECORDS);
+			ENABLE_OPTION(&attrs, CA_DUMP_CHECKSUMS);
 			ENABLE_OPTION(&attrs, CA_DUMP_DATA);
 			break;
 		case ':':
@@ -527,7 +549,7 @@ zstream_do_dump(int argc, char *argv[])
 
 	zstream_chain_t dump_chain = {
 		STANDARD_INPUT_STACK(input_file),
-		serial_dump_records(record_types),
+		serial_dump_records(),
 		NULL_OUTPUT_STACK()
 	};
 
@@ -546,7 +568,7 @@ zstream_do_dump(int argc, char *argv[])
 	printf("SUMMARY:\n");
 	for (int i = 0; i < DRR_NUMTYPES; i++) {
 		int type = print_order[i];
-		record_type_t *rec = &record_types[type];
+		const record_dumper_t *rec = &record_dumpers[type];
 		record_stats_t *stats = &attrs.ca_stats_in[type];
 		printf("\tTotal %s records = %llu (%llu bytes)\n",
 		    rec->rt_typename,

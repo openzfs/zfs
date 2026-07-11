@@ -468,7 +468,7 @@ void dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 int dsl_dataset_snapshot_check_impl(dsl_dataset_t *ds, const char *snapname,
     dmu_tx_t *tx, boolean_t recv, uint64_t cnt, cred_t *cr);
 void dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
-    dmu_tx_t *tx);
+    uint64_t crtime, dmu_tx_t *tx);
 
 void dsl_dataset_remove_from_next_clones(dsl_dataset_t *ds, uint64_t obj,
     dmu_tx_t *tx);

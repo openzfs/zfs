@@ -31,6 +31,7 @@ extern "C" {
 
 #include "zstream_byteswap.h"
 #include "zstream_chain.h"
+#include "zstream_dump.h"
 #include "zstream_fletcher4.h"
 #include "zstream_io.h"
 #include "zstream_recompress.h"

@@ -35,11 +35,12 @@
 #include <linux/parser.h>
 #include <linux/vfs_compat.h>
 #include <linux/writeback.h>
+#include <linux/idmap_compat.h>
 #include <linux/xattr_compat.h>
 
 /* zpl_inode.c */
 extern void zpl_vap_init(vattr_t *vap, struct inode *dir,
-    umode_t mode, cred_t *cr, zidmap_t *mnt_ns);
+    umode_t mode, cred_t *cr, zidmap_t *idmap);
 
 extern const struct inode_operations zpl_inode_operations;
 extern const struct inode_operations zpl_dir_inode_operations;
@@ -65,25 +66,8 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 
 #if defined(CONFIG_FS_POSIX_ACL)
-
-#if defined(HAVE_SET_ACL_IDMAP_DENTRY)
-extern int zpl_set_acl(struct mnt_idmap *idmap, struct dentry *dentry,
-    struct posix_acl *acl, int type);
-#elif defined(HAVE_SET_ACL_USERNS)
-extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
-    struct posix_acl *acl, int type);
-#elif defined(HAVE_SET_ACL_USERNS_DENTRY_ARG2)
-extern int zpl_set_acl(struct user_namespace *userns, struct dentry *dentry,
-    struct posix_acl *acl, int type);
-#else
-extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
-#endif /* HAVE_SET_ACL_USERNS */
-
-#if defined(HAVE_GET_ACL_RCU) || defined(HAVE_GET_INODE_ACL)
-extern struct posix_acl *zpl_get_acl(struct inode *ip, int type, bool rcu);
-#elif defined(HAVE_GET_ACL)
-extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
-#endif
+extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type);
+extern struct posix_acl *zpl_get_posix_acl(struct inode *ip, int type);
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
 extern int zpl_chmod_acl(struct inode *ip);
 #else
@@ -130,26 +114,6 @@ extern int zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
 #else
 #define	zpl_inode_timestamp_truncate(ts, ip)	\
 	timespec64_trunc(ts, (ip)->i_sb->s_time_gran)
-#endif
-
-#if defined(HAVE_INODE_OWNER_OR_CAPABLE)
-#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_USERNS)
-#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAP)
-#define	zpl_inode_owner_or_capable(idmap, ip) inode_owner_or_capable(idmap, ip)
-#else
-#error "Unsupported kernel"
-#endif
-
-#if defined(HAVE_SETATTR_PREPARE_USERNS) || defined(HAVE_SETATTR_PREPARE_IDMAP)
-#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
-#else
-/*
- * Use kernel-provided version, or our own from
- * linux/vfs_compat.h
- */
-#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
 #endif
 
 #ifdef HAVE_INODE_GET_CTIME

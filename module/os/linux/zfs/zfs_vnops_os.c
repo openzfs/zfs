@@ -285,6 +285,13 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
  * When a file is memory mapped, we must keep the I/O data synchronized
  * between the DMU cache and the memory mapped pages.  Preferentially read
  * from memory mapped pages, otherwise fallback to reading through the dmu.
+ *
+ * A run of non-resident pages is read from the DMU in a single call rather
+ * than one call per page.  A page may become resident between the lookup
+ * and the read, but that is safe: zfs_read() holds the rangelock as reader,
+ * so the DMU contents of the range are stable (writes, writeback and
+ * truncation take the writer lock) and a concurrently faulted page is
+ * filled by zfs_getpage() from those same contents.
  */
 int
 mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
@@ -330,6 +337,20 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			mark_page_accessed(pp);
 			put_page(pp);
 		} else {
+			/*
+			 * Extend the read over any following non-resident
+			 * pages so they are fetched in one DMU call.
+			 */
+			while (bytes < len) {
+				struct page *tp = find_get_page(mp,
+				    (start + PAGE_SIZE) >> PAGE_SHIFT);
+				if (tp != NULL) {
+					put_page(tp);
+					break;
+				}
+				bytes += MIN(PAGE_SIZE, len - bytes);
+				start += PAGE_SIZE;
+			}
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, bytes, DMU_READ_PREFETCH);
 		}
@@ -589,7 +610,7 @@ zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
  *		cr	- credentials of caller.
  *		flag	- file flag.
  *		vsecp	- ACL to be set
- *		mnt_ns	- user namespace of the mount
+ *		idmap	- idmap of the mount
  *
  *	OUT:	zpp	- znode of created or trunc'd entry.
  *
@@ -602,7 +623,7 @@ zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
 int
 zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *mnt_ns)
+    zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -691,7 +712,7 @@ top:
 		 * to reference it.
 		 */
 		if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, skip_acl,
-		    cr, mnt_ns))) {
+		    cr, idmap))) {
 			if (have_acl)
 				zfs_acl_ids_free(&acl_ids);
 			goto out;
@@ -710,7 +731,7 @@ top:
 		}
 
 		if (!have_acl && (error = zfs_acl_ids_create(dzp, 0, vap,
-		    cr, vsecp, &acl_ids, mnt_ns)) != 0)
+		    cr, vsecp, &acl_ids, idmap)) != 0)
 			goto out;
 		have_acl = B_TRUE;
 
@@ -805,7 +826,7 @@ top:
 		 * Verify requested access to file.
 		 */
 		if (mode && (error = zfs_zaccess_rwx_idmap(zp, mode, aflags,
-		    cr, mnt_ns))) {
+		    cr, idmap))) {
 			goto out;
 		}
 
@@ -855,7 +876,7 @@ zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
 int
 zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *mnt_ns)
+    zidmap_t *idmap)
 {
 	(void) excl, (void) mode, (void) flag;
 	znode_t		*zp = NULL, *dzp = ITOZ(dip);
@@ -903,14 +924,14 @@ top:
 	 * to reference it.
 	 */
 	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, B_FALSE,
-	    cr, mnt_ns))) {
+	    cr, idmap))) {
 		if (have_acl)
 			zfs_acl_ids_free(&acl_ids);
 		goto out;
 	}
 
 	if (!have_acl && (error = zfs_acl_ids_create(dzp, 0, vap,
-	    cr, vsecp, &acl_ids, mnt_ns)) != 0)
+	    cr, vsecp, &acl_ids, idmap)) != 0)
 		goto out;
 	have_acl = B_TRUE;
 
@@ -1233,7 +1254,7 @@ out:
  *		cr	- credentials of caller.
  *		flags	- case flags.
  *		vsecp	- ACL to be set
- *		mnt_ns	- user namespace of the mount
+ *		idmap	- idmap of the mount
  *
  *	OUT:	zpp	- znode of created directory.
  *
@@ -1246,7 +1267,7 @@ out:
  */
 int
 zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
-    cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *mnt_ns)
+    cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -1303,7 +1324,7 @@ zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
 	}
 
 	if ((error = zfs_acl_ids_create(dzp, 0, vap, cr,
-	    vsecp, &acl_ids, mnt_ns)) != 0) {
+	    vsecp, &acl_ids, idmap)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -1325,7 +1346,7 @@ top:
 	}
 
 	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_SUBDIRECTORY, 0, B_FALSE,
-	    cr, mnt_ns))) {
+	    cr, idmap))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -1730,12 +1751,8 @@ out:
  *	RETURN:	0 (always succeeds)
  */
 int
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
-zfs_getattr_fast(zidmap_t *user_ns, u32 request_mask, struct inode *ip,
+zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
     struct kstat *sp)
-#else
-zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
-#endif
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1748,11 +1765,8 @@ zfs_getattr_fast(zidmap_t *user_ns, struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
-#ifdef HAVE_GENERIC_FILLATTR_IDMAP_REQMASK
-	zpl_generic_fillattr(user_ns, request_mask, ip, sp);
-#else
-	zpl_generic_fillattr(user_ns, ip, sp);
-#endif
+	zpl_generic_fillattr(idmap, request_mask, ip, sp);
+
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */
@@ -1932,7 +1946,7 @@ next:
  *		flags	- ATTR_UTIME set if non-default time values provided.
  *			- ATTR_NOACLCHECK (CIFS context only).
  *		cr	- credentials of caller.
- *		mnt_ns	- user namespace of the mount
+ *		idmap	- idmap of the mount
  *
  *	RETURN:	0 if success
  *		error code if failure
@@ -1942,7 +1956,7 @@ next:
  */
 int
 zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
-    zidmap_t *mnt_ns)
+    zidmap_t *idmap)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -2090,7 +2104,7 @@ top:
 
 	if (mask & ATTR_SIZE) {
 		err = zfs_zaccess_idmap(zp, ACE_WRITE_DATA, 0, skipaclchk,
-		    cr, mnt_ns);
+		    cr, idmap);
 		if (err)
 			goto out3;
 
@@ -2115,7 +2129,7 @@ top:
 	    XVA_ISSET_REQ(xvap, XAT_CREATETIME) ||
 	    XVA_ISSET_REQ(xvap, XAT_SYSTEM)))) {
 		need_policy = zfs_zaccess_idmap(zp, ACE_WRITE_ATTRIBUTES, 0,
-		    skipaclchk, cr, mnt_ns);
+		    skipaclchk, cr, idmap);
 	}
 
 	if (mask & (ATTR_UID|ATTR_GID)) {
@@ -2137,9 +2151,9 @@ top:
 		 * Take ownership or chgrp to group we are a member of
 		 */
 
-		uid = zfs_uid_to_vfsuid(mnt_ns, zfs_i_user_ns(ip),
+		uid = zfs_uid_to_vfsuid(idmap, zfs_i_user_ns(ip),
 		    vap->va_uid);
-		gid = zfs_gid_to_vfsgid(mnt_ns, zfs_i_user_ns(ip),
+		gid = zfs_gid_to_vfsgid(idmap, zfs_i_user_ns(ip),
 		    vap->va_gid);
 		take_owner = (mask & ATTR_UID) && (uid == crgetuid(cr));
 		take_group = (mask & ATTR_GID) &&
@@ -2159,7 +2173,7 @@ top:
 		    ((idmask == ATTR_UID) && take_owner) ||
 		    ((idmask == ATTR_GID) && take_group)) {
 			if (zfs_zaccess_idmap(zp, ACE_WRITE_OWNER, 0,
-			    skipaclchk, cr, mnt_ns) == 0) {
+			    skipaclchk, cr, idmap) == 0) {
 				/*
 				 * Remove setuid/setgid for non-privileged users
 				 */
@@ -2273,9 +2287,9 @@ top:
 
 	if (mask & ATTR_MODE) {
 		if (zfs_zaccess_idmap(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
-		    mnt_ns) == 0) {
+		    idmap) == 0) {
 			err = secpolicy_setid_setsticky_clear(ip, vap,
-			    &oldva, cr, mnt_ns, zfs_i_user_ns(ip));
+			    &oldva, cr, idmap, zfs_i_user_ns(ip));
 			if (err)
 				goto out3;
 			trim_mask |= ATTR_MODE;
@@ -2791,7 +2805,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  *		flags	- case flags
  *		rflags  - RENAME_* flags
  *		wa_vap  - attributes for RENAME_WHITEOUT (must be a char 0:0).
- *		mnt_ns	- user namespace of the mount
+ *		idmap	- idmap of the mount
  *
  *	RETURN:	0 on success, error code on failure.
  *
@@ -2800,7 +2814,7 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  */
 int
 zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
-    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap, zidmap_t *mnt_ns)
+    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap, zidmap_t *idmap)
 {
 	znode_t		*szp, *tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
@@ -3015,7 +3029,7 @@ top:
 	 * Note that if target and source are the same, this can be
 	 * done in a single check.
 	 */
-	if ((error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr, mnt_ns)))
+	if ((error = zfs_zaccess_rename(sdzp, szp, tdzp, tzp, cr, idmap)))
 		goto out;
 
 	if (S_ISDIR(ZTOI(szp)->i_mode)) {
@@ -3071,13 +3085,13 @@ top:
 		uint64_t wo_projid = ZFS_DEFAULT_PROJID;
 
 		error = zfs_zaccess_idmap(sdzp, ACE_ADD_FILE, 0, B_FALSE,
-		    cr, mnt_ns);
+		    cr, idmap);
 		if (error)
 			goto out;
 
 		if (!have_acl) {
 			error = zfs_acl_ids_create(sdzp, 0, wo_vap, cr, NULL,
-			    &acl_ids, mnt_ns);
+			    &acl_ids, idmap);
 			if (error)
 				goto out;
 			have_acl = B_TRUE;
@@ -3331,7 +3345,7 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
  *		link	- Name for new symlink entry.
  *		cr	- credentials of caller.
  *		flags	- case flags
- *		mnt_ns	- user namespace of the mount
+ *		idmap	- user namespace of the mount
  *
  *	OUT:	zpp	- Znode for new symbolic link.
  *
@@ -3342,7 +3356,7 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
  */
 int
 zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap, char *link,
-    znode_t **zpp, cred_t *cr, int flags, zidmap_t *mnt_ns)
+    znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfs_dirlock_t	*dl;
@@ -3380,7 +3394,7 @@ zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap, char *link,
 	}
 
 	if ((error = zfs_acl_ids_create(dzp, 0,
-	    vap, cr, NULL, &acl_ids, mnt_ns)) != 0) {
+	    vap, cr, NULL, &acl_ids, idmap)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -3398,7 +3412,7 @@ top:
 	}
 
 	if ((error = zfs_zaccess_idmap(dzp, ACE_ADD_FILE, 0, B_FALSE,
-	    cr, mnt_ns))) {
+	    cr, idmap))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);

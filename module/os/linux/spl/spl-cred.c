@@ -133,7 +133,7 @@ crgetgid(const cred_t *cr)
 zidmap_t *
 zfs_get_init_idmap(void)
 {
-#ifdef HAVE_IOPS_CREATE_IDMAP
+#ifdef HAVE_IDMAP_MNTIDMAP
 	return ((zidmap_t *)&nop_mnt_idmap);
 #else
 	return ((zidmap_t *)&init_user_ns);

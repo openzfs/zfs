@@ -704,6 +704,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_bookmark/cleanup.ksh \
 	functional/cli_root/zfs_bookmark/setup.ksh \
 	functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh \
+	functional/cli_root/zfs_bookmark/zfs_bookmark_recursive.ksh \
 	functional/cli_root/zfs_change-key/cleanup.ksh \
 	functional/cli_root/zfs_change-key/setup.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_child.ksh \
@@ -896,6 +897,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_-e.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_encrypted.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_from_zstd.ksh \
+	functional/cli_root/zfs_receive/zfs_receive-x_props_alternation.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_new_props.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_-d.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_incremental.ksh \
@@ -1017,6 +1019,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_007_neg.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_008_neg.ksh \
 	functional/cli_root/zfs_snapshot/zfs_snapshot_009_pos.ksh \
+	functional/cli_root/zfs_snapshot/zfs_snapshot_010_pos.ksh \
 	functional/cli_root/zfs_sysfs/cleanup.ksh \
 	functional/cli_root/zfs_sysfs/setup.ksh \
 	functional/cli_root/zfs_sysfs/zfeature_set_unsupported.ksh \
@@ -1334,6 +1337,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_002_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_003_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_004_pos.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_thorough.ksh \
 	functional/cli_root/zpool_set/cleanup.ksh \
 	functional/cli_root/zpool_set/setup.ksh \
 	functional/cli_root/zpool/setup.ksh \
@@ -2169,6 +2173,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_realloc_encrypted_files.ksh \
 	functional/rsend/send_realloc_files.ksh \
 	functional/rsend/send_spill_block.ksh \
+	functional/rsend/send_split_large_block.ksh \
 	functional/rsend/send-wR_encrypted_zvol.ksh \
 	functional/rsend/setup.ksh \
 	functional/scrub_mirror/cleanup.ksh \
@@ -2282,6 +2287,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/truncate/truncate_001_pos.ksh \
 	functional/truncate/truncate_002_pos.ksh \
 	functional/truncate/truncate_timestamps.ksh \
+	functional/unlink/cleanup.ksh \
+	functional/unlink/setup.ksh \
+	functional/unlink/unlinked_fh_accessible.ksh \
 	functional/upgrade/cleanup.ksh \
 	functional/upgrade/setup.ksh \
 	functional/upgrade/upgrade_projectquota_001_pos.ksh \
