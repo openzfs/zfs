@@ -126,6 +126,26 @@ static const uint8_t	sha512_256_test_digests[][32] = {
 	}
 };
 
+/* one million repetitions of 'a' */
+
+static const uint8_t	sha256_million_digest[32] = {
+	0xCD, 0xC7, 0x6E, 0x5C, 0x99, 0x14, 0xFB, 0x92,
+	0x81, 0xA1, 0xC7, 0xE2, 0x84, 0xD7, 0x3E, 0x67,
+	0xF1, 0x80, 0x9A, 0x48, 0xA4, 0x97, 0x20, 0x0E,
+	0x04, 0x6D, 0x39, 0xCC, 0xC7, 0x11, 0x2C, 0xD0
+};
+
+static const uint8_t	sha512_million_digest[64] = {
+	0xE7, 0x18, 0x48, 0x3D, 0x0C, 0xE7, 0x69, 0x64,
+	0x4E, 0x2E, 0x42, 0xC7, 0xBC, 0x15, 0xB4, 0x63,
+	0x8E, 0x1F, 0x98, 0xB1, 0x3B, 0x20, 0x44, 0x28,
+	0x56, 0x32, 0xA8, 0x03, 0xAF, 0xA9, 0x73, 0xEB,
+	0xDE, 0x0F, 0xF2, 0x44, 0x87, 0x7E, 0xA6, 0x0A,
+	0x4C, 0xB0, 0x43, 0x2C, 0xE5, 0x77, 0xC3, 0x1B,
+	0xEB, 0x00, 0x9C, 0x5C, 0x2C, 0x49, 0xAA, 0x2E,
+	0x4E, 0xAD, 0xB2, 0x17, 0xAD, 0x8C, 0xC0, 0x9B
+};
+
 static MunitResult
 test_sha256_known(const MunitParameter params[], void *data)
 {
@@ -173,6 +193,26 @@ test_sha512_256_known(const MunitParameter params[], void *data)
 	hash_buf(SHA512_256, test_msg2, strlen(test_msg2), digest);
 	munit_assert_memory_equal(sizeof (digest), digest,
 	    sha512_256_test_digests[2]);
+
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_million(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	static uint8_t buf[1000000];
+	uint8_t digest[SHA512_DIGEST_LENGTH];
+
+	memset(buf, 'a', sizeof (buf));
+
+	hash_buf(SHA256, buf, sizeof (buf), digest);
+	munit_assert_memory_equal(SHA256_DIGEST_LENGTH, digest,
+	    sha256_million_digest);
+
+	hash_buf(SHA512, buf, sizeof (buf), digest);
+	munit_assert_memory_equal(SHA512_DIGEST_LENGTH, digest,
+	    sha512_million_digest);
 
 	return (MUNIT_OK);
 }
@@ -268,6 +308,7 @@ static const MunitTest sha2_tests[] = {
 	UNIT_TEST("sha256_known",	test_sha256_known),
 	UNIT_TEST("sha512_known",	test_sha512_known),
 	UNIT_TEST("sha512_256_known",	test_sha512_256_known),
+	UNIT_TEST("million",		test_million),
 	UNIT_TEST("incremental",	test_incremental),
 	UNIT_TEST("impls",		test_impls),
 	{ 0 },
