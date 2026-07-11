@@ -54,9 +54,12 @@
 
 verify_runnable "both"
 
+typeset recverr=$TEST_BASE_DIR/send_mixed_raw.err.$$
+
 function cleanup
 {
     set_tunable32 DISABLE_IVSET_GUID_CHECK 0
+    rm -f $recverr
     datasetexists $TESTPOOL/$TESTFS3 && \
         destroy_dataset $TESTPOOL/$TESTFS3 -r
     datasetexists $TESTPOOL/$TESTFS2 && \
@@ -122,9 +125,14 @@ dst_ivset=$(get_prop ivsetguid $TESTPOOL/$TESTFS2@2)
     log_fail "ivsetguid unexpectedly matches after non-raw receive"
 
 log_mustnot eval "zfs send -w -i $TESTPOOL/$TESTFS1@2 $TESTPOOL/$TESTFS1@3 |" \
-    "zfs receive $TESTPOOL/$TESTFS2"
+    "zfs receive $TESTPOOL/$TESTFS2 2>$recverr"
 log_mustnot eval "zfs send -w -i $TESTPOOL/$TESTFS2@2 $TESTPOOL/$TESTFS2@3 |" \
     "zfs receive $TESTPOOL/$TESTFS3"
+
+# The error must name the IV set divergence and the non-raw receive
+# that caused it, so that the failure is diagnosable from the message.
+log_must grep -q "IV set guid mismatch" $recverr
+log_must grep -q "non-raw" $recverr
 
 # The IV set guid check is the only gate: with the check disabled the
 # same raw incremental is accepted, and the raw receive stamps the

@@ -5284,9 +5284,17 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case ZFS_ERR_FROM_IVSET_GUID_MISMATCH:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "IV set guid mismatch. See the 'zfs receive' "
-			    "man page section\n discussing the limitations "
-			    "of raw encrypted send streams."));
+			    "IV set guid mismatch. The incremental source "
+			    "snapshot on the\ndestination no longer has the "
+			    "IV set it was sent with, most commonly\nbecause "
+			    "it was received as a non-raw (plain) stream. Raw "
+			    "replication\ncan be resumed by rolling the "
+			    "destination back to the most recent\nsnapshot "
+			    "that was received raw and taking the raw "
+			    "incremental from\nthere, or by receiving a new "
+			    "full raw (zfs send -w) stream. See the\n'zfs "
+			    "receive' man page section discussing the "
+			    "limitations of raw\nencrypted send streams."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ZFS_ERR_SPILL_BLOCK_FLAG_MISSING:
