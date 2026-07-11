@@ -18,7 +18,8 @@ UNIT_TESTS = \
 	%D%/test_zap \
 	%D%/test_namecheck \
 	%D%/test_btree \
-	%D%/test_fletcher
+	%D%/test_fletcher \
+	%D%/test_sha2
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -83,6 +84,20 @@ nodist_%C%_test_fletcher_SOURCES = \
 	%D%/test_fletcher.c
 
 %C%_test_fletcher_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_sha2_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_sha2_SOURCES = \
+	module/zfs/zfs_impl.c
+
+%C%_test_sha2_SOURCES = \
+	%D%/test_sha2.c
+
+%C%_test_sha2_LDADD = \
+	libicp.la \
 	libspl.la \
 	libunit.la
 
