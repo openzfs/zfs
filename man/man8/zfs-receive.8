@@ -191,6 +191,14 @@ When an incremental raw receive is performed on
 top of an existing snapshot, ZFS will check to confirm that the "from"
 snapshot on both the source and destination were using the same IV set,
 ensuring the new IV set is consistent.
+Note that receiving a non-raw stream on top of a raw received file system is
+allowed, but replaces the IV set of the newly received snapshot with a
+different one.
+Any subsequent raw incremental receive based on such a snapshot will
+therefore fail with an "IV set guid mismatch" error.
+Raw replication can be resumed by rolling the destination back to the most
+recent snapshot that was received raw and taking the raw incremental from
+there, or by receiving a new full raw stream.
 .Pp
 The name of the snapshot
 .Pq and file system, if a full stream is received
