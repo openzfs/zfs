@@ -57,9 +57,11 @@ log_assert "defaultvolblocksize supplies the default volblocksize for" \
 
 typeset defsize=16384
 
-# Default is 'none'.
+# Default is 'none' (human-readable) / 0 (parseable).
 log_must zfs create $TESTPOOL/dvb
-log_must eval "[[ $(get_prop defaultvolblocksize $TESTPOOL/dvb) == none ]]"
+log_must eval \
+    "[[ $(zfs get -H -o value defaultvolblocksize $TESTPOOL/dvb) == none ]]"
+log_must eval "[[ $(get_prop defaultvolblocksize $TESTPOOL/dvb) == 0 ]]"
 
 # Set it, and confirm inheritance one level down.
 log_must zfs set defaultvolblocksize=64k $TESTPOOL/dvb
@@ -80,6 +82,11 @@ log_must eval "[[ $(get_prop volblocksize $TESTPOOL/dvb/child/vol2) == 8192 ]]"
 log_must zfs create -s -V 100m $TESTPOOL/vol_out
 log_must eval \
     "[[ $(get_prop volblocksize $TESTPOOL/vol_out) == $defsize ]]"
+
+# "zfs create -p" resolves inheritance once ancestors exist (kernel path).
+log_must zfs set defaultvolblocksize=32k $TESTPOOL/dvb
+log_must zfs create -s -V 100m -p $TESTPOOL/dvb/a/b/vol_p
+log_must eval "[[ $(get_prop volblocksize $TESTPOOL/dvb/a/b/vol_p) == 32768 ]]"
 
 # Reverting to 'none' restores the built-in default for new volumes.
 log_must zfs set defaultvolblocksize=none $TESTPOOL/dvb
