@@ -1022,7 +1022,8 @@ calculate_volblocksize(nvlist_t *config)
  * writes full stripe widths.
  */
 static uint64_t
-default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+default_volblocksize(zpool_handle_t *zhp, nvlist_t *props,
+    uint64_t inherited_default)
 {
 	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
 
@@ -1081,7 +1082,13 @@ default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
 			    asize), (u_longlong_t)tgt_volblocksize);
 		}
 	} else {
-		volblocksize = tgt_volblocksize;
+		/*
+		 * With no explicit volblocksize, honor an inherited
+		 * defaultvolblocksize property (set on an ancestor filesystem);
+		 * otherwise fall back to the pool-geometry default.
+		 */
+		volblocksize = inherited_default != 0 ?
+		    inherited_default : tgt_volblocksize;
 		fnvlist_add_uint64(props, prop, volblocksize);
 	}
 
@@ -1256,8 +1263,42 @@ zfs_do_create(int argc, char **argv)
 
 	if (type == ZFS_TYPE_VOLUME) {
 		const char *prop = zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE);
+		uint64_t inherited_default = 0;
+		char parent[ZFS_MAX_DATASET_NAME_LEN];
+		char *slash;
+
+		/*
+		 * Look up the defaultvolblocksize inherited by the volume's
+		 * parent filesystem, if it already exists.  This is what lets
+		 * "zfs create -V" without an explicit -o volblocksize pick up a
+		 * per-subtree default (e.g. for tools like libvirt that cannot
+		 * pass -o volblocksize).
+		 */
+		(void) strlcpy(parent, argv[0], sizeof (parent));
+		slash = strrchr(parent, '/');
+		if (slash != NULL) {
+			*slash = '\0';
+			/*
+			 * The parent may not exist yet (e.g. "zfs create
+			 * -p"), in which case the kernel resolves inheritance
+			 * once the ancestors are created; check existence
+			 * first so we don't emit a spurious "cannot open"
+			 * error here.
+			 */
+			if (zfs_dataset_exists(g_zfs, parent,
+			    ZFS_TYPE_FILESYSTEM)) {
+				zfs_handle_t *pzhp = zfs_open(g_zfs, parent,
+				    ZFS_TYPE_FILESYSTEM);
+				if (pzhp != NULL) {
+					inherited_default = zfs_prop_get_int(
+					    pzhp, ZFS_PROP_DEFAULTVOLBLOCKSIZE);
+					zfs_close(pzhp);
+				}
+			}
+		}
+
 		uint64_t volblocksize = default_volblocksize(zpool_handle,
-		    real_props);
+		    real_props, inherited_default);
 
 		if (volblocksize != ZVOL_DEFAULT_BLOCKSIZE &&
 		    nvlist_lookup_string(props, prop, &strval) != 0) {
