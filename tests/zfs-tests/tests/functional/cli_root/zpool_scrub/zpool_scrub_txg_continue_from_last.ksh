@@ -60,6 +60,11 @@ log_onexit cleanup
 
 log_assert "Verify scrub -C."
 
+# last_scrubbed_txg must be 0, so recreate the pool in case an earlier
+# test has already scrubbed it.
+destroy_pool $TESTPOOL
+log_must default_mirror_setup_noexit $DISK1 $DISK2
+
 # Create one file.
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 
