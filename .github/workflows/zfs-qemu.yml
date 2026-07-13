@@ -14,7 +14,7 @@ on:
         type: string
         required: false
         default: ""
-        description: "(optional) Only run on this specific OS (like 'fedora44' or 'alpine3-23')"
+        description: "(optional) Only run on this specific OS (like 'fedora44' or 'alpine3-24')"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
