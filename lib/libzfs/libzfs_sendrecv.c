@@ -3462,7 +3462,15 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 		if (stream_nvfs == NULL)
 			continue;
 
-		stream_props = fnvlist_lookup_nvlist(stream_nvfs, "props");
+		/*
+		 * A "props" nvlist is only present when the send gathered
+		 * properties (-R, -p or -b).  A raw send carrying only holds
+		 * (zfs send -w -h) has none, so tolerate its absence rather
+		 * than asserting.
+		 */
+		stream_props = NULL;
+		(void) nvlist_lookup_nvlist(stream_nvfs, "props",
+		    &stream_props);
 		stream_encroot = nvlist_exists(stream_nvfs, "is_encroot");
 
 		/*
@@ -3480,29 +3488,40 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 				}
 			}
 
-			stream_keylocation = fnvlist_lookup_string(stream_props,
-			    zfs_prop_to_name(ZFS_PROP_KEYLOCATION));
-
 			/*
-			 * Refresh the properties in case the call to
-			 * lzc_change_key() changed the value.
+			 * Restore the keylocation only if the stream carried
+			 * properties.  A holds-only raw send has none, and the
+			 * raw receive has already established a usable
+			 * keylocation, so there is nothing to fix up.
 			 */
-			zfs_refresh_properties(zhp);
-			err = zfs_prop_get(zhp, ZFS_PROP_KEYLOCATION,
-			    keylocation, sizeof (keylocation), NULL, NULL,
-			    0, B_TRUE);
-			if (err != 0) {
-				zfs_close(zhp);
-				goto error;
-			}
+			if (stream_props != NULL) {
+				stream_keylocation = fnvlist_lookup_string(
+				    stream_props,
+				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION));
 
-			if (strcmp(keylocation, stream_keylocation) != 0) {
-				err = zfs_prop_set(zhp,
-				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
-				    stream_keylocation);
+				/*
+				 * Refresh the properties in case the call to
+				 * lzc_change_key() changed the value.
+				 */
+				zfs_refresh_properties(zhp);
+				err = zfs_prop_get(zhp, ZFS_PROP_KEYLOCATION,
+				    keylocation, sizeof (keylocation), NULL,
+				    NULL, 0, B_TRUE);
 				if (err != 0) {
 					zfs_close(zhp);
 					goto error;
+				}
+
+				if (strcmp(keylocation, stream_keylocation)
+				    != 0) {
+					err = zfs_prop_set(zhp,
+					    zfs_prop_to_name(
+					    ZFS_PROP_KEYLOCATION),
+					    stream_keylocation);
+					if (err != 0) {
+						zfs_close(zhp);
+						goto error;
+					}
 				}
 			}
 		}
