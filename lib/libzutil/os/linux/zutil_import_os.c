@@ -92,6 +92,57 @@ should_skip_dev(const char *dev)
 	    (strcmp(dev, "hpet") == 0));
 }
 
+/*
+ * Common predicate for zpool_dev_probe_ok() and its fd variant: only a
+ * block device, or a regular file large enough to hold a label, may be
+ * probed.  Anything else is refused.
+ */
+static boolean_t
+dev_stat_probe_ok(const struct stat64 *statbuf)
+{
+	return (S_ISBLK(statbuf->st_mode) ||
+	    (S_ISREG(statbuf->st_mode) && statbuf->st_size >= SPA_MINDEVSIZE));
+}
+
+/*
+ * Determine if a path may be safely opened to probe for a vdev label.
+ * Only regular files large enough to hold a label and block devices are
+ * acceptable.  Anything else is refused: opening other device nodes can
+ * have side effects (e.g. arming a watchdog) and opening a FIFO blocks
+ * indefinitely.  stat64() never blocks, even on a FIFO.
+ */
+boolean_t
+zpool_dev_probe_ok(const char *path)
+{
+	struct stat64 statbuf;
+
+	if (should_skip_dev(zfs_basename(path)))
+		return (B_FALSE);
+
+	/* Ignore failed stats. */
+	if (stat64(path, &statbuf) != 0)
+		return (B_FALSE);
+
+	return (dev_stat_probe_ok(&statbuf));
+}
+
+/*
+ * As zpool_dev_probe_ok(), but re-check the type of an object already
+ * opened.  A path naming a symlink may have been repointed at a different
+ * node between the stat64() above and the open(), so only trust a
+ * descriptor which is still a block device or a large enough regular file.
+ */
+boolean_t
+zpool_dev_probe_ok_fd(int fd)
+{
+	struct stat64 statbuf;
+
+	if (fstat64(fd, &statbuf) != 0)
+		return (B_FALSE);
+
+	return (dev_stat_probe_ok(&statbuf));
+}
+
 int
 zfs_dev_flush(int fd)
 {
@@ -103,23 +154,13 @@ zpool_open_func(void *arg)
 {
 	rdsk_node_t *rn = arg;
 	libpc_handle_t *hdl = rn->rn_hdl;
-	struct stat64 statbuf;
 	nvlist_t *config;
 	uint64_t vdev_guid = 0;
 	int error;
 	int num_labels = 0;
 	int fd;
 
-	if (should_skip_dev(zfs_basename(rn->rn_name)))
-		return;
-
-	/*
-	 * Ignore failed stats.  We only want regular files and block devices.
-	 * Ignore files that are too small to hold a zpool.
-	 */
-	if (stat64(rn->rn_name, &statbuf) != 0 ||
-	    (!S_ISREG(statbuf.st_mode) && !S_ISBLK(statbuf.st_mode)) ||
-	    (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE))
+	if (!zpool_dev_probe_ok(rn->rn_name))
 		return;
 
 	/*
