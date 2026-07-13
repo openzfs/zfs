@@ -193,18 +193,6 @@ May be combined with
 or
 start/end date options
 .Pq Fl S / Fl E .
-.Pp
-If a thorough scrub is paused, resuming with
-.Nm zpool Cm scrub
-.Pq with or without
-.Fl t
-continues as a thorough scrub.
-Resuming a paused normal scrub with
-.Fl t
-will fail; use
-.Nm zpool Cm scrub
-without
-.Fl t .
 .It Fl S Ar date , Fl E Ar date
 Allows specifying the date range for blocks created between these dates.
 .Bl -bullet -compact -offset indent
