@@ -16,7 +16,7 @@ set -eu
 function alpine() {
   echo "##[group]Install Development Tools"
   sudo apk add \
-    acl alpine-sdk attr autoconf automake bash build-base clang21 coreutils \
+    acl alpine-sdk attr autoconf automake bash build-base clang22 coreutils \
     cpio cryptsetup curl curl-dev dhcpcd eudev eudev-dev eudev-libs findutils \
     fio gawk gdb gettext-dev git grep jq libaio libaio-dev libcurl \
     libtirpc-dev libtool libunwind libunwind-dev linux-headers linux-tools \
