@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 12, 2023
+.Dd July 13, 2026
 .Dt ZFS-RECEIVE 8
 .Os
 .
@@ -40,14 +40,14 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm receive
-.Op Fl FhMnsuv
+.Op Fl bFhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
 .Cm receive
-.Op Fl FhMnsuv
+.Op Fl bFhMnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -68,7 +68,7 @@
 .It Xo
 .Nm zfs
 .Cm receive
-.Op Fl FhMnsuv
+.Op Fl bFhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -77,7 +77,7 @@
 .It Xo
 .Nm zfs
 .Cm receive
-.Op Fl FhMnsuv
+.Op Fl bFhMnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -244,6 +244,12 @@ If receiving an incremental replication stream
 .Nm zfs Cm send Fl R Op Fl i Ns | Ns Fl I
 .Pc ,
 destroy snapshots and file systems that do not exist on the sending side.
+.It Fl b
+Recreate any snapshot bookmarks that were included in the stream by
+.Nm zfs Cm send Fl -bookmarks .
+Without this option, bookmarks carried in the stream are ignored.
+A bookmark is recreated only for a snapshot that is received; one that already
+exists on the receiving system is left unchanged.
 .It Fl d
 Discard the first element of the sent snapshot's file system name, using the
 remaining elements to determine the name of the target file system for the new
