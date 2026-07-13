@@ -5355,16 +5355,18 @@ zio_dio_chksum_verify_error_report(zio_t *zio)
 		 */
 		zio->io_error = SET_ERROR(EIO);
 		/*
-		 * Report dio_verify_wr ZED event.
+		 * Report dio_verify_wr ZED event, rate limited.
 		 */
-		(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_WR,
-		    zio->io_spa,  zio->io_vd, &zio->io_bookmark, zio, 0);
+		if (zfs_ratelimit(&zio->io_vd->vdev_dio_verify_rl))
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_WR,
+			    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
 	} else {
 		/*
-		 * Report dio_verify_rd ZED event.
+		 * Report dio_verify_rd ZED event, rate limited.
 		 */
-		(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_RD,
-		    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
+		if (zfs_ratelimit(&zio->io_vd->vdev_dio_verify_rl))
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_DIO_VERIFY_RD,
+			    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
 	}
 }
 

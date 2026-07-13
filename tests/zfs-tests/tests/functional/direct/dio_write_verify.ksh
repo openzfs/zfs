@@ -60,6 +60,8 @@ function cleanup
 	# Clearing out dio_verify from event logs
 	log_must zpool events -c
 	log_must set_tunable32 VDEV_DIRECT_WR_VERIFY $DIO_WR_VERIFY_TUNABLE
+	log_must set_tunable32 DIO_WRITE_VERIFY_EVENTS_PER_SECOND \
+	    $DIO_WR_EVENTS_TUNABLE
 }
 
 log_assert "Verify checksum verify works for Direct I/O writes."
@@ -75,6 +77,16 @@ NUMBLOCKS=300
 BS=$((128 * 1024)) # 128k
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 typeset DIO_WR_VERIFY_TUNABLE=$(get_tunable VDEV_DIRECT_WR_VERIFY)
+typeset DIO_WR_EVENTS_TUNABLE=$(get_tunable DIO_WRITE_VERIFY_EVENTS_PER_SECOND)
+
+#
+# Each iteration below generates Direct I/O write verify failures and checks
+# that dio_verify_wr zevents were posted.  Those zevents are rate limited by
+# zfs_dio_write_verify_events_per_second and the limiter state persists across
+# iterations, so raise the limit while the test runs to avoid dropping the
+# events being counted.  The original value is restored in cleanup.
+#
+log_must set_tunable32 DIO_WRITE_VERIFY_EVENTS_PER_SECOND 1000000
 
 # Get a list of vdevs in our pool
 set -A array $(get_disklist_fullpath $TESTPOOL)
