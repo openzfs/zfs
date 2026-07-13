@@ -28,7 +28,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <errno.h>
+#include <libgen.h>
 #include <string.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
@@ -197,113 +199,119 @@ efi_get_devname(int fd)
 static int
 efi_get_info(int fd, struct dk_cinfo *dki_info)
 {
+	char path[32];
 	char *dev_path;
-	int rval = 0;
+	char sysfs_path[MAXPATHLEN];
+	char resolved[MAXPATHLEN];
+	FILE *fp;
 
 	memset(dki_info, 0, sizeof (*dki_info));
 
 	/*
-	 * The simplest way to get the partition number under linux is
-	 * to parse it out of the /dev/<disk><partition> block device name.
-	 * The kernel creates this using the partition number when it
-	 * populates /dev/ so it may be trusted.  The tricky bit here is
-	 * that the naming convention is based on the block device type.
-	 * So we need to take this in to account when parsing out the
-	 * partition information.  Aside from the partition number we collect
-	 * some additional device info.
+	 * Resolve the block device name from the open file descriptor
+	 * via /proc/self/fd/<fd>.
 	 */
-	dev_path = efi_get_devname(fd);
+	(void) snprintf(path, sizeof (path), "/proc/self/fd/%d", fd);
+	dev_path = realpath(path, NULL);
 	if (dev_path == NULL)
 		goto error;
 
-	if ((strncmp(dev_path, "/dev/sd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "sd");
-		dki_info->dki_ctype = DKC_SCSI_CCS;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/hd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "hd");
-		dki_info->dki_ctype = DKC_DIRECT;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/md", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_MD;
-		strcpy(dki_info->dki_dname, "md");
-		rval = sscanf(dev_path, "/dev/md%[0-9]p%hu",
-		    dki_info->dki_dname + 2,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/vd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "vd");
-		dki_info->dki_ctype = DKC_MD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/xvd", 8) == 0)) {
-		strcpy(dki_info->dki_cname, "xvd");
-		dki_info->dki_ctype = DKC_MD;
-		rval = sscanf(dev_path, "/dev/%[a-zA-Z]%hu",
-		    dki_info->dki_dname,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/zd", 7) == 0)) {
-		strcpy(dki_info->dki_cname, "zd");
-		dki_info->dki_ctype = DKC_MD;
-		strcpy(dki_info->dki_dname, "zd");
-		rval = sscanf(dev_path, "/dev/zd%[0-9]p%hu",
-		    dki_info->dki_dname + 2,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/dm-", 8) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_VBD;
-		strcpy(dki_info->dki_dname, "dm-");
-		rval = sscanf(dev_path, "/dev/dm-%[0-9]p%hu",
-		    dki_info->dki_dname + 3,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/ram", 8) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_PCMCIA_MEM;
-		strcpy(dki_info->dki_dname, "ram");
-		rval = sscanf(dev_path, "/dev/ram%[0-9]p%hu",
-		    dki_info->dki_dname + 3,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/loop", 9) == 0)) {
-		strcpy(dki_info->dki_cname, "pseudo");
-		dki_info->dki_ctype = DKC_VBD;
-		strcpy(dki_info->dki_dname, "loop");
-		rval = sscanf(dev_path, "/dev/loop%[0-9]p%hu",
-		    dki_info->dki_dname + 4,
-		    &dki_info->dki_partition);
-	} else if ((strncmp(dev_path, "/dev/nvme", 9) == 0)) {
-		strcpy(dki_info->dki_cname, "nvme");
-		dki_info->dki_ctype = DKC_SCSI_CCS;
-		strcpy(dki_info->dki_dname, "nvme");
-		(void) sscanf(dev_path, "/dev/nvme%[0-9]",
-		    dki_info->dki_dname + 4);
-		size_t controller_length = strlen(
-		    dki_info->dki_dname);
-		strcpy(dki_info->dki_dname + controller_length,
-		    "n");
-		rval = sscanf(dev_path,
-		    "/dev/nvme%*[0-9]n%[0-9]p%hu",
-		    dki_info->dki_dname + controller_length + 1,
-		    &dki_info->dki_partition);
-	} else {
-		strcpy(dki_info->dki_dname, "unknown");
-		strcpy(dki_info->dki_cname, "unknown");
-		dki_info->dki_ctype = DKC_UNKNOWN;
+	/*
+	 * Read the partition number from sysfs.  If the partition file
+	 * does not exist this is a whole disk (partition == 0).
+	 */
+	(void) snprintf(sysfs_path, sizeof (sysfs_path),
+	    "/sys/class/block/%s/partition", basename(dev_path));
+	fp = fopen(sysfs_path, "r");
+	if (fp != NULL) {
+		if (fscanf(fp, "%hu", &dki_info->dki_partition) != 1)
+			dki_info->dki_partition = 0;
+		(void) fclose(fp);
+	} else if (errno != ENOENT) {
+		if (efi_debug)
+			(void) fprintf(stderr,
+			    "unexpected error reading %s: %s\n",
+			    sysfs_path, strerror(errno));
 	}
 
-	switch (rval) {
-	case 0:
-		errno = EINVAL;
-		goto error;
-	case 1:
-		dki_info->dki_partition = 0;
+	/*
+	 * Derive the parent disk name by resolving the sysfs symlink:
+	 *   /sys/class/block/<dev> -> .../block/<parent>/<dev>
+	 * basename(dirname(realpath(...))) gives the parent name.
+	 * For whole disks the symlink points directly under .../block/
+	 * so dirname/basename returns the device name itself.
+	 */
+	(void) snprintf(sysfs_path, sizeof (sysfs_path),
+	    "/sys/class/block/%s", basename(dev_path));
+
+	if (realpath(sysfs_path, resolved) != NULL) {
+		strlcpy(dki_info->dki_dname, basename(dirname(resolved)),
+		    sizeof (dki_info->dki_dname));
+	} else {
+		char *base = strrchr(dev_path, '/');
+		if (base != NULL)
+			base++;
+		else
+			base = dev_path;
+
+		strlcpy(dki_info->dki_dname, base,
+		    sizeof (dki_info->dki_dname));
+		size_t len = strlen(dki_info->dki_dname);
+		while (len > 0 && isdigit(dki_info->dki_dname[len - 1]))
+			len--;
+		dki_info->dki_dname[len] = '\0';
+
+		if (len > 1 && dki_info->dki_dname[len - 1] == 'p')
+			dki_info->dki_dname[len - 1] = '\0';
 	}
 
 	free(dev_path);
+	dev_path = NULL;
+
+	if (dki_info->dki_dname[0] == '\0') {
+		if (efi_debug)
+			(void) fprintf(stderr,
+			    "failed to determine device name from fd %d\n", fd);
+		errno = EINVAL;
+		goto error;
+	}
+
+	/*
+	 * Map the parent disk name to controller type and name.
+	 * Only the fields checked by callers are set.
+	 */
+	if (strncmp(dki_info->dki_dname, "md", 2) == 0) {
+		strlcpy(dki_info->dki_cname, "pseudo",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_MD;
+	} else if (strncmp(dki_info->dki_dname, "dm-", 3) == 0 ||
+	    strncmp(dki_info->dki_dname, "loop", 4) == 0) {
+		strlcpy(dki_info->dki_cname, "pseudo",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_VBD;
+	} else if (strncmp(dki_info->dki_dname, "ram", 3) == 0) {
+		strlcpy(dki_info->dki_cname, "pseudo",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_PCMCIA_MEM;
+	} else if (strncmp(dki_info->dki_dname, "zd", 2) == 0) {
+		strlcpy(dki_info->dki_cname, "zd",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_MD;
+	} else if (strncmp(dki_info->dki_dname, "nvme", 4) == 0) {
+		strlcpy(dki_info->dki_cname, "nvme",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_SCSI_CCS;
+	} else if (dki_info->dki_dname[0] != '\0') {
+		strlcpy(dki_info->dki_cname, dki_info->dki_dname,
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_SCSI_CCS;
+	} else {
+		strlcpy(dki_info->dki_dname, "unknown",
+		    sizeof (dki_info->dki_dname));
+		strlcpy(dki_info->dki_cname, "unknown",
+		    sizeof (dki_info->dki_cname));
+		dki_info->dki_ctype = DKC_UNKNOWN;
+	}
 
 	return (0);
 error:
