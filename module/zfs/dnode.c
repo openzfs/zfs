@@ -785,6 +785,9 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	if (bonustype == DMU_OT_SA) /* Maximize bonus space for SA */
 		dn->dn_nblkptr = 1;
 	else {
+		/*
+		 * Keep in sync with deduce_nblkptr() in dmu_recv.c.
+		 */
 		dn->dn_nblkptr = MIN(DN_MAX_NBLKPTR,
 		    1 + ((DN_SLOTS_TO_BONUSLEN(dn_slots) - bonuslen) >>
 		    SPA_BLKPTRSHIFT));
@@ -853,10 +856,14 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 
 	if (bonustype == DMU_OT_SA) /* Maximize bonus space for SA */
 		nblkptr = 1;
-	else
+	else {
+		/*
+		 * Keep in sync with deduce_nblkptr() in dmu_recv.c.
+		 */
 		nblkptr = MIN(DN_MAX_NBLKPTR,
 		    1 + ((DN_SLOTS_TO_BONUSLEN(dn_slots) - bonuslen) >>
 		    SPA_BLKPTRSHIFT));
+	}
 	if (dn->dn_bonustype != bonustype)
 		dn->dn_next_bonustype[tx->tx_txg & TXG_MASK] = bonustype;
 	if (dn->dn_nblkptr != nblkptr)
