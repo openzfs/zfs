@@ -502,6 +502,24 @@ May be increased up to
 .Sy ASHIFT_MAX Po 16 Pc ,
 but this may negatively impact pool space efficiency.
 .
+.It Sy zfs_vdev_direct_read_verify Ns = Ns Sy 1 Ns | Ns 0 Pq uint
+If non-zero, then a Direct I/O read's checksum will be verified against the
+data returned to the caller.
+Unlike the write case, this provides no data-integrity guarantee \(em the
+on-disk block is already correct \(em it only detects the caller mutating its
+own
+.Sy O_DIRECT
+buffer while the read is in flight, which is not corruption and self-heals via
+a buffered re-read.
+Each such event causes a
+.Sy dio_verify_rd
+zevent, which can be seen with
+.Nm zpool Cm status Fl d .
+Set this to
+.Sy 0
+to skip Direct I/O read verification for workloads that legitimately recycle
+buffers across concurrent requests.
+.
 .It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
 If non-zero, then a Direct I/O write's checksum will be verified every
 time the write is issued and before it is committed to the block pointer.

@@ -34,6 +34,8 @@
 #include <sys/abd.h>
 #include <zfs_fletcher.h>
 
+extern uint_t zfs_vdev_direct_read_verify;
+
 /*
  * Checksum vectors.
  *
@@ -584,6 +586,17 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 		if (error != 0)
 			info->zbc_injected = 1;
 	}
+
+	/*
+	 * A Direct I/O read verifies its checksum over the caller's user
+	 * pages, which can spuriously fail if the application recycles that
+	 * buffer across concurrent O_DIRECT requests.  The on-disk data is
+	 * correct, so honor zfs_vdev_direct_read_verify=0 and suppress the
+	 * error for this case only; all other checksum errors are reported.
+	 */
+	if (error == ECKSUM && (zio->io_flags & ZIO_FLAG_DIO_READ) &&
+	    abd_is_from_pages(data) && zfs_vdev_direct_read_verify == 0)
+		error = 0;
 
 	return (error);
 }

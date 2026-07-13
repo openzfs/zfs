@@ -171,6 +171,17 @@ uint_t zfs_vdev_direct_write_verify = 1;
 uint_t zfs_vdev_direct_write_verify = 0;
 #endif
 
+/*
+ * VDEV checksum verification for Direct I/O reads.  Unlike the write case,
+ * verifying a read offers no data-integrity guarantee -- the on-disk block is
+ * already correct -- it only detects the caller mutating its own O_DIRECT
+ * buffer while the read is in flight (e.g. an application recycling buffers
+ * across concurrent requests).  That is not corruption and self-heals via a
+ * buffered re-read, but it produces spurious dio_verify_rd events.  Set to 0
+ * to skip DIO read verification, as other filesystems do.
+ */
+uint_t zfs_vdev_direct_read_verify = 1;
+
 void
 vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
 {
@@ -7093,6 +7104,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, dio_write_verify_events_per_second, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, direct_write_verify, UINT, ZMOD_RW,
 	"Direct I/O writes will perform for checksum verification before "
 	"commiting write");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, direct_read_verify, UINT, ZMOD_RW,
+	"Direct I/O reads will perform checksum verification");
 
 ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,
 	"Rate limit checksum events to this many checksum errors per second "
