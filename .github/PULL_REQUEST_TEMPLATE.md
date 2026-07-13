@@ -16,7 +16,7 @@
 <!--- If your change is a performance enhancement, please provide benchmarks here. -->
 <!--- Please think about using the draft PR feature if appropriate -->
 
-### Types of changes
+### Types of Changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
@@ -24,10 +24,10 @@
 - [ ] Code cleanup (non-breaking change which makes code smaller or more readable)
 - [ ] Quality assurance (non-breaking change which makes the code more robust against bugs)
 - [ ] Breaking change (fix or feature that would cause existing functionality to change)
-- [ ] Library ABI change (libzfs, libzfs\_core, libnvpair, libuutil and libzfsbootenv)
+- [ ] Library ABI change (libzfs, libzfs\_core, libnvpair and libzfsbootenv)
 - [ ] Documentation (a change to man pages or other documentation)
 
-### Checklist:
+### Checklist
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 <!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
 - [ ] My code follows the OpenZFS [code style requirements](https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#coding-conventions).
