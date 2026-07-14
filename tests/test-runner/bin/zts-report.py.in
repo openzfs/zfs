@@ -291,6 +291,12 @@ if sys.platform.startswith('freebsd'):
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_copyfilerange_cross_dataset':
             ['SKIP', cfr_cross_reason],
+        'block_cloning/block_cloning_copyfilerange_clone':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_copyfilerange_clone_partial':
+            ['SKIP', cfr_reason],
+        'block_cloning/block_cloning_disabled_copyfilerange_clone':
+            ['SKIP', cfr_reason],
         'stat/statx_dioalign': ['SKIP', 'na_reason'],
     })
 elif sys.platform.startswith('linux'):
