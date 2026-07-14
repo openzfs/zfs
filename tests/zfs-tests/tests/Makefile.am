@@ -785,6 +785,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_destroy/zfs_destroy_014_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_015_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_016_pos.ksh \
+	functional/cli_root/zfs_destroy/zfs_destroy_017_neg.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_clone_livelist.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_dev_removal_condense.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_dev_removal.ksh \
