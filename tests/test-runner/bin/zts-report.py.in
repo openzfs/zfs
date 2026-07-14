@@ -266,15 +266,6 @@ maybe = {
 
 if sys.platform.startswith('freebsd'):
     maybe.update({
-        'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
-        'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
-        'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
-        'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
-        'inheritance/inherit_001_pos': ['FAIL', 11829],
-        'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
-        'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
-        'resilver/resilver_restart_001': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', 16668],
         'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
         'bclone/bclone_crossfs_corner_cases_limited':
             ['SKIP', cfr_cross_reason],
@@ -291,7 +282,17 @@ if sys.platform.startswith('freebsd'):
             ['SKIP', cfr_cross_reason],
         'block_cloning/block_cloning_copyfilerange_cross_dataset':
             ['SKIP', cfr_cross_reason],
+        'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
+        'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
+        'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
+        'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'inheritance/inherit_001_pos': ['FAIL', 11829],
+        'no_space/enospc_rm': ['FAIL', 18726],
+        'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
+        'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
+        'resilver/resilver_restart_001': ['FAIL', known_reason],
         'stat/statx_dioalign': ['SKIP', 'na_reason'],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', 16668],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
