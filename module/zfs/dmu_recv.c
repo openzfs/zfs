@@ -1622,14 +1622,20 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 }
 
 static inline uint8_t
-deduce_nblkptr(dmu_object_type_t bonus_type, uint64_t bonus_size)
+deduce_nblkptr(dmu_object_type_t bonus_type, uint64_t bonus_size,
+    uint8_t dn_slots)
 {
 	if (bonus_type == DMU_OT_SA) {
 		return (1);
 	} else {
-		return (1 +
-		    ((DN_OLD_MAX_BONUSLEN -
-		    MIN(DN_OLD_MAX_BONUSLEN, bonus_size)) >> SPA_BLKPTRSHIFT));
+		/*
+		 * Match dnode_allocate() / dnode_reallocate(): nblkptr is
+		 * derived from the dnode's bonus capacity for dn_slots.
+		 */
+		return (MIN(DN_MAX_NBLKPTR,
+		    1 + ((DN_SLOTS_TO_BONUSLEN(dn_slots) -
+		    MIN(DN_SLOTS_TO_BONUSLEN(dn_slots), bonus_size)) >>
+		    SPA_BLKPTRSHIFT)));
 	}
 }
 
@@ -1706,10 +1712,10 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 {
 	uint32_t indblksz = drro->drr_indblkshift ?
 	    1ULL << drro->drr_indblkshift : 0;
-	int nblkptr = deduce_nblkptr(drro->drr_bonustype,
-	    drro->drr_bonuslen);
 	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
 	    drro->drr_dn_slots : DNODE_MIN_SLOTS;
+	int nblkptr = deduce_nblkptr(drro->drr_bonustype,
+	    drro->drr_bonuslen, dn_slots);
 	boolean_t do_free_range = B_FALSE;
 	int err;
 
