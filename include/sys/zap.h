@@ -25,6 +25,7 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2026, TrueNAS.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #ifndef	_SYS_ZAP_H
@@ -61,10 +62,23 @@
  *
  * Implementation / Performance Notes:
  *
- * The ZAP is intended to operate most efficiently on attributes with
- * short (49 bytes or less) names and single 8-byte values, for which
- * the microzap will be used.  The ZAP should be efficient enough so
+ * The ZAP operates in three modes, selected automatically:
+ *
+ * MicroZAP: most efficient for attributes with short names (up to 49
+ * characters, 50 bytes including NULL ('\0')) and a single 8-byte value.
+ * Fixed 64-byte chunk layout.  The ZAP should be efficient enough
  * that the user does not need to cache these attributes.
+ *
+ * TinyZAP: used when an entry cannot fit MicroZAP, i.e. when either
+ * condition is true:
+ *    - num_integers > 1 (value too wide for MicroZAP), OR
+ *    - strlen(key) >= MZAP_NAME_LEN (name too long for MicroZAP)
+ * AND at least one chunk size (64/128/256 bytes) can accommodate the
+ * entry.  The chunk size and stride are stamped automatically on the
+ * first zap_add().  No create-time hint is required.
+ *
+ * FatZAP: used for all other cases, or when the ZAP grows beyond the
+ * capacity of a single block.  Supports arbitrary name/value sizes.
  *
  * The ZAP's locking scheme makes its routines thread-safe.  Operations
  * on different zapobjs will be processed concurrently.  Operations on
@@ -181,7 +195,7 @@ int zap_create_claim_norm_dnsize(objset_t *os, uint64_t obj,
     dmu_object_type_t bonustype, int bonuslen, int dnodesize, dmu_tx_t *tx);
 
 /*
- * All operations on a zapobj take either the the objset/objectid pair
+ * All operations on a zapobj take either the objset/objectid pair
  * that "names" the object, or an existing dnode_t for the object. The
  * zapobj passed in must be a valid ZAP object.
  */
@@ -263,7 +277,7 @@ int zap_contains_by_dnode(dnode_t *dn, const char *name);
 
 /*
  * Prefetch the blocks within the ZAP where the given key is stored. The
- * prefetch IO will occure in the background.
+ * prefetch IO will occur in the background.
  */
 int zap_prefetch(objset_t *os, uint64_t zapobj, const char *name);
 
@@ -544,6 +558,20 @@ typedef struct zap_stats {
 	uint64_t zs_num_leafs;		/* The number of leaf blocks */
 	uint64_t zs_num_entries;	/* The number of zap entries */
 	uint64_t zs_salt;		/* salt to stir into hash function */
+
+	/*
+	 * TinyZAP statistics. Only meaningful when zs_is_tinyzap is B_TRUE.
+	 *
+	 * zs_is_tinyzap:	B_TRUE if MZAP_FLAG_TINYZAP is set.
+	 * zs_tinyzap_stride:	value width in bytes (8..255, mult of 8).
+	 * zs_tinyzap_chunk:	chunk size in bytes (1 << mz_chunk_shift).
+	 * zs_tinyzap_flags:	raw mz_flags uint8 (for zdb diagnostics).
+	 */
+	boolean_t zs_is_tinyzap;
+	uint64_t zs_tinyzap_stride;		/* value width: 8..255 bytes */
+	uint64_t zs_tinyzap_chunk;		/* chunk size: 64 / 128 / 256 */
+	uint64_t zs_tinyzap_num_chunks;		/* number of chunks used */
+	uint64_t zs_tinyzap_flags;		/* raw mz_flags for zdb */
 
 	/*
 	 * Histograms.  For all histograms, the last index

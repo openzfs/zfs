@@ -27,6 +27,7 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2024, Klara, Inc.
  * Copyright (c) 2026, TrueNAS.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/zfs_context.h>
@@ -351,8 +352,16 @@ zap_lock_impl(dnode_t *dn, dmu_buf_t *db, dmu_tx_t *tx,
 			return (err);
 		}
 		VERIFY0(dmu_object_set_blocksize(os, obj, newsz, 0, tx));
-		zap->zap_m.zap_num_chunks =
-		    db->db_size / MZAP_ENT_LEN - 1;
+		if (zap->zap_m.zap_stride != 0 &&
+		    zap->zap_m.zap_chunk_size != 0) {
+			/* Fully promoted TinyZAP */
+			zap->zap_m.zap_num_chunks =
+			    (int16_t)((newsz - MZAP_ENT_LEN) /
+			    zap->zap_m.zap_chunk_size);
+		} else {
+			zap->zap_m.zap_num_chunks =
+			    newsz / MZAP_ENT_LEN - 1;
+		}
 
 		if (newsz > SPA_OLD_MAXBLOCKSIZE) {
 			dsl_dataset_t *ds = dmu_objset_ds(os);

@@ -31,6 +31,7 @@
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2022 Axcient.
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <sys/arc.h>
@@ -612,6 +613,13 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_LONGNAME) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LONGNAME))
+		return (SET_ERROR(ENOTSUP));
+
+	/*
+	 * If the TINYZAP is not enabled on the target, fail that request.
+	 */
+	if ((featureflags & DMU_BACKUP_FEATURE_TINYZAP) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_TINYZAP))
 		return (SET_ERROR(ENOTSUP));
 
 	return (0);
