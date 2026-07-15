@@ -1552,23 +1552,36 @@ static int
 verify_spacemap_refcounts(spa_t *spa)
 {
 	uint64_t expected_refcount = 0;
-	uint64_t actual_refcount;
+	uint64_t actual_refcount = 0;
+	int dtl_refcount, metaslab_refcount, obsolete_refcount,
+	    prev_obsolete_refcount, checkpoint_refcount, log_spacemap_refcount;
 
 	(void) feature_get_refcount(spa,
 	    &spa_feature_table[SPA_FEATURE_SPACEMAP_HISTOGRAM],
 	    &expected_refcount);
-	actual_refcount = get_dtl_refcount(spa->spa_root_vdev);
-	actual_refcount += get_metaslab_refcount(spa->spa_root_vdev);
-	actual_refcount += get_obsolete_refcount(spa->spa_root_vdev);
-	actual_refcount += get_prev_obsolete_spacemap_refcount(spa);
-	actual_refcount += get_checkpoint_refcount(spa->spa_root_vdev);
-	actual_refcount += get_log_spacemap_refcount(spa);
+	dtl_refcount = get_dtl_refcount(spa->spa_root_vdev);
+	metaslab_refcount = get_metaslab_refcount(spa->spa_root_vdev);
+	obsolete_refcount = get_obsolete_refcount(spa->spa_root_vdev);
+	prev_obsolete_refcount = get_prev_obsolete_spacemap_refcount(spa);
+	checkpoint_refcount = get_checkpoint_refcount(spa->spa_root_vdev);
+	log_spacemap_refcount = get_log_spacemap_refcount(spa);
+	actual_refcount += dtl_refcount;
+	actual_refcount += metaslab_refcount;
+	actual_refcount += obsolete_refcount;
+	actual_refcount += prev_obsolete_refcount;
+	actual_refcount += checkpoint_refcount;
+	actual_refcount += log_spacemap_refcount;
 
 	if (expected_refcount != actual_refcount) {
 		(void) printf("space map refcount mismatch: expected %lld != "
 		    "actual %lld\n",
 		    (longlong_t)expected_refcount,
 		    (longlong_t)actual_refcount);
+		(void) printf("\tDTL: %d, metaslab: %d, obsolete: %d, "
+		    "prev obsolete: %d, checkpoint: %d, log spacemap: %d\n",
+		    dtl_refcount, metaslab_refcount, obsolete_refcount,
+		    prev_obsolete_refcount, checkpoint_refcount,
+		    log_spacemap_refcount);
 		return (2);
 	}
 	return (0);
