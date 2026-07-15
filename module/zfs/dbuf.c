@@ -1476,17 +1476,25 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 
 	int is_hole = bp == NULL || BP_IS_HOLE(bp);
 	/*
-	 * For level 0 blocks only, if the above check fails:
-	 * Recheck BP_IS_HOLE() after dnode_block_freed() in case dnode_sync()
-	 * processes the delete record and clears the bp while we are waiting
-	 * for the dn_mtx (resulting in a "no" from block_freed).
+	 * For level 0 blocks only, if the above check didn't find a hole,
+	 * consult dnode_block_freed() to check for pending frees.
 	 *
-	 * If bp != db->db_blkptr, it means that it was overridden (by a block
-	 * clone or direct I/O write). We cannot rely on dnode_block_freed as
-	 * the range can be freed in an earlier TXG but overridden in later.
+	 * If the block has been overridden by a block clone or direct I/O
+	 * write, we can't use dnode_block_freed() directly because it would
+	 * find frees from TXGs before the override, which should not make
+	 * the block appear freed.  Instead, check only free ranges from
+	 * TXGs after the override.
 	 */
-	if (!is_hole && db->db_level == 0 && bp == db->db_blkptr)
-		is_hole = dnode_block_freed(dn, db->db_blkid) || BP_IS_HOLE(bp);
+	if (!is_hole && db->db_level == 0) {
+		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
+		if (dr != NULL &&
+		    (dr->dt.dl.dr_brtwrite || dr->dt.dl.dr_diowrite)) {
+			is_hole = dnode_block_freed_after(dn,
+			    db->db_blkid, dr->dr_txg);
+		} else {
+			is_hole = dnode_block_freed(dn, db->db_blkid);
+		}
+	}
 
 	if (is_hole) {
 		db_data = dbuf_alloc_arcbuf(db);
