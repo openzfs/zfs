@@ -244,7 +244,7 @@ dmu_zfetch_fini(zfetch_t *zf)
  * If needed, reuse oldest stream without hits for zfetch_min_sec_reap or ever.
  * The "blkid" argument is the next block that we expect this stream to access.
  */
-static void
+static zstream_t *
 dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 {
 	zstream_t *zs, *zs_next, *zs_old = NULL;
@@ -302,7 +302,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 			goto reuse;
 		}
 		ZFETCHSTAT_BUMP(zfetchstat_max_streams);
-		return;
+		return (NULL);
 	}
 
 	zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
@@ -326,6 +326,7 @@ reuse:
 	zs->zs_ipf_end = blkid;
 	zs->zs_missed = B_FALSE;
 	zs->zs_more = B_FALSE;
+	return (zs);
 }
 
 static void
@@ -495,9 +496,12 @@ dmu_zfetch_prime(zfetch_t *zf, uint64_t blkid, uint64_t end_blkid)
 		}
 	}
 
-	dmu_zfetch_stream_create(zf, blkid);
-	zs = list_head(&zf->zf_stream);
-	ASSERT(zs != NULL);
+	/* Skip if at stream limit and none are reclaimable. */
+	zs = dmu_zfetch_stream_create(zf, blkid);
+	if (zs == NULL) {
+		mutex_exit(&zf->zf_lock);
+		return (B_FALSE);
+	}
 	ASSERT3U(zs->zs_blkid, ==, blkid);
 
 	/* dmu_zfetch_prepare() will double the distances, so take a half. */
@@ -631,7 +635,7 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 	 */
 	ASSERT0P(zs);
 	if (end_blkid < maxblkid)
-		dmu_zfetch_stream_create(zf, end_blkid);
+		(void) dmu_zfetch_stream_create(zf, end_blkid);
 	mutex_exit(&zf->zf_lock);
 	ZFETCHSTAT_BUMP(zfetchstat_misses);
 	ipf_start = 0;
