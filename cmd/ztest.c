@@ -556,6 +556,23 @@ static ztest_shared_t *ztest_shared;
 static spa_t *ztest_spa = NULL;
 static ztest_ds_t *ztest_ds;
 
+typedef enum ztest_late_arrival_state {
+	ZTEST_LATE_ARRIVAL_IDLE,
+	ZTEST_LATE_ARRIVAL_ARMED,
+	ZTEST_LATE_ARRIVAL_PROTECTED,
+	ZTEST_LATE_ARRIVAL_RESTORING,
+	ZTEST_LATE_ARRIVAL_DONE,
+} ztest_late_arrival_state_t;
+
+static struct {
+	volatile uint64_t	zla_state;
+	uint64_t		zla_object;
+	void			*zla_source;
+	size_t			zla_size;
+	spa_taskqs_t		*zla_issue_taskqs;
+	kthread_t		*zla_owner;
+} ztest_late_arrival;
+
 static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
@@ -2475,11 +2492,95 @@ static zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
  */
 
 static void
+ztest_late_arrival_block_taskqs(spa_t *spa)
+{
+	spa_taskqs_t *tqs =
+	    &spa->spa_zio_taskq[ZIO_TYPE_WRITE][ZIO_TASKQ_ISSUE];
+
+	VERIFY3U(tqs->stqs_count, >, 0);
+	ztest_late_arrival.zla_issue_taskqs = tqs;
+	ztest_late_arrival.zla_owner = curthread;
+	for (uint_t i = 0; i < tqs->stqs_count; i++)
+		rw_enter(&tqs->stqs_taskq[i]->tq_threadlock, RW_WRITER);
+}
+
+static void
+ztest_late_arrival_unblock_taskqs(void)
+{
+	spa_taskqs_t *tqs = ztest_late_arrival.zla_issue_taskqs;
+
+	VERIFY3P(curthread, ==, ztest_late_arrival.zla_owner);
+	for (uint_t i = tqs->stqs_count; i != 0; i--)
+		rw_exit(&tqs->stqs_taskq[i - 1]->tq_threadlock);
+}
+
+static void
+ztest_late_arrival_protect_source(zio_t *pio, lr_write_t *lr, dmu_buf_t *db)
+{
+	zio_link_t *zl = NULL;
+	zio_t *cio;
+	zio_t *write = NULL;
+	uint_t matches = 0;
+
+	VERIFY3U(atomic_load_64(&ztest_late_arrival.zla_state), ==,
+	    ZTEST_LATE_ARRIVAL_ARMED);
+	VERIFY3P(curthread, ==, ztest_late_arrival.zla_owner);
+	VERIFY3U(db->db_object, ==, ztest_late_arrival.zla_object);
+	VERIFY3U(db->db_size, ==, SPA_OLD_MAXBLOCKSIZE);
+	VERIFY0(P2PHASE((uintptr_t)db->db_data, PAGESIZE));
+	VERIFY0(P2PHASE(db->db_size, PAGESIZE));
+
+	/*
+	 * The issue taskqs are blocked, so the late-arrival ZIO must still be
+	 * attached to its parent immediately before WRITE_COMPRESS.
+	 */
+	mutex_enter(&pio->io_lock);
+	for (cio = zio_walk_children(pio, &zl); cio != NULL;
+	    cio = zio_walk_children(pio, &zl)) {
+		if (cio->io_type == ZIO_TYPE_WRITE &&
+		    cio->io_bp == &lr->lr_blkptr &&
+		    cio->io_lsize == db->db_size) {
+			write = cio;
+			matches++;
+		}
+	}
+	VERIFY3U(matches, ==, 1);
+	VERIFY3U(write->io_stage, ==, ZIO_STAGE_ISSUE_ASYNC);
+	mutex_exit(&pio->io_lock);
+
+	ztest_late_arrival.zla_source = db->db_data;
+	ztest_late_arrival.zla_size = db->db_size;
+	VERIFY0(mprotect(ztest_late_arrival.zla_source,
+	    ztest_late_arrival.zla_size, PROT_NONE));
+	VERIFY3U(atomic_cas_64(&ztest_late_arrival.zla_state,
+	    ZTEST_LATE_ARRIVAL_ARMED, ZTEST_LATE_ARRIVAL_PROTECTED), ==,
+	    ZTEST_LATE_ARRIVAL_ARMED);
+
+	ztest_late_arrival_unblock_taskqs();
+}
+
+static void
+ztest_late_arrival_restore_source(uint64_t object)
+{
+	if (object != ztest_late_arrival.zla_object ||
+	    atomic_cas_64(&ztest_late_arrival.zla_state,
+	    ZTEST_LATE_ARRIVAL_PROTECTED, ZTEST_LATE_ARRIVAL_RESTORING) !=
+	    ZTEST_LATE_ARRIVAL_PROTECTED)
+		return;
+
+	VERIFY0(mprotect(ztest_late_arrival.zla_source,
+	    ztest_late_arrival.zla_size, PROT_READ | PROT_WRITE));
+	atomic_store_64(&ztest_late_arrival.zla_state,
+	    ZTEST_LATE_ARRIVAL_DONE);
+}
+
+static void
 ztest_get_done(zgd_t *zgd, int error)
 {
 	(void) error;
 	ztest_ds_t *zd = zgd->zgd_private;
 	uint64_t object = ((rl_t *)zgd->zgd_lr)->rl_object;
+	ztest_late_arrival_restore_source(object);
 
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
@@ -2556,6 +2657,10 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		error = dmu_buf_hold_noread(os, object, offset, zgd, &db);
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
+			boolean_t test_late_arrival =
+			    atomic_load_64(&ztest_late_arrival.zla_state) ==
+			    ZTEST_LATE_ARRIVAL_ARMED &&
+			    object == ztest_late_arrival.zla_object;
 
 			zgd->zgd_db = db;
 			zgd->zgd_bp = bp;
@@ -2563,8 +2668,19 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 			ASSERT3U(db->db_offset, ==, offset);
 			ASSERT3U(db->db_size, ==, size);
 
+			if (test_late_arrival)
+				ztest_late_arrival_block_taskqs(os->os_spa);
+
 			error = dmu_sync(zio, lr->lr_common.lrc_txg,
 			    ztest_get_done, zgd);
+
+			if (test_late_arrival) {
+				if (error != 0)
+					ztest_late_arrival_unblock_taskqs();
+				VERIFY0(error);
+				VERIFY3U(txg, >, spa_freeze_txg(os->os_spa));
+				ztest_late_arrival_protect_source(zio, lr, db);
+			}
 
 			if (error == 0)
 				return (0);
@@ -7942,6 +8058,7 @@ ztest_freeze(void)
 	ztest_ds_t *zd = &ztest_ds[0];
 	spa_t *spa;
 	int numloops = 0;
+	ztest_od_t late_arrival_od;
 
 	/* freeze not supported during RAIDZ expansion */
 	if (ztest_opts.zo_raid_do_expand)
@@ -7966,6 +8083,20 @@ ztest_freeze(void)
 		VERIFY0(zil_commit(zd->zd_zilog, 0));
 	}
 
+	/*
+	 * Create and sync a block large enough that its subsequent ZIL record
+	 * must use WR_INDIRECT.  This leaves one known write to commit after
+	 * spa_freeze() forces dmu_sync_late_arrival().
+	 */
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	VERIFY0(ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_COMPRESSION,
+	    ZIO_COMPRESS_LZ4, B_FALSE));
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	ztest_od_init(&late_arrival_od, 0, "late_arrival", 0,
+	    DMU_OT_UINT64_OTHER, SPA_OLD_MAXBLOCKSIZE, 0, 0);
+	VERIFY0(ztest_object_init(zd, &late_arrival_od,
+	    sizeof (late_arrival_od), B_FALSE));
+	VERIFY0(zil_commit(zd->zd_zilog, 0));
 	txg_wait_synced(spa_get_dsl(spa), 0);
 
 	/*
@@ -7973,6 +8104,28 @@ ztest_freeze(void)
 	 * so that the only way to record changes from now on is the ZIL.
 	 */
 	spa_freeze(spa);
+
+	/*
+	 * Stop the write ZIO immediately before compression, protect the dbuf's
+	 * source mapping in ztest_get_data(), and verify that late-arrival I/O
+	 * no longer depends on that mapping.  ztest_get_done() restores it.
+	 */
+	void *late_arrival_data = umem_alloc(SPA_OLD_MAXBLOCKSIZE,
+	    UMEM_NOFAIL);
+	memset(late_arrival_data, 0x5a, SPA_OLD_MAXBLOCKSIZE);
+	VERIFY0(ztest_write(zd, late_arrival_od.od_object, 0,
+	    SPA_OLD_MAXBLOCKSIZE, late_arrival_data));
+	umem_free(late_arrival_data, SPA_OLD_MAXBLOCKSIZE);
+
+	VERIFY3U(atomic_load_64(&ztest_late_arrival.zla_state), ==,
+	    ZTEST_LATE_ARRIVAL_IDLE);
+	ztest_late_arrival.zla_object = late_arrival_od.od_object;
+	atomic_store_64(&ztest_late_arrival.zla_state,
+	    ZTEST_LATE_ARRIVAL_ARMED);
+	VERIFY0(zil_commit(zd->zd_zilog, late_arrival_od.od_object));
+	VERIFY3U(atomic_load_64(&ztest_late_arrival.zla_state), ==,
+	    ZTEST_LATE_ARRIVAL_DONE);
+	memset(&ztest_late_arrival, 0, sizeof (ztest_late_arrival));
 
 	/*
 	 * Because it is hard to predict how much space a write will actually

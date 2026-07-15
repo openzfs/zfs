@@ -2072,17 +2072,40 @@ static int
 dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
     zio_prop_t *zp, zbookmark_phys_t *zb)
 {
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zgd->zgd_db;
 	dmu_sync_arg_t *dsa;
 	dmu_tx_t *tx;
+	abd_t *data;
+	uint64_t size;
 	int error;
 
-	error = dbuf_read((dmu_buf_impl_t *)zgd->zgd_db, NULL,
+	error = dbuf_read(db, NULL,
 	    DB_RF_CANFAIL | DMU_READ_NO_PREFETCH | DMU_KEEP_CACHING);
 	if (error != 0)
 		return (error);
 
+	/*
+	 * The ZIO runs asynchronously and therefore must not borrow db_data.
+	 * Snapshot it while db_mtx prevents the ARC buffer from being replaced
+	 * or destroyed.  A linear ABD also avoids another temporary copy in
+	 * compressors that require a linear input buffer.
+	 */
+	mutex_enter(&db->db_mtx);
+	size = db->db.db_size;
+	mutex_exit(&db->db_mtx);
+	data = abd_alloc_linear(size, dbuf_is_metadata(db));
+
+	mutex_enter(&db->db_mtx);
+	if (db->db.db_data == NULL || db->db.db_size != size) {
+		mutex_exit(&db->db_mtx);
+		abd_free(data);
+		return (SET_ERROR(EIO));
+	}
+	abd_copy_from_buf(data, db->db.db_data, size);
+	mutex_exit(&db->db_mtx);
+
 	tx = dmu_tx_create(os);
-	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
+	dmu_tx_hold_space(tx, size);
 	/*
 	 * This transaction does not produce any dirty data or log blocks, so
 	 * it should not be throttled.  All other cases wait for TXG sync, by
@@ -2091,6 +2114,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	 */
 	if (dmu_tx_assign(tx, DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE) != 0) {
 		dmu_tx_abort(tx);
+		abd_free(data);
 		/* Make zl_get_data do txg_waited_synced() */
 		return (SET_ERROR(EIO));
 	}
@@ -2132,8 +2156,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	zp->zp_nopwrite = B_FALSE;
 
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
-	    abd_get_from_buf(zgd->zgd_db->db_data, zgd->zgd_db->db_size),
-	    zgd->zgd_db->db_size, zgd->zgd_db->db_size, zp,
+	    data, size, size, zp,
 	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done,
 	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
 
