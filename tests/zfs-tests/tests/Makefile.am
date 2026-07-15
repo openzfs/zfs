@@ -484,6 +484,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/append/threadsappend_001_pos.ksh \
 	functional/append/cleanup.ksh \
 	functional/append/setup.ksh \
+	functional/arc/arc_anon_overflow_001_pos.ksh \
 	functional/arc/arcstats_runtime_tuning.ksh \
 	functional/arc/cleanup.ksh \
 	functional/arc/dbufstats_001_pos.ksh \
