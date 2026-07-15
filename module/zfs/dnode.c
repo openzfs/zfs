@@ -2475,6 +2475,37 @@ dnode_block_freed(dnode_t *dn, uint64_t blkid)
 	return (i < TXG_SIZE);
 }
 
+/*
+ * Check if a level-0 block was freed in a TXG after override_txg.
+ *
+ * When a block has been overridden (e.g., by block clone or direct I/O),
+ * we can't use dnode_block_freed() because it checks all active TXGs.
+ * A free from a TXG *before* the override should not make the block appear
+ * freed.
+ */
+uint64_t
+dnode_block_freed_after(dnode_t *dn, uint64_t blkid, uint64_t override_txg)
+{
+	ASSERT(blkid != DMU_BONUS_BLKID);
+	ASSERT(blkid != DMU_SPILL_BLKID);
+
+	if (dn->dn_free_txg)
+		return (TRUE);
+
+	mutex_enter(&dn->dn_mtx);
+	uint64_t open = spa_open_txg(dmu_objset_spa(dn->dn_objset));
+	for (uint64_t txg = override_txg + 1; txg <= open; txg++) {
+		int i = txg & TXG_MASK;
+		if (dn->dn_free_ranges[i] != NULL &&
+		    zfs_range_tree_contains(dn->dn_free_ranges[i], blkid, 1)) {
+			mutex_exit(&dn->dn_mtx);
+			return (TRUE);
+		}
+	}
+	mutex_exit(&dn->dn_mtx);
+	return (FALSE);
+}
+
 /* call from syncing context when we actually write/free space for this dnode */
 void
 dnode_diduse_space(dnode_t *dn, int64_t delta)

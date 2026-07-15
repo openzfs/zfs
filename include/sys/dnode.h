@@ -449,6 +449,8 @@ void dnode_diduse_space(dnode_t *dn, int64_t space);
 void dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx,
     boolean_t have_read, boolean_t force);
 uint64_t dnode_block_freed(dnode_t *dn, uint64_t blkid);
+uint64_t dnode_block_freed_after(dnode_t *dn, uint64_t blkid,
+    uint64_t override_txg);
 void dnode_init(void);
 void dnode_fini(void);
 int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
