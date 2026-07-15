@@ -32,10 +32,12 @@
 #define	_DMU_RECV_H
 
 #include <sys/inttypes.h>
+#include <sys/types.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/objlist.h>
+#include <sys/zfs_ioctl.h>
 
 extern const char *const recv_clone_name;
 
@@ -61,6 +63,7 @@ typedef struct dmu_recv_cookie {
 	void *drc_owner;
 	cred_t *drc_cred;
 	nvlist_t *drc_begin_nvl;
+	nvlist_t *drc_errors;
 
 	objset_t *drc_os;
 	zfs_file_t *drc_fp; /* The file to read the stream from */
@@ -85,5 +88,32 @@ int dmu_recv_begin(const char *, const char *, dmu_replay_record_t *,
 int dmu_recv_stream(dmu_recv_cookie_t *, offset_t *);
 int dmu_recv_end(dmu_recv_cookie_t *, void *);
 boolean_t dmu_objset_is_receiving(objset_t *);
+
+/*
+ * Receive stream record validators.  spa may be NULL to validate against the
+ * largest supported pool limits (for userland tools such as zstream).  errbuf
+ * is optional; when provided it receives a short description on failure.
+ *
+ * Size fields that exceed a pool or on-wire maximum return ERANGE; other
+ * malformed or inconsistent records return EINVAL.  Callers of lzc_receive*
+ * may therefore observe ERANGE where older OpenZFS modules returned EINVAL
+ * for the same oversized record.
+ */
+#define	RECV_CHECK_ERRBUFLEN	256
+
+int recv_check_drr_object(const struct drr_object *, spa_t *, boolean_t raw,
+    boolean_t spill, uint64_t featureflags, char *errbuf, size_t errbuflen);
+int recv_check_drr_free(const struct drr_free *, char *errbuf,
+    size_t errbuflen);
+int recv_check_drr_freeobjects(const struct drr_freeobjects *, char *errbuf,
+    size_t errbuflen);
+int recv_check_drr_object_range(const struct drr_object_range *, boolean_t raw,
+    char *errbuf, size_t errbuflen);
+int recv_check_drr_spill(const struct drr_spill *, spa_t *, boolean_t raw,
+    uint64_t featureflags, char *errbuf, size_t errbuflen);
+int recv_check_drr_write(const struct drr_write *, spa_t *, boolean_t raw,
+    uint64_t featureflags, char *errbuf, size_t errbuflen);
+int recv_check_drr_write_embedded(const struct drr_write_embedded *, spa_t *,
+    boolean_t raw, uint64_t featureflags, char *errbuf, size_t errbuflen);
 
 #endif /* _DMU_RECV_H */

@@ -5080,16 +5080,24 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			char tbuf[1024];
 			zfs_prop_t prop;
 			int intval;
+			const char *pname = nvpair_name(prop_err);
 
-			prop = zfs_name_to_prop(nvpair_name(prop_err));
+			/*
+			 * errors may also carry non-property keys (e.g.
+			 * ZFS_RECV_ERR_STREAM).  Only int32 pairs are
+			 * property apply failures.
+			 */
+			if (nvpair_type(prop_err) != DATA_TYPE_INT32)
+				continue;
+
+			prop = zfs_name_to_prop(pname);
 			(void) nvpair_value_int32(prop_err, &intval);
-			if (strcmp(nvpair_name(prop_err),
-			    ZPROP_N_MORE_ERRORS) == 0) {
+			if (strcmp(pname, ZPROP_N_MORE_ERRORS) == 0) {
 				trunc_prop_errs(intval);
 				break;
 			} else if (snapname == NULL || finalsnap == NULL ||
 			    strcmp(finalsnap, snapname) == 0 ||
-			    strcmp(nvpair_name(prop_err),
+			    strcmp(pname,
 			    zfs_prop_to_name(ZFS_PROP_REFQUOTA)) != 0) {
 				/*
 				 * Skip the special case of, for example,
@@ -5105,7 +5113,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				(void) snprintf(tbuf, sizeof (tbuf),
 				    dgettext(TEXT_DOMAIN,
 				    "cannot receive %s property on %s"),
-				    nvpair_name(prop_err), name);
+				    pname, name);
 				zfs_setprop_error(hdl, prop, intval, tbuf);
 			}
 		}
@@ -5174,6 +5182,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (ioctl_err != 0) {
+		const char *stream_err = NULL;
+
+		if (prop_errors != NULL) {
+			(void) nvlist_lookup_string(prop_errors,
+			    ZFS_RECV_ERR_STREAM, &stream_err);
+		}
+
 		switch (ioctl_errno) {
 		case ENODEV:
 			cp = strchr(destsnap, '@');
@@ -5223,11 +5238,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			*cp = '@';
 			break;
 		case EINVAL:
-			if (embedded && !raw) {
+		case ERANGE:
+			if (stream_err != NULL) {
+				zfs_error_aux(hdl, "%s", stream_err);
+			} else if (ioctl_errno == EINVAL && embedded && !raw) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "incompatible embedded data stream "
 				    "feature with encrypted receive."));
-			} else if (flags->resumable) {
+			} else if (ioctl_errno == EINVAL && flags->resumable) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "kernel modules must be upgraded to "
 				    "receive this stream."));

@@ -381,6 +381,7 @@ typedef enum {
 
 #define	ZPROP_SOURCE_VAL_RECVD	"$recvd"
 #define	ZPROP_N_MORE_ERRORS	"N_MORE_ERRORS"
+#define	ZFS_RECV_ERR_STREAM	"stream"
 
 /*
  * Dataset flag implemented as a special entry in the props zap object
