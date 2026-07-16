@@ -72,7 +72,7 @@
 %bcond_with    ubsan
 %bcond_with    systemd
 %bcond_with    pam
-%bcond_without pyzfs
+%bcond_with    pyzfs
 
 # Generic enable switch for systemd
 %if %{with systemd}

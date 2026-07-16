@@ -197,7 +197,7 @@ function freebsd() {
   run ./configure \
     --prefix=/usr/local \
     --with-libintl-prefix=/usr/local \
-    --enable-pyzfs \
+    $PYZFS_ENABLE \
     --enable-debuginfo $extra
   echo "##[endgroup]"
 
@@ -220,6 +220,7 @@ function linux() {
   echo "##[group]Configure"
   run ./configure \
     --prefix=/usr \
+    $PYZFS_ENABLE \
     --enable-debuginfo $extra
   echo "##[endgroup]"
 
@@ -247,7 +248,7 @@ function rpm_build_and_install() {
   fi
 
   echo "##[group]Configure"
-  run ./configure --enable-debuginfo $extra
+  run ./configure $PYZFS_ENABLE --enable-debuginfo $extra
   echo "##[endgroup]"
 
   echo "##[group]Build"
@@ -315,6 +316,7 @@ function deb_build_and_install() {
   echo "##[group]Configure"
   run ./configure \
     --prefix=/usr \
+    $PYZFS_ENABLE \
     --enable-debuginfo $extra
   echo "##[endgroup]"
 
@@ -385,6 +387,16 @@ extra=""
 if [ -n "$ENABLE_DEBUG" ] ; then
   extra="--enable-debug"
 fi
+
+# pyzfs requires Python 3.11 or later.
+PYZFS_ENABLE=""
+case "$OS" in
+  ubuntu22|almalinux8|almalinux9|centos-stream9)
+    ;;
+  *)
+    PYZFS_ENABLE="--enable-pyzfs"
+    ;;
+esac
 
 if [ -n "$CUSTOM_BRANCH" ] ; then
   git fetch --unshallow
