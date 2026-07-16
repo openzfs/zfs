@@ -361,6 +361,7 @@ print_summary_stats(nvlist_t *nvroot, const char *pool_name,
 	print_kv(",write_ops", vs->vs_ops[ZIO_TYPE_WRITE]);
 	print_kv(",checksum_errors", vs->vs_checksum_errors);
 	print_kv(",fragmentation", vs->vs_fragmentation);
+	print_kv(",slow_ios", vs->vs_slow_ios);
 	printf(" %llu\n", (u_longlong_t)timestamp);
 	return (0);
 }
