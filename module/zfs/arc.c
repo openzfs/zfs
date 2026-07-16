@@ -8019,6 +8019,19 @@ arc_target_bytes(void)
 	return (arc_c);
 }
 
+/*
+ * Byte budget for a single explicit (user) prefetch request, e.g.
+ * POSIX_FADV_WILLNEED.  Follows the adaptive ARC target (arc_c) once the cache
+ * is warm, but while cold -- when arc_c still sits near arc_c_min -- uses the
+ * midpoint toward arc_c_max so a hint issued right after boot is not starved.
+ * The caller applies the fraction that may be outstanding at once.
+ */
+uint64_t
+arc_boot_target_bytes(void)
+{
+	return (arc_warm ? arc_c : (arc_c + arc_c_max) / 2);
+}
+
 void
 arc_set_limits(uint64_t allmem)
 {
