@@ -1679,6 +1679,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fault/decrypt_fault.ksh \
 	functional/fault/fault_limits.ksh \
 	functional/fault/scrub_after_resilver.ksh \
+	functional/fault/suspend_on_device_removal.ksh \
 	functional/fault/suspend_on_probe_errors.ksh \
 	functional/fault/suspend_resume_single.ksh \
 	functional/fault/suspend_draid_fgroups.ksh \

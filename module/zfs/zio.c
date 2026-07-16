@@ -5749,7 +5749,8 @@ zio_done(zio_t *zio)
 		}
 
 		if ((zio->io_type == ZIO_TYPE_READ ||
-		    zio->io_type == ZIO_TYPE_FREE) &&
+		    zio->io_type == ZIO_TYPE_FREE ||
+		    zio->io_type == ZIO_TYPE_WRITE) &&
 		    !(zio->io_flags & ZIO_FLAG_SCAN_THREAD) &&
 		    zio->io_error == ENXIO &&
 		    spa_load_state(zio->io_spa) == SPA_LOAD_NONE &&

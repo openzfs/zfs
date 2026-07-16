@@ -734,6 +734,21 @@ txg_wait_synced_flags(dsl_pool_t *dp, uint64_t txg, txg_wait_flag_t flags)
 			break;
 		}
 
+		/*
+		 * If the pool is suspended, wait for it to be resumed
+		 * before continuing to wait for the txg to sync.
+		 */
+		if (spa_suspended(dp->dp_spa)) {
+			mutex_exit(&tx->tx_sync_lock);
+			mutex_enter(&dp->dp_spa->spa_suspend_lock);
+			while (spa_suspended(dp->dp_spa))
+				cv_wait(&dp->dp_spa->spa_suspend_cv,
+				    &dp->dp_spa->spa_suspend_lock);
+			mutex_exit(&dp->dp_spa->spa_suspend_lock);
+			mutex_enter(&tx->tx_sync_lock);
+			continue;
+		}
+
 		dprintf("broadcasting sync more "
 		    "tx_synced=%llu waiting=%llu dp=%px\n",
 		    (u_longlong_t)tx->tx_synced_txg,
