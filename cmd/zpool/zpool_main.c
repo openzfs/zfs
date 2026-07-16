@@ -6787,7 +6787,7 @@ typedef struct list_cbdata {
  * If `vdev_name` is NULL, we print a line of the headers.
  */
 static void
-print_line(list_cbdata_t *cb, const char *vdev_name)
+print_line(list_cbdata_t *cb, const char *vdev_name, int depth)
 {
 	zprop_list_t *pl = cb->cb_proplist;
 	char headerbuf[ZPOOL_MAXPROPLEN];
@@ -6798,14 +6798,25 @@ print_line(list_cbdata_t *cb, const char *vdev_name)
 
 	boolean_t print_header = (vdev_name == NULL);
 
+	if (!print_header && !cb->cb_json && depth > 0) {
+		if (cb->cb_scripted)
+			(void) printf("\t");
+		else
+			(void) printf("%*s", depth, "");
+	} else {
+		/* Zap it, no more need. */
+		depth = 0;
+	}
+
 	for (; pl != NULL; pl = pl->pl_next) {
 		width = pl->pl_width;
 		if (first && cb->cb_verbose) {
 			/*
-			 * Reset the width to accommodate the verbose listing
-			 * of devices.
+			 * Reset the width to accommodate the verbose listing of
+			 * devices.  depth is accounted for to avoid offseting
+			 * our line of dashes.
 			 */
-			width = cb->cb_namewidth;
+			width = cb->cb_namewidth - depth;
 		}
 
 		if (!first)
@@ -7289,7 +7300,7 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 				continue;
 
 			if (!printed && !cb->cb_json) {
-				print_line(cb, class_name[n]);
+				print_line(cb, class_name[n], 0);
 				printed = B_TRUE;
 			}
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
@@ -7310,12 +7321,12 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			l2c = fnvlist_alloc();
 		} else {
-			print_line(cb, "cache");
+			print_line(cb, "cache", depth + 2);
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
 			    cb->cb_name_flags);
-			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			collect_list_stats(zhp, vname, child[c], cb, depth + 4,
 			    B_FALSE, l2c);
 			free(vname);
 		}
@@ -7331,12 +7342,12 @@ collect_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 		if (cb->cb_json) {
 			sp = fnvlist_alloc();
 		} else {
-			print_line(cb, "spare");
+			print_line(cb, "spare", depth + 2);
 		}
 		for (c = 0; c < children; c++) {
 			vname = zpool_vdev_name(g_zfs, zhp, child[c],
 			    cb->cb_name_flags);
-			collect_list_stats(zhp, vname, child[c], cb, depth + 2,
+			collect_list_stats(zhp, vname, child[c], cb, depth + 4,
 			    B_TRUE, sp);
 			free(vname);
 		}
@@ -7574,7 +7585,7 @@ zpool_do_list(int argc, char **argv)
 
 		if (!cb.cb_scripted && (first || cb.cb_verbose) &&
 		    !cb.cb_json) {
-			print_line(&cb, NULL);
+			print_line(&cb, NULL, 0);
 			first = B_FALSE;
 		}
 		ret = pool_list_iter(list, B_TRUE, list_callback, &cb);
