@@ -94,6 +94,10 @@ tags = ['functional', 'cli_root', 'zpool_split']
 tests = ['compress_004_pos']
 tags = ['functional', 'compression']
 
+[tests/functional/dedup:Linux]
+tests = ['dedup_legacy_gang']
+tags = ['functional', 'dedup']
+
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
