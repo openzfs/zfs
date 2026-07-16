@@ -129,9 +129,12 @@ typedef struct {
  * characteristics of the stored block, such as its location on disk (DVAs),
  * birth txg and ref count.
  *
- * The "traditional" entry has an array of four, one for each number of DVAs
- * (copies= property) and another for additional "ditto" copies. Users of the
- * traditional struct will specify the variant (index) of the one they want.
+ * The "traditional" entry has an array of four, one for each value of the
+ * copies= property the block was written with and another for additional
+ * "ditto" copies. (The stored block's BP may carry more DVAs than copies=,
+ * eg a gang header is stored in more copies than the data it gangs, so the
+ * slot is not the BP's DVA count.) Users of the traditional struct will
+ * specify the variant (index) of the one they want.
  *
  * The newer "flat" entry has only a single form that is specified using the
  * DDT_PHYS_FLAT variant.
