@@ -276,7 +276,7 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
-tests = ['zfs_program_json']
+tests = ['zfs_channel_program_support', 'zfs_program_json']
 tags = ['functional', 'cli_root', 'zfs_program']
 
 [tests/functional/cli_root/zfs_promote]

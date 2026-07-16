@@ -118,11 +118,6 @@ COMMON_H = \
 	sys/zap.h \
 	sys/zap_impl.h \
 	sys/zap_leaf.h \
-	sys/zcp.h \
-	sys/zcp_global.h \
-	sys/zcp_iter.h \
-	sys/zcp_prop.h \
-	sys/zcp_set.h \
 	sys/zfeature.h \
 	sys/zfs_acl.h \
 	sys/zfs_bootenv.h \
@@ -165,11 +160,6 @@ COMMON_H = \
 	\
 	sys/fs/zfs.h \
 	\
-	sys/lua/lauxlib.h \
-	sys/lua/lua.h \
-	sys/lua/luaconf.h \
-	sys/lua/lualib.h \
-	\
 	sys/sysevent/dev.h \
 	sys/sysevent/eventdefs.h \
 	\
@@ -193,15 +183,30 @@ USER_H = \
 	libzpool.h \
 	libzutil.h
 
+if ZCP_ENABLED
+ZCP_H = \
+	sys/zcp.h \
+	sys/zcp_global.h \
+	sys/zcp_iter.h \
+	sys/zcp_prop.h \
+	sys/zcp_set.h \
+	\
+	sys/lua/lauxlib.h \
+	sys/lua/lua.h \
+	sys/lua/luaconf.h \
+	sys/lua/lualib.h
+endif
+
+
 
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs
-nobase_libzfs_HEADERS = $(COMMON_H) $(USER_H)
+nobase_libzfs_HEADERS = $(COMMON_H) $(ZCP_H) $(USER_H)
 endif
 
 kerneldir = $(prefix)/src/zfs-$(VERSION)/include
 if CONFIG_KERNEL
 if BUILD_LINUX
-nobase_kernel_HEADERS = $(COMMON_H) $(KERNEL_H)
+nobase_kernel_HEADERS = $(COMMON_H) $(ZCP_H) $(KERNEL_H)
 endif
 endif

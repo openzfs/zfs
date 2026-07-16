@@ -45,7 +45,6 @@ dist_man_MANS = \
 	%D%/man8/zfs-list.8 \
 	%D%/man8/zfs-load-key.8 \
 	%D%/man8/zfs-mount.8 \
-	%D%/man8/zfs-program.8 \
 	%D%/man8/zfs-project.8 \
 	%D%/man8/zfs-projectspace.8 \
 	%D%/man8/zfs-promote.8 \
@@ -107,6 +106,11 @@ dist_man_MANS = \
 	%D%/man8/zstream.8 \
 	%D%/man8/zstreamdump.8 \
 	%D%/man8/zpool_influxdb.8
+
+if ZCP_ENABLED
+dist_man_MANS += \
+	%D%/man8/zfs-program.8
+endif
 
 if BUILD_FREEBSD
 dist_man_MANS += \

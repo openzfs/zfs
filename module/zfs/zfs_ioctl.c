@@ -207,7 +207,6 @@
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_userhold.h>
 #include <sys/zfeature.h>
-#include <sys/zcp.h>
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
 #include <sys/vdev_impl.h>
@@ -221,8 +220,13 @@
 #include "zfs_deleg.h"
 #include "zfs_comutil.h"
 
+/* conditional includes */
+#if !defined(DISABLE_ZCP)
+#include <sys/zcp.h>
 #include <sys/lua/lua.h>
 #include <sys/lua/lauxlib.h>
+#endif
+
 #include <sys/zfs_ioctl_impl.h>
 
 kmutex_t zfsdev_state_lock;
@@ -4568,6 +4572,7 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
 	return (error);
 }
 
+#if !defined(DISABLE_ZCP)
 static const zfs_ioc_key_t zfs_keys_channel_program[] = {
 	{"program",	DATA_TYPE_STRING,		0},
 	{"arg",		DATA_TYPE_ANY,			0},
@@ -4605,6 +4610,7 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 	return (zcp_eval(poolname, program, sync_flag, instrlimit, memlimit,
 	    nvarg, outnvl));
 }
+#endif
 
 /*
  * innvl: unused
@@ -7870,7 +7876,7 @@ error:
 	return (ret);
 }
 
-static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
+static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST] = { 0 };
 
 static void
 zfs_ioctl_register_legacy(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
@@ -8096,11 +8102,13 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_config, POOL_NAME, POOL_CHECK_SUSPENDED, B_TRUE,
 	    B_TRUE, zfs_keys_pool_reopen, ARRAY_SIZE(zfs_keys_pool_reopen));
 
+#if !defined(DISABLE_ZCP)
 	zfs_ioctl_register("channel_program", ZFS_IOC_CHANNEL_PROGRAM,
 	    zfs_ioc_channel_program, zfs_secpolicy_config,
 	    POOL_NAME, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE,
 	    B_TRUE, zfs_keys_channel_program,
 	    ARRAY_SIZE(zfs_keys_channel_program));
+#endif
 
 	zfs_ioctl_register("redact", ZFS_IOC_REDACT,
 	    zfs_ioc_redact, zfs_secpolicy_config, DATASET_NAME,
