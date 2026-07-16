@@ -30,7 +30,8 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.kshlib
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.cfg
 
 #
 # DESCRIPTION:
@@ -43,8 +44,6 @@
 #
 
 verify_runnable "global"
-
-log_onexit zpool_export_cleanup
 
 set -A args "" "-f" "-? $TESTPOOL" "-QWERTYUIO $TESTPOOL"
 

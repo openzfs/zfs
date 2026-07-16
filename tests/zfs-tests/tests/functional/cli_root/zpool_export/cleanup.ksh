@@ -26,6 +26,6 @@
 # Use is subject to license terms.
 #
 
-. $STF_SUITE/include/libtest.shlib
-
-default_cleanup
+#
+# No shared cleanup needed - each test cleans up its own pool
+#
