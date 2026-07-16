@@ -2311,7 +2311,7 @@ vdev_open(vdev_t *vd)
 	}
 
 	boolean_t large_label;
-	if (spa_version(spa) < SPA_VERSION_FEATURES ||
+	if (spa_version(spa) < SPA_VERSION_FEATURES || vd->vdev_aux ||
 	    !(spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_LABEL) ||
 	    spa->spa_create_large_label_ok))
 		large_label = B_FALSE;

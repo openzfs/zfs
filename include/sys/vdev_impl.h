@@ -498,7 +498,10 @@ struct vdev {
  */
 #define	MMP_BLOCKS_PER_LABEL	1
 
-/* The largest uberblock we support is 8k. */
+/*
+ * The largest uberblock we support is 8k on old-format labels. With the large
+ * label format, we support up to 16MiB.
+ */
 #define	MAX_UBERBLOCK_SHIFT(new) ((new) ? 24 : 13)
 #define	VDEV_UBERBLOCK_SHIFT(vd)	\
 	MIN(MAX((vd)->vdev_top->vdev_ashift, UBERBLOCK_SHIFT), \
@@ -506,8 +509,7 @@ struct vdev {
 #define	VDEV_UBERBLOCK_COUNT_OLD(vd) \
 	(VDEV_UBERBLOCK_RING >> VDEV_UBERBLOCK_SHIFT(vd))
 #define	VDEV_UBERBLOCK_COUNT(vd)	\
-	(((vd)->vdev_large_label ? VDEV_LARGE_LABEL_SIZE - \
-	VDEV_LARGE_UBERBLOCK_RING : \
+	(((vd)->vdev_large_label ?  VDEV_LARGE_UBERBLOCK_RING : \
 	VDEV_UBERBLOCK_RING) >> VDEV_UBERBLOCK_SHIFT(vd))
 #define	VDEV_UBERBLOCK_OFFSET_OLD(vd, n) \
 	offsetof(vdev_label_t, vl_uberblock[(n) << VDEV_UBERBLOCK_SHIFT(vd)])

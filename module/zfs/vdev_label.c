@@ -1432,7 +1432,8 @@ vdev_label_init_impl(vdev_t *vd, zio_t *pio, uint64_t crtxg,
 			for (int u = 0;
 			    u < VDEV_LARGE_UBERBLOCK_RING / SPA_MAXBLOCKSIZE;
 			    u++) {
-				vdev_label_write(zio, vd, l, B_TRUE, ub_abd2,
+				vdev_label_write(u == 0 ? zio : pio, vd, l,
+				    B_TRUE, ub_abd2,
 				    VDEV_LARGE_UBERBLOCK_RING +
 				    u * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE,
 				    NULL, NULL, flags);
@@ -1678,7 +1679,7 @@ vdev_label_write_bootenv(vdev_t *vd, nvlist_t *env)
 	    !vdev_writeable(vd)) {
 		return (error);
 	}
-	size_t content_size;
+	size_t content_size = 0;
 	if (vd->vdev_large_label) {
 		switch (fnvlist_lookup_uint64(env, BOOTENV_VERSION)) {
 		case VB_RAW:

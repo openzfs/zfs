@@ -1021,7 +1021,7 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 			}
 
 			/* Save time if the version is already set. */
-			if (spa_version(spa) >= ver)
+			if (ver == spa_version(spa))
 				continue;
 
 			/*
