@@ -1643,6 +1643,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fadvise/cleanup.ksh \
 	functional/fadvise/fadvise_dontneed.ksh \
 	functional/fadvise/fadvise_willneed.ksh \
+	functional/fadvise/fadvise_willneed_limit.ksh \
 	functional/fadvise/setup.ksh \
 	functional/failmode/cleanup.ksh \
 	functional/failmode/failmode_dmu_tx_wait.ksh \
