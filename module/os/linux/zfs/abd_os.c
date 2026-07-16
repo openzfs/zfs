@@ -981,7 +981,7 @@ abd_borrow_buf(abd_t *abd, size_t n)
 {
 	void *buf;
 	abd_verify(abd);
-	ASSERT3U(abd->abd_size, >=, 0);
+	ASSERT3U(abd->abd_size, >=, n);
 	/*
 	 * In the event the ABD is composed of a single user page from Direct
 	 * I/O we can not direclty return the raw buffer. This is a consequence
