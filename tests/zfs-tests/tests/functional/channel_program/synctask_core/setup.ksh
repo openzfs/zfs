@@ -17,6 +17,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+zcp_support $TESTPOOL || log_unsupported "zfs channel programs are unavailable"
+
 DISK=${DISKS%% *}
 
 TESTPOOLDISK=${DISKS%% *}

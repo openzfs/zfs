@@ -547,6 +547,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/casenorm/sensitive_none_delete.ksh \
 	functional/casenorm/sensitive_none_lookup.ksh \
 	functional/casenorm/setup.ksh \
+	functional/chattr/chattr_001_pos.ksh \
+	functional/chattr/chattr_002_neg.ksh \
+	functional/chattr/cleanup.ksh \
+	functional/chattr/setup.ksh \
 	functional/channel_program/lua_core/cleanup.ksh \
 	functional/channel_program/lua_core/setup.ksh \
 	functional/channel_program/lua_core/tst.args_to_lua.ksh \
@@ -608,10 +612,6 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.snapshot_rename.ksh \
 	functional/channel_program/synctask_core/tst.snapshot_simple.ksh \
 	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh \
-	functional/chattr/chattr_001_pos.ksh \
-	functional/chattr/chattr_002_neg.ksh \
-	functional/chattr/cleanup.ksh \
-	functional/chattr/setup.ksh \
 	functional/checksum/cleanup.ksh \
 	functional/checksum/filetest_001_pos.ksh \
 	functional/checksum/filetest_002_pos.ksh \
@@ -807,6 +807,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_mount/zfs_multi_mount.ksh \
 	functional/cli_root/zfs_program/cleanup.ksh \
 	functional/cli_root/zfs_program/setup.ksh \
+	functional/cli_root/zfs_program/zfs_channel_program_support.ksh \
 	functional/cli_root/zfs_program/zfs_program_json.ksh \
 	functional/cli_root/zfs_promote/cleanup.ksh \
 	functional/cli_root/zfs_promote/setup.ksh \
