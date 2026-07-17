@@ -2133,16 +2133,11 @@ out:
 }
 
 /*
- * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp by
- * reading the committed on-disk data through the DMU (the same data
- * zfs_clone_range_locked() will clone) and byte-comparing it.  Both files must
- * be range locked by the caller.  On return *eqp is set if the ranges are
- * byte-for-byte equal.  This is the authoritative (and always-correct) path;
- * dmu_read() serves holes as zeros and transparently decrypts, so it needs no
- * special-casing for encryption, holes or embedded blocks.
+ * Compare two ranges by copying them out of the DMU into buffers and comparing
+ * those.  Only used where the dbuf comparison below cannot go; see there.
  */
 static int
-zfs_dedupe_range_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
+zfs_dedupe_range_copy_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
     uint64_t outoff, uint64_t len, boolean_t *eqp)
 {
 	objset_t	*inos = ZTOZSB(inzp)->z_os;
@@ -2181,6 +2176,128 @@ zfs_dedupe_range_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	vmem_free(inbuf, chunk);
 	vmem_free(outbuf, chunk);
+
+	return (error);
+}
+
+/*
+ * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp by
+ * reading the committed on-disk data through the DMU (the same data
+ * zfs_clone_range_locked() will clone) and byte-comparing it.  Both files must
+ * be range locked by the caller.  On return *eqp is set if the ranges are
+ * byte-for-byte equal.  This is the authoritative (and always-correct) path;
+ * the DMU serves holes as zeros and decrypts transparently, so it needs no
+ * special-casing for encryption, holes or embedded blocks.
+ *
+ * The comparison is done on the dbufs themselves.  dmu_read() would only hold
+ * the very same buffers and memcpy() out of them, so going through it would
+ * cost two allocations and a copy of every byte, for nothing: we are not
+ * keeping the data, only looking at it.  Our range locks keep it still while
+ * we do.
+ */
+static int
+zfs_dedupe_range_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
+    uint64_t outoff, uint64_t len, boolean_t *eqp)
+{
+	objset_t	*inos = ZTOZSB(inzp)->z_os;
+	objset_t	*outos = ZTOZSB(outzp)->z_os;
+	dnode_t		*indn, *outdn;
+	boolean_t	diff = B_FALSE;
+	int		error;
+
+	*eqp = B_FALSE;
+
+	error = dnode_hold(inos, inzp->z_id, FTAG, &indn);
+	if (error != 0)
+		return (error);
+	error = dnode_hold(outos, outzp->z_id, FTAG, &outdn);
+	if (error != 0) {
+		dnode_rele(indn, FTAG);
+		return (error);
+	}
+
+	/*
+	 * dmu_buf_hold_array_by_dnode() refuses to look past a single block
+	 * whose size is not a power of two, calling zfs_panic_recover() rather
+	 * than serving the tail as zeros the way dmu_read() does.  A ZPL file
+	 * should never present that shape - zfs_grow_blocksize() only leaves a
+	 * block size alone once the file has outgrown it, so an odd-sized block
+	 * means the file still fits inside it and the range cannot reach past
+	 * it.  Should one turn up regardless, fall back to copying rather than
+	 * add another way to take the pool down.  Our caller reaches
+	 * dmu_read_l0_bps() first, which holds the same buffers and would trip
+	 * over such a file before we ever got here, so in practice this only
+	 * catches what gets past that on a pool running with zfs_recover set.
+	 */
+	if ((indn->dn_datablkshift == 0 && inoff + len > indn->dn_datablksz) ||
+	    (outdn->dn_datablkshift == 0 &&
+	    outoff + len > outdn->dn_datablksz)) {
+		dnode_rele(outdn, FTAG);
+		dnode_rele(indn, FTAG);
+		return (zfs_dedupe_range_copy_memcmp(inzp, inoff, outzp,
+		    outoff, len, eqp));
+	}
+
+	while (len > 0 && !diff) {
+		/*
+		 * Hold no more at once than the copying path used to allocate,
+		 * so that a large request does not pin an unbounded stretch of
+		 * the ARC while we walk it.
+		 */
+		uint64_t n = MIN(len, (uint64_t)zfs_vnops_read_chunk_size);
+		uint64_t left = n;
+		dmu_buf_t **indbp, **outdbp;
+		int innum, outnum;
+
+		error = dmu_buf_hold_array_by_dnode(indn, inoff, n, TRUE,
+		    FTAG, &innum, &indbp, DMU_READ_PREFETCH);
+		if (error != 0)
+			break;
+		error = dmu_buf_hold_array_by_dnode(outdn, outoff, n, TRUE,
+		    FTAG, &outnum, &outdbp, DMU_READ_PREFETCH);
+		if (error != 0) {
+			dmu_buf_rele_array(indbp, innum, FTAG);
+			break;
+		}
+
+		/*
+		 * The two files share a block size and both offsets are block
+		 * aligned, so the two arrays cover the span the same way.
+		 */
+		ASSERT3S(innum, ==, outnum);
+
+		for (int i = 0; i < innum; i++) {
+			uint64_t inbufoff = inoff - indbp[i]->db_offset;
+			uint64_t outbufoff = outoff - outdbp[i]->db_offset;
+			uint64_t tocmp = MIN(indbp[i]->db_size - inbufoff,
+			    left);
+
+			ASSERT3P(indbp[i]->db_data, !=, NULL);
+			ASSERT3P(outdbp[i]->db_data, !=, NULL);
+
+			if (memcmp((char *)indbp[i]->db_data + inbufoff,
+			    (char *)outdbp[i]->db_data + outbufoff,
+			    tocmp) != 0) {
+				diff = B_TRUE;
+				break;
+			}
+
+			inoff += tocmp;
+			outoff += tocmp;
+			left -= tocmp;
+		}
+
+		dmu_buf_rele_array(outdbp, outnum, FTAG);
+		dmu_buf_rele_array(indbp, innum, FTAG);
+
+		len -= (n - left);
+	}
+
+	if (error == 0 && len == 0 && !diff)
+		*eqp = B_TRUE;
+
+	dnode_rele(outdn, FTAG);
+	dnode_rele(indn, FTAG);
 
 	return (error);
 }
