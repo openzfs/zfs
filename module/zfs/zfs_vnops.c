@@ -2210,6 +2210,19 @@ zfs_dedupe_bp_provably_equal(const blkptr_t *bi, const blkptr_t *bo)
 {
 	enum zio_checksum ck;
 
+	/*
+	 * Two holes are both a run of zeros over the same block, so they are
+	 * equal without either one having a checksum to compare.  Their sizes
+	 * are not worth comparing and must not be: our caller pairs the two
+	 * files block for block over a block size they share, but a block that
+	 * was never written at all reaches us as an all-zero block pointer
+	 * (see dmu_read_l0_bps()), whose BP_GET_LSIZE() decodes to the minimum
+	 * block size rather than to the file's.  Reading a hole to compare its
+	 * zeros against another hole's zeros is exactly what this avoids.
+	 */
+	if (BP_IS_HOLE(bi) && BP_IS_HOLE(bo))
+		return (B_TRUE);
+
 	if (BP_IS_EMBEDDED(bi) || BP_IS_EMBEDDED(bo) ||
 	    BP_IS_HOLE(bi) || BP_IS_HOLE(bo) ||
 	    BP_IS_REDACTED(bi) || BP_IS_REDACTED(bo) ||
@@ -2232,18 +2245,62 @@ zfs_dedupe_bp_provably_equal(const blkptr_t *bi, const blkptr_t *bo)
 }
 
 /*
+ * The mirror of zfs_dedupe_bp_provably_equal(): decide, from the two L0 block
+ * pointers alone, whether the blocks provably hold *different* logical data,
+ * so the caller can report the ranges as differing without reading them.  This
+ * can only ever prove inequality; anything not provable is inconclusive and
+ * the caller must fall back to reading the data.
+ *
+ * A checksum covers the physical bytes, so unequal checksums prove only that
+ * the physical bytes differ.  Carrying that back to the logical data needs the
+ * block stored verbatim, hence the insistence on compression being off: two
+ * blocks holding identical data can perfectly well compress to different
+ * bytes, say after the compression property was changed, and zstd records only
+ * its algorithm in the BP, not its level.  Encrypted blocks are excluded for
+ * the same reason as in the equality test, to the opposite effect: per-block
+ * IVs give identical plaintext different ciphertext, so unequal checksums
+ * there would say nothing.  Holes and embedded blocks carry no comparable
+ * checksum at all.
+ *
+ * Unlike the equality test this does not need a dedup-grade checksum.  Even a
+ * weak one is deterministic, so equal data always gives equal checksums, and
+ * unequal checksums therefore always mean unequal data.
+ */
+static boolean_t
+zfs_dedupe_bp_provably_unequal(const blkptr_t *bi, const blkptr_t *bo)
+{
+	if (BP_IS_EMBEDDED(bi) || BP_IS_EMBEDDED(bo) ||
+	    BP_IS_HOLE(bi) || BP_IS_HOLE(bo) ||
+	    BP_IS_REDACTED(bi) || BP_IS_REDACTED(bo) ||
+	    BP_IS_ENCRYPTED(bi) || BP_IS_ENCRYPTED(bo))
+		return (B_FALSE);
+
+	if (BP_GET_COMPRESS(bi) != ZIO_COMPRESS_OFF ||
+	    BP_GET_COMPRESS(bo) != ZIO_COMPRESS_OFF)
+		return (B_FALSE);
+
+	if (BP_GET_CHECKSUM(bi) != BP_GET_CHECKSUM(bo) ||
+	    BP_GET_LSIZE(bi) != BP_GET_LSIZE(bo) ||
+	    BP_GET_BYTEORDER(bi) != BP_GET_BYTEORDER(bo))
+		return (B_FALSE);
+
+	return (!ZIO_CHECKSUM_EQUAL(bi->blk_cksum, bo->blk_cksum));
+}
+
+/*
  * Compare [inoff, inoff + len) in inzp with [outoff, outoff + len) in outzp,
  * setting *samep if the ranges are byte-for-byte equal.  Both files must be
  * range locked by the caller.
  *
- * As a fast path, blocks are compared by their block-pointer checksums (see
- * zfs_dedupe_bp_provably_equal()); with a strong checksum this avoids reading
- * the data at all, mirroring how ZFS dedup trusts checksums.  Any block not
- * provably equal that way - a weak or mismatched checksum, encryption, a hole,
- * differing compression, a dirty (not yet synced) block, etc. - falls back to
- * reading and byte-comparing the data.  The fast path can only confirm
- * equality; every inequality is decided by the data comparison, so the result
- * is identical to a full byte compare.
+ * As a fast path, blocks are compared by their block-pointer checksums, which
+ * can settle a block either way without reading it: equal, when a strong
+ * checksum matches (zfs_dedupe_bp_provably_equal(), mirroring how ZFS dedup
+ * trusts checksums), or unequal, when checksums over verbatim-stored blocks
+ * differ (zfs_dedupe_bp_provably_unequal()).  Whatever neither can settle - a
+ * weak or mismatched checksum, encryption, a hole, compression, a dirty (not
+ * yet synced) block, etc. - falls back to reading and byte-comparing the data.
+ * Both tests only ever assert what the block pointers prove, so the result is
+ * identical to a full byte compare.
  *
  * A trailing block the range only partly covers is no different: the two files
  * share a block size and both offsets are block aligned, so the tail occupies
@@ -2314,6 +2371,17 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 			if (zfs_dedupe_bp_provably_equal(&bps_in[i],
 			    &bps_out[i]))
 				continue;
+
+			/*
+			 * Blocks that provably differ make the whole range
+			 * differ - but only when the range covers all of this
+			 * one.  Two differing blocks can still agree over the
+			 * part a trailing sub-block request covers.
+			 */
+			if (cmplen == blksz &&
+			    zfs_dedupe_bp_provably_unequal(&bps_in[i],
+			    &bps_out[i]))
+				goto out;
 
 			/*
 			 * Not provable from BPs: compare just this block, or
