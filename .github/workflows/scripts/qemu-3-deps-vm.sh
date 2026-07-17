@@ -124,7 +124,7 @@ function rhel() {
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
-    kernel-devel python3-build python3-pip python3-setuptools python3-wheel \
+    kernel-devel python3-pip python3-setuptools python3-wheel \
     qemu-guest-agent  rng-tools rpcgen rpm-build rsync samba strace sysstat \
     systemd watchdog wget xfsprogs-devel xxhash zlib-devel
 
@@ -184,6 +184,9 @@ case "$1" in
     sudo dnf install -y epel-release
     echo "##[endgroup]"
     rhel
+    echo "##[group] install python3-build"
+    sudo dnf install -y python3-build
+    echo "##[endgroup]"
     echo "##[group]Install kernel-abi-stablelists"
     sudo dnf install -y kernel-abi-stablelists
     echo "##[endgroup]"

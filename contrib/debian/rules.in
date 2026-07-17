@@ -43,7 +43,6 @@ override_dh_auto_configure:
 	  --with-udevdir=/usr/lib/udev \
 	  --with-zfsexecdir=/usr/lib/zfs-linux \
 	  --enable-systemd \
-	  --enable-pyzfs \
 	  --with-python=python3 \
 	  --with-pammoduledir='/usr/lib/$(DEB_HOST_MULTIARCH)/security' \
 	  --with-pkgconfigdir='/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig' \

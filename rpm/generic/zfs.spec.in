@@ -299,15 +299,19 @@ Requires:       python%{__python_pkg_version}-cffi
 
 %if 0%{?rhel}%{?centos}%{?fedora}%{?suse_version}%{?openEuler}
 %if 0%{?centos} == 7
+BuildRequires:  python311-build
 BuildRequires:  python311-packaging
 BuildRequires:  python311-devel
 BuildRequires:  python311-cffi
 BuildRequires:  python311-setuptools
+BuildRequires:  python311-wheel
 %else
 BuildRequires:  python%{__python_pkg_version}-packaging
+BuildRequires:  python%{__python_pkg_version}-build
 BuildRequires:  python%{__python_pkg_version}-devel
 BuildRequires:  python%{__python_pkg_version}-cffi
 BuildRequires:  python%{__python_pkg_version}-setuptools
+BuildRequires:  python%{__python_pkg_version}-wheel
 %endif
 
 BuildRequires:  libffi-devel
