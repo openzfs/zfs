@@ -2211,16 +2211,20 @@ zfs_dedupe_bp_provably_equal(const blkptr_t *bi, const blkptr_t *bo)
  * setting *samep if the ranges are byte-for-byte equal.  Both files must be
  * range locked by the caller.
  *
- * As a fast path, whole aligned blocks are compared by their block-pointer
- * checksums (see zfs_dedupe_bp_provably_equal()); with a strong checksum this
- * avoids reading the data at all, mirroring how ZFS dedup trusts checksums.
- * Any block not provably equal that way - a weak or mismatched checksum,
- * encryption, a hole, differing compression, a dirty (not yet synced) block,
- * etc. - and the unaligned trailing sub-block (whose partial content a
- * whole-block checksum cannot validate) fall back to reading and byte-
- * comparing the data.  The fast path can only confirm equality; every
- * inequality is decided by the data comparison, so the result is identical to
- * a full byte compare.
+ * As a fast path, blocks are compared by their block-pointer checksums (see
+ * zfs_dedupe_bp_provably_equal()); with a strong checksum this avoids reading
+ * the data at all, mirroring how ZFS dedup trusts checksums.  Any block not
+ * provably equal that way - a weak or mismatched checksum, encryption, a hole,
+ * differing compression, a dirty (not yet synced) block, etc. - falls back to
+ * reading and byte-comparing the data.  The fast path can only confirm
+ * equality; every inequality is decided by the data comparison, so the result
+ * is identical to a full byte compare.
+ *
+ * A trailing block the range only partly covers is no different: the two files
+ * share a block size and both offsets are block aligned, so the tail occupies
+ * the same intra-block span in each, and equal whole-block checksums prove the
+ * whole blocks equal, hence any common prefix of them equal.  Only the bytes
+ * inside the range are ever compared.
  */
 static int
 zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
@@ -2231,7 +2235,7 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	uint_t		blksz = inzp->z_blksz;
 	blkptr_t	*bps_in = NULL, *bps_out = NULL;
 	size_t		maxblocks;
-	uint64_t	aligned, off = 0;
+	uint64_t	off = 0;
 	boolean_t	eq;
 	int		error = 0;
 
@@ -2253,11 +2257,8 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	bps_in = kmem_alloc(sizeof (blkptr_t) * maxblocks, KM_SLEEP);
 	bps_out = kmem_alloc(sizeof (blkptr_t) * maxblocks, KM_SLEEP);
 
-	/* Whole aligned blocks are eligible for the checksum fast path. */
-	aligned = P2ALIGN_TYPED(len, blksz, uint64_t);
-
-	while (off < aligned) {
-		uint64_t span = MIN(aligned - off, (uint64_t)maxblocks * blksz);
+	while (off < len) {
+		uint64_t span = MIN(len - off, (uint64_t)maxblocks * blksz);
 		size_t nin = maxblocks, nout = maxblocks;
 		int e1, e2;
 
@@ -2282,31 +2283,24 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		}
 
 		for (size_t i = 0; i < nin; i++) {
+			uint64_t cmpoff = off + (uint64_t)i * blksz;
+			uint64_t cmplen = MIN((uint64_t)blksz, len - cmpoff);
+
 			if (zfs_dedupe_bp_provably_equal(&bps_in[i],
 			    &bps_out[i]))
 				continue;
 
-			/* Not provable from BPs: compare just this block. */
-			error = zfs_dedupe_range_memcmp(inzp,
-			    inoff + off + (uint64_t)i * blksz, outzp,
-			    outoff + off + (uint64_t)i * blksz, blksz, &eq);
+			/*
+			 * Not provable from BPs: compare just this block, or
+			 * only the part of it the range covers.
+			 */
+			error = zfs_dedupe_range_memcmp(inzp, inoff + cmpoff,
+			    outzp, outoff + cmpoff, cmplen, &eq);
 			if (error != 0 || !eq)
 				goto out;
 		}
 
 		off += span;
-	}
-
-	/*
-	 * The unaligned trailing sub-block (and, when they were not eligible
-	 * above, unaligned leading bytes) must always be read: a whole-block
-	 * checksum cannot vouch for a partial block.
-	 */
-	if (off < len) {
-		error = zfs_dedupe_range_memcmp(inzp, inoff + off, outzp,
-		    outoff + off, len - off, &eq);
-		if (error != 0 || !eq)
-			goto out;
 	}
 
 	*samep = B_TRUE;

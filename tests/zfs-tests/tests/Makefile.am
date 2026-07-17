@@ -538,6 +538,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_fideduperange_mtime.ksh \
 	functional/block_cloning/block_cloning_fideduperange_partial.ksh \
 	functional/block_cloning/block_cloning_fideduperange_subblock.ksh \
+	functional/block_cloning/block_cloning_fideduperange_tail.ksh \
 	functional/block_cloning/block_cloning_cross_enc_dataset.ksh \
 	functional/block_cloning/block_cloning_replay.ksh \
 	functional/block_cloning/block_cloning_replay_encrypted.ksh \
