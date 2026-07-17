@@ -2238,14 +2238,12 @@ zfs_dedupe_range_compare(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	*samep = B_FALSE;
 
 	/*
-	 * The checksum fast path needs the two files' blocks to line up one to
-	 * one: same block size and block-aligned offsets.  Otherwise compare
-	 * the whole range by reading the data.
+	 * zfs_dedupe_range() has already rejected differing block sizes and
+	 * unaligned offsets, so the two files' blocks line up one to one.
 	 */
-	if (outzp->z_blksz != blksz ||
-	    (inoff % blksz) != 0 || (outoff % blksz) != 0)
-		return (zfs_dedupe_range_memcmp(inzp, inoff, outzp, outoff, len,
-		    samep));
+	ASSERT3U(outzp->z_blksz, ==, blksz);
+	ASSERT0(inoff % blksz);
+	ASSERT0(outoff % blksz);
 
 	/*
 	 * Bound the block-pointer batch so the temporary arrays stay small and
@@ -2449,11 +2447,18 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	}
 
 	/*
-	 * The clone step requires block-aligned offsets; those can never be
+	 * The clone step can only replace whole blocks of the destination with
+	 * whole blocks of the source, so the two files must agree on the block
+	 * size and both offsets must be block-aligned; those can never be
 	 * shortened away.  A trailing partial block is handled after the
-	 * comparison below.
+	 * comparison below.  Block sizes cannot change under us here: growing
+	 * one takes the whole-file rangelock, which our holds exclude.
 	 */
 	inblksz = inzp->z_blksz;
+	if (inblksz != outzp->z_blksz) {
+		error = SET_ERROR(EINVAL);
+		goto unlock;
+	}
 	if ((inoff % inblksz) != 0 || (outoff % inblksz) != 0) {
 		error = SET_ERROR(EINVAL);
 		goto unlock;
