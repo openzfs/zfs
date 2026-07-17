@@ -1632,17 +1632,25 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 	size = fnvlist_size(nvl);
 
 	if (size > zc->zc_nvlist_dst_size) {
-		error = SET_ERROR(ENOMEM);
-	} else {
-		packed = fnvlist_pack(nvl, &size);
-		if (ddi_copyout(packed, (void *)(uintptr_t)zc->zc_nvlist_dst,
-		    size, zc->zc_iflags) != 0)
-			error = SET_ERROR(EFAULT);
-		fnvlist_pack_free(packed, size);
+		/*
+		 * Report the required size so the caller can retry, but do
+		 * not claim the destination buffer was filled.
+		 */
+		zc->zc_nvlist_dst_size = size;
+		zc->zc_nvlist_dst_filled = B_FALSE;
+		return (SET_ERROR(ENOMEM));
 	}
 
-	zc->zc_nvlist_dst_size = size;
-	zc->zc_nvlist_dst_filled = B_TRUE;
+	packed = fnvlist_pack(nvl, &size);
+	if (ddi_copyout(packed, (void *)(uintptr_t)zc->zc_nvlist_dst,
+	    size, zc->zc_iflags) != 0) {
+		zc->zc_nvlist_dst_filled = B_FALSE;
+		error = SET_ERROR(EFAULT);
+	} else {
+		zc->zc_nvlist_dst_size = size;
+		zc->zc_nvlist_dst_filled = B_TRUE;
+	}
+	fnvlist_pack_free(packed, size);
 	return (error);
 }
 
@@ -5765,6 +5773,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 	    &off);
 	if (error != 0)
 		goto out;
+	drc.drc_errors = *errors;
 	tofs_was_redacted = dsl_get_redacted(drc.drc_ds);
 
 	/*
@@ -6120,7 +6129,9 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	/*
 	 * Now that all props, initial and delayed, are set, report the prop
-	 * errors to the caller.
+	 * errors to the caller.  Do not overwrite a non-zero receive errno
+	 * (e.g. ERANGE/EINVAL from stream validation) if the errors nvlist
+	 * cannot be copied out.
 	 */
 	if (zc->zc_nvlist_dst_size != 0 && errors != NULL &&
 	    (nvlist_smush(errors, zc->zc_nvlist_dst_size) != 0 ||
@@ -6129,7 +6140,8 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 		 * Caller made zc->zc_nvlist_dst less than the minimum expected
 		 * size or supplied an invalid address.
 		 */
-		error = SET_ERROR(EINVAL);
+		if (error == 0)
+			error = SET_ERROR(EINVAL);
 	}
 
 out:
@@ -8764,9 +8776,15 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 			}
 			if (smusherror == 0)
 				puterror = put_nvlist(zc, outnvl);
+			else
+				puterror = smusherror;
 		}
 
-		if (puterror != 0)
+		/*
+		 * Prefer the operation's errno over a copyout/smush failure
+		 * so stream validation errors are not replaced by EINVAL.
+		 */
+		if (puterror != 0 && error == 0)
 			error = puterror;
 
 		nvlist_free(outnvl);

@@ -1205,11 +1205,22 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 			error = nvlist_lookup_uint64(outnvl, "error_flags",
 			    errflags);
 
-		if (error == 0 && errors != NULL) {
+		/*
+		 * Copy the kernel "errors" nvlist when present.  On success
+		 * this carries property apply failures; on failure it may
+		 * also include ZFS_RECV_ERR_STREAM.  Do not allocate an
+		 * empty nvlist when the key is absent — leave *errors
+		 * unchanged (callers must initialize it to NULL).  If the
+		 * caller requested errors and the ioctl succeeded but the
+		 * key is missing, treat that as ENOENT (incomplete output).
+		 */
+		if (errors != NULL && outnvl != NULL) {
 			nvlist_t *nvl;
-			error = nvlist_lookup_nvlist(outnvl, "errors", &nvl);
-			if (error == 0)
+
+			if (nvlist_lookup_nvlist(outnvl, "errors", &nvl) == 0)
 				*errors = fnvlist_dup(nvl);
+			else if (error == 0)
+				error = ENOENT;
 		}
 
 		fnvlist_free(innvl);
@@ -1261,11 +1272,19 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 			if (errflags != NULL)
 				*errflags = zc.zc_obj;
+		}
 
-			if (errors != NULL)
-				VERIFY0(nvlist_unpack(
-				    (void *)(uintptr_t)zc.zc_nvlist_dst,
-				    zc.zc_nvlist_dst_size, errors, KM_SLEEP));
+		/*
+		 * Unpack errors when the kernel filled the dst buffer, on
+		 * success or failure (stream/property details). The caller's
+		 * pointer is unchanged when the buffer was not filled.
+		 */
+		if (errors != NULL && zc.zc_nvlist_dst_filled) {
+			if (nvlist_unpack((void *)(uintptr_t)zc.zc_nvlist_dst,
+			    zc.zc_nvlist_dst_size, errors, KM_SLEEP) != 0 &&
+			    error == 0) {
+				error = EINVAL;
+			}
 		}
 
 		if (rp_packed != NULL)
@@ -1352,7 +1371,15 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'action_handle' and 'cleanup_fd' are no longer used, and are ignored.
  *
  * The 'errors' nvlist contains an entry for each unapplied received
- * property.  Callers are responsible for freeing this nvlist.
+ * property, and may also include ZFS_RECV_ERR_STREAM when the kernel
+ * rejected the stream.  It is set when the kernel returned an errors
+ * payload (including on ioctl failure); otherwise the caller's pointer
+ * is unchanged and must be initialized to NULL.  Callers are responsible
+ * for freeing this nvlist when it is set.
+ *
+ * Oversized stream records return ERANGE (libzfs maps this to
+ * EZFS_BADSTREAM along with EINVAL).  Older OpenZFS modules often
+ * returned EINVAL for the same condition.
  */
 int
 lzc_receive_one(const char *snapname, nvlist_t *props,

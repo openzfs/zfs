@@ -418,6 +418,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/zstream/little-endian-all-drr-types-incr-XDR.zsend.bz2 \
 	functional/zstream/decompress.zsend.bz2 \
 	functional/zstream/decompress-crypt.zsend.bz2 \
+	functional/zstream/undersized-write-lsize.zsend.bz2 \
 	functional/zstream/big-endian-long-payloads.zsend.bz2 \
 	functional/zstream/little-endian-long-payloads.zsend.bz2 \
 	functional/zstream/beadtbn-new.dump.bz2 \
@@ -2108,6 +2109,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/cleanup.ksh \
 	functional/rsend/recv_dedup_encrypted_zvol.ksh \
 	functional/rsend/recv_dedup.ksh \
+	functional/rsend/recv_validate_001_neg.ksh \
 	functional/rsend/rsend_001_pos.ksh \
 	functional/rsend/rsend_002_pos.ksh \
 	functional/rsend/rsend_003_pos.ksh \
@@ -2439,6 +2441,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zstream/zstream_recompress_004_pos.ksh \
 	functional/zstream/zstream_recompress_005_pos.ksh \
 	functional/zstream/zstream_redup_001_pos.ksh \
+	functional/zstream/zstream_validate_001_neg.ksh \
 	functional/zvol/zvol_cli/cleanup.ksh \
 	functional/zvol/zvol_cli/setup.ksh \
 	functional/zvol/zvol_cli/zvol_cli_001_pos.ksh \

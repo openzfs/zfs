@@ -292,6 +292,73 @@ parallel_compress_writes(compression_spec_t *target)
 	return (step);
 }
 
+/*
+ * Keep DRR_BEGIN feature flags consistent with the WRITE payloads we emit.
+ * Compressed WRITEs require DMU_BACKUP_FEATURE_COMPRESSED (and LZ4/ZSTD as
+ * appropriate).  Recompressing to off clears COMPRESSED for non-raw streams;
+ * raw streams may retain encrypted compressed WRITEs that recompress skips.
+ * LZ4/ZSTD are cleared only when neither EMBED_DATA nor RAW remains, since
+ * recompress does not rewrite those record types.
+ */
+static disposition_t
+chain_update_compress_features(void *item_in, void *context_in)
+{
+	drr_packet_t *item = (drr_packet_t *)item_in;
+	compression_spec_t *spec = (compression_spec_t *)context_in;
+	struct drr_begin *drrb;
+	uint64_t flags;
+
+	if (item == NULL)
+		return (D_OK);
+
+	if (item->dp_drr.drr_type != DRR_BEGIN)
+		return (D_OK);
+
+	drrb = &item->dp_drr.drr_u.drr_begin;
+	flags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
+
+	if (ctype_is_uncompressed(spec->cs_type)) {
+		if (!(flags & DMU_BACKUP_FEATURE_RAW))
+			flags &= ~DMU_BACKUP_FEATURE_COMPRESSED;
+		if ((flags & (DMU_BACKUP_FEATURE_EMBED_DATA |
+		    DMU_BACKUP_FEATURE_RAW)) == 0) {
+			flags &= ~(DMU_BACKUP_FEATURE_LZ4 |
+			    DMU_BACKUP_FEATURE_ZSTD);
+		}
+	} else {
+		flags |= DMU_BACKUP_FEATURE_COMPRESSED;
+		if (spec->cs_type == ZIO_COMPRESS_ZSTD) {
+			flags |= DMU_BACKUP_FEATURE_ZSTD;
+		} else if (spec->cs_type >= ZIO_COMPRESS_LZ4) {
+			flags |= DMU_BACKUP_FEATURE_LZ4;
+		}
+	}
+
+	DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, flags);
+	return (D_OK);
+}
+
+static chain_step_t
+serial_update_compress_features(compression_spec_t *target)
+{
+	int this_spec = next_spec++ % MAX_COMPRESSION_STEPS;
+	compression_spec_t *context = &specs[this_spec];
+
+	VERIFY3P(target, !=, NULL);
+	*context = *target;
+
+	chain_step_t step = {
+	    .cs_type = CS_SERIAL,
+	    .cs_in_size = sizeof (drr_packet_t),
+	    .cs_out_size = sizeof (drr_packet_t),
+	    .cs_context = context,
+	    .cs_serial = {
+		.process = chain_update_compress_features,
+	    }
+	};
+	return (step);
+}
+
 int
 zstream_do_recompress(int argc, char *argv[])
 {
@@ -350,6 +417,7 @@ zstream_do_recompress(int argc, char *argv[])
 		STANDARD_INPUT_STACK(NULL),
 		parallel_decompress_writes(&spec),
 		parallel_compress_writes(&spec),
+		serial_update_compress_features(&spec),
 		STANDARD_OUTPUT_STACK(NULL)
 	};
 
