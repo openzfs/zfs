@@ -55,6 +55,8 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_raw;
 	boolean_t drc_clone;
 	boolean_t drc_spill;
+	/* This non-raw incremental diverges the ivset of a raw lineage. */
+	boolean_t drc_ivset_diverged;
 	nvlist_t *drc_keynvl;
 	uint64_t drc_fromsnapobj;
 	uint64_t drc_ivset_guid;

@@ -5364,6 +5364,16 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    "failed to restore original properties on %s"), name);
 		(void) fprintf(stderr, "\n");
 	}
+	if (prop_errflags & ZPROP_ERR_IVSET_DIVERGED) {
+		(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Warning: "
+		    "the snapshot '%s' is based on was received as a raw "
+		    "stream, but\nthis incremental is not raw; it re-encrypts "
+		    "the data with a new IV set,\nso a later raw (zfs send -w) "
+		    "incremental based on it will fail with an\nIV set guid "
+		    "mismatch. Send this incremental raw as well to keep raw\n"
+		    "replication working."), destsnap);
+		(void) fprintf(stderr, "\n");
+	}
 
 	if (err || ioctl_err) {
 		err = -1;

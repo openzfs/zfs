@@ -130,6 +130,15 @@ struct zfs_bookmark_phys;
 #define	DS_FIELD_IVSET_GUID	"com.datto:ivset_guid"
 
 /*
+ * This field, when present, marks a snapshot that was received raw. A later
+ * non-raw incremental receive onto such a snapshot re-stamps its ivset guid
+ * and so diverges it from the sending lineage, which makes any subsequent raw
+ * incremental fail with an IV set guid mismatch; the field lets the receive
+ * warn about that as it happens instead of only failing later (see #8758).
+ */
+#define	DS_FIELD_RAW_RECEIVED	"org.openzfs:raw_received"
+
+/*
  * DS_FLAG_CI_DATASET is set if the dataset contains a file system whose
  * name lookups should be performed case-insensitively.
  */

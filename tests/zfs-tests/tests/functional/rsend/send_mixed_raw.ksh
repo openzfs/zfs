@@ -55,11 +55,12 @@
 verify_runnable "both"
 
 typeset recverr=$TEST_BASE_DIR/send_mixed_raw.err.$$
+typeset recvwarn=$TEST_BASE_DIR/send_mixed_raw.warn.$$
 
 function cleanup
 {
     set_tunable32 DISABLE_IVSET_GUID_CHECK 0
-    rm -f $recverr
+    rm -f $recverr $recvwarn
     datasetexists $TESTPOOL/$TESTFS3 && \
         destroy_dataset $TESTPOOL/$TESTFS3 -r
     datasetexists $TESTPOOL/$TESTFS2 && \
@@ -106,9 +107,17 @@ typeset dst_ivset=$(get_prop ivsetguid $TESTPOOL/$TESTFS2@1)
     log_fail "ivsetguid differs after raw receive: $src_ivset vs $dst_ivset"
 
 log_must eval "zfs send -i $TESTPOOL/$TESTFS1@1 $TESTPOOL/$TESTFS1@2 |" \
-    "zfs receive $TESTPOOL/$TESTFS2"
+    "zfs receive $TESTPOOL/$TESTFS2 2>$recvwarn"
+
+# The receive above is a non-raw incremental onto a snapshot that was
+# itself received raw, so it warns as it happens that it is diverging the
+# IV set and will break a later raw incremental (issue #8758).
+log_must grep -q "Warning:" $recvwarn
+
+# The matching raw incremental must not warn: it does not diverge anything.
 log_must eval "zfs send -w -i $TESTPOOL/$TESTFS2@1 $TESTPOOL/$TESTFS2@2 |" \
-    "zfs receive $TESTPOOL/$TESTFS3"
+    "zfs receive $TESTPOOL/$TESTFS3 2>$recvwarn"
+log_mustnot grep -q "Warning:" $recvwarn
 
 # A non-raw incremental receive copies the dataset guid from the send
 # stream but generates a fresh IV set guid on the destination. The two
