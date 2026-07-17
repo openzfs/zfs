@@ -5777,6 +5777,14 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 	tofs_was_redacted = dsl_get_redacted(drc.drc_ds);
 
 	/*
+	 * dmu_recv_begin() found this to be a non-raw incremental onto a
+	 * raw-received lineage, which diverges its IV set (see #8758). Flag it
+	 * so libzfs can warn the user.
+	 */
+	if (drc.drc_ivset_diverged)
+		*errflags |= ZPROP_ERR_IVSET_DIVERGED;
+
+	/*
 	 * Set properties before we receive the stream so that they are applied
 	 * to the new data. Note that we must call dmu_recv_stream() if
 	 * dmu_recv_begin() succeeds.

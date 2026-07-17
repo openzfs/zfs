@@ -394,7 +394,13 @@ typedef enum {
 
 typedef enum {
 	ZPROP_ERR_NOCLEAR = 0x1, /* failure to clear existing props */
-	ZPROP_ERR_NORESTORE = 0x2 /* failure to restore props on error */
+	ZPROP_ERR_NORESTORE = 0x2, /* failure to restore props on error */
+	/*
+	 * A non-raw incremental was received onto a raw-received lineage,
+	 * diverging its IV set, so that a later raw incremental will fail with
+	 * an IV set guid mismatch (see #8758). A warning, not a property error.
+	 */
+	ZPROP_ERR_IVSET_DIVERGED = 0x4
 } zprop_errflags_t;
 
 typedef int (*zprop_func)(int, void *);

@@ -1366,7 +1366,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'read_bytes' value will be set to the total number of bytes read.
  *
  * The 'errflags' value will contain zprop_errflags_t flags which are
- * used to describe any failures.
+ * used to describe any failures, including ZPROP_ERR_IVSET_DIVERGED which
+ * warns that a non-raw incremental diverged a raw-received IV set.
  *
  * The 'action_handle' and 'cleanup_fd' are no longer used, and are ignored.
  *

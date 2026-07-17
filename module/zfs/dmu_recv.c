@@ -480,6 +480,22 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 		if (obj == 0)
 			return (SET_ERROR(ENODEV));
 
+		/*
+		 * A non-raw incremental onto a snapshot that was itself
+		 * received raw re-stamps the new snapshot's ivset guid, so it
+		 * no longer matches the sending lineage and a later raw
+		 * incremental would be rejected (#8758). Note it here so the
+		 * receive can warn about it as it happens.
+		 */
+		if (encrypted && !raw) {
+			uint64_t rawrecv = 0;
+			(void) zap_lookup(dp->dp_meta_objset, snap->ds_object,
+			    DS_FIELD_RAW_RECEIVED, sizeof (uint64_t), 1,
+			    &rawrecv);
+			if (rawrecv != 0)
+				drba->drba_cookie->drc_ivset_diverged = B_TRUE;
+		}
+
 		if (drba->drba_cookie->drc_force) {
 			drba->drba_cookie->drc_fromsnapobj = obj;
 		} else {
@@ -1180,8 +1196,24 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (ds->ds_prev != NULL && drrb->drr_fromguid != 0)
+	if (ds->ds_prev != NULL && drrb->drr_fromguid != 0) {
 		drc->drc_fromsnapobj = ds->ds_prev->ds_object;
+
+		/*
+		 * As in recv_begin_check_existing_impl(): if this non-raw
+		 * incremental resumes onto a raw-received snapshot, note that
+		 * it is diverging the IV set so the receive can warn (#8758).
+		 */
+		if (ds->ds_dir->dd_crypto_obj != 0 &&
+		    !(drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW)) {
+			uint64_t rawrecv = 0;
+			(void) zap_lookup(dp->dp_meta_objset,
+			    drc->drc_fromsnapobj, DS_FIELD_RAW_RECEIVED,
+			    sizeof (uint64_t), 1, &rawrecv);
+			if (rawrecv != 0)
+				drc->drc_ivset_diverged = B_TRUE;
+		}
+	}
 
 	/*
 	 * If we're resuming, and the send is redacted, then the original send
@@ -4740,6 +4772,22 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(zap_update(dp->dp_meta_objset, newsnapobj,
 		    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
 		    &drc->drc_ivset_guid, tx));
+	}
+
+	/*
+	 * Mark a raw-received snapshot so a later non-raw incremental onto it
+	 * can warn that it is diverging the IV set (see #8758). This is not
+	 * gated on drc_ivset_guid, so streams from older senders that omit it
+	 * (received under zfs_disable_ivset_guid_check) are still marked.
+	 * Snapshots on pools written before this change simply lack the key
+	 * and receive no warning.
+	 */
+	if (!drc->drc_heal && drc->drc_raw) {
+		uint64_t one = 1;
+		dmu_object_zapify(dp->dp_meta_objset, newsnapobj,
+		    DMU_OT_DSL_DATASET, tx);
+		VERIFY0(zap_update(dp->dp_meta_objset, newsnapobj,
+		    DS_FIELD_RAW_RECEIVED, sizeof (uint64_t), 1, &one, tx));
 	}
 
 	/*
