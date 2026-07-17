@@ -1780,23 +1780,25 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		return (SET_ERROR(EFBIG));
 
 	/*
-	 * A dedupe leaves the file content unchanged, so it must not touch the
-	 * modification/change times.  Everything else (size, flags, seq) is
-	 * still written back unchanged.
+	 * A dedupe leaves the destination's content and metadata alone: it can
+	 * only replace blocks with identical ones.  The times must not move,
+	 * and size, flags and seq cannot change either - a dedupe never extends
+	 * the file, never clears setid bits and never bumps z_seq - so there is
+	 * nothing to write back at all.
 	 */
 	if (!dedup) {
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(outzfsvfs), NULL,
 		    &mtime, 16);
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(outzfsvfs), NULL,
 		    &ctime, 16);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(outzfsvfs), NULL,
+		    &outzp->z_size, 8);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(outzfsvfs), NULL,
+		    &outzp->z_pflags, 8);
+		if (outzp->z_is_sa)
+			SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SEQ(outzfsvfs),
+			    NULL, &outzp->z_seq, 8);
 	}
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(outzfsvfs), NULL,
-	    &outzp->z_size, 8);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(outzfsvfs), NULL,
-	    &outzp->z_pflags, 8);
-	if (outzp->z_is_sa)
-		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SEQ(outzfsvfs), NULL,
-		    &outzp->z_seq, 8);
 
 	maxblocks = zil_max_log_data(zilog, sizeof (lr_clone_range_t)) /
 	    sizeof (bps[0]);
@@ -1916,21 +1918,28 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 			zfs_tstamp_update_setup(outzp, CONTENT_MODIFIED, mtime,
 			    ctime);
-		}
-		if (outzp->z_is_sa)
-			outzp->z_has_seq = B_TRUE;
 
-		/*
-		 * Update the file size (zp_size) if it has changed;
-		 * account for possible concurrent updates.
-		 */
-		while ((outsize = outzp->z_size) < outoff + size) {
-			(void) atomic_cas_64(&outzp->z_size, outsize,
-			    outoff + size);
+			if (outzp->z_is_sa)
+				outzp->z_has_seq = B_TRUE;
+
+			/*
+			 * Update the file size (zp_size) if it has changed;
+			 * account for possible concurrent updates.
+			 */
+			while ((outsize = outzp->z_size) < outoff + size) {
+				(void) atomic_cas_64(&outzp->z_size, outsize,
+				    outoff + size);
+			}
+		} else {
+			/* A dedupe can only ever rewrite blocks in place. */
+			ASSERT3U(outoff + size, <=, outzp->z_size);
 		}
 
-		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
-		error = sa_bulk_update(outzp->z_sa_hdl, bulk, count, tx);
+		if (count > 0) {
+			ASSERT3S(count, <=, ARRAY_SIZE(bulk));
+			error = sa_bulk_update(outzp->z_sa_hdl, bulk, count,
+			    tx);
+		}
 
 		zfs_log_clone_range(zilog, tx, TX_CLONE_RANGE, outzp, outoff,
 		    size, inblksz, bps, nbps);
