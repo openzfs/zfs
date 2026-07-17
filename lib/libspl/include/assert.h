@@ -219,6 +219,13 @@ do {									\
 		    (void *)__left, __VA_ARGS__);			\
 } while (0)
 
+#define	VERIFY_IMPLY(A, B)						\
+	((void)(((!(A)) || (B)) ||					\
+	    libspl_assert("(" #A ") implies (" #B ")",			\
+	    __FILE__, __FUNCTION__, __LINE__)))
+
+#define	VERIFY_EQUIV(A, B)	VERIFY3B(A, ==, B)
+
 #ifdef assert
 #undef assert
 #endif
@@ -264,11 +271,8 @@ do {									\
 #define	ASSERT		VERIFY
 #define	ASSERTF		VERIFYF
 #define	assert		VERIFY
-#define	IMPLY(A, B) \
-	((void)(((!(A)) || (B)) || \
-	    libspl_assert("(" #A ") implies (" #B ")", \
-	    __FILE__, __FUNCTION__, __LINE__)))
-#define	EQUIV(A, B)	VERIFY3B(A, ==, B)
+#define	IMPLY		VERIFY_IMPLY
+#define	EQUIV		VERIFY_EQUIV
 
 #endif  /* NDEBUG */
 
