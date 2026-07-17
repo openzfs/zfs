@@ -36,6 +36,44 @@
 #include <sys/zfeature.h>
 
 /*
+ * Take the source and destination inode locks for a remap (clone or dedupe).
+ *
+ * Since Linux 4.20 the VFS does not lock the inodes for ->remap_file_range();
+ * the filesystem must, and it must impose an order on the two, or two remaps
+ * running in opposite directions deadlock: each would hold one inode and wait
+ * for the other, and an rwsem writer queues behind the existing readers.  Order
+ * by inode address, as btrfs does.  The destination is taken exclusively and
+ * the source shared, so concurrent remaps out of one hot source still proceed.
+ */
+static void
+zpl_remap_lock_two(struct inode *src_i, struct inode *dst_i)
+{
+	if (src_i == dst_i) {
+		spl_inode_lock(dst_i);
+	} else if (src_i < dst_i) {
+		spl_inode_lock_shared(src_i);
+		spl_inode_lock(dst_i);
+	} else {
+		spl_inode_lock(dst_i);
+		spl_inode_lock_shared(src_i);
+	}
+}
+
+static void
+zpl_remap_unlock_two(struct inode *src_i, struct inode *dst_i)
+{
+	if (src_i == dst_i) {
+		spl_inode_unlock(dst_i);
+	} else if (src_i < dst_i) {
+		spl_inode_unlock(dst_i);
+		spl_inode_unlock_shared(src_i);
+	} else {
+		spl_inode_unlock_shared(src_i);
+		spl_inode_unlock(dst_i);
+	}
+}
+
+/*
  * Clone part of a file via block cloning.
  *
  * Note that we are not required to update file offsets; the kernel will take
@@ -61,9 +99,7 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 	    dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))
 		return (-EOPNOTSUPP);
 
-	if (src_i != dst_i)
-		spl_inode_lock_shared(src_i);
-	spl_inode_lock(dst_i);
+	zpl_remap_lock_two(src_i, dst_i);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -74,9 +110,7 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	spl_inode_unlock(dst_i);
-	if (src_i != dst_i)
-		spl_inode_unlock_shared(src_i);
+	zpl_remap_unlock_two(src_i, dst_i);
 
 	if (err < 0)
 		return (err);
@@ -114,9 +148,7 @@ zpl_dedupe_file_range_impl(struct file *src_file, loff_t src_off,
 	    dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))
 		return (-EOPNOTSUPP);
 
-	if (src_i != dst_i)
-		spl_inode_lock_shared(src_i);
-	spl_inode_lock(dst_i);
+	zpl_remap_lock_two(src_i, dst_i);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -127,9 +159,7 @@ zpl_dedupe_file_range_impl(struct file *src_file, loff_t src_off,
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	spl_inode_unlock(dst_i);
-	if (src_i != dst_i)
-		spl_inode_unlock_shared(src_i);
+	zpl_remap_unlock_two(src_i, dst_i);
 
 	if (err < 0)
 		return (err);
