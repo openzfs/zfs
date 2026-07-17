@@ -1941,8 +1941,24 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 			    tx);
 		}
 
-		zfs_log_clone_range(zilog, tx, TX_CLONE_RANGE, outzp, outoff,
-		    size, inblksz, bps, nbps);
+		/*
+		 * A dedupe is not logged.  It replaces the destination's blocks
+		 * with blocks holding the very same bytes, so if the txg is
+		 * lost to a crash and never replayed, the destination simply
+		 * keeps its own copy of that identical content: nothing a
+		 * reader can observe is lost, only the sharing.  Sharing is all
+		 * FIDEDUPERANGE promises anyway, and it is the cheaper of the
+		 * alternatives.  Logging a plain TX_CLONE_RANGE would restamp
+		 * the destination's mtime/ctime on replay, and telling a dedupe
+		 * apart with a record of its own would be an on-disk ZIL format
+		 * change: an old kernel meeting an unknown txtype fails
+		 * zil_parse(), and zil_replay() then destroys the whole log,
+		 * discarding every later record - including synced writes.
+		 */
+		if (!dedup) {
+			zfs_log_clone_range(zilog, tx, TX_CLONE_RANGE, outzp,
+			    outoff, size, inblksz, bps, nbps);
+		}
 
 		dmu_tx_commit(tx);
 
@@ -2348,7 +2364,6 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	zfsvfs_t	*inzfsvfs = ZTOZSB(inzp);
 	zfsvfs_t	*outzfsvfs = ZTOZSB(outzp);
 	zfs_locked_range_t *inlr = NULL, *outlr = NULL;
-	zilog_t		*zilog;
 	uint64_t	len = *lenp;
 	uint64_t	done = 0;
 	uint_t		inblksz;
@@ -2359,12 +2374,6 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 	error = zfs_enter_two(inzfsvfs, outzfsvfs, FTAG);
 	if (error != 0)
 		return (error);
-
-	/*
-	 * Read z_log only after entering, so a suspend/resume (rollback,
-	 * zfs receive -F) cannot leave us with a stale or freed zilog.
-	 */
-	zilog = outzfsvfs->z_log;
 
 	error = zfs_clone_range_precheck(inzp, outzp);
 	if (error != 0)
@@ -2505,10 +2514,11 @@ unlock:
 
 	if (error == 0) {
 		if (done > 0) {
+			/*
+			 * No zil_commit() here: a dedupe logs nothing, so
+			 * there is no itx to wait for even with sync=always.
+			 */
 			ZFS_ACCESSTIME_STAMP(inzfsvfs, inzp);
-
-			if (outzfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-				error = zil_commit(zilog, outzp->z_id);
 		}
 		*lenp = done;
 	}
