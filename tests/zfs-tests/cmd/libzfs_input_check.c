@@ -812,15 +812,19 @@ static void
 test_vdev_initialize(const char *pool)
 {
 	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
 	nvlist_t *vdev_guids = fnvlist_alloc();
 
 	fnvlist_add_uint64(vdev_guids, "path", 0xdeadbeefdeadbeef);
 	fnvlist_add_uint64(required, ZPOOL_INITIALIZE_COMMAND,
 	    POOL_INITIALIZE_START);
 	fnvlist_add_nvlist(required, ZPOOL_INITIALIZE_VDEVS, vdev_guids);
+	fnvlist_add_uint64(optional, ZPOOL_INITIALIZE_VALUE, 0);
 
-	IOC_INPUT_TEST(ZFS_IOC_POOL_INITIALIZE, pool, required, NULL, EINVAL);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_INITIALIZE, pool, required, optional,
+	    EINVAL);
 	nvlist_free(vdev_guids);
+	nvlist_free(optional);
 	nvlist_free(required);
 }
 

@@ -6762,6 +6762,8 @@
     <function-decl name='lzc_initialize' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='7063e1ab'/>
+      <parameter type-id='9c313c2d'/>
+      <parameter type-id='c19b74c3'/>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='857bb57e'/>
       <return type-id='95e97e5e'/>
@@ -7232,12 +7234,16 @@
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7063e1ab' name='cmd_type'/>
       <parameter type-id='5ce45b60' name='vds'/>
+      <parameter type-id='9c313c2d' name='value'/>
+      <parameter type-id='c19b74c3' name='value_provided'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_initialize_wait' mangled-name='zpool_initialize_wait' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_initialize_wait'>
       <parameter type-id='4c81de99' name='zhp'/>
       <parameter type-id='7063e1ab' name='cmd_type'/>
       <parameter type-id='5ce45b60' name='vds'/>
+      <parameter type-id='9c313c2d' name='value'/>
+      <parameter type-id='c19b74c3' name='value_provided'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zpool_collect_leaves' mangled-name='zpool_collect_leaves' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_collect_leaves'>

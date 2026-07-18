@@ -299,6 +299,8 @@ typedef struct trim_cbdata {
 typedef struct initialize_cbdata {
 	boolean_t wait;
 	pool_initialize_func_t cmd_type;
+	uint64_t value;
+	boolean_t value_provided;
 } initialize_cbdata_t;
 /*
  * Functions to manipulate pool and vdev state
@@ -308,9 +310,9 @@ _LIBZFS_H int zpool_scan_range(zpool_handle_t *, pool_scan_func_t,
     pool_scrub_cmd_t, time_t, time_t);
 _LIBZFS_H int zpool_initialize_one(zpool_handle_t *, void *);
 _LIBZFS_H int zpool_initialize(zpool_handle_t *, pool_initialize_func_t,
-    nvlist_t *);
+    nvlist_t *, uint64_t, boolean_t);
 _LIBZFS_H int zpool_initialize_wait(zpool_handle_t *, pool_initialize_func_t,
-    nvlist_t *);
+    nvlist_t *, uint64_t, boolean_t);
 _LIBZFS_H int zpool_trim(zpool_handle_t *, pool_trim_func_t, nvlist_t *,
     trimflags_t *);
 _LIBZFS_H int zpool_condense(zpool_handle_t *, const char *, const char *);
