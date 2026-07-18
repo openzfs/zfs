@@ -1997,9 +1997,9 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
  * If we make no progress at all, then the caller made a mistake or asked for
  * something impossible, and EINVAL (or another appropriate error) is returned.
  *
- * Note, it doesn't return how much bytes are left to be copied.
+ * Note, it doesn't return how many bytes are left to be copied.
  * On errors which are caused by any file system limitations or
- * brt limitations `EINVAL` is returned. In the most cases a user
+ * BRT limitations EINVAL is returned. In the most cases a user
  * requested bad parameters, it could be possible to clone the file but
  * some parameters don't match the requirements.
  */
