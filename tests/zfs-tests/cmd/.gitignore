@@ -27,6 +27,7 @@
 /mmap_exec
 /mmap_ftruncate
 /mmap_libaio
+/mmap_read_truncate
 /mmap_seek
 /mmap_sync
 /mmapwrite
