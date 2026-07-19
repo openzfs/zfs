@@ -3696,7 +3696,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == zio)
 		dde->dde_io->dde_lead_zio[p] = NULL;
 
-	ddt_univ_phys_t *orig = &dde->dde_io->dde_orig_phys;
+	ddt_univ_phys_t *orig = &dde->dde_io->dde_rollback_phys;
 
 	if (zio->io_error != 0) {
 		/*
@@ -3705,7 +3705,8 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * the last time it was successfully extended.
 		 */
 		ddt_phys_unextend(ddp, orig, v);
-		ddt_phys_clear(orig, v);
+		if (dde->dde_io->dde_lead_zio[p] == NULL)
+			ddt_phys_clear(orig, v);
 
 		mutex_exit(&dde->dde_io->dde_io_lock);
 
@@ -3733,7 +3734,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == NULL)
 		ddt_phys_clear(orig, v);
 	else
-		ddt_phys_copy(orig, ddp, v);
+		ddt_phys_extend(orig, v, zio->io_bp);
 
 	mutex_exit(&dde->dde_io->dde_io_lock);
 }
@@ -3751,11 +3752,13 @@ zio_ddt_child_write_ready(zio_t *zio)
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
 	if (ddt_phys_is_gang(dde->dde_phys, v)) {
-		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
-			dva_t *d = &zio->io_bp->blk_dva[i];
-			metaslab_group_alloc_decrement(zio->io_spa,
-			    DVA_GET_VDEV(d), zio->io_allocator,
-			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+		if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
+			for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
+				dva_t *d = &zio->io_bp->blk_dva[i];
+				metaslab_group_alloc_decrement(zio->io_spa,
+				    DVA_GET_VDEV(d), zio->io_allocator,
+				    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+			}
 		}
 		zio->io_error = EAGAIN;
 	}
@@ -4117,7 +4120,7 @@ piggyback:
 		 * First time out, take a copy of the stable entry to revert
 		 * to if there's an error (see zio_ddt_child_write_done())
 		 */
-		ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys, v);
+		ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys, v);
 		dde_io->dde_lead_zio[p] = cio;
 	} else {
 		if (dde_io->dde_lead_zio[p] == NULL) {
@@ -4126,7 +4129,7 @@ piggyback:
 			 * to revert to if there's an error (see
 			 * zio_ddt_child_write_done())
 			 */
-			ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys,
+			ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys,
 			    v);
 		} else {
 			/*
@@ -5639,6 +5642,23 @@ zio_done(zio_t *zio)
 	zio_pop_transforms(zio);	/* note: may set zio->io_error */
 
 	/*
+	 * The DDT extension path deliberately produces EAGAIN at two
+	 * sites: at allocation, when extending would require ganging
+	 * (zio_write_gang_block()), and at READY, when the live phys is
+	 * already ganged. Disable dedup and reexecute as a plain write;
+	 * zp_dedup transitions monotonically to false, so the retry
+	 * terminates. A backend EAGAIN can also take this path; it gets
+	 * one non-dedup retry before ordinary error handling.
+	 */
+	if (zio->io_error == EAGAIN &&
+	    zio == zio->io_logical && IO_IS_ALLOCATING(zio) &&
+	    zio->io_prop.zp_dedup) {
+		zio->io_prop.zp_dedup = B_FALSE;
+		zio->io_post |= ZIO_POST_REEXECUTE;
+		zio->io_error = 0;
+	}
+
+	/*
 	 * During thorough scrub, if the dataset key is not loaded, decryption
 	 * or MAC verification fails with EACCES (spa_do_crypt_abd() and the
 	 * MAC helpers). Since the block's checksum was already successfully
@@ -5723,15 +5743,6 @@ zio_done(zio_t *zio)
 
 	if (zio->io_error && zio == zio->io_logical) {
 
-		/*
-		 * A DDT child tried to create a mixed gang/non-gang BP. We're
-		 * going to have to just retry as a non-dedup IO.
-		 */
-		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
-		    zio->io_prop.zp_dedup) {
-			zio->io_post |= ZIO_POST_REEXECUTE;
-			zio->io_prop.zp_dedup = B_FALSE;
-		}
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
