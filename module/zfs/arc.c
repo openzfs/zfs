@@ -11580,9 +11580,15 @@ l2arc_log_blkptr_valid(l2arc_dev_t *dev, const l2arc_log_blkptr_t *lbp)
 	    l2arc_range_check_overlap(dev->l2ad_hand, dev->l2ad_evict, start) ||
 	    l2arc_range_check_overlap(dev->l2ad_hand, dev->l2ad_evict, end);
 
-	return (start >= dev->l2ad_start && end <= dev->l2ad_end &&
-	    asize > 0 && asize <= sizeof (l2arc_log_blk_phys_t) &&
-	    (!evicted || dev->l2ad_first));
+	if (asize == 0 || asize > sizeof (l2arc_log_blk_phys_t) ||
+	    start < dev->l2ad_start || end > dev->l2ad_end)
+		return (B_FALSE);
+
+	/* On a first sweep only the region below the write hand was written. */
+	if (dev->l2ad_first)
+		return (end < dev->l2ad_hand);
+
+	return (!evicted);
 }
 
 /*
