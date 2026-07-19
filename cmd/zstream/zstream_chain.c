@@ -35,6 +35,8 @@
 
 #include "zstream_chain.h"
 #include "zstream_queue.h"
+#include "zstream_selftest.h"
+#include "zstream_util.h"
 
 #define	MAX_CHAIN_LENGTH 32
 

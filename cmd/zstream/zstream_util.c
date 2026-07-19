@@ -29,8 +29,10 @@
  */
 
 #include <assert.h>
+#include <atomic.h>
 #include <err.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -178,4 +180,14 @@ compress_buffer(uint8_t *inbuff, size_t inbuff_size,
 	abd_free(&dabd);
 
 	return (outbuff);
+}
+
+void
+safe_pthread_sigmask(int how, const sigset_t *set, sigset_t *oldset)
+{
+	int error = pthread_sigmask(how, set, oldset);
+	if (error != 0) {
+		errno = error;
+		err(1, "pthread_sigmask failed");
+	}
 }
