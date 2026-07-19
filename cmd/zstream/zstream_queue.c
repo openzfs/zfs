@@ -26,6 +26,7 @@
 #include <sys/param.h>
 #include <sys/random.h>
 #include <sys/stdtypes.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #include "zstream_queue.h"
@@ -146,8 +147,8 @@ static void *
 queue_worker(void *);
 
 #ifdef MONITOR_QUEUES
-static void
-start_monitor_thread(void);
+static void *
+cpu_and_queue_monitor(void *);
 #endif
 
 static thread_pool_t	pool = {0};
@@ -209,15 +210,12 @@ thread_pool_spinup(void)
 		pool.tp_num_threads = MAX(pool.tp_num_threads, MIN_THREADS);
 	}
 	for (int i = 0; i < pool.tp_num_threads; i++) {
-		char buff[32];
-		pthread_t thread;
-		int ret = pthread_create(&thread, NULL, queue_worker, NULL);
-		VERIFY3S(ret, ==, 0);
-		snprintf(buff, sizeof (buff), "queue-%d", i);
-		pthread_setname_np(thread, buff);
+		char name[32];
+		snprintf(name, sizeof (name), "queue-%d", i);
+		safe_create_thread(queue_worker, NULL, name, B_TRUE);
 	}
 #ifdef MONITOR_QUEUES
-	start_monitor_thread();
+	safe_create_thread(cpu_and_queue_monitor, NULL, "monitor", B_TRUE);
 #endif
 }
 
@@ -749,20 +747,6 @@ cpu_and_queue_monitor(void *dummy)
 		start_us = end_us;
 	}
 	return (NULL);
-}
-
-static void
-start_monitor_thread(void)
-{
-	static boolean_t started = B_FALSE;
-	pthread_t monitor;
-
-	if (!started) {
-		pthread_create(&monitor, NULL, cpu_and_queue_monitor, NULL);
-		pthread_setname_np(monitor, "monitor-0");
-		pthread_detach(monitor);
-		started = B_TRUE;
-	}
 }
 
 #endif	/* MONITOR_QUEUES */
