@@ -164,8 +164,11 @@ zstream_queue_set_num_threads(uint_t n)
 {
 	if (pool_initialized) {
 		errx(1, "thread pool size must be set before creating queues");
+	} else if (n == 0) {
+		errx(1, "number of threads must be at least 1");
 	} else if (n < MIN_THREADS) {
-		errx(1, "number of threads must be at least %d", MIN_THREADS);
+		warnx("using only %u threads may limit performance, setting "
+		    "anyway...", n);
 	} else if (n > 256) {
 		warnx("num_threads = %u seems suspiciously high, setting "
 		    "anyway...", n);
@@ -207,8 +210,8 @@ thread_pool_spinup(void)
 #else
 		pool.tp_num_threads = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
+		pool.tp_num_threads = MAX(pool.tp_num_threads, MIN_THREADS);
 	}
-	pool.tp_num_threads = MAX(pool.tp_num_threads, MIN_THREADS);
 	pool.tp_threads = safe_malloc(sizeof (pthread_t) * pool.tp_num_threads);
 	for (int i = 0; i < pool.tp_num_threads; i++) {
 		char buff[32];
@@ -243,6 +246,9 @@ thread_pool_spinup(void)
  * conflict is with zstream_queue_create(). That's the reason for the
  * seemingly redundant "create" mutex. It lets us prevent the creation of
  * new queues while simultaneously dropping the pool lock.
+ *
+ * This function must be called with the pool mutex held, and it returns
+ * with the pool mutex unlocked.
  */
 static void
 thread_pool_spindown(void)
@@ -258,7 +264,6 @@ thread_pool_spindown(void)
 	pool.tp_threads = NULL;
 	pool.tp_num_threads = 0;
 
-	pthread_mutex_lock(&pool.tp_pool_mutex);
 	pthread_mutex_unlock(&pool.tp_create_mutex);
 }
 
@@ -280,10 +285,11 @@ zstream_queue_create(zq_params_t *params)
 	zstream_queue_t *queue = safe_malloc(sizeof (zstream_queue_t));
 	pool.tp_queues[pool.tp_num_queues] = queue;
 
+	size_t qpis_rounded = P2ROUNDUP(params->qp_item_size, 8);
 	zstream_queue_t new_queue = {
-	    .zq_params = *params,
-	    .zq_slots = safe_malloc(params->qp_queue_length *
-		((sizeof (queue_slot_t)) + params->qp_item_size))
+		.zq_params = *params,
+		.zq_slots = safe_malloc(params->qp_queue_length *
+		    ((sizeof (queue_slot_t)) + qpis_rounded))
 	};
 	*queue = new_queue;
 	/*
@@ -294,7 +300,7 @@ zstream_queue_create(zq_params_t *params)
 	queue_slot_t *slot = &queue->zq_slots[0];
 	for (int i = 0; i < params->qp_queue_length; i++) {
 		slot->qs_item = item;
-		item += queue->zq_params.qp_item_size;
+		item += qpis_rounded;
 		slot++;
 	}
 
@@ -579,6 +585,7 @@ queue_worker(void *dummy)
 	queue_slot_t *batch[MAX_BATCH];
 	int count;
 
+	pthread_register_self();
 	while (B_TRUE) {
 		count = assign_queue_and_get_work(&queue, batch);
 		if (count) {
@@ -682,15 +689,15 @@ zstream_queue_destroy(zstream_queue_t *queue)
 	pool.tp_num_queues--;
 
 	if (pool.tp_num_queues == 0) {
-		thread_pool_spindown();  /* Unlocks pool mutex while running */
+		thread_pool_spindown();  /* Unlocks pool mutex */
 	} else {
 		/* Gaps are not allowed in the tp_queues array */
 		zstream_queue_t **qscan = &pool.tp_queues[0];
 		int i = pool.tp_num_queues;
 		while (*qscan != queue) { qscan++; i--; }
 		memmove(qscan, qscan + 1, i * sizeof (*qscan));
+		pthread_mutex_unlock(&pool.tp_pool_mutex);
 	}
-	pthread_mutex_unlock(&pool.tp_pool_mutex);
 }
 
 /*
@@ -748,6 +755,8 @@ cpu_and_queue_monitor(void *dummy)
 	char buff[1024];
 	boolean_t interrupt = B_FALSE;
 	FILE *fp;
+
+	pthread_register_self();
 
 	/* Wait a few seconds for things to settle into steady state */
 	usleep(3 * 1000 * 1000);
