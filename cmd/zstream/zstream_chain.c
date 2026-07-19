@@ -35,6 +35,7 @@
 
 #include "zstream_chain.h"
 #include "zstream_queue.h"
+#include "zstream_util.h"
 
 #define	MAX_CHAIN_LENGTH 32
 
@@ -102,6 +103,7 @@ zstream_chain_worker(worker_context_t *ctxt)
 	uint8_t buffer[ctxt->wc_buffer_size];
 	boolean_t done = B_FALSE;
 
+	pthread_register_self();
 	while (!done) {
 		for (int i = 0; i < ctxt->wc_num_steps; i++) {
 			chain_step_t *step = &ctxt->wc_steps[i];

@@ -36,6 +36,8 @@ typedef struct {
 	int			cs_level;
 } compression_spec_t;
 
+extern uint32_t num_pthreads;
+
 /*
  * The safe_ versions of the functions below terminate the process if the
  * operation doesn't succeed instead of returning an error.
@@ -86,6 +88,9 @@ decompress_buffer(uint8_t *inbuff, size_t inbuff_size, size_t logical_size,
 uint8_t *
 compress_buffer(uint8_t *inbuff, size_t inbuff_size,
     compression_spec_t compress_type, size_t *compressed_size);
+
+void
+pthread_register_self(void);
 
 #ifdef __cplusplus
 }

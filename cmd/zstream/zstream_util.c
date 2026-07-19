@@ -29,8 +29,10 @@
  */
 
 #include <assert.h>
+#include <atomic.h>
 #include <err.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +48,9 @@
 #include <zfs_fletcher.h>
 
 #include "zstream_util.h"
+
+static pthread_key_t thread_count_key;
+uint32_t num_pthreads = 0;
 
 void *
 safe_malloc(size_t size)
@@ -178,4 +183,30 @@ compress_buffer(uint8_t *inbuff, size_t inbuff_size,
 	abd_free(&dabd);
 
 	return (outbuff);
+}
+
+static void
+thread_destroyed(void *arg)
+{
+	(void) arg;
+	atomic_dec_32(&num_pthreads);
+}
+
+/*
+ * This key ensures that the thread_destroyed() function is run no matter
+ * how the monitored thread stops.
+ */
+static void
+initialize_pthread_key(void)
+{
+	pthread_key_create(&thread_count_key, thread_destroyed);
+}
+
+void
+pthread_register_self(void)
+{
+	static pthread_once_t init_pthread_tracking = PTHREAD_ONCE_INIT;
+	pthread_once(&init_pthread_tracking, initialize_pthread_key);
+	pthread_setspecific(thread_count_key, (void *)0xdeadbeef);
+	atomic_inc_32(&num_pthreads);
 }
