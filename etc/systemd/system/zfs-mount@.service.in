@@ -2,7 +2,6 @@
 Description=Mount ZFS filesystem %I
 Documentation=man:zfs(8)
 DefaultDependencies=no
-After=systemd-udev-settle.service
 After=zfs-import.target
 After=zfs-mount.service
 After=systemd-remount-fs.service
