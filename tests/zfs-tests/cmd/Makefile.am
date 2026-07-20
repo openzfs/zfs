@@ -51,12 +51,13 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/draid
 %C%_draid_LDADD += $(ZLIB_LIBS)
 
 dist_noinst_DATA += %D%/file/file_common.h
-scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randwritecomp
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randfree_file %D%/randwritecomp
 %C%_file_append_SOURCES   = %D%/file/file_append.c
 %C%_file_check_SOURCES    = %D%/file/file_check.c
 %C%_file_trunc_SOURCES    = %D%/file/file_trunc.c
 %C%_file_write_SOURCES    = %D%/file/file_write.c
 %C%_largest_file_SOURCES  = %D%/file/largest_file.c
+%C%_randfree_file_SOURCES = %D%/file/randfree_file.c
 %C%_randwritecomp_SOURCES = %D%/file/randwritecomp.c
 
 
@@ -149,9 +150,6 @@ dist_noinst_DATA += %D%/linux_dos_attributes/dos_attributes.h
 scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
 %C%_read_dos_attributes_SOURCES  = %D%/linux_dos_attributes/read_dos_attributes.c
 %C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c
-
-scripts_zfs_tests_bin_PROGRAMS += %D%/randfree_file
-%C%_randfree_file_SOURCES       = %D%/file/randfree_file.c
 endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_fadvise
