@@ -361,11 +361,6 @@ log space map feature.
 These space maps benefit from a bigger block size
 as we expect to be writing a lot of data to them at once.
 .
-.It Sy zfs_metaslab_segment_weight_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Enable/disable segment-based metaslab selection.
-Note that this tunable has been deprecated in favor of
-.Sy zfs_active_weightfunc .
-.
 .It Sy zfs_metaslab_switch_threshold Ns = Ns Sy 2 Pq int
 When using segment-based metaslab selection, continue allocating
 from the active metaslab until this option's

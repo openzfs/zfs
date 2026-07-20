@@ -26,6 +26,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/include/kstat.shlib
 
 log_assert "Metaslab weight algorithm selection works correctly."
 
@@ -42,6 +43,7 @@ for value in "auto" "space" "space_v2" "segment"
 do
 	log_must set_tunable_string ACTIVE_WEIGHTFUNC $value
 	log_must zpool create -f $TESTPOOL $DISKS
+	log_must eval "kstat dbgmsg | grep -q \"spa weight function: $value\""
 	log_must fill_fs /$TESTPOOL 1 100 1048576 R
 	log_must zpool destroy $TESTPOOL
 done
