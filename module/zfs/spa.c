@@ -7369,6 +7369,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_dedup_table_quota =
 	    zpool_prop_default_numeric(ZPOOL_PROP_DEDUP_TABLE_QUOTA);
 
+	spa_set_weightfunc(spa, zfs_active_weightfunc);
+
 	if (props != NULL) {
 		spa_configfile_set(spa, props, B_FALSE);
 		spa_sync_props(props, tx);
