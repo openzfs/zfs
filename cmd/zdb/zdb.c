@@ -6608,24 +6608,54 @@ ddt_done:
 		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
 		vdev_t *vd = vdev_lookup_top(zcb->zcb_spa, vdev);
 		ASSERT(vd != NULL);
-		metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
-		ASSERT(ms != NULL);
-		metaslab_group_t *mg = ms->ms_group;
-		ASSERT(mg != NULL);
-		metaslab_class_t *mc = mg->mg_class;
-		ASSERT(mc != NULL);
-
-		spa_config_exit(zcb->zcb_spa, SCL_CONFIG, FTAG);
 
 		int class;
-		if (mc == spa_normal_class(zcb->zcb_spa)) {
-			class = CLASS_NORMAL;
-		} else if (mc == spa_special_class(zcb->zcb_spa)) {
-			class = CLASS_SPECIAL;
-		} else if (mc == spa_dedup_class(zcb->zcb_spa)) {
-			class = CLASS_DEDUP;
+		if (vd->vdev_ops == &vdev_indirect_ops) {
+			/*
+			 * A removed vdev has no metaslabs of its own. Without
+			 * -L we synthesize them (see
+			 * zdb_leak_init_prepare_indirect_vdevs()), but under
+			 * -L there is no metaslab array to index. Classify
+			 * from the allocation bias, which determines the
+			 * vdev's primary metaslab group, and does not depend
+			 * on whether those synthetic metaslabs happen to
+			 * exist.
+			 */
+			switch (vd->vdev_alloc_bias) {
+			case VDEV_BIAS_SPECIAL:
+				class = CLASS_SPECIAL;
+				break;
+			case VDEV_BIAS_DEDUP:
+				class = CLASS_DEDUP;
+				break;
+			case VDEV_BIAS_LOG:
+				class = CLASS_OTHER;
+				break;
+			default:
+				class = CLASS_NORMAL;
+				break;
+			}
+			spa_config_exit(zcb->zcb_spa, SCL_CONFIG, FTAG);
 		} else {
-			class = CLASS_OTHER;
+			metaslab_t *ms =
+			    vd->vdev_ms[offset >> vd->vdev_ms_shift];
+			ASSERT(ms != NULL);
+			metaslab_group_t *mg = ms->ms_group;
+			ASSERT(mg != NULL);
+			metaslab_class_t *mc = mg->mg_class;
+			ASSERT(mc != NULL);
+
+			spa_config_exit(zcb->zcb_spa, SCL_CONFIG, FTAG);
+
+			if (mc == spa_normal_class(zcb->zcb_spa)) {
+				class = CLASS_NORMAL;
+			} else if (mc == spa_special_class(zcb->zcb_spa)) {
+				class = CLASS_SPECIAL;
+			} else if (mc == spa_dedup_class(zcb->zcb_spa)) {
+				class = CLASS_DEDUP;
+			} else {
+				class = CLASS_OTHER;
+			}
 		}
 
 		if (!(block_classes & class)) {
