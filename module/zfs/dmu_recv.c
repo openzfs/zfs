@@ -75,6 +75,7 @@
 static uint_t zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 static uint_t zfs_recv_queue_ff = 20;
 static uint_t zfs_recv_write_batch_size = 1024 * 1024;
+static uint_t zfs_recv_defer_batch_size = 32 * 1024 * 1024;
 static int zfs_recv_best_effort_corrective = 0;
 
 static const void *const dmu_recv_tag = "dmu_recv_tag";
@@ -102,6 +103,16 @@ struct receive_record_arg {
 	boolean_t eos_marker; /* Marks the end of the stream */
 	bqueue_node_t node;
 };
+
+/*
+ * A range of dnode slots that must not be touched until the deferred
+ * frees covering it have synced out; see receive_defer_park().
+ */
+typedef struct receive_defer_range {
+	avl_node_t rdr_node;
+	uint64_t rdr_first;	/* first slot in the range */
+	uint64_t rdr_last;	/* last slot in the range (inclusive) */
+} receive_defer_range_t;
 
 struct receive_writer_arg {
 	objset_t *os;
@@ -143,7 +154,26 @@ struct receive_writer_arg {
 
 	/* Keep track of DRR_FREEOBJECTS right after DRR_OBJECT_RANGE */
 	or_need_sync_t or_need_sync;
+
+	/*
+	 * Records whose application is deferred until the frees they
+	 * depend on have synced out, the dnode slot ranges they cover,
+	 * and the resume-state pin for the first deferred record.  See
+	 * receive_defer_park().
+	 */
+	list_t defer_records;
+	avl_tree_t defer_ranges;
+	uint64_t defer_bytes;
+	uint64_t defer_nrecords;
+	uint64_t defer_first_object;
+	uint64_t defer_first_bytes_read;
+	uint64_t defer_max_free_txg;
+	boolean_t defer_replaying;
 };
+
+static int receive_process_record(struct receive_writer_arg *rwa,
+    struct receive_record_arg *rrd);
+static int flush_write_batch(struct receive_writer_arg *rwa);
 
 typedef struct dmu_recv_begin_arg {
 	const char *drba_origin;
@@ -1646,9 +1676,33 @@ save_resume_state(struct receive_writer_arg *rwa,
     uint64_t object, uint64_t offset, dmu_tx_t *tx)
 {
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	uint64_t bytes = rwa->bytes_read;
 
 	if (!rwa->resumable)
 		return;
+
+	/*
+	 * While records are parked on the defer list (including while
+	 * they are being replayed), the resume point must not advance
+	 * past the first unapplied record.  Everything parked is at or
+	 * after that stream position, and re-receiving records that were
+	 * already applied is supported (see receive_object()), so pin
+	 * the saved state there until the defer list drains.
+	 *
+	 * A sender emits objects in ascending order, so the pin can only
+	 * sit at or above anything saved before it.  A malformed stream
+	 * that reorders objects could place it lower; keep the already
+	 * saved state in that case instead of moving resume backwards
+	 * past records this receive never parked.
+	 */
+	if (rwa->defer_replaying || !list_is_empty(&rwa->defer_records)) {
+		if (rwa->defer_first_object <
+		    rwa->os->os_dsl_dataset->ds_resume_object[txgoff])
+			return;
+		object = rwa->defer_first_object;
+		offset = 0;
+		bytes = rwa->defer_first_bytes_read;
+	}
 
 	/*
 	 * We use ds_resume_bytes[] != 0 to indicate that we need to
@@ -1675,7 +1729,7 @@ save_resume_state(struct receive_writer_arg *rwa,
 
 	rwa->os->os_dsl_dataset->ds_resume_object[txgoff] = object;
 	rwa->os->os_dsl_dataset->ds_resume_offset[txgoff] = offset;
-	rwa->os->os_dsl_dataset->ds_resume_bytes[txgoff] = rwa->bytes_read;
+	rwa->os->os_dsl_dataset->ds_resume_bytes[txgoff] = bytes;
 }
 
 static int
@@ -2575,10 +2629,403 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 }
 
 static int
-receive_handle_existing_object(const struct receive_writer_arg *rwa,
+receive_defer_range_compare(const void *a, const void *b)
+{
+	const receive_defer_range_t *ra = a;
+	const receive_defer_range_t *rb = b;
+
+	return (TREE_CMP(ra->rdr_first, rb->rdr_first));
+}
+
+/*
+ * Reclaiming an object number at a different dnode slot count requires the
+ * old dnode's free to be synced out before the number can be claimed again
+ * (dnode_check_slots_free() only accepts slots whose final dirty txg has
+ * synced).  receive_object() historically enforced that with one
+ * txg_wait_synced() per reallocated object, which collapses receive
+ * throughput to a few forced txgs per object when an incremental stream
+ * reallocates many dnodes at a changed slot count (issue #11353).
+ *
+ * Instead of syncing per object, the receive writer defers such claims:
+ * the frees are issued immediately, the affected slot ranges are recorded
+ * in rwa->defer_ranges, and the whole record is parked on
+ * rwa->defer_records.  Any later record that touches a parked range is
+ * parked too, in stream order, while unrelated records keep flowing.  When
+ * the batch grows past zfs_recv_defer_batch_size (or the stream ends), a
+ * single txg_wait_synced() covers every deferred free and the parked
+ * records are replayed in order; the replayed DRR_OBJECT records then find
+ * their object numbers free on disk and take the ordinary allocation path.
+ *
+ * Raw streams are excluded: their DRR_OBJECT_RANGE encryption parameters
+ * are consumed by the first claim after each range record, so deferring
+ * claims would require snapshotting that state per record.  Raw receives
+ * take the historical sync-per-object path unchanged.
+ */
+static boolean_t
+receive_defer_enabled(const struct receive_writer_arg *rwa)
+{
+	return (!rwa->raw && !rwa->heal && !rwa->defer_replaying &&
+	    zfs_recv_defer_batch_size != 0);
+}
+
+static boolean_t
+receive_defer_active(struct receive_writer_arg *rwa)
+{
+	return (!list_is_empty(&rwa->defer_records));
+}
+
+/*
+ * dmu_free_long_object(), except the txg the dnode's free lands in is
+ * folded into rwa->defer_max_free_txg.  The frees a deferred claim
+ * depends on can never be in a later txg than that high-water mark
+ * (dmu_free_long_range() commits its transactions before the dnode
+ * free is assigned), so the defer flush can wait for exactly that txg
+ * instead of the full open-txg window.
+ */
+static int
+receive_defer_free_object(struct receive_writer_arg *rwa, uint64_t object)
+{
+	objset_t *os = rwa->os;
+	dmu_tx_t *tx;
+	int err;
+
+	err = dmu_free_long_range(os, object, 0, DMU_OBJECT_END);
+	if (err != 0)
+		return (err);
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_bonus(tx, object);
+	dmu_tx_hold_free(tx, object, 0, DMU_OBJECT_END);
+	dmu_tx_mark_netfree(tx);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err == 0) {
+		err = dmu_object_free(os, object, tx);
+		rwa->defer_max_free_txg = MAX(rwa->defer_max_free_txg,
+		    dmu_tx_get_txg(tx));
+		dmu_tx_commit(tx);
+	} else {
+		dmu_tx_abort(tx);
+	}
+
+	return (err);
+}
+
+/*
+ * Ranges in the tree are kept disjoint: an insert that overlaps or abuts
+ * existing ranges merges them into one node.  receive_defer_overlaps()
+ * relies on this to give exact answers with one neighbor probe each way.
+ * A bare AVL tree fits better here than zfs_range_tree_t, which asserts
+ * on overlapping adds (the expansion loop inserts ranges that overlap
+ * the claim's) and carries segment accounting this tree, empty outside
+ * a realloc burst, has no use for.
+ */
+static void
+receive_defer_range_insert(struct receive_writer_arg *rwa, uint64_t first,
+    uint64_t last)
+{
+	receive_defer_range_t srch = { .rdr_first = first };
+	avl_index_t where;
+	receive_defer_range_t *rdr, *next;
+
+	rdr = avl_find(&rwa->defer_ranges, &srch, &where);
+	if (rdr == NULL) {
+		rdr = avl_nearest(&rwa->defer_ranges, where, AVL_BEFORE);
+		if (rdr != NULL && rdr->rdr_last + 1 < first)
+			rdr = NULL;
+	}
+	if (rdr == NULL) {
+		rdr = kmem_alloc(sizeof (*rdr), KM_SLEEP);
+		rdr->rdr_first = first;
+		rdr->rdr_last = last;
+		avl_insert(&rwa->defer_ranges, rdr, where);
+	} else {
+		rdr->rdr_last = MAX(rdr->rdr_last, last);
+	}
+
+	while ((next = AVL_NEXT(&rwa->defer_ranges, rdr)) != NULL &&
+	    next->rdr_first <= rdr->rdr_last + 1) {
+		rdr->rdr_last = MAX(rdr->rdr_last, next->rdr_last);
+		avl_remove(&rwa->defer_ranges, next);
+		kmem_free(next, sizeof (*next));
+	}
+}
+
+static boolean_t
+receive_defer_overlaps(struct receive_writer_arg *rwa, uint64_t first,
+    uint64_t last)
+{
+	receive_defer_range_t srch = { .rdr_first = first };
+	avl_index_t where;
+	receive_defer_range_t *rdr;
+
+	if (avl_find(&rwa->defer_ranges, &srch, &where) != NULL)
+		return (B_TRUE);
+
+	rdr = avl_nearest(&rwa->defer_ranges, where, AVL_BEFORE);
+	if (rdr != NULL && rdr->rdr_last >= first)
+		return (B_TRUE);
+
+	rdr = avl_nearest(&rwa->defer_ranges, where, AVL_AFTER);
+	if (rdr != NULL && rdr->rdr_first <= last)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
+static int receive_defer_flush(struct receive_writer_arg *rwa);
+
+/*
+ * Park a record for replay after the next defer flush.  The caller must
+ * return EAGAIN without touching the record again: once the batch cap is
+ * reached the flush below replays and frees it.  A flush failure is
+ * published through rwa->err (this always runs on the writer thread, the
+ * sole writer of that field).
+ */
+static void
+receive_defer_park(struct receive_writer_arg *rwa,
+    struct receive_record_arg *rrd, uint64_t object)
+{
+	/*
+	 * Nothing may defer during replay, or the list being drained
+	 * would grow and the record could be freed out from under the
+	 * replay loop.
+	 */
+	ASSERT(!rwa->defer_replaying);
+
+	if (!receive_defer_active(rwa)) {
+		/*
+		 * The resume pin depends on the first parked record being
+		 * an object record: resuming from (object, 0) is only a
+		 * valid stream position for a DRR_OBJECT.
+		 */
+		ASSERT3U(rrd->header.drr_type, ==, DRR_OBJECT);
+		rwa->defer_first_object = object;
+		rwa->defer_first_bytes_read = rrd->bytes_read;
+	}
+	list_insert_tail(&rwa->defer_records, rrd);
+	rwa->defer_nrecords++;
+	/* For WRITE and SPILL records the payload aliases the abd. */
+	rwa->defer_bytes += sizeof (*rrd) + (rrd->abd != NULL ?
+	    abd_get_size(rrd->abd) : rrd->payload_size);
+
+	if (rwa->defer_bytes >= zfs_recv_defer_batch_size) {
+		int err = receive_defer_flush(rwa);
+		if (err != 0 && rwa->err == 0)
+			rwa->err = err;
+	}
+}
+
+/*
+ * Sync out the deferred frees and replay the parked records in stream
+ * order.  Replay feeds each record back through receive_process_record();
+ * by now every deferred free has synced, so the replayed DRR_OBJECT
+ * records find their object numbers free and no longer defer.
+ */
+static int
+receive_defer_flush(struct receive_writer_arg *rwa)
+{
+	struct receive_record_arg *rrd;
+	receive_defer_range_t *rdr;
+	void *cookie = NULL;
+	int err;
+
+	if (!receive_defer_active(rwa))
+		return (0);
+
+	err = flush_write_batch(rwa);
+	if (err != 0)
+		return (err);
+
+	zfs_dbgmsg("recv defer flush: %llu records, %llu bytes, txg %llu",
+	    (u_longlong_t)rwa->defer_nrecords,
+	    (u_longlong_t)rwa->defer_bytes,
+	    (u_longlong_t)rwa->defer_max_free_txg);
+
+	/*
+	 * Every free a parked claim depends on was assigned no later
+	 * than defer_max_free_txg, so it is enough to wait for that txg
+	 * rather than for the whole open-txg window (typically one or
+	 * two txgs instead of up to five).
+	 */
+	txg_wait_synced(dmu_objset_pool(rwa->os), rwa->defer_max_free_txg);
+
+	while ((rdr = avl_destroy_nodes(&rwa->defer_ranges, &cookie)) != NULL)
+		kmem_free(rdr, sizeof (*rdr));
+
+	/*
+	 * Parked records are earlier in the stream than the writer's
+	 * current position, so drop the write-ordering cursor for the
+	 * replay; the parked records are in stream order among
+	 * themselves, and every record that follows the replay is at a
+	 * higher (object, offset) than anything replayed.  The
+	 * out-of-order check is correspondingly weakened until the
+	 * first replayed write raises the cursor again.
+	 */
+	rwa->last_object = 0;
+	rwa->last_offset = 0;
+	rwa->defer_replaying = B_TRUE;
+
+	while ((rrd = list_remove_head(&rwa->defer_records)) != NULL) {
+		if (err != 0) {
+			if (rrd->abd != NULL) {
+				abd_free(rrd->abd);
+				rrd->abd = NULL;
+				rrd->payload = NULL;
+			} else if (rrd->payload != NULL) {
+				vmem_free(rrd->payload, rrd->payload_size);
+				rrd->payload = NULL;
+			}
+			kmem_free(rrd, sizeof (*rrd));
+			continue;
+		}
+		int err2 = receive_process_record(rwa, rrd);
+		/*
+		 * As in receive_writer_thread(), EAGAIN means the record
+		 * was stashed on the write batch and must not be freed.
+		 */
+		if (err2 != EAGAIN) {
+			err = err2;
+			kmem_free(rrd, sizeof (*rrd));
+		}
+	}
+
+	if (err == 0)
+		err = flush_write_batch(rwa);
+
+	/*
+	 * Frees issued during the replay itself are not captured in
+	 * defer_max_free_txg once it resets below.  That stays safe:
+	 * any txg captured later is no earlier than theirs, and a batch
+	 * with nothing captured waits for everything (txg 0).
+	 */
+	rwa->defer_replaying = B_FALSE;
+	rwa->defer_bytes = 0;
+	rwa->defer_nrecords = 0;
+	rwa->defer_first_object = 0;
+	rwa->defer_first_bytes_read = 0;
+	rwa->defer_max_free_txg = 0;
+
+	return (err);
+}
+
+/*
+ * Free any records still parked after an error, along with the range
+ * tree.  No-op if a successful flush already drained both.
+ */
+static void
+receive_defer_cleanup(struct receive_writer_arg *rwa)
+{
+	struct receive_record_arg *rrd;
+	receive_defer_range_t *rdr;
+	void *cookie = NULL;
+
+	while ((rrd = list_remove_head(&rwa->defer_records)) != NULL) {
+		if (rrd->abd != NULL) {
+			abd_free(rrd->abd);
+			rrd->abd = NULL;
+			rrd->payload = NULL;
+		} else if (rrd->payload != NULL) {
+			vmem_free(rrd->payload, rrd->payload_size);
+			rrd->payload = NULL;
+		}
+		kmem_free(rrd, sizeof (*rrd));
+	}
+	while ((rdr = avl_destroy_nodes(&rwa->defer_ranges, &cookie)) != NULL)
+		kmem_free(rdr, sizeof (*rdr));
+	rwa->defer_bytes = 0;
+	rwa->defer_nrecords = 0;
+	rwa->defer_first_object = 0;
+	rwa->defer_first_bytes_read = 0;
+	rwa->defer_max_free_txg = 0;
+}
+
+/*
+ * If this record touches a dnode slot range with an unsynced free, park
+ * it for replay after the next defer flush.  Returns EAGAIN when the
+ * record was parked (the caller must not free or process it, and the
+ * park may already have flushed and freed it), or 0 when the record
+ * should be processed normally.
+ */
+static int
+receive_defer_check(struct receive_writer_arg *rwa,
+    struct receive_record_arg *rrd)
+{
+	uint64_t first, last;
+
+	switch (rrd->header.drr_type) {
+	case DRR_OBJECT:
+	{
+		struct drr_object *drro = &rrd->header.drr_u.drr_object;
+		uint8_t dn_slots = drro->drr_dn_slots != 0 ?
+		    drro->drr_dn_slots : DNODE_MIN_SLOTS;
+
+		first = drro->drr_object;
+		last = first + dn_slots - 1;
+		break;
+	}
+	case DRR_WRITE:
+		first = last = rrd->header.drr_u.drr_write.drr_object;
+		break;
+	case DRR_WRITE_EMBEDDED:
+		first = last = rrd->header.drr_u.drr_write_embedded.drr_object;
+		break;
+	case DRR_FREE:
+		first = last = rrd->header.drr_u.drr_free.drr_object;
+		break;
+	case DRR_SPILL:
+		first = last = rrd->header.drr_u.drr_spill.drr_object;
+		break;
+	case DRR_REDACT:
+		first = last = rrd->header.drr_u.drr_redact.drr_object;
+		break;
+	case DRR_FREEOBJECTS:
+	{
+		struct drr_freeobjects *drrfo =
+		    &rrd->header.drr_u.drr_freeobjects;
+
+		/*
+		 * Senders routinely free the tail slots of an object
+		 * that was reallocated at a smaller dnode size, so these
+		 * ranges do overlap deferred ones.  Park the record; by
+		 * replay time the slots it covers were freed along with
+		 * the old dnode and the frees are no-ops.  The parked
+		 * range joins the tree so that anything a malformed
+		 * stream sends into it afterwards stays ordered behind
+		 * the free instead of racing it at replay.
+		 */
+		if (drrfo->drr_numobjs != 0 &&
+		    receive_defer_overlaps(rwa, drrfo->drr_firstobj,
+		    drrfo->drr_firstobj + drrfo->drr_numobjs - 1)) {
+			receive_defer_range_insert(rwa, drrfo->drr_firstobj,
+			    drrfo->drr_firstobj + drrfo->drr_numobjs - 1);
+			receive_defer_park(rwa, rrd, drrfo->drr_firstobj);
+			return (EAGAIN);
+		}
+		return (0);
+	}
+	default:
+		return (0);
+	}
+
+	if (receive_defer_overlaps(rwa, first, last)) {
+		/*
+		 * A parked object's own slot range must join the tree so
+		 * that the records that follow it in the stream (writes,
+		 * frees, spill) park behind it as well.
+		 */
+		if (rrd->header.drr_type == DRR_OBJECT)
+			receive_defer_range_insert(rwa, first, last);
+		receive_defer_park(rwa, rrd, first);
+		return (EAGAIN);
+	}
+	return (0);
+}
+
+static int
+receive_handle_existing_object(struct receive_writer_arg *rwa,
     const struct drr_object *drro, const dmu_object_info_t *doi,
     const void *bonus_data,
-    uint64_t *object_to_hold, uint32_t *new_blksz)
+    uint64_t *object_to_hold, uint32_t *new_blksz, boolean_t *deferp)
 {
 	uint32_t indblksz = drro->drr_indblkshift ?
 	    1ULL << drro->drr_indblkshift : 0;
@@ -2754,9 +3201,23 @@ receive_handle_existing_object(const struct receive_writer_arg *rwa,
 	    indblksz != doi->doi_metadata_block_size) ||
 	    drro->drr_nlevels < doi->doi_indirection)) ||
 	    dn_slots != doi->doi_dnodesize >> DNODE_SHIFT) {
-		err = dmu_free_long_object(rwa->os, drro->drr_object);
+		uint8_t old_slots = doi->doi_dnodesize >> DNODE_SHIFT;
+
+		err = receive_defer_free_object(rwa, drro->drr_object);
 		if (err != 0)
 			return (SET_ERROR(EINVAL));
+
+		if (receive_defer_enabled(rwa)) {
+			/*
+			 * Defer the claim instead of syncing; the caller
+			 * parks this record for replay after the batched
+			 * sync (see receive_defer_park()).
+			 */
+			receive_defer_range_insert(rwa, drro->drr_object,
+			    drro->drr_object + MAX(old_slots, dn_slots) - 1);
+			*deferp = B_TRUE;
+			return (0);
+		}
 
 		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 		*object_to_hold = DMU_NEW_OBJECT;
@@ -2843,10 +3304,16 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	 * Raw receives will also check that the indirect structure of the
 	 * dnode hasn't changed.
 	 */
-	uint64_t object_to_hold;
+	uint64_t object_to_hold = DMU_NEW_OBJECT;
+	boolean_t defer = B_FALSE;
 	if (err == 0) {
+		/*
+		 * When the claim is deferred, still fall through to the
+		 * multi-slot expansion below so that neighbor frees are
+		 * issued now and share the batched sync.
+		 */
 		err = receive_handle_existing_object(rwa, drro, &doi, data,
-		    &object_to_hold, &new_blksz);
+		    &object_to_hold, &new_blksz, &defer);
 		if (err != 0)
 			return (err);
 	} else if (err == EEXIST) {
@@ -2857,10 +3324,17 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		 * to free this slot when we freed the associated dnode
 		 * earlier in the stream.
 		 */
-		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		if (receive_defer_enabled(rwa)) {
+			receive_defer_range_insert(rwa, drro->drr_object,
+			    drro->drr_object + dn_slots - 1);
+			defer = B_TRUE;
+		} else {
+			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
 
-		if (dmu_object_info(rwa->os, drro->drr_object, NULL) != ENOENT)
-			return (SET_ERROR(EINVAL));
+			if (dmu_object_info(rwa->os, drro->drr_object,
+			    NULL) != ENOENT)
+				return (SET_ERROR(EINVAL));
+		}
 
 		/* object was freed and we are about to allocate a new one */
 		object_to_hold = DMU_NEW_OBJECT;
@@ -2901,16 +3375,39 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 			else if (err != 0)
 				return (err);
 
-			err = dmu_free_long_object(rwa->os, slot);
+			err = receive_defer_free_object(rwa, slot);
 			if (err != 0)
 				return (err);
+
+			if (receive_defer_enabled(rwa)) {
+				/*
+				 * The freed neighbor may itself have been
+				 * a multi-slot dnode extending past the
+				 * range being claimed here.
+				 */
+				uint8_t slot_slots =
+				    slot_doi.doi_dnodesize >> DNODE_SHIFT;
+				receive_defer_range_insert(rwa, slot,
+				    slot + slot_slots - 1);
+			}
 
 			need_sync = B_TRUE;
 		}
 
-		if (need_sync)
-			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		if (need_sync) {
+			if (receive_defer_enabled(rwa)) {
+				receive_defer_range_insert(rwa,
+				    drro->drr_object,
+				    drro->drr_object + dn_slots - 1);
+				defer = B_TRUE;
+			} else {
+				txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+			}
+		}
 	}
+
+	if (defer)
+		return (EAGAIN);
 
 	tx = dmu_tx_create(rwa->os);
 	dmu_tx_hold_bonus(tx, object_to_hold);
@@ -3083,7 +3580,7 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 		else if (err != 0)
 			return (err);
 
-		err = dmu_free_long_object(rwa->os, obj);
+		err = receive_defer_free_object(rwa, obj);
 
 		if (err != 0)
 			return (err);
@@ -4082,9 +4579,15 @@ receive_process_record(struct receive_writer_arg *rwa,
 {
 	int err;
 
-	/* Processing in order, therefore bytes_read should be increasing. */
-	ASSERT3U(rrd->bytes_read, >=, rwa->bytes_read);
-	rwa->bytes_read = rrd->bytes_read;
+	/*
+	 * Processing in order, therefore bytes_read should be increasing.
+	 * Replayed records are earlier in the stream than the writer's
+	 * current position, so leave the high-water mark alone for them.
+	 */
+	if (!rwa->defer_replaying) {
+		ASSERT3U(rrd->bytes_read, >=, rwa->bytes_read);
+		rwa->bytes_read = rrd->bytes_read;
+	}
 
 	/* We can only heal write records; other ones get ignored */
 	if (rwa->heal && rrd->header.drr_type != DRR_WRITE) {
@@ -4096,6 +4599,16 @@ receive_process_record(struct receive_writer_arg *rwa,
 			rrd->payload = NULL;
 		}
 		return (0);
+	}
+
+	/*
+	 * Records that depend on a deferred object claim are parked in
+	 * stream order behind it; everything else keeps flowing.
+	 */
+	if (!rwa->heal && !rwa->defer_replaying && receive_defer_active(rwa)) {
+		err = receive_defer_check(rwa, rrd);
+		if (err != 0)
+			return (err);
 	}
 
 	if (!rwa->heal && rrd->header.drr_type != DRR_WRITE) {
@@ -4119,6 +4632,16 @@ receive_process_record(struct receive_writer_arg *rwa,
 	{
 		struct drr_object *drro = &rrd->header.drr_u.drr_object;
 		err = receive_object(rwa, drro, rrd->payload);
+		if (err == EAGAIN) {
+			/*
+			 * The object's claim was deferred behind a batched
+			 * txg sync; keep the record (and its bonus payload)
+			 * parked for replay.  The park may flush and free
+			 * the record, so it must not be touched again.
+			 */
+			receive_defer_park(rwa, rrd, drro->drr_object);
+			return (EAGAIN);
+		}
 		vmem_free(rrd->payload, rrd->payload_size);
 		rrd->payload = NULL;
 		break;
@@ -4246,10 +4769,16 @@ receive_writer_thread(void *arg)
 	if (rwa->heal) {
 		zio_wait(rwa->heal_pio);
 	} else {
-		int err = flush_write_batch(rwa);
+		int err = 0;
+		if (rwa->err == 0)
+			err = receive_defer_flush(rwa);
+		if (rwa->err == 0)
+			rwa->err = err;
+		err = flush_write_batch(rwa);
 		if (rwa->err == 0)
 			rwa->err = err;
 	}
+	receive_defer_cleanup(rwa);
 	mutex_enter(&rwa->mutex);
 	rwa->done = B_TRUE;
 	cv_signal(&rwa->cv);
@@ -4401,6 +4930,11 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	}
 	list_create(&rwa->write_batch, sizeof (struct receive_record_arg),
 	    offsetof(struct receive_record_arg, node.bqn_node));
+	list_create(&rwa->defer_records, sizeof (struct receive_record_arg),
+	    offsetof(struct receive_record_arg, node.bqn_node));
+	avl_create(&rwa->defer_ranges, receive_defer_range_compare,
+	    sizeof (receive_defer_range_t),
+	    offsetof(receive_defer_range_t, rdr_node));
 
 	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
 	    TS_RUN, minclsyspri);
@@ -4488,6 +5022,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	mutex_destroy(&rwa->mutex);
 	bqueue_destroy(&rwa->q);
 	list_destroy(&rwa->write_batch);
+	list_destroy(&rwa->defer_records);
+	avl_destroy(&rwa->defer_ranges);
 	if (err == 0)
 		err = rwa->err;
 
@@ -4835,6 +5371,10 @@ ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_ff, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, write_batch_size, UINT, ZMOD_RW,
 	"Maximum amount of writes to batch into one transaction");
+
+ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, defer_batch_size, UINT, ZMOD_RW,
+	"Maximum bytes of records parked behind one txg sync while "
+	"receiving reallocated dnodes (0 to sync per object)");
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, best_effort_corrective, INT, ZMOD_RW,
 	"Ignore errors during corrective receive");
