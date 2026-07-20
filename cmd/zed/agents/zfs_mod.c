@@ -1080,8 +1080,40 @@ zfsdle_vdev_online(zpool_handle_t *zhp, void *data)
 	zed_log_msg(LOG_INFO, "zfsdle_vdev_online: searching for '%s' in '%s'",
 	    devname, zpool_get_name(zhp));
 
-	if ((tgt = zpool_find_vdev_by_physpath(zhp, devname,
-	    &avail_spare, &l2cache, NULL)) != NULL) {
+	tgt = zpool_find_vdev_by_physpath(zhp, devname,
+	    &avail_spare, &l2cache, NULL);
+
+	/*
+	 * A whole-disk event carries no vdev guid (the label lives on
+	 * the partition), and udev provides no ID_PATH on some buses,
+	 * so neither lookup above can match.  Fall back to matching the
+	 * config path against the device node plus the whole-disk
+	 * partition.  Only do this for guid-less events, and only trust
+	 * a whole-disk match: device node names are not stable, so a
+	 * path hit on anything else may be a stale config path from an
+	 * unrelated pool.
+	 */
+	if (tgt == NULL && nvlist_lookup_uint64(udev_nvl, ZFS_EV_VDEV_GUID,
+	    &guid) != 0 && nvlist_lookup_string(udev_nvl, DEV_NAME,
+	    &tmp_devname) == 0 && !nvlist_exists(udev_nvl, DEV_IS_PART)) {
+		strlcpy(devname, tmp_devname, MAXPATHLEN);
+		zfs_append_partition(devname, MAXPATHLEN);
+
+		zed_log_msg(LOG_INFO, "zfsdle_vdev_online: retrying as "
+		    "device node '%s'", devname);
+		tgt = zpool_find_vdev(zhp, devname, &avail_spare, &l2cache,
+		    NULL);
+		if (tgt != NULL) {
+			uint64_t wd = 0;
+
+			(void) nvlist_lookup_uint64(tgt,
+			    ZPOOL_CONFIG_WHOLE_DISK, &wd);
+			if (!wd)
+				tgt = NULL;
+		}
+	}
+
+	if (tgt != NULL) {
 		const char *path;
 		char fullpath[MAXPATHLEN];
 		uint64_t wholedisk = 0;
