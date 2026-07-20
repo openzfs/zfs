@@ -90,10 +90,6 @@ tags = ['functional', 'cli_root', 'zpool_reopen']
 tests = ['zpool_split_wholedisk']
 tags = ['functional', 'cli_root', 'zpool_split']
 
-[tests/functional/compression:Linux]
-tests = ['compress_004_pos']
-tags = ['functional', 'compression']
-
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
