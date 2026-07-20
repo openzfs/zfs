@@ -6092,16 +6092,19 @@ typedef struct zdb_blkstats {
 } zdb_blkstats_t;
 
 /*
- * Extended object types to report deferred frees and dedup auto-ditto blocks.
+ * Extended object types to report deferred frees, dedup auto-ditto blocks
+ * and pending DDT-log frees.
  */
 #define	ZDB_OT_DEFERRED	(DMU_OT_NUMTYPES + 0)
 #define	ZDB_OT_DITTO	(DMU_OT_NUMTYPES + 1)
-#define	ZDB_OT_OTHER	(DMU_OT_NUMTYPES + 2)
-#define	ZDB_OT_TOTAL	(DMU_OT_NUMTYPES + 3)
+#define	ZDB_OT_DDT_PENDING	(DMU_OT_NUMTYPES + 2)
+#define	ZDB_OT_OTHER	(DMU_OT_NUMTYPES + 3)
+#define	ZDB_OT_TOTAL	(DMU_OT_NUMTYPES + 4)
 
 static const char *zdb_ot_extname[] = {
 	"deferred free",
 	"dedup ditto",
+	"DDT pending free",
 	"other",
 	"Total",
 };
@@ -7663,6 +7666,63 @@ bpobj_count_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 	return (count_block_cb(arg, bp, tx));
 }
 
+/*
+ * With fast dedup, the last decref of a block lands in the DDT log, and
+ * the physical free happens only when the log entry is flushed back into
+ * the DDT (see ddt_sync_flush_entry()). Until then the block is not
+ * referenced by any block pointer but is still allocated, so the
+ * traversal would misreport it as leaked. Count the phys that the flush
+ * will free here, the same way as the deferred-free bplist: they are
+ * frees in flight. Entries behind the log checkpoint are already flushed
+ * and are not loaded into the in-memory log trees, so everything found
+ * here is genuinely pending.
+ */
+static void
+zdb_count_ddt_log_frees(spa_t *spa, zdb_cb_t *zcb)
+{
+	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
+		ddt_t *ddt = spa->spa_ddt[c];
+		if (ddt == NULL || !(ddt->ddt_flags & DDT_FLAG_LOG))
+			continue;
+		for (int n = 0; n < 2; n++) {
+			ddt_log_t *ddl = &ddt->ddt_log[n];
+			for (ddt_log_entry_t *ddle = avl_first(&ddl->ddl_tree);
+			    ddle; ddle = AVL_NEXT(&ddl->ddl_tree, ddle)) {
+				ddt_lightweight_entry_t ddlwe;
+				DDT_LOG_ENTRY_TO_LIGHTWEIGHT(ddt, ddle,
+				    &ddlwe);
+				for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+					ddt_phys_variant_t v =
+					    DDT_PHYS_VARIANT(ddt, p);
+					/*
+					 * Mirror ddt_sync_flush_entry(): an
+					 * unborn phys owns nothing, an
+					 * obsolete ditto slot is freed
+					 * whatever its refcount, and any
+					 * other slot is freed once its last
+					 * reference is gone.
+					 */
+					if (ddt_phys_birth(&ddlwe.ddlwe_phys,
+					    v) == 0)
+						continue;
+					if (!DDT_PHYS_IS_DITTO(ddt, p) &&
+					    ddt_phys_refcnt(&ddlwe.ddlwe_phys,
+					    v) != 0)
+						continue;
+					blkptr_t blk;
+					ddt_bp_create(ddt->ddt_checksum,
+					    &ddlwe.ddlwe_key, &ddlwe.ddlwe_phys,
+					    v, &blk);
+					/* As ddt_phys_free() does at flush. */
+					BP_SET_DEDUP(&blk, 0);
+					zdb_count_block(zcb, NULL, &blk,
+					    ZDB_OT_DDT_PENDING);
+				}
+			}
+		}
+	}
+}
+
 static int
 livelist_entry_count_blocks_cb(void *args, dsl_deadlist_entry_t *dle)
 {
@@ -7787,6 +7847,8 @@ dump_block_stats(spa_t *spa)
 		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
 		    bpobj_count_block_cb, zcb, NULL);
 	}
+
+	zdb_count_ddt_log_frees(spa, zcb);
 
 	zdb_claim_removing(spa, zcb);
 
