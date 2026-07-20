@@ -48,7 +48,12 @@ log_onexit resume_cleanup $sendfs $streamfs
 test_fs_setup $sendfs $recvfs $streamfs
 log_must zfs unmount -f $sendfs
 resume_test "zfs send $sendfs" $streamfs $recvfs 0
-file_check $sendfs $recvfs
+
+# The stream was taken from the head, not from the a/b snapshots
+# file_check compares, so diff the mounted heads instead
+log_must zfs mount $sendfs
+log_must zfs mount $recvfs
+log_must directory_diff /$sendfs /$recvfs
 
 log_pass "Verify resumability of a full ZFS send/receive with the source " \
     "filesystem unmounted"
