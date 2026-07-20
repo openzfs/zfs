@@ -197,7 +197,8 @@ tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
 tags = ['functional', 'renameat2']
 
 [tests/functional/rsend:Linux]
-tests = ['send_realloc_dnode_size', 'send_encrypted_files', 'send-c_longname']
+tests = ['send_realloc_dnode_size', 'send_realloc_dnode_resume',
+    'send_encrypted_files', 'send-c_longname']
 tags = ['functional', 'rsend']
 
 [tests/functional/simd:Linux]

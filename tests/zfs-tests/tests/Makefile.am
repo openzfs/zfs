@@ -2177,6 +2177,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_raw_spill_block.ksh \
 	functional/rsend/send_raw_large_blocks.ksh \
 	functional/rsend/send_realloc_dnode_nblkptr.ksh \
+	functional/rsend/send_realloc_dnode_resume.ksh \
 	functional/rsend/send_realloc_dnode_size.ksh \
 	functional/rsend/send_realloc_encrypted_files.ksh \
 	functional/rsend/send_realloc_files.ksh \
