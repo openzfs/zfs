@@ -70,7 +70,9 @@ log_mustnot eval "zfs send --saved $POOL/recvfullfs | zfs recv -s " \
 	"$POOL/partialfs"
 token=$(zfs get -Hp -o value receive_resume_token $POOL/partialfs)
 log_must eval "zfs send -t $token | zfs recv -s $POOL/partialfs"
-file_check $POOL/recvfullfs $POOL/partialfs
+# recvfullfs never completes and has no snapshots to compare, so
+# check the result against the dataset the stream originally came from
+file_check $POOL/testfs2 $POOL/partialfs
 log_must zfs destroy -r $POOL/partialfs
 
 # Perform saved send with incremental

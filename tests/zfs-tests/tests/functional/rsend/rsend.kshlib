@@ -583,14 +583,34 @@ function file_check
 {
 	sendfs=$1
 	recvfs=$2
+	typeset -i compared=0
 
-	if [[ -d /$recvfs/.zfs/snapshot/a && -d \
-	    /$sendfs/.zfs/snapshot/a ]]; then
-		log_must directory_diff /$recvfs/.zfs/snapshot/a /$sendfs/.zfs/snapshot/a
-	fi
-	if [[ -d /$recvfs/.zfs/snapshot/b && -d \
-	    /$sendfs/.zfs/snapshot/b ]]; then
-		log_must directory_diff /$recvfs/.zfs/snapshot/b /$sendfs/.zfs/snapshot/b
+	#
+	# The datasets are often not mounted at this point (the receive
+	# side is usually created with -u), and the .zfs directories the
+	# diffs need only exist once they are mounted.
+	#
+	ismounted $sendfs || log_must zfs mount $sendfs
+	ismounted $recvfs || log_must zfs mount $recvfs
+
+	#
+	# Only compare the snapshots both sides have; some tests send
+	# just one of them.  Comparing nothing means the caller's
+	# expectations are wrong, and historically this function did
+	# exactly that whenever the receive side was unmounted.
+	#
+	typeset snap
+	for snap in a b; do
+		[[ -d /$sendfs/.zfs/snapshot/$snap && \
+		    -d /$recvfs/.zfs/snapshot/$snap ]] || continue
+		log_must directory_diff /$recvfs/.zfs/snapshot/$snap \
+		    /$sendfs/.zfs/snapshot/$snap
+		compared=$((compared + 1))
+	done
+
+	if [[ $compared -eq 0 ]]; then
+		log_fail "file_check: no snapshots compared for" \
+		    "$sendfs and $recvfs"
 	fi
 }
 
