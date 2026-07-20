@@ -58,21 +58,12 @@ function create_free_testing #<file size> <file>
 	typeset -i len=0
 	typeset -i dist=0
 
-	for start in 0 `expr $RANDOM % $fsz`
+	for start in 0 $((RANDOM % fsz))
 	do
 		(( dist = fsz - start ))
-		for len in `expr $RANDOM % $dist` $dist \
-			`expr $start + $dist`; do
-
-			# Zero length results in EINVAL for fallocate(2).
-			if is_linux; then
-				if (( len == 0 )); then
-					continue
-				fi
-			fi
-
-			log_must randfree_file -l fsz -s $start \
-				-n $len $file
+		for len in $((1 + RANDOM % (dist - 1))) $dist \
+		    $((start + dist)); do
+			log_must randfree_file -l $fsz -s $start -n $len $file
 			[[ -e $file ]] && \
 				log_must rm -f $file
 		done

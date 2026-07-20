@@ -92,10 +92,6 @@ tags = ['functional', 'cli_root', 'zpool_reopen']
 tests = ['zpool_split_wholedisk']
 tags = ['functional', 'cli_root', 'zpool_split']
 
-[tests/functional/compression:Linux]
-tests = ['compress_004_pos']
-tags = ['functional', 'compression']
-
 [tests/functional/dedup:Linux]
 tests = ['dedup_legacy_gang']
 tags = ['functional', 'dedup']
