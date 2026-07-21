@@ -863,6 +863,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_mount/zfs_multi_mount.ksh \
 	functional/cli_root/zfs_program/cleanup.ksh \
 	functional/cli_root/zfs_program/setup.ksh \
+	functional/cli_root/zfs_program/zfs_channel_program_support.ksh \
 	functional/cli_root/zfs_program/zfs_program_json.ksh \
 	functional/cli_root/zfs_promote/cleanup.ksh \
 	functional/cli_root/zfs_promote/setup.ksh \
