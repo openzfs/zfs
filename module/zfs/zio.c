@@ -1423,6 +1423,11 @@ zio_write(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp,
 	zio->io_children_ready = children_ready;
 	zio->io_prop = *zp;
 
+#ifdef _KERNEL
+	//printk("ZIA TEST: linear = %d, lp = %d, gang = %d, pages = %d", abd_is_linear(zio->io_abd) == B_TRUE,
+	//    abd_is_linear_page(zio->io_abd) == B_TRUE, abd_is_gang(zio->io_abd) == B_TRUE, abd_is_from_pages(zio->io_abd) == B_TRUE);
+#endif
+
 	/*
 	 * Data can be NULL if we are going to call zio_write_override() to
 	 * provide the already-allocated BP.  But we may need the data to
