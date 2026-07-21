@@ -97,6 +97,9 @@ $hdr_comment_start = qr/^\s*\/\*$/;
 my $typename = '(int|char|short|long|unsigned|float|double' .
     '|\w+_t|struct\s+\w+|union\s+\w+|FILE)';
 
+# cast or compound-literal type, e.g. "(foo_t *)"
+my $cast = qr/\($typename(?: \*+)?\)/;
+
 # mapping of old types to POSIX compatible types
 my %old2posix = (
 	'unchar' => 'uchar_t',
@@ -683,12 +686,14 @@ line: while (<$filehandle>) {
 	}
 	if ($picky) {
 		# try to detect spaces after casts, but allow (e.g.)
-		# "sizeof (int) + 1", "void (*funcptr)(int) = foo;", and
-		# "int foo(int) __NORETURN;"
-		if ((/^\($typename( \*+)?\)\s/o ||
-		    /\W\($typename( \*+)?\)\s/o) &&
-		    !/sizeof\s*\($typename( \*)?\)\s/o &&
-		    !/\($typename( \*+)?\)\s+=[^=]/o) {
+		# "sizeof (int) + 1", "void (*funcptr)(int) = foo;",
+		# "int foo(int) __NORETURN;", and "(foo_t) { ... }"
+		#
+		# sizeof (type) is not a cast; remove it so it can't mask
+		# a real cast elsewhere on the line.
+		my $tmp = $_;
+		$tmp =~ s/\bsizeof\s*$cast/sizeof/g;
+		if ($tmp =~ /(?:^|\W)$cast(?>\s+)(?!\{|=[^=])/) {
 			err("space after cast");
 		}
 		if (/\b$typename\s*\*\s/o &&
@@ -801,12 +806,18 @@ process_indent($)
 	my $case = 'case\b[^:]*$';
 
 	# skip over enumerations, array definitions, initializers, etc.
-	if ($cont_off <= 0 && !/^\s*$special/ &&
-	    (/(?:(?:\b(?:enum|struct|union)\s*[^\{]*)|(?:\s+=\s*))\{/ ||
-	    (/^\s*\{/ && $prev =~ /=\s*(?:\/\*.*\*\/\s*)*$/))) {
-		$cont_in = 0;
-		$cont_off = tr/{/{/ - tr/}/}/;
-		return;
+	if ($cont_off <= 0 && !/^\s*$special/) {
+		my $aggregate = /\b(?:enum|struct|union)\s*[^{]*\{/;
+		my $initializer = /\s+=\s*(?:$cast\s*)?\{/;
+		# "= {" split across lines, "=" possibly trailed by comments
+		my $split_init = /^\s*\{/ &&
+		    $prev =~ /=\s*(?:$cast\s*)?(?:\/\*.*\*\/\s*)?$/;
+
+		if ($aggregate || $initializer || $split_init) {
+			$cont_in = 0;
+			$cont_off = tr/{/{/ - tr/}/}/;
+			return;
+		}
 	}
 	if ($cont_off) {
 		$cont_off += tr/{/{/ - tr/}/}/;
