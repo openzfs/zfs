@@ -40,34 +40,34 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must mmp_clear_hostid
 }
 
 log_assert "multihost=on|off activity checks exported pool"
 log_onexit cleanup
 
-# 1. Create a zpool
-log_must mmp_set_hostid $HOSTID1
-log_must zpool create -f $TESTPOOL $DISK
+# 1. Create an enriched zpool (hole, indirect, log, cache, and spare
+#    vdevs) so the activity checks exercise the non-writeable types.
+mmp_pool_create_simple $MMP_POOL $MMP_DIR enriched
 
 # 2. Verify multihost=off and hostids match (no activity check)
 log_note "Verify multihost=off and hostids match (no activity check)"
-log_must zpool set multihost=off $TESTPOOL
+log_must zpool set multihost=off $MMP_POOL
 
 for opt in "" "-f"; do
-	log_must zpool export $TESTPOOL
-	log_must import_no_activity_check $TESTPOOL $opt
+	log_must zpool export $MMP_POOL
+	log_must import_no_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 # 3. Verify multihost=off and hostids differ (no activity check)
 log_note "Verify multihost=off and hostids differ (no activity check)"
 for opt in "" "-f"; do
-	log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
-	log_must zpool export $TESTPOOL
+	log_must mmp_pool_set_hostid $MMP_POOL $HOSTID1
+	log_must zpool export $MMP_POOL
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
-	log_must import_no_activity_check $TESTPOOL $opt
+	log_must import_no_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 # 4. Verify multihost=off and hostid zero allowed (no activity check)
@@ -75,39 +75,39 @@ log_note "Verify multihost=off and hostid zero allowed (no activity check)"
 log_must mmp_clear_hostid
 
 for opt in "" "-f"; do
-	log_must zpool export $TESTPOOL
-	log_must import_no_activity_check $TESTPOOL $opt
+	log_must zpool export $MMP_POOL
+	log_must import_no_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 # 5. Verify multihost=on and hostids match (no activity check)
 log_note "Verify multihost=on and hostids match (no activity check)"
-log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
-log_must zpool set multihost=on $TESTPOOL
+log_must mmp_pool_set_hostid $MMP_POOL $HOSTID1
+log_must zpool set multihost=on $MMP_POOL
 
 for opt in "" "-f"; do
-	log_must zpool export $TESTPOOL
-	log_must import_no_activity_check $TESTPOOL $opt
+	log_must zpool export $MMP_POOL
+	log_must import_no_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 # 6. Verify multihost=on and hostids differ (activity check)
 log_note "Verify multihost=on and hostids differ (activity check)"
 for opt in "" "-f"; do
-	log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
-	log_must zpool export $TESTPOOL
+	log_must mmp_pool_set_hostid $MMP_POOL $HOSTID1
+	log_must zpool export $MMP_POOL
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $HOSTID2
-	log_must import_activity_check $TESTPOOL $opt
+	log_must import_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 # 7. Verify multihost=on and hostid zero fails (no activity check)
 log_note "Verify multihost=on and hostid zero fails (no activity check)"
-log_must zpool export $TESTPOOL
+log_must zpool export $MMP_POOL
 log_must mmp_clear_hostid
 
 for opt in "" "-f"; do
 	MMP_IMPORTED_MSG="Set a unique system hostid"
-	log_must check_pool_import $TESTPOOL "" "action" "$MMP_IMPORTED_MSG"
-	log_mustnot import_no_activity_check $TESTPOOL $opt
+	log_must check_pool_import $MMP_POOL "-d $MMP_DIR" "action" "$MMP_IMPORTED_MSG"
+	log_mustnot import_no_activity_check $MMP_POOL "-d $MMP_DIR $opt"
 done
 
 log_pass "multihost=on|off exported pool activity checks passed"
