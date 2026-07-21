@@ -212,7 +212,7 @@ tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy',
     'snapdir_mount_expire_busy', 'snapdir_mount_no_setuid',
     'snapdir_stat_no_mount', 'snapdir_mount_bind', 'snapdir_mount_move',
     'snapdir_mount_expire_bind', 'snapdir_mount_expire_move',
-    'snapdir_mount_multiple', 'snapdir_mount_fd_hold']
+    'snapdir_mount_multiple', 'snapdir_mount_fd_hold', 'snapdir_mount_foreign']
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
