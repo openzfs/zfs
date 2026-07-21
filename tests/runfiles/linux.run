@@ -23,7 +23,7 @@ failsafe = callbacks/zfs_failsafe
 tags = ['functional']
 
 [tests/functional/acl/posix:Linux]
-tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos', 'posix_005_pos']
 tags = ['functional', 'acl', 'posix']
 
 [tests/functional/acl/posix-sa:Linux]
