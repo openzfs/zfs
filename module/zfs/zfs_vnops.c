@@ -289,6 +289,17 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 	}
 
 	/*
+	 * The zpl caller declined Direct I/O for this request (a file handle
+	 * that already hit a benign DIO read verify failure from a recycled
+	 * O_DIRECT buffer).  Fall through to uncached buffered I/O.  Placed
+	 * after the ZFS_DIRECT_ALWAYS handling above so direct=always is
+	 * declined too.  The verify itself is untouched, so mirror and raidz
+	 * self-heal for genuine corruption still runs on the buffered path.
+	 */
+	if (uio->uio_extflg & UIO_DIO_DENY)
+		goto out;
+
+	/*
 	 * For short writes the page mapping of Direct I/O makes no sense.
 	 * Direct them through the ARC as uncached I/O.
 	 */
@@ -531,8 +542,19 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 out:
 	zfs_rangelock_exit(lr);
 
-	if (dio_checksum_failure == B_TRUE)
+	if (dio_checksum_failure == B_TRUE) {
 		uio->uio_extflg |= UIO_DIRECT;
+		/*
+		 * The DIO read verify failed but the buffered re-read that
+		 * followed succeeded, so the on-disk data is good and the
+		 * caller mutated its own O_DIRECT buffer in flight.  Report
+		 * this outward so the platform layer can decline Direct I/O
+		 * for this file handle from here on.  A real on-disk error
+		 * would have returned nonzero and is not flagged.
+		 */
+		if (error == 0)
+			uio->uio_extflg |= UIO_DIO_CKSUM_RETRIED;
+	}
 
 	/*
 	 * Cleanup for Direct I/O if requested.

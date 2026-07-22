@@ -48,6 +48,31 @@
 #endif
 
 /*
+ * Per-open-file state, hung off file->private_data.  Allocated lazily the
+ * first time a Direct I/O read on this handle hits a benign checksum verify
+ * failure -- a recycled O_DIRECT buffer whose buffered re-read then succeeded.
+ * Its presence makes zpl_iter_read route subsequent reads through the uncached
+ * buffered path for the remaining lifetime of the handle, which stops the
+ * verify-failure / re-read storm without disabling the verify itself (so
+ * mirror/raidz self-heal for genuine corruption is unaffected).
+ */
+typedef struct zpl_file_data {
+	boolean_t	zfd_dio_read_declined;
+} zpl_file_data_t;
+
+static void
+zpl_dio_read_decline(struct file *filp)
+{
+	if (atomic_load_ptr(&filp->private_data) != NULL)
+		return;
+
+	zpl_file_data_t *zfd = kmem_zalloc(sizeof (*zfd), KM_SLEEP);
+	zfd->zfd_dio_read_declined = B_TRUE;
+	if (atomic_cas_ptr(&filp->private_data, NULL, zfd) != NULL)
+		kmem_free(zfd, sizeof (*zfd));
+}
+
+/*
  * When using fallocate(2) to preallocate space, inflate the requested
  * capacity check by 10% to account for the required metadata blocks.
  */
@@ -90,6 +115,12 @@ zpl_release(struct inode *ip, struct file *filp)
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
+
+	zpl_file_data_t *zfd = filp->private_data;
+	if (zfd != NULL) {
+		filp->private_data = NULL;
+		kmem_free(zfd, sizeof (*zfd));
+	}
 
 	return (error);
 }
@@ -222,6 +253,14 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 
 	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
 
+	/*
+	 * This handle previously declined Direct I/O after a benign read
+	 * verify failure; keep taking the uncached buffered path.
+	 */
+	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
+	if (zfd != NULL && zfd->zfd_dio_read_declined)
+		uio.uio_extflg |= UIO_DIO_DENY;
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
@@ -230,6 +269,14 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
+
+	/*
+	 * A Direct I/O read verify failed benignly (recycled O_DIRECT buffer)
+	 * and the buffered re-read succeeded; decline Direct I/O reads on this
+	 * handle from here on.
+	 */
+	if (uio.uio_extflg & UIO_DIO_CKSUM_RETRIED)
+		zpl_dio_read_decline(filp);
 
 	if (ret < 0)
 		return (ret);

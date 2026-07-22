@@ -40,6 +40,15 @@
  * uio_extflg: extended flags
  */
 #define	UIO_DIRECT	0x0001 /* Direct I/O request */
+/*
+ * UIO_DIO_DENY: the zpl caller declines Direct I/O for this request (e.g. a
+ * file handle that already hit a benign DIO read verify failure).
+ * UIO_DIO_CKSUM_RETRIED: set by zfs_read when a DIO read verify failed but the
+ * buffered re-read succeeded -- a recycled O_DIRECT buffer, not an on-disk
+ * error.
+ */
+#define	UIO_DIO_DENY		0x0002
+#define	UIO_DIO_CKSUM_RETRIED	0x0004
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
