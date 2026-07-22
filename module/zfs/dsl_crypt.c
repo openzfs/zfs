@@ -2296,8 +2296,9 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		dsl_dir_zapify(dd, tx);
 
 		/* create the DSL Crypto Key on disk and activate the feature */
-		dd->dd_crypto_obj = zap_create(mos,
-		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx);
+		VERIFY0(zap_create(mos,
+		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx,
+		    &dd->dd_crypto_obj));
 		VERIFY0(zap_update(tx->tx_pool->dp_meta_objset,
 		    dd->dd_crypto_obj, DSL_CRYPTO_KEY_REFCOUNT,
 		    sizeof (uint64_t), 1, &one, tx));
@@ -2318,7 +2319,7 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 		 * has been provided via the properties, this will be overridden
 		 * later.
 		 */
-		dsl_prop_set_sync_impl(ds,
+		(void) dsl_prop_set_sync_impl(ds,
 		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
 		    ZPROP_SRC_LOCAL, 1, strlen(keylocation) + 1,
 		    keylocation, tx);
@@ -2575,8 +2576,8 @@ dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
 	ASSERT3U(crypt, >, ZIO_CRYPT_OFF);
 
 	/* create the DSL Crypto Key ZAP object */
-	dck.dck_obj = zap_create(tx->tx_pool->dp_meta_objset,
-	    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx);
+	VERIFY0(zap_create(tx->tx_pool->dp_meta_objset,
+	    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx, &dck.dck_obj));
 
 	/* fill in the key (on the stack) and sync it to disk */
 	dck.dck_wkey = wkey;

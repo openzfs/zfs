@@ -571,9 +571,10 @@ zfs_mount_delegation_check(void)
 
 /* Called from the tail end of zpool_disable_datasets() */
 void
-zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force)
+zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force,
+    boolean_t hardforce)
 {
-	(void) zhp, (void) force;
+	(void) zhp, (void) force, (void) hardforce;
 }
 
 /* Called from the tail end of zfs_unmount() */

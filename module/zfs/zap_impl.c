@@ -31,6 +31,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dnode.h>
 #include <sys/dsl_dataset.h>
 #include <sys/zap.h>
@@ -292,6 +293,7 @@ zap_lock_impl(dnode_t *dn, dmu_buf_t *db, dmu_tx_t *tx,
 	ASSERT0(db->db_offset);
 	objset_t *os = dmu_buf_get_objset(db);
 	uint64_t obj = db->db_object;
+	int err;
 
 	*zapp = NULL;
 
@@ -331,8 +333,13 @@ zap_lock_impl(dnode_t *dn, dmu_buf_t *db, dmu_tx_t *tx,
 	zap->zap_objset = os;
 	zap->zap_dnode = dn;
 
-	if (lt == RW_WRITER)
+	if (lt == RW_WRITER) {
 		dmu_buf_will_dirty(db, tx);
+		if (SPA_EXITING(os->os_spa)) {
+			rw_exit(&zap->zap_rwlock);
+			return (SET_ERROR(EIO));
+		}
+	}
 
 	ASSERT3P(zap->zap_dbuf, ==, db);
 
@@ -345,12 +352,17 @@ zap_lock_impl(dnode_t *dn, dmu_buf_t *db, dmu_tx_t *tx,
 			dprintf("upgrading obj %llu: num_entries=%u\n",
 			    (u_longlong_t)obj, zap->zap_m.zap_num_entries);
 			*zapp = zap;
-			int err = mzap_upgrade(zapp, tx, 0);
+			err = mzap_upgrade(zapp, tx, 0);
 			if (err != 0)
 				rw_exit(&zap->zap_rwlock);
 			return (err);
 		}
-		VERIFY0(dmu_object_set_blocksize(os, obj, newsz, 0, tx));
+		err = dmu_object_set_blocksize(os, obj, newsz, 0, tx);
+		if (err && SPA_EXITING(os->os_spa)) {
+			rw_exit(&zap->zap_rwlock);
+			return (SET_ERROR(EIO));
+		}
+		VERIFY0(err);
 		zap->zap_m.zap_num_chunks =
 		    db->db_size / MZAP_ENT_LEN - 1;
 

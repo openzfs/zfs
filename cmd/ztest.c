@@ -125,6 +125,7 @@
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
 #include <sys/blake3.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -143,6 +144,27 @@
 #include <libzpool.h>
 #include <libspl.h>
 
+#if defined(__linux__)
+#ifdef HAVE_GETTID
+#define	libspl_gettid()		gettid()
+#else
+#include <sys/syscall.h>
+#define	libspl_gettid()		((pid_t)syscall(__NR_gettid))
+#endif
+#elif defined(__FreeBSD__)
+#include <pthread_np.h>
+#define	libspl_gettid()		pthread_getthreadid_np()
+#elif defined(__APPLE__)
+static inline uint64_t
+libspl_gettid(void)
+{
+	uint64_t tid;
+	if (pthread_threadid_np(NULL, &tid) != 0)
+		tid = 0;
+	return (tid);
+}
+#endif
+
 static int ztest_fd_data = -1;
 
 typedef struct ztest_shared_hdr {
@@ -154,6 +176,7 @@ typedef struct ztest_shared_hdr {
 	uint64_t	zh_ds_size;
 	uint64_t	zh_ds_count;
 	uint64_t	zh_scratch_state_size;
+	uint64_t	zh_prng_state_size;
 } ztest_shared_hdr_t;
 
 static ztest_shared_hdr_t *ztest_shared_hdr;
@@ -206,6 +229,8 @@ typedef struct ztest_shared_opts {
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
+	int zo_fishing;
+	uint64_t zo_fishing_seed[4];
 	int zo_gvars_count;
 	char zo_gvars[ZO_GVARS_MAX_COUNT][ZO_GVARS_MAX_ARGLEN];
 } ztest_shared_opts_t;
@@ -298,6 +323,13 @@ typedef struct ztest_scratch_state {
 } ztest_shared_scratch_state_t;
 
 static ztest_shared_scratch_state_t *ztest_scratch_state;
+
+typedef struct ztest_prng_state {
+	uint64_t		zs_primary_seed[4];
+	volatile uint64_t	zs_jumps;
+} ztest_shared_prng_state_t;
+
+static ztest_shared_prng_state_t *ztest_prng_state;
 
 #define	BT_MAGIC	0x123456789abcdefULL
 #define	MAXFAULTS(zs) \
@@ -453,6 +485,7 @@ ztest_func_t ztest_pool_prefetch_ddt;
 ztest_func_t ztest_ddt_prune;
 ztest_func_t ztest_spa_log_flushall_start;
 ztest_func_t ztest_spa_log_flushall_cancel;
+ztest_func_t ztest_hardforced_export;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -512,9 +545,18 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_ddt_prune, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
+	ZTI_INIT(ztest_hardforced_export, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
+
+static volatile uint64_t ztest_running_threads = 0;
+static struct {
+	const char *func;
+	pid_t pid;
+	uint64_t tid;
+	boolean_t onhold;
+} *ztest_threads;
 
 /*
  * The following struct is used to hold a list of uncalled commit callbacks.
@@ -560,6 +602,35 @@ static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
+
+/* Hardforced export test scenario state. */
+enum {
+	HFE_STAGE_DONE_ONCE,
+	HFE_STAGE_INACTIVE,
+	HFE_STAGE_STARTED,
+	HFE_STAGE_SUSPENDED,
+	HFE_STAGE_CANCELLING_IO,
+	HFE_STAGE_CLOSING_DATASETS,
+	HFE_STAGE_EXPORTING,
+	HFE_STAGE_REIMPORTING,
+};
+static atomic_uint ztest_hfe_stage = HFE_STAGE_INACTIVE;
+static uint64_t ztest_hfe_runs = 0;
+static kmutex_t ztest_hfe_lock;
+static volatile uint64_t ztest_hfe_reimport_waiters = 0;
+#define	ZTEST_HFE_SET_STAGE(stage) atomic_store(&ztest_hfe_stage, (stage))
+#define	ZTEST_HFE_STAGE() atomic_load(&ztest_hfe_stage)
+#define	ZTEST_HFE_ACTIVE() ((ZTEST_HFE_STAGE() >= HFE_STAGE_STARTED && \
+	ZTEST_HFE_STAGE() <= HFE_STAGE_EXPORTING) || \
+	vdev_file_constant_error != 0)
+#define	ZTEST_HFE_NEVER_RUN() (ZTEST_HFE_STAGE() == HFE_STAGE_INACTIVE && \
+	ztest_hfe_runs == 0)
+
+static int ztest_dataset_open(int);
+static void ztest_dataset_close(int);
+static void ztest_open_pool(ztest_shared_t *, spa_t **);
+static void ztest_get_zdb_bin(char *, int);
+static void ztest_run(ztest_shared_t *);
 
 /*
  * The ztest_name_lock protects the pool and dataset namespace used by
@@ -820,6 +891,9 @@ static ztest_option_t option_table[] = {
 	{ 'G',	"dump-debug-msg", NULL,
 	    "Dump zfs_dbgmsg buffer before exiting due to an error",
 	    NO_DEFAULT, NULL},
+	{ 'J',	"fishing", "seed",
+	    "Use repeatable random sequences",
+	    NO_DEFAULT, NULL},
 	{ 'V',	"verbose", NULL,
 	    "Verbose (use multiple times for ever more verbosity)",
 	    NO_DEFAULT, NULL},
@@ -903,18 +977,193 @@ usage(boolean_t requested)
 	exit(requested ? 0 : 1);
 }
 
+/*
+ * xoshiro256++ 1.0 PRNG by David Blackman and Sebastiano Vigna
+ *
+ * xoshiro256plusplus_* functions are copied and adopted from the following
+ * CC-0 licensed file:
+ *
+ * https://prng.di.unimi.it/xoshiro256plusplus.c
+ */
+
+static inline uint64_t xoshiro256plusplus_rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+static uint64_t xoshiro256plusplus_next(uint64_t *s) {
+	const uint64_t result = xoshiro256plusplus_rotl(s[0] + s[3], 23) + s[0];
+
+	const uint64_t t = s[1] << 17;
+
+	s[2] ^= s[0];
+	s[3] ^= s[1];
+	s[1] ^= s[2];
+	s[0] ^= s[3];
+
+	s[2] ^= t;
+
+	s[3] = xoshiro256plusplus_rotl(s[3], 45);
+
+	return (result);
+}
+
+static void xoshiro256plusplus_jump(uint64_t *s) {
+	static const uint64_t JUMP[] = { 0x180ec6d33cfd0aba, 0xd5a61266f0c9392c,
+	    0xa9582618e03fc9aa, 0x39abdc4529b1661c };
+
+	uint64_t s0 = 0;
+	uint64_t s1 = 0;
+	uint64_t s2 = 0;
+	uint64_t s3 = 0;
+	for (int i = 0; i < sizeof (JUMP) / sizeof (*JUMP); i++)
+		for (int b = 0; b < 64; b++) {
+			if (JUMP[i] & UINT64_C(1) << b) {
+				s0 ^= s[0];
+				s1 ^= s[1];
+				s2 ^= s[2];
+				s3 ^= s[3];
+			}
+			xoshiro256plusplus_next(s);
+		}
+
+	s[0] = s0;
+	s[1] = s1;
+	s[2] = s2;
+	s[3] = s3;
+}
+
+static __thread volatile uint64_t seeded;
+static __thread uint64_t seed[4];
+
 static uint64_t
-ztest_random(uint64_t range)
+ztest_random_flags(uint64_t range, boolean_t fishing)
 {
 	uint64_t r;
 
 	if (range == 0)
 		return (0);
 
+	if (fishing)
+		goto fishing;
+
 	random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
 
 	return (r % range);
+
+fishing:
+	if (atomic_load_64(&ztest_prng_state->zs_jumps) == 0) {
+		memcpy(ztest_prng_state->zs_primary_seed,
+		    ztest_opts.zo_fishing_seed,
+		    sizeof (ztest_opts.zo_fishing_seed));
+		if (ztest_prng_state->zs_primary_seed[0] == 0 &&
+		    ztest_prng_state->zs_primary_seed[1] == 0 &&
+		    ztest_prng_state->zs_primary_seed[2] == 0 &&
+		    ztest_prng_state->zs_primary_seed[3] == 0) {
+			random_force_pseudo(B_FALSE);
+			random_get_pseudo_bytes(
+			    (uint8_t *)ztest_prng_state->zs_primary_seed,
+			    sizeof (ztest_prng_state->zs_primary_seed));
+		}
+		printf("primary_prng_seed=%016lx%016lx%016lx%016lx\n",
+		    ztest_prng_state->zs_primary_seed[0],
+		    ztest_prng_state->zs_primary_seed[1],
+		    ztest_prng_state->zs_primary_seed[2],
+		    ztest_prng_state->zs_primary_seed[3]);
+	}
+	if (atomic_load_64(&seeded) == 0) {
+		memcpy(seed, ztest_prng_state->zs_primary_seed,
+		    sizeof (ztest_prng_state->zs_primary_seed));
+		uint64_t jumps = atomic_inc_64_nv(
+		    &ztest_prng_state->zs_jumps);
+		for (uint64_t i = 0; i < jumps; i++)
+			xoshiro256plusplus_jump(seed);
+		atomic_inc_64(&seeded);
+		if (ztest_opts.zo_verbose >= 5) {
+			printf("thread=%u prng_seed=%016lx%016lx%016lx%016lx\n",
+			    libspl_gettid(),
+			    seed[0], seed[1], seed[2], seed[3]);
+		}
+	}
+	r = xoshiro256plusplus_next(seed);
+
+	return (r % range);
 }
+
+static uint64_t
+ztest_random(uint64_t range)
+{
+	return (ztest_random_flags(range, ztest_opts.zo_fishing));
+}
+
+static void
+ztest_random_bytes(uint8_t *buf, size_t len)
+{
+	uint64_t rnd;
+	size_t cnt;
+
+	while (len > 0) {
+		rnd = ztest_random(UINT64_MAX);
+		cnt = (len > sizeof (rnd)) ? sizeof (rnd) : len;
+		memcpy(buf, &rnd, cnt);
+		buf += cnt;
+		len -= cnt;
+	}
+}
+
+typedef struct ztest_fishing_thread_arg {
+	void (*func)(void *);
+	void *arg;
+} ztest_fishing_thread_arg_t;
+
+static __attribute__((noreturn)) void
+ztest_fishing_thread(void *arg)
+{
+	(void) ztest_random(1); /* trigger seed lazy init for this thread */
+
+	ztest_fishing_thread_arg_t ftarg = *(ztest_fishing_thread_arg_t *)arg;
+	umem_free(arg, sizeof (ztest_fishing_thread_arg_t));
+
+	ftarg.func(ftarg.arg);
+
+	thread_exit();
+}
+
+static kthread_t *
+ztest_thread_create(const char *name,
+    void *stk, size_t stksize, void (*func)(void *), void *arg,
+    size_t len, proc_t *pp, int state, pri_t pri)
+{
+	(void) stk, (void) len, (void) pp, (void) pri;
+	kthread_t *result;
+	ztest_fishing_thread_arg_t *ftargp;
+	uint64_t jumps;
+
+	if (ztest_opts.zo_fishing)
+		goto fishing;
+
+	return (thread_create_named(name, stk, stksize, func, arg, len, pp,
+	    state, pri));
+
+fishing:
+	ftargp = umem_alloc(sizeof (ztest_fishing_thread_arg_t), UMEM_NOFAIL);
+	ftargp->func = func;
+	ftargp->arg = arg;
+
+	jumps = atomic_load_64(&ztest_prng_state->zs_jumps);
+	result = thread_create_named(name, stk, stksize,
+	    ztest_fishing_thread, ftargp, len, pp, state, pri);
+	while (atomic_load_64(&ztest_prng_state->zs_jumps) == jumps) {
+		/* let this thread initialize its seed */
+	}
+
+	return (result);
+}
+
+#define	_thread_create_named(name, stk, stksize, func, arg, len, \
+    pp, state, pri)	\
+	ztest_thread_create(name, stk, stksize, func, arg, len, pp, state, pri)
+#define	_thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
+	ztest_thread_create(#func, stk, stksize, func, arg, len, pp, state, pri)
 
 static void
 ztest_parse_name_value(const char *input, ztest_shared_opts_t *zo)
@@ -1099,6 +1348,32 @@ process_options(int argc, char **argv)
 		case 'G':
 			zo->zo_dump_dbgmsg = 1;
 			break;
+		case 'J':
+			zo->zo_fishing = 1;
+			if (strlen(optarg) == 0 || strcmp(optarg, "0") == 0) {
+				/* ok, no seed provided */
+				break;
+			} else if (strlen(optarg) != 64) {
+				(void) fprintf(stderr,
+				    "fishing seed must be 64 hex digits: %s\n",
+				    optarg);
+				usage(B_FALSE);
+			}
+			for (int i = 0; i < 4; i++) {
+				char s[17];
+				char *end = NULL;
+				memcpy(s, optarg + i * 16, 16);
+				s[16] = '\0';
+				errno = 0;
+				zo->zo_fishing_seed[i] = strtoull(s, &end, 16);
+				if (errno != 0 || end != s + 16) {
+					(void) fprintf(stderr,
+					    "invalid fishing seed: %s\n",
+					    optarg);
+					usage(B_FALSE);
+				}
+			}
+			break;
 		case 'h':
 			usage(B_TRUE);
 			break;
@@ -1122,7 +1397,7 @@ process_options(int argc, char **argv)
 	}
 
 	if (strcmp(raid_kind, "random") == 0) {
-		switch (ztest_random(3)) {
+		switch (ztest_random_flags(3, B_FALSE)) {
 		case 0:
 			raid_kind = "raidz";
 			break;
@@ -1223,6 +1498,17 @@ invalid:
 static void
 ztest_kill(ztest_shared_t *zs)
 {
+	/*
+	 * If the hardforced export scenario is running then spa is volatile.
+	 */
+	if (ZTEST_HFE_ACTIVE()) {
+		if (raidz_expand_pause_point != RAIDZ_EXPAND_PAUSE_NONE) {
+			raidz_expand_pause_point = RAIDZ_EXPAND_PAUSE_NONE;
+			return;
+		}
+		goto kill;
+	}
+
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(ztest_spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(ztest_spa));
 
@@ -1254,6 +1540,7 @@ ztest_kill(ztest_shared_t *zs)
 		spa_namespace_exit(FTAG);
 	}
 
+kill:
 	(void) raise(SIGKILL);
 }
 
@@ -1572,7 +1859,8 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 
 	error = dsl_prop_set_int(osname, propname,
 	    (inherit ? ZPROP_SRC_NONE : ZPROP_SRC_LOCAL), value);
-
+	if (!(error == ENOSPC || error == 0) && ZTEST_HFE_ACTIVE())
+		return (EIO);
 	if (error == ENOSPC) {
 		ztest_record_enospc(FTAG);
 		return (error);
@@ -1580,7 +1868,9 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 	ASSERT0(error);
 
 	setpoint = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
-	VERIFY0(dsl_prop_get_integer(osname, propname, &curval, setpoint));
+	error = dsl_prop_get_integer(osname, propname, &curval, setpoint);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 
 	if (ztest_opts.zo_verbose >= 6) {
 		int err;
@@ -1593,6 +1883,8 @@ ztest_dsl_prop_set_uint64(char *osname, zfs_prop_t prop, uint64_t value,
 			(void) printf("%s %s = %s at '%s'\n",
 			    osname, propname, valname, setpoint);
 	}
+
+out:
 	umem_free(setpoint, MAXPATHLEN);
 
 	return (error);
@@ -1612,11 +1904,8 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
 
 	fnvlist_free(props);
 
-	if (error == ENOSPC) {
+	if (error == ENOSPC)
 		ztest_record_enospc(FTAG);
-		return (error);
-	}
-	ASSERT0(error);
 
 	return (error);
 }
@@ -1826,6 +2115,8 @@ ztest_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t txg_how, const char *tag)
 	/*
 	 * Attempt to assign tx to some transaction group.
 	 */
+	if ((txg_how & DMU_TX_WAIT) && ztest_random(2) == 0)
+		txg_how |= DMU_TX_SUSPEND;
 	error = dmu_tx_assign(tx, txg_how);
 	if (error) {
 		if (error == ERESTART) {
@@ -1833,7 +2124,7 @@ ztest_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t txg_how, const char *tag)
 			dmu_tx_wait(tx);
 		} else if (error == ENOSPC) {
 			ztest_record_enospc(tag);
-		} else {
+		} else if (!ZTEST_HFE_ACTIVE()) {
 			ASSERT(error == EDQUOT || error == EIO);
 		}
 		dmu_tx_abort(tx);
@@ -1951,7 +2242,7 @@ ztest_log_create(ztest_ds_t *zd, dmu_tx_t *tx, lr_create_t *lr)
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_CREATE, sizeof (*lr) + namesize);
@@ -1968,7 +2259,7 @@ ztest_log_remove(ztest_ds_t *zd, dmu_tx_t *tx, lr_remove_t *lr, uint64_t object)
 	size_t namesize = strlen(name) + 1;
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_REMOVE, sizeof (*lr) + namesize);
@@ -1985,7 +2276,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	itx_t *itx;
 	itx_wr_state_t write_state = ztest_random(WR_NUM_STATES);
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	if (lr->lr_length > zil_max_log_data(zd->zd_zilog, sizeof (lr_write_t)))
@@ -2017,7 +2308,7 @@ ztest_log_truncate(ztest_ds_t *zd, dmu_tx_t *tx, lr_truncate_t *lr)
 {
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_TRUNCATE, sizeof (*lr));
@@ -2033,7 +2324,7 @@ ztest_log_setattr(ztest_ds_t *zd, dmu_tx_t *tx, lr_setattr_t *lr)
 {
 	itx_t *itx;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zd->zd_zilog, tx) || zd->zd_zilog->zl_suspending)
 		return;
 
 	itx = zil_itx_create(TX_SETATTR, sizeof (*lr));
@@ -2056,9 +2347,9 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	char *name = (char *)&lrc->lr_data[0];		/* name follows lr */
 	objset_t *os = zd->zd_os;
 	ztest_block_tag_t *bbt;
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	dmu_tx_t *tx;
-	uint64_t txg;
+	uint64_t txg = 0;
 	int error = 0;
 	int bonuslen;
 
@@ -2087,9 +2378,9 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	if (lr->lrz_type == DMU_OT_ZAP_OTHER) {
 		if (lr->lr_foid == 0) {
-			lr->lr_foid = zap_create_dnsize(os,
+			error = zap_create_dnsize(os,
 			    lr->lrz_type, lr->lrz_bonustype,
-			    bonuslen, lr->lrz_dnodesize, tx);
+			    bonuslen, lr->lrz_dnodesize, tx, &lr->lr_foid);
 		} else {
 			error = zap_create_claim_dnsize(os, lr->lr_foid,
 			    lr->lrz_type, lr->lrz_bonustype,
@@ -2097,15 +2388,17 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		}
 	} else {
 		if (lr->lr_foid == 0) {
-			lr->lr_foid = dmu_object_alloc_dnsize(os,
+			error = dmu_object_alloc_dnsize(os,
 			    lr->lrz_type, 0, lr->lrz_bonustype,
-			    bonuslen, lr->lrz_dnodesize, tx);
+			    bonuslen, lr->lrz_dnodesize, tx, &lr->lr_foid);
 		} else {
 			error = dmu_object_claim_dnsize(os, lr->lr_foid,
 			    lr->lrz_type, 0, lr->lrz_bonustype,
 			    bonuslen, lr->lrz_dnodesize, tx);
 		}
 	}
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 
 	if (error) {
 		ASSERT3U(error, ==, EEXIST);
@@ -2116,26 +2409,45 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	ASSERT3U(lr->lr_foid, !=, 0);
 
-	if (lr->lrz_type != DMU_OT_ZAP_OTHER)
-		VERIFY0(dmu_object_set_blocksize(os, lr->lr_foid,
-		    lr->lrz_blocksize, lr->lrz_ibshift, tx));
+	if (lr->lrz_type != DMU_OT_ZAP_OTHER) {
+		error = dmu_object_set_blocksize(os, lr->lr_foid,
+		    lr->lrz_blocksize, lr->lrz_ibshift, tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
+	}
 
-	VERIFY0(dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
+	error = dmu_bonus_hold(os, lr->lr_foid, FTAG, &db);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	bbt = ztest_bt_bonus(db);
 	dmu_buf_will_dirty(db, tx);
+	if (ZTEST_HFE_ACTIVE()) {
+		error = EIO;
+		goto out;
+	}
 	ztest_bt_generate(bbt, os, lr->lr_foid, lr->lrz_dnodesize, -1ULL,
 	    lr->lr_gen, txg, txg);
 	ztest_fill_unused_bonus(db, bbt, lr->lr_foid, os, lr->lr_gen);
 	dmu_buf_rele(db, FTAG);
+	db = NULL;
 
-	VERIFY0(zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
-	    &lr->lr_foid, tx));
+	error = zap_add(os, lr->lr_doid, name, sizeof (uint64_t), 1,
+	    &lr->lr_foid, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	(void) ztest_log_create(zd, tx, lrc);
 
-	dmu_tx_commit(tx);
+out:
+	if (db)
+		dmu_buf_rele(db, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
-	return (0);
+	return (error);
 }
 
 static int
@@ -2147,7 +2459,8 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	objset_t *os = zd->zd_os;
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
-	uint64_t object, txg;
+	uint64_t object = 0, txg = 0;
+	int error = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -2155,13 +2468,18 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 	ASSERT3U(lr->lr_doid, ==, ZTEST_DIROBJ);
 	ASSERT3S(name[0], !=, '\0');
 
-	VERIFY0(
-	    zap_lookup(os, lr->lr_doid, name, sizeof (object), 1, &object));
+	error = zap_lookup(os, lr->lr_doid, name, sizeof (object), 1, &object);
+	if (error && ZTEST_HFE_ACTIVE())
+		return (error);
+	VERIFY0(error);
 	ASSERT3U(object, !=, 0);
 
 	ztest_object_lock(zd, object, ZTRL_WRITER);
 
-	VERIFY0(dmu_object_info(os, object, &doi));
+	error = dmu_object_info(os, object, &doi);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	tx = dmu_tx_create(os);
 
@@ -2170,25 +2488,33 @@ ztest_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 
 	txg = ztest_tx_assign(tx, DMU_TX_WAIT, FTAG);
 	if (txg == 0) {
-		ztest_object_unlock(zd, object);
-		return (ENOSPC);
+		error = ENOSPC;
+		goto out;
 	}
 
 	if (doi.doi_type == DMU_OT_ZAP_OTHER) {
-		VERIFY0(zap_destroy(os, object, tx));
+		error = zap_destroy(os, object, tx);
 	} else {
-		VERIFY0(dmu_object_free(os, object, tx));
+		error = dmu_object_free(os, object, tx);
 	}
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
-	VERIFY0(zap_remove(os, lr->lr_doid, name, tx));
+	error = zap_remove(os, lr->lr_doid, name, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	(void) ztest_log_remove(zd, tx, lr, object);
 
-	dmu_tx_commit(tx);
+out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
 	ztest_object_unlock(zd, object);
 
-	return (0);
+	return (error);
 }
 
 static int
@@ -2201,12 +2527,13 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	uint64_t offset, length;
 	ztest_block_tag_t *bt = (ztest_block_tag_t *)data;
 	ztest_block_tag_t *bbt;
-	uint64_t gen, txg, lrtxg, crtxg;
+	uint64_t gen, txg = 0, lrtxg, crtxg;
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	arc_buf_t *abuf = NULL;
 	rl_t *rl;
+	int error = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -2232,7 +2559,10 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	ztest_object_lock(zd, lr->lr_foid, ZTRL_READER);
 	rl = ztest_range_lock(zd, lr->lr_foid, offset, length, ZTRL_WRITER);
 
-	VERIFY0(dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
+	error = dmu_bonus_hold(os, lr->lr_foid, FTAG, &db);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	dmu_object_info_from_db(db, &doi);
 
@@ -2254,10 +2584,8 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (txg == 0) {
 		if (abuf != NULL)
 			dmu_return_arcbuf(abuf);
-		dmu_buf_rele(db, FTAG);
-		ztest_range_unlock(rl);
-		ztest_object_unlock(zd, lr->lr_foid);
-		return (ENOSPC);
+		error = ENOSPC;
+		goto out;
 	}
 
 	if (bt != NULL) {
@@ -2268,7 +2596,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		 */
 		ASSERT(doi.doi_data_block_size);
 		ASSERT0(offset % doi.doi_data_block_size);
-		if (ztest_random(4) != 0) {
+		if (ztest_random(4) != 0 && !ZTEST_HFE_ACTIVE()) {
 			dmu_flags_t flags = ztest_random(2) ?
 			    DMU_READ_PREFETCH : DMU_READ_NO_PREFETCH;
 
@@ -2280,8 +2608,14 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 
 			ztest_block_tag_t rbt;
 
-			VERIFY0(dmu_read(os, lr->lr_foid, offset,
-			    sizeof (rbt), &rbt, flags));
+			error = dmu_read(os, lr->lr_foid, offset, sizeof (rbt),
+			    &rbt, flags);
+			if (error && ZTEST_HFE_ACTIVE()) {
+				if (abuf != NULL)
+					dmu_return_arcbuf(abuf);
+				goto out;
+			}
+			VERIFY0(error);
 			if (rbt.bt_magic == BT_MAGIC) {
 				ztest_bt_verify(&rbt, os, lr->lr_foid, 0,
 				    offset, gen, txg, crtxg);
@@ -2311,21 +2645,32 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (abuf == NULL) {
 		dmu_write(os, lr->lr_foid, offset, length, data, tx,
 		    DMU_READ_PREFETCH);
+		if (ZTEST_HFE_ACTIVE()) {
+			error = EIO;
+			goto out;
+		}
 	} else {
 		memcpy(abuf->b_data, data, length);
-		VERIFY0(dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx, 0));
+		error = dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx, 0);
+		if (error && ZTEST_HFE_ACTIVE()) {
+			dmu_return_arcbuf(abuf);
+			goto out;
+		}
+		VERIFY0(error);
 	}
 
 	(void) ztest_log_write(zd, tx, lr);
 
-	dmu_buf_rele(db, FTAG);
-
-	dmu_tx_commit(tx);
+out:
+	if (db != NULL)
+		dmu_buf_rele(db, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
 	ztest_range_unlock(rl);
 	ztest_object_unlock(zd, lr->lr_foid);
 
-	return (0);
+	return (error);
 }
 
 static int
@@ -2337,6 +2682,7 @@ ztest_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	dmu_tx_t *tx;
 	uint64_t txg;
 	rl_t *rl;
+	int err = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
@@ -2356,17 +2702,20 @@ ztest_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 		return (ENOSPC);
 	}
 
-	VERIFY0(dmu_free_range(os, lr->lr_foid, lr->lr_offset,
-	    lr->lr_length, tx));
+	err = dmu_free_range(os, lr->lr_foid, lr->lr_offset,
+	    lr->lr_length, tx);
+	if (!ZTEST_HFE_ACTIVE())
+		VERIFY0(err);
 
-	(void) ztest_log_truncate(zd, tx, lr);
+	if (!err)
+		(void) ztest_log_truncate(zd, tx, lr);
 
 	dmu_tx_commit(tx);
 
 	ztest_range_unlock(rl);
 	ztest_object_unlock(zd, lr->lr_foid);
 
-	return (0);
+	return (err);
 }
 
 static int
@@ -2376,25 +2725,28 @@ ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	lr_setattr_t *lr = arg2;
 	objset_t *os = zd->zd_os;
 	dmu_tx_t *tx;
-	dmu_buf_t *db;
+	dmu_buf_t *db = NULL;
 	ztest_block_tag_t *bbt;
-	uint64_t txg, lrtxg, crtxg, dnodesize;
+	uint64_t txg = 0, lrtxg, crtxg, dnodesize;
+	int err = 0;
 
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
 	ztest_object_lock(zd, lr->lr_foid, ZTRL_WRITER);
 
-	VERIFY0(dmu_bonus_hold(os, lr->lr_foid, FTAG, &db));
+	err = dmu_bonus_hold(os, lr->lr_foid, FTAG, &db);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_bonus(tx, lr->lr_foid);
 
 	txg = ztest_tx_assign(tx, DMU_TX_WAIT, FTAG);
 	if (txg == 0) {
-		dmu_buf_rele(db, FTAG);
-		ztest_object_unlock(zd, lr->lr_foid);
-		return (ENOSPC);
+		err = ENOSPC;
+		goto out;
 	}
 
 	bbt = ztest_bt_bonus(db);
@@ -2424,24 +2776,37 @@ ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	    MAX(txg, lrtxg), crtxg);
 
 	dmu_buf_will_dirty(db, tx);
+	if (ZTEST_HFE_ACTIVE()) {
+		err = EIO;
+		goto out;
+	}
 
 	ASSERT3U(lr->lr_size, >=, sizeof (*bbt));
 	ASSERT3U(lr->lr_size, <=, db->db_size);
-	VERIFY0(dmu_set_bonus(db, lr->lr_size, tx));
+	err = dmu_set_bonus(db, lr->lr_size, tx);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 	bbt = ztest_bt_bonus(db);
 
 	ztest_bt_generate(bbt, os, lr->lr_foid, dnodesize, -1ULL, lr->lr_mode,
 	    txg, crtxg);
 	ztest_fill_unused_bonus(db, bbt, lr->lr_foid, os, bbt->bt_gen);
 	dmu_buf_rele(db, FTAG);
+	db = NULL;
 
-	(void) ztest_log_setattr(zd, tx, lr);
+	if (!err)
+		(void) ztest_log_setattr(zd, tx, lr);
 
-	dmu_tx_commit(tx);
+out:
+	if (db)
+		dmu_buf_rele(db, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
 
 	ztest_object_unlock(zd, lr->lr_foid);
 
-	return (0);
+	return (err);
 }
 
 static zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
@@ -2539,7 +2904,8 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 
 		error = dmu_read(os, object, offset, size, buf,
 		    DMU_READ_NO_PREFETCH | DMU_KEEP_CACHING);
-		ASSERT0(error);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT0(error);
 	} else {
 		ASSERT3P(zio, !=, NULL);
 		size = doi.doi_data_block_size;
@@ -2614,12 +2980,14 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 		od->od_object = 0;
 		error = zap_lookup(zd->zd_os, od->od_dir, od->od_name,
 		    sizeof (uint64_t), 1, &od->od_object);
+		if (!(error == 0 || error == ENOENT) && ZTEST_HFE_ACTIVE())
+			return (missing + 1);
 		if (error) {
 			ASSERT3S(error, ==, ENOENT);
 			ASSERT0(od->od_object);
 			missing++;
 		} else {
-			dmu_buf_t *db;
+			dmu_buf_t *db = NULL;
 			ztest_block_tag_t *bbt;
 			dmu_object_info_t doi;
 
@@ -2627,16 +2995,27 @@ ztest_lookup(ztest_ds_t *zd, ztest_od_t *od, int count)
 			ASSERT0(missing);	/* there should be no gaps */
 
 			ztest_object_lock(zd, od->od_object, ZTRL_READER);
-			VERIFY0(dmu_bonus_hold(zd->zd_os, od->od_object,
-			    FTAG, &db));
+			error = dmu_bonus_hold(zd->zd_os, od->od_object, FTAG,
+			    &db);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto errout;
+			VERIFY0(error);
 			dmu_object_info_from_db(db, &doi);
 			bbt = ztest_bt_bonus(db);
+			if (bbt->bt_magic != BT_MAGIC && ZTEST_HFE_ACTIVE())
+				goto errout;
 			ASSERT3U(bbt->bt_magic, ==, BT_MAGIC);
 			od->od_type = doi.doi_type;
 			od->od_blocksize = doi.doi_data_block_size;
 			od->od_gen = bbt->bt_gen;
 			dmu_buf_rele(db, FTAG);
 			ztest_object_unlock(zd, od->od_object);
+			continue;
+errout:
+			if (db)
+				dmu_buf_rele(db, FTAG);
+			ztest_object_unlock(zd, od->od_object);
+			return (missing + 1);
 		}
 	}
 
@@ -2671,7 +3050,7 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 		lr->lr_gen = od->od_crgen;
 		lr->lr_crtime[0] = time(NULL);
 
-		if (ztest_replay_create(zd, lr, B_FALSE) != 0) {
+		if (ztest_replay_create(zd, lrc, B_FALSE) != 0) {
 			ASSERT0(missing);
 			od->od_object = 0;
 			missing++;
@@ -2683,7 +3062,7 @@ ztest_create(ztest_ds_t *zd, ztest_od_t *od, int count)
 			ASSERT3U(od->od_object, !=, 0);
 		}
 
-		ztest_lr_free(lr, sizeof (*lr), od->od_name);
+		ztest_lr_free(lrc, sizeof (*lrc), od->od_name);
 	}
 
 	return (missing);
@@ -2717,7 +3096,8 @@ ztest_remove(ztest_ds_t *zd, ztest_od_t *od, int count)
 		lr->lr_doid = od->od_dir;
 
 		if ((error = ztest_replay_remove(zd, lr, B_FALSE)) != 0) {
-			ASSERT3U(error, ==, ENOSPC);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOSPC);
 			missing++;
 		} else {
 			od->od_object = 0;
@@ -2838,7 +3218,10 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 	if (ztest_random(4) == 0)
 		dmu_read_flags |= DMU_DIRECTIO;
 
-	VERIFY0(dmu_object_info(zd->zd_os, object, &doi));
+	err = dmu_object_info(zd->zd_os, object, &doi);
+	if (err && ZTEST_HFE_ACTIVE())
+		return;
+	VERIFY0(err);
 	blocksize = doi.doi_data_block_size;
 	data = umem_alloc(blocksize, UMEM_NOFAIL);
 
@@ -2893,16 +3276,21 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		err = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_CHECKSUM, spa_dedup_checksum(ztest_spa),
 		    B_FALSE);
-		ASSERT(err == 0 || err == ENOSPC);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(err == 0 || err == ENOSPC);
 		err = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_COMPRESSION,
 		    ztest_random_dsl_prop(ZFS_PROP_COMPRESSION),
 		    B_FALSE);
-		ASSERT(err == 0 || err == ENOSPC);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(err == 0 || err == ENOSPC);
 		(void) pthread_rwlock_unlock(&ztest_name_lock);
 
-		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
-		    dmu_read_flags));
+		err = dmu_read(zd->zd_os, object, offset, blocksize, data,
+		    dmu_read_flags);
+		if (err && ZTEST_HFE_ACTIVE())
+			break;
+		VERIFY0(err);
 
 		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
@@ -2966,21 +3354,25 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 {
 	(void) id;
 	zilog_t *zilog = zd->zd_zilog;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&zd->zd_zilog_lock);
 
-	VERIFY0(zil_commit(zilog, ztest_random(ZTEST_OBJECTS)));
+	err = zil_commit(zilog, ztest_random(ZTEST_OBJECTS));
 
 	/*
 	 * Remember the committed values in zd, which is in parent/child
 	 * shared memory.  If we die, the next iteration of ztest_run()
 	 * will verify that the log really does contain this record.
 	 */
-	mutex_enter(&zilog->zl_lock);
-	ASSERT3P(zd->zd_shared, !=, NULL);
-	ASSERT3U(zd->zd_shared->zd_seq, <=, zilog->zl_commit_lr_seq);
-	zd->zd_shared->zd_seq = zilog->zl_commit_lr_seq;
-	mutex_exit(&zilog->zl_lock);
+	if (!err && !ZTEST_HFE_ACTIVE()) {
+		mutex_enter(&zilog->zl_lock);
+		ASSERT3P(zd->zd_shared, !=, NULL);
+		ASSERT3U(zd->zd_shared->zd_seq, <=, zilog->zl_commit_lr_seq);
+		if (zilog->zl_commit_lr_seq > zd->zd_shared->zd_seq)
+			zd->zd_shared->zd_seq = zilog->zl_commit_lr_seq;
+		mutex_exit(&zilog->zl_lock);
+	}
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 }
@@ -2995,6 +3387,7 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
 	(void) id;
 	objset_t *os = zd->zd_os;
+	zilog_t *ret;
 
 	/*
 	 * We hold the ztest_vdev_lock so we don't cause problems with
@@ -3013,11 +3406,17 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 
 	/* zfsvfs_teardown() */
 	zil_close(zd->zd_zilog);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
 
 	/* zfsvfs_setup() */
-	VERIFY3P(zil_open(os, ztest_get_data, NULL), ==, zd->zd_zilog);
+	ret = zil_open(os, ztest_get_data, NULL);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3P(ret, ==, zd->zd_zilog);
 	zil_replay(os, zd, ztest_replay_vector);
 
+out:
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 	mutex_exit(&zd->zd_dirobj_lock);
 	mutex_exit(&ztest_vdev_lock);
@@ -3034,9 +3433,12 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa;
 	nvlist_t *nvroot;
+	int err;
 
 	if (zo->zo_mmp_test)
 		return;
+
+	mutex_enter(&ztest_vdev_lock);
 
 	/*
 	 * Attempt to create using a bad file.
@@ -3075,15 +3477,21 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 *	For the case that there is another ztest thread doing
 	 *	an export concurrently.
 	 */
-	VERIFY0(spa_open(zo->zo_pool, &spa, FTAG));
-	int error = spa_destroy(zo->zo_pool);
-	if (error != EBUSY && error != ZFS_ERR_EXPORT_IN_PROGRESS) {
+	err = spa_open(zo->zo_pool, &spa, FTAG);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
+	int error = spa_destroy(zo->zo_pool, B_FALSE, B_FALSE);
+	if (error != EBUSY && error != EAGAIN &&
+	    error != ZFS_ERR_EXPORT_IN_PROGRESS && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE, "spa_destroy(%s) returned unexpected value %d",
 		    spa->spa_name, error);
 	}
 	spa_close(spa, FTAG);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	mutex_exit(&ztest_vdev_lock);
 }
 
 /*
@@ -3172,13 +3580,16 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0)
 		return;
 
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
 	mutex_enter(&ztest_vdev_lock);
 	name = kmem_asprintf("%s_upgrade", ztest_opts.zo_pool);
 
 	/*
 	 * Clean up from previous runs.
 	 */
-	(void) spa_destroy(name);
+	(void) spa_destroy(name, B_FALSE, B_FALSE);
 
 	raidz_children = ztest_get_raidz_children(ztest_spa);
 
@@ -3235,6 +3646,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 
 	kmem_strfree(name);
 	mutex_exit(&ztest_vdev_lock);
+	mutex_exit(&ztest_hfe_lock);
 }
 
 static void
@@ -3255,6 +3667,8 @@ ztest_spa_checkpoint(spa_t *spa)
 		ztest_record_enospc(FTAG);
 		break;
 	default:
+		if (ZTEST_HFE_ACTIVE())
+			break;
 		fatal(B_FALSE, "spa_checkpoint(%s) = %d", spa->spa_name, error);
 	}
 }
@@ -3272,6 +3686,8 @@ ztest_spa_discard_checkpoint(spa_t *spa)
 	case ZFS_ERR_NO_CHECKPOINT:
 		break;
 	default:
+		if (ZTEST_HFE_ACTIVE())
+			break;
 		fatal(B_FALSE, "spa_discard_checkpoint(%s) = %d",
 		    spa->spa_name, error);
 	}
@@ -3327,7 +3743,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	ztest_shared_t *zs = ztest_shared;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	uint64_t leaves;
 	uint64_t guid;
 	uint64_t raidz_children;
@@ -3339,6 +3755,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		return;
 
 	mutex_enter(&ztest_vdev_lock);
+	spa = ztest_spa;
 	raidz_children = ztest_get_raidz_children(spa);
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * raidz_children;
 
@@ -3384,6 +3801,8 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			fatal(B_FALSE, "spa_vdev_remove() = %d", error);
 		}
 	} else {
@@ -3407,7 +3826,10 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc("spa_vdev_add");
 			break;
 		default:
-			fatal(B_FALSE, "spa_vdev_add() = %d", error);
+			if (ZTEST_HFE_ACTIVE())
+				break;
+			fatal(B_FALSE, "%s: spa_vdev_add() = %d", __func__,
+			    error);
 		}
 	}
 
@@ -3465,8 +3887,10 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 
 	if (error == ENOSPC)
 		ztest_record_enospc("spa_vdev_add");
-	else if (error != 0)
-		fatal(B_FALSE, "spa_vdev_add() = %d", error);
+	else if (error != 0 && !ZTEST_HFE_ACTIVE()) {
+		fatal(B_FALSE, "%s: spa_vdev_add() = %d", __func__,
+		    error);
+	}
 
 	/*
 	 * 50% of the time allow small blocks in the special class
@@ -3477,7 +3901,8 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 			(void) printf("Enabling special VDEV small blocks\n");
 		error = ztest_dsl_prop_set_uint64(zd->zd_name,
 		    ZFS_PROP_SPECIAL_SMALL_BLOCKS, 32768, B_FALSE);
-		ASSERT(error == 0 || error == ENOSPC);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == ENOSPC);
 	}
 
 	mutex_exit(&ztest_vdev_lock);
@@ -3573,6 +3998,8 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		case 0:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			fatal(B_FALSE, "spa_vdev_add(%p) = %d", nvroot, error);
 		}
 		fnvlist_free(nvroot);
@@ -3594,6 +4021,8 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
 		default:
+			if (ZTEST_HFE_ACTIVE())
+				break;
 			if (error != ignore_err)
 				fatal(B_FALSE,
 				    "spa_vdev_remove(%"PRIu64") = %d",
@@ -3632,7 +4061,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	}
 
 	/* clean up the old pool, if any */
-	(void) spa_destroy("splitp");
+	(void) spa_destroy("splitp", B_FALSE, B_FALSE);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -3833,9 +4262,11 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		error = spa_vdev_detach(spa, oldguid, pguid, B_FALSE);
 		if (error != 0 && error != ENODEV && error != EBUSY &&
 		    error != ENOTSUP && error != ZFS_ERR_CHECKPOINT_EXISTS &&
-		    error != ZFS_ERR_DISCARDING_CHECKPOINT)
+		    error != ZFS_ERR_DISCARDING_CHECKPOINT &&
+		    !ZTEST_HFE_ACTIVE()) {
 			fatal(B_FALSE, "detach (%s) returned %d",
 			    oldpath, error);
+		}
 		goto out;
 	}
 
@@ -3950,7 +4381,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	    error == ZFS_ERR_REBUILD_IN_PROGRESS)
 		expected_error = error;
 
-	if (error != expected_error && expected_error != EBUSY) {
+	if (error != expected_error && expected_error != EBUSY &&
+	    !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE, "attach (%s %"PRIu64", %s %"PRIu64", %d) "
 		    "returned %d, expected %d",
 		    oldpath, oldsize, newpath,
@@ -4149,7 +4581,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	if (ztest_random(2) == 0 && expected_error == 0) {
 		raidz_expand_pause_point =
 		    ztest_random(RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2) + 1;
-		scratch_thread = thread_create(NULL, 0, ztest_scratch_thread,
+		scratch_thread = _thread_create(NULL, 0, ztest_scratch_thread,
 		    ztest_shared, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 	}
 
@@ -4237,7 +4669,8 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	 */
 	error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
 	if (error == 0) {
-		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+		while (dsl_scan_scrubbing(spa_get_dsl(spa)) &&
+		    !ZTEST_HFE_ACTIVE())
 			txg_wait_synced(spa_get_dsl(spa), 0);
 	}
 
@@ -4496,7 +4929,7 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Make sure we were able to grow the vdev.
 	 */
-	if (new_ms_count <= old_ms_count) {
+	if (new_ms_count <= old_ms_count && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE,
 		    "LUN expansion failed: ms_count %"PRIu64" < %"PRIu64"\n",
 		    old_ms_count, new_ms_count);
@@ -4505,7 +4938,7 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Make sure we were able to grow the pool.
 	 */
-	if (new_class_space <= old_class_space) {
+	if (new_class_space <= old_class_space && !ZTEST_HFE_ACTIVE()) {
 		fatal(B_FALSE,
 		    "LUN expansion failed: class_space %"PRIu64" < %"PRIu64"\n",
 		    old_class_space, new_class_space);
@@ -4536,8 +4969,10 @@ ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	/*
 	 * Create the objects common to all ztest datasets.
 	 */
-	VERIFY0(zap_create_claim(os, ZTEST_DIROBJ,
-	    DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx));
+	int err = zap_create_claim(os, ZTEST_DIROBJ,
+	    DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx);
+	if (!ZTEST_HFE_ACTIVE())
+		VERIFY0(err);
 }
 
 static int
@@ -4620,9 +5055,16 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	/*
 	 * Verify that the dataset contains a directory object.
 	 */
-	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
-	    B_TRUE, FTAG, &os));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE,
+	    B_TRUE, FTAG, &os);
+	if (error && ZTEST_HFE_ACTIVE())
+		return (error);
+	VERIFY0(error);
 	error = dmu_object_info(os, ZTEST_DIROBJ, &doi);
+	if (!(error == ENOENT || error == 0) && ZTEST_HFE_ACTIVE()) {
+		dmu_objset_disown(os, B_TRUE, FTAG);
+		return (EIO);
+	}
 	if (error != ENOENT) {
 		/* We could have crashed in the middle of destroying it */
 		ASSERT0(error);
@@ -4636,6 +5078,8 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	 */
 	if (strchr(name, '@') != NULL) {
 		error = dsl_destroy_snapshot(name, B_TRUE);
+		if (!(error == ECHRNG || error == 0) && ZTEST_HFE_ACTIVE())
+			return (EIO);
 		if (error != ECHRNG) {
 			/*
 			 * The program was executed, but encountered a runtime
@@ -4646,6 +5090,9 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 		}
 	} else {
 		error = dsl_destroy_head(name);
+		if (!(error == ENOSPC || error == EBUSY || error == 0) &&
+		    ZTEST_HFE_ACTIVE())
+			return (EIO);
 		if (error == ENOSPC) {
 			/* There could be checkpoint or insufficient slop */
 			ztest_record_enospc(FTAG);
@@ -4657,40 +5104,43 @@ ztest_objset_destroy_cb(const char *name, void *arg)
 	return (0);
 }
 
-static boolean_t
+static int
 ztest_snapshot_create(char *osname, uint64_t id)
 {
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
-	int error;
+	int err = 0;
 
 	(void) snprintf(snapname, sizeof (snapname), "%"PRIu64"", id);
 
-	error = dmu_objset_snapshot_one(osname, snapname);
-	if (error == ENOSPC) {
+	err = dmu_objset_snapshot_one(osname, snapname);
+	if (err == ENOSPC) {
 		ztest_record_enospc(FTAG);
-		return (B_FALSE);
+		return (err);
 	}
-	if (error != 0 && error != EEXIST && error != ECHRNG) {
-		fatal(B_FALSE, "ztest_snapshot_create(%s@%s) = %d", osname,
-		    snapname, error);
+	if (err != 0 && err != EEXIST && err != ECHRNG) {
+		if (!ZTEST_HFE_ACTIVE())
+			fatal(B_FALSE, "ztest_snapshot_create(%s@%s) = %d",
+			    osname, snapname, err);
 	}
-	return (B_TRUE);
+	return (err);
 }
 
-static boolean_t
+static int
 ztest_snapshot_destroy(char *osname, uint64_t id)
 {
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
-	int error;
+	int error = 0;
 
 	(void) snprintf(snapname, sizeof (snapname), "%s@%"PRIu64"",
 	    osname, id);
 
 	error = dsl_destroy_snapshot(snapname, B_FALSE);
-	if (error != 0 && error != ENOENT && error != ECHRNG)
-		fatal(B_FALSE, "ztest_snapshot_destroy(%s) = %d",
-		    snapname, error);
-	return (B_TRUE);
+	if (error != 0 && error != ENOENT && error != ECHRNG) {
+		if (!ZTEST_HFE_ACTIVE())
+			fatal(B_FALSE, "ztest_snapshot_destroy(%s) = %d",
+			    snapname, error);
+	}
+	return (error);
 }
 
 void
@@ -4698,11 +5148,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd;
 	ztest_ds_t *zdtmp;
+	boolean_t zdtmp_inited = B_FALSE;
 	int iters;
 	int error;
-	objset_t *os, *os2;
+	objset_t *os = NULL, *os2;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
-	zilog_t *zilog;
+	zilog_t *zilog = NULL;
 	int i;
 
 	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
@@ -4724,6 +5175,7 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 		zil_replay(os, zdtmp, ztest_replay_vector);
 		ztest_zd_fini(zdtmp);
 		dmu_objset_disown(os, B_TRUE, FTAG);
+		os = NULL;
 	}
 
 	/*
@@ -4731,8 +5183,10 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	 * create lying around from a previous run.  If so, destroy it
 	 * and all of its snapshots.
 	 */
-	(void) dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
+	error = dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
 	    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 
 	/*
 	 * Verify that the destroyed dataset is no longer in the namespace.
@@ -4741,10 +5195,12 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE,
 	    FTAG, &os);
 	if (error == 0) {
-		dmu_objset_disown(os, B_TRUE, FTAG);
 		ztest_record_enospc(FTAG);
 		goto out;
 	}
+	os = NULL;
+	if (error != ENOENT && ZTEST_HFE_ACTIVE())
+		goto out;
 	VERIFY3U(ENOENT, ==, error);
 
 	/*
@@ -4756,13 +5212,21 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", name, error);
 	}
 
-	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
-	    FTAG, &os));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os);
+	if (error && ZTEST_HFE_ACTIVE()) {
+		os = NULL;
+		goto out;
+	}
+	VERIFY0(error);
 
 	ztest_zd_init(zdtmp, NULL, os);
+	zdtmp_inited = B_TRUE;
 
 	/*
 	 * Open the intent log for it.
@@ -4776,34 +5240,45 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	iters = ztest_random(5);
 	for (i = 0; i < iters; i++) {
 		ztest_dmu_object_alloc_free(zdtmp, id);
-		if (ztest_random(iters) == 0)
+		if (ztest_random(iters) == 0) {
 			(void) ztest_snapshot_create(name, i);
+		}
 	}
 
 	/*
 	 * Verify that we cannot create an existing dataset.
 	 */
-	VERIFY3U(EEXIST, ==,
-	    dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL, NULL));
+	error = dmu_objset_create(name, DMU_OST_OTHER, 0, NULL, NULL, NULL);
+	if (!(error == EEXIST) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3U(error, ==, EEXIST);
 
 	/*
 	 * Verify that we can hold an objset that is also owned.
 	 */
-	VERIFY0(dmu_objset_hold(name, FTAG, &os2));
+	error = dmu_objset_hold(name, FTAG, &os2);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	dmu_objset_rele(os2, FTAG);
 
 	/*
 	 * Verify that we cannot own an objset that is already owned.
 	 */
-	VERIFY3U(EBUSY, ==, ztest_dmu_objset_own(name, DMU_OST_OTHER,
-	    B_FALSE, B_TRUE, FTAG, &os2));
+	error = ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os2);
+	if (!(error == EBUSY) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY3U(error, ==, EBUSY);
 
-	zil_close(zilog);
-	dmu_objset_disown(os, B_TRUE, FTAG);
-	ztest_zd_fini(zdtmp);
 out:
+	if (zilog)
+		zil_close(zilog);
+	if (os)
+		dmu_objset_disown(os, B_TRUE, FTAG);
+	if (zdtmp_inited)
+		ztest_zd_fini(zdtmp);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
-
 	umem_free(zdtmp, sizeof (ztest_ds_t));
 }
 
@@ -4813,9 +5288,12 @@ out:
 void
 ztest_dmu_snapshot_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
+	int err;
+
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-	(void) ztest_snapshot_destroy(zd->zd_name, id);
-	(void) ztest_snapshot_create(zd->zd_name, id);
+	err = ztest_snapshot_destroy(zd->zd_name, id);
+	if (err == 0 || err == ENOENT)
+		err = ztest_snapshot_create(zd->zd_name, id);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
@@ -4850,21 +5328,21 @@ ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 	    clone1name, id);
 
 	error = dsl_destroy_head(clone2name);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_head(%s) = %d", clone2name, error);
 	error = dsl_destroy_snapshot(snap3name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap3name, error);
 	error = dsl_destroy_snapshot(snap2name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap2name, error);
 	error = dsl_destroy_head(clone1name);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_head(%s) = %d", clone1name, error);
 	error = dsl_destroy_snapshot(snap1name, B_FALSE);
-	if (error && error != ENOENT)
+	if (error && error != ENOENT && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_destroy_snapshot(%s) = %d",
 		    snap1name, error);
 
@@ -4917,6 +5395,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_take_snapshot(%s) = %d", snap1name, error);
 	}
 
@@ -4926,6 +5406,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", clone1name, error);
 	}
 
@@ -4935,6 +5417,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_open_snapshot(%s) = %d", snap2name, error);
 	}
 
@@ -4944,6 +5428,8 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_open_snapshot(%s) = %d", snap3name, error);
 	}
 
@@ -4953,27 +5439,32 @@ ztest_dsl_dataset_promote_busy(ztest_ds_t *zd, uint64_t id)
 			ztest_record_enospc(FTAG);
 			goto out;
 		}
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_create(%s) = %d", clone2name, error);
 	}
 
 	error = ztest_dmu_objset_own(snap2name, DMU_OST_ANY, B_TRUE, B_TRUE,
 	    FTAG, &os);
-	if (error)
+	if (error) {
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		fatal(B_FALSE, "dmu_objset_own(%s) = %d", snap2name, error);
+	}
 	error = dsl_dataset_promote(clone2name, NULL);
 	if (error == ENOSPC) {
 		dmu_objset_disown(os, B_TRUE, FTAG);
 		ztest_record_enospc(FTAG);
 		goto out;
 	}
-	if (error != EBUSY)
+	if (error != EBUSY && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE, "dsl_dataset_promote(%s), %d, not EBUSY",
 		    clone2name, error);
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
-out:
 	ztest_dsl_dataset_cleanup(osname, id);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 	umem_free(snap1name, ZFS_MAX_DATASET_NAME_LEN);
@@ -5015,7 +5506,7 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
-	while (ztest_random(4 * batchsize) != 0)
+	while (ztest_random(4 * batchsize) != 0 && !ZTEST_HFE_ACTIVE())
 		ztest_io(zd, od[ztest_random(batchsize)].od_object,
 		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
 
@@ -5061,15 +5552,19 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	od = umem_alloc(size, UMEM_NOFAIL);
 	dmu_tx_t *tx;
 	int freeit, error;
-	uint64_t i, n, s, txg;
-	bufwad_t *packbuf, *bigbuf, *pack, *bigH, *bigT;
-	uint64_t packobj, packoff, packsize, bigobj, bigoff, bigsize;
+	uint64_t i, n, s, txg = 0;
+	bufwad_t *pack, *bigH, *bigT;
+	uint64_t packobj, packoff, bigobj, bigoff;
+	bufwad_t *packbuf = NULL, *bigbuf = NULL;
+	uint64_t packsize = 0, bigsize = 0;
 	uint64_t chunksize = (1000 + ztest_random(1000)) * sizeof (uint64_t);
 	uint64_t regions = 997;
 	uint64_t stride = 123456789ULL;
 	uint64_t width = 40;
 	int free_percent = 5;
 	dmu_flags_t dmu_read_flags = DMU_READ_PREFETCH;
+	void *packcheck = NULL;
+	void *bigcheck = NULL;
 
 	/*
 	 * We will randomly set when to do O_DIRECT on a read.
@@ -5108,10 +5603,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	ztest_od_init(od + 1, id, FTAG, 1, DMU_OT_UINT64_OTHER, 0, 0,
 	    chunksize);
 
-	if (ztest_object_init(zd, od, size, B_FALSE) != 0) {
-		umem_free(od, size);
-		return;
-	}
+	if (ztest_object_init(zd, od, size, B_FALSE) != 0)
+		goto out;
 
 	bigobj = od[0].od_object;
 	packobj = od[1].od_object;
@@ -5155,9 +5648,13 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 */
 	error = dmu_read(os, packobj, packoff, packsize, packbuf,
 	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 	error = dmu_read(os, bigobj, bigoff, bigsize, bigbuf,
 	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 
 	/*
@@ -5176,12 +5673,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_hold_bonus(tx, bigobj);
 
 	txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
-	if (txg == 0) {
-		umem_free(packbuf, packsize);
-		umem_free(bigbuf, bigsize);
-		umem_free(od, size);
-		return;
-	}
+	if (txg == 0)
+		goto out;
 
 	enum zio_checksum cksum;
 	do {
@@ -5204,6 +5697,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * with the new values we want to write out.
 	 */
 	for (i = 0; i < s; i++) {
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 		/* LINTED */
 		pack = (bufwad_t *)((char *)packbuf + i * sizeof (bufwad_t));
 		/* LINTED */
@@ -5249,6 +5744,8 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 */
 	dmu_write(os, packobj, packoff, packsize, packbuf, tx,
 	    DMU_READ_PREFETCH);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
 
 	if (freeit) {
 		if (ztest_opts.zo_verbose >= 7) {
@@ -5256,7 +5753,10 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 			    " txg %"PRIx64"\n",
 			    bigoff, bigsize, txg);
 		}
-		VERIFY0(dmu_free_range(os, bigobj, bigoff, bigsize, tx));
+		error = dmu_free_range(os, bigobj, bigoff, bigsize, tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	} else {
 		if (ztest_opts.zo_verbose >= 7) {
 			(void) printf("writing offset %"PRIx64" size %"PRIx64""
@@ -5265,32 +5765,49 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		}
 		dmu_write(os, bigobj, bigoff, bigsize, bigbuf, tx,
 		    DMU_READ_PREFETCH);
+		if (ZTEST_HFE_ACTIVE())
+			goto out;
 	}
 
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Sanity check the stuff we just wrote.
 	 */
-	{
-		void *packcheck = umem_alloc(packsize, UMEM_NOFAIL);
-		void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
+	packcheck = umem_alloc(packsize, UMEM_NOFAIL);
+	bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
-		VERIFY0(dmu_read(os, packobj, packoff,
-		    packsize, packcheck, dmu_read_flags));
-		VERIFY0(dmu_read(os, bigobj, bigoff,
-		    bigsize, bigcheck, dmu_read_flags));
+	error = dmu_read(os, packobj, packoff, packsize, packcheck,
+	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
+	error = dmu_read(os, bigobj, bigoff, bigsize, bigcheck,
+	    dmu_read_flags);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+
+	if (!ZTEST_HFE_ACTIVE()) {
 		ASSERT0(memcmp(packbuf, packcheck, packsize));
 		ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
-
-		umem_free(packcheck, packsize);
-		umem_free(bigcheck, bigsize);
 	}
 
-	umem_free(packbuf, packsize);
-	umem_free(bigbuf, bigsize);
-	umem_free(od, size);
+out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
+	if (bigcheck)
+		umem_free(bigcheck, bigsize);
+	if (packcheck)
+		umem_free(packcheck, packsize);
+	if (packbuf)
+		umem_free(packbuf, packsize);
+	if (bigbuf)
+		umem_free(bigbuf, bigsize);
+	if (od)
+		umem_free(od, size);
 }
 
 static void
@@ -5353,23 +5870,27 @@ void
 ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 {
 	objset_t *os = zd->zd_os;
-	ztest_od_t *od;
+	ztest_od_t *od = NULL;
 	dmu_tx_t *tx;
-	uint64_t i;
+	uint64_t i, j;
 	int error;
 	int size;
-	uint64_t n, s, txg;
-	bufwad_t *packbuf, *bigbuf;
+	uint64_t n, s, txg = 0;
+	bufwad_t *packbuf = NULL, *bigbuf = NULL;
 	uint64_t packobj, packoff, packsize, bigobj, bigoff, bigsize;
 	uint64_t blocksize = ztest_random_blocksize();
 	uint64_t chunksize = blocksize;
 	uint64_t regions = 997;
 	uint64_t stride = 123456789ULL;
 	uint64_t width = 9;
-	dmu_buf_t *bonus_db;
-	arc_buf_t **bigbuf_arcbufs;
+	dmu_buf_t *bonus_db = NULL;
+	arc_buf_t **bigbuf_arcbufs = NULL;
+	boolean_t *arcs_to_return = NULL;
 	dmu_object_info_t doi;
 	uint32_t dmu_read_flags = DMU_READ_PREFETCH;
+	void *packcheck = NULL;
+	void *bigcheck = NULL;
+	dmu_buf_t *dbt = NULL;
 
 	/*
 	 * We will randomly set when to do O_DIRECT on a read.
@@ -5415,7 +5936,10 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	chunksize = blocksize;
 	ASSERT3U(chunksize, ==, od[1].od_gen);
 
-	VERIFY0(dmu_object_info(os, bigobj, &doi));
+	error = dmu_object_info(os, bigobj, &doi);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 	VERIFY(ISP2(doi.doi_data_block_size));
 	VERIFY3U(chunksize, ==, doi.doi_data_block_size);
 	VERIFY3U(chunksize, >=, 2 * sizeof (bufwad_t));
@@ -5435,9 +5959,13 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	packbuf = umem_zalloc(packsize, UMEM_NOFAIL);
 	bigbuf = umem_zalloc(bigsize, UMEM_NOFAIL);
 
-	VERIFY0(dmu_bonus_hold(os, bigobj, FTAG, &bonus_db));
+	error = dmu_bonus_hold(os, bigobj, FTAG, &bonus_db);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	bigbuf_arcbufs = umem_zalloc(2 * s * sizeof (arc_buf_t *), UMEM_NOFAIL);
+	arcs_to_return = umem_zalloc(2 * s * sizeof (boolean_t), UMEM_NOFAIL);
 
 	/*
 	 * Iteration 0 test zcopy for DB_UNCACHED dbufs.
@@ -5449,7 +5977,6 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	 * Iteration 6 one more zcopy write.
 	 */
 	for (i = 0; i < 7; i++) {
-		uint64_t j;
 		uint64_t off;
 
 		/*
@@ -5462,11 +5989,14 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				bigbuf_arcbufs[j] =
 				    dmu_request_arcbuf(bonus_db, chunksize);
+				arcs_to_return[j] = B_TRUE;
 			} else {
 				bigbuf_arcbufs[2 * j] =
 				    dmu_request_arcbuf(bonus_db, chunksize / 2);
+				arcs_to_return[2 * j] = B_TRUE;
 				bigbuf_arcbufs[2 * j + 1] =
 				    dmu_request_arcbuf(bonus_db, chunksize / 2);
+				arcs_to_return[2 * j + 1] = B_TRUE;
 			}
 		}
 
@@ -5479,25 +6009,8 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
 
 		txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
-		if (txg == 0) {
-			umem_free(packbuf, packsize);
-			umem_free(bigbuf, bigsize);
-			for (j = 0; j < s; j++) {
-				if (i != 5 ||
-				    chunksize < (SPA_MINBLOCKSIZE * 2)) {
-					dmu_return_arcbuf(bigbuf_arcbufs[j]);
-				} else {
-					dmu_return_arcbuf(
-					    bigbuf_arcbufs[2 * j]);
-					dmu_return_arcbuf(
-					    bigbuf_arcbufs[2 * j + 1]);
-				}
-			}
-			umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
-			umem_free(od, size);
-			dmu_buf_rele(bonus_db, FTAG);
-			return;
-		}
+		if (txg == 0)
+			goto out;
 
 		/*
 		 * 50% of the time don't read objects in the 1st iteration to
@@ -5507,13 +6020,18 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		if (i != 0 || ztest_random(2) != 0) {
 			error = dmu_read(os, packobj, packoff,
 			    packsize, packbuf, dmu_read_flags);
-			ASSERT0(error);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 			error = dmu_read(os, bigobj, bigoff, bigsize,
 			    bigbuf, dmu_read_flags);
-			ASSERT0(error);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 		}
-		compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
-		    n, chunksize, txg);
+		if (!ZTEST_HFE_ACTIVE())
+			compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
+			    n, chunksize, txg);
 
 		/*
 		 * We've verified all the old bufwads, and made new ones.
@@ -5527,7 +6045,6 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			    bigoff, bigsize, txg);
 		}
 		for (off = bigoff, j = 0; j < s; j++, off += chunksize) {
-			dmu_buf_t *dbt;
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				memcpy(bigbuf_arcbufs[j]->b_data,
 				    (caddr_t)bigbuf + (off - bigoff),
@@ -5543,42 +6060,71 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			}
 
 			if (i == 1) {
-				VERIFY0(dmu_buf_hold(os, bigobj, off,
-				    FTAG, &dbt, DMU_READ_NO_PREFETCH));
+				error = dmu_buf_hold(os, bigobj, off,
+				    FTAG, &dbt, DMU_READ_NO_PREFETCH);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
-				    off, bigbuf_arcbufs[j], tx, 0));
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[j], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[j] = B_FALSE;
 			} else {
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
-				    off, bigbuf_arcbufs[2 * j], tx, 0));
-				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
+				    off, bigbuf_arcbufs[2 * j], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[2 * j] = B_FALSE;
+
+				error = dmu_assign_arcbuf_by_dbuf(bonus_db,
 				    off + chunksize / 2,
-				    bigbuf_arcbufs[2 * j + 1], tx, 0));
+				    bigbuf_arcbufs[2 * j + 1], tx, 0);
+				if (error && ZTEST_HFE_ACTIVE())
+					goto out;
+				VERIFY0(error);
+				arcs_to_return[2 * j + 1] = B_FALSE;
 			}
 			if (i == 1) {
 				dmu_buf_rele(dbt, FTAG);
+				dbt = NULL;
 			}
 		}
 		dmu_tx_commit(tx);
+		txg = 0;
 
 		/*
 		 * Sanity check the stuff we just wrote.
 		 */
 		{
-			void *packcheck = umem_alloc(packsize, UMEM_NOFAIL);
-			void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
+			packcheck = umem_alloc(packsize, UMEM_NOFAIL);
+			bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
-			VERIFY0(dmu_read(os, packobj, packoff,
-			    packsize, packcheck, dmu_read_flags));
-			VERIFY0(dmu_read(os, bigobj, bigoff,
-			    bigsize, bigcheck, dmu_read_flags));
+			error = dmu_read(os, packobj, packoff,
+			    packsize, packcheck, dmu_read_flags);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
 
-			ASSERT0(memcmp(packbuf, packcheck, packsize));
-			ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
+			error = dmu_read(os, bigobj, bigoff,
+			    bigsize, bigcheck, dmu_read_flags);
+			if (error && ZTEST_HFE_ACTIVE())
+				goto out;
+			VERIFY0(error);
+
+			if (!ZTEST_HFE_ACTIVE()) {
+				ASSERT0(memcmp(packbuf, packcheck, packsize));
+				ASSERT0(memcmp(bigbuf, bigcheck, bigsize));
+			}
 
 			umem_free(packcheck, packsize);
+			packcheck = NULL;
 			umem_free(bigcheck, bigsize);
+			bigcheck = NULL;
 		}
 		if (i == 2) {
 			txg_wait_open(dmu_objset_pool(os), 0, B_TRUE);
@@ -5587,11 +6133,31 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		}
 	}
 
-	dmu_buf_rele(bonus_db, FTAG);
-	umem_free(packbuf, packsize);
-	umem_free(bigbuf, bigsize);
-	umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
-	umem_free(od, size);
+out:
+	if (arcs_to_return)
+		for (j = 0; j < 2 * s; j++)
+			if (arcs_to_return[j])
+				dmu_return_arcbuf(bigbuf_arcbufs[j]);
+	if (dbt)
+		dmu_buf_rele(dbt, FTAG);
+	if (txg != 0)
+		dmu_tx_commit(tx);
+	if (packcheck)
+		umem_free(packcheck, packsize);
+	if (bigcheck)
+		umem_free(bigcheck, bigsize);
+	if (bonus_db)
+		dmu_buf_rele(bonus_db, FTAG);
+	if (packbuf)
+		umem_free(packbuf, packsize);
+	if (bigbuf)
+		umem_free(bigbuf, bigsize);
+	if (arcs_to_return)
+		umem_free(arcs_to_return, 2 * s * sizeof (boolean_t));
+	if (bigbuf_arcbufs)
+		umem_free(bigbuf_arcbufs, 2 * s * sizeof (arc_buf_t *));
+	if (od)
+		umem_free(od, size);
 }
 
 void
@@ -5612,11 +6178,12 @@ ztest_dmu_write_parallel(ztest_ds_t *zd, uint64_t id)
 	ztest_od_init(od, ID_PARALLEL, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0, 0);
 
 	if (ztest_object_init(zd, od, sizeof (ztest_od_t), B_FALSE) != 0)
-		return;
+		goto out;
 
-	while (ztest_random(10) != 0)
+	while (ztest_random(10) != 0 && !ZTEST_HFE_ACTIVE())
 		ztest_io(zd, od->od_object, offset);
 
+out:
 	umem_free(od, sizeof (ztest_od_t));
 }
 
@@ -5675,11 +6242,11 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
 	uint64_t object;
-	uint64_t txg, last_txg;
+	uint64_t txg = 0, last_txg;
 	uint64_t value[ZTEST_ZAP_MAX_INTS];
 	uint64_t zl_ints, zl_intsize, prop;
 	int i, ints;
-	dmu_tx_t *tx;
+	dmu_tx_t *tx = NULL;
 	char propname[100], txgname[100];
 	int error;
 	const char *const hc[2] = { "s.acl.h", ".s.open.h.hyLZlg" };
@@ -5704,21 +6271,35 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	for (i = 0; i < 2; i++) {
 		value[i] = i;
-		VERIFY0(zap_add(os, object, hc[i], sizeof (uint64_t),
-		    1, &value[i], tx));
+		error = zap_add(os, object, hc[i], sizeof (uint64_t),
+		    1, &value[i], tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	}
 	for (i = 0; i < 2; i++) {
-		VERIFY3U(EEXIST, ==, zap_add(os, object, hc[i],
-		    sizeof (uint64_t), 1, &value[i], tx));
-		VERIFY0(
-		    zap_length(os, object, hc[i], &zl_intsize, &zl_ints));
+		error = zap_add(os, object, hc[i],
+		    sizeof (uint64_t), 1, &value[i], tx);
+		if (!(error == EEXIST) && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY3U(error, ==, EEXIST);
+
+		error = zap_length(os, object, hc[i], &zl_intsize, &zl_ints);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
+
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, 1);
 	}
 	for (i = 0; i < 2; i++) {
-		VERIFY0(zap_remove(os, object, hc[i], tx));
+		error = zap_remove(os, object, hc[i], tx);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 	}
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Generate a bunch of random entries.
@@ -5739,22 +6320,33 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, 1);
 
-		VERIFY0(zap_lookup(os, object, txgname, zl_intsize,
-		    zl_ints, &last_txg));
+		error = zap_lookup(os, object, txgname, zl_intsize,
+		    zl_ints, &last_txg);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
-		VERIFY0(zap_length(os, object, propname, &zl_intsize,
-		    &zl_ints));
+		error = zap_length(os, object, propname, &zl_intsize,
+		    &zl_ints);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
 		ASSERT3U(zl_intsize, ==, sizeof (uint64_t));
 		ASSERT3U(zl_ints, ==, ints);
 
-		VERIFY0(zap_lookup(os, object, propname, zl_intsize,
-		    zl_ints, value));
+		error = zap_lookup(os, object, propname, zl_intsize,
+		    zl_ints, value);
+		if (error && ZTEST_HFE_ACTIVE())
+			goto out;
+		VERIFY0(error);
 
 		for (i = 0; i < ints; i++) {
 			ASSERT3U(value[i], ==, last_txg + object + i);
 		}
 	} else {
+		if (!(error == ENOENT) && ZTEST_HFE_ACTIVE())
+			goto out;
 		ASSERT3U(error, ==, ENOENT);
 	}
 
@@ -5778,12 +6370,19 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	for (i = 0; i < ints; i++)
 		value[i] = txg + object + i;
 
-	VERIFY0(zap_update(os, object, txgname, sizeof (uint64_t),
-	    1, &txg, tx));
-	VERIFY0(zap_update(os, object, propname, sizeof (uint64_t),
-	    ints, value, tx));
+	error = zap_update(os, object, txgname, sizeof (uint64_t),
+	    1, &txg, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+	error = zap_update(os, object, propname, sizeof (uint64_t),
+	    ints, value, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
 
 	dmu_tx_commit(tx);
+	txg = 0;
 
 	/*
 	 * Remove a random pair of entries.
@@ -5796,7 +6395,8 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 
 	if (error == ENOENT)
 		goto out;
-
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT0(error);
 
 	tx = dmu_tx_create(os);
@@ -5804,10 +6404,18 @@ ztest_zap(ztest_ds_t *zd, uint64_t id)
 	txg = ztest_tx_assign(tx, DMU_TX_MIGHTWAIT, FTAG);
 	if (txg == 0)
 		goto out;
-	VERIFY0(zap_remove(os, object, txgname, tx));
-	VERIFY0(zap_remove(os, object, propname, tx));
-	dmu_tx_commit(tx);
+	error = zap_remove(os, object, txgname, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+	error = zap_remove(os, object, propname, tx);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(error);
+
 out:
+	if (txg != 0)
+		dmu_tx_commit(tx);
 	umem_free(od, sizeof (ztest_od_t));
 }
 
@@ -5849,6 +6457,11 @@ ztest_fzap(ztest_ds_t *zd, uint64_t id)
 			goto out;
 		error = zap_add(os, object, name, sizeof (uint64_t), 1,
 		    &value, tx);
+		if (!(error == 0 || error == EEXIST) &&
+		    ZTEST_HFE_ACTIVE()) {
+			dmu_tx_commit(tx);
+			goto out;
+		}
 		ASSERT(error == 0 || error == EEXIST);
 		dmu_tx_commit(tx);
 	}
@@ -5863,7 +6476,7 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
 	uint64_t txg, object, count, wsize, wc, zl_wsize, zl_wc;
-	dmu_tx_t *tx;
+	dmu_tx_t *tx = NULL;
 	int i, namelen, error;
 	int micro = ztest_random(2);
 	char name[20], string_value[20];
@@ -5904,7 +6517,12 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 	}
 
 	count = -1ULL;
-	VERIFY0(zap_count(os, object, &count));
+	error = zap_count(os, object, &count);
+	if (error && ZTEST_HFE_ACTIVE()) {
+		umem_free(od, sizeof (ztest_od_t));
+		return;
+	}
+	VERIFY0(error);
 	ASSERT3S(count, !=, -1ULL);
 
 	/*
@@ -5935,7 +6553,8 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 			ASSERT3U(wsize, ==, zl_wsize);
 			ASSERT3U(wc, ==, zl_wc);
 		} else {
-			ASSERT3U(error, ==, ENOENT);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOENT);
 		}
 		break;
 
@@ -5947,22 +6566,27 @@ ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 				fatal(B_FALSE, "name '%s' != val '%s' len %d",
 				    name, (char *)data, namelen);
 		} else {
-			ASSERT3U(error, ==, ENOENT);
+			if (!ZTEST_HFE_ACTIVE())
+				ASSERT3U(error, ==, ENOENT);
 		}
 		break;
 
 	case 2:
 		error = zap_add(os, object, name, wsize, wc, data, tx);
-		ASSERT(error == 0 || error == EEXIST);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == EEXIST);
 		break;
 
 	case 3:
-		VERIFY0(zap_update(os, object, name, wsize, wc, data, tx));
+		error = zap_update(os, object, name, wsize, wc, data, tx);
+		if (!ZTEST_HFE_ACTIVE())
+			VERIFY0(error);
 		break;
 
 	case 4:
 		error = zap_remove(os, object, name, tx);
-		ASSERT(error == 0 || error == ENOENT);
+		if (!ZTEST_HFE_ACTIVE())
+			ASSERT(error == 0 || error == ENOENT);
 		break;
 	}
 
@@ -5996,7 +6620,7 @@ ztest_commit_callback(void *arg, int error)
 	VERIFY(!data->zcd_called);
 
 	synced_txg = spa_last_synced_txg(data->zcd_spa);
-	if (data->zcd_txg > synced_txg)
+	if (data->zcd_txg > synced_txg && !ZTEST_HFE_ACTIVE())
 		fatal(B_FALSE,
 		    "commit callback of txg %"PRIu64" called prematurely, "
 		    "last synced txg = %"PRIu64"\n",
@@ -6118,8 +6742,11 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Read existing data to make sure there isn't a future leak.
 	 */
-	VERIFY0(dmu_read(os, od->od_object, 0, sizeof (uint64_t),
-	    &old_txg, DMU_READ_PREFETCH));
+	error = dmu_read(os, od->od_object, 0, sizeof (uint64_t),
+	    &old_txg, DMU_READ_PREFETCH);
+	if (error && ZTEST_HFE_ACTIVE())
+		goto txout;
+	VERIFY0(error);
 
 	if (old_txg > txg)
 		fatal(B_FALSE,
@@ -6128,7 +6755,10 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 
 	dmu_write(os, od->od_object, 0, sizeof (uint64_t), &txg, tx,
 	    DMU_READ_PREFETCH);
+	if (ZTEST_HFE_ACTIVE())
+		goto txout;
 
+txout:
 	(void) mutex_enter(&zcl.zcl_callbacks_lock);
 
 	/*
@@ -6219,7 +6849,9 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 			ztest_bt_verify(bt, os, obj, doi.doi_dnodesize,
 			    bt->bt_offset, bt->bt_gen, bt->bt_txg,
 			    bt->bt_crtxg);
-			ztest_verify_unused_bonus(db, bt, obj, os, bt->bt_gen);
+			if (!ZTEST_HFE_ACTIVE())
+				ztest_verify_unused_bonus(db, bt, obj, os,
+				    bt->bt_gen);
 		}
 
 		dmu_buf_rele(db, FTAG);
@@ -6257,13 +6889,18 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 	for (int p = 0; p < sizeof (proplist) / sizeof (proplist[0]); p++) {
 		int error = ztest_dsl_prop_set_uint64(zd->zd_name, proplist[p],
 		    ztest_random_dsl_prop(proplist[p]), (int)ztest_random(2));
+		if (!(error == 0 || error == ENOSPC) && ZTEST_HFE_ACTIVE())
+			goto out;
 		ASSERT(error == 0 || error == ENOSPC);
 	}
 
 	int error = ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_RECORDSIZE,
 	    ztest_random_blocksize(), (int)ztest_random(2));
+	if (!(error == 0 || error == ENOSPC) && ZTEST_HFE_ACTIVE())
+		goto out;
 	ASSERT(error == 0 || error == ENOSPC);
 
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
@@ -6271,19 +6908,29 @@ void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
+	nvlist_t *props = NULL;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
-	(void) ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
+	err = ztest_spa_prop_set_uint64(ZPOOL_PROP_AUTOTRIM, ztest_random(2));
+	if (!(err == 0 || err == ENOSPC) && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY(err == 0 || err == ENOSPC);
 
-	nvlist_t *props = fnvlist_alloc();
+	props = fnvlist_alloc();
 
-	VERIFY0(spa_prop_get(ztest_spa, props));
+	err = spa_prop_get(ztest_spa, props);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 
 	if (ztest_opts.zo_verbose >= 6)
 		dump_nvlist(props, 4);
 
-	fnvlist_free(props);
+out:
+	if (props)
+		fnvlist_free(props);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
@@ -6319,6 +6966,9 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 	char tag[100];
 	char osname[ZFS_MAX_DATASET_NAME_LEN];
 	nvlist_t *holds;
+
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
 
@@ -6427,6 +7077,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	mutex_exit(&ztest_hfe_lock);
 }
 
 /*
@@ -6437,7 +7088,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	ztest_shared_t *zs = ztest_shared;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	int fd;
 	uint64_t offset;
 	uint64_t leaves;
@@ -6456,10 +7107,15 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	boolean_t islog = B_FALSE;
 	boolean_t injected = B_FALSE;
 
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
 	path0 = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	pathrand = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
+
+	spa = ztest_spa;
 
 	/*
 	 * Device removal is in progress, fault injection must be disabled
@@ -6732,6 +7388,218 @@ out:
 
 	umem_free(path0, MAXPATHLEN);
 	umem_free(pathrand, MAXPATHLEN);
+
+	mutex_exit(&ztest_hfe_lock);
+}
+
+static uint64_t
+ztest_zdb_latest_txg(vdev_t *vd)
+{
+	FILE *fp;
+	const size_t bin_len = MAXPATHLEN + MAXNAMELEN + 20;
+	const size_t cmd_len = MAXPATHLEN + MAXNAMELEN + 20;
+	const size_t buf_len = 1024;
+	char *bin;
+	char *cmd;
+	char *buf;
+	char *endp;
+	uint64_t txg = 0;
+
+	if (vd->vdev_ops == &vdev_file_ops) {
+		bin = umem_alloc(bin_len, UMEM_NOFAIL);
+		cmd = umem_alloc(cmd_len, UMEM_NOFAIL);
+		buf = umem_zalloc(buf_len, UMEM_NOFAIL);
+		ztest_get_zdb_bin(bin, bin_len);
+		snprintf(cmd, cmd_len, "sh -c '%s -llll %s | "
+		    "sed -En s/^\\ +txg:\\ +\\([0-9]+\\)$/\\\\1/p | "
+		    "sort -r | head -n1'", bin, vd->vdev_path);
+		fp = popen(cmd, "r");
+		if (fgets(buf, buf_len, fp) != NULL &&
+		    strlen(buf) > 0) {
+			txg = strtoull(buf, &endp, 0);
+			if (*endp != '\n')
+				txg = 0;
+		}
+		pclose(fp);
+		umem_free(buf, buf_len);
+		umem_free(cmd, cmd_len);
+		umem_free(bin, bin_len);
+	}
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		uint64_t child_txg = ztest_zdb_latest_txg(vd->vdev_child[i]);
+		if (child_txg > txg)
+			txg = child_txg;
+	}
+
+	return (txg);
+}
+
+/*
+ * Suspend the pool, forcibly export, re-import.
+ */
+void
+ztest_hardforced_export(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_t *spa;
+	uint64_t pool_guid;
+	uint64_t last_actually_synced_txg;
+	ztest_shared_t *zs = ztest_shared;
+	uint64_t failmode_orig;
+	int i;
+	const uint_t timeout_sec = 60 +
+	    (2 + ztest_opts.zo_threads / boot_ncpus) * zfs_txg_timeout;
+
+	/*
+	 * We must not be an uncounted reimport_waiter stuck down here,
+	 * waiting for the lock. If someone else has started the scenario then
+	 * let's quit and run other ztest.
+	 */
+	if (!mutex_tryenter(&ztest_hfe_lock))
+		return;
+
+	/*
+	 * Let ztest_resume_thread() do its job.
+	 */
+	spa = ztest_spa;
+	if (spa_suspended(spa)) {
+		mutex_exit(&ztest_hfe_lock);
+		return;
+	}
+
+	/*
+	 * Intentionally fault disks.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_STARTED);
+	failmode_orig = spa->spa_failmode;
+	spa->spa_failmode = ZIO_FAILURE_MODE_WAIT;
+	pool_guid = spa_guid(spa);
+	vdev_file_constant_error = EIO;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: started\n", __func__);
+
+	/*
+	 * Wait for suspension state.
+	 *
+	 * The read/write ztest funcs, always running in parallel, are
+	 * expected to trigger it very quickly.
+	 */
+	for (i = 0; i < timeout_sec; i++) {
+		sleep(1);
+		if (spa_suspended(spa))
+			break;
+	}
+	if (!spa_suspended(spa)) {
+		/*
+		 * We expect that activity of other test threads would trigger
+		 * suspension, but there is no guarantee for that. It's better
+		 * to avoid false positives then.
+		 */
+		if (ztest_opts.zo_verbose >= 5)
+			(void) printf("%s: decided to suspend manually\n",
+			    __func__);
+		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
+	}
+	VERIFY(spa_suspended(spa));
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_SUSPENDED);
+	last_actually_synced_txg = ztest_zdb_latest_txg(spa->spa_root_vdev);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: suspended (spa_last_synced_txg=%lu, "
+		    "last_actually_synced_txg=%lu, spa_guid=%lu)\n", __func__,
+		    spa_last_synced_txg(spa), last_actually_synced_txg,
+		    spa_guid(spa));
+
+	/*
+	 * Cancel suspended I/O.
+	 *
+	 * From this point we want other threads not to start new tests as we
+	 * plan to drop the exiting spa and its datasets.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_CANCELLING_IO);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: cancelling suspended I/O...\n", __func__);
+	spa_set_forced_exit_required(spa);
+	VERIFY(spa_exiting(spa));
+
+	/*
+	 * Pause testing activity.
+	 */
+	uint64_t expected = atomic_load_64(&ztest_running_threads) - 1;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: waiting for other test threads to become "
+		    "idle...\n", __func__);
+	for (i = 0; i < timeout_sec; i++) {
+		sleep(1);
+		expected = atomic_load_64(&ztest_running_threads) - 1;
+		if (atomic_load_64(&ztest_hfe_reimport_waiters) == expected)
+			break;
+	}
+	const uint64_t actual = atomic_load_64(&ztest_hfe_reimport_waiters);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: all other test threads to be idle: "
+		    "expected=%lu, actual=%lu\n", __func__, expected, actual);
+	for (int t = 0; t < ztest_opts.zo_threads; t++) {
+		if (t == id || ztest_threads[t].onhold)
+			continue;
+		(void) printf("%s: still active thread: id=%d, func=%s, "
+		    "pid=%d, tid=%lu\n", __func__, t, ztest_threads[t].func,
+		    ztest_threads[t].pid, ztest_threads[t].tid);
+	}
+	VERIFY3U(actual, ==, expected);
+
+	/*
+	 * Close the datasets.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_CLOSING_DATASETS);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: closing datasets...\n", __func__);
+	for (i = 0; i < ztest_opts.zo_threads; i++) {
+		if (i < ztest_opts.zo_datasets)
+			ztest_dataset_close(i);
+	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	spa_close(spa, (const void *)ztest_run);
+
+	/*
+	 * Export with hardforce.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_EXPORTING);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: exporting with hardforce...\n", __func__);
+	VERIFY(spa_suspended(spa));
+	VERIFY0(spa_export(spa_name(spa), NULL, B_TRUE, B_TRUE));
+	VERIFY3U(spa_state(spa), ==, POOL_STATE_UNINITIALIZED);
+
+	/*
+	 * Import back.
+	 */
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_REIMPORTING);
+	vdev_file_constant_error = 0;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: re-importing...\n", __func__);
+	ztest_open_pool(zs, &spa);
+	VERIFY3U(pool_guid, ==, spa_guid(spa));
+	VERIFY3U(spa_first_txg(spa), >=, last_actually_synced_txg);
+	VERIFY3U(spa->spa_state, ==, POOL_STATE_ACTIVE);
+	for (i = 0; i < ztest_opts.zo_threads; i++) {
+		if (i < ztest_opts.zo_datasets)
+			VERIFY0(ztest_dataset_open(i));
+	}
+	spa->spa_failmode = failmode_orig;
+	ztest_spa = spa;
+
+	/*
+	 * Finish the scenario.
+	 */
+	ztest_hfe_runs++;
+	ZTEST_HFE_SET_STAGE(HFE_STAGE_DONE_ONCE);
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: finished (spa_first_txg=%lu, "
+		    "spa_guid=%lu)\n", __func__, spa_first_txg(spa),
+		    spa_guid(spa));
+
+	mutex_exit(&ztest_hfe_lock);
 }
 
 /*
@@ -6760,7 +7628,7 @@ ztest_scrub_impl(spa_t *spa)
 	if (error)
 		return (error);
 
-	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+	while (dsl_scan_scrubbing(spa_get_dsl(spa)) && !ZTEST_HFE_ACTIVE())
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
 	if (spa_approx_errlog_size(spa) > 0)
@@ -6796,7 +7664,8 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 	error = ztest_scrub_impl(spa);
 	if (error == EBUSY)
 		error = 0;
-	ASSERT0(error);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(error);
 }
 
 /*
@@ -6814,15 +7683,15 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	orig = spa_guid(spa);
 	load = spa_load_guid(spa);
-
-	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	error = spa_change_guid(spa, NULL);
-	zs->zs_guid = spa_guid(spa);
+	if (error == 0)
+		zs->zs_guid = spa_guid(spa);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
-	if (error != 0)
+	if (error != 0 || ZTEST_HFE_ACTIVE())
 		return;
 
 	if (ztest_opts.zo_verbose >= 4) {
@@ -7073,13 +7942,20 @@ ztest_pool_prefetch_ddt(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
 	spa_t *spa;
+	int err;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
-	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+
+	err = spa_open(ztest_opts.zo_pool, &spa, FTAG);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	VERIFY0(err);
 
 	ddt_prefetch_all(spa);
 
 	spa_close(spa, FTAG);
+
+out:
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
@@ -7221,10 +8097,12 @@ void
 ztest_initialize(ztest_ds_t *zd, uint64_t id)
 {
 	(void) zd, (void) id;
-	spa_t *spa = ztest_spa;
+	spa_t *spa;
 	int error = 0;
 
 	mutex_enter(&ztest_vdev_lock);
+
+	spa = ztest_spa;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -7321,7 +8199,8 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_TRIM_FUNCS);
-	uint64_t rate = 1 << ztest_random(30);
+	/* Do not use very small rate not to slow the things down very much. */
+	uint64_t rate = (1 << 16) << ztest_random(30 - 16);
 	boolean_t partial = (ztest_random(5) > 0);
 	boolean_t secure = (ztest_random(5) > 0);
 
@@ -7380,7 +8259,7 @@ ztest_ddt_prune(ztest_ds_t *zd, uint64_t id)
  * Verify pool integrity by running zdb.
  */
 static void
-ztest_run_zdb(uint64_t guid)
+ztest_run_zdb(const char *pool_name)
 {
 	int status;
 	char *bin;
@@ -7404,13 +8283,13 @@ ztest_run_zdb(uint64_t guid)
 	free(set_gvars_args);
 
 	size_t would = snprintf(zdb, len,
-	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %"PRIu64,
+	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
 	    set_gvars_args_joined,
 	    ztest_opts.zo_dir,
-	    guid);
+	    pool_name);
 	ASSERT3U(would, <, len);
 
 	umem_free(set_gvars_args_joined, strlen(set_gvars_args_joined) + 1);
@@ -7472,7 +8351,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	/*
 	 * Clean up from previous runs.
 	 */
-	(void) spa_destroy(newname);
+	(void) spa_destroy(newname, B_FALSE, B_FALSE);
 
 	/*
 	 * Get the pool's configuration and guid.
@@ -7565,9 +8444,23 @@ ztest_resume_thread(void *arg)
 		ddt_dump_prune_histogram = B_TRUE;
 
 	while (!ztest_exiting) {
-		if (spa_suspended(spa))
-			ztest_resume(spa);
 		(void) poll(NULL, 0, 100);
+
+		/*
+		 * Resume only if the hardforced export test scenario is not
+		 * running, otherwise suspension is expected.
+		 */
+		if (mutex_tryenter(&ztest_hfe_lock)) {
+			/*
+			 * The hardforced export test changes the spa ref.
+			 */
+			spa = ztest_spa;
+
+			if (spa_suspended(spa))
+				ztest_resume(spa);
+
+			mutex_exit(&ztest_hfe_lock);
+		}
 
 		/*
 		 * Periodically change the zfs_compressed_arc_enabled setting.
@@ -7606,18 +8499,33 @@ ztest_deadman_thread(void *arg)
 		}
 
 		/*
-		 * If the pool is suspended then fail immediately. Otherwise,
-		 * check to see if the pool is making any progress. If
-		 * vdev_deadman() discovers that there hasn't been any recent
-		 * I/Os then it will end up aborting the tests.
+		 * Do not conflict with the hardforced export test scenario.
 		 */
-		if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
-			fatal(B_FALSE,
-			    "aborting test after %llu seconds because "
-			    "pool has transitioned to a suspended state.",
-			    (u_longlong_t)zfs_deadman_synctime_ms / 1000);
+		if (mutex_tryenter(&ztest_hfe_lock)) {
+			/*
+			 * The hardforced export test changes the spa ref.
+			 */
+			spa = ztest_spa;
+
+			/*
+			 * If the pool is suspended then fail immediately.
+			 * Otherwise, check to see if the pool is making any
+			 * progress. If vdev_deadman() discovers that there
+			 * hasn't been any recent I/Os then it will end up
+			 * aborting the tests.
+			 */
+			if (spa_suspended(spa) || spa->spa_root_vdev == NULL) {
+				fatal(B_FALSE,
+				    "aborting test after %llu seconds because "
+				    "pool has transitioned to a suspended "
+				    "state.",
+				    (u_longlong_t)zfs_deadman_synctime_ms
+				    / 1000);
+			}
+			vdev_deadman(spa->spa_root_vdev, FTAG);
+
+			mutex_exit(&ztest_hfe_lock);
 		}
-		vdev_deadman(spa->spa_root_vdev, FTAG);
 
 		/*
 		 * If the process doesn't complete within a grace period of
@@ -7634,6 +8542,15 @@ ztest_deadman_thread(void *arg)
 
 		(void) printf("ztest has been running for %lld seconds\n",
 		    (gethrtime() - zs->zs_proc_start) / NANOSEC);
+
+		for (int t = 0; t < ztest_opts.zo_threads; t++) {
+			if (ztest_threads[t].onhold)
+				continue;
+			(void) printf("%s: active thread: id=%d, func=%s, "
+			    "pid=%d, tid=%lu\n", __func__, t,
+			    ztest_threads[t].func, ztest_threads[t].pid,
+			    ztest_threads[t].tid);
+		}
 
 		last_run = gethrtime();
 		delay = MSEC2NSEC(zfs_deadman_checktime_ms);
@@ -7743,6 +8660,7 @@ ztest_thread(void *arg)
 	ztest_info_t *zi;
 	ztest_shared_callstate_t *zc;
 
+	atomic_inc_64(&ztest_running_threads);
 	while ((now = gethrtime()) < zs->zs_thread_stop) {
 		/*
 		 * See if it's time to force a crash.
@@ -7759,19 +8677,51 @@ ztest_thread(void *arg)
 			break;
 
 		/*
+		 * If hardforced export test scenario has reached the
+		 * pool suspended stage then it's time to stop running
+		 * anything, as the spa is going to be changed by exporting
+		 * and re-importing.
+		 */
+		if (ZTEST_HFE_STAGE() >= HFE_STAGE_SUSPENDED) {
+			atomic_inc_64(&ztest_hfe_reimport_waiters);
+			ztest_threads[id].onhold = B_TRUE;
+			mutex_enter(&ztest_hfe_lock);
+			atomic_dec_64(&ztest_hfe_reimport_waiters);
+			ztest_threads[id].onhold = B_FALSE;
+			mutex_exit(&ztest_hfe_lock);
+			continue;
+		}
+
+		/*
 		 * Pick a random function to execute.
 		 */
 		rand = ztest_random(ZTEST_FUNCS);
 		zi = &ztest_info[rand];
+		if (zi->zi_func == ztest_hardforced_export) {
+			/* all other threads have resumed, can repeat then */
+			if (atomic_load_64(&ztest_hfe_reimport_waiters) == 0)
+				ZTEST_HFE_SET_STAGE(HFE_STAGE_INACTIVE);
+			/* to soon to run another one */
+			if (ZTEST_HFE_STAGE() >= HFE_STAGE_STARTED)
+				continue;
+			/* we want other tests to resume first */
+			if (ZTEST_HFE_STAGE() == HFE_STAGE_DONE_ONCE)
+				continue;
+		}
 		zc = ZTEST_GET_SHARED_CALLSTATE(rand);
 		call_next = zc->zc_next;
 
 		if (now >= call_next &&
 		    atomic_cas_64(&zc->zc_next, call_next, call_next +
 		    ztest_random(2 * zi->zi_interval[0] + 1)) == call_next) {
+			ztest_threads[id].func = zi->zi_funcname;
+			ztest_threads[id].pid = getpid();
+			ztest_threads[id].tid = libspl_gettid();
 			ztest_execute(rand, zi, id);
 		}
 	}
+	atomic_dec_64(&ztest_running_threads);
+	ztest_threads[id].onhold = B_TRUE;
 
 	thread_exit();
 }
@@ -7839,7 +8789,7 @@ ztest_dataset_open(int d)
 
 	ztest_dataset_name(name, ztest_opts.zo_pool, d);
 
-	if (ztest_opts.zo_verbose >= 6)
+	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("Opening %s\n", name);
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
@@ -8082,9 +9032,9 @@ ztest_import(ztest_shared_t *zs)
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(spa->spa_name);
 		ztest_freeze();
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(spa->spa_name);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -8167,7 +9117,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	/* Setup a 1 MiB buffer of random data */
 	uint64_t bufsize = 1024 * 1024;
 	void *buffer = umem_alloc(bufsize, UMEM_NOFAIL);
-	random_get_pseudo_bytes((uint8_t *)buffer, bufsize);
+	ztest_random_bytes((uint8_t *)buffer, bufsize);
 
 	/*
 	 * Put some data in the pool and then attach a vdev to initiate
@@ -8199,7 +9149,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 		thread_args[t].rzx_buffer = buffer;
 		thread_args[t].rzx_alloc_max = alloc_goal;
 		thread_args[t].rzx_spa = spa;
-		run_threads[t] = thread_create(NULL, 0, ztest_rzx_thread,
+		run_threads[t] = _thread_create(NULL, 0, ztest_rzx_thread,
 		    &thread_args[t], 0, NULL, TS_RUN | TS_JOINABLE,
 		    defclsyspri);
 	}
@@ -8339,6 +9289,8 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 
 	run_threads = umem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    UMEM_NOFAIL);
+	ztest_threads = umem_zalloc(ztest_opts.zo_threads *
+	    sizeof (*ztest_threads), UMEM_NOFAIL);
 
 	/*
 	 * Actual number of datasets to be used.
@@ -8355,9 +9307,9 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	 * Kick off all the tests that run in parallel.
 	 */
 	for (i = 0; i < ztest_opts.zo_threads; i++) {
-		run_threads[i] = thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)i, 0, NULL, TS_RUN | TS_JOINABLE,
-		    defclsyspri);
+		run_threads[i] = _thread_create_named("ztest_func", NULL, 0,
+		    ztest_thread, (void *)(uintptr_t)i, 0, NULL,
+		    TS_RUN | TS_JOINABLE, defclsyspri);
 	}
 
 	/*
@@ -8365,6 +9317,8 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	 */
 	for (i = 0; i < ztest_opts.zo_threads; i++)
 		VERIFY0(thread_join(run_threads[i]));
+
+	spa = ztest_spa; /* hardforced export test re-imports the spa */
 
 	/*
 	 * Close all datasets. This must be done after all the threads
@@ -8379,7 +9333,25 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	zs->zs_alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	zs->zs_space = metaslab_class_get_space(spa_normal_class(spa));
 
+	umem_free(ztest_threads, ztest_opts.zo_threads *
+	    sizeof (*ztest_threads));
 	umem_free(run_threads, ztest_opts.zo_threads * sizeof (kthread_t *));
+}
+
+static void
+ztest_open_pool(ztest_shared_t *zs, spa_t **spap)
+{
+	int error;
+
+	error = spa_open(ztest_opts.zo_pool, spap, (const void *)ztest_run);
+	if (error) {
+		VERIFY3S(error, ==, ENOENT);
+		ztest_import_impl();
+		VERIFY0(spa_open(ztest_opts.zo_pool, spap,
+		    (const void *)ztest_run));
+		zs->zs_metaslab_sz = 1ULL << (*spap)->spa_root_vdev
+		    ->vdev_child[0]->vdev_ms_shift;
+	}
 }
 
 /*
@@ -8426,14 +9398,7 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
-	if (error) {
-		VERIFY3S(error, ==, ENOENT);
-		ztest_import_impl();
-		VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
-		zs->zs_metaslab_sz =
-		    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
-	}
+	ztest_open_pool(zs, &spa);
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
@@ -8459,13 +9424,13 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * Create a thread to periodically resume suspended I/O.
 	 */
-	resume_thread = thread_create(NULL, 0, ztest_resume_thread,
+	resume_thread = _thread_create(NULL, 0, ztest_resume_thread,
 	    spa, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 	/*
 	 * Create a deadman thread and set to panic if we hang.
 	 */
-	deadman_thread = thread_create(NULL, 0, ztest_deadman_thread,
+	deadman_thread = _thread_create(NULL, 0, ztest_deadman_thread,
 	    zs, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 
 	spa->spa_deadman_failmode = ZIO_FAILURE_MODE_PANIC;
@@ -8493,7 +9458,11 @@ ztest_run(ztest_shared_t *zs)
 		ASSERT3U(ztest_opts.zo_raidz_expand_test, ==,
 		    RAIDZ_EXPAND_NONE);
 
-		int d = ztest_random(ztest_opts.zo_datasets);
+		(void) spa_checkpoint_discard(spa->spa_name);
+
+		int d, ndatasets;
+		ndatasets = MIN(ztest_opts.zo_datasets, ztest_opts.zo_threads);
+		d = ztest_random(ndatasets);
 		ztest_dataset_destroy(d);
 		txg_wait_synced(spa_get_dsl(spa), 0);
 	}
@@ -8546,6 +9515,7 @@ ztest_run(ztest_shared_t *zs)
 	ztest_exiting = B_TRUE;
 	VERIFY0(thread_join(resume_thread));
 	VERIFY0(thread_join(deadman_thread));
+	spa = ztest_spa; /* hardforced export test re-imports the spa */
 	ztest_resume(spa);
 
 	/*
@@ -8558,10 +9528,10 @@ ztest_run(ztest_shared_t *zs)
 	}
 
 	/* Verify that at least one commit cb was called in a timely fashion */
-	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG)
+	if (zc_cb_counter >= ZTEST_COMMIT_CB_MIN_REG && ZTEST_HFE_NEVER_RUN())
 		VERIFY0(zc_min_txg_delay);
 
-	spa_close(spa, FTAG);
+	spa_close(spa, (const void *)ztest_run);
 
 	/*
 	 * Verify that we can loop over all pools.
@@ -8652,6 +9622,7 @@ ztest_init(ztest_shared_t *zs)
 	nvlist_t *nvroot, *props;
 	int i;
 
+	mutex_init(&ztest_hfe_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
@@ -8662,7 +9633,7 @@ ztest_init(ztest_shared_t *zs)
 	/*
 	 * Create the storage pool.
 	 */
-	(void) spa_destroy(ztest_opts.zo_pool);
+	(void) spa_destroy(ztest_opts.zo_pool, B_FALSE, B_FALSE);
 	ztest_shared->zs_vdev_next_leaf = 0;
 	zs->zs_splits = 0;
 	zs->zs_mirrors = ztest_opts.zo_mirrors;
@@ -8719,14 +9690,15 @@ ztest_init(ztest_shared_t *zs)
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(ztest_opts.zo_pool);
 		ztest_freeze();
-		ztest_run_zdb(zs->zs_guid);
+		ztest_run_zdb(ztest_opts.zo_pool);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
 	mutex_destroy(&ztest_vdev_lock);
 	mutex_destroy(&ztest_checkpoint_lock);
+	mutex_destroy(&ztest_hfe_lock);
 }
 
 static void
@@ -8750,6 +9722,7 @@ shared_data_size(ztest_shared_hdr_t *hdr)
 	size += hdr->zh_stats_size * hdr->zh_stats_count;
 	size += hdr->zh_ds_size * hdr->zh_ds_count;
 	size += hdr->zh_scratch_state_size;
+	size += hdr->zh_prng_state_size;
 
 	return (size);
 }
@@ -8774,6 +9747,7 @@ setup_hdr(void)
 	hdr->zh_ds_size = sizeof (ztest_shared_ds_t);
 	hdr->zh_ds_count = ztest_opts.zo_datasets;
 	hdr->zh_scratch_state_size = sizeof (ztest_shared_scratch_state_t);
+	hdr->zh_prng_state_size = sizeof (ztest_shared_prng_state_t);
 
 	size = shared_data_size(hdr);
 	VERIFY0(ftruncate(ztest_fd_data, size));
@@ -8810,6 +9784,8 @@ setup_data(void)
 	ztest_shared_ds = (void *)&buf[offset];
 	offset += hdr->zh_ds_size * hdr->zh_ds_count;
 	ztest_scratch_state = (void *)&buf[offset];
+	offset += hdr->zh_scratch_state_size;
+	ztest_prng_state = (void *)&buf[offset];
 }
 
 static boolean_t
@@ -8958,6 +9934,12 @@ main(int argc, char **argv)
 	 * not so frequently that ztest doesn't get to test other code paths.
 	 */
 	zfs_reconstruct_indirect_damage_fraction = 100;
+
+	/*
+	 * Ask zio_flush() to propagate errors. Required for zil testing
+	 * during the hardforced export scenario.
+	 */
+	zio_flush_err_propagation = B_TRUE;
 
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);
@@ -9149,7 +10131,7 @@ main(int argc, char **argv)
 		}
 
 		if (!ztest_opts.zo_mmp_test)
-			ztest_run_zdb(zs->zs_guid);
+			ztest_run_zdb(ztest_opts.zo_pool);
 		if (ztest_shared_opts->zo_raidz_expand_test ==
 		    RAIDZ_EXPAND_CHECKED)
 			break; /* raidz expand test complete */

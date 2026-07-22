@@ -326,6 +326,9 @@ vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset, uint64_t size)
 {
 	spa_t *spa = vd->vdev_spa;
 
+	if (SPA_EXITING(spa))
+		return;
+
 	ASSERT3U(vd->vdev_indirect_config.vic_mapping_object, !=, 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
 	ASSERT(size > 0);
@@ -357,13 +360,22 @@ spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev_id, uint64_t offset,
 	vdev_indirect_mark_obsolete(vd, offset, size);
 }
 
-static spa_condensing_indirect_t *
-spa_condensing_indirect_create(spa_t *spa)
+static int
+spa_condensing_indirect_create(spa_t *spa, spa_condensing_indirect_t **scip)
 {
-	spa_condensing_indirect_phys_t *scip =
+	int err = 0;
+	spa_condensing_indirect_phys_t *sciphys =
 	    &spa->spa_condensing_indirect_phys;
 	spa_condensing_indirect_t *sci = kmem_zalloc(sizeof (*sci), KM_SLEEP);
 	objset_t *mos = spa->spa_meta_objset;
+
+	err = vdev_indirect_mapping_open(mos, sciphys->scip_next_mapping_object,
+	    &sci->sci_new_mapping);
+	if (err && SPA_EXITING(spa)) {
+		kmem_free(sci, sizeof (*sci));
+		return (err);
+	}
+	VERIFY0(err);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		list_create(&sci->sci_new_mapping_entries[i],
@@ -371,10 +383,9 @@ spa_condensing_indirect_create(spa_t *spa)
 		    offsetof(vdev_indirect_mapping_entry_t, vime_node));
 	}
 
-	sci->sci_new_mapping =
-	    vdev_indirect_mapping_open(mos, scip->scip_next_mapping_object);
+	*scip = sci;
 
-	return (sci);
+	return (err);
 }
 
 static void
@@ -394,6 +405,7 @@ vdev_indirect_should_condense(vdev_t *vd)
 {
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 	spa_t *spa = vd->vdev_spa;
+	int err = 0;
 
 	ASSERT(dsl_pool_sync_context(spa->spa_dsl_pool));
 
@@ -409,6 +421,9 @@ vdev_indirect_should_condense(vdev_t *vd)
 	if (spa_shutting_down(spa))
 		return (B_FALSE);
 
+	if (SPA_EXITING(spa))
+		return (B_FALSE);
+
 	/*
 	 * The mapping object size must not change while we are
 	 * condensing, so we can only condense indirect vdevs
@@ -422,7 +437,10 @@ vdev_indirect_should_condense(vdev_t *vd)
 	 * point in condensing.
 	 */
 	uint64_t obsolete_sm_obj __maybe_unused;
-	ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_obj));
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_obj);
+	if (err && SPA_EXITING(spa))
+		return (B_FALSE);
+	ASSERT0(err);
 	if (vd->vdev_obsolete_sm == NULL) {
 		ASSERT0(obsolete_sm_obj);
 		return (B_FALSE);
@@ -753,12 +771,13 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 /*
  * Sync task to begin the condensing process.
  */
-void
+int
 spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
 	spa_condensing_indirect_phys_t *scip =
 	    &spa->spa_condensing_indirect_phys;
+	int err = 0;
 
 	ASSERT0(scip->scip_next_mapping_object);
 	ASSERT0(scip->scip_prev_obsolete_sm_object);
@@ -769,12 +788,18 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	ASSERT(vdev_indirect_mapping_num_entries(vd->vdev_indirect_mapping));
 
 	uint64_t obsolete_sm_obj;
-	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_obj));
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_obj);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	ASSERT3U(obsolete_sm_obj, !=, 0);
 
 	scip->scip_vdev = vd->vdev_id;
-	scip->scip_next_mapping_object =
-	    vdev_indirect_mapping_alloc(spa->spa_meta_objset, tx);
+	err = vdev_indirect_mapping_alloc(spa->spa_meta_objset, tx,
+	    &scip->scip_next_mapping_object);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	scip->scip_prev_obsolete_sm_object = obsolete_sm_obj;
 
@@ -784,16 +809,26 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	 */
 	space_map_close(vd->vdev_obsolete_sm);
 	vd->vdev_obsolete_sm = NULL;
-	VERIFY0(zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, tx));
+	err = zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	VERIFY0(zap_add(spa->spa_dsl_pool->dp_meta_objset,
+	err = zap_add(spa->spa_dsl_pool->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_CONDENSING_INDIRECT, sizeof (uint64_t),
-	    sizeof (*scip) / sizeof (uint64_t), scip, tx));
+	    sizeof (*scip) / sizeof (uint64_t), scip, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	ASSERT0P(spa->spa_condensing_indirect);
-	spa->spa_condensing_indirect = spa_condensing_indirect_create(spa);
+	err = spa_condensing_indirect_create(spa,
+	    &spa->spa_condensing_indirect);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
 	    "posm=%llu nm=%llu",
@@ -802,6 +837,8 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	    (u_longlong_t)scip->scip_next_mapping_object);
 
 	zthr_wakeup(spa->spa_condense_zthr);
+
+	return (err);
 }
 
 /*
@@ -810,11 +847,12 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
  *
  * If the obsolete space map doesn't exist yet, create and open it.
  */
-void
+int
 vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
+	int err = 0;
 
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
 	ASSERT(zfs_range_tree_space(vd->vdev_obsolete_segments) > 0);
@@ -822,22 +860,38 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS));
 
 	uint64_t obsolete_sm_object;
-	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	if (obsolete_sm_object == 0) {
-		obsolete_sm_object = space_map_alloc(spa->spa_meta_objset,
-		    zfs_vdev_standard_sm_blksz, tx);
+		err = space_map_alloc(spa->spa_meta_objset,
+		    zfs_vdev_standard_sm_blksz, tx, &obsolete_sm_object);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 
 		ASSERT(vd->vdev_top_zap != 0);
-		VERIFY0(zap_add(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+		err = zap_add(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM,
-		    sizeof (obsolete_sm_object), 1, &obsolete_sm_object, tx));
-		ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+		    sizeof (obsolete_sm_object), 1, &obsolete_sm_object, tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+
+		err = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		ASSERT3U(obsolete_sm_object, !=, 0);
 
 		spa_feature_incr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
-		VERIFY0(space_map_open(&vd->vdev_obsolete_sm,
+		err = space_map_open(&vd->vdev_obsolete_sm,
 		    spa->spa_meta_objset, obsolete_sm_object,
-		    0, vd->vdev_asize, 0));
+		    0, vd->vdev_asize, 0);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 	}
 
 	ASSERT(vd->vdev_obsolete_sm != NULL);
@@ -847,6 +901,8 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	space_map_write(vd->vdev_obsolete_sm,
 	    vd->vdev_obsolete_segments, SM_ALLOC, SM_NO_VDEVID, tx);
 	zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
+
+	return (err);
 }
 
 int
@@ -859,10 +915,10 @@ spa_condense_init(spa_t *spa)
 	    &spa->spa_condensing_indirect_phys);
 	if (error == 0) {
 		if (spa_writeable(spa)) {
-			spa->spa_condensing_indirect =
-			    spa_condensing_indirect_create(spa);
+			error = spa_condensing_indirect_create(spa,
+			    &spa->spa_condensing_indirect);
 		}
-		return (0);
+		return (error);
 	} else if (error == ENOENT) {
 		return (0);
 	} else {

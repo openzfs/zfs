@@ -129,12 +129,18 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	struct process_old_arg *poa = arg;
 	dsl_pool_t *dp = poa->ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
+	int err = 0;
 
 	ASSERT(!BP_IS_HOLE(bp));
 
 	if (BP_GET_BIRTH(bp) <=
 	    dsl_dataset_phys(poa->ds)->ds_prev_snap_txg) {
-		dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed, tx);
+		err = dsl_deadlist_insert(&poa->ds->ds_deadlist, bp, bp_freed,
+		    tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		if (poa->ds_prev && !poa->after_branch_point &&
 		    BP_GET_BIRTH(bp) >
 		    dsl_dataset_phys(poa->ds_prev)->ds_prev_snap_txg) {
@@ -147,17 +153,19 @@ process_old_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 		poa->uncomp += BP_GET_UCSIZE(bp);
 		dsl_free_sync(poa->pio, dp, tx->tx_txg, bp);
 	}
-	return (0);
+	return (err);
 }
 
-static void
+static int
 process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
     dsl_dataset_t *ds_next, boolean_t after_branch_point, dmu_tx_t *tx)
 {
 	struct process_old_arg poa = { 0 };
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t deadlist_obj;
+	int err = 0;
 
 	ASSERT(ds->ds_deadlist.dl_oldfmt);
 	ASSERT(ds_next->ds_deadlist.dl_oldfmt);
@@ -166,9 +174,15 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	poa.ds_prev = ds_prev;
 	poa.after_branch_point = after_branch_point;
 	poa.pio = zio_root(dp->dp_spa, NULL, NULL, ZIO_FLAG_MUSTSUCCEED);
-	VERIFY0(bpobj_iterate(&ds_next->ds_deadlist.dl_bpobj,
-	    process_old_cb, &poa, tx));
-	VERIFY0(zio_wait(poa.pio));
+	err = bpobj_iterate(&ds_next->ds_deadlist.dl_bpobj,
+	    process_old_cb, &poa, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+	err = zio_wait(poa.pio);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	ASSERT3U(poa.used, ==, dsl_dataset_phys(ds)->ds_unique_bytes);
 
 	/* change snapused */
@@ -182,10 +196,18 @@ process_old_deadlist(dsl_dataset_t *ds, dsl_dataset_t *ds_prev,
 	dsl_dataset_phys(ds)->ds_deadlist_obj =
 	    dsl_dataset_phys(ds_next)->ds_deadlist_obj;
 	dsl_dataset_phys(ds_next)->ds_deadlist_obj = deadlist_obj;
-	VERIFY0(dsl_deadlist_open(&ds->ds_deadlist, mos,
-	    dsl_dataset_phys(ds)->ds_deadlist_obj));
-	VERIFY0(dsl_deadlist_open(&ds_next->ds_deadlist, mos,
-	    dsl_dataset_phys(ds_next)->ds_deadlist_obj));
+	err = dsl_deadlist_open(&ds->ds_deadlist, mos,
+	    dsl_dataset_phys(ds)->ds_deadlist_obj);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+	err = dsl_deadlist_open(&ds_next->ds_deadlist, mos,
+	    dsl_dataset_phys(ds_next)->ds_deadlist_obj);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
+
+	return (err);
 }
 
 typedef struct remaining_clones_key {
@@ -201,11 +223,13 @@ rck_alloc(dsl_dataset_t *clone)
 	return (rck);
 }
 
-static void
+static int
 dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
     list_t *stack, const void *tag)
 {
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
+	spa_t *spa = mos->os_spa;
+	int err = 0;
 
 	/*
 	 * If it is the old version, dd_clones doesn't exist so we can't
@@ -213,7 +237,7 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 	 * doesn't matter.
 	 */
 	if (dsl_dir_phys(dd)->dd_clones == 0)
-		return;
+		return (0);
 
 	zap_cursor_t *zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
 	zap_attribute_t *za = zap_attribute_alloc();
@@ -223,38 +247,54 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 	    zap_cursor_advance(zc)) {
 		dsl_dataset_t *clone;
 
-		VERIFY0(dsl_dataset_hold_obj(dd->dd_pool,
-		    za->za_first_integer, tag, &clone));
+		err = dsl_dataset_hold_obj(dd->dd_pool,
+		    za->za_first_integer, tag, &clone);
+		if (err && SPA_EXITING(spa))
+			break;
+		VERIFY0(err);
 
 		if (clone->ds_dir->dd_origin_txg > mintxg) {
-			dsl_deadlist_remove_key(&clone->ds_deadlist,
+			err = dsl_deadlist_remove_key(&clone->ds_deadlist,
 			    mintxg, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 
-			if (dsl_dataset_remap_deadlist_exists(clone)) {
-				dsl_deadlist_remove_key(
+			if (!err && dsl_dataset_remap_deadlist_exists(clone)) {
+				err = dsl_deadlist_remove_key(
 				    &clone->ds_remap_deadlist, mintxg, tx);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
 			}
 
 			list_insert_head(stack, rck_alloc(clone));
 		} else {
 			dsl_dataset_rele(clone, tag);
 		}
+
+		if (err)
+			break;
 	}
 	zap_cursor_fini(zc);
 
 	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
+
+	return (err);
 }
 
 void
 dsl_dir_remove_clones_key(dsl_dir_t *top_dd, uint64_t mintxg, dmu_tx_t *tx)
 {
+	spa_t *spa = top_dd->dd_pool->dp_spa;
 	list_t stack;
+	int err;
 
 	list_create(&stack, sizeof (remaining_clones_key_t),
 	    offsetof(remaining_clones_key_t, rck_node));
 
-	dsl_dir_remove_clones_key_impl(top_dd, mintxg, tx, &stack, FTAG);
+	err = dsl_dir_remove_clones_key_impl(top_dd, mintxg, tx, &stack, FTAG);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	for (remaining_clones_key_t *rck = list_remove_head(&stack);
 	    rck != NULL; rck = list_remove_head(&stack)) {
 		dsl_dataset_t *clone = rck->rck_clone;
@@ -262,8 +302,10 @@ dsl_dir_remove_clones_key(dsl_dir_t *top_dd, uint64_t mintxg, dmu_tx_t *tx)
 
 		kmem_free(rck, sizeof (*rck));
 
-		dsl_dir_remove_clones_key_impl(clone_dir, mintxg, tx,
+		err = dsl_dir_remove_clones_key_impl(clone_dir, mintxg, tx,
 		    &stack, FTAG);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		dsl_dataset_rele(clone, FTAG);
 	}
 
@@ -275,30 +317,47 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
     dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
+	int err;
 
 	/* Move blocks to be obsoleted to pool's obsolete list. */
 	if (dsl_dataset_remap_deadlist_exists(ds_next)) {
 		if (!bpobj_is_open(&dp->dp_obsolete_bpobj))
 			dsl_pool_create_obsolete_bpobj(dp, tx);
 
-		dsl_deadlist_move_bpobj(&ds_next->ds_remap_deadlist,
+		err = dsl_deadlist_move_bpobj(&ds_next->ds_remap_deadlist,
 		    &dp->dp_obsolete_bpobj,
 		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 	}
 
 	/* Merge our deadlist into next's and free it. */
 	if (dsl_dataset_remap_deadlist_exists(ds)) {
-		uint64_t remap_deadlist_object =
-		    dsl_dataset_get_remap_deadlist_object(ds);
+		uint64_t remap_deadlist_object;
+		err = dsl_dataset_get_remap_deadlist_object(ds,
+		    &remap_deadlist_object);
+		if (err && SPA_EXITING(spa)) {
+			dsl_deadlist_close(&ds->ds_remap_deadlist);
+			return;
+		}
 		ASSERT(remap_deadlist_object != 0);
 
 		mutex_enter(&ds_next->ds_remap_deadlist_lock);
-		if (!dsl_dataset_remap_deadlist_exists(ds_next))
-			dsl_dataset_create_remap_deadlist(ds_next, tx);
+		if (!dsl_dataset_remap_deadlist_exists(ds_next)) {
+			err = dsl_dataset_create_remap_deadlist(ds_next, tx);
+			if (err && SPA_EXITING(spa))
+				return;
+			VERIFY0(err);
+		}
 		mutex_exit(&ds_next->ds_remap_deadlist_lock);
 
-		dsl_deadlist_merge(&ds_next->ds_remap_deadlist,
+		err = dsl_deadlist_merge(&ds_next->ds_remap_deadlist,
 		    remap_deadlist_object, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 		dsl_dataset_destroy_remap_deadlist(ds, tx);
 	}
 }
@@ -308,9 +367,14 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 {
 	int after_branch_point = FALSE;
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	spa_t *spa = dp->dp_spa;
 	objset_t *mos = dp->dp_meta_objset;
 	dsl_dataset_t *ds_prev = NULL;
+	dsl_dataset_t *ds_next = NULL;
+	dsl_dataset_t *ds_nextnext = NULL;
+	dsl_dataset_t *ds_head = NULL;
 	uint64_t obj;
+	int err;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
@@ -323,6 +387,8 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	    dsl_dataset_phys(ds)->ds_num_children > 1)) {
 		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		if (SPA_EXITING(spa))
+			return;
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_DEFER_DESTROY;
 		if (zfs_snapshot_history_enabled) {
 			spa_history_log_internal_ds(ds, "defer_destroy", tx,
@@ -350,21 +416,28 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	}
 	if (dsl_dataset_phys(ds)->ds_prev_snap_obj != 0) {
 		ASSERT0P(ds->ds_prev);
-		VERIFY0(dsl_dataset_hold_obj(dp,
-		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &ds_prev));
+		err = dsl_dataset_hold_obj(dp,
+		    dsl_dataset_phys(ds)->ds_prev_snap_obj, FTAG, &ds_prev);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(err);
 		after_branch_point =
 		    (dsl_dataset_phys(ds_prev)->ds_next_snap_obj != obj);
 
 		dmu_buf_will_dirty(ds_prev->ds_dbuf, tx);
+		if (SPA_EXITING(spa))
+			goto spa_exiting;
 		if (after_branch_point &&
 		    dsl_dataset_phys(ds_prev)->ds_next_clones_obj != 0) {
 			dsl_dataset_remove_from_next_clones(ds_prev, obj, tx);
 			if (dsl_dataset_phys(ds)->ds_next_snap_obj != 0) {
-				VERIFY0(zap_add_int(mos,
+				err = zap_add_int(mos,
 				    dsl_dataset_phys(ds_prev)->
 				    ds_next_clones_obj,
 				    dsl_dataset_phys(ds)->ds_next_snap_obj,
-				    tx));
+				    tx);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
 			}
 		}
 		if (!after_branch_point) {
@@ -373,17 +446,21 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		}
 	}
 
-	dsl_dataset_t *ds_next;
 	uint64_t old_unique;
 	uint64_t used = 0, comp = 0, uncomp = 0;
 
-	VERIFY0(dsl_dataset_hold_obj(dp,
-	    dsl_dataset_phys(ds)->ds_next_snap_obj, FTAG, &ds_next));
+	err = dsl_dataset_hold_obj(dp,
+	    dsl_dataset_phys(ds)->ds_next_snap_obj, FTAG, &ds_next);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 	ASSERT3U(dsl_dataset_phys(ds_next)->ds_prev_snap_obj, ==, obj);
 
 	old_unique = dsl_dataset_phys(ds_next)->ds_unique_bytes;
 
 	dmu_buf_will_dirty(ds_next->ds_dbuf, tx);
+	if (SPA_EXITING(spa))
+		goto spa_exiting;
 	dsl_dataset_phys(ds_next)->ds_prev_snap_obj =
 	    dsl_dataset_phys(ds)->ds_prev_snap_obj;
 	dsl_dataset_phys(ds_next)->ds_prev_snap_txg =
@@ -392,8 +469,10 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	    ds_prev ? dsl_dataset_phys(ds_prev)->ds_creation_txg : 0);
 
 	if (ds_next->ds_deadlist.dl_oldfmt) {
-		process_old_deadlist(ds, ds_prev, ds_next,
+		err = process_old_deadlist(ds, ds_prev, ds_next,
 		    after_branch_point, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	} else {
 		/* Adjust prev's unique space. */
 		if (ds_prev && !after_branch_point) {
@@ -412,15 +491,19 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		    -used, -comp, -uncomp, tx);
 
 		/* Move blocks to be freed to pool's free list. */
-		dsl_deadlist_move_bpobj(&ds_next->ds_deadlist,
+		err = dsl_deadlist_move_bpobj(&ds_next->ds_deadlist,
 		    &dp->dp_free_bpobj, dsl_dataset_phys(ds)->ds_prev_snap_txg,
 		    tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		dsl_dir_diduse_space(tx->tx_pool->dp_free_dir,
 		    DD_USED_HEAD, used, comp, uncomp, tx);
 
 		/* Merge our deadlist into next's and free it. */
-		dsl_deadlist_merge(&ds_next->ds_deadlist,
+		err = dsl_deadlist_merge(&ds_next->ds_deadlist,
 		    dsl_dataset_phys(ds)->ds_deadlist_obj, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 
 		/*
 		 * We are done with the deadlist tree (generated/used
@@ -444,8 +527,6 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	}
 
 	if (ds_next->ds_is_snapshot) {
-		dsl_dataset_t *ds_nextnext;
-
 		/*
 		 * Update next's unique to include blocks which
 		 * were previously shared by only this snapshot
@@ -455,29 +536,36 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		 * after that (ie. be on the snap after next's
 		 * deadlist).
 		 */
-		VERIFY0(dsl_dataset_hold_obj(dp,
+		err = dsl_dataset_hold_obj(dp,
 		    dsl_dataset_phys(ds_next)->ds_next_snap_obj,
-		    FTAG, &ds_nextnext));
+		    FTAG, &ds_nextnext);
+		if (err && SPA_EXITING(spa))
+			goto skip;
+		VERIFY0(err);
 		dsl_deadlist_space_range(&ds_nextnext->ds_deadlist,
 		    dsl_dataset_phys(ds)->ds_prev_snap_txg,
 		    dsl_dataset_phys(ds)->ds_creation_txg,
 		    &used, &comp, &uncomp);
 		dsl_dataset_phys(ds_next)->ds_unique_bytes += used;
 		dsl_dataset_rele(ds_nextnext, FTAG);
+		ds_nextnext = NULL;
 		ASSERT0P(ds_next->ds_prev);
 
 		/* Collapse range in this head. */
 		dsl_dataset_t *hds;
-		VERIFY0(dsl_dataset_hold_obj(dp,
+		err = dsl_dataset_hold_obj(dp,
 		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj,
-		    FTAG, &hds));
+		    FTAG, &hds);
+		if (err && SPA_EXITING(spa))
+			goto skip;
+		VERIFY0(err);
 		if (!book_exists) {
 			/* Collapse range in this head. */
-			dsl_deadlist_remove_key(&hds->ds_deadlist,
+			(void) dsl_deadlist_remove_key(&hds->ds_deadlist,
 			    dsl_dataset_phys(ds)->ds_creation_txg, tx);
 		}
 		if (dsl_dataset_remap_deadlist_exists(hds)) {
-			dsl_deadlist_remove_key(&hds->ds_remap_deadlist,
+			(void) dsl_deadlist_remove_key(&hds->ds_remap_deadlist,
 			    dsl_dataset_phys(ds)->ds_creation_txg, tx);
 		}
 		dsl_dataset_rele(hds, FTAG);
@@ -487,9 +575,12 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		dsl_dataset_rele(ds_next->ds_prev, ds_next);
 		ds_next->ds_prev = NULL;
 		if (ds_prev) {
-			VERIFY0(dsl_dataset_hold_obj(dp,
+			err = dsl_dataset_hold_obj(dp,
 			    dsl_dataset_phys(ds)->ds_prev_snap_obj,
-			    ds_next, &ds_next->ds_prev));
+			    ds_next, &ds_next->ds_prev);
+			if (err && SPA_EXITING(spa))
+				goto skip;
+			VERIFY0(err);
 		}
 
 		dsl_dataset_recalc_head_uniq(ds_next);
@@ -511,7 +602,9 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			    DD_USED_REFRSRV, -mrsdelta, 0, 0, tx);
 		}
 	}
+skip:
 	dsl_dataset_rele(ds_next, FTAG);
+	ds_next = NULL;
 
 	/*
 	 * This must be done after the dsl_traverse(), because it will
@@ -523,11 +616,16 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	}
 
 	/* remove from snapshot namespace */
-	dsl_dataset_t *ds_head;
 	ASSERT0(dsl_dataset_phys(ds)->ds_snapnames_zapobj);
-	VERIFY0(dsl_dataset_hold_obj(dp,
-	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head));
-	VERIFY0(dsl_dataset_get_snapname(ds));
+	err = dsl_dataset_hold_obj(dp,
+	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG, &ds_head);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
+	err = dsl_dataset_get_snapname(ds);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 #ifdef ZFS_DEBUG
 	{
 		uint64_t val;
@@ -535,35 +633,70 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 
 		err = dsl_dataset_snap_lookup(ds_head,
 		    ds->ds_snapname, &val);
-		ASSERT0(err);
-		ASSERT3U(val, ==, obj);
+		if (!SPA_EXITING(spa)) {
+			ASSERT0(err);
+			ASSERT3U(val, ==, obj);
+		}
 	}
 #endif
-	VERIFY0(dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx, B_TRUE));
+	err = dsl_dataset_snap_remove(ds_head, ds->ds_snapname, tx, B_TRUE);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 	dsl_dataset_rele(ds_head, FTAG);
+	ds_head = NULL;
 
-	if (ds_prev != NULL)
+	if (ds_prev != NULL) {
 		dsl_dataset_rele(ds_prev, FTAG);
+		ds_prev = NULL;
+	}
 
 	spa_prop_clear_bootfs(dp->dp_spa, ds->ds_object, tx);
 
 	if (dsl_dataset_phys(ds)->ds_next_clones_obj != 0) {
 		uint64_t count __maybe_unused;
-		ASSERT0(zap_count(mos,
-		    dsl_dataset_phys(ds)->ds_next_clones_obj, &count) &&
-		    count == 0);
-		VERIFY0(dmu_object_free(mos,
-		    dsl_dataset_phys(ds)->ds_next_clones_obj, tx));
+		err = zap_count(mos, dsl_dataset_phys(ds)->ds_next_clones_obj,
+		    &count);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		ASSERT3U(count, ==, 0);
+
+		err = dmu_object_free(mos,
+		    dsl_dataset_phys(ds)->ds_next_clones_obj, tx);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(err);
 	}
-	if (dsl_dataset_phys(ds)->ds_props_obj != 0)
-		VERIFY0(zap_destroy(mos, dsl_dataset_phys(ds)->ds_props_obj,
-		    tx));
-	if (dsl_dataset_phys(ds)->ds_userrefs_obj != 0)
-		VERIFY0(zap_destroy(mos, dsl_dataset_phys(ds)->ds_userrefs_obj,
-		    tx));
+	if (dsl_dataset_phys(ds)->ds_props_obj != 0) {
+		err = zap_destroy(mos, dsl_dataset_phys(ds)->ds_props_obj,
+		    tx);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(err);
+	}
+	if (dsl_dataset_phys(ds)->ds_userrefs_obj != 0) {
+		err = zap_destroy(mos, dsl_dataset_phys(ds)->ds_userrefs_obj,
+		    tx);
+		if (err && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(err);
+	}
 	dsl_dir_rele(ds->ds_dir, ds);
 	ds->ds_dir = NULL;
 	dmu_object_free_zapified(mos, obj, tx);
+	return;
+
+spa_exiting:
+	if (ds_nextnext)
+		dsl_dataset_rele(ds_nextnext, FTAG);
+	if (ds_next)
+		dsl_dataset_rele(ds_next, FTAG);
+	if (ds_head)
+		dsl_dataset_rele(ds_head, FTAG);
+	if (ds_prev)
+		dsl_dataset_rele(ds_prev, FTAG);
+	dsl_dir_rele(ds->ds_dir, ds);
+	ds->ds_dir = NULL;
 }
 
 void
@@ -578,6 +711,8 @@ dsl_destroy_snapshot_sync(void *arg, dmu_tx_t *tx)
 
 	int error = dsl_dataset_hold(dp, dsname, FTAG, &ds);
 	if (error == ENOENT)
+		return;
+	if (error && SPA_EXITING(dp->dp_spa))
 		return;
 	ASSERT0(error);
 	dsl_destroy_snapshot_sync_impl(ds, defer, tx);
@@ -772,14 +907,19 @@ dsl_destroy_head_check(void *arg, dmu_tx_t *tx)
 static void
 dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 {
-	dsl_dir_t *dd;
+	dsl_dir_t *dd = NULL;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
 	objset_t *mos = dp->dp_meta_objset;
 	dd_used_t t;
+	int err;
 
 	ASSERT(RRW_WRITE_HELD(&dmu_tx_pool(tx)->dp_config_rwlock));
 
-	VERIFY0(dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd));
+	err = dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 
 	ASSERT0(dsl_dir_phys(dd)->dd_head_dataset_obj);
 
@@ -794,6 +934,8 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 	 */
 	dsl_dir_set_reservation_sync_impl(dd, 0, tx);
 
+	if (SPA_EXITING(spa))
+		goto out;
 	ASSERT0(dsl_dir_phys(dd)->dd_used_bytes);
 	ASSERT0(dsl_dir_phys(dd)->dd_reserved);
 	for (t = 0; t < DD_USED_NUM; t++)
@@ -804,16 +946,38 @@ dsl_dir_destroy_sync(uint64_t ddobj, dmu_tx_t *tx)
 		(void) spa_keystore_unload_wkey_impl(dp->dp_spa, dd->dd_object);
 	}
 
-	VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_child_dir_zapobj, tx));
-	VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_props_zapobj, tx));
-	if (dsl_dir_phys(dd)->dd_clones != 0)
-		VERIFY0(zap_destroy(mos, dsl_dir_phys(dd)->dd_clones, tx));
-	VERIFY0(dsl_deleg_destroy(mos, dsl_dir_phys(dd)->dd_deleg_zapobj, tx));
-	VERIFY0(zap_remove(mos,
-	    dsl_dir_phys(dd->dd_parent)->dd_child_dir_zapobj,
-	    dd->dd_myname, tx));
+	err = zap_destroy(mos, dsl_dir_phys(dd)->dd_child_dir_zapobj, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
-	dsl_dir_rele(dd, FTAG);
+	err = zap_destroy(mos, dsl_dir_phys(dd)->dd_props_zapobj, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+	if (dsl_dir_phys(dd)->dd_clones != 0) {
+		err = zap_destroy(mos, dsl_dir_phys(dd)->dd_clones, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+	}
+
+	err = dsl_deleg_destroy(mos, dsl_dir_phys(dd)->dd_deleg_zapobj, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+	err = zap_remove(mos,
+	    dsl_dir_phys(dd->dd_parent)->dd_child_dir_zapobj,
+	    dd->dd_myname, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
+
+out:
+	if (dd)
+		dsl_dir_rele(dd, FTAG);
 	dmu_object_free_zapified(mos, ddobj, tx);
 }
 
@@ -842,16 +1006,21 @@ dsl_clone_destroy_assert(dsl_dir_t *dd)
  * and queue the blkptrs for deletion by adding the livelist to the pool-wide
  * delete queue.
  */
-static void
+static int
 dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	uint64_t zap_obj, to_delete, used, comp, uncomp;
-	objset_t *os;
+	objset_t *os = NULL;
 	dsl_dir_t *dd = ds->ds_dir;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	VERIFY0(dmu_objset_from_ds(ds, &os));
+	int err = 0;
+
+	err = dmu_objset_from_ds(ds, &os);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
 	uint64_t mintxg = 0;
 	dsl_deadlist_entry_t *dle = dsl_deadlist_first(&dd->dd_livelist);
@@ -867,24 +1036,38 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	/* Destroy the zil */
 	zil_destroy_sync(dmu_objset_zil(os), tx);
 
-	VERIFY0(zap_lookup(mos, dd->dd_object,
-	    DD_FIELD_LIVELIST, sizeof (uint64_t), 1, &to_delete));
+	err = zap_lookup(mos, dd->dd_object,
+	    DD_FIELD_LIVELIST, sizeof (uint64_t), 1, &to_delete);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	/* Initialize deleted_clones entry to track livelists to cleanup */
-	int error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	err = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1, &zap_obj);
-	if (error == ENOENT) {
-		zap_obj = zap_create(mos, DMU_OTN_ZAP_METADATA,
-		    DMU_OT_NONE, 0, tx);
-		VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+	if (err == ENOENT) {
+		err = zap_create(mos, DMU_OTN_ZAP_METADATA,
+		    DMU_OT_NONE, 0, tx, &zap_obj);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+		err = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_DELETED_CLONES, sizeof (uint64_t), 1,
-		    &(zap_obj), tx));
+		    &(zap_obj), tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		spa->spa_livelists_to_delete = zap_obj;
-	} else if (error != 0) {
+	} else if (err != 0) {
+		if (SPA_EXITING(spa))
+			goto out;
 		zfs_panic_recover("zfs: error %d was returned while looking "
-		    "up DMU_POOL_DELETED_CLONES in the zap", error);
-		return;
+		    "up DMU_POOL_DELETED_CLONES in the zap", err);
+		return (err);
 	}
-	VERIFY0(zap_add_int(mos, zap_obj, to_delete, tx));
+	err = zap_add_int(mos, zap_obj, to_delete, tx);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
 	/* Clone is no longer using space, now tracked by dp_free_dir */
 	dsl_deadlist_space(&dd->dd_livelist, &used, &comp, &uncomp);
@@ -894,20 +1077,28 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
 	    used, comp, uncomp, tx);
 	dsl_dir_remove_livelist(dd, tx, B_FALSE);
+out:
 	zthr_wakeup(spa->spa_livelist_delete_zthr);
+
+	return (err);
 }
 
 /*
  * Move the bptree into the pool's list of trees to clean up, update space
  * accounting information and destroy the zil.
  */
-static void
+static int
 dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	uint64_t used, comp, uncomp;
 	objset_t *os;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	int err = 0;
 
-	VERIFY0(dmu_objset_from_ds(ds, &os));
+	err = dmu_objset_from_ds(ds, &os);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
 
@@ -922,11 +1113,17 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		dsl_scan_t *scn = dp->dp_scan;
 		spa_feature_incr(dp->dp_spa, SPA_FEATURE_ASYNC_DESTROY,
 		    tx);
-		dp->dp_bptree_obj = bptree_alloc(mos, tx);
-		VERIFY0(zap_add(mos,
+		err = bptree_alloc(mos, tx, &dp->dp_bptree_obj);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+		err = zap_add(mos,
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_BPTREE_OBJ, sizeof (uint64_t), 1,
-		    &dp->dp_bptree_obj, tx));
+		    &dp->dp_bptree_obj, tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		ASSERT(!scn->scn_async_destroying);
 		scn->scn_async_destroying = B_TRUE;
 	}
@@ -948,15 +1145,19 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    -used, -comp, -uncomp, tx);
 	dsl_dir_diduse_space(dp->dp_free_dir, DD_USED_HEAD,
 	    used, comp, uncomp, tx);
+
+	return (err);
 }
 
 void
 dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t obj, ddobj, prevobj = 0;
 	boolean_t rmorigin;
+	int err;
 
 	ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, <=, 1);
 	ASSERT(ds->ds_prev == NULL ||
@@ -975,10 +1176,13 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	/* Remove our reservation. */
 	if (ds->ds_reserved != 0) {
-		dsl_dataset_set_refreservation_sync_impl(ds,
+		err = dsl_dataset_set_refreservation_sync_impl(ds,
 		    (ZPROP_SRC_NONE | ZPROP_SRC_LOCAL | ZPROP_SRC_RECEIVED),
 		    0, tx);
-		ASSERT0(ds->ds_reserved);
+		if (!SPA_EXITING(spa)) {
+			ASSERT0(err);
+			ASSERT0(ds->ds_reserved);
+		}
 	}
 
 	obj = ds->ds_object;
@@ -1027,19 +1231,25 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	 * those belonging to the zil.
 	 */
 	if (dsl_deadlist_is_open(&ds->ds_dir->dd_livelist)) {
-		dsl_async_clone_destroy(ds, tx);
+		err = dsl_async_clone_destroy(ds, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	} else if (spa_feature_is_enabled(dp->dp_spa,
 	    SPA_FEATURE_ASYNC_DESTROY)) {
-		dsl_async_dataset_destroy(ds, tx);
+		err = dsl_async_dataset_destroy(ds, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	} else {
 		old_synchronous_dataset_destroy(ds, tx);
 	}
 
 	if (ds->ds_prev != NULL) {
 		if (spa_version(dp->dp_spa) >= SPA_VERSION_DIR_CLONES) {
-			VERIFY0(zap_remove_int(mos,
+			err = zap_remove_int(mos,
 			    dsl_dir_phys(ds->ds_prev->ds_dir)->dd_clones,
-			    ds->ds_object, tx));
+			    ds->ds_object, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 		}
 		prevobj = ds->ds_prev->ds_object;
 		dsl_dataset_rele(ds->ds_prev, ds);
@@ -1060,8 +1270,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj = 0;
 	ddobj = ds->ds_dir->dd_object;
 	ASSERT(dsl_dataset_phys(ds)->ds_snapnames_zapobj != 0);
-	VERIFY0(zap_destroy(mos,
-	    dsl_dataset_phys(ds)->ds_snapnames_zapobj, tx));
+	err = zap_destroy(mos, dsl_dataset_phys(ds)->ds_snapnames_zapobj, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	if (ds->ds_bookmarks_obj != 0) {
 		void *cookie = NULL;
@@ -1071,17 +1282,22 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    NULL) {
 			if (dbn->dbn_phys.zbm_redaction_obj != 0) {
 				dnode_t *rl;
-				VERIFY0(dnode_hold(mos,
+				err = dnode_hold(mos,
 				    dbn->dbn_phys.zbm_redaction_obj, FTAG,
-				    &rl));
-				if (rl->dn_have_spill) {
+				    &rl);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
+				if (!err && rl->dn_have_spill) {
 					spa_feature_decr(dmu_objset_spa(mos),
 					    SPA_FEATURE_REDACTION_LIST_SPILL,
 					    tx);
 				}
-				dnode_rele(rl, FTAG);
-				VERIFY0(dmu_object_free(mos,
-				    dbn->dbn_phys.zbm_redaction_obj, tx));
+				if (!err)
+					dnode_rele(rl, FTAG);
+				err = dmu_object_free(mos,
+				    dbn->dbn_phys.zbm_redaction_obj, tx);
+				if (!SPA_EXITING(spa))
+					VERIFY0(err);
 				spa_feature_decr(dmu_objset_spa(mos),
 				    SPA_FEATURE_REDACTION_BOOKMARKS, tx);
 			}
@@ -1094,7 +1310,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 			kmem_free(dbn, sizeof (*dbn));
 		}
 		avl_destroy(&ds->ds_bookmarks);
-		VERIFY0(zap_destroy(mos, ds->ds_bookmarks_obj, tx));
+		err = zap_destroy(mos, ds->ds_bookmarks_obj, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		spa_feature_decr(dp->dp_spa, SPA_FEATURE_BOOKMARKS, tx);
 	}
 
@@ -1111,7 +1329,10 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	if (rmorigin) {
 		dsl_dataset_t *prev;
-		VERIFY0(dsl_dataset_hold_obj(dp, prevobj, FTAG, &prev));
+		err = dsl_dataset_hold_obj(dp, prevobj, FTAG, &prev);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 		dsl_destroy_snapshot_sync_impl(prev, B_FALSE, tx);
 		dsl_dataset_rele(prev, FTAG);
 	}
@@ -1125,9 +1346,13 @@ dsl_destroy_head_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_destroy_head_arg_t *ddha = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	spa_t *spa = dp->dp_spa;
 	dsl_dataset_t *ds;
 
-	VERIFY0(dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds));
+	int err = dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 	dsl_destroy_head_sync_impl(ds, tx);
 	zvol_remove_minors(dp->dp_spa, ddha->ddha_name, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
@@ -1140,7 +1365,10 @@ dsl_destroy_head_begin_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds;
 
-	VERIFY0(dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds));
+	int err = dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds);
+	if (err && SPA_EXITING(dp->dp_spa))
+		return;
+	VERIFY0(err);
 
 	/* Mark it as inconsistent on-disk, in case we crash */
 	dmu_buf_will_dirty(ds->ds_dbuf, tx);

@@ -433,18 +433,19 @@ typedef struct dmu_buf {
  *
  * Return 0 on success, or ENOSPC or EEXIST as specified above.
  */
-uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
-    int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
-    int indirect_blockshift,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
+int dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx,
+    uint64_t *objectp);
+int dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    dmu_tx_t *tx, uint64_t *objectp);
+int dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
-    int dnodesize, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
+    int dnodesize, dmu_tx_t *tx, uint64_t *objectp);
+int dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
     int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
     int bonuslen, int dnodesize, dnode_t **allocated_dnode, const void *tag,
-    dmu_tx_t *tx);
+    dmu_tx_t *tx, uint64_t *objectp);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,

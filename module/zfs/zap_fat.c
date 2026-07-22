@@ -45,6 +45,7 @@
 
 #include <sys/spa.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dnode.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
@@ -544,6 +545,10 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	    blkid << bs, NULL, &db, DMU_READ_NO_PREFETCH);
 	if (err != 0)
 		return (err);
+	if (SPA_EXITING(zap->zap_objset->os_spa)) {
+		dmu_buf_rele(db, NULL);
+		return (SET_ERROR(EIO));
+	}
 
 	ASSERT3U(db->db_object, ==, zap->zap_object);
 	ASSERT3U(db->db_offset, ==, blkid << bs);
@@ -560,8 +565,14 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	 * Must lock before dirtying, otherwise zap_leaf_phys(l) could change,
 	 * causing ASSERT below to fail.
 	 */
-	if (lt == RW_WRITER)
+	if (lt == RW_WRITER) {
 		dmu_buf_will_dirty(db, tx);
+		if (SPA_EXITING(zap->zap_objset->os_spa)) {
+			dmu_buf_rele(db, NULL);
+			*lp = NULL;
+			return (SET_ERROR(EIO));
+		}
+	}
 	ASSERT3U(l->l_blkid, ==, blkid);
 	ASSERT3P(l->l_dbuf, ==, db);
 	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_block_type, ==, ZBT_LEAF);

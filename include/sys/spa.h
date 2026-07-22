@@ -782,11 +782,14 @@ extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
-extern int spa_destroy(const char *pool);
+extern int spa_destroy(const char *pool, boolean_t, boolean_t);
 extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
 extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce);
+#ifdef ZFS_DEBUG
+extern uint64_t spa_exiting_guid;
+#endif
 extern int spa_reset(const char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
@@ -901,6 +904,7 @@ extern int spa_config_parse(spa_t *spa, vdev_t **vdp, nvlist_t *nv,
 
 /* Namespace manipulation */
 extern spa_t *spa_lookup(const char *name);
+extern spa_t *spa_lookup_lockless(const char *name);
 extern spa_t *spa_add(const char *name, nvlist_t *config, const char *altroot);
 extern void spa_remove(spa_t *spa);
 extern spa_t *spa_next(spa_t *prev);
@@ -1119,6 +1123,10 @@ extern uint64_t spa_get_failmode(spa_t *spa);
 extern uint64_t spa_get_deadman_failmode(spa_t *spa);
 extern void spa_set_deadman_failmode(spa_t *spa, const char *failmode);
 extern boolean_t spa_suspended(spa_t *spa);
+extern void spa_initiate_forced_exit(spa_t *spa);
+extern void spa_set_forced_exit_required(spa_t *spa);
+extern boolean_t spa_exiting(spa_t *spa);
+#define	SPA_EXITING(spa) (unlikely(spa_exiting(spa)))
 extern uint64_t spa_bootfs(spa_t *spa);
 extern uint64_t spa_get_last_scrubbed_txg(spa_t *spa);
 extern uint64_t spa_delegation(spa_t *spa);
@@ -1193,7 +1201,7 @@ extern uint64_t zfs_strtonum(const char *str, char **nptr);
 
 extern char *spa_his_ievent_table[];
 
-extern void spa_history_create_obj(spa_t *spa, dmu_tx_t *tx);
+extern int spa_history_create_obj(spa_t *spa, dmu_tx_t *tx);
 extern int spa_history_get(spa_t *spa, uint64_t *offset, uint64_t *len_read,
     char *his_buf);
 extern int spa_history_log(spa_t *spa, const char *his_buf);

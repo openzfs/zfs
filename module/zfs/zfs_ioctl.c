@@ -1829,7 +1829,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	 */
 	if (!error && (error = zfs_set_prop_nvlist(spa_name,
 	    ZPROP_SRC_LOCAL, rootprops, NULL)) != 0) {
-		(void) spa_destroy(spa_name);
+		(void) spa_destroy(spa_name, B_FALSE, B_FALSE);
 		unload_wkey = B_FALSE; /* spa_destroy() unloads wrapping keys */
 	}
 
@@ -1847,8 +1847,13 @@ static int
 zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 {
 	int error;
-	zfs_log_history(zc);
-	error = spa_destroy(zc->zc_name);
+	boolean_t force = (boolean_t)zc->zc_cookie;
+	boolean_t hardforce = (boolean_t)zc->zc_guid;
+
+	if (!hardforce)
+		zfs_log_history(zc);
+
+	error = spa_destroy(zc->zc_name, force, hardforce);
 
 	return (error);
 }
@@ -1897,10 +1902,73 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 	boolean_t force = (boolean_t)zc->zc_cookie;
 	boolean_t hardforce = (boolean_t)zc->zc_guid;
 
-	zfs_log_history(zc);
+	if (!hardforce)
+		zfs_log_history(zc);
+
 	error = spa_export(zc->zc_name, NULL, force, hardforce);
 
 	return (error);
+}
+
+static int
+zfs_ioc_pool_set_forced_exit_required(zfs_cmd_t *zc)
+{
+	spa_t *spa;
+	boolean_t locked = B_FALSE;
+
+	zfs_dbgmsg("Pool '%s' forced exit requirement has been requested.",
+	    zc->zc_name);
+
+	/*
+	 * The trade-off reasoning.
+	 *
+	 * The spa_lookup() is required to find the targeted pool and
+	 * kick-off the forced exit.
+	 *
+	 * The problem is that there are other places in the code which may
+	 * hold spa_namespace_lock while sleeping for something else like
+	 * txg_wait_synced, etc. We could locate such places, add complexity
+	 * or workarounds to allow forced exit break through, but there are at
+	 * least two open issues left:
+	 * - Newly added code may easily forget about fragile nature of such
+	 *   forced exit, what could be spotted too late when a specific
+	 *   production case fails to use forced exit.
+	 * - While we are targeting a specific pool for forced exit, the
+	 *   global spa_namespace_lock may be held by a thread working with
+	 *   another pool, and sleep for its own reasons or issues which are
+	 *   unrelated to the pool we target.
+	 *
+	 * The forced exit is meant to be used for an exceptional situation
+	 * like a suspended pool blocking administrative operations over the
+	 * rest of the pools. In such cases users are not expected to change
+	 * the spa namespace while doing the things like forced export.
+	 * Otherwise, panics are possible, but such way it provides a
+	 * possibility to avoid system reboot what anyway is the only option
+	 * if the forced exit feature is not available.
+	 */
+	hrtime_t threshold = gethrtime() + SEC2NSEC(10);
+	while (!locked && gethrtime() < threshold)
+		locked = spa_namespace_tryenter(FTAG);
+
+	if (locked) {
+		spa = spa_lookup(zc->zc_name);
+	} else {
+		zfs_dbgmsg("Decided to go without spa_namespace_lock for "
+		    "hardforced exit of '%s' pool", zc->zc_name);
+		spa = spa_lookup_lockless(zc->zc_name);
+	}
+	if (spa == NULL) {
+		if (locked)
+			spa_namespace_exit(FTAG);
+		return (SET_ERROR(ENOENT));
+	}
+
+	spa_set_forced_exit_required(spa);
+
+	if (locked)
+		spa_namespace_exit(FTAG);
+
+	return (0);
 }
 
 static int
@@ -6587,6 +6655,15 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 		spa_namespace_exit(FTAG);
 		return (SET_ERROR(EIO));
 	}
+	if (spa->spa_forced_exit_required) {
+		/*
+		 * Do not restart activities for the pool destined to exit
+		 * abnormally, otherwise it's a bigger mess than we have
+		 * already.
+		 */
+		spa_namespace_exit(FTAG);
+		return (SET_ERROR(EIO));
+	}
 	if (spa_get_log_state(spa) == SPA_LOG_MISSING) {
 		/* we need to let spa_open/spa_load clear the chains */
 		spa_set_log_state(spa, SPA_LOG_CLEAR);
@@ -8257,9 +8334,13 @@ zfs_ioctl_init(void)
 	 * does the logging of those commands.
 	 */
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_DESTROY, zfs_ioc_pool_destroy,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_EXPORT, zfs_ioc_pool_export,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
+
+	zfs_ioctl_register_pool(ZFS_IOC_POOL_SET_FORCED_EXIT_REQUIRED,
+	    zfs_ioc_pool_set_forced_exit_required,
+	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_NONE);
 
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_STATS, zfs_ioc_pool_stats,
 	    zfs_secpolicy_read, B_FALSE, POOL_CHECK_NONE);

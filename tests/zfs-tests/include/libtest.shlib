@@ -4068,4 +4068,47 @@ function get_same_blocks # dataset1 file1 dataset2 file2 [key]
 	rm -f $zdbout1 $zdbout2 $awkout1 $awkout2
 }
 
+#
+# Suspend the given pool using zinject to fail the given list of VDEVs
+#
+function suspend_pool
+{
+	typeset pool=$1
+	shift
+
+	for vdev in $@; do
+		zinject -d $vdev -e io -T probe $pool
+		zinject -d $vdev -e io -T write $pool
+	done
+
+	log_note "waiting for pool ${pool} to suspend"
+	typeset -i tries=30
+	until [[ $(kstat_pool $pool state) == "SUSPENDED" ]] ; do
+		if ((tries-- == 0)); then
+			zinject -c all
+			zpool status -s
+			log_note "UNEXPECTED -- pool ${pool} did not suspend"
+			return 1
+		fi
+		sleep 1
+	done
+
+	zinject -c all
+
+	return 0
+}
+
+#
+# Cleanup leftovers after suspend_pool() work
+#
+function clear_suspension_artifacts
+{
+	typeset pool=$1
+
+	poolexists $pool || return 0
+
+	zinject -c all
+	zpool clear $pool
+}
+
 . ${STF_SUITE}/include/kstat.shlib

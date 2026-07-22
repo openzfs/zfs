@@ -591,7 +591,7 @@ extern void vdev_remove_parent(vdev_t *cvd);
 extern boolean_t vdev_log_state_valid(vdev_t *vd);
 extern int vdev_load(vdev_t *vd);
 extern int vdev_dtl_load(vdev_t *vd);
-extern void vdev_sync(vdev_t *vd, uint64_t txg);
+extern int vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_dispatch(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);
 extern void vdev_dirty(vdev_t *vd, int flags, void *arg, uint64_t txg);
@@ -634,9 +634,9 @@ extern int zfs_vdev_standard_sm_blksz;
 /*
  * Functions from vdev_indirect.c
  */
-extern void vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx);
+extern int vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx);
 extern boolean_t vdev_indirect_should_condense(vdev_t *vd);
-extern void spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx);
+extern int spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx);
 extern int vdev_obsolete_sm_object(vdev_t *vd, uint64_t *sm_obj);
 extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
 

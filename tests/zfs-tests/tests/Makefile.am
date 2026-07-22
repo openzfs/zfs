@@ -1165,6 +1165,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_destroy/zpool_destroy_001_pos.ksh \
 	functional/cli_root/zpool_destroy/zpool_destroy_002_pos.ksh \
 	functional/cli_root/zpool_destroy/zpool_destroy_003_neg.ksh \
+	functional/cli_root/zpool_destroy/zpool_destroy_hardforce_001_pos.ksh \
+	functional/cli_root/zpool_destroy/zpool_destroy_hardforce_002_pos.ksh \
+	functional/cli_root/zpool_destroy/zpool_destroy_hardforce_003_pos.ksh \
+	functional/cli_root/zpool_destroy/zpool_destroy_hardforce_004_pos.ksh \
 	functional/cli_root/zpool_detach/cleanup.ksh \
 	functional/cli_root/zpool_detach/setup.ksh \
 	functional/cli_root/zpool_detach/zpool_detach_001_neg.ksh \
@@ -1191,6 +1195,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_002_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_003_neg.ksh \
 	functional/cli_root/zpool_export/zpool_export_004_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_001_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_002_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_003_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_004_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_005_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_006_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_receive_001_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_receive_002_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_send_001_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_hardforce_send_002_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_admin.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_pos.ksh \
 	functional/cli_root/zpool_get/cleanup.ksh \

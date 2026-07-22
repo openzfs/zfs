@@ -2198,6 +2198,8 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	/*
 	 * Walk all the in-core level-1 dbufs and verify they have been dirtied.
 	 */
+	if (SPA_EXITING(dn->dn_objset->os_spa))
+		goto skip;
 	db_search->db_level = 1;
 	db_search->db_blkid = start_blkid + 1;
 	db_search->db_state = DB_SEARCH;
@@ -2210,6 +2212,7 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		if (db->db_state != DB_EVICTING)
 			ASSERT(db->db_dirtycnt > 0);
 	}
+skip:
 #endif
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);

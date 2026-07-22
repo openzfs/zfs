@@ -309,8 +309,11 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
 	ASSERT(MUTEX_HELD(&spa->spa_feat_stats_lock));
-	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
-	    sizeof (uint64_t), 1, &refcount, tx));
+	int err = zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
+	    sizeof (uint64_t), 1, &refcount, tx);
+	if (err != 0 && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 
 	/*
 	 * feature_sync is called directly from zhack, allowing the
@@ -369,10 +372,10 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 		uint64_t enabling_txg = dmu_tx_get_txg(tx);
 
 		if (spa->spa_feat_enabled_txg_obj == 0ULL) {
-			spa->spa_feat_enabled_txg_obj =
-			    zap_create_link(spa->spa_meta_objset,
+			VERIFY0(zap_create_link(spa->spa_meta_objset,
 			    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-			    DMU_POOL_FEATURE_ENABLED_TXG, tx);
+			    DMU_POOL_FEATURE_ENABLED_TXG, tx,
+			    &spa->spa_feat_enabled_txg_obj));
 		}
 		spa_feature_incr(spa, SPA_FEATURE_ENABLED_TXG, tx);
 
@@ -450,15 +453,15 @@ spa_feature_create_zap_objects(spa_t *spa, dmu_tx_t *tx)
 	ASSERT((!spa->spa_sync_on && tx->tx_txg == TXG_INITIAL) ||
 	    dsl_pool_sync_context(spa_get_dsl(spa)));
 
-	spa->spa_feat_for_read_obj = zap_create_link(spa->spa_meta_objset,
+	VERIFY0(zap_create_link(spa->spa_meta_objset,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_FEATURES_FOR_READ, tx);
-	spa->spa_feat_for_write_obj = zap_create_link(spa->spa_meta_objset,
+	    DMU_POOL_FEATURES_FOR_READ, tx, &spa->spa_feat_for_read_obj));
+	VERIFY0(zap_create_link(spa->spa_meta_objset,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_FEATURES_FOR_WRITE, tx);
-	spa->spa_feat_desc_obj = zap_create_link(spa->spa_meta_objset,
+	    DMU_POOL_FEATURES_FOR_WRITE, tx, &spa->spa_feat_for_write_obj));
+	VERIFY0(zap_create_link(spa->spa_meta_objset,
 	    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-	    DMU_POOL_FEATURE_DESCRIPTIONS, tx);
+	    DMU_POOL_FEATURE_DESCRIPTIONS, tx, &spa->spa_feat_desc_obj));
 }
 
 /*

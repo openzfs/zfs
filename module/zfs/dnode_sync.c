@@ -39,15 +39,16 @@
 #include <sys/range_tree.h>
 #include <sys/zfeature.h>
 
-static void
+static int
 dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db;
+	spa_t *spa = dn->dn_objset->os_spa;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	int nblkptr = dn->dn_phys->dn_nblkptr;
 	int old_toplvl = dn->dn_phys->dn_nlevels - 1;
 	int new_level = dn->dn_next_nlevels[txgoff];
-	int i;
+	int i, err = 0;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
@@ -56,6 +57,10 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(new_level > 1 && dn->dn_phys->dn_nlevels > 0);
 
 	db = dbuf_hold_level(dn, dn->dn_phys->dn_nlevels, 0, FTAG);
+	if (db == NULL && SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out1;
+	}
 	ASSERT(db != NULL);
 
 	dn->dn_phys->dn_nlevels = new_level;
@@ -76,7 +81,15 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	/* transfer dnode's block pointers to new indirect block */
-	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
+	err = dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
+	if (err && SPA_EXITING(spa)) {
+		for (i = 0; i < nblkptr; i++)
+			if (children[i] != NULL)
+				mutex_exit(&children[i]->db_mtx);
+		dn->dn_phys->dn_nlevels = old_toplvl + 1;
+		goto out2;
+	}
+	VERIFY0(err);
 	if (dn->dn_dbuf != NULL)
 		rw_enter(&dn->dn_dbuf->db_rwlock, RW_WRITER);
 	rw_enter(&db->db_rwlock, RW_WRITER);
@@ -126,9 +139,13 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	if (dn->dn_dbuf != NULL)
 		rw_exit(&dn->dn_dbuf->db_rwlock);
 
+out2:
 	dbuf_rele(db, FTAG);
 
+out1:
 	rw_exit(&dn->dn_struct_rwlock);
+
+	return (err);
 }
 
 static void
@@ -270,15 +287,17 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
  * being freed.  Therefore, we free the indirect blocks immediately in that
  * case.
  */
-static void
+static int
 free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
     boolean_t free_indirects, dmu_tx_t *tx)
 {
+	spa_t *spa = db->db_dnode->dn_objset->os_spa;
 	dnode_t *dn;
 	blkptr_t *bp;
 	dmu_buf_impl_t *subdb;
 	uint64_t start, end, dbstart, dbend;
 	unsigned int epbs, shift, i;
+	int err = 0;
 
 	/*
 	 * There is a small possibility that this block will not be cached:
@@ -286,8 +305,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 *   2 - if this block was evicted since we read it from
 	 *	 dmu_tx_hold_free().
 	 */
-	if (db->db_state != DB_CACHED)
-		(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+	if (db->db_state != DB_CACHED) {
+		err = dbuf_read(db, NULL, DB_RF_MUST_SUCCEED);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+	}
 
 	/*
 	 * If we modify this indirect block, and we are not freeing the
@@ -305,9 +328,11 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * ancestor of the first or last block to be freed.  The first and
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
-	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
-	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
-	dmu_buf_unlock_parent(db, dblt, FTAG);
+	if (!SPA_EXITING(spa)) {
+		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+	}
 
 	dbuf_release_bp(db);
 	bp = db->db.db_data;
@@ -341,17 +366,24 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
-			VERIFY0(dbuf_hold_impl(dn, db->db_level - 1,
-			    id, TRUE, FALSE, FTAG, &subdb));
+			err = dbuf_hold_impl(dn, db->db_level - 1,
+			    id, TRUE, FALSE, FTAG, &subdb);
 			rw_exit(&dn->dn_struct_rwlock);
+			if (err && SPA_EXITING(tx->tx_objset->os_spa))
+				break;
+			VERIFY0(err);
 			ASSERT3P(bp, ==, subdb->db_blkptr);
 
-			free_children(subdb, blkid, nblks, free_indirects, tx);
+			err = free_children(subdb, blkid, nblks, free_indirects,
+			    tx);
 			dbuf_rele(subdb, FTAG);
+			if (err && SPA_EXITING(spa))
+				break;
+			VERIFY0(err);
 		}
 	}
 
-	if (free_indirects) {
+	if (!err && free_indirects) {
 		rw_enter(&db->db_rwlock, RW_WRITER);
 		for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++)
 			ASSERT(BP_IS_HOLE(bp));
@@ -362,6 +394,8 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 
 	DB_DNODE_EXIT(db);
 	arc_buf_freeze(db->db_buf);
+
+	return (err);
 }
 
 /*
@@ -406,11 +440,19 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 			if (BP_IS_HOLE(bp))
 				continue;
 			rw_enter(&dn->dn_struct_rwlock, RW_READER);
-			VERIFY0(dbuf_hold_impl(dn, dnlevel - 1, i,
-			    TRUE, FALSE, FTAG, &db));
+			int err = dbuf_hold_impl(dn, dnlevel - 1, i,
+			    TRUE, FALSE, FTAG, &db);
+			if (err && SPA_EXITING(dn->dn_objset->os_spa)) {
+				rw_exit(&dn->dn_struct_rwlock);
+				return;
+			}
+			VERIFY0(err);
 			rw_exit(&dn->dn_struct_rwlock);
-			free_children(db, blkid, nblks, free_indirects, tx);
+			err = free_children(db, blkid, nblks, free_indirects,
+			    tx);
 			dbuf_rele(db, FTAG);
+			if (err)
+				return;
 		}
 	}
 
@@ -436,7 +478,8 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
-		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
+		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0 ||
+		    SPA_EXITING(dn->dn_objset->os_spa));
 	}
 }
 
@@ -566,8 +609,10 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	 * Our contents should have been freed in dnode_sync() by the
 	 * free range record inserted by the caller of dnode_free().
 	 */
-	ASSERT0(DN_USED_BYTES(dn->dn_phys));
-	ASSERT(BP_IS_HOLE(dn->dn_phys->dn_blkptr));
+	if (!SPA_EXITING(tx->tx_pool->dp_spa)) {
+		ASSERT0(DN_USED_BYTES(dn->dn_phys));
+		ASSERT(BP_IS_HOLE(dn->dn_phys->dn_blkptr));
+	}
 
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
@@ -687,6 +732,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	list_t *list = &dn->dn_dirty_records[txgoff];
 	static const dnode_phys_t zerodn __maybe_unused = { 0 };
 	boolean_t kill_spill = B_FALSE;
+	int err = 0;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(dnp->dn_type != DMU_OT_NONE || dn->dn_allocated_txg);
@@ -838,7 +884,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	if (dn->dn_next_nlevels[txgoff]) {
-		dnode_increase_indirection(dn, tx);
+		err = dnode_increase_indirection(dn, tx);
 		dn->dn_next_nlevels[txgoff] = 0;
 	}
 
@@ -847,7 +893,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	 * and dnode_increase_indirection(). See dnode_new_blkid()
 	 * for an explanation of the high bit being set.
 	 */
-	if (dn->dn_next_maxblkid[txgoff]) {
+	if (!err && dn->dn_next_maxblkid[txgoff]) {
 		mutex_enter(&dn->dn_mtx);
 		dnp->dn_maxblkid =
 		    dn->dn_next_maxblkid[txgoff] & ~DMU_NEXT_MAXBLKID_SET;
@@ -855,7 +901,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 	}
 
-	if (dn->dn_next_nblkptr[txgoff]) {
+	if (!err && dn->dn_next_nblkptr[txgoff]) {
 		/* this should only happen on a realloc */
 		ASSERT(dn->dn_allocated_txg == tx->tx_txg);
 		if (dn->dn_next_nblkptr[txgoff] > dnp->dn_nblkptr) {
@@ -880,7 +926,10 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&dn->dn_mtx);
 	}
 
-	dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
+	if (!err)
+		err = dbuf_sync_list(list, dn->dn_phys->dn_nlevels - 1, tx);
+	if (err)
+		dbuf_drain_list(list, tx);
 
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		ASSERT0P(list_head(list));

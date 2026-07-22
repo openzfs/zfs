@@ -92,7 +92,19 @@ static inline int
 zfs_enter(zfsvfs_t *zfsvfs, const char *tag)
 {
 	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
-	if (unlikely(zfsvfs->z_unmounted)) {
+	if (unlikely(zfsvfs->z_unmounted || zfs_forcibly_unmounting(zfsvfs))) {
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
+		return (SET_ERROR(EIO));
+	}
+	return (0);
+}
+
+/* zfs_enter() but ok with forced unmount having begun. */
+static inline int
+zfs_enter_unmountingok(zfsvfs_t *zfsvfs, const char *tag)
+{
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag);
+	if (unlikely(zfsvfs->z_unmounted == B_TRUE)) {
 		ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag);
 		return (SET_ERROR(EIO));
 	}

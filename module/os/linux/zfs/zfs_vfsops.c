@@ -987,7 +987,7 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
 	int err = 0;
 
-	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((err = zfs_enter_unmountingok_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (err);
 
 	dmu_objset_space(zfsvfs->z_os,
@@ -1058,7 +1058,7 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 	znode_t *rootzp;
 	int error;
 
-	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+	if ((error = zfs_enter_unmountingok(zfsvfs, FTAG)) != 0)
 		return (error);
 
 	error = zfs_zget(zfsvfs, zfsvfs->z_root, &rootzp);
@@ -1940,14 +1940,17 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 		ASSERT3U(spa_version(dmu_objset_spa(zfsvfs->z_os)), >=,
 		    SPA_VERSION_SA);
-		sa_obj = zap_create(os, DMU_OT_SA_MASTER_NODE,
-		    DMU_OT_NONE, 0, tx);
-
-		error = zap_add(os, MASTER_NODE_OBJ,
-		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
-		ASSERT0(error);
-
-		VERIFY0(sa_set_sa_object(os, sa_obj));
+		if ((error = zap_create(os, DMU_OT_SA_MASTER_NODE,
+		    DMU_OT_NONE, 0, tx, &sa_obj)))
+			goto onerror;
+		if ((error = zap_add(os, MASTER_NODE_OBJ,
+		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx)))
+			goto onerror;
+		if ((error = sa_set_sa_object(os, sa_obj))) {
+onerror:
+			dmu_tx_commit(tx);
+			return (error);
+		}
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 

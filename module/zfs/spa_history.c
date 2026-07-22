@@ -84,27 +84,41 @@ spa_history_log_to_phys(uint64_t log_off, spa_history_phys_t *shpp)
 	    + shpp->sh_pool_create_len);
 }
 
-void
+int
 spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 {
 	dmu_buf_t *dbp;
 	spa_history_phys_t *shpp;
 	objset_t *mos = spa->spa_meta_objset;
+	int err = 0;
 
 	ASSERT0(spa->spa_history);
-	spa->spa_history = dmu_object_alloc(mos, DMU_OT_SPA_HISTORY,
+	err = dmu_object_alloc(mos, DMU_OT_SPA_HISTORY,
 	    SPA_OLD_MAXBLOCKSIZE, DMU_OT_SPA_HISTORY_OFFSETS,
-	    sizeof (spa_history_phys_t), tx);
+	    sizeof (spa_history_phys_t), tx, &spa->spa_history);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	VERIFY0(zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+	err = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
 	    DMU_POOL_HISTORY, sizeof (uint64_t), 1,
-	    &spa->spa_history, tx));
+	    &spa->spa_history, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
+	err = dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	ASSERT3U(dbp->db_size, >=, sizeof (spa_history_phys_t));
 
 	shpp = dbp->db_data;
 	dmu_buf_will_dirty(dbp, tx);
+	if (SPA_EXITING(spa)) {
+		err = SET_ERROR(EIO);
+		goto out;
+	}
 
 	/*
 	 * Figure out maximum size of history log.  We set it at
@@ -115,7 +129,10 @@ spa_history_create_obj(spa_t *spa, dmu_tx_t *tx)
 	shpp->sh_phys_max_off = MIN(shpp->sh_phys_max_off, 1<<30);
 	shpp->sh_phys_max_off = MAX(shpp->sh_phys_max_off, 128<<10);
 
+out:
 	dmu_buf_rele(dbp, FTAG);
+
+	return (err);
 }
 
 /*
@@ -256,7 +273,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	nvlist_t	*nvl = arg;
 	spa_t		*spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t	*mos = spa->spa_meta_objset;
-	dmu_buf_t	*dbp;
+	dmu_buf_t	*dbp = NULL;
 	spa_history_phys_t *shpp;
 	size_t		reclen;
 	uint64_t	le_len;
@@ -268,18 +285,29 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	 * history object, create it now.
 	 */
 	mutex_enter(&spa->spa_history_lock);
-	if (!spa->spa_history)
-		spa_history_create_obj(spa, tx);
+	if (!spa->spa_history) {
+		ret = spa_history_create_obj(spa, tx);
+		if (ret && SPA_EXITING(spa))
+			goto spa_exiting;
+		VERIFY0(ret);
+	}
 	mutex_exit(&spa->spa_history_lock);
 
 	/*
 	 * Get the offset of where we need to write via the bonus buffer.
 	 * Update the offset when the write completes.
 	 */
-	VERIFY0(dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp));
+	ret = dmu_bonus_hold(mos, spa->spa_history, FTAG, &dbp);
+	if (ret && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(ret);
 	shpp = dbp->db_data;
 
 	dmu_buf_will_dirty(dbp, tx);
+	if (SPA_EXITING(spa)) {
+		ret = SET_ERROR(EIO);
+		goto spa_exiting;
+	}
 
 #ifdef ZFS_DEBUG
 	{
@@ -351,7 +379,10 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 
 	mutex_exit(&spa->spa_history_lock);
 	fnvlist_pack_free(record_packed, reclen);
-	dmu_buf_rele(dbp, FTAG);
+
+spa_exiting:
+	if (dbp != NULL)
+		dmu_buf_rele(dbp, FTAG);
 	fnvlist_free(nvl);
 }
 

@@ -1254,21 +1254,31 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	dmu_objset_create_arg_t *doca = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	spa_t *spa = dp->dp_spa;
-	dsl_dir_t *pdd;
+	dsl_dir_t *pdd = NULL;
 	const char *tail;
-	dsl_dataset_t *ds;
+	dsl_dataset_t *ds = NULL;
 	uint64_t obj;
 	blkptr_t *bp;
 	objset_t *os;
 	zio_t *rzio;
+	int err = 0;
 
-	VERIFY0(dsl_dir_hold(dp, doca->doca_name, FTAG, &pdd, &tail));
+	err = dsl_dir_hold(dp, doca->doca_name, FTAG, &pdd, &tail);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
-	obj = dsl_dataset_create_sync(pdd, tail, NULL, doca->doca_flags,
-	    doca->doca_cred, doca->doca_dcp, tx);
+	err = dsl_dataset_create_sync(pdd, tail, NULL, doca->doca_flags,
+	    doca->doca_cred, doca->doca_dcp, tx, &obj);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 
-	VERIFY0(dsl_dataset_hold_obj_flags(pdd->dd_pool, obj,
-	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds));
+	err = dsl_dataset_hold_obj_flags(pdd->dd_pool, obj,
+	    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
+	if (err && SPA_EXITING(spa))
+		goto out;
+	VERIFY0(err);
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	bp = dsl_dataset_get_blkptr(ds);
 	os = dmu_objset_create_impl(spa, ds, bp, doca->doca_type, tx);
@@ -1302,7 +1312,9 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 			dsl_dataset_sync(ds, rzio, tx);
 			need_sync_done = B_TRUE;
 		}
-		VERIFY0(zio_wait(rzio));
+		err = zio_wait(rzio);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 
 		dmu_objset_sync_done(os, tx);
 		taskq_wait(dp->dp_sync_taskq);
@@ -1318,7 +1330,9 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 			dmu_buf_rele(ds->ds_dbuf, ds);
 			dsl_dataset_sync(ds, rzio, tx);
 		}
-		VERIFY0(zio_wait(rzio));
+		err = zio_wait(rzio);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 
 		if (need_sync_done) {
 			ASSERT3P(ds->ds_key_mapping, !=, NULL);
@@ -1334,8 +1348,11 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal_ds(ds, "create", tx, " ");
 
-	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
-	dsl_dir_rele(pdd, FTAG);
+out:
+	if (ds)
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+	if (pdd)
+		dsl_dir_rele(pdd, FTAG);
 }
 
 int
@@ -1534,7 +1551,7 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 
 	if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
 		ASSERT(BP_EQUAL(bp, bp_orig));
-	} else {
+	} else if (!SPA_EXITING(os->os_spa)) {
 		dsl_dataset_t *ds = os->os_dsl_dataset;
 		dmu_tx_t *tx = os->os_synctx;
 
@@ -1849,8 +1866,10 @@ userquota_compare(const void *l, const void *r)
 static void
 do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 {
+	spa_t *spa = os->os_spa;
 	void *cookie;
 	userquota_node_t *uqn;
+	int err;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 
@@ -1863,8 +1882,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 		 * is not thread-safe (i.e. not atomic).
 		 */
 		mutex_enter(&os->os_userused_lock);
-		VERIFY0(zap_increment(os, DMU_USERUSED_OBJECT,
-		    uqn->uqn_id, uqn->uqn_delta, tx));
+		err = zap_increment(os, DMU_USERUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		mutex_exit(&os->os_userused_lock);
 		kmem_free(uqn, sizeof (*uqn));
 	}
@@ -1874,8 +1895,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 	while ((uqn = avl_destroy_nodes(&cache->uqc_group_deltas,
 	    &cookie)) != NULL) {
 		mutex_enter(&os->os_userused_lock);
-		VERIFY0(zap_increment(os, DMU_GROUPUSED_OBJECT,
-		    uqn->uqn_id, uqn->uqn_delta, tx));
+		err = zap_increment(os, DMU_GROUPUSED_OBJECT,
+		    uqn->uqn_id, uqn->uqn_delta, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		mutex_exit(&os->os_userused_lock);
 		kmem_free(uqn, sizeof (*uqn));
 	}
@@ -1886,8 +1909,10 @@ do_userquota_cacheflush(objset_t *os, userquota_cache_t *cache, dmu_tx_t *tx)
 		while ((uqn = avl_destroy_nodes(&cache->uqc_project_deltas,
 		    &cookie)) != NULL) {
 			mutex_enter(&os->os_userused_lock);
-			VERIFY0(zap_increment(os, DMU_PROJECTUSED_OBJECT,
-			    uqn->uqn_id, uqn->uqn_delta, tx));
+			err = zap_increment(os, DMU_PROJECTUSED_OBJECT,
+			    uqn->uqn_id, uqn->uqn_delta, tx);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 			mutex_exit(&os->os_userused_lock);
 			kmem_free(uqn, sizeof (*uqn));
 		}
@@ -2191,6 +2216,7 @@ void
 dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 {
 	objset_t *os = dn->dn_objset;
+	spa_t *spa = os->os_spa;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
 	int flags = dn->dn_id_flags;
@@ -2198,6 +2224,8 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	boolean_t have_spill = B_FALSE;
 
 	if (!dmu_objset_userused_enabled(dn->dn_objset))
+		return;
+	if (SPA_EXITING(spa))
 		return;
 
 	/*
@@ -2233,6 +2261,8 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 				rf |= DB_RF_HAVESTRUCT;
 			error = dmu_spill_hold_by_dnode(dn, rf,
 			    FTAG, (dmu_buf_t **)&db);
+			if (error && SPA_EXITING(spa))
+				return;
 			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
 			data = (before) ? db->db.db_data :

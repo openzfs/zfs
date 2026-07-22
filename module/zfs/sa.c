@@ -425,9 +425,10 @@ sa_add_layout_entry(objset_t *os, const sa_attr_type_t *attrs, int attr_count,
 		char attr_name[8];
 
 		if (sa->sa_layout_attr_obj == 0) {
-			sa->sa_layout_attr_obj = zap_create_link(os,
+			VERIFY0(zap_create_link(os,
 			    DMU_OT_SA_ATTR_LAYOUTS,
-			    sa->sa_master_obj, SA_LAYOUTS, tx);
+			    sa->sa_master_obj, SA_LAYOUTS, tx,
+			    &sa->sa_layout_attr_obj));
 		}
 
 		(void) snprintf(attr_name, sizeof (attr_name),
@@ -1856,9 +1857,9 @@ sa_attr_register_sync(sa_handle_t *hdl, dmu_tx_t *tx)
 	}
 
 	if (sa->sa_reg_attr_obj == 0) {
-		sa->sa_reg_attr_obj = zap_create_link(hdl->sa_os,
+		VERIFY0(zap_create_link(hdl->sa_os,
 		    DMU_OT_SA_ATTR_REGISTRATION,
-		    sa->sa_master_obj, SA_REGISTRY, tx);
+		    sa->sa_master_obj, SA_REGISTRY, tx, &sa->sa_reg_attr_obj));
 	}
 	for (i = 0; i != sa->sa_num_attrs; i++) {
 		if (sa->sa_attr_table[i].sa_registered)

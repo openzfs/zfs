@@ -347,6 +347,18 @@ static uint_t spa_note_txg_time = 10 * 60;
  */
 static uint_t spa_flush_txg_time = 10 * 60;
 
+#if ZFS_DEBUG
+/*
+ * The load guid of the spa which is forcibly exiting.
+ *
+ * Some functions do not have direct access to the spa_t reference, but they
+ * have spa load guid, e.g. ARC ones. And spa lookup by guid is not acceptable
+ * in many cases as it could be a deadlock waiting for spa_namespace_lock,
+ * while lockless lookup is dangerous.
+ */
+uint64_t spa_exiting_guid = 0;
+#endif
+
 /*
  * ==========================================================================
  * SPA properties routines
@@ -1942,6 +1954,17 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT);
 }
 
+static void
+spa_metaslab_class_clear_stats(metaslab_class_t *mc)
+{
+	mc->mc_alloc = 0;
+	mc->mc_dalloc = 0;
+	mc->mc_deferred = 0;
+	mc->mc_ddeferred = 0;
+	mc->mc_space = 0;
+	mc->mc_dspace = 0;
+}
+
 /*
  * Opposite of spa_activate().
  */
@@ -1998,6 +2021,14 @@ spa_deactivate(spa_t *spa)
 		ASSERT3P(spa->spa_txg_zio[i], !=, NULL);
 		VERIFY0(zio_wait(spa->spa_txg_zio[i]));
 		spa->spa_txg_zio[i] = NULL;
+	}
+
+	if (spa_exiting(spa)) {
+		spa_metaslab_class_clear_stats(spa->spa_normal_class);
+		spa_metaslab_class_clear_stats(spa->spa_log_class);
+		spa_metaslab_class_clear_stats(spa->spa_embedded_log_class);
+		spa_metaslab_class_clear_stats(spa->spa_special_class);
+		spa_metaslab_class_clear_stats(spa->spa_dedup_class);
 	}
 
 	metaslab_class_destroy(spa->spa_normal_class);
@@ -3240,7 +3271,7 @@ spa_livelist_delete_cb_check(void *arg, zthr_t *z)
 {
 	(void) z;
 	spa_t *spa = arg;
-	return (spa_livelist_delete_check(spa));
+	return (spa_livelist_delete_check(spa) && !SPA_EXITING(spa));
 }
 
 static int
@@ -3309,17 +3340,26 @@ livelist_delete_sync(void *arg, dmu_tx_t *tx)
 	uint64_t zap_obj = lda->zap_obj;
 	objset_t *mos = spa->spa_meta_objset;
 	uint64_t count;
+	int err;
 
 	/* free the livelist and decrement the feature count */
-	VERIFY0(zap_remove_int(mos, zap_obj, ll_obj, tx));
+	err = zap_remove_int(mos, zap_obj, ll_obj, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	dsl_deadlist_free(mos, ll_obj, tx);
 	spa_feature_decr(spa, SPA_FEATURE_LIVELIST, tx);
-	VERIFY0(zap_count(mos, zap_obj, &count));
+	err = zap_count(mos, zap_obj, &count);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	if (count == 0) {
 		/* no more livelists to delete */
-		VERIFY0(zap_remove(mos, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_DELETED_CLONES, tx));
-		VERIFY0(zap_destroy(mos, zap_obj, tx));
+		err = zap_remove(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_DELETED_CLONES, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
+		err = zap_destroy(mos, zap_obj, tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		spa->spa_livelists_to_delete = 0;
 		spa_notify_waiters(spa);
 	}
@@ -3338,22 +3378,36 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 	uint64_t ll_obj = 0, count;
 	objset_t *mos = spa->spa_meta_objset;
 	uint64_t zap_obj = spa->spa_livelists_to_delete;
+	int err;
 	/*
 	 * Determine the next livelist to delete. This function should only
 	 * be called if there is at least one deleted clone.
 	 */
-	VERIFY0(dsl_get_next_livelist_obj(mos, zap_obj, &ll_obj));
-	VERIFY0(zap_count(mos, ll_obj, &count));
+	err = dsl_get_next_livelist_obj(mos, zap_obj, &ll_obj);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
+	err = zap_count(mos, ll_obj, &count);
+	if (err && SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 	if (count > 0) {
 		dsl_deadlist_t *ll;
 		dsl_deadlist_entry_t *dle;
 		bplist_t to_free;
 		ll = kmem_zalloc(sizeof (dsl_deadlist_t), KM_SLEEP);
-		VERIFY0(dsl_deadlist_open(ll, mos, ll_obj));
+		err = dsl_deadlist_open(ll, mos, ll_obj);
+		if (err && SPA_EXITING(spa))
+			goto skip1;
+		VERIFY0(err);
 		dle = dsl_deadlist_first(ll);
+		if (dle == NULL && SPA_EXITING(spa))
+			goto skip2;
 		ASSERT3P(dle, !=, NULL);
+		if (SPA_EXITING(spa))
+			goto skip2;
 		bplist_create(&to_free);
-		int err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free,
+		err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free,
 		    z, NULL);
 		if (err == 0) {
 			sublist_delete_arg_t sync_arg = {
@@ -3366,15 +3420,20 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 			    " livelist %llu, %lld remaining",
 			    (u_longlong_t)dle->dle_bpobj.bpo_object,
 			    (u_longlong_t)ll_obj, (longlong_t)count - 1);
-			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+			err = dsl_sync_task(spa_name(spa), NULL,
 			    sublist_delete_sync, &sync_arg, 0,
-			    ZFS_SPACE_CHECK_DESTROY));
+			    ZFS_SPACE_CHECK_DESTROY);
+			if (!SPA_EXITING(spa))
+				VERIFY0(err);
 		} else {
-			VERIFY3U(err, ==, EINTR);
+			if (!SPA_EXITING(spa))
+				VERIFY3U(err, ==, EINTR);
 		}
 		bplist_clear(&to_free);
 		bplist_destroy(&to_free);
+skip2:
 		dsl_deadlist_close(ll);
+skip1:
 		kmem_free(ll, sizeof (dsl_deadlist_t));
 	} else {
 		livelist_delete_arg_t sync_arg = {
@@ -3384,8 +3443,10 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		};
 		zfs_dbgmsg("deletion of livelist %llu completed",
 		    (u_longlong_t)ll_obj);
-		VERIFY0(dsl_sync_task(spa_name(spa), NULL, livelist_delete_sync,
-		    &sync_arg, 0, ZFS_SPACE_CHECK_DESTROY));
+		err = dsl_sync_task(spa_name(spa), NULL, livelist_delete_sync,
+		    &sync_arg, 0, ZFS_SPACE_CHECK_DESTROY);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 	}
 }
 
@@ -7297,7 +7358,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * Create the pool's history object.
 	 */
 	if (version >= SPA_VERSION_ZPOOL_HISTORY && !spa->spa_history)
-		spa_history_create_obj(spa, tx);
+		if (spa_history_create_obj(spa, tx) != 0) {
+			cmn_err(CE_PANIC, "failed to create history object");
+		}
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_CREATE);
 	spa_history_log_version(spa, "create", tx);
@@ -7305,9 +7368,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	/*
 	 * Create the pool config object.
 	 */
-	spa->spa_config_object = dmu_object_alloc(spa->spa_meta_objset,
+	if (dmu_object_alloc(spa->spa_meta_objset,
 	    DMU_OT_PACKED_NVLIST, SPA_CONFIG_BLOCKSIZE,
-	    DMU_OT_PACKED_NVLIST_SIZE, sizeof (uint64_t), tx);
+	    DMU_OT_PACKED_NVLIST_SIZE, sizeof (uint64_t), tx,
+	    &spa->spa_config_object) != 0) {
+		cmn_err(CE_PANIC, "failed to allocate object");
+	}
 
 	if (zap_add(spa->spa_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_CONFIG,
@@ -7335,7 +7401,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	 * because sync-to-convergence takes longer if the blocksize
 	 * keeps changing.
 	 */
-	obj = bpobj_alloc(spa->spa_meta_objset, 1 << 14, tx);
+	VERIFY0(bpobj_alloc(spa->spa_meta_objset, 1 << 14, tx, &obj));
 	dmu_object_set_compress(spa->spa_meta_objset, obj,
 	    ZIO_COMPRESS_OFF, tx);
 	if (zap_add(spa->spa_meta_objset,
@@ -7715,6 +7781,39 @@ spa_tryimport(nvlist_t *tryconfig)
 	return (config);
 }
 
+void
+spa_initiate_forced_exit(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa->spa_suspend_lock));
+
+	if (spa_suspended(spa) && spa->spa_forced_exit_required) {
+		if (!spa->spa_forcibly_exiting) {
+			spa->spa_forcibly_exiting = B_TRUE;
+#if ZFS_DEBUG
+			spa_exiting_guid = spa_load_guid(spa);
+#endif
+			cmn_err(CE_WARN, "Pool '%s' is now forcibly exiting",
+			    spa_name(spa));
+			zfs_dbgmsg("Pool '%s' is now forcibly exiting",
+			    spa_name(spa));
+		}
+		zio_resume_but_keep_suspended(spa);
+	}
+}
+
+void
+spa_set_forced_exit_required(spa_t *spa)
+{
+	mutex_enter(&spa->spa_suspend_lock);
+	if (!spa->spa_forced_exit_required) {
+		spa->spa_forced_exit_required = B_TRUE;
+		zfs_dbgmsg("Pool '%s' forced exit requirement has been set",
+		    spa_name(spa));
+	}
+	spa_initiate_forced_exit(spa);
+	mutex_exit(&spa->spa_suspend_lock);
+}
+
 /*
  * Pool export/destroy
  *
@@ -7731,6 +7830,9 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	int error = 0;
 	spa_t *spa;
 	hrtime_t export_start = gethrtime();
+	uint_t hardforce_ref_checks_left;
+
+	force = hardforce || force;
 
 	if (oldconfig)
 		*oldconfig = NULL;
@@ -7744,12 +7846,20 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		return (SET_ERROR(ENOENT));
 	}
 
+	if (spa_suspended(spa) && !hardforce) {
+		spa_namespace_exit(FTAG);
+		return (SET_ERROR(EAGAIN));
+	}
+
 	if (spa->spa_is_exporting) {
 		/* the pool is being exported by another thread */
 		spa_namespace_exit(FTAG);
 		return (SET_ERROR(ZFS_ERR_EXPORT_IN_PROGRESS));
 	}
 	spa->spa_is_exporting = B_TRUE;
+
+	if (hardforce)
+		spa_set_forced_exit_required(spa);
 
 	/*
 	 * Put a hold on the pool, drop the namespace lock, stop async tasks
@@ -7780,7 +7890,18 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * so we have to force it to sync before checking spa_refcnt.
 	 */
 	if (spa->spa_sync_on) {
-		txg_wait_synced(spa->spa_dsl_pool, 0);
+		if (hardforce) {
+			txg_wait_synced(spa->spa_dsl_pool, 0);
+		} else if (txg_wait_synced_flags(spa->spa_dsl_pool, 0,
+		    TXG_WAIT_SUSPEND) != 0) {
+			/*
+			 * We want to release spa_namespace_lock instead of
+			 * holding it forever, so that hardforce can be asked to
+			 * do the trick.
+			 */
+			error = SET_ERROR(EAGAIN);
+			goto fail;
+		}
 		spa_evicting_os_wait(spa);
 	}
 
@@ -7789,7 +7910,36 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * references.  If we are resetting a pool, allow references by
 	 * fault injection handlers.
 	 */
-	if (!spa_refcount_zero(spa) || (spa->spa_inject_ref != 0)) {
+	hardforce_ref_checks_left = TXG_SIZE * zfs_txg_timeout;
+	if (spa->spa_inject_ref != 0) {
+		/* No one is going to fight with zinject, even the hardforce */
+		goto open_refs;
+	}
+	while (hardforce && !spa_refcount_zero(spa) &&
+	    hardforce_ref_checks_left > 0 && !issig()) {
+		/*
+		 * Others might be stuck having spa references without a
+		 * chance to release them as we are holding spa_namespace_lock.
+		 * Wait for the last pool users to eject. The timeout is
+		 * arbitrary, waiting a little while is a UX improvement for
+		 * an operator, while waiting forever in the kernel would just
+		 * make a bad situation worse.
+		 */
+		hardforce_ref_checks_left--;
+		spa_namespace_exit(FTAG);
+		zfs_sleep_until(gethrtime() + SEC2NSEC(1));
+		spa_namespace_enter(FTAG);
+	}
+	if (!spa_refcount_zero(spa)) {
+open_refs:
+		zfs_dbgmsg("Pool '%s' cannot be exported due to open refs:"
+		    " spa_minref=%llu spa_refcount=%llu spa_inject_ref=%llu"
+		    " hardforce_ref_checks_left=%u",
+		    spa_name(spa),
+		    (u_longlong_t)spa->spa_minref,
+		    (u_longlong_t)zfs_refcount_count(&spa->spa_refcount),
+		    (u_longlong_t)spa->spa_inject_ref,
+		    hardforce_ref_checks_left);
 		error = SET_ERROR(EBUSY);
 		goto fail;
 	}
@@ -7835,7 +7985,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		 * so mark them all dirty.  spa_unload() will do the
 		 * final sync that pushes these changes out.
 		 */
-		if (new_state != POOL_STATE_UNINITIALIZED && !hardforce) {
+		if (new_state != POOL_STATE_UNINITIALIZED &&
+		    !spa_exiting(spa)) {
 			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 			spa->spa_state = new_state;
 			vdev_config_dirty(rvd);
@@ -7858,7 +8009,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		if (spa_should_flush_logs_on_unload(spa))
 			spa_unload_log_sm_flush_all(spa);
 
-		if (new_state != POOL_STATE_UNINITIALIZED && !hardforce) {
+		if (new_state != POOL_STATE_UNINITIALIZED &&
+		    !spa_exiting(spa)) {
 			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 			spa->spa_final_txg = spa_last_synced_txg(spa) +
 			    TXG_DEFER_SIZE + 1;
@@ -7890,8 +8042,7 @@ export_spa:
 	 */
 	spa_namespace_enter(FTAG);
 	if (new_state != POOL_STATE_UNINITIALIZED) {
-		if (!hardforce)
-			spa_write_cachefile(spa, B_TRUE, B_TRUE, B_FALSE);
+		spa_write_cachefile(spa, B_TRUE, B_TRUE, B_FALSE);
 		spa_remove(spa);
 	} else {
 		/*
@@ -7902,6 +8053,14 @@ export_spa:
 		spa->spa_is_exporting = B_FALSE;
 		spa->spa_export_thread = NULL;
 	}
+
+#ifdef ZFS_DEBUG
+	/*
+	 * Now another spa can be marked for forced exit and be forcibly
+	 * exiting.
+	 */
+	spa_exiting_guid = 0;
+#endif
 
 	/*
 	 * Wake up any waiters in spa_lookup()
@@ -7927,10 +8086,10 @@ fail:
  * Destroy a storage pool.
  */
 int
-spa_destroy(const char *pool)
+spa_destroy(const char *pool, boolean_t force, boolean_t hardforce)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
-	    B_FALSE, B_FALSE));
+	    force, hardforce));
 }
 
 /*
@@ -10141,7 +10300,9 @@ spa_sync_frees(spa_t *spa, bplist_t *bpl, dmu_tx_t *tx)
 {
 	zio_t *zio = zio_root(spa, NULL, NULL, 0);
 	bplist_iterate(bpl, spa_free_sync_cb, zio, tx);
-	VERIFY0(zio_wait(zio));
+	int err = zio_wait(zio);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 /*
@@ -10167,9 +10328,15 @@ spa_sync_deferred_frees(spa_t *spa, dmu_tx_t *tx)
 	 * deferred frees from the previous TXG.
 	 */
 	zio_t *zio = zio_root(spa, NULL, NULL, 0);
-	VERIFY3U(bpobj_iterate(&spa->spa_deferred_bpobj,
-	    bpobj_spa_free_sync_cb, zio, tx), ==, 0);
-	VERIFY0(zio_wait(zio));
+
+	int err = bpobj_iterate(&spa->spa_deferred_bpobj,
+	    bpobj_spa_free_sync_cb, zio, tx);
+	if (!spa_exiting(spa))
+		VERIFY0(err);
+
+	err = zio_wait(zio);
+	if (!spa_exiting(spa))
+		VERIFY0(err);
 }
 
 static void
@@ -10179,6 +10346,9 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	size_t bufsize;
 	size_t nvsize = 0;
 	dmu_buf_t *db;
+
+	if (spa_exiting(spa))
+		return;
 
 	VERIFY0(nvlist_size(nv, &nvsize, NV_ENCODE_XDR));
 
@@ -10205,16 +10375,16 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 	dmu_buf_rele(db, FTAG);
 }
 
-static void
+static int
 spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
     const char *config, const char *entry)
 {
 	nvlist_t *nvroot;
 	nvlist_t **list;
-	int i;
+	int i, err = 0;
 
 	if (!sav->sav_sync)
-		return;
+		return (0);
 
 	/*
 	 * Update the MOS nvlist describing the list of available devices.
@@ -10222,12 +10392,19 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	 * valid and the vdevs are labeled appropriately.
 	 */
 	if (sav->sav_object == 0) {
-		sav->sav_object = dmu_object_alloc(spa->spa_meta_objset,
+		err = dmu_object_alloc(spa->spa_meta_objset,
 		    DMU_OT_PACKED_NVLIST, 1 << 14, DMU_OT_PACKED_NVLIST_SIZE,
-		    sizeof (uint64_t), tx);
-		VERIFY(zap_update(spa->spa_meta_objset,
+		    sizeof (uint64_t), tx, &sav->sav_object);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
+
+		err = zap_update(spa->spa_meta_objset,
 		    DMU_POOL_DIRECTORY_OBJECT, entry, sizeof (uint64_t), 1,
-		    &sav->sav_object, tx) == 0);
+		    &sav->sav_object, tx);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 	}
 
 	nvroot = fnvlist_alloc();
@@ -10249,7 +10426,10 @@ spa_sync_aux_dev(spa_t *spa, spa_aux_vdev_t *sav, dmu_tx_t *tx,
 	spa_sync_nvlist(spa, sav->sav_object, nvroot, tx);
 	nvlist_free(nvroot);
 
+out:
 	sav->sav_sync = B_FALSE;
+
+	return (err);
 }
 
 /*
@@ -10302,8 +10482,10 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 
 	if (spa->spa_avz_action == AVZ_ACTION_REBUILD) {
 		/* Make and build the new AVZ */
-		uint64_t new_avz = zap_create(spa->spa_meta_objset,
-		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx);
+		uint64_t new_avz;
+		VERIFY0(zap_create(spa->spa_meta_objset,
+		    DMU_OTN_ZAP_METADATA, DMU_OT_NONE, 0, tx,
+		    &new_avz));
 		spa_avz_build(spa->spa_root_vdev, new_avz, tx);
 
 		/* Diff old AVZ with new one */
@@ -10364,9 +10546,9 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 	}
 
 	if (spa->spa_all_vdev_zaps == 0) {
-		spa->spa_all_vdev_zaps = zap_create_link(spa->spa_meta_objset,
+		VERIFY0(zap_create_link(spa->spa_meta_objset,
 		    DMU_OTN_ZAP_METADATA, DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_VDEV_ZAP_MAP, tx);
+		    DMU_POOL_VDEV_ZAP_MAP, tx, &spa->spa_all_vdev_zaps));
 	}
 	spa->spa_avz_action = AVZ_ACTION_NONE;
 
@@ -10423,6 +10605,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
+	int err;
 
 	mutex_enter(&spa->spa_props_lock);
 
@@ -10516,10 +10699,12 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * Set pool property values in the poolprops mos object.
 			 */
 			if (spa->spa_pool_props_object == 0) {
-				spa->spa_pool_props_object =
-				    zap_create_link(mos, DMU_OT_POOL_PROPS,
+				err = zap_create_link(mos, DMU_OT_POOL_PROPS,
 				    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_PROPS,
-				    tx);
+				    tx, &spa->spa_pool_props_object);
+				if (err && SPA_EXITING(spa))
+					goto out;
+				VERIFY0(err);
 			}
 
 			/* normalize the property name */
@@ -10540,10 +10725,13 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					    spa->spa_pool_props_object,
 					    propname, tx);
 				} else {
-					VERIFY0(zap_update(mos,
+					err = zap_update(mos,
 					    spa->spa_pool_props_object,
 					    propname, 1, strlen(strval) + 1,
-					    strval, tx));
+					    strval, tx);
+					if (err && SPA_EXITING(spa))
+						goto out;
+					VERIFY0(err);
 				}
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%s", elemname, strval);
@@ -10555,9 +10743,12 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					VERIFY0(zpool_prop_index_to_string(
 					    prop, intval, &unused));
 				}
-				VERIFY0(zap_update(mos,
+				err = zap_update(mos,
 				    spa->spa_pool_props_object, propname,
-				    8, 1, &intval, tx));
+				    8, 1, &intval, tx);
+				if (err && SPA_EXITING(spa))
+					goto out;
+				VERIFY0(err);
 				spa_history_log_internal(spa, "set", tx,
 				    "%s=%lld", elemname,
 				    (longlong_t)intval);
@@ -10599,6 +10790,7 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 
 	}
 
+out:
 	mutex_exit(&spa->spa_props_lock);
 }
 
@@ -10612,6 +10804,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 static void
 spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 {
+	if (spa_exiting(spa))
+		return;
+
 	if (spa_sync_pass(spa) != 1)
 		return;
 
@@ -10633,7 +10828,7 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 
 	if (spa->spa_ubsync.ub_version < SPA_VERSION_DIR_CLONES &&
 	    spa->spa_uberblock.ub_version >= SPA_VERSION_DIR_CLONES) {
-		dsl_pool_upgrade_dir_clones(dp, tx);
+		(void) dsl_pool_upgrade_dir_clones(dp, tx);
 
 		/* Keeping the freedir open increases spa_minref */
 		spa->spa_minref += 3;
@@ -10676,11 +10871,13 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 	rrw_exit(&dp->dp_config_rwlock, FTAG);
 }
 
-static void
+static int
 vdev_indirect_state_sync_verify(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
 	vdev_indirect_mapping_t *vim __maybe_unused = vd->vdev_indirect_mapping;
 	vdev_indirect_births_t *vib __maybe_unused = vd->vdev_indirect_births;
+	int err = 0;
 
 	if (vd->vdev_ops == &vdev_indirect_ops) {
 		ASSERT(vim != NULL);
@@ -10688,7 +10885,10 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	}
 
 	uint64_t obsolete_sm_object = 0;
-	ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	err = vdev_obsolete_sm_object(vd, &obsolete_sm_object);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	ASSERT0(err);
 	if (obsolete_sm_object != 0) {
 		ASSERT(vd->vdev_obsolete_sm != NULL);
 		ASSERT(vd->vdev_removing ||
@@ -10707,7 +10907,10 @@ vdev_indirect_state_sync_verify(vdev_t *vd)
 	 * happen in syncing context, the obsolete segments
 	 * tree must be empty when we start syncing.
 	 */
-	ASSERT0(zfs_range_tree_space(vd->vdev_obsolete_segments));
+	if (!SPA_EXITING(spa))
+		ASSERT0(zfs_range_tree_space(vd->vdev_obsolete_segments));
+
+	return (err);
 }
 
 /*
@@ -10725,21 +10928,27 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 	metaslab_class_balance(spa_dedup_class(spa), B_TRUE);
 }
 
-static void
+static int
 spa_sync_condense_indirect(spa_t *spa, dmu_tx_t *tx)
 {
 	ASSERT(spa_writeable(spa));
+	int err = 0;
 
 	vdev_t *rvd = spa->spa_root_vdev;
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
-		vdev_indirect_state_sync_verify(vd);
+		err = vdev_indirect_state_sync_verify(vd);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 
 		if (vdev_indirect_should_condense(vd)) {
-			spa_condense_indirect_start_sync(vd, tx);
+			err = spa_condense_indirect_start_sync(vd, tx);
 			break;
 		}
 	}
+
+	return (err);
 }
 
 static void
@@ -10754,9 +10963,9 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		int pass = ++spa->spa_sync_pass;
 
 		spa_sync_config_object(spa, tx);
-		spa_sync_aux_dev(spa, &spa->spa_spares, tx,
+		(void) spa_sync_aux_dev(spa, &spa->spa_spares, tx,
 		    ZPOOL_CONFIG_SPARES, DMU_POOL_SPARES);
-		spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
+		(void) spa_sync_aux_dev(spa, &spa->spa_l2cache, tx,
 		    ZPOOL_CONFIG_L2CACHE, DMU_POOL_L2CACHE);
 		spa_errlog_sync(spa, txg);
 		dsl_pool_sync(dp, txg);
@@ -10776,8 +10985,9 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 			 * we sync the deferred frees later in pass 1.
 			 */
 			ASSERT3U(pass, >, 1);
-			bplist_iterate(free_bpl, bpobj_enqueue_alloc_cb,
-			    &spa->spa_deferred_bpobj, tx);
+			if (!SPA_EXITING(spa))
+				bplist_iterate(free_bpl, bpobj_enqueue_alloc_cb,
+				    &spa->spa_deferred_bpobj, tx);
 		}
 
 		brt_sync(spa, txg);
@@ -10792,7 +11002,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		vdev_t *vd = NULL;
 		while ((vd = txg_list_remove(&spa->spa_vdev_txg_list, txg))
 		    != NULL)
-			vdev_sync(vd, txg);
+			(void) vdev_sync(vd, txg);
 
 		if (pass == 1) {
 			/*
@@ -10839,7 +11049,8 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 			break;
 		}
 
-		spa_sync_deferred_frees(spa, tx);
+		if (!SPA_EXITING(spa))
+			spa_sync_deferred_frees(spa, tx);
 	} while (dmu_objset_is_dirty(mos, txg));
 }
 
@@ -10901,7 +11112,7 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 
 		spa_config_exit(spa, SCL_STATE, FTAG);
 
-		if (error == 0)
+		if (error == 0 || SPA_EXITING(spa))
 			break;
 		zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
 		zio_resume_wait(spa);
@@ -11000,9 +11211,11 @@ spa_sync(spa_t *spa, uint64_t txg)
 		}
 		if (i == rvd->vdev_children) {
 			spa->spa_deflate = TRUE;
-			VERIFY0(zap_add(spa->spa_meta_objset,
+			int err = zap_add(spa->spa_meta_objset,
 			    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_DEFLATE,
-			    sizeof (uint64_t), 1, &spa->spa_deflate, tx));
+			    sizeof (uint64_t), 1, &spa->spa_deflate, tx);
+			if (!spa_exiting(spa))
+				VERIFY0(err);
 		}
 	}
 
@@ -11013,7 +11226,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_sync_iterate_to_convergence(spa, tx);
 
 #ifdef ZFS_DEBUG
-	if (!list_is_empty(&spa->spa_config_dirty_list)) {
+	if (!list_is_empty(&spa->spa_config_dirty_list) && !SPA_EXITING(spa)) {
 	/*
 	 * Make sure that the number of ZAPs for all the vdevs matches
 	 * the number of ZAPs in the per-vdev ZAP list. This only gets

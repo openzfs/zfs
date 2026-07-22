@@ -445,6 +445,10 @@ tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]
 tests = ['zpool_destroy_001_pos', 'zpool_destroy_002_pos',
+    'zpool_destroy_hardforce_001_pos',
+    'zpool_destroy_hardforce_002_pos',
+    'zpool_destroy_hardforce_003_pos',
+    'zpool_destroy_hardforce_004_pos',
     'zpool_destroy_003_neg']
 pre =
 post =
@@ -463,6 +467,16 @@ tags = ['functional', 'cli_root', 'zpool_events']
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg', 'zpool_export_004_pos',
+    'zpool_export_hardforce_001_pos',
+    'zpool_export_hardforce_002_pos',
+    'zpool_export_hardforce_003_pos',
+    'zpool_export_hardforce_004_pos',
+    'zpool_export_hardforce_005_pos',
+    'zpool_export_hardforce_006_pos',
+    'zpool_export_hardforce_receive_001_pos',
+    'zpool_export_hardforce_receive_002_pos',
+    'zpool_export_hardforce_send_001_pos',
+    'zpool_export_hardforce_send_002_pos',
     'zpool_export_parallel_pos', 'zpool_export_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_export']
 

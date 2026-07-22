@@ -307,52 +307,77 @@ vdev_indirect_mapping_close(vdev_indirect_mapping_t *vim)
 	kmem_free(vim, sizeof (*vim));
 }
 
-uint64_t
-vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx)
+int
+vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx, uint64_t *objectp)
 {
-	uint64_t object;
 	ASSERT(dmu_tx_is_syncing(tx));
+	spa_t *spa = os->os_spa;
 	uint64_t bonus_size = VDEV_INDIRECT_MAPPING_SIZE_V0;
+	int err = 0;
 
 	if (spa_feature_is_enabled(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		bonus_size = sizeof (vdev_indirect_mapping_phys_t);
 	}
 
-	object = dmu_object_alloc(os,
+	err = dmu_object_alloc(os,
 	    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
 	    DMU_OTN_UINT64_METADATA, bonus_size,
-	    tx);
+	    tx, objectp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	if (spa_feature_is_enabled(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS)) {
 		dmu_buf_t *dbuf;
 		vdev_indirect_mapping_phys_t *vimp;
 
-		VERIFY0(dmu_bonus_hold(os, object, FTAG, &dbuf));
+		err = dmu_bonus_hold(os, *objectp, FTAG, &dbuf);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 		dmu_buf_will_dirty(dbuf, tx);
+		if (SPA_EXITING(spa)) {
+			dmu_buf_rele(dbuf, FTAG);
+			return (SET_ERROR(EIO));
+		}
 		vimp = dbuf->db_data;
-		vimp->vimp_counts_object = dmu_object_alloc(os,
+		err = dmu_object_alloc(os,
 		    DMU_OTN_UINT32_METADATA, SPA_OLD_MAXBLOCKSIZE,
-		    DMU_OT_NONE, 0, tx);
+		    DMU_OT_NONE, 0, tx, &vimp->vimp_counts_object);
+		if (err && SPA_EXITING(spa)) {
+			dmu_buf_rele(dbuf, FTAG);
+			return (err);
+		}
 		spa_feature_incr(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 		dmu_buf_rele(dbuf, FTAG);
 	}
 
-	return (object);
+	return (err);
 }
 
 
-vdev_indirect_mapping_t *
-vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
+int
+vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object,
+    vdev_indirect_mapping_t **vimp)
 {
+	spa_t *spa = os->os_spa;
 	vdev_indirect_mapping_t *vim = kmem_zalloc(sizeof (*vim), KM_SLEEP);
 	dmu_object_info_t doi;
-	VERIFY0(dmu_object_info(os, mapping_object, &doi));
+	int err = 0;
+
+	err = dmu_object_info(os, mapping_object, &doi);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 
 	vim->vim_objset = os;
 	vim->vim_object = mapping_object;
 
-	VERIFY0(dmu_bonus_hold(os, vim->vim_object, vim,
-	    &vim->vim_dbuf));
+	err = dmu_bonus_hold(os, vim->vim_object, vim,
+	    &vim->vim_dbuf);
+	if (err && SPA_EXITING(spa))
+		goto spa_exiting;
+	VERIFY0(err);
 	vim->vim_phys = vim->vim_dbuf->db_data;
 
 	vim->vim_havecounts =
@@ -361,27 +386,49 @@ vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
 	if (vim->vim_phys->vimp_num_entries > 0) {
 		uint64_t map_size = vdev_indirect_mapping_size(vim);
 		vim->vim_entries = vmem_alloc(map_size, KM_SLEEP);
-		VERIFY0(dmu_read(os, vim->vim_object, 0, map_size,
-		    vim->vim_entries, DMU_READ_PREFETCH));
+		err = dmu_read(os, vim->vim_object, 0, map_size,
+		    vim->vim_entries, DMU_READ_PREFETCH);
+		if (err && SPA_EXITING(spa)) {
+			vmem_free(vim->vim_entries, map_size);
+			goto spa_exiting;
+		}
+		VERIFY0(err);
 	}
 
 	ASSERT(vdev_indirect_mapping_verify(vim));
+	*vimp = vim;
 
-	return (vim);
+	return (err);
+
+spa_exiting:
+	if (vim->vim_dbuf)
+		dmu_buf_rele(vim->vim_dbuf, vim);
+	kmem_free(vim, sizeof (*vim));
+	return (err);
 }
 
 void
 vdev_indirect_mapping_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 {
-	vdev_indirect_mapping_t *vim = vdev_indirect_mapping_open(os, object);
+	spa_t *spa = os->os_spa;
+	vdev_indirect_mapping_t *vim;
+	int err;
+
+	err = vdev_indirect_mapping_open(os, object, &vim);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 	if (vim->vim_havecounts) {
-		VERIFY0(dmu_object_free(os, vim->vim_phys->vimp_counts_object,
-		    tx));
+		err = dmu_object_free(os, vim->vim_phys->vimp_counts_object,
+		    tx);
+		if (!SPA_EXITING(spa))
+			VERIFY0(err);
 		spa_feature_decr(os->os_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 	}
 	vdev_indirect_mapping_close(vim);
 
-	VERIFY0(dmu_object_free(os, object, tx));
+	err = dmu_object_free(os, object, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 /*

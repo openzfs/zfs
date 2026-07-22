@@ -662,18 +662,21 @@ spa_namespace_broadcast(void)
 }
 
 /*
- * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held.
+ * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held
+ * or locked must be set to B_FALSE.
  * Returns NULL if no matching spa_t is found.
  */
-spa_t *
-spa_lookup(const char *name)
+static spa_t *
+spa_lookup_impl(const char *name, boolean_t locked)
 {
 	static spa_t search;	/* spa_t is large; don't allocate on stack */
 	spa_t *spa;
 	avl_index_t where;
 	char *cp;
 
-	ASSERT(spa_namespace_held());
+	if (locked) {
+		ASSERT(spa_namespace_held());
+	}
 
 retry:
 	(void) strlcpy(search.spa_name, name, sizeof (search.spa_name));
@@ -690,19 +693,33 @@ retry:
 	if (spa == NULL)
 		return (NULL);
 
-	/*
-	 * Avoid racing with import/export, which don't hold the namespace
-	 * lock for their entire duration.
-	 */
-	if ((spa->spa_load_thread != NULL &&
-	    spa->spa_load_thread != curthread) ||
-	    (spa->spa_export_thread != NULL &&
-	    spa->spa_export_thread != curthread)) {
-		spa_namespace_wait();
-		goto retry;
+	if (locked) {
+		/*
+		 * Avoid racing with import/export, which don't hold the
+		 * namespace lock for their entire duration.
+		 */
+		if ((spa->spa_load_thread != NULL &&
+		    spa->spa_load_thread != curthread) ||
+		    (spa->spa_export_thread != NULL &&
+		    spa->spa_export_thread != curthread)) {
+			spa_namespace_wait();
+			goto retry;
+		}
 	}
 
 	return (spa);
+}
+
+spa_t *
+spa_lookup(const char *name)
+{
+	return (spa_lookup_impl(name, B_TRUE));
+}
+
+spa_t *
+spa_lookup_lockless(const char *name)
+{
+	return (spa_lookup_impl(name, B_FALSE));
 }
 
 /*
@@ -2060,6 +2077,12 @@ boolean_t
 spa_suspended(spa_t *spa)
 {
 	return (spa->spa_suspended != ZIO_SUSPEND_NONE);
+}
+
+boolean_t
+spa_exiting(spa_t *spa)
+{
+	return (spa->spa_forcibly_exiting == B_TRUE);
 }
 
 uint64_t

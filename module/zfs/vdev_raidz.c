@@ -4205,9 +4205,11 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&vre->vre_lock);
 
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
-	VERIFY0(zap_update(spa->spa_meta_objset,
+	int err = zap_update(spa->spa_meta_objset,
 	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
-	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
+	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 }
 
 static void
@@ -4217,6 +4219,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
+	int err;
 
 	for (int i = 0; i < TXG_SIZE; i++)
 		VERIFY0(vre->vre_offset_pertxg[i]);
@@ -4249,14 +4252,18 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	vre->vre_state = DSS_FINISHED;
 
 	uint64_t state = vre->vre_state;
-	VERIFY0(zap_update(spa->spa_meta_objset,
+	err = zap_update(spa->spa_meta_objset,
 	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
-	    sizeof (state), 1, &state, tx));
+	    sizeof (state), 1, &state, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	uint64_t end_time = vre->vre_end_time;
-	VERIFY0(zap_update(spa->spa_meta_objset,
+	err = zap_update(spa->spa_meta_objset,
 	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME,
-	    sizeof (end_time), 1, &end_time, tx));
+	    sizeof (end_time), 1, &end_time, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	spa->spa_uberblock.ub_raidz_reflow_info = 0;
 
@@ -4962,6 +4969,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+	int err;
 
 	if (RRSS_GET_STATE(&spa->spa_ubsync) == RRSS_SCRATCH_VALID)
 		vre->vre_offset = 0;
@@ -5009,7 +5017,13 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 			continue;
 		}
 
-		VERIFY0(metaslab_load(msp));
+		err = metaslab_load(msp);
+		if (err && SPA_EXITING(spa)) {
+			mutex_exit(&msp->ms_lock);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
+			break;
+		}
+		VERIFY0(err);
 
 		/*
 		 * We want to copy everything except the free (allocatable)
@@ -5140,7 +5154,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 	 */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 
-	if (!zthr_iscancelled(zthr) &&
+	if (!zthr_iscancelled(zthr) && !SPA_EXITING(spa) &&
 	    vre->vre_offset == raidvd->vdev_ms_count << raidvd->vdev_ms_shift) {
 		/*
 		 * We are not being canceled or paused, so the reflow must be
@@ -5232,6 +5246,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	spa_t *spa = new_child->vdev_spa;
 	vdev_t *raidvd = new_child->vdev_parent;
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
+	int err;
 	ASSERT3P(raidvd->vdev_ops, ==, &vdev_raidz_ops);
 	ASSERT3P(raidvd->vdev_top, ==, raidvd);
 	ASSERT3U(raidvd->vdev_children, >, vdrz->vd_original_width);
@@ -5262,14 +5277,18 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	vdrz->vn_vre.vre_bytes_copied = 0;
 
 	uint64_t state = vdrz->vn_vre.vre_state;
-	VERIFY0(zap_update(spa->spa_meta_objset,
+	err = zap_update(spa->spa_meta_objset,
 	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
-	    sizeof (state), 1, &state, tx));
+	    sizeof (state), 1, &state, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	uint64_t start_time = vdrz->vn_vre.vre_start_time;
-	VERIFY0(zap_update(spa->spa_meta_objset,
+	err = zap_update(spa->spa_meta_objset,
 	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_START_TIME,
-	    sizeof (start_time), 1, &start_time, tx));
+	    sizeof (start_time), 1, &start_time, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	(void) zap_remove(spa->spa_meta_objset,
 	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME, tx);

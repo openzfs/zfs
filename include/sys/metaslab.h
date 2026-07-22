@@ -52,7 +52,7 @@ int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
 void metaslab_fini(metaslab_t *);
 
 void metaslab_set_unflushed_dirty(metaslab_t *, boolean_t);
-void metaslab_set_unflushed_txg(metaslab_t *, uint64_t, dmu_tx_t *);
+int metaslab_set_unflushed_txg(metaslab_t *, uint64_t, dmu_tx_t *);
 void metaslab_set_estimated_condensed_size(metaslab_t *, uint64_t, dmu_tx_t *);
 boolean_t metaslab_unflushed_dirty(metaslab_t *);
 uint64_t metaslab_unflushed_txg(metaslab_t *);

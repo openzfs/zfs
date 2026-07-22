@@ -250,6 +250,14 @@ zpool_pool_state_to_name(pool_state_t state)
 	return (gettext("UNKNOWN"));
 }
 
+boolean_t
+zpool_suspended(zpool_status_t status)
+{
+	return (status == ZPOOL_STATUS_IO_FAILURE_WAIT ||
+	    status == ZPOOL_STATUS_IO_FAILURE_CONTINUE ||
+	    status == ZPOOL_STATUS_IO_FAILURE_MMP);
+}
+
 /*
  * Given a pool handle, return the pool health string ("ONLINE", "DEGRADED",
  * "SUSPENDED", etc).
@@ -265,9 +273,7 @@ zpool_get_state_str(zpool_handle_t *zhp)
 
 	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
 		str = gettext("FAULTED");
-	} else if (status == ZPOOL_STATUS_IO_FAILURE_WAIT ||
-	    status == ZPOOL_STATUS_IO_FAILURE_CONTINUE ||
-	    status == ZPOOL_STATUS_IO_FAILURE_MMP) {
+	} else if (zpool_suspended(status)) {
 		str = gettext("SUSPENDED");
 	} else {
 		nvlist_t *nvroot = fnvlist_lookup_nvlist(
@@ -1430,6 +1436,36 @@ zpool_open_silent(libzfs_handle_t *hdl, const char *pool, zpool_handle_t **ret)
 }
 
 /*
+ * Similar to zpool_open_canfail(), but does not communicate with the kernel
+ * module regarding the actual pool details.
+ * It is designed to be used for very specific cases like hardforce export,
+ * when it is important to break through sleeping lock holders.
+ * It must not be used for normal operations.
+ */
+zpool_handle_t *
+zpool_open_unchecked(libzfs_handle_t *hdl, const char *pool)
+{
+	zpool_handle_t *zhp;
+
+	/*
+	 * Make sure the pool name is valid.
+	 */
+	if (!zpool_name_valid(hdl, B_TRUE, pool)) {
+		(void) zfs_error_fmt(hdl, EZFS_INVALIDNAME,
+		    dgettext(TEXT_DOMAIN, "cannot open '%s'"),
+		    pool);
+		return (NULL);
+	}
+
+	zhp = zfs_alloc(hdl, sizeof (zpool_handle_t));
+
+	zhp->zpool_hdl = hdl;
+	(void) strlcpy(zhp->zpool_name, pool, sizeof (zhp->zpool_name));
+
+	return (zhp);
+}
+
+/*
  * Similar to zpool_open_canfail(), but refuses to open pools in the faulted
  * state.
  */
@@ -1779,18 +1815,22 @@ create_failed:
  * datasets left in the pool.
  */
 int
-zpool_destroy(zpool_handle_t *zhp, const char *log_str)
+zpool_destroy(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
+    const char *log_str)
 {
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *zfp = NULL;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	char errbuf[ERRBUFLEN];
 
-	if (zhp->zpool_state == POOL_STATE_ACTIVE &&
+	/* The hardforce path should avoid extra locking. */
+	if (!hardforce && zhp->zpool_state == POOL_STATE_ACTIVE &&
 	    (zfp = zfs_open(hdl, zhp->zpool_name, ZFS_TYPE_FILESYSTEM)) == NULL)
 		return (-1);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	zc.zc_cookie = force;
+	zc.zc_guid = hardforce;
 	zc.zc_history = (uint64_t)(uintptr_t)log_str;
 
 	if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0) {
@@ -2051,6 +2091,16 @@ int
 zpool_export_force(zpool_handle_t *zhp, const char *log_str)
 {
 	return (zpool_export_common(zhp, B_TRUE, B_TRUE, log_str));
+}
+
+int
+zpool_set_forced_exit_required(zpool_handle_t *zhp)
+{
+	zfs_cmd_t zc = {"\0"};
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	return (zfs_ioctl(zhp->zpool_hdl,
+	    ZFS_IOC_POOL_SET_FORCED_EXIT_REQUIRED, &zc));
 }
 
 static void

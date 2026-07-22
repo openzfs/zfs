@@ -1208,6 +1208,9 @@ vdev_free(vdev_t *vd)
 		vd->vdev_log_mg = NULL;
 	}
 
+	if (SPA_EXITING(spa))
+		vdev_clear_stats(vd);
+
 	ASSERT0(vd->vdev_stat.vs_space);
 	ASSERT0(vd->vdev_stat.vs_dspace);
 	ASSERT0(vd->vdev_stat.vs_alloc);
@@ -1270,6 +1273,8 @@ vdev_free(vdev_t *vd)
 		space_map_close(vd->vdev_obsolete_sm);
 		vd->vdev_obsolete_sm = NULL;
 	}
+	if (SPA_EXITING(spa))
+		zfs_range_tree_vacate(vd->vdev_obsolete_segments, NULL, NULL);
 	zfs_range_tree_destroy(vd->vdev_obsolete_segments);
 	rw_destroy(&vd->vdev_indirect_rwlock);
 	mutex_destroy(&vd->vdev_obsolete_lock);
@@ -3596,13 +3601,14 @@ vdev_dtl_load(vdev_t *vd)
 	return (error);
 }
 
-static void
+static int
 vdev_zap_allocation_data(vdev_t *vd, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	vdev_alloc_bias_t alloc_bias = vd->vdev_alloc_bias;
 	const char *string;
+	int err = 0;
 
 	ASSERT(alloc_bias != VDEV_BIAS_NONE);
 
@@ -3612,64 +3618,104 @@ vdev_zap_allocation_data(vdev_t *vd, dmu_tx_t *tx)
 	    (alloc_bias == VDEV_BIAS_DEDUP) ? VDEV_ALLOC_BIAS_DEDUP : NULL;
 
 	ASSERT(string != NULL);
-	VERIFY0(zap_add(mos, vd->vdev_top_zap, VDEV_TOP_ZAP_ALLOCATION_BIAS,
-	    1, strlen(string) + 1, string, tx));
+	err = zap_add(mos, vd->vdev_top_zap, VDEV_TOP_ZAP_ALLOCATION_BIAS,
+	    1, strlen(string) + 1, string, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	if (alloc_bias == VDEV_BIAS_SPECIAL || alloc_bias == VDEV_BIAS_DEDUP) {
 		spa_activate_allocation_classes(spa, tx);
 	}
+
+	return (err);
 }
 
 void
 vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
+	int err;
 
-	VERIFY0(zap_destroy(spa->spa_meta_objset, zapobj, tx));
-	VERIFY0(zap_remove_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
-	    zapobj, tx));
+	err = zap_destroy(spa->spa_meta_objset, zapobj, tx);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
+
+	err = zap_remove_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
+	    zapobj, tx);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 }
 
-uint64_t
-vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
+int
+vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx, uint64_t *objectp)
 {
 	spa_t *spa = vd->vdev_spa;
-	uint64_t zap = zap_create(spa->spa_meta_objset, DMU_OTN_ZAP_METADATA,
-	    DMU_OT_NONE, 0, tx);
+	int err = zap_create(spa->spa_meta_objset, DMU_OTN_ZAP_METADATA,
+	    DMU_OT_NONE, 0, tx, objectp);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	ASSERT(zap != 0);
-	VERIFY0(zap_add_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
-	    zap, tx));
+	ASSERT(*objectp != 0);
+	err = zap_add_int(spa->spa_meta_objset, spa->spa_all_vdev_zaps,
+	    *objectp, tx);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
-	return (zap);
+	return (err);
 }
 
-void
+int
 vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 {
+	spa_t *spa = vd->vdev_spa;
+	int err = 0;
+
 	if (vd->vdev_ops != &vdev_hole_ops &&
 	    vd->vdev_ops != &vdev_missing_ops &&
 	    vd->vdev_ops != &vdev_root_ops &&
 	    !vd->vdev_top->vdev_removing) {
 		if (vd->vdev_ops->vdev_op_leaf && vd->vdev_leaf_zap == 0) {
-			vd->vdev_leaf_zap = vdev_create_link_zap(vd, tx);
+			err = vdev_create_link_zap(vd, tx, &vd->vdev_leaf_zap);
+			if (err && SPA_EXITING(spa))
+				return (err);
+			VERIFY0(err);
 		}
 		if (vd == vd->vdev_top && vd->vdev_top_zap == 0) {
-			vd->vdev_top_zap = vdev_create_link_zap(vd, tx);
-			if (vd->vdev_alloc_bias != VDEV_BIAS_NONE)
-				vdev_zap_allocation_data(vd, tx);
+			err = vdev_create_link_zap(vd, tx, &vd->vdev_top_zap);
+			if (err && SPA_EXITING(spa))
+				return (err);
+			VERIFY0(err);
+			if (vd->vdev_alloc_bias != VDEV_BIAS_NONE) {
+				err = vdev_zap_allocation_data(vd, tx);
+				if (err && SPA_EXITING(spa))
+					return (err);
+				VERIFY0(err);
+			}
 		}
 	}
 	if (vd->vdev_ops == &vdev_root_ops && vd->vdev_root_zap == 0 &&
 	    spa_feature_is_enabled(vd->vdev_spa, SPA_FEATURE_AVZ_V2)) {
 		if (!spa_feature_is_active(vd->vdev_spa, SPA_FEATURE_AVZ_V2))
 			spa_feature_incr(vd->vdev_spa, SPA_FEATURE_AVZ_V2, tx);
-		vd->vdev_root_zap = vdev_create_link_zap(vd, tx);
+		err = vdev_create_link_zap(vd, tx, &vd->vdev_root_zap);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 	}
 
 	for (uint64_t i = 0; i < vd->vdev_children; i++) {
-		vdev_construct_zaps(vd->vdev_child[i], tx);
+		err = vdev_construct_zaps(vd->vdev_child[i], tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
 	}
+
+	return (err);
 }
 
 static void
@@ -3681,6 +3727,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 	zfs_range_tree_t *rtsync;
 	dmu_tx_t *tx;
 	uint64_t object = space_map_object(vd->vdev_dtl_sm);
+	int err = 0;
 
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
@@ -3712,11 +3759,18 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 	if (vd->vdev_dtl_sm == NULL) {
 		uint64_t new_object;
 
-		new_object = space_map_alloc(mos, zfs_vdev_dtl_sm_blksz, tx);
+		err = space_map_alloc(mos, zfs_vdev_dtl_sm_blksz, tx,
+		    &new_object);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		VERIFY3U(new_object, !=, 0);
 
-		VERIFY0(space_map_open(&vd->vdev_dtl_sm, mos, new_object,
-		    0, -1ULL, 0));
+		err = space_map_open(&vd->vdev_dtl_sm, mos, new_object,
+		    0, -1ULL, 0);
+		if (err && SPA_EXITING(spa))
+			goto out;
+		VERIFY0(err);
 		ASSERT(vd->vdev_dtl_sm != NULL);
 	}
 
@@ -3745,6 +3799,7 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 		vdev_config_dirty(vd->vdev_top);
 	}
 
+out:
 	dmu_tx_commit(tx);
 }
 
@@ -4187,13 +4242,19 @@ vdev_destroy_ms_flush_data(vdev_t *vd, dmu_tx_t *tx)
 	uint64_t object = 0;
 	int err = zap_lookup(mos, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, sizeof (uint64_t), 1, &object);
+	if (!(err == ENOENT || err == 0) && SPA_EXITING(vd->vdev_spa))
+		return;
 	if (err == ENOENT)
 		return;
 	VERIFY0(err);
 
-	VERIFY0(dmu_object_free(mos, object, tx));
-	VERIFY0(zap_remove(mos, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, tx));
+	err = dmu_object_free(mos, object, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
+	err = zap_remove(mos, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
 }
 
 /*
@@ -4203,6 +4264,8 @@ vdev_destroy_ms_flush_data(vdev_t *vd, dmu_tx_t *tx)
 void
 vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 {
+	int err;
+
 	if (vd->vdev_ms_array == 0)
 		return;
 
@@ -4210,8 +4273,11 @@ vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 	uint64_t array_count = vd->vdev_asize >> vd->vdev_ms_shift;
 	size_t array_bytes = array_count * sizeof (uint64_t);
 	uint64_t *smobj_array = kmem_alloc(array_bytes, KM_SLEEP);
-	VERIFY0(dmu_read(mos, vd->vdev_ms_array, 0,
-	    array_bytes, smobj_array, 0));
+	err = dmu_read(mos, vd->vdev_ms_array, 0,
+	    array_bytes, smobj_array, 0);
+	if (err && SPA_EXITING(vd->vdev_spa))
+		goto skip;
+	VERIFY0(err);
 
 	for (uint64_t i = 0; i < array_count; i++) {
 		uint64_t smobj = smobj_array[i];
@@ -4221,8 +4287,11 @@ vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 		space_map_free_obj(mos, smobj, tx);
 	}
 
+skip:
 	kmem_free(smobj_array, array_bytes);
-	VERIFY0(dmu_object_free(mos, vd->vdev_ms_array, tx));
+	err = dmu_object_free(mos, vd->vdev_ms_array, tx);
+	if (!SPA_EXITING(vd->vdev_spa))
+		VERIFY0(err);
 	vdev_destroy_ms_flush_data(vd, tx);
 	vd->vdev_ms_array = 0;
 }
@@ -4288,12 +4357,13 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 	}
 }
 
-void
+int
 vdev_sync(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *lvd;
 	metaslab_t *msp;
+	int err = 0;
 
 	ASSERT3U(txg, ==, spa->spa_syncing_txg);
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
@@ -4311,7 +4381,7 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 			ASSERT(txg_list_empty(&vd->vdev_ms_list, txg));
 			ASSERT(txg_list_empty(&vd->vdev_dtl_list, txg));
 			dmu_tx_commit(tx);
-			return;
+			return (0);
 		}
 	}
 
@@ -4321,29 +4391,40 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 	    !vd->vdev_removing) {
 		ASSERT(vd == vd->vdev_top);
 		ASSERT0(vd->vdev_indirect_config.vic_mapping_object);
-		vd->vdev_ms_array = dmu_object_alloc(spa->spa_meta_objset,
-		    DMU_OT_OBJECT_ARRAY, 0, DMU_OT_NONE, 0, tx);
+		err = dmu_object_alloc(spa->spa_meta_objset,
+		    DMU_OT_OBJECT_ARRAY, 0, DMU_OT_NONE, 0, tx,
+		    &vd->vdev_ms_array);
+		if (err && SPA_EXITING(spa))
+			goto skip;
+		VERIFY0(err);
 		ASSERT(vd->vdev_ms_array != 0);
 		vdev_config_dirty(vd);
 	}
+skip:
 
 	while ((msp = txg_list_remove(&vd->vdev_ms_list, txg)) != NULL) {
-		metaslab_sync(msp, txg);
+		if (!err)
+			metaslab_sync(msp, txg);
 		(void) txg_list_add(&vd->vdev_ms_list, msp, TXG_CLEAN(txg));
 	}
 
-	while ((lvd = txg_list_remove(&vd->vdev_dtl_list, txg)) != NULL)
-		vdev_dtl_sync(lvd, txg);
+	while ((lvd = txg_list_remove(&vd->vdev_dtl_list, txg)) != NULL) {
+		if (!err)
+			vdev_dtl_sync(lvd, txg);
+	}
 
 	/*
 	 * If this is an empty log device being removed, destroy the
 	 * metadata associated with it.
 	 */
-	if (vd->vdev_islog && vd->vdev_stat.vs_alloc == 0 && vd->vdev_removing)
+	if (!err && vd->vdev_islog && vd->vdev_stat.vs_alloc == 0 &&
+	    vd->vdev_removing)
 		vdev_remove_empty_log(vd, txg);
 
 	(void) txg_list_add(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg));
 	dmu_tx_commit(tx);
+
+	return (err);
 }
 uint64_t
 vdev_asize_to_psize_txg(vdev_t *vd, uint64_t asize, uint64_t txg)

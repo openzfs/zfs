@@ -196,6 +196,7 @@ vdev_rebuild_update_sync(void *arg, dmu_tx_t *tx)
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 	uint64_t txg = dmu_tx_get_txg(tx);
+	int err;
 
 	mutex_enter(&vd->vdev_rebuild_lock);
 
@@ -207,9 +208,11 @@ vdev_rebuild_update_sync(void *arg, dmu_tx_t *tx)
 	vrp->vrp_scan_time_ms = vr->vr_prev_scan_time_ms +
 	    NSEC2MSEC(gethrtime() - vr->vr_pass_start_time);
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+	err = zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	    REBUILD_PHYS_ENTRIES, vrp, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
@@ -225,6 +228,8 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	boolean_t needed;
+	int err;
 
 	ASSERT(vd->vdev_rebuilding);
 
@@ -246,11 +251,20 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	 * be useful because it would allow us to rebuild the space used by
 	 * pool checkpoints.
 	 */
-	VERIFY(vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg));
+	needed = vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg);
+	if (SPA_EXITING(spa)) {
+		vrp->vrp_rebuild_state = VDEV_REBUILD_NONE;
+		vd->vdev_rebuilding = B_TRUE;
+		mutex_exit(&vd->vdev_rebuild_lock);
+		return;
+	}
+	VERIFY(needed);
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+	err = zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	    REBUILD_PHYS_ENTRIES, vrp, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	spa_history_log_internal(spa, "rebuild", tx,
 	    "vdev_id=%llu vdev_guid=%llu started",
@@ -308,6 +322,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	int err;
 
 	mutex_enter(&vd->vdev_rebuild_lock);
 
@@ -324,9 +339,11 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vrp->vrp_rebuild_state = VDEV_REBUILD_COMPLETE;
 	vrp->vrp_end_time = gethrestime_sec();
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+	err = zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	    REBUILD_PHYS_ENTRIES, vrp, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	vdev_dtl_reassess(vd, tx->tx_txg, vrp->vrp_max_txg, B_TRUE, B_TRUE);
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
@@ -372,14 +389,17 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	int err;
 
 	mutex_enter(&vd->vdev_rebuild_lock);
 	vrp->vrp_rebuild_state = VDEV_REBUILD_CANCELED;
 	vrp->vrp_end_time = gethrestime_sec();
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+	err = zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	    REBUILD_PHYS_ENTRIES, vrp, tx);
+	if (!SPA_EXITING(spa))
+		VERIFY0(err);
 
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
@@ -815,6 +835,11 @@ vdev_rebuild_thread(void *arg)
 		metaslab_t *msp = vd->vdev_ms[i];
 		vr->vr_scan_msp = msp;
 
+		if (SPA_EXITING(spa)) {
+			error = EIO;
+			break;
+		}
+
 		/*
 		 * Calculate the max number of in-flight bytes for top-level
 		 * vdev scanning operations (minimum 1MB, maximum 1/2 of
@@ -871,8 +896,11 @@ vdev_rebuild_thread(void *arg)
 		 * unflushed frees.  This is the minimum range to be rebuilt.
 		 */
 		if (msp->ms_sm != NULL) {
-			VERIFY0(space_map_load(msp->ms_sm,
-			    vr->vr_scan_tree, SM_ALLOC));
+			error = space_map_load(msp->ms_sm,
+			    vr->vr_scan_tree, SM_ALLOC);
+			if (!error && SPA_EXITING(spa))
+				goto skip;
+			VERIFY0(error);
 
 			for (int i = 0; i < TXG_SIZE; i++) {
 				ASSERT0(zfs_range_tree_space(
@@ -893,6 +921,7 @@ vdev_rebuild_thread(void *arg)
 			    vrp->vrp_last_offset);
 		}
 
+skip:
 		mutex_exit(&msp->ms_lock);
 		mutex_exit(&msp->ms_sync_lock);
 
@@ -909,7 +938,8 @@ vdev_rebuild_thread(void *arg)
 		/*
 		 * Walk the allocated space map and issue the rebuild I/O.
 		 */
-		error = vdev_rebuild_ranges(vr);
+		if (!error)
+			error = vdev_rebuild_ranges(vr);
 		zfs_range_tree_vacate(vr->vr_scan_tree, NULL, NULL);
 
 		/*

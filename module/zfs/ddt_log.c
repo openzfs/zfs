@@ -27,6 +27,7 @@
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/ddt.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dmu.h>
 #include <sys/ddt_impl.h>
@@ -99,8 +100,15 @@ static void
 ddt_log_update_header(ddt_t *ddt, ddt_log_t *ddl, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
-	VERIFY0(dmu_bonus_hold(ddt->ddt_os, ddl->ddl_object, FTAG, &db));
+	int err;
+
+	err = dmu_bonus_hold(ddt->ddt_os, ddl->ddl_object, FTAG, &db);
+	if (err && SPA_EXITING(ddt->ddt_spa))
+		return;
+	VERIFY0(err);
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(ddt->ddt_spa))
+		goto out;
 
 	ddt_log_header_t *hdr = (ddt_log_header_t *)db->db_data;
 	DLH_SET_VERSION(hdr, 1);
@@ -109,33 +117,53 @@ ddt_log_update_header(ddt_t *ddt, ddt_log_t *ddl, dmu_tx_t *tx)
 	hdr->dlh_first_txg = ddl->ddl_first_txg;
 	hdr->dlh_checkpoint = ddl->ddl_checkpoint;
 
+out:
 	dmu_buf_rele(db, FTAG);
 }
 
-static void
+static int
 ddt_log_create_one(ddt_t *ddt, ddt_log_t *ddl, uint_t n, dmu_tx_t *tx)
 {
+	int err = 0;
+
 	ASSERT3U(ddt->ddt_dir_object, >, 0);
 	ASSERT0(ddl->ddl_object);
 
 	char name[DDT_NAMELEN];
 	ddt_log_name(ddt, name, n);
 
-	ddl->ddl_object = dmu_object_alloc(ddt->ddt_os,
+	err = dmu_object_alloc(ddt->ddt_os,
 	    DMU_OTN_UINT64_METADATA, SPA_OLD_MAXBLOCKSIZE,
-	    DMU_OTN_UINT64_METADATA, sizeof (ddt_log_header_t), tx);
-	VERIFY0(zap_add(ddt->ddt_os, ddt->ddt_dir_object, name,
-	    sizeof (uint64_t), 1, &ddl->ddl_object, tx));
+	    DMU_OTN_UINT64_METADATA, sizeof (ddt_log_header_t), tx,
+	    &ddl->ddl_object);
+	if (err && SPA_EXITING(ddt->ddt_os->os_spa))
+		return (err);
+	VERIFY0(err);
+
+	err = zap_add(ddt->ddt_os, ddt->ddt_dir_object, name,
+	    sizeof (uint64_t), 1, &ddl->ddl_object, tx);
+	if (err && SPA_EXITING(ddt->ddt_os->os_spa))
+		return (err);
+	VERIFY0(err);
 	ddl->ddl_length = 0;
 	ddl->ddl_first_txg = tx->tx_txg;
 	ddt_log_update_header(ddt, ddl, tx);
+
+	return (err);
 }
 
-static void
+static int
 ddt_log_create(ddt_t *ddt, dmu_tx_t *tx)
 {
-	ddt_log_create_one(ddt, ddt->ddt_log_active, 0, tx);
-	ddt_log_create_one(ddt, ddt->ddt_log_flushing, 1, tx);
+	int err = 0;
+
+	err = ddt_log_create_one(ddt, ddt->ddt_log_active, 0, tx);
+	if (err)
+		return (err);
+
+	err = ddt_log_create_one(ddt, ddt->ddt_log_flushing, 1, tx);
+
+	return (err);
 }
 
 static void
@@ -192,14 +220,21 @@ ddt_log_update_stats(ddt_t *ddt)
 	ddo->ddo_dspace = nblocks << 9;
 }
 
-void
+int
 ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx, ddt_log_update_t *dlu)
 {
+	spa_t *spa = ddt->ddt_spa;
+	int err = 0;
+
 	ASSERT3U(nentries, >, 0);
 	ASSERT0P(dlu->dlu_dbp);
 
-	if (ddt->ddt_log_active->ddl_object == 0)
-		ddt_log_create(ddt, tx);
+	if (ddt->ddt_log_active->ddl_object == 0) {
+		err = ddt_log_create(ddt, tx);
+		if (err && SPA_EXITING(spa))
+			return (err);
+		VERIFY0(err);
+	}
 
 	/*
 	 * We want to store as many entries as we can in a block, but never
@@ -211,8 +246,11 @@ ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx, ddt_log_update_t *dlu)
 	ASSERT3U(reclen, <=, UINT16_MAX);
 	dlu->dlu_reclen = reclen;
 
-	VERIFY0(dnode_hold(ddt->ddt_os, ddt->ddt_log_active->ddl_object, dlu,
-	    &dlu->dlu_dn));
+	err = dnode_hold(ddt->ddt_os, ddt->ddt_log_active->ddl_object, dlu,
+	    &dlu->dlu_dn);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 	dnode_set_storage_type(dlu->dlu_dn, DMU_OT_DDT_ZAP);
 
 	uint64_t nblocks = howmany(nentries,
@@ -220,12 +258,17 @@ ddt_log_begin(ddt_t *ddt, size_t nentries, dmu_tx_t *tx, ddt_log_update_t *dlu)
 	uint64_t offset = ddt->ddt_log_active->ddl_length;
 	uint64_t length = nblocks * dlu->dlu_dn->dn_datablksz;
 
-	VERIFY0(dmu_buf_hold_array_by_dnode(dlu->dlu_dn, offset, length,
+	err = dmu_buf_hold_array_by_dnode(dlu->dlu_dn, offset, length,
 	    B_FALSE, dlu, &dlu->dlu_ndbp, &dlu->dlu_dbp,
-	    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO));
+	    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
+	if (err && SPA_EXITING(spa))
+		return (err);
+	VERIFY0(err);
 
 	dlu->dlu_tx = tx;
 	dlu->dlu_block = dlu->dlu_offset = 0;
+
+	return (err);
 }
 
 static ddt_log_entry_t *

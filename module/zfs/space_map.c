@@ -30,6 +30,7 @@
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
 #include <sys/dsl_pool.h>
@@ -401,6 +402,8 @@ static int
 space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
+	if (SPA_EXITING(smla->smla_sm->sm_os->os_spa))
+		return (SET_ERROR(EIO));
 	if (sme->sme_type == smla->smla_type) {
 		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
@@ -595,10 +598,17 @@ space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
 			dmu_buf_rele(db, tag);
 
 			uint64_t next_word_offset = sm->sm_phys->smp_length;
-			VERIFY0(dmu_buf_hold(sm->sm_os,
+			int err = dmu_buf_hold(sm->sm_os,
 			    space_map_object(sm), next_word_offset,
-			    tag, &db, DMU_READ_PREFETCH));
+			    tag, &db, DMU_READ_PREFETCH);
+			if (SPA_EXITING(sm->sm_os->os_spa))
+				return;
+			VERIFY0(err);
 			dmu_buf_will_dirty(db, tx);
+			if (SPA_EXITING(sm->sm_os->os_spa)) {
+				dmu_buf_rele(db, tag);
+				return;
+			}
 
 			/* update caller's dbuf */
 			*dbp = db;
@@ -674,8 +684,11 @@ space_map_write_impl(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 	dmu_buf_t *db;
+	int err;
 
 	space_map_write_intro_debug(sm, maptype, tx);
+	if (SPA_EXITING(spa))
+		return;
 
 #ifdef ZFS_DEBUG
 	/*
@@ -694,11 +707,18 @@ space_map_write_impl(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 	 * start appending to it.
 	 */
 	uint64_t next_word_offset = sm->sm_phys->smp_length;
-	VERIFY0(dmu_buf_hold(sm->sm_os, space_map_object(sm),
-	    next_word_offset, FTAG, &db, DMU_READ_PREFETCH));
+	err = dmu_buf_hold(sm->sm_os, space_map_object(sm),
+	    next_word_offset, FTAG, &db, DMU_READ_PREFETCH);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 	ASSERT3U(db->db_size, ==, sm->sm_blksz);
 
 	dmu_buf_will_dirty(db, tx);
+	if (SPA_EXITING(spa)) {
+		dmu_buf_rele(db, FTAG);
+		return;
+	}
 
 	zfs_btree_t *t = &rt->rt_root;
 	zfs_btree_index_t where;
@@ -735,6 +755,10 @@ space_map_write_impl(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 		space_map_write_seg(sm, zfs_rs_get_start(rs, rt),
 		    zfs_rs_get_end(rs, rt), maptype, vdev_id, words, &db,
 		    FTAG, tx);
+		if (SPA_EXITING(spa)) {
+			dmu_buf_rele(db, FTAG);
+			return;
+		}
 	}
 
 	dmu_buf_rele(db, FTAG);
@@ -762,7 +786,11 @@ space_map_write(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(sm->sm_os)));
 	VERIFY3U(space_map_object(sm), !=, 0);
 
+	spa_t *spa = sm->sm_os->os_spa;
+
 	dmu_buf_will_dirty(sm->sm_dbuf, tx);
+	if (SPA_EXITING(spa))
+		return;
 
 	/*
 	 * This field is no longer necessary since the in-core space map
@@ -785,6 +813,8 @@ space_map_write(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 	uint64_t rt_space = zfs_range_tree_space(rt);
 
 	space_map_write_impl(sm, rt, maptype, vdev_id, tx);
+	if (SPA_EXITING(spa))
+		return;
 
 	/*
 	 * Ensure that the space_map's accounting wasn't changed
@@ -861,6 +891,7 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	objset_t *os = sm->sm_os;
 	spa_t *spa = dmu_objset_spa(os);
 	dmu_object_info_t doi;
+	int err = 0;
 
 	ASSERT(dsl_pool_sync_context(dmu_objset_pool(os)));
 	ASSERT(dmu_tx_is_syncing(tx));
@@ -890,10 +921,19 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 		space_map_free(sm, tx);
 		dmu_buf_rele(sm->sm_dbuf, sm);
 
-		sm->sm_object = space_map_alloc(sm->sm_os, blocksize, tx);
-		VERIFY0(space_map_open_impl(sm));
+		err = space_map_alloc(sm->sm_os, blocksize, tx, &sm->sm_object);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
+		err = space_map_open_impl(sm);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 	} else {
-		VERIFY0(dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx));
+		err = dmu_free_range(os, space_map_object(sm), 0, -1ULL, tx);
+		if (err && SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 
 		/*
 		 * If the spacemap is reallocated, its histogram
@@ -909,11 +949,10 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	sm->sm_phys->smp_alloc = 0;
 }
 
-uint64_t
-space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
+int
+space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx, uint64_t *objectp)
 {
 	spa_t *spa = dmu_objset_spa(os);
-	uint64_t object;
 	int bonuslen;
 
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
@@ -924,27 +963,33 @@ space_map_alloc(objset_t *os, int blocksize, dmu_tx_t *tx)
 		bonuslen = SPACE_MAP_SIZE_V0;
 	}
 
-	object = dmu_object_alloc_ibs(os, DMU_OT_SPACE_MAP, blocksize,
-	    space_map_ibs, DMU_OT_SPACE_MAP_HEADER, bonuslen, tx);
-
-	return (object);
+	return (dmu_object_alloc_ibs(os, DMU_OT_SPACE_MAP, blocksize,
+	    space_map_ibs, DMU_OT_SPACE_MAP_HEADER, bonuslen, tx, objectp));
 }
 
 void
 space_map_free_obj(objset_t *os, uint64_t smobj, dmu_tx_t *tx)
 {
+	int err;
+
 	spa_t *spa = dmu_objset_spa(os);
 	if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_HISTOGRAM)) {
 		dmu_object_info_t doi;
 
-		VERIFY0(dmu_object_info(os, smobj, &doi));
+		err = dmu_object_info(os, smobj, &doi);
+		if (SPA_EXITING(spa))
+			return;
+		VERIFY0(err);
 		if (doi.doi_bonus_size != SPACE_MAP_SIZE_V0) {
 			spa_feature_decr(spa,
 			    SPA_FEATURE_SPACEMAP_HISTOGRAM, tx);
 		}
 	}
 
-	VERIFY0(dmu_object_free(os, smobj, tx));
+	err = dmu_object_free(os, smobj, tx);
+	if (SPA_EXITING(spa))
+		return;
+	VERIFY0(err);
 }
 
 void

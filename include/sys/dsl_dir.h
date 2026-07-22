@@ -146,8 +146,8 @@ int dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
     const char *tail, const void *tag, dsl_dir_t **);
 void dsl_dir_name(dsl_dir_t *dd, char *buf);
 int dsl_dir_namelen(dsl_dir_t *dd);
-uint64_t dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds,
-    const char *name, dmu_tx_t *tx);
+int dsl_dir_create_sync(dsl_pool_t *dp, dsl_dir_t *pds,
+    const char *name, dmu_tx_t *tx, uint64_t *objectp);
 
 uint64_t dsl_dir_get_used(dsl_dir_t *dd);
 uint64_t dsl_dir_get_compressed(dsl_dir_t *dd);

@@ -112,7 +112,7 @@ extern void zfs_fuid_map_ids(struct znode *zp, cred_t *cr,
 extern zfs_fuid_info_t *zfs_fuid_info_alloc(void);
 extern void zfs_fuid_info_free(zfs_fuid_info_t *);
 extern boolean_t zfs_groupmember(zfsvfs_t *, uint64_t, cred_t *);
-void zfs_fuid_sync(zfsvfs_t *, dmu_tx_t *);
+int zfs_fuid_sync(zfsvfs_t *, dmu_tx_t *);
 extern const char *zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx);
 extern void zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 extern int zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
