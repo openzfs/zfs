@@ -130,7 +130,7 @@ static inline uint64_t
 vdev_anyraid_header_offset(vdev_t *vd, int id)
 {
 	uint64_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE(vd->vdev_ashift);
-	if (id < VDEV_ANYRAID_START_COPES)
+	if (id < VDEV_ANYRAID_START_COPIES)
 		return (VDEV_LABEL_START_SIZE + id * full_size);
 	else
 		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
@@ -578,6 +578,8 @@ anyraid_open_existing(vdev_t *vd, uint64_t child, int32_t **child_capacities)
 		free_header(&header, header_size);
 		zfs_dbgmsg("Error opening anyraid vdev %llu: map read error %d",
 		    (u_longlong_t)vd->vdev_id, error);
+		kmem_free(*child_capacities, sizeof (**child_capacities) *
+		    count);
 		return (error);
 	}
 	free_header(&header, header_size);
@@ -993,13 +995,10 @@ vdev_anyraid_close(vdev_t *vd)
 	anyraid_tile_t *tile = NULL;
 	void *cookie = NULL;
 	while ((tile = avl_destroy_nodes(&var->vd_tile_map, &cookie))) {
-		if (var->vd_nparity != 0) {
-			anyraid_tile_node_t *atn = NULL;
-			while ((atn = list_remove_head(&tile->at_list))) {
-				kmem_free(atn, sizeof (*atn));
-			}
-			list_destroy(&tile->at_list);
-		}
+		anyraid_tile_node_t *atn = NULL;
+		while ((atn = list_remove_head(&tile->at_list)))
+			kmem_free(atn, sizeof (*atn));
+		list_destroy(&tile->at_list);
 		kmem_free(tile, sizeof (*tile));
 	}
 }
@@ -1106,6 +1105,8 @@ vdev_anyraid_io_start(zio_t *zio)
 		    KM_SLEEP);
 		for (int i = 0; i < width; i++) {
 			vans[i] = avl_first(&var->vd_children_tree);
+			ASSERT(vans[i] && vans[i]->van_next_offset <
+			    vans[i]->van_capacity);
 			avl_remove(&var->vd_children_tree, vans[i]);
 
 			anyraid_tile_node_t *atn =
@@ -1425,8 +1426,11 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	map_write_issue(zio, vd, base_offset, written, buf_offset, map_abd,
 	    &cksums[written], flags);
 
-	if (zio_wait(zio))
+	if (zio_wait(zio)) {
+		abd_return_buf(header_abd, header_buf, header_size);
+		abd_free(header_abd);
 		return;
+	}
 
 	// Populate the header
 	uint16_t *sizes = kmem_zalloc(sizeof (*sizes) *

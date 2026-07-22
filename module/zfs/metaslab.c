@@ -3464,8 +3464,7 @@ metaslab_segment_weight(metaslab_t *msp)
 	 * that case specifically.
 	 */
 	vdev_t *vd = mg->mg_vd;
-	if ((vd->vdev_ops == &vdev_anyraid_ops ||
-	    metaslab_lba_weighting_enabled) &&
+	if (vd->vdev_ops == &vdev_anyraid_ops &&
 	    WEIGHT_GET_INDEX(weight) > SPA_MAXBLOCKSHIFT) {
 		uint64_t id = msp->ms_id;
 		uint64_t count = vd->vdev_ms_count;
