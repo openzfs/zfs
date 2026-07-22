@@ -446,6 +446,7 @@ dnode_verify(dnode_t *dn)
 		ASSERT3U(dn->dn_phys->dn_nlevels, <=, dn->dn_nlevels);
 	ASSERT(DMU_OBJECT_IS_SPECIAL(dn->dn_object) || dn->dn_dbuf != NULL);
 	if (dn->dn_dbuf != NULL) {
+		assert_db_data_addr_locked(dn->dn_dbuf);
 		ASSERT3P(dn->dn_phys, ==,
 		    (dnode_phys_t *)dn->dn_dbuf->db.db_data +
 		    (dn->dn_object % (dn->dn_dbuf->db.db_size >> DNODE_SHIFT)));
@@ -1529,6 +1530,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	epb = db->db.db_size >> DNODE_SHIFT;
 
 	idx = object & (epb - 1);
+	assert_db_data_addr_locked(db);
 	dn_block = (dnode_phys_t *)db->db.db_data;
 
 	ASSERT(DB_DNODE(db)->dn_type == DMU_OT_DNODE);
@@ -1615,8 +1617,10 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 				DNODE_STAT_BUMP(dnode_hold_alloc_lock_misses);
 				dn = dnh->dnh_dnode;
 			} else {
+				rw_enter(&db->db_rwlock, RW_READER);
 				dn = dnode_create(os, dn_block + idx, db,
 				    object, dnh);
+				rw_exit(&db->db_rwlock);
 				dmu_buf_add_user_size(&db->db,
 				    sizeof (dnode_t));
 			}
@@ -1688,8 +1692,10 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 		if (DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
 			dn = dnh->dnh_dnode;
 		} else {
+			rw_enter(&db->db_rwlock, RW_READER);
 			dn = dnode_create(os, dn_block + idx, db,
 			    object, dnh);
+			rw_exit(&db->db_rwlock);
 			dmu_buf_add_user_size(&db->db, sizeof (dnode_t));
 		}
 
@@ -2207,8 +2213,10 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
 		if (db->db_level != 1 || db->db_blkid >= end_blkid)
 			break;
+		mutex_enter(&db->db_mtx);
 		if (db->db_state != DB_EVICTING)
 			ASSERT(db->db_dirtycnt > 0);
+		mutex_exit(&db->db_mtx);
 	}
 #endif
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
@@ -2597,6 +2605,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, int lvl, uint64_t blkid,
 			dbuf_rele(db, FTAG);
 			return (error);
 		}
+		assert_db_data_addr_locked(db);
 		data = db->db.db_data;
 		rw_enter(&db->db_rwlock, RW_READER);
 	}
