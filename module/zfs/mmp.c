@@ -570,7 +570,9 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	for (uint64_t c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
-		if (cvd->vdev_islog || cvd->vdev_isspare || cvd->vdev_isl2cache)
+		if (cvd->vdev_islog || cvd->vdev_isspare ||
+		    cvd->vdev_isl2cache || cvd->vdev_ishole ||
+		    cvd->vdev_ops == &vdev_indirect_ops)
 			continue;
 
 		if (cvd->vdev_top == cvd) {

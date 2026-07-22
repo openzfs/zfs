@@ -93,7 +93,7 @@ log_assert "multihost=on concurrent imports"
 log_onexit cleanup
 
 # 1. Create a multihost enabled pool with HOSTID1
-mmp_pool_create_simple $MMP_POOL $MMP_DIR
+mmp_pool_create_simple $MMP_POOL $MMP_DIR enriched
 log_must zpool export -F $MMP_POOL
 
 # 2. zhack imports: $HOSTID1 (matching) and $HOSTID1 (matching)
