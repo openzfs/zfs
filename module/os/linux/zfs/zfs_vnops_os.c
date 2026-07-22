@@ -52,6 +52,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
+#include <sys/dmu_direct_os.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa.h>
 #include <sys/txg.h>
@@ -71,6 +72,7 @@
 #include <sys/zpl.h>
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
+#include <sys/rrwlock.h>
 #include <linux/mm_compat.h>
 
 /*
@@ -4515,3 +4517,721 @@ EXPORT_SYMBOL(zfs_map);
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
 #endif
+
+/*
+ * =========================================================================
+ * Async Direct I/O
+ * =========================================================================
+ *
+ * Submits O_DIRECT reads and writes to the ZIO pipeline and returns
+ * -EIOCBQUEUED to the Linux VFS so the submitting kworker can service
+ * other io_uring / libaio requests.  Completion is signalled via
+ * kiocb->ki_complete() from ZIO taskq context.
+ *
+ * Reads:  pin user pages into an ABD → dmu_read_abd_async().
+ *         The ABD is freed in the callback after DMA completes.
+ *
+ * Writes: copy user data into a kernel-linear ABD (avoids FOLL_LONGTERM
+ *         pinning issues on RHEL/mainline ≥ 6.0) → dmu_write_abd_async().
+ *         On ZIO completion, metadata updates and transaction commit run
+ *         on system_taskq in process context.
+ */
+
+/*
+ * Dedicated caches for async read/write callback structs.
+ * Eliminates per-I/O kmalloc fast-path overhead and improves
+ * CPU cache locality by grouping same-type objects together.
+ */
+static kmem_cache_t *zfs_async_read_cb_cache = NULL;
+static kmem_cache_t *zfs_async_write_cb_cache = NULL;
+
+/*
+ * Completion callback for zfs_read_async().  Invoked from ZIO taskq
+ * context when all blocks have been read.  Cleans up the range lock,
+ * DIO pages, atime, and signals completion via kiocb->ki_complete().
+ */
+struct zfs_async_read_cb
+{
+	struct kiocb	*kiocb;
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs;
+	zfs_locked_range_t *lr;
+	zfs_uio_t	uio;
+	ssize_t		start_resid;
+	abd_t		*data;	/* ABD wrapping user pages; freed in cb */
+};
+
+/*
+ * Async DIO in-flight accounting.  The submitting thread holds the
+ * teardown lock (zfs_enter) only across submission; completions run in
+ * ZIO/system taskq threads, which must NOT release a teardown reader
+ * lock acquired by another thread: once a teardown writer is waiting
+ * (rr_writer_wanted -- umount, export, rollback, recv -F), rrwlock
+ * tracks new readers on the submitting thread's rrn list, and a
+ * cross-thread rrw_exit() misses that node and corrupts the anon/linked
+ * reader counts (refcount VERIFY panic, or the teardown writer waits
+ * forever).  Instead, each submitted async operation holds
+ * z_async_dio_inflight until its completion has made its last touch of
+ * the zfsvfs/znode, and zfsvfs_teardown() drains the counter right
+ * after taking the teardown lock as writer -- at which point no new
+ * async I/O can be submitted.
+ */
+static void
+zfs_async_dio_hold(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_inflight++;
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
+static void
+zfs_async_dio_rele(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	ASSERT3U(zfsvfs->z_async_dio_inflight, >, 0);
+	if (--zfsvfs->z_async_dio_inflight == 0)
+		cv_broadcast(&zfsvfs->z_async_dio_cv);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
+static void
+zfs_async_read_complete(void *arg, int error)
+{
+	struct zfs_async_read_cb *cb = arg;
+	ssize_t read;
+
+	/*
+	 * For the DIO (ABD) path, dmu_read_abd_async() writes data directly
+	 * to the user pages via DMA, so uio_resid is never decremented.
+	 * On success, report the full requested size as the bytes read.
+	 * On checksum error we report the error to the caller.
+	 */
+	if (error == 0)
+		read = cb->start_resid;
+	else
+		read = 0;
+
+	/*
+	 * A Direct I/O read that fails checksum verification is suspect:
+	 * a concurrent writer may have modified the buffer in flight. The
+	 * synchronous path reissues the read through the ARC and, if that
+	 * also fails, returns EIO (see zfs_read()). This completion runs in
+	 * ZIO taskq context without the submitter's mm and cannot re-copy
+	 * ARC data into the pinned user pages, so it cannot retry; convert
+	 * ECKSUM to EIO so the internal error code never leaks to userspace
+	 * and the result matches the sync path for genuinely corrupt data.
+	 * (Transient races the sync path would recover via the ARC retry
+	 * are not recovered here -- see harness tests/b4-arc-fallback.)
+	 */
+	if (error == ECKSUM)
+		error = SET_ERROR(EIO);
+
+	dataset_kstats_update_read_kstats(&cb->zfsvfs->z_kstat, read);
+	zfs_rangelock_exit(cb->lr);
+
+	/*
+	 * Unpin DIO pages — DMA is complete (or failed).
+	 */
+	if (cb->uio.uio_extflg & UIO_DIRECT)
+		zfs_uio_free_dio_pages(&cb->uio, UIO_READ);
+
+	ZFS_ACCESSTIME_STAMP(cb->zfsvfs, cb->zp);
+
+	/*
+	 * Last touch of the zfsvfs/znode: drop the in-flight hold that
+	 * has kept zfsvfs_teardown() at bay since submission (the
+	 * teardown reader lock itself was released by the submitting
+	 * thread; see zfs_async_dio_hold()).
+	 */
+	zfs_async_dio_rele(cb->zfsvfs);
+
+	/*
+	 * Free the ABD that wraps the user pages.  The data is now in the
+	 * user pages, and the pages are unpinned by zfs_uio_free_dio_pages()
+	 * above.  In the synchronous path, the caller frees the ABD after
+	 * zio_wait() returns; here we must do it in the callback.
+	 */
+	if (cb->data != NULL)
+		abd_free(cb->data);
+
+#ifdef HAVE_2ARGS_KI_COMPLETE
+	cb->kiocb->ki_complete(cb->kiocb, error ? -error : read);
+#else
+	cb->kiocb->ki_complete(cb->kiocb, error ? -error : read, 0);
+#endif
+	kmem_cache_free(zfs_async_read_cb_cache, cb);
+}
+
+/*
+ * Async Direct I/O read.  Pins user pages (requires current->mm),
+ * submits reads via dmu_read_abd_async(), and returns 0 on success.
+ * The caller should then return -EIOCBQUEUED to the VFS.
+ *
+ * On I/O completion, zfs_async_read_complete() handles cleanup and
+ * calls kiocb->ki_complete().
+ *
+ * Returns 0 on successful async submission, or positive errno if the
+ * read must be done synchronously.
+ */
+int
+zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb)
+{
+	(void) cr;
+	int error;
+	ssize_t n;
+
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EACCES));
+	}
+	if (Z_ISDIR(ZTOTYPE(zp))) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EISDIR));
+	}
+
+	/* Pin user pages for DIO — requires current->mm (we're in kworker) */
+	error = zfs_setup_direct(zp, uio, UIO_READ, &ioflag);
+	if (error || !(uio->uio_extflg & UIO_DIRECT)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error ? error : SET_ERROR(EOPNOTSUPP));
+	}
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
+
+	if (zfs_uio_offset(uio) >= zp->z_size) {
+		/*
+		 * File truncated between caller's i_size_read() guard
+		 * and our range lock.  No data to read and no ZIO
+		 * queued, so return an error — the caller falls
+		 * through to sync rather than returning -EIOCBQUEUED.
+		 */
+		zfs_rangelock_exit(lr);
+		zfs_uio_free_dio_pages(uio, UIO_READ);
+		ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
+	ssize_t aligned_n = P2ALIGN_TYPED(n, PAGE_SIZE, ssize_t);
+	if (aligned_n == 0) {
+		zfs_rangelock_exit(lr);
+		zfs_uio_free_dio_pages(uio, UIO_READ);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/* Build ABD from pinned pages */
+	offset_t offset = zfs_uio_offset(uio);
+	offset_t page_idx = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
+	ASSERT3U(page_idx, <, uio->uio_dio.npages);
+	abd_t *data = abd_alloc_from_pages(&uio->uio_dio.pages[page_idx],
+	    offset & (PAGESIZE - 1), aligned_n);
+
+	dmu_flags_t dflags = DMU_READ_PREFETCH | DMU_DIRECTIO;
+	if (ioflag & O_DIRECT)
+		dflags |= DMU_UNCACHEDIO;
+
+	struct zfs_async_read_cb *cb =
+	    kmem_cache_alloc(zfs_async_read_cb_cache, KM_SLEEP);
+	cb->kiocb = kiocb;
+	cb->zp = zp;
+	cb->zfsvfs = zfsvfs;
+	cb->lr = lr;
+	cb->uio = *uio;
+	cb->uio.uio_resid = aligned_n;
+	cb->start_resid = aligned_n;
+	cb->data = data;
+
+	/*
+	 * Held until the completion's last touch of the zfsvfs; taken
+	 * before submission because the completion may fire (and rele)
+	 * before dmu_read_abd_async() returns.  A nonzero return means
+	 * the callback will never run, so the error path must rele.
+	 */
+	zfs_async_dio_hold(zfsvfs);
+
+	dmu_buf_t *db = sa_get_db(zp->z_sa_hdl);
+	error = dmu_read_abd_async(DB_DNODE((dmu_buf_impl_t *)db),
+	    offset, aligned_n, data, dflags, zfs_async_read_complete, cb);
+
+	if (error) {
+		zfs_async_dio_rele(zfsvfs);
+		abd_free(data);
+		zfs_rangelock_exit(lr);
+		zfs_uio_free_dio_pages(uio, UIO_READ);
+		zfs_exit(zfsvfs, FTAG);
+		kmem_cache_free(zfs_async_read_cb_cache, cb);
+		return (error);
+	}
+
+	/*
+	 * The in-flight hold now stands in for the teardown reader lock,
+	 * which must be released here, on the thread that acquired it.
+	 */
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+}
+
+/*
+ * Callback state for zfs_write_async().  Carries everything needed to
+ * complete the write once the ZIOs finish.
+ */
+struct zfs_async_write_cb {
+	struct kiocb	*kiocb;
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs;
+	zfs_locked_range_t *lr;
+	zfs_uio_t	uio;
+	ssize_t		start_resid;
+	boolean_t	dio;
+	abd_t		*data;
+	dmu_tx_t	*tx;
+	offset_t	woff;
+	ssize_t		tx_bytes;
+	sa_bulk_attr_t	bulk[4];
+	int		bulk_count;
+	uint64_t	mtime[2];
+	uint64_t	ctime[2];
+	uint64_t	clear_setid_bits_txg;
+	cred_t		*cr;
+	boolean_t	do_commit;
+	int		error;
+	ssize_t		wrote;
+};
+
+static void
+zfs_async_write_task(void *arg)
+{
+	struct zfs_async_write_cb *cb = arg;
+	zilog_t *zilog = cb->zfsvfs->z_log;
+
+	if (cb->error == 0) {
+		if (cb->cr != NULL) {
+			zfs_clear_setid_bits_if_necessary(cb->zfsvfs, cb->zp,
+			    cb->cr, &cb->clear_setid_bits_txg, cb->tx);
+		}
+
+		zfs_tstamp_update_setup(cb->zp, CONTENT_MODIFIED,
+		    cb->mtime, cb->ctime);
+
+		uint64_t end_size;
+		while ((end_size = cb->zp->z_size) <
+		    (uint64_t)(cb->woff + cb->wrote))
+			(void) atomic_cas_64(&cb->zp->z_size, end_size,
+			    (uint64_t)(cb->woff + cb->wrote));
+
+		(void) sa_bulk_update(cb->zp->z_sa_hdl, cb->bulk,
+		    cb->bulk_count, cb->tx);
+
+		zfs_log_write(zilog, cb->tx, TX_WRITE, cb->zp, cb->woff,
+		    cb->wrote, cb->do_commit, cb->dio, NULL, NULL);
+
+		dmu_tx_commit(cb->tx);
+	} else {
+		/*
+		 * The tx was assigned at submit time and must be committed
+		 * even though the write failed: dmu_tx_abort() VERIFYs
+		 * tx_txg == 0 and panics on an assigned tx.  The
+		 * synchronous path likewise commits on a post-assign write
+		 * error (see zfs_write()); committing with no changes is
+		 * legal, and metadata updates and zfs_log_write are
+		 * correctly skipped above.
+		 */
+		dmu_tx_commit(cb->tx);
+		cb->wrote = 0;
+	}
+
+	dataset_kstats_update_write_kstats(&cb->zfsvfs->z_kstat, cb->wrote);
+	zfs_znode_update_vfs(cb->zp);
+	zfs_rangelock_exit(cb->lr);
+	if (cb->uio.uio_extflg & UIO_DIRECT)
+		zfs_uio_free_dio_pages(&cb->uio, UIO_WRITE);
+
+	/* zil_commit before teardown lock release (matches zfs_write()) */
+	if (cb->error == 0 && cb->do_commit) {
+		int zil_err = zil_commit(zilog, cb->zp->z_id);
+		if (zil_err != 0 && cb->error == 0)
+			cb->error = zil_err;
+	}
+
+	/*
+	 * Last touch of the zfsvfs/znode: drop the in-flight hold that
+	 * has kept zfsvfs_teardown() at bay since submission (the
+	 * teardown reader lock itself was released by the submitting
+	 * thread; see zfs_async_dio_hold()).  Must come after the
+	 * zil_commit above so teardown's zil_close() cannot race it.
+	 */
+	zfs_async_dio_rele(cb->zfsvfs);
+
+	if (cb->data != NULL)
+		abd_free(cb->data);
+	if (cb->cr != NULL)
+		crfree(cb->cr);
+
+#ifdef HAVE_2ARGS_KI_COMPLETE
+	cb->kiocb->ki_complete(cb->kiocb,
+	    cb->error ? -cb->error : cb->wrote);
+#else
+	cb->kiocb->ki_complete(cb->kiocb,
+	    cb->error ? -cb->error : cb->wrote, 0);
+#endif
+	kmem_cache_free(zfs_async_write_cb_cache, cb);
+}
+
+/*
+ * Completion callback for dmu_write_abd_async().  Called from ZIO
+ * taskq context when all writes finish.  Dispatches to system_taskq
+ * for metadata operations, transaction commit, cleanup, and ki_complete
+ * — all in process context, not ZIO taskq.
+ */
+static void
+zfs_async_write_complete(void *arg, int error)
+{
+	struct zfs_async_write_cb *cb = arg;
+
+	cb->wrote = cb->start_resid - cb->uio.uio_resid;
+	cb->error = error;
+
+	/*
+	 * TQ_SLEEP dispatch sleeps for memory rather than failing
+	 * (task_alloc() falls through to kmem_alloc(KM_SLEEP)); the only
+	 * TASKQID_INVALID return is from a taskq being destroyed, which
+	 * cannot happen to system_taskq while this module is loaded.
+	 * Do not fall back to running the task inline: this is ZIO
+	 * completion context, where zil_commit() can self-deadlock, and
+	 * clobbering the error code of a successful write would report
+	 * failure for data that is already on disk.
+	 */
+	VERIFY3U(taskq_dispatch(system_taskq, zfs_async_write_task,
+	    cb, TQ_SLEEP), !=, TASKQID_INVALID);
+}
+
+/*
+ * Async Direct I/O write.  Copies user data into a kernel ABD, acquires
+ * locks, creates a transaction, and dispatches writes via
+ * dmu_write_abd_async().  The caller returns -EIOCBQUEUED to the VFS.
+ *
+ * On I/O completion, zfs_async_write_complete() fires from ZIO taskq
+ * and dispatches to system_taskq for metadata operations and cleanup
+ * in process context.
+ */
+int
+zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb)
+{
+	int error;
+	ssize_t n;
+
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EACCES));
+	}
+	if (Z_ISDIR(ZTOTYPE(zp))) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EISDIR));
+	}
+	if (zfs_is_readonly(zfsvfs)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EROFS));
+	}
+	if ((zp->z_pflags & ZFS_IMMUTABLE) ||
+	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & O_APPEND) &&
+	    (zfs_uio_offset(uio) < zp->z_size))) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EPERM));
+	}
+
+	offset_t woff = ioflag & O_APPEND ?
+	    zp->z_size : zfs_uio_offset(uio);
+	if (woff < 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * Async Direct I/O writes copy user data into a kernel ABD
+	 * instead of pinning user pages via pin_user_pages_unlocked().
+	 * On RHEL kernels (and mainline >= 6.0), all pin_user_pages*()
+	 * variants implicitly add FOLL_LONGTERM which fails with ENOMEM
+	 * under concurrent I/O (iodepth=64 → 2048 concurrently held
+	 * pages).  Copying is safe on all kernel versions and the memcpy
+	 * cost is negligible compared to disk I/O latency.
+	 */
+	n = zfs_uio_resid(uio);
+	if (n == 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	n = P2ALIGN_TYPED(n, PAGE_SIZE, ssize_t);
+	if (n == 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/*
+	 * Replicate DIO eligibility checks from zfs_setup_direct().
+	 * Any condition that would skip DIO in the sync path returns
+	 * EOPNOTSUPP so the caller falls back to zfs_write().  The
+	 * sync path will then re-check everything including zfs_dio_strict.
+	 */
+	if (zfsvfs->z_os->os_direct == ZFS_DIRECT_ALWAYS)
+		ioflag |= O_DIRECT;
+
+	if (!zfs_dio_enabled ||
+	    zfsvfs->z_os->os_direct == ZFS_DIRECT_DISABLED) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	if (!zfs_uio_page_aligned(uio) ||
+	    !zfs_uio_aligned(uio, PAGE_SIZE)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	if (n < zp->z_blksz ||
+	    zn_has_cached_data(zp, zfs_uio_offset(uio),
+	    zfs_uio_offset(uio) + n - 1)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	zfs_locked_range_t *lr;
+	if (ioflag & O_APPEND) {
+		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
+		woff = lr->lr_offset;
+		if (lr->lr_length == UINT64_MAX)
+			woff = zp->z_size;
+		zfs_uio_setoffset(uio, woff);
+	} else {
+		lr = zfs_rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
+	}
+
+	if (zn_rlimit_fsize_uio(zp, uio)) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EFBIG));
+	}
+
+	if (lr->lr_length == UINT64_MAX) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	if (woff >= MAXOFFSET_T) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EFBIG));
+	}
+	if ((uint64_t)n > MAXOFFSET_T - woff)
+		n = MAXOFFSET_T - woff;
+	n = MIN(n, zfs_uio_resid(uio));
+	n = P2ALIGN_TYPED(n, PAGE_SIZE, ssize_t);
+	if (n == 0) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/*
+	 * Direct I/O writes are dispatched per-dbuf by
+	 * dmu_write_abd_dispatch(), which slices the source ABD at
+	 * (db_offset - offset) assuming every covered dbuf lies fully
+	 * within [offset, offset+n).  That only holds for a write that
+	 * is block-aligned in both offset and length.  The synchronous
+	 * path enforces this in dmu_write_uio_dnode() via
+	 * zfs_dio_aligned() and routes any unaligned span through the
+	 * ARC.  Mirror that gate here: for a block-misaligned write,
+	 * fall back to the sync path (EOPNOTSUPP) rather than dispatch
+	 * a slice whose per-dbuf offset math underflows and trips the
+	 * VERIFY in abd_get_offset_size().
+	 */
+	if (!zfs_dio_aligned(woff, n, zp->z_blksz)) {
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/*
+	 * Allocate a kernel ABD to hold the user data.  The actual
+	 * copy (zfs_uiomove) is deferred until after dmu_tx_assign
+	 * succeeds: if the assign fails we must return to the caller
+	 * with uio untouched so the sync fallback in zpl_iter_write()
+	 * can retry the full write.
+	 *
+	 * We copy rather than pin user pages to avoid FOLL_LONGTERM
+	 * issues on RHEL and mainline >= 6.0.
+	 */
+	offset_t offset = zfs_uio_offset(uio);
+	abd_t *data = abd_alloc_linear(n, B_FALSE);
+
+	boolean_t do_commit = (ioflag & (O_SYNC | O_DSYNC)) ||
+	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
+	dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
+	DB_DNODE_ENTER(db);
+	dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, n);
+	DB_DNODE_EXIT(db);
+	zfs_sa_upgrade_txholds(tx, zp);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		abd_free(data);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	/*
+	 * Copy user data into the kernel ABD.  Must be done AFTER
+	 * dmu_tx_assign so uio stays intact on assign failure for
+	 * the sync fallback.
+	 *
+	 * Save the full uio before the copy for restore if errors.
+	 */
+	zfs_uio_t saved_uio = *uio;
+
+	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
+	if (error) {
+		/*
+		 * The copy faulted partway.  zfs_uiomove() advanced the
+		 * underlying iov_iter by the bytes consumed; rewind it
+		 * before restoring the saved uio so the sync fallback in
+		 * zpl_iter_write() retries from the original position (a
+		 * bare struct restore leaves the shared iov_iter advanced).
+		 * The tx is already assigned, so it must be committed, not
+		 * aborted -- dmu_tx_abort() VERIFYs tx_txg == 0 and would
+		 * panic; the synchronous path likewise commits on EFAULT.
+		 */
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		dmu_tx_commit(tx);
+		abd_free(data);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	dmu_flags_t dflags = DMU_DIRECTIO;
+	if (ioflag & O_DIRECT)
+		dflags |= DMU_UNCACHEDIO;
+
+	struct zfs_async_write_cb *cb =
+	    kmem_cache_alloc(zfs_async_write_cb_cache, KM_SLEEP);
+	cb->kiocb = kiocb;
+	cb->zp = zp;
+	cb->zfsvfs = zfsvfs;
+	cb->lr = lr;
+	cb->uio = *uio;
+	cb->uio.uio_resid = 0;		/* all data already copied to ABD */
+	cb->start_resid = n;
+	cb->dio = B_FALSE;
+	cb->data = data;
+	cb->tx = tx;
+	cb->woff = woff;
+	cb->tx_bytes = n;
+	cb->cr = cr;
+	crhold(cr);
+
+	cb->bulk_count = 0;
+	SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
+	    SA_ZPL_MTIME(zfsvfs), NULL, &cb->mtime, 16);
+	SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
+	    SA_ZPL_CTIME(zfsvfs), NULL, &cb->ctime, 16);
+	SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
+	    SA_ZPL_SIZE(zfsvfs), NULL, &zp->z_size, 8);
+	SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
+	    SA_ZPL_FLAGS(zfsvfs), NULL, &zp->z_pflags, 8);
+
+	cb->clear_setid_bits_txg = 0;
+	cb->do_commit = do_commit;
+	cb->error = 0;
+	cb->wrote = 0;
+
+	/*
+	 * Held until the completion's last touch of the zfsvfs; taken
+	 * before submission because the completion may fire (and rele)
+	 * before dmu_write_abd_async() returns.  A nonzero return means
+	 * the callback will never run, so the error path must rele.
+	 */
+	zfs_async_dio_hold(zfsvfs);
+
+	error = dmu_write_abd_async(DB_DNODE(db), offset, n, data, dflags,
+	    tx, zfs_async_write_complete, cb);
+	if (error) {
+		/*
+		 * Restore the uio so the sync fallback in zpl_iter_write()
+		 * retries the full write.  zfs_uiomove() already consumed
+		 * the user data into the ABD, so rewind the shared iov_iter
+		 * before the struct restore; otherwise the fallback sees an
+		 * exhausted iterator and fails a write whose data was fine.
+		 * The tx is assigned -- commit, don't abort (abort VERIFYs
+		 * tx_txg == 0).
+		 */
+		zfs_async_dio_rele(zfsvfs);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		crfree(cr);
+		abd_free(data);
+		zfs_rangelock_exit(lr);
+		dmu_tx_commit(tx);
+		zfs_exit(zfsvfs, FTAG);
+		kmem_cache_free(zfs_async_write_cb_cache, cb);
+		return (error);
+	}
+
+	/*
+	 * The in-flight hold now stands in for the teardown reader lock,
+	 * which must be released here, on the thread that acquired it.
+	 */
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+}
+
+/*
+ * Module init: create dedicated caches for async I/O callbacks.
+ * Called once from zfs_kmod_init() — no lazy-init races.
+ */
+void
+zfs_async_dio_init(void)
+{
+	zfs_async_read_cb_cache = kmem_cache_create("zfs_async_read_cb",
+	    sizeof (struct zfs_async_read_cb), 0,
+	    NULL, NULL, NULL, NULL, NULL, 0);
+	zfs_async_write_cb_cache = kmem_cache_create("zfs_async_write_cb",
+	    sizeof (struct zfs_async_write_cb), 0,
+	    NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+/*
+ * Module fini: destroy caches created by zfs_async_dio_init().
+ * Called once from zfs_kmod_fini().
+ */
+void
+zfs_async_dio_fini(void)
+{
+	if (zfs_async_read_cb_cache != NULL) {
+		kmem_cache_destroy(zfs_async_read_cb_cache);
+		zfs_async_read_cb_cache = NULL;
+	}
+	if (zfs_async_write_cb_cache != NULL) {
+		kmem_cache_destroy(zfs_async_write_cb_cache);
+		zfs_async_write_cb_cache = NULL;
+	}
+}

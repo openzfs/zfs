@@ -242,6 +242,11 @@ tags = ['functional', 'userquota']
 tests = ['zvol_misc_fua']
 tags = ['functional', 'zvol', 'zvol_misc']
 
+[tests/functional/async:Linux]
+tests = ['async_read_001_pos', 'async_read_002_pos', 'async_read_003_pos',
+    'async_write_001_pos', 'async_write_002_pos', 'async_write_003_pos']
+tags = ['functional', 'async']
+
 [tests/functional/idmap_mount:Linux]
 tests = ['idmap_mount_001', 'idmap_mount_002', 'idmap_mount_003',
     'idmap_mount_004', 'idmap_mount_005']

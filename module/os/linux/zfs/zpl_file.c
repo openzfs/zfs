@@ -211,6 +211,23 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
+/*
+ * Module parameter to enable/disable async Direct I/O reads.
+ * When enabled, O_DIRECT reads on async kiocbs (libaio/io_uring) use
+ * zfs_read_async() → dmu_read_abd_async() which submits reads to the
+ * ZIO pipeline and returns -EIOCBQUEUED to the VFS.  Completion is
+ * signalled via kiocb->ki_complete() from ZIO taskq context.
+ *
+ * Default: 0 (disabled)
+ */
+static unsigned int zfs_async_dio_enabled = 0;
+
+#ifdef CONFIG_SYSFS
+module_param(zfs_async_dio_enabled, uint, 0644);
+MODULE_PARM_DESC(zfs_async_dio_enabled,
+	"Enable async Direct I/O reads via -EIOCBQUEUED");
+#endif
+
 static ssize_t
 zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 {
@@ -221,6 +238,40 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zfs_uio_t uio;
 
 	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
+
+	/*
+	 * If async DIO is enabled, the file is opened O_DIRECT, and
+	 * this is an async kiocb, dispatch the read via zfs_read_async().
+	 * On success we return -EIOCBQUEUED; on error fall through to
+	 * the synchronous path.  Without O_DIRECT, reads go through the
+	 * ARC — the data copy is synchronous and the async path adds no
+	 * benefit.
+	 *
+	 * Skip async dispatch when there is nothing to read: count == 0
+	 * or the file position is already at/past EOF.  Both are handled
+	 * correctly by the synchronous zfs_read() below.
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    count > 0 &&
+	    kiocb->ki_pos < i_size_read(filp->f_mapping->host) &&
+	    ((filp->f_flags & O_DIRECT) ||
+	    ITOZSB(filp->f_mapping->host)->z_os->os_direct ==
+	    ZFS_DIRECT_ALWAYS)) {
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+
+		ssize_t ret = -zfs_read_async(
+		    ITOZ(filp->f_mapping->host), &uio,
+		    filp->f_flags | zfs_io_flags(kiocb), cr, kiocb);
+
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (ret == 0)
+			return ((ssize_t)-EIOCBQUEUED);
+
+		/* Fall through to sync path on error */
+	}
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -271,6 +322,33 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 		return (ret);
 
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
+
+	/*
+	 * If async DIO is enabled, the file is opened O_DIRECT, and
+	 * this is an async kiocb, dispatch the write via zfs_write_async().
+	 * On success we return -EIOCBQUEUED; on error fall through to
+	 * the synchronous path.  Without O_DIRECT, buffered writes go
+	 * through the ARC and the disk write is already async (txg sync).
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    count > 0 &&
+	    ((filp->f_flags & O_DIRECT) ||
+	    ITOZSB(ip)->z_os->os_direct == ZFS_DIRECT_ALWAYS)) {
+		crhold(cr);
+		cookie = spl_fstrans_mark();
+
+		ssize_t async_ret = -zfs_write_async(
+		    ITOZ(ip), &uio,
+		    filp->f_flags | zfs_io_flags(kiocb), cr, kiocb);
+
+		spl_fstrans_unmark(cookie);
+		crfree(cr);
+
+		if (async_ret == 0)
+			return ((ssize_t)-EIOCBQUEUED);
+
+		/* Fall through to sync path on error */
+	}
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
