@@ -759,8 +759,7 @@ brt_vdev_addref(spa_t *spa, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	brtvd->bv_totalcount++;
 	brt_vdev_entcount_inc(brtvd, idx);
 	brtvd->bv_entcount_dirty = TRUE;
-	idx = idx / BRT_BLOCKSIZE / 8;
-	BT_SET(brtvd->bv_bitmap, idx);
+	BT_SET(brtvd->bv_bitmap, idx / (BRT_BLOCKSIZE / sizeof (uint16_t)));
 }
 
 static void
@@ -787,8 +786,7 @@ brt_vdev_decref(spa_t *spa, brt_vdev_t *brtvd, const brt_entry_t *bre,
 	brtvd->bv_totalcount--;
 	brt_vdev_entcount_dec(brtvd, idx);
 	brtvd->bv_entcount_dirty = TRUE;
-	idx = idx / BRT_BLOCKSIZE / 8;
-	BT_SET(brtvd->bv_bitmap, idx);
+	BT_SET(brtvd->bv_bitmap, idx / (BRT_BLOCKSIZE / sizeof (uint16_t)));
 }
 
 static void
@@ -805,13 +803,21 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 	    FTAG, &db));
 
 	if (brtvd->bv_entcount_dirty) {
-		/*
-		 * TODO: Walk brtvd->bv_bitmap and write only the dirty blocks.
-		 */
 		uint64_t nblocks = BRT_RANGESIZE_TO_NBLOCKS(brtvd->bv_size);
-		dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
-		    nblocks * BRT_BLOCKSIZE, brtvd->bv_entcount, tx,
-		    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
+		for (uint64_t i = 0; i < nblocks; i++) {
+			if (!BT_TEST(brtvd->bv_bitmap, i))
+				continue;
+			uint64_t end = i + 1;
+			uint64_t maxend = MIN(i + DMU_MAX_ACCESS / 2 /
+			    BRT_BLOCKSIZE, nblocks);
+			while (end < maxend && BT_TEST(brtvd->bv_bitmap, end))
+				end++;
+			dmu_write(spa->spa_meta_objset, brtvd->bv_mos_brtvdev,
+			    i * BRT_BLOCKSIZE, (end - i) * BRT_BLOCKSIZE,
+			    (char *)brtvd->bv_entcount + i * BRT_BLOCKSIZE,
+			    tx, DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
+			i = end - 1;
+		}
 		memset(brtvd->bv_bitmap, 0, BT_SIZEOFMAP(nblocks));
 		brtvd->bv_entcount_dirty = FALSE;
 	}
