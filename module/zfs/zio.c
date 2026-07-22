@@ -1732,6 +1732,15 @@ zio_flush(zio_t *pio, vdev_t *vd)
 		return;
 
 	if (vd->vdev_children == 0) {
+		/*
+		 * A non-concrete vdev (a hole or indirect vdev left behind
+		 * by removing a log or data device) has no leaf device to
+		 * flush.  Skip it; issuing a flush to an indirect vdev would
+		 * trip the ZIO_TYPE_WRITE assertion in
+		 * vdev_indirect_io_start().
+		 */
+		if (!vdev_is_concrete(vd))
+			return;
 		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
 		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
 		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));

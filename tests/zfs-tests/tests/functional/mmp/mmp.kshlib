@@ -83,10 +83,11 @@ function mmp_clear_hostid
 	rm -f $HOSTID_FILE
 }
 
-function mmp_pool_create_simple # pool dir
+function mmp_pool_create_simple # pool dir enriched
 {
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
+	typeset enriched=${3:-""}
 
 	log_must mkdir -p $dir
 	log_must rm -f $dir/*
@@ -96,6 +97,28 @@ function mmp_pool_create_simple # pool dir
 	log_must mmp_set_hostid $HOSTID1
 	log_must zpool create -f -o cachefile=$MMP_CACHE $pool \
 	    mirror $dir/vdev1 $dir/vdev2
+
+	if [[ -n "$enriched" ]]; then
+		#
+		# Add then remove a data vdev to leave an indirect vdev, and
+		# add then remove a log to leave a hole vdev, so the pool
+		# exercises the non-writeable top-level vdev types skipped by
+		# the MMP claim check.  Round it out with a log, a cache, and
+		# a spare vdev.
+		#
+		log_must truncate -s $MINVDEVSIZE $dir/vdev3 $dir/vdev4 \
+		    $dir/vdev5 $dir/vdev6 $dir/vdev7
+		log_must zpool add -f $pool $dir/vdev3
+		log_must zpool remove $pool $dir/vdev3
+		log_must zpool wait -t remove $pool
+		log_must sync_pool $pool
+		log_must zpool add -f $pool log $dir/vdev4
+		log_must zpool remove $pool $dir/vdev4
+		log_must zpool add -f $pool log $dir/vdev5
+		log_must zpool add -f $pool cache $dir/vdev6
+		log_must zpool add -f $pool spare $dir/vdev7
+	fi
+
 	log_must zpool set multihost=on $pool
 }
 
@@ -148,7 +171,7 @@ function mmp_pool_set_hostid # pool hostid
 	log_must mmp_clear_hostid
 	log_must mmp_set_hostid $hostid
 	log_must zpool export $pool
-	log_must zpool import $pool
+	log_must zpool import -d $MMP_DIR $pool
 
 	return 0
 }
