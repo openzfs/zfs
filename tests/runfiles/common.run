@@ -457,7 +457,7 @@ tags = ['functional', 'cli_root', 'zpool_detach']
 [tests/functional/cli_root/zpool_events]
 tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
     'zpool_events_poolname', 'zpool_events_errors', 'zpool_events_duplicates',
-    'zpool_events_clear_retained']
+    'zpool_events_clear_retained', 'zpool_events_scrub_txg_continue_from_last']
 tags = ['functional', 'cli_root', 'zpool_events']
 
 [tests/functional/cli_root/zpool_export]
@@ -570,7 +570,7 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
     'zpool_error_scrub_003_pos', 'zpool_error_scrub_004_pos',
     'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002',
-    'zpool_scrub_thorough']
+    'zpool_scrub_thorough', 'zpool_scrub_txg_continue_from_last']
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
 [tests/functional/cli_root/zpool_set]
