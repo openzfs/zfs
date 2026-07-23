@@ -1451,23 +1451,29 @@ dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
-void
+int
 dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
+	int err = 0;
 
 	ASSERT3U(etype, <, NUM_BP_EMBEDDED_TYPES);
 	ASSERT3U(comp, <, ZIO_COMPRESS_FUNCTIONS);
-	VERIFY0(dmu_buf_hold_noread(os, object, offset,
-	    FTAG, &db));
+	err = dmu_buf_hold_noread(os, object, offset,
+	    FTAG, &db);
+	if (err && SPA_EXITING(os->os_spa))
+		return (err);
+	VERIFY0(err);
 
 	dmu_buf_write_embedded(db,
 	    data, (bp_embedded_type_t)etype, (enum zio_compress)comp,
 	    uncompressed_size, compressed_size, byteorder, tx);
 
 	dmu_buf_rele(db, FTAG);
+
+	return (err);
 }
 
 void
