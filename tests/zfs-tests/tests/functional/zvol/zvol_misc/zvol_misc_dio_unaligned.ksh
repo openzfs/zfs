@@ -103,24 +103,42 @@ function test_dio_unaligned
 	log_must diff $datafile1 $datafile2
 	log_must rm -f "$datafile1" "$datafile2"
 
-	# Test misaligned writes (offset not a multiple of volblocksize).
-	# Use 512-byte blocks to place the write at a non-block-aligned
-	# byte offset (volblocksize + 512).  DIO must reject this and
-	# fall back to the ARC path.
-	log_note "  Offset-misaligned writes (at offset volblocksize+512)"
-	typeset misalign_off=$((volblocksize + 512))
-	typeset seek_512=$((misalign_off / 512))
-	typeset cnt_512=$((volblocksize / 512))
+	# Test offset-misaligned writes using fio.
+	# fio's --offset option allows placing a single volblocksize-sized
+	# I/O at an exact byte offset that is not a multiple of
+	# volblocksize.  With DIO enabled, the kernel must reject this
+	# because the start offset is misaligned, and fall back to the
+	# ARC path.  fio's built-in verify ensures data integrity on
+	# read-back.  psync is the portable ioengine (Linux + FreeBSD).
+	if command -v fio > /dev/null; then
+		log_note "  Offset-misaligned writes (at offset volblocksize+512)"
 
-	log_must dd if=/dev/urandom of="$datafile1" bs=$volblocksize count=1
-	log_must dd if=$datafile1 of=$zvolpath bs=512 count=$cnt_512 \
-	    seek=$seek_512 conv=fsync
+		# Convert volblocksize to bytes for fio --offset
+		typeset vbs_bytes
+		case $volblocksize in
+			*k|*K) vbs_bytes=$((${volblocksize%[kK]} * 1024)) ;;
+			*m|*M) vbs_bytes=$((${volblocksize%[mM]} * 1048576)) ;;
+			*g|*G) vbs_bytes=$((${volblocksize%[gG]} * 1073741824)) ;;
+			*)     vbs_bytes=$volblocksize ;;
+		esac
+		typeset misalign_off=$((vbs_bytes + 512))
 
-	# Read back from the same misaligned offset
-	log_must dd if=$zvolpath of="$datafile2" bs=512 count=$cnt_512 \
-	    skip=$seek_512
-	log_must diff $datafile1 $datafile2
-	log_must rm -f "$datafile1" "$datafile2"
+		# Write one volblocksize of data at offset (vbs_bytes + 512)
+		log_must fio --filename=$zvolpath --name=misalign-write \
+		    --rw=write --bs=$volblocksize --size=$volblocksize \
+		    --offset=$misalign_off --ioengine=psync --iodepth=1 \
+		    --verify=crc32c --do_verify=0 \
+		    --verify_state_save=0 --group_reporting
+
+		# Read back and verify data integrity
+		log_must fio --filename=$zvolpath --name=misalign-read \
+		    --rw=read --bs=$volblocksize --size=$volblocksize \
+		    --offset=$misalign_off --ioengine=psync --iodepth=1 \
+		    --verify=crc32c --do_verify=1 \
+		    --verify_state_save=0 --group_reporting
+	else
+		log_note "  Skipping offset-misaligned test (fio not found)"
+	fi
 
 	# Test block-aligned writes (should go through DIO)
 	log_note "  Block-aligned writes ($volblocksize bytes)"
