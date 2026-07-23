@@ -1934,8 +1934,6 @@ static int
 get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
     const char **source, uint64_t *val)
 {
-	zfs_cmd_t zc = {"\0"};
-	nvlist_t *zplprops = NULL;
 	struct mnttab mnt;
 	const char *mntopt_on = NULL;
 	const char *mntopt_off = NULL;
@@ -2083,7 +2081,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_DEFAULTPROJECTQUOTA:
 	case ZFS_PROP_DEFAULTUSEROBJQUOTA:
 	case ZFS_PROP_DEFAULTGROUPOBJQUOTA:
-	case ZFS_PROP_DEFAULTPROJECTOBJQUOTA:
+	case ZFS_PROP_DEFAULTPROJECTOBJQUOTA: {
+		zfs_cmd_t zc = {"\0"};
+		nvlist_t *zplprops = NULL;
+
 		zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
 
 		(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
@@ -2103,6 +2104,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		nvlist_free(zplprops);
 		zcmd_free_nvlists(&zc);
 		break;
+	}
 
 	case ZFS_PROP_INCONSISTENT:
 		*val = zhp->zfs_dmustats.dds_inconsistent;
