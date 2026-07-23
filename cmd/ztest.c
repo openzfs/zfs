@@ -98,6 +98,8 @@
 #include <sys/dbuf.h>
 #include <sys/zap.h>
 #include <sys/dmu_objset.h>
+#include <sys/dmu_recv.h>
+#include <sys/dmu_send.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -486,6 +488,7 @@ ztest_func_t ztest_ddt_prune;
 ztest_func_t ztest_spa_log_flushall_start;
 ztest_func_t ztest_spa_log_flushall_cancel;
 ztest_func_t ztest_hardforced_export;
+ztest_func_t ztest_send_recv;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -546,6 +549,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
 	ZTI_INIT(ztest_hardforced_export, 1, &zopt_rarely),
+	ZTI_INIT(ztest_send_recv, 1, &zopt_sometimes),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -602,6 +606,12 @@ static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
+
+/* Send-recv test scenario state. */
+static kmutex_t ztest_sr_lock;
+static uint64_t ztest_sr_send0_guid;
+static uint64_t ztest_sr_bytes_sent;
+static char *ztest_sr_zstream_path;
 
 /* Hardforced export test scenario state. */
 enum {
@@ -7601,6 +7611,234 @@ ztest_hardforced_export(ztest_ds_t *zd, uint64_t id)
 	mutex_exit(&ztest_hfe_lock);
 }
 
+static int
+ztest_sr_dump_bytes(objset_t *os, void *buf, int len, void *arg)
+{
+	(void) os;
+	int fd = *(int *)arg;
+	char *p = buf;
+	ssize_t cnt;
+
+	while (len > 0) {
+		cnt = write(fd, p, len);
+		if (cnt < 0)
+			return (EIO);
+		ztest_sr_bytes_sent += cnt;
+		p += cnt;
+		len -= cnt;
+	}
+
+	return (0);
+}
+
+static void
+ztest_send(ztest_ds_t *zd, uint64_t id)
+{
+	(void) id;
+	objset_t *snap;
+	uint64_t tosnap;
+	char snapname[ZFS_MAX_DATASET_NAME_LEN];
+	int fd;
+	int err;
+
+	(void) snprintf(snapname, sizeof (snapname), "%s@%s",
+	    zd->zd_name, "send0");
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	err = dsl_destroy_snapshot(snapname, B_FALSE);
+	if (ZTEST_HFE_ACTIVE()) {
+		(void) pthread_rwlock_unlock(&ztest_name_lock);
+		goto out;
+	}
+	ASSERT(err == 0 || err == ENOENT);
+	err = dmu_objset_snapshot_one(zd->zd_name, "send0");
+	if (ZTEST_HFE_ACTIVE()) {
+		(void) pthread_rwlock_unlock(&ztest_name_lock);
+		goto out;
+	}
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+	if (err == ENOSPC) {
+		ztest_record_enospc(FTAG);
+		goto out;
+	}
+	ASSERT0(err);
+
+	err = dmu_objset_hold(snapname, FTAG, &snap);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	ASSERT0(err);
+	tosnap = dsl_get_objsetid(snap->os_dsl_dataset);
+	ztest_sr_send0_guid = dsl_get_guid(snap->os_dsl_dataset);
+	dmu_objset_rele(snap, FTAG);
+
+	if (ztest_sr_zstream_path != NULL)
+		umem_free(ztest_sr_zstream_path, MAXPATHLEN);
+	ztest_sr_zstream_path = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	(void) snprintf(ztest_sr_zstream_path, MAXPATHLEN,
+	    "%s/ztest.zstream", ztest_opts.zo_dir);
+	fd = open(ztest_sr_zstream_path,
+	    O_RDWR | O_CREAT | O_TRUNC, 0666);
+	ASSERT3S(fd, !=, -1);
+
+	ztest_sr_bytes_sent = 0;
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: sending %s (tosnap=%lu)...\n", __func__,
+		    snapname, tosnap);
+
+	offset_t off = 0;
+	const boolean_t embedok = B_TRUE;
+	const boolean_t large_block_ok = B_TRUE;
+	const boolean_t compressok = B_TRUE;
+	const boolean_t rawok = B_FALSE;
+	const boolean_t savedok = B_FALSE;
+	dmu_send_outparams_t out = {
+		.dso_outfunc = ztest_sr_dump_bytes,
+		.dso_arg = &fd,
+		.dso_dryrun = B_FALSE,
+	};
+	err = dmu_send_obj(zd->zd_name, tosnap,
+	    0, embedok, large_block_ok, compressok,
+	    rawok, savedok, fd, &off, &out);
+	if (ztest_opts.zo_verbose >= 5)
+		printf("ztest_send: dmu_send_obj() err=%d\n", err);
+	(void) close(fd);
+	if (ZTEST_HFE_ACTIVE()) {
+		umem_free(ztest_sr_zstream_path, MAXPATHLEN);
+		ztest_sr_zstream_path = NULL;
+		goto out;
+	}
+	ASSERT0(err);
+
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	err = dsl_destroy_snapshot(snapname, B_FALSE);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(err);
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+
+out:
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: finished (bytes_sent=%lu, hfe=%d, err=%d)\n",
+		    __func__, ztest_sr_bytes_sent, ZTEST_HFE_ACTIVE(), err);
+}
+
+static void
+ztest_recv(ztest_ds_t *zd, uint64_t id)
+{
+	(void) id;
+	char tofs[ZFS_MAX_DATASET_NAME_LEN];
+	char snapname[ZFS_MAX_DATASET_NAME_LEN];
+	objset_t *snap;
+	const char *tosnap;
+	int fd = -1;
+	int err;
+
+	ASSERT(ztest_sr_zstream_path);
+
+	(void) snprintf(tofs, sizeof (tofs), "%s_recv", zd->zd_name);
+	tosnap = "recv0";
+	(void) snprintf(snapname, sizeof (snapname), "%s_recv@%s",
+	    zd->zd_name, "recv0");
+
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	err = dsl_destroy_snapshot(snapname, B_FALSE);
+	if (ZTEST_HFE_ACTIVE()) {
+		(void) pthread_rwlock_unlock(&ztest_name_lock);
+		goto out;
+	}
+	ASSERT(err == 0 || err == ENOENT);
+	err = dsl_destroy_head(tofs);
+	if (ZTEST_HFE_ACTIVE()) {
+		(void) pthread_rwlock_unlock(&ztest_name_lock);
+		goto out;
+	}
+	ASSERT(err == 0 || err == ENOENT);
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: receiving %s@%s...\n", __func__, tofs,
+		    tosnap);
+
+	fd = open(ztest_sr_zstream_path, O_RDONLY);
+	ASSERT3S(fd, !=, -1);
+	zfs_file_t input_fp = { .f_fd = fd };
+
+	offset_t off = 0;
+	dmu_replay_record_t drr;
+	memset(&drr, 0, sizeof (drr));
+	char *buf = (char *)&drr;
+	int total = 0;
+	while (total < sizeof (drr)) {
+		ssize_t n = read(input_fp.f_fd, buf + total,
+		    sizeof (drr) - total);
+		if (n <= 0)
+			break;
+		total += n;
+	}
+	ASSERT3S(total, ==, sizeof (drr));
+
+	dmu_recv_cookie_t drc;
+	err = dmu_recv_begin(tofs, tosnap, &drr, B_FALSE, B_FALSE,
+	    B_FALSE, NULL, NULL, NULL, &drc, &input_fp,
+	    &off);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(err);
+
+	err = dmu_recv_stream(&drc, &off);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(err);
+
+	err = dmu_recv_end(&drc, NULL);
+	if (ZTEST_HFE_ACTIVE())
+		goto out;
+	ASSERT0(err);
+
+	/* Expect the same number of bytes received */
+	drc.drc_bytes_read += sizeof (drr);
+	ASSERT3U(drc.drc_bytes_read, ==, ztest_sr_bytes_sent);
+
+	/* Expect the same GUID of the replica */
+	err = dmu_objset_hold(snapname, FTAG, &snap);
+	if (err && ZTEST_HFE_ACTIVE())
+		goto out;
+	ASSERT0(err);
+	ASSERT3U(ztest_sr_send0_guid, ==, dsl_get_guid(snap->os_dsl_dataset));
+	dmu_objset_rele(snap, FTAG);
+
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	err = dsl_destroy_snapshot(snapname, B_FALSE);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(err);
+	err = dsl_destroy_head(tofs);
+	if (!ZTEST_HFE_ACTIVE())
+		ASSERT0(err);
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+
+out:
+	if (ztest_opts.zo_verbose >= 5)
+		(void) printf("%s: finished (bytes_read=%lu, hfe=%d, err=%d)\n",
+		    __func__, drc.drc_bytes_read, ZTEST_HFE_ACTIVE(), err);
+	if (fd != -1)
+		close(fd);
+}
+
+void
+ztest_send_recv(ztest_ds_t *zd, uint64_t id)
+{
+	if (!mutex_tryenter(&ztest_sr_lock))
+		return;
+
+	/*
+	 * We want to stress recv more than send, as most of the potential
+	 * troubles are there. Thus, we create a zstream once and reuse it
+	 * during the same ztest pass.
+	 */
+	if (ztest_sr_zstream_path == NULL)
+		ztest_send(zd, id);
+	else
+		ztest_recv(zd, id);
+
+	mutex_exit(&ztest_sr_lock);
+}
+
 /*
  * By design ztest will never inject uncorrectable damage in to the pool.
  * Issue a scrub, wait for it to complete, and verify there is never any
@@ -9374,6 +9612,8 @@ ztest_run(ztest_shared_t *zs)
 	 */
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ztest_hfe_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ztest_sr_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
 	zs->zs_thread_start = gethrtime();
@@ -9558,6 +9798,8 @@ ztest_run(ztest_shared_t *zs)
 	list_destroy(&zcl.zcl_callbacks);
 	mutex_destroy(&zcl.zcl_callbacks_lock);
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
+	mutex_destroy(&ztest_sr_lock);
+	mutex_destroy(&ztest_hfe_lock);
 	mutex_destroy(&ztest_vdev_lock);
 	mutex_destroy(&ztest_checkpoint_lock);
 }
@@ -9621,9 +9863,10 @@ ztest_init(ztest_shared_t *zs)
 	nvlist_t *nvroot, *props;
 	int i;
 
-	mutex_init(&ztest_hfe_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ztest_hfe_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ztest_sr_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
 	raidz_scratch_verify();
@@ -9695,9 +9938,10 @@ ztest_init(ztest_shared_t *zs)
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
+	mutex_destroy(&ztest_sr_lock);
+	mutex_destroy(&ztest_hfe_lock);
 	mutex_destroy(&ztest_vdev_lock);
 	mutex_destroy(&ztest_checkpoint_lock);
-	mutex_destroy(&ztest_hfe_lock);
 }
 
 static void
