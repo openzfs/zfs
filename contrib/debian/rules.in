@@ -142,7 +142,8 @@ override_dh_auto_clean:
 
 override_dh_install:
 	find debian/tmp/usr/lib -name '*.la' -delete
-	dh_install
+	dh_install -popenzfs-python3-pyzfs --fail-missing || true
+	dh_install --remaining-packages
 
 override_dh_missing:
 	dh_missing --fail-missing
