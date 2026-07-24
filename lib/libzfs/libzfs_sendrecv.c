@@ -257,6 +257,7 @@ typedef struct send_data {
 	boolean_t seenfrom;
 	boolean_t seento;
 	boolean_t holds;	/* were holds requested with send -h */
+	boolean_t bookmarks;	/* were bookmarks requested (--bookmarks) */
 	boolean_t props;
 	boolean_t no_preserve_encryption;
 
@@ -277,6 +278,7 @@ typedef struct send_data {
 	 *	 "snaps" -> { name (lastname) -> number (guid) }
 	 *	 "snapprops" -> { name (lastname) -> { name -> value } }
 	 *	 "snapholds" -> { name (lastname) -> { holdname -> crtime } }
+	 *	 "snapbookmarks" -> { name (lastname) -> { bookmark -> guid } }
 	 *
 	 *	 "origin" -> number (guid) (if clone)
 	 *	 "is_encroot" -> boolean
@@ -372,6 +374,84 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 
 	zfs_close(zhp);
 	return (0);
+}
+
+/*
+ * Store into *guidp the guid of the snapshot a bookmark refers to and return
+ * B_TRUE, or return B_FALSE for a bookmark we do not carry: a redaction
+ * bookmark (which cannot be reproduced from a name pair) or one whose guid
+ * property is somehow absent.
+ */
+static boolean_t
+send_bookmark_snap_guid(nvlist_t *bprops, uint64_t *guidp)
+{
+	nvlist_t *gp;
+
+	if (nvlist_exists(bprops, "redact_snaps"))
+		return (B_FALSE);
+	if (nvlist_lookup_nvlist(bprops, "guid", &gp) != 0)
+		return (B_FALSE);
+	*guidp = fnvlist_lookup_uint64(gp, ZPROP_VALUE);
+	return (B_TRUE);
+}
+
+/*
+ * Collect the bookmarks of the filesystem whose source snapshot is part of
+ * this stream, bucketed under that snapshot's short name so the receiver can
+ * recreate each one against the snapshot it just received.  A bookmark whose
+ * snapshot is not being sent (an orphan bookmark, or a snapshot outside an
+ * incremental window) is skipped: without the snapshot on the receiver there
+ * is nothing to bind it to.  sd->parent_snaps must already be populated (it
+ * maps snapshot short name -> guid).
+ */
+static void
+send_iterate_bookmarks(zfs_handle_t *zhp, send_data_t *sd, nvlist_t *nvfs)
+{
+	nvlist_t *bmarks, *props, *snapbookmarks;
+	nvpair_t *snapelem;
+
+	props = fnvlist_alloc();
+	fnvlist_add_boolean(props, "guid");
+	fnvlist_add_boolean(props, "redact_snaps");
+	if (lzc_get_bookmarks(zhp->zfs_name, props, &bmarks) != 0) {
+		fnvlist_free(props);
+		return;
+	}
+	fnvlist_free(props);
+
+	snapbookmarks = fnvlist_alloc();
+	for (snapelem = nvlist_next_nvpair(sd->parent_snaps, NULL);
+	    snapelem != NULL;
+	    snapelem = nvlist_next_nvpair(sd->parent_snaps, snapelem)) {
+		uint64_t snapguid = fnvpair_value_uint64(snapelem);
+		nvlist_t *entry = fnvlist_alloc();
+		nvpair_t *bmelem;
+
+		for (bmelem = nvlist_next_nvpair(bmarks, NULL);
+		    bmelem != NULL;
+		    bmelem = nvlist_next_nvpair(bmarks, bmelem)) {
+			uint64_t bguid;
+
+			if (!send_bookmark_snap_guid(
+			    fnvpair_value_nvlist(bmelem), &bguid))
+				continue;
+			if (bguid == snapguid) {
+				fnvlist_add_uint64(entry,
+				    nvpair_name(bmelem), bguid);
+			}
+		}
+
+		if (!nvlist_empty(entry)) {
+			fnvlist_add_nvlist(snapbookmarks,
+			    nvpair_name(snapelem), entry);
+		}
+		fnvlist_free(entry);
+	}
+	fnvlist_free(bmarks);
+
+	if (!nvlist_empty(snapbookmarks))
+		fnvlist_add_nvlist(nvfs, "snapbookmarks", snapbookmarks);
+	fnvlist_free(snapbookmarks);
 }
 
 /*
@@ -655,6 +735,9 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 			(void) send_iterate_snap(snap, sd);
 	}
 
+	if (sd->bookmarks)
+		send_iterate_bookmarks(zhp, sd, nvfs);
+
 	fnvlist_add_nvlist(nvfs, "snaps", sd->parent_snaps);
 	fnvlist_free(sd->parent_snaps);
 	fnvlist_add_nvlist(nvfs, "snapprops", sd->snapprops);
@@ -702,7 +785,7 @@ static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
     boolean_t replicate, boolean_t skipmissing, boolean_t verbose,
-    boolean_t backup, boolean_t holds, boolean_t props,
+    boolean_t backup, boolean_t holds, boolean_t bookmarks, boolean_t props,
     boolean_t no_preserve_encryption, nvlist_t **nvlp, avl_tree_t **avlp,
     snapfilter_cb_t *filter_cb, void *filter_cb_arg)
 {
@@ -726,6 +809,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.verbose = verbose;
 	sd.backup = backup;
 	sd.holds = holds;
+	sd.bookmarks = bookmarks;
 	sd.props = props;
 	sd.no_preserve_encryption = no_preserve_encryption;
 	sd.filter_cb = filter_cb;
@@ -2208,9 +2292,9 @@ static int
 send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
     boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t skipmissing,
-    boolean_t backup, boolean_t holds, boolean_t props, boolean_t doall,
-    boolean_t no_preserve_encryption, nvlist_t **fssp, avl_tree_t **fsavlp,
-    snapfilter_cb_t filter_func, void *cb_arg)
+    boolean_t backup, boolean_t holds, boolean_t bookmarks, boolean_t props,
+    boolean_t doall, boolean_t no_preserve_encryption, nvlist_t **fssp,
+    avl_tree_t **fsavlp, snapfilter_cb_t filter_func, void *cb_arg)
 {
 	int err = 0;
 	char *packbuf = NULL;
@@ -2232,6 +2316,9 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 
 	if (holds)
 		featureflags |= DMU_BACKUP_FEATURE_HOLDS;
+
+	if (bookmarks)
+		featureflags |= DMU_BACKUP_FEATURE_BOOKMARKS;
 
 	(void) strlcpy(tofs, zhp->zfs_name, ZFS_MAX_DATASET_NAME_LEN);
 	char *at = strchr(tofs, '@');
@@ -2256,7 +2343,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 
 		if (gather_nvlist(zhp->zfs_hdl, tofs,
 		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
-		    verbose, backup, holds, props, no_preserve_encryption,
+		    verbose, backup, holds, bookmarks, props,
+		    no_preserve_encryption,
 		    &fss, fsavlp, filter_func, cb_arg) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
@@ -2385,7 +2473,7 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	}
 
 	if (flags->replicate || flags->doall || flags->props ||
-	    flags->holds || flags->backup) {
+	    flags->holds || flags->bookmarks || flags->backup) {
 		char full_tosnap_name[ZFS_MAX_DATASET_NAME_LEN];
 		if (snprintf(full_tosnap_name, sizeof (full_tosnap_name),
 		    "%s@%s", zhp->zfs_name, tosnap) >=
@@ -2400,11 +2488,12 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 			goto err_out;
 		}
 		err = send_prelim_records(tosnap, fromsnap, outfd,
-		    flags->replicate || flags->props || flags->holds,
+		    flags->replicate || flags->props || flags->holds ||
+		    flags->bookmarks,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
 		    flags->raw, flags->replicate, flags->skipmissing,
-		    flags->backup, flags->holds, flags->props, flags->doall,
-		    flags->no_preserve_encryption, &fss, &fsavl,
+		    flags->backup, flags->holds, flags->bookmarks, flags->props,
+		    flags->doall, flags->no_preserve_encryption, &fss, &fsavl,
 		    filter_func, cb_arg);
 		zfs_close(tosnap);
 		if (err != 0)
@@ -2524,7 +2613,8 @@ zfs_send_cb_impl(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	}
 
 	if (!flags->dryrun && (flags->replicate || flags->doall ||
-	    flags->props || flags->backup || flags->holds)) {
+	    flags->props || flags->backup || flags->holds ||
+	    flags->bookmarks)) {
 		/*
 		 * write final end record.  NB: want to do this even if
 		 * there was some error, because it might not be totally
@@ -2734,7 +2824,7 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 	/*
 	 * Send fs properties
 	 */
-	if (flags->props || flags->holds || flags->backup) {
+	if (flags->props || flags->holds || flags->bookmarks || flags->backup) {
 		/*
 		 * Note: the header generated by send_prelim_records()
 		 * assumes that the incremental source is in the same
@@ -2748,8 +2838,8 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 		err = send_prelim_records(zhp, NULL, fd, B_TRUE, B_FALSE,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
 		    flags->replicate, B_FALSE, flags->backup, flags->holds,
-		    flags->props, flags->doall, flags->no_preserve_encryption,
-		    NULL, NULL, NULL, NULL);
+		    flags->bookmarks, flags->props, flags->doall,
+		    flags->no_preserve_encryption, NULL, NULL, NULL, NULL);
 		if (err != 0)
 			return (err);
 	}
@@ -2798,7 +2888,8 @@ zfs_send_one_cb_impl(zfs_handle_t *zhp, const char *from, int fd,
 	if (send_progress_thread_exit(hdl, ptid, &oldmask))
 			return (-1);
 
-	if (err == 0 && (flags->props || flags->holds || flags->backup)) {
+	if (err == 0 && (flags->props || flags->holds || flags->bookmarks ||
+	    flags->backup)) {
 		/* Write the final end record. */
 		err = send_conclusion_record(fd, NULL);
 		if (err != 0)
@@ -3406,7 +3497,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 	/* Using top_zfs, gather the nvlists for all local filesystems. */
 	if ((err = gather_nvlist(hdl, top_zfs, NULL, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
+	    B_FALSE, B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
 	    NULL, NULL)) != 0)
 		return (err);
 
@@ -3581,7 +3672,7 @@ again:
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
-	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
+	    B_FALSE, B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
 	    NULL, NULL)) != 0)
 		return (error);
 
@@ -4471,6 +4562,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	prop_changelist_t *clp = NULL;
 	nvlist_t *snapprops_nvlist = NULL;
 	nvlist_t *snapholds_nvlist = NULL;
+	nvlist_t *snapbookmarks_nvlist = NULL;
 	zprop_errflags_t prop_errflags;
 	nvlist_t *prop_errors = NULL;
 	boolean_t recursive;
@@ -4551,6 +4643,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    &lookup)) {
 				snapholds_nvlist = fnvlist_lookup_nvlist(
 				    lookup, snapname);
+			}
+		}
+		if (flags->bookmarks) {
+			if (0 == nvlist_lookup_nvlist(fs, "snapbookmarks",
+			    &lookup)) {
+				(void) nvlist_lookup_nvlist(lookup, snapname,
+				    &snapbookmarks_nvlist);
 			}
 		}
 	}
@@ -4760,7 +4859,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if (flags->heal) {
 		if (flags->isprefix || flags->istail || flags->force ||
 		    flags->canmountoff || flags->resumable || flags->nomount ||
-		    flags->skipholds) {
+		    flags->skipholds || flags->bookmarks) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "corrective recv can not be used when combined with"
 			    " this flag"));
@@ -5162,6 +5261,38 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		fnvlist_free(snapholds_nvlist);
 		fnvlist_free(holds);
 	}
+	if (err == 0 && snapbookmarks_nvlist) {
+		nvpair_t *pair;
+		char fsname[ZFS_MAX_DATASET_NAME_LEN];
+		char *at;
+
+		(void) strlcpy(fsname, destsnap, sizeof (fsname));
+		at = strchr(fsname, '@');
+		if (at != NULL)
+			*at = '\0';
+		/*
+		 * Recreate each bookmark on its own so that one that already
+		 * exists (or is otherwise rejected) does not stop the others.
+		 * Recreation is best effort: a receiving pool without the
+		 * bookmarks feature, a delegated receive lacking bookmark
+		 * permission, or a name collision must not fail the receive,
+		 * exactly as snapshot holds are applied above.
+		 */
+		for (pair = nvlist_next_nvpair(snapbookmarks_nvlist, NULL);
+		    at != NULL && pair != NULL;
+		    pair = nvlist_next_nvpair(snapbookmarks_nvlist, pair)) {
+			nvlist_t *bmark = fnvlist_alloc();
+			nvlist_t *errors = NULL;
+			char name[ZFS_MAX_DATASET_NAME_LEN];
+
+			(void) snprintf(name, sizeof (name), "%s#%s",
+			    fsname, nvpair_name(pair));
+			fnvlist_add_string(bmark, name, destsnap);
+			(void) lzc_bookmark(bmark, &errors);
+			fnvlist_free(bmark);
+			nvlist_free(errors);
+		}
+	}
 
 	if (err && (ioctl_errno == ENOENT || ioctl_errno == EEXIST)) {
 		/*
@@ -5181,7 +5312,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
 		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
-		    B_TRUE, B_FALSE, &local_nv, &local_avl,
+		    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
 		    NULL, NULL) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);

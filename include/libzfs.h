@@ -854,6 +854,9 @@ typedef struct sendflags {
 
 	/* allow sending datasets with props, without preserving encryption */
 	boolean_t no_preserve_encryption;
+
+	/* include snapshot bookmarks in send stream */
+	boolean_t bookmarks;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
@@ -936,6 +939,9 @@ typedef struct recvflags {
 
 	/* use this recv to check (and heal if needed) an existing snapshot */
 	boolean_t heal;
+
+	/* recreate snapshot bookmarks carried in the stream (ie, -b) */
+	boolean_t bookmarks;
 } recvflags_t;
 
 _LIBZFS_H int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
