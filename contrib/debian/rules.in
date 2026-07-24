@@ -43,7 +43,6 @@ override_dh_auto_configure:
 	  --with-udevdir=/usr/lib/udev \
 	  --with-zfsexecdir=/usr/lib/zfs-linux \
 	  --enable-systemd \
-	  --enable-pyzfs \
 	  --with-python=python3 \
 	  --with-pammoduledir='/usr/lib/$(DEB_HOST_MULTIARCH)/security' \
 	  --with-pkgconfigdir='/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig' \
@@ -123,7 +122,7 @@ override_dh_auto_install:
 	chmod a-x '$(CURDIR)/debian/tmp/etc/default/zfs'
 
 override_dh_python3:
-	dh_python3 -p openzfs-python3-pyzfs
+@PYZFS_ENABLED_TRUE@	dh_python3 -p openzfs-python3-pyzfs
 
 override_dh_dkms:
 	'$(CURDIR)/scripts/dkms.mkconf' -n $(NAME) -v $(DEB_VERSION_UPSTREAM) -f '$(CURDIR)/scripts/zfs-dkms.dkms'
@@ -143,7 +142,13 @@ override_dh_auto_clean:
 
 override_dh_install:
 	find debian/tmp/usr/lib -name '*.la' -delete
-	dh_install
+	if ls debian/tmp/usr/lib/python3* >/dev/null 2>&1; then \
+		dh_install --remaining-packages; \
+	else \
+		echo "pyzfs files not built in this config; skipping openzfs-python3-pyzfs payload"; \
+		dh_install --remaining-packages -Nopenzfs-python3-pyzfs; \
+	fi
+	dh_missing --list-missing
 
 override_dh_missing:
 	dh_missing --fail-missing

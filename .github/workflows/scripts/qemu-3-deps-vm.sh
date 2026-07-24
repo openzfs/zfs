@@ -22,9 +22,9 @@ function alpine() {
     libtirpc-dev libtool libunwind libunwind-dev linux-headers linux-tools \
     linux-virt linux-virt-dev lsscsi m4 make nfs-utils openssl-dev parted \
     pax procps py3-cffi py3-distlib py3-packaging py3-setuptools python3 \
-    python3-dev qemu-guest-agent rng-tools rsync samba samba-server sed \
-    strace sysstat util-linux util-linux-dev wget words xfsprogs xxhash \
-    zlib-dev pamtester@testing
+    python3-dev py3-build py3-wheel qemu-guest-agent rng-tools rsync samba \
+    samba-server sed strace sysstat util-linux util-linux-dev wget words \
+    xfsprogs xxhash zlib-dev pamtester@testing
   echo "##[endgroup]"
 
   echo "##[group]Switch to eudev"
@@ -48,8 +48,9 @@ function archlinux() {
   echo "##[group]Install Development Tools"
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
-    parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
-    samba strace sysstat rng-tools rsync wget xxhash
+    parted pax perf python-packaging python-setuptools python-build python-pip \
+    python-wheel qemu-guest-agent ksh samba strace sysstat rng-tools rsync \
+    wget xxhash
   echo "##[endgroup]"
 }
 
@@ -74,10 +75,10 @@ function debian() {
     libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev \
     libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
-    python3-cffi python3-dev python3-distlib python3-packaging libtirpc-dev \
-    python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
-    rsync samba strace sysstat uuid-dev watchdog wget xfslibs-dev xxhash \
-    zlib1g-dev
+    python3-cffi python3-dev python3-distlib python3-packaging python3-build \
+    libtirpc-dev python3-pip python3-setuptools python3-sphinx python3-wheel \
+    qemu-guest-agent rng-tools rpm2cpio  rsync samba strace sysstat uuid-dev \
+    watchdog wget xfslibs-dev xxhash  zlib1g-dev
   echo "##[endgroup]"
 }
 
@@ -91,9 +92,12 @@ function freebsd() {
   sudo pkg install -xy \
     '^samba4[[:digit:]]+$' \
     '^py3[[:digit:]]+-cffi$' \
+    '^py3[[:digit:]]+-build$' \
     '^py3[[:digit:]]+-sysctl$' \
     '^py3[[:digit:]]+-setuptools$' \
-    '^py3[[:digit:]]+-packaging$'
+    '^py3[[:digit:]]+-packaging$' \
+    '^py3[[:digit:]]+-pip$' \
+    '^py3[[:digit:]]+-wheel$'
   echo "##[endgroup]"
 }
 
@@ -120,9 +124,9 @@ function rhel() {
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
-    kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
-    rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
-    xxhash zlib-devel
+    kernel-devel python3-pip python3-setuptools python3-wheel \
+    qemu-guest-agent  rng-tools rpcgen rpm-build rsync samba strace sysstat \
+    systemd watchdog wget xfsprogs-devel xxhash zlib-devel
 
   # These are needed for building Lustre.  We only install these on EL VMs since
   # we don't plan to test build Lustre on other platforms.
@@ -180,6 +184,9 @@ case "$1" in
     sudo dnf install -y epel-release
     echo "##[endgroup]"
     rhel
+    echo "##[group] install python3-build"
+    sudo dnf install -y python3-build
+    echo "##[endgroup]"
     echo "##[group]Install kernel-abi-stablelists"
     sudo dnf install -y kernel-abi-stablelists
     echo "##[endgroup]"
@@ -199,7 +206,7 @@ case "$1" in
     ;;
   fedora*)
     rhel
-    sudo dnf install -y libunwind-devel
+    sudo dnf install -y libunwind-devel python3-build
 
     # Fedora 42+ moves /usr/bin/script from 'util-linux' to 'util-linux-script'
     sudo dnf install -y util-linux-script || true

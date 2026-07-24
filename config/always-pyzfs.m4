@@ -19,7 +19,7 @@ AC_DEFUN([ZFS_AC_PYTHON_MODULE], [
 ])
 
 dnl #
-dnl # Determines if pyzfs can be built, requires Python 3.6 or later.
+dnl # Determines if pyzfs can be built, requires Python 3.11 or later.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	AC_ARG_ENABLE([pyzfs],
@@ -58,26 +58,11 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	])
 
 	dnl #
-	dnl # Python "packaging" (or, failing that, "distlib") module is required to build and install pyzfs
-	dnl #
-	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
-		ZFS_AC_PYTHON_MODULE([packaging], [], [
-			ZFS_AC_PYTHON_MODULE([distlib], [], [
-				AS_IF([test "x$enable_pyzfs" = xyes], [
-					AC_MSG_ERROR("Python $PYTHON_VERSION packaging and distlib modules are not installed")
-				], [test "x$enable_pyzfs" != xno], [
-					enable_pyzfs=no
-				])
-			])
-		])
-	])
-
-	dnl #
 	dnl # Require python3-devel libraries
 	dnl #
 	AS_IF([test "x$enable_pyzfs" = xcheck  -o "x$enable_pyzfs" = xyes], [
 		AS_CASE([$PYTHON_VERSION],
-			[3.*], [PYTHON_REQUIRED_VERSION=">= '3.6.0'"],
+			[3.*], [PYTHON_REQUIRED_VERSION=">= '3.11.0'"],
 			[AC_MSG_ERROR("Python $PYTHON_VERSION unknown")]
 		)
 
@@ -86,6 +71,32 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 		], [
 			AX_PYTHON_DEVEL([$PYTHON_REQUIRED_VERSION], [true])
 			AS_IF([test "x$ax_python_devel_found" = xno], [
+				enable_pyzfs=no
+			])
+		])
+	])
+
+	dnl #
+	dnl # Python "build" module is required to build and install pyzfs
+	dnl #
+	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
+		ZFS_AC_PYTHON_MODULE([build], [], [
+			AS_IF([test "x$enable_pyzfs" = xyes], [
+				AC_MSG_ERROR("Python $PYTHON_VERSION build is not installed")
+			], [test "x$enable_pyzfs" != xno], [
+				enable_pyzfs=no
+			])
+		])
+	])
+
+	dnl #
+	dnl # Python "wheel" module is required to wheel and install pyzfs
+	dnl #
+	AS_IF([test "x$enable_pyzfs" = xcheck -o "x$enable_pyzfs" = xyes], [
+		ZFS_AC_PYTHON_MODULE([wheel], [], [
+			AS_IF([test "x$enable_pyzfs" = xyes], [
+				AC_MSG_ERROR("Python $PYTHON_VERSION wheel is not installed")
+			], [test "x$enable_pyzfs" != xno], [
 				enable_pyzfs=no
 			])
 		])

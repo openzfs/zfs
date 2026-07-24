@@ -138,6 +138,11 @@ idmap_reason = 'Idmapped mount needs kernel 5.12+'
 cfr_reason = 'Kernel copy_file_range support required'
 
 #
+# pyzfs requires python 3.11 or newer
+#
+pyzfs_reason = 'PyZFS requires Python 3.11+'
+
+#
 # Some statx fields are not supported by all kernels
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
@@ -197,7 +202,7 @@ elif sys.platform.startswith('linux'):
 
 
 #
-# These tests may occasionally fail or be skipped.  We want there failures
+# These tests may occasionally fail or be skipped.  We want their failures
 # to be reported but only unexpected failures should bubble up to cause
 # this script to exit with a non-zero exit status.
 #
@@ -372,6 +377,7 @@ elif sys.platform.startswith('linux'):
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
+        'pyzfs/pyzfs_unittest': ['SKIP', pyzfs_reason],
         'stat/statx_dioalign': ['SKIP', 'statx_reason'],
         'zoned_uid/setup': ['SKIP', user_ns_reason],
     })
