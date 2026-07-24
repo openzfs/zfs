@@ -4046,9 +4046,34 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		    &volblocksize)) != 0 && error != ENOENT)
 			return (SET_ERROR(EINVAL));
 
-		if (error != 0)
-			volblocksize = zfs_prop_default_numeric(
-			    ZFS_PROP_VOLBLOCKSIZE);
+		if (error != 0) {
+			/*
+			 * No explicit volblocksize was supplied.  Honor a
+			 * defaultvolblocksize inherited from the parent
+			 * filesystem (for consumers that bypass the "zfs"
+			 * command, e.g. lzc_create) before falling back to the
+			 * built-in default, and record the chosen value in the
+			 * props so zvol_create_cb() claims the object with it.
+			 */
+			char parentname[ZFS_MAX_DATASET_NAME_LEN];
+			const char *defprop =
+			    zfs_prop_to_name(ZFS_PROP_DEFAULTVOLBLOCKSIZE);
+			uint64_t defblk = 0;
+
+			if (zfs_get_parent(fsname, parentname,
+			    sizeof (parentname)) == 0)
+				(void) dsl_prop_get_integer(parentname,
+				    defprop, &defblk, NULL);
+
+			if (defblk != 0) {
+				volblocksize = defblk;
+				fnvlist_add_uint64(nvprops, zfs_prop_to_name(
+				    ZFS_PROP_VOLBLOCKSIZE), volblocksize);
+			} else {
+				volblocksize = zfs_prop_default_numeric(
+				    ZFS_PROP_VOLBLOCKSIZE);
+			}
+		}
 
 		if ((error = zvol_check_volblocksize(fsname,
 		    volblocksize)) != 0 ||
@@ -5439,6 +5464,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			return (SET_ERROR(ENOTSUP));
 		break;
 
+	case ZFS_PROP_DEFAULTVOLBLOCKSIZE:
 	case ZFS_PROP_VOLBLOCKSIZE:
 	case ZFS_PROP_RECORDSIZE:
 		/* Record sizes above 128k need the feature to be enabled */
