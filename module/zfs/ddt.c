@@ -2820,8 +2820,8 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 	};
 	ddt_lightweight_entry_t ddlwe = {0};
 	int error;
-	int valid = 0;
-	int candidates = 0;
+	uint64_t valid = 0;
+	uint64_t candidates = 0;
 	uint64_t now = gethrestime_sec();
 	ddt_prune_info_t dpi;
 	boolean_t pruning = (cutoff != 0);
@@ -2873,8 +2873,8 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 
 		/* build a histogram */
 		if (histogram != NULL) {
-			uint64_t age = MAX(1, (now - class_start) / 3600);
-			int bin = MIN(highbit64(age) - 1, HIST_BINS - 1);
+			uint64_t age = (now - class_start) / 3600;
+			int bin = MIN(highbit64(age), HIST_BINS - 1);
 			histogram->dah_entries++;
 			histogram->dah_age_histo[bin]++;
 		}
@@ -2882,7 +2882,7 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		valid++;
 	}
 
-	if (pruning && valid > 0) {
+	if (pruning) {
 		if (!list_is_empty(&dpi.dpi_candidates)) {
 			/* sync out final batch of prune candidates */
 			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
@@ -2891,10 +2891,13 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		}
 		list_destroy(&dpi.dpi_candidates);
 
-		zfs_dbgmsg("pruned %llu entries (%d%%) across %llu txg syncs",
-		    (u_longlong_t)dpi.dpi_pruned,
-		    (int)((dpi.dpi_pruned * 100) / valid),
-		    (u_longlong_t)dpi.dpi_txg_syncs);
+		if (valid > 0) {
+			zfs_dbgmsg("pruned %llu entries (%llu%%) across "
+			    "%llu txg syncs",
+			    (u_longlong_t)dpi.dpi_pruned,
+			    (u_longlong_t)((dpi.dpi_pruned * 100) / valid),
+			    (u_longlong_t)dpi.dpi_txg_syncs);
+		}
 	}
 }
 
@@ -2927,11 +2930,12 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 	if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
 		ddt_age_histo_t histogram;
 		uint64_t oldest = 0;
+		uint64_t now = gethrestime_sec();
 
 		/* Make a pass over DDT to build a histogram */
 		ddt_prune_walk(spa, 0, &histogram);
 
-		int target = (histogram.dah_entries * amount) / 100;
+		uint64_t target = (histogram.dah_entries * amount) / 100;
 
 		/*
 		 * Figure out our cutoff date
@@ -2939,16 +2943,16 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		 */
 		for (int i = HIST_BINS - 1; i >= 0 && target > 0; i--) {
 			if (histogram.dah_age_histo[i] != 0) {
-				/* less than this bucket remaining */
-				if (target < histogram.dah_age_histo[i]) {
-					oldest = MAX(1, (1<<i) * 3600);
+				if (target <= histogram.dah_age_histo[i]) {
+					oldest = (i == 0) ? 0 :
+					    (1ULL << (i - 1)) * 3600;
 					target = 0;
 				} else {
 					target -= histogram.dah_age_histo[i];
 				}
 			}
 		}
-		cutoff = gethrestime_sec() - oldest;
+		cutoff = now - oldest;
 
 		if (ddt_dump_prune_histogram)
 			ddt_dump_age_histogram(&histogram, cutoff);
