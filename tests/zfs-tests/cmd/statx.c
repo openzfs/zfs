@@ -34,6 +34,9 @@
  * statx() may be available in the kernel, but not in the libc, so we build
  * our own wrapper if we can't link one.
  */
+#ifdef HAVE_STATX
+#include <sys/stat.h>
+#endif
 
 #ifndef __NR_statx
 #if defined(__x86_64__)
@@ -54,9 +57,11 @@
 #endif /* __NR_statx */
 
 
+#ifndef HAVE_STATX
 int
 statx(int, const char *, int, unsigned int, void *)
     __attribute__((weak));
+#endif
 
 static inline int
 _statx(int fd, const char *path, int flags, unsigned int mask, void *stx)
