@@ -1121,7 +1121,7 @@ i_get_value_size(data_type_t type, const void *data, uint_t nelem,
 				if (newsize == max_size)
 					return (-1);	/* not terminated */
 
-				value_sz += newsize + 1; /* +1 for NULL */
+				value_sz += newsize + 1; /* +1 for '\0' */
 				max_size -= newsize + 1;
 			}
 		}
@@ -2980,9 +2980,11 @@ nvpair_native_embedded_array(nvstream_t *nvs, nvpair_t *nvp)
 	return (nvs_embedded_nvl_array(nvs, nvp, NULL));
 }
 
-static void
+static int
 nvpair_native_string_array(nvstream_t *nvs, nvpair_t *nvp)
 {
+	int ret = 0;
+
 	switch (nvs->nvs_op) {
 	case NVS_OP_ENCODE: {
 		nvs_native_t *native = (nvs_native_t *)nvs->nvs_private;
@@ -2997,17 +2999,36 @@ nvpair_native_string_array(nvstream_t *nvs, nvpair_t *nvp)
 		break;
 	}
 	case NVS_OP_DECODE: {
+		int32_t remaining, decode_len = NVP_SIZE(nvp);
 		char **strp = (void *)NVP_VALUE(nvp);
 		char *buf = ((char *)strp + NVP_NELEM(nvp) * sizeof (uint64_t));
-		int i;
+		int i, arrays;
 
-		for (i = 0; i < NVP_NELEM(nvp); i++) {
-			strp[i] = buf;
-			buf += strlen(buf) + 1;
+		/*
+		 * get length of string array.
+		 */
+		remaining = ((char *)nvp + decode_len) - buf;
+		if (decode_len < 0 || remaining < 0) {
+			ret = EFAULT;
+			break;
 		}
+
+		arrays = 0;
+		for (i = 0; i < NVP_NELEM(nvp); i++) {
+			size_t len = strnlen(buf, remaining) + 1;
+			if (len <= remaining) {
+				strp[i] = buf;
+				buf += len;
+				remaining -= len;
+				arrays++;
+			}
+		}
+		if (arrays != NVP_NELEM(nvp) || remaining != 0)
+			ret = EFAULT;
 		break;
 	}
 	}
+	return (ret);
 }
 
 static int
@@ -3058,7 +3079,7 @@ nvs_native_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 		ret = nvpair_native_embedded_array(nvs, nvp);
 		break;
 	case DATA_TYPE_STRING_ARRAY:
-		nvpair_native_string_array(nvs, nvp);
+		ret = nvpair_native_string_array(nvs, nvp);
 		break;
 	default:
 		break;
