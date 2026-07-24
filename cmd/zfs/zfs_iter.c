@@ -284,6 +284,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 		case ZFS_PROP_NAME:
 		case ZFS_PROP_TYPE:
 			break;
+		/* Origin is not valid for snapshots, so it needs no payload. */
+		case ZFS_PROP_ORIGIN:
+			break;
 		case ZFS_PROP_GUID:
 			flags |= ZFS_ITER_BATCHED_GUID;
 			break;
@@ -295,6 +298,15 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 			break;
 		case ZFS_PROP_USERREFS:
 			flags |= ZFS_ITER_BATCHED_USERREFS;
+			break;
+		case ZFS_PROP_NUMCLONES:
+			flags |= ZFS_ITER_BATCHED_NUMCLONES;
+			break;
+		case ZFS_PROP_INCONSISTENT:
+			flags |= ZFS_ITER_BATCHED_INCONSISTENT;
+			break;
+		case ZFS_PROP_REDACTED:
+			flags |= ZFS_ITER_BATCHED_REDACTED;
 			break;
 		default:
 			return (0);
@@ -306,6 +318,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 		case ZFS_PROP_NAME:
 		case ZFS_PROP_TYPE:
 			break;
+		/* Origin is not valid for snapshots, so it needs no payload. */
+		case ZFS_PROP_ORIGIN:
+			break;
 		case ZFS_PROP_GUID:
 			flags |= ZFS_ITER_BATCHED_GUID;
 			break;
@@ -317,6 +332,15 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 			break;
 		case ZFS_PROP_USERREFS:
 			flags |= ZFS_ITER_BATCHED_USERREFS;
+			break;
+		case ZFS_PROP_NUMCLONES:
+			flags |= ZFS_ITER_BATCHED_NUMCLONES;
+			break;
+		case ZFS_PROP_INCONSISTENT:
+			flags |= ZFS_ITER_BATCHED_INCONSISTENT;
+			break;
+		case ZFS_PROP_REDACTED:
+			flags |= ZFS_ITER_BATCHED_REDACTED;
 			break;
 		default:
 			return (0);
