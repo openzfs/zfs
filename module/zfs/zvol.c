@@ -1805,6 +1805,63 @@ zvol_remove_minors_impl(zvol_task_t *task)
 	list_destroy(&remove_list);
 }
 
+/*
+ * Check if the named dataset or any of its descendant zvols are
+ * currently open (in use).  This is used to verify that it is safe
+ * to change a property that would affect the minor of the dataset
+ * itself and all inherited children.
+ */
+static boolean_t
+zvol_minors_in_use(const char *name)
+{
+	zvol_state_t *zv;
+	int namelen = strlen(name);
+
+	rw_enter(&zvol_state_lock, RW_READER);
+	for (zv = list_head(&zvol_state_list); zv != NULL;
+	    zv = list_next(&zvol_state_list, zv)) {
+		mutex_enter(&zv->zv_state_lock);
+		if (strncmp(zv->zv_name, name, namelen) == 0 &&
+		    (zv->zv_name[namelen] == '\0' ||
+		    zv->zv_name[namelen] == '/') &&
+		    zv->zv_open_count > 0) {
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zvol_state_lock);
+			return (B_TRUE);
+		}
+		mutex_exit(&zv->zv_state_lock);
+	}
+	rw_exit(&zvol_state_lock);
+	return (B_FALSE);
+}
+
+/*
+ * Check if any snapshot zvol minor under the given dataset is in use.
+ * Matches names of the form "name@snapname" where "name" is the prefix.
+ */
+static boolean_t
+zvol_snapshot_minors_in_use(const char *name)
+{
+	zvol_state_t *zv;
+	int namelen = strlen(name);
+
+	rw_enter(&zvol_state_lock, RW_READER);
+	for (zv = list_head(&zvol_state_list); zv != NULL;
+	    zv = list_next(&zvol_state_list, zv)) {
+		mutex_enter(&zv->zv_state_lock);
+		if (strncmp(zv->zv_name, name, namelen) == 0 &&
+		    zv->zv_name[namelen] == '@' &&
+		    zv->zv_open_count > 0) {
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zvol_state_lock);
+			return (B_TRUE);
+		}
+		mutex_exit(&zv->zv_state_lock);
+	}
+	rw_exit(&zvol_state_lock);
+	return (B_FALSE);
+}
+
 /* Remove minor for this specific volume only */
 static int
 zvol_remove_minor_impl(const char *name)
@@ -1939,9 +1996,11 @@ zvol_set_volmode_impl(zvol_task_t *task)
 		return;
 	if (zv != NULL) {
 		old_volmode = zv->zv_volmode;
-		mutex_exit(&zv->zv_state_lock);
-		if (old_volmode == volmode)
+		if (old_volmode == volmode) {
+			mutex_exit(&zv->zv_state_lock);
 			return;
+		}
+		mutex_exit(&zv->zv_state_lock);
 		zvol_wait_close(zv);
 	}
 	cookie = spl_fstrans_mark();
@@ -2128,6 +2187,25 @@ zvol_set_common(const char *ddname, zfs_prop_t prop, zprop_source_t source,
 	zsda.zsda_dispatched = FALSE;
 	mutex_init(&zsda.zsda_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&zsda.zsda_cv, NULL, CV_DEFAULT, NULL);
+
+	/*
+	 * Changing volmode or hiding snapdev on an open zvol would leave
+	 * the device in an inconsistent state: the property would be changed
+	 * on disk but the minor would not be removed.  Return EBUSY before
+	 * modifying the property so the caller knows to close the device
+	 * first.  This checks both the target dataset and any descendant
+	 * zvols that would inherit the change.
+	 */
+	if (prop == ZFS_PROP_VOLMODE &&
+	    zvol_minors_in_use(ddname)) {
+		error = SET_ERROR(EBUSY);
+		goto out;
+	}
+	if (prop == ZFS_PROP_SNAPDEV && val == ZFS_SNAPDEV_HIDDEN &&
+	    zvol_snapshot_minors_in_use(ddname)) {
+		error = SET_ERROR(EBUSY);
+		goto out;
+	}
 
 	error = spa_open(ddname, &spa, FTAG);
 	if (error != 0)
