@@ -118,13 +118,8 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 		int error = 0;
 		const char *htag, *name;
 
-		/* must be a snapshot */
 		name = nvpair_name(pair);
-		if (strchr(name, '@') == NULL)
-			error = SET_ERROR(EINVAL);
-
-		if (error == 0)
-			error = nvpair_value_string(pair, &htag);
+		error = nvpair_value_string(pair, &htag);
 
 		if (error == 0)
 			error = dsl_dataset_hold(dp, name, FTAG, &ds);
@@ -374,9 +369,6 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	nvlist_t *holds_found;
 	objset_t *mos;
 	int numholds;
-
-	if (!ds->ds_is_snapshot)
-		return (SET_ERROR(EINVAL));
 
 	if (nvlist_empty(holds))
 		return (0);

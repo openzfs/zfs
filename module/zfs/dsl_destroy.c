@@ -719,6 +719,9 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
 		return (SET_ERROR(EBUSY));
 
+	if (ds->ds_userrefs > 0)
+		return (SET_ERROR(EBUSY));
+
 	ASSERT0(ds->ds_dir->dd_activity_waiters);
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
@@ -1102,7 +1105,10 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	ASSERT0(dsl_dataset_phys(ds)->ds_next_clones_obj);
 	ASSERT0(dsl_dataset_phys(ds)->ds_props_obj);
-	ASSERT0(dsl_dataset_phys(ds)->ds_userrefs_obj);
+	if (dsl_dataset_phys(ds)->ds_userrefs_obj != 0) {
+		VERIFY0(zap_destroy(mos,
+		    dsl_dataset_phys(ds)->ds_userrefs_obj, tx));
+	}
 	dsl_dir_rele(ds->ds_dir, ds);
 	ds->ds_dir = NULL;
 	dmu_object_free_zapified(mos, obj, tx);

@@ -3249,9 +3249,6 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.NameTooLong)
             self.assertEqual(e.name, tag)
 
-    # Apparently the full snapshot name is not checked for length
-    # and this snapshot is treated as simply missing.
-    @unittest.expectedFailure
     def test_hold_too_long_snap_name(self):
         snap = ZFSTest.pool.getRoot().getTooLongSnap(False)
         with cleanup_fd() as fd:
@@ -3279,14 +3276,12 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.NameInvalid)
             self.assertEqual(e.name, snap)
 
-    def test_hold_invalid_snap_name_2(self):
-        snap = ZFSTest.pool.getRoot().getFilesystem().getName()
+    def test_hold_filesystem(self):
+        fs = ZFSTest.pool.getFilesystem(b'fs1').getName()
         with cleanup_fd() as fd:
-            with self.assertRaises(lzc_exc.HoldFailure) as ctx:
-                lzc.lzc_hold({snap: b'tag'}, fd)
-        for e in ctx.exception.errors:
-            self.assertIsInstance(e, lzc_exc.NameInvalid)
-            self.assertEqual(e.name, snap)
+            lzc.lzc_hold({fs: b'tag'}, fd)
+            self.assertIn(b'tag', lzc.lzc_get_holds(fs))
+        self.assertNotIn(b'tag', lzc.lzc_get_holds(fs))
 
     def test_get_holds(self):
         snap = ZFSTest.pool.getRoot().getSnap()
@@ -3483,9 +3478,6 @@ class ZFSTest(unittest.TestCase):
         with self.assertRaises(lzc_exc.HoldReleaseFailure):
             lzc.lzc_release({snap: [tag]})
 
-    # Apparently the full snapshot name is not checked for length
-    # and this snapshot is treated as simply missing.
-    @unittest.expectedFailure
     def test_release_hold_too_long_snap_name(self):
         snap = ZFSTest.pool.getRoot().getTooLongSnap(False)
 
@@ -3508,13 +3500,12 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.NameInvalid)
             self.assertEqual(e.name, snap)
 
-    def test_release_hold_invalid_snap_name_2(self):
-        snap = ZFSTest.pool.getRoot().getFilesystem().getName()
-        with self.assertRaises(lzc_exc.HoldReleaseFailure) as ctx:
-            lzc.lzc_release({snap: [b'tag']})
-        for e in ctx.exception.errors:
-            self.assertIsInstance(e, lzc_exc.NameInvalid)
-            self.assertEqual(e.name, snap)
+    def test_release_hold_filesystem(self):
+        fs = ZFSTest.pool.getFilesystem(b'fs1').getName()
+        lzc.lzc_hold({fs: b'tag'})
+        ret = lzc.lzc_release({fs: [b'tag']})
+        self.assertEqual(len(ret), 0)
+        self.assertNotIn(b'tag', lzc.lzc_get_holds(fs))
 
     def test_sync_missing_pool(self):
         pool = b"nonexistent"

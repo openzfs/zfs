@@ -30,26 +30,26 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd November 8, 2022
+.Dd May 9, 2026
 .Dt ZFS-HOLD 8
 .Os
 .
 .Sh NAME
 .Nm zfs-hold
-.Nd hold ZFS snapshots to prevent their removal
+.Nd hold datasets to prevent their removal
 .Sh SYNOPSIS
 .Nm zfs
 .Cm hold
 .Op Fl r
-.Ar tag Ar snapshot Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
 .Cm holds
 .Op Fl rHp
-.Ar snapshot Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
 .Cm release
 .Op Fl r
-.Ar tag Ar snapshot Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .
 .Sh DESCRIPTION
 .Bl -tag -width ""
@@ -57,34 +57,34 @@
 .Nm zfs
 .Cm hold
 .Op Fl r
-.Ar tag Ar snapshot Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
 Adds a single reference, named with the
 .Ar tag
-argument, to the specified snapshots.
-Each snapshot has its own tag namespace, and tags must be unique within that
+argument, to the specified datasets.
+Each target has its own tag namespace, and tags must be unique within that
 space.
 .Pp
-If a hold exists on a snapshot, attempts to destroy that snapshot by using the
+If a hold exists on a dataset, attempts to destroy it with
 .Nm zfs Cm destroy
-command return
+return
 .Sy EBUSY .
 .Bl -tag -width "-r"
 .It Fl r
-Specifies that a hold with the given tag is applied recursively to the snapshots
-of all descendent file systems.
+Apply the hold recursively to the named target and all descendent
+file systems
+.Pq for snapshots, to the same-named snapshot of each descendent .
 .El
 .It Xo
 .Nm zfs
 .Cm holds
 .Op Fl rHp
-.Ar snapshot Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
-Lists all existing user references for the given snapshot or snapshots.
+Lists all existing user references for the given datasets.
 .Bl -tag -width "-r"
 .It Fl r
-Lists the holds that are set on the named descendent snapshots, in addition to
-listing the holds on the named snapshot.
+List holds set on the named target and on all descendent file systems.
 .It Fl H
 Do not print headers, use tab-delimited output.
 .It Fl p
@@ -94,20 +94,20 @@ Prints holds timestamps as Unix epoch timestamps.
 .Nm zfs
 .Cm release
 .Op Fl r
-.Ar tag Ar snapshot Ns …
+.Ar tag Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Xc
 Removes a single reference, named with the
 .Ar tag
-argument, from the specified snapshot or snapshots.
-The tag must already exist for each snapshot.
-If a hold exists on a snapshot, attempts to destroy that snapshot by using the
+argument, from the specified datasets.
+The tag must already exist for each target.
+If a hold exists on a dataset, attempts to destroy it with
 .Nm zfs Cm destroy
-command return
+return
 .Sy EBUSY .
 .Bl -tag -width "-r"
 .It Fl r
-Recursively releases a hold with the given tag on the snapshots of all
-descendent file systems.
+Recursively release the hold from the named target and all descendent
+file systems.
 .El
 .El
 .
