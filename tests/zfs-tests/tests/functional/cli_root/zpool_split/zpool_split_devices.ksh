@@ -90,6 +90,8 @@ do
 	setup_mirror $conf
 	log_mustnot zpool split $TESTPOOL $TESTPOOL2 ${baddevs[$i]}
 	log_must zpool split -R $altroot $TESTPOOL $TESTPOOL2 ${gooddevs[$i]}
+	log_must zdb -MC $TESTPOOL
+	log_must zdb -MC $TESTPOOL2
 	# Verify "good" devices ended up in the new pool
 	log_must poolexists $TESTPOOL2
 	for filedev in ${gooddevs[$i]}; do

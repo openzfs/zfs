@@ -9433,11 +9433,31 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 			}
 
 			vdev_split(vml[c]);
+
+			/*
+			 * As in spa_vdev_detach(), mark the vdev detached
+			 * and dirty its DTL, so that vdev_dtl_sync() frees
+			 * the leaf's DTL space map object.
+			 */
+			vml[c]->vdev_detached = B_TRUE;
+
+			/*
+			 * The leaf ZAP was transferred to the new pool
+			 * and this pool's copy is destroyed by the AVZ
+			 * rebuild below, so clear it to keep
+			 * vdev_dtl_sync() from destroying it again.
+			 */
+			vml[c]->vdev_leaf_zap = 0;
+
+			/*
+			 * vml[c]->vdev_top may be stale; the
+			 * surviving top-level vdev is rvd->vdev_child[c].
+			 */
+			vdev_dirty(rvd->vdev_child[c], VDD_DTL, vml[c], txg);
+
 			if (error == 0)
 				spa_history_log_internal(spa, "detach", tx,
 				    "vdev=%s", vml[c]->vdev_path);
-
-			vdev_free(vml[c]);
 		}
 	}
 	spa->spa_avz_action = AVZ_ACTION_REBUILD;
@@ -9447,6 +9467,18 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	if (error == 0)
 		dmu_tx_commit(tx);
 	(void) spa_vdev_exit(spa, NULL, txg, 0);
+
+	/*
+	 * txg is synced, free vdevs.
+	 */
+	spa_config_enter(spa, SCL_STATE_ALL, spa, RW_WRITER);
+	for (c = 0; c < children; c++) {
+		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
+			ASSERT0P(vml[c]->vdev_dtl_sm);
+			vdev_free(vml[c]);
+		}
+	}
+	spa_config_exit(spa, SCL_STATE_ALL, spa);
 
 	if (zio_injection_enabled)
 		zio_handle_panic_injection(spa, FTAG, 3);
