@@ -1309,6 +1309,13 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 	if (error) {
 		dmu_objset_disown(os, 1, zv);
 		zv->zv_objset = NULL;
+	} else {
+		/*
+		 * Take a hold on the spa so that spa_export_common() will
+		 * return EBUSY while the zvol block device is open, just
+		 * as it does for mounted datasets.
+		 */
+		spa_open_ref(dmu_objset_spa(os), zv);
 	}
 
 	return (error);
@@ -1323,10 +1330,14 @@ zvol_last_close(zvol_state_t *zv)
 	if (zv->zv_flags & ZVOL_REMOVING)
 		cv_broadcast(&zv->zv_removing_cv);
 
+	spa_t *spa = dmu_objset_spa(zv->zv_objset);
+
 	zvol_shutdown_zv(zv);
 
 	dmu_objset_disown(zv->zv_objset, 1, zv);
 	zv->zv_objset = NULL;
+
+	spa_close(spa, zv);
 }
 
 typedef struct minors_job {
