@@ -2141,7 +2141,12 @@ zio_free_bp_init(zio_t *zio)
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL) {
 		if (BP_GET_DEDUP(bp))
-			zio->io_pipeline = ZIO_DDT_FREE_PIPELINE;
+			/*
+			 * Keep the gang stages zio_create() added: if
+			 * zio_ddt_free() falls back to a plain free, they
+			 * free the gang members along with the header.
+			 */
+			zio->io_pipeline |= ZIO_DDT_FREE_PIPELINE;
 	}
 
 	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
@@ -4183,13 +4188,12 @@ zio_ddt_free(zio_t *zio)
 			ddt_phys_decref(dde->dde_phys, v);
 		else
 			/*
-			 * If the entry was found but the phys was not, then
-			 * this block must have been pruned from the dedup
-			 * table, and the entry refers to a later version of
-			 * this data. Therefore, the caller is trying to delete
-			 * the only stored instance of this block, and so we
-			 * need to do a normal (not dedup) free. Clear dde so
-			 * we fall into the block below.
+			 * No phys matches this BP; ddt_lookup() returned a
+			 * fresh, empty entry because the key is not in the
+			 * table at all (eg the original entry was pruned).
+			 * There is no reference to release, so we need to do
+			 * a normal (not dedup) free. Clear dde so we fall
+			 * into the block below.
 			 */
 			dde = NULL;
 	}
@@ -4207,8 +4211,24 @@ zio_ddt_free(zio_t *zio)
 		 * table.  Clear the DEDUP bit so it is treated as a normal
 		 * block from here on.  BRT_FREE and DVA_FREE follow in the
 		 * pipeline and will handle any cloned references and the
-		 * actual block free respectively.
+		 * actual block free respectively, along with the gang stages
+		 * for a gang BP.
+		 *
+		 * Only flat (FDT) tables are ever pruned, so a miss against
+		 * a traditional table means the table and the BP disagree,
+		 * which should not be possible. The plain free below is
+		 * still the best we can do for this BP, but leave a trace.
 		 */
+		if (!(ddt->ddt_flags & DDT_FLAG_FLAT)) {
+			zfs_dbgmsg("%s: no matching traditional DDT phys for "
+			    "dedup BP DVA[0]=<%llu:%llx:%llx> phys_birth=%llu; "
+			    "freeing without a refcount decrement",
+			    spa_name(spa),
+			    (u_longlong_t)DVA_GET_VDEV(&bp->blk_dva[0]),
+			    (u_longlong_t)DVA_GET_OFFSET(&bp->blk_dva[0]),
+			    (u_longlong_t)DVA_GET_ASIZE(&bp->blk_dva[0]),
+			    (u_longlong_t)BP_GET_PHYSICAL_BIRTH(bp));
+		}
 		BP_SET_DEDUP(bp, 0);
 	}
 
