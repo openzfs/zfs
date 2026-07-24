@@ -36,6 +36,44 @@
 #include <sys/zfeature.h>
 
 /*
+ * Take the source and destination inode locks for a remap (clone or dedupe).
+ *
+ * Since Linux 4.20 the VFS does not lock the inodes for ->remap_file_range();
+ * the filesystem must, and it must impose an order on the two, or two remaps
+ * running in opposite directions deadlock: each would hold one inode and wait
+ * for the other, and an rwsem writer queues behind the existing readers.  Order
+ * by inode address, as btrfs does.  The destination is taken exclusively and
+ * the source shared, so concurrent remaps out of one hot source still proceed.
+ */
+static void
+zpl_remap_lock_two(struct inode *src_i, struct inode *dst_i)
+{
+	if (src_i == dst_i) {
+		spl_inode_lock(dst_i);
+	} else if (src_i < dst_i) {
+		spl_inode_lock_shared(src_i);
+		spl_inode_lock(dst_i);
+	} else {
+		spl_inode_lock(dst_i);
+		spl_inode_lock_shared(src_i);
+	}
+}
+
+static void
+zpl_remap_unlock_two(struct inode *src_i, struct inode *dst_i)
+{
+	if (src_i == dst_i) {
+		spl_inode_unlock(dst_i);
+	} else if (src_i < dst_i) {
+		spl_inode_unlock(dst_i);
+		spl_inode_unlock_shared(src_i);
+	} else {
+		spl_inode_unlock_shared(src_i);
+		spl_inode_unlock(dst_i);
+	}
+}
+
+/*
  * Clone part of a file via block cloning.
  *
  * Note that we are not required to update file offsets; the kernel will take
@@ -61,9 +99,7 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 	    dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))
 		return (-EOPNOTSUPP);
 
-	if (src_i != dst_i)
-		spl_inode_lock_shared(src_i);
-	spl_inode_lock(dst_i);
+	zpl_remap_lock_two(src_i, dst_i);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -74,15 +110,66 @@ zpl_clone_file_range_impl(struct file *src_file, loff_t src_off,
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 
-	spl_inode_unlock(dst_i);
-	if (src_i != dst_i)
-		spl_inode_unlock_shared(src_i);
+	zpl_remap_unlock_two(src_i, dst_i);
 
 	if (err < 0)
 		return (err);
 
 	return ((ssize_t)len_o);
 }
+
+#if defined(HAVE_VFS_REMAP_FILE_RANGE) || \
+	defined(HAVE_VFS_DEDUPE_FILE_RANGE)
+/*
+ * Logic shared by the FIDEDUPERANGE entry points.  Compare len bytes at
+ * src_off in src_file with dst_off in dst_file and, if they are identical,
+ * share the underlying blocks via zfs_dedupe_range().  Returns the number of
+ * bytes deduped, -EBADE if the ranges differ (which the VFS reports as
+ * FILE_DEDUPE_RANGE_DIFFERS), or another negative errno on failure.
+ */
+static ssize_t
+zpl_dedupe_file_range_impl(struct file *src_file, loff_t src_off,
+    struct file *dst_file, loff_t dst_off, size_t len, boolean_t can_shorten)
+{
+	struct inode *src_i = file_inode(src_file);
+	struct inode *dst_i = file_inode(dst_file);
+	uint64_t src_off_o = (uint64_t)src_off;
+	uint64_t dst_off_o = (uint64_t)dst_off;
+	uint64_t len_o = (uint64_t)len;
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	boolean_t same = B_FALSE;
+	int err;
+
+	if (!zfs_bclone_enabled)
+		return (-EOPNOTSUPP);
+
+	if (!spa_feature_is_enabled(
+	    dmu_objset_spa(ITOZSB(dst_i)->z_os), SPA_FEATURE_BLOCK_CLONING))
+		return (-EOPNOTSUPP);
+
+	zpl_remap_lock_two(src_i, dst_i);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+
+	err = -zfs_dedupe_range(ITOZ(src_i), src_off_o, ITOZ(dst_i),
+	    dst_off_o, &len_o, cr, can_shorten, &same);
+
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	zpl_remap_unlock_two(src_i, dst_i);
+
+	if (err < 0)
+		return (err);
+
+	if (!same)
+		return (-EBADE);
+
+	return ((ssize_t)len_o);
+}
+#endif
 
 /*
  * Entry point for copy_file_range(). Copy len bytes from src_off in src_file
@@ -159,9 +246,9 @@ zpl_remap_file_range(struct file *src_file, loff_t src_off,
 	if (flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_CAN_SHORTEN))
 		return (-EINVAL);
 
-	/* No support for dedup yet */
 	if (flags & REMAP_FILE_DEDUP)
-		return (-EOPNOTSUPP);
+		return (zpl_dedupe_file_range_impl(src_file, src_off, dst_file,
+		    dst_off, len, !!(flags & REMAP_FILE_CAN_SHORTEN)));
 
 	/* Zero length means to clone everything to the end of the file */
 	if (len == 0)
@@ -208,7 +295,11 @@ int
 zpl_dedupe_file_range(struct file *src_file, loff_t src_off,
     struct file *dst_file, loff_t dst_off, uint64_t len)
 {
-	/* No support for dedup yet */
-	return (-EOPNOTSUPP);
+	/*
+	 * The pre-4.20 dedupe interface has no way to signal that a short
+	 * dedupe is acceptable, so the whole range must match.
+	 */
+	return (zpl_dedupe_file_range_impl(src_file, src_off, dst_file,
+	    dst_off, len, B_FALSE));
 }
 #endif /* HAVE_VFS_DEDUPE_FILE_RANGE */

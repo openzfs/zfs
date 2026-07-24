@@ -33,7 +33,17 @@ tags = ['functional', 'acl', 'posix-sa']
 [tests/functional/block_cloning:Linux]
 tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
     'block_cloning_ficlonerange_partial', 'block_cloning_disabled_ficlone',
-    'block_cloning_disabled_ficlonerange']
+    'block_cloning_disabled_ficlonerange', 'block_cloning_fideduperange',
+    'block_cloning_fideduperange_blksz',
+    'block_cloning_fideduperange_compress',
+    'block_cloning_fideduperange_differs',
+    'block_cloning_fideduperange_mtime',
+    'block_cloning_fideduperange_partial',
+    'block_cloning_fideduperange_replay',
+    'block_cloning_fideduperange_sparse',
+    'block_cloning_fideduperange_subblock',
+    'block_cloning_fideduperange_tail',
+    'block_cloning_disabled_fideduperange']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/chattr:Linux]
