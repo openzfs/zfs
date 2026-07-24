@@ -816,6 +816,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_REBUILD_DONE			0x2000
 #define	SPA_ASYNC_DETACH_SPARE			0x4000
 #define	SPA_ASYNC_REMOVE_BY_USER		0x8000
+#define	SPA_ASYNC_CONTRACTION_DONE		0x10000
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t ashift_check);
@@ -834,6 +835,9 @@ extern int spa_vdev_setpath(spa_t *spa, uint64_t guid, const char *newpath);
 extern int spa_vdev_setfru(spa_t *spa, uint64_t guid, const char *newfru);
 extern int spa_vdev_split_mirror(spa_t *spa, const char *newname,
     nvlist_t *config, nvlist_t *props, boolean_t exp);
+int spa_rebalance_vdevs(spa_t *spa, const uint64_t *guids, uint_t count);
+int spa_rebalance_all(spa_t *spa);
+int spa_contract_vdev(spa_t *spa, uint64_t anyraid_vdev, uint64_t leaf_vdev);
 
 /* spare state (which is global across all pools) */
 extern void spa_spare_add(vdev_t *vd);
@@ -1089,9 +1093,12 @@ extern uint64_t spa_first_txg(spa_t *spa);
 extern uint64_t spa_open_txg(spa_t *spa);
 extern uint64_t spa_syncing_txg(spa_t *spa);
 extern uint64_t spa_final_dirty_txg(spa_t *spa);
+extern uint64_t spa_load_max_txg(spa_t *spa);
+extern uint64_t spa_current_txg(spa_t *spa);
 extern uint64_t spa_version(spa_t *spa);
 extern pool_state_t spa_state(spa_t *spa);
 extern spa_load_state_t spa_load_state(spa_t *spa);
+extern uint64_t spa_load_txg(spa_t *spa);
 extern uint64_t spa_freeze_txg(spa_t *spa);
 extern uint64_t spa_get_worst_case_asize(spa_t *spa, uint64_t lsize);
 extern void spa_get_min_alloc_range(spa_t *spa, uint64_t *min, uint64_t *max);
@@ -1166,7 +1173,9 @@ extern boolean_t spa_has_pending_synctask(spa_t *spa);
 extern int spa_maxblocksize(spa_t *spa);
 extern int spa_maxdnodesize(spa_t *spa);
 extern boolean_t spa_has_checkpoint(spa_t *spa);
+extern uint64_t spa_checkpoint_txg(spa_t *spa);
 extern boolean_t spa_importing_readonly_checkpoint(spa_t *spa);
+extern boolean_t spa_importing_checkpoint(spa_t *spa);
 extern boolean_t spa_suspend_async_destroy(spa_t *spa);
 extern uint64_t spa_min_claim_txg(spa_t *spa);
 extern boolean_t zfs_dva_valid(spa_t *spa, const dva_t *dva,

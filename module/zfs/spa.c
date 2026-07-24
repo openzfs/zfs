@@ -68,6 +68,7 @@
 #include <sys/vdev_disk.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/mmp.h>
@@ -2194,6 +2195,10 @@ spa_destroy_aux_threads(spa_t *spa)
 		zthr_destroy(spa->spa_raidz_expand_zthr);
 		spa->spa_raidz_expand_zthr = NULL;
 	}
+	if (spa->spa_anyraid_relocate_zthr != NULL) {
+		zthr_destroy(spa->spa_anyraid_relocate_zthr);
+		spa->spa_anyraid_relocate_zthr = NULL;
+	}
 }
 
 static void
@@ -2475,6 +2480,7 @@ spa_unload(spa_t *spa)
 	}
 
 	spa->spa_raidz_expand = NULL;
+	spa->spa_anyraid_relocate = NULL;
 	spa->spa_checkpoint_txg = 0;
 
 	spa_config_exit(spa, SCL_ALL, spa);
@@ -3615,6 +3621,7 @@ spa_spawn_aux_threads(spa_t *spa)
 	ASSERT(spa_writeable(spa));
 
 	spa_start_raidz_expansion_thread(spa);
+	spa_start_anyraid_relocate_thread(spa);
 	spa_start_indirect_condensing_thread(spa);
 	spa_start_livelist_destroy_thread(spa);
 	spa_start_livelist_condensing_thread(spa);
@@ -5955,7 +5962,8 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 			if (svdcount == SPA_SYNC_MIN_VDEVS)
 				break;
 		}
-		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg);
+		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg,
+		    VDEV_CONFIG_REWINDING_CHECKPOINT);
 		if (error == 0)
 			spa->spa_last_synced_guid = rvd->vdev_guid;
 		spa_config_exit(spa, SCL_ALL, FTAG);
@@ -7375,6 +7383,10 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	for (int i = 0; i < draid_nfgroup; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID_FAIL_DOMAINS, tx);
 
+	for (uint64_t i = 0; i < rvd->vdev_children; i++)
+		if (vdev_is_anyraid(rvd->vdev_child[i]))
+			spa_feature_incr(spa, SPA_FEATURE_ANYRAID, tx);
+
 	dmu_tx_commit(tx);
 
 	spa->spa_sync_on = B_TRUE;
@@ -7988,12 +8000,25 @@ spa_draid_fdomains_feature_incr(void *arg, dmu_tx_t *tx)
 }
 
 /*
+ * This is called as a synctask to increment the anyraid feature flag
+ */
+static void
+spa_anyraid_feature_incr(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	uint64_t nanyraid = (uint64_t)(uintptr_t)arg;
+
+	for (int i = 0; i < nanyraid; i++)
+		spa_feature_incr(spa, SPA_FEATURE_ANYRAID, tx);
+}
+
+/*
  * Add a device to a storage pool.
  */
 int
 spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 {
-	uint64_t txg, ndraid = 0, draid_nfgroup = 0;
+	uint64_t txg, ndraid = 0, draid_nfgroup = 0, nanyraid = 0;
 	int error;
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *vd, *tvd;
@@ -8136,6 +8161,19 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 			    spa_draid_fdomains_feature_incr,
 			    (void *)(uintptr_t)draid_nfgroup, tx);
 
+		dmu_tx_commit(tx);
+	}
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++)
+		if (vdev_is_anyraid(vd->vdev_child[i]))
+			nanyraid++;
+	if (nanyraid > 0) {
+		dmu_tx_t *tx;
+
+		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		dsl_sync_task_nowait(spa->spa_dsl_pool,
+		    spa_anyraid_feature_incr,
+		    (void *)(uintptr_t)nanyraid, tx);
 		dmu_tx_commit(tx);
 	}
 
@@ -8305,6 +8343,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
 
 	boolean_t raidz = oldvd->vdev_ops == &vdev_raidz_ops;
+	boolean_t anyraid = vdev_is_anyraid(oldvd);
 
 	if (raidz) {
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_EXPANSION))
@@ -8317,11 +8356,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			return (spa_vdev_exit(spa, NULL, txg,
 			    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS));
 		}
-	} else if (!oldvd->vdev_ops->vdev_op_leaf) {
+	} else if (!anyraid && !oldvd->vdev_ops->vdev_op_leaf) {
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 	}
 
-	if (raidz)
+	if (raidz || anyraid)
 		pvd = oldvd;
 	else
 		pvd = oldvd->vdev_parent;
@@ -8377,6 +8416,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 		if (tvd->vdev_ops != &vdev_mirror_ops &&
 		    tvd->vdev_ops != &vdev_root_ops &&
+		    tvd->vdev_ops != &vdev_anymirror_ops &&
 		    tvd->vdev_ops != &vdev_draid_ops) {
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 		}
@@ -8390,10 +8430,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		 */
 		if (pvd->vdev_ops != &vdev_mirror_ops &&
 		    pvd->vdev_ops != &vdev_root_ops &&
-		    !raidz)
+		    !raidz && !anyraid)
 			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
-		pvops = &vdev_mirror_ops;
+		if (anyraid)
+			pvops = pvd->vdev_ops;
+		else
+			pvops = &vdev_mirror_ops;
 	} else {
 		/*
 		 * Active hot spares can only be replaced by inactive hot
@@ -8435,9 +8478,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	/*
 	 * Make sure the new device is big enough.
 	 */
-	vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
-	if (newvd->vdev_asize < vdev_get_min_asize(min_vdev))
-		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
+	if (newvd->vdev_asize < vdev_get_min_attach_size(oldvd))
+		return (spa_vdev_exit(spa, newrootvd, txg, anyraid ? ENOLCK :
+		    EOVERFLOW));
 
 	/*
 	 * The new device cannot have a higher alignment requirement
@@ -8483,6 +8526,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		    (uint_t)vdev_get_nparity(oldvd), (uint_t)oldvd->vdev_id);
 		oldvdpath = spa_strdup(tmp);
 		kmem_strfree(tmp);
+	} else if (anyraid) {
+		char *tmp = kmem_asprintf(VDEV_TYPE_ANYMIRROR "%u-%u",
+		    (uint_t)vdev_get_nparity(oldvd), (uint_t)oldvd->vdev_id);
+		oldvdpath = spa_strdup(tmp);
+		kmem_strfree(tmp);
 	} else {
 		oldvdpath = spa_strdup(oldvd->vdev_path);
 	}
@@ -8510,7 +8558,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * If the parent is not a mirror, or if we're replacing, insert the new
 	 * mirror/replacing/spare vdev above oldvd.
 	 */
-	if (!raidz && pvd->vdev_ops != pvops) {
+	if (!raidz && !anyraid && pvd->vdev_ops != pvops) {
 		pvd = vdev_add_parent(oldvd, pvops);
 		ASSERT(pvd->vdev_ops == pvops);
 		ASSERT(oldvd->vdev_parent == pvd);
@@ -8568,6 +8616,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, tx);
 		dmu_tx_commit(tx);
+	} else if (anyraid) {
+		vdev_anyraid_expand(tvd, newvd);
+		vdev_dirty(tvd, VDD_DTL, newvd, txg);
+		tvd->vdev_expanding = B_TRUE;
+		vdev_reopen(tvd);
+		spa->spa_ccw_fail_time = 0;
+		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 	} else {
 		vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
 		    dtl_max_txg - TXG_INITIAL);
@@ -9493,6 +9548,108 @@ out:
 	return (error);
 }
 
+static void
+spa_vdev_contraction_done(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *avd = NULL;
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		if (!vdev_is_anyraid(tvd))
+			continue;
+		vdev_anyraid_t *va = tvd->vdev_tsd;
+		if (va->vd_contracting_leaf == -1)
+			continue;
+		avd = tvd;
+		break;
+	}
+	ASSERT(avd);
+	vdev_anyraid_t *va = avd->vdev_tsd;
+	uint64_t avd_guid = avd->vdev_guid;
+	vdev_t *lvd = avd->vdev_child[va->vd_contracting_leaf];
+
+	uint64_t txg = spa_vdev_detach_enter(spa, lvd->vdev_guid);
+
+	/*
+	 * Erase the disk labels so the disk can be used for other things.
+	 * This must be done after all other error cases are handled,
+	 * but before we disembowel vd (so we can still do I/O to it).
+	 * But if we can't do it, don't treat the error as fatal --
+	 * it may be that the unwritability of the disk is the reason
+	 * it's being detached!
+	 */
+	(void) vdev_label_init(lvd, 0, VDEV_LABEL_REMOVE);
+
+	rw_enter(&va->vd_lock, RW_WRITER);
+
+	/*
+	 * Remove vd from its parent and compact the parent's children.
+	 */
+	vdev_remove_child(avd, lvd);
+	vdev_compact_children(avd);
+
+	ASSERT3S(va->vd_contracting_leaf, ==, lvd->vdev_id);
+	vdev_anyraid_compact_children(avd);
+	va->vd_contracting_leaf = -1;
+	spa->spa_anyraid_relocate = NULL;
+	vdev_anyraid_relocate_t *var = &va->vd_relocate;
+	var->var_state = ARS_FINISHED;
+	var->var_synced_offset = var->var_offset = 0;
+	var->var_synced_task = var->var_task = 0;
+	rw_exit(&va->vd_lock);
+
+	/*
+	 * Remember one of the remaining children so we can get tvd below.
+	 */
+	vdev_t *cvd = avd->vdev_child[avd->vdev_children - 1];
+
+	ASSERT3P(avd->vdev_parent, ==, spa->spa_root_vdev);
+
+	/*
+	 * Reevaluate the parent vdev state.
+	 */
+	vdev_propagate_state(cvd);
+
+	vdev_config_dirty(avd);
+
+	/*
+	 * Mark vd's DTL as dirty in this txg.  vdev_dtl_sync() will see that
+	 * vd->vdev_detached is set and free vd's DTL object in syncing context.
+	 * But first make sure we're not on any *other* txg's DTL list, to
+	 * prevent vd from being accessed after it's freed.
+	 */
+	char *vdpath = spa_strdup(lvd->vdev_path ? lvd->vdev_path : "none");
+	for (int t = 0; t < TXG_SIZE; t++)
+		(void) txg_list_remove_this(&avd->vdev_dtl_list, lvd, t);
+	lvd->vdev_detached = B_TRUE;
+	vdev_dirty(avd, VDD_DTL, lvd, txg);
+	vdev_config_dirty(avd);
+
+	spa_event_notify(spa, lvd, NULL, ESC_ZFS_VDEV_REMOVE);
+	spa_notify_waiters(spa);
+
+	/* hang on to the spa before we release the lock */
+	spa_open_ref(spa, FTAG);
+
+	avd->vdev_shrinking = B_TRUE;
+	vdev_reopen(avd);
+	vdev_metaslab_init(avd, txg);
+	avd->vdev_shrinking = B_FALSE;
+	VERIFY0(spa_vdev_exit(spa, lvd, txg, 0)); // TODO
+
+	spa_history_log_internal(spa, "detach", NULL,
+	    "vdev=%s", vdpath);
+	spa_strfree(vdpath);
+
+	txg_wait_synced(spa->spa_dsl_pool, txg);
+	avd = spa_lookup_by_guid(spa, avd_guid, B_FALSE);
+	va = avd->vdev_tsd;
+	/* all done with the spa; OK to release */
+	spa_namespace_enter(FTAG);
+	spa_close(spa, FTAG);
+	spa_namespace_exit(FTAG);
+}
+
 /*
  * Find any device that's done replacing, or a vdev marked 'unspare' that's
  * currently spared, so we can detach it.
@@ -9829,6 +9986,8 @@ spa_async_thread(void *arg)
 	spa->spa_async_tasks = 0;
 	mutex_exit(&spa->spa_async_lock);
 
+	if (tasks & SPA_ASYNC_CONTRACTION_DONE)
+		spa_vdev_contraction_done(spa);
 	/*
 	 * See if the config needs to be updated.
 	 */
@@ -9996,6 +10155,10 @@ spa_async_suspend(spa_t *spa)
 	if (raidz_expand_thread != NULL)
 		zthr_cancel(raidz_expand_thread);
 
+	zthr_t *anyraid_relocate_thread = spa->spa_anyraid_relocate_zthr;
+	if (anyraid_relocate_thread != NULL)
+		zthr_cancel(anyraid_relocate_thread);
+
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
 		zthr_cancel(discard_thread);
@@ -10025,6 +10188,10 @@ spa_async_resume(spa_t *spa)
 	zthr_t *raidz_expand_thread = spa->spa_raidz_expand_zthr;
 	if (raidz_expand_thread != NULL)
 		zthr_resume(raidz_expand_thread);
+
+	zthr_t *anyraid_relocate_thread = spa->spa_anyraid_relocate_zthr;
+	if (anyraid_relocate_thread != NULL)
+		zthr_resume(anyraid_relocate_thread);
 
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
@@ -10857,6 +11024,13 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 {
 	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t txg = tx->tx_txg;
+	vdev_config_sync_status_t status;
+	if (dmu_tx_get_txg(tx) == spa->spa_checkpoint_txg + 1)
+		status = VDEV_CONFIG_CREATING_CHECKPOINT;
+	else if (spa->spa_checkpoint_txg == 0)
+		status = VDEV_CONFIG_NO_CHECKPOINT;
+	else
+		status = VDEV_CONFIG_KEEP_CHECKPOINT;
 
 	for (;;) {
 		int error = 0;
@@ -10890,10 +11064,10 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 				if (svdcount == SPA_SYNC_MIN_VDEVS)
 					break;
 			}
-			error = vdev_config_sync(svd, svdcount, txg);
+			error = vdev_config_sync(svd, svdcount, txg, status);
 		} else {
 			error = vdev_config_sync(rvd->vdev_child,
-			    rvd->vdev_children, txg);
+			    rvd->vdev_children, txg, status);
 		}
 
 		if (error == 0)
@@ -11633,6 +11807,12 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		}
 		break;
 	}
+	case ZPOOL_WAIT_ANYRAID_RELOCATE:
+	{
+		vdev_anyraid_relocate_t *var = spa->spa_anyraid_relocate;
+		*in_progress = (var != NULL && var->var_state == ARS_SCANNING);
+		break;
+	}
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
@@ -11893,6 +12073,139 @@ spa_condense_debug_cancel(spa_t *spa)
 	spa_close(spa, scns);
 }
 #endif
+
+static int
+spa_check_start_rebalance(void *arg, dmu_tx_t *tx) {
+	vdev_t *vd = (vdev_t *)arg;
+	spa_t *spa = vd->vdev_spa;
+	if (!vdev_is_anyraid(vd))
+		return (SET_ERROR(EINVAL));
+	if (vdev_anyraid_relocate_status(vd)->var_state == ARS_SCANNING)
+		return (SET_ERROR(EALREADY));
+	if (vd->vdev_spa->spa_anyraid_relocate != NULL)
+		return (SET_ERROR(EEXIST));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		int error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (SET_ERROR(error));
+	}
+
+	(void) tx;
+	return (0);
+}
+
+static void
+spa_sync_start_rebalance(void *arg, dmu_tx_t *tx) {
+	vdev_t *vd = (vdev_t *)arg;
+	ASSERT(vdev_is_anyraid(vd));
+	vdev_anyraid_setup_rebalance(vd, tx);
+}
+
+int
+spa_rebalance_vdevs(spa_t *spa, const uint64_t *guids, uint_t count)
+{
+	if (count == 0)
+		return (ENOENT);
+	ASSERT(guids);
+	uint_t lasterror = 0;
+	for (uint_t c = 0; c < count; c++) {
+		vdev_t *vd = spa_lookup_by_guid(spa, guids[c], B_FALSE);
+		if (vd == NULL) {
+			lasterror = SET_ERROR(ENOENT);
+			break;
+		}
+
+		lasterror = dsl_sync_task(spa->spa_name,
+		    spa_check_start_rebalance, spa_sync_start_rebalance,
+		    vd, 6, ZFS_SPACE_CHECK_NORMAL);
+		if (lasterror)
+			break;
+	}
+	return (lasterror);
+}
+
+int
+spa_rebalance_all(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint_t count = 0;
+	uint_t lasterror = 0;
+
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *cvd = rvd->vdev_child[c];
+		if (!vdev_is_anyraid(cvd))
+			continue;
+		count++;
+		/*
+		 * Theoretically, if every single tile was getting moved, we
+		 * could need vd->vdev_asize / va->vd_tile_size *
+		 * sizeof (relocate_task_phys_t) bytes to store all the tasks,
+		 * plus the dnode and indirect blocks.
+		 */
+		vdev_anyraid_t *va = cvd->vdev_tsd;
+		uint_t blocks = ((cvd->vdev_asize / va->vd_tile_size * 32) >>
+		    SPA_OLD_MAXBLOCKSHIFT) + 6;
+		lasterror = dsl_sync_task(spa->spa_name,
+		    spa_check_start_rebalance, spa_sync_start_rebalance,
+		    cvd, blocks, ZFS_SPACE_CHECK_NORMAL);
+		if (lasterror)
+			break;
+	}
+	if (count == 0)
+		return (ENOENT);
+	return (lasterror);
+}
+
+static int
+spa_check_start_contract(void *arg, dmu_tx_t *tx) {
+	vdev_t *lvd = (vdev_t *)arg;
+	vdev_t *tvd = lvd->vdev_top;
+	spa_t *spa = tvd->vdev_spa;
+	if (!vdev_is_anyraid(tvd))
+		return (SET_ERROR(EINVAL));
+	if (vdev_anyraid_relocate_status(tvd)->var_state == ARS_SCANNING ||
+	    vdev_anyraid_relocate_status(tvd)->var_state == ARS_SCRUBBING)
+		return (SET_ERROR(EALREADY));
+	if (spa->spa_anyraid_relocate != NULL)
+		return (SET_ERROR(EEXIST));
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		int error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+		return (SET_ERROR(error));
+	}
+
+	return (vdev_anyraid_check_contract(tvd, lvd, tx));
+}
+
+static void
+spa_sync_start_contract(void *arg, dmu_tx_t *tx) {
+	vdev_t *lvd = (vdev_t *)arg;
+	vdev_t *tvd = lvd->vdev_top;
+	ASSERT(vdev_is_anyraid(tvd));
+	vdev_anyraid_setup_contract(tvd, tx);
+}
+
+int
+spa_contract_vdev(spa_t *spa, uint64_t anyraid_vdev, uint64_t leaf_vdev)
+{
+	vdev_t *avd = spa_lookup_by_guid(spa, anyraid_vdev, B_FALSE);
+	vdev_t *lvd = spa_lookup_by_guid(spa, leaf_vdev, B_FALSE);
+	if (avd == NULL || lvd == NULL)
+		return (SET_ERROR(ENOENT));
+	if (!vdev_is_anyraid(avd))
+		return (SET_ERROR(EINVAL));
+	if (lvd->vdev_top != avd)
+		return (SET_ERROR(ENXIO));
+
+	/*
+	 * We need one relocate task per tile on the leaf vdev.
+	 * We also need additional blocks to store metadata.
+	 */
+	uint_t blocks = ((vdev_anyraid_child_num_tiles(avd, lvd) * 32) >>
+	    SPA_OLD_MAXBLOCKSHIFT) + 6;
+	return (dsl_sync_task(spa->spa_name, spa_check_start_contract,
+	    spa_sync_start_contract, lvd, blocks, ZFS_SPACE_CHECK_NORMAL));
+}
 
 /* state manipulation functions */
 EXPORT_SYMBOL(spa_open);

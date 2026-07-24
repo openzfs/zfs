@@ -4348,6 +4348,8 @@ zio_dva_allocate(zio_t *zio)
 		flags |= METASLAB_GANG_CHILD;
 	if (zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE)
 		flags |= METASLAB_ASYNC_ALLOC;
+	if (zio->io_flags & ZIO_FLAG_ZILWRITE)
+		flags |= METASLAB_ZIL;
 
 	/*
 	 * If not already chosen, choose an appropriate allocation class.
@@ -4952,6 +4954,12 @@ zio_vdev_io_assess(zio_t *zio)
 		zio->io_vsd_ops->vsd_free(zio);
 		zio->io_vsd = NULL;
 	}
+	/*
+	 * The only VDEV types that use this should have handled their aux data
+	 * by now.
+	 */
+	ASSERT3PF(NULL, ==, zio->io_aux_vsd, "%d %x", zio->io_error,
+	    zio->io_pipeline_trace);
 
 	/*
 	 * If a Direct I/O operation has a checksum verify error then this I/O
@@ -5230,8 +5238,6 @@ zio_checksum_generate(zio_t *zio)
 
 		if (checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
-
-		ASSERT(checksum == ZIO_CHECKSUM_LABEL);
 	} else {
 		if (BP_IS_GANG(bp) && zio->io_child_type == ZIO_CHILD_GANG) {
 			ASSERT(!IO_IS_ALLOCATING(zio));
@@ -5262,8 +5268,6 @@ zio_checksum_verify(zio_t *zio)
 		 */
 		if (zio->io_prop.zp_checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
-
-		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
 	}
 
 	ASSERT0(zio->io_post & ZIO_POST_DIO_CHKSUM_ERR);

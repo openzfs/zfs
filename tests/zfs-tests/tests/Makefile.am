@@ -90,6 +90,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/acl/acl_common.kshlib \
 	functional/alloc_class/alloc_class.cfg \
 	functional/alloc_class/alloc_class.kshlib \
+	functional/anyraid/anyraid_common.kshlib \
+	functional/anyraid/default.cfg \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
 	functional/bclone/bclone.cfg \
@@ -481,6 +483,76 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/alloc_class_016_pos.ksh \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
+	functional/anyraid/anyraid_checkpoint.ksh \
+	functional/anyraid/anyraid_clean_mirror_001_pos.ksh \
+	functional/anyraid/anyraid_clean_mirror_002_pos.ksh \
+	functional/anyraid/anyraid_clean_mirror_003_pos.ksh \
+	functional/anyraid/anyraid_clean_mirror_004_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_001_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_002_pos.ksh \
+	functional/anyraid/anyraid_clean_raidz_003_pos.ksh \
+	functional/anyraid/anyraid_contract_001_pos.ksh \
+	functional/anyraid/anyraid_contract_002_pos.ksh \
+	functional/anyraid/anyraid_contract_003_pos.ksh \
+	functional/anyraid/anyraid_contract_004_pos.ksh \
+	functional/anyraid/anyraid_contract_005_pos.ksh \
+	functional/anyraid/anyraid_contract_006_pos.ksh \
+	functional/anyraid/anyraid_contract_after_rebalance_pos.ksh \
+	functional/anyraid/anyraid_contract_below_width_neg.ksh \
+	functional/anyraid/anyraid_contract_checkpoint_neg.ksh \
+	functional/anyraid/anyraid_contract_disk_fail_pos.ksh \
+	functional/anyraid/anyraid_contract_during_rebalance_neg.ksh \
+	functional/anyraid/anyraid_contract_enospc_neg.ksh \
+	functional/anyraid/anyraid_contract_expand_lifecycle_pos.ksh \
+	functional/anyraid/anyraid_contract_interrupt_pos.ksh \
+	functional/anyraid/anyraid_contract_invalid_neg.ksh \
+	functional/anyraid/anyraid_contract_noop_neg.ksh \
+	functional/anyraid/anyraid_contract_offline_pos.ksh \
+	functional/anyraid/anyraid_contract_raidz_below_width_neg.ksh \
+	functional/anyraid/anyraid_contract_raidz2_pos.ksh \
+	functional/anyraid/anyraid_contract_scrub_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_001_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_002_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_003_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_004_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_005_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_006_pos.ksh \
+	functional/anyraid/anyraid_contract_write_verify_007_neg.ksh \
+	functional/anyraid/anyraid_contract_write_verify_008_pos.ksh \
+	functional/anyraid/anyraid_contract_wrong_leaf_neg.ksh \
+	functional/anyraid/anyraid_encryption_001_pos.ksh \
+	functional/anyraid/anyraid_faildisk_write_replace_resilver.ksh \
+	functional/anyraid/anyraid_gang_blocks_001_pos.ksh \
+	functional/anyraid/anyraid_offline_anymirror_001_pos.ksh \
+	functional/anyraid/anyraid_offline_anymirror_002_neg.ksh \
+	functional/anyraid/anyraid_offline_anyraidz_001_pos.ksh \
+	functional/anyraid/anyraid_offline_anyraidz_002_neg.ksh \
+	functional/anyraid/anyraid_offline_write_online_resilver.ksh \
+	functional/anyraid/anyraid_rebalance_001.ksh \
+	functional/anyraid/anyraid_rebalance_002.ksh \
+	functional/anyraid/anyraid_rebalance_003.ksh \
+	functional/anyraid/anyraid_rebalance_004.ksh \
+	functional/anyraid/anyraid_rebalance_005.ksh \
+	functional/anyraid/anyraid_rebalance_006.ksh \
+	functional/anyraid/anyraid_rebalance_007.ksh \
+	functional/anyraid/anyraid_rebalance_008.ksh \
+	functional/anyraid/anyraid_rebalance_009.ksh \
+	functional/anyraid/anyraid_rebalance_noop_neg.ksh \
+	functional/anyraid/anyraid_scrub_001_pos.ksh \
+	functional/anyraid/anyraid_snapshot_001_pos.ksh \
+	functional/anyraid/anyraid_special_vdev_001_pos.ksh \
+	functional/anyraid/anyraid_special_vdev_002_pos.ksh \
+	functional/anyraid/anyraid_tile_layout.ksh \
+	functional/anyraid/anyraid_write_verify_001_pos.ksh \
+	functional/anyraid/anyraid_write_verify_002_pos.ksh \
+	functional/anyraid/anyraid_write_verify_003_pos.ksh \
+	functional/anyraid/anyraid_write_verify_004_pos.ksh \
+	functional/anyraid/anyraid_write_verify_005_pos.ksh \
+	functional/anyraid/anyraid_write_verify_006_pos.ksh \
+	functional/anyraid/anyraid_write_verify_007_neg.ksh \
+	functional/anyraid/anyraid_write_verify_008_pos.ksh \
+	functional/anyraid/cleanup.ksh \
+	functional/anyraid/setup.ksh \
 	functional/append/file_append.ksh \
 	functional/append/threadsappend_001_pos.ksh \
 	functional/append/cleanup.ksh \
@@ -1097,6 +1169,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_add/zpool_add_007_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_008_neg.ksh \
 	functional/cli_root/zpool_add/zpool_add_009_neg.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_001_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_002_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_003_pos.ksh \
+	functional/cli_root/zpool_add/zpool_add_anyraid_004_pos.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_create.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_degraded.ksh \
 	functional/cli_root/zpool_add/zpool_add_warn_removal.ksh \
@@ -1105,6 +1181,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_attach/cleanup.ksh \
 	functional/cli_root/zpool_attach/setup.ksh \
 	functional/cli_root/zpool_attach/zpool_attach_001_neg.ksh \
+	functional/cli_root/zpool_attach/zpool_attach_002_pos.ksh \
+	functional/cli_root/zpool_attach/zpool_attach_003_pos.ksh \
 	functional/cli_root/zpool/cleanup.ksh \
 	functional/cli_root/zpool_clear/cleanup.ksh \
 	functional/cli_root/zpool_clear/setup.ksh \
@@ -1116,6 +1194,19 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_condense/setup.ksh \
 	functional/cli_root/zpool_condense/zpool_condense_basic.ksh \
 	functional/cli_root/zpool_condense/zpool_condense_neg.ksh \
+	functional/cli_root/zpool_contract/cleanup.ksh \
+	functional/cli_root/zpool_contract/setup.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_001_pos.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_002_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_003_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_004_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_005_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_006_pos.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_007_pos.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_008_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_009_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_010_neg.ksh \
+	functional/cli_root/zpool_contract/zpool_contract_011_neg.ksh \
 	functional/cli_root/zpool_create/cleanup.ksh \
 	functional/cli_root/zpool_create/create-o_ashift.ksh \
 	functional/cli_root/zpool_create/setup.ksh \
@@ -1142,6 +1233,17 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_create/zpool_create_022_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_023_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_024_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_001_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_002_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_003_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_004_pos.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_005_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_006_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_007_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_008_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_009_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_010_neg.ksh \
+	functional/cli_root/zpool_create/zpool_create_anyraid_011_neg.ksh \
 	functional/cli_root/zpool_create/zpool_create_crypt_combos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_001_pos.ksh \
 	functional/cli_root/zpool_create/zpool_create_draid_002_pos.ksh \
@@ -1191,6 +1293,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_002_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_003_neg.ksh \
 	functional/cli_root/zpool_export/zpool_export_004_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_anyraid_001_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_admin.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_pos.ksh \
 	functional/cli_root/zpool_get/cleanup.ksh \
@@ -1264,7 +1367,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_iostat/zpool_iostat_interval_all.ksh \
 	functional/cli_root/zpool_iostat/zpool_iostat_interval_some.ksh \
 	functional/cli_root/zpool_initialize/cleanup.ksh \
+	functional/cli_root/zpool_initialize/setup.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_attach_detach_add_remove.ksh \
+	functional/cli_root/zpool_initialize/zpool_initialize_anyraid_attach.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_fault_export_import_online.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_import_export.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_multiple_pools.ksh \

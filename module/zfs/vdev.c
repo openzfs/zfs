@@ -56,11 +56,11 @@
 #include <sys/arc.h>
 #include <sys/zil.h>
 #include <sys/dsl_scan.h>
-#include <sys/vdev_raidz.h>
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 #include "zfs_prop.h"
@@ -280,6 +280,8 @@ static vdev_ops_t *const vdev_ops_table[] = {
 	&vdev_missing_ops,
 	&vdev_hole_ops,
 	&vdev_indirect_ops,
+	&vdev_anymirror_ops,
+	&vdev_anyraidz_ops,
 	NULL
 };
 
@@ -347,6 +349,21 @@ vdev_derive_alloc_bias(const char *bias)
 }
 
 uint64_t
+vdev_default_min_attach_size(vdev_t *vd)
+{
+	return (vdev_get_min_asize(vd));
+}
+
+uint64_t
+vdev_get_min_attach_size(vdev_t *vd)
+{
+	vdev_t *pvd = vd->vdev_parent;
+	if (vd == vd->vdev_top)
+		pvd = vd;
+	return (pvd->vdev_ops->vdev_op_min_attach_size(pvd));
+}
+
+uint64_t
 vdev_default_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
 {
 	ASSERT0(asize % (1ULL << vd->vdev_top->vdev_ashift));
@@ -378,9 +395,10 @@ vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 }
 
 uint64_t
-vdev_default_min_asize(vdev_t *vd)
+vdev_default_min_asize(vdev_t *pvd, vdev_t *cvd)
 {
-	return (vd->vdev_min_asize);
+	(void) cvd;
+	return (pvd->vdev_min_asize);
 }
 
 /*
@@ -405,11 +423,32 @@ vdev_get_min_asize(vdev_t *vd)
 	 * The top-level vdev just returns the allocatable size rounded
 	 * to the nearest metaslab.
 	 */
-	if (vd == vd->vdev_top)
+	if (vd == vd->vdev_top) {
+		if (vd->vdev_shrinking || (vdev_is_anyraid(vd) &&
+		    ((vdev_anyraid_t *)vd->vdev_tsd)->vd_contracting_leaf !=
+		    -1 && vd->vdev_ms_count != 0)) {
+			/*
+			 * Find the last metaslab with anything in it, and
+			 * declare the end of that metaslab to be the smallest
+			 * size the disk can take on.
+			 */
+			for (uint64_t m = vd->vdev_ms_count - 1; m > 0; m--) {
+				metaslab_t *ms = vd->vdev_ms[m];
+				if (metaslab_allocated_space(ms) != 0) {
+					return ((m + 1) << vd->vdev_ms_shift);
+				}
+			}
+			/*
+			 * If the vdev is totally empty, we still probably
+			 * don't want to shrink it to size 0.
+			 */
+			return (1ULL << vd->vdev_ms_shift);
+		}
 		return (P2ALIGN_TYPED(vd->vdev_asize, 1ULL << vd->vdev_ms_shift,
 		    uint64_t));
+	}
 
-	return (pvd->vdev_ops->vdev_op_min_asize(pvd));
+	return (pvd->vdev_ops->vdev_op_min_asize(pvd, vd));
 }
 
 void
@@ -908,6 +947,13 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		if (ops == &vdev_draid_ops &&
 		    spa->spa_load_state != SPA_LOAD_CREATE &&
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
+			return (SET_ERROR(ENOTSUP));
+		}
+
+		/* spa_vdev_add() expects feature to be enabled */
+		if ((ops == &vdev_anymirror_ops || ops == &vdev_anyraidz_ops) &&
+		    spa->spa_load_state != SPA_LOAD_CREATE &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_ANYRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
 	}
@@ -1619,16 +1665,16 @@ vdev_metaslab_group_create(vdev_t *vd)
 }
 
 void
-vdev_update_nonallocating_space(vdev_t *vd, boolean_t add)
+vdev_update_nonallocating_space(vdev_t *vd, uint64_t bytes, boolean_t add)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	if (vd->vdev_mg->mg_class != spa_normal_class(spa))
+	if (vd->vdev_mg->mg_class != spa_normal_class(spa) || bytes == 0)
 		return;
 
 	uint64_t raw_space = metaslab_group_get_space(vd->vdev_mg);
-	uint64_t dspace = spa_deflate(spa) ?
-	    vdev_deflated_space(vd, raw_space) : raw_space;
+	uint64_t dspace = bytes != -1ULL ? bytes : (spa_deflate(spa) ?
+	    vdev_deflated_space(vd, raw_space) : raw_space);
 	if (add) {
 		spa->spa_nonallocating_dspace += dspace;
 	} else {
@@ -1646,6 +1692,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	metaslab_t **mspp;
 	int error;
 	boolean_t expanding = (oldc != 0);
+	boolean_t shrinking = vd->vdev_shrinking;
 
 	ASSERT(txg == 0 || spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
@@ -1657,12 +1704,20 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(!vd->vdev_ishole);
 
-	ASSERT(oldc <= newc);
+	ASSERT(shrinking || oldc <= newc);
+	ASSERT(newc);
 
 	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
+	for (uint64_t m = newc; m < oldc; m++) {
+		ASSERT(shrinking);
+		metaslab_t *msp = vd->vdev_ms[m];
+		ASSERT(msp->ms_disabled);
+		metaslab_fini(msp);
+	}
+
 	if (expanding) {
-		memcpy(mspp, vd->vdev_ms, oldc * sizeof (*mspp));
+		memcpy(mspp, vd->vdev_ms, MIN(oldc, newc) * sizeof (*mspp));
 		vmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
 	}
 
@@ -1674,7 +1729,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 * vdev. In order to ensure that all weights are correct at all times,
 	 * we need to recalculate here.
 	 */
-	for (uint64_t m = 0; m < oldc; m++) {
+	for (uint64_t m = 0; m < MIN(oldc, newc); m++) {
 		metaslab_t *msp = vd->vdev_ms[m];
 		mutex_enter(&msp->ms_lock);
 		metaslab_recalculate_weight_and_sort(msp);
@@ -1762,7 +1817,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	 */
 	if (vd->vdev_noalloc) {
 		/* track non-allocating vdev space */
-		vdev_update_nonallocating_space(vd, B_TRUE);
+		vdev_update_nonallocating_space(vd, -1ULL, B_TRUE);
 	} else if (!expanding) {
 		metaslab_group_activate(vd->vdev_mg);
 		if (vd->vdev_log_mg != NULL)
@@ -2320,7 +2375,6 @@ vdev_open(vdev_t *vd)
 		vd->vdev_copy_uberblocks = B_TRUE;
 
 	vd->vdev_psize = psize;
-
 	/*
 	 * Make sure the allocatable size hasn't shrunk too much.
 	 */
@@ -2342,7 +2396,10 @@ vdev_open(vdev_t *vd)
 	vd->vdev_logical_ashift = MAX(logical_ashift,
 	    vd->vdev_logical_ashift);
 
-	if (vd->vdev_asize == 0) {
+	if (vd->vdev_shrinking) {
+		vd->vdev_asize = asize;
+		vd->vdev_max_asize = max_asize;
+	} else if (vd->vdev_asize == 0) {
 		/*
 		 * This is the first-ever open, so use the computed values.
 		 * For compatibility, a different ashift can be requested.
@@ -2894,7 +2951,8 @@ vdev_reopen(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
 
 	/* set the reopening flag unless we're taking the vdev offline */
 	vd->vdev_reopening = !vd->vdev_offline;
@@ -3040,6 +3098,8 @@ vdev_metaslab_set_size(vdev_t *vd)
 		if ((asize >> ms_shift) > zfs_vdev_ms_count_limit)
 			ms_shift = highbit64(asize / zfs_vdev_ms_count_limit);
 	}
+	if (vd->vdev_ops->vdev_op_metaslab_size)
+		vd->vdev_ops->vdev_op_metaslab_size(vd, &ms_shift);
 
 	vd->vdev_ms_shift = ms_shift;
 	ASSERT3U(vd->vdev_ms_shift, >=, SPA_MAXBLOCKSHIFT);
@@ -3508,6 +3568,8 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 
 	if (vd->vdev_top->vdev_ops == &vdev_raidz_ops) {
 		raidz_dtl_reassessed(vd);
+	} else if (vdev_is_anyraid(vd)) {
+		anyraid_dtl_reassessed(vd);
 	}
 }
 
@@ -4059,6 +4121,11 @@ vdev_load(vdev_t *vd)
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_CORRUPT_DATA);
 			return (error);
+		}
+		if (vdev_is_anyraid(vd)) {
+			error = vdev_anyraid_load(vd);
+			if (error != 0)
+				return (error);
 		}
 
 		uint64_t checkpoint_sm_obj;
@@ -6021,7 +6088,7 @@ vdev_xlate_walk(vdev_t *vd, const zfs_range_seg64_t *logical_rs,
 	}
 }
 
-static char *
+char *
 vdev_name(vdev_t *vd, char *buf, int buflen)
 {
 	if (vd->vdev_path == NULL) {
@@ -7001,6 +7068,55 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 					break;
 				}
 				break;
+			case VDEV_PROP_ANYRAID_CAP_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vdev_is_anyraid(vd)) {
+					total = vdev_anyraid_child_capacity(vd,
+					    NULL);
+				} else if (pvd && vdev_is_anyraid(pvd)) {
+					total = vdev_anyraid_child_capacity(pvd,
+					    vd);
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_NUM_TILES:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				uint64_t total = 0;
+				if (vdev_is_anyraid(vd)) {
+					total = vdev_anyraid_child_num_tiles(
+					    vd, NULL);
+				} else if (pvd && vdev_is_anyraid(pvd)) {
+					total = vdev_anyraid_child_num_tiles(
+					    pvd, vd);
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, total, ZPROP_SRC_NONE);
+				continue;
+			}
+			case VDEV_PROP_ANYRAID_TILE_SIZE:
+			{
+				vdev_t *pvd = vd->vdev_parent;
+				vdev_anyraid_t *va = NULL;
+				if (vdev_is_anyraid(vd)) {
+					va = vd->vdev_tsd;
+				} else if (pvd && vdev_is_anyraid(pvd)) {
+					va = pvd->vdev_tsd;
+				} else {
+					continue;
+				}
+				vdev_prop_add_list(outnvl, propname,
+				    NULL, va->vd_tile_size, ZPROP_SRC_NONE);
+				continue;
+			}
 			default:
 				err = ENOENT;
 				break;
@@ -7058,6 +7174,13 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	return (0);
+}
+
+boolean_t
+vdev_is_anyraid(vdev_t *vd)
+{
+	return (vd->vdev_ops == &vdev_anymirror_ops ||
+	    vd->vdev_ops == &vdev_anyraidz_ops);
 }
 
 EXPORT_SYMBOL(vdev_fault);

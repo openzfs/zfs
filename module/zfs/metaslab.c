@@ -34,6 +34,7 @@
 #include <sys/space_map.h>
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_anyraid.h>
 #include <sys/vdev_draid.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
@@ -3286,8 +3287,17 @@ metaslab_space_weight(metaslab_t *msp)
 	 * higher weight to lower metaslabs (multiplier ranging from 2x to 1x).
 	 * In effect, this means that we'll select the metaslab with the most
 	 * free bandwidth rather than simply the one with the most free space.
+	 *
+	 * AnyRAID vdevs also have this weighting applied to encourage ZFS to
+	 * reuse earlier metaslabs rather than allocating from later ones.
+	 * Once later metaslabs (which reside in later physical tiles) have
+	 * been allocated from, we have to allocate physical tiles to back
+	 * them. The more tiles we end up allocating, the less flexible we are
+	 * later if disk are expanded or new disks are added. Thus, we try to
+	 * minimize allocation of tiles whenever possible.
 	 */
-	if (!vd->vdev_nonrot && metaslab_lba_weighting_enabled) {
+	if ((!vd->vdev_nonrot && metaslab_lba_weighting_enabled) ||
+	    vdev_is_anyraid(vd)) {
 		weight = 2 * weight - (msp->ms_id * weight) / vd->vdev_ms_count;
 		ASSERT(weight >= space && weight <= 2 * space);
 	}
@@ -3448,6 +3458,22 @@ metaslab_segment_weight(metaslab_t *msp)
 	}
 
 	/*
+	 * Anyraid vdevs strongly prefer allocations from earlier regions, in
+	 * order to prevent premature region placement. While this optimization
+	 * is not usually good for segment-based weighting, we enable it for
+	 * that case specifically.
+	 */
+	vdev_t *vd = mg->mg_vd;
+	if (vdev_is_anyraid(vd) &&
+	    WEIGHT_GET_INDEX(weight) > SPA_MAXBLOCKSHIFT) {
+		uint64_t id = msp->ms_id;
+		uint64_t count = vd->vdev_ms_count;
+		WEIGHT_SET_INDEX(weight, WEIGHT_GET_INDEX(weight) + 3 -
+		    ((id * 4) / count));
+		weight = MIN(weight, METASLAB_MAX_WEIGHT);
+	}
+
+	/*
 	 * If the metaslab was active the last time we calculated its weight
 	 * then keep it active. We want to consume the entire region that
 	 * is associated with this weight.
@@ -3467,7 +3493,8 @@ metaslab_segment_weight(metaslab_t *msp)
  * weights we rely on the entire weight (excluding the weight-type bit).
  */
 static boolean_t
-metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
+metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard,
+    uint64_t txg, boolean_t mapped)
 {
 	/*
 	 * This case will usually but not always get caught by the checks below;
@@ -3477,6 +3504,17 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 	 */
 	if (unlikely(msp->ms_new))
 		return (B_FALSE);
+
+	/*
+	 * This I/O needs to be written to a stable location and be retreivable
+	 * before the next TXG syncs. This is the case for ZIL writes. In that
+	 * case, if we're using an anyraid vdev, we can't use a tile that isn't
+	 * mapped yet.
+	 */
+	if (mapped && vdev_is_anyraid(msp->ms_group->mg_vd)) {
+		return (vdev_anyraid_mapped(msp->ms_group->mg_vd,
+		    msp->ms_start, txg));
+	}
 
 	/*
 	 * If the metaslab is loaded, ms_max_size is definitive and we can use
@@ -4941,8 +4979,8 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 static metaslab_t *
 find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
     dva_t *dva, int d, uint64_t asize, int allocator,
-    boolean_t try_hard, zio_alloc_list_t *zal, metaslab_t *search,
-    boolean_t *was_active)
+    boolean_t try_hard, uint64_t txg, boolean_t mapped, zio_alloc_list_t *zal,
+    metaslab_t *search, boolean_t *was_active)
 {
 	avl_index_t idx;
 	avl_tree_t *t = &mg->mg_metaslab_tree;
@@ -4960,7 +4998,8 @@ find_valid_metaslab(metaslab_group_t *mg, uint64_t activation_weight,
 		}
 		tries++;
 
-		if (!metaslab_should_allocate(msp, asize, try_hard)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped)) {
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
 			continue;
@@ -5041,7 +5080,7 @@ metaslab_active_mask_verify(metaslab_t *msp)
 static uint64_t
 metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
     uint64_t asize, uint64_t max_asize, uint64_t txg,
-    dva_t *dva, int d, int allocator, boolean_t try_hard,
+    dva_t *dva, int d, int allocator, boolean_t try_hard, boolean_t mapped,
     uint64_t *actual_asize)
 {
 	metaslab_t *msp = NULL;
@@ -5117,8 +5156,8 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
 		} else {
 			msp = find_valid_metaslab(mg, activation_weight, dva, d,
-			    asize, allocator, try_hard, zal, search,
-			    &was_active);
+			    asize, allocator, try_hard, txg, mapped, zal,
+			    search, &was_active);
 		}
 
 		mutex_exit(&mg->mg_lock);
@@ -5223,7 +5262,8 @@ metaslab_group_alloc(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		 * can accurately determine if the allocation attempt should
 		 * proceed.
 		 */
-		if (!metaslab_should_allocate(msp, asize, try_hard)) {
+		if (!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped)) {
 			/* Passivate this metaslab and select a new one. */
 			metaslab_trace_add(zal, mg, msp, asize, d,
 			    TRACE_TOO_SMALL, allocator);
@@ -5317,7 +5357,8 @@ next:
 		 * we may end up in an infinite loop retrying the same
 		 * metaslab.
 		 */
-		ASSERT(!metaslab_should_allocate(msp, asize, try_hard));
+		ASSERT(!metaslab_should_allocate(msp, asize, try_hard, txg,
+		    mapped));
 
 		mutex_exit(&msp->ms_lock);
 	}
@@ -5472,8 +5513,12 @@ top:
 		uint64_t max_asize = vdev_psize_to_asize_txg(vd, max_psize,
 		    txg);
 		ASSERT0(P2PHASE(max_asize, 1ULL << vd->vdev_ashift));
+		boolean_t mapped = B_FALSE;
+		if (flags & METASLAB_ZIL)
+			mapped = B_TRUE;
+
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize,
-		    max_asize, txg, dva, d, allocator, try_hard,
+		    max_asize, txg, dva, d, allocator, try_hard, mapped,
 		    &asize);
 
 		if (offset != -1ULL) {
@@ -6268,16 +6313,17 @@ metaslab_group_disable_wait(metaslab_group_t *mg)
 }
 
 static void
-metaslab_group_disabled_increment(metaslab_group_t *mg)
+metaslab_group_disabled_increment(metaslab_group_t *mg, boolean_t wait)
 {
 	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
 	ASSERT(mg->mg_disabled_updating);
 
-	while (mg->mg_ms_disabled >= max_disabled_ms) {
+	while (wait && mg->mg_ms_disabled >= max_disabled_ms) {
 		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
 	}
 	mg->mg_ms_disabled++;
-	ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
+	if (wait)
+		ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
 }
 
 /*
@@ -6286,8 +6332,8 @@ metaslab_group_disabled_increment(metaslab_group_t *mg)
  * metaslab group and limit them to prevent allocation failures from
  * occurring because all metaslabs are disabled.
  */
-void
-metaslab_disable(metaslab_t *msp)
+static void
+metaslab_disable_impl(metaslab_t *msp, boolean_t wait)
 {
 	ASSERT(!MUTEX_HELD(&msp->ms_lock));
 	metaslab_group_t *mg = msp->ms_group;
@@ -6306,7 +6352,7 @@ metaslab_disable(metaslab_t *msp)
 	metaslab_group_disable_wait(mg);
 	mg->mg_disabled_updating = B_TRUE;
 	if (msp->ms_disabled == 0) {
-		metaslab_group_disabled_increment(mg);
+		metaslab_group_disabled_increment(mg, wait);
 	}
 	mutex_enter(&msp->ms_lock);
 	msp->ms_disabled++;
@@ -6315,6 +6361,18 @@ metaslab_disable(metaslab_t *msp)
 	mg->mg_disabled_updating = B_FALSE;
 	cv_broadcast(&mg->mg_ms_disabled_cv);
 	mutex_exit(&mg->mg_ms_disabled_lock);
+}
+
+void
+metaslab_disable(metaslab_t *msp)
+{
+	metaslab_disable_impl(msp, B_TRUE);
+}
+
+void
+metaslab_disable_nowait(metaslab_t *msp)
+{
+	metaslab_disable_impl(msp, B_FALSE);
 }
 
 void
