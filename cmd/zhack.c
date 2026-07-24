@@ -47,6 +47,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
 #include <sys/dsl_pool.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
@@ -112,7 +113,11 @@ usage(void)
 	    "    <device> : path to vdev\n"
 	    "\n"
 	    "    metaslab leak <pool>\n"
-	    "        apply allocation map from zdb to specified pool\n");
+	    "        apply allocation map from zdb to specified pool\n"
+	    "\n"
+	    "    deadlist dup <pool> <snapshot>\n"
+	    "        inject a duplicate mintxg entry into a snapshot's "
+	    "deadlist\n");
 	exit(1);
 }
 
@@ -810,6 +815,100 @@ zhack_do_metaslab(int argc, char **argv)
 	return (0);
 }
 
+/*
+ * Inject a duplicate mintxg entry into a snapshot's deadlist ZAP, simulating
+ * the on-disk damage that trips the avl_add() panic in
+ * dsl_deadlist_load_tree() (issue #16685).  Deadlist keys are the hex string
+ * of the entry's mintxg (see FORMAT_INT_KEY / zfs_strtonum), so a second ZAP
+ * entry whose name is that hex string with a leading '0' decodes to the same
+ * mintxg while remaining a distinct ZAP name.  The injected entry reuses the
+ * bpobj of the entry it shadows so it points at a valid object.
+ */
+static void
+zhack_deadlist_dup_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	objset_t *mos = dp->dp_meta_objset;
+	const char *snapname = arg;
+	dsl_dataset_t *ds;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t dlobj, bpobj;
+	char dupname[32];
+
+	VERIFY0(dsl_dataset_hold(dp, snapname, FTAG, &ds));
+	dlobj = dsl_dataset_phys(ds)->ds_deadlist_obj;
+
+	za = zap_attribute_alloc();
+	zap_cursor_init(&zc, mos, dlobj);
+	if (zap_cursor_retrieve(&zc, za) != 0)
+		fatal(dp->dp_spa, FTAG, "deadlist %llu of %s is empty",
+		    (u_longlong_t)dlobj, snapname);
+
+	bpobj = za->za_first_integer;
+	(void) snprintf(dupname, sizeof (dupname), "0%s", za->za_name);
+	(void) fprintf(stderr, "injecting duplicate deadlist entry: object "
+	    "%llu, existing key '%s', duplicate key '%s' -> bpobj %llu\n",
+	    (u_longlong_t)dlobj, za->za_name, dupname, (u_longlong_t)bpobj);
+
+	VERIFY0(zap_add(mos, dlobj, dupname, sizeof (uint64_t), 1, &bpobj, tx));
+
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+	dsl_dataset_rele(ds, FTAG);
+
+	spa_history_log_internal(dp->dp_spa, "zhack deadlist dup", tx,
+	    "snapshot=%s", snapname);
+}
+
+static void
+zhack_do_deadlist_dup(int argc, char **argv)
+{
+	char *target, *snapshot;
+	spa_t *spa;
+
+	argc--;
+	argv++;
+	if (argc < 2) {
+		(void) fprintf(stderr, "error: missing pool or snapshot\n");
+		usage();
+	}
+	target = argv[0];
+	snapshot = argv[1];
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_deadlist_dup_sync,
+	    snapshot, 1, ZFS_SPACE_CHECK_NORMAL));
+
+	spa_close(spa, FTAG);
+}
+
+static int
+zhack_do_deadlist(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no deadlist operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "dup") == 0) {
+		zhack_do_deadlist_dup(argc, argv);
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
+}
+
 #define	ASHIFT_UBERBLOCK_SHIFT(ashift)	\
 	MIN(MAX(ashift, UBERBLOCK_SHIFT), \
 	MAX_UBERBLOCK_SHIFT)
@@ -1376,6 +1475,8 @@ main(int argc, char **argv)
 		return (zhack_do_label(argc, argv));
 	} else if (strcmp(subcommand, "metaslab") == 0) {
 		rv = zhack_do_metaslab(argc, argv);
+	} else if (strcmp(subcommand, "deadlist") == 0) {
+		rv = zhack_do_deadlist(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
