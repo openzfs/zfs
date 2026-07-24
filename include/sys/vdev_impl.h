@@ -291,6 +291,8 @@ struct vdev {
 	kcondvar_t	vdev_initialize_cv;
 	uint64_t	vdev_initialize_offset[TXG_SIZE];
 	uint64_t	vdev_initialize_last_offset;
+	/* value written to free space by the initializing thread */
+	uint64_t	vdev_initialize_value;
 	/* valid while initializing */
 	zfs_range_tree_t	*vdev_initialize_tree;
 	uint64_t	vdev_initialize_bytes_est;

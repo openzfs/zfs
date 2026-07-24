@@ -8898,7 +8898,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 
 static int
 spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
-    list_t *vd_list)
+    uint64_t value, boolean_t value_provided, list_t *vd_list)
 {
 	ASSERT(spa_namespace_held());
 
@@ -8948,7 +8948,7 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 
 	switch (cmd_type) {
 	case POOL_INITIALIZE_START:
-		vdev_initialize(vd);
+		vdev_initialize(vd, value, value_provided);
 		break;
 	case POOL_INITIALIZE_CANCEL:
 		vdev_initialize_stop(vd, VDEV_INITIALIZE_CANCELED, vd_list);
@@ -8969,7 +8969,7 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 
 int
 spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
-    nvlist_t *vdev_errlist)
+    uint64_t value, boolean_t value_provided, nvlist_t *vdev_errlist)
 {
 	int total_errors = 0;
 	list_t vd_list;
@@ -8991,7 +8991,7 @@ spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
 		uint64_t vdev_guid = fnvpair_value_uint64(pair);
 
 		int error = spa_vdev_initialize_impl(spa, vdev_guid, cmd_type,
-		    &vd_list);
+		    value, value_provided, &vd_list);
 		if (error != 0) {
 			char guid_as_str[MAXNAMELEN];
 

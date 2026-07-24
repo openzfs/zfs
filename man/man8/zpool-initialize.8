@@ -28,7 +28,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd July 30, 2025
+.Dd July 12, 2026
 .Dt ZPOOL-INITIALIZE 8
 .Os
 .
@@ -40,6 +40,7 @@
 .Cm initialize
 .Op Fl c Ns | Ns Fl s | Ns Fl u
 .Op Fl w
+.Op Fl z
 .Fl a Ns | Ns Ar pool
 .Oo Ar device Oc Ns …
 .
@@ -48,6 +49,9 @@ Begins initializing by writing to all unallocated regions on the specified
 devices, or all eligible devices in the pool if no individual devices are
 specified.
 Only leaf data or log devices may be initialized.
+By default a non-zero pattern is written; see
+.Fl z
+to write zeroes instead.
 .Bl -tag -width Ds
 .It Fl a , -all
 Begin, cancel, suspend initializing on
@@ -76,6 +80,16 @@ with no flags can be used to re-initialize all unallocated regions on
 the relevant target devices.
 .It Fl w , -wait
 Wait until the devices have finished initializing before returning.
+.It Fl z , -zero
+Write zeroes to the unallocated regions instead of the default non-zero
+pattern.
+This is useful for reclaiming space on thinly provisioned backing storage which
+does not support TRIM.
+If the backing storage supports TRIM,
+.Xr zpool-trim 8
+is typically the more efficient way to return space to it.
+The chosen value is recorded per device, so a run that is suspended and later
+resumed keeps writing zeroes.
 .El
 .
 .Sh SEE ALSO

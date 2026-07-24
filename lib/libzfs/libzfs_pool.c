@@ -2604,9 +2604,11 @@ zpool_initialize_one(zpool_handle_t *zhp, void *data)
 	    ZPOOL_CONFIG_VDEV_TREE);
 	zpool_collect_leaves(zhp, nvroot, vdevs);
 	if (cb->wait)
-		error = zpool_initialize_wait(zhp, cb->cmd_type, vdevs);
+		error = zpool_initialize_wait(zhp, cb->cmd_type, vdevs,
+		    cb->value, cb->value_provided);
 	else
-		error = zpool_initialize(zhp, cb->cmd_type, vdevs);
+		error = zpool_initialize(zhp, cb->cmd_type, vdevs,
+		    cb->value, cb->value_provided);
 	fnvlist_free(vdevs);
 
 	return (error);
@@ -2618,7 +2620,7 @@ zpool_initialize_one(zpool_handle_t *zhp, void *data)
  */
 static int
 zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
-    nvlist_t *vds, boolean_t wait)
+    nvlist_t *vds, uint64_t value, boolean_t value_provided, boolean_t wait)
 {
 	int err;
 
@@ -2637,7 +2639,7 @@ zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
 	}
 
 	err = lzc_initialize(zhp->zpool_name, cmd_type,
-	    vdev_guids, &errlist);
+	    value, value_provided, vdev_guids, &errlist);
 
 	if (err != 0) {
 		if (errlist != NULL && nvlist_lookup_nvlist(errlist,
@@ -2705,9 +2707,10 @@ out:
  */
 int
 zpool_initialize(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
-    nvlist_t *vds)
+    nvlist_t *vds, uint64_t value, boolean_t value_provided)
 {
-	return (zpool_initialize_impl(zhp, cmd_type, vds, B_FALSE));
+	return (zpool_initialize_impl(zhp, cmd_type, vds, value, value_provided,
+	    B_FALSE));
 }
 
 /*
@@ -2715,9 +2718,10 @@ zpool_initialize(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
  */
 int
 zpool_initialize_wait(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
-    nvlist_t *vds)
+    nvlist_t *vds, uint64_t value, boolean_t value_provided)
 {
-	return (zpool_initialize_impl(zhp, cmd_type, vds, B_TRUE));
+	return (zpool_initialize_impl(zhp, cmd_type, vds, value, value_provided,
+	    B_TRUE));
 }
 
 static int

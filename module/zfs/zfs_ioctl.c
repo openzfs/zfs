@@ -4798,7 +4798,8 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
  */
 static const zfs_ioc_key_t zfs_keys_pool_initialize[] = {
 	{ZPOOL_INITIALIZE_COMMAND,	DATA_TYPE_UINT64,	0},
-	{ZPOOL_INITIALIZE_VDEVS,	DATA_TYPE_NVLIST,	0}
+	{ZPOOL_INITIALIZE_VDEVS,	DATA_TYPE_NVLIST,	0},
+	{ZPOOL_INITIALIZE_VALUE,	DATA_TYPE_UINT64,	ZK_OPTIONAL}
 };
 
 static int
@@ -4831,6 +4832,14 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		}
 	}
 
+	/*
+	 * An explicit fill value is optional; when absent the initializing
+	 * thread uses the zfs_initialize_value module default.
+	 */
+	uint64_t value = 0;
+	boolean_t value_provided = (nvlist_lookup_uint64(innvl,
+	    ZPOOL_INITIALIZE_VALUE, &value) == 0);
+
 	spa_t *spa;
 	int error = spa_open(poolname, &spa, FTAG);
 	if (error != 0)
@@ -4838,7 +4847,7 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	nvlist_t *vdev_errlist = fnvlist_alloc();
 	int total_errors = spa_vdev_initialize(spa, vdev_guids, cmd_type,
-	    vdev_errlist);
+	    value, value_provided, vdev_errlist);
 
 	if (fnvlist_size(vdev_errlist) > 0) {
 		fnvlist_add_nvlist(outnvl, ZPOOL_INITIALIZE_VDEVS,

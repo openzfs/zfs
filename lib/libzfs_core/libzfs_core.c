@@ -1906,13 +1906,16 @@ lzc_reopen(const char *pool_name, boolean_t scrub_restart)
  */
 int
 lzc_initialize(const char *poolname, pool_initialize_func_t cmd_type,
-    nvlist_t *vdevs, nvlist_t **errlist)
+    uint64_t value, boolean_t value_provided, nvlist_t *vdevs,
+    nvlist_t **errlist)
 {
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
 	fnvlist_add_uint64(args, ZPOOL_INITIALIZE_COMMAND, (uint64_t)cmd_type);
 	fnvlist_add_nvlist(args, ZPOOL_INITIALIZE_VDEVS, vdevs);
+	if (value_provided)
+		fnvlist_add_uint64(args, ZPOOL_INITIALIZE_VALUE, value);
 
 	error = lzc_ioctl(ZFS_IOC_POOL_INITIALIZE, poolname, args, errlist);
 

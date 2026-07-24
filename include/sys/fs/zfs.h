@@ -1095,6 +1095,8 @@ typedef struct zpool_load_policy {
 	"com.delphix:vdev_initialize_state"
 #define	VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME	\
 	"com.delphix:vdev_initialize_action_time"
+#define	VDEV_LEAF_ZAP_INITIALIZE_VALUE	\
+	"org.openzfs:vdev_initialize_value"
 
 /* vdev TRIM state */
 #define	VDEV_LEAF_ZAP_TRIM_LAST_OFFSET	\
@@ -1928,6 +1930,7 @@ typedef enum {
  */
 #define	ZPOOL_INITIALIZE_COMMAND	"initialize_command"
 #define	ZPOOL_INITIALIZE_VDEVS		"initialize_vdevs"
+#define	ZPOOL_INITIALIZE_VALUE		"initialize_value"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_REGUID.

@@ -97,6 +97,11 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_STATE, sizeof (initialize_state), 1,
 	    &initialize_state, tx));
+
+	uint64_t initialize_value = vd->vdev_initialize_value;
+	VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
+	    VDEV_LEAF_ZAP_INITIALIZE_VALUE, sizeof (initialize_value), 1,
+	    &initialize_value, tx));
 }
 
 static void
@@ -129,6 +134,10 @@ vdev_initialize_zap_remove_sync(void *arg, dmu_tx_t *tx)
 
 	error = zap_remove(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME, tx);
+	VERIFY(error == 0 || error == ENOENT);
+
+	error = zap_remove(mos, vd->vdev_leaf_zap,
+	    VDEV_LEAF_ZAP_INITIALIZE_VALUE, tx);
 	VERIFY(error == 0 || error == ENOENT);
 }
 
@@ -293,31 +302,31 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 }
 
 /*
- * Callback to fill each ABD chunk with zfs_initialize_value. len must be
+ * Callback to fill each ABD chunk with the requested fill value. len must be
  * divisible by sizeof (uint64_t), and buf must be 8-byte aligned. The ABD
  * allocation will guarantee these for us.
  */
 static int
-vdev_initialize_block_fill(void *buf, size_t len, void *unused)
+vdev_initialize_block_fill(void *buf, size_t len, void *arg)
 {
-	(void) unused;
+	uint64_t value = *(uint64_t *)arg;
 
 	ASSERT0(len % sizeof (uint64_t));
 	for (uint64_t i = 0; i < len; i += sizeof (uint64_t)) {
-		*(uint64_t *)((char *)(buf) + i) = zfs_initialize_value;
+		*(uint64_t *)((char *)(buf) + i) = value;
 	}
 	return (0);
 }
 
 static abd_t *
-vdev_initialize_block_alloc(void)
+vdev_initialize_block_alloc(uint64_t value)
 {
 	/* Allocate ABD for filler data */
 	abd_t *data = abd_alloc_for_io(zfs_initialize_chunk_size, B_FALSE);
 
 	ASSERT0(zfs_initialize_chunk_size % sizeof (uint64_t));
 	(void) abd_iterate_func(data, 0, zfs_initialize_chunk_size,
-	    vdev_initialize_block_fill, NULL);
+	    vdev_initialize_block_fill, &value);
 
 	return (data);
 }
@@ -539,7 +548,8 @@ vdev_initialize_thread(void *arg)
 	vd->vdev_initialize_last_offset = 0;
 	VERIFY0(vdev_initialize_load(vd));
 
-	abd_t *deadbeef = vdev_initialize_block_alloc();
+	abd_t *deadbeef =
+	    vdev_initialize_block_alloc(vd->vdev_initialize_value);
 
 	vd->vdev_initialize_tree = zfs_range_tree_create_flags(
 	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
@@ -627,7 +637,7 @@ vdev_initialize_thread(void *arg)
  * Device must be a leaf and not already be initializing.
  */
 void
-vdev_initialize(vdev_t *vd)
+vdev_initialize(vdev_t *vd, uint64_t value, boolean_t value_provided)
 {
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
@@ -637,6 +647,20 @@ vdev_initialize(vdev_t *vd)
 	ASSERT(!vd->vdev_initialize_exit_wanted);
 	ASSERT(!vd->vdev_top->vdev_removing);
 	ASSERT(!vd->vdev_top->vdev_rz_expanding);
+
+	/*
+	 * Fix the fill value for the whole run so it is stable across a
+	 * suspend/resume (it is persisted to the leaf ZAP).  An explicit value
+	 * always wins.  Otherwise, when resuming an existing run keep the value
+	 * chosen when it started (already loaded from the leaf ZAP); only a
+	 * fresh run falls back to the module default.
+	 */
+	if (value_provided) {
+		vd->vdev_initialize_value = value;
+	} else if (vd->vdev_initialize_state != VDEV_INITIALIZE_ACTIVE &&
+	    vd->vdev_initialize_state != VDEV_INITIALIZE_SUSPENDED) {
+		vd->vdev_initialize_value = zfs_initialize_value;
+	}
 
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_ACTIVE);
 	vd->vdev_initialize_thread = thread_create(NULL, 0,
@@ -801,6 +825,18 @@ vdev_initialize_restart(vdev_t *vd)
 		ASSERT(err == 0 || err == ENOENT);
 		vd->vdev_initialize_action_time = timestamp;
 
+		/*
+		 * Restore the fill value chosen when this run started.  Pools
+		 * initialized before this field existed fall back to the
+		 * module default, preserving their previous behavior.
+		 */
+		uint64_t value = zfs_initialize_value;
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_INITIALIZE_VALUE,
+		    sizeof (value), 1, &value);
+		ASSERT(err == 0 || err == ENOENT);
+		vd->vdev_initialize_value = value;
+
 		if ((vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
 		    vd->vdev_offline) && !vd->vdev_top->vdev_rz_expanding) {
 			/* load progress for reporting, but don't resume */
@@ -810,7 +846,7 @@ vdev_initialize_restart(vdev_t *vd)
 		    !vd->vdev_top->vdev_removing &&
 		    !vd->vdev_top->vdev_rz_expanding &&
 		    vd->vdev_initialize_thread == NULL) {
-			vdev_initialize(vd);
+			vdev_initialize(vd, value, B_TRUE);
 		}
 
 		mutex_exit(&vd->vdev_initialize_lock);

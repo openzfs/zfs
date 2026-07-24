@@ -4579,7 +4579,8 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	if (vdev_writeable(vd) &&
 	    vd->vdev_initialize_thread == NULL &&
 	    vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE) {
-		(void) vdev_initialize(vd);
+		/* Preserve the fill value chosen when the run started. */
+		vdev_initialize(vd, vd->vdev_initialize_value, B_TRUE);
 	}
 	mutex_exit(&vd->vdev_initialize_lock);
 

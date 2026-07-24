@@ -530,7 +530,8 @@ tests = ['zpool_initialize_attach_detach_add_remove',
     'zpool_initialize_uninit',
     'zpool_initialize_unsupported_vdevs',
     'zpool_initialize_verify_checksums',
-    'zpool_initialize_verify_initialized']
+    'zpool_initialize_verify_initialized',
+    'zpool_initialize_zero']
 pre =
 tags = ['functional', 'cli_root', 'zpool_initialize']
 

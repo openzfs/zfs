@@ -4282,6 +4282,8 @@
     <function-decl name='lzc_initialize' mangled-name='lzc_initialize' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_initialize'>
       <parameter type-id='80f4b756' name='poolname'/>
       <parameter type-id='7063e1ab' name='cmd_type'/>
+      <parameter type-id='9c313c2d' name='value'/>
+      <parameter type-id='c19b74c3' name='value_provided'/>
       <parameter type-id='5ce45b60' name='vdevs'/>
       <parameter type-id='857bb57e' name='errlist'/>
       <return type-id='95e97e5e'/>

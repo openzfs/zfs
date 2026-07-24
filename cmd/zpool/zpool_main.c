@@ -525,8 +525,8 @@ get_usage(zpool_help_t idx)
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_INITIALIZE:
-		return (gettext("\tinitialize [-c | -s | -u] [-w] <-a | <pool> "
-		    "[<device> ...]>\n"));
+		return (gettext("\tinitialize [-c | -s | -u] [-w] [-z] "
+		    "<-a | <pool> [<device> ...]>\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-e | -s | -p | -t | -C [-t] | "
 		    "[-S date] [-E date] [-t]] [-w]\n"
@@ -772,7 +772,7 @@ usage(boolean_t requested)
 }
 
 /*
- * zpool initialize [-c | -s | -u] [-w] <-a | pool> [<vdev> ...]
+ * zpool initialize [-c | -s | -u] [-w] [-z] <-a | pool> [<vdev> ...]
  * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
  * if none specified.
  *
@@ -791,6 +791,7 @@ zpool_do_initialize(int argc, char **argv)
 	int err = 0;
 	boolean_t wait = B_FALSE;
 	boolean_t initialize_all = B_FALSE;
+	boolean_t zero = B_FALSE;
 
 	struct option long_options[] = {
 		{"cancel",	no_argument,		NULL, 'c'},
@@ -798,15 +799,19 @@ zpool_do_initialize(int argc, char **argv)
 		{"uninit",	no_argument,		NULL, 'u'},
 		{"wait",	no_argument,		NULL, 'w'},
 		{"all",		no_argument,		NULL, 'a'},
+		{"zero",	no_argument,		NULL, 'z'},
 		{0, 0, 0, 0}
 	};
 
 	pool_initialize_func_t cmd_type = POOL_INITIALIZE_START;
-	while ((c = getopt_long(argc, argv, "acsuw", long_options,
+	while ((c = getopt_long(argc, argv, "acsuwz", long_options,
 	    NULL)) != -1) {
 		switch (c) {
 		case 'a':
 			initialize_all = B_TRUE;
+			break;
+		case 'z':
+			zero = B_TRUE;
 			break;
 		case 'c':
 			if (cmd_type != POOL_INITIALIZE_START &&
@@ -856,7 +861,9 @@ zpool_do_initialize(int argc, char **argv)
 
 	initialize_cbdata_t cbdata = {
 		.wait = wait,
-		.cmd_type = cmd_type
+		.cmd_type = cmd_type,
+		.value = 0,
+		.value_provided = zero
 	};
 
 	if (initialize_all && argc > 0) {
@@ -872,6 +879,12 @@ zpool_do_initialize(int argc, char **argv)
 
 	if (wait && (cmd_type != POOL_INITIALIZE_START)) {
 		(void) fprintf(stderr, gettext("-w cannot be used with -c, -s"
+		    "or -u\n"));
+		usage(B_FALSE);
+	}
+
+	if (zero && (cmd_type != POOL_INITIALIZE_START)) {
+		(void) fprintf(stderr, gettext("-z cannot be used with -c, -s "
 		    "or -u\n"));
 		usage(B_FALSE);
 	}
@@ -899,9 +912,11 @@ zpool_do_initialize(int argc, char **argv)
 			fnvlist_add_boolean(vdevs, argv[i]);
 		}
 		if (wait)
-			err = zpool_initialize_wait(zhp, cmd_type, vdevs);
+			err = zpool_initialize_wait(zhp, cmd_type, vdevs,
+			    cbdata.value, cbdata.value_provided);
 		else
-			err = zpool_initialize(zhp, cmd_type, vdevs);
+			err = zpool_initialize(zhp, cmd_type, vdevs,
+			    cbdata.value, cbdata.value_provided);
 		fnvlist_free(vdevs);
 	}
 

@@ -20,7 +20,7 @@
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
-.Dd May 26, 2026
+.Dd July 12, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1918,8 +1918,13 @@ The default value of 5 transaction groups typically provides sufficient time
 for import and mount operations to complete on most systems.
 .
 .It Sy zfs_initialize_value Ns = Ns Sy 16045690984833335022 Po 0xDEADBEEFDEADBEEE Pc Pq u64
-Pattern written to vdev free space by
-.Xr zpool-initialize 8 .
+Default pattern written to vdev free space by
+.Xr zpool-initialize 8 ,
+used unless
+.Nm zpool Cm initialize Fl z
+requests zeroes instead.
+The value in effect when a device starts initializing is recorded per device
+and reused if the run is suspended and later resumed.
 .
 .It Sy zfs_initialize_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Size of writes used by

@@ -7253,7 +7253,8 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	nvlist_t *vdev_guids = fnvlist_alloc();
 	nvlist_t *vdev_errlist = fnvlist_alloc();
 	fnvlist_add_uint64(vdev_guids, path, guid);
-	error = spa_vdev_initialize(spa, vdev_guids, cmd, vdev_errlist);
+	error = spa_vdev_initialize(spa, vdev_guids, cmd, 0, B_FALSE,
+	    vdev_errlist);
 	fnvlist_free(vdev_guids);
 	fnvlist_free(vdev_errlist);
 

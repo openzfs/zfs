@@ -1278,6 +1278,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_initialize/zpool_initialize_unsupported_vdevs.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_verify_checksums.ksh \
 	functional/cli_root/zpool_initialize/zpool_initialize_verify_initialized.ksh \
+	functional/cli_root/zpool_initialize/zpool_initialize_zero.ksh \
 	functional/cli_root/zpool_labelclear/zpool_labelclear_active.ksh \
 	functional/cli_root/zpool_labelclear/zpool_labelclear_exported.ksh \
 	functional/cli_root/zpool_labelclear/zpool_labelclear_removed.ksh \

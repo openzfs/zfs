@@ -33,7 +33,8 @@
 extern "C" {
 #endif
 
-extern void vdev_initialize(vdev_t *vd);
+extern void vdev_initialize(vdev_t *vd, uint64_t value,
+    boolean_t value_provided);
 extern void vdev_uninitialize(vdev_t *vd);
 extern void vdev_initialize_stop(vdev_t *vd,
     vdev_initializing_state_t tgt_state, list_t *vd_list);
