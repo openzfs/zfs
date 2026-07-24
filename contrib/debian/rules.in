@@ -142,7 +142,12 @@ override_dh_auto_clean:
 
 override_dh_install:
 	find debian/tmp/usr/lib -name '*.la' -delete
-	dh_install --remaining-packages
+	if ls debian/tmp/usr/lib/python3* >/dev/null 2>&1; then \
+		dh_install --remaining-packages; \
+	else \
+		echo "pyzfs files not built in this config; skipping openzfs-python3-pyzfs payload"; \
+		dh_install --remaining-packages -Nopenzfs-python3-pyzfs; \
+	fi
 	dh_missing --list-missing
 
 override_dh_missing:
