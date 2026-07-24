@@ -9537,6 +9537,10 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	    cb->cb_name_flags | VDEV_NAME_TYPE_ID);
 	vds = fnvlist_alloc();
 	fill_vdev_info(vds, zhp, vname, B_FALSE, cb->cb_json_as_int);
+	if (!nvlist_exists(vds, "vdev_type"))
+		fnvlist_add_string(vds, "vdev_type", type);
+	if (!nvlist_exists(vds, "state"))
+		fnvlist_add_string(vds, "state", vdev_state_str[vs->vs_state]);
 	if (cb->cb_flat_vdevs && parent != NULL) {
 		fnvlist_add_string(vds, "parent", parent);
 	}
