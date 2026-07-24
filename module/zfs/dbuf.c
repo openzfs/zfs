@@ -5480,6 +5480,19 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 		zio_write_override(dr->dr_zio, &dr->dt.dl.dr_overridden_by,
 		    dr->dt.dl.dr_copies, dr->dt.dl.dr_gang_copies,
 		    dr->dt.dl.dr_nopwrite, dr->dt.dl.dr_brtwrite);
+
+		/*
+		 * DIO writes bypass ARC, so data was NULL above, causing
+		 * WP_NOFILL to force checksum=OFF in dmu_write_policy.
+		 * But the override bp has the real checksum from the DIO
+		 * zio pipeline.  Sync zp_checksum to match so that
+		 * zio_write_bp_init's nopwrite assertion passes:
+		 *   VERIFY3U(BP_GET_CHECKSUM(bp), ==, zp->zp_checksum)
+		 */
+		if (dr->dt.dl.dr_diowrite) {
+			dr->dr_zio->io_prop.zp_checksum =
+			    BP_GET_CHECKSUM(&dr->dt.dl.dr_overridden_by);
+		}
 		mutex_exit(&db->db_mtx);
 	} else if (data == NULL) {
 		ASSERT(zp.zp_checksum == ZIO_CHECKSUM_OFF ||
