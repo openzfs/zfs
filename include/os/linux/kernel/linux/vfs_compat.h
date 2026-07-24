@@ -24,6 +24,7 @@
  * Copyright (C) 2011 Lawrence Livermore National Security, LLC.
  * Copyright (C) 2015 Jörg Thalheim.
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _ZFS_VFS_H
@@ -261,6 +262,51 @@ zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
  * helper function doesn't exist, define our own.
  */
 #define	inode_state_read_once(ip)	READ_ONCE(ip->i_state)
+#endif
+
+/* 6.18 compat: 4th arg removed; function will do strlen() internally. */
+#ifdef HAVE_VFS_PARSE_FS_STRING_3ARGS
+#define	zpl_vfs_parse_fs_string(fc, key, val)   \
+	vfs_parse_fs_string((fc), (key), (val))
+#else
+#define	zpl_vfs_parse_fs_string(fc, key, val)   \
+	vfs_parse_fs_string((fc), (key), (val), (val != NULL) ? strlen(val) : 0)
+#endif
+
+#if defined(HAVE_FOLLOW_DOWN_FLAGS)
+static inline int
+zpl_follow_down(struct path *path, unsigned int flags)
+{
+	return (follow_down(path, flags));
+}
+#elif defined(HAVE_VFS_PATH_LOOKUP_EXPORTED)
+/*
+ * vfs_path_lookup() has always been exported, but not always published.
+ */
+extern int vfs_path_lookup(struct dentry *, struct vfsmount *,
+    const char *, unsigned int, struct path *);
+static inline int
+zpl_follow_down(struct path *path, unsigned int flags)
+{
+	/*
+	 * Simulate follow_down() by asking for a name lookup for "/" under the
+	 * given path.
+	 */
+	struct path opath;
+	int err = vfs_path_lookup(path->dentry, path->mnt, "/",
+	    LOOKUP_DOWN|flags, &opath);
+	if (err == 0) {
+		/* Trade the original path for the new one. */
+		path_put(path);
+		path->dentry = opath.dentry;
+		path->mnt = opath.mnt;
+		path_get(path);
+		path_put(&opath);
+	}
+	return (err);
+}
+#else
+#error "Unsupported kernel: no fallback implementation for follow_down()"
 #endif
 
 #endif /* _ZFS_VFS_H */
