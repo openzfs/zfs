@@ -2003,13 +2003,13 @@ retry:
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
 		}
 	}
+	spa_config_exit(spa, SCL_ALL, FTAG);
 	if (*config == NULL && rvd->vdev_large_label && !try_hard) {
 		vdev_dbgmsg(rvd, "failed to read label config. "
 		    "Trying again without full uberblock ring.");
 		try_hard = B_TRUE;
 		goto retry;
 	}
-	spa_config_exit(spa, SCL_ALL, FTAG);
 }
 
 /*
@@ -2335,6 +2335,7 @@ vdev_label_sync_large(vdev_t *vd, zio_t *zio, uint64_t *good_writes,
 	buf = abd_to_buf(toc_abd);
 
 	if (nvlist_pack(toc, &buf, &toc_buflen, NV_ENCODE_XDR, KM_SLEEP)) {
+		zio->io_error = SET_ERROR(EIO);
 		abd_free(toc_abd);
 		fnvlist_free(toc);
 		return;
