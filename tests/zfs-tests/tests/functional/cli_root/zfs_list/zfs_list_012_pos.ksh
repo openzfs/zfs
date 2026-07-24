@@ -22,7 +22,8 @@
 #    returned unchanged by snapshot and bookmark iteration.
 # 9. Treat ioctl ENOENT and ESRCH before or after results as normal end.
 # 10. Inject EINTR and require libzfs to preserve it.
-# 11. Fail per-snapshot handle construction and require fail-closed ENOMEM.
+# 11. Require direct projected properties and fail closed on materialization
+#     ENOMEM.
 # 12. Reject an ioctl after one callback without fallback or callback replay.
 # 13. Continue after a valid empty, non-EOF batch with an advancing cursor.
 # 14. Verify filtered-out snapshots do not consume result batch slots.
@@ -162,6 +163,29 @@ function run_injected_interrupt
 	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
 	    "snapshot_list_test interrupt '$DATASET'"
 	log_must grep -Fx eintr "$MARKER"
+	log_must rm -f "$MARKER"
+}
+
+function verify_direct_properties
+{
+	typeset preload="$SHIM"
+
+	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
+	log_must eval "LD_PRELOAD='$preload' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MODE='direct_properties' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+	    "snapshot_list_test direct-properties '$DATASET'"
+	log_must grep -Fx direct_properties "$MARKER"
+	! grep -q -Fx unexpected_property_nvlist "$MARKER" ||
+	    log_fail "projected handle built per-property nvlists"
+	log_must rm -f "$MARKER"
+	log_must snapshot_list_test materialized-properties "$DATASET"
+	log_must eval "LD_PRELOAD='$preload' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MODE='direct_properties' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+	    "snapshot_list_test refreshed-properties '$DATASET'"
+	! grep -q -Fx unexpected_property_nvlist "$MARKER" ||
+	    log_fail "refreshed handle retained projected properties"
 	log_must rm -f "$MARKER"
 }
 
@@ -436,6 +460,7 @@ for error in enoent esrch; do
 	log_must snapshot_list_test bookmark-callback-error "$DATASET" "$error"
 done
 run_injected_handle_enomem
+verify_direct_properties
 run_injected_metadata_errors
 log_must eval "zfs list -H -p -t snapshot -o '$COLUMNS' '$DATASET' " \
     "> '$BATCH_OUTPUT'"

@@ -290,6 +290,30 @@ run_partial_error(const char *name, const char *mode,
 }
 
 static int
+materialize_snapshot(zfs_handle_t *zhp, void *arg)
+{
+	unsigned int *callbacks = arg;
+	nvlist_t *props = zfs_get_all_props(zhp);
+	int materialize_errno;
+
+	if (props == NULL) {
+		materialize_errno = errno;
+		props = zfs_get_all_props(zhp);
+		if (props != NULL &&
+		    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_CREATION)) &&
+		    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_USERREFS))) {
+			(*callbacks)++;
+		}
+		zfs_close(zhp);
+		errno = materialize_errno;
+		return (-1);
+	}
+	zfs_close(zhp);
+	(*callbacks)++;
+	return (0);
+}
+
+static int
 run_handle_enomem(const char *name)
 {
 	libzfs_handle_t *hdl;
@@ -303,17 +327,162 @@ run_handle_enomem(const char *name)
 	libzfs_print_on_error(hdl, B_FALSE);
 	errno = 0;
 	error = zfs_iter_snapshots_v2(zhp, ZFS_ITER_BATCHED |
-	    ZFS_ITER_BATCHED_CREATION, count_snapshot, &callbacks, 0, 0);
+	    ZFS_ITER_BATCHED_CREATION | ZFS_ITER_BATCHED_USERREFS,
+	    materialize_snapshot, &callbacks, 0, 0);
 	iteration_errno = errno;
 	libzfs_error = libzfs_errno(hdl);
 
 	zfs_close(zhp);
 	libzfs_fini(hdl);
 	if (error != -1 || iteration_errno != ENOMEM ||
-	    libzfs_error != EZFS_NOMEM || callbacks != 0) {
-		(void) fprintf(stderr, "expected -1/%d/%d/0, got %d/%d/%d/%u\n",
+	    libzfs_error != EZFS_NOMEM || callbacks != 1) {
+		(void) fprintf(stderr, "expected -1/%d/%d/1, got %d/%d/%d/%u\n",
 		    ENOMEM, EZFS_NOMEM, error, iteration_errno, libzfs_error,
 		    callbacks);
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+static int
+check_property_getters(zfs_handle_t *zhp)
+{
+	char creation[ZFS_MAXPROPLEN], userrefs[ZFS_MAXPROPLEN];
+	uint64_t creation_value, userrefs_value;
+
+	creation_value = zfs_prop_get_int(zhp, ZFS_PROP_CREATION);
+	userrefs_value = zfs_prop_get_int(zhp, ZFS_PROP_USERREFS);
+	if (zfs_prop_get(zhp, ZFS_PROP_CREATION, creation,
+	    sizeof (creation), NULL, NULL, 0, B_TRUE) != 0 ||
+	    zfs_prop_get(zhp, ZFS_PROP_USERREFS, userrefs,
+	    sizeof (userrefs), NULL, NULL, 0, B_TRUE) != 0 ||
+	    parse_uint64(creation) != creation_value ||
+	    parse_uint64(userrefs) != userrefs_value) {
+		return (EPROTO);
+	}
+	return (0);
+}
+
+static int
+check_direct_properties(zfs_handle_t *zhp, void *arg)
+{
+	unsigned int *callbacks = arg;
+	zfs_handle_t *copy = zfs_handle_dup(zhp);
+	int error;
+
+	zfs_close(zhp);
+	if (copy == NULL)
+		return (ENOMEM);
+	error = check_property_getters(copy);
+	zfs_close(copy);
+	if (error != 0)
+		return (error);
+
+	(*callbacks)++;
+	return (0);
+}
+
+static int
+check_pruned_property(zfs_handle_t *zhp, zfs_prop_t pruned_prop,
+    zfs_prop_t retained_prop)
+{
+	zfs_handle_t *copy = zfs_handle_dup(zhp);
+	uint8_t props_table[ZFS_NUM_PROPS];
+	nvlist_t *props;
+	int error = 0;
+
+	if (copy == NULL)
+		return (ENOMEM);
+	(void) memset(props_table, B_TRUE, sizeof (props_table));
+	props_table[pruned_prop] = B_FALSE;
+	zfs_prune_proplist(copy, props_table);
+	props = zfs_get_all_props(copy);
+	if (props == NULL ||
+	    nvlist_exists(props, zfs_prop_to_name(pruned_prop)) ||
+	    !nvlist_exists(props, zfs_prop_to_name(retained_prop))) {
+		error = EPROTO;
+	}
+	zfs_close(copy);
+	return (error);
+}
+
+static int
+check_materialized_properties(zfs_handle_t *zhp, void *arg)
+{
+	unsigned int *callbacks = arg;
+	nvlist_t *props, *creation_prop, *userrefs_prop;
+	uintptr_t clones;
+	uint64_t creation, userrefs;
+	int error = check_property_getters(zhp);
+
+	if (error != 0)
+		goto out;
+	error = check_pruned_property(zhp, ZFS_PROP_CREATION,
+	    ZFS_PROP_USERREFS);
+	if (error != 0)
+		goto out;
+	error = check_pruned_property(zhp, ZFS_PROP_USERREFS,
+	    ZFS_PROP_CREATION);
+	if (error != 0)
+		goto out;
+
+	clones = (uintptr_t)zfs_get_clones_nvl(zhp);
+	if (clones == 0) {
+		error = EPROTO;
+		goto out;
+	}
+	props = zfs_get_all_props(zhp);
+	if (props == NULL ||
+	    nvlist_lookup_nvlist(props, zfs_prop_to_name(ZFS_PROP_CREATION),
+	    &creation_prop) != 0 ||
+	    nvlist_lookup_nvlist(props, zfs_prop_to_name(ZFS_PROP_USERREFS),
+	    &userrefs_prop) != 0 ||
+	    nvlist_lookup_uint64(creation_prop, ZPROP_VALUE, &creation) != 0 ||
+	    nvlist_lookup_uint64(userrefs_prop, ZPROP_VALUE, &userrefs) != 0 ||
+	    creation != zfs_prop_get_int(zhp, ZFS_PROP_CREATION) ||
+	    userrefs != zfs_prop_get_int(zhp, ZFS_PROP_USERREFS) ||
+	    clones != (uintptr_t)zfs_get_clones_nvl(zhp)) {
+		error = EPROTO;
+	}
+
+out:
+	zfs_close(zhp);
+	if (error == 0)
+		(*callbacks)++;
+	return (error);
+}
+
+static int
+check_refreshed_properties(zfs_handle_t *zhp, void *arg)
+{
+	zfs_refresh_properties(zhp);
+	return (check_materialized_properties(zhp, arg));
+}
+
+static int
+run_projected_properties(const char *name, boolean_t materialize,
+    boolean_t refresh)
+{
+	libzfs_handle_t *hdl;
+	zfs_handle_t *zhp;
+	unsigned int callbacks = 0;
+	int error;
+
+	if (open_dataset(&hdl, &zhp, name) != 0)
+		return (EXIT_FAILURE);
+
+	error = zfs_iter_snapshots_v2(zhp, ZFS_ITER_BATCHED |
+	    ZFS_ITER_BATCHED_CREATION | ZFS_ITER_BATCHED_USERREFS,
+	    refresh ? check_refreshed_properties :
+	    (materialize ? check_materialized_properties :
+	    check_direct_properties), &callbacks, 0, 0);
+
+	zfs_close(zhp);
+	libzfs_fini(hdl);
+	if (error != 0 || callbacks == 0) {
+		(void) fprintf(stderr, "expected successful projected "
+		    "properties, got error/callbacks %d/%u\n",
+		    error, callbacks);
 		return (EXIT_FAILURE);
 	}
 	return (EXIT_SUCCESS);
@@ -613,6 +782,12 @@ main(int argc, char **argv)
 		return (run_partial_error(argv[2], argv[3], argv[4]));
 	if (argc == 3 && strcmp(argv[1], "handle-enomem") == 0)
 		return (run_handle_enomem(argv[2]));
+	if (argc == 3 && strcmp(argv[1], "direct-properties") == 0)
+		return (run_projected_properties(argv[2], B_FALSE, B_FALSE));
+	if (argc == 3 && strcmp(argv[1], "materialized-properties") == 0)
+		return (run_projected_properties(argv[2], B_TRUE, B_FALSE));
+	if (argc == 3 && strcmp(argv[1], "refreshed-properties") == 0)
+		return (run_projected_properties(argv[2], B_FALSE, B_TRUE));
 	if (argc == 3 && strcmp(argv[1], "metadata-eproto") == 0)
 		return (run_metadata_eproto(argv[2]));
 	if (argc == 4 && strcmp(argv[1], "callback-error") == 0)
@@ -639,6 +814,9 @@ main(int argc, char **argv)
 	    "       %s interrupt dataset\n"
 	    "       %s partial-error dataset mode callbacks\n"
 	    "       %s handle-enomem dataset\n"
+	    "       %s direct-properties dataset\n"
+	    "       %s materialized-properties dataset\n"
+	    "       %s refreshed-properties dataset\n"
 	    "       %s metadata-eproto dataset\n"
 	    "       %s callback-error dataset error\n"
 	    "       %s bookmark-callback-error dataset error\n"
@@ -648,6 +826,8 @@ main(int argc, char **argv)
 	    "       %s stale-snapshot-metadata dataset type\n",
 	    argv[0], argv[0],
 	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
-	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+	    argv[0],
+	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
+	    argv[0]);
 	return (EXIT_FAILURE);
 }

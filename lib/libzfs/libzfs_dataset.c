@@ -403,6 +403,10 @@ put_stats_zhdl(zfs_handle_t *zhp, zfs_cmd_t *zc)
 
 	zhp->zfs_props = allprops;
 	zhp->zfs_user_props = userprops;
+	zhp->zfs_projected_creation = 0;
+	zhp->zfs_projected_userrefs = 0;
+	zhp->zfs_projected_props = 0;
+	zhp->zfs_projected_props_materialized = B_FALSE;
 
 	return (0);
 }
@@ -604,6 +608,11 @@ zfs_handle_dup(zfs_handle_t *zhp_orig)
 		    zhp_orig->zfs_mntopts);
 	}
 	zhp->zfs_props_table = zhp_orig->zfs_props_table;
+	zhp->zfs_projected_creation = zhp_orig->zfs_projected_creation;
+	zhp->zfs_projected_userrefs = zhp_orig->zfs_projected_userrefs;
+	zhp->zfs_projected_props = zhp_orig->zfs_projected_props;
+	zhp->zfs_projected_props_materialized =
+	    zhp_orig->zfs_projected_props_materialized;
 	return (zhp);
 }
 
@@ -1865,6 +1874,13 @@ getprop_uint64(zfs_handle_t *zhp, zfs_prop_t prop, const char **source)
 	uint64_t value;
 
 	*source = NULL;
+	if (prop == ZFS_PROP_CREATION &&
+	    (zhp->zfs_projected_props & ZFS_PROJECTED_CREATION) != 0)
+		return (zhp->zfs_projected_creation);
+	if (prop == ZFS_PROP_USERREFS &&
+	    (zhp->zfs_projected_props & ZFS_PROJECTED_USERREFS) != 0)
+		return (zhp->zfs_projected_userrefs);
+
 	if (nvlist_lookup_nvlist(zhp->zfs_props,
 	    zfs_prop_to_name(prop), &nv) == 0) {
 		value = fnvlist_lookup_uint64(nv, ZPROP_VALUE);
@@ -4512,10 +4528,60 @@ error:
 	return (ret);
 }
 
+static int
+zfs_projected_prop_add(nvlist_t *props, zfs_prop_t prop, uint64_t value)
+{
+	nvlist_t *propval;
+	int error;
+
+	if ((error = nvlist_alloc(&propval, NV_UNIQUE_NAME, 0)) != 0)
+		return (error);
+	if ((error = nvlist_add_uint64(propval, ZPROP_VALUE, value)) == 0) {
+		error = nvlist_add_nvlist(props, zfs_prop_to_name(prop),
+		    propval);
+	}
+	nvlist_free(propval);
+	return (error);
+}
+
+/*
+ * Return the handle's property nvlist.  Projected handles retain hot numeric
+ * values directly and materialize their traditional nested entries only for
+ * callers of this interface.  This preserves the existing nvlist shape while
+ * keeping normal property access allocation-free.
+ */
 nvlist_t *
 zfs_get_all_props(zfs_handle_t *zhp)
 {
+	int error;
+
+	if (!zhp->zfs_projected_props_materialized &&
+	    zhp->zfs_projected_props != 0) {
+		if ((zhp->zfs_projected_props & ZFS_PROJECTED_CREATION) != 0) {
+			error = zfs_projected_prop_add(zhp->zfs_props,
+			    ZFS_PROP_CREATION, zhp->zfs_projected_creation);
+			if (error != 0)
+				goto nomem;
+		}
+		if ((zhp->zfs_projected_props & ZFS_PROJECTED_USERREFS) != 0) {
+			error = zfs_projected_prop_add(zhp->zfs_props,
+			    ZFS_PROP_USERREFS, zhp->zfs_projected_userrefs);
+			if (error != 0)
+				goto rollback;
+		}
+		zhp->zfs_projected_props_materialized = B_TRUE;
+	}
 	return (zhp->zfs_props);
+
+rollback:
+	if ((zhp->zfs_projected_props & ZFS_PROJECTED_CREATION) != 0) {
+		fnvlist_remove(zhp->zfs_props,
+		    zfs_prop_to_name(ZFS_PROP_CREATION));
+	}
+nomem:
+	errno = error;
+	(void) no_memory(zhp->zfs_hdl);
+	return (NULL);
 }
 
 nvlist_t *
@@ -4649,6 +4715,10 @@ zfs_prune_proplist(zfs_handle_t *zhp, uint8_t *props)
 	 * properties.
 	 */
 	zhp->zfs_props_table = props;
+	if (props[ZFS_PROP_CREATION] == B_FALSE)
+		zhp->zfs_projected_props &= ~ZFS_PROJECTED_CREATION;
+	if (props[ZFS_PROP_USERREFS] == B_FALSE)
+		zhp->zfs_projected_props &= ~ZFS_PROJECTED_USERREFS;
 
 	curr = nvlist_next_nvpair(zhp->zfs_props, NULL);
 
