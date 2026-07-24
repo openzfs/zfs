@@ -27,6 +27,7 @@ extern "C" {
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
@@ -35,6 +36,8 @@ typedef struct {
 	enum zio_compress	cs_type;
 	int			cs_level;
 } compression_spec_t;
+
+extern uint32_t num_pthreads;
 
 /*
  * The safe_ versions of the functions below terminate the process if the
@@ -86,6 +89,9 @@ decompress_buffer(uint8_t *inbuff, size_t inbuff_size, size_t logical_size,
 uint8_t *
 compress_buffer(uint8_t *inbuff, size_t inbuff_size,
     compression_spec_t compress_type, size_t *compressed_size);
+
+void
+pthread_register_self(void);
 
 #ifdef __cplusplus
 }
