@@ -234,6 +234,9 @@ static const aes_impl_ops_t *aes_all_impl[] = {
 #if defined(__x86_64) && HAVE_SIMD(AES)
 	&aes_aesni_impl,
 #endif
+#if defined(__aarch64__) && HAVE_SIMD(ARMV8_AES)
+	&aes_armv8_impl,
+#endif
 };
 
 /* Indicate that benchmark has been completed */
@@ -323,6 +326,14 @@ aes_impl_init(void)
 #endif
 	{
 		memcpy(&aes_fastest_impl, &aes_x86_64_impl,
+		    sizeof (aes_fastest_impl));
+	}
+#elif defined(__aarch64__) && HAVE_SIMD(ARMV8_AES)
+	if (aes_armv8_impl.is_supported()) {
+		memcpy(&aes_fastest_impl, &aes_armv8_impl,
+		    sizeof (aes_fastest_impl));
+	} else {
+		memcpy(&aes_fastest_impl, &aes_generic_impl,
 		    sizeof (aes_fastest_impl));
 	}
 #else
