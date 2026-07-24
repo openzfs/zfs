@@ -3402,7 +3402,9 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 	}
 
 	struct receive_record_arg *first_rrd = list_head(&rwa->write_batch);
-	struct drr_write *first_drrw = &first_rrd->header.drr_u.drr_write;
+	struct drr_write *first_drrw = NULL;
+	if (first_rrd != NULL)
+		first_drrw = &first_rrd->header.drr_u.drr_write;
 	uint64_t batch_size =
 	    MIN(zfs_recv_write_batch_size, DMU_MAX_ACCESS / 2);
 	if (first_rrd != NULL &&
