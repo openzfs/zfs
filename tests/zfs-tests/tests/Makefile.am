@@ -1562,6 +1562,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/dedup_fdt_pacing.ksh \
 	functional/dedup/dedup_legacy_create.ksh \
 	functional/dedup/dedup_legacy_import.ksh \
+	functional/dedup/dedup_log_zdb_leak.ksh \
 	functional/dedup/dedup_legacy_fdt_upgrade.ksh \
 	functional/dedup/dedup_legacy_fdt_mixed.ksh \
 	functional/dedup/dedup_prune.ksh \
@@ -2025,6 +2026,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_cancel.ksh \
 	functional/removal/removal_check_space.ksh \
 	functional/removal/removal_condense_export.ksh \
+	functional/removal/removal_indirect_class.ksh \
 	functional/removal/removal_multiple_indirection.ksh \
 	functional/removal/removal_nopwrite.ksh \
 	functional/removal/removal_remap_deadlists.ksh \
