@@ -128,6 +128,7 @@ extern void vdev_propagate_state(vdev_t *vd);
 extern void vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state,
     vdev_aux_t aux);
 extern boolean_t vdev_children_are_offline(vdev_t *vd);
+extern char *vdev_name(vdev_t *vd, char *buf, int buflen);
 
 extern void vdev_space_update(vdev_t *vd,
     int64_t alloc_delta, int64_t defer_delta, int64_t space_delta);
@@ -191,9 +192,17 @@ extern uint64_t vdev_queue_last_offset(vdev_t *vd);
 extern uint64_t vdev_queue_class_length(vdev_t *vq, zio_priority_t p);
 extern boolean_t vdev_queue_pool_busy(spa_t *spa);
 
+typedef enum vdev_config_sync_status {
+    VDEV_CONFIG_KEEP_CHECKPOINT,
+    VDEV_CONFIG_CREATING_CHECKPOINT,
+    VDEV_CONFIG_NO_CHECKPOINT,
+    VDEV_CONFIG_REWINDING_CHECKPOINT
+} vdev_config_sync_status_t;
+
 extern void vdev_config_dirty(vdev_t *vd);
 extern void vdev_config_clean(vdev_t *vd);
-extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
+extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg,
+    vdev_config_sync_status_t status);
 
 extern void vdev_state_dirty(vdev_t *vd);
 extern void vdev_state_clean(vdev_t *vd);

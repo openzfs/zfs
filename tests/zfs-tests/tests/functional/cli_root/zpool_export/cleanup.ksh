@@ -28,4 +28,5 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+delete_sparse_files
 default_cleanup
