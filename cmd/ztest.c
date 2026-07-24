@@ -4541,11 +4541,54 @@ ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 }
 
 static int
+ztest_dataset_create_encrypted(char *dsname, uint64_t encryption)
+{
+	nvlist_t *crypto_args = fnvlist_alloc();
+	nvlist_t *props = fnvlist_alloc();
+	dsl_crypto_params_t *dcp;
+
+	fnvlist_add_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), encryption);
+	fnvlist_add_uint8_array(crypto_args, "wkeydata",
+	    (uint8_t *)ztest_wkeydata, WRAPPING_KEY_LEN);
+
+	/*
+	 * These parameters aren't really used by the kernel. They are simply
+	 * stored so that userspace knows how to load the wrapping key.
+	 */
+	fnvlist_add_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), ZFS_KEYFORMAT_RAW);
+	fnvlist_add_string(props,
+	    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), "prompt");
+	fnvlist_add_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 0ULL);
+	fnvlist_add_uint64(props,
+	    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 0ULL);
+
+	VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, props,
+	    crypto_args, &dcp));
+
+	/*
+	 * Cycle through all available encryption implementations to verify
+	 * interoperability.
+	 */
+	VERIFY0(gcm_impl_set("cycle"));
+	VERIFY0(aes_impl_set("cycle"));
+
+	fnvlist_free(crypto_args);
+	fnvlist_free(props);
+
+	int err = dmu_objset_create(dsname, DMU_OST_OTHER, 0, dcp,
+	    ztest_objset_create_cb, NULL);
+	dsl_crypto_params_free(dcp, !!err);
+	return (err);
+}
+
+static int
 ztest_dataset_create(char *dsname)
 {
 	int err;
 	uint64_t rand;
-	dsl_crypto_params_t *dcp = NULL;
 
 	/*
 	 * 50% of the time, we create encrypted datasets
@@ -4554,50 +4597,15 @@ ztest_dataset_create(char *dsname)
 	 */
 	rand = ztest_random(2);
 	if (rand != 0) {
-		nvlist_t *crypto_args = fnvlist_alloc();
-		nvlist_t *props = fnvlist_alloc();
-
 		/* slight bias towards the default cipher suite */
 		rand = ztest_random(ZIO_CRYPT_FUNCTIONS);
 		if (rand < ZIO_CRYPT_AES_128_CCM)
 			rand = ZIO_CRYPT_ON;
-
-		fnvlist_add_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), rand);
-		fnvlist_add_uint8_array(crypto_args, "wkeydata",
-		    (uint8_t *)ztest_wkeydata, WRAPPING_KEY_LEN);
-
-		/*
-		 * These parameters aren't really used by the kernel. They
-		 * are simply stored so that userspace knows how to load
-		 * the wrapping key.
-		 */
-		fnvlist_add_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), ZFS_KEYFORMAT_RAW);
-		fnvlist_add_string(props,
-		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), "prompt");
-		fnvlist_add_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 0ULL);
-		fnvlist_add_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 0ULL);
-
-		VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, props,
-		    crypto_args, &dcp));
-
-		/*
-		 * Cycle through all available encryption implementations
-		 * to verify interoperability.
-		 */
-		VERIFY0(gcm_impl_set("cycle"));
-		VERIFY0(aes_impl_set("cycle"));
-
-		fnvlist_free(crypto_args);
-		fnvlist_free(props);
+		err = ztest_dataset_create_encrypted(dsname, rand);
+	} else {
+		err = dmu_objset_create(dsname, DMU_OST_OTHER, 0, NULL,
+		    ztest_objset_create_cb, NULL);
 	}
-
-	err = dmu_objset_create(dsname, DMU_OST_OTHER, 0, dcp,
-	    ztest_objset_create_cb, NULL);
-	dsl_crypto_params_free(dcp, !!err);
 
 	rand = ztest_random(100);
 	if (err || rand < 80)
@@ -7936,6 +7944,277 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	return (0);
 }
 
+/* Sector-aligned, non-power-of-two sizes from an observed failure. */
+#define	ZTEST_DMU_SYNC_SMALL_SIZE	(340 * 1024)
+#define	ZTEST_DMU_SYNC_LARGE_SIZE	(527 * 1024)
+#define	ZTEST_DMU_SYNC_PATTERN_WORDS	32
+
+static void
+ztest_dmu_sync_fill(void *buf, size_t size, uint64_t state)
+{
+	uint64_t pattern[ZTEST_DMU_SYNC_PATTERN_WORDS];
+	uint64_t *words = buf;
+
+	ASSERT0(size % sizeof (*words));
+	for (size_t i = 0; i < ARRAY_SIZE(pattern); i++) {
+		state ^= state << 13;
+		state ^= state >> 7;
+		state ^= state << 17;
+		pattern[i] = state;
+	}
+	for (size_t i = 0; i < size / sizeof (*words); i++)
+		words[i] = pattern[i % ARRAY_SIZE(pattern)];
+}
+
+static int
+ztest_dmu_sync_vdev_compare(const void *x1, const void *x2)
+{
+	const uint64_t v1 = ((const zil_vdev_node_t *)x1)->zv_vdev;
+	const uint64_t v2 = ((const zil_vdev_node_t *)x2)->zv_vdev;
+
+	return (TREE_CMP(v1, v2));
+}
+
+static lwb_t *
+ztest_dmu_sync_lwb_alloc(void)
+{
+	lwb_t *lwb = umem_zalloc(sizeof (*lwb), UMEM_NOFAIL);
+
+	lwb->lwb_state = LWB_STATE_CLOSED;
+	avl_create(&lwb->lwb_vdev_tree, ztest_dmu_sync_vdev_compare,
+	    sizeof (zil_vdev_node_t), offsetof(zil_vdev_node_t, zv_node));
+	mutex_init(&lwb->lwb_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	return (lwb);
+}
+
+static void
+ztest_dmu_sync_lwb_free(lwb_t *lwb)
+{
+	void *cookie = NULL;
+	zil_vdev_node_t *zv;
+
+	while ((zv = avl_destroy_nodes(&lwb->lwb_vdev_tree,
+	    &cookie)) != NULL)
+		kmem_free(zv, sizeof (*zv));
+	mutex_destroy(&lwb->lwb_lock);
+	avl_destroy(&lwb->lwb_vdev_tree);
+	umem_free(lwb, sizeof (*lwb));
+}
+
+/*
+ * Verify that syncing an overridden dirty record uses the size of that
+ * record's data, rather than the size of the live dbuf.  The latter may
+ * already have changed in a newer transaction group.
+ */
+static void
+ztest_dmu_sync_blocksize_change(spa_t *spa, uint64_t old_size,
+    uint64_t new_size, const char *direction)
+{
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	ztest_ds_t *zd = umem_zalloc(sizeof (*zd), UMEM_NOFAIL);
+	ztest_od_t od;
+	objset_t *os;
+	dmu_buf_t *dbuf;
+	dmu_buf_impl_t *db;
+	dnode_t *dn;
+	dbuf_dirty_record_t *dr;
+	dmu_tx_t *dirty_tx, *resize_tx;
+	uint64_t dirty_txg, resize_txg;
+	blkptr_t bp, override_bp;
+	lr_write_t lr = { 0 };
+	zio_prop_t zp;
+	zio_t *pio, *sync_gate;
+	lwb_t *lwb;
+	void *initial = umem_alloc(old_size, UMEM_NOFAIL);
+	void *target = umem_alloc(old_size, UMEM_NOFAIL);
+	void *synced = umem_alloc(old_size, UMEM_NOFAIL);
+	void *result = umem_alloc(new_size, UMEM_NOFAIL);
+
+	(void) snprintf(name, sizeof (name), "%s/dmu_sync_blocksize_%s",
+	    ztest_opts.zo_pool, direction);
+	(void) dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
+	    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+
+	VERIFY0(ztest_dataset_create_encrypted(name,
+	    ZIO_CRYPT_AES_256_GCM));
+	VERIFY0(ztest_dsl_prop_set_uint64(name, ZFS_PROP_DEDUP,
+	    ZIO_CHECKSUM_SHA256, B_FALSE));
+	VERIFY0(ztest_dsl_prop_set_uint64(name, ZFS_PROP_COMPRESSION,
+	    ZIO_COMPRESS_ZSTD, B_FALSE));
+
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    zd, &os));
+	ztest_zd_init(zd, NULL, os);
+	zilog_t *zilog = zil_open(os, ztest_get_data, NULL);
+
+	ztest_od_init(&od, 0, __func__, 0, DMU_OT_UINT64_OTHER, old_size,
+	    0, 0);
+	VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_FALSE));
+
+	/* Establish the object and its initial block on disk. */
+	ztest_dmu_sync_fill(initial, old_size,
+	    0x0123456789abcdefULL);
+	VERIFY0(ztest_write(zd, od.od_object, 0, old_size, initial));
+	VERIFY0(zil_commit(zilog, od.od_object));
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	VERIFY0(dmu_buf_hold(os, od.od_object, 0, FTAG, &dbuf,
+	    DMU_READ_NO_PREFETCH));
+	db = (dmu_buf_impl_t *)dbuf;
+	VERIFY0(dnode_hold(os, od.od_object, FTAG, &dn));
+	VERIFY(os->os_encrypted);
+	dmu_write_policy(os, dn, 0, 0, &zp);
+	VERIFY(zp.zp_dedup);
+	VERIFY(zp.zp_encrypt);
+	VERIFY3U(zp.zp_compress, ==, ZIO_COMPRESS_ZSTD);
+	VERIFY3U(zp.zp_type, ==, DMU_OT_UINT64_OTHER);
+
+	ztest_dmu_sync_fill(target, old_size,
+	    0xfedcba9876543210ULL);
+	dirty_tx = dmu_tx_create(os);
+	dmu_tx_hold_write(dirty_tx, od.od_object, 0, old_size);
+	VERIFY0(dmu_tx_assign(dirty_tx,
+	    DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE));
+	dirty_txg = dmu_tx_get_txg(dirty_tx);
+	dmu_write(os, od.od_object, 0, old_size, target, dirty_tx,
+	    DMU_READ_PREFETCH);
+
+	/*
+	 * Call the same get-data callback used by zil_commit(), but drive its
+	 * parent ZIO directly.  This gives exact control over dmu_sync()
+	 * completion and avoids the ZIL commit machinery, whose fallback
+	 * paths may block waiting for the transaction group this test holds
+	 * open via the assigned dirty transaction.
+	 */
+	lr.lr_common.lrc_txg = dirty_txg;
+	lr.lr_foid = od.od_object;
+	lr.lr_offset = 0;
+	lr.lr_length = old_size;
+	BP_ZERO(&lr.lr_blkptr);
+	lwb = ztest_dmu_sync_lwb_alloc();
+	pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
+	int error = ztest_get_data(zd, 0, &lr, NULL, lwb, pio);
+	int io_error = zio_wait(pio);
+	if (error == 0)
+		error = io_error;
+	ztest_dmu_sync_lwb_free(lwb);
+	VERIFY0(error);
+
+	mutex_enter(&db->db_mtx);
+	dr = list_head(&db->db_dirty_records);
+	VERIFY3P(dr, !=, NULL);
+	VERIFY3U(dr->dr_txg, ==, dirty_txg);
+	VERIFY3U(dr->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
+	VERIFY3U(arc_buf_lsize(dr->dt.dl.dr_data), ==, old_size);
+	VERIFY3U(arc_buf_size(dr->dt.dl.dr_data), ==, old_size);
+	VERIFY(!dr->dt.dl.dr_nopwrite);
+	VERIFY(!BP_IS_HOLE(&dr->dt.dl.dr_overridden_by));
+	VERIFY(!BP_IS_EMBEDDED(&dr->dt.dl.dr_overridden_by));
+	VERIFY(BP_IS_ENCRYPTED(&dr->dt.dl.dr_overridden_by));
+	VERIFY(!BP_GET_DEDUP(&dr->dt.dl.dr_overridden_by));
+	VERIFY3U(BP_GET_LSIZE(&dr->dt.dl.dr_overridden_by), ==, old_size);
+	VERIFY(BP_EQUAL(&dr->dt.dl.dr_overridden_by, &lr.lr_blkptr));
+	mutex_exit(&db->db_mtx);
+
+	resize_tx = dmu_tx_create(os);
+	dmu_tx_hold_write(resize_tx, od.od_object, 0, new_size);
+
+	/*
+	 * spa_sync() waits for this per-txg root before syncing any dbufs.
+	 * Leave one child unissued while the old transaction commits and the
+	 * resize enters the next txg, then issue it to release syncing.
+	 */
+	sync_gate = zio_null(spa->spa_txg_zio[dirty_txg & TXG_MASK], spa,
+	    NULL, NULL, NULL, 0);
+	dmu_tx_commit(dirty_tx);
+	txg_wait_open(spa_get_dsl(spa), dirty_txg + 1, B_TRUE);
+
+	VERIFY0(dmu_tx_assign(resize_tx,
+	    DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE));
+	resize_txg = dmu_tx_get_txg(resize_tx);
+	VERIFY3U(resize_txg, >, dirty_txg);
+
+	VERIFY0(dnode_set_blksz(dn, new_size, 0, resize_tx));
+
+	mutex_enter(&db->db_mtx);
+	VERIFY3U(db->db.db_size, ==, new_size);
+	dr = list_head(&db->db_dirty_records);
+	VERIFY3P(dr, !=, NULL);
+	VERIFY3U(dr->dr_txg, ==, resize_txg);
+	dr = list_next(&db->db_dirty_records, dr);
+	VERIFY3P(dr, !=, NULL);
+	VERIFY3U(dr->dr_txg, ==, dirty_txg);
+	VERIFY3U(dr->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
+	VERIFY3U(arc_buf_lsize(dr->dt.dl.dr_data), ==, old_size);
+	VERIFY3U(arc_buf_size(dr->dt.dl.dr_data), ==, old_size);
+	VERIFY3P(dr->dt.dl.dr_data, !=, db->db_buf);
+	override_bp = dr->dt.dl.dr_overridden_by;
+	mutex_exit(&db->db_mtx);
+
+	zio_nowait(sync_gate);
+	txg_wait_synced(spa_get_dsl(spa), dirty_txg);
+
+	/* The newer dirty record has not been allowed to sync yet. */
+	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+	VERIFY3P(db->db_blkptr, !=, NULL);
+	bp = *db->db_blkptr;
+	dmu_buf_unlock_parent(db, dblt, FTAG);
+	VERIFY(!BP_IS_HOLE(&bp));
+	VERIFY(!BP_EQUAL(&bp, &override_bp));
+	VERIFY3U(BP_GET_LSIZE(&bp), ==, old_size);
+	VERIFY(BP_IS_ENCRYPTED(&bp));
+
+	zbookmark_phys_t zb;
+	SET_BOOKMARK(&zb, dmu_objset_id(os), od.od_object, 0, 0);
+	abd_t *abd = abd_get_from_buf(synced, old_size);
+	VERIFY0(zio_wait(zio_read(NULL, spa, &bp, abd, old_size, NULL, NULL,
+	    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL, &zb)));
+	abd_free(abd);
+	VERIFY0(memcmp(synced, target, old_size));
+
+	dmu_tx_commit(resize_tx);
+	txg_wait_synced(spa_get_dsl(spa), resize_txg);
+
+	VERIFY0(dmu_read(os, od.od_object, 0, new_size, result,
+	    DMU_READ_NO_PREFETCH));
+	VERIFY0(memcmp(result, target, MIN(old_size, new_size)));
+	for (size_t i = old_size; i < new_size; i++)
+		VERIFY3U(((uint8_t *)result)[i], ==, 0);
+
+	dmu_buf_rele(dbuf, FTAG);
+	dnode_rele(dn, FTAG);
+	zil_close(zilog);
+	dmu_objset_disown(os, B_TRUE, zd);
+	ztest_zd_fini(zd);
+	umem_free(zd, sizeof (*zd));
+
+	(void) dmu_objset_find(name, ztest_objset_destroy_cb, NULL,
+	    DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	umem_free(initial, old_size);
+	umem_free(target, old_size);
+	umem_free(synced, old_size);
+	umem_free(result, new_size);
+}
+
+/*
+ * Run the blocksize-change scenarios once per pool creation.  The test
+ * gates spa_txg_zio to control sync ordering and asserts exact dirty
+ * record state, so it must run single-threaded on a quiet pool: a
+ * one-shot here in ztest_init(), like ztest_freeze(), rather than a
+ * ztest_info_t entry.
+ */
+static void
+ztest_dmu_sync_blocksize_tests(spa_t *spa)
+{
+	ztest_dmu_sync_blocksize_change(spa, ZTEST_DMU_SYNC_SMALL_SIZE,
+	    ZTEST_DMU_SYNC_LARGE_SIZE, "growth");
+	ztest_dmu_sync_blocksize_change(spa, ZTEST_DMU_SYNC_LARGE_SIZE,
+	    ZTEST_DMU_SYNC_SMALL_SIZE, "shrink");
+}
+
 static void
 ztest_freeze(void)
 {
@@ -8711,6 +8990,8 @@ ztest_init(ztest_shared_t *zs)
 	fnvlist_free(props);
 
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	ztest_spa = spa;
+	ztest_dmu_sync_blocksize_tests(spa);
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
 	zs->zs_guid = spa_guid(spa);
