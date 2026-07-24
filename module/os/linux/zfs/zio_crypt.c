@@ -2029,6 +2029,9 @@ error:
 /*
  * Simple wrapper around zio_do_crypt_data() to work with abd's instead of
  * linear buffers.
+ *
+ * When both ABDs are linear, we avoid the abd_borrow_buf_copy() overhead
+ * by working directly with the underlying buffers.
  */
 int
 zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, dmu_object_type_t ot,
@@ -2038,6 +2041,19 @@ zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key, dmu_object_type_t ot,
 	int ret;
 	void *ptmp, *ctmp;
 
+	/*
+	 * Fast path: both ABDs are linear, so we can pass their buffers
+	 * directly to zio_do_crypt_data() without any copying.
+	 */
+	if (abd_is_linear(pabd) && abd_is_linear(cabd)) {
+		ptmp = abd_to_buf(pabd);
+		ctmp = abd_to_buf(cabd);
+
+		return (zio_do_crypt_data(encrypt, key, ot, byteswap, salt, iv,
+		    mac, datalen, ptmp, ctmp, no_crypt));
+	}
+
+	/* Slow path: at least one ABD is scattered. */
 	if (encrypt) {
 		ptmp = abd_borrow_buf_copy(pabd, datalen);
 		ctmp = abd_borrow_buf(cabd, datalen);
