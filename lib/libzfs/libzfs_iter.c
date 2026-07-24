@@ -123,7 +123,9 @@ static int
 make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
     dmu_objset_type_t dmu_type, uint8_t dds_flags,
     const uint64_t *createtxg, const uint64_t *guid, const uint64_t *creation,
-    const uint64_t *userrefs, zfs_handle_t **result)
+    const uint64_t *userrefs, const uint64_t *numclones,
+    const uint8_t *inconsistent, const uint8_t *redacted,
+    zfs_handle_t **result)
 {
 	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
 	int error;
@@ -143,6 +145,12 @@ make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
 		zhp->zfs_dmustats.dds_creation_txg = *createtxg;
 	if (guid != NULL)
 		zhp->zfs_dmustats.dds_guid = *guid;
+	if (numclones != NULL)
+		zhp->zfs_dmustats.dds_num_clones = *numclones;
+	if (inconsistent != NULL)
+		zhp->zfs_dmustats.dds_inconsistent = *inconsistent;
+	if (redacted != NULL)
+		zhp->zfs_dmustats.dds_redacted = *redacted;
 	zhp->zfs_dmustats.dds_flags = dds_flags;
 	if (creation != NULL) {
 		zhp->zfs_projected_creation = *creation;
@@ -211,12 +219,24 @@ zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
 		fnvlist_add_boolean(props,
 		    zfs_prop_to_name(ZFS_PROP_USERREFS));
 	}
+	if (flags & ZFS_ITER_BATCHED_NUMCLONES) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_NUMCLONES));
+	}
+	if (flags & ZFS_ITER_BATCHED_INCONSISTENT) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_INCONSISTENT));
+	}
+	if (flags & ZFS_ITER_BATCHED_REDACTED) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_REDACTED));
+	}
 	fnvlist_add_nvlist(args, SNAP_ITER_BATCH_PROPS, props);
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, args);
 	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc,
-	    SNAPSHOT_LIST_BATCH_NVLIST_SIZE(4, 0));
+	    SNAPSHOT_LIST_BATCH_NVLIST_SIZE(5, 2));
 	for (;;) {
 		int ioctl_errno = 0;
 
@@ -277,8 +297,12 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		char **names = NULL;
 		uint64_t *createtxgs = NULL, *guids = NULL;
 		uint64_t *creations = NULL, *userrefs = NULL;
+		uint64_t *numclones = NULL;
+		uint8_t *inconsistent = NULL, *redacted = NULL;
 		uint_t count = 0, createtxg_count = 0, guid_count = 0;
 		uint_t creation_count = 0, userref_count = 0;
+		uint_t numclone_count = 0, inconsistent_count = 0;
+		uint_t redacted_count = 0;
 		uint64_t next_cursor, dmu_type, dds_flags;
 		nvlist_t *batch = NULL;
 		boolean_t eof, ioctl_eof;
@@ -364,6 +388,37 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			ret = EPROTO;
 			goto malformed;
 		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_NUMCLONES) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_NUMCLONES, &numclones,
+		    &numclone_count) != 0 || count != numclone_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
+		    (nvlist_lookup_uint8_array(batch,
+		    SNAP_ITER_BATCH_INCONSISTENT, &inconsistent,
+		    &inconsistent_count) != 0 ||
+		    count != inconsistent_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_REDACTED) &&
+		    (nvlist_lookup_uint8_array(batch,
+		    SNAP_ITER_BATCH_REDACTED, &redacted,
+		    &redacted_count) != 0 || count != redacted_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		for (uint_t i = 0; i < count; i++) {
+			if (((flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
+			    inconsistent[i] > 1) ||
+			    ((flags & ZFS_ITER_BATCHED_REDACTED) &&
+			    redacted[i] > 1)) {
+				ret = EPROTO;
+				goto malformed;
+			}
+		}
 
 		for (uint_t i = 0; i < count; i++) {
 			const uint64_t *createtxg =
@@ -377,11 +432,21 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			const uint64_t *userref =
 			    (flags & ZFS_ITER_BATCHED_USERREFS) ?
 			    &userrefs[i] : NULL;
+			const uint64_t *numclone =
+			    (flags & ZFS_ITER_BATCHED_NUMCLONES) ?
+			    &numclones[i] : NULL;
+			const uint8_t *inconsistent_value =
+			    (flags & ZFS_ITER_BATCHED_INCONSISTENT) ?
+			    &inconsistent[i] : NULL;
+			const uint8_t *redacted_value =
+			    (flags & ZFS_ITER_BATCHED_REDACTED) ?
+			    &redacted[i] : NULL;
 			zfs_handle_t *nzhp;
 
 			ret = make_dataset_batch_handle(zhp, names[i],
 			    (dmu_objset_type_t)dmu_type, (uint8_t)dds_flags,
-			    createtxg, guid, creation, userref, &nzhp);
+			    createtxg, guid, creation, userref, numclone,
+			    inconsistent_value, redacted_value, &nzhp);
 			if (ret != 0) {
 				int error = ret;
 

@@ -2707,12 +2707,15 @@ dsl_get_written(dsl_dataset_t *ds, uint64_t *written)
  */
 int
 dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
-    boolean_t want_userrefs, dsl_dataset_snapshot_stats_t *stats)
+    boolean_t want_userrefs, boolean_t want_redacted,
+    dsl_dataset_snapshot_stats_t *stats)
 {
 	objset_t *mos = dp->dp_meta_objset;
 	dmu_buf_t *dbuf;
 	dmu_object_info_t doi;
 	dsl_dataset_phys_t *dsp;
+	uint64_t integer_size;
+	boolean_t zapified;
 	int error;
 
 	ASSERT(dsl_pool_config_held(dp));
@@ -2723,6 +2726,7 @@ dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
 		return (error);
 
 	dmu_object_info_from_db(dbuf, &doi);
+	zapified = doi.doi_type == DMU_OTN_ZAP_METADATA;
 	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
 		error = SET_ERROR(EINVAL);
 		goto out;
@@ -2732,12 +2736,28 @@ dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
 	stats->dss_creation_txg = dsp->ds_creation_txg;
 	stats->dss_creation_time = dsp->ds_creation_time;
 	stats->dss_guid = dsp->ds_guid;
+	stats->dss_num_clones = dsp->ds_num_children == 0 ?
+	    0 : dsp->ds_num_children - 1;
+	stats->dss_inconsistent =
+	    (dsp->ds_flags & DS_FLAG_INCONSISTENT) != 0;
 
 	if (want_userrefs && dsp->ds_userrefs_obj != 0) {
 		error = zap_count(mos, dsp->ds_userrefs_obj,
 		    &stats->dss_userrefs);
 		if (error != 0)
 			goto out;
+	}
+	if (want_redacted && zapified) {
+		error = zap_length(mos, dsobj,
+		    spa_feature_table[SPA_FEATURE_REDACTED_DATASETS].fi_guid,
+		    &integer_size, NULL);
+		if (error == 0 && integer_size != sizeof (uint64_t))
+			error = SET_ERROR(EINVAL);
+		if (error == 0) {
+			stats->dss_redacted = B_TRUE;
+		} else if (error == ENOENT) {
+			error = 0;
+		}
 	}
 
 out:
