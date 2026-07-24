@@ -820,7 +820,7 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 
 	if (advice == POSIX_FADV_WILLNEED) {
 		loff_t rlen = len ? len : i_size_read(ip) - offset;
-		dmu_prefetch(os, zp->z_id, 0, offset, rlen,
+		dmu_prefetch_user(os, zp->z_id, 0, offset, rlen,
 		    ZIO_PRIORITY_ASYNC_READ);
 		if (!zn_has_cached_data(zp, offset, offset + rlen - 1)) {
 			zfs_exit(zfsvfs, FTAG);

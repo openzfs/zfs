@@ -337,6 +337,7 @@ boolean_t arc_async_flush_guid_inuse(uint64_t load_guid);
 uint64_t arc_all_memory(void);
 uint64_t arc_default_max(uint64_t min, uint64_t allmem);
 uint64_t arc_target_bytes(void);
+uint64_t arc_boot_target_bytes(void);
 void arc_set_limits(uint64_t);
 void arc_init(void);
 void arc_fini(void);

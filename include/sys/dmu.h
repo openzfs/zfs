@@ -958,6 +958,8 @@ extern uint_t zfs_max_recordsize;
  */
 void dmu_prefetch(objset_t *os, uint64_t object, int64_t level, uint64_t offset,
 	uint64_t len, enum zio_priority pri);
+void dmu_prefetch_user(objset_t *os, uint64_t object, int64_t level,
+    uint64_t offset, uint64_t len, enum zio_priority pri);
 void dmu_prefetch_by_dnode(dnode_t *dn, int64_t level, uint64_t offset,
 	uint64_t len, enum zio_priority pri);
 void dmu_prefetch_dnode(objset_t *os, uint64_t object, enum zio_priority pri);
