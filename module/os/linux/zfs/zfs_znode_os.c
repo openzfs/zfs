@@ -60,6 +60,9 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <linux/mm_compat.h>
+#ifdef CONFIG_FS_POSIX_ACL
+#include <linux/posix_acl.h>
+#endif
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -1210,6 +1213,12 @@ zfs_rezget(znode_t *zp)
 		zp->z_acl_cached = NULL;
 	}
 	mutex_exit(&zp->z_acl_lock);
+
+#ifdef CONFIG_FS_POSIX_ACL
+	/* The VFS cache can still describe the pre-rollback inode. */
+	forget_cached_acl(ZTOI(zp), ACL_TYPE_ACCESS);
+	forget_cached_acl(ZTOI(zp), ACL_TYPE_DEFAULT);
+#endif
 
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 	if (zp->z_xattr_cached) {
