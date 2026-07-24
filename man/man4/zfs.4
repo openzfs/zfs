@@ -2418,6 +2418,25 @@ This setting will not reduce the write size below a single block.
 Capped at a maximum of
 .Sy 32 MiB .
 .
+.It Sy zfs_recv_defer_batch_size Ns = Ns Sy 33554432 Ns B Po 32 MiB Pc Pq uint
+When a non-raw incremental stream reallocates an object at a different
+dnode size,
+.Nm zfs Cm receive
+must wait for the old dnode's free to be written out before the object
+number can be reused.
+Rather than forcing one transaction group sync per reallocated object,
+affected records are parked, up to this many bytes at a time, and applied
+together behind a single sync.
+Parked records hold their payloads in memory, so a receive may use up to
+this much memory in addition to
+.Sy zfs_recv_queue_length .
+While records are parked, the saved resume state is held back at the first
+parked record, so interrupting a receive can require resending up to this
+much of the stream.
+Setting this to
+.Sy 0
+restores the previous behavior of one sync per reallocated object.
+.
 .It Sy zfs_recv_best_effort_corrective Ns = Ns Sy 0 Pq int
 When this variable is set to non-zero a corrective receive:
 .Bl -enum -compact -offset 4n -width "1."
