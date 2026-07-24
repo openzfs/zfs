@@ -1148,7 +1148,7 @@ buf_hash_remove(arc_buf_hdr_t *hdr)
 	arc_buf_hdr_t *fhdr, **hdrp;
 	uint64_t idx = BUF_HASH_INDEX(hdr->b_spa, &hdr->b_dva, hdr->b_birth);
 
-	ASSERT(MUTEX_HELD(BUF_HASH_LOCK(idx)));
+	VERIFY(MUTEX_HELD(BUF_HASH_LOCK(idx)));
 	ASSERT(HDR_IN_HASH_TABLE(hdr));
 
 	hdrp = &buf_hash_table.ht_table[idx];
@@ -5624,21 +5624,17 @@ arc_read_done(zio_t *zio)
 	 * reason for it not to be found is if we were freed during the
 	 * read.
 	 */
-	if (HDR_IN_HASH_TABLE(hdr)) {
+	if (!BP_IS_EMBEDDED(bp)) {
 		arc_buf_hdr_t *found;
 
-		ASSERT3U(hdr->b_birth, ==, BP_GET_PHYSICAL_BIRTH(zio->io_bp));
-		ASSERT3U(hdr->b_dva.dva_word[0], ==,
-		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
-		ASSERT3U(hdr->b_dva.dva_word[1], ==,
-		    BP_IDENTITY(zio->io_bp)->dva_word[1]);
+		found = buf_hash_find(spa_load_guid(zio->io_spa), bp,
+		    &hash_lock);
 
-		found = buf_hash_find(hdr->b_spa, zio->io_bp, &hash_lock);
+		IMPLY(found == hdr,
+		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp)) ||
+		    HDR_L2_READING(hdr));
 
-		ASSERT((found == hdr &&
-		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp))) ||
-		    (found == hdr && HDR_L2_READING(hdr)));
-		ASSERT3P(hash_lock, !=, NULL);
+		IMPLY(!found, hdr->b_l1hdr.b_state == arc_anon);
 	}
 
 	if (BP_IS_PROTECTED(bp)) {
