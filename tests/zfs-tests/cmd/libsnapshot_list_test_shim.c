@@ -291,12 +291,20 @@ nvlist_add_nvlist(nvlist_t *nvl, const char *name, const nvlist_t *val)
 	static nvlist_add_nvlist_fn_t next;
 	const char *mode = getenv("ZFS_SNAPSHOT_LIST_TEST_MODE");
 
-	if (handle_enomem_armed && !handle_enomem_injected && mode != NULL &&
-	    strcmp(mode, "handle_enomem") == 0 &&
-	    strcmp(name, "creation") == 0) {
-		handle_enomem_injected = 1;
-		write_marker(mode);
-		return (ENOMEM);
+	if (handle_enomem_armed && mode != NULL) {
+		if (!handle_enomem_injected &&
+		    strcmp(mode, "handle_enomem") == 0 &&
+		    strcmp(name, "userrefs") == 0) {
+			handle_enomem_injected = 1;
+			write_marker(mode);
+			return (ENOMEM);
+		}
+		if (strcmp(mode, "direct_properties") == 0 &&
+		    (strcmp(name, "creation") == 0 ||
+		    strcmp(name, "userrefs") == 0)) {
+			write_marker("unexpected_property_nvlist");
+			return (ENOMEM);
+		}
 	}
 
 	if (next == NULL)
@@ -409,7 +417,11 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 		write_marker(mode);
 	}
 	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
-	    mode != NULL && strcmp(mode, "handle_enomem") == 0)
+	    mode != NULL && (strcmp(mode, "handle_enomem") == 0 ||
+	    strcmp(mode, "direct_properties") == 0)) {
 		handle_enomem_armed = 1;
+		if (strcmp(mode, "direct_properties") == 0)
+			write_marker(mode);
+	}
 	return (error);
 }

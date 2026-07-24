@@ -92,22 +92,6 @@ top:
 	return (rc);
 }
 
-static int
-zfs_batch_add_uint64_prop(nvlist_t *props, zfs_prop_t prop, uint64_t value)
-{
-	nvlist_t *propval;
-	int error;
-
-	if ((error = nvlist_alloc(&propval, NV_UNIQUE_NAME, 0)) != 0)
-		return (error);
-	if ((error = nvlist_add_uint64(propval, ZPROP_VALUE, value)) == 0) {
-		error = nvlist_add_nvlist(props, zfs_prop_to_name(prop),
-		    propval);
-	}
-	nvlist_free(propval);
-	return (error);
-}
-
 /*
  * Keep the userspace limit independent of the kernel tunable so a future
  * kernel can increase its limit without exceeding this caller's destination
@@ -150,6 +134,14 @@ make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
 	if (guid != NULL)
 		zhp->zfs_dmustats.dds_guid = *guid;
 	zhp->zfs_dmustats.dds_flags = dds_flags;
+	if (creation != NULL) {
+		zhp->zfs_projected_creation = *creation;
+		zhp->zfs_projected_props |= ZFS_PROJECTED_CREATION;
+	}
+	if (userrefs != NULL) {
+		zhp->zfs_projected_userrefs = *userrefs;
+		zhp->zfs_projected_props |= ZFS_PROJECTED_USERREFS;
+	}
 
 	if (strlcpy(zhp->zfs_name, pzhp->zfs_name,
 	    sizeof (zhp->zfs_name)) >= sizeof (zhp->zfs_name) ||
@@ -163,11 +155,7 @@ make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
 
 	if ((error = nvlist_alloc(&zhp->zfs_props, NV_UNIQUE_NAME, 0)) != 0 ||
 	    (error = nvlist_alloc(&zhp->zfs_user_props, NV_UNIQUE_NAME, 0)) !=
-	    0 ||
-	    (creation != NULL && (error = zfs_batch_add_uint64_prop(
-	    zhp->zfs_props, ZFS_PROP_CREATION, *creation)) != 0) ||
-	    (userrefs != NULL && (error = zfs_batch_add_uint64_prop(
-	    zhp->zfs_props, ZFS_PROP_USERREFS, *userrefs)) != 0)) {
+	    0) {
 		goto fail;
 	}
 
