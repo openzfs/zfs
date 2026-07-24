@@ -37,6 +37,7 @@
 #include <sys/txg.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_raidz.h>
 #include <sys/vdev_trim.h>
 #include <sys/zio_impl.h>
 #include <sys/zio_compress.h>
@@ -3705,7 +3706,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == zio)
 		dde->dde_io->dde_lead_zio[p] = NULL;
 
-	ddt_univ_phys_t *orig = &dde->dde_io->dde_orig_phys;
+	ddt_univ_phys_t *orig = &dde->dde_io->dde_rollback_phys;
 
 	if (zio->io_error != 0) {
 		/*
@@ -3714,7 +3715,8 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * the last time it was successfully extended.
 		 */
 		ddt_phys_unextend(ddp, orig, v);
-		ddt_phys_clear(orig, v);
+		if (dde->dde_io->dde_lead_zio[p] == NULL)
+			ddt_phys_clear(orig, v);
 
 		mutex_exit(&dde->dde_io->dde_io_lock);
 
@@ -3742,9 +3744,60 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == NULL)
 		ddt_phys_clear(orig, v);
 	else
-		ddt_phys_copy(orig, ddp, v);
+		ddt_phys_extend(orig, v, zio->io_bp);
 
 	mutex_exit(&dde->dde_io->dde_io_lock);
+}
+
+static boolean_t
+zio_ddt_child_write_layout_matches(zio_t *zio, uint64_t phys_birth)
+{
+	blkptr_t *bp = zio->io_bp;
+
+	ASSERT3U(phys_birth, !=, 0);
+	ASSERT3U(BP_GET_PHYSICAL_BIRTH(bp), ==, zio->io_txg);
+
+	/*
+	 * DDT writes run only in syncing context, under spa_sync()'s
+	 * SCL_CONFIG hold, so the vdev configuration is stable and
+	 * vdev_lookup_top() is safe without taking the lock here.
+	 */
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		vdev_t *vd = vdev_lookup_top(zio->io_spa,
+		    DVA_GET_VDEV(&bp->blk_dva[d]));
+		ASSERT3P(vd, !=, NULL);
+
+		if (vd->vdev_ops == &vdev_raidz_ops &&
+		    !vdev_raidz_same_logical_width(vd, phys_birth,
+		    zio->io_txg))
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
+static void
+zio_ddt_child_write_reject(zio_t *zio)
+{
+	/*
+	 * READY truncates the pipeline before top-vdev children are issued.
+	 * Release queue-depth holds that those children's DONE callbacks would
+	 * normally release.
+	 *
+	 * At this DDT-child callsite, ALLOC_THROTTLED precisely identifies an
+	 * async allocation into a throttle-enabled class. Synchronous and
+	 * unthrottled allocations did not add these holds.
+	 */
+	if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
+		for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+			dva_t *dva = &zio->io_bp->blk_dva[d];
+			metaslab_group_alloc_decrement(zio->io_spa,
+			    DVA_GET_VDEV(dva), zio->io_allocator,
+			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+		}
+	}
+
+	zio->io_error = EAGAIN;
 }
 
 static void
@@ -3759,20 +3812,21 @@ zio_ddt_child_write_ready(zio_t *zio)
 	int p = DDT_PHYS_FOR_COPIES(ddt, zio->io_prop.zp_copies);
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
-	if (ddt_phys_is_gang(dde->dde_phys, v)) {
-		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
-			dva_t *d = &zio->io_bp->blk_dva[i];
-			metaslab_group_alloc_decrement(zio->io_spa,
-			    DVA_GET_VDEV(d), zio->io_allocator,
-			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
-		}
-		zio->io_error = EAGAIN;
-	}
-
 	if (zio->io_error != 0)
 		return;
 
 	mutex_enter(&dde->dde_io->dde_io_lock);
+
+	uint64_t phys_birth = ddt_phys_birth(dde->dde_phys, v);
+	boolean_t reject = ddt_phys_is_gang(dde->dde_phys, v) ||
+	    (phys_birth != 0 &&
+	    !zio_ddt_child_write_layout_matches(zio, phys_birth));
+
+	if (reject) {
+		mutex_exit(&dde->dde_io->dde_io_lock);
+		zio_ddt_child_write_reject(zio);
+		return;
+	}
 
 	ddt_phys_extend(dde->dde_phys, v, zio->io_bp);
 
@@ -4126,7 +4180,7 @@ piggyback:
 		 * First time out, take a copy of the stable entry to revert
 		 * to if there's an error (see zio_ddt_child_write_done())
 		 */
-		ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys, v);
+		ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys, v);
 		dde_io->dde_lead_zio[p] = cio;
 	} else {
 		if (dde_io->dde_lead_zio[p] == NULL) {
@@ -4135,7 +4189,7 @@ piggyback:
 			 * to revert to if there's an error (see
 			 * zio_ddt_child_write_done())
 			 */
-			ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys,
+			ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys,
 			    v);
 		} else {
 			/*
@@ -5648,6 +5702,24 @@ zio_done(zio_t *zio)
 	zio_pop_transforms(zio);	/* note: may set zio->io_error */
 
 	/*
+	 * The DDT extension path deliberately produces EAGAIN at two
+	 * sites: at allocation, when extending would require ganging
+	 * (zio_write_gang_block()), and at READY, when the live phys is
+	 * already ganged or RAIDZ geometry differs across an expansion
+	 * boundary. Disable dedup and reexecute as a plain write;
+	 * zp_dedup transitions monotonically to false, so the retry
+	 * terminates. A backend EAGAIN can also take this path; it gets
+	 * one non-dedup retry before ordinary error handling.
+	 */
+	if (zio->io_error == EAGAIN &&
+	    zio == zio->io_logical && IO_IS_ALLOCATING(zio) &&
+	    zio->io_prop.zp_dedup) {
+		zio->io_prop.zp_dedup = B_FALSE;
+		zio->io_post |= ZIO_POST_REEXECUTE;
+		zio->io_error = 0;
+	}
+
+	/*
 	 * During thorough scrub, if the dataset key is not loaded, decryption
 	 * or MAC verification fails with EACCES (spa_do_crypt_abd() and the
 	 * MAC helpers). Since the block's checksum was already successfully
@@ -5732,15 +5804,6 @@ zio_done(zio_t *zio)
 
 	if (zio->io_error && zio == zio->io_logical) {
 
-		/*
-		 * A DDT child tried to create a mixed gang/non-gang BP. We're
-		 * going to have to just retry as a non-dedup IO.
-		 */
-		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
-		    zio->io_prop.zp_dedup) {
-			zio->io_post |= ZIO_POST_REEXECUTE;
-			zio->io_prop.zp_dedup = B_FALSE;
-		}
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
