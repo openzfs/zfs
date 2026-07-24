@@ -34,7 +34,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#ifdef __linux__
 #include <linux/falloc.h>
+#endif
 
 /*
  * Create a file with assigned size and then free the specified
@@ -114,9 +116,16 @@ main(int argc, char *argv[])
 		close(fd);
 		return (1);
 	}
+#elif defined(SPACECTL_DEALLOC)
+	struct spacectl_range range = { start_off, off_len };
+	if (fspacectl(fd, SPACECTL_DEALLOC, &range, 0, NULL) < 0) {
+		perror("fspacectl");
+		close(fd);
+		return (1);
+	}
 #else /* !(defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)) */
 	{
-		perror("FALLOC_FL_PUNCH_HOLE unsupported");
+		perror("FALLOC_FL_PUNCH_HOLE and SPACECTL_DEALLOC unsupported");
 		close(fd);
 		return (1);
 	}

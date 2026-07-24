@@ -683,6 +683,7 @@ tags = ['functional', 'cli_user', 'zpool_status']
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
+    'compress_004_pos',
     'l2arc_compressed_arc', 'l2arc_compressed_arc_disabled',
     'l2arc_encrypted', 'l2arc_encrypted_no_compressed_arc']
 tags = ['functional', 'compression']
@@ -1161,6 +1162,7 @@ tests = ['zstream_checksum_001_pos',
     'zstream_drop_record_001_pos',
     'zstream_dump_001_pos', 'zstream_dump_002_pos',
     'zstream_dump_003_pos', 'zstream_dump_004_neg',
+    'zstream_raw_001_pos',
     'zstream_recompress_001_pos', 'zstream_recompress_002_pos',
     'zstream_recompress_003_pos', 'zstream_recompress_004_pos',
     'zstream_recompress_005_pos',

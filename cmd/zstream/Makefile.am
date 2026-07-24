@@ -20,6 +20,7 @@ zstream_SOURCES = \
 	%D%/zstream_io.c \
 	%D%/zstream_io.h \
 	%D%/zstream_modules.h \
+	%D%/zstream_raw.c \
 	%D%/zstream_recompress.c \
 	%D%/zstream_recompress.h \
 	%D%/zstream_redup.c \
