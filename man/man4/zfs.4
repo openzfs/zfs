@@ -1897,8 +1897,26 @@ Largest write size to store the data directly into the ZIL if
 .Sy logbias Ns = Ns Sy latency .
 Larger writes may be written indirectly similar to
 .Sy logbias Ns = Ns Sy throughput .
+Writes that exactly cover one or more aligned blocks whose size cannot change
+may instead be written indirectly below this threshold; see
+.Sy zvol_immediate_write_sz .
 In presence of SLOG this parameter is ignored, as if it was set to infinity,
 storing all written data into ZIL to not depend on regular vdev latency.
+.
+.It Sy zvol_immediate_write_sz Ns = Ns Sy 0 Ns B Pq uint
+For fixed-block (zvol) datasets, the smallest block size for which a
+synchronous write that exactly covers one or more aligned blocks is written
+indirectly instead of being copied into the ZIL, even when it is smaller than
+.Sy zfs_immediate_write_sz .
+Such a write can be stored indirectly safely, since the block reaches the pool
+only once and a later rewrite cannot inflate it, avoiding the double write for
+small-block volumes with
+.Sy sync Ns = Ns Sy always .
+The default of
+.Sy 0
+disables this, leaving such writes to be copied into the ZIL; as with
+.Sy zfs_immediate_write_sz ,
+a dedicated SLOG also keeps the data in the ZIL.
 .
 .It Sy zil_special_is_slog Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When enabled, and written blocks go to normal vdevs, treat present special

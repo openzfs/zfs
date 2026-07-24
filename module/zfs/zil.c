@@ -2191,6 +2191,20 @@ static uint_t zil_maxcopied = 7680;
 uint_t zfs_immediate_write_sz = 32768;
 
 /*
+ * Minimum fixed (zvol) block size for which a synchronous write that exactly
+ * covers whole aligned blocks is stored indirectly (WR_INDIRECT) rather than
+ * copied into the ZIL, even when it is smaller than zfs_immediate_write_sz.
+ * Such a write is always safe to store indirectly -- dmu_sync() does no
+ * read-modify-write, the block is not rewritten at TXG commit, and a later
+ * rewrite of the same full block cannot inflate it -- so this halves the data
+ * written for small-volblocksize volumes with sync=always.  The trade-off is a
+ * loss of ZIL aggregation: at low queue depth each block becomes a separate
+ * synchronous pool write, which can raise commit latency and IOPS.  0 disables
+ * the promotion, leaving such writes to be copied into the ZIL as before.
+ */
+uint_t zvol_immediate_write_sz = 0;
+
+/*
  * When enabled and blocks go to normal vdev, treat special vdevs as SLOG,
  * writing data to ZIL (WR_COPIED/WR_NEED_COPY).  Disabling this forces the
  * indirect writes (WR_INDIRECT) to preserve special vdev throughput and
@@ -2210,11 +2224,31 @@ zil_max_copied_data(zilog_t *zilog)
  * pool configuration, data placement, write size, and logbias settings.
  */
 itx_wr_state_t
-zil_write_state(zilog_t *zilog, uint64_t size, uint32_t blocksize,
-    boolean_t o_direct, boolean_t commit)
+zil_write_state(zilog_t *zilog, uint64_t offset, uint64_t size,
+    uint32_t blocksize, boolean_t blk_fixed, boolean_t o_direct,
+    boolean_t commit)
 {
 	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT || o_direct)
 		return (WR_INDIRECT);
+
+	/*
+	 * A write that exactly covers one or more aligned blocks whose size
+	 * can no longer change is always safe to store indirectly, even when
+	 * it is smaller than zfs_immediate_write_sz: dmu_sync() performs no
+	 * read-modify-write, the block is not rewritten at TXG commit, and a
+	 * later rewrite of the same block cannot inflate it.  Storing it in
+	 * the ZIL instead (WR_COPIED) would write the data twice, once into
+	 * the log and again at commit.  This is the zvol write amplification
+	 * case: a full-block sync write to a small-volblocksize volume.
+	 *
+	 * Because storing it indirectly trades ZIL aggregation for that saving
+	 * (see zvol_immediate_write_sz), the promotion is gated on the fixed
+	 * block being at least zvol_immediate_write_sz; a value of 0 disables
+	 * it entirely.
+	 */
+	boolean_t full_block = (blk_fixed && zvol_immediate_write_sz != 0 &&
+	    blocksize >= zvol_immediate_write_sz && size >= blocksize &&
+	    P2PHASE(offset, blocksize) == 0 && P2PHASE(size, blocksize) == 0);
 
 	/*
 	 * Don't use indirect for too small writes to reduce overhead.
@@ -2224,7 +2258,7 @@ zil_write_state(zilog_t *zilog, uint64_t size, uint32_t blocksize,
 	 * is not planned, then next writes might coalesce, and so the
 	 * indirect may be perfect.
 	 */
-	boolean_t indirect = (size >= zfs_immediate_write_sz &&
+	boolean_t indirect = full_block || (size >= zfs_immediate_write_sz &&
 	    (size >= blocksize / 2 || !commit));
 
 	if (spa_has_slogs(zilog->zl_spa)) {
@@ -4902,6 +4936,9 @@ ZFS_MODULE_PARAM(zfs_zil, zil_, maxcopied, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
 	"Largest write size to store data into ZIL");
+
+ZFS_MODULE_PARAM(zfs_vol, zvol_, immediate_write_sz, UINT, ZMOD_RW,
+	"Min fixed block size stored indirectly instead of ZIL (0=off)");
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, special_is_slog, INT, ZMOD_RW,
 	"Treat special vdevs as SLOG");

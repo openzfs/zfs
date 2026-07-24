@@ -624,8 +624,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		return;
 	}
 
-	write_state = zil_write_state(zilog, resid, blocksize, o_direct,
-	    commit);
+	write_state = zil_write_state(zilog, off, resid, blocksize, B_FALSE,
+	    o_direct, commit);
 
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
 	    sizeof (gen));
