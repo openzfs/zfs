@@ -19,6 +19,7 @@
 /largest_file
 /libzfs_input_check
 /manipulate_user_buffer
+/makedir
 /mkbusy
 /mkfile
 /mkfiles
