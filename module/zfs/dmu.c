@@ -2836,6 +2836,30 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			}
 		} else {
 			bp = db->db_blkptr;
+
+			/*
+			 * A block with a pending free (a
+			 * truncate not yet synced) must not be
+			 * cloned: the clone would add a BRT
+			 * reference to a block about to be freed,
+			 * so the pending clone applies onto an
+			 * already-freed DVA and double frees it.
+			 * Report EAGAIN and let the caller retry
+			 * once the free syncs (the block then
+			 * reads as a hole).  Mirrors the
+			 * dnode_block_freed() check in
+			 * dbuf_read_hole().
+			 */
+			DB_DNODE_ENTER(db);
+			dnode_t *rdn = DB_DNODE(db);
+			boolean_t freed =
+			    dnode_block_freed(rdn, db->db_blkid);
+			DB_DNODE_EXIT(db);
+			if (freed) {
+				mutex_exit(&db->db_mtx);
+				error = SET_ERROR(EAGAIN);
+				goto out;
+			}
 		}
 
 		mutex_exit(&db->db_mtx);
