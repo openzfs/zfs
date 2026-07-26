@@ -950,12 +950,21 @@ zfs_iter_dependents(zfs_handle_t *zhp, boolean_t allowrecursion,
 	return (zfs_iter_dependents_v2(zhp, 0, allowrecursion, func, data));
 }
 
+/*
+ * Iterate dependents with full snapshot handles because clone discovery reads
+ * properties which projected handles deliberately omit.
+ */
 int
 zfs_iter_dependents_v2(zfs_handle_t *zhp, int flags, boolean_t allowrecursion,
     zfs_iter_f func, void *data)
 {
 	iter_dependents_arg_t ida;
-	ida.flags = flags;
+
+	/*
+	 * Both batched and simple snapshot handles omit properties needed for
+	 * clone discovery, so dependent traversal must use full handles.
+	 */
+	ida.flags = flags & ~(ZFS_ITER_BATCHED | ZFS_ITER_SIMPLE);
 	ida.allowrecursion = allowrecursion;
 	ida.stack = NULL;
 	ida.func = func;
