@@ -97,7 +97,7 @@ typeset -i cnt=0
 while ((cnt < snap_cnt)); do
 	testfile=$mntpnt/testfile.$cnt
 	log_must mkfile 1M $testfile
-	log_must mkdir $snapdir/snapshot/snap.$cnt
+	log_must makedir $snapdir/snapshot/snap.$cnt
 	if ! datasetexists $fs@snap.$cnt ; then
 		log_fail "ERROR: $fs@snap.$cnt should exists."
 	fi
