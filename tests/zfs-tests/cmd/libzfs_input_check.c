@@ -562,6 +562,59 @@ test_get_bookmarks(const char *dataset)
 }
 
 static void
+test_snapshot_list_batch(const char *dataset)
+{
+	nvlist_t *required = fnvlist_alloc();
+	nvlist_t *optional = fnvlist_alloc();
+	nvlist_t *props = fnvlist_alloc();
+	nvlist_t *input = fnvlist_alloc();
+
+	fnvlist_add_uint64(optional, SNAP_ITER_BATCH_CURSOR, 0);
+	fnvlist_add_uint64(optional, SNAP_ITER_MIN_TXG, 0);
+	fnvlist_add_uint64(optional, SNAP_ITER_MAX_TXG, UINT64_MAX);
+	fnvlist_add_boolean(props, "createtxg");
+	fnvlist_add_boolean(props, "creation");
+	fnvlist_add_boolean(props, "guid");
+	fnvlist_add_boolean(props, "userrefs");
+	fnvlist_add_nvlist(required, SNAP_ITER_BATCH_PROPS, props);
+
+	IOC_INPUT_TEST(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, required, optional,
+	    0);
+
+	fnvlist_free(props);
+	props = fnvlist_alloc();
+	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input, 0);
+
+	fnvlist_add_boolean(props, "available");
+	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);
+	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
+	    ZFS_ERR_IOC_ARG_UNAVAIL);
+
+	fnvlist_free(props);
+	props = fnvlist_alloc();
+	fnvlist_add_boolean(props, "written");
+	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);
+	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
+	    ZFS_ERR_IOC_ARG_UNAVAIL);
+
+	fnvlist_free(props);
+	props = fnvlist_alloc();
+	fnvlist_add_string(props, "guid", "bogus");
+	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);
+	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
+	    ZFS_ERR_IOC_ARG_BADTYPE);
+
+	nvlist_free(input);
+	nvlist_free(props);
+	nvlist_free(optional);
+	nvlist_free(required);
+}
+
+static void
 test_destroy_bookmarks(const char *pool, const char *bookmark)
 {
 	nvlist_t *required = fnvlist_alloc();
@@ -1029,6 +1082,7 @@ zfs_ioc_input_tests(const char *pool)
 
 	test_bookmark(pool, snapshot, bookmark);
 	test_get_bookmarks(dataset);
+	test_snapshot_list_batch(dataset);
 	test_get_bookmark_props(bookmark);
 	test_destroy_bookmarks(pool, bookmark);
 
@@ -1220,6 +1274,7 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
 	CHECK(ZFS_IOC_BASE + 87 == ZFS_IOC_POOL_SCRUB);
+	CHECK(ZFS_IOC_BASE + 91 == ZFS_IOC_SNAPSHOT_LIST_BATCH);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

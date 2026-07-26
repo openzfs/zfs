@@ -43,6 +43,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright 2026 Oxide Computer Company
  * Copyright (c) 2026, TrueNAS.
+ * Copyright (c) 2026, Wolfgang Hoschek
  */
 
 /*
@@ -2759,6 +2760,220 @@ top:
 			goto top;
 		}
 	}
+	return (error);
+}
+
+uint_t zfs_snapshot_list_batch_size =
+    ZFS_SNAPSHOT_LIST_BATCH_SIZE_DEFAULT;
+uint_t zfs_snapshot_list_batch_time_us =
+    ZFS_SNAPSHOT_LIST_BATCH_TIME_US_DEFAULT;
+
+/*
+ * innvl: {
+ *     (optional uint64) cursor
+ *     (optional uint64) minimum creation txg
+ *     (optional uint64) maximum creation txg
+ *     (nvlist) requested properties, each named entry is a boolean
+ * }
+ *
+ * outnvl contains authoritative parent metadata, snapshot names, and one
+ * parallel array for each requested property.  Result-count and elapsed-time
+ * limits amortize parent objset and ioctl overhead without holding the pool
+ * configuration lock for an unbounded snapshot walk.
+ */
+static const zfs_ioc_key_t zfs_keys_snapshot_list_batch[] = {
+	{SNAP_ITER_BATCH_PROPS, DATA_TYPE_NVLIST, 0},
+	{SNAP_ITER_BATCH_CURSOR, DATA_TYPE_UINT64, ZK_OPTIONAL},
+	{SNAP_ITER_MIN_TXG, DATA_TYPE_UINT64, ZK_OPTIONAL},
+	{SNAP_ITER_MAX_TXG, DATA_TYPE_UINT64, ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
+    nvlist_t *outnvl)
+{
+	char **names;
+	char *name_storage;
+	uint64_t *createtxgs = NULL, *guids = NULL, *creations = NULL;
+	uint64_t *userrefs = NULL;
+	nvlist_t *props;
+	uint64_t cursor = 0, min_txg = 0, max_txg = 0;
+	uint_t batch_size = zfs_snapshot_list_batch_size;
+	uint_t batch_time_us = zfs_snapshot_list_batch_time_us;
+	uint_t count = 0;
+	hrtime_t start_time, time_budget;
+	boolean_t eof = B_FALSE;
+	boolean_t want_createtxg = B_FALSE, want_creation = B_FALSE;
+	boolean_t want_guid = B_FALSE, want_userrefs = B_FALSE;
+	dmu_objset_type_t head_type;
+	uint8_t head_flags;
+	objset_t *os = NULL;
+	int error;
+
+	VERIFY0(nvlist_lookup_nvlist(innvl, SNAP_ITER_BATCH_PROPS, &props));
+	for (nvpair_t *pair = nvlist_next_nvpair(props, NULL); pair != NULL;
+	    pair = nvlist_next_nvpair(props, pair)) {
+		if (nvpair_type(pair) != DATA_TYPE_BOOLEAN)
+			return (SET_ERROR(ZFS_ERR_IOC_ARG_BADTYPE));
+
+		switch (zfs_name_to_prop(nvpair_name(pair))) {
+		case ZFS_PROP_CREATETXG:
+			want_createtxg = B_TRUE;
+			break;
+		case ZFS_PROP_CREATION:
+			want_creation = B_TRUE;
+			break;
+		case ZFS_PROP_GUID:
+			want_guid = B_TRUE;
+			break;
+		case ZFS_PROP_USERREFS:
+			want_userrefs = B_TRUE;
+			break;
+		default:
+			return (SET_ERROR(ZFS_ERR_IOC_ARG_UNAVAIL));
+		}
+	}
+
+	(void) nvlist_lookup_uint64(innvl, SNAP_ITER_BATCH_CURSOR, &cursor);
+	(void) nvlist_lookup_uint64(innvl, SNAP_ITER_MIN_TXG, &min_txg);
+	(void) nvlist_lookup_uint64(innvl, SNAP_ITER_MAX_TXG, &max_txg);
+
+	names = kmem_alloc(sizeof (names[0]) * batch_size, KM_SLEEP);
+	name_storage = vmem_alloc(ZFS_MAX_DATASET_NAME_LEN * batch_size,
+	    KM_SLEEP);
+	for (uint_t i = 0; i < batch_size; i++)
+		names[i] = name_storage + ZFS_MAX_DATASET_NAME_LEN * i;
+	if (want_createtxg) {
+		createtxgs = kmem_alloc(sizeof (createtxgs[0]) * batch_size,
+		    KM_SLEEP);
+	}
+	if (want_guid)
+		guids = kmem_alloc(sizeof (guids[0]) * batch_size, KM_SLEEP);
+	if (want_creation) {
+		creations = kmem_alloc(sizeof (creations[0]) * batch_size,
+		    KM_SLEEP);
+	}
+	if (want_userrefs) {
+		userrefs = kmem_alloc(sizeof (userrefs[0]) * batch_size,
+		    KM_SLEEP);
+	}
+
+	time_budget = USEC2NSEC((hrtime_t)batch_time_us);
+	error = dmu_objset_hold(fsname, FTAG, &os);
+	if (error != 0)
+		goto out;
+	start_time = gethrtime();
+	head_type = dmu_objset_type(os);
+	head_flags = DDS_FLAG_HAS_ENCRYPTED;
+	if (dmu_objset_ds(os)->ds_dir->dd_crypto_obj != 0)
+		head_flags |= DDS_FLAG_ENCRYPTED;
+
+	while (count < batch_size) {
+		char snapname[ZFS_MAX_DATASET_NAME_LEN];
+		dsl_dataset_snapshot_stats_t stats;
+		uint64_t obj, txg;
+
+		if (issig()) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+
+		error = dmu_snapshot_list_next(os, sizeof (snapname), snapname,
+		    &obj, &cursor, NULL);
+		if (error == ENOENT) {
+			eof = B_TRUE;
+			error = 0;
+			break;
+		} else if (error != 0) {
+			break;
+		}
+		error = dsl_dataset_snapshot_stats(dmu_objset_pool(os), obj,
+		    want_userrefs, &stats);
+		/*
+		 * Preserve public iterator partial-list results after a
+		 * post-lookup ENOENT. Reporting EOF lets libzfs consume
+		 * entries already in this batch instead of discarding it.
+		 */
+		if (error == ENOENT) {
+			eof = B_TRUE;
+			error = 0;
+			break;
+		} else if (error != 0) {
+			break;
+		}
+
+		txg = stats.dss_creation_txg;
+		if ((min_txg == 0 || txg >= min_txg) &&
+		    (max_txg == 0 || txg <= max_txg)) {
+			(void) strlcpy(names[count], snapname,
+			    ZFS_MAX_DATASET_NAME_LEN);
+			if (want_createtxg)
+				createtxgs[count] = txg;
+			if (want_guid)
+				guids[count] = stats.dss_guid;
+			if (want_creation)
+				creations[count] = stats.dss_creation_time;
+			if (want_userrefs)
+				userrefs[count] = stats.dss_userrefs;
+			count++;
+		}
+
+		if (gethrtime() - start_time >= time_budget)
+			break;
+	}
+
+	dmu_objset_rele(os, FTAG);
+	os = NULL;
+	if (error == 0) {
+		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_CURSOR, cursor);
+		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_DMU_TYPE,
+		    head_type);
+		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_DDS_FLAGS,
+		    head_flags);
+		if (eof)
+			fnvlist_add_boolean(outnvl, SNAP_ITER_BATCH_EOF);
+		if (count != 0) {
+			fnvlist_add_string_array(outnvl, SNAP_ITER_BATCH_NAMES,
+			    (const char * const *)names, count);
+			if (want_createtxg) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_CREATETXGS, createtxgs,
+				    count);
+			}
+			if (want_guid) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_GUIDS, guids, count);
+			}
+			if (want_creation) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_CREATIONS, creations,
+				    count);
+			}
+			if (want_userrefs) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_USERREF_COUNTS, userrefs,
+				    count);
+			}
+		}
+	}
+
+out:
+	if (os != NULL)
+		dmu_objset_rele(os, FTAG);
+	vmem_free(name_storage, ZFS_MAX_DATASET_NAME_LEN * batch_size);
+	kmem_free(names, sizeof (names[0]) * batch_size);
+	if (want_createtxg) {
+		kmem_free(createtxgs, sizeof (createtxgs[0]) * batch_size);
+	}
+	if (want_guid)
+		kmem_free(guids, sizeof (guids[0]) * batch_size);
+	if (want_creation) {
+		kmem_free(creations, sizeof (creations[0]) * batch_size);
+	}
+	if (want_userrefs) {
+		kmem_free(userrefs, sizeof (userrefs[0]) * batch_size);
+	}
+
 	return (error);
 }
 
@@ -8088,6 +8303,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_get_bookmarks, zfs_secpolicy_read, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
 	    zfs_keys_get_bookmarks, ARRAY_SIZE(zfs_keys_get_bookmarks));
+	zfs_ioctl_register("snapshot_list_batch", ZFS_IOC_SNAPSHOT_LIST_BATCH,
+	    zfs_ioc_snapshot_list_batch, zfs_secpolicy_read, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_snapshot_list_batch,
+	    ARRAY_SIZE(zfs_keys_snapshot_list_batch));
 
 	zfs_ioctl_register("get_bookmark_props", ZFS_IOC_GET_BOOKMARK_PROPS,
 	    zfs_ioc_get_bookmark_props, zfs_secpolicy_read, ENTITY_NAME,
@@ -8896,3 +9116,11 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, U64, ZMOD_RW,
 	"Maximum size in bytes of ZFS ioctl output that will be logged");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, snapshot_list_batch_size,
+	param_set_snapshot_list_batch_size, param_get_uint, ZMOD_RW,
+	"Maximum snapshots returned per projected listing batch");
+
+ZFS_MODULE_PARAM_CALL(zfs, zfs_, snapshot_list_batch_time_us,
+	param_set_snapshot_list_batch_time_us, param_get_uint, ZMOD_RW,
+	"Soft projected snapshot listing wall-clock budget in us (1-100000)");

@@ -27,6 +27,14 @@
 extern kmutex_t zfsdev_state_lock;
 extern uint64_t zfs_max_nvlist_src_size;
 
+#define	ZFS_SNAPSHOT_LIST_BATCH_SIZE_DEFAULT	1024
+#define	ZFS_SNAPSHOT_LIST_BATCH_SIZE_MAX	4096
+#define	ZFS_SNAPSHOT_LIST_BATCH_TIME_US_DEFAULT	10000
+#define	ZFS_SNAPSHOT_LIST_BATCH_TIME_US_MAX	100000
+
+extern uint_t zfs_snapshot_list_batch_size;
+extern uint_t zfs_snapshot_list_batch_time_us;
+
 typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);
 typedef int zfs_ioc_func_t(const char *, nvlist_t *, nvlist_t *);
 typedef int zfs_secpolicy_func_t(zfs_cmd_t *, nvlist_t *, cred_t *);
@@ -82,6 +90,8 @@ void zfs_ioctl_register(const char *, zfs_ioc_t, zfs_ioc_func_t *,
     boolean_t, boolean_t, const zfs_ioc_key_t *, size_t);
 
 uint64_t zfs_max_nvlist_src_size_os(void);
+int param_set_snapshot_list_batch_size(ZFS_MODULE_PARAM_ARGS);
+int param_set_snapshot_list_batch_time_us(ZFS_MODULE_PARAM_ARGS);
 void zfs_ioctl_update_mount_cache(const char *dsname);
 void zfs_ioctl_init_os(void);
 

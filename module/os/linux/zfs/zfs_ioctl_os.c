@@ -69,6 +69,40 @@
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
 
+static int
+param_set_snapshot_list_batch_limit(const char *buf, zfs_kernel_param_t *kp,
+    uint_t maximum)
+{
+	uint_t value;
+	int error;
+
+	error = kstrtouint(buf, 0, &value);
+	if (error < 0)
+		return (SET_ERROR(error));
+	if (value == 0 || value > maximum)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_uint(buf, kp);
+	return (error < 0 ? SET_ERROR(error) : 0);
+}
+
+/* Set a positive, allocation-bounded snapshot listing batch size. */
+int
+param_set_snapshot_list_batch_size(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_snapshot_list_batch_limit(buf, kp,
+	    ZFS_SNAPSHOT_LIST_BATCH_SIZE_MAX));
+}
+
+/* Set a positive, bounded snapshot listing wall-clock budget. */
+int
+param_set_snapshot_list_batch_time_us(const char *buf,
+    zfs_kernel_param_t *kp)
+{
+	return (param_set_snapshot_list_batch_limit(buf, kp,
+	    ZFS_SNAPSHOT_LIST_BATCH_TIME_US_MAX));
+}
+
 boolean_t
 zfs_vfs_held(zfsvfs_t *zfsvfs)
 {

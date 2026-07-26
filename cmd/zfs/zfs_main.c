@@ -4051,10 +4051,16 @@ found3:;
 	cb.cb_first = B_TRUE;
 
 	/*
-	 * If we are only going to list and sort by properties that are "fast"
-	 * then we can use "simple" mode and avoid populating the properties
-	 * nvlist.
+	 * Use projected batches when they contain every displayed and sorted
+	 * property.  Keep simple mode available for fallback to a kernel that
+	 * predates the batch ioctl.
 	 */
+	int batch_flags = zfs_list_batch_flags(cb.cb_proplist, sortcol);
+	if (batch_flags != 0) {
+		if (cb.cb_json)
+			batch_flags |= ZFS_ITER_BATCHED_CREATETXG;
+		flags |= batch_flags;
+	}
 	if (zfs_list_only_by_fast(cb.cb_proplist) &&
 	    zfs_sort_only_by_fast(sortcol))
 		flags |= ZFS_ITER_SIMPLE;

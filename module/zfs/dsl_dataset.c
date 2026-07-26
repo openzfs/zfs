@@ -2702,6 +2702,50 @@ dsl_get_written(dsl_dataset_t *ds, uint64_t *written)
 }
 
 /*
+ * Retrieve the fields needed by projected snapshot listing without creating
+ * a dsl_dataset_t.  The caller holds the pool configuration lock.
+ */
+int
+dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
+    boolean_t want_userrefs, dsl_dataset_snapshot_stats_t *stats)
+{
+	objset_t *mos = dp->dp_meta_objset;
+	dmu_buf_t *dbuf;
+	dmu_object_info_t doi;
+	dsl_dataset_phys_t *dsp;
+	int error;
+
+	ASSERT(dsl_pool_config_held(dp));
+	memset(stats, 0, sizeof (*stats));
+
+	error = dmu_bonus_hold(mos, dsobj, FTAG, &dbuf);
+	if (error != 0)
+		return (error);
+
+	dmu_object_info_from_db(dbuf, &doi);
+	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
+		error = SET_ERROR(EINVAL);
+		goto out;
+	}
+
+	dsp = dbuf->db_data;
+	stats->dss_creation_txg = dsp->ds_creation_txg;
+	stats->dss_creation_time = dsp->ds_creation_time;
+	stats->dss_guid = dsp->ds_guid;
+
+	if (want_userrefs && dsp->ds_userrefs_obj != 0) {
+		error = zap_count(mos, dsp->ds_userrefs_obj,
+		    &stats->dss_userrefs);
+		if (error != 0)
+			goto out;
+	}
+
+out:
+	dmu_buf_rele(dbuf, FTAG);
+	return (error);
+}
+
+/*
  * 'snap' should be a buffer of size ZFS_MAX_DATASET_NAME_LEN.
  */
 int

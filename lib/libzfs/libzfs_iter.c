@@ -25,9 +25,11 @@
  * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2026, Wolfgang Hoschek
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -100,6 +102,282 @@ top:
 	return (rc);
 }
 
+static int
+zfs_batch_add_uint64_prop(nvlist_t *props, zfs_prop_t prop, uint64_t value)
+{
+	nvlist_t *propval;
+	int error;
+
+	if ((error = nvlist_alloc(&propval, NV_UNIQUE_NAME, 0)) != 0)
+		return (error);
+	if ((error = nvlist_add_uint64(propval, ZPROP_VALUE, value)) == 0) {
+		error = nvlist_add_nvlist(props, zfs_prop_to_name(prop),
+		    propval);
+	}
+	nvlist_free(propval);
+	return (error);
+}
+
+static int
+make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
+    dmu_objset_type_t dmu_type, uint8_t dds_flags,
+    const uint64_t *createtxg, const uint64_t *guid, const uint64_t *creation,
+    const uint64_t *userrefs, zfs_handle_t **result)
+{
+	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
+	int error;
+
+	*result = NULL;
+	if (zhp == NULL)
+		return (ENOMEM);
+
+	zhp->zfs_hdl = pzhp->zfs_hdl;
+	zhp->zpool_hdl = zfs_get_pool_handle(pzhp);
+	zhp->zfs_type = ZFS_TYPE_SNAPSHOT;
+	zhp->zfs_head_type = dmu_type == DMU_OST_ZVOL ?
+	    ZFS_TYPE_VOLUME : ZFS_TYPE_FILESYSTEM;
+	zhp->zfs_dmustats.dds_type = dmu_type;
+	zhp->zfs_dmustats.dds_is_snapshot = B_TRUE;
+	if (createtxg != NULL)
+		zhp->zfs_dmustats.dds_creation_txg = *createtxg;
+	if (guid != NULL)
+		zhp->zfs_dmustats.dds_guid = *guid;
+	zhp->zfs_dmustats.dds_flags = dds_flags;
+
+	if (strlcpy(zhp->zfs_name, pzhp->zfs_name,
+	    sizeof (zhp->zfs_name)) >= sizeof (zhp->zfs_name) ||
+	    strlcat(zhp->zfs_name, "@", sizeof (zhp->zfs_name)) >=
+	    sizeof (zhp->zfs_name) ||
+	    strlcat(zhp->zfs_name, snapname, sizeof (zhp->zfs_name)) >=
+	    sizeof (zhp->zfs_name)) {
+		error = ENAMETOOLONG;
+		goto fail;
+	}
+
+	if ((error = nvlist_alloc(&zhp->zfs_props, NV_UNIQUE_NAME, 0)) != 0 ||
+	    (error = nvlist_alloc(&zhp->zfs_user_props, NV_UNIQUE_NAME, 0)) !=
+	    0 ||
+	    (creation != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_CREATION, *creation)) != 0) ||
+	    (userrefs != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_USERREFS, *userrefs)) != 0)) {
+		goto fail;
+	}
+
+	*result = zhp;
+	return (0);
+
+fail:
+	zfs_close(zhp);
+	return (error);
+}
+
+static int
+zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
+    uint64_t cursor, uint64_t min_txg, uint64_t max_txg, nvlist_t **result,
+    boolean_t *ioctl_eof)
+{
+	zfs_cmd_t zc = {"\0"};
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *props = fnvlist_alloc();
+	int error = 0;
+
+	*ioctl_eof = B_FALSE;
+
+	fnvlist_add_uint64(args, SNAP_ITER_BATCH_CURSOR, cursor);
+	if (min_txg != 0)
+		fnvlist_add_uint64(args, SNAP_ITER_MIN_TXG, min_txg);
+	if (max_txg != 0)
+		fnvlist_add_uint64(args, SNAP_ITER_MAX_TXG, max_txg);
+	if (flags & ZFS_ITER_BATCHED_CREATETXG) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_CREATETXG));
+	}
+	if (flags & ZFS_ITER_BATCHED_CREATION) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_CREATION));
+	}
+	if (flags & ZFS_ITER_BATCHED_GUID)
+		fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_GUID));
+	if (flags & ZFS_ITER_BATCHED_USERREFS) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_USERREFS));
+	}
+	fnvlist_add_nvlist(args, SNAP_ITER_BATCH_PROPS, props);
+
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+	zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, args);
+	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
+	while (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SNAPSHOT_LIST_BATCH, &zc) != 0) {
+		if (errno == ENOMEM) {
+			zcmd_expand_dst_nvlist(zhp->zfs_hdl, &zc);
+			continue;
+		}
+		error = errno;
+		*ioctl_eof = error == ENOENT || error == ESRCH;
+		break;
+	}
+	if (error == 0 &&
+	    zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc, result) != 0)
+		error = ENOMEM;
+
+	zcmd_free_nvlists(&zc);
+	fnvlist_free(props);
+	fnvlist_free(args);
+	return (error);
+}
+
+static int
+zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
+    void *data, uint64_t min_txg, uint64_t max_txg, boolean_t *unavailable)
+{
+	uint64_t cursor = 0;
+	int ret;
+	boolean_t callback_invoked = B_FALSE;
+
+	*unavailable = B_FALSE;
+
+	for (;;) {
+		char **names = NULL;
+		uint64_t *createtxgs = NULL, *guids = NULL;
+		uint64_t *creations = NULL, *userrefs = NULL;
+		uint_t count = 0, createtxg_count = 0, guid_count = 0;
+		uint_t creation_count = 0, userref_count = 0;
+		uint64_t next_cursor, dmu_type, dds_flags;
+		nvlist_t *batch = NULL;
+		boolean_t eof, ioctl_eof;
+
+		ret = zfs_do_snapshot_list_batch_ioctl(zhp, flags, cursor,
+		    min_txg, max_txg, &batch, &ioctl_eof);
+		if (ioctl_eof)
+			return (0);
+		if (ret != 0) {
+			if (ret == ZFS_ERR_IOC_CMD_UNAVAIL ||
+			    ret == ZFS_ERR_IOC_ARG_UNAVAIL || ret == ENOTTY ||
+			    ret == ENOTSUP) {
+				if (callback_invoked == B_FALSE) {
+					*unavailable = B_TRUE;
+					return (ret);
+				}
+			}
+			errno = ret;
+			return (zfs_standard_error(zhp->zfs_hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot iterate filesystems")));
+		}
+
+		eof = nvlist_exists(batch, SNAP_ITER_BATCH_EOF);
+		if (nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_CURSOR,
+		    &next_cursor) != 0) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_DMU_TYPE,
+		    &dmu_type) != 0 ||
+		    nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_DDS_FLAGS,
+		    &dds_flags) != 0 ||
+		    (dmu_type != DMU_OST_ZFS && dmu_type != DMU_OST_ZVOL) ||
+		    dds_flags > UINT8_MAX ||
+		    (dds_flags & DDS_FLAG_HAS_ENCRYPTED) == 0) {
+			ret = EPROTO;
+			goto malformed;
+		}
+
+		ret = nvlist_lookup_string_array(batch, SNAP_ITER_BATCH_NAMES,
+		    &names, &count);
+		if (ret == ENOENT) {
+			count = 0;
+			ret = 0;
+		} else if (ret != 0) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATETXG) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_CREATETXGS, &createtxgs,
+		    &createtxg_count) != 0 || count != createtxg_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_GUID) &&
+		    (nvlist_lookup_uint64_array(batch, SNAP_ITER_BATCH_GUIDS,
+		    &guids, &guid_count) != 0 || count != guid_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATION) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_CREATIONS, &creations, &creation_count) !=
+		    0 || count != creation_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_USERREFS) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_USERREF_COUNTS, &userrefs,
+		    &userref_count) != 0 || count != userref_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+
+		for (uint_t i = 0; i < count; i++) {
+			const uint64_t *createtxg =
+			    (flags & ZFS_ITER_BATCHED_CREATETXG) ?
+			    &createtxgs[i] : NULL;
+			const uint64_t *guid =
+			    (flags & ZFS_ITER_BATCHED_GUID) ? &guids[i] : NULL;
+			const uint64_t *creation =
+			    (flags & ZFS_ITER_BATCHED_CREATION) ?
+			    &creations[i] : NULL;
+			const uint64_t *userref =
+			    (flags & ZFS_ITER_BATCHED_USERREFS) ?
+			    &userrefs[i] : NULL;
+			zfs_handle_t *nzhp;
+
+			ret = make_dataset_batch_handle(zhp, names[i],
+			    (dmu_objset_type_t)dmu_type, (uint8_t)dds_flags,
+			    createtxg, guid, creation, userref, &nzhp);
+			if (ret != 0) {
+				int error = ret;
+
+				nvlist_free(batch);
+				errno = error;
+				if (error == ENOMEM)
+					ret = no_memory(zhp->zfs_hdl);
+				else
+					ret = zfs_standard_error(zhp->zfs_hdl,
+					    error, dgettext(TEXT_DOMAIN,
+					    "cannot iterate filesystems"));
+				errno = error;
+				return (ret);
+			}
+			callback_invoked = B_TRUE;
+			if ((ret = func(nzhp, data)) != 0) {
+				nvlist_free(batch);
+				return (ret);
+			}
+		}
+
+		nvlist_free(batch);
+		if (eof)
+			return (0);
+		if (next_cursor == cursor) {
+			ret = EPROTO;
+			batch = NULL;
+			goto malformed;
+		}
+		cursor = next_cursor;
+		continue;
+
+malformed:
+		nvlist_free(batch);
+		errno = ret;
+		return (zfs_standard_error(zhp->zfs_hdl, errno,
+		    dgettext(TEXT_DOMAIN, "cannot iterate filesystems")));
+	}
+}
+
 /*
  * Iterate over all child filesystems
  */
@@ -165,11 +443,18 @@ zfs_iter_snapshots_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 	zfs_cmd_t zc = {"\0"};
 	zfs_handle_t *nzhp;
 	int ret;
+	boolean_t unavailable;
 	nvlist_t *range_nvl = NULL;
 
 	if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT ||
 	    zhp->zfs_type == ZFS_TYPE_BOOKMARK)
 		return (0);
+	if (flags & ZFS_ITER_BATCHED) {
+		ret = zfs_iter_snapshots_batch(zhp, flags, func, data, min_txg,
+		    max_txg, &unavailable);
+		if (!unavailable)
+			return (ret);
+	}
 
 	zc.zc_simple = (flags & ZFS_ITER_SIMPLE) != 0;
 
@@ -219,8 +504,8 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 }
 
 int
-zfs_iter_bookmarks_v2(zfs_handle_t *zhp, int flags __maybe_unused,
-    zfs_iter_f func, void *data)
+zfs_iter_bookmarks_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func,
+    void *data)
 {
 	zfs_handle_t *nzhp;
 	nvlist_t *props = NULL;
@@ -233,12 +518,28 @@ zfs_iter_bookmarks_v2(zfs_handle_t *zhp, int flags __maybe_unused,
 
 	/* Setup the requested properties nvlist. */
 	props = fnvlist_alloc();
-	for (zfs_prop_t p = 0; p < ZFS_NUM_PROPS; p++) {
-		if (zfs_prop_valid_for_type(p, ZFS_TYPE_BOOKMARK, B_FALSE)) {
-			fnvlist_add_boolean(props, zfs_prop_to_name(p));
+	if (flags & ZFS_ITER_BATCHED) {
+		if (flags & ZFS_ITER_BATCHED_GUID) {
+			fnvlist_add_boolean(props,
+			    zfs_prop_to_name(ZFS_PROP_GUID));
 		}
+		if (flags & ZFS_ITER_BATCHED_CREATETXG) {
+			fnvlist_add_boolean(props,
+			    zfs_prop_to_name(ZFS_PROP_CREATETXG));
+		}
+		if (flags & ZFS_ITER_BATCHED_CREATION) {
+			fnvlist_add_boolean(props,
+			    zfs_prop_to_name(ZFS_PROP_CREATION));
+		}
+	} else {
+		for (zfs_prop_t p = 0; p < ZFS_NUM_PROPS; p++) {
+			if (zfs_prop_valid_for_type(p, ZFS_TYPE_BOOKMARK,
+			    B_FALSE)) {
+				fnvlist_add_boolean(props, zfs_prop_to_name(p));
+			}
+		}
+		fnvlist_add_boolean(props, "redact_complete");
 	}
-	fnvlist_add_boolean(props, "redact_complete");
 
 	if ((err = lzc_get_bookmarks(zhp->zfs_name, props, &bmarks)) != 0)
 		goto out;
@@ -346,6 +647,9 @@ zfs_iter_snapshots_sorted_v2(zfs_handle_t *zhp, int flags, zfs_iter_f callback,
 	avl_create(&avl, zfs_snapshot_compare,
 	    sizeof (zfs_node_t), offsetof(zfs_node_t, zn_avlnode));
 
+	/* zfs_snapshot_compare() requires the creation TXG. */
+	if (flags & ZFS_ITER_BATCHED)
+		flags |= ZFS_ITER_BATCHED_CREATETXG;
 	ret = zfs_iter_snapshots_v2(zhp, flags, zfs_sort_snaps, &avl, min_txg,
 	    max_txg);
 
