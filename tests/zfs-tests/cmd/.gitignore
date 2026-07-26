@@ -20,6 +20,7 @@
 /libzfs_input_check
 /libzfs_mnttab_cache_check
 /manipulate_user_buffer
+/makedir
 /mkbusy
 /mkfile
 /mkfiles
