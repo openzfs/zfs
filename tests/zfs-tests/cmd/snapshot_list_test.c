@@ -197,6 +197,30 @@ run_sorted(const char *name)
 }
 
 static int
+run_dependents(const char *name, boolean_t simple)
+{
+	libzfs_handle_t *hdl;
+	zfs_handle_t *zhp;
+	int error, flags = ZFS_ITER_BATCHED;
+
+	if (open_dataset(&hdl, &zhp, name) != 0)
+		return (EXIT_FAILURE);
+
+	if (simple)
+		flags |= ZFS_ITER_SIMPLE;
+	error = zfs_iter_dependents_v2(zhp, flags, B_FALSE,
+	    print_snapshot, NULL);
+	zfs_close(zhp);
+	libzfs_fini(hdl);
+	if (error != 0) {
+		(void) fprintf(stderr, "dependent iteration failed: %s\n",
+		    strerror(error));
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+static int
 run_interrupt(const char *name)
 {
 	libzfs_handle_t *hdl;
@@ -579,6 +603,10 @@ main(int argc, char **argv)
 		return (run_filter(argv[2], argv[3], argv[4]));
 	if (argc == 3 && strcmp(argv[1], "sorted") == 0)
 		return (run_sorted(argv[2]));
+	if (argc == 3 && strcmp(argv[1], "dependents") == 0)
+		return (run_dependents(argv[2], B_FALSE));
+	if (argc == 3 && strcmp(argv[1], "dependents-simple") == 0)
+		return (run_dependents(argv[2], B_TRUE));
 	if (argc == 3 && strcmp(argv[1], "interrupt") == 0)
 		return (run_interrupt(argv[2]));
 	if (argc == 5 && strcmp(argv[1], "partial-error") == 0)
@@ -606,6 +634,8 @@ main(int argc, char **argv)
 	(void) fprintf(stderr, "usage: %s filter dataset min_txg max_txg\n"
 	    "       %s encrypted-snapshot-metadata dataset\n"
 	    "       %s sorted dataset\n"
+	    "       %s dependents dataset\n"
+	    "       %s dependents-simple dataset\n"
 	    "       %s interrupt dataset\n"
 	    "       %s partial-error dataset mode callbacks\n"
 	    "       %s handle-enomem dataset\n"
@@ -618,6 +648,6 @@ main(int argc, char **argv)
 	    "       %s stale-snapshot-metadata dataset type\n",
 	    argv[0], argv[0],
 	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
-	    argv[0], argv[0], argv[0], argv[0]);
+	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
 	return (EXIT_FAILURE);
 }
