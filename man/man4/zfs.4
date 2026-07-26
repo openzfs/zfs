@@ -1793,6 +1793,31 @@ Whether snapshot creation and destruction events are recorded in the pool
 history log, viewable with
 .Nm zpool Cm history .
 .
+.It Sy zfs_snapshot_list_batch_size Ns = Ns Sy 1024 Pq uint
+Maximum number of snapshots returned by one projected snapshot listing
+batch.
+This limit is a proxy for the maximum transient memory consumed by a batch:
+larger values can improve listing throughput at the cost of a larger memory
+footprint.
+Projected snapshot listing is cursor based: a batch stops after either this
+many matching snapshots have been collected or the
+.Sy zfs_snapshot_list_batch_time_us
+budget has been reached, whichever occurs first.
+It returns the matching entries collected so far and a cursor from which a
+subsequent ioctl resumes, leaving the remaining snapshots for later batches.
+The default is 1024 snapshots, and the supported range is 1 to 4096.
+.
+.It Sy zfs_snapshot_list_batch_time_us Ns = Ns Sy 10000 Pq uint
+Soft wall-clock budget for the snapshot scan in one projected snapshot listing
+batch.
+This budget is a proxy for the maximum lock latency a batch can impose on
+unrelated dataset operations.
+The elapsed time is checked after each snapshot is examined by the scan.
+At least one snapshot is therefore examined to ensure cursor progress, and a
+single metadata operation may cause the budget to be exceeded.
+The default is 10000 microseconds, and the supported range is 1 to 100000
+microseconds.
+.
 .It Sy zfs_snapshot_no_setuid Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Whether to disable
 .Em setuid/setgid

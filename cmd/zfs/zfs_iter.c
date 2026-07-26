@@ -138,7 +138,15 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps) {
-			(void) zfs_iter_snapshots_v2(zhp, cb->cb_flags,
+			int snapshot_flags = cb->cb_flags;
+
+			/*
+			 * Default sorting and tie breaks require the
+			 * creation TXG.
+			 */
+			if (snapshot_flags & ZFS_ITER_BATCHED)
+				snapshot_flags |= ZFS_ITER_BATCHED_CREATETXG;
+			(void) zfs_iter_snapshots_v2(zhp, snapshot_flags,
 			    zfs_callback, data, 0, 0);
 		}
 
@@ -253,6 +261,69 @@ zfs_list_only_by_fast(const zprop_list_t *p)
 	}
 
 	return (B_TRUE);
+}
+
+/*
+ * Select the projected snapshot iterator only when it can populate every
+ * displayed and sorted property.  Optional flags keep unrequested values out
+ * of the kernel calculation and returned nvlist.
+ */
+int
+zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
+{
+	int flags = ZFS_ITER_BATCHED;
+
+	if (p == NULL)
+		return (0);
+
+	for (; p != NULL; p = p->pl_next) {
+		if (p->pl_all)
+			return (0);
+
+		switch (p->pl_prop) {
+		case ZFS_PROP_NAME:
+		case ZFS_PROP_TYPE:
+			break;
+		case ZFS_PROP_GUID:
+			flags |= ZFS_ITER_BATCHED_GUID;
+			break;
+		case ZFS_PROP_CREATETXG:
+			flags |= ZFS_ITER_BATCHED_CREATETXG;
+			break;
+		case ZFS_PROP_CREATION:
+			flags |= ZFS_ITER_BATCHED_CREATION;
+			break;
+		case ZFS_PROP_USERREFS:
+			flags |= ZFS_ITER_BATCHED_USERREFS;
+			break;
+		default:
+			return (0);
+		}
+	}
+
+	for (; sc != NULL; sc = sc->sc_next) {
+		switch (sc->sc_prop) {
+		case ZFS_PROP_NAME:
+		case ZFS_PROP_TYPE:
+			break;
+		case ZFS_PROP_GUID:
+			flags |= ZFS_ITER_BATCHED_GUID;
+			break;
+		case ZFS_PROP_CREATETXG:
+			flags |= ZFS_ITER_BATCHED_CREATETXG;
+			break;
+		case ZFS_PROP_CREATION:
+			flags |= ZFS_ITER_BATCHED_CREATION;
+			break;
+		case ZFS_PROP_USERREFS:
+			flags |= ZFS_ITER_BATCHED_USERREFS;
+			break;
+		default:
+			return (0);
+		}
+	}
+
+	return (flags);
 }
 
 static int
