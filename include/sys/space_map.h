@@ -208,9 +208,22 @@ boolean_t sm_entry_is_double_word(uint64_t e);
 
 typedef int (*sm_cb_t)(space_map_entry_t *sme, void *arg);
 
+typedef struct space_map_load_result {
+	/* Allocated bytes reconstructed from the entries that were loaded. */
+	uint64_t smlr_allocated;
+	uint64_t smlr_repaired_entries;
+	uint64_t smlr_affected_bytes;
+	space_map_entry_t smlr_first_entry;
+	space_map_entry_t smlr_last_entry;
+	uint64_t smlr_first_free_bytes;
+	uint64_t smlr_last_free_bytes;
+} space_map_load_result_t;
+
 int space_map_load(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype);
 int space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt,
     maptype_t maptype, uint64_t length);
+int space_map_load_length_repair(space_map_t *sm, zfs_range_tree_t *rt,
+    uint64_t length, space_map_load_result_t *result);
 int space_map_iterate(space_map_t *sm, uint64_t length,
     sm_cb_t callback, void *arg);
 int space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,

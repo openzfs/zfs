@@ -5,4 +5,5 @@
 /test_zap
 /test_namecheck
 /test_btree
+/test_range_tree
 /test_sha2

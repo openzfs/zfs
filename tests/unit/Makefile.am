@@ -18,6 +18,7 @@ UNIT_TESTS = \
 	%D%/test_zap \
 	%D%/test_namecheck \
 	%D%/test_btree \
+	%D%/test_range_tree \
 	%D%/test_fletcher \
 	%D%/test_sha2
 noinst_PROGRAMS = $(UNIT_TESTS)
@@ -65,6 +66,20 @@ nodist_%C%_test_btree_SOURCES = \
 	%D%/test_btree.c
 
 %C%_test_btree_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_range_tree_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_range_tree_SOURCES = \
+	module/zfs/btree.c \
+	module/zfs/range_tree.c
+
+%C%_test_range_tree_SOURCES = \
+	%D%/test_range_tree.c
+
+%C%_test_range_tree_LDADD = \
 	libspl.la \
 	libunit.la
 
