@@ -76,7 +76,7 @@ zia_get_props(spa_t *spa)
 void
 zia_prop_warn(boolean_t val, const char *name)
 {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	if (val == B_TRUE) {
 		printk("Z.I.A. %s enabled. Encryption and "
 		    "Dedup for this spa will be disabled.\n",
@@ -248,13 +248,13 @@ zia_init(void)
 	}
 
 	if (!dpusm) {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 		printk("Warning: Z.I.A. not initialized\n");
 #endif
 		return (ZIA_ERROR);
 	}
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	printk("Z.I.A. initialized (%p)\n", dpusm);
 #endif
 	return (ZIA_OK);
@@ -267,7 +267,7 @@ int
 zia_fini(void)
 {
 	if (!dpusm) {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 		printk("Warning: Z.I.A. not initialized. "
 		    "Not uninitializing.\n");
 #endif
@@ -277,11 +277,11 @@ zia_fini(void)
 #ifdef ZIA
 	if (dpusm_finalize) {
 		dpusm_finalize();
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 		printk("Z.I.A. finalized\n");
 #endif
 	} else {
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 		if (dpusm) {
 			printk("Z.I.A. incomplete finalize\n");
 		}
@@ -343,7 +343,7 @@ zia_get_provider(const char *name)
 
 	void *provider = NULL;
 	provider = dpusm->get(name);
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	printk("Z.I.A. obtained handle to provider \"%s\" (%p)",
 	    name, provider);
 #endif
@@ -352,7 +352,7 @@ zia_get_provider(const char *name)
 #else
 	(void) name;
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	printk("Z.I.A. not available. Cannot obtain handle to providers.\n");
 #endif
 
@@ -423,7 +423,7 @@ zia_put_provider(void **provider, vdev_t *vdev)
 
 	const int ret = dpusm->put(*provider);
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 	printk("Z.I.A. returned provider handle \"%s\" "
 	    "(%p) and got return value %d",
 	    name, *provider, ret);

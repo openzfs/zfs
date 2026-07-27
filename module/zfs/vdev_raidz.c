@@ -3365,10 +3365,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		if (!parity_verify && zio->io_priority == ZIO_PRIORITY_REBUILD)
 			add_flags |= ZIO_FLAG_SPECULATIVE;
 		unexpected_errors += n;
-
-		if (n != 0) {
-			return (n);
-		}
 	}
 
 	if (spa_writeable(zio->io_spa) &&
@@ -3676,6 +3672,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 			const int rc =
 			    vdev_raidz_io_done_verified(zio, rr);
 			ret = zia_worst_error(ret, rc);
+			if (rc == 0)
+				ret = rc;
 		}
 
 		zio_checksum_verified(zio);
