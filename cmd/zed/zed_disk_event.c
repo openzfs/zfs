@@ -242,6 +242,9 @@ zed_udev_monitor(void *arg)
 		    part != NULL && part[0] != '\0') {
 			const char *devname =
 			    udev_device_get_property_value(dev, "DEVNAME");
+			const char *resize =
+			    udev_device_get_property_value(dev, "RESIZE");
+			const char *dev_action = udev_device_get_action(dev);
 
 			if (strcmp(part, "atari") == 0) {
 				zed_log_msg(LOG_INFO,
@@ -249,6 +252,19 @@ zed_udev_monitor(void *arg)
 				    "but we're going to assume it's a false "
 				    "positive and still use it (issue #13497)",
 				    __func__, devname);
+			} else if (dev_action != NULL &&
+			    strcmp(dev_action, "change") == 0 &&
+			    resize != NULL && strcmp(resize, "1") == 0) {
+				/*
+				 * A capacity change is reported on the disk
+				 * itself, not on its partitions, so this is
+				 * the only chance to notice it.  Pass the
+				 * event on for a possible autoexpand of a
+				 * whole-disk vdev (issue #12505).
+				 */
+				zed_log_msg(LOG_INFO,
+				    "%s: %s capacity change on partitioned "
+				    "disk", __func__, devname);
 			} else {
 				zed_log_msg(LOG_INFO,
 				    "%s: skip %s since it has a %s partition "
