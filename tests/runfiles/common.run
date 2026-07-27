@@ -410,7 +410,7 @@ tags = ['functional', 'cli_root', 'zfs_wait']
 [tests/functional/cli_root/zhack]
 tests = ['zhack_label_repair_001', 'zhack_label_repair_002',
     'zhack_label_repair_003', 'zhack_label_repair_004', 'zhack_metaslab_leak',
-    'zhack_mos_scan_reclaim']
+    'zhack_mos_scan_reclaim', 'zhack_metaslab_repair']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zhack']
@@ -1024,7 +1024,7 @@ tags = ['functional', 'rename_dirs']
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
     'attach_resilver', 'attach_resilver_sit_out', 'detach',
     'rebuild_disabled_feature', 'rebuild_draid_speculative',
-    'rebuild_multiple', 'rebuild_online_leaf', 'rebuild_raidz',
+    'rebuild_metaslab', 'rebuild_multiple', 'rebuild_online_leaf', 'rebuild_raidz',
     'replace_import', 'replace_rebuild', 'replace_resilver',
     'replace_resilver_sit_out', 'resilver_restart_001',
     'resilver_restart_002', 'scrub_cancel']

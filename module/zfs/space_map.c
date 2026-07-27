@@ -69,14 +69,113 @@ sm_entry_is_double_word(uint64_t e)
 	return (SM_PREFIX_DECODE(e) == SM2_PREFIX);
 }
 
+boolean_t
+space_map_valid_geometry(space_map_t *sm)
+{
+	/* Log and obsolete maps use UINT64_MAX as an unbounded size. */
+	return (sm->sm_shift < 64 && sm->sm_size != 0 &&
+	    sm->sm_start <= UINT64_MAX - sm->sm_size &&
+	    P2PHASE(sm->sm_start, 1ULL << sm->sm_shift) == 0 &&
+	    (sm->sm_size == UINT64_MAX ||
+	    P2PHASE(sm->sm_size, 1ULL << sm->sm_shift) == 0));
+}
+
+/* Keep shared validation from adding a call for every replayed record. */
+__attribute__((always_inline)) inline
+static int
+space_map_decode_impl(space_map_t *sm, const uint64_t *words, size_t nwords,
+    space_map_entry_t *sme, boolean_t checked)
+{
+	ASSERT3U(nwords, >, 0);
+
+	uint64_t word = words[0];
+	uint8_t prefix = SM_PREFIX_DECODE(word);
+	if (prefix == SM_DEBUG_PREFIX) {
+		*sme = (space_map_entry_t) {
+			.sme_txg = SM_DEBUG_TXG_DECODE(word),
+			.sme_sync_pass = SM_DEBUG_SYNCPASS_DECODE(word),
+		};
+		if (sme->sme_txg == 0) {
+			if (checked && (SM_DEBUG_ACTION_DECODE(word) != 0 ||
+			    sme->sme_sync_pass != 0))
+				return (SET_ERROR(ECKSUM));
+			ASSERT0(sme->sme_sync_pass);
+		}
+		return (0);
+	}
+
+	uint64_t offset_units, run_units;
+	uint32_t vdev;
+	maptype_t type;
+	if (prefix == SM2_PREFIX) {
+		if (checked && nwords < 2)
+			return (SET_ERROR(ECKSUM));
+		VERIFY3U(nwords, >=, 2);
+		run_units = SM2_RUN_DECODE(word);
+		vdev = SM2_VDEV_DECODE(word);
+		type = SM2_TYPE_DECODE(words[1]);
+		offset_units = SM2_OFFSET_DECODE(words[1]);
+	} else {
+		/* Single-word prefixes 0 and 1 use bit 62 for the offset. */
+		run_units = SM_RUN_DECODE(word);
+		vdev = SM_NO_VDEVID;
+		type = SM_TYPE_DECODE(word);
+		offset_units = SM_OFFSET_DECODE(word);
+	}
+
+	/* Run fields encode length minus one, so the decoded run is nonzero. */
+	uint64_t map_units = sm->sm_size >> sm->sm_shift;
+	if (checked && (offset_units >= map_units ||
+	    run_units > map_units - offset_units))
+		return (SET_ERROR(ECKSUM));
+
+	uint64_t offset = (offset_units << sm->sm_shift) + sm->sm_start;
+	uint64_t run = run_units << sm->sm_shift;
+	VERIFY0(P2PHASE(offset, 1ULL << sm->sm_shift));
+	VERIFY0(P2PHASE(run, 1ULL << sm->sm_shift));
+	ASSERT3U(offset, >=, sm->sm_start);
+	ASSERT3U(offset, <, sm->sm_start + sm->sm_size);
+	ASSERT3U(run, <=, sm->sm_size);
+	ASSERT3U(offset + run, <=, sm->sm_start + sm->sm_size);
+	*sme = (space_map_entry_t) {
+		.sme_type = type,
+		.sme_vdev = vdev,
+		.sme_offset = offset,
+		.sme_run = run,
+	};
+	return (0);
+}
+
+/*
+ * Decode one record without replaying allocations. nwords is the number of
+ * available words up to the nearest map or block boundary. Debug records,
+ * including padding, have a zero run; all data ranges are returned in bytes.
+ */
+int
+space_map_decode(space_map_t *sm, const uint64_t *words, size_t nwords,
+    space_map_entry_t *sme)
+{
+	if (nwords == 0 || !space_map_valid_geometry(sm))
+		return (SET_ERROR(ECKSUM));
+	return (space_map_decode_impl(sm, words, nwords, sme, B_TRUE));
+}
+
 /*
  * Iterate through the space map, invoking the callback on each (non-debug)
  * space map entry. Stop after reading 'end' bytes of the space map.
+ * Checked readers return ECKSUM instead of asserting on malformed entries.
  */
-int
-space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
+static int
+space_map_iterate_impl(space_map_t *sm, uint64_t end, sm_cb_t callback,
+    void *arg, boolean_t checked)
 {
 	uint64_t blksz = sm->sm_blksz;
+
+	if (checked && (!space_map_valid_geometry(sm) || blksz == 0 ||
+	    P2PHASE(blksz, sizeof (uint64_t)) != 0 ||
+	    end > space_map_length(sm) ||
+	    P2PHASE(end, sizeof (uint64_t)) != 0))
+		return (SET_ERROR(ECKSUM));
 
 	ASSERT3U(blksz, !=, 0);
 	ASSERT3U(end, <=, space_map_length(sm));
@@ -93,6 +192,10 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		    block_base, FTAG, &db, DMU_READ_PREFETCH);
 		if (error != 0)
 			return (error);
+		if (checked && blksz != db->db_size) {
+			dmu_buf_rele(db, FTAG);
+			return (SET_ERROR(ECKSUM));
+		}
 
 		uint64_t *block_start = db->db_data;
 		uint64_t block_length = MIN(end - block_base, blksz);
@@ -103,81 +206,36 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		VERIFY3U(block_length, !=, 0);
 		ASSERT3U(blksz, ==, db->db_size);
 
-		for (uint64_t *block_cursor = block_start;
-		    block_cursor < block_end && error == 0; block_cursor++) {
-			uint64_t e = *block_cursor;
-
-			if (sm_entry_is_debug(e)) {
-				/*
-				 * Debug entries are only needed to record the
-				 * current TXG and sync pass if available.
-				 *
-				 * Note though that sometimes there can be
-				 * debug entries that are used as padding
-				 * at the end of space map blocks in-order
-				 * to not split a double-word entry in the
-				 * middle between two blocks. These entries
-				 * have their TXG field set to 0 and we
-				 * skip them without recording the TXG.
-				 * [see comment in space_map_write_seg()]
-				 */
-				uint64_t e_txg = SM_DEBUG_TXG_DECODE(e);
-				if (e_txg != 0) {
-					txg = e_txg;
-					sync_pass = SM_DEBUG_SYNCPASS_DECODE(e);
-				} else {
-					ASSERT0(SM_DEBUG_SYNCPASS_DECODE(e));
+		uint64_t *block_cursor = block_start;
+		while (block_cursor < block_end && error == 0) {
+			space_map_entry_t sme;
+			error = space_map_decode_impl(sm, block_cursor,
+			    block_end - block_cursor, &sme, checked);
+			if (error != 0)
+				break;
+			uint8_t prefix = SM_PREFIX_DECODE(*block_cursor);
+			block_cursor += prefix == SM2_PREFIX ? 2 : 1;
+			if (prefix == SM_DEBUG_PREFIX) {
+				/* Padding preserves the last debug context. */
+				if (sme.sme_txg != 0) {
+					txg = sme.sme_txg;
+					sync_pass = sme.sme_sync_pass;
 				}
 				continue;
 			}
-
-			uint64_t raw_offset, raw_run, vdev_id;
-			maptype_t type;
-			if (sm_entry_is_single_word(e)) {
-				type = SM_TYPE_DECODE(e);
-				vdev_id = SM_NO_VDEVID;
-				raw_offset = SM_OFFSET_DECODE(e);
-				raw_run = SM_RUN_DECODE(e);
-			} else {
-				/* it is a two-word entry */
-				ASSERT(sm_entry_is_double_word(e));
-				raw_run = SM2_RUN_DECODE(e);
-				vdev_id = SM2_VDEV_DECODE(e);
-
-				/* move on to the second word */
-				block_cursor++;
-				e = *block_cursor;
-				VERIFY3P(block_cursor, <=, block_end);
-
-				type = SM2_TYPE_DECODE(e);
-				raw_offset = SM2_OFFSET_DECODE(e);
-			}
-
-			uint64_t entry_offset = (raw_offset << sm->sm_shift) +
-			    sm->sm_start;
-			uint64_t entry_run = raw_run << sm->sm_shift;
-
-			VERIFY0(P2PHASE(entry_offset, 1ULL << sm->sm_shift));
-			VERIFY0(P2PHASE(entry_run, 1ULL << sm->sm_shift));
-			ASSERT3U(entry_offset, >=, sm->sm_start);
-			ASSERT3U(entry_offset, <, sm->sm_start + sm->sm_size);
-			ASSERT3U(entry_run, <=, sm->sm_size);
-			ASSERT3U(entry_offset + entry_run, <=,
-			    sm->sm_start + sm->sm_size);
-
-			space_map_entry_t sme = {
-			    .sme_type = type,
-			    .sme_vdev = vdev_id,
-			    .sme_offset = entry_offset,
-			    .sme_run = entry_run,
-			    .sme_txg = txg,
-			    .sme_sync_pass = sync_pass
-			};
+			sme.sme_txg = txg;
+			sme.sme_sync_pass = sync_pass;
 			error = callback(&sme, arg);
 		}
 		dmu_buf_rele(db, FTAG);
 	}
 	return (error);
+}
+
+int
+space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
+{
+	return (space_map_iterate_impl(sm, end, callback, arg, B_FALSE));
 }
 
 /*
@@ -384,13 +442,34 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 typedef struct space_map_load_arg {
 	space_map_t	*smla_sm;
 	zfs_range_tree_t	*smla_rt;
+	zfs_range_tree_t	*smla_repair_rt;
 	maptype_t	smla_type;
+	space_map_load_result_t *smla_result;
 } space_map_load_arg_t;
+
+static void
+space_map_load_record_repair(space_map_load_arg_t *smla,
+    const space_map_entry_t *sme, uint64_t cleared_free_bytes)
+{
+	space_map_load_result_t *result = smla->smla_result;
+
+	ASSERT3P(result, !=, NULL);
+	ASSERT3U(cleared_free_bytes, <=, sme->sme_run);
+
+	if (result->smlr_repaired_entries == 0) {
+		result->smlr_first_entry = *sme;
+		result->smlr_first_cleared_free_bytes = cleared_free_bytes;
+	}
+	result->smlr_last_entry = *sme;
+	result->smlr_last_cleared_free_bytes = cleared_free_bytes;
+	result->smlr_repaired_entries++;
+}
 
 static int
 space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
+
 	if (sme->sme_type == smla->smla_type) {
 		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
@@ -404,6 +483,133 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 	return (0);
 }
 
+static int
+space_map_load_repair_callback(space_map_entry_t *sme, void *arg)
+{
+	space_map_load_arg_t *smla = arg;
+	/* The two-word encoding truncates SM_NO_VDEVID to zero. */
+	if (sme->sme_vdev != SM_NO_VDEVID && sme->sme_vdev != 0)
+		return (SET_ERROR(ECKSUM));
+
+	zfs_range_tree_t *rt = smla->smla_rt;
+	zfs_range_tree_t *repair_rt = smla->smla_repair_rt;
+	uint64_t overlap_start, overlap_size;
+
+	ASSERT3P(smla->smla_result, !=, NULL);
+	ASSERT3S(smla->smla_type, ==, SM_FREE);
+
+	boolean_t repair_overlap = repair_rt != NULL &&
+	    zfs_range_tree_find_in(repair_rt, sme->sme_offset, sme->sme_run,
+	    &overlap_start, &overlap_size);
+
+	if (!repair_overlap) {
+		if (sme->sme_type == SM_FREE) {
+			if (zfs_range_tree_try_add(rt, sme->sme_offset,
+			    sme->sme_run))
+				return (0);
+		} else {
+			if (zfs_range_tree_try_remove(rt, sme->sme_offset,
+			    sme->sme_run))
+				return (0);
+		}
+	}
+
+	uint64_t free_before = zfs_range_tree_space(rt);
+	zfs_range_tree_clear(rt, sme->sme_offset, sme->sme_run);
+	uint64_t cleared_free_bytes = free_before - zfs_range_tree_space(rt);
+
+	/*
+	 * An overlapping operation does not prove that any part of its range
+	 * is unreferenced. Keep the complete range allocated for the rest of
+	 * the replay and extend that quarantine through later overlapping
+	 * entries. Condensation will persist this conservative state.
+	 */
+	if (repair_rt == NULL) {
+		repair_rt = zfs_range_tree_create_flags(NULL, rt->rt_type, NULL,
+		    rt->rt_start, rt->rt_shift, 0, "space_map_load_repair");
+		smla->smla_repair_rt = repair_rt;
+	}
+	zfs_range_tree_clear(repair_rt, sme->sme_offset, sme->sme_run);
+	zfs_range_tree_add(repair_rt, sme->sme_offset, sme->sme_run);
+
+	space_map_load_record_repair(smla, sme, cleared_free_bytes);
+	return (0);
+}
+
+static int
+space_map_load_checked_callback(space_map_entry_t *sme, void *arg)
+{
+	space_map_load_arg_t *smla = arg;
+	if (sme->sme_vdev != SM_NO_VDEVID && sme->sme_vdev != 0)
+		return (SET_ERROR(ECKSUM));
+
+	boolean_t valid = sme->sme_type == smla->smla_type ?
+	    zfs_range_tree_try_add(smla->smla_rt, sme->sme_offset,
+	    sme->sme_run) : zfs_range_tree_try_remove(smla->smla_rt,
+	    sme->sme_offset, sme->sme_run);
+	return (valid ? 0 : SET_ERROR(ECKSUM));
+}
+
+static int
+space_map_load_length_impl(space_map_t *sm, zfs_range_tree_t *rt,
+    maptype_t maptype, uint64_t length, space_map_load_result_t *result,
+    boolean_t checked)
+{
+	space_map_load_arg_t smla = {
+		.smla_sm = sm,
+		.smla_rt = rt,
+		.smla_type = maptype,
+		.smla_result = result,
+	};
+	VERIFY0(zfs_range_tree_space(rt));
+
+	if (result != NULL)
+		memset(result, 0, sizeof (*result));
+
+	/* Validate bounded replay geometry before seeding the free tree. */
+	if (checked && (!space_map_valid_geometry(sm) ||
+	    P2PHASE(sm->sm_size, 1ULL << sm->sm_shift) != 0))
+		return (SET_ERROR(ECKSUM));
+
+	if (maptype == SM_FREE) {
+		if (checked) {
+			if (!zfs_range_tree_try_add(rt,
+			    sm->sm_start, sm->sm_size))
+				return (SET_ERROR(ECKSUM));
+		} else {
+			zfs_range_tree_add(rt, sm->sm_start, sm->sm_size);
+		}
+	}
+
+	sm_cb_t callback;
+	if (result != NULL)
+		callback = space_map_load_repair_callback;
+	else if (checked)
+		callback = space_map_load_checked_callback;
+	else
+		callback = space_map_load_callback;
+	int err = space_map_iterate_impl(sm, length, callback, &smla, checked);
+
+	if (result != NULL && err == 0) {
+		result->smlr_allocated =
+		    sm->sm_size - zfs_range_tree_space(rt);
+		if (smla.smla_repair_rt != NULL) {
+			result->smlr_affected_bytes =
+			    zfs_range_tree_space(smla.smla_repair_rt);
+		}
+	}
+
+	if (err != 0)
+		zfs_range_tree_vacate(rt, NULL, NULL);
+
+	if (smla.smla_repair_rt != NULL) {
+		zfs_range_tree_vacate(smla.smla_repair_rt, NULL, NULL);
+		zfs_range_tree_destroy(smla.smla_repair_rt);
+	}
+
+	return (err);
+}
+
 /*
  * Load the spacemap into the rangetree, like space_map_load. But only
  * read the first 'length' bytes of the spacemap.
@@ -412,23 +618,33 @@ int
 space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t length)
 {
-	space_map_load_arg_t smla;
+	return (space_map_load_length_impl(sm, rt, maptype, length, NULL,
+	    B_FALSE));
+}
 
-	VERIFY0(zfs_range_tree_space(rt));
+/*
+ * Load a free-space map while conservatively quarantining entries that
+ * overlap the state reconstructed so far. The caller is responsible for
+ * persisting the resulting conservative allocation state.
+ */
+int
+space_map_load_length_repair(space_map_t *sm, zfs_range_tree_t *rt,
+    uint64_t length, space_map_load_result_t *result)
+{
+	if (result == NULL)
+		return (SET_ERROR(EINVAL));
 
-	if (maptype == SM_FREE)
-		zfs_range_tree_add(rt, sm->sm_start, sm->sm_size);
+	return (space_map_load_length_impl(sm, rt, SM_FREE, length, result,
+	    B_TRUE));
+}
 
-	smla.smla_rt = rt;
-	smla.smla_sm = sm;
-	smla.smla_type = maptype;
-	int err = space_map_iterate(sm, length,
-	    space_map_load_callback, &smla);
-
-	if (err != 0)
-		zfs_range_tree_vacate(rt, NULL, NULL);
-
-	return (err);
+/* Return corrupt input as an error without repairing or publishing it. */
+int
+space_map_load_checked(space_map_t *sm, zfs_range_tree_t *rt,
+    maptype_t maptype)
+{
+	return (space_map_load_length_impl(sm, rt, maptype,
+	    space_map_length(sm), NULL, B_TRUE));
 }
 
 /*

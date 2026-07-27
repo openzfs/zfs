@@ -18,6 +18,9 @@ UNIT_TESTS = \
 	%D%/test_zap \
 	%D%/test_namecheck \
 	%D%/test_btree \
+	%D%/test_range_tree \
+	%D%/test_space_map \
+	%D%/test_metaslab \
 	%D%/test_fletcher \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
@@ -73,6 +76,57 @@ nodist_%C%_test_btree_SOURCES = \
 %C%_test_btree_LDADD = \
 	libspl.la \
 	libunit.la
+
+
+%C%_test_range_tree_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_range_tree_SOURCES = \
+	module/zfs/btree.c \
+	module/zfs/range_tree.c
+
+%C%_test_range_tree_SOURCES = \
+	%D%/test_range_tree.c
+
+%C%_test_range_tree_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_space_map_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_space_map_SOURCES = \
+	module/zfs/btree.c \
+	module/zfs/range_tree.c \
+	module/zfs/space_map.c
+
+%C%_test_space_map_SOURCES = \
+	%D%/test_space_map.c
+
+%C%_test_space_map_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+# Keep the accounting assertions enabled even in a non-debug build.
+%C%_test_metaslab_CFLAGS = $(AM_CFLAGS) -DDEBUG -UNDEBUG
+%C%_test_metaslab_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+
+%C%_test_metaslab_SOURCES = \
+	%D%/test_metaslab.c \
+	%D%/munit.c
+
+# These sources are included to exercise their private helpers.
+%C%_test_metaslab_COVERAGE_FILES = \
+	module/zfs/metaslab.c \
+	module/zfs/vdev_trim.c
+
+# Reuse libzpool's other objects without linking a second copy of the modules
+# supplied by the test. These also provide the services that libunit stubs out.
+%C%_test_metaslab_LDADD = \
+	$(filter-out module/zfs/libzpool_la-metaslab.lo \
+	    module/zfs/libzpool_la-vdev_trim.lo, $(libzpool_la_OBJECTS)) \
+	$(libzpool_la_LIBADD) \
+	libspl.la
 
 
 %C%_test_fletcher_CFLAGS = $(AM_CFLAGS)
@@ -208,7 +262,9 @@ _unit_run_%: %D%/%
 		--rc lcov_branch_coverage=1 \
 		--rc geninfo_unexecuted_blocks=1 \
 		$(addprefix --include $(abs_top_builddir)/, $(call \
-		    $(join $(join nodist_%C%_, $(notdir $<)), _SOURCES))) \
+		    $(join $(join nodist_%C%_, $(notdir $<)), _SOURCES)) \
+		    $(call $(join $(join %C%_, $(notdir $<)), \
+		    _COVERAGE_FILES))) \
 		2>/dev/null
 
 _unit_coverage_%: %D%/%.info

@@ -181,6 +181,11 @@ The can occur in the case of a missing or damaged log device.
 Issued when a resilver is started.
 .It Sy resilver_finish
 Issued when the running resilver have finished.
+.It Sy metaslab_repair
+Issued when a repaired metaslab space map is condensed into a conservative
+allocation map.
+Ambiguous ranges remain allocated and can therefore appear as leaked space;
+this event does not indicate that overwritten data has been recovered.
 .It Sy scrub_start
 Issued when a scrub is started on a pool.
 .It Sy scrub_finish
@@ -239,6 +244,13 @@ these are set to uppercase and prefixed with
 .Sy ZEVENT_ .
 .Pp
 .Bl -tag -compact -width "vdev_cksum_errors"
+.It Sy metaslab_id , metaslab_object , metaslab_txg
+The repaired metaslab, its resulting space map object, and repair transaction
+group.
+.It Sy metaslab_entries , metaslab_bytes
+Conflicting entries and bytes quarantined by the repair.
+.It Sy metaslab_old_alloc , metaslab_alloc
+The original signed allocation summary and reconstructed allocation size.
 .It Sy pool
 Pool name.
 .It Sy pool_failmode
