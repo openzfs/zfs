@@ -2993,7 +2993,9 @@ byteswap_uint8_array(void *vbuf, size_t size)
 void
 dmu_init(void)
 {
+#ifdef ZIA
 	zia_init();
+#endif
 	abd_init();
 	zfs_dbgmsg_init();
 	sa_cache_init();

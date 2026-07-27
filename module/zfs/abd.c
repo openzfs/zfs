@@ -160,7 +160,9 @@ abd_init_struct(abd_t *abd)
 static void
 abd_fini_struct(abd_t *abd)
 {
+#ifdef ZIA
 	zia_free_abd(abd, B_TRUE);
+#endif
 
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
