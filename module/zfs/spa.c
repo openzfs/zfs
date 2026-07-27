@@ -7761,10 +7761,7 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	spa_condense_debug_cancel(spa);
 #endif
 	spa_async_suspend(spa);
-	if (spa->spa_zvol_taskq) {
-		zvol_remove_minors(spa, spa_name(spa), B_TRUE);
-		taskq_wait(spa->spa_zvol_taskq);
-	}
+
 	spa_namespace_enter(FTAG);
 	spa->spa_export_thread = curthread;
 	spa_close(spa, FTAG);
@@ -7801,6 +7798,11 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * notice the spa->spa_export_thread and wait until we signal
 	 * that we are finshed.
 	 */
+
+	if (spa->spa_zvol_taskq) {
+		zvol_remove_minors(spa, spa_name(spa), B_TRUE);
+		taskq_wait(spa->spa_zvol_taskq);
+	}
 
 	if (spa->spa_sync_on) {
 		vdev_t *rvd = spa->spa_root_vdev;
