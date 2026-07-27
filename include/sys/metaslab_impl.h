@@ -328,6 +328,19 @@ struct metaslab_group {
  * ensure that allocations are not performed on the metaslab that is
  * being written.
  */
+typedef enum metaslab_load_state {
+	METASLAB_LOAD_NORMAL = 0,
+	METASLAB_LOAD_DEFERRED,
+	METASLAB_LOAD_UNLOADABLE,
+} metaslab_load_state_t;
+
+typedef struct metaslab_repair {
+	int64_t		msr_smp_alloc;
+	uint64_t	msr_allocated;
+	uint64_t	msr_entries;
+	uint64_t	msr_bytes;
+} metaslab_repair_t;
+
 struct metaslab {
 	/*
 	 * This is the main lock of the metaslab and its purpose is to
@@ -393,6 +406,12 @@ struct metaslab {
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
+
+	/* Details retained until a repaired space map is condensed. */
+	metaslab_repair_t	ms_repair;
+	/* The on-disk smp_alloc is outside the metaslab's valid range. */
+	boolean_t	ms_smp_alloc_invalid;
+	metaslab_load_state_t	ms_load_state;
 
 	/*
 	 * The number of consumers which have disabled the metaslab.

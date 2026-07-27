@@ -356,6 +356,10 @@ typedef struct metaslab_stats {
 	kstat_named_t metaslabstat_reload_tree;
 	kstat_named_t metaslabstat_too_many_tries;
 	kstat_named_t metaslabstat_try_hard;
+	kstat_named_t metaslabstat_load_repairs;
+	kstat_named_t metaslabstat_load_repaired_entries;
+	kstat_named_t metaslabstat_load_repaired_bytes;
+	kstat_named_t metaslabstat_load_unloadable;
 } metaslab_stats_t;
 
 static metaslab_stats_t metaslab_stats = {
@@ -363,10 +367,16 @@ static metaslab_stats_t metaslab_stats = {
 	{ "reload_tree",		KSTAT_DATA_UINT64 },
 	{ "too_many_tries",		KSTAT_DATA_UINT64 },
 	{ "try_hard",			KSTAT_DATA_UINT64 },
+	{ "load_repairs",		KSTAT_DATA_UINT64 },
+	{ "load_repaired_entries",	KSTAT_DATA_UINT64 },
+	{ "load_repaired_bytes",	KSTAT_DATA_UINT64 },
+	{ "load_unloadable",		KSTAT_DATA_UINT64 },
 };
 
 #define	METASLABSTAT_BUMP(stat) \
 	atomic_inc_64(&metaslab_stats.stat.value.ui64);
+#define	METASLABSTAT_ADD(stat, amount) \
+	atomic_add_64(&metaslab_stats.stat.value.ui64, amount);
 
 char *
 metaslab_rt_name(metaslab_group_t *mg, metaslab_t *ms, const char *name)
@@ -2149,20 +2159,31 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 	    !msp->ms_loaded)
 		return;
 
-	/*
-	 * Even though the smp_alloc field can get negative,
-	 * when it comes to a metaslab's space map, that should
-	 * never be the case.
-	 */
-	ASSERT3S(space_map_allocated(msp->ms_sm), >=, 0);
-
-	ASSERT3U(space_map_allocated(msp->ms_sm), >=,
+	uint64_t expected_allocated;
+	if (msp->ms_repair.msr_entries != 0 ||
+	    msp->ms_smp_alloc_invalid) {
+		expected_allocated = msp->ms_repair.msr_allocated;
+	} else {
+		/*
+		 * Even though smp_alloc can be negative for other space
+		 * maps, a healthy metaslab space map must be in range.
+		 */
+		ASSERT3S(space_map_allocated(msp->ms_sm), >=, 0);
+		ASSERT3U(space_map_allocated(msp->ms_sm), <=, msp->ms_size);
+		expected_allocated =
+		    (uint64_t)space_map_allocated(msp->ms_sm);
+	}
+	ASSERT3U(expected_allocated, >=,
 	    zfs_range_tree_space(msp->ms_unflushed_frees));
-
-	ASSERT3U(metaslab_allocated_space(msp), ==,
-	    space_map_allocated(msp->ms_sm) +
-	    zfs_range_tree_space(msp->ms_unflushed_allocs) -
+	ASSERT3U(expected_allocated, <=, UINT64_MAX -
+	    zfs_range_tree_space(msp->ms_unflushed_allocs));
+	expected_allocated +=
+	    zfs_range_tree_space(msp->ms_unflushed_allocs);
+	ASSERT3U(expected_allocated, >=,
 	    zfs_range_tree_space(msp->ms_unflushed_frees));
+	expected_allocated -=
+	    zfs_range_tree_space(msp->ms_unflushed_frees);
+	ASSERT3U(metaslab_allocated_space(msp), ==, expected_allocated);
 
 	sm_free_space = msp->ms_size - metaslab_allocated_space(msp);
 
@@ -2187,6 +2208,119 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 	    zfs_range_tree_space(msp->ms_freed);
 
 	VERIFY3U(sm_free_space, ==, msp_free_space);
+}
+
+static int
+metaslab_reconcile_load_repair(metaslab_t *msp,
+    const space_map_load_result_t *result, boolean_t repair_needed,
+    int64_t *alloc_delta)
+{
+	uint64_t old_allocated = msp->ms_allocated_space;
+	uint64_t new_allocated = repair_needed ?
+	    result->smlr_allocated : old_allocated;
+
+	if (new_allocated > msp->ms_size)
+		return (SET_ERROR(ECKSUM));
+
+	uint64_t magnitude;
+	if (new_allocated >= old_allocated) {
+		magnitude = new_allocated - old_allocated;
+		if (magnitude > INT64_MAX)
+			return (SET_ERROR(ECKSUM));
+		*alloc_delta = (int64_t)magnitude;
+	} else {
+		magnitude = old_allocated - new_allocated;
+		if (magnitude > INT64_MAX)
+			return (SET_ERROR(ECKSUM));
+		*alloc_delta = -(int64_t)magnitude;
+	}
+
+	msp->ms_allocated_space = new_allocated;
+	return (0);
+}
+
+static void
+metaslab_repair_clear(metaslab_t *msp)
+{
+	memset(&msp->ms_repair, 0, sizeof (msp->ms_repair));
+}
+
+static boolean_t
+metaslab_load_has_pending_changes(metaslab_t *msp)
+{
+	if (msp->ms_allocating_total != 0 ||
+	    msp->ms_allocated_this_txg != 0 ||
+	    msp->ms_deferspace != 0 ||
+	    !zfs_range_tree_is_empty(msp->ms_unflushed_allocs) ||
+	    !zfs_range_tree_is_empty(msp->ms_unflushed_frees) ||
+	    !zfs_range_tree_is_empty(msp->ms_freeing) ||
+	    !zfs_range_tree_is_empty(msp->ms_freed) ||
+	    !zfs_range_tree_is_empty(msp->ms_checkpointing))
+		return (B_TRUE);
+
+	for (int t = 0; t < TXG_SIZE; t++) {
+		if (!zfs_range_tree_is_empty(msp->ms_allocating[t]))
+			return (B_TRUE);
+	}
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		if (!zfs_range_tree_is_empty(msp->ms_defer[t]))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+static void
+metaslab_account_unloadable(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT3U(msp->ms_allocated_space, <=, msp->ms_size);
+
+	/*
+	 * Once all known changes have been accounted, charge the remaining
+	 * capacity as allocated so an unreadable metaslab is never reported as
+	 * usable space.
+	 */
+	uint64_t unavailable = msp->ms_size - msp->ms_allocated_space;
+	while (unavailable != 0) {
+		int64_t delta = (int64_t)MIN(unavailable,
+		    (uint64_t)INT64_MAX);
+		metaslab_space_update(msp->ms_group, delta, 0, 0);
+		unavailable -= (uint64_t)delta;
+	}
+	msp->ms_allocated_space = msp->ms_size;
+}
+
+static void
+metaslab_mark_unloadable(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	boolean_t pending = metaslab_load_has_pending_changes(msp);
+	if (!pending)
+		metaslab_account_unloadable(msp);
+
+	metaslab_repair_clear(msp);
+	msp->ms_load_state = METASLAB_LOAD_UNLOADABLE;
+	msp->ms_condense_wanted = B_FALSE;
+	msp->ms_max_size = 0;
+	zfs_range_tree_vacate(msp->ms_trim, NULL, NULL);
+	metaslab_group_sort(msp->ms_group, msp, 0);
+	METASLABSTAT_BUMP(metaslabstat_load_unloadable);
+
+	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	uint64_t txg = spa_syncing_txg(spa);
+	if (pending && spa_writeable(spa) &&
+	    txg < spa_final_dirty_txg(spa)) {
+		vdev_dirty(msp->ms_group->mg_vd, VDD_METASLAB, msp, txg + 1);
+	}
+
+	zfs_dbgmsg("metaslab_load: quarantining unloadable metaslab, "
+	    "spa %s, vdev_id %llu, ms_id %llu, object %llu",
+	    spa_name(msp->ms_group->mg_vd->vdev_spa),
+	    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+	    (u_longlong_t)msp->ms_id,
+	    (u_longlong_t)space_map_object(msp->ms_sm));
 }
 
 static void
@@ -2322,6 +2456,9 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	 * here from the aforementioned code path.
 	 */
 	if (msp->ms_group == NULL)
+		return;
+
+	if (msp->ms_load_state != METASLAB_LOAD_NORMAL)
 		return;
 
 	/*
@@ -2485,6 +2622,7 @@ static int
 metaslab_load_impl(metaslab_t *msp)
 {
 	int error = 0;
+	space_map_load_result_t load_result = { 0 };
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loading);
@@ -2530,8 +2668,8 @@ metaslab_load_impl(metaslab_t *msp)
 	mrap->mra_floor_shift = metaslab_by_size_min_shift;
 
 	if (msp->ms_sm != NULL) {
-		error = space_map_load_length(msp->ms_sm, msp->ms_allocatable,
-		    SM_FREE, length);
+		error = space_map_load_length_repair(msp->ms_sm,
+		    msp->ms_allocatable, length, &load_result);
 
 		/* Now, populate the size-sorted tree. */
 		metaslab_rt_create(msp->ms_allocatable, mrap);
@@ -2593,7 +2731,108 @@ metaslab_load_impl(metaslab_t *msp)
 	}
 
 	ASSERT3P(msp->ms_group, !=, NULL);
+	metaslab_group_t *mg = msp->ms_group;
+	vdev_t *vd = mg->mg_vd;
+	spa_t *spa = vd->vdev_spa;
+	int64_t alloc_delta;
+	boolean_t repair_needed = load_result.smlr_repaired_entries != 0 ||
+	    msp->ms_smp_alloc_invalid;
+
+	/*
+	 * Repair is only self-contained when no changes outside the loaded
+	 * space map must be merged into ms_allocatable. If there are pending
+	 * changes, defer the load until syncing drains them rather than risk
+	 * making an ambiguous range allocatable again.
+	 */
+	if (repair_needed && metaslab_load_has_pending_changes(msp)) {
+		zfs_dbgmsg("metaslab_load: cannot safely persist overlap "
+		    "repair with pending changes, spa %s, vdev_id %llu, "
+		    "ms_id %llu, object %llu",
+		    spa_name(spa), (u_longlong_t)vd->vdev_id,
+		    (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)space_map_object(msp->ms_sm));
+		zfs_range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+		msp->ms_load_state = METASLAB_LOAD_DEFERRED;
+		msp->ms_condense_wanted = B_FALSE;
+		metaslab_group_sort(mg, msp, 0);
+		uint64_t txg = spa_syncing_txg(spa);
+		if (spa_writeable(spa) && txg < spa_final_dirty_txg(spa))
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+		mutex_exit(&msp->ms_sync_lock);
+		return (SET_ERROR(EAGAIN));
+	}
+
+	error = metaslab_reconcile_load_repair(msp, &load_result,
+	    repair_needed, &alloc_delta);
+	if (error != 0) {
+		zfs_range_tree_vacate(msp->ms_allocatable, NULL, NULL);
+		mutex_exit(&msp->ms_sync_lock);
+		return (error);
+	}
+
 	msp->ms_loaded = B_TRUE;
+	msp->ms_load_state = METASLAB_LOAD_NORMAL;
+	if (alloc_delta != 0)
+		metaslab_space_update(mg, alloc_delta, 0, 0);
+
+	if (repair_needed) {
+		msp->ms_repair = (metaslab_repair_t) {
+			.msr_smp_alloc = space_map_allocated(msp->ms_sm),
+			.msr_allocated = load_result.smlr_allocated,
+			.msr_entries = load_result.smlr_repaired_entries,
+			.msr_bytes = load_result.smlr_affected_bytes,
+		};
+
+		uint64_t txg = spa_syncing_txg(spa);
+		if (spa_writeable(spa) && txg < spa_final_dirty_txg(spa)) {
+			msp->ms_condense_wanted = B_TRUE;
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+		}
+
+		METASLABSTAT_BUMP(metaslabstat_load_repairs);
+		METASLABSTAT_ADD(metaslabstat_load_repaired_entries,
+		    load_result.smlr_repaired_entries);
+		METASLABSTAT_ADD(metaslabstat_load_repaired_bytes,
+		    load_result.smlr_affected_bytes);
+		zfs_dbgmsg("metaslab_load: repaired invalid_smp_alloc=%u and "
+		    "quarantined %llu overlapping space map entries "
+		    "affecting %llu bytes, smp_alloc %lld, reconstructed "
+		    "allocation %llu, spa %s, vdev_id %llu, ms_id %llu, "
+		    "object %llu",
+		    msp->ms_smp_alloc_invalid,
+		    (u_longlong_t)load_result.smlr_repaired_entries,
+		    (u_longlong_t)load_result.smlr_affected_bytes,
+		    (longlong_t)msp->ms_repair.msr_smp_alloc,
+		    (u_longlong_t)load_result.smlr_allocated, spa_name(spa),
+		    (u_longlong_t)vd->vdev_id, (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)space_map_object(msp->ms_sm));
+		if (load_result.smlr_repaired_entries != 0) {
+			zfs_dbgmsg("metaslab_load: first %s offset=%llx "
+			    "run=%llx free_before=%llx txg=%llu pass=%llu; "
+			    "last %s offset=%llx run=%llx free_before=%llx "
+			    "txg=%llu pass=%llu",
+			    load_result.smlr_first_entry.sme_type == SM_ALLOC ?
+			    "ALLOC" : "FREE",
+			    (u_longlong_t)
+			    load_result.smlr_first_entry.sme_offset,
+			    (u_longlong_t)
+			    load_result.smlr_first_entry.sme_run,
+			    (u_longlong_t)load_result.smlr_first_free_bytes,
+			    (u_longlong_t)
+			    load_result.smlr_first_entry.sme_txg,
+			    (u_longlong_t)
+			    load_result.smlr_first_entry.sme_sync_pass,
+			    load_result.smlr_last_entry.sme_type == SM_ALLOC ?
+			    "ALLOC" : "FREE",
+			    (u_longlong_t)
+			    load_result.smlr_last_entry.sme_offset,
+			    (u_longlong_t)load_result.smlr_last_entry.sme_run,
+			    (u_longlong_t)load_result.smlr_last_free_bytes,
+			    (u_longlong_t)load_result.smlr_last_entry.sme_txg,
+			    (u_longlong_t)
+			    load_result.smlr_last_entry.sme_sync_pass);
+		}
+	}
 
 	/*
 	 * Apply all the unflushed changes to ms_allocatable right
@@ -2606,7 +2845,6 @@ metaslab_load_impl(metaslab_t *msp)
 	    zfs_range_tree_add, msp->ms_allocatable);
 
 	ASSERT3P(msp->ms_group, !=, NULL);
-	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
 	if (spa_syncing_log_sm(spa) != NULL) {
 		ASSERT(spa_feature_is_enabled(spa,
 		    SPA_FEATURE_LOG_SPACEMAP));
@@ -2669,10 +2907,12 @@ metaslab_load_impl(metaslab_t *msp)
 	uint64_t weight = msp->ms_weight;
 	uint64_t max_size = msp->ms_max_size;
 	metaslab_recalculate_weight_and_sort(msp);
-	if (!WEIGHT_IS_SPACEBASED(weight))
+	if (!WEIGHT_IS_SPACEBASED(weight) &&
+	    load_result.smlr_repaired_entries == 0)
 		ASSERT3U(weight, <=, msp->ms_weight);
 	msp->ms_max_size = metaslab_largest_allocatable(msp);
-	ASSERT3U(max_size, <=, msp->ms_max_size);
+	if (load_result.smlr_repaired_entries == 0)
+		ASSERT3U(max_size, <=, msp->ms_max_size);
 	hrtime_t load_end = gethrtime();
 	msp->ms_load_time = load_end;
 	zfs_dbgmsg("metaslab_load: txg %llu, spa %s, class %s, vdev_id %llu, "
@@ -2715,6 +2955,10 @@ metaslab_load(metaslab_t *msp)
 	metaslab_load_wait(msp);
 	if (msp->ms_loaded)
 		return (0);
+	if (msp->ms_load_state == METASLAB_LOAD_DEFERRED)
+		return (SET_ERROR(EAGAIN));
+	if (msp->ms_load_state == METASLAB_LOAD_UNLOADABLE)
+		return (SET_ERROR(ECKSUM));
 	VERIFY(!msp->ms_loading);
 	ASSERT(!msp->ms_condensing);
 
@@ -2754,6 +2998,8 @@ metaslab_load(metaslab_t *msp)
 	int error = metaslab_load_impl(msp);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	if (error == ECKSUM)
+		metaslab_mark_unloadable(msp);
 	msp->ms_loading = B_FALSE;
 	cv_broadcast(&msp->ms_load_cv);
 
@@ -2932,7 +3178,20 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 		}
 
 		ASSERT(ms->ms_sm != NULL);
-		ms->ms_allocated_space = space_map_allocated(ms->ms_sm);
+		int64_t allocated = space_map_allocated(ms->ms_sm);
+		if (allocated < 0 || (uint64_t)allocated > ms->ms_size) {
+			ms->ms_allocated_space = ms->ms_size;
+			ms->ms_smp_alloc_invalid = B_TRUE;
+			zfs_dbgmsg("metaslab_init: invalid allocated space "
+			    "%lld in spa %s, vdev_id %llu, ms_id %llu, "
+			    "object %llu",
+			    (longlong_t)allocated, spa_name(spa),
+			    (u_longlong_t)vd->vdev_id,
+			    (u_longlong_t)ms->ms_id,
+			    (u_longlong_t)space_map_object(ms->ms_sm));
+		} else {
+			ms->ms_allocated_space = (uint64_t)allocated;
+		}
 	}
 
 	uint64_t shift, start;
@@ -2992,6 +3251,18 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	if (txg <= TXG_INITIAL) {
 		metaslab_sync_done(ms, 0);
 		metaslab_space_update(mg, metaslab_allocated_space(ms), 0, 0);
+	}
+
+	/*
+	 * The conservative accounting above gives this metaslab zero weight,
+	 * so explicitly schedule a preload to reconstruct its allocation count.
+	 */
+	if (ms->ms_smp_alloc_invalid && spa_writeable(spa)) {
+		uint64_t repair_txg = spa_syncing_txg(spa);
+		if (repair_txg < spa_final_dirty_txg(spa)) {
+			ms->ms_condense_wanted = B_TRUE;
+			vdev_dirty(vd, VDD_METASLAB, ms, repair_txg + 1);
+		}
 	}
 
 	if (txg != 0) {
@@ -3459,6 +3730,9 @@ metaslab_segment_weight(metaslab_t *msp)
 static boolean_t
 metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard)
 {
+	if (unlikely(msp->ms_load_state != METASLAB_LOAD_NORMAL))
+		return (B_FALSE);
+
 	/*
 	 * This case will usually but not always get caught by the checks below;
 	 * metaslabs can be loaded by various means, including the trim and
@@ -3506,6 +3780,9 @@ metaslab_weight(metaslab_t *msp, boolean_t nodirty)
 	uint64_t weight;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if (msp->ms_load_state != METASLAB_LOAD_NORMAL)
+		return (0);
 
 	metaslab_set_fragmentation(msp, nodirty);
 
@@ -3775,8 +4052,8 @@ metaslab_preload(void *arg)
 	ASSERT(!MUTEX_HELD(&msp->ms_group->mg_lock));
 
 	mutex_enter(&msp->ms_lock);
-	(void) metaslab_load(msp);
-	metaslab_set_selected_txg(msp, spa_syncing_txg(spa));
+	if (metaslab_load(msp) == 0)
+		metaslab_set_selected_txg(msp, spa_syncing_txg(spa));
 	mutex_exit(&msp->ms_lock);
 	spl_fstrans_unmark(cookie);
 }
@@ -3883,6 +4160,8 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	space_map_t *sm = msp->ms_sm;
 	uint64_t txg = dmu_tx_get_txg(tx);
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+	metaslab_repair_t repair = msp->ms_repair;
+	boolean_t repair_summary = msp->ms_smp_alloc_invalid;
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	ASSERT(msp->ms_loaded);
@@ -4022,10 +4301,24 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	zfs_range_tree_destroy(condense_tree);
 	zfs_range_tree_vacate(tmp_tree, NULL, NULL);
 	zfs_range_tree_destroy(tmp_tree);
+	if (repair.msr_entries != 0 || repair_summary) {
+		spa_history_log_internal(spa, "metaslab repair", tx,
+		    "vdev=%llu metaslab=%llu object=%llu entries=%llu "
+		    "bytes=%llu smp_alloc=%lld reconstructed_alloc=%llu "
+		    "invalid_smp_alloc=%u",
+		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+		    (u_longlong_t)msp->ms_id, (u_longlong_t)object,
+		    (u_longlong_t)repair.msr_entries,
+		    (u_longlong_t)repair.msr_bytes,
+		    (longlong_t)repair.msr_smp_alloc,
+		    (u_longlong_t)repair.msr_allocated, repair_summary);
+	}
 	mutex_enter(&msp->ms_lock);
 
 	msp->ms_condensing = B_FALSE;
 	metaslab_flush_update(msp, tx);
+	metaslab_repair_clear(msp);
+	msp->ms_smp_alloc_invalid = B_FALSE;
 }
 
 static void
@@ -4239,6 +4532,10 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 	zfs_range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
 	zfs_range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
 
+	if (msp->ms_load_state == METASLAB_LOAD_UNLOADABLE &&
+	    !metaslab_load_has_pending_changes(msp))
+		metaslab_account_unloadable(msp);
+
 	metaslab_verify_space(msp, dmu_tx_get_txg(tx));
 	metaslab_verify_weight_and_frag(msp);
 
@@ -4293,6 +4590,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	if (zfs_range_tree_is_empty(alloctree) &&
 	    zfs_range_tree_is_empty(msp->ms_freeing) &&
 	    zfs_range_tree_is_empty(msp->ms_checkpointing) &&
+	    !(msp->ms_load_state != METASLAB_LOAD_NORMAL &&
+	    txg <= spa_final_dirty_txg(spa)) &&
 	    !(msp->ms_loaded && msp->ms_condense_wanted &&
 	    txg <= spa_final_dirty_txg(spa)))
 		return;
@@ -4364,6 +4663,29 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	mutex_enter(&msp->ms_sync_lock);
 	mutex_enter(&msp->ms_lock);
+
+	/*
+	 * A repair load can be deferred by changes which still live in the
+	 * pool-wide log space map. Force those changes into this metaslab's
+	 * space map so the next preload can repair and condense it.
+	 */
+	if (spa_sync_pass(spa) == 1 &&
+	    msp->ms_load_state != METASLAB_LOAD_NORMAL &&
+	    spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP) &&
+	    metaslab_unflushed_txg(msp) != 0 &&
+	    metaslab_unflushed_txg(msp) < txg &&
+	    metaslab_unflushed_dirty(msp)) {
+		boolean_t flush_only = zfs_range_tree_is_empty(alloctree) &&
+		    zfs_range_tree_is_empty(msp->ms_freeing) &&
+		    zfs_range_tree_is_empty(msp->ms_checkpointing);
+
+		if (metaslab_flush(msp, tx) && flush_only) {
+			mutex_exit(&msp->ms_lock);
+			mutex_exit(&msp->ms_sync_lock);
+			dmu_tx_commit(tx);
+			return;
+		}
+	}
 
 	/*
 	 * Note: metaslab_condense() clears the space map's histogram.
@@ -4565,6 +4887,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	zfs_range_tree_t **defer_tree;
 	int64_t alloc_delta, defer_delta;
 	boolean_t defer_allowed = B_TRUE;
+	boolean_t retry_load = B_FALSE;
 
 	ASSERT(!vd->vdev_ishole);
 
@@ -4624,7 +4947,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * can be discarded at any time with the sole consequence of recent
 	 * frees not being trimmed.
 	 */
-	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON) {
+	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON &&
+	    msp->ms_load_state != METASLAB_LOAD_UNLOADABLE) {
 		zfs_range_tree_walk(*defer_tree, zfs_range_tree_add,
 		    msp->ms_trim);
 		if (!defer_allowed) {
@@ -4684,7 +5008,28 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	ASSERT0(zfs_range_tree_space(msp->ms_checkpointing));
 	msp->ms_allocating_total -= msp->ms_allocated_this_txg;
 	msp->ms_allocated_this_txg = 0;
+	if (msp->ms_load_state == METASLAB_LOAD_DEFERRED) {
+		if (!metaslab_load_has_pending_changes(msp)) {
+			msp->ms_load_state = METASLAB_LOAD_NORMAL;
+			metaslab_recalculate_weight_and_sort(msp);
+			retry_load = B_TRUE;
+		} else if (txg < spa_final_dirty_txg(spa)) {
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+		}
+	}
+	if (msp->ms_load_state == METASLAB_LOAD_UNLOADABLE) {
+		if (!metaslab_load_has_pending_changes(msp)) {
+			metaslab_account_unloadable(msp);
+		} else if (txg < spa_final_dirty_txg(spa)) {
+			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
+		}
+	}
 	mutex_exit(&msp->ms_lock);
+
+	if (retry_load && !spa_shutting_down(spa)) {
+		VERIFY(taskq_dispatch(spa->spa_metaslab_taskq,
+		    metaslab_preload, msp, TQ_SLEEP) != TASKQID_INVALID);
+	}
 }
 
 void

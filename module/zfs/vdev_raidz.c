@@ -4999,7 +4999,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 			continue;
 		}
 
-		VERIFY0(metaslab_load(msp));
+		boolean_t loaded = (metaslab_load(msp) == 0);
 
 		/*
 		 * We want to copy everything except the free (allocatable)
@@ -5014,8 +5014,10 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		    metaslab_rt_name(msp->ms_group, msp,
 		    "spa_raidz_expand_thread:rt"));
 		zfs_range_tree_add(rt, msp->ms_start, msp->ms_size);
-		zfs_range_tree_walk(msp->ms_allocatable, zfs_range_tree_remove,
-		    rt);
+		if (loaded) {
+			zfs_range_tree_walk(msp->ms_allocatable,
+			    zfs_range_tree_remove, rt);
+		}
 		mutex_exit(&msp->ms_lock);
 
 		/*
