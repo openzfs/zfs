@@ -378,6 +378,8 @@ SRCS+=	abd.c \
 	zfs_vnops.c \
 	zfs_znode.c \
 	zil.c \
+	zia.c \
+	zia_cddl.c \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \

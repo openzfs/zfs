@@ -48,6 +48,7 @@
 #ifndef _ZIA_H
 #define	_ZIA_H
 
+#include <sys/simd_config.h> /* Specifically for lustre builds */
 #include <sys/abd.h>
 #include <sys/fs/zfs.h> /* VDEV_RAIDZ_MAXPARITY */
 #include <sys/vdev.h>

@@ -49,6 +49,15 @@ typedef struct abd {
 	zfs_refcount_t	abd_children;
 #endif
 	kmutex_t	abd_mtx;
+	void *abd_zia_handle;
+
+	/*
+	 * This union must always remain at the
+	 * bottom of the struct.
+	 * On FreeBSD, abd_scatter could grow
+	 * which would overwrite any members
+	 * below the union, if present.
+	 */
 	union {
 		struct abd_scatter	abd_scatter;
 		struct abd_linear	abd_linear;
@@ -56,7 +65,6 @@ typedef struct abd {
 			list_t abd_gang_chain;
 		} abd_gang;
 	} abd_u;
-	void *abd_zia_handle;
 } abd_t;
 
 typedef int abd_iter_func_t(void *buf, size_t len, void *priv);
