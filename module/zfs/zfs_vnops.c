@@ -90,7 +90,7 @@ int zfs_bclone_wait_dirty = 1;
  * directed through the ARC acting as though the dataset property direct was
  * set to disabled.
  */
-static int zfs_dio_enabled = 1;
+int zfs_dio_enabled = 1;
 
 /*
  * Strictly enforce alignment for Direct I/O requests, returning EINVAL
