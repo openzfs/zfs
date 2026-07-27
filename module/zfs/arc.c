@@ -7042,13 +7042,46 @@ arc_write_done(zio_t *zio)
 				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
 					panic("bad overwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
-				ASSERT(zfs_refcount_is_zero(
-				    &exists->b_l1hdr.b_refcnt));
-				arc_change_state(arc_anon, exists);
-				arc_hdr_destroy(exists);
-				mutex_exit(hash_lock);
-				exists = buf_hash_insert(hdr, &hash_lock);
-				ASSERT0P(exists);
+
+				/*
+				 * This is a sync-to-convergence overwrite:
+				 * the new block has the same DVA+birth as a
+				 * block written in an earlier sync pass, so
+				 * buf_hash_insert() found the old header.
+				 *
+				 * The old header may still be in use by a
+				 * concurrent ghost-hit read: a block evicted
+				 * to a ghost state and then re-requested
+				 * between sync passes.  In that case the
+				 * header has IO_IN_PROGRESS set and a
+				 * non-zero refcount from arc_read().  The
+				 * hash lock was released before the read
+				 * I/O was submitted, so arc_write_done()
+				 * can acquire it here and collide.
+				 *
+				 * If we destroy a header that still has an
+				 * I/O in flight, arc_read_done() will
+				 * access freed memory via zio->io_private,
+				 * corrupting whatever reuses it and
+				 * eventually panicking in buf_hash_remove().
+				 *
+				 * Only destroy the old header when it is
+				 * truly idle: no I/O in progress and no
+				 * outstanding references.  Otherwise leave
+				 * it in the hash table — the write data is
+				 * already on disk, so the worst case is a
+				 * cache miss on the next read.
+				 */
+				if (!HDR_IO_IN_PROGRESS(exists) &&
+				    zfs_refcount_is_zero(
+				    &exists->b_l1hdr.b_refcnt)) {
+					arc_change_state(arc_anon, exists);
+					arc_hdr_destroy(exists);
+					mutex_exit(hash_lock);
+					exists = buf_hash_insert(hdr,
+					    &hash_lock);
+					ASSERT0P(exists);
+				}
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
 				/* nopwrite */
 				ASSERT(zio->io_prop.zp_nopwrite);
