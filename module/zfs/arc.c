@@ -1050,6 +1050,7 @@ buf_hash(uint64_t spa, const dva_t *dva, uint64_t birth)
 static void
 buf_discard_identity(arc_buf_hdr_t *hdr)
 {
+	VERIFY(!HDR_IN_HASH_TABLE(hdr));
 	hdr->b_dva.dva_word[0] = 0;
 	hdr->b_dva.dva_word[1] = 0;
 	hdr->b_birth = 0;
@@ -1131,7 +1132,7 @@ buf_hash_remove(arc_buf_hdr_t *hdr)
 	arc_buf_hdr_t *fhdr, **hdrp;
 	uint64_t idx = BUF_HASH_INDEX(hdr->b_spa, &hdr->b_dva, hdr->b_birth);
 
-	ASSERT(MUTEX_HELD(BUF_HASH_LOCK(idx)));
+	VERIFY(MUTEX_HELD(BUF_HASH_LOCK(idx)));
 	ASSERT(HDR_IN_HASH_TABLE(hdr));
 
 	hdrp = &buf_hash_table.ht_table[idx];
@@ -2463,7 +2464,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr)
 		update_new = B_TRUE;
 
 	ASSERT(MUTEX_HELD(HDR_LOCK(hdr)));
-	ASSERT3P(new_state, !=, old_state);
+	VERIFY3P(new_state, !=, old_state);
 
 	/*
 	 * If this buffer is evictable, transfer it from the
@@ -3706,7 +3707,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 			arc_hdr_free_abd(hdr, B_TRUE);
 	}
 
-	ASSERT0P(hdr->b_hash_next);
+	VERIFY0P(hdr->b_hash_next);
 	if (HDR_HAS_L1HDR(hdr)) {
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 		ASSERT0P(hdr->b_l1hdr.b_acb);
@@ -6744,7 +6745,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		ASSERT(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) == 1);
 		/* protected by hash lock, or hdr is on arc_anon */
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
-		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
+		VERIFY(!HDR_IO_IN_PROGRESS(hdr));
 
 		if (HDR_HAS_L2HDR(hdr)) {
 			mutex_enter(&hdr->b_l2hdr.b_dev->l2ad_mtx);
@@ -7000,13 +7001,13 @@ arc_write_done(zio_t *zio)
 				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
 					panic("bad overwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);
-				ASSERT(zfs_refcount_is_zero(
+				VERIFY(zfs_refcount_is_zero(
 				    &exists->b_l1hdr.b_refcnt));
 				arc_change_state(arc_anon, exists);
 				arc_hdr_destroy(exists);
 				mutex_exit(hash_lock);
 				exists = buf_hash_insert(hdr, &hash_lock);
-				ASSERT0P(exists);
+				VERIFY0P(exists);
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
 				/* nopwrite */
 				ASSERT(zio->io_prop.zp_nopwrite);
