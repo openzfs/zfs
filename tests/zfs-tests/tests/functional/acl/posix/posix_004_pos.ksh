@@ -41,6 +41,7 @@
 
 verify_runnable "both"
 log_assert "Verify chown works with POSIX ACLs"
+log_onexit cleanup
 
 log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
 log_must setfacl -b $TESTDIR
