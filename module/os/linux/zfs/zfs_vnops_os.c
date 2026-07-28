@@ -4559,6 +4559,8 @@ struct zfs_async_read_cb
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
 	abd_t		*data;	/* ABD wrapping user pages; freed in cb */
+	boolean_t	is_retry;
+	abd_t		*user_data;	/* saved user-pages ABD during retry */
 };
 
 /*
@@ -4601,30 +4603,84 @@ zfs_async_read_complete(void *arg, int error)
 	ssize_t read;
 
 	/*
+	 * A Direct I/O read that fails checksum verification is suspect:
+	 * a concurrent writer may have modified the buffer in flight,
+	 * refer to PR#18844.  On first ECKSUM, re-read into a temporary
+	 * ABD via an async chained dmu_read_abd_async().  The temporary
+	 * ABD lives in stable kernel memory where no concurrent writer can
+	 * overwrite it, so the checksum verify on the retry passes for a
+	 * benign race and fails only for genuine on-disk corruption.
+	 *
+	 * If the retry succeeds, copy the stable data into the pinned user
+	 * pages and signal success.  If the retry also fails, or if
+	 * submission of the retry fails, signal EIO.
+	 */
+	if (error == ECKSUM) {
+		if (!cb->is_retry) {
+			abd_t *tmp = abd_alloc_for_io(cb->start_resid, B_FALSE);
+
+			cb->user_data = cb->data;
+			cb->data = tmp;
+			cb->is_retry = B_TRUE;
+
+			dmu_buf_t *db = sa_get_db(cb->zp->z_sa_hdl);
+			int retry_err = dmu_read_abd_async(
+			    DB_DNODE((dmu_buf_impl_t *)db),
+			    zfs_uio_offset(&cb->uio),
+			    cb->start_resid,
+			    tmp,
+			    DMU_READ_PREFETCH | DMU_DIRECTIO,
+			    zfs_async_read_complete, cb);
+
+			if (retry_err != 0) {
+				/*
+				 * Retry submission failed: roll back to the
+				 * state before the retry and signal EIO.
+				 */
+				abd_free(tmp);
+				cb->data = cb->user_data;
+				cb->user_data = NULL;
+				cb->is_retry = B_FALSE;
+				error = SET_ERROR(EIO);
+				goto out;
+			}
+
+			return;
+		}
+
+		/* Retry also got ECKSUM: genuine on-disk corruption. */
+		error = SET_ERROR(EIO);
+	}
+
+	/*
+	 * On return from a retry, regardless of error, free the temporary
+	 * kernel ABD and restore cb->data to the user-pages ABD so the
+	 * final cleanup below frees the correct ABD.
+	 */
+	if (cb->is_retry) {
+		if (error == 0) {
+			/*
+			 * Retry succeeded: copy stable data from the
+			 * temporary ABD into the pinned user pages.
+			 */
+			abd_copy(cb->user_data, cb->data, cb->start_resid);
+		}
+		abd_free(cb->data);
+		cb->data = cb->user_data;
+		cb->user_data = NULL;
+	}
+
+	/*
 	 * For the DIO (ABD) path, dmu_read_abd_async() writes data directly
 	 * to the user pages via DMA, so uio_resid is never decremented.
 	 * On success, report the full requested size as the bytes read.
-	 * On checksum error we report the error to the caller.
 	 */
 	if (error == 0)
 		read = cb->start_resid;
 	else
 		read = 0;
 
-	/*
-	 * A Direct I/O read that fails checksum verification is suspect:
-	 * a concurrent writer may have modified the buffer in flight. The
-	 * synchronous path reissues the read through the ARC and, if that
-	 * also fails, returns EIO (see zfs_read()). This completion runs in
-	 * ZIO taskq context without the submitter's mm and cannot re-copy
-	 * ARC data into the pinned user pages, so it cannot retry; convert
-	 * ECKSUM to EIO so the internal error code never leaks to userspace
-	 * and the result matches the sync path for genuinely corrupt data.
-	 * (Transient races the sync path would recover via the ARC retry
-	 * are not recovered here -- see harness tests/b4-arc-fallback.)
-	 */
-	if (error == ECKSUM)
-		error = SET_ERROR(EIO);
+out:
 
 	dataset_kstats_update_read_kstats(&cb->zfsvfs->z_kstat, read);
 	zfs_rangelock_exit(cb->lr);
@@ -4748,6 +4804,8 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio.uio_resid = aligned_n;
 	cb->start_resid = aligned_n;
 	cb->data = data;
+	cb->is_retry = B_FALSE;
+	cb->user_data = NULL;
 
 	/*
 	 * Held until the completion's last touch of the zfsvfs; taken
