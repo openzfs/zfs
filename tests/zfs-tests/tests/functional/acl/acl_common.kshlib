@@ -165,6 +165,7 @@ function cleanup
 	if [[ -d $TESTDIR ]]; then
 		cd $TESTDIR
 		rm -rf $TESTDIR/*
+		log_must setfacl -b $TESTDIR
 	fi
 }
 
