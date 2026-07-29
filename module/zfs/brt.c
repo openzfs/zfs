@@ -1348,9 +1348,19 @@ brt_pending_remove(spa_t *spa, const blkptr_t *bp, dmu_tx_t *tx)
 		kmem_cache_free(brt_entry_cache, bre);
 }
 
+typedef struct brt_pending_vdev_arg {
+	spa_t		*bpva_spa;
+	brt_vdev_t	*bpva_brtvd;
+	uint64_t	bpva_txg;
+} brt_pending_vdev_arg_t;
+
 static void
-brt_pending_apply_vdev(spa_t *spa, brt_vdev_t *brtvd, uint64_t txg)
+brt_pending_apply_vdev(void *arg)
 {
+	brt_pending_vdev_arg_t *bpva = arg;
+	spa_t *spa = bpva->bpva_spa;
+	brt_vdev_t *brtvd = bpva->bpva_brtvd;
+	uint64_t txg = bpva->bpva_txg;
 	brt_entry_t *bre, *nbre;
 
 	/*
@@ -1488,16 +1498,38 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		}
 	}
 
+	/*
+	 * Add pending references to the BRTs of their vdevs.  Process the
+	 * vdevs in parallel, since random BRT ZAP lookups are CPU-expensive
+	 * due to the leaf block decompression.  The BRT ZAP hash is salted,
+	 * so unlike the DDT above the lookups can not be ordered to match
+	 * the leaf blocks order.
+	 */
 	brt_rlock(spa);
-	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+	uint64_t nvdevs = spa->spa_brt_nvdevs;
+	brt_unlock(spa);
+	if (nvdevs == 0)
+		return;
+	brt_pending_vdev_arg_t *bpva =
+	    kmem_zalloc(sizeof (*bpva) * nvdevs, KM_SLEEP);
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
 		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
-		brt_unlock(spa);
-
-		brt_pending_apply_vdev(spa, brtvd, txg);
-
-		brt_rlock(spa);
+		if (avl_is_empty(&brtvd->bv_pending_tree[txg & TXG_MASK]))
+			continue;
+		bpva[vdevid].bpva_spa = spa;
+		bpva[vdevid].bpva_brtvd = brtvd;
+		bpva[vdevid].bpva_txg = txg;
 	}
 	brt_unlock(spa);
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
+		if (bpva[vdevid].bpva_spa == NULL)
+			continue;
+		VERIFY(taskq_dispatch(tq, brt_pending_apply_vdev,
+		    &bpva[vdevid], TQ_SLEEP) != TASKQID_INVALID);
+	}
+	taskq_wait(tq);
+	kmem_free(bpva, sizeof (*bpva) * nvdevs);
 }
 
 static void
