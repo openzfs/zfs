@@ -169,6 +169,26 @@ struct brt_vdev {
 	avl_tree_t	bv_tree;
 };
 
+/*
+ * Clones of blocks with the DEDUP bit set reference the DDT instead of
+ * the BRT.  Their pending entries are kept separately from the per-vdev
+ * pending trees, sorted by the block checksum, matching the DDT ZAP hash
+ * order (the first checksum word is the pre-hashed ZAP key), and sharded
+ * by its top bits.  It allows syncing context to process the shards in
+ * parallel, each walking a disjoint range of DDT ZAP leaves in the hash
+ * order, so that each compressed leaf block is decompressed only once
+ * and never by more than one thread.
+ */
+#define	BRT_DEDUP_SHARDS_SHIFT	4
+#define	BRT_DEDUP_SHARDS	(1 << BRT_DEDUP_SHARDS_SHIFT)
+#define	BRT_DEDUP_SHARD(bp)						\
+	((bp)->blk_cksum.zc_word[0] >> (64 - BRT_DEDUP_SHARDS_SHIFT))
+
+struct brt_dedup_shard {
+	kmutex_t	bds_lock;
+	avl_tree_t	bds_tree[TXG_SIZE];
+};
+
 /* Size of offset / sizeof (uint64_t). */
 #define	BRT_KEY_WORDS	(1)
 

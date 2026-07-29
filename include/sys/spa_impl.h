@@ -441,6 +441,7 @@ struct spa {
 	boolean_t	spa_active_ddt_prune;	/* ddt prune process active */
 	brt_vdev_t	**spa_brt_vdevs;	/* array of per-vdev BRTs */
 	uint64_t	spa_brt_nvdevs;		/* number of vdevs in BRT */
+	brt_dedup_shard_t *spa_brt_dedup;	/* pending dedup'd clones */
 	uint64_t	spa_brt_rangesize;	/* pool's BRT range size */
 	krwlock_t	spa_brt_lock;		/* Protects brt_vdevs/nvdevs */
 	kmutex_t	spa_vdev_top_lock;	/* dueling offline/remove */
