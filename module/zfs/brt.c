@@ -928,6 +928,19 @@ brt_maybe_exists(spa_t *spa, const blkptr_t *bp)
 	return (brt_vdev_lookup(spa, brtvd, off));
 }
 
+/*
+ * Estimate the worst-case amount of MOS data the sync thread may dirty
+ * to add, update or remove one BRT entry: one ZAP leaf block.  Unlike
+ * the DDT, BRT ZAPs do not use prehashed keys, so even consecutive
+ * offsets scatter across leaves and rarely combine.
+ */
+uint64_t
+brt_sync_dirty_est(spa_t *spa)
+{
+	(void) spa;
+	return (1ULL << brt_zap_default_bs);
+}
+
 uint64_t
 brt_get_dspace(spa_t *spa)
 {

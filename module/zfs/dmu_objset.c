@@ -3041,9 +3041,10 @@ dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 
 	if (ds != NULL) {
 		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);
+		dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
+	} else {
+		dsl_pool_dirty_mos_space(dmu_tx_pool(tx), space, tx);
 	}
-
-	dsl_pool_dirty_space(dmu_tx_pool(tx), space, tx);
 }
 
 /*

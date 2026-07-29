@@ -36,7 +36,7 @@
 #include <sys/dnode.h>
 #include <sys/zio_compress.h>
 
-static unsigned int ddt_zap_default_bs = 15;
+unsigned int ddt_zap_default_bs = 15;
 static unsigned int ddt_zap_default_ibs = 15;
 
 #define	DDT_ZAP_COMPRESS_BYTEORDER_MASK	0x80

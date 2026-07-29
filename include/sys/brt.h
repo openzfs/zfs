@@ -45,6 +45,7 @@ extern uint64_t brt_get_saved(spa_t *spa);
 extern uint64_t brt_get_ratio(spa_t *spa);
 
 extern boolean_t brt_maybe_exists(spa_t *spa, const blkptr_t *bp);
+extern uint64_t brt_sync_dirty_est(spa_t *spa);
 extern void brt_init(void);
 extern void brt_fini(void);
 
