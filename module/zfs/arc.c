@@ -6634,12 +6634,18 @@ arc_release(arc_buf_t *buf, const void *tag)
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
+	mutex_enter(hash_lock);
+
 	/*
-	 * We don't grab the hash lock prior to this check, because if
-	 * the buffer's header is in the arc_anon state, it won't be
-	 * linked into the hash table.
+	 * Grab hash lock before this check to avoid races with arc_read_done()
+	 * which can transition hdr to arc_anon state on error, and we don't
+	 * want to miss it.
 	 */
 	if (hdr->b_l1hdr.b_state == arc_anon) {
+
+		mutex_exit(hash_lock);
+
 		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 		ASSERT(!HDR_IN_HASH_TABLE(hdr));
 		ASSERT(!HDR_HAS_L2HDR(hdr));
@@ -6660,9 +6666,6 @@ arc_release(arc_buf_t *buf, const void *tag)
 
 		return;
 	}
-
-	kmutex_t *hash_lock = HDR_LOCK(hdr);
-	mutex_enter(hash_lock);
 
 	/*
 	 * This assignment is only valid as long as the hash_lock is
