@@ -6024,7 +6024,6 @@ top:
 				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
 			}
-			mutex_exit(hash_lock);
 
 			ARCSTAT_BUMP(arcstat_iohits);
 			ARCSTAT_CONDSTAT(!(*arc_flags & ARC_FLAG_PREFETCH),
@@ -6032,6 +6031,7 @@ top:
 
 			if (*arc_flags & ARC_FLAG_WAIT) {
 				mutex_enter(&acb->acb_wait_lock);
+				mutex_exit(hash_lock);
 				while (acb->acb_wait) {
 					cv_wait(&acb->acb_wait_cv,
 					    &acb->acb_wait_lock);
@@ -6041,6 +6041,8 @@ top:
 				mutex_destroy(&acb->acb_wait_lock);
 				cv_destroy(&acb->acb_wait_cv);
 				kmem_free(acb, sizeof (arc_callback_t));
+			} else {
+				mutex_exit(hash_lock);
 			}
 			goto out;
 		}
@@ -6204,8 +6206,8 @@ top:
 				acb->acb_next = hdr->b_l1hdr.b_acb;
 				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
-				mutex_exit(hash_lock);
 				mutex_enter(&acb->acb_wait_lock);
+				mutex_exit(hash_lock);
 				while (acb->acb_wait) {
 					cv_wait(&acb->acb_wait_cv,
 					    &acb->acb_wait_lock);
