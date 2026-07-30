@@ -560,8 +560,8 @@ mmp_claim_uberblock_sync_done(zio_t *zio)
 
 /*
  * Write the uberblock to the first label of all leaves of the specified vdev.
- * Two writes required for each mirror, one for a singleton, and parity+1 for
- * raidz or draid vdevs.
+ * One write per mirror leg the config still expects present, one for a
+ * singleton, and parity+1 for raidz or draid vdevs.
  */
 static void
 mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
@@ -580,8 +580,32 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 			if (nparity) {
 				*req_writes += nparity + 1;
 			} else {
-				*req_writes +=
-				    MIN(MAX(cvd->vdev_children, 1), 2);
+				/*
+				 * Mirror: any single leg is enough for a
+				 * remote host to see the claim, so require a
+				 * write to every leg the pool config still
+				 * expects to be present.  A leg taken out of
+				 * service is recorded persistently in the
+				 * config (offline, faulted, or removed) and
+				 * is seen the same way by every host, so it
+				 * is not required and a degraded mirror can
+				 * still be claimed.  A leg merely unreachable
+				 * from this host has none of those states and
+				 * stays required, so a host which can see
+				 * only some of the legs of an otherwise
+				 * healthy mirror still fails the claim and
+				 * cannot split the pool.
+				 */
+				uint64_t present = 0;
+				for (uint64_t l = 0; l < cvd->vdev_children;
+				    l++) {
+					vdev_t *lvd = cvd->vdev_child[l];
+					if (!lvd->vdev_offline &&
+					    !lvd->vdev_faulted &&
+					    !lvd->vdev_removed)
+						present++;
+				}
+				*req_writes += MAX(present, 1);
 			}
 		}
 
