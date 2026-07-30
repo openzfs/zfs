@@ -20,6 +20,9 @@ scripts_zfs_tests_functional_vdev_disk_PROGRAMS = %D%/tests/functional/vdev_disk
 scripts_zfs_tests_functional_cp_filesdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/cp_files
 scripts_zfs_tests_functional_cp_files_PROGRAMS = %D%/tests/functional/cp_files/seekflood
 
+scripts_zfs_tests_functional_fsyncdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/fsync
+scripts_zfs_tests_functional_fsync_PROGRAMS = %D%/tests/functional/fsync/many_fsync
+
 if BUILD_LINUX
 scripts_zfs_tests_functional_tmpfiledir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/tmpfile
 scripts_zfs_tests_functional_tmpfile_PROGRAMS = \
