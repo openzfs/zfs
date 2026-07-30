@@ -4740,6 +4740,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 	uint64_t value;
 	char buf[PATH_BUF_LEN];
 	char tmpbuf[PATH_BUF_LEN * 2];
+	char rpath[MAXPATHLEN];
 
 	/*
 	 * vdev_name will be "root"/"root-0" for the root vdev, but it is the
@@ -4765,12 +4766,8 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		path = tpath;
 
 		if (name_flags & VDEV_NAME_FOLLOW_LINKS) {
-			char *rp = realpath(path, NULL);
-			if (rp) {
-				strlcpy(buf, rp, sizeof (buf));
-				path = buf;
-				free(rp);
-			}
+			if (realpath(path, rpath) != NULL)
+				path = rpath;
 		}
 
 		/*
