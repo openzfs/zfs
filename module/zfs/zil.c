@@ -672,10 +672,6 @@ zil_claim_clone_range(zilog_t *zilog, const lr_t *lrc, void *tx,
 		return (0);
 	}
 
-	/*
-	 * XXX: Do we need to byteswap lr?
-	 */
-
 	for (ii = 0; ii < lr->lr_nbps; ii++) {
 		bp = &lr->lr_bps[ii];
 
