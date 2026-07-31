@@ -5275,9 +5275,10 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 		    ZC_MMAP_FLAGS, featfd, 0);
 		(void) close(featfd);
 
-		/* map ok, and last character == newline? */
+		/* need map ok, and last character == newline */
 		if (fc == MAP_FAILED || fc[fs.st_size - 1] != '\n') {
-			(void) munmap((void *) fc, fs.st_size);
+			if (fc != MAP_FAILED)
+				(void) munmap((void *) fc, fs.st_size);
 			strlcat(err_badfile, file, ZFS_MAXPROPLEN);
 			strlcat(err_badfile, " ", ZFS_MAXPROPLEN);
 			ret_badfile = B_TRUE;
