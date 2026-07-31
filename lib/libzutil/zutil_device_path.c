@@ -134,7 +134,7 @@ zfs_strcmp_shortname(const char *name, const char *cmp_name, int wholedisk)
 	while (dir) {
 		/* Trim trailing directory slashes from ZPOOL_IMPORT_PATH */
 		if (env) {
-			while (dir[strlen(dir)-1] == '/')
+			while ((dir[0] != '\0') && (dir[strlen(dir)-1] == '/'))
 				dir[strlen(dir)-1] = '\0';
 		}
 
