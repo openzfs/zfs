@@ -582,8 +582,10 @@ brt_vdev_load(spa_t *spa, brt_vdev_t *brtvd)
 	error = dmu_read(spa->spa_meta_objset, brtvd->bv_mos_brtvdev, 0,
 	    MIN(brtvd->bv_size, bvphys->bvp_size) * sizeof (uint16_t),
 	    brtvd->bv_entcount, DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
-	if (error != 0)
+	if (error != 0) {
+		dmu_buf_rele(db, FTAG);
 		return (error);
+	}
 
 	ASSERT(bvphys->bvp_mos_entries != 0);
 	VERIFY0(dnode_hold(spa->spa_meta_objset, bvphys->bvp_mos_entries, brtvd,
