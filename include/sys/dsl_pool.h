@@ -42,6 +42,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/mmp.h>
 #include <sys/aggsum.h>
+#include <sys/wmsum.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -118,12 +119,13 @@ typedef struct dsl_pool {
 	uint64_t dp_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_dirty_total;
 	uint64_t dp_long_free_dirty_pertxg[TXG_SIZE];
-	uint64_t dp_mos_used_delta;
-	uint64_t dp_mos_compressed_delta;
-	uint64_t dp_mos_uncompressed_delta;
 
 	aggsum_t dp_wrlog_pertxg[TXG_SIZE];
 	aggsum_t dp_wrlog_total;
+
+	wmsum_t dp_mos_used_delta;
+	wmsum_t dp_mos_compressed_delta;
+	wmsum_t dp_mos_uncompressed_delta;
 
 	/*
 	 * Time of most recently scheduled (furthest in the future)

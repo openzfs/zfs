@@ -226,6 +226,10 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 		aggsum_init(&dp->dp_wrlog_pertxg[i], 0);
 	}
 
+	wmsum_init(&dp->dp_mos_used_delta, 0);
+	wmsum_init(&dp->dp_mos_compressed_delta, 0);
+	wmsum_init(&dp->dp_mos_uncompressed_delta, 0);
+
 	dp->dp_zrele_taskq = taskq_create("z_zrele", 100, defclsyspri,
 	    boot_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
 	    TASKQ_THREADS_CPU_PCT);
@@ -437,6 +441,10 @@ dsl_pool_close(dsl_pool_t *dp)
 		aggsum_fini(&dp->dp_wrlog_pertxg[i]);
 	}
 
+	wmsum_fini(&dp->dp_mos_used_delta);
+	wmsum_fini(&dp->dp_mos_compressed_delta);
+	wmsum_fini(&dp->dp_mos_uncompressed_delta);
+
 	taskq_destroy(dp->dp_unlinked_drain_taskq);
 	taskq_destroy(dp->dp_zrele_taskq);
 	if (dp->dp_blkstats != NULL)
@@ -572,11 +580,9 @@ dsl_pool_mos_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp)
 {
 	ASSERT3U(comp, ==, uncomp); /* it's all metadata */
-	mutex_enter(&dp->dp_lock);
-	dp->dp_mos_used_delta += used;
-	dp->dp_mos_compressed_delta += comp;
-	dp->dp_mos_uncompressed_delta += uncomp;
-	mutex_exit(&dp->dp_lock);
+	wmsum_add(&dp->dp_mos_used_delta, used);
+	wmsum_add(&dp->dp_mos_compressed_delta, comp);
+	wmsum_add(&dp->dp_mos_uncompressed_delta, uncomp);
 }
 
 static void
@@ -803,15 +809,15 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	 * (dp_mos_dir).  We can't modify the mos while we're syncing
 	 * it, so we remember the deltas and apply them here.
 	 */
-	if (dp->dp_mos_used_delta != 0 || dp->dp_mos_compressed_delta != 0 ||
-	    dp->dp_mos_uncompressed_delta != 0) {
+	int64_t mos_used = wmsum_value(&dp->dp_mos_used_delta);
+	int64_t mos_comp = wmsum_value(&dp->dp_mos_compressed_delta);
+	int64_t mos_uncomp = wmsum_value(&dp->dp_mos_uncompressed_delta);
+	if (mos_used != 0 || mos_comp != 0 || mos_uncomp != 0) {
 		dsl_dir_diduse_space(dp->dp_mos_dir, DD_USED_HEAD,
-		    dp->dp_mos_used_delta,
-		    dp->dp_mos_compressed_delta,
-		    dp->dp_mos_uncompressed_delta, tx);
-		dp->dp_mos_used_delta = 0;
-		dp->dp_mos_compressed_delta = 0;
-		dp->dp_mos_uncompressed_delta = 0;
+		    mos_used, mos_comp, mos_uncomp, tx);
+		wmsum_add(&dp->dp_mos_used_delta, -mos_used);
+		wmsum_add(&dp->dp_mos_compressed_delta, -mos_comp);
+		wmsum_add(&dp->dp_mos_uncompressed_delta, -mos_uncomp);
 	}
 
 	if (dmu_objset_is_dirty(mos, txg)) {
