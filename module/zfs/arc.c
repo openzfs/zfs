@@ -1154,7 +1154,8 @@ buf_hash_remove(arc_buf_hdr_t *hdr)
 
 	hdrp = &buf_hash_table.ht_table[idx];
 	while ((fhdr = *hdrp) != hdr) {
-		ASSERT3P(fhdr, !=, NULL);
+		/* Was ASSERT: silent NULL deref in release builds (#18782). */
+		VERIFY3P(fhdr, !=, NULL);
 		hdrp = &fhdr->b_hash_next;
 	}
 	*hdrp = hdr->b_hash_next;
@@ -5618,29 +5619,26 @@ arc_read_done(zio_t *zio)
 	arc_callback_t	*acb;
 
 	/*
-	 * The hdr was inserted into hash-table and removed from lists
-	 * prior to starting I/O.  We should find this header, since
-	 * it's in the hash table, and it should be legit since it's
-	 * not possible to evict it during the I/O.  The only possible
-	 * reason for it not to be found is if we were freed during the
-	 * read.
+	 * Always take the hash lock before inspecting or mutating hash
+	 * membership / ARC state.  Do not gate this on an unlocked
+	 * HDR_IN_HASH_TABLE() check: that flag is protected by the hash
+	 * lock, and sampling it unlocked races with concurrent eviction
+	 * and can lead to buf_hash_remove() / arc_change_state() running
+	 * without the lock (see #18782, #11338).
+	 *
+	 * The hdr was inserted into the hash table and removed from
+	 * evictable lists prior to starting I/O.  With the IO reference
+	 * held it is not normally reclaimable; identity is stable for
+	 * the lifetime of that reference so HDR_LOCK(hdr) is valid.
 	 */
-	if (HDR_IN_HASH_TABLE(hdr)) {
-		arc_buf_hdr_t *found;
+	ASSERT3U(hdr->b_birth, ==, BP_GET_PHYSICAL_BIRTH(zio->io_bp));
+	ASSERT3U(hdr->b_dva.dva_word[0], ==,
+	    BP_IDENTITY(zio->io_bp)->dva_word[0]);
+	ASSERT3U(hdr->b_dva.dva_word[1], ==,
+	    BP_IDENTITY(zio->io_bp)->dva_word[1]);
 
-		ASSERT3U(hdr->b_birth, ==, BP_GET_PHYSICAL_BIRTH(zio->io_bp));
-		ASSERT3U(hdr->b_dva.dva_word[0], ==,
-		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
-		ASSERT3U(hdr->b_dva.dva_word[1], ==,
-		    BP_IDENTITY(zio->io_bp)->dva_word[1]);
-
-		found = buf_hash_find(hdr->b_spa, zio->io_bp, &hash_lock);
-
-		ASSERT((found == hdr &&
-		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp))) ||
-		    (found == hdr && HDR_L2_READING(hdr)));
-		ASSERT3P(hash_lock, !=, NULL);
-	}
+	hash_lock = HDR_LOCK(hdr);
+	mutex_enter(hash_lock);
 
 	if (BP_IS_PROTECTED(bp)) {
 		hdr->b_crypt_hdr.b_ot = BP_GET_TYPE(bp);
@@ -5758,29 +5756,33 @@ arc_read_done(zio_t *zio)
 	}
 
 	/*
-	 * If there are multiple callbacks, we must have the hash lock,
-	 * because the only way for multiple threads to find this hdr is
-	 * in the hash table.  This ensures that if there are multiple
-	 * callbacks, the hdr is not anonymous.  If it were anonymous,
-	 * we couldn't use arc_buf_destroy() in the error case below.
+	 * If there are multiple callbacks, the hdr must still be in the
+	 * hash table (that is the only way multiple threads found it), so
+	 * it is not anonymous.  We always hold the hash lock now.
 	 */
-	ASSERT(callback_cnt < 2 || hash_lock != NULL);
+	ASSERT(callback_cnt < 2 || HDR_IN_HASH_TABLE(hdr));
+	ASSERT(MUTEX_HELD(hash_lock));
 
 	if (zio->io_error == 0) {
 		arc_hdr_verify(hdr, zio->io_bp);
 	} else {
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
+		/*
+		 * arc_change_state(arc_anon) already calls buf_hash_remove()
+		 * when ARC_FLAG_IN_HASH_TABLE is set.  Only remove again if
+		 * we are already anonymous but still hashed (defensive).
+		 * Both paths require the hash lock, which we hold.
+		 */
 		if (hdr->b_l1hdr.b_state != arc_anon)
 			arc_change_state(arc_anon, hdr);
-		if (HDR_IN_HASH_TABLE(hdr))
+		else if (HDR_IN_HASH_TABLE(hdr))
 			buf_hash_remove(hdr);
 	}
 
 	arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
 	(void) remove_reference(hdr, hdr);
 
-	if (hash_lock != NULL)
-		mutex_exit(hash_lock);
+	mutex_exit(hash_lock);
 
 	/* execute each callback and free its structure */
 	while ((acb = callback_list) != NULL) {
