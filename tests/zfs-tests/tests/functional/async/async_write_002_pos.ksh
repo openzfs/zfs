@@ -45,9 +45,6 @@ verify_runnable "global"
 
 function cleanup
 {
-	if tunable_exists ASYNC_DIO_ENABLED; then
-		restore_tunable ASYNC_DIO_ENABLED
-	fi
 	rm -f "$mntpnt/async"*
 }
 
@@ -74,7 +71,7 @@ fi
 # Benchmark IOPS at increasing iodepths
 for iodepth in 1 16 64; do
 	log_note "Benchmarking io_uring write iodepth=$iodepth..."
-	iops=$(async_dio_write_iops "$mntpnt" "io_uring" $iodepth "$runtime" \
+	iops=$(async_dio_iops "$mntpnt" "io_uring" "write" $iodepth "$runtime" \
 	    "uring-write-iod${iodepth}")
 	log_note "  io_uring iodepth=$iodepth -> $iops IOPS"
 	eval "iops_d${iodepth}=$iops"
@@ -82,7 +79,7 @@ done
 
 # Data integrity check at high iodepth
 log_note "--- Data integrity at iodepth=64 ---"
-async_dio_write_verify "$mntpnt" "io_uring" 64
+async_dio_verify "$mntpnt" "io_uring" 64
 
 log_note "============================================"
 log_note "IOPS (io_uring randwrite, 128K, async enabled):"
