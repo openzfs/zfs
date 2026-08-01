@@ -71,7 +71,7 @@ fi
 # Benchmark IOPS at increasing iodepths
 for iodepth in 1 16 64; do
 	log_note "Benchmarking io_uring iodepth=$iodepth..."
-	iops=$(async_dio_read_iops "$mntpnt" "io_uring" $iodepth "$runtime" \
+	iops=$(async_dio_iops "$mntpnt" "io_uring" "read" $iodepth "$runtime" \
 	    "uring-iod${iodepth}")
 	log_note "  io_uring iodepth=$iodepth -> $iops IOPS"
 	eval "iops_d${iodepth}=$iops"
@@ -79,7 +79,7 @@ done
 
 # Data integrity check at high iodepth
 log_note "--- Data integrity at iodepth=64 ---"
-async_dio_read_verify "$mntpnt" "io_uring" 64
+async_dio_verify "$mntpnt" "io_uring" 64
 
 log_note "============================================"
 log_note "IOPS (io_uring randread, 128K, async enabled):"

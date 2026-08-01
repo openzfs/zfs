@@ -73,7 +73,7 @@ fi
 typeset prev_iops=0
 for iodepth in 1 4 16 64; do
 	log_note "Benchmarking libaio iodepth=$iodepth..."
-	iops=$(async_dio_read_iops "$mntpnt" "libaio" $iodepth "$runtime" \
+	iops=$(async_dio_iops "$mntpnt" "libaio" "read" $iodepth "$runtime" \
 	    "scale-iod${iodepth}")
 	log_note "  iodepth=$iodepth -> $iops IOPS"
 
@@ -83,7 +83,7 @@ done
 
 # Data integrity check at high iodepth
 log_note "--- Data integrity at iodepth=64 ---"
-async_dio_read_verify "$mntpnt" "libaio" 64
+async_dio_verify "$mntpnt" "libaio" 64
 
 log_note "============================================"
 log_note "IOPS Scaling (libaio randread, 128K, async enabled):"

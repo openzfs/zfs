@@ -70,15 +70,15 @@ fi
 
 log_note "--- Async write benchmark (zfs_async_dio_enabled=1) ---"
 
-iops_d1=$(async_dio_write_iops "$mntpnt" "libaio" 1 "$runtime" "async-write-d1")
+iops_d1=$(async_dio_iops "$mntpnt" "libaio" "write" 1 "$runtime" "async-write-d1")
 log_note "Async IOPS (iodepth=1): $iops_d1"
 
-iops_d64=$(async_dio_write_iops "$mntpnt" "libaio" 64 "$runtime" "async-write-d64")
+iops_d64=$(async_dio_iops "$mntpnt" "libaio" "write" 64 "$runtime" "async-write-d64")
 log_note "Async IOPS (iodepth=64): $iops_d64"
 
 # --- Data integrity verification ---
 log_note "--- Data integrity verification ---"
-async_dio_write_verify "$mntpnt" "libaio" 64
+async_dio_verify "$mntpnt" "libaio" 64
 
 # --- Summary ---
 log_note "============================================"

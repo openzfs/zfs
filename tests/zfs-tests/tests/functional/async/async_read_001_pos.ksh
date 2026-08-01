@@ -72,10 +72,10 @@ if tunable_exists ASYNC_DIO_ENABLED; then
 fi
 
 log_note "--- Sync baseline (zfs_async_dio_enabled=0) ---"
-iops_sync=$(async_dio_read_iops "$mntpnt" "libaio" 1 "$runtime" "sync-read")
+iops_sync=$(async_dio_iops "$mntpnt" "libaio" "read" 1 "$runtime" "sync-read")
 log_note "Sync baseline IOPS (iodepth=1): $iops_sync"
 
-iops_sync_d64=$(async_dio_read_iops "$mntpnt" "libaio" 64 "$runtime" "sync-read-d64")
+iops_sync_d64=$(async_dio_iops "$mntpnt" "libaio" "read" 64 "$runtime" "sync-read-d64")
 log_note "Sync baseline IOPS (iodepth=64): $iops_sync_d64"
 
 # --- Phase 2: Async path (async enabled) ---
@@ -86,15 +86,15 @@ else
 	log_note "--- Async tunable not available, using sync path ---"
 fi
 
-iops_async=$(async_dio_read_iops "$mntpnt" "libaio" 1 "$runtime" "async-read")
+iops_async=$(async_dio_iops "$mntpnt" "libaio" "read" 1 "$runtime" "async-read")
 log_note "Async IOPS (iodepth=1): $iops_async"
 
-iops_async_d64=$(async_dio_read_iops "$mntpnt" "libaio" 64 "$runtime" "async-read-d64")
+iops_async_d64=$(async_dio_iops "$mntpnt" "libaio" "read" 64 "$runtime" "async-read-d64")
 log_note "Async IOPS (iodepth=64): $iops_async_d64"
 
 # --- Phase 3: Data integrity verification ---
 log_note "--- Data integrity verification ---"
-async_dio_read_verify "$mntpnt" "libaio" 64
+async_dio_verify "$mntpnt" "libaio" 64
 
 # --- Summary ---
 log_note "============================================"
