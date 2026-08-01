@@ -2980,7 +2980,7 @@ nvpair_native_embedded_array(nvstream_t *nvs, nvpair_t *nvp)
 	return (nvs_embedded_nvl_array(nvs, nvp, NULL));
 }
 
-static void
+static int
 nvpair_native_string_array(nvstream_t *nvs, nvpair_t *nvp)
 {
 	switch (nvs->nvs_op) {
@@ -2999,15 +2999,32 @@ nvpair_native_string_array(nvstream_t *nvs, nvpair_t *nvp)
 	case NVS_OP_DECODE: {
 		char **strp = (void *)NVP_VALUE(nvp);
 		char *buf = ((char *)strp + NVP_NELEM(nvp) * sizeof (uint64_t));
+		char *end = (char *)nvp + nvp->nvp_size;
 		int i;
 
 		for (i = 0; i < NVP_NELEM(nvp); i++) {
+			size_t max, len;
+
+			if (buf >= end)
+				return (EFAULT);
+
+			max = (size_t)(end - buf);
+			len = strnlen(buf, max);
+
+			/*
+			 * The nvpair is corrupt if any of the strings are
+			 * unterminated.
+			 */
+			if (len == max)
+				return (EFAULT);
+
 			strp[i] = buf;
-			buf += strlen(buf) + 1;
+			buf += len + 1;
 		}
 		break;
 	}
 	}
+	return (0);
 }
 
 static int
@@ -3058,7 +3075,7 @@ nvs_native_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 		ret = nvpair_native_embedded_array(nvs, nvp);
 		break;
 	case DATA_TYPE_STRING_ARRAY:
-		nvpair_native_string_array(nvs, nvp);
+		ret = nvpair_native_string_array(nvs, nvp);
 		break;
 	default:
 		break;
