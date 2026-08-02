@@ -439,8 +439,12 @@ typedef struct dsl_dataset_snapshot_stats {
 	uint64_t dss_guid;
 	uint64_t dss_userrefs;
 	uint64_t dss_num_clones;
+	uint64_t dss_used;
+	uint64_t dss_referenced;
+	uint64_t dss_logicalreferenced;
 	uint8_t dss_inconsistent;
 	uint8_t dss_redacted;
+	uint8_t dss_defer_destroy;
 } dsl_dataset_snapshot_stats_t;
 
 int dsl_dataset_snapshot_stats(struct dsl_pool *dp, uint64_t dsobj,

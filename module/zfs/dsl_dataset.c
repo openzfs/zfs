@@ -2738,8 +2738,13 @@ dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
 	stats->dss_guid = dsp->ds_guid;
 	stats->dss_num_clones = dsp->ds_num_children == 0 ?
 	    0 : dsp->ds_num_children - 1;
+	stats->dss_used = dsp->ds_unique_bytes;
+	stats->dss_referenced = dsp->ds_referenced_bytes;
+	stats->dss_logicalreferenced = dsp->ds_uncompressed_bytes;
 	stats->dss_inconsistent =
 	    (dsp->ds_flags & DS_FLAG_INCONSISTENT) != 0;
+	stats->dss_defer_destroy =
+	    (dsp->ds_flags & DS_FLAG_DEFER_DESTROY) != 0;
 
 	if (want_userrefs && dsp->ds_userrefs_obj != 0) {
 		error = zap_count(mos, dsp->ds_userrefs_obj,

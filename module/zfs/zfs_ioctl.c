@@ -2796,9 +2796,12 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 {
 	char **names;
 	char *name_storage;
-	uint64_t *createtxgs = NULL, *guids = NULL, *creations = NULL;
-	uint64_t *userrefs = NULL, *numclones = NULL;
+	uint64_t *createtxgs = NULL, *guids = NULL, *objsetids = NULL;
+	uint64_t *creations = NULL;
+	uint64_t *userrefs = NULL, *numclones = NULL, *used = NULL;
+	uint64_t *referenced = NULL, *logicalreferenced = NULL;
 	uint8_t *inconsistent = NULL, *redacted = NULL;
+	uint8_t *defer_destroy = NULL;
 	nvlist_t *props;
 	uint64_t cursor = 0, min_txg = 0, max_txg = 0, max_results;
 	uint_t batch_size;
@@ -2807,9 +2810,12 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	hrtime_t start_time, time_budget;
 	boolean_t eof = B_FALSE;
 	boolean_t want_createtxg = B_FALSE, want_creation = B_FALSE;
-	boolean_t want_guid = B_FALSE, want_userrefs = B_FALSE;
+	boolean_t want_guid = B_FALSE, want_objsetid = B_FALSE;
+	boolean_t want_userrefs = B_FALSE;
 	boolean_t want_numclones = B_FALSE, want_inconsistent = B_FALSE;
-	boolean_t want_redacted = B_FALSE;
+	boolean_t want_redacted = B_FALSE, want_used = B_FALSE;
+	boolean_t want_referenced = B_FALSE, want_logicalreferenced = B_FALSE;
+	boolean_t want_defer_destroy = B_FALSE;
 	dmu_objset_type_t head_type;
 	uint8_t head_flags;
 	objset_t *os = NULL;
@@ -2838,6 +2844,9 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 		case ZFS_PROP_GUID:
 			want_guid = B_TRUE;
 			break;
+		case ZFS_PROP_OBJSETID:
+			want_objsetid = B_TRUE;
+			break;
 		case ZFS_PROP_USERREFS:
 			want_userrefs = B_TRUE;
 			break;
@@ -2849,6 +2858,18 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			break;
 		case ZFS_PROP_REDACTED:
 			want_redacted = B_TRUE;
+			break;
+		case ZFS_PROP_USED:
+			want_used = B_TRUE;
+			break;
+		case ZFS_PROP_REFERENCED:
+			want_referenced = B_TRUE;
+			break;
+		case ZFS_PROP_LOGICALREFERENCED:
+			want_logicalreferenced = B_TRUE;
+			break;
+		case ZFS_PROP_DEFER_DESTROY:
+			want_defer_destroy = B_TRUE;
 			break;
 		default:
 			return (SET_ERROR(ZFS_ERR_IOC_ARG_UNAVAIL));
@@ -2870,6 +2891,10 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	}
 	if (want_guid)
 		guids = kmem_alloc(sizeof (guids[0]) * batch_size, KM_SLEEP);
+	if (want_objsetid) {
+		objsetids = kmem_alloc(sizeof (objsetids[0]) * batch_size,
+		    KM_SLEEP);
+	}
 	if (want_creation) {
 		creations = kmem_alloc(sizeof (creations[0]) * batch_size,
 		    KM_SLEEP);
@@ -2889,6 +2914,20 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	if (want_redacted) {
 		redacted = kmem_alloc(sizeof (redacted[0]) * batch_size,
 		    KM_SLEEP);
+	}
+	if (want_used)
+		used = kmem_alloc(sizeof (used[0]) * batch_size, KM_SLEEP);
+	if (want_referenced) {
+		referenced = kmem_alloc(sizeof (referenced[0]) * batch_size,
+		    KM_SLEEP);
+	}
+	if (want_logicalreferenced) {
+		logicalreferenced = kmem_alloc(
+		    sizeof (logicalreferenced[0]) * batch_size, KM_SLEEP);
+	}
+	if (want_defer_destroy) {
+		defer_destroy = kmem_alloc(
+		    sizeof (defer_destroy[0]) * batch_size, KM_SLEEP);
 	}
 
 	time_budget = USEC2NSEC((hrtime_t)batch_time_us);
@@ -2944,6 +2983,8 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 				createtxgs[count] = txg;
 			if (want_guid)
 				guids[count] = stats.dss_guid;
+			if (want_objsetid)
+				objsetids[count] = obj;
 			if (want_creation)
 				creations[count] = stats.dss_creation_time;
 			if (want_userrefs)
@@ -2954,6 +2995,16 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 				inconsistent[count] = stats.dss_inconsistent;
 			if (want_redacted)
 				redacted[count] = stats.dss_redacted;
+			if (want_used)
+				used[count] = stats.dss_used;
+			if (want_referenced)
+				referenced[count] = stats.dss_referenced;
+			if (want_logicalreferenced) {
+				logicalreferenced[count] =
+				    stats.dss_logicalreferenced;
+			}
+			if (want_defer_destroy)
+				defer_destroy[count] = stats.dss_defer_destroy;
 			count++;
 		}
 
@@ -2987,6 +3038,11 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 				fnvlist_add_uint64_array(outnvl,
 				    SNAP_ITER_BATCH_GUIDS, guids, count);
 			}
+			if (want_objsetid) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_OBJSETIDS, objsetids,
+				    count);
+			}
 			if (want_creation) {
 				fnvlist_add_uint64_array(outnvl,
 				    SNAP_ITER_BATCH_CREATIONS, creations,
@@ -3011,6 +3067,25 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 				fnvlist_add_uint8_array(outnvl,
 				    SNAP_ITER_BATCH_REDACTED, redacted, count);
 			}
+			if (want_used) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_USED, used, count);
+			}
+			if (want_referenced) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_REFERENCED, referenced,
+				    count);
+			}
+			if (want_logicalreferenced) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_LOGICALREFERENCED,
+				    logicalreferenced, count);
+			}
+			if (want_defer_destroy) {
+				fnvlist_add_uint8_array(outnvl,
+				    SNAP_ITER_BATCH_DEFER_DESTROY,
+				    defer_destroy, count);
+			}
 		}
 	}
 
@@ -3024,6 +3099,9 @@ out:
 	}
 	if (want_guid)
 		kmem_free(guids, sizeof (guids[0]) * batch_size);
+	if (want_objsetid) {
+		kmem_free(objsetids, sizeof (objsetids[0]) * batch_size);
+	}
 	if (want_creation) {
 		kmem_free(creations, sizeof (creations[0]) * batch_size);
 	}
@@ -3039,6 +3117,19 @@ out:
 	}
 	if (want_redacted)
 		kmem_free(redacted, sizeof (redacted[0]) * batch_size);
+	if (want_used)
+		kmem_free(used, sizeof (used[0]) * batch_size);
+	if (want_referenced) {
+		kmem_free(referenced, sizeof (referenced[0]) * batch_size);
+	}
+	if (want_logicalreferenced) {
+		kmem_free(logicalreferenced,
+		    sizeof (logicalreferenced[0]) * batch_size);
+	}
+	if (want_defer_destroy) {
+		kmem_free(defer_destroy,
+		    sizeof (defer_destroy[0]) * batch_size);
+	}
 
 	return (error);
 }
