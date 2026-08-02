@@ -4848,7 +4848,6 @@ struct zfs_async_write_cb {
 	zfs_locked_range_t *lr;
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
-	boolean_t	dio;
 	abd_t		*data;
 	dmu_tx_t	*tx;
 	offset_t	woff;
@@ -4889,7 +4888,7 @@ zfs_async_write_task(void *arg)
 		    cb->bulk_count, cb->tx);
 
 		zfs_log_write(zilog, cb->tx, TX_WRITE, cb->zp, cb->woff,
-		    cb->wrote, cb->do_commit, cb->dio, NULL, NULL);
+		    cb->wrote, cb->do_commit, B_TRUE, NULL, NULL);
 
 		dmu_tx_commit(cb->tx);
 	} else {
@@ -5198,7 +5197,6 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio = *uio;
 	cb->uio.uio_resid = 0;		/* all data already copied to ABD */
 	cb->start_resid = n;
-	cb->dio = B_FALSE;
 	cb->data = data;
 	cb->tx = tx;
 	cb->woff = woff;
