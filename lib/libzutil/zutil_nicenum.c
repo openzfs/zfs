@@ -25,10 +25,34 @@
  */
 
 #include <ctype.h>
+#include <locale.h>
 #include <math.h>
 #include <stdio.h>
 #include <libzutil.h>
 #include <string.h>
+
+/*
+ * Replace the C locale decimal point ('.') with the locale-specific
+ * decimal separator in the formatted string.  This ensures that
+ * commands like "zfs list" respect the user's LC_NUMERIC locale.
+ */
+static void
+zfs_nicenum_locale_decimal(char *buf)
+{
+	const struct lconv *lc = localeconv();
+	const char *dp = lc->decimal_point;
+
+	/* If locale uses '.' or is empty, nothing to change */
+	if (dp == NULL || dp[0] == '.' || dp[0] == '\0')
+		return;
+
+	for (char *p = buf; *p != '\0'; p++) {
+		if (*p == '.') {
+			*p = dp[0];
+			return;
+		}
+	}
+}
 
 /*
  * Return B_TRUE if "str" is a number string, B_FALSE otherwise.
@@ -140,8 +164,10 @@ zfs_nicenum_format(uint64_t num, char *buf, size_t buflen,
 
 			} else {
 				if (snprintf(buf, buflen, "%.*f%s", i,
-				    val, u) <= 5)
+				    val, u) <= 5) {
+					zfs_nicenum_locale_decimal(buf);
 					break;
+				}
 			}
 		}
 	}
