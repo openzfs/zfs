@@ -145,8 +145,11 @@ dmu_write_abd_async(dnode_t *dn, uint64_t offset, uint64_t size,
 	zio_t *pio = zio_root(spa, dmu_abd_async_done, ds,
 	    ZIO_FLAG_CANFAIL);
 
-	(void) dmu_write_abd_dispatch(pio, dn, offset, size, data, flags, tx,
+	err = dmu_write_abd_dispatch(pio, dn, offset, size, data, flags, tx,
 	    dbp, numbufs);
+
+	if (err != 0)
+		pio->io_error = err;
 
 	zio_nowait(pio);
 	return (0);
