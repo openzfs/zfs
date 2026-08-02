@@ -212,11 +212,11 @@ zpl_file_accessed(struct file *filp)
 }
 
 /*
- * Module parameter to enable/disable async Direct I/O reads.
- * When enabled, O_DIRECT reads on async kiocbs (libaio/io_uring) use
- * zfs_read_async() → dmu_read_abd_async() which submits reads to the
- * ZIO pipeline and returns -EIOCBQUEUED to the VFS.  Completion is
- * signalled via kiocb->ki_complete() from ZIO taskq context.
+ * Module parameter to enable/disable async Direct I/O (reads and writes).
+ * When enabled, O_DIRECT operations on async kiocbs (libaio/io_uring) use
+ * zfs_read_async()/zfs_write_async(), which submit I/O to the ZIO pipeline
+ * and return -EIOCBQUEUED to the VFS.  Completion is signalled via
+ * kiocb->ki_complete() from ZIO/system taskq context.
  *
  * Default: 0 (disabled)
  */
@@ -225,7 +225,7 @@ static unsigned int zfs_async_dio_enabled = 0;
 #ifdef CONFIG_SYSFS
 module_param(zfs_async_dio_enabled, uint, 0644);
 MODULE_PARM_DESC(zfs_async_dio_enabled,
-	"Enable async Direct I/O reads via -EIOCBQUEUED");
+	"Enable async Direct I/O via -EIOCBQUEUED (reads and writes)");
 #endif
 
 static ssize_t

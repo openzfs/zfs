@@ -82,8 +82,11 @@ dmu_read_abd_done(zio_t *zio)
 /*
  * Dispatch reads for all dbufs covering [offset, offset+size) under rio.
  * dbp and numbufs are from dmu_buf_hold_array_by_dnode().  On error, sets
- * rio->io_error and returns the error code.  Caller must not release dbp
- * until after zio completion.
+ * rio->io_error and returns the error code.  The caller owns the dbuf
+ * references and decides when to release them: zio_read() copies the block
+ * pointer into each child zio, so the synchronous path may release dbp once
+ * dispatch returns (before zio_wait), while the asynchronous path releases
+ * them from the root zio completion.
  */
 int
 dmu_read_abd_dispatch(zio_t *rio, dnode_t *dn, uint64_t offset, uint64_t size,
@@ -336,7 +339,15 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 	err = dmu_write_abd_dispatch(pio, dn, offset, size, data, flags, tx,
 	    dbp, numbufs);
 
-	err = zio_wait(pio);
+	/*
+	 * Preserve a dispatch (submission) error rather than letting
+	 * zio_wait() clobber it: blocks that were never dispatched must not
+	 * be reported as written.  dmu_write_direct() currently cannot fail
+	 * under a parent zio, so this is defensive.
+	 */
+	int zio_err = zio_wait(pio);
+	if (err == 0)
+		err = zio_err;
 
 	/*
 	 * The dbuf must be held until the Direct I/O write has completed in

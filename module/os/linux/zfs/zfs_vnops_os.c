@@ -4558,6 +4558,7 @@ struct zfs_async_read_cb
 	zfs_locked_range_t *lr;
 	zfs_uio_t	uio;
 	ssize_t		start_resid;
+	dmu_flags_t	dflags;	/* DMU flags from the original read */
 	abd_t		*data;	/* ABD wrapping user pages; freed in cb */
 	boolean_t	is_retry;
 	abd_t		*user_data;	/* saved user-pages ABD during retry */
@@ -4629,7 +4630,7 @@ zfs_async_read_complete(void *arg, int error)
 			    zfs_uio_offset(&cb->uio),
 			    cb->start_resid,
 			    tmp,
-			    DMU_READ_PREFETCH | DMU_DIRECTIO,
+			    cb->dflags,
 			    zfs_async_read_complete, cb);
 
 			if (retry_err != 0) {
@@ -4813,6 +4814,7 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	cb->uio = *uio;
 	cb->uio.uio_resid = aligned_n;
 	cb->start_resid = aligned_n;
+	cb->dflags = dflags;
 	cb->data = data;
 	cb->is_retry = B_FALSE;
 	cb->user_data = NULL;
@@ -4862,7 +4864,7 @@ struct zfs_async_write_cb {
 	dmu_tx_t	*tx;
 	offset_t	woff;
 	ssize_t		tx_bytes;
-	sa_bulk_attr_t	bulk[4];
+	sa_bulk_attr_t	bulk[5];
 	int		bulk_count;
 	uint64_t	mtime[2];
 	uint64_t	ctime[2];
@@ -4894,8 +4896,20 @@ zfs_async_write_task(void *arg)
 			(void) atomic_cas_64(&cb->zp->z_size, end_size,
 			    (uint64_t)(cb->woff + cb->wrote));
 
-		(void) sa_bulk_update(cb->zp->z_sa_hdl, cb->bulk,
+		if (cb->zp->z_is_sa)
+			cb->zp->z_has_seq = B_TRUE;
+
+		/*
+		 * A failed sa_bulk_update() means the metadata (size,
+		 * timestamps, flags) did not fully land even though the data
+		 * blocks were written.  Report the error to the caller so it
+		 * can retry; the tx is still committed below, matching the
+		 * synchronous path.
+		 */
+		int sa_err = sa_bulk_update(cb->zp->z_sa_hdl, cb->bulk,
 		    cb->bulk_count, cb->tx);
+		if (sa_err != 0 && cb->error == 0)
+			cb->error = sa_err;
 
 		zfs_log_write(zilog, cb->tx, TX_WRITE, cb->zp, cb->woff,
 		    cb->wrote, cb->do_commit, B_TRUE, NULL, NULL);
@@ -4907,9 +4921,9 @@ zfs_async_write_task(void *arg)
 		 * even though the write failed: dmu_tx_abort() VERIFYs
 		 * tx_txg == 0 and panics on an assigned tx.  The
 		 * synchronous path likewise commits on a post-assign write
-		 * error (see zfs_write()); committing with no changes is
-		 * legal, and metadata updates and zfs_log_write are
-		 * correctly skipped above.
+		 * error (see zfs_write()); committing an empty metadata
+		 * transaction is legal, so the size/timestamp updates and
+		 * zfs_log_write() above are skipped.
 		 */
 		dmu_tx_commit(cb->tx);
 		cb->wrote = 0;
@@ -4921,8 +4935,13 @@ zfs_async_write_task(void *arg)
 	if (cb->uio.uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(&cb->uio, UIO_WRITE);
 
-	/* zil_commit before teardown lock release (matches zfs_write()) */
-	if (cb->error == 0 && cb->do_commit) {
+	/*
+	 * zil_commit before teardown lock release.  This matches zfs_write(),
+	 * which also commits the log whenever bytes were written, even if a
+	 * metadata update reported an error.  On a ZIO failure cb->wrote is 0,
+	 * so nothing is flushed.
+	 */
+	if (cb->wrote > 0 && cb->do_commit) {
 		int zil_err = zil_commit(zilog, cb->zp->z_id);
 		if (zil_err != 0 && cb->error == 0)
 			cb->error = zil_err;
@@ -5195,7 +5214,7 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	boolean_t do_commit = (ioflag & (O_SYNC | O_DSYNC)) ||
 	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
 	dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	DB_DNODE_ENTER(db);
 	dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, n);
@@ -5242,6 +5261,9 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	    SA_ZPL_SIZE(zfsvfs), NULL, &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
 	    SA_ZPL_FLAGS(zfsvfs), NULL, &zp->z_pflags, 8);
+	if (zp->z_is_sa)
+		SA_ADD_BULK_ATTR(cb->bulk, cb->bulk_count,
+		    SA_ZPL_SEQ(zfsvfs), NULL, &zp->z_seq, 8);
 
 	cb->clear_setid_bits_txg = 0;
 	cb->do_commit = do_commit;
