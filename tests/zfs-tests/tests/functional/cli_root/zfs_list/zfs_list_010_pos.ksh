@@ -47,7 +47,7 @@ BATCH_OUTPUT="$TEST_BASE_DIR/projected_list_batch.$$"
 LEGACY_OUTPUT="$TEST_BASE_DIR/projected_list_legacy.$$"
 EXPECTED_OUTPUT="$TEST_BASE_DIR/projected_list_expected.$$"
 MARKER="$TEST_BASE_DIR/projected_list_marker.$$"
-COLUMNS="createtxg,creation,guid,name,type,userrefs"
+COLUMNS="createtxg,creation,guid,name,type,userrefs,objsetid"
 HOLD_TAG="projected-list"
 DEFERRED_HOLD_TAG="projected-list-deferred"
 ENCRYPTED_HOLD_TAG="projected-list-encrypted"
@@ -105,7 +105,8 @@ function compare_projected_json_int
 	(( batch_calls > 1 )) || log_fail \
 	    "one-microsecond time budget did not split snapshot iteration"
 	log_must eval "zfs list -j --json-int -t '$object_types' -d 1 " \
-	    "-s available -o '$COLUMNS' '$dataset' > '$LEGACY_OUTPUT'"
+	    "-s test:force-legacy-iterator -o '$COLUMNS' '$dataset' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 	log_must rm -f "$MARKER"
 }
@@ -123,8 +124,8 @@ function compare_locked_encrypted
 	    "'$ENCRYPTED_DATASET' > '$BATCH_OUTPUT'"
 	log_must grep -Fx count "$MARKER"
 	log_must eval "zfs list -H -p -t snapshot " \
-	    "-o '$COLUMNS,available' '$ENCRYPTED_DATASET' | cut -f1-6 " \
-	    "> '$LEGACY_OUTPUT'"
+	    "-s test:force-legacy-iterator -o '$COLUMNS' " \
+	    "'$ENCRYPTED_DATASET' > '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 	log_must rm -f "$MARKER"
 }
@@ -144,7 +145,7 @@ function compare_recursive_hybrid
 	    "'$MIXED_DATASET' > '$BATCH_OUTPUT'"
 	log_must grep -Fx count "$MARKER"
 	log_must eval "zfs list -H -p -r -t '$object_types' " \
-	    "-o '$columns,available' '$MIXED_DATASET' | cut -f1-3 " \
+	    "-s test:force-legacy-iterator -o '$columns' '$MIXED_DATASET' " \
 	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 	log_must rm -f "$MARKER"
@@ -199,7 +200,7 @@ function compare_deferred_snapshot
 	    "'$DATASET' > '$BATCH_OUTPUT'"
 	log_must grep -Fx count "$MARKER"
 	log_must eval "zfs list -H -p -t snapshot " \
-	    "-o '$COLUMNS,available' '$DATASET' | cut -f1-6 " \
+	    "-s test:force-legacy-iterator -o '$COLUMNS' '$DATASET' " \
 	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 
@@ -229,8 +230,9 @@ function compare_implicit_snapshots
 	    "zfs list -H -p -r -o '$columns' '$MIXED_DATASET' " \
 	    "> '$BATCH_OUTPUT'"
 	log_must grep -Fx count "$MARKER"
-	log_must eval "zfs list -H -p -r -o '$columns,available' " \
-	    "'$MIXED_DATASET' | cut -f1-3 > '$LEGACY_OUTPUT'"
+	log_must eval "zfs list -H -p -r -o '$columns' " \
+	    "-s test:force-legacy-iterator '$MIXED_DATASET' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 
 	printf "%s\n" "$MIXED_DATASET" "$MIXED_DATASET@root" \
@@ -259,7 +261,7 @@ function compare_bookmark_only_mixed_type
 	    "'$MIXED_CHILD' > '$BATCH_OUTPUT'"
 	log_must grep -Fx count "$MARKER"
 	log_must eval "zfs list -H -p -t snapshot,bookmark -d 1 " \
-	    "-o '$columns,available' '$MIXED_CHILD' | cut -f1-3 " \
+	    "-s test:force-legacy-iterator -o '$columns' '$MIXED_CHILD' " \
 	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
 

@@ -42,9 +42,12 @@
 # 17. Reuse stale parent names with different dataset types and encryption
 #     states, and require projected handles to describe the replacements.
 # 18. Reject missing or invalid projected parent metadata with EPROTO.
-# 19. Project simple-mode snapshot properties in batches, including nonzero
-#     clone counts, and preserve old-kernel fallback.
+# 19. Project cheap snapshot properties in batches, including aliases,
+#     object IDs, nonzero clone counts, and deferred destroy, and preserve
+#     fallback.
 # 20. Read redacted state from a real redacted receive snapshot.
+# 21. Use projected listing for default snapshot and bookmark columns.
+# 22. Use full snapshot properties when coloring the available column.
 #
 
 verify_runnable "global"
@@ -65,7 +68,7 @@ INJECTED_OUTPUT="$TEST_BASE_DIR/projected_stress_injected.$$"
 EXPECTED_OUTPUT="$TEST_BASE_DIR/projected_stress_expected.$$"
 MARKER="$TEST_BASE_DIR/projected_stress_marker.$$"
 KEY_FILE="$TEST_BASE_DIR/projected_stress_key.$$"
-COLUMNS="createtxg,creation,guid,name,type,userrefs"
+COLUMNS="createtxg,creation,guid,name,type,userrefs,objsetid"
 HOLD_TAG_ONE="projected-stress-one"
 HOLD_TAG_TWO="projected-stress-two"
 
@@ -379,39 +382,105 @@ function verify_projected_sort
 {
 	typeset sort_options="$1"
 
-	log_must eval "zfs list -H -p -t snapshot -o name,available " \
-	    "$sort_options '$DATASET' | cut -f1 > '$EXPECTED_OUTPUT'"
+	log_must eval "zfs list -H -p -t snapshot -o name " \
+	    "$sort_options -s test:force-legacy-iterator '$DATASET' " \
+	    "> '$EXPECTED_OUTPUT'"
 	run_injected_list count "$INJECTED_OUTPUT" name "$EXPECTED_OUTPUT" \
 	    "$sort_options"
 }
 
 function verify_projected_userrefs
 {
-	log_must eval "zfs list -H -p -t snapshot -o name,userrefs,available " \
-	    "'$DATASET' | cut -f1-2 > '$EXPECTED_OUTPUT'"
+	log_must eval "zfs list -H -p -t snapshot " \
+	    "-s test:force-legacy-iterator -o name,userrefs '$DATASET' " \
+	    "> '$EXPECTED_OUTPUT'"
 	run_injected_list count "$INJECTED_OUTPUT" name,userrefs \
 	    "$EXPECTED_OUTPUT"
 }
 
-function verify_fast_property_union
+function verify_default_property_lists
 {
-	typeset columns="name,numclones,inconsistent,redacted,origin"
+	typeset object_types
+	typeset preload="$SHIM"
+
+	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
+	for object_types in snapshot snapshot,bookmark; do
+		log_must eval "zfs list -H -p -t '$object_types' -d 1 " \
+		    "-s test:force-legacy-iterator " \
+		    "-o name,used,available,referenced,mountpoint " \
+		    "'$DATASET' > '$EXPECTED_OUTPUT'"
+		log_must eval "LD_PRELOAD='$preload' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MODE='count' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+		    "zfs list -H -p -t '$object_types' -d 1 '$DATASET' " \
+		    "> '$INJECTED_OUTPUT'"
+		log_must grep -Fx count "$MARKER"
+		log_must diff "$EXPECTED_OUTPUT" "$INJECTED_OUTPUT"
+		log_must rm -f "$MARKER"
+	done
+
+	log_must eval "zfs list -H -p -t bookmark " \
+	    "-s test:force-legacy-iterator " \
+	    "-o name,used,available,referenced,mountpoint '$DATASET' " \
+	    "> '$EXPECTED_OUTPUT'"
+	log_must eval "LD_PRELOAD='$preload' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MODE='bookmark_projected' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+	    "zfs list -H -p -t bookmark '$DATASET' > '$INJECTED_OUTPUT'"
+	log_must grep -Fx bookmark_projected "$MARKER"
+	! grep -q -Fx bookmark_not_projected "$MARKER" ||
+	    log_fail "default bookmark listing requested excess properties"
+	log_must diff "$EXPECTED_OUTPUT" "$INJECTED_OUTPUT"
+	log_must rm -f "$MARKER"
+}
+
+function verify_colored_snapshot_listing_uses_legacy
+{
+	typeset object_types
+	typeset preload="$SHIM"
+
+	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
+	for object_types in snapshot snapshot,bookmark; do
+		log_must rm -f "$MARKER"
+		log_must eval "faketty TERM=xterm-256color ZFS_COLOR=1 " \
+		    "zfs list -t '$object_types' -d 1 " \
+		    "-s test:force-legacy-iterator '$DATASET' " \
+		    "> '$EXPECTED_OUTPUT'"
+		log_must eval "faketty TERM=xterm-256color ZFS_COLOR=1 " \
+		    "LD_PRELOAD='$preload' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MODE='count' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+		    "zfs list -t '$object_types' -d 1 '$DATASET' " \
+		    "> '$INJECTED_OUTPUT'"
+		[[ ! -e "$MARKER" ]] || log_fail \
+		    "colored $object_types listing used projected properties"
+		log_must diff "$EXPECTED_OUTPUT" "$INJECTED_OUTPUT"
+	done
+}
+
+function verify_projected_property_union
+{
+	typeset columns="name,used,available,referenced,refer,mountpoint"
 	typeset property
 	typeset numclones
+	columns="$columns,logicalreferenced,lrefer,defer_destroy,numclones,objsetid"
+	columns="$columns,inconsistent,redacted,origin"
 
 	log_must eval "zfs list -H -p -t snapshot " \
-	    "-o '$columns,available' '$DATASET' | cut -f1-5 " \
+	    "-s test:force-legacy-iterator -o '$columns' '$DATASET' " \
 	    "> '$EXPECTED_OUTPUT'"
 	run_injected_list count "$INJECTED_OUTPUT" "$columns" \
 	    "$EXPECTED_OUTPUT"
 	run_injected_list arg_unavail "$INJECTED_OUTPUT" "$columns" \
 	    "$EXPECTED_OUTPUT"
 
-	for property in numclones inconsistent redacted origin; do
+	for property in used available referenced refer mountpoint \
+	    logicalreferenced lrefer defer_destroy numclones inconsistent \
+	    redacted origin objsetid; do
 		log_must eval "zfs list -H -p -t snapshot " \
-		    "-s '$property' -o '$columns,available' '$DATASET' | " \
-		    "cut -f1-5 > '$EXPECTED_OUTPUT'"
-		run_injected_list count "$INJECTED_OUTPUT" "$columns" \
+		    "-s '$property' -s test:force-legacy-iterator " \
+		    "-o name '$DATASET' > '$EXPECTED_OUTPUT'"
+		run_injected_list count "$INJECTED_OUTPUT" name \
 		    "$EXPECTED_OUTPUT" "-s $property"
 	done
 
@@ -439,7 +508,7 @@ function verify_projected_redacted
 	    "zfs receive -u '$REDACT_RECV'"
 
 	log_must eval "zfs list -H -p -t snapshot " \
-	    "-o '$columns,available' '$REDACT_RECV' | cut -f1-5 " \
+	    "-s test:force-legacy-iterator -o '$columns' '$REDACT_RECV' " \
 	    "> '$EXPECTED_OUTPUT'"
 	log_must eval "LD_PRELOAD='$preload' " \
 	    "ZFS_SNAPSHOT_LIST_TEST_MODE='count' " \
@@ -480,7 +549,7 @@ function verify_mixed_type_fallback
 	typeset columns="name,createtxg,guid"
 
 	log_must eval "zfs list -H -p -t snapshot,bookmark -d 1 " \
-	    "-o '$columns,available' '$DATASET' | cut -f1-3 " \
+	    "-s test:force-legacy-iterator -o '$columns' '$DATASET' " \
 	    "> '$EXPECTED_OUTPUT'"
 	run_injected_list cmd_unavail "$INJECTED_OUTPUT" "$columns" \
 	    "$EXPECTED_OUTPUT" "-d 1" snapshot,bookmark
@@ -508,6 +577,9 @@ log_must zfs snapshot "$DATASET@z_middle"
 log_must zfs snapshot "$DATASET@a_newest"
 log_must zfs hold "$HOLD_TAG_ONE" "$DATASET@z_middle"
 log_must zfs hold "$HOLD_TAG_TWO" "$DATASET@z_middle"
+log_must zfs destroy -d "$DATASET@z_middle"
+snapexists "$DATASET@z_middle" ||
+    log_fail "deferred-destroy snapshot disappeared while held"
 log_must zfs bookmark "$DATASET@m_oldest" "$DATASET#normal"
 log_must zfs snapshot "$DATASET@bookmark_source"
 log_must zfs bookmark "$DATASET@bookmark_source" \
@@ -521,11 +593,15 @@ verify_written_uses_legacy
 verify_all_uses_legacy
 run_injected_bookmark_errors
 verify_projected_userrefs
+verify_default_property_lists
+verify_colored_snapshot_listing_uses_legacy
 verify_projected_sort "-s guid"
 verify_projected_sort "-S guid"
 verify_projected_sort "-s userrefs"
 verify_projected_sort "-S userrefs"
 verify_projected_sort "-s userrefs -S guid"
+verify_projected_sort "-s objsetid"
+verify_projected_sort "-S objsetid"
 log_must set_tunable32 SNAPSHOT_LIST_BATCH_SIZE 2
 verify_filtered_batch_fill
 verify_filtered_fallback
@@ -534,7 +610,7 @@ run_injected_empty_batch
 run_injected_eof_after_first
 log_must set_tunable32 SNAPSHOT_LIST_BATCH_SIZE 1024
 log_must zfs clone "$DATASET@m_oldest" "$CLONE_DATASET"
-verify_fast_property_union
+verify_projected_property_union
 log_must zfs destroy "$CLONE_DATASET"
 log_must rm -f "$EXPECTED_OUTPUT"
 verify_projected_redacted

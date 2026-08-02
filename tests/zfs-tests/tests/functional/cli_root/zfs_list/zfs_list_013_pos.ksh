@@ -24,7 +24,8 @@
 # 2. Verify empty output and exact counts at 1023, 1024, and 1025 snapshots.
 # 3. Verify maximum-length snapshot and bookmark names.
 # 4. Verify default, tied, explicit-name, and mixed-type ordering.
-# 5. Compare all 63 nonempty subsets of six common properties with full stats.
+# 5. Compare all 127 nonempty subsets of seven common properties with full
+#    stats.
 # 6. List snapshots while another process creates, renames, and destroys one.
 #
 
@@ -43,8 +44,8 @@ OUTPUT="$TEST_BASE_DIR/list_generic_output.$$"
 LEGACY_OUTPUT="$TEST_BASE_DIR/list_generic_legacy.$$"
 EXPECTED_OUTPUT="$TEST_BASE_DIR/list_generic_expected.$$"
 RACE_LOG="$TEST_BASE_DIR/list_generic_race.$$"
-COLUMNS="createtxg,creation,guid,name,type,userrefs"
-PROPERTIES="createtxg creation guid name type userrefs"
+COLUMNS="createtxg,creation,guid,name,type,userrefs,objsetid"
+PROPERTIES="createtxg creation guid name type userrefs objsetid"
 HOLD_TAG="list-generic"
 race_pid=""
 
@@ -68,26 +69,37 @@ function compare_full_stat
 	typeset dataset="$1"
 	typeset object_types="$2"
 	typeset property
+	typeset projected_columns="used,available,referenced,refer,mountpoint"
+	projected_columns="$projected_columns,logicalreferenced,lrefer,defer_destroy"
 
-	for property in createtxg creation guid name type userrefs; do
+	for property in createtxg creation guid name type userrefs objsetid; do
 		log_must eval "zfs list -H -p -t '$object_types' -d 1 " \
 		    "-s '$property' -o '$COLUMNS' '$dataset' > '$OUTPUT'"
 		log_must eval "zfs list -H -p -t '$object_types' -d 1 " \
-		    "-s '$property' -o '$COLUMNS,available' '$dataset' | " \
-		    "cut -f1-6 > '$LEGACY_OUTPUT'"
+		    "-s '$property' -s test:force-legacy-iterator " \
+		    "-o '$COLUMNS' '$dataset' > '$LEGACY_OUTPUT'"
 		log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 	done
 
 	log_must eval "zfs list -j -p -t '$object_types' -d 1 " \
 	    "-o '$COLUMNS' '$dataset' > '$OUTPUT'"
-	log_must eval "zfs list -j -p -t '$object_types' -d 1 -s available " \
+	log_must eval "zfs list -j -p -t '$object_types' -d 1 " \
+	    "-s test:force-legacy-iterator " \
 	    "-o '$COLUMNS' '$dataset' > '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 
 	log_must eval "zfs list -t '$object_types' -d 1 -o '$COLUMNS' " \
 	    "'$dataset' > '$OUTPUT'"
-	log_must eval "zfs list -t '$object_types' -d 1 -s available " \
+	log_must eval "zfs list -t '$object_types' -d 1 " \
+	    "-s test:force-legacy-iterator " \
 	    "-o '$COLUMNS' '$dataset' > '$LEGACY_OUTPUT'"
+	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
+
+	log_must eval "zfs list -H -p -t '$object_types' -d 1 " \
+	    "-o '$projected_columns' '$dataset' > '$OUTPUT'"
+	log_must eval "zfs list -H -p -t '$object_types' -d 1 " \
+	    "-s test:force-legacy-iterator -o '$projected_columns' '$dataset' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 }
 
@@ -98,14 +110,16 @@ function compare_json_name
 
 	log_must eval "zfs list -j -p -t '$object_types' -d 1 -o name " \
 	    "'$dataset' > '$OUTPUT'"
-	log_must eval "zfs list -j -p -t '$object_types' -d 1 -s available " \
+	log_must eval "zfs list -j -p -t '$object_types' -d 1 " \
+	    "-s test:force-legacy-iterator " \
 	    "-o name '$dataset' > '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 
 	log_must eval "zfs list -j --json-int -t '$object_types' -d 1 " \
 	    "-o name '$dataset' > '$OUTPUT'"
 	log_must eval "zfs list -j --json-int -t '$object_types' -d 1 " \
-	    "-s available -o name '$dataset' > '$LEGACY_OUTPUT'"
+	    "-s test:force-legacy-iterator -o name '$dataset' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 }
 
@@ -128,21 +142,21 @@ function compare_order
 	log_must eval "zfs list -H -p -t '$types' -o name $sort_options " \
 	    "'$SUBSET_DATASET' > '$OUTPUT'"
 	log_must diff "$EXPECTED_OUTPUT" "$OUTPUT"
-	log_must eval "zfs list -H -p -t '$types' -o name,available " \
-	    "$sort_options '$SUBSET_DATASET' | cut -f1 > '$LEGACY_OUTPUT'"
+	log_must eval "zfs list -H -p -t '$types' -o name $sort_options " \
+	    "-s test:force-legacy-iterator '$SUBSET_DATASET' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$EXPECTED_OUTPUT" "$LEGACY_OUTPUT"
 }
 
 function compare_subset
 {
 	typeset columns="$1"
-	typeset field_count="$2"
 
 	log_must eval "zfs list -H -p -t snapshot,bookmark -d 1 " \
 	    "-o '$columns' '$SUBSET_DATASET' > '$OUTPUT'"
 	log_must eval "zfs list -H -p -t snapshot,bookmark -d 1 " \
-	    "-o '$columns,available' '$SUBSET_DATASET' | " \
-	    "cut -f1-$field_count > '$LEGACY_OUTPUT'"
+	    "-s test:force-legacy-iterator -o '$columns' '$SUBSET_DATASET' " \
+	    "> '$LEGACY_OUTPUT'"
 	log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 }
 
@@ -211,8 +225,9 @@ verify_count 1025
 
 log_must eval "zfs list -H -p -t snapshot -o '$COLUMNS' " \
     "'$BOUNDARY_DATASET' > '$OUTPUT'"
-log_must eval "zfs list -H -p -t snapshot -o '$COLUMNS,available' " \
-    "'$BOUNDARY_DATASET' | cut -f1-6 > '$LEGACY_OUTPUT'"
+log_must eval "zfs list -H -p -t snapshot " \
+    "-s test:force-legacy-iterator -o '$COLUMNS' '$BOUNDARY_DATASET' " \
+    "> '$LEGACY_OUTPUT'"
 log_must diff "$LEGACY_OUTPUT" "$OUTPUT"
 
 log_must zfs create "$MAX_DATASET"
@@ -279,20 +294,18 @@ printf "%s\n" "$SUBSET_DATASET@m_oldest" "$SUBSET_DATASET@z_middle" \
 compare_order snapshot,bookmark "-d 1"
 
 set -A property_array $PROPERTIES
-typeset -i mask property_index field_count
+typeset -i mask property_index
 typeset columns separator
-for (( mask = 1; mask < 64; mask += 1 )); do
+for (( mask = 1; mask < 128; mask += 1 )); do
 	columns=""
 	separator=""
-	field_count=0
-	for (( property_index = 0; property_index < 6; property_index += 1 )); do
+	for (( property_index = 0; property_index < 7; property_index += 1 )); do
 		if (( mask & (1 << property_index) )); then
 			columns="${columns}${separator}${property_array[property_index]}"
 			separator=","
-			(( field_count += 1 ))
 		fi
 	done
-	compare_subset "$columns" "$field_count"
+	compare_subset "$columns"
 done
 
 log_must zfs destroy "$BOUNDARY_DATASET@suffix_1024"

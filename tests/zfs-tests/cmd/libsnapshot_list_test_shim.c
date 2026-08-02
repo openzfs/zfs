@@ -260,11 +260,30 @@ out:
 	return (error);
 }
 
+static boolean_t
+matches_target(const char *name, const char *target)
+{
+	return (target == NULL || strcmp(name, target) == 0);
+}
+
+static boolean_t
+is_default_projected_bookmark_props(nvlist_t *props)
+{
+	nvpair_t *pair = NULL;
+	unsigned int count = 0;
+
+	while ((pair = nvlist_next_nvpair(props, pair)) != NULL)
+		count++;
+	return (count == 1 &&
+	    nvlist_exists(props, zfs_prop_to_name(ZFS_PROP_REFERENCED)));
+}
+
 int
 lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 {
 	static lzc_get_bookmarks_fn_t next;
 	const char *mode = getenv("ZFS_SNAPSHOT_LIST_TEST_MODE");
+	const char *target = getenv("ZFS_SNAPSHOT_LIST_TEST_TARGET");
 	int error = 0;
 
 	if (mode != NULL && strcmp(mode, "bookmark_eio") == 0)
@@ -276,6 +295,14 @@ lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 	if (error != 0) {
 		write_marker(mode);
 		return (error);
+	}
+	if (mode != NULL && strcmp(mode, "bookmark_projected") == 0 &&
+	    matches_target(fsname, target)) {
+		if (!is_default_projected_bookmark_props(props)) {
+			write_marker("bookmark_not_projected");
+			return (EPROTO);
+		}
+		write_marker(mode);
 	}
 
 	if (next == NULL)

@@ -92,6 +92,22 @@ top:
 	return (rc);
 }
 
+static int
+zfs_batch_add_uint64_prop(nvlist_t *props, zfs_prop_t prop, uint64_t value)
+{
+	nvlist_t *propval;
+	int error;
+
+	if ((error = nvlist_alloc(&propval, NV_UNIQUE_NAME, 0)) != 0)
+		return (error);
+	if ((error = nvlist_add_uint64(propval, ZPROP_VALUE, value)) == 0) {
+		error = nvlist_add_nvlist(props, zfs_prop_to_name(prop),
+		    propval);
+	}
+	nvlist_free(propval);
+	return (error);
+}
+
 /*
  * Keep the userspace limit independent of the kernel tunable so a future
  * kernel can increase its limit without exceeding this caller's destination
@@ -112,9 +128,12 @@ top:
 static int
 make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
     dmu_objset_type_t dmu_type, uint8_t dds_flags,
-    const uint64_t *createtxg, const uint64_t *guid, const uint64_t *creation,
+    const uint64_t *createtxg, const uint64_t *guid,
+    const uint64_t *objsetid, const uint64_t *creation,
     const uint64_t *userrefs, const uint64_t *numclones,
-    const uint8_t *inconsistent, const uint8_t *redacted,
+    const uint64_t *used, const uint64_t *referenced,
+    const uint64_t *logicalreferenced, const uint8_t *inconsistent,
+    const uint8_t *redacted, const uint8_t *defer_destroy,
     zfs_handle_t **result)
 {
 	zfs_handle_t *zhp = calloc(1, sizeof (zfs_handle_t));
@@ -164,6 +183,19 @@ make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
 	if ((error = nvlist_alloc(&zhp->zfs_props, NV_UNIQUE_NAME, 0)) != 0 ||
 	    (error = nvlist_alloc(&zhp->zfs_user_props, NV_UNIQUE_NAME, 0)) !=
 	    0) {
+		goto fail;
+	}
+	if ((used != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_USED, *used)) != 0) ||
+	    (objsetid != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_OBJSETID, *objsetid)) != 0) ||
+	    (referenced != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_REFERENCED, *referenced)) != 0) ||
+	    (logicalreferenced != NULL &&
+	    (error = zfs_batch_add_uint64_prop(zhp->zfs_props,
+	    ZFS_PROP_LOGICALREFERENCED, *logicalreferenced)) != 0) ||
+	    (defer_destroy != NULL && (error = zfs_batch_add_uint64_prop(
+	    zhp->zfs_props, ZFS_PROP_DEFER_DESTROY, *defer_destroy)) != 0)) {
 		goto fail;
 	}
 
@@ -221,12 +253,28 @@ zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
 		fnvlist_add_boolean(props,
 		    zfs_prop_to_name(ZFS_PROP_REDACTED));
 	}
+	if (flags & ZFS_ITER_BATCHED_USED)
+		fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_USED));
+	if (flags & ZFS_ITER_BATCHED_REFERENCED) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_REFERENCED));
+	}
+	if (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_LOGICALREFERENCED));
+	}
+	if (flags & ZFS_ITER_BATCHED_DEFER_DESTROY) {
+		fnvlist_add_boolean(props,
+		    zfs_prop_to_name(ZFS_PROP_DEFER_DESTROY));
+	}
+	if (flags & ZFS_ITER_BATCHED_OBJSETID)
+		fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_OBJSETID));
 	fnvlist_add_nvlist(args, SNAP_ITER_BATCH_PROPS, props);
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, args);
 	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc,
-	    SNAPSHOT_LIST_BATCH_NVLIST_SIZE(5, 2));
+	    SNAPSHOT_LIST_BATCH_NVLIST_SIZE(9, 3));
 	for (;;) {
 		int ioctl_errno = 0;
 
@@ -285,14 +333,19 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 
 	for (;;) {
 		char **names = NULL;
-		uint64_t *createtxgs = NULL, *guids = NULL;
+		uint64_t *createtxgs = NULL, *guids = NULL, *objsetids = NULL;
 		uint64_t *creations = NULL, *userrefs = NULL;
-		uint64_t *numclones = NULL;
+		uint64_t *numclones = NULL, *used = NULL;
+		uint64_t *referenced = NULL, *logicalreferenced = NULL;
 		uint8_t *inconsistent = NULL, *redacted = NULL;
+		uint8_t *defer_destroy = NULL;
 		uint_t count = 0, createtxg_count = 0, guid_count = 0;
+		uint_t objsetid_count = 0;
 		uint_t creation_count = 0, userref_count = 0;
-		uint_t numclone_count = 0, inconsistent_count = 0;
-		uint_t redacted_count = 0;
+		uint_t numclone_count = 0, used_count = 0;
+		uint_t referenced_count = 0, logicalreferenced_count = 0;
+		uint_t inconsistent_count = 0, redacted_count = 0;
+		uint_t defer_destroy_count = 0;
 		uint64_t next_cursor, dmu_type, dds_flags;
 		nvlist_t *batch = NULL;
 		boolean_t eof = B_FALSE, ioctl_eof;
@@ -365,6 +418,13 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			ret = EPROTO;
 			goto malformed;
 		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_OBJSETID) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_OBJSETIDS, &objsetids,
+		    &objsetid_count) != 0 || count != objsetid_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
 
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATION) &&
 		    (nvlist_lookup_uint64_array(batch,
@@ -387,6 +447,28 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			ret = EPROTO;
 			goto malformed;
 		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_USED) &&
+		    (nvlist_lookup_uint64_array(batch, SNAP_ITER_BATCH_USED,
+		    &used, &used_count) != 0 || count != used_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_REFERENCED) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_REFERENCED, &referenced,
+		    &referenced_count) != 0 || count != referenced_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count != 0 &&
+		    (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) &&
+		    (nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_LOGICALREFERENCED, &logicalreferenced,
+		    &logicalreferenced_count) != 0 ||
+		    count != logicalreferenced_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
 		    (nvlist_lookup_uint8_array(batch,
 		    zfs_prop_to_name(ZFS_PROP_INCONSISTENT), &inconsistent,
@@ -402,11 +484,21 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			ret = EPROTO;
 			goto malformed;
 		}
+		if (count != 0 && (flags & ZFS_ITER_BATCHED_DEFER_DESTROY) &&
+		    (nvlist_lookup_uint8_array(batch,
+		    SNAP_ITER_BATCH_DEFER_DESTROY, &defer_destroy,
+		    &defer_destroy_count) != 0 ||
+		    count != defer_destroy_count)) {
+			ret = EPROTO;
+			goto malformed;
+		}
 		for (uint_t i = 0; i < count; i++) {
 			if (((flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
 			    inconsistent[i] > 1) ||
 			    ((flags & ZFS_ITER_BATCHED_REDACTED) &&
-			    redacted[i] > 1)) {
+			    redacted[i] > 1) ||
+			    ((flags & ZFS_ITER_BATCHED_DEFER_DESTROY) &&
+			    defer_destroy[i] > 1)) {
 				ret = EPROTO;
 				goto malformed;
 			}
@@ -418,6 +510,9 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			    &createtxgs[i] : NULL;
 			const uint64_t *guid =
 			    (flags & ZFS_ITER_BATCHED_GUID) ? &guids[i] : NULL;
+			const uint64_t *objsetid =
+			    (flags & ZFS_ITER_BATCHED_OBJSETID) ?
+			    &objsetids[i] : NULL;
 			const uint64_t *creation =
 			    (flags & ZFS_ITER_BATCHED_CREATION) ?
 			    &creations[i] : NULL;
@@ -427,18 +522,32 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			const uint64_t *numclone =
 			    (flags & ZFS_ITER_BATCHED_NUMCLONES) ?
 			    &numclones[i] : NULL;
+			const uint64_t *used_value =
+			    (flags & ZFS_ITER_BATCHED_USED) ? &used[i] : NULL;
+			const uint64_t *referenced_value =
+			    (flags & ZFS_ITER_BATCHED_REFERENCED) ?
+			    &referenced[i] : NULL;
+			const uint64_t *logicalreferenced_value =
+			    (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) ?
+			    &logicalreferenced[i] : NULL;
 			const uint8_t *inconsistent_value =
 			    (flags & ZFS_ITER_BATCHED_INCONSISTENT) ?
 			    &inconsistent[i] : NULL;
 			const uint8_t *redacted_value =
 			    (flags & ZFS_ITER_BATCHED_REDACTED) ?
 			    &redacted[i] : NULL;
+			const uint8_t *defer_destroy_value =
+			    (flags & ZFS_ITER_BATCHED_DEFER_DESTROY) ?
+			    &defer_destroy[i] : NULL;
 			zfs_handle_t *nzhp;
 
 			ret = make_dataset_batch_handle(zhp, names[i],
 			    (dmu_objset_type_t)dmu_type, (uint8_t)dds_flags,
-			    createtxg, guid, creation, userref, numclone,
-			    inconsistent_value, redacted_value, &nzhp);
+			    createtxg, guid, objsetid, creation, userref,
+			    numclone,
+			    used_value, referenced_value,
+			    logicalreferenced_value, inconsistent_value,
+			    redacted_value, defer_destroy_value, &nzhp);
 			if (ret != 0) {
 				int error = ret;
 
@@ -639,6 +748,14 @@ zfs_iter_bookmarks_v2(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		if (flags & ZFS_ITER_BATCHED_CREATION) {
 			fnvlist_add_boolean(props,
 			    zfs_prop_to_name(ZFS_PROP_CREATION));
+		}
+		if (flags & ZFS_ITER_BATCHED_REFERENCED) {
+			fnvlist_add_boolean(props,
+			    zfs_prop_to_name(ZFS_PROP_REFERENCED));
+		}
+		if (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) {
+			fnvlist_add_boolean(props,
+			    zfs_prop_to_name(ZFS_PROP_LOGICALREFERENCED));
 		}
 	} else {
 		for (zfs_prop_t p = 0; p < ZFS_NUM_PROPS; p++) {
