@@ -4783,6 +4783,16 @@ zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	/*
+	 * Larger reads fall back to the synchronous path, which chunks them.
+	 */
+	if (aligned_n > SPA_MAXBLOCKSIZE) {
+		zfs_rangelock_exit(lr);
+		zfs_uio_free_dio_pages(uio, UIO_READ);
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
 	/* Build ABD from pinned pages */
 	offset_t offset = zfs_uio_offset(uio);
 	offset_t page_idx = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
@@ -5065,6 +5075,42 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
+	/*
+	 * Larger requests fall back to the synchronous path, which
+	 * chunks them per transaction.
+	 */
+	if (n > SPA_MAXBLOCKSIZE) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
+	}
+
+	/*
+	 * Copy the user data into a kernel ABD BEFORE taking the range lock
+	 * to avoid deadlock.
+	 *
+	 * Save the uio before the copy: every error path from here on (the
+	 * copy itself, or a rejection once the range lock is held) must
+	 * rewind the shared iov_iter and restore the uio so the synchronous
+	 * fallback in zpl_iter_write() retries the full write.
+	 */
+	abd_t *data = abd_alloc_linear(n, B_FALSE);
+	zfs_uio_t saved_uio = *uio;
+
+	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
+	if (error) {
+		/*
+		 * The copy faulted partway: zfs_uiomove() advanced the
+		 * underlying iov_iter by the bytes consumed.  Rewind it
+		 * before restoring the saved uio.
+		 */
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
 	zfs_locked_range_t *lr;
 	if (ioflag & O_APPEND) {
 		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n, RL_APPEND);
@@ -5076,29 +5122,49 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		lr = zfs_rangelock_enter(&zp->z_rangelock, woff, n, RL_WRITER);
 	}
 
-	if (zn_rlimit_fsize_uio(zp, uio)) {
+	/*
+	 * The write offset is now fixed by the range lock.  Every rejection
+	 * below must restore the uio (the copy above has consumed the user
+	 * data) and free the ABD before returning.
+	 */
+	if (zn_rlimit_fsize_uio(zp, &saved_uio)) {
 		zfs_rangelock_exit(lr);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFBIG));
 	}
 
 	if (lr->lr_length == UINT64_MAX) {
 		zfs_rangelock_exit(lr);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
 	}
 
 	if (woff >= MAXOFFSET_T) {
 		zfs_rangelock_exit(lr);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFBIG));
 	}
 	if ((uint64_t)n > MAXOFFSET_T - woff)
 		n = MAXOFFSET_T - woff;
-	n = MIN(n, zfs_uio_resid(uio));
 	n = P2ALIGN_TYPED(n, PAGE_SIZE, ssize_t);
 	if (n == 0) {
 		zfs_rangelock_exit(lr);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
 	}
@@ -5118,22 +5184,13 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	 */
 	if (!zfs_dio_aligned(woff, n, zp->z_blksz)) {
 		zfs_rangelock_exit(lr);
+		zfs_uio_iov_iter_revert(uio,
+		    saved_uio.uio_resid - uio->uio_resid);
+		*uio = saved_uio;
+		abd_free(data);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
 	}
-
-	/*
-	 * Allocate a kernel ABD to hold the user data.  The actual
-	 * copy (zfs_uiomove) is deferred until after dmu_tx_assign
-	 * succeeds: if the assign fails we must return to the caller
-	 * with uio untouched so the sync fallback in zpl_iter_write()
-	 * can retry the full write.
-	 *
-	 * We copy rather than pin user pages to avoid FOLL_LONGTERM
-	 * issues on RHEL and mainline >= 6.0.
-	 */
-	offset_t offset = zfs_uio_offset(uio);
-	abd_t *data = abd_alloc_linear(n, B_FALSE);
 
 	boolean_t do_commit = (ioflag & (O_SYNC | O_DSYNC)) ||
 	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
@@ -5149,37 +5206,9 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 		dmu_tx_abort(tx);
 		abd_free(data);
 		zfs_rangelock_exit(lr);
-		zfs_exit(zfsvfs, FTAG);
-		return (error);
-	}
-
-	/*
-	 * Copy user data into the kernel ABD.  Must be done AFTER
-	 * dmu_tx_assign so uio stays intact on assign failure for
-	 * the sync fallback.
-	 *
-	 * Save the full uio before the copy for restore if errors.
-	 */
-	zfs_uio_t saved_uio = *uio;
-
-	error = zfs_uiomove(abd_to_buf(data), n, UIO_WRITE, uio);
-	if (error) {
-		/*
-		 * The copy faulted partway.  zfs_uiomove() advanced the
-		 * underlying iov_iter by the bytes consumed; rewind it
-		 * before restoring the saved uio so the sync fallback in
-		 * zpl_iter_write() retries from the original position (a
-		 * bare struct restore leaves the shared iov_iter advanced).
-		 * The tx is already assigned, so it must be committed, not
-		 * aborted -- dmu_tx_abort() VERIFYs tx_txg == 0 and would
-		 * panic; the synchronous path likewise commits on EFAULT.
-		 */
 		zfs_uio_iov_iter_revert(uio,
 		    saved_uio.uio_resid - uio->uio_resid);
 		*uio = saved_uio;
-		dmu_tx_commit(tx);
-		abd_free(data);
-		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -5227,7 +5256,7 @@ zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
 	 */
 	zfs_async_dio_hold(zfsvfs);
 
-	error = dmu_write_abd_async(DB_DNODE(db), offset, n, data, dflags,
+	error = dmu_write_abd_async(DB_DNODE(db), woff, n, data, dflags,
 	    tx, zfs_async_write_complete, cb);
 	if (error) {
 		/*
