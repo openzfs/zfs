@@ -1986,8 +1986,10 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 		}
 
 		char errbuf[ERRBUFLEN];
+		char sendname[ZFS_MAX_DATASET_NAME_LEN];
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot send '%s'"), zhp->zfs_name);
+		(void) strlcpy(sendname, zhp->zfs_name, sizeof (sendname));
 
 		zfs_close(zhp);
 
@@ -1999,7 +2001,7 @@ zfs_send_resume_impl_cb_impl(libzfs_handle_t *hdl, sendflags_t *flags,
 			    "source key must be loaded"));
 			return (zfs_error(hdl, EZFS_CRYPTOFAILED, errbuf));
 		case ESRCH:
-			if (lzc_exists(zhp->zfs_name)) {
+			if (lzc_exists(sendname)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "incremental source could not be found"));
 			}
