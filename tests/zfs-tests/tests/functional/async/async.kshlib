@@ -86,31 +86,34 @@ function async_dio_iops
 
 #
 # Run an async DIO fio verify workload: write with sha1 headers,
-# then read back and verify.
+# then read back and verify.  The block size and file size default to
+# the values in async.cfg and may be overridden (e.g. to exercise
+# requests larger than SPA_MAXBLOCKSIZE).
 #
-# Usage: async_dio_verify <mntpnt> <ioengine> <iodepth> [extra_args]
+# Usage: async_dio_verify <mntpnt> <ioengine> <iodepth> [bs] [size]
 #
 function async_dio_verify
 {
 	typeset mntpnt=$1
 	typeset ioengine=$2
 	typeset iodepth=$3
-	typeset extra_args=${4:-""}
+	typeset bs=${4:-$ASYNC_BS_HR}
+	typeset size=${5:-$ASYNC_FILESIZE_HR}
 	typeset testfile="$mntpnt/async_verify_testfile"
 
 	log_must fio --filename="$testfile" --name=async-verify-write \
-	    --rw=write --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --rw=write --bs="$bs" --size="$size" \
 	    --direct=1 --numjobs=1 --iodepth=$iodepth \
 	    --ioengine=$ioengine --fallocate=none \
 	    --verify=sha1 --do_verify=0 \
-	    --group_reporting --minimal $extra_args
+	    --group_reporting --minimal
 
 	log_must fio --filename="$testfile" --name=async-verify-read \
-	    --rw=read --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --rw=read --bs="$bs" --size="$size" \
 	    --direct=1 --numjobs=1 --iodepth=$iodepth \
 	    --ioengine=$ioengine --fallocate=none \
 	    --verify=sha1 --do_verify=1 \
-	    --group_reporting --minimal $extra_args
+	    --group_reporting --minimal
 
 	log_must rm -f "$testfile"
 }
