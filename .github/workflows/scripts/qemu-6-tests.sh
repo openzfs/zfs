@@ -146,7 +146,10 @@ if [ -z ${1:-} ]; then
     tail --pid=$(cat vm${i}.pid) -f /dev/null
     pid=$(cat vm${i}log.pid)
     rm -f vm${i}log.pid
-    kill $pid
+    # Tolerate a reader that has already exited.  The ESRCH would otherwise
+    # end this script under set -e and fail a job whose tests all passed.
+    # It stays on stderr: a dead reader means output was lost.
+    kill $pid || true
   done
 
   exit 0
