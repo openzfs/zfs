@@ -6,4 +6,5 @@ libzpool_sys_HEADERS = \
 	%D%/sys/trace_zfs.h \
 	%D%/sys/zfs_bootenv_os.h \
 	%D%/sys/zfs_context_os.h \
-	%D%/sys/zfs_debug_os.h
+	%D%/sys/zfs_debug_os.h \
+	%D%/sys/zio_crypt_os.h
