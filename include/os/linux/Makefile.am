@@ -49,6 +49,7 @@ kernel_sys_HEADERS = \
 	%D%/zfs/sys/zfs_vfsops_os.h \
 	%D%/zfs/sys/zfs_vnops_os.h \
 	%D%/zfs/sys/zfs_znode_impl.h \
+	%D%/zfs/sys/zio_crypt_os.h \
 	%D%/zfs/sys/zpl.h
 
 kernel_spl_rpcdir = $(kerneldir)/spl/rpc
