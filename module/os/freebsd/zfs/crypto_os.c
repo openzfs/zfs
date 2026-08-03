@@ -212,14 +212,12 @@ freebsd_crypt_uio_debug_log(boolean_t encrypt,
     size_t auth_len)
 {
 #ifdef FCRYPTO_DEBUG
-	struct cryptodesc *crd;
-	uint8_t *p = NULL;
 	size_t total = 0;
 
 	printf("%s(%s, %p, { %s, %d, %d, %s }, %p, { %p, %u }, "
 	    "%p, %u, %u)\n",
 	    __FUNCTION__, encrypt ? "encrypt" : "decrypt", input_sessionp,
-	    c_info->ci_algname, c_info->ci_crypt_type,
+	    c_info->ci_mechname, c_info->ci_crypt_type,
 	    (unsigned int)c_info->ci_keylen, c_info->ci_name,
 	    data_uio, key->ck_data,
 	    (unsigned int)key->ck_length,
@@ -254,7 +252,7 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 #ifdef FCRYPTO_DEBUG
 	printf("%s(%p, { %s, %d, %d, %s }, { %p, %u })\n",
 	    __FUNCTION__, sessp,
-	    c_info->ci_algname, c_info->ci_crypt_type,
+	    c_info->ci_mechname, c_info->ci_crypt_type,
 	    (unsigned int)c_info->ci_keylen, c_info->ci_name,
 	    key->ck_data, (unsigned int)key->ck_length);
 	printf("\tkey = { ");
