@@ -132,8 +132,9 @@ smb_retrieve_shares(void)
 				continue;
 
 			/* Trim trailing new-line character(s). */
-			while (line[strlen(line) - 1] == '\r' ||
-			    line[strlen(line) - 1] == '\n')
+			while ((line[0] != '\0') &&
+			    (line[strlen(line) - 1] == '\r' ||
+			    line[strlen(line) - 1] == '\n'))
 				line[strlen(line) - 1] = '\0';
 
 			/* Split the line in two, separated by '=' */
