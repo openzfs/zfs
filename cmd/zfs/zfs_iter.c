@@ -263,6 +263,14 @@ zfs_list_only_by_fast(const zprop_list_t *p)
 	return (B_TRUE);
 }
 
+static boolean_t
+zfs_list_batch_inapplicable_prop(int prop)
+{
+	return (prop >= ZFS_PROP_TYPE && prop < ZFS_NUM_PROPS &&
+	    !zfs_prop_valid_for_type(prop,
+	    ZFS_TYPE_SNAPSHOT | ZFS_TYPE_BOOKMARK, B_FALSE));
+}
+
 /*
  * Select the projected snapshot iterator only when it can populate every
  * displayed and sorted property.  Optional flags keep unrequested values out
@@ -284,11 +292,6 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 		case ZFS_PROP_NAME:
 		case ZFS_PROP_TYPE:
 			break;
-		/* These are not valid for snapshots, so need no payload. */
-		case ZFS_PROP_AVAILABLE:
-		case ZFS_PROP_MOUNTPOINT:
-		case ZFS_PROP_ORIGIN:
-			break;
 		case ZFS_PROP_USED:
 			flags |= ZFS_ITER_BATCHED_USED;
 			break;
@@ -326,7 +329,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 			flags |= ZFS_ITER_BATCHED_REDACTED;
 			break;
 		default:
-			return (0);
+			if (!zfs_list_batch_inapplicable_prop(p->pl_prop))
+				return (0);
+			break;
 		}
 	}
 
@@ -335,11 +340,6 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 		case ZFS_PROP_NAME:
 		case ZFS_PROP_TYPE:
 			break;
-		/* These are not valid for snapshots, so need no payload. */
-		case ZFS_PROP_AVAILABLE:
-		case ZFS_PROP_MOUNTPOINT:
-		case ZFS_PROP_ORIGIN:
-			break;
 		case ZFS_PROP_USED:
 			flags |= ZFS_ITER_BATCHED_USED;
 			break;
@@ -377,7 +377,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 			flags |= ZFS_ITER_BATCHED_REDACTED;
 			break;
 		default:
-			return (0);
+			if (!zfs_list_batch_inapplicable_prop(sc->sc_prop))
+				return (0);
+			break;
 		}
 	}
 
