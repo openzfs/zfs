@@ -12,24 +12,15 @@
 
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_ZIO_CRYPT_H
 #define	_SYS_ZIO_CRYPT_H
 
 #include <sys/dmu.h>
-#include <sys/zfs_refcount.h>
-#if defined(__FreeBSD__) && defined(_KERNEL)
-#include <sys/freebsd_crypto.h>
-#else
-#include <sys/crypto/api.h>
-#endif /* __FreeBSD__ */
-#include <sys/nvpair.h>
-#include <sys/avl.h>
 #include <sys/zio.h>
-
-/* forward declarations */
-struct zbookmark_phys;
+#include <sys/zio_crypt_os.h>
 
 #define	WRAPPING_KEY_LEN	32
 #define	WRAPPING_IV_LEN		ZIO_DATA_IV_LEN
