@@ -3640,6 +3640,34 @@ function stat_size #<path>
 	esac
 }
 
+function stat_blksz #<path>
+{
+	typeset path=$1
+
+	case "$UNAME" in
+	FreeBSD)
+		stat -f %k "$path"
+		;;
+	*)
+		stat -c %o "$path"
+		;;
+	esac
+}
+
+function stat_blocks #<path>
+{
+	typeset path=$1
+
+	case "$UNAME" in
+	FreeBSD)
+		stat -f %b "$path"
+		;;
+	*)
+		stat -c %b "$path"
+		;;
+	esac
+}
+
 function stat_mtime #<path>
 {
 	typeset path=$1
