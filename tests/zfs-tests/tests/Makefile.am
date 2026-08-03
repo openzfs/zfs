@@ -642,6 +642,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.bookmark.create.ksh \
 	functional/channel_program/synctask_core/tst.clone.ksh \
 	functional/channel_program/synctask_core/tst.destroy_fs.ksh \
+	functional/channel_program/synctask_core/tst.destroy_bookmark.ksh \
 	functional/channel_program/synctask_core/tst.destroy_snap.ksh \
 	functional/channel_program/synctask_core/tst.get_count_and_limit.ksh \
 	functional/channel_program/synctask_core/tst.get_index_props.ksh \

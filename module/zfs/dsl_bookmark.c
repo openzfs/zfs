@@ -969,12 +969,6 @@ out:
 	return (err);
 }
 
-typedef struct dsl_bookmark_destroy_arg {
-	nvlist_t *dbda_bmarks;
-	nvlist_t *dbda_success;
-	nvlist_t *dbda_errors;
-} dsl_bookmark_destroy_arg_t;
-
 static void
 dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
     dmu_tx_t *tx)
@@ -1082,7 +1076,7 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 	VERIFY0(zap_remove_norm(mos, bmark_zapobj, name, mt, tx));
 }
 
-static int
+int
 dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_destroy_arg_t *dbda = arg;
@@ -1147,7 +1141,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 	return (rv);
 }
 
-static void
+void
 dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_destroy_arg_t *dbda = arg;
