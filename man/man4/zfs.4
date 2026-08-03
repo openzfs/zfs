@@ -1573,6 +1573,8 @@ Note that for small files this may be slower than simply copying the file.
 When set to 0 the clone operation will immediately fail if it encounters
 any dirty blocks.
 By default waiting is enabled.
+A FIDEDUPERANGE request always waits, as it has no copy fallback that
+could absorb the failure.
 .
 .It Sy zfs_blake3_impl Ns = Ns Sy fastest Pq string
 Select a BLAKE3 implementation.
