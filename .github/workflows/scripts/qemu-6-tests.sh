@@ -23,7 +23,13 @@ function prefix() {
   S=$((DIFF-(M*60)))
 
   CTR=$(cat /tmp/ctr-vm${ID})
-  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) && echo $CTR > /tmp/ctr-vm${ID}
+  # Publish the counter with a rename so it is never momentarily empty: the
+  # other VM's reader reads this file, and a plain redirect truncates before
+  # it writes.  A read landing in that window fails, which under set -e ends
+  # the reader and silently stops prefixing that VM's output.
+  echo $LINE| grep -q '^\[.*] Test[: ]' && CTR=$((CTR+1)) \
+    && echo $CTR > "/tmp/ctr-vm${ID}.new" \
+    && mv "/tmp/ctr-vm${ID}.new" "/tmp/ctr-vm${ID}"
 
   BASE="$HOME/work/zfs/zfs"
   COLOR="$BASE/scripts/zfs-tests-color.sh"
