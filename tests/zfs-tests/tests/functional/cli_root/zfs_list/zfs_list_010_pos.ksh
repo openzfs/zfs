@@ -124,21 +124,25 @@ function compare_locked_encrypted
 function compare_recursive_hybrid
 {
 	typeset object_types="filesystem,volume,snapshot,bookmark"
-	typeset columns="name,createtxg,guid"
+	typeset columns="name,createtxg,guid,compression,quota,sharenfs"
+	typeset sort_options
 	typeset preload="$SHIM"
 
 	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
-	log_must rm -f "$MARKER"
-	log_must eval "LD_PRELOAD='$preload' " \
-	    "ZFS_SNAPSHOT_LIST_TEST_MODE='count' " \
-	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
-	    "zfs list -H -p -r -t '$object_types' -o '$columns' " \
-	    "'$MIXED_DATASET' > '$BATCH_OUTPUT'"
-	log_must grep -Fx count "$MARKER"
-	log_must eval "zfs list -H -p -r -t '$object_types' " \
-	    "-s test:force-legacy-iterator -o '$columns' '$MIXED_DATASET' " \
-	    "> '$LEGACY_OUTPUT'"
-	log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
+	for sort_options in "" "-s quota" "-s sharenfs"; do
+		log_must rm -f "$MARKER"
+		log_must eval "LD_PRELOAD='$preload' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MODE='count' " \
+		    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+		    "zfs list -H -p -r -t '$object_types' -o '$columns' " \
+		    "$sort_options '$MIXED_DATASET' > '$BATCH_OUTPUT'"
+		log_must grep -Fx count "$MARKER"
+		log_must eval "zfs list -H -p -r -t '$object_types' " \
+		    "-o '$columns' $sort_options " \
+		    "-s test:force-legacy-iterator '$MIXED_DATASET' " \
+		    "> '$LEGACY_OUTPUT'"
+		log_must diff "$LEGACY_OUTPUT" "$BATCH_OUTPUT"
+	done
 	log_must rm -f "$MARKER"
 }
 

@@ -276,6 +276,14 @@ lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 		}
 		write_marker(mode);
 	}
+	if (mode != NULL && strcmp(mode, "bookmark_empty_projected") == 0 &&
+	    matches_target(fsname, target)) {
+		if (nvlist_next_nvpair(props, NULL) != NULL) {
+			write_marker("bookmark_not_empty_projected");
+			return (EPROTO);
+		}
+		write_marker(mode);
+	}
 
 	if (next == NULL)
 		next = find_lzc_get_bookmarks();

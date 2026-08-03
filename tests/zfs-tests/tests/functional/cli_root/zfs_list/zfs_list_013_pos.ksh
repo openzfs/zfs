@@ -61,6 +61,7 @@ function compare_full_stat
 	typeset object_types="$2"
 	typeset property
 	typeset projected_columns="used,available,referenced,refer,mountpoint"
+	projected_columns="$projected_columns,logicalused,lused"
 	projected_columns="$projected_columns,logicalreferenced,lrefer,defer_destroy"
 
 	for property in createtxg creation guid name type userrefs objsetid; do
