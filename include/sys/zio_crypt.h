@@ -51,16 +51,9 @@ typedef enum zio_crypt_type {
 
 /* table of supported crypto algorithms, modes and keylengths. */
 typedef struct zio_crypt_info {
-	/* mechanism name, needed by ICP */
-#if defined(__FreeBSD__) && defined(_KERNEL)
-	/*
-	 * I've deliberately used a different name here, to catch
-	 * ICP-using code.
-	 */
-	const char	*ci_algname;
-#else
-	crypto_mech_name_t ci_mechname;
-#endif
+	/* mechanism/algorithm name for backend to select implementation */
+	const char *ci_mechname;
+
 	/* cipher mode type (GCM, CCM) */
 	zio_crypt_type_t ci_crypt_type;
 
