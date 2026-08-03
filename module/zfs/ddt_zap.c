@@ -204,10 +204,9 @@ ddt_zap_walk(dnode_t *dn, uint64_t *walk, ddt_key_t *ddk,
 		 * scrub I/Os for each ZAP block that we read in, so
 		 * reading the ZAP is unlikely to be the bottleneck.
 		 */
-		zap_cursor_init_noprefetch(&zc, dn->dn_objset, dn->dn_object);
+		zap_cursor_init_noprefetch_by_dnode(&zc, dn);
 	} else {
-		zap_cursor_init_serialized(&zc, dn->dn_objset, dn->dn_object,
-		    *walk);
+		zap_cursor_init_serialized_by_dnode(&zc, dn, *walk);
 	}
 	if ((error = zap_cursor_retrieve(&zc, za)) == 0) {
 		uint64_t csize = za->za_num_integers;
