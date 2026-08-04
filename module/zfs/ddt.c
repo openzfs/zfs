@@ -1474,6 +1474,20 @@ ddt_key_compare(const void *x1, const void *x2)
 	return (0);
 }
 
+/*
+ * Estimate the worst-case amount of MOS data the sync thread may dirty
+ * to add, update or remove one DDT entry: one ZAP leaf block.  This is
+ * an underestimation for entries changing class (two leaves in two
+ * different ZAPs plus indirects), but sequential log flush usually
+ * combines many entries per leaf, erring the other way.
+ */
+uint64_t
+ddt_sync_dirty_est(spa_t *spa)
+{
+	(void) spa;
+	return (1ULL << ddt_zap_default_bs);
+}
+
 /* Create the containing dir for this DDT and bump the feature count */
 static void
 ddt_create_dir(ddt_t *ddt, dmu_tx_t *tx)

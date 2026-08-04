@@ -3716,6 +3716,20 @@ dsl_scan_async_block_should_pause(dsl_scan_t *scn)
 		return (B_TRUE);
 	}
 
+	/*
+	 * Async frees of deduplicated or cloned blocks dirty DDT/BRT
+	 * ZAPs in this txg's sync context, which is not limited by the
+	 * write throttle.  Pause if this txg has already accumulated too
+	 * much dirty data, including the reservations for DDT/BRT updates
+	 * that have not been applied yet at this point of the sync.
+	 */
+	dsl_pool_t *dp = scn->scn_dp;
+	uint64_t txg = spa_syncing_txg(dp->dp_spa) & TXG_MASK;
+	if (dp->dp_dirty_pertxg[txg] + dp->dp_sync_reserve_pertxg[txg] >
+	    zfs_dirty_data_max / 2) {
+		return (B_TRUE);
+	}
+
 	elapsed_nanosecs = getlrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / (NANOSEC / 2) > zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > scn->scn_async_block_min_time_ms &&
@@ -3746,6 +3760,20 @@ dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 		 * async I/O (dedup, clone or gang block).
 		 */
 		scn->scn_async_frees_this_txg++;
+
+		/*
+		 * Reserve dirty space for the DDT/BRT ZAP updates this
+		 * free will produce later in this txg's sync, providing
+		 * feedback for the pause check above.
+		 */
+		spa_t *spa = scn->scn_dp->dp_spa;
+		uint64_t space = 0;
+		if (BP_GET_DEDUP(bp))
+			space = ddt_sync_dirty_est(spa);
+		else if (brt_maybe_exists(spa, bp))
+			space = brt_sync_dirty_est(spa);
+		dsl_pool_sync_reserve(scn->scn_dp, space, tx);
+
 		zio_nowait(zio);
 
 		/*

@@ -36,6 +36,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/zap_impl.h>
 #include <sys/spa.h>
+#include <sys/brt.h>
 #include <sys/brt_impl.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
@@ -561,6 +562,12 @@ dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
 	ASSERT(blksz != 0);
 	ASSERT0(off % blksz);
 
+	/*
+	 * The last block of the range is cloned in full even if the range
+	 * covers it only partially, in case it is the last block of the file.
+	 */
+	len = P2ROUNDUP(len, (uint64_t)blksz);
+
 	(void) zfs_refcount_add_many(&txh->txh_memory_tohold,
 	    len / blksz * sizeof (brt_entry_t), FTAG);
 
@@ -577,12 +584,21 @@ dmu_tx_count_clone(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
 		err = dmu_tx_check_ioerr(zio, dn, 1, i);
 		if (err != 0) {
 			tx->tx_err = err;
-			break;
+			(void) zio_wait(zio);
+			return;
 		}
 	}
 	err = zio_wait(zio);
-	if (err != 0)
+	if (err != 0) {
 		tx->tx_err = err;
+		return;
+	}
+
+	/*
+	 * Each cloned block may dirty one BRT ZAP leaf in sync context.
+	 */
+	tx->tx_sync_reserve += len / blksz *
+	    brt_sync_dirty_est(tx->tx_pool->dp_spa);
 }
 
 void
@@ -964,15 +980,14 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 	/* Calculate minimum transaction time for the dirty data amount. */
 	delay_min_bytes =
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
-	if (dirty > delay_min_bytes) {
+	if (dirty >= zfs_dirty_data_max) {
 		/*
-		 * The caller has already waited until we are under the max.
-		 * We make them pass us the amount of dirty data so we don't
-		 * have to handle the case of it being >= the max, which
-		 * could cause a divide-by-zero if it's == the max.
+		 * The caller has already waited until the dirty data is
+		 * under the max, but the sync context reservations added
+		 * on top of it may push the sum beyond it.
 		 */
-		ASSERT3U(dirty, <, zfs_dirty_data_max);
-
+		tx_time = zfs_delay_max_ns;
+	} else if (dirty > delay_min_bytes) {
 		tx_time = zfs_delay_scale * (dirty - delay_min_bytes) /
 		    (zfs_dirty_data_max - dirty);
 	}
@@ -1144,6 +1159,8 @@ dmu_tx_try_assign(dmu_tx_t *tx)
 		if (err != 0)
 			return (err);
 	}
+
+	dsl_pool_sync_reserve(tx->tx_pool, tx->tx_sync_reserve, tx);
 
 	DMU_TX_STAT_BUMP(dmu_tx_assigned);
 
@@ -1357,7 +1374,7 @@ dmu_tx_wait(dmu_tx_t *tx)
 			DMU_TX_STAT_BUMP(dmu_tx_dirty_over_max);
 		while (dp->dp_dirty_total >= zfs_dirty_data_max)
 			cv_wait(&dp->dp_spaceavail_cv, &dp->dp_lock);
-		dirty = dp->dp_dirty_total;
+		dirty = dp->dp_dirty_total + dp->dp_sync_reserve_total;
 		mutex_exit(&dp->dp_lock);
 
 		dmu_tx_delay(tx, dirty);

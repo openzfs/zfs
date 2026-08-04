@@ -60,6 +60,10 @@ struct dmu_tx {
 	uint64_t tx_lastsnap_txg;
 	uint64_t tx_lasttried_txg;
 	txg_handle_t tx_txgh;
+
+	/* sync context dirty space reservation for DDT/BRT updates */
+	uint64_t tx_sync_reserve;
+
 	void *tx_tempreserve_cookie;
 	struct dmu_tx_hold *tx_needassign_txh;
 

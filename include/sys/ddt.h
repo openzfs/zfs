@@ -403,6 +403,7 @@ extern uint64_t ddt_get_dedup_used(spa_t *spa);
 extern uint64_t ddt_get_dedup_saved(spa_t *spa);
 extern uint64_t ddt_get_pool_dedup_ratio(spa_t *spa);
 extern int ddt_get_pool_dedup_cached(spa_t *spa, uint64_t *psize);
+extern uint64_t ddt_sync_dirty_est(spa_t *spa);
 
 extern ddt_t *ddt_select(spa_t *spa, const blkptr_t *bp);
 extern void ddt_enter(ddt_t *ddt);
