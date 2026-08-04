@@ -209,12 +209,24 @@ function log_neg_expect
 	"$@" 2>$logfile
 	typeset status=$?
 
+	#
+	# A command which printed what was expected of it plainly ran, so
+	# its exit status is its own to interpret.  Some commands report a
+	# count there: fio exits with the number of jobs which failed, and
+	# a run of 127 failing jobs is indistinguishable from a missing
+	# binary by status alone.
+	#
+	typeset expect_missing=1
+	if [[ -n $expect ]] && grep -qi "$expect" $logfile; then
+		expect_missing=0
+	fi
+
 	# unexpected status
 	if (( $status == EXIT_SUCCESS )); then
 		 cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status"
 	# missing binary
-	elif (( $status == EXIT_NOTFOUND )); then
+	elif (( $status == EXIT_NOTFOUND && expect_missing )); then
 		cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status (File not found)"
 	# bus error - core dump
