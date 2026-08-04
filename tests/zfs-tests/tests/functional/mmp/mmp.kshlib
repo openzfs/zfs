@@ -129,7 +129,7 @@ function mmp_pool_create_zhack # pool dir
 	log_must eval "ZFS_HOSTID=$HOSTID1 zhack $opts >$MMP_ZHACK_LOG 2>&1 &"
 
 	while ! is_pool_imported "$pool" "-d $dir"; do
-		log_must pgrep zhack
+		log_must pgrep -x zhack
 		log_must sleep 5
 	done
 }
@@ -139,7 +139,14 @@ function mmp_pool_destroy # pool dir
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
 
-	ZHACKPID=$(pgrep zhack)
+	#
+	# -x matches the process name exactly.  Without it any process whose
+	# name merely contains "zhack" is matched, which includes a test script
+	# named after the tool: a ksh script mmp_zhack_reclaim.ksh has comm
+	# "mmp_zhack_recla", so the bare form found the running test and killed
+	# it, leaving the harness with a dead test and nothing logged.
+	#
+	ZHACKPID=$(pgrep -x zhack)
 	if [ -n "$ZHACKPID" ]; then
 		log_must kill $ZHACKPID
 		wait $ZHACKPID
