@@ -3358,7 +3358,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	 * In case of data types DATA_TYPE_STRING and DATA_TYPE_STRING_ARRAY
 	 * is the size of the string(s) excluded.
 	 */
-	if ((value_sz = i_get_value_size(type, NULL, nelem, NVP_SIZE(nvp)) < 0))
+	if ((value_sz = i_get_value_size(type, NULL, nelem, NVP_SIZE(nvp))) < 0)
 		return (EFAULT);
 
 	/* if there is no data to extract then return */
