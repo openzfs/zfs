@@ -1788,6 +1788,8 @@ history log, viewable with
 .It Sy zfs_snapshot_list_batch_size Ns = Ns Sy 1024 Pq uint
 Maximum number of snapshots returned by one projected snapshot listing
 batch.
+The effective maximum is the smaller of this value and the limit requested by
+userspace.
 This limit is a proxy for the maximum transient memory consumed by a batch:
 larger values can improve listing throughput at the cost of a larger memory
 footprint.

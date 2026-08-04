@@ -2773,6 +2773,7 @@ uint_t zfs_snapshot_list_batch_time_us =
  *     (optional uint64) cursor
  *     (optional uint64) minimum creation txg
  *     (optional uint64) maximum creation txg
+ *     (uint64) maximum number of returned snapshots
  *     (nvlist) requested properties, each named entry is a boolean
  * }
  *
@@ -2783,6 +2784,7 @@ uint_t zfs_snapshot_list_batch_time_us =
  */
 static const zfs_ioc_key_t zfs_keys_snapshot_list_batch[] = {
 	{SNAP_ITER_BATCH_PROPS, DATA_TYPE_NVLIST, 0},
+	{SNAP_ITER_BATCH_MAX_RESULTS, DATA_TYPE_UINT64, 0},
 	{SNAP_ITER_BATCH_CURSOR, DATA_TYPE_UINT64, ZK_OPTIONAL},
 	{SNAP_ITER_MIN_TXG, DATA_TYPE_UINT64, ZK_OPTIONAL},
 	{SNAP_ITER_MAX_TXG, DATA_TYPE_UINT64, ZK_OPTIONAL},
@@ -2797,8 +2799,8 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	uint64_t *createtxgs = NULL, *guids = NULL, *creations = NULL;
 	uint64_t *userrefs = NULL;
 	nvlist_t *props;
-	uint64_t cursor = 0, min_txg = 0, max_txg = 0;
-	uint_t batch_size = zfs_snapshot_list_batch_size;
+	uint64_t cursor = 0, min_txg = 0, max_txg = 0, max_results;
+	uint_t batch_size;
 	uint_t batch_time_us = zfs_snapshot_list_batch_time_us;
 	uint_t count = 0;
 	hrtime_t start_time, time_budget;
@@ -2809,6 +2811,13 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	uint8_t head_flags;
 	objset_t *os = NULL;
 	int error;
+
+	VERIFY0(nvlist_lookup_uint64(innvl, SNAP_ITER_BATCH_MAX_RESULTS,
+	    &max_results));
+	if (max_results == 0)
+		return (SET_ERROR(EINVAL));
+	batch_size = (uint_t)MIN((uint64_t)zfs_snapshot_list_batch_size,
+	    max_results);
 
 	VERIFY0(nvlist_lookup_nvlist(innvl, SNAP_ITER_BATCH_PROPS, &props));
 	for (nvpair_t *pair = nvlist_next_nvpair(props, NULL); pair != NULL;
@@ -2924,7 +2933,11 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 
 	dmu_objset_rele(os, FTAG);
 	os = NULL;
-	if (error == 0) {
+	/*
+	 * Return snapshots already collected when processing a later
+	 * snapshot fails so libzfs can preserve iterator callback semantics.
+	 */
+	if (error == 0 || count != 0) {
 		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_CURSOR, cursor);
 		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_DMU_TYPE,
 		    head_type);

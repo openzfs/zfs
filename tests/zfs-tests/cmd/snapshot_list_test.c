@@ -5,6 +5,7 @@
  */
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -218,6 +219,47 @@ run_interrupt(const char *name)
 		(void) fprintf(stderr, "expected -1/EINTR, got %d/%d (%s)\n",
 		    error, iteration_errno, error == 0 ? "success" :
 		    strerror(iteration_errno));
+		return (EXIT_FAILURE);
+	}
+	return (EXIT_SUCCESS);
+}
+
+static int
+run_partial_error(const char *name, const char *mode,
+    const char *expected_value)
+{
+	libzfs_handle_t *hdl;
+	zfs_handle_t *zhp;
+	uint64_t expected_callbacks = parse_uint64(expected_value);
+	unsigned int callbacks = 0;
+	int flags, error, iteration_errno, libzfs_error;
+
+	if (strcmp(mode, "legacy") == 0) {
+		flags = 0;
+	} else if (strcmp(mode, "batched") == 0) {
+		flags = ZFS_ITER_BATCHED | ZFS_ITER_BATCHED_USERREFS;
+	} else {
+		(void) fprintf(stderr, "unknown iterator mode: %s\n", mode);
+		return (EXIT_FAILURE);
+	}
+	if (open_dataset(&hdl, &zhp, name) != 0)
+		return (EXIT_FAILURE);
+
+	libzfs_print_on_error(hdl, B_FALSE);
+	errno = 0;
+	error = zfs_iter_snapshots_v2(zhp, flags, count_snapshot, &callbacks,
+	    0, 0);
+	iteration_errno = errno;
+	libzfs_error = libzfs_errno(hdl);
+
+	zfs_close(zhp);
+	libzfs_fini(hdl);
+	if (error != -1 || iteration_errno != EIO ||
+	    libzfs_error != EZFS_IO || callbacks != expected_callbacks) {
+		(void) fprintf(stderr,
+		    "expected %s -1/%d/%d/%" PRIu64 ", got %d/%d/%d/%u\n",
+		    mode, EIO, EZFS_IO, expected_callbacks, error,
+		    iteration_errno, libzfs_error, callbacks);
 		return (EXIT_FAILURE);
 	}
 	return (EXIT_SUCCESS);
@@ -539,6 +581,8 @@ main(int argc, char **argv)
 		return (run_sorted(argv[2]));
 	if (argc == 3 && strcmp(argv[1], "interrupt") == 0)
 		return (run_interrupt(argv[2]));
+	if (argc == 5 && strcmp(argv[1], "partial-error") == 0)
+		return (run_partial_error(argv[2], argv[3], argv[4]));
 	if (argc == 3 && strcmp(argv[1], "handle-enomem") == 0)
 		return (run_handle_enomem(argv[2]));
 	if (argc == 3 && strcmp(argv[1], "metadata-eproto") == 0)
@@ -563,6 +607,7 @@ main(int argc, char **argv)
 	    "       %s encrypted-snapshot-metadata dataset\n"
 	    "       %s sorted dataset\n"
 	    "       %s interrupt dataset\n"
+	    "       %s partial-error dataset mode callbacks\n"
 	    "       %s handle-enomem dataset\n"
 	    "       %s metadata-eproto dataset\n"
 	    "       %s callback-error dataset error\n"
@@ -573,6 +618,6 @@ main(int argc, char **argv)
 	    "       %s stale-snapshot-metadata dataset type\n",
 	    argv[0], argv[0],
 	    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
-	    argv[0], argv[0], argv[0]);
+	    argv[0], argv[0], argv[0], argv[0]);
 	return (EXIT_FAILURE);
 }

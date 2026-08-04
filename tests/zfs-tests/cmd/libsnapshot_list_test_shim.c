@@ -119,6 +119,29 @@ out:
 	return (error);
 }
 
+static boolean_t
+batch_has_snapshot_results(const zfs_cmd_t *zc)
+{
+	nvlist_t *batch = NULL;
+	char **names;
+	uint_t count;
+	boolean_t result = B_FALSE;
+	int saved_errno = errno;
+
+	if (zc->zc_nvlist_dst_filled && zc->zc_nvlist_dst != 0 &&
+	    zc->zc_nvlist_dst_size != 0 &&
+	    nvlist_unpack((char *)(uintptr_t)zc->zc_nvlist_dst,
+	    zc->zc_nvlist_dst_size, &batch, 0) == 0 &&
+	    nvlist_lookup_string_array(batch, SNAP_ITER_BATCH_NAMES, &names,
+	    &count) == 0 && count != 0) {
+		result = B_TRUE;
+	}
+
+	nvlist_free(batch);
+	errno = saved_errno;
+	return (result);
+}
+
 /*
  * Preserve the kernel's opaque cursor while omitting this batch's results.
  * This deterministically exercises continuation after an empty, non-EOF reply.
@@ -331,6 +354,12 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 		return (-1);
 	}
 	error = next(fd, request, zc);
+	if (error == -1 && errno == EIO &&
+	    request == ZFS_IOC_SNAPSHOT_LIST_BATCH && mode != NULL &&
+	    strcmp(mode, "partial_eio_output") == 0 &&
+	    batch_has_snapshot_results(zc)) {
+		write_marker(mode);
+	}
 	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
 	    mode != NULL && strcmp(mode, "empty_non_eof") == 0 &&
 	    !empty_batch_injected) {
