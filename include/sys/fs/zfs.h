@@ -1599,6 +1599,7 @@ typedef enum {
 #define	SNAP_ITER_MIN_TXG	"snap_iter_min_txg"
 #define	SNAP_ITER_MAX_TXG	"snap_iter_max_txg"
 #define	SNAP_ITER_BATCH_CURSOR	"snap_iter_batch_cursor"
+#define	SNAP_ITER_BATCH_MAX_RESULTS	"snap_iter_batch_max_results"
 #define	SNAP_ITER_BATCH_PROPS	"snap_iter_batch_props"
 #define	SNAP_ITER_BATCH_NAMES	"snap_iter_batch_names"
 #define	SNAP_ITER_BATCH_DMU_TYPE	"snap_iter_batch_dmu_type"

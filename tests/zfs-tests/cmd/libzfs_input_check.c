@@ -572,6 +572,7 @@ test_snapshot_list_batch(const char *dataset)
 	fnvlist_add_boolean(props, "creation");
 	fnvlist_add_boolean(props, "guid");
 	fnvlist_add_boolean(props, "userrefs");
+	fnvlist_add_uint64(required, SNAP_ITER_BATCH_MAX_RESULTS, 1024);
 	fnvlist_add_nvlist(required, SNAP_ITER_BATCH_PROPS, props);
 
 	IOC_INPUT_TEST(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, required, optional,
@@ -580,7 +581,15 @@ test_snapshot_list_batch(const char *dataset)
 	fnvlist_free(props);
 	props = fnvlist_alloc();
 	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
+	    ZFS_ERR_IOC_ARG_REQUIRED);
+	fnvlist_add_uint64(input, SNAP_ITER_BATCH_MAX_RESULTS, 1024);
 	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input, 0);
+	fnvlist_remove(input, SNAP_ITER_BATCH_MAX_RESULTS);
+	fnvlist_add_uint64(input, SNAP_ITER_BATCH_MAX_RESULTS, 0);
+	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input, EINVAL);
+	fnvlist_remove(input, SNAP_ITER_BATCH_MAX_RESULTS);
+	fnvlist_add_uint64(input, SNAP_ITER_BATCH_MAX_RESULTS, 1024);
 
 	fnvlist_add_boolean(props, "available");
 	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);

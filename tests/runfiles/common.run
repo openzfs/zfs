@@ -258,7 +258,7 @@ tags = ['functional', 'cli_root', 'zfs_inherit']
 
 [tests/functional/cli_root/zfs_list]
 tests = ['zfs_list_009_pos', 'zfs_list_013_pos', 'zfs_list_010_pos',
-    'zfs_list_011_pos', 'zfs_list_012_pos']
+    'zfs_list_011_pos', 'zfs_list_012_pos', 'zfs_list_017_pos']
 tags = ['functional', 'cli_root', 'zfs_list']
 
 [tests/functional/cli_root/zfs_load-key]

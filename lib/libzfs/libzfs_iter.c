@@ -108,6 +108,23 @@ zfs_batch_add_uint64_prop(nvlist_t *props, zfs_prop_t prop, uint64_t value)
 	return (error);
 }
 
+/*
+ * Keep the userspace limit independent of the kernel tunable so a future
+ * kernel can increase its limit without exceeding this caller's destination
+ * buffer.  A native packed result needs at most 264 bytes for its name (the
+ * string-array slot and ZFS_MAX_DATASET_NAME_LEN bytes), plus eight bytes for
+ * each uint64 array and one byte for each uint8 array.  Reserving twice
+ * ZFS_MAX_DATASET_NAME_LEN bytes for each name, plus the array storage and
+ * 4 KiB for nvpair headers, alignment, and fixed metadata, is a conservative
+ * bound for every currently supported property combination.
+ */
+#define	SNAPSHOT_LIST_BATCH_MAX_RESULTS		1024
+#define	SNAPSHOT_LIST_BATCH_NVLIST_SIZE(num_uint64_arrays, num_uint8_arrays) \
+	((4 * 1024) + SNAPSHOT_LIST_BATCH_MAX_RESULTS *			\
+	(2 * ZFS_MAX_DATASET_NAME_LEN +					\
+	(num_uint64_arrays) * sizeof (uint64_t) +			\
+	(num_uint8_arrays) * sizeof (uint8_t)))
+
 static int
 make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
     dmu_objset_type_t dmu_type, uint8_t dds_flags,
@@ -172,9 +189,12 @@ zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
 	nvlist_t *props = fnvlist_alloc();
 	int error = 0;
 
+	*result = NULL;
 	*ioctl_eof = B_FALSE;
 
 	fnvlist_add_uint64(args, SNAP_ITER_BATCH_CURSOR, cursor);
+	fnvlist_add_uint64(args, SNAP_ITER_BATCH_MAX_RESULTS,
+	    SNAPSHOT_LIST_BATCH_MAX_RESULTS);
 	if (min_txg != 0)
 		fnvlist_add_uint64(args, SNAP_ITER_MIN_TXG, min_txg);
 	if (max_txg != 0)
@@ -197,19 +217,47 @@ zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
 
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	zcmd_write_src_nvlist(zhp->zfs_hdl, &zc, args);
-	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc, 0);
-	while (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SNAPSHOT_LIST_BATCH, &zc) != 0) {
-		if (errno == ENOMEM) {
+	zcmd_alloc_dst_nvlist(zhp->zfs_hdl, &zc,
+	    SNAPSHOT_LIST_BATCH_NVLIST_SIZE(4, 0));
+	for (;;) {
+		int ioctl_errno = 0;
+
+		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SNAPSHOT_LIST_BATCH,
+		    &zc) != 0) {
+			ioctl_errno = errno;
+		}
+		/*
+		 * An ioctl error does not imply that the output nvlist is
+		 * empty. It can contain snapshots collected before the error.
+		 */
+		if (zc.zc_nvlist_dst_filled) {
+			if (zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc,
+			    result) != 0) {
+				nvlist_free(*result);
+				*result = NULL;
+				error = ENOMEM;
+			} else {
+				error = ioctl_errno;
+				/*
+				 * Handler errors may return an empty
+				 * output nvlist.
+				 */
+				if (error != 0 && nvlist_empty(*result)) {
+					nvlist_free(*result);
+					*result = NULL;
+				}
+			}
+			break;
+		}
+		if (ioctl_errno == ENOMEM) {
 			zcmd_expand_dst_nvlist(zhp->zfs_hdl, &zc);
 			continue;
 		}
-		error = errno;
-		*ioctl_eof = error == ENOENT || error == ESRCH;
+		error = ioctl_errno != 0 ? ioctl_errno : EPROTO;
 		break;
 	}
-	if (error == 0 &&
-	    zcmd_read_dst_nvlist(zhp->zfs_hdl, &zc, result) != 0)
-		error = ENOMEM;
+	if (*result == NULL)
+		*ioctl_eof = error == ENOENT || error == ESRCH;
 
 	zcmd_free_nvlists(&zc);
 	fnvlist_free(props);
@@ -236,12 +284,15 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		uint64_t next_cursor, dmu_type, dds_flags;
 		nvlist_t *batch = NULL;
 		boolean_t eof = B_FALSE, ioctl_eof;
+		int ioctl_errno;
 
 		ret = zfs_do_snapshot_list_batch_ioctl(zhp, flags, cursor,
 		    min_txg, max_txg, &batch, &ioctl_eof);
 		if (ioctl_eof)
 			return (0);
-		if (ret != 0) {
+		if (batch == NULL) {
+			if (ret == 0)
+				ret = EPROTO;
 			if (ret == ZFS_ERR_IOC_CMD_UNAVAIL ||
 			    ret == ZFS_ERR_IOC_ARG_UNAVAIL || ret == ENOTTY ||
 			    ret == ENOTSUP) {
@@ -255,6 +306,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			    dgettext(TEXT_DOMAIN,
 			    "cannot iterate filesystems")));
 		}
+		ioctl_errno = ret;
 
 		if (nvlist_lookup_boolean_value(batch, SNAP_ITER_BATCH_EOF,
 		    &eof) != 0 ||
@@ -280,6 +332,10 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			count = 0;
 			ret = 0;
 		} else if (ret != 0) {
+			ret = EPROTO;
+			goto malformed;
+		}
+		if (count > SNAPSHOT_LIST_BATCH_MAX_RESULTS) {
 			ret = EPROTO;
 			goto malformed;
 		}
@@ -352,6 +408,14 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 
 		nvlist_free(batch);
+		if (ioctl_errno != 0) {
+			if (ioctl_errno == ENOENT || ioctl_errno == ESRCH)
+				return (0);
+			errno = ioctl_errno;
+			return (zfs_standard_error(zhp->zfs_hdl, errno,
+			    dgettext(TEXT_DOMAIN,
+			    "cannot iterate filesystems")));
+		}
 		if (eof)
 			return (0);
 		if (next_cursor == cursor) {
