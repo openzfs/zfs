@@ -75,6 +75,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_test
 	libzfs.la \
 	libnvpair.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_stats_test
+%C%_snapshot_list_stats_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_snapshot_list_stats_test_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_LTLIBRARIES = %D%/libsnapshot_list_test_shim.la
 %C%_libsnapshot_list_test_shim_la_LDFLAGS = -module -avoid-version
 %C%_libsnapshot_list_test_shim_la_LIBADD = libnvpair.la
