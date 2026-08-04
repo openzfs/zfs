@@ -45,6 +45,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/mmp.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_pool.h>
@@ -109,6 +110,13 @@ usage(void)
 	    "        -u restore the label on a detached device\n"
 	    "\n"
 	    "    <device> : path to vdev\n"
+	    "\n"
+	    "    mmp reclaim <pool>\n"
+	    "        import a pool whose MMP claim cannot reach every mirror\n"
+	    "        leg the config still expects, then mark the unreachable\n"
+	    "        leaves offline so ordinary imports succeed.  Manual\n"
+	    "        recovery: fence the peer first, this cannot see a\n"
+	    "        live host whose legs are all invisible from here\n"
 	    "\n"
 	    "    metaslab leak <pool>\n"
 	    "        apply allocation map from zdb to specified pool\n");
@@ -598,6 +606,174 @@ zhack_do_action_idle(int argc, char **argv)
 	sleep(idle_time);
 
 	spa_close(spa, FTAG);
+}
+
+/*
+ * Collect the mirror legs this host could not open.  vdev_not_present is set
+ * during import for any leaf whose open failed (vdev.c), and a leg in that
+ * state is what the relaxed claim forgives, so it is also what has to be
+ * marked offline for the ordinary imports which follow to succeed.
+ */
+static void
+zhack_collect_absent(vdev_t *vd, uint64_t *guids, uint_t *n, uint_t max)
+{
+	/*
+	 * Skip the same subtrees mmp_claim_uberblock_sync() skips.  The claim
+	 * never counts these, so offlining them buys nothing, and offlining a
+	 * log leg would drag in spa_reset_logs().  Pruned at the interior node
+	 * because the log flag lives on the top-level vdev.
+	 */
+	if (vd->vdev_islog || vd->vdev_isspare || vd->vdev_isl2cache ||
+	    vd->vdev_ishole || vd->vdev_ops == &vdev_indirect_ops)
+		return;
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		zhack_collect_absent(vd->vdev_child[c], guids, n, max);
+
+	if (!vd->vdev_ops->vdev_op_leaf || !vd->vdev_not_present)
+		return;
+
+	/*
+	 * Take only the legs the relaxed claim can forgive, which are the
+	 * direct children of a top-level mirror: the relaxation lives in the
+	 * nparity == 0 branch and walks that vdev's children.  A raidz or
+	 * draid member is required as parity+1 in aggregate and never demanded
+	 * individually, so an absent one does not raise the requirement and
+	 * offlining it would be a persistent change that buys nothing.
+	 */
+	if (vd->vdev_parent != vd->vdev_top ||
+	    vdev_get_nparity(vd->vdev_top) != 0)
+		return;
+
+	VERIFY3U(*n, <, max);
+	guids[(*n)++] = vd->vdev_guid;
+}
+
+static int
+zhack_do_mmp_reclaim(int argc, char **argv)
+{
+	spa_t *spa;
+	char *target;
+	uint64_t *guids;
+	uint_t nguids = 0, max;
+	int c, failed = 0;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+")) != -1) {
+		switch (c) {
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	/*
+	 * Relax the claim for this import only.  The write, the wait and the
+	 * re-read are untouched, so a competing importer which shares any
+	 * visibility with us is still refused.
+	 */
+	mmp_claim_relaxed = B_TRUE;
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+	mmp_claim_relaxed = B_FALSE;
+
+	/*
+	 * Nothing to recover on a pool without multihost: no claim runs, so an
+	 * ordinary import already succeeds with the absent leaves simply
+	 * missing.  Offlining them here would be a permanent change to a pool
+	 * that never needed this tool.
+	 */
+	if (!spa_multihost(spa)) {
+		(void) fprintf(stderr, "%s: multihost is off, so no uberblock "
+		    "claim runs and an ordinary import will succeed; refusing "
+		    "to offline anything\n", target);
+		spa_close(spa, FTAG);
+		return (1);
+	}
+
+	/* Takes SCL_VDEV itself, so size the array before we hold it. */
+	max = MAX(vdev_count_leaves(spa), 1);
+	guids = umem_zalloc(max * sizeof (uint64_t), UMEM_NOFAIL);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	zhack_collect_absent(spa->spa_root_vdev, guids, &nguids, max);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	if (nguids == 0) {
+		(void) fprintf(stdout, "%s: imported, no absent leaves to "
+		    "mark offline\n", target);
+	}
+
+	for (uint_t i = 0; i < nguids; i++) {
+		int error = vdev_offline(spa, guids[i], 0);
+
+		if (error == 0) {
+			(void) fprintf(stdout, "%s: marked absent leaf %llu "
+			    "offline\n", target, (u_longlong_t)guids[i]);
+			continue;
+		}
+
+		failed++;
+		if (error == EBUSY) {
+			(void) fprintf(stderr, "%s: leaf %llu holds data no "
+			    "other leaf has, left online\n", target,
+			    (u_longlong_t)guids[i]);
+		} else {
+			(void) fprintf(stderr, "%s: could not offline leaf "
+			    "%llu: %s\n", target, (u_longlong_t)guids[i],
+			    strerror(error));
+		}
+	}
+
+	if (failed != 0) {
+		/*
+		 * Not "the pool still needs zhack": this run exports cleanly
+		 * under our own hostid, so the next import here skips the
+		 * activity check entirely.  The cost lands on the next host
+		 * to take the pool, whose claim will count the leaves left
+		 * online and refuse.
+		 */
+		(void) fprintf(stderr, "%s: %d absent leaves are still "
+		    "online; a later import from another host will count "
+		    "them and be refused\n", target, failed);
+	}
+
+	umem_free(guids, max * sizeof (uint64_t));
+	spa_close(spa, FTAG);
+
+	return (failed == 0 ? 0 : 1);
+}
+
+static int
+zhack_do_mmp(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no mmp operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "reclaim") == 0) {
+		return (zhack_do_mmp_reclaim(argc, argv));
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
 }
 
 static int
@@ -1368,6 +1544,8 @@ main(int argc, char **argv)
 		rv = zhack_do_action(argc, argv);
 	} else if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
+	} else if (strcmp(subcommand, "mmp") == 0) {
+		rv = zhack_do_mmp(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
 	} else if (strcmp(subcommand, "metaslab") == 0) {
