@@ -19,7 +19,8 @@ UNIT_TESTS = \
 	%D%/test_namecheck \
 	%D%/test_btree \
 	%D%/test_fletcher \
-	%D%/test_sha2
+	%D%/test_sha2 \
+	%D%/test_cityhash
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -100,6 +101,19 @@ nodist_%C%_test_sha2_SOURCES = \
 	libicp.la \
 	libspl.la \
 	libunit.la
+
+
+%C%_test_cityhash_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_cityhash_SOURCES = \
+	module/zcommon/cityhash.c
+
+%C%_test_cityhash_SOURCES = \
+	%D%/test_cityhash.c
+
+%C%_test_cityhash_LDADD = \
+	libunit.la \
+	libspl.la
 
 
 # test run and coverage targets below
