@@ -304,6 +304,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 		case ZFS_PROP_DEFER_DESTROY:
 			flags |= ZFS_ITER_BATCHED_DEFER_DESTROY;
 			break;
+		case ZFS_PROP_WRITTEN:
+			flags |= ZFS_ITER_BATCHED_WRITTEN;
+			break;
 		case ZFS_PROP_OBJSETID:
 			flags |= ZFS_ITER_BATCHED_OBJSETID;
 			break;
@@ -351,6 +354,9 @@ zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
 			break;
 		case ZFS_PROP_DEFER_DESTROY:
 			flags |= ZFS_ITER_BATCHED_DEFER_DESTROY;
+			break;
+		case ZFS_PROP_WRITTEN:
+			flags |= ZFS_ITER_BATCHED_WRITTEN;
 			break;
 		case ZFS_PROP_OBJSETID:
 			flags |= ZFS_ITER_BATCHED_OBJSETID;

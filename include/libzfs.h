@@ -733,6 +733,7 @@ _LIBZFS_H int zprop_collect_property(const char *, zprop_get_cbdata_t *,
 #define	ZFS_ITER_BATCHED_LOGICALREFERENCED	(1 << 17)
 #define	ZFS_ITER_BATCHED_DEFER_DESTROY	(1 << 18)
 #define	ZFS_ITER_BATCHED_OBJSETID	(1 << 19)
+#define	ZFS_ITER_BATCHED_WRITTEN	(1 << 20)
 
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
 _LIBZFS_H int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);

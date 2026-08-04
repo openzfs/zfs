@@ -218,6 +218,16 @@ is_metadata_mode(const char *mode)
 	    strcmp(mode, "invalid_dds_flags") == 0);
 }
 
+static boolean_t
+is_written_metadata_mode(const char *mode)
+{
+	return (strcmp(mode, "missing_writtens") == 0 ||
+	    strcmp(mode, "missing_written_valid") == 0 ||
+	    strcmp(mode, "short_writtens") == 0 ||
+	    strcmp(mode, "short_written_valid") == 0 ||
+	    strcmp(mode, "invalid_written_valid") == 0);
+}
+
 static int
 replace_batch_metadata(zfs_cmd_t *zc, const char *mode)
 {
@@ -256,6 +266,77 @@ replace_batch_metadata(zfs_cmd_t *zc, const char *mode)
 	error = pack_batch(zc, batch);
 
 out:
+	nvlist_free(batch);
+	return (error);
+}
+
+static int
+replace_written_metadata(zfs_cmd_t *zc, const char *mode)
+{
+	nvlist_t *batch = NULL;
+	uint64_t *writtens, *writtens_copy = NULL;
+	uint8_t *valid, *valid_copy = NULL;
+	uint_t count;
+	int error;
+
+	error = nvlist_unpack((void *)(uintptr_t)zc->zc_nvlist_dst,
+	    zc->zc_nvlist_dst_size, &batch, 0);
+	if (error != 0)
+		goto out;
+
+	if (strcmp(mode, "missing_writtens") == 0) {
+		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTENS);
+	} else if (strcmp(mode, "missing_written_valid") == 0) {
+		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTEN_VALID);
+	} else if (strcmp(mode, "short_writtens") == 0) {
+		error = nvlist_lookup_uint64_array(batch,
+		    SNAP_ITER_BATCH_WRITTENS, &writtens, &count);
+		if (error != 0 || count < 2) {
+			error = EPROTO;
+			goto out;
+		}
+		writtens_copy = malloc(sizeof (writtens_copy[0]) * count);
+		if (writtens_copy == NULL) {
+			error = ENOMEM;
+			goto out;
+		}
+		(void) memcpy(writtens_copy, writtens,
+		    sizeof (writtens_copy[0]) * count);
+		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTENS);
+		error = nvlist_add_uint64_array(batch, SNAP_ITER_BATCH_WRITTENS,
+		    writtens_copy, count - 1);
+		if (error != 0)
+			goto out;
+	} else {
+		error = nvlist_lookup_uint8_array(batch,
+		    SNAP_ITER_BATCH_WRITTEN_VALID, &valid, &count);
+		if (error != 0 || count < 2) {
+			error = EPROTO;
+			goto out;
+		}
+		valid_copy = malloc(sizeof (valid_copy[0]) * count);
+		if (valid_copy == NULL) {
+			error = ENOMEM;
+			goto out;
+		}
+		(void) memcpy(valid_copy, valid,
+		    sizeof (valid_copy[0]) * count);
+		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTEN_VALID);
+		if (strcmp(mode, "invalid_written_valid") == 0)
+			valid_copy[0] = 2;
+		else
+			count--;
+		error = nvlist_add_uint8_array(batch,
+		    SNAP_ITER_BATCH_WRITTEN_VALID, valid_copy, count);
+		if (error != 0)
+			goto out;
+	}
+
+	error = pack_batch(zc, batch);
+
+out:
+	free(valid_copy);
+	free(writtens_copy);
 	nvlist_free(batch);
 	return (error);
 }
@@ -445,6 +526,15 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
 	    mode != NULL && is_metadata_mode(mode)) {
 		error = replace_batch_metadata(zc, mode);
+		if (error != 0) {
+			errno = error;
+			return (-1);
+		}
+		write_marker(mode);
+	}
+	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
+	    mode != NULL && is_written_metadata_mode(mode)) {
+		error = replace_written_metadata(zc, mode);
 		if (error != 0) {
 			errno = error;
 			return (-1);

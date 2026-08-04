@@ -1602,6 +1602,8 @@ typedef enum {
 #define	SNAP_ITER_BATCH_MAX_RESULTS	"snap_iter_batch_max_results"
 #define	SNAP_ITER_BATCH_PROPS	"snap_iter_batch_props"
 #define	SNAP_ITER_BATCH_NAMES	"snap_iter_batch_names"
+#define	SNAP_ITER_BATCH_WRITTENS	"snap_iter_batch_writtens"
+#define	SNAP_ITER_BATCH_WRITTEN_VALID	"snap_iter_batch_written_valid"
 #define	SNAP_ITER_BATCH_DMU_TYPE	"snap_iter_batch_dmu_type"
 #define	SNAP_ITER_BATCH_DDS_FLAGS	"snap_iter_batch_dds_flags"
 #define	SNAP_ITER_BATCH_EOF	"snap_iter_batch_eof"
