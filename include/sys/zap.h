@@ -474,6 +474,7 @@ void zap_cursor_fini(zap_cursor_t *zc);
  */
 int zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os,
     uint64_t zapobj);
+int zap_cursor_init_noprefetch_by_dnode(zap_cursor_t *zc, dnode_t *dn);
 
 /*
  * Initialize a zap cursor pointing to the position recorded by

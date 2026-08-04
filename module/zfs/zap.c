@@ -1109,6 +1109,12 @@ zap_cursor_init_noprefetch(zap_cursor_t *zc, objset_t *os, uint64_t zapobj)
 }
 
 int
+zap_cursor_init_noprefetch_by_dnode(zap_cursor_t *zc, dnode_t *dn)
+{
+	return (zap_cursor_init_by_dnode_impl(zc, dn, 0, B_FALSE));
+}
+
+int
 zap_cursor_init_serialized(zap_cursor_t *zc, objset_t *os, uint64_t zapobj,
     uint64_t serialized)
 {
