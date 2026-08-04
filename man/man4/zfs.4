@@ -2757,9 +2757,9 @@ for each I/O submitter.
 When unset, requests are handled asynchronously by a thread pool.
 The number of requests which can be handled concurrently is controlled by
 .Sy zvol_threads .
-.Sy zvol_request_sync
-is ignored when running on a kernel that supports block multiqueue
-.Pq Li blk-mq .
+This parameter applies regardless of the
+.Sy zvol_use_blk_mq
+setting.
 .
 .It Sy zvol_num_taskqs Ns = Ns Sy 0 Pq uint
 Number of zvol taskqs.
