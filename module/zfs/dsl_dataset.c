@@ -2702,13 +2702,93 @@ dsl_get_written(dsl_dataset_t *ds, uint64_t *written)
 }
 
 /*
+ * Validate the current deadlist, then calculate written bytes only when the
+ * snapshot is in the requested TXG range.  Current deadlist errors are
+ * returned, while an excluded snapshot or predecessor error leaves written
+ * invalid.  The configuration lock keeps the deadlist object and predecessor
+ * linkage stable.
+ */
+static int
+dsl_dataset_snapshot_written(dsl_pool_t *dp,
+    const dsl_dataset_phys_t *dsp, uint64_t min_txg, uint64_t max_txg,
+    uint64_t *written, uint8_t *written_valid)
+{
+	objset_t *mos = dp->dp_meta_objset;
+	dmu_buf_t *dbuf;
+	dmu_object_info_t doi;
+	uint64_t deadlist_used, prev_referenced;
+	int error;
+
+	ASSERT(dsl_pool_config_held(dp));
+	*written_valid = B_FALSE;
+
+	error = dmu_bonus_hold(mos, dsp->ds_deadlist_obj, FTAG, &dbuf);
+	if (error != 0)
+		return (error);
+
+	dmu_object_info_from_db(dbuf, &doi);
+	if (doi.doi_type == DMU_OT_DEADLIST &&
+	    doi.doi_bonus_type == DMU_OT_DEADLIST_HDR &&
+	    doi.doi_bonus_size >= sizeof (dsl_deadlist_phys_t)) {
+		const dsl_deadlist_phys_t *dlp = dbuf->db_data;
+
+		deadlist_used = dlp->dl_used;
+	} else if (doi.doi_type == DMU_OT_BPOBJ &&
+	    doi.doi_bonus_type == DMU_OT_BPOBJ_HDR &&
+	    doi.doi_bonus_size >= BPOBJ_SIZE_V0) {
+		const bpobj_phys_t *bpop = dbuf->db_data;
+
+		deadlist_used = bpop->bpo_bytes;
+	} else {
+		error = SET_ERROR(EINVAL);
+	}
+	dmu_buf_rele(dbuf, FTAG);
+	if (error != 0)
+		return (error);
+
+	if ((min_txg != 0 && dsp->ds_creation_txg < min_txg) ||
+	    (max_txg != 0 && dsp->ds_creation_txg > max_txg) ||
+	    dsp->ds_prev_snap_obj == 0) {
+		return (0);
+	}
+
+	error = dmu_bonus_hold(mos, dsp->ds_prev_snap_obj, FTAG, &dbuf);
+	if (error != 0)
+		return (0);
+
+	dmu_object_info_from_db(dbuf, &doi);
+	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET ||
+	    doi.doi_bonus_size < sizeof (dsl_dataset_phys_t)) {
+		error = SET_ERROR(EINVAL);
+	} else {
+		const dsl_dataset_phys_t *prev_dsp = dbuf->db_data;
+
+		if (prev_dsp->ds_creation_txg != dsp->ds_prev_snap_txg ||
+		    prev_dsp->ds_creation_txg >= dsp->ds_creation_txg) {
+			error = SET_ERROR(EINVAL);
+		} else {
+			prev_referenced = prev_dsp->ds_referenced_bytes;
+		}
+	}
+	dmu_buf_rele(dbuf, FTAG);
+	if (error != 0)
+		return (0);
+
+	*written = dsp->ds_referenced_bytes;
+	*written -= prev_referenced;
+	*written += deadlist_used;
+	*written_valid = B_TRUE;
+	return (0);
+}
+
+/*
  * Retrieve the fields needed by projected snapshot listing without creating
  * a dsl_dataset_t.  The caller holds the pool configuration lock.
  */
 int
 dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
-    boolean_t want_userrefs, boolean_t want_redacted,
-    dsl_dataset_snapshot_stats_t *stats)
+    boolean_t want_userrefs, boolean_t want_redacted, boolean_t want_written,
+    uint64_t min_txg, uint64_t max_txg, dsl_dataset_snapshot_stats_t *stats)
 {
 	objset_t *mos = dp->dp_meta_objset;
 	dmu_buf_t *dbuf;
@@ -2727,7 +2807,8 @@ dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
 
 	dmu_object_info_from_db(dbuf, &doi);
 	zapified = doi.doi_type == DMU_OTN_ZAP_METADATA;
-	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
+	if (doi.doi_bonus_type != DMU_OT_DSL_DATASET ||
+	    doi.doi_bonus_size < sizeof (dsl_dataset_phys_t)) {
 		error = SET_ERROR(EINVAL);
 		goto out;
 	}
@@ -2763,6 +2844,10 @@ dsl_dataset_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj,
 		} else if (error == ENOENT) {
 			error = 0;
 		}
+	}
+	if (error == 0 && want_written) {
+		error = dsl_dataset_snapshot_written(dp, dsp, min_txg, max_txg,
+		    &stats->dss_written, &stats->dss_written_valid);
 	}
 
 out:

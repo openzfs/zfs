@@ -1624,6 +1624,8 @@ typedef enum {
 #define	SNAP_ITER_BATCH_LOGICALREFERENCED	\
 	"snap_iter_batch_logicalreferenced"
 #define	SNAP_ITER_BATCH_DEFER_DESTROY	"snap_iter_batch_defer_destroy"
+#define	SNAP_ITER_BATCH_WRITTENS	"snap_iter_batch_writtens"
+#define	SNAP_ITER_BATCH_WRITTEN_VALID	"snap_iter_batch_written_valid"
 #define	SNAP_ITER_BATCH_OBJSETIDS	"snap_iter_batch_objsetids"
 #define	SNAP_ITER_BATCH_DMU_TYPE	"snap_iter_batch_dmu_type"
 #define	SNAP_ITER_BATCH_DDS_FLAGS	"snap_iter_batch_dds_flags"

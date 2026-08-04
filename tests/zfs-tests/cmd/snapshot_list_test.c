@@ -162,7 +162,8 @@ run_filter(const char *name, const char *minimum, const char *maximum)
 		return (EXIT_FAILURE);
 
 	error = zfs_iter_snapshots_v2(zhp, ZFS_ITER_BATCHED |
-	    ZFS_ITER_BATCHED_CREATETXG | ZFS_ITER_BATCHED_GUID,
+	    ZFS_ITER_BATCHED_CREATETXG | ZFS_ITER_BATCHED_GUID |
+	    ZFS_ITER_BATCHED_WRITTEN,
 	    print_snapshot, NULL, parse_uint64(minimum), parse_uint64(maximum));
 	zfs_close(zhp);
 	libzfs_fini(hdl);
@@ -501,7 +502,8 @@ run_metadata_eproto(const char *name)
 
 	libzfs_print_on_error(hdl, B_FALSE);
 	errno = 0;
-	error = zfs_iter_snapshots_v2(zhp, ZFS_ITER_BATCHED,
+	error = zfs_iter_snapshots_v2(zhp,
+	    ZFS_ITER_BATCHED | ZFS_ITER_BATCHED_WRITTEN,
 	    count_snapshot, &callbacks, 0, 0);
 	iteration_errno = errno;
 

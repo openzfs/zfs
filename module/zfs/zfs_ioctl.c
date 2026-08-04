@@ -2800,8 +2800,9 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	uint64_t *creations = NULL;
 	uint64_t *userrefs = NULL, *numclones = NULL, *used = NULL;
 	uint64_t *referenced = NULL, *logicalreferenced = NULL;
+	uint64_t *writtens = NULL;
 	uint8_t *inconsistent = NULL, *redacted = NULL;
-	uint8_t *defer_destroy = NULL;
+	uint8_t *defer_destroy = NULL, *written_valid = NULL;
 	nvlist_t *props;
 	uint64_t cursor = 0, min_txg = 0, max_txg = 0, max_results;
 	uint_t batch_size;
@@ -2815,7 +2816,7 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 	boolean_t want_numclones = B_FALSE, want_inconsistent = B_FALSE;
 	boolean_t want_redacted = B_FALSE, want_used = B_FALSE;
 	boolean_t want_referenced = B_FALSE, want_logicalreferenced = B_FALSE;
-	boolean_t want_defer_destroy = B_FALSE;
+	boolean_t want_defer_destroy = B_FALSE, want_written = B_FALSE;
 	dmu_objset_type_t head_type;
 	uint8_t head_flags;
 	objset_t *os = NULL;
@@ -2870,6 +2871,9 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			break;
 		case ZFS_PROP_DEFER_DESTROY:
 			want_defer_destroy = B_TRUE;
+			break;
+		case ZFS_PROP_WRITTEN:
+			want_written = B_TRUE;
 			break;
 		default:
 			return (SET_ERROR(ZFS_ERR_IOC_ARG_UNAVAIL));
@@ -2929,6 +2933,12 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 		defer_destroy = kmem_alloc(
 		    sizeof (defer_destroy[0]) * batch_size, KM_SLEEP);
 	}
+	if (want_written) {
+		writtens = kmem_alloc(sizeof (writtens[0]) * batch_size,
+		    KM_SLEEP);
+		written_valid = kmem_alloc(
+		    sizeof (written_valid[0]) * batch_size, KM_SLEEP);
+	}
 
 	time_budget = USEC2NSEC((hrtime_t)batch_time_us);
 	error = dmu_objset_hold(fsname, FTAG, &os);
@@ -2960,7 +2970,8 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			break;
 		}
 		error = dsl_dataset_snapshot_stats(dmu_objset_pool(os), obj,
-		    want_userrefs, want_redacted, &stats);
+		    want_userrefs, want_redacted, want_written, min_txg,
+		    max_txg, &stats);
 		/*
 		 * Preserve public iterator partial-list results after a
 		 * post-lookup ENOENT. Reporting EOF lets libzfs consume
@@ -3005,6 +3016,10 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			}
 			if (want_defer_destroy)
 				defer_destroy[count] = stats.dss_defer_destroy;
+			if (want_written) {
+				writtens[count] = stats.dss_written;
+				written_valid[count] = stats.dss_written_valid;
+			}
 			count++;
 		}
 
@@ -3086,6 +3101,13 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 				    SNAP_ITER_BATCH_DEFER_DESTROY,
 				    defer_destroy, count);
 			}
+			if (want_written) {
+				fnvlist_add_uint64_array(outnvl,
+				    SNAP_ITER_BATCH_WRITTENS, writtens, count);
+				fnvlist_add_uint8_array(outnvl,
+				    SNAP_ITER_BATCH_WRITTEN_VALID,
+				    written_valid, count);
+			}
 		}
 	}
 
@@ -3129,6 +3151,11 @@ out:
 	if (want_defer_destroy) {
 		kmem_free(defer_destroy,
 		    sizeof (defer_destroy[0]) * batch_size);
+	}
+	if (want_written) {
+		kmem_free(writtens, sizeof (writtens[0]) * batch_size);
+		kmem_free(written_valid,
+		    sizeof (written_valid[0]) * batch_size);
 	}
 
 	return (error);

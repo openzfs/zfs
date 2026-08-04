@@ -582,6 +582,7 @@ test_snapshot_list_batch(const char *dataset)
 	fnvlist_add_boolean(props, "referenced");
 	fnvlist_add_boolean(props, "logicalreferenced");
 	fnvlist_add_boolean(props, "defer_destroy");
+	fnvlist_add_boolean(props, "written");
 	fnvlist_add_boolean(props, "objsetid");
 	fnvlist_add_boolean(props, "userrefs");
 	fnvlist_add_uint64(required, SNAP_ITER_BATCH_MAX_RESULTS, 1024);
@@ -604,14 +605,6 @@ test_snapshot_list_batch(const char *dataset)
 	fnvlist_add_uint64(input, SNAP_ITER_BATCH_MAX_RESULTS, 1024);
 
 	fnvlist_add_boolean(props, "available");
-	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);
-	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
-	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
-	    ZFS_ERR_IOC_ARG_UNAVAIL);
-
-	fnvlist_free(props);
-	props = fnvlist_alloc();
-	fnvlist_add_boolean(props, "written");
 	fnvlist_remove(input, SNAP_ITER_BATCH_PROPS);
 	fnvlist_add_nvlist(input, SNAP_ITER_BATCH_PROPS, props);
 	lzc_ioctl_run(ZFS_IOC_SNAPSHOT_LIST_BATCH, dataset, input,
