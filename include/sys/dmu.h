@@ -314,6 +314,14 @@ void zap_byteswap(void *buf, size_t size);
 void zfs_oldacl_byteswap(void *buf, size_t size);
 void zfs_acl_byteswap(void *buf, size_t size);
 void zfs_znode_byteswap(void *buf, size_t size);
+void abd_byteswap_uint64_array(abd_t *abd, size_t size);
+void abd_byteswap_uint32_array(abd_t *abd, size_t size);
+void abd_byteswap_uint16_array(abd_t *abd, size_t size);
+void abd_byteswap_uint8_array(abd_t *abd, size_t size);
+void abd_zap_byteswap(abd_t *abd, size_t size);
+void abd_zfs_oldacl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_acl_byteswap(abd_t *abd, size_t size);
+void abd_zfs_znode_byteswap(abd_t *abd, size_t size);
 
 #define	DS_FIND_SNAPSHOTS	(1<<0)
 #define	DS_FIND_CHILDREN	(1<<1)
@@ -366,6 +374,7 @@ int dmu_objset_snapshot_one(const char *fsname, const char *snapname);
 int dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
+void abd_dmu_objset_byteswap(abd_t *abd, size_t size);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 
@@ -373,7 +382,7 @@ typedef struct dmu_buf {
 	uint64_t db_object;		/* object that this buffer is part of */
 	uint64_t db_offset;		/* byte offset in this object */
 	uint64_t db_size;		/* size of buffer in bytes */
-	void *db_data;			/* data in buffer */
+	abd_t *db_abd;			/* data, must be linear for metadata */
 } dmu_buf_t;
 
 /*
@@ -617,7 +626,7 @@ int dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp);
  *
  * You must call dmu_buf_read, dmu_buf_will_dirty, or dmu_buf_will_fill
  * on the returned buffer before reading or writing the buffer's
- * db_data.  The comments for those routines describe what particular
+ * db_abd.  The comments for those routines describe what particular
  * operations are valid after calling them.
  *
  * The object number must be a valid, allocated object number.
@@ -818,7 +827,7 @@ void dmu_buf_user_evict_wait(void);
 struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
 
 /*
- * Indicate that you are going to modify the buffer's data (db_data).
+ * Indicate that you are going to modify the buffer's data (db_abd).
  *
  * The transaction (tx) must be assigned to a txg (ie. you've called
  * dmu_tx_assign()).  The buffer's object must be held in the tx
@@ -926,6 +935,8 @@ int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
     dmu_flags_t flags);
 void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx, dmu_flags_t flags);
+void dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *abd, dmu_tx_t *tx, dmu_flags_t flags);
 int dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx, dmu_flags_t flags);
 void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
@@ -991,6 +1002,7 @@ typedef struct dmu_object_info {
 } dmu_object_info_t;
 
 typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);
+typedef void (*const abd_byteswap_func_t)(abd_t *abd, size_t size);
 
 typedef struct dmu_object_type_info {
 	dmu_object_byteswap_t	ot_byteswap;
@@ -1002,6 +1014,7 @@ typedef struct dmu_object_type_info {
 
 typedef const struct dmu_object_byteswap_info {
 	arc_byteswap_func_t	 ob_func;
+	abd_byteswap_func_t	 ob_abd_func;
 	const char		*ob_name;
 } dmu_object_byteswap_info_t;
 

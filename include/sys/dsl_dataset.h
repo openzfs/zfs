@@ -282,7 +282,7 @@ typedef struct dsl_dataset {
 static inline dsl_dataset_phys_t *
 dsl_dataset_phys(dsl_dataset_t *ds)
 {
-	return ((dsl_dataset_phys_t *)ds->ds_dbuf->db_data);
+	return ((dsl_dataset_phys_t *)abd_to_buf(ds->ds_dbuf->db_abd));
 }
 
 typedef struct dsl_dataset_clone_arg_t {

@@ -401,6 +401,12 @@ dmu_objset_byteswap(void *buf, size_t size)
 	}
 }
 
+void
+abd_dmu_objset_byteswap(abd_t *abd, size_t size)
+{
+	dmu_objset_byteswap(abd_to_buf(abd), size);
+}
+
 /*
  * Runs cityhash on the objset_t pointer and the object number.
  */
@@ -530,21 +536,21 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		if (arc_buf_size(os->os_phys_buf) < size) {
 			arc_buf_t *buf = arc_alloc_buf(spa, &os->os_phys_buf,
 			    ARC_BUFC_METADATA, size);
-			memset(buf->b_data, 0, size);
-			memcpy(buf->b_data, os->os_phys_buf->b_data,
+			abd_zero(buf->b_abd, size);
+			abd_copy(buf->b_abd, os->os_phys_buf->b_abd,
 			    arc_buf_size(os->os_phys_buf));
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			os->os_phys_buf = buf;
 		}
 
-		os->os_phys = os->os_phys_buf->b_data;
+		os->os_phys = abd_to_buf(os->os_phys_buf->b_abd);
 		os->os_flags = os->os_phys->os_flags;
 	} else {
 		int size = spa_version(spa) >= SPA_VERSION_USERSPACE ?
 		    sizeof (objset_phys_t) : OBJSET_PHYS_SIZE_V1;
 		os->os_phys_buf = arc_alloc_buf(spa, &os->os_phys_buf,
 		    ARC_BUFC_METADATA, size);
-		os->os_phys = os->os_phys_buf->b_data;
+		os->os_phys = abd_to_buf(os->os_phys_buf->b_abd);
 		memset(os->os_phys, 0, size);
 	}
 	/*
@@ -2169,7 +2175,7 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	if (db->db_dirtycnt == 0) {
 		ASSERT(MUTEX_HELD(&db->db_mtx));
-		return (db->db.db_data);  /* Nothing is changing */
+		return (abd_to_buf(db->db.db_abd));  /* Nothing is changing */
 	}
 
 	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
@@ -2179,7 +2185,7 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	} else {
 		if (dr->dr_dnode->dn_bonuslen == 0 &&
 		    dr->dr_dbuf->db_blkid == DMU_SPILL_BLKID)
-			data = dr->dt.dl.dr_data->b_data;
+			data = abd_to_buf(dr->dt.dl.dr_data->b_abd);
 		else
 			data = dr->dt.dl.dr_data;
 	}
@@ -2235,7 +2241,7 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 			    FTAG, (dmu_buf_t **)&db);
 			ASSERT0(error);
 			mutex_enter(&db->db_mtx);
-			data = (before) ? db->db.db_data :
+			data = (before) ? abd_to_buf(db->db.db_abd) :
 			    dmu_objset_userquota_find_data(db, tx);
 			have_spill = B_TRUE;
 	} else {

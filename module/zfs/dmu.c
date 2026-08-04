@@ -160,17 +160,19 @@ const dmu_object_type_info_t dmu_ot[DMU_OT_NUMTYPES] = {
 	{DMU_BSWAP_UINT64, TRUE,  FALSE, FALSE, "bpobj subobj"		}
 };
 
+#define	OB_FUNC(func)	func, abd_##func
+
 dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
-	{	byteswap_uint8_array,	"uint8"		},
-	{	byteswap_uint16_array,	"uint16"	},
-	{	byteswap_uint32_array,	"uint32"	},
-	{	byteswap_uint64_array,	"uint64"	},
-	{	zap_byteswap,		"zap"		},
-	{	dnode_buf_byteswap,	"dnode"		},
-	{	dmu_objset_byteswap,	"objset"	},
-	{	zfs_znode_byteswap,	"znode"		},
-	{	zfs_oldacl_byteswap,	"oldacl"	},
-	{	zfs_acl_byteswap,	"acl"		}
+	{	OB_FUNC(byteswap_uint8_array),	"uint8"		},
+	{	OB_FUNC(byteswap_uint16_array),	"uint16"	},
+	{	OB_FUNC(byteswap_uint32_array),	"uint32"	},
+	{	OB_FUNC(byteswap_uint64_array),	"uint64"	},
+	{	OB_FUNC(zap_byteswap),		"zap"		},
+	{	OB_FUNC(dnode_buf_byteswap),	"dnode"		},
+	{	OB_FUNC(dmu_objset_byteswap),	"objset"	},
+	{	OB_FUNC(zfs_znode_byteswap),	"znode"		},
+	{	OB_FUNC(zfs_oldacl_byteswap),	"oldacl"	},
+	{	OB_FUNC(zfs_acl_byteswap),	"acl"		}
 };
 
 int
@@ -1422,8 +1424,8 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
 
-			ASSERT(db->db_data != NULL);
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
+			ASSERT(db->db_abd != NULL);
+			abd_copy_to_buf_off(buf, db->db_abd, bufoff, tocpy);
 
 			offset += tocpy;
 			size -= tocpy;
@@ -1487,8 +1489,8 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 			dmu_buf_will_dirty_flags(db, tx, flags);
 		}
 
-		ASSERT(db->db_data != NULL);
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		ASSERT(db->db_abd != NULL);
+		abd_copy_from_buf_off(db->db_abd, buf, bufoff, tocpy);
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx, B_FALSE);
@@ -1515,6 +1517,65 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
+static void
+dmu_write_abd_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
+    abd_t *abd, dmu_tx_t *tx, dmu_flags_t flags)
+{
+	int i;
+	int64_t soff = 0;
+
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t bufoff;
+		dmu_buf_t *db = dbp[i];
+
+		ASSERT(size > 0);
+
+		bufoff = offset - db->db_offset;
+		tocpy = MIN(db->db_size - bufoff, size);
+
+		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
+
+		if (tocpy == db->db_size) {
+			dmu_buf_will_fill_flags(db, tx, B_FALSE, flags);
+		} else {
+			if (i == numbufs - 1 && bufoff + tocpy < db->db_size) {
+				if (bufoff == 0)
+					flags |= DMU_PARTIAL_FIRST;
+				else
+					flags |= DMU_PARTIAL_MORE;
+			}
+			dmu_buf_will_dirty_flags(db, tx, flags);
+		}
+
+		ASSERT(db->db_abd != NULL);
+		abd_copy_off(db->db_abd, abd, bufoff, soff, tocpy);
+
+		if (tocpy == db->db_size)
+			dmu_buf_fill_done(db, tx, B_FALSE);
+
+		offset += tocpy;
+		size -= tocpy;
+		soff += tocpy;
+	}
+}
+
+void
+dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size, abd_t *abd,
+    dmu_tx_t *tx, dmu_flags_t flags)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+
+	if (size == 0)
+		return;
+
+	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, flags));
+	dmu_write_abd_impl(dbp, numbufs, offset, size, abd, tx, flags);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+}
+
 int
 dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx, dmu_flags_t flags)
@@ -1530,7 +1591,7 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	if ((flags & DMU_DIRECTIO) && zfs_dio_page_aligned((void *)buf) &&
 	    zfs_dio_aligned(offset, size, dn->dn_datablksz)) {
 		abd_t *data = abd_get_from_buf((void *)buf, size);
-		error = dmu_write_abd(dn, offset, size, data, flags, tx);
+		error = dmu_write_abd_direct(dn, offset, size, data, flags, tx);
 		abd_free(data);
 		return (error);
 	}
@@ -1628,8 +1689,8 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 		bufoff = zfs_uio_offset(uio) - db->db_offset;
 		tocpy = MIN(db->db_size - bufoff, size);
 
-		ASSERT(db->db_data != NULL);
-		err = zfs_uio_fault_move((char *)db->db_data + bufoff, tocpy,
+		ASSERT(db->db_abd != NULL);
+		err = zfs_uio_fault_move_abd(db->db_abd, bufoff, tocpy,
 		    UIO_READ, uio);
 
 		if (err)
@@ -1766,8 +1827,8 @@ top:
 			dmu_buf_will_dirty_flags(db, tx, flags);
 		}
 
-		ASSERT(db->db_data != NULL);
-		err = zfs_uio_fault_move((char *)db->db_data + bufoff,
+		ASSERT(db->db_abd != NULL);
+		err = zfs_uio_fault_move_abd(db->db_abd, bufoff,
 		    tocpy, UIO_WRITE, uio);
 
 		if (tocpy == db->db_size && dmu_buf_fill_done(db, tx, err)) {
@@ -1942,8 +2003,8 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 
 		err = dbuf_read(db, NULL, DB_RF_CANFAIL);
 		if (err == 0) {
-			dmu_cached_bps(dmu_objset_spa(os), db->db.db_data,
-			    nbps, l1sz, l2sz);
+			dmu_cached_bps(dmu_objset_spa(os),
+			    abd_to_buf(db->db.db_abd), nbps, l1sz, l2sz);
 		}
 		/*
 		 * error may be ignored, and we continue
@@ -2039,7 +2100,7 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 		ASSERT(!(buf->b_flags & ARC_BUF_FLAG_COMPRESSED));
 
 		dbuf_rele(db, FTAG);
-		dmu_write_by_dnode(dn, offset, blksz, buf->b_data, tx, flags);
+		dmu_write_abd(dn, offset, blksz, buf->b_abd, tx, flags);
 		dmu_return_arcbuf(buf);
 	}
 
@@ -2186,7 +2247,6 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
-	abd_free(zio->io_abd);
 	kmem_free(dsa, sizeof (*dsa));
 }
 
@@ -2254,7 +2314,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	zp->zp_nopwrite = B_FALSE;
 
 	zio_nowait(zio_write(pio, os->os_spa, dmu_tx_get_txg(tx), zgd->zgd_bp,
-	    abd_get_from_buf(zgd->zgd_db->db_data, zgd->zgd_db->db_size),
+	    zgd->zgd_db->db_abd,
 	    zgd->zgd_db->db_size, zgd->zgd_db->db_size, zp,
 	    dmu_sync_late_arrival_ready, NULL, dmu_sync_late_arrival_done,
 	    dsa, ZIO_PRIORITY_SYNC_WRITE, ZIO_FLAG_CANFAIL, zb));
@@ -3066,9 +3126,10 @@ dmu_object_dnsize_from_db(dmu_buf_t *db_fake, int *dnsize)
 	DB_DNODE_EXIT(db);
 }
 
-void
-byteswap_uint64_array(void *vbuf, size_t size)
+static int
+byteswap_uint64_array_func(void *vbuf, size_t size, void *priv)
 {
+	(void) priv;
 	uint64_t *buf = vbuf;
 	size_t count = size >> 3;
 	int i;
@@ -3077,11 +3138,25 @@ byteswap_uint64_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_64(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint32_array(void *vbuf, size_t size)
+byteswap_uint64_array(void *vbuf, size_t size)
 {
+	byteswap_uint64_array_func(vbuf, size, NULL);
+}
+
+void
+abd_byteswap_uint64_array(abd_t *abd, size_t size)
+{
+	abd_iterate_func(abd, 0, size, byteswap_uint64_array_func, NULL);
+}
+
+static int
+byteswap_uint32_array_func(void *vbuf, size_t size, void *priv)
+{
+	(void) priv;
 	uint32_t *buf = vbuf;
 	size_t count = size >> 2;
 	int i;
@@ -3090,11 +3165,25 @@ byteswap_uint32_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_32(buf[i]);
+	return (0);
 }
 
 void
-byteswap_uint16_array(void *vbuf, size_t size)
+byteswap_uint32_array(void *vbuf, size_t size)
 {
+	byteswap_uint32_array_func(vbuf, size, NULL);
+}
+
+void
+abd_byteswap_uint32_array(abd_t *abd, size_t size)
+{
+	abd_iterate_func(abd, 0, size, byteswap_uint32_array_func, NULL);
+}
+
+static int
+byteswap_uint16_array_func(void *vbuf, size_t size, void *priv)
+{
+	(void) priv;
 	uint16_t *buf = vbuf;
 	size_t count = size >> 1;
 	int i;
@@ -3103,12 +3192,31 @@ byteswap_uint16_array(void *vbuf, size_t size)
 
 	for (i = 0; i < count; i++)
 		buf[i] = BSWAP_16(buf[i]);
+	return (0);
+}
+
+void
+byteswap_uint16_array(void *vbuf, size_t size)
+{
+	byteswap_uint16_array_func(vbuf, size, NULL);
+}
+
+void
+abd_byteswap_uint16_array(abd_t *abd, size_t size)
+{
+	abd_iterate_func(abd, 0, size, byteswap_uint16_array_func, NULL);
 }
 
 void
 byteswap_uint8_array(void *vbuf, size_t size)
 {
 	(void) vbuf, (void) size;
+}
+
+void
+abd_byteswap_uint8_array(abd_t *abd, size_t size)
+{
+	(void) abd, (void) size;
 }
 
 void

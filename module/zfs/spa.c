@@ -2774,7 +2774,7 @@ load_nvlist(spa_t *spa, uint64_t obj, nvlist_t **value)
 	if (error)
 		return (error);
 
-	nvsize = *(uint64_t *)db->db_data;
+	nvsize = *(uint64_t *)abd_to_buf(db->db_abd);
 	dmu_buf_rele(db, FTAG);
 
 	packed = vmem_alloc(nvsize, KM_SLEEP);
@@ -10203,7 +10203,7 @@ spa_sync_nvlist(spa_t *spa, uint64_t obj, nvlist_t *nv, dmu_tx_t *tx)
 
 	VERIFY0(dmu_bonus_hold(spa->spa_meta_objset, obj, FTAG, &db));
 	dmu_buf_will_dirty(db, tx);
-	*(uint64_t *)db->db_data = nvsize;
+	*(uint64_t *)abd_to_buf(db->db_abd) = nvsize;
 	dmu_buf_rele(db, FTAG);
 }
 

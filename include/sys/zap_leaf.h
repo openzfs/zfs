@@ -171,7 +171,7 @@ typedef struct zap_leaf {
 static inline zap_leaf_phys_t *
 zap_leaf_phys(zap_leaf_t *l)
 {
-	return (l->l_dbuf->db_data);
+	return (abd_to_buf(l->l_dbuf->db_abd));
 }
 
 typedef struct zap_entry_handle {

@@ -118,6 +118,8 @@ void abd_release_ownership_of_buf(abd_t *);
  */
 
 int abd_iterate_func(abd_t *, size_t, size_t, abd_iter_func_t *, void *);
+int abd_iterate_func_impl(abd_t *, size_t, size_t, abd_iter_func_t *, void *,
+    boolean_t);
 int abd_iterate_func2(abd_t *, abd_t *, size_t, size_t, size_t,
     abd_iter_func2_t *, void *);
 void abd_copy_off(abd_t *, abd_t *, size_t, size_t, size_t);

@@ -201,7 +201,7 @@ typedef enum arc_buf_flags {
 struct arc_buf {
 	arc_buf_hdr_t		*b_hdr;
 	arc_buf_t		*b_next;
-	void			*b_data;
+	abd_t			*b_abd;
 	arc_buf_flags_t		b_flags;
 };
 

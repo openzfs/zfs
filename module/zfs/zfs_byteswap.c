@@ -196,6 +196,24 @@ zfs_znode_byteswap(void *buf, size_t size)
 	}
 }
 
+void
+abd_zfs_oldacl_byteswap(abd_t *abd, size_t size)
+{
+	zfs_oldacl_byteswap(abd_to_buf(abd), size);
+}
+
+void
+abd_zfs_acl_byteswap(abd_t *abd, size_t size)
+{
+	zfs_acl_byteswap(abd_to_buf(abd), size);
+}
+
+void
+abd_zfs_znode_byteswap(abd_t *abd, size_t size)
+{
+	zfs_znode_byteswap(abd_to_buf(abd), size);
+}
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_oldacl_byteswap);
 EXPORT_SYMBOL(zfs_acl_byteswap);

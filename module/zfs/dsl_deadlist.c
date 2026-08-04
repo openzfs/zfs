@@ -323,7 +323,7 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 	}
 
 	dl->dl_oldfmt = B_FALSE;
-	dl->dl_phys = dl->dl_dbuf->db_data;
+	dl->dl_phys = abd_to_buf(dl->dl_dbuf->db_abd);
 	dl->dl_havetree = B_FALSE;
 	dl->dl_havecache = B_FALSE;
 	return (0);
@@ -917,7 +917,7 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	zap_cursor_fini(&pzc);
 
 	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
-	dlp = bonus->db_data;
+	dlp = abd_to_buf(bonus->db_abd);
 	dmu_buf_will_dirty(bonus, tx);
 	memset(dlp, 0, sizeof (*dlp));
 	dmu_buf_rele(bonus, FTAG);

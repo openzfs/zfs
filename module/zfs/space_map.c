@@ -104,7 +104,7 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		if (error != 0)
 			return (error);
 
-		uint64_t *block_start = db->db_data;
+		uint64_t *block_start = abd_to_buf(db->db_abd);
 		uint64_t block_length = MIN(end - block_base, blksz);
 		uint64_t *block_end = block_start +
 		    (block_length / sizeof (uint64_t));
@@ -222,7 +222,7 @@ space_map_reversed_last_block_entries(space_map_t *sm, uint64_t *buf,
 	ASSERT3U(bufsz, >=, db->db_size);
 	ASSERT(nwords != NULL);
 
-	uint64_t *words = db->db_data;
+	uint64_t *words = abd_to_buf(db->db_abd);
 	*nwords =
 	    (sm->sm_phys->smp_length - db->db_offset) / sizeof (uint64_t);
 
@@ -568,7 +568,7 @@ space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
 	dmu_buf_t *db = *dbp;
 	ASSERT3U(db->db_size, ==, sm->sm_blksz);
 
-	uint64_t *block_base = db->db_data;
+	uint64_t *block_base = abd_to_buf(db->db_abd);
 	uint64_t *block_end = block_base + (sm->sm_blksz / sizeof (uint64_t));
 	uint64_t *block_cursor = block_base +
 	    (sm->sm_phys->smp_length - db->db_offset) / sizeof (uint64_t);
@@ -605,7 +605,7 @@ space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
 
 			ASSERT3U(db->db_size, ==, sm->sm_blksz);
 
-			block_base = db->db_data;
+			block_base = abd_to_buf(db->db_abd);
 			block_cursor = block_base;
 			block_end = block_base +
 			    (db->db_size / sizeof (uint64_t));
@@ -805,7 +805,7 @@ space_map_open_impl(space_map_t *sm)
 		return (error);
 
 	dmu_object_size_from_db(sm->sm_dbuf, &sm->sm_blksz, &blocks);
-	sm->sm_phys = sm->sm_dbuf->db_data;
+	sm->sm_phys = abd_to_buf(sm->sm_dbuf->db_abd);
 	return (0);
 }
 

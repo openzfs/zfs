@@ -794,6 +794,13 @@ int
 abd_iterate_func(abd_t *abd, size_t off, size_t size,
     abd_iter_func_t *func, void *private)
 {
+	return (abd_iterate_func_impl(abd, off, size, func, private, B_FALSE));
+}
+
+int
+abd_iterate_func_impl(abd_t *abd, size_t off, size_t size,
+    abd_iter_func_t *func, void *private, boolean_t nonatomic)
+{
 	struct abd_iter aiter;
 	int ret = 0;
 
@@ -808,14 +815,14 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	while (size > 0) {
 		IMPLY(abd_is_gang(abd), c_abd != NULL);
 
-		abd_iter_map(&aiter);
+		abd_iter_map_impl(&aiter, nonatomic);
 
 		size_t len = MIN(aiter.iter_mapsize, size);
 		ASSERT3U(len, >, 0);
 
 		ret = func(aiter.iter_mapaddr, len, private);
 
-		abd_iter_unmap(&aiter);
+		abd_iter_unmap_impl(&aiter, nonatomic);
 
 		if (ret != 0)
 			break;

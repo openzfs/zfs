@@ -493,8 +493,8 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 			    DB_RF_MUST_SUCCEED, tag, &db));
 			dmu_buf_will_fill(db, tx, B_FALSE);
 			VERIFY0(dbuf_spill_set_blksz(db, P2ROUNDUP(bonuslen,
-			    SPA_MINBLOCKSIZE), tx));
-			local_rl->rl_phys = db->db_data;
+			    SPA_MINBLOCKSIZE), B_TRUE, tx));
+			local_rl->rl_phys = abd_to_buf(db->db_abd);
 			local_rl->rl_dbuf = db;
 		}
 		memcpy(local_rl->rl_phys->rlp_snaps, redact_snaps,
@@ -1277,7 +1277,7 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, const void *tag,
 			rl->rl_dbuf = dbuf;
 		}
 		rl->rl_object = rlobj;
-		rl->rl_phys = rl->rl_dbuf->db_data;
+		rl->rl_phys = abd_to_buf(rl->rl_dbuf->db_abd);
 		rl->rl_mos = dp->dp_meta_objset;
 		zfs_refcount_create(&rl->rl_longholds);
 		dmu_buf_init_user(&rl->rl_dbu, redaction_list_evict_sync, NULL,

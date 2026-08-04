@@ -229,7 +229,7 @@ zap_t *
 mzap_open(dmu_buf_t *db)
 {
 	zap_t *winner;
-	uint64_t *zap_hdr = (uint64_t *)db->db_data;
+	uint64_t *zap_hdr = (uint64_t *)abd_to_buf(db->db_abd);
 	uint64_t zap_block_type = zap_hdr[0];
 	uint64_t zap_magic = zap_hdr[1];
 
@@ -333,7 +333,7 @@ mzap_upgrade(zap_t **zapp, dmu_tx_t *tx, zap_flags_t flags)
 
 	int sz = zap->zap_dbuf->db_size;
 	mzap_phys_t *mzp = vmem_alloc(sz, KM_SLEEP);
-	memcpy(mzp, zap->zap_dbuf->db_data, sz);
+	abd_copy_to_buf(mzp, zap->zap_dbuf->db_abd, sz);
 	int nchunks = zap->zap_m.zap_num_chunks;
 
 	if (!flags) {
@@ -395,7 +395,7 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 	VERIFY0(dmu_buf_hold_by_dnode(dn, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
 
 	dmu_buf_will_dirty(db, tx);
-	mzap_phys_t *zp = db->db_data;
+	mzap_phys_t *zp = abd_to_buf(db->db_abd);
 	zp->mz_block_type = ZBT_MICRO;
 	zp->mz_salt =
 	    ((uintptr_t)db ^ (uintptr_t)tx ^ (dn->dn_object << 1)) | 1ULL;

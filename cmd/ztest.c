@@ -1883,7 +1883,8 @@ ztest_bt_bonus(dmu_buf_t *db)
 	dmu_object_info_from_db(db, &doi);
 	ASSERT3U(doi.doi_bonus_size, <=, db->db_size);
 	ASSERT3U(doi.doi_bonus_size, >=, sizeof (*bt));
-	bt = (void *)((char *)db->db_data + doi.doi_bonus_size - sizeof (*bt));
+	bt = (void *)((char *)abd_to_buf(db->db_abd) + doi.doi_bonus_size -
+	    sizeof (*bt));
 
 	return (bt);
 }
@@ -1907,12 +1908,13 @@ ztest_fill_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
 	uint64_t *bonusp;
+	uint64_t *start = abd_to_buf(db->db_abd);
 
-	ASSERT(IS_P2ALIGNED((char *)end - (char *)db->db_data, 8));
+	ASSERT(IS_P2ALIGNED((char *)end - (char *)start, 8));
 
-	for (bonusp = db->db_data; bonusp < (uint64_t *)end; bonusp++) {
+	for (bonusp = start; bonusp < (uint64_t *)end; bonusp++) {
 		uint64_t token = ZTEST_BONUS_FILL_TOKEN(obj, dmu_objset_id(os),
-		    gen, bonusp - (uint64_t *)db->db_data);
+		    gen, bonusp - start);
 		*bonusp = token;
 	}
 }
@@ -1926,10 +1928,11 @@ ztest_verify_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
 	uint64_t *bonusp;
+	uint64_t *start = abd_to_buf(db->db_abd);
 
-	for (bonusp = db->db_data; bonusp < (uint64_t *)end; bonusp++) {
+	for (bonusp = start; bonusp < (uint64_t *)end; bonusp++) {
 		uint64_t token = ZTEST_BONUS_FILL_TOKEN(obj, dmu_objset_id(os),
-		    gen, bonusp - (uint64_t *)db->db_data);
+		    gen, bonusp - start);
 		VERIFY3U(*bonusp, ==, token);
 	}
 }
@@ -2312,7 +2315,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		dmu_write(os, lr->lr_foid, offset, length, data, tx,
 		    DMU_READ_PREFETCH);
 	} else {
-		memcpy(abuf->b_data, data, length);
+		abd_copy_from_buf(abuf->b_abd, data, length);
 		VERIFY0(dmu_assign_arcbuf_by_dbuf(db, offset, abuf, tx, 0));
 	}
 
@@ -5529,14 +5532,15 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		for (off = bigoff, j = 0; j < s; j++, off += chunksize) {
 			dmu_buf_t *dbt;
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
-				memcpy(bigbuf_arcbufs[j]->b_data,
+				abd_copy_from_buf(bigbuf_arcbufs[j]->b_abd,
 				    (caddr_t)bigbuf + (off - bigoff),
 				    chunksize);
 			} else {
-				memcpy(bigbuf_arcbufs[2 * j]->b_data,
+				abd_copy_from_buf(bigbuf_arcbufs[2 * j]->b_abd,
 				    (caddr_t)bigbuf + (off - bigoff),
 				    chunksize / 2);
-				memcpy(bigbuf_arcbufs[2 * j + 1]->b_data,
+				abd_copy_from_buf(
+				    bigbuf_arcbufs[2 * j + 1]->b_abd,
 				    (caddr_t)bigbuf + (off - bigoff) +
 				    chunksize / 2,
 				    chunksize / 2);

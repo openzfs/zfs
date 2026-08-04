@@ -1722,8 +1722,8 @@ receive_object_is_same_generation(objset_t *os, uint64_t object,
 	err = dmu_bonus_hold(os, object, FTAG, &old_bonus_dbuf);
 	if (err != 0)
 		return (err);
-	err = dmu_get_file_info(os, old_bonus_type, old_bonus_dbuf->db_data,
-	    &zoi);
+	err = dmu_get_file_info(os, old_bonus_type,
+	    abd_to_buf(old_bonus_dbuf->db_abd), &zoi);
 	dmu_buf_rele(old_bonus_dbuf, FTAG);
 	if (err != 0)
 		return (err);
@@ -3059,7 +3059,8 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		dmu_buf_will_dirty(db, tx);
 
 		ASSERT3U(db->db_size, >=, drro->drr_bonuslen);
-		memcpy(db->db_data, data, DRR_OBJECT_PAYLOAD_SIZE(drro));
+		abd_copy_from_buf(db->db_abd, data,
+		    DRR_OBJECT_PAYLOAD_SIZE(drro));
 
 		/*
 		 * Raw bonus buffers have their byteorder determined by the
@@ -3068,7 +3069,7 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 		if (rwa->byteswap && !rwa->raw) {
 			dmu_object_byteswap_t byteswap =
 			    DMU_OT_BYTESWAP(drro->drr_bonustype);
-			dmu_ot_byteswap[byteswap].ob_func(db->db_data,
+			dmu_ot_byteswap[byteswap].ob_abd_func(db->db_abd,
 			    DRR_OBJECT_PAYLOAD_SIZE(drro));
 		}
 		dmu_buf_rele(db, FTAG);
@@ -3521,7 +3522,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size != drrs->drr_length) {
 		dmu_buf_will_fill(db_spill, tx, B_FALSE);
 		VERIFY0(dbuf_spill_set_blksz(db_spill,
-		    drrs->drr_length, tx));
+		    drrs->drr_length, B_FALSE, tx));
 	}
 
 	arc_buf_t *abuf;
@@ -3547,7 +3548,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 		}
 	}
 
-	memcpy(abuf->b_data, abd_to_buf(abd), DRR_SPILL_PAYLOAD_SIZE(drrs));
+	abd_copy(abuf->b_abd, abd, DRR_SPILL_PAYLOAD_SIZE(drrs));
 	abd_free(abd);
 	dbuf_assign_arcbuf((dmu_buf_impl_t *)db_spill, abuf, tx,
 	    DMU_UNCACHEDIO);
