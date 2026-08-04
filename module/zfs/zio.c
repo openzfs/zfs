@@ -585,8 +585,10 @@ zio_decompress(zio_t *zio, abd_t *data, uint64_t size)
 			ret = zia_onload_abd(data, size, B_FALSE);
 		}
 
+#ifdef _KERNEL
 		ASSERT(zia_is_offloaded(data) != B_TRUE);
 		/* let abd_free clean up zio->io_abd */
+#endif
 
 		if (ret == ZIA_OK) {
 			ret = 0;
