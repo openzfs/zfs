@@ -196,6 +196,22 @@ uint_t zfs_multihost_import_intervals = MMP_DEFAULT_IMPORT_INTERVALS;
  */
 uint_t zfs_multihost_fail_intervals = MMP_DEFAULT_FAIL_INTERVALS;
 
+#ifndef _KERNEL
+/*
+ * Manual recovery only, set by zhack.  Drops the mirror legs this host
+ * cannot open from the uberblock claim's required write count, so a pool
+ * whose config still expects legs that died with a peer host can be
+ * imported by hand.  Every leg which can be opened is still required.
+ *
+ * This is deliberately absent from the kernel module.  The write, the wait
+ * and the re-read are untouched, so a competing importer which shares any
+ * visibility with us is still caught; a live peer whose legs are all
+ * invisible from here is not, and cannot be by any write-and-read scheme.
+ * That residual is why this is a manual operation guarded by fencing.
+ */
+boolean_t mmp_claim_relaxed = B_FALSE;
+#endif
+
 static const void *const mmp_tag = "mmp_write_uberblock";
 static __attribute__((noreturn)) void mmp_thread(void *arg);
 
@@ -600,6 +616,19 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 				for (uint64_t l = 0; l < cvd->vdev_children;
 				    l++) {
 					vdev_t *lvd = cvd->vdev_child[l];
+#ifndef _KERNEL
+					/*
+					 * Manual recovery forgives the legs
+					 * this host could not open, and marks
+					 * that same set offline before it
+					 * exports, so the relaxed claim
+					 * accepts nothing the later ordinary
+					 * imports would not.
+					 */
+					if (mmp_claim_relaxed &&
+					    lvd->vdev_not_present)
+						continue;
+#endif
 					if (!lvd->vdev_offline &&
 					    !lvd->vdev_faulted &&
 					    !lvd->vdev_removed)

@@ -74,6 +74,11 @@ extern uint64_t zfs_multihost_interval;
 extern uint_t zfs_multihost_fail_intervals;
 extern uint_t zfs_multihost_import_intervals;
 
+#ifndef _KERNEL
+/* Manual recovery only, see the comment in mmp.c.  Never in the module. */
+extern boolean_t mmp_claim_relaxed;
+#endif
+
 #ifdef	__cplusplus
 }
 #endif
