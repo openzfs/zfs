@@ -4041,8 +4041,17 @@ spa_activity_check_duration(spa_t *spa, uberblock_t *ub)
  * - ENXIO	- system hostid not set
  * - ESRCH	- activity check skipped
  * - EREMOTEIO	- activity check detected active pool
+ * - ENODEV	- claim could not be written to a device the config expects
+ * - EIO	- claim writes were issued to present devices and failed
  * - EINTR	- activity check interrupted
  * - 0		- activity check detected no activity
+ *
+ * ENODEV and EIO are reported with ZPOOL_CONFIG_MMP_STATE set to
+ * MMP_STATE_ACTIVE even though no remote host was seen.  Nothing is actually
+ * active in either case, but an older zpool(8) knows only the two existing
+ * states and reaches zfs_error_aux() with an uninitialized buffer for any
+ * other value, so the state is kept as one it understands and the real cause
+ * travels in the result.
  */
 static void
 spa_activity_set_load_info(spa_t *spa, nvlist_t *label, mmp_state_t state,
@@ -4111,6 +4120,20 @@ spa_ld_activity_result(spa_t *spa, int error, const char *state)
 		cmn_err(CE_WARN, "pool '%s' system hostid not set, "
 		    "aborted import during %s", spa_load_name(spa), state);
 		/* Userspace expects EREMOTEIO for no system hostid */
+		error = EREMOTEIO;
+		break;
+	case ENODEV:
+		cmn_err(CE_WARN, "pool '%s' could not claim every device the "
+		    "config expects present, aborted import during %s; if a "
+		    "device is permanently gone see 'zhack mmp reclaim'",
+		    spa_load_name(spa), state);
+		/* Userspace expects EREMOTEIO for a failed claim */
+		error = EREMOTEIO;
+		break;
+	case EIO:
+		cmn_err(CE_WARN, "pool '%s' had I/O errors writing the claim, "
+		    "aborted import during %s", spa_load_name(spa), state);
+		/* Userspace expects EREMOTEIO for a failed claim */
 		error = EREMOTEIO;
 		break;
 	case EREMOTEIO:
@@ -4242,6 +4265,9 @@ spa_activity_check_tryimport(spa_t *spa, uberblock_t *spa_ub,
  * error results:
  *          0 - no activity detected
  *  EREMOTEIO - remote activity detected
+ *     ENODEV - the claim could not be written to a device the config
+ *              expects to be present
+ *        EIO - the claim writes were issued to present devices and failed
  *      EINTR - user canceled the operation
  */
 static int
@@ -4323,7 +4349,13 @@ spa_activity_check_claim(spa_t *spa)
 		if (error) {
 			spa_load_failed(spa, "mmp: uberblock claim "
 			    "failed, error=%d", error);
-			error = SET_ERROR(EREMOTEIO);
+			/*
+			 * ENODEV and EIO are both kept distinct from the
+			 * EREMOTEIO returned when another host is seen below.
+			 * Failing to write the claim is not evidence of a
+			 * remote host, and only the ENODEV case has a
+			 * recovery.
+			 */
 			break;
 		}
 
@@ -4367,9 +4399,14 @@ out:
 	spa->spa_mmp.mmp_claim_ns = gethrtime() - start_time;
 	(void) spa_import_progress_set_mmp_check(spa_guid(spa), 0);
 
-	if (error == EREMOTEIO) {
+	/*
+	 * A claim shortfall reaches userspace as EREMOTEIO exactly as remote
+	 * activity does, so an older zpool(8) sees no change.  The cause
+	 * travels in the result for a zpool(8) which knows to read it.
+	 */
+	if (error == EREMOTEIO || error == ENODEV || error == EIO) {
 		spa_activity_set_load_info(spa, mmp_label,
-		    MMP_STATE_ACTIVE, 0, 0, EREMOTEIO);
+		    MMP_STATE_ACTIVE, 0, 0, error);
 	} else {
 		spa_activity_set_load_info(spa, mmp_label,
 		    MMP_STATE_INACTIVE, spa_ub.ub_txg, MMP_SEQ(&spa_ub), 0);

@@ -227,8 +227,9 @@ Recover a pool whose peer host died together with its mirror legs, after
 confirming that host is down:
 .Bd -literal
 .No # Nm zpool Cm import Fl f Ar tank
-cannot import 'tank': pool is imported on host '<unknown>' (hostid=0).
-Export the pool on the other system, then run 'zpool import'.
+cannot import 'tank': the multihost claim could not be written to a device
+the pool configuration expects to be present.
+If the device is permanently gone, recover with 'zhack mmp reclaim'.
 .No # Nm zhack Cm mmp reclaim Ar tank
 tank: marked absent leaf 5646371977210937898 offline
 .No # Nm zpool Cm import Ar tank
