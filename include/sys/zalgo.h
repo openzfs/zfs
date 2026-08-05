@@ -21,8 +21,28 @@
 #include <sys/abd.h>		/* abd_t */
 #include <sys/spa_checksum.h>	/* zio_cksum_t */
 
-void zalgo_init(void);
-void zalgo_fini(void);
+#define	ZALGO_DECLARE_API(ty)						\
+typedef struct {							\
+	const zalgo_##ty##_ops_t	*zh_ops;			\
+	const char			*zh_id;				\
+	const char			*zh_desc;			\
+} zalgo_##ty##_hold_t;							\
+int zalgo_##ty##_register(zalgo_##ty##_subtype_t subtype, const char *id, \
+    const char *desc, const zalgo_##ty##_ops_t *ops);			\
+zalgo_##ty##_hold_t *zalgo_##ty##_hold(zalgo_##ty##_subtype_t subtype);	\
+void zalgo_##ty##_rele(zalgo_##ty##_hold_t *hold);			\
+int zalgo_##ty##_select(zalgo_##ty##_subtype_t subtype, const char *id); \
+									\
+static inline const zalgo_##ty##_ops_t *				\
+zalgo_##ty##_ops(zalgo_##ty##_hold_t *zh) {				\
+	return (zh->zh_ops);						\
+}									\
+static inline const char *zalgo_##ty##_id(zalgo_##ty##_hold_t *zh) {	\
+	return (zh->zh_id);						\
+}									\
+static inline const char *zalgo_##ty##_desc(zalgo_##ty##_hold_t *zh) {	\
+	return (zh->zh_desc);						\
+}
 
 /* ========== */
 
@@ -35,16 +55,7 @@ typedef enum {
 
 typedef void* zalgo_dummy_ops_t;
 
-typedef struct {
-	const zalgo_dummy_ops_t		*zgdh_ops;
-	const char			*zgdh_id;
-	const char			*zgdh_desc;
-} zalgo_dummy_hold_t;
-
-int zalgo_dummy_register(zalgo_dummy_subtype_t subtype, const char *id,
-    const char *desc, const zalgo_dummy_ops_t *ops);
-zalgo_dummy_hold_t *zalgo_dummy_hold(zalgo_dummy_subtype_t subtype);
-void zalgo_dummy_rele(zalgo_dummy_hold_t *hold);
+ZALGO_DECLARE_API(dummy)
 
 /* ========== */
 
@@ -63,16 +74,7 @@ typedef struct {
 	/* XXX abd etc */
 } zalgo_mac_ops_t;
 
-typedef struct {
-	const zalgo_mac_ops_t		*zgmh_ops;
-	const char			*zgmh_id;
-	const char			*zgmh_desc;
-} zalgo_mac_hold_t;
-
-int zalgo_mac_register(zalgo_mac_subtype_t subtype, const char *id,
-    const char *desc, const zalgo_mac_ops_t *ops);
-zalgo_mac_hold_t *zalgo_mac_hold(zalgo_mac_subtype_t subtype);
-void zalgo_mac_rele(zalgo_mac_hold_t *hold);
+ZALGO_DECLARE_API(mac)
 
 #define	zalgo_mac_init(hold, ...)	\
 	(hold)->zh_ops->zgm_op_init(__VA_ARGS__)
@@ -100,16 +102,7 @@ typedef struct {
 	/* XXX abd etc */
 } zalgo_digest_ops_t;
 
-typedef struct {
-	const zalgo_digest_ops_t	*zgdh_ops;
-	const char			*zgdh_id;
-	const char			*zgdh_desc;
-} zalgo_digest_hold_t;
-
-int zalgo_digest_register(zalgo_digest_subtype_t subtype, const char *id,
-    const char *desc, const zalgo_digest_ops_t *ops);
-zalgo_digest_hold_t *zalgo_digest_hold(zalgo_digest_subtype_t subtype);
-void zalgo_digest_rele(zalgo_digest_hold_t *hold);
+ZALGO_DECLARE_API(digest)
 
 #define	zalgo_digest_init(hold, ...)	\
 	(hold)->zh_ops->zgd_op_init(__VA_ARGS__)
@@ -152,16 +145,7 @@ typedef struct {
 	/* XXX abd etc */
 } zalgo_checksum_ops_t;
 
-typedef struct {
-	const zalgo_checksum_ops_t	*zgch_ops;
-	const char			*zgch_id;
-	const char			*zgch_desc;
-} zalgo_checksum_hold_t;
-
-int zalgo_checksum_register(zalgo_checksum_subtype_t subtype, const char *id,
-    const char *desc, const zalgo_checksum_ops_t *ops);
-zalgo_checksum_hold_t *zalgo_checksum_hold(zalgo_checksum_subtype_t subtype);
-void zalgo_checksum_rele(zalgo_checksum_hold_t *hold);
+ZALGO_DECLARE_API(checksum)
 
 #define	zalgo_checksum_init(hold, ...)	\
 	(hold)->zh_ops->zgc_op_init(__VA_ARGS__)
@@ -198,16 +182,7 @@ typedef struct {
 	/* XXX iovec, abd, etc */
 } zalgo_cipher_ops_t;
 
-typedef struct {
-	const zalgo_cipher_ops_t	*zgch_ops;
-	const char			*zgch_id;
-	const char			*zgch_desc;
-} zalgo_cipher_hold_t;
-
-int zalgo_cipher_register(zalgo_cipher_subtype_t subtype, const char *id,
-    const char *desc, const zalgo_cipher_ops_t *ops);
-zalgo_cipher_hold_t *zalgo_cipher_hold(zalgo_cipher_subtype_t subtype);
-void zalgo_cipher_rele(zalgo_cipher_hold_t *hold);
+ZALGO_DECLARE_API(cipher)
 
 #define	zalgo_cipher_open(hold, ...)	\
 	(hold)->zh_ops->zgc_op_open(__VA_ARGS__)
@@ -224,6 +199,5 @@ void zalgo_init(void);
 void zalgo_fini(void);
 
 int zalgo_shim_icp_register(void);
-int zalgo_shim_openssl_register(void);
 
 #endif
