@@ -38,7 +38,8 @@
 typedef enum zio_crypt_type {
 	ZC_TYPE_NONE = 0,
 	ZC_TYPE_CCM,
-	ZC_TYPE_GCM
+	ZC_TYPE_GCM,
+	ZC_TYPE_CHACHA20_POLY1305,
 } zio_crypt_type_t;
 
 /* table of supported crypto algorithms, modes and keylengths. */
@@ -46,7 +47,7 @@ typedef struct zio_crypt_info {
 	/* mechanism/algorithm name for backend to select implementation */
 	const char *ci_mechname;
 
-	/* cipher mode type (GCM, CCM) */
+	/* cipher mode type (GCM, CCM, Chacha20-Poly1305) */
 	zio_crypt_type_t ci_crypt_type;
 
 	/* length of the encryption key */
