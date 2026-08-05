@@ -52,11 +52,12 @@ verify_runnable "both"
 typeset HIDDEN_LEG=$TEST_BASE_DIR/mmp_zhack_hidden_leg
 typeset PEER_DIR=$TEST_BASE_DIR/mmp_zhack_peer
 typeset DBGMSG=/proc/spl/kstat/zfs/dbgmsg
+typeset MMP_IMPORT_ERR=$TEST_BASE_DIR/mmp_zhack_import_err
 
 function cleanup
 {
 	mmp_pool_destroy $MMP_POOL $MMP_DIR
-	rm -rf $HIDDEN_LEG $PEER_DIR
+	rm -rf $HIDDEN_LEG $PEER_DIR $MMP_IMPORT_ERR
 	log_must mmp_clear_hostid
 }
 
@@ -92,12 +93,15 @@ function become_third_host
 #
 function claim_reimport
 {
+	typeset re='.*req_writes=([0-9]+) issued_writes=[0-9]+'
+	re="$re good_writes=([0-9]+).*"
+
 	echo 0 >$DBGMSG
 
 	zpool import -d $MMP_DIR $MMP_POOL >/dev/null 2>&1 || return
 
 	grep -h 'mmp: claiming uberblock' $DBGMSG 2>/dev/null |
-	    sed -nE 's/.*req_writes=([0-9]+) good_writes=([0-9]+).*/\1 \2/p' |
+	    sed -nE "s/$re/\1 \2/p" |
 	    tail -1
 }
 
@@ -107,7 +111,18 @@ mmp_pool_create_simple $MMP_POOL $MMP_DIR
 crash_export_as_other_host
 log_must mv $MMP_DIR/vdev2 $HIDDEN_LEG
 
-log_mustnot zpool import -d $MMP_DIR -f $MMP_POOL
+#
+# The import has to say which of the two refusals this is.  It used to report
+# the same "pool is imported on host" text used for a pool another host holds,
+# which is wrong here: nothing holds this pool, the claim simply could not
+# reach every leg the config expects.  Both directions matter, so the wrong
+# message is asserted against as well as the right one.
+#
+log_mustnot eval "zpool import -d $MMP_DIR -f $MMP_POOL >$MMP_IMPORT_ERR 2>&1"
+log_must grep -q "could not be written to a device" $MMP_IMPORT_ERR
+log_mustnot grep -q "pool is imported on host" $MMP_IMPORT_ERR
+log_must rm -f $MMP_IMPORT_ERR
+
 log_must zhack -d $MMP_DIR mmp reclaim $MMP_POOL
 
 #
