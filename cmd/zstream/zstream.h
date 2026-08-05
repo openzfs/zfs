@@ -28,7 +28,8 @@ extern "C" {
  * must be set properly before any threads are spawned.
  */
 #define	WATCHDOG_SIGNAL		SIGALRM
-#define	THREAD_BACKTRACE_SIGNAL	SIGRTMIN
+#define	THREAD_BACKTRACE_SIGNAL	(SIGRTMIN)
+#define	ENQUEUE_SIGNAL		(SIGRTMIN + 1)
 
 extern int zstream_do_redup(int, char *[]);
 extern int zstream_do_dump(int, char *[]);

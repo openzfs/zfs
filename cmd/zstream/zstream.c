@@ -61,6 +61,7 @@ set_signal_mask(void)
 	safe_pthread_sigmask(SIG_SETMASK, NULL, &mask);
 	sigaddset(&mask, WATCHDOG_SIGNAL);
 	sigdelset(&mask, THREAD_BACKTRACE_SIGNAL);
+	sigaddset(&mask, ENQUEUE_SIGNAL);
 	safe_pthread_sigmask(SIG_SETMASK, &mask, NULL);
 }
 
