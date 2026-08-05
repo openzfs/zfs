@@ -213,6 +213,14 @@ def lzc_get_bookmarks_translate_error(ret, fsname, props):
     raise _generic_exception(ret, fsname, "Failed to list bookmarks")
 
 
+def lzc_get_dataset_props_translate_error(ret, dsname, props):
+    if ret == 0:
+        return
+    if ret == errno.ENOENT:
+        raise lzc_exc.DatasetNotFound(dsname)
+    raise _generic_exception(ret, dsname, "Failed to get dataset properties")
+
+
 def lzc_destroy_bookmarks_translate_errors(ret, errlist, bookmarks):
     if ret == 0:
         return

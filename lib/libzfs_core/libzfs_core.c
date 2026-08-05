@@ -1581,6 +1581,40 @@ lzc_get_bookmark_props(const char *bookmark, nvlist_t **props)
 }
 
 /*
+ * Get dataset properties.
+ *
+ * Retrieve properties for the given dataset (filesystem, volume, or
+ * snapshot).  The props parameter is an nvlist of property names (with no
+ * values) that will be returned for the dataset.  If props is NULL, all
+ * properties are returned.
+ *
+ * The returned nvlist contains both stored properties (compression,
+ * mountpoint, quota, etc.) and computed statistics (used, referenced,
+ * compressratio, creation, guid, etc.).
+ *
+ * Each property in the returned nvlist maps to a sub-nvlist containing:
+ *
+ * "value" - the current value of the property
+ * "source" - where the property was set (e.g. the dataset name where it
+ *     was explicitly configured).  If the property is at its default value
+ *     or is a read-only statistic, the source may be omitted or empty.
+ *
+ * The format of the returned nvlist is as follows:
+ * {
+ *     <name of property> -> {
+ *         "value" -> uint64 | string
+ *         "source" -> string (optional)
+ *     }
+ *     ...
+ * }
+ */
+int
+lzc_get_dataset_props(const char *dsname, nvlist_t *props, nvlist_t **outp)
+{
+	return (lzc_ioctl(ZFS_IOC_OBJSET_GET_PROPS, dsname, props, outp));
+}
+
+/*
  * Destroys bookmarks.
  *
  * The keys in the bmarks nvlist are the bookmarks to be destroyed.
