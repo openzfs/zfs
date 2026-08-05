@@ -2,8 +2,10 @@
 Description=Import ZFS pools by cache file
 Documentation=man:zpool(8)
 DefaultDependencies=no
-Requires=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
 After=systemd-udev-settle.service
+After=systemd-udev-trigger.service
+After=systemd-modules-load.service
 After=cryptsetup.target
 After=multipathd.service
 After=systemd-remount-fs.service
