@@ -55,14 +55,18 @@ extern "C" {
  * threads never block waiting for additional work to arrive. They start
  * work as quickly as possible even if the budget has not been reached.
  *
+ * A batch budget of 0 means that all batches will have a size of 1.
+ *
  * All queues share a single thread pool that is managed to avoid
  * contention. Threads are assigned to queues dynamically according to
  * where work is available. When multiple queues have work, threads are
  * allocated among them stochastically with an eye toward preventing
  * pipeline stalls.
+ *
+ * The shared thread pool persists until the process exits.
  */
 
-#define	MAX_BATCH 16	/* The most items that can be claimed at once */
+#define	MAX_BATCH 32	/* The most items that can be claimed at once */
 
 typedef void queue_item_t;
 
