@@ -25,6 +25,7 @@ KMOD=	openzfs
 	${SRCDIR}/os/freebsd/spl \
 	${SRCDIR}/os/freebsd/zfs \
 	${SRCDIR}/unicode \
+	${SRCDIR}/zalgo \
 	${SRCDIR}/zcommon \
 	${SRCDIR}/zfs \
 	${SRCDIR}/zstd \
@@ -233,6 +234,9 @@ SRCS+=	abd_os.c \
 	zfs_znode_os.c \
 	zio_crypt_os.c \
 	zvol_os.c
+
+#zalgo
+SRCS+=	zalgo.c
 
 #zcommon
 SRCS+=	cityhash.c \

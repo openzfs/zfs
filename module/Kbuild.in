@@ -260,6 +260,11 @@ zfs-$(CONFIG_X86)   += $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
 zfs-$(CONFIG_UML_X86)+= $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
 zfs-$(CONFIG_ARM64) += $(addprefix zcommon/,$(ZCOMMON_OBJS_ARM64))
 
+ZALGO_OBJS := \
+	zalgo.o
+
+zfs-objs            += $(addprefix zalgo/,$(ZALGO_OBJS))
+
 
 # Zstd uses -O3 by default, so we should follow
 ZFS_ZSTD_FLAGS := -O3
