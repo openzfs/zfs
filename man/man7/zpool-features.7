@@ -18,8 +18,9 @@
 .\" Copyright (c) 2019, 2023, 2024, Klara, Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+.\" Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
 .\"
-.Dd July 23, 2025
+.Dd November 24, 2025
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -446,6 +447,21 @@ when a bookmark is created and will be
 returned to the
 .Sy enabled
 state when all bookmarks with these fields are destroyed.
+.
+.feature org.openzfs chacha20_poly1305 no encryption extensible_dataset
+This feature enables the use of the Chacha20-Poly1305 cipher suite for encrypted
+datasets.
+On systems lacking hardware-accelerated AES (many non-x86 boards), this suite
+will usually offer better performance than AES suites without compromising
+security.
+.Pp
+This feature becomes
+.Sy active
+when an encrypted dataset is created with
+.Nm encryption Ns = Ns Sy chacha20-poly1305
+and will be returned to the
+.Sy enabled
+state when all datasets that use this feature are destroyed.
 .
 .feature org.openzfs device_rebuild yes
 This feature enables the ability for the
