@@ -8,4 +8,9 @@
 /test_sha2
 /test_cityhash
 /test_nvpair
+<<<<<<< HEAD
 /test_timer
+||||||| parent of eb1c2adf9f (unit/zalgo: everything)
+=======
+/test_zalgo
+>>>>>>> eb1c2adf9f (unit/zalgo: everything)
