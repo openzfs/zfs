@@ -25,15 +25,12 @@
 
 #include <libzfs.h>
 #include <libzfs_core.h>
-#include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
 
 typedef int (*lzc_ioctl_fd_fn_t)(int, unsigned long, zfs_cmd_t *);
 typedef int (*lzc_get_bookmarks_fn_t)(const char *, nvlist_t *, nvlist_t **);
 typedef int (*nvlist_add_nvlist_fn_t)(nvlist_t *, const char *,
     const nvlist_t *);
-typedef int (*dmu_bonus_hold_fn_t)(objset_t *, uint64_t, const void *,
-    dmu_buf_t **);
 
 static int handle_enomem_armed;
 static int handle_enomem_injected;
@@ -89,16 +86,6 @@ find_nvlist_add_nvlist(void)
 	return (function);
 }
 
-static dmu_bonus_hold_fn_t
-find_dmu_bonus_hold(void)
-{
-	void *symbol = dlsym(RTLD_NEXT, "dmu_bonus_hold");
-	dmu_bonus_hold_fn_t function;
-
-	(void) memcpy(&function, &symbol, sizeof (function));
-	return (function);
-}
-
 static void
 write_marker(const char *mode)
 {
@@ -116,47 +103,6 @@ write_marker(const char *mode)
 		}
 	}
 	errno = saved_errno;
-}
-
-static boolean_t
-matches_dmu_bonus_hold_object(uint64_t object)
-{
-	const char *value = getenv("ZFS_SNAPSHOT_LIST_TEST_OBJECT");
-	char *end;
-	uint64_t target;
-	int saved_errno = errno;
-
-	if (value == NULL || value[0] == '\0')
-		return (B_FALSE);
-
-	errno = 0;
-	target = strtoull(value, &end, 0);
-	if (errno != 0 || end == value || end[0] != '\0') {
-		errno = saved_errno;
-		return (B_FALSE);
-	}
-	errno = saved_errno;
-	return (target == object);
-}
-
-int
-dmu_bonus_hold(objset_t *os, uint64_t object, const void *tag,
-    dmu_buf_t **dbp)
-{
-	static dmu_bonus_hold_fn_t next;
-	const char *mode = getenv("ZFS_SNAPSHOT_LIST_TEST_MODE");
-
-	if (mode != NULL && strcmp(mode, "dmu_bonus_hold_eio") == 0 &&
-	    matches_dmu_bonus_hold_object(object)) {
-		write_marker(mode);
-		return (EIO);
-	}
-
-	if (next == NULL)
-		next = find_dmu_bonus_hold();
-	if (next == NULL)
-		return (ENOSYS);
-	return (next(os, object, tag, dbp));
 }
 
 static int

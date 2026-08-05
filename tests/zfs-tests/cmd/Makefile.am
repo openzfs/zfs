@@ -77,7 +77,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_test
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_stats_test
 %C%_snapshot_list_stats_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+# Keep dmu_bonus_hold() wrappable with -Bsymbolic-functions or --disable-static.
+%C%_snapshot_list_stats_test_LDFLAGS = -Wl,--wrap=dmu_bonus_hold
 %C%_snapshot_list_stats_test_LDADD = \
+	module/zfs/libzpool_la-dsl_dataset.lo \
 	libzpool.la \
 	libnvpair.la
 
