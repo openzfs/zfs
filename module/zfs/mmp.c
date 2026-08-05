@@ -571,7 +571,8 @@ mmp_claim_uberblock_sync_done(zio_t *zio)
  */
 static void
 mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
-    uint64_t *req_writes, uberblock_t *ub, vdev_t *vd, int flags)
+    uint64_t *issued_writes, uint64_t *req_writes, uberblock_t *ub, vdev_t *vd,
+    int flags)
 {
 	for (uint64_t c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
@@ -628,8 +629,8 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 			}
 		}
 
-		mmp_claim_uberblock_sync(zio, good_writes, req_writes,
-		    ub, cvd, flags);
+		mmp_claim_uberblock_sync(zio, good_writes, issued_writes,
+		    req_writes, ub, cvd, flags);
 	}
 
 	if (!vd->vdev_ops->vdev_op_leaf)
@@ -640,6 +641,17 @@ mmp_claim_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
+
+	/*
+	 * Count the writes actually issued alongside those required.  A leaf
+	 * the config expects present but which cannot be written is never
+	 * issued one, so a shortfall here means a device is missing rather
+	 * than failing.  Gated exactly as good_writes is in
+	 * mmp_claim_uberblock_sync_done() so that the two counts describe the
+	 * same set of leaves and can be compared.
+	 */
+	if (vd->vdev_top->vdev_ms_array != 0)
+		(*issued_writes)++;
 
 	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
 	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
@@ -660,6 +672,7 @@ mmp_claim_uberblock(spa_t *spa, vdev_t *vd, uberblock_t *ub)
 {
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 	uint64_t good_writes = 0;
+	uint64_t issued_writes = 0;
 	uint64_t req_writes = 0;
 	zio_t *zio;
 
@@ -670,7 +683,8 @@ mmp_claim_uberblock(spa_t *spa, vdev_t *vd, uberblock_t *ub)
 
 	/* Sync the uberblock to all writeable leaves */
 	zio = zio_root(spa, NULL, NULL, flags);
-	mmp_claim_uberblock_sync(zio, &good_writes, &req_writes, ub, vd, flags);
+	mmp_claim_uberblock_sync(zio, &good_writes, &issued_writes, &req_writes,
+	    ub, vd, flags);
 	(void) zio_wait(zio);
 
 	/* Flush the new uberblocks so they're immediately visible */
@@ -681,16 +695,31 @@ mmp_claim_uberblock(spa_t *spa, vdev_t *vd, uberblock_t *ub)
 	spa_config_exit(spa, SCL_ALL, mmp_tag);
 
 	zfs_dbgmsg("mmp: claiming uberblock, spa=%s txg=%llu seq=%llu "
-	    "req_writes=%llu good_writes=%llu", spa_load_name(spa),
+	    "req_writes=%llu issued_writes=%llu good_writes=%llu",
+	    spa_load_name(spa),
 	    (u_longlong_t)ub->ub_txg, (u_longlong_t)MMP_SEQ(ub),
-	    (u_longlong_t)req_writes, (u_longlong_t)good_writes);
+	    (u_longlong_t)req_writes, (u_longlong_t)issued_writes,
+	    (u_longlong_t)good_writes);
 
 	/*
 	 * To guarantee visibility from a remote host we require a minimum
 	 * number of good writes. For raidz/draid vdevs parity+1 writes, for
-	 * mirrors 2 writes, and for singletons 1 write.
+	 * mirrors one write per leg the config expects present, and for
+	 * singletons 1 write.
+	 *
+	 * Distinguish the two ways of falling short.  Too few writes issued
+	 * means a device the config expects present could not be written at
+	 * all, which persists across retries and is what 'zhack mmp reclaim'
+	 * recovers.  Enough issued but too few good means the writes reached
+	 * present devices and failed, which a retry may clear.
 	 */
-	if (req_writes == 0 || good_writes < req_writes)
+	if (req_writes == 0)
+		return (SET_ERROR(EIO));
+
+	if (issued_writes < req_writes)
+		return (SET_ERROR(ENODEV));
+
+	if (good_writes < req_writes)
 		return (SET_ERROR(EIO));
 
 	return (0);
