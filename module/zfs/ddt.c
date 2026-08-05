@@ -2860,13 +2860,6 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		uint64_t class_start =
 		    ddlwe.ddlwe_phys.ddp_flat.ddp_class_start;
 
-		/*
-		 * If this entry is on the log, then the stored entry is stale
-		 * and we should skip it.
-		 */
-		if (ddt_log_find_key(ddt, &ddlwe.ddlwe_key, NULL, NULL))
-			continue;
-
 		/* prune older entries */
 		if (pruning && class_start < cutoff) {
 			if (candidates++ >= zfs_ddt_prunes_per_txg) {
