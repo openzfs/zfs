@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: CDDL-1.0
 /*
  * Verify projected snapshot-stat error handling against a real pool opened
- * through libzpool.  A ZTS-only preload shim injects dmu_bonus_hold() errors
- * for exact MOS objects, avoiding persistent pool damage and broad I/O faults.
+ * through libzpool.  A link-time wrapper injects dmu_bonus_hold() errors for
+ * exact MOS objects, avoiding persistent pool damage and broad I/O faults.
  */
 
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include <libnvpair.h>
 #include <libzpool.h>
@@ -23,7 +22,27 @@
 #include <sys/zfs_context.h>
 #include <zfs_prop.h>
 
-static const char *marker_path;
+static __thread objset_t *fault_objset;
+static __thread uint64_t fault_object;
+static __thread boolean_t fault_reached;
+
+int __real_dmu_bonus_hold(objset_t *, uint64_t, const void *, dmu_buf_t **);
+int __wrap_dmu_bonus_hold(objset_t *, uint64_t, const void *, dmu_buf_t **);
+
+/*
+ * Inject only the selected MOS object while preserving every other real read.
+ */
+int
+__wrap_dmu_bonus_hold(objset_t *os, uint64_t object, const void *tag,
+    dmu_buf_t **dbp)
+{
+	if (os == fault_objset && fault_object != 0 && object == fault_object) {
+		fault_reached = B_TRUE;
+		return (EIO);
+	}
+
+	return (__real_dmu_bonus_hold(os, object, tag, dbp));
+}
 
 static int
 get_file_info(dmu_object_type_t bonus_type, const void *data,
@@ -36,29 +55,6 @@ get_file_info(dmu_object_type_t bonus_type, const void *data,
 }
 
 static int
-set_injected_object(uint64_t object)
-{
-	char value[32];
-
-	(void) snprintf(value, sizeof (value), "%llu",
-	    (u_longlong_t)object);
-	if (setenv("ZFS_SNAPSHOT_LIST_TEST_MODE", "dmu_bonus_hold_eio", 1) !=
-	    0 || setenv("ZFS_SNAPSHOT_LIST_TEST_OBJECT", value, 1) != 0) {
-		(void) fprintf(stderr, "cannot configure error injection: %s\n",
-		    strerror(errno));
-		return (-1);
-	}
-	return (0);
-}
-
-static void
-clear_injected_object(void)
-{
-	(void) unsetenv("ZFS_SNAPSHOT_LIST_TEST_OBJECT");
-	(void) unsetenv("ZFS_SNAPSHOT_LIST_TEST_MODE");
-}
-
-static int
 check_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj, const char *description,
     uint64_t injected_object, uint64_t min_txg, uint64_t max_txg,
     int expected_error, boolean_t expected_valid,
@@ -68,18 +64,14 @@ check_snapshot_stats(dsl_pool_t *dp, uint64_t dsobj, const char *description,
 	boolean_t injected;
 	int error;
 
-	if (unlink(marker_path) != 0 && errno != ENOENT) {
-		(void) fprintf(stderr, "cannot remove marker for %s: %s\n",
-		    description, strerror(errno));
-		return (-1);
-	}
-	if (injected_object != 0 && set_injected_object(injected_object) != 0)
-		return (-1);
-
+	fault_objset = dp->dp_meta_objset;
+	fault_object = injected_object;
+	fault_reached = B_FALSE;
 	error = dsl_dataset_snapshot_stats(dp, dsobj, B_FALSE, B_FALSE,
 	    B_TRUE, min_txg, max_txg, &stats);
-	clear_injected_object();
-	injected = access(marker_path, F_OK) == 0;
+	fault_objset = NULL;
+	fault_object = 0;
+	injected = fault_reached;
 
 	if (error != expected_error ||
 	    stats.dss_written_valid != expected_valid ||
@@ -141,15 +133,9 @@ main(int argc, char **argv)
 	char *separator;
 	int error = 0;
 
-	if (argc != 4) {
+	if (argc != 3) {
 		(void) fprintf(stderr,
-		    "usage: %s snapshot search-path marker-path\n", argv[0]);
-		return (EXIT_FAILURE);
-	}
-	marker_path = argv[3];
-	if (setenv("ZFS_SNAPSHOT_LIST_TEST_MARKER", marker_path, 1) != 0) {
-		(void) fprintf(stderr, "cannot configure marker path: %s\n",
-		    strerror(errno));
+		    "usage: %s snapshot search-path\n", argv[0]);
 		return (EXIT_FAILURE);
 	}
 	if (strlcpy(pool, argv[1], sizeof (pool)) >= sizeof (pool) ||
@@ -218,12 +204,10 @@ main(int argc, char **argv)
 	}
 
 out:
-	clear_injected_object();
 	if (ds != NULL)
 		dsl_dataset_rele(ds, FTAG);
 	if (dp != NULL)
 		dsl_pool_rele(dp, FTAG);
 	kernel_fini();
-	(void) unlink(marker_path);
 	return (error == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }
