@@ -174,18 +174,4 @@ int zio_decrypt_os(const zio_crypt_info_t *ci,
     const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
     uint8_t mac[ZIO_DATA_MAC_LEN]);
 
-/* Generate SHA512-HMAC digest of data using the given HMAC key. */
-int zio_crypt_hmac_os(zio_crypt_key_t *key, const uint8_t *data,
-    size_t datalen, uint8_t digest[SHA512_HMAC_LEN]);
-
-/*
- * Generate SHA512-HMAC digest using given key. Data is passed incrementally,
- * and the final result generated at the end.
- */
-int zio_crypt_hmac_init_os(zio_crypt_hmac_t *hmac, zio_crypt_key_t *key);
-int zio_crypt_hmac_update_os(zio_crypt_hmac_t *hmac, const uint8_t *data,
-    size_t datalen);
-int zio_crypt_hmac_final_os(zio_crypt_hmac_t *hmac,
-	uint8_t digest[SHA512_HMAC_LEN]);
-
 #endif
