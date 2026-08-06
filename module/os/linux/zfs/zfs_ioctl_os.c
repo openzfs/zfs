@@ -51,6 +51,7 @@
 #include <sys/fm/util.h>
 #include <sys/dsl_crypt.h>
 #include <sys/crypto/icp.h>
+#include <sys/zalgo.h>
 #include <sys/zstd/zstd.h>
 
 #include <sys/zfs_ioctl_impl.h>
@@ -335,6 +336,10 @@ openzfs_init(void)
 		goto zcommon_failed;
 	if ((err = icp_init()) != 0)
 		goto icp_failed;
+
+	zalgo_init();
+	zalgo_shim_icp_register();
+
 	if ((err = zstd_init()) != 0)
 		goto zstd_failed;
 	if ((err = openzfs_init_os()) != 0)
@@ -344,6 +349,7 @@ openzfs_init(void)
 openzfs_os_failed:
 	zstd_fini();
 zstd_failed:
+	zalgo_fini();
 	icp_fini();
 icp_failed:
 	zcommon_fini();
@@ -356,6 +362,7 @@ openzfs_fini(void)
 {
 	openzfs_fini_os();
 	zstd_fini();
+	zalgo_fini();
 	icp_fini();
 	zcommon_fini();
 }

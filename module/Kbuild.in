@@ -261,7 +261,8 @@ zfs-$(CONFIG_UML_X86)+= $(addprefix zcommon/,$(ZCOMMON_OBJS_X86))
 zfs-$(CONFIG_ARM64) += $(addprefix zcommon/,$(ZCOMMON_OBJS_ARM64))
 
 ZALGO_OBJS := \
-	zalgo.o
+	zalgo.o \
+	zalgo_shim_icp.o
 
 zfs-objs            += $(addprefix zalgo/,$(ZALGO_OBJS))
 
