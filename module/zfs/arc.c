@@ -2378,7 +2378,8 @@ remove_reference(arc_buf_hdr_t *hdr, const void *tag)
 		arc_hdr_destroy(hdr);
 		return (0);
 	}
-	if (state == arc_uncached && !HDR_PREFETCH(hdr)) {
+	if ((state == arc_uncached && !HDR_PREFETCH(hdr)) ||
+	    HDR_IO_ERROR(hdr)) {
 		arc_change_state(arc_anon, hdr);
 		arc_hdr_destroy(hdr);
 		return (0);
@@ -3751,7 +3752,7 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 
 	VERIFY0P(hdr->b_hash_next);
 	if (HDR_HAS_L1HDR(hdr)) {
-		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
+		VERIFY(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
 		ASSERT0P(hdr->b_l1hdr.b_acb);
 #ifdef ZFS_DEBUG
 		ASSERT0P(hdr->b_l1hdr.b_freeze_cksum);
@@ -5616,6 +5617,7 @@ arc_read_done(zio_t *zio)
 	kmutex_t	*hash_lock = NULL;
 	arc_callback_t	*callback_list;
 	arc_callback_t	*acb;
+	boolean_t	 read_error = (zio->io_error != 0);
 
 	/*
 	 * The hdr was inserted into hash-table and removed from lists
@@ -5769,11 +5771,29 @@ arc_read_done(zio_t *zio)
 	if (zio->io_error == 0) {
 		arc_hdr_verify(hdr, zio->io_bp);
 	} else {
-		arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
-		if (hdr->b_l1hdr.b_state != arc_anon)
-			arc_change_state(arc_anon, hdr);
-		if (HDR_IN_HASH_TABLE(hdr))
-			buf_hash_remove(hdr);
+		/*
+		 * A failed *physical* read leaves the raw/encrypted buffer it
+		 * was filling full of garbage.  If a valid decrypted b_pabd
+		 * survives (the raw re-read case) the header stays cached, and
+		 * a later raw read would be served this garbage as a hit —
+		 * arc_read()'s hit test honors HDR_HAS_RABD, not IO_ERROR, and
+		 * arc_cksum_verify() skips IO_ERROR headers. We should free it
+		 * so that representation misses and re-fetches from disk.
+		 *
+		 * Gate on read_error: a *valid* b_rabd whose consumer merely
+		 * failed to decrypt it (keys not loaded) also reaches here,
+		 * but the read succeeded and the data should be kept.
+		 */
+		if (read_error) {
+			if (HDR_HAS_RABD(hdr))
+				arc_hdr_free_abd(hdr, B_TRUE);
+			else if (hdr->b_l1hdr.b_pabd != NULL)
+				arc_hdr_free_abd(hdr, B_FALSE);
+		}
+		/* Flag for teardown only if nothing valid remains. */
+		if (hdr->b_l1hdr.b_pabd == NULL && !HDR_HAS_RABD(hdr) &&
+		    hdr->b_l1hdr.b_buf == NULL)
+			arc_hdr_set_flags(hdr, ARC_FLAG_IO_ERROR);
 	}
 
 	arc_hdr_clear_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
@@ -6681,9 +6701,13 @@ arc_release(arc_buf_t *buf, const void *tag)
 	 * Do we have more than one buf? Or L2_WRITING with unshared data?
 	 * Single-buf L2_WRITING with shared data can reuse the header since
 	 * L2ARC uses its own transformed copy.
+	 * Or I/O is in progress (a raw/encrypted read filling b_rabd while
+	 * our decrypted buf backs b_pabd) and arc_read_done() is yet to add
+	 * more bufs?
 	 */
 	if (hdr->b_l1hdr.b_buf != buf || !ARC_BUF_LAST(buf) ||
-	    (HDR_L2_WRITING(hdr) && !ARC_BUF_SHARED(buf))) {
+	    (HDR_L2_WRITING(hdr) && !ARC_BUF_SHARED(buf)) ||
+	    HDR_IO_IN_PROGRESS(hdr)) {
 		arc_buf_hdr_t *nhdr;
 		uint64_t spa = hdr->b_spa;
 		uint64_t psize = HDR_GET_PSIZE(hdr);
@@ -6692,8 +6716,10 @@ arc_release(arc_buf_t *buf, const void *tag)
 		enum zio_compress compress = arc_hdr_get_compress(hdr);
 		uint8_t complevel = hdr->b_complevel;
 		arc_buf_contents_t type = arc_buf_type(hdr);
-		boolean_t single_buf_l2writing = (hdr->b_l1hdr.b_buf == buf &&
-		    ARC_BUF_LAST(buf) && HDR_L2_WRITING(hdr));
+		boolean_t single_buf = (hdr->b_l1hdr.b_buf == buf &&
+		    ARC_BUF_LAST(buf));
+		boolean_t single_buf_l2writing = (single_buf &&
+		    HDR_L2_WRITING(hdr) && !HDR_IO_IN_PROGRESS(hdr));
 
 		if (ARC_BUF_SHARED(buf) && !ARC_BUF_COMPRESSED(buf)) {
 			ASSERT3P(hdr->b_l1hdr.b_buf, !=, buf);
@@ -6705,7 +6731,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		 * in the hdr's buffer list.
 		 */
 		arc_buf_t *lastbuf = arc_buf_remove(hdr, buf);
-		EQUIV(single_buf_l2writing, lastbuf == NULL);
+		EQUIV(single_buf, lastbuf == NULL);
 
 		/*
 		 * If the current arc_buf_t and the hdr are sharing their data
@@ -6713,7 +6739,8 @@ arc_release(arc_buf_t *buf, const void *tag)
 		 */
 		if (!single_buf_l2writing) {
 			if (ARC_BUF_SHARED(buf)) {
-				ASSERT(!arc_buf_is_shared(lastbuf));
+				ASSERT(single_buf ||
+				    !arc_buf_is_shared(lastbuf));
 
 				/*
 				 * First, sever the block sharing relationship
@@ -6727,7 +6754,8 @@ arc_release(arc_buf_t *buf, const void *tag)
 				 * with it, but if we can't then we allocate a
 				 * new b_pabd and copy the data from buf into it
 				 */
-				if (arc_can_share(hdr, lastbuf)) {
+				if (!single_buf &&
+				    arc_can_share(hdr, lastbuf)) {
 					arc_share_buf(hdr, lastbuf);
 				} else {
 					arc_hdr_alloc_abd(hdr, 0);
