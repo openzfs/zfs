@@ -8246,7 +8246,7 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
 static void
 spa_shadow_feature_mod(void *arg, dmu_tx_t *tx)
 {
-	boolean_t incr = (boolean_t)arg;
+	boolean_t incr = !!(uintptr_t)arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	if (incr)
 		spa_feature_incr(spa, SPA_FEATURE_SHADOW_MIRROR, tx);
