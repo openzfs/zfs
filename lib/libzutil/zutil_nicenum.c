@@ -42,8 +42,12 @@ zfs_nicenum_locale_decimal(char *buf)
 	const struct lconv *lc = localeconv();
 	const char *dp = lc->decimal_point;
 
-	/* If locale uses '.' or is empty, nothing to change */
-	if (dp == NULL || dp[0] == '.' || dp[0] == '\0')
+	/*
+	 * If locale uses '.' or is empty, nothing to change.
+	 * Skip multibyte separators (e.g. Arabic U+066B) since we can only
+	 * safely replace a single-byte decimal point in the formatted string.
+	 */
+	if (dp == NULL || dp[0] == '.' || dp[0] == '\0' || strlen(dp) > 1)
 		return;
 
 	for (char *p = buf; *p != '\0'; p++) {
