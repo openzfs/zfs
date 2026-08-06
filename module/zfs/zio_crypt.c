@@ -25,6 +25,7 @@
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
 #include <sys/qat.h>
+#include <sys/zalgo.h>
 
 /*
  * This file is responsible for handling all of the details of generating
@@ -507,7 +508,12 @@ zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
 
 	ASSERT3U(digestlen, <=, SHA512_HMAC_LEN);
 
-	int err = zio_crypt_hmac_os(key, data, datalen, raw_digestbuf);
+	zalgo_mac_hold_t *hold = zalgo_mac_hold(ZG_MAC_HMAC_SHA512);
+	int err = zalgo_mac_once(hold, key->zk_hmac_key.ck_data,
+	    CRYPTO_BITS2BYTES(key->zk_hmac_key.ck_length),
+	    data, datalen, raw_digestbuf);
+	zalgo_mac_rele(hold);
+
 	if (err == 0)
 		memcpy(digestbuf, raw_digestbuf, digestlen);
 	else
@@ -520,12 +526,16 @@ int
 zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
     uint_t datalen, uint8_t *ivbuf, uint8_t *salt)
 {
-	int ret;
 	uint8_t digestbuf[SHA512_HMAC_LEN];
 
-	ret = zio_crypt_hmac_os(key, data, datalen, digestbuf);
-	if (ret != 0)
-		return (ret);
+	zalgo_mac_hold_t *hold = zalgo_mac_hold(ZG_MAC_HMAC_SHA512);
+	int err = zalgo_mac_once(hold, key->zk_hmac_key.ck_data,
+	    CRYPTO_BITS2BYTES(key->zk_hmac_key.ck_length),
+	    data, datalen, digestbuf);
+	zalgo_mac_rele(hold);
+
+	if (err != 0)
+		return (err);
 
 	memcpy(salt, digestbuf, ZIO_DATA_SALT_LEN);
 	memcpy(ivbuf, digestbuf + ZIO_DATA_SALT_LEN, ZIO_DATA_IV_LEN);
@@ -791,14 +801,16 @@ zio_crypt_bp_auth_init(uint64_t version, boolean_t should_bswap, blkptr_t *bp,
 }
 
 static int
-zio_crypt_bp_do_hmac_updates(zio_crypt_hmac_t *hmac, uint64_t version,
-    boolean_t should_bswap, blkptr_t *bp)
+zio_crypt_bp_do_hmac_updates(zalgo_mac_hold_t *mh, zio_crypt_hmac_t *hmac,
+    uint64_t version, boolean_t should_bswap, blkptr_t *bp)
 {
 	uint_t bab_len;
 	blkptr_auth_buf_t bab;
 
 	zio_crypt_bp_auth_init(version, should_bswap, bp, &bab, &bab_len);
-	return (zio_crypt_hmac_update_os(hmac, (uint8_t *)&bab, bab_len));
+
+	return (zalgo_mac_update(mh, &hmac->zh_ctx,
+	    (const uint8_t *)&bab, bab_len));
 }
 
 static void
@@ -826,8 +838,8 @@ zio_crypt_bp_do_aad_updates(uint8_t **aadp, uint_t *aad_len, uint64_t version,
 }
 
 static int
-zio_crypt_do_dnode_hmac_updates(zio_crypt_hmac_t *hmac, uint64_t version,
-    boolean_t should_bswap, dnode_phys_t *dnp)
+zio_crypt_do_dnode_hmac_updates(zalgo_mac_hold_t *mh, zio_crypt_hmac_t *hmac,
+    uint64_t version, boolean_t should_bswap, dnode_phys_t *dnp)
 {
 	int ret, i;
 	dnode_phys_t *adnp, tmp_dncore;
@@ -852,19 +864,20 @@ zio_crypt_do_dnode_hmac_updates(zio_crypt_hmac_t *hmac, uint64_t version,
 	adnp->dn_flags &= DNODE_CRYPT_PORTABLE_FLAGS_MASK;
 	adnp->dn_used = 0;
 
-	ret = zio_crypt_hmac_update_os(hmac, (uint8_t *)adnp, dn_core_size);
+	ret = zalgo_mac_update(mh, &hmac->zh_ctx,
+	    (const uint8_t *)adnp, dn_core_size);
 	if (ret != 0)
 		goto error;
 
 	for (i = 0; i < dnp->dn_nblkptr; i++) {
-		ret = zio_crypt_bp_do_hmac_updates(hmac, version,
+		ret = zio_crypt_bp_do_hmac_updates(mh, hmac, version,
 		    should_bswap, &dnp->dn_blkptr[i]);
 		if (ret != 0)
 			goto error;
 	}
 
 	if (dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) {
-		ret = zio_crypt_bp_do_hmac_updates(hmac, version,
+		ret = zio_crypt_bp_do_hmac_updates(mh, hmac, version,
 		    should_bswap, DN_SPILL_BLKPTR(dnp));
 		if (ret != 0)
 			goto error;
@@ -912,14 +925,17 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	uint8_t raw_portable_mac[SHA512_HMAC_LEN];
 	uint8_t raw_local_mac[SHA512_HMAC_LEN];
 
+	zalgo_mac_hold_t *mh = zalgo_mac_hold(ZG_MAC_HMAC_SHA512);
+
 	/* calculate the portable MAC from the portable fields and metadnode */
-	err = zio_crypt_hmac_init_os(&hmac, key);
+	err = zalgo_mac_init(mh, &hmac.zh_ctx, key->zk_hmac_key.ck_data,
+	    CRYPTO_BITS2BYTES(key->zk_hmac_key.ck_length));
 	if (err)
 		goto error;
 
 	/* add in the os_type */
 	intval = (le_bswap) ? osp->os_type : BSWAP_64(osp->os_type);
-	err = zio_crypt_hmac_update_os(&hmac, (const uint8_t *)&intval,
+	err = zalgo_mac_update(mh, &hmac.zh_ctx, (const uint8_t *)&intval,
 	    sizeof (intval));
 	if (err)
 		goto error;
@@ -932,19 +948,19 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	if (!ZFS_HOST_BYTEORDER)
 		intval = BSWAP_64(intval);
 
-	err = zio_crypt_hmac_update_os(&hmac, (const uint8_t *)&intval,
+	err = zalgo_mac_update(mh, &hmac.zh_ctx, (const uint8_t *)&intval,
 	    sizeof (intval));
 	if (err)
 		goto error;
 
 	/* add in fields from the metadnode */
-	err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
+	err = zio_crypt_do_dnode_hmac_updates(mh, &hmac, key->zk_version,
 	    should_bswap, &osp->os_meta_dnode);
 	if (err)
 		goto error;
 
 	/* store the final digest in a temporary buffer and copy what we need */
-	err = zio_crypt_hmac_final_os(&hmac, raw_portable_mac);
+	err = zalgo_mac_final(mh, &hmac.zh_ctx, raw_portable_mac);
 	if (err)
 		goto error;
 
@@ -982,7 +998,8 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	}
 
 	/* calculate the local MAC from the userused and groupused dnodes */
-	err = zio_crypt_hmac_init_os(&hmac, key);
+	err = zalgo_mac_init(mh, &hmac.zh_ctx, key->zk_hmac_key.ck_data,
+	    CRYPTO_BITS2BYTES(key->zk_hmac_key.ck_length));
 	if (err)
 		goto error;
 
@@ -994,44 +1011,47 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	if (!ZFS_HOST_BYTEORDER)
 		intval = BSWAP_64(intval);
 
-	err = zio_crypt_hmac_update_os(&hmac, (const uint8_t *)&intval,
+	err = zalgo_mac_update(mh, &hmac.zh_ctx, (const uint8_t *)&intval,
 	    sizeof (intval));
 	if (err)
 		goto error;
 
 	/* add in fields from the user accounting dnodes */
 	if (osp->os_userused_dnode.dn_type != DMU_OT_NONE) {
-		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
-		    should_bswap, &osp->os_userused_dnode);
+		err = zio_crypt_do_dnode_hmac_updates(mh, &hmac,
+		    key->zk_version, should_bswap, &osp->os_userused_dnode);
 		if (err)
 			goto error;
 	}
 
 	if (osp->os_groupused_dnode.dn_type != DMU_OT_NONE) {
-		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
-		    should_bswap, &osp->os_groupused_dnode);
+		err = zio_crypt_do_dnode_hmac_updates(mh, &hmac,
+		    key->zk_version, should_bswap, &osp->os_groupused_dnode);
 		if (err)
 			goto error;
 	}
 
 	if (osp->os_projectused_dnode.dn_type != DMU_OT_NONE &&
 	    datalen >= OBJSET_PHYS_SIZE_V3) {
-		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
-		    should_bswap, &osp->os_projectused_dnode);
+		err = zio_crypt_do_dnode_hmac_updates(mh, &hmac,
+		    key->zk_version, should_bswap, &osp->os_projectused_dnode);
 		if (err)
 			goto error;
 	}
 
 	/* store the final digest in a temporary buffer and copy what we need */
-	err = zio_crypt_hmac_final_os(&hmac, raw_local_mac);
+	err = zalgo_mac_final(mh, &hmac.zh_ctx, raw_local_mac);
 	if (err)
 		goto error;
+
+	zalgo_mac_rele(mh);
 
 	memcpy(local_mac, raw_local_mac, ZIO_OBJSET_MAC_LEN);
 
 	return (0);
 
 error:
+	zalgo_mac_rele(mh);
 	memset(portable_mac, 0, ZIO_OBJSET_MAC_LEN);
 	memset(local_mac, 0, ZIO_OBJSET_MAC_LEN);
 	return (err);
