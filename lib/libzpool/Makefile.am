@@ -214,6 +214,8 @@ nodist_libzpool_la_SOURCES += \
 	module/zfs/range_tree.c
 
 libzpool_la_LIBADD = \
+	libzalgo.la \
+	libzalgo_shim_icp.la \
 	libicp.la \
 	libnvpair.la \
 	libzstd.la \

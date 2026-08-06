@@ -35,6 +35,7 @@
 #include <sys/systeminfo.h>
 #include <sys/time.h>
 #include <sys/tsd.h>
+#include <sys/zalgo.h>
 
 #include <libspl.h>
 #include <libzpool.h>
@@ -417,6 +418,9 @@ kernel_init(int mode)
 	system_taskq_init();
 	icp_init();
 
+	zalgo_init();
+	zalgo_shim_icp_register();
+
 	zstd_init();
 
 	spa_init((spa_mode_t)mode);
@@ -434,6 +438,8 @@ kernel_fini(void)
 	spa_fini();
 
 	zstd_fini();
+
+	zalgo_fini();
 
 	icp_fini();
 	system_taskq_fini();
