@@ -465,7 +465,8 @@ vdev_geom_read_config(struct g_consumer *cp, nvlist_t **configp)
 	for (l = 0; l < VDEV_LABELS; l++) {
 		cmds[l] = BIO_READ;
 		vdev_lists[l] = kmem_alloc(size, KM_SLEEP);
-		offsets[l] = vdev_label_offset(psize, l, 0) + VDEV_SKIP_SIZE;
+		offsets[l] = vdev_label_offset(psize, l, 0, B_FALSE) +
+		    VDEV_SKIP_SIZE;
 		sizes[l] = size;
 		errors[l] = 0;
 		ASSERT0(offsets[l] % pp->sectorsize);
