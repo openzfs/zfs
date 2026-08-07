@@ -4031,7 +4031,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size != drrs->drr_length) {
 		dmu_buf_will_fill(db_spill, tx, B_FALSE);
 		VERIFY0(dbuf_spill_set_blksz(db_spill,
-		    drrs->drr_length, tx));
+		    drrs->drr_length, B_FALSE, tx));
 	}
 
 	arc_buf_t *abuf;

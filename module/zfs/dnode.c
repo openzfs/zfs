@@ -1978,7 +1978,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 		/* resize the old block */
 		err = dbuf_hold_impl(dn, 0, 0, TRUE, FALSE, FTAG, &db);
 		if (err == 0) {
-			dbuf_new_size(db, size, tx);
+			dbuf_new_size(db, size, B_TRUE, tx);
 		} else if (err != ENOENT) {
 			goto fail;
 		}
