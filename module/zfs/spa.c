@@ -6258,6 +6258,35 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		    update_config_cache);
 
 		/*
+		 * Heal any orphaned DTL entries on hole or missing vdevs.
+		 * These arise when the system crashes during a vdev detach
+		 * after the vdev tree is updated but before the DTL space
+		 * map object is freed. If left unresolved the dangling object
+		 * reference causes an assertion failure in vdev_dtl_load()
+		 * on debug builds and permanently leaks MOS space. Healing
+		 * is always safe: any vdev the config identifies as a hole
+		 * or missing has already been verified removable.
+		 */
+		spa_import_progress_set_notes(spa,
+		    "Checking for orphaned DTL entries");
+		{
+			int orphaned_count = 0;
+			error = vdev_dtl_check_orphaned(spa->spa_root_vdev,
+			    &orphaned_count);
+			if (error != 0) {
+				spa_load_failed(spa, "failed to heal orphaned "
+				    "DTL entries [error=%d]", error);
+				return (error);
+			}
+			if (orphaned_count > 0) {
+				cmn_err(CE_NOTE, "pool '%s': healed orphaned "
+				    "DTL entries on %d vdev(s) after crash "
+				    "during topology change",
+				    spa_name(spa), orphaned_count);
+			}
+		}
+
+		/*
 		 * Check if a rebuild was in progress and if so resume it.
 		 * Then check all DTLs to see if anything needs resilvering.
 		 * The resilver will be deferred if a rebuild was started.
