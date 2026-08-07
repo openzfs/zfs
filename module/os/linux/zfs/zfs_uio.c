@@ -359,6 +359,16 @@ zfs_uioskip(zfs_uio_t *uio, size_t n)
 			uio->uio_bvec++;
 			uio->uio_iovcnt--;
 		}
+	} else if (uio->uio_segflg == UIO_BVEC) {
+		/*
+		 * When using a uio backed by a struct request (blk-mq),
+		 * the bvec pointers are not maintained during uioskip.
+		 * Callers (e.g. zvol_dio_read) derive page mappings
+		 * directly from the request using zvol_dio_get_pages(),
+		 * which walks the request segments independently using
+		 * the uio_loffset.  We only need to advance the logical
+		 * offset and resid — no bvec accounting needed.
+		 */
 	} else if (uio->uio_segflg == UIO_ITER) {
 		iov_iter_advance(uio->uio_iter, n);
 	} else {
@@ -403,6 +413,35 @@ zfs_uio_page_aligned(zfs_uio_t *uio)
 		unsigned long alignment =
 		    iov_iter_alignment(uio->uio_iter);
 		aligned = IS_P2ALIGNED(alignment, PAGE_SIZE);
+	} else if (uio->uio_segflg == UIO_BVEC) {
+		/*
+		 * For bio_vec-backed I/O (zvols), check that each
+		 * segment is page-aligned.  The block layer typically
+		 * allocates page-aligned I/O, so this should almost
+		 * always pass.
+		 */
+		if (uio->rq != NULL) {
+			struct bio_vec bv;
+			struct req_iterator iter;
+			rq_for_each_segment(bv, uio->rq, iter) {
+				if (!IS_P2ALIGNED(bv.bv_offset, PAGE_SIZE) ||
+				    !IS_P2ALIGNED(bv.bv_len, PAGE_SIZE)) {
+					aligned = B_FALSE;
+					break;
+				}
+			}
+		} else if (uio->uio_bvec != NULL) {
+			const struct bio_vec *bv = uio->uio_bvec;
+			for (int i = 0; i < uio->uio_iovcnt; i++, bv++) {
+				if (!IS_P2ALIGNED(bv->bv_offset, PAGE_SIZE) ||
+				    !IS_P2ALIGNED(bv->bv_len, PAGE_SIZE)) {
+					aligned = B_FALSE;
+					break;
+				}
+			}
+		} else {
+			aligned = B_FALSE;
+		}
 	} else {
 		/* Currently not supported */
 		aligned = B_FALSE;
