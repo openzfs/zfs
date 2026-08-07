@@ -3550,6 +3550,21 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 	error = spa_prop_set(spa, props);
 
 	nvlist_free(props);
+
+	/*
+	 * For properties stored in the pool config object (e.g.
+	 * compatibility, comment), the MOS copy was updated by the
+	 * sync task above.  Update the config and cache file
+	 * synchronously so that the change is visible before we
+	 * return to userspace.
+	 *
+	 * spa_config_update() must be called without the namespace
+	 * held so that txg_wait_synced() does not block other
+	 * namespace operations.
+	 */
+	if (error == 0)
+		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
+
 	spa_close(spa, FTAG);
 
 	return (error);

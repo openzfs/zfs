@@ -4268,6 +4268,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_raidz_expand = NULL;
 	raidvd->vdev_rz_expanding = B_FALSE;
 
+	spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 	spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
 	spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
 	spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);
