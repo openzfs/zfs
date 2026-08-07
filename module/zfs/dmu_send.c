@@ -1248,6 +1248,17 @@ send_range_after(const struct send_range *from, const struct send_range *to)
 	cmp = TREE_CMP(to->type == OBJECT, from->type == OBJECT);
 	if (unlikely(cmp))
 		return (cmp);
+	/*
+	 * A meta-dnode range and an ordinary object's range express their
+	 * blkids in different units, dnode blocks against that object's data
+	 * blocks, so the blkid comparisons below cannot be applied to them.
+	 * Reaching here means their object ranges overlap; the meta-dnode
+	 * range sorts before the ranges of every object it covers, which is
+	 * the order send_range_start_compare() also establishes.
+	 */
+	cmp = TREE_CMP(to->object == 0, from->object == 0);
+	if (unlikely(cmp))
+		return (cmp);
 	if (from->end_blkid <= to->start_blkid)
 		return (-1);
 	if (from->start_blkid >= to->end_blkid)
@@ -1335,6 +1346,17 @@ send_range_start_compare(struct send_range *r1, struct send_range *r2)
 	if (unlikely(cmp))
 		return (cmp);
 	cmp = TREE_CMP(r2->type == OBJECT, r1->type == OBJECT);
+	if (unlikely(cmp))
+		return (cmp);
+	/*
+	 * A meta-dnode range covering dnode block b has the same objequiv as
+	 * the first block of object b * DNODES_PER_BLOCK, but the two do not
+	 * start at the same place: their blkids count different things.  The
+	 * merge in find_next_range() may only treat ranges as starting
+	 * together when they genuinely share an object and a block, so order
+	 * the meta-dnode range first rather than reporting them equal.
+	 */
+	cmp = TREE_CMP(r2->object == 0, r1->object == 0);
 	if (unlikely(cmp))
 		return (cmp);
 
@@ -1433,6 +1455,7 @@ find_next_range(struct send_range **ranges, bqueue_t **qs, uint64_t *out_mask)
 	for (i = 0; i < NUM_THREADS; i++) {
 		if (i == idx || (bmask & (1 << i)) == 0)
 			continue;
+		ASSERT3U(ranges[i]->object, ==, ranges[idx]->object);
 		ASSERT3U(first_change, >, ranges[i]->start_blkid);
 		ranges[i]->start_blkid = first_change;
 		ASSERT3U(ranges[i]->start_blkid, <=, ranges[i]->end_blkid);
