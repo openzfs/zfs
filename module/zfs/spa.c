@@ -6846,17 +6846,29 @@ spa_get_stats(const char *name, nvlist_t **config,
 			fnvlist_add_uint64_array(*config,
 			    ZPOOL_CONFIG_LOADED_TIME, loadtimes, 2);
 
-			fnvlist_add_uint64(*config,
-			    ZPOOL_CONFIG_ERRCOUNT,
-			    spa_approx_errlog_size(spa));
-
 			if (spa_suspended(spa)) {
+				/*
+				 * The errlog lives on disk in the
+				 * spa_meta_objset.  Reading it while
+				 * the pool is suspended can block
+				 * indefinitely on I/O that cannot
+				 * complete, causing 'zpool status' and
+				 * similar management commands to hang.
+				 * Report zero errors until the pool
+				 * is resumed.
+				 */
+				fnvlist_add_uint64(*config,
+				    ZPOOL_CONFIG_ERRCOUNT, 0);
 				fnvlist_add_uint64(*config,
 				    ZPOOL_CONFIG_SUSPENDED,
 				    spa->spa_failmode);
 				fnvlist_add_uint64(*config,
 				    ZPOOL_CONFIG_SUSPENDED_REASON,
 				    spa->spa_suspended);
+			} else {
+				fnvlist_add_uint64(*config,
+				    ZPOOL_CONFIG_ERRCOUNT,
+				    spa_approx_errlog_size(spa));
 			}
 
 			spa_add_spares(spa, *config);
