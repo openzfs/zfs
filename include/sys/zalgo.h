@@ -199,5 +199,6 @@ void zalgo_init(void);
 void zalgo_fini(void);
 
 int zalgo_shim_icp_register(void);
+int zalgo_shim_openssl_register(void);
 
 #endif
