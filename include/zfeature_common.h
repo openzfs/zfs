@@ -26,6 +26,7 @@
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2024, Klara, Inc.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #ifndef _ZFEATURE_COMMON_H
@@ -91,6 +92,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_BLOCK_CLONING_ENDIAN,
 	SPA_FEATURE_PHYSICAL_REWRITE,
 	SPA_FEATURE_DRAID_FAIL_DOMAINS,
+	SPA_FEATURE_TINYZAP,
 	SPA_FEATURES
 } spa_feature_t;
 

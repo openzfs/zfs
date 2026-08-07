@@ -38,6 +38,7 @@
  * Copyright (c) 2023, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2026, TrueNAS.
  * Copyright 2026 Edgecast Cloud LLC.
+ * Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
  */
 
 #include <stdio.h>
@@ -1033,9 +1034,21 @@ dump_zap_stats(objset_t *os, uint64_t object)
 
 	if (zs.zs_ptrtbl_len == 0) {
 		ASSERT(zs.zs_num_blocks == 1);
-		(void) printf("\tmicrozap: %llu bytes, %llu entries\n",
-		    (u_longlong_t)zs.zs_blocksize,
-		    (u_longlong_t)zs.zs_num_entries);
+		if (zs.zs_is_tinyzap) {
+			/* TinyZAP */
+			(void) printf("\ttinyzap: %llu bytes, %llu entries, "
+			    "stride %llu chunk=%llu num_chunks=%llu\n",
+			    (u_longlong_t)zs.zs_blocksize,
+			    (u_longlong_t)zs.zs_num_entries,
+			    (u_longlong_t)zs.zs_tinyzap_stride,
+			    (u_longlong_t)zs.zs_tinyzap_chunk,
+			    (u_longlong_t)zs.zs_tinyzap_num_chunks);
+		} else {
+			/* Plain MicroZAP */
+			(void) printf("\tmicrozap: %llu bytes, %llu entries\n",
+			    (u_longlong_t)zs.zs_blocksize,
+			    (u_longlong_t)zs.zs_num_entries);
+		}
 		return;
 	}
 
