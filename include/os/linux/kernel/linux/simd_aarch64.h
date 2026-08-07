@@ -47,6 +47,8 @@
  *   zfs_neon_available()
  *   zfs_sha256_available()
  *   zfs_sha512_available()
+ *   zfs_aes_available()
+ *   zfs_pmull_available()
  */
 
 #ifndef _LINUX_SIMD_AARCH64_H
@@ -107,6 +109,26 @@ static inline boolean_t
 zfs_sha512_available(void)
 {
 	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0x3;
+	return (ftr & 0x2);
+}
+
+/*
+ * Check if AES is available
+ */
+static inline boolean_t
+zfs_aes_available(void)
+{
+	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 4) & 0x3;
+	return (ftr != 0);
+}
+
+/*
+ * Check if PMULL is available
+ */
+static inline boolean_t
+zfs_pmull_available(void)
+{
+	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 4) & 0x3;
 	return (ftr & 0x2);
 }
 

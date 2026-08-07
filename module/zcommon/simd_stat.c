@@ -155,6 +155,10 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		 */
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "sha512", zfs_sha512_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "aes", zfs_aes_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "pmull", zfs_pmull_available());
 #endif /* __aarch64__ */
 #endif /* __arm__ */
 		/* We want to short-circuit this on unsupported platforms. */

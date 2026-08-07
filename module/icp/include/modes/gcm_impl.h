@@ -58,6 +58,9 @@ extern const gcm_impl_ops_t gcm_generic_impl;
 #if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
 extern const gcm_impl_ops_t gcm_pclmulqdq_impl;
 #endif
+#if defined(__aarch64__) && HAVE_SIMD(ARMV8_PMULL)
+extern const gcm_impl_ops_t gcm_pmull_impl;
+#endif
 
 /*
  * Initializes fastest implementation
