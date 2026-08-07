@@ -64,6 +64,7 @@ void raidz_dtl_reassessed(vdev_t *);
 boolean_t vdev_sit_out_reads(vdev_t *, zio_flag_t);
 void vdev_raidz_sit_child(vdev_t *, uint64_t);
 void vdev_raidz_unsit_child(vdev_t *);
+boolean_t vdev_raidz_same_logical_width(vdev_t *, uint64_t, uint64_t);
 
 extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
 

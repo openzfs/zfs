@@ -2282,15 +2282,16 @@ vdev_raidz_close(vdev_t *vd)
  * happened.
  */
 static uint64_t
-vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
+vdev_raidz_get_logical_width_locked(vdev_raidz_t *vdrz, uint64_t txg)
 {
+	ASSERT(MUTEX_HELD(&vdrz->vd_expand_lock));
+
 	reflow_node_t lookup = {
 		.re_txg = txg,
 	};
 	avl_index_t where;
 
 	uint64_t width;
-	mutex_enter(&vdrz->vd_expand_lock);
 	reflow_node_t *re = avl_find(&vdrz->vd_expand_txgs, &lookup, &where);
 	if (re != NULL) {
 		width = re->re_logical_width;
@@ -2301,9 +2302,43 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 		else
 			width = vdrz->vd_original_width;
 	}
-	mutex_exit(&vdrz->vd_expand_lock);
 	return (width);
 }
+
+static uint64_t
+vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
+{
+	mutex_enter(&vdrz->vd_expand_lock);
+	uint64_t width = vdev_raidz_get_logical_width_locked(vdrz, txg);
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	return (width);
+}
+
+/*
+ * Return whether allocations born in these txgs use the same logical
+ * RAIDZ column width.
+ */
+boolean_t
+vdev_raidz_same_logical_width(vdev_t *vd, uint64_t txg1, uint64_t txg2)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT3U(txg1, !=, 0);
+	ASSERT3U(txg2, !=, 0);
+
+	if (txg1 == txg2)
+		return (B_TRUE);
+
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	mutex_enter(&vdrz->vd_expand_lock);
+	boolean_t same = avl_is_empty(&vdrz->vd_expand_txgs) ||
+	    vdev_raidz_get_logical_width_locked(vdrz, txg1) ==
+	    vdev_raidz_get_logical_width_locked(vdrz, txg2);
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	return (same);
+}
+
 /*
  * This code converts an asize into the largest psize that can safely be written
  * to an allocation of that size for this vdev.
@@ -2348,29 +2383,88 @@ vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
  * allocate P+1 sectors regardless of width ("cols", which is at least P+1).
  */
 static uint64_t
-vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
+vdev_raidz_psize_to_asize_width(vdev_t *vd, uint64_t psize, uint64_t cols)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	uint64_t nparity = vdrz->vd_nparity;
 
-	uint64_t cols = vdev_raidz_get_logical_width(vdrz, txg);
+	ASSERT3U(cols, >, nparity);
 
 	asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));
-	asize = roundup(asize, nparity + 1) << ashift;
+	return (roundup(asize, nparity + 1) << ashift);
+}
+
+static uint64_t
+vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t cols = vdev_raidz_get_logical_width(vdrz, txg);
+	uint64_t asize =
+	    vdev_raidz_psize_to_asize_width(vd, psize, cols);
 
 #ifdef ZFS_DEBUG
-	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
-	uint64_t ncols_new = vdrz->vd_physical_width;
-	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) /
-	    (ncols_new - nparity));
-	asize_new = roundup(asize_new, nparity + 1) << ashift;
+	uint64_t asize_new = vdev_raidz_psize_to_asize_width(vd, psize,
+	    vdrz->vd_physical_width);
 	VERIFY3U(asize_new, <=, asize);
 #endif
 
 	return (asize);
+}
+
+typedef enum vdev_raidz_dva_extent {
+	VDEV_RAIDZ_DVA_EXTENT_SAFE,
+	VDEV_RAIDZ_DVA_EXTENT_EXCEEDED,
+	VDEV_RAIDZ_DVA_EXTENT_UNMATCHED,
+} vdev_raidz_dva_extent_t;
+
+static vdev_raidz_dva_extent_t
+vdev_raidz_io_exceeds_dva(zio_t *zio, uint64_t logical_width,
+    uint64_t *required_asizep, uint64_t *owned_asizep)
+{
+	vdev_t *vd = zio->io_vd;
+	vdev_t *tvd = vd->vdev_top;
+	const blkptr_t *bp = zio->io_bp;
+	uint64_t owned_asize = UINT64_MAX;
+
+	ASSERT3P(bp, !=, NULL);
+
+	/*
+	 * Production RAIDZ expansion applies to a top-level RAIDZ; nested
+	 * ztest layouts are bypassed here. Indirect vdevs cannot coexist
+	 * with a RAIDZ top (device removal and vdev-add both refuse), so
+	 * remapped I/O never reaches this check.
+	 */
+	if (vd != tvd)
+		return (VDEV_RAIDZ_DVA_EXTENT_SAFE);
+
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+
+		if (DVA_GET_VDEV(dva) != tvd->vdev_id ||
+		    DVA_GET_OFFSET(dva) != zio->io_offset)
+			continue;
+
+		uint64_t asize = DVA_GET_GANG(dva) ?
+		    vdev_gang_header_asize(tvd) : DVA_GET_ASIZE(dva);
+		/*
+		 * A second DVA at the same top vdev and offset can only
+		 * occur in an already-malformed BP; keep the smallest owned
+		 * extent so the containment check stays conservative.
+		 */
+		owned_asize = MIN(owned_asize, asize);
+	}
+
+	if (owned_asize == UINT64_MAX)
+		return (VDEV_RAIDZ_DVA_EXTENT_UNMATCHED);
+
+	*required_asizep = vdev_raidz_psize_to_asize_width(vd, zio->io_size,
+	    logical_width);
+	*owned_asizep = owned_asize;
+	return (*required_asizep > owned_asize ?
+	    VDEV_RAIDZ_DVA_EXTENT_EXCEEDED : VDEV_RAIDZ_DVA_EXTENT_SAFE);
 }
 
 /*
@@ -2712,6 +2806,37 @@ vdev_raidz_io_start(zio_t *zio)
 	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz,
 	    BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 	if (logical_width != vdrz->vd_physical_width) {
+		uint64_t required_asize;
+		uint64_t owned_asize;
+		vdev_raidz_dva_extent_t extent = vdev_raidz_io_exceeds_dva(zio,
+		    logical_width, &required_asize, &owned_asize);
+
+		if (extent != VDEV_RAIDZ_DVA_EXTENT_SAFE) {
+			if (extent == VDEV_RAIDZ_DVA_EXTENT_UNMATCHED) {
+				zfs_dbgmsg("%s: rejecting direct raidz "
+				    "vdev %llu at offset %llx size %llu: "
+				    "no BP DVA owns it",
+				    spa_name(zio->io_spa),
+				    (u_longlong_t)vd->vdev_guid,
+				    (u_longlong_t)zio->io_offset,
+				    (u_longlong_t)zio->io_size);
+			} else {
+				zfs_dbgmsg("%s: rejecting raidz vdev %llu "
+				    "at offset %llx size %llu: "
+				    "required birth-width ASIZE %llu "
+				    "exceeds DVA owned ASIZE %llu",
+				    spa_name(zio->io_spa),
+				    (u_longlong_t)vd->vdev_guid,
+				    (u_longlong_t)zio->io_offset,
+				    (u_longlong_t)zio->io_size,
+				    (u_longlong_t)required_asize,
+				    (u_longlong_t)owned_asize);
+			}
+			zio->io_error = SET_ERROR(EIO);
+			zio_execute(zio);
+			return;
+		}
+
 		zfs_locked_range_t *lr = NULL;
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
@@ -2763,6 +2888,7 @@ vdev_raidz_io_start(zio_t *zio)
 
 	zio->io_vsd = rm;
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
+
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			vdev_raidz_io_start_write(zio, rm->rm_row[i]);
@@ -3889,6 +4015,11 @@ void
 vdev_raidz_io_done(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
+
+	if (rm == NULL) {
+		ASSERT(zio->io_error != 0);
+		return;
+	}
 
 	ASSERT(zio->io_bp != NULL);
 	if (zio->io_type == ZIO_TYPE_WRITE) {
