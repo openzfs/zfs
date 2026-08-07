@@ -2000,6 +2000,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redacted_send/redacted_largeblocks.ksh \
 	functional/redacted_send/redacted_max_blkid.ksh \
 	functional/redacted_send/redacted_many_clones.ksh \
+	functional/redacted_send/redacted_meta_dnode.ksh \
 	functional/redacted_send/redacted_mixed_recsize.ksh \
 	functional/redacted_send/redacted_mounts.ksh \
 	functional/redacted_send/redacted_negative.ksh \
