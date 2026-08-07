@@ -333,8 +333,8 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 }
 
 /*
- * Set ZFS_PROP_VOLSIZE set entry point.  Note that modifying the volume
- * size will result in a udev "change" event being generated.
+ * Set ZFS_PROP_VOLSIZE entry point.  When the zvol is open, modifying the
+ * volume size updates the in-kernel gendisk capacity.
  */
 int
 zvol_set_volsize(const char *name, uint64_t volsize)
@@ -381,7 +381,13 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	error = zvol_update_volsize(volsize, os);
 	if (error == 0 && zv != NULL) {
 		zv->zv_volsize = volsize;
-		zv->zv_changed = 1;
+		/*
+		 * The gendisk capacity is updated below by
+		 * zvol_os_update_volsize().  Do not report a normal zvol resize
+		 * as DISK_EVENT_MEDIA_CHANGE because newer Linux block layers
+		 * may treat media change as device replacement and mark mounted
+		 * block devices dead.
+		 */
 	}
 out:
 	kmem_free(doi, sizeof (dmu_object_info_t));
