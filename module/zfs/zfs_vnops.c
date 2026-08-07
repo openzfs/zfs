@@ -90,13 +90,13 @@ int zfs_bclone_wait_dirty = 1;
  * directed through the ARC acting as though the dataset property direct was
  * set to disabled.
  */
-static int zfs_dio_enabled = 1;
+int zfs_dio_enabled = 1;
 
 /*
  * Strictly enforce alignment for Direct I/O requests, returning EINVAL
  * if not page-aligned instead of silently falling back to uncached I/O.
  */
-static int zfs_dio_strict = 0;
+int zfs_dio_strict = 0;
 
 
 /*
@@ -235,7 +235,7 @@ zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
  * following area for how this is handled:
  * zfs_write() -> update_pages()
  */
-static int
+int
 zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
     int *ioflagp)
 {
@@ -538,7 +538,8 @@ out:
 	return (error);
 }
 
-static void
+
+void
 zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
     uint64_t *clear_setid_bits_txgp, dmu_tx_t *tx)
 {

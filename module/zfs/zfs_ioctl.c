@@ -170,6 +170,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 #include <sys/zap.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>

@@ -108,6 +108,7 @@ boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
 
 #define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)
 #define	RRM_WRITE_HELD(x)	rrm_held(x, RW_WRITER)
+
 #define	RRM_LOCK_HELD(x) \
 	(rrm_held(x, RW_WRITER) || rrm_held(x, RW_READER))
 

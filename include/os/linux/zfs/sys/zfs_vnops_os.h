@@ -94,6 +94,14 @@ extern int zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp,
     zidmap_t *idmap);
 extern int zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap,
     char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap);
+/* async Direct I/O */
+struct kiocb;
+extern int zfs_read_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb);
+extern int zfs_write_async(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr,
+    struct kiocb *kiocb);
+extern void zfs_async_dio_init(void);
+extern void zfs_async_dio_fini(void);
 
 #ifdef	__cplusplus
 }
