@@ -2440,6 +2440,30 @@ dmu_objset_id_quota_upgrade(objset_t *os)
 	dmu_objset_upgrade(os, dmu_objset_id_quota_upgrade_cb);
 }
 
+static int
+dmu_objset_id_projectquota_upgrade_cb(objset_t *os)
+{
+	if (dmu_objset_projectquota_present(os))
+		return (0);
+	if (!dmu_objset_projectquota_enabled(os))
+		return (SET_ERROR(ENOTSUP));
+
+	dmu_objset_ds(os)->ds_feature_activation[
+	    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
+
+	if (dmu_objset_projectquota_enabled(os))
+		os->os_flags |= OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
+
+	txg_wait_synced(dmu_objset_pool(os), 0);
+	return (0);
+}
+
+void
+dmu_objset_id_projectquota_upgrade(objset_t *os)
+{
+	dmu_objset_upgrade(os, dmu_objset_id_projectquota_upgrade_cb);
+}
+
 boolean_t
 dmu_objset_userobjspace_upgradable(objset_t *os)
 {
