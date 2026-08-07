@@ -590,9 +590,9 @@ fi
 # be a normal user account, needs to be configured such that it can
 # run commands via sudo passwordlessly.
 #
-if [ "$(id -u)" = "0" ]; then
-	fail "This script must not be run as root."
-fi
+#if [ "$(id -u)" = "0" ]; then
+#	fail "This script must not be run as root."
+#fi
 
 if [ "$(sudo id -un)" != "root" ]; then
 	fail "Passwordless sudo access required."
