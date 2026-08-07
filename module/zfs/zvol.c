@@ -574,11 +574,16 @@ zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	uint64_t len;
 
 	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
+
+	if (byteswap)
+		byteswap_uint64_array(lr, sizeof (*lr));
+
 	ASSERT3U(lr->lr_common.lrc_reclen, >=, offsetof(lr_clone_range_t,
 	    lr_bps[lr->lr_nbps]));
 
 	if (byteswap)
-		byteswap_uint64_array(lr, sizeof (*lr));
+		byteswap_uint64_array(lr->lr_bps,
+		    sizeof (blkptr_t) * lr->lr_nbps);
 
 	ASSERT(spa_feature_is_enabled(dmu_objset_spa(os),
 	    SPA_FEATURE_BLOCK_CLONING));
