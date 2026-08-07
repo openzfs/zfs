@@ -39,7 +39,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 13, 2025
+.Dd July 12, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1581,6 +1581,40 @@ mount options.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy rdonly .
+.It Sy defaultvolblocksize Ns = Ns Ar size Ns | Ns Sy none
+Specifies a default
+.Sy volblocksize
+for volumes created below this file system with
+.Nm zfs Cm create Fl V
+when no explicit
+.Fl o Sy volblocksize
+is given.
+This is useful for tools that create volumes but cannot pass
+.Sy volblocksize
+themselves, such as libvirt's storage backend.
+.Pp
+The property is inherited by descendant file systems.
+An explicit
+.Fl o Sy volblocksize
+at creation time always takes precedence; when this property is
+.Sy none
+.Pq the default ,
+the built-in default block size is used, preserving existing behavior.
+The size specified must be a power of two greater than or equal to
+.Ar 512 B
+and less than or equal to
+.Ar 128 KiB .
+If the
+.Sy large_blocks
+feature is enabled on the pool, the size may be up to
+.Ar 16 MiB .
+.Pp
+Only volumes created after this property is set are affected; existing volumes
+and their immutable
+.Sy volblocksize
+are unchanged.
+This property can also be referred to by its shortened column name,
+.Sy defvolblock .
 .It Sy recordsize Ns = Ns Ar size
 Specifies a suggested block size for files in the file system.
 This property is designed solely for use with database workloads that access

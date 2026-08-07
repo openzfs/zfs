@@ -1050,6 +1050,11 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			break;
 		}
 
+		case ZFS_PROP_DEFAULTVOLBLOCKSIZE:
+			/* 0 ("none") disables the default, reverting to auto */
+			if (intval == 0)
+				break;
+			zfs_fallthrough;
 		case ZFS_PROP_VOLBLOCKSIZE:
 		case ZFS_PROP_RECORDSIZE:
 		{
@@ -2588,6 +2593,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_REFQUOTA:
 	case ZFS_PROP_RESERVATION:
 	case ZFS_PROP_REFRESERVATION:
+	case ZFS_PROP_DEFAULTVOLBLOCKSIZE:
 
 		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
 			return (-1);

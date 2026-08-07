@@ -745,6 +745,9 @@ zfs_prop_init(void)
 	    SPA_OLD_MAXBLOCKSIZE, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "512 to 16M, power of 2",
 	    "RECSIZE", B_FALSE, sfeatures);
+	zprop_register_number(ZFS_PROP_DEFAULTVOLBLOCKSIZE,
+	    "defaultvolblocksize", 0, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
+	    "none | 512 to 16M, power of 2", "DEFVOLBLOCK", B_FALSE, sfeatures);
 	zprop_register_number(ZFS_PROP_SPECIAL_SMALL_BLOCKS,
 	    "special_small_blocks", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME, "0 to 16M",
