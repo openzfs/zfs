@@ -451,12 +451,6 @@ typedef struct zap_cursor {
 	uint64_t zc_hash;
 	uint32_t zc_cd;
 	boolean_t zc_prefetch;
-	/*
-	 * Legacy fields to main source compat with Lustre, which accesses
-	 * them directly. Not to be used in new code!
-	 */
-	objset_t *zc_objset;
-	uint64_t zc_zapobj;
 } zap_cursor_t;
 
 /*

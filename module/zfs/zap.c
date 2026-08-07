@@ -1053,8 +1053,6 @@ zap_cursor_init_by_dnode_impl(zap_cursor_t *zc, dnode_t *dn,
 		return (err);
 
 	zc->zc_prefetch = prefetch;
-	zc->zc_objset = dn->dn_objset;
-	zc->zc_zapobj = dn->dn_object;
 
 	int hb = zap_hashbits(zc->zc_zap);
 	zc->zc_hash = serialized << (64 - hb);
