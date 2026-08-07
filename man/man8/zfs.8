@@ -186,10 +186,10 @@ Creates snapshots with the given names.
 .It Xr zfs-rollback 8
 Roll back the given dataset to a previous snapshot.
 .It Xr zfs-hold 8 Ns / Ns Xr zfs-release 8
-Add or remove a hold reference to the specified snapshot or snapshots.
-If a hold exists on a snapshot, attempts to destroy that snapshot by using the
+Add or remove a hold reference on the specified snapshots or datasets.
+If a hold exists, attempts to destroy the held target with
 .Nm zfs Cm destroy
-command return
+return
 .Sy EBUSY .
 .It Xr zfs-diff 8
 Display the difference between a snapshot of a given filesystem and another
