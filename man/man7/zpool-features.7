@@ -930,6 +930,22 @@ amount usable space in the pool.
 See
 .Xr zpool-attach 8 .
 .
+.feature org.openzfs raidz_expansion_accounting no enabled_txg
+This feature enables correct per-block space accounting after RAIDZ
+expansion.
+When a RAIDZ vdev is expanded, the deflation ratio changes because
+there are more data disks per parity disk.
+Without this feature, all blocks use a single deflation ratio regardless
+of when they were written, which causes inaccurate capacity reporting.
+With this feature, each block's deflation ratio is determined by the
+geometry that was active when it was written, identified via its birth
+transaction group.
+.Pp
+This feature becomes
+.Sy active
+when a RAIDZ expansion is initiated and will never return to being
+.Sy enabled .
+.
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted
 .Nm zfs Cm send Ns s ,

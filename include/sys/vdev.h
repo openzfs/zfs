@@ -133,6 +133,7 @@ extern void vdev_space_update(vdev_t *vd,
     int64_t alloc_delta, int64_t defer_delta, int64_t space_delta);
 
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
+extern uint64_t vdev_get_deflate_ratio(vdev_t *vd, uint64_t birth_txg);
 
 extern uint64_t vdev_asize_to_psize_txg(vdev_t *vd, uint64_t asize,
     uint64_t txg);

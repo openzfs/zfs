@@ -56,8 +56,17 @@ ddt_stat_generate(ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
 		    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[p].ddp_dva;
 
 		uint64_t dsize = 0;
+		/*
+		 * Use ddp_phys_birth for the deflation ratio lookup.
+		 * If DDT later added copies after an expansion, those
+		 * new DVAs use the new geometry but share this birth;
+		 * the resulting dsize is slightly approximate for the
+		 * extra copies but this only affects DDT statistics,
+		 * not persistent accounting.
+		 */
+		uint64_t birth = ddt_phys_birth(ddp, v);
 		for (int d = 0; d < ndvas; d++)
-			dsize += dva_get_dsize_sync(spa, &dvas[d]);
+			dsize += dva_get_dsize_sync(spa, &dvas[d], birth);
 
 		uint64_t refcnt = ddt_phys_refcnt(ddp, v);
 

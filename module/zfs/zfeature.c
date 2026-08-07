@@ -400,6 +400,18 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	 */
 	if (feature->fi_feature == SPA_FEATURE_HEAD_ERRLOG)
 		spa_upgrade_errlog(spa, tx);
+
+	/*
+	 * If raidz_expansion_accounting is enabled on a pool that has
+	 * already been expanded, activate it immediately so the new
+	 * per-block deflation ratios take effect from this txg onward.
+	 */
+	if (feature->fi_feature == SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING &&
+	    spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_EXPANSION)) {
+		spa_feature_incr(spa,
+		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, tx);
+		spa->spa_raidz_expand_acct_txg = dmu_tx_get_txg(tx);
+	}
 }
 
 static void
