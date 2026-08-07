@@ -16,69 +16,22 @@
  */
 
 #include <sys/zio_crypt.h>
-
-void
-zio_crypt_key_close_os(zio_crypt_key_t *key)
-{
-	/* free crypto templates */
-	crypto_destroy_ctx_template(key->zk_current_sess.zs_tmpl);
-	crypto_destroy_ctx_template(key->zk_hmac_sess.zs_tmpl);
-}
-
-int
-zio_crypt_key_open_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci)
-{
-	crypto_mechanism_t mech = {0};
-	int ret;
-
-	/*
-	 * Initialize the crypto templates. It's ok if this fails because
-	 * this is just an optimization.
-	 */
-	mech.cm_type = crypto_mech2id(ci->ci_mechname);
-	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_sess.zs_tmpl);
-	if (ret != CRYPTO_SUCCESS)
-		key->zk_current_sess.zs_tmpl = NULL;
-
-	mech.cm_type = crypto_mech2id(SUN_CKM_SHA512_HMAC);
-	ret = crypto_create_ctx_template(&mech, &key->zk_hmac_key,
-	    &key->zk_hmac_sess.zs_tmpl);
-	if (ret != CRYPTO_SUCCESS)
-		key->zk_hmac_sess.zs_tmpl = NULL;
-
-	return (0);
-}
-
-int
-zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci)
-{
-	int ret;
-	crypto_mechanism_t mech = {0};
-
-	crypto_destroy_ctx_template(key->zk_current_sess.zs_tmpl);
-
-	mech.cm_type = crypto_mech2id(ci->ci_mechname);
-	ret = crypto_create_ctx_template(&mech, &key->zk_current_key,
-	    &key->zk_current_sess.zs_tmpl);
-	if (ret != CRYPTO_SUCCESS)
-		key->zk_current_sess.zs_tmpl = NULL;
-	return (0);
-}
+#include <sys/zalgo.h>
 
 /*
- * Initialise a pair of uios with the requested number of data iovecs. An
- * additional iovec will be allocated for at the end for the ICP to use for the
- * MAC buffer.
+ * XXX this is the remnants of zio_crypt_os_icp, just to handle UIO<->buffer
+ *     conversion and temp session establishment for zalgo. in the longer
+ *     term, zalgo_cipher would gain a scatterbuf API, and session management
+ *     would be moved up into zio_crypt.
+ *       -- robn, 2026-08-13
  */
+
+/* Initialise a pair of uios with the requested number of data iovecs. */
 int
 zio_crypt_uios_init_os(zfs_uio_t *u1, zfs_uio_t *u2, int iovcnt, int *idx)
 {
 	memset(u1, 0, sizeof (zfs_uio_t));
 	memset(u2, 0, sizeof (zfs_uio_t));
-
-	/* One extra for the MAC. */
-	iovcnt++;
 
 	zfs_uio_iov(u1) = kmem_zalloc(iovcnt * sizeof (iovec_t), KM_SLEEP);
 	zfs_uio_iov(u2) = kmem_zalloc(iovcnt * sizeof (iovec_t), KM_SLEEP);
@@ -99,103 +52,32 @@ zio_crypt_uios_fini_os(zfs_uio_t *u1, zfs_uio_t *u2) {
 	kmem_free(zfs_uio_iov(u2), zfs_uio_iovcnt(u2) * sizeof (iovec_t));
 }
 
-static int
-zio_encrypt_decrypt_os_common(boolean_t do_encrypt, const zio_crypt_info_t *ci,
-    crypto_key_t *key, zio_crypt_session_t *sess,
-    zfs_uio_t *src, zfs_uio_t *dst, size_t datalen,
-    const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
-    uint8_t mac[ZIO_DATA_MAC_LEN])
+static size_t
+uio_to_buf(zfs_uio_t *uio, uint8_t *buf)
 {
-	ASSERT3U(zfs_uio_iovcnt(src), ==, zfs_uio_iovcnt(dst));
-
-	/* populate the source and dest structs */
-	crypto_data_t src_cd = {
-		.cd_format = CRYPTO_DATA_UIO,
-		.cd_uio = src,
-		.cd_offset = 0,
-	};
-	crypto_data_t dst_cd = {
-		.cd_format = CRYPTO_DATA_UIO,
-		.cd_uio = dst,
-		.cd_offset = 0,
-	};
-
-	if (do_encrypt) {
-		/*
-		 * When encrypting, the MAC will be stored at the end of the
-		 * encrypted data, so add the MAC buffer to the end of the dest
-		 * UIO and extend the data length to accomodate it.
-		 */
-		zfs_uio_iovbase(dst, zfs_uio_iovcnt(dst)-1) = mac;
-		zfs_uio_iovlen(dst, zfs_uio_iovcnt(dst)-1) = ZIO_DATA_MAC_LEN;
-		src_cd.cd_length = datalen;
-		dst_cd.cd_length = datalen + ZIO_DATA_MAC_LEN;
-	} else {
-		/*
-		 * When decrypting, the MAC is presented at the end of the
-		 * plaintext data, so add the MAC buffer to the end of the
-		 * source UIO.
-		 *
-		 * Strangely, the ICP requires that the destination/plaintext
-		 * must include the MAC length when decrypting, even though it
-		 * will never write anything and does not need to have the
-		 * extra space allocated. So we extend both source and data
-		 * length to cover it.
-		 */
-		zfs_uio_iovbase(src, zfs_uio_iovcnt(src)-1) = mac;
-		zfs_uio_iovlen(src, zfs_uio_iovcnt(src)-1) = ZIO_DATA_MAC_LEN;
-		src_cd.cd_length = dst_cd.cd_length =
-		    datalen + ZIO_DATA_MAC_LEN;
+	size_t p = 0;
+	for (int i = 0; i < zfs_uio_iovcnt(uio); i++) {
+		size_t len = zfs_uio_iovlen(uio, i);
+		if (len == 0)
+			continue;
+		memcpy(&buf[p], zfs_uio_iovbase(uio, i), len);
+		p += len;
 	}
+	return (p);
+}
 
-	/* setup encryption mechanism */
-	crypto_mechanism_t mech = {0};
-	mech.cm_type = crypto_mech2id(ci->ci_mechname);
-
-	/* setup encryption params */
-	union {
-		CK_AES_CCM_PARAMS ccm;
-		CK_AES_GCM_PARAMS gcm;
-	} params;
-
-	if (ci->ci_crypt_type == ZC_TYPE_CCM) {
-		CK_AES_CCM_PARAMS *ccm = &params.ccm;
-		ccm->nonce = (uchar_t *)iv;
-		ccm->ulNonceSize = ZIO_DATA_IV_LEN;
-		ccm->authData = (uchar_t *)ad;
-		ccm->ulAuthDataSize = adlen;
-		ccm->ulDataSize = src_cd.cd_length;
-		ccm->ulMACSize = ZIO_DATA_MAC_LEN;
-		mech.cm_param = (caddr_t)ccm;
-		mech.cm_param_len = sizeof (*ccm);
-	} else {
-		CK_AES_GCM_PARAMS *gcm = &params.gcm;
-		gcm->pIv = (uchar_t *)iv;
-		gcm->ulIvLen = ZIO_DATA_IV_LEN;
-		gcm->ulIvBits = CRYPTO_BYTES2BITS(ZIO_DATA_IV_LEN);
-		gcm->pAAD = (uchar_t *)ad;
-		gcm->ulAADLen = adlen;
-		gcm->ulTagBits = CRYPTO_BYTES2BITS(ZIO_DATA_MAC_LEN);
-		mech.cm_param = (caddr_t)gcm;
-		mech.cm_param_len = sizeof (*gcm);
+static size_t
+uio_from_buf(zfs_uio_t *uio, uint8_t *buf)
+{
+	size_t p = 0;
+	for (int i = 0; i < zfs_uio_iovcnt(uio); i++) {
+		size_t len = zfs_uio_iovlen(uio, i);
+		if (len == 0)
+			continue;
+		memcpy(zfs_uio_iovbase(uio, i), &buf[p], len);
+		p += len;
 	}
-
-	/* perform the actual encryption */
-	crypto_ctx_template_t *tmpl = sess != NULL ? sess->zs_tmpl : NULL;
-	int err = 0;
-	if (do_encrypt) {
-		err = crypto_encrypt(&mech, &src_cd, key, tmpl, &dst_cd);
-		if (err != CRYPTO_SUCCESS)
-			err = SET_ERROR(EIO);
-	} else {
-		err = crypto_decrypt(&mech, &src_cd, key, tmpl, &dst_cd);
-		if (err != CRYPTO_SUCCESS) {
-			ASSERT3U(err, ==, CRYPTO_INVALID_MAC);
-			err = SET_ERROR(ECKSUM);
-		}
-	}
-
-	return (err);
+	return (p);
 }
 
 int
@@ -205,8 +87,43 @@ zio_encrypt_os(const zio_crypt_info_t *ci,
     const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
     uint8_t mac[ZIO_DATA_MAC_LEN])
 {
-	return (zio_encrypt_decrypt_os_common(B_TRUE, ci, key, sess,
-	    plaintext, ciphertext, datalen, iv, ad, adlen, mac));
+	zalgo_cipher_hold_t *hold;
+	void *ctx;
+	if (sess) {
+		hold = sess->zs_hold;
+		ctx = sess->zs_ctx;
+	} else {
+		hold = zalgo_cipher_hold(ci->ci_cipher);
+		int err = zalgo_cipher_open(hold, &ctx, key->ck_data,
+		    CRYPTO_BITS2BYTES(key->ck_length));
+		if (err != 0) {
+			zalgo_cipher_rele(hold);
+			return (err);
+		}
+	}
+
+	uint8_t *pbuf = vmem_alloc(datalen, KM_SLEEP);
+	uint8_t *cbuf = vmem_alloc(datalen, KM_SLEEP);
+
+	VERIFY3U(uio_to_buf(plaintext, pbuf), ==, datalen);
+
+	int err = zalgo_cipher_encrypt(hold, &ctx, pbuf, cbuf, datalen,
+	    iv, ad, adlen, mac);
+	if (err != 0)
+		goto out;
+
+	VERIFY3U(uio_from_buf(ciphertext, cbuf), ==, datalen);
+
+out:
+	if (!sess) {
+		zalgo_cipher_close(hold, &ctx);
+		zalgo_cipher_rele(hold);
+	}
+
+	kmem_free(pbuf, datalen);
+	kmem_free(cbuf, datalen);
+
+	return (err);
 }
 
 int
@@ -216,6 +133,41 @@ zio_decrypt_os(const zio_crypt_info_t *ci,
     const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
     uint8_t mac[ZIO_DATA_MAC_LEN])
 {
-	return (zio_encrypt_decrypt_os_common(B_FALSE, ci, key, sess,
-	    ciphertext, plaintext, datalen, iv, ad, adlen, mac));
+	zalgo_cipher_hold_t *hold;
+	void *ctx;
+	if (sess) {
+		hold = sess->zs_hold;
+		ctx = sess->zs_ctx;
+	} else {
+		hold = zalgo_cipher_hold(ci->ci_cipher);
+		int err = zalgo_cipher_open(hold, &ctx, key->ck_data,
+		    CRYPTO_BITS2BYTES(key->ck_length));
+		if (err != 0) {
+			zalgo_cipher_rele(hold);
+			return (err);
+		}
+	}
+
+	uint8_t *cbuf = vmem_alloc(datalen, KM_SLEEP);
+	uint8_t *pbuf = vmem_alloc(datalen, KM_SLEEP);
+
+	VERIFY3U(uio_to_buf(ciphertext, cbuf), ==, datalen);
+
+	int err = zalgo_cipher_decrypt(hold, &ctx, cbuf, pbuf, datalen,
+	    iv, ad, adlen, mac);
+	if (err != 0)
+		goto out;
+
+	VERIFY3U(uio_from_buf(plaintext, pbuf), ==, datalen);
+
+out:
+	kmem_free(cbuf, datalen);
+	kmem_free(pbuf, datalen);
+
+	if (!sess) {
+		zalgo_cipher_close(hold, &ctx);
+		zalgo_cipher_rele(hold);
+	}
+
+	return (err);
 }
