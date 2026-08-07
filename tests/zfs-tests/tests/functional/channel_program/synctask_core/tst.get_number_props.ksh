@@ -20,7 +20,7 @@
 #
 # DESCRIPTION:
 #       Getting number props should work correctly on filesystems,
-#	snapshots and volumes.
+#	snapshots, volumes, and bookmarks.
 #
 
 verify_runnable "global"
@@ -28,6 +28,7 @@ verify_runnable "global"
 fs=$TESTPOOL/$TESTFS/testchild
 snap=$fs@$TESTSNAP
 vol=$TESTPOOL/$TESTVOL
+bookmark=$fs#$TESTBKMARK
 
 function cleanup
 {
@@ -40,6 +41,7 @@ log_onexit cleanup
 log_must zfs create $fs
 create_snapshot $fs $TESTSNAP
 log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
+create_bookmark $fs $TESTSNAP $TESTBKMARK
 
 #
 # Set snapshot_limit and filesystem_limit for the filesystem so that the
@@ -48,6 +50,6 @@ log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
 log_must zfs set snapshot_limit=10 filesystem_limit=10 $fs
 log_must zfs set snapshot_limit=10 $vol
 
-log_must_program $TESTPOOL $ZCP_ROOT/synctask_core/tst.get_number_props.zcp $fs $snap $vol
+log_must_program $TESTPOOL $ZCP_ROOT/synctask_core/tst.get_number_props.zcp $fs $snap $vol $bookmark
 
 log_pass "Getting number props should work correctly."
