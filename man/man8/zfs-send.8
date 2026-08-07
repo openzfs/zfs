@@ -31,7 +31,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd February 20, 2026
+.Dd July 13, 2026
 .Dt ZFS-SEND 8
 .Os
 .
@@ -42,6 +42,7 @@
 .Nm zfs
 .Cm send
 .Op Fl DLPUVbcehnpsvw
+.Op Fl -bookmarks
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
@@ -76,6 +77,7 @@
 .Nm zfs
 .Cm send
 .Op Fl DLPUVbcehnpsvw
+.Op Fl -bookmarks
 .Op Fl R Op Fl X Ar dataset Ns Oo , Ns Ar dataset Oc Ns …
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
@@ -251,6 +253,20 @@ Generate a stream package that includes any snapshot holds (created with the
 command), and indicating to
 .Nm zfs Cm receive
 that the holds be applied to the dataset on the receiving system.
+.It Fl -bookmarks
+Generate a stream package that includes any bookmarks (created with the
+.Nm zfs Cm bookmark
+command) of the snapshots being sent, and indicating to
+.Nm zfs Cm receive
+that the bookmarks be recreated on the receiving system.
+A bookmark is recreated only for a snapshot the stream actually sends; a
+bookmark whose snapshot is not sent, including an orphan whose snapshot has
+already been destroyed, is skipped.
+Bookmarks are not sent by default, and
+.Nm zfs Cm receive
+ignores any in the stream unless its own
+.Fl b
+option is given.
 .It Fl i Ar snapshot
 Generate an incremental stream from the first
 .Ar snapshot

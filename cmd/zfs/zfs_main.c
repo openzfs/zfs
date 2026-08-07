@@ -139,7 +139,8 @@ static int zfs_do_unzone(int argc, char **argv);
 static int zfs_do_help(int argc, char **argv);
 
 enum zfs_options {
-	ZFS_OPTION_JSON_NUMS_AS_INT = 1024
+	ZFS_OPTION_JSON_NUMS_AS_INT = 1024,
+	ZFS_OPTION_BOOKMARKS
 };
 
 /*
@@ -331,10 +332,10 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
-		return (gettext("\treceive [-vMnsFhu] "
+		return (gettext("\treceive [-bvMnsFhu] "
 		    "[-o <property>=<value>] ... [-x <property>] ...\n"
 		    "\t    <filesystem|volume|snapshot>\n"
-		    "\treceive [-vMnsFhu] [-o <property>=<value>] ... "
+		    "\treceive [-bvMnsFhu] [-o <property>=<value>] ... "
 		    "[-x <property>] ... \n"
 		    "\t    [-d | -e] <filesystem>\n"
 		    "\treceive -A <filesystem|volume>\n"));
@@ -348,7 +349,7 @@ get_usage(zfs_help_t idx)
 	case HELP_ROLLBACK:
 		return (gettext("\trollback [-rRf] <snapshot>\n"));
 	case HELP_SEND:
-		return (gettext("\tsend [-DLPbcehnpsUVvw] "
+		return (gettext("\tsend [-DLPbcehnpsUVvw] [--bookmarks] "
 		    "[-i|-I snapshot]\n"
 		    "\t     [-R [-X dataset[,dataset]...]]     <snapshot>\n"
 		    "\tsend [-DnVvPLecwU] [-i snapshot|bookmark] "
@@ -4808,6 +4809,7 @@ zfs_do_send(int argc, char **argv)
 		{"raw",		no_argument,		NULL, 'w'},
 		{"backup",	no_argument,		NULL, 'b'},
 		{"holds",	no_argument,		NULL, 'h'},
+		{"bookmarks",	no_argument,	NULL, ZFS_OPTION_BOOKMARKS},
 		{"saved",	no_argument,		NULL, 'S'},
 		{"exclude",	required_argument,	NULL, 'X'},
 		{"no-preserve-encryption",	no_argument,	NULL, 'U'},
@@ -4860,6 +4862,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'h':
 			flags.holds = B_TRUE;
+			break;
+		case ZFS_OPTION_BOOKMARKS:
+			flags.bookmarks = B_TRUE;
 			break;
 		case 'P':
 			flags.parsable = B_TRUE;
@@ -4962,7 +4967,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.backup || flags.holds ||
+		    flags.backup || flags.holds || flags.bookmarks ||
 		    flags.saved || redactbook != NULL) {
 			free(excludes.list);
 			(void) fprintf(stderr,
@@ -4991,8 +4996,9 @@ zfs_do_send(int argc, char **argv)
 	if (flags.saved) {
 		if (fromname != NULL || flags.replicate || flags.props ||
 		    flags.doall || flags.backup ||
-		    flags.holds || flags.largeblock || flags.embed_data ||
-		    flags.compress || flags.raw || redactbook != NULL) {
+		    flags.holds || flags.bookmarks || flags.largeblock ||
+		    flags.embed_data || flags.compress || flags.raw ||
+		    redactbook != NULL) {
 			free(excludes.list);
 
 			(void) fprintf(stderr, gettext("incompatible flags "
@@ -5201,7 +5207,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:dehMnuvFsAc")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:bdehMnuvFsAc")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -5232,6 +5238,9 @@ zfs_do_receive(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			flags.istail = B_TRUE;
+			break;
+		case 'b':
+			flags.bookmarks = B_TRUE;
 			break;
 		case 'h':
 			flags.skipholds = B_TRUE;
