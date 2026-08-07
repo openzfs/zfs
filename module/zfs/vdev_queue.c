@@ -904,6 +904,9 @@ vdev_should_queue_io(zio_t *zio)
 	case VDEV_SCHEDULER_OFF:
 		should_queue = B_FALSE;
 		break;
+	case VDEV_SCHEDULER_WRONLY:
+		should_queue = (zio->io_type == ZIO_TYPE_WRITE);
+		break;
 	default:
 		should_queue = B_TRUE;
 		break;
