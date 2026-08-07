@@ -44,6 +44,16 @@
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns …
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
 .Nm zfs
+.Cm set
+.Op Fl u
+.Ar property Ns += Ns Ar value Oo Ar property Ns += Ns Ar value Oc Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.Nm zfs
+.Cm set
+.Op Fl u
+.Ar property Ns -= Ns Ar value Oo Ar property Ns -= Ns Ar value Oc Ns …
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns …
+.Nm zfs
 .Cm get
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
@@ -78,6 +88,29 @@ with a suffix of
 .Po for bytes, kilobytes, megabytes, gigabytes, terabytes, petabytes, exabytes,
 or zettabytes, respectively
 .Pc .
+.Pp
+Writable numeric properties also accept relative adjustments using the
+.Sy +=
+and
+.Sy -=
+operators.
+For example,
+.Dl # Nm zfs Cm set Sy quota Ns += Ns Ar 100G Ar pool/home/bob
+increases the current quota by 100\ GiB, and
+.Dl # Nm zfs Cm set Sy reservation Ns -= Ns Ar 50G Ar pool/home/bob
+decreases the current reservation by 50\ GiB.
+Relative operators are only valid for writable numeric properties
+.Po such as
+.Sy quota , refquota , reservation , refreservation , volsize ,
+.Sy filesystem_limit ,
+and
+.Sy snapshot_limit
+.Pc .
+A relative decrement that would reduce a property to zero is an error;
+use
+.Sy property Ns = Ns Sy none
+to disable quota or reservation properties.
+.Pp
 User properties can be set on snapshots.
 For more information, see the
 .Em User Properties
