@@ -92,6 +92,21 @@ Prints holds timestamps as Unix epoch timestamps.
 .El
 .It Xo
 .Nm zfs
+.Cm holds
+.Fl r
+.Op Fl H
+.Ar dataset Ns …
+.Xc
+Lists all existing user references for all snapshots of the given datasets and
+their descendants.
+.Bl -tag -width "-r"
+.It Fl r
+Recursive operation, mandatory for dataset arguments.
+.It Fl H
+Do not print headers, use tab-delimited output.
+.El
+.It Xo
+.Nm zfs
 .Cm release
 .Op Fl r
 .Ar tag Ar snapshot Ns …
