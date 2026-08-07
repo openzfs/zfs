@@ -950,7 +950,8 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	if (zil_replaying(zilog, tx))
 		return;
 
-	write_state = zil_write_state(zilog, size, blocksize, B_FALSE, commit);
+	write_state = zil_write_state(zilog, offset, size, blocksize, B_TRUE,
+	    B_FALSE, commit);
 
 	while (size) {
 		itx_t *itx;
