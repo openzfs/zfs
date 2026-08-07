@@ -2875,7 +2875,8 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 
 		/* build a histogram */
 		if (histogram != NULL) {
-			uint64_t age = (now - class_start) / 3600;
+			uint64_t age = (class_start < now) ?
+			    (now - class_start) / 3600 : 0;
 			int bin = MIN(highbit64(age), HIST_BINS - 1);
 			histogram->dah_entries++;
 			histogram->dah_age_histo[bin]++;
@@ -2929,10 +2930,10 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 	zfs_dbgmsg("prune %llu %s", (u_longlong_t)amount,
 	    unit == ZPOOL_DDT_PRUNE_PERCENTAGE ? "%" : "seconds old or older");
 
+	uint64_t now = gethrestime_sec();
 	if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
 		ddt_age_histo_t histogram;
 		uint64_t oldest = 0;
-		uint64_t now = gethrestime_sec();
 
 		/* Make a pass over DDT to build a histogram */
 		ddt_prune_walk(spa, 0, &histogram);
@@ -2959,9 +2960,11 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		if (ddt_dump_prune_histogram)
 			ddt_dump_age_histogram(&histogram, cutoff);
 	} else if (unit == ZPOOL_DDT_PRUNE_AGE) {
-		cutoff = gethrestime_sec() - amount;
+		if (amount >= now)
+			return (SET_ERROR(EINVAL));
+		cutoff = now - amount;
 	} else {
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	if (cutoff > 0 && !spa_shutting_down(spa) && !issig()) {
