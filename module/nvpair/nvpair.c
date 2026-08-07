@@ -1111,6 +1111,21 @@ i_get_value_size(data_type_t type, const void *data, uint_t nelem,
 			uint_t i;
 			size_t newsize;
 
+			/*
+			 * Packed STRING_ARRAY values start with a pointer table
+			 * (nelem * sizeof (uint64_t)), with the strings
+			 * following.  We need to skip the pointer table for
+			 * the strnlen() bounds check to function as intended.
+			 * We distinguish packed STRING_ARRAY values from
+			 * arbitrary ones using the value of max_size.
+			 */
+			if (max_size != (size_t)INT32_MAX) {
+				/* packed value region */
+				if (max_size < value_sz)
+					return (-1);
+				max_size -= (size_t)value_sz;
+			}
+
 			/* no alignment requirement for strings */
 			for (i = 0; i < nelem; i++) {
 				if (strs[i] == NULL)
