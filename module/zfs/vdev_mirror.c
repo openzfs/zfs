@@ -540,7 +540,7 @@ vdev_mirror_child_select(zio_t *zio)
 		mirror_child_t *mc;
 
 		mc = &mm->mm_child[c];
-		if (mc->mc_tried || mc->mc_skipped)
+		if (mc->mc_tried || mc->mc_skipped || mc->mc_vd->vdev_shadow)
 			continue;
 
 		if (mc->mc_vd == NULL ||
@@ -618,19 +618,31 @@ vdev_mirror_io_start(zio_t *zio)
 		zio_execute(zio);
 		return;
 	}
+	vdev_t *vd = zio->io_vd;
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
+		/*
+		 * If this is a scrubbing read or one of the children of this
+		 * mirror is a shadow drive, we need to issue reads to multiple
+		 * children.
+		 */
+		if ((zio->io_flags & ZIO_FLAG_SCRUB || (vd != NULL &&
+		    !vd->vdev_ops->vdev_op_leaf && vd->vdev_shadow)) &&
+		    !mm->mm_resilvering) {
 			/*
-			 * For scrubbing reads we need to issue reads to all
-			 * children.  One child can reuse parent buffer, but
-			 * for others we have to allocate separate ones to
-			 * verify checksums if io_bp is non-NULL, or compare
-			 * them in vdev_mirror_io_done() otherwise.
+			 * One child can reuse parent buffer, but for others we
+			 * have to allocate separate ones to verify checksums
+			 * if io_bp is non-NULL, or compare them in
+			 * vdev_mirror_io_done() otherwise.
 			 */
+			int selected = vdev_mirror_child_select(zio);
 			boolean_t first = B_TRUE;
 			for (c = 0; c < mm->mm_children; c++) {
 				mc = &mm->mm_child[c];
+
+				if (!(zio->io_flags & ZIO_FLAG_SCRUB) &&
+				    !mc->mc_vd->vdev_shadow && c != selected)
+					continue;
 
 				/* Don't issue ZIOs to offline children */
 				if (!vdev_mirror_child_readable(mc)) {
@@ -800,8 +812,11 @@ vdev_mirror_io_done(zio_t *zio)
 		    vdev_mirror_child_done, mc));
 		return;
 	}
+	vdev_t *vd = zio->io_vd;
 
-	if (zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) {
+	if ((zio->io_flags & ZIO_FLAG_SCRUB || (vd != NULL &&
+	    !vd->vdev_ops->vdev_op_leaf && vd->vdev_shadow)) &&
+	    !mm->mm_resilvering) {
 		abd_t *best_abd = NULL;
 		if (last_good_copy >= 0)
 			best_abd = mm->mm_child[last_good_copy].mc_abd;
@@ -815,8 +830,8 @@ vdev_mirror_io_done(zio_t *zio)
 		 * possible.
 		 */
 		if (zio->io_bp == NULL) {
-			ASSERT(zio->io_vd->vdev_ops == &vdev_replacing_ops ||
-			    zio->io_vd->vdev_ops == &vdev_spare_ops);
+			ASSERT(vd->vdev_ops == &vdev_replacing_ops ||
+			    vd->vdev_ops == &vdev_spare_ops);
 
 			abd_t *pref_abd = NULL;
 			for (c = 0; c < last_good_copy; c++) {

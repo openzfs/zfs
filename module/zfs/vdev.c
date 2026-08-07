@@ -911,6 +911,16 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 			return (SET_ERROR(ENOTSUP));
 		}
 	}
+	boolean_t shadow = B_FALSE;
+	shadow = (nvlist_lookup_boolean(nv, ZPOOL_VDEV_CONFIG_SHADOW) == 0);
+	if (shadow && alloctype == VDEV_ALLOC_ATTACH &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_SHADOW_MIRROR))
+		return (SET_ERROR(ENOTSUP));
+	if (shadow && !(parent->vdev_ops == &vdev_mirror_ops ||
+	    parent->vdev_ops == &vdev_replacing_ops ||
+	    (alloctype == VDEV_ALLOC_ATTACH && parent->vdev_ops ==
+	    &vdev_root_ops)))
+		return (SET_ERROR(EINVAL));
 
 	/*
 	 * Initialize the vdev specific data.  This is done before calling
@@ -1140,6 +1150,9 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		    vdev_prop_default_numeric(VDEV_PROP_FAILFAST);
 	else
 		vd->vdev_failfast = ZPROP_BOOLEAN_INHERIT;
+
+	if (shadow)
+		vd->vdev_shadow = B_TRUE;
 
 	/*
 	 * Add ourselves to the parent's list of children.

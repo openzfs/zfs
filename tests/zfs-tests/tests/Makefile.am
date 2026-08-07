@@ -1106,6 +1106,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_attach/cleanup.ksh \
 	functional/cli_root/zpool_attach/setup.ksh \
 	functional/cli_root/zpool_attach/zpool_attach_001_neg.ksh \
+	functional/cli_root/zpool_attach/zpool_attach_shadow.ksh \
 	functional/cli_root/zpool/cleanup.ksh \
 	functional/cli_root/zpool_clear/cleanup.ksh \
 	functional/cli_root/zpool_clear/setup.ksh \

@@ -8241,6 +8241,20 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
 }
 
 /*
+ * This is called as a synctask to increment the draid feature flag
+ */
+static void
+spa_shadow_feature_mod(void *arg, dmu_tx_t *tx)
+{
+	boolean_t incr = !!(uintptr_t)arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	if (incr)
+		spa_feature_incr(spa, SPA_FEATURE_SHADOW_MIRROR, tx);
+	else
+		spa_feature_decr(spa, SPA_FEATURE_SHADOW_MIRROR, tx);
+}
+
+/*
  * Attach a device to a vdev specified by its guid.  The vdev type can be
  * a mirror, a raidz, or a leaf device that is also a top-level (e.g. a
  * single device). When the vdev is a single device, a mirror vdev will be
@@ -8259,8 +8273,8 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
  * an administrators perspective these are both resilver operations.
  */
 int
-spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
-    int rebuild)
+spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
+    int replacing, int rebuild)
 {
 	uint64_t txg, dtl_max_txg;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -8586,6 +8600,15 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		 */
 		vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
+		if (newvd->vdev_shadow) {
+			dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
+			    txg);
+			dsl_sync_task_nowait(spa->spa_dsl_pool,
+			    spa_shadow_feature_mod, (void *)B_TRUE, tx);
+			dmu_tx_commit(tx);
+			pvd->vdev_shadow = B_TRUE;
+		}
+
 		/*
 		 * Schedule the resilver or rebuild to restart in the future.
 		 * We do this to ensure that dmu_sync-ed blocks have been
@@ -8764,6 +8787,25 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 		    last_cvd->vdev_ops != &vdev_draid_spare_ops) {
 			unspare = B_TRUE;
 		}
+	}
+
+	if (vd->vdev_shadow) {
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		dsl_sync_task_nowait(spa->spa_dsl_pool, spa_shadow_feature_mod,
+		    (void *)B_FALSE, tx);
+		dmu_tx_commit(tx);
+		boolean_t other_shadow = B_FALSE;
+		for (int i = 0; i < pvd->vdev_children; i++) {
+			cvd = pvd->vdev_child[i];
+			if (cvd == vd)
+				continue;
+			if (cvd->vdev_shadow) {
+				other_shadow = B_TRUE;
+				break;
+			}
+		}
+		if (!other_shadow)
+			pvd->vdev_shadow = B_FALSE;
 	}
 
 	/*
