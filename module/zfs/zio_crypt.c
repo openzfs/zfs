@@ -194,21 +194,22 @@ typedef struct blkptr_auth_buf {
 } blkptr_auth_buf_t;
 
 const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
-	{"",			ZC_TYPE_NONE,	0,	"inherit"},
-	{"",			ZC_TYPE_NONE,	0,	"on"},
-	{"",			ZC_TYPE_NONE,	0,	"off"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	16,	"aes-128-ccm"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	24,	"aes-192-ccm"},
-	{SUN_CKM_AES_CCM,	ZC_TYPE_CCM,	32,	"aes-256-ccm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	16,	"aes-128-gcm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	24,	"aes-192-gcm"},
-	{SUN_CKM_AES_GCM,	ZC_TYPE_GCM,	32,	"aes-256-gcm"}
+	{0,			ZC_TYPE_NONE,	0,	"inherit"},
+	{0,			ZC_TYPE_NONE,	0,	"on"},
+	{0,			ZC_TYPE_NONE,	0,	"off"},
+	{ZG_CIPHER_AES_CCM,	ZC_TYPE_CCM,	16,	"aes-128-ccm"},
+	{ZG_CIPHER_AES_CCM,	ZC_TYPE_CCM,	24,	"aes-192-ccm"},
+	{ZG_CIPHER_AES_CCM,	ZC_TYPE_CCM,	32,	"aes-256-ccm"},
+	{ZG_CIPHER_AES_GCM,	ZC_TYPE_GCM,	16,	"aes-128-gcm"},
+	{ZG_CIPHER_AES_GCM,	ZC_TYPE_GCM,	24,	"aes-192-gcm"},
+	{ZG_CIPHER_AES_GCM,	ZC_TYPE_GCM,	32,	"aes-256-gcm"}
 };
 
 void
 zio_crypt_key_destroy(zio_crypt_key_t *key)
 {
-	zio_crypt_key_close_os(key);
+	zalgo_cipher_close(key->zk_cipher_hold, &key->zk_current_sess.zs_ctx);
+	zalgo_cipher_rele(key->zk_cipher_hold);
 
 	rw_destroy(&key->zk_salt_lock);
 
@@ -262,9 +263,15 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	key->zk_hmac_key.ck_data = &key->zk_hmac_key;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
-	ret = zio_crypt_key_open_os(key, ci);
-	if (ret != 0)
+	key->zk_cipher_hold = zalgo_cipher_hold(ci->ci_cipher);
+	ret = zalgo_cipher_open(key->zk_cipher_hold,
+	    &key->zk_current_sess.zs_ctx, key->zk_current_keydata,
+	    ci->ci_keylen);
+	if (ret != 0) {
+		zalgo_cipher_rele(key->zk_cipher_hold);
 		return (ret);
+	}
+	key->zk_current_sess.zs_hold = key->zk_cipher_hold;
 
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
 	key->zk_crypt = crypt;
@@ -302,7 +309,10 @@ zio_crypt_key_change_salt(zio_crypt_key_t *key)
 	memcpy(key->zk_salt, salt, ZIO_DATA_SALT_LEN);
 	key->zk_salt_count = 0;
 
-	ret = zio_crypt_key_reopen_os(key, ci);
+	zalgo_cipher_close(key->zk_cipher_hold, &key->zk_current_sess.zs_ctx);
+	ret = zalgo_cipher_open(key->zk_cipher_hold,
+	    &key->zk_current_sess.zs_ctx, key->zk_current_keydata,
+	    ci->ci_keylen);
 	if (ret != 0)
 		goto out_unlock;
 
@@ -466,9 +476,15 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	key->zk_hmac_key.ck_data = key->zk_hmac_keydata;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
-	ret = zio_crypt_key_open_os(key, ci);
-	if (ret != 0)
+	key->zk_cipher_hold = zalgo_cipher_hold(ci->ci_cipher);
+	ret = zalgo_cipher_open(key->zk_cipher_hold,
+	    &key->zk_current_sess.zs_ctx, key->zk_current_keydata,
+	    ci->ci_keylen);
+	if (ret != 0) {
+		zalgo_cipher_rele(key->zk_cipher_hold);
 		goto error;
+	}
+	key->zk_current_sess.zs_hold = key->zk_cipher_hold;
 
 	rw_init(&key->zk_salt_lock, NULL, RW_DEFAULT, NULL);
 	key->zk_crypt = crypt;
