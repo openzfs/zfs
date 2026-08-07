@@ -3894,6 +3894,17 @@ list_callback(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
+static boolean_t
+zfs_list_has_prop(const zprop_list_t *pl, zfs_prop_t prop)
+{
+	for (; pl != NULL; pl = pl->pl_next) {
+		if (pl->pl_prop == prop)
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
 static int
 zfs_do_list(int argc, char **argv)
 {
@@ -4051,10 +4062,25 @@ found3:;
 	cb.cb_first = B_TRUE;
 
 	/*
-	 * If we are only going to list and sort by properties that are "fast"
-	 * then we can use "simple" mode and avoid populating the properties
-	 * nvlist.
+	 * Use projected batches when they contain every displayed and sorted
+	 * property.  Keep simple mode available for fallback to a kernel that
+	 * predates the batch ioctl.
 	 */
+	int batch_flags = zfs_list_batch_flags(cb.cb_proplist, sortcol);
+	/*
+	 * Although AVAILABLE prints "-" for snapshots, its full-stat value is
+	 * used with USED to color the field.  Projected handles omit it.
+	 */
+	if (batch_flags != 0 && !cb.cb_json && use_color() &&
+	    (types & ZFS_TYPE_SNAPSHOT) != 0 &&
+	    zfs_list_has_prop(cb.cb_proplist, ZFS_PROP_USED) &&
+	    zfs_list_has_prop(cb.cb_proplist, ZFS_PROP_AVAILABLE))
+		batch_flags = 0;
+	if (batch_flags != 0) {
+		if (cb.cb_json)
+			batch_flags |= ZFS_ITER_BATCHED_CREATETXG;
+		flags |= batch_flags;
+	}
 	if (zfs_list_only_by_fast(cb.cb_proplist) &&
 	    zfs_sort_only_by_fast(sortcol))
 		flags |= ZFS_ITER_SIMPLE;

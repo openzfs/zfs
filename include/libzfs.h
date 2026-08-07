@@ -729,6 +729,21 @@ _LIBZFS_H int zprop_collect_property(const char *, zprop_get_cbdata_t *,
 #define	ZFS_ITER_RECVD_PROPS		(1 << 4)
 #define	ZFS_ITER_LITERAL_PROPS		(1 << 5)
 #define	ZFS_ITER_SIMPLE			(1 << 6)
+/* Projected snapshot and bookmark fields requested by zfs list. */
+#define	ZFS_ITER_BATCHED		(1 << 7)
+#define	ZFS_ITER_BATCHED_CREATION	(1 << 8)
+#define	ZFS_ITER_BATCHED_USERREFS	(1 << 9)
+#define	ZFS_ITER_BATCHED_GUID		(1 << 10)
+#define	ZFS_ITER_BATCHED_CREATETXG	(1 << 11)
+#define	ZFS_ITER_BATCHED_NUMCLONES	(1 << 12)
+#define	ZFS_ITER_BATCHED_INCONSISTENT	(1 << 13)
+#define	ZFS_ITER_BATCHED_REDACTED	(1 << 14)
+#define	ZFS_ITER_BATCHED_USED		(1 << 15)
+#define	ZFS_ITER_BATCHED_REFERENCED	(1 << 16)
+#define	ZFS_ITER_BATCHED_LOGICALREFERENCED	(1 << 17)
+#define	ZFS_ITER_BATCHED_DEFER_DESTROY	(1 << 18)
+#define	ZFS_ITER_BATCHED_OBJSETID	(1 << 19)
+#define	ZFS_ITER_BATCHED_WRITTEN	(1 << 20)
 
 typedef int (*zfs_iter_f)(zfs_handle_t *, void *);
 _LIBZFS_H int zfs_iter_root(libzfs_handle_t *, zfs_iter_f, void *);

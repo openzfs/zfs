@@ -70,6 +70,27 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 %C%_libzfs_mnttab_cache_check_LDADD = \
 	libzfs.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_test
+%C%_snapshot_list_test_LDADD = \
+	libzfs.la \
+	libnvpair.la
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/snapshot_list_stats_test
+%C%_snapshot_list_stats_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+# Keep dmu_bonus_hold() wrappable with -Bsymbolic-functions or --disable-static.
+%C%_snapshot_list_stats_test_LDFLAGS = -Wl,--wrap=dmu_bonus_hold
+%C%_snapshot_list_stats_test_LDADD = \
+	module/zfs/libzpool_la-dsl_dataset.lo \
+	libzpool.la \
+	libnvpair.la
+
+scripts_zfs_tests_bin_LTLIBRARIES = %D%/libsnapshot_list_test_shim.la
+%C%_libsnapshot_list_test_shim_la_LDFLAGS = -module -avoid-version
+%C%_libsnapshot_list_test_shim_la_LIBADD = libnvpair.la
+if BUILD_LINUX
+%C%_libsnapshot_list_test_shim_la_LIBADD += -ldl
+endif
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree

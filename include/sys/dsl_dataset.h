@@ -432,6 +432,26 @@ uint64_t dsl_get_inconsistent(dsl_dataset_t *ds);
 uint64_t dsl_get_redacted(dsl_dataset_t *ds);
 uint64_t dsl_get_available(dsl_dataset_t *ds);
 int dsl_get_written(dsl_dataset_t *ds, uint64_t *written);
+
+typedef struct dsl_dataset_snapshot_stats {
+	uint64_t dss_creation_txg;
+	uint64_t dss_creation_time;
+	uint64_t dss_guid;
+	uint64_t dss_userrefs;
+	uint64_t dss_num_clones;
+	uint64_t dss_used;
+	uint64_t dss_referenced;
+	uint64_t dss_logicalreferenced;
+	uint64_t dss_written;
+	uint8_t dss_inconsistent;
+	uint8_t dss_redacted;
+	uint8_t dss_defer_destroy;
+	uint8_t dss_written_valid;
+} dsl_dataset_snapshot_stats_t;
+
+int dsl_dataset_snapshot_stats(struct dsl_pool *dp, uint64_t dsobj,
+    boolean_t want_userrefs, boolean_t want_redacted, boolean_t want_written,
+    uint64_t min_txg, uint64_t max_txg, dsl_dataset_snapshot_stats_t *stats);
 int dsl_get_prev_snap(dsl_dataset_t *ds, char *snap);
 void dsl_get_redact_snaps(dsl_dataset_t *ds, nvlist_t *propval);
 int dsl_get_mountpoint(dsl_dataset_t *ds, const char *dsname, char *value,
