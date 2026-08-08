@@ -230,15 +230,16 @@ MODULE_PARM_DESC(zfs_async_dio_enabled,
 static unsigned int zfs_async_read_task_depth = 32;
 module_param(zfs_async_read_task_depth, uint, 0444);
 MODULE_PARM_DESC(zfs_async_read_task_depth,
-	"Workers for async Direct I/O reads per filesystem; read-only, set "
+	"Workers for async Direct I/O reads per pool; read-only, set "
 	"at module load");
 
-static unsigned int zfs_async_read_max_inflight = 1024;
-module_param(zfs_async_read_max_inflight, uint, 0644);
+static unsigned long zfs_async_read_max_inflight = 512 * 1024 * 1024;
+module_param(zfs_async_read_max_inflight, ulong, 0644);
 MODULE_PARM_DESC(zfs_async_read_max_inflight,
-	"Maximum in-flight async Direct I/O reads per filesystem; requests "
-	"beyond this limit are served synchronously. Defaults to 1024, "
-	"which means max serving 32 threads with max iodepth 32 each");
+	"Maximum bytes of in-flight async Direct I/O reads. "
+	"The user pages of admitted requests are pinned, so this bounds the "
+	"pinned memory held by queued reads.  Requests beyond this limit are "
+	"served synchronously.  Defaults to 512 MiB");
 
 /*
  * Per-pool (SPA) async read worker pool.  One taskq per storage pool, shared
@@ -252,7 +253,10 @@ typedef struct zpl_async_read_pool {
 } zpl_async_read_pool_t;
 
 /*
- * Async read in-flight accounting.
+ * Async read in-flight accounting, in bytes of the requested I/O.  The
+ * pages are pinned for the whole requested range, so the admission
+ * reserves (and later releases) the requested byte count rather than the
+ * bytes actually read, which can be smaller (e.g. clamped at EOF).
  * Returns 0 if the request is admitted, EOPNOTSUPP if the pool is at its
  * in-flight limit and the request must fall back to the synchronous path.
  * The admission (reservation) happens before any user pages are pinned, so
@@ -260,25 +264,28 @@ typedef struct zpl_async_read_pool {
  * zfs_async_read_max_inflight rather than by the queue length.
  */
 static int
-zpl_async_read_hold(zfsvfs_t *zfsvfs)
+zpl_async_read_hold(zfsvfs_t *zfsvfs, size_t count)
 {
 	mutex_enter(&zfsvfs->z_async_dio_lock);
-	if (zfsvfs->z_async_dio_inflight >= zfs_async_read_max_inflight) {
+	if (count > zfs_async_read_max_inflight ||
+	    zfsvfs->z_async_dio_inflight >
+	    zfs_async_read_max_inflight - count) {
 		mutex_exit(&zfsvfs->z_async_dio_lock);
 		return (EOPNOTSUPP);
 	}
-	zfsvfs->z_async_dio_inflight++;
+	zfsvfs->z_async_dio_inflight += count;
 	mutex_exit(&zfsvfs->z_async_dio_lock);
 
 	return (0);
 }
 
 static void
-zpl_async_read_rele(zfsvfs_t *zfsvfs)
+zpl_async_read_rele(zfsvfs_t *zfsvfs, size_t count)
 {
 	mutex_enter(&zfsvfs->z_async_dio_lock);
-	ASSERT3U(zfsvfs->z_async_dio_inflight, >, 0);
-	if (--zfsvfs->z_async_dio_inflight == 0)
+	ASSERT3U(zfsvfs->z_async_dio_inflight, >=, count);
+	zfsvfs->z_async_dio_inflight -= count;
+	if (zfsvfs->z_async_dio_inflight == 0)
 		cv_broadcast(&zfsvfs->z_async_dio_cv);
 	mutex_exit(&zfsvfs->z_async_dio_lock);
 }
@@ -315,7 +322,7 @@ zpl_async_read_task(void *arg)
 	aio->kiocb->ki_complete(aio->kiocb, read, 0);
 #endif
 
-	zpl_async_read_rele(aio->zfsvfs);
+	zpl_async_read_rele(aio->zfsvfs, aio->count);
 	crfree(aio->cr);
 	kmem_cache_free(zpl_async_read_io_cache, aio);
 }
@@ -431,7 +438,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 	 * If the pool is at the limit, fall back to the synchronous path
 	 * rather than queueing another pinned request.
 	 */
-	if ((error = zpl_async_read_hold(zfsvfs)) != 0) {
+	if ((error = zpl_async_read_hold(zfsvfs, count)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -465,7 +472,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 	 */
 	if (!zfs_uio_page_aligned(&aio->uio) ||
 	    !zfs_uio_aligned(&aio->uio, PAGE_SIZE)) {
-		zpl_async_read_rele(zfsvfs);
+		zpl_async_read_rele(zfsvfs, count);
 		crfree(aio->cr);
 		kmem_cache_free(zpl_async_read_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
@@ -484,7 +491,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 	spl_fstrans_unmark(cookie);
 
 	if (error != 0) {
-		zpl_async_read_rele(zfsvfs);
+		zpl_async_read_rele(zfsvfs, count);
 		crfree(aio->cr);
 		kmem_cache_free(zpl_async_read_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
@@ -493,7 +500,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 
 	if (taskq_dispatch(pool->taskq, zpl_async_read_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
-		zpl_async_read_rele(zfsvfs);
+		zpl_async_read_rele(zfsvfs, count);
 		/*
 		 * The pin set no UIO_DIRECT flag; zfs_uio_free_dio_pages()
 		 * requires it, so set it before releasing the pinned pages.
