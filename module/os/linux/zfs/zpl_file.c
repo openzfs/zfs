@@ -29,6 +29,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
 #include <sys/spa_impl.h>
+#include <sys/uio_impl.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
@@ -451,6 +452,25 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 	 */
 	aio->iter = *to;
 	zfs_uio_iov_iter_init(&aio->uio, &aio->iter, kiocb->ki_pos, count);
+
+	/*
+	 * The pre-pinned pages serve two purposes: the Direct I/O bio mapping
+	 * and the ARC fallback copy in zfs_uiomove_iter().  Both assume the
+	 * user buffer, the file offset, and the request size are page-aligned
+	 * (the pinned-page copy indexes uio_dio.pages by the buffer-relative
+	 * byte offset).  These properties are immutable, so evaluate them at
+	 * submission time and let misaligned requests fall back to the
+	 * synchronous path, which runs in the submitting thread and copies to
+	 * the user virtual addresses directly.
+	 */
+	if (!zfs_uio_page_aligned(&aio->uio) ||
+	    !zfs_uio_aligned(&aio->uio, PAGE_SIZE)) {
+		zpl_async_read_rele(zfsvfs);
+		crfree(aio->cr);
+		kmem_cache_free(zpl_async_read_io_cache, aio);
+		zfs_exit(zfsvfs, FTAG);
+		return (EOPNOTSUPP);
+	}
 
 	/*
 	 * Pin the user pages here, in the submitting thread (current->mm is
