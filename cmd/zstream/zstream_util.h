@@ -25,8 +25,10 @@
 extern "C" {
 #endif
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
@@ -40,13 +42,13 @@ typedef struct {
  * The safe_ versions of the functions below terminate the process if the
  * operation doesn't succeed instead of returning an error.
  */
-extern void *
+void *
 safe_malloc(size_t size);
 
-extern void *
+void *
 safe_calloc(size_t n);
 
-extern char *
+char *
 checksum_str(zio_cksum_t *cksum, char *buff, size_t buff_size);
 
 /*
@@ -86,6 +88,9 @@ decompress_buffer(uint8_t *inbuff, size_t inbuff_size, size_t logical_size,
 uint8_t *
 compress_buffer(uint8_t *inbuff, size_t inbuff_size,
     compression_spec_t compress_type, size_t *compressed_size);
+
+void
+safe_pthread_sigmask(int how, const sigset_t *set, sigset_t *oldset);
 
 #ifdef __cplusplus
 }

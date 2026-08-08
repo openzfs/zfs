@@ -21,9 +21,25 @@
 #ifndef	_ZSTREAM_H
 #define	_ZSTREAM_H
 
+#include <signal.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+/*
+ * Signals used by the watchdog timer and zstream_queue. The signal mask
+ * must be set properly before any threads are spawned.
+ */
+#define WATCHDOG_SIGNAL		SIGALRM
+#define	THREAD_BACKTRACE_SIGNAL	(SIGRTMIN)
+
+/*
+ * Establishes the process-wide signal mask. Must be called before any
+ * thread is created so that every thread inherits the mask without having
+ * to make any calls of its own.
+ */
+extern void zstream_signal_init(void);
 
 extern int zstream_do_redup(int, char *[]);
 extern int zstream_do_dump(int, char *[]);
@@ -32,6 +48,7 @@ extern int zstream_do_drop_record(int argc, char *argv[]);
 extern int zstream_do_recompress(int argc, char *argv[]);
 extern int zstream_do_token(int, char *[]);
 extern int zstream_do_raw(int, char *[]);
+extern int zstream_do_selftest(int, char *[]);
 extern void zstream_usage(void) __attribute__((noreturn));
 
 #ifdef	__cplusplus
