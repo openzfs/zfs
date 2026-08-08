@@ -30,6 +30,8 @@
 extern "C" {
 #endif
 
+struct spa;
+
 extern int zfs_open(struct inode *ip, int mode, int flag, cred_t *cr);
 extern int zfs_close(struct inode *ip, int flag, cred_t *cr);
 extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
@@ -84,6 +86,11 @@ extern int zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp,
     zidmap_t *idmap);
 extern int zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap,
     char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap);
+/* async Direct I/O reads */
+extern void zpl_async_read_init(void);
+extern void zpl_async_read_fini(void);
+extern void zpl_async_read_pool_destroy(struct spa *);
+extern int zfs_dio_pin_pages(zfs_uio_t *, zfs_uio_rw_t);
 
 #ifdef	__cplusplus
 }
