@@ -28,6 +28,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
+#include <sys/spa_impl.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
@@ -201,6 +202,296 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
+/*
+ * Structure used to pass arguments to the async read task,
+ * which contains the kiocb, znode, uio, and other information needed to
+ * complete the read and call ki_complete() when done.
+ */
+typedef struct zpl_async_read_io {
+	struct kiocb	*kiocb;
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs;
+	zfs_uio_t	uio;
+	struct iov_iter	iter;
+	int		ioflag;
+	cred_t		*cr;
+	ssize_t		count;
+} zpl_async_read_io_t;
+
+static kmem_cache_t *zpl_async_read_io_cache;
+static kmutex_t zpl_async_read_pool_lock;
+
+static unsigned int zfs_async_dio_enabled = 0;
+module_param(zfs_async_dio_enabled, uint, 0644);
+MODULE_PARM_DESC(zfs_async_dio_enabled,
+	"Enable async Direct I/O reads.  Off by default");
+
+static unsigned int zfs_async_read_task_depth = 32;
+module_param(zfs_async_read_task_depth, uint, 0444);
+MODULE_PARM_DESC(zfs_async_read_task_depth,
+	"Workers for async Direct I/O reads per filesystem; read-only, set "
+	"at module load");
+
+static unsigned int zfs_async_read_max_inflight = 1024;
+module_param(zfs_async_read_max_inflight, uint, 0644);
+MODULE_PARM_DESC(zfs_async_read_max_inflight,
+	"Maximum in-flight async Direct I/O reads per filesystem; requests "
+	"beyond this limit are served synchronously. Defaults to 1024, "
+	"which means max serving 32 threads with max iodepth 32 each");
+
+/*
+ * Per-pool (SPA) async read worker pool.  One taskq per storage pool, shared
+ * by all datasets of the pool, so a slow or flooded pool cannot starve other
+ * pools of workers (head-of-line isolation) without multiplying threads per
+ * dataset.  Created lazily on the first async read and destroyed in
+ * spa_remove() once the pool is closed (no datasets, no in-flight reads).
+ */
+typedef struct zpl_async_read_pool {
+	taskq_t		*taskq;
+} zpl_async_read_pool_t;
+
+/*
+ * Async read in-flight accounting.
+ * Returns 0 if the request is admitted, EOPNOTSUPP if the pool is at its
+ * in-flight limit and the request must fall back to the synchronous path.
+ * The admission (reservation) happens before any user pages are pinned, so
+ * the amount of pinned memory held by queued requests is bounded by
+ * zfs_async_read_max_inflight rather than by the queue length.
+ */
+static int
+zpl_async_read_hold(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	if (zfsvfs->z_async_dio_inflight >= zfs_async_read_max_inflight) {
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+		return (EOPNOTSUPP);
+	}
+	zfsvfs->z_async_dio_inflight++;
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+
+	return (0);
+}
+
+static void
+zpl_async_read_rele(zfsvfs_t *zfsvfs)
+{
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	ASSERT3U(zfsvfs->z_async_dio_inflight, >, 0);
+	if (--zfsvfs->z_async_dio_inflight == 0)
+		cv_broadcast(&zfsvfs->z_async_dio_cv);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
+/*
+ * This is the task run in a taskq which calls ki_complete to finish read.
+ */
+static void
+zpl_async_read_task(void *arg)
+{
+	zpl_async_read_io_t *aio = arg;
+	fstrans_cookie_t cookie;
+	ssize_t read;
+
+	cookie = spl_fstrans_mark();
+	ssize_t ret = -zfs_read_impl(aio->zp, &aio->uio, aio->ioflag, aio->cr);
+	spl_fstrans_unmark(cookie);
+
+	if (ret < 0) {
+		read = ret;
+	} else {
+		read = aio->count - aio->uio.uio_resid;
+		aio->kiocb->ki_pos += read;
+		/*
+		 * Only touch atime for successful reads, matching the
+		 * synchronous zpl_iter_read() path.
+		 */
+		zpl_file_accessed(aio->kiocb->ki_filp);
+	}
+
+#ifdef HAVE_2ARGS_KI_COMPLETE
+	aio->kiocb->ki_complete(aio->kiocb, read);
+#else
+	aio->kiocb->ki_complete(aio->kiocb, read, 0);
+#endif
+
+	zpl_async_read_rele(aio->zfsvfs);
+	crfree(aio->cr);
+	kmem_cache_free(zpl_async_read_io_cache, aio);
+}
+
+/*
+ * Return (and lazily create) the async read worker pool for a filesystem.
+ * Called with the teardown reader lock held, so teardown cannot race the
+ * creation.  Returns NULL if the module is not initialized.
+ */
+static zpl_async_read_pool_t *
+zpl_async_read_pool_get(spa_t *spa)
+{
+	zpl_async_read_pool_t *pool;
+
+	/*
+	 * Async reads are disabled when the depth is zero; never create a
+	 * worker pool in that case.
+	 */
+	if (zfs_async_read_task_depth == 0 || zpl_async_read_io_cache == NULL)
+		return (NULL);
+
+	mutex_enter(&zpl_async_read_pool_lock);
+	pool = spa->spa_zpl_async_read_pool;
+	if (pool == NULL) {
+		unsigned int nthreads = MAX(zfs_async_read_task_depth, 1);
+		char name[48];
+
+		pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
+		(void) snprintf(name, sizeof (name), "zpl_async_read_%s",
+		    spa_name(spa));
+
+		pool->taskq = taskq_create(name, nthreads,
+		    maxclsyspri, nthreads, INT_MAX,
+		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+		spa->spa_zpl_async_read_pool = pool;
+	}
+	mutex_exit(&zpl_async_read_pool_lock);
+
+	return (pool);
+}
+
+/*
+ * Stop and destroy a pool's async read worker taskq.  Called from
+ * spa_remove() once the pool is closed, so no async reads remain and
+ * taskq_destroy() joins the workers immediately.
+ */
+void
+zpl_async_read_pool_destroy(struct spa *spa)
+{
+	zpl_async_read_pool_t *pool;
+
+	mutex_enter(&zpl_async_read_pool_lock);
+	pool = spa->spa_zpl_async_read_pool;
+	spa->spa_zpl_async_read_pool = NULL;
+	mutex_exit(&zpl_async_read_pool_lock);
+
+	if (pool != NULL) {
+		taskq_destroy(pool->taskq);
+		kmem_free(pool, sizeof (*pool));
+	}
+}
+
+/*
+ * Queue an O_DIRECT read for asynchronous execution.  Returns 0
+ * if the request was queued (the caller must return -EIOCBQUEUED), or a
+ * positive errno if it must be handled by the synchronous path.  On a
+ * decline nothing has been pinned or queued.
+ */
+static int
+zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
+{
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	zpl_async_read_pool_t *pool;
+	zpl_async_read_io_t *aio;
+	fstrans_cookie_t cookie;
+	int error;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	/*
+	 * Mirror the early checks from zfs_read_impl() so we never pin pages
+	 * for a request that would fail before reaching the DIO setup.  The
+	 * taskq completion runs zfs_read_impl(), which also reaches these
+	 * paths if the file state changed after submission and releases any
+	 * pinned pages there.
+	 */
+	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
+		zfs_exit(zfsvfs, FTAG);
+		return (EACCES);
+	}
+	if (Z_ISDIR(ZTOTYPE(zp))) {
+		zfs_exit(zfsvfs, FTAG);
+		return (EISDIR);
+	}
+
+	/*
+	 * Fetch (or lazily create) this pool's worker taskq.  Safe against
+	 * teardown because we hold the teardown reader lock.
+	 */
+	pool = zpl_async_read_pool_get(dmu_objset_spa(zfsvfs->z_os));
+	if (pool == NULL) {
+		zfs_exit(zfsvfs, FTAG);
+		return (EOPNOTSUPP);
+	}
+
+	/*
+	 * Admit the request before pinning any user pages: the per-pool
+	 * in-flight bound caps the pinned memory held by queued requests.
+	 * If the pool is at the limit, fall back to the synchronous path
+	 * rather than queueing another pinned request.
+	 */
+	if ((error = zpl_async_read_hold(zfsvfs)) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	aio = kmem_cache_alloc(zpl_async_read_io_cache, KM_SLEEP);
+	aio->kiocb = kiocb;
+	aio->zp = zp;
+	aio->zfsvfs = zfsvfs;
+	aio->count = count;
+	aio->ioflag = filp->f_flags | zfs_io_flags(kiocb);
+	aio->cr = CRED();
+	crhold(aio->cr);
+
+	/*
+	 * The iov_iter passed by libaio lives on the io_submit() stack; copy
+	 * it by value and point the uio at our copy.  The backing iovec array
+	 * is kept valid by the aio/io_uring request until ki_complete().
+	 */
+	aio->iter = *to;
+	zfs_uio_iov_iter_init(&aio->uio, &aio->iter, kiocb->ki_pos, count);
+
+	/*
+	 * Pin the user pages here, in the submitting thread (current->mm is
+	 * valid); the taskq thread has no user mm.  This pins the pages only
+	 * (no UIO_DIRECT flag): eligibility is evaluated later, at read time,
+	 * by the shared zfs_setup_direct(), which detects the pre-pinned pages
+	 * and sets UIO_DIRECT itself when the request is eligible.
+	 */
+	cookie = spl_fstrans_mark();
+	error = zfs_dio_pin_pages(&aio->uio, UIO_READ);
+	spl_fstrans_unmark(cookie);
+
+	if (error != 0) {
+		zpl_async_read_rele(zfsvfs);
+		crfree(aio->cr);
+		kmem_cache_free(zpl_async_read_io_cache, aio);
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	if (taskq_dispatch(pool->taskq, zpl_async_read_task, aio,
+	    TQ_SLEEP) == TASKQID_INVALID) {
+		zpl_async_read_rele(zfsvfs);
+		/*
+		 * The pin set no UIO_DIRECT flag; zfs_uio_free_dio_pages()
+		 * requires it, so set it before releasing the pinned pages.
+		 */
+		if (aio->uio.uio_dio.pages != NULL) {
+			aio->uio.uio_extflg |= UIO_DIRECT;
+			zfs_uio_free_dio_pages(&aio->uio, UIO_READ);
+		}
+		crfree(aio->cr);
+		kmem_cache_free(zpl_async_read_io_cache, aio);
+		zfs_exit(zfsvfs, FTAG);
+		return (EOPNOTSUPP);
+	}
+
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+}
+
 static ssize_t
 zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 {
@@ -230,6 +521,48 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zpl_file_accessed(filp);
 
 	return (read);
+}
+
+static ssize_t
+zpl_iter_read_async(struct kiocb *kiocb, struct iov_iter *to)
+{
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	ssize_t count = iov_iter_count(to);
+
+	/*
+	 * Queue Direct I/O reads if possible and necessary.
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
+	    count > 0 &&
+	    kiocb->ki_pos < i_size_read(ip) &&
+	    ((filp->f_flags & O_DIRECT) ||
+	    ITOZSB(ip)->z_os->os_direct == ZFS_DIRECT_ALWAYS)) {
+		if (zpl_async_read_queue(kiocb, to, count) == 0)
+			return ((ssize_t)-EIOCBQUEUED);
+		/* Declined or failed: fall through to the sync path. */
+	}
+
+	return (zpl_iter_read(kiocb, to));
+}
+
+void
+zpl_async_read_init(void)
+{
+	mutex_init(&zpl_async_read_pool_lock, NULL, MUTEX_DEFAULT, NULL);
+	zpl_async_read_io_cache = kmem_cache_create("zpl_async_read_io",
+	    sizeof (zpl_async_read_io_t), 0,
+	    NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+zpl_async_read_fini(void)
+{
+	if (zpl_async_read_io_cache != NULL) {
+		kmem_cache_destroy(zpl_async_read_io_cache);
+		zpl_async_read_io_cache = NULL;
+	}
+	mutex_destroy(&zpl_async_read_pool_lock);
 }
 
 static inline ssize_t
@@ -1252,7 +1585,7 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-	.read_iter	= zpl_iter_read,
+	.read_iter	= zpl_iter_read_async,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_COPY_SPLICE_READ
 	.splice_read	= copy_splice_read,

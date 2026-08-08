@@ -665,6 +665,13 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 		}
 
 		vmem_free(uio->uio_dio.pages, size);
+		/*
+		 * Reset the Direct I/O state so uio->uio_dio.pages non-NULL
+		 * reliably means "pages pinned".
+		 */
+		uio->uio_dio.pages = NULL;
+		uio->uio_dio.npages = 0;
+		uio->uio_dio.pinned = B_FALSE;
 		return (error);
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);
