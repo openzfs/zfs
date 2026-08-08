@@ -1437,14 +1437,19 @@ out:
 	for (metaslab_t *m = avl_first(&spa->spa_metaslabs_by_flushed);
 	    m != NULL; m = AVL_NEXT(&spa->spa_metaslabs_by_flushed, m)) {
 		mutex_enter(&m->ms_lock);
-		m->ms_allocated_space = space_map_allocated(m->ms_sm) +
-		    zfs_range_tree_space(m->ms_unflushed_allocs) -
-		    zfs_range_tree_space(m->ms_unflushed_frees);
+		if (m->ms_load_state != METASLAB_LOAD_UNLOADABLE &&
+		    !m->ms_smp_alloc_invalid) {
+			m->ms_allocated_space = space_map_allocated(m->ms_sm) +
+			    zfs_range_tree_space(m->ms_unflushed_allocs) -
+			    zfs_range_tree_space(m->ms_unflushed_frees);
 
-		metaslab_space_update(m->ms_group,
-		    zfs_range_tree_space(m->ms_unflushed_allocs), 0, 0);
-		metaslab_space_update(m->ms_group,
-		    -zfs_range_tree_space(m->ms_unflushed_frees), 0, 0);
+			metaslab_space_update(m->ms_group,
+			    zfs_range_tree_space(m->ms_unflushed_allocs),
+			    0, 0);
+			metaslab_space_update(m->ms_group,
+			    -zfs_range_tree_space(m->ms_unflushed_frees),
+			    0, 0);
+		}
 
 		ASSERT0(m->ms_weight & METASLAB_ACTIVE_MASK);
 		metaslab_recalculate_weight_and_sort(m);
@@ -1453,8 +1458,8 @@ out:
 		    metaslab_unflushed_changes_memused(m);
 
 		if (metaslab_debug_load && m->ms_sm != NULL) {
-			VERIFY0(metaslab_load(m));
-			metaslab_set_selected_txg(m, 0);
+			if (metaslab_load(m) == 0)
+				metaslab_set_selected_txg(m, 0);
 		}
 		mutex_exit(&m->ms_lock);
 	}
