@@ -15,10 +15,6 @@
 # CDDL HEADER END
 #
 
-#
-# Copyright (c) 2026 by Michael Heller.
-#
-
 # DESCRIPTION:
 #	Verify the MMP uberblock claim requires a write only to those mirror
 #	legs the pool configuration still expects to be present.
@@ -107,7 +103,7 @@ typeset out
 if out=$(zpool import -d $MMP_DIR -f $MMP_POOL 2>&1); then
 	log_fail "Imported a mirror while a required leg was unreadable"
 fi
-if ! echo "$out" | grep -q "pool is imported on host"; then
+if ! echo "$out" | grep -q "could not be written to a device"; then
 	log_fail "Import refused for an unexpected reason: $out"
 fi
 
@@ -156,7 +152,7 @@ if out=$(zpool import -d $MMP_DIR -f $MMP_POOL 2>&1); then
 	log_fail "Imported a three-way mirror while a required leg was" \
 	    "unreadable"
 fi
-if ! echo "$out" | grep -q "pool is imported on host"; then
+if ! echo "$out" | grep -q "could not be written to a device"; then
 	log_fail "Import refused for an unexpected reason: $out"
 fi
 

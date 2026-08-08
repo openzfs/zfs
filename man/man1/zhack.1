@@ -23,7 +23,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd May 3, 2023
+.Dd August 3, 2026
 .Dt ZHACK 1
 .Os
 .
@@ -124,6 +124,47 @@ Example:
 .
 .It Xo
 .Nm zhack
+.Cm mmp reclaim
+.Ar pool
+.Xc
+Import a
+.Ar pool
+whose uberblock claim cannot reach every mirror leg the configuration still
+expects to be present, then mark the unreachable leaves offline so that
+ordinary imports succeed, and export it again.
+.Pp
+This exists for one situation: a host has failed together with the mirror legs
+attached to it, so the surviving labels still describe those legs as healthy,
+and every later import demands writes to them that nobody can make.
+.Pp
+.Sy This does not make the operation safe on its own .
+A live host whose legs are
+.Em all
+invisible from here cannot be detected by any write and read scheme, and this
+command will take the pool from it.
+Fence the failed host, or otherwise prove it is powered off, before running
+this.
+.Pp
+The activity check itself is unchanged: every write the reachable legs allow,
+the wait, and the re-read all still happen, so a competing host which shares
+any leg with this one is still detected and the import is refused.
+Only the number of writes the claim demands is lowered, and only for mirror
+legs this host cannot open, each of which is then marked offline.
+.Pp
+The pool is left exported, and imports degraded with those leaves offline.
+Bring each one back with
+.Xr zpool-online 8
+once the hardware returns.
+A leaf holding the only copy of some data cannot be offlined: it is reported
+and left online, and imports from other hosts stay refused.
+No leaf is marked offline on a pool which does not have
+.Sy multihost
+set, since no claim runs for it and an ordinary import already succeeds.
+Leaves of log, cache, and spare vdevs are not touched, as the claim does not
+write to them.
+.
+.It Xo
+.Nm zhack
 .Cm metaslab leak
 .Op Fl f
 .Ar pool
@@ -181,8 +222,24 @@ descriptions_obj:
 .No # Nm zhack Cm feature enable Fl d No 'Predict future disk failures.' Ar tank com.example:clairvoyance
 .No # Nm zhack Cm feature ref Ar tank com.example:clairvoyance
 .Ed
+.Pp
+Recover a pool whose peer host died together with its mirror legs, after
+confirming that host is down:
+.Bd -literal
+.No # Nm zpool Cm import Fl f Ar tank
+cannot import 'tank': the multihost claim could not be written to a device
+the pool configuration expects to be present.
+If the device is permanently gone, recover with 'zhack mmp reclaim'.
+.No # Nm zhack Cm mmp reclaim Ar tank
+tank: marked absent leaf 5646371977210937898 offline
+.No # Nm zpool Cm import Ar tank
+.No # Nm zpool Cm online Ar tank Ar /dev/disk/by-id/...
+.Ed
 .
 .Sh SEE ALSO
 .Xr ztest 1 ,
 .Xr zpool-features 7 ,
-.Xr zfs 8
+.Xr zpoolprops 7 ,
+.Xr zfs 8 ,
+.Xr zpool-import 8 ,
+.Xr zpool-online 8
