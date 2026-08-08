@@ -38,6 +38,7 @@
 #include <sys/cmn_err.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_vnops_os.h>
 #include <sys/zfs_dir.h>
 #include <sys/zil.h>
 #include <sys/fs/zfs.h>
@@ -687,6 +688,9 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
+	mutex_init(&zfsvfs->z_async_dio_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
+	zfsvfs->z_async_dio_inflight = 0;
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
@@ -833,6 +837,9 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
+	ASSERT0(zfsvfs->z_async_dio_inflight);
+	mutex_destroy(&zfsvfs->z_async_dio_lock);
+	cv_destroy(&zfsvfs->z_async_dio_cv);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != size; i++) {
@@ -1235,6 +1242,13 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	}
 
 	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	while (zfsvfs->z_async_dio_inflight != 0)
+		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+
+	zpl_async_read_pool_destroy(zfsvfs);
 
 	if (!unmounting) {
 		/*
