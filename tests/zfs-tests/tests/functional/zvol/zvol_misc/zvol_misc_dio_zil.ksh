@@ -113,7 +113,7 @@ function test_dio_sync_export_import
 	    conv=fsync
 
 	# Export and re-import the pool (simulates clean shutdown)
-	log_must zpool export $TESTPOOL
+	log_must_busy zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
 
 	block_device_wait $zvolpath
@@ -227,7 +227,7 @@ function test_dio_sync_always
 	    conv=fsync
 
 	# Export/import
-	log_must zpool export $TESTPOOL
+	log_must_busy zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
 
 	block_device_wait $zvolpath

@@ -350,7 +350,7 @@ function test_dio_export_import_coherency
 	    conv=fsync 2>/dev/null
 
 	# Export and re-import the pool
-	log_must zpool export $TESTPOOL
+	log_must_busy zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
 	block_device_wait $zvolpath
 
