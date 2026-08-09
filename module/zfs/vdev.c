@@ -2441,6 +2441,47 @@ vdev_open(vdev_t *vd)
 	return (0);
 }
 
+/*
+ * Note whether the labels at the end of the device describe a different pool
+ * than the ones at its head, which is what a vdev grown over the remains of
+ * an older pool is left with until the next sync rewrites them.  The head
+ * labels are the ones to believe: their offsets are fixed, while the trailing
+ * pair moves with the size of the device.
+ *
+ * The trailing labels are read without a txg bound: which pool a label names
+ * does not depend on how recent it is, and a leftover one is quite likely to
+ * be from beyond our own txg.
+ */
+static void
+vdev_check_tail_labels(vdev_t *vd, nvlist_t *head)
+{
+	nvlist_t *tail;
+	uint64_t head_guid, tail_guid;
+
+	vd->vdev_tail_labels_foreign = B_FALSE;
+
+	/* A distributed spare's label is generated, not read off a disk. */
+	if (vd->vdev_ops == &vdev_draid_spare_ops)
+		return;
+
+	if (nvlist_lookup_uint64(head, ZPOOL_CONFIG_POOL_GUID, &head_guid) != 0)
+		return;
+
+	tail = vdev_label_read_config(vd, UINT64_MAX, VDEV_LABELS_TAIL);
+	if (tail == NULL)
+		return;
+
+	if (nvlist_lookup_uint64(tail, ZPOOL_CONFIG_POOL_GUID,
+	    &tail_guid) == 0 && tail_guid != head_guid) {
+		vd->vdev_tail_labels_foreign = B_TRUE;
+		vdev_dbgmsg(vd, "labels 2 and 3 belong to pool_guid %llu, not "
+		    "%llu; ignoring them until they are rewritten",
+		    (u_longlong_t)tail_guid, (u_longlong_t)head_guid);
+	}
+
+	nvlist_free(tail);
+}
+
 static void
 vdev_validate_child(void *arg)
 {
@@ -2523,7 +2564,27 @@ vdev_validate(vdev_t *vd)
 	else
 		txg = spa_last_synced_txg(spa);
 
-	if ((label = vdev_label_read_config(vd, txg)) == NULL) {
+	/*
+	 * Labels 2 and 3 live at offsets relative to the end of the device, so
+	 * growing one moves them onto space this pool has never written: what
+	 * is found there belongs to whatever used the device before us, as
+	 * vdev_copy_uberblocks() already notes for the uberblock rings.  Such
+	 * a leftover label is perfectly well formed and routinely carries a
+	 * higher txg than our own, which is all vdev_label_read_config() ranks
+	 * labels on, so it wins and the vdev is failed for belonging to a
+	 * foreign pool.  Every label states the same identity, so read it from
+	 * the two whose position does not depend on the size of the device,
+	 * and fall back to the trailing pair only if those cannot be read.
+	 */
+	label = vdev_label_read_config(vd, txg, VDEV_LABELS_HEAD);
+	if (label != NULL) {
+		vdev_check_tail_labels(vd, label);
+	} else {
+		vd->vdev_tail_labels_foreign = B_FALSE;
+		label = vdev_label_read_config(vd, txg, VDEV_LABELS_TAIL);
+	}
+
+	if (label == NULL) {
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_BAD_LABEL);
 		vdev_dbgmsg(vd, "vdev_validate: failed reading config for "
@@ -4151,7 +4212,8 @@ vdev_validate_aux(vdev_t *vd)
 	if (!vdev_readable(vd))
 		return (0);
 
-	if ((label = vdev_label_read_config(vd, -1ULL)) == NULL) {
+	if ((label = vdev_label_read_config(vd, -1ULL,
+	    VDEV_LABELS_ALL)) == NULL) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_CORRUPT_DATA);
 		return (-1);
