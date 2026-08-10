@@ -212,6 +212,47 @@ zalgo_rele(void *nodep)
 	VERIFY3U(atomic_dec_64_nv(&node->zgn_refcount), >, 0);
 }
 
+/*
+ * XXX FreeBSD sys/amd64/include/atomic.h aliases atomic_*_ptr to
+ *     atomic_*_long, which has u_long types, not void*, which trips
+ *     -Wincompatible-pointer-types. hacking around it for now
+ *       -- robn, 2026-08-13
+ */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+#define zg_atomic_swap_ptr(target, newval) \
+	(void *)(uintptr_t)(atomic_swap_ptr((volatile void *)(target), (uintptr_t)(void *)newval))
+#else
+#define zg_atomic_swap_ptr atomic_swap_ptr
+#endif
+
+static int
+zalgo_select(zalgo_type_t type, uint_t subtype, const char *id)
+{
+	ASSERT3U(type, <, ZG_TYPE_MAX);
+	ASSERT3U(subtype, <, zalgo_subtype_max[type]);
+
+	zalgo_registry_t *reg = &zg_registry[type][subtype];
+
+	mutex_enter(&zg_registry_lock);
+	for (zalgo_node_t *node = list_head(&reg->zr_nodes); node != NULL;
+	    node = list_next(&reg->zr_nodes, node)) {
+		if (strcmp(node->zgn_id, id) == 0) {
+			atomic_inc_64(&node->zgn_refcount);
+			mutex_exit(&zg_registry_lock);
+			cmn_err(CE_NOTE, "zalgo: selected '%s' (%s) for %s:%s",
+			    node->zgn_id, node->zgn_desc,
+			    zalgo_type_to_str(type),
+			    zalgo_subtype_to_str(type, subtype));
+			node = zg_atomic_swap_ptr(&reg->zr_current, node);
+			VERIFY3U(atomic_dec_64_nv(&node->zgn_refcount), >, 0);
+			return (0);
+		}
+	}
+	mutex_exit(&zg_registry_lock);
+
+	return (ENOENT);
+}
+
 void
 zalgo_init(void)
 {
@@ -272,6 +313,12 @@ void									\
 zalgo_##ty##_rele(zalgo_##ty##_hold_t *hold)				\
 {									\
 	return (zalgo_rele(hold));					\
+}									\
+									\
+int									\
+zalgo_##ty##_select(zalgo_##ty##_subtype_t subtype, const char *id)	\
+{									\
+	return (zalgo_select(ZG_##en, subtype, id));			\
 }									\
 
 ZALGO_DEFINE_API(dummy, DUMMY)
