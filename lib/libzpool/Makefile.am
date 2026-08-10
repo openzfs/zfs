@@ -215,6 +215,7 @@ nodist_libzpool_la_SOURCES += \
 
 libzpool_la_LIBADD = \
 	libzalgo.la \
+	libzalgo_shim_fletcher.la \
 	libzalgo_shim_icp.la \
 	libzalgo_shim_openssl.la \
 	libicp.la \

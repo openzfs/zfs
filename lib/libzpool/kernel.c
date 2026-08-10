@@ -421,6 +421,7 @@ kernel_init(int mode)
 	zalgo_init();
 	zalgo_shim_icp_register();
 	zalgo_shim_openssl_register();
+	zalgo_shim_fletcher_register();
 
 	zstd_init();
 

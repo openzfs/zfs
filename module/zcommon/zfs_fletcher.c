@@ -143,7 +143,7 @@ static void fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx,
     const void *buf, uint64_t size);
 static boolean_t fletcher_4_scalar_valid(void);
 
-static const fletcher_4_ops_t fletcher_4_scalar_ops = {
+const fletcher_4_ops_t fletcher_4_scalar_ops = {
 	.init_native = fletcher_4_scalar_init,
 	.fini_native = fletcher_4_scalar_fini,
 	.compute_native = fletcher_4_scalar_native,
