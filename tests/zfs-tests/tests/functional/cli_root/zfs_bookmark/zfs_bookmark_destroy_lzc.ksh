@@ -15,12 +15,13 @@
 
 #
 # DESCRIPTION:
-# lzc_destroy_bookmarks() destroys case-insensitive aliases exactly once.
+# Both destroy-bookmarks ioctls destroy case-insensitive aliases exactly once.
 #
 # STRATEGY:
 # - Create case-sensitive and case-insensitive filesystems.
 # - Destroy two distinct bookmarks from the case-sensitive filesystem.
 # - Pass two aliases of one case-insensitive bookmark in a single request.
+# - Repeat the case-insensitive request through the v2 capability ioctl.
 # - Verify each logical bookmark was destroyed exactly once.
 #
 
@@ -58,6 +59,10 @@ bookmark_must_not_exist "$SENSITIVE#MiXeD"
 
 log_must zfs bookmark "$INSENSITIVE@source" "$INSENSITIVE#MiXeD"
 log_must lzc_destroy_bookmarks "$INSENSITIVE#mixed" "$INSENSITIVE#MIXED"
+bookmark_must_not_exist "$INSENSITIVE#MiXeD"
+
+log_must zfs bookmark "$INSENSITIVE@source" "$INSENSITIVE#MiXeD"
+log_must lzc_destroy_bookmarks -2 "$INSENSITIVE#mixed" "$INSENSITIVE#MIXED"
 bookmark_must_not_exist "$INSENSITIVE#MiXeD"
 
 log_pass "lzc_destroy_bookmarks handles case-insensitive aliases"
