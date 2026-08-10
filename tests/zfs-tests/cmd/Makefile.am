@@ -85,6 +85,10 @@ if WANT_MMAP_LIBAIO
 scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
 %C%_mmap_libaio_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
 %C%_mmap_libaio_LDADD  = $(LIBAIO_LIBS)
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/aio_dio_readv
+%C%_aio_dio_readv_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
+%C%_aio_dio_readv_LDADD  = $(LIBAIO_LIBS)
 endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/zcp_support
