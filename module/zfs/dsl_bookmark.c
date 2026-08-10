@@ -1089,6 +1089,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *held_ds = NULL;
 	boolean_t syncing = dmu_tx_is_syncing(tx);
 	int rv = 0;
 
@@ -1132,7 +1133,13 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			}
 			error = dsl_bookmark_lookup_impl(ds, shortname, &bm,
 			    realname, realname_len);
-			dsl_dataset_rele(ds, FTAG);
+			if (held_ds == ds) {
+				dsl_dataset_rele(ds, FTAG);
+			} else {
+				if (held_ds != NULL)
+					dsl_dataset_rele(held_ds, FTAG);
+				held_ds = ds;
+			}
 			if (error == ESRCH) {
 				/*
 				 * ignore it; the bookmark is
@@ -1163,6 +1170,8 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			rv = error;
 		}
 	}
+	if (held_ds != NULL)
+		dsl_dataset_rele(held_ds, FTAG);
 	return (rv);
 }
 
@@ -1172,6 +1181,7 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
+	dsl_dataset_t *held_ds = NULL;
 
 	for (nvpair_t *pair = nvlist_next_nvpair(dbda->dbda_success, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbda->dbda_success, pair)) {
@@ -1200,8 +1210,16 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 		spa_history_log_internal_ds(ds, "remove bookmark", tx,
 		    "name=%s", shortname);
 
-		dsl_dataset_rele(ds, FTAG);
+		if (held_ds == ds) {
+			dsl_dataset_rele(ds, FTAG);
+		} else {
+			if (held_ds != NULL)
+				dsl_dataset_rele(held_ds, FTAG);
+			held_ds = ds;
+		}
 	}
+	if (held_ds != NULL)
+		dsl_dataset_rele(held_ds, FTAG);
 }
 
 /*
