@@ -47,7 +47,8 @@ set -A ENCRYPTION_ALGS "encryption=on" \
 	"encryption=aes-256-ccm" \
 	"encryption=aes-128-gcm" \
 	"encryption=aes-192-gcm" \
-	"encryption=aes-256-gcm"
+	"encryption=aes-256-gcm" \
+	"encryption=chacha20-poly1305"
 
 set -A ENCRYPTION_PROPS "encryption=aes-256-gcm" \
 	"encryption=aes-128-ccm" \
@@ -55,7 +56,8 @@ set -A ENCRYPTION_PROPS "encryption=aes-256-gcm" \
 	"encryption=aes-256-ccm" \
 	"encryption=aes-128-gcm" \
 	"encryption=aes-192-gcm" \
-	"encryption=aes-256-gcm"
+	"encryption=aes-256-gcm" \
+	"encryption=chacha20-poly1305"
 
 set -A KEYFORMATS "keyformat=raw" \
 	"keyformat=hex" \

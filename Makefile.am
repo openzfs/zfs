@@ -139,6 +139,8 @@ cstyle:
 		! -path './module/lua/l*.[ch]' \
 		! -path './module/zfs/lz4.c' \
 		! -path './tests/unit/munit.[ch]' \
+		! -path './module/icp/include/monocypher.h' \
+		! -path './module/icp/monocypher.c' \
 		$(cstyle_line)
 
 filter_executable = -exec test -x '{}' \; -print

@@ -85,6 +85,7 @@ typedef uint32_t crypto_keysize_unit_t;
 #define	SUN_CKM_SHA512_HMAC		"CKM_SHA512_HMAC"
 #define	SUN_CKM_AES_CCM			"CKM_AES_CCM"
 #define	SUN_CKM_AES_GCM			"CKM_AES_GCM"
+#define	SUN_CKM_CHACHA20_POLY1305	"CKM_CHACHA20_POLY1305"
 
 /* Data arguments of cryptographic operations */
 

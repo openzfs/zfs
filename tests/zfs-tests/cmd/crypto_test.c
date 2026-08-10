@@ -58,6 +58,7 @@ typedef enum {
 	ALG_NONE,
 	ALG_AES_GCM,
 	ALG_AES_CCM,
+	ALG_CHACHA20_POLY1305,
 } crypto_test_alg_t;
 
 /*
@@ -320,6 +321,8 @@ load_tests(const char *filepath, crypto_test_alg_t *algp)
 					alg = ALG_AES_GCM;
 				else if (strcmp(v, "AES-CCM") == 0)
 					alg = ALG_AES_CCM;
+				else if (strcmp(v, "CHACHA20-POLY1305") == 0)
+					alg = ALG_CHACHA20_POLY1305;
 				else {
 					fprintf(stderr,
 					    "E: unknown algorithm [%s:%d]: "
@@ -586,6 +589,18 @@ foreach_aes_gcm(alg_cb_t cb, void *arg, crypto_test_outmode_t outmode)
 	}
 }
 
+/* loop over each CHACHA20-POLY1305 implementation */
+static void
+foreach_chacha20_poly1305(alg_cb_t cb, void *arg, crypto_test_outmode_t outmode)
+{
+	(void) outmode;
+
+	/* ICP currently only has one CHACHA20-POLY1305 implementation */
+	const char alginfo[] = "CHACHA20-POLY1305 [generic]";
+	cb(alginfo, arg);
+}
+
+
 /* ========== */
 
 /* ICP lowlevel drivers */
@@ -633,6 +648,23 @@ init_mech(crypto_mechanism_t *mech, crypto_test_alg_t alg,
 		 * even if the buffer isn't that big.
 		 */
 		p->ulDataSize = msglen + (decrypt ? taglen : 0);
+		break;
+	}
+	case ALG_CHACHA20_POLY1305: {
+		/*
+		 * ICP reuses CK_AES_GCM_PARAMS for CHACHA20-POLY1305 rather
+		 * than define it's own paramater structure with exactly
+		 * the same information.
+		 */
+		mech->cm_type = crypto_mech2id(SUN_CKM_CHACHA20_POLY1305);
+		mech->cm_param_len = sizeof (CK_AES_GCM_PARAMS);
+		CK_AES_GCM_PARAMS *p = (CK_AES_GCM_PARAMS *)mech->cm_param;
+		p->pIv = (uchar_t *)iv;
+		p->ulIvLen = ivlen;
+		p->ulIvBits = ivlen << 3;
+		p->pAAD = aad;
+		p->ulAADLen = aadlen;
+		p->ulTagBits = taglen << 3;
 		break;
 	}
 	default:
@@ -1033,6 +1065,9 @@ runtests_main(const char *filename, crypto_test_outmode_t outmode)
 	case ALG_AES_GCM:
 		foreach_aes_gcm(run_test_alg_cb, &args, outmode);
 		break;
+	case ALG_CHACHA20_POLY1305:
+		foreach_chacha20_poly1305(run_test_alg_cb, &args, outmode);
+		break;
 	default:
 		abort();
 	}
@@ -1143,6 +1178,8 @@ perf_main(const char *algname, crypto_test_outmode_t outmode)
 		args.alg = ALG_AES_CCM;
 	else if (strcmp(algname, "AES-GCM") == 0)
 		args.alg = ALG_AES_GCM;
+	else if (strcmp(algname, "CHACHA20-POLY1305") == 0)
+		args.alg = ALG_CHACHA20_POLY1305;
 	else {
 		fprintf(stderr, "E: unknown algorithm: %s\n", algname);
 		return (1);
@@ -1185,6 +1222,9 @@ perf_main(const char *algname, crypto_test_outmode_t outmode)
 		break;
 	case ALG_AES_GCM:
 		foreach_aes_gcm(perf_alg_cb, &args, outmode);
+		break;
+	case ALG_CHACHA20_POLY1305:
+		foreach_chacha20_poly1305(perf_alg_cb, &args, outmode);
 		break;
 	default:
 		abort();
