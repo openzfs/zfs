@@ -414,12 +414,22 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 	if (DS_IS_DEFER_DESTROY(ds) &&
 	    dsl_dataset_phys(ds)->ds_num_children == 1 &&
 	    ds->ds_userrefs == numholds) {
-		/* we need to destroy the snapshot as well */
-		if (dsl_dataset_long_held(ds)) {
+		/*
+		 * We need to destroy the snapshot as well, unless something
+		 * else is still holding it open.  An owner - a mount, or an
+		 * open snapshot zvol - ends at dsl_dataset_disown(), which
+		 * asks for the sweep that finishes the job, so the release
+		 * can go through and leave the mark where it is rather than
+		 * hand the caller a hold they cannot get rid of.  Every other
+		 * long hold has no such hook, and failing the release is what
+		 * gets the snapshot destroyed on the next try.
+		 */
+		if (!dsl_dataset_long_held(ds)) {
+			fnvlist_add_boolean(ddura->ddura_todelete, snapname);
+		} else if (!dsl_dataset_has_owner(ds)) {
 			fnvlist_free(holds_found);
 			return (SET_ERROR(EBUSY));
 		}
-		fnvlist_add_boolean(ddura->ddura_todelete, snapname);
 	}
 
 	if (numholds != 0) {
