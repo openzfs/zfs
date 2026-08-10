@@ -339,6 +339,7 @@ openzfs_init(void)
 
 	zalgo_init();
 	zalgo_shim_icp_register();
+	zalgo_shim_fletcher_register();
 
 	if ((err = zstd_init()) != 0)
 		goto zstd_failed;
