@@ -454,8 +454,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 
 	/*
 	 * The iov_iter passed by libaio lives on the io_submit() stack; copy
-	 * it by value and point the uio at our copy.  The backing iovec array
-	 * is kept valid by the aio/io_uring request until ki_complete().
+	 * it by value and point the uio at our copy.
 	 */
 	aio->iter = *to;
 	zfs_uio_iov_iter_init(&aio->uio, &aio->iter, kiocb->ki_pos, count);
