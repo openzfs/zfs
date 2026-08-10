@@ -1025,14 +1025,28 @@ dsl_dataset_rele_flags(dsl_dataset_t *ds, ds_hold_flags_t flags,
 void
 dsl_dataset_disown(dsl_dataset_t *ds, ds_hold_flags_t flags, const void *tag)
 {
+	spa_t *spa = NULL;
+
 	ASSERT3P(ds->ds_owner, ==, tag);
 	ASSERT(ds->ds_dbuf != NULL);
+
+	/*
+	 * A snapshot marked for deferred destruction while it was mounted can
+	 * be destroyed once the mount is gone.  The request has to go in after
+	 * the hold is dropped, or the sweep would find the snapshot still held
+	 * and leave it, so remember the pool while the dataset is still here.
+	 */
+	if (ds->ds_is_snapshot && DS_IS_DEFER_DESTROY(ds))
+		spa = dsl_dataset_get_spa(ds);
 
 	mutex_enter(&ds->ds_lock);
 	ds->ds_owner = NULL;
 	mutex_exit(&ds->ds_lock);
 	dsl_dataset_long_rele(ds, tag);
 	dsl_dataset_rele_flags(ds, flags, tag);
+
+	if (spa != NULL)
+		spa_async_request(spa, SPA_ASYNC_DEFER_DESTROY);
 }
 
 boolean_t
