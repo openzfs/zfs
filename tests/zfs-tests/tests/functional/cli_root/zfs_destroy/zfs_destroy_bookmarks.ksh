@@ -173,6 +173,33 @@ bookmark_must_not_exist "$VOL#vol2"
 log_must zfs destroy -r "$VOL#vol3"
 bookmark_must_not_exist "$VOL#vol3"
 
+# Debug builds can simulate a newer userland with an older kernel before the
+# ioctl is issued.  Confirm new-style requests fail without falling back to the
+# legacy ioctl.  Production builds ignore ZFS_IOC_TEST and skip this subtest.
+typeset legacy_destroy_ioc=69
+typeset destroy_v2_ioc=91
+if is_linux; then
+	legacy_destroy_ioc=0x5a45
+	destroy_v2_ioc=0x5a5b
+fi
+log_must zfs bookmark "$ROOT@source" "$ROOT#ioc_probe"
+if env ZFS_IOC_TEST="$legacy_destroy_ioc:1029" \
+    lzc_destroy_bookmarks "$ROOT#ioc_probe" >/dev/null 2>&1; then
+	bookmark_must_not_exist "$ROOT#ioc_probe"
+else
+	bookmark_must_exist "$ROOT#ioc_probe"
+	log_must zfs destroy "$ROOT#ioc_probe"
+	log_must zfs bookmark "$ROOT@source" "$ROOT#no_fallback"
+	typeset ioc_error="$TEST_BASE_DIR/zfs_destroy_bookmarks_ioc.$$"
+	log_mustnot eval "env ZFS_IOC_TEST=$destroy_v2_ioc:1029 zfs destroy \
+	    $ROOT#no_fallback,missing >$ioc_error 2>&1"
+	log_must grep -q "loaded zfs module does not support this operation" \
+	    "$ioc_error"
+	log_must rm -f "$ioc_error"
+	bookmark_must_exist "$ROOT#no_fallback"
+	log_must zfs destroy "$ROOT#no_fallback"
+fi
+
 # New-style batch and recursive requests omit each qualified bookmark name that
 # reaches the full-name limit and therefore cannot exist.
 (( ${#ROOT} + 1 + ${#IMPOSSIBLE_NAME} == ZFS_MAX_DATASET_NAME_LEN )) ||

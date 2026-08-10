@@ -1714,77 +1714,27 @@ destroy_clones(destroy_cbdata_t *cb)
 	return (0);
 }
 
-static void
-bookmark_name_casefold(const char *name, char *folded)
-{
-	char c;
-
-	/* Matches the bookmark ZAP's U8_TEXTPREP_TOUPPER normalization. */
-	do {
-		c = *name++;
-		if (c >= 'a' && c <= 'z')
-			c -= 'a' - 'A';
-		*folded++ = c;
-	} while (c != '\0');
-}
-
 typedef struct destroy_bookmark_cbdata {
 	nvlist_t *dbcb_names;
-	nvlist_t *dbcb_folded_names;
 	nvlist_t *dbcb_targets;
 	boolean_t dbcb_recurse;
 } destroy_bookmark_cbdata_t;
 
 /*
  * Gather fully qualified bookmark targets for this dataset and, if requested,
- * its descendants. The legacy destroy ioctl needs stored spellings on
- * case-insensitive datasets to prevent a kernel panic in
- * dsl_bookmark_destroy_sync_impl() when a requested name is a case-folding
- * alias rather than the bookmark's stored name. Alias resolution therefore
- * lists bookmarks, compares them with requested names, and adds matching stored
- * names to the batched destroy request so the legacy ioctl receives each actual
- * bookmark exactly once. On case-sensitive datasets, the requested spelling
- * identifies only that bookmark, so the callback skips the (slow) listing and
- * constructs each target directly as <dataset>#<requested-name>, which is
- * faster. Qualified names that are too long are omitted because those bookmarks
- * cannot exist.
+ * its descendants. Qualified names that are too long are omitted because
+ * those bookmarks cannot meaningfully exist.
  */
 static int
 gather_bookmark_targets(zfs_handle_t *zhp, void *arg)
 {
 	destroy_bookmark_cbdata_t *cb = arg;
 	const char *dataset = zfs_get_name(zhp);
-	nvlist_t *bookmarks = NULL;
-	boolean_t insensitive = zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM &&
-	    zfs_prop_get_int(zhp, ZFS_PROP_CASE) == ZFS_CASE_INSENSITIVE;
 	int err = 0;
 
-	if (insensitive) {
-		/*
-		 * Resolve aliases to the exact stored spelling required by
-		 * destroy.
-		 */
-		nvlist_t *props = fnvlist_alloc();
-
-		err = lzc_get_bookmarks(dataset, props, &bookmarks);
-		fnvlist_free(props);
-		if (err != 0)
-			goto out;
-	}
-
-	nvlist_t *names = insensitive ? bookmarks : cb->dbcb_names;
-	for (nvpair_t *pair = nvlist_next_nvpair(names, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(names, pair)) {
+	for (nvpair_t *pair = nvlist_next_nvpair(cb->dbcb_names, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(cb->dbcb_names, pair)) {
 		const char *name = nvpair_name(pair);
-
-		if (insensitive) {
-			char folded[ZFS_MAX_DATASET_NAME_LEN];
-			bookmark_name_casefold(name, folded);
-			/* Don't delete unrelated existing bookmark. */
-			if (!fnvlist_lookup_boolean(cb->dbcb_folded_names,
-			    folded))
-				continue;
-		}
 
 		char bookmark[ZFS_MAX_DATASET_NAME_LEN];
 		int len = snprintf(bookmark, sizeof (bookmark), "%s#%s",
@@ -1793,16 +1743,12 @@ gather_bookmark_targets(zfs_handle_t *zhp, void *arg)
 			continue;
 		fnvlist_add_boolean(cb->dbcb_targets, bookmark);
 	}
-	fnvlist_free(bookmarks);
-	bookmarks = NULL;
 
 	if (cb->dbcb_recurse) {
 		err = zfs_iter_filesystems_v2(zhp, ZFS_ITER_SIMPLE,
 		    gather_bookmark_targets, cb);
 	}
 
-out:
-	fnvlist_free(bookmarks);
 	zfs_close(zhp);
 	return (err);
 }
@@ -1982,11 +1928,9 @@ zfs_do_destroy(int argc, char **argv)
 
 		destroy_bookmark_cbdata_t bookmark_cb = { 0 };
 		nvlist_t *names = fnvlist_alloc();
-		nvlist_t *folded_names = fnvlist_alloc();
 		nvlist_t *targets = fnvlist_alloc();
 		char *spec = pound + 1;
 		char *name;
-		char folded[ZFS_MAX_DATASET_NAME_LEN];
 
 		*pound = '\0';
 		while ((name = strsep(&spec, ",")) != NULL) {
@@ -1996,26 +1940,21 @@ zfs_do_destroy(int argc, char **argv)
 				    gettext("invalid bookmark name "
 				    "'%s'\n"), name);
 				fnvlist_free(targets);
-				fnvlist_free(folded_names);
 				fnvlist_free(names);
 				return (1);
 			}
 			fnvlist_add_boolean(names, name);
-			bookmark_name_casefold(name, folded);
-			fnvlist_add_boolean(folded_names, folded);
 		}
 
 		zhp = zfs_open(g_zfs, argv[0],
 		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME);
 		if (zhp == NULL) {
 			fnvlist_free(targets);
-			fnvlist_free(folded_names);
 			fnvlist_free(names);
 			return (1);
 		}
 
 		bookmark_cb.dbcb_names = names;
-		bookmark_cb.dbcb_folded_names = folded_names;
 		bookmark_cb.dbcb_targets = targets;
 		bookmark_cb.dbcb_recurse = cb.cb_recurse;
 		err = gather_bookmark_targets(zhp, &bookmark_cb);
@@ -2023,7 +1962,7 @@ zfs_do_destroy(int argc, char **argv)
 		if (err == 0) {
 			nvlist_t *errlist = NULL;
 
-			err = lzc_destroy_bookmarks(targets, &errlist);
+			err = lzc_destroy_bookmarks2(targets, &errlist);
 			if (err != 0) {
 				if (errlist == NULL || nvlist_empty(errlist)) {
 					(void) zfs_standard_error(g_zfs, err,
@@ -2050,7 +1989,6 @@ zfs_do_destroy(int argc, char **argv)
 		}
 
 		fnvlist_free(targets);
-		fnvlist_free(folded_names);
 		fnvlist_free(names);
 		return (err != 0);
 	} else {
