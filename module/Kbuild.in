@@ -262,6 +262,7 @@ zfs-$(CONFIG_ARM64) += $(addprefix zcommon/,$(ZCOMMON_OBJS_ARM64))
 
 ZALGO_OBJS := \
 	zalgo.o \
+	zalgo_shim_fletcher.o \
 	zalgo_shim_icp.o
 
 zfs-objs            += $(addprefix zalgo/,$(ZALGO_OBJS))
