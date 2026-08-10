@@ -1837,6 +1837,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mount/cleanup.ksh \
 	functional/mount/setup.ksh \
 	functional/mount/mount_loopback.ksh \
+	functional/mount/mount_null_source.ksh \
 	functional/mount/umount_001.ksh \
 	functional/mount/umountall_001.ksh \
 	functional/mount/umount_unlinked_drain.ksh \

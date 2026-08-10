@@ -844,6 +844,9 @@ zpl_get_tree(struct fs_context *fc)
 	boolean_t issnap = B_FALSE;
 	int err;
 
+	if (fc->source == NULL)
+		return (-SET_ERROR(EINVAL));
+
 	err = dmu_objset_hold(fc->source, FTAG, &os);
 	if (err)
 		return (-err);
