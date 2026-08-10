@@ -24,6 +24,7 @@
 # - Verify case-sensitive names stay distinct and aliases are deduplicated.
 # - Verify filesystems and volumes.
 # - Verify impossible overlong targets are omitted from new-style requests.
+# - Verify a large recursive target product is accepted.
 # - Verify unsupported options, malformed specifications, and cross-dataset
 #   specifications destroy nothing.
 #
@@ -39,12 +40,18 @@ typeset VOL="$ROOT/vol"
 typeset OUTSIDE="${ROOT}_outside"
 typeset REDACT_SOURCE="$ROOT/redact_source"
 typeset REDACT_CLONE="$ROOT/redact_clone"
+typeset OVERFLOW_ROOT="$TESTPOOL2/${TESTFS1}_bookmark_destroy_overflow"
+typeset OVERFLOW_VDEV="$TEST_BASE_DIR/zfs_destroy_bookmarks_overflow.$$"
 typeset REDACT_ERROR="$TEST_BASE_DIR/zfs_destroy_bookmarks_redact_error.$$"
 typeset REDACT_SEND_PID=
 typeset -a DESCENDANTS=("$CHILD" "$GRANDCHILD" "$INSENSITIVE" "$VOL")
 typeset -r ZFS_MAX_DATASET_NAME_LEN=256
 typeset -r BATCH_LENGTH_NAME=length_batch
 typeset -r RECURSIVE_LENGTH_NAME=length_recursive
+typeset -r SYNC_TASK_SAFE_TARGETS=43690
+typeset -r OVERFLOW_DATASET_COUNT=4
+typeset -r OVERFLOW_NAME_COUNT=$((SYNC_TASK_SAFE_TARGETS / \
+	OVERFLOW_DATASET_COUNT + 1))
 typeset -r IMPOSSIBLE_NAME=$(gen_dataset_name \
 	$((ZFS_MAX_DATASET_NAME_LEN - ${#ROOT} - 1)) x)
 typeset -r OVERLONG_CHILD="$ROOT/$(gen_dataset_name \
@@ -60,6 +67,8 @@ function cleanup
 	fi
 	datasetexists "$ROOT" && destroy_dataset "$ROOT" "-r"
 	datasetexists "$OUTSIDE" && destroy_dataset "$OUTSIDE" "-r"
+	poolexists "$TESTPOOL2" && destroy_pool "$TESTPOOL2"
+	[[ -e "$OVERFLOW_VDEV" ]] && log_must rm -f "$OVERFLOW_VDEV"
 	[[ -e "$REDACT_ERROR" ]] && log_must rm -f "$REDACT_ERROR"
 }
 
@@ -181,6 +190,27 @@ log_must zfs create "$OVERLONG_CHILD"
 log_must zfs bookmark "$ROOT@source" "$ROOT#$RECURSIVE_LENGTH_NAME"
 log_must zfs destroy -r "$ROOT#$RECURSIVE_LENGTH_NAME"
 bookmark_must_not_exist "$ROOT#$RECURSIVE_LENGTH_NAME"
+
+# Recursive expansion can submit more targets than the sync-task MOS
+# reservation can represent in a signed int.  Missing bookmarks are sufficient
+# because they are submitted to the same kernel path and are successful no-ops.
+log_must truncate -s 4G "$OVERFLOW_VDEV"
+log_must zpool create "$TESTPOOL2" "$OVERFLOW_VDEV"
+log_must zfs create "$OVERFLOW_ROOT"
+for child in one two three; do
+	log_must zfs create "$OVERFLOW_ROOT/$child"
+done
+typeset overflow_names
+overflow_names=$(awk -v count="$OVERFLOW_NAME_COUNT" 'BEGIN {
+	for (i = 0; i < count; i++)
+		printf "%sb%d", (i == 0 ? "" : ","), i
+}')
+(( OVERFLOW_DATASET_COUNT * OVERFLOW_NAME_COUNT > \
+	SYNC_TASK_SAFE_TARGETS )) || log_fail "Target count is below boundary"
+log_must zfs destroy -r "$OVERFLOW_ROOT#$overflow_names"
+log_must zfs destroy -r "$OVERFLOW_ROOT"
+log_must destroy_pool "$TESTPOOL2"
+log_must rm -f "$OVERFLOW_VDEV"
 
 # Unsupported, invalid, and cross-dataset forms fail before destroying any
 # bookmark.
