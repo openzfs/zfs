@@ -252,8 +252,19 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 		goto out;
 	}
 
+#if defined(__linux__)
+	/*
+	 * The Linux async read path may already checked alignment and do the
+	 * pin, have to skip zfs_uio_page_aligned in async context, unless
+	 * a use-after-free inside.
+	 */
+	if (!(rw == UIO_READ && uio->uio_dio.pages != NULL) &&
+	    (!zfs_uio_page_aligned(uio) ||
+	    !zfs_uio_aligned(uio, PAGE_SIZE))) {
+#else
 	if (!zfs_uio_page_aligned(uio) ||
 	    !zfs_uio_aligned(uio, PAGE_SIZE)) {
+#endif
 		/*
 		 * Misaligned requests can be executed through the ARC as
 		 * uncached I/O.  But if O_DIRECT was set by user and we
