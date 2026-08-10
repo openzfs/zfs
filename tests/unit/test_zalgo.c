@@ -80,6 +80,51 @@ test_zalgo_hold(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+static MunitResult
+test_zalgo_select(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	const zalgo_dummy_ops_t ops1 = (void *)(uintptr_t)42;
+	const zalgo_dummy_ops_t ops2 = (void *)(uintptr_t)84;
+
+	/* register two for subtype 0 */
+	unit_ok(zalgo_dummy_register(ZG_DUMMY_0,
+	    "ops1", "test dummy ops #1", &ops1));
+	unit_ok(zalgo_dummy_register(ZG_DUMMY_0,
+	    "ops2", "test dummy ops #2", &ops2));
+
+	/* can't select an id that hasn't been registered */
+	unit_err(zalgo_dummy_select(ZG_DUMMY_0, "opsX"), ENOENT);
+
+	zalgo_dummy_hold_t *hold;
+
+	/* selecting an id then hold yields those ops */
+	unit_ok(zalgo_dummy_select(ZG_DUMMY_0, "ops1"));
+	hold = zalgo_dummy_hold(ZG_DUMMY_0);
+	unit_ptr_eq(zalgo_dummy_ops(hold), &ops1);
+	zalgo_dummy_rele(hold);
+
+	/* same, for different id */
+	unit_ok(zalgo_dummy_select(ZG_DUMMY_0, "ops2"));
+	hold = zalgo_dummy_hold(ZG_DUMMY_0);
+	unit_ptr_eq(zalgo_dummy_ops(hold), &ops2);
+	zalgo_dummy_rele(hold);
+
+	/* next hold continues to get the selected id */
+	hold = zalgo_dummy_hold(ZG_DUMMY_0);
+	unit_ptr_eq(zalgo_dummy_ops(hold), &ops2);
+	zalgo_dummy_rele(hold);
+
+	/* selecting the currently selected id is a no-op */
+	unit_ok(zalgo_dummy_select(ZG_DUMMY_0, "ops2"));
+	hold = zalgo_dummy_hold(ZG_DUMMY_0);
+	unit_ptr_eq(zalgo_dummy_ops(hold), &ops2);
+	zalgo_dummy_rele(hold);
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 /* Test suite definition and boilerplate. */
@@ -87,6 +132,9 @@ test_zalgo_hold(const MunitParameter params[], void *data)
 static const MunitTest zalgo_tests[] = {
 	UNIT_TEST("zalgo_register",	test_zalgo_register),
 	UNIT_TEST("zalgo_hold",		test_zalgo_hold),
+
+	UNIT_TEST("zalgo_select",	test_zalgo_select),
+
 	{ 0 },
 };
 
