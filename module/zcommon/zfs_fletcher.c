@@ -132,6 +132,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <zfs_fletcher.h>
+#include <sys/zalgo.h>
 
 #define	FLETCHER_MIN_SIMD_SIZE	64
 
@@ -818,11 +819,23 @@ fletcher_4_fini(void)
 #endif
 }
 
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
 /* ABD adapters */
 
 static void
 abd_fletcher_4_init(zio_abd_checksum_data_t *cdp)
 {
+	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE) {
+		zalgo_checksum_hold_t *hold =
+		    zalgo_checksum_hold(ZG_CHECKSUM_FLETCHER4);
+
+		zalgo_checksum_init(hold, (void **)&cdp->acd_ctx);
+
+		zalgo_checksum_rele(hold);
+
+		return;
+	}
+
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 	cdp->acd_private = (void *) ops;
 
@@ -839,6 +852,17 @@ abd_fletcher_4_init(zio_abd_checksum_data_t *cdp)
 static void
 abd_fletcher_4_fini(zio_abd_checksum_data_t *cdp)
 {
+	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE) {
+		zalgo_checksum_hold_t *hold =
+		    zalgo_checksum_hold(ZG_CHECKSUM_FLETCHER4);
+
+		zalgo_checksum_final(hold, (void **)&cdp->acd_ctx, cdp->acd_zcp);
+
+		zalgo_checksum_rele(hold);
+
+		return;
+	}
+
 	fletcher_4_ops_t *ops = (fletcher_4_ops_t *)cdp->acd_private;
 
 	ASSERT(ops);
@@ -875,10 +899,22 @@ static int
 abd_fletcher_4_iter(void *data, size_t size, void *private)
 {
 	zio_abd_checksum_data_t *cdp = (zio_abd_checksum_data_t *)private;
-	fletcher_4_ctx_t *ctx = cdp->acd_ctx;
-	fletcher_4_ops_t *ops = (fletcher_4_ops_t *)cdp->acd_private;
 	boolean_t native = cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE;
 	uint64_t asize = P2ALIGN_TYPED(size, FLETCHER_MIN_SIMD_SIZE, uint64_t);
+
+	if (native) {
+		zalgo_checksum_hold_t *hold =
+		    zalgo_checksum_hold(ZG_CHECKSUM_FLETCHER4);
+
+		zalgo_checksum_update(hold, (void **)&cdp->acd_ctx, data, asize);
+
+		zalgo_checksum_rele(hold);
+
+		return (0);
+	}
+
+	fletcher_4_ctx_t *ctx = cdp->acd_ctx;
+	fletcher_4_ops_t *ops = (fletcher_4_ops_t *)cdp->acd_private;
 
 	ASSERT(IS_P2ALIGNED(size, sizeof (uint32_t)));
 
@@ -906,6 +942,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 	.acf_fini = abd_fletcher_4_fini,
 	.acf_iter = abd_fletcher_4_iter
 };
+#endif
 
 #if defined(_KERNEL)
 

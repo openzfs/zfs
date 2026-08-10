@@ -123,6 +123,7 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	(void) ctx_template;
+#if 0
 	fletcher_4_ctx_t ctx;
 
 	zio_abd_checksum_data_t acd = {
@@ -132,7 +133,10 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
 	};
 
 	abd_fletcher_4_impl(abd, size, &acd);
-
+#endif
+	zalgo_checksum_hold_t *hold = zalgo_checksum_hold(ZG_CHECKSUM_FLETCHER4);
+	zalgo_checksum_once_abd(hold, abd, size, zcp);
+	zalgo_checksum_rele(hold);
 }
 
 void
