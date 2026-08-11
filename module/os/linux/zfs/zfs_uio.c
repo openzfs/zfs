@@ -249,7 +249,8 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	 * through the user virtual addresses.  The taskq thread has no user
 	 * mm, and the pinned pages are guaranteed resident, so the copy can
 	 * never fault.  The pinned pages are the user's buffer pages, so the
-	 * data lands in the same place.
+	 * data lands in the same place. EOF tail of an ordinary synchronous
+	 * Direct I/O read reaches this branch too which is also ok.
 	 */
 	if (rw == UIO_READ && uio->uio_dio.pages != NULL &&
 	    !(uio->uio_extflg & UIO_DIRECT)) {
