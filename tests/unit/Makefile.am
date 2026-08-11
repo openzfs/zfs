@@ -139,7 +139,8 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_zalgo_CFLAGS = $(AM_CFLAGS)
 
 nodist_%C%_test_zalgo_SOURCES = \
-	module/zalgo/zalgo.c
+	module/zalgo/zalgo.c \
+	module/zalgo/zalgo_bench.c
 
 %C%_test_zalgo_SOURCES = \
 	%D%/test_zalgo.c

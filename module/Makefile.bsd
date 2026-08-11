@@ -237,6 +237,7 @@ SRCS+=	abd_os.c \
 
 #zalgo
 SRCS+=	zalgo.c \
+	zalgo_bench.c \
 	zalgo_shim_fletcher.c
 
 #zcommon
