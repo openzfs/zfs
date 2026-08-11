@@ -257,7 +257,7 @@ typedef struct zpl_async_read_pool {
  * pages are pinned for the whole requested range, so the admission
  * reserves (and later releases) the requested byte count rather than the
  * bytes actually read, which can be smaller (e.g. clamped at EOF).
- * Returns 0 if the request is admitted, EOPNOTSUPP if the pool is at its
+ * Returns 0 if the request is admitted, EOPNOTSUPP if the dataset is at its
  * in-flight limit and the request must fall back to the synchronous path.
  * The admission (reservation) happens before any user pages are pinned, so
  * the amount of pinned memory held by queued requests is bounded by
