@@ -32,6 +32,7 @@ int zalgo_##ty##_register(zalgo_##ty##_subtype_t subtype, const char *id, \
 zalgo_##ty##_hold_t *zalgo_##ty##_hold(zalgo_##ty##_subtype_t subtype);	\
 void zalgo_##ty##_rele(zalgo_##ty##_hold_t *hold);			\
 int zalgo_##ty##_select(zalgo_##ty##_subtype_t subtype, const char *id); \
+uint64_t zalgo_##ty##_bench(zalgo_##ty##_hold_t *hold);			\
 									\
 static inline const zalgo_##ty##_ops_t *				\
 zalgo_##ty##_ops(zalgo_##ty##_hold_t *zh) {				\
@@ -197,6 +198,8 @@ ZALGO_DECLARE_API(cipher)
 
 void zalgo_init(void);
 void zalgo_fini(void);
+
+void zalgo_bench_all(void);
 
 int zalgo_shim_fletcher_register(void);
 int zalgo_shim_icp_register(void);

@@ -5,7 +5,8 @@ libzalgo_la_CFLAGS  = $(AM_CFLAGS) $(KERNEL_CFLAGS) $(LIBRARY_CFLAGS)
 libzalgo_la_CPPFLAGS  = $(AM_CPPFLAGS)
 
 nodist_libzalgo_la_SOURCES = \
-	module/zalgo/zalgo.c
+	module/zalgo/zalgo.c \
+	module/zalgo/zalgo_bench.c
 
 libzalgo_shim_fletcher_la_CFLAGS  = $(libzalgo_la_CFLAGS)
 libzalgo_shim_fletcher_la_CPPFLAGS  = $(libzalgo_la_CPPFLAGS)
