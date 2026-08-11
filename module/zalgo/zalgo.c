@@ -119,6 +119,7 @@ typedef struct {
 	const char	*zgn_id;
 	const char	*zgn_desc;
 	uint_t		zgn_subtype;
+	uint64_t	zgn_score;
 	uint64_t	zgn_refcount;
 	list_node_t	zgn_link;
 } zalgo_node_t;
@@ -259,8 +260,9 @@ zalgo_init(void)
 	for (zalgo_type_t type = 0; type < ZG_TYPE_MAX; type++) {
 		zg_registry[type] = kmem_alloc(sizeof (zalgo_registry_t) *
 		    zalgo_subtype_max[type], KM_SLEEP);
-		for (uint_t i = 0; i < zalgo_subtype_max[type]; i++) {
-			zalgo_registry_t *reg = &zg_registry[type][i];
+		for (uint_t subtype = 0;
+		    subtype < zalgo_subtype_max[type]; subtype++) {
+			zalgo_registry_t *reg = &zg_registry[type][subtype];
 			reg->zr_current = NULL;
 			list_create(&reg->zr_nodes, sizeof (zalgo_node_t),
 			    offsetof(zalgo_node_t, zgn_link));
@@ -273,8 +275,9 @@ void
 zalgo_fini(void)
 {
 	for (zalgo_type_t type = 0; type < ZG_TYPE_MAX; type++) {
-		for (uint_t i = 0; i < zalgo_subtype_max[type]; i++) {
-			zalgo_registry_t *reg = &zg_registry[type][i];
+		for (uint_t subtype = 0;
+		    subtype < zalgo_subtype_max[type]; subtype++) {
+			zalgo_registry_t *reg = &zg_registry[type][subtype];
 			zalgo_node_t *node;
 			while ((node =
 			    list_remove_head(&reg->zr_nodes)) != NULL) {
@@ -326,3 +329,71 @@ ZALGO_DEFINE_API(mac, MAC)
 ZALGO_DEFINE_API(digest, DIGEST)
 ZALGO_DEFINE_API(checksum, CHECKSUM)
 ZALGO_DEFINE_API(cipher, CIPHER)
+
+/* ========== */
+
+typedef uint64_t (*zalgo_bench_fn_t)(zalgo_node_t *node);
+static const zalgo_bench_fn_t zalgo_bench_fn[ZG_TYPE_MAX] = {
+	NULL,
+	NULL,
+	NULL,
+	(zalgo_bench_fn_t)zalgo_checksum_bench,
+	(zalgo_bench_fn_t)zalgo_cipher_bench,
+};
+
+static void
+zalgo_bench(zalgo_type_t type, uint_t subtype)
+{
+	zalgo_bench_fn_t fn = zalgo_bench_fn[type];
+	if (fn == NULL)
+		return;
+
+	zalgo_registry_t *reg = &zg_registry[type][subtype];
+
+	zalgo_node_t *best = NULL;
+
+	mutex_enter(&zg_registry_lock);
+	for (zalgo_node_t *node = list_head(&reg->zr_nodes); node != NULL;
+	    node = list_next(&reg->zr_nodes, node)) {
+		node->zgn_score = fn(node);
+		if (best == NULL || node->zgn_score > best->zgn_score)
+			best = node;
+	}
+	if (best != NULL)
+		atomic_inc_64(&best->zgn_refcount);
+	mutex_exit(&zg_registry_lock);
+
+	if (best == NULL)
+		return;
+
+	reg->zr_best = best;
+	zalgo_node_t *old = zg_atomic_swap_ptr(&reg->zr_current, best);
+	if (old == NULL) {
+		cmn_err(CE_NOTE,
+		    "zalgo: selected '%s' (%s) for %s:%s [best]",
+		    best->zgn_id, best->zgn_desc,
+		    zalgo_type_to_str(type),
+		    zalgo_subtype_to_str(type, subtype));
+	} else if (best != old) {
+		uint64_t ratio = (best->zgn_score << 8) / old->zgn_score;
+		cmn_err(CE_NOTE, "zalgo: selected '%s' (%s) for %s:%s "
+		    "[best] [from '%s', %llu.%03llux]",
+		    best->zgn_id, best->zgn_desc,
+		    zalgo_type_to_str(type),
+		    zalgo_subtype_to_str(type, subtype),
+		    old->zgn_id, (u_longlong_t)(ratio >> 8),
+		    (u_longlong_t)(ratio & ((1 << 8)-1)));
+	}
+
+	if (old != NULL)
+		VERIFY3U(atomic_dec_64_nv(&old->zgn_refcount), >, 0);
+}
+
+void
+zalgo_bench_all(void)
+{
+	for (zalgo_type_t type = 0; type < ZG_TYPE_MAX; type++)
+		for (uint_t subtype = 0;
+		    subtype < zalgo_subtype_max[type]; subtype++)
+			zalgo_bench(type, subtype);
+}
