@@ -680,6 +680,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	mutex_init(&zfsvfs->z_async_dio_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
 	zfsvfs->z_async_dio_inflight = 0;
+	zfsvfs->z_async_dio_draining = B_FALSE;
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
@@ -1230,12 +1231,16 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
-
+	/*
+	 * Stops new submissions, drain, and get writer lock.
+	 */
 	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_draining = B_TRUE;
 	while (zfsvfs->z_async_dio_inflight != 0)
 		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
 	mutex_exit(&zfsvfs->z_async_dio_lock);
+
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
 		/*
@@ -1838,6 +1843,15 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 bail:
 	if (err != 0)
 		zfsvfs->z_unmounted = B_TRUE;
+
+	/*
+	 * The filesystem is usable again, so re-enable asynchronous Direct
+	 * I/O reads.  The teardown write lock is still held, so no new
+	 * submission can observe the flag until it is released below.
+	 */
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_draining = B_FALSE;
+	mutex_exit(&zfsvfs->z_async_dio_lock);
 
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
