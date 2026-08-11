@@ -267,7 +267,8 @@ static int
 zpl_async_read_hold(zfsvfs_t *zfsvfs, size_t count)
 {
 	mutex_enter(&zfsvfs->z_async_dio_lock);
-	if (count > zfs_async_read_max_inflight ||
+	if (zfsvfs->z_async_dio_draining ||
+	    count > zfs_async_read_max_inflight ||
 	    zfsvfs->z_async_dio_inflight >
 	    zfs_async_read_max_inflight - count) {
 		mutex_exit(&zfsvfs->z_async_dio_lock);

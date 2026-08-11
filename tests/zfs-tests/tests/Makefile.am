@@ -498,6 +498,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/async/async_read_002_pos.ksh \
 	functional/async/async_read_003_pos.ksh \
 	functional/async/async_read_004_pos.ksh \
+	functional/async/async_read_005_pos.ksh \
 	functional/async/cleanup.ksh \
 	functional/async/setup.ksh \
 	functional/atime/atime_001_pos.ksh \
