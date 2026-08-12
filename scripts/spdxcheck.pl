@@ -2,8 +2,6 @@
 
 # SPDX-License-Identifier: MIT
 #
-# Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
-#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to
 # deal in the Software without restriction, including without limitation the
@@ -21,6 +19,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
+
+# Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+# Copyright (c) 2026, TrueNAS.
 
 use 5.010;
 use warnings;
@@ -276,6 +277,43 @@ my %override_file_license_tags = (
 	)],
 );
 
+# License boilerplate. Files that match the SPDX tag must include the exact
+# boilerplate text somewhere in their comments.
+#
+# Tags not listed here have no particular boilerplate requirements, and are
+# not checked.
+my %boilerplate = (
+	'CDDL-1.0' => <<END_CDDL,
+This file and its contents are supplied under the terms of the
+Common Development and Distribution License ("CDDL"), version 1.0.
+You may only use this file in accordance with the terms of version
+1.0 of the CDDL.
+
+A full copy of the text of the CDDL should have accompanied this
+source.  A copy of the CDDL is also available via the Internet at
+https://opensource.org/license/CDDL-1.0.
+END_CDDL
+);
+
+# File patterns that are not expected to have license boilerplate at all.
+# These are limited to certain build files.
+my $boilerplate_exclude_patterns = q(
+	autogen.sh
+	Makefile.am
+	*/Makefile.am
+	config/*.m4
+	config/*.am
+);
+
+# Comment prefixes. When searching for license boilerplates, only lines
+# beginning with these sequences are considered, and the prefixes are stripped.
+my @comment_prefixes = (
+    '*',    # C source & headers, assembly
+    '#',    # shell/Python/etc
+    '.\"',  # manpages
+    '--',   # Lua
+);
+
 ##########
 
 sub setup_patterns {
@@ -338,6 +376,21 @@ my %override_tags = map {
 	my $tag = $_;
 	map { $_ => $tag } @{$override_file_license_tags{$_}};
 } keys %override_file_license_tags;
+
+# Regexes for the "flattened" form of the boilerplate - all on one line, all
+# whitespace removed.
+my %boilerplate_re = map {
+	my $flat = $boilerplate{$_} =~ s{\s+}{}smgr;
+	($_ => qr/\Q$flat\E/)
+} keys %boilerplate;
+
+my ($boilerplate_exclude_re, $boilerplate_exclude_files) =
+    setup_patterns($boilerplate_exclude_patterns);
+
+my $comment_prefix_re = do {
+	my $re = join '|', map { quotemeta } @comment_prefixes;
+	qr/(?:$re)/
+};
 
 ##########
 
@@ -416,6 +469,27 @@ for my $file (@git_files) {
 		$rc = 1;
 		next;
 	}
+
+	# Go to next file unless it we need to do a boilerplate check too.
+	next unless exists $boilerplate{$tag};
+
+	# Exclude if on the boilerplate exclusion list
+	next if delete($boilerplate_exclude_files->{$file}) ||
+	    $file =~ $boilerplate_exclude_re;
+
+	# Read the file, take only the text part of comment lines, then
+	# flatten and remove whitespace.
+	open $fh, '<', $file or die "$0: couldn't open $file: $!\n";
+	my $comment = join '',
+	    map { s{\s+}{}smgr }
+	    map { m{^\s*$comment_prefix_re\s*(.*\S)\s*}smg } <$fh>;
+	close $fh;
+
+	# Warn if the boilerplate text is not found in the comment text.
+	unless ($comment =~ $boilerplate_re{$tag}) {
+		say "invalid or missing license boilerplate: $file";
+		$rc = 1;
+	}
 }
 
 ##########
@@ -433,6 +507,10 @@ for my $file (sort keys %$untagged_files) {
 }
 for my $file (sort keys %override_tags) {
 	say "explicitly overridden file not on disk: $file";
+	$rc = 1;
+}
+for my $file (sort keys %$boilerplate_exclude_files) {
+	say "file explicitly exclude from boilerplate check not on disk: $file";
 	$rc = 1;
 }
 
