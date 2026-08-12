@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: CDDL-1.0
 /* SPDX-License-Identifier: CDDL-1.0 OR MPL-2.0 */
 /*
  * This file and its contents are supplied under the terms of the
