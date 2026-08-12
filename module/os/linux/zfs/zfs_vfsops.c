@@ -1272,6 +1272,16 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
+
+		/*
+		 * The async DIO drain was set above.  Since we are bailing
+		 * out without a matching zfs_resume_fs(), re-enable async
+		 * DIO now so the filesystem is not permanently degraded.
+		 */
+		mutex_enter(&zfsvfs->z_async_dio_lock);
+		zfsvfs->z_async_dio_draining = B_FALSE;
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+
 		return (SET_ERROR(EIO));
 	}
 
