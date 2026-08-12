@@ -5611,27 +5611,23 @@ arc_read_done(zio_t *zio)
 
 	/*
 	 * The hdr was inserted into hash-table and removed from lists
-	 * prior to starting I/O.  We should find this header, since
-	 * it's in the hash table, and it should be legit since it's
-	 * not possible to evict it during the I/O.  The only possible
-	 * reason for it not to be found is if we were freed during the
-	 * read.
+	 * prior to starting I/O.  The reference taken for the I/O
+	 * keeps it from being evicted, freed or re-keyed, so its identity
+	 * is stable here and the hash lock can be derived from it directly.
+	 * Embedded bps have no DVA, are never hashed and need no lock.
 	 */
-	if (HDR_IN_HASH_TABLE(hdr)) {
-		arc_buf_hdr_t *found;
+	if (!BP_IS_EMBEDDED(bp)) {
+		hash_lock = HDR_LOCK(hdr);
+		mutex_enter(hash_lock);
+
+		ASSERT(HDR_IN_HASH_TABLE(hdr));
+		ASSERT(hdr->b_l1hdr.b_state != arc_anon);
 
 		ASSERT3U(hdr->b_birth, ==, BP_GET_PHYSICAL_BIRTH(zio->io_bp));
 		ASSERT3U(hdr->b_dva.dva_word[0], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[0]);
 		ASSERT3U(hdr->b_dva.dva_word[1], ==,
 		    BP_IDENTITY(zio->io_bp)->dva_word[1]);
-
-		found = buf_hash_find(hdr->b_spa, zio->io_bp, &hash_lock);
-
-		ASSERT((found == hdr &&
-		    DVA_EQUAL(&hdr->b_dva, BP_IDENTITY(zio->io_bp))) ||
-		    (found == hdr && HDR_L2_READING(hdr)));
-		ASSERT3P(hash_lock, !=, NULL);
 	}
 
 	if (BP_IS_PROTECTED(bp)) {
@@ -6622,7 +6618,6 @@ arc_freed(spa_t *spa, const blkptr_t *bp)
 	} else {
 		mutex_exit(hash_lock);
 	}
-
 }
 
 /*
@@ -6777,7 +6772,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		arc_cksum_verify(buf);
 		arc_buf_unwatch(buf);
 
-		/* if this is the last uncompressed buf free the checksum */
+		/* If this is the last uncompressed buf, free the checksum. */
 		if (!arc_hdr_has_uncompressed_buf(hdr))
 			arc_cksum_free(hdr);
 
@@ -6805,7 +6800,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		ASSERT(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) == 1);
 		/* protected by hash lock, or hdr is on arc_anon */
 		ASSERT(!multilist_link_active(&hdr->b_l1hdr.b_arc_node));
-		VERIFY(!HDR_IO_IN_PROGRESS(hdr));
+		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 
 		if (HDR_HAS_L2HDR(hdr)) {
 			mutex_enter(&hdr->b_l2hdr.b_dev->l2ad_mtx);
@@ -7055,7 +7050,7 @@ arc_write_done(zio_t *zio)
 			/*
 			 * This can only happen if we overwrite for
 			 * sync-to-convergence, because we remove
-			 * buffers from the hash table when we arc_free().
+			 * buffers from the hash table at arc_release().
 			 */
 			if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
 				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
