@@ -249,6 +249,9 @@ my %override_file_license_tags = (
 	'OpenSSL-standalone' => [qw(
 		module/icp/asm-x86_64/aes/aes_aesni.S
 	)],
+	'CDDL-1.0 OR MPL-2.0' => [qw(
+		tests/zfs-tests/cmd/renameat2.c
+	)],
 
 	# Legacy inclusions of BSD-2-Clause files in Linux SPL.
 	'BSD-2-Clause' => [qw(
