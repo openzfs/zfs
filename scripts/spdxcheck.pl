@@ -414,10 +414,17 @@ for my $file (@git_files) {
 	my $nbytes = read $fh, my $buf, 4096;
 	die "$0: couldn't read $file: $!\n" if !defined $nbytes;
 
-	my ($tag) =
-	    $buf =~ m/\bSPDX-License-Identifier: ([A-Za-z0-9_\-\. ]+)$/smg;
+	my ($tag, @extra) =
+	    map { s{^\s+|\s+$}{}smgr }
+	    $buf =~ m/\bSPDX-License-Identifier: ([A-Za-z0-9_\-\. ]+)/smg;
 
 	close $fh;
+
+	if (@extra) {
+		say "multiple tags: $file";
+		$rc = 1;
+		next;
+	}
 
 	# Decide if the file should have a tag at all
 	my $tagged = file_is_tagged($file);
