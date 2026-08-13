@@ -251,6 +251,10 @@ zfs__init(void)
 {
 	int error;
 
+	zalgo_init();
+	zalgo_shim_fletcher_register();
+	zalgo_bench_all();
+
 #if KSTACK_PAGES < ZFS_MIN_KSTACK_PAGES
 	printf("ZFS NOTICE: KSTACK_PAGES is %d which could result in stack "
 	    "overflow panic!\nPlease consider adding "
@@ -284,6 +288,7 @@ zfs__fini(void)
 	}
 	zfs_kmod_fini();
 	tsd_destroy(&zfs_geom_probe_vdev_key);
+	zalgo_fini();
 	return (0);
 }
 
