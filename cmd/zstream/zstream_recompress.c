@@ -354,7 +354,7 @@ zstream_do_recompress(int argc, char *argv[])
 {
 	int c;
 	int level = ZIO_COMPLEVEL_DEFAULT;
-	uint_t num_threads = 0;
+	int num_threads = 0;
 
 	chain_attrs_t attrs = { .ca_command_opts = CA_FORBID_DEDUP };
 
@@ -367,7 +367,7 @@ zstream_do_recompress(int argc, char *argv[])
 			}
 			break;
 		case 't':
-			if (sscanf(optarg, "%u", &num_threads) != 1) {
+			if (sscanf(optarg, "%d", &num_threads) != 1) {
 				warnx("failed to parse num_threads '%s'",
 				    optarg);
 				zstream_usage();
