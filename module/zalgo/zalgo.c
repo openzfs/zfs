@@ -155,6 +155,7 @@ zalgo_register(zalgo_type_t type, uint_t subtype, const char *id,
 	node->zgn_id = id;
 	node->zgn_desc = desc;
 	node->zgn_ops = ops;
+	node->zgn_score = 0;
 	node->zgn_refcount = 2;
 
 	mutex_enter(&zg_registry_lock);
@@ -254,6 +255,9 @@ zalgo_select(zalgo_type_t type, uint_t subtype, const char *id)
 	return (ENOENT);
 }
 
+static void zalgo_kstat_init(void);
+static void zalgo_kstat_fini(void);
+
 void
 zalgo_init(void)
 {
@@ -269,11 +273,15 @@ zalgo_init(void)
 		}
 	}
 	mutex_init(&zg_registry_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	zalgo_kstat_init();
 }
 
 void
 zalgo_fini(void)
 {
+	zalgo_kstat_fini();
+
 	for (zalgo_type_t type = 0; type < ZG_TYPE_MAX; type++) {
 		for (uint_t subtype = 0;
 		    subtype < zalgo_subtype_max[type]; subtype++) {
@@ -396,4 +404,82 @@ zalgo_bench_all(void)
 		for (uint_t subtype = 0;
 		    subtype < zalgo_subtype_max[type]; subtype++)
 			zalgo_bench(type, subtype);
+}
+
+/* ========== */
+
+static kstat_t *zalgo_ksp = NULL;
+
+static int
+zalgo_kstat_headers(char *buf, size_t size)
+{
+	size_t n = snprintf(buf, size,
+	    "%-8s  %-20s  %-20s  %-6s  %s\n",
+	    "TYPE", "SUBTYPE", "ID", "SCORE", "FLAGS");
+	return (n >= size ? ENOMEM : 0);
+}
+
+static int
+zalgo_kstat_data(char *buf, size_t size, void *data)
+{
+	(void)data;
+	size_t n;
+	int err = 0;
+
+	mutex_enter(&zg_registry_lock);
+	for (zalgo_type_t type = 0; err == 0 && type < ZG_TYPE_MAX; type++) {
+		for (uint_t subtype = 0;
+		    err == 0 && subtype < zalgo_subtype_max[type]; subtype++) {
+			zalgo_registry_t *reg = &zg_registry[type][subtype];
+			for (zalgo_node_t *node = list_head(&reg->zr_nodes);
+			    err == 0 && node != NULL;
+			    node = list_next(&reg->zr_nodes, node)) {
+				n = snprintf(buf, size,
+				    "%-8s  %-20s  %-20s  %-6llu %s%s\n",
+				    zalgo_type_to_str(type),
+				    zalgo_subtype_to_str(type, subtype),
+				    node->zgn_id,
+				    (u_longlong_t)node->zgn_score,
+				    node == reg->zr_best ? " [best]" : "",
+				    node == reg->zr_current ? " [selected]" : "");
+				if (n >= size) {
+					err = ENOMEM;
+					break;
+				}
+
+				buf = &buf[n];
+				size -= n;
+			}
+		}
+	}
+	mutex_exit(&zg_registry_lock);
+
+	return (err);
+}
+
+static void
+zalgo_kstat_init(void)
+{
+	kstat_t *ksp = kstat_create("zfs", 0, "zalgo", "misc",
+	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+	if (ksp == NULL)
+		return;
+
+	ksp->ks_data = (void *)(uintptr_t)1;
+	ksp->ks_ndata = 1;
+	kstat_set_raw_ops(ksp, zalgo_kstat_headers,
+	    zalgo_kstat_data, NULL);
+	kstat_install(ksp);
+
+	zalgo_ksp = ksp;
+}
+
+static void
+zalgo_kstat_fini(void)
+{
+	if (zalgo_ksp == NULL)
+		return;
+
+	kstat_delete(zalgo_ksp);
+	zalgo_ksp = NULL;
 }
