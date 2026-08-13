@@ -253,6 +253,7 @@ zfs__init(void)
 
 	zalgo_init();
 	zalgo_shim_fletcher_register();
+	zalgo_shim_freebsd_register();
 	zalgo_bench_all();
 
 #if KSTACK_PAGES < ZFS_MIN_KSTACK_PAGES

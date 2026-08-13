@@ -237,7 +237,8 @@ SRCS+=	abd_os.c \
 #zalgo
 SRCS+=	zalgo.c \
 	zalgo_bench.c \
-	zalgo_shim_fletcher.c
+	zalgo_shim_fletcher.c \
+	zalgo_shim_freebsd.c
 
 #zcommon
 SRCS+=	cityhash.c \
