@@ -233,13 +233,13 @@ MODULE_PARM_DESC(zfs_async_read_task_depth,
 	"Workers for async Direct I/O reads per pool; read-only, set "
 	"at module load");
 
-static unsigned long zfs_async_read_max_inflight = 512 * 1024 * 1024;
+static unsigned long zfs_async_read_max_inflight = 64 * 1024 * 1024;
 module_param(zfs_async_read_max_inflight, ulong, 0644);
 MODULE_PARM_DESC(zfs_async_read_max_inflight,
-	"Maximum bytes of in-flight async Direct I/O reads. "
+	"Maximum bytes of in-flight async Direct I/O reads per dataset. "
 	"The user pages of admitted requests are pinned, so this bounds the "
 	"pinned memory held by queued reads.  Requests beyond this limit are "
-	"served synchronously.  Defaults to 512 MiB");
+	"served synchronously.  Defaults to 64 MiB");
 
 /*
  * Per-pool (SPA) async read worker pool.  One taskq per storage pool, shared
@@ -434,7 +434,7 @@ zpl_async_read_queue(struct kiocb *kiocb, struct iov_iter *to, ssize_t count)
 	}
 
 	/*
-	 * Admit the request before pinning any user pages: the per-pool
+	 * Admit the request before pinning any user pages: per dataset
 	 * in-flight bound caps the pinned memory held by queued requests.
 	 * If the pool is at the limit, fall back to the synchronous path
 	 * rather than queueing another pinned request.
