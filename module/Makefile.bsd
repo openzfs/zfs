@@ -12,16 +12,26 @@ KMOD=	openzfs
 .PATH:	${SRCDIR}/avl \
 	${SRCDIR}/lua \
 	${SRCDIR}/nvpair \
+	${SRCDIR}/icp/algs/aes \
 	${SRCDIR}/icp/algs/blake3 \
 	${SRCDIR}/icp/algs/edonr \
+	${SRCDIR}/icp/algs/modes \
 	${SRCDIR}/icp/algs/sha2 \
+	${SRCDIR}/icp/algs/skein \
+	${SRCDIR}/icp/api \
 	${SRCDIR}/icp/asm-aarch64/blake3 \
 	${SRCDIR}/icp/asm-aarch64/sha2 \
 	${SRCDIR}/icp/asm-arm/sha2 \
 	${SRCDIR}/icp/asm-ppc64/sha2 \
 	${SRCDIR}/icp/asm-ppc64/blake3 \
+	${SRCDIR}/icp/asm-x86_64/aes \
 	${SRCDIR}/icp/asm-x86_64/blake3 \
 	${SRCDIR}/icp/asm-x86_64/sha2 \
+	${SRCDIR}/icp/asm-x86_64/modes \
+	${SRCDIR}/icp/core \
+	${SRCDIR}/icp/io \
+	${SRCDIR}/icp/spi \
+	${SRCDIR}/icp \
 	${SRCDIR}/os/freebsd/spl \
 	${SRCDIR}/os/freebsd/zfs \
 	${SRCDIR}/unicode \
@@ -90,10 +100,48 @@ SRCS=	vnode_if.h device_if.h bus_if.h
 #avl
 SRCS+=	avl.c
 
+#icp/algs/aes
+SRCS+=	aes_impl.c \
+	aes_impl_generic.c \
+	aes_modes.c
+
+#icp/algs/modes
+SRCS+=	ccm.c \
+	gcm.c \
+	gcm_generic.c \
+	modes.c
+
 #icp/algs/blake3
 SRCS+=	blake3.c \
 	blake3_generic.c \
 	blake3_impl.c
+
+#icp/algs/skein
+SRCS+=	skein.c \
+	skein_block.c \
+	skein_iv.c
+
+#icp/api
+SRCS+=	kcf_cipher.c \
+	kcf_ctxops.c \
+	kcf_mac.c
+
+#icp/core
+SRCS+=	kcf_callprov.c \
+	kcf_mech_tabs.c \
+	kcf_prov_lib.c \
+	kcf_prov_tabs.c \
+	kcf_sched.c
+
+#icp/io
+SRCS+=	aes.c \
+	sha2_mod.c
+
+#icp/spi
+SRCS+=	kcf_spi.c
+
+#icp
+SRCS+=	illumos-crypto.c
 
 .if ${MACHINE_ARCH} == "aarch64"
 #icp/asm-aarch64/blake3
@@ -113,6 +161,22 @@ SRCS+=	blake3_avx2.S \
 	blake3_avx512.S \
 	blake3_sse2.S \
 	blake3_sse41.S
+
+#icp/asm-x86_64/aes
+SRCS+=	aes_aesni.S \
+	aes_amd64.S \
+	aeskey.c
+
+#icp/asm-x86_64/modes
+SRCS+=	aesni-gcm-x86_64.S \
+	aesni-gcm-avx2-vaes.S \
+	gcm_pclmulqdq.S \
+	ghash-x86_64.S
+
+#icp/algs/aes
+SRCS+=	aes_impl_aesni.c \
+	aes_impl_x86-64.c \
+	gcm_pclmulqdq.c
 .endif
 
 #icp/algs/edonr
@@ -211,7 +275,6 @@ SRCS+= spl_atomic.c
 #os/freebsd/zfs
 SRCS+=	abd_os.c \
 	arc_os.c \
-	crypto_os.c \
 	dmu_os.c \
 	event_os.c \
 	hkdf.c \
@@ -238,7 +301,8 @@ SRCS+=	abd_os.c \
 SRCS+=	zalgo.c \
 	zalgo_bench.c \
 	zalgo_shim_fletcher.c \
-	zalgo_shim_freebsd.c
+	zalgo_shim_freebsd.c \
+	zalgo_shim_icp.c
 
 #zcommon
 SRCS+=	cityhash.c \
@@ -507,6 +571,15 @@ CFLAGS.zil.c= -Wno-cast-qual
 CFLAGS.zio.c= -Wno-cast-qual
 CFLAGS.zprop_common.c= -Wno-cast-qual
 CFLAGS.zrlock.c= -Wno-cast-qual
+
+CFLAGS.aes_impl.c= -Wno-cast-qual
+CFLAGS.gcm.c= -Wno-cast-qual
+CFLAGS.aeskey.c= -Wno-cast-qual
+
+CFLAGS.kcf_prov_lib.c= -Wno-gnu-pointer-arith
+CFLAGS.sha2_mod.c= -Wno-gnu-pointer-arith
+
+CFLAGS.zalgo_shim_icp.c= -Wno-cast-qual
 
 #zstd
 CFLAGS.entropy_common.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
