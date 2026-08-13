@@ -869,7 +869,7 @@ again:
 	return (zio);
 }
 
-static boolean_t
+boolean_t
 vdev_should_queue_io(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
@@ -950,6 +950,13 @@ vdev_queue_io(zio_t *zio)
 		return (zio);
 	}
 
+	/*
+	 * A zio holding a queue slot can not be part of a completion batch,
+	 * since the slot would then be released only once the whole batch is
+	 * complete.
+	 */
+	zio_batch_leave(zio);
+
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_io_add(vq, zio);
 	nio = vdev_queue_io_to_issue(vq);
@@ -978,9 +985,19 @@ vdev_queue_io_done(zio_t *zio)
 	zio_t *dio, *nio;
 	zio_link_t *zl = NULL;
 
-	hrtime_t now = gethrtime();
-	vq->vq_io_complete_ts = now;
-	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
+	/*
+	 * io_delta is already set if this zio's completion was deferred, so
+	 * that the service time excludes however long it waited.  Batched
+	 * completions are not processed in arrival order, so the resulting
+	 * completion time may predate what vq_io_complete_ts holds.
+	 */
+	if (zio->io_delta == 0)
+		zio->io_delta = gethrtime() - zio->io_timestamp;
+	hrtime_t now = zio->io_timestamp + zio->io_delta;
+	if (now > vq->vq_io_complete_ts) {
+		vq->vq_io_complete_ts = now;
+		vq->vq_io_delta_ts = zio->io_delta;
+	}
 
 	if (zio->io_queue_state == ZIO_QS_NONE)
 		return;

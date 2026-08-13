@@ -473,6 +473,16 @@ enum zio_qstate {
 	ZIO_QS_ACTIVE,
 };
 
+/*
+ * A set of sibling child ZIOs whose completions are processed together on one
+ * thread once all of them have returned from the block layer.  See the comment
+ * above zio_batch_enabled.
+ */
+typedef struct zio_batch {
+	zio_t		*zb_arrived;	/* lock-free LIFO of arrived members */
+	uint64_t	zb_holds;	/* members not yet arrived + creator */
+} zio_batch_t;
+
 struct zio {
 	/* Core information about this I/O */
 	zbookmark_phys_t	io_bookmark;
@@ -559,6 +569,11 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	/* Completion batching state */
+	zio_batch_t	*io_batch;	/* batch this zio is a member of */
+	zio_batch_t	*io_child_batch; /* batch its vdev children join */
+	zio_t		*io_batch_next;	/* link on zb_arrived */
 };
 
 enum blk_verify_flag {
@@ -639,6 +654,10 @@ extern void zio_interrupt(void *zio);
 extern void zio_delay_init(zio_t *zio);
 extern void zio_delay_interrupt(zio_t *zio);
 extern void zio_deadman(zio_t *zio, const char *tag);
+
+extern void zio_batch_create(zio_t *pio);
+extern void zio_batch_rele(zio_t *pio);
+extern void zio_batch_leave(zio_t *zio);
 
 extern zio_t *zio_walk_parents(zio_t *cio, zio_link_t **);
 extern zio_t *zio_walk_children(zio_t *pio, zio_link_t **);
