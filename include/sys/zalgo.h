@@ -202,6 +202,7 @@ void zalgo_fini(void);
 void zalgo_bench_all(void);
 
 int zalgo_shim_fletcher_register(void);
+int zalgo_shim_freebsd_register(void);
 int zalgo_shim_icp_register(void);
 int zalgo_shim_openssl_register(void);
 
