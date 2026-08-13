@@ -232,7 +232,6 @@ SRCS+=	abd_os.c \
 	zfs_vfsops.c \
 	zfs_vnops_os.c \
 	zfs_znode_os.c \
-	zio_crypt_os.c \
 	zvol_os.c
 
 #zalgo
@@ -388,6 +387,7 @@ SRCS+=	abd.c \
 	zio_checksum.c \
 	zio_compress.c \
 	zio_crypt.c \
+	zio_crypt_os_icp.c \
 	zio_inject.c \
 	zle.c \
 	zrlock.c \
