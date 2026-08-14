@@ -11230,6 +11230,27 @@ cleanup:
 	return (err);
 }
 
+/* A log block whose payload wraps l2ad_end carries entries on both sides. */
+static boolean_t
+l2arc_log_ent_valid(l2arc_dev_t *dev, const l2arc_log_ent_phys_t *le)
+{
+	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev,
+	    L2BLK_GET_PSIZE((le)->le_prop));
+	uint64_t start = le->le_daddr;
+	uint64_t end = start + asize - 1;
+
+	if (asize == 0 || start < dev->l2ad_start || end > dev->l2ad_end)
+		return (B_FALSE);
+
+	/* On a first sweep only the region below the write hand was written. */
+	if (dev->l2ad_first)
+		return (end < dev->l2ad_hand);
+
+	return (!l2arc_range_check_overlap(dev->l2ad_hand, dev->l2ad_evict,
+	    start) &&
+	    !l2arc_range_check_overlap(dev->l2ad_hand, dev->l2ad_evict, end));
+}
+
 /*
  * Restores the payload of a log block to ARC. This creates empty ARC hdr
  * entries which only contain an l2arc hdr, essentially restoring the
@@ -11240,7 +11261,7 @@ static void
 l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
     uint64_t lb_asize)
 {
-	uint64_t	size = 0, asize = 0;
+	uint64_t	size = 0, asize = 0, bufs = 0;
 	uint64_t	log_entries = dev->l2ad_log_entries;
 
 	/*
@@ -11251,6 +11272,9 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 	arc_adapt(log_entries * HDR_L2ONLY_SIZE);
 
 	for (int i = log_entries - 1; i >= 0; i--) {
+		if (!l2arc_log_ent_valid(dev, &lb->lb_entries[i]))
+			continue;
+
 		/*
 		 * Restore goes in the reverse temporal direction to preserve
 		 * correct temporal ordering of buffers in the l2ad_buflist.
@@ -11274,6 +11298,7 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 		size += L2BLK_GET_LSIZE((&lb->lb_entries[i])->le_prop);
 		asize += vdev_psize_to_asize(dev->l2ad_vdev,
 		    L2BLK_GET_PSIZE((&lb->lb_entries[i])->le_prop));
+		bufs++;
 		l2arc_hdr_restore(&lb->lb_entries[i], dev);
 	}
 
@@ -11284,7 +11309,7 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 	 */
 	ARCSTAT_INCR(arcstat_l2_rebuild_size, size);
 	ARCSTAT_INCR(arcstat_l2_rebuild_asize, asize);
-	ARCSTAT_INCR(arcstat_l2_rebuild_bufs, log_entries);
+	ARCSTAT_INCR(arcstat_l2_rebuild_bufs, bufs);
 	ARCSTAT_F_AVG(arcstat_l2_log_blk_avg_asize, lb_asize);
 	ARCSTAT_F_AVG(arcstat_l2_data_to_meta_ratio, asize / lb_asize);
 	ARCSTAT_BUMP(arcstat_l2_rebuild_log_blks);
