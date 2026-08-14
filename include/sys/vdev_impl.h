@@ -67,7 +67,7 @@ typedef int	vdev_init_func_t(spa_t *spa, nvlist_t *nv, void **tsd);
 typedef void	vdev_kobj_post_evt_func_t(vdev_t *vd);
 typedef void	vdev_fini_func_t(vdev_t *vd);
 typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
-    uint64_t *ashift, uint64_t *pshift);
+    uint64_t *ashift, uint64_t *pshift, cred_t *cr);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize, uint64_t txg);
 typedef uint64_t vdev_min_asize_func_t(vdev_t *vd);

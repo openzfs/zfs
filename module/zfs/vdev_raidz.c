@@ -2165,7 +2165,7 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *logical_ashift, uint64_t *physical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t nparity = vdrz->vd_nparity;
@@ -2181,7 +2181,7 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		return (SET_ERROR(EINVAL));
 	}
 
-	vdev_open_children(vd);
+	vdev_open_children(vd, cr);
 
 	for (c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];

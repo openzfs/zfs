@@ -282,8 +282,9 @@ vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t smode, void *holder)
 
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *logical_ashift, uint64_t *physical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
+	(void) cr;
 	zfs_bdev_handle_t *bdh;
 	spa_mode_t smode = spa_mode(v->vdev_spa);
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);

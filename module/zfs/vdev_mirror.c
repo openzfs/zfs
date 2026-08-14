@@ -386,7 +386,7 @@ vdev_mirror_map_init(zio_t *zio)
 
 static int
 vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *logical_ashift, uint64_t *physical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
 	int numerrors = 0;
 	int lasterror = 0;
@@ -396,7 +396,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		return (SET_ERROR(EINVAL));
 	}
 
-	vdev_open_children(vd);
+	vdev_open_children(vd, cr);
 
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];

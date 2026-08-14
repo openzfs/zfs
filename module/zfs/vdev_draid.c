@@ -1523,7 +1523,7 @@ vdev_draid_open_children(vdev_t *vd)
  */
 static int
 vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *logical_ashift, uint64_t *physical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
 	vdev_draid_config_t *vdc =  vd->vdev_tsd;
 	uint64_t nparity = vdc->vdc_nparity;
@@ -1540,8 +1540,8 @@ vdev_draid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	 * ordering is important to ensure the distributed spares calculate
 	 * the correct psize in the event that the dRAID vdevs were expanded.
 	 */
-	vdev_open_children_subset(vd, vdev_draid_open_children);
-	vdev_open_children_subset(vd, vdev_draid_open_spares);
+	vdev_open_children_subset(vd, cr, vdev_draid_open_children);
+	vdev_open_children_subset(vd, cr, vdev_draid_open_spares);
 
 	/* Verify enough of the children are available to continue. */
 	for (int c = 0; c < vd->vdev_children; c++) {
@@ -2466,8 +2466,9 @@ vdev_draid_spare_close(vdev_t *vd)
  */
 static int
 vdev_draid_spare_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *logical_ashift, uint64_t *physical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
+	(void) cr;
 	vdev_draid_spare_t *vds = vd->vdev_tsd;
 	vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
 	uint64_t asize, max_asize;
