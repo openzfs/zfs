@@ -87,16 +87,6 @@ priv_policy_user(const cred_t *cr, int capability, int err)
 }
 
 /*
- * Checks for operations that are either client-only or are used by
- * both clients and servers.
- */
-int
-secpolicy_nfs(const cred_t *cr)
-{
-	return (priv_policy(cr, CAP_SYS_ADMIN, EPERM));
-}
-
-/*
  * Catch all system configuration.
  */
 int
