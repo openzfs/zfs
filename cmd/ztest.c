@@ -419,7 +419,6 @@ ztest_func_t ztest_spa_prop_get_set;
 ztest_func_t ztest_spa_create_destroy;
 ztest_func_t ztest_fault_inject;
 ztest_func_t ztest_dmu_snapshot_hold;
-ztest_func_t ztest_mmp_enable_disable;
 ztest_func_t ztest_scrub;
 ztest_func_t ztest_dsl_dataset_promote_busy;
 ztest_func_t ztest_vdev_attach_detach;
@@ -479,7 +478,6 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_spa_create_destroy, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_fault_inject, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_dmu_snapshot_hold, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_mmp_enable_disable, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_reguid, 1, &zopt_rarely),
 	ZTI_INIT(ztest_scrub, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_upgrade, 1, &zopt_rarely),
@@ -3074,56 +3072,6 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	spa_close(spa, FTAG);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
-}
-
-/*
- * Start and then stop the MMP threads to ensure the startup and shutdown code
- * works properly.  Actual protection and property-related code tested via ZTS.
- */
-void
-ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
-{
-	(void) zd, (void) id;
-	ztest_shared_opts_t *zo = &ztest_opts;
-	spa_t *spa = ztest_spa;
-
-	if (zo->zo_mmp_test)
-		return;
-
-	/*
-	 * Since enabling MMP involves setting a property, it could not be done
-	 * while the pool is suspended.
-	 */
-	if (spa_suspended(spa))
-		return;
-
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	mutex_enter(&spa->spa_props_lock);
-
-	zfs_multihost_fail_intervals = 0;
-
-	if (!spa_multihost(spa)) {
-		spa->spa_multihost = B_TRUE;
-		mmp_thread_start(spa);
-	}
-
-	mutex_exit(&spa->spa_props_lock);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
-
-	txg_wait_synced(spa_get_dsl(spa), 0);
-	mmp_signal_all_threads();
-	txg_wait_synced(spa_get_dsl(spa), 0);
-
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	mutex_enter(&spa->spa_props_lock);
-
-	if (spa_multihost(spa)) {
-		mmp_thread_stop(spa);
-		spa->spa_multihost = B_FALSE;
-	}
-
-	mutex_exit(&spa->spa_props_lock);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
 }
 
 static int
