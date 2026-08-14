@@ -1107,8 +1107,7 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	    cr, vsecp, &acl_ids)) != 0)
 		goto out;
 
-	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
-		projid = zfs_inherit_projid(dzp);
+	projid = zfs_inherit_projid(dzp);
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		error = SET_ERROR(EDQUOT);
@@ -3651,7 +3650,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, ZFS_DEFAULT_PROJID)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zfs_inherit_projid(dzp))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EDQUOT));
