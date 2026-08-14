@@ -736,8 +736,7 @@ top:
 			goto out;
 		have_acl = B_TRUE;
 
-		if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
-			projid = zfs_inherit_projid(dzp);
+		projid = zfs_inherit_projid(dzp);
 		if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 			zfs_acl_ids_free(&acl_ids);
 			error = SET_ERROR(EDQUOT);
@@ -930,8 +929,7 @@ top:
 		goto out;
 	have_acl = B_TRUE;
 
-	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
-		projid = zfs_inherit_projid(dzp);
+	projid = zfs_inherit_projid(dzp);
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		error = SET_ERROR(EDQUOT);
@@ -3057,11 +3055,8 @@ top:
 
 	/* Set up inode creation for RENAME_WHITEOUT. */
 	if (rflags & RENAME_WHITEOUT) {
-		/*
-		 * Whiteout files are not regular files or directories, so to
-		 * match zfs_create() we do not inherit the project id.
-		 */
-		uint64_t wo_projid = ZFS_DEFAULT_PROJID;
+		/* Match zfs_create(): the whiteout joins its directory. */
+		uint64_t wo_projid = zfs_inherit_projid(sdzp);
 
 		error = zfs_zaccess(sdzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns);
 		if (error)
@@ -3389,7 +3384,7 @@ top:
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, ZFS_DEFAULT_PROJID)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zfs_inherit_projid(dzp))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
